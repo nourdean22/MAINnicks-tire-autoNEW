@@ -135,16 +135,19 @@ async function claimActionBlocks(traceId: string, actions: unknown[], log: ChatL
 }
 
 /**
- * Settle the claim. A phase that did not return (timed out or threw) is
- * UNKNOWN, never FAILED: FAILED is re-claimable, and actions that may have
- * landed must not run again on a replay.
+ * Settle the claim on the actions' real outcome, whenever it arrives: the 15 s
+ * budget only bounds the wait, so actions still running past it stay EXECUTING
+ * until they return (2026-10-10: settling UNKNOWN at the budget was permanent
+ * even when they finished a moment later). A throw is UNKNOWN, never FAILED:
+ * FAILED is re-claimable, and actions that may have landed must not run again.
  */
-async function settleActionBlocks(attemptId: string, executed: boolean, traceId: string): Promise<void> {
+async function settleActionBlocks(attemptId: string, run: Promise<unknown>, traceId: string): Promise<void> {
+  const returned = await run.then(() => true, () => false);
   await settleAttempt(
     attemptId,
-    executed
+    returned
       ? { disposition: "success" }
-      : { disposition: "unknown", reason: "action blocks did not return inside their 15 s budget (timed out or threw); not re-run" },
+      : { disposition: "unknown", reason: "action blocks threw; some may have landed; not re-run" },
   ).catch((err: unknown) => logError("chat.action-blocks", err, { stage: "settle", traceId }, "warn"));
 }
 
@@ -534,12 +537,12 @@ export async function runDeferredBackgroundWork(ctx: DeferredBackgroundCtx) {
         // outbox row done when this function returns, so the row must not say
         // done while the actions are still in flight. The 15 s budget bounds
         // the wait (and so the SSE message.completed event on action turns).
-        let executed = false;
         await withErrorCapture(
           "chat:actions",
           async () => {
-            const results = await executeActions(actions);
-            executed = true;
+            const run = executeActions(actions);
+            if (actionsClaim.attemptId) await settleActionBlocks(actionsClaim.attemptId, run, traceId);
+            const results = await run;
             log.info("nick_agent_executed", {
               count: results.length,
               outcomes: results.map((r) => ({ action: r.action, ok: r.success, err: r.error })),
@@ -835,7 +838,6 @@ export async function runDeferredBackgroundWork(ctx: DeferredBackgroundCtx) {
           },
           { timeoutMs: 15_000 }
         );
-        if (actionsClaim.attemptId) await settleActionBlocks(actionsClaim.attemptId, executed, traceId);
       }
 
       // ── Smart reply suggestion cache warming ──

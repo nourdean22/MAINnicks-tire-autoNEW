@@ -33,6 +33,9 @@ import { GET } from "@/app/api/ai/chat/[conversationId]/stream/route";
 
 const ctx = (id: string) => ({ params: Promise.resolve({ conversationId: id }) });
 const req = () => ({}) as never;
+/** A resume that names its turn (P2-B6: an unnamed completed replay is a 204). */
+const namedReq = (traceId: string) =>
+  ({ nextUrl: new URL(`https://x.test/api/ai/chat/c/stream?traceId=${traceId}`) }) as never;
 
 /** Concatenate the text-delta payloads out of the SSE body. */
 async function readDeltas(res: Response): Promise<string> {
@@ -153,13 +156,13 @@ describe("resume route · completed turns (V1 behavior preserved)", () => {
   it("replays the PERSISTED message and does not flag partial", async () => {
     mockGetActiveStream.mockResolvedValue({
       status: "complete",
-      traceId: null,
+      traceId: "T1",
       startedAt: new Date().toISOString(),
       partialText: "raw stream text",
     });
     mockFindFirst.mockResolvedValue({ id: "m1", content: "canonical persisted reply" });
 
-    const res = await GET(req(), ctx("conv-1"));
+    const res = await GET(namedReq("T1"), ctx("conv-1"));
 
     expect(res.status).toBe(200);
     // The PERSISTED row wins over the raw partial: it carries any
@@ -171,12 +174,13 @@ describe("resume route · completed turns (V1 behavior preserved)", () => {
   it("complete but no message row → 204, never a fabricated completion", async () => {
     mockGetActiveStream.mockResolvedValue({
       status: "complete",
-      traceId: null,
+      traceId: "T1",
       startedAt: new Date().toISOString(),
       partialText: "",
     });
     mockFindFirst.mockResolvedValue(null);
-    expect((await GET(req(), ctx("conv-1"))).status).toBe(204);
+    expect((await GET(namedReq("T1"), ctx("conv-1"))).status).toBe(204);
+    expect(mockFindFirst).toHaveBeenCalled();
   });
 });
 

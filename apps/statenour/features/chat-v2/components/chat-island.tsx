@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, Brain, History, Mic, MicOff } from "lucide-react";
 import { isNearBottom } from "../lib/scroll-position";
+import { scrollBehavior } from "@/lib/ui/scroll-behavior";
 import { useChatUiStore } from "../stores/chat-ui-store";
 import { useChatStream } from "../hooks/use-chat-stream";
 import { resolveIslandHeight } from "../lib/island-height";
@@ -56,7 +57,7 @@ function useScrollToBottom<T extends HTMLElement>() {
       rafId = requestAnimationFrame(() => {
         rafId = null;
         if (measure()) {
-          endRef.current?.scrollIntoView({ behavior: "smooth" });
+          endRef.current?.scrollIntoView({ behavior: scrollBehavior() });
         }
       });
     });
@@ -69,7 +70,7 @@ function useScrollToBottom<T extends HTMLElement>() {
   }, []);
 
   const scrollToBottom = useCallback(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    endRef.current?.scrollIntoView({ behavior: scrollBehavior(), block: "end" });
   }, []);
 
   return { containerRef, endRef, isAtBottom, scrollToBottom };
@@ -302,6 +303,7 @@ export function ChatIsland() {
             onRetry={() => void chat.regenerate()}
             onCommand={(prompt) => chat.sendText(prompt)}
             tts={tts}
+            stopped={chat.stopped}
           />
           <div ref={endRef} />
         </div>

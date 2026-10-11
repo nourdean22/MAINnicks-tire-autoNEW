@@ -9,6 +9,7 @@ import {
   gradeAnswer,
 } from "../../../lib/evals/memory-eval-runner";
 import type { MemoryEval, MemoryEvalCategory } from "../../../lib/evals/memory-eval-types";
+import { buildMemoryEvalReport } from "../../../lib/evals/memory-eval-report";
 
 const ALL_CATEGORIES: MemoryEvalCategory[] = [
   "deployment_truth",
@@ -133,5 +134,17 @@ describe("real grounding — CURRENT-TRUTH.md drift guard", () => {
     );
     expect(grounded.length).toBeGreaterThan(0);
     for (const g of grounded) expect(g.status).toBe("pass");
+  });
+
+  // 2026-10-10 · #1771 trimmed "personal" out of AGENTS.md §1 and the live
+  // /system scoreboard showed biz-purpose failing. Reads the real docs the
+  // way prod does (cwd = app root), so the next trim goes red here first.
+  it("buildMemoryEvalReport() against the real docs has no failures", () => {
+    const report = buildMemoryEvalReport();
+    // Positive control: if no doc loaded, every grounded eval reads "manual"
+    // and failed === 0 would be vacuous.
+    expect(report.sourcesFound).toBe(report.sourcesExpected);
+    expect(report.results.find((x) => x.id === "biz-purpose")?.status).toBe("pass");
+    expect(report.failed).toBe(0);
   });
 });

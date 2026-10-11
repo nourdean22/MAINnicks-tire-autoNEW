@@ -328,11 +328,16 @@ export const TOOL_CATALOG: ToolMeta[] = [
   { name: "arsenalPreTaskFanout",         category: "research",       cost: "spendy" }, // v10.0.372 · multi-lens fan-out
   { name: "arsenalDeepResearch",          category: "research",       cost: "spendy" }, // v10.0.373 · multi-round autonomous research
   { name: "arsenalMultiAgent",            category: "research",       cost: "spendy" }, // v10.0.374 · parallel sub-agents
-  { name: "arsenalBoardConsult",          category: "research",       cost: "spendy" }, // AG-13 · advisor-board council
+  // AG-13 · advisor-board council. 2026-10-10 red-team · WRITES: it persists a
+  // BrainMemory consultation row (consultBoardAndPersist), the same miss as
+  // buildArchitectureMemory, so it ran under the lock and in Private Lab.
+  { name: "arsenalBoardConsult",          category: "research",       sideEffecting: true, cost: "spendy" },
   { name: "queueDeepResearch",            category: "research",       cost: "free" },   // AG-34 · fire-and-forget queue (the research itself bills the inngest run)
   { name: "arsenalNotebookLM",            category: "research",       battle: true, cost: "free" },
-  { name: "arsenalGmailInbox",            category: "comms",          cost: "free" }, // v10.0.379 · gmail inbox list
-  { name: "arsenalGmailReadThread",       category: "comms",          cost: "free" }, // v10.0.379 · gmail thread fetch
+  // v10.0.379 · Gmail list / thread fetch. GET-only reads (output fenced, taints
+  // the turn), so not "comms": that write category refused them in Read turns.
+  { name: "arsenalGmailInbox",            category: "research",       cost: "free" },
+  { name: "arsenalGmailReadThread",       category: "research",       cost: "free" },
   { name: "getCronStatus",                category: "research",       battle: true, cost: "free" },
 
   // ── browser (Browserbase / Stagehand) ────────────────────────────
@@ -348,10 +353,12 @@ export const TOOL_CATALOG: ToolMeta[] = [
 
   // ── inline rich renderers (v10.0.49) ─────────────────────────────
   // Ports of open-webui-plugins Inline Visualizer + Email Composer.
-  // Tool itself is pure (composeEmail does NOT send — explicit user
-  // click on the card POSTs to /api/email/send which is auth-gated).
+  // composeEmail does NOT send (the card's Send click POSTs to the
+  // auth-gated /api/email/send), but when Gmail is configured it calls
+  // createDraft() with a model-chosen recipient: an external write, so it is
+  // a sink (2026-10-10 red-team) and not battle (fast read-only) safe.
   { name: "renderInlineChart",            category: "content",        battle: true, cost: "free"   },
-  { name: "composeEmail",                 category: "comms",          battle: true, cost: "free"   },
+  { name: "composeEmail",                 category: "comms",          sideEffecting: true, cost: "free" },
 
   // ── learning resources (v10.0.52) ────────────────────────────────
   // Bundled curated tutorial catalog (codecrafters-io/build-your-own-x).

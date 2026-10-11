@@ -89,6 +89,11 @@ describe("checkSource - break-it fixtures must FAIL", () => {
       `export const GET = apiHandler(async () => {\n  ${LEAK}\n});\n`,
       ["GET"],
     ],
+    [
+      'apiHandler with an unknown auth mode ("queuex" is not "queue")',
+      `export const GET = apiHandler(async () => {\n  ${LEAK}\n}, { auth: "queuex" });\n`,
+      ["GET"],
+    ],
     ["GET re-exported from another module (unverifiable here)", 'export { GET } from "./impl";\n', ["GET"]],
     ["`export *` can carry a GET the gate cannot see", 'export * from "./impl";\n', ["export *"]],
     [
@@ -123,6 +128,10 @@ describe("checkSource - controls must PASS", () => {
   const cases: Array<[string, string]> = [
     ["requireSession inside GET", `export async function GET(req: Request) {\n  await requireSession(req);\n  ${LEAK}\n}\n`],
     ['apiHandler(..., { auth: "owner" })', `export const GET = apiHandler(async () => {\n  ${LEAK}\n}, { auth: "owner" });\n`],
+    [
+      'apiHandler(..., { auth: "queue" }) (scoped /api/sync/queue key)',
+      `export const GET = apiHandler(async () => {\n  ${LEAK}\n}, { auth: "queue" });\n`,
+    ],
     ["cronHandler wrapper", `export const GET = cronHandler("job", async () => ({ ok: true }));\n`],
     [
       "authed handler exported as `export { handler as GET }`",

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Image as ImageIcon, Mic } from "lucide-react";
@@ -18,6 +18,41 @@ import { SlashCommandDropdown, type SlashCommandAction } from "@/components/chat
 import { MentionDropdown } from "@/components/chat/mention-dropdown";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
+import { useDraftAutosave } from "@/hooks/use-draft-autosave";
+import { isSubmitEnter } from "../lib/submit-enter";
+
+/** 09-F12 · put a draft saved before a reload back, never over text already
+ *  in the composer (a deep-link prefill lands first). */
+export function restoreComposerDraft({
+  restore,
+  currentDraft,
+  setDraft,
+}: {
+  restore: () => string | null;
+  currentDraft: string;
+  setDraft: (draft: string) => void;
+}): void {
+  const saved = restore();
+  if (saved?.trim() && !currentDraft.trim()) setDraft(saved);
+}
+
+const COARSE_POINTER = "(pointer: coarse)";
+
+// Module scope on purpose: useSyncExternalStore re-subscribes whenever the
+// subscribe function changes, so an inline one re-added the listener every render.
+function subscribeCoarsePointer(onChange: () => void): () => void {
+  const query = window.matchMedia?.(COARSE_POINTER);
+  query?.addEventListener?.("change", onChange);
+  return () => query?.removeEventListener?.("change", onChange);
+}
+const readCoarsePointer = () => window.matchMedia?.(COARSE_POINTER).matches ?? false;
+const serverCoarsePointer = () => false;
+
+/** 09-F10 · phones and tablets: Enter is a newline there. The server render
+ *  (and hydration) assumes a fine pointer, then the real value takes over. */
+function useCoarsePointer(): boolean {
+  return useSyncExternalStore(subscribeCoarsePointer, readCoarsePointer, serverCoarsePointer);
+}
 
 function messageText(message: { parts?: Array<{ type?: string; text?: string }> }): string {
   return (message.parts ?? [])
@@ -32,6 +67,19 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
   const setDraft = useChatUiStore((s) => s.setDraft);
   const editingMessageId = useChatUiStore((s) => s.editingMessageId);
   const setEditingMessageId = useChatUiStore((s) => s.setEditingMessageId);
+  const draftReplace = useChatUiStore((s) => s.draftReplace);
+  const confirmDraftReplace = useChatUiStore((s) => s.confirmDraftReplace);
+  const cancelDraftReplace = useChatUiStore((s) => s.cancelDraftReplace);
+  const coarsePointer = useCoarsePointer();
+  const privateMode = useChatUiStore((s) => s.privateMode);
+  // 09-F12 · the draft survives a reload or an iOS PWA eviction. Private Lab
+  // leaves no trace: an empty value saves nothing and drops any saved draft.
+  const { clearDraft, restore } = useDraftAutosave({ key: "chat-composer", value: privateMode ? "" : draft });
+  useEffect(() => {
+    restoreComposerDraft({ restore, currentDraft: useChatUiStore.getState().draft, setDraft });
+    // Mount only: restore once, before anything is typed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // Edit-resend truncation — the same cascade the long-press delete
   // uses (deleteMessageCascade: target + everything after).
   const deleteMessageMutation = trpc.chat.deleteMessage.useMutation();
@@ -174,6 +222,9 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
       status: hasMentions ? "resolving-context" : "sending",
     });
     clearConversationDraft();
+    // Now, not after the autosave debounce: a reload inside that window would
+    // bring back a message that was already sent. A failed send re-sets it.
+    clearDraft();
 
     const resolution = await resolveMentionsWithTimeout({
       text: textToSend,
@@ -349,6 +400,49 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
           </button>
         </div>
       )}
+      {/* 09-F11 · a tap on a sent message, its Edit button, or a suggestion
+          link never overwrites typed text in one go: the second tap is here.
+          In-DOM, because window.confirm is silently suppressed in the iOS PWA.
+          Focus lands on Keep draft, the choice that loses nothing. */}
+      {draftReplace && (
+        <div
+          role="group"
+          aria-label="Replace draft?"
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              event.preventDefault();
+              cancelDraftReplace();
+              textareaRef.current?.focus();
+            }
+          }}
+          className="flex items-center justify-between gap-2 rounded-control border border-edge-default bg-surface pl-3 text-[12px] text-fg-secondary"
+        >
+          <span className="min-w-0 truncate">Replace draft?</span>
+          <div className="flex shrink-0 items-center gap-1">
+            <button
+              type="button"
+              onClick={() => {
+                confirmDraftReplace();
+                textareaRef.current?.focus();
+              }}
+              className="min-h-11 rounded-control px-3 font-medium text-fg transition-colors duration-[var(--motion-state)] hover:bg-surface-hover"
+            >
+              Replace
+            </button>
+            <button
+              type="button"
+              autoFocus
+              onClick={() => {
+                cancelDraftReplace();
+                textareaRef.current?.focus();
+              }}
+              className="min-h-11 rounded-control px-3 font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:bg-surface-hover hover:text-fg"
+            >
+              Keep draft
+            </button>
+          </div>
+        </div>
+      )}
       {slash.show && (
         <SlashCommandDropdown
           filtered={slash.filtered}
@@ -403,7 +497,8 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
       )}
 
       {/* UI v2 (2026-10-01): the composer is control chrome, so it gets the translucent material
-          (docs/design/ui-v2/SYSTEM.md §11). Focus = one accent edge + an L1 lift, no glow ring. */}
+          (docs/design/ui-v2/SYSTEM.md §11). Focus = one accent edge + an L1 lift; the textarea also
+          keeps the base :focus-visible ring (base.css is unlayered, so no utility can remove it). */}
       <div className="ui-material relative flex items-end gap-1.5 rounded-overlay border border-edge-default p-1.5 transition-[border-color,box-shadow] duration-[var(--motion-state)] ease-[var(--ease-standard)] focus-within:border-accent/60 focus-within:shadow-l1">
         <div className="flex shrink-0 items-center gap-0.5">
           <button type="button" onClick={openImgGallery} className="flex h-11 w-11 items-center justify-center rounded-control text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:bg-surface-interactive hover:text-fg" aria-label="Attach image, audio or PDF">
@@ -445,9 +540,15 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
               }
             }}
             onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey) {
+              // 09-F9/F10 · IME confirm never sends; on a phone Enter is a newline.
+              if (isSubmitEnter(event, { coarsePointer })) {
                 event.preventDefault();
-                if (!chat.isStreaming && (draft.trim() || imgAttached)) void sendOrQueue(draft.trim());
+                if (chat.isStreaming) {
+                  // Was swallowed without a word.
+                  toast("Nick is still replying. Stop the reply to send this.", { id: "composer-busy", duration: 3000 });
+                } else if (draft.trim() || imgAttached) {
+                  void sendOrQueue(draft.trim());
+                }
               }
               // Escape disarms edit-resend (keeps the draft text — the
               // operator may want it as a NEW message instead).
@@ -457,13 +558,14 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
               }
             }}
             placeholder="Ask, analyze, create, or tell Nick to act…"
-            className="max-h-[200px] min-h-11 w-full resize-none bg-transparent px-2 py-2.5 text-[16px] leading-[1.5] text-fg outline-none placeholder:text-fg-tertiary focus-visible:shadow-none"
+            enterKeyHint={coarsePointer ? "enter" : "send"}
+            className="max-h-[200px] min-h-11 w-full resize-none bg-transparent px-2 py-2.5 text-[16px] leading-[1.5] text-fg outline-none placeholder:text-fg-tertiary"
             rows={1}
           />
         </div>
 
         {chat.isStreaming ? (
-          <button type="button" aria-label="Stop generating" onClick={chat.stop} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-control bg-rose-500/90 text-white transition-colors hover:bg-rose-500">
+          <button type="button" aria-label="Stop generating" onClick={chat.stopTurn} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-control bg-rose-500/90 text-white transition-colors hover:bg-rose-500">
             <span className="block h-3 w-3 rounded-[3px] bg-current" />
           </button>
         ) : (

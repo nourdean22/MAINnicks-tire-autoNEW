@@ -94,7 +94,24 @@ const APPROVAL_ATTEMPT_HOLD_MS = 48 * 60 * 60 * 1000;
 /** A prior attempt for this approval exists: it may already have run. */
 class ApprovalAlreadyAttemptedError extends Error {}
 
+/** The dispatcher has no handler for this tool: nothing ran. */
+class NoHandlerError extends Error {}
+
+/**
+ * One verdict for a dispatch throw, shared by the ledger settle and the approval
+ * row so the two never disagree. Only a throw that provably ran nothing is a
+ * known failure; anything else may have reached the provider.
+ */
+function classifyDispatchError(err: unknown): "known_failure" | "unknown" {
+  if (err instanceof NoHandlerError) return "known_failure";
+  // circuit_open fast-fails before the tool is called (withGuardian below).
+  if (err instanceof GuardianError && err.category === "circuit_open") return "known_failure";
+  return "unknown";
+}
+
 export async function executeApprovedToolAsync(requestId: string): Promise<void> {
+  // Set when dispatch begins: a throw before it (claim, read) ran nothing.
+  let dispatchStarted = false;
   try {
     // Only `approved` is claimable. A stale `executing` row is NOT re-run: its
     // effect may have happened before `executed` was written (08-F1). The
@@ -123,6 +140,7 @@ export async function executeApprovedToolAsync(requestId: string): Promise<void>
     }
 
     const dispatch = async (): Promise<any> => {
+      dispatchStarted = true;
       const pending = pendingExecutions.get(requestId);
 
       if (pending) {
@@ -155,15 +173,19 @@ export async function executeApprovedToolAsync(requestId: string): Promise<void>
         executeActionWithoutTracing({ type: request.toolId as any, params: request.payload as Record<string, unknown> })
       );
       if (!actionResult.success) {
-        throw new Error(actionResult.error || `Action ${request.toolId} failed`);
+        const message = actionResult.error || `Action ${request.toolId} failed`;
+        // The dispatcher's own default branch (nick-agent.ts): no handler ran.
+        if (message === `Unknown action type: ${request.toolId}`) throw new NoHandlerError(message);
+        throw new Error(message);
       }
       return actionResult.result;
     };
 
     // Keyed by approvalId in the ActionAttempt ledger (beginAttempt): a prior
     // attempt for this approval blocks a rerun. A throw settles UNKNOWN (it may
-    // have committed). An unwritable ledger fails open like every other
-    // withToolIdempotency caller: the status claim above is already the
+    // have committed) unless classifyDispatchError proves nothing ran; the
+    // approval row below takes the same verdict. An unwritable ledger fails
+    // open like every other withToolIdempotency caller: the status claim above is already the
     // once-only guard, and failing closed would silently drop an approved action.
     const { withToolIdempotency } = await import("@/lib/ai/tools/tool-idempotency");
     const result = await withToolIdempotency(
@@ -178,7 +200,7 @@ export async function executeApprovedToolAsync(requestId: string): Promise<void>
       undefined,
       {
         durable: { tool: request.toolId, effectClass: "write" },
-        classifyError: () => "unknown",
+        classifyError: classifyDispatchError,
         unknownWindowMs: APPROVAL_ATTEMPT_HOLD_MS,
       },
     );
@@ -193,10 +215,13 @@ export async function executeApprovedToolAsync(requestId: string): Promise<void>
     });
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
+    // "may have run" exactly when the ledger says UNKNOWN (or a prior attempt exists).
+    const mayHaveRun =
+      err instanceof ApprovalAlreadyAttemptedError || (dispatchStarted && classifyDispatchError(err) === "unknown");
     await prisma.approvalRequest.update({
       where: { id: requestId },
       data: {
-        status: err instanceof ApprovalAlreadyAttemptedError ? "needs_review" : "failed",
+        status: mayHaveRun ? "needs_review" : "failed",
         resultPayload: { error: errMsg },
       },
     });
@@ -568,7 +593,7 @@ export function withGuardian<T, A extends unknown[]>(
           where: {
             toolId: toolName,
             status: {
-              in: ["pending_approval", "approved", "rejected", "executed", "failed"]
+              in: ["pending_approval", "approved", "rejected", "executed", "failed", "needs_review"]
             },
             createdAt: { gte: new Date(now.getTime() - APPROVAL_DEDUPE_WINDOW_MS) }
           },
@@ -596,6 +621,9 @@ export function withGuardian<T, A extends unknown[]>(
           }
           if (matched.status === "failed") {
             throw new Error(`Action execution failed: ${JSON.stringify(matched.resultPayload)}`);
+          }
+          if (matched.status === "needs_review") {
+            throw new Error("Action may already have run; review it on /system/actions before raising it again");
           }
 
           if (matched.status === "pending_approval" || matched.status === "approved") {

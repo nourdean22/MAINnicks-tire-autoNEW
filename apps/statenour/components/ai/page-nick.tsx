@@ -39,6 +39,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { haptic } from "@/lib/ui/haptic";
+import { isSubmitEnter } from "@/features/chat-v2/lib/submit-enter";
 
 export interface PageNickProps {
   page: string;
@@ -230,7 +231,7 @@ export function PageNick({
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") ask();
+                if (isSubmitEnter(e)) ask();
               }}
               placeholder={placeholder || `Ask about this ${page}...`}
               className="flex-1 h-9 px-2.5 rounded-control bg-content border border-edge-default text-[13px] text-fg placeholder:text-fg-tertiary outline-none transition-colors duration-[var(--motion-state)] focus:border-accent"

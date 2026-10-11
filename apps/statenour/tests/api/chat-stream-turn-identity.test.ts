@@ -77,7 +77,9 @@ describe("one turn, one message id", () => {
     const inflightId = await startMessageId(await GET(req(), ctx("conv-1")));
 
     mockGetActiveStream.mockResolvedValue({ status: "complete", traceId: "T1", startedAt, partialText: "" });
-    const completedId = await startMessageId(await GET(req(), ctx("conv-1")));
+    // The re-resume names its turn (the in-flight response's X-Trace-Id);
+    // an unnamed completed replay is a 204 since P2-B6.
+    const completedId = await startMessageId(await GET(req("T1"), ctx("conv-1")));
 
     expect(inflightId).toBe(resumeMessageId("conv-1", "T1"));
     expect(completedId, "a DB-row id here is a second bubble for the same turn").toBe(inflightId);
@@ -102,9 +104,9 @@ describe("the reconnect names its turn", () => {
     expect(res.status).toBe(200);
   });
 
-  it("CONTROL: no traceId asked for keeps the old behaviour (200)", async () => {
+  it("no traceId asked for + a completed record -> 204 (P2-B6: a mount's history already shows it)", async () => {
     mockGetActiveStream.mockResolvedValue({ status: "complete", traceId: "T-prev", startedAt, partialText: "" });
-    expect((await GET(req(), ctx("conv-1"))).status).toBe(200);
+    expect((await GET(req(), ctx("conv-1"))).status).toBe(204);
   });
 });
 
@@ -123,6 +125,13 @@ describe("DELETE = operator stop", () => {
     const res = await DELETE(req(), ctx("conv-1"));
     expect(res.status).toBe(409);
     expect(await res.json()).toEqual({ stopped: false, reason: "no_active_turn" });
+  });
+
+  it("a turn already stored as complete → 409 already_complete (the client says 'stop not recorded')", async () => {
+    mockRequestStop.mockResolvedValue({ stopped: false, reason: "already_complete" });
+    const res = await DELETE(req(), ctx("conv-1"));
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ stopped: false, reason: "already_complete" });
   });
 
   it("sentinel conversation id never writes", async () => {

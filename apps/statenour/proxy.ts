@@ -130,6 +130,10 @@ export const config = {
     // only) and redirects to sign-in. tests/security/middleware-boundary
     // .test.ts compiles THIS pattern with Next's own path-to-regexp and
     // asserts both halves.
-    "/((?!_next/static|_next/image|favicon.ico|[^/]+\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|woff|woff2|ttf|eot)$).*)",
+    //
+    // Audit 2026-10-10 · no separate favicon arm: /favicon.ico is a root-level
+    // .ico, so the extension arm skips it. The old bare `favicon.ico|` arm was
+    // unescaped and unanchored, so it also skipped /favicon.ico/<anything>.
+    "/((?!_next/static|_next/image|[^/]+\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|woff|woff2|ttf|eot)$).*)",
   ],
 };

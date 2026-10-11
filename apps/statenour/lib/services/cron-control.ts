@@ -196,19 +196,22 @@ export async function getCronStats(): Promise<
     if (isHardFailure(r.status)) stats[r.jobName].fail14d += r._count.id;
   }
 
-  // Pull lastSuccessAt / lastFailAt per job in a second cheap query
+  // lastSuccessAt / lastFailAt, read PER JOB. A shared `take: jobs * 4`
+  // sample let one busy job crowd every weekly job out (audit 2026-10-10).
   const jobNames = Object.keys(stats);
   if (jobNames.length > 0) {
-    const latest = await prisma.cronJobLog.findMany({
-      where: { jobName: { in: jobNames } },
-      orderBy: { createdAt: "desc" },
-      take: jobNames.length * 4,
-      select: { jobName: true, status: true, createdAt: true },
+    const latest = await prisma.cronJobLog.groupBy({
+      by: ["jobName", "status"],
+      where: { jobName: { in: jobNames }, status: { in: ["success", ...HARD_FAILURE_STATUSES] } },
+      _max: { createdAt: true },
     });
     for (const r of latest) {
+      const at = r._max.createdAt?.toISOString();
       const s = stats[r.jobName];
-      if (r.status === "success" && !s.lastSuccessAt) s.lastSuccessAt = r.createdAt.toISOString();
-      if (isHardFailure(r.status) && !s.lastFailAt) s.lastFailAt = r.createdAt.toISOString();
+      if (!at) continue;
+      if (r.status === "success") s.lastSuccessAt = at;
+      // one groupBy row per failure status: keep the newest across them
+      else if (isHardFailure(r.status) && (!s.lastFailAt || at > s.lastFailAt)) s.lastFailAt = at;
     }
   }
 

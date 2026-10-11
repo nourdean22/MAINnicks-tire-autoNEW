@@ -182,7 +182,8 @@ describe("decidePendingAction is a claim, not a check", () => {
     await decidePendingAction("a1", "approved");
     expect(h.autonomousAction.updateMany).toHaveBeenCalledWith({
       where: { id: "a1", approval: "pending" },
-      data: { approval: "processing" },
+      // The stamp lets the approval sweeper recover a claim that never finished.
+      data: { approval: "processing", approvedBy: expect.stringContaining('"claim":"approved"') },
     });
     expect(h.autonomousAction.updateMany.mock.invocationCallOrder[0]).toBeLessThan(
       h.executeApprovedAction.mock.invocationCallOrder[0],

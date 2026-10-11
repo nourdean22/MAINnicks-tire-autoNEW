@@ -5,8 +5,8 @@
  * alert when this week's GPA dropped 15%+ vs the prior 4-week
  * baseline. Idempotent per week-ending-date.
  *
- * Cadence: weekly, Sunday 11:00 UTC (7am Cleveland Sunday morning so
- * Nour sees it with his weekly review).
+ * Cadence: dormant (operator-parked in config/crons.ts; not scheduled). When it
+ * runs (manual Run), it scans the ET week ending today.
  */
 
 import { cronHandler } from "@/lib/utils/http";
@@ -30,7 +30,8 @@ export const GET = cronHandler(async () => {
       try {
         const recent = report.recentGpa?.toFixed(2) ?? "—";
         const baseline = report.baselineGpa?.toFixed(2) ?? "—";
-        const drop = report.deltaPct != null ? `${(report.deltaPct * 100).toFixed(0)}%` : "—";
+        // deltaPct is already a percent; the title supplies the minus sign.
+        const drop = report.deltaPct != null ? `${Math.abs(report.deltaPct).toFixed(0)}%` : "—";
         await recordCoachEvent({
           kind: "drift-recovery",
           subjectId: `decision-quality-drift:${report.weekEndingDate}`,

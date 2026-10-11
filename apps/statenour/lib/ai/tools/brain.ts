@@ -22,6 +22,8 @@ import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { storeMemoryEmbedding } from "@/lib/brain/embedding-utils";
 import { buildBroadSearchFtsQuery, normalizeMemoryKeyQuery } from "@/lib/brain/search-query";
 import { fenceContent } from "@/lib/ai/tool-result-fencing";
+import { resolveTrustTier } from "@/lib/brain/memory-trust";
+import { updateTurnContext } from "@/lib/agent/turn-context";
 
 export const brainTools = {
   surfaceAntiPatterns: tool({
@@ -369,7 +371,7 @@ export const brainTools = {
       //   2. FTS rank                -- meaning-match, already rank-ordered
       //   3. content substring hit   -- weakest signal, last
       // Confidence survives only as the tiebreak WITHIN a lane.
-      const selectCols = { id: true, category: true, key: true, content: true, confidence: true, source: true, updatedAt: true };
+      const selectCols = { id: true, category: true, key: true, content: true, confidence: true, source: true, updatedAt: true, trustTier: true };
       const laneWhere = (match: any) => ({ deletedAt: null, supersededById: null, AND: [...eligible, match] });
 
       const [keyRows, normalizedKeyRows, ftsRows, contentRows] = await Promise.all([
@@ -419,9 +421,18 @@ export const brainTools = {
       // S-1 completion (2026-09-02) · whole rows were returned with raw
       // `content` — BrainMemory rows of any category, gmail included. Fence
       // the content field; every other field is metadata the model may use.
+      // 2026-10-10 (audit 07-SN-02) · a third-party row (inbound mail, a
+      // scraped or summarised page, a committed inbox item) taints the turn,
+      // so the sink gate holds outward side effects. trustTier is read only
+      // for that and stays out of the result.
       return {
         count: memories.length,
-        memories: memories.map((m) => ({ ...m, content: fenceContent("searchMemories", "memory_recall", m.content) })),
+        memories: memories.map(({ trustTier, ...m }) => ({
+          ...m,
+          content: fenceContent("searchMemories", "memory_recall", m.content, {
+            taint: resolveTrustTier({ source: m.source, category: m.category, trustTier }) === "EXTERNAL_CONTENT",
+          }),
+        })),
       };
     },
   }),
@@ -489,6 +500,12 @@ export const brainTools = {
           matches: [],
           hint: "No cold memory matches. Try broadening scope to 'ingest' or 'all', or run a manual Drive sync via /api/drive/sync if the knowledge base feels stale.",
         };
+      }
+      // 2026-10-10 (audit 07-SN-02) · a third-party match (inbound mail, a
+      // scraped page) taints the turn, so the sink gate holds outward actions.
+      // The stored tier counts too (a committed inbox item under any source).
+      if (matches.some((m) => resolveTrustTier({ source: m.source, category: m.category, trustTier: m.trustTier }) === "EXTERNAL_CONTENT")) {
+        updateTurnContext({ untrustedInput: true });
       }
       return {
         count: matches.length,

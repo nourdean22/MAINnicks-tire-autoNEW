@@ -60,14 +60,29 @@ export interface TurnContext {
 
 const storage = new AsyncLocalStorage<TurnContext>();
 
-/** Open a turn scope. Call once, at the top of the chat handler. */
+type Permission = TurnContext["actionPermission"];
+const PERMISSION_RANK = { read: 0, draft: 1, execute: 2 } as const;
+
+/** The more restrictive of two permissions; null (undeclared) never wins over a level. */
+function tighter(a: Permission, b: Permission | undefined): Permission {
+  if (!a) return b ?? null;
+  if (!b) return a;
+  return PERMISSION_RANK[b] < PERMISSION_RANK[a] ? b : a;
+}
+
+/**
+ * Open a turn scope. Call once, at the top of the chat handler. A scope opened
+ * INSIDE another inherits its taint, Private Lab and the tighter permission: a
+ * fresh seed must never launder a tainted or read-only turn.
+ */
 export function withTurnContext<T>(seed: Partial<TurnContext>, fn: () => T): T {
+  const parent = storage.getStore();
   return storage.run(
     {
       conversationId: seed.conversationId ?? null,
-      untrustedInput: seed.untrustedInput ?? false,
-      privateMode: seed.privateMode ?? false,
-      actionPermission: seed.actionPermission ?? null,
+      untrustedInput: parent?.untrustedInput === true || seed.untrustedInput === true,
+      privateMode: parent?.privateMode === true || seed.privateMode === true,
+      actionPermission: tighter(parent?.actionPermission ?? null, seed.actionPermission),
       inferredBasisOnly: seed.inferredBasisOnly ?? false,
     },
     fn,
@@ -82,6 +97,8 @@ export function withTurnContext<T>(seed: Partial<TurnContext>, fn: () => T): T {
  * clear them. Recall taints the turn partway through, and the route later
  * publishes its own web-search signal (often false) -- an assignment there
  * silently untainted a turn that had already read an outsider's email.
+ * `actionPermission` is one-way too: the first publish sets it, later patches
+ * can only tighten it (read < draft < execute), never widen or null it.
  */
 export function updateTurnContext(patch: Partial<TurnContext>): void {
   const ctx = storage.getStore();
@@ -89,7 +106,7 @@ export function updateTurnContext(patch: Partial<TurnContext>): void {
   if (patch.conversationId !== undefined) ctx.conversationId = patch.conversationId;
   if (patch.untrustedInput === true) ctx.untrustedInput = true;
   if (patch.privateMode === true) ctx.privateMode = true;
-  if (patch.actionPermission !== undefined) ctx.actionPermission = patch.actionPermission;
+  ctx.actionPermission = tighter(ctx.actionPermission, patch.actionPermission);
   if (patch.inferredBasisOnly !== undefined) ctx.inferredBasisOnly = patch.inferredBasisOnly;
 }
 

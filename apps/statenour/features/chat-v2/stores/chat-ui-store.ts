@@ -62,6 +62,15 @@ export type ChatUiState = {
    *  prefill. Null = normal append send. */
   editingMessageId: string | null;
   setEditingMessageId: (id: string | null) => void;
+  /** 2026-10-10 (audit 09-F11) · text waiting for a second tap on the
+   *  composer's "Replace draft?" confirm. A typed draft is never overwritten
+   *  by one tap on a message, its Edit button, or a suggestion. */
+  draftReplace: { text: string; editingMessageId?: string } | null;
+  /** Fill the composer: at once when it is empty (or already holds this
+   *  text), otherwise ask first. `editingMessageId` arms edit-resend. */
+  offerDraft: (text: string, editingMessageId?: string) => void;
+  confirmDraftReplace: () => void;
+  cancelDraftReplace: () => void;
   setConnection: (state: ChatUiState["connection"]) => void;
   setActiveConversationId: (id: string | null) => void;
   enqueuePending: (msg: PendingSend) => void;
@@ -101,19 +110,40 @@ export const useChatUiStore = create<ChatUiState>((set) => ({
   // operator then clears the prefill to type something NEW, sending
   // must not cascade-delete the tapped message. Empty draft = new
   // intent. (The banner + cancel + Escape remain the explicit outs.)
+  // P2-B6: a pending "Replace draft?" was about the text just cleared; it ends too.
   setDraft: (draft) =>
-    set((s) => ({
-      draft,
-      editingMessageId: draft.trim() === "" ? null : s.editingMessageId,
-    })),
+    set((s) =>
+      draft.trim() === ""
+        ? { draft, editingMessageId: null, draftReplace: null }
+        : { draft, editingMessageId: s.editingMessageId },
+    ),
   editingMessageId: null,
   setEditingMessageId: (editingMessageId) => set({ editingMessageId }),
+  draftReplace: null,
+  offerDraft: (text, editingMessageId) =>
+    set((s) =>
+      !s.draft.trim() || s.draft === text
+        ? { draft: text, editingMessageId: editingMessageId ?? s.editingMessageId, draftReplace: null }
+        : { draftReplace: { text, editingMessageId } },
+    ),
+  confirmDraftReplace: () =>
+    set((s) =>
+      s.draftReplace
+        ? {
+            draft: s.draftReplace.text,
+            // Only the offer's own edit: a suggestion must not re-arm an older one.
+            editingMessageId: s.draftReplace.editingMessageId ?? null,
+            draftReplace: null,
+          }
+        : {},
+    ),
+  cancelDraftReplace: () => set({ draftReplace: null }),
   setConnection: (connection) => set({ connection }),
   // Switching conversations disarms any pending edit — the id belongs
   // to the previous thread and a cascade there would truncate the
-  // WRONG conversation.
+  // WRONG conversation. A pending "Replace draft?" carries the same id.
   setActiveConversationId: (activeConversationId) =>
-    set({ activeConversationId, editingMessageId: null }),
+    set({ activeConversationId, editingMessageId: null, draftReplace: null }),
   enqueuePending: (msg) => set((s) => ({ pending: [...s.pending, msg] })),
   updatePending: (tempId, patch) =>
     set((s) => ({
@@ -121,7 +151,7 @@ export const useChatUiStore = create<ChatUiState>((set) => ({
     })),
   resolvePending: (tempId) =>
     set((s) => ({ pending: s.pending.filter((m) => m.tempId !== tempId) })),
-  clearConversationDraft: () => set({ draft: "" }),
+  clearConversationDraft: () => set({ draft: "", draftReplace: null }),
   setDiagnosticReport: (diagnosticReport) => set({ diagnosticReport }),
   toggleVoiceDock: () => set((s) => ({ isVoiceDocked: !s.isVoiceDocked })),
   setMemoryInspectorOpen: (open) => set({ memoryInspectorOpen: open }),

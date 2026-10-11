@@ -5,6 +5,7 @@ import { BRAIN_MEMORY_RETENTION } from "@/config/retention";
 import { purgeStaleCategory } from "@/lib/system/stale-data-purger";
 import { scrubExpiredPlates } from "@/lib/services/plate-retention";
 import { logError } from "@/lib/utils/error-log";
+import { sendTelegram } from "@/lib/services/telegram";
 import { sweepEmbeddingShadow } from "@/lib/db/embedding-shadow";
 import {
   NEVER_HARD_DELETE_CATEGORIES,
@@ -147,6 +148,19 @@ export const GET = cronHandler(async () => {
   // CronJobLog row, not vanish.
   const pendingActionsSweep = await purgeStaleCategory("pending_actions_7d");
   deletedByTable.autonomous_actions_auto_purged = pendingActionsSweep.purged;
+  // 2026-10-10 · the operator was never told work he had not reviewed was
+  // thrown away; the count lived only in CronJobLog. One line to his own chat
+  // (default TELEGRAM_CHAT_ID), none on a zero night. A send failure must not
+  // fail the cleanup: the purge already happened.
+  if (pendingActionsSweep.purged > 0) {
+    const n = pendingActionsSweep.purged;
+    await sendTelegram(
+      `🧹 Auto-rejected ${n} pending approval${n === 1 ? "" : "s"} older than 7 days. Review the queue at bdnick.info/system/actions`,
+    ).catch((err: unknown) => {
+      logError("cron.data-cleanup", err, { fn: "autoPurgeNotice" }, "warn");
+      return false;
+    });
+  }
 
   // v11.0 · BrainMemory category retention · read from config/retention.ts
   // so /system/gaps + /system/power + this cron all share one source

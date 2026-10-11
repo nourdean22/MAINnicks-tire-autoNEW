@@ -169,7 +169,7 @@ describe("cooldown window under an hourly tick", () => {
   });
 
   it("the Sunday-only quote_conversion_insight fires once on its Sunday, not twice", async () => {
-    s.quotes = { count: 20, bookedCount: 5 };
+    s.quotes = { count: 20, bookedCount: 5, bookedCountIsLowerBound: false };
     await tickHourly("2026-10-11T04:00:03Z", 48);
     expect(firesPerEtDay("quote_conversion_insight")).toEqual({ "2026-10-11": 1 });
   });

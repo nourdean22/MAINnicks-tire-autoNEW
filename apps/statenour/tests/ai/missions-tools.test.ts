@@ -17,6 +17,9 @@ const mockMemoryFindMany = vi.fn(() => Promise.resolve([]));
 const mockAuditCreate = vi.fn(() => Promise.resolve({}));
 const mockLatestMissionExecution = vi.fn(() => Promise.resolve(null));
 const mockQueueMissionExecution = vi.fn();
+const mockCancelMissionExecution = vi.fn((missionId: string) =>
+  Promise.resolve({ cancelRequested: true, missionId, eventIds: ["evt-1"] }),
+);
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
@@ -39,6 +42,8 @@ vi.mock("@/lib/missions/durable-execution", async (importOriginal) => {
     ...actual,
     getLatestMissionExecution: (...a: unknown[]) => mockLatestMissionExecution(...a),
     queueDurableMissionExecution: (...a: unknown[]) => mockQueueMissionExecution(...a),
+    // Stubbed so a status transition never runs the real cancel send.
+    cancelMissionExecution: (missionId: string) => mockCancelMissionExecution(missionId),
   };
 });
 
@@ -209,6 +214,7 @@ describe("updateMissionStatus", () => {
     const r = await run("updateMissionStatus", { missionId: "m1", status: "PAUSED" });
     expect(r.changed).toBe(false);
     expect(mockMissionUpdate).not.toHaveBeenCalled();
+    expect(mockCancelMissionExecution).not.toHaveBeenCalled();
   });
 
   it("a real transition updates, records both ends, and writes an audit row", async () => {
@@ -221,6 +227,8 @@ describe("updateMissionStatus", () => {
         data: expect.objectContaining({ eventType: "mission_status_changed" }),
       }),
     );
+    expect(mockCancelMissionExecution).toHaveBeenCalledTimes(1);
+    expect(mockCancelMissionExecution).toHaveBeenCalledWith("m1");
   });
 
   it("an audit-write failure does not fail the status change (loud, not fatal)", async () => {
@@ -230,5 +238,7 @@ describe("updateMissionStatus", () => {
     expect((await run("updateMissionStatus", { missionId: "m1", status: "KILLED" })).changed).toBe(
       true,
     );
+    expect(mockCancelMissionExecution).toHaveBeenCalledTimes(1);
+    expect(mockCancelMissionExecution).toHaveBeenCalledWith("m1");
   });
 });

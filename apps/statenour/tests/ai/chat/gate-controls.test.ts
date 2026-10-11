@@ -31,7 +31,10 @@ describe("parseChatControls", () => {
     expect(parseChatControls({ privateMode: 1 }).privateMode).toBe(false);
     expect(parseChatControls({ posture: "aggressive" }).posture).toBe("auto");
     expect(parseChatControls({ posture: 42 }).posture).toBe("auto");
-    expect(parseChatControls({ actionPermission: "root" }).actionPermission).toBe("draft");
+    // A permission that is present but unrecognised is a restriction the
+    // client tried to state: it falls to the most restrictive level, never
+    // widens to draft (red-team 2026-10-10). Absent / null stays the default.
+    expect(parseChatControls({ actionPermission: "root" }).actionPermission).toBe("read");
     expect(parseChatControls({ actionPermission: null }).actionPermission).toBe("draft");
   });
 });

@@ -9,8 +9,9 @@
  * flipping the flag becomes an evidence-reading, not a leap.
  *
  * This module is READ-ONLY. It changes nothing about execution; it
- * renders the same 45-day tally the engine computes at fire time
- * (autonomous-engine.ts:1124-1145), plus each type's standing against
+ * renders the 45-day tally the engine computes at fire time
+ * (autonomous-engine.ts, the canAutoExecute call) minus machine verdicts
+ * (MACHINE_APPROVERS below), plus each type's standing against
  * the auto bar (flag-independent) and under the flag (real gate).
  */
 
@@ -89,10 +90,13 @@ export function summarizeTrustTallies(
  * live probe — a scoreboard telling the operator he rejected work he
  * never saw. Excluded here.
  *
- * Deliberately NOT changed in the engine's own tally
- * (autonomous-engine.ts): there the same pollution DEPRESSES acceptance,
- * which only makes auto-execution harder — fail-safe. Loosening a live
- * safety gate is an operator decision, not a scoreboard side effect.
+ * The engine's own tally (autonomous-engine.ts, the canAutoExecute call)
+ * still COUNTS these rows: there the pollution DEPRESSES acceptance, which
+ * only makes auto-execution harder — fail-safe. The 2026-10-10 audit
+ * recommends excluding auto-purge rows there too. That loosens a live
+ * safety gate, so it is pending an operator decision, not a scoreboard
+ * side effect (a 2026-10-10 change made it unasked and was reverted;
+ * tests/lib/brain/autonomous-engine-tier-tally.test.ts pins the count).
  */
 const MACHINE_APPROVERS = ["auto-purge"];
 

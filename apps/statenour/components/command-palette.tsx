@@ -672,8 +672,8 @@ export function CommandPalette() {
             sourceType: string;
             sourceId: string;
             content: string;
-            // Not returned by search-hybrid yet (2026-10-10); a chat hit
-            // without it falls back in semanticHitHref.
+            // search-hybrid joins this for chat hits; it is absent when that
+            // lookup failed, and semanticHitHref falls back.
             conversationId?: string | null;
           }>;
         }>(`/api/brain/search-hybrid?q=${encodeURIComponent(query.trim())}&limit=5`, {

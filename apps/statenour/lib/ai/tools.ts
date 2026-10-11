@@ -18,7 +18,7 @@
  */
 
 import { brainTools } from "@/lib/ai/tools/brain";
-import { currentTurn, type TurnContext } from "@/lib/agent/turn-context";
+import { currentTurn } from "@/lib/agent/turn-context";
 import { isReadSafeTool } from "@/lib/ai/capability-registry";
 import { getFlag } from "@/lib/feature-flags";
 import { logger as rootLogger } from "@/lib/logger";
@@ -173,7 +173,7 @@ function authorityGate(name: string): AuthorityRefusal | null {
       "This was NOT performed; nothing changed. The emergency mutation lock (NICK_MUTATION_LOCK) is active. Tell Nour this action is blocked by the lock; do not retry it and never claim it happened.",
     );
   }
-  const turn = currentTurn() as (TurnContext & { actionPermission?: string }) | null;
+  const turn = currentTurn();
   if (turn?.privateMode === true) {
     return refuse(
       name,

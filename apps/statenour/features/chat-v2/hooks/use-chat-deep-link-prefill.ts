@@ -30,6 +30,9 @@ import { useChatUiStore } from "../stores/chat-ui-store";
 export interface DeepLinkStoreSlice {
   draft: string;
   setDraft: (draft: string) => void;
+  /** 09-F11 · when given, a typed (or restored) draft gets the
+   *  "Replace draft?" question instead of the prompt being dropped. */
+  offerDraft?: (draft: string) => void;
   setActiveConversationId: (id: string | null) => void;
   setHistoryDrawerOpen: (open: boolean) => void;
 }
@@ -47,8 +50,9 @@ export function consumeChatDeepLink(search: string, store: DeepLinkStoreSlice): 
   if (cid) store.setActiveConversationId(cid);
 
   const prompt = params.get("q") ?? params.get("seed") ?? params.get("prompt");
-  if (prompt && prompt.trim() && !store.draft.trim()) {
-    store.setDraft(prompt.trim());
+  if (prompt && prompt.trim()) {
+    if (store.offerDraft) store.offerDraft(prompt.trim());
+    else if (!store.draft.trim()) store.setDraft(prompt.trim());
   }
 
   // ?h=1 — nick-reasoner's "open chat history" deep-link.
@@ -58,11 +62,12 @@ export function consumeChatDeepLink(search: string, store: DeepLinkStoreSlice): 
 export function useChatDeepLinkPrefill(): void {
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const { draft, setDraft, setActiveConversationId, setHistoryDrawerOpen } =
+    const { draft, setDraft, offerDraft, setActiveConversationId, setHistoryDrawerOpen } =
       useChatUiStore.getState();
     consumeChatDeepLink(window.location.search, {
       draft,
       setDraft,
+      offerDraft,
       setActiveConversationId,
       setHistoryDrawerOpen,
     });

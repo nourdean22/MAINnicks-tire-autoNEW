@@ -5,6 +5,7 @@ import { trpc } from "@/lib/trpc/client";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Panel } from "@/components/panel";
 import { cn } from "@/lib/utils/cn";
+import { evalStaleHint } from "@/hooks/use-observability";
 import {
   Brain,
   Clock,
@@ -93,6 +94,7 @@ export function CockpitObservabilityView() {
     },
   };
   const latestEval = stats?.eval ?? null;
+  const staleEvalRanAt = stats?.evalLastRanAt ?? null;
   const workerRows = (
     [
       ["codex", "Codex"],
@@ -254,7 +256,9 @@ export function CockpitObservabilityView() {
           <p className="mt-1 text-[11px] text-fg-tertiary font-mono">
             {latestEval
               ? `${latestEval.passed}/${latestEval.totalRan} passed · ${new Date(latestEval.ranAt).toLocaleString()}`
-              : "No persisted eval result"}
+              : staleEvalRanAt
+                ? evalStaleHint(staleEvalRanAt)
+                : "No persisted eval result"}
           </p>
         </Panel>
       </div>

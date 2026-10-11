@@ -93,7 +93,8 @@ export interface NourState {
   pipelineValue: number | null;
   pipelineDecay: number;
   staleLeads: number;
-  pendingCallbacks: number;
+  /** null = unknown (not loaded, read failed, or no source), never a fabricated 0. */
+  pendingCallbacks: number | null;
   activeCommitments: number;
   overdueCommitments: number;
   todayScore: DailyScore | null;
@@ -135,7 +136,7 @@ const DEFAULT_STATE: NourState = {
   pipelineValue: null,
   pipelineDecay: 0,
   staleLeads: 0,
-  pendingCallbacks: 0,
+  pendingCallbacks: null,
   activeCommitments: 0,
   overdueCommitments: 0,
   todayScore: null,
@@ -286,7 +287,8 @@ export function NourStateProvider({ children }: { children: ReactNode }) {
         pipelineValue: aging?.rawPipelineValue ?? null,
         pipelineDecay: aging?.decayRate ?? 0,
         staleLeads: cmd?.brief?.staleLeads ?? 0,
-        pendingCallbacks: cmd?.brief?.pendingCallbacks ?? 0,
+        // /api/command/data emits this under shop (null when unknown); brief never had it.
+        pendingCallbacks: cmd?.shop?.pendingCallbacks ?? null,
         activeCommitments: health?.commitments?.active ?? 0,
         overdueCommitments: cmd?.brief?.overdueCommitments ?? 0,
         todayScore,

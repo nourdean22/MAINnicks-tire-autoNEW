@@ -43,8 +43,8 @@ export async function prefetchIntents(
   // stubbed these prefetches to []; this wire-up routes them through
   // the queryNick bridge so Nick actually has answers when Nour asks
   // about revenue / quotes / leads. If a nickstire action isn't
-  // implemented yet (2026-10-10: all five quotes_ and leads_ queries below
-  // still are not), the read is UNKNOWN and the block says so -- it used to
+  // implemented yet (2026-10-10: quotes_booked_week, quotes_stale and both
+  // leads_ queries below still are not), the read is UNKNOWN and the block says so -- it used to
   // degrade to count 0 / $0, which Nick read as an empty pipeline.
   const { queryNickBatch, readBridge } = await import("@/lib/nickstire/query");
   const unknown = (reason: string) => ({ status: "unknown" as const, reason });
@@ -68,13 +68,30 @@ export async function prefetchIntents(
             if (d && typeof d === "object" && Array.isArray(d.rows)) return d.rows;
             return unknown("bridge answer carried no rows");
           };
-          const pending = rows(batch["quotes_pending"]);
+          // quotes_pending answers counts, never rows: every ALG quote in the window, and how many
+          // are matched to an invoice. Pending = not matched, the handler's own per-quote status.
+          const quoteCounts = (r: unknown) => {
+            const read = readBridge(r);
+            if (read.status !== "ok") return unknown(read.reason);
+            const d = read.data as any;
+            if (typeof d?.count !== "number" || typeof d?.bookedCount !== "number") return unknown("bridge answer carried no quote counts");
+            return {
+              sinceHours: d.sinceHours,
+              // An upper bound while bookedCount is a lower bound: unmatched is not the same as unbooked.
+              notMatchedToInvoice: d.count - d.bookedCount,
+              quotedInWindow: d.count,
+              bookedCount: d.bookedCount,
+              // Booked comes from invoice matching, which can miss; only an explicit false says it is exact.
+              bookedCountIsLowerBound: d.bookedCountIsLowerBound !== false,
+            };
+          };
+          const pending = quoteCounts(batch["quotes_pending"]);
           const recent = rows(batch["quotes_booked_week"]);
           const stale = rows(batch["quotes_stale"]);
 
           const sum = (rs: any[]) => rs.reduce((s, q) => s + (q.grandTotal || 0), 0);
           return {
-            pending: Array.isArray(pending) ? { count: pending.length, totalValue: sum(pending), samples: pending.slice(0, 5) } : pending,
+            pending,
             weeklyBooked: Array.isArray(recent) ? { count: recent.length, total: sum(recent) } : recent,
             staleOver7d: Array.isArray(stale) ? { count: stale.length, totalAtRisk: sum(stale), oldest: stale[0] || null } : stale,
           };

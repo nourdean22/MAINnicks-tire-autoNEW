@@ -67,7 +67,8 @@ export async function GET(
     // 2026-10-10 (audit 04-F8) - turn identity. The client may name the
     // turn it is waiting for (`?traceId=`, the X-Trace-Id of its POST). A
     // record for any other turn is not that turn's reply: replaying it
-    // re-shows the PREVIOUS answer. Absent param = the old behaviour.
+    // re-shows the PREVIOUS answer. Absent param (a mount): an in-flight
+    // turn replays, a completed one is a 204 (P2-B6, below).
     const wantedTrace = req.nextUrl?.searchParams?.get("traceId") ?? null;
     if (wantedTrace && record.traceId !== wantedTrace) {
       return new Response(null, { status: 204 });
@@ -80,12 +81,17 @@ export async function GET(
     // Completed turn: replay the PERSISTED message, which is canonical
     // (it carries any fabrication-rewriter banner the raw stream did not).
     if (record.status === "complete") {
-      const message = await findAssistantMessage(conversationId, record.startedAt);
+      // P2-B6: a resume that names no turn is a mount (an SPA return inside
+      // the linger); the history load already shows this row, so a replay
+      // would be a second copy of it. An in-flight turn below still replays.
+      if (!wantedTrace) return new Response(null, { status: 204 });
+      const message = await findAssistantMessage(conversationId, record.startedAt, record.traceId);
       if (!message) return new Response(null, { status: 204 });
-      return streamOut(msgId, (write) => {
+      const replay = streamOut(msgId, (write) => {
         write(message.content);
         return { partial: false };
       });
+      return withTurnIdentity(replay, record.traceId, () => message);
     }
 
     // Still generating. Nothing to say yet → 204, exactly as before; a
@@ -103,6 +109,7 @@ export async function GET(
     // telling the operator "still generating" about a finished turn is the
     // same class of lie this whole route is being fixed to stop telling.
     let stillGenerating = true;
+    let persisted: { id: string; content: string } | null = null;
 
     const stream = createUIMessageStream({
       async execute({ writer }) {
@@ -120,7 +127,8 @@ export async function GET(
             emitted = next.partialText;
           }
           if (next.status === "complete") {
-            const message = await findAssistantMessage(conversationId, next.startedAt);
+            const message = await findAssistantMessage(conversationId, next.startedAt, next.traceId);
+            persisted = message;
             // The persisted row is canonical and MAY diverge from the
             // raw deltas (L2 fabrication-rewriter prepends a banner
             // pre-persist). Append the remainder only when it is a true
@@ -180,7 +188,7 @@ export async function GET(
       },
     });
 
-    const res = createUIMessageStreamResponse({ stream });
+    const res = withTurnIdentity(createUIMessageStreamResponse({ stream }), record.traceId, () => persisted);
     // Set on the in-flight lane: the body may still resolve to a
     // complete turn inside the tail, but headers flush first, so this
     // header means "this response STARTED partial" — the client should
@@ -218,16 +226,48 @@ export async function DELETE(
   }
 }
 
-function findAssistantMessage(conversationId: string, startedAt: string) {
+// The turn's own reply carries its traceId in tokenUsage; deferred work adds a newer
+// "Action receipts" row (no tokenUsage) and a later turn adds its own reply, so match the trace.
+function findAssistantMessage(conversationId: string, startedAt: string, traceId?: string | null) {
   return prisma.chatMessage.findFirst({
     where: {
       conversationId,
       role: "assistant",
       createdAt: { gte: new Date(startedAt) },
+      ...(traceId ? { tokenUsage: { path: ["traceId"], equals: traceId } } : {}),
     },
     orderBy: { createdAt: "desc" },
     select: { id: true, content: true },
   });
+}
+
+/**
+ * P2-B6 · a resumed turn identifies itself like a live one: `X-Trace-Id`
+ * (so a mount-time resume learns its turn and its re-resume can name it),
+ * and, once its row exists, `event: message.persisted { id, content }`
+ * after the replay. The client transport consumes that frame and binds the
+ * bubble to the DB id; the AI SDK parser never sees it.
+ */
+function withTurnIdentity(
+  res: Response,
+  traceId: string | null,
+  persisted: () => { id: string; content: string } | null,
+): Response {
+  const encoder = new TextEncoder();
+  const body = res.body?.pipeThrough(
+    new TransformStream<Uint8Array, Uint8Array>({
+      flush(controller) {
+        const p = persisted();
+        if (p) {
+          const data = JSON.stringify({ id: p.id, content: p.content });
+          controller.enqueue(encoder.encode(`event: message.persisted\ndata: ${data}\n\n`));
+        }
+      },
+    }),
+  );
+  const headers = new Headers(res.headers);
+  if (traceId) headers.set("X-Trace-Id", traceId);
+  return new Response(body, { status: res.status, statusText: res.statusText, headers });
 }
 
 /** One-shot emit of a whole message (the completed-turn path). */

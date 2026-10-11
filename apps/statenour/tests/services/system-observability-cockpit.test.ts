@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
   aiAggregate: vi.fn(),
@@ -62,8 +62,16 @@ vi.mock("@/lib/observability/drift-detector", () => ({
 
 import { buildCockpitStats } from "@/lib/services/system-observability";
 
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
+  // The eval panel is gated on a 7-day window; pin the clock so the
+  // 2026-09-29 fixture below stays inside it regardless of the run date.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-09-30T00:00:00Z"));
   state.aiAggregate.mockResolvedValue({
     _sum: { costCents: 321 },
     _avg: { durationMs: 1500 },
@@ -187,6 +195,34 @@ describe("buildCockpitStats", () => {
       degradedSources: [],
     });
     expect(out.eval).toMatchObject({ totalRan: 10, passed: 9, passRate: 0.9 });
+    expect(out.evalLastRanAt).toBeNull();
+  });
+
+  // 2026-10-10 · eval_result's only writer was deleted 2026-05-28; the
+  // panel drew the leftover 0/75 row as the latest eval.
+  it("drops an eval run older than 7 days and keeps only its date", async () => {
+    state.brainFindMany.mockReset();
+    state.brainFindMany.mockResolvedValue([
+      {
+        id: "eval-fossil",
+        key: "eval_2026-05-27",
+        content: "0/75",
+        metadata: {
+          ranAt: "2026-05-27T06:00:00.000Z",
+          totalRan: 75,
+          passed: 0,
+          failed: 75,
+          passRate: 0,
+        },
+        createdAt: new Date("2026-05-27T06:00:00Z"),
+        updatedAt: new Date("2026-05-27T06:00:00Z"),
+      },
+    ]);
+
+    const out = await buildCockpitStats();
+
+    expect(out.eval).toBeNull();
+    expect(out.evalLastRanAt).toBe("2026-05-27T06:00:00.000Z");
   });
 
   it("never fabricates prompt-version run attribution", async () => {

@@ -42,6 +42,8 @@ export interface ColdMemoryMatch {
   hybridScore: number;
   confidence: number;
   source: string;
+  /** Stored trust_tier: the recall tool taints the turn on it (resolveTrustTier). */
+  trustTier: string | null;
   modifiedTime?: string;
   driveViewUrl?: string;
   driveTitle?: string;
@@ -55,6 +57,7 @@ interface BrainMemoryLean {
   confidence: number;
   updatedAt: Date;
   metadata: unknown;
+  trustTier: string | null;
 }
 
 function extractDriveMeta(metadata: unknown): {
@@ -146,6 +149,7 @@ export async function searchColdMemory(
         confidence: true,
         updatedAt: true,
         metadata: true,
+        trustTier: true,
       },
     })
     .catch(() => [])) as BrainMemoryLean[];
@@ -174,6 +178,7 @@ export async function searchColdMemory(
       hybridScore: c.hybridScore,
       confidence: meta.confidence,
       source: meta.source,
+      trustTier: meta.trustTier,
       modifiedTime: driveMeta.modifiedTime,
       driveViewUrl: driveMeta.viewUrl,
       driveTitle: driveMeta.title,

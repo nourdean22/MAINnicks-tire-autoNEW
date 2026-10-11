@@ -91,7 +91,7 @@ describe("fetchShopSnapshot live-query fallback", () => {
   });
 });
 
-describe("predictive prefetch (quotes + leads, all five queries unregistered in nickstire)", () => {
+describe("predictive prefetch (quote + lead queries)", () => {
   for (const [name, shape] of Object.entries(FAILURES)) {
     it(`a failed read (${name}) is unknown in the prompt block, not count 0`, async () => {
       h.queryNickBatch.mockImplementation(async (qs: Array<{ query: string }>) => allBatch(qs.map((q) => q.query), shape));
@@ -103,7 +103,11 @@ describe("predictive prefetch (quotes + leads, all five queries unregistered in 
 
   it("CONTROL: a successful empty read stays a real zero", async () => {
     h.queryNickBatch.mockImplementation(async (qs: Array<{ query: string }>) =>
-      Object.fromEntries(qs.map((q) => [q.query, q.query === "leads_overdue_count" ? { data: { count: 0 } } : { data: [] }])),
+      Object.fromEntries(qs.map((q) => [q.query,
+        q.query === "leads_overdue_count" ? { data: { count: 0 } }
+        // quotes_pending answers counts (nickstire handler since 2026-10-10), never rows.
+        : q.query === "quotes_pending" ? { data: { sinceHours: 168, count: 0, bookedCount: 0, bookedCountIsLowerBound: true } }
+        : { data: [] }])),
     );
     const block = formatPrefetchContext(await prefetchIntents("how is the pipeline"));
     expect(block).toContain('"openCount": 0');

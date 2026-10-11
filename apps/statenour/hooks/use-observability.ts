@@ -97,7 +97,7 @@ export interface OsSnapshotShape {
 export type TileState<T> =
   | { kind: "loading" }
   | { kind: "ready"; data: T }
-  | { kind: "empty" }
+  | { kind: "empty"; hint?: string }
   | { kind: "error"; message: string };
 
 interface TrpcQuery<T> {
@@ -158,6 +158,40 @@ export function classify<T, U>(
 
   const mapped = mapFn ? mapFn(raw.data) : (raw.data as unknown as U);
   return { kind: "ready", data: mapped };
+}
+
+/** Same 7-day window as system-health.ts evalFresh and buildCockpitStats. */
+const EVAL_FRESH_MS = 7 * 24 * 60 * 60_000;
+
+/** Copy for a run too old to show as current. Shared with the cockpit panel. */
+export function evalStaleHint(ranAt: string): string {
+  const t = Date.parse(ranAt);
+  const day = Number.isFinite(t) ? new Date(t).toISOString().slice(0, 10) : "on an unknown date";
+  return `last eval run ${day}, no runs since`;
+}
+
+/**
+ * The eval tile's decision, exported so tests pin the hook's real predicate.
+ * eval_result lost its only writer on 2026-05-28 (lib/services/eval-results.ts),
+ * so prod rows are fossils: a run older than 7 days renders as empty with its
+ * date, never as a current pass rate. An unparseable ranAt cannot prove
+ * freshness, so it is stale too.
+ */
+export function classifyEvals(
+  raw: TrpcQuery<EvalResultsShape>,
+  now: number = Date.now(),
+): TileState<EvalResultsShape> {
+  const state = classify<EvalResultsShape, EvalResultsShape>(
+    raw,
+    (d) => (d.results?.length ?? 0) === 0,
+  );
+  if (state.kind !== "ready") return state;
+  const isFresh = (ranAt: string) => now - Date.parse(ranAt) < EVAL_FRESH_MS;
+  const ranAt = state.data.results?.[0]?.ranAt ?? "";
+  if (!isFresh(ranAt)) return { kind: "empty", hint: evalStaleHint(ranAt) };
+  // The tile's trend reads results[1..6] of a limit-8 query: a fossil there is not a 7d trend.
+  const results = state.data.results?.filter((r) => isFresh(r.ranAt));
+  return { kind: "ready", data: { ...state.data, results } };
 }
 
 // ── Public hook ──────────────────────────────────────────────────────────
@@ -223,11 +257,7 @@ export function useObservability(): UseObservabilityResult {
         amberThresholdMs: d.target ? d.target.ms * 0.75 : 500,
       })
     ),
-    evals: classify(
-      evalsQuery,
-      (d) => (d.results?.length ?? 0) === 0,
-      (d) => d
-    ),
+    evals: classifyEvals(evalsQuery),
     osSnapshot: classify(
       osSnapshotQuery,
       (d) => !d.drift || ((d.drift.regressions?.length ?? 0) === 0 && (d.drift.improvements?.length ?? 0) === 0),

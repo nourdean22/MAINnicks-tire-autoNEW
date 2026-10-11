@@ -489,6 +489,7 @@ every registered handler. If `x-sync-key` is missing/wrong → 401.
 | Action | Filters | Returns |
 |---|---|---|
 | `attention_needed` | none | `{ alerts: [{ level, message, count }], totalCritical, totalWarning }` |
+| `bookings_pending_stale` | `staleHours: integer 1-167` (required), `status?: "pending"` (the only value served) | `{ staleHours, count, bookings: [{ id, customerName, customerPhone, serviceType, preferredDay, preferredTime, createdAt }] }`: unconfirmed requests (`status = 'new'`; the enum has no `pending`) created more than `staleHours` ago and within the last 7 days, oldest first, at most 50 (`count` is the number returned); `createdAt` is ISO from epoch ms. A bad filter returns `{ error }` without querying. Consumer: statenour `auto_remind_pending_appointment`. |
 | `bookings_status` | none | 7-day status breakdown |
 | `bookings_today` | none | Today's bookings (ET-anchored) |
 | `callbacks_pending` | none | New callback requests |
@@ -516,6 +517,7 @@ every registered handler. If `x-sync-key` is missing/wrong → 401.
 | `lot_brief` | `date?: YYYY-MM-DD` (shop-local, before today, within 120 days; default yesterday) | `{ ok: true, date, weekday, open, arrivals, passThroughs, coverage: { pctExpected, gatePassed, unmeasured }, baseline: { weeksConsidered, weeksCompared, meanArrivals, withheld }, tickets: { count, withheld }, longDwells: { count, longestMinutes, uncertain } \| null, events: [{ kind, text }] (max 3), lines: string[] (1-3), generatedAt, dataAsOf, ageMinutes, staleness, source }` or `{ ok: false, error }`. The lot camera's view of one shop day for the morning brief (camera audit N4, 2026-10-08): traffic against the same weekday of the prior four weeks, compared only when that day and at least two earlier ones were watched >= 80% of business hours (days before 2026-10-08 16:15Z are unmeasured); long stays (3h+ of business time, judged per car across its stitched visits) with no service recorded; lot traffic with few tickets (tickets withheld unless the ALG mirror synced after that day's close). `lines` is what to render: the material events, or one summary line. Consumer: statenour `lib/services/morning-brief.ts` `readLotBriefLines`. Source: `server/services/lotBriefRead.ts` + `server/lib/lotBrief.ts`. |
 | `marketing_attribution` | `from?, to?` (YYYY-MM-DD shop-local calendar days, both inclusive; default the 30 shop days ending on `to`, and `to` defaults to today, America/New_York) | `{ from, to, sources: [{ source, utmSource, leadCount, bookedCount, completedCount, lostCount, conversionCount, conversionRate, totalDollars, avgTicketDollars }], totals: { leadCount, conversionCount, conversionRate, totalDollars }, topSource, note }`: leads by source with their booking/invoice conversions and revenue (`conversionRate` in %). A lead counts on its New York day: `leads.createdAt` is stored UTC, so the day bounds are converted to UTC instants. A malformed date or `from` after `to` returns `{ error }` without querying. |
 | `master_report` | none | Synthesized health score + top alert/opp/risk + 13-component breakdown + sub-reports. See "master_report shape" below. Returns `{ ok: false, error }` if generation fails. Cache TTL 60s server-side. |
+| `quotes_pending` | `sinceHours?` (integer 1-17520, default 720), `withDetail?: true`, `limit?` (1-500, default 200) | `{ sinceHours, count, bookedCount, bookedCountIsLowerBound, quotes? }`: ALG counter quotes (`alg_estimates`) dated in the window, and how many are matched to an invoice (`matched_invoice_id IS NOT NULL`). `bookedCountIsLowerBound` is always `true`: no column records a booking, so "booked" comes only from the estimate-to-invoice matcher (`services/shopDriverEstimateSync.ts`), which leaves a paid quote unmatched when the phone differs or is short, the invoice falls outside the amount or date band, two invoices tie, or the invoice never mirrored. Read `bookedCount` as "at least" and `count - bookedCount` as "at most this many still pending". `withDetail` adds `quotes: [{ grandTotal (dollars), status: "booked" \| "pending" }]`, newest first. `ageDays` / `hasEmail` (a customer follow-up list) return `{ error }`: the declined-work recovery cron owns quote follow-up. Consumers: statenour `suggest_pricing_adjustment`, `quote_conversion_insight`, `lib/ai/predictive-prefetch.ts`. |
 | `recent_customer_ids` | `sinceDays?: number` (default 90, max 365) | `{ customerIds: string[], count, sinceDays }` — drives statenour daily customer-preferences cron · cap 500 |
 | `recent_invoices` | `days?` (1-1000, default 30) | `{ invoices: [{ id, totalAmount, invoiceDate }], count, days }`: newest first, at most 1000; `totalAmount` is in cents. |
 | `recent_leads` | `days?` (1-1000, default 30) | `{ leads: [{ id, fullName, createdAt, status, urgencyScore, source }], count, days }`: newest first, at most 1000. |
@@ -762,6 +764,13 @@ retry-after-timeout) reports as SUCCESS/"already sent", never as failure.
   `getTopServices` chat tool, is removed from statenour, because the invoice service
   descriptions a ranking needs have mostly stopped arriving (1 of 30 in August 2026).
   Both queries had answered 400 on every call since v10.0.51.
+
+- **v11.13** (2026-10-10): `quotes_pending` and `bookings_pending_stale` added for the
+  statenour autonomous engine, whose rules had called them with no handler (every call a
+  400, so the rules never fired). `quotes_pending` answers counts and says its booked count
+  is a lower bound (`bookedCountIsLowerBound`), since "booked" is only an invoice match.
+  `bookings_pending_stale` returns at most 50 unconfirmed requests. Both are probed by
+  `scripts/contract-pre-flight.ts` as production actions.
 
 When adding a new endpoint: bump version, document here + statenour repo,
 include the commit hash in the PR description so cross-ring wiring is

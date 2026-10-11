@@ -31,6 +31,15 @@ const log = rootLogger.withSurface("system/owner-panel");
 /** Bounds the 24h cron read; ~60 jobs × a few runs/hour sits far below it. */
 const CRON_ROW_CAP = 5_000;
 
+/** The cron healer's claims (HEAL_TOOL in lib/services/autonomic-orchestrator.ts). */
+const CRON_HEAL_TOOL = "cron.heal";
+/**
+ * The healer settles a timed-out heal's UNKNOWN on its next nightly run, from
+ * the healed run's own cron row. One still open after two nights never will be:
+ * it is history, not a live exception.
+ */
+const CRON_HEAL_UNKNOWN_WINDOW_MS = 48 * 60 * 60_000;
+
 async function guarded<T>(source: string, p: Promise<T>): Promise<T | null> {
   try {
     return await p;
@@ -134,8 +143,18 @@ export async function buildOwnerPanel(now = new Date()): Promise<OwnerPanel> {
         prisma.actionAttempt.findMany({
           where: {
             tool: { not: DEPLOY_ALERT_TOOL },
+            // An approval's own attempt is surfaced by its approval_requests row
+            // (approval outcomes above: windowed, dismissable). Read here too, it
+            // came back as a permanent "outcome unknown" once that row was dismissed.
+            NOT: { operationKey: { startsWith: "approval:" } },
             OR: [
-              { state: { in: ["UNKNOWN", "WAITING_APPROVAL", "EXECUTING"] } },
+              { state: { in: ["WAITING_APPROVAL", "EXECUTING"] } },
+              { state: "UNKNOWN", tool: { not: CRON_HEAL_TOOL } },
+              {
+                state: "UNKNOWN",
+                tool: CRON_HEAL_TOOL,
+                startedAt: { gte: new Date(now.getTime() - CRON_HEAL_UNKNOWN_WINDOW_MS) },
+              },
               { state: "FAILED", startedAt: { gte: since } },
             ],
           },

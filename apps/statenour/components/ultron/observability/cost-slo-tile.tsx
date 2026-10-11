@@ -187,10 +187,12 @@ export function EmptyTile({
   label,
   hint,
   icon,
+  footer = "endpoint quiet · check back after first run",
 }: {
   label: string;
   hint: string;
   icon?: React.ReactNode;
+  footer?: string;
 }) {
   return (
     <GlassCard ruled className="min-h-[112px] border-l-edge-strong">
@@ -202,7 +204,7 @@ export function EmptyTile({
         {hint}
       </p>
       <p className="mt-2 font-mono text-[11px] text-fg-tertiary">
-        endpoint quiet · check back after first run
+        {footer}
       </p>
     </GlassCard>
   );

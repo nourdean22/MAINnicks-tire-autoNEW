@@ -32,6 +32,7 @@ import { VoiceLatencyTile } from "@/components/ultron/observability/voice-latenc
 import { EvalPassRateTile } from "@/components/ultron/observability/eval-pass-rate-tile";
 import { OsDriftTile } from "@/components/ultron/observability/os-drift-tile";
 import {
+  classifyEvals,
   formatUsd,
   latencyTier,
   passRateTier,
@@ -164,6 +165,94 @@ describe("EvalPassRateTile", () => {
     expect(norm(html)).toMatch(/18\/20 passed/);
     expect(html).toMatch(/tool-use/);
     expect(norm(html)).toMatch(/2\/4 fail/);
+  });
+
+  // 2026-10-10 · prod showed "worst: factual 10/10 fail" because six
+  // categories tied at 10 and the first in dataset order was named.
+  it("names no category when the top failure count is tied", () => {
+    const html = renderToString(
+      <EvalPassRateTile
+        state={{
+          kind: "ready",
+          data: {
+            count: 1,
+            results: [
+              {
+                id: "r1",
+                ranAt: "2026-10-09T00:00:00Z",
+                passed: 50,
+                failed: 25,
+                totalRan: 75,
+                passRate: 0.67,
+                worstCategories: [
+                  { category: "factual", failed: 10, total: 10 },
+                  { category: "fabrication_defense", failed: 10, total: 10 },
+                  { category: "tool_use", failed: 5, total: 5 },
+                ],
+              },
+            ],
+          },
+        }}
+      />,
+    );
+    expect(html).toMatch(/no single worst category/);
+    expect(html).not.toMatch(/factual/);
+    expect(html).not.toMatch(/fabrication_defense/);
+  });
+
+  it("renders a stale run's date instead of the generic empty hint", () => {
+    const html = renderToString(
+      <EvalPassRateTile
+        state={{ kind: "empty", hint: "last eval run 2026-05-27, no runs since" }}
+      />,
+    );
+    expect(html).toMatch(/last eval run 2026-05-27, no runs since/);
+    expect(html).not.toMatch(/no regression runs yet/);
+  });
+});
+
+// 2026-10-10 · the only eval_result writer (eval-regression cron) was deleted
+// 2026-05-28; prod still holds its rows, and the tile drew them as a current
+// 0% (0/75). Mirrors the 7-day gate system-health.ts already applies.
+describe("classifyEvals · 7-day freshness gate", () => {
+  const NOW = Date.parse("2026-10-10T12:00:00Z");
+  const query = (ranAt: string, passRate: number) => ({
+    isLoading: false,
+    isError: false,
+    refetch: () => {},
+    data: {
+      count: 1,
+      results: [
+        { id: "e1", ranAt, passed: 0, failed: 75, totalRan: 75, passRate },
+      ],
+    },
+  });
+
+  it("a 2026-05-27 run with passRate 0 is stale/empty with its date, not a current 0%", () => {
+    expect(classifyEvals(query("2026-05-27T06:00:00.000Z", 0), NOW)).toEqual({
+      kind: "empty",
+      hint: "last eval run 2026-05-27, no runs since",
+    });
+  });
+
+  it("positive control: a run 2 days old is still ready", () => {
+    expect(classifyEvals(query("2026-10-08T06:00:00.000Z", 0.9), NOW).kind).toBe("ready");
+  });
+
+  it("an unparseable ranAt cannot prove freshness, so it is not ready", () => {
+    expect(classifyEvals(query("not-a-date", 0), NOW)).toEqual({
+      kind: "empty",
+      hint: "last eval run on an unknown date, no runs since",
+    });
+  });
+
+  it("no rows is still the plain empty state", () => {
+    expect(
+      classifyEvals(
+        { isLoading: false, isError: false, refetch: () => {}, data: { count: 0, results: [] } },
+        NOW,
+      ),
+    ).toEqual({ kind: "empty" });
   });
 });
 

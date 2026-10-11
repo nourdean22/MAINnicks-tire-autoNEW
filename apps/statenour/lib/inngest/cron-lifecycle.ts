@@ -287,6 +287,18 @@ export function deriveResultCount(output: unknown): number | null {
 }
 
 /**
+ * Time a run spent waiting ON PURPOSE (a `step.sleep`), declared by the job as
+ * `waitedMs` in its output. settleCronRun subtracts it so `duration` records
+ * work, not the wait: operator-morning-brief read 2,108,280 ms, 2,100,000 of
+ * it a deliberate 35-minute sleep (audit 2026-10-10). The wait stays visible
+ * in the run's own output on Inngest. Not a finite non-negative number -> 0.
+ */
+export function deriveWaitedMs(output: unknown): number {
+  const v = (output as { waitedMs?: unknown } | null | undefined)?.waitedMs;
+  return typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : 0;
+}
+
+/**
  * Settle by AGE the rows no hook will ever settle.
  *
  * A process killed mid-run (deploy restart, OOM, edge timeout) emits no
@@ -455,7 +467,7 @@ export async function settleCronRun(
       where: { id: row.id },
       data: {
         status,
-        duration: Math.max(0, Date.now() - row.createdAt.getTime()),
+        duration: Math.max(0, Date.now() - row.createdAt.getTime() - deriveWaitedMs(output)),
         // Always written: a success overriding `interrupted` must also clear
         // the presumed-dead text that sweep left behind.
         error: err === undefined ? null : describeError(err),

@@ -13,6 +13,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 const h = vi.hoisted(() => ({
   findUnique: vi.fn(),
   cronFindMany: vi.fn(),
+  cronGroupBy: vi.fn(),
 }));
 
 vi.mock("@/lib/utils/cache", () => ({
@@ -34,7 +35,7 @@ vi.mock("@/lib/prisma", () => {
     },
     cronJobLog: {
       findFirst: () => Promise.resolve(null),
-      groupBy: empty,
+      groupBy: (...a: unknown[]) => h.cronGroupBy(...a),
       findMany: (...a: unknown[]) => h.cronFindMany(...a),
     },
   };
@@ -49,6 +50,8 @@ beforeEach(() => {
   h.findUnique.mockResolvedValue({ updatedAt: new Date("2026-10-10T01:00:00Z") });
   h.cronFindMany.mockReset();
   h.cronFindMany.mockResolvedValue([]);
+  h.cronGroupBy.mockReset();
+  h.cronGroupBy.mockResolvedValue([]);
 });
 afterEach(() => vi.useRealTimers());
 
@@ -95,8 +98,13 @@ describe("buildCronCommandDeck", () => {
 
   it("an in-flight `started` newest row is not shown as a failed last run", async () => {
     const name = CRONS.find((c) => c.mode === "active")!.name;
+    const at = new Date();
+    // 2026-10-10: the last run is read per job (groupBy _max), then its row.
+    h.cronGroupBy.mockImplementation(async (a: { by: string[] }) =>
+      a.by.join() === "jobName" ? [{ jobName: name, _max: { createdAt: at } }] : [],
+    );
     h.cronFindMany.mockResolvedValue([
-      { jobName: name, status: "started", duration: null, createdAt: new Date() },
+      { jobName: name, status: "started", duration: null, createdAt: at },
     ]);
     const deck = await buildCronCommandDeck();
     const row = deck.rows.find((r) => r.name === name)!;

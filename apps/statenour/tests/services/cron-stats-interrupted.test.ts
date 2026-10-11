@@ -47,19 +47,23 @@ describe("cron stats · interrupted runs count as failures (2026-09-22)", () => 
   });
 
   it("fail14d sums failed + interrupted rows; partial and started stay out; lastFailAt may come from an interrupted row", async () => {
-    groupBy.mockResolvedValue([
+    const t1 = new Date("2026-09-22T10:00:00Z");
+    const t0 = new Date("2026-09-22T09:00:00Z");
+    const countRows = [
       { jobName: "goal-pruner", status: "success", _count: { id: 3 } },
       { jobName: "goal-pruner", status: "failed", _count: { id: 1 } },
       { jobName: "goal-pruner", status: "interrupted", _count: { id: 2 } },
       { jobName: "goal-pruner", status: "partial", _count: { id: 1 } },
       { jobName: "goal-pruner", status: "started", _count: { id: 4 } },
-    ]);
-    const t1 = new Date("2026-09-22T10:00:00Z");
-    const t0 = new Date("2026-09-22T09:00:00Z");
-    findMany.mockResolvedValue([
-      { jobName: "goal-pruner", status: "interrupted", createdAt: t1 },
-      { jobName: "goal-pruner", status: "success", createdAt: t0 },
-    ]);
+    ];
+    // 2026-10-10: last success / failure is read PER JOB (groupBy _max), not from
+    // a capped findMany. One row per failure status; the newest of them wins.
+    const maxRows = [
+      { jobName: "goal-pruner", status: "interrupted", _max: { createdAt: t1 } },
+      { jobName: "goal-pruner", status: "success", _max: { createdAt: t0 } },
+      { jobName: "goal-pruner", status: "failed", _max: { createdAt: new Date("2026-09-22T08:00:00Z") } },
+    ];
+    groupBy.mockImplementation(async (a: { _max?: unknown }) => (a._max ? maxRows : countRows));
     const stats = await getCronStats();
     expect(stats["goal-pruner"]).toEqual({
       success14d: 3,

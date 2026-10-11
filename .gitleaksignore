@@ -45,3 +45,8 @@ f43f0d254f633ebc88b74e47f16b0fbfbd490443:apps/video-forge/tests/test_forge.py:ge
 # fixture (an object key plus a hex-looking quoted string; never a credential). The next
 # commit replaced it with a zero-entropy value. Pinned to that one commit/line.
 ed1879be1ef81ea0bb7537bb268c440e9c913683:apps/statenour/tests/telegram/webhook-followups.test.ts:generic-api-key:184
+
+# 2026-10-11 · #2984: a made-up planted value ("S9-PLANTED-SECRET-...") in the AI code-sandbox
+# escape test, used to prove model code cannot read process.env. Never a credential. The next
+# commit replaced it with a zero-entropy value. Pinned to that one commit/line.
+b5c9ab82ebaea69b029d001a0aa76b162d5807ef:apps/statenour/tests/ai/code-sandbox-escape.test.ts:generic-api-key:34

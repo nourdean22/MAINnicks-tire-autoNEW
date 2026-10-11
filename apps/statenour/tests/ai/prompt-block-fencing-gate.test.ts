@@ -15,14 +15,65 @@
  * brain-context-fencing.test.ts cannot do (it asserts the blocks that fire).
  * Together: this file says "every producer is fenced or explained", that file
  * says "the fences actually reach the prompt, closed".
+ *
+ * Read from syntax trees (hardened 2026-10-10 after a red team found 13 bypasses):
+ * imports in any form (relative, single-quoted, multi-line dynamic) are enumerated;
+ * comments are gone before any test, so a comment can neither fence nor read; a
+ * read through any receiver (`db.brainMemory`) or raw SQL ("BrainMemory") counts;
+ * a producer that calls a reading function from another module is a reader; and
+ * each `tool(...)` call is its own subject, with the same-file helpers it calls.
+ * NOT closed: one fenced render vouches for an unfenced render in the same file.
+ * Telling them apart needs data flow (which value reaches the prompt); a per-function
+ * rule flagged ten correctly fenced producers whose fence lives in another function.
  */
 import { describe, expect, it } from "vitest";
+import ts from "typescript";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const CONSUMER = join(APP_ROOT, "lib/services/chat/brain-context.ts");
+
+const printer = ts.createPrinter({ removeComments: true });
+const parse = (file: string, src: string) =>
+  ts.createSourceFile(file, src, ts.ScriptTarget.Latest, true, file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
+
+/** A module's top-level declarations by name (`export default` also as "default"). */
+function topLevel(sf: ts.SourceFile): Map<string, ts.Node> {
+  const out = new Map<string, ts.Node>();
+  for (const s of sf.statements) {
+    if ((ts.isFunctionDeclaration(s) || ts.isClassDeclaration(s)) && s.name) out.set(s.name.text, s);
+    if (ts.isVariableStatement(s)) for (const d of s.declarationList.declarations) if (ts.isIdentifier(d.name)) out.set(d.name.text, d);
+    if ((ts.isFunctionDeclaration(s) || ts.isClassDeclaration(s)) && s.modifiers?.some((m) => m.kind === ts.SyntaxKind.DefaultKeyword)) out.set("default", s);
+  }
+  return out;
+}
+
+/** The code of `start` plus every same-file declaration it reaches by name, comments removed. */
+function reachCode(start: ts.Node, decls: Map<string, ts.Node>, sf: ts.SourceFile): string {
+  const seen = new Set<ts.Node>([start]);
+  const queue = [start];
+  for (let n = queue.pop(); n; n = queue.pop()) {
+    (function ids(x: ts.Node): void {
+      const d = ts.isIdentifier(x) ? decls.get(x.text) : undefined;
+      if (d && !seen.has(d) && !(d.pos <= start.pos && d.end >= start.end)) {
+        seen.add(d);
+        queue.push(d);
+      }
+      ts.forEachChild(x, ids);
+    })(n);
+  }
+  return [...seen].map((n) => printer.printNode(ts.EmitHint.Unspecified, n, sf)).join("\n");
+}
+
+/** A module specifier, resolved against the importing file, when it points into the app's lib/. */
+function libFile(spec: string, from: string): string | null {
+  const abs = spec.startsWith("@/") ? join(APP_ROOT, spec.slice(2)) : spec.startsWith(".") ? resolve(dirname(from), spec) : undefined;
+  if (!abs || !relative(APP_ROOT, abs).split(sep).join("/").startsWith("lib/")) return null;
+  for (const c of [`${abs}.ts`, `${abs}.tsx`, join(abs, "index.ts")]) if (existsSync(c)) return c;
+  return null;
+}
 
 /**
  * Modules that interpolate `.content` but deliberately do NOT fence. Each
@@ -55,26 +106,105 @@ const ALLOWLIST: Record<string, string> = {
  * either fences what it renders or explains here why the rows it reads can
  * carry no stored free text worth fencing.
  */
-const INTERPOLATES = /prisma\.(brainMemory|chatMessage)\b|searchColdMemory\(|semanticSearch\(|recallMemoriesForQuery\(|getContextualMemories\(|brainMemory\.(recall|search|get|list)/;
+const INTERPOLATES =
+  /\.(brainMemory|chatMessage)\b|"(BrainMemory|ChatMessage)"|searchColdMemory\(|semanticSearch\(|recallMemoriesForQuery\(|getContextualMemories\(|brainMemory\.(recall|search|get|list)/;
+
+/**
+ * Every lib module the consumer imports: static, dynamic, re-export, type-only; any quote, any line breaks,
+ * `@/` or relative. Mapped to whether any import of it is a RUNTIME one (a type-only import calls nothing).
+ */
+function importedLibModuleKinds(): Map<string, boolean> {
+  const sf = parse(CONSUMER, readFileSync(CONSUMER, "utf-8"));
+  const specs = new Map<string, boolean>();
+  (function find(n: ts.Node): void {
+    const s =
+      ts.isImportDeclaration(n) || ts.isExportDeclaration(n)
+        ? n.moduleSpecifier
+        : ts.isCallExpression(n) && n.expression.kind === ts.SyntaxKind.ImportKeyword
+          ? n.arguments[0]
+          : undefined;
+    if (s && ts.isStringLiteralLike(s)) {
+      const abs = s.text.startsWith("@/") ? join(APP_ROOT, s.text.slice(2)) : s.text.startsWith(".") ? resolve(dirname(CONSUMER), s.text) : undefined;
+      const rel = abs && relative(APP_ROOT, abs).split(sep).join("/");
+      const b = ts.isImportDeclaration(n) ? n.importClause?.namedBindings : undefined;
+      const typeOnly =
+        (ts.isImportDeclaration(n) && !!n.importClause?.isTypeOnly) ||
+        (ts.isImportDeclaration(n) && !n.importClause?.name && !!b && ts.isNamedImports(b) && b.elements.every((e) => e.isTypeOnly)) ||
+        (ts.isExportDeclaration(n) && n.isTypeOnly);
+      if (rel && rel.startsWith("lib/")) specs.set(`@/${rel}`, (specs.get(`@/${rel}`) ?? false) || !typeOnly);
+    }
+    ts.forEachChild(n, find);
+  })(sf);
+  return specs;
+}
 
 function importedLibModules(): string[] {
-  const src = readFileSync(CONSUMER, "utf-8");
-  const specs = new Set<string>();
-  for (const m of src.matchAll(/import\("(@\/lib\/[^"]+)"\)|from "(@\/lib\/[^"]+)"/g)) specs.add(m[1] ?? m[2]);
-  return [...specs].sort();
+  return [...importedLibModuleKinds().keys()].sort();
 }
 
 function resolveModule(spec: string): string | null {
-  const base = join(APP_ROOT, spec.slice(2));
-  for (const c of [`${base}.ts`, `${base}.tsx`, join(base, "index.ts")]) if (existsSync(c)) return c;
-  return null;
+  return libFile(spec, CONSUMER);
 }
 
+/** Per module: the top-level names whose code (with the same-file helpers it calls) reads rows, plus "*" if any does. */
+const readingExportsCache = new Map<string, Set<string>>();
+function readingExports(file: string): Set<string> {
+  const hit = readingExportsCache.get(file);
+  if (hit) return hit;
+  const sf = parse(file, readFileSync(file, "utf-8"));
+  const decls = topLevel(sf);
+  const out = new Set([...decls].filter(([, n]) => INTERPOLATES.test(reachCode(n, decls, sf))).map(([name]) => name));
+  if (out.size) out.add("*");
+  readingExportsCache.set(file, out);
+  return out;
+}
+
+/**
+ * Does a module get rows by calling a reading function of another lib module (one hop)? A named import
+ * counts when that export reads; a namespace import or a dynamic `import()` counts when any export does.
+ * shortcut: one hop, and an import counts as a call. Make it a closure if rows ever arrive two modules away.
+ */
+function readsThroughImport(sf: ts.SourceFile, file: string): boolean {
+  let reads = false;
+  (function find(n: ts.Node): void {
+    if (reads) return;
+    if (ts.isImportDeclaration(n) && ts.isStringLiteralLike(n.moduleSpecifier) && n.importClause && !n.importClause.isTypeOnly) {
+      const target = libFile(n.moduleSpecifier.text, file);
+      const r = target ? readingExports(target) : new Set<string>();
+      const b = n.importClause.namedBindings;
+      if (n.importClause.name && r.has("default")) reads = true;
+      if (b && ts.isNamespaceImport(b) && r.has("*")) reads = true;
+      if (b && ts.isNamedImports(b) && b.elements.some((e) => !e.isTypeOnly && r.has((e.propertyName ?? e.name).text))) reads = true;
+    }
+    if (ts.isCallExpression(n) && n.expression.kind === ts.SyntaxKind.ImportKeyword && n.arguments[0] && ts.isStringLiteralLike(n.arguments[0])) {
+      const target = libFile(n.arguments[0].text, file);
+      if (target && readingExports(target).has("*")) reads = true;
+    }
+    ts.forEachChild(n, find);
+  })(sf);
+  return reads;
+}
+
+const runtimeImported = importedLibModuleKinds();
 const modules = importedLibModules().map((spec) => {
   const file = resolveModule(spec);
-  const src = file ? readFileSync(file, "utf-8") : "";
-  return { spec, file, interpolates: INTERPOLATES.test(src), fences: /\bfenceContent\(/.test(src) };
+  if (!file) return { spec, file, interpolates: false, fences: false };
+  const sf = parse(file, readFileSync(file, "utf-8"));
+  const code = printer.printFile(sf);
+  // The hop applies only to a module the consumer CALLS: a type-only import (`import type { ChatMode }`) runs nothing.
+  const hop = runtimeImported.get(spec) === true && readsThroughImport(sf, file);
+  return { spec, file, interpolates: INTERPOLATES.test(code) || hop, fences: /\bfenceContent\(/.test(code) };
 });
+
+/**
+ * KNOWN, 2026-10-10: found when this gate learned to follow a reading function one import away. Neither
+ * fenced nor explained; the owner fences it at source or moves it to ALLOWLIST with a reason a reviewer
+ * can check, then deletes it here (the reverse canary fails once it is fenced or allowlisted).
+ *   @/lib/ai/tactician/next-move · buildNextMoveBlock (lib/ai/tactician/next-move.ts:92) renders picks from
+ *   greene-message-matcher, dark-psychology-matcher and contextual-greene-laws (which also reads kept_word and
+ *   greene_contextual_pick rows) into the prompt as bare text.
+ */
+const KNOWN_UNFENCED = new Set(["@/lib/ai/tactician/next-move"]);
 
 // ── the other door: TOOL RESULTS ──────────────────────────────────────────
 // The same rows reach the model as tool output. Analysed PER TOOL, not per
@@ -87,7 +217,7 @@ const modules = importedLibModules().map((spec) => {
 // searchMemories returned WHOLE rows, so the key is reading + touching
 // content, never a render idiom.
 const TOOLS_DIR = join(APP_ROOT, "lib/ai/tools");
-const READS_ROWS = /prisma\.(brainMemory|chatMessage)\b|searchColdMemory\(|semanticSearch\(|recallMemoriesForQuery\(|getContextualMemories\(/;
+const READS_ROWS = /\.(brainMemory|chatMessage)\b|"(BrainMemory|ChatMessage)"|searchColdMemory\(|semanticSearch\(|recallMemoriesForQuery\(|getContextualMemories\(/;
 
 export interface ToolAnalysis {
   file: string;
@@ -99,20 +229,26 @@ export interface ToolAnalysis {
 
 /**
  * Pure, so the mutation canary below can run it on a doctored source string.
- * Splits a tool file on its `  name: tool({` block starts (the exported tools
- * object literal); each block runs to the next start or EOF.
+ * Every `tool(...)` call is one subject, wherever it sits (an object property,
+ * `export const x = tool(...)`, any name, any type arguments, any indent), keyed
+ * by the property or variable that holds it. Its code is the call plus the
+ * same-file helpers it reaches by name, comments removed.
  */
 export function analyzeToolSource(file: string, src: string): ToolAnalysis[] {
-  const lines = src.split("\n");
-  const starts: Array<[number, string]> = [];
-  lines.forEach((l, i) => {
-    const m = l.match(/^  ([a-zA-Z]+): tool\(\{/);
-    if (m) starts.push([i, m[1]]);
-  });
-  return starts.map(([i, tool], k) => {
-    const seg = lines.slice(i, k + 1 < starts.length ? starts[k + 1][0] : lines.length).join("\n");
-    return { file, tool, reads: READS_ROWS.test(seg), touchesContent: /\.content\b/.test(seg), fenced: /\bfenceContent\(/.test(seg) };
-  });
+  const sf = parse(file, src);
+  const decls = topLevel(sf);
+  const out: ToolAnalysis[] = [];
+  (function walk(n: ts.Node): void {
+    if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === "tool" && n.arguments.length > 0) {
+      const p = n.parent;
+      const named = (ts.isPropertyAssignment(p) || ts.isVariableDeclaration(p)) && (ts.isIdentifier(p.name) || ts.isStringLiteral(p.name)) ? p.name.text : undefined;
+      const tool = named ?? `tool@${sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1}`;
+      const seg = reachCode(n, decls, sf);
+      out.push({ file, tool, reads: READS_ROWS.test(seg), touchesContent: /\.content\b/.test(seg), fenced: /\bfenceContent\(/.test(seg) });
+    }
+    ts.forEachChild(n, walk);
+  })(sf);
+  return out;
 }
 
 /** Per-TOOL allowlist: reads rows + touches content, deliberately unfenced, with the categories it reads. */
@@ -188,7 +324,7 @@ describe("prompt-block fencing gate · every brain-context producer that renders
   });
 
   it("no producer that reads memory or chat rows renders without fenceContent, unless allowlisted with a reason", () => {
-    const bare = modules.filter((m) => m.interpolates && !m.fences && !(m.spec in ALLOWLIST)).map((m) => m.spec);
+    const bare = modules.filter((m) => m.interpolates && !m.fences && !(m.spec in ALLOWLIST) && !KNOWN_UNFENCED.has(m.spec)).map((m) => m.spec);
     expect(
       bare,
       `brain-context producers that read BrainMemory / chat rows and render with no <tool_data> fence — fence at source (see contextual-recall's fenceRecallBlock) or allowlist WITH a reason a reviewer can check:\n${bare.join("\n")}`,
@@ -202,5 +338,42 @@ describe("prompt-block fencing gate · every brain-context producer that renders
     });
     expect(stale, `stale ALLOWLIST entries (not imported / no longer interpolating / now fenced):\n${stale.join("\n")}`).toEqual([]);
     for (const [spec, reason] of Object.entries(ALLOWLIST)) expect(reason.length, `${spec} needs a real reason`).toBeGreaterThan(20);
+  });
+
+  it("REVERSE CANARY: every KNOWN_UNFENCED producer is still a bare reader (delete it once fenced or allowlisted)", () => {
+    const fixed = [...KNOWN_UNFENCED].filter((spec) => {
+      const m = modules.find((x) => x.spec === spec);
+      return !m || !m.interpolates || m.fences || spec in ALLOWLIST;
+    });
+    expect(fixed, `remove from KNOWN_UNFENCED:\n${fixed.join("\n")}`).toEqual([]);
+  });
+
+  it("positive control: the parts the 2026-10-10 red team found blind now see", () => {
+    // Comments can neither fence nor read.
+    const code = (src: string) => printer.printFile(parse("x.ts", src));
+    expect(/\bfenceContent\(/.test(code("// TODO: fenceContent( before ship\nexport const a = 1;"))).toBe(false);
+    expect(INTERPOLATES.test(code("// never reads prisma.brainMemory\nexport const a = 1;"))).toBe(false);
+    // Any receiver, and raw SQL, are reads.
+    expect(INTERPOLATES.test("const rows = await db.brainMemory.findMany();")).toBe(true);
+    expect(INTERPOLATES.test('const rows = await prisma.$queryRaw`SELECT content FROM "BrainMemory"`;')).toBe(true);
+    // The consumer's real imports are enumerated whatever their form (36+ today, 2026-10-10).
+    expect(modules.length).toBeGreaterThanOrEqual(30);
+    // Tools: a name with `_`, type arguments, a top-level const, and a comment "fence" are each their own bare subject.
+    const bare = analyzeToolSource(
+      "t.ts",
+      [
+        'import { tool } from "ai";',
+        "export const tools = {",
+        '  readFenced: tool({ execute: async () => (await prisma.brainMemory.findMany()).map((m) => fenceContent("r", "memory_recall", m.content)) }),',
+        "  read_rows: tool({ execute: async () => (await prisma.brainMemory.findMany()).map((m) => m.content) }),",
+        "    readMore: tool<{ q: string }, string[]>({ execute: async () => (await prisma.brainMemory.findMany()).map((m) => m.content) }),",
+        "  readNote: tool({ // fenceContent( is a TODO",
+        "    execute: async () => (await prisma.brainMemory.findMany()).map((m) => m.content) }),",
+        "};",
+        "export const readTop = tool({ execute: async () => (await loadRows()).map((m) => m.content) });",
+        "async function loadRows() { return prisma.brainMemory.findMany(); }",
+      ].join("\n"),
+    ).filter((t) => t.reads && t.touchesContent && !t.fenced);
+    expect(bare.map((t) => t.tool)).toEqual(["read_rows", "readMore", "readNote", "readTop"]);
   });
 });

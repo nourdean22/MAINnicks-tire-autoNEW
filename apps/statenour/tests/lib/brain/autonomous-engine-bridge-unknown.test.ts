@@ -58,7 +58,7 @@ describe("suggest_pricing_adjustment", () => {
   });
 
   it("POSITIVE CONTROL: a real low conversion still alerts", async () => {
-    queryNick.mockResolvedValue(answer({ count: 12, bookedCount: 1 }));
+    queryNick.mockResolvedValue(answer({ count: 12, bookedCount: 1, bookedCountIsLowerBound: false }));
     const items = (await trigger("suggest_pricing_adjustment")()) as Array<{ type: string }>;
     expect(items).toHaveLength(1);
     expect(items[0].type).toBe("overpriced");
@@ -72,7 +72,7 @@ describe("quote_conversion_insight", () => {
   });
 
   it("POSITIVE CONTROL: real counts still fire", async () => {
-    queryNick.mockResolvedValue(answer({ count: 20, bookedCount: 5 }));
+    queryNick.mockResolvedValue(answer({ count: 20, bookedCount: 5, bookedCountIsLowerBound: false }));
     expect(await trigger("quote_conversion_insight")()).toEqual([{ total: 20, booked: 5, rate: 25 }]);
   });
 

@@ -291,10 +291,12 @@ export async function getAccessToken(accountKey: string = "primary"): Promise<st
 
   const integrationName = integrationNameFor(accountKey);
 
-  // Set inside the transaction when Google rejects the refresh; the `failed`
-  // write happens AFTER it (08-F3: written inside, the throw rolled it back and
-  // the integration kept reading "healthy").
-  let refreshRejected = false;
+  // Set inside the transaction when the refresh call fails; the write happens
+  // AFTER it (08-F3: written inside, the throw rolled it back and the
+  // integration kept reading "healthy"). Only "rejected" (400/401: invalid_grant,
+  // invalid_client, ...) marks the grant failed; "transient" (429, 5xx, network)
+  // keeps the prior status and is only counted.
+  let refreshFailure: "rejected" | "transient" | null = null;
   // Use a transaction with pg_advisory_xact_lock to prevent concurrent refresh races across processes
   return await prisma.$transaction(async (tx) => {
     // Acquire a transaction-level advisory lock.
@@ -341,6 +343,9 @@ export async function getAccessToken(accountKey: string = "primary"): Promise<st
         refresh_token: stored.refreshToken,
         grant_type: "refresh_token",
       }),
+    }).catch((err: unknown) => {
+      refreshFailure = "transient"; // network error or timeout: Google never answered
+      throw err;
     });
 
     if (!res.ok) {
@@ -356,7 +361,8 @@ export async function getAccessToken(accountKey: string = "primary"): Promise<st
         }
       }
 
-      refreshRejected = true;
+      // Google answers a refused grant or client with 400/401; 429 and 5xx are its own trouble.
+      refreshFailure = res.status === 400 || res.status === 401 ? "rejected" : "transient";
       throw new Error(telemetryMsg);
     }
 
@@ -388,17 +394,20 @@ export async function getAccessToken(accountKey: string = "primary"): Promise<st
 
     return data.access_token;
   }, { timeout: 15000 }).catch(async (err: unknown) => {
-    if (refreshRejected) {
+    if (refreshFailure) {
+      // consecutiveFailures >= 3 also reads "expired", so a transient error leaves it alone.
       await prisma.integration
         .update({
           where: { name: integrationName },
-          data: {
-            status: "failed",
-            errorCount: { increment: 1 },
-            consecutiveFailures: { increment: 1 },
-          },
+          data:
+            refreshFailure === "rejected"
+              ? { status: "failed", errorCount: { increment: 1 }, consecutiveFailures: { increment: 1 } }
+              : { errorCount: { increment: 1 } },
         })
         .catch((e) => logError("services.google-oauth", e, { stage: "mark-refresh-failed", accountKey }, "warn"));
+      if (refreshFailure === "transient") {
+        logError("services.google-oauth", err, { stage: "refresh-transient", accountKey }, "warn");
+      }
     }
     throw err;
   });

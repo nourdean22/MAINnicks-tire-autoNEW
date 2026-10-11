@@ -127,6 +127,45 @@ export interface UseChatTransportOpts<TBody extends object = Record<string, unkn
     reason?: string;
     laneModel?: string;
   }) => void;
+  /**
+   * 2026-10-10 (audit 04-F2) · `event: message.persisted { id, content }`:
+   * the DB row id and the STORED text of this turn's reply. `traceId` is
+   * the X-Trace-Id of the response it arrived on, so the caller can refuse
+   * a payload that belongs to another turn.
+   */
+  onMessagePersisted?: (persisted: { id: string; content: string; traceId: string | null }) => void;
+  /**
+   * P2-B6 · the id of the bubble already showing the turn a resume names
+   * (`?traceId=`), or undefined when there is none. The replay answers under
+   * this id, so the AI SDK replaces that bubble instead of adding a second
+   * one (Reconnect after a stall, re-resume after the DB id was bound).
+   */
+  resumeIntoMessageId?: () => string | undefined;
+}
+
+/**
+ * P2-B6 · a bubble rebuilt by a resume. ai@6 starts a resume from an empty
+ * message and the route replays text only, so its parts cannot show which
+ * tools ran (and the turn may still be running): the Regenerate gate in
+ * chat-message-list refuses such a bubble. Set on the `start` chunk below.
+ */
+export function isResumedMessage(message: { metadata?: unknown }): boolean {
+  return (message.metadata as { resumed?: unknown } | undefined)?.resumed === true;
+}
+
+/** P2-B6 · only the `start` chunk carries the message id and metadata. Every
+ *  resume marks its bubble resumed; a named one also adopts the id of the
+ *  bubble already on screen. */
+function patchResumeStart(frame: string, data: string, messageId: string | undefined): string {
+  if (!data.includes('"start"')) return frame;
+  try {
+    const chunk = JSON.parse(data);
+    if (chunk?.type !== "start") return frame;
+    const messageMetadata = { ...chunk.messageMetadata, resumed: true };
+    return `data: ${JSON.stringify({ ...chunk, ...(messageId ? { messageId } : {}), messageMetadata })}`;
+  } catch {
+    return frame;
+  }
 }
 
 export function useChatTransport<TBody extends object = Record<string, unknown>>(
@@ -145,6 +184,8 @@ export function useChatTransport<TBody extends object = Record<string, unknown>>
     onConversationId,
     onResumePartial,
     onEscalation,
+    onMessagePersisted,
+    resumeIntoMessageId,
   } = opts;
 
   const getBody = useCallback(() => transportBodyRef.current, [transportBodyRef]);
@@ -177,9 +218,19 @@ export function useChatTransport<TBody extends object = Record<string, unknown>>
             | undefined;
           const convId =
             body?.conversationId && !body?.privateMode ? body.conversationId : "none";
-          return { api: `${apiPath}/${encodeURIComponent(convId)}/stream` };
+          const api = `${apiPath}/${encodeURIComponent(convId)}/stream`;
+          // 04-F8 · name the turn being waited for. The server answers 204
+          // when its record belongs to another turn, instead of replaying
+          // the previous reply. No trace yet (fresh load) = the old URL.
+          const traceId = lastTraceIdRef?.current;
+          return { api: traceId && convId !== "none" ? `${api}?traceId=${encodeURIComponent(traceId)}` : api };
         },
         fetch: async (input, init) => {
+          // A resume that names its turn merges into that turn's bubble. An
+          // unnamed one (mount) keeps the server id: it never replaces a reply.
+          const isResume = init?.method === "GET";
+          const resumeInto =
+            isResume && String(input).includes("traceId=") ? resumeIntoMessageId?.() : undefined;
           const res = await fetch(input, init);
 
           // ── Conversation id (CRITICAL — every send before this fix
@@ -277,6 +328,10 @@ export function useChatTransport<TBody extends object = Record<string, unknown>>
           if (lastTraceIdRef) {
             const traceHeader = res.headers.get("X-Trace-Id");
             if (traceHeader) setLastTraceId(traceHeader);
+            // P2-B6 · a turn answered with no trace (image, confirmation
+            // lanes) must not leave the previous turn's behind: a Reconnect
+            // would name that older turn and replay its reply.
+            else if (init?.method === "POST") lastTraceIdRef.current = null;
           }
 
           // ── Persona header (loop-safe pattern) ─────────────────────
@@ -298,6 +353,8 @@ export function useChatTransport<TBody extends object = Record<string, unknown>>
           if (contentType?.includes("text/event-stream") && res.body) {
             const reader = res.body.getReader();
             const decoder = new TextDecoder();
+            const encoder = new TextEncoder();
+            const responseTraceId = res.headers.get("X-Trace-Id");
             let buffer = "";
             let toastedDecodeError = false;
             // 2026-08-09 · MUST live out here, alongside `buffer`, not inside the
@@ -367,9 +424,23 @@ export function useChatTransport<TBody extends object = Record<string, unknown>>
                               toast.error("Stream decode error — response may be incomplete", { duration: 4000 });
                             }
                           }
-                        } else if (currentEvent) {
+                        } else if (!currentEvent) {
+                          // A bare `data:` frame is a plain UI-message stream:
+                          // the resume GET, the image lane and the confirmation
+                          // lane all send one. The cockpit stream never does, so
+                          // forward it as-is instead of dropping it.
+                          const frame = isResume ? patchResumeStart(trimmed, dataVal, resumeInto) : trimmed;
+                          controller.enqueue(encoder.encode(`${frame}\n\n`));
+                        } else {
                           try {
                             const parsed = JSON.parse(dataVal);
+                            if (
+                              currentEvent === "message.persisted" &&
+                              typeof parsed?.id === "string" &&
+                              typeof parsed?.content === "string"
+                            ) {
+                              onMessagePersisted?.({ id: parsed.id, content: parsed.content, traceId: responseTraceId });
+                            }
                             const ev = new CustomEvent("cockpit-event", {
                               detail: { type: currentEvent, payload: parsed },
                             });

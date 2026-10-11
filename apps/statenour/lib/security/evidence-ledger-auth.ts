@@ -24,7 +24,7 @@ export function presentedLedgerKey(headers: Headers): string {
   return (headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
 }
 
-function same(a: string, b: string): boolean {
+export function same(a: string, b: string): boolean {
   if (!a || !b) return false;
   const bufA = Buffer.from(a);
   const bufB = Buffer.from(b);

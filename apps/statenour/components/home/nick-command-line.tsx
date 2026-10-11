@@ -36,6 +36,7 @@ import { cn } from "@/lib/utils/cn";
 import { trpc } from "@/lib/trpc/client";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
+import { isSubmitEnter } from "@/features/chat-v2/lib/submit-enter";
 import {
   readBriefStamp,
   shouldFireBrief,
@@ -214,8 +215,8 @@ export function NickCommandLine() {
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       // Enter sends; Shift+Enter breaks a line; ⌘/Ctrl+Enter also sends
-      // (muscle memory from the old dock).
-      if (e.key === "Enter" && (!e.shiftKey || e.metaKey || e.ctrlKey)) {
+      // (muscle memory from the old dock). An IME confirm never sends.
+      if (isSubmitEnter(e)) {
         e.preventDefault();
         submit();
       }

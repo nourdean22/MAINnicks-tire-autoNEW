@@ -37,6 +37,7 @@ const { findUnique, update, create, inngestSend } = vi.hoisted(() => ({
 
 vi.mock("@/lib/auth-guard", () => ({
   requireSyncAuth: vi.fn(),
+  requireQueueAuth: vi.fn(),
   requireCronAuth: vi.fn(),
   requireSession: vi.fn().mockResolvedValue({ user: "operator" }),
 }));

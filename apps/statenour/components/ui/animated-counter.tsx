@@ -25,9 +25,15 @@
  * children, no event handlers on inner elements. If a future change
  * adds React children inside the span, this implementation needs
  * to be re-evaluated.
+ *
+ * 2026-10-10 · the first paint is the REAL value. It used to be a literal
+ * 0 that only a requestAnimationFrame tick replaced, and a hidden or
+ * background document runs no frames, so /system/crons tiles read 0 while
+ * the header read the truth. Now: render the value, tween only on a later
+ * change, and only when the page is visible and motion is allowed.
  */
 
-import { useEffect, useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 
 interface AnimatedCounterProps {
@@ -55,54 +61,44 @@ export function AnimatedCounter({
   locale = true,
 }: AnimatedCounterProps) {
   const spanRef = useRef<HTMLSpanElement>(null);
-  const prevValue = useRef(0);
+  // The first paint is already the real value: nothing to tween from.
+  const prevValue = useRef(value);
   const frameRef = useRef<number>(0);
 
-  useEffect(() => {
-    const initialNode = spanRef.current;
-    if (!initialNode) return;
-
+  // Layout effect, so a tween's start value lands before the browser paints
+  // (no flash of the target, then the old value, then the climb).
+  useLayoutEffect(() => {
+    // React's own text node: a single string child is one text node, and
+    // writing its nodeValue keeps React and the DOM on the same node.
+    const node = spanRef.current?.firstChild;
+    if (!node) return;
+    const text = (n: number) => `${prefix}${formatNum(n, decimals, locale)}${suffix}`;
     const start = prevValue.current;
+    prevValue.current = value;
+    const animate =
+      start !== value &&
+      !document.hidden &&
+      !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    // Always settle the text: a dep change that kept `value` (or a cancelled
+    // tween) must not leave a mid-tween number behind.
+    node.nodeValue = text(animate ? start : value);
+    if (!animate) return;
+
     const diff = value - start;
-
-    // Identity tween (value didn't change · just sync the rendered text).
-    if (diff === 0) {
-      initialNode.textContent = `${prefix}${formatNum(value, decimals, locale)}${suffix}`;
-      return;
-    }
-
     const startTime = performance.now();
-
-    function tick(now: number) {
-      // Re-read the ref each frame · handles mid-animation unmount AND
-      // satisfies TypeScript's narrowing-across-closure rules. If the
-      // ref went null (unmount) the tick exits cleanly without writing
-      // to a stale node.
-      const node = spanRef.current;
-      if (!node) return;
-      const elapsed = now - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-      const eased = easeOutExpo(progress);
-      const current = start + diff * eased;
-      // Direct DOM write — bypasses React reconciliation.
-      node.textContent = `${prefix}${formatNum(current, decimals, locale)}${suffix}`;
-      if (progress < 1) {
-        frameRef.current = requestAnimationFrame(tick);
-      } else {
-        prevValue.current = value;
-      }
-    }
-
+    const tick = (now: number) => {
+      const progress = Math.min((now - startTime) / duration, 1);
+      node.nodeValue = text(start + diff * easeOutExpo(progress));
+      if (progress < 1) frameRef.current = requestAnimationFrame(tick);
+    };
     frameRef.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frameRef.current);
   }, [value, duration, decimals, locale, prefix, suffix]);
 
-  // Initial paint shows "0" (per the original behavior — the dramatic
-  // tween effect is "starts at zero, climbs to the real value"). The
-  // useEffect overwrites this on mount.
+  // One string child = one text node (see the effect).
   return (
     <span ref={spanRef} className={cn("tabular-nums", className)}>
-      {prefix}0{suffix}
+      {`${prefix}${formatNum(value, decimals, locale)}${suffix}`}
     </span>
   );
 }
