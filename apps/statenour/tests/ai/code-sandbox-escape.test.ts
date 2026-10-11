@@ -31,7 +31,7 @@ import { nourTools } from "@/lib/ai/tools";
 
 type Res = Record<string, unknown>;
 const tools = nourTools as unknown as Record<string, { execute: (a: unknown) => Promise<Res> }>;
-const SECRET = "S9-PLANTED-SECRET-7f3a";
+const SECRET = "zzzzzzzzzzzzzzzzzzzzzzzz"; // zero entropy: a planted canary, never a credential (gitleaks)
 const flush = () => new Promise((r) => setTimeout(r, 25));
 
 /**
