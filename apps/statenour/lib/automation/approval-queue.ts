@@ -27,6 +27,7 @@ import { ServiceError } from "@/lib/utils/service-error";
 import { logger as rootLogger } from "@/lib/logger";
 import { getPolicy, type ApprovalClass } from "@/lib/automation/policy";
 import { actionExpiresAt, expiredApprovalMessage, isActionExpired } from "@/lib/automation/approval-freshness";
+import { beginAttempt, settleAttempt } from "@/lib/services/action-attempts";
 
 const log = rootLogger.withSurface("automation/approval-queue");
 
@@ -188,10 +189,11 @@ export async function decidePendingAction(
   // field the decision read (`approval`; expiry derives from the immutable
   // actionType + createdAt). count===1 wins; the loser re-reads and reports
   // the real state. A crash after the claim leaves "processing" -- fail closed,
-  // never a second execution.
+  // never a second execution; the approval sweeper recovers it
+  // (recoverStuckDecisions below) from the stamp written here.
   const claim = await prisma.autonomousAction.updateMany({
     where: { id, approval: "pending" },
-    data: { approval: "processing" },
+    data: { approval: "processing", approvedBy: claimStamp(decision, approver, new Date()) },
   });
   if (claim.count !== 1) {
     const winner = await prisma.autonomousAction.findUnique({ where: { id }, select: { approval: true } });
@@ -281,6 +283,82 @@ export async function decidePendingAction(
   });
 
   return shapeRow(updated);
+}
+
+/** A decision claim older than this is not in flight any more (rule.action is bounded by its fetch timeouts). */
+export const DECISION_CLAIM_STALE_MS = 15 * 60_000;
+
+/**
+ * Who claimed what, and when, kept in approvedBy while the row is `processing`
+ * (AutonomousAction has no updatedAt; no schema change). The final update
+ * overwrites it with the approver.
+ */
+function claimStamp(decision: ApprovalDecision, by: string, at: Date): string {
+  return JSON.stringify({ claim: decision, by, at: at.toISOString() });
+}
+
+function readClaimStamp(value: string | null): { claim: ApprovalDecision; by: string; at: Date } | null {
+  try {
+    const s = JSON.parse(value ?? "") as { claim?: unknown; by?: unknown; at?: unknown };
+    const at = new Date(String(s.at));
+    if ((s.claim !== "approved" && s.claim !== "rejected") || typeof s.by !== "string" || !Number.isFinite(at.getTime())) return null;
+    return { claim: s.claim, by: s.by, at };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The approval sweeper's recovery for a decision claim that never finished (a
+ * write after the claim threw, or the process died). Never back to `pending`:
+ * an approve may already have run its side effect, and nothing is re-run.
+ *   - a stamped reject ran nothing: finish it `rejected`;
+ *   - a stamped approve whose replay wrote executedAt after the claim finished: `approved`;
+ *   - anything else may or may not have run: `needs_review`, recorded UNKNOWN in
+ *     action_attempts so the Owner Panel lists it. An unstamped claim predates the stamp.
+ */
+export async function recoverStuckDecisions(now: Date = new Date()): Promise<{ finished: number; needsReview: number }> {
+  const rows = await prisma.autonomousAction.findMany({
+    where: { approval: "processing" },
+    select: { id: true, ruleName: true, actionType: true, approvedBy: true, executedAt: true },
+    take: 50,
+  });
+  let finished = 0;
+  let needsReview = 0;
+  for (const r of rows) {
+    const stamp = readClaimStamp(r.approvedBy);
+    if (stamp && now.getTime() - stamp.at.getTime() < DECISION_CLAIM_STALE_MS) continue; // still in flight
+    const done =
+      stamp?.claim === "rejected" || (stamp?.claim === "approved" && r.executedAt != null && r.executedAt.getTime() >= stamp.at.getTime());
+    const reason = `${stamp ? `${stamp.claim} by ${stamp.by} at ${stamp.at.toISOString()}` : "a decision"} did not finish; ${r.actionType} may or may not have run. Check before acting; not re-run.`;
+    // Swap on every field the verdict read: a replay that lands meanwhile writes its own.
+    const res = await prisma.autonomousAction.updateMany({
+      where: { id: r.id, approval: "processing", approvedBy: r.approvedBy, executedAt: r.executedAt },
+      data: done
+        ? { approval: stamp!.claim, approvedBy: stamp!.by }
+        : { approval: "needs_review", approvedBy: stamp?.by ?? null, error: reason },
+    });
+    if (res.count !== 1) continue;
+    if (done) {
+      finished++;
+      continue;
+    }
+    needsReview++;
+    try {
+      const begun = await beginAttempt({
+        operationKey: `autonomous-action:${r.id}`,
+        tool: `autonomous.${r.ruleName}`,
+        effectClass: "write",
+        argumentsHash: r.id,
+        windowMs: DECISION_CLAIM_STALE_MS,
+      });
+      if (begun.kind === "claimed") await settleAttempt(begun.attemptId, { disposition: "unknown", reason });
+    } catch (err) {
+      log.error("stuck_decision_ledger_failed", { id: r.id, error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+  if (finished + needsReview > 0) log.warn("stuck_decisions_recovered", { finished, needsReview });
+  return { finished, needsReview };
 }
 
 function shapeRow(r: {

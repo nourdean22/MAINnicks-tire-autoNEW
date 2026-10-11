@@ -81,7 +81,14 @@ export async function POST(req: NextRequest) {
   }
 
   const message = body.message as
-    | { text?: string; chat: { id: number }; from?: { id: number } }
+    | {
+        text?: string;
+        chat: { id: number };
+        from?: { id: number };
+        forward_origin?: unknown;
+        forward_from?: unknown;
+        forward_date?: number;
+      }
     | undefined;
   if (!message?.text) return NextResponse.json({ ok: true });
 
@@ -98,6 +105,12 @@ export async function POST(req: NextRequest) {
   if (expectedChat && chatId !== expectedChat) {
     // Foreign chat · silent drop (matches the main webhook's behavior).
     return NextResponse.json({ ok: true });
+  }
+
+  // A forwarded message is someone else's words, never the owner's command:
+  // a forwarded "/approve_all" decides nothing (same test as the main webhook).
+  if (message.forward_origin || message.forward_from || message.forward_date) {
+    return NextResponse.json({ ok: true, ignored: true });
   }
 
   const text = message.text.trim();
@@ -180,11 +193,18 @@ async function replyToOperator(
   chatId: string,
 ): Promise<void> {
   if (!result.ok) {
-    await sendTelegram(
-      `<b>${date}</b> · move ${n} not found. (${result.reason})`,
-      chatId,
-      "HTML",
-    );
+    // Say what decideMove actually knows: only move_not_found means "no such
+    // move". A failed read or write is retryable: a retry after a write that
+    // did land answers "already <status>".
+    const line =
+      result.reason === "move_not_found"
+        ? `move ${n} not found.`
+        : result.reason === "read_failed"
+          ? `could not read move ${n}. Nothing changed, try again.`
+          : result.reason === "write_failed"
+            ? `move ${n} not saved, try again.`
+            : `move ${n} not decided.`;
+    await sendTelegram(`<b>${date}</b> · ${line} (${result.reason})`, chatId, "HTML");
     return;
   }
   if (result.alreadyDecided) {

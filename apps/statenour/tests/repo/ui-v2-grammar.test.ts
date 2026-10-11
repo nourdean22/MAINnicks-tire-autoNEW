@@ -17,12 +17,26 @@
  * the old sheet also defined those keyframes. Against 49592699 (the FIRST v2
  * push) all 5 "cascade defects" tests fail, which is the point of that block.
  */
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { execFileSync } from "node:child_process";
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const ROOT = join(__dirname, "..", "..");
 const read = (p: string) => readFileSync(join(ROOT, p), "utf8");
+/** Tracked files matching git pathspecs. execFile, not a shell: cmd.exe keeps single quotes, so `'*.md'` matched nothing on Windows. */
+const gitFiles = (...specs: string[]) =>
+  execFileSync("git", ["ls-files", "--", ...specs], { cwd: ROOT, encoding: "utf8" }).split("\n").filter(Boolean);
+/** Every .ts/.tsx a class string can live in, tracked or not (a new file must not slip past). */
+function uiFiles(dir: string): string[] {
+  return readdirSync(join(ROOT, dir)).flatMap((name) => {
+    const p = join(dir, name);
+    if (name === "node_modules" || name.startsWith(".")) return [];
+    if (statSync(join(ROOT, p)).isDirectory()) return uiFiles(p);
+    return /\.tsx?$/.test(name) && !/\.(test|spec)\.tsx?$|\.d\.ts$/.test(name) ? [relative(ROOT, join(ROOT, p)).replaceAll("\\", "/")] : [];
+  });
+}
+const UI_FILES = ["app", "components", "features", "hooks", "lib"].flatMap(uiFiles);
 
 const tokens = read("app/styles/tokens.css");
 const base = read("app/styles/base.css");
@@ -160,30 +174,120 @@ describe("UI v2 cascade defects found by the 2026-10-01 hostile review stay fixe
  * breathes, .streak-fire and .animate-breath, and four .tsx files applied those classes.
  */
 describe("nothing animates at rest (only working states loop)", () => {
-  /** Selectors whose rule runs an `infinite` animation, comments and @keyframes bodies stripped. */
+  /** More iterations than this is a loop in all but name (`animation: breathe 3s 99999`). */
+  const MAX_ITERATIONS = 3;
+
+  /**
+   * Selectors whose rule loops an animation, comments and @keyframes bodies stripped. Reads `animation`,
+   * `animation-iteration-count` and Tailwind v4 `--animate-*` theme tokens (each registers an `animate-*`
+   * utility). A loop is the standalone token `infinite` (a keyframe NAMED `infinite-scroll` is not) or a
+   * count above MAX_ITERATIONS. A token is reported as "<selector> <--animate-name>".
+   */
   function infiniteSelectors(css: string): string[] {
     const bare = css.replace(/\/\*[\s\S]*?\*\//g, "").replace(/@keyframes[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g, "");
-    return [...bare.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
-      .filter((m) => /animation[^;]*\binfinite\b/.test(m[2]))
-      .map((m) => m[1].trim());
+    const out: string[] = [];
+    for (const m of bare.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      for (const decl of m[2].split(";")) {
+        const at = decl.indexOf(":");
+        const prop = decl.slice(0, at).trim();
+        if (at < 0 || !/^(animation|animation-iteration-count|--animate-[\w-]+)$/.test(prop)) continue;
+        // Parenthesised arguments (cubic-bezier, steps, var) hold no iteration count.
+        const tokens = decl.slice(at + 1).replace(/\([^()]*\)/g, " ").split(/[\s,]+/);
+        if (tokens.some((t) => t === "infinite" || (/^\d+(\.\d+)?$/.test(t) && Number(t) > MAX_ITERATIONS))) {
+          out.push(prop.startsWith("--") ? `${m[1].trim()} ${prop}` : m[1].trim());
+        }
+      }
+    }
+    return out;
   }
 
-  it("positive control: the scan finds a planted at-rest loop", () => {
+  /** Comments out, URLs (`https://`) kept, so a note naming a retired class is not an application of it. */
+  const stripComments = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
+  /**
+   * Loops a component applies with no stylesheet rule: Tailwind's built-in pulse/ping/bounce, an arbitrary
+   * `animate-[... infinite]`, an inline `animation: "... infinite"`. `animate-spin` is not here: a spinner
+   * IS a working indicator.
+   */
+  const LOOP_CLASS = /\banimate-(?:pulse|ping|bounce)\b|\banimate-\[[^\]\s]*(?<![a-z-])infinite(?![\w-])[^\]\s]*\]|animation:\s*["'`][^"'`;]*(?<![\w-])infinite(?![\w-])/g;
+  /**
+   * A loop is WORKING when the file is a skeleton, the component it sits in is named for one
+   * (`StatsBodyFallback`, `LoadingRow`), or a working word sits within the six lines that end on it: the
+   * `if (loading)` / `fallback={` / `loading: () =>` / `isPending &&` branch that renders it.
+   * shortcut: a word near the class, not data flow. A "pending" list badge that pulsed at rest would
+   * pass; read the branch condition with the syntax tree if that ever happens.
+   */
+  const WORKING = /loading|skeleton|fallback|pending|suspense|checking|streaming|running|shimmer/i;
+  const RETIRED = ["pin-stale-breathe", "pin-very-stale-breathe", "streak-fire", "animate-breath"];
+
+  /** Every at-rest loop one source file applies, as "<file> -> <class>". */
+  function atRestLoops(file: string, src: string): string[] {
+    const lines = stripComments(src).split("\n");
+    const out: string[] = [];
+    let component = "";
+    lines.forEach((line, i) => {
+      component = /\b(?:function|const)\s+([A-Z]\w*)/.exec(line)?.[1] ?? component;
+      for (const cls of RETIRED) if (new RegExp(`(?<![\\w-])${cls}(?![\\w-])`).test(line)) out.push(`${file} -> ${cls}`);
+      for (const m of line.matchAll(LOOP_CLASS)) {
+        const near = `${component}\n${lines.slice(Math.max(0, i - 6), i + 1).join("\n")}`;
+        if (!/skeleton/i.test(file) && !WORKING.test(near)) out.push(`${file} -> ${m[0]}`);
+      }
+    });
+    return out;
+  }
+
+  /**
+   * KNOWN, 2026-10-10: found when this gate learned to read Tailwind's built-in loops. Product code is not
+   * this gate's to edit; the owning UI change stops the loop, then deletes the entry here (the reverse
+   * canary fails once it is gone).
+   *   components/actions/mode-learn.tsx:543 · the "Time's up" banner bounces forever while it waits for
+   *   the operator, an at-rest loop SYSTEM.md §1.4 forbids (its red border and words already signal it).
+   */
+  const KNOWN_AT_REST = new Set(["components/actions/mode-learn.tsx -> animate-bounce"]);
+
+  it("positive control: the scan finds a planted at-rest loop, in a sheet and in a component", () => {
     expect(infiniteSelectors(".x { color: red; }\n.y { animation: spin 1s linear infinite; }")).toEqual([".y"]);
+    expect(infiniteSelectors("@theme { --animate-breathe: breathe 3s ease-in-out infinite; }")).toEqual(["@theme --animate-breathe"]);
+    expect(infiniteSelectors(".z { animation: breathe 3s ease-in-out 99999; }")).toEqual([".z"]);
+    expect(infiniteSelectors(".m { animation: infinite-scroll 20s cubic-bezier(0.4, 0, 0.2, 1) 1; }")).toEqual([]);
+    const planted = [
+      '<div className="animate-bounce">Time\'s up</div>',
+      'className={cn("dot", stale && "animate-pulse")}',
+      '<span className="animate-[breathe_3s_ease-in-out_infinite]" />',
+      '<span style={{ animation: "breathe 3s ease-in-out infinite" }} />',
+      'const c = cn("row", isDoing && "animate-breath");',
+    ].join("\n\n\n\n\n\n\n");
+    expect(atRestLoops("components/x.tsx", planted)).toEqual([
+      "components/x.tsx -> animate-bounce",
+      "components/x.tsx -> animate-pulse",
+      "components/x.tsx -> animate-[breathe_3s_ease-in-out_infinite]",
+      'components/x.tsx -> animation: "breathe 3s ease-in-out infinite',
+      "components/x.tsx -> animate-breath",
+    ]);
+    // Working states, comments and spinners pass.
+    expect(atRestLoops("components/x.tsx", 'if (loading) return <div className="h-4 animate-pulse" />;')).toEqual([]);
+    expect(atRestLoops("components/x.tsx", `function RowFallback() {${"\n".repeat(9)}<div className="animate-pulse" />`)).toEqual([]);
+    expect(atRestLoops("components/x.tsx", `function StaleDot() {${"\n".repeat(9)}<div className="animate-pulse" />`)).toEqual(["components/x.tsx -> animate-pulse"]);
+    expect(atRestLoops("components/x-skeleton.tsx", '<div className="before:animate-[shimmer_2s_ease-in-out_infinite]" />')).toEqual([]);
+    expect(atRestLoops("components/x.tsx", "// the animate-breath loop was retired\n{/* animate-bounce */}")).toEqual([]);
+    expect(atRestLoops("components/x.tsx", '<Loader2 className="animate-spin" />')).toEqual([]);
   });
 
   it("only working-state selectors loop: live pulse, loading skeleton, running tool", () => {
-    const sheets = [effects, base];
+    const sheets = [effects, base, tokens];
     expect(sheets.flatMap(infiniteSelectors).sort()).toEqual([".chat-tool-shimmer::before", ".pulse-live", ".skeleton"]);
   });
 
   it("no component applies a retired at-rest animation class", () => {
-    for (const file of ["components/brain/pinned-context-panel.tsx", "components/missions/streak-badge.tsx", "components/missions/mission-task-row.tsx"]) {
-      const src = read(file);
-      for (const cls of ["pin-stale-breathe", "pin-very-stale-breathe", "streak-fire", "animate-breath"]) {
-        expect(src, `${file} still applies ${cls}`).not.toContain(cls);
-      }
-    }
+    // The instrument reads the whole UI tree, not three pinned files.
+    expect(UI_FILES.length).toBeGreaterThan(800);
+    const loops = UI_FILES.flatMap((f) => atRestLoops(f, read(f))).filter((l) => !KNOWN_AT_REST.has(l));
+    expect(loops, `at-rest loops (SYSTEM.md §1.4: only a working state animates):\n  ${loops.join("\n  ")}`).toEqual([]);
+  });
+
+  it("REVERSE CANARY: every KNOWN_AT_REST entry still loops (delete it once fixed)", () => {
+    const live = new Set(UI_FILES.flatMap((f) => atRestLoops(f, read(f))));
+    const fixed = [...KNOWN_AT_REST].filter((k) => !live.has(k));
+    expect(fixed, `fixed, so remove from KNOWN_AT_REST:\n  ${fixed.join("\n  ")}`).toEqual([]);
   });
 });
 
@@ -192,9 +296,8 @@ describe("Tailwind source scanning", () => {
     // 2026-10-01: prose in PLAN.md spelled a radius class with an asterisk, then an ellipsis, inside the var()
     // brackets. Tailwind v4 auto-source reads Markdown and this test file, minted both as utilities, and the
     // generated stylesheet failed to parse (Delim('*'), then Ident("…")) — every page 500'd in two e2e runs.
-    const { execSync } = require("node:child_process") as typeof import("node:child_process");
-    const files = execSync("git ls-files -- '*.md' '*.mdx' '*.tsx' '*.ts' '*.json'", { cwd: ROOT, encoding: "utf8" })
-      .split("\n").filter(Boolean);
+    const files = gitFiles("*.md", "*.mdx", "*.tsx", "*.ts", "*.json");
+    expect(files.length, "git ls-files matched nothing: the scan would pass vacuously").toBeGreaterThan(1000);
     // valid: -[var(--name)] or -[var(--name,fallback)]; everything else inside the brackets is a defect
     const bad = /-\[var\((?!--[A-Za-z0-9_-]+(?:,[^)\]]*)?\)\])/;
     const offenders: string[] = [];
@@ -227,20 +330,19 @@ export function undefinedCustomProperties(sources: Record<string, string>, defin
 }
 
 describe("custom properties read by the app are defined", () => {
-  const { execSync } = require("node:child_process") as typeof import("node:child_process");
   const LIBRARY_OWNED = new Set([
     "--font-geist-sans", "--font-geist-mono", // set on <html> by the geist package (app/layout.tsx)
     "--transform-origin", "--radix-popover-content-transform-origin", "--anchor-width", "--available-height", "--available-width", "--positioner-width"]);
   const defined = (): Set<string> => {
     const set = new Set<string>(LIBRARY_OWNED);
-    const css = execSync("git ls-files -- 'app/styles/*.css' 'app/globals.css'", { cwd: ROOT, encoding: "utf8" }).split("\n").filter(Boolean);
+    const css = gitFiles("app/styles/*.css", "app/globals.css");
     for (const f of css) {
       // Only runtime-scoped definitions count, so not `@theme inline` (Tailwind v4 emits no custom
       // property for an inline theme entry, so `var(--color-content)` is dead at runtime).
       const runtime = read(f).replace(/@theme inline\s*\{[^}]*\}/g, "");
       for (const m of runtime.matchAll(/(?:^|[{;])\s*(--[A-Za-z0-9_-]+)\s*:/gm)) set.add(m[1]);
     }
-    const ts = execSync("git ls-files -- 'app/**/*.ts' 'app/**/*.tsx' 'components/**/*.tsx' 'lib/**/*.ts' 'lib/**/*.tsx'", { cwd: ROOT, encoding: "utf8" }).split("\n").filter(Boolean);
+    const ts = gitFiles("app/**/*.ts", "app/**/*.tsx", "components/**/*.tsx", "lib/**/*.ts", "lib/**/*.tsx");
     // A string literal defines a property only as an object key (`"--x": …`), a named constant
     // (`const X_VAR = "--x"`), or a setProperty target — a read (`getPropertyValue("--x")`) does not.
     const definer = /(?:["'`](--[A-Za-z0-9_-]+)["'`]\s*:|_VAR\s*=\s*["'`](--[A-Za-z0-9_-]+)["'`]|setProperty\(\s*["'`](--[A-Za-z0-9_-]+)["'`])/g;
@@ -255,7 +357,8 @@ describe("custom properties read by the app are defined", () => {
   });
 
   it("no .tsx under app/, components/, features/, hooks/ or lib/ reads a custom property that nothing defines", () => {
-    const files = execSync("git ls-files -- 'app/**/*.tsx' 'components/**/*.tsx' 'features/**/*.tsx' 'hooks/**/*.tsx' 'lib/**/*.tsx'", { cwd: ROOT, encoding: "utf8" }).split("\n").filter(Boolean);
+    const files = gitFiles("app/**/*.tsx", "components/**/*.tsx", "features/**/*.tsx", "hooks/**/*.tsx", "lib/**/*.tsx");
+    expect(files.length, "git ls-files matched nothing: the scan would pass vacuously").toBeGreaterThan(300);
     const sources: Record<string, string> = {};
     for (const f of files) sources[f] = read(f);
     expect(undefinedCustomProperties(sources, defined())).toEqual([]);

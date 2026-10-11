@@ -92,6 +92,15 @@ describe("getAccessToken: a rejected refresh survives the rollback", () => {
     expect(status.state).toBe("expired");
   });
 
+  it("a 401 invalid_client is a rejected grant too: status failed", async () => {
+    seed("google_oauth");
+    vi.stubGlobal("fetch", vi.fn(async () => new Response('{"error":"invalid_client"}', { status: 401 })));
+
+    await expect(getAccessToken("primary")).rejects.toThrow(/Google refresh failed/);
+
+    expect(db.rows.get("google_oauth")!.status).toBe("failed");
+  });
+
   it("positive control: the fake commits a successful refresh (it does not just drop every tx write)", async () => {
     seed("google_oauth_personal");
     db.rows.get("google_oauth_personal")!.status = "failed";
@@ -103,5 +112,52 @@ describe("getAccessToken: a rejected refresh survives the rollback", () => {
     await expect(getAccessToken("personal")).resolves.toBe("tok");
 
     expect(db.rows.get("google_oauth_personal")!.status).toBe("healthy");
+  });
+});
+
+/**
+ * 2026-10-10 hostile review: once the `failed` write survived the rollback,
+ * EVERY non-2xx refresh landed it, so a Google 503 or 429 read as "expired:
+ * re-grant access" (a critical alert, and the calendar ingest skips) for a
+ * grant that was fine. A transient error keeps the prior status and is only
+ * counted; consecutiveFailures is left alone too (>= 3 also maps to expired).
+ */
+describe("getAccessToken: a transient refresh error is not a broken grant", () => {
+  for (const status of [503, 500, 429]) {
+    it(`a ${status} keeps the integration healthy, counts the error, and does not read as expired`, async () => {
+      seed("google_oauth");
+      vi.stubGlobal("fetch", vi.fn(async () => new Response("upstream trouble", { status })));
+
+      await expect(getAccessToken("primary")).rejects.toThrow(/Google refresh failed/);
+
+      const row = db.rows.get("google_oauth")!;
+      expect(row.status).toBe("healthy");
+      expect(row.consecutiveFailures).toBe(0);
+      expect(row.errorCount).toBe(1);
+      expect((await getGoogleOauthStatus()).state).not.toBe("expired");
+    });
+  }
+
+  it("a network error (fetch throws) keeps the integration healthy and counts the error", async () => {
+    seed("google_oauth");
+    vi.stubGlobal("fetch", vi.fn(async () => {
+      throw new TypeError("fetch failed");
+    }));
+
+    await expect(getAccessToken("primary")).rejects.toThrow(/fetch failed/);
+
+    const row = db.rows.get("google_oauth")!;
+    expect(row.status).toBe("healthy");
+    expect(row.errorCount).toBe(1);
+  });
+
+  it("a transient error does not clear an earlier rejection: a failed row stays failed", async () => {
+    seed("google_oauth");
+    db.rows.get("google_oauth")!.status = "failed";
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 503 })));
+
+    await expect(getAccessToken("primary")).rejects.toThrow();
+
+    expect(db.rows.get("google_oauth")!.status).toBe("failed");
   });
 });

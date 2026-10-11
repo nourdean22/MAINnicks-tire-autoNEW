@@ -143,6 +143,10 @@ export async function buildOwnerPanel(now = new Date()): Promise<OwnerPanel> {
         prisma.actionAttempt.findMany({
           where: {
             tool: { not: DEPLOY_ALERT_TOOL },
+            // An approval's own attempt is surfaced by its approval_requests row
+            // (approval outcomes above: windowed, dismissable). Read here too, it
+            // came back as a permanent "outcome unknown" once that row was dismissed.
+            NOT: { operationKey: { startsWith: "approval:" } },
             OR: [
               { state: { in: ["WAITING_APPROVAL", "EXECUTING"] } },
               { state: "UNKNOWN", tool: { not: CRON_HEAL_TOOL } },

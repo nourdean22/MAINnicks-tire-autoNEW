@@ -110,7 +110,8 @@ export type TwoKeyRefusal = {
   reflection: { tool: string; guidance: string };
 };
 
-async function findOpenRequest(toolName: string, payload: unknown, reason: string): Promise<string | null> {
+/** The id of a live pending approval for this exact call, if any. Shared with sink-policy.ts. */
+export async function findOpenRequest(toolName: string, payload: unknown, reason: string): Promise<string | null> {
   const now = new Date();
   const rows = await prisma.approvalRequest.findMany({
     where: {

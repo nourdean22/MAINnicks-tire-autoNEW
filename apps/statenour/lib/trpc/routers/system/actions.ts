@@ -5,6 +5,7 @@ import { TRPCError } from "@trpc/server";
 import { executeApprovedToolAsync } from "@/lib/tools/guardian";
 import { expiredApprovalMessage, isApprovalRequestExpired } from "@/lib/automation/approval-freshness";
 import { APPROVAL_REVIEW_WINDOW_MS, EXCEPTION_WINDOW_MS } from "@/lib/system/owner-panel";
+import { logError } from "@/lib/utils/error-log";
 
 /** Approved requests that did not end `executed`; only these may be dismissed. */
 const REVIEWABLE = ["needs_review", "failed"];
@@ -88,6 +89,21 @@ export const actionsProcedures = {
       if (res.count === 0) {
         throw new TRPCError({ code: "CONFLICT", message: "This approval changed since it was read; reload and check it again" });
       }
+      // Its ledger attempt: an EXECUTING one is not in flight any more (the
+      // process stopped mid-dispatch), so it becomes UNKNOWN. UNKNOWN / FAILED
+      // stay as they are: a review is not a verdict on whether it ran.
+      try {
+        await prisma.actionAttempt.updateMany({
+          where: { operationKey: `approval:${input.id}`, state: "EXECUTING" },
+          data: {
+            state: "UNKNOWN",
+            settledAt: new Date(),
+            reason: `not in flight; dismissed by ${ctx.session.email ?? "Operator"} after review; outcome not reconciled`,
+          },
+        });
+      } catch (err) {
+        logError("trpc.system.actions", err, { stage: "dismiss-settle-attempt", id: input.id }, "warn");
+      }
       return { success: true };
     }),
 
@@ -137,22 +153,25 @@ export const actionsProcedures = {
         approvedAt: new Date(),
         approvedBy: ctx.session.email ?? "Operator",
       };
+      if (input.editedPayload) updateData.payload = input.editedPayload;
 
+      // Claim before act: swap on the row read (status, its updatedAt version,
+      // and a deadline still in the future). A second approve, or one on a row
+      // the executor already took, matches nothing and must not re-arm it.
+      const claim = await prisma.approvalRequest.updateMany({
+        where: { id: input.id, status: "pending_approval", updatedAt: request.updatedAt, expiresAt: { gt: new Date() } },
+        data: updateData,
+      });
+      if (claim.count !== 1) throw await approvalConflict(input.id);
+
+      // Only the winner patches the in-memory args the executor will run.
       if (input.editedPayload) {
-        updateData.payload = input.editedPayload;
-        // Import pendingExecutions dynamically or at top-level
         const { pendingExecutions } = await import("@/lib/tools/guardian");
         const pending = pendingExecutions.get(input.id);
         if (pending) {
           pending.args = [input.editedPayload];
         }
       }
-
-      // Transition state to approved
-      await prisma.approvalRequest.update({
-        where: { id: input.id },
-        data: updateData,
-      });
 
       // Spawn background tool execution
       void executeApprovedToolAsync(input.id);
@@ -163,8 +182,14 @@ export const actionsProcedures = {
   rejectApprovalRequest: operatorProcedure
     .input(z.object({ id: z.string(), reason: z.string().optional() }))
     .mutation(async ({ input, ctx }) => {
-      await prisma.approvalRequest.update({
+      const row = await prisma.approvalRequest.findUnique({
         where: { id: input.id },
+        select: { status: true, updatedAt: true },
+      });
+      if (!row || row.status !== "pending_approval") throw await approvalConflict(input.id);
+      // Swap on the row read: an approval that ran (or started) is never relabelled rejected.
+      const res = await prisma.approvalRequest.updateMany({
+        where: { id: input.id, status: "pending_approval", updatedAt: row.updatedAt },
         data: {
           status: "rejected",
           resultPayload: { error: input.reason ?? "Rejected by operator" },
@@ -172,6 +197,16 @@ export const actionsProcedures = {
           approvedBy: ctx.session.email ?? "Operator",
         },
       });
+      if (res.count !== 1) throw await approvalConflict(input.id);
       return { success: true };
     }),
 };
+
+/** The loser of a swap: report the row's real state, never a silent success. */
+async function approvalConflict(id: string): Promise<TRPCError> {
+  const now = await prisma.approvalRequest.findUnique({ where: { id }, select: { status: true } });
+  return new TRPCError({
+    code: "CONFLICT",
+    message: `This approval is ${now?.status ?? "gone"} now; reload and check it again`,
+  });
+}

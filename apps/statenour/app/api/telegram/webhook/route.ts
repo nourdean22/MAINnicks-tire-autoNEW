@@ -166,7 +166,10 @@ export async function POST(req: NextRequest) {
     from?: { id: number };
   } | undefined;
 
-  const expectedOwnerId = Number(process.env.TELEGRAM_OWNER_ID);
+  // Digits only, or NaN (matches no sender): Number("") is 0, so a blank env
+  // used to pass any update whose from.id was 0. Fail closed.
+  const ownerEnv = (process.env.TELEGRAM_OWNER_ID ?? "").trim();
+  const expectedOwnerId = /^\d+$/.test(ownerEnv) ? Number(ownerEnv) : NaN;
 
   if (callback?.data) {
     if (callback.from?.id !== expectedOwnerId) return NextResponse.json({ ok: true });
@@ -183,6 +186,9 @@ export async function POST(req: NextRequest) {
     entities?: { type: string; url?: string; offset: number; length: number }[];
     chat: { id: number };
     from?: { id: number };
+    forward_origin?: unknown;
+    forward_from?: unknown;
+    forward_date?: number;
   } | undefined;
 
   if (!message) return NextResponse.json({ ok: true });
@@ -197,6 +203,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
+  // A forwarded message is someone else's words: content, never a command
+  // the owner issued, even when its first token is "/qa".
+  const forwarded = Boolean(message.forward_origin || message.forward_from || message.forward_date);
+
   // Photo input — analyze image
   if (message.photo && message.photo.length > 0) {
     await handlePhoto(message.photo, message.caption, chatId);
@@ -205,7 +215,7 @@ export async function POST(req: NextRequest) {
 
   // Voice note input — transcribe and act
   if (message.voice) {
-    await handleVoice(message.voice, chatId);
+    await handleVoice(message.voice, chatId, forwarded);
     return NextResponse.json({ ok: true });
   }
 
@@ -222,7 +232,7 @@ export async function POST(req: NextRequest) {
 
   // Text commands
   if (message.text) {
-    await handleCommand(message.text, chatId);
+    await handleCommand(message.text, chatId, forwarded);
   }
 
   return NextResponse.json({ ok: true });
@@ -272,6 +282,39 @@ async function answerSwapLost(prisma: WebhookPrisma, callbackId: string, receipt
   await answerCallbackQuery(callbackId, now?.status === "PENDING" ? "Already in progress." : "Already processed.");
 }
 
+/**
+ * Settle a claimed receipt whose send the bridge ACCEPTED (`context` is the
+ * pre-claim value, which drops the mark). This sits outside the send's try:
+ * when it sat inside, a DB error here wrote FAILED and told the operator the
+ * dispatch failed while the customer had the text, so a re-stage sent it
+ * twice. On failure the row keeps PENDING + claim mark (fail closed: a replay
+ * answers "Already in progress." and never re-sends) and the operator is told
+ * it went out. Returns false when the settle did not land.
+ */
+async function settleSent(
+  prisma: WebhookPrisma,
+  receiptId: string,
+  context: string | null,
+  callbackId: string,
+  messageId: number | undefined,
+  chatId: string,
+): Promise<boolean> {
+  try {
+    await prisma.actionReceipt.update({
+      where: { id: receiptId },
+      data: { status: "SUCCESS", executedAt: new Date(), context },
+    });
+    return true;
+  } catch (err) {
+    log.error("receipt_settle_failed_after_send", { receiptId, message: err instanceof Error ? err.message.slice(0, 200) : String(err) });
+    if (messageId) {
+      await editTelegramMessage(messageId, `⚠️ Sent, but the receipt was not saved. Do not re-send.`, chatId);
+    }
+    await answerCallbackQuery(callbackId, "Sent - receipt not saved.");
+    return false;
+  }
+}
+
 // ── Callback handler (inline buttons) ─────────────────────
 
 async function handleCallback(callback: {
@@ -312,7 +355,8 @@ async function handleCallback(callback: {
       const parts = (callback.data ?? "").split(":");
       const useful = parts[1] === "u";
       const ledgerId = parts.slice(2).join(":");
-      if (!ledgerId) {
+      // Only u|n are ratings: any other polarity used to land as "not useful".
+      if (!ledgerId || (parts[1] !== "u" && parts[1] !== "n")) {
         await answerCallbackQuery(callback.id, "Malformed rating.");
       } else {
         try {
@@ -381,9 +425,16 @@ async function handleCallback(callback: {
       const parts = (callback.data ?? "").split(":");
       const decision = parts[1];
       const receiptId = parts[2];
+      // Exact tokens only: any other value used to fall into the reject arm
+      // and record a rejection the operator never made.
+      if (decision !== "approve" && decision !== "reject") {
+        await answerCallbackQuery(callback.id, "Unknown action.");
+        return;
+      }
 
       const intellReceipt = await prisma.actionReceipt.findUnique({ where: { id: receiptId } });
-      if (!intellReceipt) {
+      // A receipt of another kind is not this button's to settle.
+      if (!intellReceipt || intellReceipt.action !== "intell_recall") {
         await answerCallbackQuery(callback.id, "Receipt not found.");
         return;
       }
@@ -404,13 +455,14 @@ async function handleCallback(callback: {
       if (!parsedPayload.success) {
         const payload = intellReceipt.verificationPayload;
         logMalformedPayload("intell_recall", receiptId, payload);
-        await prisma.actionReceipt.update({
-          where: { id: receiptId },
-          data: {
-            status: "FAILED",
-            context: `Malformed payload: ${JSON.stringify(payload)}`
-          }
+        const failed = await swapReceipt(prisma, intellReceipt, {
+          status: "FAILED",
+          context: `Malformed payload: ${JSON.stringify(payload)}`,
         });
+        if (!failed) {
+          await answerSwapLost(prisma, callback.id, receiptId);
+          return;
+        }
         if (messageId) {
           await editTelegramMessage(messageId, `❌ Recall alert failed: Malformed payload.`, chatId);
         }
@@ -441,23 +493,6 @@ async function handleCallback(callback: {
               dispatchError ? String(dispatchError) : "smsBot.send returned no result"
             );
           }
-          await prisma.actionReceipt.update({
-            where: { id: receiptId },
-            data: {
-              status: "SUCCESS",
-              executedAt: new Date(),
-              // drop the claim mark: the row is settled
-              context: intellReceipt.context,
-            }
-          });
-          if (messageId) {
-            await editTelegramMessage(
-              messageId,
-              `✅ SMS Dispatched to ${escapeHtml(String(payload.customerName))} for ${escapeHtml(String(payload.vehicle))} recall.`,
-              chatId
-            );
-          }
-          await answerCallbackQuery(callback.id, "Approved!");
         } catch (err) {
           console.error("[telegram:webhook] recall SMS dispatch error:", err);
           await prisma.actionReceipt.update({
@@ -475,7 +510,18 @@ async function handleCallback(callback: {
             );
           }
           await answerCallbackQuery(callback.id, "Dispatch failed.");
+          return;
         }
+        // Sent. Settling happens outside the send's try (see settleSent).
+        if (!(await settleSent(prisma, receiptId, intellReceipt.context, callback.id, messageId, chatId))) return;
+        if (messageId) {
+          await editTelegramMessage(
+            messageId,
+            `✅ SMS Dispatched to ${escapeHtml(String(payload.customerName))} for ${escapeHtml(String(payload.vehicle))} recall.`,
+            chatId
+          );
+        }
+        await answerCallbackQuery(callback.id, "Approved!");
       } else {
         if (!(await swapReceipt(prisma, intellReceipt, { status: "FAILED", context: "Rejected by operator" }))) {
           await answerSwapLost(prisma, callback.id, receiptId);
@@ -501,9 +547,14 @@ async function handleCallback(callback: {
       const parts = (callback.data ?? "").split(":");
       const decision = parts[1];
       const receiptId = parts[2];
+      // Exact tokens only (see intell_recall): "yes" is not a decline.
+      if (decision !== "approve" && decision !== "deny") {
+        await answerCallbackQuery(callback.id, "Unknown action.");
+        return;
+      }
 
       const oppReceipt = await prisma.actionReceipt.findUnique({ where: { id: receiptId } });
-      if (!oppReceipt) {
+      if (!oppReceipt || oppReceipt.action !== "shop.sendOpportunitySms") {
         await answerCallbackQuery(callback.id, "Receipt not found.");
         return;
       }
@@ -522,10 +573,10 @@ async function handleCallback(callback: {
       const parsedOpp = oppSmsPayloadSchema.safeParse(oppReceipt.verificationPayload);
       if (!parsedOpp.success) {
         logMalformedPayload("oppsms", receiptId, oppReceipt.verificationPayload);
-        await prisma.actionReceipt.update({
-          where: { id: receiptId },
-          data: { status: "FAILED", context: "Malformed opportunity-SMS payload" },
-        });
+        if (!(await swapReceipt(prisma, oppReceipt, { status: "FAILED", context: "Malformed opportunity-SMS payload" }))) {
+          await answerSwapLost(prisma, callback.id, receiptId);
+          return;
+        }
         if (messageId) {
           await editTelegramMessage(messageId, `❌ Opportunity SMS failed: malformed payload.`, chatId);
         }
@@ -542,6 +593,7 @@ async function handleCallback(callback: {
           await answerSwapLost(prisma, callback.id, receiptId);
           return;
         }
+        let outcome = "dispatched ✓";
         try {
           const { queryNick } = await import("@/lib/nickstire/query");
           const res = await queryNick<{ ok?: boolean; sent?: boolean; duplicate?: boolean; queued?: boolean; error?: string }>(
@@ -558,24 +610,8 @@ async function handleCallback(callback: {
           if (data.error) throw new Error(String(data.error));
           // duplicate:true = an earlier attempt (or queryNick's own retry
           // after a timeout) already landed — that is SUCCESS, not failure.
-          await prisma.actionReceipt.update({
-            where: { id: receiptId },
-            // context restored: drops the claim mark
-            data: { status: "SUCCESS", executedAt: new Date(), context: oppReceipt.context },
-          });
-          const outcome = data.duplicate
-            ? "already sent (dedupe) ✓"
-            : data.queued
-              ? "queued — delivers at the next send window ✓"
-              : "dispatched ✓";
-          if (messageId) {
-            await editTelegramMessage(
-              messageId,
-              `✅ Opportunity SMS ${outcome}\n\n<b>To:</b> ${escapeHtml(payload.customerLabel || "customer")}\n<b>Text:</b> "${escapeHtml(payload.body)}"`,
-              chatId,
-            );
-          }
-          await answerCallbackQuery(callback.id, "Approved!");
+          if (data.duplicate) outcome = "already sent (dedupe) ✓";
+          else if (data.queued) outcome = "queued — delivers at the next send window ✓";
         } catch (err) {
           console.error("[telegram:webhook] opportunity-SMS dispatch error:", err);
           await prisma.actionReceipt.update({
@@ -590,7 +626,17 @@ async function handleCallback(callback: {
             );
           }
           await answerCallbackQuery(callback.id, "Blocked/failed.");
+          return;
         }
+        if (!(await settleSent(prisma, receiptId, oppReceipt.context, callback.id, messageId, chatId))) return;
+        if (messageId) {
+          await editTelegramMessage(
+            messageId,
+            `✅ Opportunity SMS ${outcome}\n\n<b>To:</b> ${escapeHtml(payload.customerLabel || "customer")}\n<b>Text:</b> "${escapeHtml(payload.body)}"`,
+            chatId,
+          );
+        }
+        await answerCallbackQuery(callback.id, "Approved!");
       } else {
         if (!(await swapReceipt(prisma, oppReceipt, { status: "FAILED", context: "Rejected by operator" }))) {
           await answerSwapLost(prisma, callback.id, receiptId);
@@ -611,7 +657,8 @@ async function handleCallback(callback: {
     if (action === "approve" || action === "deny") {
       const receiptId = param;
       const actReceipt = await prisma.actionReceipt.findUnique({ where: { id: receiptId } });
-      if (!actReceipt) {
+      // Only staged SMS receipts (stageCustomerAlert) carry approve/deny buttons.
+      if (!actReceipt || actReceipt.action !== "shop.sendSms") {
         await answerCallbackQuery(callback.id, "Receipt not found.");
         return;
       }
@@ -633,13 +680,14 @@ async function handleCallback(callback: {
         if (!parsedPayload.success) {
           const payload = actReceipt.verificationPayload;
           logMalformedPayload("approve", receiptId, payload);
-          await prisma.actionReceipt.update({
-            where: { id: receiptId },
-            data: {
-              status: "FAILED",
-              context: `Malformed payload: ${JSON.stringify(payload)}`
-            }
+          const failed = await swapReceipt(prisma, actReceipt, {
+            status: "FAILED",
+            context: `Malformed payload: ${JSON.stringify(payload)}`,
           });
+          if (!failed) {
+            await answerSwapLost(prisma, callback.id, receiptId);
+            return;
+          }
           if (messageId) {
             await editTelegramMessage(messageId, `❌ SMS failed: Malformed payload.`, chatId);
           }
@@ -664,25 +712,7 @@ async function handleCallback(callback: {
           // staged SMS wrote a SUCCESS receipt and told the operator "Dispatched!"
           // while nothing was sent. The sibling recall branch above was hardened
           // for exactly this in an earlier pass; this branch was missed.
-          if (!isBridgeError(res)) {
-            await prisma.actionReceipt.update({
-              where: { id: receiptId },
-              data: {
-                status: "SUCCESS",
-                executedAt: new Date(),
-                // drop the claim mark: the row is settled
-                context: actReceipt.context,
-              }
-            });
-            if (messageId) {
-              await editTelegramMessage(
-                messageId,
-                `🔗 Approved & Sent ✓\n\n<b>To:</b> ${escapeHtml(payload.customerName || "Unknown")} (${escapeHtml(String(payload.phone))})\n<b>Message:</b> "${escapeHtml(payload.message)}"`,
-                chatId
-              );
-            }
-            await answerCallbackQuery(callback.id, "SMS Dispatched!");
-          } else {
+          if (isBridgeError(res)) {
             const bridgeError = (res as { error?: unknown } | null)?.error;
             throw new Error(
               bridgeError ? String(bridgeError) : "smsBot.send returned no result"
@@ -701,7 +731,17 @@ async function handleCallback(callback: {
             await editTelegramMessage(messageId, `❌ SMS dispatch failed.`, chatId);
           }
           await answerCallbackQuery(callback.id, "Dispatch failed.");
+          return;
         }
+        if (!(await settleSent(prisma, receiptId, actReceipt.context, callback.id, messageId, chatId))) return;
+        if (messageId) {
+          await editTelegramMessage(
+            messageId,
+            `🔗 Approved & Sent ✓\n\n<b>To:</b> ${escapeHtml(payload.customerName || "Unknown")} (${escapeHtml(String(payload.phone))})\n<b>Message:</b> "${escapeHtml(payload.message)}"`,
+            chatId
+          );
+        }
+        await answerCallbackQuery(callback.id, "SMS Dispatched!");
       } else {
         if (!(await swapReceipt(prisma, actReceipt, { status: "FAILED", context: "Rejected by operator" }))) {
           await answerSwapLost(prisma, callback.id, receiptId);
@@ -740,8 +780,12 @@ async function handleCallback(callback: {
 
 // ── Command handler (text messages) ───────────────────────
 
-async function handleCommand(text: string, chatId: string): Promise<void> {
+async function handleCommand(text: string, chatId: string, forwarded = false): Promise<void> {
   const trimmed = text.trim();
+  // Forwarded text is journaled as content. Not the capture router: it
+  // re-parses "/ask " and "/task " prefixes, which would hand a third party's
+  // words to the tool loop as the owner's own untainted question.
+  if (forwarded) return await cmdDump(trimmed, chatId);
   const [cmd, ...args] = trimmed.split(/\s+/);
   const command = cmd.toLowerCase();
 
@@ -929,7 +973,7 @@ async function cmdDump(args: string, chatId: string): Promise<void> {
       summary?: string;
     };
     await sendTelegram(
-      `🧠 <b>Dumped</b>\n\nType: <b>${r.entryType || "raw"}</b>\nTasks: ${r.tasksCreated ?? 0}\nInsights: ${r.insightsStored ?? 0}\nCommitments: ${r.commitmentsFound ?? 0}${r.summary ? `\n\n<i>${r.summary.slice(0, 400)}</i>` : ""}`,
+      `🧠 <b>Dumped</b>\n\nType: <b>${escapeHtml(r.entryType || "raw")}</b>\nTasks: ${r.tasksCreated ?? 0}\nInsights: ${r.insightsStored ?? 0}\nCommitments: ${r.commitmentsFound ?? 0}${r.summary ? `\n\n<i>${escapeHtml(r.summary.slice(0, 400))}</i>` : ""}`,
       chatId
     );
   } catch (err) {
@@ -969,7 +1013,7 @@ async function cmdTask(args: string, chatId: string): Promise<void> {
       return;
     }
     await sendTelegram(
-      `✅ <b>Task created</b>\n\n${task.title}\n<i>id: ${task.id.slice(0, 8)} · inbox</i>`,
+      `✅ <b>Task created</b>\n\n${escapeHtml(task.title)}\n<i>id: ${escapeHtml(task.id.slice(0, 8))} · inbox</i>`,
       chatId
     );
   } catch (err) {
@@ -999,7 +1043,7 @@ async function cmdMit(args: string, chatId: string): Promise<void> {
         confidence: 1.0,
       },
     });
-    await sendTelegram(`⚔️ <b>MIT locked</b>\n\n${args.trim()}`, chatId);
+    await sendTelegram(`⚔️ <b>MIT locked</b>\n\n${escapeHtml(args.trim())}`, chatId);
   } catch (err) {
     await sendTelegram(`⚠️ MIT failed: ${await safeErrorText(err)}`, chatId);
   }
@@ -1022,7 +1066,7 @@ async function cmdCommit(args: string, chatId: string): Promise<void> {
       },
     });
     await sendTelegram(
-      `🤝 <b>Commitment locked</b>\n\n${commitment.description}`,
+      `🤝 <b>Commitment locked</b>\n\n${escapeHtml(commitment.description)}`,
       chatId
     );
   } catch (err) {
@@ -1091,13 +1135,13 @@ async function cmdBoard(args: string[], chatId: string): Promise<void> {
     const { consultation } = await consultBoardAndPersist(boardId, question);
     const s = consultation.synthesis;
     const takes = consultation.takes
-      .map((t) => `• <b>${t.advisorName}</b>: ${t.recommendation.slice(0, 160)}`)
+      .map((t) => `• <b>${escapeHtml(t.advisorName)}</b>: ${escapeHtml(t.recommendation.slice(0, 160))}`)
       .join("\n");
     const msg =
-      `🏛 <b>${consultation.boardName}</b>\n\n` +
-      `<b>Recommendation:</b> ${s.recommendation}\n\n` +
-      (s.tension ? `<b>Tension:</b> ${s.tension}\n\n` : "") +
-      (s.consensus.length ? `<b>Consensus:</b> ${s.consensus.slice(0, 3).join(" · ")}\n\n` : "") +
+      `🏛 <b>${escapeHtml(consultation.boardName)}</b>\n\n` +
+      `<b>Recommendation:</b> ${escapeHtml(s.recommendation)}\n\n` +
+      (s.tension ? `<b>Tension:</b> ${escapeHtml(s.tension)}\n\n` : "") +
+      (s.consensus.length ? `<b>Consensus:</b> ${escapeHtml(s.consensus.slice(0, 3).join(" · "))}\n\n` : "") +
       `<b>Advisors</b>\n${takes}`;
     await sendTelegram(msg.slice(0, 3900), chatId);
   } catch (err) {
@@ -1131,10 +1175,10 @@ async function cmdTeam(question: string, chatId: string): Promise<void> {
     });
     const lines = report.results
       .filter((r) => !r.failed)
-      .map((r) => `• <b>${r.name}</b>: ${r.output.slice(0, 220)}`)
+      .map((r) => `• <b>${escapeHtml(r.name)}</b>: ${escapeHtml(r.output.slice(0, 220))}`)
       .join("\n\n");
     await sendTelegram(
-      `👥 <b>Team</b>\n\n${report.synthesis.slice(0, 1700)}\n\n${lines}`.slice(0, 3900),
+      `👥 <b>Team</b>\n\n${escapeHtml(report.synthesis.slice(0, 1700))}\n\n${lines}`.slice(0, 3900),
       chatId
     );
   } catch (err) {
@@ -1184,7 +1228,7 @@ async function cmdRemind(argsText: string, chatId: string): Promise<void> {
       timeZone: "America/New_York",
       month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
     });
-    await sendTelegram(`⏰ <b>Reminder set</b> · ${whenEt} ET\n\n${parsed.text}`, chatId);
+    await sendTelegram(`⏰ <b>Reminder set</b> · ${whenEt} ET\n\n${escapeHtml(parsed.text)}`, chatId);
   } catch (err) {
     await sendTelegram(`⚠️ Reminder failed: ${await safeErrorText(err)}`, chatId);
   }
@@ -1283,8 +1327,8 @@ async function cmdDraft(args: string[], chatId: string): Promise<void> {
 // is not "propose-grade": it writes a real Google Calendar event with
 // attendees, and the raw calendarTools copy skipped the sink-policy and
 // two-key gates that live only in the nourTools wrapper. The calendar tools
-// now come from nourTools; the lane's own createTask/memorySearch cross the
-// same wrapper. The loop runs in a turn scope, and recalled memory -- which
+// now come from nourTools; the lane's own createTask crosses the same wrapper
+// (memorySearch, a read, does not: see laneTools). The loop runs in a turn scope, and recalled memory -- which
 // may hold ingested email or web text -- is fenced AND taints the turn, so
 // an external side effect after a recall waits for a human (sink policy).
 async function cmdAsk(args: string, chatId: string): Promise<void> {
@@ -1305,8 +1349,12 @@ async function cmdAsk(args: string, chatId: string): Promise<void> {
     const fenceMemory = (content: string) =>
       fenceContent("memorySearch", "memory_recall", content.slice(0, 300));
 
-    const laneTools = wrapToolsWithEmptyHandling({
-      createTask: tool({
+    // Only the WRITE crosses the wrapper. memorySearch has no TOOL_CATALOG row,
+    // and an uncatalogued tool counts as a write there, so NICK_MUTATION_LOCK
+    // refused every /ask recall as "it changes state". It is a pure read that
+    // fences its own output and taints the turn itself.
+    const laneTools = {
+      ...wrapToolsWithEmptyHandling({ createTask: tool({
         description:
           "Create a task in the operator's inbox. Use ONLY when the operator explicitly asks to capture/add a task.",
         inputSchema: z.object({
@@ -1337,7 +1385,7 @@ async function cmdAsk(args: string, chatId: string): Promise<void> {
             return { ok: false, error: (err as Error).message.slice(0, 200) };
           }
         },
-      }),
+      }) }),
       memorySearch: tool({
         description:
           "Semantic search of the operator's brain memories (decisions, facts, context). Use for 'what do we know about X' / recall questions.",
@@ -1405,7 +1453,7 @@ async function cmdAsk(args: string, chatId: string): Promise<void> {
           }
         },
       }),
-    });
+    };
     const tools = {
       getTodaySchedule: nourTools.getTodaySchedule,
       proposeCalendarEvent: nourTools.proposeCalendarEvent,
@@ -1514,7 +1562,7 @@ async function cmdSchedule(chatId: string): Promise<void> {
               minute: "2-digit",
             })
           : "all day";
-        return `• <b>${when}</b> ${(e.summary ?? "(untitled)").slice(0, 60)}`;
+        return `• <b>${when}</b> ${escapeHtml((e.summary ?? "(untitled)").slice(0, 60))}`;
       });
       calendarSection = `📅 <b>Calendar</b>\n${lines.join("\n")}\n\n`;
     }
@@ -1524,11 +1572,11 @@ async function cmdSchedule(chatId: string): Promise<void> {
 
   const blockLines = schedule.blocks.map((b) => {
     const emoji = b.type === "deep_work" ? "🧠" : b.type === "body" ? "💪" : b.type === "communication" ? "📞" : b.type === "review" ? "📝" : "⚙️";
-    return `${emoji} <b>${b.time}</b> ${b.task.slice(0, 50)}`;
+    return `${emoji} <b>${escapeHtml(String(b.time))}</b> ${escapeHtml(b.task.slice(0, 50))}`;
   });
 
   await sendTelegram(
-    `${calendarSection}📋 <b>Today's Schedule</b>\n\n${blockLines.join("\n")}\n\n${schedule.summary}`,
+    `${calendarSection}📋 <b>Today's Schedule</b>\n\n${blockLines.join("\n")}\n\n${escapeHtml(schedule.summary)}`,
     chatId
   );
 }
@@ -1599,25 +1647,25 @@ async function cmdMemory(query: string, chatId: string): Promise<void> {
     });
 
     if (memories.length === 0) {
-      await sendTelegram(`🔍 No memories found for "${query}"`, chatId);
+      await sendTelegram(`🔍 No memories found for "${escapeHtml(query)}"`, chatId);
       return;
     }
 
     const lines = memories.map(
-      (m) => `[${m.category}] (${(m.confidence * 100).toFixed(0)}%) ${m.content.slice(0, 120)}`
+      (m) => `[${escapeHtml(m.category)}] (${(m.confidence * 100).toFixed(0)}%) ${escapeHtml(m.content.slice(0, 120))}`
     );
     await sendTelegram(
-      `🔍 <b>Memory Search</b> (keyword)\nQuery: "${query}"\n\n${lines.join("\n\n")}`,
+      `🔍 <b>Memory Search</b> (keyword)\nQuery: "${escapeHtml(query)}"\n\n${lines.join("\n\n")}`,
       chatId
     );
     return;
   }
 
   const lines = results.map(
-    (r) => `(${(r.similarity * 100).toFixed(0)}% match) ${r.content.slice(0, 120)}`
+    (r) => `(${(r.similarity * 100).toFixed(0)}% match) ${escapeHtml(r.content.slice(0, 120))}`
   );
   await sendTelegram(
-    `🔍 <b>Memory Search</b> (semantic)\nQuery: "${query}"\n\n${lines.join("\n\n")}`,
+    `🔍 <b>Memory Search</b> (semantic)\nQuery: "${escapeHtml(query)}"\n\n${lines.join("\n\n")}`,
     chatId
   );
 }
@@ -1758,7 +1806,7 @@ async function cmdSearch(query: string, chatId: string): Promise<void> {
       select: { rawThoughts: true, createdAt: true, summary: true },
     });
     if (dumps.length === 0) {
-      await sendTelegram(`🔍 No matches for "${query}".`, chatId);
+      await sendTelegram(`🔍 No matches for "${escapeHtml(query)}".`, chatId);
       return;
     }
     const lines = dumps.map(
@@ -1904,9 +1952,6 @@ async function cmdAlerts(chatId: string): Promise<void> {
     if (ms < 86_400_000) return `${Math.round(ms / 3_600_000)}h ago`;
     return `${Math.round(ms / 86_400_000)}d ago`;
   };
-
-  const escapeHtml = (s: string): string =>
-    s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
   const lines = alerts.map(
     (a) =>
@@ -2099,7 +2144,7 @@ async function handlePhoto(
       return;
     }
 
-    await sendTelegram(`📸 <b>Photo Analysis</b>\n\n${analysisText.slice(0, 3500)}`, chatId);
+    await sendTelegram(`📸 <b>Photo Analysis</b>\n\n${escapeHtml(analysisText.slice(0, 3500))}`, chatId);
 
     // Store as brain memory
     const { brainMemory } = await import("@/lib/brain/memory-manager");
@@ -2116,7 +2161,8 @@ async function handlePhoto(
 
 async function handleVoice(
   voice: { file_id: string; duration: number },
-  chatId: string
+  chatId: string,
+  forwarded = false,
 ): Promise<void> {
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
   if (!botToken) return;
@@ -2165,10 +2211,10 @@ async function handleVoice(
     }
 
     // Process the transcription as a command or message
-    await sendTelegram(`📝 <b>Transcribed:</b> "${transcript}"`, chatId);
+    await sendTelegram(`📝 <b>Transcribed:</b> "${escapeHtml(transcript)}"`, chatId);
 
-    // If it starts with a slash command, route it
-    if (transcript.trim().startsWith("/")) {
+    // If it starts with a slash command, route it (never a forwarded note's)
+    if (!forwarded && transcript.trim().startsWith("/")) {
       await handleCommand(transcript.trim(), chatId);
     } else {
       // AG-18 · spoken dumps now run the FULL journal-ingest pipeline
@@ -2182,7 +2228,7 @@ async function handleVoice(
         entryType?: string;
       };
       await sendTelegram(
-        `🧠 <b>Ingested</b> · Type: <b>${result.entryType || "raw"}</b> · Tasks: ${result.tasksCreated ?? 0} · Insights: ${result.insightsStored ?? 0} · Commitments: ${result.commitmentsFound ?? 0}`,
+        `🧠 <b>Ingested</b> · Type: <b>${escapeHtml(result.entryType || "raw")}</b> · Tasks: ${result.tasksCreated ?? 0} · Insights: ${result.insightsStored ?? 0} · Commitments: ${result.commitmentsFound ?? 0}`,
         chatId
       );
     }
@@ -2209,7 +2255,7 @@ async function handleUrl(
     // of re-derived.
     const { fetchPublicUrl } = await import("@/lib/utils/url-safety");
 
-    await sendTelegram(`🔗 Analyzing: ${url.slice(0, 60)}...`, chatId);
+    await sendTelegram(`🔗 Analyzing: ${escapeHtml(url.slice(0, 60))}...`, chatId);
 
     const fetched = await fetchPublicUrl(url, {
       headers: { "User-Agent": "NOUR-OS/1.0" },
@@ -2223,8 +2269,8 @@ async function handleUrl(
       // premise is not telling him things that are not so.
       await sendTelegram(
         fetched.code === "url_blocked"
-          ? `Refused to fetch that URL: ${fetched.reason}`
-          : `Couldn't follow that URL: ${fetched.reason}`,
+          ? `Refused to fetch that URL: ${escapeHtml(fetched.reason)}`
+          : `Couldn't follow that URL: ${escapeHtml(fetched.reason)}`,
         chatId,
       );
       return;
@@ -2273,7 +2319,7 @@ If it's news/article, extract the key insight.`,
       return;
     }
 
-    await sendTelegram(`🔗 <b>Link Analysis</b>\n\n${result.content.slice(0, 3500)}`, chatId);
+    await sendTelegram(`🔗 <b>Link Analysis</b>\n\n${escapeHtml(result.content.slice(0, 3500))}`, chatId);
 
     // Store as brain memory
     const { brainMemory } = await import("@/lib/brain/memory-manager");
@@ -2294,7 +2340,7 @@ async function cmdImagine(prompt: string, chatId: string): Promise<void> {
     return;
   }
 
-  await sendTelegram(`🎨 Generating: "${prompt.slice(0, 60)}..."`, chatId);
+  await sendTelegram(`🎨 Generating: "${escapeHtml(prompt.slice(0, 60))}..."`, chatId);
 
   try {
     const { generateImageWithFallback } = await import("@/lib/ai/gemini-image");
@@ -2355,14 +2401,14 @@ async function emitApprovalResponse(
     });
     await sendTelegram(
       `✅ ${decision === "approve" ? "Approved" : "Rejected"} · ` +
-        `<code>${campaignId}</code> · Inngest will ${
+        `<code>${escapeHtml(campaignId)}</code> · Inngest will ${
           decision === "approve" ? "dispatch" : "audit + exit"
         } within seconds.`,
       chatId,
     );
   } catch (err) {
     await sendTelegram(
-      `⚠️ Failed to emit ${decision} for <code>${campaignId}</code>: ${
+      `⚠️ Failed to emit ${decision} for <code>${escapeHtml(campaignId)}</code>: ${
         await safeErrorText(err)
       }`,
       chatId,
@@ -2428,8 +2474,21 @@ async function cmdQa(args: string, chatId: string): Promise<void> {
   let batchDay = today;
   let rows = await pendingBatchFor(today);
   if (rows.length === 0) {
-    rows = await pendingBatchFor(yesterday);
-    batchDay = yesterday;
+    // Fall back only when today has NO batch yet (the evening case above). A
+    // decided batch is not a missing one: a replayed "/qa 1" after today's #1
+    // was approved used to approve YESTERDAY's #1.
+    const todayBatch = await prisma.autonomousAction.findMany({
+      where: {
+        ruleName: { startsWith: "nick_action_" },
+        idempotencyKey: { startsWith: `nick_action::${today}::` },
+      },
+      select: { id: true },
+      take: 1,
+    });
+    if (todayBatch.length === 0) {
+      rows = await pendingBatchFor(yesterday);
+      batchDay = yesterday;
+    }
   }
 
   if (rows.length === 0) {
@@ -2476,7 +2535,7 @@ async function cmdQa(args: string, chatId: string): Promise<void> {
       .filter((n) => Number.isInteger(n) && n > 0);
     if (indices.length === 0) {
       await sendTelegram(
-        `Couldn't parse indices from "${args.slice(0, 60)}". Try <code>/qa 1 3</code>, <code>/qa all</code>, or <code>/qa none</code>.`,
+        `Couldn't parse indices from "${escapeHtml(args.slice(0, 60))}". Try <code>/qa 1 3</code>, <code>/qa all</code>, or <code>/qa none</code>.`,
         chatId,
       );
       return;
@@ -2498,8 +2557,11 @@ async function cmdQa(args: string, chatId: string): Promise<void> {
   // doesn't leave the queue in a torn state.
   let updated = 0;
   try {
+    // Compare-and-swap on the state the read saw: only rows still pending. A
+    // stale "/qa all" used to overturn a "/qa none" (or a web decision) that
+    // landed after its read, and then fire the executor.
     const result = await prisma.autonomousAction.updateMany({
-      where: { id: { in: targets.map((t) => t.id) } },
+      where: { id: { in: targets.map((t) => t.id) }, approval: "pending" },
       data: {
         approval: decision,
         approvedBy: "nour-telegram",
@@ -2511,6 +2573,10 @@ async function cmdQa(args: string, chatId: string): Promise<void> {
       `⚠️ Queue update failed: ${await safeErrorText(err)}`,
       chatId,
     );
+    return;
+  }
+  if (updated === 0) {
+    await sendTelegram(`Nothing changed: those moves were already decided.`, chatId);
     return;
   }
 

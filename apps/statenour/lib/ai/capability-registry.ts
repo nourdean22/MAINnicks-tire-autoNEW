@@ -35,9 +35,10 @@ export const WRITE_CATEGORIES: ReadonlySet<string> = new Set([
 
 // Mutating verb prefixes, matched only at a camelCase/underscore/digit
 // boundary so read tools with overlapping spellings never trip.
-// Exported for the boundary tests.
+// Exported for the boundary tests. `clear` (2026-10-10 red-team): clearMit
+// writes setMit("") and evaded all three tripwires.
 export const MUTATING_PREFIX =
-  /^(create|update|delete|remove|send|set|add|publish|execute|queue|schedule|run|write|book|pay|mark|toggle|sync|import|approve|reject|dismiss|complete|cancel|assign|move|archive|restore|remember|forget|record|log|start|stop|activate|deactivate|trigger|post|reply|draft|generate|upload|save|apply|merge|resolve)(?=[A-Z0-9_])/;
+  /^(create|update|delete|remove|clear|send|set|add|publish|execute|queue|schedule|run|write|book|pay|mark|toggle|sync|import|approve|reject|dismiss|complete|cancel|assign|move|archive|restore|remember|forget|record|log|start|stop|activate|deactivate|trigger|post|reply|draft|generate|upload|save|apply|merge|resolve)(?=[A-Z0-9_])/;
 
 let index: Map<string, ToolMeta> | null = null;
 function catalogIndex(): Map<string, ToolMeta> {

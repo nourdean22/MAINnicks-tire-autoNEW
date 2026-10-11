@@ -15,7 +15,7 @@ import { currentTurn } from "@/lib/agent/turn-context";
 import { logger as rootLogger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 import { sideEffectingTools } from "@/lib/ai/tools/catalog";
-import { getToolCapability } from "@/lib/tools/tool-registry";
+import { findOpenRequest } from "@/lib/tools/two-key";
 
 const log = rootLogger.withSurface("tools/sink-policy");
 
@@ -32,11 +32,14 @@ export type SinkPolicyRefusal = {
 
 let sideEffecting: Set<string> | null = null;
 
-/** Catalog `sideEffecting` OR registry `externalMutation` -- either flag makes it a sink. */
+/**
+ * Catalog `sideEffecting` makes a tool a sink. (A tool-registry
+ * `externalMutation` arm was deleted 2026-10-10: the registry is keyed by
+ * dotted ids, so it could never match a nourTools name and only implied cover.)
+ */
 export function isExternalSideEffectTool(name: string): boolean {
   sideEffecting ??= new Set(sideEffectingTools());
-  if (sideEffecting.has(name)) return true;
-  return getToolCapability(name)?.externalMutation === true;
+  return sideEffecting.has(name);
 }
 
 export function turnIsTainted(): boolean {
@@ -50,22 +53,28 @@ export function turnIsTainted(): boolean {
 export async function sinkPolicyGate(toolName: string, args: unknown): Promise<SinkPolicyRefusal | null> {
   if (!turnIsTainted()) return null;
   if (!isExternalSideEffectTool(toolName)) return null;
+  const payload = args && typeof args === "object" ? args : { args };
   let requestId: string | null = null;
   try {
-    const row = await prisma.approvalRequest.create({
-      data: {
-        toolId: toolName,
-        actionType: "require_owner",
-        status: "pending_approval",
-        riskClass: "high",
-        payload: (args && typeof args === "object" ? args : { args }) as any,
-        requestedBy: "agent",
-        reason: SINK_POLICY_REASON,
-        expiresAt: new Date(Date.now() + APPROVAL_TTL_MS),
-      },
-      select: { id: true },
-    });
-    requestId = row.id;
+    // A retry of the same call reuses its pending row, as two-key does: one
+    // approval must mean one execution, never two queued copies.
+    requestId = await findOpenRequest(toolName, payload, SINK_POLICY_REASON);
+    if (!requestId) {
+      const row = await prisma.approvalRequest.create({
+        data: {
+          toolId: toolName,
+          actionType: "require_owner",
+          status: "pending_approval",
+          riskClass: "high",
+          payload: payload as any,
+          requestedBy: "agent",
+          reason: SINK_POLICY_REASON,
+          expiresAt: new Date(Date.now() + APPROVAL_TTL_MS),
+        },
+        select: { id: true },
+      });
+      requestId = row.id;
+    }
   } catch (err) {
     log.warn("sink policy: approval row not written; the call is still refused", {
       tool: toolName,

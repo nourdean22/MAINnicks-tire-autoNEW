@@ -127,6 +127,13 @@ describe("DELETE = operator stop", () => {
     expect(await res.json()).toEqual({ stopped: false, reason: "no_active_turn" });
   });
 
+  it("a turn already stored as complete → 409 already_complete (the client says 'stop not recorded')", async () => {
+    mockRequestStop.mockResolvedValue({ stopped: false, reason: "already_complete" });
+    const res = await DELETE(req(), ctx("conv-1"));
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ stopped: false, reason: "already_complete" });
+  });
+
   it("sentinel conversation id never writes", async () => {
     const res = await DELETE(req(), ctx("none"));
     expect(res.status).toBe(409);

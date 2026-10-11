@@ -30,6 +30,7 @@ vi.mock("@/lib/prisma", () => {
         if (op === "not") return v !== x;
         if (op === "gte") return ms(v) >= ms(x);
         if (op === "lt") return ms(v) < ms(x);
+        if (op === "startsWith") return String(v).startsWith(x as string);
         throw new Error(`fake prisma: unsupported operator ${op}`);
       });
     });

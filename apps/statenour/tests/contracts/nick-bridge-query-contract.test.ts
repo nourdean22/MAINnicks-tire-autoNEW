@@ -29,7 +29,8 @@
 import { describe, it, expect } from "vitest";
 import ts from "typescript";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
-import { join, relative, resolve, sep } from "node:path";
+import { dirname, join, relative, resolve, sep } from "node:path";
+import { catalogue, queryHandlerKeys } from "./bridge-registry";
 
 const STATENOUR_ROOT = process.cwd(); // vitest runs from apps/statenour
 const NICK_REGISTRY = resolve(
@@ -58,7 +59,7 @@ const KNOWN_PENDING = new Set<string>([
   // handler, and getTopServices was retired, so nothing calls `revenue_top_services`.
 ]);
 
-/** Parse the live handler keys out of nickstire's QUERY_HANDLERS registry. */
+/** The live handler keys of nickstire's QUERY_HANDLERS object literal (syntax tree: quoted or not, comments ignored). */
 function liveHandlers(): Set<string> {
   if (!existsSync(NICK_REGISTRY)) {
     throw new Error(
@@ -66,13 +67,7 @@ function liveHandlers(): Set<string> {
         `update NICK_REGISTRY in this test.`,
     );
   }
-  const src = readFileSync(NICK_REGISTRY, "utf8");
-  const out = new Set<string>();
-  // handlers look like:  "revenue_today": async () => {
-  for (const m of src.matchAll(/["']([a-z0-9_]+)["']\s*:\s*async/g)) {
-    out.add(m[1]);
-  }
-  return out;
+  return queryHandlerKeys(readFileSync(NICK_REGISTRY, "utf8"), NICK_REGISTRY);
 }
 
 /** Recursively collect .ts/.tsx source files (skip tests + build output). */
@@ -114,6 +109,9 @@ interface Scan {
 const QUERY_HELPERS = ["queryNick", "fetchBridge"] as const;
 /** Takes `[{ query: "x", filters? }, ...]`. */
 const BATCH_HELPER = "queryNickBatch";
+/** The bridge endpoint, and the one file allowed to call it directly: every other call goes through its helpers. */
+const BRIDGE_ENDPOINT = "/api/nour-os/query";
+const BRIDGE_CLIENT = "lib/nickstire/query.ts";
 
 /**
  * Production source the guard reads. NOT scripts/: contract-pre-flight.ts enumerates every
@@ -216,8 +214,8 @@ type Resolution =
  */
 function scanSource(file: string, text: string): Scan {
   const scan: Scan = { hits: [], unresolved: [] };
-  // A file that never names a helper has no call site to follow (and needs no checker).
-  if (![...QUERY_HELPERS, BATCH_HELPER].some((h) => text.includes(h))) return scan;
+  // A file that never names a helper or the endpoint has no call site to follow (and needs no checker).
+  if (![...QUERY_HELPERS, BATCH_HELPER, BRIDGE_ENDPOINT].some((h) => text.includes(h))) return scan;
 
   const kind = file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
   const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, kind);
@@ -235,6 +233,13 @@ function scanSource(file: string, text: string): Scan {
   // `export { read }` and `export default read` export a function without a modifier.
   const exportedByName = new Set<string>();
   (function collect(n: ts.Node): void {
+    // A raw call to the endpoint sends a query name no helper call shows (red team 2026-10-10).
+    const literalText = ts.isStringLiteralLike(n) || ts.isTemplateHead(n) || ts.isTemplateMiddle(n) || ts.isTemplateTail(n) ? n.text : "";
+    if (file !== BRIDGE_CLIENT && literalText.includes(BRIDGE_ENDPOINT)) {
+      let at: ts.Node = n;
+      while (!ts.isTemplateExpression(at) && (ts.isTemplateSpan(at.parent) || ts.isTemplateExpression(at.parent))) at = at.parent;
+      unresolved(at, `a raw call to ${BRIDGE_ENDPOINT} that skips ${QUERY_HELPERS[0]}: its query name is never checked`);
+    }
     if (ts.isCallExpression(n)) calls.push(n);
     if (ts.isIdentifier(n)) ids.push(n);
     if (ts.isElementAccessExpression(n) && ts.isStringLiteralLike(n.argumentExpression) && HELPERS.includes(n.argumentExpression.text)) {
@@ -446,6 +451,15 @@ function scanSource(file: string, text: string): Scan {
       HELPERS.includes(id.text) || aliases.has(id.text) || wrappers.has(checker.getSymbolAtLocation(id) as ts.Symbol);
     if (!isHelper) continue;
     const p = id.parent;
+    // `export { queryNick as ask }`: other files call `ask(...)`, which never names a helper, so it is
+    // never scanned. Export a helper only under its own name (red team 2026-10-10).
+    if (ts.isExportSpecifier(p) && (p.propertyName ?? p.name) === id) {
+      const helper = HELPERS.includes(id.text) ? id.text : aliases.get(id.text);
+      if (helper && p.name.text !== helper) {
+        unresolved(p, `\`${helper}\` re-exported as \`${p.name.text}\`: calls through that name in other files are not followed`);
+        continue;
+      }
+    }
     const isName =
       ((ts.isImportSpecifier(p) || ts.isExportSpecifier(p) || ts.isBindingElement(p)) && (p.name === id || p.propertyName === id)) ||
       ts.isImportClause(p) ||
@@ -476,6 +490,26 @@ function scanCallsites(): Scan {
     out.unresolved.push(...unresolved);
   }
   return out;
+}
+
+/** Same-repo modules a file imports (static, dynamic or re-export), relative to apps/statenour, `/`-separated. */
+function localImports(file: string): string[] {
+  const sf = ts.createSourceFile(file, readFileSync(join(STATENOUR_ROOT, file), "utf8"), ts.ScriptTarget.Latest, true);
+  const specs: string[] = [];
+  (function find(n: ts.Node): void {
+    if ((ts.isImportDeclaration(n) || ts.isExportDeclaration(n)) && n.moduleSpecifier && ts.isStringLiteralLike(n.moduleSpecifier)) {
+      specs.push(n.moduleSpecifier.text);
+    }
+    if (ts.isCallExpression(n) && n.expression.kind === ts.SyntaxKind.ImportKeyword && n.arguments[0] && ts.isStringLiteralLike(n.arguments[0])) {
+      specs.push(n.arguments[0].text);
+    }
+    ts.forEachChild(n, find);
+  })(sf);
+  return specs.flatMap((s) => {
+    const base = s.startsWith("@/") ? s.slice(2) : s.startsWith(".") ? join(dirname(file), s) : undefined;
+    const hit = base === undefined ? undefined : ["", ".ts", ".tsx", "/index.ts", "/index.tsx"].map((x) => base + x).find((c) => /\.tsx?$/.test(c) && existsSync(join(STATENOUR_ROOT, c)));
+    return hit ? [hit.split(sep).join("/")] : [];
+  });
 }
 
 /** The unresolved calls DYNAMIC_BY_DESIGN does NOT excuse (see its header for the count rule). */
@@ -561,7 +595,11 @@ describe("nickstire bridge query contract", () => {
 
   it("every query the autonomous engine's rules read is a live handler, with no exemption", () => {
     const valid = liveHandlers();
-    const sent = scanCallsites().hits.filter((h) => h.file === ENGINE_FILE).map((h) => h.query);
+    // A read moved into a helper the engine imports is still the engine's read (red team 2026-10-10).
+    // shortcut: one hop (the engine and what it imports); a helper's own imports are not followed. Make
+    // it a closure if a bridge read ever sits two modules away from the engine.
+    const reach = new Set([ENGINE_FILE, ...localImports(ENGINE_FILE)]);
+    const sent = scanCallsites().hits.filter((h) => reach.has(h.file)).map((h) => h.query);
     // The instrument fired: the engine holds ~10 bridge reads (2026-10-10).
     expect(sent.length).toBeGreaterThan(5);
     const dead = [...new Set([...sent, ...ENGINE_REQUIRED])].filter((q) => !valid.has(q)).sort();
@@ -678,14 +716,27 @@ describe("nickstire bridge query contract", () => {
       expect(scan(`let f; f = queryNick;`).blind).toEqual(["queryNick"]);
       expect(scan(`await (cond ? queryNick : fetchBridge)(q);`).blind).toEqual(["queryNick", "fetchBridge"]);
       expect(scan(`const g = nq["queryNick"];`).blind).toEqual([`nq["queryNick"]`]);
-      // Still not uses: importing, destructuring, declaring, a property key, a type position.
+      // Still not uses: importing, destructuring, re-exporting under its own name, declaring, a property key, a type position.
       expect(
         scan(
-          `import { queryNick } from "@/lib/nickstire/query";\nexport { queryNick as q2 };\n` +
+          `import { queryNick } from "@/lib/nickstire/query";\nexport { queryNick };\n` +
             `type R = Awaited<ReturnType<typeof queryNick>>;\nconst tools = { fetchBridge: 1 };\n` +
             `export async function queryNickBatch() { return 1; }`,
         ).blind,
       ).toEqual([]);
+      // Re-exported under ANOTHER name, a helper is called elsewhere by a name no scan reads (red team 2026-10-10).
+      expect(scan(`import { queryNick } from "@/lib/nickstire/query";\nexport { queryNick as q2 };`).blind).toEqual(["queryNick as q2"]);
+      expect(scan(`export { queryNick as ask } from "@/lib/nickstire/query";`).blind).toEqual(["queryNick as ask"]);
+      expect(scan(`import { queryNick as qn } from "@/lib/nickstire/query";\nexport { qn };`).blind).toEqual(["qn"]);
+    });
+
+    it("flags a raw call to the bridge endpoint anywhere but the bridge client", () => {
+      const raw = 'await fetch(`${url}/api/nour-os/query`, { method: "POST", body: JSON.stringify({ query: "no_such_handler" }) });';
+      expect(scan(raw).blind).toEqual(["`${url}/api/nour-os/query`"]);
+      expect(scan('const u = "https://nickstire.org/api/nour-os/query";').blind).toHaveLength(1);
+      expect(scanSource("lib/nickstire/query.ts", raw).unresolved).toEqual([]);
+      // A comment that names the endpoint is prose.
+      expect(scan("// POST /api/nour-os/query (x-sync-key)\nconst a = 1;").blind).toEqual([]);
     });
 
     it("refuses a wrapper parameter or a const batch list that is written after it is bound", () => {
@@ -750,6 +801,24 @@ describe("nickstire bridge query contract", () => {
     });
   });
 
+  it("the registry is read as QUERY_HANDLERS' keys: a commented-out handler or another object's key is not live, an unquoted key is", () => {
+    const src =
+      "export const QUERY_HANDLERS: Record<string, QueryHandler> = {\n" +
+      '  "revenue_today": async () => ({}),\n' +
+      '  // "retired_handler": async () => ({}),\n' +
+      "  cars_today: async () => ({}),\n" +
+      "};\n" +
+      'const FORMATTERS = { "not_a_handler": async (x: unknown) => String(x) };\n';
+    expect([...queryHandlerKeys(src)].sort()).toEqual(["cars_today", "revenue_today"]);
+    expect(() => queryHandlerKeys("export const QUERY_HANDLERS = { ...more };")).toThrow(/spreads/);
+    expect(() => queryHandlerKeys("export const HANDLERS = {};")).toThrow(/no `QUERY_HANDLERS/);
+  });
+
+  it("the engine's reach is read from its imports, the dynamic bridge import included", () => {
+    expect(localImports(ENGINE_FILE)).toContain("lib/nickstire/query.ts");
+    expect(localImports(ENGINE_FILE).length).toBeGreaterThan(5);
+  });
+
   it("KNOWN_PENDING only lists queries nickstire has NOT shipped (promote when shipped)", () => {
     const valid = liveHandlers();
     const shipped = [...KNOWN_PENDING].filter((q) => valid.has(q));
@@ -758,6 +827,13 @@ describe("nickstire bridge query contract", () => {
       `These KNOWN_PENDING queries are now LIVE nickstire handlers — remove them ` +
         `from KNOWN_PENDING (and the newly-required tier in contract-pre-flight.ts):\n  ${shipped.join(", ")}`,
     ).toEqual([]);
+    // An entry here exempts a name everywhere outside the engine, so a typo added here would never
+    // fail. Every entry must be one the pre-flight probes as newly-required, and vice versa.
+    const newlyRequired = catalogue().filter((e) => e.tier === "newly-required").map((e) => e.query).sort();
+    expect(
+      [...KNOWN_PENDING].sort(),
+      "KNOWN_PENDING must equal the newly-required tier of scripts/contract-pre-flight.ts ACTIONS: add or remove the query in both.",
+    ).toEqual(newlyRequired);
   });
 
   it("the two copies of NICKSTIRE-QUERY-CONTRACT.md are byte-identical", () => {

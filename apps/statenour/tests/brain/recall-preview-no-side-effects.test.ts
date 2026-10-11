@@ -28,7 +28,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const EMBEDDING = Array.from({ length: 1536 }, () => 0.01);
@@ -159,7 +159,8 @@ describe("client code builds recall URLs only through the read-only helper", () 
           if (name === "node_modules" || name === "api") continue; // app/api is the server side
           walk(full);
         } else if (/\.(ts|tsx)$/.test(name) && !/\.test\.tsx?$/.test(name)) {
-          out.push(relative(APP_ROOT, full));
+          // `/`-separated on every OS: the assertions below name files the POSIX way.
+          out.push(relative(APP_ROOT, full).split(sep).join("/"));
         }
       }
     };

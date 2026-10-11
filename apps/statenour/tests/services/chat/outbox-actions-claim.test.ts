@@ -15,8 +15,9 @@
  * Pinned (claim-before-act): the action blocks of one turn are claimed in
  * action_attempts BEFORE they run; a replay of the same turn is a no-op for the
  * actions phase; the outbox row is marked done only after the actions phase
- * settles (its 15 s budget kept); a timed-out phase settles UNKNOWN, never
- * FAILED, so a replay never re-runs it blindly. Controls: a different turn
+ * settles (its 15 s budget kept); the claim settles on the actions' real
+ * outcome (still EXECUTING past the budget; a throw is UNKNOWN, never FAILED),
+ * so a replay never re-runs it blindly. Controls: a different turn
  * still runs; an unreachable claim store still runs the actions (and says so).
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
@@ -173,7 +174,7 @@ describe("action blocks are claimed before they run", () => {
 });
 
 describe("the outbox row is marked done only after the actions phase", () => {
-  it("a hung executeActions keeps the row open until its 15 s budget; the timed-out claim reads UNKNOWN and a replay does not re-run it", async () => {
+  it("a hung executeActions keeps the row open until its 15 s budget; the claim stays EXECUTING (still in flight) and a replay does not re-run it", async () => {
     // Warm the dynamic imports first so fake time only covers the phase itself.
     await runDeferredBackgroundWork(ctx({ traceId: "warm" }));
     db.calls.length = 0;
@@ -196,11 +197,45 @@ describe("the outbox row is marked done only after the actions phase", () => {
     await vi.advanceTimersByTimeAsync(6_000);
     await turn;
     expect(outboxDoneMarks()).toHaveLength(1);
-    expect(attemptFor("t1")?.state).toBe("UNKNOWN");
+    // 2026-10-10 hostile review: the budget ending says nothing about the
+    // actions; they are still running. UNKNOWN here used to be permanent even
+    // when they returned a moment later.
+    expect(attemptFor("t1")?.state).toBe("EXECUTING");
 
     // The drain replays the same payload (e.g. the done-mark was lost).
     vi.useRealTimers();
     await runDeferredBackgroundWork(ctx());
+    expect(agent.executeActions).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("the claim settles on the actions' real outcome, however late", () => {
+  it("actions that return after the 15 s budget settle SUCCEEDED_UNVERIFIED when they return", async () => {
+    await runDeferredBackgroundWork(ctx({ traceId: "warm" }));
+    let finish!: (v: unknown) => void;
+    agent.executeActions = vi.fn(() => new Promise((r) => (finish = r)));
+
+    vi.useFakeTimers();
+    const turn = runDeferredBackgroundWork(ctx({ traceId: "late" }));
+    await vi.waitFor(() => expect(agent.executeActions).toHaveBeenCalledTimes(1), { interval: 1 });
+    await vi.advanceTimersByTimeAsync(16_000);
+    await turn;
+    expect(attemptFor("late")?.state).toBe("EXECUTING");
+
+    finish([{ action: "task.create", success: true }]);
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.waitFor(() => expect(attemptFor("late")?.state).toBe("SUCCEEDED_UNVERIFIED"), { interval: 1 });
+  });
+
+  it("actions that throw settle UNKNOWN (they may have partly landed), never FAILED, and are not re-run", async () => {
+    agent.executeActions = vi.fn(async () => {
+      throw new Error("executeActions blew up after the first action");
+    });
+
+    await runDeferredBackgroundWork(ctx({ traceId: "boom" }));
+    expect(attemptFor("boom")?.state).toBe("UNKNOWN");
+
+    await runDeferredBackgroundWork(ctx({ traceId: "boom" }));
     expect(agent.executeActions).toHaveBeenCalledTimes(1);
   });
 });

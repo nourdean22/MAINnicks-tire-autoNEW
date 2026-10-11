@@ -104,7 +104,10 @@ const PERMISSIONS: readonly ChatActionPermission[] = ["read", "draft", "execute"
 /**
  * Parse the authority-kernel control fields off the request body. Pure +
  * defensive: anything malformed degrades to the safe default (no private mode,
- * auto posture, draft permission) instead of throwing. Exported for tests.
+ * auto posture, draft permission) instead of throwing. One exception: a
+ * permission that is PRESENT but unrecognised ("READ", " read") is a
+ * restriction the client tried to state, so it falls to "read" rather than
+ * widening to draft. Absent or null stays draft. Exported for tests.
  */
 export function parseChatControls(body: Record<string, unknown>): {
   privateMode: boolean;
@@ -117,7 +120,9 @@ export function parseChatControls(body: Record<string, unknown>): {
     : "auto";
   const actionPermission = PERMISSIONS.includes(body.actionPermission as ChatActionPermission)
     ? (body.actionPermission as ChatActionPermission)
-    : "draft";
+    : body.actionPermission == null
+      ? "draft"
+      : "read";
   return { privateMode, posture, actionPermission };
 }
 

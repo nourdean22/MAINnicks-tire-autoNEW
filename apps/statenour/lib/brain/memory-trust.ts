@@ -89,8 +89,13 @@ const OPERATOR_EXACT = new Set(["manual", "user", "operator", "nour"]);
  * `gmail_outgoing` is deliberately ABSENT -- that is the operator's own
  * sent mail, which is exactly the OPERATOR tier, and demoting it would
  * fence Nour's own words back at him.
+ *
+ * 2026-10-10 (audit 07-SN-02) · `link_analysis` added: the Telegram handleUrl
+ * row (source "telegram-url") is a model summary of a third-party PAGE, which
+ * its author controls. Keyed on the category, not the slug: the "telegram:"
+ * prefix below never matched that writer.
  */
-const EXTERNAL_CATEGORIES = new Set(["gmail_thread", "inbound", "inbound_sms", "web_article"]);
+const EXTERNAL_CATEGORIES = new Set(["gmail_thread", "inbound", "inbound_sms", "web_article", "link_analysis"]);
 
 /**
  * 2026-10-10 (audit 05-M2) · `conversation_` added. Every writer with that

@@ -621,28 +621,29 @@ export async function decideMove(
   | { ok: false; reason: string }
 > {
   const key = moveKey(date, moveIndex);
-  const existing = await prisma.brainMemory
-    .findUnique({
-      where: { category_key: { category: "revenue_move", key } },
-      select: { id: true, metadata: true },
-    })
-    .catch(() => null);
+  const where = { category_key: { category: "revenue_move", key } };
+  const decidedStatus = (metadata: unknown): "approved" | "rejected" | null => {
+    const s = (metadata as Record<string, unknown> | null)?.status;
+    return s === "approved" || s === "rejected" ? s : null;
+  };
+
+  // A failed read is UNKNOWN, never "not found".
+  let existing: { id: string; metadata: unknown } | null;
+  try {
+    existing = await prisma.brainMemory.findUnique({ where, select: { id: true, metadata: true } });
+  } catch (err) {
+    log.warn("decide_read_failed", { date, moveIndex, error: err instanceof Error ? err.message : String(err) });
+    return { ok: false, reason: "read_failed" };
+  }
 
   if (!existing) {
     return { ok: false, reason: "move_not_found" };
   }
 
   const meta = (existing.metadata ?? {}) as Record<string, unknown>;
-  const currentStatus = meta.status === "approved" || meta.status === "rejected"
-    ? meta.status
-    : "pending";
-
-  if (currentStatus !== "pending") {
-    return {
-      ok: true,
-      alreadyDecided: true,
-      status: currentStatus as "approved" | "rejected",
-    };
+  const already = decidedStatus(meta);
+  if (already) {
+    return { ok: true, alreadyDecided: true, status: already };
   }
 
   const nextMeta = {
@@ -651,23 +652,36 @@ export async function decideMove(
     decidedAt: new Date().toISOString(),
   };
 
-  await prisma.brainMemory
-    .update({
-      where: { category_key: { category: "revenue_move", key } },
+  // Compare-and-swap: the write lands only while the row still says
+  // "pending" (persistMove always writes it). Two decisions that both read
+  // pending used to both write, both reply as fresh, last write wins. The
+  // loser now gets P2025 and reports the winner's decision; any other error
+  // is reported as not saved (it used to be swallowed into "approved").
+  try {
+    await prisma.brainMemory.update({
+      where: { ...where, metadata: { path: ["status"], equals: "pending" } },
       data: {
         metadata: nextMeta as unknown as Parameters<
           typeof prisma.brainMemory.update
         >[0]["data"]["metadata"],
       },
-    })
-    .catch((err) => {
-      log.warn("decide_update_failed", {
-        date,
-        moveIndex,
-        decision,
-        error: err instanceof Error ? err.message : String(err),
-      });
     });
+  } catch (err) {
+    if ((err as { code?: string })?.code === "P2025") {
+      const winner = await prisma.brainMemory
+        .findUnique({ where, select: { metadata: true } })
+        .catch(() => null);
+      const status = decidedStatus(winner?.metadata);
+      if (status) return { ok: true, alreadyDecided: true, status };
+    }
+    log.warn("decide_update_failed", {
+      date,
+      moveIndex,
+      decision,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return { ok: false, reason: "write_failed" };
+  }
 
   return { ok: true, alreadyDecided: false, status: decision };
 }

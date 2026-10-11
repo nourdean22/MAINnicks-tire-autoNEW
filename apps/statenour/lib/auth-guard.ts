@@ -4,6 +4,7 @@ import { auth, authEnabled } from "@/auth";
 import { ServiceError } from "@/lib/utils/service-error";
 import { logger as rootLogger } from "@/lib/logger";
 import { evidenceDoorAccepts, presentedLedgerKey } from "@/lib/security/evidence-ledger-auth";
+import { queueDoorAccepts } from "@/lib/security/queue-auth";
 
 // v10.0.529.105 · Wave 49 · structured logger surface for auth-bypass
 // events. Pre-Wave-49 console.error was the only signal · meant the
@@ -77,6 +78,18 @@ export function requireSyncAuth(req: Request): void {
 export function requireEvidenceAuth(req: Request): void {
   const env = { EVIDENCE_LEDGER_KEY: process.env.EVIDENCE_LEDGER_KEY, STATENOUR_SYNC_KEY: process.env.STATENOUR_SYNC_KEY };
   if (!evidenceDoorAccepts(presentedLedgerKey(req.headers), env)) {
+    throw new ServiceError("Unauthorized", 401);
+  }
+}
+
+/** The publish queue's door: STATENOUR_QUEUE_KEY, or the bridge key until strict (lib/security/queue-auth.ts). */
+export function requireQueueAuth(req: Request): void {
+  const env = {
+    STATENOUR_QUEUE_KEY: process.env.STATENOUR_QUEUE_KEY,
+    STATENOUR_SYNC_KEY: process.env.STATENOUR_SYNC_KEY,
+    STATENOUR_QUEUE_KEY_STRICT: process.env.STATENOUR_QUEUE_KEY_STRICT,
+  };
+  if (!queueDoorAccepts(presentedLedgerKey(req.headers), env)) {
     throw new ServiceError("Unauthorized", 401);
   }
 }

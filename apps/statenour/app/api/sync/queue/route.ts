@@ -30,7 +30,7 @@ export const GET = apiHandler(
     const drafts = await listDrafts({ status: status as any, limit });
     return { ok: true, drafts };
   },
-  { auth: "sync" }
+  { auth: "queue" }
 );
 
 /**
@@ -108,5 +108,5 @@ export const POST = apiHandler(
 
     return { ok: false, error: "Invalid action" };
   },
-  { auth: "sync" }
+  { auth: "queue" }
 );

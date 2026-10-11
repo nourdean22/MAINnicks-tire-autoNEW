@@ -41,6 +41,7 @@ import type { detectActionIntent } from "@/lib/ai/chat/action-intent-detector";
 import type { ChatMode } from "@/lib/ai/chat-mode";
 import type { logger as rootLogger } from "@/lib/logger";
 import { noteForcedTool } from "@/lib/ai/tool-selection-telemetry";
+import { isReadSafeTool } from "@/lib/ai/capability-registry";
 
 type Logger = ReturnType<typeof rootLogger.withSurface>;
 
@@ -258,7 +259,12 @@ export function buildStreamConfigFactory(deps: {
         // makes the "observe and describe, don't act" directive impossible
         // (self-review high #5). Skip the mutating forces; fall through to the
         // unforced default so the READ prompt directive governs the turn.
-        if (__pythonExecuteIntent && actionPermission !== "read") {
+        // 2026-10-10 · and never force a tool the turn does not OFFER: the
+        // Private Lab strip removes runPython and every write at any permission,
+        // so each force keys on the pruned set itself, not on a label.
+        const offered = (prunedTools ?? {}) as Record<string, unknown>;
+        const offers = (name: string) => Object.prototype.hasOwnProperty.call(offered, name);
+        if (__pythonExecuteIntent && actionPermission !== "read" && offers("runPython")) {
           log.info("python_execute_intent_detected", { surface: "chat" });
           noteForcedTool(__traceId, "runPython", provider, modelId);
           return {
@@ -275,7 +281,7 @@ export function buildStreamConfigFactory(deps: {
         // step 0 (checked before the generic action intent — more
         // specific wins). deepseek-v4-pro honors strict tool_choice
         // via Ollama's OpenAI-compat endpoint (probed live).
-        if (__webSearchIntent) {
+        if (__webSearchIntent && offers("arsenalWebSearch")) {
           log.info("web_search_intent_detected", { surface: "chat" });
           noteForcedTool(__traceId, "arsenalWebSearch", provider, modelId);
           return {
@@ -293,7 +299,8 @@ export function buildStreamConfigFactory(deps: {
         // both the provider pick AND toolChoice, so the two can never
         // disagree.
         const intent = __actionIntent;
-        if (intent && actionPermission !== "read") {
+        // "required" against a read-only set would only force a pointless read.
+        if (intent && actionPermission !== "read" && Object.keys(offered).some((n) => !isReadSafeTool(n))) {
           log.info("action_intent_detected", {
             intent: intent.intent,
             expectedTool: intent.expectedTool,

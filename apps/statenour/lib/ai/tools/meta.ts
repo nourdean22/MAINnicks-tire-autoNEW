@@ -27,6 +27,127 @@ async function getSchemaIndex(): Promise<NonNullable<typeof schemaIndexMemo>> {
   return schemaIndexMemo;
 }
 
+// ── Sandbox for MODEL-WRITTEN JavaScript (runCode, queryData) ─────────────
+// node:vm is NOT a security boundary: any host-realm object or function the
+// context can reach hands over the host Function constructor, and with it
+// process.env, fetch and process.getBuiltinModule (S3/S9 red team, 2026-10-10;
+// pinned in tests/ai/code-sandbox-escape.test.ts). So the context holds ONLY
+// its own ECMAScript built-ins, data crosses as JSON text, and the host reads
+// nothing from it but string own properties (no sandbox getter or trap runs on
+// the host). Each line below closes a path verified on Node 24:
+//   - codeGeneration off: no eval / Function / wasm, in any realm reached.
+//   - microtaskMode afterEvaluate: awaits drain INSIDE the timeout; on the
+//     host's queue an await loop would block the whole server.
+//   - `import` refused before compiling: import() rejects with a HOST-realm
+//     error, and the keyword cannot be spelled with escapes.
+//   - Symbol.for deleted: the host logs an unhandled rejection with
+//     util.inspect, which passes its own inspect function to a
+//     Symbol.for('nodejs.util.inspect.custom') method.
+//   - FinalizationRegistry deleted: its callbacks run later, outside the timeout.
+const SANDBOX_PRELUDE = `
+delete Symbol.for; delete Symbol.keyFor; delete globalThis.FinalizationRegistry;
+const __logs = [];
+globalThis.console = { log: (...a) => { __logs.push(a.map(String).join(" ")); } };
+const __finish = (run) => new Promise((resolve) => resolve(run())).then(
+  (v) => { globalThis.__out = JSON.stringify({ ok: true, value: v === undefined ? null : v, logs: __logs }); },
+  (e) => {
+    let m = "error";
+    try { m = String(e instanceof Error ? e.message : e); } catch {}
+    globalThis.__out = JSON.stringify({ ok: false, error: m, logs: __logs });
+  },
+).catch(() => { globalThis.__out = JSON.stringify({ ok: false, error: "the result is not JSON-serializable", logs: __logs }); });
+`;
+
+type SandboxOutcome = { ok: true; value: unknown; logs: string[] } | { ok: false; error: string };
+
+/** null when the code may run; otherwise the refusal to return to the model. */
+function sandboxRefusal(code: string): string | null {
+  return /\bimport\b/.test(code)
+    ? "`import` is not available in this sandbox (no modules, network or filesystem). Remove the word import, comments included."
+    : null;
+}
+
+/** Runs `script` in a fresh host-free context; returns the string globals it left behind. */
+async function runSandboxed(script: string, timeoutMs: number): Promise<{ out?: string; pending?: string; timedOut: boolean }> {
+  const vm = await import("node:vm");
+  const context = vm.createContext(vm.constants.DONT_CONTEXTIFY, {
+    codeGeneration: { strings: false, wasm: false },
+    microtaskMode: "afterEvaluate",
+  });
+  const compiled = new vm.Script(script); // a SyntaxError here is host-realm, safe to report
+  const started = Date.now();
+  try {
+    compiled.runInContext(context, { timeout: timeoutMs });
+  } catch {
+    // Deliberately unread: a thrown value may be a sandbox object whose getters
+    // would run on the host, outside the timeout. The outcome is read below.
+  }
+  const readString = (key: string) => {
+    const d = Object.getOwnPropertyDescriptor(context, key);
+    return typeof d?.value === "string" ? d.value : undefined;
+  };
+  return { out: readString("__out"), pending: readString("__pending"), timedOut: Date.now() - started >= timeoutMs };
+}
+
+function readSandboxOutcome(run: { out?: string; timedOut: boolean }, timeoutMs: number): SandboxOutcome {
+  if (run.out === undefined) {
+    return {
+      ok: false,
+      error: run.timedOut
+        ? `the code exceeded its ${timeoutMs}ms compute limit`
+        : "the code did not finish (it threw outside its body or awaited something that never settles)",
+    };
+  }
+  if (run.out.length > 1_000_000) return { ok: false, error: "the result is larger than 1 MB" };
+  try {
+    const r = JSON.parse(run.out) as { ok?: unknown; value?: unknown; error?: unknown; logs?: unknown };
+    if (r.ok === true) return { ok: true, value: r.value ?? null, logs: Array.isArray(r.logs) ? r.logs.map(String) : [] };
+    return { ok: false, error: String(r.error ?? "error") };
+  } catch {
+    return { ok: false, error: "the sandbox returned unreadable output" };
+  }
+}
+
+const RUN_CODE_HELPERS = `
+const avg = (arr) => arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : 0;
+const sum = (arr) => arr.reduce((s, v) => s + v, 0);
+const min = (arr) => Math.min(...arr);
+const max = (arr) => Math.max(...arr);
+const pct = (part, whole) => whole === 0 ? 0 : Math.round((part / whole) * 1000) / 10;
+const delta = (curr, prev) => prev === 0 ? (curr > 0 ? 100 : 0) : Math.round(((curr - prev) / prev) * 1000) / 10;
+`;
+
+/**
+ * queryData's in-sandbox api. It cannot hold a host function, so it records
+ * every (name, args) it has no answer for and parks that await forever; the
+ * host runs those reads and replays the code with the answers injected as
+ * JSON. The host re-checks every name: this in-sandbox whitelist is only for
+ * a fast, clear error.
+ */
+function queryDataApi(whitelist: readonly string[], answers: Record<string, unknown>): string {
+  return `
+const __answers = JSON.parse(${JSON.stringify(JSON.stringify(answers))});
+const __asked = [];
+globalThis.api = Object.freeze({
+  tools: Object.freeze(${JSON.stringify(whitelist)}),
+  call(name, args = {}) {
+    name = String(name);
+    if (!api.tools.includes(name)) {
+      return Promise.reject(new Error("api.call: '" + name + "' is not in the read-only whitelist: " + api.tools.join(", ")));
+    }
+    const key = JSON.stringify([name, args]);
+    if (Object.prototype.hasOwnProperty.call(__answers, key)) {
+      const a = __answers[key];
+      return "error" in a ? Promise.reject(new Error(a.error)) : Promise.resolve(a.value);
+    }
+    __asked.push(key);
+    globalThis.__pending = JSON.stringify(__asked);
+    return new Promise(() => {});
+  },
+});
+`;
+}
+
 export const metaTools = {
   listTools: tool({
     description: "List all available tools organized by category. Use when Nour asks 'what can you do?' or 'show me your tools' or 'what tools do you have?'",
@@ -203,25 +324,12 @@ export const metaTools = {
     }),
     execute: async ({ code, description }) => {
       try {
-        const vm = await import("vm");
-        const logs: string[] = [];
-        const sandbox = {
-          Math, Date, JSON, Array, Object, String, Number, Boolean, Map, Set, RegExp,
-          parseInt, parseFloat, isNaN, isFinite, encodeURIComponent, decodeURIComponent,
-          console: { log: (...args: unknown[]) => { logs.push(args.map(String).join(" ")); } },
-          // Data analysis helpers
-          avg: (arr: number[]) => arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : 0,
-          sum: (arr: number[]) => arr.reduce((s, v) => s + v, 0),
-          min: (arr: number[]) => Math.min(...arr),
-          max: (arr: number[]) => Math.max(...arr),
-          pct: (part: number, whole: number) => whole === 0 ? 0 : Math.round((part / whole) * 1000) / 10,
-          delta: (curr: number, prev: number) => prev === 0 ? (curr > 0 ? 100 : 0) : Math.round(((curr - prev) / prev) * 1000) / 10,
-          result: undefined as unknown,
-        };
-        const wrapped = `result = (function() { ${code} })()`;
-        const context = vm.createContext(sandbox);
-        vm.runInContext(wrapped, context, { timeout: 5000 });
-        return { success: true, result: sandbox.result, logs: logs.length > 0 ? logs : undefined, description };
+        const refused = sandboxRefusal(code);
+        if (refused) return { success: false, error: refused };
+        const run = await runSandboxed(`${SANDBOX_PRELUDE}${RUN_CODE_HELPERS}\n__finish(function () {\n${code}\n});`, 5000);
+        const res = readSandboxOutcome(run, 5000);
+        if (!res.ok) return { success: false, error: res.error };
+        return { success: true, result: res.value, logs: res.logs.length > 0 ? res.logs : undefined, description };
       } catch (e) {
         return { success: false, error: e instanceof Error ? e.message : String(e) };
       }
@@ -699,29 +807,60 @@ export const metaTools = {
         return target.execute(args);
       };
       try {
-        const vm = await import("vm");
-        const logs: string[] = [];
-        const sandbox = {
-          Math, JSON, Array, Object, String, Number, Boolean, Map, Set, RegExp,
-          parseInt, parseFloat, isNaN, isFinite,
-          console: { log: (...a: unknown[]) => { logs.push(a.map(String).join(" ")); } },
-          api: Object.freeze({ call: guardedCall, tools: [...WHITELIST] }),
-          __result: undefined as unknown,
+        const refused = sandboxRefusal(code);
+        if (refused) return { success: false, error: refused };
+        // Record and replay (see queryDataApi): each round reruns the code with
+        // every answer so far; each distinct call runs once on the host. Model
+        // code is pure, so a rerun only differs in how far it gets.
+        const COMPUTE_MS = 2000; // shared by all rounds
+        const MAX_ROUNDS = 8; // sequential waves of new calls; Promise.all is one wave
+        const replay = async (): Promise<SandboxOutcome> => {
+          const answers: Record<string, { value: unknown } | { error: string }> = {};
+          let computeLeft = COMPUTE_MS;
+          for (let round = 0; ; round++) {
+            const started = Date.now();
+            const script = `${SANDBOX_PRELUDE}${queryDataApi(WHITELIST, answers)}\n__finish(async () => {\n${code}\n});`;
+            const run = await runSandboxed(script, Math.max(1, computeLeft));
+            computeLeft -= Date.now() - started;
+            let asked: string[] = [];
+            try {
+              asked = run.out === undefined && !run.timedOut && run.pending ? (JSON.parse(run.pending) as unknown[]).map(String) : [];
+            } catch { /* unreadable: report the outcome below */ }
+            const fresh = [...new Set(asked)].filter((k) => !(k in answers));
+            if (fresh.length === 0) return readSandboxOutcome(run, COMPUTE_MS);
+            if (round >= MAX_ROUNDS) {
+              return { ok: false, error: `more than ${MAX_ROUNDS} rounds of dependent api.call; batch independent calls with Promise.all` };
+            }
+            await Promise.all(fresh.map(async (key) => {
+              try {
+                const parsed = JSON.parse(key) as unknown;
+                const [name, args] = Array.isArray(parsed) ? parsed : [];
+                const value = await guardedCall(String(name), args ?? {});
+                const json = JSON.stringify(value ?? null, (_k, v) => (typeof v === "bigint" ? v.toString() : v));
+                answers[key] = { value: JSON.parse(json) };
+              } catch (e) {
+                answers[key] = { error: e instanceof Error ? e.message : String(e) };
+              }
+            }));
+          }
         };
-        const context = vm.createContext(sandbox);
-        vm.runInContext(`__result = (async () => { ${code} })()`, context, { timeout: 2000 });
         // Self-review fix: keep a handle on the timer so a fast result
         // doesn't leave a 10s timer holding the event loop.
         let deadlineTimer: NodeJS.Timeout | undefined;
-        const deadline = new Promise((_, reject) => {
+        const deadline = new Promise<never>((_, reject) => {
           deadlineTimer = setTimeout(() => reject(new Error("queryData exceeded its 10s budget")), 10_000);
         });
-        let value: unknown;
+        const replayed = replay();
+        replayed.catch(() => {}); // a failure after the deadline won must not go unhandled
+        let outcome: SandboxOutcome;
         try {
-          value = await Promise.race([sandbox.__result, deadline]);
+          outcome = await Promise.race([replayed, deadline]);
         } finally {
           clearTimeout(deadlineTimer);
         }
+        if (!outcome.ok) return { success: false, error: outcome.error };
+        const value = outcome.value;
+        const logs = outcome.logs;
         let serialized = JSON.stringify(value ?? null);
         if (serialized && serialized.length > 20_000) {
           serialized = `${serialized.slice(0, 20_000)}…(truncated)`;

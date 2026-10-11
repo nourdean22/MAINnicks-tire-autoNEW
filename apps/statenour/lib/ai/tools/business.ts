@@ -15,6 +15,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { today } from "@/lib/utils/datetime";
 import { fenceContent } from "@/lib/ai/tool-result-fencing";
+import { resolveTrustTier } from "@/lib/brain/memory-trust";
 
 /**
  * 2026-10-10 (audit 07-SN-02) · nickstire bridge payloads carry text strangers
@@ -235,7 +236,8 @@ export const businessTools = {
       if (from) filters.from = from;
       if (to) filters.to = to;
       if (limit) filters.limit = limit;
-      return queryNick("gsc_top_queries", filters);
+      // Search queries are text strangers typed into Google.
+      return fenceBridgeResult("getGscTopQueries", await queryNick("gsc_top_queries", filters));
     },
   }),
 
@@ -354,7 +356,7 @@ export const businessTools = {
           where: { content: { contains: nameOrPhone, mode: "insensitive" }, deletedAt: null }, // v7.9
           orderBy: { confidence: "desc" },
           take: 8,
-          select: { category: true, content: true, confidence: true, createdAt: true },
+          select: { category: true, content: true, confidence: true, createdAt: true, source: true, trustTier: true },
         }).catch((): never[] => []),
         // Wave AM · 2026-05-28 · soft-delete safety
         prisma.personProfile.findFirst({
@@ -384,6 +386,10 @@ export const businessTools = {
         timeline.push(`Shop record: unknown — the nickstire read failed (${shopUnknown}). Do not say no customer matched.`);
       }
 
+      // 2026-10-10 (audit 07-SN-02) · the record's name / vehicle / service text
+      // is typed by the customer on nickstire.org, so the customer + quote lines
+      // reach the model inside an external_doc fence, which also taints the turn.
+      const shopLines: string[] = [];
       if (customer) {
         const totalSpend = Number(customer.totalSpend ?? 0);
         const visits = customer.visitCount ?? 0;
@@ -404,41 +410,46 @@ export const businessTools = {
           customer.riskStatus === "AT_RISK" ? "⚠️ At risk — watch closely" :
           customer.riskStatus === "HEALTHY" ? "Healthy — active customer" : "Unknown";
 
-        timeline.push(`**${customer.fullName}** — ${ltvLabel}`);
-        timeline.push(`📱 ${customer.phone || "no phone"} | ${customer.email || "no email"}`);
-        timeline.push(`🚗 ${customer.vehicle || "vehicle unknown"}`);
-        timeline.push(`💰 $${totalSpend.toLocaleString()} lifetime (${visits} visits, $${avgTicket} avg ticket)`);
-        if (daysSinceVisit !== null) timeline.push(`📅 Last visit: ${daysSinceVisit}d ago (${customer.lastService || "unknown service"})`);
-        if (customer.predictedNextService) timeline.push(`🔮 Predicted next: ${customer.predictedNextService}`);
-        timeline.push(`📊 Status: ${riskLabel}`);
-        if (customer.reviewCompleted) timeline.push(`⭐ Left a review`);
-        else if (customer.reviewRequested) timeline.push(`📧 Review requested, not yet completed`);
+        shopLines.push(`**${customer.fullName}** — ${ltvLabel}`);
+        shopLines.push(`📱 ${customer.phone || "no phone"} | ${customer.email || "no email"}`);
+        shopLines.push(`🚗 ${customer.vehicle || "vehicle unknown"}`);
+        shopLines.push(`💰 $${totalSpend.toLocaleString()} lifetime (${visits} visits, $${avgTicket} avg ticket)`);
+        if (daysSinceVisit !== null) shopLines.push(`📅 Last visit: ${daysSinceVisit}d ago (${customer.lastService || "unknown service"})`);
+        if (customer.predictedNextService) shopLines.push(`🔮 Predicted next: ${customer.predictedNextService}`);
+        shopLines.push(`📊 Status: ${riskLabel}`);
+        if (customer.reviewCompleted) shopLines.push(`⭐ Left a review`);
+        else if (customer.reviewRequested) shopLines.push(`📧 Review requested, not yet completed`);
       }
 
       // Quote history
       if (quotes.length > 0) {
-        timeline.push(`\n**Quote History (${quotes.length}):**`);
+        shopLines.push(`\n**Quote History (${quotes.length}):**`);
         for (const q of quotes.slice(0, 5)) {
           const age = Math.round((Date.now() - new Date(q.createdAt).getTime()) / 86400000);
           const statusEmoji = q.status === "booked" || q.status === "completed" ? "✅" : q.status === "declined" || q.status === "lost" ? "❌" : "⏳";
-          timeline.push(`${statusEmoji} ${q.quoteNumber} — $${q.grandTotal.toFixed(0)} for ${q.vehicleYear} ${q.vehicleMake} ${q.vehicleModel} (${age}d ago, ${q.status})`);
+          shopLines.push(`${statusEmoji} ${q.quoteNumber} — $${q.grandTotal.toFixed(0)} for ${q.vehicleYear} ${q.vehicleMake} ${q.vehicleModel} (${age}d ago, ${q.status})`);
         }
 
         // Declined estimates = recovery opportunity
         const declined = quotes.filter(q => q.status === "declined" || q.status === "lost" || q.status === "pending");
         if (declined.length > 0) {
           const declinedTotal = declined.reduce((s, q) => s + q.grandTotal, 0);
-          timeline.push(`\n💸 **${declined.length} unconverted estimates worth $${declinedTotal.toFixed(0)}** — follow up!`);
+          shopLines.push(`\n💸 **${declined.length} unconverted estimates worth $${declinedTotal.toFixed(0)}** — follow up!`);
         }
       }
+      if (shopLines.length > 0) timeline.push(fenceContent("findCustomer", "external_doc", shopLines.join("\n")));
 
       // Brain memories
       if (brainMemories.length > 0) {
         timeline.push(`\n**Nick's Notes (${brainMemories.length}):**`);
         // S-1 completion (2026-09-02) · memory rows about a customer can carry
         // third-party text (synced notes, SMS) — fenced as memory_recall.
-        const notes = brainMemories.slice(0, 4).map((m) => `• [${m.category}] ${m.content.slice(0, 150)}`);
-        timeline.push(fenceContent("customer360Notes", "memory_recall", notes.join("\n")));
+        // 2026-10-10 (07-SN-02) · and a third-party note taints the turn.
+        const shown = brainMemories.slice(0, 4);
+        const notes = shown.map((m) => `• [${m.category}] ${m.content.slice(0, 150)}`);
+        timeline.push(fenceContent("customer360Notes", "memory_recall", notes.join("\n"), {
+          taint: shown.some((m) => resolveTrustTier(m) === "EXTERNAL_CONTENT"),
+        }));
       }
 
       // Person profile
@@ -448,7 +459,7 @@ export const businessTools = {
 
       return {
         timeline: timeline.join("\n"),
-        shopData: shopResult,
+        shopData: fenceBridgeResult("findCustomer", shopResult),
         customer: customerRecord ? {
           name: customerRecord.fullName,
           phone: customerRecord.phone,
@@ -478,8 +489,8 @@ export const businessTools = {
       const pulse = await queryNick("shop_pulse");
       const attention = await queryNick("attention_needed");
       return {
-        pulse,
-        attention,
+        pulse: fenceBridgeResult("getEstimateLeaks", pulse),
+        attention: fenceBridgeResult("getEstimateLeaks", attention),
         analysis: `Check invoices with paymentStatus='pending' older than 3 days. Each one is a potential lost sale. Follow up aggressively.`,
         daysBack,
       };

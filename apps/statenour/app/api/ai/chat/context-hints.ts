@@ -27,6 +27,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { currentTurn } from "@/lib/agent/turn-context";
 
 /**
  * Surface-aware tool bias — BDN-103 (2026-08-12).
@@ -237,7 +238,9 @@ export async function buildContextHints(
     lastReflectionId ||
     lastMissionId
   );
-  if (anyAnchorPresent) {
+  // 2026-10-10 · a Private Lab turn leaves no trace (gate.ts): no anchor row.
+  // The route publishes privateMode on the turn before this runs.
+  if (anyAnchorPresent && currentTurn()?.privateMode !== true) {
     void prisma.brainMemory
       .upsert({
         where: { id: "cross_device_anchors_latest" },

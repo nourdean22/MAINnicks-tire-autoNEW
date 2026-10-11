@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { authorizeImageRequest } from "@/lib/images/signed-url";
 
+// public: capability URL. A valid ?exp=&sig= serves the image; with IMAGES_REQUIRE_SIGNATURE=1 a raw id needs a session; flag off keeps raw ids open for Meta fetches.
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }

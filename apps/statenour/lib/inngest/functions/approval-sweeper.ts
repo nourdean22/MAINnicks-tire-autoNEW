@@ -1,6 +1,7 @@
 import { getInngest } from "../client";
 import { prisma } from "@/lib/prisma";
 import { executeApprovedToolAsync } from "@/lib/tools/guardian";
+import { recoverStuckDecisions } from "@/lib/automation/approval-queue";
 import { logger } from "@/lib/logger";
 import { onInngestFailure } from "../on-failure";
 
@@ -72,8 +73,20 @@ export const approvalSweeper = getInngest().createFunction(
       return requests.map(r => r.id);
     });
 
+    // SN-04 follow-up: an AutonomousAction decision claim (`processing`) that
+    // never finished. Its own try/catch: a failure here must not block the
+    // approved-tool sweep; null in the output means "not measured", never 0.
+    const stuckDecisions = await step.run("recover-stuck-decisions", async () => {
+      try {
+        return await recoverStuckDecisions();
+      } catch (err) {
+        log.error("stuck_decision_recovery_failed", { error: err instanceof Error ? err.message : String(err) });
+        return null;
+      }
+    });
+
     if (pendingIds.length === 0) {
-      return { swept: 0, flaggedForReview };
+      return { swept: 0, flaggedForReview, stuckDecisions };
     }
 
     // Trigger execution for each
@@ -90,6 +103,6 @@ export const approvalSweeper = getInngest().createFunction(
       }
     });
 
-    return { swept: pendingIds.length, flaggedForReview };
+    return { swept: pendingIds.length, flaggedForReview, stuckDecisions };
   }
 );

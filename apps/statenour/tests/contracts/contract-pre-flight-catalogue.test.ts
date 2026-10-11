@@ -9,48 +9,16 @@
  * staleHours) was not probed at all. The script runs main() on import, so it is read as source.
  */
 import { describe, it, expect } from "vitest";
-import ts from "typescript";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { catalogue, queryHandlerKeys, type Entry } from "./bridge-registry";
 
 const STATENOUR_ROOT = process.cwd(); // vitest runs from apps/statenour
-const PRE_FLIGHT = resolve(STATENOUR_ROOT, "scripts/contract-pre-flight.ts");
 const NICK_REGISTRY = resolve(STATENOUR_ROOT, "../nickstire/server/routes/nour-os-query.ts");
 
-interface Entry {
-  query: string;
-  tier: string;
-  filters: Record<string, unknown>;
-}
-
-/** The ACTIONS array, read from the script's syntax tree (literal filter values only). */
-function catalogue(src = readFileSync(PRE_FLIGHT, "utf8")): Entry[] {
-  const sf = ts.createSourceFile(PRE_FLIGHT, src, ts.ScriptTarget.Latest, true);
-  let list: ts.ArrayLiteralExpression | undefined;
-  (function find(n: ts.Node): void {
-    if (ts.isVariableDeclaration(n) && n.name.getText(sf) === "ACTIONS" && n.initializer && ts.isArrayLiteralExpression(n.initializer)) {
-      list = n.initializer;
-    }
-    ts.forEachChild(n, find);
-  })(sf);
-  if (!list) throw new Error("contract-pre-flight.ts: no `const ACTIONS = [...]` found; if it moved, update this test.");
-  const prop = (o: ts.ObjectLiteralExpression, k: string) =>
-    o.properties.find((p): p is ts.PropertyAssignment => ts.isPropertyAssignment(p) && p.name.getText(sf) === k)?.initializer;
-  const literal = (e: ts.Expression | undefined): unknown =>
-    !e ? undefined : ts.isStringLiteral(e) ? e.text : ts.isNumericLiteral(e) ? Number(e.text) : e.getText(sf);
-  return list.elements.map((el) => {
-    const o = el as ts.ObjectLiteralExpression;
-    const f = prop(o, "filters");
-    const filters: Record<string, unknown> = {};
-    if (f && ts.isObjectLiteralExpression(f)) for (const p of f.properties) if (ts.isPropertyAssignment(p)) filters[p.name.getText(sf)] = literal(p.initializer);
-    return { query: String(literal(prop(o, "query"))), tier: String(literal(prop(o, "tier"))), filters };
-  });
-}
-
-/** nickstire's live QUERY_HANDLERS keys (same parse as nick-bridge-query-contract.test.ts). */
+/** nickstire's live QUERY_HANDLERS keys (the same syntax-tree parse as nick-bridge-query-contract.test.ts). */
 function liveHandlers(): Set<string> {
-  const src = readFileSync(NICK_REGISTRY, "utf8");
-  return new Set([...src.matchAll(/["']([a-z0-9_]+)["']\s*:\s*async/g)].map((m) => m[1]));
+  return queryHandlerKeys(readFileSync(NICK_REGISTRY, "utf8"));
 }
 
 /** Entries that break a tier rule: a shipped query still pending, a production probe of no handler. */

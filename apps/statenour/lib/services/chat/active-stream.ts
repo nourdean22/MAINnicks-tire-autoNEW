@@ -230,13 +230,18 @@ export async function getActiveStream(
  * Its OWN row, keyed by (conversation, traceId): a stop can never mark a
  * later turn, and it never shares the read-modify-write of the stream row
  * with the partial flusher (a racing flush would erase a merged flag).
- * Only an ACTIVE turn with a known traceId is stoppable.
+ * Only an ACTIVE turn with a known traceId is stoppable, and not once its
+ * row is stored: the record stays "active" until the whole onFinish chain
+ * resolves, seconds after persist read the marker (`already_complete`).
  */
 const stopKeyFor = (convId: string, traceId: string) => `stop:${convId}:${traceId}`;
 
 export async function requestStreamStop(
   convId: string,
-): Promise<{ stopped: true; traceId: string } | { stopped: false; reason: "no_active_turn" | "write_failed" }> {
+): Promise<
+  | { stopped: true; traceId: string }
+  | { stopped: false; reason: "no_active_turn" | "already_complete" | "write_failed" }
+> {
   const record = await getActiveStream(convId);
   if (!record || record.status !== "active" || !record.traceId) {
     return { stopped: false, reason: "no_active_turn" };
@@ -260,6 +265,22 @@ export async function requestStreamStop(
         deletedAt: null,
       },
     });
+    // Marker first, row second: persist reads the marker THEN creates the
+    // row, so a row stored without "aborted" never saw this stop. Missed only
+    // if both ops land between persist's read and its create (milliseconds).
+    // A failed read falls to the catch: never a success it cannot confirm.
+    const row = await prisma.chatMessage.findFirst({
+      where: {
+        conversationId: convId,
+        role: "assistant",
+        createdAt: { gte: new Date(record.startedAt) },
+        tokenUsage: { path: ["traceId"], equals: record.traceId },
+      },
+      select: { streamingState: true },
+    });
+    if (row && row.streamingState !== "aborted") {
+      return { stopped: false, reason: "already_complete" };
+    }
     return { stopped: true, traceId: record.traceId };
   } catch (e) {
     logError("chat.active-stream", e, { stage: "stop", convId }, "warn");

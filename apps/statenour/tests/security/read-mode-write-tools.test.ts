@@ -36,6 +36,9 @@ const CONFIRMED_WRITE_TOOLS: Array<{ name: string; writes: string }> = [
   { name: "githubCreatePR", writes: "opens a GitHub pull request" },
   { name: "runDeviceCommand", writes: "queues a command to a physical device" },
   { name: "browseAndDo", writes: "drives a headless browser against a live site" },
+  { name: "clearMit", writes: "setMit('') soft-deletes today's MIT row (lib/services/mit)" },
+  { name: "arsenalBoardConsult", writes: "consultBoardAndPersist() writes a BrainMemory consultation row" },
+  { name: "composeEmail", writes: "createDraft() puts a draft in the operator's Gmail when Gmail is configured" },
 ];
 
 /**
@@ -43,7 +46,11 @@ const CONFIRMED_WRITE_TOOLS: Array<{ name: string; writes: string }> = [
  * classifier that returned "not read-safe" for everything would pass the
  * block above while making read mode useless.
  */
-const CONFIRMED_READ_TOOLS = ["getTodaySchedule", "getTasks", "getMissions", "getCommitments"];
+const CONFIRMED_READ_TOOLS = [
+  "getTodaySchedule", "getTasks", "getMissions", "getCommitments",
+  // GET-only Gmail list / thread reads (their output is fenced and taints the turn).
+  "arsenalGmailInbox", "arsenalGmailReadThread",
+];
 
 describe("read mode · a tool that writes must never classify as read-safe", () => {
   it.each(CONFIRMED_WRITE_TOOLS)("$name is stripped in read mode (writes: $writes)", ({ name }) => {
@@ -74,8 +81,8 @@ describe("read mode · a tool that writes must never classify as read-safe", () 
     // BATTLE mode is documented as "fast, read-only". `sideEffecting` is the
     // strongest signal a catalog entry can carry, so the two must never
     // co-occur. (The looser invariant "battle implies readSafe" is NOT
-    // asserted: two draft/compose tools — draftOpportunitySms, composeEmail —
-    // are battle:true and classify unsafe on their names alone. That is the
+    // asserted: draftOpportunitySms is battle:true and classifies unsafe on its
+    // name alone. That is the
     // conservative direction and stripping them is harmless; this test guards
     // the dangerous direction.)
     const offenders = TOOL_CATALOG.filter((t) => t.battle && t.sideEffecting).map((t) => t.name);

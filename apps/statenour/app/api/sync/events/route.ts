@@ -107,18 +107,29 @@ async function writeAuditOnce(event: BridgeEvent, key: string): Promise<KeyedWri
  * non-pending row collides on the id (P2002), and a row that leaves `pending`
  * mid-write misses its update (P2025). Both mean "row not pending".
  *
- * `published` and `rejected` pass through as sent: nickstire mirrors posts it
- * has ALREADY published (routers/content.ts post logs, routers/gbp.ts). Forcing
- * those to `pending` would make a live post publishable a second time.
+ * Terminal mirrors are the exception, because `pending` is publish-claimable
+ * too. A post nickstire has ALREADY made live (`published` from its post logs
+ * and routers/gbp.ts; `posted` / `published_manual` from its Draft Board) lands
+ * as `published`; a draft it dropped (`archived`, `rejected`) as `rejected`.
+ * Forcing those to `pending` would leave a live post one tap from going out
+ * twice. A terminal mirror also retires a row the operator approved or
+ * scheduled (both claimable), recording only the outcome: the operator's copy,
+ * platforms and schedule stay as they were. It never touches `rendering`.
  */
-const BRIDGE_DRAFT_STATUSES = new Set(["pending", "published", "rejected"]);
+const BRIDGE_TERMINAL_STATUS = new Map([
+  ["published", "published"],
+  ["posted", "published"],
+  ["published_manual", "published"],
+  ["rejected", "rejected"],
+  ["archived", "rejected"],
+]);
 type DraftIgnored = "row not pending";
 
 async function syncSocialDraft(d: Record<string, unknown>): Promise<DraftIgnored | null> {
   const id = String(d.id);
   const fields = {
     content: String(d.content || ""),
-    status: BRIDGE_DRAFT_STATUSES.has(String(d.status)) ? String(d.status) : "pending",
+    status: BRIDGE_TERMINAL_STATUS.get(String(d.status)) ?? "pending",
     imageUrl: d.imageUrl ? String(d.imageUrl) : null,
     platforms: Array.isArray(d.platforms) ? d.platforms.map(String) : [],
     kind: String(d.kind || "post"),
@@ -138,9 +149,16 @@ async function syncSocialDraft(d: Record<string, unknown>): Promise<DraftIgnored
     return null;
   } catch (err) {
     const code = (err as { code?: unknown } | null)?.code;
-    if (code === "P2002" || code === "P2025") return "row not pending";
-    throw err;
+    if (code !== "P2002" && code !== "P2025") throw err;
   }
+  if (fields.status !== "pending") {
+    const retired = await prisma.socialPublishQueue.updateMany({
+      where: { id, status: { in: ["approved", "scheduled"] } },
+      data: { status: fields.status, publishedAt: fields.publishedAt },
+    });
+    if (retired.count === 1) return null;
+  }
+  return "row not pending";
 }
 
 /**
