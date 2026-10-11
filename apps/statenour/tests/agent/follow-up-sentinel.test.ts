@@ -30,7 +30,8 @@ vi.mock("@/lib/prisma", () => ({
   prisma: {
     postTurnOutbox: { update: db.outboxUpdate },
     chatConversation: { findUnique: db.convFindUnique },
-    chatMessage: { findMany: db.msgFindMany, create: db.msgCreate },
+    // findFirst: the delivery-receipt lookup (no prior follow-up message in these cases).
+    chatMessage: { findMany: db.msgFindMany, create: db.msgCreate, findFirst: async () => null },
     aiGeneration: { groupBy: vi.fn().mockResolvedValue([]) },
     // runFollowUp's per-outbox-row delivery claim (beginAttempt / settleAttempt), kept in memory.
     actionAttempt: {
