@@ -98,6 +98,16 @@ describe("every post writer records the count", () => {
   });
 
   it("the evening run has its own briefId, so it cannot dedupe onto the morning job", () => {
-    expect(CRON).toContain("`autopost-${date}-pm`");
+    expect(CRON).toContain("`${morningId}-pm`");
+  });
+
+  it("at 18:00 with nothing posted, the unposted morning job is still looked up (no second render beside it)", () => {
+    expect(CRON).toContain("evening && posted === 0 ? [morningId, briefId] : [briefId]");
+  });
+
+  it("the date-only writer stamps date and count in one transaction", () => {
+    const i = CRON.indexOf("async function setAutopostDate");
+    const body = CRON.slice(i, CRON.indexOf("\n}\n", i));
+    expect(body).toContain("d.transaction(");
   });
 });

@@ -369,7 +369,8 @@ async function setAutopostDate(date: string): Promise<void> {
   const { getDb } = await import("../../db");
   const d = await getDb();
   if (!d) return;
-  await stampPostedDay(d, date, (await postsToday(date)) + 1);
+  const count = (await postsToday(date)) + 1;
+  await d.transaction(async (tx: any) => { await stampPostedDay(tx, date, count); });
 }
 
 function etNow(): { date: string; hour: number } {
@@ -459,9 +460,13 @@ async function runDailyReelPostOnce(): Promise<DailyReelResult & { packAlreadyQu
 
   // The evening run has its own job row, or it would dedupe onto the morning one.
   const evening = hour >= EVENING_PRODUCTION_HOUR_ET;
-  const briefId = evening ? `autopost-${date}-pm` : `autopost-${date}`;
-  const jobs = await d.select().from(reelJobs).where(eq(reelJobs.briefId, briefId)).limit(1);
-  const todaysJob = jobs[0];
+  const morningId = `autopost-${date}`;
+  const briefId = evening ? `${morningId}-pm` : morningId;
+  // Nothing posted yet at 18:00: the unposted morning job is still today's job, so it is
+  // finished (or stays parked) instead of a second paid render starting beside it.
+  const lookupIds = evening && posted === 0 ? [morningId, briefId] : [briefId];
+  const jobs = await d.select().from(reelJobs).where(inArray(reelJobs.briefId, lookupIds)).limit(2);
+  const todaysJob = jobs.find((j: { briefId: string }) => j.briefId === briefId) ?? jobs[0];
   let job: typeof todaysJob | undefined = undefined;
   let drainedFrom: string | null = null;
 
