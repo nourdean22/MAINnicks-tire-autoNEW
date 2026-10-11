@@ -11,6 +11,18 @@ export const CRON_SECRET = (process.env.CRON_SECRET ?? "").trim();
 const FORWARD_TIMEOUT_MS = 60_000;
 
 /**
+ * The `data` of statenour's API envelope (`{ ok, data, meta }`, apiHandler in
+ * apps/statenour/lib/utils/http.ts). A body without an envelope is read as the data
+ * itself; a failed envelope (`ok: false`) has none. Never throws.
+ */
+export function readApiData(body: unknown): unknown {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return undefined;
+  const b = body as Record<string, unknown>;
+  if ("meta" in b && b.ok === false) return undefined;
+  return "data" in b ? b.data : b;
+}
+
+/**
  * What a 200 forward actually reported. statenour wraps a cron's return value as
  * `{ ok: true, data: <result> }` (apiHandler in apps/statenour/lib/utils/http.ts),
  * so HTTP 200 proves only that the route answered: a kill-switched job

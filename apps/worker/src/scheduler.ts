@@ -34,7 +34,7 @@ import { storagePut } from "./storage.js";
 import { planRender } from "./renderPlan.js";
 import { renderReelVideo } from "@nour/reel-engine";
 // Forwarding lives in its own module so tests can load it without the render deps.
-import { STATENOUR_WEB_URL, CRON_SECRET, forwardCronToWeb } from "./forward.js";
+import { STATENOUR_WEB_URL, CRON_SECRET, forwardCronToWeb, readApiData } from "./forward.js";
 export { forwardCronToWeb, readForwardBody } from "./forward.js";
 
 
@@ -228,12 +228,14 @@ async function processVideoRenders(): Promise<void> {
       return;
     }
 
-    const body = (await res.json()) as { ok: boolean; item: any };
-    if (!body.ok || !body.item) {
+    // The route's { ok, item } arrives inside apiHandler's envelope; reading the item
+    // off the raw body found nothing, so every poll leased a reel and rendered none (since #300).
+    const lease = readApiData(await res.json()) as { ok?: boolean; item?: any } | undefined;
+    if (!lease?.ok || !lease.item) {
       return; // No pending renders
     }
 
-    const { id, content, kind, sourceMetadata } = body.item;
+    const { id, content, kind, sourceMetadata } = lease.item;
     console.log(`[scheduler-video] found render task for queue item ${id}`);
 
     // A review video only from a declared review; anything that is neither a
