@@ -8,6 +8,9 @@
     },
     "cron-fail-closed": {
       "ref": "apps/nickstire/server/metaAiDisclosureArrival.test.ts (flag no longer on the wire; positive control with the switch flipped on, flag arrives) and client/src/__tests__/reel-disclosure.test.ts (Rule 1 still blocks a generated pack framed as real; Rule 2 no longer blocks). Non-refusal failures in the publish path are untouched."
+    },
+    "publish-boundary-test": {
+      "ref": "apps/nickstire/server/metaAiDisclosureArrival.test.ts drives the real postInstagramReel with a captured fetch and asserts the outbound Meta container body: is_ai_generated is ABSENT with isAiGenerated true and by default (switch off), and ARRIVES again when META_AI_SELF_DISCLOSURE is flipped on (positive control). client/src/__tests__/reel-disclosure.test.ts keeps Rule 1 blocking AI footage framed as a real customer."
     }
   }
 }
