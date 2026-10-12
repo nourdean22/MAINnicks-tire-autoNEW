@@ -5,6 +5,9 @@
     },
     "capability-ledger-updated": {
       "deferred": "2026-10-12 operator instruction: the forensic evidence lens is removed everywhere. The capability-ledger entries that still describe it as active are rewritten in a follow-up docs PR after the next new reel posts on a remaining lens, so the ledger does not claim a rung not yet observed."
+    },
+    "render-spend-trajectory": {
+      "ref": "apps/nickstire/server/services/reelPipeline.ts: the REEL_LENS_RETIRED refusal runs at the top of enqueueReelJob, before the content-governor reservation and before any generation budget is reserved; a refused brief reserves nothing. Covered by the enqueue-refusal tests in apps/nickstire/server/reelJobRetiredLens.test.ts."
     }
   }
 }
