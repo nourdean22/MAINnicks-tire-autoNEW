@@ -104,6 +104,17 @@ describe("the pack builder honours the arm on every rotation pack", () => {
     const omitted = buildBriefFromApprovedProductionPack(pack, loadApprovedProductionPack(slug)!, `daily-${slug}`, true) as { motionLens: string };
     expect(build(slug)!.motionLens).toBe(omitted.motionLens);
   });
+
+  it("the retired forensic lens never reaches a NEW pack brief (2026-10-12): no family, no default, no arm", () => {
+    expect(DOC).not.toContain("forensic_evidence_scan");
+    expect(CINE).not.toContain("forensic_evidence_scan");
+    for (const slug of APPROVED_REEL_PACK_SLUGS) {
+      for (const direction of [undefined, "documentary", "cinematic"] as const) {
+        const built = build(slug, direction);
+        expect(built?.motionLens, `${slug} / ${direction ?? "default"}`).not.toBe("forensic_evidence_scan");
+      }
+    }
+  });
 });
 
 describe("the arm reader resolves the arm enqueue records", () => {
