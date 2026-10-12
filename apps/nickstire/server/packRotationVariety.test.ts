@@ -22,9 +22,9 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
-import { MOTION_LENSES, OBJECT_CHARACTERS, REEL_ARCHETYPES, buildHiggsfieldReelPromptPack, type ReelBrief } from "../client/src/lib/facelessReelStudio";
+import { OBJECT_CHARACTERS, REEL_ARCHETYPES, buildHiggsfieldReelPromptPack, type ReelBrief } from "../client/src/lib/facelessReelStudio";
 import { SAMPLE_REEL_BRIEFS } from "../client/src/lib/facelessReelStudioSamples";
-import { buildApprovedPackBriefForTest } from "./services/approvedReelPackRotation";
+import { buildApprovedPackBriefForTest, lensPoolFor } from "./services/approvedReelPackRotation";
 
 const SRC = readFileSync(path.join(__dirname, "services", "approvedReelPackRotation.ts"), "utf8");
 
@@ -34,7 +34,8 @@ function pick<T>(briefId: string, salt: string, options: readonly T[]): T {
   return options[createHash("sha256").update(`${briefId}::${salt}`).digest().readUInt32BE(0) % options.length];
 }
 
-const LENSES = Object.keys(MOTION_LENSES);
+// The real rotation pool (forensic_evidence_scan is retired from briefs, 2026-10-12).
+const LENSES: readonly string[] = lensPoolFor(undefined);
 const ARCHETYPES = Object.keys(REEL_ARCHETYPES);
 // Realistic pack ids: the directory convention is <date>-<slug>.
 const PACKS = Array.from({ length: 166 }, (_, i) => {

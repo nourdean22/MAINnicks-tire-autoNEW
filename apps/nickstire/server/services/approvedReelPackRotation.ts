@@ -68,7 +68,7 @@ function pickForPack<T>(briefId: string, salt: string, options: readonly T[]): T
 const ROTATABLE_LENSES = (Object.keys(MOTION_LENSES) as MotionLens[]).filter((lens) => !RETIRED_MOTION_LENSES.includes(lens));
 
 /** The lenses a pack Reel may draw: every lens, or only the running visual_direction arm's family. */
-function lensPoolFor(direction: VisualDirectionId | undefined): readonly MotionLens[] {
+export function lensPoolFor(direction: VisualDirectionId | undefined): readonly MotionLens[] {
   if (!direction) return ROTATABLE_LENSES;
   const family: readonly string[] = VISUAL_DIRECTION_LENSES[direction];
   const pool = ROTATABLE_LENSES.filter((lens) => family.includes(lens));

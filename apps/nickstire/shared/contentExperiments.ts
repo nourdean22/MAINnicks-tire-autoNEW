@@ -852,7 +852,7 @@ export function buildExperimentPreset(preset: ExperimentPresetId, startedAt: str
           { armId: "direction-cinematic", variantValue: "cinematic", visualDirection: "cinematic" },
         ],
         startedAt,
-        hypothesis: "A documentary camera (macro push-in, forensic scan) holds watch time better than a cinematic one (film look, product-ad lighting) on the same approved packs.",
+        hypothesis: "A documentary camera (macro push-in) holds watch time better than a cinematic one (film look, product-ad lighting) on the same approved packs.",
         metricNote: "avg_watch_time (reach-weighted). Pack Reels only: the arm sets the lens when an approved pack is built, so an AI-written brief is never recorded in it.",
         wiring: "wired",
         reaches: "pack_reels",
