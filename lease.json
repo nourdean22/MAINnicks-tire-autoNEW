@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "nickstire/purge-forensic-shared",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "f73eba1c-7cf9-4cbf-a1eb-8605e963b6e4",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\agent-ac504e697eef0c302",
+  "claimedBy": "2026-10-12-purge-forensic-shared",
+  "claimedAt": "2026-10-12T17:58:37.754Z",
+  "expiresAt": "2026-10-13T05:58:37.754Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
