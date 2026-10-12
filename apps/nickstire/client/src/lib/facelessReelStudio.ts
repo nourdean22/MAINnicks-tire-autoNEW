@@ -265,7 +265,6 @@ export type MotionLens =
   | "claymation_stop_motion"
   | "blueprint_technical"
   | "neon_retro_futurist"
-  | "forensic_evidence_scan"
   | "product_ad_macro"
   | "weather_radar_overlay"
   | "warning_light_world";
@@ -328,11 +327,6 @@ export const MOTION_LENSES: Record<MotionLens, { label: string; essence: string;
     label: "Neon Retro-Futurist", essence: "Synthwave grid, chrome, scan glow - the part as 80s hero.",
     grammar: "Synthwave retro-futurism, neon rim lighting, chrome reflections, glowing grid horizon, scanline glow, saturated magenta-cyan palette against black.",
     avoid: "natural daylight, documentary realism, muted colors",
-  },
-  forensic_evidence_scan: {
-    label: "Forensic Evidence Scan", essence: "UV light, evidence markers, magnified clue passes.",
-    grammar: "Forensic evidence examination, fixed locked-off composition, UV sweep lighting passes, plain evidence marker dots, dark graphite field, clinical magnification detail. Markers are bare dots and tape only — no legible letters or numbers; any labels are added as ffmpeg overlays after generation.",
-    avoid: "glossy product-ad camera moves, warm cozy lighting",
   },
   product_ad_macro: {
     label: "Product-Ad Macro", essence: "Flagship-launch lighting for a humble part on a turntable.",
@@ -580,7 +574,6 @@ export const LENS_PALETTES: Record<MotionLens, string> = {
   claymation_stop_motion: "soft toy-set lighting, matte plasticine colour, visible fingerprints, gold #FDB913 as a moulded accent.",
   blueprint_technical: "drafting blue and paper white, precise line weight, gold #FDB913 for the one callout that matters.",
   neon_retro_futurist: "magenta and cyan neon on wet black, chrome reflections, gold #FDB913 as the warm third light.",
-  forensic_evidence_scan: "controlled dark field with one narrow inspection beam, evidence-table neutrality, gold #FDB913 on the marker only.",
   product_ad_macro: "seamless studio sweep, soft box gradient, restrained gold #FDB913 rim - the catalogue world.",
   weather_radar_overlay: "cold grey-blue Cleveland daylight, wet asphalt sheen, gold #FDB913 as the alert colour.",
   warning_light_world: "near-black cabin dark with amber instrument glow, gold #FDB913 as the warning source itself.",

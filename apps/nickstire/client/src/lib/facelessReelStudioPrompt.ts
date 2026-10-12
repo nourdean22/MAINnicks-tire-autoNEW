@@ -218,9 +218,7 @@ ${VOICEOVER_WORD_BUDGET_TABLE}
 
   sections.push(`# FACT BUCKETS (pick one)\n${listOf(FACT_BUCKETS)}`);
   sections.push(`# ARCHETYPES (pick one)\n${listOf(REEL_ARCHETYPES)}`);
-  // forensic_evidence_scan is retired from the choice list; its style entry stays so old jobs render.
-  const { forensic_evidence_scan: _retiredLens, ...choosableLenses } = MOTION_LENSES;
-  sections.push(`# MOTION LENSES (pick one)\n${listOf(choosableLenses)}`);
+  sections.push(`# MOTION LENSES (pick one)\n${listOf(MOTION_LENSES)}`);
   // plain_part is the pack lane's no-persona hero; a Studio concept picks a persona.
   const { plain_part: _packOnly, ...studioCharacters } = OBJECT_CHARACTERS;
   sections.push(`# OBJECT CHARACTERS (pick one)\n${listOf(studioCharacters)}`);
