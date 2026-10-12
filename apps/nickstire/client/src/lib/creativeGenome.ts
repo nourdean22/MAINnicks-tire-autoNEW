@@ -175,7 +175,7 @@ export function genomeFromCarouselBrief(
 export const TERRITORY_TO_REEL: Record<CreativeTerritory, { motionLens: MotionLens; archetype: ReelArchetype }> = {
   cleveland_survival_guide: { motionLens: "hyperreal_cinematic", archetype: "cleveland_road_alert" },
   mechanic_translation: { motionLens: "blueprint_technical", archetype: "myth_vs_reality" },
-  csi_evidence_board: { motionLens: "forensic_evidence_scan", archetype: "diagnostic_hud_reveal" },
+  csi_evidence_board: { motionLens: "hyperreal_cinematic", archetype: "diagnostic_hud_reveal" },
   myth_courtroom: { motionLens: "hyperreal_cinematic", archetype: "myth_vs_reality" },
   tiny_world: { motionLens: "tilt_shift_miniature", archetype: "tiny_cinematic_story" },
   warning_system: { motionLens: "warning_light_world", archetype: "one_second_hook_payoff" },

@@ -708,7 +708,7 @@ export function isDurationLaneId(v: unknown): v is DurationLaneId {
  * comparison instead of letting one arm draw them.
  */
 export const VISUAL_DIRECTION_LENSES = {
-  documentary: ["extreme_macro_push_in", "forensic_evidence_scan"],
+  documentary: ["extreme_macro_push_in"],
   cinematic: ["hyperreal_cinematic", "product_ad_macro"],
 } as const;
 export type VisualDirectionId = keyof typeof VISUAL_DIRECTION_LENSES;
@@ -837,7 +837,9 @@ export function buildExperimentPreset(preset: ExperimentPresetId, startedAt: str
     case "visual_direction_v1":
       return {
         preset,
-        experimentId: "visual-direction-v1",
+        // v2 (2026-10-12): the documentary arm lost the forensic lens. v1 rows stay
+        // under v1 so the two treatments are never judged together.
+        experimentId: "visual-direction-v2",
         primaryVariable: "visual_direction",
         objective: "discovery",
         primaryMetric: "avg_watch_time",
@@ -846,7 +848,7 @@ export function buildExperimentPreset(preset: ExperimentPresetId, startedAt: str
           { armId: "direction-cinematic", variantValue: "cinematic", visualDirection: "cinematic" },
         ],
         startedAt,
-        hypothesis: "A documentary camera (macro push-in, forensic scan) holds watch time better than a cinematic one (film look, product-ad lighting) on the same approved packs.",
+        hypothesis: "A documentary camera (macro push-in) holds watch time better than a cinematic one (film look, product-ad lighting) on the same approved packs.",
         metricNote: "avg_watch_time (reach-weighted). Pack Reels only: the arm sets the lens when an approved pack is built, so an AI-written brief is never recorded in it.",
         wiring: "wired",
         reaches: "pack_reels",
@@ -901,3 +903,6 @@ export function isUnwiredExperimentId(experimentId: string): boolean {
   );
   return unwiredIds.has(experimentId);
 }
+
+/** Lenses no NEW brief may carry: enqueue refuses them (REEL_LENS_RETIRED). Queued jobs still parse. */
+export const RETIRED_MOTION_LENSES: readonly string[] = ["forensic_evidence_scan"];

@@ -1,0 +1,13 @@
+{
+  "evidence": {
+    "visual-world-trajectory": {
+      "ref": "apps/nickstire/client/src/lib/facelessReelStudio.ts and shared/reelJobPayload.ts: the forensic lens is removed from the visual world and motion-lens tables; a payload that still names it parses to hyperreal_cinematic (apps/nickstire/server/reelJobRetiredLens.test.ts). Visual-world generation for new briefs uses the remaining lenses; tests cover the lens pool and the parse fallback."
+    },
+    "capability-ledger-updated": {
+      "deferred": "2026-10-12 operator instruction: the forensic evidence lens is removed everywhere. The capability-ledger entries that still describe it as active are rewritten in a follow-up docs PR after the next new reel posts on a remaining lens, so the ledger does not claim a rung not yet observed."
+    },
+    "render-spend-trajectory": {
+      "ref": "apps/nickstire/server/services/reelPipeline.ts: the REEL_LENS_RETIRED refusal runs at the top of enqueueReelJob, before the content-governor reservation and before any generation budget is reserved; a refused brief reserves nothing. Covered by the enqueue-refusal tests in apps/nickstire/server/reelJobRetiredLens.test.ts."
+    }
+  }
+}

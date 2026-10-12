@@ -158,7 +158,7 @@ describe("contentAdmin.startContentExperiment — only wired presets start", () 
     const caller = contentAdminRouter.createCaller(adminCtx());
     const r = await caller.startContentExperiment({ preset: "visual_direction_v1" });
     expect(r.wiring).toBe("wired");
-    expect(state.started).toEqual(["visual-direction-v1"]);
+    expect(state.started).toEqual(["visual-direction-v2"]);
   });
 });
 

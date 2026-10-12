@@ -20,7 +20,7 @@ import type { ApprovedPackPool } from "../../shared/reelJobPayload";
 import { parseShotSource } from "../../shared/shotRouter";
 import { parseCaptionStyle, parsePresenceProfile } from "../../shared/reelSourceProfile";
 import { briefEnqueueRefusals } from "./reelEnqueueRefusals";
-import { VISUAL_DIRECTION_LENSES, type VisualDirectionId } from "../../shared/contentExperiments";
+import { RETIRED_MOTION_LENSES, VISUAL_DIRECTION_LENSES, type VisualDirectionId } from "../../shared/contentExperiments";
 
 /**
  * EVERY PACK-DERIVED REEL LOOKED THE SAME, AND THIS IS WHY.
@@ -65,10 +65,22 @@ function pickForPack<T>(briefId: string, salt: string, options: readonly T[]): T
   return options[digest.readUInt32BE(0) % options.length];
 }
 
+// The full layout stays, so the pickForPack modulus never changes and every
+// pack keeps its bucket. Only a bucket that lands on a retired lens is remapped.
 const ROTATABLE_LENSES = Object.keys(MOTION_LENSES) as MotionLens[];
+const RETIRED_LENS_REPLACEMENT = "extreme_macro_push_in" as MotionLens;
+
+function surviveRetiredLens(lens: MotionLens): MotionLens {
+  return RETIRED_MOTION_LENSES.includes(lens) ? RETIRED_LENS_REPLACEMENT : lens;
+}
+
+/** The lens a pack brief draws for `briefId`: the original bucket, with a retired lens remapped. */
+export function packLensFor(briefId: string, visualDirection?: VisualDirectionId): MotionLens {
+  return surviveRetiredLens(pickForPack(briefId, "lens", lensPoolFor(visualDirection)));
+}
 
 /** The lenses a pack Reel may draw: every lens, or only the running visual_direction arm's family. */
-function lensPoolFor(direction: VisualDirectionId | undefined): readonly MotionLens[] {
+export function lensPoolFor(direction: VisualDirectionId | undefined): readonly MotionLens[] {
   if (!direction) return ROTATABLE_LENSES;
   const family: readonly string[] = VISUAL_DIRECTION_LENSES[direction];
   const pool = ROTATABLE_LENSES.filter((lens) => family.includes(lens));
@@ -597,7 +609,7 @@ export function buildBriefFromApprovedProductionPack(
     factBucket: "invisible_killers",
     campaignKeyword,
     archetype: pickForPack(briefId, "archetype", ROTATABLE_ARCHETYPES),
-    motionLens: pickForPack(briefId, "lens", lensPoolFor(visualDirection)),
+    motionLens: packLensFor(briefId, visualDirection),
     objectCharacter: "plain_part",
     usefulAbsurdity: stringValue(source.usefulAbsurdity),
     /**
@@ -624,7 +636,7 @@ export function buildBriefFromApprovedProductionPack(
           driverEmotion: "",
           campaignKeyword: campaignKeyword as never,
           archetype: pickForPack(briefId, "archetype", ROTATABLE_ARCHETYPES),
-          motionLens: pickForPack(briefId, "lens", lensPoolFor(visualDirection)),
+          motionLens: packLensFor(briefId, visualDirection),
           objectCharacter: "plain_part" as const,
           usefulAbsurdity: stringValue(source.usefulAbsurdity),
           localAngle: stringValue(source.clevelandAngle),

@@ -164,7 +164,10 @@ export function renderedQaRunsSoFar(payload: { renderedQa?: unknown; renderedQaA
 export function parseReelJobPayload(payload: string | null | undefined): ReelJobPayloadView {
   if (!payload) return {};
   try {
-    return JSON.parse(payload) as ReelJobPayloadView;
+    const view = JSON.parse(payload) as ReelJobPayloadView;
+    // Retired lens (2026-10-12): a job queued before the purge may still carry it. Render the standard lens instead.
+    if (view?.motionLens === "forensic_evidence_scan") view.motionLens = "hyperreal_cinematic";
+    return view;
   } catch {
     return {};
   }

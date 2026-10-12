@@ -6275,6 +6275,21 @@
       "file": "apps/nickstire/server/cron/lockLiveness.ts",
       "symbol": "LOCK_STALE_AFTER_SECONDS",
       "reason": "2026-10-10 heartbeat lock liveness · INTENTIONAL TEST-VISIBLE CONTRACT: a lock is swept only when its beat is older than this; staleHolderSweep.test.ts pins it in both the SELECT and the DELETE re-check. knip excludes *.test.ts as consumers."
+    },
+    {
+      "file": "apps/nickstire/server/services/reelBriefGen.ts",
+      "symbol": "coerceBriefMotionLens",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Its production consumer is the brief parse path in this same file (lines ~1289 and ~1353); the export lets briefLensNoForensic.test.ts pin that no generated brief can return the retired forensic lens, and a positive control that a valid lens passes through."
+    },
+    {
+      "file": "apps/nickstire/server/services/approvedReelPackRotation.ts",
+      "symbol": "lensPoolFor",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Its production consumer is the pack brief builder in this same file (pickForPack calls, ~line 600 and ~627); the export lets briefLensNoForensic.test.ts and packRotationVariety.test.ts pin the rotatable lens pool, including the retired-lens exclusion."
+    },
+    {
+      "file": "apps/nickstire/server/services/approvedReelPackRotation.ts",
+      "symbol": "packLensFor",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Its production consumer is the pack brief builder in this same file (motionLens in the pack and brief builders); the export lets visualDirectionExperiment.test.ts pin the lens each briefId gets, including the retired-lens bucket remap to extreme_macro_push_in."
     }
   ]
 }
