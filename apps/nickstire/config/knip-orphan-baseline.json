@@ -6285,6 +6285,11 @@
       "file": "apps/nickstire/server/services/approvedReelPackRotation.ts",
       "symbol": "lensPoolFor",
       "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Its production consumer is the pack brief builder in this same file (pickForPack calls, ~line 600 and ~627); the export lets briefLensNoForensic.test.ts and packRotationVariety.test.ts pin the rotatable lens pool, including the retired-lens exclusion."
+    },
+    {
+      "file": "apps/nickstire/server/services/approvedReelPackRotation.ts",
+      "symbol": "packLensFor",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Its production consumer is the pack brief builder in this same file (motionLens in the pack and brief builders); the export lets visualDirectionExperiment.test.ts pin the lens each briefId gets, including the retired-lens bucket remap to extreme_macro_push_in."
     }
   ]
 }
