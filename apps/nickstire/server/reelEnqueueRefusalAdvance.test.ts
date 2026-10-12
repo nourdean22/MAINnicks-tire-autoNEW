@@ -107,6 +107,7 @@ describe("every content verdict inside enqueueReelJob is typed (2026-10-08)", ()
     "[generationHoldReason(blocked, \"enqueue\"", // beatsTheGeneratorMustNotRender
     "[", // the caption limit (its message starts on the next line)
     "[`REEL_ASK_INCONSISTENT: ${askMismatch}`", // captionAskMismatch (2026-10-10): the caption's ask vs the declared end card
+    "[`REEL_LENS_RETIRED: ${retiredLens}`]);", // the retired motion lens (2026-10-12), judged from the brief alone
   ];
   const NEEDS_CONTEXT = [
     "[`Episode contract blocked (${pre.blocks", // needs the day's claim packet

@@ -17,6 +17,7 @@ import { CAPTION_LIMIT, HASHTAG_CAP } from "../../shared/episodeContract";
 import { condemnedContentProblem } from "../../shared/reelClaimAudit";
 import { beatsTheGeneratorMustNotRender } from "../../shared/shotRouter";
 import { captionAskMismatch, resolveReelAsk } from "../../shared/reelAsk";
+import { RETIRED_MOTION_LENSES } from "../../shared/contentExperiments";
 
 export function briefEnqueueRefusals(brief: ReelBrief): string[] {
   const beats = Array.isArray(brief.storyboardBeats) ? brief.storyboardBeats : [];
@@ -34,6 +35,8 @@ export function briefEnqueueRefusals(brief: ReelBrief): string[] {
   const composed = `${brief.selectedCaption ?? ""}\n\n${hashtags.join(" ")}`.trim();
   if (composed.length > CAPTION_LIMIT) out.push(`caption + hashtags is ${composed.length} chars, over ${CAPTION_LIMIT}`);
   if (hashtags.length > HASHTAG_CAP) out.push(`${hashtags.length} hashtags, cap is ${HASHTAG_CAP}`);
+  const retiredLens = (brief as { motionLens?: string }).motionLens ?? "";
+  if (RETIRED_MOTION_LENSES.includes(retiredLens)) out.push(`REEL_LENS_RETIRED: ${retiredLens}`);
   const askMismatch = captionAskMismatch(brief.selectedCaption, resolveReelAsk(brief));
   if (askMismatch) out.push(`caption ask disagrees with the end card: ${askMismatch}`);
   return out;

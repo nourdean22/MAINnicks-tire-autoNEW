@@ -35,6 +35,7 @@ vi.mock("./db", async (importOriginal) => {
   return { ...actual, getDb: async () => fake };
 });
 
+import { createHash } from "node:crypto";
 import { MOTION_LENSES } from "../client/src/lib/facelessReelStudio";
 import { VISUAL_DIRECTION_LENSES, assignArm, buildExperimentPreset, findConfounds, isUnwiredExperimentId } from "../shared/contentExperiments";
 import {
@@ -42,6 +43,7 @@ import {
   APPROVED_REEL_PACKS,
   buildBriefFromApprovedProductionPack,
   loadApprovedProductionPack,
+  packLensFor,
 } from "./services/approvedReelPackRotation";
 import { visualDirectionForEpisode } from "./services/contentExperimentStore";
 
@@ -103,6 +105,38 @@ describe("the pack builder honours the arm on every rotation pack", () => {
     const pack = APPROVED_REEL_PACKS.find((p) => p.slug === slug)!;
     const omitted = buildBriefFromApprovedProductionPack(pack, loadApprovedProductionPack(slug)!, `daily-${slug}`, true) as { motionLens: string };
     expect(build(slug)!.motionLens).toBe(omitted.motionLens);
+  });
+
+  it("an unchanged briefId keeps its lens in every bucket except the retired one (2026-10-12)", () => {
+    const ALL = Object.keys(MOTION_LENSES);
+    const retiredBucket = ALL.indexOf("forensic_evidence_scan");
+    const seen = new Set<number>();
+    for (let i = 0; i < 4000; i++) {
+      const briefId = `stable-brief-${i}`;
+      const bucket = createHash("sha256").update(`${briefId}::lens`).digest().readUInt32BE(0) % ALL.length;
+      seen.add(bucket);
+      const expected = bucket === retiredBucket ? "extreme_macro_push_in" : ALL[bucket];
+      expect(packLensFor(briefId), briefId).toBe(expected);
+    }
+    expect(seen.size, "every bucket is exercised").toBe(ALL.length);
+  });
+
+  it("enqueue refuses a NEW brief carrying the retired lens, before any DB work (2026-10-12)", async () => {
+    const { enqueueReelJob } = await import("./services/reelPipeline");
+    await expect(
+      enqueueReelJob({ id: "retired-lens", motionLens: "forensic_evidence_scan" } as never, "admin", {} as never),
+    ).rejects.toThrow("REEL_LENS_RETIRED");
+  });
+
+  it("the retired forensic lens never reaches a NEW pack brief (2026-10-12): no family, no default, no arm", () => {
+    expect(DOC).not.toContain("forensic_evidence_scan");
+    expect(CINE).not.toContain("forensic_evidence_scan");
+    for (const slug of APPROVED_REEL_PACK_SLUGS) {
+      for (const direction of [undefined, "documentary", "cinematic"] as const) {
+        const built = build(slug, direction);
+        expect(built?.motionLens, `${slug} / ${direction ?? "default"}`).not.toBe("forensic_evidence_scan");
+      }
+    }
   });
 });
 

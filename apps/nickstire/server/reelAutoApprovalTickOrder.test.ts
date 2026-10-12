@@ -18,19 +18,19 @@ afterEach(() => {
   vi.resetModules();
 });
 
-// Pinned to 10:00 ET: one post made today closes the day only until the
-// evening slot opens (18:00 ET), so an unpinned clock makes these hour-dependent.
-// Called at the START of each case, before the tick reads the clock. Pinning
-// it lazily inside the db mock ran after the tick had already read the real date.
-function pinClockToToday(): string {
+// Pinned to 10:00 ET on a fixed date, set BEFORE the tick runs: the tick reads
+// the clock itself (etNow) before any DB call, so a clock pinned inside a mock
+// lands too late and the test flips with the real wall clock. One post made
+// today closes the day only until the evening slot opens (18:00 ET).
+const TODAY_ET = "2026-10-11";
+function pinClock(): void {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date("2026-10-11T14:00:00Z"));
-  return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 }
 
 describe("daily-reel-post tick order", () => {
   it("runs the auto-approval pass BEFORE the already-posted-today short-circuit", async () => {
-    const today = pinClockToToday();
+    pinClock();
     process.env.REEL_AUTOPOST_ENABLED = "true";
     const pass = vi.fn().mockResolvedValue({ policy: "auto", approved: [], skipped: [] });
     vi.doMock("./services/reelAutoApproval", () => ({ autoApproveAssembledReels: pass }));
@@ -40,7 +40,7 @@ describe("daily-reel-post tick order", () => {
     // early return still fires.
     const chain: any = {
       select: () => chain, from: () => chain, where: () => chain,
-      limit: async () => [{ value: today }],
+      limit: async () => [{ value: TODAY_ET }],
     };
     vi.doMock("./db", () => ({ getDb: async () => chain }));
     vi.resetModules();
@@ -53,12 +53,12 @@ describe("daily-reel-post tick order", () => {
   });
 
   it("a throwing pass does not stop the tick", async () => {
-    const today = pinClockToToday();
+    pinClock();
     process.env.REEL_AUTOPOST_ENABLED = "true";
     vi.doMock("./services/reelAutoApproval", () => ({ autoApproveAssembledReels: vi.fn().mockRejectedValue(new Error("policy unreadable")) }));
     const chain: any = {
       select: () => chain, from: () => chain, where: () => chain,
-      limit: async () => [{ value: today }],
+      limit: async () => [{ value: TODAY_ET }],
     };
     vi.doMock("./db", () => ({ getDb: async () => chain }));
     vi.resetModules();

@@ -22,6 +22,7 @@ import type { ApprovedProductionPackSnapshot, EpisodeContract, EpisodeDeclaratio
 import { buildStructuredVideoPrompt } from "../../shared/reelVideoPrompt";
 import { queueStateForReelStatus } from "../../shared/reelQueue";
 import { captionAskMismatch, resolveReelAsk, type ReelAsk } from "../../shared/reelAsk";
+import { RETIRED_MOTION_LENSES } from "../../shared/contentExperiments";
 import { ReelAssemblyRefusedError } from "./reelContentRefusal";
 
 const log = createLogger("services:reel-pipeline");
@@ -434,6 +435,14 @@ export async function enqueueReelJob(
   source: "admin" | "cron",
   episode: EpisodeDeclaration,
 ): Promise<{ jobId: number; /** The episode already had a job; nothing new was created. */ deduped?: true }> {
+  // RETIRED LENS (2026-10-12): a NEW brief may not carry a retired motion lens.
+  // First line, before any DB or spend: a typed refusal the daily lane advances
+  // past. Persisted jobs never reach here; they still parse and render because
+  // MOTION_LENSES keeps the key.
+  const retiredLens = (brief as { motionLens?: string }).motionLens ?? "";
+  if (RETIRED_MOTION_LENSES.includes(retiredLens)) {
+    throw new ReelPreflightBlockedError([`REEL_LENS_RETIRED: ${retiredLens}`]);
+  }
   const { getDb } = await import("../db");
   const d = await getDb();
   if (!d) throw new Error("DB not available");

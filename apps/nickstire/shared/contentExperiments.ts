@@ -901,3 +901,6 @@ export function isUnwiredExperimentId(experimentId: string): boolean {
   );
   return unwiredIds.has(experimentId);
 }
+
+/** Lenses no NEW brief may carry: enqueue refuses them (REEL_LENS_RETIRED). Queued jobs still parse. */
+export const RETIRED_MOTION_LENSES: readonly string[] = ["forensic_evidence_scan"];
