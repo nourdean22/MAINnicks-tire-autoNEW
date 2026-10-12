@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "deferred": "2026-10-12 operator decision: the forensic evidence lens is retired from every new brief choice, mapping and prompt list. The type member and style entries stay so queued jobs still parse. The capability-ledger entries that describe the forensic lens as active are rewritten in a follow-up docs PR, after the next new reel is posted on the standard lens, so the ledger does not claim a rung not yet observed."
+    }
+  }
+}
