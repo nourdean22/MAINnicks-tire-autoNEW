@@ -707,12 +707,6 @@ export function isDurationLaneId(v: unknown): v is DurationLaneId {
  * warning-light world) are in neither arm, which keeps them out of the
  * comparison instead of letting one arm draw them.
  */
-/**
- * Lenses no NEW brief may draw (2026-10-12). They stay in MOTION_LENSES so
- * existing reel jobs still parse and render; every picker filters them out.
- */
-export const RETIRED_MOTION_LENSES: readonly string[] = ["forensic_evidence_scan"];
-
 export const VISUAL_DIRECTION_LENSES = {
   documentary: ["extreme_macro_push_in"],
   cinematic: ["hyperreal_cinematic", "product_ad_macro"],

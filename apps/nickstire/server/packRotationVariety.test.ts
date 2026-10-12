@@ -34,7 +34,7 @@ function pick<T>(briefId: string, salt: string, options: readonly T[]): T {
   return options[createHash("sha256").update(`${briefId}::${salt}`).digest().readUInt32BE(0) % options.length];
 }
 
-// The real rotation pool (forensic_evidence_scan is retired from briefs, 2026-10-12).
+// The real rotation pool.
 const LENSES: readonly string[] = lensPoolFor(undefined);
 const ARCHETYPES = Object.keys(REEL_ARCHETYPES);
 // Realistic pack ids: the directory convention is <date>-<slug>.

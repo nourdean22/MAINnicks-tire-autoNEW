@@ -339,18 +339,9 @@ function coerceEnum<T extends string>(v: string, record: Record<string, { label:
   return (hit ? hit[0] : Object.keys(record)[0]) as T;
 }
 
-/**
- * Lenses a model-written brief may carry. forensic_evidence_scan is retired
- * from brief generation (2026-10-12); the MotionLens type keeps the member so
- * queued jobs still parse. An unknown value falls back to the first key here.
- */
-const BRIEF_MOTION_LENSES = Object.fromEntries(
-  Object.entries(MOTION_LENSES).filter(([key]) => key !== "forensic_evidence_scan"),
-) as typeof MOTION_LENSES;
-
 /** The motionLens a model-written brief is allowed to carry. */
-export function coerceBriefMotionLens(v: string): MotionLens {
-  return coerceEnum<MotionLens>(v, BRIEF_MOTION_LENSES);
+function coerceBriefMotionLens(v: string): MotionLens {
+  return coerceEnum<MotionLens>(v, MOTION_LENSES);
 }
 /**
  * SILENT FALLBACK, now audible. An out-of-enum keyword became

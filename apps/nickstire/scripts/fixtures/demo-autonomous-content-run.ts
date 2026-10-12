@@ -244,7 +244,7 @@ async function main() {
     factBucket: "invisible_killers",
     campaignKeyword: "POTHOLE",
     archetype: "pov_you_are_the_part",
-    motionLens: "forensic_evidence_scan",
+    motionLens: "hyperreal_cinematic",
     objectCharacter: "pothole_gremlin",
     usefulAbsurdity: "A tire sidewall expanding like a weak balloon at the point of impact.",
     concepts: [
@@ -256,7 +256,7 @@ async function main() {
         driverEmotion: "Shock and realization",
         campaignKeyword: "POTHOLE",
         archetype: "pov_you_are_the_part",
-        motionLens: "forensic_evidence_scan",
+        motionLens: "hyperreal_cinematic",
         objectCharacter: "pothole_gremlin",
         usefulAbsurdity: "A tire sidewall expanding like a weak balloon.",
         localAngle: "Euclid Ave potholes pinch tires and tear internal cords.",

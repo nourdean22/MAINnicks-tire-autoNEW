@@ -20,7 +20,7 @@ import type { ApprovedPackPool } from "../../shared/reelJobPayload";
 import { parseShotSource } from "../../shared/shotRouter";
 import { parseCaptionStyle, parsePresenceProfile } from "../../shared/reelSourceProfile";
 import { briefEnqueueRefusals } from "./reelEnqueueRefusals";
-import { RETIRED_MOTION_LENSES, VISUAL_DIRECTION_LENSES, type VisualDirectionId } from "../../shared/contentExperiments";
+import { VISUAL_DIRECTION_LENSES, type VisualDirectionId } from "../../shared/contentExperiments";
 
 /**
  * EVERY PACK-DERIVED REEL LOOKED THE SAME, AND THIS IS WHY.
@@ -65,7 +65,7 @@ function pickForPack<T>(briefId: string, salt: string, options: readonly T[]): T
   return options[digest.readUInt32BE(0) % options.length];
 }
 
-const ROTATABLE_LENSES = (Object.keys(MOTION_LENSES) as MotionLens[]).filter((lens) => !RETIRED_MOTION_LENSES.includes(lens));
+const ROTATABLE_LENSES = Object.keys(MOTION_LENSES) as MotionLens[];
 
 /** The lenses a pack Reel may draw: every lens, or only the running visual_direction arm's family. */
 export function lensPoolFor(direction: VisualDirectionId | undefined): readonly MotionLens[] {
