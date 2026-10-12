@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "nickstire/reel-qa-source-fixes",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "f73eba1c-7cf9-4cbf-a1eb-8605e963b6e4",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\agent-a203841ddaf4327dd",
+  "claimedBy": "2026-10-12-reel-qa-source",
+  "claimedAt": "2026-10-12T22:44:58.583Z",
+  "expiresAt": "2026-10-13T10:44:58.583Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
