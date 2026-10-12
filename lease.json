@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "chore/ledger-daily-reel-merged",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "f73eba1c-7cf9-4cbf-a1eb-8605e963b6e4",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\instagram-reel-merges-check-a8ffb9",
+  "claimedBy": "2026-10-11-daily-reel-twice-ledger",
+  "claimedAt": "2026-10-12T00:45:43.719Z",
+  "expiresAt": "2026-10-12T12:45:43.719Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
