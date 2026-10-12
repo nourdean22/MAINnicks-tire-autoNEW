@@ -837,7 +837,9 @@ export function buildExperimentPreset(preset: ExperimentPresetId, startedAt: str
     case "visual_direction_v1":
       return {
         preset,
-        experimentId: "visual-direction-v1",
+        // v2 (2026-10-12): the documentary arm lost the forensic lens. v1 rows stay
+        // under v1 so the two treatments are never judged together.
+        experimentId: "visual-direction-v2",
         primaryVariable: "visual_direction",
         objective: "discovery",
         primaryMetric: "avg_watch_time",
