@@ -1,6 +1,24 @@
 # Session ledger - nickstire
 
-**Updated: 2026-10-10 02:30Z** (reel quality upgrade branch; clip register #2955 + ledger #2956 merged; the sibling's docs merge #2957 had dropped those two sections and the ledger entries — restored here; then the receptionist experiment: manual door #2945, bounded edit #2950, optimizer timeout #2953, full-cycle budget #2954, five live runs the same evening; then the Reel lane unjam #2940; then the routine's live proofs and the camera page gate; then the flagged-items wave; then 10-08 evening: #2934 merged + deployed, the supervisor log-writer fix; then PR C, PR A + B history, the merged camera audit wave #2920 + #2925, the Search Console wave and the 2026-10-03 Sentry sweep.)
+**Updated: 2026-10-13 12:50Z** (reel quality upgrade branch; clip register #2955 + ledger #2956 merged; the sibling's docs merge #2957 had dropped those two sections and the ledger entries — restored here; then the receptionist experiment: manual door #2945, bounded edit #2950, optimizer timeout #2953, full-cycle budget #2954, five live runs the same evening; then the Reel lane unjam #2940; then the routine's live proofs and the camera page gate; then the flagged-items wave; then 10-08 evening: #2934 merged + deployed, the supervisor log-writer fix; then PR C, PR A + B history, the merged camera audit wave #2920 + #2925, the Search Console wave and the 2026-10-03 Sentry sweep.)
+
+## 2026-10-13 · Parked-reel hotfix: only a budget refusal holds (branch `nickstire/parked-reel-hotfix`, commit aa1d5b51, draft PR) BUILT + TESTED
+
+**Why:** operator, 2026-10-13: the pipeline must not fail over parked reels. #3012 (parked-reel lane) merged early at 12:31Z with Codex P1/P2 still open. Fixed forward, not reverted. Decisions: (1) budget refusals HOLD; (2) repaired reels AUTO-POST after a clean re-QA; (3) parked reels RETIRE automatically.
+
+**Built:** `dailyReelPost.ts` catch: only `BUDGET_DAILY_EXCEEDED` holds, and the pass returns (nothing posts until the budget resets). Every other repair refusal parks (cap, in-flight, stuck entry, DB) and is re-asked on the next pulse. `RETRYABLE_QA_GATES` keeps needs_paid_repair candidates in the drain. Park and skip counters are bounded apart (parks by `DRAIN_SCAN_LIMIT` 25, pack skips by `MAX_QUEUED_PACK_SKIPS` 5). An unreadable policy holds. A non-list queue or an undated entry counts as today's repair (fail closed). Tests in `reelPublishRejectGuard.test.ts`: (i) budget hold then retry, (ii) REPAIR_CAP denial parks, (iii) in-flight refusal parks, then asks again on the 18:00 ET slot, (iv) unreadable policy holds, six parked reels ahead of a clean one, undated entry blocks today's repair.
+
+**Why the hold narrowed:** a hold returns from the whole pass. Nothing times out a queue entry left "rendering" after a worker crash, so a hold on the in-flight refusal would stop the lane every pulse. The lane's hotfix held on every error; the correction is in aa1d5b51.
+
+**Receipts:** touched parked-reel set, 33 files, 521 passed, exit 0 (`pnpm exec vitest run`). Canary: forcing every refusal to hold fails (ii) and (iii), 2 failed and 33 passed of 35; the file was restored byte-identical. Typecheck `tsc --noEmit` exit 0. DoD compiler `--enforce`: cron-fail-closed PASSED. Not run: the full suite and `pnpm run verify`; CI is the first full run.
+
+**Not done (F4-F6):** F4 in-pulse skip test. F5 auto-post a repaired reel after a clean re-QA (four guards). F6 retire parked reels, with its own park cap (more than 25 parked reels ahead of a clean one starve it). The WIP patch exists only in the session scratchpad, so it is not durable: rebuild from the spec.
+
+**Job 2070007 (not posted, not overridden):** 7 agreed BLOCK votes (QA run 2026-10-11 22:53Z). BLOCK is not overridable (`reelPublishAuthority.ts:108-120`). Options: hand rebuild through the admin procedures `enqueueReelJob` and `discardReelJob` (prod writes, credits; sandbox has no admin access), or a reviewed PR that makes BLOCK overridable.
+
+**Consequences to know:** a budget hold stops the whole pass until the budget resets, so clean reels wait too. Under the default `approval_required` policy no paid repair is requested at all. A reel parked by the one-repair-per-ET-day guard can buy one repair the next day. Open review item: Codex P2 on the re-render test's approval seed (assetSha256), not verified fixed here.
+
+**Next:** merge the hotfix PR when CI is green and the review threads are answered. Then F5 and F6, each in its own PR, built from the spec.
 
 ## 2026-10-10 · Reel lane cannot jam on a missing verdict (branch `nickstire/reel-lane-audio-qa-on-demand`, PR after #2965) BUILT + TESTED
 

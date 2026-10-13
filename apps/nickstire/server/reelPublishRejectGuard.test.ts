@@ -187,7 +187,9 @@ const h = vi.hoisted(() => ({
   /** Parked-repair lane: every paid beat repair the cron asked for. */
   repairCalls: [] as Array<Record<string, unknown>>,
   /** Parked-repair lane: the refusal the paid-repair boundary throws, or null = accept. */
-  repairRefusal: null as null | string,
+  repairRefusal: null as null | string | Error,
+  /** Parked-repair lane: makes the policy read throw, as an unreachable policy store does. */
+  policyUnreadable: false,
 }));
 
 vi.mock("./db", async (importOriginal) => ({
@@ -203,7 +205,10 @@ vi.mock("./services/adminSecurity", async (importOriginal) => ({
 
 vi.mock("./services/autonomyControl", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./services/autonomyControl")>()),
-  getActivePolicy: async () => h.policy ?? { version: 7, formatPermissions: { reel: "auto" } },
+  getActivePolicy: async () => {
+    if (h.policyUnreadable) throw new Error("policy store unreachable");
+    return h.policy ?? { version: 7, formatPermissions: { reel: "auto" } };
+  },
 }));
 
 // The paid-repair writer. The real requestBeatRepair has its own suite; here the
@@ -214,7 +219,7 @@ vi.mock("./services/selectiveRepair", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./services/selectiveRepair")>()),
   requestBeatRepair: async (input: { jobId: number; beatNumber: number; actor?: Record<string, unknown> }) => {
     h.repairCalls.push(input as Record<string, unknown>);
-    if (h.repairRefusal) throw new Error(h.repairRefusal); // the boundary refuses before any queue write
+    if (h.repairRefusal) throw typeof h.repairRefusal === "string" ? new Error(h.repairRefusal) : h.repairRefusal; // the boundary refuses before any queue write
     const row = rowsOf(reelJobs).find((r) => r.id === input.jobId)!;
     const payload = JSON.parse(String(view(reelJobs, row)!.payload ?? "{}")) as { repairQueue?: unknown[] };
     const logicalRepairId = `rep_parked_${h.repairCalls.length}`;
@@ -679,10 +684,12 @@ describe("a needs_paid_repair reel parks and the day still posts (2026-10-12)", 
     h.policy = null;
     h.repairCalls.length = 0;
     h.repairRefusal = null;
+    h.policyUnreadable = false;
   });
   afterEach(() => {
     vi.useRealTimers();
     h.repairRefusal = null;
+    h.policyUnreadable = false;
     // h is shared by every describe in this file: leave no scripted QA, policy or repair state for the next one.
     h.qa = {};
     h.policy = null;
@@ -783,7 +790,7 @@ describe("a needs_paid_repair reel parks and the day still posts (2026-10-12)", 
     expect(h.publishCalls[0].videoUrl).toBe(Y_URL);
   });
 
-  it("(c) the paid-repair boundary refuses the repair (daily budget): the reel parks with nothing queued, and the next approved reel posts", async () => {
+  it("(c) the paid-repair boundary refuses on the daily budget: the reel holds, nothing is queued, and nothing posts while the budget is spent", async () => {
     arrange(verdict([block(2)]));
     h.policy = AUTO;
     h.repairRefusal = "BUDGET_DAILY_EXCEEDED: daily generation budget is spent";
@@ -793,7 +800,129 @@ describe("a needs_paid_repair reel parks and the day still posts (2026-10-12)", 
 
     expect(h.repairCalls).toHaveLength(1); // asked once, refused by the boundary
     expect(JSON.parse(String(job(X)!.payload)).repairQueue ?? []).toHaveLength(0); // nothing queued, nothing spent
-    expect(job(X)!.status).toBe("assembled"); // parked: not repair_queued, not published
+    expect(job(X)!.status).toBe("assembled"); // held, not repair_queued
+    expect(h.publishCalls).toHaveLength(0); // a hold returns from the pass: a budget refusal holds, it does not park (F1 revised)
+  });
+
+  /** An approved, assembled reel with a verdict of its own and its own brief (one inventory row per brief). */
+  function seedBacklogReel(id: number, fresh: Record<string, unknown>, briefId: string) {
+    seedReel({ jobId: id, briefId, invStatus: "review_ready", payload: REPAIRABLE });
+    Object.assign(jobRow(id)!, toDb(reelJobs, { createdAt: ts(-5) }));
+    seedApproval(id);
+    h.qa[id] = { persisted: null, fresh, freshRuns: 0 };
+  }
+
+  it("(i) a budget refusal holds the reel: it is not parked, nothing posts while the budget is spent, and once the budget allows the next pulse queues the repair", async () => {
+    arrange(verdict([block(2)]));
+    h.policy = AUTO;
+    h.repairRefusal = "BUDGET_DAILY_EXCEEDED: reserving $1.20 would put today at $9.00 > $10.00";
+    const { runDailyReelPost } = await import("./cron/jobs/dailyReelPost");
+
+    await runDailyReelPost();
+
+    expect(h.repairCalls).toHaveLength(1); // asked once, refused by the budget
+    expect(h.publishCalls).toHaveLength(0); // a hold returns from the pass, so nothing posts
+    expect(job(X)!.status).toBe("assembled"); // held, not repair_queued
+    expect(approvals(X).every((a) => a.revokedAt === null)).toBe(true); // not retired: still approved
+
+    h.repairRefusal = null; // the budget allows again
+    await runDailyReelPost();
+
+    expect(h.repairCalls).toHaveLength(2); // the same reel is re-evaluated and the repair is asked again
+    expect(job(X)!.status).toBe("repair_queued");
+  });
+
+  it("(ii) the repair cap reached parks the reel with no spend, and the next approved reel posts", async () => {
+    arrange(verdict([block(2)], 2)); // two repairs already count against the cap of 2
+    h.policy = AUTO;
+    const { runDailyReelPost } = await import("./cron/jobs/dailyReelPost");
+
+    await runDailyReelPost();
+
+    expect(h.repairCalls).toHaveLength(0);
+    expect(job(X)!.status).toBe("assembled"); // parked, not repair_queued
+    expect(h.publishCalls[0].videoUrl).toBe(Y_URL);
+  });
+
+  it("(ii) the boundary's REPAIR_CAP denial parks the reel, and the next approved reel posts", async () => {
+    const { AutonomyDenial } = await import("./services/autonomyControl");
+    arrange(verdict([block(2)]));
+    h.policy = AUTO;
+    h.repairRefusal = new AutonomyDenial(["REPAIR_CAP"], 7, "cron" as never);
+    const { runDailyReelPost } = await import("./cron/jobs/dailyReelPost");
+
+    await runDailyReelPost();
+
+    expect(h.repairCalls).toHaveLength(1); // asked, and refused by the cap
+    expect(job(X)!.status).toBe("assembled"); // parked, not repair_queued
+    expect(h.publishCalls[0].videoUrl).toBe(Y_URL);
+  });
+
+  it("(iii) a repair refused as already in flight parks the reel: the next approved reel posts, and the next pulse asks again", async () => {
+    // A queued or rendering entry that never clears (a worker crash) refuses every pulse.
+    // Holding on it would stop the lane every day, so this parks, it does not hold.
+    arrange(verdict([block(2)]));
+    h.policy = AUTO;
+    h.repairRefusal = `job ${X} already has a repair in flight — one at a time`;
+    const { runDailyReelPost } = await import("./cron/jobs/dailyReelPost");
+
+    await runDailyReelPost();
+
+    expect(h.repairCalls).toHaveLength(1);
+    expect(h.publishCalls[0].videoUrl).toBe(Y_URL); // the pass moved on to the clean reel
+    expect(job(X)!.status).toBe("assembled"); // parked, not repair_queued
+    expect(approvals(X).every((a) => a.revokedAt === null)).toBe(true);
+
+    // The 06:00 slot is spent by Y, so the next pulse is the 18:00 ET slot.
+    h.repairRefusal = null;
+    vi.setSystemTime(new Date("2026-09-29T22:30:00Z")); // 18:30 ET
+    await runDailyReelPost();
+
+    expect(h.repairCalls).toHaveLength(2);
+    expect(job(X)!.status).toBe("repair_queued");
+  });
+
+  it("(iv) an unreadable autonomy policy holds the reel: spend is not decided, nothing parks, and a readable policy on the next pulse queues the repair", async () => {
+    arrange(verdict([block(2)]));
+    h.policyUnreadable = true;
+    const { runDailyReelPost } = await import("./cron/jobs/dailyReelPost");
+
+    await runDailyReelPost();
+
+    expect(h.repairCalls).toHaveLength(0);
+    expect(h.publishCalls).toHaveLength(0); // held
+    expect(job(X)!.status).toBe("assembled");
+
+    h.policyUnreadable = false;
+    h.policy = AUTO;
+    await runDailyReelPost();
+
+    expect(h.repairCalls).toHaveLength(1);
+    expect(job(X)!.status).toBe("repair_queued");
+  });
+
+  it("six needs_paid_repair reels ahead of one clean approved reel: the clean reel posts in the same pulse", async () => {
+    arrange(verdict([block(2)])); // X is a seventh parked reel, Y the clean one
+    h.policy = null; // default policy: a park needs no spend
+    const parked = [9870051, 9870052, 9870053, 9870054, 9870055, 9870056];
+    parked.forEach((id, i) => seedBacklogReel(id, verdict([block(2)]), `autopost-2026-09-0${i + 1}`));
+    const { runDailyReelPost } = await import("./cron/jobs/dailyReelPost");
+
+    await runDailyReelPost();
+
+    expect(h.publishCalls).toHaveLength(1);
+    expect(h.publishCalls[0].videoUrl).toBe(Y_URL);
+    for (const id of parked) expect(job(id)!.status).toBe("assembled"); // parked, not published
+  });
+
+  it("a queued repair entry with no requestedAt still blocks today's repair", async () => {
+    arrange(verdict([block(2)], 1), { repairQueue: [{ logicalRepairId: "rep_undated", beatNumber: 2, state: "failed", attempts: [], previousClipUrl: null }] });
+    h.policy = AUTO;
+    const { runDailyReelPost } = await import("./cron/jobs/dailyReelPost");
+
+    await runDailyReelPost();
+
+    expect(h.repairCalls).toHaveLength(0); // the undated entry counts as today's repair
     expect(h.publishCalls[0].videoUrl).toBe(Y_URL);
   });
 
