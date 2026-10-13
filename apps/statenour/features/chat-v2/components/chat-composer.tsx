@@ -140,9 +140,14 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
     const el = textareaRef.current;
     if (!el) return;
 
+    // The cap is a share of the visible viewport, not a fixed 200px. With the
+    // phone keyboard up, 200px of textarea plus the chrome left the message
+    // list a few pixels tall: nothing could be read or scrolled.
     const resize = () => {
+      const visible = window.visualViewport?.height ?? window.innerHeight;
+      const cap = Math.max(44, Math.min(200, Math.floor(visible * 0.25)));
       el.style.height = "auto";
-      el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+      el.style.height = `${Math.min(el.scrollHeight, cap)}px`;
     };
 
     resize();
@@ -151,7 +156,11 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
     if (!parent) return;
     const ro = new ResizeObserver(resize);
     ro.observe(parent);
-    return () => ro.disconnect();
+    window.visualViewport?.addEventListener("resize", resize);
+    return () => {
+      ro.disconnect();
+      window.visualViewport?.removeEventListener("resize", resize);
+    };
   }, [draft]);
 
   // 04-X1: an audio pick, paste or drop is transcribed into the draft (the
