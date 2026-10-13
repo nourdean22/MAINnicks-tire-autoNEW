@@ -519,6 +519,8 @@ async function runDailyReelPostOnce(
   const todaysJob = jobs.find((j: { briefId: string }) => j.briefId === briefId) ?? jobs[0];
   let job: typeof todaysJob | undefined = undefined;
   let drainedFrom: string | null = null;
+  // Set when today's job is parked on a human gate; the enqueue branch reads it.
+  let parkedToday: { jobId: number; gate: string } | null = null;
 
   // DRAIN THE BACKLOG FIRST. The lookup above is scoped to TODAY's briefId, so a
   // job assembled on a previous day (briefId autopost-<that day>) is never
@@ -797,15 +799,19 @@ async function runDailyReelPostOnce(
     }
     if (!parked && parkedThisPulse.has(Number(todaysJob.id))) parked = "parked_this_pulse";
     if (parked) {
-      log.info("daily reel: today's job is parked awaiting a human — not selecting it", {
-        jobId: todaysJob.id, gate: parked,
+      // A parked today's job holds nothing (2026-10-13). It stays parked and is
+      // never selected here, but it must NOT end the run: the enqueue branch
+      // below moves the lane on to the next approved pack. A pack whose episode
+      // already has a job dedupes and advances the rotation, so the parked pack
+      // is stepped past. With no approved pack in rotation, the enqueue branch
+      // returns the parked result, so the miner lane never runs on a parked day.
+      parkedToday = { jobId: Number(todaysJob.id), gate: parked };
+      log.info("daily reel: today's job is parked awaiting a human — lane moves to the next approved pack", {
+        jobId: todaysJob.id, gate: parked, code: `qa_parked:${parked}`,
       });
-      return {
-        recordsProcessed: 0,
-        details: `today's job ${todaysJob.id} parked (qa_parked:${parked}) and no drainable backlog; index not advanced`,
-      };
+    } else {
+      job = todaysJob;
     }
-    job = todaysJob;
   }
 
   if (!job) {
@@ -845,6 +851,14 @@ async function runDailyReelPostOnce(
       return {
         recordsProcessed: 0,
         details: `held: active Reel slate exhausted at index ${packSelection.index} of ${activeSlate.slugs.length}; refresh/reorder the slate in Instagram → Strategy`,
+      };
+    }
+    // Parked today's job with no approved pack left in rotation: hold the day.
+    // The miner lane must never start a second reel on top of a parked one.
+    if (parkedToday && !approvedPack) {
+      return {
+        recordsProcessed: 0,
+        details: `today's job ${parkedToday.jobId} parked (qa_parked:${parkedToday.gate}) and no approved pack in rotation; index not advanced`,
       };
     }
     if (!approvedPack && idx >= MANIFEST.length) {

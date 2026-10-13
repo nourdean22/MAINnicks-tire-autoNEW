@@ -6,6 +6,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { SAMPLE_REEL_BRIEFS } from "../client/src/lib/facelessReelStudioSamples";
+import { SHOP_ANCHOR_ASSET_ID } from "../shared/reelShopAnchor";
 
 const genMock = vi.hoisted(() => vi.fn());
 const attachMock = vi.hoisted(() => vi.fn(async () => {}));
@@ -56,9 +57,16 @@ describe("prepareCleanReelBrief", () => {
     expect(res.rejectedForPreflight.length).toBe(1);
     expect(res.rejectedForPreflight[0].join(" ")).toMatch(/in-frame text|Seedance cannot spell/i);
     expect(genMock).toHaveBeenCalledTimes(2);
-    // visual world attached + prompt pack built ONLY for the clean brief.
-    expect(attachMock).toHaveBeenCalledTimes(1);
+    // prompt pack built ONLY for the clean brief; a shop-anchored brief takes no generated world.
+    expect(attachMock).not.toHaveBeenCalled();
     expect(res.brief.higgsfieldPromptPack).toBeTruthy();
+  });
+
+  it("a generated daily brief is anchored on the shop still, and no generated world is attached over it", async () => {
+    genMock.mockResolvedValueOnce({ brief: cleanBrief(), rawModel: "m" });
+    const res = await prepareCleanReelBrief({ topic: "t" }, { maxAttempts: 3 });
+    expect(res.brief.heroAssetId).toBe(SHOP_ANCHOR_ASSET_ID);
+    expect(attachMock).not.toHaveBeenCalled();
   });
 
   it("regenerates past a brief that passes preflight but enqueue would refuse (placeholder beat, unsafe claim)", async () => {
@@ -76,14 +84,14 @@ describe("prepareCleanReelBrief", () => {
     expect(res.attempts).toBe(3);
     expect(res.rejectedForPreflight[0].join(" ")).toMatch(/ungeneratable beats: 2:needs_subject/);
     expect(res.rejectedForPreflight[1].join(" ")).toMatch(/condemned script: .*echeck readiness truth packet/);
-    expect(attachMock).toHaveBeenCalledTimes(1);
+    expect(attachMock).not.toHaveBeenCalled();
   });
 
   it("does not attach the visual world (no credit spend) for rejected briefs", async () => {
     genMock.mockResolvedValueOnce({ brief: blockingBrief(), rawModel: "m" }).mockResolvedValueOnce({ brief: cleanBrief(), rawModel: "m" });
     await prepareCleanReelBrief({ topic: "t" }, { maxAttempts: 3 });
-    // One rejected + one clean => attach called exactly once (for the clean one).
-    expect(attachMock).toHaveBeenCalledTimes(1);
+    // One rejected + one clean: the clean one is shop-anchored, so no generated world is attached.
+    expect(attachMock).not.toHaveBeenCalled();
   });
 
   it("throws a typed PreflightExhaustedError after exhausting attempts (so the daily cron can distinguish it from an outage)", async () => {
@@ -126,7 +134,7 @@ describe("prepareCleanReelBrief", () => {
     expect(res.attempts).toBe(2);
     expect(res.rejectedForPreflight[0].join(" ")).toMatch(/topic repeats a reel from the last 21 days/);
     expect(genMock).toHaveBeenCalledTimes(2);
-    expect(attachMock).toHaveBeenCalledTimes(1);
+    expect(attachMock).not.toHaveBeenCalled();
   });
 
   it("passes real recent topics as avoidTopics on every attempt when the caller supplied none", async () => {

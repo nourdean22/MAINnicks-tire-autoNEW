@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "cron-fail-closed": {
+      "ref": "apps/nickstire/server/reelParkedTodayLane.test.ts: a parked today's job no longer stops the daily lane when an approved pack is still in rotation; a failed read still throws, not a silent skip. apps/nickstire/server/reelShopAnchor.test.ts: every generated daily brief carries the shop still id from the single constant in shared/reelShopAnchor.ts."
+    },
+    "capability-ledger-updated": {
+      "deferred": "2026-10-13 parked jobs no longer hold the daily lane, and daily briefs carry the shop anchor. The capability-ledger rows for the daily reel are rewritten after the first live daily reel built on this code posts, so the ledger does not claim a rung not yet observed. The manager ledger row is already RUNNING and is updated to MERGED in the same wrap-up."
+    }
+  }
+}
