@@ -90,8 +90,9 @@ const DAY_COUNT_KEY = "reel_autopost_day_count";
 const PARKED_QA_GATES: ReadonlySet<string> = new Set(["needs_paid_repair", "reject", "stock_fallback"]);
 /**
  * Verdicts the pre-filter reads but never skips. needs_paid_repair stays in
- * PARKED_QA_GATES, but a hold (budget spent, repair in flight, transient error)
- * keeps this persisted verdict, and a skip would stop the retry on the next pulse.
+ * PARKED_QA_GATES, but it is re-asked on every pulse: a repair refusal parks the
+ * reel, and only a budget refusal holds it. A skip here would stop the repair from
+ * being asked again once the daily budget resets.
  */
 const RETRYABLE_QA_GATES: ReadonlySet<string> = new Set(["needs_paid_repair"]);
 /** The drain reads this many approved candidates per pass, oldest id first. */

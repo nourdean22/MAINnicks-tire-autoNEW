@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "cron-fail-closed": {
+      "ref": "apps/nickstire/server/cron/jobs/dailyReelPost.ts: comment-only change to the RETRYABLE_QA_GATES doc comment; no code path changes. The rule the comment documents (a repair refusal parks, only a budget refusal holds) is covered by apps/nickstire/server/reelPublishRejectGuard.test.ts (cases i-iv, the six-parked case and the undated entry) as merged in #3017 at a1d5bb6e, and by the parked-QA source pin in apps/nickstire/server/reelAutonomyP1.test.ts."
+    }
+  }
+}

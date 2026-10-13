@@ -2,7 +2,7 @@
 
 **Updated: 2026-10-13 12:50Z** (reel quality upgrade branch; clip register #2955 + ledger #2956 merged; the sibling's docs merge #2957 had dropped those two sections and the ledger entries — restored here; then the receptionist experiment: manual door #2945, bounded edit #2950, optimizer timeout #2953, full-cycle budget #2954, five live runs the same evening; then the Reel lane unjam #2940; then the routine's live proofs and the camera page gate; then the flagged-items wave; then 10-08 evening: #2934 merged + deployed, the supervisor log-writer fix; then PR C, PR A + B history, the merged camera audit wave #2920 + #2925, the Search Console wave and the 2026-10-03 Sentry sweep.)
 
-## 2026-10-13 · Parked-reel hotfix: only a budget refusal holds (branch `nickstire/parked-reel-hotfix`, commit aa1d5b51, draft PR) BUILT + TESTED
+## 2026-10-13 · Parked-reel hotfix: only a budget refusal holds (PR #3017 MERGED as a1d5bb6e) MERGED; F4-F6 open
 
 **Why:** operator, 2026-10-13: the pipeline must not fail over parked reels. #3012 (parked-reel lane) merged early at 12:31Z with Codex P1/P2 still open. Fixed forward, not reverted. Decisions: (1) budget refusals HOLD; (2) repaired reels AUTO-POST after a clean re-QA; (3) parked reels RETIRE automatically.
 
@@ -10,7 +10,9 @@
 
 **Why the hold narrowed:** a hold returns from the whole pass. Nothing times out a queue entry left "rendering" after a worker crash, so a hold on the in-flight refusal would stop the lane every pulse. The lane's hotfix held on every error; the correction is in aa1d5b51.
 
-**Receipts:** touched parked-reel set, 33 files, 521 passed, exit 0 (`pnpm exec vitest run`). Canary: forcing every refusal to hold fails (ii) and (iii), 2 failed and 33 passed of 35; the file was restored byte-identical. Typecheck `tsc --noEmit` exit 0. DoD compiler `--enforce`: cron-fail-closed PASSED. Not run: the full suite and `pnpm run verify`; CI is the first full run.
+**Not verified:** the nickstire deploy of a1d5bb6e (the sandbox cannot reach nickstire.org), and the first live pulse with this code. Proof to look for: a `repair refused ... parking` or `budget refused the repair ... holding` log line, then a posted reel.
+
+**Receipts:** touched parked-reel set, 33 files, 521 passed, exit 0 (`pnpm exec vitest run`), before main was merged in. Canary: forcing every refusal to hold fails (ii) and (iii), 2 failed and 33 passed of 35; the file was restored byte-identical. Typecheck `tsc --noEmit` exit 0. DoD compiler `--enforce`: cron-fail-closed PASSED. On 727e7f6d: preflight 13 of 13 ok, exit 0; CI `node` (full suite) success, job 115315966573; every other check success or skipped by design. Local `pnpm run verify` exited 1 at its test step on a vitest worker RPC timeout (`Timeout calling "onTaskUpdate"`): 4,327 passed, 0 failed; `build` was not reached under verify.
 
 **Not done (F4-F6):** F4 in-pulse skip test. F5 auto-post a repaired reel after a clean re-QA (four guards). F6 retire parked reels, with its own park cap (more than 25 parked reels ahead of a clean one starve it). The WIP patch exists only in the session scratchpad, so it is not durable: rebuild from the spec.
 
@@ -18,7 +20,7 @@
 
 **Consequences to know:** a budget hold stops the whole pass until the budget resets, so clean reels wait too. Under the default `approval_required` policy no paid repair is requested at all. A reel parked by the one-repair-per-ET-day guard can buy one repair the next day. Open review item: Codex P2 on the re-render test's approval seed (assetSha256), not verified fixed here.
 
-**Next:** merge the hotfix PR when CI is green and the review threads are answered. Then F5 and F6, each in its own PR, built from the spec.
+**Next:** confirm the first live pulse with this code (18:00 ET today, or 06:00 ET tomorrow). Then F4, F5 and F6, each in its own PR, built from the spec.
 
 ## 2026-10-10 · Reel lane cannot jam on a missing verdict (branch `nickstire/reel-lane-audio-qa-on-demand`, PR after #2965) BUILT + TESTED
 
