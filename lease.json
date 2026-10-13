@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "statenour/inspector-transition-types",
+  "status": "active",
+  "sessionKind": "bridge",
+  "sessionId": "f73eba1c-7cf9-4cbf-a1eb-8605e963b6e4",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.worktrees\\inspector-transition-types",
+  "claimedBy": "worktree-setup.ps1",
+  "claimedAt": "2026-10-13T21:57:15.751Z",
+  "expiresAt": "2026-10-14T09:57:15.751Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
