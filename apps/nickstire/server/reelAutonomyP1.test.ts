@@ -98,10 +98,12 @@ describe("an ambiguous publish resolves itself", () => {
 
 describe("today's job no longer jams the lane", () => {
   it("the parked-QA filter applies to the fallback branch too", () => {
+    // The window covers the whole parked block. #3016 added the qa_parked: log label
+    // past the old 1400-char mark, so the pin read a window that no longer held it.
     const region = CRON.slice(CRON.indexOf("if (!job && todaysJob)"));
-    expect(region.slice(0, 1400)).toContain("PARKED_QA_GATES.has(g.gate)");
-    expect(region.slice(0, 1400)).toContain("runIfMissing: false");
-    expect(region.slice(0, 1400)).toContain("qa_parked:");
+    expect(region.slice(0, 1800)).toContain("PARKED_QA_GATES.has(g.gate)");
+    expect(region.slice(0, 1800)).toContain("runIfMissing: false");
+    expect(region.slice(0, 1800)).toContain("qa_parked:");
   });
 
   it("PLANTED CANARY: the unguarded assignment is gone", () => {
