@@ -10,7 +10,7 @@
 
 **Why the hold narrowed:** a hold returns from the whole pass. Nothing times out a queue entry left "rendering" after a worker crash, so a hold on the in-flight refusal would stop the lane every pulse. The lane's hotfix held on every error; the correction is in aa1d5b51.
 
-**Not verified:** the nickstire deploy of a1d5bb6e (the sandbox cannot reach nickstire.org), and the first live pulse with this code. Proof to look for: a `repair refused ... parking` or `budget refused the repair ... holding` log line, then a posted reel.
+**Deploy:** Railway deployment `ea7f68d9` for commit a1d5bb6e is `SUCCESS` (created 13:22:47Z, updated 13:31:23Z), read through the Railway API. The sandbox cannot reach nickstire.org, so the site itself was not checked. **Not verified:** the first live pulse with this code (18:00 ET today, 22:00Z). Proof to look for: a `repair refused ... parking` or `budget refused the repair ... holding` log line, then a posted reel.
 
 **Receipts:** touched parked-reel set, 33 files, 521 passed, exit 0 (`pnpm exec vitest run`), before main was merged in. Canary: forcing every refusal to hold fails (ii) and (iii), 2 failed and 33 passed of 35; the file was restored byte-identical. Typecheck `tsc --noEmit` exit 0. DoD compiler `--enforce`: cron-fail-closed PASSED. On 727e7f6d: preflight 13 of 13 ok, exit 0; CI `node` (full suite) success, job 115315966573; every other check success or skipped by design. Local `pnpm run verify` exited 1 at its test step on a vitest worker RPC timeout (`Timeout calling "onTaskUpdate"`): 4,327 passed, 0 failed; `build` was not reached under verify.
 
