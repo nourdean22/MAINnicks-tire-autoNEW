@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "nickstire/reel-qa-finish",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "f73eba1c-7cf9-4cbf-a1eb-8605e963b6e4",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\agent-afb0fc03a2b3ed82d",
+  "claimedBy": "2026-10-13-reel-qa-finish",
+  "claimedAt": "2026-10-13T03:26:04.814Z",
+  "expiresAt": "2026-10-13T15:26:04.814Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
