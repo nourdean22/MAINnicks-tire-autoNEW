@@ -15,7 +15,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { resolveToken, ghJson, ghPaginate } from "./github-client.mjs";
+import { resolveToken, ghFetch, ghJson, ghPaginate } from "./github-client.mjs";
 import { liveDecision } from "./live-gate.mjs";
 
 const REPO = "nourdean22/MAINnicks-tire-autoNEW";
@@ -144,4 +144,31 @@ test("API meter: with AGENT_OS_GH_CALL_LOG set, each request appends {script, me
   assert.deepEqual(lines, [{ script: "(eval)", method: "GET", path: "/repos/o/r/pulls" }]);
   spawnSync(process.execPath, ["-e", script], { cwd: import.meta.dirname, encoding: "utf8", env: base, timeout: 15000 });
   assert.equal(readFileSync(log, "utf8").trim().split("\n").length, 1, "a run without the env var must not write");
+});
+
+test("OFFLINE canary: a POST with a JSON string body declares application/json (GitHub 415s without it; lease writes broke 2026-10-13)", { skip: !auth }, async () => {
+  // Offline on purpose: the lease store takes an injected json() in its tests, so
+  // no existing test ever saw the real request headers. This replaces fetch() and
+  // drives ghFetch itself, so the header wiring is what gets asserted.
+  const realFetch = globalThis.fetch;
+  const prevFlag = process.env.NODE_USE_ENV_PROXY;
+  const seen = [];
+  globalThis.fetch = async (url, init) => {
+    seen.push({ url, headers: init.headers });
+    return new Response("{}", { status: 201, headers: { "content-type": "application/json" } });
+  };
+  process.env.NODE_USE_ENV_PROXY = "1";
+  try {
+    await ghFetch("/repos/o/r/git/blobs", { method: "POST", body: JSON.stringify({ content: "x", encoding: "utf-8" }) });
+    await ghFetch("/repos/o/r/git/trees", { method: "POST", body: "{}", headers: { "content-type": "application/vnd.custom+json" } });
+    await ghFetch("/repos/o/r/pulls", { method: "GET" });
+  } finally {
+    globalThis.fetch = realFetch;
+    if (prevFlag === undefined) delete process.env.NODE_USE_ENV_PROXY;
+    else process.env.NODE_USE_ENV_PROXY = prevFlag;
+  }
+  const [blob, tree, get] = seen;
+  assert.equal(blob.headers["Content-Type"], "application/json", "a POST with a JSON body must declare its type, or GitHub answers 415");
+  assert.equal(tree.headers["content-type"], "application/vnd.custom+json", "a caller-supplied content type must never be overwritten");
+  assert.equal(get.headers["Content-Type"], undefined, "a GET has no body, so it sends no content type");
 });
