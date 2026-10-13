@@ -118,16 +118,19 @@ export async function ghFetch(path, opts = {}) {
   }
   const url = path.startsWith("http") ? path : `${API}${path}`;
   recordCall(opts.method ?? "GET", url);
-  return fetch(url, {
-    ...opts,
-    headers: {
-      Accept: "application/vnd.github+json",
-      "X-GitHub-Api-Version": "2022-11-28",
-      Authorization: `Bearer ${auth.token}`,
-      "User-Agent": "nourcity-agent-os",
-      ...(opts.headers ?? {}),
-    },
-  });
+  const headers = {
+    Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+    Authorization: `Bearer ${auth.token}`,
+    "User-Agent": "nourcity-agent-os",
+    ...(opts.headers ?? {}),
+  };
+  // A JSON string body must declare itself. GitHub answers 415 to a POST without a
+  // Content-Type; the lease store's blob/tree/commit/ref writes all hit it on
+  // 2026-10-13. Case-insensitive so a caller's "content-type" is never duplicated.
+  const hasContentType = Object.keys(headers).some((k) => k.toLowerCase() === "content-type");
+  if (typeof opts.body === "string" && !hasContentType) headers["Content-Type"] = "application/json";
+  return fetch(url, { ...opts, headers });
 }
 
 /** ghFetch + parse JSON + throw a loud, specific error on a non-2xx response
