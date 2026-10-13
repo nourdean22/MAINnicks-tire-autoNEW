@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "chore/ledger-wrap-2026-10-13",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "f73eba1c-7cf9-4cbf-a1eb-8605e963b6e4",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\agent-a5a40258dde04fe07",
+  "claimedBy": "2026-10-13-ledger-wrap",
+  "claimedAt": "2026-10-13T12:03:01.530Z",
+  "expiresAt": "2026-10-14T00:03:01.530Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
