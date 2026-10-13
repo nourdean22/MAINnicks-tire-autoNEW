@@ -23,6 +23,7 @@ import { DEFAULT_REPETITION_WINDOW_DAYS, getRecentReelSignals } from "./reelRepe
 import { saturatedHookGrammar } from "../../shared/reelHookGrammar";
 import { createLogger } from "../lib/logger";
 import type { RealAssetRef } from "../../shared/reelJobPayload";
+import { SHOP_ANCHOR_ASSET_ID, anchorBriefToShop } from "../../shared/reelShopAnchor";
 
 const log = createLogger("reel-draft-prep");
 
@@ -148,7 +149,12 @@ export async function prepareCleanReelBrief(
     if (!refusals.length && !repetition.topicRepeated) {
       // Clean brief. Attach the visual world + build the prompt pack ONLY now, so
       // a preflight-rejected brief never spends a hero-frame image credit.
-      await attachAutonomousVisualWorld(brief);
+      // Every daily brief is anchored on the registered shop still (2026-10-13).
+      // The enqueue hero gate binds that photo as the visual world; a generated
+      // world attached here would carry lockedInvariants and make that gate skip
+      // the shop still, so a shop-anchored brief never takes one.
+      anchorBriefToShop(brief);
+      if (brief.heroAssetId !== SHOP_ANCHOR_ASSET_ID) await attachAutonomousVisualWorld(brief);
       brief.higgsfieldPromptPack = buildHiggsfieldReelPromptPack(brief);
       // Stamp the pattern onto the brief so it reaches reel_jobs.payload. This
       // is the cohort key the schema was shaped for ("pattern x trial results")

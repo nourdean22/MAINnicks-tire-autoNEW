@@ -8,6 +8,7 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import type { ApprovedProductionPackSnapshot } from "../../shared/episodeContract";
+import { SHOP_ANCHOR_ASSET_ID } from "../../shared/reelShopAnchor";
 import {
   assessReelStructureNovelty,
   reelStructureFingerprint,
@@ -657,8 +658,9 @@ export function buildBriefFromApprovedProductionPack(
     ...(presenceProfile !== "object_only" ? { presenceProfile } : {}),
     ...(captionStyle !== "legacy_upper" ? { captionStyle } : {}),
     // A pack may name a real_shop still as its hero frame (2026-10-10); the
-    // pipeline verifies it at enqueue. Only written when declared.
-    ...(stringValue(source.heroAssetId) ? { heroAssetId: stringValue(source.heroAssetId) } : {}),
+    // pipeline verifies it at enqueue. A pack that names none is anchored on the
+    // shop still (2026-10-13), so every approved reel is image-to-video from the bay.
+    heroAssetId: stringValue(source.heroAssetId) || SHOP_ANCHOR_ASSET_ID,
     productionGrammarFingerprint,
     ...(productionGrammarNovelty ? { productionGrammarNovelty } : {}),
     promptPack: [],
