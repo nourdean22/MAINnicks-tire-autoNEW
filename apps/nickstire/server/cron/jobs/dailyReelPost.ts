@@ -373,6 +373,27 @@ async function setAutopostDate(date: string): Promise<void> {
   await d.transaction(async (tx: any) => { await stampPostedDay(tx, date, count); });
 }
 
+/**
+ * True when any repair was requested for this job on the ET day `date`, by any
+ * caller. The paid lane spends at most one repair per job per day: a repair that
+ * re-rendered and still blocks parks the reel instead of buying another. Reads the
+ * requestedAt stamp selectiveRepair writes on every queue entry. An unreadable
+ * payload counts as used (fail closed).
+ */
+function repairRequestedOnDay(payloadJson: string | null, date: string): boolean {
+  let queue: unknown;
+  try {
+    queue = (JSON.parse(payloadJson ?? "{}") as { repairQueue?: unknown }).repairQueue;
+  } catch {
+    return true;
+  }
+  if (!Array.isArray(queue)) return false;
+  return queue.some((entry) => {
+    const at = Date.parse(String((entry as { requestedAt?: unknown } | null)?.requestedAt ?? ""));
+    return Number.isFinite(at) && new Date(at).toLocaleDateString("en-CA", { timeZone: BUSINESS.timezone }) === date;
+  });
+}
+
 function etNow(): { date: string; hour: number } {
   const now = new Date();
   const date = now.toLocaleDateString("en-CA", { timeZone: BUSINESS.timezone }); // YYYY-MM-DD
@@ -415,13 +436,20 @@ const MAX_QUEUED_PACK_SKIPS = 5;
  * pulse advances past it and tries the next pack, up to MAX_QUEUED_PACK_SKIPS.
  */
 export async function runDailyReelPost(): Promise<DailyReelResult> {
+  // A reel the publish gate parks (needs_paid_repair) is not selected again in
+  // this pulse, so the pass reaches the next approved reel instead of stopping on
+  // it. The parked reel reads the same on later pulses through its persisted verdict.
+  const parkedThisPulse = new Set<number>();
   for (let skips = 0; ; skips++) {
-    const { packAlreadyQueued, ...result } = await runDailyReelPostOnce();
-    if (!packAlreadyQueued || skips >= MAX_QUEUED_PACK_SKIPS) return result;
+    const { packAlreadyQueued, parkedJobId, ...result } = await runDailyReelPostOnce(parkedThisPulse);
+    if (parkedJobId !== undefined) parkedThisPulse.add(parkedJobId);
+    if ((!packAlreadyQueued && parkedJobId === undefined) || skips >= MAX_QUEUED_PACK_SKIPS) return result;
   }
 }
 
-async function runDailyReelPostOnce(): Promise<DailyReelResult & { packAlreadyQueued?: true }> {
+async function runDailyReelPostOnce(
+  parkedThisPulse: ReadonlySet<number>,
+): Promise<DailyReelResult & { packAlreadyQueued?: true; parkedJobId?: number }> {
   if (process.env.REEL_AUTOPOST_ENABLED !== "true") {
     return { recordsProcessed: 0, details: "disabled (REEL_AUTOPOST_ENABLED != true)" };
   }
@@ -582,6 +610,10 @@ async function runDailyReelPostOnce(): Promise<DailyReelResult & { packAlreadyQu
     const drainCorpus = candidates.length ? await loadPublishedCorpus() : [];
 
     for (const candidate of candidates) {
+      if (parkedThisPulse.has(Number(candidate.id))) {
+        skipped.push({ jobId: candidate.id, code: "parked_this_pulse" });
+        continue;
+      }
       const caption = typeof candidate.caption === "string" ? candidate.caption : "";
       const videoUrl = typeof candidate.mp4Url === "string" ? candidate.mp4Url : "";
       if (!caption.trim() || !videoUrl.trim()) {
@@ -742,6 +774,7 @@ async function runDailyReelPostOnce(): Promise<DailyReelResult & { packAlreadyQu
         err: err instanceof Error ? err.message : String(err),
       });
     }
+    if (!parked && parkedThisPulse.has(Number(todaysJob.id))) parked = "parked_this_pulse";
     if (parked) {
       log.info("daily reel: today's job is parked awaiting a human — not selecting it", {
         jobId: todaysJob.id, gate: parked,
@@ -1148,7 +1181,8 @@ async function runDailyReelPostOnce(): Promise<DailyReelResult & { packAlreadyQu
 
     // Autonomous publish must clear the CONSOLIDATED rendered-QA gate — the same
     // evaluateReelPublishGate every reel door uses. A real non-"proceed" verdict
-    // HOLDS the reel (index not advanced, retries a fresh brief tomorrow).
+    // HOLDS the reel (index not advanced). A needs_paid_repair verdict PARKS it
+    // instead, and the pulse moves on to the next approved reel (see below).
     //
     // A QA INFRA FAILURE ALSO HOLDS. This comment used to say the opposite —
     // that infra failure "proceeds with a loud warn" — which was true of an
@@ -1214,14 +1248,25 @@ async function runDailyReelPostOnce(): Promise<DailyReelResult & { packAlreadyQu
             if (g.gate === "needs_paid_repair") {
               const plan = paidRepairCanClearVerdict(g.findings, { repairAttempts: g.repairAttempts, maxRepairAttempts: paidRepairCap }, {}, isRepairable);
               if (!plan.clearable) {
-                log.warn(`daily reel: paid repair declined for job ${job.id} — ${plan.reason}`, {
+                log.warn(`daily reel: paid repair declined for job ${job.id} - ${plan.reason}; parking`, {
                   blockedBeats: plan.blockedBeats,
                   assetLevelBlocks: plan.assetLevelBlocks,
                   remainingAttempts: plan.remainingAttempts,
                 });
                 return {
                   recordsProcessed: 0,
-                  details: `held: paid repair cannot clear job ${job.id}'s verdict (${plan.reason}); rebuild or retire it; index not advanced`,
+                  details: `parked: paid repair cannot clear job ${job.id}'s verdict (${plan.reason}); rebuild or retire it; index not advanced`,
+                  parkedJobId: job.id,
+                };
+              }
+              // One paid repair per job per ET day. A repair that re-rendered and
+              // still blocks parks the reel; it does not buy another.
+              if (repairRequestedOnDay(job.payload, date)) {
+                log.warn(`daily reel: job ${job.id} already had its one paid repair today - parking`);
+                return {
+                  recordsProcessed: 0,
+                  details: `parked: job ${job.id} already had its one paid repair today; index not advanced`,
+                  parkedJobId: job.id,
                 };
               }
             }
@@ -1244,9 +1289,25 @@ async function runDailyReelPostOnce(): Promise<DailyReelResult & { packAlreadyQu
             // no beat target is not queueable from here — hold for the operator.
           } catch (repairErr) {
             const msg = repairErr instanceof Error ? repairErr.message : String(repairErr);
+            if (g.gate === "needs_paid_repair") {
+              // A paid repair the boundary refused (daily budget, repair cap, one in
+              // flight) parks the reel: no spend, and the lane moves on.
+              log.warn(`daily reel: paid repair refused for job ${job.id} - parking`, { err: msg });
+              return {
+                recordsProcessed: 0,
+                details: `parked: paid repair refused for job ${job.id} (${msg.slice(0, 120)}); index not advanced`,
+                parkedJobId: job.id,
+              };
+            }
             log.warn(`daily reel: auto-repair queue failed for job ${job.id} — holding`, { err: msg });
             return { recordsProcessed: 0, details: `held: auto-repair queue failed (${msg.slice(0, 120)}); index not advanced` };
           }
+        }
+        if (g.gate === "needs_paid_repair") {
+          // Spend is not authorized (approval_required), or no beat can take a
+          // regeneration. Parked, not held: no spend, and the lane moves on.
+          log.warn(`daily reel: job ${job.id} parked on needs_paid_repair - no paid repair queued`, { findings: g.findings.length, reason: g.reason });
+          return { recordsProcessed: 0, details: `parked: job ${job.id} on needs_paid_repair, no paid repair queued; index not advanced`, parkedJobId: job.id };
         }
         log.warn(`daily reel: publish gate '${g.gate}' — HOLDING job ${job.id}, not publishing`, { findings: g.findings.length, reason: g.reason });
         return { recordsProcessed: 0, details: `held by rendered-QA gate (${g.gate}); index not advanced` };

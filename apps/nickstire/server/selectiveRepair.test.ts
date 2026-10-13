@@ -127,6 +127,8 @@ describe("requestBeatRepair (P1: nothing renders on the request path; P2: stale 
     expect(payload.mp4History[0]).toMatchObject({ mp4Url: "https://cdn/final-v1.mp4" });
     expect(payload.renderedQa.staleAfterRepair).toBe(true);
     expect(payload.repairQueue[0]).toMatchObject({ beatNumber: 2, state: "queued", attempts: [] });
+    // The one-paid-repair-per-ET-day guard in dailyReelPost reads this stamp: pin its shape.
+    expect(payload.repairQueue[0].requestedAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
   });
 
   it("refuses a beat declared REAL or DETERMINISTIC, or naming no object, before any spend check or write; an undeclared beat still queues", async () => {

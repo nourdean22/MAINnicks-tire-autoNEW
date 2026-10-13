@@ -180,6 +180,14 @@ const h = vi.hoisted(() => ({
   publishCalls: [] as Array<Record<string, unknown>>,
   publishImpl: null as null | ((input: Record<string, unknown>) => Promise<unknown>),
   authorizedJobId: null as number | null,
+  /** Parked-repair lane (2026-10-12): per-job rendered-QA script, keyed by job id. Empty = every job allowed. */
+  qa: {} as Record<number, { persisted: Record<string, unknown> | null; fresh: Record<string, unknown>; freshRuns: number }>,
+  /** Parked-repair lane: the active autonomy policy; null = the default (spend needs approval). */
+  policy: null as null | Record<string, unknown>,
+  /** Parked-repair lane: every paid beat repair the cron asked for. */
+  repairCalls: [] as Array<Record<string, unknown>>,
+  /** Parked-repair lane: the refusal the paid-repair boundary throws, or null = accept. */
+  repairRefusal: null as null | string,
 }));
 
 vi.mock("./db", async (importOriginal) => ({
@@ -195,7 +203,33 @@ vi.mock("./services/adminSecurity", async (importOriginal) => ({
 
 vi.mock("./services/autonomyControl", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./services/autonomyControl")>()),
-  getActivePolicy: async () => ({ version: 7, formatPermissions: { reel: "auto" } }),
+  getActivePolicy: async () => h.policy ?? { version: 7, formatPermissions: { reel: "auto" } },
+}));
+
+// The paid-repair writer. The real requestBeatRepair has its own suite; here the
+// boundary is recorded and the queue entry is written the way the writer writes it,
+// so the one-repair-per-day guard reads what production would have written. The
+// verdict is flagged stale, as the writer flags it.
+vi.mock("./services/selectiveRepair", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./services/selectiveRepair")>()),
+  requestBeatRepair: async (input: { jobId: number; beatNumber: number; actor?: Record<string, unknown> }) => {
+    h.repairCalls.push(input as Record<string, unknown>);
+    if (h.repairRefusal) throw new Error(h.repairRefusal); // the boundary refuses before any queue write
+    const row = rowsOf(reelJobs).find((r) => r.id === input.jobId)!;
+    const payload = JSON.parse(String(view(reelJobs, row)!.payload ?? "{}")) as { repairQueue?: unknown[] };
+    const logicalRepairId = `rep_parked_${h.repairCalls.length}`;
+    const entry = {
+      logicalRepairId, beatNumber: input.beatNumber, state: "queued",
+      requestedAt: new Date().toISOString(), attempts: [], previousClipUrl: null,
+    };
+    Object.assign(row, toDb(reelJobs, {
+      status: "repair_queued",
+      mp4Url: null,
+      payload: JSON.stringify({ ...payload, repairQueue: [...(payload.repairQueue ?? []), entry] }),
+    }));
+    if (h.qa[input.jobId]) h.qa[input.jobId].persisted = { allowed: false, gate: "stale", findings: [], repairAttempts: 1, reason: "stale", source: "persisted" };
+    return { jobId: input.jobId, beatNumber: input.beatNumber, logicalRepairId, state: "queued" };
+  },
 }));
 
 // The Meta boundary. Nothing in this file may reach Instagram.
@@ -228,7 +262,19 @@ vi.mock("./services/reelPublishAuthority", async (importOriginal) => ({
 }));
 
 vi.mock("./services/qualityGate", () => ({
-  evaluateReelPublishGate: async () => ({ allowed: true, gate: "approve", findings: [] }),
+  // A job with no script passes, as before. A scripted job reads like production:
+  // the read-only pre-filter sees the persisted verdict; a publish-door read runs
+  // rendered QA, and that run persists its verdict.
+  evaluateReelPublishGate: async (jobId: number, opts?: { runIfMissing?: boolean }) => {
+    const script = h.qa[jobId];
+    if (!script) return { allowed: true, gate: "approve", findings: [] };
+    if (opts?.runIfMissing === false) {
+      return script.persisted ?? { allowed: false, gate: "unavailable", findings: [], repairAttempts: 0 };
+    }
+    script.freshRuns++;
+    script.persisted = script.fresh;
+    return script.fresh;
+  },
 }));
 
 vi.mock("./services/reelOriginality", () => ({ loadPublishedCorpus: async () => [] }));
@@ -577,6 +623,202 @@ describe("daily reel cron honours the inventory row", () => {
     expect(h.publishCalls[0].videoUrl).toBe(`https://cdn.example/reels/${B}.mp4`);
     expect(job(A)!.status).toBe("assembled");
     expect(inv("autopost-2026-09-20")!.status).toBe("rejected");
+  });
+});
+
+// ─── PARKED REPAIR LANE (2026-10-12) · a parked reel never holds the day ────
+// Job 2070009 parked on one BLOCK on 2026-10-12, so the lane posted nothing. The
+// contract under test. A needs_paid_repair reel:
+//   (a) gets exactly one beat repair when policy authorizes spend and one repair can
+//       clear the BLOCK; the re-QA then runs on the re-render;
+//   (b) still BLOCK after that repair: parks, and the next approved reel posts in the
+//       same pulse;
+//   (c) parks at once with no spend when the BLOCK is multi-beat, non-repairable, or
+//       policy does not authorize spend;
+//   (d) gets at most one repair per ET day, and never loops.
+// The cron runs over real drizzle SQL. Only the rendered-QA verdict, the policy, the
+// repair writer and Meta are seams.
+describe("a needs_paid_repair reel parks and the day still posts (2026-10-12)", () => {
+  const envKeys = ["REEL_AUTOPOST_ENABLED", "IG_SHADOW_JUDGE"] as const;
+  const saved: Record<string, string | undefined> = {};
+  const X = 9_870_101; // approved, assembled backlog reel that draws the BLOCK
+  const Y = 9_870_102; // approved, assembled, clean: the next reel
+  const X_URL = `https://cdn.example/reels/${X}.mp4`;
+  const Y_URL = `https://cdn.example/reels/${Y}.mp4`;
+  const AUTO = {
+    version: 7,
+    formatPermissions: { reel: "auto" },
+    autonomousRepair: { paidBeatRegeneration: "auto" },
+    limits: { maxRepairAttemptsPerAsset: 2 },
+  };
+  const REPAIRABLE = {
+    storyboardBeats: [
+      { beatNumber: 1, visual: "Extreme macro of a worn tire tread with a copper penny in the groove" },
+      { beatNumber: 2, visual: "Extreme macro of a deep fresh groove, the copper coin settling between tall rubber walls" },
+    ],
+    promptPack: [{ beatNumber: 1, prompt: "p1" }, { beatNumber: 2, prompt: "p2" }],
+  };
+  const block = (beatNumber: number | null) => ({
+    code: "MALFORMED_GEOMETRY", severity: "block", beatNumber, description: "x", preserve: [], change: [],
+  });
+  const verdict = (findings: unknown[], repairAttempts = 0) => ({
+    allowed: false, gate: "needs_paid_repair", findings, repairAttempts, reason: "rendered BLOCK", source: "fresh",
+  });
+  const CLEAN = { allowed: true, gate: "proceed", findings: [], repairAttempts: 0, reason: "ok", source: "fresh" };
+  const repairedOn = (requestedAt: string, beatNumber = 2) => ({
+    logicalRepairId: "rep_earlier", beatNumber, state: "failed", requestedAt, attempts: [], previousClipUrl: null,
+  });
+
+  beforeEach(() => {
+    for (const k of envKeys) saved[k] = process.env[k];
+    process.env.REEL_AUTOPOST_ENABLED = "true";
+    process.env.IG_SHADOW_JUDGE = "false";
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-29T07:30:00Z")); // 03:30 ET: no enqueue, no slot wait
+    h.qa = {};
+    h.policy = null;
+    h.repairCalls.length = 0;
+    h.repairRefusal = null;
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    h.repairRefusal = null;
+    // h is shared by every describe in this file: leave no scripted QA, policy or repair state for the next one.
+    h.qa = {};
+    h.policy = null;
+    h.repairCalls.length = 0;
+    for (const k of envKeys) {
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k];
+    }
+  });
+
+  /** X (the BLOCK) and Y (clean) are both approved, assembled backlog reels. */
+  function arrange(fresh: Record<string, unknown>, opts: { payload?: Record<string, unknown>; repairQueue?: unknown[] } = {}) {
+    const xPayload = { ...(opts.payload ?? REPAIRABLE), ...(opts.repairQueue ? { repairQueue: opts.repairQueue } : {}) };
+    seedReel({ jobId: X, briefId: "autopost-2026-09-20", invStatus: "review_ready", payload: xPayload });
+    seedReel({ jobId: Y, briefId: "autopost-2026-09-21", invStatus: "review_ready", payload: { storyboardBeats: [{ onScreenText: "Why brakes squeal" }] } });
+    for (const id of [X, Y]) Object.assign(jobRow(id)!, toDb(reelJobs, { createdAt: ts(-5) })); // fresh, so the stale-unavailable rule does not park them
+    seedApproval(X);
+    seedApproval(Y);
+    h.qa[X] = { persisted: null, fresh, freshRuns: 0 }; // no verdict yet: the first read runs rendered QA
+  }
+  /** The pipeline re-renders and re-assembles the reel. The same mp4 comes back, so the approval still binds. */
+  function reRender(id: number, url: string) {
+    Object.assign(jobRow(id)!, toDb(reelJobs, { status: "assembled", mp4Url: url }));
+  }
+
+  it("(a) one single-beat pixel BLOCK queues exactly one beat repair, then re-QA runs on the re-render", async () => {
+    arrange(verdict([block(2)]));
+    h.policy = AUTO;
+    const { runDailyReelPost } = await import("./cron/jobs/dailyReelPost");
+
+    await runDailyReelPost();
+
+    expect(h.repairCalls).toHaveLength(1);
+    expect(h.repairCalls[0]).toMatchObject({ jobId: X, beatNumber: 2, actor: { type: "cron" } });
+    expect(h.publishCalls).toHaveLength(0);
+    expect(job(X)!.status).toBe("repair_queued");
+
+    h.qa[X].fresh = CLEAN; // the re-render passes re-QA
+    reRender(X, X_URL);
+    await runDailyReelPost();
+
+    expect(h.qa[X].freshRuns).toBe(2); // re-QA ran on the re-render
+    expect(h.repairCalls).toHaveLength(1); // and nothing spent a second time
+    expect(h.publishCalls[0].videoUrl).toBe(X_URL);
+  });
+
+  it("(b) still BLOCK after that repair: the reel parks and the next approved reel posts in the same pulse", async () => {
+    arrange(verdict([block(2)]));
+    h.policy = AUTO;
+    const { runDailyReelPost } = await import("./cron/jobs/dailyReelPost");
+    await runDailyReelPost(); // pulse 1: the one repair
+    reRender(X, X_URL); // pulse 2 re-QA still BLOCKs (fresh verdict unchanged)
+
+    await runDailyReelPost();
+
+    expect(h.qa[X].freshRuns).toBe(2);
+    expect(h.repairCalls).toHaveLength(1); // no second spend
+    expect(h.publishCalls).toHaveLength(1); // the lane still made its post attempt
+    expect(h.publishCalls[0].videoUrl).toBe(Y_URL);
+    expect(job(X)!.status).toBe("assembled"); // parked: not published, not failed
+    expect(job(Y)!.status).toBe("posted");
+  });
+
+  it("(c) a multi-beat BLOCK parks at once with no repair spend, and the next approved reel posts", async () => {
+    arrange(verdict([block(1), block(2)]));
+    h.policy = AUTO;
+    const { runDailyReelPost } = await import("./cron/jobs/dailyReelPost");
+
+    await runDailyReelPost();
+
+    expect(h.repairCalls).toHaveLength(0);
+    expect(job(X)!.status).toBe("assembled");
+    expect(h.publishCalls[0].videoUrl).toBe(Y_URL);
+  });
+
+  it("(c) a single BLOCK on a beat the executor refuses (declared real) parks with no spend", async () => {
+    arrange(verdict([block(1)]), {
+      payload: { ...REPAIRABLE, storyboardBeats: [{ beatNumber: 1, visual: "Extreme macro of a worn tread", source: "real" }, REPAIRABLE.storyboardBeats[1]] },
+    });
+    h.policy = AUTO;
+    const { runDailyReelPost } = await import("./cron/jobs/dailyReelPost");
+
+    await runDailyReelPost();
+
+    expect(h.repairCalls).toHaveLength(0);
+    expect(h.publishCalls[0].videoUrl).toBe(Y_URL);
+  });
+
+  it("(c) under the default policy (spend needs approval) one BLOCK parks with no spend, and the next approved reel posts", async () => {
+    arrange(verdict([block(2)]));
+    // h.policy stays null: no autonomousRepair, so policy does not authorize paid repair.
+    const { runDailyReelPost } = await import("./cron/jobs/dailyReelPost");
+
+    await runDailyReelPost();
+
+    expect(h.repairCalls).toHaveLength(0);
+    expect(job(X)!.status).toBe("assembled");
+    expect(h.publishCalls[0].videoUrl).toBe(Y_URL);
+  });
+
+  it("(c) the paid-repair boundary refuses the repair (daily budget): the reel parks with nothing queued, and the next approved reel posts", async () => {
+    arrange(verdict([block(2)]));
+    h.policy = AUTO;
+    h.repairRefusal = "BUDGET_DAILY_EXCEEDED: daily generation budget is spent";
+    const { runDailyReelPost } = await import("./cron/jobs/dailyReelPost");
+
+    await runDailyReelPost();
+
+    expect(h.repairCalls).toHaveLength(1); // asked once, refused by the boundary
+    expect(JSON.parse(String(job(X)!.payload)).repairQueue ?? []).toHaveLength(0); // nothing queued, nothing spent
+    expect(job(X)!.status).toBe("assembled"); // parked: not repair_queued, not published
+    expect(h.publishCalls[0].videoUrl).toBe(Y_URL);
+  });
+
+  it("(d) a job already repaired today parks instead of buying a second repair, and never loops", async () => {
+    arrange(verdict([block(2)], 1), { repairQueue: [repairedOn(new Date().toISOString())] });
+    h.policy = AUTO;
+    const { runDailyReelPost } = await import("./cron/jobs/dailyReelPost");
+
+    await runDailyReelPost();
+    expect(h.repairCalls).toHaveLength(0);
+    expect(h.publishCalls[0].videoUrl).toBe(Y_URL);
+
+    await runDailyReelPost(); // a later pulse does not spend either
+    expect(h.repairCalls).toHaveLength(0);
+  });
+
+  it("(d) control: a repair requested on an earlier ET day does not block today's one repair", async () => {
+    arrange(verdict([block(2)], 1), { repairQueue: [repairedOn("2026-09-28T12:00:00.000Z")] });
+    h.policy = AUTO;
+    const { runDailyReelPost } = await import("./cron/jobs/dailyReelPost");
+
+    await runDailyReelPost();
+
+    expect(h.repairCalls).toHaveLength(1);
+    expect(h.publishCalls).toHaveLength(0);
   });
 });
 
