@@ -87,7 +87,7 @@ function useScrollToBottom<T extends HTMLElement>() {
       rafId = requestAnimationFrame(() => {
         rafId = null;
         followRef.current = nextFollow(followRef.current, { kind: "content-grew", distanceFromBottom: distance() });
-        if (followRef.current) endRef.current?.scrollIntoView({ behavior: scrollBehavior() });
+        if (followRef.current) container.scrollTo({ top: container.scrollHeight, behavior: scrollBehavior() });
         else measure();
       });
     });
@@ -105,7 +105,11 @@ function useScrollToBottom<T extends HTMLElement>() {
 
   const scrollToBottom = useCallback(() => {
     followRef.current = nextFollow(followRef.current, { kind: "jump", distanceFromBottom: 0 });
-    endRef.current?.scrollIntoView({ behavior: scrollBehavior(), block: "end" });
+    // scrollIntoView also scrolls every overflow:hidden ancestor (the message
+    // wrapper and the island root). Each jump shifted the wrapper by up to the
+    // scroller's overflow, leaving a dark band between the last message and
+    // the composer that grew with the conversation. Scroll the container only.
+    containerRef.current?.scrollTo({ top: containerRef.current.scrollHeight, behavior: scrollBehavior() });
   }, []);
 
   return { containerRef, endRef, isAtBottom, scrollToBottom };

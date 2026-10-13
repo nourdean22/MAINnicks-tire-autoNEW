@@ -51,7 +51,10 @@ import { ChatIsland } from "@/features/chat-v2/components/chat-island";
 let host: HTMLDivElement;
 let root: Root;
 let scroller: HTMLElement;
+// Follow scrolls the container itself. scrollIntoView would also scroll the
+// overflow:hidden ancestors and leave a dark band under the messages.
 const scrollIntoView = vi.fn();
+const containerScrollTo = vi.fn();
 
 function setMetrics(scrollTop: number, scrollHeight = 2000, clientHeight = 500) {
   Object.defineProperty(scroller, "scrollHeight", { value: scrollHeight, configurable: true });
@@ -77,7 +80,9 @@ beforeEach(() => {
   });
   vi.stubGlobal("cancelAnimationFrame", () => {});
   Element.prototype.scrollIntoView = scrollIntoView;
+  Element.prototype.scrollTo = containerScrollTo;
   scrollIntoView.mockClear();
+  containerScrollTo.mockClear();
   host = document.createElement("div");
   document.body.appendChild(host);
   root = createRoot(host);
@@ -97,7 +102,8 @@ describe("auto-follow on scroll events alone", () => {
     scrollTo(700);
     expect(jumpButton(), "far from the bottom: the jump button must show").not.toBeNull();
     await contentGrows();
-    expect(scrollIntoView, "new content must not yank the view back down").not.toHaveBeenCalled();
+    expect(containerScrollTo, "new content must not yank the view back down").not.toHaveBeenCalled();
+    expect(scrollIntoView, "no ancestor scroll").not.toHaveBeenCalled();
   });
 
   it("CONTROL: follow's own downward scroll, still far from the bottom, keeps following", async () => {
@@ -105,13 +111,15 @@ describe("auto-follow on scroll events alone", () => {
     scrollTo(1800, 2600); // follow scrolling down toward the new bottom
     expect(jumpButton()).toBeNull();
     await contentGrows();
-    expect(scrollIntoView).toHaveBeenCalled();
+    expect(containerScrollTo).toHaveBeenCalled();
+    expect(scrollIntoView, "no ancestor scroll").not.toHaveBeenCalled();
   });
 
   it("CONTROL: a small upward move inside the bottom band keeps following", async () => {
     scrollTo(1420);
     expect(jumpButton()).toBeNull();
     await contentGrows();
-    expect(scrollIntoView).toHaveBeenCalled();
+    expect(containerScrollTo).toHaveBeenCalled();
+    expect(scrollIntoView, "no ancestor scroll").not.toHaveBeenCalled();
   });
 });
