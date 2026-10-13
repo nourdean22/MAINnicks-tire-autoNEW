@@ -108,6 +108,7 @@ describe("every content verdict inside enqueueReelJob is typed (2026-10-08)", ()
     "[", // the caption limit (its message starts on the next line)
     "[`REEL_ASK_INCONSISTENT: ${askMismatch}`", // captionAskMismatch (2026-10-10): the caption's ask vs the declared end card
     "[`REEL_LENS_RETIRED: ${retiredLens}`]);", // the retired motion lens (2026-10-12), judged from the brief alone
+    "clipDetail);", // storyboard beats a 4 s clip cannot show (2026-10-12), judged from the brief alone
   ];
   const NEEDS_CONTEXT = [
     "[`Episode contract blocked (${pre.blocks", // needs the day's claim packet
@@ -120,7 +121,7 @@ describe("every content verdict inside enqueueReelJob is typed (2026-10-08)", ()
     expect(found.length, "the scan found no typed refusal — anchor moved").toBeGreaterThan(0);
     expect([...found].sort(), "a new typed refusal: add it to server/services/reelEnqueueRefusals.ts, or to NEEDS_CONTEXT with why").toEqual([...MIRRORED, ...NEEDS_CONTEXT].sort());
     const helper = readFileSync(path.join(__dirname, "services", "reelEnqueueRefusals.ts"), "utf8");
-    for (const call of ["runReelPreflight(", "condemnedContentProblem(", "beatsTheGeneratorMustNotRender(", "CAPTION_LIMIT", "HASHTAG_CAP", "captionAskMismatch("]) expect(helper, call).toContain(call);
+    for (const call of ["runReelPreflight(", "condemnedContentProblem(", "beatsTheGeneratorMustNotRender(", "CAPTION_LIMIT", "HASHTAG_CAP", "captionAskMismatch(", "clipCannotShowRefusals("]) expect(helper, call).toContain(call);
   });
 
   // Job 2070005 (2026-10-10): generateReelBriefAI declared `profile` and

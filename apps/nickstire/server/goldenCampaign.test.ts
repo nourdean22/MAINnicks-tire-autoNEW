@@ -89,7 +89,14 @@ function goldenDb(opts: { killSwitchPolicy?: boolean } = {}) {
 
 describe("golden campaign (deterministic mode)", () => {
   it("travels evidence → tournament → genome → visual world → governed enqueue → kill-switched publish denial → audit", async () => {
-    const sampleBrief = SAMPLE_REEL_BRIEFS[0];
+    // Sample beats 1-2 ask the generator for lettering it cannot render (REEL_CLIP_CANNOT_SHOW).
+    // This test is about the governed flow, so those two visuals are plain. The sample itself is a client-lane fix.
+    const sampleBrief = {
+      ...SAMPLE_REEL_BRIEFS[0],
+      storyboardBeats: SAMPLE_REEL_BRIEFS[0].storyboardBeats.map((b) =>
+        b.beatNumber <= 2 ? { ...b, visual: "close-up of the tire on a lift, slow push-in" } : b,
+      ),
+    };
 
     // ── deterministic model seam: 4 role pitches → judge → genome ──────────
     const pitch = (role: string) =>

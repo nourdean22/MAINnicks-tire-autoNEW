@@ -469,14 +469,28 @@ const VERDICT_SCHEMA = {
   },
 };
 
+/** Continuity codes judged against an approved visual world (2026-10-12). With
+ *  no anchor the critic compares beats to beat 1 itself, so these are evidence
+ *  only, never a block. Every other code keeps its registry severity. */
+const ANCHOR_GATED_CODES: ReadonlySet<string> = new Set(["SUBJECT_CONTINUITY", "ENVIRONMENT_DRIFT"]);
+
+/** True when the brief carries an approved visual world (a locked invariant or a
+ *  hero still). Every critic path asks this one question, so none can drift. */
+export function visualWorldAnchored(brief: EvaluateRenderedReelInput["brief"]): boolean {
+  return Boolean(brief.visualWorld?.lockedInvariants || brief.visualWorld?.heroFrameUrl);
+}
+
 /** Clamp raw critic output to the registry: unknown codes are dropped WITH a
  *  warning (a critic may not invent vocabulary); severity comes from the
- *  registry, never the model; any block finding forces decision "repair". */
+ *  registry, never the model; any block finding forces decision "repair".
+ *  `visualAnchored: false` downgrades ANCHOR_GATED_CODES to warn; omitted keeps
+ *  the registry severity. */
 export function clampVerdict(
   raw: unknown,
   framesEvaluated: number,
   critic: "vision" | "skipped",
   pixelStats?: PixelStats | null,
+  options?: { visualAnchored?: boolean },
 ): RenderedQaVerdict {
   const obj = (raw ?? {}) as { decision?: string; findings?: unknown[] };
   const findings: RenderedFinding[] = [];
@@ -494,10 +508,11 @@ export function clampVerdict(
     const confidence = typeof rec.confidence === "number" && Number.isFinite(rec.confidence)
       ? Math.min(1, Math.max(0, rec.confidence))
       : undefined;
+    const downgraded = options?.visualAnchored === false && ANCHOR_GATED_CODES.has(code);
     findings.push({
       beatNumber: typeof rec.beatNumber === "number" ? rec.beatNumber : null,
       code: code as RenderedDefectCode,
-      severity: RENDERED_DEFECT_CODES[code as RenderedDefectCode].severity,
+      severity: downgraded ? "warn" : RENDERED_DEFECT_CODES[code as RenderedDefectCode].severity,
       description: String(rec.description ?? "").slice(0, 400),
       preserve: Array.isArray(rec.preserve) ? rec.preserve.map(String).slice(0, 6) : [],
       change: Array.isArray(rec.change) ? rec.change.map(String).slice(0, 6) : [],
@@ -509,11 +524,13 @@ export function clampVerdict(
   // declined - see CRAFT_CODES. A zero-finding repair is left alone, because
   // that is a critic saying something is wrong it had no code for, which is
   // real signal rather than taste.
+  // An unanchored continuity finding is downgraded to warn above, so it is
+  // evidence in the same way: a critic's repair resting on it alone is declined.
   const craftOnlyRepairDeclined =
     !hasBlock &&
     obj.decision === "repair" &&
     findings.length > 0 &&
-    findings.every((f) => CRAFT_CODES.has(f.code));
+    findings.every((f) => CRAFT_CODES.has(f.code) || (f.severity === "warn" && ANCHOR_GATED_CODES.has(f.code)));
   if (craftOnlyRepairDeclined) {
     log.info("craft-only repair declined - findings kept as evidence, no paid regeneration ordered", {
       codes: findings.map((f) => f.code),
@@ -549,7 +566,7 @@ export interface EvaluateRenderedReelInput {
      *  persisted job payload (reelPipeline stores the whole brief), and
      *  optional here so an older payload degrades to the brand palette. */
     motionLens?: string;
-    storyboardBeats?: Array<{ beatNumber: number; visual: string; source?: string | null }>;
+    storyboardBeats?: Array<{ beatNumber: number; visual: string; source?: string | null; motion?: string | null; audioCue?: string | null }>;
     /**
      * Source-aware presence (2026-10-09, shared/reelSourceProfile.ts). Under
      * `hands_only_real` the critic is told which beats are captured footage,
@@ -651,7 +668,14 @@ export async function callVisionCritic(input: { frames: ExtractedFrame[]; system
 
 /** The planned-beats block, shared with the specialist lenses. */
 export function beatsDocFor(brief: EvaluateRenderedReelInput["brief"]): string {
-  return (brief.storyboardBeats ?? []).map((b) => `beat ${b.beatNumber}: ${b.visual}`).join("\n");
+  // Motion and audio are part of what the generator was handed (2026-10-12), so
+  // the critic judges against the same beat text, not a visual-only summary.
+  return (brief.storyboardBeats ?? [])
+    .map((b) => {
+      const extras = [b.motion ? `motion: ${b.motion}` : "", b.audioCue ? `audio: ${b.audioCue}` : ""].filter(Boolean);
+      return `beat ${b.beatNumber}: ${b.visual}${extras.length ? ` | ${extras.join(" | ")}` : ""}`;
+    })
+    .join("\n");
 }
 
 /**
@@ -875,6 +899,9 @@ export async function evaluateRenderedReel(input: EvaluateRenderedReelInput): Pr
         return "PIXEL_STATS: unavailable (formatter failed to load).";
       }
     })();
+    // An approved world (locked invariants or a hero still) is the anchor that
+    // lets continuity findings block (2026-10-12). Without one they do not.
+    const visualAnchored = visualWorldAnchored(input.brief);
     const worldBlock = input.brief.visualWorld?.lockedInvariants
       ? `APPROVED VISUAL WORLD (every frame must match):\n${input.brief.visualWorld.lockedInvariants}`
       : "No approved visual world — judge continuity against beat 1's establishing frame.";
@@ -929,14 +956,14 @@ export async function evaluateRenderedReel(input: EvaluateRenderedReelInput): Pr
       // is not a verdict; clampVerdict would read it as an approve.
       const decision = (parsed as { decision?: unknown } | null)?.decision;
       if (decision !== "approve" && decision !== "repair") throw new Error("vision critic reply has no approve/repair decision");
-      const first = clampVerdict(parsed, input.frames.length, "vision", input.pixelStats);
+      const first = clampVerdict(parsed, input.frames.length, "vision", input.pixelStats, { visualAnchored });
       // Exempt hands-only HUMAN_PRESENT on real beats, lettering on drawn cards,
       // declared text on an external master and caption-timing notes there, then
       // clamp AGAIN so the decision and craft score are computed from the kept
       // findings (a block that was exempted must not still order a repair).
       const { kept, exempted } = applyPresenceExemptions(first.findings, handsBeats, drawnBeats, { textSurfaces: declaredSurfaces, isExternalMaster });
       if (!exempted.length) return first;
-      const verdict = clampVerdict({ decision, findings: kept }, input.frames.length, "vision", input.pixelStats);
+      const verdict = clampVerdict({ decision, findings: kept }, input.frames.length, "vision", input.pixelStats, { visualAnchored });
       verdict.droppedUnknownCodes = first.droppedUnknownCodes;
       verdict.presenceExemptions = exempted;
       log.info("source profile exempted finding(s)", { codes: exempted.map((f) => `${f.beatNumber}:${f.code}`) });

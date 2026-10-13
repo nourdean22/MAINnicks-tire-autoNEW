@@ -86,7 +86,11 @@ describe("trajectory: visualWorld + genomeId survive the SERVICE enqueue into th
       id: "draft_test",
       campaignKeyword: base.campaignKeyword,
       topic: base.topic,
-      storyboardBeats: base.storyboardBeats,
+      // Sample beats 1-2 ask the generator for lettering it cannot render (REEL_CLIP_CANNOT_SHOW).
+      // This test is about persistence, so those two visuals are plain. The sample itself is a client-lane fix.
+      storyboardBeats: base.storyboardBeats.map((b) =>
+        b.beatNumber <= 2 ? { ...b, visual: "close-up of the tire on a lift, slow push-in" } : b,
+      ),
       hashtags: base.hashtags,
       selectedCaption: base.selectedCaption,
       sourceType: "manual",
