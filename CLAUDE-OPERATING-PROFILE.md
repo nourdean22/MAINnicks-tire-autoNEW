@@ -103,6 +103,7 @@ work, the Skill call must be in the transcript.
 - `using-superpowers` then `ponytail` — every task, invoked FIRST (operator, 2026-10-10; always on here and globally): if a skill might
   apply, invoke it (process skills in `.claude/skills/` before implementation); then the smallest complete change. Compaction re-arm is machine-local (NattyNour ~/.claude hook); a fresh clone has none.
 - `brainstorming` — before building anything new · vague ideas -> validated design.
+- `find-skill` — every turn as a gate: one line on whether outside discovery would change the answer; searches only then.
 - `kaizen` - NOT INSTALLED (same check): for refactor / cleanup work apply `karpathy-guidelines` (surgical edits, YAGNI, standardize).
 
 Reasoning lenses — invoke the one whose trigger matches:
@@ -115,8 +116,7 @@ Reasoning lenses — invoke the one whose trigger matches:
   symmetric layouts), one dominant aesthetic direction, DFII >= 8 (aesthetic + fit + feasibility + performance - risk).
 - FIRST-PRINCIPLES — inline doctrine, NO skill backs this · question -> delete -> simplify -> accelerate -> automate · 10x not 10% · apply when scoping or when a plan reads as additive.
   There is no skill to invoke for this. The `elon-musk` skill was a Portuguese-language
-  persona simulator ("fale como Elon"), not a reasoning lens — archived 2026-08-03 with the
-  rest of the persona panel. The doctrine above is the whole asset.
+  persona simulator ("fale como Elon"), not a reasoning lens — archived 2026-08-03 with the rest of the persona panel. The doctrine above is the whole asset.
   The `frontend-design` lens is namespaced deliberately: bare `frontend-design` resolves to a stale
   local copy (520w); the plugin copy (1,297w) is its maintained successor. Do not "simplify" the name.
 
