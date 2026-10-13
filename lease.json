@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "nickstire/parked-lane-and-anchor",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "f73eba1c-7cf9-4cbf-a1eb-8605e963b6e4",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\agent-a346061ad62e5fca2",
+  "claimedBy": "2026-10-13-parked-lane-anchor",
+  "claimedAt": "2026-10-13T12:02:33.765Z",
+  "expiresAt": "2026-10-14T00:02:33.765Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
