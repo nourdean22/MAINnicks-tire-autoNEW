@@ -676,6 +676,20 @@ export async function enqueueReelJob(
     }
   }
 
+  // A beat a single 4-second clip cannot show (2026-10-12): judged from the
+  // brief alone, so refused here before any reservation. Typed, so the rotation
+  // advances past the pack rather than retrying the same brief.
+  {
+    const { clipCannotShowRefusals } = await import("./reelEnqueueRefusals");
+    const clipDetail = clipCannotShowRefusals(brief.storyboardBeats ?? []);
+    if (clipDetail.length) {
+      log.error("storyboard beat a 4 s clip cannot show — BLOCKED at enqueue, nothing reserved", {
+        briefId: brief.id, source, reasons: clipDetail,
+      });
+      throw new ReelPreflightBlockedError(clipDetail);
+    }
+  }
+
   // THE authoritative policy boundary for render spend (#815 review P1: the
   // router-only check let cron + service callers bypass kill switches and
   // budget). Every caller — admin Studio, Campaign Package, daily cron,

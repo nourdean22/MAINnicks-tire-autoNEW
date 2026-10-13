@@ -381,10 +381,16 @@ describe("compileProviderScene", () => {
       expect(p.sceneStatus).toBeDefined();
       expect(p.prompt).toContain("Subject:");
     }
-    // sample beat 1's visual carries a quoted 'MAX PRESS 44 PSI' label — M6 removes
-    // it from the provider Subject so the generator has no text to mis-spell.
-    expect(pack[0].sceneStatus).toBe("corrected");
+    // Sample beat 1 is wordless now (the server refuses lettering in a clip visual),
+    // so M6 has nothing to correct there. The correction path is pinned directly below.
+    expect(pack[0].sceneStatus).toBe("clean");
     expect(pack[0].prompt).not.toContain("MAX PRESS 44 PSI");
+  });
+
+  it("M6 corrects a quoted on-screen label in a visual and drops it from the scene", () => {
+    const c = compileProviderScene("a tire sidewall's embossed 'MAX PRESS 44 PSI' lettering", "slow push-in");
+    expect(c.status).toBe("corrected");
+    expect(c.scene).not.toContain("MAX PRESS 44 PSI");
   });
 
   it("a genuinely wordless beat stays clean and passes through unchanged", () => {

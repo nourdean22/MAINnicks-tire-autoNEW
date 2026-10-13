@@ -38,7 +38,7 @@
  * the next reader does not have to rediscover either.
  */
 import type { EscalationLens, EvaluateRenderedReelInput, ExtractedFrame, RenderedFinding, RenderedQaVerdict } from "./renderedQa";
-import { RENDERED_DEFECT_CODES, beatsDocFor, callVisionCritic, clampVerdict, craftScore, heroForCritic } from "./renderedQa";
+import { RENDERED_DEFECT_CODES, beatsDocFor, callVisionCritic, clampVerdict, craftScore, heroForCritic, visualWorldAnchored } from "./renderedQa";
 import { createLogger } from "../lib/logger";
 
 const log = createLogger("services:critic-panel");
@@ -162,7 +162,8 @@ async function runSpecialistLens(lens: SpecialistLens, frames: ExtractedFrame[],
   const user = `Inspect these ${frames.length} frames (order: ${frames.map((f) => f.label).join(", ")}) through the ${lens} lens only. Topic: ${context.brief.topic ?? "unknown"}. Hero: ${heroForCritic(context.brief.objectCharacter)}.`;
   try {
     const parsed = await callVisionCritic({ frames, system, user });
-    return clampVerdict(parsed, frames.length, "vision");
+    // The continuity lens owns SUBJECT_CONTINUITY and ENVIRONMENT_DRIFT, so it judges them under the same anchor rule as the general critic.
+    return clampVerdict(parsed, frames.length, "vision", undefined, { visualAnchored: visualWorldAnchored(context.brief) });
   } catch (err) {
     log.warn("specialist lens unavailable — recorded as skipped, not as clean", {
       lens, err: err instanceof Error ? err.message.slice(0, 160) : String(err),

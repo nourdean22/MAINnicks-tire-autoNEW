@@ -27,7 +27,15 @@ function blockingBrief() {
   b.storyboardBeats[0].visual = "a diagnostic scanner screen displays the battery voltage reading";
   return b;
 }
-const cleanBrief = () => structuredClone(SAMPLE_REEL_BRIEFS[0]);
+// Sample beats 1-2 ask the generator for lettering it cannot render (REEL_CLIP_CANNOT_SHOW).
+// These tests are about regeneration and history, so those two visuals are plain. The sample itself is a client-lane fix.
+const cleanBrief = () => {
+  const b = structuredClone(SAMPLE_REEL_BRIEFS[0]);
+  b.storyboardBeats = b.storyboardBeats.map((beat) =>
+    beat.beatNumber <= 2 ? { ...beat, visual: "close-up of the tire on a lift, slow push-in" } : beat,
+  );
+  return b;
+};
 
 describe("prepareCleanReelBrief", () => {
   beforeEach(() => {
