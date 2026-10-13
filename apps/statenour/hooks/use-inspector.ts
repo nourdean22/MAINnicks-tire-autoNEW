@@ -4,7 +4,7 @@ import { useCallback, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useInspectorStore, type InspectorPageAction } from "@/lib/state/inspector-store";
 import type { EntityKind, EntityRef } from "@/lib/ui/entity-ref";
-import { inspectHref, readInspect } from "@/lib/ui/inspect-url";
+import { INSPECT_TRANSITION_TYPES, inspectHref, readInspect } from "@/lib/ui/inspect-url";
 
 /**
  * `useInspector()` · open / close the universal inspector · 2026-09-15.
@@ -33,8 +33,17 @@ export function useInspector() {
       const href = inspectHref(path, search, ref);
       setPeek(null);
       const alreadyOpen = readInspect(search) !== null;
-      if (alreadyOpen || opts?.replace) router.replace(href, { scroll: false });
-      else router.push(href, { scroll: false });
+      if (alreadyOpen || opts?.replace) {
+        router.replace(href, {
+          scroll: false,
+          transitionTypes: [INSPECT_TRANSITION_TYPES.swap],
+        });
+      } else {
+        router.push(href, {
+          scroll: false,
+          transitionTypes: [INSPECT_TRANSITION_TYPES.open],
+        });
+      }
     },
     [router, pathname, setPeek],
   );
@@ -42,7 +51,10 @@ export function useInspector() {
   const closeInspector = useCallback(() => {
     if (typeof window === "undefined") return;
     const path = pathname ?? window.location.pathname;
-    router.replace(inspectHref(path, window.location.search, null), { scroll: false });
+    router.replace(inspectHref(path, window.location.search, null), {
+      scroll: false,
+      transitionTypes: [INSPECT_TRANSITION_TYPES.close],
+    });
   }, [router, pathname]);
 
   return { openInspector, closeInspector };
