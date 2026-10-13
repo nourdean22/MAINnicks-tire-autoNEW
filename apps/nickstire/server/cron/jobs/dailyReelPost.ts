@@ -88,6 +88,14 @@ const DAY_COUNT_KEY = "reel_autopost_day_count";
  * that the chain would refuse.
  */
 const PARKED_QA_GATES: ReadonlySet<string> = new Set(["needs_paid_repair", "reject", "stock_fallback"]);
+/**
+ * Verdicts the pre-filter reads but never skips. needs_paid_repair stays in
+ * PARKED_QA_GATES, but a hold (budget spent, repair in flight, transient error)
+ * keeps this persisted verdict, and a skip would stop the retry on the next pulse.
+ */
+const RETRYABLE_QA_GATES: ReadonlySet<string> = new Set(["needs_paid_repair"]);
+/** The drain reads this many approved candidates per pass, oldest id first. */
+const DRAIN_SCAN_LIMIT = 25;
 
 /**
  * 'unavailable' is transient only while something can still produce the
@@ -387,10 +395,16 @@ function repairRequestedOnDay(payloadJson: string | null, date: string): boolean
   } catch {
     return true;
   }
-  if (!Array.isArray(queue)) return false;
+  // No queue, or an empty one, has no repair today.
+  if (queue === undefined || queue === null) return false;
+  // A queue that is not a list is corrupt: fail closed.
+  if (!Array.isArray(queue)) return true;
   return queue.some((entry) => {
-    const at = Date.parse(String((entry as { requestedAt?: unknown } | null)?.requestedAt ?? ""));
-    return Number.isFinite(at) && new Date(at).toLocaleDateString("en-CA", { timeZone: BUSINESS.timezone }) === date;
+    // A non-object entry, or one with no parseable requestedAt, counts as used.
+    if (entry === null || typeof entry !== "object") return true;
+    const at = Date.parse(String((entry as { requestedAt?: unknown }).requestedAt ?? ""));
+    if (!Number.isFinite(at)) return true;
+    return new Date(at).toLocaleDateString("en-CA", { timeZone: BUSINESS.timezone }) === date;
   });
 }
 
@@ -438,12 +452,20 @@ const MAX_QUEUED_PACK_SKIPS = 5;
 export async function runDailyReelPost(): Promise<DailyReelResult> {
   // A reel the publish gate parks (needs_paid_repair) is not selected again in
   // this pulse, so the pass reaches the next approved reel instead of stopping on
-  // it. The parked reel reads the same on later pulses through its persisted verdict.
+  // it. Parks and duplicate-pack skips are bounded apart (F2): six parked reels
+  // ahead of a clean one must not stop the pass before the clean one is examined.
   const parkedThisPulse = new Set<number>();
-  for (let skips = 0; ; skips++) {
+  let skips = 0;
+  for (;;) {
     const { packAlreadyQueued, parkedJobId, ...result } = await runDailyReelPostOnce(parkedThisPulse);
-    if (parkedJobId !== undefined) parkedThisPulse.add(parkedJobId);
-    if ((!packAlreadyQueued && parkedJobId === undefined) || skips >= MAX_QUEUED_PACK_SKIPS) return result;
+    if (parkedJobId !== undefined) {
+      // A park is bounded by the drain window: the pass cannot examine more candidates than that.
+      if (parkedThisPulse.has(parkedJobId) || parkedThisPulse.size >= DRAIN_SCAN_LIMIT) return result;
+      parkedThisPulse.add(parkedJobId);
+      continue;
+    }
+    if (!packAlreadyQueued || skips >= MAX_QUEUED_PACK_SKIPS) return result;
+    skips++;
   }
 }
 
@@ -568,7 +590,6 @@ async function runDailyReelPostOnce(
     // Critically, an ineligible candidate is SKIPPED, never published. This
     // advances past a blocked item without weakening a single gate — the
     // per-job gate below still runs on whatever is chosen.
-    const DRAIN_SCAN_LIMIT = 25;
     const candidates = approvedJobIds.length
       ? await d
           .select()
@@ -702,7 +723,7 @@ async function runDailyReelPostOnce(
       try {
         const { evaluateReelPublishGate } = await import("../../services/qualityGate");
         const cGate = await evaluateReelPublishGate(candidate.id, { runIfMissing: false });
-        if (!cGate.allowed && PARKED_QA_GATES.has(cGate.gate)) {
+        if (!cGate.allowed && PARKED_QA_GATES.has(cGate.gate) && !RETRYABLE_QA_GATES.has(cGate.gate)) {
           skipped.push({ jobId: candidate.id, code: `qa_parked:${cGate.gate}` });
           continue;
         }
@@ -766,7 +787,7 @@ async function runDailyReelPostOnce(
     try {
       const { evaluateReelPublishGate } = await import("../../services/qualityGate");
       const g = await evaluateReelPublishGate(todaysJob.id, { runIfMissing: false });
-      if (!g.allowed && PARKED_QA_GATES.has(g.gate)) parked = g.gate;
+      if (!g.allowed && PARKED_QA_GATES.has(g.gate) && !RETRYABLE_QA_GATES.has(g.gate)) parked = g.gate;
       else if (!g.allowed && g.gate === "unavailable" && staleUnavailable(todaysJob)) parked = "unavailable_stale";
     } catch (err) {
       log.warn("daily reel: parked-QA check on today's job failed; leaving it selectable", {
@@ -1219,6 +1240,8 @@ async function runDailyReelPostOnce(
         // The per-asset repair cap the publish gate also reads; 2 is that gate's
         // own fallback when the policy is unreadable.
         let paidRepairCap = 2;
+        // An unreadable policy leaves spend undecided: the reel holds, it does not park (F1).
+        let paidRepairPolicyUnreadable = false;
         if (g.gate === "needs_paid_repair") {
           try {
             const { getActivePolicy } = await import("../../services/autonomyControl");
@@ -1227,6 +1250,7 @@ async function runDailyReelPostOnce(
             const cap = Number(pol?.limits?.maxRepairAttemptsPerAsset);
             if (Number.isInteger(cap) && cap >= 0) paidRepairCap = cap;
           } catch (polErr) {
+            paidRepairPolicyUnreadable = true;
             log.warn("daily reel: could not read autonomousRepair policy — treating as approval_required", {
               err: polErr instanceof Error ? polErr.message : String(polErr),
             });
@@ -1286,22 +1310,31 @@ async function runDailyReelPostOnce(
               return { recordsProcessed: 0, details: `auto-repair queued for beat ${r.beatNumber} on job ${job.id} (${target.code}); re-verdict after re-render; index not advanced` };
             }
             // No regenerable beat-targeted finding: deterministic-only plan with
-            // no beat target is not queueable from here — hold for the operator.
+            // no beat target is not queueable from here; the park below holds it for the operator.
           } catch (repairErr) {
             const msg = repairErr instanceof Error ? repairErr.message : String(repairErr);
-            if (g.gate === "needs_paid_repair") {
-              // A paid repair the boundary refused (daily budget, repair cap, one in
-              // flight) parks the reel: no spend, and the lane moves on.
-              log.warn(`daily reel: paid repair refused for job ${job.id} - parking`, { err: msg });
+            // Only a budget refusal holds: the budget resets at the ET day boundary, so the
+            // same reel can succeed on a later pulse. Every other refusal parks. A park is
+            // re-evaluated on the next pulse (the pre-filter does not skip needs_paid_repair),
+            // so it costs nothing and never stops the lane. A hold here would stop the whole
+            // pass on every pulse for a refusal that never clears, such as a repair entry
+            // left "rendering" after a crash (nothing times that entry out).
+            if (!msg.includes("BUDGET_DAILY_EXCEEDED")) {
+              log.warn(`daily reel: repair refused for job ${job.id} - parking`, { err: msg });
               return {
                 recordsProcessed: 0,
-                details: `parked: paid repair refused for job ${job.id} (${msg.slice(0, 120)}); index not advanced`,
+                details: `parked: repair refused for job ${job.id} (${msg.slice(0, 120)}); index not advanced`,
                 parkedJobId: job.id,
               };
             }
-            log.warn(`daily reel: auto-repair queue failed for job ${job.id} — holding`, { err: msg });
-            return { recordsProcessed: 0, details: `held: auto-repair queue failed (${msg.slice(0, 120)}); index not advanced` };
+            log.warn(`daily reel: budget refused the repair for job ${job.id} - holding`, { err: msg });
+            return { recordsProcessed: 0, details: `held: budget refused the repair (${msg.slice(0, 120)}); index not advanced` };
           }
+        }
+        if (g.gate === "needs_paid_repair" && paidRepairPolicyUnreadable) {
+          // The policy could not be read, so whether spend is authorized is undecided. Hold, and retry next pulse.
+          log.warn(`daily reel: job ${job.id} held - autonomy policy unreadable, paid repair not decided`);
+          return { recordsProcessed: 0, details: `held: autonomy policy unreadable; paid repair not decided for job ${job.id}; index not advanced` };
         }
         if (g.gate === "needs_paid_repair") {
           // Spend is not authorized (approval_required), or no beat can take a
