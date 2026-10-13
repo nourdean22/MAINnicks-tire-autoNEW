@@ -82,7 +82,9 @@ test("LIVE, report-only: the full sweep pipeline runs end-to-end against real Gi
     cwd: import.meta.dirname,
     encoding: "utf8",
     env,
-    timeout: 90000, // 130+ branches, several API calls each, at concurrency 8
+    // Budget re-measured 2026-10-13: 432 branches on origin took 184 s end to end at
+    // concurrency 8 through the agent proxy. The old 90 s was sized for 130+ branches.
+    timeout: 300000,
   });
   assert.match(out, /^# Branch sweep/);
   assert.match(out, /nourdean22\/MAINnicks-tire-autoNEW/);
