@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "nickstire/remove-forensic-client",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "f73eba1c-7cf9-4cbf-a1eb-8605e963b6e4",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\agent-ad45a0b044b8a04dc",
   "claimedBy": "2026-10-12-remove-forensic-client",
   "claimedAt": "2026-10-12T19:08:55.652Z",
   "expiresAt": "2026-10-13T07:08:55.652Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": null
+  "releasedAt": "2026-10-13T13:09:36.875Z",
+  "releaseReason": "operator confirmed via -ForceDirtyRelease in worktree-teardown.ps1",
+  "priorLeaseSha": "761e5f1db1555934da19ebe4cdc14b2ef0e56682",
+  "releasedBy": "f73eba1c-7cf9-4cbf-a1eb-8605e963b6e4",
+  "foreignReleaseReason": null
 }
