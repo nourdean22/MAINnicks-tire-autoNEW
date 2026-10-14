@@ -339,7 +339,8 @@ export const voiceAgentRouter = router({
   // signed dispatch) or VOICE_AGENT_INTERNAL_SECRET header.
   bookSlot: voiceAgentInternalProcedure
     .input(z.object({
-      name: z.string().min(2).max(200),
+      // No min length here: a short name is a normal result below, not a thrown error.
+      name: z.string().max(200),
       phone: z.string().min(7).max(20),
       vehicle: z.string().max(200).optional(),
       service: z.string().max(200),
@@ -349,6 +350,16 @@ export const voiceAgentRouter = router({
       callerNumber: z.string().max(30).optional(),
     }))
     .mutation(async ({ input }) => {
+      // A name under two letters is not a name. Thrown, it reaches the caller as
+      // "Tool execution failed"; returned, the model asks once for the full name.
+      if (input.name.trim().length < 2) {
+        return {
+          success: false,
+          reference: "WALKIN-INFO",
+          status: "name_incomplete",
+          message: "The caller's name came through incomplete. Ask once for their full name, then call bookSlot again with it. Either way, Nick's is first come, first served: they can walk in or drop off during business hours.",
+        };
+      }
       try {
         log.info("Voice agent bookSlot called (expected arrival, not a booking)", { nameGiven: Boolean(input.name), service: input.service });
 

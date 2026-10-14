@@ -7,8 +7,8 @@ import { getDb } from "./db";
 import { bookings, leads, chatSessions, dynamicArticles, notificationMessages, contentGenerationLog, users, callbackRequests, callEvents, invoices, customers, workOrders, algEstimates, tireOrders } from "../drizzle/schema";
 import { eq, desc, gte, sql, and } from "drizzle-orm";
 
-import { BUSINESS } from "@shared/business";
 import { createLogger } from "./lib/logger";
+import { clevelandDayStart } from "./services/autonomyControl";
 
 const log = createLogger("admin-stats");
 type Booking = typeof bookings.$inferSelect;
@@ -508,7 +508,9 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     // ─── SHOP FLOOR (ALG Invoice/Estimate Data) ──────────
     let shopFloorStats = defaultStats.shopFloor;
     try {
-      const todayStart = new Date(new Date().toLocaleDateString("en-CA", { timeZone: BUSINESS.timezone }));
+      // Midnight in the shop's timezone as an instant. new Date("YYYY-MM-DD") is UTC
+      // midnight, which is 20:00 ET the day before.
+      const todayStart = clevelandDayStart();
       const monthStart = new Date(todayStart.getFullYear(), todayStart.getMonth(), 1);
 
       const [

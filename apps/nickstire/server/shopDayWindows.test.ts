@@ -1,0 +1,140 @@
+/**
+ * The "today" these jobs report is the shop's day, not the UTC day.
+ *
+ * At 2026-10-12 21:00 ET the clock already reads 2026-10-13 01:00Z. statenourSync
+ * (revenue rollup and trends) and intelligenceAutopilot (walk-in split and estimate
+ * conversion) used to compare against CURDATE(), which is the database session's
+ * UTC day, so today's paid work dropped out after 20:00 ET. Both must bind the
+ * Eastern date they computed as a query parameter instead.
+ *
+ * The database is a recorder. The SQL each job sends is rendered with the MySQL
+ * dialect, and the assertion is on the values that would be bound.
+ */
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { MySqlDialect } from "drizzle-orm/mysql-core";
+import type { SQL } from "drizzle-orm";
+
+const h = vi.hoisted(() => {
+  const state = { executed: [] as unknown[] };
+  const chain = (rows: unknown[] = []) => {
+    const c: Record<string, unknown> = {};
+    for (const m of ["from", "where", "orderBy", "limit", "groupBy", "leftJoin", "innerJoin", "having"]) {
+      c[m] = () => c;
+    }
+    c.then = (res: (v: unknown) => unknown, rej?: (e: unknown) => unknown) => Promise.resolve(rows).then(res, rej);
+    return c;
+  };
+  const db = {
+    execute: async (q: unknown) => {
+      state.executed.push(q);
+      return [[]];
+    },
+    select: () => chain(),
+    update: () => ({ set: () => ({ where: async () => ({ affectedRows: 0 }) }) }),
+    insert: () => ({ values: async () => ({ insertId: 0 }) }),
+  };
+  return { state, db };
+});
+
+vi.mock("./db", () => ({ getDb: async () => h.db }));
+vi.mock("./services/customerIntelligence", () => ({
+  analyzeCustomers: async () => null,
+  getCustomerActionPlan: async () => "",
+}));
+vi.mock("./services/nickIntelligence", () => ({
+  analyzeConversionPipeline: async () => ({}),
+  projectRevenue: async () => ({}),
+  getShopPulse: async () => ({ thisWeek: { walkRate: 0 } }),
+  generateProactiveAlerts: async () => [],
+  generateWeeklyInsight: async () => "",
+  getEstimateLeadFunnelWindows: async () => null,
+}));
+vi.mock("./admin-stats", () => ({
+  getDashboardStats: async () => ({
+    bookings: { total: 0, thisWeek: 0, new: 0, confirmed: 0, completed: 0, cancelled: 0, byService: [] },
+    leads: { total: 0, thisWeek: 0, new: 0, contacted: 0, booked: 0, lost: 0, urgent: 0, avgUrgency: 0, bySource: [] },
+    chat: { totalSessions: 0, converted: 0, thisWeek: 0 },
+    callTracking: { totalCalls: 0, thisWeek: 0, byPage: [] },
+    callbacks: { total: 0, new: 0, completed: 0, thisWeek: 0 },
+    content: { totalArticles: 0, published: 0 },
+    sourceAttribution: { bookingsBySource: [], leadsBySource: [] },
+    shopFloor: null,
+  }),
+  getSiteHealth: async () => ({ indexedPages: 0, notIndexedPages: 0, sheetsConfigured: false }),
+}));
+vi.mock("./services/featureFlags", () => ({ getAllFlags: async () => [], isEnabled: async () => false }));
+vi.mock("./services/nickMemory", () => ({
+  recall: async () => [],
+  getTopQuestions: async () => [],
+  remember: async () => undefined,
+}));
+vi.mock("./nour-os-bridge", () => ({ getEventAnalytics: () => ({}), getSyncStatus: () => ({}) }));
+vi.mock("./services/feedbackLoop", () => ({ detectAnomalies: () => [], getBriefEngagement: () => ({}) }));
+vi.mock("./services/eventBus", () => ({ getActiveJourneys: () => [] }));
+vi.mock("./services/declinedWorkRecovery", () => ({ getDeclinedWorkLedger: async () => [] }));
+vi.mock("./services/declinedWorkSource", () => ({
+  declinedWorkSourceState: async () => "unmeasured",
+  isMeasured: () => false,
+  sourceNote: () => "unmeasured",
+}));
+vi.mock("./services/shopDriverMirror", () => ({
+  checkMirrorHealth: async () => ({ recordsProcessed: 0, details: "" }),
+  probeAlgEndpoints: async () => [],
+}));
+vi.mock("./services/intelligenceEngines", () => ({
+  forecastRevenue: async () => ({}),
+  generateCrossSellRecommendations: async () => [],
+  scoreLeads: async () => [],
+  predictCustomerLTV: async () => [],
+  analyzeBottlenecks: async () => [],
+  analyzeDeclinedWork: async () => null,
+  predictChurn: async () => [],
+}));
+vi.mock("./services/costDetailCoverage", () => ({ checkCostDetailCoverage: async () => ({ reading: null }) }));
+vi.mock("./services/telegram", () => ({
+  sendTelegram: async () => undefined,
+  sendTelegramMessage: async () => undefined,
+}));
+vi.mock("./services/winbackProcessor", () => ({ processWinbackPending: async () => ({}) }));
+
+/** The bound values of every executed query whose rendered SQL matches the pattern. */
+function paramsOf(pattern: RegExp): unknown[][] {
+  return h.state.executed
+    .map((q) => new MySqlDialect().sqlToQuery(q as SQL))
+    .filter((r) => pattern.test(r.sql))
+    .map((r) => r.params);
+}
+
+beforeEach(() => {
+  h.state.executed = [];
+  // Only Date is faked: the jobs await real promises.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-10-13T01:00:00Z"));
+  vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, status: 200, json: async () => ({}), text: async () => "" })));
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
+
+describe("the shop's 'today' at 2026-10-12 21:00 ET", () => {
+  // Each assertion names the query it checks, so reverting one query fails its own
+  // assertion even when another query in the same job still binds the same date.
+  it("statenourSync's revenue queries bind today, yesterday, seven days back and month start", async () => {
+    const { syncToStatenour } = await import("./cron/jobs/statenourSync");
+    await syncToStatenour();
+    expect(paramsOf(/DATE\(invoiceDate\) = \? AND paymentStatus = 'paid'/)).toContainEqual(["2026-10-12"]);
+    expect(paramsOf(/DATE\(invoiceDate\) = \? AND paymentStatus = 'paid'/)).toContainEqual(["2026-10-11"]);
+    expect(paramsOf(/invoiceDate >= \? AND paymentStatus = 'paid'/)).toContainEqual(["2026-10-05"]);
+    expect(paramsOf(/invoiceDate >= \? AND paymentStatus = 'paid'/)).toContainEqual(["2026-10-01"]);
+  });
+
+  it("intelligenceAutopilot's walk-in query binds today's Eastern date", async () => {
+    const { runIntelligenceAutopilot } = await import("./cron/jobs/intelligenceAutopilot");
+    await runIntelligenceAutopilot();
+    expect(paramsOf(/FROM invoices\s+WHERE invoiceDate >= \? AND paymentStatus = 'paid'/)).toContainEqual(["2026-10-12"]);
+    expect(paramsOf(/FROM bookings\s+WHERE createdAt >= \? AND status IN/)).toContainEqual(["2026-10-12"]);
+    expect(paramsOf(/FROM invoices\s+WHERE invoiceDate >= \?\s+AND totalAmount <= 500/)).toContainEqual(["2026-10-05"]);
+  });
+});
