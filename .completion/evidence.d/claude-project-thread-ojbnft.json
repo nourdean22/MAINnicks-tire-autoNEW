@@ -1,7 +1,7 @@
 {
   "evidence": {
     "skills-first-reminder": {
-      "ref": "scripts/agent-os/skillsFirstReminder.test.mjs runs the configured UserPromptSubmit command verbatim through /bin/sh and asserts exit 0 plus the reminder text. Its BREAKS arm proves the assertion fails for a missing script and for a silent hook. Mutations run on this branch: weaker wording failed on 'the reminder must say when'; exit 2 failed on 'the hook must exit 0'. hookCommand.test.mjs also launches every configured node hook."
+      "ref": "scripts/agent-os/skillsFirstReminder.test.mjs runs the configured UserPromptSubmit command verbatim through /bin/sh and asserts exit 0, the reminder text, and that it names every skill source (repo, account, plugin). Its BREAKS arm proves the assertion fails for a missing script and for a silent hook. Mutations ran against mirror copies outside the tree: weaker wording failed on 'the reminder must say when'; exit 2 failed on 'the hook must exit 0'; narrowing to the always-on skills failed on 'must search every skill source'; dropping plugin skills failed on 'must name account and plugin skills'. hookCommand.test.mjs also launches every configured node hook."
     }
   }
 }

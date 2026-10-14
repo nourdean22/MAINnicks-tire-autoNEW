@@ -78,10 +78,10 @@ github-client canaries 403'd every PR whenever another workflow had spent the bu
 - **Stop** (`stop-check.mjs`) blocks ending a turn with uncommitted work while ON `main` —
   one precise invariant, nothing else. A Stop hook that blocks routine turns trains the
   operator to disable it; widen only behind a canary.
-- **UserPromptSubmit** (`skills-first-reminder.mjs`) prints a reminder on every prompt to load the applicable
-  repo skills before any work. It is advice, not enforcement: it has no path to exit 2, so it never blocks a
-  prompt, and it cannot make the model comply. `skillsFirstReminder.test.mjs` runs the configured command
-  verbatim and asserts the reminder text and exit 0.
+- **UserPromptSubmit** (`skills-first-reminder.mjs`) prints a reminder on every prompt to search every skill source
+  (repo, account, plugin) and load the best matches before any work. It is advice, not enforcement: it has no path
+  to exit 2, so it never blocks a prompt, and it cannot make the model comply. `skillsFirstReminder.test.mjs` runs
+  the configured command verbatim and asserts the reminder text, the skill sources it names, and exit 0.
 - **Failure posture is asymmetric on purpose:** a matched rule fails CLOSED; a bug in the hook
   itself fails OPEN with a stderr warning. Bricking every tool call is worse than missing one
   check, and Claude Code fails open on hook crash/timeout anyway — pretending otherwise is theatre.
