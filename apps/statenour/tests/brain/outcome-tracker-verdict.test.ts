@@ -4,8 +4,9 @@
  * THE DEFECT: the reply was matched with startsWith("ACCURATE") on raw lines, so
  * "**ACCURATE:** true" never matched and a readable reply was written DISPROVEN
  * with a Brier penalty. The verdict was read with includes("true"), so
- * "not true" counted as accurate. A reply with no readable verdict must be
- * UNVERIFIABLE: never confirmed, never disproven, no Brier score.
+ * "not true" and "true-ish" counted as accurate. An unreadable reply must never
+ * be confirmed or disproven: it stays pending for a retry, and after three
+ * unreadable attempts it is parked as unverifiable.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
@@ -58,26 +59,57 @@ describe("scorePendingPredictions - verdict parsing", () => {
     expect(db.update.mock.calls[0][0].data.status).toBe("confirmed");
   });
 
-  it("a 'maybe' verdict is unverifiable with no Brier score, never disproven", async () => {
+  it("a 'maybe' verdict stays pending on its first attempt, with no Brier score and no lesson", async () => {
     reply("ACCURATE: maybe\nOUTCOME: Unclear from the data.\nLESSON: Need more data.");
     const scored = await scorePendingPredictions();
     const data = db.update.mock.calls[0][0].data;
-    expect(data.status).toBe("unverifiable");
-    expect(data.brierScore).toBeNull();
+    expect(data.status).toBe("pending");
+    expect(data.brierScore).toBeUndefined();
+    expect(data.metadata.verdictAttempts).toBe(1);
     expect(scored).toEqual([]);
     expect(remember).not.toHaveBeenCalled();
   });
 
-  it("'not true' is unverifiable, not confirmed", async () => {
-    reply("ACCURATE: not true\nOUTCOME: Partly right.\nLESSON: Mixed.");
+  it("the third unreadable verdict parks the prediction as terminal 'unverifiable'", async () => {
+    db.findMany.mockResolvedValue([{ ...PRED, metadata: { verdictAttempts: 2 } }]);
+    reply("ACCURATE: maybe\nOUTCOME: Unclear.\nLESSON: Need data.");
     await scorePendingPredictions();
-    expect(db.update.mock.calls[0][0].data.status).toBe("unverifiable");
+    const data = db.update.mock.calls[0][0].data;
+    expect(data.status).toBe("unverifiable");
+    expect(data.metadata.verdictAttempts).toBe(3);
   });
 
-  it("a reply with no ACCURATE line is unverifiable, not disproven", async () => {
+  it("'not true' stays pending, not confirmed", async () => {
+    reply("ACCURATE: not true\nOUTCOME: Partly right.\nLESSON: Mixed.");
+    await scorePendingPredictions();
+    expect(db.update.mock.calls[0][0].data.status).toBe("pending");
+  });
+
+  it("an echoed placeholder 'true or false' stays pending, not confirmed", async () => {
+    reply("ACCURATE: true or false\nOUTCOME: Revenue rose 12%.\nLESSON: Trend held.");
+    await scorePendingPredictions();
+    expect(db.update.mock.calls[0][0].data.status).toBe("pending");
+  });
+
+  it("a hedged 'true-ish' verdict stays pending, not confirmed", async () => {
+    reply("ACCURATE: true-ish\nOUTCOME: Roughly right.\nLESSON: Close enough.");
+    await scorePendingPredictions();
+    expect(db.update.mock.calls[0][0].data.status).toBe("pending");
+  });
+
+  it("a reply with no ACCURATE line stays pending, not disproven", async () => {
     reply("OUTCOME: Revenue rose 12%.\nLESSON: Trend held.");
     await scorePendingPredictions();
-    expect(db.update.mock.calls[0][0].data.status).toBe("unverifiable");
+    expect(db.update.mock.calls[0][0].data.status).toBe("pending");
+  });
+
+  it("underscores in the outcome and lesson are stored as written, not stripped", async () => {
+    reply("ACCURATE: true\nOUTCOME: The utm_source tag was missing.\nLESSON: Check utm_source on every link.");
+    await scorePendingPredictions();
+    const data = db.update.mock.calls[0][0].data;
+    expect(data.outcome).toBe("The utm_source tag was missing.");
+    expect(data.metadata.lesson).toBe("Check utm_source on every link.");
+    expect(remember.mock.calls[0][2]).toContain("utm_source");
   });
 
   it("control: a plain 'ACCURATE: false' is still disproven with its Brier score", async () => {

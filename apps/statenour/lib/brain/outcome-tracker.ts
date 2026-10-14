@@ -39,9 +39,17 @@ interface PredictionScore {
   accurate: boolean;
 }
 
-/** Strips list/heading markers and inline emphasis: "**ACCURATE:** true" becomes "ACCURATE: true". */
-function plainLine(line: string): string {
-  return line.replace(/^[\s*_#>-]+/, "").replace(/[*_]/g, "").trim();
+/** How many unreadable verdicts a prediction gets before it is parked as unverifiable. */
+const MAX_VERDICT_ATTEMPTS = 3;
+
+/** A reply line's label, with list and heading markers and bold markup removed. Used for matching only. */
+function labelOf(line: string): string {
+  return line.replace(/^[\s*_#>-]+/, "").replace(/\*\*/g, "").trim();
+}
+
+/** The text after a line's first colon, minus the markup that wraps it. Underscores inside the text are kept. */
+function valueOf(line: string): string {
+  return line.split(":").slice(1).join(":").replace(/^[\s*]+/, "").replace(/[\s*]+$/, "");
 }
 
 /**
@@ -113,19 +121,40 @@ Was this prediction accurate?`,
         continue;
       }
 
-      // Model replies are markdown ("**ACCURATE:** true"). Strip the markup first so
-      // labels and verdicts match as plain text.
-      const lines = result.content.split("\n").map(plainLine);
-      const accurateLine = lines.find((l) => l.toUpperCase().startsWith("ACCURATE"));
-      const outcomeLine = lines.find((l) => l.toUpperCase().startsWith("OUTCOME"));
-      const lessonLine = lines.find((l) => l.toUpperCase().startsWith("LESSON"));
+      // Model replies are markdown ("**ACCURATE:** true"). Labels are matched on a
+      // markup-free copy; values come from the original line, so underscores survive.
+      const lines = result.content.split("\n");
+      const accurateRaw = lines.find((l) => labelOf(l).toUpperCase().startsWith("ACCURATE"));
+      const outcomeRaw = lines.find((l) => labelOf(l).toUpperCase().startsWith("OUTCOME"));
+      const lessonRaw = lines.find((l) => labelOf(l).toUpperCase().startsWith("LESSON"));
 
-      // The verdict is the first word after the colon. Anything else ("maybe",
-      // "not true", a missing line) is unverifiable: never confirmed, never disproven.
-      const verdict = accurateLine?.split(":").slice(1).join(":").trim().toLowerCase().match(/^(true|false)\b/)?.[1];
+      // The verdict must be exactly true or false, optionally with a trailing period.
+      // An echoed placeholder ("true or false") or a hedge ("true-ish") is unreadable.
+      const verdictText = accurateRaw ? valueOf(accurateRaw).toLowerCase() : "";
+      const verdict = /^(true|false)[.!]?$/.exec(verdictText)?.[1];
       const accurate = verdict === "true";
-      const outcome = outcomeLine?.split(":").slice(1).join(":").trim() ?? "Unable to determine";
-      const lesson = lessonLine?.split(":").slice(1).join(":").trim() ?? "";
+      const outcome = outcomeRaw ? valueOf(outcomeRaw) : "Unable to determine";
+      const lesson = lessonRaw ? valueOf(lessonRaw) : "";
+
+      // An unreadable verdict stays pending so the next run retries it. After
+      // MAX_VERDICT_ATTEMPTS it is parked as 'unverifiable', and nothing else resolves it.
+      if (verdict === undefined) {
+        const attempts = Number((pred.metadata as Record<string, unknown> | null)?.verdictAttempts ?? 0) + 1;
+        const terminal = attempts >= MAX_VERDICT_ATTEMPTS;
+        await prisma.prediction.update({
+          where: { id: pred.id },
+          data: {
+            status: terminal ? "unverifiable" : "pending",
+            metadata: {
+              ...(pred.metadata as Record<string, unknown> ?? {}),
+              verdictAttempts: attempts,
+              verdictLine: accurateRaw ?? null,
+              ...(terminal ? { scoredAt: new Date().toISOString() } : {}),
+            },
+          },
+        });
+        continue;
+      }
 
       // v10.0.150 · Brier scoring on resolution. For binary predictions
       // (every existing one is binary by default) we can compute the
@@ -133,9 +162,8 @@ Was this prediction accurate?`,
       // the SignalZone forecast source reads this back as a calibration
       // signal rather than a throughput count.
       const outcomeBit: 0 | 1 = accurate ? 1 : 0;
-      // Brier needs a readable verdict; an unreadable reply has no score.
-      const brier = verdict === undefined ? null : (pred.confidence - outcomeBit) ** 2;
-      const status = verdict === undefined ? "unverifiable" : verdict === "true" ? "confirmed" : "disproven";
+      const brier = (pred.confidence - outcomeBit) ** 2;
+      const status = accurate ? "confirmed" : "disproven";
 
       // Update the prediction record
       await prisma.prediction.update({
@@ -149,13 +177,10 @@ Was this prediction accurate?`,
             scoredAt: new Date().toISOString(),
             lesson,
             originalConfidence: pred.confidence,
-            verdictLine: accurateLine ?? null,
+            verdictLine: accurateRaw ?? null,
           },
         },
       });
-
-      // No lesson for an unreadable verdict: a DISPROVEN memory would assert a result we never read.
-      if (verdict === undefined) continue;
 
       // Store the lesson as a brain memory
       if (lesson) {
