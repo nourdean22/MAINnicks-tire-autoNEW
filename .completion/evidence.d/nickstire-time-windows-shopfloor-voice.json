@@ -7,7 +7,7 @@
       "ref": "server/__tests__/cronNoSwallowedFailure.test.ts and server/cron/jobs/cronRethrow2026.test.ts pass on this tip. The cron change binds shop-day date keys for invoice dates and Eastern instants for createdAt columns in statenourSync.ts and intelligenceAutopilot.ts. Failure handling and rethrow paths are unchanged."
     },
     "capability-ledger-updated": {
-      "deferred": "No capability state or evidence changes in this PR. The trigger is the pure date helpers added to services/autonomyControl.ts, not a capability. Operator to confirm before merge."
+      "deferred": "No capability state or evidence changes in this PR. The trigger is the pure date helpers added to services/autonomyControl.ts, not a capability. Operator confirmed this deferral on 2026-10-14."
     }
   }
 }
