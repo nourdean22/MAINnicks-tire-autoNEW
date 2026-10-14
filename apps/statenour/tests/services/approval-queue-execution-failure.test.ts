@@ -4,7 +4,8 @@
  * THE DEFECT (dbd12704f): a failed run returned the row to pending, so a second approve re-ran
  * the side effect. A provider can accept a send and lose the HTTP response, so a failed run may
  * already have happened and is never re-run. The row stays terminal (needs_review) with result
- * "failed", the error and the payload kept. A failed run writes no policy fire-log entry.
+ * "failed", the error and the payload kept. A failed run is logged to the policy fire-log as a
+ * failure, never as a success or a rollback.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -142,14 +143,15 @@ describe("decidePendingAction when the side effect fails", () => {
 });
 
 describe("decidePendingAction policy fire-log", () => {
-  it("a failed run writes no policy fire-log entry, even when the policy exists", async () => {
+  it("a failed run writes a failure fire-log entry, so /system/policies does not keep an older success", async () => {
     seed();
     h.getPolicy.mockResolvedValue({ id: POLICY_ID });
     h.executeApprovedAction.mockResolvedValueOnce({ ok: false, error: "gmail 401" });
     await decidePendingAction("a1", "approved");
     await flush();
     expect(h.getPolicy).toHaveBeenCalledWith(POLICY_ID);
-    expect(h.logPolicyFire).not.toHaveBeenCalled();
+    expect(h.logPolicyFire).toHaveBeenCalledTimes(1);
+    expect(h.logPolicyFire).toHaveBeenCalledWith(POLICY_ID, "failure");
   });
 
   it("control: a successful run with a policy logs a success fire", async () => {

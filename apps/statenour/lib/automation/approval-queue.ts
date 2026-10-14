@@ -290,13 +290,12 @@ export async function decidePendingAction(
   // the rest of the registry's lastResult vocabulary.
   const policyId = `autonomous-action.${existing.ruleName}`;
   void getPolicy(policyId).then(async (p) => {
-    // A failed run is neither a policy success nor a rollback: no fire-log entry.
-    if (!p || executionFailed) return;
+    if (!p) return;
     const { logPolicyFire } = await import("@/lib/automation/policy");
-    void logPolicyFire(
-      policyId,
-      decision === "approved" ? "success" : "rolled_back",
-    );
+    // A failed run is logged as a failure, never a success or a rollback, so the policy does not keep
+    // showing an older success as its latest run.
+    const fireResult = executionFailed ? "failure" : decision === "approved" ? "success" : "rolled_back";
+    void logPolicyFire(policyId, fireResult);
   });
 
   return shapeRow(updated);

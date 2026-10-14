@@ -69,11 +69,14 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // The key hashes what was captured, so a retry of the same capture maps to the same row. An
-  // Idempotency-Key is hashed WITH the content: a reused key carrying a different body is a
-  // different capture and gets its own row, never the other row's id. The unique (category, key)
-  // index rejects the repeat, and the catch below answers from the row already stored.
-  const contentFingerprint = JSON.stringify([body.content, body.sourceUrl ?? null, body.selection ?? null]);
+  // The key hashes what was captured, so a retry of the same capture maps to the same row. A capture
+  // is its content, URL, selection and page title. A capture with no title keeps the fingerprint it had
+  // before the title joined it, so retries stored earlier still dedupe. An Idempotency-Key is hashed
+  // WITH the content: a reused key carrying a different body is a different capture and gets its own
+  // row, never the other row's id. The unique (category, key) index rejects the repeat, and the catch
+  // below answers from the row already stored.
+  const captured = [body.content, body.sourceUrl ?? null, body.selection ?? null];
+  const contentFingerprint = JSON.stringify(body.sourceTitle ? [...captured, body.sourceTitle] : captured);
   const idempotencyKey = req.headers.get("idempotency-key")?.trim() || null;
   const fingerprint = idempotencyKey ? `idem:${idempotencyKey}:${contentFingerprint}` : `content:${contentFingerprint}`;
   const key = `ext_${createHash("sha256").update(fingerprint).digest("hex").slice(0, 40)}`;

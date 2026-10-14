@@ -2,19 +2,24 @@
  * A failed Search Console read is not an empty one (branch statenour/memory-gsc-approvals-dump).
  *
  * THE DEFECT: a non-2xx from GSC returned gsc: [], and runIngestion stored "No search data
- * available." as a source document and reported success. A probe that throws and a Google
- * account that is not connected were both read the same way. A failed read must report failure
- * with its reason and store nothing. "Not connected" is an explicit skip that stores nothing.
+ * available." as a source document and reported success. A probe that could not read the
+ * integration table and a Google account that is not connected were both read the same way. A
+ * failed read must report failure with its reason and store nothing. "Not connected" is an
+ * explicit skip that stores nothing.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-const oauth = vi.hoisted(() => ({ configured: true, probeThrows: false }));
+type Probe = { configured: boolean; probeFailed: boolean; reason: string };
+
+const oauth = vi.hoisted(() => ({
+  probe: { configured: true, probeFailed: false, reason: "" } as Probe,
+}));
 
 vi.mock("@/lib/services/google-oauth", () => ({
-  isGoogleOauthConfigured: async () => {
-    if (oauth.probeThrows) throw new Error("oauth status read failed");
-    return oauth.configured;
-  },
+  // Mirrors the real module: the probe never throws. A DB failure is probeFailed, and the boolean
+  // wrapper reads it as configured: false, which is exactly why the caller must read the probe.
+  probeGoogleOauthConfigured: async () => oauth.probe,
+  isGoogleOauthConfigured: async () => oauth.probe.configured,
   getAccessToken: async () => "test-token",
 }));
 vi.mock("@/lib/logger", () => ({
@@ -51,10 +56,12 @@ vi.mock("@/lib/intelligence/connectors/performance", () => ({ fetchBioPerformanc
 import { fetchGSCAndGBPMetrics } from "@/lib/intelligence/connectors/gsc";
 import { runIngestion } from "@/lib/intelligence/ingest";
 
+const UNREADABLE = "Integration table unreadable — check DB connectivity, NOT the Google grant";
+const NOT_GRANTED = "Google OAuth not configured — grant access at /api/oauth/google-data/start";
+
 beforeEach(() => {
   state.documentCreates.length = 0;
-  oauth.configured = true;
-  oauth.probeThrows = false;
+  oauth.probe = { configured: true, probeFailed: false, reason: "" };
   vi.stubGlobal("fetch", vi.fn(async () => new Response("forbidden", { status: 403 })));
 });
 
@@ -78,16 +85,16 @@ describe("fetchGSCAndGBPMetrics - failed fetch", () => {
 });
 
 describe("fetchGSCAndGBPMetrics - probe and connection state", () => {
-  it("a probe that throws is an error, not a silent 'not configured'", async () => {
-    oauth.probeThrows = true;
+  it("a probe that cannot read the integration table is an error carrying its reason, not 'not connected'", async () => {
+    oauth.probe = { configured: false, probeFailed: true, reason: UNREADABLE };
     const out = await fetchGSCAndGBPMetrics();
     expect(out.gsc).toEqual([]);
-    expect(out.error).toMatch(/oauth status read failed/);
+    expect(out.error).toBe(UNREADABLE);
     expect(out.notConnected).toBeUndefined();
   });
 
   it("not configured is an explicit not-connected result, not an error", async () => {
-    oauth.configured = false;
+    oauth.probe = { configured: false, probeFailed: false, reason: NOT_GRANTED };
     const out = await fetchGSCAndGBPMetrics();
     expect(out.notConnected).toBe(true);
     expect(out.error).toBeUndefined();
@@ -109,16 +116,16 @@ describe("runIngestion - seo source with a failed fetch", () => {
     expect(state.documentCreates).toEqual([]);
   });
 
-  it("a probe that throws fails the ingest and stores nothing", async () => {
-    oauth.probeThrows = true;
+  it("a probe that cannot read the integration table fails the ingest with its reason and stores nothing", async () => {
+    oauth.probe = { configured: false, probeFailed: true, reason: UNREADABLE };
     const result = await runIngestion("src_1");
     expect(result.success).toBe(false);
-    expect(result.message).toMatch(/oauth status read failed/);
+    expect(result.message).toMatch(/Integration table unreadable/);
     expect(state.documentCreates).toEqual([]);
   });
 
   it("not connected skips the ingest and stores no 'no search data' document", async () => {
-    oauth.configured = false;
+    oauth.probe = { configured: false, probeFailed: false, reason: NOT_GRANTED };
     const result = await runIngestion("src_1");
     expect(result.success).toBe(false);
     expect(result.message).toMatch(/not connected/);

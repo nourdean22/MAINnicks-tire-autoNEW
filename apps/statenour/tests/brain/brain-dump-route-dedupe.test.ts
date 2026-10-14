@@ -7,6 +7,7 @@
  * different body stores that new capture. A repeat that hits a soft-deleted row is refused, never
  * reported as ok, because nothing new was stored.
  */
+import { createHash } from "node:crypto";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { NextRequest } from "next/server";
 
@@ -99,5 +100,32 @@ describe("POST /api/brain/dump retries", () => {
     expect(res.status).toBe(409);
     expect(body.ok).toBeUndefined();
     expect(store.rows.size).toBe(1);
+  });
+
+  it("the same content, URL and selection with a different sourceTitle is a new capture, not the first row", async () => {
+    const page = { content: "Call Bob", sourceUrl: "https://bdnick.info/tires", selection: "Bob" };
+    const first = await (await post({ ...page, sourceTitle: "Tires (1)" })).json();
+    const res = await post({ ...page, sourceTitle: "Tires (2)" });
+    const second = await res.json();
+    expect(res.status).toBe(200);
+    expect(second.duplicate).toBeUndefined();
+    expect(second.id).not.toBe(first.id);
+    expect(store.rows.size).toBe(2);
+  });
+
+  it("control: the same capture with the same sourceTitle still dedupes to one row", async () => {
+    const page = { content: "Call Bob", sourceUrl: "https://bdnick.info/tires", sourceTitle: "Tires", selection: "Bob" };
+    const first = await (await post(page)).json();
+    const second = await (await post(page)).json();
+    expect(second.id).toBe(first.id);
+    expect(store.rows.size).toBe(1);
+  });
+
+  it("control: an untitled capture keeps the key it had before the title joined the fingerprint, so older retries still dedupe", async () => {
+    const body = { content: "Call Bob", sourceUrl: "https://bdnick.info/tires", selection: "Bob" };
+    const legacyFingerprint = JSON.stringify([body.content, body.sourceUrl, body.selection]);
+    const legacyKey = `ext_${createHash("sha256").update(`content:${legacyFingerprint}`).digest("hex").slice(0, 40)}`;
+    const res = await (await post(body)).json();
+    expect(res.key).toBe(legacyKey);
   });
 });

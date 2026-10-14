@@ -1,5 +1,5 @@
 import { logger as rootLogger } from "@/lib/logger";
-import { getAccessToken, isGoogleOauthConfigured } from "@/lib/services/google-oauth";
+import { getAccessToken, probeGoogleOauthConfigured } from "@/lib/services/google-oauth";
 
 const log = rootLogger.withSurface("intelligence/connectors/gsc");
 
@@ -30,17 +30,15 @@ export interface GSCFetchResult {
 const errorText = (err: unknown): string => (err instanceof Error ? err.message : String(err)) || "no error message";
 
 export async function fetchGSCAndGBPMetrics(): Promise<GSCFetchResult> {
-  // A probe that throws is a failed read, so it is reported as one, not read as "not connected".
-  let isConfigured: boolean;
-  try {
-    isConfigured = await isGoogleOauthConfigured("primary");
-  } catch (err) {
-    const error = `Google OAuth status check failed: ${errorText(err)}`;
-    log.error("Google OAuth status check failed.", { error });
-    return { gsc: [], gbp: null, error };
+  // The probe reports a failed read as probeFailed (it never throws). That is an error carrying its
+  // reason. The boolean wrapper would read it as configured: false, which is "not connected".
+  const probe = await probeGoogleOauthConfigured("primary");
+  if (probe.probeFailed) {
+    log.error("Google OAuth status check failed.", { error: probe.reason });
+    return { gsc: [], gbp: null, error: probe.reason };
   }
 
-  if (!isConfigured) {
+  if (!probe.configured) {
     log.warn("Google OAuth is not configured; Search Console skipped.");
     return { gsc: [], gbp: null, notConnected: true };
   }
