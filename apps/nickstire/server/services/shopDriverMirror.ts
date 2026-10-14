@@ -12,6 +12,7 @@
 import { createLogger } from "../lib/logger";
 import { isDuplicateKeyError } from "../lib/dbErrors";
 import { lockedTotalPatch, STALE_INTENT_MS, withInvoiceLock } from "./paymentIntentLock";
+import { getBusinessDateKey } from "../lib/timezoneAssert";
 import { eq, and, inArray, sql } from "drizzle-orm";
 
 const log = createLogger("shopdriver-mirror");
@@ -1268,7 +1269,7 @@ export async function runFullMirror(): Promise<{
         const [todayRev] = await d.execute(sql`
           SELECT COALESCE(SUM(totalAmount), 0) as rev, COUNT(*) as cnt
           FROM invoices
-          WHERE DATE(invoiceDate) = CURDATE() AND source = 'shopdriver'
+          WHERE DATE(invoiceDate) = ${getBusinessDateKey()} AND source = 'shopdriver'
         `);
         const rev = (todayRev as unknown as any[])?.[0];
         if (rev) {

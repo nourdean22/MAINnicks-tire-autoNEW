@@ -30,6 +30,7 @@ import { DECLINED_RECOVERY_WINDOW_DAYS } from "@shared/const";
 import { createLogger } from "../lib/logger";
 import { normalizePhone } from "../lib/phone";
 import { affectedRowCount } from "../lib/db-affected";
+import { shopWallClock } from "../lib/timezoneAssert";
 
 const log = createLogger("shopdriver-estimate-sync");
 
@@ -178,7 +179,7 @@ function normalizeEstimateJson(raw: Record<string, unknown>): RawEstimate | null
     (raw.accessedDate as string | undefined) ||
     new Date().toISOString();
   const parsedDate = new Date(dateRaw);
-  const estimateDate = Number.isNaN(parsedDate.getTime()) ? new Date() : parsedDate;
+  const estimateDate = Number.isNaN(parsedDate.getTime()) ? shopWallClock() : parsedDate;
 
   const vehicleInfo =
     (raw.vehicleDescription as string) ||
@@ -246,7 +247,7 @@ function normalizeTicketAsEstimate(raw: Record<string, unknown>): RawEstimate {
     (raw.customerDateCreated as string | undefined) ||
     new Date().toISOString();
   const parsed = new Date(dateRaw);
-  const estimateDate = Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+  const estimateDate = Number.isNaN(parsed.getTime()) ? shopWallClock() : parsed;
 
   const year = raw.year ? String(raw.year) : "";
   const make = (raw.make as string) || "";
@@ -677,7 +678,7 @@ async function fetchEstimatesViaHtml(token: string): Promise<RawEstimate[]> {
             vehicleInfo: vehicle,
             serviceDescription: null,
             estimatedAmount: amountCents,
-            estimateDate: dateStr ? new Date(dateStr) : new Date(),
+            estimateDate: dateStr ? new Date(dateStr) : shopWallClock(),
           });
         }
         if (rows.length > 0) {
@@ -713,7 +714,7 @@ async function fetchEstimatesViaHtml(token: string): Promise<RawEstimate[]> {
           vehicleInfo: vehicleCell,
           serviceDescription: null,
           estimatedAmount: amountCents,
-          estimateDate: dateCell ? new Date(dateCell) : new Date(),
+          estimateDate: dateCell ? new Date(dateCell) : shopWallClock(),
         });
       }
 

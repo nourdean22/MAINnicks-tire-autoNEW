@@ -38,6 +38,8 @@ import express from "express";
 import { timingSafeEqual } from "crypto";
 import { createLogger } from "../lib/logger";
 import { BUSINESS } from "@shared/business";
+import { getBusinessDateKey, shiftDateKey } from "../lib/timezoneAssert";
+import { shopDayRangeSql } from "../services/autonomyControl";
 
 const log = createLogger("statenour-bridge");
 
@@ -203,6 +205,16 @@ function safeDays(d: number): number {
   return d;
 }
 
+/**
+ * The window `days` shop days back from today. `key` is the date key for ALG-sourced date columns
+ * (the shop's day as stored); `start` is Eastern midnight as UTC text for createdAt instants.
+ * A UTC CURDATE() here would move the window forward by a day after 20:00 ET.
+ */
+function shopWindow(days: number): { key: string; start: string } {
+  const key = shiftDateKey(getBusinessDateKey(), -safeDays(days));
+  return { key, start: shopDayRangeSql(key).start };
+}
+
 // ─── Registration ──────────────────────────────────────
 export function registerStatenourBridgeRoutes(app: Express): void {
 
@@ -257,7 +269,7 @@ export function registerStatenourBridgeRoutes(app: Express): void {
       const paymentBreakdown = await exec(d, sql`
         SELECT paymentMethod, COUNT(*) AS cnt, COALESCE(SUM(totalAmount), 0) AS totalCents
         FROM invoices
-        WHERE DATE(invoiceDate) = CURDATE() AND paymentStatus = 'paid'
+        WHERE DATE(invoiceDate) = ${getBusinessDateKey()} AND paymentStatus = 'paid'
         GROUP BY paymentMethod
       `);
       const byPayment = Object.fromEntries(
@@ -297,6 +309,7 @@ export function registerStatenourBridgeRoutes(app: Express): void {
   app.get("/api/bridge/estimates-conversion", statenourAuth, async (req, res) => {
     try {
       const days = rangeToDays(typeof req.query.range === "string" ? req.query.range : undefined);
+      const win = shopWindow(days);
       const scope = (typeof req.query.scope === "string" ? req.query.scope : "online").toLowerCase();
       const { getDb } = await import("../db");
       const { sql } = await import("drizzle-orm");
@@ -317,7 +330,7 @@ export function registerStatenourBridgeRoutes(app: Express): void {
               END) / 60 AS avgHours,
               COALESCE(SUM(CASE WHEN matched_invoice_id IS NULL THEN estimated_amount ELSE 0 END), 0) AS declinedCents
             FROM alg_estimates
-            WHERE estimate_date >= DATE_SUB(CURDATE(), INTERVAL ${sql.raw(String(safeDays(days)))} DAY)
+            WHERE estimate_date >= ${win.key}
           `),
           exec(d, sql`
             SELECT customer_name AS name, service_description AS service,
@@ -325,7 +338,7 @@ export function registerStatenourBridgeRoutes(app: Express): void {
               TIMESTAMPDIFF(DAY, estimate_date, NOW()) AS daysOld
             FROM alg_estimates
             WHERE matched_invoice_id IS NULL
-              AND estimate_date >= DATE_SUB(CURDATE(), INTERVAL ${sql.raw(String(safeDays(days)))} DAY)
+              AND estimate_date >= ${win.key}
             ORDER BY estimated_amount DESC
             LIMIT 5
           `),
@@ -382,14 +395,14 @@ export function registerStatenourBridgeRoutes(app: Express): void {
               ELSE NULL
             END) / 60 AS avgHours
           FROM estimates_log
-          WHERE createdAt >= DATE_SUB(CURDATE(), INTERVAL ${sql.raw(String(safeDays(days)))} DAY)
+          WHERE createdAt >= ${win.start}
         `),
         exec(d, sql`
           SELECT service,
             COUNT(*) AS given,
             SUM(CASE WHEN converted = 1 THEN 1 ELSE 0 END) AS converted
           FROM estimates_log
-          WHERE createdAt >= DATE_SUB(CURDATE(), INTERVAL ${sql.raw(String(safeDays(days)))} DAY)
+          WHERE createdAt >= ${win.start}
           GROUP BY service
           ORDER BY given DESC
           LIMIT 10
@@ -471,7 +484,7 @@ export function registerStatenourBridgeRoutes(app: Express): void {
             SELECT COALESCE(SUM(estimated_amount), 0) AS totalDeclinedCents
             FROM alg_estimates
             WHERE matched_invoice_id IS NULL
-              AND estimate_date >= DATE_SUB(CURDATE(), INTERVAL 60 DAY)
+              AND estimate_date >= ${shiftDateKey(getBusinessDateKey(), -60)}
           `),
         ]);
 
@@ -567,6 +580,7 @@ export function registerStatenourBridgeRoutes(app: Express): void {
   app.get("/api/bridge/drop-off-ratio", statenourAuth, async (req, res) => {
     try {
       const days = rangeToDays(typeof req.query.range === "string" ? req.query.range : undefined);
+      const win = shopWindow(days);
       const { getDb } = await import("../db");
       const { sql } = await import("drizzle-orm");
       const d = await getDb();
@@ -588,14 +602,14 @@ export function registerStatenourBridgeRoutes(app: Express): void {
               THEN 1 ELSE 0
             END) AS walk_ins
           FROM bookings
-          WHERE createdAt >= DATE_SUB(CURDATE(), INTERVAL ${sql.raw(String(safeDays(days)))} DAY)
+          WHERE createdAt >= ${win.start}
             AND status != 'cancelled'
         `),
         // Count Uber-out trackings from audit_log (requires uber-code endpoint to log there)
         exec(d, sql`
           SELECT COUNT(*) AS cnt FROM audit_log
           WHERE action = 'customer.uber_requested'
-            AND created_at >= DATE_SUB(CURDATE(), INTERVAL ${sql.raw(String(safeDays(days)))} DAY)
+            AND created_at >= ${win.start}
         `),
       ]);
 

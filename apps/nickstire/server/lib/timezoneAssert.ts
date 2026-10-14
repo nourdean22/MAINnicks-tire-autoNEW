@@ -176,6 +176,28 @@ export function shiftDateKey(key: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+/**
+ * The shop's wall clock as a Date whose UTC fields read the Cleveland clock. A TIMESTAMP written
+ * from it reads back as the shop's local time, the same convention as ALG dates in
+ * invoices.invoiceDate and alg_estimates.estimateDate. Any row written with "now" into a shop-day
+ * column must use this: a plain new Date() stores the UTC clock, which puts an evening row on the
+ * next shop day.
+ */
+export function shopWallClock(now: Date = new Date()): Date {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: BUSINESS.timezone,
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "numeric",
+    second: "numeric",
+    hourCycle: "h23",
+  }).formatToParts(now);
+  const v = Object.fromEntries(parts.map((p) => [p.type, Number(p.value)]));
+  return new Date(Date.UTC(v.year, v.month - 1, v.day, v.hour, v.minute, v.second));
+}
+
 /** Whole minutes since midnight in the shop's timezone. A duration, so the DB clock's zone never matters. */
 export function minutesSinceShopMidnight(now: Date, timeZone: string = BUSINESS.timezone): number {
   const parts = new Intl.DateTimeFormat("en-US", { timeZone, hour: "numeric", minute: "numeric", hourCycle: "h23" }).formatToParts(now);

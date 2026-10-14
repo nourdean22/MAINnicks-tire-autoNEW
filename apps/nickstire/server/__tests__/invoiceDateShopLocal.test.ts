@@ -92,3 +92,33 @@ describe("invoiceDate is read as the stored shop-local day", () => {
     expect(findUtcConversions(planted)).toEqual(["a.ts:1", "b.ts:1", "c.ts:1", "e.ts:1", "g.ts:3", "i.ts:3"]);
   });
 });
+
+/** A writer that stores the UTC clock into a shop-day column: `invoiceDate: new Date()`. */
+const UTC_CLOCK_WRITE = /\b(?:invoiceDate|estimateDate)\s*[:=][^;,\n]*\bnew Date\(\s*\)/g;
+
+function findUtcClockWrites(files: Array<{ file: string; text: string }>): string[] {
+  return files.flatMap(({ file, text }) =>
+    [...text.matchAll(UTC_CLOCK_WRITE)].map((m) => `${file}:${text.slice(0, m.index).split("\n").length}`),
+  );
+}
+
+describe("shop-day columns are written as the shop's wall clock", () => {
+  // A new Date() stores the UTC clock, so an evening row lands on the next shop day. Writers use
+  // shopWallClock() (server/lib/timezoneAssert.ts) so the stored value reads as the shop's local time.
+  it("no server writer stores new Date() into invoiceDate or estimateDate", () => {
+    const files = serverSources(SERVER).map((f) => ({ file: path.relative(SERVER, f), text: readFileSync(f, "utf8") }));
+    expect(files.length).toBeGreaterThan(200);
+    expect(findUtcClockWrites(files)).toEqual([]);
+  });
+
+  it("the scan catches a planted UTC-clock writer and passes the wall-clock form", () => {
+    const planted = [
+      { file: "w.ts", text: "await db.insert(invoices).values({ invoiceDate: new Date(), paymentStatus: 'paid' })" },
+      { file: "x.ts", text: "values({ invoiceDate: shopWallClock(), estimateDate: input.when })" },
+      { file: "y.ts", text: "values({\n  estimateDate: new Date() })" },
+      { file: "z.ts", text: "estimateDate: dateCell ? new Date(dateCell) : new Date()," },
+      { file: "v.ts", text: "const estimateDate = Number.isNaN(p.getTime()) ? new Date() : p;" },
+    ];
+    expect(findUtcClockWrites(planted)).toEqual(["w.ts:1", "y.ts:2", "z.ts:1", "v.ts:1"]);
+  });
+});

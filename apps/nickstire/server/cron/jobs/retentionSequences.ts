@@ -20,6 +20,7 @@ import { withOptOut } from "../../sms";
 import type { FlagKey } from "../../services/featureFlags";
 
 import { BUSINESS } from "@shared/business";
+import { getBusinessDateKey } from "../../lib/timezoneAssert";
 const log = createLogger("cron:retention");
 
 // ─── RETENTION TIERS ─────────────────────────────────
@@ -191,7 +192,7 @@ async function processRetentionTier(tier: RetentionTier): Promise<{ contacted: n
         isNotNull(customers.lastVisitDate),
         isNotNull(customers.phone),
         eq(customers.smsOptOut, 0),
-        sql`DATEDIFF(CURDATE(), ${customers.lastVisitDate}) BETWEEN ${tier.minDays} AND ${tier.maxDays}`,
+        sql`DATEDIFF(${getBusinessDateKey()}, ${customers.lastVisitDate}) BETWEEN ${tier.minDays} AND ${tier.maxDays}`,
         // Only send if they haven't already received this tier or higher
         or(
           isNull(customers.lastRetentionTier),
