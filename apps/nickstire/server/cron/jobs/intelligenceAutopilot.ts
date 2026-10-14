@@ -217,16 +217,16 @@ export async function runIntelligenceAutopilot(): Promise<{ recordsProcessed: nu
       const { sql: rawSql } = await import("drizzle-orm");
       const d = await getDb();
       if (d) {
-        // The shop's day, bound below as UTC instants. CURDATE() reads the database's UTC day.
+        // The shop's day. Invoice dates are the shop's day as stored, so they compare with date keys;
+        // createdAt columns compare with the Eastern instants below.
         const todayKey = getBusinessDateKey();
         const weekAgoKey = shiftDateKey(todayKey, -7);
         const todayRange = shopDayRangeSql(todayKey);
-        const weekStart = shopDayRangeSql(weekAgoKey).start;
 
         // Count today's invoices
         const [invoiceRows] = await d.execute(rawSql`
           SELECT COUNT(*) as total FROM invoices
-          WHERE invoiceDate >= ${todayRange.start} AND invoiceDate < ${todayRange.end} AND paymentStatus = 'paid'
+          WHERE DATE(invoiceDate) = ${todayKey} AND paymentStatus = 'paid'
         `);
         type RawRow = Record<string, unknown>;
         const todayInvoices = Number((invoiceRows as RawRow[])?.[0]?.total || 0);
@@ -249,7 +249,7 @@ export async function runIntelligenceAutopilot(): Promise<{ recordsProcessed: nu
         // Count free inspections (invoices with $0 or very low amount)
         const [freeRows] = await d.execute(rawSql`
           SELECT COUNT(*) as total FROM invoices
-          WHERE invoiceDate >= ${weekStart}
+          WHERE invoiceDate >= ${weekAgoKey}
             AND totalAmount <= 500
             AND paymentStatus = 'paid'
         `);
@@ -262,8 +262,8 @@ export async function runIntelligenceAutopilot(): Promise<{ recordsProcessed: nu
         // Estimate-to-invoice conversion (ALG estimates = declined work)
         const [estRows] = await d.execute(rawSql`
           SELECT
-            COUNT(CASE WHEN paymentStatus = 'pending' AND invoiceDate >= ${weekStart} THEN 1 END) as estimates,
-            COUNT(CASE WHEN paymentStatus = 'paid' AND invoiceDate >= ${weekStart} THEN 1 END) as closed
+            COUNT(CASE WHEN paymentStatus = 'pending' AND invoiceDate >= ${weekAgoKey} THEN 1 END) as estimates,
+            COUNT(CASE WHEN paymentStatus = 'paid' AND invoiceDate >= ${weekAgoKey} THEN 1 END) as closed
           FROM invoices
         `);
         const estimates = Number((estRows as RawRow[])?.[0]?.estimates || 0);

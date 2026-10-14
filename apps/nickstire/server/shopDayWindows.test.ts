@@ -1,16 +1,18 @@
 /**
  * The "today" these jobs report is the shop's day, not the UTC day.
  *
- * At 2026-10-12 21:00 ET the clock already reads 2026-10-13 01:00Z. statenourSync
- * (revenue rollup and trends) and intelligenceAutopilot (walk-in split and estimate
- * conversion) used to compare against CURDATE(), which is the database session's
- * UTC day, so today's paid work dropped out after 20:00 ET. Both must bind the
- * Eastern date they computed as a query parameter instead.
+ * At 2026-10-12 21:00 ET the clock already reads 2026-10-13 01:00Z. statenourSync and
+ * intelligenceAutopilot used to compare against CURDATE(), the database session's UTC day, so
+ * today's paid work dropped out after 20:00 ET. The two kinds of date column bind differently:
+ *   - invoices.invoiceDate and alg_estimates.estimateDate hold the shop's day as stored (ALG dates
+ *     land at that day's midnight; timed tickets carry the shop's wall clock). They compare with
+ *     the shop's date key, never with a UTC instant.
+ *   - createdAt columns are real instants. They compare with Eastern midnight as a UTC instant.
  *
- * The database is a recorder. The SQL each job sends is rendered with the MySQL
- * dialect, and the assertion is on the values that would be bound.
+ * The database is a recorder. The SQL each job sends is rendered with the MySQL dialect, and the
+ * assertion is on the values that would be bound.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MySqlDialect } from "drizzle-orm/mysql-core";
 import type { SQL } from "drizzle-orm";
 
@@ -36,66 +38,82 @@ const h = vi.hoisted(() => {
   return { state, db };
 });
 
-vi.mock("./db", () => ({ getDb: async () => h.db }));
-vi.mock("./services/customerIntelligence", () => ({
-  analyzeCustomers: async () => null,
-  getCustomerActionPlan: async () => "",
-}));
-vi.mock("./services/nickIntelligence", () => ({
-  analyzeConversionPipeline: async () => ({}),
-  projectRevenue: async () => ({}),
-  getShopPulse: async () => ({ thisWeek: { walkRate: 0 } }),
-  generateProactiveAlerts: async () => [],
-  generateWeeklyInsight: async () => "",
-  getEstimateLeadFunnelWindows: async () => null,
-}));
-vi.mock("./admin-stats", () => ({
-  getDashboardStats: async () => ({
-    bookings: { total: 0, thisWeek: 0, new: 0, confirmed: 0, completed: 0, cancelled: 0, byService: [] },
-    leads: { total: 0, thisWeek: 0, new: 0, contacted: 0, booked: 0, lost: 0, urgent: 0, avgUrgency: 0, bySource: [] },
-    chat: { totalSessions: 0, converted: 0, thisWeek: 0 },
-    callTracking: { totalCalls: 0, thisWeek: 0, byPage: [] },
-    callbacks: { total: 0, new: 0, completed: 0, thisWeek: 0 },
-    content: { totalArticles: 0, published: 0 },
-    sourceAttribution: { bookingsBySource: [], leadsBySource: [] },
-    shopFloor: null,
-  }),
-  getSiteHealth: async () => ({ indexedPages: 0, notIndexedPages: 0, sheetsConfigured: false }),
-}));
-vi.mock("./services/featureFlags", () => ({ getAllFlags: async () => [], isEnabled: async () => false }));
-vi.mock("./services/nickMemory", () => ({
-  recall: async () => [],
-  getTopQuestions: async () => [],
-  remember: async () => undefined,
-}));
-vi.mock("./nour-os-bridge", () => ({ getEventAnalytics: () => ({}), getSyncStatus: () => ({}) }));
-vi.mock("./services/feedbackLoop", () => ({ detectAnomalies: () => [], getBriefEngagement: () => ({}) }));
-vi.mock("./services/eventBus", () => ({ getActiveJourneys: () => [] }));
-vi.mock("./services/declinedWorkRecovery", () => ({ getDeclinedWorkLedger: async () => [] }));
-vi.mock("./services/declinedWorkSource", () => ({
-  declinedWorkSourceState: async () => "unmeasured",
-  isMeasured: () => false,
-  sourceNote: () => "unmeasured",
-}));
-vi.mock("./services/shopDriverMirror", () => ({
-  checkMirrorHealth: async () => ({ recordsProcessed: 0, details: "" }),
-  probeAlgEndpoints: async () => [],
-}));
-vi.mock("./services/intelligenceEngines", () => ({
-  forecastRevenue: async () => ({}),
-  generateCrossSellRecommendations: async () => [],
-  scoreLeads: async () => [],
-  predictCustomerLTV: async () => [],
-  analyzeBottlenecks: async () => [],
-  analyzeDeclinedWork: async () => null,
-  predictChurn: async () => [],
-}));
-vi.mock("./services/costDetailCoverage", () => ({ checkCostDetailCoverage: async () => ({ reading: null }) }));
-vi.mock("./services/telegram", () => ({
-  sendTelegram: async () => undefined,
-  sendTelegramMessage: async () => undefined,
-}));
-vi.mock("./services/winbackProcessor", () => ({ processWinbackPending: async () => ({}) }));
+/**
+ * Module mocks are installed for this file only. beforeAll installs them and afterAll removes
+ * them, and each test re-imports the jobs against them. Under singleFork a file-scope vi.mock
+ * would otherwise stay in the one shared process for every later file.
+ */
+const MOCKS: Array<[string, () => unknown]> = [
+  ["./db", () => ({ getDb: async () => h.db })],
+  ["./services/customerIntelligence", () => ({
+    analyzeCustomers: async () => null,
+    getCustomerActionPlan: async () => "",
+  })],
+  ["./services/nickIntelligence", () => ({
+    analyzeConversionPipeline: async () => ({}),
+    projectRevenue: async () => ({}),
+    getShopPulse: async () => ({ thisWeek: { walkRate: 0 } }),
+    generateProactiveAlerts: async () => [],
+    generateWeeklyInsight: async () => "",
+    getEstimateLeadFunnelWindows: async () => null,
+  })],
+  ["./admin-stats", () => ({
+    getDashboardStats: async () => ({
+      bookings: { total: 0, thisWeek: 0, new: 0, confirmed: 0, completed: 0, cancelled: 0, byService: [] },
+      leads: { total: 0, thisWeek: 0, new: 0, contacted: 0, booked: 0, lost: 0, urgent: 0, avgUrgency: 0, bySource: [] },
+      chat: { totalSessions: 0, converted: 0, thisWeek: 0 },
+      callTracking: { totalCalls: 0, thisWeek: 0, byPage: [] },
+      callbacks: { total: 0, new: 0, completed: 0, thisWeek: 0 },
+      content: { totalArticles: 0, published: 0 },
+      sourceAttribution: { bookingsBySource: [], leadsBySource: [] },
+      shopFloor: null,
+    }),
+    getSiteHealth: async () => ({ indexedPages: 0, notIndexedPages: 0, sheetsConfigured: false }),
+  })],
+  ["./services/featureFlags", () => ({ getAllFlags: async () => [], isEnabled: async () => false })],
+  ["./services/nickMemory", () => ({
+    recall: async () => [],
+    getTopQuestions: async () => [],
+    remember: async () => undefined,
+  })],
+  ["./nour-os-bridge", () => ({ getEventAnalytics: () => ({}), getSyncStatus: () => ({}) })],
+  ["./services/feedbackLoop", () => ({ detectAnomalies: () => [], getBriefEngagement: () => ({}) })],
+  ["./services/eventBus", () => ({ getActiveJourneys: () => [] })],
+  ["./services/declinedWorkRecovery", () => ({ getDeclinedWorkLedger: async () => [] })],
+  ["./services/declinedWorkSource", () => ({
+    declinedWorkSourceState: async () => "unmeasured",
+    isMeasured: () => false,
+    sourceNote: () => "unmeasured",
+  })],
+  ["./services/shopDriverMirror", () => ({
+    checkMirrorHealth: async () => ({ recordsProcessed: 0, details: "" }),
+    probeAlgEndpoints: async () => [],
+  })],
+  ["./services/intelligenceEngines", () => ({
+    forecastRevenue: async () => ({}),
+    generateCrossSellRecommendations: async () => [],
+    scoreLeads: async () => [],
+    predictCustomerLTV: async () => [],
+    analyzeBottlenecks: async () => [],
+    analyzeDeclinedWork: async () => null,
+    predictChurn: async () => [],
+  })],
+  ["./services/costDetailCoverage", () => ({ checkCostDetailCoverage: async () => ({ reading: null }) })],
+  ["./services/telegram", () => ({
+    sendTelegram: async () => undefined,
+    sendTelegramMessage: async () => undefined,
+  })],
+  ["./services/winbackProcessor", () => ({ processWinbackPending: async () => ({}) })],
+];
+
+beforeAll(() => {
+  for (const [modulePath, factory] of MOCKS) vi.doMock(modulePath, factory);
+});
+
+afterAll(() => {
+  for (const [modulePath] of MOCKS) vi.doUnmock(modulePath);
+  vi.resetModules();
+});
 
 /** The bound values of every executed query whose rendered SQL matches the pattern. */
 function paramsOf(pattern: RegExp): unknown[][] {
@@ -113,6 +131,7 @@ function asInstant(p: unknown): unknown {
 
 beforeEach(() => {
   h.state.executed = [];
+  vi.resetModules();
   // Only Date is faked: the jobs await real promises.
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date("2026-10-13T01:00:00Z"));
@@ -124,45 +143,36 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-/** True when the instant falls inside the [start, end) pair a query bound. */
-function falls(instant: Date, bound: unknown[]): boolean {
-  const [start, end] = bound;
-  return start instanceof Date && end instanceof Date && instant >= start && instant < end;
-}
-
-/** A paid invoice at 2026-10-13 01:00Z: 2026-10-12 21:00 EDT, still the Oct 12 shop day. */
-const PAID_AT_9PM_ET_OCT_12 = new Date("2026-10-13T01:00:00Z");
-const SHOP_DAY_OCT_11: [Date, Date] = [new Date("2026-10-11T04:00:00Z"), new Date("2026-10-12T04:00:00Z")];
+// Shop-day keys: invoice dates and estimate dates bind as these strings.
+const DAY_OCT_12 = "2026-10-12";
+const DAY_OCT_11 = "2026-10-11";
+const WEEK_KEY = "2026-10-05";
+const FORTNIGHT_KEY = "2026-09-28";
+const MONTH_KEY = "2026-10-01";
+// createdAt instants: Eastern midnight as UTC.
 const SHOP_DAY_OCT_12: [Date, Date] = [new Date("2026-10-12T04:00:00Z"), new Date("2026-10-13T04:00:00Z")];
-/** Seven and fourteen days back from Oct 12, at Eastern midnight (EDT). */
 const WEEK_START = new Date("2026-10-05T04:00:00Z");
 const FORTNIGHT_START = new Date("2026-09-28T04:00:00Z");
 
 describe("the shop's 'today' at 2026-10-12 21:00 ET", () => {
-  // Each assertion pins the instant pair one query binds, so reverting one query
-  // fails its own assertion even when another query in the same job binds a similar range.
-  it("statenourSync's day queries bind Eastern day ranges, and the 21:00 ET invoice lands on Oct 12 only", async () => {
+  // Each assertion pins the value one query binds, so reverting one query fails its own assertion
+  // even when another query in the same job binds a similar value.
+  it("statenourSync's day queries bind the shop's date key, so the 21:00 ET invoice is an Oct 12 row", async () => {
     const { syncToStatenour } = await import("./cron/jobs/statenourSync");
     await syncToStatenour();
-    const dayBounds = paramsOf(/invoiceDate >= \? AND invoiceDate < \? AND paymentStatus = 'paid'/);
-    // Raw sql() must bind UTC text: a Date would be formatted in the process zone by mysql2.
-    const rawDayBinds = h.state.executed
-      .map((q) => new MySqlDialect().sqlToQuery(q as SQL))
-      .filter((r) => /invoiceDate >= \? AND invoiceDate < \? AND paymentStatus = 'paid'/.test(r.sql))
-      .flatMap((r) => r.params);
-    expect(rawDayBinds).toHaveLength(4);
-    expect(rawDayBinds.every((p) => typeof p === "string")).toBe(true);
-    expect(dayBounds).toContainEqual(SHOP_DAY_OCT_12);
-    expect(dayBounds).toContainEqual(SHOP_DAY_OCT_11);
-    expect(dayBounds.filter((b) => falls(PAID_AT_9PM_ET_OCT_12, b))).toEqual([SHOP_DAY_OCT_12]);
+    const dayKeys = paramsOf(/DATE\(invoiceDate\) = \? AND paymentStatus = 'paid'/);
+    expect(dayKeys).toContainEqual([DAY_OCT_12]);
+    expect(dayKeys).toContainEqual([DAY_OCT_11]);
+    // A date key, not an instant: invoiceDate holds the shop's day as stored.
+    expect(dayKeys.flat().every((p) => typeof p === "string")).toBe(true);
   });
 
-  it("statenourSync's week and month revenue start at Eastern midnight of those days", async () => {
+  it("statenourSync's week and month revenue bind the shop's week and month keys", async () => {
     const { syncToStatenour } = await import("./cron/jobs/statenourSync");
     await syncToStatenour();
     const openEnded = paramsOf(/invoiceDate >= \? AND paymentStatus = 'paid'/);
-    expect(openEnded).toContainEqual([new Date("2026-10-05T04:00:00Z")]);
-    expect(openEnded).toContainEqual([new Date("2026-10-01T04:00:00Z")]);
+    expect(openEnded).toContainEqual([WEEK_KEY]);
+    expect(openEnded).toContainEqual([MONTH_KEY]);
   });
 
   it("statenourSync's lead trend windows start at Eastern midnight, seven and fourteen days back", async () => {
@@ -175,37 +185,33 @@ describe("the shop's 'today' at 2026-10-12 21:00 ET", () => {
     ]);
   });
 
-  it("statenourSync's trend revenue and booking queries each bind their own week windows", async () => {
+  it("statenourSync's trend revenue binds date keys, and its booking queries bind Eastern instants", async () => {
     const { syncToStatenour } = await import("./cron/jobs/statenourSync");
     await syncToStatenour();
-    // Each SQL shape is matched in full, including the unspaced paymentStatus='paid', so a
-    // revert of any one of these binds fails its own line.
-    expect(paramsOf(/SUM\(totalAmount\),0\) as rev FROM invoices WHERE invoiceDate >= \? AND paymentStatus='paid'$/)).toEqual([[WEEK_START]]);
-    expect(paramsOf(/SUM\(totalAmount\),0\) as rev FROM invoices WHERE invoiceDate >= \? AND invoiceDate < \? AND paymentStatus='paid'$/)).toEqual([[FORTNIGHT_START, WEEK_START]]);
+    // Each SQL shape is matched in full, including the unspaced paymentStatus='paid', so a revert
+    // of any one of these binds fails its own line.
+    expect(paramsOf(/SUM\(totalAmount\),0\) as rev FROM invoices WHERE invoiceDate >= \? AND paymentStatus='paid'$/)).toEqual([[WEEK_KEY]]);
+    expect(paramsOf(/SUM\(totalAmount\),0\) as rev FROM invoices WHERE invoiceDate >= \? AND invoiceDate < \? AND paymentStatus='paid'$/)).toEqual([[FORTNIGHT_KEY, WEEK_KEY]]);
     expect(paramsOf(/FROM bookings WHERE createdAt >= \?$/)).toEqual([[WEEK_START]]);
     expect(paramsOf(/FROM bookings WHERE createdAt >= \? AND createdAt < \?$/)).toEqual([[FORTNIGHT_START, WEEK_START]]);
   });
 
-  it("intelligenceAutopilot's walk-in split binds today's Eastern day range, and the 21:00 ET invoice lands on Oct 12", async () => {
+  it("intelligenceAutopilot's walk-in split binds today's date key, and its bookings bind today's Eastern instants", async () => {
     const { runIntelligenceAutopilot } = await import("./cron/jobs/intelligenceAutopilot");
     await runIntelligenceAutopilot();
-    const walkIns = paramsOf(/FROM invoices\s+WHERE invoiceDate >= \? AND invoiceDate < \? AND paymentStatus = 'paid'/);
-    expect(walkIns).toContainEqual(SHOP_DAY_OCT_12);
-    expect(walkIns.filter((b) => falls(PAID_AT_9PM_ET_OCT_12, b))).toEqual([SHOP_DAY_OCT_12]);
+    expect(paramsOf(/FROM invoices\s+WHERE DATE\(invoiceDate\) = \? AND paymentStatus = 'paid'/)).toContainEqual([DAY_OCT_12]);
     expect(paramsOf(/FROM bookings\s+WHERE createdAt >= \? AND createdAt < \? AND status IN/)).toContainEqual(SHOP_DAY_OCT_12);
   });
 
-  it("intelligenceAutopilot's estimate counts bind the seven-day start on both the pending and the paid branch", async () => {
+  it("intelligenceAutopilot's estimate counts bind the seven-day key on both the pending and the paid branch", async () => {
     const { runIntelligenceAutopilot } = await import("./cron/jobs/intelligenceAutopilot");
     await runIntelligenceAutopilot();
-    expect(paramsOf(/COUNT\(CASE WHEN paymentStatus = 'pending' AND invoiceDate >= \? THEN 1 END\) as estimates,\s+COUNT\(CASE WHEN paymentStatus = 'paid' AND invoiceDate >= \? THEN 1 END\) as closed\s+FROM invoices/)).toEqual([[WEEK_START, WEEK_START]]);
+    expect(paramsOf(/COUNT\(CASE WHEN paymentStatus = 'pending' AND invoiceDate >= \? THEN 1 END\) as estimates,\s+COUNT\(CASE WHEN paymentStatus = 'paid' AND invoiceDate >= \? THEN 1 END\) as closed\s+FROM invoices/)).toEqual([[WEEK_KEY, WEEK_KEY]]);
   });
 
-  it("intelligenceAutopilot's seven-day inspection window starts at Eastern midnight, Oct 5", async () => {
+  it("intelligenceAutopilot's seven-day inspection window binds the Oct 5 key", async () => {
     const { runIntelligenceAutopilot } = await import("./cron/jobs/intelligenceAutopilot");
     await runIntelligenceAutopilot();
-    expect(paramsOf(/FROM invoices\s+WHERE invoiceDate >= \?\s+AND totalAmount <= 500/)).toContainEqual([
-      new Date("2026-10-05T04:00:00Z"),
-    ]);
+    expect(paramsOf(/FROM invoices\s+WHERE invoiceDate >= \?\s+AND totalAmount <= 500/)).toContainEqual([WEEK_KEY]);
   });
 });
