@@ -390,9 +390,12 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
   const energyThreshold = 0.003;
   const isSimActiveRef = useRef(true);
 
-  const isMobile = useMemo(() => {
-    if (typeof window === "undefined") return false;
-    return window.innerWidth < 1024;
+  // Read the viewport after mount. Reading window.innerWidth during render
+  // made the server (false) and a phone (true) render different markup, so
+  // /brain's Map tab failed hydration and React regenerated the whole tree.
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    setIsMobile(window.innerWidth < 1024);
   }, []);
 
   const nodesById = useMemo(() => {

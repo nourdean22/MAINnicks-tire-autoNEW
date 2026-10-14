@@ -25,9 +25,17 @@ import { cn } from "@/lib/utils";
 
 export function AmbientAura({ children }: { children: React.ReactNode }) {
   const s = useNourState();
+  // .state-aura carries padding 4px and margin -4px, so its box is 8px wider
+  // than the column and bleeds 4px past each edge. Clip that on the x axis
+  // here, on a wrapper, not on .state-aura itself: overflow on an element
+  // clips only its children, and the document still scrolls to the box.
+  // overflow: clip does not create a containing block, so fixed descendants
+  // (/chat's shell, the bottom tab bar) still resolve against the viewport.
   return (
-    <div className={cn("state-aura", `state-aura-${s.currentState}`, "min-h-screen")}>
-      {children}
+    <div className="overflow-x-clip">
+      <div className={cn("state-aura", `state-aura-${s.currentState}`, "min-h-screen")}>
+        {children}
+      </div>
     </div>
   );
 }
