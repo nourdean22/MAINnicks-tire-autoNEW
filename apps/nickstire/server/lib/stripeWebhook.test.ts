@@ -12,6 +12,7 @@
  * MySQL dialect, so the assertions read the SQL that would reach TiDB.
  */
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import { createHash } from "node:crypto";
 import { MySqlDialect } from "drizzle-orm/mysql-core";
 import type { SQL } from "drizzle-orm";
 import { markInvoicePaid, stripeWebhookPreflight } from "./stripeWebhook";
@@ -136,7 +137,9 @@ describe("markInvoicePaid", () => {
     let out;
     try {
       out = await markInvoicePaid({ invoiceNumber: INVOICE, receivedCents: 9999, paymentIntentId: PI });
-      expect(logs.err.join("")).toContain(INVOICE);
+      // Invoice numbers are customer data (AGENTS.md, PII): the log carries a short hash, never the raw number.
+      expect(logs.err.join("")).not.toContain(INVOICE);
+      expect(logs.err.join("")).toContain(createHash("sha256").update(INVOICE).digest("hex").slice(0, 12));
       expect(logs.err.join("")).toContain("12345");
       expect(logs.err.join("")).toContain("9999");
     } finally {
