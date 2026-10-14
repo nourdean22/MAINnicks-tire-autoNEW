@@ -348,7 +348,7 @@ async function sendGmailMCP(
     sendStats.lastFailureAt = new Date().toISOString();
     sendStats.lastError = errMsg;
     updateDeliveryRate();
-    log.warn("Gmail MCP send failed", { error: errMsg });
+    log.warn("email send failed", { error: errMsg });
     return { sent: false };
   }
 }

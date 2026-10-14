@@ -55,8 +55,9 @@ export const paymentsRouter = router({
       const d = await db();
       if (!d) return null;
 
+      // Only the fields PayInvoice.tsx renders. This lookup is public, so a field
+      // added here is exposed to anyone holding an invoice number and its phone.
       const results = await d.select({
-        id: invoices.id,
         invoiceNumber: invoices.invoiceNumber,
         customerName: invoices.customerName,
         totalAmount: invoices.totalAmount,
@@ -66,8 +67,6 @@ export const paymentsRouter = router({
         serviceDescription: invoices.serviceDescription,
         vehicleInfo: invoices.vehicleInfo,
         paymentStatus: invoices.paymentStatus,
-        paymentMethod: invoices.paymentMethod,
-        invoiceDate: invoices.invoiceDate,
       })
         .from(invoices)
         .where(and(
