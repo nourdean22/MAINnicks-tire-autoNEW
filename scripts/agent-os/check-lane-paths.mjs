@@ -12,7 +12,8 @@
  *   uncommitted out-of-lane edit is caught too.
  * Renames are split (--no-renames): moving a file OUT of another lane touches that lane's path.
  * Exit 0 = every changed path owned · 1 = out-of-lane paths (each named) · 2 = anything else
- * (usage, unknown lane, missing ownedPaths, git error): an error never reads as pass OR as a finding.
+ * (usage, unknown lane, missing ownedPaths, git error, or an EMPTY diff from a lane that owns paths:
+ * zero changed paths verified nothing): an error never reads as pass OR as a finding.
  */
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
@@ -102,6 +103,10 @@ export function main(argv = process.argv.slice(2), cwd = process.cwd()) {
     const paths = changedPaths({ base, head, cwd });
     const bad = offendingPaths(paths, globs);
     const range = head ? `${base}...${head}` : `${base}...working tree`;
+    if (paths.length === 0 && globs.length > 0) {
+      console.error(`[lane-paths] EMPTY lane ${lane}: 0 changed path(s) (${range}), nothing verified`);
+      return 2;
+    }
     if (bad.length) {
       console.error(`[lane-paths] FAIL lane ${lane}: ${bad.length} of ${paths.length} changed path(s) outside owned globs (${range}):`);
       for (const p of bad) console.error(`  OUT-OF-LANE ${p}`);

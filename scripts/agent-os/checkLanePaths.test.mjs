@@ -72,6 +72,22 @@ test("CONTROL: an in-lane-only diff passes with exit 0 and counted the path (not
   assert.match(r.out, /OK lane statenour: 1 changed path\(s\)/);
 });
 
+test("EMPTY: a committed diff with zero changed paths exits 2 and never reads as OK", () => {
+  const dir = fixture();
+  const r = run(dir, "--lane", "statenour", "--base", "main", "--head", "HEAD");
+  assert.equal(r.code, 2, `${r.out}${r.err}`);
+  assert.match(r.err, /EMPTY lane statenour: 0 changed path\(s\) \(main\.\.\.HEAD\), nothing verified/);
+  assert.doesNotMatch(r.out, /OK lane/);
+});
+
+test("EMPTY: a working-tree check with nothing changed exits 2 and never reads as OK", () => {
+  const dir = fixture();
+  const r = run(dir, "--lane", "statenour", "--base", "main");
+  assert.equal(r.code, 2, `${r.out}${r.err}`);
+  assert.match(r.err, /EMPTY lane statenour: 0 changed path\(s\) \(main\.\.\.working tree\), nothing verified/);
+  assert.doesNotMatch(r.out, /OK lane/);
+});
+
 test("unknown lane, invalid lane name, missing args and a bad ref each exit 2 (never 0 or 1)", () => {
   const dir = fixture();
   put(dir, "apps/nickstire/server/planted.ts");
@@ -122,6 +138,13 @@ test("research owns nothing: any diff fails", () => {
   put(dir, "docs/notes.md");
   commitAll(dir);
   assert.equal(run(dir, "--lane", "research", "--base", "main", "--head", "HEAD").code, 1);
+});
+
+test("research owns nothing, so an EMPTY diff is its clean read-only answer (exit 0, not 2)", () => {
+  const dir = fixture();
+  const r = run(dir, "--lane", "research", "--base", "main", "--head", "HEAD");
+  assert.equal(r.code, 0, `${r.out}${r.err}`);
+  assert.match(r.out, /OK lane research: 0 changed path\(s\), all owned/);
 });
 
 test("glob matcher: no prefix bleed, ** spans dirs, root files are exact", () => {
