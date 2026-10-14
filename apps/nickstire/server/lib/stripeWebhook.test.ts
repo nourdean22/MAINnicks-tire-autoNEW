@@ -48,10 +48,12 @@ function fakeDb() {
     }),
     update: () => ({
       set: () => ({
+        // Production shape: drizzle's mysql2 session returns the driver tuple
+        // [ResultSetHeader, fields] for an UPDATE, so the header sits at [0].
         where: async (cond: unknown) => {
           if (h.failUpdate) throw h.failUpdate;
           h.updateWheres.push(cond);
-          return { affectedRows: h.affectedRows };
+          return [{ affectedRows: h.affectedRows }, undefined];
         },
       }),
     }),
@@ -226,7 +228,8 @@ describe("markInvoicePaid", () => {
     } finally {
       logs.restore();
     }
-    expect(out).toEqual({ kind: "not_claimed", invoiceNumber: INVOICE });
+    // A total that moved is not "already paid": the route answers 500 so Stripe retries.
+    expect(out).toEqual({ kind: "total_changed", invoiceNumber: INVOICE });
     expect(logs.err.join("")).toContain("12345");
     expect(logs.err.join("")).toContain("12400");
   });

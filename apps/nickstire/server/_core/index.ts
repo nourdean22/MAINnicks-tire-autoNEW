@@ -988,7 +988,8 @@ ${urls.join("\n")}
             paymentIntentId: String(intent.id),
           });
           // A paid event that could not be recorded answers 500, so Stripe retries it.
-          if (claim.kind === "db_unavailable") return res.sendStatus(500);
+          // A total that moved during the claim is also unrecorded, so it retries too.
+          if (claim.kind === "db_unavailable" || claim.kind === "total_changed") return res.sendStatus(500);
           if (claim.kind === "claimed") {
             // First-time claim — fan out.
             import("../services/eventBus").then(({ emit }) =>

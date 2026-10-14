@@ -42,6 +42,8 @@ type InvoicePaidOutcome =
   | { kind: "not_found"; invoiceNumber: string }
   | { kind: "amount_mismatch"; invoiceNumber: string; expectedCents: number; receivedCents: number }
   | { kind: "not_claimed"; invoiceNumber: string }
+  // The total moved between the read and the claim (or the row vanished): not recorded.
+  | { kind: "total_changed"; invoiceNumber: string }
   | { kind: "claimed"; invoiceNumber: string };
 
 /**
@@ -87,16 +89,16 @@ export async function markInvoicePaid(input: {
     // Idempotency (2026-05-23): only the first delivery flips the row, so a Stripe
     // retry never re-emits invoicePaid. The claim also pins the total checked above,
     // so an edit made between the read and this write cannot pass.
-    const result = await d.update(invoices)
+    // An UPDATE with no selected fields returns the mysql2 tuple [ResultSetHeader, fields],
+    // not the header itself (drizzle-orm 0.45 mysql2 session, execute()). Read it at [0].
+    const [header] = await d.update(invoices)
       .set({ paymentStatus: "paid", paymentMethod: "card" })
       .where(and(
         eq(invoices.invoiceNumber, invoiceNumber),
         ne(invoices.paymentStatus, "paid"),
         eq(invoices.totalAmount, inv.totalAmount),
       ));
-    // mysql2 returns affectedRows; drizzle wraps it.
-    const affected = (result as unknown as { affectedRows?: number; rowsAffected?: number })?.affectedRows
-      ?? (result as unknown as { affectedRows?: number; rowsAffected?: number })?.rowsAffected ?? 0;
+    const affected = header?.affectedRows ?? 0;
     if (affected === 1) return { kind: "claimed", invoiceNumber };
 
     // The claim matched no row: already paid, or the total moved after the read.
@@ -113,7 +115,7 @@ export async function markInvoicePaid(input: {
         currentCents: after?.totalAmount ?? null,
         receivedCents,
       });
-      return { kind: "not_claimed", invoiceNumber };
+      return { kind: "total_changed", invoiceNumber };
     }
 
     log.info("[Stripe Webhook] Invoice already paid. Skipping fan-out.", { invoiceNumber, paymentIntentId, affected });
