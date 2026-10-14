@@ -102,7 +102,13 @@ function paramsOf(pattern: RegExp): unknown[][] {
   return h.state.executed
     .map((q) => new MySqlDialect().sqlToQuery(q as SQL))
     .filter((r) => pattern.test(r.sql))
-    .map((r) => r.params);
+    .map((r) => r.params.map(asInstant));
+}
+
+/** A bound UTC "YYYY-MM-DD HH:MM:SS" text as its instant. A bare date stays a string, so a date-only bind never equals an instant. */
+function asInstant(p: unknown): unknown {
+  if (typeof p === "string" && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(p)) return new Date(`${p.replace(" ", "T")}Z`);
+  return p;
 }
 
 beforeEach(() => {
@@ -118,23 +124,68 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+/** True when the instant falls inside the [start, end) pair a query bound. */
+function falls(instant: Date, bound: unknown[]): boolean {
+  const [start, end] = bound;
+  return start instanceof Date && end instanceof Date && instant >= start && instant < end;
+}
+
+/** A paid invoice at 2026-10-13 01:00Z: 2026-10-12 21:00 EDT, still the Oct 12 shop day. */
+const PAID_AT_9PM_ET_OCT_12 = new Date("2026-10-13T01:00:00Z");
+const SHOP_DAY_OCT_11: [Date, Date] = [new Date("2026-10-11T04:00:00Z"), new Date("2026-10-12T04:00:00Z")];
+const SHOP_DAY_OCT_12: [Date, Date] = [new Date("2026-10-12T04:00:00Z"), new Date("2026-10-13T04:00:00Z")];
+
 describe("the shop's 'today' at 2026-10-12 21:00 ET", () => {
-  // Each assertion names the query it checks, so reverting one query fails its own
-  // assertion even when another query in the same job still binds the same date.
-  it("statenourSync's revenue queries bind today, yesterday, seven days back and month start", async () => {
+  // Each assertion pins the instant pair one query binds, so reverting one query
+  // fails its own assertion even when another query in the same job binds a similar range.
+  it("statenourSync's day queries bind Eastern day ranges, and the 21:00 ET invoice lands on Oct 12 only", async () => {
     const { syncToStatenour } = await import("./cron/jobs/statenourSync");
     await syncToStatenour();
-    expect(paramsOf(/DATE\(invoiceDate\) = \? AND paymentStatus = 'paid'/)).toContainEqual(["2026-10-12"]);
-    expect(paramsOf(/DATE\(invoiceDate\) = \? AND paymentStatus = 'paid'/)).toContainEqual(["2026-10-11"]);
-    expect(paramsOf(/invoiceDate >= \? AND paymentStatus = 'paid'/)).toContainEqual(["2026-10-05"]);
-    expect(paramsOf(/invoiceDate >= \? AND paymentStatus = 'paid'/)).toContainEqual(["2026-10-01"]);
+    const dayBounds = paramsOf(/invoiceDate >= \? AND invoiceDate < \? AND paymentStatus = 'paid'/);
+    // Raw sql() must bind UTC text: a Date would be formatted in the process zone by mysql2.
+    const rawDayBinds = h.state.executed
+      .map((q) => new MySqlDialect().sqlToQuery(q as SQL))
+      .filter((r) => /invoiceDate >= \? AND invoiceDate < \? AND paymentStatus = 'paid'/.test(r.sql))
+      .flatMap((r) => r.params);
+    expect(rawDayBinds).toHaveLength(4);
+    expect(rawDayBinds.every((p) => typeof p === "string")).toBe(true);
+    expect(dayBounds).toContainEqual(SHOP_DAY_OCT_12);
+    expect(dayBounds).toContainEqual(SHOP_DAY_OCT_11);
+    expect(dayBounds.filter((b) => falls(PAID_AT_9PM_ET_OCT_12, b))).toEqual([SHOP_DAY_OCT_12]);
   });
 
-  it("intelligenceAutopilot's walk-in query binds today's Eastern date", async () => {
+  it("statenourSync's week and month revenue start at Eastern midnight of those days", async () => {
+    const { syncToStatenour } = await import("./cron/jobs/statenourSync");
+    await syncToStatenour();
+    const openEnded = paramsOf(/invoiceDate >= \? AND paymentStatus = 'paid'/);
+    expect(openEnded).toContainEqual([new Date("2026-10-05T04:00:00Z")]);
+    expect(openEnded).toContainEqual([new Date("2026-10-01T04:00:00Z")]);
+  });
+
+  it("statenourSync's lead trend windows start at Eastern midnight, seven and fourteen days back", async () => {
+    const { syncToStatenour } = await import("./cron/jobs/statenourSync");
+    await syncToStatenour();
+    expect(paramsOf(/FROM leads WHERE createdAt >= \?$/)).toContainEqual([new Date("2026-10-05T04:00:00Z")]);
+    expect(paramsOf(/FROM leads WHERE createdAt >= \? AND createdAt < \?$/)).toContainEqual([
+      new Date("2026-09-28T04:00:00Z"),
+      new Date("2026-10-05T04:00:00Z"),
+    ]);
+  });
+
+  it("intelligenceAutopilot's walk-in split binds today's Eastern day range, and the 21:00 ET invoice lands on Oct 12", async () => {
     const { runIntelligenceAutopilot } = await import("./cron/jobs/intelligenceAutopilot");
     await runIntelligenceAutopilot();
-    expect(paramsOf(/FROM invoices\s+WHERE invoiceDate >= \? AND paymentStatus = 'paid'/)).toContainEqual(["2026-10-12"]);
-    expect(paramsOf(/FROM bookings\s+WHERE createdAt >= \? AND status IN/)).toContainEqual(["2026-10-12"]);
-    expect(paramsOf(/FROM invoices\s+WHERE invoiceDate >= \?\s+AND totalAmount <= 500/)).toContainEqual(["2026-10-05"]);
+    const walkIns = paramsOf(/FROM invoices\s+WHERE invoiceDate >= \? AND invoiceDate < \? AND paymentStatus = 'paid'/);
+    expect(walkIns).toContainEqual(SHOP_DAY_OCT_12);
+    expect(walkIns.filter((b) => falls(PAID_AT_9PM_ET_OCT_12, b))).toEqual([SHOP_DAY_OCT_12]);
+    expect(paramsOf(/FROM bookings\s+WHERE createdAt >= \? AND createdAt < \? AND status IN/)).toContainEqual(SHOP_DAY_OCT_12);
+  });
+
+  it("intelligenceAutopilot's seven-day inspection window starts at Eastern midnight, Oct 5", async () => {
+    const { runIntelligenceAutopilot } = await import("./cron/jobs/intelligenceAutopilot");
+    await runIntelligenceAutopilot();
+    expect(paramsOf(/FROM invoices\s+WHERE invoiceDate >= \?\s+AND totalAmount <= 500/)).toContainEqual([
+      new Date("2026-10-05T04:00:00Z"),
+    ]);
   });
 });

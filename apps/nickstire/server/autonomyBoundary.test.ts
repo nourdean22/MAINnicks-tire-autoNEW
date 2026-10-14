@@ -9,7 +9,7 @@
  */
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { resolveBoundaryOutcome, DEFAULT_AUTONOMY_POLICY } from "../client/src/lib/autonomyPolicy";
-import { autonomyPolicyStrictSchema, clevelandDayStart } from "./services/autonomyControl";
+import { autonomyPolicyStrictSchema, clevelandDayStart, shopDayRange, sqlUtcDateTime } from "./services/autonomyControl";
 import { SAMPLE_REEL_BRIEFS } from "../client/src/lib/facelessReelStudioSamples";
 import { buildReferenceFramePrompt, compileLockedInvariants } from "./services/visualWorld";
 
@@ -74,6 +74,38 @@ describe("clevelandDayStart", () => {
     // 2026-07-17 05:00 UTC = 2026-07-17 01:00 EDT → day start = Jul 17 04:00 UTC
     const d = clevelandDayStart(new Date("2026-07-17T05:00:00Z"));
     expect(d.toISOString()).toBe("2026-07-17T04:00:00.000Z");
+  });
+});
+
+describe("shopDayRange", () => {
+  it("is [Eastern midnight, next Eastern midnight) for an EDT day", () => {
+    const r = shopDayRange("2026-10-12");
+    expect(r.start.toISOString()).toBe("2026-10-12T04:00:00.000Z");
+    expect(r.end.toISOString()).toBe("2026-10-13T04:00:00.000Z");
+  });
+  it("uses the EST offset for a January day", () => {
+    expect(shopDayRange("2026-01-14").start.toISOString()).toBe("2026-01-14T05:00:00.000Z");
+  });
+  it("is 23 hours on the spring-forward day, not 24", () => {
+    const r = shopDayRange("2026-03-08");
+    expect(r.end.getTime() - r.start.getTime()).toBe(23 * 3600_000);
+  });
+  it("is 25 hours on the fall-back day, not 24", () => {
+    const r = shopDayRange("2026-11-01");
+    expect(r.end.getTime() - r.start.getTime()).toBe(25 * 3600_000);
+  });
+});
+
+describe("sqlUtcDateTime", () => {
+  it("writes the UTC wall clock whatever the process zone, because raw sql() formats a Date in the process zone", () => {
+    const saved = process.env.TZ;
+    process.env.TZ = "America/New_York";
+    try {
+      expect(sqlUtcDateTime(new Date("2026-10-12T04:00:00Z"))).toBe("2026-10-12 04:00:00");
+    } finally {
+      if (saved === undefined) delete process.env.TZ;
+      else process.env.TZ = saved;
+    }
   });
 });
 

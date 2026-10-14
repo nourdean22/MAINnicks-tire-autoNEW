@@ -5,6 +5,7 @@
  */
 import { createLogger } from "../../lib/logger";
 import { getBusinessDateKey, shiftDateKey } from "../../lib/timezoneAssert";
+import { shopDayRangeSql } from "../../services/autonomyControl";
 import { BUSINESS } from "@shared/business";
 
 const log = createLogger("cron:statenour-sync");
@@ -26,6 +27,12 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
     const weekAgoKey = shiftDateKey(todayKey, -7);
     const twoWeeksAgoKey = shiftDateKey(todayKey, -14);
     const monthStartKey = `${todayKey.slice(0, 8)}01`;
+    // Instants as UTC text, not date strings: a bare 'YYYY-MM-DD' binds as 00:00 UTC (20:00 ET the day before).
+    const todayRange = shopDayRangeSql(todayKey);
+    const yesterdayRange = shopDayRangeSql(yesterdayKey);
+    const weekStart = shopDayRangeSql(weekAgoKey).start;
+    const twoWeeksStart = shopDayRangeSql(twoWeeksAgoKey).start;
+    const monthStart = shopDayRangeSql(monthStartKey).start;
 
     // Gather intelligence data
     let intelligence: any = {};
@@ -159,15 +166,15 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
           const [todayRow] = await db.execute(sql`
             SELECT COALESCE(SUM(totalAmount), 0) as rev, COUNT(*) as cnt,
                    CASE WHEN COUNT(*) > 0 THEN ROUND(SUM(totalAmount) / COUNT(*)) ELSE 0 END as avgTkt
-            FROM invoices WHERE DATE(invoiceDate) = ${todayKey} AND paymentStatus = 'paid'
+            FROM invoices WHERE invoiceDate >= ${todayRange.start} AND invoiceDate < ${todayRange.end} AND paymentStatus = 'paid'
           `);
           const [weekRow] = await db.execute(sql`
             SELECT COALESCE(SUM(totalAmount), 0) as rev FROM invoices
-            WHERE invoiceDate >= ${weekAgoKey} AND paymentStatus = 'paid'
+            WHERE invoiceDate >= ${weekStart} AND paymentStatus = 'paid'
           `);
           const [monthRow] = await db.execute(sql`
             SELECT COALESCE(SUM(totalAmount), 0) as rev FROM invoices
-            WHERE invoiceDate >= ${monthStartKey} AND paymentStatus = 'paid'
+            WHERE invoiceDate >= ${monthStart} AND paymentStatus = 'paid'
           `);
           const today = (todayRow as Record<string, unknown>[])?.[0] || {};
           const week = (weekRow as Record<string, unknown>[])?.[0] || {};
@@ -176,7 +183,7 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
           // Yesterday's revenue for morning brief comparison
           const [yesterdayRow] = await db.execute(sql`
             SELECT COALESCE(SUM(totalAmount), 0) as rev, COUNT(*) as cnt
-            FROM invoices WHERE DATE(invoiceDate) = ${yesterdayKey} AND paymentStatus = 'paid'
+            FROM invoices WHERE invoiceDate >= ${yesterdayRange.start} AND invoiceDate < ${yesterdayRange.end} AND paymentStatus = 'paid'
           `);
           const yesterday = (yesterdayRow as Record<string, unknown>[])?.[0] || {};
 
@@ -375,12 +382,12 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
           const { sql } = await import("drizzle-orm");
           const d = await getDb();
           if (!d) return null;
-          const [thisWeekLeads] = await d.execute(sql`SELECT COUNT(*) as cnt FROM leads WHERE createdAt >= ${weekAgoKey}`);
-          const [lastWeekLeads] = await d.execute(sql`SELECT COUNT(*) as cnt FROM leads WHERE createdAt >= ${twoWeeksAgoKey} AND createdAt < ${weekAgoKey}`);
-          const [thisWeekRevenue] = await d.execute(sql`SELECT COALESCE(SUM(totalAmount),0) as rev FROM invoices WHERE invoiceDate >= ${weekAgoKey} AND paymentStatus='paid'`);
-          const [lastWeekRevenue] = await d.execute(sql`SELECT COALESCE(SUM(totalAmount),0) as rev FROM invoices WHERE invoiceDate >= ${twoWeeksAgoKey} AND invoiceDate < ${weekAgoKey} AND paymentStatus='paid'`);
-          const [thisWeekBookings] = await d.execute(sql`SELECT COUNT(*) as cnt FROM bookings WHERE createdAt >= ${weekAgoKey}`);
-          const [lastWeekBookings] = await d.execute(sql`SELECT COUNT(*) as cnt FROM bookings WHERE createdAt >= ${twoWeeksAgoKey} AND createdAt < ${weekAgoKey}`);
+          const [thisWeekLeads] = await d.execute(sql`SELECT COUNT(*) as cnt FROM leads WHERE createdAt >= ${weekStart}`);
+          const [lastWeekLeads] = await d.execute(sql`SELECT COUNT(*) as cnt FROM leads WHERE createdAt >= ${twoWeeksStart} AND createdAt < ${weekStart}`);
+          const [thisWeekRevenue] = await d.execute(sql`SELECT COALESCE(SUM(totalAmount),0) as rev FROM invoices WHERE invoiceDate >= ${weekStart} AND paymentStatus='paid'`);
+          const [lastWeekRevenue] = await d.execute(sql`SELECT COALESCE(SUM(totalAmount),0) as rev FROM invoices WHERE invoiceDate >= ${twoWeeksStart} AND invoiceDate < ${weekStart} AND paymentStatus='paid'`);
+          const [thisWeekBookings] = await d.execute(sql`SELECT COUNT(*) as cnt FROM bookings WHERE createdAt >= ${weekStart}`);
+          const [lastWeekBookings] = await d.execute(sql`SELECT COUNT(*) as cnt FROM bookings WHERE createdAt >= ${twoWeeksStart} AND createdAt < ${weekStart}`);
           const tw = (v: unknown) => Number((v as Record<string, unknown>[])?.[0]?.cnt || (v as Record<string, unknown>[])?.[0]?.rev || (v as Record<string, unknown>)?.cnt || (v as Record<string, unknown>)?.rev || 0);
           const twLeads = tw(thisWeekLeads), lwLeads = tw(lastWeekLeads);
           const twRev = tw(thisWeekRevenue), lwRev = tw(lastWeekRevenue);

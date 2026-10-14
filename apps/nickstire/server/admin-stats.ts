@@ -8,7 +8,8 @@ import { bookings, leads, chatSessions, dynamicArticles, notificationMessages, c
 import { eq, desc, gte, sql, and } from "drizzle-orm";
 
 import { createLogger } from "./lib/logger";
-import { clevelandDayStart } from "./services/autonomyControl";
+import { clevelandDayStart, shopDayRange, sqlUtcDateTime } from "./services/autonomyControl";
+import { getBusinessDateKey, shiftDateKey } from "./lib/timezoneAssert";
 
 const log = createLogger("admin-stats");
 type Booking = typeof bookings.$inferSelect;
@@ -193,8 +194,8 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 
   if (!d) return defaultStats;
 
-  const weekAgo = new Date();
-  weekAgo.setDate(weekAgo.getDate() - 7);
+  // The shop's week starts at Eastern midnight seven days back, the same start statenour uses.
+  const weekAgo = shopDayRange(shiftDateKey(getBusinessDateKey(), -7)).start;
 
   try {
     // ─── BOOKINGS ─────────────────────────────────────
@@ -511,7 +512,8 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       // Midnight in the shop's timezone as an instant. new Date("YYYY-MM-DD") is UTC
       // midnight, which is 20:00 ET the day before.
       const todayStart = clevelandDayStart();
-      const monthStart = new Date(todayStart.getFullYear(), todayStart.getMonth(), 1);
+      // First of the shop's month as an Eastern midnight instant. The process zone is not the shop's.
+      const monthStart = shopDayRange(`${getBusinessDateKey().slice(0, 8)}01`).start;
 
       const [
         invoicesTodayRes, invoicesWeekRes, invoicesMonthRes,
@@ -549,7 +551,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
         // forwarded to statenour by statenourSync, propagating the mismatch. The
         // sibling revenue/count queries were deliberately aligned here (wave-97);
         // this one was added below that comment and skipped both filters.
-        d.execute(sql`SELECT paymentMethod, COUNT(*) as cnt, SUM(totalAmount) as total FROM invoices WHERE invoiceDate >= ${monthStart.toISOString().slice(0, 10)} AND paymentStatus = 'paid' AND invoiceNumber NOT LIKE 'Estimate#%' GROUP BY paymentMethod ORDER BY cnt DESC`).then(([rows]: [Record<string, unknown>[]]) => rows),
+        d.execute(sql`SELECT paymentMethod, COUNT(*) as cnt, SUM(totalAmount) as total FROM invoices WHERE invoiceDate >= ${sqlUtcDateTime(monthStart)} AND paymentStatus = 'paid' AND invoiceNumber NOT LIKE 'Estimate#%' GROUP BY paymentMethod ORDER BY cnt DESC`).then(([rows]: [Record<string, unknown>[]]) => rows),
         d.select({ count: sql<number>`count(*)` }).from(customers),
         d.select({ count: sql<number>`count(*)` }).from(customers).where(gte(customers.totalVisits, 3)),
         // Freshness: when did the mirror last WRITE an invoice row? createdAt
