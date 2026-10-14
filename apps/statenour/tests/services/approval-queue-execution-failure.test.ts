@@ -1,9 +1,10 @@
 /**
- * decidePendingAction when the side effect fails (branch statenour/memory-gsc-approvals-dump).
+ * decidePendingAction when the side effect fails.
  *
- * THE DEFECT: executeApprovedAction returned { ok: false }, but the row was still written
- * approval="approved". The owner saw success, the row left the queue, and nothing could
- * retry the side effect. A failed run must leave the row pending, with the error kept.
+ * THE DEFECT (dbd12704f): a failed run returned the row to pending, so a second approve re-ran
+ * the side effect. A provider can accept a send and lose the HTTP response, so a failed run may
+ * already have happened and is never re-run. The row stays terminal (needs_review) with result
+ * "failed", the error and the payload kept. A failed run writes no policy fire-log entry.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -22,6 +23,8 @@ type Row = {
   executedAt: Date | null;
   createdAt: Date;
 };
+
+const POLICY_ID = "autonomous-action.auto_followup_expired_quote";
 
 const h = vi.hoisted(() => {
   const rows = new Map<string, Row>();
@@ -50,7 +53,9 @@ const h = vi.hoisted(() => {
     }),
   };
   const executeApprovedAction = vi.fn(async (_id: string) => ({ ok: true, result: "sent" }));
-  return { rows, approvalHistory, autonomousAction, executeApprovedAction };
+  const getPolicy = vi.fn(async (_id: string): Promise<unknown> => null);
+  const logPolicyFire = vi.fn(async (_id: string, _result: string) => undefined);
+  return { rows, approvalHistory, autonomousAction, executeApprovedAction, getPolicy, logPolicyFire };
 });
 
 vi.mock("@/lib/prisma", () => ({
@@ -63,7 +68,7 @@ vi.mock("@/lib/logger", () => ({
   logger: { withSurface: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }) },
 }));
 vi.mock("@/lib/brain/autonomous-engine", () => ({ executeApprovedAction: h.executeApprovedAction }));
-vi.mock("@/lib/automation/policy", () => ({ getPolicy: vi.fn(async () => null) }));
+vi.mock("@/lib/automation/policy", () => ({ getPolicy: h.getPolicy, logPolicyFire: h.logPolicyFire }));
 vi.mock("@/lib/services/email", () => ({
   sendEmail: vi.fn(async () => {
     throw new Error("a test must never send email");
@@ -90,36 +95,41 @@ function seed(id = "a1") {
   });
 }
 
+// The policy fire-log is written in a detached promise chain; let it settle before asserting.
+const flush = () => new Promise((resolve) => setTimeout(resolve, 10));
+
 beforeEach(() => {
   vi.clearAllMocks();
   h.rows.clear();
   h.approvalHistory.length = 0;
-  // clearAllMocks does not drain a queued Once value, so reset the stub outright.
+  // clearAllMocks does not drain a queued Once value, so reset the stubs outright.
   h.executeApprovedAction.mockReset().mockResolvedValue({ ok: true, result: "sent" });
+  h.getPolicy.mockReset().mockResolvedValue(null);
+  h.logPolicyFire.mockReset();
 });
 
 describe("decidePendingAction when the side effect fails", () => {
-  it("a failed execution never lands approved: the row goes back to pending with the error", async () => {
+  it("a failed run is never approved and never returns to pending: it is needs_review, with the error and payload kept", async () => {
     seed();
     h.executeApprovedAction.mockResolvedValueOnce({ ok: false, error: "gmail 401" });
     await decidePendingAction("a1", "approved");
     const row = h.rows.get("a1");
-    expect(row?.approval).toBe("pending");
+    expect(row?.approval).toBe("needs_review");
     expect(h.approvalHistory).not.toContain("approved");
+    expect(h.approvalHistory).not.toContain("pending");
     expect(row?.result).toBe("failed");
     expect(row?.error).toBe("gmail 401");
     expect(row?.executedAt).toBeNull();
-    expect(row?.approvedBy).toBeNull();
+    expect(row?.payload).toEqual({ deferredItem: { leadId: "L1" } });
   });
 
-  it("after a failed run, approving again runs the side effect again and lands approved", async () => {
+  it("a failed run is never re-sent: a second approve is refused and the side effect runs once", async () => {
     seed();
     h.executeApprovedAction.mockResolvedValueOnce({ ok: false, error: "gmail 401" });
     await decidePendingAction("a1", "approved");
-    await decidePendingAction("a1", "approved");
-    expect(h.executeApprovedAction).toHaveBeenCalledTimes(2);
-    expect(h.rows.get("a1")?.approval).toBe("approved");
-    expect(h.rows.get("a1")?.error).toBeNull();
+    await expect(decidePendingAction("a1", "approved")).rejects.toThrow(/not pending/);
+    expect(h.executeApprovedAction).toHaveBeenCalledTimes(1);
+    expect(h.rows.get("a1")?.approval).toBe("needs_review");
   });
 
   it("control: a successful run lands approved with executedAt stamped", async () => {
@@ -128,5 +138,25 @@ describe("decidePendingAction when the side effect fails", () => {
     expect(out.id).toBe("a1");
     expect(h.rows.get("a1")?.approval).toBe("approved");
     expect(h.rows.get("a1")?.executedAt).toBeInstanceOf(Date);
+  });
+});
+
+describe("decidePendingAction policy fire-log", () => {
+  it("a failed run writes no policy fire-log entry, even when the policy exists", async () => {
+    seed();
+    h.getPolicy.mockResolvedValue({ id: POLICY_ID });
+    h.executeApprovedAction.mockResolvedValueOnce({ ok: false, error: "gmail 401" });
+    await decidePendingAction("a1", "approved");
+    await flush();
+    expect(h.getPolicy).toHaveBeenCalledWith(POLICY_ID);
+    expect(h.logPolicyFire).not.toHaveBeenCalled();
+  });
+
+  it("control: a successful run with a policy logs a success fire", async () => {
+    seed();
+    h.getPolicy.mockResolvedValue({ id: POLICY_ID });
+    await decidePendingAction("a1", "approved");
+    await flush();
+    expect(h.logPolicyFire).toHaveBeenCalledWith(POLICY_ID, "success");
   });
 });

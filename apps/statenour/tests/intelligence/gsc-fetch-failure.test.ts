@@ -1,14 +1,20 @@
 /**
- * A failed Search Console fetch is not an empty one (branch statenour/memory-gsc-approvals-dump).
+ * A failed Search Console read is not an empty one (branch statenour/memory-gsc-approvals-dump).
  *
  * THE DEFECT: a non-2xx from GSC returned gsc: [], and runIngestion stored "No search data
- * available." as a source document and reported success. A failed read must report failure
- * with the status code, and must store nothing.
+ * available." as a source document and reported success. A probe that throws and a Google
+ * account that is not connected were both read the same way. A failed read must report failure
+ * with its reason and store nothing. "Not connected" is an explicit skip that stores nothing.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
+const oauth = vi.hoisted(() => ({ configured: true, probeThrows: false }));
+
 vi.mock("@/lib/services/google-oauth", () => ({
-  isGoogleOauthConfigured: async () => true,
+  isGoogleOauthConfigured: async () => {
+    if (oauth.probeThrows) throw new Error("oauth status read failed");
+    return oauth.configured;
+  },
   getAccessToken: async () => "test-token",
 }));
 vi.mock("@/lib/logger", () => ({
@@ -47,6 +53,8 @@ import { runIngestion } from "@/lib/intelligence/ingest";
 
 beforeEach(() => {
   state.documentCreates.length = 0;
+  oauth.configured = true;
+  oauth.probeThrows = false;
   vi.stubGlobal("fetch", vi.fn(async () => new Response("forbidden", { status: 403 })));
 });
 
@@ -60,6 +68,30 @@ describe("fetchGSCAndGBPMetrics - failed fetch", () => {
     expect(out.gsc).toEqual([]);
     expect(out.error).toMatch(/403/);
   });
+
+  it("a fetch that throws an empty-message error still reports a non-empty error", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new Error(""); }));
+    const out = await fetchGSCAndGBPMetrics();
+    expect(out.gsc).toEqual([]);
+    expect(out.error).toBeTruthy();
+  });
+});
+
+describe("fetchGSCAndGBPMetrics - probe and connection state", () => {
+  it("a probe that throws is an error, not a silent 'not configured'", async () => {
+    oauth.probeThrows = true;
+    const out = await fetchGSCAndGBPMetrics();
+    expect(out.gsc).toEqual([]);
+    expect(out.error).toMatch(/oauth status read failed/);
+    expect(out.notConnected).toBeUndefined();
+  });
+
+  it("not configured is an explicit not-connected result, not an error", async () => {
+    oauth.configured = false;
+    const out = await fetchGSCAndGBPMetrics();
+    expect(out.notConnected).toBe(true);
+    expect(out.error).toBeUndefined();
+  });
 });
 
 describe("runIngestion - seo source with a failed fetch", () => {
@@ -67,6 +99,29 @@ describe("runIngestion - seo source with a failed fetch", () => {
     const result = await runIngestion("src_1");
     expect(result.success).toBe(false);
     expect(result.message).toMatch(/403/);
+    expect(state.documentCreates).toEqual([]);
+  });
+
+  it("a fetch that throws an empty-message error fails the ingest and stores nothing", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new Error(""); }));
+    const result = await runIngestion("src_1");
+    expect(result.success).toBe(false);
+    expect(state.documentCreates).toEqual([]);
+  });
+
+  it("a probe that throws fails the ingest and stores nothing", async () => {
+    oauth.probeThrows = true;
+    const result = await runIngestion("src_1");
+    expect(result.success).toBe(false);
+    expect(result.message).toMatch(/oauth status read failed/);
+    expect(state.documentCreates).toEqual([]);
+  });
+
+  it("not connected skips the ingest and stores no 'no search data' document", async () => {
+    oauth.configured = false;
+    const result = await runIngestion("src_1");
+    expect(result.success).toBe(false);
+    expect(result.message).toMatch(/not connected/);
     expect(state.documentCreates).toEqual([]);
   });
 });

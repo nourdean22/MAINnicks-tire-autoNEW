@@ -130,6 +130,8 @@ describe("journal ingest timeout", () => {
     const audit = db.calls
       .filter((c) => c.op === "auditEvent.create")
       .map((c) => String(c.args?.data?.detail));
-    expect(audit.join("\n")).toContain("chat:journal-ingest: Task timed out after 60000ms");
+    // The timeout does not cancel the extraction: the audit row must say so, not read as "stopped".
+    expect(audit.join("\n")).toContain("chat:journal-ingest: Task timed out after 60000ms; the work is still running");
+    expect(audit.join("\n")).toContain("outcome is unknown");
   });
 });

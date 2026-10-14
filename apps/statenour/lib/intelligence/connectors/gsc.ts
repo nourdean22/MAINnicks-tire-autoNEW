@@ -17,15 +17,32 @@ export interface GBPMetrics {
   recentReviewText: string;
 }
 
-export async function fetchGSCAndGBPMetrics(): Promise<{ gsc: GSCMetrics[]; gbp: GBPMetrics | null; error?: string }> {
-  const isConfigured = await isGoogleOauthConfigured("primary").catch(() => false);
+export interface GSCFetchResult {
+  gsc: GSCMetrics[];
+  gbp: GBPMetrics | null;
+  /** A failed read, with its reason. Never returned together with real data. */
+  error?: string;
+  /** Google is not connected: nothing was read and nothing failed. A skip, not an error. */
+  notConnected?: true;
+}
+
+/** A thrown value with no message must still produce a non-empty error the caller can show. */
+const errorText = (err: unknown): string => (err instanceof Error ? err.message : String(err)) || "no error message";
+
+export async function fetchGSCAndGBPMetrics(): Promise<GSCFetchResult> {
+  // A probe that throws is a failed read, so it is reported as one, not read as "not connected".
+  let isConfigured: boolean;
+  try {
+    isConfigured = await isGoogleOauthConfigured("primary");
+  } catch (err) {
+    const error = `Google OAuth status check failed: ${errorText(err)}`;
+    log.error("Google OAuth status check failed.", { error });
+    return { gsc: [], gbp: null, error };
+  }
 
   if (!isConfigured) {
-    log.warn("Google OAuth is not configured, returning empty metrics.");
-    return {
-      gsc: [],
-      gbp: null
-    };
+    log.warn("Google OAuth is not configured; Search Console skipped.");
+    return { gsc: [], gbp: null, notConnected: true };
   }
 
   try {
@@ -78,7 +95,7 @@ export async function fetchGSCAndGBPMetrics(): Promise<{ gsc: GSCMetrics[]; gbp:
       gbp: null
     };
   } catch (err) {
-    const error = err instanceof Error ? err.message : String(err);
+    const error = errorText(err);
     log.error("Failed to query Google API, returning empty metrics.", { error });
     return { gsc: [], gbp: null, error };
   }
