@@ -30,7 +30,7 @@
  *     handlers only: on the operator's iPhone the "full" graph was inert.
  */
 
-import { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Search, Compass, Expand, Maximize2, Zap, Loader2, RefreshCw, AlertTriangle } from "lucide-react";
@@ -137,6 +137,10 @@ export interface AppliedView {
   focusId: string | null;
   localOnly: boolean;
 }
+
+const subscribeNoop = () => () => {};
+const readIsPhone = () => window.innerWidth < 1024;
+const serverIsPhone = () => false;
 
 const FETCH_TIMEOUT_MS = 12_000;
 
@@ -390,10 +394,11 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
   const energyThreshold = 0.003;
   const isSimActiveRef = useRef(true);
 
-  const isMobile = useMemo(() => {
-    if (typeof window === "undefined") return false;
-    return window.innerWidth < 1024;
-  }, []);
+  // Server markup is the desktop layout; the client reads the viewport. During
+  // hydration React uses the server value, so a phone does not regenerate the
+  // tree (the /brain Map hydration error), and a client-side mount reads the
+  // real value on its first render, so the desktop chrome never paints first.
+  const isMobile = useSyncExternalStore(subscribeNoop, readIsPhone, serverIsPhone);
 
   const nodesById = useMemo(() => {
     const m = new Map<string, BrainGraphNode>();

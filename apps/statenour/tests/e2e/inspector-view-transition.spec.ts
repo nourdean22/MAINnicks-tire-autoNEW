@@ -46,6 +46,12 @@ async function armCounter(page: Page) {
 
 const vtCalls = (page: Page) => page.evaluate(() => window.__vtCalls ?? -1);
 
+// A close that lands in the first few hundred ms after an open skips the exit
+// view transition (measured on the dev server: 0 of 8 closes at 0 ms started
+// one, 8 of 8 at 300 ms and up). The tests wait that window out, the way a
+// person pressing Escape does, so the assertion checks the exit, not the race.
+const OPEN_SETTLE_MS = 800;
+
 async function openLab(page: Page, viewport: { width: number; height: number }) {
   await armCounter(page);
   await page.setViewportSize(viewport);
@@ -66,6 +72,7 @@ test.describe("inspector view transition · /system/ui-lab fixtures", () => {
     await page.locator(ROWS).nth(0).click();
     await expect(panel).toBeVisible();
     await expect(panel).toHaveAttribute("data-inspector-mode", "inspect");
+    await page.waitForTimeout(OPEN_SETTLE_MS);
     const afterOpen = await vtCalls(page);
     expect(afterOpen).toBeGreaterThanOrEqual(1);
 
@@ -94,6 +101,7 @@ test.describe("inspector view transition · /system/ui-lab fixtures", () => {
 
     await page.locator(ROWS).nth(1).click();
     await expect(sheet).toBeVisible();
+    await page.waitForTimeout(OPEN_SETTLE_MS);
     const afterOpen = await vtCalls(page);
 
     await page.keyboard.press("Escape");
