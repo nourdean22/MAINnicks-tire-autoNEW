@@ -329,7 +329,7 @@ export const FB_SNAPSHOT_PREFIX = "fb:";
  * contentExperimentStore) all select by `inArray(postId, <IG ids>)`, so a
  * prefixed id never joins into an IG read. Column mapping, native units:
  *   likes    ← post_reactions_by_type_total (sum)   comments ← NOT available
- *   reach    ← post_impressions_unique              views    ← post_video_views
+ *   reach    ← post_total_media_view_unique         views    ← post_video_views
  *   saved    ← NULL (Facebook has no save metric)   shares   ← NULL (not on the ladder)
  * `comments`/`likes` are NOT NULL in the table; a row is written only when the
  * reactions sum is reported (comments stays 0 and is documented here as
