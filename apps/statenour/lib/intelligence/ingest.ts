@@ -82,7 +82,23 @@ ${recalls.length > 0 ? recalls
   .join("\n\n") : "- No verified recall data available."}
 `;
     } else if (source.domain === "seo") {
-      const { gsc, gbp } = await fetchGSCAndGBPMetrics();
+      const { gsc, gbp, error, notConnected } = await fetchGSCAndGBPMetrics();
+      // Not connected is a skip: nothing is stored, so no "no data" document is written.
+      if (notConnected) {
+        log.info(`Search Console for ${source.name} is not connected; skipped, no content stored.`);
+        return {
+          success: false,
+          documentId: null,
+          claimsCount: 0,
+          message: `${source.name}: Search Console is not connected; skipped, no content stored.`,
+        };
+      }
+      // A failed fetch is not an empty search console: stop before anything is stored,
+      // or "No search data available." lands as a document and the run reports success.
+      if (error !== undefined) {
+        log.warn(`Search Console ingestion failed: ${error}`);
+        return { success: false, documentId: null, claimsCount: 0, message: error };
+      }
       rawContent = `# Google Search Console & Business Profile Report
 Generated: ${new Date().toISOString()}
 Source: ${source.url}

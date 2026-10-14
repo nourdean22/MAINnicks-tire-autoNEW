@@ -84,6 +84,30 @@ describe("autonomousActionToReceipt (failures are visible)", () => {
   });
 });
 
+describe("autonomousActionToReceipt — needs_review is an unknown outcome, never FAILED", () => {
+  // A failed approve writes approval needs_review with result "failed": the provider may have
+  // accepted the send before the error. The receipt must not say FAILED_KNOWN, which invites a retry.
+  it("an approved run that failed and sits in needs_review reads as UNKNOWN_COMPLETION, not FAILED", () => {
+    const r = autonomousActionToReceipt(
+      auto({ approval: "needs_review", result: "failed", executedAt: null, error: "gmail 401" }),
+    );
+    expect(r.status).toBe("partial");
+    expect(r.verificationState).toBe("UNKNOWN_COMPLETION");
+    expect(r.userVisibleSummary).not.toContain("FAILED");
+    expect(r.userVisibleSummary).toMatch(/may or may not have run/);
+  });
+
+  // The stuck-decision sweeper writes needs_review and leaves result as it was. A row that still
+  // carries pending_approval must not read as "Awaiting approval", which would invite an approve.
+  it("a sweeper-flagged needs_review row is UNKNOWN_COMPLETION, not awaiting approval", () => {
+    const r = autonomousActionToReceipt(
+      auto({ approval: "needs_review", result: "pending_approval", executedAt: null, error: "did not finish" }),
+    );
+    expect(r.status).toBe("partial");
+    expect(r.verificationState).toBe("UNKNOWN_COMPLETION");
+  });
+});
+
 describe("autonomousActionToReceipt — BDN-204 pre-registration surface", () => {
   it("surfaces the pre-filed plan and the plan-vs-outcome diff from payload", () => {
     const r = autonomousActionToReceipt(

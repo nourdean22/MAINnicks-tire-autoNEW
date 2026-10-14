@@ -206,8 +206,7 @@ export async function decidePendingAction(
   // v10.0.157 · execute the deferred side effect on approve. Done
   // BEFORE the row update so the executionResult merges into the
   // payload alongside the operator's approvalNote. If execution
-  // fails, the row update still records the approval decision but
-  // the row's `result` reflects the failure.
+  // fails, the row goes to needs_review with result "failed" (see below).
   let executionOutcome: { ok: boolean; result?: string; error?: string } | null = null;
   if (decision === "approved") {
     const { executeApprovedAction } = await import("@/lib/brain/autonomous-engine");
@@ -223,6 +222,10 @@ export async function decidePendingAction(
       });
     }
   }
+
+  // A failed run may still have happened (a provider can accept the send and lose the response),
+  // so it is never written as approved and never returned to pending, which would re-send it.
+  const executionFailed = executionOutcome !== null && !executionOutcome.ok;
 
   // Re-read existing after the executeApprovedAction (which may have
   // updated payload + result + executedAt) so the operator's notes
@@ -245,9 +248,22 @@ export async function decidePendingAction(
 
   const updated = await prisma.autonomousAction.update({
     where: { id },
-    data: {
-      approval: decision,
-      approvedBy: approver,
+    data: executionFailed
+      ? {
+          // Terminal and never re-run: the outcome is unknown, so the row is needs_review
+          // (the same state the sweeper gives an unknown run). Nothing is recorded as executed.
+          approval: "needs_review",
+          approvedBy: approver,
+          executedAt: null,
+          result: "failed",
+          error: executionOutcome?.error ?? "execution failed",
+          payload: nextPayload,
+        }
+      : {
+          approval: decision,
+          approvedBy: approver,
+          // Clears the error a failed earlier run left behind.
+          error: null,
       // executedAt = either the engine's executeApprovedAction stamp
       // (preserved by reading `refreshed`), the operator's confirm
       // stamp on approve when no side effect was scheduled, or the
@@ -276,10 +292,10 @@ export async function decidePendingAction(
   void getPolicy(policyId).then(async (p) => {
     if (!p) return;
     const { logPolicyFire } = await import("@/lib/automation/policy");
-    void logPolicyFire(
-      policyId,
-      decision === "approved" ? "success" : "rolled_back",
-    );
+    // A failed run is logged as a failure, never a success or a rollback, so the policy does not keep
+    // showing an older success as its latest run.
+    const fireResult = executionFailed ? "failure" : decision === "approved" ? "success" : "rolled_back";
+    void logPolicyFire(policyId, fireResult);
   });
 
   return shapeRow(updated);
