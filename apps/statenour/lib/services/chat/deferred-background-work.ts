@@ -363,7 +363,13 @@ export async function runDeferredBackgroundWork(ctx: DeferredBackgroundCtx) {
             // gate keys on source === "telegram").
             return ingestJournal(userContent, "chat");
           },
-          { timeoutMs: 20_000, silentTimeout: true }
+          // 60s, above the 45s provider timeout, so a slow but live extraction is not cut
+          // off first. Not silent: a timeout is recorded as an ai_error audit row.
+          {
+            timeoutMs: 60_000,
+            // The timeout does not cancel the extraction: it still writes tasks and a Telegram message.
+            timeoutNote: "the work is still running and was not cancelled; its outcome is unknown",
+          }
         );
       }
 

@@ -142,9 +142,14 @@ export async function withErrorCapture<T>(
     timeoutMs?: number;
     context?: Record<string, unknown>;
     silentTimeout?: boolean;
+    /**
+     * Appended to the timeout message. A timeout does not cancel the task, so a caller whose
+     * task keeps writing afterwards says so here (the audit row must not read as "stopped").
+     */
+    timeoutNote?: string;
   }
 ): Promise<T | undefined> {
-  const { timeoutMs, context, silentTimeout } = options || {};
+  const { timeoutMs, context, silentTimeout, timeoutNote } = options || {};
 
   try {
     if (timeoutMs && timeoutMs > 0) {
@@ -152,7 +157,10 @@ export async function withErrorCapture<T>(
         task(),
         new Promise<never>((_, reject) =>
           setTimeout(
-            () => reject(new Error(`Task timed out after ${timeoutMs}ms`)),
+            () =>
+              reject(
+                new Error(`Task timed out after ${timeoutMs}ms${timeoutNote ? `; ${timeoutNote}` : ""}`)
+              ),
             timeoutMs
           )
         ),
@@ -164,7 +172,7 @@ export async function withErrorCapture<T>(
     // processing where a timeout is a routine load-shedding event — real
     // errors (exceptions thrown by the task itself) still surface.
     const isTimeout =
-      err instanceof Error && /^Task timed out after \d+ms$/.test(err.message);
+      err instanceof Error && /^Task timed out after \d+ms(;|$)/.test(err.message);
     if (isTimeout && silentTimeout) {
       console.warn(`[withErrorCapture:silent-timeout] ${domain}: ${(err as Error).message}`);
       return undefined;

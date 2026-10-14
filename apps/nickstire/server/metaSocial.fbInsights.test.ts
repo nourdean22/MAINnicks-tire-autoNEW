@@ -13,12 +13,22 @@ function graphRow(name: string, value: unknown) {
   return { name, period: "lifetime", values: [{ value }] };
 }
 
+// Page-post metrics Meta's deprecated-metrics page does not list (read 2026-10-14).
+// Any other name gets the same (#100) answer a removed metric gets.
+const SERVED_POST_METRICS = new Set([
+  "post_media_view",
+  "post_total_media_view_unique",
+  "post_clicks",
+  "post_reactions_by_type_total",
+  "post_video_views",
+]);
+
 describe("parseFacebookInsights", () => {
   it("maps the Page-post metrics and sums reactions by type", () => {
     const r = parseFacebookInsights({
       data: [
-        graphRow("post_impressions_unique", 1200),
-        graphRow("post_impressions", 1500),
+        graphRow("post_total_media_view_unique", 1200),
+        graphRow("post_media_view", 1500),
         graphRow("post_clicks", 40),
         graphRow("post_reactions_by_type_total", { like: 10, love: 3, wow: 1 }),
         graphRow("post_video_views", 800),
@@ -50,7 +60,7 @@ describe("fetchFacebookPostInsights ladder", () => {
       if (metrics.includes("post_video_views")) {
         return { ok: false, status: 400, json: async () => ({ error: { message: "(#100) The value must be a valid insights metric" } }) };
       }
-      return { ok: true, status: 200, json: async () => ({ data: [graphRow("post_impressions_unique", 50), graphRow("post_clicks", 2), graphRow("post_reactions_by_type_total", { like: 4 })] }) };
+      return { ok: true, status: 200, json: async () => ({ data: [graphRow("post_total_media_view_unique", 50), graphRow("post_clicks", 2), graphRow("post_reactions_by_type_total", { like: 4 })] }) };
     }));
     const r = await fetchFacebookPostInsights("123_456");
     expect(r.ok).toBe(true);
@@ -64,6 +74,47 @@ describe("fetchFacebookPostInsights ladder", () => {
     expect(calls[0]).toContain("/123_456/insights?metric=");
     const auth = (vi.mocked(fetch).mock.calls[0]![1] as RequestInit).headers as Record<string, string>;
     expect(auth.Authorization).toBe("Bearer test-token");
+  });
+
+  it("asks Meta only for metric names it still serves, so rung 1 answers alone", async () => {
+    const calls: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      calls.push(url);
+      const requested = decodeURIComponent(url.split("metric=")[1] ?? "").split(",");
+      if (requested.some((m) => !SERVED_POST_METRICS.has(m))) {
+        return { ok: false, status: 400, json: async () => ({ error: { message: "(#100) The value must be a valid insights metric" } }) };
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: [
+            graphRow("post_total_media_view_unique", 900),
+            graphRow("post_media_view", 1100),
+            graphRow("post_clicks", 12),
+            graphRow("post_reactions_by_type_total", { like: 5 }),
+            graphRow("post_video_views", 300),
+          ],
+        }),
+      };
+    }));
+    const r = await fetchFacebookPostInsights("123_789");
+    expect(calls).toHaveLength(1);
+    expect(r).toEqual({ ok: true, rung: 1, reach: 900, impressions: 1100, clicks: 12, reactions: 5, videoViews: 300 });
+  });
+
+  it("every ladder rung requests only metric names Meta still serves", async () => {
+    const calls: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      calls.push(url);
+      return { ok: false, status: 400, json: async () => ({ error: { message: "forced failure" } }) };
+    }));
+    await fetchFacebookPostInsights("123_789");
+    expect(calls).toHaveLength(4);
+    for (const url of calls) {
+      const requested = decodeURIComponent(url.split("metric=")[1] ?? "").split(",");
+      expect(requested.filter((m) => !SERVED_POST_METRICS.has(m))).toEqual([]);
+    }
   });
 
   it("returns ok:false with Meta's message when every rung fails", async () => {

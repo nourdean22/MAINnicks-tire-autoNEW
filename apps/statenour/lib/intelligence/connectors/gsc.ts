@@ -1,5 +1,5 @@
 import { logger as rootLogger } from "@/lib/logger";
-import { getAccessToken, isGoogleOauthConfigured } from "@/lib/services/google-oauth";
+import { getAccessToken, probeGoogleOauthConfigured } from "@/lib/services/google-oauth";
 
 const log = rootLogger.withSurface("intelligence/connectors/gsc");
 
@@ -17,15 +17,30 @@ export interface GBPMetrics {
   recentReviewText: string;
 }
 
-export async function fetchGSCAndGBPMetrics(): Promise<{ gsc: GSCMetrics[]; gbp: GBPMetrics | null }> {
-  const isConfigured = await isGoogleOauthConfigured("primary").catch(() => false);
+export interface GSCFetchResult {
+  gsc: GSCMetrics[];
+  gbp: GBPMetrics | null;
+  /** A failed read, with its reason. Never returned together with real data. */
+  error?: string;
+  /** Google is not connected: nothing was read and nothing failed. A skip, not an error. */
+  notConnected?: true;
+}
 
-  if (!isConfigured) {
-    log.warn("Google OAuth is not configured, returning empty metrics.");
-    return {
-      gsc: [],
-      gbp: null
-    };
+/** A thrown value with no message must still produce a non-empty error the caller can show. */
+const errorText = (err: unknown): string => (err instanceof Error ? err.message : String(err)) || "no error message";
+
+export async function fetchGSCAndGBPMetrics(): Promise<GSCFetchResult> {
+  // The probe reports a failed read as probeFailed (it never throws). That is an error carrying its
+  // reason. The boolean wrapper would read it as configured: false, which is "not connected".
+  const probe = await probeGoogleOauthConfigured("primary");
+  if (probe.probeFailed) {
+    log.error("Google OAuth status check failed.", { error: probe.reason });
+    return { gsc: [], gbp: null, error: probe.reason };
+  }
+
+  if (!probe.configured) {
+    log.warn("Google OAuth is not configured; Search Console skipped.");
+    return { gsc: [], gbp: null, notConnected: true };
   }
 
   try {
@@ -66,7 +81,10 @@ export async function fetchGSCAndGBPMetrics(): Promise<{ gsc: GSCMetrics[]; gbp:
         position: row.position
       }));
     } else {
-      log.warn(`GSC API request failed with status ${gscRes.status}, returning empty GSC metrics.`);
+      // A failed read is not an empty one: the status goes back so the caller can refuse to store "no data".
+      const error = `GSC API request failed with status ${gscRes.status}`;
+      log.warn(`${error}, returning no GSC metrics.`);
+      return { gsc: [], gbp: null, error };
     }
 
     // Call GBP API or fall back cleanly
@@ -75,12 +93,8 @@ export async function fetchGSCAndGBPMetrics(): Promise<{ gsc: GSCMetrics[]; gbp:
       gbp: null
     };
   } catch (err) {
-    log.error("Failed to query Google API, returning empty metrics.", {
-      error: err instanceof Error ? err.message : String(err)
-    });
-    return {
-      gsc: [],
-      gbp: null
-    };
+    const error = errorText(err);
+    log.error("Failed to query Google API, returning empty metrics.", { error });
+    return { gsc: [], gbp: null, error };
   }
 }

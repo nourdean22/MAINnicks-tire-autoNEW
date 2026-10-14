@@ -39,6 +39,19 @@ interface PredictionScore {
   accurate: boolean;
 }
 
+/** How many unreadable verdicts a prediction gets before it is parked as unverifiable. */
+const MAX_VERDICT_ATTEMPTS = 3;
+
+/** A reply line's label, with list and heading markers and bold markup removed. Used for matching only. */
+function labelOf(line: string): string {
+  return line.replace(/^[\s*_#>-]+/, "").replace(/\*\*/g, "").trim();
+}
+
+/** The text after a line's first colon, minus the markup that wraps it. Underscores inside the text are kept. */
+function valueOf(line: string): string {
+  return line.split(":").slice(1).join(":").replace(/^[\s*]+/, "").replace(/[\s*]+$/, "");
+}
+
 /**
  * Score predictions whose target date has passed.
  * Uses AI to compare prediction vs actual data, then marks as confirmed/disproven.
@@ -52,6 +65,8 @@ export async function scorePendingPredictions(): Promise<PredictionScore[]> {
       status: "pending",
       targetDate: { lte: todayStr },
     },
+    // Oldest target first; an unordered take:3 let newer rows starve past-due ones.
+    orderBy: { targetDate: "asc" },
     take: 3, // Max 3 per cron run — each needs an AI call (~10s each)
   });
 
@@ -106,14 +121,40 @@ Was this prediction accurate?`,
         continue;
       }
 
+      // Model replies are markdown ("**ACCURATE:** true"). Labels are matched on a
+      // markup-free copy; values come from the original line, so underscores survive.
       const lines = result.content.split("\n");
-      const accurateLine = lines.find((l) => l.toUpperCase().startsWith("ACCURATE"));
-      const outcomeLine = lines.find((l) => l.toUpperCase().startsWith("OUTCOME"));
-      const lessonLine = lines.find((l) => l.toUpperCase().startsWith("LESSON"));
+      const accurateRaw = lines.find((l) => labelOf(l).toUpperCase().startsWith("ACCURATE"));
+      const outcomeRaw = lines.find((l) => labelOf(l).toUpperCase().startsWith("OUTCOME"));
+      const lessonRaw = lines.find((l) => labelOf(l).toUpperCase().startsWith("LESSON"));
 
-      const accurate = accurateLine?.toLowerCase().includes("true") ?? false;
-      const outcome = outcomeLine?.split(":").slice(1).join(":").trim() ?? "Unable to determine";
-      const lesson = lessonLine?.split(":").slice(1).join(":").trim() ?? "";
+      // The verdict must be exactly true or false, optionally with a trailing period.
+      // An echoed placeholder ("true or false") or a hedge ("true-ish") is unreadable.
+      const verdictText = accurateRaw ? valueOf(accurateRaw).toLowerCase() : "";
+      const verdict = /^(true|false)[.!]?$/.exec(verdictText)?.[1];
+      const accurate = verdict === "true";
+      const outcome = outcomeRaw ? valueOf(outcomeRaw) : "Unable to determine";
+      const lesson = lessonRaw ? valueOf(lessonRaw) : "";
+
+      // An unreadable verdict stays pending so the next run retries it. After
+      // MAX_VERDICT_ATTEMPTS it is parked as 'unverifiable', and nothing else resolves it.
+      if (verdict === undefined) {
+        const attempts = Number((pred.metadata as Record<string, unknown> | null)?.verdictAttempts ?? 0) + 1;
+        const terminal = attempts >= MAX_VERDICT_ATTEMPTS;
+        await prisma.prediction.update({
+          where: { id: pred.id },
+          data: {
+            status: terminal ? "unverifiable" : "pending",
+            metadata: {
+              ...(pred.metadata as Record<string, unknown> ?? {}),
+              verdictAttempts: attempts,
+              verdictLine: accurateRaw ?? null,
+              ...(terminal ? { scoredAt: new Date().toISOString() } : {}),
+            },
+          },
+        });
+        continue;
+      }
 
       // v10.0.150 · Brier scoring on resolution. For binary predictions
       // (every existing one is binary by default) we can compute the
@@ -122,12 +163,13 @@ Was this prediction accurate?`,
       // signal rather than a throughput count.
       const outcomeBit: 0 | 1 = accurate ? 1 : 0;
       const brier = (pred.confidence - outcomeBit) ** 2;
+      const status = accurate ? "confirmed" : "disproven";
 
       // Update the prediction record
       await prisma.prediction.update({
         where: { id: pred.id },
         data: {
-          status: accurate ? "confirmed" : "disproven",
+          status,
           outcome,
           brierScore: brier,
           metadata: {
@@ -135,6 +177,7 @@ Was this prediction accurate?`,
             scoredAt: new Date().toISOString(),
             lesson,
             originalConfidence: pred.confidence,
+            verdictLine: accurateRaw ?? null,
           },
         },
       });

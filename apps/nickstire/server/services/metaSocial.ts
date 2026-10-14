@@ -633,8 +633,9 @@ async function postFacebookVideo(params: {
 // ─── Facebook Page Post insights ───────────────────────
 
 export interface FacebookPostInsights {
-  /** post_impressions_unique (reach). Deprecated above v25 — rung 3 drops it. */
+  /** post_total_media_view_unique (reach). Rung 3 drops it. */
   reach?: number;
+  /** post_media_view (replaces post_impressions). */
   impressions?: number;
   /** post_clicks — all clicks on the post. */
   clicks?: number;
@@ -659,8 +660,8 @@ export function parseFacebookInsights(data: unknown): FacebookPostInsights {
       continue;
     }
     if (typeof value !== "number") continue;
-    if (name === "post_impressions_unique") out.reach = value;
-    else if (name === "post_impressions") out.impressions = value;
+    if (name === "post_total_media_view_unique") out.reach = value;
+    else if (name === "post_media_view") out.impressions = value;
     else if (name === "post_clicks") out.clicks = value;
     else if (name === "post_video_views") out.videoViews = value;
   }
@@ -672,12 +673,10 @@ export function parseFacebookInsights(data: unknown): FacebookPostInsights {
  * a metric the post type does not support fails the WHOLE call, so each rung
  * drops the tier above rather than losing everything.
  *
- * Metric names per Graph API Reference v26.0 "Insights" (Page post metrics),
- * read 2026-10-01: post_impressions, post_impressions_unique (deprecated ABOVE
- * v25 — this module pins v25.0, rung 3 is the v26+ survivor), post_clicks,
- * post_reactions_by_type_total, post_video_views. Meta also announced that "a
- * number of Page Insights metrics will be deprecated for all API versions by
- * June 15, 2026" — when a rung starts failing, the next narrower one carries.
+ * Names per Meta's deprecated-metrics page (read 2026-10-14). post_impressions
+ * (now post_media_view) and post_impressions_unique (now
+ * post_total_media_view_unique) are rejected with (#100) on every API version.
+ * post_clicks, post_reactions_by_type_total and post_video_views are not listed.
  */
 export async function fetchFacebookPostInsights(postId: string): Promise<
   ({ ok: true; rung: number } & FacebookPostInsights) | { ok: false; error: string }
@@ -693,10 +692,10 @@ export async function fetchFacebookPostInsights(postId: string): Promise<
   };
   try {
     const ladder = [
-      "post_impressions_unique,post_impressions,post_clicks,post_reactions_by_type_total,post_video_views",
-      "post_impressions_unique,post_impressions,post_clicks,post_reactions_by_type_total",
-      "post_impressions,post_clicks,post_reactions_by_type_total",
-      "post_impressions,post_clicks",
+      "post_total_media_view_unique,post_media_view,post_clicks,post_reactions_by_type_total,post_video_views",
+      "post_total_media_view_unique,post_media_view,post_clicks,post_reactions_by_type_total",
+      "post_media_view,post_clicks,post_reactions_by_type_total",
+      "post_media_view,post_clicks",
     ];
     let last: { res: Response; data: unknown } | null = null;
     for (let i = 0; i < ladder.length; i++) {

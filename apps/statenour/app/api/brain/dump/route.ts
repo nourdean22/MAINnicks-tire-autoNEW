@@ -27,6 +27,7 @@
  * hardened beyond that · single-operator threat model.
  */
 
+import { createHash } from "node:crypto";
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
@@ -68,11 +69,18 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Key shape · sortable + unique within ms · enables idempotent
-  // retry by client if the network drops mid-write (same content
-  // posted twice in the same ms would dedupe to the same row).
+  // The key hashes what was captured, so a retry of the same capture maps to the same row. A capture
+  // is its content, URL, selection and page title. A capture with no title keeps the fingerprint it had
+  // before the title joined it, so retries stored earlier still dedupe. An Idempotency-Key is hashed
+  // WITH the content: a reused key carrying a different body is a different capture and gets its own
+  // row, never the other row's id. The unique (category, key) index rejects the repeat, and the catch
+  // below answers from the row already stored.
+  const captured = [body.content, body.sourceUrl ?? null, body.selection ?? null];
+  const contentFingerprint = JSON.stringify(body.sourceTitle ? [...captured, body.sourceTitle] : captured);
+  const idempotencyKey = req.headers.get("idempotency-key")?.trim() || null;
+  const fingerprint = idempotencyKey ? `idem:${idempotencyKey}:${contentFingerprint}` : `content:${contentFingerprint}`;
+  const key = `ext_${createHash("sha256").update(fingerprint).digest("hex").slice(0, 40)}`;
   const now = new Date();
-  const key = `ext_${now.getTime().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 
   try {
     const row = await prisma.brainMemory.create({
@@ -104,6 +112,20 @@ export async function POST(req: NextRequest) {
     });
     return Response.json({ ok: true, id: row.id, key: row.key });
   } catch (e) {
+    if ((e as { code?: string }).code === "P2002") {
+      // The same capture was stored by an earlier request, so nothing new was written. A live row is
+      // a duplicate; a soft-deleted one is refused, never reported as ok.
+      const existing = await prisma.brainMemory.findUnique({
+        where: { category_key: { category: "brain_dump", key } },
+        select: { id: true, key: true, deletedAt: true },
+      });
+      if (existing && existing.deletedAt === null) {
+        return Response.json({ ok: true, id: existing.id, key: existing.key, duplicate: true });
+      }
+      if (existing) {
+        return Response.json({ error: "capture was deleted", id: existing.id }, { status: 409 });
+      }
+    }
     log.warn("dump_persist_failed", {
       err: e instanceof Error ? e.message.slice(0, 200) : String(e),
     });
