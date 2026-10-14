@@ -1,0 +1,13 @@
+{
+  "evidence": {
+    "policy-matrix": {
+      "ref": "server/autonomyPolicy.test.ts, server/__tests__/autonomyPolicyEdit.test.ts, server/killSwitchSharing.test.ts and server/autonomyBoundary.test.ts pass on this tip (6 files with the two cron failure suites: 100 tests). The change to services/autonomyControl.ts adds two pure date helpers (shopDayRange, sqlUtcDateTime). No kill-switch, actor or policy rule changes."
+    },
+    "cron-fail-closed": {
+      "ref": "server/__tests__/cronNoSwallowedFailure.test.ts and server/cron/jobs/cronRethrow2026.test.ts pass on this tip. The cron change binds Eastern instants in the SQL of statenourSync.ts and intelligenceAutopilot.ts. Failure handling and rethrow paths are unchanged."
+    },
+    "capability-ledger-updated": {
+      "deferred": "No capability state or evidence changes in this PR. The trigger is the pure date helpers added to services/autonomyControl.ts, not a capability. Operator to confirm before merge."
+    }
+  }
+}
