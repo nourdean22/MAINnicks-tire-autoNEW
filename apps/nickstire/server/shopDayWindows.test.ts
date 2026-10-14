@@ -167,6 +167,13 @@ describe("the shop's 'today' at 2026-10-12 21:00 ET", () => {
     expect(dayKeys.flat().every((p) => typeof p === "string")).toBe(true);
   });
 
+  it("statenourSync's unpaid-invoice alert cutoff is the date key three shop days back, not NOW() in UTC", async () => {
+    const { syncToStatenour } = await import("./cron/jobs/statenourSync");
+    await syncToStatenour();
+    // Oct 12 less three shop days is Oct 9; a NOW() cutoff would move with the UTC clock.
+    expect(paramsOf(/paymentStatus='pending' AND invoiceDate < \?/)).toEqual([["2026-10-09"]]);
+  });
+
   it("statenourSync's week and month revenue bind the shop's week and month keys", async () => {
     const { syncToStatenour } = await import("./cron/jobs/statenourSync");
     await syncToStatenour();

@@ -8,7 +8,7 @@ import { bookings, leads, chatSessions, dynamicArticles, notificationMessages, c
 import { eq, desc, gte, sql, and } from "drizzle-orm";
 
 import { createLogger } from "./lib/logger";
-import { clevelandDayStart, shopDayRange, sqlUtcDateTime } from "./services/autonomyControl";
+import { shopDayRange, sqlUtcDateTime } from "./services/autonomyControl";
 import { getBusinessDateKey, shiftDateKey } from "./lib/timezoneAssert";
 
 const log = createLogger("admin-stats");
@@ -509,9 +509,6 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     // ─── SHOP FLOOR (ALG Invoice/Estimate Data) ──────────
     let shopFloorStats = defaultStats.shopFloor;
     try {
-      // Midnight in the shop's timezone as an instant. new Date("YYYY-MM-DD") is UTC
-      // midnight, which is 20:00 ET the day before.
-      const todayStart = clevelandDayStart();
       // ALG-sourced dates (invoices.invoiceDate, alg_estimates.estimateDate) are the shop's day as
       // stored, so they compare with date keys. The createdAt bounds above stay instants.
       const todayKey = getBusinessDateKey();
