@@ -21,6 +21,11 @@ const h = vi.hoisted(() => ({
   row: null as { totalAmount: number; paymentStatus: string } | null,
   updateWheres: [] as unknown[],
   affectedRows: 1,
+  // Row returned by the second read, the re-check after a claim that matched no row.
+  rowAfterClaim: undefined as { totalAmount: number; paymentStatus: string } | null | undefined,
+  selects: 0,
+  failSelect: null as Error | null,
+  failUpdate: null as Error | null,
 }));
 
 vi.mock("../db", () => ({
@@ -31,12 +36,20 @@ function fakeDb() {
   return {
     select: () => ({
       from: () => ({
-        where: () => ({ limit: async () => (h.row ? [h.row] : []) }),
+        where: () => ({
+          limit: async () => {
+            if (h.failSelect) throw h.failSelect;
+            h.selects += 1;
+            const row = h.selects > 1 && h.rowAfterClaim !== undefined ? h.rowAfterClaim : h.row;
+            return row ? [row] : [];
+          },
+        }),
       }),
     }),
     update: () => ({
       set: () => ({
         where: async (cond: unknown) => {
+          if (h.failUpdate) throw h.failUpdate;
           h.updateWheres.push(cond);
           return { affectedRows: h.affectedRows };
         },
@@ -53,6 +66,10 @@ beforeEach(() => {
   h.row = { totalAmount: 12345, paymentStatus: "pending" };
   h.updateWheres = [];
   h.affectedRows = 1;
+  h.rowAfterClaim = undefined;
+  h.selects = 0;
+  h.failSelect = null;
+  h.failUpdate = null;
 });
 
 /** Captures what the logger writes (warn to stdout, error to stderr). Restore in finally. */
@@ -172,5 +189,45 @@ describe("markInvoicePaid", () => {
     h.affectedRows = 0;
     const out = await markInvoicePaid({ invoiceNumber: INVOICE, receivedCents: 12345, paymentIntentId: PI });
     expect(out).toEqual({ kind: "not_claimed", invoiceNumber: INVOICE });
+  });
+
+  it("answers db_unavailable when the handle is set but the read throws, so Stripe retries", async () => {
+    h.failSelect = new Error("connect ECONNREFUSED 10.0.0.7:4000");
+    const logs = captureLogs();
+    let out;
+    try {
+      out = await markInvoicePaid({ invoiceNumber: INVOICE, receivedCents: 12345, paymentIntentId: PI });
+    } finally {
+      logs.restore();
+    }
+    expect(out).toEqual({ kind: "db_unavailable" });
+    expect(h.updateWheres).toHaveLength(0);
+  });
+
+  it("answers db_unavailable when the claim UPDATE throws, so Stripe retries", async () => {
+    h.failUpdate = new Error("Lock wait timeout exceeded; try restarting transaction");
+    const logs = captureLogs();
+    let out;
+    try {
+      out = await markInvoicePaid({ invoiceNumber: INVOICE, receivedCents: 12345, paymentIntentId: PI });
+    } finally {
+      logs.restore();
+    }
+    expect(out).toEqual({ kind: "db_unavailable" });
+  });
+
+  it("logs an error with both amounts when the total changes during the claim", async () => {
+    h.affectedRows = 0;
+    h.rowAfterClaim = { totalAmount: 12400, paymentStatus: "pending" };
+    const logs = captureLogs();
+    let out;
+    try {
+      out = await markInvoicePaid({ invoiceNumber: INVOICE, receivedCents: 12345, paymentIntentId: PI });
+    } finally {
+      logs.restore();
+    }
+    expect(out).toEqual({ kind: "not_claimed", invoiceNumber: INVOICE });
+    expect(logs.err.join("")).toContain("12345");
+    expect(logs.err.join("")).toContain("12400");
   });
 });

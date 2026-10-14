@@ -62,44 +62,68 @@ export async function markInvoicePaid(input: {
     return { kind: "db_unavailable" };
   }
 
-  const [inv] = await d.select({ totalAmount: invoices.totalAmount })
-    .from(invoices)
-    .where(eq(invoices.invoiceNumber, invoiceNumber))
-    .limit(1);
-  if (!inv) {
-    log.error("[Stripe Webhook] Paid intent names an invoice that does not exist. Nothing marked.", { invoiceNumber, paymentIntentId });
-    return { kind: "not_found", invoiceNumber };
-  }
+  // A handle that is set but unreachable throws from these statements. Answer
+  // db_unavailable so Stripe retries; a bare throw reaches the route as a 400.
+  try {
+    const [inv] = await d.select({ totalAmount: invoices.totalAmount })
+      .from(invoices)
+      .where(eq(invoices.invoiceNumber, invoiceNumber))
+      .limit(1);
+    if (!inv) {
+      log.error("[Stripe Webhook] Paid intent names an invoice that does not exist. Nothing marked.", { invoiceNumber, paymentIntentId });
+      return { kind: "not_found", invoiceNumber };
+    }
 
-  if (Math.abs(receivedCents - inv.totalAmount) > AMOUNT_TOLERANCE_CENTS) {
-    log.error("[Stripe Webhook] Amount mismatch. Invoice NOT marked paid; a retry cannot change the amount.", {
+    if (Math.abs(receivedCents - inv.totalAmount) > AMOUNT_TOLERANCE_CENTS) {
+      log.error("[Stripe Webhook] Amount mismatch. Invoice NOT marked paid; a retry cannot change the amount.", {
+        invoiceNumber,
+        paymentIntentId,
+        expectedCents: inv.totalAmount,
+        receivedCents,
+      });
+      return { kind: "amount_mismatch", invoiceNumber, expectedCents: inv.totalAmount, receivedCents };
+    }
+
+    // Idempotency (2026-05-23): only the first delivery flips the row, so a Stripe
+    // retry never re-emits invoicePaid. The claim also pins the total checked above,
+    // so an edit made between the read and this write cannot pass.
+    const result = await d.update(invoices)
+      .set({ paymentStatus: "paid", paymentMethod: "card" })
+      .where(and(
+        eq(invoices.invoiceNumber, invoiceNumber),
+        ne(invoices.paymentStatus, "paid"),
+        eq(invoices.totalAmount, inv.totalAmount),
+      ));
+    // mysql2 returns affectedRows; drizzle wraps it.
+    const affected = (result as unknown as { affectedRows?: number; rowsAffected?: number })?.affectedRows
+      ?? (result as unknown as { affectedRows?: number; rowsAffected?: number })?.rowsAffected ?? 0;
+    if (affected === 1) return { kind: "claimed", invoiceNumber };
+
+    // The claim matched no row: already paid, or the total moved after the read.
+    // Re-read the row to tell the two apart.
+    const [after] = await d.select({ totalAmount: invoices.totalAmount })
+      .from(invoices)
+      .where(eq(invoices.invoiceNumber, invoiceNumber))
+      .limit(1);
+    if (after?.totalAmount !== inv.totalAmount) {
+      log.error("[Stripe Webhook] Invoice total changed during the claim, or the invoice vanished. Invoice NOT marked paid.", {
+        invoiceNumber,
+        paymentIntentId,
+        expectedCents: inv.totalAmount,
+        currentCents: after?.totalAmount ?? null,
+        receivedCents,
+      });
+      return { kind: "not_claimed", invoiceNumber };
+    }
+
+    log.info("[Stripe Webhook] Invoice already paid. Skipping fan-out.", { invoiceNumber, paymentIntentId, affected });
+    return { kind: "not_claimed", invoiceNumber };
+  } catch (err) {
+    log.error("[Stripe Webhook] Database error while recording the payment. Invoice not marked paid; Stripe will retry.", {
       invoiceNumber,
       paymentIntentId,
-      expectedCents: inv.totalAmount,
-      receivedCents,
+      error: err instanceof Error ? err.message : String(err),
     });
-    return { kind: "amount_mismatch", invoiceNumber, expectedCents: inv.totalAmount, receivedCents };
+    return { kind: "db_unavailable" };
   }
-
-  // Idempotency (2026-05-23): only the first delivery flips the row, so a Stripe
-  // retry never re-emits invoicePaid. The claim also pins the total checked above,
-  // so an edit made between the read and this write cannot pass.
-  const result = await d.update(invoices)
-    .set({ paymentStatus: "paid", paymentMethod: "card" })
-    .where(and(
-      eq(invoices.invoiceNumber, invoiceNumber),
-      ne(invoices.paymentStatus, "paid"),
-      eq(invoices.totalAmount, inv.totalAmount),
-    ));
-  // mysql2 returns affectedRows; drizzle wraps it.
-  const affected = (result as unknown as { affectedRows?: number; rowsAffected?: number })?.affectedRows
-    ?? (result as unknown as { affectedRows?: number; rowsAffected?: number })?.rowsAffected ?? 0;
-  if (affected === 1) return { kind: "claimed", invoiceNumber };
-
-  log.info("[Stripe Webhook] Invoice already paid, or its total changed during the claim. Skipping fan-out.", {
-    invoiceNumber,
-    paymentIntentId,
-    affected,
-  });
-  return { kind: "not_claimed", invoiceNumber };
 }
