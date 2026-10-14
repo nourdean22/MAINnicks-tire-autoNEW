@@ -988,8 +988,11 @@ ${urls.join("\n")}
             paymentIntentId: String(intent.id),
           });
           // A paid event that could not be recorded answers 500, so Stripe retries it.
-          // A total that moved during the claim is also unrecorded, so it retries too.
-          if (claim.kind === "db_unavailable" || claim.kind === "total_changed") return res.sendStatus(500);
+          // A total that moved during the claim, or an amount that does not match yet, is also
+          // unrecorded: 500 keeps Stripe retrying until the invoice is corrected to match.
+          if (claim.kind === "db_unavailable" || claim.kind === "total_changed" || claim.kind === "amount_mismatch") {
+            return res.sendStatus(500);
+          }
           if (claim.kind === "claimed") {
             // First-time claim — fan out.
             import("../services/eventBus").then(({ emit }) =>

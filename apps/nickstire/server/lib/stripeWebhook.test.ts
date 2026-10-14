@@ -3,8 +3,8 @@
  *
  * - A paid event whose invoice cannot be recorded answers 500, so Stripe retries
  *   it. A 200 there drops the payment record for good.
- * - An amount that differs from invoices.totalAmount is never marked paid. A retry
- *   cannot change the amount, so that answer is 200.
+ * - An amount that differs from invoices.totalAmount is never marked paid. The route
+ *   answers 500 so Stripe retries until the invoice total is corrected to match.
  * - The idempotency claim pins the total it checked, so a row edited between the
  *   read and the write cannot be marked paid at the old amount.
  *

@@ -4,6 +4,7 @@
  * drops the event, so the status each branch returns is part of the contract.
  */
 import { and, eq, ne } from "drizzle-orm";
+import { createHash } from "node:crypto";
 import { invoices } from "../../drizzle/schema";
 import { createLogger } from "./logger";
 
@@ -11,6 +12,9 @@ const log = createLogger("stripe-webhook");
 
 /** Same tolerance payments.confirmPayment applies: Stripe rounds processing fees. */
 const AMOUNT_TOLERANCE_CENTS = 50;
+
+/** A short one-way reference to an invoice for logs. Invoice numbers are customer data (AGENTS.md). */
+const invoiceRef = (invoiceNumber: string): string => createHash("sha256").update(invoiceNumber).digest("hex").slice(0, 12);
 
 type StripeWebhookPreflight =
   | { ok: true; webhookSecret: string; secretKey: string }
@@ -60,7 +64,7 @@ export async function markInvoicePaid(input: {
   const { getDb } = await import("../db");
   const d = await getDb();
   if (!d) {
-    log.error("[Stripe Webhook] Database unavailable. Invoice not marked paid; Stripe will retry.", { invoiceNumber, paymentIntentId });
+    log.error("[Stripe Webhook] Database unavailable. Invoice not marked paid; Stripe will retry.", { invoiceRef: invoiceRef(invoiceNumber), paymentIntentId });
     return { kind: "db_unavailable" };
   }
 
@@ -72,13 +76,13 @@ export async function markInvoicePaid(input: {
       .where(eq(invoices.invoiceNumber, invoiceNumber))
       .limit(1);
     if (!inv) {
-      log.error("[Stripe Webhook] Paid intent names an invoice that does not exist. Nothing marked.", { invoiceNumber, paymentIntentId });
+      log.error("[Stripe Webhook] Paid intent names an invoice that does not exist. Nothing marked.", { invoiceRef: invoiceRef(invoiceNumber), paymentIntentId });
       return { kind: "not_found", invoiceNumber };
     }
 
     if (Math.abs(receivedCents - inv.totalAmount) > AMOUNT_TOLERANCE_CENTS) {
-      log.error("[Stripe Webhook] Amount mismatch. Invoice NOT marked paid; a retry cannot change the amount.", {
-        invoiceNumber,
+      log.error("[Stripe Webhook] Amount mismatch. Invoice NOT marked paid; Stripe retries until the amount matches.", {
+        invoiceRef: invoiceRef(invoiceNumber),
         paymentIntentId,
         expectedCents: inv.totalAmount,
         receivedCents,
@@ -109,7 +113,7 @@ export async function markInvoicePaid(input: {
       .limit(1);
     if (after?.totalAmount !== inv.totalAmount) {
       log.error("[Stripe Webhook] Invoice total changed during the claim, or the invoice vanished. Invoice NOT marked paid.", {
-        invoiceNumber,
+        invoiceRef: invoiceRef(invoiceNumber),
         paymentIntentId,
         expectedCents: inv.totalAmount,
         currentCents: after?.totalAmount ?? null,
@@ -118,11 +122,11 @@ export async function markInvoicePaid(input: {
       return { kind: "total_changed", invoiceNumber };
     }
 
-    log.info("[Stripe Webhook] Invoice already paid. Skipping fan-out.", { invoiceNumber, paymentIntentId, affected });
+    log.info("[Stripe Webhook] Invoice already paid. Skipping fan-out.", { invoiceRef: invoiceRef(invoiceNumber), paymentIntentId, affected });
     return { kind: "not_claimed", invoiceNumber };
   } catch (err) {
     log.error("[Stripe Webhook] Database error while recording the payment. Invoice not marked paid; Stripe will retry.", {
-      invoiceNumber,
+      invoiceRef: invoiceRef(invoiceNumber),
       paymentIntentId,
       error: err instanceof Error ? err.message : String(err),
     });
