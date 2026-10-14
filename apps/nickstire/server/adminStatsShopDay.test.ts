@@ -5,7 +5,7 @@
  *   is a regression guard: green before and after the fix.
  * - the month start came from the Node process zone (new Date(y, m, 1)), not Eastern.
  *   Red before the fix, because the process zone is pinned to UTC here.
- * - the week started now minus 168 hours at the current time of day, about 18 hours
+ * - the week started now minus 168 hours at the current time of day, 21 hours
  *   off statenour's week start. Red before the fix.
  *
  * Every assertion reads the instant that would be bound into the query. The process
@@ -16,7 +16,7 @@ import { MySqlDialect } from "drizzle-orm/mysql-core";
 import type { SQL } from "drizzle-orm";
 
 const h = vi.hoisted(() => {
-  const state = { wheres: [] as unknown[], executed: [] as unknown[] };
+  const state = { wheres: [] as unknown[], executed: [] as unknown[], selectFields: [] as unknown[] };
   const chain = (rows: unknown[] = []) => {
     const c: Record<string, unknown> = {};
     for (const m of ["from", "orderBy", "limit", "groupBy", "leftJoin", "innerJoin", "having"]) {
@@ -30,7 +30,10 @@ const h = vi.hoisted(() => {
     return c;
   };
   const db = {
-    select: () => chain(),
+    select: (fields?: unknown) => {
+      if (fields) state.selectFields.push(fields);
+      return chain();
+    },
     execute: async (q: unknown) => {
       state.executed.push(q);
       return [[]];
@@ -61,6 +64,7 @@ let savedTz: string | undefined;
 beforeEach(() => {
   h.state.wheres = [];
   h.state.executed = [];
+  h.state.selectFields = [];
   savedTz = process.env.TZ;
   process.env.TZ = "UTC"; // the process zone is not the shop's; pin it so the bugs show
   vi.useFakeTimers({ toFake: ["Date"] });
@@ -119,5 +123,18 @@ describe("getDashboardStats · the shop's day, week and month", () => {
     await getDashboardStats();
     expect(boundInstants()).toContain("2026-10-05T04:00:00.000Z");
     expect(boundInstants()).not.toContain("2026-10-06T01:00:00.000Z");
+  });
+
+  it("binds the raw week start in the bookings and leads CASE WHEN aggregates as UTC text, not a Date", async () => {
+    const { getDashboardStats } = await import("./admin-stats");
+    await getDashboardStats();
+    // The thisWeek aggregates are raw sql(): a bound Date is formatted by mysql2 in the
+    // process zone, so the bind must be the UTC "YYYY-MM-DD HH:MM:SS" text of the instant.
+    const rawParams = h.state.selectFields
+      .flatMap((fields) => Object.values(fields as Record<string, unknown>))
+      .filter((f): f is SQL => typeof f === "object" && f !== null && "queryChunks" in f)
+      .flatMap((f) => new MySqlDialect().sqlToQuery(f).params);
+    expect(rawParams.filter((p) => p instanceof Date)).toEqual([]);
+    expect(rawParams.filter((p) => p === "2026-10-05 04:00:00")).toHaveLength(2);
   });
 });

@@ -134,6 +134,9 @@ function falls(instant: Date, bound: unknown[]): boolean {
 const PAID_AT_9PM_ET_OCT_12 = new Date("2026-10-13T01:00:00Z");
 const SHOP_DAY_OCT_11: [Date, Date] = [new Date("2026-10-11T04:00:00Z"), new Date("2026-10-12T04:00:00Z")];
 const SHOP_DAY_OCT_12: [Date, Date] = [new Date("2026-10-12T04:00:00Z"), new Date("2026-10-13T04:00:00Z")];
+/** Seven and fourteen days back from Oct 12, at Eastern midnight (EDT). */
+const WEEK_START = new Date("2026-10-05T04:00:00Z");
+const FORTNIGHT_START = new Date("2026-09-28T04:00:00Z");
 
 describe("the shop's 'today' at 2026-10-12 21:00 ET", () => {
   // Each assertion pins the instant pair one query binds, so reverting one query
@@ -172,6 +175,17 @@ describe("the shop's 'today' at 2026-10-12 21:00 ET", () => {
     ]);
   });
 
+  it("statenourSync's trend revenue and booking queries each bind their own week windows", async () => {
+    const { syncToStatenour } = await import("./cron/jobs/statenourSync");
+    await syncToStatenour();
+    // Each SQL shape is matched in full, including the unspaced paymentStatus='paid', so a
+    // revert of any one of these binds fails its own line.
+    expect(paramsOf(/SUM\(totalAmount\),0\) as rev FROM invoices WHERE invoiceDate >= \? AND paymentStatus='paid'$/)).toEqual([[WEEK_START]]);
+    expect(paramsOf(/SUM\(totalAmount\),0\) as rev FROM invoices WHERE invoiceDate >= \? AND invoiceDate < \? AND paymentStatus='paid'$/)).toEqual([[FORTNIGHT_START, WEEK_START]]);
+    expect(paramsOf(/FROM bookings WHERE createdAt >= \?$/)).toEqual([[WEEK_START]]);
+    expect(paramsOf(/FROM bookings WHERE createdAt >= \? AND createdAt < \?$/)).toEqual([[FORTNIGHT_START, WEEK_START]]);
+  });
+
   it("intelligenceAutopilot's walk-in split binds today's Eastern day range, and the 21:00 ET invoice lands on Oct 12", async () => {
     const { runIntelligenceAutopilot } = await import("./cron/jobs/intelligenceAutopilot");
     await runIntelligenceAutopilot();
@@ -179,6 +193,12 @@ describe("the shop's 'today' at 2026-10-12 21:00 ET", () => {
     expect(walkIns).toContainEqual(SHOP_DAY_OCT_12);
     expect(walkIns.filter((b) => falls(PAID_AT_9PM_ET_OCT_12, b))).toEqual([SHOP_DAY_OCT_12]);
     expect(paramsOf(/FROM bookings\s+WHERE createdAt >= \? AND createdAt < \? AND status IN/)).toContainEqual(SHOP_DAY_OCT_12);
+  });
+
+  it("intelligenceAutopilot's estimate counts bind the seven-day start on both the pending and the paid branch", async () => {
+    const { runIntelligenceAutopilot } = await import("./cron/jobs/intelligenceAutopilot");
+    await runIntelligenceAutopilot();
+    expect(paramsOf(/COUNT\(CASE WHEN paymentStatus = 'pending' AND invoiceDate >= \? THEN 1 END\) as estimates,\s+COUNT\(CASE WHEN paymentStatus = 'paid' AND invoiceDate >= \? THEN 1 END\) as closed\s+FROM invoices/)).toEqual([[WEEK_START, WEEK_START]]);
   });
 
   it("intelligenceAutopilot's seven-day inspection window starts at Eastern midnight, Oct 5", async () => {

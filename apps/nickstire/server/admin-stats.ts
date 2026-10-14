@@ -213,7 +213,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       confirmed: sql<number>`SUM(CASE WHEN ${bookings.status} = 'confirmed' THEN 1 ELSE 0 END)`,
       completed: sql<number>`SUM(CASE WHEN ${bookings.status} = 'completed' THEN 1 ELSE 0 END)`,
       cancelled: sql<number>`SUM(CASE WHEN ${bookings.status} = 'cancelled' THEN 1 ELSE 0 END)`,
-      thisWeek: sql<number>`SUM(CASE WHEN ${bookings.createdAt} >= ${weekAgo} THEN 1 ELSE 0 END)`,
+      thisWeek: sql<number>`SUM(CASE WHEN ${bookings.createdAt} >= ${sqlUtcDateTime(weekAgo)} THEN 1 ELSE 0 END)`,
     }).from(bookings).where(gte(bookings.createdAt, ninetyDaysAgo));
 
     // 2. Booking byService — GROUP BY aggregate
@@ -289,7 +289,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       // lead has been actioned and must not bleed into "urgent" (matches the
       // Sales Pipeline's wave-128 rule so Overview and Pipeline agree).
       urgent: sql<number>`SUM(CASE WHEN COALESCE(${leads.urgencyScore}, 0) >= 4 AND ${leads.status} NOT IN ('booked', 'completed', 'closed', 'lost') AND NOT (${leads.source} = 'callback' AND ${leads.callbackId} IS NOT NULL) THEN 1 ELSE 0 END)`,
-      thisWeek: sql<number>`SUM(CASE WHEN ${leads.createdAt} >= ${weekAgo} THEN 1 ELSE 0 END)`,
+      thisWeek: sql<number>`SUM(CASE WHEN ${leads.createdAt} >= ${sqlUtcDateTime(weekAgo)} THEN 1 ELSE 0 END)`,
       avgUrgencySum: sql<number>`COALESCE(SUM(COALESCE(${leads.urgencyScore}, 3)), 0)`,
     }).from(leads).where(gte(leads.createdAt, ninetyDaysAgo));
 

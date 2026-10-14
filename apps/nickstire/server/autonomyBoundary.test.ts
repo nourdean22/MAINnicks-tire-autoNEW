@@ -94,6 +94,19 @@ describe("shopDayRange", () => {
     const r = shopDayRange("2026-11-01");
     expect(r.end.getTime() - r.start.getTime()).toBe(25 * 3600_000);
   });
+  it("pins the spring-forward bounds: midnight is still EST (05:00Z) and the next midnight is EDT (04:00Z)", () => {
+    const r = shopDayRange("2026-03-08");
+    expect(r.start.toISOString()).toBe("2026-03-08T05:00:00.000Z");
+    expect(r.end.toISOString()).toBe("2026-03-09T04:00:00.000Z");
+    // The bind text a raw sql() statement receives for the same instant.
+    expect(sqlUtcDateTime(r.start)).toBe("2026-03-08 05:00:00");
+  });
+  it("pins the fall-back bounds: midnight is still EDT (04:00Z) and the next midnight is EST (05:00Z)", () => {
+    const r = shopDayRange("2026-11-01");
+    expect(r.start.toISOString()).toBe("2026-11-01T04:00:00.000Z");
+    expect(r.end.toISOString()).toBe("2026-11-02T05:00:00.000Z");
+    expect(sqlUtcDateTime(r.end)).toBe("2026-11-02 05:00:00");
+  });
 });
 
 describe("sqlUtcDateTime", () => {
