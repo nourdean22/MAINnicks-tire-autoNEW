@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "publish-boundary-test": {
+      "ref": "server/socialPublish.facebook.test.ts (7 tests, real metaSocial publish path) passed in the full local suite on 2026-10-14. This diff changes only the Facebook post-insights section of metaSocial.ts (lines 633-714; hunks at 636-698). postFacebookVideo and every other publish function are unchanged. Kill switches, cadence and claim gates are not in this diff."
+    },
+    "capability-ledger-updated": {
+      "ref": "Ledger id and name fields checked 2026-10-14 for facebook, insight, fb, meta and social: no row names the Facebook cross-post insights lane; the hits are Instagram and Meta CAPI rows. This diff changes no capability state, so no ledger update is owed."
+    }
+  }
+}
