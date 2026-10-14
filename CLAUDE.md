@@ -49,7 +49,7 @@ add Claude-only notes on top of it — and nickstire's also indexes that app's c
   (20 KB, linked so never auto-loaded) BEFORE writing code for Visual Kinetics UI, resilient-DB
   design, or PowerShell reliability. Skip it otherwise.
 - **Hooks** (`.claude/settings.json`; design notes [`docs/agent-os/README.md`](docs/agent-os/README.md))
-  are enforcement, not advice. Don't disable one to unblock yourself.
+  are enforcement, not advice, except the UserPromptSubmit skills reminder, which only prints. Don't disable one to unblock yourself.
   - `PreToolUse` → `pretool.mjs` (17 rules, `config/agent-os/policy.json`, exit 2 blocks; **Claude-only**,
     never cite as enforced repo-wide) then `lease-check.mjs` (Session Authority — **session-authority**
     skill). Both fail OPEN on their own bugs — hook silence is not a green.
