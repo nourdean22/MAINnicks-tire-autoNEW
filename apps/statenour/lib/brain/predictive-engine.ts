@@ -153,7 +153,13 @@ function formatPredictiveContext(data: Awaited<ReturnType<typeof gatherPredictiv
     const totalQuotes = data.quotes.length;
     lines.push(`Jobs: ${data.jobs.length} | Revenue: $${totalRevenue.toFixed(0)}`);
     lines.push(`Leads: ${data.leads.length} (${convertedLeads} converted)`);
-    lines.push(`Quotes: ${totalQuotes} (${bookedQuotes} booked, ${totalQuotes > 0 ? Math.round((bookedQuotes / totalQuotes) * 100) : 0}% conversion)`);
+    // No quote source exists yet (recentShopQuotes is a stub). An empty list means
+    // "not tracked", not "0 quotes at 0%", which the model would read as fact.
+    lines.push(
+      totalQuotes === 0
+        ? "Quotes: not tracked"
+        : `Quotes: ${totalQuotes} (${bookedQuotes} booked, ${Math.round((bookedQuotes / totalQuotes) * 100)}% conversion)`,
+    );
   }
 
   // Drift signals

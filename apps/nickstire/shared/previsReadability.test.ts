@@ -4,6 +4,7 @@
  */
 import { readFileSync } from "node:fs";
 import { execSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { validateOnScreenReadability, type StoryboardBeat } from "../client/src/lib/facelessReelStudio";
 
@@ -34,8 +35,8 @@ describe("validateOnScreenReadability", () => {
 
 describe("approved reel packs", () => {
   it("no approved pack beat is BLOCKED by the readability gate (only flagged)", () => {
-    const root = new URL("..", import.meta.url).pathname;
-    const files = execSync("git ls-files 'docs/reel-packs/*/brief.json'", { encoding: "utf8", cwd: root }).split("\n").filter(Boolean);
+    const root = fileURLToPath(new URL("..", import.meta.url));
+    const files = execSync('git ls-files "docs/reel-packs/*/brief.json"', { encoding: "utf8", cwd: root }).split("\n").filter(Boolean);
     expect(files.length).toBeGreaterThan(50);
     const blocked: string[] = [];
     const warned = new Set<string>();

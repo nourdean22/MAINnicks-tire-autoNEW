@@ -69,6 +69,10 @@ export function auditEntryToReceipt(e: AuditEntry): ActionReceipt {
 
 /** AutonomousAction.result → receipt status (this is where FAILED actions surface). */
 function autoStatus(action: { approval: string; executedAt: Date | null; result: string | null }): ReceiptStatus {
+  // needs_review is an UNKNOWN outcome, so it is checked before result. A failed approve writes result
+  // "failed", but the provider may have accepted the send first; a sweeper-flagged row keeps whatever
+  // result it had. Neither is FAILED (which invites a retry) nor awaiting approval.
+  if (action.approval === "needs_review") return "partial";
   if (action.result === "failed") return "failed";
   if (action.result === "success") return "success";
   if (action.result === "skipped") return "skipped";
@@ -123,7 +127,10 @@ export function autonomousActionToReceipt(a: AutonomousActionRow): ActionReceipt
     entityType: a.targetType ?? "rule",
     entityId: a.targetId ?? a.ruleName,
     label,
-    userVisibleSummary: summaries[status],
+    userVisibleSummary:
+      a.approval === "needs_review"
+        ? `Outcome unknown: ${a.actionType} on ${label} may or may not have run. Check before acting; not re-run.`
+        : summaries[status],
     errorSafeMessage: status === "failed" && a.error ? a.error.split("\n")[0].slice(0, 200) : undefined,
     undoAvailable: false,
     // BDN-204 · surface the pre-filed plan + plan-vs-outcome diff when the
