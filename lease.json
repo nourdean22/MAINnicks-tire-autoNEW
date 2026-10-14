@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "nickstire/retire-forensic-lens",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "f73eba1c-7cf9-4cbf-a1eb-8605e963b6e4",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\agent-a206db200d96403c8",
   "claimedBy": "2026-10-12-retire-forensic-lens",
   "claimedAt": "2026-10-12T17:50:02.435Z",
   "expiresAt": "2026-10-13T05:50:02.435Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": null
+  "releasedAt": "2026-10-14T10:43:50.914Z",
+  "releaseReason": "operator confirmed via -ForceDirtyRelease in worktree-teardown.ps1",
+  "priorLeaseSha": "2e921cbb19df59a2f44386aabe609a296703c86d",
+  "releasedBy": "f73eba1c-7cf9-4cbf-a1eb-8605e963b6e4",
+  "foreignReleaseReason": null
 }
