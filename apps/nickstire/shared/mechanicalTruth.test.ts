@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { execSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { TRUTH_TOPICS, buildTruthPacketFragment, mechanicalTruthViolations } from "./mechanicalTruth";
 import { condemnedContentProblem } from "./reelClaimAudit";
@@ -98,7 +99,7 @@ describe("mechanical truth packets", () => {
   it("no approved reel pack, concept, blog or guide in the repo trips a packet", () => {
     const files = execSync(
       "git ls-files docs/reel-packs shared/absurdityConcepts.ts shared/blog.ts shared/guides.ts shared/seo-pages.ts shared/tireSizeContent.ts server/cron/jobs/dailyReelPost.ts",
-      { encoding: "utf8", cwd: new URL("..", import.meta.url).pathname },
+      { encoding: "utf8", cwd: fileURLToPath(new URL("..", import.meta.url)) },
     ).split("\n").filter(Boolean);
     expect(files.length).toBeGreaterThan(300);
     const hits: string[] = [];
