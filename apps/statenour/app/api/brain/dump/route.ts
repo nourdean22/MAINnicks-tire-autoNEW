@@ -27,6 +27,7 @@
  * hardened beyond that · single-operator threat model.
  */
 
+import { createHash } from "node:crypto";
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
@@ -68,11 +69,15 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Key shape · sortable + unique within ms · enables idempotent
-  // retry by client if the network drops mid-write (same content
-  // posted twice in the same ms would dedupe to the same row).
+  // The key is a hash of what was captured (or of the client's Idempotency-Key header
+  // when one is sent), so a retry maps to the same row. The unique (category, key) index
+  // rejects the repeat, and the catch below returns the row already stored.
+  const idempotencyKey = req.headers.get("idempotency-key")?.trim() || null;
+  const fingerprint = idempotencyKey
+    ? `idem:${idempotencyKey}`
+    : `content:${JSON.stringify([body.content, body.sourceUrl ?? null, body.selection ?? null])}`;
+  const key = `ext_${createHash("sha256").update(fingerprint).digest("hex").slice(0, 40)}`;
   const now = new Date();
-  const key = `ext_${now.getTime().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 
   try {
     const row = await prisma.brainMemory.create({
@@ -104,6 +109,14 @@ export async function POST(req: NextRequest) {
     });
     return Response.json({ ok: true, id: row.id, key: row.key });
   } catch (e) {
+    if ((e as { code?: string }).code === "P2002") {
+      // The same capture was stored by an earlier request: return that row, store nothing new.
+      const existing = await prisma.brainMemory.findUnique({
+        where: { category_key: { category: "brain_dump", key } },
+        select: { id: true, key: true },
+      });
+      if (existing) return Response.json({ ok: true, id: existing.id, key: existing.key, duplicate: true });
+    }
     log.warn("dump_persist_failed", {
       err: e instanceof Error ? e.message.slice(0, 200) : String(e),
     });

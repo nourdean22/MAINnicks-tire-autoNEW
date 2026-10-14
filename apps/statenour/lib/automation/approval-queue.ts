@@ -224,6 +224,9 @@ export async function decidePendingAction(
     }
   }
 
+  // A failed side effect must not be written as approved: the row returns to pending.
+  const executionFailed = executionOutcome !== null && !executionOutcome.ok;
+
   // Re-read existing after the executeApprovedAction (which may have
   // updated payload + result + executedAt) so the operator's notes
   // merge with the post-execution state, not the pre-execution one.
@@ -245,9 +248,22 @@ export async function decidePendingAction(
 
   const updated = await prisma.autonomousAction.update({
     where: { id },
-    data: {
-      approval: decision,
-      approvedBy: approver,
+    data: executionFailed
+      ? {
+          // The side effect did not run: record nothing as approved, executed or
+          // attributed, and return the row to pending so the operator can retry it.
+          approval: "pending",
+          approvedBy: null,
+          executedAt: null,
+          result: "failed",
+          error: executionOutcome?.error ?? "execution failed",
+          payload: nextPayload,
+        }
+      : {
+          approval: decision,
+          approvedBy: approver,
+          // Clears the error a failed earlier run left behind.
+          error: null,
       // executedAt = either the engine's executeApprovedAction stamp
       // (preserved by reading `refreshed`), the operator's confirm
       // stamp on approve when no side effect was scheduled, or the
@@ -274,7 +290,8 @@ export async function decidePendingAction(
   // the rest of the registry's lastResult vocabulary.
   const policyId = `autonomous-action.${existing.ruleName}`;
   void getPolicy(policyId).then(async (p) => {
-    if (!p) return;
+    // A failed run is neither a policy success nor a rollback: no fire-log entry.
+    if (!p || executionFailed) return;
     const { logPolicyFire } = await import("@/lib/automation/policy");
     void logPolicyFire(
       policyId,

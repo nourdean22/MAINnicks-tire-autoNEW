@@ -17,7 +17,7 @@ export interface GBPMetrics {
   recentReviewText: string;
 }
 
-export async function fetchGSCAndGBPMetrics(): Promise<{ gsc: GSCMetrics[]; gbp: GBPMetrics | null }> {
+export async function fetchGSCAndGBPMetrics(): Promise<{ gsc: GSCMetrics[]; gbp: GBPMetrics | null; error?: string }> {
   const isConfigured = await isGoogleOauthConfigured("primary").catch(() => false);
 
   if (!isConfigured) {
@@ -66,7 +66,10 @@ export async function fetchGSCAndGBPMetrics(): Promise<{ gsc: GSCMetrics[]; gbp:
         position: row.position
       }));
     } else {
-      log.warn(`GSC API request failed with status ${gscRes.status}, returning empty GSC metrics.`);
+      // A failed read is not an empty one: the status goes back so the caller can refuse to store "no data".
+      const error = `GSC API request failed with status ${gscRes.status}`;
+      log.warn(`${error}, returning no GSC metrics.`);
+      return { gsc: [], gbp: null, error };
     }
 
     // Call GBP API or fall back cleanly
@@ -75,12 +78,8 @@ export async function fetchGSCAndGBPMetrics(): Promise<{ gsc: GSCMetrics[]; gbp:
       gbp: null
     };
   } catch (err) {
-    log.error("Failed to query Google API, returning empty metrics.", {
-      error: err instanceof Error ? err.message : String(err)
-    });
-    return {
-      gsc: [],
-      gbp: null
-    };
+    const error = err instanceof Error ? err.message : String(err);
+    log.error("Failed to query Google API, returning empty metrics.", { error });
+    return { gsc: [], gbp: null, error };
   }
 }

@@ -82,7 +82,13 @@ ${recalls.length > 0 ? recalls
   .join("\n\n") : "- No verified recall data available."}
 `;
     } else if (source.domain === "seo") {
-      const { gsc, gbp } = await fetchGSCAndGBPMetrics();
+      const { gsc, gbp, error } = await fetchGSCAndGBPMetrics();
+      // A failed fetch is not an empty search console: stop before anything is stored,
+      // or "No search data available." lands as a document and the run reports success.
+      if (error) {
+        log.warn(`Search Console ingestion failed: ${error}`);
+        return { success: false, documentId: null, claimsCount: 0, message: error };
+      }
       rawContent = `# Google Search Console & Business Profile Report
 Generated: ${new Date().toISOString()}
 Source: ${source.url}
