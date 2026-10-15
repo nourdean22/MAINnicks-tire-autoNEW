@@ -61,7 +61,7 @@ interface ChatLogger {
  * Neutral interruption text only.
  */
 export const CLIENT_SAFE_STREAM_ERROR_TEXT =
-  "The AI provider dropped mid-response — tap Retry to continue.";
+  "The AI provider dropped mid-response — tap Retry to check and continue.";
 
 /**
  * Safe, ACTIONABLE categories (2026-07-29). Raw provider text is still
@@ -84,15 +84,15 @@ const SAFE_STREAM_ERROR_CATEGORIES: ReadonlyArray<{
     test: /vision|image|multimodal|media type|unsupported content|image_url/i,
     text:
       "That request included an image, and no available model could read it. " +
-      "Check the vision model on /system/health, then tap Retry.",
+      "Check the vision model on /system/health, then tap Retry to check and continue.",
   },
   {
     test: /quota|rate.?limit|429|insufficient.?(credit|funds)|billing/i,
-    text: "The AI provider hit a quota or rate limit — tap Retry in a moment.",
+    text: "The AI provider hit a quota or rate limit — tap Retry in a moment to check and continue.",
   },
   {
     test: /timeout|timed out|ETIMEDOUT|aborted|deadline/i,
-    text: "The model took too long and the response was cut off — tap Retry.",
+    text: "The model took too long and the response was cut off — tap Retry to check and continue.",
   },
   {
     test: /context length|too many tokens|maximum context|token limit/i,

@@ -62,6 +62,7 @@ vi.mock("sonner", () => ({
 import { toast } from "sonner";
 import { useChatStream } from "@/features/chat-v2/hooks/use-chat-stream";
 import { useChatUiStore } from "@/features/chat-v2/stores/chat-ui-store";
+import { RETRY_HELD_RAN, RETRY_HELD_UNCONFIRMED } from "@/features/chat-v2/lib/saved-turn";
 
 const transport = () => h.transport as TransportOpts;
 const user: Msg = { id: "u1", role: "user", parts: [{ type: "text", text: "question" }] };
@@ -69,8 +70,10 @@ const reply: Msg = { id: "live-1", role: "assistant", parts: [{ type: "text", te
 
 let ctl: ChatRuntimeController;
 // The hook's controller leaves the component through a prop callback, not an outer reassignment.
+// Options for the next mount; tests that need the saved-turn reader set this before render().
+let hookOptions: Parameters<typeof useChatStream>[0];
 function Probe({ onCtl }: { onCtl: (c: ChatRuntimeController) => void }) {
-  onCtl(useChatStream());
+  onCtl(useChatStream(hookOptions));
   return null;
 }
 const captureCtl = (c: ChatRuntimeController) => { ctl = c; };
@@ -97,6 +100,7 @@ beforeEach(() => {
     sendMessage: vi.fn(),
     regenerate: vi.fn(),
   };
+  hookOptions = undefined;
   useChatUiStore.setState({ activeConversationId: "c1", privateMode: false });
   container = document.createElement("div");
   root = createRoot(container);
@@ -857,6 +861,190 @@ describe("the partial re-resume timer dies with its turn", () => {
     h.chat.error = new Error("Load failed");
     render();
     act(() => vi.advanceTimersByTime(10_000));
+    expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ai@6 does not end the stream at an error part: a later tool-call plus
+// finish(tool-calls) still runs the tool on the server. The client SDK rethrows
+// on the error chunk, so this bubble holds only the text before it and the live
+// gate (tool parts) sees nothing. Only the saved record of the turn can say, so
+// Retry in the error state reads it first. The fixture stream is
+// [start, text, error, tool-call createTask, finish(tool-calls), text]; the live
+// side of it is pinned against the real SDK in
+// tests/ai/chat/live-bubble-after-error-part.test.ts.
+describe("Retry after a stream error asks the saved turn before replaying", () => {
+  const savedWrite = {
+    id: "stub",
+    role: "assistant",
+    content: "Working on it",
+    streamingState: "errored",
+    tokenUsage: {
+      toolReceipts: [{ toolName: "createTask", category: "personal_write", sideEffecting: true, verifiable: true, status: "partial", verificationState: "UNKNOWN_COMPLETION", entityType: null, entityId: null }],
+    },
+  };
+  const savedSettledEmpty = { ...savedWrite, tokenUsage: { toolReceipts: [] } };
+  const savedUnsettled = { ...savedWrite, tokenUsage: { receiptsUnavailable: true } };
+  const IN_BAND = new Error("The AI provider dropped mid-response. Tap Retry to check and continue.");
+
+  /** The turn was sent, the server answered it (a new trace), then the stream errored in-band. */
+  function inBandError() {
+    act(() => void ctl.sendText("add a task"));
+    transport().lastTraceIdRef.current = "T2";
+    h.chat.messages = [user, { id: "live-1", role: "assistant", parts: [{ type: "text", text: "Working on it" }] }];
+    h.chat.status = "error";
+    h.chat.error = IN_BAND;
+    render();
+    vi.mocked(toast.error).mockClear();
+  }
+  const retry = () => act(async () => void (await ctl.regenerate()));
+
+  afterEach(() => {
+    hookOptions = undefined;
+  });
+
+  it("withholds Retry when the saved turn lists the write that ran after the error part", async () => {
+    const readSavedTurn = vi.fn(async () => [savedWrite]);
+    hookOptions = { readSavedTurn };
+    render();
+    inBandError();
+
+    await retry();
+
+    expect(readSavedTurn).toHaveBeenCalledWith("c1");
+    expect(h.chat.regenerate).not.toHaveBeenCalled();
+    expect(vi.mocked(toast.error)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(toast.error).mock.calls[0]?.[0]).toBe(RETRY_HELD_RAN);
+  });
+
+  it("withholds Retry while the saved row is not settled yet, and says to try again", async () => {
+    hookOptions = { readSavedTurn: vi.fn(async () => [savedUnsettled]) };
+    render();
+    inBandError();
+
+    await retry();
+
+    expect(h.chat.regenerate).not.toHaveBeenCalled();
+    expect(vi.mocked(toast.error).mock.calls[0]?.[0]).toBe(RETRY_HELD_UNCONFIRMED);
+  });
+
+  it("replays once the saved row says nothing ran (a cold failure, settled to [])", async () => {
+    const readSavedTurn = vi.fn(async () => [savedSettledEmpty]);
+    hookOptions = { readSavedTurn };
+    render();
+    inBandError();
+
+    await retry();
+
+    expect(readSavedTurn).toHaveBeenCalledTimes(1);
+    expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(toast.error)).not.toHaveBeenCalled();
+  });
+
+  it("fails closed with no reader wired", async () => {
+    hookOptions = undefined;
+    render();
+    inBandError();
+
+    await retry();
+
+    expect(h.chat.regenerate).not.toHaveBeenCalled();
+    expect(vi.mocked(toast.error).mock.calls[0]?.[0]).toBe(RETRY_HELD_UNCONFIRMED);
+  });
+
+  it("fails closed with a reader that rejects", async () => {
+    hookOptions = { readSavedTurn: vi.fn(async () => { throw new Error("network"); }) };
+    render();
+    inBandError();
+
+    await retry();
+
+    expect(h.chat.regenerate).not.toHaveBeenCalled();
+    expect(vi.mocked(toast.error).mock.calls[0]?.[0]).toBe(RETRY_HELD_UNCONFIRMED);
+  });
+
+  it("fails closed with no active conversation to ask about, and never asks", async () => {
+    const unasked = vi.fn(async () => [savedSettledEmpty]);
+    hookOptions = { readSavedTurn: unasked };
+    render();
+    inBandError();
+    useChatUiStore.setState({ activeConversationId: null });
+    render();
+
+    await retry();
+
+    expect(unasked).not.toHaveBeenCalled();
+    expect(h.chat.regenerate).not.toHaveBeenCalled();
+  });
+
+  it("a private turn leaves no saved row to read: held without asking", async () => {
+    const readSavedTurn = vi.fn(async () => [savedSettledEmpty]);
+    hookOptions = { readSavedTurn };
+    useChatUiStore.setState({ privateMode: true });
+    render();
+    inBandError();
+
+    await retry();
+
+    expect(readSavedTurn).not.toHaveBeenCalled();
+    expect(h.chat.regenerate).not.toHaveBeenCalled();
+    expect(vi.mocked(toast.error).mock.calls[0]?.[0]).toBe(RETRY_HELD_UNCONFIRMED);
+  });
+
+  it("judges every saved row of the turn: a clean stub beside a finish row that lists a write is held", async () => {
+    hookOptions = { readSavedTurn: vi.fn(async () => [savedSettledEmpty, { ...savedWrite, id: "finish" }]) };
+    render();
+    inBandError();
+
+    await retry();
+
+    expect(h.chat.regenerate).not.toHaveBeenCalled();
+  });
+
+  it("one check at a time: a second tap while the first is reading does not start a second replay", async () => {
+    let finish!: (rows: unknown[]) => void;
+    const readSavedTurn = vi.fn(() => new Promise<unknown[]>((resolve) => (finish = resolve)));
+    hookOptions = { readSavedTurn };
+    render();
+    inBandError();
+
+    const first = act(async () => void (await ctl.regenerate()));
+    await act(async () => void (await ctl.regenerate()));
+    finish([savedSettledEmpty]);
+    await first;
+
+    expect(readSavedTurn).toHaveBeenCalledTimes(1);
+    expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
+  });
+
+  it("CONTROL: an error before the server answered (no new trace) replays at once, and the saved turn is not read", async () => {
+    const readSavedTurn = vi.fn(async () => [savedWrite]);
+    hookOptions = { readSavedTurn };
+    render();
+    act(() => void ctl.sendText("add a task"));
+    // lastTraceIdRef is still the trace at send: the POST never reached the pipeline
+    h.chat.messages = [user];
+    h.chat.status = "error";
+    h.chat.error = new Error('{"error":"Chat stream failed"}');
+    render();
+
+    await retry();
+
+    expect(readSavedTurn).not.toHaveBeenCalled();
+    expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
+  });
+
+  it("CONTROL: with no error the saved turn is never read and Retry replays a clean live bubble as before", async () => {
+    const readSavedTurn = vi.fn(async () => [savedWrite]);
+    hookOptions = { readSavedTurn };
+    render();
+    h.chat.messages = [user, reply];
+    h.chat.status = "ready";
+    render();
+
+    await retry();
+
+    expect(readSavedTurn).not.toHaveBeenCalled();
     expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
   });
 });

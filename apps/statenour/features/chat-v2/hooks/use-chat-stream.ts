@@ -17,6 +17,7 @@ import type { ContextBlocks } from "@/components/chat/context-block-badges";
 import { looksLikeImageGenerationRequest } from "@/lib/ai/chat/handlers/patterns";
 import { bindPersistedMessage, stopTurn as requestStop, type StoppedTurn } from "../lib/turn-lifecycle";
 import { turnHasSideEffect } from "../lib/turn-side-effect";
+import { latestTurnRows, savedTurnVerdict, RETRY_HELD_RAN, RETRY_HELD_UNCONFIRMED, type SavedRow } from "../lib/saved-turn";
 
 const PAGE_ANCHOR_KEYS = [
   "lastTaskId",
@@ -32,7 +33,12 @@ const PAGE_ANCHOR_KEYS = [
   "contextRoute",
 ] as const;
 
-export function useChatStream(): ChatRuntimeController {
+export type UseChatStreamOptions = {
+  /** Reads the conversation as saved (every row, oldest first). Retry after a stream error asks it before replaying. */
+  readSavedTurn?: (conversationId: string) => Promise<readonly SavedRow[] | null>;
+};
+
+export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeController {
   const activeConversationId = useChatUiStore((s) => s.activeConversationId);
   const setActiveConversationId = useChatUiStore((s) => s.setActiveConversationId);
   const setConnection = useChatUiStore((s) => s.setConnection);
@@ -269,6 +275,34 @@ export function useChatStream(): ChatRuntimeController {
   // after a network kill means the POST was answered: the server has the turn.
   const traceAtSendRef = useRef<string | null>(null);
 
+  // Retry after a stream error that the server owns: read the saved turn, then
+  // replay only if every saved row says a replay repeats nothing. One check at a
+  // time, so a second tap cannot start a second replay.
+  const checkingSavedTurnRef = useRef(false);
+  const readSavedTurnRef = useRef(options?.readSavedTurn);
+  readSavedTurnRef.current = options?.readSavedTurn;
+  const replayIfSavedTurnAllows = useCallback(async (replay: () => Promise<void>): Promise<void> => {
+    if (checkingSavedTurnRef.current) return;
+    checkingSavedTurnRef.current = true;
+    try {
+      const conversationId = privateModeRef.current ? null : useChatUiStore.getState().activeConversationId;
+      let rows: readonly SavedRow[] | null = null;
+      if (conversationId && readSavedTurnRef.current) {
+        try {
+          rows = await readSavedTurnRef.current(conversationId);
+        } catch {
+          rows = null;
+        }
+      }
+      const verdict = savedTurnVerdict(rows ? latestTurnRows(rows) : null);
+      if (verdict === "ran") return void toast.error(RETRY_HELD_RAN);
+      if (verdict === "unconfirmed") return void toast.error(RETRY_HELD_UNCONFIRMED);
+      await replay();
+    } finally {
+      checkingSavedTurnRef.current = false;
+    }
+  }, []);
+
   // R3-05 (04-F7 + 04-H4): the one choke point for a replay. Every Retry
   // (error card, interrupted card, cut-off and refused chips, quality bar) and
   // the auto-retry land here, so the refusals happen before anything changes.
@@ -294,13 +328,23 @@ export function useChatStream(): ChatRuntimeController {
         toast.error("That reply may have run an action, so it can't be replayed. Send a new message instead.");
         return Promise.resolve();
       }
-      resumingRef.current = false;
-      cancelPartialResume();
-      setStopped(null);
-      traceAtSendRef.current = lastTraceIdRef.current;
-      return chat.regenerate(options);
+      const replay = () => {
+        resumingRef.current = false;
+        cancelPartialResume();
+        setStopped(null);
+        traceAtSendRef.current = lastTraceIdRef.current;
+        return chat.regenerate(options);
+      };
+      // A stream error is not the end of the turn: ai@6 keeps going after an error
+      // part, so a tool-call plus finish(tool-calls) after it still runs the tool on
+      // the server, and the client SDK stops reading at the error chunk, so this
+      // bubble never shows it. When the server owns the turn (it answered with a
+      // trace), only the saved record can say what ran: ask it before replaying.
+      const serverOwnsErroredTurn = Boolean(chat.error) && Boolean(lastTraceIdRef.current) && lastTraceIdRef.current !== traceAtSendRef.current;
+      if (!serverOwnsErroredTurn) return replay();
+      return replayIfSavedTurnAllows(replay);
     },
-    [chat, cancelPartialResume],
+    [chat, cancelPartialResume, replayIfSavedTurnAllows],
   );
 
   // Kept fresh the same way regenerateRef is, so the network-kill reattach

@@ -392,6 +392,7 @@ describe("2026-07-16 audit · quota breakers wired + no silent no-op marking", (
 // to the client (API-key leak class). These pins keep both fixes honest.
 
 import {
+  categorizeStreamError,
   clientSafeStreamErrorText,
   CLIENT_SAFE_STREAM_ERROR_TEXT,
 } from "@/lib/services/chat/stream-error-handler";
@@ -450,6 +451,27 @@ describe("2026-07-25 · errored streams resolve onFinishPromise", () => {
   it("stays optional — handler still resolves without onWorkComplete", async () => {
     const onError = buildStreamErrorHandler(makeDeps("some partial"));
     await expect(onError({ error: new Error("boom") })).resolves.toBeUndefined();
+  });
+});
+
+// The card used to say "tap Retry to continue". Retry after a stream error now reads
+// the saved turn first and holds when a tool may already have run, so no authored
+// sentence may promise a bare Retry: each one that mentions Retry says it checks.
+describe("the authored error sentences never promise a Retry the gate may refuse", () => {
+  const sentences = [
+    CLIENT_SAFE_STREAM_ERROR_TEXT,
+    categorizeStreamError(new Error("image_url unsupported")),
+    categorizeStreamError(new Error("429 quota exceeded")),
+    categorizeStreamError(new Error("ETIMEDOUT")),
+  ];
+
+  it.each(sentences.map((s) => [s]))("%s", (sentence) => {
+    expect(sentence).toMatch(/Retry/);
+    expect(sentence).toMatch(/to check and continue/i);
+  });
+
+  it("the sentences that never mention Retry are left alone", () => {
+    expect(categorizeStreamError(new Error("maximum context length exceeded"))).not.toMatch(/Retry/);
   });
 });
 

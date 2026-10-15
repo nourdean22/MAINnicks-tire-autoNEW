@@ -390,6 +390,14 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
     };
   }, []);
 
+  // The conversation as saved, every row oldest first, straight from the server
+  // (staleTime 0: an errored row is settled after its stream ends). Retry after a
+  // stream error judges the latest turn's rows before it replays anything.
+  const readSavedTurn = useCallback(
+    async (id: string) => (await utils.chat.conversation.fetch({ id }, { staleTime: 0 })).messages,
+    [utils],
+  );
+
   return {
     convos,
     activeId,
@@ -398,6 +406,7 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
     setShowHistory,
     isLoadingConvo,
     loadConvo,
+    readSavedTurn,
     deleteConvo,
     newChat,
     renameConvo,
