@@ -88,14 +88,31 @@ export function judgeSavedTurn(messages: readonly SavedRow[] | null | undefined,
 
 /**
  * The verdict when a replay's POST died before any response header, so the client holds no
- * trace for it (`replayedFromTrace` is the trace of the attempt that was replayed). The server
- * does not stop when the client disconnects, so that attempt may still be running its tools.
- * Unknown means refuse: "safe" needs every row clean AND a settled row from a LATER attempt (a
- * trace other than the one replayed), which proves the replay answered and did nothing.
+ * trace for it. The server does not stop when the client disconnects, so that attempt may still
+ * be running its tools. Unknown means refuse: "safe" needs every row clean AND a settled row
+ * whose trace the client has NOT already acknowledged (acted on). A clean row only proves the
+ * attempt BEFORE the one that may be running, so once a replay has gone ahead on a row, that row
+ * (and every row then visible) is acknowledged and cannot approve the next blind replay.
+ * An empty set means the client knows nothing about the turn: refuse.
  */
-export function judgeAfterUnansweredReplay(messages: readonly SavedRow[] | null | undefined, replayedFromTrace: string | null | undefined): SavedTurnVerdict {
-  if (typeof replayedFromTrace !== "string" || replayedFromTrace.length === 0) return "unconfirmed";
-  return judgeBound(messages, (trace) => trace !== replayedFromTrace);
+export function judgeAfterUnansweredReplay(messages: readonly SavedRow[] | null | undefined, acknowledged: ReadonlySet<string> | null | undefined): SavedTurnVerdict {
+  if (!(acknowledged instanceof Set) || acknowledged.size === 0) return "unconfirmed";
+  return judgeBound(messages, (trace) => !acknowledged.has(trace));
+}
+
+/** The trace ids the latest turn's rows name, once each (what a replay that goes ahead has seen). */
+export function latestTurnTraces(messages: readonly SavedRow[] | null | undefined): string[] {
+  try {
+    if (!messages) return [];
+    const traces = new Set<string>();
+    for (const row of latestTurnRows(messages)) {
+      const trace = traceOf(row);
+      if (trace !== undefined) traces.add(trace);
+    }
+    return [...traces];
+  } catch {
+    return [];
+  }
 }
 
 /** Every row of the latest turn clean, and at least one of them carries a trace id that `accepts`. */

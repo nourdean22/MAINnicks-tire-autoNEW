@@ -20,6 +20,7 @@ import { turnHasSideEffect } from "../lib/turn-side-effect";
 import {
   judgeAfterUnansweredReplay,
   judgeSavedTurn,
+  latestTurnTraces,
   RETRY_HELD_NO_RECORD,
   RETRY_HELD_RAN,
   RETRY_HELD_UNCONFIRMED,
@@ -32,7 +33,7 @@ import {
 const SAVED_TURN_READ_TIMEOUT_MS = 12_000;
 
 /** What the saved-turn check decided: replay, say nothing (the operator moved on), or hold with this message. */
-type SavedTurnCheck = { kind: "go" } | { kind: "stale" } | { kind: "hold"; message: string };
+type SavedTurnCheck = { kind: "go"; rows: readonly SavedRow[] | null } | { kind: "stale" } | { kind: "hold"; message: string };
 
 const PAGE_ANCHOR_KEYS = [
   "lastTaskId",
@@ -298,6 +299,13 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
   // disconnects). While lastTraceId still equals this, an error must be judged from the saved
   // turn, not replayed or auto-retried blind. Cleared by a new send and by opening another conversation.
   const replayedFromTraceRef = useRef<string | null>(null);
+  // Every trace this turn's replays have already acted on: the one each replay re-ran, and every trace
+  // in the rows a replay was approved on. A replay whose POST gets no header is judged blind, and a clean
+  // row only proves the attempt BEFORE the one that may be running, so a row in this set can never
+  // approve the next blind replay (otherwise one clean row would approve a chain of them). Same
+  // lifetime as replayedFromTraceRef: a new send or opening another conversation clears it. It is
+  // not cleared when a header arrives: an older acknowledged attempt must not later count as proof.
+  const acknowledgedTracesRef = useRef<Set<string>>(new Set());
 
   // Retry after a stream error that the server owns: read the saved turn, then
   // replay only if every saved row says a replay repeats nothing AND a saved row
@@ -360,7 +368,7 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
       const verdict = judge(rows);
       if (verdict === "ran") return { kind: "hold", message: RETRY_HELD_RAN };
       if (verdict === "unconfirmed") return { kind: "hold", message: RETRY_HELD_UNCONFIRMED };
-      return { kind: "go" };
+      return { kind: "go", rows };
     } catch {
       return { kind: "hold", message: RETRY_HELD_UNCONFIRMED };
     }
@@ -373,7 +381,11 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
       try {
         const check = await checkSavedTurn(judge);
         if (check.kind === "hold") return void toast.error(check.message);
-        if (check.kind === "go") await replay();
+        if (check.kind === "go") {
+          // Acknowledge what this replay was approved on BEFORE it posts, so the same rows cannot approve the next one.
+          for (const trace of latestTurnTraces(check.rows)) acknowledgedTracesRef.current.add(trace);
+          await replay();
+        }
       } finally {
         checkingSavedTurnRef.current = false;
       }
@@ -411,6 +423,7 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
         cancelPartialResume();
         setStopped(null);
         replayedFromTraceRef.current = lastTraceIdRef.current;
+        if (lastTraceIdRef.current) acknowledgedTracesRef.current.add(lastTraceIdRef.current);
         traceAtSendRef.current = lastTraceIdRef.current;
         return chat.regenerate(options);
       };
@@ -426,7 +439,10 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
       // unseen. Unknown means refuse until a later attempt's clean row proves otherwise.
       const replayedFrom = replayedFromTraceRef.current;
       const replayWentUnanswered = Boolean(chat.error) && replayedFrom !== null && traceNow === replayedFrom;
-      if (replayWentUnanswered) return replayIfSavedTurnAllows(replay, (rows) => judgeAfterUnansweredReplay(rows, replayedFrom));
+      if (replayWentUnanswered) {
+        const acknowledged = acknowledgedTracesRef.current;
+        return replayIfSavedTurnAllows(replay, (rows) => judgeAfterUnansweredReplay(rows, acknowledged));
+      }
       return replay();
     },
     [chat, cancelPartialResume, replayIfSavedTurnAllows],
@@ -626,6 +642,7 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
     lastTraceIdRef.current = null;
     setLastTraceId(null);
     replayedFromTraceRef.current = null;
+    acknowledgedTracesRef.current.clear();
     retryCountRef.current = 0;
     setStopped(null);
     clearError();
@@ -640,6 +657,7 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
       sentPrivateRef.current = privateMode;
       resumingRef.current = false;
       replayedFromTraceRef.current = null;
+      acknowledgedTracesRef.current.clear();
       traceAtSendRef.current = lastTraceIdRef.current;
       cancelPartialResume();
       clearStall();
@@ -662,6 +680,7 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
       sentPrivateRef.current = privateMode;
       resumingRef.current = false;
       replayedFromTraceRef.current = null;
+      acknowledgedTracesRef.current.clear();
       traceAtSendRef.current = lastTraceIdRef.current;
       cancelPartialResume();
       clearStall();

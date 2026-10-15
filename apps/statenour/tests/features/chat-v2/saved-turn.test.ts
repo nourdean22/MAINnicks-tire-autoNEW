@@ -11,6 +11,7 @@ import {
   judgeAfterUnansweredReplay,
   judgeSavedTurn,
   latestTurnRows,
+  latestTurnTraces,
   savedTurnVerdict,
   RETRY_HELD_NO_RECORD,
   RETRY_HELD_RAN,
@@ -184,43 +185,77 @@ describe("judgeSavedTurn: safe needs a saved row bound to the attempt that faile
 
 // A replay's POST can die before any response header, so the client holds no trace for it. The server
 // does not stop when the client disconnects, so that attempt may still run its tools. Unknown means
-// refuse: Retry is judged safe only when a LATER attempt (a trace other than the one replayed)
-// has a settled clean row, and every row of the turn is clean.
+// refuse. The client keeps a set of traces it has already acted on (acknowledged); Retry is judged safe
+// only when every row of the turn is clean AND a settled clean row names a trace NOT in that set. A
+// clean row only proves the attempt BEFORE the one that may be running, so once a replay has gone
+// ahead on its evidence, that row (and every row then visible) cannot approve the next blind replay.
 describe("judgeAfterUnansweredReplay: a replay with no response header", () => {
   const user = { id: "u1", role: "user" };
   const attempt = (trace: string, tokenUsage: Record<string, unknown> = { toolReceipts: [] }, extra: Record<string, unknown> = {}) =>
     assistant({ traceId: trace, ...tokenUsage }, { id: `a-${trace}`, ...extra });
+  const acknowledged = (...traces: string[]) => new Set(traces);
 
   it("safe: a later attempt answered and did nothing", () => {
-    expect(judgeAfterUnansweredReplay([user, attempt("T2"), attempt("T3")], "T2")).toBe("safe");
+    expect(judgeAfterUnansweredReplay([user, attempt("T2"), attempt("T3")], acknowledged("T2"))).toBe("safe");
   });
 
   it("unconfirmed: only the replayed attempt's own row exists (the replay may be running unseen)", () => {
-    expect(judgeAfterUnansweredReplay([user, attempt("T2")], "T2")).toBe("unconfirmed");
+    expect(judgeAfterUnansweredReplay([user, attempt("T2")], acknowledged("T2"))).toBe("unconfirmed");
+  });
+
+  it("THE CHAIN: a row the client already acted on cannot approve the next blind replay", () => {
+    const rows = [user, attempt("T2"), attempt("T3")];
+    expect(judgeAfterUnansweredReplay(rows, acknowledged("T2")), "T3 is new evidence: the first blind replay is allowed").toBe("safe");
+    expect(judgeAfterUnansweredReplay(rows, acknowledged("T2", "T3")), "the same rows after that replay went ahead").toBe("unconfirmed");
+    expect(judgeAfterUnansweredReplay([...rows, attempt("T4")], acknowledged("T2", "T3")), "a settled clean T4 is new evidence again").toBe("safe");
+  });
+
+  it("any one new clean row is enough, wherever it sits among acknowledged ones", () => {
+    expect(judgeAfterUnansweredReplay([user, attempt("T2"), attempt("T5"), attempt("T3")], acknowledged("T2", "T3"))).toBe("safe");
   });
 
   it("ran: the later attempt listed a write", () => {
-    expect(judgeAfterUnansweredReplay([user, attempt("T2"), attempt("T3", { toolReceipts: [receipt("createTask", true)] })], "T2")).toBe("ran");
+    expect(judgeAfterUnansweredReplay([user, attempt("T2"), attempt("T3", { toolReceipts: [receipt("createTask", true)] })], acknowledged("T2"))).toBe("ran");
   });
 
   it("unconfirmed: the later attempt's row is not settled yet", () => {
-    expect(judgeAfterUnansweredReplay([user, attempt("T2"), attempt("T3", { receiptsUnavailable: true })], "T2")).toBe("unconfirmed");
+    expect(judgeAfterUnansweredReplay([user, attempt("T2"), attempt("T3", { receiptsUnavailable: true })], acknowledged("T2"))).toBe("unconfirmed");
   });
 
   it("unconfirmed: a row with no traceId is not a later attempt", () => {
-    expect(judgeAfterUnansweredReplay([user, attempt("T2"), assistant({ toolReceipts: [] }, { id: "old-shape" })], "T2")).toBe("unconfirmed");
+    expect(judgeAfterUnansweredReplay([user, attempt("T2"), assistant({ toolReceipts: [] }, { id: "old-shape" })], acknowledged("T2"))).toBe("unconfirmed");
   });
 
   it("unconfirmed: a later attempt's row from before the latest user message is another turn's", () => {
-    expect(judgeAfterUnansweredReplay([attempt("T3"), { id: "u2", role: "user" }, attempt("T2")], "T2")).toBe("unconfirmed");
+    expect(judgeAfterUnansweredReplay([attempt("T3"), { id: "u2", role: "user" }, attempt("T2")], acknowledged("T2"))).toBe("unconfirmed");
   });
 
-  it("unconfirmed: nothing to compare with, nothing read, or not a list; it never throws", () => {
-    expect(judgeAfterUnansweredReplay([user, attempt("T3")], null)).toBe("unconfirmed");
-    expect(judgeAfterUnansweredReplay([user, attempt("T3")], "")).toBe("unconfirmed");
-    expect(judgeAfterUnansweredReplay(null, "T2")).toBe("unconfirmed");
-    expect(judgeAfterUnansweredReplay({ messages: [] } as never, "T2")).toBe("unconfirmed");
-    expect(judgeAfterUnansweredReplay([user, attempt("T3", { toolReceipts: [] }, { parts: [null] })], "T2")).toBe("unconfirmed");
+  it("unconfirmed: nothing acknowledged, nothing read, or not a list; it never throws", () => {
+    expect(judgeAfterUnansweredReplay([user, attempt("T3")], new Set()), "an empty set knows nothing: refuse").toBe("unconfirmed");
+    expect(judgeAfterUnansweredReplay([user, attempt("T3")], null as never)).toBe("unconfirmed");
+    expect(judgeAfterUnansweredReplay([user, attempt("T3")], "T2" as never)).toBe("unconfirmed");
+    expect(judgeAfterUnansweredReplay(null, acknowledged("T2"))).toBe("unconfirmed");
+    expect(judgeAfterUnansweredReplay({ messages: [] } as never, acknowledged("T2"))).toBe("unconfirmed");
+    expect(judgeAfterUnansweredReplay([user, attempt("T3", { toolReceipts: [] }, { parts: [null] })], acknowledged("T2"))).toBe("unconfirmed");
+  });
+});
+
+describe("latestTurnTraces: the attempts the latest turn's rows name", () => {
+  const user = { id: "u1", role: "user" };
+  const attempt = (trace: string) => assistant({ traceId: trace, toolReceipts: [] }, { id: `a-${trace}` });
+
+  it("lists every trace after the last user message, once each, and none from earlier turns", () => {
+    expect(latestTurnTraces([attempt("T1"), { id: "u0", role: "user" }, user, attempt("T2"), attempt("T3"), attempt("T2")]).sort()).toEqual(["T2", "T3"]);
+  });
+
+  it("skips rows with no trace id", () => {
+    expect(latestTurnTraces([user, assistant({ toolReceipts: [] }), attempt("T2")])).toEqual(["T2"]);
+  });
+
+  it("is empty, and never throws, for nothing read or a malformed list", () => {
+    expect(latestTurnTraces(null)).toEqual([]);
+    expect(latestTurnTraces({ messages: [] } as never)).toEqual([]);
+    expect(latestTurnTraces([null as never])).toEqual([]);
   });
 });
 

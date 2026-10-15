@@ -1399,32 +1399,38 @@ describe("opening another conversation drops the old turn's error state", () => 
 // before any response header, lastTraceId is still T2, so "the server answered with a new trace"
 // is false and Retry used to run with no read. The server does not stop when the client
 // disconnects, so that attempt can still run its tools, and a third POST would repeat them.
+/**
+ * Attempt 1 errors in band (T2, a clean row) and Retry replays; the replay's POST then fails with no
+ * header. `rowsAfter` is what the server holds by the time Retry is tapped again.
+ */
+async function replayThenDeadPost(rowsAfter: unknown[], message = "Load failed") {
+  let rows: unknown[] = [userRow, cleanRow("T2")];
+  const readSavedTurn = vi.fn(async () => rows);
+  hookOptions = { readSavedTurn };
+  render();
+  sendAndErrorInBand("c1", "T2");
+  await retryNow();
+  expect(h.chat.regenerate, "attempt 1's own clean row: the first replay goes ahead").toHaveBeenCalledTimes(1);
+  rows = rowsAfter;
+  // the replay's POST failed before any header: lastTraceId is still T2
+  h.chat.status = "error";
+  h.chat.error = new Error(message);
+  render();
+  vi.mocked(toast.error).mockClear();
+  return {
+    readSavedTurn,
+    /** What the server holds from now on. */
+    serve: (next: unknown[]) => {
+      rows = next;
+    },
+  };
+}
+
 describe("a replay that dies before the server's response headers", () => {
   beforeEach(() => vi.mocked(toast.error).mockClear());
 
-  /**
-   * Attempt 1 errors in band (T2, a clean row) and Retry replays; the replay's POST then fails with no
-   * header. `rowsAfter` is what the server holds by the time Retry is tapped again.
-   */
-  async function replayThenDeadPost(rowsAfter: unknown[], message = "Load failed") {
-    let rows: unknown[] = [userRow, cleanRow("T2")];
-    const readSavedTurn = vi.fn(async () => rows);
-    hookOptions = { readSavedTurn };
-    render();
-    sendAndErrorInBand("c1", "T2");
-    await retryNow();
-    expect(h.chat.regenerate, "attempt 1's own clean row: the first replay goes ahead").toHaveBeenCalledTimes(1);
-    rows = rowsAfter;
-    // the replay's POST failed before any header: lastTraceId is still T2
-    h.chat.status = "error";
-    h.chat.error = new Error(message);
-    render();
-    vi.mocked(toast.error).mockClear();
-    return readSavedTurn;
-  }
-
   it("a manual Retry reads the saved turn and is held while no later attempt has a settled clean row", async () => {
-    const readSavedTurn = await replayThenDeadPost([userRow, cleanRow("T2")]);
+    const { readSavedTurn } = await replayThenDeadPost([userRow, cleanRow("T2")]);
 
     await retryNow();
 
@@ -1465,6 +1471,33 @@ describe("a replay that dies before the server's response headers", () => {
     expect(vi.mocked(toast.error).mock.calls[0]?.[0]).toBe(RETRY_HELD_RAN);
   });
 
+  // A plain Regenerate reads nothing, so no saved row seeds the set: replay() itself acknowledges the
+  // trace it re-ran (T1 here), or a later attempt's clean row would have nothing to be "new" against.
+  it("a plain Regenerate seeds the set with the trace it re-ran: a later attempt's clean row then allows Retry", async () => {
+    let rows: unknown[] = [userRow, cleanRow("T1")];
+    const readSavedTurn = vi.fn(async () => rows);
+    hookOptions = { readSavedTurn };
+    render();
+    h.chat.messages = [user, reply];
+    h.chat.status = "ready";
+    render();
+
+    await retryNow();
+    expect(readSavedTurn, "no error: nothing to read").not.toHaveBeenCalled();
+    expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
+
+    // the replay's POST died before any header, but the server ran it and saved a clean row T3
+    rows = [userRow, cleanRow("T1"), cleanRow("T3", "stub-3")];
+    h.chat.status = "error";
+    h.chat.error = new Error("Load failed");
+    render();
+    vi.mocked(toast.error).mockClear();
+    await retryNow();
+
+    expect(h.chat.regenerate).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(toast.error)).not.toHaveBeenCalled();
+  });
+
   it("opening another conversation drops the outstanding replay: Regenerate on B's clean reply is not held", async () => {
     await replayThenDeadPost([userRow, cleanRow("T2")]);
 
@@ -1497,6 +1530,100 @@ describe("a replay that dies before the server's response headers", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+// Each blind replay needs evidence the PREVIOUS replay has not already used. A clean row for attempt 2
+// only proves the attempt before the one that may be running: once Retry has replayed on it, the same
+// row (and every row then visible) cannot approve the next blind replay. Trace names here: the helper
+// calls the first attempt T2, so T3 is the first replay, T4 the second, T5 the third.
+describe("chained blind replays", () => {
+  beforeEach(() => vi.mocked(toast.error).mockClear());
+
+  const deadPost = (message = "Load failed") => {
+    h.chat.status = "error";
+    h.chat.error = new Error(message);
+    render();
+    vi.mocked(toast.error).mockClear();
+  };
+
+  /** Attempt 1 (T2) replayed, POST#2 died, T3 settled clean, Retry#2 went ahead on it, POST#3 died too. */
+  async function untilSecondBlindReplay() {
+    const server = await replayThenDeadPost([userRow, cleanRow("T2")]);
+    server.serve([userRow, cleanRow("T2"), cleanRow("T3", "stub-3")]);
+    await retryNow();
+    expect(h.chat.regenerate, "Retry#2: the clean T3 is new evidence").toHaveBeenCalledTimes(2);
+    deadPost(); // POST#3 died before any header; it may be running unseen, with no row yet
+    return server;
+  }
+
+  it("THE CHAIN: Retry#3 is held on the same rows; a settled clean T4 then allows Retry#4", async () => {
+    const server = await untilSecondBlindReplay();
+
+    await retryNow();
+
+    expect(h.chat.regenerate, "T3 already approved a replay: it cannot approve the next one").toHaveBeenCalledTimes(2);
+    expect(vi.mocked(toast.error).mock.calls[0]?.[0]).toBe(RETRY_HELD_UNCONFIRMED);
+
+    server.serve([userRow, cleanRow("T2"), cleanRow("T3", "stub-3"), cleanRow("T4", "stub-4")]);
+    vi.mocked(toast.error).mockClear();
+    await retryNow();
+
+    expect(h.chat.regenerate, "a settled clean T4 is new evidence").toHaveBeenCalledTimes(3);
+    expect(vi.mocked(toast.error)).not.toHaveBeenCalled();
+  });
+
+  it("the auto retry is held in the chain too, through the same choke point", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      await untilSecondBlindReplay();
+
+      await act(async () => void (await vi.advanceTimersByTimeAsync(10_000)));
+
+      expect(h.chat.regenerate).toHaveBeenCalledTimes(2);
+      expect(vi.mocked(toast.error).mock.calls[0]?.[0]).toBe(RETRY_HELD_UNCONFIRMED);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a write in the newest row is still refused in the chain", async () => {
+    const server = await untilSecondBlindReplay();
+    server.serve([userRow, cleanRow("T2"), cleanRow("T3", "stub-3"), writeRow("T4")]);
+
+    await retryNow();
+
+    expect(h.chat.regenerate).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(toast.error).mock.calls[0]?.[0]).toBe(RETRY_HELD_RAN);
+  });
+
+  // Traces are minted fresh in production, so a stale entry could never match a later turn's row. The new
+  // turn here deliberately reuses the name T3 for its own later attempt, only to make a stale set visible.
+  it.each([
+    ["sendText", () => ctl.sendText("next")],
+    ["append", () => ctl.append({ text: "next" })],
+    ["resetTurn (the operator opened another conversation)", () => ctl.resetTurn()],
+  ] as const)("%s forgets what the old turn acknowledged", async (_name, startNewTurn) => {
+    const server = await untilSecondBlindReplay(); // acknowledged: T2, T3
+    const userRow2 = { id: "u2", role: "user" };
+    act(() => void startNewTurn());
+    // the new turn: answered with T9, errored in band, then replayed on its own clean row
+    server.serve([userRow2, cleanRow("T9")]);
+    transport().lastTraceIdRef.current = "T9";
+    h.chat.messages = [userB, replyB];
+    h.chat.status = "error";
+    h.chat.error = IN_BAND_ERROR();
+    render();
+    const replays = () => vi.mocked(h.chat.regenerate as () => void).mock.calls.length;
+    const before = replays();
+    await retryNow();
+    expect(replays() - before, "judged bound to T9: replays").toBe(1);
+    deadPost();
+    server.serve([userRow2, cleanRow("T9"), cleanRow("T3", "reused-name")]);
+
+    await retryNow();
+
+    expect(replays() - before, "T3 is new in this turn: the second replay is allowed").toBe(2);
   });
 });
 
