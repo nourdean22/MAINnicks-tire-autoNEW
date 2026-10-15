@@ -180,6 +180,14 @@ export async function markPaymentPaid(d: Db, paymentIntentId: string): Promise<v
 }
 
 /**
+ * True while a card payment started on this invoice is still open and holds its total. Read-only: nothing
+ * is canceled, so the caller decides what an open payment means for it.
+ */
+export async function hasOpenCardPayment(d: Db, invoiceId: number): Promise<boolean> {
+  return (await openIntents(d, invoiceId)).length > 0;
+}
+
+/**
  * The total column a writer may set, decided under the invoice lock: pass the row that withInvoiceLock
  * read, so `currentCents` is the total as the lock sees it. It is `{ totalAmount }` only when no card payment
  * holds the total. It is `{}` when nothing changes, when the new total is not positive (a missing ticket total

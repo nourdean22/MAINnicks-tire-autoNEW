@@ -21,14 +21,16 @@ const h = vi.hoisted(() => ({
   invoice: null as Record<string, unknown> | null,
   invoiceUpdates: [] as Array<Record<string, unknown>>,
   notified: [] as Array<Record<string, unknown>>,
+  openCardPayments: [] as Array<{ id: number; paymentIntentId: string | null; createdAt: Date }>,
 }));
 
 vi.mock("./db", async () => {
-  const { invoices, tireOrders } = await import("../drizzle/schema");
-  // Rows by table: the tire order, the invoice, and no open card payments (payments reads as empty).
+  const { invoices, payments, tireOrders } = await import("../drizzle/schema");
+  // Rows by table: the tire order, the invoice, and the open card payments on it.
   const rowsFor = (table: unknown): unknown[] => {
     if (table === tireOrders) return h.order ? [h.order] : [];
     if (table === invoices) return h.invoice ? [h.invoice] : [];
+    if (table === payments) return h.openCardPayments;
     return [];
   };
   // A select chain that resolves to its rows, whichever of where / limit / for it passes through.
@@ -84,6 +86,7 @@ beforeEach(() => {
   h.invoice = null;
   h.invoiceUpdates = [];
   h.notified = [];
+  h.openCardPayments = [];
 });
 afterEach(() => {
   vi.clearAllMocks();
@@ -125,6 +128,19 @@ describe("finalizeTireOrderPayment invoice guard", () => {
     h.invoice = { id: 9, customerPhone: "216-555-0101", serviceDescription: "4 tires mounted" };
     await pay();
     expect(h.invoiceUpdates).toHaveLength(1);
+  });
+
+  it("with an open card payment on the invoice, cancels nothing and keeps the total", async () => {
+    h.invoice = {
+      id: 9,
+      customerPhone: ORDER.customerPhone,
+      serviceDescription: `Tire Order & Install — 4x KENDA KR217 (205/55R16)\nOrder: ${ORDER.orderNumber}`,
+    };
+    h.openCardPayments = [{ id: 3, paymentIntentId: "pi_pending", createdAt: new Date() }];
+    await pay();
+    // The only write is the invoice itself: no payments row is canceled, and the total is not moved.
+    expect(h.invoiceUpdates).toEqual([{ paymentStatus: "paid", paymentMethod: "card" }]);
+    expect(h.notified[0].invoiceNumber).toBe("INV-20260923-004");
   });
 });
 

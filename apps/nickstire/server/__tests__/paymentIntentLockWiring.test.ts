@@ -62,9 +62,10 @@ describe("the payment-intent lock is wired into every path that moves money or a
     expect(src).toContain("lockedTotalPatch(tx, existing[0].id, row.totalAmount, inv.totalCents)");
   });
 
-  it("a tire-order payment cancels the invoice's open card payments before it sets the total", () => {
+  it("a tire-order payment checks for an open card payment under the invoice lock, and cancels nothing", () => {
     const src = read("services/payments.ts");
     expect(src).toContain("withInvoiceLock(d, invoice.id, async (tx) => {");
-    expect(src).toContain("releaseInvoiceTotal(tx, invoice.id)");
+    expect(src).toContain("hasOpenCardPayment(tx, invoice.id)");
+    expect(src).not.toContain("releaseInvoiceTotal(tx, invoice.id)");
   });
 });

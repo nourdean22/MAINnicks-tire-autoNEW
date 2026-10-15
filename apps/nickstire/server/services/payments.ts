@@ -322,20 +322,21 @@ export async function finalizeTireOrderPayment(params: {
     if (invoice && invoiceBelongsToTireOrder(invoice, order)) {
       // Align the invoice total to what Stripe actually collected (tires +
       // tax + card fee) — the placement-time invoice didn't know the fee.
-      // The invoice is paid now, so an open card payment on it is canceled
-      // rather than charged. If Stripe will not confirm that cancel, the total
-      // stays as it was and the payment is logged for the operator to settle.
-      const { withInvoiceLock, releaseInvoiceTotal } = await import("./paymentIntentLock");
+      // Nothing is canceled here. An open card payment on the invoice, one
+      // started from its Pay page, keeps the total it was started at: while one
+      // is open the total is left unchanged, and the operator is told to check
+      // Stripe for a second charge.
+      const { withInvoiceLock, hasOpenCardPayment } = await import("./paymentIntentLock");
       await withInvoiceLock(d, invoice.id, async (tx) => {
-        const released = await releaseInvoiceTotal(tx, invoice.id);
-        if (!released.released) {
-          log.error(`Tire order ${params.tireOrderNumber} is PAID but invoice ${invNum} still has an open card payment (${released.reason}). Check Stripe before it is charged.`);
+        const openCard = await hasOpenCardPayment(tx, invoice.id);
+        if (openCard) {
+          log.error(`Tire order ${params.tireOrderNumber} is PAID but invoice ${invNum} has an open card payment. Nothing was canceled and the total was left unchanged. Check Stripe for a second charge.`);
         }
         await tx.update(invoices)
           .set({
             paymentStatus: "paid",
             paymentMethod: "card",
-            ...(released.released ? { totalAmount: params.amountCents } : {}),
+            ...(openCard ? {} : { totalAmount: params.amountCents }),
           })
           .where(eq(invoices.id, invoice.id));
       });
