@@ -158,7 +158,7 @@ describe("classifyRow: UTC-digit rows get the Cleveland wall clock, DST included
   it("plans an app-written row whatever its seconds, whole minutes and midnight included", () => {
     expect(run(row("2026-10-12 23:41:00", "2026-10-12 23:41:00"))).toEqual({ class: "needs_correction", to: "2026-10-12 19:41:00" });
     expect(run(row("2026-10-13 00:00:00", "2026-10-13 00:00:00"))).toEqual({ class: "needs_correction", to: "2026-10-12 20:00:00" });
-    expect(run(row("2026-10-12 14:10:30", "2026-10-12 14:10:00"))).toEqual({ class: "needs_correction", to: "2026-10-12 10:10:30" });
+    expect(run(row("2026-10-12 14:10:30", "2026-10-12 14:10:00"))).toEqual({ class: "needs_correction", to: "2026-10-12 10:10:00" });
   });
 
   it("gives a feed row with whole-minute digits no target", () => {
@@ -181,12 +181,38 @@ describe("classifyRow: UTC-digit rows get the Cleveland wall clock, DST included
   });
 });
 
+describe("classifyRow: the target converts the stored digits, createdAt only proves the signature", () => {
+  it.each([
+    ["stored just before createdAt, across UTC midnight (the reviewer's example)", "2026-10-14 04:05:30", "2026-10-14 03:55:30", "2026-10-13 23:55:30"],
+    ["stored just after createdAt, across UTC midnight", "2026-10-14 03:58:10", "2026-10-14 04:08:10", "2026-10-14 00:08:10"],
+    ["2026-11-01 fall-back: stored in EDT, createdAt in EST", "2026-11-01 06:05:10", "2026-11-01 05:55:10", "2026-11-01 01:55:10"],
+    ["2026-11-01 fall-back: stored in EST, createdAt in EDT", "2026-11-01 05:55:10", "2026-11-01 06:05:10", "2026-11-01 01:05:10"],
+    ["2026-03-08 spring-forward: stored in EST, createdAt in EDT", "2026-03-08 07:05:10", "2026-03-08 06:55:10", "2026-03-08 01:55:10"],
+    ["2026-03-08 spring-forward: stored in EDT, createdAt in EST", "2026-03-08 06:55:10", "2026-03-08 07:05:10", "2026-03-08 03:05:10"],
+    ["2025-11-02 fall-back: stored in EDT, createdAt in EST", "2025-11-02 06:05:10", "2025-11-02 05:55:10", "2025-11-02 01:55:10"],
+    ["2025-03-09 spring-forward: stored in EST, createdAt in EDT", "2025-03-09 07:05:10", "2025-03-09 06:55:10", "2025-03-09 01:55:10"],
+  ])("%s", (_why, created, stored, to) => {
+    expect(run(row(created, stored), late)).toEqual({ class: "needs_correction", to });
+  });
+
+  it("moves the reviewer's example to the PRIOR shop day, which a createdAt target would not", () => {
+    const planned = run(row("2026-10-14 04:05:30", "2026-10-14 03:55:30"));
+    expect(planned).toEqual({ class: "needs_correction", to: "2026-10-13 23:55:30" });
+    expect(dayChanges([{ table: "invoices", id: 1, from: "2026-10-14 03:55:30", to: planned.to!, class: "needs_correction" }])).toEqual({ dayChange: 1, timeOnly: 0 });
+  });
+});
+
 describe("classifyRow: Snap rows converted twice", () => {
   // created 05:10:20Z = 01:10:20 EDT; read as a UTC instant again that is 21:10:20 EDT the day before.
   const doubled = "2026-10-14 21:10:20";
 
   it("targets one conversion of createdAt, not zero and not two", () => {
     expect(run(row("2026-10-15 05:10:20", doubled, "manual", true))).toEqual({ class: "snap_double_converted", to: "2026-10-15 01:10:20" });
+  });
+
+  it("stays anchored on createdAt: the stored value was converted twice, so it is not a clean source", () => {
+    // 10 minutes off the double-converted reading still matches; the target ignores stored.
+    expect(run(row("2026-10-15 05:10:20", "2026-10-14 21:20:20", "manual", true))).toEqual({ class: "snap_double_converted", to: "2026-10-15 01:10:20" });
   });
 
   it("needs the SNAP- marker", () => {

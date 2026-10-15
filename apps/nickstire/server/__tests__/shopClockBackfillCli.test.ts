@@ -24,6 +24,7 @@ class FakeDb {
   pinWorks = true;
   dropColumns: string[] = [];
   ignoreSelfAssign = false;
+  movedOverride?: unknown;
   now = "2026-10-16 09:00:00";
   connectCalls = 0;
   endCalls = 0;
@@ -119,6 +120,7 @@ class FakeDb {
       return row ? [{ v: row.stored }] : [];
     }
     if ((m = /^SELECT COUNT\(\*\) AS moved FROM `(\w+)` l JOIN `(\w+)` b ON b\.`id` = l\.`id` WHERE NOT \(l\.`(\w+)` <=> b\.`\3`\)$/.exec(sql))) {
+      if (this.movedOverride !== undefined) return this.movedOverride;
       const bak = this.backups.get(m[2])!;
       const moved = this.rows(m[1]).filter((r) => {
         const b = bak.find((x) => x.id === r.id);
@@ -342,6 +344,16 @@ describe("plan", () => {
     expect(h.lines.filter((l) => /^  \w+#\d+ source=/.test(l))).toHaveLength(3);
   });
 
+  it("targets the stored digits, so a row stored just before UTC midnight moves to the prior shop day", async () => {
+    const db = seed();
+    db.tables.invoices.push(row(3100002, "2026-10-14 04:05:30", "2026-10-14 03:55:30"));
+    const h = harness(db);
+    await planned(h);
+    expect(JSON.parse(h.files.get("plan.json")!).rows).toContainEqual({ table: "invoices", id: 3100002, from: "2026-10-14 03:55:30", to: "2026-10-13 23:55:30", class: "needs_correction" });
+    expect(h.text()).toContain("  invoices#3100002 source=manual createdAt=2026-10-14 04:05:30 2026-10-14 03:55:30 -> 2026-10-13 23:55:30 needs_correction day_change=yes");
+    expect(h.text()).toContain("day_changes: 2 of 4 planned rows change the shop date; 2 change only the time of day");
+  });
+
   it("names the source of an estimate row it was told to plan", async () => {
     const h = harness();
     await planned(h, "--estimate-sources", "manual");
@@ -370,6 +382,35 @@ describe("plan", () => {
     expect(await h.run("plan", ...CLASSIFY, "--out", "plan.json")).toBe(1);
     expect(h.text()).toContain("FAILED: 1 app-written row(s) created after the cutoff still carry UTC digits: invoices#3100001");
     expect(h.files.has("plan.json")).toBe(false);
+  });
+
+  it.each([["8 hours", "2026-10-14 07:00:10"], ["10 hours", "2026-10-14 05:00:10"]])("fails and writes no file when an app-written row sits %s behind createdAt with no class to explain it", async (_why, stored) => {
+    const db = seed();
+    db.tables.invoices.push(row(3100003, "2026-10-14 15:00:10", stored));
+    const h = harness(db);
+    expect(await h.run("plan", ...CLASSIFY, "--out", "plan.json")).toBe(1);
+    expect(h.text()).toContain("FAILED: 1 app-written row(s) sit a whole 8 or 10 hours behind createdAt and no class explains them: invoices#3100003");
+    expect(h.text()).toContain("No plan file written.");
+    expect(h.files.has("plan.json")).toBe(false);
+  });
+
+  it("reports both kinds of stop in one run", async () => {
+    const db = seed();
+    db.tables.invoices.push(row(3100001, "2026-10-16 01:00:09", "2026-10-16 01:00:09"));
+    db.tables.invoices.push(row(3100003, "2026-10-14 15:00:10", "2026-10-14 07:00:10"));
+    const h = harness(db);
+    expect(await h.run("plan", ...CLASSIFY, "--out", "plan.json")).toBe(1);
+    expect(h.text()).toContain("invoices#3100001");
+    expect(h.text()).toContain("no class explains them: invoices#3100003");
+    expect(h.files.size).toBe(0);
+  });
+
+  it("plans normally when the same digits sit on a feed row or an ordinary other row", async () => {
+    const db = seed();
+    db.tables.invoices.push(row(3100003, "2026-10-14 15:00:10", "2026-10-14 07:00:10", "shopdriver"));
+    db.tables.invoices.push(row(3100004, "2026-10-14 15:00:10", "2026-10-14 12:00:10"));
+    const h = harness(db);
+    expect(await h.run("plan", ...CLASSIFY, "--out", "plan.json")).toBe(0);
   });
 
   it("does not fail for a feed row after the cutoff (control for the case above)", async () => {
@@ -596,12 +637,61 @@ describe("apply", () => {
     expect(text.indexOf("updatedAt moved on")).toBeLessThan(text.indexOf("apply done"));
   });
 
-  it("reports the move when the database ignores the self-assignment", async () => {
+  const ROLLBACK_CMD = "railway run -s MAINnicks-tire-auto -- pnpm exec tsx scripts/backfills/backfill-shop-clock.ts rollback --plan plan.json --stamp 20261015 --execute";
+
+  it("fails with exit 3 when updatedAt moved although it was to be preserved, and says how to roll back", async () => {
     const db = seed();
     db.ignoreSelfAssign = true;
     const h = await snapshotted(db);
+    expect(await apply(h)).toBe(3);
+    const text = h.text();
+    expect(text).toContain("updatedAt moved on 3 of 3 rows (expected 0)");
+    expect(text).toContain("FAILED: updatedAt moved on 3 of 3 rows although --preserve-updated-at is true");
+    expect(text).toContain(ROLLBACK_CMD);
+    expect(text).toContain("Backups kept: _bak_invoices_shopclock_20261015");
+    expect(h.db.backups.has("_bak_invoices_shopclock_20261015")).toBe(true);
+    expect(h.db.log.filter((s) => /^DROP/.test(s))).toEqual([]);
+  });
+
+  it("does not fail when updatedAt moved and the flag said it could (informational)", async () => {
+    const h = await snapshotted();
+    expect(await apply(h, "--preserve-updated-at", "false")).toBe(0);
+    expect(h.text()).toContain("updatedAt moved on 3 of 3 rows (expected any)");
+    expect(h.text()).not.toContain("FAILED: updatedAt");
+  });
+
+  it("fails as UNVERIFIED when the measurement query throws, and the dates stay corrected", async () => {
+    const h = await snapshotted();
+    h.db.beforeStatement = (sql) => {
+      if (sql.startsWith("SELECT COUNT(*) AS moved")) throw new Error("connection reset");
+    };
+    expect(await apply(h)).toBe(3);
+    expect(h.text()).toContain("updatedAt preservation UNVERIFIED: connection reset");
+    expect(h.text()).toContain(ROLLBACK_CMD);
+    expect(h.text()).toContain("Backups kept: _bak_invoices_shopclock_20261015");
+    expect(stored(h.db, 630001)).toBe("2026-09-10 19:41:07");
+  });
+
+  it.each([["a null count", [{ moved: null }]], ["no row", []], ["text", [{ moved: "many" }]], ["a negative number", [{ moved: -1 }]], ["no row list", { moved: 0 }]])("fails as UNVERIFIED when the measurement returns %s", async (_why, override) => {
+    const h = await snapshotted();
+    h.db.movedOverride = override;
+    expect(await apply(h)).toBe(3);
+    expect(h.text()).toContain("updatedAt preservation UNVERIFIED:");
+  });
+
+  it("accepts a count the driver returns as numeric text", async () => {
+    const h = await snapshotted();
+    h.db.movedOverride = [{ moved: "0" }];
     expect(await apply(h)).toBe(0);
-    expect(h.text()).toContain("updatedAt moved on 3 of 3 rows (expected 0)");
+  });
+
+  it("keeps an unreadable measurement informational when preserving was not asked for", async () => {
+    const h = await snapshotted();
+    h.db.beforeStatement = (sql) => {
+      if (sql.startsWith("SELECT COUNT(*) AS moved")) throw new Error("connection reset");
+    };
+    expect(await apply(h, "--preserve-updated-at", "false")).toBe(0);
+    expect(h.text()).toContain("updatedAt check could not run: connection reset");
   });
 
   it("is followed by a verify that is clean even though feed rows keep their UTC digits", async () => {
@@ -628,6 +718,24 @@ describe("apply", () => {
     h.db.backups.get("_bak_invoices_shopclock_20261015")![0].id = 999;
     expect(await apply(h)).toBe(1);
     expect(h.text()).toContain("holds different ids than the plan");
+    expect(h.db.updates()).toEqual([]);
+  });
+
+  it("refuses when a backup row's saved date was altered after the snapshot", async () => {
+    const h = await snapshotted();
+    h.db.backups.get("_bak_invoices_shopclock_20261015")![1].stored = "2026-10-13 00:05:31";
+    expect(await apply(h)).toBe(1);
+    expect(h.text()).toContain("backup invoices#2910001 holds 2026-10-13 00:05:31 but the plan expects 2026-10-13 00:05:30; refusing to apply");
+    expect(h.db.updates()).toEqual([]);
+    expect(h.db.log).not.toContain("START TRANSACTION");
+    expect(stored(h.db, 2910001)).toBe("2026-10-13 00:05:30");
+  });
+
+  it("refuses a backup copy that has the right ids but the wrong values", async () => {
+    const h = await snapshotted();
+    for (const r of h.db.backups.get("_bak_invoices_shopclock_20261015")!) r.stored = "2026-01-01 00:00:00";
+    expect(await apply(h)).toBe(1);
+    expect(h.text()).toContain("backup invoices#630001 holds 2026-01-01 00:00:00 but the plan expects 2026-09-10 23:41:07; refusing to apply");
     expect(h.db.updates()).toEqual([]);
   });
 
@@ -716,6 +824,15 @@ describe("apply: compare-and-swap miss stops the run", () => {
     expect(h.text()).toContain("invoices batch 2/2: updated 5, already at target 0");
   });
 
+  it("exits 3, not 1, when a miss stops the run after updatedAt already moved", async () => {
+    const h = await ready(205);
+    h.db.ignoreSelfAssign = true;
+    clobber(h, 203);
+    expect(await apply(h)).toBe(3);
+    expect(h.text()).toContain("STOPPED on invoices#203");
+    expect(h.text()).toContain("FAILED: updatedAt moved on 200 of 205 rows although --preserve-updated-at is true");
+  });
+
   it("applies everything when nothing interferes (control)", async () => {
     const h = await ready(205);
     expect(await apply(h)).toBe(0);
@@ -752,6 +869,22 @@ describe("rollback", () => {
     expect(h.db.tables.invoices).toEqual(seed().tables.invoices);
     expect(h.text()).toContain("rollback done: 3 updated");
     expect(await h.run("verify", ...CLASSIFY)).toBe(1);
+  });
+
+  it("fails with exit 3 when updatedAt moved during the rollback, keeping the backups", async () => {
+    const h = await applied();
+    h.db.ignoreSelfAssign = true;
+    expect(await rollback(h)).toBe(3);
+    expect(h.text()).toContain("FAILED: updatedAt moved on 3 of 3 rows although --preserve-updated-at is true");
+    expect(h.text()).toContain("Backups kept: _bak_invoices_shopclock_20261015");
+    expect(h.db.tables.invoices.find((r) => r.id === 630001)!.stored).toBe("2026-09-10 23:41:07");
+  });
+
+  it("reports an unreadable updatedAt measurement as UNVERIFIED too", async () => {
+    const h = await applied();
+    h.db.movedOverride = [{ moved: null }];
+    expect(await rollback(h)).toBe(3);
+    expect(h.text()).toContain("updatedAt preservation UNVERIFIED:");
   });
 
   it("is repeatable: a second rollback finds every row already restored", async () => {

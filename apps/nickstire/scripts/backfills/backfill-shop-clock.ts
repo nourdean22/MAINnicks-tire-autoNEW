@@ -242,6 +242,7 @@ async function plan(flags: Flags, deps: CliDeps): Promise<number> {
 
   const rows: PlanRow[] = [];
   const anomalies: string[] = [];
+  const unexplained: string[] = [];
   let scanned = 0;
   for (const t of tables) {
     const s = summarizeTable(t.rows, cfg);
@@ -250,12 +251,19 @@ async function plan(flags: Flags, deps: CliDeps): Promise<number> {
     if (feedLine(s)) deps.out(`  feed_owned_utc (never planned) by source: ${feedLine(s)}; sample ids ${s.classes.feed_owned_utc.sample.map((x) => x.id).join(", ")}`);
     for (const r of t.rows) {
       if (r.class === "post_cutoff_utc_match") anomalies.push(`${t.spec.table}#${r.id}`);
+      if (isOtherAnomaly(t.spec.table, r, cfg)) unexplained.push(`${t.spec.table}#${r.id}`);
       if (r.to) rows.push({ table: t.spec.table, id: r.id, from: r.stored, to: r.to, class: r.class });
     }
   }
-  if (anomalies.length) {
-    deps.out(`FAILED: ${anomalies.length} app-written row(s) created after the cutoff still carry UTC digits: ${anomalies.join(", ")}`);
-    deps.out("A writer is still on the UTC clock, or the cutoff is wrong. No plan file written.");
+  if (anomalies.length || unexplained.length) {
+    if (anomalies.length) {
+      deps.out(`FAILED: ${anomalies.length} app-written row(s) created after the cutoff still carry UTC digits: ${anomalies.join(", ")}`);
+      deps.out("A writer is still on the UTC clock, or the cutoff is wrong. No plan file written.");
+    }
+    if (unexplained.length) {
+      deps.out(`FAILED: ${unexplained.length} app-written row(s) sit a whole 8 or 10 hours behind createdAt and no class explains them: ${unexplained.join(", ")}`);
+      deps.out("Understand them before any snapshot or apply. No plan file written.");
+    }
     return 1;
   }
 
@@ -341,13 +349,18 @@ function dryRunBanner(deps: CliDeps, cmd: string): void {
   deps.out(`DRY RUN: ${cmd} opened no connection. Add --execute to run the statements below.`);
 }
 
+/** The backup must hold exactly the plan's ids and each row's original (`from`) value, before anything is written. */
 async function requireBackup(conn: SqlConn, g: Group, stamp: string, verb: string): Promise<void> {
   const name = backupTableName(g.spec.table, stamp);
   if (asRows(await conn.query(TABLE_EXISTS_SQL, [name])).length === 0) throw new BackfillError(`backup table ${name} does not exist; run snapshot first`);
-  const have = asRows(await conn.query(backupIdsSql(g.spec, stamp))).map((r) => Number(r.id));
+  const saved = asRows(await conn.query(backupValuesSql(g.spec, stamp)));
+  const have = saved.map((r) => Number(r.id));
   const want = g.rows.map((r) => r.id);
   if (have.length !== want.length) throw new BackfillError(`${name} has ${have.length} rows but the plan has ${want.length}; refusing to ${verb}`);
   if (have.some((id, i) => id !== want[i])) throw new BackfillError(`${name} holds different ids than the plan; refusing to ${verb}`);
+  for (const [i, row] of g.rows.entries()) {
+    if (saved[i].v !== row.from) throw new BackfillError(`backup ${g.spec.table}#${row.id} holds ${String(saved[i].v)} but the plan expects ${row.from}; refusing to ${verb}`);
+  }
 }
 
 async function snapshot(flags: Flags, deps: CliDeps): Promise<number> {
@@ -434,6 +447,37 @@ export async function casMigrate(
   return result;
 }
 
+/** Exit code for an updatedAt that moved, or could not be measured, although preserving it was asked for. */
+const EXIT_UPDATED_AT = 3;
+
+/** Rows whose updatedAt differs from the backup, summed over the planned tables. Throws when a count is unreadable. */
+async function measureUpdatedAtMoved(conn: SqlConn, groups: readonly Group[], stamp: string): Promise<number> {
+  let moved = 0;
+  for (const g of groups) {
+    const raw = asRows(await conn.query(updatedAtMovedSql(g.spec, stamp)))[0]?.moved;
+    const n = typeof raw === "number" ? raw : typeof raw === "string" && /^\d+$/.test(raw) ? Number(raw) : Number.NaN;
+    if (!Number.isSafeInteger(n) || n < 0) throw new BackfillError(`unreadable updatedAt count ${JSON.stringify(raw)}`);
+    moved += n;
+  }
+  return moved;
+}
+
+/** Prints the loud lines and returns true when the run must fail on updatedAt. */
+function updatedAtFailed(deps: CliDeps, a: { cmd: "apply" | "rollback"; preserve: boolean; total: number; moved: number | Error; groups: readonly Group[]; stamp: string; planFile: string }): boolean {
+  if (!a.preserve) return false;
+  if (!(a.moved instanceof Error) && a.moved === 0) return false;
+  deps.out(
+    a.moved instanceof Error
+      ? `updatedAt preservation UNVERIFIED: ${a.moved.message}. The run may have moved updatedAt on the rows it changed.`
+      : `FAILED: updatedAt moved on ${a.moved} of ${a.total} rows although --preserve-updated-at is true; the database did not honour the self-assignment, or another writer touched the rows.`,
+  );
+  deps.out(`Backups kept: ${a.groups.map((g) => backupTableName(g.spec.table, a.stamp)).join(", ")}; they hold the original updatedAt values.`);
+  if (a.cmd === "apply") {
+    deps.out(`To restore the dates: railway run -s MAINnicks-tire-auto -- pnpm exec tsx scripts/backfills/backfill-shop-clock.ts rollback --plan ${a.planFile} --stamp ${a.stamp} --execute`);
+  }
+  return true;
+}
+
 function reportMigration(deps: CliDeps, verb: string, r: MigrateResult): number {
   if (r.miss) {
     deps.out(`STOPPED on ${r.miss.table}#${r.miss.id}: expected ${r.miss.expected}, found ${r.miss.found}. That batch was rolled back; later batches did not run.`);
@@ -459,29 +503,25 @@ async function applyOrRollback(cmd: "apply" | "rollback", flags: Flags, deps: Cl
     }
     return 0;
   }
-  const result = await withDb(deps, "write", async (conn, target) => {
+  const verb = cmd === "apply" ? "apply" : "roll back";
+  const outcome = await withDb(deps, "write", async (conn, target) => {
     assertSameTarget(plan, target);
     for (const g of groups) await checkColumns(conn, g.spec, deps.out);
-    for (const g of groups) {
-      await requireBackup(conn, g, stamp, cmd);
-      if (cmd === "rollback") {
-        const saved = new Map(asRows(await conn.query(backupValuesSql(g.spec, stamp))).map((r) => [Number(r.id), r.v]));
-        for (const row of g.rows) {
-          if (saved.get(row.id) !== row.from) throw new BackfillError(`backup ${g.spec.table}#${row.id} holds ${String(saved.get(row.id))} but the plan expects ${row.from}; refusing to roll back`);
-        }
-      }
-    }
+    for (const g of groups) await requireBackup(conn, g, stamp, verb);
     const migrated = await casMigrate(conn, items, { preserveUpdatedAt: preserve, out: deps.out });
-    let moved = 0;
+    let moved: number | Error;
     try {
-      for (const g of groups) moved += Number(asRows(await conn.query(updatedAtMovedSql(g.spec, stamp)))[0]?.moved);
+      moved = await measureUpdatedAtMoved(conn, groups, stamp);
       deps.out(`updatedAt moved on ${moved} of ${items.length} rows (expected ${preserve ? "0" : "any"})`);
     } catch (err) {
-      deps.out(`updatedAt check could not run: ${err instanceof Error ? err.message : String(err)}`);
+      moved = err instanceof Error ? err : new Error(String(err));
+      if (!preserve) deps.out(`updatedAt check could not run: ${moved.message}`);
     }
-    return migrated;
+    return { migrated, moved };
   });
-  return reportMigration(deps, cmd, result);
+  const code = reportMigration(deps, cmd, outcome.migrated);
+  const failed = updatedAtFailed(deps, { cmd, preserve, total: items.length, moved: outcome.moved, groups, stamp, planFile: flags.plan });
+  return failed ? EXIT_UPDATED_AT : code;
 }
 
 // ── entry ───────────────────────────────────────────────────────────────

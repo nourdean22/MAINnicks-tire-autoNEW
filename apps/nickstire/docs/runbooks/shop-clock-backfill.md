@@ -23,7 +23,10 @@ correction would be reverted, and most of those rows do not change shop day anyw
 `feed_owned_utc` and the tool refuses a feed name (any letter case) in `--sources` / `--estimate-sources`.
 
 For an app-written source the digit signature alone decides: a row whose seconds are `00` is planned like
-any other. Left alone on purpose: `review_replies.approved_at` and `reel_publish_approvals.approved_at` are
+any other. The corrected value is the Cleveland wall clock of the **stored** digits (`shopWallClock(stored)`);
+`createdAt` only proves the row came from the UTC-clock writer. A row stored 03:55Z with `createdAt` 04:05Z
+moves to 23:55 on the PRIOR day, not to 00:05. The one exception is a Snap row (`snap_double_converted`): its
+stored value was converted twice, so its target is the wall clock of `createdAt`. Left alone on purpose: `review_replies.approved_at` and `reel_publish_approvals.approved_at` are
 event instants on the DB clock, used for ages and TTL, not shop-day columns.
 
 ## Expected size: about 8 rows
@@ -65,7 +68,9 @@ Classification flags (probe, plan, verify; none has a default except the source 
 - `--tol-minutes 15`: how close the digits must be (1 to 60).
 - `--sources manual,stripe` (default) and `--estimate-sources <list>` (default empty).
 
-Exit codes: 0 done, 1 refused or failed, 2 bad arguments (nothing was connected).
+Exit codes: 0 done, 1 refused or failed, 2 bad arguments (nothing was connected), 3 `apply` or `rollback`
+finished its writes but `updatedAt` moved, or could not be measured, while preserving it was asked for (see
+Guards). Exit 3 outranks a `STOPPED` exit 1 when both happen.
 
 1. **probe.** Read-only look. Check the first line, `DB host: <host>  database: <name>`, against what you expect for production. The database name is whatever `probe` prints; nothing else in the repo records it.
 
@@ -75,8 +80,9 @@ Exit codes: 0 done, 1 refused or failed, 2 bad arguments (nothing was connected)
 
    `railway run -s MAINnicks-tire-auto -- pnpm exec tsx scripts/backfills/backfill-shop-clock.ts plan --cutoff <ISO> --snap-bug-start <ISO> --snap-fix-cutoff <ISO> --tol-minutes 15 --out <PLAN>`
 
-   Check `planned rows:` (about 8) and `day_changes:`. Exit 1 with `FAILED: ... after the cutoff still carry
-   UTC digits` writes no file.
+   Check `planned rows:` (about 8) and `day_changes:`. Exit 1 writes no file when either `FAILED:` line
+   prints: an app-written row after the cutoff that still carries UTC digits, or an app-written row sitting a
+   whole 8 or 10 hours behind `createdAt` that no class explains. Both stop the run before any snapshot.
 
 3. **Operator go.** `plan` ends with `Show these rows to the operator and wait for an explicit go before
    snapshot or apply:` and one line per planned row:
@@ -107,9 +113,9 @@ Exit codes: 0 done, 1 refused or failed, 2 bad arguments (nothing was connected)
 |---|---|
 | all | `DB host` and `database` first; then `time_zone before pin: global= session= system=`, then `session time_zone pinned: +00:00` (the tool aborts if the session does not report it), then one `schema ok:` line per table |
 | probe | per table: row count; `stored - createdAt` histogram (`utc_match`, `minus_4h`, `minus_5h`, `minus_8h`, `minus_10h`, `other`); class counts; per class the min and max `createdAt` and up to 5 sample ids with dates; `feed_owned_utc by source`; post-cutoff rows, how many are `already_correct` and how many are `post_cutoff_utc_match`; per-month counts |
-| plan | per table class counts and the first feed-owned ids; then `FAILED` or `planned rows`, per-table `day_changes`, one line per planned row (table, id, source, createdAt, from -> to, class, day_change), the file path and its `sha256` |
+| plan | per table class counts and the first feed-owned ids; then `FAILED` (post-cutoff UTC rows, or unexplained 8h/10h rows) or `planned rows`, per-table `day_changes`, one line per planned row (table, id, source, createdAt, from -> to, class, day_change), the file path and its `sha256` |
 | snapshot | dry run: `CREATE TABLE ... LIKE`, `INSERT ... SELECT`; execute: `backup <name>: N rows (plan N)` |
-| apply, rollback | dry run: the `UPDATE` and its first parameter sets; execute: one line per batch (`updated`, `already at target`), then `updatedAt moved on N of M rows (expected 0)`, then `apply done` or `STOPPED` |
+| apply, rollback | dry run: the `UPDATE` and its first parameter sets; execute: one line per batch (`updated`, `already at target`), then `updatedAt moved on N of M rows (expected 0)`, then `apply done` or `STOPPED`; on an updatedAt failure also `FAILED: updatedAt moved ...` or `updatedAt preservation UNVERIFIED: ...`, `Backups kept: ...` and, for apply, the exact rollback command |
 | verify | per table class counts, then `verify ok (sources: ...; estimate-sources: ...)` or `FAILED: N row(s) not clean:` with one `table#id label createdAt= stored=` line per row |
 
 Classes: `already_correct`, `needs_correction`, `snap_double_converted`, `post_cutoff_utc_match`,
@@ -126,14 +132,17 @@ ordinary `other` rows do not count.
 1. The `DB host` line is not the expected database, or the time zone check aborts.
 2. A `schema ok` line is missing, or the tool reports a missing column or an empty table.
 3. The plan is much larger than about 8 rows, or lists any non-`invoices` row you did not expect.
-4. `plan` prints `FAILED` (an app-written row after the cutoff still has UTC digits): a writer is still wrong
-   or the cutoff is wrong. Report; do not apply.
+4. `plan` prints `FAILED`: an app-written row after the cutoff still has UTC digits (a writer is still wrong
+   or the cutoff is wrong), or an app-written row sits 8 or 10 hours behind `createdAt` with no class to
+   explain it. Report; do not snapshot or apply.
 5. No explicit operator go on the listed rows.
-6. `snapshot` says the backup already exists or the counts differ; `apply` says the backup count or ids
-   differ from the plan, or prints `STOPPED` (a row no longer holds the value the plan read). `STOPPED`
+6. `snapshot` says the backup already exists or the counts differ; `apply` or `rollback` says the backup count, ids
+   or saved dates differ from the plan, or `apply` prints `STOPPED` (a row no longer holds the value the plan read). `STOPPED`
    rolled back that batch and ran nothing after it; investigate, then re-run `apply`, which resumes
    (rows already at their target are skipped and counted).
 7. `verify` prints `FAILED`.
+8. `apply` or `rollback` exits 3 (`updatedAt` moved or is unverified): do not run `verify` and move on. Report, keep
+   the backups, and decide on the rollback command it printed.
 
 ## Guards, as built
 
@@ -151,7 +160,8 @@ ordinary `other` rows do not count.
   and rows; snapshot, apply and rollback refuse an edited file or a different host or database.
 - **Backup first.** `_bak_<table>_shopclock_<stamp>` is built with `CREATE TABLE ... LIKE` then
   `INSERT ... SELECT`, because TiDB rejects `CREATE TABLE ... AS SELECT`. The row count must equal the plan
-  and `apply` also requires the backup to hold exactly the plan's ids. The tool never drops a backup; drop
+  and `apply` and `rollback` also require the backup to hold exactly the plan's ids and, for every row, the
+  original date the plan read, before anything is written. The tool never drops a backup; drop
   them by hand once the correction is confirmed, on an explicit operator go.
 - **Compare-and-swap, in batches of 200.** Each row is `UPDATE ... SET <date> = ? WHERE id = ? AND <date> = ?`
   on the value that was read, one transaction per batch; the first miss rolls that batch back and stops.
@@ -159,15 +169,22 @@ ordinary `other` rows do not count.
   MySQL's rule that assigning a column to itself stops its `ON UPDATE CURRENT_TIMESTAMP`. That rule is
   **unverified on TiDB until the line `updatedAt moved on N of M rows (expected 0)` prints 0.** The line is
   measured after the last batch by joining the backup (which holds the original `updatedAt`) to the live
-  table by id. A nonzero count with the default means TiDB ignored the self-assignment, or another writer
-  touched the row meanwhile. `--preserve-updated-at false` lets it move (`expected any`). Nothing in the app
-  reads `invoices.updatedAt` or `alg_estimates.updated_at` (only payment and refund writers set it).
+  table by id. With the default, a nonzero count fails the command with exit 3: it prints
+  `FAILED: updatedAt moved on N of M rows ...`, keeps the backups, and for `apply` prints the exact
+  `rollback` command. If the measurement cannot run or its result cannot be read, the command also exits 3
+  with `updatedAt preservation UNVERIFIED`; the dates it wrote stay written. A nonzero count means TiDB
+  ignored the self-assignment, or another writer touched the rows meanwhile. `--preserve-updated-at false`
+  lets it move and keeps the line informational (`expected any`). Nothing in the app reads
+  `invoices.updatedAt` or `alg_estimates.updated_at` (only payment and refund writers set it).
 
 ## If the correction has to be undone
 
 `rollback` restores the original digits from the backup table by id, with a compare-and-swap on the value the
 plan wrote, so a row someone edited since is reported instead of overwritten. It refuses if the backup no
-longer holds the plan's original value.
+longer holds the plan's original value or ids.
+
+Use the same `--preserve-updated-at` value on `rollback` as on `apply`: the updatedAt check compares the live
+rows with the backup. `rollback` restores the date only; the original `updatedAt` values stay in the backup tables.
 
 ## Not part of this tool
 

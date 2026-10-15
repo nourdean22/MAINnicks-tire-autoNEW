@@ -6,6 +6,8 @@
  * Before 2026-10-14 app writers stored `new Date()` (UTC digits) in shop-day columns. The shop-day
  * convention is the Cleveland wall-clock digits (shopWallClock). A row is corrected only when its
  * digits match its own createdAt AND its source is app-written: the ShopDriver feed rewrites its rows.
+ * The corrected value is the wall clock of the STORED digits (createdAt only proves the signature),
+ * except for a Snap row, whose stored value was converted twice and so is not a clean source.
  */
 import { createHash } from "node:crypto";
 import { shopWallClock } from "../../server/lib/timezoneAssert";
@@ -206,7 +208,10 @@ export interface ScanRow {
 
 export interface Classified {
   class: RowClass;
-  /** Target digits; set only for planned classes. */
+  /**
+   * Target digits; set only for planned classes. needs_correction: the wall clock of the stored digits.
+   * snap_double_converted: the wall clock of createdAt.
+   */
   to?: string;
 }
 
@@ -226,7 +231,11 @@ export function classifyRow(table: string, row: ScanRow, cfg: ClassifyConfig): C
 
   const cls = hits[0] ?? "other";
   if (OWNER_GATED.includes(cls) && !cfg.ownedSources[table]?.has(row.source)) return { class: "feed_owned_utc" };
-  return PLANNED_CLASSES.includes(cls) ? { class: cls, to: msToDigits(wall) } : { class: cls };
+  // createdAt only established the writer signature; the stored digits are the UTC reading to convert.
+  if (cls === "needs_correction") return { class: cls, to: msToDigits(wallMs(stored)) };
+  // Stored was converted twice, so createdAt is the only clean anchor for a Snap row.
+  if (cls === "snap_double_converted") return { class: cls, to: msToDigits(wall) };
+  return { class: cls };
 }
 
 export type ClassifiedRow = ScanRow & Classified;
