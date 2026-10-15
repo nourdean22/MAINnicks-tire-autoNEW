@@ -45,6 +45,20 @@ on:
       - 'packages/**'
       - 'pnpm-lock.yaml'
       - '.github/workflows/e2e-statenour.yml'
+  # 2026-10-15 · UI v3 Wave 0b. GitHub lists a workflow_dispatch workflow only
+  # from the default branch, so this trigger does nothing until this file is on
+  # main: merge first, then run it from main (Actions, "e2e · statenour", Run
+  # workflow, tick capture_v3_baselines). That run skips the normal suite,
+  # renders Home and Missions from the DEMO fixtures
+  # (tests/e2e/visible-transformation-v3.spec.ts) and uploads the PNGs as the
+  # `v3-baselines` artifact. A dispatch run has its own concurrency group
+  # (below) and never cancels a push run.
+  workflow_dispatch:
+    inputs:
+      capture_v3_baselines:
+        description: 'Capture the v3 six-feet baselines (skips the normal suite)'
+        type: boolean
+        default: false
 
 concurrency:
   # PR refs share a per-ref group (so a new push supersedes the old
@@ -316,6 +330,7 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
 
       - name: Run authenticated E2E smoke
+        if: "${{ !(github.event_name == 'workflow_dispatch' && inputs.capture_v3_baselines) }}"
         working-directory: apps/statenour
         env:
           E2E_BASE_URL: http://localhost:3001
@@ -323,6 +338,31 @@ jobs:
         # 120s per-test budget: even warmed, dev-mode hydration on a
         # 2-core runner is slower than the 30s default assumes.
         run: pnpm exec playwright test --timeout=120000
+
+      # Capture run only (workflow_dispatch with capture_v3_baselines): runs the
+      # v3 spec and nothing else, in capture mode, which writes the renders into
+      # its snapshot directory instead of comparing. The normal run above is
+      # skipped on this path, and this step on every other.
+      - name: Capture v3 baselines (workflow_dispatch only)
+        if: "${{ github.event_name == 'workflow_dispatch' && inputs.capture_v3_baselines }}"
+        working-directory: apps/statenour
+        env:
+          E2E_BASE_URL: http://localhost:3001
+          CI: "true"
+          VT_V3: "1"
+          VT_V3_CAPTURE: "1"
+        run: pnpm exec playwright test visible-transformation-v3 --timeout=120000
+
+      # if-no-files-found: error, so a capture that wrote nothing fails here
+      # instead of uploading an empty artifact and reporting green.
+      - name: Upload v3 baselines
+        if: "${{ github.event_name == 'workflow_dispatch' && inputs.capture_v3_baselines }}"
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: v3-baselines
+          path: apps/statenour/tests/e2e/visible-transformation-v3.spec.ts-snapshots/
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Server log on failure
         if: failure()
