@@ -20,7 +20,11 @@
     "runs commands or writes files but is not Bash/PowerShell/Write/Edit/NotebookEdit was never judged. `mcpAdapters` maps such a",
     "tool call onto Bash (commandFields) or Write (pathFields) so EVERY rule applies and no rule text is duplicated. Only the",
     "NAMED fields are read, never content or any other string field, and the native tools are never adapted. Pinned by",
-    "scripts/agent-os/mcpCoverage.test.mjs; documented, with what is still unguarded, in docs/agent-os/README.md."
+    "scripts/agent-os/mcpCoverage.test.mjs; documented, with what is still unguarded, in docs/agent-os/README.md.",
+    "Optional row fields: cwdField, exceptRules (rule ids a row's calls are not judged by; an unknown id is reported and the",
+    "exemption ignored, so the rule applies), clientHint (a client word prefixed to typed text), skipWhenTrue (a strict boolean",
+    "true means preview only), expandDirectory (judge the files below a moved directory). Each is explained in the README and",
+    "pinned by a canary."
   ],
   "version": 2,
   "mcpAdapters": [
@@ -38,22 +42,25 @@
       "toolPattern": "^mcp__.+__start_process$",
       "as": "Bash",
       "commandFields": ["command"],
+      "exceptRules": ["install-in-junctioned-worktree"],
       "exampleTools": [
         "mcp__plugin_desktop-commander_desktop-commander__start_process",
         "mcp__c23af5b4-e7d0-40b0-b6c6-346adaf3336c__start_process"
       ],
-      "why": "Desktop Commander start_process: runs `command` in a shell on this machine. It is registered twice (plugin name and connector UUID) and the middle segment is not stable, so the tool-name suffix is matched."
+      "why": "Desktop Commander start_process: runs `command` in a shell on this machine, in Desktop Commander's OWN cwd, not the Claude session cwd. install-in-junctioned-worktree is keyed to the cwd a PROCESS runs in (it protects a worktree's junctioned node_modules), so it is exempt here: the sanctioned global-install path in .claude/skills/harness-worktree-setup/SKILL.md runs through this tool from a worktree session. Every other rule, the session-scoped night-shift rules included, still judges the call. It is registered twice (plugin name and connector UUID) and the middle segment is not stable, so the tool-name suffix is matched."
     },
     {
       "id": "process-input",
       "toolPattern": "^mcp__.+__interact_with_process$",
       "as": "Bash",
       "commandFields": ["input"],
+      "exceptRules": ["install-in-junctioned-worktree"],
+      "clientHint": "psql",
       "exampleTools": [
         "mcp__plugin_desktop-commander_desktop-commander__interact_with_process",
         "mcp__c23af5b4-e7d0-40b0-b6c6-346adaf3336c__interact_with_process"
       ],
-      "why": "Desktop Commander interact_with_process: `input` is text typed into a running shell or REPL, so it is judged as a command."
+      "why": "Desktop Commander interact_with_process: `input` is text typed into a running shell or REPL. A psql REPL started by an earlier start_process call receives bare SQL, so the typed text is judged as if sent to a SQL client (clientHint is prefixed), except a single read-only search such as grep, which stays a search. Same exemption as start_process (exceptRules)."
     },
     {
       "id": "monitor",
@@ -65,7 +72,7 @@
     },
     {
       "id": "file-write",
-      "toolPattern": "^mcp__.+__(?:write_file|edit_file|edit_block|write_pdf)$",
+      "toolPattern": "^mcp__.+__(?:write_file|edit_block|write_pdf)$",
       "as": "Write",
       "pathFields": ["path", "file_path", "outputPath"],
       "exampleTools": [
@@ -74,22 +81,31 @@
         "mcp__plugin_desktop-commander_desktop-commander__edit_block",
         "mcp__c23af5b4-e7d0-40b0-b6c6-346adaf3336c__edit_block",
         "mcp__plugin_desktop-commander_desktop-commander__write_pdf",
-        "mcp__filesystem__write_file",
-        "mcp__filesystem__edit_file"
+        "mcp__filesystem__write_file"
       ],
-      "why": "File writers: Desktop Commander write_file, edit_block and write_pdf, and the filesystem MCP server's write_file and edit_file (docs/codebase-memory-mcp.md). Judged as Write by PATH only: content, old_string and new_string are never scanned."
+      "why": "File writers: Desktop Commander write_file, edit_block and write_pdf, and the filesystem MCP server's write_file (docs/codebase-memory-mcp.md). Judged as Write by PATH only: content, old_string and new_string are never scanned."
+    },
+    {
+      "id": "file-edit",
+      "toolPattern": "^mcp__.+__edit_file$",
+      "as": "Write",
+      "pathFields": ["path"],
+      "skipWhenTrue": ["dryRun"],
+      "exampleTools": ["mcp__filesystem__edit_file"],
+      "why": "The filesystem MCP server's edit_file. It takes dryRun: true to preview a diff and write nothing, so only the strict boolean true skips judging. The skip lives on this row alone: no other file tool documents dryRun, and a server that ignores an unknown dryRun would write anyway."
     },
     {
       "id": "file-move",
       "toolPattern": "^mcp__.+__move_file$",
       "as": "Write",
       "pathFields": ["source", "destination"],
+      "expandDirectory": { "from": "source", "to": "destination" },
       "exampleTools": [
         "mcp__plugin_desktop-commander_desktop-commander__move_file",
         "mcp__c23af5b4-e7d0-40b0-b6c6-346adaf3336c__move_file",
         "mcp__filesystem__move_file"
       ],
-      "why": "move_file writes the destination and removes the source, so both are judged as Write paths."
+      "why": "move_file writes the destination and removes the source, so both are judged as Write paths. A DIRECTORY move writes every file below it, so expandDirectory also judges destination/<relative path> for each descendant file (names only, bounded, symlinks never followed, any filesystem error fails open)."
     }
   ],
   "rules": [

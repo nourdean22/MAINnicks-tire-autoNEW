@@ -108,17 +108,45 @@ Commander and the native `Monitor` tool, and a `.env.local` write exited 0 throu
 **How it works.** `mcpAdapters` in `config/agent-os/policy.json` maps a tool call onto the logical tool the rules
 already understand (Bash or Write). `adaptToolCall()` in `policy.mjs` does the mapping, `pretool.mjs` judges each
 mapped call with the unchanged `evaluate()`, and a second `PreToolUse` matcher group in `.claude/settings.json`
-routes those tool names to `pretool.mjs`. No rule text is duplicated: every existing rule applies through every
-adapter, including the cwd-scoped night-shift rules.
+routes those tool names to `pretool.mjs`. No rule text is duplicated: every existing rule applies through the
+adapters, judged with the session cwd. The one exemption: the two Desktop Commander process rows skip
+`install-in-junctioned-worktree` (`exceptRules`, below).
 
 | Adapter | Tools (matched by name SUFFIX, so both Desktop Commander registrations hit) | Judged as | Field read |
 |---|---|---|---|
 | `terminal-run` | Terminal MCP `run_in_terminal` | Bash | `command`; the tool's `cwd` is judged too |
-| `process-start` | Desktop Commander `start_process` | Bash | `command` |
-| `process-input` | Desktop Commander `interact_with_process` | Bash | `input` |
+| `process-start` | Desktop Commander `start_process` | Bash | `command`; exempt from the worktree-install rule (`exceptRules`) |
+| `process-input` | Desktop Commander `interact_with_process` | Bash | `input`, judged as SQL sent to a `psql` client (`clientHint`); same exemption |
 | `monitor` | native `Monitor` | Bash | `command` (the `ws` form has none) |
-| `file-write` | `write_file`, `edit_block`, `edit_file`, `write_pdf` | Write | `path`, `file_path`, `outputPath` |
-| `file-move` | `move_file` | Write | `source`, `destination` |
+| `file-write` | `write_file`, `edit_block`, `write_pdf` | Write | `path`, `file_path`, `outputPath` |
+| `file-edit` | filesystem MCP `edit_file` | Write | `path`; a strict `dryRun: true` is not judged (`skipWhenTrue`) |
+| `file-move` | `move_file` | Write | `source`, `destination`, and the files below a moved directory (`expandDirectory`) |
+
+**Optional row fields.** Each is validated at run time (a malformed value skips that row with a stderr line) and pinned
+by a canary:
+
+- `cwdField`: an input field that names the directory the command runs in (`run_in_terminal.cwd`). It is judged in
+  addition to the session cwd, so a decoy value can add a judgment but never remove the session's. Accepted
+  over-blocking: a worktree session's install through the Terminal MCP with an explicit non-worktree `cwd` is still
+  denied, because the session cwd is judged too; the sanctioned global-install path is Desktop Commander.
+- `exceptRules`: rule ids that are NOT applied to the calls a row produces. Only `process-start` and `process-input`
+  have one, and only for `install-in-junctioned-worktree`. That rule protects a worktree's junctioned `node_modules`
+  and is keyed to the cwd a PROCESS runs in; Desktop Commander runs processes in its own cwd, not the session's, so the
+  rule would deny the sanctioned global-install path (`.claude/skills/harness-worktree-setup/SKILL.md`, lines 86-87).
+  The night-shift rules are session-scoped (they restrict the unattended session wherever its shell runs), so they
+  keep judging the session cwd on those rows. Every id must exist in `policy.json`: a malformed list or an unknown id
+  (a typo) is reported on stderr and the row's whole exemption is ignored, so the rule APPLIES. A mistake here can only
+  add denials.
+- `clientHint`: a word prefixed to the field text before the rules run, so text typed into a client is judged as if
+  sent to it. Only `process-input` has one (`psql`): bare `DROP TABLE x;` typed into a psql REPL that an earlier call
+  started now meets `destructive-sql`. A single read-only search (`grep -rn "DROP TABLE" docs/`) is left alone. Any
+  other typed text that holds a DROP or TRUNCATE statement is denied, an `echo` of it included: with the hint on, a
+  mention cannot be told from an execution.
+- `skipWhenTrue`: field names whose strict boolean `true` means the tool previews and writes nothing (`dryRun`).
+  `"true"`, `1` and `{}` still judge. Only `file-edit` has it: no other file tool documents `dryRun`, and a server
+  that ignores an unknown one would write anyway.
+- `expandDirectory` (`{from, to}`): when `from` is a directory, each file below it is judged as `to/<relative path>`,
+  so `.env*` files or night-shift judge files inside a moved directory meet the path rules. Names only.
 
 Design rules, each pinned by `scripts/agent-os/mcpCoverage.test.mjs`:
 
@@ -130,10 +158,15 @@ Design rules, each pinned by `scripts/agent-os/mcpCoverage.test.mjs`:
 - **Same posture as the rest of the hook.** A matched rule exits 2. A malformed row is skipped with a
   `[agent-os] pretool MCP adapter problem` stderr line and costs only that row. Any other bug in the new code
   fails open with a stderr line. Missing, non-string and malformed fields never throw.
-- **Oversized fields** are folded to their first and last 10,000 characters (`FIELD_CAP`). `destructive-sql` is
-  quadratic in the text length (measured: 20,000 characters about 0.3 s, 60,000 about 2 s), and a hook timeout
-  fails open silently. A forbidden string in the unscanned middle of a field longer than the cap is not seen.
-  Native Bash and PowerShell commands are not capped and have the same exposure, which is out of this change.
+- **Oversized fields** (over `FIELD_CAP`, 20,000 characters) are judged as two slices, the first and the last 10,000
+  characters, each on its own: joining them would build a command the field never held (a client word at the end of
+  the head plus a statement at the start of the tail). `destructive-sql` is quadratic in the text length (measured:
+  20,000 characters about 0.3 s, 60,000 about 2 s) and a hook timeout fails open silently, which is why the cap
+  exists. The unscanned middle of a field over the cap is not judged. Native Bash and PowerShell commands are not
+  capped and have the same exposure, which is out of this change.
+- **Directory moves** are walked read-only: names only (no file content), breadth-first, at most 2,000 entries and
+  depth 6, symlinks and junctions never followed, and any filesystem error means no extra judgments. Over the cap,
+  what was walked is judged and one stderr line says the rest was not (`directory too large to inspect fully`).
 - **The matcher** is `^(?:Monitor|mcp__.+__(?:run_in_terminal|start_process|interact_with_process|write_file|edit_file|edit_block|write_pdf|move_file))$`.
   Claude Code reads a matcher with any character beyond letters, digits, `_`, `-`, space, `,` and `|` as a
   JavaScript regex tested unanchored (code.claude.com/docs/en/hooks), so the pattern carries its own `^...$` and
@@ -154,17 +187,27 @@ to `mcpAdapters` with at least one real tool name in `exampleTools`. (3) Add the
 
 Inventory of 2026-10-15. Names come from this machine's tool lists; "name only" means the schema was not read.
 
+- **Persistent shell cwd.** The hook is stateless, so it cannot know the cwd of a persistent shell across calls: a
+  `cd` into a worktree in one Desktop Commander call followed by an install typed in a later call is not caught, and
+  neither is `cd <worktree>; pnpm install` on one line from a session that is not in a worktree. Native Bash has the
+  same blind spot, so this is no worse than before the PR. A canary pins it and fails the day it is fixed.
+- **Slip windows.** The unscanned middle of a field over 20,000 characters, and the directory walk cap: files past the
+  first 2,000 entries, or deeper than 6 levels, of a moved directory are not seen (the walk prints one stderr line
+  when it stops early). Canaries pin both.
 - **context-mode plugin runners** (`ctx_execute`, `ctx_batch_execute`). They run code and commands, and the
   manager's probe on 2026-10-15 exited 0 through both. They were not in this session's tool list, so their field
   names were not read from a live definition and no row was invented. Follow-up: read the live schema, then add a
   row per tool (the "Adding a runner" steps below).
 - **SQL text tools** (Neon `run_sql` and `run_sql_transaction`; Prisma Postgres `execute_sql_query` and
   `execute_prisma_postgres_schema_update`; connector UUID and `Prisma-Remote` registrations). `destructive-sql`
-  needs a DB client word (`mysql`, `psql`, `railway run`, `prisma db execute`, `Invoke-Sqlcmd`) in the same text,
-  and these tools receive bare SQL, so wiring them to it would score a green that guards nothing. The canary
-  `tier 2 premise` fails the day the rule learns to match bare SQL. A follow-up needs a rule scoped to these
-  tools, with its own deny and allow examples, or an adapter field that supplies a client word. `sql_statements`
-  in `run_sql_transaction` is an array, which the string-only field reader skips.
+  needs a DB client word (`mysql`, `psql`, `railway run`, `prisma db execute`, `Invoke-Sqlcmd`) in the same text, and
+  these tools receive bare SQL. They stay UNWIRED on purpose: that is the operator's decision. The mechanism now
+  exists. `clientHint` makes covering one tool a single table row (`toolPattern`, `as: "Bash"`, `commandFields`
+  naming its SQL field, `clientHint: "psql"`) plus one canary each; a canary shows it on an in-memory table. Weigh one
+  trade-off first: a hinted row also denies `DROP TABLE` inside a string literal, because the tool cannot tell a
+  mention from an execution. The canary `tier 2 premise` fails the day the rule itself learns bare SQL.
+  `sql_statements` in `run_sql_transaction` is an array, which the string-only field reader skips, so that tool also
+  needs a small reader change.
 - **Prisma-Local MCP** (`migrate-reset`, `migrate-dev`; name only, the server failed to connect on 2026-10-15).
   The tool name is the whole command, so there is no text to match. Follow-up: an adapter field that supplies a
   fixed command string such as `prisma migrate reset` to `destructive-prisma`.

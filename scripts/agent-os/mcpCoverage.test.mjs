@@ -31,9 +31,9 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
 import { spawnSync } from "node:child_process";
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, linkSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 // Namespace import on purpose: before the fix this module has no adaptToolCall, and a named import
 // would fail the whole file at link time instead of failing the individual canaries.
@@ -184,6 +184,22 @@ test("adapter table: present, well formed, anchored, disjoint and documented", (
     assert.ok(a.cwdField === undefined || (typeof a.cwdField === "string" && a.cwdField), `${a.id}: cwdField must be a field name`);
     assert.ok(Array.isArray(a.exampleTools) && a.exampleTools.length >= 1, `${a.id}: needs >=1 exampleTools (the canaries iterate them)`);
     for (const n of NATIVE) assert.ok(!new RegExp(a.toolPattern).test(n), `${a.id}: must not claim the native tool ${n}`);
+    // optional fields (review fixes 2026-10-15): strict, independent shape checks
+    if (a.clientHint !== undefined) assert.ok(a.as === "Bash" && typeof a.clientHint === "string" && a.clientHint, `${a.id}: clientHint is a non-empty string on a Bash row`);
+    // no dead or mistyped config: every key of a row is one the code reads (a stray key is silently ignored)
+    for (const key of Object.keys(a)) {
+      assert.ok(["id", "toolPattern", "as", "commandFields", "pathFields", "cwdField", "exceptRules", "clientHint", "skipWhenTrue", "expandDirectory", "exampleTools", "why"].includes(key),
+        `${a.id}: unknown row field '${key}'`);
+    }
+    if (a.exceptRules !== undefined) {
+      assert.ok(Array.isArray(a.exceptRules) && a.exceptRules.length >= 1, `${a.id}: exceptRules must list rule ids`);
+      for (const id of a.exceptRules) assert.ok(policy.rules.some((r) => r.id === id), `${a.id}: exceptRules names '${id}', which is not a rule in policy.json`);
+    }
+    if (a.skipWhenTrue !== undefined) assert.ok(Array.isArray(a.skipWhenTrue) && a.skipWhenTrue.length >= 1 && a.skipWhenTrue.every((k) => typeof k === "string" && k), `${a.id}: skipWhenTrue must list field names`);
+    if (a.expandDirectory !== undefined) {
+      assert.equal(a.as, "Write", `${a.id}: expandDirectory yields Write judgments, so it belongs on a Write row`);
+      assert.ok(a.pathFields.includes(a.expandDirectory.from) && a.pathFields.includes(a.expandDirectory.to), `${a.id}: expandDirectory from/to must be path fields of the row`);
+    }
   }
 });
 
@@ -215,6 +231,8 @@ test("parity: every Bash-family denyExample is denied by the SAME rule through e
     for (const tool of a.exampleTools) {
       for (const field of a.commandFields) {
         for (const rule of bashRules) {
+          // a row is exempt from exactly the rules in its exceptRules; that exemption has its own canaries
+          if (a.exceptRules?.includes(rule.id)) continue;
           for (const sample of rule.denyExamples) {
             const res = judge(tool, { [field]: sample }, cwdFor(rule));
             assert.ok(res.denied, `${tool}.${field}: ${rule.id} should DENY ${JSON.stringify(sample)}`);
@@ -348,11 +366,13 @@ test("cwd-scoped rules apply through MCP runners: the SESSION cwd is judged and 
   allowed(run(TERMINAL, { command: "pnpm install", cwd: NORMAL }, NORMAL), "install in the primary checkout is legitimate");
 });
 
-test("night-shift identity rules reach MCP runners and file tools; a normal session is untouched", () => {
+test("night-shift identity rules reach EVERY command runner (Terminal, Monitor, both Desktop Commander process tools) and the file tools; a normal session is untouched", () => {
   const start = `${DC_PLUGIN}start_process`;
-  denied(run(start, { command: "gh pr merge 2401 --squash", timeout_ms: 1000 }, NIGHT), "night-shift-no-merge", "merge through start_process");
-  denied(run(TERMINAL, { command: "git push -u origin chore/sneaky" }, NIGHT), "night-shift-push-scope", "off-branch push through the terminal");
-  denied(run(TERMINAL, { command: "echo x > .claude/settings.json" }, NIGHT), "night-shift-no-judge-edits-shell", "judge write through the terminal");
+  for (const shape of COMMAND_SHAPES) {
+    denied(run(shape.name, shape.input("gh pr merge 2401 --squash"), NIGHT), "night-shift-no-merge", `${shape.name}: merge`);
+    denied(run(shape.name, shape.input("git push -u origin chore/sneaky"), NIGHT), "night-shift-push-scope", `${shape.name}: off-branch push`);
+    denied(run(shape.name, shape.input("echo x > .claude/settings.json"), NIGHT), "night-shift-no-judge-edits-shell", `${shape.name}: judge write`);
+  }
   denied(run(`${DC_PLUGIN}write_file`, { path: "config/agent-os/policy.json", content: "{}" }, NIGHT), "night-shift-no-judge-edits", "judge write through write_file");
   denied(run(`${FS}edit_file`, { path: "scripts/agent-os/pretool.mjs", edits: [] }, NIGHT), "night-shift-no-judge-edits", "judge edit through edit_file");
   allowed(run(start, { command: "gh pr merge 2401 --squash", timeout_ms: 1000 }, NORMAL), "merge is normal work in a normal session");
@@ -412,7 +432,7 @@ test("oversized fields never throw or hang, and are judged at the head and the t
   allowed(run(`${DC_PLUGIN}write_file`, { path: "docs/big.md", content: filler }), "2 MB of file content is never scanned");
   assert.equal(typeof engine.adaptToolCall, "function", "policy.mjs must export adaptToolCall()");
   const calls = engine.adaptToolCall(TERMINAL, { command: filler }, NORMAL, policy);
-  assert.ok(calls[0].command.length <= engine.FIELD_CAP + 1, "the judged text must be folded to the cap");
+  assert.ok(calls.length === 2 && calls.every((c) => c.command.length <= engine.FIELD_CAP / 2), "an oversized field is judged as two slices, each within half the cap");
 });
 
 // --- 6 - the registration ---------------------------------------------------------------------
@@ -529,7 +549,9 @@ test("BREAKS: a copy of the real hook denies through MCP; emptying or miswiring 
   withTree((p) => { for (const a of p.mcpAdapters ?? []) if (a.commandFields) a.commandFields = ["cmd"]; }, (hook) => allowed(payload(hook), "adapter reads the wrong field"));
   // a WELL-FORMED row that treats the command text as a file path: the rules never see a command
   withTree((p) => {
-    for (const a of p.mcpAdapters ?? []) if (a.as === "Bash") { a.as = "Write"; a.pathFields = a.commandFields; delete a.commandFields; }
+    for (const a of p.mcpAdapters ?? []) {
+      if (a.as === "Bash") { a.as = "Write"; a.pathFields = a.commandFields; delete a.commandFields; delete a.clientHint; }
+    }
   }, (hook) => allowed(payload(hook), "adapter maps onto the wrong logical tool"));
   withTree((p) => { for (const a of p.mcpAdapters ?? []) a.toolPattern = "^nothing$"; }, (hook) => allowed(payload(hook), "adapter pattern matches no real tool"));
 });
@@ -563,7 +585,7 @@ test("tier 2 premise: SQL text tools are deliberately NOT wired because destruct
   // client word (mysql, psql, railway run, prisma db execute, Invoke-Sqlcmd) in the same text, so
   // wiring these tools to it would score a green that guards nothing.
   assert.equal(engine.evaluate({ toolName: "Bash", command: "DROP TABLE leads;", cwd: NORMAL, filePath: "" }, policy).denied, false,
-    "destructive-sql now matches bare SQL: wire the SQL text tools in mcpAdapters (README 'Still unguarded'), route them in settings.json, and replace this canary with deny canaries");
+    "destructive-sql now matches bare SQL: the SQL text tools no longer need a clientHint, so wire them in mcpAdapters (README 'Still unguarded'), route them in settings.json, and replace this canary with deny canaries");
   assert.equal(typeof engine.adaptToolCall, "function", "policy.mjs must export adaptToolCall()");
   for (const [name, input] of SQL_TOOLS) {
     assert.equal(engine.adaptToolCall(name, input, NORMAL, policy), null, `${name} must stay unclaimed until a rule that matches bare SQL exists`);
@@ -578,4 +600,308 @@ test("README documents every adapter, the unguarded inventory and the live check
     const tool = name.split("__").pop();
     assert.ok(README.includes(tool), `the unguarded inventory must name the SQL tool ${tool}`);
   }
+  for (const field of ["clientHint", "exceptRules", "skipWhenTrue", "expandDirectory"]) {
+    assert.ok(README.includes(`\`${field}\``), `README does not document the adapter field ${field}`);
+  }
+  assert.doesNotMatch(README, /sessionCwd/, "sessionCwd was removed: the README must not document dead config");
+  for (const limit of [/persistent shell/i, /unscanned middle/i, /directory walk/i]) {
+    assert.match(README, limit, `README must state the documented limit ${limit}`);
+  }
+});
+
+// --- 9 - review fixes (2026-10-15: five review findings and one regression on the first commit) ---
+
+const GLOBAL_INSTALL = "pnpm add -g typescript"; // matches install-in-junctioned-worktree
+const typedInto = (name, text, cwd) => run(name, { pid: 4242, input: text, timeout_ms: 8000, wait_for_prompt: true }, cwd);
+
+test("review-fix table: each optional field sits on exactly the intended row", () => {
+  const rows = Object.fromEntries(adapters().map((a) => [a.id, a]));
+  const only = (field, id, value) => {
+    assert.deepEqual(rows[id]?.[field], value, `${id}.${field} must be ${JSON.stringify(value)}`);
+    for (const other of Object.keys(rows)) if (other !== id) assert.equal(rows[other][field], undefined, `${other} must not carry ${field}`);
+  };
+  only("clientHint", "process-input", "psql");
+  only("skipWhenTrue", "file-edit", ["dryRun"]);
+  only("expandDirectory", "file-move", { from: "source", to: "destination" });
+  for (const id of ["process-start", "process-input"]) {
+    assert.deepEqual(rows[id]?.exceptRules, ["install-in-junctioned-worktree"], `${id} runs in Desktop Commander's own cwd: exempt from the worktree-install rule only`);
+  }
+  for (const id of ["terminal-run", "monitor", "file-write", "file-edit", "file-move"]) {
+    assert.ok(rows[id], `adapter ${id} is missing`);
+    assert.equal(rows[id].exceptRules, undefined, `${id} is judged by every rule`);
+  }
+});
+
+// R1 - SQL typed into a REPL ----------------------------------------------------------------
+
+test("R1: SQL typed into a running process (a psql REPL) is judged as SQL sent to a client, through both Desktop Commander registrations", () => {
+  for (const p of [DC_PLUGIN, DC_CONNECTOR]) {
+    const tool = `${p}interact_with_process`;
+    for (const sql of ["DROP TABLE leads;", "drop table leads", "TRUNCATE TABLE leads;", "TRUNCATE leads", "DROP SCHEMA public CASCADE;", "BEGIN;\nDROP DATABASE nick;\nCOMMIT;"]) {
+      denied(typedInto(tool, sql), "destructive-sql", `${tool} <- ${JSON.stringify(sql)}`);
+    }
+    for (const text of ["SELECT * FROM leads LIMIT 5;", "echo hello", "git status", "y", "\\dt", 'grep -rn "DROP TABLE" drizzle/', "rg 'TRUNCATE' apps/statenour/prisma/"]) {
+      allowed(typedInto(tool, text), `${tool} <- ${JSON.stringify(text)}`);
+    }
+  }
+});
+
+test("R1: the hint is prefixed to typed text only, never to a read-only search (mention is not execution), and only on the row that declares it", () => {
+  assert.equal(typeof engine.adaptToolCall, "function", "policy.mjs must export adaptToolCall()");
+  const input = `${DC_PLUGIN}interact_with_process`;
+  assert.deepEqual(engine.adaptToolCall(input, { input: "DROP TABLE x;" }, NORMAL, policy).map((c) => c.command), ["psql DROP TABLE x;"]);
+  const search = 'grep -rn "DROP TABLE" drizzle/';
+  assert.deepEqual(engine.adaptToolCall(input, { input: search }, NORMAL, policy).map((c) => c.command), [search], "a read-only search must stay a read-only search");
+  assert.deepEqual(engine.adaptToolCall(`${DC_PLUGIN}start_process`, { command: "DROP TABLE x;" }, NORMAL, policy).map((c) => c.command), ["DROP TABLE x;"], "process-start carries no hint");
+});
+
+test("R1 controls: process-start, Bash and Write are unchanged by the hint", () => {
+  allowed(run(`${DC_PLUGIN}start_process`, { command: "DROP TABLE leads;", timeout_ms: 5000 }), "start_process has no hint");
+  allowed(run("Bash", { command: "DROP TABLE leads;" }), "native Bash has no hint");
+  denied(run("Bash", { command: 'psql -c "DROP TABLE leads"' }), "destructive-sql", "native Bash with a client word still denies");
+  denied(run(`${DC_PLUGIN}start_process`, { command: 'psql -c "DROP TABLE leads"', timeout_ms: 5000 }), "destructive-sql", "start_process with a client word still denies");
+  denied(run("Write", { file_path: ".env.local", content: "x" }), "secret-file-write", "Write control");
+});
+
+test("R1: with the hint, covering a SQL text tool is one table row plus one canary (shown on an in-memory table; the real table stays unwired)", () => {
+  const [tool, bare] = SQL_TOOLS[0];
+  const p = structuredClone(policy);
+  p.mcpAdapters.push({ id: "sql-demo", toolPattern: "^mcp__.+__run_sql$", as: "Bash", commandFields: ["sql"], clientHint: "psql", exampleTools: [tool], why: "demo row on an in-memory copy; it is not in the real table" });
+  assert.equal(judge(tool, bare, NORMAL, p).rule?.id, "destructive-sql", "bare DROP TABLE through a row with a clientHint");
+  assert.equal(judge(tool, { sql: "TRUNCATE leads" }, NORMAL, p).rule?.id, "destructive-sql");
+  assert.equal(judge(tool, { sql: "SELECT 1" }, NORMAL, p).denied, false, "a benign query passes");
+  assert.equal(engine.adaptToolCall(tool, bare, NORMAL, policy), null, "the real table must still not claim the SQL text tools (operator decision)");
+});
+
+// R2 - Desktop Commander runs in its own cwd -------------------------------------------------
+
+test("R2: a global install through Desktop Commander from a worktree session exits 0, the sanctioned path (.claude/skills/harness-worktree-setup/SKILL.md)", () => {
+  // SKILL.md: "Sanctioned path for a global install: a process runner with a non-worktree cwd (e.g. the Desktop
+  // Commander MCP), never a rule edit." Desktop Commander runs processes in ITS cwd, not the Claude session cwd.
+  for (const p of [DC_PLUGIN, DC_CONNECTOR]) {
+    allowed(run(`${p}start_process`, { command: GLOBAL_INSTALL, timeout_ms: 5000 }, WORKTREE), `${p}start_process global install`);
+    allowed(typedInto(`${p}interact_with_process`, GLOBAL_INSTALL, WORKTREE), `${p}interact_with_process global install`);
+  }
+});
+
+test("R2 controls: Bash, PowerShell, the Terminal MCP and Monitor still deny an install in a worktree; Desktop Commander still denies cwd-free rules", () => {
+  denied(run("Bash", { command: GLOBAL_INSTALL }, WORKTREE), "install-in-junctioned-worktree", "Bash");
+  denied(run("PowerShell", { command: GLOBAL_INSTALL }, WORKTREE), "install-in-junctioned-worktree", "PowerShell");
+  denied(run(TERMINAL, { command: GLOBAL_INSTALL }, WORKTREE), "install-in-junctioned-worktree", "Terminal MCP: its tab starts in the session cwd");
+  denied(run("Monitor", { command: GLOBAL_INSTALL, description: "d", timeout_ms: 1000 }, WORKTREE), "install-in-junctioned-worktree", "Monitor: runs in the Bash shell environment");
+  for (const p of [DC_PLUGIN, DC_CONNECTOR]) {
+    denied(run(`${p}start_process`, { command: "git push origin main", timeout_ms: 5000 }, WORKTREE), "push-to-main", `${p}start_process`);
+    denied(typedInto(`${p}interact_with_process`, "git push origin main", WORKTREE), "push-to-main", `${p}interact_with_process`);
+    denied(run(`${p}start_process`, { command: "git stash pop", timeout_ms: 5000 }, WORKTREE), "stash-pop", `${p}start_process`);
+  }
+});
+
+test("R2 documented limit: the hook is stateless, so a persistent shell's cwd across calls is invisible (a pin: it fails the day this is fixed)", () => {
+  const fixedHint = "if this now denies, per-process cwd tracking exists: update the README 'Still unguarded' entry and replace this pin";
+  const WT_DIR = "C:/Users/nourd/NOURCITY/.claude/worktrees/x";
+  allowed(run(`${DC_PLUGIN}start_process`, { command: `cd ${WT_DIR}`, timeout_ms: 5000 }, NORMAL), `call 1: cd into a worktree (${fixedHint})`);
+  allowed(typedInto(`${DC_PLUGIN}interact_with_process`, GLOBAL_INSTALL, NORMAL), `call 2: install in that shell (${fixedHint})`);
+  allowed(run(`${DC_PLUGIN}start_process`, { command: `cd ${WT_DIR}; ${GLOBAL_INSTALL}`, timeout_ms: 5000 }, NORMAL), `same line (${fixedHint})`);
+  allowed(run("Bash", { command: `cd ${WT_DIR}; ${GLOBAL_INSTALL}` }, NORMAL), "native Bash from a primary session has the same blind spot: this is no worse than before the PR");
+});
+
+test("R2 narrower fix: Desktop Commander process rows are exempt from the worktree-install rule ONLY; the session-scoped night-shift rules still reach them", () => {
+  // install-in-junctioned-worktree is PROCESS-cwd scoped (it protects a worktree's junctioned node_modules) and
+  // Desktop Commander runs outside the worktree; the night-shift rules restrict the SESSION wherever its shell runs.
+  for (const p of [DC_PLUGIN, DC_CONNECTOR]) {
+    for (const cwd of [WORKTREE, NIGHT]) {
+      allowed(run(`${p}start_process`, { command: GLOBAL_INSTALL, timeout_ms: 5000 }, cwd), `${p}start_process global install, session cwd ${cwd}`);
+      allowed(typedInto(`${p}interact_with_process`, GLOBAL_INSTALL, cwd), `${p}interact_with_process global install, session cwd ${cwd}`);
+    }
+    denied(run(`${p}start_process`, { command: "gh pr merge 2401 --squash", timeout_ms: 1000 }, NIGHT), "night-shift-no-merge", `${p}start_process in a night-shift session`);
+    denied(typedInto(`${p}interact_with_process`, "gh pr merge 2401 --squash", NIGHT), "night-shift-no-merge", `${p}interact_with_process in a night-shift session`);
+  }
+  // the exemption is not a hole for any other tool
+  denied(run(TERMINAL, { command: GLOBAL_INSTALL }, WORKTREE), "install-in-junctioned-worktree", "terminal-run");
+  denied(run("Monitor", { command: GLOBAL_INSTALL, description: "d", timeout_ms: 1000 }, WORKTREE), "install-in-junctioned-worktree", "monitor");
+});
+
+test("evaluate() honours skipRules for exactly the listed rule ids", () => {
+  const base = { toolName: "Bash", command: "git push origin main", cwd: NORMAL, filePath: "" };
+  assert.equal(engine.evaluate(base, policy).rule?.id, "push-to-main");
+  assert.equal(engine.evaluate({ ...base, skipRules: ["install-in-junctioned-worktree"] }, policy).rule?.id, "push-to-main", "skipping an unrelated rule changes nothing");
+  assert.equal(engine.evaluate({ ...base, skipRules: ["push-to-main"] }, policy).denied, false, "the listed rule is skipped");
+  assert.equal(engine.evaluate({ ...base, command: "git push --force origin main", skipRules: ["push-to-main"] }, policy).rule?.id, "force-push", "a skip is per rule: the next matching rule still fires");
+});
+
+test("exceptRules rides on the judged calls of the rows that declare it, and on no others", () => {
+  assert.equal(typeof engine.adaptToolCall, "function", "policy.mjs must export adaptToolCall()");
+  for (const p of [DC_PLUGIN, DC_CONNECTOR]) {
+    assert.deepEqual(engine.adaptToolCall(`${p}start_process`, { command: "x" }, NORMAL, policy)[0].skipRules, ["install-in-junctioned-worktree"]);
+    assert.deepEqual(engine.adaptToolCall(`${p}interact_with_process`, { input: "x" }, NORMAL, policy)[0].skipRules, ["install-in-junctioned-worktree"]);
+  }
+  for (const name of [TERMINAL, "Monitor", `${DC_PLUGIN}write_file`, `${FS}edit_file`, `${DC_PLUGIN}move_file`]) {
+    const calls = engine.adaptToolCall(name, { command: "x", path: "x", source: "x", destination: "y" }, NORMAL, policy);
+    assert.ok(calls.length >= 1 && calls.every((c) => c.skipRules === undefined), `${name} must not carry an exemption`);
+  }
+});
+
+test("exceptRules is validated: a malformed list or an unknown or mistyped rule id is reported and the exemption is IGNORED, so the rule applies", () => {
+  const sanctioned = (hook) => run(`${DC_PLUGIN}start_process`, { command: GLOBAL_INSTALL, timeout_ms: 5000 }, WORKTREE, hook);
+  withTree(null, (hook) => allowed(sanctioned(hook), "control: the real table lets the sanctioned global install through"));
+  for (const bad of [["install-in-junctioned-worktre"], ["no-such-rule"], ["install-in-junctioned-worktree", "typo-rule"], "install-in-junctioned-worktree", [], [42], [""]]) {
+    withTree((p) => {
+      for (const a of p.mcpAdapters ?? []) if (a.exceptRules) a.exceptRules = bad;
+    }, (hook) => {
+      const r = sanctioned(hook);
+      denied(r, "install-in-junctioned-worktree", `exceptRules ${JSON.stringify(bad)}: the rule must apply`);
+      assert.match(r.err, /\[agent-os\] pretool MCP adapter problem \(exemption ignored, every rule applies\)/, `exceptRules ${JSON.stringify(bad)} must be reported on stderr`);
+    });
+  }
+});
+
+// R3 - dry-run edits ---------------------------------------------------------------------------
+
+test("R3: filesystem edit_file with dryRun true previews and writes nothing, so it is not judged; only the strict boolean true counts", () => {
+  const edit = (extra) => run(`${FS}edit_file`, { path: ".env.local", edits: [{ oldText: "a", newText: "b" }], ...extra });
+  assert.equal(typeof engine.adaptToolCall, "function", "policy.mjs must export adaptToolCall()");
+  assert.deepEqual(engine.adaptToolCall(`${FS}edit_file`, { path: ".env.local", dryRun: true }, NORMAL, policy), [], "claimed, nothing to judge");
+  allowed(edit({ dryRun: true }), "dryRun: true");
+  for (const v of [false, "true", 1, null, "yes", [], {}]) denied(edit({ dryRun: v }), "secret-file-write", `dryRun: ${JSON.stringify(v)} is not strictly true`);
+  denied(edit({}), "secret-file-write", "dryRun absent");
+});
+
+test("R3: dryRun is honoured by edit_file ONLY; no other file tool can use it to slip a write past the hook", () => {
+  for (const [name, input] of [
+    [`${DC_PLUGIN}write_file`, { path: ".env.local", content: "x", dryRun: true }],
+    [`${DC_PLUGIN}edit_block`, { file_path: ".env.local", old_string: "a", new_string: "b", dryRun: true }],
+    [`${DC_PLUGIN}write_pdf`, { path: ".env.local", content: "# t", dryRun: true }],
+    [`${FS}write_file`, { path: ".env.local", content: "x", dryRun: true }],
+    [`${FS}move_file`, { source: "a", destination: ".env.local", dryRun: true }],
+  ]) {
+    denied(run(name, input), "secret-file-write", `${name} with dryRun true`);
+  }
+});
+
+// R4 - oversized fields are judged as two slices -----------------------------------------------
+
+test("R4: an oversized field is judged as two slices on their own, so head and tail never combine into a command the field never held", () => {
+  assert.equal(typeof engine.adaptToolCall, "function", "policy.mjs must export adaptToolCall()");
+  const half = engine.FIELD_CAP / 2;
+  const head = `${"x".repeat(half - 5)} psql`; // the head slice ends with a client word
+  const tail = `DROP TABLE leads;${"z".repeat(half - 17)}`; // the tail slice starts with the statement
+  assert.equal(head.length, half);
+  assert.equal(tail.length, half);
+  const field = `${head}${"f".repeat(30000)}${tail}`;
+  allowed(run(TERMINAL, { command: field }), "client word ends the head, the statement starts the tail, 30k apart (review R4)");
+  denied(run(TERMINAL, { command: `psql -c "DROP TABLE leads" ${"f".repeat(40000)}` }), "destructive-sql", "statement fully inside the head");
+  denied(run(TERMINAL, { command: `${"f".repeat(40000)} psql -c "DROP TABLE leads"` }), "destructive-sql", "statement fully inside the tail");
+  const calls = engine.adaptToolCall(TERMINAL, { command: field }, NORMAL, policy);
+  assert.deepEqual(calls.map((c) => c.via), ["terminal-run.command#head", "terminal-run.command#tail"]);
+  assert.ok(calls.every((c) => c.command.length <= half), "each slice is within half the cap");
+});
+
+// R5 - directory moves -------------------------------------------------------------------------
+
+function withTempDir(fn) {
+  const dir = mkdtempSync(join(tmpdir(), "agent-os-move-"));
+  try {
+    return fn(dir);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+function touch(p) {
+  mkdirSync(dirname(p), { recursive: true });
+  writeFileSync(p, "");
+}
+// Bulk empty files for the walk tests. Hard links to a few seed files OUTSIDE the directory keep creation cheap
+// (4,000 real files made this suite the slowest by far on a filesystem with a scanner); the walk reads names only.
+// NTFS allows about 1,000 links per file, so the seeds rotate; any failure falls back to a real file.
+function bulkFiles(dir, names) {
+  mkdirSync(dir, { recursive: true });
+  const seeds = new Map();
+  names.forEach((name, i) => {
+    const target = join(dir, name);
+    const k = Math.floor(i / 800);
+    try {
+      if (!seeds.has(k)) {
+        const seed = join(dirname(dir), `seed-${basename(dir)}-${k}`);
+        writeFileSync(seed, "");
+        seeds.set(k, seed);
+      }
+      linkSync(seeds.get(k), target);
+    } catch {
+      writeFileSync(target, "");
+    }
+  });
+}
+const CAP_NOTE = /\[agent-os\] pretool move_file: directory too large to inspect fully, descendants beyond the cap not judged/;
+
+test("R5: moving a DIRECTORY judges the file names below it as if written at the destination (names only), through every move_file registration", () => {
+  withTempDir((dir) => {
+    touch(join(dir, "holds-env", "app", ".env.local"));
+    touch(join(dir, "holds-env", "readme.txt"));
+    touch(join(dir, "benign", "a.txt"));
+    touch(join(dir, "benign", "sub", "b.md"));
+    touch(join(dir, "example", ".env.example"));
+    touch(join(dir, "example", "c.txt"));
+    for (const p of [DC_PLUGIN, DC_CONNECTOR, FS]) {
+      const mv = (source, destination, cwd) => run(`${p}move_file`, { source, destination }, cwd);
+      const r = mv(join(dir, "holds-env"), join(dir, "dest-benign"));
+      denied(r, "secret-file-write", `${p}move_file: a directory holding .env.local`);
+      assert.match(r.err, /Judged through MCP adapter file-move\./);
+      denied(mv("holds-env", "dest-benign", dir), "secret-file-write", `${p}move_file: relative source resolved against the session cwd`);
+      allowed(mv(join(dir, "benign"), join(dir, "dest-benign")), `${p}move_file: a directory of benign files`);
+      allowed(mv(join(dir, "example"), join(dir, "dest-benign")), `${p}move_file: a directory holding .env.example`);
+      allowed(mv(join(dir, "does-not-exist"), join(dir, "dest-benign")), `${p}move_file: a nonexistent source`);
+      // a plain file move behaves exactly as before
+      denied(mv(join(dir, "benign", "a.txt"), join(dir, ".env.local")), "secret-file-write", `${p}move_file: a file moved ONTO .env.local`);
+      denied(mv(join(dir, "holds-env", "app", ".env.local"), join(dir, "elsewhere.txt")), "secret-file-write", `${p}move_file: a .env.local file moved away`);
+      allowed(mv(join(dir, "benign", "a.txt"), join(dir, "b.txt")), `${p}move_file: a benign file move`);
+    }
+  });
+});
+
+test("R5: an over-cap directory is judged as far as the walk got, with ONE stderr line; descendants beyond the cap are not judged (a pin)", () => {
+  withTempDir((dir) => {
+    const big = join(dir, "big");
+    bulkFiles(big, Array.from({ length: 2005 }, (_, i) => `f${String(i).padStart(4, "0")}.txt`));
+    touch(join(big, "zz", ".env.local")); // below the cap: never listed
+    const r = run(`${DC_PLUGIN}move_file`, { source: big, destination: join(dir, "dest") });
+    allowed(r, "an over-cap directory fails open (if this now denies, the cap was lifted: update the README directory walk limit and this pin)");
+    assert.match(r.err, CAP_NOTE, "the cap must be announced on stderr");
+    assert.equal(r.err.match(new RegExp(CAP_NOTE.source, "g")).length, 1, "exactly one stderr line");
+  });
+});
+
+test("R5: a 2000-entry directory is walked completely, far inside the hook timeout", (t) => {
+  withTempDir((dir) => {
+    const full = join(dir, "full");
+    bulkFiles(full, Array.from({ length: 1999 }, (_, i) => `g${String(i).padStart(4, "0")}.txt`));
+    touch(join(full, ".env.local")); // entry 2000: inside the cap
+    const r = run(`${DC_PLUGIN}move_file`, { source: full, destination: join(dir, "dest") });
+    denied(r, "secret-file-write", "a 2000-entry directory holding .env.local");
+    assert.doesNotMatch(r.err, /too large to inspect/);
+    t.diagnostic(`hook wall time on a 2000-entry directory move: ${r.ms} ms`);
+    assert.ok(r.ms < 5000, `a 2000-entry walk took ${r.ms} ms; the hook timeout is 10 s and a timeout fails OPEN`);
+  });
+});
+
+test("R5: the walk stops at depth 6 (documented) and never follows a symlink", () => {
+  withTempDir((dir) => {
+    const mv = (source) => run(`${DC_PLUGIN}move_file`, { source, destination: join(dir, "dest") });
+    touch(join(dir, "d6", "a", "b", "c", "d", "e", ".env.local")); // the file sits at depth 6
+    denied(mv(join(dir, "d6")), "secret-file-write", "a file at depth 6 is judged");
+    touch(join(dir, "d7", "a", "b", "c", "d", "e", "f", ".env.local")); // depth 7
+    const deep = mv(join(dir, "d7"));
+    allowed(deep, "a file at depth 7 is beyond the walk (if this now denies, the depth cap moved: update the README and this pin)");
+    assert.match(deep.err, CAP_NOTE);
+    // symlinks and junctions: names only, never followed
+    touch(join(dir, "real", ".env.local"));
+    mkdirSync(join(dir, "linked"));
+    touch(join(dir, "linked", "ok.txt"));
+    let linked = true;
+    try {
+      symlinkSync(join(dir, "real"), join(dir, "linked", "link"), process.platform === "win32" ? "junction" : "dir");
+    } catch {
+      linked = false; // no permission to create links here: the follow check cannot run
+    }
+    if (linked) allowed(mv(join(dir, "linked")), "a symlinked directory below the source is not followed");
+  });
 });
