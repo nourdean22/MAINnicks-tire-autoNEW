@@ -51,7 +51,11 @@ const settings = JSON.parse(readFileSync(join(ROOT, ".claude", "settings.json"),
 const README = readFileSync(join(ROOT, "docs", "agent-os", "README.md"), "utf8");
 
 // Hook env carries no GIT_* (guard-red-team rule 6). The hook runs no git; the habit is the point.
-const ENV = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("GIT_")));
+// The operator override of the infra name rule is SET here on purpose: this file tests the runner, file and SQL rows, and two SQL tools
+// (Neon complete_database_migration, Prisma execute_prisma_postgres_schema_update) are ALSO denied by name, which would turn every benign SQL
+// arm into a deny. The override lifts only that rule, so the SQL rows are still judged by destructive-sql (mcpInfraDeny.test.mjs proves both).
+const INFRA_RULE_ID = "infra-mutation-tool";
+const ENV = { ...Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("GIT_"))), AGENT_OS_INFRA_OVERRIDE: "mcpCoverage.test.mjs: the SQL and runner rows are under test, the name rule has mcpInfraDeny.test.mjs" };
 
 const NORMAL = "C:/Users/nourd/NOURCITY";
 const WORKTREE = "C:/Users/nourd/NOURCITY/.claude/worktrees/some-session";
@@ -118,7 +122,8 @@ const SQL_SYNTHETIC = [
 ];
 // Tools of the same servers that are deliberately NOT judged by text (README "SQL text tools").
 const SQL_UNJUDGED = [
-  `${NEON}prepare_database_migration`, `${NEON}prepare_query_tuning`, `${NEON}complete_query_tuning`, `${NEON}get_connection_string`,
+  // complete_query_tuning is no longer here: it is denied BY NAME now (a Neon leaf of infra-mutation-tool), so it is claimed and routed
+  `${NEON}prepare_database_migration`, `${NEON}prepare_query_tuning`, `${NEON}get_connection_string`,
   `${PRISMA_CONNECTOR}introspect_database_schema`, `${PRISMA_PLUGIN}list_prisma_postgres_databases`,
 ];
 const sqlInput = (shape, text) => shape.input(shape.array ? [text] : text);
@@ -164,7 +169,8 @@ function judge(toolName, input, cwd, pol = policy) {
   const calls = engine.adaptToolCall(toolName, input, cwd, pol);
   assert.ok(Array.isArray(calls), `${toolName}: no adapter claims this tool`);
   for (const call of calls) {
-    const res = engine.evaluate(call, pol);
+    // the infra name rule is judged in mcpInfraDeny.test.mjs; here it is skipped exactly as the override skips it in the hook, so the two SQL tools it also denies are judged by their SQL rows
+    const res = engine.evaluate({ ...call, skipRules: [...(call.skipRules ?? []), INFRA_RULE_ID] }, pol);
     if (res.denied) return res;
   }
   return { denied: false };
@@ -172,9 +178,12 @@ function judge(toolName, input, cwd, pol = policy) {
 
 const cwdFor = (rule) => rule.cwdExample ?? (rule.onlyWhenCwdMatches ? WORKTREE : NORMAL);
 const adapters = () => policy.mcpAdapters ?? [];
+// Rows that judge a tool's INPUT FIELDS. The infra-name row (nameAsText) judges the tool NAME and has no field: its canaries are in mcpInfraDeny.test.mjs.
+const fieldAdapters = () => adapters().filter((a) => !a.nameAsText);
 // A denyExample whose denial rests on a SHELL boundary: a statement ended by `&&` or a pipe, or by a second -c/-Query flag. A rawText (SQL) row has no shell, so it does not judge these.
 const SHELL_BOUNDARY_EXAMPLE = /&&|\s\|\s|\s-(?:query|[A-Za-z0-9]*[cefq])\b[\s\S]*\s-(?:query|[A-Za-z0-9]*[cefq])\b/i;
-const bashRules = policy.rules.filter((r) => r.pattern && (Array.isArray(r.tools) ? r.tools.includes("Bash") : true));
+// infra-mutation-tool is excluded: its examples are TOOL NAMES, judged through the name row (mcpInfraDeny.test.mjs), not command text for a runner.
+const bashRules = policy.rules.filter((r) => r.id !== INFRA_RULE_ID && r.pattern && (Array.isArray(r.tools) ? r.tools.includes("Bash") : true));
 const fileRules = policy.rules.filter((r) => r.pathPattern && (Array.isArray(r.tools) ? r.tools.includes("Write") : true));
 
 // A copy of the REAL hook (pretool.mjs + policy.mjs) beside a policy.json we are free to break.
@@ -218,8 +227,16 @@ test("adapter table: present, well formed, anchored, disjoint and documented", (
     assert.ok(a.as === "Bash" || a.as === "Write", `${a.id}: 'as' must be Bash or Write`);
     const fields = a.as === "Write" ? a.pathFields : a.commandFields;
     const other = a.as === "Write" ? a.commandFields : a.pathFields;
-    assert.ok(Array.isArray(fields) && fields.length >= 1 && fields.every((f) => typeof f === "string" && f), `${a.id}: needs a non-empty list of field names`);
-    assert.equal(other, undefined, `${a.id}: a Bash adapter reads commandFields only, a Write adapter pathFields only`);
+    if (a.nameAsText === undefined) {
+      assert.ok(Array.isArray(fields) && fields.length >= 1 && fields.every((f) => typeof f === "string" && f), `${a.id}: needs a non-empty list of field names`);
+      assert.equal(other, undefined, `${a.id}: a Bash adapter reads commandFields only, a Write adapter pathFields only`);
+    } else {
+      // the one name row (2026-10-15, job infra-deny-by-name): it judges the tool NAME, so it has no field list; mcpInfraDeny.test.mjs pins it in full
+      assert.equal(a.nameAsText, true, `${a.id}: nameAsText is the strict boolean true or absent`);
+      assert.equal(a.as, "Bash", `${a.id}: a name row hands the name to Bash rules`);
+      assert.deepEqual(a.onlyRules, [INFRA_RULE_ID], `${a.id}: a name row is judged by ${INFRA_RULE_ID} alone`);
+      assert.equal(a.commandFields ?? a.pathFields, undefined, `${a.id}: a name row reads no input field`);
+    }
     assert.ok(a.cwdField === undefined || (typeof a.cwdField === "string" && a.cwdField), `${a.id}: cwdField must be a field name`);
     assert.ok(Array.isArray(a.exampleTools) && a.exampleTools.length >= 1, `${a.id}: needs >=1 exampleTools (the canaries iterate them)`);
     for (const n of NATIVE) assert.ok(!new RegExp(a.toolPattern).test(n), `${a.id}: must not claim the native tool ${n}`);
@@ -227,7 +244,7 @@ test("adapter table: present, well formed, anchored, disjoint and documented", (
     if (a.clientHint !== undefined) assert.ok(a.as === "Bash" && typeof a.clientHint === "string" && a.clientHint, `${a.id}: clientHint is a non-empty string on a Bash row`);
     // no dead or mistyped config: every key of a row is one the code reads (a stray key is silently ignored)
     for (const key of Object.keys(a)) {
-      assert.ok(["id", "toolPattern", "as", "commandFields", "pathFields", "cwdField", "exceptRules", "onlyRules", "rawText", "clientHint", "skipWhenTrue", "expandDirectory", "exampleTools", "why"].includes(key),
+      assert.ok(["id", "toolPattern", "as", "commandFields", "pathFields", "cwdField", "exceptRules", "onlyRules", "rawText", "nameAsText", "clientHint", "skipWhenTrue", "expandDirectory", "exampleTools", "why"].includes(key),
         `${a.id}: unknown row field '${key}'`);
     }
     if (a.exceptRules !== undefined) {
@@ -246,7 +263,9 @@ test("adapter table: every example tool is claimed by its own adapter and by no 
   assert.ok(adapters().length >= 6, "no adapter table to check (a loop over nothing is a silent green)");
   for (const a of adapters()) {
     for (const tool of a.exampleTools) {
-      const claimants = adapters().filter((b) => new RegExp(b.toolPattern).test(tool)).map((b) => b.id);
+      // the name row may CO-claim the two SQL tools that are also denied by name (complete_database_migration, execute_prisma_postgres_schema_update);
+      // a field row's example must still be claimed by exactly one FIELD row, and the name row's own examples by the name row alone
+      const claimants = (a.nameAsText ? adapters() : fieldAdapters()).filter((b) => new RegExp(b.toolPattern).test(tool)).map((b) => b.id);
       assert.deepEqual(claimants, [a.id], `${tool} must be claimed by exactly ${a.id}, got [${claimants}]`);
     }
   }
@@ -263,7 +282,7 @@ test("adapter table: both Desktop Commander registrations are claimed (suffix ma
 // --- 2 - in-process parity: every rule through every adapter -----------------------------------
 
 test("parity: every Bash-family denyExample is denied by the SAME rule through every command adapter", () => {
-  const cmdAdapters = adapters().filter((a) => a.as === "Bash");
+  const cmdAdapters = fieldAdapters().filter((a) => a.as === "Bash");
   assert.ok(cmdAdapters.length >= 4, "expected the command adapters");
   let checked = 0;
   for (const a of cmdAdapters) {
@@ -289,8 +308,8 @@ test("parity: every Bash-family denyExample is denied by the SAME rule through e
 });
 
 test("parity: every Bash-family allowExample stays allowed through every command adapter", () => {
-  assert.ok(adapters().filter((x) => x.as === "Bash").length >= 4, "expected the command adapters (a loop over nothing is a silent green)");
-  for (const a of adapters().filter((x) => x.as === "Bash")) {
+  assert.ok(fieldAdapters().filter((x) => x.as === "Bash").length >= 4, "expected the command adapters (a loop over nothing is a silent green)");
+  for (const a of fieldAdapters().filter((x) => x.as === "Bash")) {
     for (const tool of a.exampleTools) {
       for (const field of a.commandFields) {
         for (const rule of bashRules) {
@@ -656,7 +675,7 @@ test("BREAKS: a copy of the real hook denies through MCP; emptying or miswiring 
   // a WELL-FORMED row that treats the command text as a file path: the rules never see a command
   withTree((p) => {
     for (const a of p.mcpAdapters ?? []) {
-      if (a.as === "Bash") { a.as = "Write"; a.pathFields = a.commandFields; delete a.commandFields; delete a.clientHint; }
+      if (a.as === "Bash" && !a.nameAsText) { a.as = "Write"; a.pathFields = a.commandFields; delete a.commandFields; delete a.clientHint; }
     }
   }, (hook) => allowed(payload(hook), "adapter maps onto the wrong logical tool"));
   withTree((p) => { for (const a of p.mcpAdapters ?? []) a.toolPattern = "^nothing$"; }, (hook) => allowed(payload(hook), "adapter pattern matches no real tool"));
@@ -700,15 +719,16 @@ test("README documents every adapter, the unguarded inventory and the live check
   for (const limit of [/persistent shell/i, /unscanned middle/i, /directory walk/i]) {
     assert.match(README, limit, `README must state the documented limit ${limit}`);
   }
-  // 2026-10-15 (job guard-sql-lease-infra): the ask layer, the list reader, the lease group, the SQL limits and the live-check probes
-  assert.match(README, /### Native ask rules/, "README needs the native ask layer section");
+  // 2026-10-15 (jobs guard-sql-lease-infra and infra-deny-by-name): the infra deny layer, the list reader, the lease group, the SQL limits and the live-check probes
+  assert.match(README, /### Infra tools: deny by name/, "README needs the infra deny-by-name section (the ask section it replaced is gone)");
+  assert.ok(README.includes("`infra-name`") && README.includes("`nameAsText`"), "README must document the name row and its nameAsText field");
   assert.match(README, /### How `destructive-sql` reads SQL/, "README must state the boundary the SQL rule scans to");
   for (const phrase of ["a lone `|`", "5,000 characters", "`&&`", "`--command`", "Written-out whitespace", "Quoted identifiers"]) assert.ok(README.includes(phrase), `README must state the SQL rule's boundary: ${phrase}`);
   for (const phrase of ["SQL_FIELD_CAP", "psql -f cleanup.sql", "sqlcmd", "-- drop table later", "analyze: false", "CHAINED read-only search", "git commit -F <file>", "MERGE ... WHEN MATCHED"]) {
     assert.ok(README.includes(phrase), `README must state the accepted SQL limit: ${phrase}`);
   }
   assert.doesNotMatch(README, /quadratic in the text length/, "destructive-sql is anchored and bounded now: the README must not call it quadratic");
-  for (const phrase of ["permissions.ask", "mcp__*__<leaf>", "bypassPermissions", "mcpAskRules.test.mjs", "ARRAY_MAX", "ARRAY_CHAR_BUDGET", "CONTROL-CANARY-COVERAGE.md",
+  for (const phrase of ["permissions.ask", "bypassPermissions", "mcpInfraDeny.test.mjs", "ARRAY_MAX", "ARRAY_CHAR_BUDGET", "CONTROL-CANARY-COVERAGE.md",
     "Unclassified infrastructure tools", "neon-sql.sql", "neon-sql-transaction.sql_statements[1]", "guard_live_check_probe", "delete-service", "delete_project"]) {
     assert.ok(README.includes(phrase), `README must mention ${phrase}`);
   }
@@ -748,21 +768,20 @@ test("docs truth: the live check is runnable from a worktree session, the lease 
   // the first Enforcement-map row is the one that names the hook's config; found by that, not by the rule count it opens with (that count moves when a rule is added)
   const row = agents.split("\n").find((l) => l.startsWith("| ") && l.includes("config/agent-os/policy.json") && l.includes("blocked at the tool call")) ?? "";
   assert.ok(row, "AGENTS.md first Enforcement-map row (the pretool hook row) not found");
-  // 2026-10-15 live check, step 7 FAIL: the 135 `mcp__*__<leaf>` ask rules ran NO prompt in bypassPermissions (Railway delete-service, Vercel pause_project, Prisma
-  // delete_prisma_postgres_database), so the row says they gate nothing yet and no longer claims a prompt; the cause is not known and is not guessed here
-  for (const phrase of ["FAILED their live check on 2026-10-15", "gate nothing yet", "`permissions.ask`", "`lease-check.mjs`", "SQL text tools", "Native ask rules"]) assert.ok(row.includes(phrase), `AGENTS.md row must say: ${phrase}`);
-  assert.doesNotMatch(row, /\bPROMPTED\b|proven live|are prompted|prompts? even in bypass|even in bypass \(list/, "the old claims (the infra tools are PROMPTED, documented not proven live, prompts even in bypass) were disproved by the live check and must not return");
-  // Codex #3053 (P2) still holds: the README's KNOWN_UNCLASSIFIED writers (Vercel create_drain, update_sandbox, ...) were never on the ask list at all
+  // 2026-10-15 live check, step 7 FAIL: the 135 `mcp__*__<leaf>` ask rules ran NO prompt in bypassPermissions. Job infra-deny-by-name replaced them with a hook deny by name
+  // (rule infra-mutation-tool): the row now says DENIED by name. The full wording is pinned in mcpInfraDeny.test.mjs; this is the cross-file backstop for the old claims.
+  for (const phrase of ["DENIED by name", "infra-mutation-tool", "AGENT_OS_INFRA_OVERRIDE", "`lease-check.mjs`", "SQL text tools"]) assert.ok(row.includes(phrase), `AGENTS.md row must say: ${phrase}`);
+  assert.doesNotMatch(row, /\bPROMPTED\b|proven live|are prompted|prompts? even in bypass|even in bypass \(list|gate nothing yet|NO working gate/, "the old claims (PROMPTED, prompts even in bypass, the infra tools have no working gate) are false now and must not return");
+  // Codex #3053 (P2) still holds: the README's KNOWN_UNCLASSIFIED writers (Vercel create_drain, update_sandbox, ...) were never classified, so they are not denied
   for (const phrase of ["were never covered", "docs/agent-os/README.md"]) assert.ok(row.includes(phrase), `AGENTS.md row must say: ${phrase}`);
-  assert.doesNotMatch(row, /Railway\/Neon\/Vercel\/Prisma mutation tools are PROMPTED/, "the unqualified claim (every mutation tool prompts) was false: the unclassified writers are not on the ask list");
   // the README side of the same truth, read from the section that makes the claim (whitespace-normalised: the wording wraps across lines)
-  const askAt = README.indexOf("### Native ask rules");
-  const ask = README.slice(askAt, README.indexOf("### Still unguarded")).replace(/\s+/g, " ");
-  assert.ok(askAt >= 0 && ask.length > 1000, "README 'Native ask rules' section not found");
-  for (const phrase of ["NOT WORKING as written", "FAILED their live check", "gate nothing yet", "pause_project", "delete_prisma_postgres_database", "The cause is NOT known", "THE RISK MATERIALISED"]) assert.ok(ask.includes(phrase), `README 'Native ask rules' must say: ${phrase}`);
+  const denyAt = README.indexOf("### Infra tools: deny by name");
+  const deny = README.slice(denyAt, README.indexOf("### Still unguarded")).replace(/\s+/g, " ");
+  assert.ok(denyAt >= 0 && deny.length > 3000, "README 'Infra tools: deny by name' section not found");
+  for (const phrase of ["FAILED their live check", "pause_project", "delete_prisma_postgres_database", "was not separated", "denied by name", "AGENT_OS_INFRA_OVERRIDE"]) assert.ok(deny.includes(phrase), `README 'Infra tools: deny by name' must say: ${phrase}`);
   const live1 = live.replace(/\s+/g, " ");
-  for (const phrase of ["Recorded result, 2026-10-15", "Steps 1 to 4 PASS", "Steps 5 and 6 PASS", "Step 7 FAIL", "replace the `mcp__*__<leaf>` entries with exact tool names (and keep the fixtures in step)"]) assert.ok(live1.includes(phrase), `README live check must say: ${phrase}`);
-  assert.doesNotMatch(README.replace(/\s+/g, " "), /makes Claude Code prompt before each one|Documented, not proven live|\*\*What prompts\.\*\*|The 135 protected leaves prompt|the native ask rules have no such window\.|If it fails, replace the globs with exact names/, "an old unqualified ask-rule claim returned: the live check disproved it");
+  for (const phrase of ["Recorded result, 2026-10-15", "Steps 1 to 4 PASS", "Steps 5 and 6 PASS", "Step 7 FAIL", "BLOCKED by repo policy: infra-mutation-tool", "no operator taps"]) assert.ok(live1.includes(phrase), `README live check must say: ${phrase}`);
+  assert.doesNotMatch(README.replace(/\s+/g, " "), /makes Claude Code prompt before each one|Documented, not proven live|\*\*What prompts\.\*\*|The 135 protected leaves prompt|the native ask rules have no such window\.|If it fails, replace the globs with exact names|replace the `mcp__\*__<leaf>` entries with exact tool names/, "an old unqualified ask-rule claim or instruction returned: the live check disproved it and the deny replaced it");
   for (const phrase of ["`DELETE dbo.leads`", "UPDATE TOP (100) PERCENT", "FROM is optional in T-SQL", "ON DELETE CASCADE"]) assert.ok(README.includes(phrase), `README must list the T-SQL limit: ${phrase}`);
   const why = policy.rules.find((r) => r.id === "destructive-sql").why;
   assert.match(why, /the listed DROP kinds/);
@@ -770,8 +789,8 @@ test("docs truth: the live check is runnable from a worktree session, the lease 
   const ledger = readFileSync(join(ROOT, "docs", "agent-os", "MANAGER-LEDGER.md"), "utf8").split("\n").find((l) => l.startsWith("| 2026-10-15-guard-sql-lease-infra |")) ?? "";
   assert.ok(ledger, "the ledger row for this job is missing");
   assert.doesNotMatch(ledger, /every DROP kind/, "the ledger row must say the listed DROP kinds");
-  const total = policy.rules.reduce((n, r) => n + (r.denyExamples ?? []).length, 0); // derived, not hardcoded: the ledger and the coverage doc both quote it
-  for (const phrase of ["the listed DROP kinds", `144 to ${total}`, "fast-forward", "G4 the re-review, two commits"]) assert.ok(ledger.includes(phrase), `the ledger row must say: ${phrase}`);
+  // "144 to 219" is the count AFTER that job (a historical row, never edited again); the CURRENT denyExamples total is pinned by coverage-doc.test.mjs, not here
+  for (const phrase of ["the listed DROP kinds", "144 to 219", "fast-forward", "G4 the re-review, two commits"]) assert.ok(ledger.includes(phrase), `the ledger row must say: ${phrase}`);
   // 2026-10-15 live check: the row records the merge and the step 7 FAIL with an owner and a date
   const cell = ledger.split("|").map((c) => c.trim());
   assert.equal(cell[5], "MERGED", "the guard row's Status cell must be MERGED");
@@ -827,6 +846,12 @@ test("review-fix table: each optional field sits on exactly the intended row", (
   }
   for (const other of Object.keys(rows)) {
     if (SQL_ROW_IDS.includes(other)) continue;
+    if (rows[other].nameAsText) {
+      // the infra name row: judged by its own rule alone, and never rawText (it would erase the hyphens of the Railway names)
+      assert.deepEqual(rows[other].onlyRules, [INFRA_RULE_ID], `${other} is judged by ${INFRA_RULE_ID} alone`);
+      assert.equal(rows[other].rawText, undefined, `${other} must not carry rawText`);
+      continue;
+    }
     assert.equal(rows[other].onlyRules, undefined, `${other} must not carry onlyRules`);
     assert.equal(rows[other].rawText, undefined, `${other} must not carry rawText`);
   }
@@ -1134,7 +1159,8 @@ test("SQL rows: every real registration and the synthetic ones are claimed by ex
   assert.equal(SQL_SHAPES.length, 8, "4 Neon tools, and 2 Prisma tools on each of the 2 Prisma registrations");
   for (const id of SQL_ROW_IDS) assert.ok(adapters().some((a) => a.id === id), `row ${id} is missing from policy.json mcpAdapters`);
   for (const [name, row] of [...SQL_SHAPES.map((s) => [s.name, s.row]), ...SQL_SYNTHETIC]) {
-    const claimants = adapters().filter((b) => new RegExp(b.toolPattern).test(name)).map((b) => b.id);
+    // among the FIELD rows: the name row also claims the two SQL tools that are denied by name too (mcpInfraDeny.test.mjs pins that co-claim)
+    const claimants = fieldAdapters().filter((b) => new RegExp(b.toolPattern).test(name)).map((b) => b.id);
     assert.deepEqual(claimants, [row], `${name} must be claimed by exactly ${row}, got [${claimants}]`);
   }
   assert.equal(typeof engine.adaptToolCall, "function", "policy.mjs must export adaptToolCall()");
@@ -1608,7 +1634,7 @@ test("destructive-sql deny probes: each class is among the denyExamples, and eac
   const classes = [/DELETE\s+(?:\w+\s+)*FROM/i, /UPDATE\s+\S+(?:\s+\S+)?\s+SET/i, /ALTER\s+TABLE[\s\S]*DROP/i, ...DROP_KINDS.map((k) => new RegExp(`DROP\\s+${k.split(" ")[0]}`, "i"))];
   for (const re of classes) assert.ok(DESTRUCTIVE_PROBES.some((p) => re.test(p)), `no destructive-sql denyExample for the class ${re}`);
   assert.ok(DESTRUCTIVE_PROBES.length >= 40, `the denyExamples are the proof surface for the extended arms, got ${DESTRUCTIVE_PROBES.length}`);
-  const rowsAsBash = adapters().filter((a) => a.as === "Bash");
+  const rowsAsBash = fieldAdapters().filter((a) => a.as === "Bash");
   assert.ok(rowsAsBash.length >= 8, "4 runner rows and 4 SQL rows (a loop over nothing is a silent green)");
   for (const command of DESTRUCTIVE_PROBES) {
     for (const toolName of ["Bash", "PowerShell"]) {
