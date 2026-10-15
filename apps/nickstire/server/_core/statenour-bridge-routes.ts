@@ -38,7 +38,7 @@ import express from "express";
 import { timingSafeEqual } from "crypto";
 import { createLogger } from "../lib/logger";
 import { BUSINESS } from "@shared/business";
-import { getBusinessDateKey, shiftDateKey } from "../lib/timezoneAssert";
+import { getBusinessDateKey, shiftDateKey, shopWallClock } from "../lib/timezoneAssert";
 import { shopDayRangeSql } from "../services/autonomyControl";
 
 const log = createLogger("statenour-bridge");
@@ -785,7 +785,8 @@ export function registerStatenourBridgeRoutes(app: Express): void {
           customerPhone: "",
           amount: body.amount,
           snapApplicationId: body.applicationId,
-          approvalDate: new Date(),
+          // The approval becomes the invoice date, which is the shop's day as stored: the Cleveland clock.
+          approvalDate: shopWallClock(),
         });
       }
 

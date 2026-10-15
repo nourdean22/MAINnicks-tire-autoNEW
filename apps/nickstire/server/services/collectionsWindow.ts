@@ -1,3 +1,5 @@
+import { shopInstant } from "../lib/timezoneAssert";
+
 /**
  * The collections window, in one place.
  *
@@ -44,8 +46,10 @@ export function collectionsState(ageDays: number): CollectionsState {
 /** Whole days between an invoice date and now. Computed here so callers agree. */
 export function invoiceAgeDays(invoiceDate: Date | string | null, now: Date = new Date()): number {
   if (!invoiceDate) return 0;
-  const d = invoiceDate instanceof Date ? invoiceDate : new Date(invoiceDate);
-  if (Number.isNaN(d.getTime())) return 0;
+  const wall = invoiceDate instanceof Date ? invoiceDate : new Date(invoiceDate);
+  if (Number.isNaN(wall.getTime())) return 0;
+  // invoiceDate is the shop's wall clock as stored, so the age is measured from its real instant.
+  const d = shopInstant(wall);
   return Math.floor((now.getTime() - d.getTime()) / (24 * 60 * 60 * 1000));
 }
 

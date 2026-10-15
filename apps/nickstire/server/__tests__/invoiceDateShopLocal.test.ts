@@ -94,7 +94,8 @@ describe("invoiceDate is read as the stored shop-local day", () => {
 });
 
 /** A writer that stores the UTC clock into a shop-day column: `invoiceDate: new Date()`. */
-const UTC_CLOCK_WRITE = /\b(?:invoiceDate|estimateDate)\s*[:=][^;,\n]*\bnew Date\(\s*\)/g;
+// approvalDate becomes invoiceDate (snapFinanceSync), so it is a shop-day write too.
+const UTC_CLOCK_WRITE = /\b(?:invoiceDate|estimateDate|approvalDate)\s*[:=][^;,\n]*\bnew Date\(\s*\)/g;
 
 function findUtcClockWrites(files: Array<{ file: string; text: string }>): string[] {
   return files.flatMap(({ file, text }) =>

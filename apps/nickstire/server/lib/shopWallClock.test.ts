@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { shopWallClock } from "./timezoneAssert";
+import { shopInstant, shopWallClock } from "./timezoneAssert";
 
 describe("shopWallClock: the shop's wall clock, stored as a shop-local TIMESTAMP", () => {
   it("reads the Cleveland clock in the UTC fields during EDT: 21:00 on Oct 12", () => {
@@ -22,5 +22,31 @@ describe("shopWallClock: the shop's wall clock, stored as a shop-local TIMESTAMP
     const wall = shopWallClock().getTime();
     // The wall-clock Date is shifted by the zone offset (4 or 5 hours), never by more than a day.
     expect(Math.abs(wall - before)).toBeLessThan(24 * 60 * 60 * 1000);
+  });
+});
+
+describe("shopInstant: the inverse of shopWallClock, so ages are measured between instants", () => {
+  it("turns a stored 21:00 shop-day clock back into the EDT instant it was written at", () => {
+    // Stored as 2026-10-12 21:00 (the Cleveland clock); the instant is 2026-10-13T01:00Z.
+    expect(shopInstant(new Date("2026-10-12T21:00:00Z")).toISOString()).toBe("2026-10-13T01:00:00.000Z");
+  });
+
+  it("uses the winter offset too: a stored 21:00 in January is 02:00Z the next day", () => {
+    expect(shopInstant(new Date("2026-01-14T21:00:00Z")).toISOString()).toBe("2026-01-15T02:00:00.000Z");
+  });
+
+  it("round-trips with shopWallClock across the March and November changes", () => {
+    for (const instant of [
+      "2026-03-08T06:30:00Z", // just before EST→EDT
+      "2026-03-08T08:30:00Z", // after the change
+      "2026-10-13T01:00:00Z", // EDT
+      // The repeated 01:00-02:00 hour on Nov 1 has two instants for one wall time, so it cannot
+      // round-trip; 00:30 EDT is the last clean EDT reading before it.
+      "2026-11-01T04:30:00Z", // 00:30 EDT
+      "2026-11-01T07:30:00Z", // EST
+    ]) {
+      const i = new Date(instant);
+      expect(shopInstant(shopWallClock(i)).getTime()).toBe(i.getTime());
+    }
   });
 });

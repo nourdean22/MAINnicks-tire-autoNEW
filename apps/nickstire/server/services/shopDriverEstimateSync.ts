@@ -177,7 +177,7 @@ function normalizeEstimateJson(raw: Record<string, unknown>): RawEstimate | null
     (raw.createdAt as string | undefined) ||
     (raw.ticketDate as string | undefined) ||
     (raw.accessedDate as string | undefined) ||
-    new Date().toISOString();
+    shopWallClock().toISOString();
   const parsedDate = new Date(dateRaw);
   const estimateDate = Number.isNaN(parsedDate.getTime()) ? shopWallClock() : parsedDate;
 
@@ -245,7 +245,7 @@ function normalizeTicketAsEstimate(raw: Record<string, unknown>): RawEstimate {
     (raw.estimateDate as string | undefined) ||
     (raw.invoiceDate as string | undefined) ||
     (raw.customerDateCreated as string | undefined) ||
-    new Date().toISOString();
+    shopWallClock().toISOString();
   const parsed = new Date(dateRaw);
   const estimateDate = Number.isNaN(parsed.getTime()) ? shopWallClock() : parsed;
 

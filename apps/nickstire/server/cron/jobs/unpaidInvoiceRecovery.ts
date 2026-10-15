@@ -31,7 +31,7 @@ import { BUSINESS } from "@shared/business";
 import { createLogger } from "../../lib/logger";
 import { db } from "../../lib/db-helper";
 import { invoices } from "../../../drizzle/schema";
-import { getBusinessDateKey } from "../../lib/timezoneAssert";
+import { getBusinessDateKey, shopInstant } from "../../lib/timezoneAssert";
 
 const log = createLogger("cron:unpaid-invoice-recovery");
 
@@ -249,7 +249,7 @@ export async function runUnpaidInvoiceRecovery(opts?: RunOpts): Promise<Recovery
     if (sent7d + sent30d >= MAX) break;
     if (!inv.customerPhone) continue;
     try {
-      const ageDays = Math.floor((now - new Date(inv.invoiceDate).getTime()) / DAY);
+      const ageDays = Math.floor((now - shopInstant(inv.invoiceDate).getTime()) / DAY);
       // One touch per invoice per run, and the two touches are an ESCALATING
       // SEQUENCE - never go backwards.
       //

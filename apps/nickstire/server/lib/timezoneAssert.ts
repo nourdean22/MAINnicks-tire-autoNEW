@@ -198,6 +198,20 @@ export function shopWallClock(now: Date = new Date()): Date {
   return new Date(Date.UTC(v.year, v.month - 1, v.day, v.hour, v.minute, v.second));
 }
 
+/**
+ * The real instant at which the Cleveland clock reads the wall time stored in `wall`. The inverse of
+ * shopWallClock: a shop-day TIMESTAMP is read through this, so an age is measured between instants.
+ */
+export function shopInstant(wall: Date): Date {
+  if (Number.isNaN(wall.getTime())) return new Date(Number.NaN);
+  let instant = new Date(wall.getTime() + 5 * 60 * 60 * 1000);
+  for (let i = 0; i < 2; i++) {
+    const offset = shopWallClock(instant).getTime() - instant.getTime();
+    instant = new Date(wall.getTime() - offset);
+  }
+  return instant;
+}
+
 /** Whole minutes since midnight in the shop's timezone. A duration, so the DB clock's zone never matters. */
 export function minutesSinceShopMidnight(now: Date, timeZone: string = BUSINESS.timezone): number {
   const parts = new Intl.DateTimeFormat("en-US", { timeZone, hour: "numeric", minute: "numeric", hourCycle: "h23" }).formatToParts(now);

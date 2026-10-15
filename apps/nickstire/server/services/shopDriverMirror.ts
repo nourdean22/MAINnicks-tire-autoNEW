@@ -12,7 +12,7 @@
 import { createLogger } from "../lib/logger";
 import { isDuplicateKeyError } from "../lib/dbErrors";
 import { lockedTotalPatch, STALE_INTENT_MS, withInvoiceLock } from "./paymentIntentLock";
-import { getBusinessDateKey } from "../lib/timezoneAssert";
+import { getBusinessDateKey, shopWallClock } from "../lib/timezoneAssert";
 import { eq, and, inArray, sql } from "drizzle-orm";
 
 const log = createLogger("shopdriver-mirror");
@@ -549,7 +549,7 @@ function normalizeInvoiceJson(raw: any): RawInvoice {
       [raw.customer?.firstName, raw.customer?.lastName].filter(Boolean).join(" ") || "Unknown",
     customerPhone: normalizePhone(raw.primaryNumber || raw.primaryPhone || raw.customerPhone || raw.customer?.phone || ""),
     totalAmount: typeof amount === "number" ? Math.round(amount * 100) : parseDollarsToCents(String(amount)),
-    date: raw.date || raw.invoiceDate || raw.createdAt || raw.ticketDate || raw.accessedDate || new Date().toISOString(),
+    date: raw.date || raw.invoiceDate || raw.createdAt || raw.ticketDate || raw.accessedDate || shopWallClock().toISOString(),
     service: raw.serviceDescription || raw.description || raw.service || raw.vehicleDescription || raw.services?.join(", ") || "",
     // Wave-99 fix: ALG's listRecentTickets returns year/make/model (no
     // "vehicle" prefix). Older endpoints used the prefixed names so
