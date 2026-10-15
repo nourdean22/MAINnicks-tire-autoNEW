@@ -4916,6 +4916,30 @@
         "Adjacent rot noted, not widened: the governor's topic/CTA lookback fetches by createdAt (7 days), so a reservation created more than 7 days before its window is not seen by the repeat checks (contentGovernor.test.ts canary comment)."
       ],
       "lastVerifiedAt": "2026-10-10"
+    },
+    {
+      "capabilityId": "card-payment-amount-lock",
+      "name": "A card payment amount cannot change between the moment Stripe is asked to charge it and the moment it is recorded paid",
+      "owner": "nickstire",
+      "evidence": {
+        "codeCommit": "fed1f2ec0",
+        "tests": "services/paymentIntentLock.test.ts (unit: lock held on succeeded, processing and failed; fresh intents held; stale intents canceled then released; markPaymentPaid); __tests__/paymentIntentLockWiring.test.ts (source scan of the five wiring calls); full nickstire suite on eb518eb44: 1030 test files passed, 3 skipped; 13321 tests passed, 74 skipped, 0 failed."
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Code is not merged (codeState in_progress). Exposure stays disabled until the PR merges and deploys; promotion is a separate event."
+        }
+      ],
+      "deferredScope": [
+        "payment intents created before the lock deploys are not locked",
+        "payment-link rows with no Stripe payment-intent id are excluded from the lock",
+        "route-level wiring is covered by a source scan only; no Stripe test-mode run against the live webhook yet"
+      ],
+      "lastVerifiedAt": "2026-10-14",
+      "codeState": "in_progress",
+      "operationalState": "unit_verified",
+      "exposure": "disabled"
     }
   ],
   "axes": {
