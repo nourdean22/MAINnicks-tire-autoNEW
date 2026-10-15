@@ -20,6 +20,11 @@ export const RETRY_HELD_RAN = "That reply may already have run an action, so it 
 // failed, a follow-up row, a dropped duplicate). So it asks for one more tap, then names the way out.
 export const RETRY_HELD_UNCONFIRMED =
   "Nick can't confirm that reply finished, so Retry is held. Tap Retry again in a moment. If it keeps holding, send a new message instead.";
+// The hold for a replay that went out and got no response header. The unknown here is whether the
+// RESENT request reached the server (the first reply is not in question). The automatic retry shows
+// this too, when nobody tapped Retry, so it says "try", not "tap".
+export const RETRY_HELD_RESENT_UNKNOWN =
+  "Nick can't tell if the resent request reached the server, so Retry is held. Try Retry again in a moment. If it keeps holding, send a new message instead.";
 // A tap that lands while an earlier check is still waiting on the saved turn.
 export const RETRY_STILL_CHECKING = "Still checking the last reply. Give it a moment.";
 // A hold that never clears: there is no saved record to read (Private Lab, no conversation).

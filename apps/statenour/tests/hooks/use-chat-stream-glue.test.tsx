@@ -64,7 +64,7 @@ vi.mock("sonner", () => ({
 import { toast } from "sonner";
 import { useChatStream } from "@/features/chat-v2/hooks/use-chat-stream";
 import { useChatUiStore } from "@/features/chat-v2/stores/chat-ui-store";
-import { RETRY_HELD_NO_RECORD, RETRY_HELD_RAN, RETRY_HELD_UNCONFIRMED, RETRY_STILL_CHECKING } from "@/features/chat-v2/lib/saved-turn";
+import { RETRY_HELD_NO_RECORD, RETRY_HELD_RAN, RETRY_HELD_RESENT_UNKNOWN, RETRY_HELD_UNCONFIRMED, RETRY_STILL_CHECKING } from "@/features/chat-v2/lib/saved-turn";
 
 const transport = () => h.transport as TransportOpts;
 const user: Msg = { id: "u1", role: "user", parts: [{ type: "text", text: "question" }] };
@@ -275,14 +275,22 @@ describe("auto-retry never turns a failed reattach into a resend", () => {
   // A regenerate resends a turn the server already knows. If its POST dies before any response
   // header the client cannot tell whether the server started it (the server does not stop when the
   // client disconnects), so the auto retry no longer replays it blind: the saved turn decides.
-  // This used to be a re-armed auto retry like the two sends above.
-  it("after a Reconnect, a regenerate whose POST dies before any header is not auto-retried blind", () => {
+  // This used to be a re-armed auto retry like the two sends above. This hook has no saved-turn
+  // reader here, so the hold it reaches is "nothing saved to check" (RETRY_HELD_NO_RECORD); the
+  // judge behind the hold is pinned in the "replay that dies before the server's response headers" tests.
+  it("after a Reconnect, a regenerate whose POST dies before any header is held (no saved record to check), not auto-retried blind", async () => {
+    vi.mocked(toast.error).mockClear();
     reconnect();
+    vi.mocked(toast.error).mockClear();
     act(() => void ctl.regenerate());
     const manual = vi.mocked(h.chat.regenerate as () => void).mock.calls.length;
     h.chat.messages = [user, reply];
     networkKill();
+    // let the hold's async check finish (microtasks only: the fake timers stay untouched)
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
     expect(vi.mocked(h.chat.regenerate as () => void).mock.calls.length - manual).toBe(0);
+    expect(vi.mocked(toast.error).mock.calls.at(-1)?.[0], "the hold says why").toBe(RETRY_HELD_NO_RECORD);
   });
 });
 
@@ -1060,11 +1068,15 @@ describe("Retry after a stream error asks the saved turn before replaying", () =
     inBandError();
 
     const first = act(async () => void (await ctl.regenerate()));
-    await act(async () => void (await ctl.regenerate()));
-    expect(vi.mocked(toast.error), "a silent tap reads as a dead button").toHaveBeenCalledTimes(1);
-    expect(vi.mocked(toast.error).mock.calls[0]?.[0]).toBe(RETRY_STILL_CHECKING);
-    finish([savedSettledEmpty]);
-    await first;
+    try {
+      await act(async () => void (await ctl.regenerate()));
+      expect(vi.mocked(toast.error), "a silent tap reads as a dead button").toHaveBeenCalledTimes(1);
+      expect(vi.mocked(toast.error).mock.calls[0]?.[0]).toBe(RETRY_STILL_CHECKING);
+    } finally {
+      // a failed assertion above must not leave the first act scope open for the tests that follow
+      finish([savedSettledEmpty]);
+      await first;
+    }
 
     expect(readSavedTurn).toHaveBeenCalledTimes(1);
     expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
@@ -1399,11 +1411,14 @@ describe("opening another conversation drops the old turn's error state", () => 
 // before any response header, lastTraceId is still T2, so "the server answered with a new trace"
 // is false and Retry used to run with no read. The server does not stop when the client
 // disconnects, so that attempt can still run its tools, and a third POST would repeat them.
+// An error message the auto retry ignores. The tests that are not about the auto retry use it, so no real 1.5 s timer is armed behind them.
+const NOT_A_NETWORK_DROP = "The reply stopped before it finished.";
+
 /**
  * Attempt 1 errors in band (T2, a clean row) and Retry replays; the replay's POST then fails with no
  * header. `rowsAfter` is what the server holds by the time Retry is tapped again.
  */
-async function replayThenDeadPost(rowsAfter: unknown[], message = "Load failed") {
+async function replayThenDeadPost(rowsAfter: unknown[], message = NOT_A_NETWORK_DROP) {
   let rows: unknown[] = [userRow, cleanRow("T2")];
   const readSavedTurn = vi.fn(async () => rows);
   hookOptions = { readSavedTurn };
@@ -1436,7 +1451,7 @@ describe("a replay that dies before the server's response headers", () => {
 
     expect(readSavedTurn).toHaveBeenCalledTimes(2);
     expect(h.chat.regenerate, "a second replay could repeat what attempt 2 ran").toHaveBeenCalledTimes(1);
-    expect(vi.mocked(toast.error).mock.calls[0]?.[0]).toBe(RETRY_HELD_UNCONFIRMED);
+    expect(vi.mocked(toast.error).mock.calls[0]?.[0]).toBe(RETRY_HELD_RESENT_UNKNOWN);
   });
 
   it("the auto retry applies the same hold: no regenerate, and the operator is told", async () => {
@@ -1447,7 +1462,7 @@ describe("a replay that dies before the server's response headers", () => {
       await act(async () => void (await vi.advanceTimersByTimeAsync(10_000)));
 
       expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
-      expect(vi.mocked(toast.error).mock.calls[0]?.[0]).toBe(RETRY_HELD_UNCONFIRMED);
+      expect(vi.mocked(toast.error).mock.calls[0]?.[0]).toBe(RETRY_HELD_RESENT_UNKNOWN);
     } finally {
       vi.useRealTimers();
     }
@@ -1540,7 +1555,7 @@ describe("a replay that dies before the server's response headers", () => {
 describe("chained blind replays", () => {
   beforeEach(() => vi.mocked(toast.error).mockClear());
 
-  const deadPost = (message = "Load failed") => {
+  const deadPost = (message = NOT_A_NETWORK_DROP) => {
     h.chat.status = "error";
     h.chat.error = new Error(message);
     render();
@@ -1548,12 +1563,12 @@ describe("chained blind replays", () => {
   };
 
   /** Attempt 1 (T2) replayed, POST#2 died, T3 settled clean, Retry#2 went ahead on it, POST#3 died too. */
-  async function untilSecondBlindReplay() {
+  async function untilSecondBlindReplay(lastPostError?: string) {
     const server = await replayThenDeadPost([userRow, cleanRow("T2")]);
     server.serve([userRow, cleanRow("T2"), cleanRow("T3", "stub-3")]);
     await retryNow();
     expect(h.chat.regenerate, "Retry#2: the clean T3 is new evidence").toHaveBeenCalledTimes(2);
-    deadPost(); // POST#3 died before any header; it may be running unseen, with no row yet
+    deadPost(lastPostError); // POST#3 died before any header; it may be running unseen, with no row yet
     return server;
   }
 
@@ -1563,7 +1578,7 @@ describe("chained blind replays", () => {
     await retryNow();
 
     expect(h.chat.regenerate, "T3 already approved a replay: it cannot approve the next one").toHaveBeenCalledTimes(2);
-    expect(vi.mocked(toast.error).mock.calls[0]?.[0]).toBe(RETRY_HELD_UNCONFIRMED);
+    expect(vi.mocked(toast.error).mock.calls[0]?.[0]).toBe(RETRY_HELD_RESENT_UNKNOWN);
 
     server.serve([userRow, cleanRow("T2"), cleanRow("T3", "stub-3"), cleanRow("T4", "stub-4")]);
     vi.mocked(toast.error).mockClear();
@@ -1576,12 +1591,12 @@ describe("chained blind replays", () => {
   it("the auto retry is held in the chain too, through the same choke point", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     try {
-      await untilSecondBlindReplay();
+      await untilSecondBlindReplay("Load failed");
 
       await act(async () => void (await vi.advanceTimersByTimeAsync(10_000)));
 
       expect(h.chat.regenerate).toHaveBeenCalledTimes(2);
-      expect(vi.mocked(toast.error).mock.calls[0]?.[0]).toBe(RETRY_HELD_UNCONFIRMED);
+      expect(vi.mocked(toast.error).mock.calls[0]?.[0]).toBe(RETRY_HELD_RESENT_UNKNOWN);
     } finally {
       vi.useRealTimers();
     }
@@ -1677,5 +1692,396 @@ describe("the newer network phrases do not widen the auto retry", () => {
     await retryNow();
 
     expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
+  });
+});
+
+// The drawer has no streaming guard, and a stream keeps running across a conversation load. While a
+// request is in flight it still owns the trace refs, the acknowledged set and the outstanding-replay
+// record: wiping them made a later in-band error or network kill look like "the server never answered",
+// and Retry and the auto retry replayed with no read.
+describe("opening a conversation while a turn is still in flight", () => {
+  beforeEach(() => vi.mocked(toast.error).mockClear());
+
+  /** A turn was sent in c1 (the previous trace was T0); the server answered it with header T1; it is still streaming. */
+  function streamingInC1() {
+    transport().lastTraceIdRef.current = "T0";
+    useChatUiStore.setState({ activeConversationId: "c1" });
+    render();
+    act(() => void ctl.sendText("add a task"));
+    transport().lastTraceIdRef.current = "T1";
+    act(() => transport().onTraceId?.("T1"));
+    h.chat.messages = [user, { id: "live-1", role: "assistant", parts: [{ type: "text", text: "Working on it" }] }];
+    h.chat.status = "streaming";
+    render();
+  }
+  const streamEndsInBand = () => {
+    h.chat.status = "error";
+    h.chat.error = IN_BAND_ERROR();
+    render();
+  };
+
+  it.each([
+    ["c1 again", "c1"],
+    ["conversation B", "cB"],
+  ])("opening %s mid-stream, then the stream errors in band: Retry reads the saved turn and is held, never a blind replay", async (_label, openId) => {
+    const readSavedTurn = vi.fn(async () => [userRow]); // no row for T1 yet
+    hookOptions = { readSavedTurn };
+    render();
+    streamingInC1();
+
+    act(() => ctl.resetTurn());
+    useChatUiStore.setState({ activeConversationId: openId });
+    streamEndsInBand();
+    await retryNow();
+
+    expect(readSavedTurn).toHaveBeenCalledTimes(1);
+    expect(h.chat.regenerate, "the in-flight turn's trace was wiped: this would be a blind replay").not.toHaveBeenCalled();
+    expect(vi.mocked(toast.error).mock.calls[0]?.[0]).toBe(RETRY_HELD_UNCONFIRMED);
+  });
+
+  it("CONTROL: when the saved turn has a clean row for the in-flight turn's own trace (T1), Retry reads it and replays", async () => {
+    const readSavedTurn = vi.fn(async () => [userRow, cleanRow("T1")]);
+    hookOptions = { readSavedTurn };
+    render();
+    streamingInC1();
+
+    act(() => ctl.resetTurn());
+    streamEndsInBand();
+    await retryNow();
+
+    expect(readSavedTurn).toHaveBeenCalledTimes(1);
+    expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
+  });
+
+  it("a network kill after the reset: the server owns the turn, so it reattaches and never regenerates", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      streamingInC1();
+      act(() => ctl.resetTurn());
+      useChatUiStore.setState({ activeConversationId: "cB" });
+      h.chat.status = "error";
+      h.chat.error = new Error("Failed to fetch");
+      render();
+
+      act(() => vi.advanceTimersByTime(10_000));
+
+      expect(h.chat.resumeStream).toHaveBeenCalledTimes(1);
+      expect(h.chat.regenerate).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a replay still in flight keeps its outstanding record through the reset: if it then dies with no header, Retry is held", async () => {
+    const readSavedTurn = vi.fn(async () => [userRow, cleanRow("T2")]);
+    hookOptions = { readSavedTurn };
+    render();
+    sendAndErrorInBand("c1", "T2");
+    await retryNow(); // attempt 1 replayed; the replay's POST is now in flight
+    expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
+    h.chat.status = "streaming";
+    h.chat.error = undefined;
+    render();
+
+    act(() => ctl.resetTurn());
+    h.chat.status = "error";
+    h.chat.error = new Error(NOT_A_NETWORK_DROP); // the POST died before any header: lastTraceId is still T2
+    render();
+    vi.mocked(toast.error).mockClear();
+    await retryNow();
+
+    expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(toast.error).mock.calls[0]?.[0]).toBe(RETRY_HELD_RESENT_UNKNOWN);
+  });
+
+  it("a replay still in flight keeps the acknowledged set through the reset: a later clean row (T4) then allows Retry", async () => {
+    const { serve } = await replayThenDeadPost([userRow, cleanRow("T2")]);
+    serve([userRow, cleanRow("T2"), cleanRow("T3", "stub-3")]);
+    await retryNow(); // Retry#2 goes ahead on T3: acknowledged T2, T3
+    expect(h.chat.regenerate).toHaveBeenCalledTimes(2);
+    h.chat.status = "streaming"; // POST#3 is in flight
+    h.chat.error = undefined;
+    render();
+
+    act(() => ctl.resetTurn());
+    h.chat.status = "error";
+    h.chat.error = new Error(NOT_A_NETWORK_DROP); // POST#3 died before any header
+    render();
+    serve([userRow, cleanRow("T2"), cleanRow("T3", "stub-3"), cleanRow("T4", "stub-4")]);
+    vi.mocked(toast.error).mockClear();
+    await retryNow();
+
+    expect(h.chat.regenerate, "with the set wiped, an empty set would refuse for good").toHaveBeenCalledTimes(3);
+  });
+
+  it("CONTROL: with nothing in flight the reset does clear the trace, and the old error is gone", () => {
+    sendAndErrorInBand("c1", "T2");
+    act(() => ctl.resetTurn());
+    render();
+
+    expect(transport().lastTraceIdRef.current).toBeNull();
+    expect(ctl.error).toBeUndefined();
+  });
+
+  it.each([
+    ["submitted", true],
+    ["streaming", true],
+    ["ready", false],
+    ["error", false],
+  ])("status %s counts as %s for 'a request is in flight'", (status, inFlight) => {
+    streamingInC1();
+    h.chat.status = status;
+    render();
+
+    act(() => ctl.resetTurn());
+
+    expect(transport().lastTraceIdRef.current).toBe(inFlight ? "T1" : null);
+  });
+});
+
+// A conversation opened from history, a cold page and a reply that came back with no X-Trace-Id all
+// leave lastTraceId null, and the outer beforeEach seeds T1 for every test, which hid this. "A replay
+// is outstanding" is an explicit record ({ from } with null allowed), not a trace comparison, so it
+// holds when the trace in hand is null.
+describe("a replay started from no trace at all", () => {
+  beforeEach(() => {
+    vi.mocked(toast.error).mockClear();
+    transport().lastTraceIdRef.current = null;
+  });
+
+  const hydrated = {
+    id: "db-1",
+    role: "assistant",
+    parts: [{ type: "text", text: "a loaded reply" }],
+    streamingState: "complete",
+    tokenUsage: { traceId: "T0", toolReceipts: [] },
+  };
+
+  /** A conversation opened from history: [user, a hydrated reply that carries its trace T0]. */
+  function openedFromHistory(rows: unknown[]) {
+    let served = rows;
+    const readSavedTurn = vi.fn(async () => served);
+    hookOptions = { readSavedTurn };
+    useChatUiStore.setState({ activeConversationId: "c1" });
+    h.chat.messages = [user, hydrated];
+    h.chat.status = "ready";
+    h.chat.error = undefined;
+    render();
+    return {
+      readSavedTurn,
+      serve: (next: unknown[]) => {
+        served = next;
+      },
+    };
+  }
+  const postDies = (message = NOT_A_NETWORK_DROP) => {
+    h.chat.status = "error";
+    h.chat.error = new Error(message);
+    render();
+    vi.mocked(toast.error).mockClear();
+  };
+
+  it("opened from history, Regenerate, the header is lost: Retry reads the saved turn and is held, not a blind replay", async () => {
+    const { readSavedTurn } = openedFromHistory([userRow, cleanRow("T0")]);
+    await retryNow(); // the operator's plain Regenerate: no error, nothing to read
+    expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
+    postDies();
+
+    await retryNow();
+
+    expect(readSavedTurn).toHaveBeenCalledTimes(1);
+    expect(h.chat.regenerate, "traceNow and replayedFrom are both null: the old equality gate was off").toHaveBeenCalledTimes(1);
+    expect(vi.mocked(toast.error).mock.calls[0]?.[0]).toBe(RETRY_HELD_RESENT_UNKNOWN);
+  });
+
+  it("opening another conversation drops a null-start record: with null equal to null, a stale one would hold B", async () => {
+    openedFromHistory([userRow, cleanRow("T0")]);
+    await retryNow(); // Regenerate from null: the record is { from: null }
+    expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
+    h.chat.status = "ready";
+    render();
+
+    act(() => ctl.resetTurn()); // nothing in flight
+    useChatUiStore.setState({ activeConversationId: "cB" });
+    h.chat.messages = [userB, replyB];
+    h.chat.status = "error";
+    h.chat.error = new Error(NOT_A_NETWORK_DROP); // an error in B with no send of its own, e.g. a failed reattach
+    render();
+    vi.mocked(toast.error).mockClear();
+    await retryNow();
+
+    expect(h.chat.regenerate, "B's error is B's own: it is not held on A's replay").toHaveBeenCalledTimes(2);
+    expect(vi.mocked(toast.error)).not.toHaveBeenCalled();
+  });
+
+  it("the auto retry does not loop: over four dead POSTs there is one replay in all, the operator's own", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      openedFromHistory([userRow, cleanRow("T0")]);
+      // the SDK's regenerate clears the error, which resets the auto-retry count: the cap does not bind
+      h.chat.regenerate = vi.fn(async () => {
+        h.chat.error = undefined;
+        h.chat.status = "streaming";
+      });
+      await retryNow();
+
+      for (let i = 0; i < 4; i++) {
+        postDies("Load failed");
+        await act(async () => void (await vi.advanceTimersByTimeAsync(4_000)));
+        h.chat.error = undefined;
+        h.chat.status = "ready";
+        render();
+      }
+
+      expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("after a reply that came back with no trace header (the transport nulls the trace), a second replay that dies is held too", async () => {
+    transport().lastTraceIdRef.current = "T1";
+    const { readSavedTurn } = openedFromHistory([userRow, cleanRow("T1")]);
+    await retryNow(); // Regenerate #1 from T1
+    transport().lastTraceIdRef.current = null; // #1 was answered with no X-Trace-Id
+    h.chat.status = "ready";
+    render();
+    await retryNow(); // Regenerate #2 from null
+    expect(h.chat.regenerate).toHaveBeenCalledTimes(2);
+    postDies();
+
+    await retryNow();
+
+    expect(readSavedTurn).toHaveBeenCalledTimes(1);
+    expect(h.chat.regenerate).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(toast.error).mock.calls[0]?.[0]).toBe(RETRY_HELD_RESENT_UNKNOWN);
+  });
+
+  // The accepted consequence: with nothing acknowledged the judge refuses, so a replay that starts from
+  // no trace and no hydrated row stays held even when a clean row appears.
+  it("ACCEPTED: a cold page (no hydrated trace, nothing acknowledged) stays held even once a clean row appears", async () => {
+    const { serve } = openedFromHistory([userRow]);
+    h.chat.messages = [user, reply]; // a live reply: no tokenUsage, no trace
+    render();
+    await retryNow();
+    postDies();
+    serve([userRow, cleanRow("T7")]);
+
+    await retryNow();
+
+    expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(toast.error).mock.calls[0]?.[0]).toBe(RETRY_HELD_RESENT_UNKNOWN);
+  });
+
+  it("with the hydrated trace acknowledged, a settled clean row for a NEW trace (T7) then allows Retry", async () => {
+    const { serve } = openedFromHistory([userRow, cleanRow("T0")]);
+    await retryNow();
+    postDies();
+    serve([userRow, cleanRow("T0"), cleanRow("T7", "stub-7")]);
+
+    await retryNow();
+
+    expect(h.chat.regenerate).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(toast.error)).not.toHaveBeenCalled();
+  });
+
+  // C: the rows the client never saw (history) cannot approve a replay whose attempt runs unseen.
+  it("T0 from history cannot vouch for a replay: Regenerate #1 answered T1 and finished, #2 dies, the saved turn shows only T0", async () => {
+    openedFromHistory([userRow, cleanRow("T0")]);
+    await retryNow(); // Regenerate #1: the hydrated T0 is acknowledged here
+    transport().lastTraceIdRef.current = "T1";
+    act(() => transport().onTraceId?.("T1")); // answered with header T1
+    h.chat.messages = [user, reply]; // finished: the live bubble carries no tokenUsage
+    h.chat.status = "ready";
+    render();
+    await retryNow(); // Regenerate #2 from T1
+    expect(h.chat.regenerate).toHaveBeenCalledTimes(2);
+    postDies();
+
+    await retryNow();
+
+    expect(h.chat.regenerate, "T0 was in the history the client never saw run: it proves nothing about #2").toHaveBeenCalledTimes(2);
+    expect(vi.mocked(toast.error).mock.calls[0]?.[0]).toBe(RETRY_HELD_RESENT_UNKNOWN);
+  });
+});
+
+// D1: the private flag describes the request that was sent. Once nothing is in flight, opening another
+// conversation must not leave it behind to refuse a normal Regenerate there.
+describe("a private send is forgotten when the operator opens another conversation", () => {
+  beforeEach(() => vi.mocked(toast.error).mockClear());
+
+  function privateSendThenPrivateOff(status: "ready" | "streaming") {
+    useChatUiStore.setState({ privateMode: true });
+    render();
+    act(() => void ctl.sendText("private question"));
+    h.chat.messages = [user, reply];
+    h.chat.status = status;
+    render();
+    useChatUiStore.setState({ privateMode: false });
+    render();
+  }
+
+  it("nothing in flight: opening B and tapping Regenerate on a clean reply there is not refused as private", async () => {
+    privateSendThenPrivateOff("ready");
+
+    act(() => ctl.resetTurn());
+    useChatUiStore.setState({ activeConversationId: "cB" });
+    h.chat.messages = [userB, replyB];
+    render();
+    await retryNow();
+
+    expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(toast.error)).not.toHaveBeenCalled();
+  });
+
+  it("CONTROL: without the reset the private turn is still refused once Private Lab is off", async () => {
+    privateSendThenPrivateOff("ready");
+
+    await retryNow();
+
+    expect(h.chat.regenerate).not.toHaveBeenCalled();
+    expect(vi.mocked(toast.error).mock.calls[0]?.[0]).toMatch(/private/i);
+  });
+
+  it("a private request still in flight stays private through the reset: its later error is not replayed", async () => {
+    privateSendThenPrivateOff("streaming");
+
+    act(() => ctl.resetTurn());
+    h.chat.status = "error";
+    h.chat.error = new Error(NOT_A_NETWORK_DROP);
+    render();
+    await retryNow();
+
+    expect(h.chat.regenerate).not.toHaveBeenCalled();
+    expect(vi.mocked(toast.error).mock.calls[0]?.[0]).toMatch(/private/i);
+  });
+});
+
+// D4(d): what resetTurn clears whether or not a request is in flight.
+describe("resetTurn clears what is safe either way", () => {
+  beforeEach(() => vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] }));
+  afterEach(() => vi.useRealTimers());
+
+  it.each(["ready", "streaming"])("status %s: a pending partial re-resume is cancelled", (status) => {
+    h.chat.status = status;
+    render();
+    act(() => transport().onResumePartial());
+
+    act(() => ctl.resetTurn());
+    act(() => vi.advanceTimersByTime(5_000));
+
+    expect(h.chat.resumeStream).not.toHaveBeenCalled();
+  });
+
+  it.each(["ready", "streaming"])("status %s: a Stop label is cleared", (status) => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("{}", { status: 200 })));
+    h.chat.status = status;
+    render();
+    act(() => ctl.stopTurn());
+    expect(ctl.stopped).not.toBeNull();
+
+    act(() => ctl.resetTurn());
+
+    expect(ctl.stopped).toBeNull();
   });
 });

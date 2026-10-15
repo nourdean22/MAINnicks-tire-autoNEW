@@ -15,6 +15,7 @@ import {
   savedTurnVerdict,
   RETRY_HELD_NO_RECORD,
   RETRY_HELD_RAN,
+  RETRY_HELD_RESENT_UNKNOWN,
   RETRY_HELD_UNCONFIRMED,
   RETRY_STILL_CHECKING,
 } from "@/features/chat-v2/lib/saved-turn";
@@ -160,10 +161,9 @@ describe("judgeSavedTurn: safe needs a saved row bound to the attempt that faile
     expect(judgeSavedTurn([attempt("T2"), { id: "u2", role: "user" }, attempt("T3")], "T2")).toBe("unconfirmed");
   });
 
-  it("a clean errored row with NO traceId at all is no proof for any attempt: unconfirmed", () => {
-    const unbound = assistant({ toolReceipts: [] }, { id: "old-shape" });
-    expect(judgeSavedTurn([user, unbound], "T2")).toBe("unconfirmed");
-  });
+  // The "no traceId" case is pinned where it can fail: judgeAfterUnansweredReplay below, whose
+  // predicate would accept a missing trace if the `trace !== undefined` guard in judgeBound went.
+  // Through judgeSavedTurn (`trace === attemptTraceId`) a missing trace never matches either way.
 
   it("no trace to bind to (none, empty, not a string) is unconfirmed", () => {
     for (const trace of [null, undefined, "", 7 as never]) {
@@ -260,7 +260,7 @@ describe("latestTurnTraces: the attempts the latest turn's rows name", () => {
 });
 
 describe("the copy never promises a Retry the gate will refuse", () => {
-  const COPIES = [RETRY_HELD_RAN, RETRY_HELD_UNCONFIRMED, RETRY_HELD_NO_RECORD];
+  const COPIES = [RETRY_HELD_RAN, RETRY_HELD_UNCONFIRMED, RETRY_HELD_RESENT_UNKNOWN, RETRY_HELD_NO_RECORD];
 
   it("names what happened and the next step, with no 'tap Retry to continue' promise", () => {
     for (const copy of COPIES) {
@@ -278,6 +278,18 @@ describe("the copy never promises a Retry the gate will refuse", () => {
     expect(RETRY_HELD_UNCONFIRMED).not.toMatch(/wait a moment and tap/i);
     expect(RETRY_HELD_RAN).not.toMatch(/again/i);
     expect(RETRY_HELD_NO_RECORD).not.toMatch(/again/i);
+  });
+
+  // The unknown in the unanswered-replay branch is whether the RESENT request reached the server, not
+  // whether the first reply finished; the auto retry shows this copy too, when nobody tapped Retry.
+  it("the resent-request hold names what is unknown and does not say the operator tapped", () => {
+    expect(RETRY_HELD_RESENT_UNKNOWN).toMatch(/resent request/i);
+    expect(RETRY_HELD_RESENT_UNKNOWN).toMatch(/reached the server/i);
+    expect(RETRY_HELD_RESENT_UNKNOWN).toMatch(/try Retry again in a moment/i);
+    expect(RETRY_HELD_RESENT_UNKNOWN).toMatch(/if it keeps holding, send a new message/i);
+    expect(RETRY_HELD_RESENT_UNKNOWN).not.toMatch(/tap Retry/i);
+    expect(RETRY_HELD_RESENT_UNKNOWN).not.toBe(RETRY_HELD_UNCONFIRMED);
+    expect(RETRY_HELD_UNCONFIRMED, "the other branch keeps its own words").toMatch(/confirm that reply finished/i);
   });
 
   it("the still-checking notice is short, plain and ASCII", () => {
