@@ -17,8 +17,9 @@ const h = vi.hoisted(() => ({
 }));
 
 // The recorder dispatches invoice_paid on the real event bus, which reaches the StateNour bridge. A unit
-// test must not send events: the bus is replaced, and the test checks what would have been dispatched.
-vi.mock("../services/eventBus", () => ({
+// test must not send events: dispatch is replaced, and every other export stays real (no partial factory).
+vi.mock("../services/eventBus", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../services/eventBus")>()),
   dispatch: (...args: unknown[]) => h.dispatch(...args),
 }));
 
