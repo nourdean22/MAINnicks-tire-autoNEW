@@ -28,6 +28,10 @@ vi.mock("../lib/db-helper", () => ({
         }),
       }),
     }),
+    // The claim and the intent update run in one transaction; the transaction is this same handle.
+    transaction(fn: (tx: unknown) => unknown) {
+      return fn(this);
+    },
     execute: async (query: unknown) => {
       const { sql: text, params } = new MySqlDialect().sqlToQuery(
         query as Parameters<MySqlDialect["sqlToQuery"]>[0],

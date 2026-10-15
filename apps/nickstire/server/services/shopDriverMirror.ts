@@ -962,7 +962,17 @@ async function upsertInvoices(rawInvoices: RawInvoice[]): Promise<{ created: num
 
         if (totalMoves) {
           const applied = await withInvoiceLock(d, ex.id, async (tx, row) => {
-            const all = { ...updates, ...(await lockedTotalPatch(tx, ex.id, row.totalAmount, ri.totalAmount)) };
+            const patch = await lockedTotalPatch(tx, ex.id, row.totalAmount, ri.totalAmount);
+            const all: Record<string, unknown> = { ...updates, ...patch };
+            // Withheld is decided on the locked row: the total differs from the row's, and the lock did not move it.
+            // A row already at the new total (a stale prefetch) is not withheld, so its breakdown still applies.
+            const withheld = row.totalAmount !== ri.totalAmount && patch.totalAmount === undefined;
+            // A total the lock withheld keeps its cost breakdown with it: the breakdown must not outlive the old total.
+            if (withheld) {
+              delete all.laborCost;
+              delete all.partsCost;
+              delete all.taxAmount;
+            }
             if (Object.keys(all).length === 0) return false;
             await tx.update(invoices).set(all).where(eq(invoices.id, ex.id));
             return true;
