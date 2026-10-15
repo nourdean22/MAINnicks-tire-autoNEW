@@ -7,11 +7,11 @@
  *
  * This drives streamText with MockLanguageModelV3 through the real
  * buildStreamConfigFactory (onChunk -> accumulator) and the real
- * buildStreamErrorHandler, with the route's own terminate-when-drained wiring.
+ * buildStreamErrorHandler, ended by terminateWhenDrained as the route calls it. The route's
+ * own half (it hands the factory the record and drains it) is driven through the real POST
+ * handler in route-tool-receipts-wiring.test.ts.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { streamText, tool } from "ai";
 import { MockLanguageModelV3 } from "ai/test";
 import { z } from "zod";
@@ -171,20 +171,5 @@ describe("real SDK chunks are readable by the accumulator (positive control for 
       terminal: true,
       receipts: [{ toolName: "createTask", sideEffecting: true }],
     });
-  });
-});
-
-describe("the route hands the same accumulator to the factory and marks it final when the stream is drained", () => {
-  const route = readFileSync(resolve(process.cwd(), "app/api/ai/chat/route.ts"), "utf8")
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
-
-  it("creates one accumulator per turn and passes it to buildStreamConfigFactory", () => {
-    expect(route).toMatch(/const __toolCalls = createInFlightToolCalls\(\)/);
-    expect(route).toMatch(/toolCalls:\s*__toolCalls/);
-  });
-
-  it("terminates it from the stream drain that consumeStream returns", () => {
-    expect(route).toMatch(/terminateWhenDrained\(__toolCalls,\s*result\.consumeStream\?\.\(\)\)/);
   });
 });

@@ -98,6 +98,28 @@ describe("onChunk feeds the accumulator the error handler reads", () => {
     expect(handlerDeps().toolReceipts?.()).toMatchObject({ trustworthy: true, receipts: [{ toolName: "createTask" }] });
   });
 
+  it("two fallback attempts feed ONE record, and each attempt's own handler reads it", () => {
+    // A same-turn fallback rotates models: attempt 1 may have started a write before it
+    // failed, attempt 2 starts another. Both belong to the one reply the user sees, so the
+    // errored row must carry both, whichever attempt's handler ends up writing it.
+    const acc = createInFlightToolCalls();
+    const build = factory({ toolCalls: acc });
+    const first = attemptOf(build);
+    const firstHandler = handlerDeps();
+    const second = attemptOf(build);
+    const secondHandler = handlerDeps();
+    expect(secondHandler, "each attempt builds its own error handler").not.toBe(firstHandler);
+
+    first.onChunk({ chunk: { type: "tool-call", toolCallId: "c1", toolName: "createTask", input: { title: "a" } } });
+    second.onChunk({ chunk: { type: "tool-call", toolCallId: "c2", toolName: "arsenalDeepResearch", input: { query: "b" } } });
+
+    const snapshot = acc.snapshot();
+    expect(snapshot.trustworthy).toBe(true);
+    expect(snapshot.trustworthy ? snapshot.receipts.map((r) => r.toolName) : []).toEqual(["createTask", "arsenalDeepResearch"]);
+    expect(firstHandler.toolReceipts?.()).toEqual(acc.snapshot());
+    expect(secondHandler.toolReceipts?.()).toEqual(acc.snapshot());
+  });
+
   it("a malformed onChunk event never throws into the stream", () => {
     const attempt = attemptOf(factory());
     expect(() => {
