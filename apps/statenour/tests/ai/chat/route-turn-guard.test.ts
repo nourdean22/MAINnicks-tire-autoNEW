@@ -151,6 +151,21 @@ vi.mock("@/lib/ai/system-prompt", () => ({
 vi.mock("@/lib/ai/system-prompt-cache", () => ({ getCachedPrompt: vi.fn().mockReturnValue(null), setCachedPrompt: vi.fn() }));
 vi.mock("@/lib/ai/chat/interceptors", () => ({ runInterceptors: vi.fn().mockResolvedValue({ kind: "unhandled" }) }));
 vi.mock("@/lib/services/chat/persist-user-turn", () => ({ persistUserTurn: vi.fn().mockResolvedValue("conv-123") }));
+vi.mock("@/lib/ai/chat/timing", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/ai/chat/timing")>();
+  return {
+    ...actual,
+    createStageTracker: () => {
+      const tracker = actual.createStageTracker();
+      const start = tracker.start.bind(tracker);
+      tracker.start = (name: Parameters<typeof start>[0]) => {
+        (h.seen.stages as string[]).push(String(name));
+        return start(name);
+      };
+      return tracker;
+    },
+  };
+});
 vi.mock("@/lib/prisma", () => ({ prisma: h.prisma }));
 vi.mock("@/lib/services/chat/brain-context", () => ({
   buildBrainContext: vi.fn(async () => ({
@@ -187,6 +202,7 @@ const pending = async (p: Promise<unknown>) => (await Promise.race([p.then(() =>
 
 beforeEach(() => {
   for (const k of Object.keys(h.seen)) delete h.seen[k];
+  h.seen.stages = [];
   h.drain = undefined;
   h.claimCalls = [];
   h.claim = { setConversation: vi.fn(), settleWith: vi.fn(), finish: vi.fn(), holdWhileBodyOpen: vi.fn((r: Response) => r) };
@@ -264,6 +280,16 @@ describe("a refused attempt does no work at all", () => {
     h.model.findMany.mockResolvedValue([]);
     h.drain = () => Promise.resolve();
     expect((await post()).status).toBe(200);
+  });
+});
+
+describe("the guard shows up in the stage log", () => {
+  it("is timed as its own stage, so a slow guard is not unexplained pre-interceptor time", async () => {
+    h.drain = () => Promise.resolve();
+    await post();
+    const stages = h.seen.stages as string[];
+    expect(stages).toContain("guard");
+    expect(stages.indexOf("guard"), "after the gate, before the interceptors").toBeGreaterThan(stages.indexOf("gate"));
   });
 });
 

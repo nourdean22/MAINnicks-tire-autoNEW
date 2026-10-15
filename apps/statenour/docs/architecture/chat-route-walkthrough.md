@@ -28,8 +28,11 @@ POST /api/ai/chat
         │     · sanitizeMessageHistory (image markdown scrub)    L137-L139
         │     · persistUserTurn (fires in parallel)              L157-L164
         │
+        ├─ Turn guard (2026-10-15, before Stage A work)
+        │     · mintTraceId, then guardTurn (lease + saved rows)  chatPostInner
+        │
         ├─ Stage B · Routing decisions
-        │     · mintTraceId                                       L172-L173
+        │     · recordTrace (the trace id arrives from chatPostInner)  chatTurn
         │     · detectChatMode → "standard" | "deep"             L199-L200
         │     · detectQueryShape → token budget + tool-first      L223
         │     · classifyTurn → temperature + COT + shape          L234-L244
@@ -188,12 +191,15 @@ through `recordError` so DB rot is visible in the HUD.
 ### B1 · `mintTraceId` (v10 E.5 agent-trace contract)
 
 ```ts
-// app/api/ai/chat/route.ts:172-173
-const { mintTraceId, recordTrace } = await import("@/lib/ai/agent-trace");
-const __traceId = mintTraceId();
+// app/api/ai/chat/route.ts, chatPostInner (since 2026-10-15; it used to be minted in the turn body)
+const { mintTraceId } = await import("@/lib/ai/agent-trace");
+const traceId = mintTraceId();
+// ...guardTurn(...) takes the lease under this trace, then chatTurn runs with it:
+const { recordTrace } = await import("@/lib/ai/agent-trace");
+const __traceId = traceId;
 ```
 
-The traceId is minted **once** at the top of the turn so every
+The traceId is minted **once** before the turn guard, so the lease, the response header and the saved rows all name the same attempt, and every
 downstream call (auto-rename, distillation, tool invocations) can
 chain to it via `parentId`. Without this the operator dashboard can't
 answer "what did Nick do this turn?"

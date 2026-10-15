@@ -281,7 +281,11 @@ export function buildSearchableContent(parts: MessagePart[] | null | undefined, 
  * upsert dedup logic:
  *   1. Client mints id once per logical user action.
  *   2. Server upserts on (conversationId, clientMessageId).
- *   3. Same id arriving twice = no-op suppress + 200.
+ *   3. Same id arriving twice = no second user row. persistUserTurn suppresses the write; since
+ *      2026-10-15 the chat route (lib/services/chat/turn-guard.ts) decides before that point: a
+ *      live run holding the id gets a 409 turn_in_flight, a re-send of an answered message a
+ *      409 turn_answered, and only a regenerate-message over a reply that cannot have run an
+ *      action starts a fresh run. A same-id POST no longer reaches this dedupe as a 200.
  *
  * Falls back to undefined when:
  *   - msg is not an object

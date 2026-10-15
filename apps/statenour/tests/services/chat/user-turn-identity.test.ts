@@ -13,14 +13,19 @@ const h = vi.hoisted(() => ({ rows: [] as unknown[], created: [] as unknown[] })
 const rows = () => h.rows as Row[];
 
 function matches(row: Row, where: Record<string, unknown>): boolean {
-  return Object.entries(where).every(([k, v]) => v === undefined || (row as unknown as Record<string, unknown>)[k] === v);
+  return Object.entries(where).every(([k, v]) => {
+    if (v === undefined) return true;
+    if (k === "OR") return (v as Record<string, unknown>[]).some((w) => matches(row, w));
+    return (row as unknown as Record<string, unknown>)[k] === v;
+  });
 }
 
 vi.mock("@/lib/prisma", () => {
   const chatMessage = {
-    findFirst: async (a: { where: Record<string, unknown> }) => {
-      const hit = rows().find((r) => matches(r, a.where));
-      return hit ? { ...hit } : null;
+    findFirst: async (a: { where: Record<string, unknown>; orderBy?: { createdAt?: string } }) => {
+      const list = rows().filter((r) => matches(r, a.where));
+      if (a.orderBy?.createdAt === "asc") list.sort((x, y) => x.createdAt.getTime() - y.createdAt.getTime());
+      return list[0] ? { ...list[0] } : null;
     },
     create: async (a: { data: Record<string, unknown> }) => {
       h.created.push(a.data);
@@ -88,6 +93,18 @@ describe("findUserTurnRow", () => {
 
   it("finds a first-send replay that has no conversation yet, by the minted id", async () => {
     await expect(findUserTurnRow({ conversationId: null, messageId: "uuid-1" })).resolves.toMatchObject({ id: "cuid-1" });
+  });
+
+  it("an unscoped lookup matches the minted id ONLY: a database id from some thread must not attach a request to it", async () => {
+    await expect(findUserTurnRow({ conversationId: null, messageId: "cuid-1" })).resolves.toBeNull();
+  });
+
+  it("two rows sharing a minted id in different threads resolve the same way every time (oldest first)", async () => {
+    h.rows = [
+      { id: "cuid-late", conversationId: "conv-2", role: "user", clientMessageId: "uuid-x", createdAt: new Date(5_000), content: "x" },
+      { id: "cuid-early", conversationId: "conv-1", role: "user", clientMessageId: "uuid-x", createdAt: new Date(1_000), content: "x" },
+    ];
+    for (let i = 0; i < 3; i += 1) await expect(findUserTurnRow({ conversationId: null, messageId: "uuid-x" })).resolves.toMatchObject({ id: "cuid-early" });
   });
 
   it("returns null for an unknown id", async () => {

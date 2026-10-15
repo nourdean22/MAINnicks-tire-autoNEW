@@ -29,6 +29,9 @@ const h = vi.hoisted(() => ({
   creates: 0,
   // After the claim is taken: every updateMany/deleteMany throws synchronously ("throw") or rejects ("reject").
   storeCalls: "ok" as "ok" | "throw" | "reject",
+  failFind: false,
+  // Every updateMany that ran: which run it was pinned to (undefined = unpinned) and how many rows it changed.
+  writes: [] as Array<{ pinnedTo: unknown; count: number; kind: "beat" | "metadata" | "swap" }>,
 }));
 
 const rows = () => h.rows as Row[];
@@ -63,6 +66,7 @@ vi.mock("@/lib/prisma", () => ({
         return { id: row.id };
       },
       findUnique: async (a: { where: { category_key: { category: string; key: string } } }) => {
+        if (h.failFind) throw new Error("connection reset");
         const { category, key } = a.where.category_key;
         const row = rows().find((r) => r.category === category && r.key === key);
         return row ? { ...row } : null;
@@ -86,6 +90,8 @@ async function updateManyOk(a: { where: Record<string, unknown>; data: Partial<R
   h.beforeUpdateMany?.();
   const hits = rows().filter((r) => matches(r, a.where));
   for (const r of hits) Object.assign(r, a.data, { updatedAt: new Date(1_000 + ++h.clock) });
+  const pin = (a.where.metadata as { equals?: unknown } | undefined)?.equals;
+  h.writes.push({ pinnedTo: pin, count: hits.length, kind: "id" in a.where ? "swap" : "metadata" in a.data ? "metadata" : "beat" });
   return { count: hits.length };
 }
 async function deleteManyOk(a: { where: Record<string, unknown> }) {
@@ -117,6 +123,8 @@ beforeEach(() => {
   h.failCreate = false;
   h.creates = 0;
   h.storeCalls = "ok";
+  h.failFind = false;
+  h.writes = [];
 });
 afterEach(() => vi.useRealTimers());
 
@@ -173,14 +181,31 @@ describe("claimTurn", () => {
       r.updatedAt = new Date(9_999);
     }));
 
-  it("a store failure is 'unavailable', never a throw and never a refusal (fail open)", async () => {
+  it("a store failure is 'unavailable', never a throw and never a refusal (fail open), and is not retried", async () => {
     h.failCreate = true;
     await expect(claimTurn(claimArgs("trace-A"))).resolves.toEqual({ kind: "unavailable" });
+    expect(h.creates, "a non-unique create error is not a taken slot: one attempt").toBe(1);
   });
 
-  it("a soft-deleted row is a free slot", async () => {
+  it("a failure while reading or reclaiming a held row is also 'unavailable'", async () => {
+    await expectClaimed("trace-A");
+    h.failFind = true;
+    await expect(claimTurn(claimArgs("trace-B"))).resolves.toEqual({ kind: "unavailable" });
+  });
+
+  // lib/brain/memory-consolidation.ts pruneNoise soft-deletes EVERY brain_memories row past its expiresAt, so a
+  // lapsed lease becomes a soft-deleted row and the next claim always takes the reclaim path.
+  it("a soft-deleted row is a free slot, and the lease taken over it then HOLDS", async () => {
     await expectClaimed("trace-A");
     rows()[0].deletedAt = new Date(T0);
+    await expectClaimed("trace-B");
+    expect(rows()[0].deletedAt, "the reclaimed row is still soft-deleted: every later claim would reclaim it and run").toBeNull();
+    expect(await claimTurn(claimArgs("trace-C"))).toMatchObject({ kind: "in_flight", traceId: "trace-B" });
+  });
+
+  it("a lease row with no deadline is not live forever", async () => {
+    await expectClaimed("trace-A");
+    rows()[0].expiresAt = null;
     await expectClaimed("trace-B");
   });
 });
@@ -208,20 +233,24 @@ describe("heartbeat and lifetime", () => {
     await expectClaimed("trace-B");
   });
 
-  it("a displaced owner can neither extend nor delete the new owner's claim", async () => {
+  // The old owner keeps ticking after a reclaim. Each of its three kinds of write must be pinned to its own trace:
+  // the log of every updateMany says which run each was pinned to and how many rows it changed.
+  it("a displaced owner can neither extend, rename nor delete the new owner's claim", async () => {
     const old = await expectClaimed("trace-A");
     vi.setSystemTime(new Date(T0.getTime() + TURN_LEASE_MS + 1));
     await expectClaimed("trace-B");
-    const expiry = rows()[0].expiresAt!.getTime();
+    h.writes = [];
 
-    await vi.advanceTimersByTimeAsync(TURN_BEAT_MS); // old owner's heartbeat fires
-    old.finish(); // and its release
+    await vi.advanceTimersByTimeAsync(TURN_BEAT_MS * 2); // both owners' heartbeats fire
+    old.setConversation("conv-A");
+    old.finish();
     await vi.advanceTimersByTimeAsync(0);
 
+    const byA = h.writes.filter((w) => w.pinnedTo !== "trace-B");
+    expect(byA.length, "the old owner's heartbeat and rename must have run, or this proves nothing").toBeGreaterThanOrEqual(2);
+    expect(byA.filter((w) => w.count > 0), "a write by the old owner changed the new owner's row").toEqual([]);
     expect(rows()).toHaveLength(1);
-    expect(rows()[0].metadata).toMatchObject({ traceId: "trace-B" });
-    // trace-B's own heartbeat may have moved the deadline; trace-A's must not have.
-    expect(rows()[0].expiresAt!.getTime()).toBeGreaterThanOrEqual(expiry);
+    expect(rows()[0].metadata).toMatchObject({ traceId: "trace-B", conversationId: null });
   });
 });
 
@@ -350,6 +379,79 @@ describe("holdWhileBodyOpen: a response whose body still does the work of the ru
     expect(claim.holdWhileBodyOpen(res)).toBe(res);
     await vi.advanceTimersByTimeAsync(0);
     expect(rows()).toHaveLength(1);
+  });
+});
+
+describe("holdWhileBodyOpen: a body that is not being read", () => {
+  const openBody = () => {
+    let ctl!: ReadableStreamDefaultController<Uint8Array>;
+    const body = new ReadableStream<Uint8Array>({ start: (c) => void (ctl = c) });
+    return { body, ctl: () => ctl };
+  };
+  const bytes = (v: string) => new TextEncoder().encode(v);
+
+  it("keeps the lease after a chunk has streamed and until the body closes (an early-streaming body that keeps working)", async () => {
+    const claim = await expectClaimed("trace-A");
+    const src = openBody();
+    const reader = claim.holdWhileBodyOpen(new Response(src.body)).body!.getReader();
+    claim.finish();
+    src.ctl().enqueue(bytes("first"));
+    await reader.read();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(await claimTurn(claimArgs("trace-B"))).toMatchObject({ kind: "in_flight", traceId: "trace-A" });
+
+    src.ctl().close();
+    await reader.read();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(rows()).toHaveLength(0);
+  });
+
+  // Next does not read or cancel the body of a response whose socket closed before the handler returned.
+  it("a body nobody ever reads (the client left before the handler returned) stops being renewed and lapses", async () => {
+    const claim = await expectClaimed("trace-A");
+    claim.holdWhileBodyOpen(new Response(openBody().body));
+    claim.finish();
+
+    await vi.advanceTimersByTimeAsync(TURN_BEAT_MS * 3 + TURN_LEASE_MS);
+
+    await expectClaimed("trace-B");
+  });
+
+  it("a reader that took a chunk and then stopped asking is idle too", async () => {
+    const claim = await expectClaimed("trace-A");
+    const src = openBody();
+    const reader = claim.holdWhileBodyOpen(new Response(src.body)).body!.getReader();
+    src.ctl().enqueue(bytes("first"));
+    await reader.read();
+
+    await vi.advanceTimersByTimeAsync(TURN_BEAT_MS * 3 + TURN_LEASE_MS);
+
+    await expectClaimed("trace-B");
+  });
+
+  it("a reader that is WAITING on a silent upstream (the work is running, the client is there) keeps the lease", async () => {
+    const claim = await expectClaimed("trace-A");
+    const reader = claim.holdWhileBodyOpen(new Response(openBody().body)).body!.getReader();
+    void reader.read();
+
+    await vi.advanceTimersByTimeAsync(TURN_MAX_RUN_MS - TURN_BEAT_MS);
+
+    expect(await claimTurn(claimArgs("trace-B"))).toMatchObject({ kind: "in_flight", traceId: "trace-A" });
+  });
+});
+
+describe("the documented bounds", () => {
+  it("pins the numbers the design doc quotes", () => {
+    expect(TURN_BEAT_MS).toBe(30_000);
+    expect(TURN_LEASE_MS, "two beats can be lost before the lease lapses").toBe(3 * TURN_BEAT_MS);
+    expect(TURN_MAX_RUN_MS).toBe(6 * 60_000);
+    expect(POST_DRAIN_GRACE_MS).toBe(60_000);
+  });
+
+  it("a live run is never reclaimable between two heartbeats", async () => {
+    await expectClaimed("trace-A");
+    await vi.advanceTimersByTimeAsync(TURN_BEAT_MS * 3 - 1); // one ms before the third beat
+    expect(await claimTurn(claimArgs("trace-B"))).toMatchObject({ kind: "in_flight", traceId: "trace-A" });
   });
 });
 

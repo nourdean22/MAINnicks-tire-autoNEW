@@ -84,6 +84,9 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
   // Cleared by a new send, by opening another conversation when nothing is in flight, and by a response
   // that carries a trace header other than `from`.
   const replayOutstandingRef = useRef<{ from: string | null } | null>(null);
+  // The messages on screen when the latest replay started, for putting back what regenerate() removes.
+  const replaySnapshotRef = useRef<ChatUIMessage[] | null>(null);
+  const setMessagesRef = useRef<((update: (messages: ChatUIMessage[]) => ChatUIMessage[]) => void) | null>(null);
   const [liveContextBlocks, setLiveContextBlocks] = useState<ContextBlocks | null>(null);
   const [lastTraceId, setLastTraceId] = useState<string | null>(null);
   const lastPersonaHeaderRef = useRef(null);
@@ -242,6 +245,16 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
     ),
     onResumePartial,
     onResumeEmpty,
+    // 2026-10-15 · the server refused the send on purpose (turn guard). That is an explicit answer: the
+    // replay was received, so it is no longer outstanding even when the refusal names the very trace
+    // already held (onTraceId only clears on a DIFFERENT one). regenerate() also took the reply off the
+    // screen before the POST and does not put it back on an error: put back what it removed.
+    onTurnRefused: useCallback(() => {
+      replayOutstandingRef.current = null;
+      const before = replaySnapshotRef.current;
+      replaySnapshotRef.current = null;
+      if (before) setMessagesRef.current?.((now) => (now.length < before.length ? before : now));
+    }, []),
     // 2026-08-28 · make escalation legible. The operator explicitly asked
     // for depth on this turn, so telling them what happened is expected
     // feedback, not noise — and a REFUSED escalation that says nothing is
@@ -446,6 +459,7 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
         // replay whose attempt is running unseen: acknowledge what the hydrated messages carry.
         for (const trace of latestTurnTraces(messagesRef.current as unknown as SavedRow[])) acknowledgedTracesRef.current.add(trace);
         traceAtSendRef.current = lastTraceIdRef.current;
+        replaySnapshotRef.current = messagesRef.current;
         return chat.regenerate(options);
       };
       // A stream error is not the end of the turn: ai@6 keeps going after an error
@@ -479,7 +493,8 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
     // Same live handle for the partial-resume path and the stall toast, which
     // are declared above the transport (they have to be) and cannot close over `chat`.
     resumeStreamRefForPartial.current = chat.resumeStream as unknown as () => void;
-  }, [chat.resumeStream]);
+    setMessagesRef.current = chat.setMessages as unknown as typeof setMessagesRef.current;
+  }, [chat.resumeStream, chat.setMessages]);
 
   const regenerateRef = useRef(safeRegenerate);
   useEffect(() => {
@@ -680,6 +695,7 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
     lastTraceIdRef.current = null;
     setLastTraceId(null);
     replayOutstandingRef.current = null;
+    replaySnapshotRef.current = null;
     acknowledgedTracesRef.current.clear();
   }, [cancelPartialResume, clearStall, clearError, requestInFlight]);
 
@@ -692,6 +708,7 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
       sentPrivateRef.current = privateMode;
       resumingRef.current = false;
       replayOutstandingRef.current = null;
+      replaySnapshotRef.current = null;
       acknowledgedTracesRef.current.clear();
       traceAtSendRef.current = lastTraceIdRef.current;
       cancelPartialResume();
@@ -715,6 +732,7 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
       sentPrivateRef.current = privateMode;
       resumingRef.current = false;
       replayOutstandingRef.current = null;
+      replaySnapshotRef.current = null;
       acknowledgedTracesRef.current.clear();
       traceAtSendRef.current = lastTraceIdRef.current;
       cancelPartialResume();

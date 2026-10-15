@@ -119,6 +119,13 @@ export interface UseChatTransportOpts<TBody extends object = Record<string, unkn
    */
   onResumeEmpty?: () => void;
   /**
+   * 2026-10-15 · the turn guard (lib/services/chat/turn-guard.ts) REFUSED this send on purpose:
+   * the response carries X-Turn-Refusal (turn_in_flight, turn_answered, turn_ran, turn_unreadable).
+   * The server ANSWERED, so the caller must not treat the replay as one that may never have
+   * arrived; `traceId` is the run the send collided with (null when the refusal names none).
+   */
+  onTurnRefused?: (info: { code: string; traceId: string | null }) => void;
+  /**
    * 2026-08-28 · escalation provenance. Fired on every turn that carried
    * a depth marker, whether or not the escalation actually happened.
    *
@@ -193,6 +200,7 @@ export function useChatTransport<TBody extends object = Record<string, unknown>>
     onConversationId,
     onResumePartial,
     onResumeEmpty,
+    onTurnRefused,
     onEscalation,
     onMessagePersisted,
     resumeIntoMessageId,
@@ -254,6 +262,8 @@ export function useChatTransport<TBody extends object = Record<string, unknown>>
             isResume && String(input).includes("traceId=") ? resumeIntoMessageId?.() : undefined;
           const res = await fetch(input, init);
           if (isResume && res.status === 204) onResumeEmpty?.();
+          const refusal = res.headers.get("X-Turn-Refusal");
+          if (refusal && init?.method === "POST") onTurnRefused?.({ code: refusal, traceId: res.headers.get("X-Trace-Id") });
 
           // ── Conversation id (CRITICAL — every send before this fix
           //    was creating a new convo because the server-assigned id

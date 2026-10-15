@@ -22,8 +22,9 @@
  * turn never locks the operator out of retrying it.
  *
  * Why this table and not action_attempts: that ledger feeds the Owner Panel
- * (waiting-summary-data.ts surfaces UNKNOWN/FAILED and EXECUTING > 30 min), so a
- * row per chat turn would raise owner exceptions for ordinary turns. The
+ * (lib/system/owner-panel-data.ts + owner-panel.ts flag UNKNOWN, recent FAILED and
+ * EXECUTING > 30 min; lib/home/waiting-summary-data.ts lists every EXECUTING row), so a
+ * row per chat turn would raise owner exceptions and clutter Home for ordinary turns. The
  * BrainMemory `active_chat_stream` category is already the home of turn-liveness
  * rows and is excluded from recall and consolidation (lib/brain/categories.ts).
  *
@@ -41,7 +42,15 @@ const SOURCE = "chat-turn-claim";
 export const TURN_LEASE_MS = 90_000;
 /** Three beats per lease: two can be lost before the lease lapses. */
 export const TURN_BEAT_MS = 30_000;
-/** Renewals stop here, so a hung run cannot hold its message forever: it then lapses within TURN_LEASE_MS. Deep turns measure 161s worst, maxDuration says 300s. */
+/** A response body whose reader has not asked for data this long is treated as abandoned: renewals stop and the lease lapses. */
+export const TURN_BODY_IDLE_MS = TURN_BEAT_MS;
+/**
+ * Renewals stop here, so a hung run cannot hold its message forever: it then lapses within TURN_LEASE_MS.
+ * This is a CHOSEN bound, not a platform limit: the route exports maxDuration = 120 but that is inert on
+ * Railway, and the server has no deadline at all (docs/CURRENT-TRUTH.md). The only real one is the client
+ * stall abort, 180 s from submit. The 161 s worst case there is generation time for 10,000 tokens, before
+ * the prompt and tool round trips. A run that legitimately outlives this loses its lease (design doc, residual 2).
+ */
 export const TURN_MAX_RUN_MS = 6 * 60_000;
 /** After the stream has drained, how long the persist (and the post-turn work it awaits) may still report before the run counts as over. */
 export const POST_DRAIN_GRACE_MS = 60_000;
@@ -108,10 +117,16 @@ function buildClaim(key: string, traceId: string, startedAt: string): TurnClaim 
   const own = { category: CATEGORY, key, metadata: { path: ["traceId"], equals: traceId } };
   let released = false;
   let bound = false;
+  // Set once a response body carries the lease: true when its reader has gone quiet (see holdWhileBodyOpen).
+  let bodyIdle: (() => boolean) | null = null;
 
   const timer = setInterval(() => {
     if (Date.now() - Date.parse(startedAt) > TURN_MAX_RUN_MS) {
       clearInterval(timer);
+      return;
+    }
+    if (bodyIdle?.()) {
+      lapse();
       return;
     }
     background("heartbeat", key, () =>
@@ -156,24 +171,38 @@ function buildClaim(key: string, traceId: string, startedAt: string): TurnClaim 
       }
       bound = true;
       const reader = response.body.getReader();
-      const held = new ReadableStream<Uint8Array>({
-        async pull(controller) {
-          try {
-            const { done, value } = await reader.read();
-            if (done) {
-              controller.close();
+      // A reader that is waiting on a silent upstream is a client that is there. One that has stopped
+      // asking (it took a chunk and went quiet, or it never read at all because its socket closed before
+      // the handler returned: Next then neither reads nor cancels the body) is gone. highWaterMark 0 makes
+      // the first pull a real read request, so "never read" is visible.
+      let pulling = false;
+      let lastAsk = Date.now();
+      bodyIdle = () => !pulling && Date.now() - lastAsk >= TURN_BODY_IDLE_MS;
+      const held = new ReadableStream<Uint8Array>(
+        {
+          async pull(controller) {
+            pulling = true;
+            try {
+              const { done, value } = await reader.read();
+              if (done) {
+                controller.close();
+                release();
+              } else controller.enqueue(value);
+            } catch (error) {
+              controller.error(error);
               release();
-            } else controller.enqueue(value);
-          } catch (error) {
-            controller.error(error);
-            release();
-          }
+            } finally {
+              pulling = false;
+              lastAsk = Date.now();
+            }
+          },
+          cancel(reason) {
+            lapse();
+            return reader.cancel(reason);
+          },
         },
-        cancel(reason) {
-          lapse();
-          return reader.cancel(reason);
-        },
-      });
+        { highWaterMark: 0 },
+      );
       return new Response(held, { status: response.status, statusText: response.statusText, headers: response.headers });
     },
   };

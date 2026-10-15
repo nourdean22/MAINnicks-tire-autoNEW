@@ -8,8 +8,7 @@
  * client_message_id is still the original UUID, and a lookup by clientMessageId alone
  * misses it (persistUserTurn then wrote a second copy of the user message).
  *
- * The same either-id rule as chat-edit.deleteMessageCascade. Two sequential indexed reads,
- * not an OR: the minted id is the common case and the second read only runs on a miss.
+ * The same either-id rule as chat-edit.deleteMessageCascade, in one query.
  */
 import { prisma } from "@/lib/prisma";
 
@@ -24,15 +23,18 @@ const select = { id: true, conversationId: true, clientMessageId: true, createdA
 
 /**
  * `conversationId: null` is a first-send replay: the client never learned the thread id, so the
- * row can only be found by the id it minted. Throws on a store failure; callers decide whether
- * an unreadable row is "absent" (a first send) or "unknown" (turn-guard.ts).
+ * message can only be named by the id it minted, and that is the only column matched (a database id
+ * from some other thread must not attach a request to it). Scoped to a thread it is one query, either
+ * id. Oldest first, so two rows that share an id (the lease-lapse and fail-open cases allow it) still
+ * resolve the same way every time. Throws on a store failure; callers decide whether an unreadable row
+ * is "absent" (a first send) or "unknown" (turn-guard.ts).
  */
 export async function findUserTurnRow(input: {
   conversationId: string | null | undefined;
   messageId: string;
 }): Promise<UserTurnRow | null> {
-  const scope = { role: "user", ...(input.conversationId ? { conversationId: input.conversationId } : {}) };
-  const byMintedId = await prisma.chatMessage.findFirst({ where: { ...scope, clientMessageId: input.messageId }, select });
-  if (byMintedId) return byMintedId;
-  return prisma.chatMessage.findFirst({ where: { ...scope, id: input.messageId }, select });
+  const where = input.conversationId
+    ? { role: "user", conversationId: input.conversationId, OR: [{ clientMessageId: input.messageId }, { id: input.messageId }] }
+    : { role: "user", clientMessageId: input.messageId };
+  return prisma.chatMessage.findFirst({ where, orderBy: { createdAt: "asc" }, select });
 }

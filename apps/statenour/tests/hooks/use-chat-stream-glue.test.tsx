@@ -30,6 +30,7 @@ type TransportOpts = {
   onResumeEmpty?: () => void;
   onConversationId?: (id: string) => void;
   onTraceId?: (id: string) => void;
+  onTurnRefused?: (info: { code: string; traceId: string | null }) => void;
 };
 
 const h = vi.hoisted(() => ({
@@ -2215,5 +2216,99 @@ describe("resetTurn clears what is safe either way", () => {
     act(() => ctl.resetTurn());
 
     expect(ctl.stopped).toBeNull();
+  });
+});
+
+// Turn guard (2026-10-15): the server may REFUSE a replay (409 turn_in_flight / turn_answered /
+// turn_ran). That is an explicit answer, not "the request may never have arrived". On a client that
+// held the run's trace already, the refusal's X-Trace-Id equals the replay's own, so the
+// outstanding-replay record was never cleared and Retry stayed held on every tap; regenerate() had
+// also taken the reply off the screen before the POST (adversarial review of #3060, client contract).
+describe("a refused replay", () => {
+  beforeEach(() => {
+    vi.mocked(toast.error).mockClear();
+    setMessages.mockClear();
+  });
+
+  const refusalBody = () => new Error('{"error":"Nick is still working on that message.","code":"turn_in_flight"}');
+
+  it("Regenerate on the reply on screen, refused by the run that wrote it: the reply comes back and Retry replays instead of being held", async () => {
+    h.chat.status = "ready";
+    render();
+    await retryNow();
+    expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
+
+    // The SDK took the reply off the screen before the POST. The server answers 409 with the holder's trace: T1.
+    h.chat.messages = [user];
+    act(() => {
+      transport().onTraceId?.("T1");
+      transport().onTurnRefused?.({ code: "turn_in_flight", traceId: "T1" });
+    });
+    h.chat.status = "error";
+    h.chat.error = refusalBody();
+    render();
+
+    const restore = setMessages.mock.calls.at(-1)?.[0] as ((m: Msg[]) => Msg[]) | undefined;
+    expect(typeof restore, "the reply the SDK removed was not put back").toBe("function");
+    expect(restore!([user])).toEqual([user, reply]);
+    expect(restore!([user, reply, { id: "u2", role: "user", parts: [] }]), "a thread that moved on is left alone").toHaveLength(3);
+
+    h.chat.messages = [user, reply];
+    render();
+    await retryNow();
+
+    expect(h.chat.regenerate, "Retry must replay: the server decides").toHaveBeenCalledTimes(2);
+    expect(vi.mocked(toast.error)).not.toHaveBeenCalled();
+  });
+
+  it("CONTROL - a replay whose POST died with no header at all is still held (the record is only cleared by an explicit refusal)", async () => {
+    hookOptions = { readSavedTurn: vi.fn(async () => [userRow, { ...cleanRow("T1"), streamingState: "complete" }]) };
+    render();
+    h.chat.status = "ready";
+    render();
+    await retryNow();
+    h.chat.messages = [user];
+    h.chat.status = "error";
+    h.chat.error = new Error(NOT_A_NETWORK_DROP);
+    render();
+    vi.mocked(toast.error).mockClear();
+
+    await retryNow();
+
+    expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(toast.error).mock.calls[0]?.[0]).toBe(RETRY_HELD_RESENT_UNKNOWN);
+  });
+
+  it("a refusal by a run the client had no trace for: Retry waits for that run's saved row, then replays", async () => {
+    let rows: unknown[] = [userRow];
+    const readSavedTurn = vi.fn(async () => rows);
+    hookOptions = { readSavedTurn };
+    render();
+    transport().lastTraceIdRef.current = null;
+    h.chat.messages = [user];
+    h.chat.status = "ready";
+    render();
+    await retryNow(); // the first send's response never arrived; the operator replays
+    expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      transport().lastTraceIdRef.current = "T9";
+      transport().onTraceId?.("T9");
+      transport().onTurnRefused?.({ code: "turn_in_flight", traceId: "T9" });
+    });
+    h.chat.status = "error";
+    h.chat.error = refusalBody();
+    render();
+    vi.mocked(toast.error).mockClear();
+
+    await retryNow(); // the run is still going: no row of its own yet
+    expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(toast.error).mock.calls[0]?.[0]).toBe(RETRY_HELD_UNCONFIRMED);
+
+    rows = [userRow, { ...cleanRow("T9"), streamingState: "complete" }]; // it finished, clean
+    vi.mocked(toast.error).mockClear();
+    await retryNow();
+    expect(h.chat.regenerate).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(toast.error)).not.toHaveBeenCalled();
   });
 });

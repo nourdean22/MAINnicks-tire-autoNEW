@@ -12,7 +12,8 @@
  *   user row + reply that may have run   -> refuse 409 turn_ran              (the client's own rule, now the server's)
  *   user row, replies unreadable         -> refuse 503 turn_unreadable       (an attempt exists; its outcome is unknown)
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
 
 type Row = {
   id: string;
@@ -24,6 +25,7 @@ type Row = {
   parts?: unknown;
   streamingState?: string;
   tokenUsage?: unknown;
+  routerReason?: string;
   createdAt: Date;
 };
 
@@ -32,6 +34,15 @@ const h = vi.hoisted(() => ({
   failRead: undefined as undefined | "findFirst" | "findMany" | "assistantOnly",
   // The first user-row lookup misses, as if the row landed between it and the claim.
   hideUserRowOnce: false,
+  // The next N user-row lookups throw (a transient Neon failure), then they work again.
+  failUserLookups: 0,
+  // A user-row lookup / replies read / claim that never answers.
+  hang: undefined as undefined | "user" | "replies" | "claim",
+  // Runs inside the claim: a run that finishes while we claim.
+  onClaim: undefined as undefined | (() => void),
+  // Replaces the stubbed claim outcome with one computed from the request (a lease table).
+  claimImpl: undefined as undefined | ((input: { clientMessageId: string }) => unknown),
+  releaseClaim: undefined as undefined | (() => void),
   claimResult: undefined as unknown,
   claimCalls: [] as unknown[],
   finished: 0,
@@ -64,7 +75,13 @@ vi.mock("@/lib/prisma", () => ({
       findFirst: async (a: { where: Record<string, unknown>; orderBy?: { createdAt?: string } }) => {
         if (h.failRead === "findFirst") throw new Error("neon: connection terminated");
         if (h.failRead === "assistantOnly" && a.where.role === "assistant") throw new Error("neon: connection terminated");
-        if (h.hideUserRowOnce && a.where.role === "user" && a.where.clientMessageId !== undefined) {
+        const isUserLookup = a.where.role === "user" && (a.where.clientMessageId !== undefined || a.where.OR !== undefined);
+        if (isUserLookup && h.hang === "user") return new Promise(() => {});
+        if (isUserLookup && h.failUserLookups > 0) {
+          h.failUserLookups -= 1;
+          throw new Error("neon: connection terminated");
+        }
+        if (h.hideUserRowOnce && isUserLookup) {
           h.hideUserRowOnce = false;
           return null;
         }
@@ -72,6 +89,7 @@ vi.mock("@/lib/prisma", () => ({
         return hit ? { ...hit } : null;
       },
       findMany: async (a: { where: Record<string, unknown>; orderBy?: { createdAt?: string } }) => {
+        if (h.hang === "replies") return new Promise(() => {});
         if (h.failRead === "findMany" || h.failRead === "assistantOnly") throw new Error("neon: connection terminated");
         return pick(a).map((r) => ({ ...r }));
       },
@@ -80,13 +98,15 @@ vi.mock("@/lib/prisma", () => ({
 }));
 vi.mock("@/lib/utils/error-log", () => ({ logError: vi.fn() }));
 vi.mock("@/lib/services/chat/turn-claim", () => ({
-  claimTurn: vi.fn(async (input: unknown) => {
+  claimTurn: vi.fn(async (input: { clientMessageId: string }) => {
     h.claimCalls.push(input);
-    return h.claimResult;
+    if (h.hang === "claim") return new Promise((resolve) => void (h.releaseClaim = () => resolve(h.claimResult)));
+    h.onClaim?.();
+    return h.claimImpl ? h.claimImpl(input) : h.claimResult;
   }),
 }));
 
-import { guardTurn, type TurnGuardResult } from "@/lib/services/chat/turn-guard";
+import { GUARD_STEP_TIMEOUT_MS, FOLLOW_UP_ROUTER_REASON, guardTurn, type TurnGuardResult } from "@/lib/services/chat/turn-guard";
 
 const claim = () => ({
   traceId: "T-new",
@@ -136,6 +156,10 @@ beforeEach(() => {
   h.rows = [];
   h.failRead = undefined;
   h.hideUserRowOnce = false;
+  h.failUserLookups = 0;
+  h.hang = undefined;
+  h.onClaim = undefined;
+  h.claimImpl = undefined;
   h.claimResult = claimed();
   h.claimCalls = [];
   h.finished = 0;
@@ -323,5 +347,185 @@ describe("a failed read is never read as 'nothing happened'", () => {
     expect((await refused(await guard({ trigger: "regenerate-message" }))).body.code).toBe("turn_ran");
     h.rows = [];
     expect(await guard()).toEqual({ kind: "run", claim: null, conversationId: null });
+  });
+});
+
+describe("the lease key follows the message's real identity", () => {
+  const leaseTable = (taken: string[]) => {
+    const leases = new Set(taken);
+    h.claimImpl = (input) =>
+      leases.has(input.clientMessageId)
+        ? { kind: "in_flight", traceId: "T-live", conversationId: "conv-1" }
+        : (leases.add(input.clientMessageId), claimed());
+  };
+  const keys = () => h.claimCalls.map((c) => (c as { clientMessageId: string }).clientMessageId);
+
+  // A hydrated Regenerate names the message by database id (C1); the live run holds the lease under the minted id (U1).
+  // If the first lookup fails, the lease is first taken under C1. Once the row resolves, that is the wrong key.
+  it("a first lookup that failed, then resolved the row: the lease is re-keyed and the live run's lease refuses it", async () => {
+    h.rows = [user("C1", "U1", 1_000)];
+    leaseTable(["U1"]);
+    h.failUserLookups = 1;
+
+    const r = await refused(await guard({ lastMessage: { id: "C1", role: "user" }, trigger: "regenerate-message" }));
+
+    expect(r.body.code).toBe("turn_in_flight");
+    expect(keys()).toEqual(["C1", "U1"]);
+    expect(h.finished, "the lease taken under the wrong key must be let go").toBe(1);
+  });
+
+  it("...and when the canonical lease is free it runs under THAT key, holding one lease, not two", async () => {
+    h.rows = [user("C1", "U1", 1_000)];
+    leaseTable([]);
+    h.failUserLookups = 1;
+
+    const result = await guard({ lastMessage: { id: "C1", role: "user" }, trigger: "regenerate-message" });
+
+    expect(result).toMatchObject({ kind: "run", conversationId: "conv-1" });
+    expect(keys()).toEqual(["C1", "U1"]);
+    expect(h.finished).toBe(1);
+  });
+
+  it("CONTROL - no failure: one claim, under the minted id", async () => {
+    h.rows = [user("C1", "U1", 1_000)];
+    leaseTable([]);
+    await guard({ lastMessage: { id: "C1", role: "user" }, trigger: "regenerate-message" });
+    expect(keys()).toEqual(["U1"]);
+  });
+});
+
+describe("a read failure is judged per read", () => {
+  it("a failed first read followed by a clean one is not a failure: a regenerate of a message that never saved runs", async () => {
+    h.failUserLookups = 1;
+    expect(await guard({ trigger: "regenerate-message" })).toMatchObject({ kind: "run" });
+  });
+
+  it("CONTROL - the last read failing too is still refused for a regenerate", async () => {
+    h.failUserLookups = 2;
+    expect((await refused(await guard({ trigger: "regenerate-message" }))).status).toBe(503);
+  });
+});
+
+describe("what a refusal tells the client", () => {
+  it("an in-flight refusal names the thread from the saved user row when the lease has none yet", async () => {
+    h.rows = [user("U1", "m-1", 1_000, "conv-first")];
+    h.claimResult = { kind: "in_flight", traceId: "T-live", conversationId: null };
+    const r = await refused(await guard({ conversationId: undefined }));
+    expect(r.headers.get("X-Conversation-Id")).toBe("conv-first");
+  });
+
+  it("every refusal says which kind it is in X-Turn-Refusal (the transport reads it)", async () => {
+    h.claimResult = { kind: "in_flight", traceId: "T-live", conversationId: "conv-1" };
+    expect((await refused(await guard())).headers.get("X-Turn-Refusal")).toBe("turn_in_flight");
+
+    h.claimResult = claimed();
+    h.rows = [user("U1", "m-1", 1_000), reply("A1", 2_000, { traceId: "T-old", toolReceipts: [write] }, { parentMessageId: "U1" })];
+    expect((await refused(await guard({ trigger: "regenerate-message" }))).headers.get("X-Turn-Refusal")).toBe("turn_ran");
+    expect((await refused(await guard({ trigger: "submit-message" }))).headers.get("X-Turn-Refusal")).toBe("turn_answered");
+  });
+
+  it("the refusal copy does not promise a reply will appear (nothing on the client re-reads the thread)", async () => {
+    h.claimResult = { kind: "in_flight", traceId: "T-live", conversationId: "conv-1" };
+    const r = await refused(await guard());
+    expect(String(r.body.reason)).not.toMatch(/appear/i);
+  });
+
+  it("the trace on a refusal is the NEWEST reply's", async () => {
+    h.rows = [
+      user("U1", "m-1", 1_000),
+      reply("stub", 1_500, { traceId: "T-stub", toolReceipts: [] }, { streamingState: "errored" }),
+      reply("final", 2_000, { traceId: "T-final", toolReceipts: [] }, { parentMessageId: "U1" }),
+    ];
+    const r = await refused(await guard({ trigger: "submit-message" }));
+    expect(r.headers.get("X-Trace-Id")).toBe("T-final");
+  });
+});
+
+describe("the replies are read AFTER the claim", () => {
+  it("a run that finished while we were claiming has saved its reply by the time we read", async () => {
+    h.rows = [user("U1", "m-1", 1_000)];
+    h.onClaim = () => {
+      h.rows.push(reply("A1", 2_000, { traceId: "T-old", toolReceipts: [] }, { parentMessageId: "U1" }));
+    };
+    expect((await refused(await guard({ trigger: "submit-message" }))).body.code).toBe("turn_answered");
+  });
+});
+
+describe("a saved reply is judged by what it SAYS, not only by its receipts", () => {
+  const actionText = 'Done.\n```action\n{"type":"task.create","params":{}}\n```';
+
+  it("an action block in the saved parts blocks a regenerate even with an empty receipts array", async () => {
+    h.rows = [
+      user("U1", "m-1", 1_000),
+      reply("A1", 2_000, { traceId: "T-old", toolReceipts: [] }, { parentMessageId: "U1", parts: [{ type: "text", text: actionText }] }),
+    ];
+    expect((await refused(await guard({ trigger: "regenerate-message" }))).body.code).toBe("turn_ran");
+  });
+
+  it("...and when only the stored text carries it (no parts tree)", async () => {
+    h.rows = [user("U1", "m-1", 1_000), reply("A1", 2_000, { traceId: "T-old", toolReceipts: [] }, { parentMessageId: "U1", parts: undefined, content: actionText })];
+    expect((await refused(await guard({ trigger: "regenerate-message" }))).body.code).toBe("turn_ran");
+  });
+});
+
+describe("an agent follow-up is not the answer to the message", () => {
+  const followUp = (at: number) => reply("F1", at, null, { routerReason: FOLLOW_UP_ROUTER_REASON });
+
+  it.each(["submit-message", "regenerate-message"])("%s: a follow-up posted after an unanswered message does not block it", async (trigger) => {
+    h.rows = [user("U1", "m-1", 1_000), followUp(2_000)];
+    expect(await guard({ trigger })).toMatchObject({ kind: "run" });
+  });
+
+  it("CONTROL - a parentless 'Action receipts' post has no marker and still counts: it records actions that ran", async () => {
+    h.rows = [user("U1", "m-1", 1_000), reply("R1", 2_000, null)];
+    expect((await refused(await guard({ trigger: "regenerate-message" }))).body.code).toBe("turn_ran");
+    expect((await refused(await guard({ trigger: "submit-message" }))).body.code).toBe("turn_answered");
+  });
+
+  it("the marker is the one run-follow-up.ts writes", () => {
+    const source = readFileSync("lib/agent/run-follow-up.ts", "utf8");
+    expect(source).toContain(`export const FOLLOWUP_MARKER = "${FOLLOW_UP_ROUTER_REASON}";`);
+  });
+});
+
+describe("the guard is bounded: a stalled database is an outage, not a wait", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+  const stalled = async <T,>(p: Promise<T>) => {
+    // Literal seconds, not the constant: a bound that drifts to a minute must fail here, not adapt.
+    await vi.advanceTimersByTimeAsync(4 * 3_000);
+    return p;
+  };
+
+  it("each step is bounded to three seconds", () => {
+    expect(GUARD_STEP_TIMEOUT_MS).toBe(3_000);
+  });
+
+  it("a user-row lookup that never answers: a send runs", async () => {
+    h.hang = "user";
+    expect(await stalled(guard())).toMatchObject({ kind: "run" });
+  });
+
+  it("...and a regenerate is refused, because it proves an attempt exists", async () => {
+    h.hang = "user";
+    expect((await refused(await stalled(guard({ trigger: "regenerate-message" })))).status).toBe(503);
+  });
+
+  it("a replies read that never answers: unreadable, and the lease is let go", async () => {
+    h.rows = [user("U1", "m-1", 1_000)];
+    h.hang = "replies";
+    const r = await refused(await stalled(guard()));
+    expect(r.status).toBe(503);
+    expect(h.finished).toBe(1);
+  });
+
+  it("a claim that never answers: the turn runs without one, and a lease that lands late is let go", async () => {
+    h.hang = "claim";
+    const result = await stalled(guard());
+    expect(result).toEqual({ kind: "run", claim: null, conversationId: null });
+
+    h.releaseClaim!();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.finished, "an orphaned lease would heartbeat for minutes with nobody to finish it").toBe(1);
   });
 });

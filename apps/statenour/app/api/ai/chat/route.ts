@@ -105,6 +105,7 @@ async function chatPostInner(req: Request) {
   // lease, the response header and the saved rows all name the same attempt.
   const { mintTraceId } = await import("@/lib/ai/agent-trace");
   const traceId = mintTraceId();
+  const guardTimer = stageTracker.start("guard");
   const guard = await guardTurn({
     lastMessage: gate.messages[gate.messages.length - 1],
     conversationId: gate.conversationId,
@@ -112,6 +113,7 @@ async function chatPostInner(req: Request) {
     traceId,
     transcriptOff: gate.privateMode || gate.ephemeral,
   });
+  guardTimer.end();
   if (guard.kind === "refuse") return guard.response;
   // A replay of a first send re-sends with no thread id; it belongs in the thread the first attempt made.
   const turnGate = guard.conversationId && !gate.conversationId ? { ...gate, conversationId: guard.conversationId } : gate;
