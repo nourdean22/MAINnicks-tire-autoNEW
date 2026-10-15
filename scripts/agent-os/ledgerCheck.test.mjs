@@ -84,10 +84,69 @@ test("an indented job row is still parsed: a stale pending in it is an error, no
   assert.match(r.errors.join("\n"), /says "pending"/);
 });
 
-test("a table-shaped job line the parser cannot read is reported instead of skipped", () => {
-  const { errors } = ledgerProblems(ledger("see: " + row()));
-  assert.equal(errors.length, 1, JSON.stringify(errors));
-  assert.match(errors[0], /looks like a job row but does not start with "\|": not parsed/);
+for (const [label, below] of [
+  ["a job row behind a prefix", "see: " + row({ id: "2026-10-15-stray" })],
+  ["a blockquoted job row", "> " + row({ id: "2026-10-15-stray" })],
+  ["a bulleted job row", "- " + row({ id: "2026-10-15-stray" })],
+  ["a job row after a blank line (the table ended above it)", "\n" + row({ id: "2026-10-15-stray" })],
+]) {
+  test(`${label} below the table is reported instead of skipped`, () => {
+    const { errors } = ledgerProblems(ledger(row(), below));
+    assert.equal(errors.length, 1, JSON.stringify(errors));
+    assert.match(errors[0], /2026-10-15-stray.*below the table.*not parsed/);
+  });
+}
+
+test("prose above the table is ignored, including an indented example row and an inline-code mention of a row", () => {
+  const prose = ["Each Job id is yyyy-mm-dd-slug, and the Job id column is the key.", "Rows look like:", "", "    " + row({ id: "2026-10-15-example" }), "", "Write `| 2026-10-15-example | ... |` in the PR that merges.", ""];
+  const text = [...HEAD.slice(0, 2), ...prose, ...HEAD.slice(2), row(), ""].join("\n");
+  assert.deepEqual(ledgerProblems(text), { errors: [], warnings: [], rows: 1 });
+});
+
+test("the table is found by its header, not by its position, and a missing header or separator is an error", () => {
+  assert.match(ledgerProblems(ledger(row()).replace(/^\| Job id.*$/m, "")).errors.join("\n"), /no `\| Job id \| \.\.\.` header/);
+  assert.match(ledgerProblems(ledger(row()).replace(/^\|---.*$/m, "")).errors.join("\n"), /separator/);
+});
+
+test("a header with no rows under it is an error, not a clean empty ledger", () => {
+  const { errors, rows } = ledgerProblems(ledger());
+  assert.equal(rows, 0);
+  assert.match(errors.join("\n"), /header but no rows/);
+});
+
+for (const [label, pr] of [["TODO", "TODO"], ["todo in a sentence", "todo: fill in"], ["an empty cell", ""], ["only spaces", "   "]]) {
+  test(`${label} in the PR cell is an error`, () => {
+    const { errors } = ledgerProblems(ledger(row({ pr })));
+    assert.equal(errors.length, 1, JSON.stringify(errors));
+    assert.match(errors[0], /PR \/ SHA cell/);
+  });
+}
+
+for (const status of ["PLANNED", "RUNNING", "BUILT"]) {
+  test(`warns, without failing, on ${status} whose PR cell says MERGED`, () => {
+    const r = ledgerProblems(ledger(row({ status, pr: "#3012 MERGED (squash b31e6267)" })));
+    assert.deepEqual(r.errors, []);
+    assert.equal(r.warnings.length, 1, JSON.stringify(r.warnings));
+    assert.match(r.warnings[0], new RegExp(`${status}.*says MERGED.*update the status`));
+  });
+}
+
+test("a MERGED row that mentions a merged PR raises no warning, and a lowercase 'merged' in an open row is prose", () => {
+  assert.deepEqual(ledgerProblems(ledger(row({ pr: "#3012 MERGED (squash)" }))).warnings, []);
+  assert.deepEqual(ledgerProblems(ledger(row({ status: "RUNNING", pr: "#3012 (not merged yet)" }))).warnings, []);
+});
+
+test("a tab-indented job row is parsed like any other", () => {
+  const r = ledgerProblems(ledger("\t" + row({ pr: "pending (x)" })));
+  assert.equal(r.rows, 1);
+  assert.match(r.errors.join("\n"), /says "pending"/);
+});
+
+test("an unreadable file exits 2 with one line, not a stack trace", () => {
+  const r = spawnSync(process.execPath, [SCRIPT, "--file", join(tmp, "does-not-exist.md")], { encoding: "utf8" });
+  assert.equal(r.status, 2, r.stdout + r.stderr);
+  assert.match(r.stderr, /ledger-check: cannot read .*does-not-exist\.md/);
+  assert.doesNotMatch(r.stderr, /at .*node:internal/);
 });
 
 test("a ledger with no Status line cannot be judged and says so", () => {

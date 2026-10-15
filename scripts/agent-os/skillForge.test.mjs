@@ -13,7 +13,7 @@
  */
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync, existsSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, rmdirSync, symlinkSync, unlinkSync, utimesSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test, { after } from "node:test";
@@ -135,6 +135,10 @@ for (const [label, make, want] of [
   ["a link that exists only inside a tilde fence", () => skill("good-skill", { "SKILL.md": md("good-skill", DESC, "[a](references/gates.md)\n~~~\n[b](scripts/tool.mjs)\n~~~\n") }), /scripts\/tool\.mjs exists but SKILL\.md does not link it/],
   ["a link that exists only inside a four-backtick fence", () => skill("good-skill", { "SKILL.md": md("good-skill", DESC, "[a](references/gates.md)\n````\n[b](scripts/tool.mjs)\n````\n") }), /scripts\/tool\.mjs exists but SKILL\.md does not link it/],
   ["a link that exists only inside an inline code span", () => skill("good-skill", { "SKILL.md": md("good-skill", DESC, "[a](references/gates.md) `[b](scripts/tool.mjs)`\n") }), /scripts\/tool\.mjs exists but SKILL\.md does not link it/],
+  ["a link that exists only inside a blockquoted fence", () => skill("good-skill", { "SKILL.md": md("good-skill", DESC, "[a](references/gates.md)\n> ```\n> [b](scripts/tool.mjs)\n> ```\n") }), /scripts\/tool\.mjs exists but SKILL\.md does not link it/],
+  ["a link that exists only inside a bulleted fence", () => skill("good-skill", { "SKILL.md": md("good-skill", DESC, "[a](references/gates.md)\n- ```\n  [b](scripts/tool.mjs)\n  ```\n") }), /scripts\/tool\.mjs exists but SKILL\.md does not link it/],
+  ["a link that exists only inside a numbered-list fence", () => skill("good-skill", { "SKILL.md": md("good-skill", DESC, "[a](references/gates.md)\n1. ```\n   [b](scripts/tool.mjs)\n   ```\n") }), /scripts\/tool\.mjs exists but SKILL\.md does not link it/],
+  ["a link that exists only inside a blockquoted tilde fence", () => skill("good-skill", { "SKILL.md": md("good-skill", DESC, "[a](references/gates.md)\n> ~~~md\n> [b](scripts/tool.mjs)\n> ~~~\n") }), /scripts\/tool\.mjs exists but SKILL\.md does not link it/],
   ["a skeptic finding that says 'not yet fixed'", () => skill("good-skill", { "evals/skeptic.md": "## Findings\n- the gate lets this through and it is not yet fixed\n" }), /finding has no disposition/],
   ["a skeptic finding that says 'not actually fixed'", () => skill("good-skill", { "evals/skeptic.md": "## Findings\n- the gate lets this through; not actually fixed\n" }), /finding has no disposition/],
   ["a skeptic finding that says 'unfixed'", () => skill("good-skill", { "evals/skeptic.md": "## Findings\n- the gate lets this through and it stays unfixed\n" }), /finding has no disposition/],
@@ -145,6 +149,19 @@ for (const [label, make, want] of [
     assert.ok(problems.some((p) => want.test(p)), `wanted ${want}; got ${JSON.stringify(problems)}`);
   });
 }
+
+test("a link after a fenced example still counts, and a prefixed fence does not swallow the text below it", () => {
+  const s = skill("good-skill", { "SKILL.md": md("good-skill", DESC, "> ```\n> an example\n> ```\n\n[a](references/gates.md) [b](scripts/tool.mjs)\n") });
+  assert.deepEqual(errs(s), []);
+});
+
+test("the skeptic error names the real grammar, not the old 'End each with fixed' wording", () => {
+  const s = skill("good-skill", { "evals/skeptic.md": "## Findings\n- the whole thing is broken\n" });
+  const msg = errs(s).find((p) => /finding has no disposition/.test(p));
+  assert.ok(msg, "no disposition error");
+  assert.doesNotMatch(msg, /End each with "fixed"/);
+  assert.match(msg, /\. fixed.*; rejected: <why>.*; none found after trying: <what>/);
+});
 
 test("a link written ./references/x.md counts as linking references/x.md", () => {
   const s = skill("good-skill", { "SKILL.md": md("good-skill", DESC, "[a](./references/gates.md) [b](./scripts/tool.mjs)\n") });
@@ -178,12 +195,13 @@ test("a skill outside .claude/skills/<slug>/ is named, since it would validate a
   assert.ok(checkSkill(dir).some((p) => /must be \.claude\/skills\/<slug>\//.test(p)));
 });
 
+const run = (cwd, args) => spawnSync("git", args, { cwd, encoding: "utf8", env: { PATH: process.env.PATH, HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE, SystemRoot: process.env.SystemRoot, GIT_CONFIG_NOSYSTEM: "1" } });
+const commit = (cwd, paths, msg) => {
+  run(cwd, ["add", "--", ...paths]);
+  assert.equal(run(cwd, ["-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false", "commit", "-m", msg]).status, 0);
+};
+
 test("--git: the baseline must be committed before SKILL.md, in an earlier commit", () => {
-  const run = (cwd, args) => spawnSync("git", args, { cwd, encoding: "utf8", env: { PATH: process.env.PATH, HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE, SystemRoot: process.env.SystemRoot, GIT_CONFIG_NOSYSTEM: "1" } });
-  const commit = (cwd, paths, msg) => {
-    run(cwd, ["add", "--", ...paths]);
-    assert.equal(run(cwd, ["-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false", "commit", "-m", msg]).status, 0);
-  };
   const fresh = () => {
     const s = skill();
     assert.equal(run(s.root, ["init", "-q"]).status, 0);
@@ -232,6 +250,78 @@ test("--git: the baseline must be committed before SKILL.md, in an earlier commi
   assert.ok(errs(s, { git: true }).some((p) => /baseline\.md is not committed yet/.test(p)));
 });
 
+test("--existing --git: tuning a skill that predates the tool is judged on this branch's commits, not on the commit that created SKILL.md", () => {
+  const S = ".claude/skills/good-skill/SKILL.md";
+  const B = ".claude/skills/good-skill/evals/baseline.md";
+  const REST = [".claude/skills/good-skill/references", ".claude/skills/good-skill/scripts", ".claude/skills/good-skill/evals/trigger-queries.json", ".claude/skills/good-skill/evals/skeptic.md", ".claude/skills/good-skill/evals/invocation.json"];
+  const touch = (s) => writeFileSync(join(s.dir, "SKILL.md"), readFileSync(join(s.dir, "SKILL.md"), "utf8") + "\nA tuning edit.\n");
+  // main already holds the skill (no baseline: it predates the tool); the work happens on a branch.
+  const onMain = ({ withBaseline = false } = {}) => {
+    const s = skill();
+    assert.equal(run(s.root, ["init", "-q", "-b", "main"]).status, 0);
+    if (withBaseline) commit(s.root, [B], "baseline already on main");
+    commit(s.root, [S, ...REST], "the skill, long before this tool");
+    assert.equal(run(s.root, ["checkout", "-q", "-b", "tune"]).status, 0);
+    return s;
+  };
+  const opts = { git: true, existing: true };
+
+  let s = onMain(); // baseline first on the branch, then the SKILL.md edit: clean
+  commit(s.root, [B], "baseline");
+  touch(s);
+  commit(s.root, [S], "tune the description");
+  assert.deepEqual(errs(s, opts), []);
+
+  s = onMain(); // the SKILL.md edit first, baseline after: the old order, caught
+  touch(s);
+  commit(s.root, [S], "tune the description");
+  commit(s.root, [B], "baseline after the fact");
+  assert.ok(errs(s, opts).some((p) => /baseline commit is not an ancestor of the SKILL\.md commit/.test(p)), JSON.stringify(errs(s, opts)));
+
+  s = onMain(); // both in one commit
+  touch(s);
+  commit(s.root, [B, S], "tune and baseline together");
+  assert.ok(errs(s, opts).some((p) => /same commit/.test(p)), JSON.stringify(errs(s, opts)));
+
+  s = onMain(); // baseline rewritten after the SKILL.md edit
+  commit(s.root, [B], "baseline");
+  touch(s);
+  commit(s.root, [S], "tune the description");
+  writeFileSync(join(s.dir, "evals", "baseline.md"), baselineText + "\nrewritten after the fact\n");
+  commit(s.root, [B], "baseline rewritten");
+  assert.ok(errs(s, opts).some((p) => /baseline\.md was edited in [0-9a-f]{9}, after SKILL\.md was first changed on this branch/.test(p)), JSON.stringify(errs(s, opts)));
+
+  s = onMain(); // SKILL.md untouched on the branch: nothing to order, and no false failure
+  commit(s.root, [B], "baseline only");
+  assert.deepEqual(errs(s, opts), []);
+
+  s = onMain({ withBaseline: true }); // the baseline was already on main: a branch edit of SKILL.md after it is fine
+  touch(s);
+  commit(s.root, [S], "tune the description");
+  assert.deepEqual(errs(s, opts), []);
+
+  s = onMain({ withBaseline: true }); // ...but editing that baseline on the branch after the SKILL.md edit is not
+  touch(s);
+  commit(s.root, [S], "tune the description");
+  writeFileSync(join(s.dir, "evals", "baseline.md"), baselineText + "\nrewritten after the fact\n");
+  commit(s.root, [B], "baseline rewritten");
+  assert.ok(errs(s, opts).some((p) => /baseline\.md was edited in/.test(p)), JSON.stringify(errs(s, opts)));
+
+  // Without --existing the same history is judged by the commit that ADDED SKILL.md (long before the baseline): the strict rule still fails it.
+  s = onMain();
+  commit(s.root, [B], "baseline");
+  touch(s);
+  commit(s.root, [S], "tune the description");
+  assert.ok(errs(s, { git: true }).some((p) => /not an ancestor/.test(p)), "the strict rule is unchanged for a new skill");
+});
+
+test("--existing --git with no main or origin/main to compare against says so instead of passing", () => {
+  const s = skill();
+  assert.equal(run(s.root, ["init", "-q", "-b", "side"]).status, 0);
+  commit(s.root, [".claude/skills/good-skill/SKILL.md"], "skill");
+  assert.ok(errs(s, { git: true, existing: true }).some((p) => /no origin\/main or main/.test(p)), JSON.stringify(errs(s, { git: true, existing: true })));
+});
+
 test("redact removes emails, phone numbers, urls, paths and tokens, and keeps ordinary text and long skill names", () => {
   const out = redact("mail jane.doe@example.com or call (216) 555-0147, see https://example.com/x?id=1, open C:\\Users\\jane\\a.txt and ~/notes, key sk-abcdefghijklmnop and ab12cd34ef56ab12cd34ef56ab12cd34ef56");
   for (const leak of ["jane.doe", "555-0147", "example.com", "C:\\Users", "~/notes", "sk-abcdefghij", "ab12cd34ef56ab12"]) assert.ok(!out.includes(leak), `${leak} survived: ${out}`);
@@ -253,6 +343,14 @@ test("redact and the PII list catch the shapes a first draft missed", () => {
     "ssn 123-45-6789 is on the form": "123-45-6789",
     "open /workspace/MAINnicks-tire-autoNEW/customer/acme.txt now": "acme.txt",
     "see /opt/private/project/file.md for it": "file.md",
+    "open `/opt/private/project/file.md` now": "file.md",
+    "set path=/opt/private/project/file.md for it": "file.md",
+    "see [/opt/private/project/file.md] for it": "file.md",
+    "files /opt/private/a/one.md,/opt/private/b/two.md both": "one.md",
+    "it lives at file:/opt/private/project/file.md today": "file.md",
+    "it lives at file:///opt/private/project/file.md today": "file.md",
+    "open //fileserver/share/clients/acme.txt now": "acme.txt", // a forward-slash UNC path: its second slash follows a slash
+    'the value is "/opt/private/project/file.md" in it': "file.md",
     [`key ${["sk", "live", "abc123def456"].join("_")} leaked`]: "abc123def456", // built at run time so no secret scanner sees a key-shaped literal in the file
   };
   for (const [text, leak] of Object.entries(cases)) {
@@ -260,7 +358,7 @@ test("redact and the PII list catch the shapes a first draft missed", () => {
     const s = skill("good-skill", { "evals/trigger-queries.json": mutateQueries((q) => { q[0].query = `please ${text} and forge a skill`; return q; }) });
     assert.ok(errs(s).some((p) => /trigger-queries\[0\]: contains a /.test(p)), `check let through: ${text}`);
   }
-  for (const fine of ["the monorepo skill got long, split it into references", "fix #3040 and the 2026-10-15 ledger row", "node 24 and claude 2.1.296 on windows", "src/calc.js and SKILL.md and forge.mjs", "add a /health page and read src/calc.js again", "a and/or b, 3/4 done, w/o the flag"]) {
+  for (const fine of ["the monorepo skill got long, split it into references", "fix #3040 and the 2026-10-15 ledger row", "node 24 and claude 2.1.296 on windows", "src/calc.js and SKILL.md and forge.mjs", "add a /health page and read src/calc.js again", "a and/or b, 3/4 done, w/o the flag", "the 2026/10/15 ledger and a/b/c testing, read/write/exec bits", "an and/or/maybe split of input/output/error streams", "run ./scripts/agent-os/ledger-check.mjs and ../docs/agent-os/ledger.md again"]) {
     assert.equal(redact(fine), fine, `redact changed ordinary text: ${redact(fine)}`);
   }
 });
@@ -312,6 +410,14 @@ test("mine returns sibling-fired and keyword prompts, redacted, and skips tool r
       human("This session is being continued from a previous conversation. The skill summary below is the model's, not the operator's"),
       human("/skill-forge make me a skill from this"),
       human("<command-message>skill</command-message> make a skill"),
+      // Headless `claude -p` runs (this tool's own score runs, a sibling's test) write user lines too: turnOrigin "sdk", and NO origin field.
+      line({ type: "user", turnOrigin: "sdk", entrypoint: "claude-desktop", message: { role: "user", content: "a prompt that a headless run was given, about writing a new skill for the sdk" } }),
+      line({ type: "user", entrypoint: "sdk-cli", message: { role: "user", content: "a prompt from the cli print mode, about writing a new skill for the cli" } }),
+      line({ type: "user", origin: { kind: "task-notification" }, turnOrigin: "human", message: { role: "user", content: "a notification payload that mentions writing a new skill" } }),
+      // An older transcript line carries neither field (10,278 such user lines in 60 days here, mostly tool results): no field is not a reason to refuse it.
+      line({ type: "user", message: { role: "user", content: "an older transcript line with neither field, about writing a skill from a runbook" } }),
+      // The real shape of an operator turn today: origin human, turnOrigin human.
+      line({ type: "user", origin: { kind: "human" }, turnOrigin: "human", entrypoint: "claude-desktop", message: { role: "user", content: "can you turn this runbook into a skill that loads by its exact name?" } }),
     ].join(""),
   );
   const old = join(root, "old.jsonl");
@@ -326,11 +432,11 @@ test("mine returns sibling-fired and keyword prompts, redacted, and skips tool r
   assert.deepEqual(sib[0].fired, ["monorepo-manager"]);
   assert.ok(!/jane\.doe|555-0147/.test(sib[0].query), sib[0].query);
   assert.match(sib[0].query, /\[email\]/);
-  assert.deepEqual(kw.map((e) => e.query), ["how do I write a new skill for the reel pipeline without breaking triggers?"]);
+  assert.deepEqual(kw.map((e) => e.query).sort(), ["an older transcript line with neither field, about writing a skill from a runbook", "can you turn this runbook into a skill that loads by its exact name?", "how do I write a new skill for the reel pipeline without breaking triggers?"].sort());
   const adj = out.filter((e) => e.source === "adjacent");
   assert.deepEqual(adj.map((e) => [e.query, e.fired]), [["which skills have actually fired in the last month, and which are dead weight?", ["skill-fire-audit"]]]);
   assert.ok(out.every((e) => /^tx:[0-9a-f]{8}$/.test(e.origin)));
-  assert.ok(!out.some((e) => /ancient|subagent|weather|tool_result|make me a skill|Base directory|being continued|harness reminder|beside a tool result/.test(e.query)), JSON.stringify(out));
+  assert.ok(!out.some((e) => /ancient|subagent|weather|tool_result|make me a skill|Base directory|being continued|harness reminder|beside a tool result|headless|print mode|notification payload/.test(e.query)), JSON.stringify(out));
 });
 
 test("mine on a root with no transcripts returns nothing instead of throwing", async () => {
@@ -521,6 +627,16 @@ test("prove: a run that fails leaves the existing proof untouched and exits 1; a
   assert.equal(written.descriptionSha256, descriptionHash(DESC));
 });
 
+test("every claude -p run this tool starts is told not to persist its session (score and prove runs must not become 'real prompts' in the transcripts)", async () => {
+  const log = join(base, `argv-${seq++}.log`);
+  const dir = scoreSkill([["a request that should stay quiet at all", false]]);
+  const body = 'import { appendFileSync } from "node:fs"; appendFileSync(process.env.ARGV_LOG, JSON.stringify(a) + "\\n"); if (control) call(name); else text();';
+  await withEnv({ ...fakeBody(body), ARGV_LOG: log }, () => score({ dir, set: "all", cwd: dir }));
+  const runs = readFileSync(log, "utf8").trim().split("\n").map((l) => JSON.parse(l));
+  assert.equal(runs.length, 2, "one control run and one query run");
+  for (const a of runs) assert.ok(a.includes("--no-session-persistence"), `argv without the flag: ${JSON.stringify(a)}`);
+});
+
 test("score: set selects train or held-out rows only", async () => {
   const s = skill("score-skill", { "evals/trigger-queries.json": JSON.stringify([{ query: "TRIGGER one query for the train side", should_trigger: true, heldOut: false }, { query: "TRIGGER one query for the held out side", should_trigger: true, heldOut: true }]) });
   const held = await withEnv(fakeClaude(), () => score({ dir: s.dir, set: "heldout", cwd: s.dir }));
@@ -533,13 +649,15 @@ test("verify-origins: ids that resolve to a real prompt pass, an id found in no 
   const root = join(base, `vo-${seq++}`);
   mkdirSync(root, { recursive: true });
   const real = "please tell me how to turn this runbook into a repo skill that loads";
-  writeFileSync(join(root, "a.jsonl"), human(real));
-  const queries = [{ query: "a paraphrase of the runbook prompt about a repo skill", should_trigger: true, heldOut: false, origin: originId(redact(real)) }, { query: "a query claiming a prompt that never existed anywhere", should_trigger: false, heldOut: false, origin: "tx:deadbeef" }];
+  const sdkOnly = "please add a health page to a small express app that shows uptime and memory";
+  writeFileSync(join(root, "a.jsonl"), human(real) + line({ type: "user", turnOrigin: "sdk", message: { role: "user", content: sdkOnly } }));
+  const queries = [{ query: "a paraphrase of the runbook prompt about a repo skill", should_trigger: true, heldOut: false, origin: originId(redact(real)) }, { query: "a query claiming a prompt that never existed anywhere", should_trigger: false, heldOut: false, origin: "tx:deadbeef" }, { query: "a health page request that only a headless run ever received", should_trigger: false, heldOut: false, origin: originId(redact(sdkOnly)) }];
   const s = skill("good-skill", { "evals/trigger-queries.json": JSON.stringify(queries) });
   const r = spawnSync(process.execPath, [FORGE, "verify-origins", s.dir, "--root", root], { encoding: "utf8" });
   assert.equal(r.status, 1, r.stdout + r.stderr);
   assert.match(r.stderr, /tx:deadbeef is in no transcript on this machine/);
-  assert.match(r.stdout, /1 of 2 tx: ids resolve/);
+  assert.ok(r.stderr.includes(`${originId(redact(sdkOnly))} is in no transcript`), "a prompt that only an SDK run received is not a real operator prompt: " + r.stderr);
+  assert.match(r.stdout, /1 of 3 tx: ids resolve/);
   const ok = skill("good-skill", { "evals/trigger-queries.json": JSON.stringify([queries[0]]) });
   assert.equal(spawnSync(process.execPath, [FORGE, "verify-origins", ok.dir, "--root", root], { encoding: "utf8" }).status, 0);
 });
@@ -556,6 +674,27 @@ test("CLI: check exits 1 with the problem on stderr and 0 on a clean skill; spli
   assert.ok(errs(s).some((p) => /heldOut is/.test(p)));
   assert.equal(spawnSync(process.execPath, [FORGE, "split", s.dir, "--write"], { encoding: "utf8" }).status, 0);
   assert.deepEqual(errs(s), []);
+});
+
+test("forge.mjs launched through a junction still runs (a raw argv comparison made a linked launch exit 0 having done nothing)", () => {
+  const real = join(base, `launch-${seq++}`);
+  mkdirSync(real);
+  copyFileSync(FORGE, join(real, "forge.mjs"));
+  const link = join(base, `launch-link-${seq++}`);
+  symlinkSync(real, link, "junction");
+  try {
+    const bad = skill("good-skill", { "evals/skeptic.md": null });
+    const r = spawnSync(process.execPath, [join(link, "forge.mjs"), "check", bad.dir], { encoding: "utf8" });
+    assert.equal(r.status, 1, r.stdout + r.stderr);
+    assert.match(r.stderr, /ERROR  evals\/skeptic\.md is missing/);
+    assert.equal(spawnSync(process.execPath, [join(link, "forge.mjs")], { encoding: "utf8" }).status, 64, "no command prints usage and exits 64");
+  } finally {
+    try {
+      rmdirSync(link); // Windows: a junction is a directory entry
+    } catch {
+      unlinkSync(link); // POSIX: it is a symlink
+    }
+  }
 });
 
 test("every skill in the library has name equal to its directory and a description (57 of 57 on 2026-10-15)", () => {

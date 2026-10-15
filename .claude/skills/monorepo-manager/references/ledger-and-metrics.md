@@ -14,8 +14,10 @@ A row can only reach main through the merge of the PR that carries it. So write 
    `LIVE-VERIFIED` only with the receipt, in a later PR that carries other work (no PR just for a ledger cell).
 3. A job whose PR will not merge in this session is not `MERGED`: write `BUILT` with the PR number, and the next manager's
    step 1 (`gh pr view <n> --json state`) resolves it.
-4. `node scripts/agent-os/ledger-check.mjs` fails on `pending`/`TBD`/`TODO` in the PR cell, on a malformed row and on an
-   unknown status; it warns on `BUILT`/`RUNNING`/`PLANNED` with `this PR`, which is true only after the merge.
+4. `node scripts/agent-os/ledger-check.mjs` finds the table by its `| Job id |` header and fails on: no header or separator, a header with
+   no rows, a job row below the table's end (after a blank line, or behind a `> ` or `- ` prefix), `pending`/`TBD`/`TODO` or nothing in the
+   PR cell, a malformed or duplicate row, an unknown status. It warns on `BUILT`/`RUNNING`/`PLANNED` with `this PR` (true only after the
+   merge) or with a PR cell that says `MERGED` (the status is stale). Exit 2 means the file could not be read.
    `scripts/agent-os/ledgerCheck.test.mjs` runs it on the real ledger in `pnpm agent:verify`, so a stale `pending` fails CI.
 5. A sibling PR that appends to the ledger conflicts at the tail by construction. Resolve by keeping both rows; never
    reword the other job's row beyond fixing a cell the facts have outgrown, and say which cell in the PR body.
@@ -27,7 +29,7 @@ well the process worked, so a pattern shows up before it costs a third job. Fiel
 
 | Field | Count or measure |
 |---|---|
-| review findings by class | each finding after the PR opened (Codex, human) and each manager probe or review finding before it, per class: `bypass`, `test-gap`, `doc-claim`, `scope`, `name-or-fact`, `other` |
+| review findings by class | each finding after the PR opened (Codex, human) and each manager probe or review finding before it, per class from the fixed list in `MANAGER-METRICS.md`: `bypass`, `test-gap`, `doc-claim`, `scope`, `name-or-fact`, `other` (a word of your own, such as "instrument", is mapped into one of them, never added) |
 | manager catches | how many of those the manager's own steps (7-10) found before the PR opened |
 | red-first count | new tests/canaries recorded RED against the unfixed code, out of new tests |
 | mutation score | mutants killed / mutants tried, where a sweep ran |

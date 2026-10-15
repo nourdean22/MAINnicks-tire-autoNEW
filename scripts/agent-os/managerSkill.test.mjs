@@ -75,6 +75,26 @@ function check(root) {
     else covered.add(letter);
   }
   for (const u of UPGRADES) if (!covered.has(u)) problems.push(`upgrade ${u} has no replay row that resolves to a real step`);
+
+  // The "In order" list: each line starts with a step number and the name SKILL.md gives it, and the numbers ascend.
+  const order = /^## In order[^\n]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(replay)?.[1];
+  if (order === undefined) problems.push("the replay has no '## In order' section");
+  else {
+    const items = lines(order).filter((l) => l.startsWith("- "));
+    if (!items.length) problems.push("the replay's 'In order' list has no '- <number> <step name>:' lines");
+    let last = 0;
+    for (const l of items) {
+      const m = /^- (\d+) ([^:]+):/.exec(l);
+      if (!m) {
+        problems.push(`replay 'In order' line must start "- <number> <step name>:": ${l.slice(0, 50)}`);
+        continue;
+      }
+      const n = Number(m[1]);
+      if (steps.get(n) !== m[2]) problems.push(`replay 'In order' says step ${n} is "${m[2]}"; SKILL.md says "${steps.get(n) ?? "absent"}"`);
+      if (n <= last) problems.push(`replay 'In order' is not ascending at step ${n}`);
+      last = n;
+    }
+  }
   return problems;
 }
 
@@ -85,7 +105,17 @@ let seq = 0;
 const STEP_NAMES = ["Recover state", "Probe it yourself", "Check the names"];
 const goodSkill = () =>
   ["---", "name: monorepo-manager", "description: x", "---", "", ...STEP_NAMES.map((s, i) => `${i + 1}. **${s}.** text; see (references/a.md)`), `Replay: [r](${REPLAY})`, ""].join("\n");
-const goodReplay = () => ["| Upgrade | Defect | Evidence | Old skill | New step |", "|---|---|---|---|---|", ...UPGRADES.map((u, i) => `| ${u} | d | e | o | ${(i % 3) + 1} ${STEP_NAMES[i % 3]} |`), ""].join("\n");
+const goodReplay = () =>
+  [
+    "| Upgrade | Defect | Evidence | Old skill | New step |",
+    "|---|---|---|---|---|",
+    ...UPGRADES.map((u, i) => `| ${u} | d | e | o | ${(i % 3) + 1} ${STEP_NAMES[i % 3]} |`),
+    "",
+    "## In order: where each step fires",
+    "",
+    ...STEP_NAMES.map((s, i) => `- ${i + 1} ${s}: where it fires`),
+    "",
+  ].join("\n");
 
 function tree(over = {}) {
   const root = join(base, String(seq++));
@@ -109,6 +139,13 @@ for (const [label, over, want] of [
   ["a replay row with no step reference", { [REPLAY]: goodReplay().replace("1 Recover state", "recover") }, /must read "<number> <step name>"/],
   ["an upgrade with no replay row", { [REPLAY]: goodReplay().split("\n").filter((l) => !l.startsWith("| k ")).join("\n") }, /upgrade k has no replay row/],
   ["a missing replay file", { [REPLAY]: null }, /replay-2026-10-15\.md is missing/],
+  ["an 'In order' line with the wrong step number", { [REPLAY]: goodReplay().replace("- 2 Probe it yourself:", "- 3 Probe it yourself:") }, /'In order' says step 3 is "Probe it yourself"; SKILL\.md says "Check the names"/],
+  ["an 'In order' list out of order", { [REPLAY]: goodReplay().replace("- 1 Recover state: where it fires\n- 2 Probe it yourself: where it fires", "- 2 Probe it yourself: where it fires\n- 1 Recover state: where it fires") }, /not ascending at step 1/],
+  ["an 'In order' list that repeats a step", { [REPLAY]: goodReplay().replace("- 3 Check the names: where it fires", "- 2 Probe it yourself: again") }, /not ascending at step 2/],
+  ["an 'In order' line naming a step that was removed", { [REPLAY]: goodReplay().replace("- 3 Check the names:", "- 9 Check the names:") }, /'In order' says step 9 is "Check the names"; SKILL\.md says "absent"/],
+  ["an 'In order' line with no step number", { [REPLAY]: goodReplay().replace("- 2 Probe it yourself:", "- Probe it yourself:") }, /'In order' line must start "- <number> <step name>:"/],
+  ["a replay with no 'In order' section", { [REPLAY]: goodReplay().split("## In order")[0] }, /no '## In order' section/],
+  ["an empty 'In order' list", { [REPLAY]: goodReplay().split("## In order")[0] + "## In order: where each step fires\n\nnothing here\n" }, /'In order' list has no/],
   ["a renamed skill", { "SKILL.md": goodSkill().replace("name: monorepo-manager", "name: manager") }, /name must equal the directory name/],
 ]) {
   test(`names ${label}`, () => {

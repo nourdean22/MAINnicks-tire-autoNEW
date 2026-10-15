@@ -18,11 +18,19 @@ import { fileURLToPath } from "node:url";
 const SOURCE = readFileSync(fileURLToPath(new URL("../../.claude/workflows/adversarial-review.js", import.meta.url)), "utf8");
 const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;
 
-/** Run the script with stubs. `respond(prompt, opts)` plays every agent; returns { result, logs, prompts }. */
-async function run(args, respond) {
+/**
+ * Run the script with stubs. `respond(prompt, opts)` plays every lens and skeptic agent; `pre` is what the preflight agent answers
+ * (a good range with 3 changed files by default). Returns { result, logs, prompts }; `prompts` holds the lens and skeptic calls only.
+ */
+async function run(args, respond, pre = { valid: true, changedFiles: 3, reason: "" }) {
   const logs = [];
   const prompts = [];
+  const preflights = [];
   const agent = async (prompt, opts) => {
+    if (opts.label === "preflight") {
+      preflights.push({ prompt, opts });
+      return typeof pre === "function" ? pre(prompt) : pre;
+    }
     prompts.push({ prompt, opts });
     return respond(prompt, opts);
   };
@@ -43,7 +51,7 @@ async function run(args, respond) {
   const body = SOURCE.replace(/^export const meta =/m, "const meta =");
   const fn = new AsyncFunction("agent", "parallel", "pipeline", "phase", "log", "args", "budget", body);
   const result = await fn(agent, parallel, pipeline, () => {}, (m) => logs.push(m), args, { total: null });
-  return { result, logs, prompts };
+  return { result, logs, prompts, preflights };
 }
 
 const LENSES = [
@@ -153,6 +161,76 @@ test("skeptics play different roles: one reproduces, one argues it is not a defe
   assert.match(roles[0], /Reproduce it yourself/);
   assert.match(roles[1], /Argue it is NOT a real defect/);
   assert.match(roles[2], /Read the code and docs the finding cites/);
+});
+
+const quiet = (opts) => (isFinder(opts) ? { findings: [], checked: "x" } : null);
+
+test("preflight: a range that does not resolve, an empty diff, or a preflight that never answers aborts as NOT A REVIEW and no lens runs", async () => {
+  for (const [label, pre, why] of [
+    ["bad ref", { valid: false, changedFiles: 0, reason: "unknown revision nope" }, /does not resolve: unknown revision nope/],
+    ["bad ref that still reports files", { valid: false, changedFiles: 4, reason: "ambiguous argument" }, /does not resolve: ambiguous argument/],
+    ["empty diff", { valid: true, changedFiles: 0, reason: "" }, /is empty/],
+    ["negative count", { valid: true, changedFiles: -1, reason: "" }, /is empty/],
+    ["no answer", null, /preflight agent did not answer/],
+  ]) {
+    const { result, logs, prompts } = await run({ lenses: LENSES, base: "origin/main", head: "nope" }, quiet, pre);
+    assert.equal(result.aborted, true, label);
+    assert.match(result.reason, why, label);
+    assert.deepEqual(prompts, [], `${label}: no lens or skeptic may run`);
+    assert.deepEqual(result.confirmed, []);
+    assert.ok(logs.some((l) => /^NOT A REVIEW: /.test(l) && why.test(l)), `${label}: ${JSON.stringify(logs)}`);
+  }
+});
+
+test("control: a good preflight lets the lenses run, and the result says how many files were reviewed", async () => {
+  const { result, logs, preflights } = await run({ lenses: LENSES, base: "origin/main", head: "feature" }, quiet, { valid: true, changedFiles: 7, reason: "" });
+  assert.equal(result.aborted, false);
+  assert.equal(result.changedFiles, 7);
+  assert.deepEqual(result.lensesRun, ["bypass", "scope"]);
+  assert.ok(logs.some((l) => /reviewing 7 changed file\(s\) in origin\/main\.\.\.feature/.test(l)), JSON.stringify(logs));
+  assert.equal(preflights.length, 1);
+  assert.match(preflights[0].prompt, /READ-ONLY JOB/);
+  assert.match(preflights[0].prompt, /git diff --name-only origin\/main\.\.\.feature/);
+  assert.deepEqual(preflights[0].opts.schema.required, ["valid", "changedFiles", "reason"]);
+});
+
+test("bad arguments throw before any agent runs: skeptics outside 1-5 or not an integer, bad lenses, bad accepted", async () => {
+  const mustThrow = async (args, re) => {
+    let called = 0;
+    await assert.rejects(() => run(args, () => (called++, null), () => (called++, null)), re);
+    assert.equal(called, 0, `an agent ran for ${JSON.stringify(args)}`);
+  };
+  for (const skeptics of [0, 6, 2.5, "3", -1, NaN, Infinity]) await mustThrow({ lenses: LENSES, skeptics }, /skeptics must be an integer from 1 to 5/);
+  await mustThrow({ lenses: [] }, /lenses must be a non-empty array/);
+  await mustThrow({ lenses: "bypass" }, /lenses must be a non-empty array/);
+  await mustThrow({ lenses: [{ key: "a" }] }, /lenses must be a non-empty array/);
+  await mustThrow({ lenses: [{ key: "", task: "x" }] }, /lenses must be a non-empty array/);
+  await mustThrow({ lenses: [{ key: "a", task: "x" }, { key: "a", task: "y" }] }, /unique keys/);
+  await mustThrow({ lenses: LENSES, accepted: "one limit" }, /accepted must be an array of strings/);
+  await mustThrow({ lenses: LENSES, accepted: [1] }, /accepted must be an array of strings/);
+  for (const skeptics of [1, 5]) assert.equal((await run({ lenses: LENSES, skeptics }, quiet)).result.aborted, false, `skeptics ${skeptics} is allowed`);
+});
+
+test("the agents are held to a schema: findings need severity, file, claim, evidence and a repro; a verdict needs refuted, reason, evidence and a severity", async () => {
+  const { prompts } = await run({ lenses: [LENSES[0]], skeptics: 1 }, (prompt, opts) => (isFinder(opts) ? { findings: [finding("s")], checked: "x" } : { refuted: false, reason: "r", evidence: "e", severity_if_real: "P1" }));
+  const f = prompts.find((p) => isFinder(p.opts)).opts.schema;
+  assert.deepEqual(f.required, ["findings", "checked"]);
+  const item = f.properties.findings.items;
+  for (const k of ["severity", "title", "file", "claim", "evidence", "repro"]) assert.ok(item.required.includes(k), `finding must require ${k}`);
+  assert.deepEqual(item.properties.severity.enum, ["P0", "P1", "P2", "P3"]);
+  const v = prompts.find((p) => p.opts.label.startsWith("refute:")).opts.schema;
+  assert.deepEqual(v.required, ["refuted", "reason", "evidence", "severity_if_real"]);
+  assert.deepEqual(v.properties.severity_if_real.enum, ["P0", "P1", "P2", "P3", "none"]);
+});
+
+test("every agent prompt (finder, skeptic, preflight) carries the whole read-only and no-writes wording", async () => {
+  const { prompts, preflights } = await run({ lenses: [LENSES[0]], skeptics: 1 }, (prompt, opts) => (isFinder(opts) ? { findings: [finding("w")], checked: "x" } : { refuted: false, reason: "r", evidence: "e", severity_if_real: "P1" }));
+  for (const { prompt } of [...prompts, ...preflights]) {
+    assert.match(prompt, /READ-ONLY JOB\. Do not edit, create or delete any file inside the repo or the worktree/);
+    assert.match(prompt, /scratch scripts to the OS temp dir, never into the repo/);
+    assert.match(prompt, /No network calls/);
+    assert.match(prompt, /Do not call any tool that changes a remote system \(Railway, Neon, Vercel, Prisma, GitHub writes\)/);
+  }
 });
 
 test("defaults: six lenses, two skeptics each, against origin/main, with no accepted-limits block", async () => {

@@ -2,8 +2,9 @@
 
 reviewer: `lane-research` subagent, read-only, 2026-10-15 (52 tool calls, about 19 minutes). It tried to refute the skill on six
 fronts: ten should/should-not prompts, name and path resolution, following the procedure, overlap, attacks on `forge.mjs check`,
-and every checkable claim in `gates.md` and `baseline.md`. It returned 26 items; each is closed below. A line ends in its
-disposition: `fixed`, or `rejected: <why>`.
+and every checkable claim in `gates.md` and `baseline.md`. It returned 26 items; each is closed below, in 32 lines (an item that
+needed more than one change has a line per change). The last 4 lines come from the manager's later hostile review of #3050, not from
+this reviewer. A line ends in its disposition: `fixed`, or `rejected: <why>`.
 
 ## Findings
 
@@ -39,3 +40,7 @@ disposition: `fixed`, or `rejected: <why>`.
 - `score` ran with a 4-turn cap and ignored `error_max_turns`, so a miss could be a cap; the cap is 6 and capped runs are counted and reported separately, with a test. fixed
 - `prove` might treat an unknown skill name as loaded; rejected: probed on 2026-10-15 in a scratch project, a nonexistent skill returns `is_error: true` ("Unknown skill"), which `parseInvocation` reads as not loaded, and `prove` now also stops with exit 2 when `SKILL.md` is missing
 - `anthropic-skills:skill-creator` may not be the copy at the plugin path used for the official scripts; rejected: step 3 invokes the skill by name, and the plugin path appears only in notes on the official loop, which this machine cannot run
+- (hostile review of #3050) `mine` read a missing `origin` field as "human", so headless `claude -p` runs, including this tool's own score runs, counted as operator prompts and 4 of 14 `tx:` rows were not real prompts; operator turns are now an allow-list on `turnOrigin`, the 4 rows are replaced with prompts that resolve, and every run passes `--no-session-persistence`. fixed
+- (hostile review of #3050) `check --existing --git` compared the baseline with the commit that created SKILL.md, so tuning an old skill could never pass; it now uses the first commit on the branch that changes SKILL.md, and a branch that leaves SKILL.md alone has nothing to order. fixed
+- (hostile review of #3050) the path redaction needed whitespace or a bracket before a path, so one behind a backtick, `=` or `[` leaked into a committed query; the lookbehind is now "not a word character, dot, hyphen or at sign" (which also catches `file:///opt/x/y`). fixed
+- (hostile review of #3050) a code fence behind `> ` or a list marker was not stripped, so a link inside it counted as a link; the fence pattern now allows those prefixes. fixed

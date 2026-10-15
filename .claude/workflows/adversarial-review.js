@@ -31,6 +31,14 @@ const DEFAULT_LENSES = [
 ]
 const LENSES = A.lenses ?? DEFAULT_LENSES
 
+// Bad arguments fail loudly before any agent runs: a skeptics of 0 would drop nothing, a lens with no task would review nothing.
+const filled = (s) => typeof s === 'string' && s.trim().length > 0
+if (!Number.isInteger(SKEPTICS) || SKEPTICS < 1 || SKEPTICS > 5) throw new Error(`skeptics must be an integer from 1 to 5, not ${JSON.stringify(A.skeptics)}`)
+if (!Array.isArray(LENSES) || !LENSES.length || LENSES.some((l) => !filled(l?.key) || !filled(l?.task)) || new Set(LENSES.map((l) => l.key)).size !== LENSES.length) {
+  throw new Error('lenses must be a non-empty array of { key, task } with non-empty, unique keys and tasks')
+}
+if (!Array.isArray(ACCEPTED) || ACCEPTED.some((a) => typeof a !== 'string')) throw new Error('accepted must be an array of strings')
+
 const CTX =
   'You are reviewing a branch in the NOURCITY monorepo as a HOSTILE reviewer. A bot reviewer will also read it.\n' +
   'READ-ONLY JOB. Do not edit, create or delete any file inside the repo or the worktree. Write scratch scripts to the OS temp dir, never into the repo. No network calls. ' +
@@ -64,6 +72,11 @@ const FINDINGS = {
   },
   required: ['findings', 'checked'],
 }
+const PREFLIGHT = {
+  type: 'object',
+  properties: { valid: { type: 'boolean' }, changedFiles: { type: 'number' }, reason: { type: 'string' } },
+  required: ['valid', 'changedFiles', 'reason'],
+}
 const VERDICT = {
   type: 'object',
   properties: { refuted: { type: 'boolean' }, reason: { type: 'string' }, evidence: { type: 'string' }, severity_if_real: { type: 'string', enum: ['P0', 'P1', 'P2', 'P3', 'none'] } },
@@ -81,6 +94,18 @@ const skepticPrompt = (f, lens, i) =>
   `Try to REFUTE it. Your role: ${ROLES[i % ROLES.length]}\nDefault to refuted=true if you cannot confirm it with evidence you produced yourself. Report severity_if_real honestly.`
 
 phase('Review')
+// A range that does not resolve, or a diff with nothing in it, would send every lens to review nothing and come back as six clean "checked" lines.
+const pre = await agent(
+  `${CTX}\n\nPREFLIGHT, not a review. Check that ${BASE} and ${HEAD} both resolve (git rev-parse --verify) and count the files in git diff --name-only ${BASE}...${HEAD}. ` +
+    'Return valid=false with the git error as the reason if a ref does not resolve or the three-dot diff cannot be computed; otherwise valid=true and changedFiles = the number of files in the diff.',
+  { label: 'preflight', phase: 'Review', schema: PREFLIGHT },
+)
+if (!pre || !pre.valid || !(pre.changedFiles > 0)) {
+  const why = !pre ? 'the preflight agent did not answer' : !pre.valid ? `the range ${BASE}...${HEAD} does not resolve: ${pre.reason}` : `the diff ${BASE}...${HEAD} is empty`
+  log(`NOT A REVIEW: ${why}. No lens ran.`)
+  return { aborted: true, reason: why, worktree: WORKTREE, base: BASE, head: HEAD, changedFiles: 0, confirmed: [], dropped: [], degraded: [], failedLenses: [], lensesRun: [], checked: [] }
+}
+log(`reviewing ${pre.changedFiles} changed file(s) in ${BASE}...${HEAD}`)
 const perLens = await pipeline(
   LENSES,
   (lens) => agent(`${CTX}\n\n${lens.task}`, { label: `find:${lens.key}`, phase: 'Review', schema: FINDINGS }),
@@ -118,4 +143,4 @@ if (degraded.length) log(`DEGRADED: ${degraded.length} finding(s) judged by fewe
 if (failedLenses.length) log(`NOT COVERED: lens(es) that returned nothing: ${failedLenses.join(', ')}`)
 for (const d of dropped) log(`dropped (${d.refuted}/${d.votes} refuted): [${d.lens}] ${d.title} at ${d.file}`)
 
-return { worktree: WORKTREE, base: BASE, head: HEAD, confirmed, dropped, degraded, failedLenses, lensesRun: LENSES.map((l) => l.key), checked: lensRuns.map((r) => ({ lens: r.lens, checked: r.checked })) }
+return { aborted: false, worktree: WORKTREE, base: BASE, head: HEAD, changedFiles: pre.changedFiles, confirmed, dropped, degraded, failedLenses, lensesRun: LENSES.map((l) => l.key), checked: lensRuns.map((r) => ({ lens: r.lens, checked: r.checked })) }

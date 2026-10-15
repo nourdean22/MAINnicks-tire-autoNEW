@@ -21,11 +21,13 @@ Why each gate exists, with the incident behind it: [references/gates.md](referen
 1. **Gate.** `find-skill` and `prior-art-grep` first: grep `.claude/skills`, `docs/UPSTREAMS.md`, `docs/skill-proposals.md`. A skill that
    exists gets edited, not duplicated. A skill compiled from a book, transcript or doc enters through `source-to-skill`: run its
    `scaffold.mjs` FIRST (it refuses a slug directory that already holds other files), then continue here from step 2.
-   Tuning an existing skill: its baseline rows are the prompts that misfired, and step 7 uses `check --existing`.
+   Rewriting an existing skill's description: its baseline rows are the prompts that misfired, and steps 7 and 8 use `check --existing`
+   (and `--git`). Changing only the steps or wording inside its body is not this skill: edit the file directly.
 2. **Baseline first.** Run the task WITHOUT the skill, at least once fresh plus any recorded incident, and write `evals/baseline.md`
    from the template in [references/gates.md](references/gates.md). If the task does not fail without the skill, stop: you do not need one.
-   Commit the baseline ALONE, before `SKILL.md` exists, and do not edit it afterwards: `forge.mjs check --git` verifies both on the
-   branch (a squash merge erases the order).
+   Commit the baseline ALONE, before `SKILL.md` exists (for an existing skill: before the first commit on the branch that changes it), and
+   do not edit it afterwards: `forge.mjs check --git` (`--existing --git` for an existing skill) verifies both on the branch (a squash
+   merge erases the order).
 3. **Draft with the official skill-creator.** Invoke `anthropic-skills:skill-creator`; never edit the plugin copy, updates overwrite it.
    Where it conflicts with this repo, the repo wins: the workspace goes in the scratchpad (never `<name>-workspace` beside the skill);
    the layout is flat `.claude/skills/<slug>/`; the description starts "Use when", names what the skill is NOT for, stays under 1,024
@@ -47,7 +49,8 @@ Why each gate exists, with the incident behind it: [references/gates.md](referen
    quote a description that contains a colon and a space.
 8. **Register.** Update the skill count and the routing line in `CLAUDE.md` (a 60-line cap, so edit in place), then
    `node scripts/agent-os/check-adapters.mjs` and `node scripts/agent-os/verify.mjs`. The PR body carries the baseline summary, the
-   held-out score with its misses, the skeptic findings and the invocation receipt. The manager runs `check <dir> --git` on the branch before the squash.
+   held-out score with its misses, the skeptic findings and the invocation receipt. Run `check <dir> --git` (`--existing --git` for an
+   existing skill) on the branch before the squash; the manager repeats it.
 
 ## Never
 
@@ -55,5 +58,6 @@ Why each gate exists, with the incident behind it: [references/gates.md](referen
 - Commit raw transcript text: this repo is public. `mine` redacts and `check` rejects common private shapes (emails, phone and ID numbers,
   addresses, IPs, domains, paths, tokens), but a name cannot be detected: read every query.
 - Relabel an invented query as mined. `origin: "written"` is honest; at least a third of the queries must carry a real `tx:` id, and
-  `forge.mjs verify-origins` proves on your machine that each one exists.
+  `forge.mjs verify-origins` proves on your machine that each one exists as a prompt YOU typed (a headless `claude -p` run, including this
+  tool's own score runs, does not count).
 - Call a skill done on a green `check` alone: step 6 is the proof it loads, and the held-out score is the proof it routes.

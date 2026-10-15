@@ -5,7 +5,8 @@
  *   node forge.mjs check <skill dir> [--git] [--existing]
  *                                               conventions + evidence; exit 1 lists every problem. --git also proves the baseline was
  *                                               committed before SKILL.md and not edited after it (run on the branch: a squash erases the order).
- *                                               --existing is for tuning a skill that predates this tool: it waives only the "Use when" start.
+ *                                               --existing is for tuning a skill that predates this tool: it waives only the "Use when" start, and with --git it orders
+ *                                               the baseline against the first commit on this branch that changes SKILL.md (a branch that does not touch it passes).
  *   node forge.mjs mine --keywords a,b [--skills s1,s2] [--adjacent s3,s4] [--days 60] [--limit 60] [--root <projects dir>]
  *                                               candidate trigger queries from your own session transcripts, redacted, to stdout only:
  *                                               sibling = the turn fired a skill like yours (a likely positive), adjacent = it fired a
@@ -22,7 +23,7 @@
  */
 import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { createReadStream, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { createReadStream, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { createInterface } from "node:readline";
@@ -35,6 +36,9 @@ const TX = /^tx:[0-9a-f]{8}$/;
 // fire_audit.py's notion of "has a routing trigger": position 0 is style, a trigger anywhere is what routes.
 const TRIGGER = /\buse\s+(when|whenever|this|these|it|before|after|at\b|as\b|for\b|during|on\b)|\byou\s+must\s+use\b|\bapply\s+(when|whenever|before|after)\b/i;
 const sha = (alg, s) => createHash(alg).update(s).digest("hex");
+// A fence may sit behind `> ` or a list marker (`- `, `* `, `1. `); the closing fence carries the same kind of prefix.
+const PREFIX = "(?:>[ \\t]*|[-*+][ \\t]+|\\d+[.)][ \\t]+)*";
+const FENCE = new RegExp(`^[ \\t]*${PREFIX}(\`{3,}|~{3,})[^\\n]*\\n[\\s\\S]*?^[ \\t]*${PREFIX}\\1[\`~]*[ \\t]*\\r?$`, "gm");
 
 /**
  * Shapes that must not be committed in a trigger query: the repo is public and transcripts hold real names, numbers and paths.
@@ -44,8 +48,10 @@ const PII = [
   ["email", /[\w.+-]+@[\w-]+\.[\w.-]+/],
   ["obfuscated email", /\b[\w.-]+\s+(?:at|\[at\])\s+[\w-]+\s+(?:dot|\[dot\])\s+\w+/i],
   ["url", /https?:\/\/\S+/],
-  // Windows drive and UNC paths, ~/..., and ANY POSIX path of two or more segments (a lone /health is a route, not a path).
-  ["absolute path", /(?:[A-Za-z]:[\\/]|\\\\|(?<=^|[\s("'])(?:~\/|\/[\w.@-]+(?:\/[\w.@-]+)+))\S*/],
+  // Windows drive and UNC paths, ~/..., and ANY POSIX path of two or more segments (a lone /health is a route, not a path). A path starts where the
+  // previous character is not a word character, dot, hyphen or @: `/opt/x/y`, =/opt/x/y, [/opt/x/y], file:/opt/x/y and file:///opt/x/y are paths;
+  // and/or/maybe, 2026/10/15 and a/b/c are not (a slash inside them follows a word character).
+  ["absolute path", /(?:[A-Za-z]:[\\/]|\\\\|(?<![\w.@-])(?:~\/|\/[\w.@-]+(?:\/[\w.@-]+)+))\S*/],
   ["ssn", /\b\d{3}-\d{2}-\d{4}\b/],
   ["phone number", /(?<![\w.])\+?\d{0,2}[\s.-]?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}(?![\w])/],
   ["ip address", /\b\d{1,3}(?:\.\d{1,3}){3}\b/],
@@ -132,8 +138,8 @@ export function checkSkill(dir, { git = false, existing = false } = {}) {
 
   // No prose-only references: a bundled file is read only if SKILL.md links it by its exact relative path (outside code fences and
   // comments, where a link is not a link), every link resolves, and every bundled file at any depth is linked individually.
-  // Fenced blocks (``` or ~~~, any length), HTML comments and inline code spans hold examples, not links.
-  const visible = text.replace(/^[ \t]*(`{3,}|~{3,})[^\n]*\n[\s\S]*?^[ \t]*\1[`~]*[ \t]*\r?$/gm, "").replace(/<!--[\s\S]*?-->/g, "").replace(/`[^`\n]*`/g, "");
+  // Fenced blocks (``` or ~~~, any length, also inside a blockquote or a list item), HTML comments and inline code spans hold examples, not links.
+  const visible = text.replace(FENCE, "").replace(/<!--[\s\S]*?-->/g, "").replace(/`[^`\n]*`/g, "");
   const named = new Set([...visible.matchAll(/\]\(([^)\s#]+)[^)]*\)/g)].map((m) => m[1].replace(/^\.\//, "")).filter((p) => !/^([a-z]+:|\/)/i.test(p)));
   for (const p of named) if (!existsSync(join(dir, p))) errors.push(`SKILL.md links ${p}, which does not exist`);
   for (const sub of ["references", "scripts", "assets"]) for (const f of listFiles(dir, `${sub}/`)) if (!named.has(f)) errors.push(`${f} exists but SKILL.md does not link it by exact path, so nothing will read it`);
@@ -154,7 +160,7 @@ export function checkSkill(dir, { git = false, existing = false } = {}) {
     // The disposition is its own clause: "<finding>. fixed", "<finding>: fixed", "<finding>; rejected: <why>". "not yet fixed" is not one.
     const closed = /[.;:]\s+fixed\.?$|\brejected: \S.*$|\bnone found after trying: \S.*$/i;
     if (!bullets.length) errors.push('evals/skeptic.md needs a "## Findings" section with one "- " line per finding');
-    for (const b of bullets) if (!closed.test(b.trim())) errors.push(`evals/skeptic.md finding has no disposition: "${b.trim().slice(0, 70)}". End each with "fixed", "rejected: <why>" or "none found after trying: <what>"`);
+    for (const b of bullets) if (!closed.test(b.trim())) errors.push(`evals/skeptic.md finding has no disposition: "${b.trim().slice(0, 70)}". End it with a clause: ". fixed", "; rejected: <why>" or "; none found after trying: <what>"`);
   }
 
   const inv = join(dir, "evals", "invocation.json");
@@ -176,7 +182,7 @@ export function checkSkill(dir, { git = false, existing = false } = {}) {
     if (r.status !== 0) errors.push(`compiled from a source: validate.mjs exited ${r.status}\n${(r.stderr || r.stdout).trim()}`);
   }
 
-  if (git) errors.push(...baselineBeforeSkill(dir));
+  if (git) errors.push(...baselineBeforeSkill(dir, { existing }));
   return errors;
 }
 
@@ -228,19 +234,29 @@ function checkQueries(file) {
   return errors;
 }
 
-/** The baseline must be committed before SKILL.md, in an earlier commit, and left alone after it. A squash merge erases both, so this runs on the branch. */
-function baselineBeforeSkill(dir) {
+/**
+ * The baseline must be committed before SKILL.md, in an earlier commit, and left alone after it. A squash merge erases both, so this runs on the branch.
+ * For a skill that predates the tool (`existing`), "the SKILL.md commit" is the first commit on this branch that changes it (the commit that created it
+ * is long before any baseline); a branch that never touches SKILL.md has nothing to order.
+ */
+function baselineBeforeSkill(dir, { existing = false } = {}) {
   const rel = (p) => join(dir, p);
   const commits = (p, extra = []) => gitOut(dir, ["log", "--format=%H", ...extra, "--", rel(p)]).stdout.split("\n").filter(Boolean);
+  let skillRange = ["--diff-filter=A", "--reverse"];
+  if (existing) {
+    const base = ["origin/main", "main"].map((ref) => gitOut(dir, ["merge-base", "HEAD", ref])).find((r) => r.status === 0)?.stdout.trim();
+    if (!base) return ["--git --existing: no origin/main or main to compare this branch with, so its commits cannot be told apart from history"];
+    skillRange = ["--reverse", `${base}..HEAD`];
+  }
   const b = commits("evals/baseline.md", ["--diff-filter=A", "--reverse"])[0];
-  const s = commits("SKILL.md", ["--diff-filter=A", "--reverse"])[0];
+  const s = commits("SKILL.md", skillRange)[0];
   if (!b) return ["--git: evals/baseline.md is not committed yet: commit it before SKILL.md"];
   if (!s) return [];
   if (b === s) return ["--git: baseline.md and SKILL.md were added in the same commit; the baseline must come first, in its own commit"];
   if (gitOut(dir, ["merge-base", "--is-ancestor", b, s]).status !== 0) return ["--git: the baseline commit is not an ancestor of the SKILL.md commit"];
   // s itself counts: a baseline touched in the commit that adds SKILL.md was rewritten once the skill was visible.
   const after = commits("evals/baseline.md").filter((c) => gitOut(dir, ["merge-base", "--is-ancestor", s, c]).status === 0);
-  if (after.length) return [`--git: evals/baseline.md was edited in ${after[0].slice(0, 9)}, after SKILL.md was added: a baseline rewritten once the skill exists records nothing`];
+  if (after.length) return [`--git: evals/baseline.md was edited in ${after[0].slice(0, 9)}, after SKILL.md was ${existing ? "first changed on this branch" : "added"}: a baseline rewritten once the skill exists records nothing`];
   return [];
 }
 
@@ -300,11 +316,15 @@ export function claudeCommand(env = process.env, platform = process.platform) {
 }
 const claudePrefix = () => (process.env.CLAUDE_BIN_ARGS ? JSON.parse(process.env.CLAUDE_BIN_ARGS) : []);
 
-/** One fresh `claude -p` session. `failed` means no assistant message came back at all: the process, not the model, went wrong. */
+/**
+ * One fresh `claude -p` session, not saved to disk (`--no-session-persistence`: a score run must not become a "real prompt" in the transcripts that
+ * `mine` and `verify-origins` read). `failed` means the process or the service went wrong, not the model: no assistant message, a nonzero or missing
+ * exit code (the turn cap excepted), or a refusal such as a weekly limit. A failed run is VOID, never a miss.
+ */
 export function runClaude({ prompt, model, cwd, maxTurns = 4, timeoutMs = 240_000 }) {
   return new Promise((done) => {
     const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => k !== "CLAUDECODE")); // the nesting guard is for terminals, not for this
-    const args = [...claudePrefix(), "-p", prompt, "--output-format", "stream-json", "--verbose", "--max-turns", String(maxTurns), "--allowedTools", "Skill", "Read", "Grep", "Glob", ...(model ? ["--model", model] : [])];
+    const args = [...claudePrefix(), "-p", prompt, "--output-format", "stream-json", "--verbose", "--max-turns", String(maxTurns), "--no-session-persistence", "--allowedTools", "Skill", "Read", "Grep", "Glob", ...(model ? ["--model", model] : [])];
     let out = "";
     let err = "";
     const p = spawn(claudeCommand(), args, { cwd, env, stdio: ["ignore", "pipe", "pipe"] });
@@ -361,6 +381,18 @@ export async function score({ dir, set = "heldout", model, runs = 1, workers = 3
   return { void: false, set, model: model ?? "default", correct: results.filter((r) => r.pass).length, total: results.length, voided: sum("voided"), capped: sum("capped"), results };
 }
 
+/**
+ * Is this transcript line a prompt the operator typed? Measured on 60 days of this machine's transcripts (2026-10-15): operator turns carry
+ * turnOrigin "human" (and origin.kind "human"); a headless `claude -p` run, such as this tool's own score runs, carries turnOrigin "sdk" and NO origin
+ * field (334 lines), which a default of "human" counted as the operator. task_notification, scheduled and peer turns are not the operator either.
+ * entrypoint "sdk-cli" is the print-mode CLI's marker; it was not seen here, so it only guards the old format, where turnOrigin is absent.
+ */
+export function operatorTurn(o) {
+  if (o.entrypoint === "sdk-cli") return false;
+  if (o.turnOrigin !== undefined && o.turnOrigin !== "human") return false;
+  return (o.origin?.kind ?? "human") === "human";
+}
+
 /** Candidate trigger queries from transcripts: prompts whose turn fired a sibling skill, a neighbour, or matched a keyword. */
 export async function mine({ root, keywords = [], skills = [], adjacent = [], days = 60, limit = 60, all = false }) {
   const kw = all ? /[\s\S]/ : keywords.length ? new RegExp(keywords.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"), "i") : null;
@@ -397,7 +429,7 @@ export async function mine({ root, keywords = [], skills = [], adjacent = [], da
       }
       const c = o.message?.content;
       // isMeta marks text the harness injected (a skill body, a reminder), and a continuation summary is a model's, not the operator's.
-      if (o.type === "user" && !o.isSidechain && !o.isMeta && (o.origin?.kind ?? "human") === "human") {
+      if (o.type === "user" && !o.isSidechain && !o.isMeta && operatorTurn(o)) {
         const text = typeof c === "string" ? c : Array.isArray(c) && !c.some((b) => b.type === "tool_result") ? c.filter((b) => b.type === "text").map((b) => b.text).join(" ") : "";
         if (!text || /^(<|\/|This session is being continued|Base directory for this skill|Caveat:)/.test(text) || text.includes("<command-name>")) continue;
         keep(turn);
@@ -412,7 +444,14 @@ export async function mine({ root, keywords = [], skills = [], adjacent = [], da
   return ["sibling", "adjacent", "keyword"].flatMap((s) => rows.filter((e) => e.source === s).slice(0, limit));
 }
 
-const isMain = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+// Launched through a symlink or junction, argv[1] is the link and import.meta.url the target: compare real paths, or the CLI exits 0 having done nothing.
+const isMain = (() => {
+  try {
+    return Boolean(process.argv[1]) && realpathSync(process.argv[1]).toLowerCase() === realpathSync(fileURLToPath(import.meta.url)).toLowerCase();
+  } catch {
+    return false;
+  }
+})();
 if (isMain) {
   const [cmd, target] = process.argv.slice(2);
   const flag = (n) => (process.argv.includes(n) ? process.argv[process.argv.indexOf(n) + 1] : undefined);

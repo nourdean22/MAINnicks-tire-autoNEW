@@ -15,6 +15,17 @@ Every fact in a RETURN block and in your report carries one label.
 
 For an external fact (a vendor doc, a platform behavior) use FACT only for a quote you read yourself; two consistent
 secondary sources or an observed behavior is STRONG INFERENCE; a summary, a memory note or another agent's word is a CLAIM.
+
+The two scales are one vocabulary used at two places (the first in RETURN blocks and the report, the second in step 9 and the PR body):
+
+| RETURN and report (steps 6 and 14) | Step 9 and `NOUR-COMMAND.md` | Difference |
+|---|---|---|
+| FACT | FACT | none: you ran it or read it |
+| INFERRED | STRONG INFERENCE | follows from named facts; a WEAK INFERENCE (plausible, material gaps) is written NOT CHECKED with the gap |
+| NOT CHECKED | UNKNOWN | nobody looked; say why |
+| (a lane's unverified assertion) | CLAIM | stated by an agent, a document or a person and not re-read by you: re-label it FACT only after you read the source |
+
+A commit or ledger row on a branch nobody has pushed is a CLAIM for every reader but its author: cite it as such, with the SHA.
 Then name the highest rung reached on `NOUR-COMMAND.md`'s ladder (claim, artifact, execution receipt, external effect,
 user or business outcome) and the first rung NOT reached. "Tested" is a rung; "live" is a higher one.
 
@@ -47,7 +58,7 @@ tool passed 250 tests, then its first live `probe` (a SELECT) failed on producti
 4. Send every bypass back to the lane as the exact input and the observed exit code; it becomes a permanent deny example.
 5. Put "manager probes: N run, M bypasses" in the report. Zero bypasses from zero probes is not a result.
 
-Witness: `c6165375f`. An `sql_statements` list of 201 to 5,000 small statements with the DROP last exited 0 through the
+Witness (CLAIM: `c6165375f` is a commit on the guard session's branch, unpushed when this was written). An `sql_statements` list of 201 to 5,000 small statements with the DROP last exited 0 through the
 real hook, because `ARRAY_MAX` was 200. The lane's canaries were green; the manager's boundary probe found it. The fix
 raised the budget to 2,000 elements or 1,000,000 characters and the lane added the boundary arms. Cost of the probe: minutes.
 
@@ -90,18 +101,22 @@ A probe run whose two controls are not both `ok` proves nothing: the harness, no
 
 A rule that lists names (native `permissions.ask` entries, tool names, env vars, rule ids, file paths, skill or workflow
 names) fails silently when one name is mistyped: an ask rule that matches nothing prompts for nothing. The author cannot
-see their own typo, so a separate read-only agent (`lane-research`) resolves every entry:
+see their own typo, so someone else resolves every entry, and the right someone depends on the kind of name:
+
+- **Tool names: you do it, with `ToolSearch select:<name>`.** `lane-research` has no ToolSearch (its tools are Read, Grep, Glob, Bash,
+  WebFetch, WebSearch, Skill), so handing it a tool-name list returns NOT CHECKED for every row.
+- **Paths, PR numbers, flags, env vars, rule ids, skill names: a read-only `lane-research` agent**, with this brief:
 
 ```
 Read-only. For each name in <file or list>, resolve it against the live source and return a table:
 name | resolves? (yes/no) | how you resolved it (command or tool, with the matching line) | closest real name if no.
-Live sources: ToolSearch "select:<name>" for tool names; `ls` or Glob for paths; `gh` for PRs and runs; the schema or
-`--help` for flags. Do not call any tool you are resolving. Say NOT CHECKED for anything you could not resolve.
+Live sources: `ls` or Glob for paths; `gh` for PRs and runs; the schema or `--help` for flags; Grep for env vars and rule ids.
+Say NOT CHECKED for anything you could not resolve.
 ```
 
-Spot-check two rows yourself, one of them a "no". Witness: the 135 native ask rules in the guard job, each resolved with
-`ToolSearch select:` before it entered a fixture (`6ba98aa6b`). The name list is a snapshot with no startup warning, so the
-fixture test pins it and a glob form still needs the live proof in step 12.
+Spot-check two rows yourself, one of them a "no". Witness (CLAIM: `6ba98aa6b` is on the guard session's unpushed branch): the 135 native
+ask rules in the guard job, each resolved with `ToolSearch select:` before it entered a fixture. The name list is a snapshot with no
+startup warning, so the fixture test pins it and a glob form still needs the live proof in step 12.
 
 ## Read the primary source (step 9)
 
@@ -109,8 +124,8 @@ Decision-critical means the fact would change a design or a guard's behavior. Re
 words, record the URL and date, and label it. Put the label in the PR body.
 
 Witness: whether an explicit ask rule still prompts under `bypassPermissions`. An agent summary said NOT DOCUMENTED (CLAIM, from
-the job brief). The Claude Code docs, read on 2026-10-15, settled it (FACT, `6ba98aa6b`), and that reading produced the best idea of the job: native
-`permissions.ask` rules instead of more hook code (`6ba98aa6b`). The rule: search the page for the term before you accept
+the job brief). The Claude Code docs, read on 2026-10-15, settled it (CLAIM for you: the commit body `6ba98aa6b`, unpushed, records the reading), and that reading
+produced the best idea of the job: native `permissions.ask` rules instead of more hook code. The rule: search the page for the term before you accept
 "not documented"; if the page cannot be read, the answer is UNKNOWN and the design says so.
 
 ## Consumer check (step 12)

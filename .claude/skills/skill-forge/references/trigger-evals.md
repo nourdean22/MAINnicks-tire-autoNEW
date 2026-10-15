@@ -19,7 +19,9 @@ node .claude/skills/skill-forge/scripts/forge.mjs mine \
   fires on every turn (`using-superpowers`, `ponytail`): every prompt is adjacent to it and it tells you nothing.
 - `keyword`: the prompt mentions the topic. Label each by hand.
 - It reads the same transcripts as `skill-fire-audit` (`~/.claude/projects`, Skill tool_use), skips harness-injected text
-  (`isMeta`), sub-agent turns, tool results, slash commands and continuation summaries, and redacts emails, phone numbers,
+  (`isMeta`), sub-agent turns, headless turns (`turnOrigin` "sdk": a `claude -p` run writes user lines with no `origin` field, 334 of them in 60 days on
+  this machine, so "no origin" must not be read as "human"), task-notification, scheduled and peer turns, tool results, slash commands and
+  continuation summaries, and redacts emails, phone numbers,
   URLs, absolute paths and long tokens. `fire_audit.py` itself crashes on transcript paths over 260 characters on Windows
   (`WinError 3`, 2026-10-15), which is why `mine` has its own reader.
 

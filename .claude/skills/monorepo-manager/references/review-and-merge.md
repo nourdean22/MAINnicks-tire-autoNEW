@@ -18,8 +18,11 @@ Workflow({ name: "adversarial-review", args: {
 } })
 ```
 
-Optional: `lenses` (a list of `{ key, task }`) replaces the defaults, `skeptics` changes the count of 2. Write the `change` and
-`accepted` text carefully: reviewers know only what you tell them, and an accepted limit left out comes back as a finding.
+Optional: `lenses` (a list of `{ key, task }` with unique keys) replaces the defaults, `skeptics` (an integer 1 to 5) changes the
+count of 2; anything else throws before an agent runs. A `preflight` agent first checks that `base` and `head` resolve and that the
+diff has files; if not, the workflow returns `aborted: true`, logs `NOT A REVIEW` and runs no lens, so an empty range cannot come back
+as six clean `checked` lines. Write the `change` and `accepted` text carefully: reviewers know only what you tell them, and an
+accepted limit left out comes back as a finding.
 
 | Default lens | Looks for |
 |---|---|
@@ -38,13 +41,17 @@ misleading claim or weak test; P3 a nit), a file, a line, evidence and a repro. 
 Rules for using it:
 
 1. The workflow tool needs Nour's explicit opt-in ("use a workflow", ultracode). Without it, say what it costs
-   (6 finders plus 2 skeptics per finding) and ask once, or run the six lenses as parallel `lane-research` calls in ONE
-   message, each told to return findings with file, line and evidence, then judge the findings yourself.
+   (a preflight, 6 finders and 2 skeptics per finding) and ask once. Or run the six lenses yourself as `lane-research` calls, at most
+   2 at a time (reviewers count toward the heavy-run limit in SKILL.md), each told to return findings with file, line and evidence,
+   then judge the findings yourself. A lens that must run code (the silent-instrument lens mutates copies and runs tests) goes to a
+   `general-purpose` agent told to write scratch files to the OS temp dir only and to leave the repo and the worktree untouched; a
+   `lane-research` agent never edits files.
 2. Read every surviving finding against the real file before you act; spot-check one refuted finding too. A skeptic that
    cannot confirm a finding from the real file counts it as refuted. A finding is dropped only if a MAJORITY of the CONFIGURED skeptics refute
    it (with two, a split vote keeps it), and one whose skeptics all failed to answer is kept.
 3. A finding goes back to the owning lane as the exact input or line, never as a vague worry.
-4. The workflow logs what it dropped and what each lens checked. Copy both into the PR body: silence reads as "covered everything".
+4. The workflow logs what it dropped, what each lens checked, any `NOT COVERED` lens (its agent returned nothing) and any `DEGRADED`
+   finding (judged by fewer skeptics than configured). Copy all four into the PR body: silence reads as "covered everything".
    The composed findings are in the workflow's task output file, not in its journal: read them there before the file is cleaned up.
 
 ## Merge protocol (step 13)
@@ -61,11 +68,22 @@ What it does, and the incident behind each part:
 |---|---|
 | number comes from the `gh pr create` output, never a guess | a guessed number merged a sibling's PR (2026-08-07, no harm by luck) |
 | holds while ANOTHER open PR (the list is capped at 200, not gh's default 30) has a `node` or `e2e` check in flight, in one bounded wait (default 30 min; a non-numeric value is refused) | a merge redeploys and kills those runs (`AGENTS.md` > Branching); a polling loop of model turns burns usage |
-| refuses unless OPEN, not draft, `CLEAN`, at exactly your SHA, at least one check reported, every check finished and none failed | a head that moved after your review is a different PR; an empty check list right after a push means CI has not started, and this repo has no branch protection to stop the merge |
+| refuses unless OPEN, not draft, `CLEAN`, at exactly your SHA, at least one check reported, every check finished and each `SUCCESS`, `SKIPPED` or `NEUTRAL` (an allow-list: a conclusion GitHub adds later blocks until someone reads it) | a head that moved after your review is a different PR; an empty check list right after a push means CI has not started, and this repo has no branch protection to stop the merge |
 | `gh pr merge --squash --match-head-commit <sha>` | GitHub itself refuses if the head moves between the check and the merge |
 | deletes the branch through the API only after the PR reads `MERGED`, and never for a cross-repository PR | deleting the head branch of an unmerged PR closes it (#2948); `--delete-branch` also fails locally after a successful remote merge; a fork's branch name deleted in the base repository could remove an unrelated branch |
 
-Run it with `run_in_background` when the hold may be long; the harness wakes you when it exits. Exit codes: 0 merged or
-READY, 2 blockers, 3 held past the wait, 4 merge did not read MERGED (branch kept: `gh pr view <n> --json state` first, the
-remote merge may still have happened). Without `--merge` it only judges. After MERGED: `git fetch origin main` and
+Run it with `run_in_background` when the hold may be long; the harness wakes you when it exits. Exit codes:
+
+| Code | Means | You |
+|---|---|---|
+| 0 | merged, or READY without `--merge` | report the merge SHA |
+| 2 | blocked: failed check, draft, behind, wrong head, not open | fix it; re-verify the new head |
+| 3 | held past the wait: another PR's node or e2e run is in flight | re-run later; nothing was merged |
+| 4 | the merge call returned but the PR does not read MERGED (branch kept) | `gh pr view <n> --json state` first; the remote merge may still have happened |
+| 5 | a gh call failed BEFORE the merge call | nothing was merged; re-run |
+| 6 | a gh call failed AT or AFTER the merge call | the merge happened or may have: read the PR before any retry; delete the branch by hand once it reads MERGED |
+| 7 | not ready YET: CI not started, a check running, GitHub computing | re-run in a minute |
+| 64 | bad usage | fix the command |
+
+Without `--merge` it only judges. After MERGED: `git fetch origin main` and
 `git merge --ff-only`, never `reset --hard`. Report the merge SHA, not "merged".

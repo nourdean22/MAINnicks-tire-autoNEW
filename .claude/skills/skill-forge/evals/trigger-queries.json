@@ -108,10 +108,10 @@
     "origin": "written"
   },
   {
-    "query": "run the manager skill in dry run mode for this job: add a footer link on the nickstire site and a health tile on statenour. do not dispatch agents or edit files",
+    "query": "how is the review going so far, has it found anything yet, and should we let it keep running?",
     "should_trigger": false,
     "heldOut": true,
-    "origin": "tx:79f24d63"
+    "origin": "tx:09eb661c"
   },
   {
     "query": "reload all the always-on skills now and then yes, start step one",
@@ -132,16 +132,16 @@
     "origin": "tx:33480a66"
   },
   {
-    "query": "id like a /health page on a small express app showing uptime and memory use, what is the plan and the time estimate",
+    "query": "investigate this morning's instagram image post for me, read only, change nothing",
     "should_trigger": false,
-    "heldOut": true,
-    "origin": "tx:6e9f6174"
+    "heldOut": false,
+    "origin": "tx:b002361d"
   },
   {
-    "query": "please rewrite the calc function in src/calc.js with reduce and add a small test",
+    "query": "start fix PRs for the payment acknowledgement bug, the calibration parser and the due-date timezone bugs",
     "should_trigger": false,
-    "heldOut": true,
-    "origin": "tx:632be5fd"
+    "heldOut": false,
+    "origin": "tx:55af5745"
   },
   {
     "query": "accept the persistent-shell cwd limit as documented, reply on the open policy thread that the operator accepted it, resolve it, then merge when CI is green",
@@ -150,10 +150,10 @@
     "origin": "tx:509d712d"
   },
   {
-    "query": "quick question, what is the difference between let and const in js",
+    "query": "good, stay focused and keep going on the rest, let's get everything done and follow through",
     "should_trigger": false,
-    "heldOut": false,
-    "origin": "tx:88a8d490"
+    "heldOut": true,
+    "origin": "tx:2b8af0f1"
   },
   {
     "query": "here is a link, i want to use this to make my reels and videos go viral",
