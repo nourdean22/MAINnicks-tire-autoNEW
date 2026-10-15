@@ -88,6 +88,24 @@ describe("Trial Reel publish wiring", () => {
     expect(postInstagramCarouselMock).not.toHaveBeenCalled();
   });
 
+  it("fails closed before Meta when Trial mode includes a static image alongside the video", async () => {
+    const out = await publishToSocial({
+      platforms: ["instagram"],
+      videoUrl: VIDEO,
+      imageUrl: "https://nickstire.org/generated/reels/poster.jpg",
+      caption: CAPTION,
+      actor: "operator",
+      trialReel: { graduationStrategy: "MANUAL" },
+    });
+
+    expect(out.results[0]).toMatchObject({ platform: "instagram", success: false });
+    // The guard's own message, so a different failure (kill switch, caption block) cannot satisfy this.
+    expect(out.results[0]?.error).toMatch(/exactly one Instagram Reel video/);
+    expect(postInstagramReelMock).not.toHaveBeenCalled();
+    expect(postInstagramCarouselMock).not.toHaveBeenCalled();
+    expect(postToFacebookMock).not.toHaveBeenCalled();
+  });
+
   it("leaves the ordinary Reel path unchanged when trial mode is omitted", async () => {
     await publishToSocial({
       platforms: ["instagram"],
