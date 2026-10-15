@@ -695,7 +695,7 @@ test("README documents every adapter, the unguarded inventory and the live check
   }
   // 2026-10-15 (job guard-sql-lease-infra): the ask layer, the list reader, the lease group, the SQL limits and the live-check probes
   assert.match(README, /### Native ask rules/, "README needs the native ask layer section");
-  for (const phrase of ["permissions.ask", "mcp__*__<leaf>", "bypassPermissions", "mcpAskRules.test.mjs", "ARRAY_MAX", "ARRAY_CHAR_BUDGET", "DESTRUCTIVE_PROBES",
+  for (const phrase of ["permissions.ask", "mcp__*__<leaf>", "bypassPermissions", "mcpAskRules.test.mjs", "ARRAY_MAX", "ARRAY_CHAR_BUDGET", "CONTROL-CANARY-COVERAGE.md",
     "Unclassified infrastructure tools", "neon-sql.sql", "neon-sql-transaction.sql_statements[1]", "guard_live_check_probe", "delete-service", "delete_project"]) {
     assert.ok(README.includes(phrase), `README must mention ${phrase}`);
   }
@@ -1178,24 +1178,16 @@ test("SQL documented limits, pinned: a hinted row also denies SQL words inside a
   denied(run(explain.name, { sql: "DROP TABLE leads", analyze: true }), "destructive-sql", "explain_sql_statement with analyze:true executes the statement");
 });
 
-// The DENY probes of the DELETE / UPDATE / ALTER TABLE ... DROP / DROP-kind arms of destructive-sql. They are NOT policy.json
-// denyExamples: docs/agent-audit/CONTROL-CANARY-COVERAGE.md pins that total (coverage-doc.test.mjs) and is outside the platform
-// lane, so they live here and are checked the way a denyExample is: denied BY THIS RULE, through every command adapter, and
-// (acceptance probes below) through the real hook. Move them into policy.json with that doc's number in one change.
-const DESTRUCTIVE_PROBES = [
-  'psql -c "DELETE FROM leads"', "mysql -e 'delete from leads;'", 'psql -c "DELETE FROM public.leads"', `psql -c 'DELETE FROM "public"."leads"'`,
-  'psql -c "DELETE\nFROM leads"', 'psql -c "DELETE FROM ONLY leads"', 'psql -c "DELETE FROM leads RETURNING *"', 'mysql -e "DELETE LOW_PRIORITY FROM leads"',
-  'psql -c "WITH d AS (DELETE FROM leads RETURNING *) SELECT count(*) FROM d"', 'psql -c "DELETE FROM a WHERE x; DELETE FROM b;"',
-  "railway run -- psql -c 'DELETE FROM leads'", 'Invoke-Sqlcmd -Query "DELETE FROM leads"',
-  `psql -c "UPDATE leads SET status = 'x'"`, `psql -c "UPDATE ONLY leads SET status = 'x'"`, `psql -c "update public.leads l set status = 'x'"`,
-  `psql -c 'UPDATE "public"."leads" SET status = 1'`, 'psql -c "UPDATE leads\nSET a = 1"', 'mysql -e "UPDATE IGNORE leads SET a = 1"',
-  'psql -c "BEGIN; UPDATE leads SET a = 1; COMMIT;"', 'psql -c "INSERT INTO t (a) VALUES (1) ON CONFLICT (a) DO UPDATE SET a = excluded.a; UPDATE t SET b = 1"',
-  'psql -c "ALTER TABLE leads DROP COLUMN note"', 'psql -c "alter table leads drop constraint c"', 'psql -c "ALTER TABLE IF EXISTS ONLY public.leads DROP COLUMN IF EXISTS note"',
-  ...DROP_KINDS.map((k) => `psql -c "DROP ${k}"`), 'psql -c "drop materialized\nview mv"',
-];
+// The deny probes of the DELETE / UPDATE / ALTER TABLE ... DROP / DROP-kind arms of destructive-sql are its policy.json denyExamples
+// (the repo convention: every verified bypass string is a denyExample beside its rule), so policy.test.mjs and the adapter parity
+// tests already run them. This block adds what those do not: PowerShell, every adapter row with a rule-id check, and a guard that
+// each class is really among the examples (a loop over a list that lost its probes is a silent green).
+const DESTRUCTIVE_PROBES = policy.rules.find((r) => r.id === "destructive-sql").denyExamples;
 
-test("destructive-sql deny probes: each is denied BY THIS RULE as native Bash and PowerShell, and through every command adapter (in process)", () => {
-  assert.ok(DESTRUCTIVE_PROBES.length >= 38, "the probe list is the proof surface for the extended arms");
+test("destructive-sql deny probes: each class is among the denyExamples, and each is denied BY THIS RULE as native Bash and PowerShell and through every command adapter (in process)", () => {
+  const classes = [/DELETE\s+(?:\w+\s+)*FROM/i, /UPDATE\s+\S+(?:\s+\S+)?\s+SET/i, /ALTER\s+TABLE[\s\S]*DROP/i, ...DROP_KINDS.map((k) => new RegExp(`DROP\\s+${k.split(" ")[0]}`, "i"))];
+  for (const re of classes) assert.ok(DESTRUCTIVE_PROBES.some((p) => re.test(p)), `no destructive-sql denyExample for the class ${re}`);
+  assert.ok(DESTRUCTIVE_PROBES.length >= 40, `the denyExamples are the proof surface for the extended arms, got ${DESTRUCTIVE_PROBES.length}`);
   const rowsAsBash = adapters().filter((a) => a.as === "Bash");
   assert.ok(rowsAsBash.length >= 8, "4 runner rows and 4 SQL rows (a loop over nothing is a silent green)");
   for (const command of DESTRUCTIVE_PROBES) {

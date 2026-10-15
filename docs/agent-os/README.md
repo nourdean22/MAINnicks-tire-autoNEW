@@ -271,9 +271,10 @@ Inventory of 2026-10-15. Names come from this machine's tool lists; "name only" 
   sent through a SQL tool, and an `apply_changes: false` discard of `complete_database_migration` that re-sends
   destructive SQL (discard it in the Neon console). Neon `complete_query_tuning` carries `suggested_sql_statements`, a
   list of DDL: asked per call, not text-judged. `destructive-sql` is also an honour rule for a write that has a WHERE. A
-  canary pins each of these, so one that gets fixed fails loudly. The deny probes of the DELETE, UPDATE, ALTER TABLE and
-  DROP-kind arms live in `mcpCoverage.test.mjs` (`DESTRUCTIVE_PROBES`), not in `policy.json` `denyExamples`:
-  `docs/agent-audit/CONTROL-CANARY-COVERAGE.md` pins that total (144) and sits outside the platform lane.
+  canary pins each of these, so one that gets fixed fails loudly. The deny and allow probes of the DELETE, UPDATE, ALTER
+  TABLE and DROP-kind arms are `denyExamples` and `allowExamples` of the rule in `policy.json`;
+  `docs/agent-audit/CONTROL-CANARY-COVERAGE.md` states the `denyExamples` total (`coverage-doc.test.mjs` fails when it
+  drifts), so change that number in the same commit as any example.
 - **Prisma-Local MCP** (`migrate-reset`, `migrate-dev`; name only, the server failed to connect on 2026-10-15).
   The tool name is the whole command, so there is no text to match. Follow-up: an adapter field that supplies a
   fixed command string such as `prisma migrate reset` to `destructive-prisma`.
