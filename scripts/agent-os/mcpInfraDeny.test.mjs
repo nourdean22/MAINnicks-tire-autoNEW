@@ -746,20 +746,27 @@ test("AGENTS.md and CLAUDE.md say infra MCP mutation tools are DENIED by name, n
 
 // The ledger is state, not a spec: rows are appended, Status moves BUILT -> MERGED -> LIVE-VERIFIED and Next is rewritten as the job advances. A first version of this test pinned
 // "last row", Status BUILT and the guard row's Next text; the next PR that appended a row failed the every-PR policy job (2026-10-15). So this pins only what holds for the row's
-// whole life: one row, eight cells, no override mention, and, while the row is still open, who acts and by when. Row order, the Status word and any Next text are NOT pinned.
-test("ledger: this job has ONE row with eight cells and no override mention; while open (PLANNED, RUNNING, BUILT) Next names an owner and a date; the guard row exists once with eight cells", () => {
+// whole life: one row, eight cells, no override mention, and, until verification completes, who acts and by when: this job's row and the guard row owe Next an owner and a date in
+// every Status except LIVE-VERIFIED and CANCELLED (a MERGED row with its live check outstanding is not done: monorepo-manager step 12). Row order, the Status word and Next text are NOT pinned.
+const NEXT_EXEMPT_STATUS = new Set(["LIVE-VERIFIED", "CANCELLED"]);
+test("ledger: this job has ONE row with eight cells and no override mention; every row not yet LIVE-VERIFIED or CANCELLED (this job's and the guard row) names an owner and a date in Next; the guard row exists once with eight cells", () => {
+  // a single snapshot cannot tell MERGED from a BUILT row that regressed to MERGED, so a Status regression is not detected here
+  const owesNext = (label, row) => {
+    const c = row.split("|").map((x) => x.trim());
+    if (NEXT_EXEMPT_STATUS.has(c[5])) return;
+    assert.match(c[7], /\b(?:Nour|manager|operator)\b/i, `${label} (${c[5]}) names an owner in Next`);
+    assert.match(c[7], /\b\d{4}-\d\d-\d\d\b/, `${label} (${c[5]}) names a date in Next`);
+  };
   const text = readFileSync(join(ROOT, "docs", "agent-os", "MANAGER-LEDGER.md"), "utf8");
   const rows = text.split("\n").filter((l) => l.startsWith("| ") && !l.startsWith("| Job id") && !l.startsWith("|---"));
   const mine = rows.filter((l) => l.startsWith("| 2026-10-15-infra-deny-by-name |"));
   assert.equal(mine.length, 1, "exactly one ledger row for this job");
   const cell = mine[0].split("|").map((c) => c.trim());
   assert.equal(cell.length, 10, "eight cells, no pipe inside any cell");
-  if (["PLANNED", "RUNNING", "BUILT"].includes(cell[5])) {
-    assert.match(cell[7], /\b(?:Nour|manager|operator)\b/i, `an open row (${cell[5]}) names an owner in Next`);
-    assert.match(cell[7], /\b\d{4}-\d\d-\d\d\b/, `an open row (${cell[5]}) names a date in Next`);
-  }
+  owesNext("this job's row", mine[0]);
   assert.ok(!mine[0].includes(OVERRIDE), "the ledger row must not mention an override variable: there is none");
   const guard = rows.filter((l) => l.startsWith("| 2026-10-15-guard-sql-lease-infra |"));
   assert.equal(guard.length, 1, "the guard row exists exactly once");
   assert.equal(guard[0].split("|").length, 10, "the guard row has eight cells");
+  owesNext("the guard row", guard[0]);
 });
