@@ -96,9 +96,9 @@ github-client canaries 403'd every PR whenever another workflow had spent the bu
   `echo` quoting a forbidden string gets blocked (safe direction — `sh -c "…"` quoting IS
   execution); put test payloads in files and pipe them. Discovered live when this layer's own
   e2e test blocked itself.
-- **There is no bypass env var, with ONE exception.** Changing a rule means editing `policy.json` in a
-  PR where the diff is reviewable. The exception is rule `infra-mutation-tool`, which names `overrideEnv` (`AGENT_OS_INFRA_OVERRIDE`)
-  so the OPERATOR can lift that rule alone ("Infra tools: deny by name" below). No other rule has one, and a canary says so.
+- **There is deliberately no bypass env var.** Changing a rule means editing `policy.json` in a
+  PR where the diff is reviewable. That includes `infra-mutation-tool` ("Infra tools: deny by name" below): an override for it
+  was built first and removed after review, and a canary asserts that an `AGENT_OS_INFRA_OVERRIDE` in the environment changes nothing.
 
 ## MCP and native-runner coverage (2026-10-15)
 
@@ -335,7 +335,7 @@ client does to that text:
 **Status: DENIED by name.** The Railway, Neon, Vercel and Prisma MCP tools that delete, redeploy, restart or change variables,
 credentials, domains, DNS or schema (the table below) are refused by rule `infra-mutation-tool`, a PreToolUse hook deny
 (exit 2). It judges the TOOL NAME, by its last segment, whatever server segment it has. It replaced 135 native
-`permissions.ask` entries that did nothing. An operator override exists (below). Nothing here has been live-checked since the rewrite:
+`permissions.ask` entries that did nothing. There is NO override. Nothing here has been live-checked since the rewrite:
 step 7 of "Live check after merge" is the receipt.
 
 - **Why: the live FAIL.** Job 2026-10-15-guard-sql-lease-infra wrote 135 `mcp__*__<leaf>` ask entries to make Claude Code prompt before
@@ -352,7 +352,7 @@ step 7 of "Live check after merge" is the receipt.
   matched: the connector UUID, the plugin form (`mcp__plugin_prisma_Prisma-Remote__...`), a `claude_ai_` name and a made-up UUID all
   deny. `.claude/settings.json` routes exactly these names to `pretool.mjs` (the pretool-only MCP matcher group; `lease-check.mjs` does not
   run for them, they never touch the worktree) and routes no read. The denial tells an agent to state the exact action to Nour, who runs it
-  in the provider dashboard or CLI or sets the override. The leaf list is the classification in `scripts/agent-os/mcpInfraDeny.test.mjs`;
+  himself in the provider dashboard or CLI, or changes the rule in a PR. The leaf list is the classification in `scripts/agent-os/mcpInfraDeny.test.mjs`;
   that file pins both patterns to it and probes every leaf on four server forms through the real hook.
 - **The denied tool list (135).** Derived from `policy.json`; `mcpInfraDeny.test.mjs` fails if a leaf is missing here. `update_project` exists on both Neon
   and Vercel and is listed once.
@@ -364,13 +364,13 @@ step 7 of "Live check after merge" is the receipt.
 | Vercel | `accept_project_transfer_request`, `activate_kms_signing_key`, `add_project_domain`, `add_route`, `approve_rolling_release_stage`, `assign_alias`, `buy_domain`, `cancel_deployment`, `complete_rolling_release`, `create_deployment`, `create_edge_config_token`, `create_kms_signing_key`, `create_or_transfer_domain`, `create_project_env`, `create_record`, `create_sdk_key`, `edit_project_env`, `edit_route`, `issue_cert`, `patch_edge_config_items`, `patch_url_protection_bypass`, `pause_project`, `put_firewall_config`, `replace_domain_dns_records`, `request_promote`, `request_rollback`, `restore_edge_config_backup`, `restore_redirects`, `revoke_kms_signing_key`, `run_session_command`, `stage_redirects`, `stage_routes`, `start_rolling_release`, `unpause_project`, `update_attack_challenge_mode`, `update_bulk_redirect_version`, `update_connector`, `update_edge_config`, `update_firewall_config`, `update_flag`, `update_flag_segment`, `update_flag_settings`, `update_kms_issuer`, `update_kms_issuer_policy`, `update_project_protection_bypass`, `update_record`, `update_rolling_release_config`, `update_route_versions`, `upsert_connector_project_connection`, `write_session_files` |
 | Prisma | `create_object_store_bucket_key`, `create_prisma_postgres_connection_string`, `create_prisma_postgres_recovery`, `delete_object_store_bucket`, `delete_object_store_bucket_key`, `delete_prisma_compute_app`, `delete_prisma_compute_deployment`, `delete_prisma_compute_env_var`, `delete_prisma_postgres_connection_string`, `delete_prisma_postgres_database`, `execute_prisma_postgres_schema_update`, `link_prisma_github_repository`, `promote_prisma_compute_deployment`, `rollback_prisma_compute_app`, `set_prisma_compute_env_var`, `start_prisma_compute_deployment`, `stop_prisma_compute_deployment` |
 
-- **The override.** The operator, never an agent, sets `AGENT_OS_INFRA_OVERRIDE` to any non-empty reason under `env` in the gitignored
-  `.claude/settings.local.json` (or exports it before starting the session), then starts a fresh session. A denial BY THIS RULE
-  becomes a stderr warning that repeats the reason, exit 0, and the call goes through. It lifts `infra-mutation-tool` only: the same call is
-  judged again with that rule skipped, so any other rule that matches still denies (a destructive migration through
-  `complete_database_migration` is still refused by `destructive-sql`), and `git push origin main` is untouched. An empty or
-  blank value does nothing, and neither does a look-alike name or `AGENT_OS_LEASE_OVERRIDE`. Remove the line when the job is done: the
-  override is session-wide, not per call. An agent must never set it, and the denial message says so.
+- **No override.** There is no environment variable, setting or flag that lifts `infra-mutation-tool`. A first version had an operator override
+  (`AGENT_OS_INFRA_OVERRIDE`); review showed that any non-blank value turned the rule off for every tool and target for the whole session, and
+  for later sessions when stored in `.claude/settings.local.json`, which contradicts "explicit instruction for the specific action, every
+  time" (AGENTS.md > Protected operations). It was removed, and `mcpInfraDeny.test.mjs` now asserts the opposite through the real hook:
+  with `AGENT_OS_INFRA_OVERRIDE` set to a reason, or the look-alikes `AGENT_OS_INFRA_OVERRIDES` and `INFRA_OVERRIDE`, a denied tool is still denied.
+  An infra deny cannot wedge a session the way `lease-check.mjs` can, so nothing needs a way around it. When Nour wants one of these actions he runs it
+  himself in the provider dashboard or CLI, or he edits the rule in a PR where the diff is reviewable. The denial message says exactly that.
 - **What is NOT affected.** Bash `railway run`, `railway variables` (a read), `railway logs`, `railway status`, `gh`, `git` and every other
   command: they are Bash and the name rule never sees a command. MCP reads, logs, docs and analytics tools (Railway `list-projects`,
   `get-logs`; Neon `list_projects`, `run_sql`; Vercel `list_deployments`, `get_runtime_logs`; Prisma `list_prisma_projects`), additive creates
@@ -400,13 +400,11 @@ step 7 of "Live check after merge" is the receipt.
   every leaf of every fixture list (protected, allowed, known-unclassified) with its full tool name, and treat a name that does not resolve
   as stale; (3) diff the live names against the fixtures; (4) classify each new name as protected, allowed or known-unclassified and edit the
   fixtures, both patterns and the matcher together. The 2026-10-15 pass found one stale allowed name that way: `list_edge_configs` is gone, the live name is `get_edge_configs`.
-- **Limits.** (a) A hook fails OPEN on its own bug or a timeout (10 s); the real-hook matrix and the 100,000-character sweep are the guard, and the name
-  rule is linear. (b) The override is an environment variable the hook inherits from the session: an agent that can write
-  `.claude/settings.local.json` can set it for the NEXT session, which no rule here stops (the same holds for `AGENT_OS_LEASE_OVERRIDE`); the repo
-  cannot prove that Claude Code passes `env` from that file to a hook process, which step 8 of the live check settles. (c) A Bash command that is exactly a
-  denied tool name is denied too (the rule is typed Bash so the row can hand it text): no real command looks like that, a canary pins it. (d) An empty
-  server segment (`mcp____delete_project`) is not a registered tool and does not match. (e) The CLI door (`railway`, `vercel`, `neonctl` through Bash or a
-  runner) is not judged by this rule.
+- **Limits.** (a) A hook fails OPEN on its own bug or a timeout (10 s); the in-process matrix over every leaf, the real-hook probes and the 100,000-character
+  sweep are the guard, and the name rule is linear. (b) A Bash command that is exactly a denied tool name is denied too (the rule is typed Bash so the row can
+  hand it text): no real command looks like that, a canary pins it. (c) An empty server segment (`mcp____delete_project`) is not a registered tool and does
+  not match. (d) The CLI door (`railway`, `vercel`, `neonctl` through Bash or a runner) is not judged by this rule. (e) The in-process matrix and the real hook
+  call the same functions `pretool.mjs` calls; a canary compares their verdicts on a sample so the two cannot drift apart unseen.
 
 ### Still unguarded
 
@@ -499,7 +497,7 @@ Inventory of 2026-10-15. Names come from this machine's tool lists; "name only" 
 Five minutes, in a FRESH Claude Code session started from the PRIMARY checkout after step 0. Hooks and settings load when
 a session starts, and a worktree session takes both from the primary checkout, so a session that began before the merge,
 or one that runs in a worktree, proves nothing. Steps 1 to 4 prove the runner adapters, steps 5 and 6 the SQL rows,
-step 7 the infra name rule, step 8 the operator override. Three result words are used below. PASS: the stated refusal or prompt appears before
+step 7 the infra name rule. Three result words are used below. PASS: the stated refusal or prompt appears before
 anything is sent. FAIL: the call reached the tool and came back with the tool's own output or a provider error, while
 the control behaved as stated. INCONCLUSIVE: a control did not behave as stated, or the session did not load the merged
 files, so nothing can be concluded: fix the precondition and repeat. This section is a procedure; whoever runs it
@@ -509,9 +507,7 @@ records the result under "Recorded result" at its end (the 2026-10-15 run is the
    `C:\Users\nourd\NattyNour\nicks-tire`): `git -C <primary> fetch origin main`, then `git -C <primary> merge --ff-only origin/main`,
    never `reset --hard` (a sibling session's work may be in that tree). Confirm `git -C <primary> log -1 --format=%H`
    is the merged commit and that `node -e "console.log(require('./.claude/settings.json').permissions.ask ?? 'no ask list')"`, run
-   inside the primary, prints `no ask list`. Then open a FRESH session whose directory is the primary checkout. Make sure
-   `AGENT_OS_INFRA_OVERRIDE` is not set in `.claude/settings.local.json` or in the shell that starts it; if it is, stop:
-   INCONCLUSIVE (an override turns step 7 into a pass-through). A worktree session
+   inside the primary, prints `no ask list`. Then open a FRESH session whose directory is the primary checkout. A worktree session
    cannot test a `settings.json` that is not merged: its own worktree's copy is not the one it loads.
 1. Ask Claude to run `git push --dry-run origin main` through the Terminal MCP (`run_in_terminal`), then through
    Desktop Commander (`start_process`), then through the native `Monitor` tool. It is harmless: a dry-run push sends nothing even if the guard fails.
@@ -537,7 +533,7 @@ records the result under "Recorded result" at its end (the 2026-10-15 run is the
    `neon-sql-transaction.sql_statements[1]`. FAIL: a provider error.
 7. Infra probe, with its precondition and positive control first. There are no operator taps: a denial is a hook, so nothing waits for an answer.
    - Mode: run it in `bypassPermissions` (the mode shows under the input box; Shift+Tab cycles it), the mode in which the ask rules
-     failed. `AGENT_OS_INFRA_OVERRIDE` must NOT be set (step 0).
+     failed.
    - Positive control: ask Claude to call Railway `list-projects` and Neon `list_projects` (reads, both MUST-ALLOW fixtures). They must run
      with NO prompt and NO refusal. A refusal naming `infra-mutation-tool` on a read is a FAIL of the allow side (a read matched); a
      connector that is not connected (its tools are absent) is INCONCLUSIVE.
@@ -550,12 +546,6 @@ records the result under "Recorded result" at its end (the 2026-10-15 run is the
      `node --test scripts/agent-os/mcpInfraDeny.test.mjs` (the registration canaries say whether the matcher routes it) and restart the session.
      INCONCLUSIVE: the control was refused or a connector is absent.
    - The ids are nonexistent, so even a failed check deletes nothing.
-8. Override probe (the operator only; an agent must never do this). Add `"env": { "AGENT_OS_INFRA_OVERRIDE": "live check" }` to the gitignored
-   `.claude/settings.local.json`, start a FRESH session, and repeat ONE probe of step 7 (Neon `delete_project`, nonexistent id). PASS: the hook
-   prints `WARNING: AGENT_OS_INFRA_OVERRIDE is set` and the call reaches Neon, which answers with its own not-found error. FAIL: still refused with
-   `BLOCKED by repo policy: infra-mutation-tool`: Claude Code did not pass `env` from that file to the hook process, so export the variable in the
-   shell before starting `claude` instead and record that. Then REMOVE the line (or unset the variable) and restart: the override is session-wide.
-
 **Recorded result, 2026-10-15 17:56Z.** A fresh session started from the primary checkout at `b6faf90d9` after the
 fast-forward, in `bypassPermissions`. Steps 1 to 4 PASS: `git push --dry-run origin main` was refused with `BLOCKED by
 repo policy: push-to-main` through the Terminal MCP `run_in_terminal`, Desktop Commander `start_process` and `Monitor`
@@ -567,7 +557,7 @@ line `neon-sql.sql`) and `run_sql_transaction` was refused (last line `neon-sql-
 error), Vercel `pause_project` (`invalid_project_id`) and Prisma `delete_prisma_postgres_database` (`not_found`) each ran
 with NO permission prompt. The recorded probes were Railway, Vercel and Prisma; the Neon connector was invalidated in that
 session. That FAIL led to job 2026-10-15-infra-deny-by-name: the ask entries were removed and replaced by the hook deny described
-under "Infra tools: deny by name", whose probes are the rewritten step 7. The rewritten steps 7 and 8 have not been run yet: record their result here.
+under "Infra tools: deny by name", whose probes are the rewritten step 7. The rewritten step 7 has not been run yet: record its result here.
 
 ## Writing a check that actually catches something
 

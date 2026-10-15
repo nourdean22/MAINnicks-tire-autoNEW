@@ -451,26 +451,14 @@ export function adaptToolCall(toolName, toolInput, cwd, policy, report = () => {
   return claimed ? calls : null;
 }
 
-// A rule may name ONE operator override: `overrideEnv`, an env var the OPERATOR sets (gitignored .claude/settings.local.json > env), which turns a
-// denial BY THAT RULE ONLY into a stderr warning (pretool.mjs). Only names of the form AGENT_OS_<WORDS>_OVERRIDE are read: a malformed name is
-// ignored, so a typo can only keep the denial (the lease-check AGENT_OS_LEASE_OVERRIDE precedent). Returns the trimmed value, "" when off.
-const OVERRIDE_ENV_NAME = /^AGENT_OS_[A-Z0-9_]+_OVERRIDE$/;
-export function overrideReason(rule, env = process.env) {
-  const name = rule?.overrideEnv;
-  if (typeof name !== "string" || !OVERRIDE_ENV_NAME.test(name)) return "";
-  const value = env?.[name];
-  return typeof value === "string" ? value.trim() : "";
-}
-
 export function formatDenial(rule) {
-  const tail = typeof rule.overrideEnv === "string" && OVERRIDE_ENV_NAME.test(rule.overrideEnv)
-    ? [
-        "This rule lives in config/agent-os/policy.json. Only the OPERATOR can lift it, for this rule alone:",
-        `set ${rule.overrideEnv} (any non-empty reason) under "env" in the gitignored .claude/settings.local.json. An agent must never set it.`,
-      ]
-    : [
-        "This rule lives in config/agent-os/policy.json. There is no bypass flag —",
-        "if it is genuinely wrong, change it in a PR where the diff is reviewable.",
-      ];
-  return [`BLOCKED by repo policy: ${rule.id}`, "", `Why:  ${rule.why}`, `Do:   ${rule.fix}`, "", ...tail].join("\n");
+  return [
+    `BLOCKED by repo policy: ${rule.id}`,
+    "",
+    `Why:  ${rule.why}`,
+    `Do:   ${rule.fix}`,
+    "",
+    "This rule lives in config/agent-os/policy.json. There is no bypass flag —",
+    "if it is genuinely wrong, change it in a PR where the diff is reviewable.",
+  ].join("\n");
 }
