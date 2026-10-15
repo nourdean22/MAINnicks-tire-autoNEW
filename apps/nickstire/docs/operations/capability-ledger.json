@@ -4961,8 +4961,8 @@
       "name": "Invoice, estimate and approval dates are written on the shop's clock, and live day filters bind the shop's day",
       "owner": "nickstire",
       "evidence": {
-        "codeCommit": "PR nourdean22/MAINnicks-tire-autoNEW#3037 (squash on merge); branch commits 83f24cc64, df29dab35, b5b47c654, and the date-convention fix commit a76455d96",
-        "tests": "server/lib/shopWallClock.test.ts (Eastern wall clock in both DST directions; instant round-trip; the invoice and estimate columns keep the wall-clock fields); server/__tests__/invoiceDateShopLocal.test.ts (writers store the shop's clock; no invoice insert omits invoiceDate; planted cases); server/shopDayWindows.test.ts (invoice dates bind as shop-day keys); server/adminStatsShopDay.test.ts (per-position day binds); server/collectionsWindow.test.ts (invoice age on the shop's clock); full nickstire suite on a76455d96: 1033 test files passed, 3 skipped; 13363 tests passed, 74 skipped, 1 todo, 0 failed."
+        "codeCommit": "PR nourdean22/MAINnicks-tire-autoNEW#3037 (squash on merge); branch commits 83f24cc64, df29dab35, b5b47c654, a76455d96, and the merge of main 7c8aa579f",
+        "tests": "server/lib/shopWallClock.test.ts (Eastern wall clock in both DST directions; instant round-trip; the invoice and estimate columns keep the wall-clock fields); server/__tests__/invoiceDateShopLocal.test.ts (writers store the shop's clock; no invoice insert omits invoiceDate; planted cases); server/shopDayWindows.test.ts (invoice dates bind as shop-day keys); server/adminStatsShopDay.test.ts (per-position day binds); server/collectionsWindow.test.ts (invoice age on the shop's clock); full nickstire suite on 7c8aa579f: 1033 test files passed, 3 skipped; 13365 tests passed, 74 skipped, 1 todo, 0 failed."
       },
       "blockers": [
         {
