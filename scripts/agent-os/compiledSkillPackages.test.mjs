@@ -4,8 +4,9 @@
  * Nothing in CI ran scripts/skill-compiler/validate.mjs over the packages in this repo, so a package could
  * be invalid, or still a fresh scaffold, and merge anyway. The first compiled skill (PR #3035) also showed
  * that a package can validate and never load, because Claude Code reads only .claude/skills/<name>/SKILL.md.
- * A package is a directory that holds provenance/source.json, the file only scaffold.mjs writes; a skill
- * without it is not a compiler package and is skipped. The scan fails, naming the package, when one:
+ * A package is a directory that holds any of the compiler's own files (techniques.md, chapters/map.md,
+ * provenance/source.json, ...), so deleting one file cannot hide it; a skill with none of them is skipped.
+ * The scan fails, naming the package, when one:
  *   - fails validate.mjs (V1-V7);
  *   - still has SKILL.draft.md (V8), which is how a fresh scaffold looks;
  *   - sits anywhere but directly under .claude/skills/.
@@ -29,15 +30,21 @@ const REPO = fileURLToPath(new URL("../..", import.meta.url));
 const SCAFFOLD = fileURLToPath(new URL("../skill-compiler/scaffold.mjs", import.meta.url));
 const VALIDATE = fileURLToPath(new URL("../skill-compiler/validate.mjs", import.meta.url));
 const PROVENANCE = "/provenance/source.json";
+// What validate.mjs requires of a package. Any of these but SKILL.md (every skill has one) marks a directory as a package, so deleting one file cannot hide it.
+const REQUIRED = ["SKILL.md", "techniques.md", "anti-patterns.md", "glossary.md", "chapters/map.md", "provenance/source.json", "evals/questions.json"];
+const MARKERS = REQUIRED.filter((f) => f !== "SKILL.md");
 
 /** Run the real validate.mjs over every compiler package under <root>/.claude/skills and name each one that is wrong. */
 function scan(root) {
-  const packages = readdirSync(join(root, ".claude", "skills"), { recursive: true })
-    .map((p) => p.split(sep).join("/"))
-    // shortcut: found by provenance/source.json, so a package that lost that file reads as a plain skill; match SKILL.draft.md too if it happens.
-    .filter((p) => p.endsWith(PROVENANCE))
-    .map((p) => p.slice(0, -PROVENANCE.length))
-    .sort();
+  // shortcut: a package stripped of every compiler file reads as a plain skill, and one put too deep is found only by its provenance file.
+  const found = new Set();
+  for (const p of readdirSync(join(root, ".claude", "skills"), { recursive: true })) {
+    const rel = p.split(sep).join("/");
+    const slash = rel.indexOf("/");
+    if (slash > 0 && MARKERS.includes(rel.slice(slash + 1))) found.add(rel.slice(0, slash));
+    if (rel.endsWith(PROVENANCE)) found.add(rel.slice(0, -PROVENANCE.length)); // a package put too deep has this file at any depth
+  }
+  const packages = [...found].sort();
   const problems = [];
   for (const pkg of packages) {
     if (pkg.includes("/")) {
@@ -82,16 +89,16 @@ function writePackage(skills, name) {
   );
 }
 
-test("control: finished packages read clean, and a skill without provenance is skipped", () => {
+test("control: finished packages read clean, and a skill with no compiler files is skipped", () => {
   const { root, skills } = tree();
   writePackage(skills, "good-pkg");
-  mkdirSync(join(skills, "plain-skill"));
+  mkdirSync(join(skills, "plain-skill", "references"), { recursive: true });
   writeFileSync(join(skills, "plain-skill", "SKILL.md"), "not a compiler package\n");
+  writeFileSync(join(skills, "plain-skill", "references", "glossary.md"), "a reference file, not the compiler's glossary\n");
   assert.deepEqual(scan(root), { packages: ["good-pkg"], problems: [] });
 });
 
 for (const [label, name, arrange, want] of [
-  ["an invalid package", "bad-pkg", (skills) => rmSync(join(skills, "bad-pkg", "techniques.md")), /V1 missing techniques\.md/],
   ["a leftover SKILL.draft.md", "bad-pkg", (skills) => writeFileSync(join(skills, "bad-pkg", "SKILL.draft.md"), "DRAFT\n"), /V8 SKILL\.draft\.md still exists/],
   [
     "a draft renamed to SKILL.md and never rewritten",
@@ -118,6 +125,20 @@ for (const [label, name, arrange, want] of [
     assert.equal(problems.length, 1, JSON.stringify(problems));
     assert.ok(problems[0].startsWith(`${name}:`), problems[0]);
     assert.match(problems[0], want);
+  });
+}
+
+// No single missing file may hide a package from the scan: validate.mjs reports it (V1) once the scan finds the package.
+for (const file of REQUIRED) {
+  test(`scan names a package that lost ${file}`, () => {
+    const { root, skills } = tree();
+    writePackage(skills, "good-pkg");
+    writePackage(skills, "bad-pkg");
+    rmSync(join(skills, "bad-pkg", ...file.split("/")));
+    const { problems } = scan(root);
+    assert.equal(problems.length, 1, JSON.stringify(problems));
+    assert.ok(problems[0].startsWith("bad-pkg:"), problems[0]);
+    assert.ok(problems[0].includes(`V1 missing ${join(...file.split("/"))}`), problems[0]);
   });
 }
 
