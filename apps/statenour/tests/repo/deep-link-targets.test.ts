@@ -24,10 +24,16 @@
  * app/ cron routes and comment mentions all read wrong by the old regexes):
  * comments are never links, and a `${hole}` makes its segment unknowable ("*").
  */
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import ts from "typescript";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
+
+// Three full-tree sweeps of 5 to 7 s each run back to back as synchronous tests (17.5 s quiet, measured
+// 2026-10-15), and the runner does not turn the worker's event loop between synchronous tests. On a slow
+// machine that stretch nears vitest's 60 s RPC timeout, which fails the run with
+// `Timeout calling "onTaskUpdate"` and no failing test. See repo-canary-gates.redteam.test.ts for the measurement.
+beforeEach(() => new Promise<void>((resolve) => setImmediate(resolve)));
 
 function walk(dir: string, keep: (f: string) => boolean, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {

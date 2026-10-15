@@ -29,7 +29,7 @@
  * doc-claim-audit.ts rows were closed the same way by R3-10 (the gates themselves were fixed);
  * REDTEAM_GATE_OVERRIDE="scripts/check-anti-slop.sh=<mutant>" runs the bash rows against a mutant.
  */
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import ts from "typescript";
 import { createRequire } from "node:module";
 import { execFile } from "node:child_process";
@@ -43,6 +43,14 @@ const APP = process.cwd(); // vitest runs from apps/statenour
 // Per process: a fixed path let two sessions running this file delete each other's fixtures (EPERM, R3-10).
 const FIXTURE_ROOT = process.env.REDTEAM_FIXTURE_ROOT ?? mkdtempSync(join(tmpdir(), "statenour-redteam-repo-canary-gates-"));
 const req = createRequire(import.meta.url);
+
+// Most of this file's ~120 gate probes are synchronous (they sweep the tree in-process), and the runner
+// awaits synchronous tests back to back, so the worker's event loop does not turn between them. Measured
+// 2026-10-15 with a lag probe: one 62.9 s stretch, ending inside the first anti-slop test, in which no timer
+// fired and no runner message was read. Past vitest's 60 s RPC timeout that fires an unhandled
+// `Timeout calling "onTaskUpdate"` the moment the stretch ends, and `pnpm test` exits 1 with 0 failing tests.
+// One macrotask turn before each test lets the runner's messages through; no probe or assertion changes.
+beforeEach(() => new Promise<void>((resolve) => setImmediate(resolve)));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Harness: run a gate's own code
@@ -1039,4 +1047,35 @@ describe("auditGateClaims · the live DESIGN.md arm", () => {
     const doc = "gate-checked by the script.\n\nSome prose about the gate.\n\n- No rounded corners\n";
     expect(auditGateClaims(doc, gateSource, "gate-checked", VOCAB)).toEqual({ unbacked: [], ok: true });
   });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 8 · the file's own loop-turn guard (the beforeEach at the top)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("the worker's event loop turns between this file's synchronous tests", () => {
+  // A 5 ms timer is overdue after every 30 ms busy test. If the runner chains the tests without a macrotask
+  // turn (no beforeEach yield), the timer cannot fire between them. Each test compares itself with the one
+  // that ran before it, so the check holds for any subset or order of these tests (the first has nothing
+  // to compare with and passes by itself; the rest fail when the yield is gone).
+  let ticks = 0;
+  let timer: ReturnType<typeof setInterval>;
+  let previous: number | undefined;
+  const busy = () => {
+    for (const end = Date.now() + 30; Date.now() < end; ) {
+      /* spin: a synchronous test body */
+    }
+    const before = previous;
+    previous = ticks;
+    if (before !== undefined) expect(ticks, `the loop did not turn since the previous synchronous test (timer count stayed ${before})`).toBeGreaterThan(before);
+  };
+  beforeAll(() => {
+    timer = setInterval(() => void ticks++, 5);
+  });
+  afterAll(() => clearInterval(timer));
+
+  it("synchronous test 1", busy);
+  it("synchronous test 2: a timer fired since test 1", busy);
+  it("synchronous test 3: a timer fired since test 2", busy);
+  it("synchronous test 4: a timer fired since test 3", busy);
 });
