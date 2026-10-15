@@ -16,9 +16,15 @@
  *
  * Exit 2 is used rather than JSON stdout because Claude Code ignores JSON when a hook
  * exits 2 — mixing the two silently drops the denial.
+ *
+ * OPERATOR OVERRIDE — ONE rule only (2026-10-15, job infra-deny-by-name): a rule that names `overrideEnv` in
+ * policy.json (today only infra-mutation-tool, AGENT_OS_INFRA_OVERRIDE) is turned from a denial into a stderr
+ * warning that repeats the reason, exit 0, when the OPERATOR has set that env var to a non-empty value. The
+ * judgment is made per rule: the same call is judged again with that rule skipped, so any OTHER rule that
+ * matches still denies. No other rule has an override.
  */
 import { readFileSync } from "node:fs";
-import { adaptToolCall, evaluate, formatDenial, loadPolicy } from "./policy.mjs";
+import { adaptToolCall, evaluate, formatDenial, loadPolicy, overrideReason } from "./policy.mjs";
 
 const ALLOW = 0;
 const BLOCK = 2;
@@ -56,8 +62,22 @@ async function main() {
   ];
 
   for (const call of calls) {
-    const { denied, rule } = evaluate(call, policy);
-    if (denied) {
+    // A denial by a rule with a live operator override is warned and the call is judged again WITHOUT that rule: another rule may still deny it.
+    // Each pass adds one distinct rule id to the skip list, so the loop ends.
+    let skipRules = call.skipRules;
+    for (;;) {
+      const { denied, rule } = evaluate({ ...call, skipRules }, policy);
+      if (!denied) break;
+      const reason = overrideReason(rule);
+      if (reason) {
+        process.stderr.write(
+          `[agent-os] WARNING: ${rule.overrideEnv} is set (${JSON.stringify(reason)}): allowing a call that rule ${rule.id} denies.\n` +
+            `Why the rule exists: ${rule.why}\n`,
+        );
+        if (call.via) process.stderr.write(`Judged through MCP adapter ${call.via} on tool ${toolName}.\n`);
+        skipRules = [...(Array.isArray(skipRules) ? skipRules : []), rule.id];
+        continue;
+      }
       process.stderr.write(formatDenial(rule) + "\n");
       if (call.via) process.stderr.write(`Judged through MCP adapter ${call.via} on tool ${toolName}.\n`);
       return BLOCK;
