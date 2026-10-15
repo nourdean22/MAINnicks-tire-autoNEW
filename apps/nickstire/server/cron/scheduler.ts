@@ -2495,15 +2495,6 @@ function buildTiers(): void {
           return runDeclinedWorkRecovery({ maxSends: Number(process.env.DECLINED_RECOVERY_MAX_PER_RUN) || 50 });
         },
       },
-      {
-        name: "unpaid-invoice-recovery", // NEW: courteous 7d/30d payment reminders for pending/partial invoices
-        handler: async () => {
-          const { runUnpaidInvoiceRecovery } = await import("./jobs/unpaidInvoiceRecovery");
-          // Off by default - FEATURE_UNPAID_INVOICE_RECOVERY=1 on Railway enables live
-          // sends; without it this is a dry-run (logs + Telegram alert, no SMS out).
-          return runUnpaidInvoiceRecovery({ maxSends: Number(process.env.INVOICE_RECOVERY_MAX_PER_RUN) || 30 });
-        },
-      },
         // voice-recovery moved to hourly tier (see above)
       {
         name: "declined-work-recovery",

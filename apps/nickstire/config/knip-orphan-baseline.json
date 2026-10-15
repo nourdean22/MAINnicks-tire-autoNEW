@@ -2277,16 +2277,6 @@
       "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
     },
     {
-      "file": "apps/nickstire/server/cron/jobs/unpaidInvoiceRecovery.ts",
-      "symbol": "firstName",
-      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
-    },
-    {
-      "file": "apps/nickstire/server/cron/jobs/unpaidInvoiceRecovery.ts",
-      "symbol": "buildMessage",
-      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
-    },
-    {
       "file": "apps/nickstire/server/services/fleetScoring.ts",
       "symbol": "scoreFleetProspect",
       "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"

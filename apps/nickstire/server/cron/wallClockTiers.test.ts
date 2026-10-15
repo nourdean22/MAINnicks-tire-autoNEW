@@ -376,7 +376,7 @@ describe("briefings — twice a day, at the times its own jobs accept", () => {
     expect(await slotAt("briefings", "2026-09-23T22:00:00-04:00")).toBe("closed");
   });
 
-  it("the daily slot opens at 09:30 ET — inside retention (09–17) and declined/unpaid (08–19) — and stays due until midnight", async () => {
+  it("the daily slot opens at 09:30 ET — inside retention (09–17) and declined-work (08–19) — and stays due until midnight", async () => {
     expect(await slotAt("daily", "2026-09-23T09:29:59-04:00")).toBe("closed");
     expect(await slotAt("daily", "2026-09-23T09:30:00-04:00")).toBe("open");
     expect(await slotAt("daily", "2026-09-23T23:59:59-04:00")).toBe("open");

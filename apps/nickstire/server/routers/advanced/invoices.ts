@@ -123,23 +123,20 @@ export const invoicesRouter = router({
       .where(inArray(invoices.paymentStatus, ["pending", "partial"]))
       .orderBy(desc(invoices.totalAmount), asc(invoices.invoiceDate))
       .limit(500);
-    // 2026-08-25 · collections state per row, plus the two facts the operator
-    // could not see: how much is inside the cron's window, and how much has
-    // aged past it and will never be selected again. Measured at the time:
-    // 5 eligible ($2,221.35) and 3 aged out ($1,606.62, oldest 138 days).
+    // 2026-08-25 · collections state per row, plus how much has aged past the
+    // 7-90 day window. Measured at the time: 5 inside it ($2,221.35) and 3
+    // aged out ($1,606.62, oldest 138 days).
     const {
-      collectionsState, invoiceAgeDays, recoverySendingArmed,
+      collectionsState, invoiceAgeDays,
       COLLECTIONS_MIN_AGE_DAYS, COLLECTIONS_MAX_AGE_DAYS,
     } = await import("../../services/collectionsWindow");
 
-    // NOT REAL MONEY. Measured 2026-08-25: 3 of the 5 rows this section called
-    // "eligible for automatic reminders" were seeded test rows - two on the
-    // reserved 216-555-9999, one on an 11-digit 77777777777 - so $1,167.27 of
-    // the $2,221.35 shown here was fiction. A dashboard quoting a figure the
-    // shop cannot collect is the same lying-surface class this section already
-    // guards against with `unknown is not zero`; it just failed in the other
-    // direction. The excluded rows are REPORTED, not silently dropped, so the
-    // number shrinking is explainable rather than mysterious.
+    // NOT REAL MONEY. Measured 2026-08-25: 3 of the 5 rows inside the window
+    // were seeded test rows - two on the reserved 216-555-9999, one on an
+    // 11-digit 77777777777 - so $1,167.27 of the $2,221.35 shown was fiction.
+    // A figure the shop cannot collect is the same lying-surface class this
+    // section guards against with `unknown is not zero`, failing the other way.
+    // The excluded rows are REPORTED, not silently dropped.
     const { partitionNonCustomers } = await import("../../services/nonCustomerFilter");
     const split = partitionNonCustomers<(typeof items)[number]>(items);
 
@@ -150,27 +147,21 @@ export const invoicesRouter = router({
     });
 
     let totalCents = 0;
-    let eligibleCents = 0;
     let agedOutCents = 0;
     let tooNewCents = 0;
     for (const r of decorated) {
       const c = r.totalAmount ?? 0;
       totalCents += c;
-      if (r.collectionsState === "eligible") eligibleCents += c;
-      else if (r.collectionsState === "aged-out") agedOutCents += c;
-      else tooNewCents += c;
+      if (r.collectionsState === "aged-out") agedOutCents += c;
+      else if (r.collectionsState === "too-new") tooNewCents += c;
     }
 
     return {
       items: decorated,
       totalCents,
       collections: {
-        // Read-only report of the Railway flag. Never flipped from here.
-        sendingArmed: recoverySendingArmed(),
-        eligibleCents,
         agedOutCents,
         tooNewCents,
-        eligibleCount: decorated.filter((r: (typeof decorated)[number]) => r.collectionsState === "eligible").length,
         agedOutCount: decorated.filter((r: (typeof decorated)[number]) => r.collectionsState === "aged-out").length,
         minAgeDays: COLLECTIONS_MIN_AGE_DAYS,
         maxAgeDays: COLLECTIONS_MAX_AGE_DAYS,
@@ -1164,62 +1155,6 @@ export const invoicesRouter = router({
         skipDryRunGate: true,
       });
       return { ...result, killSwitchOn: false };
-    }),
-
-  /**
-   * One-shot, operator-scoped unpaid-invoice reminder.
-   *
-   * WHY IT EXISTS. `runUnpaidInvoiceRecovery` had exactly ONE caller - the
-   * Tier-4 daily cron - and that tier's boot fire is guarded at 20h. So the
-   * first live execution of a lane that had NEVER sent a reminder in its life
-   * (paymentReminder7d/30dSentAt were 0 and 0 across all 2,959 invoices) would
-   * have landed ~24h later, unattended. This makes that first run observable.
-   *
-   * `invoiceIds` is REQUIRED and bounded. A trigger that can fire at the whole
-   * eligible set is not a one-shot; the operator names exactly which invoices,
-   * so a watched first run cannot become a broadcast by accident.
-   *
-   * GATED ON `sms_global_pause`, NOT `SMS_KILL_SWITCH`. The sibling trigger
-   * above checks SMS_KILL_SWITCH, which gates only the DEAD Twilio fallback -
-   * the live path is the F25e shop gateway, which bypasses it entirely. So
-   * that check is a false block: it refuses when sending works, and would
-   * permit if the real switch were thrown. `sms_global_pause` is the flag that
-   * actually stops customer SMS shop-wide.
-   *
-   * FAILS CLOSED. If the pause flag cannot be READ, this refuses. An
-   * unreadable emergency stop must never read as "clear to send".
-   *
-   * Test rows are excluded inside runUnpaidInvoiceRecovery by testRowFilter,
-   * so a named id that is not a real customer sends nothing and says so.
-   */
-  runUnpaidRecoveryNow: adminProcedure
-    .input(z.object({
-      invoiceIds: z.array(z.number().int().positive()).min(1).max(25),
-    }))
-    .mutation(async ({ input }) => {
-      const { getSmsPauseState } = await import("../../services/smsControl");
-      const pause = await getSmsPauseState();
-      if (!pause.readable) {
-        return {
-          recordsProcessed: 0,
-          details: "SMS pause flag UNREADABLE — refused. An emergency stop that cannot be read is not permission to send.",
-          blocked: true as const,
-        };
-      }
-      if (pause.paused) {
-        return {
-          recordsProcessed: 0,
-          details: `sms_global_pause is ON — refused before any send.${pause.reason ? ` (${pause.reason})` : ""}`,
-          blocked: true as const,
-        };
-      }
-      const { runUnpaidInvoiceRecovery } = await import("../../cron/jobs/unpaidInvoiceRecovery");
-      const result = await runUnpaidInvoiceRecovery({
-        maxSends: input.invoiceIds.length,
-        skipDryRunGate: true,
-        invoiceIds: input.invoiceIds,
-      });
-      return { ...result, blocked: false as const };
     }),
 
   /**
