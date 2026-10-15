@@ -6,11 +6,11 @@
  * times between 2026-09-22 23:53Z and 2026-09-23 13:26Z, so neither timer ever
  * reached its first tick: the tiers ran only from the boot claim in
  * tierStartup.ts, whose time of day is whenever a deploy happened to land. The
- * daily tier ran at 04:29 ET on 2026-09-22. Three of its customer lanes gate
- * on an hour window inside the job — retention 09:00–17:59, declined-work
- * recovery and unpaid-invoice recovery 08:00–19:59 — so on such a day they
- * returned "outside hours" and sent nothing, silently, until the next day's
- * drift happened to land inside the window.
+ * daily tier ran at 04:29 ET on 2026-09-22. Its customer lanes gate on an
+ * hour window inside the job — retention 09:00–17:59, declined-work recovery
+ * 08:00–19:59 — so on such a day they returned "outside hours" and sent
+ * nothing, silently, until the next day's drift happened to land inside the
+ * window.
  *
  * THE RULE NOW. Each tier owns named slots on the ET wall clock. A cheap check
  * (every minute, plus once at boot) asks whether a slot is open right now; if
