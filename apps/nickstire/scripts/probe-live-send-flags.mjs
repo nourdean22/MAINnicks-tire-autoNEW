@@ -29,7 +29,6 @@ const SIDE_EFFECT_FLAGS = {
   FEATURE_VOICE_RECOVERY: "VOICE · outbound recovery calls",
   FEATURE_CONFIRMATION_CALLS: "VOICE · outbound appointment confirmation calls",
   FEATURE_FOLLOWUP_CADENCE: "SMS · multi-touch follow-up cadence",
-  FEATURE_UNPAID_INVOICE_RECOVERY: "SMS · unpaid-invoice chase",
   ENABLE_CUSTOMER_CONFIRMATIONS: "SMS · booking confirmations to customers",
   REEL_PUBLISH_ENABLED: "PUBLISH · reels to Instagram",
   REEL_AUTOPOST_ENABLED: "PUBLISH · unattended reel posting",

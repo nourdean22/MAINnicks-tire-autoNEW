@@ -31,13 +31,15 @@
  * follow-up, thank-you, check-in, nine missed-call follow-ups, a tire quote, a
  * maintenance-due reminder and a Google review request.
  *
- * SO THIS MODULE IS NOT THE WHOLE FIX. It is consulted by the unpaid-invoice
- * lane and the collections dashboard only. Every other sending job still
- * resolves phone numbers independently. The durable fix is a check inside
- * sendSms(), the one choke point all lanes pass through - proposed rather than
- * shipped here, because refusing internal numbers at the core send path would
- * also block deliberate operator self-tests, and that trade is the operator's
- * to make, not a filter's.
+ * THIS MODULE IS NOT THE ONLY GUARD. sendSms() is the choke point every lane
+ * passes through, and it refuses an automated send to an internal line
+ * (`internalLineFor`, server/sms.ts). Only a declared internal class,
+ * `isInternal` or `humanInitiated` gets past it, so operator self-tests still
+ * work. Category (1), seeded test data, is not checked there. It is applied by
+ * the callers that quote money or counts: the admin Unpaid list
+ * (`partitionNonCustomers`) and the waiting-conversations count
+ * (`isNonCustomer`). The unpaid-invoice reminder lane that first needed it was
+ * removed 2026-10-15.
  *
  * THE DEFAULT IS ALWAYS TO KEEP. Excluding a real customer means a bill that
  * never gets asked for - the same failure in the opposite direction - so

@@ -1,24 +1,15 @@
 import { shopInstant } from "../lib/timezoneAssert";
 
 /**
- * The collections window, in one place.
+ * The collections window, in one place: where an unpaid invoice's age puts it
+ * relative to 7 and 90 days. The admin Unpaid list reads it.
  *
- * ─── Why this file exists ──────────────────────────────────────────────
+ * A recovery cron used this window to text customers. It was removed on
+ * 2026-10-15 because payment is taken on a separate register, so nothing sends
+ * from these numbers any more.
  *
- * The unpaid-invoice recovery cron selects invoices aged between 7 and 90
- * days. Both ends matter and only one was ever visible:
- *
- * · The LOWER bound is a courtesy delay - do not chase a bill that is 3 days
- *   old.
- * · The UPPER bound is a silent cliff. Measured 2026-08-25: of 8 unpaid
- *   invoices, THREE ($1,606.62, aged 108/128/138 days) are past 90 and can
- *   never be selected again. No escalation, no alert, no list. They simply
- *   stopped being anybody's problem.
- *
- * The numbers lived only inside the cron, so the admin surface could not show
- * which invoices were in the window and which had fallen out of it. Hoisting
- * them means the cron and the UI cannot drift into disagreeing about what
- * "eligible" means - the same one-number discipline the cost-detail floor uses.
+ * Measured 2026-08-25: of 8 unpaid invoices, three ($1,606.62, aged
+ * 108/128/138 days) were past the upper bound.
  */
 
 export const COLLECTIONS_MIN_AGE_DAYS = 7;
@@ -27,13 +18,9 @@ export const COLLECTIONS_MAX_AGE_DAYS = 90;
 export type CollectionsState =
   /** Younger than the courtesy delay. Will become eligible on its own. */
   | "too-new"
-  /** Inside the window the cron selects from. */
+  /** Inside the 7-90 day window. */
   | "eligible"
-  /**
-   * Past the upper bound. The cron will NEVER select it again. Without a
-   * human, this invoice is finished - which is why it is named rather than
-   * quietly excluded.
-   */
+  /** Past the upper bound. Needs a person, not a rule. */
   | "aged-out";
 
 /** Pure. Age in days -> where the invoice sits relative to the window. */
@@ -51,16 +38,4 @@ export function invoiceAgeDays(invoiceDate: Date | string | null, now: Date = ne
   // invoiceDate is the shop's wall clock as stored, so the age is measured from its real instant.
   const d = shopInstant(wall);
   return Math.floor((now.getTime() - d.getTime()) / (24 * 60 * 60 * 1000));
-}
-
-/**
- * Is live sending armed?
- *
- * Deliberately a READ, never a write. Flipping this is the operator's call and
- * is made on Railway; this module only reports which way it is set so the
- * admin surface can show "identified but not chased" instead of implying the
- * money is being worked.
- */
-export function recoverySendingArmed(): boolean {
-  return process.env.FEATURE_UNPAID_INVOICE_RECOVERY === "1";
 }

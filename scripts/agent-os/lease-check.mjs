@@ -1,7 +1,17 @@
 #!/usr/bin/env node
 /**
  * lease-check — PreToolUse TRIPWIRE for Session Authority (2026-09-23). Fires on
- * every Bash/PowerShell/Write/Edit/NotebookEdit call (same matcher as pretool.mjs).
+ * every Bash/PowerShell/Write/Edit/NotebookEdit call, and since 2026-10-15 on the MCP
+ * and native runners and file writers too (Monitor, Terminal and Desktop Commander
+ * tools); .claude/settings.json registers those in a group of their own, so its
+ * matcher is NOT the pretool.mjs one. The MCP SQL text tools are not routed here:
+ * they never touch the worktree.
+ *
+ * A session-level tripwire, not a path guard: it reads payload.cwd (the session's own
+ * directory) and tool_input.command, nothing else. Two limits follow, pinned in
+ * lease-check.test.mjs and listed in docs/agent-os/README.md: a runner's own cwd
+ * argument is ignored, and a writer payload that carries a command field is judged by
+ * the recovery-command exemption below. Neither is a change of behaviour here.
  *
  * NOT the authoritative guarantee — that is the git-ref compare-and-swap at
  * agent-start.mjs time (lease.mjs). This is a fast, LOCAL-ONLY, zero-network check
