@@ -1324,9 +1324,8 @@ export const invoices = mysqlTable("invoices", {
   /** ALG ticket UUID — captured from ShopDriver listRecentTickets so we
    * have a stable identifier independent of invoiceNumber. Wave-99. */
   algTicketId: varchar("algTicketId", { length: 64 }),
-  // Unpaid-invoice recovery cron (FEATURE_UNPAID_INVOICE_RECOVERY) · at-most-once
-  // claim + sent markers per touch. camelCase DB columns match this table.
-  // Applied by drizzle/0072_unpaid_invoice_recovery.sql (hand-applied to prod).
+  // Retired 2026-10-15: the payment-reminder cron is gone and nothing reads or writes these four
+  // columns. Kept so no destructive migration is needed (added by drizzle/0072).
   paymentReminder7dAttemptedAt: timestamp("paymentReminder7dAttemptedAt"),
   paymentReminder7dSentAt: timestamp("paymentReminder7dSentAt"),
   paymentReminder30dAttemptedAt: timestamp("paymentReminder30dAttemptedAt"),

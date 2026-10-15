@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-10T15:00:22.754Z",
-  "count": 785,
+  "generatedAt": "2026-10-15T13:36:03.623Z",
+  "count": 784,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -206,7 +206,6 @@
     "mutation.invoices.dismissEstimate",
     "mutation.invoices.markFollowUp",
     "mutation.invoices.runDeclinedRecoveryNow",
-    "mutation.invoices.runUnpaidRecoveryNow",
     "mutation.invoices.triggerRefund",
     "mutation.invoices.undismissEstimate",
     "mutation.invoices.update",

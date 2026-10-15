@@ -60,7 +60,7 @@ export interface WallClockSlot {
 
 /**
  * daily · 09:30 ET opens every customer lane in the tier: retention (09–17),
- * declined-work and unpaid-invoice recovery (08–19). It stays due until
+ * and declined-work recovery (08–19). It stays due until
  * midnight so a day with no live process at 09:30 still gets its backups and
  * reports — those lanes would then self-gate, which is no worse than before.
  *

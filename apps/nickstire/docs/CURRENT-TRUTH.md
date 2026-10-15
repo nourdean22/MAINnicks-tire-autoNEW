@@ -7,6 +7,15 @@
 
 Live code and production evidence override this document when they disagree. Update this file in the same change that alters a listed contract.
 
+## Payment reminders removed (2026-10-15) -- BUILT + TESTED on branch `nickstire/remove-payment-reminders-server`; not merged, not deployed
+
+Payment is taken on a separate register, so an unpaid invoice row is not a signal to text anyone. Production read 2026-10-15: 3,091 of 3,099 invoices paid, the 8 others manual rows, and exactly one reminder ever sent (a 30-day touch, 2026-08-25).
+
+- **Removed:** the daily `unpaid-invoice-recovery` cron and its job file, the `invoices.runUnpaidRecoveryNow` admin trigger, the `collections.sendingArmed`, `eligibleCents` and `eligibleCount` fields of `invoices.unpaidList` (the Unpaid tab keeps `agedOutCents`, `agedOutCount` and `maxAgeDays`), and the unpaid-invoice SMS flag from `scripts/probe-live-send-flags.mjs`. The scheduler carries 125 tiered jobs (was 126).
+- **Left in place:** the four `invoices.paymentReminder*` columns (unused; dropping them is destructive) and the 7-90 day age buckets on the Unpaid list. Stripe tire-order payment checks are untouched.
+- **Operator, not code:** the unpaid-invoice SMS flag is still set on the Railway service and now does nothing. Delete it when convenient.
+- **Guard:** `server/cron/paymentReminderRetired.test.ts` fails if the scheduler or the router registers either removed name again.
+
 ## Instagram audit, the nine must-fix items (2026-10-10, PR #2976) -- MERGED (main `0b02c436d`); Railway deployment `b9b92a85` SUCCESS, `/api/health` healthy on `0b02c436d` at 16:09:00Z. `SOCIAL_INVENTORY_PUBLISH_ENABLED` deleted from the service 17:3xZ (no redeploy). B1 still unproven on a paid render
 
 Report: `docs/audits/INSTAGRAM-AUDIT-2026-10-10.md` (31 findings over the publish routers, the reel pipeline and the admin pages). The nine "must fix" items landed together, each with a test that was red first.

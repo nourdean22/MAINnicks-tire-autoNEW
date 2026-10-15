@@ -31,9 +31,10 @@
  * follow-up, thank-you, check-in, nine missed-call follow-ups, a tire quote, a
  * maintenance-due reminder and a Google review request.
  *
- * SO THIS MODULE IS NOT THE WHOLE FIX. It is consulted by the unpaid-invoice
- * lane and the collections dashboard only. Every other sending job still
- * resolves phone numbers independently. The durable fix is a check inside
+ * SO THIS MODULE IS NOT THE WHOLE FIX. It was consulted by the unpaid-invoice
+ * reminder lane (removed 2026-10-15) and the collections dashboard. Every
+ * other sending job still resolves phone numbers independently. The durable
+ * fix is a check inside
  * sendSms(), the one choke point all lanes pass through - proposed rather than
  * shipped here, because refusing internal numbers at the core send path would
  * also block deliberate operator self-tests, and that trade is the operator's

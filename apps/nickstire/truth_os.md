@@ -28,7 +28,6 @@ not from `.env`:
 | `REEL_AUTOPOST_ENABLED` | `true` | PUBLISH · unattended posting |
 | `REEL_COMMENT_RESPONDER_ENABLED` | `true` | PUBLISH · public replies to IG comments |
 | `REEL_FILM_GRAIN` | `true` *(2026-09-09)* | RENDER · adds moving luma grain + vignette to every reel ASSEMBLED from now on. Not a send, but it changes what every future viewer sees, and it is the only flag here that alters pixels. Already-assembled reels keep the look they were rendered with. |
-| `FEATURE_UNPAID_INVOICE_RECOVERY` | *(unset)* | SMS · unpaid-invoice chase — read the guard, `=== "1"` and `!== "false"` disagree about unset |
 
 Four of these — the voice and cadence flags — had **never appeared in any
 canonical doc** before 2026-08-16. They were not stale; they were absent. Nobody
