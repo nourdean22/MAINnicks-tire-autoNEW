@@ -44,6 +44,14 @@
  * rendered, never fatal. A gate that fails on all 48 gets muted; a gate that
  * fails on none is decoration. This one fails where guessing escapes.
  *
+ * LEAD TIME (2026-10-15). The first load-bearing expiry (shopstate-lot-band,
+ * 01:07Z) turned every open PR red at once, with no sign before it. So the same
+ * load-bearing set is also forecast: assessExpiringSoon() lists the entries
+ * within EXPIRY_WARNING_DAYS of their date and the CLI prints one line each.
+ * It is lead time, not a verdict: nothing in it can change an exit code, and it
+ * shares assessFreshness's predicate, so it never forecasts a failure that the
+ * expiry would not produce.
+ *
  * verificationExpiresAt is REQUIRED at deployed+ because those claims rest on
  * evidence that can rot with no commit at all: a credential dying, a session
  * expiring, prod data drifting, a provider revoking quota. Below deployed, the
@@ -76,6 +84,9 @@ export const FRESHNESS_REQUIRED_FROM = "deployed";
 /** Exposures where a stale claim can be acted on by something other than the
  *  operator's own hands. Staleness is fatal only here. */
 export const BLOCKING_EXPOSURES = new Set(["production", "limited_autonomy"]);
+
+/** How far ahead a load-bearing expiry is announced. */
+const EXPIRY_WARNING_DAYS = 14;
 
 export function validateLedger(ledger, now = new Date()) {
   const errors = [];
@@ -183,12 +194,38 @@ export function assessFreshness(ledger, now = new Date()) {
   return findings;
 }
 
+/**
+ * The lead time. assessFreshness reports claims already past their date; this
+ * forecasts the load-bearing ones that will be, so the first sign is a line in
+ * the log and not every PR going red at once. It covers exactly the dates that
+ * function does not (expiring from now to EXPIRY_WARNING_DAYS out), so an entry
+ * is never in both lists and no day leaves it in neither. Pure: returns
+ * findings, mutates nothing, and is never a reason to fail.
+ */
+export function assessExpiringSoon(ledger, now = new Date()) {
+  const findings = [];
+  for (const cap of ledger.capabilities ?? []) {
+    if (!cap.verificationExpiresAt || !BLOCKING_EXPOSURES.has(cap.exposure)) continue;
+    const msLeft = new Date(cap.verificationExpiresAt).getTime() - now.getTime();
+    if (Number.isNaN(msLeft) || msLeft < 0 || msLeft > EXPIRY_WARNING_DAYS * 86_400_000) continue;
+    findings.push({
+      capabilityId: cap.capabilityId,
+      expiresAt: cap.verificationExpiresAt,
+      exposure: cap.exposure,
+      operationalState: cap.operationalState,
+      daysLeft: Math.floor(msLeft / 86_400_000),
+    });
+  }
+  return findings;
+}
+
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
   const file = process.argv[2] ?? path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "docs", "operations", "capability-ledger.json");
   const ledger = JSON.parse(readFileSync(file, "utf8"));
   const errors = validateLedger(ledger);
   const stale = assessFreshness(ledger);
+  const expiring = assessExpiringSoon(ledger);
 
   // Print BOTH before deciding the exit code. A mirror that stops at the first
   // crack shows you less than one that shows the whole face.
@@ -211,6 +248,24 @@ if (isMain) {
       blocking.length
         ? `\n  ${blocking.length} of these can be acted on outside the operator's hands. Re-verify (reset verificationExpiresAt) or demote (scripts/regress-capability.mjs).`
         : `\n  None are load-bearing — reported, not fatal. Re-prove or demote when you next touch them.`,
+    );
+  }
+
+  // Lead time, not a verdict: nothing here changes the exit code. It prints before the exit
+  // decision so a run that fails for another reason still shows what expires next. "note:" is
+  // the prefix preflight.sh surfaces from a passing step; under Actions the same text is an
+  // annotation, which the run's summary page shows without opening the log.
+  // Escaped per the workflow-command rules: a bare % or line break could end the annotation and start another command.
+  const escapeData = (s) => s.replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A");
+  for (const e of expiring) {
+    const text =
+      `ledger entry ${e.capabilityId} expires ${e.expiresAt} (${e.daysLeft}d left, ${e.operationalState} @ ${e.exposure}). ` +
+      `Re-prove it with a live receipt and reset verificationExpiresAt, or lower the claim (scripts/regress-capability.mjs), ` +
+      `before then; after that every PR fails completion-authority.`;
+    console.log(
+      process.env.GITHUB_ACTIONS === "true"
+        ? `::warning title=Load-bearing ledger claim expiring soon::${escapeData(text)}`
+        : `note: ${text}`,
     );
   }
 

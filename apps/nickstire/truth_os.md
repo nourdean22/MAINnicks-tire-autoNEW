@@ -653,4 +653,12 @@ instead: `node apps/nickstire/scripts/regress-capability.mjs <id> P2 "<reason>"
 property of the ledger — 36 claims cannot go stale because nothing dates them.
 That is a gap, not a guarantee.
 
+**Lead time (2026-10-15):** the first load-bearing expiry (`shopstate-lot-band`,
+01:07Z) turned every open PR red at once, with no sign before it. The script now
+prints one `note:` line per `production` / `limited_autonomy` entry within 14 days
+of its `verificationExpiresAt`: id, days left, re-prove-or-lower. Under GitHub
+Actions the same text is a `::warning` annotation on the run. It never changes the
+exit code, and `scripts/preflight.sh` shows the lines from a passing ledger step.
+Pinned by `server/ledgerExpiryWarning.test.ts`.
+
 The older file under `docs/_archive/root_reports/truth_os.md` is historical evidence only. Do not treat archived audit claims as current without re-verification.
