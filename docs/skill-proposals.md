@@ -2308,19 +2308,18 @@ measurement. Every proposal below cites the moment in this wave that produced it
 - **Status:** proposed
 
 ### P2 · `statenour-verify`: the full suite runs from a shell with bash on PATH
-- **Trigger (witnessed):** the full statenour suite run from the PowerShell tool failed 39 tests in `tests/repo/anti-slop-gate.test.ts` and `tests/redteam/repo-canary-gates.redteam.test.ts` (exit 1, empty output) because those tests spawn `bash` and the PowerShell tool has none on PATH. From the Bash tool the same two files passed (195 tests). An earlier session had blamed "load" before reading the real error.
+- **Trigger (witnessed):** the full statenour suite run from the PowerShell tool failed 39 tests in `tests/repo/anti-slop-gate.test.ts` and `tests/redteam/repo-canary-gates.redteam.test.ts` (exit 1, empty output) because those tests spawn `bash` and the PowerShell tool has none on PATH (`Get-Command bash` there: not recognized). From the Bash tool the same two files passed (195 tests). An earlier session had blamed "load" before reading the real error.
 - **Cost:** one wasted 8 minute suite run and a diagnosis, twice across the session.
-- **Proposed edit:** in the Traps list: "The anti-slop tests spawn `bash`. Run the full suite from the Bash tool (or with Git's bash on PATH). A red in `anti-slop-gate.test.ts` or `repo-canary-gates.redteam.test.ts` with exit 1 and empty output is a missing bash, not load."
+- **Proposed edit:** in the Traps list: "The anti-slop tests spawn `bash`. Run the full suite from the Bash tool (or with Git's bash on PATH). Before diagnosing a red in `anti-slop-gate.test.ts` or `repo-canary-gates.redteam.test.ts` with exit 1 and empty output, check that `bash` resolves in the shell that ran the suite (`Get-Command bash` in PowerShell, `which bash` in Bash): both helpers normalize every spawn error (a missing executable, a permission or resource failure) to exit 1 with empty output, so that signature alone does not prove a missing bash." Optionally keep the original error code in the helpers' `out`.
 - **Confidence:** medium (once, reproduced both ways)
 - **Status:** proposed
 
-### P3 · `monorepo-manager` step 10: a child session's PR on a production request path gets the full review before it merges
-- **Trigger (witnessed):** PR #3060 (server-side idempotency on the live chat route, 19 files) was opened by a session the manager started after one read-only review. The manager's 8-lens review with 3 skeptics per finding then produced 14 skeptic-confirmed findings, 3 of them P1 (fast-path lanes invisible to the guard, a 409 that poisons Retry on the current client, a lease renewing for the 6 minute cap after the client left) plus 28 not yet skeptic-checked. On #3057 each of six review rounds found real defects the author's own mutation tests missed.
+### P3 · `monorepo-manager` references/sessions-and-plans.md: the brief for a session started with start_session
+- **Trigger (witnessed):** step 10 says "Review before the PR opens" and binds the integration branch the manager owns. PR #3060 (server-side idempotency on the live chat route, 19 files) was opened by a session the manager started from a card, so step 10 never had a hook before it opened: the manager's 8-lens review with 3 skeptics ran afterwards and produced 14 skeptic-confirmed findings, 3 of them P1 (fast-path lanes invisible to the guard, a 409 that poisons Retry on the current client, a lease renewing for the 6 minute cap after the client left) plus 28 not yet skeptic-checked. `references/sessions-and-plans.md` has no section on briefing a started session.
 - **Cost:** the PR was not mergeable as opened; one extra fix round and about 40 minutes of review.
-- **Proposed edit:** in step 10 add: "A PR opened by a session the manager started, that changes a production request path (a route, a hook, a persistence writer), gets the full review before it merges, and the brief for that session says so up front: it does not open the PR before the review."
-- **Confidence:** medium (once on #3060, supported by #3057)
+- **Proposed edit:** add a "Started sessions" paragraph to `references/sessions-and-plans.md` (and a pointer in step 5): the brief for a `start_session` child that changes a production request path (a route, a hook, a persistence writer) ends with "Do not push or open a PR. Commit on your branch and report; the manager runs step 10 on it and then tells you to open it." The manager runs step 10 as soon as such a child reports a branch.
+- **Confidence:** medium (once on #3060; supported by the six review rounds on #3057)
 - **Status:** proposed
-
 ### P4 · `monorepo-manager` step 5: record the dispatch time so cycle time can be computed
 - **Trigger (witnessed):** all three manager jobs of this session (payment-reminders-removed, shop-clock-backfill, t2-streaming-receipts) have cycle time UNKNOWN in `docs/agent-os/MANAGER-METRICS.md`, because nothing recorded the first dispatch time and the metrics rule forbids a guess.
 - **Cost:** the cycle-time column is empty for every job of the session, so the process cannot be compared across jobs.
