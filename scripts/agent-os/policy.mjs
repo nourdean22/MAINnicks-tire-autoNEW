@@ -232,7 +232,7 @@ function exemption(row, policy, report) {
 }
 
 const ONLY_LINE = "[agent-os] pretool MCP adapter problem (onlyRules ignored, every rule applies):";
-const RAW_LINE = "[agent-os] pretool MCP adapter problem (rawText malformed, read as true: the shell neutraliser is off):";
+const RAW_LINE = "[agent-os] pretool MCP adapter problem (rawText malformed, judged both as a shell command and as raw SQL):";
 
 // onlyRules is the reverse of exceptRules: the ONLY rule ids a row's calls are judged by, so a rule added later does not
 // silently apply to text that is not a shell command (the SQL text tools: onlyRules ["destructive-sql"]). Same posture
@@ -251,15 +251,19 @@ function onlyList(row, policy, report) {
   return list;
 }
 
-// rawText turns the shell neutraliser and the read-only-search skip off. Absent or false: they apply. The strict boolean
-// true on a Bash row: they do not. A value that is declared but malformed (a string "true", 1, null) on a Bash row is read
-// as TRUE and reported: the neutraliser erases statements and the search skip waves them through, both FEWER denials, so a
-// typo must fail toward denial, the same posture as onlyRules. On a Write row it has no meaning: reported, no effect.
-function rawTextOf(row, report) {
-  if (row.rawText === undefined || (row.rawText === false && row.as === "Bash")) return false;
-  if (row.rawText === true && row.as === "Bash") return true;
+// rawText says how a row's text is READ. Absent or false: as a shell command (the neutraliser, the read-only-search skip, every
+// rule of the row). The strict boolean true on a Bash row: as raw SQL (no neutraliser, no search skip, `&`, `|` and `-` replaced),
+// which is only sound for destructive-sql, so a policy-level canary requires every rawText:true row to have onlyRules exactly
+// ["destructive-sql"]. A value that is declared but malformed (a string "true", 1, null) on a Bash row is reported and judged BOTH
+// ways, as a shell command AND as raw SQL, and denied if EITHER denies: ignoring it would switch the neutraliser on (it erases a
+// quoted span), reading it as true alone would erase the flags of a shell row (`--force`, `--no-verify`, `-A`), both FEWER
+// denials, so a typo can only add denials, the same posture as onlyRules. On a Write row it has no meaning: reported, no effect.
+// Returns the readings to judge, in order: one call per reading, each carrying its own rawText.
+function rawTextModes(row, report) {
+  if (row.rawText === undefined || (row.rawText === false && row.as === "Bash")) return [false];
+  if (row.rawText === true && row.as === "Bash") return [true];
   report(`${RAW_LINE} adapter ${JSON.stringify(row.id)} rawText ${JSON.stringify(row.rawText)} must be the boolean true or false on a Bash row`);
-  return row.as === "Bash";
+  return row.as === "Bash" ? [false, true] : [false];
 }
 
 /**
@@ -371,23 +375,25 @@ export function adaptToolCall(toolName, toolInput, cwd, policy, report = () => {
     if (own && own !== cwd) cwds.push(own);
     const skipRules = exemption(a, policy, report);
     const onlyRules = onlyList(a, policy, report);
-    const rawText = rawTextOf(a, report);
+    const rawModes = rawTextModes(a, report);
     // A row that runs destructive-sql alone may judge a field whole (SQL_FIELD_CAP); every other row keeps FIELD_CAP.
     const cap = onlyRules?.length === WHOLE_FIELD_RULES.length && onlyRules.every((id, i) => id === WHOLE_FIELD_RULES[i]) ? SQL_FIELD_CAP : FIELD_CAP;
     // Slices are computed once, outside the cwd loop: a cap line is reported once per call, not once per cwd.
     const judged = (asWrite ? a.pathFields : a.commandFields).flatMap((f) => fieldSlices(input, f, report, cap).map((s) => ({ f, ...s })));
     for (const c of cwds) {
       for (const { f, text, part } of judged) {
-        calls.push({
-          toolName: asWrite ? "Write" : "Bash",
-          command: asWrite ? "" : hinted(a, text, rawText),
-          filePath: asWrite ? text : "",
-          cwd: c,
-          skipRules,
-          onlyRules,
-          rawText,
-          via: `${a.id}.${f}${part}`,
-        });
+        for (const rawText of rawModes) {
+          calls.push({
+            toolName: asWrite ? "Write" : "Bash",
+            command: asWrite ? "" : hinted(a, text, rawText),
+            filePath: asWrite ? text : "",
+            cwd: c,
+            skipRules,
+            onlyRules,
+            rawText,
+            via: `${a.id}.${f}${part}`,
+          });
+        }
       }
     }
     // Moving a directory writes every file below it to the destination.

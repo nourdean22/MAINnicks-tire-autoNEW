@@ -131,8 +131,8 @@ the four SQL text rows are judged by `destructive-sql` alone (`onlyRules`, below
 
 **Optional row fields.** Each is validated at run time and pinned by a canary. A malformed `clientHint`, `skipWhenTrue`
 or `expandDirectory` skips that row with a stderr line; a malformed `exceptRules` or `onlyRules` is reported and that
-field alone is ignored (every rule applies); a malformed `rawText` is reported and read as `true`. Each fails toward
-MORE denials, never fewer:
+field alone is ignored (every rule applies); a malformed `rawText` is reported and the text is judged both ways, as a
+shell command and as raw SQL, and denied if either denies. Each fails toward MORE denials, never fewer:
 
 - `cwdField`: an input field that names the directory the command runs in (`run_in_terminal.cwd`). It is judged in
   addition to the session cwd, so a decoy value can add a judgment but never remove the session's. Accepted
@@ -166,15 +166,18 @@ MORE denials, never fewer:
   whose `onlyRules` is exactly `["destructive-sql"]` also judges a field whole up to `SQL_FIELD_CAP` (1,000,000
   characters), because only that rule's scans are anchored, bounded and match each character one way (the hyphen,
   ambiguity, class and quadratic axes pin it); any other list keeps `FIELD_CAP`.
-- `rawText`: a strict boolean `true` (only on a Bash row) judges the text as given: no shell neutraliser and no
+- `rawText`: a strict boolean `true` (only on a Bash row) judges the text as raw SQL: no shell neutraliser and no
   read-only-search skip. The four SQL rows have it: the neutraliser erases the quoted argument after ` -m`, ` -t`,
   ` -b`, `--message`, `--title` and `--body`, which in SQL can hold statements (`SELECT ' -m "'; DELETE FROM leads; SELECT '
   " '` passed), and SQL that merely starts like a search command (`rg DELETE FROM leads`) is still SQL. Absent or `false`
-  keeps the shell treatment. A value that is declared but malformed (the string `"true"`, `1`, `null`) on a Bash row is
-  reported and read as `true`: ignoring it would switch the neutraliser ON, which is fewer denials. A `rawText` row
-  also reads `&`, `|` and `-` as SQL, not shell (see "How `destructive-sql` reads SQL"). The shell door is
-  unchanged: a commit message that
-  mentions SQL is still data there.
+  keeps the shell treatment. A `rawText` row also reads `&`, `|` and `-` as SQL, not shell (see "How `destructive-sql`
+  reads SQL"), which erases `--force`, `--no-verify` and `-A` as well: that is only sound for `destructive-sql`, so a
+  canary requires every row with `rawText` true to have `onlyRules` exactly `["destructive-sql"]`. A value that is
+  declared but malformed (the string `"true"`, `1`, `null`) on a Bash row is reported and judged BOTH ways, as a shell
+  command (neutraliser, every rule of the row) and as raw SQL, and denied if EITHER denies: ignoring it would switch the
+  neutraliser ON, and reading it as `true` alone would erase the flags of a shell row, each hiding what the other
+  reading sees, so a typo can only add denials (on a shell row it may add a false one). The shell door is unchanged: a
+  commit message that mentions SQL is still data there.
 - A named field may hold a **list of strings** (`neon-sql-transaction`: `sql_statements`). Each element is judged on
   its own, never joined with its neighbours, with provenance `<row>.<field>[i]` (the index in the original list).
   Elements are judged in order until `ARRAY_MAX` (2,000) elements or `ARRAY_CHAR_BUDGET` (1,000,000) characters in

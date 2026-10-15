@@ -737,10 +737,11 @@ test("docs truth: the live check is runnable from a worktree session, the lease 
   assert.doesNotMatch(README, /so\s+its\s+cost\s+is\s+linear\s+in\s+their\s+length/, "the 'every scan is bounded, so linear' claim was wrong (an ambiguous scan costs 2^k whatever its bound)");
   assert.doesNotMatch(README, /Every scan is bounded, so a text costs/, "bounded alone is not the cost model: each character must also be consumed one way");
   // and the engine claims (onlyRules, rawText, the SQL door), pinned in their corrected wording
-  for (const phrase of ["read as `true`", "is exactly `[\"destructive-sql\"]` also judges", "any other list keeps `FIELD_CAP`", "be able to judge the row's tool", "On the SQL tool rows only `;` ends a statement"]) {
+  for (const phrase of ["judged BOTH ways", "denied if EITHER denies", "only sound for `destructive-sql`", "is exactly `[\"destructive-sql\"]` also judges", "any other list keeps `FIELD_CAP`", "be able to judge the row's tool", "On the SQL tool rows only `;` ends a statement"]) {
     assert.ok(README.includes(phrase), `README must state: ${phrase}`);
   }
-  assert.doesNotMatch(README, /reported and ignored \(the shell treatment stays on\)/, "a malformed rawText is read as true now");
+  assert.doesNotMatch(README, /reported and ignored \(the shell treatment stays on\)/, "a malformed rawText is no longer ignored");
+  assert.doesNotMatch(README, /(?:is|and) reported and read as `true`/, "a malformed rawText is judged both ways: reading it as true alone erased --force, --no-verify and -A on a shell row (round 4)");
   const stale = README.split("\n").filter((l) => l.includes("list_edge_configs"));
   assert.ok(stale.length <= 1 && stale.every((l) => l.includes("get_edge_configs")), "the stale Vercel name may only appear beside its live replacement");
   const agents = readFileSync(join(ROOT, "AGENTS.md"), "utf8");
@@ -1458,19 +1459,24 @@ test("QUADRATIC AXIS: every arm's own keyword repeated to 240,000 characters fin
   const rule = policy.rules.find((r) => r.id === "destructive-sql");
   const slow = [];
   const timesMs = [];
+  let shippedBracketMs = Infinity;
   for (const unit of QUADRATIC_UNITS) {
     const r = quadraticUnit(rule.pattern, rule.flags, unit, 240_000, 30000);
     if (r.killed || r.ms > 4000) slow.push(`${JSON.stringify(unit)}: ${r.killed ? "killed at 30 s" : `${r.ms.toFixed(0)} ms`}`);
     else timesMs.push([r.ms, unit]);
+    if (unit === "UPDATE [" && !r.killed) shippedBracketMs = r.ms;
   }
   timesMs.sort((a, b) => b[0] - a[0]);
   t.diagnostic(`quadratic axis: ${QUADRATIC_UNITS.length} units x 240,000 chars, slowest ${timesMs[0]?.[1] === undefined ? "n/a" : `${JSON.stringify(timesMs[0][1])} ${timesMs[0][0].toFixed(0)} ms`}`);
   assert.deepEqual(slow, [], "a unit that costs seconds at 240,000 characters is quadratic in the text length");
-  // positive control: the unbounded bracket class of the first version, on the unit that exposed it, must be slow or killed
+  // positive control: the unbounded bracket class of the first version, on the unit that exposed it, must be killed or at least 10x slower than the
+  // shipped pattern on the SAME text. A ratio, not a clock: this control once asserted "over 3 s" (8 to 21 s on a loaded machine) and failed at 2.3 s
+  // on an idle one, while the shipped pattern took 0.05 s on the same text.
   const unbounded = rule.pattern.split(String.raw`\[[^\]\[]+\]`).join(String.raw`\[[^\]]+\]`);
   assert.notEqual(unbounded, rule.pattern, "the shipped bracket class changed shape: update this control");
-  const control = quadraticUnit(unbounded, rule.flags, "UPDATE [", 240_000, 15000);
-  assert.ok(control.killed || control.ms > 3000, `positive control: the unbounded bracket class took only ${control.ms} ms on 240,000 characters of "UPDATE [", so this axis cannot see a quadratic arm`);
+  const control = quadraticUnit(unbounded, rule.flags, "UPDATE [", 240_000, 20000);
+  assert.ok(Number.isFinite(shippedBracketMs), "the shipped pattern must finish the \"UPDATE [\" unit, or there is nothing to compare the control with");
+  assert.ok(control.killed || control.ms >= 10 * Math.max(shippedBracketMs, 20), `positive control: the unbounded bracket class took ${control.ms} ms against ${shippedBracketMs} ms for the shipped pattern on 240,000 characters of "UPDATE [": under 10x, so this axis cannot see a quadratic arm`);
 });
 
 test("re-review boundaries: each new denyExample is denied BECAUSE of its fix (BREAKS: the pattern without that piece lets it through); the documented limits are pinned", () => {
@@ -1669,6 +1675,8 @@ const P2F_PAYLOADS = [
   [`INSERT INTO notes (body) VALUES ('git reset --hard')`, "destructive-restore"],
 ];
 const sqlRowsOf = (p) => p.mcpAdapters.filter((a) => SQL_ROW_IDS.includes(a.id));
+// declared but not a strict boolean: a string, a number, a list, an object, null (absent and a strict false are well formed)
+const MALFORMED_RAWTEXT = ["true", 1, [true], {}, null];
 
 test("rawText (P2-e): a quoted span after -m or -t cannot hide a statement, and SQL that starts like a search is still SQL; the shell door keeps its neutraliser", () => {
   for (const shape of SQL_SHAPES) {
@@ -1690,7 +1698,7 @@ test("onlyRules (P2-f): SQL text that mentions a shell command passes, destructi
   for (const sql of ["DROP TABLE leads", "DELETE FROM leads", "UPDATE leads SET a = 1", 'TRUNCATE "Task" CASCADE']) denied(run(SQL_RUN.name, SQL_RUN.input(sql), WORKTREE), "destructive-sql", sql);
 });
 
-test("rawText and onlyRules are validated toward DENIAL: a malformed rawText is read as true, a malformed onlyRules is ignored (every rule applies); removing them reopens P2-e and P2-f (BREAKS)", () => {
+test("rawText and onlyRules are validated toward DENIAL: a malformed rawText is judged both ways, a malformed onlyRules is ignored (every rule applies); removing them reopens P2-e and P2-f (BREAKS)", () => {
   const e = (hook) => run(SQL_RUN.name, SQL_RUN.input(P2E_PAYLOADS[0]), NORMAL, hook);
   const f = (hook) => run(SQL_RUN.name, SQL_RUN.input(P2F_PAYLOADS[3][0]), WORKTREE, hook);
   withTree(null, (hook) => {
@@ -1699,13 +1707,14 @@ test("rawText and onlyRules are validated toward DENIAL: a malformed rawText is 
   });
   withTree((p) => sqlRowsOf(p).forEach((a) => { delete a.rawText; }), (hook) => allowed(e(hook), "BREAKS: without rawText the neutraliser erases the DELETE"));
   withTree((p) => sqlRowsOf(p).forEach((a) => { delete a.onlyRules; }), (hook) => denied(f(hook), "stash-pop", "BREAKS: without onlyRules every shell rule judges SQL text again"));
-  // rawText fails toward DENIAL like onlyRules does (re-review): a declared-but-malformed value is read as true, so the neutraliser stays off
-  // and the statement hidden after -m is judged; ignoring it would switch the neutraliser ON, which is FEWER denials.
-  for (const bad of ["true", 1, [true], {}, null]) {
+  // rawText fails toward DENIAL like onlyRules does (re-review, corrected in round 4): a declared-but-malformed value is judged BOTH ways, as a
+  // shell command (neutraliser, every rule of the row) and as raw SQL (no neutraliser, `&`, `|` and `-` replaced), and denied if EITHER denies. Ignoring
+  // it would switch the neutraliser ON (fewer denials); reading it as true alone would erase the flags of a shell row (also fewer denials).
+  for (const bad of MALFORMED_RAWTEXT) {
     withTree((p) => sqlRowsOf(p).forEach((a) => { a.rawText = bad; }), (hook) => {
       const r = e(hook);
-      denied(r, "destructive-sql", `rawText ${JSON.stringify(bad)} is malformed and read as true: the DELETE is judged, not erased`);
-      assert.match(r.err, /rawText malformed, read as true/);
+      denied(r, "destructive-sql", `rawText ${JSON.stringify(bad)} is malformed and judged both ways: the raw reading sees the DELETE the shell reading erased`);
+      assert.match(r.err, /rawText malformed, judged both as a shell command and as raw SQL/);
     });
   }
   withTree((p) => sqlRowsOf(p).forEach((a) => { a.rawText = false; }), (hook) => allowed(e(hook), "an explicit false is well formed: the shell neutraliser applies and erases the span (the documented default)"));
@@ -1715,6 +1724,110 @@ test("rawText and onlyRules are validated toward DENIAL: a malformed rawText is 
       denied(r, "stash-pop", `onlyRules ${JSON.stringify(bad)} is ignored, so every rule applies`);
       assert.match(r.err, /onlyRules ignored, every rule applies/);
     });
+  }
+});
+
+// Round 4 (re-review of a75e511a7): a malformed rawText was READ AS TRUE, and a rawText row replaces `&`, `|` and `-` before judging, so on a SHELL runner
+// row a typo erased `--force`, `--no-verify` and `-A` and every flag-based rule went quiet (four commands allowed with one stderr line). Now a
+// malformed value judges the text BOTH ways and denies if either denies, so it can only add denials.
+const SHELL_FLAG_CASES = [
+  ["git push --force origin feat", "force-push"],
+  ["git push -f origin feat", "force-push"],
+  ["git commit --no-verify -m x", "no-verify"],
+  ["git add -A", "add-all"],
+];
+const SQL_STATEMENT_CASES = ["DROP TABLE leads", "DELETE FROM leads", "UPDATE leads SET a = 1"];
+
+test("a malformed rawText judges BOTH ways: the flag rules of a shell runner row and the statements of the SQL rows are still denied; strict true, strict false and absent are unchanged", () => {
+  const rowOf = (p, id) => p.mcpAdapters.find((a) => a.id === id);
+  // controls: the healthy shell row denies the four, and the healthy SQL rows deny the three statements
+  withTree(null, (hook) => {
+    for (const [command, rule] of SHELL_FLAG_CASES) denied(run(TERMINAL, { command }, NORMAL, hook), rule, `control, healthy terminal-run: ${command}`);
+    for (const sql of SQL_STATEMENT_CASES) denied(run(SQL_RUN.name, SQL_RUN.input(sql), NORMAL, hook), "destructive-sql", `control, healthy neon-sql: ${sql}`);
+  });
+  // the hazard, shown so the canary is about something: a STRICT true on a shell row replaces the flags, so those four commands pass (a shipped row
+  // must never do that: the policy-level canary below forbids rawText true without onlyRules ["destructive-sql"])
+  withTree((p) => { rowOf(p, "terminal-run").rawText = true; }, (hook) => {
+    for (const [command] of SHELL_FLAG_CASES) allowed(run(TERMINAL, { command }, NORMAL, hook), `a strict true on a shell row erases its flags: ${command}`);
+  });
+  for (const bad of MALFORMED_RAWTEXT) {
+    withTree((p) => { rowOf(p, "terminal-run").rawText = bad; sqlRowsOf(p).forEach((a) => { a.rawText = bad; }); }, (hook) => {
+      for (const [command, rule] of SHELL_FLAG_CASES) {
+        const r = run(TERMINAL, { command }, NORMAL, hook);
+        denied(r, rule, `terminal-run rawText ${JSON.stringify(bad)}: ${command}`);
+        assert.match(r.err, /rawText malformed, judged both as a shell command and as raw SQL/);
+      }
+      for (const sql of SQL_STATEMENT_CASES) denied(run(SQL_RUN.name, SQL_RUN.input(sql), NORMAL, hook), "destructive-sql", `neon-sql rawText ${JSON.stringify(bad)}: ${sql}`);
+    });
+  }
+  // the claim itself, over the whole corpus (not four commands): a malformed rawText denies everything the healthy row denies, by the same rule. On a
+  // shell row that is every denyExample of every Bash rule; on a SQL row it is every destructive-sql denyExample, the shell-boundary ones included
+  // (the shell reading denies those, so the malformed row denies MORE than the healthy raw one, never fewer).
+  for (const bad of ["true", null]) {
+    const shell = structuredClone(policy);
+    rowOf(shell, "terminal-run").rawText = bad;
+    const sql = structuredClone(policy);
+    rowOf(sql, "neon-sql").rawText = bad;
+    let checked = 0;
+    for (const rule of bashRules) {
+      for (const sample of rule.denyExamples) {
+        const res = judge(TERMINAL, { command: sample }, cwdFor(rule), shell);
+        assert.equal(res.rule?.id, rule.id, `terminal-run rawText ${JSON.stringify(bad)}: ${JSON.stringify(sample)} must still be denied by '${rule.id}', got '${res.rule?.id}'`);
+        checked++;
+      }
+    }
+    assert.ok(checked >= 200, `only ${checked} deny judgments ran on the malformed shell row: the loop is not reaching the rules`);
+    for (const sample of policy.rules.find((r) => r.id === "destructive-sql").denyExamples) {
+      const res = judge(SQL_RUN.name, { sql: sample }, NORMAL, sql);
+      assert.equal(res.rule?.id, "destructive-sql", `neon-sql rawText ${JSON.stringify(bad)}: ${JSON.stringify(sample)} must still be denied`);
+    }
+  }
+  // the judgments themselves: one per reading for a malformed Bash row, exactly one for a strict true, a strict false and an absent value, one for a Write row
+  const reading = (mutate, tool, input) => {
+    const p = structuredClone(policy);
+    mutate(p);
+    const lines = [];
+    const calls = engine.adaptToolCall(tool, input, NORMAL, p, (l) => lines.push(l));
+    return { modes: calls.map((c) => c.rawText), commands: calls.map((c) => c.command), lines };
+  };
+  const cmd = { command: "git add -A" };
+  assert.deepEqual(reading(() => {}, TERMINAL, cmd).modes, [false], "absent: the shell reading only");
+  assert.deepEqual(reading((p) => { rowOf(p, "terminal-run").rawText = false; }, TERMINAL, cmd).modes, [false], "strict false: the shell reading only");
+  assert.deepEqual(reading((p) => { rowOf(p, "terminal-run").rawText = true; }, TERMINAL, cmd).modes, [true], "strict true: the raw reading only");
+  const malformed = reading((p) => { rowOf(p, "terminal-run").rawText = "true"; }, TERMINAL, cmd);
+  assert.deepEqual(malformed.modes, [false, true], "malformed: the shell reading and the raw reading, in that order");
+  assert.equal(malformed.lines.length, 1, "and exactly one report line");
+  const hinted = reading((p) => { rowOf(p, "neon-sql").rawText = null; }, SQL_RUN.name, { sql: "rg DELETE FROM leads" });
+  assert.deepEqual(hinted.commands, ["rg DELETE FROM leads", "psql rg DELETE FROM leads"], "a SQL row: the shell reading keeps its read-only-search skip (no hint), the raw reading always gets the client hint");
+  const write = reading((p) => { rowOf(p, "file-write").rawText = "true"; }, `${DC_PLUGIN}write_file`, { path: "docs/x.md", content: "c" });
+  assert.deepEqual(write.modes, [false], "a Write row has no text to read: one judgment");
+  assert.equal(write.lines.length, 1, "and the typo is still reported");
+});
+
+// A STRICT rawText true is only sound for destructive-sql: the replacement of `&`, `|` and `-` erases the flags every other shell rule matches
+// (a row that set rawText true with other rules would silently lose --force, --no-verify, -A ...). So a shipped row with rawText true must be
+// judged by destructive-sql alone, and a mutation of the table must be reported.
+function rawTextRowProblems(pol) {
+  return (pol.mcpAdapters ?? []).filter((a) => a.rawText === true).flatMap((a) =>
+    Array.isArray(a.onlyRules) && a.onlyRules.length === 1 && a.onlyRules[0] === "destructive-sql"
+      ? []
+      : [`${a.id}: rawText is true but onlyRules is ${JSON.stringify(a.onlyRules)}, not exactly ["destructive-sql"]`]);
+}
+
+test("policy: every adapter row with rawText true is judged by destructive-sql alone (BREAKS: a row that is not, or loses its onlyRules, is reported)", () => {
+  assert.deepEqual(rawTextRowProblems(policy), []);
+  const strict = adapters().filter((a) => a.rawText === true).map((a) => a.id);
+  assert.deepEqual(strict.sort(), [...SQL_ROW_IDS].sort(), "positive control: the check sees the four SQL rows (a loop over nothing is a silent green)");
+  const mutations = {
+    "a shell runner row gains rawText true": (p) => { p.mcpAdapters.find((a) => a.id === "terminal-run").rawText = true; },
+    "a SQL row loses its onlyRules": (p) => { delete p.mcpAdapters.find((a) => a.id === "neon-sql").onlyRules; },
+    "a SQL row gains a second rule": (p) => { p.mcpAdapters.find((a) => a.id === "prisma-sql").onlyRules = ["destructive-sql", "stash-pop"]; },
+    "a SQL row is judged by another rule": (p) => { p.mcpAdapters.find((a) => a.id === "neon-sql-transaction").onlyRules = ["stash-pop"]; },
+  };
+  for (const [what, mutate] of Object.entries(mutations)) {
+    const p = structuredClone(policy);
+    mutate(p);
+    assert.ok(rawTextRowProblems(p).length > 0, `BREAKS: ${what} must be reported, or the invariant is not checked`);
   }
 });
 
