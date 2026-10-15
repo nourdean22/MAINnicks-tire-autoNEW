@@ -15,6 +15,7 @@
  *   V6  evals/questions.json: >=5 entries, each {q, expected,
  *       sourceSection (declared), kind recall|application}
  *   V7  SKILL.md no longer carries the draft marker
+ *   V8  SKILL.draft.md has been deleted (an unfinished package must not be loadable)
  *
  * Usage:  node scripts/skill-compiler/validate.mjs <skill-dir>
  *         node scripts/skill-compiler/validate.mjs --self-test
@@ -117,6 +118,12 @@ export function validateSkillDir(dir) {
     errors.push("V7 SKILL.md still carries the draft marker - finish steps 2-8");
   }
 
+  // V8 no draft file left behind: SKILL.draft.md is what keeps an unfinished package out of the loadable
+  // skill list, so the package is not done until it is deleted.
+  if (existsSync(join(dir, "SKILL.draft.md"))) {
+    errors.push("V8 SKILL.draft.md still exists - write SKILL.md, then delete the draft");
+  }
+
   return { ok: errors.length === 0, errors };
 }
 
@@ -176,6 +183,15 @@ function selfTest() {
     process.exit(1);
   }
 
+  // V8: a valid package plus a leftover draft file must be caught by V8 and by nothing else.
+  w("SKILL.draft.md", "DRAFT" + NL);
+  const withDraft = validateSkillDir(dir);
+  if (withDraft.ok || withDraft.errors.length !== 1 || !withDraft.errors[0].startsWith("V8")) {
+    console.error("SELF-TEST FAIL: a leftover SKILL.draft.md was not caught by V8 alone:", withDraft.errors);
+    process.exit(1);
+  }
+  rmSync(join(dir, "SKILL.draft.md"));
+
   const ghostTech = ["# T", "", "## ghost", "- claim: unanchored wisdom", "- evidence-class: author_asserted", "- confidence: high", ""].join(NL);
   const unknownSection = "# T" + NL + NL + goodTech("one", "ch1") + goodTech("two", "ch1") + goodTech("three", "ch9");
   const longAnchor =
@@ -206,7 +222,7 @@ function selfTest() {
     }
   }
   rmSync(base, { recursive: true, force: true });
-  console.log("self-test: 1 valid package passes · 5 defect classes caught · OK");
+  console.log("self-test: 1 valid package passes · 6 defect classes caught · OK");
 }
 
 const arg = process.argv[2];
