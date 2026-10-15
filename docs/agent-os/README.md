@@ -121,6 +121,10 @@ adapters, judged with the session cwd. The one exemption: the two Desktop Comman
 | `file-write` | `write_file`, `edit_block`, `write_pdf` | Write | `path`, `file_path`, `outputPath` |
 | `file-edit` | filesystem MCP `edit_file` | Write | `path`; a strict `dryRun: true` is not judged (`skipWhenTrue`) |
 | `file-move` | `move_file` | Write | `source`, `destination`, and the files below a moved directory (`expandDirectory`) |
+| `neon-sql` | Neon `run_sql`, `explain_sql_statement` | Bash | `sql`, judged as SQL sent to a `psql` client (`clientHint`) |
+| `neon-sql-transaction` | Neon `run_sql_transaction` | Bash | each element of the `sql_statements` list on its own, at most 200, never joined |
+| `neon-migration-apply` | Neon `complete_database_migration` | Bash | `migration_sql` (`prepare_database_migration` runs on a temporary branch and is not judged) |
+| `prisma-sql` | Prisma Postgres `execute_sql_query`, `execute_prisma_postgres_schema_update` (connector and Prisma-Remote registrations) | Bash | `query` |
 
 **Optional row fields.** Each is validated at run time (a malformed value skips that row with a stderr line) and pinned
 by a canary:

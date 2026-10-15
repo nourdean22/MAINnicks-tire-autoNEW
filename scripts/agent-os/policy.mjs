@@ -123,7 +123,8 @@ export function evaluate({ toolName, command = "", filePath = "", cwd = "", skip
 // understand, so EVERY rule applies and no rule text is duplicated:
 //   { id, toolPattern, as: "Bash" | "Write", commandFields | pathFields, cwdField? }
 // Only the NAMED fields are read. Content, old_string and every other string field are never
-// scanned: that would block Gmail, Linear and any other tool that merely carries text.
+// scanned: that would block Gmail, Linear and any other tool that merely carries text. A named field may hold
+// a string or a LIST of strings (each element judged on its own, see ARRAY_MAX).
 const NATIVE_TOOLS = new Set(["Bash", "PowerShell", "Write", "Edit", "NotebookEdit"]);
 
 // A forbidden command is short; a multi-megabyte field is a paste. The backtracking rules
@@ -142,21 +143,45 @@ function stringField(input, name) {
   return typeof v === "string" ? v : "";
 }
 
-/** A field's text as the slices to judge: itself within the cap, else its head and its tail. */
-function fieldSlices(input, name) {
-  const v = stringField(input, name);
-  if (v === "") return [];
-  if (v.length <= FIELD_CAP) return [{ text: v, part: "" }];
+// A field that holds a LIST of statements (Neon run_sql_transaction.sql_statements) is judged element by element,
+// each on its own: joining them would build a command the field never held. At most ARRAY_MAX elements are judged,
+// because every element is a full judgment (up to FIELD_CAP characters through every rule) and a hook timeout fails
+// OPEN silently; a longer list is a script, and one stderr line says the rest was not judged. Non-string elements
+// (null, numbers, objects, nested lists) are ignored: the tool's own schema rejects them.
+export const ARRAY_MAX = 200;
+const ARRAY_CAP_LINE = "[agent-os] pretool MCP adapter: array field longer than the cap, elements beyond it not judged";
+
+/** One string as the slices to judge: itself within the cap, else its head and its tail. `at` extends the provenance. */
+function textSlices(text, at) {
+  if (text === "") return [];
+  if (text.length <= FIELD_CAP) return [{ text, part: at }];
   const half = FIELD_CAP / 2;
   return [
-    { text: v.slice(0, half), part: "#head" },
-    { text: v.slice(-half), part: "#tail" },
+    { text: text.slice(0, half), part: `${at}#head` },
+    { text: text.slice(-half), part: `${at}#tail` },
   ];
 }
 
-// Text typed into a running process may be bare SQL for a psql REPL that an earlier call started, and
-// destructive-sql needs a client word on the line. clientHint supplies that word, except for a single
-// read-only search (rg, grep, cat ...), which stays a search: mention is not execution.
+function arraySlices(list, report) {
+  if (list.length > ARRAY_MAX) report(ARRAY_CAP_LINE);
+  const out = [];
+  for (let i = 0; i < Math.min(list.length, ARRAY_MAX); i++) {
+    if (typeof list[i] === "string") out.push(...textSlices(list[i], `[${i}]`));
+  }
+  return out;
+}
+
+/** A field's text as the slices to judge: a string, or each string element of a list. */
+function fieldSlices(input, name, report) {
+  const v = typeof name === "string" ? input[name] : undefined;
+  if (Array.isArray(v)) return arraySlices(v, report);
+  return typeof v === "string" ? textSlices(v, "") : [];
+}
+
+// Text typed into a running process may be bare SQL for a psql REPL that an earlier call started, and the SQL text
+// tools (Neon run_sql, Prisma execute_sql_query ...) receive bare SQL too. destructive-sql needs a client word on
+// the line. clientHint supplies that word, except for a single read-only search (rg, grep, cat ...), which stays a
+// search: mention is not execution.
 function hinted(row, text) {
   return row.clientHint && preprocessCommand(text) !== null ? `${row.clientHint} ${text}` : text;
 }
@@ -285,18 +310,18 @@ export function adaptToolCall(toolName, toolInput, cwd, policy, report = () => {
     const own = stringField(input, a.cwdField);
     if (own && own !== cwd) cwds.push(own);
     const skipRules = exemption(a, policy, report);
+    // Slices are computed once, outside the cwd loop: a cap line is reported once per call, not once per cwd.
+    const judged = (asWrite ? a.pathFields : a.commandFields).flatMap((f) => fieldSlices(input, f, report).map((s) => ({ f, ...s })));
     for (const c of cwds) {
-      for (const f of asWrite ? a.pathFields : a.commandFields) {
-        for (const { text, part } of fieldSlices(input, f)) {
-          calls.push({
-            toolName: asWrite ? "Write" : "Bash",
-            command: asWrite ? "" : hinted(a, text),
-            filePath: asWrite ? text : "",
-            cwd: c,
-            skipRules,
-            via: `${a.id}.${f}${part}`,
-          });
-        }
+      for (const { f, text, part } of judged) {
+        calls.push({
+          toolName: asWrite ? "Write" : "Bash",
+          command: asWrite ? "" : hinted(a, text),
+          filePath: asWrite ? text : "",
+          cwd: c,
+          skipRules,
+          via: `${a.id}.${f}${part}`,
+        });
       }
     }
     // Moving a directory writes every file below it to the destination.

@@ -24,7 +24,8 @@
     "Optional row fields: cwdField, exceptRules (rule ids a row's calls are not judged by; an unknown id is reported and the",
     "exemption ignored, so the rule applies), clientHint (a client word prefixed to typed text), skipWhenTrue (a strict boolean",
     "true means preview only), expandDirectory (judge the files below a moved directory). Each is explained in the README and",
-    "pinned by a canary."
+    "pinned by a canary. A named field may hold a string or a LIST of strings (run_sql_transaction.sql_statements): each",
+    "element is judged on its own, at most 200 of them."
   ],
   "version": 2,
   "mcpAdapters": [
@@ -106,6 +107,50 @@
         "mcp__filesystem__move_file"
       ],
       "why": "move_file writes the destination and removes the source, so both are judged as Write paths. A DIRECTORY move writes every file below it, so expandDirectory also judges destination/<relative path> for each descendant file (names only, bounded, symlinks never followed, any filesystem error fails open)."
+    },
+    {
+      "id": "neon-sql",
+      "toolPattern": "^mcp__.+__(?:run_sql|explain_sql_statement)$",
+      "as": "Bash",
+      "commandFields": ["sql"],
+      "clientHint": "psql",
+      "exampleTools": [
+        "mcp__08daf860-d901-4ecf-8033-a2b41fe7f23d__run_sql",
+        "mcp__08daf860-d901-4ecf-8033-a2b41fe7f23d__explain_sql_statement"
+      ],
+      "why": "Neon run_sql and explain_sql_statement: `sql` is bare SQL, judged as text sent to a psql client (clientHint), so destructive-sql applies. explain_sql_statement with analyze:true EXECUTES the statement, so it is judged exactly like run_sql. Accepted: a hinted row cannot tell a mention from an execution, so a string literal that holds DROP TABLE is denied too."
+    },
+    {
+      "id": "neon-sql-transaction",
+      "toolPattern": "^mcp__.+__run_sql_transaction$",
+      "as": "Bash",
+      "commandFields": ["sql_statements"],
+      "clientHint": "psql",
+      "exampleTools": ["mcp__08daf860-d901-4ecf-8033-a2b41fe7f23d__run_sql_transaction"],
+      "why": "Neon run_sql_transaction: `sql_statements` is a LIST of statements. Each element is judged on its own as text sent to a psql client (clientHint) and is never joined with its neighbours; at most 200 elements are judged, then one stderr line says the rest were not."
+    },
+    {
+      "id": "neon-migration-apply",
+      "toolPattern": "^mcp__.+__complete_database_migration$",
+      "as": "Bash",
+      "commandFields": ["migration_sql"],
+      "clientHint": "psql",
+      "exampleTools": ["mcp__08daf860-d901-4ecf-8033-a2b41fe7f23d__complete_database_migration"],
+      "why": "Neon complete_database_migration re-sends `migration_sql` and applies it to the PARENT branch (apply_changes defaults to true), so it is judged as text sent to a psql client. prepare_database_migration runs on a temporary branch only and is deliberately NOT judged, so a migration stays testable. Accepted: an apply_changes false discard that carries destructive SQL is denied too."
+    },
+    {
+      "id": "prisma-sql",
+      "toolPattern": "^mcp__.+__(?:execute_sql_query|execute_prisma_postgres_schema_update)$",
+      "as": "Bash",
+      "commandFields": ["query"],
+      "clientHint": "psql",
+      "exampleTools": [
+        "mcp__1c28426e-fc0c-4e02-a13b-409e6d539b14__execute_sql_query",
+        "mcp__1c28426e-fc0c-4e02-a13b-409e6d539b14__execute_prisma_postgres_schema_update",
+        "mcp__plugin_prisma_Prisma-Remote__execute_sql_query",
+        "mcp__plugin_prisma_Prisma-Remote__execute_prisma_postgres_schema_update"
+      ],
+      "why": "Prisma Postgres execute_sql_query and execute_prisma_postgres_schema_update: `query` is bare SQL, judged as text sent to a psql client (clientHint). Registered twice (connector UUID and the Prisma-Remote plugin), so the tool-name suffix is matched. Prisma has its own sponsor approval flow (approvalId); this row is the repo-side text check."
     }
   ],
   "rules": [
@@ -329,7 +374,7 @@
     {
       "id": "destructive-sql",
       "tools": ["Bash", "PowerShell"],
-      "pattern": "(?=[\\s\\S]*\\b(?:mysql|psql|railway\\s+run|prisma\\s+db\\s+execute|Invoke-Sqlcmd)\\b)[\\s\\S]*\\b(?:DROP\\s+(?:DATABASE|SCHEMA|TABLE)|TRUNCATE\\s+(?:TABLE\\s+)?\\w)",
+      "pattern": "^(?=[\\s\\S]*\\b(?:mysql|psql|railway\\s+run|prisma\\s+db\\s+execute|Invoke-Sqlcmd)\\b)[\\s\\S]*\\b(?:DROP\\s+(?:DATABASE|SCHEMA|TABLE)|TRUNCATE\\s+(?:TABLE\\s+)?\\w)",
       "flags": "i",
       "why": "AGENTS.md > Protected operations: destructive schema commands need an explicit operator instruction. Memory agent-destructive-script-incident: a 'verification' run deleted 870 rows. The rule requires a DB client on the same command so that grepping/auditing SQL text stays legal — mention is not execution.",
       "fix": "Ask the operator. If this is migration SQL, write it to a migration file (Write is not blocked) rather than executing it from a shell.",

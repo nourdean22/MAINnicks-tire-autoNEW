@@ -58,7 +58,7 @@
         ]
       },
       {
-        "matcher": "^(?:Monitor|mcp__.+__(?:run_in_terminal|start_process|interact_with_process|write_file|edit_file|edit_block|write_pdf|move_file))$",
+        "matcher": "^(?:Monitor|mcp__.+__(?:run_in_terminal|start_process|interact_with_process|write_file|edit_file|edit_block|write_pdf|move_file|run_sql|run_sql_transaction|explain_sql_statement|complete_database_migration|execute_sql_query|execute_prisma_postgres_schema_update))$",
         "hooks": [
           {
             "type": "command",

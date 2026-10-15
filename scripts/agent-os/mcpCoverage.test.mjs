@@ -27,6 +27,9 @@
  *      same whether Claude Code treats it as an anchored or an unanchored regex
  *   7. BREAKS: a copy of the real hook with the table emptied, miswired or malformed stops
  *      denying, while the unbroken copy and native Bash keep denying
+ *   8. SQL text tools (Neon run_sql, run_sql_transaction, explain_sql_statement, complete_database_migration;
+ *      Prisma execute_sql_query, execute_prisma_postgres_schema_update): rows with a psql clientHint, an ARRAY
+ *      reader for sql_statements, the matcher suffixes, every registration, and the documented limits (section 10)
  */
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
@@ -87,13 +90,39 @@ const FILE_SHAPES = [
   { name: `${FS}move_file`, field: "source", input: (v) => ({ source: v, destination: "tmp/b.txt" }) },
 ];
 
-// SQL text tools: NOT wired, on purpose (see the premise canary near the end).
-const SQL_TOOLS = [
-  ["mcp__08daf860-d901-4ecf-8033-a2b41fe7f23d__run_sql", { sql: "DROP TABLE leads" }],
-  ["mcp__08daf860-d901-4ecf-8033-a2b41fe7f23d__run_sql_transaction", { sql_statements: ["DROP TABLE leads"] }],
-  ["mcp__1c28426e-fc0c-4e02-a13b-409e6d539b14__execute_sql_query", { query: "DROP TABLE leads" }],
-  ["mcp__plugin_prisma_Prisma-Remote__execute_prisma_postgres_schema_update", { query: "DROP TABLE leads" }],
+// SQL text tools (job 2026-10-15-guard-sql-lease-infra): judged by the same Bash rules as a command, through a
+// psql clientHint (README "SQL text tools"). Field names are copied from the live tool schemas (read 2026-10-15).
+// Every registration on this machine is listed: the middle segment of the tool name is per account and changes on
+// reconnect, so the rows match the tool-name SUFFIX and the synthetic registrations in the SQL block prove it.
+const NEON = "mcp__08daf860-d901-4ecf-8033-a2b41fe7f23d__";
+const PRISMA_CONNECTOR = "mcp__1c28426e-fc0c-4e02-a13b-409e6d539b14__";
+const PRISMA_PLUGIN = "mcp__plugin_prisma_Prisma-Remote__";
+const SQL_SHAPES = [
+  { name: `${NEON}run_sql`, field: "sql", row: "neon-sql", input: (v) => ({ sql: v, project_id: "p-1", branch_id: "br-1", database_name: "neondb" }) },
+  { name: `${NEON}explain_sql_statement`, field: "sql", row: "neon-sql", input: (v) => ({ sql: v, analyze: false }) },
+  { name: `${NEON}run_sql_transaction`, field: "sql_statements", array: true, row: "neon-sql-transaction", input: (v) => ({ sql_statements: v, project_id: "p-1" }) },
+  { name: `${NEON}complete_database_migration`, field: "migration_sql", row: "neon-migration-apply", input: (v) => ({ migration_id: "m-1", migration_sql: v, database_name: "neondb", temporary_branch_id: "br-t", parent_branch_id: "br-p" }) },
+  ...[PRISMA_CONNECTOR, PRISMA_PLUGIN].flatMap((p) => [
+    { name: `${p}execute_sql_query`, field: "query", row: "prisma-sql", input: (v) => ({ query: v, projectId: "proj_1", databaseId: "db_1", reason: "r" }) },
+    { name: `${p}execute_prisma_postgres_schema_update`, field: "query", row: "prisma-sql", input: (v) => ({ query: v, projectId: "proj_1", databaseId: "db_1" }) },
+  ]),
 ];
+const SQL_ROW_IDS = ["neon-sql", "neon-sql-transaction", "neon-migration-apply", "prisma-sql"];
+// Registrations that do not exist on this machine but may on another account: the suffix match must claim them.
+const SQL_SYNTHETIC = [
+  ["mcp__plugin_neon_neon__run_sql", "neon-sql"],
+  ["mcp__0000-synthetic__explain_sql_statement", "neon-sql"],
+  ["mcp__plugin_neon_neon__run_sql_transaction", "neon-sql-transaction"],
+  ["mcp__a-b-c__complete_database_migration", "neon-migration-apply"],
+  ["mcp__plugin_prisma_prisma__execute_sql_query", "prisma-sql"],
+];
+// Tools of the same servers that are deliberately NOT judged by text (README "SQL text tools").
+const SQL_UNJUDGED = [
+  `${NEON}prepare_database_migration`, `${NEON}prepare_query_tuning`, `${NEON}complete_query_tuning`, `${NEON}get_connection_string`,
+  `${PRISMA_CONNECTOR}introspect_database_schema`, `${PRISMA_PLUGIN}list_prisma_postgres_databases`,
+];
+const sqlInput = (shape, text) => shape.input(shape.array ? [text] : text);
+const leaf = (name) => name.split("__").pop();
 
 const NATIVE = ["Bash", "PowerShell", "Write", "Edit", "NotebookEdit"];
 const NATIVE_MATCHER = "Bash|PowerShell|Write|Edit|NotebookEdit";
@@ -148,12 +177,20 @@ const fileRules = policy.rules.filter((r) => r.pathPattern && (Array.isArray(r.t
 
 // A copy of the REAL hook (pretool.mjs + policy.mjs) beside a policy.json we are free to break.
 // policy.mjs resolves policy.json relative to itself, so the copy needs no env var or flag.
-function withTree(mutate, fn) {
+function withTree(mutate, fn, mutateSource) {
   const dir = mkdtempSync(join(tmpdir(), "agent-os-mcp-"));
   try {
     mkdirSync(join(dir, "scripts", "agent-os"), { recursive: true });
     mkdirSync(join(dir, "config", "agent-os"), { recursive: true });
     for (const f of ["pretool.mjs", "policy.mjs"]) copyFileSync(join(HERE, f), join(dir, "scripts", "agent-os", f));
+    if (mutateSource) {
+      // Source-level BREAKS arm: rewrite the COPY of policy.mjs. A replace that finds nothing would test nothing, so it must change the text.
+      const path = join(dir, "scripts", "agent-os", "policy.mjs");
+      const before = readFileSync(path, "utf8");
+      const after = mutateSource(before);
+      assert.notEqual(after, before, "the source mutation changed nothing in policy.mjs: the BREAKS arm would be vacuous");
+      writeFileSync(path, after);
+    }
     const p = JSON.parse(readFileSync(engine.POLICY_PATH, "utf8"));
     mutate?.(p);
     writeFileSync(join(dir, "config", "agent-os", "policy.json"), JSON.stringify(p));
@@ -412,13 +449,24 @@ test("unknown runners are NOT guessed at: a new runner is a table row (README), 
 
 test("missing, non-string and malformed fields never throw (no hook error, exit 0)", () => {
   const weird = [undefined, null, "git push origin main", 42, true, [], ["git push origin main"],
-    { command: 123 }, { command: null }, { command: ["git push origin main"] }, { command: { x: "git push origin main" } },
-    { command: "" }, { path: 7 }, { path: ["a"] }, { file_path: { a: 1 } }, { source: null, destination: false }, { cwd: 5, command: "git status" }];
+    { command: 123 }, { command: null }, { command: { x: "git push origin main" } },
+    { command: "" }, { path: 7 }, { path: ["a"] }, { file_path: { a: 1 } }, { source: null, destination: false }, { cwd: 5, command: "git status" },
+    { command: [null, 5, { x: "git push origin main" }, ["git push origin main"]] }];
   for (const name of [TERMINAL, "Monitor", `${DC_PLUGIN}write_file`, `${DC_PLUGIN}move_file`, `${DC_CONNECTOR}interact_with_process`]) {
     for (const tool_input of weird) {
       allowed(run(name, tool_input), `${name} <- ${JSON.stringify(tool_input)}`);
     }
   }
+});
+
+test("a LIST in a named field is judged element by element, so it can only add denials (changed 2026-10-15: it used to be skipped)", () => {
+  // The list reader serves run_sql_transaction.sql_statements. It reads every named field, so a list in a command field
+  // is judged too: the tools' schemas only accept strings there, and a string element that holds a forbidden command is
+  // denied rather than silently skipped. Non-string elements and nested lists stay ignored (the weird-field canary above).
+  const r = run(TERMINAL, { command: ["git status", "git push origin main"] });
+  denied(r, "push-to-main", "a forbidden command inside a list given for a command field");
+  assert.match(r.err, /Judged through MCP adapter terminal-run\.command\[1\] on tool /);
+  allowed(run(TERMINAL, { command: ["git status", "git diff"] }), "a list of benign commands");
 });
 
 test("oversized fields never throw or hang, and are judged at the head and the tail", () => {
@@ -451,7 +499,7 @@ const groupsFor = (s, toolName) => preGroups(s).filter((g) => matcherMatches(g.m
 const commandsOf = (g) => (g.hooks ?? []).filter((h) => h.type === "command").map((h) => h.command);
 const runsPretool = (g) => commandsOf(g).some((c) => /scripts\/agent-os\/pretool\.mjs/.test(c));
 
-const ROUTED = [...new Set([...COMMAND_SHAPES.map((s) => s.name), ...FILE_SHAPES.map((s) => s.name)])];
+const ROUTED = [...new Set([...COMMAND_SHAPES.map((s) => s.name), ...FILE_SHAPES.map((s) => s.name), ...SQL_SHAPES.map((s) => s.name)])];
 const NOT_ROUTED = [
   "Read", "Grep", "Glob", "WebFetch", "Skill", "TaskStop",
   "mcp__plugin_small-business_gmail__create_draft",
@@ -459,11 +507,13 @@ const NOT_ROUTED = [
   `${DC_PLUGIN}read_file`, `${DC_PLUGIN}list_directory`, `${DC_PLUGIN}read_process_output`, `${DC_PLUGIN}kill_process`,
   `${DC_PLUGIN}force_terminate`, `${DC_PLUGIN}start_search`, `${DC_PLUGIN}get_config`, `${DC_CONNECTOR}read_file`,
   "mcp__ccd_pr__set_monitor",
-  ...SQL_TOOLS.map(([n]) => n),
+  ...SQL_UNJUDGED,
 ];
 // Names that a sloppy, unanchored pattern would route. None is a real tool: the point is exactness.
 const TRICKY = ["TaskMonitor", "MonitorX", "xmcp__x__start_process", "mcp__x__run_in_terminal_extra",
-  "mcp__x__not_start_process", "mcp__x__write_file_to_cloud", "mcp__x__interact_with_process2", "mcp__start_process"];
+  "mcp__x__not_start_process", "mcp__x__write_file_to_cloud", "mcp__x__interact_with_process2", "mcp__start_process",
+  "mcp__x__run_sql_extra", "mcp__x__not_run_sql", "mcp__x__run_sql_transaction_extra", "mcp__x__explain_sql_statement_v2",
+  "mcp__x__execute_sql_query2", "mcp__x__complete_database_migration_all", "xmcp__x__run_sql", "mcp__run_sql"];
 
 test("registration: every runner and file tool is routed to pretool.mjs by a PreToolUse group", () => {
   for (const name of ROUTED) {
@@ -578,27 +628,14 @@ test("a malformed adapter row costs only that row: loud stderr, the other rows a
   });
 });
 
-// --- 8 - tier 2 premise and docs --------------------------------------------------------------
-
-test("tier 2 premise: SQL text tools are deliberately NOT wired because destructive-sql needs a DB client on the line", () => {
-  // Bare SQL is what Neon run_sql and Prisma execute_sql_query receive. The rule only fires with a
-  // client word (mysql, psql, railway run, prisma db execute, Invoke-Sqlcmd) in the same text, so
-  // wiring these tools to it would score a green that guards nothing.
-  assert.equal(engine.evaluate({ toolName: "Bash", command: "DROP TABLE leads;", cwd: NORMAL, filePath: "" }, policy).denied, false,
-    "destructive-sql now matches bare SQL: the SQL text tools no longer need a clientHint, so wire them in mcpAdapters (README 'Still unguarded'), route them in settings.json, and replace this canary with deny canaries");
-  assert.equal(typeof engine.adaptToolCall, "function", "policy.mjs must export adaptToolCall()");
-  for (const [name, input] of SQL_TOOLS) {
-    assert.equal(engine.adaptToolCall(name, input, NORMAL, policy), null, `${name} must stay unclaimed until a rule that matches bare SQL exists`);
-  }
-});
+// --- 8 - docs ----------------------------------------------------------------------------------
 
 test("README documents every adapter, the unguarded inventory and the live check", () => {
   for (const a of adapters()) assert.ok(README.includes(`\`${a.id}\``), `docs/agent-os/README.md does not mention adapter ${a.id}`);
   assert.match(README, /### Still unguarded/, "README needs the honest unguarded inventory");
   assert.match(README, /### Live check after merge/, "README needs the 2-minute live check");
-  for (const [name] of SQL_TOOLS) {
-    const tool = name.split("__").pop();
-    assert.ok(README.includes(tool), `the unguarded inventory must name the SQL tool ${tool}`);
+  for (const s of SQL_SHAPES) {
+    assert.ok(README.includes(`\`${leaf(s.name)}\``), `the README adapter table must name the SQL tool ${leaf(s.name)}`);
   }
   for (const field of ["clientHint", "exceptRules", "skipWhenTrue", "expandDirectory"]) {
     assert.ok(README.includes(`\`${field}\``), `README does not document the adapter field ${field}`);
@@ -620,7 +657,9 @@ test("review-fix table: each optional field sits on exactly the intended row", (
     assert.deepEqual(rows[id]?.[field], value, `${id}.${field} must be ${JSON.stringify(value)}`);
     for (const other of Object.keys(rows)) if (other !== id) assert.equal(rows[other][field], undefined, `${other} must not carry ${field}`);
   };
-  only("clientHint", "process-input", "psql");
+  // clientHint: the typed-text row and the four SQL text rows (bare SQL has no client word of its own), all "psql", no other row
+  for (const id of ["process-input", ...SQL_ROW_IDS]) assert.equal(rows[id]?.clientHint, "psql", `${id}.clientHint must be "psql"`);
+  for (const other of Object.keys(rows)) if (other !== "process-input" && !SQL_ROW_IDS.includes(other)) assert.equal(rows[other].clientHint, undefined, `${other} must not carry clientHint`);
   only("skipWhenTrue", "file-edit", ["dryRun"]);
   only("expandDirectory", "file-move", { from: "source", to: "destination" });
   for (const id of ["process-start", "process-input"]) {
@@ -661,16 +700,6 @@ test("R1 controls: process-start, Bash and Write are unchanged by the hint", () 
   denied(run("Bash", { command: 'psql -c "DROP TABLE leads"' }), "destructive-sql", "native Bash with a client word still denies");
   denied(run(`${DC_PLUGIN}start_process`, { command: 'psql -c "DROP TABLE leads"', timeout_ms: 5000 }), "destructive-sql", "start_process with a client word still denies");
   denied(run("Write", { file_path: ".env.local", content: "x" }), "secret-file-write", "Write control");
-});
-
-test("R1: with the hint, covering a SQL text tool is one table row plus one canary (shown on an in-memory table; the real table stays unwired)", () => {
-  const [tool, bare] = SQL_TOOLS[0];
-  const p = structuredClone(policy);
-  p.mcpAdapters.push({ id: "sql-demo", toolPattern: "^mcp__.+__run_sql$", as: "Bash", commandFields: ["sql"], clientHint: "psql", exampleTools: [tool], why: "demo row on an in-memory copy; it is not in the real table" });
-  assert.equal(judge(tool, bare, NORMAL, p).rule?.id, "destructive-sql", "bare DROP TABLE through a row with a clientHint");
-  assert.equal(judge(tool, { sql: "TRUNCATE leads" }, NORMAL, p).rule?.id, "destructive-sql");
-  assert.equal(judge(tool, { sql: "SELECT 1" }, NORMAL, p).denied, false, "a benign query passes");
-  assert.equal(engine.adaptToolCall(tool, bare, NORMAL, policy), null, "the real table must still not claim the SQL text tools (operator decision)");
 });
 
 // R2 - Desktop Commander runs in its own cwd -------------------------------------------------
@@ -904,4 +933,196 @@ test("R5: the walk stops at depth 6 (documented) and never follows a symlink", (
     }
     if (linked) allowed(mv(join(dir, "linked")), "a symlinked directory below the source is not followed");
   });
+});
+
+// --- 10 - SQL text tools (job 2026-10-15-guard-sql-lease-infra, commit 1) -------------------------
+//
+// THE GAP. Neon run_sql, Prisma execute_sql_query and their relatives receive BARE SQL, and destructive-sql needs a
+// DB client word on the line, so those tools were never judged (listed as unguarded on 2026-10-15). The fix is table
+// rows with a psql clientHint plus the matcher suffixes. Each block is a way that could be a silent instrument: the
+// rows (every registration), the reader of ARRAY fields (run_sql_transaction), the registration, and the limits.
+
+const DESTRUCTIVE_SQL = ["DROP TABLE leads", "drop table leads;", "TRUNCATE TABLE leads", "TRUNCATE leads", "DROP SCHEMA public CASCADE", "BEGIN;\nDROP DATABASE nick;\nCOMMIT;"];
+const BENIGN_SQL = ["SELECT 1", "SELECT * FROM leads LIMIT 5", "INSERT INTO leads (name) VALUES ('Ann')", "EXPLAIN SELECT * FROM leads", "CREATE INDEX idx_leads_name ON leads (name)"];
+const SQL_RUN = SQL_SHAPES[0];
+const SQL_TX = SQL_SHAPES.find((s) => s.array);
+
+test("SQL rows: every real registration and the synthetic ones are claimed by exactly their own row; look-alikes and unjudged tools are not claimed", () => {
+  assert.equal(SQL_SHAPES.length, 8, "4 Neon tools, and 2 Prisma tools on each of the 2 Prisma registrations");
+  for (const id of SQL_ROW_IDS) assert.ok(adapters().some((a) => a.id === id), `row ${id} is missing from policy.json mcpAdapters`);
+  for (const [name, row] of [...SQL_SHAPES.map((s) => [s.name, s.row]), ...SQL_SYNTHETIC]) {
+    const claimants = adapters().filter((b) => new RegExp(b.toolPattern).test(name)).map((b) => b.id);
+    assert.deepEqual(claimants, [row], `${name} must be claimed by exactly ${row}, got [${claimants}]`);
+  }
+  assert.equal(typeof engine.adaptToolCall, "function", "policy.mjs must export adaptToolCall()");
+  const everyField = { sql: "DROP TABLE x", query: "DROP TABLE x", migration_sql: "DROP TABLE x", sql_statements: ["DROP TABLE x"] };
+  for (const name of [...SQL_UNJUDGED, ...TRICKY.filter((n) => /sql|migration/.test(n))]) {
+    assert.equal(engine.adaptToolCall(name, everyField, NORMAL, policy), null, `${name} must not be claimed`);
+  }
+});
+
+for (const shape of SQL_SHAPES) {
+  test(`e2e SQL tool ${shape.name.replace(/^mcp__/, "")}: destructive SQL DENIED with the rule id, reads and benign writes ALLOWED`, () => {
+    for (const sql of DESTRUCTIVE_SQL) {
+      const r = run(shape.name, sqlInput(shape, sql));
+      denied(r, "destructive-sql", `${shape.name} <- ${JSON.stringify(sql)}`);
+      const last = r.err.trimEnd().split("\n").at(-1);
+      assert.ok(last.startsWith(`Judged through MCP adapter ${shape.row}.${shape.field}`) && last.endsWith(` on tool ${shape.name}.`), `the Judged-through text must be the LAST line, got: ${last}`);
+    }
+    for (const sql of BENIGN_SQL) allowed(run(shape.name, sqlInput(shape, sql)), `${shape.name} <- ${JSON.stringify(sql)}`);
+  });
+}
+
+test("array field: each element is judged on its own, so one bad element denies and names its index; an all-benign list and an empty list pass", () => {
+  const second = run(SQL_TX.name, SQL_TX.input(["SELECT 1", "DROP TABLE leads"]));
+  denied(second, "destructive-sql", "bad element at index 1");
+  assert.match(second.err, /Judged through MCP adapter neon-sql-transaction\.sql_statements\[1\] on tool /);
+  const first = run(SQL_TX.name, SQL_TX.input(["TRUNCATE leads", "SELECT 1"]));
+  denied(first, "destructive-sql", "bad element at index 0");
+  assert.match(first.err, /neon-sql-transaction\.sql_statements\[0\] on tool /);
+  allowed(run(SQL_TX.name, SQL_TX.input(["SELECT 1", "SELECT 2", "INSERT INTO leads (name) VALUES ('Ann')"])), "all benign");
+  allowed(run(SQL_TX.name, SQL_TX.input([])), "empty list");
+});
+
+test("array field: elements are never joined, non-string elements are ignored without a hook error, and the index is the position in the original array", () => {
+  assert.equal(typeof engine.adaptToolCall, "function", "policy.mjs must export adaptToolCall()");
+  const split = engine.adaptToolCall(SQL_TX.name, { sql_statements: ["DROP", "TABLE leads"] }, NORMAL, policy);
+  assert.deepEqual(split.map((c) => c.command), ["psql DROP", "psql TABLE leads"], "each element is its own judged text, hint included, nothing joined");
+  allowed(run(SQL_TX.name, SQL_TX.input(["DROP", "TABLE leads"])), "a statement split across two elements was never one statement");
+  for (const weird of [[null, 5, true, { sql: "DROP TABLE x" }, ["DROP TABLE y"], "SELECT 1"], null, 7, true, {}, [[["DROP TABLE x"]]], [undefined]]) {
+    allowed(run(SQL_TX.name, { sql_statements: weird }), `sql_statements = ${JSON.stringify(weird)}`);
+  }
+  const mixed = engine.adaptToolCall(SQL_TX.name, { sql_statements: [null, "SELECT 1", 5, "SELECT 2"] }, NORMAL, policy);
+  assert.deepEqual(mixed.map((c) => c.via), ["neon-sql-transaction.sql_statements[1]", "neon-sql-transaction.sql_statements[3]"]);
+});
+
+test("array field: at most ARRAY_MAX elements are judged and ONE stderr line says the rest were not (a pin: it fails the day the cap moves)", () => {
+  assert.equal(typeof engine.ARRAY_MAX, "number", "policy.mjs must export ARRAY_MAX");
+  const CAP = engine.ARRAY_MAX;
+  const list = (n, badAt) => Array.from({ length: n }, (_, i) => (i === badAt ? "DROP TABLE leads" : "SELECT 1"));
+  denied(run(SQL_TX.name, SQL_TX.input(list(CAP + 50, CAP - 1))), "destructive-sql", "the last element inside the cap");
+  const over = run(SQL_TX.name, SQL_TX.input(list(CAP + 50, CAP)));
+  allowed(over, "the first element beyond the cap is not judged (if this now denies the cap moved: update the README and this pin)");
+  assert.equal(over.err.match(/array field longer than the cap/g)?.length, 1, "exactly one stderr line");
+  assert.equal(engine.adaptToolCall(SQL_TX.name, { sql_statements: list(CAP + 50, -1) }, NORMAL, policy).length, CAP);
+  const exact = run(SQL_TX.name, SQL_TX.input(list(CAP, -1)));
+  allowed(exact, "exactly ARRAY_MAX elements");
+  assert.doesNotMatch(exact.err, /longer than the cap/, "no stderr line at the cap itself");
+});
+
+test("array field: a string given for an array field is judged as a string; an element over FIELD_CAP is judged as head and tail slices, never joined", () => {
+  denied(run(SQL_TX.name, { sql_statements: "DROP TABLE leads" }), "destructive-sql", "a bare string in the array field");
+  assert.equal(typeof engine.adaptToolCall, "function", "policy.mjs must export adaptToolCall()");
+  const half = engine.FIELD_CAP / 2;
+  const straddle = `${"x".repeat(half - 4)}DROP${"f".repeat(30000)}TABLE leads${"z".repeat(half - 11)}`; // DROP ends the head, TABLE starts the tail
+  const calls = engine.adaptToolCall(SQL_TX.name, { sql_statements: ["SELECT 1", straddle] }, NORMAL, policy);
+  assert.deepEqual(calls.map((c) => c.via), ["neon-sql-transaction.sql_statements[0]", "neon-sql-transaction.sql_statements[1]#head", "neon-sql-transaction.sql_statements[1]#tail"]);
+  allowed(run(SQL_TX.name, SQL_TX.input(["SELECT 1", straddle])), "a statement that straddles the unscanned middle of one element is not judged (documented slip window)");
+  const tail = run(SQL_TX.name, SQL_TX.input([`${"f".repeat(40000)} DROP TABLE leads`]));
+  denied(tail, "destructive-sql", "statement fully inside the tail slice of an element");
+  assert.match(tail.err, /neon-sql-transaction\.sql_statements\[0\]#tail on tool /);
+});
+
+test("SQL: a 25,000-character benign field and 200 elements of 20,000 characters pass fast (a hook timeout fails OPEN)", (t) => {
+  const field = `SELECT 1 ${"UNION SELECT 2 ".repeat(1667)}`;
+  assert.ok(field.length > 25000);
+  const one = run(SQL_RUN.name, SQL_RUN.input(field));
+  allowed(one, "25,000 benign characters");
+  const element = `SELECT 1 ${"UNION SELECT 2 ".repeat(1332)}`;
+  assert.ok(element.length <= engine.FIELD_CAP);
+  const many = run(SQL_TX.name, SQL_TX.input(Array.from({ length: engine.ARRAY_MAX }, () => element)));
+  allowed(many, "ARRAY_MAX elements of FIELD_CAP characters each");
+  t.diagnostic(`hook wall time including node start: 25k field ${one.ms} ms, ${engine.ARRAY_MAX} x ${element.length} chars ${many.ms} ms`);
+  for (const r of [one, many]) {
+    assert.equal(r.signal, null, "the hook must not run into its own timeout");
+    assert.ok(r.ms < 6000, `took ${r.ms} ms; the hook timeout is 10 s and a timeout fails OPEN`);
+  }
+});
+
+test("destructive-sql is linear in the text length: 60,000 benign characters are judged fast, and the same pattern without its ^ anchor is not (positive control)", () => {
+  // The array reader multiplies judgments (ARRAY_MAX elements of FIELD_CAP characters each), which is only affordable
+  // because the rule is anchored: unanchored, the engine retries the whole lookahead from every start position.
+  // Measured 2026-10-15: 200 elements of 20,000 characters ran into the 30 s test timeout on the unanchored form.
+  const rule = policy.rules.find((r) => r.id === "destructive-sql");
+  assert.ok(rule?.pattern.startsWith("^"), "the shipped pattern must be anchored");
+  const text = `${"SELECT x FROM t ".repeat(3750)}psql`;
+  const time = (source) => {
+    const re = new RegExp(source, rule.flags);
+    const t0 = process.hrtime.bigint();
+    const hit = re.test(text);
+    return { ms: Number(process.hrtime.bigint() - t0) / 1e6, hit };
+  };
+  const shipped = time(rule.pattern);
+  assert.equal(shipped.hit, false, "benign text must not match");
+  assert.ok(shipped.ms < 500, `the shipped pattern took ${shipped.ms} ms on 60,000 benign characters`);
+  const unanchored = time(rule.pattern.replace(/^\^/, ""));
+  assert.equal(unanchored.hit, false);
+  assert.ok(unanchored.ms > 500, `positive control: without its ^ the pattern took only ${unanchored.ms} ms, so this canary cannot tell an anchored rule from an unanchored one`);
+});
+
+test("SQL: prepare_database_migration (a temporary branch) and the other tools of these servers are NOT judged by text", () => {
+  for (const name of SQL_UNJUDGED) {
+    allowed(run(name, { migration_sql: "DROP TABLE leads", sql: "DROP TABLE leads", query: "DROP TABLE leads", suggested_sql_statements: ["DROP TABLE leads"] }), name);
+  }
+});
+
+test("SQL documented limits, pinned: a hinted row also denies SQL words inside a string literal, an apply_changes false discard is judged too, explain with analyze is judged like run_sql", () => {
+  denied(run(SQL_RUN.name, SQL_RUN.input("INSERT INTO notes (body) VALUES ('please drop table x')")), "destructive-sql", "DROP TABLE inside a string literal (accepted: the tool cannot tell a mention from an execution)");
+  const apply = SQL_SHAPES.find((s) => leaf(s.name) === "complete_database_migration");
+  denied(run(apply.name, { ...apply.input("DROP TABLE leads"), apply_changes: false }), "destructive-sql", "a DISCARD with destructive SQL (if this now allows, a skipWhenFalse exists: update the README and this pin)");
+  const explain = SQL_SHAPES.find((s) => leaf(s.name) === "explain_sql_statement");
+  denied(run(explain.name, { sql: "DROP TABLE leads", analyze: true }), "destructive-sql", "explain_sql_statement with analyze:true executes the statement");
+});
+
+test("registration: the configured command string, run VERBATIM, denies destructive SQL through a SQL tool and allows a read (guard-red-team rule 5)", () => {
+  const group = groupsFor(settings, SQL_RUN.name).find(runsPretool);
+  assert.ok(group, `no group routes ${SQL_RUN.name}`);
+  const command = commandsOf(group).find((c) => /pretool\.mjs/.test(c));
+  const env = { ...ENV, CLAUDE_PROJECT_DIR: ROOT };
+  const cmd = process.platform === "win32" ? command.replaceAll("${CLAUDE_PROJECT_DIR}", ROOT) : command;
+  const go = (input) => spawnSync(cmd, { shell: process.platform === "win32" ? true : "/bin/sh", input: JSON.stringify(input), encoding: "utf8", cwd: ROOT, env, timeout: 20000 });
+  const bad = go({ tool_name: SQL_RUN.name, tool_input: SQL_RUN.input("DROP TABLE leads"), cwd: NORMAL });
+  assert.equal(bad.status, 2, `expected a deny through the configured command, got ${bad.status}\n${bad.stdout}${bad.stderr}`);
+  assert.match(bad.stderr, /BLOCKED by repo policy: destructive-sql/);
+  const txBad = go({ tool_name: SQL_TX.name, tool_input: SQL_TX.input(["SELECT 1", "DROP TABLE leads"]), cwd: NORMAL });
+  assert.equal(txBad.status, 2, `array field through the configured command: ${txBad.status}\n${txBad.stdout}${txBad.stderr}`);
+  const ok = go({ tool_name: SQL_RUN.name, tool_input: SQL_RUN.input("SELECT 1"), cwd: NORMAL });
+  assert.equal(ok.status, 0, `a harmless query was not allowed (exit ${ok.status})\n${ok.stdout}${ok.stderr}`);
+});
+
+const PRE_SQL_MATCHER = "^(?:Monitor|mcp__.+__(?:run_in_terminal|start_process|interact_with_process|write_file|edit_file|edit_block|write_pdf|move_file))$";
+
+test("BREAKS: the matcher as it stood before the SQL suffixes routes none of the SQL tools (the registration canary would fail)", () => {
+  const broken = structuredClone(settings);
+  const group = broken.hooks.PreToolUse.find((g) => runsPretool(g) && g.matcher !== NATIVE_MATCHER);
+  assert.ok(group, "the MCP group exists");
+  group.matcher = PRE_SQL_MATCHER;
+  for (const s of SQL_SHAPES) {
+    assert.ok(groupsFor(settings, s.name).some(runsPretool), `control: the real registration routes ${s.name}`);
+    assert.ok(!groupsFor(broken, s.name).some(runsPretool), `the old matcher must not route ${s.name}, or the registration canaries prove nothing`);
+  }
+  assert.ok(groupsFor(broken, TERMINAL).some(runsPretool), "control: the old matcher still routes the runners");
+});
+
+test("BREAKS: no SQL rows, the wrong field or no clientHint lets destructive SQL through; the unbroken copy and native Bash still deny", () => {
+  const one = (hook) => run(SQL_RUN.name, SQL_RUN.input("DROP TABLE leads"), NORMAL, hook);
+  const tx = (hook) => run(SQL_TX.name, SQL_TX.input(["SELECT 1", "DROP TABLE leads"]), NORMAL, hook);
+  withTree(null, (hook) => {
+    denied(one(hook), "destructive-sql", "unbroken copy, string field");
+    denied(tx(hook), "destructive-sql", "unbroken copy, array field");
+  });
+  withTree((p) => { p.mcpAdapters = p.mcpAdapters.filter((a) => !SQL_ROW_IDS.includes(a.id)); }, (hook) => {
+    allowed(one(hook), "no SQL rows");
+    allowed(tx(hook), "no SQL rows, array field");
+    denied(run("Bash", { command: 'psql -c "DROP TABLE leads"' }, NORMAL, hook), "destructive-sql", "native Bash in the same tree");
+  });
+  withTree((p) => { for (const a of p.mcpAdapters) if (SQL_ROW_IDS.includes(a.id)) a.commandFields = ["nope"]; }, (hook) => allowed(one(hook), "rows read the wrong field"));
+  withTree((p) => { for (const a of p.mcpAdapters) if (SQL_ROW_IDS.includes(a.id)) delete a.clientHint; }, (hook) => allowed(one(hook), "no clientHint: bare SQL has no client word"));
+});
+
+test("BREAKS: without the array reader a bad element inside sql_statements passes, while a string field still denies", () => {
+  withTree(null, (hook) => {
+    allowed(run(SQL_TX.name, SQL_TX.input(["SELECT 1", "DROP TABLE leads"]), NORMAL, hook), "array reader removed from the copy of policy.mjs");
+    denied(run(SQL_RUN.name, SQL_RUN.input("DROP TABLE leads"), NORMAL, hook), "destructive-sql", "the string field path is untouched");
+  }, (src) => src.replace("if (Array.isArray(v)) return arraySlices(v, report);", "if (false) return [];"));
 });
