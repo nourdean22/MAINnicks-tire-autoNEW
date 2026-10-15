@@ -6,7 +6,7 @@
  * if the ref is never assigned, or never read.
  */
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 
@@ -86,6 +86,7 @@ function mount() {
   return () => act(() => root.unmount());
 }
 
+let stopRecordingMoves: (() => void) | undefined;
 beforeEach(() => {
   h.hookOptions = undefined;
   h.readSavedTurn = undefined;
@@ -95,7 +96,12 @@ beforeEach(() => {
   h.loadConvo = async (id) => void h.calls.push(`loadConvo:${id}`);
   h.newChat = () => void h.calls.push("newChat");
   useChatUiStore.setState({ historyDrawerOpen: false, activeConversationId: null });
+  // the store move is part of the order the handlers promise, so it is recorded too
+  stopRecordingMoves = useChatUiStore.subscribe((state, previous) => {
+    if (state.activeConversationId !== previous.activeConversationId) h.calls.push(`store:${state.activeConversationId}`);
+  });
 });
+afterEach(() => stopRecordingMoves?.());
 
 describe("the island hands the chat a saved-turn reader", () => {
   it("the reader the hook receives asks useConversations.readSavedTurn, with the conversation id and the abort signal", async () => {
@@ -129,22 +135,24 @@ describe("the island resets the turn when the operator opens another conversatio
     return mount();
   }
 
-  it("picking a conversation resets the turn BEFORE it moves", () => {
+  it("picking a conversation resets the turn BEFORE the store moves and the rows load", () => {
     const unmount = mountWithDrawerOpen();
 
     act(() => h.drawer!.onSelect("c2"));
 
-    expect(h.calls).toEqual(["resetTurn", "loadConvo:c2"]);
+    expect(h.calls).toEqual(["resetTurn", "store:c2", "loadConvo:c2"]);
     expect(useChatUiStore.getState().activeConversationId).toBe("c2");
     unmount();
   });
 
-  it("starting a new chat resets the turn BEFORE it clears the conversation", () => {
+  it("starting a new chat resets the turn BEFORE the store is cleared and the chat is emptied", () => {
+    useChatUiStore.setState({ activeConversationId: "c1" });
+    h.calls.length = 0;
     const unmount = mountWithDrawerOpen();
 
     act(() => h.drawer!.onNew());
 
-    expect(h.calls).toEqual(["resetTurn", "newChat"]);
+    expect(h.calls).toEqual(["resetTurn", "store:null", "newChat"]);
     expect(useChatUiStore.getState().activeConversationId).toBeNull();
     unmount();
   });
@@ -154,7 +162,7 @@ describe("the island resets the turn when the operator opens another conversatio
 
     act(() => useChatUiStore.getState().setActiveConversationId("c9"));
 
-    expect(h.calls).toEqual([]);
+    expect(h.calls, "only the store move, no resetTurn").toEqual(["store:c9"]);
     unmount();
   });
 });
