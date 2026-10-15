@@ -192,7 +192,21 @@ button:active, [role="button"]:active {
 /* Six live consumers (brain-dump modal, error-card, dialog, brain-node-detail-panel, page-nick,
    next-action-whisperer). The 2026-10-01 prune dropped this rule while keeping the keyframe —
    restored; the grammar test now pins it. */
-.animate-fade-in-scale { animation: fade-in-scale 220ms cubic-bezier(0.22, 1, 0.36, 1); }
+.animate-fade-in-scale { animation: fade-in-scale 220ms var(--ease-spring-soft); }
+/* UI v3 W1a · press feedback. A spring on transform only; colour keeps the standard ease it had.
+   Tabs and tappable rows opt in with the class. The scale is a press state, so it exists only where
+   motion is allowed (the reduced-motion block below also collapses the transition itself).
+   Pinned by tests/repo/ui-v3-motion.test.ts. */
+.press-spring {
+  transition:
+    color var(--motion-state) var(--ease-standard),
+    background-color var(--motion-state) var(--ease-standard),
+    border-color var(--motion-state) var(--ease-standard),
+    transform var(--motion-micro) var(--ease-spring-snap);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .press-spring:active { transform: scale(0.97); }
+}
 /* v10.0.453 · prefers-reduced-motion · WCAG 2.3.3 compliance.
    Was scoped to 2 keyframes (animate-breath + animate-fade-in-scale)
    while 57 other keyframes ran unimpeded under reduced-motion preference.
@@ -549,7 +563,7 @@ button:active, [role="button"]:active {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
-.animate-fadeSlideUp { animation: fadeSlideUp 0.3s ease-out; }
+.animate-fadeSlideUp { animation: fadeSlideUp 240ms var(--ease-spring-soft); }
 
 /* 2026-08-12 · symmetric exit for fadeSlideUp — full-screen sheets (More,
    Pulse feed) previously only animated IN; every close path (scrim tap,

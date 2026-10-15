@@ -237,7 +237,7 @@ export function MoreSheet() {
                       onClick={close}
                       aria-current={active ? "page" : undefined}
                       className={cn(
-                        "flex min-h-11 items-center gap-2 rounded-control px-2.5 py-2 transition-colors",
+                        "flex min-h-11 items-center gap-2 rounded-control px-2.5 py-2 press-spring",
                         active
                           ? "bg-accent-soft text-fg"
                           : "text-[var(--text-secondary)] hover:bg-[var(--bg-raised)] hover:text-[var(--text-primary)]",
