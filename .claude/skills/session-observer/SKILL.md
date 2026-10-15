@@ -32,6 +32,8 @@ here is the *observation*; the operator keeps the write.
    - **operator corrections**: places the operator said "no", redirected,
      or rejected an approach. These are the highest-signal input.
    - defects found, and whether an existing skill should have caught them
+   - after a manager job: its row in `docs/agent-os/MANAGER-METRICS.md`. A finding class that recurs across three jobs, or a
+     near-zero rate of manager catches before the PR opened, is a proposal; UNKNOWN cells are a gap to name, not to fill
 2. **Keep only evidence-backed candidates.** Every proposal needs a
    witnessed trigger from THIS session. If you cannot cite the moment
    that motivated it, drop it — see Traps.
