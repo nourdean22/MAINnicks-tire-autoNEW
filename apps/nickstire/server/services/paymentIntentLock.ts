@@ -46,8 +46,10 @@ export async function recordPaymentIntent(d: Db, intent: RecordedIntent): Promis
   });
 }
 
+export type OpenIntent = { id: number; paymentIntentId: string | null; createdAt: Date };
+
 /** Recorded intents on this invoice that still hold its total: pending, with a Stripe id. */
-export async function openIntents(d: Db, invoiceId: number) {
+export async function openIntents(d: Db, invoiceId: number): Promise<OpenIntent[]> {
   return d.select({
     id: payments.id,
     paymentIntentId: payments.stripePaymentIntentId,
