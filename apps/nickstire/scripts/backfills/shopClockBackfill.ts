@@ -415,7 +415,10 @@ export function readOnlyConn(inner: SqlConn): SqlConn {
   };
 }
 
-const ident = (name: string): string => `\`${name}\``;
+// Every identifier and alias below is backtick-quoted. STORED, VIRTUAL, KEY, RANK, LEAD and others are
+// reserved words in TiDB, and a bare `AS stored` is a syntax error there (found on the first live probe).
+const ident = (name: string): string => `\`${name.replace(/`/g, "``")}\``;
+const alias = (expr: string, name: string): string => `${expr} AS ${ident(name)}`;
 
 function assertIds(ids: readonly number[]): void {
   for (const id of ids) if (!Number.isSafeInteger(id) || id <= 0) throw new BackfillError(`refusing to inline id ${describe(id)}`);
@@ -426,24 +429,27 @@ export function backupTableName(table: string, stamp: string): string {
   return `_bak_${tableSpec(table).table}_shopclock_${stamp}`;
 }
 
-export const TZ_REPORT_SQL = "SELECT @@global.time_zone AS globalTz, @@session.time_zone AS sessionTz, @@system_time_zone AS systemTz";
+export const TZ_REPORT_SQL = `SELECT ${alias("@@global.time_zone", "globalTz")}, ${alias("@@session.time_zone", "sessionTz")}, ${alias("@@system_time_zone", "systemTz")}`;
 export const TZ_PIN_SQL = "SET time_zone = '+00:00'";
-export const TZ_CHECK_SQL = "SELECT @@session.time_zone AS sessionTz";
+export const TZ_CHECK_SQL = `SELECT ${alias("@@session.time_zone", "sessionTz")}`;
 
+/** Result columns, in order: the fields of ScanRow. */
 export function scanSql(s: TableSpec): string {
-  const snap = s.snapCol ? `COALESCE(${ident(s.snapCol)} LIKE 'SNAP-%', 0)` : "0";
-  return `SELECT ${ident("id")} AS id, ${ident(s.dateCol)} AS stored, ${ident(s.createdCol)} AS created, ${ident(s.sourceCol)} AS source, ${snap} AS isSnap FROM ${ident(s.table)} ORDER BY ${ident("id")}`;
+  const snap = s.snapCol ? `CASE WHEN ${ident(s.snapCol)} LIKE 'SNAP-%' THEN 1 ELSE 0 END` : "0";
+  const columns = [alias(ident("id"), "id"), alias(ident(s.dateCol), "stored"), alias(ident(s.createdCol), "created"), alias(ident(s.sourceCol), "source"), alias(snap, "isSnap")];
+  return `SELECT ${columns.join(", ")} FROM ${ident(s.table)} ORDER BY ${ident("id")}`;
 }
 
 export function columnsSql(s: TableSpec): { sql: string; params: string[] } {
   const cols = ["id", s.dateCol, s.createdCol, s.updatedCol, s.sourceCol, ...(s.snapCol ? [s.snapCol] : [])];
+  const columns = [alias(ident("COLUMN_NAME"), "col"), alias(ident("DATA_TYPE"), "dataType"), alias(ident("EXTRA"), "extra")];
   return {
-    sql: `SELECT COLUMN_NAME AS col, DATA_TYPE AS dataType, EXTRA AS extra FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME IN (${cols.map(() => "?").join(", ")})`,
+    sql: `SELECT ${columns.join(", ")} FROM ${ident("INFORMATION_SCHEMA")}.${ident("COLUMNS")} WHERE ${ident("TABLE_SCHEMA")} = DATABASE() AND ${ident("TABLE_NAME")} = ? AND ${ident("COLUMN_NAME")} IN (${cols.map(() => "?").join(", ")})`,
     params: [s.table, ...cols],
   };
 }
 
-export const TABLE_EXISTS_SQL = "SELECT TABLE_NAME AS name FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?";
+export const TABLE_EXISTS_SQL = `SELECT ${alias(ident("TABLE_NAME"), "name")} FROM ${ident("INFORMATION_SCHEMA")}.${ident("TABLES")} WHERE ${ident("TABLE_SCHEMA")} = DATABASE() AND ${ident("TABLE_NAME")} = ?`;
 
 // TiDB rejects CREATE TABLE ... AS SELECT, so the backup is LIKE + INSERT ... SELECT.
 export function createBackupSql(s: TableSpec, stamp: string): string {
@@ -456,10 +462,10 @@ export function insertBackupSql(s: TableSpec, stamp: string, ids: readonly numbe
 }
 
 export const backupIdsSql = (s: TableSpec, stamp: string): string =>
-  `SELECT ${ident("id")} AS id FROM ${ident(backupTableName(s.table, stamp))} ORDER BY ${ident("id")}`;
+  `SELECT ${alias(ident("id"), "id")} FROM ${ident(backupTableName(s.table, stamp))} ORDER BY ${ident("id")}`;
 
 export const backupValuesSql = (s: TableSpec, stamp: string): string =>
-  `SELECT ${ident("id")} AS id, ${ident(s.dateCol)} AS v FROM ${ident(backupTableName(s.table, stamp))} ORDER BY ${ident("id")}`;
+  `SELECT ${alias(ident("id"), "id")}, ${alias(ident(s.dateCol), "v")} FROM ${ident(backupTableName(s.table, stamp))} ORDER BY ${ident("id")}`;
 
 /** Compare-and-swap on the value that was read. Self-assigning updatedCol stops its ON UPDATE from firing. */
 export function casUpdateSql(s: TableSpec, preserveUpdatedAt: boolean): string {
@@ -469,6 +475,6 @@ export function casUpdateSql(s: TableSpec, preserveUpdatedAt: boolean): string {
 
 /** Rows whose updatedAt differs between the live table and its backup (NULL-safe). */
 export const updatedAtMovedSql = (s: TableSpec, stamp: string): string =>
-  `SELECT COUNT(*) AS moved FROM ${ident(s.table)} l JOIN ${ident(backupTableName(s.table, stamp))} b ON b.${ident("id")} = l.${ident("id")} WHERE NOT (l.${ident(s.updatedCol)} <=> b.${ident(s.updatedCol)})`;
+  `SELECT ${alias("COUNT(*)", "moved")} FROM ${alias(ident(s.table), "l")} JOIN ${alias(ident(backupTableName(s.table, stamp)), "b")} ON ${ident("b")}.${ident("id")} = ${ident("l")}.${ident("id")} WHERE NOT (${ident("l")}.${ident(s.updatedCol)} <=> ${ident("b")}.${ident(s.updatedCol)})`;
 
-export const currentValueSql = (s: TableSpec): string => `SELECT ${ident(s.dateCol)} AS v FROM ${ident(s.table)} WHERE ${ident("id")} = ?`;
+export const currentValueSql = (s: TableSpec): string => `SELECT ${alias(ident(s.dateCol), "v")} FROM ${ident(s.table)} WHERE ${ident("id")} = ?`;

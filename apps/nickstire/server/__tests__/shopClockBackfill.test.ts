@@ -522,9 +522,9 @@ describe("backup naming and SQL builders", () => {
 
   it("joins the live table to its backup by id to count a moved updatedAt", () => {
     expect(updatedAtMovedSql(TABLES[0], "20261015")).toBe(
-      "SELECT COUNT(*) AS moved FROM `invoices` l JOIN `_bak_invoices_shopclock_20261015` b ON b.`id` = l.`id` WHERE NOT (l.`updatedAt` <=> b.`updatedAt`)",
+      "SELECT COUNT(*) AS `moved` FROM `invoices` AS `l` JOIN `_bak_invoices_shopclock_20261015` AS `b` ON `b`.`id` = `l`.`id` WHERE NOT (`l`.`updatedAt` <=> `b`.`updatedAt`)",
     );
-    expect(updatedAtMovedSql(TABLES[1], "20261015")).toContain("l.`updated_at` <=> b.`updated_at`");
+    expect(updatedAtMovedSql(TABLES[1], "20261015")).toContain("`l`.`updated_at` <=> `b`.`updated_at`");
   });
 
   it("self-assigns updatedAt only when asked to preserve it", () => {
@@ -540,5 +540,108 @@ describe("backup naming and SQL builders", () => {
   it("covers every class in the type", () => {
     const all: RowClass[] = ["already_correct", "needs_correction", "snap_double_converted", "post_cutoff_utc_match", "feed_owned_utc", "other"];
     expect([...CLASSES].sort()).toEqual([...all].sort());
+  });
+});
+
+// ── SQL canary: every alias and identifier is backtick-quoted, so no keyword can break a statement ─────
+//
+// A live probe failed on TiDB with a syntax error at `AS stored`: STORED is reserved there (generated
+// columns), and a fake database cannot see that. This reads each statement the tool can send and fails on
+// any word outside quotes that is not SQL structure.
+
+/** Reserved words from docs.pingcap.com/tidb/stable/keywords (R and R-Window), read 2026-10-15. */
+const TIDB_RESERVED = new Set(
+  (
+    "ADD ALL ALTER ANALYZE AND ARRAY AS ASC BETWEEN BIGINT BINARY BLOB BOTH BY CALL CASCADE CASE CHANGE CHAR CHARACTER CHECK COLLATE COLUMN CONSTRAINT CONTINUE CONVERT CREATE CROSS " +
+    "CURRENT_DATE CURRENT_ROLE CURRENT_TIME CURRENT_TIMESTAMP CURRENT_USER CURSOR DATABASE DATABASES DAY_HOUR DAY_MICROSECOND DAY_MINUTE DAY_SECOND DECIMAL DEFAULT DELAYED DELETE DESC DESCRIBE " +
+    "DISTINCT DISTINCTROW DIV DOUBLE DROP DUAL ELSE ELSEIF ENCLOSED ESCAPED EXCEPT EXISTS EXIT EXPLAIN FALSE FETCH FLOAT FLOAT4 FLOAT8 FOR FORCE FOREIGN FROM FULLTEXT GENERATED GRANT GROUP " +
+    "HAVING HIGH_PRIORITY IF IGNORE ILIKE IN INDEX INFILE INNER INOUT INSERT INT INT1 INT2 INT3 INT4 INT8 INTEGER INTERSECT INTERVAL INTO IS ITERATE JOIN KEY KEYS KILL LATERAL LEADING LEAVE " +
+    "LEFT LIKE LIMIT LINEAR LINES LOAD LOCALTIME LOCALTIMESTAMP LOCK LONG LONGBLOB LONGTEXT LOW_PRIORITY MATCH MAXVALUE MEDIUMBLOB MEDIUMINT MEDIUMTEXT MIDDLEINT MINUTE_MICROSECOND " +
+    "MINUTE_SECOND MOD NATURAL NOT NO_WRITE_TO_BINLOG NULL NUMERIC OF ON OPTIMIZE OPTION OPTIONALLY OR ORDER OUT OUTER OUTFILE PARTITION PRECISION PRIMARY PROCEDURE RANGE READ REAL RECURSIVE " +
+    "REFERENCES REGEXP RELEASE RENAME REPEAT REPLACE REQUIRE RESTRICT REVOKE RIGHT RLIKE ROW SECOND_MICROSECOND SELECT SET SHOW SMALLINT SPATIAL SQL SQL_BIG_RESULT SQL_CALC_FOUND_ROWS " +
+    "SQL_SMALL_RESULT SQLEXCEPTION SQLSTATE SQLWARNING SSL STARTING STORED STRAIGHT_JOIN TABLE TABLESAMPLE TERMINATED THEN TIDB_CURRENT_TSO TINYBLOB TINYINT TINYTEXT TO TRAILING TRIGGER TRUE " +
+    "UNION UNIQUE UNLOCK UNSIGNED UNTIL UPDATE USAGE USE USING UTC_DATE UTC_TIME UTC_TIMESTAMP VALUES VARBINARY VARCHAR VARCHARACTER VARYING VIRTUAL WHEN WHERE WHILE WITH WRITE XOR YEAR_MONTH ZEROFILL " +
+    "RANK GROUPS LEAD LAG WINDOW"
+  ).split(" "),
+);
+
+/** Words the statements use as syntax or as function names. Anything else outside quotes is an identifier or alias. */
+const SQL_STRUCTURE = new Set(["SELECT", "FROM", "WHERE", "AND", "NOT", "IN", "AS", "ORDER", "BY", "JOIN", "ON", "UPDATE", "SET", "INSERT", "INTO", "CREATE", "TABLE", "LIKE", "CASE", "WHEN", "THEN", "ELSE", "END", "COUNT", "DATABASE"]);
+
+const quotedNames = (sql: string): string[] => [...sql.replace(/'(?:[^'\\]|\\.)*'/g, " ").matchAll(/`((?:[^`]|``)*)`/g)].map((m) => m[1].replace(/``/g, "`"));
+
+/** Words outside string literals, backticks and @@system variables that are not SQL structure. */
+function unquotedIdentifiers(sql: string): string[] {
+  const bare = sql
+    .replace(/'(?:[^'\\]|\\.)*'/g, " ")
+    .replace(/`(?:[^`]|``)*`/g, " ")
+    .replace(/@@[\w.]+/g, " ");
+  return (bare.match(/[A-Za-z_][A-Za-z0-9_]*/g) ?? []).filter((w) => !SQL_STRUCTURE.has(w.toUpperCase()));
+}
+
+/** Every statement the tool can send for a table, plus the fixed ones. */
+function everyStatement(): Array<[string, string]> {
+  const out: Array<[string, string]> = [
+    ["TABLE_EXISTS_SQL", TABLE_EXISTS_SQL],
+    ["TZ_REPORT_SQL", TZ_REPORT_SQL],
+    ["TZ_CHECK_SQL", TZ_CHECK_SQL],
+  ];
+  for (const s of TABLES) {
+    out.push(
+      [`scanSql ${s.table}`, scanSql(s)],
+      [`columnsSql ${s.table}`, columnsSql(s).sql],
+      [`createBackupSql ${s.table}`, createBackupSql(s, "20261015")],
+      [`insertBackupSql ${s.table}`, insertBackupSql(s, "20261015", [1, 22])],
+      [`backupIdsSql ${s.table}`, backupIdsSql(s, "20261015")],
+      [`backupValuesSql ${s.table}`, backupValuesSql(s, "20261015")],
+      [`casUpdateSql keep ${s.table}`, casUpdateSql(s, true)],
+      [`casUpdateSql move ${s.table}`, casUpdateSql(s, false)],
+      [`updatedAtMovedSql ${s.table}`, updatedAtMovedSql(s, "20261015")],
+      [`currentValueSql ${s.table}`, currentValueSql(s)],
+    );
+  }
+  return out;
+}
+
+describe("SQL canary: no alias or identifier is left unquoted", () => {
+  it.each(everyStatement())("%s", (label, sql) => {
+    const bare = unquotedIdentifiers(sql);
+    expect(bare, `${label} has unquoted words: ${bare.join(", ")} (reserved: ${bare.filter((w) => TIDB_RESERVED.has(w.toUpperCase())).join(", ") || "none"})`).toEqual([]);
+  });
+
+  it("flags the exact shape that failed in production, and every reserved word like it", () => {
+    expect(unquotedIdentifiers("SELECT `invoiceDate` AS stored FROM `invoices`")).toEqual(["stored"]);
+    for (const word of ["stored", "virtual", "source", "status", "key", "rank", "groups", "lead", "lag", "window", "row", "range", "generated", "usage", "ssl"]) {
+      expect(unquotedIdentifiers(`SELECT \`a\` AS ${word} FROM \`t\``), word).toEqual([word]);
+      expect(unquotedIdentifiers(`SELECT \`a\` AS \`${word}\` FROM \`t\``), `${word} quoted`).toEqual([]);
+    }
+  });
+
+  it("does not mistake string literals, system variables or function calls for identifiers", () => {
+    expect(unquotedIdentifiers("SELECT CASE WHEN `a` LIKE 'SNAP-%' THEN 1 ELSE 0 END AS `n`, @@session.time_zone AS `tz`, COUNT(*) AS `c` FROM `t` WHERE `s` = DATABASE()")).toEqual([]);
+    expect(unquotedIdentifiers("SELECT COALESCE(`a`, 0) AS `n` FROM `t`")).toEqual(["COALESCE"]);
+  });
+
+  it("is load-bearing: the tool uses at least one reserved word as an alias, and only ever quoted", () => {
+    const used = new Set(everyStatement().flatMap(([, sql]) => quotedNames(sql)));
+    expect(TIDB_RESERVED.has("STORED") && used.has("stored")).toBe(true);
+    expect([...used].filter((n) => TIDB_RESERVED.has(n.toUpperCase())).length).toBeGreaterThan(0);
+  });
+});
+
+describe("scan query aliases are the fields the classifier reads", () => {
+  const SCAN_ROW_KEYS: Record<keyof ScanRow, true> = { id: true, stored: true, created: true, source: true, isSnap: true };
+  const aliasesOf = (sql: string) => [...sql.matchAll(/\bAS\s+`?(\w+)`?/g)].map((m) => m[1]);
+
+  it.each(TABLES.map((s) => [s.table, s] as const))("%s: aliases are exactly id, stored, created, source, isSnap, in that order", (_table, spec) => {
+    expect(aliasesOf(scanSql(spec))).toEqual(["id", "stored", "created", "source", "isSnap"]);
+    expect(new Set(aliasesOf(scanSql(spec)))).toEqual(new Set(Object.keys(SCAN_ROW_KEYS)));
+  });
+
+  it("reads each column from the table spec, not a literal", () => {
+    const sql = scanSql(TABLES[1]);
+    expect(sql).toContain(`\`${TABLES[1].dateCol}\``);
+    expect(sql).toContain(`\`${TABLES[1].createdCol}\``);
+    expect(sql).toContain(`\`${TABLES[1].sourceCol}\``);
   });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { casMigrate, describeTarget, runCli, withDb, type CliDeps } from "../../scripts/backfills/backfill-shop-clock";
-import { assertReadOnlySql, msToDigits, readOnlyConn, type SqlConn } from "../../scripts/backfills/shopClockBackfill";
+import { TZ_CHECK_SQL, assertReadOnlySql, msToDigits, readOnlyConn, type SqlConn } from "../../scripts/backfills/shopClockBackfill";
 
 // ── in-memory stand-in for the two tables, the backups and the session ───
 
@@ -15,6 +15,12 @@ interface FakeRow {
 type Tables = { invoices: FakeRow[]; alg_estimates: FakeRow[] };
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
+
+/** A result row keyed by the aliases in the SQL text, so a renamed alias breaks the reader as it would in production. */
+function keyed(sql: string, values: unknown[]): Record<string, unknown> {
+  const aliases = [...sql.matchAll(/ AS `([^`]+)`/g)].map((m) => m[1]);
+  return Object.fromEntries(aliases.map((a, i) => [a, values[i]]));
+}
 
 class FakeDb {
   tables: Tables;
@@ -62,21 +68,21 @@ class FakeDb {
     this.log.push(sql);
     this.beforeStatement?.(sql, params);
     let m: RegExpExecArray | null;
-    if (sql.startsWith("SELECT @@global.time_zone")) return [{ globalTz: "SYSTEM", sessionTz: this.sessionTz, systemTz: "UTC" }];
+    if (sql.startsWith("SELECT @@global.time_zone")) return [keyed(sql, ["SYSTEM", this.sessionTz, "UTC"])];
     if (sql === "SET time_zone = '+00:00'") {
       if (this.pinWorks) this.sessionTz = "+00:00";
       return { affectedRows: 0 };
     }
-    if (sql === "SELECT @@session.time_zone AS sessionTz") return [{ sessionTz: this.sessionTz }];
-    if (sql.includes("FROM INFORMATION_SCHEMA.COLUMNS")) {
+    if (sql === TZ_CHECK_SQL) return [keyed(sql, [this.sessionTz])];
+    if (sql.includes("FROM `INFORMATION_SCHEMA`.`COLUMNS`")) {
       const [, ...cols] = params as string[];
       return cols
         .filter((c) => !this.dropColumns.includes(c))
-        .map((c) => ({ col: c, dataType: "timestamp", extra: c === "updatedAt" || c === "updated_at" ? "on update CURRENT_TIMESTAMP" : "" }));
+        .map((c) => keyed(sql, [c, "timestamp", c === "updatedAt" || c === "updated_at" ? "on update CURRENT_TIMESTAMP" : ""]));
     }
-    if (sql.includes("FROM INFORMATION_SCHEMA.TABLES")) return this.backups.has(String(params[0])) ? [{ name: params[0] }] : [];
-    if ((m = /^SELECT `id` AS id, `\w+` AS stored, .* FROM `(\w+)` ORDER BY `id`$/.exec(sql))) {
-      return this.rows(m[1]).map((r) => ({ id: r.id, stored: r.stored, created: r.created, source: r.source, isSnap: r.isSnap ? 1 : 0 }));
+    if (sql.includes("FROM `INFORMATION_SCHEMA`.`TABLES`")) return this.backups.has(String(params[0])) ? [keyed(sql, [params[0]])] : [];
+    if ((m = /^SELECT `id` AS `\w+`, `\w+` AS `\w+`, `\w+` AS `\w+`, `\w+` AS `\w+`, .* AS `\w+` FROM `(\w+)` ORDER BY `id`$/.exec(sql))) {
+      return this.rows(m[1]).map((r) => keyed(sql, [r.id, r.stored, r.created, r.source, r.isSnap ? 1 : 0]));
     }
     if (sql === "START TRANSACTION") {
       this.saved = clone(this.tables);
@@ -101,11 +107,11 @@ class FakeDb {
       this.backups.get(m[1])!.push(...clone(copied));
       return { affectedRows: copied.length };
     }
-    if ((m = /^SELECT `id` AS id FROM `(\w+)` ORDER BY `id`$/.exec(sql))) {
-      return this.backups.get(m[1])!.map((r) => ({ id: r.id })).sort((a, b) => a.id - b.id);
+    if ((m = /^SELECT `id` AS `\w+` FROM `(\w+)` ORDER BY `id`$/.exec(sql))) {
+      return this.backups.get(m[1])!.map((r) => keyed(sql, [r.id])).sort((a, b) => Number(a.id) - Number(b.id));
     }
-    if ((m = /^SELECT `id` AS id, `\w+` AS v FROM `(\w+)` ORDER BY `id`$/.exec(sql))) {
-      return this.backups.get(m[1])!.map((r) => ({ id: r.id, v: r.stored })).sort((a, b) => a.id - b.id);
+    if ((m = /^SELECT `id` AS `\w+`, `\w+` AS `\w+` FROM `(\w+)` ORDER BY `id`$/.exec(sql))) {
+      return this.backups.get(m[1])!.map((r) => keyed(sql, [r.id, r.stored])).sort((a, b) => Number(a.id) - Number(b.id));
     }
     if ((m = /^UPDATE `(\w+)` SET `\w+` = \?(, `(\w+)` = `\3`)? WHERE `id` = \? AND `\w+` = \?$/.exec(sql))) {
       const [next, id, expected] = params as [string, number, string];
@@ -115,18 +121,18 @@ class FakeDb {
       if (!m[2] || this.ignoreSelfAssign) row.updated = this.now;
       return { affectedRows: 1 };
     }
-    if ((m = /^SELECT `\w+` AS v FROM `(\w+)` WHERE `id` = \?$/.exec(sql))) {
+    if ((m = /^SELECT `\w+` AS `\w+` FROM `(\w+)` WHERE `id` = \?$/.exec(sql))) {
       const row = this.rows(m[1]).find((r) => r.id === params[0]);
-      return row ? [{ v: row.stored }] : [];
+      return row ? [keyed(sql, [row.stored])] : [];
     }
-    if ((m = /^SELECT COUNT\(\*\) AS moved FROM `(\w+)` l JOIN `(\w+)` b ON b\.`id` = l\.`id` WHERE NOT \(l\.`(\w+)` <=> b\.`\3`\)$/.exec(sql))) {
+    if ((m = /^SELECT COUNT\(\*\) AS `\w+` FROM `(\w+)` AS `l` JOIN `(\w+)` AS `b` ON `b`\.`id` = `l`\.`id` WHERE NOT \(`l`\.`(\w+)` <=> `b`\.`\3`\)$/.exec(sql))) {
       if (this.movedOverride !== undefined) return this.movedOverride;
       const bak = this.backups.get(m[2])!;
       const moved = this.rows(m[1]).filter((r) => {
         const b = bak.find((x) => x.id === r.id);
         return b !== undefined && b.updated !== r.updated;
       }).length;
-      return [{ moved }];
+      return [keyed(sql, [moved])];
     }
     throw new Error(`fake db: unrecognised statement: ${sql}`);
   }
@@ -243,7 +249,7 @@ describe("probe", () => {
     const h = harness(db);
     expect(await h.run("probe", ...CLASSIFY)).toBe(1);
     expect(h.text()).toMatch(/invoices: missing column\(s\) source/);
-    expect(h.db.log.some((s) => s.includes("ORDER BY `id`") && s.startsWith("SELECT `id` AS id, "))).toBe(false);
+    expect(h.db.log.some((s) => s.includes("ORDER BY `id`") && s.startsWith("SELECT `id` AS `id`, "))).toBe(false);
   });
 
   it("treats an empty table as an error, not a clean result", async () => {
@@ -263,7 +269,7 @@ describe("session time zone guard", () => {
     const extra = cmd === "plan" ? ["--out", "p.json"] : [];
     expect(await h.run(cmd, ...CLASSIFY, ...extra)).toBe(1);
     expect(h.text()).toContain('session time_zone is "SYSTEM" after SET time_zone');
-    expect(h.db.log.filter((s) => s.includes("FROM `invoices`") || s.includes("FROM INFORMATION_SCHEMA"))).toEqual([]);
+    expect(h.db.log.filter((s) => s.includes("FROM `invoices`") || s.includes("INFORMATION_SCHEMA"))).toEqual([]);
     expect(h.files.size).toBe(0);
     expect(h.db.endCalls).toBe(1);
   });
@@ -294,7 +300,7 @@ describe("read-only connection", () => {
     await expect(guarded.query("UPDATE `invoices` SET `invoiceDate` = ? WHERE `id` = ? AND `invoiceDate` = ?", ["a", 1, "b"])).rejects.toThrow(/read-only guard/);
     await expect(guarded.query("SELECT 1; DELETE FROM invoices")).rejects.toThrow(/read-only guard/);
     expect(db.log).toEqual([]);
-    await expect(guarded.query("SELECT @@session.time_zone AS sessionTz")).resolves.toBeDefined();
+    await expect(guarded.query(TZ_CHECK_SQL)).resolves.toBeDefined();
     expect(db.log).toHaveLength(1);
   });
 
@@ -663,7 +669,7 @@ describe("apply", () => {
   it("fails as UNVERIFIED when the measurement query throws, and the dates stay corrected", async () => {
     const h = await snapshotted();
     h.db.beforeStatement = (sql) => {
-      if (sql.startsWith("SELECT COUNT(*) AS moved")) throw new Error("connection reset");
+      if (sql.startsWith("SELECT COUNT(*) AS `moved`")) throw new Error("connection reset");
     };
     expect(await apply(h)).toBe(3);
     expect(h.text()).toContain("updatedAt preservation UNVERIFIED: connection reset");
@@ -688,7 +694,7 @@ describe("apply", () => {
   it("keeps an unreadable measurement informational when preserving was not asked for", async () => {
     const h = await snapshotted();
     h.db.beforeStatement = (sql) => {
-      if (sql.startsWith("SELECT COUNT(*) AS moved")) throw new Error("connection reset");
+      if (sql.startsWith("SELECT COUNT(*) AS `moved`")) throw new Error("connection reset");
     };
     expect(await apply(h, "--preserve-updated-at", "false")).toBe(0);
     expect(h.text()).toContain("updatedAt check could not run: connection reset");
