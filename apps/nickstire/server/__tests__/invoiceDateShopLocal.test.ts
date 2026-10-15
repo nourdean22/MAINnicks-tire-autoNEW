@@ -1,15 +1,20 @@
 /**
- * `invoices.invoiceDate` is the stored shop-local day, never a UTC instant to convert.
+ * `invoices.invoiceDate` is read as the stored shop day, never as a UTC instant to convert.
  *
- * ALG tickets arrive date-only and are stored at that day's 00:00:00 (shopDriverMirror
- * `new Date(ri.date)` on a UTC server); timed tickets are stored as the shop's wall clock. The
- * readers that agree (revenue_range, lot_brief, shopSales, customerStatsRead and every
- * `DATE(invoiceDate)`) compare it with the shop's date as stored. Five readers converted it
- * FROM UTC instead (revenue_today, both cars_today invoice reads, the scheduler's weekday
- * volume check, and kpi-snapshot's week bounds), which moved every date-only ticket onto the
- * day before: today's revenue
- * counted only timed tickets and the volume check saw a near-empty today (found 2026-10-09;
- * Codex had found the same shift in lot_brief on #2931).
+ * What ShopDriver rows hold (SELECT-only read of production, 2026-10-15): timed tickets store the
+ * ticket time as UTC digits (stored hours cluster at 13-22 UTC, none at 9-11); date-only tickets sit
+ * at 00:00:00, at 04:00:00 (local midnight in UTC) or at the noon default. The mirror stores
+ * `new Date(ri.date)` on a UTC server and rewrites invoiceDate on every sync of an existing row
+ * (shopDriverMirror.ts:952). Rows written by the app itself carry the shop wall clock.
+ *
+ * The readers that agree (revenue_range, lot_brief, shopSales, customerStatsRead and every
+ * `DATE(invoiceDate)`) compare the stored digits with the shop's date. That is safe for timed
+ * tickets because business hours never cross UTC midnight: UTC digits and wall-clock digits land on
+ * the same day. Five readers converted the column FROM UTC instead (revenue_today, both cars_today
+ * invoice reads, the scheduler's weekday volume check, and kpi-snapshot's week bounds), which moved
+ * date-only tickets stored at 00:00:00 onto the day before: today's revenue counted only timed
+ * tickets and the volume check saw a near-empty today (found 2026-10-09; Codex had found the same
+ * shift in lot_brief on #2931).
  *
  * A source scan because the defect is a shape any new reader can reintroduce.
  */
