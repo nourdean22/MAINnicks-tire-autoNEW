@@ -184,7 +184,7 @@ export function SituationCard({ initial = null }: SituationCardProps) {
       <section className="rounded-surface border border-rose-500/30 bg-rose-500/[0.04] p-3">
         <div className="flex items-center gap-2 mb-1">
           <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
-          <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-rose-400">
+          <span className="font-mono text-[11px] text-rose-400">
             situation
           </span>
           <span className="ml-auto font-mono text-[11px] text-fg-tertiary">
@@ -212,7 +212,7 @@ export function SituationCard({ initial = null }: SituationCardProps) {
       <section className="rounded-surface border border-emerald-500/30 bg-emerald-500/[0.03] p-3">
         <div className="flex items-center gap-2 mb-1">
           <span className={cn("w-1.5 h-1.5 rounded-full", SEV_DOT.win)} />
-          <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-emerald-400">
+          <span className="font-mono text-[11px] text-emerald-400">
             situation
           </span>
           <span className="ml-auto font-mono text-[11px] text-fg-tertiary">
@@ -249,13 +249,13 @@ export function SituationCard({ initial = null }: SituationCardProps) {
             )}
           />
         )}
-        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary">
+        <span className="font-mono text-[11px] text-fg-secondary">
           situation
         </span>
         {primary && (
           <span
             className={cn(
-              "font-mono text-[11px] uppercase tracking-[0.12em]",
+              "font-mono text-[11px]",
               SEV_TEXT[primary.severity]
             )}
           >
@@ -337,7 +337,7 @@ export function SituationCard({ initial = null }: SituationCardProps) {
           {/* Rolled-up counts — animated on change (SituationSynthesizer
               polls every 120s, so number shifts are real state
               changes worth a 600ms tick-up). */}
-          <div className="grid grid-cols-3 gap-2 pt-1 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+          <div className="grid grid-cols-3 gap-2 pt-1 font-mono text-[11px] text-fg-tertiary">
             <div>
               <span className="text-fg-tertiary">blind:</span>{" "}
               <span className="text-fg tabular-nums">
@@ -444,7 +444,7 @@ function MonitorStrip({
   monitors: SituationPayload["monitors"];
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11px] uppercase tracking-[0.12em] border-t border-edge-subtle pt-1.5">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11px] border-t border-edge-subtle pt-1.5">
       {monitors.map((m) => {
         const content = (
           <>

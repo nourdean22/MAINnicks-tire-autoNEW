@@ -231,8 +231,8 @@ export function CharacterSheet() {
         <div className="md:col-span-2 rounded-surface border border-edge-subtle bg-content p-4 relative overflow-hidden flex flex-col justify-between min-h-[140px]">
           <div className="flex items-start justify-between">
             <div className="space-y-0.5">
-              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
-                character sheet
+              <span className="font-mono text-[11px] text-fg-tertiary">
+                Character sheet
               </span>
               <h3 className="text-lg font-semibold text-fg">
                 {archetypeLabel}
@@ -246,7 +246,7 @@ export function CharacterSheet() {
           <div className="mt-4 flex items-end justify-between gap-4">
             <div className="space-y-1">
               <div className="flex items-baseline gap-2">
-                <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">total level</span>
+                <span className="font-mono text-[11px] text-fg-tertiary">Total level</span>
                 <span className="stat-number text-3xl text-fg leading-none">
                   {totalLevel}
                 </span>
@@ -279,8 +279,8 @@ export function CharacterSheet() {
         <div className="rounded-surface border border-edge-subtle bg-content p-4 flex flex-col justify-between space-y-3">
           {nextRep ? (
             <div className="space-y-1">
-              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary block">
-                closest level up (next rep)
+              <span className="font-mono text-[11px] text-fg-tertiary block">
+                Closest level up (next rep)
               </span>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1">
@@ -307,7 +307,7 @@ export function CharacterSheet() {
             <div className="pt-2 border-t border-edge-subtle space-y-1">
               <div className="flex items-center gap-1.5 text-amber-300">
                 <ShieldAlert size={10} />
-                <span className="font-mono text-[11px] uppercase tracking-[0.12em]">
+                <span className="font-mono text-[11px]">
                   neglected stat (7d idle)
                 </span>
               </div>
@@ -341,7 +341,7 @@ export function CharacterSheet() {
               <span className="text-sm" aria-hidden>
                 {br.icon}
               </span>
-              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary">
+              <span className="font-mono text-[11px] text-fg-secondary">
                 {br.label}
               </span>
               <span className="truncate text-[11px] text-fg-tertiary">· {br.blurb}</span>
@@ -422,8 +422,8 @@ function StatCard({ stat }: { stat: StatLevel }) {
             cards stay one-liner clean. */}
         {Array.isArray(stat.goals) && stat.goals.length > 0 ? (
           <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-            <span className="shrink-0 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
-              goals
+            <span className="shrink-0 font-mono text-[11px] text-fg-tertiary">
+              Goals
             </span>
             {stat.goals.slice(0, 3).map((g) => (
               <a

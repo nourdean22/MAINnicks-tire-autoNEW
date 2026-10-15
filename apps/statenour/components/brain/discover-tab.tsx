@@ -449,11 +449,11 @@ export function DiscoverTab() {
                   </p>
                 )}
 
-                <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
+                <p className="text-[11px] font-mono text-fg-tertiary">
                   {meta.claim}
                 </p>
                 {d.provenance === "restored" && (
-                  <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
+                  <p className="text-[11px] font-mono text-fg-tertiary">
                     {RESTORED_CLAIM}
                   </p>
                 )}

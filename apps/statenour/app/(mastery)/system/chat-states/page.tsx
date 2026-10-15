@@ -114,7 +114,7 @@ export default function ChatStatesPage() {
     >
 
       <Panel>
-        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary/70 mb-2">{SECTIONS[0]} / {SECTIONS[1]}</p>
+        <p className="font-mono text-[11px] text-fg-secondary/70 mb-2">{SECTIONS[0]} / {SECTIONS[1]}</p>
         <div className="flex gap-2">
           <button
             onClick={() => setEvidenceOpen("fresh")}
@@ -132,17 +132,17 @@ export default function ChatStatesPage() {
       </Panel>
 
       <Panel>
-        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary/70 mb-1">{SECTIONS[2]}</p>
+        <p className="font-mono text-[11px] text-fg-secondary/70 mb-1">{SECTIONS[2]}</p>
         <TypedToolCards message={fleetMessage} />
       </Panel>
 
       <Panel>
-        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary/70 mb-1">{SECTIONS[3]}</p>
+        <p className="font-mono text-[11px] text-fg-secondary/70 mb-1">{SECTIONS[3]}</p>
         <TypedToolCards message={decisionsMessage} />
       </Panel>
 
       <Panel>
-        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary/70 mb-1">{SECTIONS[4]}</p>
+        <p className="font-mono text-[11px] text-fg-secondary/70 mb-1">{SECTIONS[4]}</p>
         <TypedToolCards message={unregisteredToolMessage} />
         <p className="text-[11px] text-fg-tertiary">
           (Correct result: nothing above this line — unknown shapes fall back to the generic receipt row in real chat.)
@@ -150,7 +150,7 @@ export default function ChatStatesPage() {
       </Panel>
 
       <Panel>
-        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary/70 mb-1">{SECTIONS[5]}</p>
+        <p className="font-mono text-[11px] text-fg-secondary/70 mb-1">{SECTIONS[5]}</p>
         <div className="rounded-surface border border-edge-subtle px-3 py-2 text-[12px] leading-relaxed text-fg whitespace-pre-wrap">
           {"**Action receipts**\n✅ telegram.send — receipt verified\n⏸ shop.sendSms — awaiting your approval (ID apr_x1). Approve in System → Actions.\n❌ task.create — failed: validation error\n\n— receipts · trace tr_demo1234"}
         </div>

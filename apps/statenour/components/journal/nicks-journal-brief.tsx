@@ -60,8 +60,8 @@ export function NicksJournalBrief() {
           strokeWidth={1.75}
         />
         <div className="flex-1 min-w-0">
-          <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
-            nick · journal
+          <p className="font-mono text-[11px] text-fg-tertiary">
+            Nick · journal
           </p>
           <p className="mt-1 text-[13px] text-fg leading-snug whitespace-pre-line">
             {brief}

@@ -232,8 +232,8 @@ export default function AiCostPage() {
           </div>
           {burnRate && (
             <div className="mt-3 flex items-baseline justify-between border-t border-edge-subtle pt-2.5">
-              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
-                burn rate · today
+              <span className="font-mono text-[11px] text-fg-tertiary">
+                Burn rate · today
               </span>
               <span className="flex items-baseline gap-2">
                 <span className={cn("font-mono text-xl font-bold tabular-nums", burnRate.tint)}>

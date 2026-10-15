@@ -116,7 +116,7 @@ export function InspectorFrame({ kind, mode, presentation, onClose, actions, chi
   const header = (
     <div className="flex items-start justify-between gap-3 border-b border-edge-subtle px-4 pb-2 pt-3">
       <div className="min-w-0">
-        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+        <p className="font-mono text-[11px] text-fg-tertiary">
           <span className="notch mr-2 align-middle" aria-hidden />
           {eyebrow}
           {mode === "peek" ? <span className="ml-2 text-fg-secondary">peek</span> : null}

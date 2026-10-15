@@ -51,15 +51,15 @@ export function JudgmentQualityPanel() {
       className="rounded-surface border border-edge-subtle bg-content p-4 flex flex-col space-y-4"
     >
       <div className="flex items-center justify-between gap-2 border-b border-edge-subtle pb-2">
-        <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary flex items-center gap-1.5">
+        <p className="text-[11px] font-mono text-fg-tertiary flex items-center gap-1.5">
           <Scale className="h-3.5 w-3.5 text-fg-secondary" /> Judgment Quality
         </p>
       </div>
 
       {/* BDN-105 · wisdom gate */}
       <div className="space-y-1.5">
-        <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
-          wisdom gate · promotion mix
+        <p className="text-[11px] font-mono text-fg-tertiary">
+          Wisdom gate · promotion mix
         </p>
         {spc && spc.totals.total === 0 ? (
           <p className="text-[11px] text-fg-tertiary">
@@ -101,8 +101,8 @@ export function JudgmentQualityPanel() {
 
       {/* BDN-106 · confidence calibration */}
       <div className="space-y-1.5 border-t border-edge-subtle pt-3">
-        <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
-          stated confidence · vs outcomes
+        <p className="text-[11px] font-mono text-fg-tertiary">
+          Stated confidence · vs outcomes
         </p>
         {cal?.note ? (
           <p className="text-[11px] text-fg-tertiary">{cal.note}</p>

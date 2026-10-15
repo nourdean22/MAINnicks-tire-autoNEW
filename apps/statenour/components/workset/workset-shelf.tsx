@@ -48,8 +48,8 @@ export function WorksetShelf() {
         "xl:static xl:z-auto xl:w-full xl:max-w-none xl:rounded-none xl:border-0 xl:border-b xl:border-edge-subtle xl:bg-transparent xl:shadow-none xl:px-8 xl:py-2.5",
       )}
     >
-      <span className="shrink-0 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
-        workset · {entries.length}
+      <span className="shrink-0 font-mono text-[11px] text-fg-tertiary">
+        Workset · {entries.length}
       </span>
       {entries.map((entry) => (
         <span
@@ -62,7 +62,7 @@ export function WorksetShelf() {
             title={`${ENTITY_KIND_LABEL[entry.ref.kind]} · ${describeExpiry(entry, now)}`}
             className="inline-flex min-h-[44px] max-w-[11rem] items-center gap-1.5 px-2 text-[13px] font-medium text-fg-secondary hover:text-fg md:min-h-[36px]"
           >
-            <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">{entry.ref.kind}</span>
+            <span className="font-mono text-[11px] text-fg-tertiary">{entry.ref.kind}</span>
             <span className="truncate">{entry.label}</span>
           </button>
           <button

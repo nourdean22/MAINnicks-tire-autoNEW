@@ -83,7 +83,7 @@ export function SortDropdown<T extends string = string>({
 
   return (
     <label className={`flex items-center gap-2 shrink-0 ${className ?? ""}`}>
-      <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary hidden sm:inline">
+      <span className="font-mono text-[11px] text-fg-tertiary hidden sm:inline">
         {label}
       </span>
       <div className="relative">

@@ -322,7 +322,7 @@ export function ReflectComposer() {
       {/* Header */}
       <div className="flex items-center gap-2">
         <Eye size={12} className="text-fg-tertiary" />
-        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+        <span className="font-mono text-[11px] text-fg-tertiary">
           reflect
         </span>
         <span className="text-[11px] font-mono text-fg-tertiary">
@@ -371,7 +371,7 @@ export function ReflectComposer() {
       <div className="space-y-1.5">
         {tmpl.fields.map((f) => (
           <div key={f.key}>
-            <label className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary block mb-0.5">
+            <label className="font-mono text-[11px] text-fg-tertiary block mb-0.5">
               {f.label}
             </label>
             <textarea
@@ -394,8 +394,8 @@ export function ReflectComposer() {
 
       {/* Mood row */}
       <div className="flex items-center gap-1 flex-wrap">
-        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mr-1">
-          mood
+        <span className="font-mono text-[11px] text-fg-tertiary mr-1">
+          Mood
         </span>
         {MOODS.map((m) => (
           <button
@@ -485,7 +485,7 @@ export function ReflectComposer() {
         <div className="rounded-control border border-edge-default bg-surface-raised p-2.5">
           <div className="flex items-center gap-1.5 mb-1">
             <Target size={10} className="text-fg-tertiary" />
-            <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+            <span className="font-mono text-[11px] text-fg-tertiary">
               nick counters
             </span>
           </div>
@@ -559,7 +559,7 @@ function GhostCounterQuestionInline() {
       <Eye size={11} className="mt-0.5 shrink-0 text-fg-tertiary" aria-hidden />
       <div className="flex-1 min-w-0">
         <p className="text-fg leading-snug">
-          <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">NICK · </span>
+          <span className="font-mono text-[11px] text-fg-tertiary">NICK · </span>
           {data.question}
         </p>
         {data.basis && (

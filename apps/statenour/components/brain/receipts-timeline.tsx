@@ -86,7 +86,7 @@ export function ReceiptsTimeline({ limit = 30 }: { limit?: number }) {
       className="rounded-surface border border-edge-subtle bg-content p-4 flex flex-col space-y-3"
     >
       <div className="flex items-center justify-between gap-2 flex-wrap border-b border-edge-subtle pb-2">
-        <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary flex items-center gap-1.5">
+        <p className="text-[11px] font-mono text-fg-tertiary flex items-center gap-1.5">
           <ReceiptText className="h-3.5 w-3.5 text-fg-secondary" /> Activity &amp; Receipts
         </p>
         <span className="text-[11px] font-mono text-fg-tertiary">

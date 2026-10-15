@@ -77,7 +77,7 @@ export function ObservabilityStatusPanel() {
       aria-label="observability-status"
       className="rounded-surface border border-edge-subtle p-4 space-y-2"
     >
-      <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg flex items-center gap-1.5">
+      <p className="font-mono text-[11px] text-fg flex items-center gap-1.5">
               <Activity className="h-3.5 w-3.5 text-fg-secondary" /> LLM Observability
       </p>
       {healthQ.isError ? (

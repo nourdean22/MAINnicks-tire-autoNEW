@@ -45,7 +45,7 @@ export function DecisionPlanePanel() {
     >
       <header className="flex items-center justify-between gap-3 border-b border-edge-default px-4 py-3">
         <div>
-          <p className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary">
+          <p className="flex items-center gap-2 font-mono text-[11px] text-fg-secondary">
             <Gauge size={13} /> Decision Plane Shadow
           </p>
           <p className="mt-1 text-[11px] text-fg-tertiary">
@@ -68,7 +68,7 @@ export function DecisionPlanePanel() {
           ["Authority", "shadow only"],
         ].map(([label, value]) => (
           <div key={String(label)} className="bg-content px-4 py-3">
-            <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+            <p className="font-mono text-[11px] text-fg-tertiary">
               {label}
             </p>
             <p className="mt-1 font-mono text-sm text-fg">{value}</p>
@@ -138,7 +138,7 @@ export function DecisionPlanePanel() {
 
         {replayData.rollups.length > 0 && (
           <div className="overflow-x-auto border-t border-edge-default pt-3">
-            <p className="mb-2 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+            <p className="mb-2 font-mono text-[11px] text-fg-tertiary">
               Replay Lab · explicit observed labels only
             </p>
             <table className="w-full text-left text-[11px]">

@@ -204,7 +204,7 @@ export function TipChip({
           )}
         >
           {title && (
-            <div className="mb-1 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+            <div className="mb-1 font-mono text-[11px] text-fg-tertiary">
               {title}
             </div>
           )}

@@ -80,17 +80,17 @@ export function CronInspector({ entity }: InspectorPanelProps) {
         <div className="flex flex-wrap items-center gap-2">
           <span
             className={cn(
-              "rounded-micro border px-1.5 py-px font-mono text-[11px] uppercase tracking-[0.12em]",
+              "rounded-micro border px-1.5 py-px font-mono text-[11px]",
               row.enabled ? "border-edge-default text-fg-tertiary" : "border-amber-500/30 bg-amber-500/10 text-amber-300",
             )}
           >
             {row.mode === "folded" ? `folded → ${row.foldedInto ?? "?"}` : row.mode}
             {!row.enabled && row.mode === "active" ? " · killed" : ""}
           </span>
-          <span className="rounded-micro border border-edge-default px-1.5 py-px font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">{row.category}</span>
+          <span className="rounded-micro border border-edge-default px-1.5 py-px font-mono text-[11px] text-fg-tertiary">{row.category}</span>
           {row.drift !== null && row.drift > 0 ? (
-            <span className="rounded-micro border border-amber-500/30 bg-amber-500/10 px-1.5 py-px font-mono text-[11px] uppercase tracking-[0.12em] text-amber-300">
-              drifted {row.drift}m
+            <span className="rounded-micro border border-amber-500/30 bg-amber-500/10 px-1.5 py-px font-mono text-[11px] text-amber-300">
+              Drifted {row.drift}m
             </span>
           ) : null}
         </div>
@@ -98,24 +98,24 @@ export function CronInspector({ entity }: InspectorPanelProps) {
         <p className="text-[13px] leading-relaxed text-fg-secondary">{row.description}</p>
         <dl className="grid grid-cols-2 gap-x-4 gap-y-1 font-mono text-[11px] text-fg-tertiary">
           <div>
-            <dt className="uppercase tracking-[0.12em]">schedule</dt>
+            <dt>schedule</dt>
             <dd className="text-fg-secondary">{row.schedule ?? "—"}</dd>
           </div>
           <div>
-            <dt className="uppercase tracking-[0.12em]">last run</dt>
+            <dt>last run</dt>
             <dd className="text-fg-secondary">
               {row.lastRunAt ? `${formatAge(row.lastRunAt, now)}${row.lastStatus ? ` · ${row.lastStatus}` : ""}` : "never"}
             </dd>
           </div>
           <div>
-            <dt className="uppercase tracking-[0.12em]">next run</dt>
+            <dt>next run</dt>
             <dd className="text-fg-secondary">{row.nextRunAt ? formatAge(row.nextRunAt, now).replace(" ago", "") : "—"}</dd>
           </div>
         </dl>
       </header>
 
       <section aria-label="Runs" data-cron-runs={h ? h.counts.total : "unread"}>
-        <p className="mb-2 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">last {CRON_HISTORY_DAYS}d</p>
+        <p className="mb-2 font-mono text-[11px] text-fg-tertiary">Last {CRON_HISTORY_DAYS}d</p>
         {history.isError ? (
           <InspectorNotice state="error" kind="cron" code={errorCodeOf(history.error)} />
         ) : !h ? null : h.counts.total === 0 ? (

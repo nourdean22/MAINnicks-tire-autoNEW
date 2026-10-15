@@ -52,7 +52,7 @@ export default function GlobalError({
         }}
       >
         <main style={{ maxWidth: 480, padding: "2rem" }}>
-          <p style={{ fontSize: 12, letterSpacing: "0.12em", textTransform: "uppercase", color: "#8a8a8a", margin: 0 }}>
+          <p style={{ fontSize: 12, letterSpacing: "0.12em", color: "#8a8a8a", margin: 0 }}>
             NOUR OS
           </p>
           <h1 style={{ fontSize: 22, fontWeight: 600, margin: "0.5rem 0 0.75rem" }}>The root render failed.</h1>

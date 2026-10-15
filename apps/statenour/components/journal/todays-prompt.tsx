@@ -80,8 +80,8 @@ export function TodaysPrompt() {
           className="text-fg-tertiary"
           strokeWidth={1.75}
         />
-        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
-          today's prompt
+        <p className="font-mono text-[11px] text-fg-tertiary">
+          Today's prompt
         </p>
       </div>
       <p className="text-[18px] font-medium text-fg leading-snug italic">

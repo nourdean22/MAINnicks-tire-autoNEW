@@ -266,7 +266,7 @@ export function MultiTurnChat({ page, data, focus, presets }: MultiTurnChatProps
     <div className="flex flex-col gap-3">
       {/* Header · turn count + clear thread */}
       {turns.length > 0 && (
-        <div className="flex items-center justify-between gap-2 font-mono text-[11px] uppercase tracking-[0.12em]">
+        <div className="flex items-center justify-between gap-2 font-mono text-[11px]">
           <span className="text-fg-tertiary">
             {turns.filter((t) => t.role === "user").length} turn
             {turns.filter((t) => t.role === "user").length === 1 ? "" : "s"}

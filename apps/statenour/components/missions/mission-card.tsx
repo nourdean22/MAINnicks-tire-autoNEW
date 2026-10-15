@@ -294,12 +294,12 @@ export function MissionCard({
          *  automatically once a deadline or completionCriteria is set. */}
         {openTasks.length + doneTasks.length > 0 &&
           (hasEndState ? (
-            <span className="shrink-0 font-mono text-[12px] uppercase tracking-[0.12em] tabular-nums text-fg-tertiary">
+            <span className="shrink-0 font-mono text-[12px] tabular-nums text-fg-tertiary">
               {progress}%
             </span>
           ) : (
             <span
-              className="shrink-0 font-mono text-[12px] uppercase tracking-[0.12em] tabular-nums text-fg-tertiary"
+              className="shrink-0 font-mono text-[12px] tabular-nums text-fg-tertiary"
               title={`${doneTasks.length} done · no completion target set for this mission`}
             >
               {openTasks.length} open
@@ -308,7 +308,7 @@ export function MissionCard({
         {deadlineLabel && (
           <span
             className={cn(
-              "shrink-0 font-mono text-[12px] uppercase tracking-[0.12em] tabular-nums",
+              "shrink-0 font-mono text-[12px] tabular-nums",
               deadlineTone === "urgent" && "text-rose-400",
               deadlineTone === "soon" && "text-amber-400",
               deadlineTone === "normal" && "text-fg-tertiary",
@@ -421,8 +421,8 @@ export function MissionCard({
           {/* Nick's pick rationale (Phase 2 · only shown when set) */}
           {nicksPickTaskId && nicksPickRationale && (
             <div className="border-b border-edge px-3 py-2 sm:px-4">
-              <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
-                nick&apos;s pick
+              <p className="font-mono text-[11px] text-fg-tertiary">
+                Nick&apos;s pick
               </p>
               <p className="mt-0.5 text-[14px] leading-snug text-fg-secondary">
                 {nicksPickRationale}
@@ -464,7 +464,7 @@ export function MissionCard({
             })}
             {doneTasks.length > 0 && (
               <details className="px-2">
-                <summary className="flex min-h-[44px] cursor-pointer list-none items-center px-1 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary hover:text-fg-secondary">
+                <summary className="flex min-h-[44px] cursor-pointer list-none items-center px-1 font-mono text-[11px] text-fg-tertiary hover:text-fg-secondary">
                   ▸ {doneTasks.length} done
                 </summary>
                 <div>

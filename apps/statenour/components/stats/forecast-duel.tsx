@@ -77,7 +77,7 @@ export function ForecastDuel() {
 
       {(data?.pendingOperator?.length ?? 0) > 0 && (
         <div className="space-y-1">
-          <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">Your open forecasts</div>
+          <div className="font-mono text-[11px] text-fg-tertiary">Your open forecasts</div>
           {data!.pendingOperator.map((p) => (
             <div key={p.id} className="flex items-baseline justify-between gap-2 text-sm">
               <span className="truncate">{p.prediction}</span>

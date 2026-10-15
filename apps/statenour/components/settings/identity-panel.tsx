@@ -226,8 +226,8 @@ export function IdentityPanel() {
                       return <Sparkline values={series} />;
                     })()}
                     {isPinned && (
-                      <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-accent">
-                        pinned
+                      <span className="font-mono text-[11px] text-accent">
+                        Pinned
                       </span>
                     )}
                   </div>

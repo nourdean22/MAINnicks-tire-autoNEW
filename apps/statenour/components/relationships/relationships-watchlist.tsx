@@ -92,8 +92,8 @@ export function RelationshipsWatchlist({
           className="text-amber-400"
           strokeWidth={1.75}
         />
-        <h3 className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
-          watchlist
+        <h3 className="font-mono text-[11px] text-fg-tertiary">
+          Watchlist
         </h3>
         <span className="text-[11px] font-mono tabular-nums text-fg-tertiary">
           {sorted.length}
@@ -115,7 +115,7 @@ export function RelationshipsWatchlist({
               >
                 <span
                   className={cn(
-                    "inline-flex items-center gap-1 rounded-micro border px-1.5 py-0.5 font-mono text-[11px] uppercase tracking-[0.12em] shrink-0",
+                    "inline-flex items-center gap-1 rounded-micro border px-1.5 py-0.5 font-mono text-[11px] shrink-0",
                     meta.tone,
                   )}
                 >

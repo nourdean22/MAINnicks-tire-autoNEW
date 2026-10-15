@@ -68,8 +68,8 @@ export function HomeConsole() {
         />
 
         {refreshFailed && (
-          <p className="mt-3 font-mono text-[11px] uppercase tracking-[0.12em] text-rose-300/80">
-            refresh failed · showing last confirmed brief
+          <p className="mt-3 font-mono text-[11px] text-rose-300/80">
+            Refresh failed · showing last confirmed brief
           </p>
         )}
 

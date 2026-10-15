@@ -183,7 +183,7 @@ export function JournalEntryRow({
           )}
           {entry.summary && (
             <div>
-              <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-0.5">
+              <p className="font-mono text-[11px] text-fg-tertiary mb-0.5">
                 Summary
               </p>
               <p className="text-[12px] text-fg-secondary leading-relaxed">
@@ -193,7 +193,7 @@ export function JournalEntryRow({
           )}
           {entry.body && entry.body !== entry.title && (
             <div>
-              <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-0.5">
+              <p className="font-mono text-[11px] text-fg-tertiary mb-0.5">
                 Raw
               </p>
               <p className="text-[12px] text-fg-secondary leading-relaxed whitespace-pre-wrap">
@@ -203,7 +203,7 @@ export function JournalEntryRow({
           )}
           {entry.linkedTopics.length > 0 && (
             <div>
-              <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-0.5 flex items-center gap-1">
+              <p className="font-mono text-[11px] text-fg-tertiary mb-0.5 flex items-center gap-1">
                 <Link2 size={9} /> Linked
               </p>
               <div className="flex flex-wrap gap-1">
@@ -345,7 +345,7 @@ function EntryPredictionForm({ sourceEntryId }: { sourceEntryId: string }) {
   })();
   return (
     <div className="space-y-1.5 rounded-control border border-edge-subtle bg-surface-raised p-2">
-      <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+      <p className="font-mono text-[11px] text-fg-tertiary">
         Predict outcome
       </p>
       <input
@@ -529,7 +529,7 @@ function ImpactReceipt({
       {data.xp.length > 0 && (
         <>
           <div className="flex items-baseline justify-between gap-2">
-            <span className="flex items-center gap-1 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+            <span className="flex items-center gap-1 font-mono text-[11px] text-fg-tertiary">
               <Sparkles size={9} aria-hidden /> impact
             </span>
             <span className="text-[12px] font-semibold tabular-nums text-fg">

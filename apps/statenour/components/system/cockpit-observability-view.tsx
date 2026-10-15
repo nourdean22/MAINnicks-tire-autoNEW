@@ -96,7 +96,7 @@ export function CockpitObservabilityView() {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 stagger-in">
         <GlassCard className="flex flex-col justify-between">
           <div className="flex items-center justify-between text-fg-secondary">
-              <span className="font-mono text-[11px] uppercase tracking-[0.12em]">Cost Burned</span>
+              <span className="font-mono text-[11px]">Cost Burned</span>
             <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
           </div>
           <div className="mt-2.5">
@@ -109,7 +109,7 @@ export function CockpitObservabilityView() {
 
         <GlassCard className="flex flex-col justify-between">
               <div className="flex items-center justify-between text-fg-secondary">
-            <span className="font-mono text-[11px] uppercase tracking-[0.12em]">P95 TTFT</span>
+            <span className="font-mono text-[11px]">P95 TTFT</span>
             <Clock className="w-3.5 h-3.5 text-fg-secondary" />
           </div>
           <div className="mt-2.5">
@@ -123,7 +123,7 @@ export function CockpitObservabilityView() {
 
         <GlassCard className="flex flex-col justify-between">
               <div className="flex items-center justify-between text-fg-secondary">
-            <span className="font-mono text-[11px] uppercase tracking-[0.12em]">Avg Latency</span>
+            <span className="font-mono text-[11px]">Avg Latency</span>
             <Activity className="w-3.5 h-3.5 text-sky-400" />
           </div>
           <div className="mt-2.5">
@@ -137,7 +137,7 @@ export function CockpitObservabilityView() {
 
         <GlassCard className="flex flex-col justify-between">
               <div className="flex items-center justify-between text-fg-secondary">
-            <span className="font-mono text-[11px] uppercase tracking-[0.12em]">Avg Feedback</span>
+            <span className="font-mono text-[11px]">Avg Feedback</span>
             <div className="flex gap-1 text-fg-secondary">
               <ThumbsUp className="w-3 h-3" />
             </div>
@@ -157,7 +157,7 @@ export function CockpitObservabilityView() {
           critical={kpis.pendingApprovalsCount > 0}
         >
           <div className="flex items-center justify-between text-fg-secondary">
-              <span className="font-mono text-[11px] uppercase tracking-[0.12em]">Pending Gated</span>
+              <span className="font-mono text-[11px]">Pending Gated</span>
             <ShieldAlert className={cn("w-3.5 h-3.5", kpis.pendingApprovalsCount > 0 ? "text-rose-400" : "text-fg-tertiary")} />
           </div>
           <div className="mt-2.5">
@@ -175,7 +175,7 @@ export function CockpitObservabilityView() {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
               <Panel className="border border-edge-subtle bg-content p-4">
           <div className="flex items-center justify-between">
-              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary">System Health</span>
+              <span className="font-mono text-[11px] text-fg-secondary">System Health</span>
             <Activity className="h-3.5 w-3.5 text-sky-400" />
           </div>
           <div className={cn(
@@ -193,7 +193,7 @@ export function CockpitObservabilityView() {
 
         <Panel className="border border-edge-subtle bg-content p-4">
           <div className="flex items-center justify-between">
-            <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary">Missions</span>
+            <span className="font-mono text-[11px] text-fg-secondary">Missions</span>
             <Layers className="h-3.5 w-3.5 text-fg-secondary" />
           </div>
           <div className="mt-3 flex items-end gap-3 font-mono">
@@ -207,7 +207,7 @@ export function CockpitObservabilityView() {
 
         <Panel className="border border-edge-subtle bg-content p-4">
           <div className="flex items-center justify-between">
-            <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary">External Workers</span>
+            <span className="font-mono text-[11px] text-fg-secondary">External Workers</span>
             <Brain className="h-3.5 w-3.5 text-fg-secondary" />
           </div>
           <div className="mt-3 space-y-1.5">
@@ -230,7 +230,7 @@ export function CockpitObservabilityView() {
 
         <Panel className="border border-edge-subtle bg-content p-4">
           <div className="flex items-center justify-between">
-            <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary">Latest Eval</span>
+            <span className="font-mono text-[11px] text-fg-secondary">Latest Eval</span>
             <ShieldAlert className="h-3.5 w-3.5 text-emerald-400" />
           </div>
           <div className="mt-3 text-xl font-bold font-mono text-fg">
@@ -253,7 +253,7 @@ export function CockpitObservabilityView() {
           <div>
             <div className="flex items-center space-x-2 border-b border-edge-subtle pb-2.5 mb-3.5">
               <Brain className="w-4 h-4 text-fg-secondary" />
-              <h2 className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg">
+              <h2 className="font-mono text-[11px] text-fg">
                 Memory Attention
               </h2>
             </div>
@@ -302,7 +302,7 @@ export function CockpitObservabilityView() {
               <div className="flex items-center justify-between border-b border-edge-subtle pb-2.5 mb-3.5">
             <div className="flex items-center space-x-2">
               <Layers className="w-4 h-4 text-sky-400" />
-              <h2 className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg">
+              <h2 className="font-mono text-[11px] text-fg">
                 Recent Agent Runs
               </h2>
             </div>
@@ -377,7 +377,7 @@ export function CockpitObservabilityView() {
               <div className="flex items-center justify-between border-b border-edge-subtle pb-2.5 mb-3.5">
           <div className="flex items-center space-x-2">
             <Settings className="w-4 h-4 text-emerald-400" />
-            <h2 className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg">
+            <h2 className="font-mono text-[11px] text-fg">
               Agent Prompt Versions
             </h2>
           </div>

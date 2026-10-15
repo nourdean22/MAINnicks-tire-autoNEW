@@ -214,7 +214,7 @@ export default function AlertsInspectorPage() {
                 value={totalVisible}
                 className="text-xl font-bold text-fg"
               />
-              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+              <span className="font-mono text-[11px] text-fg-tertiary">
                 visible
               </span>
             </div>
@@ -224,7 +224,7 @@ export default function AlertsInspectorPage() {
                 value={totalAcrossAllCats}
                 className="text-base font-semibold text-fg-secondary"
               />
-              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+              <span className="font-mono text-[11px] text-fg-tertiary">
                 total
               </span>
             </div>
@@ -238,8 +238,8 @@ export default function AlertsInspectorPage() {
 
         {/* Window selector */}
         <div className="mt-4 flex flex-wrap items-center gap-1.5">
-              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
-            window:
+              <span className="font-mono text-[11px] text-fg-tertiary">
+            Window:
           </span>
           {SINCE_OPTIONS.map((opt) => (
             <button
@@ -256,7 +256,7 @@ export default function AlertsInspectorPage() {
               {opt.label}
             </button>
           ))}
-          <span className="ml-3 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+          <span className="ml-3 font-mono text-[11px] text-fg-tertiary">
             sort:
           </span>
           {/* v10.0.437 · was a 2-mode toggle · now 4-mode SortDropdown */}
@@ -276,8 +276,8 @@ export default function AlertsInspectorPage() {
 
         {/* Category filter chips */}
         <div className="mt-3 flex flex-wrap items-center gap-1.5">
-              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
-            categories:
+              <span className="font-mono text-[11px] text-fg-tertiary">
+            Categories:
           </span>
           {ALL_CATS.map((cat) => {
             const meta = CATEGORY_META[cat];

@@ -286,7 +286,7 @@ function TotalCell({ label, value, color }: { label: string; value: number; colo
       <div className={cn("text-[24px] font-bold tabular-nums leading-none", colorClass)}>
         <AnimatedCounter value={value} duration={900} />
       </div>
-      <div className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary mt-1">{label}</div>
+      <div className="text-[11px] font-mono text-fg-tertiary mt-1">{label}</div>
     </div>
   );
 }

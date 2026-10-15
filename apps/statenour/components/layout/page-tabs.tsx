@@ -240,7 +240,7 @@ function PageTabsInner({ tabs, param = "tab", defaultKey, lenses, className }: P
                   {l.label}
                 </span>
                 {l.hint && (
-                  <span className="mt-1 hidden font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary sm:block">
+                  <span className="mt-1 hidden font-mono text-[11px] text-fg-tertiary sm:block">
                     {l.hint}
                   </span>
                 )}

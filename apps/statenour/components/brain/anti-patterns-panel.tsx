@@ -90,7 +90,7 @@ export function AntiPatternsPanel() {
     <section id="anti-patterns" className="scroll-mt-24 space-y-3" aria-label="anti-pattern library">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
+          <p className="text-[11px] font-mono text-fg-tertiary">
             Learned failures
           </p>
           <h3 className="mt-1 text-sm font-semibold text-[var(--text-primary)]">Anti-patterns</h3>

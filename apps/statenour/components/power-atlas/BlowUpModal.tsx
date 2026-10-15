@@ -73,7 +73,7 @@ export default function BlowUpModal({
         <div className="space-y-2 mt-2">
           <label
             htmlFor="blow-up-reason"
-            className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary"
+            className="font-mono text-[11px] text-fg-tertiary"
           >
             Reason (min {MIN_REASON} chars) · stored forever
           </label>

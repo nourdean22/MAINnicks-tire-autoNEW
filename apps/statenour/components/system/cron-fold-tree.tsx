@@ -125,8 +125,8 @@ export function CronFoldTree() {
 
       {/* Active standalone */}
       <section className="mb-4">
-              <h4 className="mb-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
-          standalone schedules ({active.length})
+              <h4 className="mb-1.5 font-mono text-[11px] text-fg-tertiary">
+          Standalone schedules ({active.length})
         </h4>
         <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
           {active.map((c) => (
@@ -152,8 +152,8 @@ export function CronFoldTree() {
       {/* Folded — grouped by fold target */}
       {byTarget.size > 0 && (
         <section className="mb-4">
-              <h4 className="mb-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
-            folded ({folded.length})
+              <h4 className="mb-1.5 font-mono text-[11px] text-fg-tertiary">
+            Folded ({folded.length})
           </h4>
           <div className="space-y-2">
             {[...byTarget.entries()].map(([target, list]) => (
@@ -166,7 +166,7 @@ export function CronFoldTree() {
                   <span className="text-[11px] font-mono font-bold text-fg-secondary">
                     →
                   </span>
-                  <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary">
+                  <span className="font-mono text-[11px] text-fg-secondary">
                     {target}
                   </span>
                   <span className="text-[11px] text-fg-tertiary">

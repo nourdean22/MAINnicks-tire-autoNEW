@@ -90,8 +90,8 @@ export function BrainInsightsPanel() {
   return (
     <div className="rounded-surface border border-[var(--border-default)] bg-content p-4">
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
-          brain insights
+        <h2 className="text-[11px] font-mono text-fg-tertiary">
+          Brain insights
         </h2>
         <span className="text-[11px] font-mono text-[var(--text-tertiary)]">
           last 7d

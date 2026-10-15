@@ -749,7 +749,7 @@ export function GoalBoard() {
                 className="h-7 bg-content border-edge-subtle text-[11px] placeholder:text-fg-tertiary"
               />
               <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="font-mono text-[11px] text-fg-tertiary uppercase tracking-[0.12em]">
+                <span className="font-mono text-[11px] text-fg-tertiary">
                   Horizon:
                 </span>
                 {(["DAY", "WEEK", "MONTH", "QUARTER", "YEAR", "LIFE"] as Horizon[]).map(
@@ -816,7 +816,7 @@ export function GoalBoard() {
       {/* ── AI suggestions ── */}
       {suggested.length > 0 && (
         <div className="space-y-1.5">
-          <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-violet-400/80 px-0.5">
+          <p className="text-[11px] font-mono text-violet-400/80 px-0.5">
             Nick suggests ({suggested.length})
           </p>
           {suggested.map((s, i) => (
@@ -1159,7 +1159,7 @@ export function GoalBoard() {
                             />
                           </div>
                           <div className="flex items-center gap-1.5">
-                            <span className="font-mono text-[11px] text-fg-tertiary uppercase tracking-[0.12em]">
+                            <span className="font-mono text-[11px] text-fg-tertiary">
                               Ambition:
                             </span>
                             {(["tenx", "incremental"] as const).map((a) => (
@@ -1502,7 +1502,7 @@ export function GoalBoard() {
                             return (
                               <span
                                 key={s.statKey}
-                                className="inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] font-mono uppercase tracking-[0.12em]"
+                                className="inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] font-mono"
                                 style={{
                                   color: d.color,
                                   borderColor: `${d.color}40`,
@@ -1612,7 +1612,7 @@ export function GoalBoard() {
                           title="Open this task on the Actions page"
                         >
                           <Zap size={9} className="text-emerald-400 shrink-0" />
-                          <span className="font-mono uppercase tracking-[0.12em] text-emerald-400/70 shrink-0">
+                          <span className="font-mono text-emerald-400/70 shrink-0">
                             {g.nextMove.status === "DOING" ? "In flight:" : "Next:"}
                           </span>
                           <span className="text-fg-secondary truncate">
@@ -1725,7 +1725,7 @@ export function GoalBoard() {
                         {latestCoach ? (
                           <div className="mt-2 space-y-1.5">
                             <div className="flex items-center justify-between">
-                              <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-amber-400/70">
+                              <p className="text-[11px] font-mono text-amber-400/70">
                                 Nick&apos;s read
                               </p>
                               <button
@@ -1742,7 +1742,7 @@ export function GoalBoard() {
                             <div className="flex items-start gap-2 p-2 rounded-surface bg-emerald-500/5 border border-emerald-500/20">
                               <Zap size={10} className="text-emerald-400 shrink-0 mt-0.5" />
                               <div>
-                                <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-emerald-400/70">
+                                <p className="text-[11px] font-mono text-emerald-400/70">
                                   Next move
                                 </p>
                                 <p className="text-[11px] text-fg">
@@ -1785,7 +1785,7 @@ export function GoalBoard() {
                             children) — tap to scroll to that goal's card. */}
                         {(g.ladder?.children.length ?? 0) > 0 && (
                           <div className="mt-2 space-y-1">
-                            <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-sky-400/70">
+                            <p className="text-[11px] font-mono text-sky-400/70">
                               Sub-goals ({g.ladder!.children.length})
                             </p>
                             {g.ladder!.children.map((c) => (

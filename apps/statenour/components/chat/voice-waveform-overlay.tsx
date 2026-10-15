@@ -22,7 +22,7 @@ export function VoiceWaveformOverlay({
 }) {
   return (
     <div className="absolute inset-0 z-10 flex items-center justify-center gap-1.5 px-3.5 rounded-overlay bg-red-500/5 border border-red-500/40 pointer-events-none">
-      <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-red-400 mr-2 inline-flex items-center gap-1.5">
+      <span className="font-mono text-[11px] text-red-400 mr-2 inline-flex items-center gap-1.5">
         <span className="h-1.5 w-1.5 rounded-full bg-red-400 pulse-live" />
         {mode === "continuous" ? "listening" : "recording"}
       </span>

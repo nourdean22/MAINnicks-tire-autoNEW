@@ -307,7 +307,7 @@ function PersonEditDrawerBody({
       >
         <header className="sticky top-0 z-10 bg-overlay flex items-center gap-2 border-b border-edge-default px-4 py-3">
           <div className="flex-1 min-w-0">
-            <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+            <p className="font-mono text-[11px] text-fg-tertiary">
               {isCreate ? "add person" : "edit person"}
             </p>
             <DialogTitle className="mt-0.5 truncate text-[15px] font-semibold text-fg">
@@ -421,8 +421,8 @@ function PersonEditDrawerBody({
         </div>
 
         {!isCreate && source && (
-          <p className="px-4 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
-            origin · {source}
+          <p className="px-4 font-mono text-[11px] text-fg-tertiary">
+            Origin · {source}
           </p>
         )}
 
@@ -488,7 +488,7 @@ function Field({
 }) {
   return (
     <label className="block space-y-1">
-      <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+      <span className="font-mono text-[11px] text-fg-tertiary">
         {label}
       </span>
       {children}

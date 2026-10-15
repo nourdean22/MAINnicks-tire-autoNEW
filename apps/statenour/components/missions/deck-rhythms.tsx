@@ -27,9 +27,9 @@ export function DeckRhythms({ rhythms, onComplete }: Props) {
     >
       <h2
         id="rhythms-heading"
-        className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary"
+        className="font-mono text-[11px] text-fg-tertiary"
       >
-        rhythms
+        Rhythms
       </h2>
       <ul className="mt-2 space-y-1">
         {rhythms.map((r) => (

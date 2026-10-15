@@ -60,8 +60,8 @@ export default function DossierEditor({
         </h2>
         <div className="flex items-center gap-3">
           {lastUpdated && (
-            <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
-              updated {lastUpdated}
+            <span className="font-mono text-[11px] text-fg-tertiary">
+              Updated {lastUpdated}
             </span>
           )}
           {!editing && (

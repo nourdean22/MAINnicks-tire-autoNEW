@@ -124,7 +124,7 @@ export default function LinksPage() {
   const inputClass =
     "w-full min-h-[44px] rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] text-fg focus:outline-none focus:border-accent";
   const labelClass =
-    "block font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-1";
+    "block font-mono text-[11px] text-fg-tertiary mb-1";
 
   return (
     <StandardPage
@@ -233,7 +233,7 @@ export default function LinksPage() {
       )}
 
       <div className="space-y-2">
-        <h2 className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary px-1">
+        <h2 className="font-mono text-[11px] text-fg-tertiary px-1">
           Links ({links?.length || 0})
         </h2>
 
@@ -241,7 +241,7 @@ export default function LinksPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-edge-default bg-content font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+                <tr className="border-b border-edge-default bg-content font-mono text-[11px] text-fg-tertiary">
                   <th className="p-3">Code</th>
                   <th className="p-3">Destination</th>
                   <th className="p-3">UTM</th>

@@ -457,7 +457,7 @@ function GroupHeader({
     <div className="mb-2 flex items-center gap-2">
       <h3
         className={cn(
-          "font-mono text-[11px] uppercase tracking-[0.12em]",
+          "font-mono text-[11px]",
           tone === "alert" ? "text-amber-300" : "text-(--text-tertiary)",
         )}
       >

@@ -981,7 +981,7 @@ export function LoopStream({
               : `${liveSignals.allocatedMin}m allocated · ${liveSignals.capacityRemainingMin}m left today`
           }
         >
-          <span className="font-medium uppercase tracking-[0.12em]">capacity</span>
+          <span className="font-medium">Capacity</span>
           <span className="tabular-nums">
             {Math.floor(liveSignals.capacityRemainingMin / 60)}h{" "}
             {liveSignals.capacityRemainingMin % 60}m left today
@@ -1029,17 +1029,17 @@ export function LoopStream({
             </button>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5 mb-0.5">
-                <span className="notch mr-1 align-middle" aria-hidden /><span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+                <span className="notch mr-1 align-middle" aria-hidden /><span className="font-mono text-[11px] text-fg-tertiary">
                   Next move
                 </span>
                 <KindIcon kind={nextMove.kind} size={10} />
-                <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+                <span className="font-mono text-[11px] text-fg-tertiary">
                   {nextMove.kind.toLowerCase()}
                 </span>
                 {/* Keyboard hint — only shown on the hero since that's
                     where the shortcuts act by default. Tiny + dim so
                     it doesn't dominate the gold headline. */}
-                <span className="ml-auto text-[11px] text-fg-tertiary font-mono uppercase tracking-[0.12em] hidden sm:inline">
+                <span className="ml-auto text-[11px] text-fg-tertiary font-mono hidden sm:inline">
                   c complete · s start · ⇧d del
                 </span>
               </div>
@@ -1067,7 +1067,7 @@ export function LoopStream({
               {nextMove.task.goalId && goalLineage?.get(nextMove.task.goalId) ? (
                 <div className="mt-0.5 flex items-center gap-1 flex-wrap">
                   <span
-                    className="inline-flex items-center gap-1 rounded-micro border border-violet-500/30 bg-violet-500/5 px-1.5 py-0.5 text-[11px] font-mono uppercase tracking-[0.12em] text-violet-300 max-w-full"
+                    className="inline-flex items-center gap-1 rounded-micro border border-violet-500/30 bg-violet-500/5 px-1.5 py-0.5 text-[11px] font-mono text-violet-300 max-w-full"
                     title="Completing this task auto-lifts this goal"
                   >
                     <Target size={9} className="shrink-0" />
@@ -1101,8 +1101,8 @@ export function LoopStream({
                 if (!why) return null;
                 return (
                   <p className="text-[12px] text-fg-secondary mt-1 italic flex items-center gap-1.5">
-                    <span className="text-fg-tertiary font-mono uppercase tracking-[0.12em] text-[11px] not-italic">
-                      why
+                    <span className="text-fg-tertiary font-mono text-[11px] not-italic">
+                      Why
                     </span>
                     <span className="truncate">{why}</span>
                   </p>
@@ -1160,7 +1160,7 @@ export function LoopStream({
       {/* Apr 26 · F8 — pinned band header. Renders only when there
           are pinned rows that aren't already the hero. */}
       {pinnedRows.length > 0 && pinnedRows.some((r) => r !== nextMove) && (
-        <div className="flex items-center gap-1.5 px-2 pt-1 pb-0.5 text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
+        <div className="flex items-center gap-1.5 px-2 pt-1 pb-0.5 text-[11px] font-mono text-fg-tertiary">
           <Pin size={8} />
           <span>pinned · {pinnedRows.length}</span>
           <div className="flex-1 h-px bg-edge-subtle" />
@@ -1252,7 +1252,7 @@ export function LoopStream({
           const sectionHeader = showKindHeader ? (
             <div
               key={`section-kind-${kind}-${idx}`}
-              className="sticky top-0 z-10 flex items-center gap-1.5 px-2 pt-2 pb-1 text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary bg-workspace"
+              className="sticky top-0 z-10 flex items-center gap-1.5 px-2 pt-2 pb-1 text-[11px] font-mono text-fg-tertiary bg-workspace"
               // 2026-05-24 · Wave U ux-F12 · pre-fix aria-hidden hid
               // real structural cue from VoiceOver · screen-reader
               // operator heard a flat list with no grouping. Now: role
@@ -1272,7 +1272,7 @@ export function LoopStream({
             // have a clean glyph and a colored dot would noise the row.
             <div
               key={`section-status-${task.status}-${idx}`}
-              className="sticky top-0 z-10 flex items-center gap-1.5 px-2 pt-2 pb-1 text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary bg-workspace"
+              className="sticky top-0 z-10 flex items-center gap-1.5 px-2 pt-2 pb-1 text-[11px] font-mono text-fg-tertiary bg-workspace"
               // 2026-05-24 · Wave U ux-F12 · pre-fix aria-hidden hid
               // real structural cue from VoiceOver · screen-reader
               // operator heard a flat list with no grouping. Now: role
@@ -1397,7 +1397,7 @@ export function LoopStream({
         const btn = "text-[13px] font-medium px-2 py-1 rounded-control transition-colors duration-[var(--motion-state)] disabled:opacity-40";
         return (
           <div role="toolbar" aria-label="Bulk actions" className="sticky bottom-2 z-20 flex items-center gap-1.5 ui-material rounded-float border border-edge-default px-2.5 py-1.5 shadow-l2">
-            <span className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg mr-1">{selectedIds.size}</span>
+            <span className="text-[11px] font-mono text-fg mr-1">{selectedIds.size}</span>
             <button type="button" disabled={bulkBusy} onClick={() => void runBulk(onComplete)} className={cn(btn, "text-emerald-300 hover:bg-emerald-500/10")}>done</button>
             <button type="button" disabled={bulkBusy} onClick={() => void bulkSnooze()} className={cn(btn, "text-fg-secondary hover:bg-surface-hover")}>Snooze · tomorrow</button>
             <button type="button" disabled={bulkBusy} onClick={() => void bulkDelete()} className={cn(btn, "text-red-400 hover:bg-red-500/10")}>Delete</button>

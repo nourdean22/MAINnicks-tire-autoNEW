@@ -379,7 +379,7 @@ export function PulseFeedSheet({
         className="fixed inset-x-0 bottom-0 z-[71] max-h-[60dvh] overflow-y-auto overscroll-contain border-t border-edge-default bg-overlay pb-[env(safe-area-inset-bottom,0px)] outline-none duration-[var(--motion-panel)] data-open:animate-in data-open:fade-in-0 data-open:slide-in-from-bottom-2 data-closed:animate-out data-closed:fade-out-0 data-closed:slide-out-to-bottom-2"
       >
         <div className="sticky top-0 flex items-center justify-between px-3 py-2 border-b border-edge-subtle bg-overlay">
-          <DialogTitle className="font-mono text-[11px] font-normal uppercase tracking-[0.12em] text-fg-tertiary">
+          <DialogTitle className="font-mono text-[11px] font-normal text-fg-tertiary">
             Pulse · {items.length}
           </DialogTitle>
           <button

@@ -58,7 +58,7 @@ export default function ReciprocityCard({ metadata }: ReciprocityCardProps) {
           <h3 className="text-[15px] font-semibold text-fg">
             Reciprocity gradient
           </h3>
-          <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+          <span className="font-mono text-[11px] text-fg-tertiary">
             90d
           </span>
         </div>
@@ -80,7 +80,7 @@ export default function ReciprocityCard({ metadata }: ReciprocityCardProps) {
         <h3 className="text-[15px] font-semibold text-fg">
           Reciprocity gradient
         </h3>
-        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+        <span className="font-mono text-[11px] text-fg-tertiary">
           90d
         </span>
       </div>
@@ -111,8 +111,8 @@ export default function ReciprocityCard({ metadata }: ReciprocityCardProps) {
       {/* Legend · operator vs them */}
       <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
         <div>
-          <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
-            operator
+          <div className="font-mono text-[11px] text-fg-tertiary">
+            Operator
           </div>
           <div
             className={`font-mono tabular-nums ${operatorLeads ? "text-amber-300" : "text-fg-secondary"}`}
@@ -121,8 +121,8 @@ export default function ReciprocityCard({ metadata }: ReciprocityCardProps) {
           </div>
         </div>
         <div className="text-right">
-          <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
-            them
+          <div className="font-mono text-[11px] text-fg-tertiary">
+            Them
           </div>
           <div
             className={`font-mono tabular-nums ${operatorLeads ? "text-fg-secondary" : "text-amber-300"}`}
@@ -132,8 +132,8 @@ export default function ReciprocityCard({ metadata }: ReciprocityCardProps) {
         </div>
       </div>
 
-      <div className="mt-3 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary tabular-nums">
-        sample · <span className="font-mono">{sampleSize}</span> events
+      <div className="mt-3 font-mono text-[11px] text-fg-tertiary tabular-nums">
+        Sample · <span className="font-mono">{sampleSize}</span> events
       </div>
     </section>
   );

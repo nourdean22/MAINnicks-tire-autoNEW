@@ -109,7 +109,7 @@ export function MegaConfirmDialog({
       >
         <h2
           id="mega-confirm-title"
-          className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary"
+          className="text-[11px] font-mono text-fg-tertiary"
         >
           {title}
         </h2>

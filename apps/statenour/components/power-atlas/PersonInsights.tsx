@@ -80,7 +80,7 @@ export function PendingClassificationBanner({
       className="rounded-control border border-edge-default bg-surface-raised p-3"
     >
       <div className="flex items-center justify-between gap-2 mb-1.5">
-        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+        <p className="font-mono text-[11px] text-fg-tertiary">
           Nick suggests
         </p>
         <div className="flex items-center gap-2">
@@ -228,7 +228,7 @@ export function OpenPromisesPanel({
                     {due}
                   </span>
                 )}
-                <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+                <span className="font-mono text-[11px] text-fg-tertiary">
                   {t.loopKind.toLowerCase()}
                 </span>
               </div>

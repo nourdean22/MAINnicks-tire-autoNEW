@@ -344,7 +344,7 @@ export function MissionTaskRow({
           task.waitingOn ||
           (task as unknown as { loopKind?: string }).loopKind === "DAILY" ||
           isNicksPick) && (
-          <div className="mt-1 flex flex-wrap items-center gap-2 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+          <div className="mt-1 flex flex-wrap items-center gap-2 font-mono text-[11px] text-fg-tertiary">
             {isDoing && <span className="text-amber-400">doing</span>}
             {isNicksPick && (
               <span className="text-fg-secondary px-1 py-0.5 rounded-micro border border-edge-default bg-surface-raised">

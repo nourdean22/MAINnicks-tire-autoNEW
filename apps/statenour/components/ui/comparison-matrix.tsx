@@ -268,7 +268,7 @@ export function ComparisonMatrix({
       {(title || caption) && (
         <header className="px-4 sm:px-5 pt-4 pb-3 border-b border-edge-subtle">
           {title && (
-            <h3 className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+            <h3 className="font-mono text-[11px] text-fg-tertiary">
               {title}
             </h3>
           )}
@@ -293,9 +293,9 @@ export function ComparisonMatrix({
               <tr className="border-b border-edge-subtle">
                 <th
                   scope="col"
-                  className="sticky left-0 z-20 bg-content px-3 py-2 text-left font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary min-w-[160px] border-r border-edge-subtle"
+                  className="sticky left-0 z-20 bg-content px-3 py-2 text-left font-mono text-[11px] text-fg-tertiary min-w-[160px] border-r border-edge-subtle"
                 >
-                  option
+                  Option
                 </th>
                 {criteria.map((crit) => {
                   const isActive = crit.id === sortId;
@@ -314,7 +314,7 @@ export function ComparisonMatrix({
                       onClick={() => toggleSort(crit.id)}
                       onKeyDown={(e) => handleHeaderKey(e, crit.id)}
                       className={cn(
-                        "px-3 py-2 text-left font-mono text-[11px] uppercase tracking-[0.12em] whitespace-nowrap cursor-pointer select-none transition-colors duration-[var(--motion-state)] focus:outline-none",
+                        "px-3 py-2 text-left font-mono text-[11px] whitespace-nowrap cursor-pointer select-none transition-colors duration-[var(--motion-state)] focus:outline-none",
                         isActive
                           ? "text-fg"
                           : "text-fg-tertiary hover:text-fg-secondary",

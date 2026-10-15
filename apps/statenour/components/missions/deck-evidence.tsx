@@ -84,14 +84,14 @@ export function DeckEvidence({ evidence, tasks, onSnoozeTask }: Props) {
               <span aria-hidden className="text-emerald-300">✓</span>
               <span className="min-w-0 truncate text-fg-secondary">{r.title}</span>
               {r.missionTitle && (
-                <span className="shrink-0 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+                <span className="shrink-0 font-mono text-[11px] text-fg-tertiary">
                   {r.missionTitle}
                 </span>
               )}
             </li>
           ))}
           {evidence.count > evidence.rows.length && (
-            <li className="py-2 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+            <li className="py-2 font-mono text-[11px] text-fg-tertiary">
               +{evidence.count - evidence.rows.length} more
             </li>
           )}
@@ -121,7 +121,7 @@ export function DeckEvidence({ evidence, tasks, onSnoozeTask }: Props) {
                   </li>
                 ))}
                 {stragglers.length > 5 && (
-                  <li className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+                  <li className="font-mono text-[11px] text-fg-tertiary">
                     +{stragglers.length - 5} more
                   </li>
                 )}

@@ -74,7 +74,7 @@ export function SelfCritiqueCard() {
   return (
     <GlassCard className="space-y-3">
       <div className="flex items-center justify-between">
-        <div className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
+        <div className="text-[11px] font-mono text-fg-tertiary">
           Nick flagged for review
         </div>
         <div className="text-[11px] text-[var(--text-tertiary)] tabular-nums">

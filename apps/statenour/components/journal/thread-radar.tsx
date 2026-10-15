@@ -299,7 +299,7 @@ function CandidateCard({
 
       {/* Name picker */}
       <div className="space-y-2">
-        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+        <p className="font-mono text-[11px] text-fg-tertiary">
           Name this theme
         </p>
         <div className="flex flex-wrap gap-2">

@@ -208,7 +208,7 @@ export default function PhotoImproverPage() {
         <Panel>
           <div className="space-y-3">
             <div>
-              <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-1">mode</div>
+              <div className="font-mono text-[11px] text-fg-tertiary mb-1">Mode</div>
               <div className="flex gap-1">
                 {(["analyze", "rebrand", "both"] as const).map((m) => (
                   <button
@@ -267,19 +267,19 @@ export default function PhotoImproverPage() {
           <Panel>
             <div className="space-y-3">
               <div>
-                <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">subject</div>
+                <div className="font-mono text-[11px] text-fg-tertiary">Subject</div>
                 <div className="text-sm text-fg">{data.analysis.subject}</div>
               </div>
               <div>
-                <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">current mood</div>
+                <div className="font-mono text-[11px] text-fg-tertiary">Current mood</div>
                 <div className="text-sm text-fg-secondary">{data.analysis.currentMood}</div>
               </div>
               <div>
-                <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-1">scores</div>
+                <div className="font-mono text-[11px] text-fg-tertiary mb-1">Scores</div>
                 <div className="grid grid-cols-3 sm:grid-cols-6 gap-1">
                   {Object.entries(data.analysis.scores).map(([k, v]) => (
                     <div key={k} className="rounded-surface border border-edge-subtle bg-content p-1.5 text-center">
-                      <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">{k.replace(/([A-Z])/g, " $1").trim()}</div>
+                      <div className="font-mono text-[11px] text-fg-tertiary">{k.replace(/([A-Z])/g, " $1").trim()}</div>
                       <div className={cn("font-mono text-base font-bold tabular-nums", scoreTone(v))}>
                         {v}
                       </div>
@@ -288,13 +288,13 @@ export default function PhotoImproverPage() {
                 </div>
               </div>
               <div>
-                <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-1">marketing fit</div>
+                <div className="font-mono text-[11px] text-fg-tertiary mb-1">Marketing fit</div>
                 <div className="flex gap-1 flex-wrap">
                   {Object.entries(data.analysis.marketingFit).filter(([k]) => k !== "best").map(([k, v]) => (
                     <span
                       key={k}
                       className={cn(
-                        "rounded-micro px-2 py-0.5 text-[11px] font-mono uppercase tracking-[0.12em] border",
+                        "rounded-micro px-2 py-0.5 text-[11px] font-mono border",
                         fitTone(v as string),
                         k === data.analysis!.marketingFit.best && "ring-2 ring-emerald-500/30",
                       )}
@@ -339,11 +339,11 @@ export default function PhotoImproverPage() {
                           : "border-edge-subtle bg-content text-fg-secondary",
                     )}
                   >
-                    <span className="font-mono text-[11px] uppercase tracking-[0.12em] opacity-70 flex-shrink-0">
+                    <span className="font-mono text-[11px] opacity-70 flex-shrink-0">
                       [{imp.type}]
                     </span>
                     <span className="flex-1">{imp.instruction}</span>
-                    <span className="font-mono text-[11px] uppercase tracking-[0.12em] opacity-60">{imp.priority}</span>
+                    <span className="font-mono text-[11px] opacity-60">{imp.priority}</span>
                   </div>
                 ))}
               </div>

@@ -151,7 +151,7 @@ export default function PowerBalanceGauge({
         </div>
       )}
 
-      <div className="mt-3 flex items-center justify-between font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary tabular-nums">
+      <div className="mt-3 flex items-center justify-between font-mono text-[11px] text-fg-tertiary tabular-nums">
         <span>them −1.0</span>
         <span className={signColor}>
           {sign}

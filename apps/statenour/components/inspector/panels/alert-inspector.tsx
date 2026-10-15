@@ -73,7 +73,7 @@ export function AlertInspector({ entity }: InspectorPanelProps) {
     <div className="space-y-5" data-alert-inspector={m.id}>
       <header className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-micro border border-amber-500/30 bg-amber-500/10 px-1.5 py-px font-mono text-[11px] uppercase tracking-[0.12em] text-amber-300">
+          <span className="rounded-micro border border-amber-500/30 bg-amber-500/10 px-1.5 py-px font-mono text-[11px] text-amber-300">
             {m.category}
           </span>
           <span className="font-mono text-[11px] text-fg-tertiary">{formatAge(m.createdAt, now)}</span>

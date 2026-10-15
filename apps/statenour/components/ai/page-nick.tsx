@@ -205,7 +205,7 @@ export function PageNick({
       {/* Trigger row */}
       <div className="flex items-center gap-1.5">
         <Brain size={12} className="text-fg-tertiary shrink-0" />
-        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary shrink-0">
+        <span className="font-mono text-[11px] text-fg-tertiary shrink-0">
           Ask Nick
         </span>
         <div className="flex-1" />

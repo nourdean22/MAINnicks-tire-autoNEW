@@ -326,8 +326,8 @@ export function ContradictionsCard() {
       data-testid="contradictions-card"
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
-          positions · contradictions
+        <span className="inline-flex items-center gap-2 font-mono text-[11px] text-fg-tertiary">
+          Positions · contradictions
           {unresolvedTotal > 0 && (
             <span className="rounded-micro border border-edge-default px-1 py-px text-[11px] tabular-nums text-fg-secondary">
               {unresolvedTotal} unresolved
@@ -335,7 +335,7 @@ export function ContradictionsCard() {
           )}
         </span>
         {recentResolved.length > 0 && (
-          <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary tabular-nums">
+          <span className="font-mono text-[11px] text-fg-tertiary tabular-nums">
             {recentResolved.length} resolved · 14d
           </span>
         )}
@@ -385,7 +385,7 @@ export function ContradictionsCard() {
                       aria-label={`Reconcile this contradiction in chat · ${c.newExcerpt.slice(0, 60)}`}
                     >
                       <div className="flex items-baseline gap-2">
-                        <span className="shrink-0 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary tabular-nums">
+                        <span className="shrink-0 font-mono text-[11px] text-fg-tertiary tabular-nums">
                           Now
                         </span>
                         <span className="text-[12px] leading-[1.45] text-fg font-medium">
@@ -398,7 +398,7 @@ export function ContradictionsCard() {
                         fade reinforces "this is the prior position".
                         Same component, deliberately weaker treatment. */}
                     <div className="flex items-baseline gap-2">
-                      <span className="shrink-0 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary tabular-nums">
+                      <span className="shrink-0 font-mono text-[11px] text-fg-tertiary tabular-nums">
                         {c.daysApart}d
                       </span>
                       <span className="text-[12px] leading-[1.45] text-fg-tertiary">
@@ -412,7 +412,7 @@ export function ContradictionsCard() {
                     <div className="pt-0.5">
                       <span
                         className={cn(
-                          "inline-block px-1.5 py-px rounded-micro border font-mono text-[11px] uppercase tracking-[0.12em]",
+                          "inline-block px-1.5 py-px rounded-micro border font-mono text-[11px]",
                           SIGNAL_TONE[c.signal]
                         )}
                         title={`polarity signal · ${c.signal}`}
@@ -456,8 +456,8 @@ export function ContradictionsCard() {
                 {isExpanded && (
                   <div className="mt-1.5 ml-0 border-l border-edge-default pl-2.5 py-1.5 space-y-1.5 animate-fade-in">
                     <div>
-                      <label className="block font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-fg-tertiary mb-1">
-                        which holds up?
+                      <label className="block font-mono text-[11px] font-medium text-fg-tertiary mb-1">
+                        Which holds up?
                       </label>
                       <div className="flex items-center gap-1.5 flex-wrap">
                         {(
@@ -498,8 +498,8 @@ export function ContradictionsCard() {
                     </div>
 
                     <div>
-                      <label className="block font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-fg-tertiary mb-0.5">
-                        why
+                      <label className="block font-mono text-[11px] font-medium text-fg-tertiary mb-0.5">
+                        Why
                         <span className="opacity-60 normal-case ml-1 tracking-normal">
                           (optional · rides on the next resolve)
                         </span>
@@ -528,7 +528,7 @@ export function ContradictionsCard() {
             );
           })}
           {moreCount > 0 && (
-            <li className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary pl-3">
+            <li className="font-mono text-[11px] text-fg-tertiary pl-3">
               + {moreCount} more · {moreCount === 1 ? "is" : "are"} waiting
             </li>
           )}

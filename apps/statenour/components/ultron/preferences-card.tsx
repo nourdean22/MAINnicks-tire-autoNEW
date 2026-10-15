@@ -295,16 +295,16 @@ export function PreferencesCard() {
       data-testid="preferences-card"
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
-          style · preferences
+        <span className="inline-flex items-center gap-2 font-mono text-[11px] text-fg-tertiary">
+          Style · preferences
           <span className="rounded-micro border border-edge-default px-1 py-px text-[11px] tabular-nums text-fg-secondary">
             8 axis
           </span>
         </span>
         <div className="flex items-center gap-1.5">
           {lastTune && tuneAge !== null && (
-            <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary tabular-nums">
-              tuned {tuneAge}d ago · n={lastTune.sampleSize}
+            <span className="font-mono text-[11px] text-fg-tertiary tabular-nums">
+              Tuned {tuneAge}d ago · n={lastTune.sampleSize}
             </span>
           )}
           <button
@@ -342,7 +342,7 @@ export function PreferencesCard() {
             <div key={axis} className="space-y-0.5">
               <div className="flex items-baseline justify-between gap-2">
                 <span
-                  className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary"
+                  className="font-mono text-[11px] text-fg-secondary"
                   title={`${tell.left} (−1) ↔ ${tell.right} (+1)`}
                 >
                   {tell.label}
@@ -443,7 +443,7 @@ export function PreferencesCard() {
           addendum is empty and we show nothing. */}
       {showAddendum && addendum.length > 0 && (
         <div className="mt-2 pt-2 border-t border-edge-subtle">
-          <div className="inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-1">
+          <div className="inline-flex items-center gap-1.5 font-mono text-[11px] text-fg-tertiary mb-1">
             <Sparkles size={9} />
             system prompt addendum
           </div>

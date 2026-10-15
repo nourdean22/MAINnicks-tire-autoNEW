@@ -138,7 +138,7 @@ export function SchemaDriftCard() {
                   className={"rounded-control border p-2 text-[11px] " + (SEV_TINT[f.severity] ?? SEV_TINT.low)}
                 >
                   <div className="flex items-center gap-2">
-              <span className="font-mono text-[11px] uppercase tracking-[0.12em] opacity-80">
+              <span className="font-mono text-[11px] opacity-80">
                       {f.severity}
                     </span>
                     {f.expectation.table && (

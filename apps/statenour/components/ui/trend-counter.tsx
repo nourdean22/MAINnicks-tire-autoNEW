@@ -141,7 +141,7 @@ export function TrendCounter({
       )}
 
       <div className="mt-1.5 flex items-baseline justify-between gap-2">
-        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+        <span className="font-mono text-[11px] text-fg-tertiary">
           {label}
         </span>
         {hasBaseline && (

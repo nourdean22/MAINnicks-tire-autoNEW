@@ -49,7 +49,7 @@ export function StaleDataPanel() {
               <Archive size={15} className="text-fg-secondary" aria-hidden />
             </span>
             <div>
-              <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary">
+              <p className="font-mono text-[11px] text-fg-secondary">
                 Data hygiene
               </p>
               <h2 className="mt-0.5 text-sm font-semibold text-fg">Stale Data</h2>

@@ -53,7 +53,7 @@ export function ToolGapPanel() {
     >
       <header className="flex items-center justify-between gap-3 border-b border-edge-default px-4 py-3">
         <div>
-          <p className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary">
+          <p className="flex items-center gap-2 font-mono text-[11px] text-fg-secondary">
             <Route size={13} /> Tool Gap Intelligence
           </p>
           <p className="mt-1 text-[11px] text-fg-tertiary">
@@ -72,7 +72,7 @@ export function ToolGapPanel() {
           ["Semantic skipped", rate(data.semanticSkippedRatePct)],
         ].map(([label, value]) => (
           <div key={String(label)} className="bg-content px-4 py-3">
-            <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+            <p className="font-mono text-[11px] text-fg-tertiary">
               {label}
             </p>
             <p className="mt-1 font-mono text-lg text-fg">{value}</p>
@@ -123,7 +123,7 @@ export function ToolGapPanel() {
               ["Verified", lifecycleData.counts.verified],
             ].map(([label, value]) => (
               <div key={String(label)}>
-                <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">{label}</p>
+                <p className="font-mono text-[11px] text-fg-tertiary">{label}</p>
                 <p className="mt-1 font-mono text-sm text-fg">{value}</p>
               </div>
             ))}

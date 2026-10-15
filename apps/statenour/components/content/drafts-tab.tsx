@@ -189,11 +189,11 @@ export function DraftsTab() {
                 >
                   <div className="flex items-start justify-between gap-3 mb-2">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <Badge className={cn("h-auto rounded-micro px-1.5 py-0.5 bg-transparent border-current font-mono text-[11px] font-medium uppercase tracking-[0.12em]", tone.text)}>
+                      <Badge className={cn("h-auto rounded-micro px-1.5 py-0.5 bg-transparent border-current font-mono text-[11px] font-medium", tone.text)}>
                         {tone.label}
                       </Badge>
                       {d.metadata.kind && (
-                        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+                        <span className="font-mono text-[11px] text-fg-tertiary">
                           {d.metadata.kind}
                         </span>
                       )}
@@ -230,7 +230,7 @@ export function DraftsTab() {
 
                   {/* On-the-fly Image/Video Preview */}
                   <div className="my-3 overflow-hidden rounded-control border border-edge-subtle bg-content max-w-sm">
-                    <div className="border-b border-edge-subtle px-3 py-1.5 font-mono text-[11px] font-medium text-fg-tertiary uppercase tracking-[0.12em]">
+                    <div className="border-b border-edge-subtle px-3 py-1.5 font-mono text-[11px] font-medium text-fg-tertiary">
                       {d.metadata.imageUrl?.endsWith(".mp4") ? "Video asset preview" : "Visual asset preview"}
                     </div>
                     <div className="p-3 flex justify-center bg-canvas">
@@ -265,7 +265,7 @@ export function DraftsTab() {
                   {d.metadata.suggestedPlatforms && d.metadata.suggestedPlatforms.length > 0 && (
                     <div className="mb-3 flex flex-wrap gap-1.5">
                       {d.metadata.suggestedPlatforms.map((p) => (
-                        <Badge key={p} className="h-auto rounded-micro px-1.5 py-0.5 bg-transparent border-edge-default text-fg-tertiary font-mono text-[11px] font-medium uppercase tracking-[0.12em]">
+                        <Badge key={p} className="h-auto rounded-micro px-1.5 py-0.5 bg-transparent border-edge-default text-fg-tertiary font-mono text-[11px] font-medium">
                           {p}
                         </Badge>
                       ))}
@@ -348,7 +348,7 @@ function Stat({ label, value, tint }: { label: string; value: number; tint: stri
       <div className={cn("text-2xl font-bold font-mono tabular-nums", tint)}>
         {value}
       </div>
-      <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+      <div className="font-mono text-[11px] text-fg-tertiary">
         {label}
       </div>
     </div>

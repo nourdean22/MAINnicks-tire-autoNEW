@@ -79,42 +79,42 @@ export function DecisionSpread({
       className={`rounded-surface border border-edge-subtle bg-content overflow-hidden ${className}`}
     >
       <style jsx>{`
-        .connector {
-          position: relative;
-          height: 1px;
-          background: var(--edge-strong);
-        }
-        .connector::before,
-        .connector::after {
-          content: "";
-          position: absolute;
-          top: 50%;
-          width: 6px;
-          height: 6px;
-          border-radius: 9999px;
-          background: var(--text-tertiary);
-          transform: translateY(-50%);
-        }
-        .connector::before {
-          left: -3px;
-        }
-        .connector::after {
-          right: -3px;
-        }
-        .label {
-          font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
-          font-size: 11px;
-          letter-spacing: 0.12em;
-          text-transform: uppercase;
-          color: var(--text-tertiary);
-        }
-        .score {
-          font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
-          font-variant-numeric: tabular-nums;
-          font-weight: 500;
-          color: var(--text-primary);
-        }
-      `}</style>
+ .connector {
+ position: relative;
+ height: 1px;
+ background: var(--edge-strong);
+ }
+ .connector::before,
+ .connector::after {
+ content: "";
+ position: absolute;
+ top: 50%;
+ width: 6px;
+ height: 6px;
+ border-radius: 9999px;
+ background: var(--text-tertiary);
+ transform: translateY(-50%);
+ }
+ .connector::before {
+ left: -3px;
+ }
+ .connector::after {
+ right: -3px;
+ }
+ .label {
+ font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+ font-size: 11px;
+ letter-spacing: 0.12em;
+ text-transform: ;
+ color: var(--text-tertiary);
+ }
+ .score {
+ font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+ font-variant-numeric: tabular-nums;
+ font-weight: 500;
+ color: var(--text-primary);
+ }
+ `}</style>
 
       <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-4 md:gap-6 px-4 sm:px-6 py-5">
         {/* LEFT */}

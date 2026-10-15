@@ -144,7 +144,7 @@ export function HiddenRiskWarning({
             >
               <div className="flex flex-col gap-1">
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className={cn("px-1.5 py-0.5 rounded-micro border font-mono text-[11px] uppercase tracking-[0.12em]", badgeColorClass(item.severity))}>
+                  <span className={cn("px-1.5 py-0.5 rounded-micro border font-mono text-[11px]", badgeColorClass(item.severity))}>
                     {item.severity}
                   </span>
                   <span className="bg-surface-interactive text-fg-secondary px-1.5 py-0.5 rounded-micro font-mono text-[11px]">

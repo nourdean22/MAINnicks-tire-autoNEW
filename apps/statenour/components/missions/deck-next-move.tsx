@@ -36,7 +36,7 @@ function minutesLabel(mins: number): string {
   return `${mins} min`;
 }
 
-const RECORD_LABEL = "shrink-0 w-[9.5rem] pt-0.5 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary";
+const RECORD_LABEL = "shrink-0 w-[9.5rem] pt-0.5 font-mono text-[11px] text-fg-tertiary";
 
 export function DeckNextMove({ nextMove, capacity, onStart, onPickDifferent }: Props) {
   const [alternatesOpen, setAlternatesOpen] = useState(false);
@@ -68,7 +68,7 @@ export function DeckNextMove({ nextMove, capacity, onStart, onPickDifferent }: P
           <h2 id="next-move-heading" className="vt-eyebrow text-fg-secondary">
             {kind === "resume" ? "resume" : "next move"}
           </h2>
-          <span className="font-mono text-[12px] uppercase tracking-[0.12em] tabular-nums text-fg-tertiary">
+          <span className="font-mono text-[12px] tabular-nums text-fg-tertiary">
             today: {capacity.chosenCount} chosen · {minutesLabel(capacity.chosenMinutes)}
           </span>
         </div>
@@ -81,14 +81,14 @@ export function DeckNextMove({ nextMove, capacity, onStart, onPickDifferent }: P
         {task.nextPhysicalAction &&
           task.nextPhysicalAction.trim().toLowerCase() !== task.title.trim().toLowerCase() && (
             <p className="mt-4 max-w-[56ch] text-lg leading-relaxed text-fg-secondary">
-              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">first · </span>
+              <span className="font-mono text-[11px] text-fg-tertiary">First · </span>
               {task.nextPhysicalAction}
             </p>
           )}
 
         {kind === "resume" && resumeNote && (
           <p className="mt-4 border-t border-edge pt-3 text-[15px] text-fg">
-            <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">you stopped at · </span>
+            <span className="font-mono text-[11px] text-fg-tertiary">You stopped at · </span>
             {resumeNote}
             {parkedAge && <span className="ml-2 font-mono text-[11px] text-fg-tertiary">{parkedAge}</span>}
           </p>

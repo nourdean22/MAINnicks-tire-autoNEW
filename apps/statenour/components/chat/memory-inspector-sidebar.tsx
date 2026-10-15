@@ -95,7 +95,7 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
         <div>
           <div className="flex items-center space-x-1 text-sky-400 mb-3">
             <ShieldCheck className="w-3.5 h-3.5" />
-            <span className="font-mono text-[11px] font-medium uppercase tracking-[0.12em]">
+            <span className="font-mono text-[11px] font-medium">
               This reply — quality verdicts
             </span>
           </div>
@@ -193,7 +193,7 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
         <div>
           <div className="flex items-center space-x-1 text-fg-tertiary mb-3">
             <Sparkles className="w-3.5 h-3.5" />
-            <span className="font-mono text-[11px] font-medium uppercase tracking-[0.12em]">
+            <span className="font-mono text-[11px] font-medium">
               Remembered — what Nick believes ({hits.length})
             </span>
           </div>
@@ -277,7 +277,7 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
         <div>
           <div className="flex items-center space-x-1 text-rose-400 mb-3">
             <AlertTriangle className="w-3.5 h-3.5" />
-            <span className="font-mono text-[11px] font-medium uppercase tracking-[0.12em]">
+            <span className="font-mono text-[11px] font-medium">
               Evidence check — contradictions ({contradictions.length})
             </span>
           </div>
@@ -287,7 +287,7 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
             <div className="space-y-3">
               {contradictions.map((c) => (
                 <div key={c.id} className="bg-rose-950/10 border border-rose-900/20 p-3 rounded-surface">
-                  <span className="font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-rose-400 px-1.5 py-0.5 bg-rose-900/20 rounded-micro">
+                  <span className="font-mono text-[11px] font-medium text-rose-400 px-1.5 py-0.5 bg-rose-900/20 rounded-micro">
                     {c.severity} Severity
                   </span>
                   <div className="mt-2 space-y-1.5 text-[11px]">

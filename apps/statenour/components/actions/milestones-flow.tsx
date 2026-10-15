@@ -217,7 +217,7 @@ export function MilestonesFlow({
       <div className="flex items-start gap-2">
         <Sparkles size={12} className="text-blue-400 mt-0.5 shrink-0" />
         <div className="flex-1 min-w-0">
-          <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-blue-400">
+          <p className="font-mono text-[11px] text-blue-400">
             Milestones for &ldquo;{goal.title.slice(0, 60)}&rdquo;
           </p>
           {rationale && (

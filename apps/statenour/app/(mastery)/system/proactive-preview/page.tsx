@@ -227,14 +227,14 @@ export default function ProactivePreviewPage() {
                   </header>
 
                   <div className="space-y-1">
-              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary block">
+              <span className="font-mono text-[11px] text-fg-tertiary block">
                       Reason
                     </span>
                     <p className="text-xs text-fg-secondary">{preview.reason}</p>
                   </div>
 
                   <div className="space-y-1.5">
-              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary block">
+              <span className="font-mono text-[11px] text-fg-tertiary block">
                       Message Draft
                     </span>
                     {preview.messageText ? (
@@ -247,7 +247,7 @@ export default function ProactivePreviewPage() {
                   </div>
 
                   <div className="space-y-1.5">
-              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary block">
+              <span className="font-mono text-[11px] text-fg-tertiary block">
                       Risk Flags
                     </span>
                     <div className="flex flex-wrap gap-1">
@@ -264,7 +264,7 @@ export default function ProactivePreviewPage() {
 
                   {/* Why / Source Attribution */}
                   <div className="space-y-2 border-t border-edge-subtle pt-3">
-              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary block">
+              <span className="font-mono text-[11px] text-fg-tertiary block">
                       Why / Source Attribution
                     </span>
                     {preview.sources && preview.sources.length > 0 ? (

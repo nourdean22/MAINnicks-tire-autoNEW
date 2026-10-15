@@ -106,7 +106,7 @@ export function TodaysPicks({ refetchKey = 0, onLogged }: TodaysPicksProps) {
           className="text-fg-tertiary shrink-0"
           strokeWidth={2}
         />
-        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary shrink-0">
+        <span className="font-mono text-[11px] text-fg-tertiary shrink-0">
           Nick · today
         </span>
         <span className="text-[var(--text-tertiary)]/40 shrink-0">·</span>

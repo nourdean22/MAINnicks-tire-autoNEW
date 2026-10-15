@@ -187,14 +187,14 @@ export function DecisionReplayCard() {
       data-testid="decision-replay-card"
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
-          decisions · replay
+        <span className="inline-flex items-center gap-2 font-mono text-[11px] text-fg-tertiary">
+          Decisions · replay
           <span className="rounded-micro border border-edge-default px-1 py-px text-[11px] tabular-nums text-fg-secondary">
             {due.length} due
           </span>
         </span>
         {consumedTodayCount > 0 && (
-          <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+          <span className="font-mono text-[11px] text-fg-tertiary">
             {consumedTodayCount} pushed today
           </span>
         )}
@@ -242,7 +242,7 @@ export function DecisionReplayCard() {
                       {promptPreview}
                     </span>
                   </Link>
-                  <span className="shrink-0 font-mono text-[11px] uppercase tracking-[0.12em] tabular-nums text-fg-tertiary">
+                  <span className="shrink-0 font-mono text-[11px] tabular-nums text-fg-tertiary">
                     {age !== null ? `${age}d` : "—"}
                   </span>
                   <button
@@ -270,7 +270,7 @@ export function DecisionReplayCard() {
                 {isExpanded && (
                   <div className="mt-1 ml-2 border-l border-edge-default pl-2.5 py-1.5 space-y-1.5">
                     <div>
-                      <label className="block font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-fg-tertiary mb-0.5">
+                      <label className="block font-mono text-[11px] font-medium text-fg-tertiary mb-0.5">
                         What actually happened
                       </label>
                       <textarea
@@ -291,8 +291,8 @@ export function DecisionReplayCard() {
                     </div>
 
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-fg-tertiary mr-1">
-                        score
+                      <span className="font-mono text-[11px] font-medium text-fg-tertiary mr-1">
+                        Score
                       </span>
                       {(["wrong", "mixed", "right"] as ScoreChoice[]).map((s) => (
                         <button
@@ -319,8 +319,8 @@ export function DecisionReplayCard() {
                     </div>
 
                     <div>
-                      <label className="block font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-fg-tertiary mb-0.5">
-                        lesson <span className="opacity-60">(optional)</span>
+                      <label className="block font-mono text-[11px] font-medium text-fg-tertiary mb-0.5">
+                        Lesson <span className="opacity-60">(optional)</span>
                       </label>
                       <textarea
                         value={lesson}
@@ -379,7 +379,7 @@ export function DecisionReplayCard() {
             );
           })}
           {more > 0 && (
-            <li className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+            <li className="font-mono text-[11px] text-fg-tertiary">
               + {more} more queued
             </li>
           )}

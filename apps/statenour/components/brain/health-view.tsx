@@ -277,8 +277,8 @@ export function BrainHealthView() {
             </div>
           </GlassCard>
 
-          <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary text-center">
-            generated · {new Date(data.generatedAt).toLocaleTimeString()}
+          <p className="text-[11px] font-mono text-fg-tertiary text-center">
+            Generated · {new Date(data.generatedAt).toLocaleTimeString()}
           </p>
         </>
       )}
@@ -307,7 +307,7 @@ function Counter({
       <div className={cn("text-lg font-bold tabular-nums", colorMap[tone])}>
         <AnimatedCounter value={value} />
       </div>
-      <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary mt-0.5">
+      <p className="text-[11px] font-mono text-fg-tertiary mt-0.5">
         {label}
       </p>
     </div>

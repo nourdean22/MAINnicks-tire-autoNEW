@@ -74,15 +74,15 @@ export default function ArcProjection({
         <div className="space-y-3 text-xs text-fg-secondary">
           {projection.do_nothing && (
             <p>
-              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mr-2">
-                do nothing →
+              <span className="font-mono text-[11px] text-fg-tertiary mr-2">
+                Do nothing →
               </span>
               {projection.do_nothing}
             </p>
           )}
           {projection.double_effort && (
             <p>
-              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mr-2">
+              <span className="font-mono text-[11px] text-fg-tertiary mr-2">
                 2× effort →
               </span>
               {projection.double_effort}
@@ -90,8 +90,8 @@ export default function ArcProjection({
           )}
           {projection.blow_up && (
             <p>
-              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mr-2">
-                sever →
+              <span className="font-mono text-[11px] text-fg-tertiary mr-2">
+                Sever →
               </span>
               {projection.blow_up}
             </p>

@@ -29,7 +29,7 @@ export function ChangeSetLine({ set, status, link, className }: ChangeSetLinePro
   if (status === "error") {
     return (
       <section aria-label="since last visit" className={className ?? "mt-10"} data-change-set="error">
-        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-amber-300/90">change read failed — unknown, not quiet</p>
+        <p className="font-mono text-[11px] text-amber-300/90">Change read failed — unknown, not quiet</p>
       </section>
     );
   }
@@ -48,7 +48,7 @@ export function ChangeSetLine({ set, status, link, className }: ChangeSetLinePro
         {link ? (
           <Link
             href={link.href}
-            className="ml-auto inline-flex min-h-[44px] items-center gap-1 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg"
+            className="ml-auto inline-flex min-h-[44px] items-center gap-1 font-mono text-[11px] text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg"
           >
             {link.label}
           </Link>

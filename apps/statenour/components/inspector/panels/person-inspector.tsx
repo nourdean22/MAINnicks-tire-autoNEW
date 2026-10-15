@@ -93,11 +93,11 @@ export function PersonInspector({ entity }: InspectorPanelProps) {
     <div className="space-y-5" data-person-inspector={p.id}>
       <header className="space-y-1">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-micro border border-edge-default px-1.5 py-px font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+          <span className="rounded-micro border border-edge-default px-1.5 py-px font-mono text-[11px] text-fg-tertiary">
             {p.role.replace(/_/g, " ")}
           </span>
           {p.status && p.status !== "active" ? (
-            <span className="rounded-micro border border-amber-500/30 px-1.5 py-px font-mono text-[11px] uppercase tracking-[0.12em] text-amber-300">
+            <span className="rounded-micro border border-amber-500/30 px-1.5 py-px font-mono text-[11px] text-amber-300">
               {p.status}
             </span>
           ) : null}
@@ -118,7 +118,7 @@ export function PersonInspector({ entity }: InspectorPanelProps) {
       />
 
       <section aria-label="Last interaction">
-        <p className="mb-1 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">last interaction</p>
+        <p className="mb-1 font-mono text-[11px] text-fg-tertiary">Last interaction</p>
         {lastLedger ? (
           <p className="text-[13px] text-fg-secondary">
             <span className="font-mono text-[11px] text-fg-tertiary">
@@ -136,8 +136,8 @@ export function PersonInspector({ entity }: InspectorPanelProps) {
       </section>
 
       <section aria-label="Open promises">
-        <p className="mb-1 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
-          open promises · {promises.length}
+        <p className="mb-1 font-mono text-[11px] text-fg-tertiary">
+          Open promises · {promises.length}
         </p>
         {promises.length === 0 ? (
           <p className="font-mono text-[11px] text-fg-tertiary">none open (measured over tasks linked to this person)</p>
@@ -151,7 +151,7 @@ export function PersonInspector({ entity }: InspectorPanelProps) {
                   className="text-left text-[13px] text-fg-secondary hover:text-fg"
                 >
                   {task.title}
-                  <span className="ml-1 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">{task.status.toLowerCase()}</span>
+                  <span className="ml-1 font-mono text-[11px] text-fg-tertiary">{task.status.toLowerCase()}</span>
                 </button>
               </li>
             ))}

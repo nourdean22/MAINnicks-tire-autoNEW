@@ -37,7 +37,7 @@ export function SelectionActionBar() {
       data-selection-bar={refs.length}
       className="fixed bottom-[calc(var(--bottom-chrome-h,6rem)+0.5rem)] left-3 right-3 z-[54] flex flex-wrap items-center gap-2 ui-material rounded-float border border-edge-default px-3 py-2 shadow-l2 md:left-auto md:right-[calc(var(--nick-fab-lane,0px)_+_0.75rem)] md:max-w-xl xl:right-[calc(var(--nick-fab-lane,0px)_+_var(--inspector-lane,0px)_+_0.75rem)]"
     >
-      <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg">
+      <span className="font-mono text-[11px] text-fg">
         {refs.length} selected
       </span>
       <EntityActionRow entities={refs} labelOf={labelOf} compact />

@@ -481,7 +481,7 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
         <div className="flex items-center justify-between pb-2 border-b border-edge-subtle">
           <div className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-amber-500" />
-            <span className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-secondary">
+            <span className="text-[11px] font-mono text-fg-secondary">
               Focus Review ({activeReviewIdx + 1} of {dueReviews.length})
             </span>
           </div>
@@ -531,7 +531,7 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
             </Button>
           ) : (
             <div className="p-3.5 rounded-surface border border-edge-default bg-content text-left text-fg-secondary text-xs leading-relaxed whitespace-pre-wrap animate-fade-in">
-              <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-1">
+              <p className="font-mono text-[11px] text-fg-tertiary mb-1">
                 Summary / Insight
               </p>
               {currentReviewCard.summary}
@@ -586,7 +586,7 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
       {dueReviews.length > 0 && !active && !focusReviewMode && (
         <div className="space-y-2 mb-4">
           <div className="flex items-center justify-between">
-            <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-amber-400/80 px-0.5">
+            <p className="font-mono text-[11px] text-amber-400/80 px-0.5">
               Remember this? ({dueReviews.length} due)
             </p>
             <Button
@@ -692,7 +692,7 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
       {/* ── Decision-linked learning — "you're deciding X, learn about Y" ── */}
       {!active && activeDecisions.length > 0 && (
         <div className="space-y-1.5">
-          <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-cyan-400/80 px-0.5">
+          <p className="font-mono text-[11px] text-cyan-400/80 px-0.5">
             Learn before you decide
           </p>
           {activeDecisions.map((dec, i) => (
@@ -707,7 +707,7 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
                 <p className="text-[11px] text-fg-secondary group-hover:text-fg">
                   {dec.topic}
                 </p>
-                <p className="font-mono text-[11px] text-cyan-500/50 mt-0.5 uppercase tracking-[0.12em]">
+                <p className="font-mono text-[11px] text-cyan-500/50 mt-0.5">
                   Active decision: {dec.title}
                 </p>
               </div>
@@ -720,7 +720,7 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
       {/* ── Suggested topics — never an empty page ── */}
       {!active && history.length < 3 && (
         <div className="space-y-1.5">
-          <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary px-0.5">
+          <p className="font-mono text-[11px] text-fg-tertiary px-0.5">
             Suggested for you
           </p>
           <div className="grid grid-cols-1 gap-1">
@@ -746,7 +746,7 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
                   <p className="text-[12px] text-fg-secondary group-hover:text-fg transition-colors">
                     {s.query}
                   </p>
-                  <p className="font-mono text-[11px] text-fg-tertiary uppercase tracking-[0.12em] mt-0.5">
+                  <p className="font-mono text-[11px] text-fg-tertiary mt-0.5">
                     {s.category}
                   </p>
                 </div>
@@ -764,7 +764,7 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
       {history.length > 0 && !active && (
         <div className="space-y-1.5">
           <div className="flex items-center justify-between px-0.5">
-            <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+            <p className="font-mono text-[11px] text-fg-tertiary">
               Your learning
             </p>
             <div className="flex items-center gap-2 text-[11px] text-fg-tertiary font-mono">
@@ -899,7 +899,7 @@ function TeachCard({
               ? "bg-violet-500/5 border-violet-500/20"
               : "bg-content border-edge-subtle hover:border-edge-strong"
           )}>
-            <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-violet-400/70 mb-1">
+            <p className="font-mono text-[11px] text-violet-400/70 mb-1">
               The one thing to understand
             </p>
             <p className={cn(
@@ -925,7 +925,7 @@ function TeachCard({
               : "bg-content border-edge-subtle hover:border-edge-strong"
           )}>
             <div className="flex items-center justify-between">
-              <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-blue-400/70">
+              <p className="font-mono text-[11px] text-blue-400/70">
                 Key concepts
               </p>
               <Badge className="bg-surface-interactive text-fg-tertiary text-[11px] h-3.5">
@@ -959,7 +959,7 @@ function TeachCard({
               ? "bg-content border-edge-default"
               : "bg-content border-edge-subtle hover:border-edge-strong"
           )}>
-            <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+            <p className="font-mono text-[11px] text-fg-tertiary">
               Rules &amp; pitfalls
             </p>
             {expandedSection === "rules" && (
@@ -995,7 +995,7 @@ function TeachCard({
         <div className="flex items-start gap-2 p-2.5 rounded-surface bg-emerald-500/5 border border-emerald-500/20">
           <Zap size={12} className="text-emerald-400 shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
-            <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-emerald-400/80 mb-0.5">
+            <p className="font-mono text-[11px] text-emerald-400/80 mb-0.5">
               Try today
             </p>
             <p className="text-[12px] text-fg">{data.tryToday}</p>
@@ -1014,7 +1014,7 @@ function TeachCard({
       {/* Resources */}
       {data.resources && data.resources.length > 0 && (
         <div className="space-y-0.5 pt-1 border-t border-edge-subtle">
-          <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+          <p className="font-mono text-[11px] text-fg-tertiary">
             Go deeper
           </p>
           {data.resources.map((r, i) => (
@@ -1040,7 +1040,7 @@ function TeachCard({
       {/* Learning path chain — structured progression, not random follow-ups */}
       {data.learningPath && data.learningPath.length > 0 && (
         <div className="pt-2 border-t border-edge-subtle">
-          <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-violet-400/70 mb-1.5">
+          <p className="font-mono text-[11px] text-violet-400/70 mb-1.5">
             Your learning path
           </p>
           <div className="space-y-1">
@@ -1074,7 +1074,7 @@ function TeachCard({
       {/* Next questions — simpler follow-ups */}
       {data.nextQuestions && data.nextQuestions.length > 0 && !data.learningPath?.length && (
         <div className="space-y-1 pt-1 border-t border-edge-subtle">
-          <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+          <p className="font-mono text-[11px] text-fg-tertiary">
             Keep going
           </p>
           {data.nextQuestions.map((q, i) => (
@@ -1136,8 +1136,8 @@ function ResearchCard({
 
       {/* Provider badge */}
       {data.provider && (
-        <Badge className="bg-surface-interactive text-fg-tertiary font-mono text-[11px] h-3.5 uppercase tracking-[0.12em]">
-          via {data.provider}
+        <Badge className="bg-surface-interactive text-fg-tertiary font-mono text-[11px] h-3.5">
+          Via {data.provider}
         </Badge>
       )}
 
@@ -1151,7 +1151,7 @@ function ResearchCard({
       {/* Citations */}
       {cites.length > 0 && (
         <div className="space-y-0.5 pt-1.5 border-t border-edge-subtle">
-          <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-cyan-400/60">
+          <p className="font-mono text-[11px] text-cyan-400/60">
             Sources ({cites.length})
           </p>
           {cites.map((c, i) => (

@@ -132,7 +132,7 @@ function CoachEventCard({
           <div className="flex items-center gap-2">
             <span
               className={[
-                "font-mono text-[11px] uppercase tracking-[0.12em]",
+                "font-mono text-[11px]",
                 tone.label,
               ].join(" ")}
             >

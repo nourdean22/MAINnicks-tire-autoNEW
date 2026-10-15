@@ -98,8 +98,8 @@ export default function TopicGoalOverlapCard({
           Topic × goal overlap
         </h3>
         <div className="flex items-baseline gap-2">
-          <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
-            alignment
+          <span className="font-mono text-[11px] text-fg-tertiary">
+            Alignment
           </span>
           <span className="font-mono tabular-nums text-base text-fg">
             {score100}
@@ -110,8 +110,8 @@ export default function TopicGoalOverlapCard({
 
       {overlap.topics.length > 0 && (
         <div className="mb-3">
-          <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-1.5">
-            topics
+          <div className="font-mono text-[11px] text-fg-tertiary mb-1.5">
+            Topics
           </div>
           <div className="flex flex-wrap gap-1.5">
             {overlap.topics.map((t, i) => (
@@ -130,8 +130,8 @@ export default function TopicGoalOverlapCard({
         <div
           className="border-t border-edge-subtle pt-3 space-y-2"
         >
-          <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
-            goal matches · {overlap.goalMatches.length}
+          <div className="font-mono text-[11px] text-fg-tertiary">
+            Goal matches · {overlap.goalMatches.length}
           </div>
           {overlap.goalMatches.map((m) => (
             <div key={m.goalId} className="text-xs">

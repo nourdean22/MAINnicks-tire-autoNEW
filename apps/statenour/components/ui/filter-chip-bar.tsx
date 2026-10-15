@@ -126,8 +126,8 @@ export function ActiveFiltersStrip({
   if (filters.length === 0) return null;
   return (
     <div className={`flex items-center gap-1.5 flex-wrap ${className ?? ""}`}>
-      <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
-        active:
+      <span className="font-mono text-[11px] text-fg-tertiary">
+        Active:
       </span>
       {filters.map((f, i) => (
         <span

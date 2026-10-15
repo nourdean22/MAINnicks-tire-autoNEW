@@ -192,7 +192,7 @@ export function HistoryTab() {
         <Panel>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
             <div>
-              <label className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">search</label>
+              <label className="font-mono text-[11px] text-fg-tertiary">Search</label>
               <div className="relative">
                 <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-fg-tertiary" />
                 <input
@@ -205,8 +205,8 @@ export function HistoryTab() {
               </div>
             </div>
             <div>
-              <label className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
-                score: {minScore}-{maxScore}
+              <label className="font-mono text-[11px] text-fg-tertiary">
+                Score: {minScore}-{maxScore}
               </label>
               <div className="flex gap-1 items-center">
                 <input
@@ -228,7 +228,7 @@ export function HistoryTab() {
               </div>
             </div>
             <div>
-              <label className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">days</label>
+              <label className="font-mono text-[11px] text-fg-tertiary">Days</label>
               <div className="flex gap-1 mt-0.5">
                 {[1, 7, 30, 90].map((d) => (
                   <button
@@ -247,7 +247,7 @@ export function HistoryTab() {
               </div>
             </div>
             <div>
-              <label className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">filters</label>
+              <label className="font-mono text-[11px] text-fg-tertiary">Filters</label>
               <div className="flex gap-1 mt-0.5">
                 <button
                   onClick={() => setContentOnly((x) => !x)}
@@ -469,7 +469,7 @@ function Axis({ label, value, trend }: { label: string; value: number; trend?: n
     : (goingUp === upIsGood ? "#34d399" : last === first ? "#7dd3fc" : "#f87171");
   return (
     <div className="rounded-surface border border-edge-subtle bg-content p-2 text-center">
-      <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">{label}</div>
+      <div className="font-mono text-[11px] text-fg-tertiary">{label}</div>
       <div className={cn("mt-0.5 font-mono text-lg font-bold tabular-nums", scoreTone(value))}>
         {value}
       </div>

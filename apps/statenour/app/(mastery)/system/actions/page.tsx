@@ -459,17 +459,17 @@ export default function ActionsPage() {
                     </div>
                     <div className="text-right">
               <div className="font-mono text-sm tabular-nums text-fg"><AnimatedCounter value={r.total} /></div>
-                      <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">total</div>
+                      <div className="font-mono text-[11px] text-fg-tertiary">Total</div>
                     </div>
                     <div className="hidden text-right sm:block">
                       <div className="font-mono text-xs tabular-nums text-emerald-400"><AnimatedCounter value={r.success} /></div>
-                      <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">success</div>
+                      <div className="font-mono text-[11px] text-fg-tertiary">Success</div>
                     </div>
                     <div className={cn("text-right", r.failed > 0 ? "" : "opacity-40")}>
                       <div className={cn("font-mono text-xs tabular-nums", r.failed > 0 ? "text-rose-400" : "text-fg-tertiary")}>
                         <AnimatedCounter value={r.failed} />
                       </div>
-                      <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">failed</div>
+                      <div className="font-mono text-[11px] text-fg-tertiary">Failed</div>
                     </div>
                   </button>
                 ))}
@@ -573,13 +573,13 @@ export default function ActionsPage() {
                         <div className="space-y-2 border-t border-edge-subtle px-3 pb-3 pt-2">
                           {a.error && (
                             <div className="rounded-micro bg-rose-500/10 p-2 text-[11px] text-rose-300">
-              <div className="mb-1 font-mono text-[11px] uppercase tracking-[0.12em] text-rose-400/70">error</div>
+              <div className="mb-1 font-mono text-[11px] text-rose-400/70">Error</div>
                               <pre className="overflow-x-auto whitespace-pre-wrap break-words">{a.error}</pre>
                             </div>
                           )}
                           {a.payload !== null && a.payload !== undefined && (
                             <div className="rounded-micro bg-content p-2">
-              <div className="mb-1 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">payload</div>
+              <div className="mb-1 font-mono text-[11px] text-fg-tertiary">Payload</div>
                               <pre className="overflow-x-auto whitespace-pre-wrap break-words text-[11px] text-fg-secondary">
                                 {JSON.stringify(a.payload, null, 2)}
                               </pre>
@@ -697,7 +697,7 @@ export default function ActionsPage() {
 
                     <div className="rounded-micro bg-content p-3 space-y-1">
                       <div className="flex items-center justify-between">
-                        <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">payload parameters</div>
+                        <div className="font-mono text-[11px] text-fg-tertiary">Payload parameters</div>
                         <button
                           onClick={() => {
                             if (editingId === req.id) {

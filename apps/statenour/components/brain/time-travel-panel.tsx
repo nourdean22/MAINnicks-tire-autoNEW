@@ -145,7 +145,7 @@ export function TimeTravelSnapshot({ report }: { report: TimeTravelReport }) {
         {COUNT_LABELS.map(([key, label]) => (
           <div key={key} className="rounded-control border border-edge bg-void/50 p-2.5">
             <div className="font-mono text-lg tabular-nums text-fg">{failed.has(key) ? UNKNOWN : String(report.summary[key])}</div>
-            <div className="mt-1 text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">{label}</div>
+            <div className="mt-1 text-[11px] font-mono text-fg-tertiary">{label}</div>
           </div>
         ))}
       </div>
@@ -164,7 +164,7 @@ export function TimeTravelSnapshot({ report }: { report: TimeTravelReport }) {
       </div>
       {report.memoriesByCategory.length > 0 ? (
         <div>
-          <p className="mb-2 text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
+          <p className="mb-2 text-[11px] font-mono text-fg-tertiary">
             Memory categories
           </p>
           <div className="flex flex-wrap gap-2">

@@ -41,7 +41,7 @@ export function MemoryOfDayCard() {
         {m.content.length > 360 ? "…" : ""}
       </div>
       <div className="flex items-center gap-3 text-[11px] font-mono text-fg-tertiary">
-        <span className="uppercase tracking-[0.12em] text-fg-secondary">
+        <span className="text-fg-secondary">
           {m.category.replace(/_/g, " ")}
         </span>
         <span>·</span>

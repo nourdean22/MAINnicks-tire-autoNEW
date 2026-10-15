@@ -112,7 +112,7 @@ export function HealthGovernorStrip() {
 
           {/* Recommended Mode Command Badge */}
           <div className="flex items-center gap-1.5">
-            <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">recommended:</span>
+            <span className="font-mono text-[11px] text-fg-tertiary">Recommended:</span>
             <div className="inline-flex items-center gap-1 px-2 py-1 rounded-micro bg-surface-interactive border border-edge-subtle font-mono text-[12px] text-fg">
               <Zap size={10} className="text-fg-tertiary" />
               <span>{recommendedCommand}</span>

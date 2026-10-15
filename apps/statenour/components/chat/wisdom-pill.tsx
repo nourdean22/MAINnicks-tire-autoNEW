@@ -144,8 +144,8 @@ export function WisdomPill({
         />
         <div className="flex-1 min-w-0 flex flex-col gap-1">
           {loading && suggestions.length === 0 && (
-            <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
-              listening…
+            <span className="font-mono text-[11px] text-[var(--text-tertiary)]">
+              Listening…
             </span>
           )}
           {suggestions.map((s) => (
@@ -169,7 +169,7 @@ export function WisdomPill({
               >
                 <span className="line-clamp-2 break-words">
                   <span
-                    className="font-mono text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)] mr-1.5"
+                    className="font-mono text-[11px] text-[var(--text-tertiary)] mr-1.5"
                     aria-hidden="true"
                   >
                     {s.source}

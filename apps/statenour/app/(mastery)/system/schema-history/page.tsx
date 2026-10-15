@@ -313,7 +313,7 @@ function SchemaHistoryInner() {
 
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div className="space-y-1.5">
-                        <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary flex items-center gap-1">
+                        <div className="font-mono text-[11px] text-fg-tertiary flex items-center gap-1">
                           <Terminal className="h-3.5 w-3.5" />
                           SQL Summary / Schema Detail
                         </div>
@@ -323,7 +323,7 @@ function SchemaHistoryInner() {
                       </div>
 
                       <div className="space-y-1.5">
-              <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary flex items-center gap-1">
+              <div className="font-mono text-[11px] text-fg-tertiary flex items-center gap-1">
                           <FileCode className="h-3.5 w-3.5" />
                           Prisma Schema Diff
                         </div>

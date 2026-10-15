@@ -143,7 +143,7 @@ function PlayRowDisplay({
             {relativeTime(play.createdAt)}
           </span>
           <span
-            className={`font-mono text-[11px] uppercase tracking-[0.12em] px-1.5 py-0.5 rounded-micro border ${tone.border} ${tone.bg} ${tone.text}`}
+            className={`font-mono text-[11px] px-1.5 py-0.5 rounded-micro border ${tone.border} ${tone.bg} ${tone.text}`}
           >
             {tone.label}
           </span>
@@ -222,7 +222,7 @@ export default function PowerPlaysHistory({
         <h3 className="text-[15px] font-semibold text-fg">
           Plays history
         </h3>
-        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+        <span className="font-mono text-[11px] text-fg-tertiary">
           last 10
         </span>
       </div>

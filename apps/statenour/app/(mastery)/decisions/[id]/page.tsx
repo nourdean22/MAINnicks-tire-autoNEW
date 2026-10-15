@@ -469,7 +469,7 @@ export default function DecisionDetailPage() {
             </h3>
             <div className="grid gap-3 md:grid-cols-2">
               <div className="md:col-span-2">
-                <label className="mb-1 block font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+                <label className="mb-1 block font-mono text-[11px] text-fg-tertiary">
                   Actual outcome
                 </label>
                 <textarea
@@ -481,7 +481,7 @@ export default function DecisionDetailPage() {
                 />
               </div>
               <div>
-                <label className="mb-1 block font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+                <label className="mb-1 block font-mono text-[11px] text-fg-tertiary">
                   Grade
                 </label>
                 <select
@@ -498,7 +498,7 @@ export default function DecisionDetailPage() {
                 </select>
               </div>
               <div>
-                <label className="mb-1 block font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+                <label className="mb-1 block font-mono text-[11px] text-fg-tertiary">
                   Next review date
                 </label>
                 <input
@@ -532,8 +532,8 @@ export default function DecisionDetailPage() {
       {lineage.antiPatterns.length > 0 && (
         <section className="space-y-2">
           <header className="flex items-baseline justify-between">
-            <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
-              anti-patterns in {d.domain}
+            <p className="font-mono text-[11px] text-fg-tertiary">
+              Anti-patterns in {d.domain}
             </p>
             {/* "full library →" pointed at /system/quality?view=lessons, which
                 does not exist — and QualityLessonsView, the component that would
@@ -590,8 +590,8 @@ export default function DecisionDetailPage() {
       {lineage.siblings.length > 0 && (
         <section className="space-y-2">
           <header>
-            <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
-              domain scan · {d.domain ?? "all"}
+            <p className="font-mono text-[11px] text-fg-tertiary">
+              Domain scan · {d.domain ?? "all"}
             </p>
           </header>
           <ComparisonMatrix
@@ -609,8 +609,8 @@ export default function DecisionDetailPage() {
         <div className="grid gap-4 p-3 md:grid-cols-2">
           {d.context && (
             <div>
-              <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-1.5">
-                context
+              <p className="font-mono text-[11px] text-fg-tertiary mb-1.5">
+                Context
               </p>
               <p className="text-[12px] text-[var(--text-secondary)] leading-relaxed whitespace-pre-wrap">
                 {d.context}
@@ -619,8 +619,8 @@ export default function DecisionDetailPage() {
           )}
           {d.reasoning && (
             <div>
-              <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-1.5">
-                reasoning
+              <p className="font-mono text-[11px] text-fg-tertiary mb-1.5">
+                Reasoning
               </p>
               <p className="text-[12px] text-[var(--text-secondary)] leading-relaxed whitespace-pre-wrap">
                 {d.reasoning}
@@ -629,8 +629,8 @@ export default function DecisionDetailPage() {
           )}
           {d.optionsConsidered && (
             <div className="md:col-span-2">
-              <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-1.5">
-                options considered
+              <p className="font-mono text-[11px] text-fg-tertiary mb-1.5">
+                Options considered
               </p>
               <p className="text-[12px] text-[var(--text-secondary)] leading-relaxed whitespace-pre-wrap">
                 {d.optionsConsidered}

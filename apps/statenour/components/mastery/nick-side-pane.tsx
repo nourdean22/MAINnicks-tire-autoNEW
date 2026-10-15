@@ -232,8 +232,8 @@ export function NickSidePane({
           aria-hidden
         />
         <Brain size={14} className="text-fg-tertiary shrink-0" strokeWidth={1.75} />
-        <h2 className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary">
-          nick · {page}
+        <h2 className="font-mono text-[11px] text-fg-secondary">
+          Nick · {page}
         </h2>
         {/* "esc to close" hint · desktop only · phones don't have Esc */}
         <span className="ml-2 hidden lg:inline text-[11px] font-mono tabular-nums text-fg-tertiary">
@@ -260,8 +260,8 @@ export function NickSidePane({
             aria-label="proactive coach events"
             className="space-y-1.5"
           >
-            <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
-              nick noticed
+            <p className="font-mono text-[11px] text-fg-tertiary">
+              Nick noticed
             </p>
             {coachEvents.map((event) => (
               <CoachChip key={event.eventId} event={event} />
@@ -326,7 +326,7 @@ export function NickSidePane({
         )}
       >
         <Brain size={14} strokeWidth={1.75} />
-        <span className="font-mono text-[11px] uppercase tracking-[0.12em]">nick</span>
+        <span className="font-mono text-[11px]">nick</span>
       </button>
 
       {/* Desktop (lg+) · a non-modal right pane: the page beside it stays usable. */}

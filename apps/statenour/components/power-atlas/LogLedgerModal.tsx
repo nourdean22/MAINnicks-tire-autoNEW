@@ -157,7 +157,7 @@ export default function LogLedgerModal({
             mistake it for a 6th preset (the unlabeled 5 in the live
             screenshot triggered the confusion). */}
         <div className="space-y-1">
-          <label className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+          <label className="font-mono text-[11px] text-fg-tertiary">
             Magnitude (1–100)
           </label>
           <div className="flex flex-wrap gap-2 items-end">
@@ -178,7 +178,7 @@ export default function LogLedgerModal({
             <div className="flex flex-col items-center">
               <label
                 htmlFor="ledger-magnitude-custom"
-                className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-0.5"
+                className="font-mono text-[11px] text-fg-tertiary mb-0.5"
               >
                 Custom
               </label>
@@ -203,7 +203,7 @@ export default function LogLedgerModal({
         <div className="space-y-1">
           <label
             htmlFor="ledger-note"
-            className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary"
+            className="font-mono text-[11px] text-fg-tertiary"
           >
             Note (required)
           </label>
@@ -225,7 +225,7 @@ export default function LogLedgerModal({
 
         {/* Source */}
         <div className="space-y-1">
-          <label className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+          <label className="font-mono text-[11px] text-fg-tertiary">
             Source
           </label>
           <div className="flex flex-wrap gap-1.5">

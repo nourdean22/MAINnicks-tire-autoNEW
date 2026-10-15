@@ -30,8 +30,8 @@ export function MetacognitionCard() {
     >
       <header className="flex items-center gap-2">
         <BrainCircuit size={13} className="text-fg-tertiary" strokeWidth={1.75} />
-        <h3 className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
-          nick&apos;s metacognition
+        <h3 className="font-mono text-[11px] text-fg-tertiary">
+          Nick&apos;s metacognition
         </h3>
         {trend === "accelerating" && (
           <span className="ml-auto flex items-center gap-1 text-[11px] font-mono text-emerald-400">

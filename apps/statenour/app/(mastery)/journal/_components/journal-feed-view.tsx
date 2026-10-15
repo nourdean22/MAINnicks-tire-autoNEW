@@ -164,7 +164,7 @@ export function JournalFeedView() {
                 <div key={date} className="animate-fade-in">
                   <div className="flex items-center gap-2 mb-2">
                     <Calendar size={11} className="text-(--text-tertiary)" />
-                    <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+                    <span className="font-mono text-[11px] text-fg-tertiary">
                       {formatDay(date)}
                     </span>
                     <div className="h-px flex-1 bg-edge-subtle" />

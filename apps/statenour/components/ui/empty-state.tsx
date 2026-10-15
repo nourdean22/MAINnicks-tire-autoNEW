@@ -170,7 +170,7 @@ export function EmptyState(props: EmptyStateProps) {
       <p className={cn("text-[11.5px] font-medium", s.titleColor)}>{title}</p>
       <p
         className={cn(
-          "font-mono text-[11px] uppercase tracking-[0.12em]",
+          "font-mono text-[11px]",
           PROVENANCE_CHIP[provenance],
         )}
       >

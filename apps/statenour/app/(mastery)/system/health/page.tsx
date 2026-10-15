@@ -255,8 +255,8 @@ export default function SystemHealthPage() {
       <section className="rounded-surface border border-edge-default bg-content">
               <header className="flex items-center gap-2 px-3 py-2 border-b border-edge-default">
           <Activity size={12} className="text-fg-secondary" />
-          <h2 className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary">
-            cron health · {data.range}
+          <h2 className="font-mono text-[11px] text-fg-secondary">
+            Cron health · {data.range}
           </h2>
           <span className="text-[11px] font-mono text-fg-tertiary ml-auto">
             {data.cron.jobs.length} jobs reported
@@ -309,8 +309,8 @@ export default function SystemHealthPage() {
         <section className="rounded-surface border border-red-500/30 bg-red-500/5">
           <header className="flex items-center gap-2 px-3 py-2 border-b border-red-500/20">
             <AlertTriangle size={12} className="text-red-400" />
-            <h2 className="font-mono text-[11px] uppercase tracking-[0.12em] text-red-400">
-              top error patterns · {data.range}
+            <h2 className="font-mono text-[11px] text-red-400">
+              Top error patterns · {data.range}
             </h2>
           </header>
           <ul className="divide-y divide-red-500/10">
@@ -330,8 +330,8 @@ export default function SystemHealthPage() {
       <section className="rounded-surface border border-edge-default bg-content">
               <header className="flex items-center gap-2 px-3 py-2 border-b border-edge-default">
           <Clock size={12} className="text-fg-secondary" />
-          <h2 className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary">
-            signal freshness
+          <h2 className="font-mono text-[11px] text-fg-secondary">
+            Signal freshness
           </h2>
         </header>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-[var(--border-default)]/40">
@@ -353,8 +353,8 @@ export default function SystemHealthPage() {
               <section className="rounded-surface border border-edge-default bg-content">
           <header className="flex items-center gap-2 px-3 py-2 border-b border-edge-default">
             <Archive size={12} className="text-amber-400" />
-            <h2 className="font-mono text-[11px] uppercase tracking-[0.12em] text-amber-400">
-              backlog pressure
+            <h2 className="font-mono text-[11px] text-amber-400">
+              Backlog pressure
             </h2>
           </header>
           <dl className="p-3 space-y-1.5 text-[11px] font-mono">
@@ -371,8 +371,8 @@ export default function SystemHealthPage() {
         <section className="rounded-surface border border-edge-default bg-content">
               <header className="flex items-center gap-2 px-3 py-2 border-b border-edge-default">
             <Database size={12} className="text-fg-secondary" />
-            <h2 className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary">
-              vector coverage
+            <h2 className="font-mono text-[11px] text-fg-secondary">
+              Vector coverage
             </h2>
             <span className="text-[11px] font-mono text-fg-tertiary ml-auto"><AnimatedCounter value={totalVectors} /> rows</span>
           </header>
@@ -393,8 +393,8 @@ export default function SystemHealthPage() {
         <section className="rounded-surface border border-edge-subtle bg-content">
           <header className="flex items-center gap-2 px-3 py-2">
             <Flame size={12} className="text-fg-secondary" />
-            <h2 className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary">
-              strategic law feedback · {data.range}
+            <h2 className="font-mono text-[11px] text-fg-secondary">
+              Strategic law feedback · {data.range}
             </h2>
             <span className="text-[11px] font-mono text-fg-tertiary ml-auto">
               {data.lawFeedback.situationLogsWithLawId} logged · {data.lawFeedback.triggerContextLogs} via trigger
@@ -422,8 +422,8 @@ export default function SystemHealthPage() {
         <section className="rounded-surface border border-emerald-500/30 bg-emerald-500/5">
           <header className="flex items-center gap-2 px-3 py-2">
             <Activity size={12} className="text-emerald-400" />
-            <h2 className="font-mono text-[11px] uppercase tracking-[0.12em] text-emerald-300">
-              strategic lens · {data.range}
+            <h2 className="font-mono text-[11px] text-emerald-300">
+              Strategic lens · {data.range}
             </h2>
           </header>
           <dl className="px-3 pb-2 text-[11px] font-mono space-y-0.5">
@@ -451,8 +451,8 @@ export default function SystemHealthPage() {
         <section className="rounded-surface border border-amber-500/30 bg-amber-500/5">
           <header className="flex items-center gap-2 px-3 py-2">
             <Activity size={12} className="text-amber-400" />
-            <h2 className="font-mono text-[11px] uppercase tracking-[0.12em] text-amber-300">
-              voice calls (VAPI) · {data.range}
+            <h2 className="font-mono text-[11px] text-amber-300">
+              Voice calls (VAPI) · {data.range}
             </h2>
           </header>
           <dl className="px-3 pb-2 text-[11px] font-mono space-y-0.5">
@@ -560,7 +560,7 @@ function OperationalStatus({ report }: { report: HealthReport }) {
         )}
         <h2
           className={cn(
-            "font-mono text-[11px] uppercase tracking-[0.12em]",
+            "font-mono text-[11px]",
             allGood ? "text-emerald-300" : down ? "text-red-400" : "text-amber-300",
           )}
         >
@@ -578,7 +578,7 @@ function OperationalStatus({ report }: { report: HealthReport }) {
           className="block rounded-control border border-edge-default px-3 py-2 hover:bg-canvas"
         >
           <div className="flex items-center justify-between mb-0.5">
-              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+              <span className="font-mono text-[11px] text-fg-tertiary">
               AI eval pass-rate
             </span>
             <span className="text-[11px] font-mono text-fg-tertiary">
@@ -605,8 +605,8 @@ function OperationalStatus({ report }: { report: HealthReport }) {
           {/* Label said "bridge · data sources" but the number counts ALL
               probes regardless of kind — only 2 of the 6 are the nickstire
               bridge, and `bridgeFailing` was computed and never rendered. */}
-          <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-0.5">
-            data-source probes
+          <div className="font-mono text-[11px] text-fg-tertiary mb-0.5">
+            Data-source probes
           </div>
           <div
             className={cn(
@@ -676,7 +676,7 @@ function FreshnessTile({
   }
   return (
     <div className="bg-content px-3 py-2">
-              <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-0.5">
+              <div className="font-mono text-[11px] text-fg-tertiary mb-0.5">
         {label}
       </div>
       <div className={cn("text-sm font-bold tabular-nums", color)}>

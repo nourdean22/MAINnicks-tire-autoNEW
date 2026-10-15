@@ -338,8 +338,8 @@ export function SkillLibraryPanel() {
                   {editing ? (
                     <div className="space-y-2">
                       <div>
-                        <label className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
-                          trigger
+                        <label className="font-mono text-[11px] text-fg-tertiary">
+                          Trigger
                         </label>
                         <input
                           value={editTrigger}
@@ -348,8 +348,8 @@ export function SkillLibraryPanel() {
                         />
                       </div>
                       <div>
-                        <label className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
-                          action
+                        <label className="font-mono text-[11px] text-fg-tertiary">
+                          Action
                         </label>
                         <input
                           value={editAction}
@@ -364,14 +364,14 @@ export function SkillLibraryPanel() {
                         <span className="text-[11px] text-[var(--text-primary)]">
                           when <span className={cn(s.polarity === "avoid" ? "text-red-400" : "font-medium")}>{s.trigger}</span>
                         </span>
-                        <span className={cn("font-mono text-[11px] uppercase tracking-[0.12em]", tierColor(s.tier))}>
+                        <span className={cn("font-mono text-[11px]", tierColor(s.tier))}>
                           {s.tier}
                         </span>
                         {s.polarity === "avoid" && (
-                          <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-red-400">avoid</span>
+                          <span className="font-mono text-[11px] text-red-400">Avoid</span>
                         )}
                         {stale && tab !== "graduated" && (
-                          <span className="inline-flex items-center gap-0.5 font-mono text-[11px] uppercase tracking-[0.12em] text-amber-400">
+                          <span className="inline-flex items-center gap-0.5 font-mono text-[11px] text-amber-400">
                             <AlertTriangle size={9} /> stale
                           </span>
                         )}

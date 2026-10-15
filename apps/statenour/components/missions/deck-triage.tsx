@@ -49,7 +49,7 @@ export function DeckTriage({ triage, tasks, onEditTask, onSnoozeTask, onDeleteTa
         <h2 id="triage-heading" className="vt-eyebrow text-fg-secondary">
           decide
         </h2>
-        <span className="font-mono text-[12px] uppercase tracking-[0.12em] tabular-nums text-fg-tertiary">
+        <span className="font-mono text-[12px] tabular-nums text-fg-tertiary">
           {triage.totalCount > triage.rows.length
             ? `showing ${triage.rows.length} of ${triage.totalCount}`
             : `${triage.totalCount} waiting`}

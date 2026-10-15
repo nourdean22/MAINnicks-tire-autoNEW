@@ -92,7 +92,7 @@ export function SuggestionTelemetryPanel() {
         <>
           {/* Hit-rate bar */}
           <div>
-            <div className="flex items-center justify-between text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary mb-1">
+            <div className="flex items-center justify-between text-[11px] font-mono text-fg-tertiary mb-1">
               <span>cache hit rate</span>
               <span
                 className={cn(

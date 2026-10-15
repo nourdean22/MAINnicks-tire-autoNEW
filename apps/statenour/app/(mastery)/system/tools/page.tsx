@@ -109,7 +109,7 @@ export default function SystemToolsPage() {
 
       {/* Security Warnings Panel */}
       <Panel className="border-l-4 border-amber-500/80 bg-amber-500/[0.03] p-4 space-y-2">
-              <div className="flex items-center gap-2 text-amber-400 font-mono text-[11px] uppercase tracking-[0.12em]">
+              <div className="flex items-center gap-2 text-amber-400 font-mono text-[11px]">
           <ShieldAlert size={14} />
           <span>Security & Fencing Warnings</span>
         </div>
@@ -166,7 +166,7 @@ export default function SystemToolsPage() {
       <section className="rounded-surface border border-edge-default bg-content overflow-hidden">
               <header className="flex items-center gap-2 px-3 py-2 border-b border-edge-default">
           <Info size={12} className="text-fg-secondary" />
-          <h2 className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary">
+          <h2 className="font-mono text-[11px] text-fg-secondary">
             Capability Policy Matrix
           </h2>
           <span className="text-[11px] font-mono text-fg-tertiary ml-auto">

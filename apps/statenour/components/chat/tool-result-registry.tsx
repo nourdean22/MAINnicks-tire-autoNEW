@@ -710,7 +710,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
               <div key={i} className="flex items-start gap-2">
                 <span
                   className={cn(
-                    "font-mono text-[11px] font-medium uppercase tracking-[0.12em] px-1.5 py-0.5 rounded-micro border shrink-0",
+                    "font-mono text-[11px] font-medium px-1.5 py-0.5 rounded-micro border shrink-0",
                     sevColor
                   )}
                 >

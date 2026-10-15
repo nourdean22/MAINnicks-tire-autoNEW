@@ -76,7 +76,7 @@ function SmartNowLink({ pathname, onNavigate }: { pathname: string; onNavigate: 
         </span>
       )}
       <div className="min-w-0 flex-1">
-        <div className="font-mono text-[11px] uppercase tracking-[0.12em] opacity-60">
+        <div className="font-mono text-[11px] opacity-60">
           Now
         </div>
         <div className="truncate text-[11px] font-medium">{smartNow.label}</div>
@@ -169,7 +169,7 @@ export function MoreSheet() {
             <div className="rounded-surface bg-[var(--bg-raised)]/30 px-2 py-1.5">
               <div className="mb-1 flex items-center gap-1">
                 <Clock size={9} className="text-[var(--text-tertiary)]" />
-                <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
+                <span className="font-mono text-[11px] text-[var(--text-tertiary)]">
                   recent
                 </span>
               </div>
@@ -222,7 +222,7 @@ export function MoreSheet() {
                 >
                   {ordinal}
                 </span>
-                <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+                <span className="font-mono text-[11px] text-fg-tertiary">
                   {label}
                 </span>
               </div>

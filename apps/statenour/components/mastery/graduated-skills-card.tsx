@@ -31,7 +31,7 @@ export function GraduatedSkillsCard() {
         className="rounded-surface border border-edge-subtle bg-content p-3.5 flex flex-col justify-between min-h-[210px]"
       >
         <div className="flex items-center justify-between border-b border-edge-subtle pb-2">
-          <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+          <p className="font-mono text-[11px] text-fg-tertiary">
             Graduated Skills (Repeated Victories)
           </p>
         </div>
@@ -50,7 +50,7 @@ export function GraduatedSkillsCard() {
       className="rounded-surface border border-edge-subtle bg-content p-3.5 flex flex-col justify-between min-h-[210px] space-y-3"
     >
       <div className="flex items-center justify-between border-b border-edge-subtle pb-2">
-        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-cyan-400 flex items-center gap-1.5">
+        <p className="font-mono text-[11px] text-cyan-400 flex items-center gap-1.5">
           <CheckCircle2 className="h-3 w-3" /> Graduated Skills
         </p>
         <span className="text-[11px] px-1.5 py-0.5 rounded-micro bg-cyan-500/10 text-cyan-400 font-medium">

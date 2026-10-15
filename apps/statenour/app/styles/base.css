@@ -322,6 +322,15 @@ body {
 [class*="tracking-[0.18em]"],
 [class*="tracking-[0.2em]"] { letter-spacing: 0.12em; }
 
+/* ── UI v3 uppercase net (docs/design/ui-v3/PLAN.md section 9 row 1) ────────────────────────
+   The source sweep took the `uppercase` utility off every element outside the five eyebrow roles.
+   A class built at runtime, or added later, that still names it reads sentence case here. Unlayered,
+   so it beats Tailwind's layered `.uppercase` without !important; the roles stay out by :not().
+   Pinned by tests/repo/ui-v3-grammar.test.ts. */
+[class*="uppercase"]:not(.eyebrow):not(.vt-eyebrow):not(.section-label):not(.text-eyebrow):not(.vt-verdict) {
+  text-transform: none;
+}
+
 /* ── Desktop spine lane ─────────────────────────────────────────────────────
    <main> pads left by --spine-w (components/layout/desktop-spine.tsx). v2: 3.75rem (60px). */
 :root { --spine-w: 0px; }

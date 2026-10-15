@@ -285,8 +285,8 @@ export function NickReasoner({
       <header className="space-y-1">
         {/* Telemetry / History links removed: both redirect to /brain?tab=reason, this page (02-X4-N1). */}
         <div className="flex items-baseline justify-between gap-3">
-          <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
-            nick · reasoning engine
+          <p className="text-[11px] font-mono text-fg-tertiary">
+            Nick · reasoning engine
           </p>
         </div>
         <h1 className="text-2xl font-medium text-[var(--text-primary)]">
@@ -351,18 +351,18 @@ export function NickReasoner({
         <div className="space-y-5">
           {result ? (
             <div className="space-y-1">
-              <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
-                tier · {result.tier} · {result.classifierReason}
+              <p className="text-[11px] font-mono text-fg-tertiary">
+                Tier · {result.tier} · {result.classifierReason}
               </p>
-              <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary tabular-nums">
+              <p className="text-[11px] font-mono text-fg-tertiary tabular-nums">
                 {totalSeconds}s · {result.trace.cost.calls} call
                 {result.trace.cost.calls === 1 ? "" : "s"} ·{" "}
                 ${result.trace.cost.usd.toFixed(3)} est
               </p>
             </div>
           ) : busy ? (
-            <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-amber-300 pulse-live">
-              live trace · {liveSteps.length} step{liveSteps.length === 1 ? "" : "s"} done · current step in flight...
+            <p className="text-[11px] font-mono text-amber-300 pulse-live">
+              Live trace · {liveSteps.length} step{liveSteps.length === 1 ? "" : "s"} done · current step in flight...
             </p>
           ) : null}
 
@@ -379,8 +379,8 @@ export function NickReasoner({
             }
             return (
               <div className="rounded-control border border-sky-400/20 bg-sky-400/[0.04] p-3 space-y-2">
-                <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-sky-300/90">
-                  nick&apos;s plan
+                <p className="text-[11px] font-mono text-sky-300/90">
+                  Nick&apos;s plan
                 </p>
                 <pre className="text-xs text-[var(--text-primary)] whitespace-pre-wrap font-sans leading-relaxed">
                   {planText}
@@ -407,7 +407,7 @@ export function NickReasoner({
                     ].join(" ")}
                   />
                   <span className="min-w-0 flex-1">
-                    <span className="mr-2 text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
+                    <span className="mr-2 text-[11px] font-mono text-fg-tertiary">
                       {step.kind}
                     </span>
                     <span className="text-[var(--text-primary)]">
@@ -434,15 +434,15 @@ export function NickReasoner({
           {/* Final answer block · only after result lands */}
           {result ? (
             <div className="rounded-surface border border-edge-subtle bg-content p-4 space-y-3">
-              <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
-                nick · answer
+              <p className="text-[11px] font-mono text-fg-tertiary">
+                Nick · answer
               </p>
               <div className="text-sm text-[var(--text-primary)] whitespace-pre-wrap leading-relaxed">
                 {result.trace.answer}
               </div>
               <div className="flex items-baseline justify-between gap-3 pt-1">
-                <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary italic">
-                  confidence {(result.trace.confidence * 100).toFixed(0)}%
+                <p className="text-[11px] font-mono text-fg-tertiary italic">
+                  Confidence {(result.trace.confidence * 100).toFixed(0)}%
                 </p>
                 {/* H.4.5 + H.6.3 · continue-in-chat handoff. Routes to
                     /chat with the question + answer prefixed as a seed

@@ -117,7 +117,7 @@ function FixtureMemoryBody() {
         Shop closes 6 PM Mon–Sat, 4 PM Sunday. Nour said it directly in chat.
       </p>
       <div className="space-y-1">
-        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">proof</p>
+        <p className="font-mono text-[11px] text-fg-tertiary">Proof</p>
         <EvidenceMark inline now={FIXTURE_NOW} provenance={EVIDENCE_FIXTURES[0].provenance} />
       </div>
       <Metric
@@ -194,7 +194,7 @@ export default function UiLabPage() {
       </Panel>
 
       <Panel>
-        <p className="mb-2 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+        <p className="mb-2 font-mono text-[11px] text-fg-tertiary">
           Inspector — the four non-content states must never look alike
         </p>
         <div className="grid gap-3 md:grid-cols-2">
@@ -206,7 +206,7 @@ export default function UiLabPage() {
       </Panel>
 
       <Panel>
-        <p className="mb-2 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+        <p className="mb-2 font-mono text-[11px] text-fg-tertiary">
           Inspector frame — sheet chrome, peek vs inspect
         </p>
         <div className="flex flex-wrap gap-2">
@@ -232,7 +232,7 @@ export default function UiLabPage() {
       </Panel>
 
       <Panel>
-        <p className="mb-2 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+        <p className="mb-2 font-mono text-[11px] text-fg-tertiary">
           Metric — a number with its &quot;relative to what?&quot;
         </p>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -285,7 +285,7 @@ export default function UiLabPage() {
 
       <Panel>
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-          <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">Evidence mark — chip by default, inline in Reality Mode</p>
+          <p className="font-mono text-[11px] text-fg-tertiary">Evidence mark — chip by default, inline in Reality Mode</p>
           <button
             type="button"
             onClick={() => setRealityMode(!realityMode)}
@@ -310,7 +310,7 @@ export default function UiLabPage() {
       </Panel>
 
       <Panel>
-        <p className="mb-2 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+        <p className="mb-2 font-mono text-[11px] text-fg-tertiary">
           Selection grammar — fixture rows · j/k move · Space peeks · Enter opens · x selects · Esc unwinds
         </p>
         <ul className="space-y-1" data-selection-scope="ui-lab-fixtures">

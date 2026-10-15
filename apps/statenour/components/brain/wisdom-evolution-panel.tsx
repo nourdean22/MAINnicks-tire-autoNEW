@@ -149,8 +149,8 @@ export function WisdomEvolutionPanel({ onChange }: { onChange?: () => void }) {
   if (loading) {
     return (
       <div className="rounded-surface border border-edge-subtle bg-[var(--bg-raised)] p-4">
-        <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
-          loading evolution candidates…
+        <p className="text-[11px] font-mono text-fg-tertiary">
+          Loading evolution candidates…
         </p>
       </div>
     );
@@ -190,8 +190,8 @@ export function WisdomEvolutionPanel({ onChange }: { onChange?: () => void }) {
             : "border-edge-subtle bg-[var(--bg-raised)]"
         }`}
       >
-        <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
-          evolution review
+        <p className="text-[11px] font-mono text-fg-tertiary">
+          Evolution review
         </p>
         {failures.length > 0 ? (
           // Every finder that ran returned nothing AND at least one did
@@ -225,8 +225,8 @@ export function WisdomEvolutionPanel({ onChange }: { onChange?: () => void }) {
 
       {data.stale.length > 0 && (
         <section className="mb-4">
-          <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary mb-2">
-            stale · cold {data.stale.length}
+          <p className="text-[11px] font-mono text-fg-tertiary mb-2">
+            Stale · cold {data.stale.length}
           </p>
           <ul className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
             {data.stale.slice(0, 25).map((c) => (
@@ -256,16 +256,16 @@ export function WisdomEvolutionPanel({ onChange }: { onChange?: () => void }) {
 
       {data.redundant.length > 0 && (
         <section className="mb-4">
-          <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary mb-2">
-            redundant · merge {data.redundant.length}
+          <p className="text-[11px] font-mono text-fg-tertiary mb-2">
+            Redundant · merge {data.redundant.length}
           </p>
           <ul className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
             {data.redundant.slice(0, 25).map((c) => (
               <li key={`${c.keepId}_${c.mergeId}`} className="rounded-micro border border-[var(--border-default)] bg-[var(--bg-base)] p-3">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
-                    <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-emerald-400 mb-1">
-                      keep · {c.keepKey} · {(c.keepConfidence * 100).toFixed(0)}%
+                    <p className="text-[11px] font-mono text-emerald-400 mb-1">
+                      Keep · {c.keepKey} · {(c.keepConfidence * 100).toFixed(0)}%
                     </p>
                     <p className="text-[12px] text-[var(--text-primary)] leading-snug">
                       {c.keepContent.slice(0, 150)}
@@ -273,8 +273,8 @@ export function WisdomEvolutionPanel({ onChange }: { onChange?: () => void }) {
                     </p>
                   </div>
                   <div>
-                    <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-rose-400 mb-1">
-                      merge · {c.mergeKey} · {(c.mergeConfidence * 100).toFixed(0)}%
+                    <p className="text-[11px] font-mono text-rose-400 mb-1">
+                      Merge · {c.mergeKey} · {(c.mergeConfidence * 100).toFixed(0)}%
                     </p>
                     <p className="text-[12px] text-[var(--text-secondary)] leading-snug">
                       {c.mergeContent.slice(0, 150)}
@@ -303,8 +303,8 @@ export function WisdomEvolutionPanel({ onChange }: { onChange?: () => void }) {
 
       {data.lowTrust.length > 0 && (
         <section>
-          <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary mb-2">
-            low trust · review {data.lowTrust.length}
+          <p className="text-[11px] font-mono text-fg-tertiary mb-2">
+            Low trust · review {data.lowTrust.length}
           </p>
           <ul className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
             {data.lowTrust.slice(0, 25).map((c) => (

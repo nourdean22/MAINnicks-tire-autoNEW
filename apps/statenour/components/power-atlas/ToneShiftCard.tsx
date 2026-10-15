@@ -64,7 +64,7 @@ export default function ToneShiftCard({ metadata }: ToneShiftCardProps) {
           <h3 className="text-[15px] font-semibold text-fg">
             Tone shift
           </h3>
-          <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+          <span className="font-mono text-[11px] text-fg-tertiary">
             trailing 3 vs 30
           </span>
         </div>
@@ -86,23 +86,23 @@ export default function ToneShiftCard({ metadata }: ToneShiftCardProps) {
         <h3 className="text-[15px] font-semibold text-fg">
           Tone shift
         </h3>
-        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+        <span className="font-mono text-[11px] text-fg-tertiary">
           trailing 3 vs 30
         </span>
       </div>
 
       <div className="grid grid-cols-2 gap-3 text-xs">
         <div>
-          <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
-            recent · 3
+          <div className="font-mono text-[11px] text-fg-tertiary">
+            Recent · 3
           </div>
           <div className="font-mono tabular-nums text-fg-secondary">
             {formatSentiment(recentSentiment)}
           </div>
         </div>
         <div>
-          <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
-            trailing · 30
+          <div className="font-mono text-[11px] text-fg-tertiary">
+            Trailing · 30
           </div>
           <div className="font-mono tabular-nums text-fg-secondary">
             {formatSentiment(trailingSentiment)}
@@ -113,8 +113,8 @@ export default function ToneShiftCard({ metadata }: ToneShiftCardProps) {
       <div
         className="mt-3 border-t border-edge-subtle pt-3 flex items-baseline justify-between"
       >
-        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
-          shift
+        <span className="font-mono text-[11px] text-fg-tertiary">
+          Shift
         </span>
         <span
           className={`font-mono tabular-nums text-sm ${alert ? "text-amber-300" : "text-fg-secondary"}`}

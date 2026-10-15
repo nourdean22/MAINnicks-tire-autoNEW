@@ -159,7 +159,7 @@ export function MemoryCalibrationRitual({ onClose, autoLoad = true }: Calibratio
     <section className="rounded-surface border border-edge-subtle bg-content p-2.5 space-y-2">
       <div className="flex items-center gap-2">
         <RotateCcw size={11} className="text-fg-tertiary" />
-        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+        <span className="font-mono text-[11px] text-fg-tertiary">
           calibrate memory
         </span>
         <span className="text-[11px] font-mono text-fg-tertiary">
@@ -295,7 +295,7 @@ export function MemoryCalibrationCard() {
     return (
       <section className="rounded-control border border-edge-subtle bg-content px-3 py-1.5 flex items-center gap-2">
         <RotateCcw size={10} className="text-fg-tertiary" />
-        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+        <span className="font-mono text-[11px] text-fg-tertiary">
           calibrate memory
         </span>
         <span className="text-[11px] text-fg-secondary truncate">

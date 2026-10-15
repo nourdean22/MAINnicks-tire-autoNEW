@@ -274,7 +274,7 @@ export function ActiveTaskCompanion({ task, onSessionChange }: Props) {
     <div className="border-t border-edge-subtle bg-canvas/30">
       {/* ── Quick actions row ───────────────────────────── */}
       <div className="px-3 py-1.5 flex items-center gap-1 flex-wrap">
-        <span className="shrink-0 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mr-1">
+        <span className="shrink-0 font-mono text-[11px] text-fg-tertiary mr-1">
           <Sparkles size={9} className="inline mr-0.5" />
           session
         </span>
@@ -426,7 +426,7 @@ export function ActiveTaskCompanion({ task, onSessionChange }: Props) {
             <li key={e.id} className="px-3 py-1 flex items-center gap-2 text-[11px]">
               <span
                 className={cn(
-                  "shrink-0 font-mono text-[11px] uppercase tracking-[0.12em] px-1 py-0 rounded-micro border",
+                  "shrink-0 font-mono text-[11px] px-1 py-0 rounded-micro border",
                   e.kind === "note"
                     ? "text-fg-secondary border-edge-default bg-content"
                     : e.kind === "photo"

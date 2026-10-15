@@ -137,7 +137,7 @@ export function JournalThreadsStrip() {
           className="text-fg-tertiary"
           strokeWidth={1.75}
         />
-        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+        <span className="font-mono text-[11px] text-fg-tertiary">
           threads · {chips.length}
         </span>
         <span className="text-fg-tertiary/30">·</span>
