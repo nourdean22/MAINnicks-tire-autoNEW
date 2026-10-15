@@ -119,7 +119,7 @@ export function AlertInspector({ entity }: InspectorPanelProps) {
         </button>
       </div>
       <p className="font-mono text-[11px] text-fg-tertiary">
-        {`Resolve clears this alert. Mute hides the whole category from the alerts list and the Brain memory card for ${ALERT_MUTE_DAYS} days.`}
+        {`Resolve clears this alert. Mute hides the whole category from the alerts list and the Brain memory tab for ${ALERT_MUTE_DAYS} days.`}
       </p>
 
       <EntityActionRow entities={[entity]} labelOf={() => label} />

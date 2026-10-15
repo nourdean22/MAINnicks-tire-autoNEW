@@ -89,11 +89,12 @@ describe("AlertInspector footer", () => {
     expect(text, "Mute must say what it hides").toMatch(/category/i);
   });
 
-  it("names the surfaces Mute really hides (the alerts list, the Brain memory card) and no Home card", () => {
-    // components/brain/memory-tab.tsx mounts ActiveAlertsCard; Home has no alert card.
+  it("names the surfaces Mute really hides (the alerts list, the Brain memory tab) and no Home card", () => {
+    // components/brain/memory-tab.tsx mounts ActiveAlertsCard and the Recall inbox alerts bucket; Home has no alert card.
     const text = footerText(render());
     expect(text).toContain("alerts list");
-    expect(text).toContain("Brain memory card");
+    expect(text).toContain("Brain memory tab");
+    expect(text).not.toContain("Brain memory card");
     expect(text).not.toMatch(/home/i);
   });
 

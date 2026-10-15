@@ -1,7 +1,7 @@
 # UI v3 plan: Command Deck, finished
 
 **Status (2026-10-15):** Wave 0 approved by Nour ("go wave 0"). Every later wave needs his go.
-**Base:** origin/main `ec21736f9` (W0 rebased onto a newer main at integration). **Owner:** the manager session "bdnick ui upgrade" (job id `2026-10-15-bdnick-ui-v3`).
+**Base:** origin/main `ec21736f9` when W0 started; the W0 PR merged newer main before integration. **Owner:** the manager session "bdnick ui upgrade" (job id `2026-10-15-bdnick-ui-v3`).
 **Genome:** COMMAND DECK ([`docs/design/SURFACE-DNA.md`](../../../../../docs/design/SURFACE-DNA.md)): one dominant thought per screen, then a rail; void and depth; the mission is the dominant object.
 **Builds on:** UI v2 ([`../ui-v2/PLAN.md`](../ui-v2/PLAN.md), [`SYSTEM.md`](../ui-v2/SYSTEM.md)) and the workbench grammar ([`../ui-workbench-2026-09-15.md`](../ui-workbench-2026-09-15.md)).
 **Evidence rule:** counts and file:line cites below are dated 2026-10-15 and drift. Re-verify before relying on one.
@@ -14,7 +14,7 @@
 ## 2. Why v3 (audit of all 37 routes, 2026-10-15, read-only)
 
 1. v2 re-skinned every page but recomposed only Home: the `uppercase` utility appears in 201 of 336 TSX files (623 hits); 43 files use StandardPage and so share one eyebrow + title + description header; a state-colored aura wraps every page (`components/hud/ambient-aura.tsx:36`, `app/styles/effects.css:657-678`).
-2. Failure UX is the weakest part, and it is when Nour opens the app: People says "tap reload" with nothing to tap (`app/(mastery)/people/page.tsx:666-670`, fixed in W0); Home's approvals row lands on the Logs tab, not Approvals (`app/(mastery)/system/actions/page.tsx:196`); the alert inspector prints developer copy (`components/inspector/panels/alert-inspector.tsx:121-123`, fixed in W0).
+2. Failure UX is the weakest part, and it is when Nour opens the app: People says "tap reload" with nothing to tap (the failure branch of `app/(mastery)/people/page.tsx`, fixed in W0); Home's approvals row lands on the Logs tab, not Approvals (`app/(mastery)/system/actions/page.tsx:196`); the alert inspector prints developer copy (`components/inspector/panels/alert-inspector.tsx:121-123`, fixed in W0).
 3. Navigation: 4 tabs plus More. Brain, People, Stats are 2 taps; system pages 3; `/intelligence/ledger` 4 (an orphan chain). The System hub has 20 tiles, 5 of them QA fixtures. Two "brief" surfaces exist.
 4. iPhone haptics do nothing: `lib/ui/haptic.ts` requires `navigator.vibrate`; MDN browser-compat-data (read 2026-10-15) has `api.Navigator.vibrate` Safari `version_added: false` and iOS Safari mirroring it. About 48 call sites in 9 files.
 5. Speed is unmeasured (LCP, INP, CLS never measured). 307 of 336 TSX files are client roots; one `loading.tsx` for 37 routes.
@@ -23,7 +23,7 @@
 
 | Wave | What changes | Gate | Waits for |
 |---|---|---|---|
-| W0 gates and honesty, invisible | Four honesty fixes (haptics row, People read failure + Retry, alert inspector copy, Brain loading line); ratchet tests for uppercase, em dash, emoji, `transition: all`, durations over 300 ms, inputs under 16 px; this doc | Tests red first; ratchets proven by planted violations | nothing |
+| W0 gates and honesty, invisible | Four honesty fixes (haptics row, People read failure + Retry, alert inspector copy, Brain loading line); ratchet tests for uppercase, em dash, emoji, `transition: all`, Tailwind duration classes over 300 ms, inputs under 16 px; this doc | Tests red first; ratchets proven by planted violations | nothing |
 | W0b fixture lane | v3 distance spec (opt-in until baselines exist), Playwright-stubbed DEMO fixtures under `tests/e2e/fixtures/`, workflow dispatch wiring, v2 baselines captured in CI | Controls first: identical re-render scores 0.000, a 16 to 64 px shift stays under 0.35 | a platform-lane edit to `.github/workflows/e2e-statenour.yml` (dependabot #3014 merged as 2d7d5175e; Playwright 1.64.0 is on main); lands before W2 |
 | W1 shell and grammar | Stop stray uppercase; header diet; replace the aura with a state word + notch; pin-to-tab-bar + Command tab; spring tokens; approvals land on Approvals; /goals and /scoreboard become redirects | Ratchet baselines drop; Home and Missions at 390 vs v2 | W0 |
 | W2 Home deck + Missions | Verdict hero; finite brief (max 7 ruled cards, Keep/Less, "Done for today"); approve in place; right rail at 1280+; one capture control; detent sheet pilot | Distance >= 0.35 at 390 and 1440; iPhone check | W1, W0b |
@@ -31,6 +31,8 @@
 | W4 Mind | Brain 1-row compact tabs; People attention list first (Retry shipped in W0); Journal one field, no emoji; Stats 3 tabs + verdict line | Ratchets + gate | W2 |
 | W5 Control | System attention strip first, QA fixtures under one "Lab"; Priority/Other lanes for inbox + alerts; dismiss-with-reason; Settings cleanup | Ratchets | W1 |
 | W6 intent surface (later) | Nick composes the screen from typed cards | Not scheduled | the two typed-card registries merged, Keep/Less live for 2 weeks, W2 gate green |
+
+The W0 ratchets do not tighten by themselves: each wave PR that removes violations runs `UPDATE_RATCHET=1` (`pnpm exec vitest run tests/repo/ui-v3-ratchets.test.ts`) and commits the lowered numbers. A legitimate new number is added with `UPDATE_RATCHET=init` in the PR that adds it, with the reason in the PR body, and is reviewed like any raise.
 
 Estimates (not measured): about 1 day per wave at v2's pace; CI cost about 8 to 12 runner-hours for six PRs.
 
@@ -48,8 +50,8 @@ Estimates (not measured): about 1 day per wave at v2's pace; CI cost about 8 to 
 | Tap-to-attach context chip | https://linear.app/changelog/2026-07-30-coding-sessions-on-mobile (2026-07-30) | W3 |
 | Compact content-width tab strips | https://linear.app/now/behind-the-latest-design-refresh (2026-03-12) | W4 |
 | Dismiss with a reason suppresses repeats | https://cursor.com/changelog (2026-09-23) | W5 |
-| Motion numbers as tests (under 300 ms, `:active` scale 0.97, no animation on keyboard-initiated actions) | https://github.com/emilkowalski/skill (created 2026-03-16); copy the rules, do not install | W0 ratchet, W1 |
-| Web Interface Guidelines as tests (inputs at least 16 px, no `transition: all`, reduced motion) | https://vercel.com/design/guidelines (undated); copy the rules, do not install | W0 ratchet |
+| Motion numbers as tests (under 300 ms, `:active` scale 0.97, no animation on keyboard-initiated actions) | https://github.com/emilkowalski/skill (created 2026-03-16); copy the rules, do not install | W0 ratchet covers only Tailwind duration classes over 300 ms; `:active` scale and keyboard-initiated motion are W1 |
+| Web Interface Guidelines as tests (inputs at least 16 px, no `transition: all`, reduced motion) | https://vercel.com/design/guidelines (undated); copy the rules, do not install | W0 ratchet covers inputs and `transition: all`; reduced motion has no test yet |
 
 Not doing: NumberFlow, Liveline and morphing icons (new dependencies), `corner-shape` squircle (not on iOS Safari), Speculation Rules (not on iOS Safari), sync engines (Zero, Linear-style), CSS `base-select` replacing Base UI, Raycast-style auto contrast.
 
@@ -82,7 +84,7 @@ Browser support facts used (webstatus / MDN browser-compat-data, read 2026-10-15
 
 - Before each wave: footprint check on the claimed paths (`git -C <worktree> diff --name-only origin/main...HEAD -- <paths>` and `git -c core.fsmonitor=false -C <worktree> status --porcelain -- <paths>`), GitHub lease refs, open PRs. Then lease `statenour/ui-v3-<wave>`.
 - Messages to sessions: first line `REPLY NEEDED:` or `NO REPLY NEEDED:`, one decision per message, say what we will not touch, close the loop in one line.
-- Order: W3 waits for the T2 branch (it edits `features/chat-v2/components/chat-island.tsx`, `use-chat-stream.ts`, `saved-turn.ts`, `lib/ai/receipts/*`, `app/api/ai/chat/*`). W0b no longer waits for #3014 (it merged as 2d7d5175e); it waits only for the platform-lane edit to `.github/workflows/e2e-statenour.yml`. W0 to W2 add no dependency, so no `package.json` or lockfile edits.
+- Order: W3 waits for the T2 branch (it edits `features/chat-v2/components/chat-island.tsx`, `use-chat-stream.ts`, adds `features/chat-v2/lib/saved-turn.ts`, `lib/ai/receipts/*`, `app/api/ai/chat/*`). W0b no longer waits for #3014 (it merged as 2d7d5175e); it waits only for the platform-lane edit to `.github/workflows/e2e-statenour.yml`. W0 to W2 add no dependency, so no `package.json` or lockfile edits.
 - Hot files, one writer at a time: `app/styles/*`, `components/layout/*`, `docs/UPSTREAMS.md`, `docs/agent-os/MANAGER-LEDGER.md`.
 - At most 2 background agents at once; no dev server or full suite without telling the other sessions first (a dev server measured 4.5 to 6.3 GB RSS in CI).
 
@@ -100,7 +102,7 @@ Decisions, defaults assumed until Nour says otherwise (confirm before W2): v3 mu
 | 2 | Replace AmbientAura with a state word + notch; edit the pinned tests | `components/hud/ambient-aura.tsx:36`, `app/styles/effects.css:657-678` | W1 |
 | 3 | Approvals link opens Approvals; approval-windows box below the list; ticker rows use `Link`; alert footer in plain words | `lib/home/operator-brief.ts` (about 408, 654), `app/(mastery)/system/actions/page.tsx:196,606-640`, `components/ultron/bottom-pulse-ticker.tsx:406-410`, `components/inspector/panels/alert-inspector.tsx:121-123` | W1 (alert footer in W0) |
 | 4 | Header diet: eyebrow only when it adds information; drop the description on core pages | `components/layout/standard-page.tsx:177-186` | W1 |
-| 5 | One state block with Retry for empty, loading, error | `app/(mastery)/people/page.tsx:666-670`, `app/(mastery)/stats/page.tsx:62-72` | W0 (People), W4 |
+| 5 | One state block with Retry for empty, loading, error | `app/(mastery)/people/page.tsx` (failure branch, fixed in W0), `app/(mastery)/stats/page.tsx:62-72` | W0 (People), W4 |
 | 6 | Sweep em dashes, emoji, More-sheet emoji | `lib/floating-home/smart-now.ts`, `components/journal/reflect-composer.tsx:93-102` | W1, W4 |
 | 7 | Delete the Missions FAB, fold "New mission" into the capture row | `components/actions/omni-capture-modal.tsx:112-115`, `app/(mastery)/missions/page.tsx:352-381` | W2 |
 | 8 | Brain single scrolling lens row, filters inside the canvas | `components/layout/page-tabs.tsx:223`, `app/(mastery)/brain/page.tsx:80-100` | W4 |

@@ -329,7 +329,9 @@ function RelationshipsPageInner() {
 
   // usePollingFetch builds "<status> <statusText> · <first 160 chars of the body>". The body is a JSON
   // envelope or a gateway HTML page: never the operator's business, so show only the leading status.
-  const failureReason = error ? error.split(" · ")[0] : null;
+  // A thrown fetch stores err.message instead ("Failed to fetch", "Load failed"): one fixed line, never exception text.
+  const failureHead = error ? error.split(" · ")[0] : null;
+  const failureReason = failureHead === null ? null : /^\d{3}(?: |$)/.test(failureHead) ? failureHead.slice(0, 60) : "Could not reach the server";
 
   return (
     <StandardPage
@@ -465,7 +467,7 @@ function RelationshipsPageInner() {
         </p>
       )}
 
-      {/* People list· tap-to-select for in-page detail (no nav) */}
+      {/* People list · tap-to-select for in-page detail (no nav) */}
       {data && data.people.length === 0 && !loading && (
         <div className="border-l-2 border-edge py-2 pl-5 text-[15px] leading-relaxed text-fg-secondary sm:pl-6">
           No people profiles yet · the people-intelligence engine builds these

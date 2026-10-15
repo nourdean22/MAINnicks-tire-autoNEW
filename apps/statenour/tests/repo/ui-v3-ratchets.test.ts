@@ -11,7 +11,9 @@
  * features/, hooks/ and app/ (NOT app/api), every .css under app/, and exactly two lib modules that
  * render UI text: lib/floating-home/smart-now.ts and lib/mastery/config.ts. The rest of lib/ (AI
  * prompts, logs) is noise and is not scanned. .d.ts, *.test.*, *.spec.*, __tests__, node_modules and
- * dot-directories are skipped.
+ * dot-directories are skipped. CSS is read for uppercase (text-transform and @apply), transitionAll,
+ * slowDuration (inside @apply), emDash and emoji (outside comments, so content strings count); never
+ * smallInput. A counter a file type cannot hold simply scores 0 there.
  *
  *   uppercase      the `uppercase` class token (any variant prefix) in a string or template literal,
  *                  as an identifier or shorthand key of an object passed to cn/clsx/cx/classNames/
@@ -39,15 +41,22 @@
  *                  iOS Safari zooms the page on focus under 16px. Checkbox, radio, range, file, hidden,
  *                  color and button types are exempt. A className held in a same-file const is read.
  *
- * Lower the baseline after a wave removes violations (bash, then PowerShell):
+ * HOW THE BASELINE MOVES. It never tightens by itself: slack left in it lets a fixed violation be
+ * re-added unseen, so every wave PR that removes violations runs UPDATE_RATCHET=1 and commits the lowered
+ * numbers (bash, then PowerShell):
  *   UPDATE_RATCHET=1 pnpm exec vitest run tests/repo/ui-v3-ratchets.test.ts
  *   $env:UPDATE_RATCHET='1'; pnpm exec vitest run tests/repo/ui-v3-ratchets.test.ts
- * Mode 1 rewrites the JSON from the tree and REFUSES (throws, writes nothing) if any number would
- * rise OR if the baseline file is missing. UPDATE_RATCHET=init is the only mode that may create or
- * raise the baseline; it exists for widening the scan and is used once, in review, never to silence a
- * regression. Never hand-edit a number up; the consistency test fails when totals stop matching. A file
- * that moves or is renamed arrives with no baseline entry and leaves a stale one behind, so re-key its
- * entry by hand: the numbers move with it and the totals do not change.
+ * Mode 1 rewrites the JSON from the tree and REFUSES (throws, writes nothing) if any number would rise or
+ * if the baseline file is missing, corrupt, or parses to anything but a JSON object. Both modes are
+ * refused when CI is set.
+ * ADDING a legitimate new number (a new file with an unavoidable hit, a new rule, a wider scan): run
+ * UPDATE_RATCHET=init in the PR that adds it, give the reason in the PR body, and expect it to be
+ * reviewed like any raise. init is the only mode that may create or raise the baseline. Prefer fixing the
+ * violation (reword prose: "uppercase" -> "capital letter"). Never hand-edit a number up; the consistency
+ * test fails when totals stop matching.
+ * A DELETED file leaves a stale entry, which UPDATE_RATCHET=1 drops. A MOVED or RENAMED file also leaves
+ * one and arrives with no entry, which mode 1 refuses as a raise: re-key the entry by hand, the numbers
+ * move with the file and the totals do not change.
  *
  * The instrument can fail: every counter has a planted-violation fixture written to a temp dir and
  * read back through the same scanTree the real run uses, a clean fixture scores 0, and the walker is
@@ -60,14 +69,30 @@
  * shortcut: class strings built by interpolation (`text-${size}`), a className imported from another
  * file or passed down as a prop, a `max-md:` variant that sets a phone size, `<select>`, and a
  * transition value split across a template substitution are not read. Two consts with the same name in
- * one file resolve to the later one. A false positive (the word "uppercase" in prose) is baselined
- * like any other and costs one number.
+ * one file resolve to the later one. A false positive (the word "uppercase" in prose) is a real hit: reword
+ * it, or add it with UPDATE_RATCHET=init as above.
+ *
+ * Known gaps, found by review and left on purpose (do not rediscover them; fix them in the wave that cares):
+ *   - Typographic arrows and triangles count as emoji (they are Extended_Pictographic); named entities
+ *     other than &mdash; (&hearts; and friends) are not decoded.
+ *   - smallInput does not read a few valid size spellings (text-[length:15px], pt/cm/in units) or a style
+ *     object held in a const.
+ *   - Files outside the roots are not read: .js, .jsx, .mjs, .mts, and .css outside app/. Nothing asserts
+ *     that every scanned file parses cleanly.
+ *   - There is no tripwire for new UI source that appears outside the scan roots.
+ *   - A CSS custom property holding `all`, and CSS hex escapes for the em dash, are not read.
+ *   - The totals block is a merge hot spot: two lowering PRs conflict even on different counters. Resolve
+ *     by taking either side and running UPDATE_RATCHET=1, which recomputes the totals and cannot raise.
+ *   - The shared EmptyState ERROR label carries an em dash and an all-caps chip. W1 fixes the component;
+ *     the baseline already counts it.
+ *   - The settings census doc still cites old haptic line numbers, and the statenour knip gate in CI
+ *     cannot fail (pre-existing, not part of this change).
  */
 import { afterAll, describe, expect, it } from "vitest";
 import ts from "typescript";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 
 const ROOT = join(__dirname, "..", "..");
 const BASELINE_PATH = join(__dirname, "ui-v3-ratchets.baseline.json");
@@ -101,6 +126,8 @@ const TRANSITION_ARBITRARY_PROP = /(?<![\w-])\[(?:-(?:webkit|moz|ms|o)-)?transit
 /** Group 1 is the declaration's value, up to the next `;`, brace or `]` (it may span lines). Not inside [...]. */
 const TRANSITION_DECL = /(?<![\w[-])(?:-(?:webkit|moz|ms|o)-)?transition(?:-property)?\s*:\s*([^;{}\]]*)/g;
 const TRANSITION_KEY = /^(?:webkit|moz|ms|o)?transition(?:property)?$/i;
+/** The kebab-case names style.setProperty takes. */
+const TRANSITION_PROP_NAME = /^-?(?:(?:webkit|moz|ms|o)-)?transition(?:-property)?$/i;
 const DURATION_N = /(?<![\w-])duration-(\d+)(?![\w-])/g;
 const DURATION_MS = /(?<![\w-])duration-\[(\d*\.?\d+)(ms|s)\](?![\w-])/g;
 const CSS_UPPERCASE_DECL = /(?<![\w-])text-transform\s*:\s*uppercase(?![\w-])/g;
@@ -208,23 +235,46 @@ function propertyKeyText(name: ts.PropertyName): string {
   return "";
 }
 
-/** The text of a transition value written as a string or a template (substitutions leave gaps). */
-function transitionValue(init: ts.Node): string {
-  if (ts.isStringLiteralLike(init)) return init.text;
-  if (ts.isTemplateExpression(init)) return [init.head.text, ...init.templateSpans.map((s) => s.literal.text)].join(" ");
-  return "";
+/** Every string piece of a transition value, whatever the expression: ternary, &&, as, concatenation, call, same-file const. */
+function transitionValue(init: ts.Node, consts: Map<string, ts.Node>): string {
+  return classPieces(init, consts).join(" ");
 }
 
-/** An object literal passed straight to cn/clsx/cx/classNames/cva/tv/twMerge/twJoin. */
-function isClassHelperArg(obj: ts.ObjectLiteralExpression): boolean {
-  const call = obj.parent;
-  if (!ts.isCallExpression(call) || !call.arguments.includes(obj)) return false;
-  const callee = call.expression;
-  const name = ts.isIdentifier(callee) ? callee.text : ts.isPropertyAccessExpression(callee) ? callee.name.text : "";
-  return CLASS_HELPERS.has(name);
+/** True anywhere inside the arguments of a cn/clsx/cx/classNames/cva/tv/twMerge/twJoin call (nested arrays, `cond && {...}`, callbacks). */
+function insideClassHelper(node: ts.Node): boolean {
+  let child: ts.Node = node;
+  let p: ts.Node | undefined = node.parent;
+  while (p) {
+    if (ts.isCallExpression(p) && (p.arguments as readonly ts.Node[]).includes(child)) {
+      const callee = p.expression;
+      const name = ts.isIdentifier(callee) ? callee.text : ts.isPropertyAccessExpression(callee) ? callee.name.text : "";
+      if (CLASS_HELPERS.has(name)) return true;
+    }
+    child = p;
+    p = p.parent;
+  }
+  return false;
 }
 
-/** Every string piece inside an attribute value, following same-file const identifiers one hop at a time. */
+/** Looks through `( x )`, `x as T` and `x satisfies T` so an object literal held in a const is found. */
+function unwrap(n: ts.Node): ts.Node {
+  while (ts.isParenthesizedExpression(n) || ts.isAsExpression(n) || ts.isSatisfiesExpression(n)) n = n.expression;
+  return n;
+}
+
+/** For `obj.key` or `obj["key"]` where this identifier is `obj`, the key; otherwise null. */
+function accessedKey(id: ts.Identifier): string | null {
+  const p = id.parent;
+  if (ts.isPropertyAccessExpression(p) && p.expression === id) return p.name.text;
+  if (ts.isElementAccessExpression(p) && p.expression === id && ts.isStringLiteralLike(p.argumentExpression)) return p.argumentExpression.text;
+  return null;
+}
+
+/**
+ * Every string piece inside an expression, following same-file const identifiers. A const holding an object
+ * literal that is read as `obj.key` or `obj["key"]` contributes only that property (an unknown key reads the
+ * whole object).
+ */
 function classPieces(expr: ts.Node, consts: Map<string, ts.Node>): string[] {
   const out: string[] = [];
   const seen = new Set<string>();
@@ -232,9 +282,16 @@ function classPieces(expr: ts.Node, consts: Map<string, ts.Node>): string[] {
     if (isStringish(n)) out.push(n.text);
     else if (ts.isIdentifier(n) && isValueReference(n)) {
       const init = consts.get(n.text);
-      if (init && !seen.has(n.text)) {
-        seen.add(n.text);
-        visit(init);
+      const key = accessedKey(n);
+      const tag = `${n.text}.${key ?? ""}`;
+      if (init && !seen.has(tag)) {
+        seen.add(tag);
+        const obj = unwrap(init);
+        const member =
+          key !== null && ts.isObjectLiteralExpression(obj)
+            ? obj.properties.find((p): p is ts.PropertyAssignment => ts.isPropertyAssignment(p) && propertyKeyText(p.name) === key)
+            : undefined;
+        visit(member ? member.initializer : init);
       }
     }
     ts.forEachChild(n, visit);
@@ -308,13 +365,19 @@ export function scanSource(text: string, tsx: boolean): Counts {
       c.emoji += countEmoji(rendered);
     } else if (ts.isPropertyAssignment(n)) {
       // style={{ transition: "opacity 1s, all 2s" }}: the string alone carries no `transition:` for the regex.
-      if (TRANSITION_KEY.test(propertyKeyText(n.name)) && listsAll(transitionValue(n.initializer))) c.transitionAll++;
+      if (TRANSITION_KEY.test(propertyKeyText(n.name)) && listsAll(transitionValue(n.initializer, consts))) c.transitionAll++;
       // clsx("x", { uppercase: on }): an unquoted key is invisible to the string scan.
-      if (ts.isIdentifier(n.name) && n.name.text === "uppercase" && ts.isObjectLiteralExpression(n.parent) && isClassHelperArg(n.parent)) c.uppercase++;
+      if (ts.isIdentifier(n.name) && n.name.text === "uppercase" && insideClassHelper(n)) c.uppercase++;
     } else if (ts.isShorthandPropertyAssignment(n)) {
-      if (n.name.text === "uppercase" && ts.isObjectLiteralExpression(n.parent) && isClassHelperArg(n.parent)) c.uppercase++;
+      if (n.name.text === "uppercase" && insideClassHelper(n)) c.uppercase++;
+      // { transition } where a same-file const of that name holds the value.
+      if (TRANSITION_KEY.test(n.name.text) && listsAll(transitionValue(n.name, consts))) c.transitionAll++;
     } else if (ts.isBinaryExpression(n) && n.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
-      if (TRANSITION_KEY.test(styleAssignmentKey(n.left)) && listsAll(transitionValue(n.right))) c.transitionAll++;
+      if (TRANSITION_KEY.test(styleAssignmentKey(n.left)) && listsAll(transitionValue(n.right, consts))) c.transitionAll++;
+    } else if (ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression) && n.expression.name.text === "setProperty" && n.arguments.length >= 2) {
+      // el.style.setProperty("transition", "all .2s")
+      const [prop, value] = n.arguments;
+      if (ts.isStringLiteralLike(prop) && TRANSITION_PROP_NAME.test(prop.text) && listsAll(transitionValue(value, consts))) c.transitionAll++;
     } else if (ts.isJsxOpeningLikeElement(n)) {
       if (isSmallInput(n, consts, sf)) c.smallInput++;
     }
@@ -331,6 +394,8 @@ export function scanCss(text: string): Counts {
   const bare = text.replace(/\/\*[\s\S]*?\*\//g, "");
   c.transitionAll = countTransitionAll(bare);
   c.uppercase = count(CSS_UPPERCASE_DECL, bare);
+  c.emDash = countChar(bare, EM_DASH);
+  c.emoji = countEmoji(bare);
   for (const m of bare.matchAll(CSS_APPLY)) {
     c.uppercase += count(UPPERCASE, m[1]);
     c.slowDuration += countSlowDurations(m[1]);
@@ -382,11 +447,19 @@ export interface Baseline {
   files: Record<string, Partial<Counts>>;
 }
 
-const ABOUT =
+const BASELINE_NAME = "ui-v3-ratchets.baseline.json";
+
+/** Written into the JSON's _about by serialize(); a test pins the committed file to it. */
+export const ABOUT =
   "UI v3 ratchet baseline (tests/repo/ui-v3-ratchets.test.ts). Keys are app-root-relative POSIX paths; a file or counter that is absent is 0. " +
-  "A count may fall and never rise. Lower the numbers with UPDATE_RATCHET=1 pnpm exec vitest run tests/repo/ui-v3-ratchets.test.ts, which refuses to raise any number and refuses a missing file. " +
-  "UPDATE_RATCHET=init may create or raise the baseline; it is for widening the scan, once, in review. " +
-  "Do not hand-edit a number up; a moved, renamed or deleted file is re-keyed or dropped by hand or by mode 1, its numbers moving with it and the totals unchanged.";
+  "A count may fall and never rise. It does not tighten by itself: each wave PR that removes violations runs UPDATE_RATCHET=1 pnpm exec vitest run tests/repo/ui-v3-ratchets.test.ts and commits the lowered numbers. " +
+  "That mode refuses to raise any number and refuses a missing, corrupt or non-object file. A deleted file's entry is dropped when it runs; a moved or renamed file is re-keyed by hand, its numbers moving with it and the totals unchanged. " +
+  "To ADD a legitimate number run UPDATE_RATCHET=init in the PR that adds it, give the reason in the PR body, and expect it to be reviewed like any raise. " +
+  "Both modes are refused when CI is set. Do not hand-edit a number up.";
+
+/** What the stale-key failure tells the author to do. */
+export const STALE_HELP =
+  "Deleted: run UPDATE_RATCHET=1, which drops the entry. Moved or renamed: re-key the entry by hand (the numbers move with the file, the totals do not change).";
 
 export function sumTotals(scan: Scan): Counts {
   const t = zero();
@@ -422,18 +495,28 @@ export function risen(scan: Scan, baseline: Baseline): string[] {
 }
 
 /** What is wrong with the baseline file itself. Empty means it is well formed and its totals match its files. */
-export function baselineProblems(b: Baseline): string[] {
+export function baselineProblems(input: Baseline): string[] {
+  const b: unknown = input;
+  const isObject = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v);
+  if (!isObject(b)) return ["the baseline is not a JSON object"];
   const out: string[] = [];
   const sum = zero();
-  for (const [rel, counts] of Object.entries(b.files ?? {})) {
+  if (!isObject(b.files)) out.push("files must be an object keyed by path");
+  for (const [rel, counts] of Object.entries(isObject(b.files) ? b.files : {})) {
     if (rel.includes("\\")) out.push(`${rel}: not a POSIX path`);
+    if (!isObject(counts)) {
+      out.push(`${rel}: counts must be an object`);
+      continue;
+    }
     for (const [k, v] of Object.entries(counts)) {
       if (!(COUNTERS as readonly string[]).includes(k)) out.push(`${rel}: unknown counter ${k}`);
       else if (!Number.isInteger(v) || (v as number) <= 0) out.push(`${rel}: ${k} must be a positive integer, got ${String(v)}`);
       else sum[k as Counter] += v as number;
     }
   }
-  for (const k of COUNTERS) if (b.totals?.[k] !== sum[k]) out.push(`totals.${k} is ${String(b.totals?.[k])} but the files sum to ${sum[k]}`);
+  const totals = b.totals;
+  if (!isObject(totals)) out.push("totals must be an object");
+  else for (const k of COUNTERS) if (totals[k] !== sum[k]) out.push(`totals.${k} is ${String(totals[k])} but the files sum to ${sum[k]}`);
   return out;
 }
 
@@ -450,6 +533,30 @@ export function planUpdate(prev: Baseline | null, scan: Scan): { next: Baseline;
 export const serialize = (b: Baseline): string =>
   `${JSON.stringify({ _about: ABOUT, totals: b.totals, files: b.files }, null, 2)}\n`;
 
+/**
+ * Parses the baseline file. null when it is absent or parses to anything that is not a JSON object (null, 0,
+ * false, "", an array): those count as MISSING, so mode 1 cannot treat them as an empty baseline and raise.
+ * A file that is not JSON at all throws, naming the file.
+ */
+export function loadBaseline(path: string): Baseline | null {
+  if (!existsSync(path)) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(readFileSync(path, "utf8"));
+  } catch (e) {
+    throw new Error(`${basename(path)} is not valid JSON (restore it from git): ${(e as Error).message}`);
+  }
+  return parsed !== null && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Baseline) : null;
+}
+
+/** Why an update is refused in CI (a CI run must never rewrite the baseline), or null. CI=0 and CI=false do not count. */
+export function ciRefusal(env: Record<string, string | undefined>): string | null {
+  const ci = env.CI;
+  return ci && ci !== "0" && ci.toLowerCase() !== "false"
+    ? "UPDATE_RATCHET is refused when CI is set: the baseline is changed in a reviewed PR, never rewritten by a CI run."
+    : null;
+}
+
 export type UpdateMode = "lower" | "init";
 /** UPDATE_RATCHET=1 is "lower", UPDATE_RATCHET=init is "init", anything else is no update. */
 export const updateMode = (env: string | undefined): UpdateMode | null => (env === "1" ? "lower" : env === "init" ? "init" : null);
@@ -459,11 +566,12 @@ export const updateMode = (env: string | undefined): UpdateMode | null => (env =
  * would rise or the file is missing. "init" (UPDATE_RATCHET=init): create or overwrite without the check.
  */
 export function applyUpdate(path: string, scan: Scan, mode: UpdateMode = "lower"): Baseline {
-  const exists = existsSync(path);
-  if (!exists && mode === "lower") {
-    throw new Error("UPDATE_RATCHET=1 refuses to create a baseline: the file is missing (restore it from git). UPDATE_RATCHET=init is for widening the scan, once.");
+  const prev = mode === "lower" ? loadBaseline(path) : null;
+  if (mode === "lower" && prev === null) {
+    throw new Error(
+      "UPDATE_RATCHET=1 refuses to create a baseline: the file is missing or is not a JSON object (restore it from git). UPDATE_RATCHET=init is for widening the scan or adding a reviewed number.",
+    );
   }
-  const prev = exists && mode === "lower" ? (JSON.parse(readFileSync(path, "utf8")) as Baseline) : null;
   const { next, raised } = planUpdate(prev, scan);
   if (raised.length > 0) throw new Error(`UPDATE_RATCHET refuses to raise a number:\n  ${raised.join("\n  ")}`);
   writeFileSync(path, serialize(next));
@@ -519,7 +627,7 @@ afterAll(() => {
 /** One planted file per rule family, each holding exactly the counts it promises (everything else 0). */
 const PLANTED: Record<string, { counts: Partial<Counts>; src: string }> = {
   "components/planted-uppercase.tsx": {
-    counts: { uppercase: 7 },
+    counts: { uppercase: 11 },
     src: [
       'export const A = () => <p className="font-mono uppercase tracking-wide">a</p>;', // 1
       'export const B = () => <p className={cn("x", on && "md:uppercase")}>b</p>;', // 2 (variant prefix)
@@ -531,6 +639,11 @@ const PLANTED: Record<string, { counts: Partial<Counts>; src: string }> = {
       "export const H = cn(\"x\", { 'uppercase': on });", // 7 a quoted key is just a string
       "export const I = { uppercase: true };", // 0 not a class helper
       'export const J = foo("x", { uppercase: on });', // 0 not a class helper
+      'export const K = cn("x", cond && { uppercase: on });', // 8 anywhere inside the helper call's arguments
+      'export const L = clsx(["x", { uppercase: on }]);', // 9 nested in an array
+      "export const M = cn(foo({ uppercase: on }));", // 10 nested in another call
+      "export const N = cn(items.map((i) => ({ uppercase: i })));", // 11 inside a callback
+      'export const O = foo(cn("x"), { uppercase: on });', // 0 the object is foo's argument, not cn's
     ].join("\n"),
   },
   "components/planted-emdash.tsx": {
@@ -571,7 +684,7 @@ const PLANTED: Record<string, { counts: Partial<Counts>; src: string }> = {
     ].join("\n"),
   },
   "components/planted-transition.tsx": {
-    counts: { transitionAll: 16 },
+    counts: { transitionAll: 31 },
     src: [
       'export const a = () => <div className="transition-all duration-200">a</div>;', // 1
       'export const b = () => <div className="hover:transition-all">b</div>;', // 2
@@ -598,6 +711,30 @@ const PLANTED: Record<string, { counts: Partial<Counts>; src: string }> = {
       'el.style.color = "all";', // 0
       'other.transition = "all 1s";', // 0 not a style object
       'export const w = { transitionDelay: "all" };', // 0 not a transition list
+      // A value that is not a bare string: every string piece of the expression is read.
+      'export const x1 = <div style={{ transition: dragY === 0 ? "all 0.22s ease-out" : "none" }} />;', // 17 ternary
+      'export const x2 = { transition: on ? `all ${d}ms` : "none" };', // 18 template branch
+      'export const x2b = { transition: on ? "none" : "all .3s" };', // 19 the all is in the second branch
+      'export const x3 = { transition: on && "all .2s" };', // 19
+      'export const x4 = { transition: x || "all .2s" };', // 20
+      'export const x5 = { transition: (on ? "all .2s" : "none") };', // 21 parenthesised
+      'export const x6 = { transition: "all .2s" as const };', // 22
+      'export const x7 = { transition: "all .2s" satisfies string };', // 23
+      'export const x8 = { transition: "all" + " .2s" };', // 24 concatenation
+      'export const x9 = { transition: build("all .2s") };', // 25 call argument
+      'const T = "all .2s"; export const x10 = <div style={{ transition: T }} />;', // 26 same-file const
+      'const transition = "all .2s"; export const x11 = { transition };', // 27 shorthand property
+      'el.style.transition = on ? "all .2s" : "none";', // 28 assignment of a conditional
+      "Object.assign(el.style, { transition: T });", // 29
+      'el.style.setProperty("transition", "all .2s");', // 30
+      // Near misses for the same shapes: 0.
+      'export const y1 = { transition: dragY === 0 ? "transform 0.22s ease-out" : "none" };', // the shape in message-action-sheet.tsx
+      'export const y2 = { transition: on ? "opacity .2s" : "none" };',
+      'const U = "opacity 1s"; export const y3 = { transition: U };',
+      'const transitionProperty = "opacity"; export const y4 = { transitionProperty };',
+      'el.style.setProperty("color", "all .2s");',
+      'el.style.setProperty("transition", "opacity .2s");',
+      'export const y5 = { transition: { type: "spring", duration: 0.3 } };', // motion config object, no all
       "// transition-all in a comment",
     ].join("\n"),
   },
@@ -613,7 +750,7 @@ const PLANTED: Record<string, { counts: Partial<Counts>; src: string }> = {
     ].join("\n"),
   },
   "components/planted-input.tsx": {
-    counts: { smallInput: 14 },
+    counts: { smallInput: 17 },
     src: [
       'const fieldCls = "w-full text-[15px]";',
       'const wrapped = fieldCls + " px-2";',
@@ -643,6 +780,15 @@ const PLANTED: Record<string, { counts: Partial<Counts>; src: string }> = {
       'export const o3 = () => <InputPrimitive className="text-sm" />;', // 0 the name does not end in Input
       'export const o4 = () => <InputGroup className="text-xs" />;', // 0
       'export const o5 = () => <input className="text-[100%] text-[1em]" />;', // 0
+      // A const holding an OBJECT of class strings: only the property the input reads counts.
+      'const roles = { label: "text-sm font-medium", input: "h-10 px-3" };',
+      'const tones = { quiet: "text-[15px]", loud: "text-base" } as const;',
+      "export const q1 = () => <input className={roles.input} />;", // 0 the text-sm belongs to label
+      'export const q2 = () => <input className={roles["input"]} />;', // 0
+      "export const q3 = () => <input className={roles.label} />;", // 15 this input does read text-sm
+      "export const q4 = () => <input className={tones.quiet} />;", // 16
+      "export const q5 = () => <input className={tones.loud} />;", // 0
+      "export const q6 = () => <input className={cn(tones.loud, tones.quiet)} />;", // 17 both keys of one object
     ].join("\n"),
   },
   "app/styles/planted.css": {
@@ -673,6 +819,16 @@ const PLANTED: Record<string, { counts: Partial<Counts>; src: string }> = {
       ".e { text-transform: capitalize; }",
       "/* .f { text-transform: uppercase; } */",
       ".g { @apply normal-case; }",
+    ].join("\n"),
+  },
+  "app/styles/planted-content.css": {
+    counts: { emDash: 2, emoji: 1 },
+    src: [
+      '.a::before { content: "<D>"; }', // emDash 1
+      '.b::after { content: "x <D> y"; }', // emDash 2
+      '.c::before { content: "<GRIN>"; }', // emoji 1
+      '/* .d { content: "<D> <GRIN>"; } */',
+      '.e::before { content: "plain"; }',
     ].join("\n"),
   },
   "app/planted-apply.css": {
@@ -760,7 +916,7 @@ describe("the instrument: every counter sees its planted violation (positive con
     const expected = zero();
     for (const p of Object.values(PLANTED)) for (const k of COUNTERS) expected[k] += p.counts[k] ?? 0;
     expect(sumTotals(scanTree(tree()))).toEqual(expected);
-    expect(expected).toEqual({ uppercase: 11, emDash: 16, emoji: 14, transitionAll: 24, slowDuration: 7, smallInput: 14 });
+    expect(expected).toEqual({ uppercase: 15, emDash: 18, emoji: 15, transitionAll: 39, slowDuration: 7, smallInput: 17 });
   });
 });
 
@@ -831,8 +987,28 @@ describe("scanner edge cases that decide whether a zero can be trusted", () => {
     expect(n("export const a = classNames({ uppercase: on, bold: b });")).toBe(1);
     expect(n("export const a = styles.cx({ uppercase: on });")).toBe(1);
     expect(n("export const a = foo({ uppercase: on });")).toBe(0);
-    expect(n("export const a = cn(foo({ uppercase: on }));")).toBe(0);
+    expect(n("export const a = cn(foo({ uppercase: on }));")).toBe(1); // anywhere inside the helper call's arguments
+    expect(n('export const a = cn("x", cond && { uppercase: on });')).toBe(1);
+    expect(n('export const a = clsx(["x", { uppercase: on }]);')).toBe(1);
+    expect(n("export const a = foo(cn(\"x\"), { uppercase: on });")).toBe(0);
     expect(n("export const a = { uppercase: on };")).toBe(0);
+  });
+
+  it("smallInput: a const holding an object of class strings is read only at the property the input uses", () => {
+    const n = (src: string) => scanTsx(src).smallInput;
+    const head = 'const cls = { label: "text-sm", input: "h-10" };';
+    expect(n(`${head} export const a = () => <input className={cls.input} />;`)).toBe(0); // the coordinator's exact input
+    expect(n(`${head} export const a = () => <input className={cls["input"]} />;`)).toBe(0);
+    expect(n(`${head} export const a = () => <input className={cls.label} />;`)).toBe(1);
+    expect(n(`${head} export const a = () => <input className={cn(cls.input, cls.label)} />;`)).toBe(1);
+    expect(n(`${head} export const a = () => <input className={cls.missing} />;`)).toBe(1); // unknown key: read the whole object
+    expect(n('const cls = { input: "text-sm" } as const; export const a = () => <input className={cls.input} />;')).toBe(1);
+  });
+
+  it("css: em dash and emoji count outside comments (content strings), not inside them", () => {
+    expect(scanCss('.a::before { content: "' + EM_DASH + '"; }').emDash).toBe(1);
+    expect(scanCss('.a::before { content: "' + GRIN + '"; }').emoji).toBe(1);
+    expect(scanCss('/* ' + EM_DASH + GRIN + ' */ .a { color: red }')).toEqual(zero());
   });
 
   it("slowDuration: 300 is allowed, anything above is not, var() durations are not read", () => {
@@ -953,6 +1129,7 @@ describe("the walker", () => {
     const dir = makeTree({ ...plantedFiles(), ...CLEAN, ...NOT_SCANNED });
     expect(listSourceFiles(dir)).toEqual([
       "app/planted-apply.css",
+      "app/styles/planted-content.css",
       "app/styles/planted-uppercase.css",
       "app/styles/planted.css",
       "components/clean.tsx",
@@ -1084,6 +1261,48 @@ describe("baseline rules", () => {
     expect(existsSync(path)).toBe(false);
   });
 
+  it("UPDATE_RATCHET=1 treats a baseline that parses to null, 0, false, an empty string or an array as missing, and writes nothing", () => {
+    const dir = makeTree({});
+    let i = 0;
+    for (const body of ["null", "0", "false", '""', "[]", "[1]"]) {
+      const path = join(dir, `b${i++}.json`);
+      writeFileSync(path, body);
+      expect(loadBaseline(path), body).toBeNull();
+      expect(() => applyUpdate(path, scanOf({ "a.tsx": { uppercase: 3 } })), body).toThrow(/refuses to create a baseline/);
+      expect(readFileSync(path, "utf8"), body).toBe(body);
+    }
+  });
+
+  it("a malformed baseline names the file; a baseline without usable parts is reported by key", () => {
+    const dir = makeTree({});
+    const path = join(dir, "ui-v3-ratchets.baseline.json");
+    writeFileSync(path, "{ not json");
+    expect(() => loadBaseline(path)).toThrow(/ui-v3-ratchets\.baseline\.json is not valid JSON/);
+    expect(() => applyUpdate(path, scanOf({}))).toThrow(/ui-v3-ratchets\.baseline\.json is not valid JSON/);
+    expect(baselineProblems(null as unknown as Baseline).join("|")).toContain("not a JSON object");
+    expect(baselineProblems({ totals: zero(), files: { "components/a.tsx": null } } as unknown as Baseline).join("|")).toContain("components/a.tsx: counts must be an object");
+    expect(baselineProblems({ totals: 5, files: {} } as unknown as Baseline)).toEqual(["totals must be an object"]);
+    expect(baselineProblems({ totals: null, files: {} } as unknown as Baseline)).toEqual(["totals must be an object"]);
+    expect(baselineProblems({ totals: zero(), files: [] } as unknown as Baseline)).toEqual(["files must be an object keyed by path"]);
+    // init is the way out of a corrupt file
+    expect(applyUpdate(path, scanOf({ "a.tsx": { uppercase: 1 } }), "init").totals.uppercase).toBe(1);
+  });
+
+  it("UPDATE_RATCHET is refused when CI is set (either mode), and only then", () => {
+    expect(ciRefusal({ CI: "true" })).toMatch(/CI/);
+    expect(ciRefusal({ CI: "1" })).toMatch(/CI/);
+    for (const env of [{}, { CI: "" }, { CI: "0" }, { CI: "false" }]) expect(ciRefusal(env), JSON.stringify(env)).toBeNull();
+  });
+
+  it("the guidance never says UPDATE_RATCHET=1 re-keys a moved or renamed file (it throws), and the JSON's _about is the code's ABOUT", () => {
+    expect(STALE_HELP).toMatch(/deleted[^.]*UPDATE_RATCHET=1/i);
+    expect(STALE_HELP).toMatch(/moved or renamed[^.]*by hand/i);
+    expect(STALE_HELP).not.toMatch(/moved or renamed[^.]*UPDATE_RATCHET=1/i);
+    expect(ABOUT).not.toMatch(/by mode 1/);
+    expect(ABOUT).toMatch(/init/);
+    expect(ABOUT).toMatch(/PR body/);
+  });
+
   it("UPDATE_RATCHET=init creates the baseline and may raise an existing one (widening the scan, once)", () => {
     const dir = makeTree({});
     const path = join(dir, "baseline.json");
@@ -1124,8 +1343,9 @@ let realScan: Scan | null = null;
 const scanReal = () => (realScan ??= scanTree(ROOT));
 
 function readBaseline(): Baseline {
-  expect(existsSync(BASELINE_PATH), "ui-v3-ratchets.baseline.json is missing: restore it from git (UPDATE_RATCHET=1 refuses to create it)").toBe(true);
-  return JSON.parse(readFileSync(BASELINE_PATH, "utf8")) as Baseline;
+  const baseline = loadBaseline(BASELINE_PATH);
+  expect(baseline, `${BASELINE_NAME} is missing or is not a JSON object: restore it from git (UPDATE_RATCHET=1 refuses to create it)`).not.toBeNull();
+  return baseline!;
 }
 
 const MODE = updateMode(process.env.UPDATE_RATCHET);
@@ -1134,17 +1354,21 @@ describe("UI v3 ratchets on the real tree", () => {
   it.runIf(MODE !== null)(
     "UPDATE_RATCHET: rewrite the baseline from the tree (mode 1 refuses any number that would rise or a missing file)",
     () => {
+      const refusal = ciRefusal(process.env);
+      if (refusal) throw new Error(refusal);
       const written = applyUpdate(BASELINE_PATH, scanReal(), MODE!);
       expect(baselineProblems(written)).toEqual([]);
     },
     120_000,
   );
 
-  it("the baseline file is well formed, its totals match its files, and every key is a file the scan visits", () => {
+  it("the baseline file is well formed, its totals match its files, its _about is the code's, and every key is a file the scan visits", () => {
     const baseline = readBaseline();
-    expect(baselineProblems(baseline)).toEqual([]);
+    expect(baselineProblems(baseline), `${BASELINE_NAME} has problems`).toEqual([]);
+    const raw = JSON.parse(readFileSync(BASELINE_PATH, "utf8")) as { _about?: string };
+    expect(raw._about, `${BASELINE_NAME} _about drifted from the code: run UPDATE_RATCHET=1 to regenerate it`).toBe(ABOUT);
     const stale = staleKeys(baseline, listSourceFiles(ROOT));
-    expect(stale, `stale baseline keys (deleted, moved or renamed; re-key by hand or run UPDATE_RATCHET=1):\n  ${stale.join("\n  ")}`).toEqual([]);
+    expect(stale, `stale keys in ${BASELINE_NAME}. ${STALE_HELP}\n  ${stale.join("\n  ")}`).toEqual([]);
   });
 
   it("no file goes above its baseline, no unlisted file has a violation, no total rises", () => {

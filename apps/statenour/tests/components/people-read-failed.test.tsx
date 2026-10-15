@@ -176,6 +176,33 @@ describe("/people when the people read fails", () => {
     }
   });
 
+  it("a THROWN failure (network down, no HTTP response) shows a fixed generic line, never the exception text", async () => {
+    // usePollingFetch stores err.message for a thrown fetch: "Failed to fetch" (Chrome), "Load failed" (Safari), ...
+    for (const raw of ["Failed to fetch", "TypeError: Failed to fetch", "Load failed", "NetworkError when attempting to fetch resource.", "boom " + MID + " 500 sneaky"]) {
+      h.poll = { data: null, loading: false, error: raw, reload: h.reload };
+      const el = await mountPage();
+      const text = el.textContent ?? "";
+      expect(text, raw).toContain("Could not reach the server");
+      for (const leak of ["Failed to fetch", "TypeError", "Load failed", "NetworkError", "boom", "sneaky"]) expect(text, `${raw} leaked ${leak}`).not.toContain(leak);
+      await act(async () => root!.unmount());
+      container?.remove();
+      root = null;
+    }
+  });
+
+  it("an HTTP status with no status text still shows its code; a refresh that failed by throwing says so generically", async () => {
+    h.poll = { data: null, loading: false, error: "503 " + MID + " <html>x</html>", reload: h.reload };
+    let el = await mountPage();
+    expect(el.textContent).toContain("503");
+    expect(el.textContent).not.toContain("<html>");
+    await act(async () => root!.unmount());
+    container?.remove();
+    h.poll = { data: PEOPLE, loading: false, error: "TypeError: Failed to fetch", reload: h.reload };
+    el = await mountPage();
+    expect(el.querySelector('[role="status"]')!.textContent).toContain("Refresh failed, showing the last list");
+    expect(el.textContent).not.toContain("TypeError");
+  });
+
   it("a failed refresh over a list already on screen keeps the list and SAYS it may be old, without the body", async () => {
     h.poll = { data: PEOPLE, loading: false, error: JSON_ERR, reload: h.reload };
     const el = await mountPage();
