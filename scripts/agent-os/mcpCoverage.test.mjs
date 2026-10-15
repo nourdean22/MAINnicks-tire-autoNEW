@@ -695,6 +695,8 @@ test("README documents every adapter, the unguarded inventory and the live check
   }
   // 2026-10-15 (job guard-sql-lease-infra): the ask layer, the list reader, the lease group, the SQL limits and the live-check probes
   assert.match(README, /### Native ask rules/, "README needs the native ask layer section");
+  assert.match(README, /### How `destructive-sql` reads SQL/, "README must state the boundary the SQL rule scans to");
+  for (const phrase of ["a lone `|`", "5,000 characters", "`&&`", "`--command`", "Written-out whitespace", "Quoted identifiers"]) assert.ok(README.includes(phrase), `README must state the SQL rule's boundary: ${phrase}`);
   for (const phrase of ["permissions.ask", "mcp__*__<leaf>", "bypassPermissions", "mcpAskRules.test.mjs", "ARRAY_MAX", "ARRAY_CHAR_BUDGET", "CONTROL-CANARY-COVERAGE.md",
     "Unclassified infrastructure tools", "neon-sql.sql", "neon-sql-transaction.sql_statements[1]", "guard_live_check_probe", "delete-service", "delete_project"]) {
     assert.ok(README.includes(phrase), `README must mention ${phrase}`);
@@ -1011,6 +1013,8 @@ const DESTRUCTIVE_SQL = [
   "ALTER TABLE leads DROP COLUMN note", "alter table leads drop constraint c", "DROP INDEX idx_leads_name", "DROP MATERIALIZED VIEW mv",
   // string literals are NOT stripped before matching (stripping would let a DO block hide its EXECUTE text)
   "DO $$ BEGIN EXECUTE 'DROP TABLE x'; END $$", "DO $$ BEGIN EXECUTE 'DELETE FROM x'; END $$",
+  // a quoted first identifier: statenour has 15 PascalCase Prisma models that exist ONLY as quoted names like "Task"
+  'TRUNCATE "Task" CASCADE', "TRUNCATE ONLY \"Task\"", "TRUNCATE `leads`", "TRUNCATE [dbo].[leads]", "UPDATE \"Task\" SET status = 'x'", "UPDATE public.\"Task\" t SET status = 'x'",
 ];
 const BENIGN_SQL = [
   "SELECT 1", "SELECT * FROM leads LIMIT 5", "INSERT INTO leads (name) VALUES ('Ann')", "EXPLAIN SELECT * FROM leads", "CREATE INDEX idx_leads_name ON leads (name)",
@@ -1132,14 +1136,20 @@ test("SQL: a 25,000-character benign field and the worst whole-array shapes stay
   assert.ok(small.length * engine.ARRAY_MAX <= engine.ARRAY_CHAR_BUDGET + engine.ARRAY_MAX * 8, "the element-budget shape is about ARRAY_CHAR_BUDGET characters in all");
   const byCount = run(SQL_TX.name, SQL_TX.input(Array.from({ length: engine.ARRAY_MAX + 500 }, () => small)));
   allowed(byCount, "2,000 judged elements that match nothing");
-  const big = heavy(1428);
+  // the WHERE must stay within the rule's reach of every occurrence or the first one is simply denied (the WHERE scan is bounded at 5,000 characters)
+  const big = `${"DELETE FROM a ".repeat(340)}WHERE x `.repeat(4);
   assert.ok(big.length <= engine.FIELD_CAP);
   const bySize = run(SQL_TX.name, SQL_TX.input(Array.from({ length: 200 }, () => big)));
   allowed(bySize, "elements of about FIELD_CAP characters, stopped by the character budget");
   t.diagnostic(`hook wall time including node start: 25k field ${one.ms} ms, 2,000 x ${small.length} chars ${byCount.ms} ms, 200 x ${big.length} chars ${bySize.ms} ms`);
-  for (const r of [one, byCount, bySize]) {
+  // Two kinds of bound. The benign field has a 25x margin (measured ~100 ms, bound 3 s). The adversarial shapes are the worst text the rules
+  // can be fed (a keyword every 14 characters), so their bound is the hook's own 10 s timeout less margin: that is the real failure, a timeout
+  // fails OPEN. The measured times are reported above, not asserted: asserting a tighter number would flake on a loaded runner.
+  assert.equal(one.signal, null);
+  assert.ok(one.ms < 3000, `a 25,000-character benign field took ${one.ms} ms`);
+  for (const r of [byCount, bySize]) {
     assert.equal(r.signal, null, "the hook must not run into its own timeout");
-    assert.ok(r.ms < 3000, `took ${r.ms} ms; the budget exists to keep a whole array under 3 s (the hook timeout is 10 s and a timeout fails OPEN)`);
+    assert.ok(r.ms < 9000, `took ${r.ms} ms; the hook timeout is 10 s and a timeout fails OPEN`);
   }
 });
 
@@ -1230,6 +1240,51 @@ test("acceptance probes through the real hook: exit code AND rule id (job 2026-1
   denied(run("PowerShell", { command: 'Invoke-Sqlcmd -Query "DELETE FROM leads"' }), "destructive-sql", "native PowerShell Invoke-Sqlcmd");
   for (const command of ['grep -rn "DELETE FROM" drizzle/', "rg 'DELETE FROM' apps/", 'git log --grep "UPDATE leads SET" --oneline', 'git commit -m "docs: psql DELETE FROM leads is denied"']) {
     allowed(run("Bash", { command }), `mention is not execution: ${command}`);
+  }
+});
+
+test("shell-quoted and shell-chained forms through the real hook (G1): quoted identifiers, a WHERE in a later argument, written-out escapes; the legitimate look-alikes pass", () => {
+  const BS = "\\", BT = "`";
+  const denies = (command, tool = "Bash") => denied(run(tool, { command }), "destructive-sql", `${tool}: ${command}`);
+  // P1-a: TRUNCATE with a quoted first identifier, every spelling
+  denies(`psql -c 'TRUNCATE "Task" CASCADE'`);
+  denies(`psql -c "TRUNCATE ${BS}"Task${BS}" CASCADE"`);
+  denies(`psql -c "TRUNCATE ${BT}"Task${BT}" CASCADE"`, "PowerShell");
+  denies(`mysql -e 'TRUNCATE ${BT}leads${BT}'`);
+  denies(`Invoke-Sqlcmd -Query "TRUNCATE [dbo].[leads]"`, "PowerShell");
+  // P1-b: UPDATE of a quoted table when the shell escapes the quotes of a double-quoted -c string
+  denies(`psql "$DATABASE_URL" -c "UPDATE ${BS}"Task${BS}" SET status = 'x'"`);
+  denies(`psql "$DATABASE_URL" -c "UPDATE public.${BS}"Task${BS}" SET status = 'x'"`);
+  denies(`psql -c "UPDATE ${BT}"Task${BT}" SET status = 'x'"`, "PowerShell");
+  denies(`psql -c "UPDATE ""Task"" SET status = 'x'"`, "PowerShell");
+  denies(`mysql -e "UPDATE ${BS}${BT}leads${BS}${BT} SET status = 'x'"`);
+  // P1-c: a WHERE in a LATER argument or chained command must not rescue a bare write
+  denies(`psql "$U" -c "DELETE FROM leads" && psql "$U" -c "SELECT count(*) FROM leads WHERE id > 0"`);
+  denies(`psql "$U" -c "UPDATE leads SET status = 'x'" -c "SELECT count(*) FROM leads WHERE id > 0"`);
+  denies(`psql "$U" -c "DELETE FROM leads" | psql "$U" -c "SELECT 1 WHERE true"`);
+  // P2-d: written-out whitespace between keywords
+  denies(`printf 'BEGIN;${BS}nDROP TABLE leads;${BS}nCOMMIT;' | psql "$U"`);
+  denies(`echo -e "SELECT 1;${BS}nTRUNCATE TABLE leads;" | psql`);
+  denies(`"BEGIN;${BT}nUPDATE leads SET a = 1;${BT}nCOMMIT;" | psql`, "PowerShell");
+  denies(`psql -c $'DELETE${BS}nFROM leads'`);
+  denies(`psql -c "DROP ${BS}\nTABLE leads"`);
+  // the look-alikes that must keep passing: string concat and an ampersand before the WHERE, a multi-line statement, a literal \n before the WHERE
+  for (const ok of [`psql -c "UPDATE t SET a = b || c WHERE id = 1"`, `psql -c "UPDATE t SET name = 'AT&T' WHERE id = 1"`, `psql -c "DELETE FROM leads\nWHERE id = 3"`,
+    `printf 'DELETE FROM leads${BS}nWHERE id = 3;' | psql`, `psql -c "UPDATE ${BS}"Task${BS}" SET status = 'x' WHERE id = 1"`, `psql "$U" -c "UPDATE leads SET a = 1 WHERE id = 1" -c "SELECT 1"`]) {
+    allowed(run("Bash", { command: ok }), ok);
+  }
+});
+
+test("DO-block dollar quoting: the examples keep both $$ and deny because of the text inside the dollar-quoted body (a benign body passes)", () => {
+  const rule = policy.rules.find((r) => r.id === "destructive-sql");
+  const doBlocks = rule.denyExamples.filter((e) => /\bDO\s+\$/.test(e));
+  assert.equal(doBlocks.length, 2, "the DROP and the DELETE DO-block examples");
+  for (const example of doBlocks) {
+    assert.equal(example.split("$$").length - 1, 2, `${example}: lost a dollar sign of its $$ delimiters`);
+    assert.equal(engine.evaluate({ toolName: "Bash", command: example, cwd: NORMAL, filePath: "" }, policy).rule?.id, "destructive-sql");
+    const benign = example.replace(/EXECUTE '[^']*'/, () => "PERFORM 1");
+    assert.notEqual(benign, example, "the control must change the body");
+    assert.equal(engine.evaluate({ toolName: "Bash", command: benign, cwd: NORMAL, filePath: "" }, policy).denied, false, `${benign}: with a benign body the same dollar-quoted block must pass`);
   }
 });
 

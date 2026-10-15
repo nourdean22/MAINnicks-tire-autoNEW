@@ -207,6 +207,34 @@ to `mcpAdapters` with at least one real tool name in `exampleTools`. (3) Add the
 (a list field works too), add the tool-name suffix to the PRETOOL matcher only (never the lease matcher), and add the
 tool to `SQL_SHAPES` in the canary so every registration runs end to end through the real hook.
 
+### How `destructive-sql` reads SQL (2026-10-15)
+
+One rule id, one anchored pattern (`^`), gated on a DB client word (`mysql`, `psql`, `railway run`, `prisma db execute`,
+`Invoke-Sqlcmd`) or on the `psql` hint of an MCP SQL row. It reads text, so it is built to see through what a shell or a
+client does to that text:
+
+- **Quoted identifiers, any spelling.** `TRUNCATE` and `UPDATE` accept a first identifier in plain, `"double"`, `` `back` ``
+  or `[bracket]` form, schema-qualified, with the escapes a shell adds around the quote: `\"Task\"` (bash), `` `"Task`" ``
+  and `""Task""` (PowerShell), `` \`leads\` ``. This matters because statenour's 15 PascalCase Prisma models exist ONLY as
+  quoted names such as `"Task"`.
+- **Written-out whitespace.** Between keywords, and before a `WHERE`, a literal backslash-n, -r or -t (`printf 'a;\nb'`,
+  `$'DELETE\nFROM'`), a PowerShell `` `n ``, `` `r ``, `` `t `` or a backslash-newline counts as whitespace, and a keyword may
+  start right after one.
+- **Where a missing WHERE is decided.** A `DELETE FROM` or `UPDATE ... SET` is denied unless a `WHERE` appears before the
+  end of ITS statement. The scan stops at: `;`, `&&`, a lone `|` (not `||`, which is SQL string concatenation), and a
+  following `-c`, `-e`, `-f`, `-q`, `-Query`, `--command`, `--execute` or `--file` flag. It does NOT stop at a newline
+  (a multi-line statement is normal), at `||`, at a single `&` (`'AT&T'`) or at the closing quote of the shell argument
+  (that cannot be found linearly), and it gives up after 5,000 characters: a `WHERE` farther than that from its `DELETE
+  FROM` or `SET` does not count (denied; the safe direction). So a WHERE in a later `-c`, a chained `&&` command or a
+  piped command no longer rescues a bare write, while `UPDATE t SET a = b || c WHERE id = 1` and a multi-line
+  `DELETE FROM leads` + newline + `WHERE id = 3` pass. A `||` chain is not a boundary by itself (a second `-c` after it is).
+  The `ALTER TABLE ... DROP` scan uses the same stops and gives up after 1,500 characters; `DROP COLUMN` and `DROP
+  CONSTRAINT` are denied anywhere by the DROP-kind arm, so only the other `ALTER TABLE ... DROP` forms depend on it.
+- **Cost.** Every scan is bounded, so a text costs at most about its length times 5,000 (1,500 for ALTER) steps. Measured in
+  process on 1,000,000 characters on this machine: benign text 10 ms; the worst text found (a keyword every 14
+  characters with the WHERE within reach of each, repeated) 1.6 s for `DELETE FROM`, 1.3 s for `UPDATE ... SET`, 0.7 s for
+  `ALTER TABLE`. A canary pins that the anchored pattern is linear on benign text.
+
 ### Native ask rules (2026-10-15)
 
 Railway, Neon, Vercel and Prisma Postgres mutation tools carry no command text: the tool name and its arguments ARE
