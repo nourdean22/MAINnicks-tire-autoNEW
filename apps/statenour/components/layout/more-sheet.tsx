@@ -70,11 +70,6 @@ function SmartNowLink({ pathname, onNavigate }: { pathname: string; onNavigate: 
       )}
       title={`${smartNow.reason} \u00b7 tap to jump`}
     >
-      {smartNow.emoji && (
-        <span className="shrink-0 text-[13px]" aria-hidden>
-          {smartNow.emoji}
-        </span>
-      )}
       <div className="min-w-0 flex-1">
         <div className="font-mono text-[11px] opacity-60">
           Now
@@ -273,9 +268,6 @@ export function MoreSheet() {
                 >
                   <Icon size={14} strokeWidth={1.75} />
                   {n.label}
-                  <span aria-hidden className="text-[11px] text-[var(--text-tertiary)]">
-                    ↗
-                  </span>
                 </a>
               );
             }

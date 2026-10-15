@@ -90,15 +90,15 @@ const TEMPLATES: TemplateDef[] = [
   },
 ];
 
-const MOODS: Array<{ emoji: string; label: string }> = [
-  { emoji: "🎯", label: "focused" },
-  { emoji: "🔥", label: "motivated" },
-  { emoji: "🌊", label: "calm" },
-  { emoji: "🪞", label: "reflective" },
-  { emoji: "⚡", label: "energized" },
-  { emoji: "😤", label: "frustrated" },
-  { emoji: "😴", label: "tired" },
-  { emoji: "🌪️", label: "scattered" },
+const MOODS: Array<{ label: string }> = [
+  { label: "focused" },
+  { label: "motivated" },
+  { label: "calm" },
+  { label: "reflective" },
+  { label: "energized" },
+  { label: "frustrated" },
+  { label: "tired" },
+  { label: "scattered" },
 ];
 
 const LAST_TEMPLATE_KEY = "ultron:reflect:last-template";
@@ -399,7 +399,7 @@ export function ReflectComposer() {
         </span>
         {MOODS.map((m) => (
           <button
-            key={m.emoji}
+            key={m.label}
             onClick={() => setMood((cur) => (cur === m.label ? "" : m.label))}
             className={cn(
               "flex items-center gap-1 px-1.5 py-0.5 rounded-micro border text-[11px] font-mono transition-colors",
@@ -409,8 +409,7 @@ export function ReflectComposer() {
             )}
             title={m.label}
           >
-            <span>{m.emoji}</span>
-            <span className="hidden sm:inline">{m.label}</span>
+            <span>{m.label}</span>
           </button>
         ))}
       </div>

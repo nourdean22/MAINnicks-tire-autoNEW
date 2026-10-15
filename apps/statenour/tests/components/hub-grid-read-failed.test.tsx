@@ -28,7 +28,7 @@ const count = (html: string, needle: string) => html.split(needle).length - 1;
 
 // The cards whose chip is computed from the rollup (the rest are static verbs
 // like "browse" that make no claim about the payload).
-const LIVE = CARDS.filter((c) => c.chip(null).severity === "unknown" && c.chip(null).label === "—");
+const LIVE = CARDS.filter((c) => c.chip(null).severity === "unknown" && c.chip(null).label === "n/a");
 
 beforeEach(() => {
   stub.hub = { data: undefined, isError: false };
@@ -43,7 +43,7 @@ describe("hub grid · a failed rollup read is unknown, not a dash", () => {
     stub.hub = { data: undefined, isError: true };
     const html = render();
     expect(count(html, ">unknown</span>")).toBe(LIVE.length);
-    expect(html).not.toContain(">—</span>");
+    expect(html).not.toContain(">n/a</span>");
   });
 
   it("POSITIVE CONTROL: a read still in flight is not called a failure", () => {

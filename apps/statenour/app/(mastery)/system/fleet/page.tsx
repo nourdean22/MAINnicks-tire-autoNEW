@@ -77,7 +77,7 @@ function QueueRow({
     return (
       <div className="flex items-center justify-between py-2 border-b border-edge-subtle last:border-0">
         <span className="text-[13px] text-fg-secondary font-mono">{name}</span>
-        <span className="text-[12px] text-fg-secondary">unknown — probe failed, NOT healthy</span>
+        <span className="text-[12px] text-fg-secondary">unknown: probe failed, NOT healthy</span>
       </div>
     );
   }
@@ -114,7 +114,7 @@ function QueueRow({
                     : "border-edge-default text-fg-secondary"
                 } disabled:opacity-50`}
               >
-                {redriving ? "redriving…" : armed ? `tap again — redrive ${q.dead}` : "redrive"}
+                {redriving ? "redriving…" : armed ? `tap again: redrive ${q.dead}` : "redrive"}
               </button>
             )}
           </>
@@ -174,7 +174,7 @@ export default function FleetPage() {
     <StandardPage
       eyebrow="System"
       title="Fleet Truth"
-      description="Capability artifacts across both apps — produced, not just invoked."
+      description="Capability artifacts across both apps, produced, not just invoked."
       width="sm"
       rhythm="comfortable"
       className="px-4 pb-[var(--bottom-chrome-h)]"
@@ -189,7 +189,7 @@ export default function FleetPage() {
       {!loading && error && (
         <Panel>
           <p className="text-[13px] text-red-400">
-            Fleet truth couldn&apos;t load ({error}) — state UNKNOWN, not healthy.
+            Fleet truth couldn&apos;t load ({error}): state UNKNOWN, not healthy.
           </p>
           <button onClick={() => void load()} className="mt-2 text-[12px] text-fg-secondary underline">
             Retry
@@ -220,7 +220,7 @@ export default function FleetPage() {
           {truth.queues && (
             <Panel>
               <p className="font-mono text-[11px] text-fg-tertiary mb-1">
-                Durable queues — rows, not just drains
+                Durable queues: rows, not just drains
               </p>
               <QueueRow
                 name="post-turn-outbox"
@@ -244,7 +244,7 @@ export default function FleetPage() {
               )}
               {redrive.isSuccess && (
                 <p className="mt-1 text-[12px] text-emerald-300">
-                  redriven {redrive.data.redriven} row(s) — the 15-min drain replays them
+                  redriven {redrive.data.redriven} row(s): the 15-min drain replays them
                 </p>
               )}
             </Panel>
@@ -252,13 +252,13 @@ export default function FleetPage() {
 
           <Panel>
             <p className="font-mono text-[11px] text-fg-tertiary mb-1">
-              Delivery — shown vs acknowledged (7d)
+              Delivery: shown vs acknowledged (7d)
             </p>
             {delivery.isLoading ? (
               <div className="h-4 w-40 rounded-micro bg-surface-interactive animate-pulse" />
             ) : delivery.isError || !delivery.data?.stats ? (
               <p className="text-[12px] text-fg-secondary">
-                ledger unreadable — state UNKNOWN, not healthy
+                ledger unreadable: state UNKNOWN, not healthy
               </p>
             ) : (
               <>
@@ -278,7 +278,7 @@ export default function FleetPage() {
                   </span>
                   <span
                     className="text-fg-secondary"
-                    title="decision null AND outcome null — nothing is known about the row; undecided alone may still carry a rating"
+                    title="decision null AND outcome null, nothing is known about the row; undecided alone may still carry a rating"
                   >
                     {delivery.data.stats.unlabelled} unlabelled
                   </span>
@@ -293,13 +293,13 @@ export default function FleetPage() {
                   {delivery.data.odometer
                     ? `odometer · ${delivery.data.odometer.line} · as of ${new Date(delivery.data.odometer.asOf).toLocaleString()}`
                     : delivery.data.odometerUnreadable
-                      ? "odometer · unreadable — the read failed (state unknown)"
-                      : "odometer · no eval_run:corpus-odometer row yet — the outcome-harvest cron has not written one"}
+                      ? "odometer · unreadable: the read failed (state unknown)"
+                      : "odometer · no eval_run:corpus-odometer row yet, the outcome-harvest cron has not written one"}
                 </p>
                 <p className="text-[11px] text-fg-secondary/50 mt-0.5">
                   producers writing rows:{" "}
                   {delivery.data.producers.length === 0
-                    ? "NONE — computed intelligence is not reaching the ledger"
+                    ? "NONE: computed intelligence is not reaching the ledger"
                     : delivery.data.producers
                         .map((p) => `${p.sourceEngine} (${p.rows})`)
                         .join(" · ")}

@@ -48,7 +48,6 @@ export type MentionKey =
 export interface Mention {
   key: MentionKey;
   label: string;
-  icon: string;
   description: string;
 }
 
@@ -56,15 +55,15 @@ export interface Mention {
 // additions: @yesterday, @week, @cold all expand server-side via a
 // POST to /api/chat/resolve-mention so the data is always fresh.
 const MENTIONS: Mention[] = [
-  { key: "mit", label: "@mit", icon: "⚔", description: "Today's locked MIT" },
-  { key: "revenue", label: "@revenue", icon: "💰", description: "Today · week · pipeline" },
-  { key: "critical", label: "@critical", icon: "🔥", description: "Critical lane tasks" },
-  { key: "commits", label: "@commits", icon: "🤝", description: "Active commitments + keep rate" },
-  { key: "drift", label: "@drift", icon: "⚠", description: "Current drift state" },
-  { key: "missions", label: "@missions", icon: "🎯", description: "Active missions" },
-  { key: "yesterday", label: "@yesterday", icon: "🕐", description: "Yesterday's daily log summary" },
-  { key: "week", label: "@week", icon: "📅", description: "This week's score + habits" },
-  { key: "cold", label: "@cold", icon: "🗄", description: "Search cold memory (prompts for query)" },
+  { key: "mit", label: "@mit", description: "Today's locked MIT" },
+  { key: "revenue", label: "@revenue", description: "Today · week · pipeline" },
+  { key: "critical", label: "@critical", description: "Critical lane tasks" },
+  { key: "commits", label: "@commits", description: "Active commitments + keep rate" },
+  { key: "drift", label: "@drift", description: "Current drift state" },
+  { key: "missions", label: "@missions", description: "Active missions" },
+  { key: "yesterday", label: "@yesterday", description: "Yesterday's daily log summary" },
+  { key: "week", label: "@week", description: "This week's score + habits" },
+  { key: "cold", label: "@cold", description: "Search cold memory (prompts for query)" },
 ];
 
 export function useMentionSuggestions() {

@@ -170,7 +170,8 @@ describe("two calibrations, two names (10-X3 = 02-X1)", () => {
 
   it("the health page no longer sends the strategic-lens card to /system/calibration", () => {
     const src = readFileSync("app/(mastery)/system/health/page.tsx", "utf8");
-    const at = src.search(/strategic lens [^\n]{1,4}\{data\.range\}/);
+    // UI v3 W1a capitalised the section label ("Strategic lens"); match either case.
+    const at = src.search(/strategic lens [^\n]{1,4}\{data\.range\}/i);
     expect(at).toBeGreaterThan(-1); // anchor on the strategic-lens header, or this check scans nothing
     expect(src.slice(at, at + 400)).not.toContain('href="/system/calibration"');
   });

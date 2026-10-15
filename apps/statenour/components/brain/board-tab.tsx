@@ -342,7 +342,7 @@ export function BoardTab() {
                   )}
                   {take.divergenceFlag && (
                     <span className="text-[11px] font-mono text-amber-400/80">
-                      ⚡ divergence
+                      divergence
                     </span>
                   )}
                   <span className="ml-auto text-[11px] font-mono text-[var(--text-tertiary)]">
@@ -452,7 +452,7 @@ export function BoardTab() {
                   </span>
                   {r.divergenceCount > 0 && (
                     <span className="text-[11px] font-mono text-amber-400/80">
-                      ⚡ {r.divergenceCount} div
+                      {r.divergenceCount} div
                     </span>
                   )}
                   {/* The persisted gate verdict · without it a 3-advisor

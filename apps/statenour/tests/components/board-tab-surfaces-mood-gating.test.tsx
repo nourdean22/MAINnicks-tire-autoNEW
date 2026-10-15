@@ -136,7 +136,7 @@ describe("defect 1 · the mood gate is visible on the surface it shrinks", () =>
     setMutation({ data: { consultation: consultation({ droppedAdvisorIds: [], operatorState: null }) } });
     const out = text();
     expect(out).toContain("2 advisors");
-    expect(out).not.toContain("lenses withheld");
+    expect(out).not.toContain("Lenses withheld");
     expect(out).not.toMatch(/\d+ of \d+ advisors/);
   });
 
@@ -150,7 +150,7 @@ describe("defect 1 · the mood gate is visible on the surface it shrinks", () =>
   it("names the advisors that were withheld", () => {
     setMutation({ data: { consultation: consultation() } });
     const out = text();
-    expect(out).toContain("lenses withheld (3)");
+    expect(out).toContain("Lenses withheld (3)");
     expect(out).toContain("elon-musk");
     expect(out).toContain("steve-jobs");
     expect(out).toContain("growth-engine");
@@ -170,7 +170,7 @@ describe("defect 1 · the mood gate is visible on the surface it shrinks", () =>
 
   it("qualifies the advisor-takes header too", () => {
     setMutation({ data: { consultation: consultation() } });
-    expect(text()).toContain("advisor takes (2 of 5)");
+    expect(text()).toContain("Advisor takes (2 of 5)");
   });
 });
 
@@ -200,7 +200,7 @@ describe("defect 3 · recent consultations distinguish empty from unreadable", (
       },
     });
     const out = text();
-    expect(out).toContain("recent consultations (1)");
+    expect(out).toContain("Recent consultations (1)");
     expect(out).toContain("should I raise prices");
   });
 

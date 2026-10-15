@@ -592,7 +592,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
               expansion is already 1 tap away. */}
           {kind === "DAILY" && (task.streakCount ?? 0) > 0 && (
             <span className="text-[11px] text-amber-400 font-mono shrink-0">
-              🔥{task.streakCount}
+              {task.streakCount} streak
             </span>
           )}
           {/* 2026-05-24 · Wave U feature-mining #4 · streak-at-risk
@@ -921,7 +921,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
             his effort estimates calibrate over time. ── */}
         {(task.actualMinutes ?? 0) > 0 && (
           <p className="text-[11px] text-fg-tertiary mt-0.5 font-mono">
-            ⏱ {task.actualMinutes}m actual
+            {task.actualMinutes}m actual
           </p>
         )}
 

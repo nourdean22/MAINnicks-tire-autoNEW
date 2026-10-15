@@ -57,7 +57,7 @@ const EVIDENCE_FIXTURES: Array<{ title: string; provenance: ProvenanceInput }> =
     provenance: { evidence: "operator_stated", source: "chat", trustTier: "OPERATOR", seenCount: 4, createdAt: daysAgo(3) },
   },
   {
-    title: "A receipt — the system did it and logged it",
+    title: "A receipt: the system did it and logged it",
     provenance: { evidence: "system_receipt", source: "telegram.send", trustTier: "SYSTEM_DERIVED", createdAt: daysAgo(0) },
   },
   {
@@ -65,7 +65,7 @@ const EVIDENCE_FIXTURES: Array<{ title: string; provenance: ProvenanceInput }> =
     provenance: { evidence: "direct_observation", source: "camera:bay-2", grade: "H1", quality: "observed", createdAt: daysAgo(1) },
   },
   {
-    title: "External content — a scraped page",
+    title: "External content: a scraped page",
     provenance: { evidence: "external_source", source: "firecrawl", trustTier: "EXTERNAL_CONTENT", createdAt: daysAgo(12) },
   },
   {
@@ -82,11 +82,11 @@ const EVIDENCE_FIXTURES: Array<{ title: string; provenance: ProvenanceInput }> =
     },
   },
   {
-    title: "A prediction — zinc, never violet",
+    title: "A prediction: zinc, never violet",
     provenance: { evidence: "prediction", source: "tactician", createdAt: daysAgo(2) },
   },
   {
-    title: "Weak signal, EXPIRED — the mark says so",
+    title: "Weak signal, EXPIRED: the mark says so",
     provenance: { evidence: "weak_inference", source: "chat", createdAt: daysAgo(45), validUntil: daysAgo(5) },
   },
   {
@@ -139,7 +139,7 @@ export default function UiLabPage() {
     <StandardPage
       eyebrow="System"
       title="UI Lab"
-      description="The object grammar's primitives against fixtures — real components, frozen clock, nothing mocked."
+      description="The object grammar's primitives against fixtures, real components, frozen clock, nothing mocked."
       width="sm"
       rhythm="comfortable"
       className="px-4 pb-[var(--bottom-chrome-h)]"
@@ -147,7 +147,7 @@ export default function UiLabPage() {
 
       {/* ── UI v2 visual contract (2026-10-01) · docs/design/ui-v2/SYSTEM.md ─────────── */}
       <Panel>
-        <p className="section-label mb-3">Type scale — Geist leads; Barlow is the one verdict</p>
+        <p className="section-label mb-3">Type scale: Geist leads; Barlow is the one verdict</p>
         <div className="space-y-3">
           <p className="vt-eyebrow text-fg-tertiary">eyebrow · Geist Mono 11 · the one caps role</p>
           <p className="vt-verdict max-w-[18ch]">The verdict line</p>
@@ -160,7 +160,7 @@ export default function UiLabPage() {
       </Panel>
 
       <Panel>
-        <p className="section-label mb-3">Surfaces and edges — six warm steps, three edge strengths, one notch</p>
+        <p className="section-label mb-3">Surfaces and edges: six warm steps, three edge strengths, one notch</p>
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
           {(["canvas", "workspace", "surface", "surface-raised", "surface-interactive", "surface-hover"] as const).map((name) => (
             <div key={name} className="rounded-surface border border-edge-subtle p-3" style={{ background: `var(--${name})` }}>
@@ -179,7 +179,7 @@ export default function UiLabPage() {
       </Panel>
 
       <Panel>
-        <p className="section-label mb-3">Activity summary — working pulses, done is one quiet line, detail on demand</p>
+        <p className="section-label mb-3">Activity summary: working pulses, done is one quiet line, detail on demand</p>
         <div className="grid gap-4 md:grid-cols-2">
           <div><ReasoningTraceLive steps={ACTIVITY_WORKING} /></div>
           <div><ReasoningTraceLive steps={ACTIVITY_DONE} /></div>
@@ -187,7 +187,7 @@ export default function UiLabPage() {
       </Panel>
 
       <Panel>
-        <p className="section-label mb-3">Tool receipts — glyph · action · result · next; hue on the glyph only</p>
+        <p className="section-label mb-3">Tool receipts: glyph · action · result · next; hue on the glyph only</p>
         <ToolResultCard toolName="createTask" state="input-available" output={undefined} />
         <ToolResultCard toolName="createTask" state="output-available" output={{ task: { id: 101, title: "Replace front pads" }, taskId: 101, title: "Replace front pads" }} />
         <ToolResultCard toolName="completeTask" state="output-error" output={{ error: "task not found" }} />
@@ -195,7 +195,7 @@ export default function UiLabPage() {
 
       <Panel>
         <p className="mb-2 font-mono text-[11px] text-fg-tertiary">
-          Inspector — the four non-content states must never look alike
+          Inspector: the four non-content states must never look alike
         </p>
         <div className="grid gap-3 md:grid-cols-2">
           <InspectorNotice state="loading" kind="memory" />
@@ -207,7 +207,7 @@ export default function UiLabPage() {
 
       <Panel>
         <p className="mb-2 font-mono text-[11px] text-fg-tertiary">
-          Inspector frame — sheet chrome, peek vs inspect
+          Inspector frame: sheet chrome, peek vs inspect
         </p>
         <div className="flex flex-wrap gap-2">
           <button
@@ -215,14 +215,14 @@ export default function UiLabPage() {
             onClick={() => setFrameOpen("peek")}
             className="min-h-[44px] rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg md:min-h-0"
           >
-            Open — peek
+            Open: peek
           </button>
           <button
             type="button"
             onClick={() => setFrameOpen("inspect")}
             className="min-h-[44px] rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg md:min-h-0"
           >
-            Open — inspect
+            Open: inspect
           </button>
         </div>
         <p className="mt-2 text-[11px] text-fg-tertiary">
@@ -233,7 +233,7 @@ export default function UiLabPage() {
 
       <Panel>
         <p className="mb-2 font-mono text-[11px] text-fg-tertiary">
-          Metric — a number with its &quot;relative to what?&quot;
+          Metric: a number with its &quot;relative to what?&quot;
         </p>
         <div className="grid gap-4 sm:grid-cols-2">
           <Metric
@@ -278,14 +278,14 @@ export default function UiLabPage() {
           />
         </div>
         <p className="mt-3 text-[11px] text-fg-tertiary">
-          Unavailable renders &quot;unknown&quot; and the code — never a zero. Out-of-range turns amber; the delta&apos;s colour
+          Unavailable renders &quot;unknown&quot; and the code, never a zero. Out-of-range turns amber; the delta&apos;s colour
           follows the metric&apos;s valence, so a smaller contact gap reads green.
         </p>
       </Panel>
 
       <Panel>
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-          <p className="font-mono text-[11px] text-fg-tertiary">Evidence mark — chip by default, inline in Reality Mode</p>
+          <p className="font-mono text-[11px] text-fg-tertiary">Evidence mark: chip by default, inline in Reality Mode</p>
           <button
             type="button"
             onClick={() => setRealityMode(!realityMode)}
@@ -311,7 +311,7 @@ export default function UiLabPage() {
 
       <Panel>
         <p className="mb-2 font-mono text-[11px] text-fg-tertiary">
-          Selection grammar — fixture rows · j/k move · Space peeks · Enter opens · x selects · Esc unwinds
+          Selection grammar: fixture rows · j/k move · Space peeks · Enter opens · x selects · Esc unwinds
         </p>
         <ul className="space-y-1" data-selection-scope="ui-lab-fixtures">
           {FIXTURE_ROWS.map((r) => (
@@ -340,7 +340,7 @@ export default function UiLabPage() {
           mode={frameOpen}
           presentation="sheet"
           onClose={() => setFrameOpen(null)}
-          actions={<p className="font-mono text-[11px] text-fg-tertiary">actions slot — open · ask Nick · workset · copy link</p>}
+          actions={<p className="font-mono text-[11px] text-fg-tertiary">actions slot: open · ask Nick · workset · copy link</p>}
         >
           <FixtureMemoryBody />
         </InspectorFrame>

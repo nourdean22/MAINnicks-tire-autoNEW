@@ -51,41 +51,34 @@ interface AlertsPayload {
 
 const CATEGORY_META: Record<
   string,
-  { label: string; emoji: string; tint: string }
+  { label: string; tint: string }
 > = {
   correlation_alert: {
     label: "Correlation",
-    emoji: "🔗",
     tint: "border-blue-500/40 bg-blue-500/10 text-blue-200",
   },
   decision_quality_drift: {
     label: "Decision drift",
-    emoji: "📉",
     tint: "border-rose-500/40 bg-rose-500/10 text-rose-200",
   },
   schema_drift_alert: {
     label: "Schema drift",
-    emoji: "⚠️",
     tint: "border-amber-500/40 bg-amber-500/10 text-amber-200",
   },
   storage_quota_alert: {
     label: "Storage quota",
-    emoji: "💾",
     tint: "border-orange-500/40 bg-orange-500/10 text-orange-200",
   },
   creation_spike_alert: {
     label: "Creation spike",
-    emoji: "🌊",
     tint: "border-fuchsia-500/40 bg-fuchsia-500/10 text-fuchsia-200",
   },
   update_spike_alert: {
     label: "Update spike",
-    emoji: "🔁",
     tint: "border-violet-500/40 bg-violet-500/10 text-violet-200",
   },
   brain_bus_alert: {
     label: "Brain-bus probe",
-    emoji: "🛰️",
     tint: "border-cyan-500/40 bg-cyan-500/10 text-cyan-200",
   },
 };
@@ -297,7 +290,6 @@ export default function AlertsInspectorPage() {
                     : "border-edge-subtle bg-canvas text-fg-tertiary hover:text-fg")
                 }
               >
-                <span>{meta.emoji}</span>
                 <span>{meta.label}</span>
                 <span className="opacity-70">·</span>
                 <AnimatedCounter value={count} />
@@ -361,7 +353,7 @@ export default function AlertsInspectorPage() {
                 >
                   <div className="mb-1.5 flex flex-wrap items-center gap-2 font-mono text-[11px] text-fg-secondary">
                     <span>
-                      {meta?.emoji} {meta?.label ?? alert.category}
+                      {meta?.label ?? alert.category}
                     </span>
                     <span className="opacity-60">·</span>
                     <span className="opacity-80">{relTime(alert.createdAt)}</span>

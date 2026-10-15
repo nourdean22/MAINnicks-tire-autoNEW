@@ -84,7 +84,7 @@ interface HubPayload {
 
 const UNMEASURED_CHIP = { label: "unmeasured", severity: "unknown" as Severity };
 /** No payload: still loading, or the read failed (SystemHubGrid swaps in READ_FAILED_CHIP). */
-const NOT_READ_CHIP = { label: "—", severity: "unknown" as Severity };
+const NOT_READ_CHIP = { label: "n/a", severity: "unknown" as Severity };
 const READ_FAILED_CHIP = { label: "unknown", severity: "unknown" as Severity };
 
 interface HubCard {
@@ -123,7 +123,7 @@ export const CARDS: HubCard[] = [
     icon: Stethoscope,
     group: "health",
     description:
-      "Cross-app capability artifacts — statenour probes + nickstire health, produced not just invoked",
+      "Cross-app capability artifacts: statenour probes + nickstire health, produced not just invoked",
     // Static chip — this card links to the live view; claiming health
     // here without probing would be the exact lie the page exists to end.
     chip: () => ({ label: "both apps", severity: "unknown" }),
@@ -134,7 +134,7 @@ export const CARDS: HubCard[] = [
     icon: Stethoscope,
     group: "health",
     description:
-      "Unified probe hub — env · crons · errors · backlog · vectors · pulse",
+      "Unified probe hub: env · crons · errors · backlog · vectors · pulse",
     featured: true,
     // Live chip merged in from the former "OS Health" card. "healthy" is a
     // claim about BOTH sources — if either scan did not run, the claim is
@@ -184,7 +184,7 @@ export const CARDS: HubCard[] = [
     title: "Cron Deck",
     icon: Clock,
     group: "health",
-    description: "Live cron control surface — enable/disable per job + run now",
+    description: "Live cron control surface: enable/disable per job + run now",
     chip: (d) => {
       if (!d) return NOT_READ_CHIP;
       if (d.crons.measured === false) return UNMEASURED_CHIP;
@@ -231,7 +231,7 @@ export const CARDS: HubCard[] = [
     title: "Autonomous Actions",
     icon: Bot,
     group: "governance",
-    description: "Nick's autonomous action audit — rules · approvals · history",
+    description: "Nick's autonomous action audit: rules · approvals · history",
     chip: () => ({ label: "audit", severity: "info" }),
   },
   {
@@ -307,7 +307,7 @@ export const CARDS: HubCard[] = [
     title: "Schema History",
     icon: FileText,
     group: "data",
-    description: "Schema-change ledger — every migration with method, destructive flag + approver",
+    description: "Schema-change ledger: every migration with method, destructive flag + approver",
     chip: () => ({ label: "audit trail", severity: "info" }),
   },
   {
@@ -317,7 +317,7 @@ export const CARDS: HubCard[] = [
     title: "Chat States",
     icon: MessageSquare,
     group: "data",
-    description: "Real chat components against fixtures — eyeball after UI changes",
+    description: "Real chat components against fixtures, eyeball after UI changes",
     chip: () => ({ label: "gallery", severity: "info" }),
   },
   {
@@ -329,7 +329,7 @@ export const CARDS: HubCard[] = [
     title: "UI Lab",
     icon: FlaskConical,
     group: "data",
-    description: "Inspector, metric + evidence primitives against fixtures — frozen clock, nothing mocked",
+    description: "Inspector, metric + evidence primitives against fixtures, frozen clock, nothing mocked",
     chip: () => ({ label: "gallery", severity: "info" }),
   },
   {
@@ -386,7 +386,7 @@ export const CARDS: HubCard[] = [
     title: "Memory Inbox",
     icon: Inbox,
     group: "ai",
-    description: "Quarantined memory ingestion — review claims + contradictions before they land",
+    description: "Quarantined memory ingestion: review claims + contradictions before they land",
     chip: () => ({ label: "review", severity: "info" }),
   },
 ];

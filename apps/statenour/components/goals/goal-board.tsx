@@ -1069,7 +1069,7 @@ export function GoalBoard() {
                               onChange={(e) => setEditDomain(e.target.value)}
                               className="bg-content border border-edge-default rounded-control px-2 py-0.5 text-[11px] text-fg-secondary focus:outline-none focus:border-accent"
                             >
-                              <option value="">— domain —</option>
+                              <option value="">domain</option>
                               <option value="business">business</option>
                               <option value="personal">personal</option>
                               <option value="health">health</option>
@@ -1081,7 +1081,7 @@ export function GoalBoard() {
                               onChange={(e) => setEditStatus(e.target.value)}
                               className="bg-content border border-edge-default rounded-control px-2 py-0.5 text-[11px] text-fg-secondary focus:outline-none focus:border-accent"
                             >
-                              <option value="">— status —</option>
+                              <option value="">status</option>
                               <option value="active">active</option>
                               <option value="paused">paused</option>
                               <option value="achieved">achieved</option>
@@ -1098,7 +1098,7 @@ export function GoalBoard() {
                             onChange={(e) => setEditParentId(e.target.value)}
                             className="w-full bg-content border border-edge-default rounded-control px-2 py-0.5 text-[11px] text-fg-secondary focus:outline-none focus:border-accent"
                           >
-                            <option value="">— no parent goal —</option>
+                            <option value="">no parent goal</option>
                             {goals
                               .filter((o) => o.id !== g.id)
                               .map((o) => (
@@ -1117,7 +1117,7 @@ export function GoalBoard() {
                               onChange={(e) => setEditKind(e.target.value)}
                               className="bg-content border border-edge-default rounded-control px-2 py-0.5 text-[11px] text-fg-secondary focus:outline-none focus:border-accent"
                             >
-                              <option value="">— kind —</option>
+                              <option value="">kind</option>
                               <option value="metric">metric (target)</option>
                               <option value="milestone">milestone (checklist)</option>
                               <option value="narrative">narrative (identity)</option>
@@ -1127,7 +1127,7 @@ export function GoalBoard() {
                               onChange={(e) => setEditConviction(e.target.value)}
                               className="bg-content border border-edge-default rounded-control px-2 py-0.5 text-[11px] text-fg-secondary focus:outline-none focus:border-accent"
                             >
-                              <option value="">— conviction —</option>
+                              <option value="">conviction</option>
                               <option value="1">1 · meh</option>
                               <option value="2">2</option>
                               <option value="3">3</option>
@@ -1265,7 +1265,7 @@ export function GoalBoard() {
                                 e.stopPropagation();
                                 const ok = await confirm({
                                   title: `Archive "${g.title}"?`,
-                                  body: `${v.reason}\n\nIt'll move to paused — you can revive it later from /goals.`,
+                                  body: `${v.reason}\n\nIt'll move to paused: you can revive it later from /goals.`,
                                   confirmLabel: "Archive",
                                 });
                                 if (ok) {
@@ -1348,7 +1348,7 @@ export function GoalBoard() {
                             {typeof g.conviction === "number" && (
                               <span
                                 className="inline-flex items-center gap-0.5 rounded-control border border-pink-500/30 bg-pink-500/5 px-1.5 py-0.5 text-pink-300/90"
-                                title="Conviction — how devastated you'd be to lose this"
+                                title="Conviction: how devastated you'd be to lose this"
                               >
                                 <Flame size={9} className="shrink-0" />
                                 {g.conviction}/5
@@ -1378,7 +1378,7 @@ export function GoalBoard() {
                             {(g.minutesInvested ?? 0) > 0 && g.progress > 0 && (
                               <span
                                 className="inline-flex items-center gap-0.5 rounded-control border border-edge-default bg-surface-interactive text-fg-tertiary px-1.5 py-0.5"
-                                title="Idiot index — hours invested per 1% of progress (lower is better)"
+                                title="Idiot index: hours invested per 1% of progress (lower is better)"
                               >
                                 <Gauge size={9} className="shrink-0" />
                                 {(Math.round((g.minutesInvested ?? 0) / 60) / g.progress).toFixed(1)}h/%
@@ -1639,7 +1639,7 @@ export function GoalBoard() {
                               setMilestonesGoalId(g.id);
                             }}
                             className="text-[11px] px-1.5 py-0.5 rounded-control border border-blue-500/40 bg-blue-500/10 text-blue-300 hover:border-blue-500/70 hover:bg-blue-500/25 transition-all font-medium inline-flex items-center gap-0.5"
-                            title="Break this goal into 3-5 milestones with Nick — then spawn the mission"
+                            title="Break this goal into 3-5 milestones with Nick, then spawn the mission"
                           >
                             <Brain size={8} />
                             Plan it

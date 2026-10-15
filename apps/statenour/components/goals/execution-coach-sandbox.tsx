@@ -45,11 +45,11 @@ interface ExecutionCoachSandboxProps {
 type Step = "BRIEFING" | "TIMER" | "RESISTANCE" | "SURVEY" | "REFLECTION" | "COMPLETED";
 
 const FRICTION_OPTIONS = [
-  { emoji: "🔋", label: "Low energy", key: "low-energy" },
-  { emoji: "❓", label: "Vague next step", key: "vague" },
-  { emoji: "🎯", label: "Fear of failure", key: "fear" },
-  { emoji: "📱", label: "Distraction", key: "distraction" },
-  { emoji: "⚡", label: "No friction", key: "none" },
+  { label: "Low energy", key: "low-energy" },
+  { label: "Vague next step", key: "vague" },
+  { label: "Fear of failure", key: "fear" },
+  { label: "Distraction", key: "distraction" },
+  { label: "No friction", key: "none" },
 ];
 
 const GOAL_DOMAIN_TO_STAT: Record<string, string> = {
@@ -1018,7 +1018,6 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
                       : "border-edge-subtle bg-content text-fg-secondary"
                   )}
                 >
-                  <span aria-hidden>{opt.emoji}</span>
                   <span>{opt.label}</span>
                 </button>
               );

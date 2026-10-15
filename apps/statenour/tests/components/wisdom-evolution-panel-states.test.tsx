@@ -138,7 +138,7 @@ describe("WisdomEvolutionPanel · honest states", () => {
 
   it("loading is neither healthy nor unknown", () => {
     const html = render({ isLoading: true });
-    expect(html).toContain("loading evolution candidates");
+    expect(html).toContain("Loading evolution candidates");
     expect(html).not.toContain(HEALTHY);
   });
 });

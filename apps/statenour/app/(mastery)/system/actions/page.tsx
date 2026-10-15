@@ -564,7 +564,7 @@ export default function ActionsPage() {
                           <div className="truncate text-[11px] text-fg-tertiary">{a.trigger}</div>
                         </div>
                         <span className={cn("font-mono text-[11px] tabular-nums", resultTint(a.result))}>
-                          {a.result ?? "—"}
+                          {a.result ?? "n/a"}
                         </span>
                         <span className="text-[11px] text-fg-tertiary">{timeAgo(a.createdAt)}</span>
                         <span className="text-fg-tertiary">{isOpen ? "▼" : "▸"}</span>
@@ -587,8 +587,8 @@ export default function ActionsPage() {
                           )}
                           <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-fg-tertiary">
                             <div>createdAt: {a.createdAt}</div>
-                            <div>executedAt: {a.executedAt ?? "—"}</div>
-                            <div>approvedBy: {a.approvedBy ?? "—"}</div>
+                            <div>executedAt: {a.executedAt ?? "n/a"}</div>
+                            <div>approvedBy: {a.approvedBy ?? "n/a"}</div>
                             <div>id: {a.id}</div>
                           </div>
                         </div>
@@ -688,7 +688,7 @@ export default function ActionsPage() {
                             "min-h-11 rounded-control px-3 py-1.5 text-xs font-semibold transition disabled:opacity-40",
                             approveTone(index, isCritical),
                           )}
-                          title={isExpired ? "Authorization expired — re-request or reject" : needsOwner ? "Requires owner privilege" : undefined}
+                          title={isExpired ? "Authorization expired: re-request or reject" : needsOwner ? "Requires owner privilege" : undefined}
                         >
                           Approve
                         </button>
@@ -727,7 +727,7 @@ export default function ActionsPage() {
                           />
                           <div className="flex items-center justify-between gap-2 flex-wrap">
               <span className={cn("text-[11px] font-mono", editParse.ok ? "text-fg-tertiary" : "text-rose-400")}>
-                              {editParse.ok ? "valid JSON — approval executes with THESE args" : "invalid JSON"}
+                              {editParse.ok ? "valid JSON: approval executes with THESE args" : "invalid JSON"}
                             </span>
                             <button
                               onClick={() => {
@@ -737,7 +737,7 @@ export default function ActionsPage() {
                               }}
                               disabled={cannotApprove || !editParse.ok || rejectMutation.isPending || approveMutation.isPending}
                               className="rounded-control bg-sky-500 px-3 py-1.5 text-xs font-semibold text-black hover:bg-sky-400 disabled:opacity-40 transition"
-                              title={isExpired ? "Authorization expired — re-request or reject" : needsOwner ? "Requires owner privilege" : undefined}
+                              title={isExpired ? "Authorization expired: re-request or reject" : needsOwner ? "Requires owner privilege" : undefined}
                             >
                               Approve edited
                             </button>
@@ -752,7 +752,7 @@ export default function ActionsPage() {
 
                     {isExpired && (
                       <div className="text-xs text-amber-300 flex items-center gap-1.5">
-                        <span>⏱</span> Authorization expired{req.expiresAt ? ` ${new Date(req.expiresAt).toLocaleString()}` : ""} — approve is refused. Re-request it against current state, or reject it.
+                        <span>⏱</span> Authorization expired{req.expiresAt ? ` ${new Date(req.expiresAt).toLocaleString()}` : ""}, approve is refused. Re-request it against current state, or reject it.
                       </div>
                     )}
                     {needsOwner && (
@@ -771,7 +771,7 @@ export default function ActionsPage() {
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-sm font-semibold text-fg">deferred automation</h3>
               <span className="text-xs text-fg-tertiary">
-                {autoQueue.data ? `${autoQueue.data.summary.live} live · ${autoQueue.data.summary.expired} expired` : autoQueue.isError ? "read failed — unknown, not zero" : "loading…"}
+                {autoQueue.data ? `${autoQueue.data.summary.live} live · ${autoQueue.data.summary.expired} expired` : autoQueue.isError ? "read failed: unknown, not zero" : "loading…"}
               </span>
             </div>
             {autoQueue.data && autoQueue.data.rows.length === 0 && (
@@ -828,7 +828,7 @@ export default function ActionsPage() {
                     </details>
                   )}
                   {row.expired && (
-                    <p className="text-xs text-amber-300">Authorization expired — approve is refused; reject it or re-run the rule against current state.</p>
+                    <p className="text-xs text-amber-300">Authorization expired: approve is refused; reject it or re-run the rule against current state.</p>
                   )}
                 </div>
               ))}

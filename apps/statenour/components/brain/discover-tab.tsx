@@ -91,7 +91,7 @@ const KIND_META: Record<
   },
   hidden_correlation: {
     label: "Correlation",
-    claim: "SPECULATIVE · co-movement only — not a demonstrated cause",
+    claim: "SPECULATIVE · co-movement only: not a demonstrated cause",
     tone: "text-sky-300 border-sky-400/30",
   },
   blind_spot: {
@@ -113,7 +113,7 @@ const KIND_META: Record<
  * findings as last night's.
  */
 const RESTORED_CLAIM =
-  "RESTORED · recovered from a 2026-08-16 embedding rescue — its original discovery date did not survive";
+  "RESTORED · recovered from a 2026-08-16 embedding rescue, its original discovery date did not survive";
 
 const VERDICTS: Array<{ key: Verdict; label: string; hint: string }> = [
   { key: "investigate", label: "Worth investigating", hint: "useful and new" },
@@ -198,7 +198,7 @@ export function discoverEmptyState(s: {
     const floor = s.truncated && s.suppressedSimilar > 0 ? "+" : "";
     return {
       provenance: "SUPPRESSED",
-      title: `No card left to judge — ${withheld}${floor} unrated row${
+      title: `No card left to judge: ${withheld}${floor} unrated row${
         withheld === 1 ? "" : "s"
       } withheld above`,
     };
@@ -208,7 +208,7 @@ export function discoverEmptyState(s: {
     title: "Nothing new to judge",
     why: "This surface read successfully, nothing is being withheld, and the queue is genuinely empty. What it CANNOT tell you is which of the two remaining causes produced that: every recent discovery already has a verdict, or the engines found nothing this cycle. Both are real zeros here.",
     unlock:
-      "The brain-intelligence cron runs nightly — check back tomorrow, or include judged items above.",
+      "The brain-intelligence cron runs nightly, check back tomorrow, or include judged items above.",
   };
 }
 
@@ -266,7 +266,7 @@ export function DiscoverTab() {
     return (
       <GlassCard>
         <p className="text-sm text-amber-300">
-          Discoveries couldn&apos;t load — state unknown, not empty.
+          Discoveries couldn&apos;t load: state unknown, not empty.
         </p>
         <p className="mt-1 text-xs text-fg-secondary">
           The nightly engines may still have run; this surface just can&apos;t read them right now.
@@ -305,9 +305,9 @@ export function DiscoverTab() {
 
       <p className="text-xs text-fg-secondary">
         {showRestored
-          ? "Engine findings and recovered memories together — each card says which it is."
+          ? "Engine findings and recovered memories together, each card says which it is."
           : "What the nightly engines found and you haven't ruled on yet."}{" "}
-        These are machine inferences, not observations — each card says which kind
+        These are machine inferences, not observations: each card says which kind
         it is. Identical findings are collapsed into one card, so a verdict
         applies to every copy behind it.
       </p>
@@ -317,7 +317,7 @@ export function DiscoverTab() {
           {unratedClusters}
           {truncated ? "+" : ""} question{unratedClusters === 1 ? "" : "s"} across {unrated} row
           {unrated === 1 ? "" : "s"}
-          {truncated ? " — the row count is exact; the card scan stopped early, so the question count is a floor" : ""}.
+          {truncated ? ": the row count is exact; the card scan stopped early, so the question count is a floor" : ""}.
         </p>
       )}
 
@@ -330,7 +330,7 @@ export function DiscoverTab() {
               is unaffected by where the card scan stopped. Appending "+" here
               presented an exact 237 as a lower bound. */}
           <span className="font-mono">{restoredHidden} hidden</span>{" "}
-          — recovered by the 2026-08-16 embedding rescue, not found by an engine. Their dates are
+          , recovered by the 2026-08-16 embedding rescue, not found by an engine. Their dates are
           restore time, so they would sort as if they were new. Tap to include them.
         </button>
       )}
@@ -357,7 +357,7 @@ export function DiscoverTab() {
             {suppressedSimilar}
             {truncated ? "+" : ""} suppressed
           </span>{" "}
-          — regenerated copies of findings you already judged known or noise. Your verdicts
+          , regenerated copies of findings you already judged known or noise. Your verdicts
           keep applying to new copies automatically.
         </p>
       )}
@@ -443,7 +443,7 @@ export function DiscoverTab() {
                   // that gets overridden 87.9% of the time (Ancker et al.).
                   <p className="rounded-micro border border-amber-400/30 px-2 py-1 text-[11px] leading-relaxed text-amber-300">
                     You called this {history[history.length - 1].verdict}{" "}
-                    {history.length === 1 ? "once" : `${history.length}×`} — it is back because
+                    {history.length === 1 ? "once" : `${history.length}×`}, it is back because
                     severity rose from {SEVERITY_WORD[history[history.length - 1].severityRank]} to{" "}
                     {currentSeverityWord(d.content)}.
                   </p>
@@ -465,11 +465,11 @@ export function DiscoverTab() {
                         key={v.key}
                         disabled={busy}
                         onClick={() => judge(d.id, d.clusterIds, v.key)}
-                        title={copies > 1 ? `${v.hint} — applies to all ${copies}` : v.hint}
+                        title={copies > 1 ? `${v.hint}, applies to all ${copies}` : v.hint}
                         aria-label={
                           copies > 1
-                            ? `${v.label} — ${v.hint} — applies to all ${copies} copies`
-                            : `${v.label} — ${v.hint}`
+                            ? `${v.label}: ${v.hint}, applies to all ${copies} copies`
+                            : `${v.label}: ${v.hint}`
                         }
                         className={cn(
                           // 48x48 minimum, both dimensions — root AGENTS.md
@@ -498,8 +498,7 @@ export function DiscoverTab() {
       <p className="flex items-start gap-2 text-[11px] text-fg-secondary">
         <Lightbulb size={12} className="mt-0.5 shrink-0" />
         <span>
-          &ldquo;Already knew&rdquo; and &ldquo;Noise&rdquo; both hide the whole cluster —
-          including the copies the nightly engines regenerate — and a blind spot also drops out
+          &ldquo;Already knew&rdquo; and &ldquo;Noise&rdquo; both hide the whole cluster, including the copies the nightly engines regenerate, and a blind spot also drops out
           of Nick&apos;s live surfaces. &ldquo;Noise&rdquo; additionally becomes a retrieval eval
           case, and can return if its severity rises; &ldquo;Already knew&rdquo; stays hidden and
           is the only measurement of novelty rather than accuracy. &ldquo;Worth

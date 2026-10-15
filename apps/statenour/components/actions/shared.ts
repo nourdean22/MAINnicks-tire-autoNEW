@@ -267,15 +267,6 @@ export const EFFORT_LABEL: Record<string, string> = {
   H2PLUS: "2h+",
 };
 
-export const CONTEXT_ICON: Record<string, string> = {
-  DESK: "💻",
-  PHONE: "📱",
-  SHOP: "🔧",
-  CAR: "🚗",
-  HOME: "🏠",
-  ANYWHERE: "📍",
-};
-
 export const DOMAIN_COLOR: Record<string, string> = {
   business: "bg-amber-500/15 text-amber-400",
   personal: "bg-violet-500/15 text-violet-400",
@@ -283,15 +274,6 @@ export const DOMAIN_COLOR: Record<string, string> = {
   finance: "bg-blue-500/15 text-blue-400",
   content: "bg-pink-500/15 text-pink-400",
   default: "bg-surface-interactive text-fg-secondary",
-};
-
-export const HABIT_ICON: Record<string, string> = {
-  wake: "⏰", exercise: "💪", workout: "💪", business: "💼", order: "📋", shutdown: "🌙",
-  journal: "📝", walk: "🚶", nasal: "👃", nasal_breathing: "👃", water: "💧", water_intake: "💧",
-  adderall: "💊", read: "📖", meditate: "🧘", cold_shower: "🥶", prayer: "🤲",
-  estimate_followup: "📊", instagram_post: "📸", sleep_before_midnight: "😴",
-  morning_routine: "☀️", content_creation: "✍️", no_impulse_purchase: "🚫",
-  spanish_practice: "🇪🇸", daily_command: "⚡",
 };
 
 export const HABIT_LABEL: Record<string, string> = {

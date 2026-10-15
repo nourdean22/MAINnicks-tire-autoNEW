@@ -63,7 +63,7 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
   // honest receipt anyway.
   const freshness = fetchedAt
     ? `recalled at ${fetchedAt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit" })}`
-    : "not yet fetched — open state, not evidence";
+    : "not yet fetched: open state, not evidence";
 
   return (
     <div className="fixed inset-y-0 right-0 z-50 w-80 md:w-96 bg-overlay border-l border-edge-default shadow-l1 flex flex-col animate-fadeSlideLeft">
@@ -96,12 +96,12 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
           <div className="flex items-center space-x-1 text-sky-400 mb-3">
             <ShieldCheck className="w-3.5 h-3.5" />
             <span className="font-mono text-[11px] font-medium">
-              This reply — quality verdicts
+              This reply: quality verdicts
             </span>
           </div>
           {!reply ? (
             <p className="text-[11px] text-fg-tertiary italic">
-              No quality metadata persisted yet — a live turn finalizes after the
+              No quality metadata persisted yet, a live turn finalizes after the
               stream ends; older conversations may predate the verdict blob.
             </p>
           ) : (
@@ -124,7 +124,7 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
                   <div className="flex justify-between text-[11px] font-mono text-fg-tertiary mb-0.5">
                     <span>output critic</span>
                     <span className={reply.critic.shouldRegen ? "text-amber-400" : "text-emerald-400"}>
-                      {reply.critic.overall ?? "—"}/100{reply.critic.shouldRegen ? " · would regen" : ""}
+                      {reply.critic.overall ?? "n/a"}/100{reply.critic.shouldRegen ? " · would regen" : ""}
                     </span>
                   </div>
                   {(reply.critic.reasons ?? []).length > 0 && (
@@ -144,7 +144,7 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
                     <span>action receipts</span>
                     <span className={reply.receipt.ok === false ? "text-rose-400" : "text-emerald-400"}>
                       {reply.receipt.ok === false
-                        ? "CLAIM WITHOUT RECEIPT — banner applied"
+                        ? "CLAIM WITHOUT RECEIPT: banner applied"
                         : `${(reply.receipt.toolsFired ?? []).length} tool call(s) receipted`}
                     </span>
                   </div>
@@ -182,7 +182,7 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
               )}
               {!reply.gate && !reply.critic && !reply.receipt && !reply.truth && !reply.factCheck && (
                 <p className="text-fg-tertiary italic">
-                  Blob present but carries no verdicts — nothing fired this turn.
+                  Blob present but carries no verdicts, nothing fired this turn.
                 </p>
               )}
             </div>
@@ -194,7 +194,7 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
           <div className="flex items-center space-x-1 text-fg-tertiary mb-3">
             <Sparkles className="w-3.5 h-3.5" />
             <span className="font-mono text-[11px] font-medium">
-              Remembered — what Nick believes ({hits.length})
+              Remembered: what Nick believes ({hits.length})
             </span>
           </div>
           {/*
@@ -214,7 +214,7 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
             <div className="flex items-start space-x-1.5 mb-3">
               <AlertTriangle className="w-3 h-3 text-amber-400 mt-0.5 shrink-0" />
               <p className="text-[11px] text-amber-300/90">
-                Degraded retrieval &mdash; these hits are real, but ranking is weaker than usual.
+                Degraded retrieval: these hits are real, but ranking is weaker than usual.
                 {recallProvenanceReason ? (
                   <span className="block text-[11px] text-fg-tertiary mt-0.5">
                     {recallProvenanceReason}
@@ -230,7 +230,7 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
               <div className="flex items-start space-x-1.5">
                 <AlertTriangle className="w-3 h-3 text-amber-400 mt-0.5 shrink-0" />
                 <p className="text-[11px] text-amber-300/90">
-                  Memory read failed &mdash; state unknown, not empty.
+                  Memory read failed: state unknown, not empty.
                   {recallProvenanceReason ? (
                     <span className="block text-[11px] text-fg-tertiary mt-0.5">
                       {recallProvenanceReason}
@@ -249,7 +249,7 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
               </p>
             ) : recallProvenance === "ZERO" ? (
               <p className="text-[11px] text-fg-tertiary italic">
-                Searched memory &mdash; nothing matched this turn.
+                Searched memory: nothing matched this turn.
               </p>
             ) : (
               // Pre-2026-09-10 turns carry no provenance. Say that,
@@ -278,7 +278,7 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
           <div className="flex items-center space-x-1 text-rose-400 mb-3">
             <AlertTriangle className="w-3.5 h-3.5" />
             <span className="font-mono text-[11px] font-medium">
-              Evidence check — contradictions ({contradictions.length})
+              Evidence check: contradictions ({contradictions.length})
             </span>
           </div>
           {contradictions.length === 0 ? (

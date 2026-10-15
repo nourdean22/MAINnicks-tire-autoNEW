@@ -320,7 +320,7 @@ export default function DecisionDetailPage() {
       title={d.title}
       description={
         timeline.isReviewed
-          ? `reviewed · grade ${d.grade ?? "—"} · logged ${timeline.ageDays}d ago`
+          ? `reviewed · grade ${d.grade ?? "n/a"} · logged ${timeline.ageDays}d ago`
           : timeline.isOverdue
             ? `overdue review · ${Math.abs(timeline.reviewDueDays!)}d past due`
             : timeline.reviewDueDays !== null
@@ -386,7 +386,7 @@ export default function DecisionDetailPage() {
             : timeline.reviewDueDays < 7 ? "amber"
             : "emerald"
           }
-          format={(n) => timeline.reviewDueDays === null ? "—" : `${Math.abs(n)}`}
+          format={(n) => timeline.reviewDueDays === null ? "n/a" : `${Math.abs(n)}`}
         />
         <TrendCounter
           value={siblingAvgGrade ?? 0}
@@ -402,7 +402,7 @@ export default function DecisionDetailPage() {
             : siblingAvgGrade >= 2 ? "gold"
             : "rose"
           }
-          format={(n) => siblingAvgGrade === null ? "—" : `${n.toFixed(1)}/4`}
+          format={(n) => siblingAvgGrade === null ? "n/a" : `${n.toFixed(1)}/4`}
         />
         <TrendCounter
           value={lineage.antiPatterns.length}
@@ -434,14 +434,14 @@ export default function DecisionDetailPage() {
               : undefined
         }
         score={gradeToNumeric(d.grade)}
-        scoreFormat={() => d.grade ?? "—"}
+        scoreFormat={() => d.grade ?? "n/a"}
         scoreLabel={timeline.isReviewed ? "graded" : "ungraded"}
         rightLabel="actual"
         rightTitle={
           d.actualOutcome
             ? d.actualOutcome.slice(0, 80)
             : timeline.isOverdue
-              ? "OVERDUE — outcome not yet recorded"
+              ? "OVERDUE: outcome not yet recorded"
               : "outcome not yet recorded"
         }
         rightBody={
@@ -453,7 +453,7 @@ export default function DecisionDetailPage() {
           ) : !timeline.isReviewed ? (
             <p className="text-[11px] leading-relaxed text-[var(--text-tertiary)] italic">
               {timeline.reviewDueDays !== null && timeline.reviewDueDays >= 0
-                ? `Review opens in ${timeline.reviewDueDays}d. The page will let you grade then — or click "Grade decision" above to log the outcome now.`
+                ? `Review opens in ${timeline.reviewDueDays}d. The page will let you grade then, or click "Grade decision" above to log the outcome now.`
                 : "Click 'Grade decision' above to record the actual outcome."}
             </p>
           ) : null
@@ -476,7 +476,7 @@ export default function DecisionDetailPage() {
                   value={editOutcome}
                   onChange={(e) => setEditOutcome(e.target.value)}
                   rows={4}
-                  placeholder="what actually happened — blunt, specific, with numbers when possible"
+                  placeholder="what actually happened: blunt, specific, with numbers when possible"
                   className="w-full rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] text-fg placeholder:text-fg-tertiary focus:border-accent focus:outline-none"
                 />
               </div>
@@ -489,7 +489,7 @@ export default function DecisionDetailPage() {
                   onChange={(e) => setEditGrade(e.target.value)}
                   className="w-full min-h-[44px] rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] text-fg focus:border-accent focus:outline-none"
                 >
-                  <option value="">— pick —</option>
+                  <option value="">pick</option>
                   <option value="A">A · prediction held + outcome was great</option>
                   <option value="B">B · prediction mostly right</option>
                   <option value="C">C · partial · some wrong</option>

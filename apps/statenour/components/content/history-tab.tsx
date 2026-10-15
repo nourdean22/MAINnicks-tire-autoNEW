@@ -316,9 +316,9 @@ export function HistoryTab() {
                       className="rounded-control px-2 py-1.5 hover:bg-surface-hover text-[11px] font-mono text-fg-secondary"
                     >
                       <span className={cn("font-bold mr-2", scoreTone(r.metadata.overall ?? 0))}>
-                        {r.metadata.overall ?? "—"}
+                        {r.metadata.overall ?? "n/a"}
                       </span>
-                      <span className="opacity-70">{r.metadata.turnIntent ?? "—"}/{r.metadata.turnShape ?? "—"}</span>
+                      <span className="opacity-70">{r.metadata.turnIntent ?? "n/a"}/{r.metadata.turnShape ?? "n/a"}</span>
                       <span className="ml-2 opacity-60">
                         {new Date(r.createdAt).toLocaleDateString()}
                       </span>
@@ -337,9 +337,9 @@ export function HistoryTab() {
                       className="rounded-control px-2 py-1.5 hover:bg-surface-hover text-[11px] font-mono text-fg-secondary"
                     >
                       <span className={cn("font-bold mr-2", scoreTone(r.metadata.overall ?? 0))}>
-                        {r.metadata.overall ?? "—"}
+                        {r.metadata.overall ?? "n/a"}
                       </span>
-                      <span className="opacity-70">{r.metadata.turnIntent ?? "—"}/{r.metadata.turnShape ?? "—"}</span>
+                      <span className="opacity-70">{r.metadata.turnIntent ?? "n/a"}/{r.metadata.turnShape ?? "n/a"}</span>
                       <span className="ml-2 opacity-60">
                         {new Date(r.createdAt).toLocaleDateString()}
                       </span>
@@ -415,19 +415,19 @@ export function HistoryTab() {
                         {new Date(r.createdAt).toLocaleDateString()}
                       </td>
                       <td className={cn("px-2 py-1.5 text-right font-mono font-bold tabular-nums", scoreTone(r.metadata.overall ?? 0))}>
-                        {r.metadata.overall ?? "—"}
+                        {r.metadata.overall ?? "n/a"}
                       </td>
                       <td className="hidden sm:table-cell px-2 py-1.5 text-right font-mono tabular-nums text-fg-secondary">
-                        {r.metadata.specificity ?? "—"}
+                        {r.metadata.specificity ?? "n/a"}
                       </td>
                       <td className="hidden sm:table-cell px-2 py-1.5 text-right font-mono tabular-nums text-fg-secondary">
-                        {r.metadata.brandElement ?? "—"}
+                        {r.metadata.brandElement ?? "n/a"}
                       </td>
                       <td className="hidden sm:table-cell px-2 py-1.5 text-right font-mono tabular-nums text-fg-secondary">
-                        {r.metadata.cta ?? "—"}
+                        {r.metadata.cta ?? "n/a"}
                       </td>
                       <td className="hidden md:table-cell px-2 py-1.5 font-mono text-[11px] text-fg-secondary">
-                        {r.metadata.turnIntent ?? "—"}/{r.metadata.turnShape ?? "—"}
+                        {r.metadata.turnIntent ?? "n/a"}/{r.metadata.turnShape ?? "n/a"}
                       </td>
                       <td className="hidden md:table-cell px-2 py-1.5 truncate max-w-md text-fg-secondary">
                         {r.content.slice(0, 80)}

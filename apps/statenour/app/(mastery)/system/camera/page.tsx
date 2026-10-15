@@ -137,7 +137,7 @@ export default function CameraArrivalsPage() {
   };
 
   const getDwellDisplay = (seconds: number) => {
-    if (!seconds) return "—";
+    if (!seconds) return "n/a";
     if (seconds < 60) return `${seconds}s`;
     return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
   };
@@ -225,7 +225,7 @@ export default function CameraArrivalsPage() {
         >
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <span>
-            Arrivals read failed: {readError}. The counts below are unknown, not zero — retry, or check
+            Arrivals read failed: {readError}. The counts below are unknown, not zero. Retry, or check
             /system/errors.
           </span>
         </div>
@@ -235,25 +235,25 @@ export default function CameraArrivalsPage() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4">
         <MetricCard
           label="Today's Arrivals"
-          value={readFailed ? "—" : data.todayCount}
-          hint={readFailed ? "Read failed — value unknown" : "Total confirmed arrivals today (ET day)"}
+          value={readFailed ? "n/a" : data.todayCount}
+          hint={readFailed ? "Read failed: value unknown" : "Total confirmed arrivals today (ET day)"}
         />
         <MetricCard
           label="Camera Fleet"
-          value={readFailed ? "—" : `${activeCamerasCount} / ${totalCamerasCount}`}
-          hint={readFailed ? "Read failed — value unknown" : "Operational cameras on shop WiFi"}
+          value={readFailed ? "n/a" : `${activeCamerasCount} / ${totalCamerasCount}`}
+          hint={readFailed ? "Read failed: value unknown" : "Operational cameras on shop WiFi"}
         />
         <MetricCard
           label="Active Alerts"
-          value={readFailed ? "—" : data.events.filter((e) => e.data?.state === "CONFIRMED_ARRIVAL").length}
-          hint={readFailed ? "Read failed — value unknown" : "Vehicles awaiting operator attention"}
+          value={readFailed ? "n/a" : data.events.filter((e) => e.data?.state === "CONFIRMED_ARRIVAL").length}
+          hint={readFailed ? "Read failed: value unknown" : "Vehicles awaiting operator attention"}
         />
         <MetricCard
           label="Last Detection"
-          value={readFailed ? "—" : data.events[0] ? formatTime(data.events[0].timestamp) :"—"}
+          value={readFailed ? "n/a" : data.events[0] ? formatTime(data.events[0].timestamp) :"n/a"}
           hint={
             readFailed
-              ? "Read failed — value unknown"
+              ? "Read failed: value unknown"
               : data.events[0]
                 ? `${data.events[0].cameraName} (${data.events[0].data?.label || "car"})`
                 : "No vehicles detected today"
@@ -372,7 +372,7 @@ export default function CameraArrivalsPage() {
             {readFailed ? (
               <div className="p-12 text-center text-red-300 space-y-2">
                 <AlertTriangle className="h-10 w-10 mx-auto text-red-400 stroke-[1.5]" />
-                <p className="text-sm">The arrivals read failed — this list is unknown, not empty.</p>
+                <p className="text-sm">The arrivals read failed: this list is unknown, not empty.</p>
                 <p className="text-xs text-red-400/70">{readError}</p>
               </div>
             ) : filteredEvents.length === 0 ? (
