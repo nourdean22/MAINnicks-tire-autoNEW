@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "nickstire/reel-qa-source-fixes",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "f73eba1c-7cf9-4cbf-a1eb-8605e963b6e4",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\agent-a203841ddaf4327dd",
   "claimedBy": "2026-10-12-reel-qa-source",
   "claimedAt": "2026-10-12T22:44:58.583Z",
   "expiresAt": "2026-10-13T10:44:58.583Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": null
+  "releasedAt": "2026-10-15T15:47:38.953Z",
+  "releaseReason": "operator confirmed via -ForceDirtyRelease in worktree-teardown.ps1",
+  "priorLeaseSha": "e38b1c7f6734228928c5829c85828eb48dab46e6",
+  "releasedBy": "d37a1982-6ae0-48f5-8d31-d27a2fbe7c24",
+  "foreignReleaseReason": null
 }
