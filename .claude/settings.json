@@ -66,6 +66,16 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "matcher": "^(?:Monitor|mcp__.+__(?:run_in_terminal|start_process|interact_with_process|write_file|edit_file|edit_block|write_pdf|move_file))$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/scripts/agent-os/lease-check.mjs\"",
+            "timeout": 10
+          }
+        ]
       }
     ],
     "Stop": [

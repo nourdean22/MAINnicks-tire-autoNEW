@@ -10,9 +10,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execSync, spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, dirname } from "node:path";
+import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { decide } from "./lease-check.mjs";
 import { writeLocalMarker } from "./local-lease-marker.mjs";
@@ -251,4 +251,95 @@ test("REAL BINARY: AGENT_OS_LEASE_OVERRIDE lets a foreign-marker call through (e
   });
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stderr, /operator took over/);
+});
+
+// ── 2026-10-15 (job 2026-10-15-guard-sql-lease-infra): the tripwire also fires for the MCP and native runners and writers ──
+// .claude/settings.json registers lease-check.mjs for them in a PreToolUse group of their own (it used to cover only
+// Bash|PowerShell|Write|Edit|NotebookEdit). These run the CONFIGURED command string VERBATIM (guard-red-team rule 5) with
+// the payload of an MCP call against a throwaway git repo, so a foreign marker blocks a Terminal MCP command or a file
+// write exactly as it blocks Bash. Never the real marker: every repo here is a temp dir with its own .git.
+
+const ROOT = resolve(HERE, "..", "..");
+const settings = JSON.parse(readFileSync(join(ROOT, ".claude", "settings.json"), "utf8"));
+const EXACT_ONLY = /^[A-Za-z0-9_\-\s,|]*$/; // Claude Code reads anything else as a JavaScript regex, tested UNANCHORED
+const routed = (matcher, name) => matcher === undefined || matcher === "" || matcher === "*" ||
+  (EXACT_ONLY.test(matcher) ? matcher.split(/[|,]/).map((s) => s.trim()).includes(name) : new RegExp(matcher).test(name));
+/** The lease-check command strings configured for a tool name, exactly as written in settings.json. */
+const leaseCommands = (name, s = settings) =>
+  s.hooks.PreToolUse.filter((g) => routed(g.matcher, name)).flatMap((g) => g.hooks.map((h) => h.command)).filter((c) => c.includes("lease-check.mjs"));
+
+function runConfigured(command, payload, cwd, sessionId = "me") {
+  const env = { ...cleanEnv(), CLAUDE_PROJECT_DIR: ROOT, CLAUDE_CODE_SESSION_ID: sessionId };
+  delete env.AGENT_OS_LEASE_OVERRIDE;
+  // cmd.exe does not expand ${VAR}: on Windows expand it here; POSIX shells expand it themselves, as the harness relies on.
+  const cmd = process.platform === "win32" ? command.replaceAll("${CLAUDE_PROJECT_DIR}", ROOT) : command;
+  const r = spawnSync(cmd, { shell: process.platform === "win32" ? true : "/bin/sh", input: JSON.stringify(payload), encoding: "utf8", cwd, env, timeout: 20000 });
+  return { code: r.status, out: `${r.stdout ?? ""}${r.stderr ?? ""}` };
+}
+
+const DC = "mcp__plugin_desktop-commander_desktop-commander__";
+const MCP_CALLS = [
+  ["mcp__terminal__run_in_terminal", (c) => ({ command: c, title: "t" })],
+  [`${DC}start_process`, (c) => ({ command: c, timeout_ms: 5000, shell: "powershell.exe" })],
+  ["mcp__c23af5b4-e7d0-40b0-b6c6-346adaf3336c__start_process", (c) => ({ command: c, timeout_ms: 5000 })],
+  ["Monitor", (c) => ({ command: c, description: "watch", timeout_ms: 60000 })],
+  [`${DC}interact_with_process`, (c) => ({ pid: 4242, input: c, timeout_ms: 8000 })],
+  [`${DC}write_file`, (c) => ({ path: "docs/x.md", content: c })],
+  [`${DC}edit_block`, (c) => ({ file_path: "docs/x.md", old_string: "a", new_string: c })],
+  [`${DC}write_pdf`, (c) => ({ path: "docs/x.pdf", content: c })],
+  ["mcp__filesystem__edit_file", (c) => ({ path: "docs/x.md", edits: [{ oldText: "a", newText: c }] })],
+  ["mcp__filesystem__move_file", () => ({ source: "a.txt", destination: "b.txt" })],
+];
+
+test("configured lease-check, run VERBATIM through every MCP runner and writer: a foreign unexpired marker BLOCKS (exit 2, REFUSED); my own marker and no marker pass", (t) => {
+  for (const [name, input] of MCP_CALLS) {
+    const commands = leaseCommands(name);
+    assert.equal(commands.length, 1, `${name}: exactly one configured lease-check command, got ${commands.length}`);
+    assert.ok(!commands[0].includes("\\"), "a backslash separator does not resolve on Linux (cloud sessions)");
+    const dir = makeRepo();
+    t.after(() => rmSync(dir, { recursive: true, force: true }));
+    const payload = { cwd: dir, tool_name: name, tool_input: input("git status") };
+    const none = runConfigured(commands[0], payload, dir);
+    assert.equal(none.code, 0, `${name}: no marker is a warning, not a block\n${none.out}`);
+    writeLocalMarker(dir, { branch: "main", sessionId: "me", expiresAt: future });
+    const own = runConfigured(commands[0], payload, dir);
+    assert.equal(own.code, 0, `${name}: my own marker\n${own.out}`);
+    assert.equal(own.out.trim(), "", `${name}: my own marker must be silent`);
+    writeLocalMarker(dir, FOREIGN);
+    const foreign = runConfigured(commands[0], payload, dir);
+    assert.equal(foreign.code, 2, `${name}: a foreign unexpired marker must block, got ${foreign.code}\n${foreign.out}`);
+    assert.match(foreign.out, /REFUSED/);
+    assert.match(foreign.out, /someone-else/);
+  }
+});
+
+test("configured lease-check through a runner: the agent-finish recovery command passes a foreign marker; a chained one and any other command still block", (t) => {
+  const name = "mcp__terminal__run_in_terminal";
+  const [command] = leaseCommands(name);
+  assert.ok(command, `${name} has no configured lease-check command`);
+  const dir = makeRepo();
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  writeLocalMarker(dir, FOREIGN);
+  const ask = (c) => runConfigured(command, { cwd: dir, tool_name: name, tool_input: { command: c } }, dir);
+  assert.equal(ask('node scripts/agent-os/agent-finish.mjs --force-release-foreign "why"').code, 0, "the recovery command must stay reachable through the runner the block message points at");
+  assert.equal(ask(`node scripts/agent-os/agent-finish.mjs; ${RM} .`).code, 2, "a chained command is not the recovery command");
+  assert.equal(ask("git status").code, 2);
+});
+
+test("configured lease-check: the SQL text tools are NOT routed to it (they never touch the worktree) and the native group is unchanged", () => {
+  for (const name of ["mcp__08daf860-d901-4ecf-8033-a2b41fe7f23d__run_sql", "mcp__08daf860-d901-4ecf-8033-a2b41fe7f23d__run_sql_transaction",
+    "mcp__1c28426e-fc0c-4e02-a13b-409e6d539b14__execute_sql_query", "mcp__plugin_prisma_Prisma-Remote__execute_prisma_postgres_schema_update"]) {
+    assert.equal(leaseCommands(name).length, 0, `${name} must not run lease-check`);
+  }
+  for (const name of ["Bash", "PowerShell", "Write", "Edit", "NotebookEdit"]) assert.equal(leaseCommands(name).length, 1, `${name} keeps its one lease-check command`);
+});
+
+test("BREAKS: settings.json without the lease-check group for the runners and writers routes none of them (the canaries above would fail)", () => {
+  const broken = structuredClone(settings);
+  broken.hooks.PreToolUse = broken.hooks.PreToolUse.filter((g) => !(g.matcher !== "Bash|PowerShell|Write|Edit|NotebookEdit" && g.hooks.some((h) => h.command.includes("lease-check.mjs"))));
+  for (const [name] of MCP_CALLS) {
+    assert.equal(leaseCommands(name).length, 1, `control: the real settings route ${name}`);
+    assert.equal(leaseCommands(name, broken).length, 0, `the broken copy must not route ${name}, or these canaries prove nothing`);
+  }
+  assert.equal(leaseCommands("Bash", broken).length, 1, "control: the native group survives the mutation");
 });

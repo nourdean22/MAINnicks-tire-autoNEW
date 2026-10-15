@@ -537,14 +537,63 @@ test("registration: nothing else is routed, and native tools keep their original
   }
 });
 
-test("registration: the original group is untouched (pretool then lease-check) and the MCP group runs pretool ONLY", () => {
+// What runs for a tool name, in settings order: "pretool" judges the command or path, "lease-check" is the Session Authority tripwire.
+const hooksFor = (s, toolName) => groupsFor(s, toolName).flatMap((g) => commandsOf(g).map((c) => c.match(/([\w-]+)\.mjs/)?.[1]));
+const LEASE_TOOLS = [...new Set([...COMMAND_SHAPES.map((s) => s.name), ...FILE_SHAPES.map((s) => s.name)])]; // runners and writers, never SQL
+const runsLease = (g) => commandsOf(g).some((c) => /scripts\/agent-os\/lease-check\.mjs/.test(c));
+const leaseGroups = (s) => preGroups(s).filter((g) => runsLease(g) && g.matcher !== NATIVE_MATCHER);
+
+/** Every way the PreToolUse registration of the two hooks is wrong, as readable lines. [] means right. */
+function routingProblems(s) {
+  const problems = [];
+  const expect = (name, want) => {
+    const got = hooksFor(s, name);
+    if (JSON.stringify([...got].sort()) !== JSON.stringify([...want].sort())) problems.push(`${name}: runs [${got}], expected [${want}]`);
+  };
+  for (const name of NATIVE) expect(name, ["pretool", "lease-check"]);
+  for (const name of LEASE_TOOLS) expect(name, ["pretool", "lease-check"]);
+  for (const shape of SQL_SHAPES) expect(shape.name, ["pretool"]);
+  for (const name of [...NOT_ROUTED, ...TRICKY]) expect(name, []);
+  return problems;
+}
+
+test("registration: runners and writers run pretool AND lease-check, SQL tools pretool only, native tools their original pair (2026-10-15)", () => {
   const original = preGroups(settings).find((g) => g.matcher === NATIVE_MATCHER);
   assert.ok(original, "the original Bash|PowerShell|Write|Edit|NotebookEdit group is gone");
   assert.deepEqual(commandsOf(original).map((c) => c.match(/(pretool|lease-check)\.mjs/)?.[1]), ["pretool", "lease-check"]);
-  const mcp = groupsFor(settings, TERMINAL);
-  assert.equal(mcp.length, 1, `exactly one group should route ${TERMINAL}, got ${mcp.length}`);
-  assert.deepEqual(commandsOf(mcp[0]).map((c) => c.match(/([\w-]+)\.mjs/)?.[1]), ["pretool"],
-    "the MCP group must run pretool.mjs only: lease-check keeps its own tool set (documented in the README)");
+  assert.deepEqual(routingProblems(settings), []);
+  const lease = leaseGroups(settings);
+  assert.equal(lease.length, 1, "exactly one lease-check group for the MCP and native runners and writers");
+  assert.deepEqual(commandsOf(lease[0]).map((c) => c.match(/([\w-]+)\.mjs/)?.[1]), ["lease-check"], "that group runs lease-check ONLY: pretool has its own group");
+  for (const shape of SQL_SHAPES) assert.ok(!groupsFor(settings, shape.name).some(runsLease), `${shape.name} never touches the worktree: lease-check must not route it`);
+});
+
+test("registration: the lease-check matcher is an anchored regex that routes exactly the runner and writer names, anchored or not", () => {
+  const [group] = leaseGroups(settings);
+  assert.ok(group, "no lease-check group for the MCP and native runners and writers");
+  const m = group.matcher;
+  assert.ok(!EXACT_ONLY.test(m), "a matcher of only letters, digits and _ - , | would be an EXACT-name list, not a regex");
+  assert.doesNotThrow(() => new RegExp(m));
+  for (const name of [...ROUTED, ...NOT_ROUTED, ...TRICKY, ...NATIVE]) {
+    const unanchored = new RegExp(m).test(name);
+    const anchored = new RegExp(`^(?:${m})$`).test(name);
+    assert.equal(unanchored, anchored, `${name}: the lease matcher gives a different answer anchored (${anchored}) and unanchored (${unanchored})`);
+    assert.equal(unanchored, LEASE_TOOLS.includes(name), `${name}: lease routed=${unanchored}, expected ${LEASE_TOOLS.includes(name)}`);
+  }
+});
+
+test("BREAKS: a registration without the lease group, or with the SQL tools inside it, is reported by tool name", () => {
+  assert.deepEqual(routingProblems(settings), [], "control: the real registration is right");
+  const dropped = structuredClone(settings);
+  dropped.hooks.PreToolUse = dropped.hooks.PreToolUse.filter((g) => !(runsLease(g) && g.matcher !== NATIVE_MATCHER));
+  const missing = routingProblems(dropped);
+  assert.equal(missing.length, LEASE_TOOLS.length, `exactly the runner and writer tools are reported: ${missing.join(" | ")}`);
+  assert.ok(missing.some((l) => l.startsWith(`${TERMINAL}:`)) && missing.some((l) => l.startsWith("Monitor:")));
+  const widened = structuredClone(settings);
+  const pretoolMcp = preGroups(settings).find((g) => runsPretool(g) && g.matcher !== NATIVE_MATCHER);
+  widened.hooks.PreToolUse.find((g) => runsLease(g) && g.matcher !== NATIVE_MATCHER).matcher = pretoolMcp.matcher; // this one carries the SQL suffixes
+  const extra = routingProblems(widened);
+  assert.equal(extra.length, SQL_SHAPES.length, `exactly the SQL tools are reported: ${extra.join(" | ")}`);
 });
 
 test("registration: the matcher is a regex that means the same anchored or unanchored", () => {
