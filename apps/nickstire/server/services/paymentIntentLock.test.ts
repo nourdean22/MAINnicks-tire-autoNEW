@@ -13,7 +13,12 @@ const h = vi.hoisted(() => ({
   selects: [] as Array<{ table: unknown; where: unknown; limit: boolean; forUpdate: boolean }>,
 }));
 
-vi.mock("./payments", () => ({ cancelPaymentIntent: (...a: unknown[]) => h.cancel(...a) }));
+// Only cancelPaymentIntent is replaced; every other export of ./payments stays real, so a later test in the
+// same serial run that imports it still gets the full module.
+vi.mock("./payments", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./payments")>()),
+  cancelPaymentIntent: (...a: unknown[]) => h.cancel(...a),
+}));
 
 import {
   lockedTotalPatch,
@@ -113,6 +118,13 @@ describe("recordPaymentIntentLocked", () => {
   it("truncates a long description to the column's 500 characters", async () => {
     await recordPaymentIntentLocked(d as never, { ...intent, description: "A".repeat(600) });
     expect((h.inserts[0] as { description: string }).description).toHaveLength(500);
+  });
+
+  it("cuts a name and phone to their payment columns, so a longer invoice value cannot refuse the row", async () => {
+    await recordPaymentIntentLocked(d as never, { ...intent, customerName: "N".repeat(255), customerPhone: "1".repeat(30) });
+    const row = h.inserts[0] as { customerName: string; customerPhone: string };
+    expect(row.customerName).toHaveLength(200);
+    expect(row.customerPhone).toHaveLength(20);
   });
 
   it("refuses when the total moved after the intent was created at the old amount", async () => {

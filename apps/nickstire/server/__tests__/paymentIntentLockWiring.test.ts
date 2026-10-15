@@ -21,7 +21,10 @@ describe("the payment-intent lock is wired into every path that moves money or a
   });
 
   it("a payment recorded by the customer confirm path stops holding the total", () => {
-    expect(read("routers/payments.ts")).toContain("markPaymentPaid(d, input.paymentIntentId)");
+    const src = read("routers/payments.ts");
+    expect(src).toContain("markPaymentPaid(tx, input.paymentIntentId)");
+    // The claim and the intent update commit in one transaction.
+    expect(src).toContain("claimed = await d.transaction(");
   });
 
   it("a payment recorded by the Stripe webhook stops holding the total, and its status comes from one mapping", () => {
@@ -60,6 +63,11 @@ describe("the payment-intent lock is wired into every path that moves money or a
     const src = read("services/reportIngestion.ts");
     expect(src).toContain("withInvoiceLock(db, existing[0].id, async (tx, row) => {");
     expect(src).toContain("lockedTotalPatch(tx, existing[0].id, row.totalAmount, inv.totalCents)");
+  });
+
+  it("a held total keeps its cost breakdown: the ingest and the mirror withhold labor, parts and tax with it", () => {
+    expect(read("services/reportIngestion.ts")).toContain("const withheld = inv.totalCents > 0 && inv.totalCents !== row.totalAmount");
+    expect(read("services/shopDriverMirror.ts")).toContain("delete all.laborCost;");
   });
 
   it("a tire-order payment checks for an open card payment under the invoice lock, and cancels nothing", () => {
