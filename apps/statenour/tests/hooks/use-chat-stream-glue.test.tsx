@@ -315,6 +315,43 @@ describe("Retry never re-runs a turn that ran a side-effecting tool", () => {
     expect(h.chat.regenerate).not.toHaveBeenCalled();
   });
 
+  // The live check used the catalog's narrow `sideEffecting` flag. createTask,
+  // completeTask and triggerBrief are personal_write tools with no flag, so a
+  // live turn that wrote a task could be replayed and wrote it twice. The
+  // receipt classifier (write when flagged OR a *_write category) is the one
+  // the persisted receipts use, so the live check must agree with it.
+  it.each(["createTask", "completeTask", "triggerBrief"])(
+    "refuses a live turn with %s, a personal_write tool the catalog does not flag",
+    (toolName) => {
+      h.chat.messages = [user, { id: "live-1", role: "assistant", parts: [{ type: `tool-${toolName}` }, { type: "text", text: "Done." }] }];
+      h.chat.status = "ready";
+      render();
+      vi.mocked(toast.error).mockClear();
+      act(() => void ctl.regenerate());
+      expect(h.chat.regenerate).not.toHaveBeenCalled();
+      expect(vi.mocked(toast.error)).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each([
+    ["a tool the catalog has never heard of", { type: "tool-notInTheCatalog" }],
+    ["a dynamic tool (its name is never in the catalog)", { type: "dynamic-tool", toolName: "pushToShop" }],
+  ])("refuses a live turn with %s: unclassifiable counts as a write", (_label, toolPart) => {
+    h.chat.messages = [user, { id: "live-1", role: "assistant", parts: [toolPart, { type: "text", text: "Done." }] }];
+    h.chat.status = "ready";
+    render();
+    act(() => void ctl.regenerate());
+    expect(h.chat.regenerate).not.toHaveBeenCalled();
+  });
+
+  it("CONTROL: a live turn that only ran a read tool still regenerates", () => {
+    h.chat.messages = [user, { id: "live-1", role: "assistant", parts: [{ type: "tool-getRevenueStats" }, { type: "text", text: "Revenue is up." }] }];
+    h.chat.status = "ready";
+    render();
+    act(() => void ctl.regenerate());
+    expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
+  });
+
   // R3-15: the errored-turn writer (stream-error-handler) stores no tokenUsage,
   // and an aborted or truncated row older than the receipts writer has none
   // either. No record of what ran means it may have run: fail closed.
