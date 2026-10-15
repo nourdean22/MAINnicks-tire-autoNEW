@@ -28,6 +28,8 @@ type TransportOpts = {
   resumeIntoMessageId?: () => string | undefined;
   onResumePartial: () => void;
   onResumeEmpty?: () => void;
+  onConversationId?: (id: string) => void;
+  onTraceId?: (id: string) => void;
 };
 
 const h = vi.hoisted(() => ({
@@ -62,7 +64,7 @@ vi.mock("sonner", () => ({
 import { toast } from "sonner";
 import { useChatStream } from "@/features/chat-v2/hooks/use-chat-stream";
 import { useChatUiStore } from "@/features/chat-v2/stores/chat-ui-store";
-import { RETRY_HELD_NO_RECORD, RETRY_HELD_RAN, RETRY_HELD_UNCONFIRMED } from "@/features/chat-v2/lib/saved-turn";
+import { RETRY_HELD_NO_RECORD, RETRY_HELD_RAN, RETRY_HELD_UNCONFIRMED, RETRY_STILL_CHECKING } from "@/features/chat-v2/lib/saved-turn";
 
 const transport = () => h.transport as TransportOpts;
 const user: Msg = { id: "u1", role: "user", parts: [{ type: "text", text: "question" }] };
@@ -99,6 +101,11 @@ beforeEach(() => {
     resumeStream: vi.fn(),
     sendMessage: vi.fn(),
     regenerate: vi.fn(),
+    // the SDK's own: drops the error and returns to ready
+    clearError: vi.fn(() => {
+      h.chat.error = undefined;
+      h.chat.status = "ready";
+    }),
   };
   hookOptions = undefined;
   useChatUiStore.setState({ activeConversationId: "c1", privateMode: false });
@@ -256,7 +263,6 @@ describe("auto-retry never turns a failed reattach into a resend", () => {
   it.each([
     ["sendText", () => ctl.sendText("next")],
     ["append", () => ctl.append({ text: "next" })],
-    ["regenerate", () => ctl.regenerate()],
   ] as const)("CONTROL: after a Reconnect, %s re-arms the auto-retry for a dropped send", (_name, send) => {
     reconnect();
     act(() => void send());
@@ -264,6 +270,19 @@ describe("auto-retry never turns a failed reattach into a resend", () => {
     h.chat.messages = [user, reply];
     networkKill();
     expect(vi.mocked(h.chat.regenerate as () => void).mock.calls.length - manual).toBe(1);
+  });
+
+  // A regenerate resends a turn the server already knows. If its POST dies before any response
+  // header the client cannot tell whether the server started it (the server does not stop when the
+  // client disconnects), so the auto retry no longer replays it blind: the saved turn decides.
+  // This used to be a re-armed auto retry like the two sends above.
+  it("after a Reconnect, a regenerate whose POST dies before any header is not auto-retried blind", () => {
+    reconnect();
+    act(() => void ctl.regenerate());
+    const manual = vi.mocked(h.chat.regenerate as () => void).mock.calls.length;
+    h.chat.messages = [user, reply];
+    networkKill();
+    expect(vi.mocked(h.chat.regenerate as () => void).mock.calls.length - manual).toBe(0);
   });
 });
 
@@ -1033,7 +1052,7 @@ describe("Retry after a stream error asks the saved turn before replaying", () =
     expect(h.chat.regenerate).not.toHaveBeenCalled();
   });
 
-  it("one check at a time: a second tap while the first is reading does not start a second replay", async () => {
+  it("one check at a time: a second tap while the first is reading does not start a second replay, and says it is still checking", async () => {
     let finish!: (rows: unknown[]) => void;
     const readSavedTurn = vi.fn(() => new Promise<unknown[]>((resolve) => (finish = resolve)));
     hookOptions = { readSavedTurn };
@@ -1042,11 +1061,14 @@ describe("Retry after a stream error asks the saved turn before replaying", () =
 
     const first = act(async () => void (await ctl.regenerate()));
     await act(async () => void (await ctl.regenerate()));
+    expect(vi.mocked(toast.error), "a silent tap reads as a dead button").toHaveBeenCalledTimes(1);
+    expect(vi.mocked(toast.error).mock.calls[0]?.[0]).toBe(RETRY_STILL_CHECKING);
     finish([savedSettledEmpty]);
     await first;
 
     expect(readSavedTurn).toHaveBeenCalledTimes(1);
     expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(toast.error), "the first check went ahead and said nothing more").toHaveBeenCalledTimes(1);
   });
 
   // A regenerate resends the same user message (persistUserTurn dedupes it), so attempt 1's
@@ -1164,8 +1186,11 @@ describe("Retry after a stream error asks the saved turn before replaying", () =
   });
 
   describe("a read that does not come back, or comes back unreadable", () => {
-    it("is given up after 12 s: Retry is held with the wait-and-retry copy, the request is cancelled, and the next tap works", async () => {
-      vi.useFakeTimers();
+    it("is given up after 12 s: Retry is held with the try-again copy, the request is cancelled, and the next tap works", async () => {
+      // Only the timers the hook uses, so React's own scheduler (setImmediate, MessageChannel) stays
+      // real under `await act(async ...)`. A review reported a hang when this test ran alone; three
+      // filtered runs here passed either way, so this is a precaution, not a proven fix.
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
       try {
         const reader = vi.fn((_id: string, _signal?: AbortSignal) => new Promise<unknown[]>(() => {}));
         hookOptions = { readSavedTurn: reader };
@@ -1233,6 +1258,297 @@ describe("Retry after a stream error asks the saved turn before replaying", () =
     await retry();
 
     expect(readSavedTurn).not.toHaveBeenCalled();
+    expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
+  });
+});
+
+const retryNow = () => act(async () => void (await ctl.regenerate()));
+const IN_BAND_ERROR = () => new Error("The AI provider dropped mid-response. Tap Retry to check and continue.");
+const cleanRow = (trace: string, id = `row-${trace}`) => ({
+  id,
+  role: "assistant",
+  content: "Working on it",
+  streamingState: "errored",
+  tokenUsage: { traceId: trace, toolReceipts: [] },
+});
+const writeRow = (trace: string) => ({
+  ...cleanRow(trace),
+  tokenUsage: {
+    traceId: trace,
+    toolReceipts: [{ toolName: "createTask", category: "personal_write", sideEffecting: true, verifiable: true, status: "partial", verificationState: "UNKNOWN_COMPLETION", entityType: null, entityId: null }],
+  },
+});
+const userRow = { id: "u1", role: "user" };
+const userB: Msg = { id: "uB", role: "user", parts: [{ type: "text", text: "question in B" }] };
+const replyB: Msg = { id: "aB", role: "assistant", parts: [{ type: "text", text: "answer in B" }] };
+
+/** The turn was sent in conversation `conversationId`, the server answered it (trace `trace`), then the stream errored in band. */
+function sendAndErrorInBand(conversationId: string | null, trace: string) {
+  useChatUiStore.setState({ activeConversationId: conversationId });
+  render();
+  act(() => void ctl.sendText("add a task"));
+  transport().lastTraceIdRef.current = trace;
+  h.chat.messages = [user, { id: "live-1", role: "assistant", parts: [{ type: "text", text: "Working on it" }] }];
+  h.chat.status = "error";
+  h.chat.error = IN_BAND_ERROR();
+  render();
+}
+
+// The error and the trace refs belong to the turn that produced them. Opening another
+// conversation is a new situation: the old error must not hold Retry on a clean reply there.
+describe("opening another conversation drops the old turn's error state", () => {
+  beforeEach(() => vi.mocked(toast.error).mockClear());
+
+  /** The island's onSelect: reset the turn (when `reset`), point at B, load B's rows. */
+  function openB(reset: boolean) {
+    if (reset) act(() => ctl.resetTurn());
+    useChatUiStore.setState({ activeConversationId: "cB" });
+    h.chat.messages = [userB, replyB];
+    render();
+  }
+
+  it("A errors in band (trace T2); after opening B, Regenerate on B's clean reply replays at once, with no toast and no read", async () => {
+    const readSavedTurn = vi.fn(async () => [userRow, cleanRow("TB")]);
+    hookOptions = { readSavedTurn };
+    render();
+    sendAndErrorInBand("cA", "T2");
+
+    openB(true);
+    await retryNow();
+
+    expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(toast.error)).not.toHaveBeenCalled();
+    expect(readSavedTurn, "B's reply is not an errored turn: nothing to read").not.toHaveBeenCalled();
+  });
+
+  it("CONTROL (the hazard): with no reset the stale error still holds Regenerate on B", async () => {
+    hookOptions = { readSavedTurn: vi.fn(async () => [userRow, cleanRow("TB")]) };
+    render();
+    sendAndErrorInBand("cA", "T2");
+    vi.mocked(toast.error).mockClear();
+
+    openB(false);
+    await retryNow();
+
+    expect(h.chat.regenerate).not.toHaveBeenCalled();
+    expect(vi.mocked(toast.error).mock.calls[0]?.[0]).toBe(RETRY_HELD_UNCONFIRMED);
+  });
+
+  it("resetTurn clears the SDK's error and the trace the old turn left, so nothing of A follows the operator into B", () => {
+    render();
+    sendAndErrorInBand("cA", "T2");
+    act(() => transport().onTraceId?.("T2"));
+    expect(ctl.error).toBeDefined();
+    expect(ctl.lastTraceId).toBe("T2");
+
+    act(() => ctl.resetTurn());
+    render();
+
+    expect(h.chat.clearError).toHaveBeenCalledTimes(1);
+    expect(ctl.error).toBeUndefined();
+    expect(transport().lastTraceIdRef.current, "a Reconnect in B would name A's trace").toBeNull();
+    expect(ctl.lastTraceId).toBeNull();
+  });
+
+  it("resetTurn also drops a held interruption (killedErrorRef): Retry in B regenerates, it does not reattach A's turn", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      act(() => void ctl.sendText("next"));
+      transport().lastTraceIdRef.current = "T2";
+      h.chat.messages = [user, reply];
+      h.chat.status = "error";
+      h.chat.error = new Error("Failed to fetch");
+      render();
+      act(() => vi.advanceTimersByTime(10_000));
+      expect(h.chat.resumeStream).toHaveBeenCalledTimes(1);
+
+      openB(true);
+      act(() => void ctl.regenerate());
+
+      expect(h.chat.resumeStream, "still one: the held interruption was A's").toHaveBeenCalledTimes(1);
+      expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // THE TRAP: a first message has no conversation id yet; the response header assigns it mid-turn.
+  // That is the SAME turn, so its binding to its own trace must survive.
+  it("a first message whose conversation id is assigned from the response header, then errors in band, is still judged against its own trace", async () => {
+    const readSavedTurn = vi.fn(async () => [userRow, cleanRow("T2")]);
+    hookOptions = { readSavedTurn };
+    useChatUiStore.setState({ activeConversationId: null });
+    render();
+    act(() => void ctl.sendText("add a task"));
+    transport().lastTraceIdRef.current = "T2";
+    act(() => transport().onConversationId?.("c9"));
+    h.chat.messages = [user, { id: "live-1", role: "assistant", parts: [{ type: "text", text: "Working on it" }] }];
+    h.chat.status = "error";
+    h.chat.error = IN_BAND_ERROR();
+    render();
+
+    await retryNow();
+
+    expect(readSavedTurn).toHaveBeenCalledWith("c9", expect.any(AbortSignal));
+    expect(h.chat.regenerate, "judged against T2, found, clean: replay").toHaveBeenCalledTimes(1);
+    expect(vi.mocked(toast.error)).not.toHaveBeenCalled();
+  });
+});
+
+// replay() sets traceAtSend to the trace the replayed attempt had (T2). If the replay's POST dies
+// before any response header, lastTraceId is still T2, so "the server answered with a new trace"
+// is false and Retry used to run with no read. The server does not stop when the client
+// disconnects, so that attempt can still run its tools, and a third POST would repeat them.
+describe("a replay that dies before the server's response headers", () => {
+  beforeEach(() => vi.mocked(toast.error).mockClear());
+
+  /**
+   * Attempt 1 errors in band (T2, a clean row) and Retry replays; the replay's POST then fails with no
+   * header. `rowsAfter` is what the server holds by the time Retry is tapped again.
+   */
+  async function replayThenDeadPost(rowsAfter: unknown[], message = "Load failed") {
+    let rows: unknown[] = [userRow, cleanRow("T2")];
+    const readSavedTurn = vi.fn(async () => rows);
+    hookOptions = { readSavedTurn };
+    render();
+    sendAndErrorInBand("c1", "T2");
+    await retryNow();
+    expect(h.chat.regenerate, "attempt 1's own clean row: the first replay goes ahead").toHaveBeenCalledTimes(1);
+    rows = rowsAfter;
+    // the replay's POST failed before any header: lastTraceId is still T2
+    h.chat.status = "error";
+    h.chat.error = new Error(message);
+    render();
+    vi.mocked(toast.error).mockClear();
+    return readSavedTurn;
+  }
+
+  it("a manual Retry reads the saved turn and is held while no later attempt has a settled clean row", async () => {
+    const readSavedTurn = await replayThenDeadPost([userRow, cleanRow("T2")]);
+
+    await retryNow();
+
+    expect(readSavedTurn).toHaveBeenCalledTimes(2);
+    expect(h.chat.regenerate, "a second replay could repeat what attempt 2 ran").toHaveBeenCalledTimes(1);
+    expect(vi.mocked(toast.error).mock.calls[0]?.[0]).toBe(RETRY_HELD_UNCONFIRMED);
+  });
+
+  it("the auto retry applies the same hold: no regenerate, and the operator is told", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      await replayThenDeadPost([userRow, cleanRow("T2")], "Load failed");
+
+      await act(async () => void (await vi.advanceTimersByTimeAsync(10_000)));
+
+      expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(toast.error).mock.calls[0]?.[0]).toBe(RETRY_HELD_UNCONFIRMED);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("Retry proceeds once a settled clean row names a LATER attempt (attempt 2 answered and did nothing)", async () => {
+    await replayThenDeadPost([userRow, cleanRow("T2"), cleanRow("T3", "stub-2")]);
+
+    await retryNow();
+
+    expect(h.chat.regenerate).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(toast.error)).not.toHaveBeenCalled();
+  });
+
+  it("a later attempt that wrote is held as 'may already have run an action'", async () => {
+    await replayThenDeadPost([userRow, cleanRow("T2"), writeRow("T3")]);
+
+    await retryNow();
+
+    expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(toast.error).mock.calls[0]?.[0]).toBe(RETRY_HELD_RAN);
+  });
+
+  it("opening another conversation drops the outstanding replay: Regenerate on B's clean reply is not held", async () => {
+    await replayThenDeadPost([userRow, cleanRow("T2")]);
+
+    act(() => ctl.resetTurn());
+    useChatUiStore.setState({ activeConversationId: "cB" });
+    h.chat.messages = [userB, replyB];
+    render();
+    await retryNow();
+
+    expect(h.chat.regenerate).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(toast.error)).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["sendText", () => ctl.sendText("next")],
+    ["append", () => ctl.append({ text: "next" })],
+  ] as const)("a new message (%s) drops the outstanding replay: its own dropped send is auto-retryable as before", async (_name, send) => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      await replayThenDeadPost([userRow, cleanRow("T2")]);
+      act(() => void send());
+      h.chat.messages = [user, reply];
+      h.chat.status = "error";
+      h.chat.error = new Error("Load failed");
+      render();
+
+      await act(async () => void (await vi.advanceTimersByTimeAsync(10_000)));
+
+      expect(h.chat.regenerate, "the manual replay, then the new send's auto retry").toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+// "network error" and "The network connection was lost." were added so a drop AFTER the server
+// answered reattaches. Before any header they must stay what they were: not auto-replayed.
+describe("the newer network phrases do not widen the auto retry", () => {
+  beforeEach(() => vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] }));
+  afterEach(() => vi.useRealTimers());
+
+  it.each(["network error", "Network Error", "The network connection was lost."])(
+    "%s before any response header: no auto regenerate, no reattach, and the error card stays",
+    (message) => {
+      act(() => void ctl.sendText("next"));
+      // lastTraceId is still the trace at send: the POST never got a header
+      h.chat.messages = [user, reply];
+      h.chat.status = "error";
+      h.chat.error = new Error(message);
+      render();
+
+      act(() => vi.advanceTimersByTime(10_000));
+
+      expect(h.chat.regenerate).not.toHaveBeenCalled();
+      expect(h.chat.resumeStream).not.toHaveBeenCalled();
+      expect(ctl.error?.message).toBe(message);
+    },
+  );
+
+  it("CONTROL: the original phrases before any header still auto-regenerate once", () => {
+    for (const message of ["Failed to fetch", "NetworkError when attempting to fetch resource.", "fetch failed", "Load failed"]) {
+      h.chat.regenerate = vi.fn();
+      act(() => void ctl.sendText("next"));
+      h.chat.messages = [user, reply];
+      h.chat.status = "error";
+      h.chat.error = new Error(message);
+      render();
+      act(() => vi.advanceTimersByTime(10_000));
+      expect(h.chat.regenerate, message).toHaveBeenCalledTimes(1);
+      h.chat.error = undefined;
+      h.chat.status = "ready";
+      render();
+    }
+  });
+
+  it("a manual Retry on such an error behaves as before: it replays", async () => {
+    act(() => void ctl.sendText("next"));
+    h.chat.messages = [user, reply];
+    h.chat.status = "error";
+    h.chat.error = new Error("network error");
+    render();
+
+    await retryNow();
+
     expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
   });
 });

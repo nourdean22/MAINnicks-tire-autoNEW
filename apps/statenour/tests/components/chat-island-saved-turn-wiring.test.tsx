@@ -15,6 +15,12 @@ import { createRoot } from "react-dom/client";
 const h = vi.hoisted(() => ({
   hookOptions: undefined as undefined | { readSavedTurn?: (id: string, signal?: AbortSignal) => Promise<unknown> },
   readSavedTurn: undefined as undefined | ((id: string, signal?: AbortSignal) => Promise<unknown>),
+  // the order of the calls the drawer's handlers make: the turn is reset first, then the conversation moves
+  calls: [] as string[],
+  resetTurn: undefined as unknown as () => void,
+  loadConvo: undefined as unknown as (id: string) => Promise<void>,
+  newChat: undefined as unknown as () => void,
+  drawer: undefined as undefined | { onSelect: (id: string) => void; onNew: () => void },
 }));
 
 vi.mock("@/features/chat-v2/hooks/use-chat-stream", () => ({
@@ -31,6 +37,7 @@ vi.mock("@/features/chat-v2/hooks/use-chat-stream", () => ({
       stopTurn: () => {},
       stopped: null,
       regenerate: async () => {},
+      resetTurn: () => h.resetTurn(),
       setMessages: () => {},
       liveContextBlocks: null,
       lastTraceId: null,
@@ -40,18 +47,37 @@ vi.mock("@/features/chat-v2/hooks/use-chat-stream", () => ({
 vi.mock("@/features/chat-v2/hooks/use-tts", () => ({ useTts: () => ({}) }));
 vi.mock("@/features/chat-v2/hooks/use-chat-deep-link-prefill", () => ({ useChatDeepLinkPrefill: () => {} }));
 vi.mock("@/hooks/use-conversations", () => ({
-  useConversations: () => ({ convos: [], activeId: null, pinnedIds: new Set(), isLoadingConvo: false, readSavedTurn: h.readSavedTurn }),
+  useConversations: () => ({
+    convos: [],
+    activeId: null,
+    pinnedIds: new Set(),
+    isLoadingConvo: false,
+    readSavedTurn: h.readSavedTurn,
+    loadConvo: (id: string) => h.loadConvo(id),
+    newChat: () => h.newChat(),
+  }),
+}));
+// Render the dialog's children inline when it is open, so the drawer's handlers can be called.
+vi.mock("@/components/ui/dialog", () => ({
+  Dialog: ({ open, children }: { open?: boolean; children?: React.ReactNode }) => (open ? <>{children}</> : null),
+  DialogContent: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
 }));
 vi.mock("@/features/chat-v2/components/chat-composer", () => ({ ChatComposer: () => null }));
 vi.mock("@/features/chat-v2/components/chat-media-dock", () => ({ ChatMediaDock: () => null }));
 vi.mock("@/features/chat-v2/components/chat-media-focus-panel", () => ({ ChatMediaFocusPanel: () => null }));
 vi.mock("@/features/chat-v2/components/chat-message-list", () => ({ ChatMessageList: () => null }));
 vi.mock("@/features/chat-v2/components/chat-capability-indicator", () => ({ ChatCapabilityIndicator: () => null }));
-vi.mock("@/features/chat-v2/components/operator-conversation-drawer", () => ({ OperatorConversationDrawer: () => null }));
+vi.mock("@/features/chat-v2/components/operator-conversation-drawer", () => ({
+  OperatorConversationDrawer: (props: { onSelect: (id: string) => void; onNew: () => void }) => {
+    h.drawer = props;
+    return null;
+  },
+}));
 vi.mock("@/components/chat/realtime-voice-overlay", () => ({ RealtimeVoiceOverlay: () => null }));
 vi.mock("@/components/chat/memory-inspector-sidebar", () => ({ MemoryInspectorSidebar: () => null }));
 
 import { ChatIsland } from "@/features/chat-v2/components/chat-island";
+import { useChatUiStore } from "@/features/chat-v2/stores/chat-ui-store";
 
 function mount() {
   const container = document.createElement("div");
@@ -63,6 +89,12 @@ function mount() {
 beforeEach(() => {
   h.hookOptions = undefined;
   h.readSavedTurn = undefined;
+  h.calls = [];
+  h.drawer = undefined;
+  h.resetTurn = () => void h.calls.push("resetTurn");
+  h.loadConvo = async (id) => void h.calls.push(`loadConvo:${id}`);
+  h.newChat = () => void h.calls.push("newChat");
+  useChatUiStore.setState({ historyDrawerOpen: false, activeConversationId: null });
 });
 
 describe("the island hands the chat a saved-turn reader", () => {
@@ -84,6 +116,45 @@ describe("the island hands the chat a saved-turn reader", () => {
     const unmount = mount();
 
     await expect(h.hookOptions!.readSavedTurn!("c1")).resolves.toBeNull();
+    unmount();
+  });
+});
+
+// The old turn's error and trace refs must not follow the operator into another conversation.
+// Only the operator's own switch resets them; the id a first message gets from the response
+// header is the same turn and must not.
+describe("the island resets the turn when the operator opens another conversation", () => {
+  function mountWithDrawerOpen() {
+    useChatUiStore.setState({ historyDrawerOpen: true });
+    return mount();
+  }
+
+  it("picking a conversation resets the turn BEFORE it moves", () => {
+    const unmount = mountWithDrawerOpen();
+
+    act(() => h.drawer!.onSelect("c2"));
+
+    expect(h.calls).toEqual(["resetTurn", "loadConvo:c2"]);
+    expect(useChatUiStore.getState().activeConversationId).toBe("c2");
+    unmount();
+  });
+
+  it("starting a new chat resets the turn BEFORE it clears the conversation", () => {
+    const unmount = mountWithDrawerOpen();
+
+    act(() => h.drawer!.onNew());
+
+    expect(h.calls).toEqual(["resetTurn", "newChat"]);
+    expect(useChatUiStore.getState().activeConversationId).toBeNull();
+    unmount();
+  });
+
+  it("CONTROL: the id a first message is given (the store changing on its own) does not reset the turn", () => {
+    const unmount = mountWithDrawerOpen();
+
+    act(() => useChatUiStore.getState().setActiveConversationId("c9"));
+
+    expect(h.calls).toEqual([]);
     unmount();
   });
 });

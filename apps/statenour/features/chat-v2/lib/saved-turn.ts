@@ -15,9 +15,13 @@ export type SavedTurnVerdict = "safe" | "ran" | "unconfirmed";
 // The records are lower bounds: a tool-call chunk counts before the tool executes, and an
 // action block in partial text may never have run. So "may", not "did".
 export const RETRY_HELD_RAN = "That reply may already have run an action, so it can't be replayed. Send a new message instead.";
-// A hold that can clear: the row is not written or settled yet, or the read failed or timed out.
+// A hold that may or may not clear: the row is not written or settled yet, the read failed or timed
+// out, or the record will never be complete (the accumulator was untrusted, the settle update
+// failed, a follow-up row, a dropped duplicate). So it asks for one more tap, then names the way out.
 export const RETRY_HELD_UNCONFIRMED =
-  "Nick can't confirm yet that reply didn't already do part of the work, so Retry is held. Wait a moment and tap Retry again, or send a new message.";
+  "Nick can't confirm that reply finished, so Retry is held. Tap Retry again in a moment. If it keeps holding, send a new message instead.";
+// A tap that lands while an earlier check is still waiting on the saved turn.
+export const RETRY_STILL_CHECKING = "Still checking the last reply. Give it a moment.";
 // A hold that never clears: there is no saved record to read (Private Lab, no conversation).
 export const RETRY_HELD_NO_RECORD =
   "Nothing was saved for that reply, so Nick can't check whether it already did part of the work. Send a new message instead.";
@@ -78,12 +82,35 @@ export function savedTurnVerdict(rows: readonly SavedRow[] | null | undefined): 
  * one the answer is "unconfirmed". Any throw is "unconfirmed" too.
  */
 export function judgeSavedTurn(messages: readonly SavedRow[] | null | undefined, attemptTraceId: string | null | undefined): SavedTurnVerdict {
+  if (typeof attemptTraceId !== "string" || attemptTraceId.length === 0) return "unconfirmed";
+  return judgeBound(messages, (trace) => trace === attemptTraceId);
+}
+
+/**
+ * The verdict when a replay's POST died before any response header, so the client holds no
+ * trace for it (`replayedFromTrace` is the trace of the attempt that was replayed). The server
+ * does not stop when the client disconnects, so that attempt may still be running its tools.
+ * Unknown means refuse: "safe" needs every row clean AND a settled row from a LATER attempt (a
+ * trace other than the one replayed), which proves the replay answered and did nothing.
+ */
+export function judgeAfterUnansweredReplay(messages: readonly SavedRow[] | null | undefined, replayedFromTrace: string | null | undefined): SavedTurnVerdict {
+  if (typeof replayedFromTrace !== "string" || replayedFromTrace.length === 0) return "unconfirmed";
+  return judgeBound(messages, (trace) => trace !== replayedFromTrace);
+}
+
+/** Every row of the latest turn clean, and at least one of them carries a trace id that `accepts`. */
+function judgeBound(messages: readonly SavedRow[] | null | undefined, accepts: (trace: string) => boolean): SavedTurnVerdict {
   try {
-    if (!messages || typeof attemptTraceId !== "string" || attemptTraceId.length === 0) return "unconfirmed";
+    if (!messages) return "unconfirmed";
     const rows = latestTurnRows(messages);
     const verdict = savedTurnVerdict(rows);
     if (verdict !== "safe") return verdict;
-    return rows.some((row) => traceOf(row) === attemptTraceId) ? "safe" : "unconfirmed";
+    return rows.some((row) => {
+      const trace = traceOf(row);
+      return trace !== undefined && accepts(trace);
+    })
+      ? "safe"
+      : "unconfirmed";
   } catch {
     return "unconfirmed";
   }

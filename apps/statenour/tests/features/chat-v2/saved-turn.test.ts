@@ -8,12 +8,14 @@
  */
 import { describe, it, expect } from "vitest";
 import {
+  judgeAfterUnansweredReplay,
   judgeSavedTurn,
   latestTurnRows,
   savedTurnVerdict,
   RETRY_HELD_NO_RECORD,
   RETRY_HELD_RAN,
   RETRY_HELD_UNCONFIRMED,
+  RETRY_STILL_CHECKING,
 } from "@/features/chat-v2/lib/saved-turn";
 
 const receipt = (toolName: string, sideEffecting: boolean) => ({
@@ -151,6 +153,17 @@ describe("judgeSavedTurn: safe needs a saved row bound to the attempt that faile
     expect(judgeSavedTurn([attempt("T2"), { id: "u2", role: "user" }], "T2")).toBe("unconfirmed");
   });
 
+  // The row named T2 is clean and settled, but a newer user message came after it, so it belongs to
+  // an earlier turn. The only row in the latest turn (T3) is clean and names another attempt.
+  it("DISCRIMINATING: [attempt T2, user u2, attempt T3] judged for T2 is unconfirmed, not safe", () => {
+    expect(judgeSavedTurn([attempt("T2"), { id: "u2", role: "user" }, attempt("T3")], "T2")).toBe("unconfirmed");
+  });
+
+  it("a clean errored row with NO traceId at all is no proof for any attempt: unconfirmed", () => {
+    const unbound = assistant({ toolReceipts: [] }, { id: "old-shape" });
+    expect(judgeSavedTurn([user, unbound], "T2")).toBe("unconfirmed");
+  });
+
   it("no trace to bind to (none, empty, not a string) is unconfirmed", () => {
     for (const trace of [null, undefined, "", 7 as never]) {
       expect(judgeSavedTurn([user, attempt("T2")], trace), String(trace)).toBe("unconfirmed");
@@ -169,6 +182,48 @@ describe("judgeSavedTurn: safe needs a saved row bound to the attempt that faile
   });
 });
 
+// A replay's POST can die before any response header, so the client holds no trace for it. The server
+// does not stop when the client disconnects, so that attempt may still run its tools. Unknown means
+// refuse: Retry is judged safe only when a LATER attempt (a trace other than the one replayed)
+// has a settled clean row, and every row of the turn is clean.
+describe("judgeAfterUnansweredReplay: a replay with no response header", () => {
+  const user = { id: "u1", role: "user" };
+  const attempt = (trace: string, tokenUsage: Record<string, unknown> = { toolReceipts: [] }, extra: Record<string, unknown> = {}) =>
+    assistant({ traceId: trace, ...tokenUsage }, { id: `a-${trace}`, ...extra });
+
+  it("safe: a later attempt answered and did nothing", () => {
+    expect(judgeAfterUnansweredReplay([user, attempt("T2"), attempt("T3")], "T2")).toBe("safe");
+  });
+
+  it("unconfirmed: only the replayed attempt's own row exists (the replay may be running unseen)", () => {
+    expect(judgeAfterUnansweredReplay([user, attempt("T2")], "T2")).toBe("unconfirmed");
+  });
+
+  it("ran: the later attempt listed a write", () => {
+    expect(judgeAfterUnansweredReplay([user, attempt("T2"), attempt("T3", { toolReceipts: [receipt("createTask", true)] })], "T2")).toBe("ran");
+  });
+
+  it("unconfirmed: the later attempt's row is not settled yet", () => {
+    expect(judgeAfterUnansweredReplay([user, attempt("T2"), attempt("T3", { receiptsUnavailable: true })], "T2")).toBe("unconfirmed");
+  });
+
+  it("unconfirmed: a row with no traceId is not a later attempt", () => {
+    expect(judgeAfterUnansweredReplay([user, attempt("T2"), assistant({ toolReceipts: [] }, { id: "old-shape" })], "T2")).toBe("unconfirmed");
+  });
+
+  it("unconfirmed: a later attempt's row from before the latest user message is another turn's", () => {
+    expect(judgeAfterUnansweredReplay([attempt("T3"), { id: "u2", role: "user" }, attempt("T2")], "T2")).toBe("unconfirmed");
+  });
+
+  it("unconfirmed: nothing to compare with, nothing read, or not a list; it never throws", () => {
+    expect(judgeAfterUnansweredReplay([user, attempt("T3")], null)).toBe("unconfirmed");
+    expect(judgeAfterUnansweredReplay([user, attempt("T3")], "")).toBe("unconfirmed");
+    expect(judgeAfterUnansweredReplay(null, "T2")).toBe("unconfirmed");
+    expect(judgeAfterUnansweredReplay({ messages: [] } as never, "T2")).toBe("unconfirmed");
+    expect(judgeAfterUnansweredReplay([user, attempt("T3", { toolReceipts: [] }, { parts: [null] })], "T2")).toBe("unconfirmed");
+  });
+});
+
 describe("the copy never promises a Retry the gate will refuse", () => {
   const COPIES = [RETRY_HELD_RAN, RETRY_HELD_UNCONFIRMED, RETRY_HELD_NO_RECORD];
 
@@ -180,10 +235,21 @@ describe("the copy never promises a Retry the gate will refuse", () => {
     }
   });
 
-  it("only the hold that can clear tells the operator to wait and tap again", () => {
-    expect(RETRY_HELD_UNCONFIRMED).toMatch(/tap Retry again/i);
+  // Some holds never clear (the accumulator was untrusted, the settle update failed, a follow-up
+  // row, a dropped duplicate row), so the copy asks for one more tap and then names the way out.
+  it("the unconfirmed hold asks for one more tap and does not promise it clears", () => {
+    expect(RETRY_HELD_UNCONFIRMED).toMatch(/tap Retry again in a moment/i);
+    expect(RETRY_HELD_UNCONFIRMED).toMatch(/if it keeps holding, send a new message/i);
+    expect(RETRY_HELD_UNCONFIRMED).not.toMatch(/wait a moment and tap/i);
     expect(RETRY_HELD_RAN).not.toMatch(/again/i);
     expect(RETRY_HELD_NO_RECORD).not.toMatch(/again/i);
+  });
+
+  it("the still-checking notice is short, plain and ASCII", () => {
+    expect(RETRY_STILL_CHECKING.length).toBeGreaterThan(15);
+    expect(RETRY_STILL_CHECKING.length).toBeLessThan(80);
+    expect(RETRY_STILL_CHECKING).toMatch(/still checking/i);
+    expect(RETRY_STILL_CHECKING).toMatch(/^[\x20-\x7e]+$/);
   });
 
   it("the records are lower bounds, so the copy says 'may', not 'did'", () => {

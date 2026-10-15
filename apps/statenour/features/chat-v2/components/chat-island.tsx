@@ -421,6 +421,8 @@ export function ChatIsland() {
             loadingMore={conversations.loadingMore}
             onLoadMore={conversations.loadMoreConvos}
             onSelect={(id) => {
+              // The old turn's error and trace refs must not follow the operator into this conversation.
+              chat.resetTurn();
               setActiveConversationId(id);
               void conversations.loadConvo(id);
               setHistoryDrawerOpen(false);
@@ -435,6 +437,7 @@ export function ChatIsland() {
             onTogglePin={conversations.togglePin}
             onArchive={(id) => conversations.patchConvoFlag(id, "archived", true)}
             onNew={() => {
+              chat.resetTurn();
               setActiveConversationId(null);
               conversations.newChat();
               setHistoryDrawerOpen(false);
