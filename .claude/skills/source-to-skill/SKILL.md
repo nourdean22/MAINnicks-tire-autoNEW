@@ -18,14 +18,19 @@ questions — otherwise the output is a polished hallucination factory
    the layout:
 
    ```bash
-   node scripts/skill-compiler/scaffold.mjs <source-file> <skill-slug>
+   node scripts/skill-compiler/scaffold.mjs <source-file> <skill-slug> [--source-label "<text>"]
    ```
 
-   It creates `.claude/skills/generated/<skill-slug>/` with the template,
-   computes the source SHA-256, and records extraction date + source path
-   in `provenance/source.json`. The checksum is the anti-drift anchor: a
-   re-compile from a CHANGED source must produce a new checksum, never a
-   silent overwrite.
+   It creates `.claude/skills/<skill-slug>/` with the template, computes
+   the source SHA-256, and records extraction date + a source label in
+   `provenance/source.json` (`--source-label`, default the file's
+   basename; an absolute path is refused because this repo is public).
+   Claude Code loads only `.claude/skills/<name>/SKILL.md`, so the package
+   sits flat with the other skills: nested in a subfolder it would pass the
+   validator and never load. A slug whose directory already exists and is
+   not a compiler package is refused. The checksum is the anti-drift
+   anchor: a re-compile from a CHANGED source must produce a new checksum,
+   never a silent overwrite.
 
 2. **Section map** — read the source and write `chapters/map.md`: one line
    per section (`id · title · first/last line or page`). Every later
@@ -68,13 +73,14 @@ questions — otherwise the output is a polished hallucination factory
    [{ "q": "...", "expected": "...", "sourceSection": "...", "kind": "recall|application" }]
    ```
 
-   These feed the statenour recall-eval corpus (lib/brain/recall-eval.ts)
-   — the skill becomes measurable, not just installed.
+   As of 2026-10-15 these are hand-readable checks: no runner reads
+   `evals/questions.json` yet (only `scaffold.mjs` and `validate.mjs` touch
+   it), and `apps/statenour/lib/brain/recall-eval.ts` does not load it.
 
 8. **Validate** — the gate, not optional:
 
    ```bash
-   node scripts/skill-compiler/validate.mjs .claude/skills/generated/<skill-slug>
+   node scripts/skill-compiler/validate.mjs .claude/skills/<skill-slug>
    ```
 
    Zero errors required. The validator checks structure, provenance
