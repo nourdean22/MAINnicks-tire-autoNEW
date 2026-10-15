@@ -7,8 +7,9 @@ import { getDb } from "./db";
 import { bookings, leads, chatSessions, dynamicArticles, notificationMessages, contentGenerationLog, users, callbackRequests, callEvents, invoices, customers, workOrders, algEstimates, tireOrders } from "../drizzle/schema";
 import { eq, desc, gte, sql, and } from "drizzle-orm";
 
-import { BUSINESS } from "@shared/business";
 import { createLogger } from "./lib/logger";
+import { shopDayRange, sqlUtcDateTime } from "./services/autonomyControl";
+import { getBusinessDateKey, shiftDateKey } from "./lib/timezoneAssert";
 
 const log = createLogger("admin-stats");
 type Booking = typeof bookings.$inferSelect;
@@ -193,8 +194,8 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 
   if (!d) return defaultStats;
 
-  const weekAgo = new Date();
-  weekAgo.setDate(weekAgo.getDate() - 7);
+  // The shop's week starts at Eastern midnight seven days back, the same start statenour uses.
+  const weekAgo = shopDayRange(shiftDateKey(getBusinessDateKey(), -7)).start;
 
   try {
     // ─── BOOKINGS ─────────────────────────────────────
@@ -212,7 +213,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       confirmed: sql<number>`SUM(CASE WHEN ${bookings.status} = 'confirmed' THEN 1 ELSE 0 END)`,
       completed: sql<number>`SUM(CASE WHEN ${bookings.status} = 'completed' THEN 1 ELSE 0 END)`,
       cancelled: sql<number>`SUM(CASE WHEN ${bookings.status} = 'cancelled' THEN 1 ELSE 0 END)`,
-      thisWeek: sql<number>`SUM(CASE WHEN ${bookings.createdAt} >= ${weekAgo} THEN 1 ELSE 0 END)`,
+      thisWeek: sql<number>`SUM(CASE WHEN ${bookings.createdAt} >= ${sqlUtcDateTime(weekAgo)} THEN 1 ELSE 0 END)`,
     }).from(bookings).where(gte(bookings.createdAt, ninetyDaysAgo));
 
     // 2. Booking byService — GROUP BY aggregate
@@ -288,7 +289,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       // lead has been actioned and must not bleed into "urgent" (matches the
       // Sales Pipeline's wave-128 rule so Overview and Pipeline agree).
       urgent: sql<number>`SUM(CASE WHEN COALESCE(${leads.urgencyScore}, 0) >= 4 AND ${leads.status} NOT IN ('booked', 'completed', 'closed', 'lost') AND NOT (${leads.source} = 'callback' AND ${leads.callbackId} IS NOT NULL) THEN 1 ELSE 0 END)`,
-      thisWeek: sql<number>`SUM(CASE WHEN ${leads.createdAt} >= ${weekAgo} THEN 1 ELSE 0 END)`,
+      thisWeek: sql<number>`SUM(CASE WHEN ${leads.createdAt} >= ${sqlUtcDateTime(weekAgo)} THEN 1 ELSE 0 END)`,
       avgUrgencySum: sql<number>`COALESCE(SUM(COALESCE(${leads.urgencyScore}, 3)), 0)`,
     }).from(leads).where(gte(leads.createdAt, ninetyDaysAgo));
 
@@ -508,8 +509,11 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     // ─── SHOP FLOOR (ALG Invoice/Estimate Data) ──────────
     let shopFloorStats = defaultStats.shopFloor;
     try {
-      const todayStart = new Date(new Date().toLocaleDateString("en-CA", { timeZone: BUSINESS.timezone }));
-      const monthStart = new Date(todayStart.getFullYear(), todayStart.getMonth(), 1);
+      // ALG-sourced dates (invoices.invoiceDate, alg_estimates.estimateDate) are the shop's day as
+      // stored, so they compare with date keys. The createdAt bounds above stay instants.
+      const todayKey = getBusinessDateKey();
+      const weekKey = shiftDateKey(todayKey, -7);
+      const monthKey = `${todayKey.slice(0, 8)}01`;
 
       const [
         invoicesTodayRes, invoicesWeekRes, invoicesMonthRes,
@@ -527,19 +531,19 @@ export async function getDashboardStats(): Promise<DashboardStats> {
         // (paid-only AND invoiceNumber NOT LIKE 'Estimate#%' to filter
         // any leaked rows still in the table pre-cleanup). This makes
         // avgTicket = revenue/count math consistent.
-        d.select({ count: sql<number>`count(*)` }).from(invoices).where(and(gte(invoices.invoiceDate, todayStart), eq(invoices.paymentStatus, "paid"), sql`${invoices.invoiceNumber} NOT LIKE 'Estimate#%'`)),
-        d.select({ count: sql<number>`count(*)` }).from(invoices).where(and(gte(invoices.invoiceDate, weekAgo), eq(invoices.paymentStatus, "paid"), sql`${invoices.invoiceNumber} NOT LIKE 'Estimate#%'`)),
-        d.select({ count: sql<number>`count(*)` }).from(invoices).where(and(gte(invoices.invoiceDate, monthStart), eq(invoices.paymentStatus, "paid"), sql`${invoices.invoiceNumber} NOT LIKE 'Estimate#%'`)),
-        d.select({ total: sql<number>`COALESCE(SUM(totalAmount), 0)` }).from(invoices).where(and(gte(invoices.invoiceDate, todayStart), eq(invoices.paymentStatus, "paid"), sql`${invoices.invoiceNumber} NOT LIKE 'Estimate#%'`)),
-        d.select({ total: sql<number>`COALESCE(SUM(totalAmount), 0)` }).from(invoices).where(and(gte(invoices.invoiceDate, weekAgo), eq(invoices.paymentStatus, "paid"), sql`${invoices.invoiceNumber} NOT LIKE 'Estimate#%'`)),
-        d.select({ total: sql<number>`COALESCE(SUM(totalAmount), 0)` }).from(invoices).where(and(gte(invoices.invoiceDate, monthStart), eq(invoices.paymentStatus, "paid"), sql`${invoices.invoiceNumber} NOT LIKE 'Estimate#%'`)),
-        d.select({ count: sql<number>`count(*)` }).from(algEstimates).where(gte(algEstimates.estimateDate, todayStart)),
-        d.select({ count: sql<number>`count(*)` }).from(algEstimates).where(gte(algEstimates.estimateDate, weekAgo)),
-        d.select({ count: sql<number>`count(*)` }).from(algEstimates).where(gte(algEstimates.estimateDate, monthStart)),
+        d.select({ count: sql<number>`count(*)` }).from(invoices).where(and(sql`${invoices.invoiceDate} >= ${todayKey}`, eq(invoices.paymentStatus, "paid"), sql`${invoices.invoiceNumber} NOT LIKE 'Estimate#%'`)),
+        d.select({ count: sql<number>`count(*)` }).from(invoices).where(and(sql`${invoices.invoiceDate} >= ${weekKey}`, eq(invoices.paymentStatus, "paid"), sql`${invoices.invoiceNumber} NOT LIKE 'Estimate#%'`)),
+        d.select({ count: sql<number>`count(*)` }).from(invoices).where(and(sql`${invoices.invoiceDate} >= ${monthKey}`, eq(invoices.paymentStatus, "paid"), sql`${invoices.invoiceNumber} NOT LIKE 'Estimate#%'`)),
+        d.select({ total: sql<number>`COALESCE(SUM(totalAmount), 0)` }).from(invoices).where(and(sql`${invoices.invoiceDate} >= ${todayKey}`, eq(invoices.paymentStatus, "paid"), sql`${invoices.invoiceNumber} NOT LIKE 'Estimate#%'`)),
+        d.select({ total: sql<number>`COALESCE(SUM(totalAmount), 0)` }).from(invoices).where(and(sql`${invoices.invoiceDate} >= ${weekKey}`, eq(invoices.paymentStatus, "paid"), sql`${invoices.invoiceNumber} NOT LIKE 'Estimate#%'`)),
+        d.select({ total: sql<number>`COALESCE(SUM(totalAmount), 0)` }).from(invoices).where(and(sql`${invoices.invoiceDate} >= ${monthKey}`, eq(invoices.paymentStatus, "paid"), sql`${invoices.invoiceNumber} NOT LIKE 'Estimate#%'`)),
+        d.select({ count: sql<number>`count(*)` }).from(algEstimates).where(sql`${algEstimates.estimateDate} >= ${todayKey}`),
+        d.select({ count: sql<number>`count(*)` }).from(algEstimates).where(sql`${algEstimates.estimateDate} >= ${weekKey}`),
+        d.select({ count: sql<number>`count(*)` }).from(algEstimates).where(sql`${algEstimates.estimateDate} >= ${monthKey}`),
         // Conversion math inputs — matched vs unmatched ALG estimates this month
-        d.select({ count: sql<number>`count(*)` }).from(algEstimates).where(and(gte(algEstimates.estimateDate, monthStart), sql`${algEstimates.matchedInvoiceId} IS NOT NULL`)),
-        d.select({ count: sql<number>`count(*)` }).from(algEstimates).where(and(gte(algEstimates.estimateDate, monthStart), sql`${algEstimates.matchedInvoiceId} IS NULL`)),
-        d.select({ total: sql<number>`COALESCE(SUM(${algEstimates.estimatedAmount}), 0)` }).from(algEstimates).where(and(gte(algEstimates.estimateDate, monthStart), sql`${algEstimates.matchedInvoiceId} IS NULL`)),
+        d.select({ count: sql<number>`count(*)` }).from(algEstimates).where(and(sql`${algEstimates.estimateDate} >= ${monthKey}`, sql`${algEstimates.matchedInvoiceId} IS NOT NULL`)),
+        d.select({ count: sql<number>`count(*)` }).from(algEstimates).where(and(sql`${algEstimates.estimateDate} >= ${monthKey}`, sql`${algEstimates.matchedInvoiceId} IS NULL`)),
+        d.select({ total: sql<number>`COALESCE(SUM(${algEstimates.estimatedAmount}), 0)` }).from(algEstimates).where(and(sql`${algEstimates.estimateDate} >= ${monthKey}`, sql`${algEstimates.matchedInvoiceId} IS NULL`)),
         // paid + non-Estimate, matching the revenue population. Without these
         // two predicates this breakdown summed ALL invoices (unpaid + Estimate#
         // placeholders), so it disagreed with revenueThisMonth beside it by
@@ -547,7 +551,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
         // forwarded to statenour by statenourSync, propagating the mismatch. The
         // sibling revenue/count queries were deliberately aligned here (wave-97);
         // this one was added below that comment and skipped both filters.
-        d.execute(sql`SELECT paymentMethod, COUNT(*) as cnt, SUM(totalAmount) as total FROM invoices WHERE invoiceDate >= ${monthStart.toISOString().slice(0, 10)} AND paymentStatus = 'paid' AND invoiceNumber NOT LIKE 'Estimate#%' GROUP BY paymentMethod ORDER BY cnt DESC`).then(([rows]: [Record<string, unknown>[]]) => rows),
+        d.execute(sql`SELECT paymentMethod, COUNT(*) as cnt, SUM(totalAmount) as total FROM invoices WHERE invoiceDate >= ${monthKey} AND paymentStatus = 'paid' AND invoiceNumber NOT LIKE 'Estimate#%' GROUP BY paymentMethod ORDER BY cnt DESC`).then(([rows]: [Record<string, unknown>[]]) => rows),
         d.select({ count: sql<number>`count(*)` }).from(customers),
         d.select({ count: sql<number>`count(*)` }).from(customers).where(gte(customers.totalVisits, 3)),
         // Freshness: when did the mirror last WRITE an invoice row? createdAt

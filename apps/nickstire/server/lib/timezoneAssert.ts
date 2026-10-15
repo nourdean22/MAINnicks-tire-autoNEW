@@ -165,6 +165,17 @@ export function getBusinessDateKey(now: Date = new Date()): string {
   return new Date(now.getTime() - 5 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
+/**
+ * A YYYY-MM-DD calendar key moved by whole days. The arithmetic is on the date
+ * alone, so no offset or DST change can move the result by a day. (Subtracting
+ * 168 hours from an instant can, across the March change.)
+ */
+export function shiftDateKey(key: string, days: number): string {
+  const d = new Date(`${key}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 /** Whole minutes since midnight in the shop's timezone. A duration, so the DB clock's zone never matters. */
 export function minutesSinceShopMidnight(now: Date, timeZone: string = BUSINESS.timezone): number {
   const parts = new Intl.DateTimeFormat("en-US", { timeZone, hour: "numeric", minute: "numeric", hourCycle: "h23" }).formatToParts(now);

@@ -116,6 +116,31 @@ export function clevelandDayStart(now: Date = new Date()): Date {
   return new Date(localMidnightUtcGuess.getTime() + offsetHours * 3600_000);
 }
 
+/**
+ * [start, end) instants of one shop calendar day (YYYY-MM-DD), for `col >= start
+ * AND col < end`. The query builder takes these Dates; raw SQL takes shopDayRangeSql.
+ * Never bind the date string (a bare 'YYYY-MM-DD' is 00:00 UTC, which is 20:00 ET
+ * the day before), and never add 24h for the end: a DST day runs 23 or 25 hours.
+ */
+export function shopDayRange(dayKey: string): { start: Date; end: Date } {
+  // Noon UTC is still the same calendar day in New York, so clevelandDayStart reads that day's midnight.
+  const day = new Date(`${dayKey}T12:00:00Z`);
+  const nextDay = new Date(day);
+  nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+  return { start: clevelandDayStart(day), end: clevelandDayStart(nextDay) };
+}
+
+/** An instant as the UTC "YYYY-MM-DD HH:MM:SS" text that TIMESTAMP columns compare against in raw SQL. */
+export function sqlUtcDateTime(instant: Date): string {
+  return instant.toISOString().slice(0, 19).replace("T", " ");
+}
+
+/** shopDayRange as UTC text, for raw sql() binds. mysql2 formats a bound Date in the process zone, not UTC. */
+export function shopDayRangeSql(dayKey: string): { start: string; end: string } {
+  const { start, end } = shopDayRange(dayKey);
+  return { start: sqlUtcDateTime(start), end: sqlUtcDateTime(end) };
+}
+
 /** Provider media spend per reel render (6 seedance clips ≈ 72 credits).
  *  ESTIMATE for budget accounting — Higgsfield does not expose a per-call USD
  *  price through the CLI; revisit when provider usage tracking lands. */
