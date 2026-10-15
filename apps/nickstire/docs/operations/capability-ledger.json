@@ -4955,6 +4955,37 @@
       "codeState": "in_progress",
       "operationalState": "unit_verified",
       "exposure": "disabled"
+    },
+    {
+      "capabilityId": "shop-day-clock-writers",
+      "name": "Invoice, estimate and approval dates are written on the shop's clock, and live day filters bind the shop's day",
+      "owner": "nickstire",
+      "evidence": {
+        "codeCommit": "d724afc97, 219f6a518, a90383438",
+        "tests": "server/lib/shopWallClock.test.ts (Eastern wall clock in both DST directions; instant round-trip); server/__tests__/invoiceDateShopLocal.test.ts (writers store the shop's clock; planted writer cases); server/shopDayWindows.test.ts (invoice dates bind as shop-day keys); server/adminStatsShopDay.test.ts (per-position day binds); server/collectionsWindow.test.ts (invoice age on the shop's clock); full nickstire suite on a90383438 (the writers' code head)."
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "70 CURDATE sites in 20 files remain on the baseline (advanced/invoices.ts month sites, controlCenter, chat, shopStatus and others). Each is a day filter that still reads the database clock.",
+          "source": "review 2026-10-15"
+        },
+        {
+          "severity": "P2",
+          "description": "Invoices and estimates written before this change carry the UTC clock. Correcting them is a production write and needs an explicit operator go.",
+          "source": "review 2026-10-15"
+        }
+      ],
+      "deferredScope": [
+        "the remaining CURDATE baseline sites (70 in 20 files)",
+        "the client UnpaidInvoicesSection computes invoice age on the client",
+        "admin invoice counts are open-ended, so a future-dated invoice counts as today",
+        "historical UTC-clock rows: no backfill has been run"
+      ],
+      "lastVerifiedAt": "2026-10-15",
+      "codeState": "in_progress",
+      "operationalState": "unit_verified",
+      "exposure": "disabled"
     }
   ],
   "axes": {
