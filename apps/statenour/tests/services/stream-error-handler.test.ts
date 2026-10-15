@@ -168,13 +168,13 @@ describe("errored turns record which tools were started, or say they cannot", ()
   it("while the stream may still run tools: a write already seen is listed, as a lower bound", async () => {
     await failWith(snapshot([writeRow], false));
 
-    expect(erroredTokenUsage()).toEqual({ toolReceipts: [writeRow] });
+    expect(erroredTokenUsage()).toEqual({ traceId: "trace-1", toolReceipts: [writeRow] });
   });
 
   it("while the stream may still run tools: a tool the classifier cannot place is listed too", async () => {
     await failWith(snapshot([unplacedRow], false));
 
-    expect(erroredTokenUsage()).toEqual({ toolReceipts: [unplacedRow] });
+    expect(erroredTokenUsage()).toEqual({ traceId: "trace-1", toolReceipts: [unplacedRow] });
   });
 
   // The unsound claim this replaces: a snapshot taken at the first error part
@@ -187,27 +187,27 @@ describe("errored turns record which tools were started, or say they cannot", ()
     await failWith(snapshot(receipts, false));
 
     const usage = erroredTokenUsage();
-    expect(usage).toEqual({ receiptsUnavailable: true });
+    expect(usage).toEqual({ traceId: "trace-1", receiptsUnavailable: true });
     expect(usage).not.toHaveProperty("toolReceipts");
   });
 
   it("once the stream has ended, a final record of no tool is claimed as [] (nothing ran)", async () => {
     await failWith(snapshot([], true));
 
-    expect(erroredTokenUsage()).toEqual({ toolReceipts: [] });
+    expect(erroredTokenUsage()).toEqual({ traceId: "trace-1", toolReceipts: [] });
   });
 
   it("once the stream has ended, a final record of reads only is claimed as it stands", async () => {
     await failWith(snapshot([readRow], true));
 
-    expect(erroredTokenUsage()).toEqual({ toolReceipts: [readRow] });
+    expect(erroredTokenUsage()).toEqual({ traceId: "trace-1", toolReceipts: [readRow] });
   });
 
   it("an untrustworthy accumulator writes receiptsUnavailable and NO toolReceipts key at all", async () => {
     await failWith((): ToolReceiptsSnapshot => ({ trustworthy: false }));
 
     const usage = erroredTokenUsage();
-    expect(usage).toEqual({ receiptsUnavailable: true });
+    expect(usage).toEqual({ traceId: "trace-1", receiptsUnavailable: true });
     expect(usage).not.toHaveProperty("toolReceipts");
   });
 
@@ -219,7 +219,7 @@ describe("errored turns record which tools were started, or say they cannot", ()
     await failWith(getter);
 
     const usage = erroredTokenUsage();
-    expect(usage).toEqual({ receiptsUnavailable: true });
+    expect(usage).toEqual({ traceId: "trace-1", receiptsUnavailable: true });
     expect(usage).not.toHaveProperty("toolReceipts");
   });
 
@@ -259,12 +259,12 @@ describe("errored turns record which tools were started, or say they cannot", ()
     it("a cold failure (nothing ran) goes from receiptsUnavailable to [] on the same row: Retry becomes safe", async () => {
       const w = wire(snapshot([], false));
       await w.onError({ error: new Error("provider dropped") });
-      expect(erroredTokenUsage()).toEqual({ receiptsUnavailable: true });
+      expect(erroredTokenUsage()).toEqual({ traceId: "trace-1", receiptsUnavailable: true });
 
       await w.endStream(snapshot([], true));
 
       expect(chatMessageUpdateMock).toHaveBeenCalledTimes(1);
-      expect(chatMessageUpdateMock).toHaveBeenCalledWith({ where: { id: "stub-1" }, data: { tokenUsage: { toolReceipts: [] } } });
+      expect(chatMessageUpdateMock).toHaveBeenCalledWith({ where: { id: "stub-1" }, data: { tokenUsage: { traceId: "trace-1", toolReceipts: [] } } });
     });
 
     it("a tool that ran after the error part is recorded on the row once the stream ends", async () => {
@@ -273,7 +273,7 @@ describe("errored turns record which tools were started, or say they cannot", ()
 
       await w.endStream(snapshot([writeRow], true));
 
-      expect(chatMessageUpdateMock).toHaveBeenCalledWith({ where: { id: "stub-1" }, data: { tokenUsage: { toolReceipts: [writeRow] } } });
+      expect(chatMessageUpdateMock).toHaveBeenCalledWith({ where: { id: "stub-1" }, data: { tokenUsage: { traceId: "trace-1", toolReceipts: [writeRow] } } });
     });
 
     it("an untrustworthy final record leaves the row as it was: never overwritten with a guess", async () => {
@@ -305,7 +305,7 @@ describe("errored turns record which tools were started, or say they cannot", ()
     it("without afterTerminal wired the row stays receiptsUnavailable for good", async () => {
       await failWith(snapshot([], false));
 
-      expect(erroredTokenUsage()).toEqual({ receiptsUnavailable: true });
+      expect(erroredTokenUsage()).toEqual({ traceId: "trace-1", receiptsUnavailable: true });
       expect(chatMessageUpdateMock).not.toHaveBeenCalled();
     });
   });

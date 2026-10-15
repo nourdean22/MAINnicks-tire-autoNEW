@@ -7,7 +7,14 @@
  * same gate as any reloaded row.
  */
 import { describe, it, expect } from "vitest";
-import { latestTurnRows, savedTurnVerdict, RETRY_HELD_RAN, RETRY_HELD_UNCONFIRMED } from "@/features/chat-v2/lib/saved-turn";
+import {
+  judgeSavedTurn,
+  latestTurnRows,
+  savedTurnVerdict,
+  RETRY_HELD_NO_RECORD,
+  RETRY_HELD_RAN,
+  RETRY_HELD_UNCONFIRMED,
+} from "@/features/chat-v2/lib/saved-turn";
 
 const receipt = (toolName: string, sideEffecting: boolean) => ({
   toolName,
@@ -96,14 +103,95 @@ describe("savedTurnVerdict", () => {
   });
 });
 
+describe("savedTurnVerdict never throws: a row the gate cannot read is unconfirmed", () => {
+  it("a null entry in a row's parts", () => {
+    expect(savedTurnVerdict([assistant({ toolReceipts: [] }, { parts: [null] })])).toBe("unconfirmed");
+  });
+
+  it("a row that is itself null, or a list that is not a list", () => {
+    expect(savedTurnVerdict([null as never])).toBe("unconfirmed");
+    expect(savedTurnVerdict({ length: 1 } as never)).toBe("unconfirmed");
+  });
+
+  it("CONTROL: a well-formed parts array is still judged normally", () => {
+    expect(savedTurnVerdict([assistant({ toolReceipts: [] }, { parts: [{ type: "text", text: "Working on it" }] })])).toBe("safe");
+  });
+});
+
+// A regenerate resends the same user message and persistUserTurn dedupes it, so an older
+// attempt's assistant row stays in the latest turn's rows. A safe row from attempt 1 says
+// nothing about attempt 2: the verdict needs a saved row that names the attempt that failed.
+describe("judgeSavedTurn: safe needs a saved row bound to the attempt that failed", () => {
+  const user = { id: "u1", role: "user" };
+  const attempt = (trace: string, tokenUsage: Record<string, unknown> = { toolReceipts: [] }, extra: Record<string, unknown> = {}) =>
+    assistant({ traceId: trace, ...tokenUsage }, { id: `a-${trace}`, ...extra });
+
+  it("safe: the attempt that failed has its own settled, clean row", () => {
+    expect(judgeSavedTurn([user, attempt("T2")], "T2")).toBe("safe");
+  });
+
+  it("THE SCENARIO: attempt 1 is clean, attempt 2 is mid-tool and has written nothing yet; Retry must not replay", () => {
+    expect(judgeSavedTurn([user, attempt("T1")], "T2")).toBe("unconfirmed");
+  });
+
+  it("an older clean attempt beside the failed attempt's own clean row: safe", () => {
+    expect(judgeSavedTurn([user, attempt("T1"), attempt("T2")], "T2")).toBe("safe");
+  });
+
+  it("an older attempt that listed a write still decides, even when the failed attempt is clean: ran", () => {
+    const older = attempt("T1", { toolReceipts: [receipt("createTask", true)] });
+    expect(judgeSavedTurn([user, older, attempt("T2")], "T2")).toBe("ran");
+  });
+
+  it("the failed attempt's row not settled yet: unconfirmed", () => {
+    expect(judgeSavedTurn([user, attempt("T2", { receiptsUnavailable: true })], "T2")).toBe("unconfirmed");
+  });
+
+  it("a row with the failed trace but from BEFORE the latest user message is another turn's: unconfirmed", () => {
+    expect(judgeSavedTurn([attempt("T2"), { id: "u2", role: "user" }], "T2")).toBe("unconfirmed");
+  });
+
+  it("no trace to bind to (none, empty, not a string) is unconfirmed", () => {
+    for (const trace of [null, undefined, "", 7 as never]) {
+      expect(judgeSavedTurn([user, attempt("T2")], trace), String(trace)).toBe("unconfirmed");
+    }
+  });
+
+  it("nothing read, or something that is not a list of rows: unconfirmed", () => {
+    expect(judgeSavedTurn(null, "T2")).toBe("unconfirmed");
+    expect(judgeSavedTurn([], "T2")).toBe("unconfirmed");
+    expect(judgeSavedTurn({ messages: [] } as never, "T2")).toBe("unconfirmed");
+  });
+
+  it("a malformed row anywhere in the turn fails closed instead of throwing", () => {
+    expect(() => judgeSavedTurn([user, attempt("T2", { toolReceipts: [] }, { parts: [null] })], "T2")).not.toThrow();
+    expect(judgeSavedTurn([user, attempt("T2", { toolReceipts: [] }, { parts: [null] })], "T2")).toBe("unconfirmed");
+  });
+});
+
 describe("the copy never promises a Retry the gate will refuse", () => {
+  const COPIES = [RETRY_HELD_RAN, RETRY_HELD_UNCONFIRMED, RETRY_HELD_NO_RECORD];
+
   it("names what happened and the next step, with no 'tap Retry to continue' promise", () => {
-    for (const copy of [RETRY_HELD_RAN, RETRY_HELD_UNCONFIRMED]) {
+    for (const copy of COPIES) {
       expect(copy.length).toBeGreaterThan(30);
       expect(copy).not.toMatch(/tap Retry to continue/i);
+      expect(copy).toMatch(/send a new message/i);
     }
-    expect(RETRY_HELD_RAN).toMatch(/send a new message/i);
-    expect(RETRY_HELD_UNCONFIRMED).toMatch(/send a new message/i);
-    expect(RETRY_HELD_UNCONFIRMED).toMatch(/again/i);
+  });
+
+  it("only the hold that can clear tells the operator to wait and tap again", () => {
+    expect(RETRY_HELD_UNCONFIRMED).toMatch(/tap Retry again/i);
+    expect(RETRY_HELD_RAN).not.toMatch(/again/i);
+    expect(RETRY_HELD_NO_RECORD).not.toMatch(/again/i);
+  });
+
+  it("the records are lower bounds, so the copy says 'may', not 'did'", () => {
+    expect(RETRY_HELD_RAN).toMatch(/may already have run an action/i);
+    expect(RETRY_HELD_RAN).not.toMatch(/already ran an action/i);
+  });
+
+  it("is plain ASCII: no em dash, no emoji", () => {
+    for (const copy of COPIES) expect(copy).toMatch(/^[\x20-\x7e]+$/);
   });
 });

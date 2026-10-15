@@ -35,6 +35,7 @@ vi.mock("@/lib/ai/chat/repair-tool-call", () => ({ buildRepairToolCall: vi.fn(()
 import { buildStreamConfigFactory } from "@/app/api/ai/chat/build-stream-config";
 import { createInFlightToolCalls, terminateWhenDrained } from "@/lib/services/chat/in-flight-tool-calls";
 import { turnHasSideEffect } from "@/features/chat-v2/lib/turn-side-effect";
+import { judgeSavedTurn } from "@/features/chat-v2/lib/saved-turn";
 import type { UIMessage } from "ai";
 
 const usage = { inputTokens: { total: 1 }, outputTokens: { total: 1 } };
@@ -130,7 +131,7 @@ describe("an error part is not the end of the stream", () => {
     const turn = await runTurn([[START, ERROR_PART, TOOL_CALL, FINISH_TOOL_CALLS], [START, FINISH_STOP]]);
 
     expect(h.create).toHaveBeenCalledTimes(1);
-    expect(createdUsage()).toEqual({ receiptsUnavailable: true });
+    expect(createdUsage()).toEqual({ traceId: "t1", receiptsUnavailable: true });
     expect(createdUsage()).not.toHaveProperty("toolReceipts");
 
     expect(turn.executed()).toBe(1);
@@ -146,8 +147,8 @@ describe("a cold failure (no tool ever started)", () => {
     const turn = await runTurn([new Error("connect refused")]);
 
     expect(turn.executed()).toBe(0);
-    expect(createdUsage()).toEqual({ receiptsUnavailable: true });
-    expect(finalUsage()).toEqual({ toolReceipts: [] });
+    expect(createdUsage()).toEqual({ traceId: "t1", receiptsUnavailable: true });
+    expect(finalUsage()).toEqual({ traceId: "t1", toolReceipts: [] });
     expect(turnHasSideEffect(erroredBubble(createdUsage()))).toBe(true);
     expect(turnHasSideEffect(erroredBubble(finalUsage()))).toBe(false);
   });
@@ -155,8 +156,18 @@ describe("a cold failure (no tool ever started)", () => {
   it("an error part before any content settles the same way", async () => {
     await runTurn([[START, ERROR_PART]]);
 
-    expect(createdUsage()).toEqual({ receiptsUnavailable: true });
-    expect(finalUsage()).toEqual({ toolReceipts: [] });
+    expect(createdUsage()).toEqual({ traceId: "t1", receiptsUnavailable: true });
+    expect(finalUsage()).toEqual({ traceId: "t1", toolReceipts: [] });
+  });
+
+  // The writer (the real handler) and the consumer (what Retry reads) meet here: the row the
+  // handler wrote names its attempt, and the judge accepts it only for that attempt.
+  it("the settled row is safe for the attempt that wrote it (trace t1) and not for the next one (t2)", async () => {
+    await runTurn([new Error("connect refused")]);
+    const saved = [{ id: "u1", role: "user" }, { id: "stub-1", role: "assistant", content: "", streamingState: "errored", tokenUsage: finalUsage() }];
+
+    expect(judgeSavedTurn(saved, "t1")).toBe("safe");
+    expect(judgeSavedTurn(saved, "t2"), "attempt 2 has no row of its own yet").toBe("unconfirmed");
   });
 });
 

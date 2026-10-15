@@ -131,27 +131,29 @@ export interface PartialTextRef {
   text: string;
 }
 
-type ErroredTokenUsage = { toolReceipts: ToolReceiptRow[] } | { receiptsUnavailable: true };
+type ErroredTokenUsage = { traceId: string; toolReceipts: ToolReceiptRow[] } | { traceId: string; receiptsUnavailable: true };
 
 /**
- * tokenUsage for an errored row: the tools the stream started, or an honest
- * "cannot say". Never null. ai@6 does not end the stream at an error part (a
+ * tokenUsage for an errored row: the attempt it belongs to (the trace the client holds
+ * for that attempt; a replay resends the same user message, so rows of several attempts
+ * share one turn and Retry must tell them apart), and the tools the stream started, or an
+ * honest "cannot say". Never null. ai@6 does not end the stream at an error part (a
  * later tool-call plus finish(tool-calls) still runs the tool), so before the
  * stream has ended a list is written only when it already holds a possible
  * write, a lower bound that Retry must refuse anyway. A list that says "nothing
  * ran" (empty, or reads only) comes only from a terminal record.
  */
-function erroredTokenUsage(read: (() => ToolReceiptsSnapshot) | undefined): ErroredTokenUsage {
+function erroredTokenUsage(read: (() => ToolReceiptsSnapshot) | undefined, traceId: string): ErroredTokenUsage {
   try {
     const snapshot = read?.();
     if (snapshot?.trustworthy === true) {
       const mayHaveRun = snapshot.receipts.some((r) => r.sideEffecting || r.verifiable === false);
-      if (snapshot.terminal || mayHaveRun) return { toolReceipts: snapshot.receipts };
+      if (snapshot.terminal || mayHaveRun) return { traceId, toolReceipts: snapshot.receipts };
     }
   } catch {
     // A broken accumulator must not stop the row being written.
   }
-  return { receiptsUnavailable: true };
+  return { traceId, receiptsUnavailable: true };
 }
 
 export interface BuildStreamErrorHandlerInput {
@@ -351,7 +353,7 @@ export function buildStreamErrorHandler(deps: BuildStreamErrorHandlerInput) {
                   ? String((model as { modelId?: unknown }).modelId).slice(0, 60)
                   : "unknown",
               streamingState: "errored",
-              tokenUsage: erroredTokenUsage(deps.toolReceipts) as Prisma.InputJsonValue,
+              tokenUsage: erroredTokenUsage(deps.toolReceipts, traceId) as Prisma.InputJsonValue,
               errorDetails: {
                 code: "stream_interrupted",
                 message: errMsg.slice(0, 500),
@@ -369,7 +371,7 @@ export function buildStreamErrorHandler(deps: BuildStreamErrorHandlerInput) {
         if (stub?.id && deps.afterTerminal) {
           const rowId = stub.id;
           deps.afterTerminal(async () => {
-            const final = erroredTokenUsage(deps.toolReceipts);
+            const final = erroredTokenUsage(deps.toolReceipts, traceId);
             if (!("toolReceipts" in final)) return;
             try {
               await prisma.chatMessage.update({ where: { id: rowId }, data: { tokenUsage: final as Prisma.InputJsonValue } });

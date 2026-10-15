@@ -17,7 +17,13 @@ import type { ContextBlocks } from "@/components/chat/context-block-badges";
 import { looksLikeImageGenerationRequest } from "@/lib/ai/chat/handlers/patterns";
 import { bindPersistedMessage, stopTurn as requestStop, type StoppedTurn } from "../lib/turn-lifecycle";
 import { turnHasSideEffect } from "../lib/turn-side-effect";
-import { latestTurnRows, savedTurnVerdict, RETRY_HELD_RAN, RETRY_HELD_UNCONFIRMED, type SavedRow } from "../lib/saved-turn";
+import { judgeSavedTurn, RETRY_HELD_NO_RECORD, RETRY_HELD_RAN, RETRY_HELD_UNCONFIRMED, type SavedRow } from "../lib/saved-turn";
+
+/** How long Retry waits for the saved turn before it gives up and holds. */
+const SAVED_TURN_READ_TIMEOUT_MS = 12_000;
+
+/** What the saved-turn check decided: replay, say nothing (the operator moved on), or hold with this message. */
+type SavedTurnCheck = { kind: "go" } | { kind: "stale" } | { kind: "hold"; message: string };
 
 const PAGE_ANCHOR_KEYS = [
   "lastTaskId",
@@ -34,8 +40,11 @@ const PAGE_ANCHOR_KEYS = [
 ] as const;
 
 export type UseChatStreamOptions = {
-  /** Reads the conversation as saved (every row, oldest first). Retry after a stream error asks it before replaying. */
-  readSavedTurn?: (conversationId: string) => Promise<readonly SavedRow[] | null>;
+  /**
+   * Reads the conversation as saved (every row, oldest first), fresh from the server. Retry after
+   * a stream error asks it before replaying. The signal is aborted when Retry gives up waiting.
+   */
+  readSavedTurn?: (conversationId: string, signal?: AbortSignal) => Promise<readonly SavedRow[] | null>;
 };
 
 export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeController {
@@ -276,34 +285,85 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
   const traceAtSendRef = useRef<string | null>(null);
 
   // Retry after a stream error that the server owns: read the saved turn, then
-  // replay only if every saved row says a replay repeats nothing. One check at a
-  // time, so a second tap cannot start a second replay.
+  // replay only if every saved row says a replay repeats nothing AND a saved row
+  // names the attempt that failed. One check at a time, so a second tap cannot
+  // start a second replay; the flag is released whatever the check does.
   const checkingSavedTurnRef = useRef(false);
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
   const readSavedTurnRef = useRef(options?.readSavedTurn);
   useEffect(() => {
     readSavedTurnRef.current = options?.readSavedTurn;
   }, [options?.readSavedTurn]);
-  const replayIfSavedTurnAllows = useCallback(async (replay: () => Promise<void>): Promise<void> => {
-    if (checkingSavedTurnRef.current) return;
-    checkingSavedTurnRef.current = true;
+
+  const checkSavedTurn = useCallback(async (attemptTrace: string | null): Promise<SavedTurnCheck> => {
+    // What the tap saw. If any of it moves while the saved turn is read, a replay would act on a
+    // different turn (regenerate takes whatever message is last at that moment). Message ids are
+    // left out on purpose: binding the reply to its database id renames the last message without
+    // changing the turn.
+    const turnKey = () =>
+      [
+        privateModeRef.current ? "private" : useChatUiStore.getState().activeConversationId,
+        lastTraceIdRef.current,
+        messagesRef.current.length,
+        messagesRef.current[messagesRef.current.length - 1]?.role,
+      ].join("|");
+    const keyAtTap = turnKey();
     try {
       const conversationId = privateModeRef.current ? null : useChatUiStore.getState().activeConversationId;
+      const read = readSavedTurnRef.current;
+      // Private Lab writes no row, and no conversation or reader means nothing to read: waiting never helps.
+      if (!conversationId || !read) return { kind: "hold", message: RETRY_HELD_NO_RECORD };
+
       let rows: readonly SavedRow[] | null = null;
-      if (conversationId && readSavedTurnRef.current) {
-        try {
-          rows = await readSavedTurnRef.current(conversationId);
-        } catch {
-          rows = null;
-        }
+      const controller = new AbortController();
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        rows = await Promise.race([
+          read(conversationId, controller.signal),
+          new Promise<null>((resolve) => {
+            timer = setTimeout(() => {
+              controller.abort();
+              resolve(null);
+            }, SAVED_TURN_READ_TIMEOUT_MS);
+          }),
+        ]);
+      } catch {
+        rows = null;
+      } finally {
+        clearTimeout(timer);
       }
-      const verdict = savedTurnVerdict(rows ? latestTurnRows(rows) : null);
-      if (verdict === "ran") return void toast.error(RETRY_HELD_RAN);
-      if (verdict === "unconfirmed") return void toast.error(RETRY_HELD_UNCONFIRMED);
-      await replay();
-    } finally {
-      checkingSavedTurnRef.current = false;
+
+      // The operator moved on while the read was out: say nothing about the old reply, replay nothing.
+      if (!mountedRef.current || turnKey() !== keyAtTap) return { kind: "stale" };
+
+      const verdict = judgeSavedTurn(rows, attemptTrace);
+      if (verdict === "ran") return { kind: "hold", message: RETRY_HELD_RAN };
+      if (verdict === "unconfirmed") return { kind: "hold", message: RETRY_HELD_UNCONFIRMED };
+      return { kind: "go" };
+    } catch {
+      return { kind: "hold", message: RETRY_HELD_UNCONFIRMED };
     }
   }, []);
+  const replayIfSavedTurnAllows = useCallback(
+    async (replay: () => Promise<void>, attemptTrace: string | null): Promise<void> => {
+      if (checkingSavedTurnRef.current) return;
+      checkingSavedTurnRef.current = true;
+      try {
+        const check = await checkSavedTurn(attemptTrace);
+        if (check.kind === "hold") return void toast.error(check.message);
+        if (check.kind === "go") await replay();
+      } finally {
+        checkingSavedTurnRef.current = false;
+      }
+    },
+    [checkSavedTurn],
+  );
 
   // R3-05 (04-F7 + 04-H4): the one choke point for a replay. Every Retry
   // (error card, interrupted card, cut-off and refused chips, quality bar) and
@@ -344,7 +404,7 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
       // trace), only the saved record can say what ran: ask it before replaying.
       const serverOwnsErroredTurn = Boolean(chat.error) && Boolean(lastTraceIdRef.current) && lastTraceIdRef.current !== traceAtSendRef.current;
       if (!serverOwnsErroredTurn) return replay();
-      return replayIfSavedTurnAllows(replay);
+      return replayIfSavedTurnAllows(replay, lastTraceIdRef.current);
     },
     [chat, cancelPartialResume, replayIfSavedTurnAllows],
   );
@@ -414,7 +474,9 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
       message.includes("failed to fetch") ||
       message.includes("networkerror") ||
       message.includes("fetch failed") ||
-      message.includes("load failed");
+      message.includes("load failed") ||
+      message.includes("network error") ||
+      message.includes("the network connection was lost");
     if (!isNetworkKill) return;
 
     // A dropped resume is not a dropped send: the turn is still running (or

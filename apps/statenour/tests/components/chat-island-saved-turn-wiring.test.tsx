@@ -13,12 +13,12 @@ import { createRoot } from "react-dom/client";
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const h = vi.hoisted(() => ({
-  hookOptions: undefined as undefined | { readSavedTurn?: (id: string) => Promise<unknown> },
-  readSavedTurn: undefined as undefined | ((id: string) => Promise<unknown>),
+  hookOptions: undefined as undefined | { readSavedTurn?: (id: string, signal?: AbortSignal) => Promise<unknown> },
+  readSavedTurn: undefined as undefined | ((id: string, signal?: AbortSignal) => Promise<unknown>),
 }));
 
 vi.mock("@/features/chat-v2/hooks/use-chat-stream", () => ({
-  useChatStream: (options: { readSavedTurn?: (id: string) => Promise<unknown> }) => {
+  useChatStream: (options: { readSavedTurn?: (id: string, signal?: AbortSignal) => Promise<unknown> }) => {
     h.hookOptions = options;
     return {
       messages: [],
@@ -66,14 +66,15 @@ beforeEach(() => {
 });
 
 describe("the island hands the chat a saved-turn reader", () => {
-  it("the reader the hook receives asks useConversations.readSavedTurn, with the conversation id", async () => {
+  it("the reader the hook receives asks useConversations.readSavedTurn, with the conversation id and the abort signal", async () => {
     const rows = [{ id: "a1", role: "assistant", tokenUsage: { toolReceipts: [] } }];
     h.readSavedTurn = vi.fn(async () => rows);
     const unmount = mount();
+    const { signal } = new AbortController();
 
-    const result = await h.hookOptions!.readSavedTurn!("c1");
+    const result = await h.hookOptions!.readSavedTurn!("c1", signal);
 
-    expect(h.readSavedTurn).toHaveBeenCalledWith("c1");
+    expect(h.readSavedTurn).toHaveBeenCalledWith("c1", signal);
     expect(result).toBe(rows);
     unmount();
   });

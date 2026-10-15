@@ -135,8 +135,8 @@ export function ChatIsland() {
   // Retry after a stream error reads the conversation as saved before it replays a
   // turn. useConversations owns the tRPC client but is created after this hook, so
   // the reader reaches the chat through a ref.
-  const readSavedTurnRef = useRef<((id: string) => Promise<readonly SavedRow[] | null>) | undefined>(undefined);
-  const chat = useChatStream({ readSavedTurn: (id) => readSavedTurnRef.current?.(id) ?? Promise.resolve(null) });
+  const readSavedTurnRef = useRef<((id: string, signal?: AbortSignal) => Promise<readonly SavedRow[] | null>) | undefined>(undefined);
+  const chat = useChatStream({ readSavedTurn: (id, signal) => readSavedTurnRef.current?.(id, signal) ?? Promise.resolve(null) });
   // 2026-08-27 · read-aloud narration. The hook owns the persisted
   // preference + streaming follower; the island only hands it to the
   // composer (toggle chip) and the message list (per-message replay).

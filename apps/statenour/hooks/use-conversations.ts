@@ -26,6 +26,7 @@ import type { UIMessage } from "ai";
 // imperative reads use `utils.chat.*.fetch()` so the on-demand /
 // cursor-paginated shape this hook owns is preserved.
 import { trpc } from "@/lib/trpc/client";
+import { trpcVanilla } from "@/lib/trpc/vanilla-client";
 export interface Convo {
   id: string;
   title: string | null;
@@ -390,12 +391,14 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
     };
   }, []);
 
-  // The conversation as saved, every row oldest first, straight from the server
-  // (staleTime 0: an errored row is settled after its stream ends). Retry after a
-  // stream error judges the latest turn's rows before it replays anything.
+  // The conversation as saved, every row oldest first, straight from the server. Retry
+  // after a stream error judges the latest turn's rows before it replays anything. The
+  // vanilla client, not `utils.chat.conversation.fetch`: an errored row is settled after
+  // its stream ends, so a copy kept in the React Query cache would be served back stale
+  // (or "no row yet") to the next read, and the request can be cancelled with the signal.
   const readSavedTurn = useCallback(
-    async (id: string) => (await utils.chat.conversation.fetch({ id }, { staleTime: 0 })).messages,
-    [utils],
+    async (id: string, signal?: AbortSignal) => (await trpcVanilla.chat.conversation.query({ id }, { signal })).messages,
+    [],
   );
 
   return {
