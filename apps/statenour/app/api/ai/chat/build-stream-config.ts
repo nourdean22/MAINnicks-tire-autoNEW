@@ -35,7 +35,7 @@ import { isClaude5ThinkingModel } from "@/lib/ai/claude5-compat";
 import { buildRepairToolCall } from "@/lib/ai/chat/repair-tool-call";
 import { buildStreamErrorHandler } from "@/lib/services/chat/stream-error-handler";
 import { buildOnFinish } from "@/lib/services/chat/persist-assistant-turn";
-import { createInFlightToolCalls } from "@/lib/services/chat/in-flight-tool-calls";
+import { createInFlightToolCalls, type InFlightToolCalls } from "@/lib/services/chat/in-flight-tool-calls";
 import type { PersistBase } from "./alternate-paths";
 import type { classifyTurn } from "@/lib/ai/turn-intelligence";
 import type { detectActionIntent } from "@/lib/ai/chat/action-intent-detector";
@@ -82,6 +82,8 @@ export function buildStreamConfigFactory(deps: {
   recordTrace: PersistBase["recordTrace"];
   resolveOnFinish: () => void;
   log: Logger;
+  /** The turn's tool record (in-flight-tool-calls.ts). Omitted: the factory makes its own, which is never marked final. */
+  toolCalls?: InFlightToolCalls;
 }) {
   const {
     persistBase,
@@ -112,7 +114,8 @@ export function buildStreamConfigFactory(deps: {
   } = deps;
 
   // Per turn, shared by every attempt: it feeds the errored row's tool receipts.
-  const __toolCalls = createInFlightToolCalls();
+  // The route passes its own so it can mark the record final when the stream drains.
+  const __toolCalls = deps.toolCalls ?? createInFlightToolCalls();
 
   return (__fbModel: Parameters<typeof streamText>[0]["model"]) => {
     const fbProvider = inferProviderName(__fbModel) ?? provider;
@@ -384,6 +387,7 @@ export function buildStreamConfigFactory(deps: {
         startedAt,
         partial: __partialRef,
         toolReceipts: () => __toolCalls.snapshot(),
+        afterTerminal: (callback) => __toolCalls.afterTerminal(callback),
         log,
         recordTrace,
         // 2026-07-25 · errored streams must also resolve onFinishPromise

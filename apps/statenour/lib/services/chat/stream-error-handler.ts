@@ -35,6 +35,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { ProviderName } from "@/lib/ai/provider";
 import type { TraceStartInput, TraceFinishInput } from "@/lib/ai/agent-trace";
+import type { ToolReceiptRow } from "@/lib/ai/receipts/tool-receipt-rows";
 import type { ToolReceiptsSnapshot } from "./in-flight-tool-calls";
 
 interface ChatLogger {
@@ -130,15 +131,23 @@ export interface PartialTextRef {
   text: string;
 }
 
+type ErroredTokenUsage = { toolReceipts: ToolReceiptRow[] } | { receiptsUnavailable: true };
+
 /**
  * tokenUsage for an errored row: the tools the stream started, or an honest
- * "cannot say". Never null, and never a guessed [] (a bare [] reads as "nothing
- * ran" and would let Retry re-run a createTask).
+ * "cannot say". Never null. ai@6 does not end the stream at an error part (a
+ * later tool-call plus finish(tool-calls) still runs the tool), so before the
+ * stream has ended a list is written only when it already holds a possible
+ * write, a lower bound that Retry must refuse anyway. A list that says "nothing
+ * ran" (empty, or reads only) comes only from a terminal record.
  */
-function erroredTokenUsage(read: (() => ToolReceiptsSnapshot) | undefined): Prisma.InputJsonValue {
+function erroredTokenUsage(read: (() => ToolReceiptsSnapshot) | undefined): ErroredTokenUsage {
   try {
     const snapshot = read?.();
-    if (snapshot?.trustworthy === true) return { toolReceipts: snapshot.receipts } as Prisma.InputJsonValue;
+    if (snapshot?.trustworthy === true) {
+      const mayHaveRun = snapshot.receipts.some((r) => r.sideEffecting || r.verifiable === false);
+      if (snapshot.terminal || mayHaveRun) return { toolReceipts: snapshot.receipts };
+    }
   } catch {
     // A broken accumulator must not stop the row being written.
   }
@@ -169,6 +178,13 @@ export interface BuildStreamErrorHandlerInput {
    * untrustworthy: the errored row records `receiptsUnavailable` instead.
    */
   toolReceipts?: () => ToolReceiptsSnapshot;
+  /**
+   * Runs a callback once the stream has ended. The row is first written while
+   * the stream may still run tools; this settles it to the final record, so
+   * "nothing ran" (Retry is safe) is only ever written from a terminal one.
+   * Absent: the row keeps what it was first written with.
+   */
+  afterTerminal?: (callback: () => Promise<void> | void) => void;
   log: ChatLogger;
   /**
    * The recordTrace function from @/lib/ai/agent-trace. Passed via deps
@@ -324,7 +340,7 @@ export function buildStreamErrorHandler(deps: BuildStreamErrorHandlerInput) {
       //     replay to the model (verifier-style note)
       if (convId && !deps.privateMode) {
         const hasMeaningfulPartial = partial.text.trim().length >= 20;
-        await prisma.chatMessage
+        const stub = await prisma.chatMessage
           .create({
             data: {
               conversationId: convId,
@@ -335,7 +351,7 @@ export function buildStreamErrorHandler(deps: BuildStreamErrorHandlerInput) {
                   ? String((model as { modelId?: unknown }).modelId).slice(0, 60)
                   : "unknown",
               streamingState: "errored",
-              tokenUsage: erroredTokenUsage(deps.toolReceipts),
+              tokenUsage: erroredTokenUsage(deps.toolReceipts) as Prisma.InputJsonValue,
               errorDetails: {
                 code: "stream_interrupted",
                 message: errMsg.slice(0, 500),
@@ -346,7 +362,22 @@ export function buildStreamErrorHandler(deps: BuildStreamErrorHandlerInput) {
               },
             },
           })
-          .catch(() => {});
+          .catch((): null => null);
+        // The row above was written while the stream may still run tools. Once
+        // the stream has ended, settle it to the final record (never to a guess:
+        // an untrustworthy final record leaves the row as it is).
+        if (stub?.id && deps.afterTerminal) {
+          const rowId = stub.id;
+          deps.afterTerminal(async () => {
+            const final = erroredTokenUsage(deps.toolReceipts);
+            if (!("toolReceipts" in final)) return;
+            try {
+              await prisma.chatMessage.update({ where: { id: rowId }, data: { tokenUsage: final as Prisma.InputJsonValue } });
+            } catch (err) {
+              log.warn("errored_row_settle_failed", { conversationId, error: err instanceof Error ? err.message.slice(0, 200) : String(err) });
+            }
+          });
+        }
       }
       // v10.0.20 · agent-trace error row — surface this in
       // /system/agent-traces with errorClass + the partial output

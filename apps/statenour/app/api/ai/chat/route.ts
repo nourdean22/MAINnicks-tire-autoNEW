@@ -44,6 +44,7 @@ import { loadFeatureFlagOverrides } from "@/lib/feature-flags";
 // hooks-lib REST→tRPC slice (2026-05-22) · the conversation-list read ·
 // also called by the new `chat.list` tRPC procedure · drift impossible.
 import { listConversations } from "@/lib/services/chat-conversation-read";
+import { createInFlightToolCalls, terminateWhenDrained } from "@/lib/services/chat/in-flight-tool-calls";
 
 const log = rootLogger.withSurface("api/ai/chat");
 
@@ -312,6 +313,9 @@ async function chatPostInner(req: Request) {
   // soon-to-be-extracted onFinish) can read AND write through the
   // same object reference.
   const __partialRef = { text: "" };
+  // The tools this turn's stream started; marked final when the stream drains
+  // (see terminateWhenDrained below) so an errored row can say "nothing ran".
+  const __toolCalls = createInFlightToolCalls();
   let recalledHits: any[] = [];
   // 2026-09-10 · why recalledHits is the length it is. Without this the
   // panel cannot tell a real no-match from a failed read.
@@ -1210,6 +1214,7 @@ ${priorsBlock}`;
       recordTrace,
       resolveOnFinish,
       log,
+      toolCalls: __toolCalls,
     }),
   });
   result = __sameTurnFallback.result;
@@ -1313,7 +1318,8 @@ ${priorsBlock}`;
   // Optional-call: consumeStream is a durability ENHANCER — if a test
   // stub or a future wrapper shape omits it, the turn must degrade to
   // pre-WP-A behavior (client-driven completion), never crash.
-  result.consumeStream?.();
+  // Once it is drained the stream has ended for good: the tool record is final.
+  terminateWhenDrained(__toolCalls, result.consumeStream?.());
   if (!transcriptOff && convId) {
     const { registerActiveStream, completeActiveStream } = await import(
       "@/lib/services/chat/active-stream"

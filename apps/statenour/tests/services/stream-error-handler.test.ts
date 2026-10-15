@@ -17,10 +17,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const chatMessageCreateMock = vi.fn().mockResolvedValue({ id: "stub-1" });
+const chatMessageUpdateMock = vi.fn().mockResolvedValue({ id: "stub-1" });
 const errorLogCreateMock = vi.fn().mockResolvedValue({ id: "err-1" });
 vi.mock("@/lib/prisma", () => ({
   prisma: {
-    chatMessage: { create: (...args: unknown[]) => chatMessageCreateMock(...args) },
+    chatMessage: {
+      create: (...args: unknown[]) => chatMessageCreateMock(...args),
+      update: (...args: unknown[]) => chatMessageUpdateMock(...args),
+    },
     errorLog: { create: (...args: unknown[]) => errorLogCreateMock(...args) },
   },
 }));
@@ -59,6 +63,7 @@ function makeDeps(partialText: string) {
 beforeEach(() => {
   vi.clearAllMocks();
   chatMessageCreateMock.mockResolvedValue({ id: "stub-1" });
+  chatMessageUpdateMock.mockResolvedValue({ id: "stub-1" });
   errorLogCreateMock.mockResolvedValue({ id: "err-1" });
 });
 
@@ -130,9 +135,12 @@ describe("audit P3c · honest errored stub rows", () => {
  * The errored row used to carry no tokenUsage, so a reload could not tell
  * "no tool ran" from "a tool ran and the record was lost", and Retry was
  * refused only because the whole blob was absent. The row now records which
- * tools were started, or says it cannot. Never `null`, never `[]` unless the
- * accumulator vouched for it: a bare [] reads as "nothing ran" and would let
- * Retry re-run a createTask.
+ * tools were started, or says it cannot. Never `null`, and never a list that
+ * claims "no write ran" while the stream can still run one: ai@6 does not treat
+ * an error part as terminal, so a tool-call plus finish(tool-calls) after it
+ * still executes. Before the stream has ended the row lists only what already
+ * counts as a possible write; "nothing ran" is claimed only after the stream
+ * has ended (the record is then final), by updating the row.
  */
 describe("errored turns record which tools were started, or say they cannot", () => {
   const writeRow = {
@@ -152,16 +160,47 @@ describe("errored turns record which tools were started, or say they cannot", ()
   const failWith = (toolReceipts: unknown) =>
     buildStreamErrorHandler({ ...makeDeps("Created the task and then"), toolReceipts } as never)({ error: new Error("provider dropped") });
 
-  it("writes the accumulated receipts, side effect included, into tokenUsage.toolReceipts", async () => {
-    await failWith((): ToolReceiptsSnapshot => ({ trustworthy: true, receipts: [writeRow as never] }));
+  const readRow = { ...writeRow, toolName: "searchMemories", category: "brain", sideEffecting: false };
+  const unplacedRow = { ...writeRow, toolName: "notInTheCatalog", category: "unknown", sideEffecting: false, verifiable: false };
+  const snapshot = (receipts: unknown[], terminal: boolean): (() => ToolReceiptsSnapshot) => () =>
+    ({ trustworthy: true, terminal, receipts }) as ToolReceiptsSnapshot;
+
+  it("while the stream may still run tools: a write already seen is listed, as a lower bound", async () => {
+    await failWith(snapshot([writeRow], false));
 
     expect(erroredTokenUsage()).toEqual({ toolReceipts: [writeRow] });
   });
 
-  it("a trustworthy accumulator that saw no tool writes [] (nothing ran)", async () => {
-    await failWith((): ToolReceiptsSnapshot => ({ trustworthy: true, receipts: [] }));
+  it("while the stream may still run tools: a tool the classifier cannot place is listed too", async () => {
+    await failWith(snapshot([unplacedRow], false));
+
+    expect(erroredTokenUsage()).toEqual({ toolReceipts: [unplacedRow] });
+  });
+
+  // The unsound claim this replaces: a snapshot taken at the first error part
+  // wrote toolReceipts: [] ("nothing ran") although a tool-call and a
+  // finish(tool-calls) could still follow and execute.
+  it.each([
+    ["nothing seen yet", []],
+    ["only reads seen so far", [readRow]],
+  ])("while the stream may still run tools: %s is NOT claimed, the row says receiptsUnavailable", async (_label, receipts) => {
+    await failWith(snapshot(receipts, false));
+
+    const usage = erroredTokenUsage();
+    expect(usage).toEqual({ receiptsUnavailable: true });
+    expect(usage).not.toHaveProperty("toolReceipts");
+  });
+
+  it("once the stream has ended, a final record of no tool is claimed as [] (nothing ran)", async () => {
+    await failWith(snapshot([], true));
 
     expect(erroredTokenUsage()).toEqual({ toolReceipts: [] });
+  });
+
+  it("once the stream has ended, a final record of reads only is claimed as it stands", async () => {
+    await failWith(snapshot([readRow], true));
+
+    expect(erroredTokenUsage()).toEqual({ toolReceipts: [readRow] });
   });
 
   it("an untrustworthy accumulator writes receiptsUnavailable and NO toolReceipts key at all", async () => {
@@ -192,6 +231,83 @@ describe("errored turns record which tools were started, or say they cannot", ()
 
     expect(chatMessageCreateMock).toHaveBeenCalledTimes(1);
     expect(deps.onWorkComplete).toHaveBeenCalledTimes(1);
+  });
+
+  describe("when the stream ends, the errored row is settled to what the final record says", () => {
+    // The handler hands the accumulator a callback; the route runs it when the
+    // stream is drained. Here the test is the route.
+    function wire(initial: () => ToolReceiptsSnapshot) {
+      let current = initial;
+      let settle: (() => Promise<void> | void) | undefined;
+      const onError = buildStreamErrorHandler({
+        ...makeDeps("Created the task and then"),
+        toolReceipts: () => current(),
+        afterTerminal: (cb: () => Promise<void> | void) => {
+          settle = cb;
+        },
+      } as never);
+      return {
+        onError,
+        endStream: async (final: () => ToolReceiptsSnapshot) => {
+          current = final;
+          await settle?.();
+        },
+        registered: () => settle !== undefined,
+      };
+    }
+
+    it("a cold failure (nothing ran) goes from receiptsUnavailable to [] on the same row: Retry becomes safe", async () => {
+      const w = wire(snapshot([], false));
+      await w.onError({ error: new Error("provider dropped") });
+      expect(erroredTokenUsage()).toEqual({ receiptsUnavailable: true });
+
+      await w.endStream(snapshot([], true));
+
+      expect(chatMessageUpdateMock).toHaveBeenCalledTimes(1);
+      expect(chatMessageUpdateMock).toHaveBeenCalledWith({ where: { id: "stub-1" }, data: { tokenUsage: { toolReceipts: [] } } });
+    });
+
+    it("a tool that ran after the error part is recorded on the row once the stream ends", async () => {
+      const w = wire(snapshot([], false));
+      await w.onError({ error: new Error("provider dropped") });
+
+      await w.endStream(snapshot([writeRow], true));
+
+      expect(chatMessageUpdateMock).toHaveBeenCalledWith({ where: { id: "stub-1" }, data: { tokenUsage: { toolReceipts: [writeRow] } } });
+    });
+
+    it("an untrustworthy final record leaves the row as it was: never overwritten with a guess", async () => {
+      const w = wire(snapshot([writeRow], false));
+      await w.onError({ error: new Error("provider dropped") });
+
+      await w.endStream((): ToolReceiptsSnapshot => ({ trustworthy: false }));
+
+      expect(chatMessageUpdateMock).not.toHaveBeenCalled();
+    });
+
+    it("nothing is registered when the stub row could not be written (no id to settle)", async () => {
+      chatMessageCreateMock.mockRejectedValue(new Error("db down"));
+      const w = wire(snapshot([], false));
+
+      await w.onError({ error: new Error("provider dropped") });
+
+      expect(w.registered()).toBe(false);
+    });
+
+    it("a failing settle never throws into the stream", async () => {
+      chatMessageUpdateMock.mockRejectedValue(new Error("db down"));
+      const w = wire(snapshot([], false));
+      await w.onError({ error: new Error("provider dropped") });
+
+      await expect(w.endStream(snapshot([], true))).resolves.toBeUndefined();
+    });
+
+    it("without afterTerminal wired the row stays receiptsUnavailable for good", async () => {
+      await failWith(snapshot([], false));
+
+      expect(erroredTokenUsage()).toEqual({ receiptsUnavailable: true });
+      expect(chatMessageUpdateMock).not.toHaveBeenCalled();
+    });
   });
 });
 

@@ -12,9 +12,9 @@ vi.mock("@/lib/ai/chat/repair-tool-call", () => ({ buildRepairToolCall: vi.fn(()
 
 import { buildStreamConfigFactory } from "@/app/api/ai/chat/build-stream-config";
 import { buildStreamErrorHandler } from "@/lib/services/chat/stream-error-handler";
-import type { ToolReceiptsSnapshot } from "@/lib/services/chat/in-flight-tool-calls";
+import { createInFlightToolCalls, type ToolReceiptsSnapshot } from "@/lib/services/chat/in-flight-tool-calls";
 
-const factory = () =>
+const factory = (extra: Record<string, unknown> = {}) =>
   buildStreamConfigFactory({
     persistBase: { recordTrace: vi.fn() } as never,
     provider: "ollama" as never,
@@ -39,10 +39,11 @@ const factory = () =>
     recordTrace: vi.fn() as never,
     resolveOnFinish: vi.fn(),
     log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } as never,
+    ...extra,
   } as never);
 
 type Attempt = { onChunk: (event: unknown) => void };
-type HandlerDeps = { toolReceipts?: () => ToolReceiptsSnapshot };
+type HandlerDeps = { toolReceipts?: () => ToolReceiptsSnapshot; afterTerminal?: (cb: () => void) => void };
 const handlerDeps = (): HandlerDeps => vi.mocked(buildStreamErrorHandler).mock.calls.at(-1)![0] as unknown as HandlerDeps;
 const attemptOf = (build: ReturnType<typeof factory>): Attempt =>
   build({ modelId: "m", provider: "ollama" } as never) as unknown as Attempt;
@@ -64,7 +65,29 @@ describe("onChunk feeds the accumulator the error handler reads", () => {
 
     attempt.onChunk({ chunk: { type: "text-delta", id: "t1", text: "Hello" } });
 
-    expect(handlerDeps().toolReceipts?.()).toEqual({ trustworthy: true, receipts: [] });
+    expect(handlerDeps().toolReceipts?.()).toEqual({ trustworthy: true, terminal: false, receipts: [] });
+  });
+
+  it("an accumulator handed in by the route is the one onChunk feeds and the handler reads", () => {
+    const acc = createInFlightToolCalls();
+    const attempt = attemptOf(factory({ toolCalls: acc }));
+
+    attempt.onChunk({ chunk: { type: "tool-call", toolCallId: "c1", toolName: "createTask", input: {} } });
+
+    expect(acc.snapshot()).toMatchObject({ trustworthy: true, receipts: [{ toolName: "createTask" }] });
+    expect(handlerDeps().toolReceipts?.()).toEqual(acc.snapshot());
+  });
+
+  it("the handler's afterTerminal registers on that accumulator, so the route's terminate() settles the errored row", async () => {
+    const acc = createInFlightToolCalls();
+    attemptOf(factory({ toolCalls: acc }));
+    const settle = vi.fn();
+
+    handlerDeps().afterTerminal?.(settle);
+    expect(settle).not.toHaveBeenCalled();
+    await acc.terminate();
+
+    expect(settle).toHaveBeenCalledTimes(1);
   });
 
   it("the accumulator belongs to the turn: a tool seen on attempt 1 is still seen after a rotation to attempt 2", () => {
