@@ -4923,30 +4923,35 @@
       "name": "A card payment amount cannot change between the moment Stripe is asked to charge it and the moment it is recorded paid",
       "owner": "nickstire",
       "evidence": {
-        "codeCommit": "fed1f2ec0",
-        "tests": "services/paymentIntentLock.test.ts (unit: lock held on succeeded, processing and failed; fresh intents held; stale intents canceled then released; markPaymentPaid, which asserts the status and paidAt it sets but not its WHERE clause); __tests__/paymentIntentLockWiring.test.ts (source scan of the five wiring calls); full nickstire suite on eb518eb44 (a descendant of codeCommit fed1f2ec0; the only change between them removes one writerless-allowlist line from tableWriterCoverage.test.ts): 1030 test files passed, 3 skipped; 13321 tests passed, 74 skipped, 0 failed. Branch head is 17c2cae4e and the suite was NOT rerun on it: 7c887df77 removes the export keyword from openIntents (no importer; one line in paymentIntentLock.ts), and 17c2cae4e changes only ledger docs. Receipt for lockedTotalPatch (this change): server/services/paymentIntentLock.test.ts and server/__tests__/paymentIntentLockWiring.test.ts 22 passed, exit 0; server/completionAuthority.test.ts 17 passed, exit 0; tsc --noEmit exit 0. A suite run on the final head is still owed."
+        "codeCommit": "d69546ed1 (lock fixes) and 28b76f9ca (tire-order: no cancel)",
+        "tests": "services/paymentIntentLock.test.ts (withInvoiceLock takes FOR UPDATE; recordPaymentIntentLocked refuses a moved total and a paid invoice; releaseInvoiceTotal cancels stale intents, then holds for a fresh one; markPaymentPaid cancels the other open card payments on the paid invoice and keeps the first paidAt; lockedTotalPatch); server/tireOrderPaymentInvoiceGuard.test.ts (a tire-order payment with an open card payment writes only the invoice); server/lib/webhookStatusForClaim.test.ts (six claim outcomes); server/routers/paymentsConfirmTotalPin.test.ts; __tests__/paymentIntentLockWiring.test.ts (source scan of the call shapes at each writer); full nickstire suite on 28b76f9ca: 1032 test files passed, 3 skipped; 13351 tests passed, 74 skipped, 1 todo, 0 failed."
       },
       "blockers": [
         {
-          "severity": "P2",
-          "description": "Code is not merged (codeState in_progress). Exposure stays disabled until the PR merges and deploys; promotion is a separate event."
+          "severity": "P1",
+          "description": "Operator decision, kept manual: a card payment that Stripe reports as succeeded but the webhook refuses (amount mismatch) keeps its invoice total held. Nothing resolves it automatically; an operator reconciles the invoice by hand. The hold is logged, not alerted.",
+          "source": "operator decision 2026-10-15"
+        },
+        {
+          "severity": "P1",
+          "description": "Operator decision: a tire-order payment on an invoice with an open card payment marks the invoice paid, leaves its total unchanged, and cancels nothing. If that card payment then succeeds, the customer is charged twice. The second charge appears only as an info log in the webhook; the operator checks Stripe.",
+          "source": "operator decision 2026-10-15"
         },
         {
           "severity": "P2",
-          "description": "Total writer outside the lock still changes an invoice total without releaseInvoiceTotal first: services/payments.ts:325 (tire-order PAID sets totalAmount to the amount collected). An open card payment on that invoice can record a total other than the amount Stripe charges. Fixed on this branch: routers/shopdriver.ts syncInvoices (existing and race-lost rows) and the race-lost branch of services/shopDriverMirror.ts upsertInvoices now write totals through lockedTotalPatch. Before the PR merges, the operator decides: release the lock in the tire-order path, or exclude it in writing under deferredScope."
+          "description": "No Stripe test-mode run against the live webhook yet. Route wiring is covered by a source scan only.",
+          "source": "review 2026-10-15"
         }
       ],
       "deferredScope": [
-        "payment intents created before the lock deploys are not locked",
+        "payment intents created before this lock deployed are not locked",
         "payment-link rows with no Stripe payment-intent id are excluded from the lock",
-        "route-level wiring is covered by a source scan only; no Stripe test-mode run against the live webhook yet",
-        "query and WHERE clauses are not asserted for openIntents and markPaymentPaid: the unit test's fake database ignores where(), so their invoice, status and payment-intent-id filters are unverified",
-        "the webhook's 500 on a failed markPaymentPaid (server/_core/index.ts) and the invoice total CONFLICT refusal (server/routers/advanced/invoices.ts) have no behavior test; the source scan checks that the calls exist, not their error mapping",
-        "the ShopDriver sync and the mirror race-lost branch have no behavior test; only the source scan covers their lockedTotalPatch calls (lockedTotalPatch itself is unit-tested)",
-        "the wiring canary asserts seven call sites; a new total writer outside them is not detected",
-        "a card intent created between lockedTotalPatch's open-intent check and its total write is not held: createPaymentIntent reads the total before it records the intent, with no row lock or conditional write; closing it needs a row lock on the invoice or a conditional record"
+        "stale open card payments (over 24 hours) are canceled when a total changes; a fresh one holds the total",
+        "when a card payment succeeds, the other open card payments on that invoice are canceled (operator decision: kept)",
+        "the lock holds the invoice row while Stripe calls run, so a slow Stripe call delays other writers of that invoice",
+        "the open-intent and paid-update filters are checked by rendering their WHERE clauses, not by a database run; the webhook route has no behavior test"
       ],
-      "lastVerifiedAt": "2026-10-14",
+      "lastVerifiedAt": "2026-10-15",
       "codeState": "in_progress",
       "operationalState": "unit_verified",
       "exposure": "disabled"
