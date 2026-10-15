@@ -149,7 +149,9 @@ export function ChatIsland() {
     setMessages: chat.setMessages,
     onError: (message) => console.error("useConversations error:", message),
   });
-  readSavedTurnRef.current = conversations.readSavedTurn;
+  useEffect(() => {
+    readSavedTurnRef.current = conversations.readSavedTurn;
+  }, [conversations.readSavedTurn]);
   const { containerRef, endRef, isAtBottom, scrollToBottom } = useScrollToBottom<HTMLDivElement>();
   const islandRef = useRef<HTMLDivElement>(null);
 

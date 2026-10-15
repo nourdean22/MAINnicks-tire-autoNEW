@@ -280,7 +280,9 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
   // time, so a second tap cannot start a second replay.
   const checkingSavedTurnRef = useRef(false);
   const readSavedTurnRef = useRef(options?.readSavedTurn);
-  readSavedTurnRef.current = options?.readSavedTurn;
+  useEffect(() => {
+    readSavedTurnRef.current = options?.readSavedTurn;
+  }, [options?.readSavedTurn]);
   const replayIfSavedTurnAllows = useCallback(async (replay: () => Promise<void>): Promise<void> => {
     if (checkingSavedTurnRef.current) return;
     checkingSavedTurnRef.current = true;
