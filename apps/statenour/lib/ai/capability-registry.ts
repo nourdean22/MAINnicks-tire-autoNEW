@@ -19,7 +19,7 @@
  *   3. name starts with a mutating verb at a camelCase boundary
  *      (createTask trips on `create`+`T`; a hypothetical markdownExport
  *      does NOT trip `mark` because the boundary requires an uppercase
- *      follow — the false-positive class is designed out, not hoped away)
+ *      follow — the false-positive class is designed out, not hoped away).
  * Plus the hardest tripwire: a tool with NO catalog entry is mutating by
  * definition — unknown ≠ safe.
  *
@@ -30,7 +30,7 @@
  */
 
 import { TOOL_CATALOG, type ToolMeta } from "@/lib/ai/tools/catalog";
-import { READ_ONLY_TOOLS } from "@/lib/ai/tools/read-only-tools";
+import { READ_ONLY_TOOLS, REPLAY_SAFE_COMPUTE_TOOLS } from "@/lib/ai/tools/read-only-tools";
 
 /** Categories whose tools mutate state or reach outward by design. */
 export const WRITE_CATEGORIES: ReadonlySet<string> = new Set([
@@ -83,6 +83,20 @@ export function classifyTool(name: string): ToolClassification {
 
 export function isReadSafeTool(name: string): boolean {
   return classifyTool(name).readSafe;
+}
+
+/**
+ * Would replaying a turn that ran this tool repeat anything? A different
+ * question from "may it run in a read-only or locked turn" (isReadSafeTool, the
+ * authority gates, which keep refusing runCode and its siblings by name): the
+ * Retry gate also trusts the tools whose executors only compute, generate or
+ * draft (REPLAY_SAFE_COMPUTE_TOOLS), never a flagged or write-category tool, and
+ * never a name outside the catalog.
+ */
+export function isReplaySafeTool(name: string): boolean {
+  if (isReadSafeTool(name)) return true;
+  const meta = catalogIndex().get(name);
+  return Boolean(meta) && meta!.sideEffecting !== true && !WRITE_CATEGORIES.has(meta!.category) && REPLAY_SAFE_COMPUTE_TOOLS.has(name);
 }
 
 /**
