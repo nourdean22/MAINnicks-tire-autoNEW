@@ -16,6 +16,7 @@ import { getAdminActivity } from "../lib/adminActivity";
 
 import { createLogger } from "../lib/logger";
 import { describeDbError, isDuplicateKeyError } from "../lib/dbErrors";
+import { lockedTotalPatch } from "../services/paymentIntentLock";
 
 const log = createLogger("routers:shopdriver");
 /**
@@ -646,7 +647,7 @@ export const shopdriverRouter = router({
         if (!invoiceNumber) continue;
 
         // Check if invoice already exists
-        const existing = await d.select({ id: invoices.id })
+        const existing = await d.select({ id: invoices.id, totalAmount: invoices.totalAmount })
           .from(invoices)
           .where(eq(invoices.invoiceNumber, invoiceNumber))
           .limit(1);
@@ -658,8 +659,10 @@ export const shopdriverRouter = router({
         const services = ticket.lineItems?.map((li: any) => li.description || li.name).join(", ") || ticket.description || "";
 
         if (existing.length > 0) {
+          // A total the shop changed under an open card payment must not move until the payment is released.
+          const totalPatch = await lockedTotalPatch(d, existing[0].id, existing[0].totalAmount, amount);
           await d.update(invoices).set({
-            totalAmount: amount,
+            ...totalPatch,
             paymentStatus: ticket.status === "paid" || ticket.paid ? "paid" : "pending",
             serviceDescription: services || undefined,
           }).where(eq(invoices.id, existing[0].id));
@@ -691,8 +694,13 @@ export const shopdriverRouter = router({
             synced++;
           } catch (err) {
             if (isDuplicateKeyError(err)) {
+              const [raced] = await d.select({ id: invoices.id, totalAmount: invoices.totalAmount })
+                .from(invoices)
+                .where(eq(invoices.invoiceNumber, invoiceNumber))
+                .limit(1);
+              const totalPatch = raced ? await lockedTotalPatch(d, raced.id, raced.totalAmount, amount) : {};
               await d.update(invoices).set({
-                totalAmount: amount,
+                ...totalPatch,
                 paymentStatus: ticket.status === "paid" || ticket.paid ? "paid" : "pending",
                 serviceDescription: services || undefined,
               }).where(eq(invoices.invoiceNumber, invoiceNumber));

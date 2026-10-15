@@ -114,3 +114,23 @@ export async function markPaymentPaid(d: Db, paymentIntentId: string): Promise<v
     .set({ status: "paid", paidAt: new Date() })
     .where(eq(payments.stripePaymentIntentId, paymentIntentId));
 }
+
+/**
+ * The total column a writer may set for an invoice whose total is moving from `currentCents` to
+ * `nextCents`. Spread it into the invoice update. It is `{ totalAmount }` only after releaseInvoiceTotal
+ * confirms no card payment holds the total. It is `{}` when nothing changes, when the new total is not
+ * positive (a missing ticket total must not cancel a customer's open payment), or when a payment holds it.
+ * Not atomic with createPaymentIntent, which reads the total before it records the intent.
+ */
+export async function lockedTotalPatch(
+  d: Db,
+  invoiceId: number,
+  currentCents: number,
+  nextCents: number,
+): Promise<{ totalAmount?: number }> {
+  if (nextCents <= 0 || nextCents === currentCents) return {};
+  const held = await releaseInvoiceTotal(d, invoiceId, { staleAfterMs: STALE_INTENT_MS });
+  if (held.released) return { totalAmount: nextCents };
+  log.info("Invoice total held: a card payment holds it", { invoiceId, reason: held.reason });
+  return {};
+}

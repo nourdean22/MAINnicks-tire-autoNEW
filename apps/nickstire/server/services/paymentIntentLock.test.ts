@@ -9,7 +9,7 @@ const h = vi.hoisted(() => ({
 
 vi.mock("./payments", () => ({ cancelPaymentIntent: (...a: unknown[]) => h.cancel(...a) }));
 
-import { markPaymentPaid, recordPaymentIntent, releaseInvoiceTotal, STALE_INTENT_MS } from "./paymentIntentLock";
+import { lockedTotalPatch, markPaymentPaid, recordPaymentIntent, releaseInvoiceTotal, STALE_INTENT_MS } from "./paymentIntentLock";
 
 // A fake database: select returns the open rows, insert and update record what they were given.
 const d = {
@@ -113,5 +113,43 @@ describe("markPaymentPaid", () => {
     expect(h.updates).toHaveLength(1);
     expect(h.updates[0]!.set).toMatchObject({ status: "paid" });
     expect(h.updates[0]!.set.paidAt).toBeInstanceOf(Date);
+  });
+});
+
+describe("lockedTotalPatch", () => {
+  it("returns the new total when no card payment is open", async () => {
+    expect(await lockedTotalPatch(d as never, 7, 10000, 10500)).toEqual({ totalAmount: 10500 });
+    expect(h.cancel).not.toHaveBeenCalled();
+  });
+
+  it("returns nothing when the total is unchanged, and cancels nothing", async () => {
+    h.openRows = [{ id: 3, paymentIntentId: "pi_same", createdAt: TWO_DAYS_AGO }];
+    expect(await lockedTotalPatch(d as never, 7, 10000, 10000)).toEqual({});
+    expect(h.cancel).not.toHaveBeenCalled();
+  });
+
+  it("returns nothing for a non-positive total, and cancels nothing, so a missing ticket total cannot cancel a customer's payment", async () => {
+    h.openRows = [{ id: 3, paymentIntentId: "pi_zero", createdAt: TWO_DAYS_AGO }];
+    expect(await lockedTotalPatch(d as never, 7, 10000, 0)).toEqual({});
+    expect(h.cancel).not.toHaveBeenCalled();
+  });
+
+  it("holds a changed total while a fresh card payment is open, without touching Stripe", async () => {
+    h.openRows = [{ id: 3, paymentIntentId: "pi_fresh", createdAt: FRESH }];
+    expect(await lockedTotalPatch(d as never, 7, 10000, 10500)).toEqual({});
+    expect(h.cancel).not.toHaveBeenCalled();
+  });
+
+  it("cancels a stale open intent in Stripe, then returns the changed total", async () => {
+    h.openRows = [{ id: 3, paymentIntentId: "pi_stale", createdAt: TWO_DAYS_AGO }];
+    h.cancel.mockResolvedValue("canceled");
+    expect(await lockedTotalPatch(d as never, 7, 10000, 10500)).toEqual({ totalAmount: 10500 });
+    expect(h.cancel).toHaveBeenCalledWith("pi_stale");
+  });
+
+  it("holds the total when Stripe says a stale intent just succeeded", async () => {
+    h.openRows = [{ id: 3, paymentIntentId: "pi_paid_now", createdAt: TWO_DAYS_AGO }];
+    h.cancel.mockResolvedValue("succeeded");
+    expect(await lockedTotalPatch(d as never, 7, 10000, 10500)).toEqual({});
   });
 });

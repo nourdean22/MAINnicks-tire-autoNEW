@@ -11,7 +11,7 @@
 
 import { createLogger } from "../lib/logger";
 import { isDuplicateKeyError } from "../lib/dbErrors";
-import { releaseInvoiceTotal, STALE_INTENT_MS } from "./paymentIntentLock";
+import { lockedTotalPatch, releaseInvoiceTotal, STALE_INTENT_MS } from "./paymentIntentLock";
 import { eq, and, inArray, sql } from "drizzle-orm";
 
 const log = createLogger("shopdriver-mirror");
@@ -1047,11 +1047,16 @@ async function upsertInvoices(rawInvoices: RawInvoice[]): Promise<{ created: num
         if (isDuplicateKeyError(insertErr)) {
           // Race lost — apply the same updates the existing-row branch
           // would have applied. Match by invoiceNumber (the unique key).
+          const [raced] = await d.select({ id: invoices.id, totalAmount: invoices.totalAmount })
+            .from(invoices)
+            .where(eq(invoices.invoiceNumber, ri.invoiceNumber))
+            .limit(1);
+          const totalPatch = raced ? await lockedTotalPatch(d, raced.id, raced.totalAmount, ri.totalAmount) : {};
           await d.update(invoices).set({
             customerId: customerId ?? undefined,
             customerName: ri.customerName,
             customerPhone: effectivePhone || undefined,
-            totalAmount: ri.totalAmount,
+            ...totalPatch,
             partsCost: ri.partsCost || undefined,
             laborCost: ri.laborCost || undefined,
             taxAmount: ri.taxAmount || undefined,

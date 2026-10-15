@@ -4924,18 +4924,27 @@
       "owner": "nickstire",
       "evidence": {
         "codeCommit": "fed1f2ec0",
-        "tests": "services/paymentIntentLock.test.ts (unit: lock held on succeeded, processing and failed; fresh intents held; stale intents canceled then released; markPaymentPaid); __tests__/paymentIntentLockWiring.test.ts (source scan of the five wiring calls); full nickstire suite on eb518eb44: 1030 test files passed, 3 skipped; 13321 tests passed, 74 skipped, 0 failed."
+        "tests": "services/paymentIntentLock.test.ts (unit: lock held on succeeded, processing and failed; fresh intents held; stale intents canceled then released; markPaymentPaid, which asserts the status and paidAt it sets but not its WHERE clause); __tests__/paymentIntentLockWiring.test.ts (source scan of the five wiring calls); full nickstire suite on eb518eb44 (a descendant of codeCommit fed1f2ec0; the only change between them removes one writerless-allowlist line from tableWriterCoverage.test.ts): 1030 test files passed, 3 skipped; 13321 tests passed, 74 skipped, 0 failed. Branch head is 17c2cae4e and the suite was NOT rerun on it: 7c887df77 removes the export keyword from openIntents (no importer; one line in paymentIntentLock.ts), and 17c2cae4e changes only ledger docs. Receipt for lockedTotalPatch (this change): server/services/paymentIntentLock.test.ts and server/__tests__/paymentIntentLockWiring.test.ts 22 passed, exit 0; server/completionAuthority.test.ts 17 passed, exit 0; tsc --noEmit exit 0. A suite run on the final head is still owed."
       },
       "blockers": [
         {
           "severity": "P2",
           "description": "Code is not merged (codeState in_progress). Exposure stays disabled until the PR merges and deploys; promotion is a separate event."
+        },
+        {
+          "severity": "P2",
+          "description": "Total writer outside the lock still changes an invoice total without releaseInvoiceTotal first: services/payments.ts:325 (tire-order PAID sets totalAmount to the amount collected). An open card payment on that invoice can record a total other than the amount Stripe charges. Fixed on this branch: routers/shopdriver.ts syncInvoices (existing and race-lost rows) and the race-lost branch of services/shopDriverMirror.ts upsertInvoices now write totals through lockedTotalPatch. Before the PR merges, the operator decides: release the lock in the tire-order path, or exclude it in writing under deferredScope."
         }
       ],
       "deferredScope": [
         "payment intents created before the lock deploys are not locked",
         "payment-link rows with no Stripe payment-intent id are excluded from the lock",
-        "route-level wiring is covered by a source scan only; no Stripe test-mode run against the live webhook yet"
+        "route-level wiring is covered by a source scan only; no Stripe test-mode run against the live webhook yet",
+        "query and WHERE clauses are not asserted for openIntents and markPaymentPaid: the unit test's fake database ignores where(), so their invoice, status and payment-intent-id filters are unverified",
+        "the webhook's 500 on a failed markPaymentPaid (server/_core/index.ts) and the invoice total CONFLICT refusal (server/routers/advanced/invoices.ts) have no behavior test; the source scan checks that the calls exist, not their error mapping",
+        "the ShopDriver sync and the mirror race-lost branch have no behavior test; only the source scan covers their lockedTotalPatch calls (lockedTotalPatch itself is unit-tested)",
+        "the wiring canary asserts seven call sites; a new total writer outside them is not detected",
+        "a card intent created between lockedTotalPatch's open-intent check and its total write is not held: createPaymentIntent reads the total before it records the intent, with no row lock or conditional write; closing it needs a row lock on the invoice or a conditional record"
       ],
       "lastVerifiedAt": "2026-10-14",
       "codeState": "in_progress",

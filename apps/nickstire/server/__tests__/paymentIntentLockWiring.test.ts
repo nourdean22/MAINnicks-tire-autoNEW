@@ -32,4 +32,14 @@ describe("the payment-intent lock is wired into every path that moves money or a
   it("an ALG mirror change to an invoice total is held by the lock", () => {
     expect(read("services/shopDriverMirror.ts")).toContain("releaseInvoiceTotal(d, ex.id, { staleAfterMs: STALE_INTENT_MS })");
   });
+
+  it("a ShopDriver sync total write, existing row and race-lost row, goes through the lock", () => {
+    const src = read("routers/shopdriver.ts");
+    expect(src).toContain("lockedTotalPatch(d, existing[0].id");
+    expect(src).toContain("lockedTotalPatch(d, raced.id");
+  });
+
+  it("the mirror's race-lost upsert writes its total through the lock", () => {
+    expect(read("services/shopDriverMirror.ts")).toContain("lockedTotalPatch(d, raced.id");
+  });
 });
