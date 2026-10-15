@@ -37,6 +37,7 @@
 import type { HTMLAttributes, ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { PageHeader } from "@/components/layout/ui";
+import { isCorePage } from "@/components/layout/header-diet";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
 import { cn } from "@/lib/utils/cn";
 
@@ -179,6 +180,7 @@ export function StandardPage({
           eyebrow={eyebrow}
           title={title}
           description={description ?? ""}
+          descriptionVisibility={isCorePage(pathname) ? "never" : "md-up"}
           actions={actions}
           parentHref={effectiveParent?.href}
           parentLabel={effectiveParent?.label}
