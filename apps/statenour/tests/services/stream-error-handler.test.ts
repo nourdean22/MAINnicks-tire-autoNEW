@@ -39,6 +39,7 @@ vi.mock("@/lib/ai/provider", async (importOriginal) => ({
 }));
 
 import { buildStreamErrorHandler } from "@/lib/services/chat/stream-error-handler";
+import type { ToolReceiptsSnapshot } from "@/lib/services/chat/in-flight-tool-calls";
 
 function makeDeps(partialText: string) {
   return {
@@ -126,6 +127,75 @@ describe("audit P3c · honest errored stub rows", () => {
 });
 
 /**
+ * The errored row used to carry no tokenUsage, so a reload could not tell
+ * "no tool ran" from "a tool ran and the record was lost", and Retry was
+ * refused only because the whole blob was absent. The row now records which
+ * tools were started, or says it cannot. Never `null`, never `[]` unless the
+ * accumulator vouched for it: a bare [] reads as "nothing ran" and would let
+ * Retry re-run a createTask.
+ */
+describe("errored turns record which tools were started, or say they cannot", () => {
+  const writeRow = {
+    toolName: "createTask",
+    category: "personal_write",
+    sideEffecting: true,
+    verifiable: true,
+    status: "partial",
+    verificationState: "UNKNOWN_COMPLETION",
+    entityType: null,
+    entityId: null,
+  };
+  const erroredTokenUsage = () => {
+    const { data } = chatMessageCreateMock.mock.calls[0][0] as { data: Record<string, unknown> };
+    return data.tokenUsage;
+  };
+  const failWith = (toolReceipts: unknown) =>
+    buildStreamErrorHandler({ ...makeDeps("Created the task and then"), toolReceipts } as never)({ error: new Error("provider dropped") });
+
+  it("writes the accumulated receipts, side effect included, into tokenUsage.toolReceipts", async () => {
+    await failWith((): ToolReceiptsSnapshot => ({ trustworthy: true, receipts: [writeRow as never] }));
+
+    expect(erroredTokenUsage()).toEqual({ toolReceipts: [writeRow] });
+  });
+
+  it("a trustworthy accumulator that saw no tool writes [] (nothing ran)", async () => {
+    await failWith((): ToolReceiptsSnapshot => ({ trustworthy: true, receipts: [] }));
+
+    expect(erroredTokenUsage()).toEqual({ toolReceipts: [] });
+  });
+
+  it("an untrustworthy accumulator writes receiptsUnavailable and NO toolReceipts key at all", async () => {
+    await failWith((): ToolReceiptsSnapshot => ({ trustworthy: false }));
+
+    const usage = erroredTokenUsage();
+    expect(usage).toEqual({ receiptsUnavailable: true });
+    expect(usage).not.toHaveProperty("toolReceipts");
+  });
+
+  it.each([
+    ["no accumulator wired", undefined],
+    ["an accumulator that returns nothing", () => undefined],
+    ["an accumulator that throws", () => { throw new Error("accumulator broke"); }],
+  ])("%s: receiptsUnavailable, never a guess", async (_label, getter) => {
+    await failWith(getter);
+
+    const usage = erroredTokenUsage();
+    expect(usage).toEqual({ receiptsUnavailable: true });
+    expect(usage).not.toHaveProperty("toolReceipts");
+  });
+
+  it("a broken accumulator still writes the row and still terminates the stream", async () => {
+    const deps = { ...makeDeps("Created the task and then"), onWorkComplete: vi.fn() };
+    const onError = buildStreamErrorHandler({ ...deps, toolReceipts: () => { throw new Error("accumulator broke"); } } as never);
+
+    await onError({ error: new Error("provider dropped") });
+
+    expect(chatMessageCreateMock).toHaveBeenCalledTimes(1);
+    expect(deps.onWorkComplete).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
  * 2026-07-16 chat audit · quota-breaker wiring + unknown-modelId fallback.
  *
  * (1) The openai/anthropic quota breakers existed in provider.ts but were
@@ -199,8 +269,8 @@ describe("2026-07-16 audit · quota breakers wired + no silent no-op marking", (
 
 // ── 2026-07-25 · provider-drought incident · errored streams terminate ──
 //
-// Two verified defects on the errored-stream leg: (1) onFinish never fires
-// after a mid-stream error, so unless onError resolves the route's
+// Two verified defects on the errored-stream leg: (1) onFinish does not fire
+// when the stream fails before its first step, so unless onError resolves the route's
 // onFinishPromise the SSE zombie-heartbeats to maxDuration; (2) ai@6's
 // default toUIMessageStreamResponse onError echoes error.message verbatim
 // to the client (API-key leak class). These pins keep both fixes honest.

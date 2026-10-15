@@ -352,9 +352,10 @@ describe("Retry never re-runs a turn that ran a side-effecting tool", () => {
     expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
   });
 
-  // R3-15: the errored-turn writer (stream-error-handler) stores no tokenUsage,
-  // and an aborted or truncated row older than the receipts writer has none
-  // either. No record of what ran means it may have run: fail closed.
+  // R3-15: an errored row written before the errored-turn writer recorded
+  // receipts has no tokenUsage, and an aborted or truncated row older than the
+  // receipts writer has none either. No record of what ran means it may have
+  // run: fail closed.
   it.each([
     ["errored", null],
     ["aborted", { traceId: "T0" }],
@@ -375,6 +376,55 @@ describe("Retry never re-runs a turn that ran a side-effecting tool", () => {
     render();
     act(() => void ctl.regenerate());
     expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
+  });
+
+  // The errored-turn writer stores what it saw: toolReceipts rows shaped like a
+  // finished turn's, or receiptsUnavailable when it cannot vouch for them.
+  describe("an errored turn's own receipts decide Retry", () => {
+    const receiptRow = (toolName: string, sideEffecting: boolean, verifiable = true) => ({
+      toolName,
+      category: "personal_write",
+      sideEffecting,
+      verifiable,
+      status: "partial",
+      verificationState: "UNKNOWN_COMPLETION",
+      entityType: null,
+      entityId: null,
+    });
+    const erroredRow = (tokenUsage: unknown, streamingState = "errored") => ({
+      id: "db-5",
+      role: "assistant",
+      parts: [{ type: "text", text: "Created the task and then" }],
+      streamingState,
+      tokenUsage,
+    });
+    const retry = (row: unknown) => {
+      h.chat.messages = [user, row];
+      h.chat.status = "ready";
+      render();
+      vi.mocked(toast.error).mockClear();
+      act(() => void ctl.regenerate());
+    };
+
+    it.each([
+      ["receiptsUnavailable", erroredRow({ receiptsUnavailable: true })],
+      // The marker alone refuses; it must not lean on the row reading as unfinished.
+      ["receiptsUnavailable on a row that does not read as unfinished", erroredRow({ receiptsUnavailable: true }, "complete")],
+      ["a write among its receipts", erroredRow({ toolReceipts: [receiptRow("searchMemories", false), receiptRow("createTask", true)] })],
+      ["a receipt the classifier could not place", erroredRow({ toolReceipts: [receiptRow("notInTheCatalog", false, false)] })],
+    ])("refuses an errored turn with %s", (_label, row) => {
+      retry(row);
+      expect(h.chat.regenerate).not.toHaveBeenCalled();
+      expect(vi.mocked(toast.error)).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([
+      ["receipts that are all reads", erroredRow({ toolReceipts: [receiptRow("searchMemories", false), receiptRow("getRevenueStats", false)] })],
+      ["a recorded empty list: no tool ran", erroredRow({ toolReceipts: [] })],
+    ])("CONTROL: still regenerates an errored turn with %s", (_label, row) => {
+      retry(row);
+      expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
+    });
   });
 
   it("CONTROL: a reloaded complete turn with no receipts still regenerates", () => {

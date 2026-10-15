@@ -27,15 +27,27 @@ function livePartMayHaveWritten(part: { type?: unknown; toolName?: unknown }): b
  *     and counts as yes (P2-B6);
  *   - a reloaded turn has no tool parts at all; the persisted
  *     tokenUsage.toolReceipts (loaded at the top level by use-conversations)
- *     is the only record of what ran. A turn that did not finish and has no
- *     receipts array counts as yes: the errored-turn writer
- *     (stream-error-handler) stores no tokenUsage at all.
+ *     is the only record of what ran. A receipt that mutates, or that the
+ *     classifier could not place (verifiable false), counts as yes. So does
+ *     tokenUsage.receiptsUnavailable, which the errored-turn writer
+ *     (stream-error-handler) stores when it cannot vouch for what ran, and a
+ *     turn that did not finish with no receipts array at all.
  */
 export function turnHasSideEffect(message: UIMessage): boolean {
   if (isResumedMessage(message)) return true;
-  const row = message as { streamingState?: unknown; tokenUsage?: { toolReceipts?: unknown } | null };
+  const row = message as {
+    streamingState?: unknown;
+    tokenUsage?: { toolReceipts?: unknown; receiptsUnavailable?: unknown } | null;
+  };
+  if (row.tokenUsage?.receiptsUnavailable === true) return true;
   const receipts = row.tokenUsage?.toolReceipts;
-  if (Array.isArray(receipts) && receipts.some((r) => (r as { sideEffecting?: unknown })?.sideEffecting === true)) {
+  if (
+    Array.isArray(receipts) &&
+    receipts.some((r) => {
+      const receipt = r as { sideEffecting?: unknown; verifiable?: unknown } | null;
+      return receipt?.sideEffecting === true || receipt?.verifiable === false;
+    })
+  ) {
     return true;
   }
   const unfinished = typeof row.streamingState === "string" && row.streamingState !== "complete" && row.streamingState !== "refused";

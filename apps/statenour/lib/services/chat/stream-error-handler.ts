@@ -31,9 +31,11 @@
  * MUST NOT throw or it crashes the stream lifecycle.
  */
 
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { ProviderName } from "@/lib/ai/provider";
 import type { TraceStartInput, TraceFinishInput } from "@/lib/ai/agent-trace";
+import type { ToolReceiptsSnapshot } from "./in-flight-tool-calls";
 
 interface ChatLogger {
   info(event: string, ctx?: Record<string, unknown>): void;
@@ -128,6 +130,21 @@ export interface PartialTextRef {
   text: string;
 }
 
+/**
+ * tokenUsage for an errored row: the tools the stream started, or an honest
+ * "cannot say". Never null, and never a guessed [] (a bare [] reads as "nothing
+ * ran" and would let Retry re-run a createTask).
+ */
+function erroredTokenUsage(read: (() => ToolReceiptsSnapshot) | undefined): Prisma.InputJsonValue {
+  try {
+    const snapshot = read?.();
+    if (snapshot?.trustworthy === true) return { toolReceipts: snapshot.receipts } as Prisma.InputJsonValue;
+  } catch {
+    // A broken accumulator must not stop the row being written.
+  }
+  return { receiptsUnavailable: true };
+}
+
 export interface BuildStreamErrorHandlerInput {
   /** Private Lab: skip the errored-turn chatMessage.create — convId is the
    *  "private" sentinel (truthy), so the write would otherwise persist the
@@ -147,6 +164,11 @@ export interface BuildStreamErrorHandlerInput {
   startedAt: number;
   /** Shared partial-text ref; mutated by onChunk, read here. */
   partial: PartialTextRef;
+  /**
+   * The tools the stream started (in-flight-tool-calls.ts). Absent, throwing or
+   * untrustworthy: the errored row records `receiptsUnavailable` instead.
+   */
+  toolReceipts?: () => ToolReceiptsSnapshot;
   log: ChatLogger;
   /**
    * The recordTrace function from @/lib/ai/agent-trace. Passed via deps
@@ -155,8 +177,9 @@ export interface BuildStreamErrorHandlerInput {
   recordTrace: (start: TraceStartInput, finalize: TraceFinishInput) => Promise<void> | void;
   /**
    * 2026-07-25 (provider-drought incident) · resolves the route's
-   * onFinishPromise. onFinish never fires on an errored stream, so without
-   * this the SSE assembler (sse-stream.ts) awaits a promise that never
+   * onFinishPromise. onFinish does not fire when the stream fails before its
+   * first step (a rejected doStream; ai@6.0.275 does fire it after an error
+   * part), so without this the SSE assembler (sse-stream.ts) awaits a promise that never
    * resolves — "message.completed" is never emitted and the connection
    * hangs on 7s heartbeats INDEFINITELY. (2026-07-28 correction: this said
    * "until the 120s maxDuration". `export const maxDuration` is a
@@ -312,6 +335,7 @@ export function buildStreamErrorHandler(deps: BuildStreamErrorHandlerInput) {
                   ? String((model as { modelId?: unknown }).modelId).slice(0, 60)
                   : "unknown",
               streamingState: "errored",
+              tokenUsage: erroredTokenUsage(deps.toolReceipts),
               errorDetails: {
                 code: "stream_interrupted",
                 message: errMsg.slice(0, 500),

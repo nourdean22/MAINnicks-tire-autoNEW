@@ -18,6 +18,7 @@ import type { Prisma } from "@prisma/client";
 import { withErrorCapture } from "@/lib/errors/record-error";
 import { buildVerifierBanner, isVerifierRewritten, buildKnownTruthBanner } from "@/lib/ai/chat/fabrication-rewriter";
 import { canClaimDone, receiptsWithReadBack, summarizeClaimDoneShadow } from "@/lib/ai/receipts/action-receipt";
+import { toolReceiptRows } from "@/lib/ai/receipts/tool-receipt-rows";
 import { verifyEnvironmentState, type EnvironmentVerificationResult } from "@/lib/ai/chat/environment-verifier";
 import { buildMessageParts } from "./message-parts";
 import type { CapturedToolCall } from "./tool-telemetry-walk";
@@ -574,17 +575,8 @@ export async function persistAssistantMessage(a: {
               // results — both can carry secrets or PII. Read by
               // lib/observability/claim-done-calibration.ts the same day.
               // Always an array: [] records "no tool ran", so the Retry gate can tell it from
-              // a row with no receipts at all (unknown, e.g. the errored-turn writer).
-              toolReceipts: (receipts.map((r) => ({
-                    toolName: r.toolName,
-                    category: r.category,
-                    sideEffecting: r.sideEffecting,
-                    verifiable: r.verifiable,
-                    status: r.status,
-                    verificationState: r.verificationState,
-                    entityType: r.entityType ?? null,
-                    entityId: r.entityId ?? null,
-                  })) as Prisma.InputJsonValue),
+              // a row with no receipts at all (unknown, e.g. an aborted row or one older than this field).
+              toolReceipts: (toolReceiptRows(receipts) as Prisma.InputJsonValue),
               factCheck: factClaims.length > 0
                 ? {
                     total: factClaims.length,

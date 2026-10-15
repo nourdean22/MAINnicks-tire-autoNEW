@@ -660,7 +660,12 @@ owns four side effects on stream interruption:
 2. **Graceful-degradation persist** — write a `ChatMessage` with the
    partial text + error annotation, so reload doesn't vanish what the
    user already saw on screen. Falls back to a pure-error stub when
-   partial < 20 chars (true cold failure).
+   partial < 20 chars (true cold failure). The row's `tokenUsage` is
+   `{ toolReceipts }` (the tools the stream started, from
+   `lib/services/chat/in-flight-tool-calls.ts`) or `{ receiptsUnavailable: true }`
+   when that record is not trustworthy; the Retry gate refuses the second.
+   `onFinish` still fires after a provider error part (ai@6.0.275), but not
+   when the stream fails before its first step.
 3. **Agent-trace error row** — `errorClass: "stream_interrupted"`.
 4. **ErrorLog append** for the operator dashboard.
 
