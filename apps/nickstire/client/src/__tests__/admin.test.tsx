@@ -244,6 +244,28 @@ describe("Admin — regression guards", () => {
     expect(container.textContent).not.toContain("$0");
     expect(container.textContent).not.toMatch(/everything issued has been paid/i);
   });
+
+  /**
+   * React Query keeps the last good data after a failed refetch, so `error` and
+   * `data` can both be set. The age banner must stay hidden: the failure notice
+   * says the numbers are unknown, and the banner would contradict it.
+   */
+  it("UnpaidInvoicesSection: a failed refetch over stale data shows no age banner", async () => {
+    trpcState.queries["invoices.unpaidList"] = {
+      error: new Error("refetch failed"),
+      data: {
+        items: [],
+        totalCents: 12500,
+        collections: { agedOutCents: 12500, agedOutCount: 1, maxAgeDays: 90 },
+      },
+    };
+    const { default: UnpaidInvoicesSection } = await import("../pages/admin/money/UnpaidInvoicesSection");
+    const { container } = render(React.createElement(UnpaidInvoicesSection));
+
+    expect(screen.getByText(/could not be read/i)).toBeTruthy();
+    expect(container.textContent).not.toMatch(/unpaid on \d+ invoice/i);
+    expect(container.textContent).not.toContain("$125");
+  });
 });
 
 // ════════════════════════════════════════════════════════════════════
