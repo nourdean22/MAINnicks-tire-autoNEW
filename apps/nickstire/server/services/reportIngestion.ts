@@ -760,12 +760,14 @@ export async function ingestInvoices(invoices: ParsedInvoice[]): Promise<{ creat
         const { withInvoiceLock, lockedTotalPatch } = await import("./paymentIntentLock");
         await withInvoiceLock(db, existing[0].id, async (tx, row) => {
           const totalPatch = await lockedTotalPatch(tx, existing[0].id, row.totalAmount, inv.totalCents);
+          // While a card payment holds the total, the cost breakdown stays with it: a breakdown that no longer
+          // sums to the charged total must not be shown or left on the paid invoice.
+          const withheld = inv.totalCents > 0 && inv.totalCents !== row.totalAmount && totalPatch.totalAmount === undefined;
+          const costs = withheld ? {} : { laborCost: inv.laborCents, partsCost: inv.partsCents, taxAmount: inv.taxCents };
           await tx.update(invoicesTable).set({
             customerName: `${inv.lastName}, ${inv.firstName}`,
             ...totalPatch,
-            laborCost: inv.laborCents,
-            partsCost: inv.partsCents,
-            taxAmount: inv.taxCents,
+            ...costs,
             serviceDescription: inv.description || null,
             paymentMethod: inv.paymentMethod,
             invoiceDate: new Date(inv.date + "T12:00:00"),

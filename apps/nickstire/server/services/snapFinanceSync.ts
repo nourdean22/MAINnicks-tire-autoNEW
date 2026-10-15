@@ -56,6 +56,8 @@ export async function recordSnapPayment(data: SnapPaymentRecord): Promise<{ succ
 
     // Create invoice record with financing as payment method
     const amountCents = Math.round(data.amount * 100);
+    // The approval instant is stored on the shop's wall clock, like every other invoice writer.
+    const { shopWallClock } = await import("../lib/timezoneAssert");
     const [result] = await db.insert(invoices).values({
       invoiceNumber: invoiceNum,
       customerName: data.customerName,
@@ -64,7 +66,7 @@ export async function recordSnapPayment(data: SnapPaymentRecord): Promise<{ succ
       totalAmount: amountCents,
       paymentStatus: "paid",
       paymentMethod: "financing",
-      invoiceDate: data.approvalDate,
+      invoiceDate: shopWallClock(data.approvalDate),
     }).$returningId();
 
     log.info("Snap payment recorded:", {

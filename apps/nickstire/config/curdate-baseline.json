@@ -2,36 +2,6 @@
   "$comment": "Sites of a calendar date computed from the UTC DB clock (CURDATE() and the other spellings listed in scripts/lint-curdate.mjs), accepted when the gate was introduced on 2026-09-23 and widened the same day from 96 bare CURDATE() in 28 files to 109 sites in 33. ANY NEW SITE FAILS. One entry per file: count, effect, reason. effect = what the file's worst site decides, most to least customer impact: customer-send (who receives a text) > customer-state (a customer's recorded state) > customer-view (shown to a customer) > staff-today (a today/period figure or day count that staff or the owner read) > alert-dedupe (a once-per-day alert key) > rolling-window (an N-day window whose edge moves by hours). The reason says who sees it, and how wrong it is and when; every reason was re-read against the code on 2026-09-23. The UTC day runs from 8 PM to 8 PM Eastern (7 PM to 7 PM in winter), which gives two shapes of error. (1) A today / week / month window over a column that holds a UTC instant (createdAt, invoiceDate, lastVisitDate) is shifted 4 hours earlier (5 in winter) ALL DAY: at 10 AM it already holds the rows from 8 PM to midnight the evening before, and from 8 PM ET it restarts near empty on the next day. (2) A day count or a date compared with an ET calendar date (bookings.preferredDate, expected_arrivals.expectedDate), or a DATEDIFF against daytime timestamps, is one day off only while the query runs between 8 PM ET (7 PM in winter) and midnight. No site governs an SMS sending window: sms.ts computes those in JS in America/New_York.",
   "entries": [
     {
-      "file": "server/_core/statenour-bridge-routes.ts",
-      "count": 8,
-      "effect": "staff-today",
-      "reason": "Nour OS bridge, read by the owner's StateNour dashboard. /api/bridge/cars-today splits today's paid revenue by payment method with DATE(invoiceDate) = CURDATE(): the UTC day, so all day it also holds invoices from 8 PM ET (7 PM in winter) the evening before, and from 8 PM ET to midnight it restarts near $0. The other 7 are DATE_SUB(CURDATE(), INTERVAL n DAY) windows (estimates, drop-offs, Uber requests) whose start edge sits at 8 PM ET instead of midnight: 4 extra hours (5 in winter) all day, most of the first day lost after 8 PM ET."
-    },
-    {
-      "file": "server/cron/jobs/retentionSequences.ts",
-      "count": 1,
-      "effect": "customer-send",
-      "reason": "DATEDIFF(CURDATE(), lastVisitDate) BETWEEN minDays AND maxDays picks who gets each retention-tier TEXT. It is not wrong today: processRetentionTier returns before this query unless 9 <= ET hour < 18 (isWithinRetentionHours), and inside that window the UTC date equals the ET date. It would move every tier boundary one day early as soon as the sending window reached 8 PM ET (7 PM in winter), so it stays baselined rather than exempt."
-    },
-    {
-      "file": "server/cron/jobs/unpaidInvoiceRecovery.ts",
-      "count": 1,
-      "effect": "alert-dedupe",
-      "reason": "fired_for = CURDATE() is the once-per-day slot for the owner's 'unpaid invoices aged out of collections' Telegram alert. The slot's day runs 8 PM to 8 PM ET (7 PM in winter): a run after 8 PM ET claims tomorrow's slot, so the alert can fire twice in one ET day and is then held until 8 PM the next day. Owner-only; no customer sees it."
-    },
-    {
-      "file": "server/cron/jobs/vapiCallEval.ts",
-      "count": 1,
-      "effect": "alert-dedupe",
-      "reason": "fired_for = CURDATE() is the once-per-day slot for the owner's call-evaluation Telegram alerts. The slot's day runs 8 PM to 8 PM ET (7 PM in winter), so an alert can repeat within one ET day and then be held until 8 PM the next. Owner-only."
-    },
-    {
-      "file": "server/cron/jobs/vapiLatencySync.ts",
-      "count": 1,
-      "effect": "alert-dedupe",
-      "reason": "fired_for = CURDATE() is the once-per-day slot for the owner's voice-latency-breach Telegram alert (critical channel). The slot's day runs 8 PM to 8 PM ET (7 PM in winter), so the alert can repeat within one ET day and then be held until 8 PM the next. Owner-only."
-    },
-    {
       "file": "server/cron/scheduler.ts",
       "count": 1,
       "effect": "staff-today",
@@ -138,12 +108,6 @@
       "count": 8,
       "effect": "staff-today",
       "reason": "Owner Telegram safety check, every 2 h at all hours. Today's revenue and today's unusual transactions are UTC-day sums (invoiceDate >= CURDATE()): all day they include last evening after 8 PM ET (7 PM in winter), and a run between 8 PM ET and midnight sees about $0, so with safety_monitor_enabled on it warns 'Daily revenue at 0% of 30-day avg' (the noon guard does not stop it). The daily-average divisor DATEDIFF(NOW(), MIN(invoiceDate)) and the 30- and 90-day windows are UTC days, off by one day at most."
-    },
-    {
-      "file": "server/services/shopDriverMirror.ts",
-      "count": 1,
-      "effect": "staff-today",
-      "reason": "After each ShopDriver import, pushes today's revenue to the admin live dashboard over SSE with DATE(invoiceDate) = CURDATE(): the UTC day, so it includes invoices from 8 PM ET (7 PM in winter) the evening before and restarts near $0 after 8 PM ET."
     },
     {
       "file": "server/services/shopStatus.ts",

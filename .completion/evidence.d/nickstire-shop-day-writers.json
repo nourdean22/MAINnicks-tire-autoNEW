@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "cron-fail-closed": {
+      "ref": "server/__tests__/cronNoSwallowedFailure.test.ts and server/cron/jobs/cronRethrow2026.test.ts (the fail-closed contract) pass on 7c8aa579f in the full suite. The cron edits in this diff change only SQL day-key binds in retentionSequences, unpaidInvoiceRecovery, vapiCallEval, vapiLatencySync and morningBrief, plus one invoice-age computation and the morning brief day window; no catch, rethrow or return path changed."
+    },
+    "capability-ledger-updated": {
+      "ref": "apps/nickstire/docs/operations/capability-ledger.json: shop-day-clock-writers records the writers' unit_verified state, their tests, the remaining 70 CURDATE baseline sites and the no-backfill blocker."
+    }
+  }
+}

@@ -14,6 +14,7 @@ import { invokeLLM } from "../../_core/llm";
 import { db } from "../../lib/db-helper";
 
 import { BUSINESS } from "@shared/business";
+import { getBusinessDateKey, shiftDateKey } from "../../lib/timezoneAssert";
 import { countActionableLeads } from "@shared/leadSource";
 const log = createLogger("cron:morning-brief");
 
@@ -101,6 +102,9 @@ export async function sendMorningBrief(): Promise<{ recordsProcessed?: number; d
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const yesterdayStart = new Date(todayStart.getTime() - 24 * 60 * 60 * 1000);
+    // Invoice dates are the shop's wall clock: yesterday and today are compared as shop-day keys.
+    const todayKey = getBusinessDateKey(now);
+    const yesterdayKey = shiftDateKey(todayKey, -1);
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
@@ -198,7 +202,7 @@ ${(pendingCallbacks[0]?.count ?? 0) > 0 ? `- 📞 ${pendingCallbacks[0]?.count} 
     try {
       // Yesterday's revenue
       const yesterdayPaid = await d.select().from(invoices)
-        .where(and(gte(invoices.invoiceDate, yesterdayStart), sql`${invoices.invoiceDate} < ${todayStart}`, eq(invoices.paymentStatus, "paid")));
+        .where(and(sql`${invoices.invoiceDate} >= ${yesterdayKey}`, sql`${invoices.invoiceDate} < ${todayKey}`, eq(invoices.paymentStatus, "paid")));
       const yesterdayRevenue = Math.round(yesterdayPaid.reduce((s: any, inv: any) => s + inv.totalAmount, 0) / 100);
       enrichmentBlock += `\nYESTERDAY'S REVENUE: $${yesterdayRevenue.toLocaleString()} from ${yesterdayPaid.length} paid invoices.`;
 

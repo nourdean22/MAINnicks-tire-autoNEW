@@ -12,6 +12,7 @@ import {
 import { storagePut } from "../storage";
 import { notifyNewBooking, notifyInvoiceCreated } from "../email-notify";
 import { syncBookingToSheet, syncInvoiceToSheet } from "../sheets-sync";
+import { shopWallClock } from "../lib/timezoneAssert";
 import { sendSms, sendSmsOrThrow, bookingConfirmationSms, statusUpdateSms } from "../sms";
 import { requireCapiDelivery, sendLeadEvent, sendScheduleEvent } from "../meta-capi";
 import { scheduleReviewRequest } from "./reviewRequests";
@@ -104,7 +105,7 @@ async function autoCreateInvoiceFromBooking(d: any, booking: any): Promise<void>
     paymentMethod: "card",
     paymentStatus: "pending",
     source: "manual",
-    invoiceDate: new Date(),
+    invoiceDate: shopWallClock(),
   });
   // The number the invoice was stored under: a collision moves it to the next.
   const invoiceNumber = created.invoiceNumber ?? requestedNumber;

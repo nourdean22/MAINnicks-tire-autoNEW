@@ -66,7 +66,8 @@ describe("canary - the window has two edges and both are named", () => {
 });
 
 describe("canary - age is computed, not guessed", () => {
-  const now = new Date("2026-08-25T12:00:00Z");
+  // invoiceDate is the shop's wall clock as stored: 12:00 on Aug 18 is 16:00Z. now is 12:00 EDT on Aug 25.
+  const now = new Date("2026-08-25T16:00:00Z");
 
   it("whole days, floored", () => {
     expect(invoiceAgeDays(new Date("2026-08-18T12:00:00Z"), now)).toBe(7);

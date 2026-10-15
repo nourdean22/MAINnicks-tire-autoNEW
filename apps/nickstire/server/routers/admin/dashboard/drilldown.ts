@@ -89,7 +89,8 @@ export const drilldownProcedures = {
           case "revenue_today":
           case "jobs_closed_today": {
             const { invoices } = await import("../../../../drizzle/schema");
-            const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+            // Invoice dates are the shop's wall clock: today is the shop's day, compared as a key.
+            const { getBusinessDateKey } = await import("../../../lib/timezoneAssert");
             const rows = await d
               .select({
                 id: invoices.id,
@@ -101,7 +102,7 @@ export const drilldownProcedures = {
                 serviceDescription: invoices.serviceDescription,
               })
               .from(invoices)
-              .where(gte(invoices.invoiceDate, todayStart))
+              .where(sql`${invoices.invoiceDate} >= ${getBusinessDateKey()}`)
               .orderBy(desc(invoices.invoiceDate))
               .limit(input.limit);
             const isRevenue = input.kind === "revenue_today";

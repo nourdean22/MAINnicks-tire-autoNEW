@@ -12,6 +12,7 @@
 import { createLogger } from "../lib/logger";
 import { isDuplicateKeyError } from "../lib/dbErrors";
 import { lockedTotalPatch, STALE_INTENT_MS, withInvoiceLock } from "./paymentIntentLock";
+import { getBusinessDateKey, shopWallClock } from "../lib/timezoneAssert";
 import { eq, and, inArray, sql } from "drizzle-orm";
 
 const log = createLogger("shopdriver-mirror");
@@ -548,7 +549,7 @@ function normalizeInvoiceJson(raw: any): RawInvoice {
       [raw.customer?.firstName, raw.customer?.lastName].filter(Boolean).join(" ") || "Unknown",
     customerPhone: normalizePhone(raw.primaryNumber || raw.primaryPhone || raw.customerPhone || raw.customer?.phone || ""),
     totalAmount: typeof amount === "number" ? Math.round(amount * 100) : parseDollarsToCents(String(amount)),
-    date: raw.date || raw.invoiceDate || raw.createdAt || raw.ticketDate || raw.accessedDate || new Date().toISOString(),
+    date: raw.date || raw.invoiceDate || raw.createdAt || raw.ticketDate || raw.accessedDate || shopWallClock().toISOString(),
     service: raw.serviceDescription || raw.description || raw.service || raw.vehicleDescription || raw.services?.join(", ") || "",
     // Wave-99 fix: ALG's listRecentTickets returns year/make/model (no
     // "vehicle" prefix). Older endpoints used the prefixed names so
@@ -961,7 +962,17 @@ async function upsertInvoices(rawInvoices: RawInvoice[]): Promise<{ created: num
 
         if (totalMoves) {
           const applied = await withInvoiceLock(d, ex.id, async (tx, row) => {
-            const all = { ...updates, ...(await lockedTotalPatch(tx, ex.id, row.totalAmount, ri.totalAmount)) };
+            const patch = await lockedTotalPatch(tx, ex.id, row.totalAmount, ri.totalAmount);
+            const all: Record<string, unknown> = { ...updates, ...patch };
+            // Withheld is decided on the locked row: the total differs from the row's, and the lock did not move it.
+            // A row already at the new total (a stale prefetch) is not withheld, so its breakdown still applies.
+            const withheld = row.totalAmount !== ri.totalAmount && patch.totalAmount === undefined;
+            // A total the lock withheld keeps its cost breakdown with it: the breakdown must not outlive the old total.
+            if (withheld) {
+              delete all.laborCost;
+              delete all.partsCost;
+              delete all.taxAmount;
+            }
             if (Object.keys(all).length === 0) return false;
             await tx.update(invoices).set(all).where(eq(invoices.id, ex.id));
             return true;
@@ -1268,7 +1279,7 @@ export async function runFullMirror(): Promise<{
         const [todayRev] = await d.execute(sql`
           SELECT COALESCE(SUM(totalAmount), 0) as rev, COUNT(*) as cnt
           FROM invoices
-          WHERE DATE(invoiceDate) = CURDATE() AND source = 'shopdriver'
+          WHERE DATE(invoiceDate) = ${getBusinessDateKey()} AND source = 'shopdriver'
         `);
         const rev = (todayRev as unknown as any[])?.[0];
         if (rev) {

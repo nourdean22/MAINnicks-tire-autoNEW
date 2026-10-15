@@ -8,6 +8,7 @@ import { z } from "zod";
 import { BUSINESS } from "../../../shared/business";
 import { declineProvenance, countDeclineProvenance } from "../../../shared/declineProvenance";
 import { captureDeclineAtCounter, readDeclineCaptures } from "../../services/declineCaptures";
+import { shopWallClock } from "../../lib/timezoneAssert";
 
 const MONTHLY_TARGET = BUSINESS.revenueTarget.monthly;
 /**
@@ -208,7 +209,8 @@ export const invoicesRouter = router({
       if (!d) throw new Error("Database not available");
       const result = await d.insert(invoices).values({
         ...input,
-        invoiceDate: input.invoiceDate ? new Date(input.invoiceDate) : new Date(),
+        // A date-only input is the shop's day at midnight; a missing one is the shop's wall clock.
+        invoiceDate: input.invoiceDate ? new Date(input.invoiceDate) : shopWallClock(),
       });
       const invoiceId = Number(result[0].insertId);
 

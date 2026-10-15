@@ -18,14 +18,24 @@ questions — otherwise the output is a polished hallucination factory
    the layout:
 
    ```bash
-   node scripts/skill-compiler/scaffold.mjs <source-file> <skill-slug>
+   node scripts/skill-compiler/scaffold.mjs <source-file> <skill-slug> [--source-label "<text>"]
    ```
 
-   It creates `.claude/skills/generated/<skill-slug>/` with the template,
-   computes the source SHA-256, and records extraction date + source path
-   in `provenance/source.json`. The checksum is the anti-drift anchor: a
-   re-compile from a CHANGED source must produce a new checksum, never a
-   silent overwrite.
+   It creates `.claude/skills/<skill-slug>/` with the template, computes
+   the source SHA-256, and records extraction date + a source label in
+   `provenance/source.json` (`--source-label`, default the file's
+   basename; a label containing a file path is refused because this repo
+   is public). Claude Code loads only `.claude/skills/<name>/SKILL.md`, so
+   the package sits flat with the other skills: nested in a subfolder it
+   would pass the validator and never load. The template is written as
+   `SKILL.draft.md`, not `SKILL.md`, so an unfinished package is not a
+   loadable skill. A slug whose directory already exists and is not a
+   compiler package is refused, and so is one still under the old
+   `.claude/skills/generated/` layout (migrate it). The checksum is the
+   anti-drift anchor: a re-compile from a CHANGED source is refused, never
+   silently overwritten; use a new slug. A re-run on the SAME source keeps
+   `provenance/source.json` as it is (`--source-label` changes only
+   `sourceLabel`).
 
 2. **Section map** — read the source and write `chapters/map.md`: one line
    per section (`id · title · first/last line or page`). Every later
@@ -60,7 +70,10 @@ questions — otherwise the output is a polished hallucination factory
 6. **Write SKILL.md** — the operational distillation (when to use,
    the method, red flags), in the house skill voice. It may only assert
    what `techniques.md` supports; the frontmatter `description` states
-   the source and its date.
+   the source and its date. Write the result as `SKILL.md` (start from
+   `SKILL.draft.md` if useful), then delete `SKILL.draft.md`: `validate.mjs`
+   fails (V8) while the draft exists. Do not create `SKILL.md` earlier, as
+   any `SKILL.md` under `.claude/skills/` is loaded.
 
 7. **Eval questions** (`evals/questions.json`) — minimum 5:
 
@@ -68,19 +81,21 @@ questions — otherwise the output is a polished hallucination factory
    [{ "q": "...", "expected": "...", "sourceSection": "...", "kind": "recall|application" }]
    ```
 
-   These feed the statenour recall-eval corpus (lib/brain/recall-eval.ts)
-   — the skill becomes measurable, not just installed.
+   As of 2026-10-15 these are hand-readable checks: no runner reads
+   `evals/questions.json` yet (only `scaffold.mjs` and `validate.mjs` touch
+   it), and `apps/statenour/lib/brain/recall-eval.ts` does not load it.
 
 8. **Validate** — the gate, not optional:
 
    ```bash
-   node scripts/skill-compiler/validate.mjs .claude/skills/generated/<skill-slug>
+   node scripts/skill-compiler/validate.mjs .claude/skills/<skill-slug>
    ```
 
    Zero errors required. The validator checks structure, provenance
    completeness (every technique has section + evidence-class +
-   confidence), checksum integrity, and eval-question minimums. Fix and
-   re-run; never hand-wave a red validator.
+   confidence), checksum integrity, eval-question minimums, and that
+   `SKILL.draft.md` is deleted (V8). Fix and re-run; never hand-wave a
+   red validator.
 
 9. **License/rights** — record in `provenance/source.json` what the
    source's usage terms are (`license` field; `"unknown"` is allowed and
