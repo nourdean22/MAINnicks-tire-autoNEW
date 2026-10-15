@@ -19,11 +19,21 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+// Serial vitest shares one vi.mock registry, so every factory here spreads the real module and
+// overrides only what this file stubs: a partial factory fails a later file that imports any
+// other export (apps/nickstire/AGENTS.md, Test hygiene). Importing the real modules is safe:
+// none of them opens a pool, starts a timer or touches the network.
 const alertSystem = vi.fn().mockResolvedValue(true);
-vi.mock("../services/telegram", () => ({ alertSystem: (...a: unknown[]) => alertSystem(...a) }));
+vi.mock("../services/telegram", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../services/telegram")>()),
+  alertSystem: (...a: unknown[]) => alertSystem(...a),
+}));
 
 const isEnabled = vi.fn().mockResolvedValue(false);
-vi.mock("../services/featureFlags", () => ({ isEnabled: (...a: unknown[]) => isEnabled(...a) }));
+vi.mock("../services/featureFlags", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../services/featureFlags")>()),
+  isEnabled: (...a: unknown[]) => isEnabled(...a),
+}));
 
 const emptyQuery: any = new Proxy(
   {},
@@ -32,13 +42,17 @@ const emptyQuery: any = new Proxy(
       prop === "then" ? (ok: (v: unknown[]) => unknown) => Promise.resolve([]).then(ok) : () => emptyQuery,
   },
 );
-vi.mock("../db", () => ({
+vi.mock("../db", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../db")>()),
   getDbTyped: () => Promise.resolve({ select: () => emptyQuery }),
   getDb: () => Promise.resolve({ select: () => emptyQuery }),
 }));
 
 const invokeLLM = vi.fn();
-vi.mock("../_core/llm", () => ({ invokeLLM: (...a: unknown[]) => invokeLLM(...a) }));
+vi.mock("../_core/llm", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../_core/llm")>()),
+  invokeLLM: (...a: unknown[]) => invokeLLM(...a),
+}));
 
 import { nwsFixtures, stubNwsFetch } from "./nwsWeatherFixtures";
 import { __resetNwsCacheForTests } from "../lib/nwsWeather";
