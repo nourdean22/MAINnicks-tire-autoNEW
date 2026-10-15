@@ -41,7 +41,7 @@ export function stripeWebhookPreflight(env: { webhookSecret?: string; secretKey?
   return { ok: true, webhookSecret: env.webhookSecret, secretKey: env.secretKey };
 }
 
-type InvoicePaidOutcome =
+export type InvoicePaidOutcome =
   | { kind: "db_unavailable" }
   | { kind: "not_found"; invoiceNumber: string }
   | { kind: "amount_mismatch"; invoiceNumber: string; expectedCents: number; receivedCents: number }
@@ -49,6 +49,15 @@ type InvoicePaidOutcome =
   // The total moved between the read and the claim (or the row vanished): not recorded.
   | { kind: "total_changed"; invoiceNumber: string }
   | { kind: "claimed"; invoiceNumber: string };
+
+/**
+ * The HTTP status Stripe must see for a payment_intent.succeeded claim. 500 makes Stripe deliver it again:
+ * a paid event that could not be recorded, a total that moved during the claim, or an amount that does not
+ * match yet. Every other outcome is answered 200.
+ */
+export function webhookStatusForClaim(kind: InvoicePaidOutcome["kind"]): 200 | 500 {
+  return kind === "db_unavailable" || kind === "total_changed" || kind === "amount_mismatch" ? 500 : 200;
+}
 
 /**
  * Marks an invoice paid from a succeeded PaymentIntent. Reads the row, refuses an
