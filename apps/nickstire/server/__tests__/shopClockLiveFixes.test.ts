@@ -11,7 +11,16 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
-const h = vi.hoisted(() => ({ inserted: [] as Array<Record<string, unknown>> }));
+const h = vi.hoisted(() => ({
+  inserted: [] as Array<Record<string, unknown>>,
+  dispatch: vi.fn(async (..._args: unknown[]) => undefined),
+}));
+
+// The recorder dispatches invoice_paid on the real event bus, which reaches the StateNour bridge. A unit
+// test must not send events: the bus is replaced, and the test checks what would have been dispatched.
+vi.mock("../services/eventBus", () => ({
+  dispatch: (...args: unknown[]) => h.dispatch(...args),
+}));
 
 vi.mock("../db", () => {
   const fakeDb = {
@@ -43,6 +52,9 @@ describe("the Snap approval is converted to the shop clock exactly once", () => 
     });
     const row = h.inserted[0] as { invoiceDate: Date };
     expect(row.invoiceDate.toISOString()).toBe("2026-10-14T22:00:00.000Z");
+    // The event is replaced, not sent: the mock records the invoice_paid it would have dispatched.
+    // The event carries dollars (the recorder's amount is 100 dollars), not the cents the row stores.
+    expect(h.dispatch).toHaveBeenCalledWith("invoice_paid", expect.objectContaining({ totalAmount: 100 }));
   });
 
   it("the Snap bridge hands recordSnapPayment the arrival instant, not a wall-clock value it would convert again", () => {
