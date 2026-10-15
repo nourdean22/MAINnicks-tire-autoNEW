@@ -322,22 +322,32 @@ client does to that text:
 
 ### Native ask rules (2026-10-15)
 
+**STATUS 2026-10-15: NOT WORKING as written. The 135 rules FAILED their live check and gate nothing yet.** The check
+ran at 17:56Z in a fresh `bypassPermissions` session started from the primary checkout after it was fast-forwarded to
+`b6faf90d9`. The positive control ran silently (Railway `list-projects`). Three probes then reached their tools with NO
+permission prompt: Railway `delete-service` (nonexistent ids; the provider returned a permission error), Vercel
+`pause_project` (`invalid_project_id`) and Prisma `delete_prisma_postgres_database` (`not_found`). The cause is NOT known:
+either a glob in the SERVER segment of an ask rule does not match, or ask rules are not honoured for these tools in this
+app. A separate live experiment decides the fix (exact tool names, or a hook); this page does not guess it. The
+`settings.json` list is left as found: inert, not harmful. Read every "prompts" below as "was meant to prompt".
+
 Railway, Neon, Vercel and Prisma Postgres mutation tools carry no command text: the tool name and its arguments ARE
 the operation (Railway `set-variables`, Neon `delete_project`, Vercel `create_project_env`), so the PreToolUse hook has
-nothing to judge. `permissions.ask` in `.claude/settings.json` makes Claude Code prompt before each one: 135 entries,
+nothing to judge. `permissions.ask` in `.claude/settings.json` was written to make Claude Code prompt before each one: 135 entries,
 one `mcp__*__<leaf>` glob per protected tool, grouped Railway, Neon, Vercel, Prisma and sorted inside each group (a leaf
 two families share, `update_project`, is listed once).
 
 - **Why native rules and not hook code.** The Claude Code docs (`code.claude.com/docs/en/permissions`, read 2026-10-15
   by the manager; the lane could not re-read them) document that a tool matched by an explicit ask rule still prompts in
   `bypassPermissions` mode, which is how this repo is usually run, and that a prompt nobody can answer (`claude -p`,
-  Night Shift) is denied, the intended failure direction. Documented, not proven live: step 7 of the live check below is
-  the proof. There is no JavaScript to crash: a hook fails OPEN on its own bugs and on timeout, a rule does not. A hook
-  `ask` is not documented to prompt in bypass, and a hook deny cannot honour "explicit operator instruction".
+  Night Shift) is denied, the intended failure direction. That was the reading of the docs, and step 7 of the live check
+  below tested it and FAILED for these tools. There is no JavaScript to crash (a hook fails OPEN on its own bugs and on
+  timeout), but a rule that does not match gates nothing, which is what the live check saw. A hook `ask` is not
+  documented to prompt in bypass, and a hook deny cannot honour "explicit operator instruction".
 - **No UUID, no plugin name.** Connector UUIDs are per account and change on reconnect. The `mcp__16f59cb5-...` allow
   entries already in `settings.json` never match today's Railway connector (`7f852746-...`): proof that UUID-pinned rules
   rot. They are left as found and flagged: delete them, or replace them with `mcp__*__<leaf>` read rules.
-- **What prompts.** Deletes and removals; deploys, redeploys, restarts, promotes and rollbacks; credentials, keys,
+- **What the rules were written to prompt on (intent; nothing prompts today).** Deletes and removals; deploys, redeploys, restarts, promotes and rollbacks; credentials, keys,
   secrets and connection strings (`rotate_credential`, `reset-bucket-credentials`, `create_prisma_postgres_connection_string`,
   `create_sdk_key`); env and service config writes (`set-variables`, `create_project_env`, `update-service`,
   `update_project`); DNS, domain, certificate and firewall changes; arbitrary execution (`railway-agent`,
@@ -363,10 +373,13 @@ two families share, `update_project`, is listed once).
   known-unclassified) with its full tool name, and treat a name that does not resolve as stale; (3) diff the live
   names against the fixtures; (4) classify each new name as protected, allowed or known-unclassified and edit the
   fixtures and `permissions.ask` together. The 2026-10-15 pass found one stale allowed name that way: `list_edge_configs` is gone, the live name is `get_edge_configs`.
-- **What the canary cannot prove.** That Claude Code itself applies a glob in the SERVER segment of an ask rule. The
-  docs' own example is `mcp__*`; `mcp__*__<leaf>` rests on "deny and ask rules accept glob patterns in the tool-name
-  position", and the canary runs an emulation of that. "Live check after merge" below proves it with two Deny taps. If it
-  fails, replace the globs with exact names.
+- **What the canary cannot prove: THE RISK MATERIALISED (live FAIL, 2026-10-15).** The canary cannot show that Claude Code
+  itself applies a glob in the SERVER segment of an ask rule. The docs' own example is `mcp__*`; `mcp__*__<leaf>` rests
+  on "deny and ask rules accept glob patterns in the tool-name position", and the canary runs an emulation of that. The
+  live check was written to settle it and did: three tools ran with no prompt (see STATUS above and "Recorded result"
+  in the live check). Exact tool names are the first thing to try, but it is not established that the glob is the cause:
+  if exact names also run unprompted, ask rules are not honoured for these tools in this app. The canary still passes
+  because it compares `settings.json` to its own fixtures; a green canary here never meant the rules work.
 
 ### Still unguarded
 
@@ -380,7 +393,7 @@ Inventory of 2026-10-15. Names come from this machine's tool lists; "name only" 
   1,000,000 on a SQL row; the same per element of a list field), the elements of a list field beyond the 2,000th or
   beyond 1,000,000 judged characters in all, a WHERE farther than 5,000 characters from its `DELETE FROM` or `SET`
   (denied, not a slip), and the directory walk cap: files past the first 2,000 entries, or deeper than 6 levels, of a
-  moved directory are not seen (the walk and the list reader each print one stderr line when they stop early). A hook that times out (10 s) or crashes fails OPEN; the native ask rules have no such window. Canaries
+  moved directory are not seen (the walk and the list reader each print one stderr line when they stop early). A hook that times out (10 s) or crashes fails OPEN; the native ask rules have no such window, but they FAILED their live check and gate nothing yet (Native ask rules above). Canaries
   pin each of these.
 - **context-mode plugin runners** (`ctx_execute`, `ctx_batch_execute`). They run code and commands, and the
   manager's probe on 2026-10-15 exited 0 through both. They were not in this session's tool list, so their field
@@ -421,7 +434,8 @@ Inventory of 2026-10-15. Names come from this machine's tool lists; "name only" 
 - **Prisma-Local MCP** (`migrate-reset`, `migrate-dev`; name only, the server failed to connect on 2026-10-15).
   The tool name is the whole command, so there is no text to match. Follow-up: an adapter field that supplies a
   fixed command string such as `prisma migrate reset` to `destructive-prisma`.
-- **Infrastructure beyond the ask list.** The 135 protected leaves prompt (previous section). Still open: the CLI door
+- **Infrastructure beyond the ask list.** The 135 protected leaves are on the ask list (previous section), which FAILED
+  its live check on 2026-10-15, so they are unguarded too until the fix lands. Still open: the CLI door
   (`railway`, `vercel`, `neonctl` commands typed through Bash or a runner carry mutations the text rules do not know);
   secret-revealing reads (Railway `list-variables` and `get-bucket-credentials`, Neon `get_connection_string`, Vercel
   `get_project_env`); additive creates, unprompted on purpose (Railway `create-project`, `create-volume`,
@@ -463,7 +477,7 @@ step 7 the native ask rules. Three result words are used below. PASS: the stated
 anything is sent. FAIL: the call reached the tool and came back with the tool's own output or a provider error, while
 the control behaved as stated. INCONCLUSIVE: a control did not behave as stated, or the session did not load the merged
 files, so nothing can be concluded: fix the precondition and repeat. This section is a procedure; whoever runs it
-records the result, and nothing here says it has been run.
+records the result under "Recorded result" at its end (the 2026-10-15 run is there: steps 1 to 6 PASS, step 7 FAIL).
 
 0. Precondition: fast-forward the PRIMARY checkout to the merged commit (on this machine
    `C:\Users\nourd\NattyNour\nicks-tire`): `git -C <primary> fetch origin main`, then `git -C <primary> merge --ff-only origin/main`,
@@ -496,8 +510,8 @@ records the result, and nothing here says it has been run.
    `neon-sql-transaction.sql_statements[1]`. FAIL: a provider error.
 7. Ask probe, with its precondition and positive control first.
    - Mode: run it in `bypassPermissions` (the mode shows under the input box; Shift+Tab cycles it). Ask rules are
-     documented to prompt there, so a prompt is attributable to the rule. In the default mode an MCP tool prompts anyway
-     and a prompt proves nothing.
+     documented to prompt there, so a prompt is attributable to the rule (the 2026-10-15 run did not see that: see the
+     recorded result below). In the default mode an MCP tool prompts anyway and a prompt proves nothing.
    - Positive control: ask Claude to call Railway `list-projects` and Neon `list_projects` (reads, both MUST-ALLOW
      fixtures). They must run with NO prompt. If either prompts: INCONCLUSIVE (wrong mode, or an entry that is too broad:
      run `node --test scripts/agent-os/mcpAskRules.test.mjs`).
@@ -509,6 +523,21 @@ records the result, and nothing here says it has been run.
      server-glob form is wrong, so replace the `mcp__*__<leaf>` entries with exact tool names (and keep the fixtures in
      step). INCONCLUSIVE: the control also prompted, or a connector is not connected (its tools are absent).
    - The ids are nonexistent, so even a failed check deletes nothing.
+
+**Recorded result, 2026-10-15 17:56Z.** A fresh session started from the primary checkout at `b6faf90d9` after the
+fast-forward, in `bypassPermissions`. Steps 1 to 4 PASS: `git push --dry-run origin main` was refused with `BLOCKED by
+repo policy: push-to-main` through the Terminal MCP `run_in_terminal`, Desktop Commander `start_process` and `Monitor`
+(last lines `Judged through MCP adapter terminal-run.command`, `process-start.command` and `monitor.command`); no push
+ran. Steps 5 and 6 PASS: Neon `run_sql` with `DROP TABLE guard_live_check_probe` was refused with `destructive-sql` (last
+line `neon-sql.sql`) and `run_sql_transaction` was refused (last line `neon-sql-transaction.sql_statements[1]`); the allowed
+`SELECT 1` control was inconclusive, because the Neon connector had been invalidated. **Step 7 FAIL:** the control
+(Railway `list-projects`) ran with no prompt, and then Railway `delete-service` (nonexistent ids; a provider permission
+error), Vercel `pause_project` (`invalid_project_id`) and Prisma `delete_prisma_postgres_database` (`not_found`) each ran
+with NO permission prompt. The recorded probes were Railway, Vercel and Prisma; the Neon connector was invalidated in that
+session. The FAIL branch of step 7 above is the instruction that applies, but the cause is not known: which of the two
+readings holds (the server-segment glob does not match, or ask rules are not honoured for these tools in this app) is
+decided by a live experiment, not by this page. The `settings.json` ask list stays as it is until that experiment says
+what replaces it, and step 0 (`prints 135`) still describes the list as shipped.
 
 ## Writing a check that actually catches something
 
