@@ -85,8 +85,9 @@ describe("UI v2 grammar", () => {
     for (const cls of ["nick-orb-idle", "neon-gold", "hud-shimmer", "particle-burst", "glitch-text", "btn-gold", "data-stream", "float-particle"]) {
       expect(effects, `.${cls} is back`).not.toMatch(new RegExp(`^\\.${cls}(?![\\w-])`, "m"));
     }
-    // built dynamically (state-aura-<state>) — looks dead to a class census, is not
-    expect(effects).toMatch(/^\.state-aura-drift/m);
+    // UI v3 W1a removed the state aura (state-aura-<state>); the state is a one-word label now.
+    // tests/repo/ui-v3-aura.test.ts and __tests__/state-aura-containing-block.test.ts fail if it returns.
+    expect(effects).not.toMatch(/\.state-aura/);
     // the class the first prune DID drop while six consumers were live (hostile review, 2026-10-01)
     expect(effects).toMatch(/^\.animate-fade-in-scale \{ animation: fade-in-scale/m);
   });

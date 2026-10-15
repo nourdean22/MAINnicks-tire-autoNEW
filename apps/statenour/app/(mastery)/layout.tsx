@@ -6,6 +6,7 @@ import { SwipeNavigation } from "@/components/layout/swipe-navigation";
 import { KeyboardShortcuts } from "@/components/hud/keyboard-shortcuts";
 import { SessionExpiryBanner } from "@/components/hud/session-expiry-banner";
 import { AmbientAura } from "@/components/hud/ambient-aura";
+import { StateWord } from "@/components/hud/state-word";
 import { NourStateProvider } from "@/lib/state/nour-state";
 import { BrainDumpModal } from "@/components/brain-dump-modal";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
@@ -91,11 +92,10 @@ export default function MasteryLayout({
           401s + bounce-to-sign-in don't eat work in progress. Silent
           outside the warn window. */}
       <SessionExpiryBanner />
-      {/* AmbientAura (#17) — reads currentState and applies state-aura +
-          state-aura-<state> classes on a wrapper around EVERY mastery
-          page. Previously only /chat and /command had the ambient
-          background glow. Now /settings, /tasks, /journal, /system/*,
-          /brain, etc all react to the state change the same way. */}
+      {/* AmbientAura: the frame around EVERY mastery page. UI v3 W1a: it no
+          longer paints the state aura (that is the StateWord line at the top
+          of <main> now); it keeps the overflow-x-clip + min-h-screen that
+          carry the fixed-descendant containing-block fix. */}
       {/* Apr 19 · Dropped `min-h-screen` from <main>. AmbientAura's
           wrapper already enforces min-h-screen for the ambient glow, so
           a second one here just created phantom bottom whitespace on
@@ -120,6 +120,8 @@ export default function MasteryLayout({
             in-flow at the top of <main> on desktop and as a floating pill
             above the bottom chrome on phones. */}
         <main id="main-content" className="pt-[env(safe-area-inset-top,0px)] pb-[var(--bottom-chrome-h)] md:pr-[var(--nick-fab-lane,0px)] xl:pr-[calc(var(--nick-fab-lane,0px)_+_var(--inspector-lane,0px))] xl:pl-[var(--spine-w,0px)]">
+          {/* UI v3 W1a · one quiet line naming the Nour state, where the aura used to be. */}
+          <StateWord />
           <WorksetShelf />
           <div className="feed py-4 md:py-6 page-enter">
             {/* Page render errors hit app/(mastery)/error.tsx first (the inner
