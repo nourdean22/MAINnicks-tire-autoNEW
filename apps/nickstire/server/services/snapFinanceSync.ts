@@ -29,7 +29,8 @@ interface SnapPaymentRecord {
   amount: number; // dollars
   invoiceNumber?: string;
   snapApplicationId?: string;
-  approvalDate: Date;
+  /** The approval instant (a real instant, not a stored clock). Converted to the shop's wall clock once, on write. */
+  approvedAt: Date;
 }
 
 /**
@@ -66,7 +67,7 @@ export async function recordSnapPayment(data: SnapPaymentRecord): Promise<{ succ
       totalAmount: amountCents,
       paymentStatus: "paid",
       paymentMethod: "financing",
-      invoiceDate: shopWallClock(data.approvalDate),
+      invoiceDate: shopWallClock(data.approvedAt),
     }).$returningId();
 
     log.info("Snap payment recorded:", {
