@@ -27,6 +27,29 @@ async function getStripe() {
 }
 
 /**
+ * Cancels a Stripe Payment Intent and reports what Stripe actually did. A caller may release an
+ * invoice total only on "canceled"; "succeeded" or "processing" means money is moving, and
+ * "failed" means Stripe could not confirm, so the total stays held.
+ */
+export async function cancelPaymentIntent(
+  paymentIntentId: string,
+): Promise<"canceled" | "succeeded" | "processing" | "failed"> {
+  const stripe = await getStripe();
+  if (!stripe) return "failed";
+  try {
+    const intent = await stripe.paymentIntents.retrieve(paymentIntentId);
+    if (intent.status === "canceled") return "canceled";
+    if (intent.status === "succeeded") return "succeeded";
+    if (intent.status === "processing") return "processing";
+    await stripe.paymentIntents.cancel(paymentIntentId);
+    return "canceled";
+  } catch (err) {
+    log.error("Payment intent cancel failed:", { paymentIntentId, error: err instanceof Error ? err.message : String(err) });
+    return "failed";
+  }
+}
+
+/**
  * Create a Stripe Payment Intent for an invoice
  */
 export async function createPaymentIntent(params: {

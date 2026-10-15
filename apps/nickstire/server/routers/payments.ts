@@ -111,14 +111,37 @@ export const paymentsRouter = router({
       if (!inv) return { error: "Invoice not found" };
       if (inv.paymentStatus === "paid") return { error: "Invoice already paid" };
 
-      const { createPaymentIntent } = await import("../services/payments");
+      const { createPaymentIntent, cancelPaymentIntent } = await import("../services/payments");
+      const description = `Nick's Tire & Auto — ${inv.serviceDescription || inv.invoiceNumber}`;
       const result = await createPaymentIntent({
         amountCents: inv.totalAmount,
         invoiceNumber: inv.invoiceNumber!,
         customerName: inv.customerName,
         customerEmail: input.email,
-        description: `Nick's Tire & Auto — ${inv.serviceDescription || inv.invoiceNumber}`,
+        description,
       });
+      if ("error" in result) return result;
+
+      // The amount is recorded before the customer can pay, so it holds the invoice total from now on.
+      // If the record cannot be written, the intent is canceled: a payment we cannot record is refused.
+      try {
+        const { recordPaymentIntent } = await import("../services/paymentIntentLock");
+        await recordPaymentIntent(d, {
+          invoiceId: inv.id,
+          amountCents: inv.totalAmount,
+          customerName: inv.customerName,
+          customerPhone: inv.customerPhone,
+          description,
+          paymentIntentId: result.paymentIntentId,
+        });
+      } catch (err) {
+        log.error("[routers/payments] could not record the payment intent; canceling it", {
+          paymentIntentId: result.paymentIntentId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        await cancelPaymentIntent(result.paymentIntentId);
+        return { error: "Payment setup failed. Please call (216) 862-0005 to pay." };
+      }
 
       return result;
     }),
@@ -216,6 +239,18 @@ export const paymentsRouter = router({
           AND paymentStatus <> 'paid'
       `);
       const claimed = ((claim as unknown as { affectedRows?: number }).affectedRows ?? 0) > 0;
+
+      // The payment is taken, so its intent stops holding the invoice total. A failure here leaves the
+      // intent held until the payment_intent.succeeded webhook records it, so it is logged, not thrown.
+      try {
+        const { markPaymentPaid } = await import("../services/paymentIntentLock");
+        await markPaymentPaid(d, input.paymentIntentId);
+      } catch (err) {
+        log.warn("[routers/payments] could not mark the payment intent paid", {
+          paymentIntentId: input.paymentIntentId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
 
       // Unified event bus — only on the winning claim (webhook may also fire).
       if (claimed) {
