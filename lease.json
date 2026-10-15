@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "statenour/ui-v3-w0",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "f8d930b8-3865-416c-802f-2947cc79c726",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\new-session-ea186a",
   "claimedBy": "2026-10-15-bdnick-ui-v3 W0: honesty fixes + UI ratchet tests + plan doc (apps/statenour tests, lib/ui, settings, people, alert inspector, docs/design/ui-v3)",
   "claimedAt": "2026-10-15T17:10:20.488Z",
   "expiresAt": "2026-10-16T05:10:20.488Z",
-  "releasedAt": null,
+  "releasedAt": "2026-10-15T22:09:28.422Z",
   "releaseReason": null,
-  "priorLeaseSha": null
+  "priorLeaseSha": "9f5f5754403826ae53ce09ad29cc297a90d6ea7f",
+  "releasedBy": "f8d930b8-3865-416c-802f-2947cc79c726",
+  "foreignReleaseReason": null
 }
