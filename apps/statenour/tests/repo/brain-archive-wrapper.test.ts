@@ -18,17 +18,25 @@
  * Windows-only (powershell.exe + the .ps1 is a Windows Task Scheduler
  * artifact); skipped elsewhere with a named skip so the skip is visible.
  */
-import { execFileSync } from "node:child_process";
+import { execFile } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
+
+// Async on purpose: each powershell.exe run is ~9 s quiet, and a synchronous child held
+// the vitest worker's event loop for all of it, so a loaded machine could not answer the
+// runner's RPC ("Timeout calling onTaskUpdate") though no test failed. A failed run
+// rejects with `code` (the exit status) and the `stdout` it printed before exiting.
+const execFileAsync = promisify(execFile);
+const exitStatus = (e: unknown): number => (typeof (e as { code?: unknown }).code === "number" ? (e as { code: number }).code : -1);
 
 const isWindows = process.platform === "win32";
 const scriptPath = path.join(__dirname, "..", "..", "scripts", "run-brain-archive.ps1");
 
 describe.skipIf(!isWindows)("run-brain-archive.ps1 loud failure", () => {
-  it("exits 0 and logs run ok when the native export completes successfully", () => {
+  it("exits 0 and logs run ok when the native export completes successfully", async () => {
     const vault = fs.mkdtempSync(path.join(os.tmpdir(), "brain-archive-test-vault-ok-"));
     const repo = fs.mkdtempSync(path.join(os.tmpdir(), "brain-archive-test-repo-ok-"));
     const bin = fs.mkdtempSync(path.join(os.tmpdir(), "brain-archive-test-bin-"));
@@ -50,7 +58,7 @@ describe.skipIf(!isWindows)("run-brain-archive.ps1 loud failure", () => {
       );
 
       const pathKey = Object.keys(process.env).find((key) => key.toLowerCase() === "path") ?? "PATH";
-      const stdout = execFileSync(
+      const { stdout } = await execFileAsync(
         "powershell.exe",
         [
           "-NoProfile",
@@ -89,7 +97,7 @@ describe.skipIf(!isWindows)("run-brain-archive.ps1 loud failure", () => {
     }
   });
 
-  it("exits nonzero and logs FATAL when the export itself fails — the 08-29 swallowed-error shape", () => {
+  it("exits nonzero and logs FATAL when the export itself fails — the 08-29 swallowed-error shape", async () => {
     const vault = fs.mkdtempSync(path.join(os.tmpdir(), "brain-archive-test-vault-"));
     const repo = fs.mkdtempSync(path.join(os.tmpdir(), "brain-archive-test-repo-"));
     try {
@@ -113,7 +121,7 @@ describe.skipIf(!isWindows)("run-brain-archive.ps1 loud failure", () => {
       let exitCode = 0;
       let stdout = "";
       try {
-        stdout = execFileSync(
+        ({ stdout } = await execFileAsync(
           "powershell.exe",
           [
             "-NoProfile",
@@ -131,13 +139,12 @@ describe.skipIf(!isWindows)("run-brain-archive.ps1 loud failure", () => {
             timeout: 60_000,
             encoding: "utf8",
           },
-        );
+        ));
       } catch (e) {
-        // execFileSync throws on nonzero exit — that IS the loud signal
+        // The run rejects on nonzero exit — that IS the loud signal
         // under test. Capture the status and any stdout emitted before exit.
-        const err = e as { status?: number; stdout?: string };
-        exitCode = err.status ?? -1;
-        stdout = err.stdout ?? "";
+        exitCode = exitStatus(e);
+        stdout = (e as { stdout?: string }).stdout ?? "";
       }
 
       // The wrapper MUST fail loudly: nonzero exit is the Task Scheduler
@@ -157,7 +164,7 @@ describe.skipIf(!isWindows)("run-brain-archive.ps1 loud failure", () => {
     }
   });
 
-  it("backs up the existing orphan file to a dated auto-snapshot before any export", () => {
+  it("backs up the existing orphan file to a dated auto-snapshot before any export", async () => {
     const vault = fs.mkdtempSync(path.join(os.tmpdir(), "brain-archive-test-vault2-"));
     const repo = fs.mkdtempSync(path.join(os.tmpdir(), "brain-archive-test-repo2-"));
     try {
@@ -169,7 +176,7 @@ describe.skipIf(!isWindows)("run-brain-archive.ps1 loud failure", () => {
       let stdout = "";
       let exitCode = 0;
       try {
-        stdout = execFileSync(
+        ({ stdout } = await execFileAsync(
           "powershell.exe",
           [
             "-NoProfile",
@@ -187,11 +194,10 @@ describe.skipIf(!isWindows)("run-brain-archive.ps1 loud failure", () => {
             timeout: 60_000,
             encoding: "utf8",
           },
-        );
+        ));
       } catch (e) {
-        const err = e as { status?: number; stdout?: string };
-        exitCode = err.status ?? -1;
-        stdout = err.stdout ?? "";
+        exitCode = exitStatus(e);
+        stdout = (e as { stdout?: string }).stdout ?? "";
       }
 
       // The run fails (no exporter script) — but the pre-run orphan backup

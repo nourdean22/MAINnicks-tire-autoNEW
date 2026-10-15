@@ -26,6 +26,15 @@ import { prisma } from "@/lib/prisma";
 import { recordError } from "@/lib/errors/record-error";
 
 /**
+ * A fast-path reply (brain dump, /save, a logged decision, a generated image)
+ * wrote something without a tool call, so there is no receipt to store. This
+ * marker goes on the persisted row (tokenUsage) and on the live bubble (the
+ * `start` chunk's messageMetadata); the Retry gate refuses both, because a
+ * replay would repeat the write.
+ */
+export const FAST_PATH_RECEIPTS_UNAVAILABLE = { receiptsUnavailable: true } as const;
+
+/**
  * Wrap confirmation text in the Vercel AI v6 UI Message protocol so
  * the client renderer treats it identically to a streamed model
  * response. messageIdPrefix is a short label used in logs + as the
@@ -51,6 +60,7 @@ export async function buildFastStream(
           parts: [{ type: "text", text: confirmationText }] as unknown as Parameters<typeof prisma.chatMessage.create>[0]["data"]["parts"],
           searchableContent: confirmationText,
           streamingState: "complete",
+          tokenUsage: FAST_PATH_RECEIPTS_UNAVAILABLE,
           provider: "fast-path",
           routerReason: messageIdPrefix,
           // fast-path is synchronous so latency is the build cost only
@@ -85,7 +95,7 @@ export async function buildFastStream(
   const stream = new ReadableStream({
     start(controller) {
       const lines = [
-        `data: ${JSON.stringify({ type: "start", messageId })}\n\n`,
+        `data: ${JSON.stringify({ type: "start", messageId, messageMetadata: FAST_PATH_RECEIPTS_UNAVAILABLE })}\n\n`,
         `data: ${JSON.stringify({ type: "start-step" })}\n\n`,
         `data: ${JSON.stringify({ type: "text-start", id: "t1" })}\n\n`,
         `data: ${JSON.stringify({ type: "text-delta", id: "t1", delta: confirmationText })}\n\n`,

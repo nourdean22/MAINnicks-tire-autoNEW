@@ -165,69 +165,152 @@ describe("the live gate · wiring, which is a comparison and not a hard-coded da
  *
  * Offenders are planted in REAL TRACKED FILES because the gate runs `git grep`,
  * which sees only tracked paths — a temp file outside the index would not be
- * scanned and the canary would pass without testing anything. Same reasoning,
- * and the same restore-and-re-verify tail, as the et-clock canary.
+ * scanned and the canary would pass without testing anything. The restore is
+ * proven on the files themselves (each compared to its original once the gate
+ * has run), not by a second gate run, and it runs in a finally: a gate run or an
+ * assertion that throws still puts every planted file back.
  */
 describe("the gate FIRES on the tree it is pointed at", () => {
   const { readFileSync: rf, writeFileSync: wf } = require("node:fs") as typeof import("node:fs");
-  const { execFileSync: ex } = require("node:child_process") as typeof import("node:child_process");
+  const { execFile } = require("node:child_process") as typeof import("node:child_process");
+  const { promisify } = require("node:util") as typeof import("node:util");
+  const execFileAsync = promisify(execFile);
 
-  const run = () => {
+  // Async on purpose. execFileSync held the vitest worker's event loop for the
+  // whole gate run (9 s alone, 25 s loaded), so under load the worker could not
+  // answer the runner's RPC and the suite died with "[vitest-worker]: Timeout
+  // calling onTaskUpdate" even though no test failed. A promisified execFile
+  // keeps the loop free while bash runs.
+  type GateRun = { code: number; out: string };
+  const run = async (): Promise<GateRun> => {
     try {
-      return { code: 0, out: ex("bash", ["scripts/check-anti-slop.sh"], { encoding: "utf8" }) };
+      const { stdout } = await execFileAsync("bash", ["scripts/check-anti-slop.sh"], { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
+      return { code: 0, out: stdout };
     } catch (e) {
-      const err = e as { status?: number; stdout?: string; stderr?: string };
-      return { code: err.status ?? 1, out: `${err.stdout ?? ""}${err.stderr ?? ""}` };
+      const err = e as { code?: number | string; stdout?: string; stderr?: string };
+      return { code: typeof err.code === "number" ? err.code : 1, out: `${err.stdout ?? ""}${err.stderr ?? ""}` };
     }
   };
 
-  /** Plant `text` at the end of `victim`, run the gate, always restore. */
-  const withPlanted = <T,>(victim: string, text: string, fn: (r: ReturnType<typeof run>) => T): T => {
-    const original = rf(victim, "utf8");
+  // TIMING. One gate run is ~9 s on a busy Windows box and ~25 s while other test
+  // files load the machine: the cost is git-bash process spawns (about 1.6 s of
+  // the 9 s is CPU), not the grep, so a narrower tree would not help. The default
+  // 20 s testTimeout fit one run on a quiet machine and failed every test here on a
+  // loaded one. So the tests that run the gate carry an explicit timeout sized for
+  // the loaded case, and the file runs the gate THREE times, not ten (the first
+  // version ran it ten: the baseline, then each canary planted and run again to
+  // prove its restore, and four runs in the waiver test). The planted offenders
+  // share one run (each in its own file, each asserted under its own heading), and
+  // no test re-runs the gate just to prove its restore.
+  const GATE_TIMEOUT_MS = 180_000;
+
+  /**
+   * Plant each text at the end of its victim, run the gate ONCE (`runGate`, which a
+   * test may swap), and always restore. The restore is exception-safe: every file
+   * is written back even if the gate run, the callback or an earlier write throws,
+   * and each is then checked against its original. The blast radius is five tracked
+   * files, so a failure to restore is thrown, never swallowed.
+   */
+  const withPlanted = async <T,>(
+    plants: Array<[victim: string, text: string]>,
+    fn: (r: GateRun) => T | Promise<T>,
+    runGate: () => Promise<GateRun> = run,
+  ): Promise<T> => {
+    const originals = plants.map(([victim]) => rf(victim, "utf8"));
     try {
-      wf(victim, `${original}\n${text}\n`, "utf8");
-      return fn(run());
+      plants.forEach(([victim, text], i) => wf(victim, `${originals[i]}\n${text}\n`, "utf8"));
+      return await fn(await runGate());
     } finally {
-      wf(victim, original, "utf8");
+      const failures: string[] = [];
+      plants.forEach(([victim], i) => {
+        try {
+          wf(victim, originals[i], "utf8");
+          // The restore is checked on the file itself: stricter than a green gate, and free.
+          if (rf(victim, "utf8") !== originals[i]) failures.push(`${victim} is not back to its original`);
+        } catch (e) {
+          failures.push(`${victim}: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      });
+      if (failures.length > 0) throw new Error(`restore failed: ${failures.join("; ")}`);
     }
   };
 
-  it("passes on the current tree", () => {
-    const r = run();
+  const HEADINGS = ["Inter font imports:", "Roboto/Arial AI-default fonts:", "Purple-on-white SaaS gradients:"];
+  /** The part of the gate's output under one heading, up to the next heading. */
+  const section = (out: string, heading: string): string => {
+    const start = out.indexOf(heading);
+    if (start < 0) return "";
+    const ends = HEADINGS.filter((h) => h !== heading).map((h) => out.indexOf(h, start + heading.length)).filter((i) => i >= 0);
+    return out.slice(start, ends.length ? Math.min(...ends) : undefined);
+  };
+
+  // The offenders, each in its own tracked file under a scanned path.
+  const PURPLE_VICTIM = "components/ui/glass-card.tsx";
+  const INTER_VICTIM = "components/ui/separator.tsx";
+  const ROBOTO_VICTIM = "components/ui/textarea.tsx";
+  const WAIVER_VICTIM = "components/ui/tooltip.tsx";
+  const WAIVER_ONLY_VICTIM = "components/ui/badge.tsx";
+  const waivedLine = '// anti-slop-allow 2026-09-16 canary <div className="from-purple-500 to-purple-700" />';
+  const freshHit = '// canary <div className="from-purple-400 to-purple-600" />';
+
+  // Run lazily, once, by whichever offender test asks first.
+  let sharedRun: Promise<GateRun> | undefined;
+  const plantedRun = () =>
+    (sharedRun ??= withPlanted(
+      [
+        [PURPLE_VICTIM, '// canary <div className="bg-gradient-to-r from-purple-500 to-purple-700" />'],
+        [INTER_VICTIM, 'import { Inter } from "next/font/google";'],
+        [ROBOTO_VICTIM, 'import { Roboto } from "next/font/google";'],
+        [WAIVER_VICTIM, `${waivedLine}\n${freshHit}`],
+      ],
+      (r) => r,
+    ));
+
+  it("passes on the current tree, with the worker's event loop free while bash runs", async () => {
+    // A 50 ms ticker measures the longest stretch the loop was blocked. A synchronous
+    // spawn blocks it for the whole run (that is what starved the runner's RPC);
+    // an async one leaves only small gaps. The bound is relative to the run, so a
+    // loaded machine that slows both does not fail it.
+    let last = Date.now();
+    let maxGap = 0;
+    const ticker = setInterval(() => {
+      const now = Date.now();
+      maxGap = Math.max(maxGap, now - last);
+      last = now;
+    }, 50);
+    const started = Date.now();
+    const r = await run();
+    const elapsed = Date.now() - started;
+    // One more turn of the loop, so a ticker that was starved gets to record its gap
+    // before it is cleared; without this a blocked loop reads as maxGap 0.
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    clearInterval(ticker);
+
     expect(r.code, r.out).toBe(0);
     expect(r.out).toContain("no anti-slop UI patterns");
-  });
+    expect(maxGap, `the event loop was blocked for ${maxGap} ms of a ${elapsed} ms gate run`).toBeLessThan(elapsed / 2);
+  }, GATE_TIMEOUT_MS);
 
-  it("CANARY: a purple SaaS gradient turns it red and names the file", () => {
-    const victim = "components/ui/glass-card.tsx";
-    withPlanted(victim, '// canary <div className="bg-gradient-to-r from-purple-500 to-purple-700" />', (r) => {
-      expect(r.code, "the gate did not fire on a planted purple gradient").toBe(1);
-      expect(r.out).toContain(victim);
-      expect(r.out).toContain("Purple-on-white SaaS gradients");
-    });
-    expect(run().code, "restore failed — the tree is dirty").toBe(0);
-  });
+  it("CANARY: a purple SaaS gradient turns it red and names the file", async () => {
+    const r = await plantedRun();
+    expect(r.code, "the gate did not fire on a planted purple gradient").toBe(1);
+    expect(section(r.out, "Purple-on-white SaaS gradients:"), "the purple victim is not named under its heading").toContain(PURPLE_VICTIM);
+  }, GATE_TIMEOUT_MS);
 
-  it("CANARY: an Inter font import turns it red", () => {
-    const victim = "components/ui/glass-card.tsx";
-    withPlanted(victim, 'import { Inter } from "next/font/google";', (r) => {
-      expect(r.code, "the gate did not fire on a planted Inter import").toBe(1);
-      expect(r.out).toContain("Inter font imports");
-    });
-    expect(run().code, "restore failed — the tree is dirty").toBe(0);
-  });
+  it("CANARY: an Inter font import turns it red and names the file", async () => {
+    const r = await plantedRun();
+    expect(r.code, "the gate did not fire on a planted Inter import").toBe(1);
+    expect(section(r.out, "Inter font imports:"), "the Inter victim is not named under its heading").toContain(INTER_VICTIM);
+  }, GATE_TIMEOUT_MS);
 
-  it("CANARY: a Roboto import in the canonical order turns it red (same order-bug)", () => {
+  it("CANARY: a Roboto import in the canonical order turns it red (same order-bug)", async () => {
     // The Roboto/Arial alternation carried the identical defect as the Inter
     // one and was fixed in the same pass. Proven here so the fix cannot silently
     // regress the way the original did.
-    const victim = "components/ui/glass-card.tsx";
-    withPlanted(victim, 'import { Roboto } from "next/font/google";', (r) => {
-      expect(r.code, "the gate did not fire on a planted Roboto import").toBe(1);
-      expect(r.out).toContain("Roboto/Arial AI-default fonts");
-    });
-    expect(run().code, "restore failed — the tree is dirty").toBe(0);
-  });
+    const r = await plantedRun();
+    expect(r.code, "the gate did not fire on a planted Roboto import").toBe(1);
+    expect(section(r.out, "Roboto/Arial AI-default fonts:"), "the Roboto victim is not named under its heading").toContain(ROBOTO_VICTIM);
+  }, GATE_TIMEOUT_MS);
 
   /**
    * The script's own comment stakes this claim and nothing tested it:
@@ -245,25 +328,125 @@ describe("the gate FIRES on the tree it is pointed at", () => {
    * the control. So the waiver is now PLANTED here, and the arm holds whether
    * or not any file in the tree happens to carry a marker today.
    */
-  it("the waiver is BY SIGNATURE: a waived line passes, a NEW hit in that same FILE still fires", () => {
-    const victim = "components/ui/glass-card.tsx";
-    const waivedLine = '// anti-slop-allow 2026-09-16 canary <div className="from-purple-500 to-purple-700" />';
-    const freshHit = '// canary <div className="from-purple-400 to-purple-600" />';
-
-    // Half 1 — the marker really exempts its own line, or the "fires" half
-    // below would be indistinguishable from a gate that ignores waivers.
-    withPlanted(victim, waivedLine, (r) => {
+  // Half 1 — the marker really exempts its own line, or the "fires" half
+  // below would be indistinguishable from a gate that ignores waivers. It needs a
+  // run with no other offender in the tree, so it keeps its own.
+  it("the waiver is BY SIGNATURE (1/2): a waived line passes", async () => {
+    await withPlanted([[WAIVER_ONLY_VICTIM, waivedLine]], (r) => {
       expect(r.code, `a line carrying anti-slop-allow was reported anyway:\n${r.out}`).toBe(0);
     });
+  }, GATE_TIMEOUT_MS);
 
-    // Half 2 — and the exemption does not spread to the file. If waivers were
-    // file-scoped the fresh hit below would be invisible, which is the exact
-    // blindness the script's comment says was avoided.
-    withPlanted(victim, `${waivedLine}\n${freshHit}`, (r) => {
-      expect(r.code, "a new purple gradient beside a waived one was not reported — the waiver is file-scoped").toBe(1);
-      expect(r.out).toContain(victim);
+  // Half 2 — and the exemption does not spread to the file. If waivers were
+  // file-scoped the fresh hit planted beside the waived line would be invisible,
+  // which is the exact blindness the script's comment says was avoided. It
+  // shares the offenders' run: the victim holds a waived line and a fresh hit.
+  it("the waiver is BY SIGNATURE (2/2): a NEW hit in that same FILE still fires", async () => {
+    const r = await plantedRun();
+    expect(r.code).toBe(1);
+    expect(
+      section(r.out, "Purple-on-white SaaS gradients:"),
+      "a new purple gradient beside a waived one was not reported — the waiver is file-scoped",
+    ).toContain(WAIVER_VICTIM);
+  }, GATE_TIMEOUT_MS);
+
+  // The blast radius of a failed restore is five tracked files, so the restore is
+  // pinned on its own, with scratch files that are not in the repo: no gate run, and
+  // nothing in the tree to leave dirty if this very helper regresses.
+  describe("planted files are put back even when the run throws", () => {
+    const { mkdtempSync, rmSync } = require("node:fs") as typeof import("node:fs");
+    const { tmpdir } = require("node:os") as typeof import("node:os");
+    const { join } = require("node:path") as typeof import("node:path");
+
+    const scratch = (...names: string[]) => {
+      const dir = mkdtempSync(join(tmpdir(), "anti-slop-restore-"));
+      const files = names.map((name, i) => {
+        const path = join(dir, name);
+        wf(path, `original ${i}\n`, "utf8");
+        return path;
+      });
+      return { dir, files, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
+    };
+
+    it("a gate run that throws still restores every planted file, and the error surfaces", async () => {
+      const { files, cleanup } = scratch("a.tsx", "b.tsx", "c.tsx");
+      const originals = files.map((f) => rf(f, "utf8"));
+      const seenPlanted: boolean[] = [];
+      try {
+        await expect(
+          withPlanted(
+            files.map((f) => [f, "PLANTED"] as [string, string]),
+            () => undefined,
+            async () => {
+              // the files really were planted when the gate would have run
+              seenPlanted.push(...files.map((f) => rf(f, "utf8").includes("PLANTED")));
+              throw new Error("spawn failed");
+            },
+          ),
+        ).rejects.toThrow("spawn failed");
+
+        expect(seenPlanted).toEqual([true, true, true]);
+        expect(files.map((f) => rf(f, "utf8"))).toEqual(originals);
+      } finally {
+        cleanup();
+      }
     });
 
-    expect(run().code, "restore failed — the tree is dirty").toBe(0);
+    it("a callback that throws (a failed assertion) still restores", async () => {
+      const { files, cleanup } = scratch("a.tsx", "b.tsx");
+      const originals = files.map((f) => rf(f, "utf8"));
+      try {
+        await expect(
+          withPlanted(
+            files.map((f) => [f, "PLANTED"] as [string, string]),
+            () => {
+              throw new Error("assertion failed");
+            },
+            async () => ({ code: 0, out: "" }),
+          ),
+        ).rejects.toThrow("assertion failed");
+
+        expect(files.map((f) => rf(f, "utf8"))).toEqual(originals);
+      } finally {
+        cleanup();
+      }
+    });
+
+    it("one file that cannot be written back does not stop the others being restored, and the failure is thrown", async () => {
+      const { files, cleanup } = scratch("a.tsx", "b.tsx", "c.tsx");
+      const [first, second, third] = files;
+      const originalThird = rf(third, "utf8");
+      try {
+        await expect(
+          withPlanted(
+            files.map((f) => [f, "PLANTED"] as [string, string]),
+            () => undefined,
+            async () => {
+              // make the FIRST restore impossible: replace the file with a directory of the same name
+              rmSync(first, { force: true });
+              require("node:fs").mkdirSync(first);
+              return { code: 0, out: "" };
+            },
+          ),
+        ).rejects.toThrow(/restore failed/);
+
+        expect(rf(second, "utf8")).toBe("original 1\n");
+        expect(rf(third, "utf8")).toBe(originalThird);
+      } finally {
+        cleanup();
+      }
+    });
+
+    it("CONTROL: a normal run restores too, and returns the callback's value", async () => {
+      const { files, cleanup } = scratch("a.tsx");
+      const original = rf(files[0], "utf8");
+      try {
+        const value = await withPlanted([[files[0], "PLANTED"]], (r) => `${r.code}:${r.out}`, async () => ({ code: 7, out: "x" }));
+        expect(value).toBe("7:x");
+        expect(rf(files[0], "utf8")).toBe(original);
+      } finally {
+        cleanup();
+      }
+    });
   });
 });

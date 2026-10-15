@@ -358,6 +358,18 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     // (5 of those 9 would buffer). Nine turns cannot justify adding latency to
     // a lane; this needs a full week of stamped rows. It also depends on
     // NICK_EVIDENCE_ENFORCEMENT, whose E4 verdict above is currently REFUTED.
+    //
+    // WARNING before arming this together with NICK_EVIDENCE_ENFORCEMENT: the buffered
+    // lane hands the model the turn's WRITE tools (alternate-paths.ts, the preflush
+    // generateText call) and runs them inside generateText, outside the streamText
+    // onChunk feed that fills the in-flight tool record the errored-turn row and the
+    // Retry gate read (lib/services/chat/in-flight-tool-calls.ts). A write it runs is
+    // tracked only in lanesRanWrites, a fall-through guard, so a lane that errors after
+    // a write leaves a row that can claim nothing ran. Reported dormant on
+    // 2026-10-15 (neither flag set in prod); re-check the Railway env before arming.
+    // Fix description: job 2026-10-15-t2-streaming-receipts, RISK 2 (feed the lane's
+    // tool calls into the turn's record, or strip mutating tools from the lane as
+    // the regen and self-consistency lanes do through genBase).
     ownerDoc: "app/api/ai/chat/alternate-paths.ts",
   },
   {

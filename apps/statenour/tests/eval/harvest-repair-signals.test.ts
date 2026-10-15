@@ -274,6 +274,25 @@ describe("reclassifyByReply · the reply names what 'try again' cannot", () => {
     expect(toolsFiredOf(null)).toEqual([]);
   });
 
+  // An errored turn whose receipts could not be recorded says receiptsUnavailable.
+  // Reading that as "no tools fired" would let the replay re-flag a claim whose
+  // tool may have run, so the tools are UNKNOWN (null) and nothing is promoted.
+  it("toolsFiredOf reads receiptsUnavailable as UNKNOWN (null), not as zero tools", () => {
+    expect(toolsFiredOf({ receiptsUnavailable: true })).toBeNull();
+    expect(toolsFiredOf({ receiptsUnavailable: true, receipt: { toolsFired: [{ toolName: "createTask" }] } })).toBeNull();
+    expect(toolsFiredOf({ receiptsUnavailable: false })).toEqual([]);
+  });
+
+  it("unknown tools never promote a banner, even to a detector that would flag it", () => {
+    const alwaysFlags = () => true;
+    expect(reclassifyByReply(generic, bannered, alwaysFlags, null)).toEqual({
+      ...generic,
+      label: "go-deeper·verifier-banner-retracted",
+    });
+    // control: the same detector with the tools KNOWN to be empty does promote
+    expect(reclassifyByReply(generic, bannered, alwaysFlags, []).failureClass).toBe("FALSE_COMPLETION");
+  });
+
   it("a banner the current detector RETRACTS keeps the repair generic and labels it", () => {
     expect(reclassifyByReply(generic, bannered, () => false)).toEqual({
       ...generic,

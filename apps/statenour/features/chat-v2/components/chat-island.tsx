@@ -19,6 +19,7 @@ import { RealtimeVoiceOverlay } from "@/components/chat/realtime-voice-overlay";
 import { MemoryInspectorSidebar } from "@/components/chat/memory-inspector-sidebar";
 import { extractQuality } from "@/lib/chat/extract-message-metadata";
 import { useConversations } from "@/hooks/use-conversations";
+import type { SavedRow } from "../lib/saved-turn";
 import { useChatDeepLinkPrefill } from "../hooks/use-chat-deep-link-prefill";
 import { useTts } from "../hooks/use-tts";
 
@@ -131,7 +132,11 @@ export function ChatIsland() {
   const setMemoryData = useChatUiStore((state) => state.setMemoryData);
   const [memoryFetchedAt, setMemoryFetchedAt] = useState<Date | null>(null);
 
-  const chat = useChatStream();
+  // Retry after a stream error reads the conversation as saved before it replays a
+  // turn. useConversations owns the tRPC client but is created after this hook, so
+  // the reader reaches the chat through a ref.
+  const readSavedTurnRef = useRef<((id: string, signal?: AbortSignal) => Promise<readonly SavedRow[] | null>) | undefined>(undefined);
+  const chat = useChatStream({ readSavedTurn: (id, signal) => readSavedTurnRef.current?.(id, signal) ?? Promise.resolve(null) });
   // 2026-08-27 · read-aloud narration. The hook owns the persisted
   // preference + streaming follower; the island only hands it to the
   // composer (toggle chip) and the message list (per-message replay).
@@ -144,6 +149,17 @@ export function ChatIsland() {
     setMessages: chat.setMessages,
     onError: (message) => console.error("useConversations error:", message),
   });
+  useEffect(() => {
+    readSavedTurnRef.current = conversations.readSavedTurn;
+  }, [conversations.readSavedTurn]);
+  // Every path here that empties or switches the conversation (pick one, New, delete the active one)
+  // goes through this: the old turn's error, trace refs and outstanding replay are reset BEFORE the
+  // active conversation moves, so none of it stays attached to the next chat. resetTurn leaves a turn
+  // that is still in flight alone. The composer's /new calls chat.resetTurn() itself, in the same order.
+  const moveToConversation = (id: string | null) => {
+    chat.resetTurn();
+    setActiveConversationId(id);
+  };
   const { containerRef, endRef, isAtBottom, scrollToBottom } = useScrollToBottom<HTMLDivElement>();
   const islandRef = useRef<HTMLDivElement>(null);
 
@@ -413,21 +429,21 @@ export function ChatIsland() {
             loadingMore={conversations.loadingMore}
             onLoadMore={conversations.loadMoreConvos}
             onSelect={(id) => {
-              setActiveConversationId(id);
+              moveToConversation(id);
               void conversations.loadConvo(id);
               setHistoryDrawerOpen(false);
             }}
             onDelete={(id, event) => {
               const wasActive = conversations.activeId === id;
               void conversations.deleteConvo(id, event).then((ok) => {
-                if (ok && wasActive) setActiveConversationId(null);
+                if (ok && wasActive) moveToConversation(null);
               });
             }}
             onRename={conversations.renameConvo}
             onTogglePin={conversations.togglePin}
             onArchive={(id) => conversations.patchConvoFlag(id, "archived", true)}
             onNew={() => {
-              setActiveConversationId(null);
+              moveToConversation(null);
               conversations.newChat();
               setHistoryDrawerOpen(false);
             }}

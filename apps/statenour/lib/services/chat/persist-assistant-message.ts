@@ -18,6 +18,7 @@ import type { Prisma } from "@prisma/client";
 import { withErrorCapture } from "@/lib/errors/record-error";
 import { buildVerifierBanner, isVerifierRewritten, buildKnownTruthBanner } from "@/lib/ai/chat/fabrication-rewriter";
 import { canClaimDone, receiptsWithReadBack, summarizeClaimDoneShadow } from "@/lib/ai/receipts/action-receipt";
+import { toolReceiptRows } from "@/lib/ai/receipts/tool-receipt-rows";
 import { verifyEnvironmentState, type EnvironmentVerificationResult } from "@/lib/ai/chat/environment-verifier";
 import { buildMessageParts } from "./message-parts";
 import type { CapturedToolCall } from "./tool-telemetry-walk";
@@ -573,18 +574,11 @@ export async function persistAssistantMessage(a: {
               // ran, whether it mutates, how far it was verified. No args, no
               // results — both can carry secrets or PII. Read by
               // lib/observability/claim-done-calibration.ts the same day.
-              // Always an array: [] records "no tool ran", so the Retry gate can tell it from
-              // a row with no receipts at all (unknown, e.g. the errored-turn writer).
-              toolReceipts: (receipts.map((r) => ({
-                    toolName: r.toolName,
-                    category: r.category,
-                    sideEffecting: r.sideEffecting,
-                    verifiable: r.verifiable,
-                    status: r.status,
-                    verificationState: r.verificationState,
-                    entityType: r.entityType ?? null,
-                    entityId: r.entityId ?? null,
-                  })) as Prisma.InputJsonValue),
+              // Always an array: [] records "no SDK tool ran", so the Retry gate can tell it from
+              // a row with no receipts at all (unknown, e.g. an aborted row or one older than this field).
+              // An action block in the reply text runs after this write and leaves no receipt, so the
+              // gate reads the text too; [] does not vouch for those.
+              toolReceipts: (toolReceiptRows(receipts) as Prisma.InputJsonValue),
               factCheck: factClaims.length > 0
                 ? {
                     total: factClaims.length,

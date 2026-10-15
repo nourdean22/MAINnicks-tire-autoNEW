@@ -31,14 +31,13 @@
  * disk-reading scanner found nothing while the secret entered the commit.
  */
 import { describe, expect, it } from "vitest";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { tmpdir } from "node:os";
 
 const APP = resolve(__dirname, "..", "..");
 const SCRIPT = "scripts/scan-secrets.ts";
-const CHILD_MAX_BUFFER = 8 * 1024 * 1024;
 
 /** Obviously fake, matches `\bAKIA[0-9A-Z]{16}\b`, and on no allow-list. */
 const FAKE_KEY = `AKIA${"Q".repeat(16)}`;
@@ -54,45 +53,59 @@ function gitDirOf(): string {
 }
 
 /**
+ * spawnSync's result shape without spawnSync's cost: a synchronous child holds the vitest
+ * worker's event loop for the whole run (the tsx scan is ~5 s quiet, far longer loaded),
+ * so under load the worker could not answer the runner's RPC and the file died with
+ * "Timeout calling onTaskUpdate" though no test failed.
+ */
+function spawnAsync(
+  cmd: string,
+  args: string[],
+  opts: { cwd: string; env: NodeJS.ProcessEnv; input?: string; shell?: boolean; timeout?: number },
+): Promise<{ status: number | null; stdout: string; stderr: string }> {
+  return new Promise((done) => {
+    const child = spawn(cmd, args, { cwd: opts.cwd, env: opts.env, shell: opts.shell, timeout: opts.timeout, stdio: ["pipe", "pipe", "pipe"] });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.setEncoding("utf8").on("data", (d: string) => (stdout += d));
+    child.stderr.setEncoding("utf8").on("data", (d: string) => (stderr += d));
+    child.stdin.on("error", () => {}); // the child may exit before it reads its input
+    child.on("error", (e) => done({ status: null, stdout, stderr: `${stderr}${e.message}` }));
+    child.on("close", (status) => done({ status, stdout, stderr }));
+    child.stdin.end(opts.input ?? "");
+  });
+}
+
+/**
  * Stage `source` as STAGED_AS in a throwaway index and run the scanner.
  * `extraEnv` exists to replay the real hook environment on purpose.
  */
-function runStaged(source: string | null, extraEnv: Record<string, string> = {}, args: string[] = []) {
+async function runStaged(source: string | null, extraEnv: Record<string, string> = {}, args: string[] = []) {
   const indexFile = join(tmpdir(), `ss-canary-${process.pid}-${Math.random().toString(36).slice(2)}.index`);
   const env = { ...process.env, GIT_INDEX_FILE: indexFile, ...extraEnv };
-  const git = (args: string[], input?: string) =>
-    spawnSync("git", args, { cwd: APP, env, encoding: "utf8", input, maxBuffer: CHILD_MAX_BUFFER });
+  const git = (args: string[], input?: string) => spawnAsync("git", args, { cwd: APP, env, input });
   try {
-    expect(git(["read-tree", "HEAD"]).status, "could not seed the scratch index").toBe(0);
+    expect((await git(["read-tree", "HEAD"])).status, "could not seed the scratch index").toBe(0);
 
     if (source !== null) {
       // The sentinel stages a cacheinfo entry pointing at an object that does
       // NOT exist, so `git cat-file -s :<path>` fails — an index entry the
       // scanner cannot read. That is the only way to reach the unreadable
       // branch now that the read goes through the object store.
-      const sha =
-        source === UNREADABLE
-          ? "0000000000000000000000000000000000000001"
-          : (() => {
-              const blob = git(["hash-object", "-w", "--stdin"], source);
-              expect(blob.status, "could not write the probe blob").toBe(0);
-              return blob.stdout.trim();
-            })();
+      let sha = "0000000000000000000000000000000000000001";
+      if (source !== UNREADABLE) {
+        const blob = await git(["hash-object", "-w", "--stdin"], source);
+        expect(blob.status, "could not write the probe blob").toBe(0);
+        sha = blob.stdout.trim();
+      }
       expect(
-        git(["update-index", "--add", "--cacheinfo", `100644,${sha},${STAGED_AS}`]).status,
+        (await git(["update-index", "--add", "--cacheinfo", `100644,${sha},${STAGED_AS}`])).status,
         "could not stage the probe into the scratch index",
       ).toBe(0);
     }
 
-    const r = spawnSync("pnpm", ["exec", "tsx", SCRIPT, "--staged", ...args], {
-      cwd: APP,
-      env,
-      encoding: "utf8",
-      shell: true,
-      timeout: 180_000,
-      maxBuffer: CHILD_MAX_BUFFER,
-    });
-    return { out: `${r.stdout ?? ""}${r.stderr ?? ""}`, code: r.status };
+    const r = await spawnAsync("pnpm", ["exec", "tsx", SCRIPT, "--staged", ...args], { cwd: APP, env, shell: true, timeout: 180_000 });
+    return { out: `${r.stdout}${r.stderr}`, code: r.status };
   } finally {
     spawnSync("node", ["-e", `require("fs").rmSync(${JSON.stringify(indexFile)},{force:true})`]);
   }
@@ -116,8 +129,8 @@ const BENIGN = `export const GREETING = "hello";\n`;
 const UNREADABLE = "UNREADABLE_SENTINEL_no_blob_in_the_object_store";
 
 describe("scan-secrets --staged actually scans", () => {
-  it("BREAKS: it catches a staged key under the REAL hook env (valid GIT_DIR)", () => {
-    const { out, code } = runStaged(VIOLATION, { GIT_DIR: gitDirOf() });
+  it("BREAKS: it catches a staged key under the REAL hook env (valid GIT_DIR)", async () => {
+    const { out, code } = await runStaged(VIOLATION, { GIT_DIR: gitDirOf() });
 
     // Exit code alone is not proof — a parse or config error is non-zero too.
     expect(out, "the rule was not named, so this could be an unrelated crash").toContain(RULE);
@@ -125,13 +138,13 @@ describe("scan-secrets --staged actually scans", () => {
     expect(out).not.toMatch(PASS_LINE);
   }, 200_000);
 
-  it("catches the same key in a clean env — the control the old suite had", () => {
-    const { out, code } = runStaged(VIOLATION);
+  it("catches the same key in a clean env — the control the old suite had", async () => {
+    const { out, code } = await runStaged(VIOLATION);
     expect(out).toContain(RULE);
     expect(code).not.toBe(0);
   }, 200_000);
 
-  it("a BENIGN staged file passes and reports one file scanned, in both envs", () => {
+  it("a BENIGN staged file passes and reports one file scanned, in both envs", async () => {
     // The ALLOW half. Without it, a scanner that rejected everything would score
     // green above, and the first false positive would get it switched off.
     //
@@ -141,7 +154,7 @@ describe("scan-secrets --staged actually scans", () => {
     // skip) and so said "scanned 1 files" about a file it never opened. The
     // deny cases above are what actually detect the fail-open.
     for (const [label, env] of [["clean env", {}], ["hook env", { GIT_DIR: gitDirOf() }]] as const) {
-      const { out, code } = runStaged(BENIGN, env);
+      const { out, code } = await runStaged(BENIGN, env);
       expect(code, `a clean staged file must pass (${label})`).toBe(0);
       expect(out, `the scanner did not open the staged file (${label})`).toMatch(/scanned 1 files/);
     }
@@ -154,16 +167,16 @@ describe("scan-secrets --staged actually scans", () => {
    * the same defect I had found in my own re-read, and its coverage gap was
    * real: nothing exercised the unreadable branch in either mode.
    */
-  it("BREAKS: an UNREADABLE staged entry exits non-zero and prints NO pass line", () => {
-    const { out, code } = runStaged(UNREADABLE);
+  it("BREAKS: an UNREADABLE staged entry exits non-zero and prints NO pass line", async () => {
+    const { out, code } = await runStaged(UNREADABLE);
     expect(code, "an unread staged file must not exit 0").not.toBe(0);
     expect(out).toMatch(/could not be read from the index/);
     expect(out).toMatch(/NOT scanned, NOT a pass/);
     expect(out).not.toMatch(PASS_LINE);
   }, 200_000);
 
-  it("BREAKS: --json reports the read failure instead of an empty findings array", () => {
-    const { out, code } = runStaged(UNREADABLE, {}, ["--json"]);
+  it("BREAKS: --json reports the read failure instead of an empty findings array", async () => {
+    const { out, code } = await runStaged(UNREADABLE, {}, ["--json"]);
     expect(code, "--json must not exit 0 over an unread staged file").not.toBe(0);
 
     // The payload has to CARRY the verdict — a machine consumer never sees the
@@ -175,20 +188,20 @@ describe("scan-secrets --staged actually scans", () => {
     expect(json.scanned).toBe(0);
   }, 200_000);
 
-  it("--json on a real finding still reports it, and carries scanned", () => {
+  it("--json on a real finding still reports it, and carries scanned", async () => {
     // The control for the pair above: the JSON shape change must not have
     // broken the ordinary reporting path.
-    const { out, code } = runStaged(VIOLATION, {}, ["--json"]);
+    const { out, code } = await runStaged(VIOLATION, {}, ["--json"]);
     expect(code).not.toBe(0);
     const json = JSON.parse(out.slice(out.indexOf("{"), out.lastIndexOf("}") + 1));
     expect(json.findings.map((f: { rule: string }) => f.rule)).toContain(RULE);
     expect(json.scanned).toBe(1);
   }, 200_000);
 
-  it("NOTHING STAGED does not borrow the pass line", () => {
+  it("NOTHING STAGED does not borrow the pass line", async () => {
     // The CI shape: a checkout stages nothing, so a bare --staged run reads
     // nothing. That must not look like a clean bill of health.
-    const { out, code } = runStaged(null);
+    const { out, code } = await runStaged(null);
     expect(code, "an empty staged set is not an error").toBe(0);
     expect(out).toMatch(/NOTHING SCANNED/);
   }, 200_000);

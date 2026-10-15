@@ -116,6 +116,13 @@ export interface RawActionResult {
  * "needs approval / external write" notion). For action honesty we also count
  * any `*_write` category (createTask, completeTask, pinMemory, journalDecision,
  * …) and every action-block MUTATION. Pure reads stay false.
+ *
+ * This is the Done-guard's question: did a KNOWN write fail? It is deliberately
+ * not the Retry gate's default-deny (would a replay repeat anything?, answered by
+ * isReplaySafeTool in lib/ai/capability-registry.ts). Sharing that rule here made a
+ * failed runCode, or a failed call to a tool nobody had reviewed yet, prepend a
+ * false "claimed action(s) ... but tool call(s) failed" banner to a reply that
+ * claimed nothing.
  */
 export type ToolEffectClass = "write" | "read" | "unknown";
 
@@ -140,10 +147,7 @@ export function classifyToolEffect(toolName: string): ToolEffectClass {
 }
 
 export function isSideEffecting(toolName: string): boolean {
-  if (MUTATION_ACTIONS.has(toolName)) return true;
-  const meta = getToolMeta(toolName);
-  if (!meta) return false;
-  return meta.sideEffecting === true || meta.category.endsWith("_write");
+  return classifyToolEffect(toolName) === "write";
 }
 
 /** Tiny deterministic id (djb2) — no crypto import, stable for tests. */

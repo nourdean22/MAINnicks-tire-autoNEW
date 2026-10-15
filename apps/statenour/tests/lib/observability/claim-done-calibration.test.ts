@@ -131,12 +131,15 @@ describe("toolReceipts · writer and reader ship together", () => {
 
   it("persist writes tokenUsage.toolReceipts", () => {
     // Always an array ([] = "no tool ran"), so the Retry gate can tell it from a row with no receipts.
-    expect(persist).toMatch(/toolReceipts:\s*\(receipts\.map\(/);
+    expect(persist).toMatch(/toolReceipts:\s*\(toolReceiptRows\(receipts\)/);
   });
   it("the projection carries no args and no results", () => {
-    const block = persist.slice(persist.indexOf("toolReceipts:"), persist.indexOf("toolReceipts:") + 900);
-    expect(block).not.toMatch(/\bargs\b/);
-    expect(block).not.toMatch(/\bresult\b/);
+    // The projection lives in toolReceiptRows now (shared with the errored-turn writer);
+    // tests/ai/receipts/tool-receipt-rows.test.ts pins its eight fields by behavior.
+    const rows = readFileSync(resolve(process.cwd(), "lib/ai/receipts/tool-receipt-rows.ts"), "utf8");
+    const code = rows.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
+    expect(code).not.toMatch(/\bargs\b/);
+    expect(code).not.toMatch(/\bresult\b/);
   });
   it("the reader reads it, and the digest exposes the reader", () => {
     expect(reader).toContain("toolReceipts");
@@ -157,7 +160,7 @@ describe("toolReceipts · writer and reader ship together", () => {
     const projection = code.indexOf("toolReceipts:");
     expect(join, "receiptsWithReadBack join not found").toBeGreaterThan(-1);
     expect(projection, "toolReceipts projection not found").toBeGreaterThan(join);
-    expect(code.slice(projection, projection + 200)).toMatch(/toolReceipts:\s*\(receipts\.map\(/);
+    expect(code.slice(projection, projection + 200)).toMatch(/toolReceipts:\s*\(toolReceiptRows\(receipts\)/);
   });
 
   it("P2 · the reader filters on the claimDoneShadow KEY, not merely on tokenUsage being present", () => {

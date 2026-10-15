@@ -17,6 +17,24 @@ import type { ContextBlocks } from "@/components/chat/context-block-badges";
 import { looksLikeImageGenerationRequest } from "@/lib/ai/chat/handlers/patterns";
 import { bindPersistedMessage, stopTurn as requestStop, type StoppedTurn } from "../lib/turn-lifecycle";
 import { turnHasSideEffect } from "../lib/turn-side-effect";
+import {
+  judgeAfterUnansweredReplay,
+  judgeSavedTurn,
+  latestTurnTraces,
+  RETRY_HELD_NO_RECORD,
+  RETRY_HELD_RAN,
+  RETRY_HELD_RESENT_UNKNOWN,
+  RETRY_HELD_UNCONFIRMED,
+  RETRY_STILL_CHECKING,
+  type SavedRow,
+  type SavedTurnVerdict,
+} from "../lib/saved-turn";
+
+/** How long Retry waits for the saved turn before it gives up and holds. */
+const SAVED_TURN_READ_TIMEOUT_MS = 12_000;
+
+/** What the saved-turn check decided: replay, say nothing (the operator moved on), or hold with this message. */
+type SavedTurnCheck = { kind: "go"; rows: readonly SavedRow[] | null } | { kind: "stale" } | { kind: "hold"; message: string };
 
 const PAGE_ANCHOR_KEYS = [
   "lastTaskId",
@@ -32,7 +50,15 @@ const PAGE_ANCHOR_KEYS = [
   "contextRoute",
 ] as const;
 
-export function useChatStream(): ChatRuntimeController {
+export type UseChatStreamOptions = {
+  /**
+   * Reads the conversation as saved (every row, oldest first), fresh from the server. Retry after
+   * a stream error asks it before replaying. The signal is aborted when Retry gives up waiting.
+   */
+  readSavedTurn?: (conversationId: string, signal?: AbortSignal) => Promise<readonly SavedRow[] | null>;
+};
+
+export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeController {
   const activeConversationId = useChatUiStore((s) => s.activeConversationId);
   const setActiveConversationId = useChatUiStore((s) => s.setActiveConversationId);
   const setConnection = useChatUiStore((s) => s.setConnection);
@@ -47,6 +73,17 @@ export function useChatStream(): ChatRuntimeController {
   const bodyRef = useRef<Record<string, unknown>>({ conversationId: activeConversationId });
   const liveContextBlocksRef = useRef<ContextBlocks | null>(null);
   const lastTraceIdRef = useRef<string | null>(null);
+  // "A replay is outstanding": replay() records the trace it re-ran (`from`, null allowed: a cold page,
+  // a conversation opened from history, or a reply that came back with no trace header all leave it
+  // null). A replay whose POST dies before any response header leaves lastTraceId unchanged, and one
+  // answered WITHOUT a header (429, 5xx, a gateway) nulls it, so the client cannot tell whether the
+  // server (which does not stop when the client disconnects) is running it. While the record stands
+  // and an error is set, Retry and the auto retry are judged from the saved turn instead of replaying
+  // blind, whatever the trace in hand is. An explicit record, not a trace comparison: a comparison
+  // was off whenever the trace in hand was null, or became null.
+  // Cleared by a new send, by opening another conversation when nothing is in flight, and by a response
+  // that carries a trace header other than `from`.
+  const replayOutstandingRef = useRef<{ from: string | null } | null>(null);
   const [liveContextBlocks, setLiveContextBlocks] = useState<ContextBlocks | null>(null);
   const [lastTraceId, setLastTraceId] = useState<string | null>(null);
   const lastPersonaHeaderRef = useRef(null);
@@ -191,7 +228,13 @@ export function useChatStream(): ChatRuntimeController {
     onLiveContextBlocks: setLiveContextBlocks,
     lastPersonaHeaderRef,
     lastTraceIdRef,
-    onTraceId: setLastTraceId,
+    onTraceId: useCallback((id: string) => {
+      // A response that carries a trace answered the request: a replay is no longer outstanding. The very
+      // trace it re-ran (a resume of that same turn) is not an answer to the replay.
+      const outstanding = replayOutstandingRef.current;
+      if (outstanding && id !== outstanding.from) replayOutstandingRef.current = null;
+      setLastTraceId(id);
+    }, []),
     setDeeperContext: () => {},
     onConversationId: useCallback(
       (id: string) => setActiveConversationId(id),
@@ -268,6 +311,105 @@ export function useChatStream(): ChatRuntimeController {
   // The trace id in hand when the latest request went out. A different one
   // after a network kill means the POST was answered: the server has the turn.
   const traceAtSendRef = useRef<string | null>(null);
+  // Every trace this turn's replays have already acted on: the one each replay re-ran, every trace in
+  // the rows a replay was approved on, and every trace the hydrated messages carried when a replay
+  // started (rows the client never saw cannot approve a replay whose attempt may be running unseen).
+  // A replay whose POST gets no header is judged blind, and a clean row only proves the attempt BEFORE
+  // the one that may be running, so a row in this set can never approve the next blind replay
+  // (otherwise one clean row would approve a chain of them). Same lifetime as replayOutstandingRef:
+  // a new send or opening another conversation (when nothing is in flight) clears it. It is not
+  // cleared when a header arrives: an older acknowledged attempt must not later count as proof.
+  const acknowledgedTracesRef = useRef<Set<string>>(new Set());
+
+  // Retry after a stream error that the server owns: read the saved turn, then
+  // replay only if every saved row says a replay repeats nothing AND a saved row
+  // names the attempt that failed. One check at a time, so a second tap cannot
+  // start a second replay; the flag is released whatever the check does.
+  const checkingSavedTurnRef = useRef(false);
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+  const readSavedTurnRef = useRef(options?.readSavedTurn);
+  useEffect(() => {
+    readSavedTurnRef.current = options?.readSavedTurn;
+  }, [options?.readSavedTurn]);
+
+  const checkSavedTurn = useCallback(async (judge: (rows: readonly SavedRow[] | null) => SavedTurnVerdict, unconfirmedMessage: string): Promise<SavedTurnCheck> => {
+    // What the tap saw. If any of it moves while the saved turn is read, a replay would act on a
+    // different turn (regenerate takes whatever message is last at that moment). Message ids are
+    // left out on purpose: binding the reply to its database id renames the last message without
+    // changing the turn.
+    const turnKey = () =>
+      [
+        privateModeRef.current ? "private" : useChatUiStore.getState().activeConversationId,
+        lastTraceIdRef.current,
+        messagesRef.current.length,
+        messagesRef.current[messagesRef.current.length - 1]?.role,
+      ].join("|");
+    const keyAtTap = turnKey();
+    try {
+      const conversationId = privateModeRef.current ? null : useChatUiStore.getState().activeConversationId;
+      const read = readSavedTurnRef.current;
+      // Private Lab writes no row, and no conversation or reader means nothing to read: waiting never helps.
+      if (!conversationId || !read) return { kind: "hold", message: RETRY_HELD_NO_RECORD };
+
+      let rows: readonly SavedRow[] | null = null;
+      const controller = new AbortController();
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        rows = await Promise.race([
+          read(conversationId, controller.signal),
+          new Promise<null>((resolve) => {
+            timer = setTimeout(() => {
+              controller.abort();
+              resolve(null);
+            }, SAVED_TURN_READ_TIMEOUT_MS);
+          }),
+        ]);
+      } catch {
+        rows = null;
+      } finally {
+        clearTimeout(timer);
+      }
+
+      // The operator moved on while the read was out: say nothing about the old reply, replay nothing.
+      if (!mountedRef.current || turnKey() !== keyAtTap) return { kind: "stale" };
+
+      const verdict = judge(rows);
+      if (verdict === "ran") return { kind: "hold", message: RETRY_HELD_RAN };
+      if (verdict === "unconfirmed") return { kind: "hold", message: unconfirmedMessage };
+      return { kind: "go", rows };
+    } catch {
+      return { kind: "hold", message: unconfirmedMessage };
+    }
+  }, []);
+  const replayIfSavedTurnAllows = useCallback(
+    async (
+      replay: () => Promise<void>,
+      judge: (rows: readonly SavedRow[] | null) => SavedTurnVerdict,
+      unconfirmedMessage: string = RETRY_HELD_UNCONFIRMED,
+    ): Promise<void> => {
+      // An earlier check may hold the flag for up to the read timeout: say so, a silent tap reads as a dead button.
+      if (checkingSavedTurnRef.current) return void toast.error(RETRY_STILL_CHECKING);
+      checkingSavedTurnRef.current = true;
+      try {
+        const check = await checkSavedTurn(judge, unconfirmedMessage);
+        if (check.kind === "hold") return void toast.error(check.message);
+        if (check.kind === "go") {
+          // Acknowledge what this replay was approved on BEFORE it posts, so the same rows cannot approve the next one.
+          for (const trace of latestTurnTraces(check.rows)) acknowledgedTracesRef.current.add(trace);
+          await replay();
+        }
+      } finally {
+        checkingSavedTurnRef.current = false;
+      }
+    },
+    [checkSavedTurn],
+  );
 
   // R3-05 (04-F7 + 04-H4): the one choke point for a replay. Every Retry
   // (error card, interrupted card, cut-off and refused chips, quality bar) and
@@ -294,13 +436,39 @@ export function useChatStream(): ChatRuntimeController {
         toast.error("That reply may have run an action, so it can't be replayed. Send a new message instead.");
         return Promise.resolve();
       }
-      resumingRef.current = false;
-      cancelPartialResume();
-      setStopped(null);
-      traceAtSendRef.current = lastTraceIdRef.current;
-      return chat.regenerate(options);
+      const replay = () => {
+        resumingRef.current = false;
+        cancelPartialResume();
+        setStopped(null);
+        replayOutstandingRef.current = { from: lastTraceIdRef.current };
+        if (lastTraceIdRef.current) acknowledgedTracesRef.current.add(lastTraceIdRef.current);
+        // Rows the client never saw (a conversation opened from history) cannot later approve a
+        // replay whose attempt is running unseen: acknowledge what the hydrated messages carry.
+        for (const trace of latestTurnTraces(messagesRef.current as unknown as SavedRow[])) acknowledgedTracesRef.current.add(trace);
+        traceAtSendRef.current = lastTraceIdRef.current;
+        return chat.regenerate(options);
+      };
+      // A stream error is not the end of the turn: ai@6 keeps going after an error
+      // part, so a tool-call plus finish(tool-calls) after it still runs the tool on
+      // the server, and the client SDK stops reading at the error chunk, so this
+      // bubble never shows it. When the server owns the turn (it answered with a
+      // trace), only the saved record can say what ran: ask it before replaying.
+      const traceNow = lastTraceIdRef.current;
+      const serverOwnsErroredTurn = Boolean(chat.error) && Boolean(traceNow) && traceNow !== traceAtSendRef.current;
+      if (serverOwnsErroredTurn) return replayIfSavedTurnAllows(replay, (rows) => judgeSavedTurn(rows, traceNow));
+      // The latest replay sent its POST but no header came back: that attempt may be running
+      // unseen. Unknown means refuse until a later attempt's clean row proves otherwise. The record is
+      // explicit and the trace in hand is not compared with it: a header for another trace already
+      // cleared it (onTraceId), and a POST answered with NO header nulls lastTraceId, so comparing
+      // would read a trace-less 429 or 5xx after a replay from T1 as "answered".
+      const replayWentUnanswered = Boolean(chat.error) && replayOutstandingRef.current !== null;
+      if (replayWentUnanswered) {
+        const acknowledged = acknowledgedTracesRef.current;
+        return replayIfSavedTurnAllows(replay, (rows) => judgeAfterUnansweredReplay(rows, acknowledged), RETRY_HELD_RESENT_UNKNOWN);
+      }
+      return replay();
     },
-    [chat, cancelPartialResume],
+    [chat, cancelPartialResume, replayIfSavedTurnAllows],
   );
 
   // Kept fresh the same way regenerateRef is, so the network-kill reattach
@@ -369,7 +537,10 @@ export function useChatStream(): ChatRuntimeController {
       message.includes("networkerror") ||
       message.includes("fetch failed") ||
       message.includes("load failed");
-    if (!isNetworkKill) return;
+    // Added so a drop AFTER the server answered reattaches (below). Before any header they are NOT
+    // auto-replayed: they never were, and widening that was not asked for.
+    const isLaterNetworkPhrase = message.includes("network error") || message.includes("the network connection was lost");
+    if (!isNetworkKill && !isLaterNetworkPhrase) return;
 
     // A dropped resume is not a dropped send: the turn is still running (or
     // done) server-side, and the merged bubble has lost its tool parts, so
@@ -390,6 +561,9 @@ export function useChatStream(): ChatRuntimeController {
       }, 1_500 * retryCountRef.current);
       return () => clearTimeout(timer);
     }
+
+    // No header since the send: only the original phrases are auto-replayed.
+    if (!isNetworkKill) return;
 
     // 2026-07-22 · idempotency guard. A tool may have committed a real side
     // effect (Telegram send, IG autopost, customer alert) on the server BEFORE
@@ -478,6 +652,37 @@ export function useChatStream(): ChatRuntimeController {
     toast.dismiss("chat-stall");
   }, []);
 
+  // The operator opened another conversation (or a new chat). Called from the operator's own switch
+  // only: the id a first message is given from the response header is the SAME turn and must keep its
+  // binding, so nothing here reacts to the active conversation id changing by itself.
+  //
+  // Nothing in flight: the old turn's error, held interruption, trace refs, acknowledged set and
+  // outstanding replay belong to that turn and would hold Retry on a clean reply here, so all go.
+  //
+  // A request in flight (submitted or streaming): the drawer has no streaming guard and a stream keeps
+  // running across a load, so that request still owns the trace refs, the acknowledged set, the
+  // outstanding-replay record and the private flag. Wiping them made its later error look like "the
+  // server never answered" and Retry and the auto retry replayed with no read. They stay, so a later
+  // error is judged against its own trace (and fails closed if the active conversation changed).
+  // What is safe either way is cleared: the partial re-resume timer, the stall notice and held
+  // interruption, the Stop label, the auto-retry count and the SDK error.
+  const { clearError } = chat;
+  const requestInFlight = chat.status === "submitted" || chat.status === "streaming";
+  const resetTurn = useCallback(() => {
+    cancelPartialResume();
+    clearStall();
+    retryCountRef.current = 0;
+    setStopped(null);
+    clearError();
+    if (requestInFlight) return;
+    sentPrivateRef.current = false;
+    traceAtSendRef.current = null;
+    lastTraceIdRef.current = null;
+    setLastTraceId(null);
+    replayOutstandingRef.current = null;
+    acknowledgedTracesRef.current.clear();
+  }, [cancelPartialResume, clearStall, clearError, requestInFlight]);
+
   return {
     messages: chat.messages,
     status: chat.status as "submitted" | "streaming" | "ready" | "error",
@@ -486,6 +691,8 @@ export function useChatStream(): ChatRuntimeController {
     sendText: (text: string) => {
       sentPrivateRef.current = privateMode;
       resumingRef.current = false;
+      replayOutstandingRef.current = null;
+      acknowledgedTracesRef.current.clear();
       traceAtSendRef.current = lastTraceIdRef.current;
       cancelPartialResume();
       clearStall();
@@ -507,6 +714,8 @@ export function useChatStream(): ChatRuntimeController {
     append: ((...args: Parameters<typeof chat.sendMessage>) => {
       sentPrivateRef.current = privateMode;
       resumingRef.current = false;
+      replayOutstandingRef.current = null;
+      acknowledgedTracesRef.current.clear();
       traceAtSendRef.current = lastTraceIdRef.current;
       cancelPartialResume();
       clearStall();
@@ -520,6 +729,7 @@ export function useChatStream(): ChatRuntimeController {
     stopTurn,
     stopped,
     regenerate: safeRegenerate,
+    resetTurn,
     setMessages: chat.setMessages,
     liveContextBlocks,
     lastTraceId,

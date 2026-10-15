@@ -41,6 +41,7 @@ vi.mock("@/lib/brain/pipeline-controller", () => ({
 }));
 
 import { parseActions, executeActions, ACTION_CATALOG } from "../../lib/ai/nick-agent";
+import { hasActionBlock } from "@/lib/ai/chat/action-block-text";
 import { checkApprovalGate } from "@/lib/ai/runtime/approval-gate";
 import * as googleHandlers from "@/lib/ai/agent-actions/google-actions";
 import * as arsenalHandlers from "@/lib/ai/agent-actions/arsenal-actions";
@@ -173,6 +174,24 @@ describe("approval gate wiring · an executed approval is replayed, never re-run
     expect(res.success).toBe(false);
     expect(res.error).toContain('"approvalId": "req_9"');
     expect(googleHandlers.handleGmailSendDraft).not.toHaveBeenCalled();
+  });
+
+  // The Retry gate refuses a reply whose text carries an action block, because
+  // the block is executed after the stream and leaves no receipt. The gate must
+  // be at least as broad as the parser or a replay re-runs the action.
+  it("every text parseActions extracts an action from is flagged by the Retry gate's hasActionBlock", () => {
+    const texts = [
+      '```action\n{ "type": "task.create", "params": { "title": "x" } }\n```',
+      'Sure.\n```action\n[{ "type": "task.create", "params": {} }, { "type": "task.complete", "params": {} }]\n```\nDone.',
+      '[ACTION: { "type": "decision.log", "params": { "title": "y" } }]',
+      'Done. [ACTION:{"type":"memory.remember","params":{"text":"z"}}] Next.',
+    ];
+    for (const text of texts) {
+      expect(parseActions(text).length, `fixture is not parseable: ${text}`).toBeGreaterThan(0);
+      expect(hasActionBlock(text), `parsed but not flagged: ${text}`).toBe(true);
+    }
+    expect(hasActionBlock("The next action is to call Mike back.")).toBe(false);
+    expect(parseActions("The next action is to call Mike back.")).toEqual([]);
   });
 
   it("parseActions carries approvalId through from an action block", () => {
