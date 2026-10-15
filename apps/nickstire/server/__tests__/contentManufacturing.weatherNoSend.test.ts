@@ -85,6 +85,9 @@ describe("content generation never reaches the weather send path", () => {
     const r = await checkWeatherTriggers();
     expect(r.triggered).toEqual(["heavy_rain"]);
     expect(alertSystem).toHaveBeenCalledWith("Weather: Heavy Rain", expect.any(String));
+    // Heavy rain tonight is imminent, so the send path also consults the SMS gate:
+    // this is what makes the isEnabled not-called assertions below live.
+    expect(isEnabled).toHaveBeenCalledWith("weather_triggered_sms");
   });
 
   it("explodeTopic: weather lands in the prompt, no alert, SMS gate never consulted", async () => {
