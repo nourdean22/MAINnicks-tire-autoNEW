@@ -1,0 +1,242 @@
+[
+  {
+    "query": "ok what about running the skill-creator to tune the always-on skills so they trigger better, i keep having to remind you to use them",
+    "should_trigger": true,
+    "heldOut": false,
+    "origin": "tx:064b2326"
+  },
+  {
+    "query": "how can we upgrade the skill-creator and make the manager skill the best it could be, smarter and harder working and more truth seeking",
+    "should_trigger": true,
+    "heldOut": false,
+    "origin": "tx:9cad5f5c"
+  },
+  {
+    "query": "turn the checklist we just used for the ledger reconcile into a skill so the next session does it without me asking",
+    "should_trigger": true,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "write me a new skill that checks PR bodies for inline receipts, and make sure it actually fires when i ask for a PR description",
+    "should_trigger": true,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "my reel hook skill never loads, i think the description is wrong. fix the trigger and prove it fires",
+    "should_trigger": true,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "i want a skill that makes agents record a baseline before they build anything. draft it and test that it triggers on the right prompts",
+    "should_trigger": true,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "the find-skill gate description is too vague and fires on everything, rewrite the description and test it against real prompts",
+    "should_trigger": true,
+    "heldOut": true,
+    "origin": "written"
+  },
+  {
+    "query": "add a new entry under .claude/skills for the weekly retention report so it shows up when i say run the retention numbers",
+    "should_trigger": true,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "can you improve the session-observer skill? it should be easier to trigger at the end of a wave. test the new description before you commit",
+    "should_trigger": true,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "build a skill from this runbook i pasted, with evals that show it does better than having no skill at all",
+    "should_trigger": true,
+    "heldOut": true,
+    "origin": "written"
+  },
+  {
+    "query": "a skill isnt firing. the description says use when merging but i said ship it and nothing loaded. fix the routing",
+    "should_trigger": true,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "package what we learned in this session as a repo skill and make sure a fresh session can invoke it by its exact name",
+    "should_trigger": true,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "reel-hook-mechanism never fires when i say steal the mechanism, fix its trigger",
+    "should_trigger": true,
+    "heldOut": true,
+    "origin": "written"
+  },
+  {
+    "query": "our retention report skill is too chatty and nobody loads it. rewrite how it routes and test that it loads on the right prompts",
+    "should_trigger": true,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "make a skill out of the steps we followed to rotate the reel backlog, i want it to fire when i say rotate the reel queue",
+    "should_trigger": true,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "the answer-first skill never fires for PR bodies, tighten the description so it does and show me it loads",
+    "should_trigger": true,
+    "heldOut": true,
+    "origin": "written"
+  },
+  {
+    "query": "draft a repo skill for onboarding a new lane agent and prove that a fresh session can find it by name",
+    "should_trigger": true,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "the monorepo skill got long. split it into references and keep the main file short, then check nothing else links to the old layout",
+    "should_trigger": true,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "run the manager skill in dry run mode for this job: add a footer link on the nickstire site and a health tile on statenour. do not dispatch agents or edit files",
+    "should_trigger": false,
+    "heldOut": true,
+    "origin": "tx:79f24d63"
+  },
+  {
+    "query": "reload all the always-on skills now and then yes, start step one",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "tx:d35979a5"
+  },
+  {
+    "query": "multitask while you pull the data, fix everything you find in every slice, and use all the skills you have",
+    "should_trigger": false,
+    "heldOut": true,
+    "origin": "tx:edbfab17"
+  },
+  {
+    "query": "check that both sessions started, you have permission now, do what is needed after the railway work and dont forget to invoke your always-on skills",
+    "should_trigger": false,
+    "heldOut": true,
+    "origin": "tx:33480a66"
+  },
+  {
+    "query": "id like a /health page on a small express app showing uptime and memory use, what is the plan and the time estimate",
+    "should_trigger": false,
+    "heldOut": true,
+    "origin": "tx:6e9f6174"
+  },
+  {
+    "query": "please rewrite the calc function in src/calc.js with reduce and add a small test",
+    "should_trigger": false,
+    "heldOut": true,
+    "origin": "tx:632be5fd"
+  },
+  {
+    "query": "accept the persistent-shell cwd limit as documented, reply on the open policy thread that the operator accepted it, resolve it, then merge when CI is green",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "tx:509d712d"
+  },
+  {
+    "query": "quick question, what is the difference between let and const in js",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "tx:88a8d490"
+  },
+  {
+    "query": "here is a link, i want to use this to make my reels and videos go viral",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "tx:af9e7750"
+  },
+  {
+    "query": "which of our skills have actually fired in the last month? i want to know what to prune",
+    "should_trigger": false,
+    "heldOut": true,
+    "origin": "written"
+  },
+  {
+    "query": "is there an existing skill or plugin for sending invoices before we build something?",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "run the nickstire verify skill before i push this branch and tell me which gates are red",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "what does the guard red team skill say about array caps and the 201st element?",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "run reel-hook-mechanism on this clip and give me the hook breakdown",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "compile chapter 3 of this pdf into a skill with section citations",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "what should we change in our skills based on this session",
+    "should_trigger": false,
+    "heldOut": true,
+    "origin": "written"
+  },
+  {
+    "query": "fire_audit.py crashes on long Windows paths, fix it",
+    "should_trigger": false,
+    "heldOut": true,
+    "origin": "written"
+  },
+  {
+    "query": "add a step to stranded-branch-rescue for draft PRs",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "apply proposal P2 from the skill proposals file to the nickstire-verify skill",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "come on, i told you to be thorough and not miss a single one of the things i asked for",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "tx:7ad182cc"
+  },
+  {
+    "query": "you figure out whats going on with those",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "tx:8196d6e1"
+  },
+  {
+    "query": "no, publish it when its done",
+    "should_trigger": false,
+    "heldOut": true,
+    "origin": "tx:8c138c4d"
+  }
+]
