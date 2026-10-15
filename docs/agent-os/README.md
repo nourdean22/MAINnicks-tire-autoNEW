@@ -130,8 +130,9 @@ the four SQL text rows are judged by `destructive-sql` alone (`onlyRules`, below
 | `prisma-sql` | Prisma Postgres `execute_sql_query`, `execute_prisma_postgres_schema_update` (connector and Prisma-Remote registrations) | Bash | `query` |
 
 **Optional row fields.** Each is validated at run time and pinned by a canary. A malformed `clientHint`, `skipWhenTrue`
-or `expandDirectory` skips that row with a stderr line; a malformed `exceptRules`, `onlyRules` or `rawText` is reported
-and that field alone is ignored:
+or `expandDirectory` skips that row with a stderr line; a malformed `exceptRules` or `onlyRules` is reported and that
+field alone is ignored (every rule applies); a malformed `rawText` is reported and read as `true`. Each fails toward
+MORE denials, never fewer:
 
 - `cwdField`: an input field that names the directory the command runs in (`run_in_terminal.cwd`). It is judged in
   addition to the session cwd, so a decoy value can add a judgment but never remove the session's. Accepted
@@ -159,14 +160,19 @@ and that field alone is ignored:
 - `onlyRules`: the ONLY rule ids a row's calls are judged by (the reverse of `exceptRules`, an allowlist, so a rule added
   later does not silently apply). The four SQL rows have `["destructive-sql"]`: before it, every shell rule judged SQL
   text, so an `INSERT` of the words `git push origin main`, `npm install`, `git stash pop` or `--no-verify` was denied
-  as a shell command. Every id must exist in `policy.json`; a malformed list or an unknown id is reported on stderr
-  and the field is ignored, so EVERY rule applies (only ever more denials). A row with a valid `onlyRules` also judges a
-  field whole up to `SQL_FIELD_CAP` (1,000,000 characters), because only the anchored, bounded rule runs on it.
+  as a shell command. Every id must exist in `policy.json` AND be able to judge the row's tool (`secret-file-write` is
+  Write-only: on a Bash row it would judge nothing, so a typo could switch the row off); a malformed list, an unknown id
+  or such an id is reported on stderr and the field is ignored, so EVERY rule applies (only ever more denials). A row
+  whose `onlyRules` is exactly `["destructive-sql"]` also judges a field whole up to `SQL_FIELD_CAP` (1,000,000
+  characters), because only that rule's scans are anchored or bounded (canary-pinned); any other list keeps `FIELD_CAP`.
 - `rawText`: a strict boolean `true` (only on a Bash row) judges the text as given: no shell neutraliser and no
   read-only-search skip. The four SQL rows have it: the neutraliser erases the quoted argument after ` -m`, ` -t`,
   ` -b`, `--message`, `--title` and `--body`, which in SQL can hold statements (`SELECT ' -m "'; DELETE FROM leads; SELECT '
-  " '` passed), and SQL that merely starts like a search command (`rg DELETE FROM leads`) is still SQL. Anything but
-  `true` is reported and ignored (the shell treatment stays on). The shell door is unchanged: a commit message that
+  " '` passed), and SQL that merely starts like a search command (`rg DELETE FROM leads`) is still SQL. Absent or `false`
+  keeps the shell treatment. A value that is declared but malformed (the string `"true"`, `1`, `null`) on a Bash row is
+  reported and read as `true`: ignoring it would switch the neutraliser ON, which is fewer denials. A `rawText` row
+  also reads `&`, `|` and `-` as SQL, not shell (see "How `destructive-sql` reads SQL"). The shell door is
+  unchanged: a commit message that
   mentions SQL is still data there.
 - A named field may hold a **list of strings** (`neon-sql-transaction`: `sql_statements`). Each element is judged on
   its own, never joined with its neighbours, with provenance `<row>.<field>[i]` (the index in the original list).
@@ -190,11 +196,11 @@ Design rules, each pinned by `scripts/agent-os/mcpCoverage.test.mjs`:
 - **Oversized fields.** A row that runs every rule judges at most `FIELD_CAP` (20,000) characters of a field; a longer
   field is judged as two slices, the first and the last 10,000 characters, each on its own: joining them would build a
   command the field never held (a client word at the end of the head plus a statement at the start of the tail). Some
-  rules backtrack, and a hook timeout fails open silently, which is why the cap exists. A row with a valid `onlyRules`
-  (the SQL rows) runs `destructive-sql` alone, whose scans are anchored or bounded, so it judges a field whole up to
-  `SQL_FIELD_CAP` (1,000,000) and slices (500,000 each end) only beyond that. The unjudged middle of a field over its cap
-  is a slip window. Native Bash and PowerShell commands are not capped (every scan of `destructive-sql` is bounded, so
-  its cost is linear in their length; the other rules were never measured on megabytes).
+  rules backtrack, and a hook timeout fails open silently, which is why the cap exists. A row whose `onlyRules` is exactly
+  `["destructive-sql"]` (the SQL rows) runs that rule alone, whose scans are anchored or bounded, so it judges a field
+  whole up to `SQL_FIELD_CAP` (1,000,000) and slices (500,000 each end) only beyond that. The unjudged middle of a field
+  over its cap is a slip window. Native Bash and PowerShell commands are not capped (every scan of `destructive-sql` is
+  bounded, so its cost is linear in their length; the other rules were never measured on megabytes).
 - **Directory moves** are walked read-only: names only (no file content), breadth-first, at most 2,000 entries and
   depth 6, symlinks and junctions never followed, and any filesystem error means no extra judgments. Over the cap,
   what was walked is judged and one stderr line says the rest was not (`directory too large to inspect fully`).
@@ -256,6 +262,11 @@ client does to that text:
   `DELETE FROM leads` + newline + `WHERE id = 3` pass. A `||` chain is not a boundary by itself (a second `-c` after it is).
   The `ALTER TABLE ... DROP` scan uses the same stops and gives up after 1,500 characters; `DROP COLUMN` and `DROP
   CONSTRAINT` are denied anywhere by the DROP-kind arm, so only the other `ALTER TABLE ... DROP` forms depend on it.
+  **On the SQL tool rows only `;` ends a statement.** There is no shell there: `||`, `&&`, a lone `|`, `?|` and a
+  leading minus are SQL operators, so the engine replaces `&`, `|` and `-` by a neutral non-word character before it
+  judges text of a `rawText` row (every `\b` keeps its meaning) and none of them is a boundary. The shell door keeps every
+  boundary above, so `psql -c "UPDATE t SET p = p | 4 WHERE id = 1"` typed through a shell is still denied (an accepted
+  false positive).
 - **Cost.** Every scan is bounded, so a text costs at most about its length times 5,000 (1,500 for ALTER) steps. Measured on
   this machine, 2026-10-15, three runs: through the real hook, typical SQL and 25,000 benign characters 0.1 to 0.25 s
   including node start; 2,000 statements of 497 characters 0.2 to 0.35 s; and the WORST text found, one built so that every
@@ -267,9 +278,8 @@ client does to that text:
   real-hook canary for those worst shapes asserts the verdicts and ONE generous bound, 9 s (the hook timeout less a
   second: the failure that matters is a timeout, which fails open), and REPORTS the measured times instead of asserting a
   tighter number a loaded runner cannot hold; only the benign 25,000-character field has a tight bound (3 s, more than
-  10x its measured time). A separate canary pins that the pattern is anchored (structurally) and
-  that the unanchored form is at least 20x slower on the same benign text (a ratio, so a fast runner cannot turn it
-  red for a non-defect).
+  10x its measured time). A separate canary pins that the pattern is anchored (structurally) and that the unanchored form
+  is at least 20x slower on the same benign text (a ratio, so a fast runner cannot turn it red for a non-defect).
 
 ### Native ask rules (2026-10-15)
 

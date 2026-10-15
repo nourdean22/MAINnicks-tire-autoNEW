@@ -136,13 +136,13 @@ const FORBIDDEN = [
 
 // --- harness ----------------------------------------------------------------------------------
 
-function run(tool_name, tool_input, cwd = NORMAL, hook = HOOK) {
+function run(tool_name, tool_input, cwd = NORMAL, hook = HOOK, killMs = 30000) {
   const t0 = Date.now();
   const r = spawnSync(process.execPath, [hook], {
     input: JSON.stringify({ tool_name, tool_input, cwd }),
     env: ENV,
     encoding: "utf8",
-    timeout: 30000,
+    timeout: killMs,
     maxBuffer: 16 * 1024 * 1024,
   });
   return { code: r.status, signal: r.signal, err: r.stderr ?? "", ms: Date.now() - t0 };
@@ -172,6 +172,8 @@ function judge(toolName, input, cwd, pol = policy) {
 
 const cwdFor = (rule) => rule.cwdExample ?? (rule.onlyWhenCwdMatches ? WORKTREE : NORMAL);
 const adapters = () => policy.mcpAdapters ?? [];
+// A denyExample whose denial rests on a SHELL boundary: a statement ended by `&&` or a pipe, or by a second -c/-Query flag. A rawText (SQL) row has no shell, so it does not judge these.
+const SHELL_BOUNDARY_EXAMPLE = /&&|\s\|\s|\s-(?:c|e|f|q|query)\b[\s\S]*\s-(?:c|e|f|q|query)\b/i;
 const bashRules = policy.rules.filter((r) => r.pattern && (Array.isArray(r.tools) ? r.tools.includes("Bash") : true));
 const fileRules = policy.rules.filter((r) => r.pathPattern && (Array.isArray(r.tools) ? r.tools.includes("Write") : true));
 
@@ -272,6 +274,8 @@ test("parity: every Bash-family denyExample is denied by the SAME rule through e
           if (a.exceptRules?.includes(rule.id)) continue;
           if (a.onlyRules && !a.onlyRules.includes(rule.id)) continue;
           for (const sample of rule.denyExamples) {
+            // a rawText row reads SQL, where `&&`, `|` and a second -c are operators or text, not the end of a shell command (the SQL door canary pins that)
+            if (a.rawText && SHELL_BOUNDARY_EXAMPLE.test(sample)) continue;
             const res = judge(tool, { [field]: sample }, cwdFor(rule));
             assert.ok(res.denied, `${tool}.${field}: ${rule.id} should DENY ${JSON.stringify(sample)}`);
             assert.equal(res.rule.id, rule.id, `${tool}.${field}: ${JSON.stringify(sample)} was denied by '${res.rule.id}', not '${rule.id}'`);
@@ -726,6 +730,11 @@ test("docs truth: the live check is runnable from a worktree session, the lease 
   for (const phrase of ["session-level tripwire", "`run_in_terminal`'s own `cwd` argument", "recovery-command exemption", "KNOWN_UNCLASSIFIED", "Refresh recipe", "snapshot: 2026-10-15", "get_edge_configs", "20x slower"]) {
     assert.ok(README.includes(phrase), `README must state: ${phrase}`);
   }
+  // 2026-10-15 re-review: the engine claims that were wrong (onlyRules, rawText, the SQL door), pinned in their corrected wording
+  for (const phrase of ["read as `true`", "is exactly `[\"destructive-sql\"]` also judges", "any other list keeps `FIELD_CAP`", "be able to judge the row's tool", "On the SQL tool rows only `;` ends a statement"]) {
+    assert.ok(README.includes(phrase), `README must state: ${phrase}`);
+  }
+  assert.doesNotMatch(README, /reported and ignored \(the shell treatment stays on\)/, "a malformed rawText is read as true now");
   const stale = README.split("\n").filter((l) => l.includes("list_edge_configs"));
   assert.ok(stale.length <= 1 && stale.every((l) => l.includes("get_edge_configs")), "the stale Vercel name may only appear beside its live replacement");
   const agents = readFileSync(join(ROOT, "AGENTS.md"), "utf8");
@@ -1206,7 +1215,7 @@ test("SQL: a 25,000-character benign field and the worst whole-array shapes stay
   }
 });
 
-test("destructive-sql is anchored and so linear: the unanchored form is at least 20x slower on the same 60,000 benign characters (a ratio, never a clock)", () => {
+test("destructive-sql is anchored: the unanchored form is at least 20x slower on the same 60,000 benign characters (a ratio, never a clock)", () => {
   // The array reader multiplies judgments (ARRAY_MAX elements of FIELD_CAP characters each), which is only affordable
   // because the rule is anchored: unanchored, the engine retries the whole lookahead from every start position.
   // Measured 2026-10-15: 200 elements of 20,000 characters ran into the 30 s test timeout on the unanchored form, and
@@ -1263,6 +1272,7 @@ test("destructive-sql deny probes: each class is among the denyExamples, and eac
       assert.equal(res.rule?.id, "destructive-sql", `${toolName}: ${JSON.stringify(command)} was denied by '${res.rule?.id}', not destructive-sql`);
     }
     for (const a of rowsAsBash) {
+      if (a.rawText && SHELL_BOUNDARY_EXAMPLE.test(command)) continue; // a SQL row has no shell boundary (the SQL door canary pins that)
       for (const field of a.commandFields) {
         const res = judge(a.exampleTools[0], { [field]: command }, NORMAL);
         assert.equal(res.rule?.id, "destructive-sql", `${a.id}.${field}: ${JSON.stringify(command)} was denied by '${res.rule?.id}', not destructive-sql`);
@@ -1383,7 +1393,7 @@ test("onlyRules (P2-f): SQL text that mentions a shell command passes, destructi
   for (const sql of ["DROP TABLE leads", "DELETE FROM leads", "UPDATE leads SET a = 1", 'TRUNCATE "Task" CASCADE']) denied(run(SQL_RUN.name, SQL_RUN.input(sql), WORKTREE), "destructive-sql", sql);
 });
 
-test("rawText and onlyRules are validated: a malformed value is reported and IGNORED (the shell treatment and every rule apply); removing them reopens P2-e and P2-f (BREAKS)", () => {
+test("rawText and onlyRules are validated toward DENIAL: a malformed rawText is read as true, a malformed onlyRules is ignored (every rule applies); removing them reopens P2-e and P2-f (BREAKS)", () => {
   const e = (hook) => run(SQL_RUN.name, SQL_RUN.input(P2E_PAYLOADS[0]), NORMAL, hook);
   const f = (hook) => run(SQL_RUN.name, SQL_RUN.input(P2F_PAYLOADS[3][0]), WORKTREE, hook);
   withTree(null, (hook) => {
@@ -1392,13 +1402,16 @@ test("rawText and onlyRules are validated: a malformed value is reported and IGN
   });
   withTree((p) => sqlRowsOf(p).forEach((a) => { delete a.rawText; }), (hook) => allowed(e(hook), "BREAKS: without rawText the neutraliser erases the DELETE"));
   withTree((p) => sqlRowsOf(p).forEach((a) => { delete a.onlyRules; }), (hook) => denied(f(hook), "stash-pop", "BREAKS: without onlyRules every shell rule judges SQL text again"));
-  for (const bad of ["true", 1, [true], {}]) {
+  // rawText fails toward DENIAL like onlyRules does (re-review): a declared-but-malformed value is read as true, so the neutraliser stays off
+  // and the statement hidden after -m is judged; ignoring it would switch the neutraliser ON, which is FEWER denials.
+  for (const bad of ["true", 1, [true], {}, null]) {
     withTree((p) => sqlRowsOf(p).forEach((a) => { a.rawText = bad; }), (hook) => {
       const r = e(hook);
-      assert.equal(r.code, 0, `rawText ${JSON.stringify(bad)} is ignored, so the neutraliser hides the DELETE\n${r.err}`);
-      assert.match(r.err, /rawText ignored, the shell neutraliser applies/);
+      denied(r, "destructive-sql", `rawText ${JSON.stringify(bad)} is malformed and read as true: the DELETE is judged, not erased`);
+      assert.match(r.err, /rawText malformed, read as true/);
     });
   }
+  withTree((p) => sqlRowsOf(p).forEach((a) => { a.rawText = false; }), (hook) => allowed(e(hook), "an explicit false is well formed: the shell neutraliser applies and erases the span (the documented default)"));
   for (const bad of [["no-such-rule"], [], "destructive-sql", [7], ["destructive-sql", "typo-rule"]]) {
     withTree((p) => sqlRowsOf(p).forEach((a) => { a.onlyRules = bad; }), (hook) => {
       const r = f(hook);
@@ -1406,6 +1419,72 @@ test("rawText and onlyRules are validated: a malformed value is reported and IGN
       assert.match(r.err, /onlyRules ignored, every rule applies/);
     });
   }
+});
+
+test("SQL door (re-review): `|`, `&&`, `?|` and a leading minus are SQL operators, not chains: only `;` ends a statement on the SQL rows; the shell door keeps its boundaries", () => {
+  const verdict = (shape, sql) => judge(shape.name, sqlInput(shape, sql), NORMAL).rule?.id;
+  const guarded = [
+    "UPDATE t SET a = b || c WHERE id = 1",
+    "UPDATE users SET perms = perms | 4 WHERE id = 1",
+    "UPDATE t SET r = r && int4range(1,2) WHERE id = 1",
+    "UPDATE t SET ok = (doc ?| array['a']) WHERE id = 1",
+    "UPDATE t SET e = -e WHERE id = 1",
+    "UPDATE t SET balance = balance -fee WHERE id = 1",
+    "UPDATE t SET c = c -c WHERE id = 1",
+    "DELETE FROM t WHERE flags & 4 = 4",
+    "DELETE FROM leads /* a | b && c -c */ WHERE id = 1",
+  ];
+  for (const shape of SQL_SHAPES) {
+    for (const sql of guarded) assert.equal(verdict(shape, sql), undefined, `${shape.name} should ALLOW ${JSON.stringify(sql)} (an operator before the WHERE is not a statement boundary)`);
+    // a statement ends at `;`, so a later WHERE does not rescue a bare write, with or without operators around it
+    for (const sql of ["DELETE FROM leads; SELECT 1 WHERE true", "UPDATE t SET a = 1; SELECT * FROM t WHERE x", "UPDATE users SET perms = perms | 4", "DELETE FROM leads -- a | b\n"]) {
+      assert.equal(verdict(shape, sql), "destructive-sql", `${shape.name} should DENY ${JSON.stringify(sql)}`);
+    }
+  }
+  for (const sql of guarded.slice(0, 5)) allowed(run(SQL_RUN.name, SQL_RUN.input(sql)), `real hook, run_sql ${sql}`);
+  // the shell door is unchanged: the same text typed into psql is still cut at the shell operators (documented false positive), and a chain still cannot rescue a bare write
+  denied(run("Bash", { command: `psql -c "UPDATE users SET perms = perms | 4 WHERE id = 1"` }), "destructive-sql", "shell door: a lone | ends the scan (documented false positive)");
+  denied(run("Bash", { command: `psql -c "DELETE FROM leads" && psql -c "SELECT 1 WHERE true"` }), "destructive-sql", "shell door: && ends the statement");
+  allowed(run("Bash", { command: `psql -c "UPDATE t SET a = b || c WHERE id = 1"` }), "shell door: || is concatenation, not a boundary");
+});
+
+test("onlyRules (re-review): the whole-field cap goes to exactly [\"destructive-sql\"] only, and every id must be a rule that can judge the row's tool", (t) => {
+  const big = `SELECT '${"x".repeat(30_000)}'`;
+  const lines = [];
+  const adapt = (mutate, name = SQL_RUN.name, input = SQL_RUN.input(big)) => {
+    const p = structuredClone(policy);
+    mutate(p);
+    lines.length = 0;
+    const calls = engine.adaptToolCall(name, input, NORMAL, p, (l) => lines.push(l));
+    return { vias: calls.map((c) => c.via), onlyRules: calls[0]?.onlyRules, lines: [...lines] };
+  };
+  const real = adapt(() => {});
+  assert.deepEqual(real.vias, ["neon-sql.sql"], "control: the shipped rows judge a 30,000-character SQL field whole");
+  // a valid onlyRules that is not exactly destructive-sql is honoured but keeps FIELD_CAP (the bounded-and-anchored argument is specific to that rule)
+  for (const list of [["stash-pop"], ["destructive-sql", "stash-pop"], ["stash-pop", "destructive-sql"]]) {
+    const r = adapt((p) => sqlRowsOf(p).forEach((a) => { a.onlyRules = list; }));
+    assert.deepEqual(r.vias, ["neon-sql.sql#head", "neon-sql.sql#tail"], `onlyRules ${JSON.stringify(list)} must not lift the field cap`);
+    assert.deepEqual(r.onlyRules, list, `onlyRules ${JSON.stringify(list)} is still honoured`);
+    assert.deepEqual(r.lines, [], "and it is valid: nothing is reported");
+  }
+  // an id that cannot judge a Bash row (secret-file-write is Write-only; night-shift-no-judge-edits is Write-only too) is rejected and reported, so a typo cannot make a row judge nothing
+  for (const list of [["secret-file-write"], ["destructive-sql", "secret-file-write"], ["night-shift-no-judge-edits"]]) {
+    const r = adapt((p) => sqlRowsOf(p).forEach((a) => { a.onlyRules = list; }));
+    assert.equal(r.onlyRules, undefined, `onlyRules ${JSON.stringify(list)} names a rule that cannot judge a Bash row: ignored, every rule applies`);
+    assert.ok(r.lines.some((l) => /onlyRules ignored, every rule applies/.test(l) && /can judge/.test(l)), `reported: ${r.lines.join(" | ")}`);
+    assert.deepEqual(r.vias, ["neon-sql.sql#head", "neon-sql.sql#tail"], "ignored means the full-rule cap too");
+  }
+  // and the other way round: a Bash-only rule on a Write row
+  const file = adapt((p) => { p.mcpAdapters.find((a) => a.id === "file-write").onlyRules = ["destructive-sql"]; }, `${DC_PLUGIN}write_file`, { path: "docs/x.md", content: "c" });
+  assert.equal(file.onlyRules, undefined, "destructive-sql cannot judge a Write row: ignored");
+  assert.ok(file.lines.some((l) => /can judge/.test(l)), `reported: ${file.lines.join(" | ")}`);
+  // through the real hook: the ignored list means every rule applies, so SQL that mentions a shell command is denied again (visible, loud, fail toward denial)
+  withTree((p) => sqlRowsOf(p).forEach((a) => { a.onlyRules = ["secret-file-write"]; }), (hook) => {
+    const r = run(SQL_RUN.name, SQL_RUN.input(P2F_PAYLOADS[3][0]), WORKTREE, hook);
+    denied(r, "stash-pop", "a typo'd onlyRules must not make the row judge nothing");
+    assert.match(r.err, /onlyRules ignored, every rule applies/);
+  });
+  t.diagnostic("onlyRules: exact-list cap, Bash/Write capability checked, both directions");
 });
 
 test("P2-g: a SQL field is judged WHOLE up to SQL_FIELD_CAP characters (a statement in the middle of 900,000 is denied) and sliced only beyond it; other rows keep FIELD_CAP", () => {
