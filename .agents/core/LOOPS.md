@@ -39,5 +39,5 @@ Never auto-start a write from a heartbeat. Stop when: the status block is delive
 
 ## L6. Manager (multi-area job)
 
-classify -> split by lane -> dispatch one agent per lane -> watch -> verify each diff -> integrate -> report -> ledger.
+classify -> split by lane -> dispatch one agent per lane -> verify each diff -> probe the real binary yourself -> review before the PR opens -> integrate -> merge by protocol -> report -> ledger and metrics.
 Full procedure: `.claude/skills/monorepo-manager/SKILL.md`. Stop when: every lane is merged, blocked or handed back.
