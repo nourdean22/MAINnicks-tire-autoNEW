@@ -1,6 +1,6 @@
 # UI v3 plan: Command Deck, finished
 
-**Status (2026-10-15):** Wave 0 approved by Nour ("go wave 0"). Every later wave needs his go.
+**Status (2026-10-15):** Wave 0 merged (#3056). W1a (global grammar: uppercase sweep + net, header diet, aura to state word, spring tokens, em dash and emoji sweep) is on branch `statenour/ui-v3-w1a` awaiting integration; W1b (shell) is separate. Every later wave needs Nour's go.
 **Base:** origin/main `ec21736f9` when W0 started; the W0 PR merged newer main before integration. **Owner:** the manager session "bdnick ui upgrade" (job id `2026-10-15-bdnick-ui-v3`).
 **Genome:** COMMAND DECK ([`docs/design/SURFACE-DNA.md`](../../../../../docs/design/SURFACE-DNA.md)): one dominant thought per screen, then a rail; void and depth; the mission is the dominant object.
 **Builds on:** UI v2 ([`../ui-v2/PLAN.md`](../ui-v2/PLAN.md), [`SYSTEM.md`](../ui-v2/SYSTEM.md)) and the workbench grammar ([`../ui-workbench-2026-09-15.md`](../ui-workbench-2026-09-15.md)).
