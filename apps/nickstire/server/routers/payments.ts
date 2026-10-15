@@ -240,17 +240,43 @@ export const paymentsRouter = router({
       // so it raced the payment_intent.succeeded webhook and double-fired
       // the fan-out (duplicate manager SMS/Telegram/journey). Only emit if
       // WE flipped the row from unpaid → paid.
-      const [claim] = await d.execute(sql`
-        UPDATE invoices
-        SET paymentStatus = 'paid',
-            paymentMethod = ${methodMap[input.paymentMethod] || "other"},
-            updatedAt = NOW()
-        WHERE invoiceNumber = ${input.invoiceNumber}
-          AND customerPhone = ${input.phone}
-          AND paymentStatus <> 'paid'
-          AND totalAmount = ${inv.totalAmount}
-      `);
-      const claimed = ((claim as unknown as { affectedRows?: number }).affectedRows ?? 0) > 0;
+      // The claim and the intent's status change commit together. If the intent cannot be marked paid, the
+      // claim rolls back and the invoice stays unpaid: the customer can confirm again, and the webhook still
+      // records the payment, so no intent is left holding the total while the invoice is already paid.
+      let claimed: boolean;
+      try {
+        claimed = await d.transaction(async (tx: import("../services/paymentIntentLock").Db) => {
+          const [claim] = await tx.execute(sql`
+            UPDATE invoices
+            SET paymentStatus = 'paid',
+                paymentMethod = ${methodMap[input.paymentMethod] || "other"},
+                updatedAt = NOW()
+            WHERE invoiceNumber = ${input.invoiceNumber}
+              AND customerPhone = ${input.phone}
+              AND paymentStatus <> 'paid'
+              AND totalAmount = ${inv.totalAmount}
+          `);
+          const won = ((claim as unknown as { affectedRows?: number }).affectedRows ?? 0) > 0;
+          if (!won) {
+            // No row claimed: the webhook may already have marked the invoice paid. Only a paid invoice lets the
+            // intent stop holding its total. An unpaid invoice whose total moved is refused below.
+            const [now] = await tx.select({ paymentStatus: invoices.paymentStatus })
+              .from(invoices)
+              .where(eq(invoices.invoiceNumber, input.invoiceNumber))
+              .limit(1);
+            if (now?.paymentStatus !== "paid") return false;
+          }
+          const { markPaymentPaid } = await import("../services/paymentIntentLock");
+          await markPaymentPaid(tx, input.paymentIntentId);
+          return won;
+        });
+      } catch (err) {
+        log.error("[routers/payments] could not record the payment; the invoice was not marked paid", {
+          paymentIntentId: input.paymentIntentId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        return { success: false, error: "We could not record this payment. Please call (216) 862-0005 so we can settle it." };
+      }
 
       // The claim pins the total the amount check used. If it matched no row and the invoice is not paid,
       // the total moved while Stripe was being asked. Refuse, and leave the intent held: the webhook checks
@@ -268,18 +294,6 @@ export const paymentsRouter = router({
           });
           return { success: false, error: "The invoice total changed while this payment was being recorded. Please call (216) 862-0005 so we can settle it." };
         }
-      }
-
-      // The payment is taken, so its intent stops holding the invoice total. A failure here leaves the
-      // intent held until the payment_intent.succeeded webhook records it, so it is logged, not thrown.
-      try {
-        const { markPaymentPaid } = await import("../services/paymentIntentLock");
-        await markPaymentPaid(d, input.paymentIntentId);
-      } catch (err) {
-        log.warn("[routers/payments] could not mark the payment intent paid", {
-          paymentIntentId: input.paymentIntentId,
-          error: err instanceof Error ? err.message : String(err),
-        });
       }
 
       // Unified event bus — only on the winning claim (webhook may also fire).

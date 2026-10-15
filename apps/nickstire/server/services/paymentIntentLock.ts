@@ -14,6 +14,7 @@
  * Only intents with a Stripe PaymentIntent id are locked. Payment-link rows have no id and are not part
  * of this lock. Intents created before this lock deployed are not locked.
  */
+import { createHash } from "node:crypto";
 import { and, eq, isNotNull, ne } from "drizzle-orm";
 import type { getDb } from "../db";
 import { invoices, payments } from "../../drizzle/schema";
@@ -21,6 +22,9 @@ import { createLogger } from "../lib/logger";
 import { cancelPaymentIntent } from "./payments";
 
 const log = createLogger("services:paymentIntentLock");
+
+/** A log-safe reference to an invoice: the same pseudonym stripeWebhook.ts uses for an invoice number. */
+const invoiceRef = (invoiceId: number): string => createHash("sha256").update(`invoice:${invoiceId}`).digest("hex").slice(0, 12);
 
 /** An intent older than this is stale: the ShopDriver mirror cancels it instead of waiting on it. */
 export const STALE_INTENT_MS = 24 * 60 * 60 * 1000;
@@ -62,11 +66,13 @@ export type RecordedIntent = {
 };
 
 async function recordPaymentIntent(d: Db, intent: RecordedIntent): Promise<void> {
+  // The columns are narrower than the invoice's (customer_name 200, customer_phone 20). A longer value is
+  // cut here: the database would refuse the row after Stripe already holds the intent.
   await d.insert(payments).values({
     invoiceId: intent.invoiceId,
     amount: intent.amountCents,
-    customerName: intent.customerName,
-    customerPhone: intent.customerPhone,
+    customerName: intent.customerName?.slice(0, 200) ?? null,
+    customerPhone: intent.customerPhone?.slice(0, 20) ?? null,
     description: intent.description.slice(0, 500),
     stripePaymentIntentId: intent.paymentIntentId,
     status: "pending",
@@ -123,7 +129,7 @@ async function cancelOpenIntents(d: Db, invoiceId: number, intents: OpenIntent[]
     if (!intent.paymentIntentId) continue;
     const outcome = await cancelPaymentIntent(intent.paymentIntentId);
     if (outcome !== "canceled") {
-      log.warn("Invoice total held: an open card payment was not confirmed canceled", { invoiceId, outcome });
+      log.warn("Invoice total held: an open card payment was not confirmed canceled", { invoiceRef: invoiceRef(invoiceId), outcome });
       return { canceled, reason: holdReason(outcome) };
     }
     await d.update(payments).set({ status: "canceled" }).where(eq(payments.id, intent.id));
@@ -172,7 +178,7 @@ export async function markPaymentPaid(d: Db, paymentIntentId: string): Promise<v
   const siblings = await releaseInvoiceTotal(d, row.invoiceId);
   if (!siblings.released) {
     log.error("Another open card payment on a paid invoice could not be canceled. Check Stripe before it is charged.", {
-      invoiceId: row.invoiceId,
+      invoiceRef: invoiceRef(row.invoiceId),
       paymentIntentId,
       reason: siblings.reason,
     });
@@ -202,6 +208,6 @@ export async function lockedTotalPatch(
   if (nextCents <= 0 || nextCents === currentCents) return {};
   const held = await releaseInvoiceTotal(d, invoiceId, { staleAfterMs: STALE_INTENT_MS });
   if (held.released) return { totalAmount: nextCents };
-  log.info("Invoice total held: a card payment holds it", { invoiceId, reason: held.reason });
+  log.info("Invoice total held: a card payment holds it", { invoiceRef: invoiceRef(invoiceId), reason: held.reason });
   return {};
 }
