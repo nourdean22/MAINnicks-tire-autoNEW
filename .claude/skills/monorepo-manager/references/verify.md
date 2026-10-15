@@ -18,6 +18,24 @@ secondary sources or an observed behavior is STRONG INFERENCE; a summary, a memo
 Then name the highest rung reached on `NOUR-COMMAND.md`'s ladder (claim, artifact, execution receipt, external effect,
 user or business outcome) and the first rung NOT reached. "Tested" is a rung; "live" is a higher one.
 
+## A DB tool needs a real-engine receipt (step 6)
+
+A lane that tests a production-database tool against an in-memory fake can pass hundreds of tests and still ship SQL the real engine
+rejects. Measured 2026-10-15 by the status manager session and relayed here (CLAIM, not re-measured): the merged shop-clock backfill
+tool passed 250 tests, then its first live `probe` (a SELECT) failed on production TiDB with a syntax error, an unquoted alias `AS stored`
+(STORED is a keyword). Nothing was written because it was a read. The fix is a gate, not more fake-DB tests:
+
+1. Before the first real run of ANY prod-touching tool (`prod-db-guard` applies), the manager runs a throwaway SANDBOX CHECK that sends the
+   tool's real SQL builders to the real engine using only session-local TEMPORARY tables. A guard in the script refuses any statement that
+   names a real table; temp tables vanish at disconnect.
+2. It carries a positive control: it must reproduce a known bad statement (here, the unquoted keyword alias) or it proves nothing.
+3. It measures what a fake cannot: whether `SET col = col` stops an `ON UPDATE CURRENT_TIMESTAMP`, the affectedRows a compare-and-swap
+   really returns, what `INSERT ... SELECT *` into a LIKE copy does.
+4. Read-only is an ALLOWLIST of statements, not a deny list: TiDB rejects `SET SESSION TRANSACTION READ ONLY` and `CREATE TABLE AS SELECT`,
+   so a "read-only mode" built on those does not exist there.
+5. The receipt (the script, its output and the positive control's failure) goes in the lane's return and the PR body. No receipt, no
+   operator-facing step, and the report names the rung as "tested against a fake".
+
 ## Probe it yourself (step 7)
 
 1. Find the real entry point: the process the consumer runs, with the command string exactly as configured (a hook in

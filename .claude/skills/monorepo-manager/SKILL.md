@@ -66,7 +66,8 @@ workflow fan-outs and background suites count toward both (four concurrent suite
    receipt. Every fact in a RETURN carries FACT, INFERRED or NOT CHECKED; send back a return without labels. "Tests pass" is a
    claim until you see the output. A lane result whose lease expired or whose base moved is re-checked before use.
    `check-lane-paths` flags an authorized exception as out of lane: compare each flagged file with the brief's PATH EXCEPTIONS. Review
-   fixes go back to the same lane with SendMessage; it resumes with its context. Same failure twice -> name the doubtful assumption to Nour.
+   fixes go back to the same lane with SendMessage; it resumes with its context. A lane that builds a DB tool needs a real-engine
+   sandbox receipt before any operator-facing step ([references/verify.md](references/verify.md)). Same failure twice -> name the doubtful assumption to Nour.
 7. **Probe it yourself.** For any guard, gate, hook, validator or parser, run your OWN adversarial probes against the REAL
    binary, never only the lane's canaries: every numeric cap at cap-1, cap, cap+1 and with the bad item last, plus the
    `guard-red-team` classes. Send each bypass back as the exact input. [references/verify.md](references/verify.md)
