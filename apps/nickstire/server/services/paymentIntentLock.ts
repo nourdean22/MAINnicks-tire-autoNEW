@@ -61,7 +61,7 @@ export type RecordedIntent = {
   paymentIntentId: string;
 };
 
-export async function recordPaymentIntent(d: Db, intent: RecordedIntent): Promise<void> {
+async function recordPaymentIntent(d: Db, intent: RecordedIntent): Promise<void> {
   await d.insert(payments).values({
     invoiceId: intent.invoiceId,
     amount: intent.amountCents,

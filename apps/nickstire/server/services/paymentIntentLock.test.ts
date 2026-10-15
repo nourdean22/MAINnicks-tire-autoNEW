@@ -18,7 +18,6 @@ vi.mock("./payments", () => ({ cancelPaymentIntent: (...a: unknown[]) => h.cance
 import {
   lockedTotalPatch,
   markPaymentPaid,
-  recordPaymentIntent,
   recordPaymentIntentLocked,
   releaseInvoiceTotal,
   STALE_INTENT_MS,
@@ -88,28 +87,6 @@ describe("withInvoiceLock", () => {
   });
 });
 
-describe("recordPaymentIntent", () => {
-  it("records the intent as pending, with the amount it was created for", async () => {
-    await recordPaymentIntent(d as never, {
-      invoiceId: 7,
-      amountCents: 12345,
-      customerName: "Pat",
-      customerPhone: "2165550100",
-      description: "A".repeat(600),
-      paymentIntentId: "pi_1",
-    });
-    expect(h.inserts).toEqual([{
-      invoiceId: 7,
-      amount: 12345,
-      customerName: "Pat",
-      customerPhone: "2165550100",
-      description: "A".repeat(500),
-      stripePaymentIntentId: "pi_1",
-      status: "pending",
-    }]);
-  });
-});
-
 describe("recordPaymentIntentLocked", () => {
   const intent = {
     invoiceId: 7,
@@ -120,9 +97,22 @@ describe("recordPaymentIntentLocked", () => {
     paymentIntentId: "pi_new",
   };
 
-  it("records when the total is still the amount the intent was created for", async () => {
+  it("records when the total is still the amount the intent was created for, as pending", async () => {
     expect(await recordPaymentIntentLocked(d as never, intent)).toBe("recorded");
-    expect(h.inserts).toHaveLength(1);
+    expect(h.inserts).toEqual([{
+      invoiceId: 7,
+      amount: 10000,
+      customerName: "Pat",
+      customerPhone: "2165550100",
+      description: "Invoice 7",
+      stripePaymentIntentId: "pi_new",
+      status: "pending",
+    }]);
+  });
+
+  it("truncates a long description to the column's 500 characters", async () => {
+    await recordPaymentIntentLocked(d as never, { ...intent, description: "A".repeat(600) });
+    expect((h.inserts[0] as { description: string }).description).toHaveLength(500);
   });
 
   it("refuses when the total moved after the intent was created at the old amount", async () => {
