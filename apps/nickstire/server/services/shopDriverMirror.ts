@@ -11,6 +11,7 @@
 
 import { createLogger } from "../lib/logger";
 import { isDuplicateKeyError } from "../lib/dbErrors";
+import { releaseInvoiceTotal, STALE_INTENT_MS } from "./paymentIntentLock";
 import { eq, and, inArray, sql } from "drizzle-orm";
 
 const log = createLogger("shopdriver-mirror");
@@ -943,7 +944,13 @@ async function upsertInvoices(rawInvoices: RawInvoice[]): Promise<{ created: num
         const updates: Record<string, any> = {};
         const ex = existing;
         // Always update amount if it changed (draft → finalized)
-        if (ri.totalAmount > 0 && ri.totalAmount !== ex.totalAmount) updates.totalAmount = ri.totalAmount;
+        if (ri.totalAmount > 0 && ri.totalAmount !== ex.totalAmount) {
+          // A total that moves under an open card payment would charge one amount and record another.
+          // A fresh intent holds the change until it finishes; a stale one is canceled first.
+          const held = await releaseInvoiceTotal(d, ex.id, { staleAfterMs: STALE_INTENT_MS });
+          if (held.released) updates.totalAmount = ri.totalAmount;
+          else log.info(`[shopdriver-mirror] total for ${ri.invoiceNumber} held: ${held.reason}`);
+        }
         if (ri.service) updates.serviceDescription = ri.service;
         if (ri.vehicleInfo) updates.vehicleInfo = ri.vehicleInfo;
         if (ri.date) updates.invoiceDate = new Date(ri.date);

@@ -993,6 +993,23 @@ ${urls.join("\n")}
           if (claim.kind === "db_unavailable" || claim.kind === "total_changed" || claim.kind === "amount_mismatch") {
             return res.sendStatus(500);
           }
+          // A recorded payment, or a repeat of one, stops holding its intent's invoice total. If that
+          // write fails, answer 500 so Stripe retries; the claim above is idempotent.
+          if (claim.kind === "claimed" || claim.kind === "not_claimed") {
+            try {
+              const { getDb } = await import("../db");
+              const payDb = await getDb();
+              if (payDb) {
+                const { markPaymentPaid } = await import("../services/paymentIntentLock");
+                await markPaymentPaid(payDb, String(intent.id));
+              }
+            } catch (err) {
+              serverLog.error("[Stripe Webhook] Could not mark the payment intent paid; Stripe will retry.", {
+                error: err instanceof Error ? err.message : String(err),
+              });
+              return res.sendStatus(500);
+            }
+          }
           if (claim.kind === "claimed") {
             // First-time claim — fan out.
             import("../services/eventBus").then(({ emit }) =>
