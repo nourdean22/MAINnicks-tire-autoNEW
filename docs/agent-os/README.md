@@ -397,7 +397,11 @@ Inventory of 2026-10-15. Names come from this machine's tool lists; "name only" 
   whitespace around a quoted identifier (`UPDATE"Task"SET`), and a doubled quote inside one (`"a""b"`); DROP kinds
   outside the list (DOMAIN, AGGREGATE, ROUTINE, RULE, PUBLICATION, SUBSCRIPTION, FOREIGN TABLE ...) pass; `MERGE ... WHEN MATCHED
   THEN DELETE` is not read; SQL run from a file or script (`psql -f cleanup.sql`) has no text to judge; and a DB client
-  word outside the list (`sqlcmd`, `sqlite3`, `mariadb`, `usql`) turns the shell gate off. Accepted false positives, in
+  word outside the list (`sqlcmd`, `sqlite3`, `mariadb`, `usql`) turns the shell gate off. T-SQL through `Invoke-Sqlcmd`
+  (a listed client word) has two forms the rule does not read, pinned as known limits: `DELETE dbo.leads`
+  (FROM is optional in T-SQL) and `UPDATE TOP (100) PERCENT dbo.leads SET ...`. They are not widened: an optional FROM
+  would also match the DDL clause `ON DELETE CASCADE` (every foreign-key migration would be denied), and nothing in this
+  stack runs SQL Server (TiDB, Neon and Postgres take neither form). Accepted false positives, in
   the safe direction: on the shell door only, SQL operators before a WHERE that look like shell (`psql -c "UPDATE t SET p =
   p | 4 WHERE id = 1"` stops at the lone `|`, a spaced minus before a word ending in c, e, f or q such as ` -fee` reads as a
   flag cluster; the SQL rows have neither), `ALTER COLUMN ... DROP NOT NULL` or `DROP DEFAULT`, a bounded `UPDATE ... ORDER BY ... LIMIT` with

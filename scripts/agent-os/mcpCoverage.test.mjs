@@ -750,6 +750,10 @@ test("docs truth: the live check is runnable from a worktree session, the lease 
   assert.ok(row, "AGENTS.md first Enforcement-map row (the pretool hook row) not found");
   for (const phrase of ["PROMPTED, not hook-judged", "documented, not proven live", "`permissions.ask`", "`lease-check.mjs`", "SQL text tools"]) assert.ok(row.includes(phrase), `AGENTS.md row must say: ${phrase}`);
   assert.doesNotMatch(row, /even in bypass \(list/, "the old claim (prompts even in bypass, stated as fact) must not return");
+  // Codex #3053 (P2): only the CLASSIFIED leaves prompt; the README's KNOWN_UNCLASSIFIED writers (Vercel create_drain, update_sandbox, ...) do not
+  for (const phrase of ["classified destructive, redeploy and variable-edit leaves", "are not prompted", "docs/agent-os/README.md"]) assert.ok(row.includes(phrase), `AGENTS.md row must say: ${phrase}`);
+  assert.doesNotMatch(row, /Railway\/Neon\/Vercel\/Prisma mutation tools are PROMPTED/, "the unqualified claim (every mutation tool prompts) was false: the unclassified writers are not prompted");
+  for (const phrase of ["`DELETE dbo.leads`", "UPDATE TOP (100) PERCENT", "FROM is optional in T-SQL", "ON DELETE CASCADE"]) assert.ok(README.includes(phrase), `README must list the T-SQL limit: ${phrase}`);
   const why = policy.rules.find((r) => r.id === "destructive-sql").why;
   assert.match(why, /the listed DROP kinds/);
   assert.doesNotMatch(why, /other DROP kinds|every DROP kind/, "the rule lists its DROP kinds; DOMAIN, AGGREGATE and the rest pass");
@@ -1939,6 +1943,47 @@ test("destructive-sql documented limits, pinned (each fails the day it is fixed:
     "ALTER TABLE leads ALTER COLUMN note DROP NOT NULL", "UPDATE leads SET a = 1 ORDER BY id LIMIT 5", "UPDATE t SET a = 'x;y' WHERE id = 1",
     "INSERT INTO notes (body) VALUES ('please delete from the schedule')",
   ]) assert.equal(denies(sql), true, `accepted false positive, so it denies: ${JSON.stringify(sql)}`);
+});
+
+// Codex #3053 (P1): T-SQL makes FROM optional after DELETE and puts TOP (n) [PERCENT] before the table, so `DELETE dbo.leads` and
+// `UPDATE TOP (100) PERCENT dbo.leads SET status = 1` have no arm. Decision (the manager's): NOT widened. A DELETE arm with an optional FROM also
+// matches the DDL clause `ON DELETE CASCADE` (every foreign-key migration would be denied), nothing in this stack runs SQL Server (TiDB, Neon,
+// Postgres), and another arm costs a full sweep and probe cycle. So they are pinned as known limits (allowed today, through the real hook with an
+// Invoke-Sqlcmd client word), plus the allow-direction guard an optional-FROM fix would break. Each pin goes red under a mutation that makes the pattern
+// catch it, so the pins are not vacuous; the two mutations are independent (the UPDATE pin does not move with the DELETE one).
+const TSQL_CASES = [
+  { tool: "PowerShell", command: 'Invoke-Sqlcmd -Query "DELETE FROM dbo.leads"', want: "deny", kind: "control" },
+  { tool: "PowerShell", command: 'Invoke-Sqlcmd -Query "UPDATE dbo.leads SET status = 1"', want: "deny", kind: "control" },
+  { tool: "PowerShell", command: 'Invoke-Sqlcmd -Query "DELETE dbo.leads WHERE id = 1"', want: "allow", kind: "control" },
+  { tool: "PowerShell", command: 'Invoke-Sqlcmd -Query "DELETE dbo.leads"', want: "allow", kind: "delete-pin" },
+  { tool: "Bash", command: `pwsh -Command "Invoke-Sqlcmd -Query 'DELETE dbo.leads'"`, want: "allow", kind: "delete-pin" },
+  { tool: "PowerShell", command: 'Invoke-Sqlcmd -Query "UPDATE TOP (100) PERCENT dbo.leads SET status = 1"', want: "allow", kind: "update-pin" },
+  { tool: "Bash", command: `psql -c "CREATE TABLE child (id int, parent_id int REFERENCES parent(id) ON DELETE CASCADE)"`, want: "allow", kind: "cascade-guard" },
+  { tool: "Bash", command: `psql -c "ALTER TABLE child ADD CONSTRAINT fk FOREIGN KEY (parent_id) REFERENCES parent (id) ON DELETE CASCADE ON UPDATE CASCADE"`, want: "allow", kind: "cascade-guard" },
+];
+/** The cases whose verdict is not the expected one when the REAL hook at `hook` judges them. */
+function tsqlMisses(hook) {
+  return TSQL_CASES.filter(({ tool, command, want }) => {
+    const r = run(tool, { command }, NORMAL, hook);
+    const got = r.code === 0 ? "allow" : r.code === 2 && /BLOCKED by repo policy: destructive-sql(?![\w-])/.test(r.err) ? "deny" : `exit ${r.code}`;
+    return got !== want;
+  });
+}
+
+test("T-SQL: `DELETE dbo.leads` and `UPDATE TOP (n) PERCENT ...` are known limits, pinned (each fails the day it is fixed); `ON DELETE CASCADE` still passes (BREAKS: an optional FROM or a TOP arm goes red)", () => {
+  assert.deepEqual(tsqlMisses(HOOK).map((c) => c.command), [], "the shipped pattern: controls, pinned limits and the cascade guard all hold");
+  const kinds = (cases) => [...new Set(cases.map((c) => c.kind))].sort();
+  const mutated = (from, to) => (p) => {
+    const rule = p.rules.find((r) => r.id === "destructive-sql");
+    assert.equal(rule.pattern.split(from).length, 2, `the mutation anchor ${from} must occur exactly once in the pattern`);
+    rule.pattern = rule.pattern.split(from).join(to);
+  };
+  // M1: the fix the manager declined, an optional FROM. The DELETE pin and BOTH cascade guards must go red (the guards are the false positive it would add); the UPDATE pin must not move
+  const optionalFrom = withTree(mutated(String.raw`FROM\b(?!`, String.raw`(?:FROM\b)?(?!`), tsqlMisses);
+  assert.deepEqual(kinds(optionalFrom), ["cascade-guard", "delete-pin"], `an optional FROM must flip the DELETE pin and the cascade guard, got ${JSON.stringify(optionalFrom.map((c) => c.command))}`);
+  // M2: a TOP (n) [PERCENT] modifier on UPDATE. Only the UPDATE pin goes red
+  const topModifier = withTree(mutated(String.raw`(?:(?:ONLY|LOW_PRIORITY|IGNORE)`, String.raw`(?:(?:ONLY|LOW_PRIORITY|IGNORE|TOP\s*\(\s*\d+\s*\)(?:\s+PERCENT)?)`), tsqlMisses);
+  assert.deepEqual(kinds(topModifier), ["update-pin"], `a TOP modifier must flip only the UPDATE pin, got ${JSON.stringify(topModifier.map((c) => c.command))}`);
 });
 
 test("registration: the configured command string, run VERBATIM, denies destructive SQL through a SQL tool and allows a read (guard-red-team rule 5)", () => {
