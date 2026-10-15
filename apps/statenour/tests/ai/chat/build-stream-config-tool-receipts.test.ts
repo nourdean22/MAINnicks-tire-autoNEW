@@ -12,6 +12,7 @@ vi.mock("@/lib/ai/chat/repair-tool-call", () => ({ buildRepairToolCall: vi.fn(()
 
 import { buildStreamConfigFactory } from "@/app/api/ai/chat/build-stream-config";
 import { buildStreamErrorHandler } from "@/lib/services/chat/stream-error-handler";
+import { buildOnFinish } from "@/lib/services/chat/persist-assistant-turn";
 import { createInFlightToolCalls, type ToolReceiptsSnapshot } from "@/lib/services/chat/in-flight-tool-calls";
 
 const factory = (extra: Record<string, unknown> = {}) =>
@@ -43,7 +44,7 @@ const factory = (extra: Record<string, unknown> = {}) =>
   } as never);
 
 type Attempt = { onChunk: (event: unknown) => void };
-type HandlerDeps = { toolReceipts?: () => ToolReceiptsSnapshot; afterTerminal?: (cb: () => void) => void };
+type HandlerDeps = { toolReceipts?: () => ToolReceiptsSnapshot; afterTerminal?: (cb: () => void) => void; traceId?: string };
 const handlerDeps = (): HandlerDeps => vi.mocked(buildStreamErrorHandler).mock.calls.at(-1)![0] as unknown as HandlerDeps;
 const attemptOf = (build: ReturnType<typeof factory>): Attempt =>
   build({ modelId: "m", provider: "ollama" } as never) as unknown as Attempt;
@@ -118,6 +119,18 @@ describe("onChunk feeds the accumulator the error handler reads", () => {
     expect(snapshot.trustworthy ? snapshot.receipts.map((r) => r.toolName) : []).toEqual(["createTask", "arsenalDeepResearch"]);
     expect(firstHandler.toolReceipts?.()).toEqual(acc.snapshot());
     expect(secondHandler.toolReceipts?.()).toEqual(acc.snapshot());
+  });
+
+  // The errored row names the attempt by the id the error handler is built with, and the final row by
+  // the id the finish handler is built with. Both must be the turn's own (the one the response header
+  // carries), or Retry can never match a saved row to the attempt that failed.
+  it("the error handler and the finish handler are both built with the turn's trace id", () => {
+    // the route's persistBase carries the same id (route-tool-receipts-wiring.test.ts pins that)
+    attemptOf(factory({ persistBase: { recordTrace: vi.fn(), traceId: "t1" } }));
+
+    expect(handlerDeps().traceId).toBe("t1");
+    const finishDeps = vi.mocked(buildOnFinish).mock.calls.at(-1)![0] as unknown as { traceId?: string };
+    expect(finishDeps.traceId).toBe("t1");
   });
 
   it("a malformed onChunk event never throws into the stream", () => {

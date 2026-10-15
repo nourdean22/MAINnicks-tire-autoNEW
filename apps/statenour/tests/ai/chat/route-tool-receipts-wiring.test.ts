@@ -99,13 +99,18 @@ vi.mock("@/lib/ai/stream-with-fallback", () => ({
   inferProviderName: vi.fn(),
 }));
 vi.mock("@/app/api/ai/chat/build-stream-config", () => ({
-  buildStreamConfigFactory: vi.fn((input: { toolCalls?: unknown }) => {
+  buildStreamConfigFactory: vi.fn((input: { toolCalls?: unknown; traceId?: unknown; persistBase?: { traceId?: unknown } }) => {
     h.seen.toolCalls = input.toolCalls;
+    h.seen.factoryTraceId = input.traceId;
+    h.seen.persistTraceId = input.persistBase?.traceId;
     return () => ({});
   }),
 }));
 vi.mock("@/lib/services/chat/response-shape", () => ({
-  buildChatResponse: vi.fn(({ streamResponse }: { streamResponse: Response }) => streamResponse),
+  buildChatResponse: vi.fn(({ streamResponse, traceId }: { streamResponse: Response; traceId?: unknown }) => {
+    h.seen.responseTraceId = traceId;
+    return streamResponse;
+  }),
 }));
 vi.mock("@/app/api/ai/chat/context-hints", () => ({ buildContextHints: vi.fn().mockResolvedValue(""), resolveToolBiasKey: vi.fn() }));
 vi.mock("@/app/api/ai/chat/finalize-system-prompt", () => ({
@@ -173,6 +178,35 @@ const settle = () => new Promise((r) => setTimeout(r, 25));
 beforeEach(() => {
   for (const k of Object.keys(h.seen)) delete h.seen[k];
   h.consume = undefined;
+});
+
+// Retry judges a saved row only if it names the trace the CLIENT holds for the attempt. The client's
+// trace is the X-Trace-Id header buildChatResponse writes; the rows carry the id the stream-config
+// factory (the errored row, via the error handler) and persist (the final row) were given. If the
+// route minted a second id for the response, every unit test stays green and every errored turn
+// reads "unconfirmed" forever.
+describe("chat route - one trace id for the response header and the rows", () => {
+  it("the id handed to the response, to the stream-config factory and to persist is the same non-empty id", async () => {
+    h.consume = () => Promise.resolve();
+
+    await turn();
+
+    const responseTrace = h.seen.responseTraceId;
+    expect(typeof responseTrace === "string" && responseTrace.length > 0, "the response got no trace id").toBe(true);
+    expect(h.seen.factoryTraceId, "the errored row would name a different attempt than the header").toBe(responseTrace);
+    expect(h.seen.persistTraceId, "the final row would name a different attempt than the header").toBe(responseTrace);
+  });
+
+  it("each turn mints its own id (a fixed id would let one attempt's rows vouch for the next)", async () => {
+    h.consume = () => Promise.resolve();
+
+    await turn();
+    const first = h.seen.responseTraceId;
+    await turn();
+
+    expect(h.seen.responseTraceId).not.toBe(first);
+    expect(h.seen.factoryTraceId).toBe(h.seen.responseTraceId);
+  });
 });
 
 describe("chat route - the turn's tool record (errored-turn receipts)", () => {
