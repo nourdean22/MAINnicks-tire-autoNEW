@@ -33,7 +33,7 @@
  */
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { copyFileSync, linkSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
@@ -173,7 +173,7 @@ function judge(toolName, input, cwd, pol = policy) {
 const cwdFor = (rule) => rule.cwdExample ?? (rule.onlyWhenCwdMatches ? WORKTREE : NORMAL);
 const adapters = () => policy.mcpAdapters ?? [];
 // A denyExample whose denial rests on a SHELL boundary: a statement ended by `&&` or a pipe, or by a second -c/-Query flag. A rawText (SQL) row has no shell, so it does not judge these.
-const SHELL_BOUNDARY_EXAMPLE = /&&|\s\|\s|\s-(?:c|e|f|q|query)\b[\s\S]*\s-(?:c|e|f|q|query)\b/i;
+const SHELL_BOUNDARY_EXAMPLE = /&&|\s\|\s|\s-(?:query|[A-Za-z0-9]*[cefq])\b[\s\S]*\s-(?:query|[A-Za-z0-9]*[cefq])\b/i;
 const bashRules = policy.rules.filter((r) => r.pattern && (Array.isArray(r.tools) ? r.tools.includes("Bash") : true));
 const fileRules = policy.rules.filter((r) => r.pathPattern && (Array.isArray(r.tools) ? r.tools.includes("Write") : true));
 
@@ -730,7 +730,13 @@ test("docs truth: the live check is runnable from a worktree session, the lease 
   for (const phrase of ["session-level tripwire", "`run_in_terminal`'s own `cwd` argument", "recovery-command exemption", "KNOWN_UNCLASSIFIED", "Refresh recipe", "snapshot: 2026-10-15", "get_edge_configs", "20x slower"]) {
     assert.ok(README.includes(phrase), `README must state: ${phrase}`);
   }
-  // 2026-10-15 re-review: the engine claims that were wrong (onlyRules, rawText, the SQL door), pinned in their corrected wording
+  // 2026-10-15 re-review: the scan claims that were wrong ("every scan is bounded, so linear"), pinned in their corrected wording
+  for (const phrase of ["HYPHEN AXIS", "AMBIGUITY AXIS", "CLASS SWEEP", "QUADRATIC AXIS", "Each character is consumed exactly ONE way", "a short-flag CLUSTER", "up to 12 quote-like characters", "UPDATE t1, t2 SET", "hex and octal escapes"]) {
+    assert.ok(README.includes(phrase), `README must state: ${phrase}`);
+  }
+  assert.doesNotMatch(README, /so\s+its\s+cost\s+is\s+linear\s+in\s+their\s+length/, "the 'every scan is bounded, so linear' claim was wrong (an ambiguous scan costs 2^k whatever its bound)");
+  assert.doesNotMatch(README, /Every scan is bounded, so a text costs/, "bounded alone is not the cost model: each character must also be consumed one way");
+  // and the engine claims (onlyRules, rawText, the SQL door), pinned in their corrected wording
   for (const phrase of ["read as `true`", "is exactly `[\"destructive-sql\"]` also judges", "any other list keeps `FIELD_CAP`", "be able to judge the row's tool", "On the SQL tool rows only `;` ends a statement"]) {
     assert.ok(README.includes(phrase), `README must state: ${phrase}`);
   }
@@ -738,8 +744,9 @@ test("docs truth: the live check is runnable from a worktree session, the lease 
   const stale = README.split("\n").filter((l) => l.includes("list_edge_configs"));
   assert.ok(stale.length <= 1 && stale.every((l) => l.includes("get_edge_configs")), "the stale Vercel name may only appear beside its live replacement");
   const agents = readFileSync(join(ROOT, "AGENTS.md"), "utf8");
-  const row = agents.split("\n").find((l) => l.startsWith("| 13 destructive commands blocked")) ?? "";
-  assert.ok(row, "AGENTS.md first Enforcement-map row not found");
+  // the first Enforcement-map row is the one that names the hook's config; found by that, not by the rule count it opens with (that count moves when a rule is added)
+  const row = agents.split("\n").find((l) => l.startsWith("| ") && l.includes("config/agent-os/policy.json") && l.includes("blocked at the tool call")) ?? "";
+  assert.ok(row, "AGENTS.md first Enforcement-map row (the pretool hook row) not found");
   for (const phrase of ["PROMPTED, not hook-judged", "documented, not proven live", "`permissions.ask`", "`lease-check.mjs`", "SQL text tools"]) assert.ok(row.includes(phrase), `AGENTS.md row must say: ${phrase}`);
   assert.doesNotMatch(row, /even in bypass \(list/, "the old claim (prompts even in bypass, stated as fact) must not return");
   const why = policy.rules.find((r) => r.id === "destructive-sql").why;
@@ -748,7 +755,8 @@ test("docs truth: the live check is runnable from a worktree session, the lease 
   const ledger = readFileSync(join(ROOT, "docs", "agent-os", "MANAGER-LEDGER.md"), "utf8").split("\n").find((l) => l.startsWith("| 2026-10-15-guard-sql-lease-infra |")) ?? "";
   assert.ok(ledger, "the ledger row for this job is missing");
   assert.doesNotMatch(ledger, /every DROP kind/, "the ledger row must say the listed DROP kinds");
-  for (const phrase of ["the listed DROP kinds", "209", "fast-forward"]) assert.ok(ledger.includes(phrase), `the ledger row must say: ${phrase}`);
+  const total = policy.rules.reduce((n, r) => n + (r.denyExamples ?? []).length, 0); // derived, not hardcoded: the ledger and the coverage doc both quote it
+  for (const phrase of ["the listed DROP kinds", `144 to ${total}`, "fast-forward", "G4 the re-review, two commits"]) assert.ok(ledger.includes(phrase), `the ledger row must say: ${phrase}`);
 });
 
 // --- 9 - review fixes (2026-10-15: five review findings and one regression on the first commit) ---
@@ -1213,6 +1221,295 @@ test("SQL: a 25,000-character benign field and the worst whole-array shapes stay
     assert.equal(r.signal, null, "the hook must not run into its own timeout");
     assert.ok(r.ms < 9000, `took ${r.ms} ms; the hook timeout is 10 s and a timeout fails OPEN`);
   }
+});
+
+// --- the HYPHEN AXIS and the AMBIGUITY AXIS (2026-10-15 re-review) ---------------------------------------------------------------
+// The first worst-shape canaries built their blocks from hyphen-free text, so they could not see that the WHERE scan consumed a hyphen two
+// ways (a branch for "not after whitespace" and a branch for "not a flag word", both true on a UUID hyphen): a failed search cost 2^k and a
+// 6-UUID IN list ran into the hook's timeout, which fails OPEN. These shapes are the realistic text that carries hyphens (UUID lists, ISO
+// dates, dashed comments and literals), judged through the SQL rows AND the shell door by the real hook with the 9 s kill line.
+const HYPHEN_UUID = (i) => `${(0x10000000 + i).toString(16)}-1111-4222-8333-${(0x100000000000 + i).toString(16)}`;
+const HYPHEN_UUIDS = (n) => Array.from({ length: n }, (_, i) => `'${HYPHEN_UUID(i)}'`).join(", ");
+const HYPHEN_DATES = (n) => Array.from({ length: n }, (_, i) => `'2026-10-${String((i % 28) + 1).padStart(2, "0")}T10:00:00'`).join(", ");
+const HYPHEN_SHAPES = [
+  ...[3, 6, 10, 30].flatMap((n) => [
+    [`UPDATE ... WHERE id IN (${n} uuids)`, `UPDATE leads SET status = 'archived' WHERE id IN (${HYPHEN_UUIDS(n)})`, false],
+    [`DELETE ... WHERE id IN (${n} uuids)`, `DELETE FROM leads WHERE id IN (${HYPHEN_UUIDS(n)})`, false],
+  ]),
+  ["UPDATE, 6 uuids, no WHERE", `UPDATE leads SET note = ${HYPHEN_UUIDS(6)}`, true],
+  ["DELETE, 6 uuids in a comment, no WHERE", `DELETE FROM leads /* ${HYPHEN_UUIDS(6)} */`, true],
+  ["UPDATE, 30 ISO dates, WHERE", `UPDATE leads SET seen = ${HYPHEN_DATES(30)} WHERE id = 1`, false],
+  ["UPDATE, 30 ISO dates, no WHERE", `UPDATE leads SET seen = ${HYPHEN_DATES(30)}`, true],
+  ["DELETE, 30-dash comment, no WHERE", `DELETE FROM leads /* ${"-".repeat(30)} */`, true],
+  ["DELETE, 300-dash comment, no WHERE", `DELETE FROM leads /* ${"-".repeat(300)} */`, true],
+  ["DELETE, 300-dash comment, WHERE", `DELETE FROM leads /* ${"-".repeat(300)} */ WHERE id = 1`, false],
+  ["UPDATE, a-a-...-a literal of 40 hyphens, WHERE", `UPDATE t SET a = '${Array(41).fill("a").join("-")}' WHERE id = 1`, false],
+  ["UPDATE, a-a-...-a literal of 40 hyphens, no WHERE", `UPDATE t SET a = '${Array(41).fill("a").join("-")}'`, true],
+  ["ALTER TABLE, 30 uuids in a comment, no DROP", `ALTER TABLE t ADD COLUMN x text DEFAULT '${HYPHEN_UUID(1)}' /* ${HYPHEN_UUIDS(30)} */`, false],
+  ["ALTER TABLE, 300 dashes then DROP", `ALTER TABLE t /* ${"-".repeat(300)} */ DROP COLUMN c`, true],
+];
+
+test("HYPHEN AXIS: UUID lists, ISO dates, dashed comments and literals are judged correctly and inside the hook timeout, through the SQL rows and the shell door", (t) => {
+  assert.equal(HYPHEN_SHAPES.length, 19, "the hyphen axis is the proof surface: do not thin it");
+  const kill = 9000; // the hook's own timeout is 10 s and a timeout fails OPEN
+  const failures = [];
+  const times = [];
+  for (const [label, sql, wantDeny] of HYPHEN_SHAPES) {
+    for (const [door, name, input] of [
+      ["sql", SQL_RUN.name, { sql, project_id: "p-1" }],
+      ["shell", "Bash", { command: `psql "$DATABASE_URL" -c "${sql.replaceAll('"', '\\"')}"` }],
+    ]) {
+      const r = run(name, input, NORMAL, HOOK, kill);
+      times.push(r.ms);
+      const verdict = r.signal ? `killed (${r.signal}) at ${r.ms} ms: the hook timeout fails OPEN` : r.code === 2 && /BLOCKED by repo policy: destructive-sql(?![\w-])/.test(r.err) ? "deny" : r.code === 0 ? "allow" : `exit ${r.code}`;
+      if (verdict !== (wantDeny ? "deny" : "allow")) failures.push(`${door} ${label} (${sql.length} chars): ${verdict}`);
+      if (failures.length >= 4) break; // a red run costs one kill line per failure
+    }
+    if (failures.length >= 4) break;
+  }
+  t.diagnostic(`hyphen axis through the real hook: ${times.length} calls, slowest ${Math.max(...times)} ms, median ${[...times].sort((a, b) => a - b)[Math.floor(times.length / 2)]} ms (node start included)`);
+  assert.deepEqual(failures, [], "a hyphen is consumed exactly one way: these shapes must neither be killed nor judged wrongly");
+});
+
+// The generator behind the axis: a long run of every character class the pattern mentions, at the scan position of each arm, in a child
+// process per arm (a regression hangs the child, not the test run, and names the arm). Nothing here has a WHERE, so a scan that can be
+// matched two ways costs 2^k and the child is killed; a linear scan finishes every shape in milliseconds.
+const FUZZ_UNITS = ["-", "--", "---- ", "a-", "a-a-", " -", " --", " -x", "- ", "\\", "\\\\", "\\n", "\\\\n", "`n", "`", "``", '"', '""', '\\"', '\\\\"', "'", "[", "]", "[a]", ".", ". ",
+  "a.", "a.b.", '"a".', '\\"a\\".', "`a`.", "[a].", '"a" ', "AS ", " AS a ", " ", "\t", "\n", "&", "&&", "|", "||", "|||", "*", "$", "$$", "a b ", "0123abcd-1111-4222-8333-abcdef012345,",
+  "2026-10-15T10:00:00,", "x_y-z ", "(a-b)", "/* - */", "-- -\n"];
+const FUZZ_ARMS = { // [command prefix, the verdict every unit must get (undefined: not asserted, it depends on the unit)]
+  delete: ['psql -c "DELETE FROM t ', true], update_set: ['psql -c "UPDATE t SET a = ', true], update_alias: ['psql -c "UPDATE t ', false], alter: ['psql -c "ALTER TABLE t ', false],
+  update_ident: ['psql -c "UPDATE ', undefined], truncate: ['psql -c "TRUNCATE ', undefined], drop: ['psql -c "DROP ', undefined], prefix: ["", undefined],
+};
+const FUZZ_CHILD = `const { readFileSync, writeSync } = require("node:fs");
+const { prefix, source, flags, units } = JSON.parse(readFileSync(0, "utf8"));
+const re = new RegExp(source, flags);
+for (const unit of units) {
+  const text = prefix + unit.repeat(Math.max(2, Math.ceil(3000 / unit.length)));
+  const t0 = process.hrtime.bigint();
+  const hit = re.test(text);
+  writeSync(1, JSON.stringify({ unit, ms: Number(process.hrtime.bigint() - t0) / 1e6, hit }) + "\\n");
+}`;
+function fuzzArm(prefix, source, flags, units, killMs) {
+  const r = spawnSync(process.execPath, ["-e", FUZZ_CHILD], { input: JSON.stringify({ prefix, source, flags, units }), encoding: "utf8", timeout: killMs, maxBuffer: 1 << 24 });
+  const rows = (r.stdout ?? "").split("\n").filter(Boolean).map((l) => JSON.parse(l));
+  return { rows, killed: Boolean(r.signal), stuckOn: r.signal ? units[rows.length] : undefined };
+}
+
+test("AMBIGUITY AXIS: no run of any character class makes destructive-sql's scans cost more than milliseconds at any arm; the old two-branch hyphen scan is killed by the same generator (positive control)", (t) => {
+  const rule = policy.rules.find((r) => r.id === "destructive-sql");
+  const slow = [];
+  let measured = 0;
+  for (const [arm, [prefix, verdict]] of Object.entries(FUZZ_ARMS)) {
+    const res = fuzzArm(prefix, rule.pattern, rule.flags, FUZZ_UNITS, 30000);
+    assert.equal(res.killed, false, `arm ${arm}: the match did not finish on the unit ${JSON.stringify(res.stuckOn)} (exponential backtracking: some part of a scan is matched two ways)`);
+    assert.equal(res.rows.length, FUZZ_UNITS.length, `arm ${arm}: the child measured ${res.rows.length} of ${FUZZ_UNITS.length} units`);
+    for (const row of res.rows) {
+      measured++;
+      if (row.ms > 1500) slow.push(`${arm} ${JSON.stringify(row.unit)}: ${row.ms.toFixed(0)} ms`);
+      if (verdict !== undefined) assert.equal(row.hit, verdict, `arm ${arm}, unit ${JSON.stringify(row.unit)}: the verdict changed (a pattern that is fast and wrong is not the goal)`);
+    }
+  }
+  assert.deepEqual(slow, [], "every shape must cost milliseconds, not seconds");
+  // positive control: put the OLD scan group back (two branches that both match a hyphen) and the generator must not get through the first unit
+  const OLD_SCAN = String.raw`(?:[^;&|-]|&(?!&)|\|\||-(?:(?<!\s-)|(?!-?(?:c|e|f|q|query|command|execute|file)\b)))`;
+  const NEW_SCAN = String.raw`(?:(?!\s-(?:-?(?:query|command|execute|file)|-?[cefq]|[A-Za-z0-9]+[cefq])\b)(?:[^;&|]|&(?!&)|\|\|))`;
+  assert.equal(rule.pattern.split(NEW_SCAN).length - 1, 3, "the shipped pattern must carry the single-branch scan in its three arms");
+  const broken = rule.pattern.split(NEW_SCAN).join(OLD_SCAN);
+  const control = fuzzArm(FUZZ_ARMS.delete[0], broken, rule.flags, ["-"], 4000);
+  assert.equal(control.killed, true, "positive control: with the old two-branch scan the generator must be killed on the unit '-', or it cannot see this defect");
+  t.diagnostic(`ambiguity axis: ${measured} shapes (${FUZZ_UNITS.length} units x ${Object.keys(FUZZ_ARMS).length} arms), none killed, none over 1,500 ms; the old scan was killed on the first unit`);
+});
+
+// The tempered scan must draw the SAME boundaries as the two-branch scan it replaced (shell `&&`, a spaced `|`, `;`, a following -c/-e/-f/-q/
+// --command/--execute/--file; multi-line, `||` and a lone `&` pass through). Differential on 6,000 seeded random statements with few hyphens
+// (the old form is only fast there): the verdicts must agree, and a scan that forgets one boundary must disagree somewhere (BREAKS).
+test("destructive-sql's tempered WHERE scan draws the same boundaries as the two-branch scan it replaced (differential, seeded, with a BREAKS arm)", () => {
+  const rule = policy.rules.find((r) => r.id === "destructive-sql");
+  const OLD_SCAN = String.raw`(?:[^;&|-]|&(?!&)|\|\||-(?:(?<!\s-)|(?!-?(?:c|e|f|q|query|command|execute|file)\b)))`;
+  const NEW_SCAN = String.raw`(?:(?!\s-(?:-?(?:query|command|execute|file)|-?[cefq]|[A-Za-z0-9]+[cefq])\b)(?:[^;&|]|&(?!&)|\|\|))`;
+  const oldRe = new RegExp(rule.pattern.split(NEW_SCAN).join(OLD_SCAN), rule.flags);
+  const heads = ['psql -c "DELETE FROM leads', 'psql -c "UPDATE leads SET a = 1', 'psql "$U" -c "UPDATE t SET b = 2', "mysql -e 'DELETE FROM t", 'psql -c "ALTER TABLE t ADD x int', 'psql -c "ALTER TABLE t',
+    "psql <<'EOF'\nDELETE FROM t", "psql -c $'UPDATE x SET y = z"];
+  const tokens = [" ", "\n", " WHERE id = 1", " where", " -c ", " -c", " --command ", " -e ", " -f x", " -q ", " -query", " --file=a", "-", "--", "a-b", "x-y-z", " -x", " - ", ";", " ; ", "&&",
+    " && ", "&", "AT&T", "|", " | ", "||", " || ", '"', '\\"', "'", ")", "(", " DROP COLUMN c", " ADD COLUMN d int", " SET q = 1", " psql ", " -- c\n", "/* - */", "\\n", "`n"];
+  let seed = 12345;
+  const rnd = () => (seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296;
+  const texts = Array.from({ length: 6000 }, () => {
+    let text = heads[Math.floor(rnd() * heads.length)];
+    for (let j = 1 + Math.floor(rnd() * 5); j > 0; j--) text += tokens[Math.floor(rnd() * tokens.length)];
+    return text;
+  });
+  const newRe = new RegExp(rule.pattern, rule.flags);
+  const disagreements = (re) => texts.filter((text) => re.test(text) !== oldRe.test(text));
+  assert.equal(rule.pattern.split(NEW_SCAN).length - 1, 3, "the shipped pattern must carry the single-branch scan in its three arms");
+  assert.deepEqual(disagreements(newRe).slice(0, 5), [], "the tempered scan changed a verdict the two-branch scan gave");
+  const denies = texts.filter((text) => newRe.test(text)).length;
+  assert.ok(denies > 1000 && denies < texts.length - 1000, `the corpus must hold both verdicts in volume (got ${denies} denies of ${texts.length})`);
+  // BREAKS: forget the `&&` boundary, the lone-`|` boundary, or one flag word, and the corpus must notice
+  for (const [what, scan] of [
+    ["the && boundary", NEW_SCAN.replace("&(?!&)", "&")],
+    ["the lone | boundary", NEW_SCAN.replace(String.raw`|\|\|)`, String.raw`|\||\|\|)`)],
+    ["the --command flag word", NEW_SCAN.replace("|command|", "|")],
+  ]) {
+    assert.notEqual(scan, NEW_SCAN, `${what}: the mutation changed nothing`);
+    const mutated = new RegExp(rule.pattern.split(NEW_SCAN).join(scan), rule.flags);
+    assert.ok(disagreements(mutated).length > 0, `BREAKS: a scan that forgets ${what} must disagree with the old scan somewhere in the corpus, or the differential cannot see a boundary move`);
+  }
+});
+
+// --- the CLASS SWEEP and the QUADRATIC AXIS (2026-10-15 re-review, the design fix for the whole class) -----------------------------------
+// One missed axis is how the hyphen regression got through: the worst-shape canaries were built from hyphen-free text. This sweep does not pick
+// axes by hand. For EVERY character class the pattern mentions, repeated 30, 300 and 3000 times, behind a prefix that puts each arm on its failure
+// path and on its success path, through BOTH doors (the shell door as `psql -c "..."` and the SQL row run_sql) and the REAL hook, it asserts
+// (a) the hook returns, (b) in under 2 s, (c) with the expected verdict. The prefix decides the verdict, never the class, except for TRUNCATE
+// right before a bare run (a word character after it IS the table name).
+const SWEEP_CLASSES = {
+  hyphen: "-", bracket: "[", "single quote": "'", "double quote": '"', backslash: "\\", backtick: "`", space: " ", digit: "7", "hex letter": "a", dollar: "$", ampersand: "&", pipe: "|", dot: ".",
+  semicolon: ";",
+};
+const SWEEP_SIZES = [30, 300, 3000];
+const SWEEP_PREFIXES = [
+  ["bare DELETE", "DELETE FROM leads ", () => "deny"],
+  ["bare UPDATE", "UPDATE leads SET a = 1 ", () => "deny"],
+  ["bare TRUNCATE after a table name", "TRUNCATE leads ", () => "deny"],
+  ["TRUNCATE straight into the run", "TRUNCATE ", (cls) => (cls === "digit" || cls === "hex letter" ? "deny" : "allow")],
+  ["ALTER TABLE with no DROP anywhere", "ALTER TABLE leads ", () => "allow"],
+  ["WHERE-guarded DELETE", "DELETE FROM leads WHERE id = 1 ", () => "allow"],
+  ["WHERE-guarded UPDATE", "UPDATE leads SET a = 1 WHERE id = 1 ", () => "allow"],
+  ["UPDATE straight into the run", "UPDATE ", () => "allow"],
+  ["DROP straight into the run", "DROP ", () => "allow"],
+  ["no arm at all", "SELECT 1 ", () => "allow"],
+];
+
+/** The real hook as an async child (so a pool can run several at once). Kills it at `killMs`. */
+function runAsync(tool_name, tool_input, killMs) {
+  return new Promise((done) => {
+    const t0 = Date.now();
+    const child = spawn(process.execPath, [HOOK], { env: ENV, stdio: ["pipe", "pipe", "pipe"] });
+    let err = "";
+    let killed = false;
+    const timer = setTimeout(() => { killed = true; child.kill(); }, killMs);
+    child.stderr.on("data", (d) => { err += d; });
+    child.stdout.resume();
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      done({ code, killed, err, ms: Date.now() - t0 });
+    });
+    child.stdin.on("error", () => {});
+    child.stdin.end(JSON.stringify({ tool_name, tool_input, cwd: NORMAL }));
+  });
+}
+const verdictOf = (r) => (r.killed ? `killed at ${r.ms} ms (the hook timeout fails OPEN)` : r.code === 2 && /BLOCKED by repo policy: destructive-sql(?![\w-])/.test(r.err) ? "deny" : r.code === 0 ? "allow" : `exit ${r.code}`);
+
+test("CLASS SWEEP: every character class x 30, 300, 3000 x every arm's failure and success path, through the shell door and the SQL row, in the REAL hook: it returns, in under 2 s, with the expected verdict", async (t) => {
+  const tasks = [];
+  for (const [cls, ch] of Object.entries(SWEEP_CLASSES)) {
+    for (const size of SWEEP_SIZES) {
+      for (const [label, prefix, expected] of SWEEP_PREFIXES) {
+        const text = prefix + ch.repeat(size);
+        const want = expected(cls);
+        tasks.push({ door: "shell", name: "Bash", input: { command: `psql -c "${text}"` }, want, what: `${cls} x ${size} after ${label}` });
+        tasks.push({ door: "sql", name: SQL_RUN.name, input: { sql: text, project_id: "p-1" }, want, what: `${cls} x ${size} after ${label}` });
+      }
+    }
+  }
+  assert.equal(tasks.length, 14 * 3 * 10 * 2, "the sweep is 14 classes x 3 sizes x 10 prefixes x 2 doors");
+  const failures = [];
+  const slow = [];
+  const times = [];
+  let next = 0;
+  const worker = async () => {
+    while (next < tasks.length && failures.length < 12) {
+      const task = tasks[next++];
+      let r = await runAsync(task.name, task.input, 9000);
+      if (!r.killed && r.ms > 2000) r = await runAsync(task.name, task.input, 9000); // one retry: a loaded machine, not a defect, is fast the second time
+      times.push(r.ms);
+      const verdict = verdictOf(r);
+      if (verdict !== task.want) failures.push(`${task.door} ${task.what}: ${verdict}, expected ${task.want}`);
+      else if (r.ms > 2000) slow.push(`${task.door} ${task.what}: ${r.ms} ms`);
+    }
+  };
+  await Promise.all(Array.from({ length: 6 }, worker));
+  const sorted = [...times].sort((a, b) => a - b);
+  t.diagnostic(`class sweep through the real hook: ${times.length} calls, median ${sorted[Math.floor(sorted.length / 2)]} ms, slowest ${sorted[sorted.length - 1]} ms (node start included, 6 at a time)`);
+  assert.deepEqual(failures, [], "a character class made the hook hang, answer wrongly or run past the kill line");
+  assert.deepEqual(slow, [], "every call must return in under 2 s (checked twice before it is reported)");
+});
+
+// The sweep above is far too small to see a QUADRATIC arm (66 ms at 20,000 characters, 10 s at 400,000). So each arm is also fed its own keyword
+// repeated to 240,000 characters, in a child process per unit with a kill line. A unit that has to scan to the end of the text from every start
+// is quadratic: it takes seconds here, a linear arm takes milliseconds to a few hundred.
+const QUADRATIC_UNITS = ["UPDATE [", "UPDATE a.[", "UPDATE a [", "UPDATE ONLY [", 'UPDATE "', "UPDATE \\\"", "UPDATE a SET b = ", "UPDATE a SET b = [", "DELETE FROM a ", "DELETE FROM [", "ALTER TABLE a ", "ALTER TABLE [",
+  "TRUNCATE [", 'TRUNCATE "', "TRUNCATE ", "DROP ", "DROP [", "psql "];
+const QUADRATIC_CHILD = `const { readFileSync, writeSync } = require("node:fs");
+const { source, flags, unit, chars } = JSON.parse(readFileSync(0, "utf8"));
+const re = new RegExp(source, flags);
+const text = "psql " + unit.repeat(Math.ceil(chars / unit.length));
+const t0 = process.hrtime.bigint();
+const hit = re.test(text);
+writeSync(1, JSON.stringify({ ms: Number(process.hrtime.bigint() - t0) / 1e6, hit, length: text.length }));`;
+function quadraticUnit(source, flags, unit, chars, killMs) {
+  const r = spawnSync(process.execPath, ["-e", QUADRATIC_CHILD], { input: JSON.stringify({ source, flags, unit, chars }), encoding: "utf8", timeout: killMs, maxBuffer: 1 << 20 });
+  return r.signal ? { killed: true } : { killed: false, ...JSON.parse(r.stdout) };
+}
+
+test("QUADRATIC AXIS: every arm's own keyword repeated to 240,000 characters finishes in a few seconds, none scans to the end of the text from every start; the old unbounded bracket class does not (positive control)", (t) => {
+  const rule = policy.rules.find((r) => r.id === "destructive-sql");
+  const slow = [];
+  const timesMs = [];
+  for (const unit of QUADRATIC_UNITS) {
+    const r = quadraticUnit(rule.pattern, rule.flags, unit, 240_000, 30000);
+    if (r.killed || r.ms > 4000) slow.push(`${JSON.stringify(unit)}: ${r.killed ? "killed at 30 s" : `${r.ms.toFixed(0)} ms`}`);
+    else timesMs.push([r.ms, unit]);
+  }
+  timesMs.sort((a, b) => b[0] - a[0]);
+  t.diagnostic(`quadratic axis: ${QUADRATIC_UNITS.length} units x 240,000 chars, slowest ${timesMs[0]?.[1] === undefined ? "n/a" : `${JSON.stringify(timesMs[0][1])} ${timesMs[0][0].toFixed(0)} ms`}`);
+  assert.deepEqual(slow, [], "a unit that costs seconds at 240,000 characters is quadratic in the text length");
+  // positive control: the unbounded bracket class of the first version, on the unit that exposed it, must be slow or killed
+  const unbounded = rule.pattern.split(String.raw`\[[^\]\[]+\]`).join(String.raw`\[[^\]]+\]`);
+  assert.notEqual(unbounded, rule.pattern, "the shipped bracket class changed shape: update this control");
+  const control = quadraticUnit(unbounded, rule.flags, "UPDATE [", 240_000, 15000);
+  assert.ok(control.killed || control.ms > 3000, `positive control: the unbounded bracket class took only ${control.ms} ms on 240,000 characters of "UPDATE [", so this axis cannot see a quadratic arm`);
+});
+
+test("re-review boundaries: each new denyExample is denied BECAUSE of its fix (BREAKS: the pattern without that piece lets it through); the documented limits are pinned", () => {
+  const rule = policy.rules.find((r) => r.id === "destructive-sql");
+  const denies = (pattern, text) => new RegExp(pattern, rule.flags).test(text);
+  const fresh = (needle, count) => rule.denyExamples.slice(rule.denyExamples.findIndex((e) => e.includes(needle)), rule.denyExamples.findIndex((e) => e.includes(needle)) + count);
+  const cluster = fresh("-tAc", 3); // psql -tAc, mysql -Ne, psql -qc
+  const nested = fresh("ssh host \"psql", 3); // three backslashes, seven backslashes, a PowerShell backtick run
+  const alter = fresh("ALTER TABLE leads\\nDROP phone", 4); // backslash-n, backslash-t, backtick-n, MySQL DROP FOREIGN KEY
+  for (const group of [cluster, nested, alter]) assert.equal(group.length, 3 + (group === alter ? 1 : 0), "the example group moved: update this canary");
+  const armOf = (name, next) => rule.pattern.match(new RegExp(`\\|${name}[\\s\\S]*?(?=\\|${next}\\()`))?.[0];
+  const alterArm = armOf("ALTER", "DELETE");
+  assert.ok(alterArm?.includes("TABLE"), "could not isolate the ALTER arm of the pattern");
+  const withoutPiece = {
+    "the short-flag cluster stop": rule.pattern.split("|[A-Za-z0-9]+[cefq]").join(""),
+    "the identifier quote run beyond 3": rule.pattern.split("){1,12}").join("){1,3}"),
+    "the ALTER arm": rule.pattern.replace(alterArm, ""),
+  };
+  for (const [what, pattern] of Object.entries(withoutPiece)) assert.notEqual(pattern, rule.pattern, `${what}: the mutation changed nothing`);
+  for (const [what, group] of [["the short-flag cluster stop", cluster], ["the identifier quote run beyond 3", nested], ["the ALTER arm", alter]]) {
+    for (const example of group) {
+      assert.ok(denies(rule.pattern, example), `control: ${JSON.stringify(example)} is denied by the shipped pattern`);
+      assert.ok(!denies(withoutPiece[what], example), `BREAKS: without ${what}, ${JSON.stringify(example)} must pass, or the example proves nothing about that piece`);
+    }
+  }
+  // documented limits, pinned: a later WHERE after a NEWLINE, `||` or a single `&` still rescues a bare write on the shell door (README "Where a missing WHERE is decided")
+  for (const command of [
+    `psql -c "DELETE FROM leads"\npsql "$U" <<'EOF'\nSELECT count(*) FROM leads WHERE id > 0;\nEOF`,
+    `psql -c "DELETE FROM leads" || echo "rows where id > 0"`,
+    `psql -c "DELETE FROM leads" & echo where`,
+  ]) allowed(run("Bash", { command }), `documented limit (if this now denies, update the README): ${JSON.stringify(command)}`);
+  // and the cost of the cluster stop on the shell door: a spaced minus before a word that ends in c, e, f or q reads as a flag (the SQL rows are not affected)
+  denied(run("Bash", { command: `psql -c "UPDATE t SET balance = balance -fee WHERE id = 1"` }), "destructive-sql", "shell door: ` -fee` reads as a flag cluster (documented false positive)");
+  allowed(run(SQL_RUN.name, SQL_RUN.input("UPDATE t SET balance = balance -fee WHERE id = 1")), "the SQL row has no shell flags");
+  // the other spellings that still pass (README "What the SQL rule still misses"), each a pin that fails the day it is fixed
+  for (const command of [
+    String.raw`printf 'SELECT 1;\x0aDELETE FROM leads' | psql "$U"`, String.raw`printf 'SELECT 1;\012DELETE FROM leads' | psql "$U"`, String.raw`printf 'DELETE\x20FROM leads' | psql "$U"`,
+    `psql -c 'UPDATE"Task"SET status=1'`, `psql -c 'UPDATE "a""b" SET x = 1'`, `mysql -e "UPDATE t1, t2 SET t1.a = 1"`,
+  ]) allowed(run("Bash", { command }), `documented limit (if this now denies, update the README): ${command}`);
 });
 
 test("destructive-sql is anchored: the unanchored form is at least 20x slower on the same 60,000 benign characters (a ratio, never a clock)", () => {

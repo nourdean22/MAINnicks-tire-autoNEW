@@ -230,7 +230,10 @@ test("fixtures are consistent: nothing is both MUST-GATE and MUST-ALLOW or BENIG
 // --- 3 - coverage on every server form ---------------------------------------------------------------
 
 test("every MUST-GATE leaf is asked on every server form, so a reconnect that changes a connector UUID changes nothing", () => {
-  assert.equal(ALL_GATE.length, 135, "the protected-tool count moved: update the fixtures, settings.json and the README together");
+  // the count is derived from the fixture (not hardcoded): settings.json must ask for exactly the protected leaves, and the README must quote that number
+  assert.equal(ask.length, ALL_GATE.length, "settings.json permissions.ask and the protected fixture list differ in length: update both together");
+  const readme = readFileSync(join(ROOT, "docs", "agent-os", "README.md"), "utf8");
+  assert.ok(readme.includes(`${ALL_GATE.length} entries`) && readme.includes(`prints ${ALL_GATE.length}`), `the README must quote the protected-tool count (${ALL_GATE.length} entries, and the live check's "prints ${ALL_GATE.length}")`);
   assert.deepEqual(unaskedGate(ask), []);
 });
 
@@ -240,7 +243,7 @@ test("no MUST-ALLOW read or additive create, and no other connector's tool, is a
 });
 
 test("KNOWN_UNCLASSIFIED: live writers and secret reads nobody classified are deliberately NOT asked, and sit in no other list", () => {
-  assert.ok(KNOWN_UNCLASSIFIED.length >= 30, "the known-unclassified list is the recorded 'not prompted' decision: do not empty it silently");
+  assert.ok(KNOWN_UNCLASSIFIED.length > 0, "the known-unclassified list is the recorded 'not prompted' decision: an empty list means every name was classified, so delete this fixture and its README bullet");
   assert.equal(new Set(KNOWN_UNCLASSIFIED).size, KNOWN_UNCLASSIFIED.length, "KNOWN_UNCLASSIFIED has a duplicate");
   const clash = KNOWN_UNCLASSIFIED.filter((leaf) => ALL_GATE.includes(leaf) || ALL_ALLOW.includes(leaf) || BENIGN.includes(leaf));
   assert.deepEqual(clash, [], "a name is either classified (gate, allow, benign) or known-unclassified, never both: move it, do not copy it");

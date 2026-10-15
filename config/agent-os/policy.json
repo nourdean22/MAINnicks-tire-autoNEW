@@ -390,7 +390,7 @@
     {
       "id": "destructive-sql",
       "tools": ["Bash", "PowerShell"],
-      "pattern": "^(?=[\\s\\S]*\\b(?:mysql|psql|railway\\s+run|prisma\\s+db\\s+execute|Invoke-Sqlcmd)\\b)[\\s\\S]*?(?:\\b|(?<=[\\\\`][nrt]))(?:DROP(?:\\s|\\\\[nrt]|`[nrt]|\\\\\\r?\\n)+(?:DATABASE|SCHEMA|TABLE)|DROP(?:\\s|\\\\[nrt]|`[nrt]|\\\\\\r?\\n)+(?:EXTENSION|INDEX|VIEW|MATERIALIZED(?:\\s|\\\\[nrt]|`[nrt]|\\\\\\r?\\n)+VIEW|FUNCTION|PROCEDURE|TYPE|ROLE|USER|SEQUENCE|TRIGGER|POLICY|OWNED|COLUMN|CONSTRAINT)\\b|TRUNCATE(?:\\s|\\\\[nrt]|`[nrt]|\\\\\\r?\\n)+(?:TABLE(?:\\s|\\\\[nrt]|`[nrt]|\\\\\\r?\\n)+)?(?:ONLY(?:\\s|\\\\[nrt]|`[nrt]|\\\\\\r?\\n)+)?[\\\\\"'`\\[]*\\w|ALTER(?:\\s|\\\\[nrt]|`[nrt]|\\\\\\r?\\n)+TABLE\\b(?:[^;&|-]|&(?!&)|\\|\\||-(?:(?<!\\s-)|(?!-?(?:c|e|f|q|query|command|execute|file)\\b))){0,1500}?\\bDROP\\b|DELETE(?:\\s|\\\\[nrt]|`[nrt]|\\\\\\r?\\n)+(?:(?:LOW_PRIORITY|QUICK|IGNORE)(?:\\s|\\\\[nrt]|`[nrt]|\\\\\\r?\\n)+)*FROM\\b(?!(?:[^;&|-]|&(?!&)|\\|\\||-(?:(?<!\\s-)|(?!-?(?:c|e|f|q|query|command|execute|file)\\b))){0,5000}(?:\\b|(?<=[\\\\`][nrt]))WHERE\\b)|UPDATE(?:\\s|\\\\[nrt]|`[nrt]|\\\\\\r?\\n)+(?:(?:ONLY|LOW_PRIORITY|IGNORE)(?:\\s|\\\\[nrt]|`[nrt]|\\\\\\r?\\n)+)*(?:(?:\\\\|`|\"){1,3}[^\"`\\\\]+(?:\\\\|`|\"){1,3}|\\[[^\\]]+\\]|[\\w$]+)(?:(?:\\s|\\\\[nrt]|`[nrt]|\\\\\\r?\\n)*\\.(?:\\s|\\\\[nrt]|`[nrt]|\\\\\\r?\\n)*(?:(?:\\\\|`|\"){1,3}[^\"`\\\\]+(?:\\\\|`|\"){1,3}|\\[[^\\]]+\\]|[\\w$]+))*(?:(?:\\s|\\\\[nrt]|`[nrt]|\\\\\\r?\\n)*\\*)?(?:(?:\\s|\\\\[nrt]|`[nrt]|\\\\\\r?\\n)+(?:AS(?:\\s|\\\\[nrt]|`[nrt]|\\\\\\r?\\n)+)?(?:(?:\\\\|`|\"){1,3}[^\"`\\\\]+(?:\\\\|`|\"){1,3}|\\[[^\\]]+\\]|[\\w$]+))?(?:\\s|\\\\[nrt]|`[nrt]|\\\\\\r?\\n)+SET\\b(?!(?:[^;&|-]|&(?!&)|\\|\\||-(?:(?<!\\s-)|(?!-?(?:c|e|f|q|query|command|execute|file)\\b))){0,5000}(?:\\b|(?<=[\\\\`][nrt]))WHERE\\b))",
+      "pattern": "^(?=[\\s\\S]*\\b(?:mysql|psql|railway\\s+run|prisma\\s+db\\s+execute|Invoke-Sqlcmd)\\b)[\\s\\S]*?(?:\\b|(?<=[\\\\`][nrt]))(?:DROP(?:\\s|\\\\[nrt]|`[nrt]|\\\\\\r?\\n)+(?:DATABASE|SCHEMA|TABLE)|DROP(?:\\s|\\\\[nrt]|`[nrt]|\\\\\\r?\\n)+(?:EXTENSION|INDEX|VIEW|MATERIALIZED(?:\\s|\\\\[nrt]|`[nrt]|\\\\\\r?\\n)+VIEW|FUNCTION|PROCEDURE|TYPE|ROLE|USER|SEQUENCE|TRIGGER|POLICY|OWNED|COLUMN|CONSTRAINT)\\b|TRUNCATE(?:\\s|\\\\[nrt]|`[nrt]|\\\\\\r?\\n)+(?:TABLE(?:\\s|\\\\[nrt]|`[nrt]|\\\\\\r?\\n)+)?(?:ONLY(?:\\s|\\\\[nrt]|`[nrt]|\\\\\\r?\\n)+)?[\\\\\"'`\\[]*\\w|ALTER(?:\\s|\\\\[nrt]|`[nrt]|\\\\\\r?\\n)+TABLE\\b(?:(?!\\s-(?:-?(?:query|command|execute|file)|-?[cefq]|[A-Za-z0-9]+[cefq])\\b)(?:[^;&|]|&(?!&)|\\|\\|)){0,1500}?(?:\\b|(?<=[\\\\`][nrt]))DROP\\b|DELETE(?:\\s|\\\\[nrt]|`[nrt]|\\\\\\r?\\n)+(?:(?:LOW_PRIORITY|QUICK|IGNORE)(?:\\s|\\\\[nrt]|`[nrt]|\\\\\\r?\\n)+)*FROM\\b(?!(?:(?!\\s-(?:-?(?:query|command|execute|file)|-?[cefq]|[A-Za-z0-9]+[cefq])\\b)(?:[^;&|]|&(?!&)|\\|\\|)){0,5000}(?:\\b|(?<=[\\\\`][nrt]))WHERE\\b)|UPDATE(?:\\s|\\\\[nrt]|`[nrt]|\\\\\\r?\\n)+(?:(?:ONLY|LOW_PRIORITY|IGNORE)(?:\\s|\\\\[nrt]|`[nrt]|\\\\\\r?\\n)+)*(?:(?:\\\\|`|\"){1,12}[^\"`\\\\]+(?:\\\\|`|\"){1,12}|\\[[^\\]\\[]+\\]|[\\w$]+)(?:(?:\\s|\\\\[nrt]|`[nrt]|\\\\\\r?\\n)*\\.(?:\\s|\\\\[nrt]|`[nrt]|\\\\\\r?\\n)*(?:(?:\\\\|`|\"){1,12}[^\"`\\\\]+(?:\\\\|`|\"){1,12}|\\[[^\\]\\[]+\\]|[\\w$]+))*(?:(?:\\s|\\\\[nrt]|`[nrt]|\\\\\\r?\\n)*\\*)?(?:(?:\\s|\\\\[nrt]|`[nrt]|\\\\\\r?\\n)+(?:AS(?:\\s|\\\\[nrt]|`[nrt]|\\\\\\r?\\n)+)?(?:(?:\\\\|`|\"){1,12}[^\"`\\\\]+(?:\\\\|`|\"){1,12}|\\[[^\\]\\[]+\\]|[\\w$]+))?(?:\\s|\\\\[nrt]|`[nrt]|\\\\\\r?\\n)+SET\\b(?!(?:(?!\\s-(?:-?(?:query|command|execute|file)|-?[cefq]|[A-Za-z0-9]+[cefq])\\b)(?:[^;&|]|&(?!&)|\\|\\|)){0,5000}(?:\\b|(?<=[\\\\`][nrt]))WHERE\\b))",
       "flags": "i",
       "why": "AGENTS.md > Protected operations: destructive schema commands need an explicit operator instruction. Memory agent-destructive-script-incident: a 'verification' run deleted 870 rows, a class that only DROP and TRUNCATE covered until 2026-10-15; the rule now also denies a DELETE FROM or an UPDATE ... SET with no WHERE in its statement, ALTER TABLE ... DROP and the listed DROP kinds (docs/agent-os/README.md lists the limits and the kinds that pass). The rule requires a DB client on the same command so that grepping/auditing SQL text stays legal — mention is not execution.",
       "fix": "Ask the operator. If this is migration SQL, write it to a migration file (Write is not blocked) rather than executing it from a shell. A write meant for a subset needs a WHERE that names it.",
@@ -441,6 +441,16 @@
         "psql -c \"DO $$ BEGIN EXECUTE 'DROP TABLE x'; END $$\"",
         "psql -c \"DO $$ BEGIN EXECUTE 'DELETE FROM x'; END $$\"",
         "psql -c 'TRUNCATE \"Task\" CASCADE'",
+        "psql \"$DATABASE_URL\" -c \"DELETE FROM leads\" -tAc \"SELECT count(*) FROM leads WHERE id > 0\"",
+        "mysql -e \"DELETE FROM leads\" -Ne \"SELECT 1 WHERE 1\"",
+        "psql \"$DATABASE_URL\" -c \"UPDATE leads SET status = 'x'\" -qc \"SELECT 1 WHERE true\"",
+        "ssh host \"psql -c \\\"UPDATE \\\\\\\"Task\\\\\\\" SET status = 1\\\"\"",
+        "ssh host \"ssh db \\\"psql -c \\\\\\\"UPDATE public.\\\\\\\\\\\\\\\"Task\\\\\\\\\\\\\\\" SET a = 1\\\\\\\"\\\"\"",
+        "powershell \"psql -c ````\"UPDATE ````\"Task````\" SET a = 1````\"\"",
+        "printf 'ALTER TABLE leads\\nDROP phone;' | psql \"$DATABASE_URL\"",
+        "printf 'ALTER TABLE leads\\tDROP phone;' | psql \"$DATABASE_URL\"",
+        "\"ALTER TABLE leads`nDROP phone;\" | psql $env:DATABASE_URL",
+        "printf 'ALTER TABLE t\\nDROP FOREIGN KEY fk;' | mysql app",
         "psql -c \"TRUNCATE \\\"Task\\\" CASCADE\"",
         "psql -c \"TRUNCATE `\"Task`\" CASCADE\"",
         "mysql -e 'TRUNCATE `leads`'",
@@ -499,7 +509,12 @@
         "psql --command \"DELETE FROM t WHERE id = 1\"",
         "printf 'DELETE FROM leads\\nWHERE id = 3;' | psql",
         "psql -c \"UPDATE \\\"Task\\\" SET status = 'x' WHERE id = 1\"",
-        "psql -c \"SELECT 1;`nSELECT 2;\""
+        "psql -c \"SELECT 1;`nSELECT 2;\"",
+        "psql -c \"UPDATE leads SET status = 'archived' WHERE id IN ('10000001-1111-4222-8333-100000000001', '10000002-1111-4222-8333-100000000002', '10000003-1111-4222-8333-100000000003', '10000004-1111-4222-8333-100000000004', '10000005-1111-4222-8333-100000000005', '10000006-1111-4222-8333-100000000006')\"",
+        "psql -c \"DELETE FROM leads /* ---------------------------------------- */ WHERE created_at < '2026-10-15T10:00:00'\"",
+        "psql -c \"UPDATE t SET a = a -b WHERE id = 1\"",
+        "psql -h db -d app -tA -c \"UPDATE leads SET a = 1 WHERE id = 2\" -v ON_ERROR_STOP=1",
+        "psql -1 -c \"DELETE FROM leads WHERE id = 1\""
       ]
     },
     {

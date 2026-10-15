@@ -164,7 +164,8 @@ MORE denials, never fewer:
   Write-only: on a Bash row it would judge nothing, so a typo could switch the row off); a malformed list, an unknown id
   or such an id is reported on stderr and the field is ignored, so EVERY rule applies (only ever more denials). A row
   whose `onlyRules` is exactly `["destructive-sql"]` also judges a field whole up to `SQL_FIELD_CAP` (1,000,000
-  characters), because only that rule's scans are anchored or bounded (canary-pinned); any other list keeps `FIELD_CAP`.
+  characters), because only that rule's scans are anchored, bounded and match each character one way (the hyphen,
+  ambiguity, class and quadratic axes pin it); any other list keeps `FIELD_CAP`.
 - `rawText`: a strict boolean `true` (only on a Bash row) judges the text as given: no shell neutraliser and no
   read-only-search skip. The four SQL rows have it: the neutraliser erases the quoted argument after ` -m`, ` -t`,
   ` -b`, `--message`, `--title` and `--body`, which in SQL can hold statements (`SELECT ' -m "'; DELETE FROM leads; SELECT '
@@ -197,10 +198,11 @@ Design rules, each pinned by `scripts/agent-os/mcpCoverage.test.mjs`:
   field is judged as two slices, the first and the last 10,000 characters, each on its own: joining them would build a
   command the field never held (a client word at the end of the head plus a statement at the start of the tail). Some
   rules backtrack, and a hook timeout fails open silently, which is why the cap exists. A row whose `onlyRules` is exactly
-  `["destructive-sql"]` (the SQL rows) runs that rule alone, whose scans are anchored or bounded, so it judges a field
-  whole up to `SQL_FIELD_CAP` (1,000,000) and slices (500,000 each end) only beyond that. The unjudged middle of a field
-  over its cap is a slip window. Native Bash and PowerShell commands are not capped (every scan of `destructive-sql` is
-  bounded, so its cost is linear in their length; the other rules were never measured on megabytes).
+  `["destructive-sql"]` (the SQL rows) runs that rule alone, whose scans are anchored, bounded and match each character one
+  way, so it judges a field whole up to `SQL_FIELD_CAP` (1,000,000) and slices (500,000 each end) only beyond that. The
+  unjudged middle of a field over its cap is a slip window. Native Bash and PowerShell commands are not capped
+  (`destructive-sql` costs at most about their length times 5,000 steps, and about their length on text with no
+  `DELETE FROM` or `UPDATE ... SET`; the other rules were never measured on megabytes).
 - **Directory moves** are walked read-only: names only (no file content), breadth-first, at most 2,000 entries and
   depth 6, symlinks and junctions never followed, and any filesystem error means no extra judgments. Over the cap,
   what was walked is judged and one stderr line says the rest was not (`directory too large to inspect fully`).
@@ -245,29 +247,59 @@ One rule id, one anchored pattern (`^`), gated on a DB client word (`mysql`, `ps
 `Invoke-Sqlcmd`) or on the `psql` hint of an MCP SQL row. It reads text, so it is built to see through what a shell or a
 client does to that text:
 
-- **Quoted identifiers, any spelling.** `TRUNCATE` and `UPDATE` accept a first identifier in plain, `"double"`, `` `back` ``
+- **Quoted identifiers, most spellings.** `TRUNCATE` and `UPDATE` accept a first identifier in plain, `"double"`, `` `back` ``
   or `[bracket]` form, schema-qualified, with the escapes a shell adds around the quote: `\"Task\"` (bash), `` `"Task`" ``
-  and `""Task""` (PowerShell), `` \`leads\` ``. This matters because statenour's 15 PascalCase Prisma models exist ONLY as
-  quoted names such as `"Task"`.
+  and `""Task""` (PowerShell), `` \`leads\` ``, and nested shells (`\\\"Task\\\"` is three backslashes and a quote, seven
+  for a third level, a run of PowerShell backticks): up to 12 quote-like characters on each side of the name. This
+  matters because statenour's 15 PascalCase Prisma models exist ONLY as quoted names such as `"Task"`. The spellings that
+  still pass are listed under "What the SQL rule still misses".
 - **Written-out whitespace.** Between keywords, and before a `WHERE`, a literal backslash-n, -r or -t (`printf 'a;\nb'`,
   `$'DELETE\nFROM'`), a PowerShell `` `n ``, `` `r ``, `` `t `` or a backslash-newline counts as whitespace, and a keyword may
   start right after one.
 - **Where a missing WHERE is decided.** A `DELETE FROM` or `UPDATE ... SET` is denied unless a `WHERE` appears before the
   end of ITS statement. The scan stops at: `;`, `&&`, a lone `|` (not `||`, which is SQL string concatenation), and a
-  following `-c`, `-e`, `-f`, `-q`, `-Query`, `--command`, `--execute` or `--file` flag. It does NOT stop at a newline
+  following `-c`, `-e`, `-f`, `-q`, `-Query`, `--command`, `--execute` or `--file` flag, or a short-flag CLUSTER that ends
+  in one of c, e, f or q (`-tAc`, `-qc`, `-Xc`, `-1c`, mysql `-Ne`). It does NOT stop at a newline
   (a multi-line statement is normal), at `||`, at a single `&` (`'AT&T'`) or at the closing quote of the shell argument
   (that cannot be found linearly), and it gives up after 5,000 characters: a `WHERE` farther than that from its `DELETE
   FROM` or `SET` does not count (denied; the safe direction). So a WHERE in a later `-c`, a chained `&&` command or a
   piped command no longer rescues a bare write, while `UPDATE t SET a = b || c WHERE id = 1` and a multi-line
   `DELETE FROM leads` + newline + `WHERE id = 3` pass. A `||` chain is not a boundary by itself (a second `-c` after it is).
-  The `ALTER TABLE ... DROP` scan uses the same stops and gives up after 1,500 characters; `DROP COLUMN` and `DROP
-  CONSTRAINT` are denied anywhere by the DROP-kind arm, so only the other `ALTER TABLE ... DROP` forms depend on it.
+  The `ALTER TABLE ... DROP` scan uses the same stops and gives up after 1,500 characters, and its `DROP` may follow a
+  written-out whitespace like every other keyword; `DROP COLUMN` and `DROP CONSTRAINT` are denied anywhere by the
+  DROP-kind arm, so only the other `ALTER TABLE ... DROP` forms (`DROP phone`, `DROP FOREIGN KEY`) depend on it.
   **On the SQL tool rows only `;` ends a statement.** There is no shell there: `||`, `&&`, a lone `|`, `?|` and a
   leading minus are SQL operators, so the engine replaces `&`, `|` and `-` by a neutral non-word character before it
   judges text of a `rawText` row (every `\b` keeps its meaning) and none of them is a boundary. The shell door keeps every
   boundary above, so `psql -c "UPDATE t SET p = p | 4 WHERE id = 1"` typed through a shell is still denied (an accepted
   false positive).
-- **Cost.** Every scan is bounded, so a text costs at most about its length times 5,000 (1,500 for ALTER) steps. Measured on
+- **Each character is consumed exactly ONE way.** Bounded is not enough: a scan that can tile the same text two ways
+  costs 2^k whatever its bound, and the first version of the WHERE scan did (a hyphen not preceded by whitespace and not
+  starting a flag word matched two branches, so a UUID list or a dashed comment ran past the hook's 10 s timeout, which
+  fails OPEN). Now the three consuming alternatives of the scan start with three different characters (`[^;&|]`,
+  `&(?!&)`, `\|\|`) and every stop is a zero-width guard in front of the character, never a second branch. The other
+  groups: the pair `\b` or a written-out-whitespace lookbehind before each keyword is two zero-width alternatives that
+  cannot both lead to a keyword (a letter follows, so exactly one holds); the written-out-whitespace group starts with a whitespace character, a backslash then `n`/`r`/`t`, a backtick
+  then `n`/`r`/`t`, or a backslash then a newline (disjoint); the DROP kinds, the DELETE and UPDATE modifiers and the
+  client words differ in their first one to three characters; an identifier is a quote run, a `[` or a word character
+  (disjoint), its bracket form excludes `[` so a scan from one `[` ends at the next, and its quote runs are bounded at 12:
+  an opening run is followed by a class that cannot start with a quote character, and a closing run that is followed by
+  a written-out whitespace has exactly one split that reaches it (a shorter or longer run leaves a character that
+  starts nothing). Three spots CAN be matched two ways, each on a
+  path that succeeds at once or is bounded and not nested: `TRUNCATE` before `TABLE`/`ONLY` (skipping the word lets
+  `\w` match its first letter, which is a deny anyway), an `AS` that is also a valid alias name, and a word that is both
+  a modifier (`ONLY`, `IGNORE`) and a table name. Reasoning missed the hyphen once, so the AMBIGUITY AXIS canary
+  generates a run of 53 character sequences at the scan position of all 8 arms and the CLASS SWEEP runs every character
+  class through the real hook.
+- **Cost.** Every scan is bounded AND matches each character one way, so a text costs at most about its length times
+  5,000 (1,500 for ALTER) steps, and about its length when it holds no `DELETE FROM` or `UPDATE ... SET`. The hyphen
+  defect, through the real hook on the first version: a 3-UUID `IN` list 0.4 to 0.8 s, 6 UUIDs or a 30-dash comment
+  killed at the 4 s and 9 s kill lines. After the fix: 19 hyphen shapes (3, 6, 10 and 30 UUIDs, 30 ISO dates, 30- and
+  300-dash comments, an `a-a-...-a` literal of 40 hyphens, `ALTER TABLE` with 30 UUIDs) through both doors, 38 calls,
+  slowest 0.7 s; the CLASS SWEEP (14 character classes x 30, 300 and 3000 repeats x 10 prefixes x 2 doors, 840 calls, 6 at
+  a time): median 0.22 s, slowest 1.1 s, node start included; the QUADRATIC AXIS (each arm's own keyword repeated to 240,000
+  characters, 18 units): slowest 0.09 s, where the first version's unbounded bracket class (`UPDATE [` repeated) needed
+  8 to 21 s. The size axis, measured on
   this machine, 2026-10-15, three runs: through the real hook, typical SQL and 25,000 benign characters 0.1 to 0.25 s
   including node start; 2,000 statements of 497 characters 0.2 to 0.35 s; and the WORST text found, one built so that every
   occurrence of `DELETE FROM` has its WHERE within reach but far away (a keyword every 14 characters), 1.3 to 1.8 s for
@@ -278,8 +310,12 @@ client does to that text:
   real-hook canary for those worst shapes asserts the verdicts and ONE generous bound, 9 s (the hook timeout less a
   second: the failure that matters is a timeout, which fails open), and REPORTS the measured times instead of asserting a
   tighter number a loaded runner cannot hold; only the benign 25,000-character field has a tight bound (3 s, more than
-  10x its measured time). A separate canary pins that the pattern is anchored (structurally) and that the unanchored form
-  is at least 20x slower on the same benign text (a ratio, so a fast runner cannot turn it red for a non-defect).
+  10x its measured time). The size shapes are hyphen-free text, which is why they could not see the ambiguity; they stay,
+  and the HYPHEN AXIS (the 19 shapes, 9 s kill line), the AMBIGUITY AXIS (a child process per arm, the old two-branch scan
+  as its positive control), the CLASS SWEEP and the QUADRATIC AXIS (the old bracket class as its positive control)
+  replace picking axes by hand. A differential canary pins that the tempered scan draws the same boundaries as the one it
+  replaced. A separate canary pins that the pattern is anchored (structurally) and that the unanchored form is at least
+  20x slower on the same benign text (a ratio, so a fast runner cannot turn it red for a non-defect).
 
 ### Native ask rules (2026-10-15)
 
@@ -350,11 +386,18 @@ Inventory of 2026-10-15. Names come from this machine's tool lists; "name only" 
 - **What the SQL rule still misses.** The SQL text tools are judged now (adapter table above); `destructive-sql` is text
   matching, so by design: a write that has a WHERE passes, including `WHERE true`, a WHERE in a comment, a string
   literal or a subquery, and a CTE whose outer query holds the WHERE; keywords split by a comment (`DELETE/**/FROM`) are
-  not seen; MySQL multi-table `DELETE t1 FROM ...` and `UPDATE a JOIN b ... SET` are not parsed; DROP kinds outside the
-  list (DOMAIN, AGGREGATE, ROUTINE, RULE, PUBLICATION, SUBSCRIPTION, FOREIGN TABLE ...) pass; `MERGE ... WHEN MATCHED
+  not seen; MySQL multi-table `DELETE t1 FROM ...`, `UPDATE a JOIN b ... SET` and the comma form `UPDATE t1, t2 SET` are
+  not parsed; on the SHELL door a later WHERE after a newline, `||` or a single `&` still rescues a bare write (a
+  verification `SELECT ... WHERE` on the next line passes; they are not boundaries because a newline is normal inside a
+  statement, `||` is concatenation and `&` is text, and a linear fix is not trivial: pinned); other spellings pass,
+  none of them an accident to expect: hex and octal escapes (`printf '\x0aDELETE FROM t'`, `\012`, `\x20`), no
+  whitespace around a quoted identifier (`UPDATE"Task"SET`), and a doubled quote inside one (`"a""b"`); DROP kinds
+  outside the list (DOMAIN, AGGREGATE, ROUTINE, RULE, PUBLICATION, SUBSCRIPTION, FOREIGN TABLE ...) pass; `MERGE ... WHEN MATCHED
   THEN DELETE` is not read; SQL run from a file or script (`psql -f cleanup.sql`) has no text to judge; and a DB client
   word outside the list (`sqlcmd`, `sqlite3`, `mariadb`, `usql`) turns the shell gate off. Accepted false positives, in
-  the safe direction: `ALTER COLUMN ... DROP NOT NULL` or `DROP DEFAULT`, a bounded `UPDATE ... ORDER BY ... LIMIT` with
+  the safe direction: on the shell door only, SQL operators before a WHERE that look like shell (`psql -c "UPDATE t SET p =
+  p | 4 WHERE id = 1"` stops at the lone `|`, a spaced minus before a word ending in c, e, f or q such as ` -fee` reads as a
+  flag cluster; the SQL rows have neither), `ALTER COLUMN ... DROP NOT NULL` or `DROP DEFAULT`, a bounded `UPDATE ... ORDER BY ... LIMIT` with
   no WHERE, a `;` inside a string literal ending the statement early, SQL words inside a string literal OR a SQL
   comment sent through a SQL tool (`SELECT 1 -- drop table later` denies), `explain_sql_statement` with `analyze: false`
   (it is judged exactly like `run_sql`), an `apply_changes: false` discard of `complete_database_migration` that
