@@ -35,6 +35,7 @@ import { isClaude5ThinkingModel } from "@/lib/ai/claude5-compat";
 import { buildRepairToolCall } from "@/lib/ai/chat/repair-tool-call";
 import { buildStreamErrorHandler } from "@/lib/services/chat/stream-error-handler";
 import { buildOnFinish } from "@/lib/services/chat/persist-assistant-turn";
+import { createInFlightToolCalls, type InFlightToolCalls } from "@/lib/services/chat/in-flight-tool-calls";
 import type { PersistBase } from "./alternate-paths";
 import type { classifyTurn } from "@/lib/ai/turn-intelligence";
 import type { detectActionIntent } from "@/lib/ai/chat/action-intent-detector";
@@ -81,6 +82,8 @@ export function buildStreamConfigFactory(deps: {
   recordTrace: PersistBase["recordTrace"];
   resolveOnFinish: () => void;
   log: Logger;
+  /** The turn's tool record (in-flight-tool-calls.ts). Omitted: the factory makes its own, which is never marked final. */
+  toolCalls?: InFlightToolCalls;
 }) {
   const {
     persistBase,
@@ -109,6 +112,10 @@ export function buildStreamConfigFactory(deps: {
     resolveOnFinish,
     log,
   } = deps;
+
+  // Per turn, shared by every attempt: it feeds the errored row's tool receipts.
+  // The route passes its own so it can mark the record final when the stream drains.
+  const __toolCalls = deps.toolCalls ?? createInFlightToolCalls();
 
   return (__fbModel: Parameters<typeof streamText>[0]["model"]) => {
     const fbProvider = inferProviderName(__fbModel) ?? provider;
@@ -349,6 +356,7 @@ export function buildStreamConfigFactory(deps: {
         if (__firstTokenRef.value === null) __firstTokenRef.value = Date.now();
         const c = chunk as { chunk?: { type?: string; text?: string } };
         const inner = c?.chunk;
+        __toolCalls.observe(inner);
         if (inner?.type === "text-delta" && typeof inner.text === "string") {
           __partialRef.text += inner.text;
           // 2026-08-28 · WP2. The accumulator above has existed since
@@ -378,6 +386,8 @@ export function buildStreamConfigFactory(deps: {
         modelId: fbModelId,
         startedAt,
         partial: __partialRef,
+        toolReceipts: () => __toolCalls.snapshot(),
+        afterTerminal: (callback) => __toolCalls.afterTerminal(callback),
         log,
         recordTrace,
         // 2026-07-25 · errored streams must also resolve onFinishPromise

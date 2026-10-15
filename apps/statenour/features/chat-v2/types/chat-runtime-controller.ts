@@ -16,6 +16,11 @@ export type ChatRuntimeController = {
   /** The turn the operator stopped, until the next send (09-F29). */
   stopped: StoppedTurn | null;
   regenerate: (options?: { messageId?: string } & any) => Promise<void>;
+  /**
+   * The operator opened another conversation or a new chat: drop the old turn's error, held
+   * interruption, trace refs and outstanding replay, so they cannot hold Retry on a clean reply there.
+   */
+  resetTurn: () => void;
   setMessages: (messages: UIMessage[] | ((messages: UIMessage[]) => UIMessage[])) => void;
   liveContextBlocks: ContextBlocks | null;
   lastTraceId: string | null;

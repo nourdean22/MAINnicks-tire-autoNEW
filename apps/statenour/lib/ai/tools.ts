@@ -19,7 +19,7 @@
 
 import { brainTools } from "@/lib/ai/tools/brain";
 import { currentTurn } from "@/lib/agent/turn-context";
-import { isReadSafeTool } from "@/lib/ai/capability-registry";
+import { isReadSafeTool, isReplaySafeTool } from "@/lib/ai/capability-registry";
 import { getFlag } from "@/lib/feature-flags";
 import { logger as rootLogger } from "@/lib/logger";
 import { sinkPolicyGate } from "@/lib/tools/sink-policy";
@@ -104,21 +104,29 @@ const DEFAULT_TOOL_TIMEOUT_MS = Math.max(
 
 const TIMED_OUT = Symbol("tool-timeout");
 
-/** Lazy so this module never imports the catalog at load time. */
+/**
+ * Lazy so this module never imports the catalog at load time. A cataloged tool
+ * counts as mutating when the catalog flags it OR the registry does not vouch
+ * that a replay repeats nothing (setMit, runPython and the other writers carry no
+ * flag). A name outside the catalog keeps the flag-only answer: nourTools is
+ * checked against the catalog, so only a test stub reaches it.
+ */
 let sideEffectingNames: Set<string> | null = null;
+let catalogNames: Set<string> | null = null;
 async function isSideEffecting(name: string): Promise<boolean> {
-  if (!sideEffectingNames) {
+  if (!sideEffectingNames || !catalogNames) {
     try {
       const { TOOL_CATALOG } = await import("@/lib/ai/tools/catalog");
       sideEffectingNames = new Set(
         TOOL_CATALOG.filter((t) => t.sideEffecting).map((t) => t.name),
       );
+      catalogNames = new Set(TOOL_CATALOG.map((t) => t.name));
     } catch {
       // Unknown means "assume it wrote something" -- the safe direction.
       return true;
     }
   }
-  return sideEffectingNames.has(name);
+  return sideEffectingNames.has(name) || (catalogNames.has(name) && !isReplaySafeTool(name));
 }
 
 const log = rootLogger.withSurface("ai/tools");

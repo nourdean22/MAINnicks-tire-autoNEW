@@ -319,6 +319,9 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
     slash.close();
 
     if (action === "new-chat") {
+      // The old turn's error, trace refs and outstanding replay go BEFORE the conversation is cleared
+      // (the same order as the drawer's New); a turn still in flight is left alone by resetTurn.
+      chat.resetTurn();
       chat.stop();
       chat.setMessages([]);
       setActiveConversationId(null);

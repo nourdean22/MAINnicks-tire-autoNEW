@@ -23,6 +23,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { recordError } from "@/lib/errors/record-error";
+import { FAST_PATH_RECEIPTS_UNAVAILABLE } from "./shared";
 
 export async function handleImage(
   convId: string,
@@ -242,7 +243,7 @@ export async function handleImage(
         }
       };
       // Immediate placeholder — keeps client's stall clock at 0s.
-      controller.enqueue(enc({ type: "start", messageId }));
+      controller.enqueue(enc({ type: "start", messageId, messageMetadata: FAST_PATH_RECEIPTS_UNAVAILABLE }));
       controller.enqueue(enc({ type: "start-step" }));
       controller.enqueue(enc({ type: "text-start", id: "t1" }));
       // v6 · Show the brand-context preview BEFORE the heartbeat so
@@ -316,6 +317,7 @@ export async function handleImage(
                 // both (see history filter ~line 996).
                 provider: "openai-image",
                 routerReason: "fast-path-image",
+                tokenUsage: FAST_PATH_RECEIPTS_UNAVAILABLE,
                 streamingState: "complete",
                 parts: imgParts as unknown as Parameters<typeof prisma.chatMessage.create>[0]["data"]["parts"],
                 searchableContent: `[image:${imgResult.model}] ${synthesizedPrompt ?? ""}`.slice(0, 2000),
@@ -366,6 +368,7 @@ export async function handleImage(
                 model: "openai-image-error",
                 provider: "openai-image",
                 routerReason: "fast-path-image",
+                tokenUsage: FAST_PATH_RECEIPTS_UNAVAILABLE,
                 streamingState: "errored",
                 parts: [{ type: "text", text: errorContent }] as unknown as Parameters<typeof prisma.chatMessage.create>[0]["data"]["parts"],
                 searchableContent: `[image-error] ${failure.kind}`,

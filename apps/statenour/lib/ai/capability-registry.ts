@@ -19,12 +19,18 @@
  *   3. name starts with a mutating verb at a camelCase boundary
  *      (createTask trips on `create`+`T`; a hypothetical markdownExport
  *      does NOT trip `mark` because the boundary requires an uppercase
- *      follow — the false-positive class is designed out, not hoped away)
+ *      follow — the false-positive class is designed out, not hoped away).
  * Plus the hardest tripwire: a tool with NO catalog entry is mutating by
  * definition — unknown ≠ safe.
+ *
+ * And the default: a tool is read-safe only if it is on the reviewed list
+ * (lib/ai/tools/read-only-tools.ts). The tripwires are heuristics, and
+ * scheduleFollowUp / setOKRs / runPython all wrote past them for a while; a
+ * tool nobody has reviewed is "unreviewed", which is not read-safe.
  */
 
 import { TOOL_CATALOG, type ToolMeta } from "@/lib/ai/tools/catalog";
+import { READ_ONLY_TOOLS, REPLAY_SAFE_COMPUTE_TOOLS } from "@/lib/ai/tools/read-only-tools";
 
 /** Categories whose tools mutate state or reach outward by design. */
 export const WRITE_CATEGORIES: ReadonlySet<string> = new Set([
@@ -57,6 +63,7 @@ export interface ToolClassification {
     | "side_effecting_flag"
     | "write_category"
     | "mutating_name"
+    | "unreviewed"
     | "not_in_catalog";
 }
 
@@ -69,11 +76,27 @@ export function classifyTool(name: string): ToolClassification {
     return { readSafe: false, reason: "write_category" };
   if (MUTATING_PREFIX.test(name))
     return { readSafe: false, reason: "mutating_name" };
+  if (!READ_ONLY_TOOLS.has(name))
+    return { readSafe: false, reason: "unreviewed" };
   return { readSafe: true, reason: "read_safe" };
 }
 
 export function isReadSafeTool(name: string): boolean {
   return classifyTool(name).readSafe;
+}
+
+/**
+ * Would replaying a turn that ran this tool repeat anything? A different
+ * question from "may it run in a read-only or locked turn" (isReadSafeTool, the
+ * authority gates, which keep refusing runCode and its siblings by name): the
+ * Retry gate also trusts the tools whose executors only compute, generate or
+ * draft (REPLAY_SAFE_COMPUTE_TOOLS), never a flagged or write-category tool, and
+ * never a name outside the catalog.
+ */
+export function isReplaySafeTool(name: string): boolean {
+  if (isReadSafeTool(name)) return true;
+  const meta = catalogIndex().get(name);
+  return Boolean(meta) && meta!.sideEffecting !== true && !WRITE_CATEGORIES.has(meta!.category) && REPLAY_SAFE_COMPUTE_TOOLS.has(name);
 }
 
 /**

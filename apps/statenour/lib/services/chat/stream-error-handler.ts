@@ -31,9 +31,12 @@
  * MUST NOT throw or it crashes the stream lifecycle.
  */
 
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { ProviderName } from "@/lib/ai/provider";
 import type { TraceStartInput, TraceFinishInput } from "@/lib/ai/agent-trace";
+import type { ToolReceiptRow } from "@/lib/ai/receipts/tool-receipt-rows";
+import type { ToolReceiptsSnapshot } from "./in-flight-tool-calls";
 
 interface ChatLogger {
   info(event: string, ctx?: Record<string, unknown>): void;
@@ -58,7 +61,7 @@ interface ChatLogger {
  * Neutral interruption text only.
  */
 export const CLIENT_SAFE_STREAM_ERROR_TEXT =
-  "The AI provider dropped mid-response — tap Retry to continue.";
+  "The AI provider dropped mid-response — tap Retry to check and continue.";
 
 /**
  * Safe, ACTIONABLE categories (2026-07-29). Raw provider text is still
@@ -81,15 +84,15 @@ const SAFE_STREAM_ERROR_CATEGORIES: ReadonlyArray<{
     test: /vision|image|multimodal|media type|unsupported content|image_url/i,
     text:
       "That request included an image, and no available model could read it. " +
-      "Check the vision model on /system/health, then tap Retry.",
+      "Check the vision model on /system/health, then tap Retry to check and continue.",
   },
   {
     test: /quota|rate.?limit|429|insufficient.?(credit|funds)|billing/i,
-    text: "The AI provider hit a quota or rate limit — tap Retry in a moment.",
+    text: "The AI provider hit a quota or rate limit — tap Retry in a moment to check and continue.",
   },
   {
     test: /timeout|timed out|ETIMEDOUT|aborted|deadline/i,
-    text: "The model took too long and the response was cut off — tap Retry.",
+    text: "The model took too long and the response was cut off — tap Retry to check and continue.",
   },
   {
     test: /context length|too many tokens|maximum context|token limit/i,
@@ -128,6 +131,31 @@ export interface PartialTextRef {
   text: string;
 }
 
+type ErroredTokenUsage = { traceId: string; toolReceipts: ToolReceiptRow[] } | { traceId: string; receiptsUnavailable: true };
+
+/**
+ * tokenUsage for an errored row: the attempt it belongs to (the trace the client holds
+ * for that attempt; a replay resends the same user message, so rows of several attempts
+ * share one turn and Retry must tell them apart), and the tools the stream started, or an
+ * honest "cannot say". Never null. ai@6 does not end the stream at an error part (a
+ * later tool-call plus finish(tool-calls) still runs the tool), so before the
+ * stream has ended a list is written only when it already holds a possible
+ * write, a lower bound that Retry must refuse anyway. A list that says "nothing
+ * ran" (empty, or reads only) comes only from a terminal record.
+ */
+function erroredTokenUsage(read: (() => ToolReceiptsSnapshot) | undefined, traceId: string): ErroredTokenUsage {
+  try {
+    const snapshot = read?.();
+    if (snapshot?.trustworthy === true) {
+      const mayHaveRun = snapshot.receipts.some((r) => r.sideEffecting || r.verifiable === false);
+      if (snapshot.terminal || mayHaveRun) return { traceId, toolReceipts: snapshot.receipts };
+    }
+  } catch {
+    // A broken accumulator must not stop the row being written.
+  }
+  return { traceId, receiptsUnavailable: true };
+}
+
 export interface BuildStreamErrorHandlerInput {
   /** Private Lab: skip the errored-turn chatMessage.create — convId is the
    *  "private" sentinel (truthy), so the write would otherwise persist the
@@ -147,6 +175,18 @@ export interface BuildStreamErrorHandlerInput {
   startedAt: number;
   /** Shared partial-text ref; mutated by onChunk, read here. */
   partial: PartialTextRef;
+  /**
+   * The tools the stream started (in-flight-tool-calls.ts). Absent, throwing or
+   * untrustworthy: the errored row records `receiptsUnavailable` instead.
+   */
+  toolReceipts?: () => ToolReceiptsSnapshot;
+  /**
+   * Runs a callback once the stream has ended. The row is first written while
+   * the stream may still run tools; this settles it to the final record, so
+   * "nothing ran" (Retry is safe) is only ever written from a terminal one.
+   * Absent: the row keeps what it was first written with.
+   */
+  afterTerminal?: (callback: () => Promise<void> | void) => void;
   log: ChatLogger;
   /**
    * The recordTrace function from @/lib/ai/agent-trace. Passed via deps
@@ -155,8 +195,9 @@ export interface BuildStreamErrorHandlerInput {
   recordTrace: (start: TraceStartInput, finalize: TraceFinishInput) => Promise<void> | void;
   /**
    * 2026-07-25 (provider-drought incident) · resolves the route's
-   * onFinishPromise. onFinish never fires on an errored stream, so without
-   * this the SSE assembler (sse-stream.ts) awaits a promise that never
+   * onFinishPromise. onFinish does not fire when the stream fails before its
+   * first step (a rejected doStream; ai@6.0.275 does fire it after an error
+   * part), so without this the SSE assembler (sse-stream.ts) awaits a promise that never
    * resolves — "message.completed" is never emitted and the connection
    * hangs on 7s heartbeats INDEFINITELY. (2026-07-28 correction: this said
    * "until the 120s maxDuration". `export const maxDuration` is a
@@ -301,7 +342,7 @@ export function buildStreamErrorHandler(deps: BuildStreamErrorHandlerInput) {
       //     replay to the model (verifier-style note)
       if (convId && !deps.privateMode) {
         const hasMeaningfulPartial = partial.text.trim().length >= 20;
-        await prisma.chatMessage
+        const stub = await prisma.chatMessage
           .create({
             data: {
               conversationId: convId,
@@ -312,6 +353,7 @@ export function buildStreamErrorHandler(deps: BuildStreamErrorHandlerInput) {
                   ? String((model as { modelId?: unknown }).modelId).slice(0, 60)
                   : "unknown",
               streamingState: "errored",
+              tokenUsage: erroredTokenUsage(deps.toolReceipts, traceId) as Prisma.InputJsonValue,
               errorDetails: {
                 code: "stream_interrupted",
                 message: errMsg.slice(0, 500),
@@ -322,7 +364,22 @@ export function buildStreamErrorHandler(deps: BuildStreamErrorHandlerInput) {
               },
             },
           })
-          .catch(() => {});
+          .catch((): null => null);
+        // The row above was written while the stream may still run tools. Once
+        // the stream has ended, settle it to the final record (never to a guess:
+        // an untrustworthy final record leaves the row as it is).
+        if (stub?.id && deps.afterTerminal) {
+          const rowId = stub.id;
+          deps.afterTerminal(async () => {
+            const final = erroredTokenUsage(deps.toolReceipts, traceId);
+            if (!("toolReceipts" in final)) return;
+            try {
+              await prisma.chatMessage.update({ where: { id: rowId }, data: { tokenUsage: final as Prisma.InputJsonValue } });
+            } catch (err) {
+              log.warn("errored_row_settle_failed", { conversationId, error: err instanceof Error ? err.message.slice(0, 200) : String(err) });
+            }
+          });
+        }
       }
       // v10.0.20 · agent-trace error row — surface this in
       // /system/agent-traces with errorClass + the partial output

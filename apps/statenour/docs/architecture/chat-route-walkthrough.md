@@ -660,7 +660,16 @@ owns four side effects on stream interruption:
 2. **Graceful-degradation persist** — write a `ChatMessage` with the
    partial text + error annotation, so reload doesn't vanish what the
    user already saw on screen. Falls back to a pure-error stub when
-   partial < 20 chars (true cold failure).
+   partial < 20 chars (true cold failure). ai@6 does not end the stream at an
+   error part (a later tool-call plus finish(tool-calls) still runs the tool),
+   so the row is first written with `tokenUsage` `{ toolReceipts }` only when
+   the tools started so far (`lib/services/chat/in-flight-tool-calls.ts`)
+   already hold a possible write, else `{ receiptsUnavailable: true }`, which the
+   Retry gate refuses. The route marks the record final when the stream drains
+   (`terminateWhenDrained`), and the row is then settled to the final list; only
+   that settle can write "nothing ran".
+   `onFinish` still fires after a provider error part (ai@6.0.275) and writes
+   its own row, but not when the stream fails before its first step.
 3. **Agent-trace error row** — `errorClass: "stream_interrupted"`.
 4. **ErrorLog append** for the operator dashboard.
 

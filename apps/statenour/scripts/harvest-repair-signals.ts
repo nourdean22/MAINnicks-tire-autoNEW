@@ -335,9 +335,16 @@ function originalOfBannered(replyText: string): string {
  * blob) and `toolReceipts[].toolName` (the replay projection). A replay that
  * assumes zero tools would re-flag a claim whose tool DID fire (review on
  * #2523), so the replay is handed exactly what the detector saw at the time.
+ * `null` means UNKNOWN: an errored turn whose receipts could not be recorded
+ * says `receiptsUnavailable`, and unknown is not the same as zero tools.
  */
-export function toolsFiredOf(tokenUsage: unknown): string[] {
-  const tu = (tokenUsage ?? {}) as { receipt?: { toolsFired?: Array<{ toolName?: unknown }> }; toolReceipts?: Array<{ toolName?: unknown }> };
+export function toolsFiredOf(tokenUsage: unknown): string[] | null {
+  const tu = (tokenUsage ?? {}) as {
+    receiptsUnavailable?: unknown;
+    receipt?: { toolsFired?: Array<{ toolName?: unknown }> };
+    toolReceipts?: Array<{ toolName?: unknown }>;
+  };
+  if (tu.receiptsUnavailable === true) return null;
   const names = [
     ...(tu.receipt?.toolsFired ?? []).map((t) => t?.toolName),
     ...(tu.toolReceipts ?? []).map((t) => t?.toolName),
@@ -349,13 +356,14 @@ export function reclassifyByReply(
   hit: RepairMatch,
   replyText: string | null,
   stillFlagged?: (original: string, toolsFired: string[]) => boolean,
-  toolsFired: string[] = [],
+  toolsFired: string[] | null = [],
 ): RepairMatch {
   if (!replyText) return hit;
   const generic = hit.failureClass === "GENERIC" || hit.failureClass === "UNDER_RESEARCH";
   if (!generic) return hit;
   if (VERIFIER_BANNER.test(replyText)) {
-    if (!stillFlagged || !stillFlagged(originalOfBannered(replyText), toolsFired)) {
+    // Unknown tools (null) cannot be replayed: a claim whose tool may have run is not promoted.
+    if (!stillFlagged || toolsFired === null || !stillFlagged(originalOfBannered(replyText), toolsFired)) {
       return { ...hit, label: `${hit.label}·verifier-banner-retracted` };
     }
     return { tier: "strong", failureClass: "FALSE_COMPLETION", label: "verifier-banner-then-retry" };

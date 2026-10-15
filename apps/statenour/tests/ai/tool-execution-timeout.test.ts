@@ -108,6 +108,30 @@ describe("write-vs-read guidance on timeout", () => {
     expect(res.reflection?.guidance).toMatch(/cannot confirm/i);
   });
 
+  // The wrapper's own isSideEffecting read only the catalog flag, so a timed-out
+  // setMit or runPython told the model it was a read and to retry it.
+  it.each(["setMit", "clearMit", "setOKRs", "setWeeklyTargets", "scheduleFollowUp", "queueDeepResearch", "runPython", "arsenalDeepResearch"])(
+    "tells the model NOT to retry %s, which writes without a write flag",
+    async (name) => {
+      const tools = wrapOne(name, hang);
+      const p = tools[name].execute({}, {});
+      await vi.advanceTimersByTimeAsync(500_000);
+      const res = await p;
+
+      expect(res.timedOut).toBe(true);
+      expect(res.reflection?.guidance).toMatch(/do NOT call it again/i);
+    },
+  );
+
+  it.each(["getTasks", "runCode", "generateSQL"])("CONTROL: %s (a read or a compute tool) still gets the one-retry guidance", async (name) => {
+    const tools = wrapOne(name, hang);
+    const p = tools[name].execute({}, {});
+    await vi.advanceTimersByTimeAsync(500_000);
+    const res = await p;
+
+    expect(res.reflection?.guidance).toMatch(/retry ONCE with a narrower query/i);
+  });
+
   it("allows ONE narrower retry for a read", async () => {
     const tools = wrapOne("notInCatalogRead", hang);
     const p = tools.notInCatalogRead.execute({}, {});
