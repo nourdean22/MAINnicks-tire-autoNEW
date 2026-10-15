@@ -3,37 +3,49 @@
 ## Review (step 10)
 
 Five Codex findings landed on #3040 after it was open, and four on #3041. Each cost a push, a CI run and a round trip. A
-review that runs BEFORE the PR opens is cheaper and, with skeptics, less noisy.
+review that runs BEFORE the PR opens is cheaper and, with skeptics, less noisy. The shape below is taken from a working
+five-lens review of the 2026-10-15 guard PRs (read-only lenses, structured findings, skeptics per finding).
 
-`.claude/workflows/adversarial-review.js` runs one finder per lens over the diff, then three skeptics per finding whose
-only job is to refute it. A finding survives when fewer than two of three refute it. Arguments:
+`.claude/workflows/adversarial-review.js` runs one finder per lens over the branch, then skeptics per finding whose only job is
+to refute it, each in a different role (reproduce it; argue it is not a defect; read what the cited files really say).
 
 ```
-Workflow({ name: "adversarial-review", args: { base: "origin/main", head: "HEAD", note: "<what the change claims to do>" } })
+Workflow({ name: "adversarial-review", args: {
+  worktree: "<absolute path of the branch's worktree>",
+  base: "origin/main", head: "HEAD",
+  change: "<what the branch does, in a few lines, including what it claims to enforce>",
+  accepted: ["<documented limit that is not a finding>", "..."]
+} })
 ```
 
-Optional `lenses` (a list of `{key, prompt}`) replaces the defaults; `skeptics` changes the count of 3.
+Optional: `lenses` (a list of `{ key, task }`) replaces the defaults, `skeptics` changes the count of 2. Write the `change` and
+`accepted` text carefully: reviewers know only what you tell them, and an accepted limit left out comes back as a finding.
 
-| Lens | Looks for |
+| Default lens | Looks for |
 |---|---|
-| bypass | the real binary accepts what the change says it refuses; boundaries, ordering, encodings |
+| bypass | the real binary accepts what the change says it refuses (and refuses realistic input); boundaries, ordering, encodings |
 | silent-instrument | a test or canary that cannot fail: asserts presence, shares a path with the code, never ran red |
-| consumer | a writer nothing reads: registration without reachability, a rule id no output prints |
+| consumer | a writer nothing reads: registration without reachability, a rule id no output prints, settings the consumer never loads |
 | scope | files outside the owned paths, unrelated edits, a path exception nobody authorized |
-| docs-vs-code | a count, number, path or sentence in docs, comments or the PR body that the code contradicts |
+| docs-vs-code | a count, number, path or sentence in docs, comments, the ledger or the PR body that the code contradicts |
 | names-and-facts | an identifier, tool, flag, rule or URL that does not resolve, or an external claim with no quote |
+
+For a change with one dominant risk (a guard, a parser, a migration) replace the defaults with lenses written for it, as the guard
+review did: hook code, the regex, registration and wiring, silent instruments, docs truth. A finding carries a severity (P0 ships a
+wrong result or silently disables a protection; P1 a bypass, a false positive on realistic input or a test that cannot fail; P2 a
+misleading claim or weak test; P3 a nit), a file, a line, evidence and a repro. Each lens also returns `checked`, what it actually looked at.
 
 Rules for using it:
 
 1. The workflow tool needs Nour's explicit opt-in ("use a workflow", ultracode). Without it, say what it costs
-   (6 finders plus 3 skeptics per finding) and ask once, or run the six lenses as parallel `lane-research` calls in ONE
+   (6 finders plus 2 skeptics per finding) and ask once, or run the six lenses as parallel `lane-research` calls in ONE
    message, each told to return findings with file, line and evidence, then judge the findings yourself.
 2. Read every surviving finding against the real file before you act; spot-check one refuted finding too. A skeptic that
-   cannot confirm a finding from the real file counts it as refuted, so a real finding dropped by mistake is the failure
-   mode to look for; the workflow keeps a finding whose skeptics all failed to answer.
+   cannot confirm a finding from the real file counts it as refuted. A finding survives unless a MAJORITY of its skeptics refute
+   it (with two, a split vote keeps it), and one whose skeptics all failed to answer is kept.
 3. A finding goes back to the owning lane as the exact input or line, never as a vague worry.
-4. The workflow logs what it dropped. Copy that list into the PR body: silence reads as "covered everything". The composed findings are in
-   the workflow's task output file, not in its journal: read them there before the file is cleaned up.
+4. The workflow logs what it dropped and what each lens checked. Copy both into the PR body: silence reads as "covered everything".
+   The composed findings are in the workflow's task output file, not in its journal: read them there before the file is cleaned up.
 
 ## Merge protocol (step 13)
 

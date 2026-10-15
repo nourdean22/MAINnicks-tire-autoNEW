@@ -33,6 +33,41 @@ Witness: `c6165375f`. An `sql_statements` list of 201 to 5,000 small statements 
 real hook, because `ARRAY_MAX` was 200. The lane's canaries were green; the manager's boundary probe found it. The fix
 raised the budget to 2,000 elements or 1,000,000 characters and the lane added the boundary arms. Cost of the probe: minutes.
 
+Template (the shape of the status manager's probe scripts for that job; copy it to the scratchpad, never into the repo, and pass the
+worktree root as the argument). It feeds synthetic stdin to the real hook, so nothing is executed:
+
+```js
+// probe-hook.mjs <worktree root>
+import { spawnSync } from "node:child_process";
+import { join } from "node:path";
+const WT = process.argv[2];
+if (!WT) throw new Error("usage: node probe-hook.mjs <worktree root>");
+const HOOK = join(WT, "scripts", "agent-os", "pretool.mjs");
+const ENV = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("GIT_"))); // a hook env has no GIT_DIR
+function run(tool, input) {
+  const r = spawnSync(process.execPath, [HOOK], { input: JSON.stringify({ tool_name: tool, tool_input: input, cwd: WT }), env: ENV, encoding: "utf8", timeout: 60000 });
+  const rule = (r.stderr.match(/BLOCKED by repo policy: ([\w-]+)/) ?? [])[1] ?? "";
+  return r.status === 0 ? "allow" : r.status === 2 ? `deny:${rule}` : `exit${r.status}`; // the rule id, not just exit 2: config errors exit nonzero too
+}
+const CAP = 2000; // the cap you grepped out of the guarded code
+const at = (i) => Array.from({ length: CAP + 1 }, (_, k) => (k === i ? "DROP TABLE leads" : "SELECT 1"));
+const PROBES = [
+  ["control: a plain bad input must deny", "Bash", { command: "<a command the guard certainly denies>" }, "deny:<its rule id>"],
+  ["control: a plain good input must allow", "Bash", { command: "git status" }, "allow"],
+  ["bad item at cap-1", "mcp__<server>__run_sql_transaction", { sql_statements: at(CAP - 1) }, "deny:destructive-sql"],
+  ["bad item last", "mcp__<server>__run_sql_transaction", { sql_statements: at(CAP) }, "deny:destructive-sql"], // past the budget: it may differ, and the docs must say so
+];
+let bad = 0;
+for (const [label, tool, input, want] of PROBES) {
+  const got = run(tool, input);
+  if (got !== want) bad++;
+  console.log(`${got === want ? "ok  " : "FAIL"} ${label}: want ${want}, got ${got}`);
+}
+process.exit(bad ? 1 : 0);
+```
+
+A probe run whose two controls are not both `ok` proves nothing: the harness, not the guard, is what failed.
+
 ## Check the names (step 8)
 
 A rule that lists names (native `permissions.ask` entries, tool names, env vars, rule ids, file paths, skill or workflow
@@ -65,15 +100,31 @@ the job brief). The Claude Code docs, read on 2026-10-15, settled it (FACT, `6ba
 An enforcement change is not done when its canaries pass; it is done when the thing it constrains is constrained
 (`assert-the-consumer`). Registration is not reachability.
 
-1. Start a FRESH Claude Code session with the integration worktree as its project directory. Hooks load when a session
-   starts, and `.claude/settings.json` addresses its scripts through `${CLAUDE_PROJECT_DIR}`, so a session started in the
-   worktree runs the branch's hooks. STRONG INFERENCE from the config, not yet a quote from the docs: the probe's own
-   rule-id line is the confirmation, so never skip reading it.
-2. Run the probes in `docs/agent-os/README.md` > "Live check after merge" that apply to the change. PASS needs the rule id
-   (`BLOCKED by repo policy: <id>`) and the Judged-through line; a bare block banner is another layer, and a permission
-   prompt proves the permission system, not this guard.
-3. A consumer you cannot reach before merge (a claude.ai connector registration, a cloud session) gets the ledger status
-   MERGED with the next action "live check owed", an owner and a date. Never write LIVE-VERIFIED without the receipt.
+1. Find out which files the consumer loads BEFORE you test. A session the desktop app starts in a worktree loads hooks and
+   permission rules from the PRIMARY checkout's `.claude/settings.json` (originCwd), not from the worktree. Measured 2026-10-15 by
+   the manager session and relayed here (CLAIM, not re-measured): a live check run in a worktree cut from the guard branch tested the
+   primary's older settings and looked like a failure of the new hooks and ask rules. The tell is the SessionStart hook output, which
+   reports the primary's branch and HEAD. Project skills are different: a `claude -p` started in a worktree loaded the worktree's own
+   `.claude/skills` (FACT, `forge.mjs prove`).
+2. So a pre-merge live check of hooks or permission rules cannot be done from a worktree. Do it after the merge, once the primary
+   has the change (`git -C <primary> merge --ff-only`), in a FRESH session (hooks load when a session starts), and read
+   `git -C <primary> rev-parse HEAD` first so you know what that session really loaded. A consumer that is only a script you invoke
+   (`merge-gate.mjs`, `ledger-check.mjs`, `forge.mjs`) can be exercised before merge from the worktree.
+3. Run the probes in `docs/agent-os/README.md` > "Live check after merge". PASS needs the rule id (`BLOCKED by repo policy: <id>`) and
+   the Judged-through line; a bare block banner is another layer, and a permission prompt proves the permission system, not this guard.
+4. Before blaming the change for a failure, confirm which `settings.json` the session actually loaded: compare the behaviour you
+   observed with the primary's file on disk.
+5. A diagnostic logger writes inside the session's own cwd, and is proven with a control tool (one that MUST be logged) before a
+   negative result is trusted.
+6. A consumer you cannot reach (a claude.ai connector registration, a cloud session) gets the ledger status MERGED with the next
+   action "live check owed", an owner and a date. Never write LIVE-VERIFIED without the receipt.
 
 Witness: #3040 merged as `tested and re-probed, not yet proven live` (owed); the live proof, 3 of 3 probes refused, came the same
 day after the merge.
+
+## Running `verify.mjs` locally
+
+`node scripts/agent-os/verify.mjs` gives its test children a sanitized environment, so a github-client canary can fail locally with
+"no GitHub token available" while the file passes alone (relayed by the manager session; here two of four full runs failed on one such
+test and the file passed alone, 6 pass, 0 fail). Run `GH_TOKEN="$(gh auth token)" node scripts/agent-os/verify.mjs`; CI supplies
+`GH_TOKEN`. Do not chase that one as a regression of your diff, and do not skip the run.

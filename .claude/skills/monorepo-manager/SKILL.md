@@ -84,8 +84,9 @@ workflow fan-outs and background suites count toward both (four concurrent suite
     gates ON THE COMBINED TREE; lane greens do not prove the merge works. Prefer one push. A job that adds
     or retunes a skill also runs `skill-forge`'s `check <dir> --git` on the branch before the squash erases the commit order.
     Protected operations stop here with the exact one-liner for Nour.
-12. **Consumer check.** Anything that enforces: before merge, in a FRESH session started in the integration worktree, prove the
-    real consumer applies it (`assert-the-consumer`). Not reachable before merge -> the row says `tested, not live`, with an
+12. **Consumer check.** Anything that enforces: prove the real consumer applies it, in a FRESH session (`assert-the-consumer`).
+    Hooks and permission rules load from the PRIMARY checkout's settings, not a worktree's: test them after the primary has the change
+    and confirm which settings the session loaded before blaming the change. Not reached -> the row says `tested, not live`, with an
     owner and a date. [references/verify.md](references/verify.md)
 13. **Merge.** Only when authorized (Nour's word, a pasted-report job, or a docs-only PR; skill and policy edits wait for him):
     `node scripts/agent-os/merge-gate.mjs <pr> --sha <head you verified> --merge` pins the head, re-verifies every condition in
