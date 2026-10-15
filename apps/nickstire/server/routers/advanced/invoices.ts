@@ -59,7 +59,7 @@ async function writeDismissedIds(d: NonNullable<Awaited<ReturnType<typeof db>>>,
 }
 
 import { db } from "../../lib/db-helper";
-import { releaseInvoiceTotal } from "../../services/paymentIntentLock";
+import { releaseInvoiceTotal, withInvoiceLock } from "../../services/paymentIntentLock";
 
 import { createLogger } from "../../lib/logger";
 import { logAdminAction } from "../../services/auditTrail";
@@ -285,15 +285,19 @@ export const invoicesRouter = router({
 
       // A total that changes while a card payment is open would charge one amount and record another.
       // Cancel the open payment first; refuse the change if Stripe cannot confirm the cancel.
+      // The total change and the open-payment release run under the invoice lock, so no payment can start
+      // at the old total in between.
       if (cleanUpdates.totalAmount !== undefined) {
-        const [current] = await d.select({ total: invoices.totalAmount }).from(invoices).where(eq(invoices.id, id)).limit(1);
-        if (current && current.total !== cleanUpdates.totalAmount) {
-          const held = await releaseInvoiceTotal(d, id);
-          if (!held.released) throw new TRPCError({ code: "CONFLICT", message: `Total not changed: ${held.reason}.` });
-        }
+        await withInvoiceLock(d, id, async (tx, row) => {
+          if (row.totalAmount !== cleanUpdates.totalAmount) {
+            const held = await releaseInvoiceTotal(tx, id);
+            if (!held.released) throw new TRPCError({ code: "CONFLICT", message: `Total not changed: ${held.reason}.` });
+          }
+          await tx.update(invoices).set(cleanUpdates).where(eq(invoices.id, id));
+        });
+      } else {
+        await d.update(invoices).set(cleanUpdates).where(eq(invoices.id, id));
       }
-
-      await d.update(invoices).set(cleanUpdates).where(eq(invoices.id, id));
 
       // Fire invoice_paid only on actual transition (not if already paid)
       if (input.paymentStatus === "paid" && !wasPaid) {

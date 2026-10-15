@@ -122,11 +122,13 @@ export const paymentsRouter = router({
       });
       if ("error" in result) return result;
 
-      // The amount is recorded before the customer can pay, so it holds the invoice total from now on.
-      // If the record cannot be written, the intent is canceled: a payment we cannot record is refused.
+      // The intent is recorded under the invoice lock, at the amount it was created for. A record that is
+      // refused (the total moved, the invoice was paid meanwhile, or the write failed) cancels the Stripe
+      // intent: a payment the invoice does not hold is never taken.
+      let outcome: "recorded" | "total_changed" | "paid" | "not_found" | "error";
       try {
-        const { recordPaymentIntent } = await import("../services/paymentIntentLock");
-        await recordPaymentIntent(d, {
+        const { recordPaymentIntentLocked } = await import("../services/paymentIntentLock");
+        outcome = await recordPaymentIntentLocked(d, {
           invoiceId: inv.id,
           amountCents: inv.totalAmount,
           customerName: inv.customerName,
@@ -139,11 +141,20 @@ export const paymentsRouter = router({
           paymentIntentId: result.paymentIntentId,
           error: err instanceof Error ? err.message : String(err),
         });
-        await cancelPaymentIntent(result.paymentIntentId);
-        return { error: "Payment setup failed. Please call (216) 862-0005 to pay." };
+        outcome = "error";
       }
+      if (outcome === "recorded") return result;
 
-      return result;
+      const canceled = await cancelPaymentIntent(result.paymentIntentId);
+      if (canceled !== "canceled") {
+        log.error("[routers/payments] refused payment intent could not be canceled in Stripe", {
+          paymentIntentId: result.paymentIntentId,
+          outcome: canceled,
+        });
+      }
+      if (outcome === "paid") return { error: "Invoice already paid" };
+      if (outcome === "total_changed") return { error: "The invoice total changed. Please try again." };
+      return { error: "Payment setup failed. Please call (216) 862-0005 to pay." };
     }),
 
   /** Mark invoice as paid (after successful Stripe payment) */
@@ -237,8 +248,27 @@ export const paymentsRouter = router({
         WHERE invoiceNumber = ${input.invoiceNumber}
           AND customerPhone = ${input.phone}
           AND paymentStatus <> 'paid'
+          AND totalAmount = ${inv.totalAmount}
       `);
       const claimed = ((claim as unknown as { affectedRows?: number }).affectedRows ?? 0) > 0;
+
+      // The claim pins the total the amount check used. If it matched no row and the invoice is not paid,
+      // the total moved while Stripe was being asked. Refuse, and leave the intent held: the webhook checks
+      // the same amount and answers 500 until the two agree.
+      if (!claimed) {
+        const [now] = await d.select({ paymentStatus: invoices.paymentStatus })
+          .from(invoices)
+          .where(eq(invoices.invoiceNumber, input.invoiceNumber))
+          .limit(1);
+        if (now?.paymentStatus !== "paid") {
+          log.warn("[routers/payments] invoice total changed during confirmation; not marking paid", {
+            invoiceNumber: input.invoiceNumber,
+            paymentIntentId: input.paymentIntentId,
+            expected: inv.totalAmount,
+          });
+          return { success: false, error: "The invoice total changed while this payment was being recorded. Please call (216) 862-0005 so we can settle it." };
+        }
+      }
 
       // The payment is taken, so its intent stops holding the invoice total. A failure here leaves the
       // intent held until the payment_intent.succeeded webhook records it, so it is logged, not thrown.

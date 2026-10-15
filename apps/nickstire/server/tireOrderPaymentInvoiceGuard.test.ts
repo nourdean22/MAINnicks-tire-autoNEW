@@ -23,14 +23,27 @@ const h = vi.hoisted(() => ({
   notified: [] as Array<Record<string, unknown>>,
 }));
 
-vi.mock("./db", () => ({
-  getDb: async () => ({
-    // select() → the tire order; select({ ... }) → the invoice lookup.
-    select: (fields?: unknown) => ({
-      from: () => ({
-        where: () => ({ limit: async () => (fields ? (h.invoice ? [h.invoice] : []) : h.order ? [h.order] : []) }),
-      }),
-    }),
+vi.mock("./db", async () => {
+  const { invoices, tireOrders } = await import("../drizzle/schema");
+  // Rows by table: the tire order, the invoice, and no open card payments (payments reads as empty).
+  const rowsFor = (table: unknown): unknown[] => {
+    if (table === tireOrders) return h.order ? [h.order] : [];
+    if (table === invoices) return h.invoice ? [h.invoice] : [];
+    return [];
+  };
+  // A select chain that resolves to its rows, whichever of where / limit / for it passes through.
+  const selectFrom = (table: unknown) => {
+    const chain: Record<string, unknown> = {
+      where: () => chain,
+      limit: () => chain,
+      for: () => chain,
+      then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
+        Promise.resolve(rowsFor(table)).then(resolve, reject),
+    };
+    return chain;
+  };
+  const db: Record<string, unknown> = {
+    select: () => ({ from: (table: unknown) => selectFrom(table) }),
     execute: async () => [{ affectedRows: 1 }],
     update: () => ({
       set: (values: Record<string, unknown>) => ({
@@ -38,8 +51,11 @@ vi.mock("./db", () => ({
       }),
     }),
     insert: () => ({ values: async () => [{ insertId: 1 }] }),
-  }),
-}));
+    // The invoice write runs inside the invoice lock's transaction; the transaction is the same handle.
+    transaction: async (fn: (tx: unknown) => unknown) => fn(db),
+  };
+  return { getDb: async () => db };
+});
 vi.mock("./services/customerMessageTemplates", () => ({ sendCustomerMessage: async () => undefined }));
 vi.mock("./email-notify", () => ({
   notifyTireOrderPaid: async (args: Record<string, unknown>) => { h.notified.push(args); return { emailSent: true }; },

@@ -322,9 +322,23 @@ export async function finalizeTireOrderPayment(params: {
     if (invoice && invoiceBelongsToTireOrder(invoice, order)) {
       // Align the invoice total to what Stripe actually collected (tires +
       // tax + card fee) — the placement-time invoice didn't know the fee.
-      await d.update(invoices)
-        .set({ paymentStatus: "paid", paymentMethod: "card", totalAmount: params.amountCents })
-        .where(eq(invoices.id, invoice.id));
+      // The invoice is paid now, so an open card payment on it is canceled
+      // rather than charged. If Stripe will not confirm that cancel, the total
+      // stays as it was and the payment is logged for the operator to settle.
+      const { withInvoiceLock, releaseInvoiceTotal } = await import("./paymentIntentLock");
+      await withInvoiceLock(d, invoice.id, async (tx) => {
+        const released = await releaseInvoiceTotal(tx, invoice.id);
+        if (!released.released) {
+          log.error(`Tire order ${params.tireOrderNumber} is PAID but invoice ${invNum} still has an open card payment (${released.reason}). Check Stripe before it is charged.`);
+        }
+        await tx.update(invoices)
+          .set({
+            paymentStatus: "paid",
+            paymentMethod: "card",
+            ...(released.released ? { totalAmount: params.amountCents } : {}),
+          })
+          .where(eq(invoices.id, invoice.id));
+      });
     } else {
       log.error(`Tire order ${params.tireOrderNumber} is PAID but invoice ${invNum} ${invoice ? "belongs to another customer" : "does not exist"} — left untouched; reconcile the invoice by hand`);
       invNum = undefined; // never hand the shop another customer's invoice number

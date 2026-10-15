@@ -94,7 +94,7 @@ import { securityHeaders } from "../middleware/securityHeaders";
 import { healthHandler, pingHandler, readyHandler, recoverHandler } from "../lib/health";
 import { startSelfHealing, recordRequest } from "../lib/self-healing";
 import { createLogger } from "../lib/logger";
-import { markInvoicePaid, stripeWebhookPreflight } from "../lib/stripeWebhook";
+import { markInvoicePaid, stripeWebhookPreflight, webhookStatusForClaim } from "../lib/stripeWebhook";
 import { errorTelemetry } from "../lib/error-telemetry";
 import { initSentry, flushSentry } from "../lib/sentry";
 import { AppError, isAppError, errorToHttpResponse } from "../lib/errors";
@@ -988,13 +988,13 @@ ${urls.join("\n")}
             paymentIntentId: String(intent.id),
           });
           // A paid event that could not be recorded answers 500, so Stripe retries it.
-          // A total that moved during the claim, or an amount that does not match yet, is also
-          // unrecorded: 500 keeps Stripe retrying until the invoice is corrected to match.
-          if (claim.kind === "db_unavailable" || claim.kind === "total_changed" || claim.kind === "amount_mismatch") {
+          if (webhookStatusForClaim(claim.kind) === 500) {
             return res.sendStatus(500);
           }
-          // A recorded payment, or a repeat of one, stops holding its intent's invoice total. If that
-          // write fails, answer 500 so Stripe retries; the claim above is idempotent.
+          // A recorded payment, or a repeat of one, stops holding its intent's invoice total. A failed write
+          // is answered 500 after the fan-out below: a first-time claim has already marked the invoice paid, so
+          // the fan-out must not wait on the write. Stripe's retry takes the not_claimed path, which never fans out.
+          let intentRecordFailed = false;
           if (claim.kind === "claimed" || claim.kind === "not_claimed") {
             try {
               const { getDb } = await import("../db");
@@ -1004,10 +1004,10 @@ ${urls.join("\n")}
                 await markPaymentPaid(payDb, String(intent.id));
               }
             } catch (err) {
+              intentRecordFailed = true;
               serverLog.error("[Stripe Webhook] Could not mark the payment intent paid; Stripe will retry.", {
                 error: err instanceof Error ? err.message : String(err),
               });
-              return res.sendStatus(500);
             }
           }
           if (claim.kind === "claimed") {
@@ -1023,6 +1023,7 @@ ${urls.join("\n")}
 
             serverLog.info(`[Stripe Webhook] Invoice ${invoiceNumber} marked paid — $${((intent.amount_received || 0) / 100).toFixed(2)}`);
           }
+          if (intentRecordFailed) return res.sendStatus(500);
         }
         // Tire-order checkouts surface here too — the metadata is mirrored
         // onto the PaymentIntent, so payment is finalised even if the

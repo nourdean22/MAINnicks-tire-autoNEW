@@ -11,7 +11,7 @@
 
 import { createLogger } from "../lib/logger";
 import { isDuplicateKeyError } from "../lib/dbErrors";
-import { lockedTotalPatch, releaseInvoiceTotal, STALE_INTENT_MS } from "./paymentIntentLock";
+import { lockedTotalPatch, STALE_INTENT_MS, withInvoiceLock } from "./paymentIntentLock";
 import { eq, and, inArray, sql } from "drizzle-orm";
 
 const log = createLogger("shopdriver-mirror");
@@ -943,14 +943,9 @@ async function upsertInvoices(rawInvoices: RawInvoice[]): Promise<{ created: num
         // Update existing invoice — amount, service, date, payment info may have changed
         const updates: Record<string, any> = {};
         const ex = existing;
-        // Always update amount if it changed (draft → finalized)
-        if (ri.totalAmount > 0 && ri.totalAmount !== ex.totalAmount) {
-          // A total that moves under an open card payment would charge one amount and record another.
-          // A fresh intent holds the change until it finishes; a stale one is canceled first.
-          const held = await releaseInvoiceTotal(d, ex.id, { staleAfterMs: STALE_INTENT_MS });
-          if (held.released) updates.totalAmount = ri.totalAmount;
-          else log.info(`[shopdriver-mirror] total for ${ri.invoiceNumber} held: ${held.reason}`);
-        }
+        // Always update amount if it changed (draft → finalized). The total moves only under the
+        // payment-intent lock: a fresh card payment holds it, a stale one is canceled first.
+        const totalMoves = ri.totalAmount > 0 && ri.totalAmount !== ex.totalAmount;
         if (ri.service) updates.serviceDescription = ri.service;
         if (ri.vehicleInfo) updates.vehicleInfo = ri.vehicleInfo;
         if (ri.date) updates.invoiceDate = new Date(ri.date);
@@ -964,7 +959,16 @@ async function upsertInvoices(rawInvoices: RawInvoice[]): Promise<{ created: num
         // Backfill algTicketId for rows that pre-date wave-99
         if (ri.algTicketId && !ex.algTicketId) updates.algTicketId = ri.algTicketId;
 
-        if (Object.keys(updates).length > 0) {
+        if (totalMoves) {
+          const applied = await withInvoiceLock(d, ex.id, async (tx, row) => {
+            const all = { ...updates, ...(await lockedTotalPatch(tx, ex.id, row.totalAmount, ri.totalAmount)) };
+            if (Object.keys(all).length === 0) return false;
+            await tx.update(invoices).set(all).where(eq(invoices.id, ex.id));
+            return true;
+          });
+          if (applied) updated++;
+          else skipped++;
+        } else if (Object.keys(updates).length > 0) {
           await d.update(invoices).set(updates).where(eq(invoices.id, ex.id));
           updated++;
         } else {
@@ -1047,26 +1051,30 @@ async function upsertInvoices(rawInvoices: RawInvoice[]): Promise<{ created: num
         if (isDuplicateKeyError(insertErr)) {
           // Race lost — apply the same updates the existing-row branch
           // would have applied. Match by invoiceNumber (the unique key).
-          const [raced] = await d.select({ id: invoices.id, totalAmount: invoices.totalAmount })
+          const [raced] = await d.select({ id: invoices.id })
             .from(invoices)
             .where(eq(invoices.invoiceNumber, ri.invoiceNumber))
             .limit(1);
-          const totalPatch = raced ? await lockedTotalPatch(d, raced.id, raced.totalAmount, ri.totalAmount) : {};
-          await d.update(invoices).set({
-            customerId: customerId ?? undefined,
-            customerName: ri.customerName,
-            customerPhone: effectivePhone || undefined,
-            ...totalPatch,
-            partsCost: ri.partsCost || undefined,
-            laborCost: ri.laborCost || undefined,
-            taxAmount: ri.taxAmount || undefined,
-            serviceDescription: ri.service || undefined,
-            vehicleInfo: ri.vehicleInfo || undefined,
-            paymentMethod,
-            paymentStatus,
-            invoiceDate: new Date(ri.date),
-            algTicketId: ri.algTicketId || undefined,
-          }).where(eq(invoices.invoiceNumber, ri.invoiceNumber));
+          if (raced) {
+            await withInvoiceLock(d, raced.id, async (tx, row) => {
+              const totalPatch = await lockedTotalPatch(tx, raced.id, row.totalAmount, ri.totalAmount);
+              await tx.update(invoices).set({
+                customerId: customerId ?? undefined,
+                customerName: ri.customerName,
+                customerPhone: effectivePhone || undefined,
+                ...totalPatch,
+                partsCost: ri.partsCost || undefined,
+                laborCost: ri.laborCost || undefined,
+                taxAmount: ri.taxAmount || undefined,
+                serviceDescription: ri.service || undefined,
+                vehicleInfo: ri.vehicleInfo || undefined,
+                paymentMethod,
+                paymentStatus,
+                invoiceDate: new Date(ri.date),
+                algTicketId: ri.algTicketId || undefined,
+              }).where(eq(invoices.invoiceNumber, ri.invoiceNumber));
+            });
+          }
           updated++;
           log.warn("[shopDriverMirror] Invoice race detected — INSERT → UPDATE", { invoiceNumber: ri.invoiceNumber });
         } else {
