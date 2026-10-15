@@ -10,7 +10,7 @@ import { runDiagnosis } from "../diagnose";
 import { generateLaborEstimate } from "../laborEstimate";
 import { z } from "zod";
 import { sanitizeText } from "../sanitize";
-import { shopInstant } from "../lib/timezoneAssert";
+import { getBusinessDateKey, shopInstant } from "../lib/timezoneAssert";
 import { cached } from "../lib/cache";
 import { desc, gte, like, or, and, sql } from "drizzle-orm";
 
@@ -259,7 +259,8 @@ export const activityRouter = router({
           invoiceDate: invoices.invoiceDate,
         })
         .from(invoices)
-        .where(gte(invoices.invoiceDate, todayStart))
+        // Invoice dates are the shop's wall clock: today is the shop's day, compared as a key.
+        .where(sql`${invoices.invoiceDate} >= ${getBusinessDateKey()}`)
         .orderBy(desc(invoices.invoiceDate))
         .limit(5);
 

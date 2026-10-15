@@ -2826,7 +2826,9 @@ export async function createInvoice(data: InsertInvoice): Promise<{ success: boo
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  const row = { ...data };
+  // An invoice written without a date gets the shop's wall clock, not the database's UTC default.
+  const { shopWallClock } = await import("./lib/timezoneAssert");
+  const row = { ...data, invoiceDate: data.invoiceDate ?? shopWallClock() };
   // Retry up to 3 times on unique constraint violations (concurrent invoice creation)
   for (let attempt = 0; attempt < 3; attempt++) {
     try {

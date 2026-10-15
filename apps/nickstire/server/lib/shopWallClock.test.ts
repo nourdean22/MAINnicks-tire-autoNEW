@@ -1,5 +1,17 @@
 import { describe, expect, it } from "vitest";
+import { algEstimates, invoices } from "../../drizzle/schema";
 import { shopInstant, shopWallClock } from "./timezoneAssert";
+
+describe("the date columns store a wall-clock value as its Eastern fields, in any process timezone", () => {
+  // Drizzle binds a timestamp column with toISOString(), i.e. the Date's UTC fields. The wall-clock Date
+  // carries the Eastern fields in those UTC fields, so the row keeps the shop's clock. Pinned here so a change
+  // to the column mode (or a raw bind of the Date) that would shift the stored hour fails the suite.
+  it("the invoice and estimate columns map 21:00 on Oct 12 to that stored value", () => {
+    const wall = shopWallClock(new Date("2026-10-13T01:00:00Z"));
+    expect(invoices.invoiceDate.mapToDriverValue(wall)).toBe("2026-10-12 21:00:00.000");
+    expect(algEstimates.estimateDate.mapToDriverValue(wall)).toBe("2026-10-12 21:00:00.000");
+  });
+});
 
 describe("shopWallClock: the shop's wall clock, stored as a shop-local TIMESTAMP", () => {
   it("reads the Cleveland clock in the UTC fields during EDT: 21:00 on Oct 12", () => {

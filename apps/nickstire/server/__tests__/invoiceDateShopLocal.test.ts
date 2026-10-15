@@ -123,3 +123,45 @@ describe("shop-day columns are written as the shop's wall clock", () => {
     expect(findUtcClockWrites(planted)).toEqual(["w.ts:1", "y.ts:2", "z.ts:1", "v.ts:1"]);
   });
 });
+
+/**
+ * An invoice insert whose object literal does not name invoiceDate. The column's database default is the
+ * UTC clock, so such a row lands on the UTC day (the ShopDriver inserts did this until 2026-10-14).
+ */
+const INVOICE_INSERT = /\.insert\(\s*(?:invoices|invoicesTable)\s*\)\s*\.values\(\s*\{/g;
+
+/** The object literal opened at `open`, matched by brace depth (a `})` inside a template string is not its end). */
+function literalAt(text: string, open: number): string {
+  let depth = 0;
+  for (let i = open; i < text.length; i++) {
+    if (text[i] === "{") depth++;
+    else if (text[i] === "}" && --depth === 0) return text.slice(open, i + 1);
+  }
+  return text.slice(open, open + 1000);
+}
+
+function findInvoiceInsertsWithoutDate(files: Array<{ file: string; text: string }>): string[] {
+  const hits: string[] = [];
+  for (const { file, text } of files) {
+    for (const m of text.matchAll(INVOICE_INSERT)) {
+      const open = (m.index ?? 0) + m[0].length - 1;
+      if (!/\binvoiceDate\b/.test(literalAt(text, open))) hits.push(`${file}:${text.slice(0, m.index).split("\n").length}`);
+    }
+  }
+  return hits;
+}
+
+describe("every invoice insert names its date", () => {
+  it("no server insert into invoices leaves invoiceDate to the UTC database default", () => {
+    const files = serverSources(SERVER).map((f) => ({ file: path.relative(SERVER, f), text: readFileSync(f, "utf8") }));
+    expect(findInvoiceInsertsWithoutDate(files)).toEqual([]);
+  });
+
+  it("the scan catches a planted insert that omits the date, and passes one that names it", () => {
+    const planted = [
+      { file: "a.ts", text: "await d.insert(invoices).values({\n  invoiceNumber,\n  totalAmount: 1,\n});" },
+      { file: "b.ts", text: "await d.insert(invoices).values({ invoiceNumber, invoiceDate: shopWallClock() });" },
+    ];
+    expect(findInvoiceInsertsWithoutDate(planted)).toEqual(["a.ts:1"]);
+  });
+});

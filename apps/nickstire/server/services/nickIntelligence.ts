@@ -854,6 +854,8 @@ export async function getShopPulse(): Promise<{
   const { invoices, leads, bookings, callbackRequests } = await import("../../drizzle/schema");
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  // Invoice dates are the shop's wall clock: today's invoices are compared as the shop's day key.
+  const todayKey = getBusinessDateKey(now);
   const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   const hour = parseInt(now.toLocaleString("en-US", { timeZone: BUSINESS.timezone, hour: "numeric", hour12: false }), 10);
 
@@ -864,12 +866,12 @@ export async function getShopPulse(): Promise<{
   ] = await Promise.all([
     // Today's closed jobs (paid invoices)
     d.select().from(invoices).where(and(
-      sql`${invoices.invoiceDate} >= ${todayStart}`,
+      sql`${invoices.invoiceDate} >= ${todayKey}`,
       eq(invoices.paymentStatus, "paid")
     )),
     // Today's pending payments
     d.select({ count: sql<number>`count(*)` }).from(invoices).where(and(
-      sql`${invoices.invoiceDate} >= ${todayStart}`,
+      sql`${invoices.invoiceDate} >= ${todayKey}`,
       eq(invoices.paymentStatus, "pending")
     )),
     // Today's estimates (potential walks) — use recommendedService IS NOT NULL as estimate indicator
