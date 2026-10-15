@@ -501,7 +501,7 @@ step 7 the infra name rule. Three result words are used below. PASS: the stated 
 anything is sent. FAIL: the call reached the tool and came back with the tool's own output or a provider error, while
 the control behaved as stated. INCONCLUSIVE: a control did not behave as stated, or the session did not load the merged
 files, so nothing can be concluded: fix the precondition and repeat. This section is a procedure; whoever runs it
-records the result under "Recorded result" at its end (the 2026-10-15 run is there: steps 1 to 6 PASS, the ask version of step 7 FAIL; the rewritten step 7 has not been run yet).
+records the result under "Recorded result" at its end (the 2026-10-15 run is there: steps 1 to 6 PASS, the ask version of step 7 FAIL; the rewritten step 7 ran after the merge, three of four probes PASS and the Neon probe is owed, see the last paragraph of that section).
 
 0. Precondition: fast-forward the PRIMARY checkout to the merged commit (on this machine
    `C:\Users\nourd\NattyNour\nicks-tire`): `git -C <primary> fetch origin main`, then `git -C <primary> merge --ff-only origin/main`,
@@ -557,7 +557,9 @@ line `neon-sql.sql`) and `run_sql_transaction` was refused (last line `neon-sql-
 error), Vercel `pause_project` (`invalid_project_id`) and Prisma `delete_prisma_postgres_database` (`not_found`) each ran
 with NO permission prompt. The recorded probes were Railway, Vercel and Prisma; the Neon connector was invalidated in that
 session. That FAIL led to job 2026-10-15-infra-deny-by-name: the ask entries were removed and replaced by the hook deny described
-under "Infra tools: deny by name", whose probes are the rewritten step 7. The rewritten step 7 has not been run yet: record its result here.
+under "Infra tools: deny by name", whose probes are the rewritten step 7.
+
+**Recorded result, rewritten step 7, 2026-10-15 (after the merge at `00e919e58`).** A fresh session in `bypassPermissions`, run from the worktree `hello-23f8b4`. The refusing hook was the merged one: each banner names `infra-mutation-tool`, a rule that exists only in the primary checkout's `config/agent-os/policy.json`, and worktree sessions take their hooks from the primary. Step 0: the primary's `permissions.ask` prints `no ask list`. Positive control: Railway `list-projects` ran with no prompt and no refusal (one project). Probes, each with a nonexistent id: Railway `delete-service`, Vercel `pause_project` and Prisma `delete_prisma_postgres_database` were each refused before anything was sent. Each banner is `BLOCKED by repo policy: infra-mutation-tool` inside a `PreToolUse` hook-error line, and its last line is `Judged through MCP adapter infra-name.toolName on tool <full tool name>`; no permission prompt, no provider error. Regression: `git push --dry-run origin main` through `run_in_terminal` was refused with `push-to-main` (last line `terminal-run.command`). **Neon INCONCLUSIVE:** the Neon connector was absent in that session, so `delete_project` was not probed. Result: PASS for three of four probes. The job stays MERGED, not LIVE-VERIFIED, until the Neon probe passes after the connector is reconnected. The raw tool results were not readable from the child's transcript; the banner text is the child's verbatim quote.
 
 ## Writing a check that actually catches something
 
