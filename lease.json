@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "docs/manager-ledger-2026-10-15",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "a1046d49-a3d3-4057-93fa-8815bb6efa83",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\fewer-permission-prompts-269694",
+  "claimedBy": "2026-10-15-manager-ledger-rows",
+  "claimedAt": "2026-10-15T17:42:30.116Z",
+  "expiresAt": "2026-10-16T05:42:30.116Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
