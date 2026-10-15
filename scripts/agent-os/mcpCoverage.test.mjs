@@ -693,6 +693,17 @@ test("README documents every adapter, the unguarded inventory and the live check
   for (const limit of [/persistent shell/i, /unscanned middle/i, /directory walk/i]) {
     assert.match(README, limit, `README must state the documented limit ${limit}`);
   }
+  // 2026-10-15 (job guard-sql-lease-infra): the ask layer, the list reader, the lease group, the SQL limits and the live-check probes
+  assert.match(README, /### Native ask rules/, "README needs the native ask layer section");
+  for (const phrase of ["permissions.ask", "mcp__*__<leaf>", "bypassPermissions", "mcpAskRules.test.mjs", "ARRAY_MAX", "DESTRUCTIVE_PROBES",
+    "Unclassified infrastructure tools", "neon-sql.sql", "neon-sql-transaction.sql_statements[1]", "guard_live_check_probe", "delete-service", "delete_project"]) {
+    assert.ok(README.includes(phrase), `README must mention ${phrase}`);
+  }
+  assert.doesNotMatch(README, /lease-check\.mjs. is not extended/, "lease-check IS extended now: the README must not say otherwise");
+  assert.match(README, /lease-check\.mjs. also fires for the runners and writers/);
+  for (const limit of [/WHERE true/, /DROP NOT NULL/, /ORDER BY/, /multi-table/, /apply_changes: false/, /string literal/, /DOMAIN, AGGREGATE/]) {
+    assert.match(README, limit, `README must state the documented SQL limit ${limit}`);
+  }
 });
 
 // --- 9 - review fixes (2026-10-15: five review findings and one regression on the first commit) ---
@@ -998,6 +1009,8 @@ const DESTRUCTIVE_SQL = [
   "UPDATE leads SET status = 'x'", "update only public.leads l set status = 'x'", "UPDATE leads\nSET a = 1",
   "WITH d AS (DELETE FROM leads RETURNING *) SELECT count(*) FROM d", "DELETE FROM a WHERE x; DELETE FROM b;",
   "ALTER TABLE leads DROP COLUMN note", "alter table leads drop constraint c", "DROP INDEX idx_leads_name", "DROP MATERIALIZED VIEW mv",
+  // string literals are NOT stripped before matching (stripping would let a DO block hide its EXECUTE text)
+  "DO $$ BEGIN EXECUTE 'DROP TABLE x'; END $$", "DO $$ BEGIN EXECUTE 'DELETE FROM x'; END $$",
 ];
 const BENIGN_SQL = [
   "SELECT 1", "SELECT * FROM leads LIMIT 5", "INSERT INTO leads (name) VALUES ('Ann')", "EXPLAIN SELECT * FROM leads", "CREATE INDEX idx_leads_name ON leads (name)",
@@ -1207,6 +1220,7 @@ test("destructive-sql documented limits, pinned (each fails the day it is fixed:
     "DELETE FROM leads WHERE true", "DELETE FROM leads WHERE 1 = 1", "DELETE FROM leads -- WHERE id = 1", "UPDATE leads SET note = 'where'", "DELETE/**/FROM leads",
     "WITH d AS (DELETE FROM leads RETURNING id) SELECT * FROM u WHERE u.id IN (SELECT id FROM d)",
     "DELETE t1 FROM t1 JOIN t2 ON t1.id = t2.id", "UPDATE a JOIN b ON a.id = b.a_id SET a.x = 1",
+    "UPDATE t SET a = (SELECT b FROM u WHERE u.id = t.id)", "DROP DOMAIN d", "DROP PUBLICATION p", "DROP ROUTINE r", "DROP FOREIGN TABLE ft",
   ]) assert.equal(denies(sql), false, `not a goal, so it passes: ${JSON.stringify(sql)}`);
   // Accepted false positives, they deny: the safe direction, one line to ask the operator
   for (const sql of [
