@@ -1362,6 +1362,34 @@ describe("opening another conversation drops the old turn's error state", () => 
     expect(ctl.lastTraceId).toBeNull();
   });
 
+  // The new-chat paths (drawer New, /new, delete-active) all reset and then empty the chat. The first
+  // message of the new chat must be judged against its own trace.
+  it("after a new chat, a first message that errors in band is judged against ITS OWN trace and not held by A's", async () => {
+    const readSavedTurn = vi.fn(async () => [userRow, cleanRow("T9")]);
+    hookOptions = { readSavedTurn };
+    render();
+    sendAndErrorInBand("cA", "T2");
+
+    act(() => ctl.resetTurn());
+    useChatUiStore.setState({ activeConversationId: null });
+    h.chat.messages = [];
+    render();
+    expect(ctl.error, "no error card of A in the empty chat").toBeUndefined();
+    act(() => void ctl.sendText("hello"));
+    transport().lastTraceIdRef.current = "T9";
+    act(() => transport().onConversationId?.("cN"));
+    h.chat.messages = [user, { id: "live-2", role: "assistant", parts: [{ type: "text", text: "Working on it" }] }];
+    h.chat.status = "error";
+    h.chat.error = IN_BAND_ERROR();
+    render();
+    vi.mocked(toast.error).mockClear();
+    await retryNow();
+
+    expect(readSavedTurn).toHaveBeenCalledWith("cN", expect.any(AbortSignal));
+    expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(toast.error)).not.toHaveBeenCalled();
+  });
+
   it("resetTurn also drops a held interruption (killedErrorRef): Retry in B regenerates, it does not reattach A's turn", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     try {

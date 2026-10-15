@@ -130,3 +130,39 @@ describe("item 7 · the Stop button reaches stopTurn", () => {
     expect(container.querySelector('button[aria-label="Stop generating"]')).toBeNull();
   });
 });
+
+// The /new slash action empties the chat and clears the active conversation from the composer. Like the
+// drawer's New and delete-active, it must reset the old turn (error, trace refs, outstanding replay)
+// BEFORE the active conversation moves, or they stay attached to the empty chat.
+describe("the /new slash action resets the turn before the conversation is cleared", () => {
+  function typeInto(textarea: HTMLTextAreaElement, value: string) {
+    const setValue = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!;
+    act(() => {
+      setValue.call(textarea, value);
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  }
+  const startNewChat = async () => {
+    const textarea = container.querySelector("textarea")!;
+    typeInto(textarea, "/new");
+    const button = [...container.querySelectorAll("button")].find((b) => b.textContent?.includes("Start New Chat"));
+    expect(button, "the /new entry of the slash menu").toBeTruthy();
+    await act(async () => void button!.click());
+  };
+
+  it("resetTurn runs first, stop and setMessages([]) still run, then the store move", async () => {
+    const calls: string[] = [];
+    ui.state.setActiveConversationId = vi.fn((id: unknown) => void calls.push(`store:${id}`));
+    render(
+      chatController({
+        resetTurn: vi.fn(() => void calls.push("resetTurn")),
+        stop: vi.fn(() => void calls.push("stop")),
+        setMessages: vi.fn((messages: unknown) => void calls.push(`setMessages:${JSON.stringify(messages)}`)),
+      }),
+    );
+
+    await startNewChat();
+
+    expect(calls).toEqual(["resetTurn", "stop", "setMessages:[]", "store:null"]);
+  });
+});

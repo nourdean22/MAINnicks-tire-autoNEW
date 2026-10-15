@@ -20,7 +20,10 @@ const h = vi.hoisted(() => ({
   resetTurn: undefined as unknown as () => void,
   loadConvo: undefined as unknown as (id: string) => Promise<void>,
   newChat: undefined as unknown as () => void,
-  drawer: undefined as undefined | { onSelect: (id: string) => void; onNew: () => void },
+  // useConversations: which conversation is active, and what deleting one answers
+  activeId: null as string | null,
+  deleteConvo: undefined as unknown as (id: string) => Promise<boolean>,
+  drawer: undefined as undefined | { onSelect: (id: string) => void; onNew: () => void; onDelete: (id: string, event?: unknown) => void },
 }));
 
 vi.mock("@/features/chat-v2/hooks/use-chat-stream", () => ({
@@ -49,12 +52,13 @@ vi.mock("@/features/chat-v2/hooks/use-chat-deep-link-prefill", () => ({ useChatD
 vi.mock("@/hooks/use-conversations", () => ({
   useConversations: () => ({
     convos: [],
-    activeId: null,
+    activeId: h.activeId,
     pinnedIds: new Set(),
     isLoadingConvo: false,
     readSavedTurn: h.readSavedTurn,
     loadConvo: (id: string) => h.loadConvo(id),
     newChat: () => h.newChat(),
+    deleteConvo: (id: string) => h.deleteConvo(id),
   }),
 }));
 // Render the dialog's children inline when it is open, so the drawer's handlers can be called.
@@ -68,7 +72,7 @@ vi.mock("@/features/chat-v2/components/chat-media-focus-panel", () => ({ ChatMed
 vi.mock("@/features/chat-v2/components/chat-message-list", () => ({ ChatMessageList: () => null }));
 vi.mock("@/features/chat-v2/components/chat-capability-indicator", () => ({ ChatCapabilityIndicator: () => null }));
 vi.mock("@/features/chat-v2/components/operator-conversation-drawer", () => ({
-  OperatorConversationDrawer: (props: { onSelect: (id: string) => void; onNew: () => void }) => {
+  OperatorConversationDrawer: (props: { onSelect: (id: string) => void; onNew: () => void; onDelete: (id: string, event?: unknown) => void }) => {
     h.drawer = props;
     return null;
   },
@@ -95,6 +99,11 @@ beforeEach(() => {
   h.resetTurn = () => void h.calls.push("resetTurn");
   h.loadConvo = async (id) => void h.calls.push(`loadConvo:${id}`);
   h.newChat = () => void h.calls.push("newChat");
+  h.activeId = null;
+  h.deleteConvo = async (id) => {
+    h.calls.push(`deleteConvo:${id}`);
+    return true;
+  };
   useChatUiStore.setState({ historyDrawerOpen: false, activeConversationId: null });
   // the store move is part of the order the handlers promise, so it is recorded too
   stopRecordingMoves = useChatUiStore.subscribe((state, previous) => {
@@ -154,6 +163,51 @@ describe("the island resets the turn when the operator opens another conversatio
 
     expect(h.calls).toEqual(["resetTurn", "store:null", "newChat"]);
     expect(useChatUiStore.getState().activeConversationId).toBeNull();
+    unmount();
+  });
+
+  // Deleting the conversation the operator is in empties it just as a new chat does: the old turn's
+  // error and trace state must not stay attached to the empty chat.
+  it("deleting the ACTIVE conversation resets the turn BEFORE the store is cleared, once the delete succeeded", async () => {
+    h.activeId = "c1";
+    useChatUiStore.setState({ activeConversationId: "c1" });
+    h.calls.length = 0;
+    const unmount = mountWithDrawerOpen();
+
+    await act(async () => void h.drawer!.onDelete("c1"));
+
+    expect(h.calls).toEqual(["deleteConvo:c1", "resetTurn", "store:null"]);
+    expect(useChatUiStore.getState().activeConversationId).toBeNull();
+    unmount();
+  });
+
+  it("deleting a conversation that is NOT active touches neither the turn nor the store", async () => {
+    h.activeId = "c1";
+    useChatUiStore.setState({ activeConversationId: "c1" });
+    h.calls.length = 0;
+    const unmount = mountWithDrawerOpen();
+
+    await act(async () => void h.drawer!.onDelete("c9"));
+
+    expect(h.calls).toEqual(["deleteConvo:c9"]);
+    expect(useChatUiStore.getState().activeConversationId).toBe("c1");
+    unmount();
+  });
+
+  it("a delete that fails leaves the turn and the store alone", async () => {
+    h.activeId = "c1";
+    h.deleteConvo = async (id) => {
+      h.calls.push(`deleteConvo:${id}`);
+      return false;
+    };
+    useChatUiStore.setState({ activeConversationId: "c1" });
+    h.calls.length = 0;
+    const unmount = mountWithDrawerOpen();
+
+    await act(async () => void h.drawer!.onDelete("c1"));
+
+    expect(h.calls).toEqual(["deleteConvo:c1"]);
+    expect(useChatUiStore.getState().activeConversationId).toBe("c1");
     unmount();
   });
 

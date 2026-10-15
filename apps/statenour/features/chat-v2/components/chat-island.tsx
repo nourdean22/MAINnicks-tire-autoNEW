@@ -152,6 +152,14 @@ export function ChatIsland() {
   useEffect(() => {
     readSavedTurnRef.current = conversations.readSavedTurn;
   }, [conversations.readSavedTurn]);
+  // Every path here that empties or switches the conversation (pick one, New, delete the active one)
+  // goes through this: the old turn's error, trace refs and outstanding replay are reset BEFORE the
+  // active conversation moves, so none of it stays attached to the next chat. resetTurn leaves a turn
+  // that is still in flight alone. The composer's /new calls chat.resetTurn() itself, in the same order.
+  const moveToConversation = (id: string | null) => {
+    chat.resetTurn();
+    setActiveConversationId(id);
+  };
   const { containerRef, endRef, isAtBottom, scrollToBottom } = useScrollToBottom<HTMLDivElement>();
   const islandRef = useRef<HTMLDivElement>(null);
 
@@ -421,24 +429,21 @@ export function ChatIsland() {
             loadingMore={conversations.loadingMore}
             onLoadMore={conversations.loadMoreConvos}
             onSelect={(id) => {
-              // The old turn's error and trace refs must not follow the operator into this conversation.
-              chat.resetTurn();
-              setActiveConversationId(id);
+              moveToConversation(id);
               void conversations.loadConvo(id);
               setHistoryDrawerOpen(false);
             }}
             onDelete={(id, event) => {
               const wasActive = conversations.activeId === id;
               void conversations.deleteConvo(id, event).then((ok) => {
-                if (ok && wasActive) setActiveConversationId(null);
+                if (ok && wasActive) moveToConversation(null);
               });
             }}
             onRename={conversations.renameConvo}
             onTogglePin={conversations.togglePin}
             onArchive={(id) => conversations.patchConvoFlag(id, "archived", true)}
             onNew={() => {
-              chat.resetTurn();
-              setActiveConversationId(null);
+              moveToConversation(null);
               conversations.newChat();
               setHistoryDrawerOpen(false);
             }}
