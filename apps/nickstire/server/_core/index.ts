@@ -94,6 +94,7 @@ import { securityHeaders } from "../middleware/securityHeaders";
 import { healthHandler, pingHandler, readyHandler, recoverHandler } from "../lib/health";
 import { startSelfHealing, recordRequest } from "../lib/self-healing";
 import { createLogger } from "../lib/logger";
+import { markInvoicePaid, stripeWebhookPreflight } from "../lib/stripeWebhook";
 import { errorTelemetry } from "../lib/error-telemetry";
 import { initSentry, flushSentry } from "../lib/sentry";
 import { AppError, isAppError, errorToHttpResponse } from "../lib/errors";
@@ -961,40 +962,18 @@ ${urls.join("\n")}
   // even if the client drops before calling confirmPayment
   app.post("/api/webhooks/stripe", express.raw({ type: "application/json" }), async (req, res) => {
     const sig = req.headers["stripe-signature"] as string | undefined;
-    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-
-    if (!webhookSecret) {
-      // wave-fix-2026-05-25 (audit #113) · differentiate "Stripe not
-      // configured at all" from "half-configured · webhook secret
-      // missing but API key present". The latter is the silent-failure
-      // case where real payments arrive at Stripe but webhook events
-      // get dropped silently · invoices never mark as paid · customer
-      // pays + we don't know. Force a 500 so the events stack up in
-      // Stripe's retry queue (visible operator signal) instead of
-      // disappearing.
-      const hasSecretKey = !!process.env.STRIPE_SECRET_KEY;
-      if (hasSecretKey) {
-        serverLog.error("[Stripe Webhook] STRIPE_WEBHOOK_SECRET is missing but STRIPE_SECRET_KEY is set — Stripe is half-configured. Real payment events are being DROPPED. Set STRIPE_WEBHOOK_SECRET on Railway or events will continue to fail.");
-        return res.sendStatus(500);
-      }
-      // Stripe not configured at all (no key + no webhook) — silent
-      // 200 is correct · no events expected so don't make noise.
-      return res.sendStatus(200);
-    }
-
-    const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
-    if (!stripeSecretKey) {
-      // Misconfigured: webhook secret set but no API key. Ack so Stripe
-      // doesn't retry a request that can never succeed — and log loudly.
-      serverLog.error("[Stripe Webhook] STRIPE_WEBHOOK_SECRET is set but STRIPE_SECRET_KEY is missing");
-      return res.sendStatus(200);
-    }
+    // Config gate and its answers (500 = Stripe retries, 200 = nothing to do): lib/stripeWebhook.ts.
+    const pre = stripeWebhookPreflight({
+      webhookSecret: process.env.STRIPE_WEBHOOK_SECRET,
+      secretKey: process.env.STRIPE_SECRET_KEY,
+    });
+    if (!pre.ok) return res.sendStatus(pre.status);
 
     try {
       const { default: Stripe } = await import("stripe");
-      const stripe = new Stripe(stripeSecretKey);
+      const stripe = new Stripe(pre.secretKey);
       const rawBody = (req as express.Request & { rawBody?: Buffer }).rawBody || req.body;
-      const event = stripe.webhooks.constructEvent(rawBody, sig || "", webhookSecret);
+      const event = stripe.webhooks.constructEvent(rawBody, sig || "", pre.webhookSecret);
 
       if (event.type === "payment_intent.succeeded") {
         const intent = event.data.object as any;
@@ -1002,43 +981,30 @@ ${urls.join("\n")}
         // Skip for tire orders — finalizeTireOrderPayment (below) owns the
         // invoice update for those, including the correct collected total.
         if (invoiceNumber && !intent.metadata?.tireOrderNumber) {
-          const { getDb } = await import("../db");
-          const { invoices } = await import("../../drizzle/schema");
-          const { and, eq, ne } = await import("drizzle-orm");
-          const d = await getDb();
-          if (d) {
-            // 2026-05-23 · idempotency claim. Pre-fix the UPDATE ran on
-            // every Stripe retry (network blip / 5xx response → Stripe
-            // retries the same event) — second invocation duplicated the
-            // invoicePaid emit which fan-out triggers manager SMS +
-            // journey tracker + Telegram + push notifications. Now the
-            // conditional WHERE means only the first event claims the
-            // payment; subsequent retries change zero rows and skip emit.
-            const result = await d.update(invoices)
-              .set({ paymentStatus: "paid", paymentMethod: "card" })
-              .where(and(
-                eq(invoices.invoiceNumber, invoiceNumber),
-                ne(invoices.paymentStatus, "paid"),
-              ));
-            // mysql2 returns affectedRows; drizzle wraps it.
-            const affected = (result as unknown as { affectedRows?: number; rowsAffected?: number })?.affectedRows
-              ?? (result as unknown as { affectedRows?: number; rowsAffected?: number })?.rowsAffected ?? 0;
+          // Idempotency claim, and the amount check, live in lib/stripeWebhook.ts.
+          const claim = await markInvoicePaid({
+            invoiceNumber,
+            receivedCents: intent.amount_received || 0,
+            paymentIntentId: String(intent.id),
+          });
+          // A paid event that could not be recorded answers 500, so Stripe retries it.
+          // A total that moved during the claim, or an amount that does not match yet, is also
+          // unrecorded: 500 keeps Stripe retrying until the invoice is corrected to match.
+          if (claim.kind === "db_unavailable" || claim.kind === "total_changed" || claim.kind === "amount_mismatch") {
+            return res.sendStatus(500);
+          }
+          if (claim.kind === "claimed") {
+            // First-time claim — fan out.
+            import("../services/eventBus").then(({ emit }) =>
+              emit.invoicePaid({
+                invoiceNumber,
+                customerName: intent.metadata?.customerName || "Online payment",
+                totalAmount: (intent.amount_received || 0) / 100,
+                method: "card",
+              })
+            ).catch(e => serverLog.warn("[server:stripeWebhook] event bus invoice paid dispatch failed:", e));
 
-            if (affected === 1) {
-              // First-time claim — fan out.
-              import("../services/eventBus").then(({ emit }) =>
-                emit.invoicePaid({
-                  invoiceNumber,
-                  customerName: intent.metadata?.customerName || "Online payment",
-                  totalAmount: (intent.amount_received || 0) / 100,
-                  method: "card",
-                })
-              ).catch(e => console.warn("[server:stripeWebhook] event bus invoice paid dispatch failed:", e));
-
-              serverLog.info(`[Stripe Webhook] Invoice ${invoiceNumber} marked paid — $${((intent.amount_received || 0) / 100).toFixed(2)}`);
-            } else {
-              serverLog.info(`[Stripe Webhook] Invoice ${invoiceNumber} retry — already paid, skipping fan-out (affected=${affected})`);
-            }
+            serverLog.info(`[Stripe Webhook] Invoice ${invoiceNumber} marked paid — $${((intent.amount_received || 0) / 100).toFixed(2)}`);
           }
         }
         // Tire-order checkouts surface here too — the metadata is mirrored
