@@ -942,8 +942,22 @@ test("R5: the walk stops at depth 6 (documented) and never follows a symlink", (
 // rows with a psql clientHint plus the matcher suffixes. Each block is a way that could be a silent instrument: the
 // rows (every registration), the reader of ARRAY fields (run_sql_transaction), the registration, and the limits.
 
-const DESTRUCTIVE_SQL = ["DROP TABLE leads", "drop table leads;", "TRUNCATE TABLE leads", "TRUNCATE leads", "DROP SCHEMA public CASCADE", "BEGIN;\nDROP DATABASE nick;\nCOMMIT;"];
-const BENIGN_SQL = ["SELECT 1", "SELECT * FROM leads LIMIT 5", "INSERT INTO leads (name) VALUES ('Ann')", "EXPLAIN SELECT * FROM leads", "CREATE INDEX idx_leads_name ON leads (name)"];
+const DESTRUCTIVE_SQL = [
+  "DROP TABLE leads", "drop table leads;", "TRUNCATE TABLE leads", "TRUNCATE leads", "DROP SCHEMA public CASCADE", "BEGIN;\nDROP DATABASE nick;\nCOMMIT;",
+  // the 870-row class (extended 2026-10-15): a DELETE or UPDATE with no WHERE in its own statement, and ALTER TABLE ... DROP
+  "DELETE FROM leads", "delete from public.leads;", 'DELETE FROM "public"."leads"', "DELETE\nFROM ONLY leads", "DELETE FROM leads RETURNING *",
+  "UPDATE leads SET status = 'x'", "update only public.leads l set status = 'x'", "UPDATE leads\nSET a = 1",
+  "WITH d AS (DELETE FROM leads RETURNING *) SELECT count(*) FROM d", "DELETE FROM a WHERE x; DELETE FROM b;",
+  "ALTER TABLE leads DROP COLUMN note", "alter table leads drop constraint c", "DROP INDEX idx_leads_name", "DROP MATERIALIZED VIEW mv",
+];
+const BENIGN_SQL = [
+  "SELECT 1", "SELECT * FROM leads LIMIT 5", "INSERT INTO leads (name) VALUES ('Ann')", "EXPLAIN SELECT * FROM leads", "CREATE INDEX idx_leads_name ON leads (name)",
+  "DELETE FROM leads WHERE id = 1", "delete from leads where id = 1", "DELETE FROM t USING u WHERE t.id = u.id", "UPDATE leads SET status = 'x' WHERE id = 1",
+  "INSERT INTO t (a) VALUES (1) ON CONFLICT (a) DO UPDATE SET a = excluded.a", "SELECT * FROM leads WHERE note = 'x'", "SELECT update_time FROM leads",
+  "CREATE TABLE a (b int REFERENCES b(id) ON UPDATE CASCADE ON DELETE SET NULL, c int REFERENCES c(id) ON UPDATE CASCADE ON DELETE SET NULL)",
+];
+const DROP_KINDS = ["EXTENSION vector", "INDEX i", "VIEW v", "MATERIALIZED VIEW m", "FUNCTION f()", "PROCEDURE p()", "TYPE t", "ROLE r", "USER u", "SEQUENCE s",
+  "TRIGGER t ON leads", "POLICY p ON leads", "OWNED BY app", "COLUMN c", "CONSTRAINT c"];
 const SQL_RUN = SQL_SHAPES[0];
 const SQL_TX = SQL_SHAPES.find((s) => s.array);
 
@@ -1072,6 +1086,84 @@ test("SQL documented limits, pinned: a hinted row also denies SQL words inside a
   denied(run(apply.name, { ...apply.input("DROP TABLE leads"), apply_changes: false }), "destructive-sql", "a DISCARD with destructive SQL (if this now allows, a skipWhenFalse exists: update the README and this pin)");
   const explain = SQL_SHAPES.find((s) => leaf(s.name) === "explain_sql_statement");
   denied(run(explain.name, { sql: "DROP TABLE leads", analyze: true }), "destructive-sql", "explain_sql_statement with analyze:true executes the statement");
+});
+
+// The DENY probes of the DELETE / UPDATE / ALTER TABLE ... DROP / DROP-kind arms of destructive-sql. They are NOT policy.json
+// denyExamples: docs/agent-audit/CONTROL-CANARY-COVERAGE.md pins that total (coverage-doc.test.mjs) and is outside the platform
+// lane, so they live here and are checked the way a denyExample is: denied BY THIS RULE, through every command adapter, and
+// (acceptance probes below) through the real hook. Move them into policy.json with that doc's number in one change.
+const DESTRUCTIVE_PROBES = [
+  'psql -c "DELETE FROM leads"', "mysql -e 'delete from leads;'", 'psql -c "DELETE FROM public.leads"', `psql -c 'DELETE FROM "public"."leads"'`,
+  'psql -c "DELETE\nFROM leads"', 'psql -c "DELETE FROM ONLY leads"', 'psql -c "DELETE FROM leads RETURNING *"', 'mysql -e "DELETE LOW_PRIORITY FROM leads"',
+  'psql -c "WITH d AS (DELETE FROM leads RETURNING *) SELECT count(*) FROM d"', 'psql -c "DELETE FROM a WHERE x; DELETE FROM b;"',
+  "railway run -- psql -c 'DELETE FROM leads'", 'Invoke-Sqlcmd -Query "DELETE FROM leads"',
+  `psql -c "UPDATE leads SET status = 'x'"`, `psql -c "UPDATE ONLY leads SET status = 'x'"`, `psql -c "update public.leads l set status = 'x'"`,
+  `psql -c 'UPDATE "public"."leads" SET status = 1'`, 'psql -c "UPDATE leads\nSET a = 1"', 'mysql -e "UPDATE IGNORE leads SET a = 1"',
+  'psql -c "BEGIN; UPDATE leads SET a = 1; COMMIT;"', 'psql -c "INSERT INTO t (a) VALUES (1) ON CONFLICT (a) DO UPDATE SET a = excluded.a; UPDATE t SET b = 1"',
+  'psql -c "ALTER TABLE leads DROP COLUMN note"', 'psql -c "alter table leads drop constraint c"', 'psql -c "ALTER TABLE IF EXISTS ONLY public.leads DROP COLUMN IF EXISTS note"',
+  ...DROP_KINDS.map((k) => `psql -c "DROP ${k}"`), 'psql -c "drop materialized\nview mv"',
+];
+
+test("destructive-sql deny probes: each is denied BY THIS RULE as native Bash and PowerShell, and through every command adapter (in process)", () => {
+  assert.ok(DESTRUCTIVE_PROBES.length >= 38, "the probe list is the proof surface for the extended arms");
+  const rowsAsBash = adapters().filter((a) => a.as === "Bash");
+  assert.ok(rowsAsBash.length >= 8, "4 runner rows and 4 SQL rows (a loop over nothing is a silent green)");
+  for (const command of DESTRUCTIVE_PROBES) {
+    for (const toolName of ["Bash", "PowerShell"]) {
+      const res = engine.evaluate({ toolName, command, cwd: NORMAL, filePath: "" }, policy);
+      assert.equal(res.rule?.id, "destructive-sql", `${toolName}: ${JSON.stringify(command)} was denied by '${res.rule?.id}', not destructive-sql`);
+    }
+    for (const a of rowsAsBash) {
+      for (const field of a.commandFields) {
+        const res = judge(a.exampleTools[0], { [field]: command }, NORMAL);
+        assert.equal(res.rule?.id, "destructive-sql", `${a.id}.${field}: ${JSON.stringify(command)} was denied by '${res.rule?.id}', not destructive-sql`);
+      }
+    }
+  }
+});
+
+test("SQL: the whole probe set, every DROP kind and the benign set are judged the same through all 8 registrations (in process)", () => {
+  for (const shape of SQL_SHAPES) {
+    for (const sql of DESTRUCTIVE_SQL) assert.equal(judge(shape.name, sqlInput(shape, sql), NORMAL).rule?.id, "destructive-sql", `${shape.name} should DENY ${JSON.stringify(sql)}`);
+    for (const kind of DROP_KINDS) assert.equal(judge(shape.name, sqlInput(shape, `DROP ${kind}`), NORMAL).rule?.id, "destructive-sql", `${shape.name} should DENY DROP ${kind}`);
+    for (const sql of BENIGN_SQL) assert.equal(judge(shape.name, sqlInput(shape, sql), NORMAL).denied, false, `${shape.name} should ALLOW ${JSON.stringify(sql)}`);
+  }
+});
+
+test("acceptance probes through the real hook: exit code AND rule id (job 2026-10-15-guard-sql-lease-infra)", () => {
+  const shape = (l, prefix) => SQL_SHAPES.find((s) => leaf(s.name) === l && (!prefix || s.name.startsWith(prefix)));
+  const runSql = shape("run_sql"), tx = shape("run_sql_transaction"), apply = shape("complete_database_migration"), explain = shape("explain_sql_statement");
+  const prismaQuery = shape("execute_sql_query", PRISMA_CONNECTOR);
+  denied(run(runSql.name, { sql: "DROP TABLE leads" }), "destructive-sql", "Neon run_sql DROP TABLE");
+  denied(run(prismaQuery.name, { query: "TRUNCATE TABLE leads" }), "destructive-sql", "Prisma execute_sql_query TRUNCATE");
+  denied(run(tx.name, { sql_statements: ["SELECT 1", "DELETE FROM leads"] }), "destructive-sql", "run_sql_transaction with a bare DELETE");
+  for (const sql of ["DELETE FROM leads WHERE id = 1", "SELECT * FROM leads WHERE note = 'x'", "INSERT INTO t (a) VALUES (1) ON CONFLICT (a) DO UPDATE SET a = excluded.a", "UPDATE leads SET status = 'x' WHERE id = 1"]) {
+    allowed(run(runSql.name, { sql }), `run_sql ${sql}`);
+  }
+  denied(run(runSql.name, { sql: "UPDATE leads SET status = 'x'" }), "destructive-sql", "UPDATE with no WHERE");
+  denied(run(apply.name, apply.input("ALTER TABLE t DROP COLUMN c")), "destructive-sql", "complete_database_migration applies to the parent branch");
+  allowed(run(`${NEON}prepare_database_migration`, { migration_sql: "ALTER TABLE t DROP COLUMN c" }), "prepare_database_migration runs on a temporary branch");
+  denied(run(explain.name, { sql: "DROP TABLE x" }), "destructive-sql", "explain_sql_statement");
+  denied(run("Bash", { command: 'psql -c "DELETE FROM leads"' }), "destructive-sql", "native Bash psql DELETE with no WHERE");
+  denied(run("PowerShell", { command: 'Invoke-Sqlcmd -Query "DELETE FROM leads"' }), "destructive-sql", "native PowerShell Invoke-Sqlcmd");
+  for (const command of ['grep -rn "DELETE FROM" drizzle/', "rg 'DELETE FROM' apps/", 'git log --grep "UPDATE leads SET" --oneline', 'git commit -m "docs: psql DELETE FROM leads is denied"']) {
+    allowed(run("Bash", { command }), `mention is not execution: ${command}`);
+  }
+});
+
+test("destructive-sql documented limits, pinned (each fails the day it is fixed: update the README 'SQL limits' and this pin)", () => {
+  const denies = (sql) => judge(SQL_RUN.name, SQL_RUN.input(sql), NORMAL).denied;
+  // Not goals, they pass: any WHERE in the statement counts, a keyword split by a comment is not seen, MySQL multi-table forms are not parsed
+  for (const sql of [
+    "DELETE FROM leads WHERE true", "DELETE FROM leads WHERE 1 = 1", "DELETE FROM leads -- WHERE id = 1", "UPDATE leads SET note = 'where'", "DELETE/**/FROM leads",
+    "WITH d AS (DELETE FROM leads RETURNING id) SELECT * FROM u WHERE u.id IN (SELECT id FROM d)",
+    "DELETE t1 FROM t1 JOIN t2 ON t1.id = t2.id", "UPDATE a JOIN b ON a.id = b.a_id SET a.x = 1",
+  ]) assert.equal(denies(sql), false, `not a goal, so it passes: ${JSON.stringify(sql)}`);
+  // Accepted false positives, they deny: the safe direction, one line to ask the operator
+  for (const sql of [
+    "ALTER TABLE leads ALTER COLUMN note DROP NOT NULL", "UPDATE leads SET a = 1 ORDER BY id LIMIT 5", "UPDATE t SET a = 'x;y' WHERE id = 1",
+    "INSERT INTO notes (body) VALUES ('please delete from the schedule')",
+  ]) assert.equal(denies(sql), true, `accepted false positive, so it denies: ${JSON.stringify(sql)}`);
 });
 
 test("registration: the configured command string, run VERBATIM, denies destructive SQL through a SQL tool and allows a read (guard-red-team rule 5)", () => {

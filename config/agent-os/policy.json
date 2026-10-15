@@ -25,7 +25,12 @@
     "exemption ignored, so the rule applies), clientHint (a client word prefixed to typed text), skipWhenTrue (a strict boolean",
     "true means preview only), expandDirectory (judge the files below a moved directory). Each is explained in the README and",
     "pinned by a canary. A named field may hold a string or a LIST of strings (run_sql_transaction.sql_statements): each",
-    "element is judged on its own, at most 200 of them."
+    "element is judged on its own, at most 200 of them.",
+    "",
+    "destructive-sql (extended 2026-10-15): the DENY probes of its DELETE / UPDATE / ALTER TABLE ... DROP / DROP-kind arms are",
+    "DESTRUCTIVE_PROBES in scripts/agent-os/mcpCoverage.test.mjs, not denyExamples here, because",
+    "docs/agent-audit/CONTROL-CANARY-COVERAGE.md pins the denyExamples total (coverage-doc.test.mjs) and is outside the platform",
+    "lane. Move them into denyExamples in the same change as that doc's number. Their ALLOW probes are allowExamples below."
   ],
   "version": 2,
   "mcpAdapters": [
@@ -374,10 +379,10 @@
     {
       "id": "destructive-sql",
       "tools": ["Bash", "PowerShell"],
-      "pattern": "^(?=[\\s\\S]*\\b(?:mysql|psql|railway\\s+run|prisma\\s+db\\s+execute|Invoke-Sqlcmd)\\b)[\\s\\S]*\\b(?:DROP\\s+(?:DATABASE|SCHEMA|TABLE)|TRUNCATE\\s+(?:TABLE\\s+)?\\w)",
+      "pattern": "^(?=[\\s\\S]*\\b(?:mysql|psql|railway\\s+run|prisma\\s+db\\s+execute|Invoke-Sqlcmd)\\b)[\\s\\S]*?\\b(?:DROP\\s+(?:DATABASE|SCHEMA|TABLE)|DROP\\s+(?:EXTENSION|INDEX|VIEW|MATERIALIZED\\s+VIEW|FUNCTION|PROCEDURE|TYPE|ROLE|USER|SEQUENCE|TRIGGER|POLICY|OWNED|COLUMN|CONSTRAINT)\\b|TRUNCATE\\s+(?:TABLE\\s+)?\\w|ALTER\\s+TABLE\\b[^;]*?\\bDROP\\b|DELETE\\s+(?:(?:LOW_PRIORITY|QUICK|IGNORE)\\s+)*FROM\\b(?![^;]*\\bWHERE\\b)|UPDATE\\s+(?:(?:ONLY|LOW_PRIORITY|IGNORE)\\s+)*(?:\"[^\"]+\"|`[^`]+`|[\\w$]+)(?:\\s*\\.\\s*(?:\"[^\"]+\"|`[^`]+`|[\\w$]+))*(?:\\s*\\*)?(?:\\s+(?:AS\\s+)?(?:\"[^\"]+\"|`[^`]+`|[\\w$]+))?\\s+SET\\b(?![^;]*\\bWHERE\\b))",
       "flags": "i",
-      "why": "AGENTS.md > Protected operations: destructive schema commands need an explicit operator instruction. Memory agent-destructive-script-incident: a 'verification' run deleted 870 rows. The rule requires a DB client on the same command so that grepping/auditing SQL text stays legal — mention is not execution.",
-      "fix": "Ask the operator. If this is migration SQL, write it to a migration file (Write is not blocked) rather than executing it from a shell.",
+      "why": "AGENTS.md > Protected operations: destructive schema commands need an explicit operator instruction. Memory agent-destructive-script-incident: a 'verification' run deleted 870 rows, a class that only DROP and TRUNCATE covered until 2026-10-15; the rule now also denies a DELETE FROM or an UPDATE ... SET with no WHERE in its statement, ALTER TABLE ... DROP and the other DROP kinds (docs/agent-os/README.md lists the limits). The rule requires a DB client on the same command so that grepping/auditing SQL text stays legal — mention is not execution.",
+      "fix": "Ask the operator. If this is migration SQL, write it to a migration file (Write is not blocked) rather than executing it from a shell. A write meant for a subset needs a WHERE that names it.",
       "denyExamples": [
         "mysql -e 'DROP TABLE leads'",
         "psql -c \"TRUNCATE TABLE brain_memory\"",
@@ -388,7 +393,29 @@
         "git log --oneline -5",
         "grep -rn 'DROP TABLE' drizzle/",
         "rg 'TRUNCATE' apps/statenour/prisma/",
-        "pnpm test"
+        "pnpm test",
+        "psql -c \"DELETE FROM leads WHERE id = 1\"",
+        "psql -c \"delete from leads where id = 1\"",
+        "psql -c \"DELETE FROM leads\nWHERE id = 3\"",
+        "psql -c \"DELETE FROM t USING u WHERE t.id = u.id\"",
+        "psql -c \"select 1; delete from leads where id = 2;\"",
+        "psql -c \"DELETE FROM a WHERE x; DELETE FROM b WHERE y;\"",
+        "psql -c \"SELECT * FROM leads WHERE note = 'x'\"",
+        "psql -c \"UPDATE leads SET status = 'x' WHERE id = 1\"",
+        "psql -c \"INSERT INTO t (a) VALUES (1) ON CONFLICT (a) DO UPDATE SET a = excluded.a\"",
+        "mysql -e \"INSERT INTO t (a) VALUES (1) ON DUPLICATE KEY UPDATE a = VALUES(a)\"",
+        "psql -c \"MERGE INTO t USING s ON t.id = s.id WHEN MATCHED THEN UPDATE SET a = s.a WHEN MATCHED AND s.gone THEN DELETE\"",
+        "psql -c \"SELECT update_time FROM leads\"",
+        "psql -c \"SELECT * FROM leads FOR UPDATE OF leads SKIP LOCKED\"",
+        "psql -c \"CREATE TABLE a (b int REFERENCES b(id) ON UPDATE CASCADE ON DELETE SET NULL, c int REFERENCES c(id) ON UPDATE CASCADE ON DELETE SET NULL)\"",
+        "mysql -e \"CREATE TABLE t (updated_at timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, p int, FOREIGN KEY (p) REFERENCES q(id) ON DELETE SET NULL)\"",
+        "psql -c \"CREATE TRIGGER t BEFORE UPDATE ON leads FOR EACH ROW EXECUTE FUNCTION f()\"",
+        "psql -c \"GRANT UPDATE ON leads TO app\"",
+        "psql -c \"ALTER TABLE leads ADD COLUMN note text\"",
+        "psql -c \"CREATE INDEX idx_leads_name ON leads (name)\"",
+        "rg 'DELETE FROM' apps/",
+        "git log --grep \"UPDATE leads SET\" --oneline",
+        "git commit -m \"docs: psql DELETE FROM leads is denied\""
       ]
     },
     {
