@@ -12,9 +12,12 @@
  * Run: node --test scripts/agent-os/mergeGate.test.mjs   (pnpm agent:verify discovers it)
  */
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import { blockers, busyChecks, holdWhileBusy, mergeGate } from "./merge-gate.mjs";
 
+const GATE = fileURLToPath(new URL("./merge-gate.mjs", import.meta.url));
 const SHA = "a".repeat(40);
 const run = (name, conclusion = "SUCCESS", status = "COMPLETED") => ({ __typename: "CheckRun", name, status, conclusion });
 const view = (over = {}) => ({ state: "OPEN", isDraft: false, mergeStateStatus: "CLEAN", headRefOid: SHA, headRefName: "chore/some-branch", statusCheckRollup: [run("node"), run("security"), run("railway-smoke", "SKIPPED")], ...over });
@@ -59,6 +62,7 @@ for (const [label, pr, want] of [
   ["a PR that is already MERGED", view({ state: "MERGED" }), /MERGED, not OPEN/],
   ["a branch that is behind", view({ mergeStateStatus: "BEHIND" }), /BEHIND, not CLEAN/],
   ["a state GitHub is still computing", view({ mergeStateStatus: "UNKNOWN" }), /UNKNOWN, not CLEAN/],
+  ["an empty check list (CI has not started yet)", view({ statusCheckRollup: [] }), /no checks have reported yet/],
   ["a failed check", view({ statusCheckRollup: [run("node"), run("completion-authority", "FAILURE")] }), /"completion-authority" FAILURE/],
   ["a cancelled check", view({ statusCheckRollup: [run("node", "CANCELLED")] }), /"node" CANCELLED/],
   ["a check still running", view({ statusCheckRollup: [run("node", null, "IN_PROGRESS")] }), /"node" has not finished \(IN_PROGRESS\)/],
@@ -75,6 +79,32 @@ for (const [label, pr, want] of [
     assert.ok(logs.some((l) => want.test(l)), `wanted ${want}; got ${JSON.stringify(logs)}`);
   });
 }
+
+test("the open-PR list is not capped at gh's default of 30: the call carries an explicit --limit", async () => {
+  const g = fakeGh();
+  await mergeGate(opts(g));
+  assert.ok(g.calls.find((c) => c.startsWith("pr list")).includes(" --limit 200 "));
+});
+
+test("a cross-repository PR is merged but its branch is never deleted from the base repository", async () => {
+  const g = fakeGh({ pr: view({ isCrossRepository: true }) });
+  const logs = [];
+  assert.equal(await mergeGate(opts(g, { log: (m) => logs.push(m) })), 0);
+  assert.equal(mergeCalls(g).length, 1);
+  assert.deepEqual(deleteCalls(g), []);
+  assert.ok(logs.some((l) => /cross-repository.*left in the fork/.test(l)), JSON.stringify(logs));
+});
+
+test("an invalid --wait-minutes is refused before any gh call, in the function and on the CLI", async () => {
+  for (const wait of [NaN, -1, Infinity]) {
+    const g = fakeGh();
+    await assert.rejects(() => mergeGate(opts(g, { wait })), /--wait-minutes must be a finite number/);
+    assert.deepEqual(g.calls, []);
+  }
+  const r = spawnSync(process.execPath, [GATE, "1", "--sha", "a".repeat(40), "--wait-minutes", "--merge"], { encoding: "utf8" });
+  assert.equal(r.status, 64, r.stdout + r.stderr);
+  assert.match(r.stderr, /--wait-minutes/);
+});
 
 test("skipped and neutral checks are not blockers", () => {
   assert.deepEqual(blockers(view({ statusCheckRollup: [run("a", "SKIPPED"), run("b", "NEUTRAL")] }), SHA), []);

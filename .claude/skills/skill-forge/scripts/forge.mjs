@@ -44,7 +44,8 @@ const PII = [
   ["email", /[\w.+-]+@[\w-]+\.[\w.-]+/],
   ["obfuscated email", /\b[\w.-]+\s+(?:at|\[at\])\s+[\w-]+\s+(?:dot|\[dot\])\s+\w+/i],
   ["url", /https?:\/\/\S+/],
-  ["absolute path", /(?:[A-Za-z]:[\\/]|\\\\|\/[a-z]\/Users\/|(?:^|\s)(?:~|\/home|\/Users|\/var|\/tmp|\/etc)\/)\S*/],
+  // Windows drive and UNC paths, ~/..., and ANY POSIX path of two or more segments (a lone /health is a route, not a path).
+  ["absolute path", /(?:[A-Za-z]:[\\/]|\\\\|(?<=^|[\s("'])(?:~\/|\/[\w.@-]+(?:\/[\w.@-]+)+))\S*/],
   ["ssn", /\b\d{3}-\d{2}-\d{4}\b/],
   ["phone number", /(?<![\w.])\+?\d{0,2}[\s.-]?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}(?![\w])/],
   ["ip address", /\b\d{1,3}(?:\.\d{1,3}){3}\b/],
@@ -131,7 +132,8 @@ export function checkSkill(dir, { git = false, existing = false } = {}) {
 
   // No prose-only references: a bundled file is read only if SKILL.md links it by its exact relative path (outside code fences and
   // comments, where a link is not a link), every link resolves, and every bundled file at any depth is linked individually.
-  const visible = text.replace(/```[\s\S]*?```/g, "").replace(/<!--[\s\S]*?-->/g, "");
+  // Fenced blocks (``` or ~~~, any length), HTML comments and inline code spans hold examples, not links.
+  const visible = text.replace(/^[ \t]*(`{3,}|~{3,})[^\n]*\n[\s\S]*?^[ \t]*\1[`~]*[ \t]*\r?$/gm, "").replace(/<!--[\s\S]*?-->/g, "").replace(/`[^`\n]*`/g, "");
   const named = new Set([...visible.matchAll(/\]\(([^)\s#]+)[^)]*\)/g)].map((m) => m[1].replace(/^\.\//, "")).filter((p) => !/^([a-z]+:|\/)/i.test(p)));
   for (const p of named) if (!existsSync(join(dir, p))) errors.push(`SKILL.md links ${p}, which does not exist`);
   for (const sub of ["references", "scripts", "assets"]) for (const f of listFiles(dir, `${sub}/`)) if (!named.has(f)) errors.push(`${f} exists but SKILL.md does not link it by exact path, so nothing will read it`);
@@ -149,7 +151,8 @@ export function checkSkill(dir, { git = false, existing = false } = {}) {
   else {
     const section = /^## Findings\s*$([\s\S]*?)(?=^## |(?![\s\S]))/im.exec(readFileSync(skeptic, "utf8"))?.[1] ?? "";
     const bullets = section.split(/\r?\n/).filter((l) => l.startsWith("- "));
-    const closed = /(?<!not )\bfixed\.?$|\brejected: \S.*$|\bnone found after trying: \S.*$/i;
+    // The disposition is its own clause: "<finding>. fixed", "<finding>: fixed", "<finding>; rejected: <why>". "not yet fixed" is not one.
+    const closed = /[.;:]\s+fixed\.?$|\brejected: \S.*$|\bnone found after trying: \S.*$/i;
     if (!bullets.length) errors.push('evals/skeptic.md needs a "## Findings" section with one "- " line per finding');
     for (const b of bullets) if (!closed.test(b.trim())) errors.push(`evals/skeptic.md finding has no disposition: "${b.trim().slice(0, 70)}". End each with "fixed", "rejected: <why>" or "none found after trying: <what>"`);
   }
@@ -235,7 +238,8 @@ function baselineBeforeSkill(dir) {
   if (!s) return [];
   if (b === s) return ["--git: baseline.md and SKILL.md were added in the same commit; the baseline must come first, in its own commit"];
   if (gitOut(dir, ["merge-base", "--is-ancestor", b, s]).status !== 0) return ["--git: the baseline commit is not an ancestor of the SKILL.md commit"];
-  const after = commits("evals/baseline.md").filter((c) => c !== s && gitOut(dir, ["merge-base", "--is-ancestor", s, c]).status === 0);
+  // s itself counts: a baseline touched in the commit that adds SKILL.md was rewritten once the skill was visible.
+  const after = commits("evals/baseline.md").filter((c) => gitOut(dir, ["merge-base", "--is-ancestor", s, c]).status === 0);
   if (after.length) return [`--git: evals/baseline.md was edited in ${after[0].slice(0, 9)}, after SKILL.md was added: a baseline rewritten once the skill exists records nothing`];
   return [];
 }
@@ -309,7 +313,12 @@ export function runClaude({ prompt, model, cwd, maxTurns = 4, timeoutMs = 240_00
     p.stderr.on("data", (d) => (err += d));
     const finish = (code) => {
       clearTimeout(timer);
-      done({ out, err, code, failed: !/"type":\s*"assistant"/.test(out), capped: /"subtype":\s*"error_max_turns"/.test(out) });
+      const capped = /"subtype":\s*"error_max_turns"/.test(out);
+      // An exit code is evidence: nonzero or no code at all (killed, never started) is a failed run, except the turn cap, which claude reports with a nonzero exit.
+      // A refusal from the service (a weekly limit, seen 2026-10-15) arrives as a synthetic assistant message plus a rate_limit_event, not as a model answer.
+      const synthetic = /"model":\s*"<synthetic>"/.test(out) || /"rate_limit_event"[^\n]*"status":\s*"rejected"/.test(out);
+      const failed = !/"type":\s*"assistant"/.test(out) || synthetic || (code !== 0 && !(capped && typeof code === "number"));
+      done({ out, err, code, failed, capped });
     };
     p.on("error", (e) => {
       err += String(e);
@@ -331,7 +340,7 @@ export async function score({ dir, set = "heldout", model, runs = 1, workers = 3
   const name = basename(dir);
   const queries = JSON.parse(readFileSync(join(dir, "evals", "trigger-queries.json"), "utf8")).filter((e) => set === "all" || (set === "heldout") === e.heldOut);
   const control = await runClaude({ prompt: controlPrompt(name), model, cwd });
-  if (!skillCalls(control.out).some((c) => calls(c, name))) return { void: true, reason: `the positive control failed: an explicit request did not make claude call the Skill tool for "${name}" (${control.failed ? `process failed: ${control.err.trim().slice(0, 200)}` : "claude ran but did not load it"}), so no score can be trusted`, results: [] };
+  if (control.failed || !skillCalls(control.out).some((c) => calls(c, name))) return { void: true, reason: `the positive control failed: an explicit request did not make claude call the Skill tool for "${name}" (${control.failed ? `process failed (exit ${control.code}): ${control.err.trim().slice(0, 200)}` : "claude ran but did not load it"}), so no score can be trusted`, results: [] };
   const results = queries.map((e) => ({ query: e.query, should_trigger: e.should_trigger, triggers: 0, runs, voided: 0, capped: 0, others: [] }));
   const jobs = results.flatMap((r) => Array.from({ length: runs }, () => r));
   let next = 0;
@@ -393,7 +402,7 @@ export async function mine({ root, keywords = [], skills = [], adjacent = [], da
         if (!text || /^(<|\/|This session is being continued|Base directory for this skill|Caveat:)/.test(text) || text.includes("<command-name>")) continue;
         keep(turn);
         turn = { text, fired: new Set() };
-      } else if (o.type === "assistant" && turn && Array.isArray(c)) {
+      } else if (o.type === "assistant" && !o.isSidechain && turn && Array.isArray(c)) {
         for (const b of c) if (b.type === "tool_use" && b.name === "Skill" && typeof b.input?.skill === "string") turn.fired.add(b.input.skill);
       }
     }
@@ -440,10 +449,16 @@ if (isMain) {
     }
     const r = await runClaude({ prompt: controlPrompt(name), model: flag("--model"), cwd: resolve(dir, "..", "..", "..") });
     const version = spawnSync(claudeCommand(), [...claudePrefix(), "--version"], { encoding: "utf8" }).stdout?.trim();
-    const result = { skill: name, ...parseInvocation(r.out, name), exit: r.code, claude: version, descriptionSha256: descriptionHash(descriptionOf(dir)) };
+    const parsed = parseInvocation(r.out, name);
+    const result = { skill: name, toolUse: parsed.toolUse, loaded: parsed.loaded && !r.failed, exit: r.code, claude: version, descriptionSha256: descriptionHash(descriptionOf(dir)) };
+    console.log(JSON.stringify(result));
+    if (r.failed) {
+      // The process failed (exit code, a rate limit, no answer): that says nothing about the skill, so an existing good proof is left alone.
+      console.error(`prove FAILED (exit ${r.code}): the claude run itself failed, evals/invocation.json left untouched`);
+      process.exit(1);
+    }
     mkdirSync(join(dir, "evals"), { recursive: true });
     writeFileSync(join(dir, "evals", "invocation.json"), JSON.stringify(result, null, 2) + "\n");
-    console.log(JSON.stringify(result));
     process.exit(result.toolUse && result.loaded ? 0 : 1);
   } else if (cmd === "score") {
     const dir = resolve(target);

@@ -35,8 +35,8 @@ Why each gate exists, with the incident behind it: [references/gates.md](referen
    description on the train score; score the held-out rows ONCE with the final description and put every miss in the PR body
    ([references/trigger-evals.md](references/trigger-evals.md)). Never tune on the held-out rows.
 5. **Skeptic pass.** A separate read-only agent (`lane-research`) tries to refute the skill, using the brief in
-   [references/gates.md](references/gates.md). Record each finding in `evals/skeptic.md` under `## Findings`, ending the line with
-   `fixed`, `rejected: <why>` or `none found after trying: <what>`. Fix what is real before you score again.
+   [references/gates.md](references/gates.md). Record each finding in `evals/skeptic.md` under `## Findings`, ending the line with a
+   full stop, semicolon or colon and then `fixed`, or with `rejected: <why>` or `none found after trying: <what>`. Fix what is real before you score again.
 6. **Invocation proof.** After the description is final: `node .claude/skills/skill-forge/scripts/forge.mjs prove .claude/skills/<slug> --model haiku`
    starts a fresh `claude -p` session, asks the Skill tool for the skill by its exact name, and writes `evals/invocation.json`, bound to the
    description's hash. Any later description edit makes it stale; run it again.

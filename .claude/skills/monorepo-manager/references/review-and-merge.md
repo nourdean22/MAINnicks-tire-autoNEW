@@ -41,7 +41,7 @@ Rules for using it:
    (6 finders plus 2 skeptics per finding) and ask once, or run the six lenses as parallel `lane-research` calls in ONE
    message, each told to return findings with file, line and evidence, then judge the findings yourself.
 2. Read every surviving finding against the real file before you act; spot-check one refuted finding too. A skeptic that
-   cannot confirm a finding from the real file counts it as refuted. A finding survives unless a MAJORITY of its skeptics refute
+   cannot confirm a finding from the real file counts it as refuted. A finding is dropped only if a MAJORITY of the CONFIGURED skeptics refute
    it (with two, a split vote keeps it), and one whose skeptics all failed to answer is kept.
 3. A finding goes back to the owning lane as the exact input or line, never as a vague worry.
 4. The workflow logs what it dropped and what each lens checked. Copy both into the PR body: silence reads as "covered everything".
@@ -60,10 +60,10 @@ What it does, and the incident behind each part:
 | Part | Why |
 |---|---|
 | number comes from the `gh pr create` output, never a guess | a guessed number merged a sibling's PR (2026-08-07, no harm by luck) |
-| holds while ANOTHER open PR has a `node` or `e2e` check in flight, in one bounded wait (default 30 min) | a merge redeploys and kills those runs (`AGENTS.md` > Branching); a polling loop of model turns burns usage |
-| refuses unless OPEN, not draft, `CLEAN`, at exactly your SHA, every check finished and none failed | a head that moved after your review is a different PR |
+| holds while ANOTHER open PR (the list is capped at 200, not gh's default 30) has a `node` or `e2e` check in flight, in one bounded wait (default 30 min; a non-numeric value is refused) | a merge redeploys and kills those runs (`AGENTS.md` > Branching); a polling loop of model turns burns usage |
+| refuses unless OPEN, not draft, `CLEAN`, at exactly your SHA, at least one check reported, every check finished and none failed | a head that moved after your review is a different PR; an empty check list right after a push means CI has not started, and this repo has no branch protection to stop the merge |
 | `gh pr merge --squash --match-head-commit <sha>` | GitHub itself refuses if the head moves between the check and the merge |
-| deletes the branch through the API only after the PR reads `MERGED` | deleting the head branch of an unmerged PR closes it (#2948); `--delete-branch` also fails locally after a successful remote merge |
+| deletes the branch through the API only after the PR reads `MERGED`, and never for a cross-repository PR | deleting the head branch of an unmerged PR closes it (#2948); `--delete-branch` also fails locally after a successful remote merge; a fork's branch name deleted in the base repository could remove an unrelated branch |
 
 Run it with `run_in_background` when the hold may be long; the harness wakes you when it exits. Exit codes: 0 merged or
 READY, 2 blockers, 3 held past the wait, 4 merge did not read MERGED (branch kept: `gh pr view <n> --json state` first, the

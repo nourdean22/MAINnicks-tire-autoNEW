@@ -72,6 +72,7 @@ test("control: an unrefuted finding survives; one a majority refute is dropped a
   assert.deepEqual(result.dropped.map((f) => f.title), ["false alarm"]);
   assert.equal(result.confirmed[0].refuted, 0);
   assert.equal(result.confirmed[0].skeptics.length, 3);
+  assert.equal(result.confirmed[0].degraded, false);
   assert.ok(logs.some((l) => /dropped \(3\/3 refuted\): \[bypass\] false alarm/.test(l)), JSON.stringify(logs));
   assert.deepEqual(result.failedLenses, []);
 });
@@ -99,6 +100,18 @@ test("with two skeptics a split vote keeps the finding (recall over precision) a
     const { result } = await run({ lenses: [LENSES[0]] }, (prompt, opts) => (isFinder(opts) ? { findings: [finding("split")], checked: "x" } : { refuted: n++ === 0 ? first : second, reason: "r", evidence: "e", severity_if_real: "P2" }));
     assert.equal(result.confirmed.length, survives ? 1 : 0, `${first}/${second}`);
   }
+});
+
+test("with a lone refutation and no quorum of skeptics, the finding is kept and flagged degraded, never dropped", async () => {
+  let n = 0;
+  const { result, logs } = await run({ lenses: [LENSES[0]], skeptics: 3 }, (prompt, opts) => {
+    if (isFinder(opts)) return { findings: [finding("thin")], checked: "x" };
+    return n++ === 0 ? { refuted: true, reason: "r", evidence: "e", severity_if_real: "none" } : null;
+  });
+  assert.equal(result.confirmed.length, 1, "one answer of three is not a majority of the configured skeptics");
+  assert.equal(result.confirmed[0].degraded, true);
+  assert.deepEqual(result.degraded.map((f) => f.title), ["thin"]);
+  assert.ok(logs.some((l) => /DEGRADED: 1 finding\(s\) judged by fewer than 3 skeptics/.test(l)), JSON.stringify(logs));
 });
 
 test("a lens whose agent dies is reported NOT COVERED, never read as 'no findings'", async () => {

@@ -132,6 +132,12 @@ for (const [label, make, want] of [
   ["an invocation proof recorded for an older description", () => skill("good-skill", { "evals/invocation.json": JSON.stringify({ skill: "good-skill", toolUse: true, loaded: true, claude: "2.1", descriptionSha256: "0".repeat(64) }) }), /recorded for a different description/],
   ["an invocation proof with no claude version (typed by hand)", () => skill("good-skill", { "evals/invocation.json": JSON.stringify({ skill: "good-skill", toolUse: true, loaded: true, descriptionSha256: descriptionHash(DESC) }) }), /no claude version/],
   ["private-looking text the first PII list missed", () => skill("good-skill", { "evals/trigger-queries.json": mutateQueries((q) => { q[0].query = "order for 4400 Euclid Ave needs a skill that notes it for later"; return q; }) }), /contains a street address/],
+  ["a link that exists only inside a tilde fence", () => skill("good-skill", { "SKILL.md": md("good-skill", DESC, "[a](references/gates.md)\n~~~\n[b](scripts/tool.mjs)\n~~~\n") }), /scripts\/tool\.mjs exists but SKILL\.md does not link it/],
+  ["a link that exists only inside a four-backtick fence", () => skill("good-skill", { "SKILL.md": md("good-skill", DESC, "[a](references/gates.md)\n````\n[b](scripts/tool.mjs)\n````\n") }), /scripts\/tool\.mjs exists but SKILL\.md does not link it/],
+  ["a link that exists only inside an inline code span", () => skill("good-skill", { "SKILL.md": md("good-skill", DESC, "[a](references/gates.md) `[b](scripts/tool.mjs)`\n") }), /scripts\/tool\.mjs exists but SKILL\.md does not link it/],
+  ["a skeptic finding that says 'not yet fixed'", () => skill("good-skill", { "evals/skeptic.md": "## Findings\n- the gate lets this through and it is not yet fixed\n" }), /finding has no disposition/],
+  ["a skeptic finding that says 'not actually fixed'", () => skill("good-skill", { "evals/skeptic.md": "## Findings\n- the gate lets this through; not actually fixed\n" }), /finding has no disposition/],
+  ["a skeptic finding that says 'unfixed'", () => skill("good-skill", { "evals/skeptic.md": "## Findings\n- the gate lets this through and it stays unfixed\n" }), /finding has no disposition/],
   ["a compiled package that fails validate.mjs", () => { const s = skill(); mkdirSync(join(s.dir, "provenance")); writeFileSync(join(s.dir, "provenance", "source.json"), "{}"); return s; }, /compiled from a source: validate\.mjs exited 1/],
 ]) {
   test(`names ${label}`, () => {
@@ -215,6 +221,12 @@ test("--git: the baseline must be committed before SKILL.md, in an earlier commi
   commit(s.root, [S, ...rest], "skill");
   assert.deepEqual(errs(s, { git: true }), []);
 
+  s = fresh(); // baseline edited in the very commit that adds the skill
+  commit(s.root, [B], "baseline");
+  writeFileSync(join(s.root, B), baselineText + "\nrewritten once the skill was visible\n");
+  commit(s.root, [B, S, ...rest], "skill and a baseline rewrite together");
+  assert.ok(errs(s, { git: true }).some((p) => /baseline\.md was edited in [0-9a-f]{9}, after SKILL\.md was added/.test(p)));
+
   s = fresh(); // baseline never committed
   commit(s.root, [S, ...rest], "skill only");
   assert.ok(errs(s, { git: true }).some((p) => /baseline\.md is not committed yet/.test(p)));
@@ -239,6 +251,8 @@ test("redact and the PII list catch the shapes a first draft missed", () => {
     "the box is 192.168.1.45 on the shop network": "192.168.1.45",
     "see nickstire.org/admin/customers/1042 for it": "customers/1042",
     "ssn 123-45-6789 is on the form": "123-45-6789",
+    "open /workspace/MAINnicks-tire-autoNEW/customer/acme.txt now": "acme.txt",
+    "see /opt/private/project/file.md for it": "file.md",
     [`key ${["sk", "live", "abc123def456"].join("_")} leaked`]: "abc123def456", // built at run time so no secret scanner sees a key-shaped literal in the file
   };
   for (const [text, leak] of Object.entries(cases)) {
@@ -246,7 +260,7 @@ test("redact and the PII list catch the shapes a first draft missed", () => {
     const s = skill("good-skill", { "evals/trigger-queries.json": mutateQueries((q) => { q[0].query = `please ${text} and forge a skill`; return q; }) });
     assert.ok(errs(s).some((p) => /trigger-queries\[0\]: contains a /.test(p)), `check let through: ${text}`);
   }
-  for (const fine of ["the monorepo skill got long, split it into references", "fix #3040 and the 2026-10-15 ledger row", "node 24 and claude 2.1.296 on windows", "src/calc.js and SKILL.md and forge.mjs"]) {
+  for (const fine of ["the monorepo skill got long, split it into references", "fix #3040 and the 2026-10-15 ledger row", "node 24 and claude 2.1.296 on windows", "src/calc.js and SKILL.md and forge.mjs", "add a /health page and read src/calc.js again", "a and/or b, 3/4 done, w/o the flag"]) {
     assert.equal(redact(fine), fine, `redact changed ordinary text: ${redact(fine)}`);
   }
 });
@@ -273,7 +287,7 @@ test("parseFrontmatter reads folded and quoted values", () => {
 // -- mine -------------------------------------------------------------------
 const line = (o) => JSON.stringify(o) + "\n";
 const human = (text, extra = {}) => line({ type: "user", origin: { kind: "human" }, message: { role: "user", content: text }, ...extra });
-const fires = (skill) => line({ type: "assistant", message: { role: "assistant", content: [{ type: "tool_use", id: "t1", name: "Skill", input: { skill } }] } });
+const fires = (skill, extra = {}) => line({ type: "assistant", message: { role: "assistant", content: [{ type: "tool_use", id: "t1", name: "Skill", input: { skill } }] }, ...extra });
 
 test("mine returns sibling-fired and keyword prompts, redacted, and skips tool results, sidechains, slash commands and old files", async () => {
   const root = join(base, `mine-${seq++}`);
@@ -288,6 +302,7 @@ test("mine returns sibling-fired and keyword prompts, redacted, and skips tool r
       human("what is the weather like at the shop today, nothing to do with tooling here"),
       line({ type: "user", origin: { kind: "human" }, message: { role: "user", content: [{ type: "tool_result", tool_use_id: "t1", content: "a skill result" }] } }),
       human("a skill question from a subagent that must not count at all", { isSidechain: true }),
+      fires("monorepo-manager", { isSidechain: true }),
       human("a harness reminder, ordinary words, about writing a new skill", { isMeta: true }),
       line({ type: "user", origin: { kind: "human" }, message: { role: "user", content: [{ type: "text", text: "text beside a tool result about a new skill" }, { type: "tool_result", tool_use_id: "t2", content: "x" }] } }),
       human("which skills have actually fired in the last month, and which are dead weight?"),
@@ -416,7 +431,7 @@ test("score: a claude binary that cannot be started voids the control with the O
   const dir = scoreSkill([["please TRIGGER the skill on this request", true]]);
   const r = await withEnv({ CLAUDE_BIN: join(base, "no-such-binary.exe"), CLAUDE_BIN_ARGS: "" }, () => score({ dir, set: "all", cwd: dir }));
   assert.equal(r.void, true);
-  assert.match(r.reason, /process failed: .*ENOENT/);
+  assert.match(r.reason, /process failed \(exit null\): .*ENOENT/);
 });
 
 test("score: a set other than heldout, train or all is an error, not a silent train run", async () => {
@@ -432,12 +447,78 @@ test("score: a run that hit the turn cap is counted as a miss but reported as ca
   writeFileSync(file, `const a = process.argv.slice(2); const p = a[a.indexOf("-p") + 1];
 const call = (s) => console.log(JSON.stringify({ type: "assistant", message: { content: [{ type: "tool_use", id: "t", name: "Skill", input: { skill: s } }] } }));
 if (p.startsWith("Use the Skill tool")) call(p.match(/named exactly (\\S+)\\./)[1]);
-else { console.log(JSON.stringify({ type: "assistant", message: { content: [{ type: "text", text: "thinking" }] } })); console.log(JSON.stringify({ type: "result", subtype: "error_max_turns" })); }`);
+else { console.log(JSON.stringify({ type: "assistant", message: { content: [{ type: "text", text: "thinking" }] } })); console.log(JSON.stringify({ type: "result", subtype: "error_max_turns" })); process.exit(1); }`);
   const dir = scoreSkill([["please TRIGGER the skill on this request", true]]);
   const r = await withEnv({ CLAUDE_BIN: process.execPath, CLAUDE_BIN_ARGS: JSON.stringify([file]) }, () => score({ dir, set: "all", cwd: dir }));
   assert.equal(r.results[0].pass, false);
   assert.equal(r.results[0].capped, 1);
   assert.equal(r.capped, 1);
+});
+
+const PRELUDE = `const a = process.argv.slice(2); const p = a[a.indexOf("-p") + 1];
+const call = (s) => console.log(JSON.stringify({ type: "assistant", message: { content: [{ type: "tool_use", id: "t", name: "Skill", input: { skill: s } }] } }));
+const text = () => console.log(JSON.stringify({ type: "assistant", message: { content: [{ type: "text", text: "ok" }] } }));
+const control = p.startsWith("Use the Skill tool"); const name = control ? p.match(/named exactly (\\S+)\\./)[1] : "";
+`;
+const fakeBody = (body) => {
+  const f = join(base, `fk-${seq++}.mjs`);
+  writeFileSync(f, PRELUDE + body);
+  return { CLAUDE_BIN: process.execPath, CLAUDE_BIN_ARGS: JSON.stringify([f]) };
+};
+
+test("score: a claude that exits nonzero after answering the control voids the run (an exit code is evidence)", async () => {
+  const dir = scoreSkill([["please TRIGGER the skill on this request", true]]);
+  const r = await withEnv(fakeBody("if (control) { call(name); process.exit(1); } else text();"), () => score({ dir, set: "all", cwd: dir }));
+  assert.equal(r.void, true);
+  assert.match(r.reason, /positive control failed.*process failed \(exit 1\)/);
+});
+
+test("score: a query run that exits nonzero after answering is VOID, not a quiet miss", async () => {
+  const dir = scoreSkill([["a request that should stay quiet at all", false]]);
+  const r = await withEnv(fakeBody("if (control) call(name); else { text(); process.exit(1); }"), () => score({ dir, set: "all", cwd: dir }));
+  assert.equal(r.void, false);
+  assert.equal(r.results[0].voided, 1);
+  assert.equal(r.results[0].pass, false, "a crashed run on a should-NOT-trigger query must not pass");
+  assert.equal(r.voided, 1);
+});
+
+test("score: a run killed or unable to start has no exit code and is VOID even if it printed an assistant line", async () => {
+  const dir = scoreSkill([["a request that should stay quiet at all", false]]);
+  const r = await withEnv(fakeBody("if (control) call(name); else { text(); process.kill(process.pid, 'SIGKILL'); }"), () => score({ dir, set: "all", cwd: dir }));
+  assert.equal(r.results[0].voided, 1);
+});
+
+test("score: a service refusal mid-run (a rate_limit_event and a synthetic assistant message, even with exit 0) is VOID, not a quiet miss", async () => {
+  const refusal = 'console.log(JSON.stringify({ type: "rate_limit_event", rate_limit_info: { status: "rejected", rateLimitType: "seven_day" } })); console.log(JSON.stringify({ type: "assistant", message: { model: "<synthetic>", role: "assistant", content: [{ type: "text", text: "You have hit your weekly limit" }] } }));';
+  for (const exit of [0, 1]) {
+    // the control loads the skill, then every query is refused: without the rule each negative would pass and each positive would fail silently
+    const dir = scoreSkill([["a request that should stay quiet at all", false]]);
+    const r = await withEnv(fakeBody("if (control) call(name); else { " + refusal + " process.exit(" + exit + "); }"), () => score({ dir, set: "all", cwd: dir }));
+    assert.equal(r.void, false, "exit " + exit);
+    assert.equal(r.results[0].voided, 1, "exit " + exit + ": the refusal must void the run");
+    assert.equal(r.results[0].pass, false, "a refused run on a should-NOT-trigger query must not pass");
+  }
+  // and a refused control voids the whole score
+  const dir = scoreSkill([["a request that should stay quiet at all", false]]);
+  const r = await withEnv(fakeBody(refusal + " process.exit(0);"), () => score({ dir, set: "all", cwd: dir }));
+  assert.equal(r.void, true);
+});
+
+test("prove: a run that fails leaves the existing proof untouched and exits 1; a run that works records loaded and the hash", () => {
+  const run = (env, s) => spawnSync(process.execPath, [FORGE, "prove", s.dir], { encoding: "utf8", env: { ...process.env, ...env } });
+  const failing = fakeBody("if (control) { call(name); process.exit(1); } else text();");
+  const s = skill("good-skill");
+  const before = readFileSync(join(s.dir, "evals", "invocation.json"), "utf8");
+  const bad = run(failing, s);
+  assert.equal(bad.status, 1, bad.stdout + bad.stderr);
+  assert.equal(readFileSync(join(s.dir, "evals", "invocation.json"), "utf8"), before, "a failed run must not overwrite a good proof");
+  assert.match(bad.stderr, /prove FAILED/);
+  const good = run(fakeBody("if (control) { call(name); console.log(JSON.stringify({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 't', content: 'ok' }] } })); } else text();"), s);
+  assert.equal(good.status, 0, good.stdout + good.stderr);
+  const written = JSON.parse(readFileSync(join(s.dir, "evals", "invocation.json"), "utf8"));
+  assert.equal(written.loaded, true);
+  assert.equal(written.toolUse, true);
+  assert.equal(written.descriptionSha256, descriptionHash(DESC));
 });
 
 test("score: set selects train or held-out rows only", async () => {

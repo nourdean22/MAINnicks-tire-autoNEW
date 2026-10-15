@@ -97,7 +97,7 @@ const perLens = await pipeline(
           )
         ).filter(Boolean)
         const refuted = votes.filter((v) => v.refuted).length
-        return { ...f, lens: lens.key, votes: votes.length, refuted, skeptics: votes.map((v) => ({ refuted: v.refuted, severity_if_real: v.severity_if_real, reason: String(v.reason).slice(0, 300) })) }
+        return { ...f, lens: lens.key, votes: votes.length, degraded: votes.length < SKEPTICS, refuted, skeptics: votes.map((v) => ({ refuted: v.refuted, severity_if_real: v.severity_if_real, reason: String(v.reason).slice(0, 300) })) }
       }),
     )
     return { lens: lens.key, checked: found.checked, findings: judged.filter(Boolean) }
@@ -106,13 +106,16 @@ const perLens = await pipeline(
 
 const lensRuns = perLens.filter(Boolean)
 const all = lensRuns.flatMap((r) => r.findings)
-// A finding survives unless a majority of the skeptics that answered refuted it. With no answers at all (votes 0) it is kept.
-const confirmed = all.filter((f) => f.refuted * 2 <= f.votes)
+// A finding is dropped only when a majority of the CONFIGURED skeptics refuted it, so skeptics that failed to answer can never push a lone refutation
+// over the line; such a finding is kept and flagged degraded (a quorum was not reached).
+const confirmed = all.filter((f) => f.refuted * 2 <= SKEPTICS)
 const dropped = all.filter((f) => !confirmed.includes(f))
+const degraded = confirmed.filter((f) => f.degraded)
 const failedLenses = LENSES.filter((_, i) => !perLens[i]).map((l) => l.key)
 
 log(`${all.length} finding(s) from ${lensRuns.length} lens(es); ${confirmed.length} survived, ${dropped.length} dropped`)
+if (degraded.length) log(`DEGRADED: ${degraded.length} finding(s) judged by fewer than ${SKEPTICS} skeptics: ${degraded.map((d) => d.title).join('; ')}`)
 if (failedLenses.length) log(`NOT COVERED: lens(es) that returned nothing: ${failedLenses.join(', ')}`)
 for (const d of dropped) log(`dropped (${d.refuted}/${d.votes} refuted): [${d.lens}] ${d.title} at ${d.file}`)
 
-return { worktree: WORKTREE, base: BASE, head: HEAD, confirmed, dropped, failedLenses, lensesRun: LENSES.map((l) => l.key), checked: lensRuns.map((r) => ({ lens: r.lens, checked: r.checked })) }
+return { worktree: WORKTREE, base: BASE, head: HEAD, confirmed, dropped, degraded, failedLenses, lensesRun: LENSES.map((l) => l.key), checked: lensRuns.map((r) => ({ lens: r.lens, checked: r.checked })) }

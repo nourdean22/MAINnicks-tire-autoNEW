@@ -78,6 +78,18 @@ test("warns, without failing, on an open status that says 'this PR'", () => {
   assert.match(r.warnings[0], /BUILT with "this PR".*write MERGED/);
 });
 
+test("an indented job row is still parsed: a stale pending in it is an error, not silence", () => {
+  const r = ledgerProblems(ledger("  " + row({ pr: "pending (x)" })));
+  assert.equal(r.rows, 1);
+  assert.match(r.errors.join("\n"), /says "pending"/);
+});
+
+test("a table-shaped job line the parser cannot read is reported instead of skipped", () => {
+  const { errors } = ledgerProblems(ledger("see: " + row()));
+  assert.equal(errors.length, 1, JSON.stringify(errors));
+  assert.match(errors[0], /looks like a job row but does not start with "\|": not parsed/);
+});
+
 test("a ledger with no Status line cannot be judged and says so", () => {
   const { errors } = ledgerProblems(ledger(row()).replace(/^Status:.*$/m, ""));
   assert.ok(errors.some((e) => /allowed statuses cannot be read/.test(e)), JSON.stringify(errors));
@@ -97,6 +109,9 @@ test("the CLI exits 1 on an error and 0 on a clean ledger, and prints the row", 
 test("the real ledger is clean: no job keeps `pending` in its PR cell", (t) => {
   const { errors, warnings, rows } = ledgerProblems(readFileSync(REAL, "utf8"));
   t.diagnostic(`checked ${rows} rows, ${warnings.length} warning(s)`);
+  const text = readFileSync(REAL, "utf8");
+  const jobLines = (text.match(/^\s*\|\s*\d{4}-\d{2}-\d{2}-/gm) ?? []).length;
+  assert.equal(rows, jobLines, `the parser read ${rows} rows but the file has ${jobLines} job-id lines: a row was skipped`);
   assert.ok(rows > 20, `only ${rows} rows were read: the parser lost the table`);
   assert.deepEqual(errors, [], `\n${errors.join("\n")}`);
 });

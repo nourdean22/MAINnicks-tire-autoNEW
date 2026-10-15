@@ -30,6 +30,8 @@ export function blockers(view, expectedSha) {
   if (view.isDraft) out.push("the PR is a draft");
   if (view.mergeStateStatus !== "CLEAN") out.push(`mergeStateStatus is ${view.mergeStateStatus}, not CLEAN (BEHIND/DIRTY: update the branch; UNKNOWN: GitHub is still computing, re-run)`);
   if (view.headRefOid !== expectedSha) out.push(`head is ${view.headRefOid}, not the ${expectedSha} you verified: re-verify the new head`);
+  // An empty list is right after an open or a push, before Actions has created its runs: this repo has no branch protection, so nothing else stops a merge of a head that never ran CI.
+  if (!(view.statusCheckRollup ?? []).length) out.push("no checks have reported yet: wait for CI to start, a head that never ran CI must not merge");
   for (const c of view.statusCheckRollup ?? []) {
     // A CheckRun has status + conclusion; a commit StatusContext has only state.
     const done = c.status === undefined ? c.state !== undefined && !IN_FLIGHT.test(c.state) : c.status === "COMPLETED";
@@ -62,13 +64,15 @@ export async function holdWhileBusy({ list, self, minutes, sleep, now, everyMs =
 
 /** The whole protocol. `gh(args)` returns stdout; injected so the order of calls can be proven. */
 export async function mergeGate({ gh, pr, sha, wait, merge, sleep, now, log }) {
+  // A NaN deadline never arrives, which would turn the bounded wait into an endless poll.
+  if (!Number.isFinite(wait) || wait < 0) throw new Error("--wait-minutes must be a finite number of minutes, 0 or more");
   const json = (args) => JSON.parse(gh(args));
-  const busy = merge ? await holdWhileBusy({ list: () => json(["pr", "list", "--state", "open", "--json", "number,statusCheckRollup"]), self: pr, minutes: wait, sleep, now }) : [];
+  const busy = merge ? await holdWhileBusy({ list: () => json(["pr", "list", "--state", "open", "--limit", "200", "--json", "number,statusCheckRollup"]), self: pr, minutes: wait, sleep, now }) : [];
   if (busy.length) {
     log(`HELD past ${wait} min: ${busy.join(", ")}`);
     return 3;
   }
-  const FIELDS = "state,isDraft,mergeStateStatus,headRefOid,headRefName,statusCheckRollup";
+  const FIELDS = "state,isDraft,mergeStateStatus,headRefOid,headRefName,isCrossRepository,statusCheckRollup";
   const before = json(["pr", "view", String(pr), "--json", FIELDS]);
   const why = blockers(before, sha);
   if (why.length) {
@@ -85,6 +89,11 @@ export async function mergeGate({ gh, pr, sha, wait, merge, sleep, now, log }) {
     log(`NOT MERGED: #${pr} reads ${after.state}; the branch ${before.headRefName} is kept`);
     return 4;
   }
+  if (before.isCrossRepository) {
+    // headRefName names a branch in the fork; deleting that name in the base repository could remove an unrelated branch.
+    log(`MERGED: #${pr} as ${after.mergeCommit?.oid}; cross-repository PR, branch ${before.headRefName} left in the fork`);
+    return 0;
+  }
   const repo = gh(["repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"]).trim();
   gh(["api", "-X", "DELETE", `repos/${repo}/git/refs/heads/${before.headRefName}`]);
   log(`MERGED: #${pr} as ${after.mergeCommit?.oid}; branch ${before.headRefName} deleted`);
@@ -100,11 +109,16 @@ if (isMain) {
     console.error("usage: node scripts/agent-os/merge-gate.mjs <pr number> --sha <full 40-char head sha> [--wait-minutes 30] [--merge]");
     process.exit(64);
   }
+  const wait = Number(arg("--wait-minutes") ?? 30);
+  if (!Number.isFinite(wait) || wait < 0) {
+    console.error("--wait-minutes needs a number of minutes, 0 or more (a following flag is not a value). usage: node scripts/agent-os/merge-gate.mjs <pr> --sha <sha> [--wait-minutes 30] [--merge]");
+    process.exit(64);
+  }
   const code = await mergeGate({
     gh: (args) => execFileSync("gh", args, { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] }),
     pr,
     sha,
-    wait: Number(arg("--wait-minutes") ?? 30),
+    wait,
     merge: process.argv.includes("--merge"),
     sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
     now: () => Date.now(),

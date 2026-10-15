@@ -33,7 +33,10 @@ export function ledgerProblems(text) {
   const allowed = new Set((statusLine ?? "").replace(/^Status:\s*/, "").split("|").map((s) => s.trim()).filter(Boolean));
   if (!allowed.size) errors.push("no `Status: A | B | ...` line: the allowed statuses cannot be read");
 
-  const rows = lines.filter((l) => l.startsWith("|")).slice(2); // drop the header and the separator
+  const isRow = (l) => l.trimStart().startsWith("|");
+  const rows = lines.filter(isRow).map((l) => l.trim()).slice(2); // indented rows count; drop the header and the separator
+  // A line that carries a job id between pipes but does not start with one would be skipped without a word.
+  for (const l of lines) if (!isRow(l) && /\|\s*\d{4}-\d{2}-\d{2}-[a-z0-9-]+\s*\|/.test(l)) errors.push(`${l.slice(0, 40)}: looks like a job row but does not start with "|": not parsed`);
   const seen = new Set();
   for (const line of rows) {
     const cells = line.slice(1, line.lastIndexOf("|")).split("|").map((c) => c.trim());
