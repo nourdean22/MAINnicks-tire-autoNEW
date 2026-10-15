@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "chore/reel-hook-mechanism-skill",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "d37a1982-6ae0-48f5-8d31-d27a2fbe7c24",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\hello-23f8b4",
   "claimedBy": "2026-10-14-reel-hook-mechanism",
   "claimedAt": "2026-10-15T00:25:41.048Z",
   "expiresAt": "2026-10-15T12:25:41.048Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": null
+  "releasedAt": "2026-10-15T15:42:06.524Z",
+  "releaseReason": "operator confirmed via -ForceDirtyRelease in worktree-teardown.ps1",
+  "priorLeaseSha": "ec0c639de1b15035e00a84fe1dafdfe8badd3090",
+  "releasedBy": "d37a1982-6ae0-48f5-8d31-d27a2fbe7c24",
+  "foreignReleaseReason": null
 }
