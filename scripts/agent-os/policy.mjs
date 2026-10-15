@@ -86,15 +86,23 @@ export function preprocessCommand(command) {
     );
 }
 
+const SHELL_METACHARS = /[&|-]/g;
+
 /**
  * @returns {{denied: boolean, rule?: object}} — the FIRST matching rule wins.
  */
-export function evaluate({ toolName, command = "", filePath = "", cwd = "", skipRules }, policy) {
-  const processed = command ? preprocessCommand(command) : command;
+export function evaluate({ toolName, command = "", filePath = "", cwd = "", skipRules, onlyRules, rawText }, policy) {
+  // rawText comes only from a validated mcpAdapters row: the text is SQL, not a shell command, so the shell neutraliser
+  // (it erases the quoted argument after -m/-b/-t/--message/--title/--body, which in SQL can hold statements) and the
+  // read-only-search skip do not apply to it. Nor do the shell's own metacharacters: `&`, `|` and `-` end no statement
+  // in SQL (`a || b`, `perms | 4`, `r && range`, `a ?| b`, `SET e = -e`), so they are replaced by a neutral character
+  // that is non-word like them (every `\b` keeps its meaning) and only `;` ends a statement on these rows.
+  const processed = rawText === true ? command.replace(SHELL_METACHARS, "\u0001") : command ? preprocessCommand(command) : command;
 
   for (const rule of policy.rules) {
-    // skipRules comes only from a validated mcpAdapters row (exceptRules), never from tool input
+    // skipRules and onlyRules come only from a validated mcpAdapters row (exceptRules, onlyRules), never from tool input
     if (Array.isArray(skipRules) && skipRules.includes(rule.id)) continue;
+    if (Array.isArray(onlyRules) && !onlyRules.includes(rule.id)) continue;
     if (Array.isArray(rule.tools) && !rule.tools.includes(toolName)) continue;
 
     if (rule.onlyWhenCwdMatches) {
@@ -123,13 +131,18 @@ export function evaluate({ toolName, command = "", filePath = "", cwd = "", skip
 // understand, so EVERY rule applies and no rule text is duplicated:
 //   { id, toolPattern, as: "Bash" | "Write", commandFields | pathFields, cwdField? }
 // Only the NAMED fields are read. Content, old_string and every other string field are never
-// scanned: that would block Gmail, Linear and any other tool that merely carries text.
+// scanned: that would block Gmail, Linear and any other tool that merely carries text. A named field may hold
+// a string or a LIST of strings (each element judged on its own, see ARRAY_MAX).
 const NATIVE_TOOLS = new Set(["Bash", "PowerShell", "Write", "Edit", "NotebookEdit"]);
 
-// A forbidden command is short; a multi-megabyte field is a paste. The backtracking rules
-// (destructive-sql rescans to the end of the text from every start) are quadratic on it, which would
-// run the hook into its 10 s timeout, and a timeout fails OPEN silently. Judge the head and the tail
-// instead, EACH ON ITS OWN: joining them would build a token sequence the field never held.
+// A forbidden command is short; a multi-megabyte field is a paste. A row that runs EVERY rule judges at most FIELD_CAP
+// characters of a field: some rules backtrack (a scan to the end of the command from many starts) and a hook timeout
+// fails OPEN silently. A longer field is judged as its head and its tail, EACH ON ITS OWN: joining them would build a
+// token sequence the field never held. A row whose onlyRules is exactly ["destructive-sql"] runs that rule alone, and its
+// every scan is anchored or bounded and matches each character one way (README "How destructive-sql reads SQL"; the hyphen
+// and ambiguity axes in mcpCoverage.test.mjs pin it), so such a field is judged WHOLE up to SQL_FIELD_CAP
+// (= ARRAY_CHAR_BUDGET) characters and sliced only beyond that. Any other onlyRules list keeps FIELD_CAP: the argument is
+// specific to that one rule.
 export const FIELD_CAP = 20000;
 // move_file of a DIRECTORY: names below it are judged as paths written at the destination.
 export const WALK_MAX_ENTRIES = 2000;
@@ -142,23 +155,64 @@ function stringField(input, name) {
   return typeof v === "string" ? v : "";
 }
 
-/** A field's text as the slices to judge: itself within the cap, else its head and its tail. */
-function fieldSlices(input, name) {
-  const v = stringField(input, name);
-  if (v === "") return [];
-  if (v.length <= FIELD_CAP) return [{ text: v, part: "" }];
-  const half = FIELD_CAP / 2;
+// A field that holds a LIST of statements (Neon run_sql_transaction.sql_statements) is judged element by element,
+// each on its own: joining them would build a command the field never held. Elements are judged in order until
+// ARRAY_MAX elements or ARRAY_CHAR_BUDGET characters in total (after per-element slicing) have been judged: each
+// element is a judgment through the row's rules (the SQL rows run destructive-sql alone) and a hook timeout fails OPEN
+// silently, so the budget bounds the time (measured numbers: README "How destructive-sql reads SQL", Cost) while still
+// covering a real transaction. When the budget runs out ONE stderr line says the rest was not judged. Non-string elements
+// (null, numbers, objects, nested lists) are ignored: the tool's own schema rejects them.
+export const ARRAY_MAX = 2000;
+export const ARRAY_CHAR_BUDGET = 1_000_000;
+export const SQL_FIELD_CAP = ARRAY_CHAR_BUDGET;
+const WHOLE_FIELD_RULES = ["destructive-sql"];
+const ARRAY_CAP_LINE = "[agent-os] pretool MCP adapter: array field over the judging budget, elements beyond it not judged";
+
+/** One string as the slices to judge: itself within `cap`, else its head and its tail. `at` extends the provenance. */
+function textSlices(text, at, cap) {
+  if (text === "") return [];
+  if (text.length <= cap) return [{ text, part: at }];
+  const half = cap / 2;
   return [
-    { text: v.slice(0, half), part: "#head" },
-    { text: v.slice(-half), part: "#tail" },
+    { text: text.slice(0, half), part: `${at}#head` },
+    { text: text.slice(-half), part: `${at}#tail` },
   ];
 }
 
-// Text typed into a running process may be bare SQL for a psql REPL that an earlier call started, and
-// destructive-sql needs a client word on the line. clientHint supplies that word, except for a single
-// read-only search (rg, grep, cat ...), which stays a search: mention is not execution.
-function hinted(row, text) {
-  return row.clientHint && preprocessCommand(text) !== null ? `${row.clientHint} ${text}` : text;
+function arraySlices(list, report, cap) {
+  const out = [];
+  let chars = 0;
+  for (let i = 0; i < list.length; i++) {
+    if (i >= ARRAY_MAX) return report(ARRAY_CAP_LINE), out;
+    if (typeof list[i] !== "string") continue;
+    // An element is judged within what is left of the budget: whole if it fits, else as head and tail slices of the
+    // remainder (a huge statement after a small one is judged, not skipped), and then nothing is left. In order, never
+    // a later small element after a skipped big one.
+    const room = ARRAY_CHAR_BUDGET - chars;
+    if (room < 2) return report(ARRAY_CAP_LINE), out;
+    const limit = Math.min(cap, room);
+    const slices = textSlices(list[i], `[${i}]`, limit);
+    chars += slices.reduce((n, s) => n + s.text.length, 0);
+    out.push(...slices);
+    if (list[i].length > limit && limit === room) return report(ARRAY_CAP_LINE), out;
+  }
+  return out;
+}
+
+/** A field's text as the slices to judge: a string, or each string element of a list. */
+function fieldSlices(input, name, report, cap) {
+  const v = typeof name === "string" ? input[name] : undefined;
+  if (Array.isArray(v)) return arraySlices(v, report, cap);
+  return typeof v === "string" ? textSlices(v, "", cap) : [];
+}
+
+// Text typed into a running process may be bare SQL for a psql REPL that an earlier call started, and the SQL text
+// tools (Neon run_sql, Prisma execute_sql_query ...) receive bare SQL too. destructive-sql needs a client word on
+// the line. clientHint supplies that word, except for a single read-only search (rg, grep, cat ...), which stays a
+// search: mention is not execution. A rawText row (the SQL text tools) always gets the hint: its text is SQL, and
+// SQL that merely STARTS like a search command is still SQL.
+function hinted(row, text, raw) {
+  return row.clientHint && (raw || preprocessCommand(text) !== null) ? `${row.clientHint} ${text}` : text;
 }
 
 const EXEMPTION_LINE = "[agent-os] pretool MCP adapter problem (exemption ignored, every rule applies):";
@@ -175,6 +229,41 @@ function exemption(row, policy, report) {
     return undefined;
   }
   return list;
+}
+
+const ONLY_LINE = "[agent-os] pretool MCP adapter problem (onlyRules ignored, every rule applies):";
+const RAW_LINE = "[agent-os] pretool MCP adapter problem (rawText malformed, judged both as a shell command and as raw SQL):";
+
+// onlyRules is the reverse of exceptRules: the ONLY rule ids a row's calls are judged by, so a rule added later does not
+// silently apply to text that is not a shell command (the SQL text tools: onlyRules ["destructive-sql"]). Same posture
+// as exemption(): a malformed list, an unknown id, or an id of a rule that cannot judge this row's tool (secret-file-write
+// is Write-only: on a Bash row it would judge nothing, so a typo could switch the row off) is reported and the field
+// IGNORED, so every rule applies. A mistake here can only add denials.
+function onlyList(row, policy, report) {
+  if (row.onlyRules === undefined) return undefined;
+  const list = row.onlyRules;
+  const rules = new Map((Array.isArray(policy.rules) ? policy.rules : []).map((r) => [r.id, r]));
+  const canJudge = (rule) => rule && (!Array.isArray(rule.tools) || rule.tools.includes(row.as)) && Boolean(row.as === "Write" ? rule.pathPattern : rule.pattern);
+  if (!Array.isArray(list) || list.length === 0 || list.some((id) => typeof id !== "string" || !canJudge(rules.get(id)))) {
+    report(`${ONLY_LINE} adapter ${JSON.stringify(row.id)} onlyRules ${JSON.stringify(list)} must list ids of rules that exist in policy.json and can judge a ${row.as} row`);
+    return undefined;
+  }
+  return list;
+}
+
+// rawText says how a row's text is READ. Absent or false: as a shell command (the neutraliser, the read-only-search skip, every
+// rule of the row). The strict boolean true on a Bash row: as raw SQL (no neutraliser, no search skip, `&`, `|` and `-` replaced),
+// which is only sound for destructive-sql, so a policy-level canary requires every rawText:true row to have onlyRules exactly
+// ["destructive-sql"]. A value that is declared but malformed (a string "true", 1, null) on a Bash row is reported and judged BOTH
+// ways, as a shell command AND as raw SQL, and denied if EITHER denies: ignoring it would switch the neutraliser on (it erases a
+// quoted span), reading it as true alone would erase the flags of a shell row (`--force`, `--no-verify`, `-A`), both FEWER
+// denials, so a typo can only add denials, the same posture as onlyRules. On a Write row it has no meaning: reported, no effect.
+// Returns the readings to judge, in order: one call per reading, each carrying its own rawText.
+function rawTextModes(row, report) {
+  if (row.rawText === undefined || (row.rawText === false && row.as === "Bash")) return [false];
+  if (row.rawText === true && row.as === "Bash") return [true];
+  report(`${RAW_LINE} adapter ${JSON.stringify(row.id)} rawText ${JSON.stringify(row.rawText)} must be the boolean true or false on a Bash row`);
+  return row.as === "Bash" ? [false, true] : [false];
 }
 
 /**
@@ -285,15 +374,23 @@ export function adaptToolCall(toolName, toolInput, cwd, policy, report = () => {
     const own = stringField(input, a.cwdField);
     if (own && own !== cwd) cwds.push(own);
     const skipRules = exemption(a, policy, report);
+    const onlyRules = onlyList(a, policy, report);
+    const rawModes = rawTextModes(a, report);
+    // A row that runs destructive-sql alone may judge a field whole (SQL_FIELD_CAP); every other row keeps FIELD_CAP.
+    const cap = onlyRules?.length === WHOLE_FIELD_RULES.length && onlyRules.every((id, i) => id === WHOLE_FIELD_RULES[i]) ? SQL_FIELD_CAP : FIELD_CAP;
+    // Slices are computed once, outside the cwd loop: a cap line is reported once per call, not once per cwd.
+    const judged = (asWrite ? a.pathFields : a.commandFields).flatMap((f) => fieldSlices(input, f, report, cap).map((s) => ({ f, ...s })));
     for (const c of cwds) {
-      for (const f of asWrite ? a.pathFields : a.commandFields) {
-        for (const { text, part } of fieldSlices(input, f)) {
+      for (const { f, text, part } of judged) {
+        for (const rawText of rawModes) {
           calls.push({
             toolName: asWrite ? "Write" : "Bash",
-            command: asWrite ? "" : hinted(a, text),
+            command: asWrite ? "" : hinted(a, text, rawText),
             filePath: asWrite ? text : "",
             cwd: c,
             skipRules,
+            onlyRules,
+            rawText,
             via: `${a.id}.${f}${part}`,
           });
         }
@@ -306,7 +403,7 @@ export function adaptToolCall(toolName, toolInput, cwd, policy, report = () => {
       if (from && dest) {
         for (const rel of directoryFiles(from, cwd, report)) {
           for (const c of cwds) {
-            calls.push({ toolName: "Write", command: "", filePath: `${dest}/${rel}`, cwd: c, skipRules, via: `${a.id}.${a.expandDirectory.from}/*` });
+            calls.push({ toolName: "Write", command: "", filePath: `${dest}/${rel}`, cwd: c, skipRules, onlyRules, via: `${a.id}.${a.expandDirectory.from}/*` });
           }
         }
       }
