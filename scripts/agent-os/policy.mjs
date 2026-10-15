@@ -114,6 +114,90 @@ export function evaluate({ toolName, command = "", filePath = "", cwd = "" }, po
   return { denied: false };
 }
 
+// -- MCP and native command-runner adapters (2026-10-15, job guard-mcp-coverage) -----------------
+// Every rule carries a `tools` allowlist, so the same forbidden command delivered through a tool
+// that runs commands or writes files but is not Bash/PowerShell/Write/Edit/NotebookEdit was never
+// judged. `mcpAdapters` in policy.json maps such a tool call onto the logical tool the rules already
+// understand, so EVERY rule applies and no rule text is duplicated:
+//   { id, toolPattern, as: "Bash" | "Write", commandFields | pathFields, cwdField? }
+// Only the NAMED fields are read. Content, old_string and every other string field are never
+// scanned: that would block Gmail, Linear and any other tool that merely carries text.
+const NATIVE_TOOLS = new Set(["Bash", "PowerShell", "Write", "Edit", "NotebookEdit"]);
+
+// A forbidden command is short; a multi-megabyte field is a paste. The backtracking rules
+// (destructive-sql rescans to the end of the text from every start) are quadratic on it, which would
+// run the hook into its 10 s timeout, and a timeout fails OPEN silently. Judge head and tail instead.
+export const FIELD_CAP = 20000;
+
+function fieldText(input, name) {
+  const v = typeof name === "string" ? input[name] : undefined;
+  if (typeof v !== "string" || v === "") return "";
+  return v.length <= FIELD_CAP ? v : `${v.slice(0, FIELD_CAP / 2)}\n${v.slice(-FIELD_CAP / 2)}`;
+}
+
+/** @returns {string} what is wrong with an adapter row, or "" when it is usable. */
+function adapterProblem(a) {
+  if (!a || typeof a !== "object") return "row is not an object";
+  // new RegExp(undefined) matches EVERY tool name, so a row with no pattern must never reach it
+  if (typeof a.toolPattern !== "string" || !a.toolPattern) return "toolPattern must be a non-empty string";
+  if (a.as !== "Bash" && a.as !== "Write") return "'as' must be \"Bash\" or \"Write\"";
+  const fields = a.as === "Write" ? a.pathFields : a.commandFields;
+  if (!Array.isArray(fields) || fields.length === 0 || !fields.every((f) => typeof f === "string" && f)) {
+    return `${a.as === "Write" ? "pathFields" : "commandFields"} must be a non-empty list of field names`;
+  }
+  return "";
+}
+
+/**
+ * Map an MCP or native runner / file-writer tool call onto Bash or Write judgments for evaluate().
+ * Never throws on odd input; a malformed row is reported through onError and skipped, so one bad
+ * row costs only that row.
+ * @returns {Array<{toolName:string, command:string, filePath:string, cwd:string, via:string}>|null}
+ *   null = no adapter claims this tool: the caller judges it as itself (always so for native tools).
+ */
+export function adaptToolCall(toolName, toolInput, cwd, policy, onError = () => {}) {
+  if (NATIVE_TOOLS.has(toolName) || !Array.isArray(policy?.mcpAdapters)) return null;
+  const input = toolInput !== null && typeof toolInput === "object" ? toolInput : {};
+  const calls = [];
+  let claimed = false;
+  for (const a of policy.mcpAdapters) {
+    const problem = adapterProblem(a);
+    if (problem) {
+      onError(`adapter ${JSON.stringify(a?.id ?? "?")} skipped: ${problem}`);
+      continue;
+    }
+    let hit;
+    try {
+      hit = new RegExp(a.toolPattern).test(String(toolName));
+    } catch (err) {
+      onError(`adapter ${JSON.stringify(a.id)} skipped: toolPattern does not compile (${err?.message ?? err})`);
+      continue;
+    }
+    if (!hit) continue;
+    claimed = true;
+    const asWrite = a.as === "Write";
+    // The directory a command runs in: the session's, plus the tool's own when it names one. A decoy
+    // tool cwd can add a judgment but never remove the session's.
+    const cwds = [cwd];
+    const own = fieldText(input, a.cwdField);
+    if (own && own !== cwd) cwds.push(own);
+    for (const c of cwds) {
+      for (const f of asWrite ? a.pathFields : a.commandFields) {
+        const text = fieldText(input, f);
+        if (!text) continue;
+        calls.push({
+          toolName: asWrite ? "Write" : "Bash",
+          command: asWrite ? "" : text,
+          filePath: asWrite ? text : "",
+          cwd: c,
+          via: `${a.id}.${f}`,
+        });
+      }
+    }
+  }
+  return claimed ? calls : null;
+}
+
 export function formatDenial(rule) {
   return [
     `BLOCKED by repo policy: ${rule.id}`,

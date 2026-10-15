@@ -14,9 +14,84 @@
     "Every rule MUST carry >=1 denyExamples and >=1 allowExamples; policy.test.mjs fails otherwise,",
     "so a rule cannot ship untested and cannot be silently loosened without a red.",
     "There is deliberately NO environment-variable bypass. If a rule must be broken, edit this file",
-    "in a PR where the diff is visible, or run the command outside the agent."
+    "in a PR where the diff is visible, or run the command outside the agent.",
+    "",
+    "MCP adapters (2026-10-15): the rules below carry a `tools` allowlist, so a forbidden command delivered through a tool that",
+    "runs commands or writes files but is not Bash/PowerShell/Write/Edit/NotebookEdit was never judged. `mcpAdapters` maps such a",
+    "tool call onto Bash (commandFields) or Write (pathFields) so EVERY rule applies and no rule text is duplicated. Only the",
+    "NAMED fields are read, never content or any other string field, and the native tools are never adapted. Pinned by",
+    "scripts/agent-os/mcpCoverage.test.mjs; documented, with what is still unguarded, in docs/agent-os/README.md."
   ],
   "version": 2,
+  "mcpAdapters": [
+    {
+      "id": "terminal-run",
+      "toolPattern": "^mcp__.+__run_in_terminal$",
+      "as": "Bash",
+      "commandFields": ["command"],
+      "cwdField": "cwd",
+      "exampleTools": ["mcp__terminal__run_in_terminal"],
+      "why": "Terminal MCP: types `command` into the operator's interactive PowerShell tab, so every Bash rule applies. `cwd` is where the tab starts, so the cwd-scoped rules judge it as well as the session cwd."
+    },
+    {
+      "id": "process-start",
+      "toolPattern": "^mcp__.+__start_process$",
+      "as": "Bash",
+      "commandFields": ["command"],
+      "exampleTools": [
+        "mcp__plugin_desktop-commander_desktop-commander__start_process",
+        "mcp__c23af5b4-e7d0-40b0-b6c6-346adaf3336c__start_process"
+      ],
+      "why": "Desktop Commander start_process: runs `command` in a shell on this machine. It is registered twice (plugin name and connector UUID) and the middle segment is not stable, so the tool-name suffix is matched."
+    },
+    {
+      "id": "process-input",
+      "toolPattern": "^mcp__.+__interact_with_process$",
+      "as": "Bash",
+      "commandFields": ["input"],
+      "exampleTools": [
+        "mcp__plugin_desktop-commander_desktop-commander__interact_with_process",
+        "mcp__c23af5b4-e7d0-40b0-b6c6-346adaf3336c__interact_with_process"
+      ],
+      "why": "Desktop Commander interact_with_process: `input` is text typed into a running shell or REPL, so it is judged as a command."
+    },
+    {
+      "id": "monitor",
+      "toolPattern": "^Monitor$",
+      "as": "Bash",
+      "commandFields": ["command"],
+      "exampleTools": ["Monitor"],
+      "why": "Native Monitor tool: runs `command` in a background shell. Its {ws} form carries no command and is not judged."
+    },
+    {
+      "id": "file-write",
+      "toolPattern": "^mcp__.+__(?:write_file|edit_file|edit_block|write_pdf)$",
+      "as": "Write",
+      "pathFields": ["path", "file_path", "outputPath"],
+      "exampleTools": [
+        "mcp__plugin_desktop-commander_desktop-commander__write_file",
+        "mcp__c23af5b4-e7d0-40b0-b6c6-346adaf3336c__write_file",
+        "mcp__plugin_desktop-commander_desktop-commander__edit_block",
+        "mcp__c23af5b4-e7d0-40b0-b6c6-346adaf3336c__edit_block",
+        "mcp__plugin_desktop-commander_desktop-commander__write_pdf",
+        "mcp__filesystem__write_file",
+        "mcp__filesystem__edit_file"
+      ],
+      "why": "File writers: Desktop Commander write_file, edit_block and write_pdf, and the filesystem MCP server's write_file and edit_file (docs/codebase-memory-mcp.md). Judged as Write by PATH only: content, old_string and new_string are never scanned."
+    },
+    {
+      "id": "file-move",
+      "toolPattern": "^mcp__.+__move_file$",
+      "as": "Write",
+      "pathFields": ["source", "destination"],
+      "exampleTools": [
+        "mcp__plugin_desktop-commander_desktop-commander__move_file",
+        "mcp__c23af5b4-e7d0-40b0-b6c6-346adaf3336c__move_file",
+        "mcp__filesystem__move_file"
+      ],
+      "why": "move_file writes the destination and removes the source, so both are judged as Write paths."
+    }
+  ],
   "rules": [
     {
       "id": "push-to-main",

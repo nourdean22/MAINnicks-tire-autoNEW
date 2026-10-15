@@ -18,7 +18,7 @@
  * exits 2 — mixing the two silently drops the denial.
  */
 import { readFileSync } from "node:fs";
-import { evaluate, formatDenial, loadPolicy } from "./policy.mjs";
+import { adaptToolCall, evaluate, formatDenial, loadPolicy } from "./policy.mjs";
 
 const ALLOW = 0;
 const BLOCK = 2;
@@ -36,21 +36,34 @@ async function main() {
   const toolName = payload.tool_name ?? "";
   const input = payload.tool_input ?? {};
 
+  const policy = loadPolicy();
+  const cwd = payload.cwd ?? process.cwd();
+
+  // MCP and native runners and file writers (Terminal MCP, Desktop Commander, Monitor, filesystem
+  // MCP) are mapped onto Bash or Write so the existing rules judge them (config/agent-os/policy.json
+  // > mcpAdapters). null means "not an adapted tool": judge the call as itself, exactly as before.
+  // That is always the case for the native tools, which adaptToolCall never touches.
+  const adapted = adaptToolCall(toolName, input, cwd, policy, (msg) =>
+    process.stderr.write(`[agent-os] pretool MCP adapter problem (that row is skipped): ${msg}\n`),
+  );
   // NotebookEdit calls its path field notebook_path, not file_path (wiring review 2026-08-04).
   const rawPath = input.file_path ?? input.notebook_path;
-  const { denied, rule } = evaluate(
+  const calls = adapted ?? [
     {
       toolName,
       command: typeof input.command === "string" ? input.command : "",
       filePath: typeof rawPath === "string" ? rawPath : "",
-      cwd: payload.cwd ?? process.cwd(),
+      cwd,
     },
-    loadPolicy(),
-  );
+  ];
 
-  if (denied) {
-    process.stderr.write(formatDenial(rule) + "\n");
-    return BLOCK;
+  for (const call of calls) {
+    const { denied, rule } = evaluate(call, policy);
+    if (denied) {
+      process.stderr.write(formatDenial(rule) + "\n");
+      if (call.via) process.stderr.write(`Judged through MCP adapter ${call.via} on tool ${toolName}.\n`);
+      return BLOCK;
+    }
   }
   return ALLOW;
 }

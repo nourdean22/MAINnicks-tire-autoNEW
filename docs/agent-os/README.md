@@ -63,7 +63,8 @@ github-client canaries 403'd every PR whenever another workflow had spent the bu
 
 `.claude/settings.json` hooks, all engine logic in `scripts/agent-os/`:
 
-- **PreToolUse** (`pretool.mjs`, matcher `Bash|PowerShell|Write|Edit|NotebookEdit`) evaluates
+- **PreToolUse** (`pretool.mjs`, matcher `Bash|PowerShell|Write|Edit|NotebookEdit`, plus a second matcher group for
+  MCP and native runners, see "MCP and native-runner coverage") evaluates
   `config/agent-os/policy.json` (v2) and blocks with exit 2: pushes to `main` in any spelling,
   pushes with an **implicit destination** (bare `git push`, `origin`-only, `HEAD`/`@` refspec —
   they resolve to the current branch, which may be main), force-push (incl. bundled `-uf` and
@@ -95,6 +96,115 @@ github-client canaries 403'd every PR whenever another workflow had spent the bu
   e2e test blocked itself.
 - **There is deliberately no bypass env var.** Changing a rule means editing `policy.json` in a
   PR where the diff is reviewable.
+
+## MCP and native-runner coverage (2026-10-15)
+
+**The gap this closes.** `pretool.mjs` used to be registered only for
+`Bash|PowerShell|Write|Edit|NotebookEdit`, and every rule in `policy.json` carries a `tools` allowlist, so
+the same forbidden command sent through any other tool that runs commands or writes files was never judged.
+Probed through the real hook on 2026-10-15: `git push origin main` exited 0 through the Terminal MCP, Desktop
+Commander and the native `Monitor` tool, and a `.env.local` write exited 0 through an MCP file tool.
+
+**How it works.** `mcpAdapters` in `config/agent-os/policy.json` maps a tool call onto the logical tool the rules
+already understand (Bash or Write). `adaptToolCall()` in `policy.mjs` does the mapping, `pretool.mjs` judges each
+mapped call with the unchanged `evaluate()`, and a second `PreToolUse` matcher group in `.claude/settings.json`
+routes those tool names to `pretool.mjs`. No rule text is duplicated: every existing rule applies through every
+adapter, including the cwd-scoped night-shift rules.
+
+| Adapter | Tools (matched by name SUFFIX, so both Desktop Commander registrations hit) | Judged as | Field read |
+|---|---|---|---|
+| `terminal-run` | Terminal MCP `run_in_terminal` | Bash | `command`; the tool's `cwd` is judged too |
+| `process-start` | Desktop Commander `start_process` | Bash | `command` |
+| `process-input` | Desktop Commander `interact_with_process` | Bash | `input` |
+| `monitor` | native `Monitor` | Bash | `command` (the `ws` form has none) |
+| `file-write` | `write_file`, `edit_block`, `edit_file`, `write_pdf` | Write | `path`, `file_path`, `outputPath` |
+| `file-move` | `move_file` | Write | `source`, `destination` |
+
+Design rules, each pinned by `scripts/agent-os/mcpCoverage.test.mjs`:
+
+- **Only the named fields are read.** File content, `old_string`, `new_string` and every other string are never
+  scanned, so Gmail, Linear and any tool that merely carries text stay untouched. A tool with no adapter row is
+  not judged at all.
+- **Native tools are never adapted.** `Bash`, `PowerShell`, `Write`, `Edit` and `NotebookEdit` short-circuit
+  before the table is read, so no table edit can change how they are judged.
+- **Same posture as the rest of the hook.** A matched rule exits 2. A malformed row is skipped with a
+  `[agent-os] pretool MCP adapter problem` stderr line and costs only that row. Any other bug in the new code
+  fails open with a stderr line. Missing, non-string and malformed fields never throw.
+- **Oversized fields** are folded to their first and last 10,000 characters (`FIELD_CAP`). `destructive-sql` is
+  quadratic in the text length (measured: 20,000 characters about 0.3 s, 60,000 about 2 s), and a hook timeout
+  fails open silently. A forbidden string in the unscanned middle of a field longer than the cap is not seen.
+  Native Bash and PowerShell commands are not capped and have the same exposure, which is out of this change.
+- **The matcher** is `^(?:Monitor|mcp__.+__(?:run_in_terminal|start_process|interact_with_process|write_file|edit_file|edit_block|write_pdf|move_file))$`.
+  Claude Code reads a matcher with any character beyond letters, digits, `_`, `-`, space, `,` and `|` as a
+  JavaScript regex tested unanchored (code.claude.com/docs/en/hooks), so the pattern carries its own `^...$` and
+  means the same anchored or unanchored. The canary checks both readings agree on every sample tool name, and
+  that the pattern routes the intended names and nothing else.
+- **`lease-check.mjs` is not extended.** The new group runs `pretool.mjs` only and the original group is
+  untouched, so the Session Authority tripwire keeps its own tool set. Extending it is registration only (add the
+  hook to the new group; no change in `lease-check.mjs`), at the price of new throttled warnings and a new block
+  on MCP calls in a worktree that holds a foreign lease marker. That is an operator call.
+
+**Adding a runner or file tool.** (1) Read the live tool definition and copy the exact field names. (2) Add a row
+to `mcpAdapters` with at least one real tool name in `exampleTools`. (3) Add the tool-name suffix to the matcher in
+`.claude/settings.json`; the canary fails until the table and the matcher agree. (4) Add the tool to
+`COMMAND_SHAPES` or `FILE_SHAPES` in `mcpCoverage.test.mjs` with the live field names. (5) Run
+`node --test scripts/agent-os/mcpCoverage.test.mjs`.
+
+### Still unguarded
+
+Inventory of 2026-10-15. Names come from this machine's tool lists; "name only" means the schema was not read.
+
+- **context-mode plugin runners** (`ctx_execute`, `ctx_batch_execute`). They run code and commands, and the
+  manager's probe on 2026-10-15 exited 0 through both. They were not in this session's tool list, so their field
+  names were not read from a live definition and no row was invented. Follow-up: read the live schema, then add a
+  row per tool (the "Adding a runner" steps below).
+- **SQL text tools** (Neon `run_sql` and `run_sql_transaction`; Prisma Postgres `execute_sql_query` and
+  `execute_prisma_postgres_schema_update`; connector UUID and `Prisma-Remote` registrations). `destructive-sql`
+  needs a DB client word (`mysql`, `psql`, `railway run`, `prisma db execute`, `Invoke-Sqlcmd`) in the same text,
+  and these tools receive bare SQL, so wiring them to it would score a green that guards nothing. The canary
+  `tier 2 premise` fails the day the rule learns to match bare SQL. A follow-up needs a rule scoped to these
+  tools, with its own deny and allow examples, or an adapter field that supplies a client word. `sql_statements`
+  in `run_sql_transaction` is an array, which the string-only field reader skips.
+- **Prisma-Local MCP** (`migrate-reset`, `migrate-dev`; name only, the server failed to connect on 2026-10-15).
+  The tool name is the whole command, so there is no text to match. Follow-up: an adapter field that supplies a
+  fixed command string such as `prisma migrate reset` to `destructive-prisma`.
+- **Remote infrastructure tools whose name and arguments are the operation**, with no command text: Vercel
+  (`run_session_command`, `write_session_files`, `create_deployment`, `request_rollback`, `put_firewall_config`,
+  `replace_domain_dns_records`, `create_project_env`, `edit_project_env`, `buy_domain`), Railway (`railway-agent`,
+  `set-variables`, `redeploy`, `restart-service`, `delete-service`, `update-service`,
+  `update-function-source-code`), Neon (`delete_project`, `delete_branch`, `reset_from_parent`, `restore_snapshot`,
+  `rotate_credential`, `reset_postgres_role_password`) and Prisma Postgres (`delete_prisma_postgres_database`,
+  `set_prisma_compute_env_var`). AGENTS.md > Protected operations names these actions, but only as an honour rule
+  plus the permission prompt. A guard would be a deny-by-tool-name list, which is an operator decision.
+- **Customer-facing sends through connector tools** (Gmail `send_message`, `reply`, `forward`; ad launches
+  `launch_*`; calendar invites). They are not command, file or SQL tools: permission prompts only.
+- **Desktop Commander `set_config_value`** can empty its own `blockedCommands` or widen `allowedDirectories`. It
+  edits another guard's configuration, not the repo. Also `create_directory`, `kill_process`, `force_terminate`:
+  no protected operation.
+- **Worktree removal by the harness**: native `ExitWorktree` and the host tools `clean_up_worktrees` and
+  `discard_kept_worktree` remove worktree directories without `git worktree remove`, so `worktree-remove` never
+  sees them. They are harness-owned; whether they unlink the NTFS junctions first was not verified.
+- **Browser and desktop automation** (`javascript_tool`, `computer`) can type into a terminal window or run page
+  script. There is no command text to judge.
+- **Remote sandboxes** (Higgsfield `sandbox_exec`, `scene_builder_3d_run_python`) run code off this machine with no
+  repo access.
+- **Reads.** MCP read tools are not judged, and `secret-file-write` is write-only, as it is for the native `Read`.
+
+### Live check after merge
+
+Two minutes, in a FRESH Claude Code session (hooks load when a session starts, so a session that began before the
+merge proves nothing).
+
+1. Ask Claude to run `git push --dry-run origin main` through the Terminal MCP (`run_in_terminal`), then through
+   Desktop Commander (`start_process`), then through the native `Monitor` tool. It is harmless: a dry-run push sends nothing even if the guard fails.
+2. PASS: each call is refused before anything runs, the refusal starts `BLOCKED by repo policy: push-to-main`, and
+   a second line reads `Judged through MCP adapter terminal-run.command on tool mcp__terminal__run_in_terminal`
+   (or `process-start.command`). No terminal tab opens and no process starts.
+3. FAIL: the tab opens or the process starts and prints dry-run output, or only a permission prompt appears with
+   no `BLOCKED by repo policy:` line. A permission prompt is the permission system, not this guard, and a block
+   banner without the repo's rule id is not this guard either (this machine runs more than one layer).
+4. On FAIL: restart the session and repeat, then run `node --test scripts/agent-os/mcpCoverage.test.mjs`. The
+   registration canaries (matcher, verbatim configured command) say whether the hook is routed.
 
 ## Writing a check that actually catches something
 

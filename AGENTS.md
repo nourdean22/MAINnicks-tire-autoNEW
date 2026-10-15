@@ -87,7 +87,7 @@ A rule with a gate needs no restating; one without is only as good as your atten
 
 | Rule | Enforced by | Scope |
 |---|---|---|
-| 13 destructive commands blocked at the tool call: direct-`main` push in any spelling, implicit push destination, force-push, whole-tree staging, hook skipping, hard reset/checkout/clean, stash pop, worktree removal, destructive Prisma + SQL, install inside a junctioned worktree, `.env` write. Each denial names the rule, the reason and the alternative. | `config/agent-os/policy.json` -> `scripts/agent-os/pretool.mjs` | **Claude Code only.** Codex/Cursor/Copilot/Gemini and humans get NO hook — for them every one of these is an honour rule. |
+| 13 destructive commands blocked at the tool call: direct-`main` push in any spelling, implicit push destination, force-push, whole-tree staging, hook skipping, hard reset/checkout/clean, stash pop, worktree removal, destructive Prisma + SQL, install inside a junctioned worktree, `.env` write. Each denial names the rule, the reason and the alternative. | `config/agent-os/policy.json` -> `scripts/agent-os/pretool.mjs` | **Claude Code only.** Also judges the MCP and native runners and file tools in its adapter table (list of what is still unguarded: `docs/agent-os/README.md`). Codex/Cursor/Copilot/Gemini and humans get NO hook — for them every one of these is an honour rule. |
 | Per-app lint + typecheck on staged files · staged-secret scan · adapter parity | `lefthook.yml` pre-commit | every agent + human (git-level) |
 | `pnpm run build:affected` | `lefthook.yml` pre-push | every agent + human |
 | Adapter parity + policy canaries | `pnpm agent:verify` in `.github/workflows/agent-policy.yml` | CI, every PR |
