@@ -100,6 +100,9 @@ describe("Instagram Studio V2 render smoke (real JPEG per format)", () => {
     }
   }
 
+  // The budget covers three real Chrome launches: the availability probe, then
+  // one per render. Unloaded they take about 3s in total, but on a loaded Windows
+  // machine this test exceeded the old 60s limit, so the budget leaves ~3x margin.
   it("renders each format to a non-empty branded JPEG", async () => {
     if (!(await chromeAvailable())) {
       // Skip loudly rather than silently — a render smoke test that no-ops
@@ -117,5 +120,5 @@ describe("Instagram Studio V2 render smoke (real JPEG per format)", () => {
       // A real 1080px JPEG is tens of KB; a broken/blank render is near-empty.
       expect(buf.length).toBeGreaterThan(3000);
     }
-  }, 60_000);
+  }, 180_000);
 });

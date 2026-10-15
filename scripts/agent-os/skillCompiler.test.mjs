@@ -254,6 +254,25 @@ test("scaffold.mjs: same-source re-scaffold keeps edits, a changed source is sti
   assert.equal(readFileSync(prov, "utf8"), before, "a refused re-compile must not touch provenance");
 });
 
+// Found by mutating the refusal to carry on after printing REFUSED: the arm above stayed green.
+test("scaffold.mjs: a changed source is refused before anything is written, a same-source re-run carries on", () => {
+  const f = fixture();
+  const gone = join(f.skills, "stops-there", "glossary.md"); // the scaffolder recreates it when it runs to the end
+  assert.equal(run(SCAFFOLD, f.root, f.src, "stops-there").status, 0);
+
+  rmSync(gone);
+  const same = run(SCAFFOLD, f.root, f.src, "stops-there");
+  assert.equal(same.status, 0, same.stderr);
+  assert.equal(existsSync(gone), true, "a same-source re-run must run to the end");
+
+  rmSync(gone);
+  writeFileSync(f.src, "chapter one, revised\n");
+  const changed = run(SCAFFOLD, f.root, f.src, "stops-there");
+  assert.equal(changed.status, 1);
+  assert.equal(existsSync(gone), false, "a refused re-compile must not write anything");
+  assert.doesNotMatch(changed.stdout, /scaffolded/);
+});
+
 test("scaffold.mjs: a slug that still lives under the old generated/ layout is refused with a migrate hint", () => {
   const f = fixture();
   const legacy = join(f.skills, "generated", "legacy-pkg");

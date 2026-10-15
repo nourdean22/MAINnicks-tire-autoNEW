@@ -28,7 +28,6 @@ not from `.env`:
 | `REEL_AUTOPOST_ENABLED` | `true` | PUBLISH · unattended posting |
 | `REEL_COMMENT_RESPONDER_ENABLED` | `true` | PUBLISH · public replies to IG comments |
 | `REEL_FILM_GRAIN` | `true` *(2026-09-09)* | RENDER · adds moving luma grain + vignette to every reel ASSEMBLED from now on. Not a send, but it changes what every future viewer sees, and it is the only flag here that alters pixels. Already-assembled reels keep the look they were rendered with. |
-| `FEATURE_UNPAID_INVOICE_RECOVERY` | *(unset)* | SMS · unpaid-invoice chase — read the guard, `=== "1"` and `!== "false"` disagree about unset |
 
 Four of these — the voice and cadence flags — had **never appeared in any
 canonical doc** before 2026-08-16. They were not stale; they were absent. Nobody
@@ -652,5 +651,13 @@ instead: `node apps/nickstire/scripts/regress-capability.mjs <id> P2 "<reason>"
 `verificationExpiresAt` at all. The freshness axis is real but it is not yet a
 property of the ledger — 36 claims cannot go stale because nothing dates them.
 That is a gap, not a guarantee.
+
+**Lead time (2026-10-15):** the first load-bearing expiry (`shopstate-lot-band`,
+01:07Z) turned every open PR red at once, with no sign before it. The script now
+prints one `note:` line per `production` / `limited_autonomy` entry within 14 days
+of its `verificationExpiresAt`: id, days left, re-prove-or-lower. Under GitHub
+Actions the same text is a `::warning` annotation on the run. It never changes the
+exit code, and `scripts/preflight.sh` shows the lines from a passing ledger step.
+Pinned by `server/ledgerExpiryWarning.test.ts`.
 
 The older file under `docs/_archive/root_reports/truth_os.md` is historical evidence only. Do not treat archived audit claims as current without re-verification.

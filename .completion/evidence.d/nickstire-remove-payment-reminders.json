@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "cron-fail-closed": {
+      "ref": "The cron change DELETES the unpaid-invoice-recovery job and its scheduler registration (126 to 125 tiered jobs) and adds no catch, rethrow or return path to any remaining job. server/__tests__/cronNoSwallowedFailure.test.ts and server/cron/jobs/cronRethrow2026.test.ts pass on 770ca50c0 (6 files, 426 tests passed in the targeted run); the new server/cron/paymentReminderRetired.test.ts fails if the job name is registered again, in the tiered scheduler or the HTTP-only registry, or if the admin trigger returns (its first 4-test draft was red, 2 failed | 2 passed, on the unremoved code; the committed 4-test file is 1 failed | 3 passed with a probe job re-registered in the scheduler, 1 failed | 3 passed with one in the HTTP-only registry, and 4 passed clean)."
+    },
+    "operator-walkthrough": {
+      "ref": "Admin, Money, Unpaid Invoices. BEFORE: two stacked banners. Amber: '$X is eligible for automatic reminders and none are being sent. The recovery job finds these N invoices every day and stops at a dry run. Sending turns on with FEATURE_UNPAID_INVOICE_RECOVERY=1 on Railway.' Rose: '$Y has aged out of collections. M invoices older than 90 days - the recovery job no longer selects them, so they need a call rather than a text.' AFTER: no amber banner; at most one rose line, '$Y is unpaid on M invoices older than 90 days.', shown only when such invoices exist. The invoice rows, the cards and the 'Unpaid invoices could not be read ... NOT zero' error banner are unchanged. Verified by client/src/__tests__/admin.test.tsx (three new tests; the reminder-copy test is red on the unchanged component: expected text not to match /automatic reminders/i, and the stale-data test is red with the guard removed) and mutation checks; not screenshot-verified because the screen is behind admin auth."
+    }
+  }
+}

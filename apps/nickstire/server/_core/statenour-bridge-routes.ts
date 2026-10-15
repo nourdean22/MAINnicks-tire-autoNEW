@@ -38,7 +38,7 @@ import express from "express";
 import { timingSafeEqual } from "crypto";
 import { createLogger } from "../lib/logger";
 import { BUSINESS } from "@shared/business";
-import { getBusinessDateKey, shiftDateKey, shopWallClock } from "../lib/timezoneAssert";
+import { getBusinessDateKey, shiftDateKey } from "../lib/timezoneAssert";
 import { shopDayRangeSql } from "../services/autonomyControl";
 
 const log = createLogger("statenour-bridge");
@@ -230,8 +230,8 @@ export function registerStatenourBridgeRoutes(app: Express): void {
 
       // forensic-audit MEDIUM · 'today' in the shop's timezone (Cleveland ET),
       // not the TiDB server's UTC day. preferredDate is an ET-stored varchar
-      // (compare to the ET date string); createdAt / invoiceDate are UTC
-      // timestamps (compare against the ET day's UTC bounds).
+      // (compare to the ET date string); createdAt is a UTC instant (compare against the ET day's UTC bounds);
+      // invoiceDate is the shop's wall clock (compare against the ET date key).
       const { todayET, startUtc, endUtc } = shopTodayBounds();
       const [bookingRows, invoiceRows] = await Promise.all([
         exec(d, sql`
@@ -247,7 +247,7 @@ export function registerStatenourBridgeRoutes(app: Express): void {
         exec(d, sql`
           SELECT COUNT(*) AS paid, COALESCE(SUM(totalAmount), 0) AS totalCents, COALESCE(AVG(totalAmount), 0) AS avgCents
           FROM invoices
-          WHERE invoiceDate >= ${startUtc} AND invoiceDate < ${endUtc}
+          WHERE invoiceDate >= ${todayET} AND invoiceDate < ${shiftDateKey(todayET, 1)}
             AND paymentStatus = 'paid'
         `),
       ]);
@@ -785,8 +785,8 @@ export function registerStatenourBridgeRoutes(app: Express): void {
           customerPhone: "",
           amount: body.amount,
           snapApplicationId: body.applicationId,
-          // The approval becomes the invoice date, which is the shop's day as stored: the Cleveland clock.
-          approvalDate: shopWallClock(),
+          // The arrival instant. recordSnapPayment converts it to the shop's wall clock once.
+          approvedAt: new Date(),
         });
       }
 

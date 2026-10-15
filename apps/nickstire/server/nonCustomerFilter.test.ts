@@ -1,5 +1,5 @@
 /**
- * Canaries for the test-row filter and the one-shot reminder trigger.
+ * Canaries for the test-row filter.
  *
  * MEASURED 2026-08-25, with denominators, because a ratio inside a filter is
  * not a fact about the table:
@@ -17,9 +17,9 @@
  * figures derived from the UNPAID slice are contaminated; figures over the
  * whole table are not.
  *
- * The filter is deliberately CONSERVATIVE. Suppressing a real customer's
- * payment reminder is a bill that never gets paid - the same failure in the
- * opposite direction - so anything ambiguous stays IN.
+ * The filter is deliberately CONSERVATIVE. Hiding a real customer's unpaid
+ * invoice is money nobody asks for - the same failure in the opposite
+ * direction - so anything ambiguous stays IN.
  *
  * SYNTHETIC INPUTS ONLY.
  */
@@ -127,18 +127,9 @@ describe("canary - exclusions are reported, never silent", () => {
 });
 
 describe("canary - the filter is WIRED where the money is quoted", () => {
-  const cron = stripComments(
-    readFileSync(join(process.cwd(), "server/cron/jobs/unpaidInvoiceRecovery.ts"), "utf-8"),
-  );
   const router = stripComments(
     readFileSync(join(process.cwd(), "server/routers/advanced/invoices.ts"), "utf-8"),
   );
-
-  it("BREAKS: the cron filters before sending", () => {
-    expect(cron).toContain('"../../services/nonCustomerFilter"');
-    expect(cron).toContain("partitionNonCustomers<(typeof candidates)[number]>(candidates)");
-    expect(cron).toMatch(/const eligible = opts\?\.invoiceIds\?\.length/);
-  });
 
   it("BREAKS: the dashboard figure is built from the FILTERED set", () => {
     // This is the $2,221.35 the banner published, $1,167.27 of which was
@@ -152,45 +143,6 @@ describe("canary - the filter is WIRED where the money is quoted", () => {
   it("the operator can see WHY the figure shrank", () => {
     expect(router).toMatch(/excludedNonCustomers: split\.excluded\.length/);
     expect(router).toMatch(/excludedReasons:/);
-  });
-});
-
-describe("canary - the one-shot trigger is scoped and fails closed", () => {
-  const router = stripComments(
-    readFileSync(join(process.cwd(), "server/routers/advanced/invoices.ts"), "utf-8"),
-  );
-  const fn = router.slice(router.indexOf("runUnpaidRecoveryNow:"));
-
-  it("BREAKS: invoiceIds is REQUIRED and bounded - it cannot fire at everything", () => {
-    expect(fn).toContain("invoiceIds: z.array(z.number().int().positive()).min(1).max(25)");
-    expect(fn).toMatch(/invoiceIds: input\.invoiceIds/);
-    expect(fn).toMatch(/maxSends: input\.invoiceIds\.length/);
-  });
-
-  it("BREAKS: it gates on sms_global_pause, NOT the misleading SMS_KILL_SWITCH", () => {
-    // SMS_KILL_SWITCH gates only the dead Twilio fallback; the live F25e path
-    // bypasses it. Gating on it refuses when sending works and permits when
-    // the real switch is thrown.
-    const body = fn.slice(0, fn.indexOf("}),"));
-    // Assert the INVOCATION, not the identifier. `getSmsPauseState` also
-    // appears on the import line, so a bare toContain() stayed green when a
-    // mutation probe replaced the call with a hardcoded { paused: false }.
-    expect(body).toContain("await getSmsPauseState()");
-    expect(body).toMatch(/const pause = await getSmsPauseState\(\)/);
-    expect(body).not.toContain("SMS_KILL_SWITCH");
-  });
-
-  it("BREAKS: an UNREADABLE pause flag refuses the send", () => {
-    // An emergency stop that cannot be read is not permission to send.
-    expect(fn).toMatch(/if \(!pause\.readable\)/);
-    const guard = fn.slice(fn.indexOf("if (!pause.readable)"), fn.indexOf("if (pause.paused)"));
-    expect(guard).toMatch(/blocked: true/);
-    expect(guard).not.toMatch(/runUnpaidInvoiceRecovery/);
-  });
-
-  it("a paused shop refuses before any send", () => {
-    const guard = fn.slice(fn.indexOf("if (pause.paused)"), fn.indexOf("const { runUnpaidInvoiceRecovery }"));
-    expect(guard).toMatch(/blocked: true/);
   });
 });
 
@@ -238,54 +190,3 @@ describe("canary - internal lines are withheld as their OWN category", () => {
     expect(seen.size).toBe(2);
   });
 });
-
-/**
- * The reminder ladder is one-directional.
- *
- * Reimplemented here from the cron's own expression so the RULE can be driven
- * with synthetic ages and claim states. A source canary below pins that the
- * cron still carries the guard, so the two cannot drift apart silently.
- */
-function touchFor(ageDays: number, a7: boolean, a30: boolean): "7d" | "30d" | null {
-  if (ageDays >= 30 && !a30) return "30d";
-  if (ageDays >= 7 && !a7 && !a30) return "7d";
-  return null;
-}
-
-describe("canary - an escalated invoice never drops back to the earlier touch", () => {
-  it("BREAKS: after a 30d touch, the 7d touch is NOT sent the next day", () => {
-    // The real case, 2026-08-25: a 73-day-old invoice took the 30d touch,
-    // which left the 7d slot unclaimed. Without the guard the next run sent a
-    // SECOND message about the same bill, in the softer earlier wording.
-    expect(touchFor(73, false, true)).toBeNull();
-    expect(touchFor(31, false, true)).toBeNull();
-  });
-
-  it("an invoice that ages normally still gets 7d then 30d, in order", () => {
-    expect(touchFor(7, false, false)).toBe("7d");   // first touch
-    expect(touchFor(30, true, false)).toBe("30d");  // escalates later
-    expect(touchFor(45, true, true)).toBeNull();    // both spent
-  });
-
-  it("younger than 7 days gets nothing - the courtesy delay is real", () => {
-    expect(touchFor(6, false, false)).toBeNull();
-    expect(touchFor(0, false, false)).toBeNull();
-  });
-
-  it("POSITIVE CONTROL: the ladder can return all three outcomes", () => {
-    // Without this, a touchFor that always returned null would satisfy every
-    // "sends nothing" assertion above.
-    expect(new Set([touchFor(7, false, false), touchFor(35, true, false), touchFor(5, false, false)]).size).toBe(3);
-  });
-
-  it("BREAKS: the cron itself still carries the !reminder30d guard", () => {
-    // The rule above is a local reimplementation; this is what pins it to the
-    // shipped code. Without it the canary could stay green while the cron
-    // regressed.
-    const cron = stripComments(
-      readFileSync(join(process.cwd(), "server/cron/jobs/unpaidInvoiceRecovery.ts"), "utf-8"),
-    );
-    expect(cron).toContain("else if (ageDays >= 7 && !inv.reminder7d && !inv.reminder30d) touch = \"7d\";");
-  });
-});
-

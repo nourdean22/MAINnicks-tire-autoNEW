@@ -18,13 +18,21 @@
  *
  * SAFETY: dry-run by default. --commit to mutate.
  *
- * Usage:
- *   pnpm tsx scripts/backfill-historical-estimates.ts          # dry-run
- *   pnpm tsx scripts/backfill-historical-estimates.ts --commit # mutate
- *   pnpm tsx scripts/backfill-historical-estimates.ts --commit --max-pages=20
+ * DO NOT RUN WITH --commit WITHOUT AN EXPLICIT OPERATOR GO. An estimate it inserts or refreshes with
+ * an estimate_date 7-60 days old and no matched invoice is what the declined-work recovery cron
+ * selects (cron/jobs/declinedWorkRecovery.ts; sends are armed by FEATURE_DECLINED_RECOVERY, see
+ * recoverySendsEnabled), so a commit can queue customer SMS for old quotes. It also rewrites six
+ * fields of rows that already exist, and nulls customer_phone when the number will not normalise.
+ *
+ * Usage (from apps/nickstire; the dispatcher is package.json "script" -> scripts/run.ts):
+ *   pnpm run script backfill-historical-estimates                        # dry-run
+ *   pnpm run script backfill-historical-estimates --commit               # mutate
+ *   pnpm run script backfill-historical-estimates --commit --max-pages=20
  */
 import "dotenv/config";
 import mysql from "mysql2/promise";
+import { algDateDigits } from "./shopClockBackfill";
+import { shopWallClock } from "../../server/lib/timezoneAssert";
 
 const COMMIT = process.argv.includes("--commit");
 const MAX_PAGES_ARG = process.argv.find((a) => a.startsWith("--max-pages="));
@@ -110,10 +118,20 @@ async function main() {
   console.log(`Max pages: ${MAX_PAGES} · Page size: ${PAGE_SIZE} · Sleep: ${SLEEP_BETWEEN_PAGES_MS}ms`);
   console.log(`Estimated runtime: ~${Math.ceil((MAX_PAGES * SLEEP_BETWEEN_PAGES_MS) / 60000)} min\n`);
 
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl) {
+    console.error("DATABASE_URL missing");
+    process.exit(1);
+  }
+  const dbTarget = new URL(dbUrl);
+  console.log(`DB host: ${dbTarget.hostname}  database: ${dbTarget.pathname.slice(1)}`);
+
   const token = await authenticate();
   if (!token) process.exit(1);
 
-  const conn = await mysql.createConnection(process.env.DATABASE_URL!);
+  const conn = await mysql.createConnection(dbUrl);
+  // The date columns are bound as digit strings below; a pinned session makes those digits mean UTC.
+  await conn.query("SET time_zone = '+00:00'");
   let totalFetched = 0;
   let totalEstimates = 0;
   let totalInvoices = 0;
@@ -168,8 +186,12 @@ async function main() {
           const customerPhone = normalizePhone(t.primaryNumber || "");
           const vehicleInfo = buildVehicleInfo(t);
           const estimatedAmount = Math.round(t.total * 100);
-          const dateStr = t.estimateDate || t.invoiceDate || t.customerDateCreated || new Date().toISOString();
-          const estimateDate = new Date(dateStr);
+          const dateStr = t.estimateDate || t.invoiceDate || t.customerDateCreated || shopWallClock().toISOString();
+          const estimateDate = algDateDigits(dateStr);
+          if (estimateDate === null) {
+            console.log(`  skip estimate ${externalId}: unreadable date ${JSON.stringify(dateStr)}`);
+            continue;
+          }
 
           // Check if already exists
           const [existingRaw] = await conn.execute(
