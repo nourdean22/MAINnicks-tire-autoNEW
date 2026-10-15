@@ -62,7 +62,7 @@ export const REVIEWED_UNFLAGGED_WRITES: ReadonlySet<string> = new Set(["arsenalD
 export const ACCEPTED_EXCEPTIONS: Readonly<Record<string, string>> = {
   getEmotionalState: "Upserts a brain_memories row (idempotent: the same key is rewritten, not added).",
   getTodaySchedule: "Refreshes the Google token cache and the Integration health counters as it reads the calendar.",
-  last30days: "With the topic 'setup' it installs the tool on the server (idempotent, server-local, no outside effect).",
+  last30days: "With the topic 'setup' it installs software on the server and writes its config file there, once (idempotent, server-local, no outside effect).",
   scrapeWebPage: "A replay can issue the same GET to the page a second time.",
   getShopSnapshot: "Reaches nickstire's /api/bridge/shop-snapshot, which can send a Telegram state-transition alert.",
   suggestMIT: "Reaches the same /api/bridge/shop-snapshot, which can send a Telegram state-transition alert.",

@@ -107,6 +107,13 @@ describe("the reviewed read-only list", () => {
     }
     expect(ACCEPTED_EXCEPTIONS).not.toHaveProperty("arsenalDeepResearch");
   });
+
+  // Reading last30days.py: topic "setup" runs the setup wizard, which writes the tool's config
+  // file on the server. A reason that says only "installs" understates it.
+  it("last30days's reason says what its 'setup' topic does: installs software AND writes a config file", () => {
+    expect(ACCEPTED_EXCEPTIONS.last30days).toMatch(/installs software/i);
+    expect(ACCEPTED_EXCEPTIONS.last30days).toMatch(/config file/i);
+  });
 });
 
 describe("the Retry gate's question is default-deny: would a replay repeat anything?", () => {
@@ -166,8 +173,11 @@ describe("the Done-guard keeps its narrow classifier", () => {
 });
 
 describe("a tool nobody has reviewed counts as a write", () => {
+  // Both mocks are dropped here, not at the end of a test body: a failing assertion above the
+  // inline doUnmock used to leave the mock registered for every test after it.
   afterEach(() => {
     vi.doUnmock("@/lib/ai/tools/catalog");
+    vi.doUnmock("@/lib/ai/tools/read-only-tools");
     vi.resetModules();
   });
 
@@ -224,6 +234,5 @@ describe("a tool nobody has reviewed counts as a write", () => {
     expect(registry.isReplaySafeTool("notInTheCatalog"), "uncatalogued").toBe(false);
     // control: the genuine compute tools in the same graph are still replay-safe
     expect(registry.isReplaySafeTool("runCode")).toBe(true);
-    vi.doUnmock("@/lib/ai/tools/read-only-tools");
   });
 });
