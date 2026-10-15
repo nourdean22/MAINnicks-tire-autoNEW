@@ -19,13 +19,13 @@
   },
   {
     "q": "You are drafting a new hook idea for a Nick's Tire reel. What do you write first, and which repo range bounds it?",
-    "expected": "One exact runtime in seconds in the opening line of the spec. For this shop it must fall inside REEL_OUTPUT_RULES (15 to 35 s), not the upstream 60 s.",
+    "expected": "One exact runtime in seconds in the opening line of the spec. For this shop it must fall inside REEL_OUTPUT_RULES (15 to 35 s), not the upstream 60 s. That band is the acceptance ceiling: assembly clamps a generated beat to 4 s, so the runtime is at most beats x 4 s plus the 3 s SAVE freeze.",
     "sourceSection": "alex-prompter-997524",
     "kind": "application"
   },
   {
     "q": "A hook idea reveals a repair process one labelled step at a time. Can Nick's Tire build it today, and what do you write in the buildable-with field?",
-    "expected": "Write 'needs new composition': only two fixed 15 s Remotion templates exist and no storyboard-driven code-graphics composition. Do not claim it exists and do not propose a new HTML-to-video lane.",
+    "expected": "Yes for text labels: write 'existing, text labels only'. One beat per step (4 to 6 beats), each with a short onScreenText label that assembly burns, or a labelled card from a deterministic beat with cardLines. A beat that claims real shop work needs a real clip. Write 'needs new composition' only for a code-drawn graphic (cutaway, cross-section, force arrows, filling counter): not built. Do not propose a new HTML-to-video lane.",
     "sourceSection": "0xspikez-483865",
     "kind": "application"
   },
@@ -48,8 +48,8 @@
     "kind": "application"
   },
   {
-    "q": "A satisfying-loop hook needs a seam check. What is compared, and which slug shows it?",
-    "expected": "Frame 0 against the final frame; one changed pixel means the motion is not periodic. 0xkarmi-129839 shows the check, verbove-268381 states the last-frame-equals-first rule.",
+    "q": "A satisfying-loop hook needs a seam check. What is compared, which slug shows it, and does the Nick's Tire pipeline enforce it?",
+    "expected": "Frame 0 against the final frame; one changed pixel means the motion is not periodic. 0xkarmi-129839 shows the check, verbove-268381 states the last-frame-equals-first rule. The pipeline does not enforce it: write 'plan-only'. validateLoopPlan accepts any non-empty text, no code compares the first and final frame, and assembly holds the last frame for 3 s and, when an ask is declared, burns the ask text over it.",
     "sourceSection": "0xkarmi-129839",
     "kind": "application"
   },

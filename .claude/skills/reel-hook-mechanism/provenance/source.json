@@ -14,8 +14,8 @@
     "categories": { "explainer": 116, "motion": 369, "interactive": 101, "3d": 117 },
     "promptPartialEntries": 207,
     "hasViewsOrLikesField": false,
-    "fetchCommand": "gh api \"repos/yihui-dev/awesome-opus5-5-videos/contents/data/videos.json?ref=92aee2f586ac0715cb3cbcb6384834f98a33383d\" -H \"Accept: application/vnd.github.raw\"",
-    "readmeFetchCommand": "gh api \"repos/yihui-dev/awesome-opus5-5-videos/contents/README.md?ref=92aee2f586ac0715cb3cbcb6384834f98a33383d\" -H \"Accept: application/vnd.github.raw\"",
+    "fetchCommand": "gh api \"repos/yihui-dev/awesome-opus5-5-videos/contents/data/videos.json?ref=92aee2f586ac0715cb3cbcb6384834f98a33383d\" -H \"Accept: application/vnd.github.raw\" > \"${TMPDIR:-/tmp}/opus-src/videos.json\"",
+    "readmeFetchCommand": "gh api \"repos/yihui-dev/awesome-opus5-5-videos/contents/README.md?ref=92aee2f586ac0715cb3cbcb6384834f98a33383d\" -H \"Accept: application/vnd.github.raw\" > \"${TMPDIR:-/tmp}/opus-src/README.md\"",
     "readmeSha256": "0aea4fdbab29c20416b0c14c485f13e24fff4af26c39d43fb671a407b361e92c",
     "readmeBytes": 63328
   },
@@ -25,13 +25,175 @@
     "scope": "techniques.md and anti-patterns.md"
   },
   "recount": {
-    "note": "Counts are crude regex hits re-run at the pin and are derived_inference, not author claims. The earlier research pass (N=113, 75 full explainers plus 38 motion prompts) could not be reproduced from a deterministic filter, so it is not carried.",
-    "sample": "category explainer with prompt_partial false (75) plus category motion with prompt_partial false and 240-1500 chars (95) = 170",
-    "promptsUnder250CharsInSample": 46,
-    "entriesSharingIdentical120CharOpeningWithAnotherEntry": 41,
-    "runtimeInFirst200Chars": "53/170",
-    "numberedBeatsOrTimecodes": "9/170",
-    "deterministicFrameWords": "9/170",
-    "noCutWords": "7/170"
+    "note": "Counts are crude regex hits re-run at the pin and are derived_inference, not author claims. Re-derived 2026-10-15 from the pinned file (sha256 above) by a throwaway script kept outside the repo; every regex passed a positive and a negative control string first. Unit: prompts in the 170-prompt sample, copies of one template NOT collapsed, unless a field says otherwise. Regexes are JavaScript. readNotes record false positives found by reading the matches. The earlier research pass (N=113, 75 full explainers plus 38 motion prompts) could not be reproduced from a deterministic filter, so it is not carried.",
+    "sample": "category explainer with prompt_partial false (75) plus category motion with prompt_partial false and a prompt of 240-1500 characters inclusive (95) = 170. Re-run 2026-10-15 on the pinned file: 287 full motion entries, 95 in range, 46 of the 170 under 250 characters.",
+    "promptsUnder250CharsInSample": {
+      "predicate": "prompt.length < 250",
+      "applied": "the 170-prompt sample",
+      "count": 46,
+      "of": 170
+    },
+    "entriesSharingIdentical120CharOpeningWithAnotherEntry": {
+      "predicate": "entry whose prompt.slice(0, 120) equals that of at least one other entry; all 703 entries; a prompt under 120 characters is compared whole",
+      "count": 39,
+      "of": 703,
+      "groups": 14,
+      "variants": [
+        {
+          "name": "lowercased, whitespace collapsed and trimmed before comparing",
+          "count": 41,
+          "groups": 15,
+          "extraEntries": [
+            "mdaman010-111079",
+            "sayan-shanky-868515"
+          ]
+        },
+        {
+          "name": "exact, prompts of 120 characters or more only",
+          "count": 33
+        }
+      ]
+    },
+    "runtimeInFirst200Chars": {
+      "regex": "\\b\\d+(?:\\.\\d+)?\\s*-?\\s*(?:s|secs?|seconds?)\\b",
+      "flags": "i",
+      "applied": "prompt.slice(0, 200)",
+      "count": 53,
+      "of": 170,
+      "readNotes": [
+        "n01ennn-597182: \"53 s\" is a build time, not a runtime",
+        "humzaakhalid-011081: \"20 s\" is an example inside a fill-in template",
+        "zhu185178-255661: \"6.4s\" ends the first timecoded segment, not a runtime",
+        "several hits repeat one shared opening template: the count is per prompt, not per template"
+      ]
+    },
+    "numberedBeatsOrTimecodes": {
+      "means": "a beat or scene count, or a timecode range that starts at zero (the first segment of a timecoded storyboard)",
+      "regexes": [
+        {
+          "regex": "\\b(?:\\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)[ -](?:beats?|scenes?)\\b",
+          "flags": "i"
+        },
+        {
+          "regex": "\\b0(?:\\.\\d+)?\\s*s?\\s*[-\\u2013\\u2014]\\s*\\d+(?:\\.\\d+)?\\s*s\\b",
+          "flags": "i"
+        },
+        {
+          "regex": "\\b0\\.00\\s*[-\\u2013\\u2014]\\s*\\d+\\.\\d{2}\\b",
+          "flags": ""
+        },
+        {
+          "regex": "\\b0:00(?:\\.\\d+)?\\s*[-\\u2013\\u2014]\\s*\\d{1,2}:\\d{2}\\b",
+          "flags": ""
+        }
+      ],
+      "applied": "prompt, any one regex matching counts the prompt",
+      "count": 6,
+      "of": 170,
+      "variants": [
+        {
+          "name": "timecode range may start anywhere (any N-Ns range or two-decimal pair)",
+          "regexes": [
+            {
+              "regex": "\\b(?:\\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)[ -](?:beats?|scenes?)\\b",
+              "flags": "i"
+            },
+            {
+              "regex": "\\b\\d+(?:\\.\\d+)?\\s*s?\\s*[-\\u2013\\u2014]\\s*\\d+(?:\\.\\d+)?\\s*s\\b",
+              "flags": "i"
+            },
+            {
+              "regex": "\\b\\d+\\.\\d{2}\\s*[-\\u2013\\u2014]\\s*\\d+\\.\\d{2}\\b",
+              "flags": ""
+            }
+          ],
+          "count": 8,
+          "extraEntries": [
+            "tomandrieu96707-875264",
+            "retropunkai-277590"
+          ]
+        },
+        {
+          "name": "count units widened to shots, segments, chapters, slides, panels, acts, stages, states, steps",
+          "regexes": [
+            {
+              "regex": "\\b(?:\\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)[ -](?:beats?|scenes?|shots?|segments?|chapters?|slides?|panels?|acts?|stages?|states?|steps?)\\b",
+              "flags": "i"
+            },
+            {
+              "regex": "\\b0(?:\\.\\d+)?\\s*s?\\s*[-\\u2013\\u2014]\\s*\\d+(?:\\.\\d+)?\\s*s\\b",
+              "flags": "i"
+            },
+            {
+              "regex": "\\b0\\.00\\s*[-\\u2013\\u2014]\\s*\\d+\\.\\d{2}\\b",
+              "flags": ""
+            },
+            {
+              "regex": "\\b0:00(?:\\.\\d+)?\\s*[-\\u2013\\u2014]\\s*\\d{1,2}:\\d{2}\\b",
+              "flags": ""
+            }
+          ],
+          "count": 10
+        }
+      ],
+      "readNotes": [
+        "yankis0x-174321 and thejohnnyhuy-282154 count music beats on a BPM grid, not storyboard beats",
+        "storyboard marks on reading (4): alex-prompter-997524, archiveexplorer-560622, zhu185178-255661, gdgtify-130294",
+        "the broad variant adds two runtime ranges, not timecodes: tomandrieu96707-875264, retropunkai-277590"
+      ]
+    },
+    "deterministicFrameWords": {
+      "regex": "seek\\(t\\)|draw\\(t\\)|pure[- ]function|no timers?",
+      "flags": "i",
+      "applied": "prompt",
+      "count": 9,
+      "of": 170,
+      "readNotes": [
+        "koushikde-937635 and notdwd-766641 share one opening template"
+      ]
+    },
+    "noCutWords": {
+      "regex": "\\bno[- ]cuts?\\b|\\bnever cut\\b|\\bwithout (?:a |any )?cuts?\\b|\\bzero cuts?\\b|\\b0 hard cuts\\b",
+      "flags": "i",
+      "applied": "prompt",
+      "count": 7,
+      "of": 170,
+      "variants": [
+        {
+          "name": "hard cut(s) in place of 0 hard cuts",
+          "regex": "\\bno[- ]cuts?\\b|\\bnever cut\\b|\\bwithout (?:a |any )?cuts?\\b|\\bzero cuts?\\b|\\bhard cuts?\\b",
+          "flags": "i",
+          "count": 8,
+          "extraEntries": [
+            "wani-shola-459278"
+          ]
+        }
+      ],
+      "readNotes": [
+        "egawa-ai-design-092323: \"No cuts\" there is job-conditions text, not video wording",
+        "annacher-152174 repeats the verbove-268381 template"
+      ]
+    },
+    "accentWord": {
+      "regex": "\\baccent\\b",
+      "flags": "i",
+      "applied": "prompt",
+      "count": 3,
+      "of": 170,
+      "readNotes": [
+        "verbove-268381 lists \"accent color\" as a template input, not a chosen accent"
+      ]
+    },
+    "stillPerBeatWording": {
+      "regex": "\\bone (?:still|frame) per beat\\b",
+      "flags": "i",
+      "applied": "prompt",
+      "count": 5,
+      "of": 170,
+      "readNotes": [
+        "notdwd-766641 is an animation-timing line (a frame per musical beat), not a review step",
+        "review steps on reading (4): archiveexplorer-560622, verbove-268381, ulyssexbt-205279, yankis0x-174321"
+      ]
+    }
   }
 }

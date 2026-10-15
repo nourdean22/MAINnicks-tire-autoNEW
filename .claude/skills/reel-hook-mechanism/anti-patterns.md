@@ -31,7 +31,7 @@ Same shape as techniques.md. Source: yihui-dev/awesome-opus5-5-videos at 92aee2f
 - confidence: high
 
 ## DUPLICATES_INFLATE_COUNTS
-- claim: Entries copy each other, so count each template once. 41 of 703 prompts share an identical 120-character opening with another entry, and ror-fly and sarut0bisasuke are one recipe template.
+- claim: Entries copy each other, so count each template once. 39 of 703 entries share an exact 120-character opening with another entry (41 after lowercasing and collapsing whitespace). Exact matching under-counts: ror-fly and sarut0bisasuke are one recipe template with different openings.
 - source-section: ror-fly-880547
 - quote-anchor: "render a recipe motion graphic animation using javascript or html"
 - also: sarut0bisasuke-069973 "Render a recipe motion graphic animation using JavaScript or HTML"
