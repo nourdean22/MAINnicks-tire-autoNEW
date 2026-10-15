@@ -748,11 +748,21 @@ test("docs truth: the live check is runnable from a worktree session, the lease 
   // the first Enforcement-map row is the one that names the hook's config; found by that, not by the rule count it opens with (that count moves when a rule is added)
   const row = agents.split("\n").find((l) => l.startsWith("| ") && l.includes("config/agent-os/policy.json") && l.includes("blocked at the tool call")) ?? "";
   assert.ok(row, "AGENTS.md first Enforcement-map row (the pretool hook row) not found");
-  for (const phrase of ["PROMPTED, not hook-judged", "documented, not proven live", "`permissions.ask`", "`lease-check.mjs`", "SQL text tools"]) assert.ok(row.includes(phrase), `AGENTS.md row must say: ${phrase}`);
-  assert.doesNotMatch(row, /even in bypass \(list/, "the old claim (prompts even in bypass, stated as fact) must not return");
-  // Codex #3053 (P2): only the CLASSIFIED leaves prompt; the README's KNOWN_UNCLASSIFIED writers (Vercel create_drain, update_sandbox, ...) do not
-  for (const phrase of ["classified destructive, redeploy and variable-edit leaves", "are not prompted", "docs/agent-os/README.md"]) assert.ok(row.includes(phrase), `AGENTS.md row must say: ${phrase}`);
-  assert.doesNotMatch(row, /Railway\/Neon\/Vercel\/Prisma mutation tools are PROMPTED/, "the unqualified claim (every mutation tool prompts) was false: the unclassified writers are not prompted");
+  // 2026-10-15 live check, step 7 FAIL: the 135 `mcp__*__<leaf>` ask rules ran NO prompt in bypassPermissions (Railway delete-service, Vercel pause_project, Prisma
+  // delete_prisma_postgres_database), so the row says they gate nothing yet and no longer claims a prompt; the cause is not known and is not guessed here
+  for (const phrase of ["FAILED their live check on 2026-10-15", "gate nothing yet", "`permissions.ask`", "`lease-check.mjs`", "SQL text tools", "Native ask rules"]) assert.ok(row.includes(phrase), `AGENTS.md row must say: ${phrase}`);
+  assert.doesNotMatch(row, /\bPROMPTED\b|proven live|are prompted|prompts? even in bypass|even in bypass \(list/, "the old claims (the infra tools are PROMPTED, documented not proven live, prompts even in bypass) were disproved by the live check and must not return");
+  // Codex #3053 (P2) still holds: the README's KNOWN_UNCLASSIFIED writers (Vercel create_drain, update_sandbox, ...) were never on the ask list at all
+  for (const phrase of ["were never covered", "docs/agent-os/README.md"]) assert.ok(row.includes(phrase), `AGENTS.md row must say: ${phrase}`);
+  assert.doesNotMatch(row, /Railway\/Neon\/Vercel\/Prisma mutation tools are PROMPTED/, "the unqualified claim (every mutation tool prompts) was false: the unclassified writers are not on the ask list");
+  // the README side of the same truth, read from the section that makes the claim (whitespace-normalised: the wording wraps across lines)
+  const askAt = README.indexOf("### Native ask rules");
+  const ask = README.slice(askAt, README.indexOf("### Still unguarded")).replace(/\s+/g, " ");
+  assert.ok(askAt >= 0 && ask.length > 1000, "README 'Native ask rules' section not found");
+  for (const phrase of ["NOT WORKING as written", "FAILED their live check", "gate nothing yet", "pause_project", "delete_prisma_postgres_database", "The cause is NOT known", "THE RISK MATERIALISED"]) assert.ok(ask.includes(phrase), `README 'Native ask rules' must say: ${phrase}`);
+  const live1 = live.replace(/\s+/g, " ");
+  for (const phrase of ["Recorded result, 2026-10-15", "Steps 1 to 4 PASS", "Steps 5 and 6 PASS", "Step 7 FAIL", "replace the `mcp__*__<leaf>` entries with exact tool names (and keep the fixtures in step)"]) assert.ok(live1.includes(phrase), `README live check must say: ${phrase}`);
+  assert.doesNotMatch(README.replace(/\s+/g, " "), /makes Claude Code prompt before each one|Documented, not proven live|\*\*What prompts\.\*\*|The 135 protected leaves prompt|the native ask rules have no such window\.|If it fails, replace the globs with exact names/, "an old unqualified ask-rule claim returned: the live check disproved it");
   for (const phrase of ["`DELETE dbo.leads`", "UPDATE TOP (100) PERCENT", "FROM is optional in T-SQL", "ON DELETE CASCADE"]) assert.ok(README.includes(phrase), `README must list the T-SQL limit: ${phrase}`);
   const why = policy.rules.find((r) => r.id === "destructive-sql").why;
   assert.match(why, /the listed DROP kinds/);
@@ -762,6 +772,33 @@ test("docs truth: the live check is runnable from a worktree session, the lease 
   assert.doesNotMatch(ledger, /every DROP kind/, "the ledger row must say the listed DROP kinds");
   const total = policy.rules.reduce((n, r) => n + (r.denyExamples ?? []).length, 0); // derived, not hardcoded: the ledger and the coverage doc both quote it
   for (const phrase of ["the listed DROP kinds", `144 to ${total}`, "fast-forward", "G4 the re-review, two commits"]) assert.ok(ledger.includes(phrase), `the ledger row must say: ${phrase}`);
+  // 2026-10-15 live check: the row records the merge and the step 7 FAIL with an owner and a date
+  const cell = ledger.split("|").map((c) => c.trim());
+  assert.equal(cell[5], "MERGED", "the guard row's Status cell must be MERGED");
+  assert.ok(cell[6].includes("#3053 (b6faf90d9"), "the guard row's PR cell must name #3053 and its merge SHA");
+  for (const phrase of ["failed live step 7", "delete_prisma_postgres_database", "by 2026-10-17"]) assert.ok(cell[7].includes(phrase), `the guard row's Next cell must say: ${phrase}`);
+  assert.ok(cell[8].includes("live result 2026-10-15"), "the guard row's Lesson must carry the live result next to the 'fails closed' claim it disproved");
+});
+
+// A literal pipe inside a ledger cell (even inside backticks) is a column delimiter to a table parser: the 2026-10-15 guard row held `|` in its Job cell, read as 9 cells
+// with Status = "platform". Every row is 8 cells with a Status from the header's list; the old row fails this, the other 27 passed it when this was written.
+test("ledger: every row is eight cells and its Status is one of the header's words", () => {
+  const text = readFileSync(join(ROOT, "docs", "agent-os", "MANAGER-LEDGER.md"), "utf8");
+  const allowed = new Set(text.match(/^Status: (.+)$/m)?.[1].split(" | ") ?? []);
+  assert.ok(allowed.size >= 5 && allowed.has("MERGED"), "the ledger's Status line was not found");
+  const rows = text.split("\n").filter((l) => l.startsWith("| ") && !l.startsWith("| Job id") && !l.startsWith("|---"));
+  assert.ok(rows.length >= 28, `expected the ledger's rows, found ${rows.length}`);
+  for (const l of rows) {
+    const cells = l.split("|");
+    assert.equal(cells.length, 10, `ledger row ${l.slice(0, 40)}: ${cells.length - 2} cells, want 8 (a literal pipe in a cell splits it: reword)`);
+    assert.ok(allowed.has(cells[5].trim()), `ledger row ${l.slice(0, 40)}: Status "${cells[5].trim()}" is not one of ${[...allowed].join(", ")}`);
+  }
+  // the two jobs that merged beside the guard on 2026-10-15 and had no row (a merged job with no row is invisible to the next manager start)
+  for (const id of ["2026-10-15-pr3014-turbo-pins", "2026-10-15-branch-triage-closeout"]) {
+    const row = rows.find((l) => l.startsWith(`| ${id} |`));
+    assert.ok(row, `the ledger row ${id} is missing`);
+    assert.equal(row.split("|")[5].trim(), "MERGED", `${id} must be MERGED`);
+  }
 });
 
 // --- 9 - review fixes (2026-10-15: five review findings and one regression on the first commit) ---
