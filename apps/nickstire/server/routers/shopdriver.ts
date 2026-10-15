@@ -10,6 +10,7 @@ import { adminProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { eq, sql, desc, and, isNull } from "drizzle-orm";
 import { customers, shopSettings, customerImportLog, invoices, bookings } from "../../drizzle/schema";
+import { shopWallClock } from "../lib/timezoneAssert";
 import { db } from "../lib/db-helper";
 import { normalizePhone } from "../lib/phone";
 import { getAdminActivity } from "../lib/adminActivity";
@@ -684,6 +685,8 @@ export const shopdriverRouter = router({
           try {
             await d.insert(invoices).values({
               invoiceNumber,
+              // The shop's wall clock, not the database default (UTC): the readers compare it as the shop's day.
+              invoiceDate: shopWallClock(),
               customerName,
               customerPhone: normalizePhone(customerPhone) || customerPhone,
               vehicleInfo: vehicle,
@@ -943,6 +946,8 @@ export const shopdriverRouter = router({
 
           await d.insert(invoices).values({
             invoiceNumber,
+            // The shop's wall clock, not the database default (UTC): the readers compare it as the shop's day.
+            invoiceDate: shopWallClock(),
             customerName: getValue("customerName") || "Unknown",
             customerPhone: normalizePhone(getValue("phone") || "") || getValue("phone") || "",
             vehicleInfo: getValue("vehicle") || null,

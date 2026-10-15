@@ -31,6 +31,7 @@ import { BUSINESS } from "@shared/business";
 import { createLogger } from "../../lib/logger";
 import { db } from "../../lib/db-helper";
 import { invoices } from "../../../drizzle/schema";
+import { getBusinessDateKey, shopInstant } from "../../lib/timezoneAssert";
 
 const log = createLogger("cron:unpaid-invoice-recovery");
 
@@ -117,7 +118,7 @@ async function reportAgedOutInvoices(d: NonNullable<Awaited<ReturnType<typeof db
 
     const [claim] = await d.execute(sql`
       INSERT IGNORE INTO cron_alerts_fired (alert_key, fired_for, fired_at, payload)
-      VALUES ('unpaid_aged_out', CURDATE(), NOW(), ${JSON.stringify({ n, cents, oldestDays })})
+      VALUES ('unpaid_aged_out', ${getBusinessDateKey()}, NOW(), ${JSON.stringify({ n, cents, oldestDays })})
     `);
     if (((claim as { affectedRows?: number })?.affectedRows ?? 0) !== 1) return;
 
@@ -248,7 +249,7 @@ export async function runUnpaidInvoiceRecovery(opts?: RunOpts): Promise<Recovery
     if (sent7d + sent30d >= MAX) break;
     if (!inv.customerPhone) continue;
     try {
-      const ageDays = Math.floor((now - new Date(inv.invoiceDate).getTime()) / DAY);
+      const ageDays = Math.floor((now - shopInstant(inv.invoiceDate).getTime()) / DAY);
       // One touch per invoice per run, and the two touches are an ESCALATING
       // SEQUENCE - never go backwards.
       //

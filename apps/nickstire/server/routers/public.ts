@@ -10,6 +10,7 @@ import { runDiagnosis } from "../diagnose";
 import { generateLaborEstimate } from "../laborEstimate";
 import { z } from "zod";
 import { sanitizeText } from "../sanitize";
+import { getBusinessDateKey, shopInstant } from "../lib/timezoneAssert";
 import { cached } from "../lib/cache";
 import { desc, gte, like, or, and, sql } from "drizzle-orm";
 
@@ -258,12 +259,13 @@ export const activityRouter = router({
           invoiceDate: invoices.invoiceDate,
         })
         .from(invoices)
-        .where(gte(invoices.invoiceDate, todayStart))
+        // Invoice dates are the shop's wall clock: today is the shop's day, compared as a key.
+        .where(sql`${invoices.invoiceDate} >= ${getBusinessDateKey()}`)
         .orderBy(desc(invoices.invoiceDate))
         .limit(5);
 
       for (const j of recentJobs) {
-        const ago = Math.max(1, Math.round((Date.now() - new Date(j.invoiceDate).getTime()) / 60000));
+        const ago = Math.max(1, Math.round((Date.now() - shopInstant(j.invoiceDate).getTime()) / 60000));
         // MAKE ONLY — never the full vehicle string.
         //
         // This published `invoices.vehicleInfo` verbatim on a PUBLIC endpoint:

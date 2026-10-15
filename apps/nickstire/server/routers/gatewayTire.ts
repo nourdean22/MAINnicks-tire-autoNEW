@@ -16,6 +16,7 @@ import { TRPCError } from "@trpc/server";
 import { adminProcedure, publicProcedure, router } from "../_core/trpc";
 import { notifyTireOrder } from "../email-notify";
 import { getNextInvoiceNumber, createInvoice } from "../db";
+import { shopWallClock } from "../lib/timezoneAssert";
 import { syncInvoiceToSheet, syncTireOrderToSheet } from "../sheets-sync";
 import {
   deriveExpectedPriceCents,
@@ -735,7 +736,7 @@ export const gatewayTireRouter = router({
           paymentMethod: "other",
           paymentStatus: "pending",
           source: "manual",
-          invoiceDate: new Date(),
+          invoiceDate: shopWallClock(),
         });
         // The number the invoice was STORED under. A collision moves it to the
         // next one, and the order link, the Stripe checkout and the payment all

@@ -19,6 +19,7 @@ import { getDb } from "../../db";
 import { voiceLatencyEvents } from "../../../drizzle/schema";
 import { and, gte, eq, inArray, sql } from "drizzle-orm";
 import { createLogger } from "../../lib/logger";
+import { getBusinessDateKey } from "../../lib/timezoneAssert";
 import {
   captureVoiceLatency,
   getCurrentBreachStreak,
@@ -160,7 +161,7 @@ export async function processVapiLatencySync(): Promise<{ recordsProcessed: numb
         if (d) {
           const [claimResult] = await d.execute(sql`
             INSERT IGNORE INTO cron_alerts_fired (alert_key, fired_for, fired_at, payload)
-            VALUES ('vapi_latency_breach', CURDATE(), NOW(), ${JSON.stringify({ streak: breach.streak })})
+            VALUES ('vapi_latency_breach', ${getBusinessDateKey()}, NOW(), ${JSON.stringify({ streak: breach.streak })})
           `);
           const affected = (claimResult as { affectedRows?: number })?.affectedRows ?? 0;
           claimed = affected === 1;

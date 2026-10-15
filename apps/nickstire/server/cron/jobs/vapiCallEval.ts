@@ -9,6 +9,7 @@ import { extractCustomerTurns } from "../../services/customerTurns";
 import { extractDemand } from "@shared/callDemandExtraction";
 import { disposeCall } from "@shared/callTaxonomy";
 import { trailReachedTool } from "../../services/vapiConversionSignals";
+import { getBusinessDateKey } from "../../lib/timezoneAssert";
 import {
   buildVapiMeasurementRecord,
   deriveVapiFacts,
@@ -119,7 +120,7 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
     try {
       const [result] = await db.execute(sql`
         INSERT IGNORE INTO cron_alerts_fired (alert_key, fired_for, fired_at)
-        VALUES (${key}, CURDATE(), NOW())
+        VALUES (${key}, ${getBusinessDateKey()}, NOW())
       `);
       return ((result as { affectedRows?: number })?.affectedRows ?? 0) === 1;
     } catch {

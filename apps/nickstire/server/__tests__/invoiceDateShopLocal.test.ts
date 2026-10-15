@@ -92,3 +92,76 @@ describe("invoiceDate is read as the stored shop-local day", () => {
     expect(findUtcConversions(planted)).toEqual(["a.ts:1", "b.ts:1", "c.ts:1", "e.ts:1", "g.ts:3", "i.ts:3"]);
   });
 });
+
+/** A writer that stores the UTC clock into a shop-day column: `invoiceDate: new Date()`. */
+// approvalDate becomes invoiceDate (snapFinanceSync), so it is a shop-day write too.
+const UTC_CLOCK_WRITE = /\b(?:invoiceDate|estimateDate|approvalDate)\s*[:=][^;,\n]*\bnew Date\(\s*\)/g;
+
+function findUtcClockWrites(files: Array<{ file: string; text: string }>): string[] {
+  return files.flatMap(({ file, text }) =>
+    [...text.matchAll(UTC_CLOCK_WRITE)].map((m) => `${file}:${text.slice(0, m.index).split("\n").length}`),
+  );
+}
+
+describe("shop-day columns are written as the shop's wall clock", () => {
+  // A new Date() stores the UTC clock, so an evening row lands on the next shop day. Writers use
+  // shopWallClock() (server/lib/timezoneAssert.ts) so the stored value reads as the shop's local time.
+  it("no server writer stores new Date() into invoiceDate or estimateDate", () => {
+    const files = serverSources(SERVER).map((f) => ({ file: path.relative(SERVER, f), text: readFileSync(f, "utf8") }));
+    expect(files.length).toBeGreaterThan(200);
+    expect(findUtcClockWrites(files)).toEqual([]);
+  });
+
+  it("the scan catches a planted UTC-clock writer and passes the wall-clock form", () => {
+    const planted = [
+      { file: "w.ts", text: "await db.insert(invoices).values({ invoiceDate: new Date(), paymentStatus: 'paid' })" },
+      { file: "x.ts", text: "values({ invoiceDate: shopWallClock(), estimateDate: input.when })" },
+      { file: "y.ts", text: "values({\n  estimateDate: new Date() })" },
+      { file: "z.ts", text: "estimateDate: dateCell ? new Date(dateCell) : new Date()," },
+      { file: "v.ts", text: "const estimateDate = Number.isNaN(p.getTime()) ? new Date() : p;" },
+    ];
+    expect(findUtcClockWrites(planted)).toEqual(["w.ts:1", "y.ts:2", "z.ts:1", "v.ts:1"]);
+  });
+});
+
+/**
+ * An invoice insert whose object literal does not name invoiceDate. The column's database default is the
+ * UTC clock, so such a row lands on the UTC day (the ShopDriver inserts did this until 2026-10-14).
+ */
+const INVOICE_INSERT = /\.insert\(\s*(?:invoices|invoicesTable)\s*\)\s*\.values\(\s*\{/g;
+
+/** The object literal opened at `open`, matched by brace depth (a `})` inside a template string is not its end). */
+function literalAt(text: string, open: number): string {
+  let depth = 0;
+  for (let i = open; i < text.length; i++) {
+    if (text[i] === "{") depth++;
+    else if (text[i] === "}" && --depth === 0) return text.slice(open, i + 1);
+  }
+  return text.slice(open, open + 1000);
+}
+
+function findInvoiceInsertsWithoutDate(files: Array<{ file: string; text: string }>): string[] {
+  const hits: string[] = [];
+  for (const { file, text } of files) {
+    for (const m of text.matchAll(INVOICE_INSERT)) {
+      const open = (m.index ?? 0) + m[0].length - 1;
+      if (!/\binvoiceDate\b/.test(literalAt(text, open))) hits.push(`${file}:${text.slice(0, m.index).split("\n").length}`);
+    }
+  }
+  return hits;
+}
+
+describe("every invoice insert names its date", () => {
+  it("no server insert into invoices leaves invoiceDate to the UTC database default", () => {
+    const files = serverSources(SERVER).map((f) => ({ file: path.relative(SERVER, f), text: readFileSync(f, "utf8") }));
+    expect(findInvoiceInsertsWithoutDate(files)).toEqual([]);
+  });
+
+  it("the scan catches a planted insert that omits the date, and passes one that names it", () => {
+    const planted = [
+      { file: "a.ts", text: "await d.insert(invoices).values({\n  invoiceNumber,\n  totalAmount: 1,\n});" },
+      { file: "b.ts", text: "await d.insert(invoices).values({ invoiceNumber, invoiceDate: shopWallClock() });" },
+    ];
+    expect(findInvoiceInsertsWithoutDate(planted)).toEqual(["a.ts:1"]);
+  });
+});
