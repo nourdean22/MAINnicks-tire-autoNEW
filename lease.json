@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "chore/ledger-expiry-warning",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "6c1fa6eb-1e50-4a3e-a697-2f3d556c1ad0",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\gifted-yonath-dc1bd6",
+  "claimedBy": "ledger expiry lead-time warning in check-capability-ledger.mjs (warn-only, exit codes unchanged)",
+  "claimedAt": "2026-10-15T01:36:59.173Z",
+  "expiresAt": "2026-10-15T13:36:59.173Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
