@@ -22,9 +22,15 @@
  *      follow — the false-positive class is designed out, not hoped away)
  * Plus the hardest tripwire: a tool with NO catalog entry is mutating by
  * definition — unknown ≠ safe.
+ *
+ * And the default: a tool is read-safe only if it is on the reviewed list
+ * (lib/ai/tools/read-only-tools.ts). The tripwires are heuristics, and
+ * scheduleFollowUp / setOKRs / runPython all wrote past them for a while; a
+ * tool nobody has reviewed is "unreviewed", which is not read-safe.
  */
 
 import { TOOL_CATALOG, type ToolMeta } from "@/lib/ai/tools/catalog";
+import { READ_ONLY_TOOLS } from "@/lib/ai/tools/read-only-tools";
 
 /** Categories whose tools mutate state or reach outward by design. */
 export const WRITE_CATEGORIES: ReadonlySet<string> = new Set([
@@ -57,6 +63,7 @@ export interface ToolClassification {
     | "side_effecting_flag"
     | "write_category"
     | "mutating_name"
+    | "unreviewed"
     | "not_in_catalog";
 }
 
@@ -69,6 +76,8 @@ export function classifyTool(name: string): ToolClassification {
     return { readSafe: false, reason: "write_category" };
   if (MUTATING_PREFIX.test(name))
     return { readSafe: false, reason: "mutating_name" };
+  if (!READ_ONLY_TOOLS.has(name))
+    return { readSafe: false, reason: "unreviewed" };
   return { readSafe: true, reason: "read_safe" };
 }
 

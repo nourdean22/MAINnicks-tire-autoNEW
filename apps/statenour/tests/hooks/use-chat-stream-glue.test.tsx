@@ -333,6 +333,19 @@ describe("Retry never re-runs a turn that ran a side-effecting tool", () => {
     },
   );
 
+  // These executors write but are neither flagged, in a *_write category nor
+  // (for the receipt classifier) named like a write; they counted as reads.
+  it.each(["setMit", "clearMit", "setOKRs", "setWeeklyTargets", "scheduleFollowUp", "queueDeepResearch", "runPython"])(
+    "refuses a live turn with %s, a tool that writes and used to count as a read",
+    (toolName) => {
+      h.chat.messages = [user, { id: "live-1", role: "assistant", parts: [{ type: `tool-${toolName}` }, { type: "text", text: "Done." }] }];
+      h.chat.status = "ready";
+      render();
+      act(() => void ctl.regenerate());
+      expect(h.chat.regenerate).not.toHaveBeenCalled();
+    },
+  );
+
   it.each([
     ["a tool the catalog has never heard of", { type: "tool-notInTheCatalog" }],
     ["a dynamic tool (its name is never in the catalog)", { type: "dynamic-tool", toolName: "pushToShop" }],

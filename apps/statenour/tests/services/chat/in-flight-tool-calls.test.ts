@@ -54,6 +54,10 @@ describe("a trustworthy snapshot", () => {
     });
   });
 
+  it.each(["setMit", "clearMit", "runPython"])("a tool-call for %s, which writes without a write flag, is recorded as a write", (toolName) => {
+    expect(trustedRows(call(toolName))[0]).toMatchObject({ toolName, sideEffecting: true });
+  });
+
   it("the effect class comes from the classifier, not from whether a result arrived", () => {
     const withoutResult = trustedRows(call("createTask"));
     const withResult = trustedRows(call("createTask"), result("createTask"));

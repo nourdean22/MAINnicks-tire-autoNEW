@@ -31,6 +31,7 @@
  */
 
 import { getToolMeta } from "@/lib/ai/tools/catalog";
+import { isReadSafeTool } from "@/lib/ai/capability-registry";
 import { MUTATION_ACTIONS } from "@/lib/ai/chat/action-result-verifier";
 import type { OperationState } from "@/lib/ai/chat/turn-control-plane";
 
@@ -114,8 +115,9 @@ export interface RawActionResult {
  *
  * Broader than the catalog's `sideEffecting` flag (which is the narrow
  * "needs approval / external write" notion). For action honesty we also count
- * any `*_write` category (createTask, completeTask, pinMemory, journalDecision,
- * …) and every action-block MUTATION. Pure reads stay false.
+ * every `*_write` category (createTask, completeTask, pinMemory, journalDecision,
+ * …), every action-block MUTATION, and any catalog tool not on the reviewed
+ * read-only list (lib/ai/tools/read-only-tools.ts).
  */
 export type ToolEffectClass = "write" | "read" | "unknown";
 
@@ -134,16 +136,14 @@ export type ToolEffectClass = "write" | "read" | "unknown";
  */
 export function classifyToolEffect(toolName: string): ToolEffectClass {
   if (MUTATION_ACTIONS.has(toolName)) return "write";
-  const meta = getToolMeta(toolName);
-  if (!meta) return "unknown";
-  return meta.sideEffecting === true || meta.category.endsWith("_write") ? "write" : "read";
+  if (!getToolMeta(toolName)) return "unknown";
+  // Default-deny, one source with read mode: a catalog tool is a read only when
+  // the capability registry says so (reviewed list, no write tripwire).
+  return isReadSafeTool(toolName) ? "read" : "write";
 }
 
 export function isSideEffecting(toolName: string): boolean {
-  if (MUTATION_ACTIONS.has(toolName)) return true;
-  const meta = getToolMeta(toolName);
-  if (!meta) return false;
-  return meta.sideEffecting === true || meta.category.endsWith("_write");
+  return classifyToolEffect(toolName) === "write";
 }
 
 /** Tiny deterministic id (djb2) — no crypto import, stable for tests. */
