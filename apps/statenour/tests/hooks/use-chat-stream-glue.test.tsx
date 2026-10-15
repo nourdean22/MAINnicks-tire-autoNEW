@@ -433,19 +433,123 @@ describe("Retry never re-runs a turn that ran a side-effecting tool", () => {
 
     it.each([
       ["receipts that are all reads", erroredRow({ toolReceipts: [receiptRow("searchMemories", false), receiptRow("getRevenueStats", false)] })],
-      ["a recorded empty list: no tool ran", erroredRow({ toolReceipts: [] })],
+      ["an empty receipts list and plain text (no SDK tool ran, no action block)", erroredRow({ toolReceipts: [] })],
     ])("CONTROL: still regenerates an errored turn with %s", (_label, row) => {
       retry(row);
       expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
     });
   });
 
-  it("CONTROL: a reloaded complete turn with no receipts still regenerates", () => {
-    h.chat.messages = [user, { id: "db-4", role: "assistant", parts: [{ type: "text", text: "Here is the plan." }], streamingState: "complete", tokenUsage: { traceId: "T0" } }];
+  // A persisted row (it carries its own streamingState) with no receipts array is
+  // UNKNOWN, not clean: every row from before receipts were stored, every
+  // fast-path and specialist reply, and any row whose toolReceipts is not an
+  // array. Over-refusal here is the accepted price of failing closed.
+  describe("a persisted row with no receipts array is unknown", () => {
+    const persisted = (extra: Record<string, unknown>) => ({
+      id: "db-4",
+      role: "assistant",
+      parts: [{ type: "text", text: "Here is the plan." }],
+      streamingState: "complete",
+      ...extra,
+    });
+    const retry = (row: unknown) => {
+      h.chat.messages = [user, row];
+      h.chat.status = "ready";
+      render();
+      vi.mocked(toast.error).mockClear();
+      act(() => void ctl.regenerate());
+    };
+
+    it.each([
+      ["a complete row whose tokenUsage has no toolReceipts", persisted({ tokenUsage: { traceId: "T0" } })],
+      ["a complete row with no tokenUsage at all", persisted({ tokenUsage: null })],
+      ["a refused row with no receipts", persisted({ streamingState: "refused", tokenUsage: { traceId: "T0" } })],
+      ["toolReceipts that is an object, not an array", persisted({ tokenUsage: { toolReceipts: { toolName: "createTask" } } })],
+      ["toolReceipts that is a string", persisted({ tokenUsage: { toolReceipts: "none" } })],
+    ])("refuses %s", (_label, row) => {
+      retry(row);
+      expect(h.chat.regenerate).not.toHaveBeenCalled();
+      expect(vi.mocked(toast.error)).toHaveBeenCalledTimes(1);
+    });
+
+    // Pinned separately from the rule above: these shapes carry no streamingState
+    // (a bubble) or already hold an array, so only the marker and the malformed
+    // value checks can refuse them.
+    it("refuses the marker even beside a clean receipts array (a contradiction is not a green light)", () => {
+      retry(persisted({ tokenUsage: { receiptsUnavailable: true, toolReceipts: [] } }));
+      expect(h.chat.regenerate).not.toHaveBeenCalled();
+    });
+
+    it("refuses a bubble with no streamingState whose tokenUsage carries the marker", () => {
+      retry({ id: "live-5", role: "assistant", parts: [{ type: "text", text: "Done." }], tokenUsage: { receiptsUnavailable: true } });
+      expect(h.chat.regenerate).not.toHaveBeenCalled();
+    });
+
+    it.each([["an object", { toolName: "createTask" }], ["a string", "none"], ["a number", 0]])(
+      "refuses a bubble with no streamingState whose toolReceipts is %s",
+      (_label, toolReceipts) => {
+        retry({ id: "live-6", role: "assistant", parts: [{ type: "text", text: "Done." }], tokenUsage: { toolReceipts } });
+        expect(h.chat.regenerate).not.toHaveBeenCalled();
+      },
+    );
+
+    it("CONTROL: a complete row whose receipts array is empty (a text-only reply) still regenerates", () => {
+      retry(persisted({ tokenUsage: { toolReceipts: [] } }));
+      expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
+    });
+
+    it("CONTROL: a live bubble (no streamingState, no tokenUsage) with text only still regenerates", () => {
+      retry({ id: "live-9", role: "assistant", parts: [{ type: "text", text: "Here is the plan." }] });
+      expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // A reply that carries an ```action block (or an [ACTION: {...}] marker) is
+  // parsed and executed AFTER the stream, with no tool part and no receipt, so a
+  // recorded [] does not mean nothing ran. The stored text keeps the block.
+  describe("a reply whose text carries an action block is not replayable", () => {
+    const FENCED = '```action\n{"type":"task.create","params":{"title":"Call Mike"}}\n```';
+    const INLINE = 'Done. [ACTION: {"type":"decision.log","params":{"title":"x"}}]';
+    const MALFORMED = '```action\n{"type": "task.create", "params": \n```';
+    const retry = (row: unknown) => {
+      h.chat.messages = [user, row];
+      h.chat.status = "ready";
+      render();
+      vi.mocked(toast.error).mockClear();
+      act(() => void ctl.regenerate());
+    };
+
+    it.each([
+      ["a fenced block", FENCED],
+      ["an inline marker", INLINE],
+      ["a malformed block (it may still have been parsed)", MALFORMED],
+    ])("refuses a reloaded row with %s even though toolReceipts is []", (_label, text) => {
+      retry({ id: "db-6", role: "assistant", parts: [{ type: "text", text }], streamingState: "complete", tokenUsage: { toolReceipts: [] } });
+      expect(h.chat.regenerate).not.toHaveBeenCalled();
+      expect(vi.mocked(toast.error)).toHaveBeenCalledTimes(1);
+    });
+
+    it("refuses a live bubble with a fenced block", () => {
+      retry({ id: "live-7", role: "assistant", parts: [{ type: "text", text: FENCED }] });
+      expect(h.chat.regenerate).not.toHaveBeenCalled();
+    });
+
+    it("CONTROL: text that merely mentions an action still regenerates", () => {
+      retry({ id: "db-8", role: "assistant", parts: [{ type: "text", text: "The next action is to call Mike back." }], streamingState: "complete", tokenUsage: { toolReceipts: [] } });
+      expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // Fast-path replies (brain dump, /save, a logged decision, a generated image)
+  // write without a tool part or a receipt. Their bubble carries
+  // metadata.receiptsUnavailable from the stream's start chunk, and their row
+  // stores tokenUsage.receiptsUnavailable.
+  it("refuses a live fast-path bubble (metadata.receiptsUnavailable), which has no tool part and no tokenUsage", () => {
+    h.chat.messages = [user, { id: "dec_1", role: "assistant", parts: [{ type: "text", text: "Logged." }], metadata: { receiptsUnavailable: true } }];
     h.chat.status = "ready";
     render();
     act(() => void ctl.regenerate());
-    expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
+    expect(h.chat.regenerate).not.toHaveBeenCalled();
   });
 
   it("a refused Retry leaves the pending partial re-resume alone", () => {

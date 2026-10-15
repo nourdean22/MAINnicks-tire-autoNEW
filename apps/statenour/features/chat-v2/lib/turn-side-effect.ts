@@ -1,5 +1,6 @@
 import type { UIMessage } from "ai";
 import { classifyToolEffect } from "@/lib/ai/receipts/action-receipt";
+import { hasActionBlock } from "@/lib/ai/chat/action-block-text";
 import { isResumedMessage } from "@/hooks/chat/use-chat-transport";
 
 /**
@@ -15,32 +16,49 @@ function livePartMayHaveWritten(part: { type?: unknown; toolName?: unknown }): b
   return classifyToolEffect(type.slice("tool-".length)) !== "read";
 }
 
+function textCarriesActionBlock(part: { type?: unknown; text?: unknown }): boolean {
+  return part.type === "text" && typeof part.text === "string" && hasActionBlock(part.text);
+}
+
 /**
  * Did this assistant turn run (or may it have run) a side-effecting tool?
  * Regenerate replays the whole turn, tools included, so a yes means a replay
- * could send the SMS, quote or payment a second time.
+ * could send the SMS, quote or payment a second time. Anything the gate cannot
+ * vouch for counts as yes.
  *
- * Three signals, because no single one survives every path:
+ * Signals, because no single one survives every path:
  *   - a live turn carries tool parts, judged by the same classifier the
  *     persisted receipts use (write, or a tool it cannot place, counts);
  *   - a resumed bubble holds replayed text only, so it cannot show what ran
  *     and counts as yes (P2-B6);
- *   - a reloaded turn has no tool parts at all; the persisted
- *     tokenUsage.toolReceipts (loaded at the top level by use-conversations)
- *     is the only record of what ran. A receipt that mutates, or that the
- *     classifier could not place (verifiable false), counts as yes. So does
- *     tokenUsage.receiptsUnavailable, which the errored-turn writer
- *     (stream-error-handler) stores when it cannot vouch for what ran, and a
- *     turn that did not finish with no receipts array at all.
+ *   - a reply whose text carries an action block: the agent layer runs it after
+ *     the stream, with no tool part and no receipt, so even a recorded []
+ *     does not mean nothing ran;
+ *   - a fast-path reply (brain dump, /save, a logged decision, an image) writes
+ *     with no receipt. Its bubble carries metadata.receiptsUnavailable (from the
+ *     stream's start chunk) and its row tokenUsage.receiptsUnavailable, which
+ *     the errored-turn writer (stream-error-handler) also stores when it cannot
+ *     vouch for what ran;
+ *   - a persisted row (it has its own streamingState) is judged by
+ *     tokenUsage.toolReceipts, loaded at the top level by use-conversations. A
+ *     receipt that mutates, or that the classifier could not place (verifiable
+ *     false), counts as yes. A row with no receipts ARRAY is unknown: rows from
+ *     before receipts were stored, fast-path and specialist rows, a malformed
+ *     value. An empty array is the one honest "no SDK tool ran".
  */
 export function turnHasSideEffect(message: UIMessage): boolean {
   if (isResumedMessage(message)) return true;
   const row = message as {
     streamingState?: unknown;
     tokenUsage?: { toolReceipts?: unknown; receiptsUnavailable?: unknown } | null;
+    metadata?: { receiptsUnavailable?: unknown } | null;
   };
+  if (row.metadata?.receiptsUnavailable === true) return true;
   if (row.tokenUsage?.receiptsUnavailable === true) return true;
+  const parts = (message.parts ?? []) as Array<{ type?: unknown; toolName?: unknown; text?: unknown }>;
+  if (parts.some(textCarriesActionBlock)) return true;
   const receipts = row.tokenUsage?.toolReceipts;
+  if (receipts != null && !Array.isArray(receipts)) return true;
   if (
     Array.isArray(receipts) &&
     receipts.some((r) => {
@@ -50,7 +68,6 @@ export function turnHasSideEffect(message: UIMessage): boolean {
   ) {
     return true;
   }
-  const unfinished = typeof row.streamingState === "string" && row.streamingState !== "complete" && row.streamingState !== "refused";
-  if (unfinished && !Array.isArray(receipts)) return true;
-  return (message.parts ?? []).some((part) => livePartMayHaveWritten(part as { type?: unknown; toolName?: unknown }));
+  if (typeof row.streamingState === "string" && !Array.isArray(receipts)) return true;
+  return parts.some(livePartMayHaveWritten);
 }

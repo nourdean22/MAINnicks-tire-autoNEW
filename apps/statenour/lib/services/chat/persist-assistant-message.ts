@@ -574,8 +574,10 @@ export async function persistAssistantMessage(a: {
               // ran, whether it mutates, how far it was verified. No args, no
               // results — both can carry secrets or PII. Read by
               // lib/observability/claim-done-calibration.ts the same day.
-              // Always an array: [] records "no tool ran", so the Retry gate can tell it from
+              // Always an array: [] records "no SDK tool ran", so the Retry gate can tell it from
               // a row with no receipts at all (unknown, e.g. an aborted row or one older than this field).
+              // An action block in the reply text runs after this write and leaves no receipt, so the
+              // gate reads the text too; [] does not vouch for those.
               toolReceipts: (toolReceiptRows(receipts) as Prisma.InputJsonValue),
               factCheck: factClaims.length > 0
                 ? {
