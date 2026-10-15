@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "claude/hello-23f8b4",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "d37a1982-6ae0-48f5-8d31-d27a2fbe7c24",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\hello-23f8b4",
+  "claimedBy": "",
+  "claimedAt": "2026-10-15T00:24:59.312Z",
+  "expiresAt": "2026-10-15T12:24:59.312Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
