@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "chore/manager-skill-upgrade",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "e785b1de-dca5-4158-a8cc-88d2213968a9",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\affectionate-chaum-1606d4",
+  "claimedBy": "2026-10-15-manager-skill-upgrade",
+  "claimedAt": "2026-10-15T12:45:27.089Z",
+  "expiresAt": "2026-10-16T00:45:27.089Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
