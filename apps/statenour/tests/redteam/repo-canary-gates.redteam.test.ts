@@ -208,7 +208,9 @@ describe("deep-link-targets · the gate fires", () => {
     const v = sweepWith({ "lib/__redteam_probe__.ts": 'sendTelegram("Check cameras at bdnick.info/cameras");' });
     expect(v.red).toBe(true);
     expect(v.message).toContain("lib/__redteam_probe__.ts -> /cameras");
-  });
+    // Two synchronous sweeps of the real tree: a few seconds on a quiet machine, over the
+    // default 20 s on a saturated one (measured under an 8-core burner, 2026-10-15).
+  }, 120_000);
 
   it.each([
     ["URL form", "sendTelegram(`Check at bdnick.info/cameras`);", ["/cameras"]],
