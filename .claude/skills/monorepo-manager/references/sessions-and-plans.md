@@ -2,10 +2,13 @@
 
 ## Plan mode: two alternatives, the 10x option, kill criteria
 
-The best idea of the 2026-10-15 guard job was not in the first plan. The first plan was more hook code for the
-infrastructure MCP tools. The better design, native `permissions.ask` rules, came from reading the primary docs: an explicit
-ask rule still prompts under `bypassPermissions`, there is no JavaScript to crash, and a prompt nobody can answer is denied.
-A plan with one option cannot find that. Every Plan-mode plan in chat has:
+The 2026-10-15 guard job shows why a plan has two options and a consumer check. The first plan was more hook code for the
+infrastructure MCP tools. A second option, native `permissions.ask` rules, came from reading the primary docs: an explicit ask
+rule prompts under `bypassPermissions`, there is no JavaScript to crash, and a prompt nobody can answer is denied (FACT in the guard
+session, which read the page; a CLAIM for you until you read it). The 135 rules were written, and their live check on 2026-10-15 showed
+no prompt for Railway delete-service, Vercel pause_project or Prisma delete_prisma_postgres_database (CLAIM: the guard session's live
+check, cause not yet separated; it plans a hook-based deny next). A plan with one option cannot find the alternative, and a plan with
+no consumer check (step 12) cannot find that the alternative gates nothing. Every Plan-mode plan in chat has:
 
 1. **Outcome and proof** in two lines: what is true when done, and the command or observation that shows it.
 2. **Two alternatives that differ in kind**, not in size (build, reuse, platform feature, delete). One line each: what it

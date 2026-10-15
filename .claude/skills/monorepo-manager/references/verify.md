@@ -124,9 +124,12 @@ Decision-critical means the fact would change a design or a guard's behavior. Re
 words, record the URL and date, and label it. Put the label in the PR body.
 
 Witness: whether an explicit ask rule still prompts under `bypassPermissions`. An agent summary said NOT DOCUMENTED (CLAIM, from
-the job brief). The Claude Code docs, read on 2026-10-15, settled it (CLAIM for you: the commit body `6ba98aa6b`, unpushed, records the reading), and that reading
-produced the best idea of the job: native `permissions.ask` rules instead of more hook code. The rule: search the page for the term before you accept
-"not documented"; if the page cannot be read, the answer is UNKNOWN and the design says so.
+the job brief). The Claude Code docs, read on 2026-10-15, said it does (FACT in the guard session, which quoted the page; a CLAIM for you: the commit body
+`6ba98aa6b`, unpushed, records the reading), and that led to native `permissions.ask` rules instead of more hook code. The live check of
+those rules then showed no prompt for Railway delete-service, Vercel pause_project or Prisma delete_prisma_postgres_database in a
+`bypassPermissions` session (CLAIM: the guard session's live check, cause not yet separated). So a quote is evidence about the docs, not about
+the thing: step 12 is what says it is constrained. The rule: search the page for the term before you accept "not documented"; if the page
+cannot be read, the answer is UNKNOWN and the design says so.
 
 ## Consumer check (step 12)
 
@@ -137,7 +140,9 @@ An enforcement change is not done when its canaries pass; it is done when the th
    permission rules from the PRIMARY checkout's `.claude/settings.json` (originCwd), not from the worktree. Measured 2026-10-15 by
    the manager session and relayed here (CLAIM, not re-measured): a live check run in a worktree cut from the guard branch tested the
    primary's older settings and looked like a failure of the new hooks and ask rules. The tell is the SessionStart hook output, which
-   reports the primary's branch and HEAD. Project skills are different: a `claude -p` started in a worktree loaded the worktree's own
+   reports the primary's branch and HEAD. The later check, run in a fresh session once the primary had the merge, separated the two
+   (the guard session's verdict line, CLAIM: "LIVE CHECK b6faf90d9: steps 1-4 PASS, 5-6 PASS, 7 FAIL"; step 7 is the ask-rule probe): the
+   hooks and runner rows passed and the 135 ask rules still gave no prompt, so that was a real failure of the rules, not only a settings artifact. Project skills are different: a `claude -p` started in a worktree loaded the worktree's own
    `.claude/skills` (FACT, `forge.mjs prove`).
 2. So a pre-merge live check of hooks or permission rules cannot be done from a worktree. Do it after the merge, once the primary
    has the change (`git -C <primary> merge --ff-only`), in a FRESH session (hooks load when a session starts), and read
