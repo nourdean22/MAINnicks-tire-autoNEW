@@ -18,7 +18,7 @@ add Claude-only notes on top of it — and nickstire's also indexes that app's c
 
 ## Claude-specific
 
-- **Skills** (`.claude/skills/`, 57: 38 repo-specific + 19 always-on stance files; invoke by exact name). `nour-command` is the
+- **Skills** (`.claude/skills/`, 58: 39 repo-specific + 19 always-on stance files; invoke by exact name). `nour-command` is the
   cross-cutting router; each `SKILL.md` carries
   its own full trigger and rationale; this is only the index for picking one.
   - Before commit/push → **statenour-verify** · **nickstire-verify**; writing any report → **answer-first**;
@@ -33,8 +33,8 @@ add Claude-only notes on top of it — and nickstire's also indexes that app's c
   - Confirm/alert/prompt UI in EITHER PWA → **nickstire-ios-pwa-primitives**.
   - Reel content → **nickstire-reel-operator**; reel *pipeline code* →
     **nickstire-verifier-reel-pipeline**.
-  - A pasted plan/audit/roadmap → **plan-gate**. "Turn this book/doc/repo into a skill" →
-    **source-to-skill**. "Which skills actually fire?" → **skill-fire-audit**.
+  - A pasted plan/audit/roadmap → **plan-gate**. "Turn this book/doc/repo into a skill" → **source-to-skill**.
+    "Which skills actually fire?" → **skill-fire-audit**. Creating a skill, or rewriting a skill's description → **skill-forge**.
   - A read that RENDERS or SCORES → **empty-vs-error**; adding a WRITER (header, env var,
     column, tool registration) → **assert-the-consumer**; a new test or canary →
     **positive-control-first**; a new table/queue/tool/flag → **prior-art-grep**; a filtered ratio → **base-rate-check**.

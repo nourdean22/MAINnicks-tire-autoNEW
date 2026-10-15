@@ -67,7 +67,7 @@ Proof: live endpoint or log line showing recovery.
 ## P8. End of a wave or session
 
 1. `statenour-wave-reconcile` (statenour) or update `apps/<app>/.remember/now.md`.
-2. One row in `docs/agent-os/MANAGER-LEDGER.md` if the manager ran the job.
+2. If the manager ran the job: one row in `docs/agent-os/MANAGER-LEDGER.md` written as `MERGED` with PR cell `this PR` (never `pending`), plus one row in `docs/agent-os/MANAGER-METRICS.md`, both in the PR that merges.
 3. `session-observer`: propose skill fixes for anything that went wrong twice.
 4. Memory: run `LOOPS.md` > Memory loop.
 Proof: ledger row and handoff note committed in the same PR.
