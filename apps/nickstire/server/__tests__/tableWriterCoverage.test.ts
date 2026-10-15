@@ -35,7 +35,6 @@ const APP = join(__dirname, "..", "..");
  */
 const KNOWN_WRITERLESS: Record<string, string> = {
   // audit findings
-  payments: "F-3 · read once as the refund-lookup fallback; a writer never existed. Retire or wire (audit 2026-09-01).",
   customer_testimonials: "F-5 · created on demand and read by the evidence engine; no entry surface was ever built.",
   vehicles: "F-16 · zero readers and zero writers since the monorepo began; retired by 0117 (operator-gated).",
   inventory: "artifact 4 §2.7 · no inventory loop exists; the low-stock cron reads it with a 'no table' fallback.",
