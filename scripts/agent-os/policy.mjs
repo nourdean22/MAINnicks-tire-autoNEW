@@ -89,12 +89,16 @@ export function preprocessCommand(command) {
 /**
  * @returns {{denied: boolean, rule?: object}} — the FIRST matching rule wins.
  */
-export function evaluate({ toolName, command = "", filePath = "", cwd = "", skipRules }, policy) {
-  const processed = command ? preprocessCommand(command) : command;
+export function evaluate({ toolName, command = "", filePath = "", cwd = "", skipRules, onlyRules, rawText }, policy) {
+  // rawText comes only from a validated mcpAdapters row: the text is SQL, not a shell command, so the shell neutraliser
+  // (it erases the quoted argument after -m/-b/-t/--message/--title/--body, which in SQL can hold statements) and the
+  // read-only-search skip do not apply to it.
+  const processed = rawText === true ? command : command ? preprocessCommand(command) : command;
 
   for (const rule of policy.rules) {
-    // skipRules comes only from a validated mcpAdapters row (exceptRules), never from tool input
+    // skipRules and onlyRules come only from a validated mcpAdapters row (exceptRules, onlyRules), never from tool input
     if (Array.isArray(skipRules) && skipRules.includes(rule.id)) continue;
+    if (Array.isArray(onlyRules) && !onlyRules.includes(rule.id)) continue;
     if (Array.isArray(rule.tools) && !rule.tools.includes(toolName)) continue;
 
     if (rule.onlyWhenCwdMatches) {
@@ -127,10 +131,12 @@ export function evaluate({ toolName, command = "", filePath = "", cwd = "", skip
 // a string or a LIST of strings (each element judged on its own, see ARRAY_MAX).
 const NATIVE_TOOLS = new Set(["Bash", "PowerShell", "Write", "Edit", "NotebookEdit"]);
 
-// A forbidden command is short; a multi-megabyte field is a paste. The backtracking rules
-// (destructive-sql rescans to the end of the text from every start) are quadratic on it, which would
-// run the hook into its 10 s timeout, and a timeout fails OPEN silently. Judge the head and the tail
-// instead, EACH ON ITS OWN: joining them would build a token sequence the field never held.
+// A forbidden command is short; a multi-megabyte field is a paste. A row that runs EVERY rule judges at most FIELD_CAP
+// characters of a field: some rules backtrack (a scan to the end of the command from many starts) and a hook timeout
+// fails OPEN silently. A longer field is judged as its head and its tail, EACH ON ITS OWN: joining them would build a
+// token sequence the field never held. A row with a valid onlyRules runs destructive-sql alone, whose every scan is
+// anchored or bounded (README "How destructive-sql reads SQL"), so such a field is judged WHOLE up to
+// SQL_FIELD_CAP (= ARRAY_CHAR_BUDGET) characters and sliced only beyond that.
 export const FIELD_CAP = 20000;
 // move_file of a DIRECTORY: names below it are judged as paths written at the destination.
 export const WALK_MAX_ENTRIES = 2000;
@@ -152,48 +158,54 @@ function stringField(input, name) {
 // (null, numbers, objects, nested lists) are ignored: the tool's own schema rejects them.
 export const ARRAY_MAX = 2000;
 export const ARRAY_CHAR_BUDGET = 1_000_000;
+export const SQL_FIELD_CAP = ARRAY_CHAR_BUDGET;
 const ARRAY_CAP_LINE = "[agent-os] pretool MCP adapter: array field over the judging budget, elements beyond it not judged";
 
-/** One string as the slices to judge: itself within the cap, else its head and its tail. `at` extends the provenance. */
-function textSlices(text, at) {
+/** One string as the slices to judge: itself within `cap`, else its head and its tail. `at` extends the provenance. */
+function textSlices(text, at, cap) {
   if (text === "") return [];
-  if (text.length <= FIELD_CAP) return [{ text, part: at }];
-  const half = FIELD_CAP / 2;
+  if (text.length <= cap) return [{ text, part: at }];
+  const half = cap / 2;
   return [
     { text: text.slice(0, half), part: `${at}#head` },
     { text: text.slice(-half), part: `${at}#tail` },
   ];
 }
 
-function arraySlices(list, report) {
+function arraySlices(list, report, cap) {
   const out = [];
   let chars = 0;
   for (let i = 0; i < list.length; i++) {
-    // The first element that does not fit ends the judging: in order, never a later small one after a skipped big one.
     if (i >= ARRAY_MAX) return report(ARRAY_CAP_LINE), out;
     if (typeof list[i] !== "string") continue;
-    const slices = textSlices(list[i], `[${i}]`);
-    const size = slices.reduce((n, s) => n + s.text.length, 0);
-    if (chars + size > ARRAY_CHAR_BUDGET) return report(ARRAY_CAP_LINE), out;
-    chars += size;
+    // An element is judged within what is left of the budget: whole if it fits, else as head and tail slices of the
+    // remainder (a huge statement after a small one is judged, not skipped), and then nothing is left. In order, never
+    // a later small element after a skipped big one.
+    const room = ARRAY_CHAR_BUDGET - chars;
+    if (room < 2) return report(ARRAY_CAP_LINE), out;
+    const limit = Math.min(cap, room);
+    const slices = textSlices(list[i], `[${i}]`, limit);
+    chars += slices.reduce((n, s) => n + s.text.length, 0);
     out.push(...slices);
+    if (list[i].length > limit && limit === room) return report(ARRAY_CAP_LINE), out;
   }
   return out;
 }
 
 /** A field's text as the slices to judge: a string, or each string element of a list. */
-function fieldSlices(input, name, report) {
+function fieldSlices(input, name, report, cap) {
   const v = typeof name === "string" ? input[name] : undefined;
-  if (Array.isArray(v)) return arraySlices(v, report);
-  return typeof v === "string" ? textSlices(v, "") : [];
+  if (Array.isArray(v)) return arraySlices(v, report, cap);
+  return typeof v === "string" ? textSlices(v, "", cap) : [];
 }
 
 // Text typed into a running process may be bare SQL for a psql REPL that an earlier call started, and the SQL text
 // tools (Neon run_sql, Prisma execute_sql_query ...) receive bare SQL too. destructive-sql needs a client word on
 // the line. clientHint supplies that word, except for a single read-only search (rg, grep, cat ...), which stays a
-// search: mention is not execution.
-function hinted(row, text) {
-  return row.clientHint && preprocessCommand(text) !== null ? `${row.clientHint} ${text}` : text;
+// search: mention is not execution. A rawText row (the SQL text tools) always gets the hint: its text is SQL, and
+// SQL that merely STARTS like a search command is still SQL.
+function hinted(row, text, raw) {
+  return row.clientHint && (raw || preprocessCommand(text) !== null) ? `${row.clientHint} ${text}` : text;
 }
 
 const EXEMPTION_LINE = "[agent-os] pretool MCP adapter problem (exemption ignored, every rule applies):";
@@ -210,6 +222,33 @@ function exemption(row, policy, report) {
     return undefined;
   }
   return list;
+}
+
+const ONLY_LINE = "[agent-os] pretool MCP adapter problem (onlyRules ignored, every rule applies):";
+const RAW_LINE = "[agent-os] pretool MCP adapter problem (rawText ignored, the shell neutraliser applies):";
+
+// onlyRules is the reverse of exceptRules: the ONLY rule ids a row's calls are judged by, so a rule added later does not
+// silently apply to text that is not a shell command (the SQL text tools: onlyRules ["destructive-sql"]). Same posture
+// as exemption(): a malformed list or an unknown id is reported and the field IGNORED, so every rule applies. A mistake
+// here can only add denials.
+function onlyList(row, policy, report) {
+  if (row.onlyRules === undefined) return undefined;
+  const list = row.onlyRules;
+  const known = new Set((Array.isArray(policy.rules) ? policy.rules : []).map((r) => r.id));
+  if (!Array.isArray(list) || list.length === 0 || list.some((id) => typeof id !== "string" || !known.has(id))) {
+    report(`${ONLY_LINE} adapter ${JSON.stringify(row.id)} onlyRules ${JSON.stringify(list)} must list ids of rules that exist in policy.json`);
+    return undefined;
+  }
+  return list;
+}
+
+// rawText: only the strict boolean true on a Bash row turns the shell neutraliser and the read-only-search skip off.
+// Anything else (a string "true", 1, a Write row) is reported and ignored: the shell treatment stays on.
+function rawTextOf(row, report) {
+  if (row.rawText === undefined || (row.rawText === false && row.as === "Bash")) return false;
+  if (row.rawText === true && row.as === "Bash") return true;
+  report(`${RAW_LINE} adapter ${JSON.stringify(row.id)} rawText ${JSON.stringify(row.rawText)} must be the boolean true on a Bash row`);
+  return false;
 }
 
 /**
@@ -320,16 +359,22 @@ export function adaptToolCall(toolName, toolInput, cwd, policy, report = () => {
     const own = stringField(input, a.cwdField);
     if (own && own !== cwd) cwds.push(own);
     const skipRules = exemption(a, policy, report);
+    const onlyRules = onlyList(a, policy, report);
+    const rawText = rawTextOf(a, report);
+    // A row that runs destructive-sql alone may judge a field whole (SQL_FIELD_CAP); every other row keeps FIELD_CAP.
+    const cap = onlyRules ? SQL_FIELD_CAP : FIELD_CAP;
     // Slices are computed once, outside the cwd loop: a cap line is reported once per call, not once per cwd.
-    const judged = (asWrite ? a.pathFields : a.commandFields).flatMap((f) => fieldSlices(input, f, report).map((s) => ({ f, ...s })));
+    const judged = (asWrite ? a.pathFields : a.commandFields).flatMap((f) => fieldSlices(input, f, report, cap).map((s) => ({ f, ...s })));
     for (const c of cwds) {
       for (const { f, text, part } of judged) {
         calls.push({
           toolName: asWrite ? "Write" : "Bash",
-          command: asWrite ? "" : hinted(a, text),
+          command: asWrite ? "" : hinted(a, text, rawText),
           filePath: asWrite ? text : "",
           cwd: c,
           skipRules,
+          onlyRules,
+          rawText,
           via: `${a.id}.${f}${part}`,
         });
       }
@@ -341,7 +386,7 @@ export function adaptToolCall(toolName, toolInput, cwd, policy, report = () => {
       if (from && dest) {
         for (const rel of directoryFiles(from, cwd, report)) {
           for (const c of cwds) {
-            calls.push({ toolName: "Write", command: "", filePath: `${dest}/${rel}`, cwd: c, skipRules, via: `${a.id}.${a.expandDirectory.from}/*` });
+            calls.push({ toolName: "Write", command: "", filePath: `${dest}/${rel}`, cwd: c, skipRules, onlyRules, via: `${a.id}.${a.expandDirectory.from}/*` });
           }
         }
       }

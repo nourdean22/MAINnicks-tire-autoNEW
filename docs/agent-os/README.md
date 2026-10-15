@@ -153,15 +153,26 @@ by a canary:
   that ignores an unknown one would write anyway.
 - `expandDirectory` (`{from, to}`): when `from` is a directory, each file below it is judged as `to/<relative path>`,
   so `.env*` files or night-shift judge files inside a moved directory meet the path rules. Names only.
+- `onlyRules`: the ONLY rule ids a row's calls are judged by (the reverse of `exceptRules`, an allowlist, so a rule added
+  later does not silently apply). The four SQL rows have `["destructive-sql"]`: before it, every shell rule judged SQL
+  text, so an `INSERT` of the words `git push origin main`, `npm install`, `git stash pop` or `--no-verify` was denied
+  as a shell command. Every id must exist in `policy.json`; a malformed list or an unknown id is reported on stderr
+  and the field is ignored, so EVERY rule applies (only ever more denials). A row with a valid `onlyRules` also judges a
+  field whole up to `SQL_FIELD_CAP` (1,000,000 characters), because only the anchored, bounded rule runs on it.
+- `rawText`: a strict boolean `true` (only on a Bash row) judges the text as given: no shell neutraliser and no
+  read-only-search skip. The four SQL rows have it: the neutraliser erases the quoted argument after ` -m`, ` -t`,
+  ` -b`, `--message`, `--title` and `--body`, which in SQL can hold statements (`SELECT ' -m "'; DELETE FROM leads; SELECT '
+  " '` passed), and SQL that merely starts like a search command (`rg DELETE FROM leads`) is still SQL. Anything but
+  `true` is reported and ignored (the shell treatment stays on). The shell door is unchanged: a commit message that
+  mentions SQL is still data there.
 - A named field may hold a **list of strings** (`neon-sql-transaction`: `sql_statements`). Each element is judged on
-  its own, never joined with its neighbours, with provenance `<row>.<field>[i]` (the index in the original list); an
-  element over `FIELD_CAP` is sliced as before; elements are judged in order until `ARRAY_MAX` (2,000) elements or
-  `ARRAY_CHAR_BUDGET` (1,000,000) characters in total (after slicing) have been judged, then ONE stderr line says the
-  rest were not (the first element that does not fit ends the judging). Measured through the real hook on 2026-10-15:
-  about 0.15 ms per small element and 4 ms per 20,000-character element, so the whole-array worst case stays well under
-  3 s (a canary pins that). Null, numbers, objects and nested lists are ignored (the tools' schemas reject them). A plain
-  string given for a list field is judged as a string. The reader serves every named field, so a list in a command
-  field is judged too, which can only add denials.
+  its own, never joined with its neighbours, with provenance `<row>.<field>[i]` (the index in the original list).
+  Elements are judged in order until `ARRAY_MAX` (2,000) elements or `ARRAY_CHAR_BUDGET` (1,000,000) characters in
+  total have been judged, then ONE stderr line says the rest were not. An element larger than what is left of the
+  budget is judged as head and tail slices of the remainder (a huge statement after a small one is judged, not
+  skipped), and then nothing is left. Null, numbers, objects and nested lists are ignored (the tools' schemas reject
+  them). A plain string given for a list field is judged as a string. The reader serves every named field, so a list
+  in a command field is judged too, which can only add denials. Measured cost: see "How `destructive-sql` reads SQL".
 
 Design rules, each pinned by `scripts/agent-os/mcpCoverage.test.mjs`:
 
@@ -173,12 +184,14 @@ Design rules, each pinned by `scripts/agent-os/mcpCoverage.test.mjs`:
 - **Same posture as the rest of the hook.** A matched rule exits 2. A malformed row is skipped with a
   `[agent-os] pretool MCP adapter problem` stderr line and costs only that row. Any other bug in the new code
   fails open with a stderr line. Missing, non-string and malformed fields never throw.
-- **Oversized fields** (over `FIELD_CAP`, 20,000 characters) are judged as two slices, the first and the last 10,000
-  characters, each on its own: joining them would build a command the field never held (a client word at the end of
-  the head plus a statement at the start of the tail). `destructive-sql` is quadratic in the text length (measured:
-  20,000 characters about 0.3 s, 60,000 about 2 s) and a hook timeout fails open silently, which is why the cap
-  exists. The unscanned middle of a field over the cap is not judged. Native Bash and PowerShell commands are not
-  capped and have the same exposure, which is out of this change.
+- **Oversized fields.** A row that runs every rule judges at most `FIELD_CAP` (20,000) characters of a field; a longer
+  field is judged as two slices, the first and the last 10,000 characters, each on its own: joining them would build a
+  command the field never held (a client word at the end of the head plus a statement at the start of the tail). Some
+  rules backtrack, and a hook timeout fails open silently, which is why the cap exists. A row with a valid `onlyRules`
+  (the SQL rows) runs `destructive-sql` alone, whose scans are anchored or bounded, so it judges a field whole up to
+  `SQL_FIELD_CAP` (1,000,000) and slices (500,000 each end) only beyond that. The unjudged middle of a field over its cap
+  is a slip window. Native Bash and PowerShell commands are not capped (every scan of `destructive-sql` is bounded, so
+  its cost is linear in their length; the other rules were never measured on megabytes).
 - **Directory moves** are walked read-only: names only (no file content), breadth-first, at most 2,000 entries and
   depth 6, symlinks and junctions never followed, and any filesystem error means no extra judgments. Over the cap,
   what was walked is judged and one stderr line says the rest was not (`directory too large to inspect fully`).
@@ -230,10 +243,16 @@ client does to that text:
   `DELETE FROM leads` + newline + `WHERE id = 3` pass. A `||` chain is not a boundary by itself (a second `-c` after it is).
   The `ALTER TABLE ... DROP` scan uses the same stops and gives up after 1,500 characters; `DROP COLUMN` and `DROP
   CONSTRAINT` are denied anywhere by the DROP-kind arm, so only the other `ALTER TABLE ... DROP` forms depend on it.
-- **Cost.** Every scan is bounded, so a text costs at most about its length times 5,000 (1,500 for ALTER) steps. Measured in
-  process on 1,000,000 characters on this machine: benign text 10 ms; the worst text found (a keyword every 14
-  characters with the WHERE within reach of each, repeated) 1.6 s for `DELETE FROM`, 1.3 s for `UPDATE ... SET`, 0.7 s for
-  `ALTER TABLE`. A canary pins that the anchored pattern is linear on benign text.
+- **Cost.** Every scan is bounded, so a text costs at most about its length times 5,000 (1,500 for ALTER) steps. Measured on
+  this machine, 2026-10-15, three runs: through the real hook, typical SQL and 25,000 benign characters 0.1 to 0.25 s
+  including node start; 2,000 statements of 497 characters 0.2 to 0.35 s; and the WORST text found, one built so that every
+  occurrence of `DELETE FROM` has its WHERE within reach but far away (a keyword every 14 characters), 1.3 to 1.8 s for
+  50 elements of 20,000 characters (the character budget) and 1.5 to 2.9 s for one 996,512-character field judged
+  whole. In process, 1,000,000 benign characters take 10 ms and the same worst text 1.6 s (`DELETE FROM`), 1.3 s
+  (`UPDATE ... SET`), 0.7 s (`ALTER TABLE`). That is real text nobody writes, and it stays inside the hook's 10 s
+  timeout (a timeout fails OPEN) with about 3x margin on a quiet machine. The canaries therefore pin only that bound
+  (9 s, the hook timeout less margin) and report the measured times; they do not claim a tighter number they cannot
+  hold on a loaded runner. A separate canary pins that the pattern is anchored and linear on benign text.
 
 ### Native ask rules (2026-10-15)
 
@@ -280,10 +299,11 @@ Inventory of 2026-10-15. Names come from this machine's tool lists; "name only" 
   `cd` into a worktree in one Desktop Commander call followed by an install typed in a later call is not caught, and
   neither is `cd <worktree>; pnpm install` on one line from a session that is not in a worktree. Native Bash has the
   same blind spot, so this is no worse than before the PR. A canary pins it and fails the day it is fixed.
-- **Slip windows.** The unscanned middle of a field over 20,000 characters (of each element of a list field), the
-  elements of a list field beyond the 2,000th or beyond 1,000,000 judged characters, and the directory walk cap: files past the first 2,000 entries, or deeper
-  than 6 levels, of a moved directory are not seen (the walk and the list reader each print one stderr line when they
-  stop early). A hook that times out (10 s) or crashes fails OPEN; the native ask rules have no such window. Canaries
+- **Slip windows.** The unscanned middle of a field over its cap (20,000 characters on a row that runs every rule,
+  1,000,000 on a SQL row; the same per element of a list field), the elements of a list field beyond the 2,000th or
+  beyond 1,000,000 judged characters in all, a WHERE farther than 5,000 characters from its `DELETE FROM` or `SET`
+  (denied, not a slip), and the directory walk cap: files past the first 2,000 entries, or deeper than 6 levels, of a
+  moved directory are not seen (the walk and the list reader each print one stderr line when they stop early). A hook that times out (10 s) or crashes fails OPEN; the native ask rules have no such window. Canaries
   pin each of these.
 - **context-mode plugin runners** (`ctx_execute`, `ctx_batch_execute`). They run code and commands, and the
   manager's probe on 2026-10-15 exited 0 through both. They were not in this session's tool list, so their field
@@ -293,11 +313,18 @@ Inventory of 2026-10-15. Names come from this machine's tool lists; "name only" 
   matching, so by design: a write that has a WHERE passes, including `WHERE true`, a WHERE in a comment, a string
   literal or a subquery, and a CTE whose outer query holds the WHERE; keywords split by a comment (`DELETE/**/FROM`) are
   not seen; MySQL multi-table `DELETE t1 FROM ...` and `UPDATE a JOIN b ... SET` are not parsed; DROP kinds outside the
-  list (DOMAIN, AGGREGATE, ROUTINE, RULE, PUBLICATION, SUBSCRIPTION, FOREIGN TABLE ...) pass. Accepted false
-  positives, in the safe direction: `ALTER COLUMN ... DROP NOT NULL` or `DROP DEFAULT`, a bounded `UPDATE ... ORDER BY
-  ... LIMIT` with no WHERE, a `;` inside a string literal ending the statement early, SQL words inside a string literal
-  sent through a SQL tool, and an `apply_changes: false` discard of `complete_database_migration` that re-sends
-  destructive SQL (discard it in the Neon console). Neon `complete_query_tuning` carries `suggested_sql_statements`, a
+  list (DOMAIN, AGGREGATE, ROUTINE, RULE, PUBLICATION, SUBSCRIPTION, FOREIGN TABLE ...) pass; `MERGE ... WHEN MATCHED
+  THEN DELETE` is not read; SQL run from a file or script (`psql -f cleanup.sql`) has no text to judge; and a DB client
+  word outside the list (`sqlcmd`, `sqlite3`, `mariadb`, `usql`) turns the shell gate off. Accepted false positives, in
+  the safe direction: `ALTER COLUMN ... DROP NOT NULL` or `DROP DEFAULT`, a bounded `UPDATE ... ORDER BY ... LIMIT` with
+  no WHERE, a `;` inside a string literal ending the statement early, SQL words inside a string literal OR a SQL
+  comment sent through a SQL tool (`SELECT 1 -- drop table later` denies), `explain_sql_statement` with `analyze: false`
+  (it is judged exactly like `run_sql`), an `apply_changes: false` discard of `complete_database_migration` that
+  re-sends destructive SQL (discard it in the Neon console), a CHAINED read-only search that names a DB client and
+  `DELETE FROM` or `UPDATE ... SET` (`rg -n "DELETE FROM" apps/ | rg mysql` denies: the pipe defeats the read-only skip;
+  run two unchained searches), and prose in a commit or PR message body that mentions the SQL arms next to a client
+  word when it is not a quoted `-m`, `--message`, `--title` or `--body` argument (a heredoc body, `-F -`): put the text
+  in a file with the Write tool and use `git commit -F <file>`. Neon `complete_query_tuning` carries `suggested_sql_statements`, a
   list of DDL: asked per call, not text-judged. `destructive-sql` is also an honour rule for a write that has a WHERE. A
   canary pins each of these, so one that gets fixed fails loudly. The deny and allow probes of the DELETE, UPDATE, ALTER
   TABLE and DROP-kind arms are `denyExamples` and `allowExamples` of the rule in `policy.json`;

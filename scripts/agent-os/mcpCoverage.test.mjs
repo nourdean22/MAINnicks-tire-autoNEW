@@ -225,7 +225,7 @@ test("adapter table: present, well formed, anchored, disjoint and documented", (
     if (a.clientHint !== undefined) assert.ok(a.as === "Bash" && typeof a.clientHint === "string" && a.clientHint, `${a.id}: clientHint is a non-empty string on a Bash row`);
     // no dead or mistyped config: every key of a row is one the code reads (a stray key is silently ignored)
     for (const key of Object.keys(a)) {
-      assert.ok(["id", "toolPattern", "as", "commandFields", "pathFields", "cwdField", "exceptRules", "clientHint", "skipWhenTrue", "expandDirectory", "exampleTools", "why"].includes(key),
+      assert.ok(["id", "toolPattern", "as", "commandFields", "pathFields", "cwdField", "exceptRules", "onlyRules", "rawText", "clientHint", "skipWhenTrue", "expandDirectory", "exampleTools", "why"].includes(key),
         `${a.id}: unknown row field '${key}'`);
     }
     if (a.exceptRules !== undefined) {
@@ -268,8 +268,9 @@ test("parity: every Bash-family denyExample is denied by the SAME rule through e
     for (const tool of a.exampleTools) {
       for (const field of a.commandFields) {
         for (const rule of bashRules) {
-          // a row is exempt from exactly the rules in its exceptRules; that exemption has its own canaries
+          // a row is exempt from exactly the rules in its exceptRules, and judged by ONLY the rules in its onlyRules; both have their own canaries
           if (a.exceptRules?.includes(rule.id)) continue;
+          if (a.onlyRules && !a.onlyRules.includes(rule.id)) continue;
           for (const sample of rule.denyExamples) {
             const res = judge(tool, { [field]: sample }, cwdFor(rule));
             assert.ok(res.denied, `${tool}.${field}: ${rule.id} should DENY ${JSON.stringify(sample)}`);
@@ -290,6 +291,8 @@ test("parity: every Bash-family allowExample stays allowed through every command
       for (const field of a.commandFields) {
         for (const rule of bashRules) {
           for (const sample of rule.allowExamples) {
+            // a rawText row reads SQL, not a shell command: a shell-mention form (a commit message, a read-only search) is not what it judges
+            if (a.rawText && engine.preprocessCommand(sample) !== sample) continue;
             const res = judge(tool, { [field]: sample }, cwdFor(rule));
             assert.ok(!res.denied, `${tool}.${field}: should ALLOW ${JSON.stringify(sample)} but '${res.rule?.id}' blocked it`);
           }
@@ -686,7 +689,7 @@ test("README documents every adapter, the unguarded inventory and the live check
   for (const s of SQL_SHAPES) {
     assert.ok(README.includes(`\`${leaf(s.name)}\``), `the README adapter table must name the SQL tool ${leaf(s.name)}`);
   }
-  for (const field of ["clientHint", "exceptRules", "skipWhenTrue", "expandDirectory"]) {
+  for (const field of ["clientHint", "exceptRules", "onlyRules", "rawText", "skipWhenTrue", "expandDirectory"]) {
     assert.ok(README.includes(`\`${field}\``), `README does not document the adapter field ${field}`);
   }
   assert.doesNotMatch(README, /sessionCwd/, "sessionCwd was removed: the README must not document dead config");
@@ -697,6 +700,10 @@ test("README documents every adapter, the unguarded inventory and the live check
   assert.match(README, /### Native ask rules/, "README needs the native ask layer section");
   assert.match(README, /### How `destructive-sql` reads SQL/, "README must state the boundary the SQL rule scans to");
   for (const phrase of ["a lone `|`", "5,000 characters", "`&&`", "`--command`", "Written-out whitespace", "Quoted identifiers"]) assert.ok(README.includes(phrase), `README must state the SQL rule's boundary: ${phrase}`);
+  for (const phrase of ["SQL_FIELD_CAP", "psql -f cleanup.sql", "sqlcmd", "-- drop table later", "analyze: false", "CHAINED read-only search", "git commit -F <file>", "MERGE ... WHEN MATCHED"]) {
+    assert.ok(README.includes(phrase), `README must state the accepted SQL limit: ${phrase}`);
+  }
+  assert.doesNotMatch(README, /quadratic in the text length/, "destructive-sql is anchored and bounded now: the README must not call it quadratic");
   for (const phrase of ["permissions.ask", "mcp__*__<leaf>", "bypassPermissions", "mcpAskRules.test.mjs", "ARRAY_MAX", "ARRAY_CHAR_BUDGET", "CONTROL-CANARY-COVERAGE.md",
     "Unclassified infrastructure tools", "neon-sql.sql", "neon-sql-transaction.sql_statements[1]", "guard_live_check_probe", "delete-service", "delete_project"]) {
     assert.ok(README.includes(phrase), `README must mention ${phrase}`);
@@ -726,6 +733,16 @@ test("review-fix table: each optional field sits on exactly the intended row", (
   only("expandDirectory", "file-move", { from: "source", to: "destination" });
   for (const id of ["process-start", "process-input"]) {
     assert.deepEqual(rows[id]?.exceptRules, ["install-in-junctioned-worktree"], `${id} runs in Desktop Commander's own cwd: exempt from the worktree-install rule only`);
+  }
+  // onlyRules and rawText: the four SQL text rows and no other (SQL is not a shell command; the typed-text row stays a full-rule shell row)
+  for (const id of SQL_ROW_IDS) {
+    assert.deepEqual(rows[id]?.onlyRules, ["destructive-sql"], `${id} is judged by destructive-sql alone`);
+    assert.equal(rows[id]?.rawText, true, `${id} reads raw SQL`);
+  }
+  for (const other of Object.keys(rows)) {
+    if (SQL_ROW_IDS.includes(other)) continue;
+    assert.equal(rows[other].onlyRules, undefined, `${other} must not carry onlyRules`);
+    assert.equal(rows[other].rawText, undefined, `${other} must not carry rawText`);
   }
   for (const id of ["terminal-run", "monitor", "file-write", "file-edit", "file-move"]) {
     assert.ok(rows[id], `adapter ${id} is missing`);
@@ -1111,17 +1128,22 @@ test("array budget, characters: ARRAY_CHAR_BUDGET characters in total are judged
   allowed(run(SQL_TX.name, SQL_TX.input(Array.from({ length: fits }, () => full))), "exactly the budget, all judged, no bad statement");
 });
 
-test("array field: a string given for an array field is judged as a string; an element over FIELD_CAP is judged as head and tail slices, never joined", () => {
+test("array field: a string given for an array field is judged as a string; an element over SQL_FIELD_CAP is judged as head and tail slices, never joined", () => {
   denied(run(SQL_TX.name, { sql_statements: "DROP TABLE leads" }), "destructive-sql", "a bare string in the array field");
   assert.equal(typeof engine.adaptToolCall, "function", "policy.mjs must export adaptToolCall()");
-  const half = engine.FIELD_CAP / 2;
+  assert.equal(engine.SQL_FIELD_CAP, 1_000_000, "policy.mjs must export SQL_FIELD_CAP = 1,000,000");
+  const half = engine.SQL_FIELD_CAP / 2;
   const straddle = `${"x".repeat(half - 4)}DROP${"f".repeat(30000)}TABLE leads${"z".repeat(half - 11)}`; // DROP ends the head, TABLE starts the tail
   const calls = engine.adaptToolCall(SQL_TX.name, { sql_statements: ["SELECT 1", straddle] }, NORMAL, policy);
   assert.deepEqual(calls.map((c) => c.via), ["neon-sql-transaction.sql_statements[0]", "neon-sql-transaction.sql_statements[1]#head", "neon-sql-transaction.sql_statements[1]#tail"]);
-  allowed(run(SQL_TX.name, SQL_TX.input(["SELECT 1", straddle])), "a statement that straddles the unscanned middle of one element is not judged (documented slip window)");
-  const tail = run(SQL_TX.name, SQL_TX.input([`${"f".repeat(40000)} DROP TABLE leads`]));
+  allowed(run(SQL_TX.name, SQL_TX.input([straddle])), "a statement that straddles the unjudged middle of an element over the cap is not judged (documented slip window)");
+  const tail = run(SQL_TX.name, SQL_TX.input([`${"f".repeat(1_100_000)} DROP TABLE leads`]));
   denied(tail, "destructive-sql", "statement fully inside the tail slice of an element");
   assert.match(tail.err, /neon-sql-transaction\.sql_statements\[0\]#tail on tool /);
+  // a huge statement AFTER a small one is judged as head and tail slices of what is left of the budget, not skipped
+  const after = run(SQL_TX.name, SQL_TX.input(["SELECT 1", `${"f".repeat(1_100_000)} DROP TABLE leads`]));
+  denied(after, "destructive-sql", "a huge bad statement after a small one");
+  assert.match(after.err, /neon-sql-transaction\.sql_statements\[1\]#tail on tool /);
 });
 
 test("SQL: a 25,000-character benign field and the worst whole-array shapes stay far inside the hook timeout (a hook timeout fails OPEN)", (t) => {
@@ -1137,17 +1159,21 @@ test("SQL: a 25,000-character benign field and the worst whole-array shapes stay
   const byCount = run(SQL_TX.name, SQL_TX.input(Array.from({ length: engine.ARRAY_MAX + 500 }, () => small)));
   allowed(byCount, "2,000 judged elements that match nothing");
   // the WHERE must stay within the rule's reach of every occurrence or the first one is simply denied (the WHERE scan is bounded at 5,000 characters)
-  const big = `${"DELETE FROM a ".repeat(340)}WHERE x `.repeat(4);
-  assert.ok(big.length <= engine.FIELD_CAP);
+  const block = `${"DELETE FROM a ".repeat(340)}WHERE x `;
+  const big = block.repeat(4).padEnd(engine.FIELD_CAP, " "); // exactly FIELD_CAP characters: 50 of them are exactly the character budget
+  assert.equal(big.length, engine.FIELD_CAP);
   const bySize = run(SQL_TX.name, SQL_TX.input(Array.from({ length: 200 }, () => big)));
-  allowed(bySize, "elements of about FIELD_CAP characters, stopped by the character budget");
-  t.diagnostic(`hook wall time including node start: 25k field ${one.ms} ms, 2,000 x ${small.length} chars ${byCount.ms} ms, 200 x ${big.length} chars ${bySize.ms} ms`);
+  allowed(bySize, "elements of FIELD_CAP characters, stopped by the character budget");
+  const whole = block.repeat(Math.floor(engine.SQL_FIELD_CAP / block.length)); // one field of almost 1,000,000 characters, judged whole
+  const byField = run(SQL_RUN.name, SQL_RUN.input(whole));
+  allowed(byField, "one field of almost SQL_FIELD_CAP characters");
+  t.diagnostic(`hook wall time including node start: 25k field ${one.ms} ms, 2,000 x ${small.length} chars ${byCount.ms} ms, 200 x ${big.length} chars ${bySize.ms} ms, one ${whole.length}-char field ${byField.ms} ms`);
   // Two kinds of bound. The benign field has a 25x margin (measured ~100 ms, bound 3 s). The adversarial shapes are the worst text the rules
   // can be fed (a keyword every 14 characters), so their bound is the hook's own 10 s timeout less margin: that is the real failure, a timeout
   // fails OPEN. The measured times are reported above, not asserted: asserting a tighter number would flake on a loaded runner.
   assert.equal(one.signal, null);
   assert.ok(one.ms < 3000, `a 25,000-character benign field took ${one.ms} ms`);
-  for (const r of [byCount, bySize]) {
+  for (const r of [byCount, bySize, byField]) {
     assert.equal(r.signal, null, "the hook must not run into its own timeout");
     assert.ok(r.ms < 9000, `took ${r.ms} ms; the hook timeout is 10 s and a timeout fails OPEN`);
   }
@@ -1288,6 +1314,97 @@ test("DO-block dollar quoting: the examples keep both $$ and deny because of the
   }
 });
 
+// --- 11 - the SQL rows read SQL, not a shell command (adversarial review of 8f6522e8f, group G2) ----------------------------------
+// P2-e: the shell neutraliser erased the quoted span after -m/-t/-b, which in SQL can hold statements. P2-f: every shell rule judged SQL
+// text, so an INSERT of the words "git push origin main" was a false deny. P2-g: with only destructive-sql running, a field is judged whole.
+
+const P2E_PAYLOADS = [
+  `SELECT ' -m "'; DELETE FROM leads; SELECT ' " '`, // the span after -m would be erased, DELETE with it
+  `-- psql -t "\nDELETE FROM leads;\nSELECT "id" FROM leads;`, // the same through a SQL comment and a newline
+  "rg DELETE FROM leads", // starts like a read-only search, which the shell path skips: still SQL here
+];
+const P2F_PAYLOADS = [
+  [`SELECT * FROM audits WHERE note LIKE '%--no-verify%'`, "no-verify"],
+  [`INSERT INTO notes (body) VALUES ('never run git push origin main')`, "push-to-main"],
+  [`INSERT INTO notes (body) VALUES ('npm install')`, "install-in-junctioned-worktree"],
+  [`INSERT INTO notes (body) VALUES ('git stash pop')`, "stash-pop"],
+  [`INSERT INTO notes (body) VALUES ('git reset --hard')`, "destructive-restore"],
+];
+const sqlRowsOf = (p) => p.mcpAdapters.filter((a) => SQL_ROW_IDS.includes(a.id));
+
+test("rawText (P2-e): a quoted span after -m or -t cannot hide a statement, and SQL that starts like a search is still SQL; the shell door keeps its neutraliser", () => {
+  for (const shape of SQL_SHAPES) {
+    for (const sql of P2E_PAYLOADS) assert.equal(judge(shape.name, sqlInput(shape, sql), NORMAL).rule?.id, "destructive-sql", `${shape.name} should DENY ${JSON.stringify(sql)}`);
+  }
+  for (const sql of P2E_PAYLOADS) denied(run(SQL_RUN.name, SQL_RUN.input(sql)), "destructive-sql", `real hook, run_sql ${JSON.stringify(sql)}`);
+  allowed(run("Bash", { command: 'git commit -m "docs: psql DELETE FROM leads is denied"' }), "a commit message that mentions SQL is data on the shell path");
+  allowed(run("Bash", { command: "rg 'DELETE FROM' apps/" }), "a read-only search is still skipped on the shell path");
+});
+
+test("onlyRules (P2-f): SQL text that mentions a shell command passes, destructive SQL still denies, and the shell door is unchanged", () => {
+  for (const shape of SQL_SHAPES) {
+    for (const [sql] of P2F_PAYLOADS) assert.equal(judge(shape.name, sqlInput(shape, sql), WORKTREE).denied, false, `${shape.name} should ALLOW ${JSON.stringify(sql)}`);
+  }
+  for (const [sql] of P2F_PAYLOADS) allowed(run(SQL_RUN.name, SQL_RUN.input(sql), WORKTREE), `real hook, run_sql from a harness worktree: ${sql}`);
+  // control: the same text typed through the shell door is still denied, by its own rule
+  for (const [sql, rule] of P2F_PAYLOADS) denied(run(TERMINAL, { command: sql }, WORKTREE), rule, `Terminal MCP: ${sql}`);
+  denied(typedInto(`${DC_PLUGIN}interact_with_process`, "git push origin main", NORMAL), "push-to-main", "typed text keeps every shell rule");
+  for (const sql of ["DROP TABLE leads", "DELETE FROM leads", "UPDATE leads SET a = 1", 'TRUNCATE "Task" CASCADE']) denied(run(SQL_RUN.name, SQL_RUN.input(sql), WORKTREE), "destructive-sql", sql);
+});
+
+test("rawText and onlyRules are validated: a malformed value is reported and IGNORED (the shell treatment and every rule apply); removing them reopens P2-e and P2-f (BREAKS)", () => {
+  const e = (hook) => run(SQL_RUN.name, SQL_RUN.input(P2E_PAYLOADS[0]), NORMAL, hook);
+  const f = (hook) => run(SQL_RUN.name, SQL_RUN.input(P2F_PAYLOADS[3][0]), WORKTREE, hook);
+  withTree(null, (hook) => {
+    denied(e(hook), "destructive-sql", "control: the real table reads raw SQL");
+    allowed(f(hook), "control: the real table judges destructive-sql alone");
+  });
+  withTree((p) => sqlRowsOf(p).forEach((a) => { delete a.rawText; }), (hook) => allowed(e(hook), "BREAKS: without rawText the neutraliser erases the DELETE"));
+  withTree((p) => sqlRowsOf(p).forEach((a) => { delete a.onlyRules; }), (hook) => denied(f(hook), "stash-pop", "BREAKS: without onlyRules every shell rule judges SQL text again"));
+  for (const bad of ["true", 1, [true], {}]) {
+    withTree((p) => sqlRowsOf(p).forEach((a) => { a.rawText = bad; }), (hook) => {
+      const r = e(hook);
+      assert.equal(r.code, 0, `rawText ${JSON.stringify(bad)} is ignored, so the neutraliser hides the DELETE\n${r.err}`);
+      assert.match(r.err, /rawText ignored, the shell neutraliser applies/);
+    });
+  }
+  for (const bad of [["no-such-rule"], [], "destructive-sql", [7], ["destructive-sql", "typo-rule"]]) {
+    withTree((p) => sqlRowsOf(p).forEach((a) => { a.onlyRules = bad; }), (hook) => {
+      const r = f(hook);
+      denied(r, "stash-pop", `onlyRules ${JSON.stringify(bad)} is ignored, so every rule applies`);
+      assert.match(r.err, /onlyRules ignored, every rule applies/);
+    });
+  }
+});
+
+test("P2-g: a SQL field is judged WHOLE up to SQL_FIELD_CAP characters (a statement in the middle of 900,000 is denied) and sliced only beyond it; other rows keep FIELD_CAP", () => {
+  assert.equal(engine.SQL_FIELD_CAP, 1_000_000, "policy.mjs must export SQL_FIELD_CAP");
+  const mid = `${"x".repeat(450_000)} DROP TABLE leads; ${"x".repeat(450_000)}`;
+  const whole = engine.adaptToolCall(SQL_RUN.name, SQL_RUN.input(mid), NORMAL, policy);
+  assert.deepEqual(whole.map((c) => c.via), ["neon-sql.sql"], "one whole judgment, no #head or #tail");
+  denied(run(SQL_RUN.name, SQL_RUN.input(mid)), "destructive-sql", "a statement in the middle of a 900,000-character field");
+  const huge = `${"x".repeat(600_000)} DROP TABLE leads; ${"x".repeat(600_000)}`;
+  assert.deepEqual(engine.adaptToolCall(SQL_RUN.name, SQL_RUN.input(huge), NORMAL, policy).map((c) => c.via), ["neon-sql.sql#head", "neon-sql.sql#tail"]);
+  allowed(run(SQL_RUN.name, SQL_RUN.input(huge)), "beyond SQL_FIELD_CAP the middle is not judged (documented slip window; a pin)");
+  const terminal = engine.adaptToolCall(TERMINAL, { command: `${"x".repeat(30_000)} psql` }, NORMAL, policy);
+  assert.deepEqual(terminal.map((c) => c.via), ["terminal-run.command#head", "terminal-run.command#tail"], "a row that runs every rule keeps FIELD_CAP");
+});
+
+test("G2 accepted limits, pinned (each fails the day it is fixed: update the README and this pin): chained searches, SQL comments and explain deny; MERGE ... DELETE, files and unlisted clients pass", () => {
+  // chained read-only search that names a DB client and DELETE FROM: the chain defeats the read-only skip (workaround: two unchained searches)
+  denied(run("Bash", { command: 'rg -n "DELETE FROM" apps/ | rg mysql' }), "destructive-sql", "a chained search naming a client");
+  allowed(run("Bash", { command: 'rg -n "DELETE FROM" apps/' }), "the unchained search");
+  allowed(run("Bash", { command: "rg mysql apps/" }), "the unchained client search");
+  const verdict = (sql) => judge(SQL_RUN.name, SQL_RUN.input(sql), NORMAL).rule?.id;
+  for (const sql of ["SELECT 1 -- drop table later", "-- delete from old rows\nSELECT 1", "SELECT 1 /* update leads set a = 1 */"]) assert.equal(verdict(sql), "destructive-sql", `words in a SQL comment deny: ${JSON.stringify(sql)}`);
+  const explain = SQL_SHAPES.find((s) => leaf(s.name) === "explain_sql_statement");
+  denied(run(explain.name, { sql: "DROP TABLE x", analyze: false }), "destructive-sql", "explain_sql_statement with analyze:false is judged too");
+  assert.equal(verdict("MERGE INTO t USING s ON t.id = s.id WHEN MATCHED THEN DELETE"), undefined, "MERGE ... WHEN MATCHED THEN DELETE is not parsed");
+  for (const command of ["psql -f cleanup.sql", 'sqlcmd -Q "DELETE FROM leads"', 'sqlite3 app.db "DELETE FROM leads"']) allowed(run("Bash", { command }), `a file or an unlisted client word: ${command}`);
+  // a commit message heredoc that talks about the SQL arms (the neutraliser only knows -m/-b/-t/--message/--title/--body with a quoted argument)
+  denied(run("Bash", { command: "git commit -F - <<'EOF'\nnote: psql DELETE FROM leads is denied now\nEOF" }), "destructive-sql", "prose in a commit message heredoc");
+});
+
 test("destructive-sql documented limits, pinned (each fails the day it is fixed: update the README 'SQL limits' and this pin)", () => {
   const denies = (sql) => judge(SQL_RUN.name, SQL_RUN.input(sql), NORMAL).denied;
   // Not goals, they pass: any WHERE in the statement counts, a keyword split by a comment is not seen, MySQL multi-table forms are not parsed
@@ -1354,5 +1471,5 @@ test("BREAKS: without the array reader a bad element inside sql_statements passe
   withTree(null, (hook) => {
     allowed(run(SQL_TX.name, SQL_TX.input(["SELECT 1", "DROP TABLE leads"]), NORMAL, hook), "array reader removed from the copy of policy.mjs");
     denied(run(SQL_RUN.name, SQL_RUN.input("DROP TABLE leads"), NORMAL, hook), "destructive-sql", "the string field path is untouched");
-  }, (src) => src.replace("if (Array.isArray(v)) return arraySlices(v, report);", "if (false) return [];"));
+  }, (src) => src.replace("if (Array.isArray(v)) return arraySlices(v, report, cap);", "if (false) return [];"));
 });

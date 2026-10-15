@@ -26,6 +26,9 @@
     "true means preview only), expandDirectory (judge the files below a moved directory). Each is explained in the README and",
     "pinned by a canary. A named field may hold a string or a LIST of strings (run_sql_transaction.sql_statements): each",
     "element is judged on its own, in order, until 2,000 elements or 1,000,000 characters in total have been judged.",
+    "onlyRules (the ONLY rule ids a row's calls are judged by; the reverse of exceptRules; a malformed list or an unknown id is reported",
+    "and ignored, so every rule applies) and rawText (a strict boolean true skips the shell neutraliser and the read-only-search skip)",
+    "are set on the four SQL text rows: SQL is not a shell command. A row with a valid onlyRules judges a field whole up to 1,000,000 characters.",
     "",
     "destructive-sql (extended 2026-10-15): its DELETE / UPDATE / ALTER TABLE ... DROP / DROP-kind arms are probed by the rule's",
     "denyExamples and allowExamples. docs/agent-audit/CONTROL-CANARY-COVERAGE.md states the denyExamples total and",
@@ -118,11 +121,13 @@
       "as": "Bash",
       "commandFields": ["sql"],
       "clientHint": "psql",
+      "onlyRules": ["destructive-sql"],
+      "rawText": true,
       "exampleTools": [
         "mcp__08daf860-d901-4ecf-8033-a2b41fe7f23d__run_sql",
         "mcp__08daf860-d901-4ecf-8033-a2b41fe7f23d__explain_sql_statement"
       ],
-      "why": "Neon run_sql and explain_sql_statement: `sql` is bare SQL, judged as text sent to a psql client (clientHint), so destructive-sql applies. explain_sql_statement with analyze:true EXECUTES the statement, so it is judged exactly like run_sql. Accepted: a hinted row cannot tell a mention from an execution, so a string literal that holds DROP TABLE is denied too."
+      "why": "Neon run_sql and explain_sql_statement: `sql` is bare SQL, judged as text sent to a psql client (clientHint), so destructive-sql applies. explain_sql_statement with analyze:true EXECUTES the statement, so it is judged exactly like run_sql. Accepted: a hinted row cannot tell a mention from an execution, so a string literal that holds DROP TABLE is denied too. onlyRules limits it to destructive-sql, so a shell rule never denies SQL that merely mentions a command (an INSERT of the words git push origin main) and a rule added later does not silently apply to SQL text; rawText skips the shell neutraliser (it erases the quoted argument after -m/-t/-b, which in SQL can hold statements) and the read-only-search skip. Judged whole up to 1,000,000 characters."
     },
     {
       "id": "neon-sql-transaction",
@@ -130,8 +135,10 @@
       "as": "Bash",
       "commandFields": ["sql_statements"],
       "clientHint": "psql",
+      "onlyRules": ["destructive-sql"],
+      "rawText": true,
       "exampleTools": ["mcp__08daf860-d901-4ecf-8033-a2b41fe7f23d__run_sql_transaction"],
-      "why": "Neon run_sql_transaction: `sql_statements` is a LIST of statements. Each element is judged on its own as text sent to a psql client (clientHint) and is never joined with its neighbours; elements are judged in order until 2,000 of them or 1,000,000 characters in total have been judged, then one stderr line says the rest were not."
+      "why": "Neon run_sql_transaction: `sql_statements` is a LIST of statements. Each element is judged on its own as text sent to a psql client (clientHint) and is never joined with its neighbours; elements are judged in order until 2,000 of them or 1,000,000 characters in total have been judged, then one stderr line says the rest were not. onlyRules limits it to destructive-sql, so a shell rule never denies SQL that merely mentions a command (an INSERT of the words git push origin main) and a rule added later does not silently apply to SQL text; rawText skips the shell neutraliser (it erases the quoted argument after -m/-t/-b, which in SQL can hold statements) and the read-only-search skip. Judged whole up to 1,000,000 characters."
     },
     {
       "id": "neon-migration-apply",
@@ -139,8 +146,10 @@
       "as": "Bash",
       "commandFields": ["migration_sql"],
       "clientHint": "psql",
+      "onlyRules": ["destructive-sql"],
+      "rawText": true,
       "exampleTools": ["mcp__08daf860-d901-4ecf-8033-a2b41fe7f23d__complete_database_migration"],
-      "why": "Neon complete_database_migration re-sends `migration_sql` and applies it to the PARENT branch (apply_changes defaults to true), so it is judged as text sent to a psql client. prepare_database_migration runs on a temporary branch only and is deliberately NOT judged, so a migration stays testable. Accepted: an apply_changes false discard that carries destructive SQL is denied too."
+      "why": "Neon complete_database_migration re-sends `migration_sql` and applies it to the PARENT branch (apply_changes defaults to true), so it is judged as text sent to a psql client. prepare_database_migration runs on a temporary branch only and is deliberately NOT judged, so a migration stays testable. Accepted: an apply_changes false discard that carries destructive SQL is denied too. onlyRules limits it to destructive-sql, so a shell rule never denies SQL that merely mentions a command (an INSERT of the words git push origin main) and a rule added later does not silently apply to SQL text; rawText skips the shell neutraliser (it erases the quoted argument after -m/-t/-b, which in SQL can hold statements) and the read-only-search skip. Judged whole up to 1,000,000 characters."
     },
     {
       "id": "prisma-sql",
@@ -148,13 +157,15 @@
       "as": "Bash",
       "commandFields": ["query"],
       "clientHint": "psql",
+      "onlyRules": ["destructive-sql"],
+      "rawText": true,
       "exampleTools": [
         "mcp__1c28426e-fc0c-4e02-a13b-409e6d539b14__execute_sql_query",
         "mcp__1c28426e-fc0c-4e02-a13b-409e6d539b14__execute_prisma_postgres_schema_update",
         "mcp__plugin_prisma_Prisma-Remote__execute_sql_query",
         "mcp__plugin_prisma_Prisma-Remote__execute_prisma_postgres_schema_update"
       ],
-      "why": "Prisma Postgres execute_sql_query and execute_prisma_postgres_schema_update: `query` is bare SQL, judged as text sent to a psql client (clientHint). Registered twice (connector UUID and the Prisma-Remote plugin), so the tool-name suffix is matched. Prisma has its own sponsor approval flow (approvalId); this row is the repo-side text check."
+      "why": "Prisma Postgres execute_sql_query and execute_prisma_postgres_schema_update: `query` is bare SQL, judged as text sent to a psql client (clientHint). Registered twice (connector UUID and the Prisma-Remote plugin), so the tool-name suffix is matched. Prisma has its own sponsor approval flow (approvalId); this row is the repo-side text check. onlyRules limits it to destructive-sql, so a shell rule never denies SQL that merely mentions a command (an INSERT of the words git push origin main) and a rule added later does not silently apply to SQL text; rawText skips the shell neutraliser (it erases the quoted argument after -m/-t/-b, which in SQL can hold statements) and the read-only-search skip. Judged whole up to 1,000,000 characters."
     }
   ],
   "rules": [
