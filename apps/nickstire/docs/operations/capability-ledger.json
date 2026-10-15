@@ -4961,8 +4961,8 @@
       "name": "Invoice, estimate and approval dates are written on the shop's clock, and live day filters bind the shop's day",
       "owner": "nickstire",
       "evidence": {
-        "codeCommit": "d724afc97, 219f6a518, a90383438",
-        "tests": "server/lib/shopWallClock.test.ts (Eastern wall clock in both DST directions; instant round-trip); server/__tests__/invoiceDateShopLocal.test.ts (writers store the shop's clock; planted writer cases); server/shopDayWindows.test.ts (invoice dates bind as shop-day keys); server/adminStatsShopDay.test.ts (per-position day binds); server/collectionsWindow.test.ts (invoice age on the shop's clock); full nickstire suite on a90383438 (the writers' code head)."
+        "codeCommit": "PR nourdean22/MAINnicks-tire-autoNEW#3037 (squash on merge); branch commits 83f24cc64, df29dab35, b5b47c654, and the date-convention fix commit a76455d96",
+        "tests": "server/lib/shopWallClock.test.ts (Eastern wall clock in both DST directions; instant round-trip; the invoice and estimate columns keep the wall-clock fields); server/__tests__/invoiceDateShopLocal.test.ts (writers store the shop's clock; no invoice insert omits invoiceDate; planted cases); server/shopDayWindows.test.ts (invoice dates bind as shop-day keys); server/adminStatsShopDay.test.ts (per-position day binds); server/collectionsWindow.test.ts (invoice age on the shop's clock); full nickstire suite on a76455d96: 1033 test files passed, 3 skipped; 13363 tests passed, 74 skipped, 1 todo, 0 failed."
       },
       "blockers": [
         {
@@ -4978,6 +4978,7 @@
       ],
       "deferredScope": [
         "the remaining CURDATE baseline sites (70 in 20 files)",
+        "rolling 7- and 30-day invoice windows (weekAgo, monthAgo) compare wall-clock dates with instants, a 4-5 hour skew over the window",
         "the client UnpaidInvoicesSection computes invoice age on the client",
         "admin invoice counts are open-ended, so a future-dated invoice counts as today",
         "historical UTC-clock rows: no backfill has been run"
