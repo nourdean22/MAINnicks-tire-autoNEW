@@ -744,20 +744,22 @@ test("AGENTS.md and CLAUDE.md say infra MCP mutation tools are DENIED by name, n
   assert.deepEqual(stated, [policy.rules.length], "CLAUDE.md states the policy rule count (derived from policy.json, never hardcoded here)");
 });
 
-test("ledger: this job has ONE tail row with eight cells, Status BUILT, an owner and a date in Next; the guard row points at the fix and keeps its recorded history", () => {
+// The ledger is state, not a spec: rows are appended, Status moves BUILT -> MERGED -> LIVE-VERIFIED and Next is rewritten as the job advances. A first version of this test pinned
+// "last row", Status BUILT and the guard row's Next text; the next PR that appended a row failed the every-PR policy job (2026-10-15). So this pins only what holds for the row's
+// whole life: one row, eight cells, no override mention, and, while the row is still open, who acts and by when. Row order, the Status word and any Next text are NOT pinned.
+test("ledger: this job has ONE row with eight cells and no override mention; while open (PLANNED, RUNNING, BUILT) Next names an owner and a date; the guard row exists once with eight cells", () => {
   const text = readFileSync(join(ROOT, "docs", "agent-os", "MANAGER-LEDGER.md"), "utf8");
   const rows = text.split("\n").filter((l) => l.startsWith("| ") && !l.startsWith("| Job id") && !l.startsWith("|---"));
   const mine = rows.filter((l) => l.startsWith("| 2026-10-15-infra-deny-by-name |"));
   assert.equal(mine.length, 1, "exactly one ledger row for this job");
-  assert.equal(rows.at(-1), mine[0], "it is the LAST row of the ledger");
   const cell = mine[0].split("|").map((c) => c.trim());
   assert.equal(cell.length, 10, "eight cells, no pipe inside any cell");
-  assert.equal(cell[5], "BUILT", "Status stays BUILT until merged");
-  assert.match(cell[7], /\b(?:Nour|manager|operator)\b/i, "Next names an owner");
-  assert.match(cell[7], /\b2026-10-\d\d\b/, "Next names a date");
+  if (["PLANNED", "RUNNING", "BUILT"].includes(cell[5])) {
+    assert.match(cell[7], /\b(?:Nour|manager|operator)\b/i, `an open row (${cell[5]}) names an owner in Next`);
+    assert.match(cell[7], /\b\d{4}-\d\d-\d\d\b/, `an open row (${cell[5]}) names a date in Next`);
+  }
   assert.ok(!mine[0].includes(OVERRIDE), "the ledger row must not mention an override variable: there is none");
-  const guard = rows.find((l) => l.startsWith("| 2026-10-15-guard-sql-lease-infra |")) ?? "";
-  const g = guard.split("|").map((c) => c.trim());
-  assert.ok(g[7].includes("infra-deny-by-name"), "the guard row's Next cell points at this fix");
-  for (const phrase of ["failed live step 7", "delete_prisma_postgres_database", "by 2026-10-17"]) assert.ok(g[7].includes(phrase), `the guard row's Next cell keeps: ${phrase}`);
+  const guard = rows.filter((l) => l.startsWith("| 2026-10-15-guard-sql-lease-infra |"));
+  assert.equal(guard.length, 1, "the guard row exists exactly once");
+  assert.equal(guard[0].split("|").length, 10, "the guard row has eight cells");
 });
