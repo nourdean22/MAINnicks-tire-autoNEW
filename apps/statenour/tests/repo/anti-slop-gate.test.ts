@@ -181,53 +181,88 @@ describe("the gate FIRES on the tree it is pointed at", () => {
     }
   };
 
-  /** Plant `text` at the end of `victim`, run the gate, always restore. */
-  const withPlanted = <T,>(victim: string, text: string, fn: (r: ReturnType<typeof run>) => T): T => {
-    const original = rf(victim, "utf8");
+  // TIMING. One gate run is ~9 s on a busy Windows box and ~25 s while other test
+  // files load the machine: the cost is git-bash process spawns (about 1.6 s of
+  // the 9 s is CPU), not the grep, so a narrower tree would not help. The default
+  // 20 s testTimeout fit one run on a quiet machine and failed every test here on a
+  // loaded one. So the tests that run the gate carry an explicit timeout sized for
+  // the loaded case, and the file runs the gate THREE times, not eleven: the planted
+  // offenders share one run (each in its own file, each asserted under its own
+  // heading), and no test re-runs the gate just to prove its restore.
+  const GATE_TIMEOUT_MS = 180_000;
+
+  /** Plant each text at the end of its victim, run the gate ONCE, always restore, and prove the restore. */
+  const withPlanted = <T,>(plants: Array<[victim: string, text: string]>, fn: (r: ReturnType<typeof run>) => T): T => {
+    const originals = plants.map(([victim]) => rf(victim, "utf8"));
     try {
-      wf(victim, `${original}\n${text}\n`, "utf8");
+      plants.forEach(([victim, text], i) => wf(victim, `${originals[i]}\n${text}\n`, "utf8"));
       return fn(run());
     } finally {
-      wf(victim, original, "utf8");
+      plants.forEach(([victim], i) => wf(victim, originals[i], "utf8"));
+      plants.forEach(([victim], i) => {
+        // The restore is checked on the file itself: stricter than a green gate, and free.
+        if (rf(victim, "utf8") !== originals[i]) throw new Error(`restore failed: ${victim} is not back to its original`);
+      });
     }
   };
+
+  const HEADINGS = ["Inter font imports:", "Roboto/Arial AI-default fonts:", "Purple-on-white SaaS gradients:"];
+  /** The part of the gate's output under one heading, up to the next heading. */
+  const section = (out: string, heading: string): string => {
+    const start = out.indexOf(heading);
+    if (start < 0) return "";
+    const ends = HEADINGS.filter((h) => h !== heading).map((h) => out.indexOf(h, start + heading.length)).filter((i) => i >= 0);
+    return out.slice(start, ends.length ? Math.min(...ends) : undefined);
+  };
+
+  // The offenders, each in its own tracked file under a scanned path.
+  const PURPLE_VICTIM = "components/ui/glass-card.tsx";
+  const INTER_VICTIM = "components/ui/separator.tsx";
+  const ROBOTO_VICTIM = "components/ui/textarea.tsx";
+  const WAIVER_VICTIM = "components/ui/tooltip.tsx";
+  const WAIVER_ONLY_VICTIM = "components/ui/badge.tsx";
+  const waivedLine = '// anti-slop-allow 2026-09-16 canary <div className="from-purple-500 to-purple-700" />';
+  const freshHit = '// canary <div className="from-purple-400 to-purple-600" />';
+
+  // Run lazily, once, by whichever offender test asks first.
+  let sharedRun: ReturnType<typeof run> | undefined;
+  const plantedRun = () =>
+    (sharedRun ??= withPlanted(
+      [
+        [PURPLE_VICTIM, '// canary <div className="bg-gradient-to-r from-purple-500 to-purple-700" />'],
+        [INTER_VICTIM, 'import { Inter } from "next/font/google";'],
+        [ROBOTO_VICTIM, 'import { Roboto } from "next/font/google";'],
+        [WAIVER_VICTIM, `${waivedLine}\n${freshHit}`],
+      ],
+      (r) => r,
+    ));
 
   it("passes on the current tree", () => {
     const r = run();
     expect(r.code, r.out).toBe(0);
     expect(r.out).toContain("no anti-slop UI patterns");
-  });
+  }, GATE_TIMEOUT_MS);
 
   it("CANARY: a purple SaaS gradient turns it red and names the file", () => {
-    const victim = "components/ui/glass-card.tsx";
-    withPlanted(victim, '// canary <div className="bg-gradient-to-r from-purple-500 to-purple-700" />', (r) => {
-      expect(r.code, "the gate did not fire on a planted purple gradient").toBe(1);
-      expect(r.out).toContain(victim);
-      expect(r.out).toContain("Purple-on-white SaaS gradients");
-    });
-    expect(run().code, "restore failed — the tree is dirty").toBe(0);
-  });
+    const r = plantedRun();
+    expect(r.code, "the gate did not fire on a planted purple gradient").toBe(1);
+    expect(section(r.out, "Purple-on-white SaaS gradients:"), "the purple victim is not named under its heading").toContain(PURPLE_VICTIM);
+  }, GATE_TIMEOUT_MS);
 
-  it("CANARY: an Inter font import turns it red", () => {
-    const victim = "components/ui/glass-card.tsx";
-    withPlanted(victim, 'import { Inter } from "next/font/google";', (r) => {
-      expect(r.code, "the gate did not fire on a planted Inter import").toBe(1);
-      expect(r.out).toContain("Inter font imports");
-    });
-    expect(run().code, "restore failed — the tree is dirty").toBe(0);
-  });
+  it("CANARY: an Inter font import turns it red and names the file", () => {
+    const r = plantedRun();
+    expect(r.code, "the gate did not fire on a planted Inter import").toBe(1);
+    expect(section(r.out, "Inter font imports:"), "the Inter victim is not named under its heading").toContain(INTER_VICTIM);
+  }, GATE_TIMEOUT_MS);
 
   it("CANARY: a Roboto import in the canonical order turns it red (same order-bug)", () => {
     // The Roboto/Arial alternation carried the identical defect as the Inter
     // one and was fixed in the same pass. Proven here so the fix cannot silently
     // regress the way the original did.
-    const victim = "components/ui/glass-card.tsx";
-    withPlanted(victim, 'import { Roboto } from "next/font/google";', (r) => {
-      expect(r.code, "the gate did not fire on a planted Roboto import").toBe(1);
-      expect(r.out).toContain("Roboto/Arial AI-default fonts");
-    });
-    expect(run().code, "restore failed — the tree is dirty").toBe(0);
-  });
+    const r = plantedRun();
+    expect(r.code, "the gate did not fire on a planted Roboto import").toBe(1);
+    expect(section(r.out, "Roboto/Arial AI-default fonts:"), "the Roboto victim is not named under its heading").toContain(ROBOTO_VICTIM);
+  }, GATE_TIMEOUT_MS);
 
   /**
    * The script's own comment stakes this claim and nothing tested it:
@@ -245,25 +280,25 @@ describe("the gate FIRES on the tree it is pointed at", () => {
    * the control. So the waiver is now PLANTED here, and the arm holds whether
    * or not any file in the tree happens to carry a marker today.
    */
-  it("the waiver is BY SIGNATURE: a waived line passes, a NEW hit in that same FILE still fires", () => {
-    const victim = "components/ui/glass-card.tsx";
-    const waivedLine = '// anti-slop-allow 2026-09-16 canary <div className="from-purple-500 to-purple-700" />';
-    const freshHit = '// canary <div className="from-purple-400 to-purple-600" />';
-
-    // Half 1 — the marker really exempts its own line, or the "fires" half
-    // below would be indistinguishable from a gate that ignores waivers.
-    withPlanted(victim, waivedLine, (r) => {
+  // Half 1 — the marker really exempts its own line, or the "fires" half
+  // below would be indistinguishable from a gate that ignores waivers. It needs a
+  // run with no other offender in the tree, so it keeps its own.
+  it("the waiver is BY SIGNATURE (1/2): a waived line passes", () => {
+    withPlanted([[WAIVER_ONLY_VICTIM, waivedLine]], (r) => {
       expect(r.code, `a line carrying anti-slop-allow was reported anyway:\n${r.out}`).toBe(0);
     });
+  }, GATE_TIMEOUT_MS);
 
-    // Half 2 — and the exemption does not spread to the file. If waivers were
-    // file-scoped the fresh hit below would be invisible, which is the exact
-    // blindness the script's comment says was avoided.
-    withPlanted(victim, `${waivedLine}\n${freshHit}`, (r) => {
-      expect(r.code, "a new purple gradient beside a waived one was not reported — the waiver is file-scoped").toBe(1);
-      expect(r.out).toContain(victim);
-    });
-
-    expect(run().code, "restore failed — the tree is dirty").toBe(0);
-  });
+  // Half 2 — and the exemption does not spread to the file. If waivers were
+  // file-scoped the fresh hit planted beside the waived line would be invisible,
+  // which is the exact blindness the script's comment says was avoided. It
+  // shares the offenders' run: the victim holds a waived line and a fresh hit.
+  it("the waiver is BY SIGNATURE (2/2): a NEW hit in that same FILE still fires", () => {
+    const r = plantedRun();
+    expect(r.code).toBe(1);
+    expect(
+      section(r.out, "Purple-on-white SaaS gradients:"),
+      "a new purple gradient beside a waived one was not reported — the waiver is file-scoped",
+    ).toContain(WAIVER_VICTIM);
+  }, GATE_TIMEOUT_MS);
 });
