@@ -21,10 +21,19 @@
 
 const STORAGE_KEY = "nour:haptic-enabled";
 
-function isEnabled(): boolean {
+/**
+ * True only when this browser can vibrate. Safari has no Vibration API and every
+ * iOS browser is WebKit, so on an iPhone every call below is a silent no-op; a
+ * screen that offers a haptic control must ask this first (Settings does).
+ */
+export function isSupported(): boolean {
   if (typeof window === "undefined") return false;
   if (typeof navigator === "undefined") return false;
-  if (typeof navigator.vibrate !== "function") return false;
+  return typeof navigator.vibrate === "function";
+}
+
+function isEnabled(): boolean {
+  if (!isSupported()) return false;
   try {
     const pref = window.localStorage.getItem(STORAGE_KEY);
     return pref !== "0"; // default true

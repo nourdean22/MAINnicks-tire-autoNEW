@@ -2,6 +2,8 @@
 
 **Aesthetic stance:** Dark Industrial Command Center · void black · gold accents · glass depth · information density.
 
+Proposed next UI plan (Wave 0 approved only): [docs/design/ui-v3/PLAN.md](design/ui-v3/PLAN.md)
+
 > **2026-10-01 · UI v2 (Precision Material Cockpit).** The current grammar is specified in
 > [`docs/design/ui-v2/`](design/ui-v2/README.md) — `SYSTEM.md` (tokens, type, radius, elevation,
 > motion, the gold-as-signal rule, material only on control chrome), `SURFACES.md` (chat / home /
