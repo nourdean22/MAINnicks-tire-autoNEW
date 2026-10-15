@@ -67,7 +67,10 @@ describe("the payment-intent lock is wired into every path that moves money or a
 
   it("a held total keeps its cost breakdown: the ingest and the mirror withhold labor, parts and tax with it", () => {
     expect(read("services/reportIngestion.ts")).toContain("const withheld = inv.totalCents > 0 && inv.totalCents !== row.totalAmount");
-    expect(read("services/shopDriverMirror.ts")).toContain("delete all.laborCost;");
+    // The mirror decides withheld on the locked row, not on the prefetched total (a stale prefetch is not a hold).
+    const mirror = read("services/shopDriverMirror.ts");
+    expect(mirror).toContain("const withheld = row.totalAmount !== ri.totalAmount && patch.totalAmount === undefined;");
+    expect(mirror).toContain("delete all.laborCost;");
   });
 
   it("a tire-order payment checks for an open card payment under the invoice lock, and cancels nothing", () => {
