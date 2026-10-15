@@ -27,6 +27,29 @@ async function getStripe() {
 }
 
 /**
+ * Cancels a Stripe Payment Intent and reports what Stripe actually did. A caller may release an
+ * invoice total only on "canceled"; "succeeded" or "processing" means money is moving, and
+ * "failed" means Stripe could not confirm, so the total stays held.
+ */
+export async function cancelPaymentIntent(
+  paymentIntentId: string,
+): Promise<"canceled" | "succeeded" | "processing" | "failed"> {
+  const stripe = await getStripe();
+  if (!stripe) return "failed";
+  try {
+    const intent = await stripe.paymentIntents.retrieve(paymentIntentId);
+    if (intent.status === "canceled") return "canceled";
+    if (intent.status === "succeeded") return "succeeded";
+    if (intent.status === "processing") return "processing";
+    await stripe.paymentIntents.cancel(paymentIntentId);
+    return "canceled";
+  } catch (err) {
+    log.error("Payment intent cancel failed:", { paymentIntentId, error: err instanceof Error ? err.message : String(err) });
+    return "failed";
+  }
+}
+
+/**
  * Create a Stripe Payment Intent for an invoice
  */
 export async function createPaymentIntent(params: {
@@ -299,9 +322,24 @@ export async function finalizeTireOrderPayment(params: {
     if (invoice && invoiceBelongsToTireOrder(invoice, order)) {
       // Align the invoice total to what Stripe actually collected (tires +
       // tax + card fee) — the placement-time invoice didn't know the fee.
-      await d.update(invoices)
-        .set({ paymentStatus: "paid", paymentMethod: "card", totalAmount: params.amountCents })
-        .where(eq(invoices.id, invoice.id));
+      // Nothing is canceled here. An open card payment on the invoice, one
+      // started from its Pay page, keeps the total it was started at: while one
+      // is open the total is left unchanged, and the operator is told to check
+      // Stripe for a second charge.
+      const { withInvoiceLock, hasOpenCardPayment } = await import("./paymentIntentLock");
+      await withInvoiceLock(d, invoice.id, async (tx) => {
+        const openCard = await hasOpenCardPayment(tx, invoice.id);
+        if (openCard) {
+          log.error(`Tire order ${params.tireOrderNumber} is PAID but invoice ${invNum} has an open card payment. Nothing was canceled and the total was left unchanged. Check Stripe for a second charge.`);
+        }
+        await tx.update(invoices)
+          .set({
+            paymentStatus: "paid",
+            paymentMethod: "card",
+            ...(openCard ? {} : { totalAmount: params.amountCents }),
+          })
+          .where(eq(invoices.id, invoice.id));
+      });
     } else {
       log.error(`Tire order ${params.tireOrderNumber} is PAID but invoice ${invNum} ${invoice ? "belongs to another customer" : "does not exist"} — left untouched; reconcile the invoice by hand`);
       invNum = undefined; // never hand the shop another customer's invoice number

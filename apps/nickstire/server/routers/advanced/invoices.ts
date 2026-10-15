@@ -59,6 +59,7 @@ async function writeDismissedIds(d: NonNullable<Awaited<ReturnType<typeof db>>>,
 }
 
 import { db } from "../../lib/db-helper";
+import { releaseInvoiceTotal, withInvoiceLock } from "../../services/paymentIntentLock";
 
 import { createLogger } from "../../lib/logger";
 import { logAdminAction } from "../../services/auditTrail";
@@ -282,7 +283,21 @@ export const invoicesRouter = router({
         } catch (e) { log.warn("[advanced:invoice] payment status check failed; firing invoice_paid to be safe:", e); }
       }
 
-      await d.update(invoices).set(cleanUpdates).where(eq(invoices.id, id));
+      // A total that changes while a card payment is open would charge one amount and record another.
+      // Cancel the open payment first; refuse the change if Stripe cannot confirm the cancel.
+      // The total change and the open-payment release run under the invoice lock, so no payment can start
+      // at the old total in between.
+      if (cleanUpdates.totalAmount !== undefined) {
+        await withInvoiceLock(d, id, async (tx, row) => {
+          if (row.totalAmount !== cleanUpdates.totalAmount) {
+            const held = await releaseInvoiceTotal(tx, id);
+            if (!held.released) throw new TRPCError({ code: "CONFLICT", message: `Total not changed: ${held.reason}.` });
+          }
+          await tx.update(invoices).set(cleanUpdates).where(eq(invoices.id, id));
+        });
+      } else {
+        await d.update(invoices).set(cleanUpdates).where(eq(invoices.id, id));
+      }
 
       // Fire invoice_paid only on actual transition (not if already paid)
       if (input.paymentStatus === "paid" && !wasPaid) {

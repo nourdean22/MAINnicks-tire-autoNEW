@@ -756,18 +756,22 @@ export async function ingestInvoices(invoices: ParsedInvoice[]): Promise<{ creat
         .limit(1);
 
       if (existing.length > 0) {
-        // Update existing
-        await db.update(invoicesTable).set({
-          customerName: `${inv.lastName}, ${inv.firstName}`,
-          totalAmount: inv.totalCents,
-          laborCost: inv.laborCents,
-          partsCost: inv.partsCents,
-          taxAmount: inv.taxCents,
-          serviceDescription: inv.description || null,
-          paymentMethod: inv.paymentMethod,
-          invoiceDate: new Date(inv.date + "T12:00:00"),
-          source: "shopdriver",
-        }).where(eq(invoicesTable.id, existing[0].id));
+        // Update existing. The total moves only under the payment-intent lock: an open card payment holds it.
+        const { withInvoiceLock, lockedTotalPatch } = await import("./paymentIntentLock");
+        await withInvoiceLock(db, existing[0].id, async (tx, row) => {
+          const totalPatch = await lockedTotalPatch(tx, existing[0].id, row.totalAmount, inv.totalCents);
+          await tx.update(invoicesTable).set({
+            customerName: `${inv.lastName}, ${inv.firstName}`,
+            ...totalPatch,
+            laborCost: inv.laborCents,
+            partsCost: inv.partsCents,
+            taxAmount: inv.taxCents,
+            serviceDescription: inv.description || null,
+            paymentMethod: inv.paymentMethod,
+            invoiceDate: new Date(inv.date + "T12:00:00"),
+            source: "shopdriver",
+          }).where(eq(invoicesTable.id, existing[0].id));
+        });
         updated++;
         continue;
       }

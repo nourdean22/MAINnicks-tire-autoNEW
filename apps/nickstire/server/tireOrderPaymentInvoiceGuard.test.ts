@@ -21,16 +21,31 @@ const h = vi.hoisted(() => ({
   invoice: null as Record<string, unknown> | null,
   invoiceUpdates: [] as Array<Record<string, unknown>>,
   notified: [] as Array<Record<string, unknown>>,
+  openCardPayments: [] as Array<{ id: number; paymentIntentId: string | null; createdAt: Date }>,
 }));
 
-vi.mock("./db", () => ({
-  getDb: async () => ({
-    // select() → the tire order; select({ ... }) → the invoice lookup.
-    select: (fields?: unknown) => ({
-      from: () => ({
-        where: () => ({ limit: async () => (fields ? (h.invoice ? [h.invoice] : []) : h.order ? [h.order] : []) }),
-      }),
-    }),
+vi.mock("./db", async () => {
+  const { invoices, payments, tireOrders } = await import("../drizzle/schema");
+  // Rows by table: the tire order, the invoice, and the open card payments on it.
+  const rowsFor = (table: unknown): unknown[] => {
+    if (table === tireOrders) return h.order ? [h.order] : [];
+    if (table === invoices) return h.invoice ? [h.invoice] : [];
+    if (table === payments) return h.openCardPayments;
+    return [];
+  };
+  // A select chain that resolves to its rows, whichever of where / limit / for it passes through.
+  const selectFrom = (table: unknown) => {
+    const chain: Record<string, unknown> = {
+      where: () => chain,
+      limit: () => chain,
+      for: () => chain,
+      then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
+        Promise.resolve(rowsFor(table)).then(resolve, reject),
+    };
+    return chain;
+  };
+  const db: Record<string, unknown> = {
+    select: () => ({ from: (table: unknown) => selectFrom(table) }),
     execute: async () => [{ affectedRows: 1 }],
     update: () => ({
       set: (values: Record<string, unknown>) => ({
@@ -38,8 +53,11 @@ vi.mock("./db", () => ({
       }),
     }),
     insert: () => ({ values: async () => [{ insertId: 1 }] }),
-  }),
-}));
+    // The invoice write runs inside the invoice lock's transaction; the transaction is the same handle.
+    transaction: async (fn: (tx: unknown) => unknown) => fn(db),
+  };
+  return { getDb: async () => db };
+});
 vi.mock("./services/customerMessageTemplates", () => ({ sendCustomerMessage: async () => undefined }));
 vi.mock("./email-notify", () => ({
   notifyTireOrderPaid: async (args: Record<string, unknown>) => { h.notified.push(args); return { emailSent: true }; },
@@ -68,6 +86,7 @@ beforeEach(() => {
   h.invoice = null;
   h.invoiceUpdates = [];
   h.notified = [];
+  h.openCardPayments = [];
 });
 afterEach(() => {
   vi.clearAllMocks();
@@ -109,6 +128,19 @@ describe("finalizeTireOrderPayment invoice guard", () => {
     h.invoice = { id: 9, customerPhone: "216-555-0101", serviceDescription: "4 tires mounted" };
     await pay();
     expect(h.invoiceUpdates).toHaveLength(1);
+  });
+
+  it("with an open card payment on the invoice, cancels nothing and keeps the total", async () => {
+    h.invoice = {
+      id: 9,
+      customerPhone: ORDER.customerPhone,
+      serviceDescription: `Tire Order & Install — 4x KENDA KR217 (205/55R16)\nOrder: ${ORDER.orderNumber}`,
+    };
+    h.openCardPayments = [{ id: 3, paymentIntentId: "pi_pending", createdAt: new Date() }];
+    await pay();
+    // The only write is the invoice itself: no payments row is canceled, and the total is not moved.
+    expect(h.invoiceUpdates).toEqual([{ paymentStatus: "paid", paymentMethod: "card" }]);
+    expect(h.notified[0].invoiceNumber).toBe("INV-20260923-004");
   });
 });
 

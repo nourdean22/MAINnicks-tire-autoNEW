@@ -1857,18 +1857,19 @@
       "operationalState": "live_verified",
       "codeState": "merged",
       "exposure": "production",
-      "lastVerifiedAt": "2026-09-15",
+      "lastVerifiedAt": "2026-10-15",
       "evidence": {
         "codeCommit": "ad38f7878 (#2330): server/services/shopState.ts is flag-gated (shopstate_lot_band) and selects only COUNT over vehicle_visits dataClass=PRODUCTION; freshness comes from MAX(receivedAt) on camera_runtime (the producer heartbeat). shared/shopState.test.ts property test, 400 cases: no plate/customer/phone-shaped key ever appears in the derived state; never 'open' outside BUSINESS.hours; a stale lot feed renders unknown.",
-        "liveRuns": "2026-09-15 ~14:32 UTC: flag flipped ON through the app's own /api/admin/flags/toggle (receipt {key:'shopstate_lot_band',value:true,toggled:true}); re-read value=true. GET https://nickstire.org/api/trpc/shopStatus.getState on deployed ad38f7878 -> lot {band:'unknown', sensorHealth:'offline'}, evidence 'lot:offline (no recent observation)' -- the flag-ON evidence string (flag-OFF is the bare 'lot:offline'), so the lane is live and honest: the camera heartbeat is stale and the band stays unknown until it resumes.",
-        "limits": "Renders 'unknown' until camera_runtime.receivedAt is within LOT_STALE_MS. No plate column is ever selected; the public surface never learns which vehicle is on the lot.",
+        "liveRuns": "2026-09-15 ~14:32 UTC: flag flipped ON through the app's own /api/admin/flags/toggle (receipt {key:'shopstate_lot_band',value:true,toggled:true}); re-read value=true. GET https://nickstire.org/api/trpc/shopStatus.getState on deployed ad38f7878 -> lot {band:'unknown', sensorHealth:'offline'}, evidence 'lot:offline (no recent observation)' -- the flag-ON evidence string (flag-OFF is the bare 'lot:offline'), so the lane is live and honest: the camera heartbeat is stale and the band stays unknown until it resumes. | 2026-10-15 00:26 UTC re-verification on deploy 5aef53ae6 (health deploy.commit): GET https://nickstire.org/api/trpc/shopStatus.getState -> lot {band:\"unknown\", sensorHealth:\"offline\"}, evidence \"lot:offline (no recent observation)\" (the flag-ON string; flag-OFF is the bare \"lot:offline\"), so the lane is still live and honest. No plate-, customer- or phone-shaped key in the payload.",
+        "limits": "Renders 'unknown' until camera_runtime.receivedAt is within LOT_STALE_MS. No plate column is ever selected; the public surface never learns which vehicle is on the lot. 2026-10-15 probe: the camera was offline, so a fresh light/steady/busy band was not observed; the re-proof covers the live, honest, no-plate lane only.",
         "productionMeasurement": "Playwright critical pages + episodes on the exact deployed commit dd61b8a1d: 20 passed / 10 viewport-skipped (proof run 34983700370); weather banner + shop-status widget masked in Argos build 4.",
         "tests": [
-          "shared/shopState.test.ts (property test, 400 cases: no plate/customer/phone-shaped key in the derived state; never 'open' outside BUSINESS.hours; a stale lot feed renders unknown)"
+          "shared/shopState.test.ts (property test, 400 cases: no plate/customer/phone-shaped key in the derived state; never 'open' outside BUSINESS.hours; a stale lot feed renders unknown)",
+          "2026-10-15 re-run on 5aef53ae6: shared/shopState.test.ts, 10 tests passed, exit 0."
         ],
         "deploymentId": "railway MAINnicks-tire-auto main auto-deploy of dd61b8a1d (#2334), health deploy.commit == sha verified by the proof workflow run 34983700370"
       },
-      "verificationExpiresAt": "2026-10-15"
+      "verificationExpiresAt": "2026-11-14"
     },
     {
       "capabilityId": "web-experiment-home-hero-subline",
@@ -4916,6 +4917,44 @@
         "Adjacent rot noted, not widened: the governor's topic/CTA lookback fetches by createdAt (7 days), so a reservation created more than 7 days before its window is not seen by the repeat checks (contentGovernor.test.ts canary comment)."
       ],
       "lastVerifiedAt": "2026-10-10"
+    },
+    {
+      "capabilityId": "card-payment-amount-lock",
+      "name": "A card payment amount cannot change between the moment Stripe is asked to charge it and the moment it is recorded paid",
+      "owner": "nickstire",
+      "evidence": {
+        "codeCommit": "d69546ed1 (lock fixes), 28b76f9ca (tire-order: no cancel), 31c75ee3e (recordPaymentIntent internal)",
+        "tests": "services/paymentIntentLock.test.ts (withInvoiceLock takes FOR UPDATE; recordPaymentIntentLocked refuses a moved total and a paid invoice; releaseInvoiceTotal cancels stale intents, then holds for a fresh one; markPaymentPaid cancels the other open card payments on the paid invoice and keeps the first paidAt; lockedTotalPatch); server/tireOrderPaymentInvoiceGuard.test.ts (a tire-order payment with an open card payment writes only the invoice); server/lib/webhookStatusForClaim.test.ts (six claim outcomes); server/routers/paymentsConfirmTotalPin.test.ts; __tests__/paymentIntentLockWiring.test.ts (source scan of the call shapes at each writer); full nickstire suite on 31c75ee3e: 1032 test files passed, 3 skipped; 13351 tests passed, 74 skipped, 1 todo, 0 failed."
+      },
+      "blockers": [
+        {
+          "severity": "P1",
+          "description": "Operator decision, kept manual: a card payment that Stripe reports as succeeded but the webhook refuses (amount mismatch) keeps its invoice total held. Nothing resolves it automatically; an operator reconciles the invoice by hand. The hold is logged, not alerted.",
+          "source": "operator decision 2026-10-15"
+        },
+        {
+          "severity": "P1",
+          "description": "Operator decision: a tire-order payment on an invoice with an open card payment marks the invoice paid, leaves its total unchanged, and cancels nothing. If that card payment then succeeds, the customer is charged twice. The second charge appears only as an info log in the webhook; the operator checks Stripe.",
+          "source": "operator decision 2026-10-15"
+        },
+        {
+          "severity": "P2",
+          "description": "No Stripe test-mode run against the live webhook yet. Route wiring is covered by a source scan only.",
+          "source": "review 2026-10-15"
+        }
+      ],
+      "deferredScope": [
+        "payment intents created before this lock deployed are not locked",
+        "payment-link rows with no Stripe payment-intent id are excluded from the lock",
+        "stale open card payments (over 24 hours) are canceled when a total changes; a fresh one holds the total",
+        "when a card payment succeeds, the other open card payments on that invoice are canceled (operator decision: kept)",
+        "the lock holds the invoice row while Stripe calls run, so a slow Stripe call delays other writers of that invoice",
+        "the open-intent and paid-update filters are checked by rendering their WHERE clauses, not by a database run; the webhook route has no behavior test"
+      ],
+      "lastVerifiedAt": "2026-10-15",
+      "codeState": "in_progress",
+      "operationalState": "unit_verified",
+      "exposure": "disabled"
     }
   ],
   "axes": {
