@@ -2005,6 +2005,110 @@ describe("a replay started from no trace at all", () => {
   });
 });
 
+// A POST answered without X-Trace-Id (429, 5xx, a gateway) makes the transport null lastTraceId
+// (use-chat-transport.ts), so after a replay from a real trace T1 the trace in hand is null and the old
+// gate's "current trace equals the replayed-from trace" read false: Retry and the auto retry replayed
+// blind. The record is cleared by a header for a different trace, by a new send and by an idle reset;
+// while it stands and an error is set, the replay is unanswered whatever the trace in hand is.
+describe("a replay answered without a trace header", () => {
+  beforeEach(() => vi.mocked(toast.error).mockClear());
+
+  /** Regenerate from T1 (the seeded trace) replays; its POST is answered by a trace-less error, so the transport nulls the trace. */
+  async function replayThenTracelessError(message: string) {
+    let rows: unknown[] = [userRow, cleanRow("T1")];
+    const readSavedTurn = vi.fn(async () => rows);
+    hookOptions = { readSavedTurn };
+    useChatUiStore.setState({ activeConversationId: "c1" });
+    h.chat.messages = [user, reply];
+    h.chat.status = "ready";
+    h.chat.error = undefined;
+    render();
+    await retryNow();
+    expect(h.chat.regenerate, "the operator's Regenerate").toHaveBeenCalledTimes(1);
+    transport().lastTraceIdRef.current = null;
+    h.chat.status = "error";
+    h.chat.error = new Error(message);
+    render();
+    vi.mocked(toast.error).mockClear();
+    return {
+      readSavedTurn,
+      serve: (next: unknown[]) => {
+        rows = next;
+      },
+    };
+  }
+
+  it("a manual Retry is held, with the resent-request copy, not replayed blind", async () => {
+    const { readSavedTurn } = await replayThenTracelessError('{"error":"Chat stream failed"}');
+
+    await retryNow();
+
+    expect(readSavedTurn).toHaveBeenCalledTimes(1);
+    expect(h.chat.regenerate, "null is not T1: the old equality read 'answered'").toHaveBeenCalledTimes(1);
+    expect(vi.mocked(toast.error).mock.calls[0]?.[0]).toBe(RETRY_HELD_RESENT_UNKNOWN);
+  });
+
+  it("the auto retry is held the same way: no regenerate, and the operator is told", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      await replayThenTracelessError("Load failed");
+
+      await act(async () => void (await vi.advanceTimersByTimeAsync(10_000)));
+
+      expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(toast.error).mock.calls[0]?.[0]).toBe(RETRY_HELD_RESENT_UNKNOWN);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a settled clean row for a trace the client has not acted on (T5) then allows Retry", async () => {
+    const { serve } = await replayThenTracelessError('{"error":"Chat stream failed"}');
+    serve([userRow, cleanRow("T1"), cleanRow("T5", "stub-5")]);
+
+    await retryNow();
+
+    expect(h.chat.regenerate).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(toast.error)).not.toHaveBeenCalled();
+  });
+
+  it("CONTROL: a replay answered with a NEW header (T2) that completes leaves nothing outstanding: the next Regenerate goes straight through", async () => {
+    const readSavedTurn = vi.fn(async () => [userRow, cleanRow("T1")]);
+    hookOptions = { readSavedTurn };
+    h.chat.messages = [user, reply];
+    h.chat.status = "ready";
+    render();
+    await retryNow();
+    transport().lastTraceIdRef.current = "T2";
+    act(() => transport().onTraceId?.("T2")); // the replay was answered
+    render();
+
+    await retryNow();
+
+    expect(h.chat.regenerate).toHaveBeenCalledTimes(2);
+    expect(readSavedTurn, "no error: nothing to read").not.toHaveBeenCalled();
+    expect(vi.mocked(toast.error)).not.toHaveBeenCalled();
+  });
+
+  it("a new message clears the record: its own dropped send is auto-retryable as before", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      await replayThenTracelessError(NOT_A_NETWORK_DROP);
+      act(() => void ctl.sendText("next"));
+      h.chat.messages = [user, reply];
+      h.chat.status = "error";
+      h.chat.error = new Error("Load failed");
+      render();
+
+      await act(async () => void (await vi.advanceTimersByTimeAsync(10_000)));
+
+      expect(h.chat.regenerate, "the operator's replay, then the new send's auto retry").toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
 // D1: the private flag describes the request that was sent. Once nothing is in flight, opening another
 // conversation must not leave it behind to refuse a normal Regenerate there.
 describe("a private send is forgotten when the operator opens another conversation", () => {

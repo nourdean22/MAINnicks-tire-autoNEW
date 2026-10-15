@@ -75,11 +75,12 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
   const lastTraceIdRef = useRef<string | null>(null);
   // "A replay is outstanding": replay() records the trace it re-ran (`from`, null allowed: a cold page,
   // a conversation opened from history, or a reply that came back with no trace header all leave it
-  // null). A replay whose POST dies before any response header leaves lastTraceId unchanged, so the
-  // client cannot tell whether the server (which does not stop when the client disconnects) is running
-  // it. While an error has no new header since, i.e. lastTraceId still equals `from` (null equals null),
-  // Retry and the auto retry are judged from the saved turn instead of replaying blind. An explicit
-  // record, not a trace comparison: the comparison was off whenever the trace in hand was null.
+  // null). A replay whose POST dies before any response header leaves lastTraceId unchanged, and one
+  // answered WITHOUT a header (429, 5xx, a gateway) nulls it, so the client cannot tell whether the
+  // server (which does not stop when the client disconnects) is running it. While the record stands
+  // and an error is set, Retry and the auto retry are judged from the saved turn instead of replaying
+  // blind, whatever the trace in hand is. An explicit record, not a trace comparison: a comparison
+  // was off whenever the trace in hand was null, or became null.
   // Cleared by a new send, by opening another conversation when nothing is in flight, and by a response
   // that carries a trace header other than `from`.
   const replayOutstandingRef = useRef<{ from: string | null } | null>(null);
@@ -456,10 +457,11 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
       const serverOwnsErroredTurn = Boolean(chat.error) && Boolean(traceNow) && traceNow !== traceAtSendRef.current;
       if (serverOwnsErroredTurn) return replayIfSavedTurnAllows(replay, (rows) => judgeSavedTurn(rows, traceNow));
       // The latest replay sent its POST but no header came back: that attempt may be running
-      // unseen. Unknown means refuse until a later attempt's clean row proves otherwise. The record
-      // is explicit, so this holds when the trace in hand is null too (null equals null).
-      const outstanding = replayOutstandingRef.current;
-      const replayWentUnanswered = Boolean(chat.error) && outstanding !== null && traceNow === outstanding.from;
+      // unseen. Unknown means refuse until a later attempt's clean row proves otherwise. The record is
+      // explicit and the trace in hand is not compared with it: a header for another trace already
+      // cleared it (onTraceId), and a POST answered with NO header nulls lastTraceId, so comparing
+      // would read a trace-less 429 or 5xx after a replay from T1 as "answered".
+      const replayWentUnanswered = Boolean(chat.error) && replayOutstandingRef.current !== null;
       if (replayWentUnanswered) {
         const acknowledged = acknowledgedTracesRef.current;
         return replayIfSavedTurnAllows(replay, (rows) => judgeAfterUnansweredReplay(rows, acknowledged), RETRY_HELD_RESENT_UNKNOWN);
