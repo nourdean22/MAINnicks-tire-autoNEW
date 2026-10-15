@@ -30,7 +30,7 @@ import {
   RotateCcw,
   Trash2,
 } from "lucide-react";
-import { haptic } from "@/lib/ui/haptic";
+import { haptic, isSupported as isHapticSupported } from "@/lib/ui/haptic";
 import { SegmentedSelect, Toggle } from "./settings-controls";
 
 import { trpc } from "@/lib/trpc/client";
@@ -241,6 +241,8 @@ export function AiSettingsPanel() {
     );
   }
 
+  const hapticSupported = isHapticSupported();
+
   return (
     <div className="space-y-4">
       {/* ── Cold Memory Card (#16) ── */}
@@ -340,18 +342,29 @@ export function AiSettingsPanel() {
             The Speed Ribbon toggle that sat beside it was write-only: its
             only reader hook was mounted nowhere (settings census 2026-10-02),
             so the toggle, the hook and its test are gone. */}
+        {/* iOS has no web vibration (Safari lacks the Vibration API), so on an
+            iPhone the switch below would promise feedback that can never fire:
+            say so instead of showing a dead control (UI v3 W0). */}
         <Row label="Haptic Feedback">
-          <Toggle
-            value={hapticOn}
-            onChange={(v) => {
-              haptic.setEnabled(v);
-              setHapticOn(v);
-            }}
-          />
+          {hapticSupported ? (
+            <Toggle
+              value={hapticOn}
+              onChange={(v) => {
+                haptic.setEnabled(v);
+                setHapticOn(v);
+              }}
+            />
+          ) : (
+            <span className="max-w-[16rem] text-right text-[12px] text-fg-tertiary">
+              Not available on this device. This browser has no web vibration support.
+            </span>
+          )}
         </Row>
-        <p className="mt-1 text-[12px] text-fg-tertiary">
-          Per-device (stored in this browser).
-        </p>
+        {hapticSupported && (
+          <p className="mt-1 text-[12px] text-fg-tertiary">
+            Per-device (stored in this browser).
+          </p>
+        )}
       </GlassCard>
 
       {/* ── Tool Opt-in / Opt-out (#13) ── */}

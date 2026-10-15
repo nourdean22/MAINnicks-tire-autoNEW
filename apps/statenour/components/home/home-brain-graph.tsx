@@ -1251,9 +1251,7 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
         {showInitialSpinner && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-canvas/80 z-10">
             <Loader2 size={24} className="animate-spin text-fg-secondary" />
-            <span className="font-mono text-[11px] text-fg-tertiary">
-              Loading brain · times out in {FETCH_TIMEOUT_MS / 1000}s
-            </span>
+            <span className="font-mono text-[11px] text-fg-tertiary">Loading brain</span>
           </div>
         )}
 

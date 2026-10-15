@@ -9,7 +9,7 @@
  * verb set: RESOLVE (soft-deletes the row; the alerts list and the Brain
  * card already exclude deletedAt) and MUTE the category for 7 days (an
  * expiring `alert_mute` row the builder honours server-side). Both existed
- * only on the home ActiveAlertsCard; the /system/alerts list itself had no
+ * only on the Brain memory tab's ActiveAlertsCard; the /system/alerts list itself had no
  * verbs. Resolve is two-tap in the DOM — a PWA gets no window.confirm.
  */
 
@@ -119,7 +119,7 @@ export function AlertInspector({ entity }: InspectorPanelProps) {
         </button>
       </div>
       <p className="font-mono text-[11px] text-fg-tertiary">
-        resolve soft-deletes this alert (the receipt is its deletedAt) · mute hides the whole category from the list and the home card
+        {`Resolve clears this alert. Mute hides the whole category from the alerts list and the Brain memory card for ${ALERT_MUTE_DAYS} days.`}
       </p>
 
       <EntityActionRow entities={[entity]} labelOf={() => label} />

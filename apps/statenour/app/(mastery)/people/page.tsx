@@ -34,6 +34,7 @@ import { useLocalStorageState } from "@/hooks/use-local-storage-state";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { SortDropdown } from "@/components/ui/sort-dropdown";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc/client";
 
@@ -326,6 +327,10 @@ function RelationshipsPageInner() {
     );
   };
 
+  // usePollingFetch builds "<status> <statusText> · <first 160 chars of the body>". The body is a JSON
+  // envelope or a gateway HTML page: never the operator's business, so show only the leading status.
+  const failureReason = error ? error.split(" · ")[0] : null;
+
   return (
     <StandardPage
       eyebrow="Brain · people"
@@ -452,7 +457,15 @@ function RelationshipsPageInner() {
         />
       </div>
 
-      {/* People list · tap-to-select for in-page detail (no nav) */}
+      {/* A refresh that failed over a list already on screen: keep the list, say it may be old
+          (empty-vs-error rule 3: a failed read never reads as current data). */}
+      {error && data && (
+        <p role="status" className="font-mono text-[11px] text-fg-tertiary">
+          Refresh failed, showing the last list. ({failureReason})
+        </p>
+      )}
+
+      {/* People list· tap-to-select for in-page detail (no nav) */}
       {data && data.people.length === 0 && !loading && (
         <div className="border-l-2 border-edge py-2 pl-5 text-[15px] leading-relaxed text-fg-secondary sm:pl-6">
           No people profiles yet · the people-intelligence engine builds these
@@ -663,9 +676,19 @@ function RelationshipsPageInner() {
       {/* Initial load → StandardPage `loading` slot renders <PageSkeleton>;
           the old inline "loading people…" was unreachable under the same
           `loading && !data` guard, so it was removed. */}
+      {/* A failed read is not an empty list (skill empty-vs-error), and it needs
+          something to tap: the old line said "tap reload" over nothing tappable.
+          Retry is the same reload the freshness chip calls. */}
       {error && !data && (
-        <div className="text-sm text-rose-300">
-          people-intelligence unavailable · tap reload
+        <div className="space-y-2" role="alert">
+          <EmptyState
+            provenance="ERROR"
+            tone="warning"
+            title="People did not load"
+            why="The read failed, so nothing is known about your people list right now. That is not an empty list."
+            cta={{ label: "Retry", onClick: () => reload() }}
+          />
+          <p className="break-words text-center font-mono text-[11px] text-fg-tertiary">{failureReason}</p>
         </div>
       )}
 

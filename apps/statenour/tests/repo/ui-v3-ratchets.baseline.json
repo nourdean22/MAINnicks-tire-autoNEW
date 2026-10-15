@@ -1,0 +1,1005 @@
+{
+  "_about": "UI v3 ratchet baseline (tests/repo/ui-v3-ratchets.test.ts). Keys are app-root-relative POSIX paths; a file or counter that is absent is 0. A count may fall and never rise. Lower the numbers with UPDATE_RATCHET=1 pnpm exec vitest run tests/repo/ui-v3-ratchets.test.ts, which refuses to raise any number and refuses a missing file. UPDATE_RATCHET=init may create or raise the baseline; it is for widening the scan, once, in review. Do not hand-edit a number up; a moved, renamed or deleted file is re-keyed or dropped by hand or by mode 1, its numbers moving with it and the totals unchanged.",
+  "totals": {
+    "uppercase": 630,
+    "emDash": 432,
+    "emoji": 213,
+    "transitionAll": 57,
+    "slowDuration": 8,
+    "smallInput": 113
+  },
+  "files": {
+    "app/(mastery)/content/page.tsx": {
+      "emDash": 1
+    },
+    "app/(mastery)/decisions/[id]/page.tsx": {
+      "uppercase": 8,
+      "emDash": 9,
+      "smallInput": 2
+    },
+    "app/(mastery)/intelligence/brief/page.tsx": {
+      "emDash": 1
+    },
+    "app/(mastery)/journal/_components/journal-feed-view.tsx": {
+      "uppercase": 1,
+      "smallInput": 1
+    },
+    "app/(mastery)/journal/_components/notebooklm-context-zone.tsx": {
+      "smallInput": 1
+    },
+    "app/(mastery)/learn/page.tsx": {
+      "uppercase": 1,
+      "smallInput": 1
+    },
+    "app/(mastery)/links/page.tsx": {
+      "uppercase": 3,
+      "emDash": 2,
+      "emoji": 1,
+      "smallInput": 5
+    },
+    "app/(mastery)/missions/hooks/use-mission-actions.ts": {
+      "emDash": 6
+    },
+    "app/(mastery)/missions/page.tsx": {
+      "emDash": 4
+    },
+    "app/(mastery)/people/page.tsx": {
+      "emDash": 2
+    },
+    "app/(mastery)/photo-improver/page.tsx": {
+      "uppercase": 9,
+      "emDash": 2,
+      "smallInput": 1
+    },
+    "app/(mastery)/pins/page.tsx": {
+      "uppercase": 3,
+      "emDash": 2,
+      "smallInput": 4
+    },
+    "app/(mastery)/proof/page.tsx": {
+      "uppercase": 7,
+      "emDash": 3
+    },
+    "app/(mastery)/stats/page.tsx": {
+      "transitionAll": 1
+    },
+    "app/(mastery)/system/actions/page.tsx": {
+      "uppercase": 6,
+      "emDash": 9,
+      "emoji": 1,
+      "smallInput": 1
+    },
+    "app/(mastery)/system/ai-cost/page.tsx": {
+      "uppercase": 1,
+      "transitionAll": 1
+    },
+    "app/(mastery)/system/alerts/page.tsx": {
+      "uppercase": 5,
+      "emoji": 7
+    },
+    "app/(mastery)/system/calibration/page.tsx": {
+      "uppercase": 3,
+      "emDash": 4
+    },
+    "app/(mastery)/system/camera/page.tsx": {
+      "emDash": 12,
+      "smallInput": 3
+    },
+    "app/(mastery)/system/chat-states/page.tsx": {
+      "uppercase": 5,
+      "emDash": 15,
+      "emoji": 3
+    },
+    "app/(mastery)/system/crons/page.tsx": {
+      "uppercase": 3,
+      "emDash": 3
+    },
+    "app/(mastery)/system/fleet/page.tsx": {
+      "uppercase": 4,
+      "emDash": 12
+    },
+    "app/(mastery)/system/health/page.tsx": {
+      "uppercase": 12,
+      "emDash": 4
+    },
+    "app/(mastery)/system/inbox/page.tsx": {
+      "uppercase": 3
+    },
+    "app/(mastery)/system/page.tsx": {
+      "uppercase": 8,
+      "emoji": 1
+    },
+    "app/(mastery)/system/proactive-preview/page.tsx": {
+      "uppercase": 4,
+      "emDash": 1,
+      "smallInput": 1
+    },
+    "app/(mastery)/system/schema-history/page.tsx": {
+      "uppercase": 2
+    },
+    "app/(mastery)/system/tools/page.tsx": {
+      "uppercase": 2,
+      "emDash": 5
+    },
+    "app/(mastery)/system/ui-lab/page.tsx": {
+      "uppercase": 6,
+      "emDash": 18
+    },
+    "app/auth/sign-in/page.tsx": {
+      "uppercase": 1
+    },
+    "app/global-error.tsx": {
+      "uppercase": 1
+    },
+    "app/styles/base.css": {
+      "uppercase": 4
+    },
+    "app/styles/effects.css": {
+      "uppercase": 1
+    },
+    "components/actions/break-promise-modal.tsx": {
+      "uppercase": 2
+    },
+    "components/actions/derive-mission-matrix.ts": {
+      "emDash": 3
+    },
+    "components/actions/event-timeline.tsx": {
+      "uppercase": 1
+    },
+    "components/actions/loop-row-item.tsx": {
+      "uppercase": 27,
+      "emDash": 6,
+      "emoji": 2,
+      "smallInput": 5
+    },
+    "components/actions/loop-stream.tsx": {
+      "uppercase": 10,
+      "emDash": 1,
+      "emoji": 1
+    },
+    "components/actions/milestones-flow.tsx": {
+      "uppercase": 1,
+      "smallInput": 1
+    },
+    "components/actions/mode-learn.tsx": {
+      "uppercase": 17,
+      "transitionAll": 12,
+      "slowDuration": 1,
+      "smallInput": 1
+    },
+    "components/actions/omni-capture-modal.tsx": {
+      "uppercase": 2
+    },
+    "components/actions/shared.ts": {
+      "emoji": 31
+    },
+    "components/actions/task-filters.tsx": {
+      "emDash": 2,
+      "smallInput": 2
+    },
+    "components/actions/todays-compound.tsx": {
+      "uppercase": 1
+    },
+    "components/ai/page-nick.tsx": {
+      "uppercase": 1,
+      "smallInput": 1
+    },
+    "components/brain-dump-modal.tsx": {
+      "uppercase": 3,
+      "emDash": 5,
+      "transitionAll": 2
+    },
+    "components/brain/active-alerts-card.tsx": {
+      "emDash": 1
+    },
+    "components/brain/anti-patterns-panel.tsx": {
+      "uppercase": 1,
+      "emDash": 1
+    },
+    "components/brain/beliefs-panel.tsx": {
+      "uppercase": 2,
+      "emDash": 2,
+      "smallInput": 1
+    },
+    "components/brain/board-tab.tsx": {
+      "uppercase": 11,
+      "emDash": 1,
+      "emoji": 2,
+      "smallInput": 1
+    },
+    "components/brain/brain-insights-panel.tsx": {
+      "uppercase": 1,
+      "emoji": 1
+    },
+    "components/brain/brain-maturity-header.tsx": {
+      "uppercase": 1,
+      "emDash": 3
+    },
+    "components/brain/continuity-view.tsx": {
+      "uppercase": 1,
+      "emDash": 2
+    },
+    "components/brain/contradiction-resolution-panel.tsx": {
+      "uppercase": 3,
+      "emDash": 3,
+      "smallInput": 1
+    },
+    "components/brain/discover-tab.tsx": {
+      "uppercase": 2,
+      "emDash": 17
+    },
+    "components/brain/health-view.tsx": {
+      "uppercase": 2,
+      "emDash": 1,
+      "transitionAll": 1
+    },
+    "components/brain/insight-ribbon.tsx": {
+      "uppercase": 2
+    },
+    "components/brain/judgment-quality-panel.tsx": {
+      "uppercase": 3,
+      "emDash": 4
+    },
+    "components/brain/knowledge-action-outcomes.tsx": {
+      "smallInput": 1
+    },
+    "components/brain/knowledge-review-tab.tsx": {
+      "emDash": 2
+    },
+    "components/brain/memory-of-day-card.tsx": {
+      "uppercase": 1
+    },
+    "components/brain/memory-tab.tsx": {
+      "uppercase": 2,
+      "emDash": 2
+    },
+    "components/brain/pinned-context-panel.tsx": {
+      "uppercase": 2,
+      "emDash": 8,
+      "emoji": 1,
+      "transitionAll": 1,
+      "smallInput": 4
+    },
+    "components/brain/prediction-streaks-card.tsx": {
+      "emDash": 2
+    },
+    "components/brain/qualitative-identity-panel.tsx": {
+      "emDash": 3,
+      "smallInput": 1
+    },
+    "components/brain/recall-inbox-panel.tsx": {
+      "emoji": 1
+    },
+    "components/brain/recall-preview-panel.tsx": {
+      "emDash": 1,
+      "smallInput": 1
+    },
+    "components/brain/receipts-timeline.tsx": {
+      "uppercase": 1,
+      "emDash": 2
+    },
+    "components/brain/research-pipeline-status.tsx": {
+      "emDash": 2
+    },
+    "components/brain/self-critique-card.tsx": {
+      "uppercase": 1
+    },
+    "components/brain/suggestion-telemetry-panel.tsx": {
+      "uppercase": 1,
+      "emDash": 4,
+      "transitionAll": 1
+    },
+    "components/brain/time-travel-panel.tsx": {
+      "uppercase": 2,
+      "emDash": 3,
+      "smallInput": 1
+    },
+    "components/brain/tool-telemetry-panel.tsx": {
+      "uppercase": 3,
+      "emDash": 5,
+      "smallInput": 1
+    },
+    "components/brain/wisdom-evolution-panel.tsx": {
+      "uppercase": 7,
+      "emDash": 2
+    },
+    "components/brain/wisdom-tab.tsx": {
+      "emDash": 2,
+      "smallInput": 2
+    },
+    "components/chat/email-draft-card.tsx": {
+      "uppercase": 3,
+      "emoji": 2,
+      "smallInput": 2
+    },
+    "components/chat/image-with-upscale.tsx": {
+      "emDash": 1
+    },
+    "components/chat/inline-chart.tsx": {
+      "uppercase": 1
+    },
+    "components/chat/memory-inspector-sidebar.tsx": {
+      "uppercase": 4,
+      "emDash": 11
+    },
+    "components/chat/mention-dropdown.tsx": {
+      "uppercase": 1
+    },
+    "components/chat/message-action-sheet.tsx": {
+      "uppercase": 1
+    },
+    "components/chat/realtime-voice-overlay.tsx": {
+      "transitionAll": 1
+    },
+    "components/chat/reasoning-trace-live.tsx": {
+      "emDash": 1
+    },
+    "components/chat/reasoning-trace-modal.tsx": {
+      "uppercase": 1,
+      "transitionAll": 1
+    },
+    "components/chat/stitch-prompt-card.tsx": {
+      "uppercase": 5
+    },
+    "components/chat/tool-result-registry.tsx": {
+      "uppercase": 1,
+      "emDash": 3,
+      "emoji": 1,
+      "transitionAll": 2,
+      "slowDuration": 2
+    },
+    "components/chat/voice-waveform-overlay.tsx": {
+      "uppercase": 1
+    },
+    "components/chat/wisdom-pill.tsx": {
+      "uppercase": 2
+    },
+    "components/command-palette.tsx": {
+      "emDash": 1
+    },
+    "components/content/assistant-tab.tsx": {
+      "emDash": 1,
+      "smallInput": 1
+    },
+    "components/content/drafts-tab.tsx": {
+      "uppercase": 5,
+      "transitionAll": 2
+    },
+    "components/content/history-tab.tsx": {
+      "uppercase": 5,
+      "emDash": 12,
+      "smallInput": 1
+    },
+    "components/content/outreach-tab.tsx": {
+      "uppercase": 3,
+      "emDash": 2,
+      "smallInput": 5
+    },
+    "components/content/publish-tab.tsx": {
+      "uppercase": 9,
+      "emDash": 2,
+      "smallInput": 4
+    },
+    "components/goals/execution-coach-sandbox.tsx": {
+      "uppercase": 23,
+      "emoji": 5,
+      "transitionAll": 14,
+      "slowDuration": 1,
+      "smallInput": 5
+    },
+    "components/goals/goal-board.tsx": {
+      "uppercase": 8,
+      "emDash": 14,
+      "transitionAll": 2,
+      "smallInput": 12
+    },
+    "components/home/brain-node-detail-panel.tsx": {
+      "uppercase": 6,
+      "emDash": 3,
+      "emoji": 1
+    },
+    "components/home/brief-state-line.tsx": {
+      "uppercase": 1
+    },
+    "components/home/home-brain-graph.tsx": {
+      "emDash": 7
+    },
+    "components/home/home-console.tsx": {
+      "uppercase": 1,
+      "emDash": 1
+    },
+    "components/home/horizon-line.tsx": {
+      "uppercase": 3,
+      "emDash": 1
+    },
+    "components/home/judgment-queue.tsx": {
+      "uppercase": 1,
+      "emDash": 8
+    },
+    "components/home/waiting-line.tsx": {
+      "uppercase": 3,
+      "emoji": 1
+    },
+    "components/inspector/inspector-frame.tsx": {
+      "uppercase": 1
+    },
+    "components/inspector/inspector-notice.tsx": {
+      "emDash": 1
+    },
+    "components/inspector/panels/alert-inspector.tsx": {
+      "uppercase": 1,
+      "emDash": 1
+    },
+    "components/inspector/panels/cron-inspector.tsx": {
+      "uppercase": 7,
+      "emDash": 4
+    },
+    "components/inspector/panels/memory-inspector.tsx": {
+      "uppercase": 5
+    },
+    "components/inspector/panels/person-inspector.tsx": {
+      "uppercase": 5
+    },
+    "components/inspector/panels/task-inspector.tsx": {
+      "uppercase": 4,
+      "emDash": 1
+    },
+    "components/inspector/panels/tool-inspector.tsx": {
+      "uppercase": 9,
+      "emDash": 1
+    },
+    "components/inspector/selection-action-bar.tsx": {
+      "uppercase": 1
+    },
+    "components/intelligence/OpportunityCard.tsx": {
+      "uppercase": 1,
+      "transitionAll": 2
+    },
+    "components/journal/entry-row.tsx": {
+      "uppercase": 5,
+      "emDash": 1,
+      "smallInput": 2
+    },
+    "components/journal/journal-insights-preview.tsx": {
+      "uppercase": 1,
+      "emDash": 1
+    },
+    "components/journal/journal-threads-strip.tsx": {
+      "uppercase": 1
+    },
+    "components/journal/memory-calibration.tsx": {
+      "uppercase": 2,
+      "smallInput": 1
+    },
+    "components/journal/metacognition-card.tsx": {
+      "uppercase": 1
+    },
+    "components/journal/nicks-journal-brief.tsx": {
+      "uppercase": 1
+    },
+    "components/journal/reflect-composer.tsx": {
+      "uppercase": 5,
+      "emDash": 1,
+      "emoji": 8,
+      "smallInput": 1
+    },
+    "components/journal/thread-radar.tsx": {
+      "uppercase": 1,
+      "smallInput": 1
+    },
+    "components/journal/thread-rail.tsx": {
+      "uppercase": 2,
+      "emDash": 1,
+      "emoji": 1,
+      "smallInput": 1
+    },
+    "components/journal/thread-suggestions.tsx": {
+      "emoji": 1
+    },
+    "components/journal/todays-prompt.tsx": {
+      "uppercase": 1
+    },
+    "components/layout/bottom-tab-bar.tsx": {
+      "emDash": 1
+    },
+    "components/layout/desktop-spine.tsx": {
+      "emDash": 1
+    },
+    "components/layout/more-sheet.tsx": {
+      "uppercase": 3,
+      "emoji": 1
+    },
+    "components/layout/page-tabs.tsx": {
+      "uppercase": 1
+    },
+    "components/mastery/character-sheet.tsx": {
+      "uppercase": 6,
+      "emDash": 1
+    },
+    "components/mastery/coach-event-banner.tsx": {
+      "uppercase": 1,
+      "transitionAll": 1
+    },
+    "components/mastery/graduated-skills-card.tsx": {
+      "uppercase": 2
+    },
+    "components/mastery/identity-arc-card.tsx": {
+      "uppercase": 5
+    },
+    "components/mastery/level-up-directive-card.tsx": {
+      "uppercase": 4,
+      "emDash": 1
+    },
+    "components/mastery/mastery-section-label.tsx": {
+      "uppercase": 2
+    },
+    "components/mastery/mission-breadcrumb.tsx": {
+      "uppercase": 1
+    },
+    "components/mastery/multi-turn-chat.tsx": {
+      "uppercase": 1,
+      "transitionAll": 1
+    },
+    "components/mastery/nick-side-pane.tsx": {
+      "uppercase": 3,
+      "transitionAll": 2
+    },
+    "components/mastery/recurring-enemies-card.tsx": {
+      "uppercase": 2
+    },
+    "components/missions/deck-evidence.tsx": {
+      "uppercase": 3,
+      "emDash": 2,
+      "emoji": 1
+    },
+    "components/missions/deck-lanes.tsx": {
+      "uppercase": 1,
+      "emDash": 1,
+      "emoji": 1
+    },
+    "components/missions/deck-next-move.tsx": {
+      "uppercase": 4,
+      "emDash": 1,
+      "emoji": 1
+    },
+    "components/missions/deck-readiness-line.tsx": {
+      "uppercase": 1
+    },
+    "components/missions/deck-rhythms.tsx": {
+      "uppercase": 1,
+      "emDash": 1
+    },
+    "components/missions/deck-triage.tsx": {
+      "uppercase": 1,
+      "emoji": 1
+    },
+    "components/missions/deck-waiting.tsx": {
+      "uppercase": 1,
+      "emDash": 1,
+      "emoji": 1
+    },
+    "components/missions/execution-panel.tsx": {
+      "uppercase": 9,
+      "emDash": 1,
+      "smallInput": 4
+    },
+    "components/missions/health-governor-strip.tsx": {
+      "uppercase": 1,
+      "transitionAll": 1,
+      "slowDuration": 1
+    },
+    "components/missions/hidden-risk-warning.tsx": {
+      "uppercase": 1
+    },
+    "components/missions/mission-card.tsx": {
+      "uppercase": 5,
+      "emoji": 1,
+      "transitionAll": 1,
+      "slowDuration": 1
+    },
+    "components/missions/mission-edit-drawer.tsx": {
+      "uppercase": 2
+    },
+    "components/missions/mission-feed.tsx": {
+      "uppercase": 1
+    },
+    "components/missions/mission-retro-modal.tsx": {
+      "uppercase": 1,
+      "emDash": 1
+    },
+    "components/missions/mission-task-row.tsx": {
+      "uppercase": 1,
+      "emDash": 1,
+      "emoji": 5
+    },
+    "components/missions/streak-badge.tsx": {
+      "emoji": 1
+    },
+    "components/missions/task-edit-sheet.tsx": {
+      "uppercase": 2,
+      "emDash": 5
+    },
+    "components/missions/task-pending-classification-chip.tsx": {
+      "uppercase": 1
+    },
+    "components/operator/compound-chain.tsx": {
+      "uppercase": 9
+    },
+    "components/operator/mega-confirm-dialog.tsx": {
+      "uppercase": 1
+    },
+    "components/operator/nick-reasoner.tsx": {
+      "uppercase": 8,
+      "smallInput": 1
+    },
+    "components/power-atlas/AlphaMoments.tsx": {
+      "uppercase": 2
+    },
+    "components/power-atlas/ArcProjection.tsx": {
+      "uppercase": 3
+    },
+    "components/power-atlas/BlowUpModal.tsx": {
+      "uppercase": 1
+    },
+    "components/power-atlas/DossierEditor.tsx": {
+      "uppercase": 1,
+      "emDash": 1,
+      "smallInput": 1
+    },
+    "components/power-atlas/LedgerTimeline.tsx": {
+      "uppercase": 3,
+      "smallInput": 1
+    },
+    "components/power-atlas/LogLedgerModal.tsx": {
+      "uppercase": 4,
+      "smallInput": 1
+    },
+    "components/power-atlas/PersonInsights.tsx": {
+      "uppercase": 2,
+      "emDash": 3
+    },
+    "components/power-atlas/PowerBalanceGauge.tsx": {
+      "uppercase": 1,
+      "transitionAll": 1,
+      "slowDuration": 1
+    },
+    "components/power-atlas/PowerPlaysHistory.tsx": {
+      "uppercase": 2
+    },
+    "components/power-atlas/PowerPlaysModal.tsx": {
+      "uppercase": 8
+    },
+    "components/power-atlas/ReciprocityCard.tsx": {
+      "uppercase": 5
+    },
+    "components/power-atlas/SocialProof.tsx": {
+      "uppercase": 1
+    },
+    "components/power-atlas/ToneShiftCard.tsx": {
+      "uppercase": 5
+    },
+    "components/power-atlas/TopicGoalOverlapCard.tsx": {
+      "uppercase": 3
+    },
+    "components/relationships/contextual-greene-sidebar.tsx": {
+      "uppercase": 3
+    },
+    "components/relationships/nicks-relationships-brief.tsx": {
+      "uppercase": 1
+    },
+    "components/relationships/person-edit-drawer.tsx": {
+      "uppercase": 3
+    },
+    "components/relationships/relationships-watchlist.tsx": {
+      "uppercase": 2
+    },
+    "components/relationships/todays-picks.tsx": {
+      "uppercase": 1
+    },
+    "components/settings/ai-settings-panel.tsx": {
+      "uppercase": 1,
+      "emDash": 2,
+      "smallInput": 1
+    },
+    "components/settings/identity-panel.tsx": {
+      "uppercase": 1,
+      "transitionAll": 1,
+      "smallInput": 1
+    },
+    "components/settings/intelligence-flags-panel.tsx": {
+      "uppercase": 6,
+      "emDash": 3,
+      "smallInput": 1
+    },
+    "components/settings/journal-brain-panel.tsx": {
+      "emDash": 1,
+      "emoji": 1,
+      "smallInput": 1
+    },
+    "components/settings/operating-rhythm-toggle.tsx": {
+      "emDash": 3,
+      "emoji": 1
+    },
+    "components/settings/people-scoring-panel.tsx": {
+      "uppercase": 1,
+      "smallInput": 1
+    },
+    "components/settings/push-notification-toggle.tsx": {
+      "emDash": 2,
+      "emoji": 1
+    },
+    "components/settings/settings-console.tsx": {
+      "uppercase": 2,
+      "emoji": 1
+    },
+    "components/settings/settings-controls.tsx": {
+      "transitionAll": 1
+    },
+    "components/settings/skill-library-panel.tsx": {
+      "uppercase": 5,
+      "emDash": 3,
+      "emoji": 1,
+      "smallInput": 3
+    },
+    "components/stats/body-section.tsx": {
+      "transitionAll": 1,
+      "smallInput": 4
+    },
+    "components/stats/calibration-section.tsx": {
+      "uppercase": 2,
+      "smallInput": 2
+    },
+    "components/stats/forecast-duel.tsx": {
+      "uppercase": 1,
+      "emDash": 6,
+      "smallInput": 3
+    },
+    "components/stats/journey-panel.tsx": {
+      "uppercase": 1,
+      "emDash": 5
+    },
+    "components/system/agenda-desk.tsx": {
+      "uppercase": 1
+    },
+    "components/system/cockpit-observability-view.tsx": {
+      "uppercase": 12,
+      "emDash": 5,
+      "transitionAll": 1,
+      "slowDuration": 1
+    },
+    "components/system/cron-fold-tree.tsx": {
+      "uppercase": 3
+    },
+    "components/system/decision-plane-panel.tsx": {
+      "uppercase": 3
+    },
+    "components/system/evidence-gate-panel.tsx": {
+      "uppercase": 3,
+      "emDash": 1
+    },
+    "components/system/health-data-cards.tsx": {
+      "uppercase": 2,
+      "emDash": 3
+    },
+    "components/system/home-decision-panel.tsx": {
+      "uppercase": 4,
+      "emDash": 2
+    },
+    "components/system/hub-grid.tsx": {
+      "uppercase": 1,
+      "emDash": 9
+    },
+    "components/system/judge-calibration-panel.tsx": {
+      "uppercase": 2,
+      "emDash": 7
+    },
+    "components/system/lane-budgets.tsx": {
+      "emDash": 2
+    },
+    "components/system/observability-status-panel.tsx": {
+      "uppercase": 1,
+      "emDash": 3
+    },
+    "components/system/owner-panel.tsx": {
+      "uppercase": 3,
+      "emDash": 4,
+      "emoji": 2
+    },
+    "components/system/schema-drift-card.tsx": {
+      "uppercase": 1,
+      "emDash": 1
+    },
+    "components/system/stale-data-panel.tsx": {
+      "uppercase": 1,
+      "emDash": 4
+    },
+    "components/system/tool-gap-panel.tsx": {
+      "uppercase": 3,
+      "emDash": 2
+    },
+    "components/system/tool-usage-census-panel.tsx": {
+      "uppercase": 1,
+      "emDash": 3
+    },
+    "components/system/trust-ladder-panel.tsx": {
+      "uppercase": 1,
+      "emDash": 6
+    },
+    "components/system/wiring-census-panel.tsx": {
+      "uppercase": 1,
+      "emDash": 2
+    },
+    "components/ui/change-set-line.tsx": {
+      "uppercase": 2,
+      "emDash": 1
+    },
+    "components/ui/command.tsx": {
+      "uppercase": 1,
+      "smallInput": 1
+    },
+    "components/ui/comparison-matrix.tsx": {
+      "uppercase": 3,
+      "emDash": 1,
+      "emoji": 1
+    },
+    "components/ui/confirm-dialog.tsx": {
+      "smallInput": 1
+    },
+    "components/ui/decision-spread.tsx": {
+      "uppercase": 1
+    },
+    "components/ui/empty-state.tsx": {
+      "uppercase": 1,
+      "emDash": 1
+    },
+    "components/ui/filter-chip-bar.tsx": {
+      "uppercase": 1
+    },
+    "components/ui/metric.tsx": {
+      "uppercase": 1
+    },
+    "components/ui/outcome-dialog.tsx": {
+      "emDash": 2,
+      "smallInput": 1
+    },
+    "components/ui/sort-dropdown.tsx": {
+      "uppercase": 1
+    },
+    "components/ui/tip-chip.tsx": {
+      "uppercase": 1
+    },
+    "components/ui/trend-counter.tsx": {
+      "uppercase": 1
+    },
+    "components/ui/unmeasured-line.tsx": {
+      "uppercase": 1,
+      "emDash": 1
+    },
+    "components/ultron/bottom-pulse-ticker.tsx": {
+      "uppercase": 1,
+      "emDash": 1,
+      "emoji": 1
+    },
+    "components/ultron/contradictions-card.tsx": {
+      "uppercase": 8,
+      "emDash": 2,
+      "transitionAll": 2,
+      "smallInput": 1
+    },
+    "components/ultron/decision-replay-card.tsx": {
+      "uppercase": 7,
+      "emDash": 1,
+      "smallInput": 2
+    },
+    "components/ultron/deploy-chip.tsx": {
+      "emDash": 1
+    },
+    "components/ultron/ghost-nick/ghost-nick-strip.tsx": {
+      "uppercase": 2
+    },
+    "components/ultron/observability/cost-slo-tile.tsx": {
+      "uppercase": 3
+    },
+    "components/ultron/observability/eval-pass-rate-tile.tsx": {
+      "uppercase": 1
+    },
+    "components/ultron/observability/observability-row.tsx": {
+      "emDash": 1
+    },
+    "components/ultron/observability/os-drift-tile.tsx": {
+      "uppercase": 1
+    },
+    "components/ultron/observability/voice-latency-tile.tsx": {
+      "uppercase": 2,
+      "emDash": 2
+    },
+    "components/ultron/persona-drift-card.tsx": {
+      "uppercase": 4
+    },
+    "components/ultron/preferences-card.tsx": {
+      "uppercase": 4,
+      "emoji": 1
+    },
+    "components/ultron/signal/situation-card.tsx": {
+      "uppercase": 6,
+      "emDash": 2,
+      "emoji": 1,
+      "transitionAll": 1
+    },
+    "components/ultron/system-health-card.tsx": {
+      "uppercase": 7,
+      "emDash": 4
+    },
+    "components/ultron/today/active-task-companion.tsx": {
+      "uppercase": 2,
+      "emDash": 2,
+      "smallInput": 1
+    },
+    "components/ultron/today/next-action-whisperer.tsx": {
+      "uppercase": 1,
+      "emDash": 1
+    },
+    "components/workset/workset-shelf.tsx": {
+      "uppercase": 2
+    },
+    "features/chat-v2/components/chat-media-dock.tsx": {
+      "emDash": 1
+    },
+    "features/chat-v2/components/chat-media-focus-panel.tsx": {
+      "emDash": 1
+    },
+    "features/chat-v2/components/chat-media-part.tsx": {
+      "emDash": 1
+    },
+    "features/chat-v2/components/chat-message-list.tsx": {
+      "uppercase": 2
+    },
+    "features/chat-v2/components/media-provenance-strip.tsx": {
+      "emDash": 1
+    },
+    "features/chat-v2/components/media-save-moment.tsx": {
+      "smallInput": 1
+    },
+    "features/chat-v2/components/media-saved-moments.tsx": {
+      "uppercase": 1
+    },
+    "features/chat-v2/components/media-timestamp-bar.tsx": {
+      "uppercase": 1
+    },
+    "features/chat-v2/components/operator-conversation-drawer.tsx": {
+      "emDash": 1
+    },
+    "features/chat-v2/components/typed-tool-cards.tsx": {
+      "uppercase": 3,
+      "emDash": 2
+    },
+    "features/chat-v2/hooks/use-tts.ts": {
+      "emDash": 2
+    },
+    "hooks/chat/use-chat-transport.ts": {
+      "emDash": 1
+    },
+    "hooks/chat/use-nick-message-actions.ts": {
+      "emDash": 2
+    },
+    "hooks/use-mention-suggestions.ts": {
+      "emoji": 9
+    },
+    "hooks/use-observability.ts": {
+      "emDash": 3
+    },
+    "hooks/use-slash-commands.ts": {
+      "emDash": 3,
+      "emoji": 52
+    },
+    "hooks/use-voice-input.ts": {
+      "emDash": 5
+    },
+    "lib/floating-home/smart-now.ts": {
+      "emoji": 7
+    },
+    "lib/mastery/config.ts": {
+      "emoji": 49
+    }
+  }
+}

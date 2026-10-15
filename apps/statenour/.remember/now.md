@@ -1,6 +1,13 @@
 # Session ledger — statenour
 
-**Updated: 2026-10-09 11:45Z** (the outcome-ledger lock and #2939 first; then the flagged-items wave; then camera N-series PR C #2931 + dead bridge queries #2934, both merged and deployed. The 10-03 Sentry sweep follows.)
+**Updated: 2026-10-15** (UI v3 Wave 0 first, then the 2026-10-09 work: the outcome-ledger lock and #2939; the flagged-items wave; camera N-series PR C #2931 + dead bridge queries #2934, both merged and deployed. The 10-03 Sentry sweep follows.)
+
+## 2026-10-15: UI v3 Wave 0, honesty fixes and ratchets (lease `statenour/ui-v3-w0`)
+
+- **What W0 is:** the invisible first wave of the bdnick.info UI v3 plan (`apps/statenour/docs/design/ui-v3/PLAN.md`). Four honesty fixes: the Settings haptic row says "Not available on this device" on an iPhone instead of showing a dead switch; /people shows a read-failure state with a real Retry; the alert inspector footer uses plain words; the Brain loading line drops its countdown. Plus six ratchets in `tests/repo/ui-v3-ratchets.test.ts` (uppercase, em dash, emoji, `transition: all`, durations over 300 ms, phone inputs under 16 px) with a per-file baseline over app/, components/, features/, hooks/ (.ts and .tsx, not app/api), app CSS, and two lib UI-text modules. W0 restyles nothing: the baseline records today's violations and later waves lower it with `UPDATE_RATCHET=1`, which refuses to raise a number.
+- **Lease:** `statenour/ui-v3-w0`. Each later wave takes `statenour/ui-v3-<wave>` after a footprint check on its paths.
+- **Sibling orders:** W3 (Chat) waits for the T2 branch `statenour/t2-streaming-receipts` to merge (it edits `features/chat-v2/**`, `lib/ai/receipts/*`, `app/api/ai/chat/*`). W0b (v3 distance spec, Playwright fixtures) waits only for a platform edit of `.github/workflows/e2e-statenour.yml` (dependabot PR #3014 merged as 2d7d5175e). Hot files, one writer at a time: `app/styles/*` and `components/layout/*`.
+- **Verify next (iPhone, 2 minutes):** Settings > Haptic Feedback reads "Not available on this device"; /people with the network off shows "People did not load" and Retry reloads it. Not yet checked on a device: the tests render the components in jsdom only.
 
 ## 2026-10-09 · the outcome ledger was write-dead for 7 days; #2939 deploy block (RECONCILIATION top two entries)
 
