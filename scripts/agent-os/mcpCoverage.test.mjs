@@ -695,7 +695,7 @@ test("README documents every adapter, the unguarded inventory and the live check
   }
   // 2026-10-15 (job guard-sql-lease-infra): the ask layer, the list reader, the lease group, the SQL limits and the live-check probes
   assert.match(README, /### Native ask rules/, "README needs the native ask layer section");
-  for (const phrase of ["permissions.ask", "mcp__*__<leaf>", "bypassPermissions", "mcpAskRules.test.mjs", "ARRAY_MAX", "DESTRUCTIVE_PROBES",
+  for (const phrase of ["permissions.ask", "mcp__*__<leaf>", "bypassPermissions", "mcpAskRules.test.mjs", "ARRAY_MAX", "ARRAY_CHAR_BUDGET", "DESTRUCTIVE_PROBES",
     "Unclassified infrastructure tools", "neon-sql.sql", "neon-sql-transaction.sql_statements[1]", "guard_live_check_probe", "delete-service", "delete_project"]) {
     assert.ok(README.includes(phrase), `README must mention ${phrase}`);
   }
@@ -1072,18 +1072,39 @@ test("array field: elements are never joined, non-string elements are ignored wi
   assert.deepEqual(mixed.map((c) => c.via), ["neon-sql-transaction.sql_statements[1]", "neon-sql-transaction.sql_statements[3]"]);
 });
 
-test("array field: at most ARRAY_MAX elements are judged and ONE stderr line says the rest were not (a pin: it fails the day the cap moves)", () => {
-  assert.equal(typeof engine.ARRAY_MAX, "number", "policy.mjs must export ARRAY_MAX");
+const BUDGET_LINE = /array field over the judging budget/g;
+
+test("array budget, elements: 2,000 elements are all judged (a bad one at position 2,000 is denied), position 2,001 is reported as not judged with ONE stderr line", () => {
+  assert.equal(engine.ARRAY_MAX, 2000, "policy.mjs must export ARRAY_MAX = 2000 (a pin: update the README and these boundaries together)");
   const CAP = engine.ARRAY_MAX;
   const list = (n, badAt) => Array.from({ length: n }, (_, i) => (i === badAt ? "DROP TABLE leads" : "SELECT 1"));
-  denied(run(SQL_TX.name, SQL_TX.input(list(CAP + 50, CAP - 1))), "destructive-sql", "the last element inside the cap");
-  const over = run(SQL_TX.name, SQL_TX.input(list(CAP + 50, CAP)));
-  allowed(over, "the first element beyond the cap is not judged (if this now denies the cap moved: update the README and this pin)");
-  assert.equal(over.err.match(/array field longer than the cap/g)?.length, 1, "exactly one stderr line");
-  assert.equal(engine.adaptToolCall(SQL_TX.name, { sql_statements: list(CAP + 50, -1) }, NORMAL, policy).length, CAP);
+  const last = run(SQL_TX.name, SQL_TX.input(list(CAP + 500, CAP - 1)));
+  denied(last, "destructive-sql", "the bad statement at position 2,000 (index 1999)");
+  assert.match(last.err, /neon-sql-transaction\.sql_statements\[1999\] on tool /);
+  const over = run(SQL_TX.name, SQL_TX.input(list(CAP + 500, CAP)));
+  allowed(over, "position 2,001 (index 2000) is beyond the budget and is not judged");
+  assert.equal(over.err.match(BUDGET_LINE)?.length, 1, "exactly one stderr line");
+  assert.equal(engine.adaptToolCall(SQL_TX.name, { sql_statements: list(CAP + 500, -1) }, NORMAL, policy).length, CAP);
   const exact = run(SQL_TX.name, SQL_TX.input(list(CAP, -1)));
-  allowed(exact, "exactly ARRAY_MAX elements");
-  assert.doesNotMatch(exact.err, /longer than the cap/, "no stderr line at the cap itself");
+  allowed(exact, "exactly ARRAY_MAX small statements");
+  assert.doesNotMatch(exact.err, BUDGET_LINE, "no stderr line when everything was judged");
+  denied(run(SQL_TX.name, SQL_TX.input(list(5000, 1500))), "destructive-sql", "a bad statement in the middle of a 5,000-statement transaction");
+});
+
+test("array budget, characters: ARRAY_CHAR_BUDGET characters in total are judged; the first element that would push past it is reported as not judged", () => {
+  assert.equal(engine.ARRAY_CHAR_BUDGET, 1_000_000, "policy.mjs must export ARRAY_CHAR_BUDGET = 1,000,000 (a pin: update the README and these boundaries together)");
+  const full = `SELECT ${"a".repeat(engine.FIELD_CAP - 7)}`; // exactly FIELD_CAP characters, benign
+  assert.equal(full.length, engine.FIELD_CAP);
+  const fits = engine.ARRAY_CHAR_BUDGET / engine.FIELD_CAP; // 50 full elements use the whole budget
+  const build = (badAt) => Array.from({ length: fits + 10 }, (_, i) => (i === badAt ? "DROP TABLE leads" : full));
+  denied(run(SQL_TX.name, SQL_TX.input(build(fits - 1))), "destructive-sql", "the bad statement is the 50th element: 49 full elements plus 16 characters fit the budget");
+  const over = run(SQL_TX.name, SQL_TX.input(build(fits)));
+  allowed(over, "the 51st element would push past 1,000,000 characters and is not judged (if this now denies the budget moved: update the README and this pin)");
+  assert.equal(over.err.match(BUDGET_LINE)?.length, 1, "exactly one stderr line");
+  const calls = engine.adaptToolCall(SQL_TX.name, { sql_statements: build(-1) }, NORMAL, policy);
+  assert.equal(calls.length, fits, "exactly the elements that fit are judged");
+  assert.ok(calls.reduce((n, c) => n + c.command.length - "psql ".length, 0) <= engine.ARRAY_CHAR_BUDGET, "the judged characters never exceed the budget");
+  allowed(run(SQL_TX.name, SQL_TX.input(Array.from({ length: fits }, () => full))), "exactly the budget, all judged, no bad statement");
 });
 
 test("array field: a string given for an array field is judged as a string; an element over FIELD_CAP is judged as head and tail slices, never joined", () => {
@@ -1099,19 +1120,26 @@ test("array field: a string given for an array field is judged as a string; an e
   assert.match(tail.err, /neon-sql-transaction\.sql_statements\[0\]#tail on tool /);
 });
 
-test("SQL: a 25,000-character benign field and 200 elements of 20,000 characters pass fast (a hook timeout fails OPEN)", (t) => {
+test("SQL: a 25,000-character benign field and the worst whole-array shapes stay far inside the hook timeout (a hook timeout fails OPEN)", (t) => {
   const field = `SELECT 1 ${"UNION SELECT 2 ".repeat(1667)}`;
   assert.ok(field.length > 25000);
   const one = run(SQL_RUN.name, SQL_RUN.input(field));
   allowed(one, "25,000 benign characters");
-  const element = `SELECT 1 ${"UNION SELECT 2 ".repeat(1332)}`;
-  assert.ok(element.length <= engine.FIELD_CAP);
-  const many = run(SQL_TX.name, SQL_TX.input(Array.from({ length: engine.ARRAY_MAX }, () => element)));
-  allowed(many, "ARRAY_MAX elements of FIELD_CAP characters each");
-  t.diagnostic(`hook wall time including node start: 25k field ${one.ms} ms, ${engine.ARRAY_MAX} x ${element.length} chars ${many.ms} ms`);
-  for (const r of [one, many]) {
+  // Worst cases of the budget, with the text that costs the rules most (a keyword at every few characters, the WHERE only at the end, so nothing matches):
+  // (a) the element budget: 2,000 elements that together spend the whole character budget; (b) the character budget: elements of exactly FIELD_CAP characters.
+  const heavy = (n) => `${"DELETE FROM a ".repeat(n)}WHERE x`;
+  const small = heavy(35);
+  assert.ok(small.length * engine.ARRAY_MAX <= engine.ARRAY_CHAR_BUDGET + engine.ARRAY_MAX * 8, "the element-budget shape is about ARRAY_CHAR_BUDGET characters in all");
+  const byCount = run(SQL_TX.name, SQL_TX.input(Array.from({ length: engine.ARRAY_MAX + 500 }, () => small)));
+  allowed(byCount, "2,000 judged elements that match nothing");
+  const big = heavy(1428);
+  assert.ok(big.length <= engine.FIELD_CAP);
+  const bySize = run(SQL_TX.name, SQL_TX.input(Array.from({ length: 200 }, () => big)));
+  allowed(bySize, "elements of about FIELD_CAP characters, stopped by the character budget");
+  t.diagnostic(`hook wall time including node start: 25k field ${one.ms} ms, 2,000 x ${small.length} chars ${byCount.ms} ms, 200 x ${big.length} chars ${bySize.ms} ms`);
+  for (const r of [one, byCount, bySize]) {
     assert.equal(r.signal, null, "the hook must not run into its own timeout");
-    assert.ok(r.ms < 6000, `took ${r.ms} ms; the hook timeout is 10 s and a timeout fails OPEN`);
+    assert.ok(r.ms < 3000, `took ${r.ms} ms; the budget exists to keep a whole array under 3 s (the hook timeout is 10 s and a timeout fails OPEN)`);
   }
 });
 

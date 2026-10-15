@@ -25,7 +25,7 @@
     "exemption ignored, so the rule applies), clientHint (a client word prefixed to typed text), skipWhenTrue (a strict boolean",
     "true means preview only), expandDirectory (judge the files below a moved directory). Each is explained in the README and",
     "pinned by a canary. A named field may hold a string or a LIST of strings (run_sql_transaction.sql_statements): each",
-    "element is judged on its own, at most 200 of them.",
+    "element is judged on its own, in order, until 2,000 elements or 1,000,000 characters in total have been judged.",
     "",
     "destructive-sql (extended 2026-10-15): the DENY probes of its DELETE / UPDATE / ALTER TABLE ... DROP / DROP-kind arms are",
     "DESTRUCTIVE_PROBES in scripts/agent-os/mcpCoverage.test.mjs, not denyExamples here, because",
@@ -132,7 +132,7 @@
       "commandFields": ["sql_statements"],
       "clientHint": "psql",
       "exampleTools": ["mcp__08daf860-d901-4ecf-8033-a2b41fe7f23d__run_sql_transaction"],
-      "why": "Neon run_sql_transaction: `sql_statements` is a LIST of statements. Each element is judged on its own as text sent to a psql client (clientHint) and is never joined with its neighbours; at most 200 elements are judged, then one stderr line says the rest were not."
+      "why": "Neon run_sql_transaction: `sql_statements` is a LIST of statements. Each element is judged on its own as text sent to a psql client (clientHint) and is never joined with its neighbours; elements are judged in order until 2,000 of them or 1,000,000 characters in total have been judged, then one stderr line says the rest were not."
     },
     {
       "id": "neon-migration-apply",

@@ -144,12 +144,15 @@ function stringField(input, name) {
 }
 
 // A field that holds a LIST of statements (Neon run_sql_transaction.sql_statements) is judged element by element,
-// each on its own: joining them would build a command the field never held. At most ARRAY_MAX elements are judged,
-// because every element is a full judgment (up to FIELD_CAP characters through every rule) and a hook timeout fails
-// OPEN silently; a longer list is a script, and one stderr line says the rest was not judged. Non-string elements
+// each on its own: joining them would build a command the field never held. Elements are judged in order until
+// ARRAY_MAX elements or ARRAY_CHAR_BUDGET characters in total (after per-element slicing) have been judged: every
+// element is a full judgment through every rule and a hook timeout fails OPEN silently, so the budget bounds the time
+// (measured 2026-10-15: about 0.15 ms per small element, 4 ms per 20,000-character element) while still covering a
+// real transaction. When the budget runs out ONE stderr line says the rest was not judged. Non-string elements
 // (null, numbers, objects, nested lists) are ignored: the tool's own schema rejects them.
-export const ARRAY_MAX = 200;
-const ARRAY_CAP_LINE = "[agent-os] pretool MCP adapter: array field longer than the cap, elements beyond it not judged";
+export const ARRAY_MAX = 2000;
+export const ARRAY_CHAR_BUDGET = 1_000_000;
+const ARRAY_CAP_LINE = "[agent-os] pretool MCP adapter: array field over the judging budget, elements beyond it not judged";
 
 /** One string as the slices to judge: itself within the cap, else its head and its tail. `at` extends the provenance. */
 function textSlices(text, at) {
@@ -163,10 +166,17 @@ function textSlices(text, at) {
 }
 
 function arraySlices(list, report) {
-  if (list.length > ARRAY_MAX) report(ARRAY_CAP_LINE);
   const out = [];
-  for (let i = 0; i < Math.min(list.length, ARRAY_MAX); i++) {
-    if (typeof list[i] === "string") out.push(...textSlices(list[i], `[${i}]`));
+  let chars = 0;
+  for (let i = 0; i < list.length; i++) {
+    // The first element that does not fit ends the judging: in order, never a later small one after a skipped big one.
+    if (i >= ARRAY_MAX) return report(ARRAY_CAP_LINE), out;
+    if (typeof list[i] !== "string") continue;
+    const slices = textSlices(list[i], `[${i}]`);
+    const size = slices.reduce((n, s) => n + s.text.length, 0);
+    if (chars + size > ARRAY_CHAR_BUDGET) return report(ARRAY_CAP_LINE), out;
+    chars += size;
+    out.push(...slices);
   }
   return out;
 }

@@ -124,7 +124,7 @@ adapters, judged with the session cwd. The one exemption: the two Desktop Comman
 | `file-edit` | filesystem MCP `edit_file` | Write | `path`; a strict `dryRun: true` is not judged (`skipWhenTrue`) |
 | `file-move` | `move_file` | Write | `source`, `destination`, and the files below a moved directory (`expandDirectory`) |
 | `neon-sql` | Neon `run_sql`, `explain_sql_statement` | Bash | `sql`, judged as SQL sent to a `psql` client (`clientHint`) |
-| `neon-sql-transaction` | Neon `run_sql_transaction` | Bash | each element of the `sql_statements` list on its own, at most 200, never joined |
+| `neon-sql-transaction` | Neon `run_sql_transaction` | Bash | each element of the `sql_statements` list on its own, never joined, within the list budget (`ARRAY_MAX`, `ARRAY_CHAR_BUDGET`) |
 | `neon-migration-apply` | Neon `complete_database_migration` | Bash | `migration_sql` (`prepare_database_migration` runs on a temporary branch and is not judged) |
 | `prisma-sql` | Prisma Postgres `execute_sql_query`, `execute_prisma_postgres_schema_update` (connector and Prisma-Remote registrations) | Bash | `query` |
 
@@ -155,8 +155,11 @@ by a canary:
   so `.env*` files or night-shift judge files inside a moved directory meet the path rules. Names only.
 - A named field may hold a **list of strings** (`neon-sql-transaction`: `sql_statements`). Each element is judged on
   its own, never joined with its neighbours, with provenance `<row>.<field>[i]` (the index in the original list); an
-  element over `FIELD_CAP` is sliced as before; at most `ARRAY_MAX` (200) elements are judged, then ONE stderr line says
-  the rest were not; null, numbers, objects and nested lists are ignored (the tools' schemas reject them). A plain
+  element over `FIELD_CAP` is sliced as before; elements are judged in order until `ARRAY_MAX` (2,000) elements or
+  `ARRAY_CHAR_BUDGET` (1,000,000) characters in total (after slicing) have been judged, then ONE stderr line says the
+  rest were not (the first element that does not fit ends the judging). Measured through the real hook on 2026-10-15:
+  about 0.15 ms per small element and 4 ms per 20,000-character element, so the whole-array worst case stays well under
+  3 s (a canary pins that). Null, numbers, objects and nested lists are ignored (the tools' schemas reject them). A plain
   string given for a list field is judged as a string. The reader serves every named field, so a list in a command
   field is judged too, which can only add denials.
 
@@ -250,7 +253,7 @@ Inventory of 2026-10-15. Names come from this machine's tool lists; "name only" 
   neither is `cd <worktree>; pnpm install` on one line from a session that is not in a worktree. Native Bash has the
   same blind spot, so this is no worse than before the PR. A canary pins it and fails the day it is fixed.
 - **Slip windows.** The unscanned middle of a field over 20,000 characters (of each element of a list field), the
-  elements beyond the 200th of a list field, and the directory walk cap: files past the first 2,000 entries, or deeper
+  elements of a list field beyond the 2,000th or beyond 1,000,000 judged characters, and the directory walk cap: files past the first 2,000 entries, or deeper
   than 6 levels, of a moved directory are not seen (the walk and the list reader each print one stderr line when they
   stop early). A hook that times out (10 s) or crashes fails OPEN; the native ask rules have no such window. Canaries
   pin each of these.
