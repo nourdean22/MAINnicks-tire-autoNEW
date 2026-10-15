@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "nickstire/remove-payment-reminders",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "a1046d49-a3d3-4057-93fa-8815bb6efa83",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\fewer-permission-prompts-269694",
+  "claimedBy": "2026-10-15-remove-payment-reminders",
+  "claimedAt": "2026-10-15T13:05:00.379Z",
+  "expiresAt": "2026-10-16T01:05:00.379Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
