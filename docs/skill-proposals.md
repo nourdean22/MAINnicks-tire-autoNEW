@@ -2297,3 +2297,33 @@ measurement. Every proposal below cites the moment in this wave that produced it
   a parallel re-implementation drifts the day the gate gains a rule."
 - **Confidence:** high (2 sites, both reproduced)
 - **Status:** proposed
+
+## 2026-10-15 · statenour Retry gate (#3057), the idempotency review (#3060) and the manager metrics
+
+### P1 · CLAUDE-OPERATING-PROFILE.md (always-on meta-stances): every turn names the skills it used
+- **Trigger (witnessed):** Nour, at the end of the session: "why do I feel like u stopped using the skills every turn like I wanted u too and u were doing earlier". The SessionStart hook re-armed the set once after compaction and the UserPromptSubmit hook prints "[skills-first] ... Name the skills you used in your status update" every turn, but nothing reads the transcript: for roughly the last twenty turns the replies carried no Skill call and no skill names.
+- **Cost:** operator trust, and the stances (verification-before-completion, find-skill's one-line gate) were unchecked for those turns.
+- **Proposed edit:** add one line under "Always-on meta-stances": "Every reply that did work ends with `Skills: <names invoked this turn>`; a turn that invoked none says `Skills: none, because <reason>`." Optionally extend `scripts/agent-os/stop-check.mjs` to warn (not block) when a turn that edited files or ran commands had no Skill call.
+- **Confidence:** medium (once, a direct operator correction)
+- **Status:** proposed
+
+### P2 · `statenour-verify`: the full suite runs from a shell with bash on PATH
+- **Trigger (witnessed):** the full statenour suite run from the PowerShell tool failed 39 tests in `tests/repo/anti-slop-gate.test.ts` and `tests/redteam/repo-canary-gates.redteam.test.ts` (exit 1, empty output) because those tests spawn `bash` and the PowerShell tool has none on PATH. From the Bash tool the same two files passed (195 tests). An earlier session had blamed "load" before reading the real error.
+- **Cost:** one wasted 8 minute suite run and a diagnosis, twice across the session.
+- **Proposed edit:** in the Traps list: "The anti-slop tests spawn `bash`. Run the full suite from the Bash tool (or with Git's bash on PATH). A red in `anti-slop-gate.test.ts` or `repo-canary-gates.redteam.test.ts` with exit 1 and empty output is a missing bash, not load."
+- **Confidence:** medium (once, reproduced both ways)
+- **Status:** proposed
+
+### P3 · `monorepo-manager` step 10: a child session's PR on a production request path gets the full review before it merges
+- **Trigger (witnessed):** PR #3060 (server-side idempotency on the live chat route, 19 files) was opened by a session the manager started after one read-only review. The manager's 8-lens review with 3 skeptics per finding then produced 14 skeptic-confirmed findings, 3 of them P1 (fast-path lanes invisible to the guard, a 409 that poisons Retry on the current client, a lease renewing for the 6 minute cap after the client left) plus 28 not yet skeptic-checked. On #3057 each of six review rounds found real defects the author's own mutation tests missed.
+- **Cost:** the PR was not mergeable as opened; one extra fix round and about 40 minutes of review.
+- **Proposed edit:** in step 10 add: "A PR opened by a session the manager started, that changes a production request path (a route, a hook, a persistence writer), gets the full review before it merges, and the brief for that session says so up front: it does not open the PR before the review."
+- **Confidence:** medium (once on #3060, supported by #3057)
+- **Status:** proposed
+
+### P4 · `monorepo-manager` step 5: record the dispatch time so cycle time can be computed
+- **Trigger (witnessed):** all three manager jobs of this session (payment-reminders-removed, shop-clock-backfill, t2-streaming-receipts) have cycle time UNKNOWN in `docs/agent-os/MANAGER-METRICS.md`, because nothing recorded the first dispatch time and the metrics rule forbids a guess.
+- **Cost:** the cycle-time column is empty for every job of the session, so the process cannot be compared across jobs.
+- **Proposed edit:** in step 5, after the dispatch: "write the dispatch time (UTC) into the ledger row's Next cell"; step 15 then computes cycle time from it.
+- **Confidence:** medium (three rows, same gap)
+- **Status:** proposed
