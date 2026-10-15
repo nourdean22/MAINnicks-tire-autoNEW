@@ -14,23 +14,27 @@
  * THE FIX UNDER TEST. A hook DENY (exit 2), the only mechanism proven live on this machine in the same session (push-to-main and the
  * Neon SQL rows were refused). Rule `infra-mutation-tool` in config/agent-os/policy.json judges the TOOL NAME, anchored
  * `^mcp__.+__(?:leaf|...)$`, on the LAST segment only: connector UUIDs change when a connector is re-added, so the server segment
- * is never matched. The adapter row `infra-name` (`nameAsText: true`) hands the name to the rule. The operator can lift the rule,
- * for that rule alone, with AGENT_OS_INFRA_OVERRIDE in the gitignored .claude/settings.local.json (the AGENT_OS_LEASE_OVERRIDE precedent).
+ * is never matched. The adapter row `infra-name` (`nameAsText: true`) hands the name to the rule. There is NO override: a first version
+ * had an operator env var; review showed any non-blank value switched the rule off for every tool and target for the whole session (and
+ * for later sessions through .claude/settings.local.json), which contradicts "explicit instruction for the specific action, every time".
+ * An infra deny cannot wedge a session the way lease-check can, so nothing needs a way around it.
  *
  * WHAT THIS FILE PROVES, each block a way the gate could be a silent instrument:
  *   1. the fixtures (the classification: the SINGLE source of truth for the leaf list) are consistent
- *   2. policy.json: the rule and the row are well formed, both patterns equal the pattern built from the fixtures, only this rule has an override
- *   3. every classified leaf on 4 server forms per provider is claimed and denied BY THIS RULE, in process and through the REAL hook (exit 2 plus
- *      the rule id on stderr, never just "nonzero"); every MUST-ALLOW read, additive create, other connector's tool and known-unclassified
- *      writer passes the REAL hook with exit 0
+ *   2. policy.json: the rule and the row are well formed, both patterns equal the pattern built from the fixtures, no rule or row has an override
+ *   3. every classified leaf on 4 server forms per provider is claimed and denied BY THIS RULE, IN PROCESS (adaptToolCall + evaluate: the same
+ *      functions pretool.mjs calls); every MUST-ALLOW read, additive create, other connector's tool and known-unclassified writer is not denied.
+ *      The REAL hook (a subprocess, exit 2 plus the rule id on stderr, never just "nonzero") is probed on a representative sample (4 leaves per
+ *      provider x 4 forms, reads, controls) and a positive control asserts the in-process verdict and the real hook agree on every sampled name.
+ *      Why not every leaf through the hook: 135 leaves x 4 forms plus the reads was 550+ node starts, 110 s of a CI job that has a 5-minute limit.
  *   4. the registration: each leaf is routed to pretool.mjs exactly once and never to lease-check; reads are NOT routed (they must not spawn the hook)
- *   5. the override: unset denies, set warns and exits 0, set while another rule denies still exits 2, empty and blank still deny
+ *   5. NO override: AGENT_OS_INFRA_OVERRIDE set to a reason, and the look-alikes AGENT_OS_INFRA_OVERRIDES and INFRA_OVERRIDE, leave a denied tool denied through
+ *      the real hook (a BREAKS arm re-adds an env check to a copy of policy.mjs and the canary goes red)
  *   6. the pattern is linear (hyphen, underscore, long-name sweep, a 100000-character name) and a positive control proves the sweep can see a slow one
  *   7. BREAKS: a leaf removed from the pattern flips exactly that leaf; no rule, no row, no nameAsText or no matcher registration flips the probes
- *   8. docs truth: the README names every denied leaf (derived from policy.json), the override and the live check; AGENTS.md and the ledger say the same
+ *   8. docs truth: the README names every denied leaf (derived from policy.json), states there is no override, and has the live check; AGENTS.md and the ledger say the same
  *
- * WHAT IT CANNOT PROVE: that Claude Code passes `env` from .claude/settings.local.json to a hook process (lease-check's override rests on the
- * same thing; the README live check step 8 is the receipt), and that a connector keeps the tool names in the fixtures. FIXTURES: tool names read
+ * WHAT IT CANNOT PROVE: that a connector keeps the tool names in the fixtures (README live check step 7 is the receipt for the whole mechanism). FIXTURES: tool names read
  * from the live tool lists on 2026-10-15. A tool a connector ADDS later is in no fixture, so it is neither denied nor reported (README
  * "Refresh recipe"). A stale name in a fixture is a name that proves nothing: the 2026-10-15 refresh found one (list_edge_configs, live name get_edge_configs).
  */
@@ -56,9 +60,9 @@ const settings = JSON.parse(readFileSync(join(ROOT, ".claude", "settings.json"),
 const README = readFileSync(join(ROOT, "docs", "agent-os", "README.md"), "utf8");
 const NORMAL = "C:/Users/nourd/NOURCITY";
 
-// The hook env carries no GIT_* (guard-red-team rule 6) and NO override: an operator who has AGENT_OS_INFRA_OVERRIDE set in their own session
-// must not turn every deny arm below into an allow. Arms that need the override set it explicitly.
-const ENV = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("GIT_") && k !== OVERRIDE));
+// The hook env carries no GIT_* (guard-red-team rule 6). AGENT_OS_INFRA_OVERRIDE is deliberately NOT stripped: the rule has no override, so a session
+// that happens to export one must still get every deny below (the 'no override' canary sets it explicitly too).
+const ENV = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("GIT_")));
 
 const w = (s) => s.trim().split(/\s+/);
 
@@ -273,9 +277,10 @@ test("policy.json: the rule and the adapter row exist and are well formed, and b
   assert.ok(r, `policy.json has no rule ${RULE_ID}`);
   assert.deepEqual(r.tools, ["Bash"], "the rule judges the Bash text the name row hands it");
   assert.equal(r.pattern, EXPECTED_PATTERN, "the rule's pattern drifted from the classification in this file: update both together (README 'Refresh recipe')");
-  assert.equal(r.overrideEnv, OVERRIDE);
+  assert.equal(r.overrideEnv, undefined, "the rule has no override");
   assert.ok(r.why.length > 100 && r.fix.length > 100, "why and fix must tell an agent what happened and what to do");
-  for (const needle of [OVERRIDE, "Nour", ".claude/settings.local.json"]) assert.ok(r.fix.includes(needle), `fix must mention ${needle}`);
+  for (const needle of ["Nour", "provider dashboard or CLI", "no override"]) assert.ok(r.fix.includes(needle), `fix must mention ${needle}`);
+  for (const text of [r.why, r.fix, row()?.why ?? ""]) assert.ok(!text.includes(OVERRIDE) && !/settings\.local\.json/.test(text), "no text of the rule or the row may point at an environment variable or a settings file that lifts it");
   assert.ok(r.denyExamples.length >= 8 && r.allowExamples.length >= 8, "the rule needs examples on several providers");
   assert.equal(r.flags, undefined, "tool names are case-sensitive");
   const a = row();
@@ -292,10 +297,16 @@ test("policy.json: the rule and the adapter row exist and are well formed, and b
   for (const t of a.exampleTools) assert.deepEqual((policy.mcpAdapters ?? []).filter((b) => new RegExp(b.toolPattern).test(t)).map((b) => b.id), [ROW_ID], `${t} must be claimed by this row alone`);
 });
 
-test("only infra-mutation-tool carries an override, only infra-name judges the tool name, and the override name has the AGENT_OS_<WORDS>_OVERRIDE shape", () => {
-  assert.deepEqual(policy.rules.filter((r) => r.overrideEnv !== undefined).map((r) => r.id), [RULE_ID], "no other rule may have an environment override");
+/** Every object key in a JSON value, recursively. */
+const keysOf = (v) => (v && typeof v === "object" ? Object.entries(v).flatMap(([k, x]) => [k, ...keysOf(x)]) : []);
+
+test("NO rule, adapter row or engine source has an override of any kind; only infra-name judges the tool name", () => {
+  assert.deepEqual(keysOf(policy.rules).concat(keysOf(policy.mcpAdapters)).filter((k) => /override|bypass|lift|unless|env/i.test(k)), [], "no policy key may name an override");
+  for (const file of ["policy.mjs", "pretool.mjs"]) {
+    const src = readFileSync(join(HERE, file), "utf8");
+    assert.doesNotMatch(src, /overrideEnv|overrideReason|AGENT_OS_INFRA|process\.env/, `${file} must not read an environment variable to lift a rule`);
+  }
   assert.deepEqual((policy.mcpAdapters ?? []).filter((a) => a.nameAsText !== undefined).map((a) => a.id), [ROW_ID]);
-  assert.match(OVERRIDE, /^AGENT_OS_[A-Z0-9_]+_OVERRIDE$/);
   for (const a of policy.mcpAdapters ?? []) for (const id of a.onlyRules ?? []) assert.ok(policy.rules.some((r) => r.id === id), `${a.id}: onlyRules names ${id}, which is not a rule`);
 });
 
@@ -322,13 +333,12 @@ test("in process: every denied leaf on its 4 server forms is claimed by the row 
   assert.deepEqual(bad, []);
 });
 
-test("in process: no MUST-ALLOW read or additive create, no other connector's tool and no known-unclassified writer is denied by this rule on any form", () => {
+test("in process: no MUST-ALLOW read or additive create, no other connector's tool and no known-unclassified writer is denied by ANY rule on any form", () => {
   assert.ok(ALLOW_NAMES.length >= 300 && OTHER_NAMES.length >= 100);
   const bad = [];
   for (const { name } of [...ALLOW_NAMES, ...OTHER_NAMES]) {
-    const j = judgeName(name);
-    // the SQL text tools are claimed by their own rows and may be judged by destructive-sql; the name rule must not be the one that denies
-    if (j.denied && j.rule.id === RULE_ID) bad.push(name);
+    const j = judgeName(name); // empty input: the SQL text tools are claimed by their own rows but have no text to judge
+    if (j.denied) bad.push(`${name} (${j.rule.id})`);
   }
   assert.deepEqual(bad, []);
 });
@@ -347,34 +357,49 @@ test("the SQL text tools are judged by TEXT and NOT by name; the two tools that 
   assert.equal(judgeName(m, { migration_sql: "SELECT 1" }).rule.id, RULE_ID);
 });
 
-test("the REAL hook denies every classified leaf on 4 server forms: exit 2, this rule id, and the Judged-through line last", async () => {
-  const results = await pool(DENY_NAMES.map(({ name }) => () => runAsync(name, {})));
+// REAL-HOOK SAMPLE. The exhaustive matrix above is in process. The subprocess probes are representative: 4 leaves per provider (a delete, a variable
+// or credential edit, a deploy or restart, and a leaf the SQL rows also claim or a shared one) on all 4 server forms, ten or so reads, and other
+// connectors' tools. A node start costs about 0.1 s, so 135 leaves x 4 forms plus the reads (about 550 starts) was most of a CI job with a 5-minute limit.
+const SAMPLE_DENY_LEAVES = {
+  railway: ["delete-service", "set-variables", "redeploy", "restart-service"],
+  neon: ["delete_project", "rotate_credential", "update_project", "complete_database_migration"],
+  vercel: ["pause_project", "create_project_env", "update_project", "run_session_command"],
+  prisma: ["delete_prisma_postgres_database", "set_prisma_compute_env_var", "execute_prisma_postgres_schema_update", "delete_object_store_bucket"],
+};
+const SAMPLE = [
+  ...Object.entries(SAMPLE_DENY_LEAVES).flatMap(([provider, leaves]) => leaves.flatMap((leaf) => FORMS[provider].map((form) => ({ name: `${form}${leaf}`, deny: true })))),
+  ...[
+    [RAILWAY, "list-projects"], [RAILWAY, "get-logs"], [RAILWAY, "create-project"], [NEON, "list_projects"], [NEON, "run_sql"], [NEON, "create_branch"],
+    [VERCEL, "list_deployments"], [VERCEL, "get_runtime_logs"], [VERCEL, "create_project"], [PRISMA_CONNECTOR, "list_prisma_projects"], [PRISMA_PLUGIN, "introspect_database_schema"],
+    [MADE_UP, "update_budget"], [MADE_UP, "create_draft"], [MADE_UP, "create_drain"], ["mcp__claude_ai_Linear__", "delete_comment"],
+  ].map(([form, leaf]) => ({ name: `${form}${leaf}`, deny: false })),
+];
+
+test("the REAL hook (a subprocess) agrees with the in-process verdict on a representative sample of at least 40 names: every sampled leaf denied with this rule id and the Judged-through line, every read exit 0", async () => {
+  assert.ok(SAMPLE.length >= 40, `the agreement sample is ${SAMPLE.length} names, it must be at least 40`);
+  assert.ok(SAMPLE.filter((s) => s.deny).length >= 4 * 4 * 4 && SAMPLE.filter((s) => !s.deny).length >= 10, "4 leaves x 4 providers x 4 forms denied, and 10 or so reads");
+  const results = await pool(SAMPLE.map(({ name }) => () => runAsync(name, {})));
   const bad = [];
   results.forEach((r, i) => {
-    const { name } = DENY_NAMES[i];
+    const { name, deny } = SAMPLE[i];
+    const real = isDenyByRule(r);
+    const inProcess = judgeName(name).rule?.id === RULE_ID;
     const last = r.err.trimEnd().split("\n").at(-1);
-    if (!isDenyByRule(r) || last !== `Judged through MCP adapter ${ROW_ID}.toolName on tool ${name}.`) bad.push(`${name}: exit ${r.code} ${r.err.slice(0, 160)}`);
+    if (real !== deny || inProcess !== deny) bad.push(`${name}: expected deny=${deny}, real hook deny=${real} (exit ${r.code}), in-process deny=${inProcess}`);
+    else if (deny && last !== `Judged through MCP adapter ${ROW_ID}.toolName on tool ${name}.`) bad.push(`${name}: wrong last line: ${last}`);
+    else if (!deny && !isCleanAllow(r)) bad.push(`${name}: read not clean: exit ${r.code} ${r.err.slice(0, 120)}`);
   });
-  assert.deepEqual(bad, []);
+  assert.deepEqual(bad, [], "the in-process matrix and the real hook must give the same verdict on every sampled name, or the exhaustive in-process proof proves something the hook does not do");
 });
 
-test("the REAL hook lets every MUST-ALLOW read and additive create, every other connector's tool and every known-unclassified writer through with exit 0", async () => {
-  const names = [...ALLOW_NAMES, ...OTHER_NAMES];
-  const results = await pool(names.map(({ name }) => () => runAsync(name, {})));
-  const bad = [];
-  results.forEach((r, i) => { if (!isCleanAllow(r)) bad.push(`${names[i].name}: exit ${r.code} ${r.err.slice(0, 160)}`); });
-  assert.deepEqual(bad, []);
-});
-
-test("the denial message tells an agent what to do: the rule, why, the exact action to report, the operator override, and that an agent must never set it", () => {
+test("the denial message tells an agent what to do: the rule, why, the exact action to report to Nour, that he runs it or edits the rule in a PR, and that there is no override", () => {
   const r = run(`${RAILWAY}delete-service`, { serviceId: "nonexistent" });
   assert.equal(r.code, 2);
-  for (const needle of [`BLOCKED by repo policy: ${RULE_ID}`, "Why:", "Do:", "Nour", "provider dashboard or CLI", OVERRIDE, ".claude/settings.local.json", "An agent must never set it"]) assert.ok(r.err.includes(needle), `the denial must say: ${needle}\n${r.err}`);
-  assert.ok(!r.err.includes("There is no bypass flag"), "this rule HAS an operator override: the generic no-bypass text would be false here");
-  // every other rule keeps the original footer
+  for (const needle of [`BLOCKED by repo policy: ${RULE_ID}`, "Why:", "Do:", "Nour", "provider dashboard or CLI", "changes this rule in a PR", "no override", "There is no bypass flag"]) assert.ok(r.err.includes(needle), `the denial must say: ${needle}\n${r.err}`);
+  assert.ok(!r.err.includes(OVERRIDE) && !/settings\.local\.json/.test(r.err), "the denial must not point at an environment variable or a settings file");
+  // the footer is the same for every rule
   const push = run("Bash", { command: "git push origin main" });
   assert.match(push.err, /There is no bypass flag/);
-  assert.ok(!push.err.includes(OVERRIDE), "no other rule mentions the infra override");
 });
 
 // --- 4 - the registration ----------------------------------------------------------------------------
@@ -467,54 +492,43 @@ test("settings.json: the 135 inert ask rules are gone, and no allow entry names 
   }
 });
 
-// --- 5 - the override --------------------------------------------------------------------------------
+// --- 5 - there is NO override ---------------------------------------------------------------------
 
 const DELETE_PROJECT = `${NEON}delete_project`;
 
-test("override: unset denies; set (non-empty) warns on stderr with the reason and exits 0; empty and blank values still deny", () => {
-  denied(run(DELETE_PROJECT, { project_id: "nonexistent" }), "unset");
-  const on = run(DELETE_PROJECT, { project_id: "nonexistent" }, { [OVERRIDE]: "operator asked for it" });
-  assert.equal(on.code, 0, `override set: expected exit 0\n${on.err}`);
-  for (const needle of [`${OVERRIDE} is set`, "operator asked for it", RULE_ID, "Why the rule exists:", "Nour's explicit instruction", `Judged through MCP adapter ${ROW_ID}.toolName`]) assert.ok(on.err.includes(needle), `the warning must say: ${needle}\n${on.err}`);
-  assert.ok(!on.err.includes("BLOCKED by repo policy"), "an overridden call is a warning, not a block");
-  for (const blank of ["", " ", "\t", "  \n "]) denied(run(DELETE_PROJECT, {}, { [OVERRIDE]: blank }), `blank ${JSON.stringify(blank)}`);
-  denied(run(DELETE_PROJECT, {}, { AGENT_OS_LEASE_OVERRIDE: "x" }), "the lease override is a different switch");
-  denied(run(DELETE_PROJECT, {}, { AGENT_OS_INFRA_OVERRIDE_X: "x", AGENT_OS_INFRA: "x", INFRA_OVERRIDE: "x" }), "look-alike names");
-  function denied(r, what) { assert.ok(isDenyByRule(r), `${what}: expected a deny by ${RULE_ID}, got exit ${r.code}\n${r.err}`); }
-});
-
-test("override: it lifts THIS rule only: set while another rule denies the same call or a native call, the call is still denied by that rule", () => {
-  const env = { [OVERRIDE]: "x" };
-  // the migration tool is judged by text AND by name: the override lifts the name, destructive-sql still denies
-  const mig = run(`${NEON}complete_database_migration`, { migration_sql: "DROP TABLE leads", migration_id: "m" }, env);
-  assert.ok(isDenyByRule(mig, "destructive-sql"), `destructive SQL through an overridden migration tool must still be denied by destructive-sql\n${mig.err}`);
-  assert.ok(!mig.err.includes(OVERRIDE) || !mig.err.includes("allowing a call"), "the SQL denial is not an override warning");
-  const prisma = run(`${PRISMA_PLUGIN}execute_prisma_postgres_schema_update`, { query: "TRUNCATE TABLE leads", projectId: "p", databaseId: "d" }, env);
-  assert.ok(isDenyByRule(prisma, "destructive-sql"), `\n${prisma.err}`);
-  // a benign migration with the override set is allowed (warned), without it denied by name
-  const benign = run(`${NEON}complete_database_migration`, { migration_sql: "SELECT 1", migration_id: "m" }, env);
-  assert.equal(benign.code, 0, benign.err);
-  assert.match(benign.err, /allowing a call that rule infra-mutation-tool denies/);
-  assert.ok(isDenyByRule(run(`${NEON}complete_database_migration`, { migration_sql: "SELECT 1", migration_id: "m" })), "without the override the same call is denied by name");
-  for (const [tool, input, id] of [["Bash", { command: "git push origin main" }, "push-to-main"], ["Bash", { command: "git push --force origin chore/x" }, "force-push"], ["Write", { file_path: "apps/statenour/.env.local", content: "x" }, "secret-file-write"], ["Bash", { command: 'psql -c "DROP TABLE leads"' }, "destructive-sql"]]) {
-    assert.ok(isDenyByRule(run(tool, input, env), id), `${tool} ${JSON.stringify(input)} must still be denied by ${id} with the override set`);
+test("NO override: AGENT_OS_INFRA_OVERRIDE set to a reason, and the look-alikes, leave a denied tool denied (exit 2, this rule id), through the real hook", () => {
+  const variants = [
+    { AGENT_OS_INFRA_OVERRIDE: "operator asked for it" }, { AGENT_OS_INFRA_OVERRIDE: "1" }, { AGENT_OS_INFRA_OVERRIDE: " " }, { AGENT_OS_INFRA_OVERRIDE: "" },
+    { AGENT_OS_INFRA_OVERRIDES: "operator asked for it" }, { INFRA_OVERRIDE: "operator asked for it" }, { AGENT_OS_LEASE_OVERRIDE: "operator asked for it" },
+    { AGENT_OS_INFRA_OVERRIDE: "operator asked for it", AGENT_OS_INFRA_OVERRIDES: "x", INFRA_OVERRIDE: "x", AGENT_OS_LEASE_OVERRIDE: "x" },
+  ];
+  for (const tool of [DELETE_PROJECT, `${RAILWAY}delete-service`]) {
+    for (const env of variants) {
+      const r = run(tool, { project_id: "nonexistent" }, env);
+      assert.ok(isDenyByRule(r), `${tool} with env ${JSON.stringify(env)}: expected a deny by ${RULE_ID}, got exit ${r.code}\n${r.err}`);
+      assert.ok(!/WARNING|allowing a call/.test(r.err), "a denial is never downgraded to a warning");
+    }
   }
+  // a destructive migration through the tool the SQL rows also claim stays denied, and attributed to the SQL rule first
+  const mig = run(`${NEON}complete_database_migration`, { migration_sql: "DROP TABLE leads", migration_id: "m" }, variants[0]);
+  assert.ok(isDenyByRule(mig, "destructive-sql"), mig.err);
 });
 
-test("override: a policy that does not declare it, or declares an ill-formed name, gives the env var no power (a typo can only keep the denial)", () => {
-  const env = { [OVERRIDE]: "x", PATH: process.env.PATH ?? "x", HOME: "x" };
-  withTree((p) => { delete p.rules.find((r) => r.id === RULE_ID).overrideEnv; }, (hook) => assert.ok(isDenyByRule(run(DELETE_PROJECT, {}, env, hook)), "no overrideEnv declared"));
-  for (const bad of ["PATH", "HOME", "AGENT_OS_INFRA_OVERRIDE ", "agent_os_infra_override", "AGENT_OS__OVERRIDE", 7, null, ["AGENT_OS_INFRA_OVERRIDE"]]) {
-    withTree((p) => { p.rules.find((r) => r.id === RULE_ID).overrideEnv = bad; }, (hook) => assert.ok(isDenyByRule(run(DELETE_PROJECT, {}, env, hook)), `overrideEnv ${JSON.stringify(bad)} must not lift the rule`));
-  }
-});
-
-test("BREAKS: the override arms are sensitive: an override that never fires keeps the call denied, one that always fires lets the unset call through", () => {
-  const on = (hook) => run(DELETE_PROJECT, {}, { [OVERRIDE]: "x" }, hook);
-  const off = (hook) => run(DELETE_PROJECT, {}, {}, hook);
-  withTree(null, (hook) => { assert.equal(on(hook).code, 0, "control: the real copy honours the override"); assert.ok(isDenyByRule(off(hook)), "control: and denies without it"); });
-  withTree(null, (hook) => assert.ok(isDenyByRule(on(hook)), "BREAKS: overrideReason never fires -> the 'set' arm goes red"), (src) => src.replace("return typeof value === \"string\" ? value.trim() : \"\";", "return \"\";"));
-  withTree(null, (hook) => assert.equal(off(hook).code, 0, "BREAKS: overrideReason always fires -> the 'unset' arm goes red"), (src) => src.replace("return typeof value === \"string\" ? value.trim() : \"\";", "return \"always\";"));
+test("BREAKS: a copy of the engine that DID honour AGENT_OS_INFRA_OVERRIDE is caught by the no-override canary, and the unbroken copy denies", () => {
+  const env = { AGENT_OS_INFRA_OVERRIDE: "operator asked for it" };
+  withTree(null, (hook) => assert.ok(isDenyByRule(run(DELETE_PROJECT, {}, env, hook)), "control: the unbroken copy denies with the variable set"));
+  withTree(
+    null,
+    (hook) => {
+      const r = run(DELETE_PROJECT, {}, env, hook);
+      assert.equal(r.code, 0, "BREAKS: with an env check added to evaluate() the call passes, which is exactly what the canary above must catch");
+      assert.ok(!isDenyByRule(r), "and it is no longer attributed to the rule");
+    },
+    (src) => src.replace(
+      "export function evaluate({ toolName, command = \"\", filePath = \"\", cwd = \"\", skipRules, onlyRules, rawText }, policy) {",
+      "export function evaluate({ toolName, command = \"\", filePath = \"\", cwd = \"\", skipRules, onlyRules, rawText }, policy) {\n  if ((process.env.AGENT_OS_INFRA_OVERRIDE ?? \"\").trim()) return { denied: false };",
+    ),
+  );
 });
 
 // --- 6 - nameAsText in the engine --------------------------------------------------------------------
@@ -567,13 +581,11 @@ test("nameAsText is validated toward DENIAL: a malformed value still judges the 
   assert.ok(lines.some((l) => /nameAsText malformed/.test(l)));
 });
 
-test("nameAsText cap: a name is judged WHOLE up to SQL_FIELD_CAP when only this rule runs (a 100000-character name is denied, in process and in the real hook), and sliced like a field otherwise", () => {
+test("nameAsText cap: a name is judged WHOLE up to SQL_FIELD_CAP when only this rule runs (a 100000-character name is denied in process; the real hook has its own 2 long-name probes in the sweep), and sliced like a field otherwise", () => {
   const long = `mcp__${"x".repeat(100_000)}__delete_project`;
   const calls = engine.adaptToolCall(long, {}, NORMAL, policy);
   assert.deepEqual(calls.map((c) => c.via), [`${ROW_ID}.toolName`], "one whole judgment");
   assert.ok(engine.evaluate(calls[0], policy).denied);
-  assert.ok(isDenyByRule(run(long, {})), "the real hook denies a 100000-character name");
-  assert.ok(isCleanAllow(run(`mcp__${"x".repeat(100_000)}__list_projects`, {})), "and passes a long read");
   const sliced = clone();
   delete rowOf(sliced).onlyRules; // every rule applies, so the generic cap applies
   assert.deepEqual(engine.adaptToolCall(long, {}, NORMAL, sliced).map((c) => c.via), [`${ROW_ID}.toolName#head`, `${ROW_ID}.toolName#tail`]);
@@ -623,24 +635,20 @@ test("SWEEP: hyphen, underscore, dot, space, digits and the leaves themselves re
   assert.deepEqual(slow, [], "a name that costs half a second in a regex is not linear");
 });
 
-test("SWEEP through the real hook: a 100,000-character name made of repeated underscores and leaf fragments returns inside the hook timeout with the right verdict", async () => {
-  const bodies = ["_", "__delete_", "-", "__delete_project"];
-  const jobs = [];
-  for (const unit of bodies) {
-    const body = unit.repeat(Math.ceil(100_000 / unit.length));
-    jobs.push({ name: `mcp__${body}__delete_project`, deny: true }, { name: `mcp__${body}__list_projects`, deny: false });
-  }
+test("SWEEP through the real hook, 2 long-name cases: a 100,000-character name of repeated underscores returns inside the hook timeout, denied when it ends in a leaf and clean when it does not", async () => {
+  const body = "__delete_".repeat(Math.ceil(100_000 / 9));
+  const jobs = [{ name: `mcp__${body}__delete_project`, deny: true }, { name: `mcp__${body}__list_projects`, deny: false }];
   const t0 = Date.now();
-  const results = await pool(jobs.map((j) => () => runAsync(j.name, {})), 4);
+  const results = await Promise.all(jobs.map((j) => runAsync(j.name, {})));
   results.forEach((r, i) => assert.ok(jobs[i].deny ? isDenyByRule(r) : isCleanAllow(r), `${jobs[i].name.slice(0, 24)}...(${jobs[i].name.length} chars): exit ${r.code}`));
-  assert.ok(Date.now() - t0 < 20_000, "the sweep must finish far inside the 10 s hook timeout per call (a timeout fails OPEN)");
+  assert.ok(Date.now() - t0 < 9_000, "the probe must finish far inside the 10 s hook timeout (a timeout fails OPEN)");
 });
 
 test("SWEEP positive control: the same sweep sees a catastrophic pattern (a nested quantifier on the same alternation is killed or at least 10x slower on the same text)", () => {
   const shipped = rule().pattern;
   const catastrophic = shipped.replace("^mcp__.+__", "^mcp__(?:.+)+__");
   assert.notEqual(catastrophic, shipped, "the shipped prefix changed shape: update this control");
-  const text = `mcp__${"a".repeat(28)}`;
+  const text = `mcp__${"a".repeat(25)}`;
   const good = timedChild(shipped, text, 20000);
   const bad = timedChild(catastrophic, text, 15000);
   assert.ok(!good.killed, "the shipped pattern must finish the control text");
@@ -657,15 +665,14 @@ test("BREAKS in process: removing one leaf from the pattern flips exactly that l
   }
 });
 
-test("BREAKS through the real hook: a policy copy without one leaf lets exactly that leaf through on every form while its neighbours still deny", () => {
-  const sample = ["delete-service", "set-variables", "delete_project", "pause_project", "delete_prisma_postgres_database", "update_project", "run_session_command", "complete_database_migration"];
-  for (const leaf of sample) {
+test("BREAKS through the real hook: a policy copy without one leaf lets exactly that leaf through on two server forms while a neighbour still denies (the in-process arm above covers every leaf)", () => {
+  for (const [leaf, neighbour, forms] of [["delete-service", "set-variables", [RAILWAY, "mcp__claude_ai_Railway__"]], ["delete_prisma_postgres_database", "set_prisma_compute_env_var", [PRISMA_PLUGIN, MADE_UP]]]) {
     const without = patternFor(LEAF_ORDER.filter((l) => l !== leaf));
     withTree((p) => { p.rules.find((r) => r.id === RULE_ID).pattern = without; rowOf(p).toolPattern = without; }, (hook) => {
-      for (const form of [RAILWAY, "mcp__claude_ai_Neon__", VERCEL, PRISMA_PLUGIN]) {
-        const free = run(`${form}${leaf}`, { migration_sql: "SELECT 1" }, {}, hook);
+      for (const form of forms) {
+        const free = run(`${form}${leaf}`, {}, {}, hook);
         assert.equal(free.code, 0, `${leaf} on ${form}: removed from the pattern, expected exit 0\n${free.err}`);
-        for (const neighbour of sample.filter((l) => l !== leaf && l !== "complete_database_migration")) assert.ok(isDenyByRule(run(`${form}${neighbour}`, {}, {}, hook)), `${neighbour} on ${form} must still be denied`);
+        assert.ok(isDenyByRule(run(`${form}${neighbour}`, {}, {}, hook)), `${neighbour} on ${form} must still be denied`);
       }
     });
   }
@@ -699,7 +706,7 @@ test("a plain Bash command is not denied by this rule (railway logs, variables a
 
 const normal = (s) => s.replace(/\s+/g, " ");
 
-test("README 'Infra tools: deny by name': the why, the denied list by provider (every leaf, derived from policy.json), the override, what is unaffected, the collisions and the live check", () => {
+test("README 'Infra tools: deny by name': the why, the denied list by provider (every leaf, derived from policy.json), that there is no override, what is unaffected, the collisions and the live check", () => {
   const start = README.indexOf("### Infra tools: deny by name");
   assert.ok(start >= 0, "README needs the section '### Infra tools: deny by name'");
   const section = README.slice(start, README.indexOf("### Still unguarded", start));
@@ -709,20 +716,26 @@ test("README 'Infra tools: deny by name': the why, the denied list by provider (
   assert.ok(!README.includes("### Native ask rules"), "the ask section was replaced");
   for (const leaf of leavesOf(rule().pattern)) assert.ok(section.includes(`\`${leaf}\``), `the README denied-tool table must list \`${leaf}\` (derived from policy.json)`);
   for (const provider of ["Railway", "Neon", "Vercel", "Prisma"]) assert.match(section, new RegExp(`\\| ${provider} \\|`), `the table needs a ${provider} row`);
-  for (const phrase of [OVERRIDE, ".claude/settings.local.json", RULE_ID, "FAILED their live check", "pause_project", "delete_prisma_postgres_database", "bypassPermissions", "railway run", "railway variables", "railway logs", "`gh`",
-    "MCP reads", "nameAsText", "Refresh recipe", "Collisions", "list-projects", "An agent must never set"]) assert.ok(text.includes(phrase), `README 'Infra tools: deny by name' must say: ${phrase}`);
+  for (const phrase of [RULE_ID, "FAILED their live check", "pause_project", "delete_prisma_postgres_database", "bypassPermissions", "railway run", "railway variables", "railway logs", "`gh`",
+    "MCP reads", "nameAsText", "Refresh recipe", "Collisions", "list-projects", "There is NO override", "**No override.**", "provider dashboard or CLI", "edits the rule in a PR"]) assert.ok(text.includes(phrase), `README 'Infra tools: deny by name' must say: ${phrase}`);
+  // derived from policy.json: the README says there is no override exactly because the rule has none, and it never tells anyone how to set one
+  assert.equal(rule().overrideEnv, undefined, "the README says there is no override: the rule must not declare one");
+  assert.doesNotMatch(section, /(?:set|export|add|put)s?\s+(?:the\s+)?(?:variable\s+)?`?AGENT_OS_INFRA_OVERRIDE/i, "the README must not tell anyone to set the override variable");
+  assert.doesNotMatch(section, /Only the OPERATOR can lift|operator override exists|lifts `infra-mutation-tool` only|step 8/i, "old override wording returned");
+  assert.ok(!/Override probe/.test(README), "the override live-check step is gone");
   assert.doesNotMatch(README, /permissions\.ask.{0,40}(?:prompt|prompts) before each|135 protected leaves prompt/, "an old claim that the ask rules prompt returned");
   const live = normal(README.slice(README.indexOf("### Live check after merge")));
   for (const phrase of [`BLOCKED by repo policy: ${RULE_ID}`, "no operator taps", "delete-service", "delete_project", "pause_project", "delete_prisma_postgres_database", "list-projects", "positive control", "bypassPermissions"]) assert.ok(live.includes(phrase), `README live check step must say: ${phrase}`);
   assert.doesNotMatch(live, /Step 7 FAIL[^.]*replace the `mcp__\*__<leaf>` entries/, "the recorded FAIL stays as history but must not remain the instruction");
 });
 
-test("AGENTS.md and CLAUDE.md say infra MCP mutation tools are DENIED by name, name the rule and the override, and keep the Bash paths unaffected; the rule count is current", () => {
+test("AGENTS.md and CLAUDE.md say infra MCP mutation tools are DENIED by name, name the rule, say there is no override, and keep the Bash paths unaffected; the rule count is current", () => {
   const agents = readFileSync(join(ROOT, "AGENTS.md"), "utf8");
   const lines = agents.split("\n");
   const rowText = lines.find((l) => l.startsWith("| ") && l.includes("config/agent-os/policy.json") && l.includes("blocked at the tool call")) ?? "";
   assert.ok(rowText, "AGENTS.md first Enforcement-map row not found");
-  for (const phrase of ["DENIED by name", RULE_ID, OVERRIDE, "Bash", "unaffected", "`lease-check.mjs`", "SQL text tools", "were never covered", "docs/agent-os/README.md"]) assert.ok(rowText.includes(phrase), `AGENTS.md row must say: ${phrase}`);
+  for (const phrase of ["DENIED by name", RULE_ID, "no override", "Bash", "unaffected", "`lease-check.mjs`", "SQL text tools", "were never covered", "docs/agent-os/README.md"]) assert.ok(rowText.includes(phrase), `AGENTS.md row must say: ${phrase}`);
+  assert.ok(!rowText.includes(OVERRIDE), "the row must not mention an override variable: there is none");
   assert.doesNotMatch(rowText, /gate nothing yet|NO working gate|permissions\.ask|FAILED their live check/, "the row says the gate WORKS now: the old 'no working gate' wording must not return");
   const lineCount = lines.length - (agents.endsWith("\n") ? 1 : 0); // the gate's own metric: a file ending in a newline has N lines, not N+1
   assert.ok(lineCount <= 200, `AGENTS.md has ${lineCount} lines, the cap is 200`);
@@ -742,6 +755,7 @@ test("ledger: this job has ONE tail row with eight cells, Status BUILT, an owner
   assert.equal(cell[5], "BUILT", "Status stays BUILT until merged");
   assert.match(cell[7], /\b(?:Nour|manager|operator)\b/i, "Next names an owner");
   assert.match(cell[7], /\b2026-10-\d\d\b/, "Next names a date");
+  assert.ok(!mine[0].includes(OVERRIDE), "the ledger row must not mention an override variable: there is none");
   const guard = rows.find((l) => l.startsWith("| 2026-10-15-guard-sql-lease-infra |")) ?? "";
   const g = guard.split("|").map((c) => c.trim());
   assert.ok(g[7].includes("infra-deny-by-name"), "the guard row's Next cell points at this fix");

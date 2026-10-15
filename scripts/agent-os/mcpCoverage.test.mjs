@@ -51,11 +51,12 @@ const settings = JSON.parse(readFileSync(join(ROOT, ".claude", "settings.json"),
 const README = readFileSync(join(ROOT, "docs", "agent-os", "README.md"), "utf8");
 
 // Hook env carries no GIT_* (guard-red-team rule 6). The hook runs no git; the habit is the point.
-// The operator override of the infra name rule is SET here on purpose: this file tests the runner, file and SQL rows, and two SQL tools
-// (Neon complete_database_migration, Prisma execute_prisma_postgres_schema_update) are ALSO denied by name, which would turn every benign SQL
-// arm into a deny. The override lifts only that rule, so the SQL rows are still judged by destructive-sql (mcpInfraDeny.test.mjs proves both).
+// This file tests the runner, file and SQL rows. Two SQL tools (Neon complete_database_migration, Prisma execute_prisma_postgres_schema_update) are
+// ALSO denied by name (rule infra-mutation-tool, which has no override), so a benign statement through them is denied by that rule. Where this file
+// needs the SQL rows alone it skips that rule in process (judge) or runs a hook copy without the name row (the e2e SQL arm); mcpInfraDeny.test.mjs
+// proves the name rule itself and that both rows judge those two tools.
 const INFRA_RULE_ID = "infra-mutation-tool";
-const ENV = { ...Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("GIT_"))), AGENT_OS_INFRA_OVERRIDE: "mcpCoverage.test.mjs: the SQL and runner rows are under test, the name rule has mcpInfraDeny.test.mjs" };
+const ENV = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("GIT_")));
 
 const NORMAL = "C:/Users/nourd/NOURCITY";
 const WORKTREE = "C:/Users/nourd/NOURCITY/.claude/worktrees/some-session";
@@ -770,7 +771,7 @@ test("docs truth: the live check is runnable from a worktree session, the lease 
   assert.ok(row, "AGENTS.md first Enforcement-map row (the pretool hook row) not found");
   // 2026-10-15 live check, step 7 FAIL: the 135 `mcp__*__<leaf>` ask rules ran NO prompt in bypassPermissions. Job infra-deny-by-name replaced them with a hook deny by name
   // (rule infra-mutation-tool): the row now says DENIED by name. The full wording is pinned in mcpInfraDeny.test.mjs; this is the cross-file backstop for the old claims.
-  for (const phrase of ["DENIED by name", "infra-mutation-tool", "AGENT_OS_INFRA_OVERRIDE", "`lease-check.mjs`", "SQL text tools"]) assert.ok(row.includes(phrase), `AGENTS.md row must say: ${phrase}`);
+  for (const phrase of ["DENIED by name", "infra-mutation-tool", "no override", "`lease-check.mjs`", "SQL text tools"]) assert.ok(row.includes(phrase), `AGENTS.md row must say: ${phrase}`);
   assert.doesNotMatch(row, /\bPROMPTED\b|proven live|are prompted|prompts? even in bypass|even in bypass \(list|gate nothing yet|NO working gate/, "the old claims (PROMPTED, prompts even in bypass, the infra tools have no working gate) are false now and must not return");
   // Codex #3053 (P2) still holds: the README's KNOWN_UNCLASSIFIED writers (Vercel create_drain, update_sandbox, ...) were never classified, so they are not denied
   for (const phrase of ["were never covered", "docs/agent-os/README.md"]) assert.ok(row.includes(phrase), `AGENTS.md row must say: ${phrase}`);
@@ -778,7 +779,7 @@ test("docs truth: the live check is runnable from a worktree session, the lease 
   const denyAt = README.indexOf("### Infra tools: deny by name");
   const deny = README.slice(denyAt, README.indexOf("### Still unguarded")).replace(/\s+/g, " ");
   assert.ok(denyAt >= 0 && deny.length > 3000, "README 'Infra tools: deny by name' section not found");
-  for (const phrase of ["FAILED their live check", "pause_project", "delete_prisma_postgres_database", "was not separated", "denied by name", "AGENT_OS_INFRA_OVERRIDE"]) assert.ok(deny.includes(phrase), `README 'Infra tools: deny by name' must say: ${phrase}`);
+  for (const phrase of ["FAILED their live check", "pause_project", "delete_prisma_postgres_database", "was not separated", "denied by name", "There is NO override"]) assert.ok(deny.includes(phrase), `README 'Infra tools: deny by name' must say: ${phrase}`);
   const live1 = live.replace(/\s+/g, " ");
   for (const phrase of ["Recorded result, 2026-10-15", "Steps 1 to 4 PASS", "Steps 5 and 6 PASS", "Step 7 FAIL", "BLOCKED by repo policy: infra-mutation-tool", "no operator taps"]) assert.ok(live1.includes(phrase), `README live check must say: ${phrase}`);
   assert.doesNotMatch(README.replace(/\s+/g, " "), /makes Claude Code prompt before each one|Documented, not proven live|\*\*What prompts\.\*\*|The 135 protected leaves prompt|the native ask rules have no such window\.|If it fails, replace the globs with exact names|replace the `mcp__\*__<leaf>` entries with exact tool names/, "an old unqualified ask-rule claim or instruction returned: the live check disproved it and the deny replaced it");
@@ -1172,13 +1173,17 @@ test("SQL rows: every real registration and the synthetic ones are claimed by ex
 
 for (const shape of SQL_SHAPES) {
   test(`e2e SQL tool ${shape.name.replace(/^mcp__/, "")}: destructive SQL DENIED with the rule id, reads and benign writes ALLOWED`, () => {
-    for (const sql of DESTRUCTIVE_SQL) {
-      const r = run(shape.name, sqlInput(shape, sql));
-      denied(r, "destructive-sql", `${shape.name} <- ${JSON.stringify(sql)}`);
-      const last = r.err.trimEnd().split("\n").at(-1);
-      assert.ok(last.startsWith(`Judged through MCP adapter ${shape.row}.${shape.field}`) && last.endsWith(` on tool ${shape.name}.`), `the Judged-through text must be the LAST line, got: ${last}`);
-    }
-    for (const sql of BENIGN_SQL) allowed(run(shape.name, sqlInput(shape, sql)), `${shape.name} <- ${JSON.stringify(sql)}`);
+    // a hook copy without the infra name row: the SQL ROWS are under test, and complete_database_migration and execute_prisma_postgres_schema_update
+    // would otherwise deny every benign statement by name (the real policy; proven in mcpInfraDeny.test.mjs)
+    withTree((p) => { p.mcpAdapters = p.mcpAdapters.filter((a) => !a.nameAsText); }, (hook) => {
+      for (const sql of DESTRUCTIVE_SQL) {
+        const r = run(shape.name, sqlInput(shape, sql), NORMAL, hook);
+        denied(r, "destructive-sql", `${shape.name} <- ${JSON.stringify(sql)}`);
+        const last = r.err.trimEnd().split("\n").at(-1);
+        assert.ok(last.startsWith(`Judged through MCP adapter ${shape.row}.${shape.field}`) && last.endsWith(` on tool ${shape.name}.`), `the Judged-through text must be the LAST line, got: ${last}`);
+      }
+      for (const sql of BENIGN_SQL) allowed(run(shape.name, sqlInput(shape, sql), NORMAL, hook), `${shape.name} <- ${JSON.stringify(sql)}`);
+    });
   });
 }
 
