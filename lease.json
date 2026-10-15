@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "chore/guard-sql-lease-infra",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "d37a1982-6ae0-48f5-8d31-d27a2fbe7c24",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\hello-23f8b4",
+  "claimedBy": "2026-10-15-guard-sql-lease-infra (manager session hello-23f8b4)",
+  "claimedAt": "2026-10-15T11:05:43.145Z",
+  "expiresAt": "2026-10-15T23:05:43.145Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
