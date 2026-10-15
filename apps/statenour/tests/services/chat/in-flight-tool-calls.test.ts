@@ -218,3 +218,32 @@ describe("terminateWhenDrained: the route marks the record final when the stream
     expect(acc.snapshot()).toMatchObject({ terminal: false });
   });
 });
+
+describe('terminateWhenDrained: the promise it returns', () => {
+  it('resolves only after the callbacks waiting on the final record have finished', async () => {
+    const acc = createInFlightToolCalls();
+    let finish!: () => void;
+    let settleRow!: () => void;
+    acc.afterTerminal(() => new Promise<void>((resolve) => (settleRow = resolve)));
+    const done = terminateWhenDrained(acc, new Promise<void>((resolve) => (finish = resolve)));
+    const state = () => Promise.race([done.then(() => 'done'), new Promise((r) => setTimeout(() => r('pending'), 10))]);
+
+    expect(await state()).toBe('pending'); // stream still open
+    finish();
+    expect(await state()).toBe('pending'); // drained, row not settled yet
+    settleRow();
+    expect(await state()).toBe('done');
+  });
+
+  it('never rejects: a failed drain, a missing drain and a throwing callback all resolve', async () => {
+    const acc = createInFlightToolCalls();
+    await expect(terminateWhenDrained(acc, Promise.reject(new Error('drain failed')))).resolves.toBeUndefined();
+    await expect(terminateWhenDrained(acc, undefined)).resolves.toBeUndefined();
+
+    const other = createInFlightToolCalls();
+    other.afterTerminal(() => {
+      throw new Error('settle failed');
+    });
+    await expect(terminateWhenDrained(other, Promise.resolve())).resolves.toBeUndefined();
+  });
+});

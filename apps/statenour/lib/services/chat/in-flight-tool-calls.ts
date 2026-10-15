@@ -115,7 +115,13 @@ export type InFlightToolCalls = ReturnType<typeof createInFlightToolCalls>;
  * result.consumeStream()). No drain promise, or one that rejects, is not proof
  * the stream ended: the record stays non-terminal and an errored row keeps
  * saying receiptsUnavailable.
+ *
+ * Resolves once the record is final AND the callbacks waiting on it (the errored row's
+ * settle) have run, however the drain ended; it never rejects. The chat route holds its
+ * per-message lease until then (turn-claim.ts), so a replay can never read an errored
+ * row that still says "cannot vouch" for a turn that has in fact finished.
  */
-export function terminateWhenDrained(toolCalls: InFlightToolCalls, drained: PromiseLike<unknown> | undefined): void {
-  if (drained) void Promise.resolve(drained).then(() => toolCalls.terminate(), () => {});
+export function terminateWhenDrained(toolCalls: InFlightToolCalls, drained: PromiseLike<unknown> | undefined): Promise<void> {
+  if (!drained) return Promise.resolve();
+  return Promise.resolve(drained).then(() => toolCalls.terminate(), () => {});
 }

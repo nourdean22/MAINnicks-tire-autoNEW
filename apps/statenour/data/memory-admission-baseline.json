@@ -93,6 +93,7 @@
     "lib/services/chat/persist-assistant-message.ts",
     "lib/services/chat/persist-assistant-turn.ts",
     "lib/services/chat/post-persist-verification.ts",
+    "lib/services/chat/turn-claim.ts",
     "lib/services/coach-events.ts",
     "lib/services/commitment-conditions.ts",
     "lib/services/cron-control.ts",

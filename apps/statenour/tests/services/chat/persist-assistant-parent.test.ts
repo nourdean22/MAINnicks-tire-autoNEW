@@ -182,6 +182,22 @@ describe("overlapping turns keep their own parent", () => {
   });
 });
 
+describe("a hydrated conversation names its user message by DATABASE id", () => {
+  // useConversations hydrates messages with id = chat_messages.id; the client-minted id lives in
+  // metadata. The first Regenerate of a loaded thread therefore sends "U1", which no row carries
+  // as clientMessageId (2026-10-15).
+  it("U1's database id still resolves to U1, not the newest user row", async () => {
+    const out = await persistAssistantMessage(args("U1", "T1"));
+    expect(out.kind).toBe("done");
+    expect(assistantParents()).toEqual(["U1"]);
+  });
+
+  it("an id that matches no row still falls back to the newest user row", async () => {
+    await persistAssistantMessage(args("nobody", "T1"));
+    expect(assistantParents()).toEqual(["U2"]);
+  });
+});
+
 describe("buildOnFinish threads the turn's clientMessageId to persist", () => {
   const noopLog = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} };
   const deps = (userClientMessageId: string | undefined) =>

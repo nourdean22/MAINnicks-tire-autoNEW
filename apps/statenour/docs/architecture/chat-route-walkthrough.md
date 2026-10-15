@@ -118,6 +118,17 @@ JSON like budget exceeded, body parse failure, missing overrides) or
 pulls out `messages`, `conversationId`, `modeOverride`,
 `providerOverride`, `taskTypeOverride`, `personality`, `userContent`.
 
+### A1b · `guardTurn` — one live run per user message
+
+Right after the gate, before any work, `chatPostInner` mints the trace and calls
+`guardTurn` (`lib/services/chat/turn-guard.ts`). A live run holding the message, a
+re-send of an answered message, or a regenerate over a reply that may have run an
+action is refused with a 409 that carries `X-Trace-Id` and `X-Conversation-Id`;
+otherwise the handler continues as `chatTurn` with a lease (`turn-claim.ts`) that
+the streaming path holds until the stream has drained and the persist has
+finished. Design, decision table and residuals:
+[`docs/CHAT-TURN-IDEMPOTENCY-2026-10-15.md`](../CHAT-TURN-IDEMPOTENCY-2026-10-15.md).
+
 ### A2-A4 · Content-mode + interceptors + history sanitize
 
 ```ts
