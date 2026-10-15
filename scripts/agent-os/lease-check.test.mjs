@@ -343,3 +343,44 @@ test("BREAKS: settings.json without the lease-check group for the runners and wr
   }
   assert.equal(leaseCommands("Bash", broken).length, 1, "control: the native group survives the mutation");
 });
+
+// ── accepted limits, pinned (job 2026-10-15-guard-sql-lease-infra, G3) ──
+// lease-check.mjs is a session-level TRIPWIRE: it reads payload.cwd (the session's directory) and tool_input.command, nothing
+// else. These two pins describe what that cannot see. They are not defects to fix here (the authoritative guarantee is the ref
+// compare-and-swap at agent-start.mjs time); each fails the day the hook starts reading more, so the README limit gets updated.
+
+test("accepted limit, pinned: a runner's own cwd argument is not read, so a session that holds its own lease reaches a worktree held by a FOREIGN lease", (t) => {
+  const name = "mcp__terminal__run_in_terminal"; // the adapter row terminal-run carries cwdField "cwd": the policy judges that field, the tripwire does not
+  const [command] = leaseCommands(name);
+  assert.ok(command, `${name} has no configured lease-check command`);
+  const mine = makeRepo();
+  const theirs = makeRepo();
+  t.after(() => { rmSync(mine, { recursive: true, force: true }); rmSync(theirs, { recursive: true, force: true }); });
+  writeLocalMarker(mine, { branch: "main", sessionId: "me", expiresAt: future });
+  writeLocalMarker(theirs, FOREIGN);
+  const via = (cwd, toolCwd) => runConfigured(command, { cwd, tool_name: name, tool_input: { command: "git status", cwd: toolCwd } }, cwd);
+  assert.equal(via(theirs, theirs).code, 2, "positive control: the foreign marker blocks a session that is itself in that worktree");
+  const reach = via(mine, theirs);
+  assert.equal(reach.code, 0, `if this now blocks, lease-check reads the runner's cwd argument: update the README limit and this pin\n${reach.out}`);
+  assert.equal(reach.out.trim(), "", "and it stays silent: my own lease is what it saw");
+});
+
+test("accepted limit, pinned: a writer payload that carries a command field is judged by the recovery-command exemption", (t) => {
+  const name = `${DC}write_file`;
+  const [command] = leaseCommands(name);
+  assert.ok(command, `${name} has no configured lease-check command`);
+  const dir = makeRepo();
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  writeLocalMarker(dir, FOREIGN);
+  const write = (extra) => runConfigured(command, { cwd: dir, tool_name: name, tool_input: { path: "docs/x.md", content: "x", ...extra } }, dir);
+  assert.equal(write({}).code, 2, "positive control: a writer with no command field is blocked by a foreign marker");
+  const smuggled = write({ command: "node scripts/agent-os/agent-finish.mjs" });
+  assert.equal(smuggled.code, 0, `if this now blocks, the exemption is limited to command tools: update the README limit and this pin\n${smuggled.out}`);
+  assert.equal(write({ command: "git status" }).code, 2, "any other command field is still blocked");
+});
+
+test("lease-check.mjs header says what it covers and what it cannot see (a claim the code must still back)", () => {
+  const head = readFileSync(join(HERE, "lease-check.mjs"), "utf8").split("\n").slice(0, 60).join("\n");
+  assert.doesNotMatch(head, /same matcher as pretool\.mjs/, "the matcher is its own group now: that sentence is stale");
+  for (const phrase of ["session-level tripwire", "payload.cwd", "recovery-command exemption", "SQL text tools", "MCP"]) assert.ok(head.includes(phrase), `the header must state: ${phrase}`);
+});

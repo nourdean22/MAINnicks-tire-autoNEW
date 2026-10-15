@@ -31,9 +31,15 @@
  * delete_project must each PROMPT before anything is sent. If one returns a provider error instead, the glob form
  * is wrong and the entries must become exact names.
  *
+ * WHAT IT CANNOT SEE EITHER: drift. This file compares settings.json to the fixtures below and to nothing else. A tool
+ * a connector renamed or ADDED after the 2026-10-15 snapshot is in no fixture, so it is neither asked nor reported.
+ * Claude Code gives no startup warning for a mistyped or missing rule, so the refresh recipe (README, "Native ask
+ * rules", "The drift caveat, exactly") is the only check on the fixtures themselves.
+ *
  * FIXTURES: tool names read from the live tool lists on 2026-10-15; every MUST-GATE name was resolved with
  * ToolSearch select: (schemas read, no tool called). Update the lists and settings.json together when a connector
- * adds a tool: a mistyped or missing entry gives NO startup warning, this test is the only check.
+ * adds a tool. The 2026-10-15 refresh found one stale ALLOW name (list_edge_configs, live name get_edge_configs):
+ * a stale name in a fixture is a name that proves nothing.
  */
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
@@ -103,7 +109,7 @@ const NEON_ALLOW = w(`run_sql run_sql_transaction explain_sql_statement prepare_
   start_postgres_endpoint provision_neon_auth provision_neon_data_api recover_project register_functions_custom_domain set_snapshot_schedule`);
 const VERCEL_ALLOW = w(`get_project get_deployment get_runtime_logs get_runtime_errors get_domain get_domain_config get_firewall_config
   get_project_env get_alias get_flag get_edge_config get_records get_team list_projects list_deployments list_domains list_aliases list_teams
-  list_project_domains list_flags list_edge_configs list_deployment_events list_deployment_files list_sessions list_team_members
+  list_project_domains list_flags get_edge_configs list_deployment_events list_deployment_files list_sessions list_team_members
   search_vercel_documentation web_fetch_vercel_url search_repo search_domains verify_project_domain create_project create_flag
   create_edge_config get_session get_session_command_logs list_session_commands read_session_file`);
 const PRISMA_ALLOW = w(`list_prisma_projects list_prisma_branches list_prisma_postgres_databases list_prisma_postgres_backups
@@ -120,6 +126,17 @@ const BENIGN = w(`delete_attachment delete_comment delete_diff_comment delete_st
   update-product update-collection create-product create-discount set-inventory bulk-update-product-status edit-design create-design
   remove-background create_new_file use_figma send_code_to_figma upload_assets create_project create_folder deploy_website publish_website
   rename_website sandbox_exec manage_campaign update_budget pause_campaign launch_campaign`);
+
+// KNOWN-UNCLASSIFIED: live writers and secret-bearing reads nobody has classified yet (README "Unclassified infrastructure
+// tools"). Deliberately NOT prompted until someone decides: disjoint from every list above and asserted not asked, so asking
+// for one is a conscious edit that moves the name out of here first. Names are from the live registry on 2026-10-15.
+const KNOWN_UNCLASSIFIED = w(`create_sandboxes_v2 create_sandboxes_v3 create_sandboxes_v4 create_sandboxes_sessions_by_session_id_snapshot_v2
+  create_sandboxes_sessions_by_session_id_snapshot_v3 create_session_directory extend_session_timeout record_events get_access_to_vercel_url
+  create_drain update_drain test_drain get_shared_env_var filter_project_envs create_git_project create_kms_issuer create_kms_issuer_policy
+  update_sandbox update_session_network_policy kill_session_command stop_session invalidate_by_tags invalidate_by_src_images upload_file
+  upload_artifact create_storage_stores_blob get_edge_config_token get_edge_config_tokens get_project_deletion_link create_trace_session
+  create_observability_query rerequest_check retry_vercel_ci_invocation add_toolbar_reaction change_toolbar_thread_resolve_status
+  edit_toolbar_message reply_to_toolbar_thread presign_storage_object get_neon_auth_config`);
 
 // The SQL text tools are judged by TEXT in the PreToolUse hook (mcpAdapters), not prompted per call.
 const SQL_TEXT_LEAVES = ["run_sql", "run_sql_transaction", "explain_sql_statement", "execute_sql_query"];
@@ -142,6 +159,13 @@ function unaskedGate(rules) {
 function wronglyAsked(rules) {
   const out = [];
   for (const leaf of [...ALL_ALLOW, ...BENIGN]) for (const server of SERVER_FORMS) if (asking(rules, `${server}${leaf}`).length) out.push(`${server}${leaf}`);
+  return out;
+}
+
+/** Every `<server><leaf>` full name of a KNOWN_UNCLASSIFIED leaf that a rule in `rules` WOULD prompt for. */
+function askedUnclassified(rules) {
+  const out = [];
+  for (const leaf of KNOWN_UNCLASSIFIED) for (const server of SERVER_FORMS) if (asking(rules, `${server}${leaf}`).length) out.push(`${server}${leaf}`);
   return out;
 }
 
@@ -213,6 +237,24 @@ test("every MUST-GATE leaf is asked on every server form, so a reconnect that ch
 test("no MUST-ALLOW read or additive create, and no other connector's tool, is asked on any server form", () => {
   assert.ok(ALL_ALLOW.length >= 150 && BENIGN.length >= 50, "the allow and benign lists are the false-positive proof surface");
   assert.deepEqual(wronglyAsked(ask), []);
+});
+
+test("KNOWN_UNCLASSIFIED: live writers and secret reads nobody classified are deliberately NOT asked, and sit in no other list", () => {
+  assert.ok(KNOWN_UNCLASSIFIED.length >= 30, "the known-unclassified list is the recorded 'not prompted' decision: do not empty it silently");
+  assert.equal(new Set(KNOWN_UNCLASSIFIED).size, KNOWN_UNCLASSIFIED.length, "KNOWN_UNCLASSIFIED has a duplicate");
+  const clash = KNOWN_UNCLASSIFIED.filter((leaf) => ALL_GATE.includes(leaf) || ALL_ALLOW.includes(leaf) || BENIGN.includes(leaf));
+  assert.deepEqual(clash, [], "a name is either classified (gate, allow, benign) or known-unclassified, never both: move it, do not copy it");
+  assert.deepEqual(askedUnclassified(ask), [], "a known-unclassified tool is prompted: move its leaf to a gate list (and the README) as a conscious edit");
+});
+
+test("BREAKS: asking for one known-unclassified leaf, or for everything, is reported by the leaf", () => {
+  assert.deepEqual(askedUnclassified(ask), [], "control: the real list asks for none of them");
+  for (const leaf of ["create_drain", "get_shared_env_var", "presign_storage_object", "create_sandboxes_v4"]) {
+    const reported = askedUnclassified([...ask, `mcp__*__${leaf}`]);
+    assert.equal(reported.length, SERVER_FORMS.length, `${leaf}: expected one report per server form, got ${reported.length}`);
+    assert.ok(reported.every((name) => name.endsWith(`__${leaf}`)), `${leaf}: the canary named something else: ${reported.join(", ")}`);
+  }
+  assert.ok(askedUnclassified([...ask, "mcp__*"]).length > 0, "mcp__* would prompt for every unclassified tool and must be reported");
 });
 
 test("no permissions.allow entry names an asked tool (rules run deny, then ask, then allow, so it would be dead)", () => {

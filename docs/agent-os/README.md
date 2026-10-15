@@ -110,15 +110,16 @@ Commander and the native `Monitor` tool, and a `.env.local` write exited 0 throu
 **How it works.** `mcpAdapters` in `config/agent-os/policy.json` maps a tool call onto the logical tool the rules
 already understand (Bash or Write). `adaptToolCall()` in `policy.mjs` does the mapping, `pretool.mjs` judges each
 mapped call with the unchanged `evaluate()`, and a second `PreToolUse` matcher group in `.claude/settings.json`
-routes those tool names to `pretool.mjs`. No rule text is duplicated: every existing rule applies through the
-adapters, judged with the session cwd. The one exemption: the two Desktop Commander process rows skip
-`install-in-junctioned-worktree` (`exceptRules`, below).
+routes those tool names to `pretool.mjs` (a third group runs `lease-check.mjs` for the runners and writers, below). No
+rule text is duplicated: every existing rule applies through the adapters, judged with the session cwd. Two row-level
+narrowings: the two Desktop Commander process rows skip `install-in-junctioned-worktree` (`exceptRules`, below), and
+the four SQL text rows are judged by `destructive-sql` alone (`onlyRules`, below), because their text is SQL.
 
 | Adapter | Tools (matched by name SUFFIX, so both Desktop Commander registrations hit) | Judged as | Field read |
 |---|---|---|---|
 | `terminal-run` | Terminal MCP `run_in_terminal` | Bash | `command`; the tool's `cwd` is judged too |
 | `process-start` | Desktop Commander `start_process` | Bash | `command`; exempt from the worktree-install rule (`exceptRules`) |
-| `process-input` | Desktop Commander `interact_with_process` | Bash | `input`, judged as SQL sent to a `psql` client (`clientHint`); same exemption |
+| `process-input` | Desktop Commander `interact_with_process` | Bash | `input`, with a `psql` hint (`clientHint`) so bare SQL typed into a REPL is judged; EVERY rule applies, so ordinary prose typed into a REPL that holds a denied statement shape (`DELETE FROM` or `UPDATE ... SET` with no WHERE, `DROP`/`TRUNCATE`, `ALTER TABLE ... DROP`) is denied too; same exemption |
 | `monitor` | native `Monitor` | Bash | `command` (the `ws` form has none) |
 | `file-write` | `write_file`, `edit_block`, `write_pdf` | Write | `path`, `file_path`, `outputPath` |
 | `file-edit` | filesystem MCP `edit_file` | Write | `path`; a strict `dryRun: true` is not judged (`skipWhenTrue`) |
@@ -128,8 +129,9 @@ adapters, judged with the session cwd. The one exemption: the two Desktop Comman
 | `neon-migration-apply` | Neon `complete_database_migration` | Bash | `migration_sql` (`prepare_database_migration` runs on a temporary branch and is not judged) |
 | `prisma-sql` | Prisma Postgres `execute_sql_query`, `execute_prisma_postgres_schema_update` (connector and Prisma-Remote registrations) | Bash | `query` |
 
-**Optional row fields.** Each is validated at run time (a malformed value skips that row with a stderr line) and pinned
-by a canary:
+**Optional row fields.** Each is validated at run time and pinned by a canary. A malformed `clientHint`, `skipWhenTrue`
+or `expandDirectory` skips that row with a stderr line; a malformed `exceptRules`, `onlyRules` or `rawText` is reported
+and that field alone is ignored:
 
 - `cwdField`: an input field that names the directory the command runs in (`run_in_terminal.cwd`). It is judged in
   addition to the session cwd, so a decoy value can add a judgment but never remove the session's. Accepted
@@ -145,9 +147,10 @@ by a canary:
   add denials.
 - `clientHint`: a word prefixed to the field text before the rules run, so text typed into a client is judged as if
   sent to it. `process-input` and the four SQL text rows have one (`psql`): bare `DROP TABLE x;` typed into a psql REPL
-  that an earlier call started, or sent to Neon `run_sql`, meets `destructive-sql`. A single read-only search (`grep -rn "DROP TABLE" docs/`) is left alone. Any
-  other typed text that holds a DROP or TRUNCATE statement is denied, an `echo` of it included: with the hint on, a
-  mention cannot be told from an execution.
+  that an earlier call started, or sent to Neon `run_sql`, meets `destructive-sql`. On `process-input` a single read-only
+  search (`grep -rn "DROP TABLE" docs/`) is left alone. Any other typed text that holds a statement shape the rule denies
+  (the listed DROP kinds, `TRUNCATE`, a `DELETE FROM` or `UPDATE ... SET` with no WHERE, `ALTER TABLE ... DROP`) is denied,
+  ordinary prose and an `echo` of it included: with the hint on, a mention cannot be told from an execution.
 - `skipWhenTrue`: field names whose strict boolean `true` means the tool previews and writes nothing (`dryRun`).
   `"true"`, `1` and `{}` still judge. Only `file-edit` has it: no other file tool documents `dryRun`, and a server
   that ignores an unknown one would write anyway.
@@ -209,16 +212,26 @@ Design rules, each pinned by `scripts/agent-os/mcpCoverage.test.mjs`:
   still passes through `run_in_terminal`, `start_process` and `Monitor`. `interact_with_process` has no `command`
   field, so the recovery exemption cannot apply to it (it is not how the block message says to recover). The SQL text
   tools are not routed to it: they never touch the worktree. Cost: throttled no-marker warnings on these calls.
+  **Accepted limits: `lease-check.mjs` is a session-level tripwire, not a path guard.** It reads only `payload.cwd` (the
+  session's directory) and `tool_input.command`. So (1) a session that holds its own lease can run a Terminal MCP
+  command in a worktree held by a FOREIGN lease through `run_in_terminal`'s own `cwd` argument, and (2) a writer payload
+  that carries a `command` field is judged by the recovery-command exemption (a `write_file` call with
+  `command: "node scripts/agent-os/agent-finish.mjs"` passes). Neither is fixed (no change in `lease-check.mjs`);
+  `lease-check.test.mjs` pins both as documented limits. The authoritative guarantee stays the ref compare-and-swap at
+  `agent-start.mjs` time.
 
 **Adding a runner or file tool.** (1) Read the live tool definition and copy the exact field names. (2) Add a row
-to `mcpAdapters` with at least one real tool name in `exampleTools`. (3) Add the tool-name suffix to the matcher in
-`.claude/settings.json`; the canary fails until the table and the matcher agree. (4) Add the tool to
-`COMMAND_SHAPES` or `FILE_SHAPES` in `mcpCoverage.test.mjs` with the live field names. (5) Run
-`node --test scripts/agent-os/mcpCoverage.test.mjs`.
+to `mcpAdapters` with at least one real tool name in `exampleTools`. (3) Add the tool-name suffix to BOTH matchers in
+`.claude/settings.json`: the pretool group and the lease-check group (a runner or writer runs `pretool.mjs` and
+`lease-check.mjs`). The registration canaries fail until the table, both matchers and the shapes agree (`routingProblems()`
+names every tool whose pair of hooks is wrong). (4) Add the tool to `COMMAND_SHAPES` or `FILE_SHAPES` in
+`mcpCoverage.test.mjs` with the live field names. (5) Run `node --test scripts/agent-os/mcpCoverage.test.mjs
+scripts/agent-os/lease-check.test.mjs`.
 
-**Adding a SQL text tool.** Read the live tool definition, add a row with `clientHint: "psql"` that names its SQL field
-(a list field works too), add the tool-name suffix to the PRETOOL matcher only (never the lease matcher), and add the
-tool to `SQL_SHAPES` in the canary so every registration runs end to end through the real hook.
+**Adding a SQL text tool.** Read the live tool definition, add a row with `clientHint: "psql"`, `rawText: true` and
+`onlyRules: ["destructive-sql"]` that names its SQL field (a list field works too), add the tool-name suffix to the
+PRETOOL matcher only (never the lease matcher), and add the tool to `SQL_SHAPES` in the canary so every registration runs
+end to end through the real hook.
 
 ### How `destructive-sql` reads SQL (2026-10-15)
 
@@ -250,9 +263,13 @@ client does to that text:
   50 elements of 20,000 characters (the character budget) and 1.5 to 2.9 s for one 996,512-character field judged
   whole. In process, 1,000,000 benign characters take 10 ms and the same worst text 1.6 s (`DELETE FROM`), 1.3 s
   (`UPDATE ... SET`), 0.7 s (`ALTER TABLE`). That is real text nobody writes, and it stays inside the hook's 10 s
-  timeout (a timeout fails OPEN) with about 3x margin on a quiet machine. The canaries therefore pin only that bound
-  (9 s, the hook timeout less margin) and report the measured times; they do not claim a tighter number they cannot
-  hold on a loaded runner. A separate canary pins that the pattern is anchored and linear on benign text.
+  timeout (a timeout fails OPEN) with about 3x margin on a quiet machine, which is not the 10x a bound should have. So the
+  real-hook canary for those worst shapes asserts the verdicts and ONE generous bound, 9 s (the hook timeout less a
+  second: the failure that matters is a timeout, which fails open), and REPORTS the measured times instead of asserting a
+  tighter number a loaded runner cannot hold; only the benign 25,000-character field has a tight bound (3 s, more than
+  10x its measured time). A separate canary pins that the pattern is anchored (structurally) and
+  that the unanchored form is at least 20x slower on the same benign text (a ratio, so a fast runner cannot turn it
+  red for a non-defect).
 
 ### Native ask rules (2026-10-15)
 
@@ -262,11 +279,12 @@ nothing to judge. `permissions.ask` in `.claude/settings.json` makes Claude Code
 one `mcp__*__<leaf>` glob per protected tool, grouped Railway, Neon, Vercel, Prisma and sorted inside each group (a leaf
 two families share, `update_project`, is listed once).
 
-- **Why native rules and not hook code.** A tool matched by an explicit ask rule still prompts in `bypassPermissions`
-  mode (Claude Code docs, `code.claude.com/docs/en/permissions`, read 2026-10-15), which is how this repo is usually run.
-  There is no JavaScript to crash: a hook fails OPEN on its own bugs and on timeout, a rule does not. A prompt nobody
-  can answer (`claude -p`, Night Shift) is denied, the intended failure direction. A hook `ask` is not documented to
-  prompt in bypass, and a hook deny cannot honour "explicit operator instruction".
+- **Why native rules and not hook code.** The Claude Code docs (`code.claude.com/docs/en/permissions`, read 2026-10-15
+  by the manager; the lane could not re-read them) document that a tool matched by an explicit ask rule still prompts in
+  `bypassPermissions` mode, which is how this repo is usually run, and that a prompt nobody can answer (`claude -p`,
+  Night Shift) is denied, the intended failure direction. Documented, not proven live: step 7 of the live check below is
+  the proof. There is no JavaScript to crash: a hook fails OPEN on its own bugs and on timeout, a rule does not. A hook
+  `ask` is not documented to prompt in bypass, and a hook deny cannot honour "explicit operator instruction".
 - **No UUID, no plugin name.** Connector UUIDs are per account and change on reconnect. The `mcp__16f59cb5-...` allow
   entries already in `settings.json` never match today's Railway connector (`7f852746-...`): proof that UUID-pinned rules
   rot. They are left as found and flagged: delete them, or replace them with `mcp__*__<leaf>` read rules.
@@ -281,11 +299,21 @@ two families share, `update_project`, is listed once).
 - **Adding a name.** (1) Resolve the full tool name with ToolSearch `select:` and read its definition. (2) Add the leaf to
   the right fixture (protected or allowed) in `scripts/agent-os/mcpAskRules.test.mjs`. (3) Add `mcp__*__<leaf>` to
   `permissions.ask`, in the group's sorted position. (4) Run `node --test scripts/agent-os/mcpAskRules.test.mjs`.
-- **The drift caveat.** A mistyped or missing name gives NO warning from Claude Code (MCP tool names contain
-  underscores, so a typo is just a rule that never matches), and a connector that renames or adds a tool leaves it
-  unprompted until the fixtures are refreshed. The canary is the only check: it asserts every protected leaf is asked on
-  every server form (four connector UUIDs, the Prisma-Remote plugin, two synthetic reconnect forms) and that no read,
-  additive create or other connector's tool is, with BREAKS arms that name the exact leaf.
+- **Known and deliberately not prompted.** `KNOWN_UNCLASSIFIED` in the canary names the live writers and
+  secret-bearing reads nobody has classified yet (Vercel `create_sandboxes_v2` to `v4`, `create_drain`, `update_drain`,
+  `get_shared_env_var`, `filter_project_envs`, Neon `presign_storage_object` and the others in "Still unguarded"). It is
+  disjoint from the protected and allowed lists (asserted) and asserted NOT asked, so not prompting them is a recorded
+  decision and a later edit is a conscious one.
+- **The drift caveat, exactly.** A mistyped or missing name gives NO warning from Claude Code (MCP tool names contain
+  underscores, so a typo is just a rule that never matches). The canary compares `settings.json` to the fixtures in
+  `mcpAskRules.test.mjs`, and to nothing else: it asserts every protected leaf is asked on every server form (four
+  connector UUIDs, the Prisma-Remote plugin, two synthetic reconnect forms) and that no read, additive create or other
+  connector's tool is, with BREAKS arms that name the exact leaf. It CANNOT see a tool a connector renamed or ADDED
+  after the fixtures were taken (snapshot: 2026-10-15). Refresh recipe, when a connector updates: (1) list the live
+  tools of the four connectors; (2) run ToolSearch `select:` over every leaf of every fixture list (protected, allowed,
+  known-unclassified) with its full tool name, and treat a name that does not resolve as stale; (3) diff the live
+  names against the fixtures; (4) classify each new name as protected, allowed or known-unclassified and edit the
+  fixtures and `permissions.ask` together. The 2026-10-15 pass found one stale allowed name that way: `list_edge_configs` is gone, the live name is `get_edge_configs`.
 - **What the canary cannot prove.** That Claude Code itself applies a glob in the SERVER segment of an ask rule. The
   docs' own example is `mcp__*`; `mcp__*__<leaf>` rests on "deny and ask rules accept glob patterns in the tool-name
   position", and the canary runs an emulation of that. "Live check after merge" below proves it with two Deny taps. If it
@@ -340,7 +368,9 @@ Inventory of 2026-10-15. Names come from this machine's tool lists; "name only" 
   `create-bucket`, `create-webhook`, `generate-domain`; Neon `create_branch`, `create_project`; Vercel `create_project`,
   `create_flag`); and the unclassified tools below.
 - **Unclassified infrastructure tools** (in the live tool lists on 2026-10-15, in neither the protected nor the allowed
-  fixture). Neon: `presign_storage_object`, `get_ai_gateway`, `get_neon_auth_config`, `list_auth_oauth_providers`,
+  fixture; the writers and secret-bearing reads among them are the `KNOWN_UNCLASSIFIED` fixture and are deliberately NOT
+  prompted until someone decides; the plain reads, analytics and docs tools are not listed). Neon:
+  `presign_storage_object`, `get_ai_gateway`, `get_neon_auth_config`, `list_auth_oauth_providers`,
   `list_auth_trusted_domains`, `list_branch_computes`, `list_functions_custom_domains`, `list_log_fields`,
   `list_log_field_values`, `list_project_permissions`, `get_doc_resource`, `list_docs_resources`. Prisma:
   `get_prisma_composer_topology`, `list_prisma_github_installations`, `list_prisma_github_repositories`. Vercel writers:
@@ -366,10 +396,22 @@ Inventory of 2026-10-15. Names come from this machine's tool lists; "name only" 
 
 ### Live check after merge
 
-Five minutes, in a FRESH Claude Code session (hooks and settings load when a session starts, so a session that began
-before the merge proves nothing). Steps 1 to 4 prove the runner adapters, steps 5 and 6 the SQL rows, step 7 the native
-ask rules.
+Five minutes, in a FRESH Claude Code session started from the PRIMARY checkout after step 0. Hooks and settings load when
+a session starts, and a worktree session takes both from the primary checkout, so a session that began before the merge,
+or one that runs in a worktree, proves nothing. Steps 1 to 4 prove the runner adapters, steps 5 and 6 the SQL rows,
+step 7 the native ask rules. Three result words are used below. PASS: the stated refusal or prompt appears before
+anything is sent. FAIL: the call reached the tool and came back with the tool's own output or a provider error, while
+the control behaved as stated. INCONCLUSIVE: a control did not behave as stated, or the session did not load the merged
+files, so nothing can be concluded: fix the precondition and repeat. This section is a procedure; whoever runs it
+records the result, and nothing here says it has been run.
 
+0. Precondition: fast-forward the PRIMARY checkout to the merged commit (on this machine
+   `C:\Users\nourd\NattyNour\nicks-tire`): `git -C <primary> fetch origin main`, then `git -C <primary> merge --ff-only origin/main`,
+   never `reset --hard` (a sibling session's work may be in that tree). Confirm `git -C <primary> log -1 --format=%H`
+   is the merged commit and that `node -e "console.log(require('./.claude/settings.json').permissions.ask.length)"`, run
+   inside the primary, prints 135. Then open a FRESH session whose directory is the primary checkout, run `/permissions`
+   and confirm the `mcp__*__delete-service` ask rule is listed; if it is not, stop: INCONCLUSIVE. A worktree session
+   cannot test a `settings.json` that is not merged: its own worktree's copy is not the one it loads.
 1. Ask Claude to run `git push --dry-run origin main` through the Terminal MCP (`run_in_terminal`), then through
    Desktop Commander (`start_process`), then through the native `Monitor` tool. It is harmless: a dry-run push sends nothing even if the guard fails.
    For a benign control, run `git status` through the Terminal MCP and through Desktop Commander. On this machine
@@ -381,6 +423,8 @@ ask rules.
 3. FAIL: the tab opens or the process starts and prints dry-run output, or only a permission prompt appears with
    no `BLOCKED by repo policy:` line. A permission prompt is the permission system, not this guard, and a block
    banner without the repo's rule id is not this guard either (this machine runs more than one layer).
+   INCONCLUSIVE: the benign control did not run (for example `pwsh.exe was not found on PATH`), or the session began
+   before step 0.
 4. On FAIL: restart the session and repeat, then run `node --test scripts/agent-os/mcpCoverage.test.mjs`. The
    registration canaries (matcher, verbatim configured command) say whether the hook is routed.
 5. SQL probe: ask Claude to call Neon `run_sql` with `sql: "DROP TABLE guard_live_check_probe"` and
@@ -390,12 +434,21 @@ ask rules.
 6. For the list reader, ask for Neon `run_sql_transaction` with `sql_statements: ["SELECT 1", "DELETE FROM guard_live_check_probe"]`
    and the same bogus `project_id`. PASS: `BLOCKED by repo policy: destructive-sql` and a last line that names
    `neon-sql-transaction.sql_statements[1]`. FAIL: a provider error.
-7. Ask probe: ask Claude to call Railway `delete-service` with `projectId: "guard-live-check-nonexistent"` and
-   `serviceId: "00000000-0000-0000-0000-000000000000"`, then Neon `delete_project` with
-   `project_id: "guard-live-check-nonexistent"`. PASS: a permission prompt appears BEFORE anything is sent, and you
-   answer Deny. FAIL: the call returns a provider error such as "not found" with no prompt. Then the server-glob form is
-   wrong: replace the `mcp__*__<leaf>` entries with exact tool names (and keep the fixtures in step). The ids are
-   nonexistent, so even a failed check deletes nothing.
+7. Ask probe, with its precondition and positive control first.
+   - Mode: run it in `bypassPermissions` (the mode shows under the input box; Shift+Tab cycles it). Ask rules are
+     documented to prompt there, so a prompt is attributable to the rule. In the default mode an MCP tool prompts anyway
+     and a prompt proves nothing.
+   - Positive control: ask Claude to call Railway `list-projects` and Neon `list_projects` (reads, both MUST-ALLOW
+     fixtures). They must run with NO prompt. If either prompts: INCONCLUSIVE (wrong mode, or an entry that is too broad:
+     run `node --test scripts/agent-os/mcpAskRules.test.mjs`).
+   - Probe: ask Claude to call Railway `delete-service` with `projectId: "guard-live-check-nonexistent"` and
+     `serviceId: "00000000-0000-0000-0000-000000000000"`, then Neon `delete_project` with
+     `project_id: "guard-live-check-nonexistent"`.
+   - PASS: the control ran silently and each probe shows a permission prompt BEFORE anything is sent; you answer Deny.
+     FAIL: the control ran silently and a probe returns a provider error such as "not found" with no prompt: the
+     server-glob form is wrong, so replace the `mcp__*__<leaf>` entries with exact tool names (and keep the fixtures in
+     step). INCONCLUSIVE: the control also prompted, or a connector is not connected (its tools are absent).
+   - The ids are nonexistent, so even a failed check deletes nothing.
 
 ## Writing a check that actually catches something
 

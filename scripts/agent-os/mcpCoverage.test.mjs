@@ -715,6 +715,33 @@ test("README documents every adapter, the unguarded inventory and the live check
   }
 });
 
+// 2026-10-15 G3 (docs truth): a claim the code cannot back is a defect, so these pin the wording where a claim is made.
+test("docs truth: the live check is runnable from a worktree session, the lease and ask limits are stated, and the claims in AGENTS.md, policy.json and the ledger match the code", () => {
+  const live = README.slice(README.indexOf("### Live check after merge"));
+  assert.ok(live.length > 100, "README needs the live check section");
+  for (const phrase of ["0. ", "fast-forward the PRIMARY checkout", "merge --ff-only origin/main", "never `reset --hard`", "FRESH session", "worktree session", "cannot test a `settings.json` that is not merged",
+    "bypassPermissions", "positive control", "list-projects", "PASS", "FAIL", "INCONCLUSIVE"]) {
+    assert.ok(live.includes(phrase), `README live check must say: ${phrase}`);
+  }
+  for (const phrase of ["session-level tripwire", "`run_in_terminal`'s own `cwd` argument", "recovery-command exemption", "KNOWN_UNCLASSIFIED", "Refresh recipe", "snapshot: 2026-10-15", "get_edge_configs", "20x slower"]) {
+    assert.ok(README.includes(phrase), `README must state: ${phrase}`);
+  }
+  const stale = README.split("\n").filter((l) => l.includes("list_edge_configs"));
+  assert.ok(stale.length <= 1 && stale.every((l) => l.includes("get_edge_configs")), "the stale Vercel name may only appear beside its live replacement");
+  const agents = readFileSync(join(ROOT, "AGENTS.md"), "utf8");
+  const row = agents.split("\n").find((l) => l.startsWith("| 13 destructive commands blocked")) ?? "";
+  assert.ok(row, "AGENTS.md first Enforcement-map row not found");
+  for (const phrase of ["PROMPTED, not hook-judged", "documented, not proven live", "`permissions.ask`", "`lease-check.mjs`", "SQL text tools"]) assert.ok(row.includes(phrase), `AGENTS.md row must say: ${phrase}`);
+  assert.doesNotMatch(row, /even in bypass \(list/, "the old claim (prompts even in bypass, stated as fact) must not return");
+  const why = policy.rules.find((r) => r.id === "destructive-sql").why;
+  assert.match(why, /the listed DROP kinds/);
+  assert.doesNotMatch(why, /other DROP kinds|every DROP kind/, "the rule lists its DROP kinds; DOMAIN, AGGREGATE and the rest pass");
+  const ledger = readFileSync(join(ROOT, "docs", "agent-os", "MANAGER-LEDGER.md"), "utf8").split("\n").find((l) => l.startsWith("| 2026-10-15-guard-sql-lease-infra |")) ?? "";
+  assert.ok(ledger, "the ledger row for this job is missing");
+  assert.doesNotMatch(ledger, /every DROP kind/, "the ledger row must say the listed DROP kinds");
+  for (const phrase of ["the listed DROP kinds", "209", "fast-forward"]) assert.ok(ledger.includes(phrase), `the ledger row must say: ${phrase}`);
+});
+
 // --- 9 - review fixes (2026-10-15: five review findings and one regression on the first commit) ---
 
 const GLOBAL_INSTALL = "pnpm add -g typescript"; // matches install-in-junctioned-worktree
@@ -1179,12 +1206,15 @@ test("SQL: a 25,000-character benign field and the worst whole-array shapes stay
   }
 });
 
-test("destructive-sql is linear in the text length: 60,000 benign characters are judged fast, and the same pattern without its ^ anchor is not (positive control)", () => {
+test("destructive-sql is anchored and so linear: the unanchored form is at least 20x slower on the same 60,000 benign characters (a ratio, never a clock)", () => {
   // The array reader multiplies judgments (ARRAY_MAX elements of FIELD_CAP characters each), which is only affordable
   // because the rule is anchored: unanchored, the engine retries the whole lookahead from every start position.
-  // Measured 2026-10-15: 200 elements of 20,000 characters ran into the 30 s test timeout on the unanchored form.
+  // Measured 2026-10-15: 200 elements of 20,000 characters ran into the 30 s test timeout on the unanchored form, and
+  // 60,000 characters took about 3 ms anchored against about 2,700 ms unanchored (~900x). The assertion is that ratio
+  // with a 20x floor and a 1 ms floor on the divisor, not a millisecond number: a fast or a loaded runner moves both
+  // sides together, so it cannot go red for a non-defect.
   const rule = policy.rules.find((r) => r.id === "destructive-sql");
-  assert.ok(rule?.pattern.startsWith("^"), "the shipped pattern must be anchored");
+  assert.ok(rule?.pattern.startsWith("^"), "the shipped pattern must be anchored (structural check)");
   const text = `${"SELECT x FROM t ".repeat(3750)}psql`;
   const time = (source) => {
     const re = new RegExp(source, rule.flags);
@@ -1192,12 +1222,13 @@ test("destructive-sql is linear in the text length: 60,000 benign characters are
     const hit = re.test(text);
     return { ms: Number(process.hrtime.bigint() - t0) / 1e6, hit };
   };
-  const shipped = time(rule.pattern);
-  assert.equal(shipped.hit, false, "benign text must not match");
-  assert.ok(shipped.ms < 500, `the shipped pattern took ${shipped.ms} ms on 60,000 benign characters`);
   const unanchored = time(rule.pattern.replace(/^\^/, ""));
-  assert.equal(unanchored.hit, false);
-  assert.ok(unanchored.ms > 500, `positive control: without its ^ the pattern took only ${unanchored.ms} ms, so this canary cannot tell an anchored rule from an unanchored one`);
+  const shipped = time(rule.pattern);
+  assert.equal(unanchored.hit, false, "benign text must not match");
+  assert.equal(shipped.hit, false, "benign text must not match");
+  assert.ok(unanchored.ms > 50, `positive control: the unanchored form took only ${unanchored.ms} ms, too fast for a ratio to mean anything`);
+  const ratio = unanchored.ms / Math.max(shipped.ms, 1);
+  assert.ok(ratio >= 20, `the shipped pattern is only ${ratio.toFixed(1)}x faster than its unanchored form on 60,000 benign characters`);
 });
 
 test("SQL: prepare_database_migration (a temporary branch) and the other tools of these servers are NOT judged by text", () => {
