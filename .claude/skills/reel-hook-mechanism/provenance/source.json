@@ -1,0 +1,37 @@
+{
+  "sourceFile": "data/videos.json",
+  "sourcePathAtCompile": "<os-temp>/opus-src/videos.json (outside the repo; scaffold wrote an absolute scratch path, redacted here)",
+  "sha256": "1c307487eca4e56957f4f7de4c72efcd482017f54d77495e3a88ddbcc9b4f30d",
+  "bytes": 813423,
+  "extractedAt": "2026-10-15T00:31:29.162Z",
+  "license": "MIT (list); individual prompts belong to their creators (README Credits); skill quotes <=15 words per anchor and vendors no prompt text",
+  "compiler": "source-to-skill v1",
+  "upstream": {
+    "repo": "yihui-dev/awesome-opus5-5-videos",
+    "pinnedCommit": "92aee2f586ac0715cb3cbcb6384834f98a33383d",
+    "committedAt": "2026-10-13T14:46:40Z",
+    "entries": 703,
+    "categories": { "explainer": 116, "motion": 369, "interactive": 101, "3d": 117 },
+    "promptPartialEntries": 207,
+    "hasViewsOrLikesField": false,
+    "fetchCommand": "gh api \"repos/yihui-dev/awesome-opus5-5-videos/contents/data/videos.json?ref=92aee2f586ac0715cb3cbcb6384834f98a33383d\" -H \"Accept: application/vnd.github.raw\"",
+    "readmeFetchCommand": "gh api \"repos/yihui-dev/awesome-opus5-5-videos/contents/README.md?ref=92aee2f586ac0715cb3cbcb6384834f98a33383d\" -H \"Accept: application/vnd.github.raw\"",
+    "readmeSha256": "0aea4fdbab29c20416b0c14c485f13e24fff4af26c39d43fb671a407b361e92c",
+    "readmeBytes": 63328
+  },
+  "anchorVerification": {
+    "checkedAt": "2026-10-15",
+    "method": "every quote-anchor and also: anchor is an exact substring of the named slug's prompt (or of the README) at the pinned commit, and is 15 words or fewer; throwaway script kept outside the repo",
+    "scope": "techniques.md and anti-patterns.md"
+  },
+  "recount": {
+    "note": "Counts are crude regex hits re-run at the pin and are derived_inference, not author claims. The earlier research pass (N=113, 75 full explainers plus 38 motion prompts) could not be reproduced from a deterministic filter, so it is not carried.",
+    "sample": "category explainer with prompt_partial false (75) plus category motion with prompt_partial false and 240-1500 chars (95) = 170",
+    "promptsUnder250CharsInSample": 46,
+    "entriesSharingIdentical120CharOpeningWithAnotherEntry": 41,
+    "runtimeInFirst200Chars": "53/170",
+    "numberedBeatsOrTimecodes": "9/170",
+    "deterministicFrameWords": "9/170",
+    "noCutWords": "7/170"
+  }
+}
