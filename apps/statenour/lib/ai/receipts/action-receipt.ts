@@ -31,7 +31,6 @@
  */
 
 import { getToolMeta } from "@/lib/ai/tools/catalog";
-import { isReadSafeTool } from "@/lib/ai/capability-registry";
 import { MUTATION_ACTIONS } from "@/lib/ai/chat/action-result-verifier";
 import type { OperationState } from "@/lib/ai/chat/turn-control-plane";
 
@@ -115,9 +114,15 @@ export interface RawActionResult {
  *
  * Broader than the catalog's `sideEffecting` flag (which is the narrow
  * "needs approval / external write" notion). For action honesty we also count
- * every `*_write` category (createTask, completeTask, pinMemory, journalDecision,
- * …), every action-block MUTATION, and any catalog tool not on the reviewed
- * read-only list (lib/ai/tools/read-only-tools.ts).
+ * any `*_write` category (createTask, completeTask, pinMemory, journalDecision,
+ * …) and every action-block MUTATION. Pure reads stay false.
+ *
+ * This is the Done-guard's question: did a KNOWN write fail? It is deliberately
+ * not the Retry gate's default-deny (would a replay repeat anything?, answered by
+ * isReplaySafeTool in lib/ai/capability-registry.ts). Sharing that rule here made a
+ * failed runCode, or a failed call to a tool nobody had reviewed yet, prepend a
+ * false "claimed action(s) ... but tool call(s) failed" banner to a reply that
+ * claimed nothing.
  */
 export type ToolEffectClass = "write" | "read" | "unknown";
 
@@ -136,10 +141,9 @@ export type ToolEffectClass = "write" | "read" | "unknown";
  */
 export function classifyToolEffect(toolName: string): ToolEffectClass {
   if (MUTATION_ACTIONS.has(toolName)) return "write";
-  if (!getToolMeta(toolName)) return "unknown";
-  // Default-deny, one source with read mode: a catalog tool is a read only when
-  // the capability registry says so (reviewed list, no write tripwire).
-  return isReadSafeTool(toolName) ? "read" : "write";
+  const meta = getToolMeta(toolName);
+  if (!meta) return "unknown";
+  return meta.sideEffecting === true || meta.category.endsWith("_write") ? "write" : "read";
 }
 
 export function isSideEffecting(toolName: string): boolean {

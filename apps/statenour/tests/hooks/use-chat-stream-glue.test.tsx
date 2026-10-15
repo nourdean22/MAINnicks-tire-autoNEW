@@ -269,11 +269,23 @@ describe("auto-retry never turns a failed reattach into a resend", () => {
 // only tokenUsage.toolReceipts (top level, as use-conversations loads it) says
 // what ran.
 describe("Retry never re-runs a turn that ran a side-effecting tool", () => {
+  // The shape the receipts writer stores: all eight fields (persist-assistant-message
+  // + toolReceiptRows), never a bare { toolName, sideEffecting }.
+  const storedReceipt = (toolName: string, sideEffecting: boolean, verifiable = true) => ({
+    toolName,
+    category: "personal_write",
+    sideEffecting,
+    verifiable,
+    status: "success",
+    verificationState: "PROVIDER_ACCEPTED",
+    entityType: null,
+    entityId: null,
+  });
   const reloaded = (sideEffecting: boolean) => ({
     id: "db-2",
     role: "assistant",
     parts: [{ type: "text", text: "Sent the quote." }],
-    tokenUsage: { toolReceipts: [{ toolName: "createQuickQuote", sideEffecting }] },
+    tokenUsage: { toolReceipts: [sideEffecting ? storedReceipt("createQuickQuote", true) : storedReceipt("searchMemories", false)] },
   });
 
   it("refuses a reloaded turn whose receipts show a side effect, and says why", () => {
@@ -436,6 +448,115 @@ describe("Retry never re-runs a turn that ran a side-effecting tool", () => {
       ["an empty receipts list and plain text (no SDK tool ran, no action block)", erroredRow({ toolReceipts: [] })],
     ])("CONTROL: still regenerates an errored turn with %s", (_label, row) => {
       retry(row);
+      expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // The gate trusted the flags stored in a receipt. Rows written before the
+  // default-deny stored sideEffecting:false for the tools below although their
+  // executors write, so Retry stayed open after a reload. Every receipt is now
+  // re-classified by toolName through the registry as well, and a receipt whose
+  // flags are missing, null or not booleans counts as a write.
+  describe("a reloaded row is judged by tool name, not only by the flags it was stored with", () => {
+    // The OLD persisted shape: classified by the old narrow rule, so no flag, no write category, no write.
+    const oldRow = (toolName: string) => ({
+      id: "db-old",
+      role: "assistant",
+      parts: [{ type: "text", text: "Done." }],
+      streamingState: "complete",
+      tokenUsage: {
+        toolReceipts: [
+          { toolName, category: "planning", sideEffecting: false, verifiable: true, status: "success", verificationState: "PROVIDER_ACCEPTED", entityType: null, entityId: null },
+        ],
+      },
+    });
+    const retry = (row: unknown) => {
+      h.chat.messages = [user, row];
+      h.chat.status = "ready";
+      render();
+      vi.mocked(toast.error).mockClear();
+      act(() => void ctl.regenerate());
+    };
+
+    it.each(["setMit", "clearMit", "setOKRs", "setWeeklyTargets", "scheduleFollowUp", "queueDeepResearch", "runPython", "arsenalDeepResearch", "runSimulation"])(
+      "refuses an old row whose %s receipt says sideEffecting:false",
+      (toolName) => {
+        retry(oldRow(toolName));
+        expect(h.chat.regenerate).not.toHaveBeenCalled();
+        expect(vi.mocked(toast.error)).toHaveBeenCalledTimes(1);
+      },
+    );
+
+    it("refuses an old row for a tool name the catalog no longer has", () => {
+      retry(oldRow("aToolThatWasRemoved"));
+      expect(h.chat.regenerate).not.toHaveBeenCalled();
+    });
+
+    const stored = (receipt: unknown) => ({
+      id: "db-m",
+      role: "assistant",
+      parts: [{ type: "text", text: "Here you go." }],
+      streamingState: "complete",
+      tokenUsage: { toolReceipts: [receipt] },
+    });
+    const read = { toolName: "searchMemories", category: "brain", sideEffecting: false, verifiable: true, status: "success", verificationState: "VERIFIED", entityType: null, entityId: null };
+
+    it.each([
+      ["sideEffecting is missing", { ...read, sideEffecting: undefined }],
+      ["sideEffecting is null", { ...read, sideEffecting: null }],
+      ["sideEffecting is the string 'false'", { ...read, sideEffecting: "false" }],
+      ["verifiable is missing", { ...read, verifiable: undefined }],
+      ["verifiable is null", { ...read, verifiable: null }],
+      ["verifiable is the string 'true'", { ...read, verifiable: "true" }],
+      ["toolName is missing", { ...read, toolName: undefined }],
+      ["toolName is not a string", { ...read, toolName: 7 }],
+      ["the receipt is null", null],
+      ["the receipt is a string", "searchMemories"],
+    ])("refuses a receipt where %s", (_label, receipt) => {
+      retry(stored(receipt));
+      expect(h.chat.regenerate).not.toHaveBeenCalled();
+    });
+
+    it("CONTROL: a full read receipt, and a full compute receipt, still regenerate", () => {
+      retry(stored(read));
+      expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
+      h.chat.regenerate = vi.fn();
+      retry(stored({ ...read, toolName: "runCode", category: "ai_analysis" }));
+      expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
+    });
+
+    it("one write among reads is enough to refuse", () => {
+      retry({ ...stored(read), tokenUsage: { toolReceipts: [read, { ...read, toolName: "setMit", category: "planning" }] } });
+      expect(h.chat.regenerate).not.toHaveBeenCalled();
+    });
+  });
+
+  // A reply the visible text of which is empty is salvaged from reasoning
+  // (salvage-event-text), and parseActions then executes an action block found
+  // there, so the gate reads reasoning parts as well as text parts.
+  describe("an action block in a reasoning part counts too", () => {
+    const block = '```action\n{"type":"task.create","params":{"title":"Call Mike"}}\n```';
+    it("refuses a reloaded row whose reasoning part carries a block and whose text is empty", () => {
+      h.chat.messages = [user, { id: "db-r", role: "assistant", parts: [{ type: "reasoning", text: block }, { type: "text", text: "" }], streamingState: "complete", tokenUsage: { toolReceipts: [] } }];
+      h.chat.status = "ready";
+      render();
+      act(() => void ctl.regenerate());
+      expect(h.chat.regenerate).not.toHaveBeenCalled();
+    });
+
+    it("refuses a live bubble whose reasoning part carries a block", () => {
+      h.chat.messages = [user, { id: "live-r", role: "assistant", parts: [{ type: "reasoning", text: block }] }];
+      h.chat.status = "ready";
+      render();
+      act(() => void ctl.regenerate());
+      expect(h.chat.regenerate).not.toHaveBeenCalled();
+    });
+
+    it("CONTROL: reasoning that merely talks about an action still regenerates", () => {
+      h.chat.messages = [user, { id: "live-q", role: "assistant", parts: [{ type: "reasoning", text: "The next action is to answer plainly." }, { type: "text", text: "Done." }] }];
+      h.chat.status = "ready";
+      render();
+      act(() => void ctl.regenerate());
       expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
     });
   });

@@ -22,7 +22,7 @@ import {
   REVIEWED_UNFLAGGED_WRITES,
 } from "@/lib/ai/tools/read-only-tools";
 import { MUTATING_PREFIX, WRITE_CATEGORIES, classifyTool, isReadSafeTool, isReplaySafeTool } from "@/lib/ai/capability-registry";
-import { classifyToolEffect, isSideEffecting, toReceipt } from "@/lib/ai/receipts/action-receipt";
+import { canClaimDone, classifyToolEffect, isSideEffecting, receiptsWithReadBack, toReceipt } from "@/lib/ai/receipts/action-receipt";
 
 const catalogNames = TOOL_CATALOG.map((t) => t.name);
 type Meta = (typeof TOOL_CATALOG)[number];
@@ -109,43 +109,59 @@ describe("the reviewed read-only list", () => {
   });
 });
 
-describe("classifyToolEffect answers 'read' only for the reviewed list", () => {
-  it.each(SEVEN_REVIEWED_WRITES)("%s is a write", (name) => {
+describe("the Retry gate's question is default-deny: would a replay repeat anything?", () => {
+  it.each([...SEVEN_REVIEWED_WRITES, ...OTHER_MUTATING_NAMES, ...UNFLAGGED_WRITES_NO_WIRE])("%s is not replay-safe", (name) => {
+    expect(isReplaySafeTool(name)).toBe(false);
+    expect(isReadSafeTool(name)).toBe(false);
+  });
+
+  it("every catalog tool is replay-safe exactly when it is read-only listed or compute-only listed", () => {
+    const wrong = catalogNames.filter((n) => isReplaySafeTool(n) !== (READ_ONLY_TOOLS.has(n) || REPLAY_SAFE_COMPUTE_TOOLS.has(n)));
+    expect(wrong, `isReplaySafeTool disagrees with the lists for: ${wrong.join(", ")}`).toEqual([]);
+  });
+
+  it("CONTROL: reviewed reads and compute tools are replay-safe", () => {
+    for (const name of ["getTasks", "searchMemories", "endOfDay", "weeklyReview", "dailyPulse", "getRevenueStats", ...REVIEWED_COMPUTE]) {
+      expect(isReplaySafeTool(name), name).toBe(true);
+    }
+  });
+});
+
+// The Done-guard (canClaimDone and the "claimed action(s) ... but tool call(s)
+// failed" banner) asks a different question: did a known write fail? It must not
+// inherit the Retry gate's default-deny, or a failed call to a compute tool, or to
+// a tool nobody has reviewed yet, prepends a false banner to a reply that claimed
+// nothing. classifyToolEffect keeps its narrow meaning (flag, *_write category,
+// action-block mutation) and so do the receipts built on it.
+describe("the Done-guard keeps its narrow classifier", () => {
+  it.each(["createTask", "completeTask", "createQuickQuote", "task.create"])("%s is a write", (name) => {
     expect(classifyToolEffect(name)).toBe("write");
     expect(isSideEffecting(name)).toBe(true);
-    expect(isReadSafeTool(name)).toBe(false);
   });
 
-  it.each([...OTHER_MUTATING_NAMES, ...UNFLAGGED_WRITES_NO_WIRE])("%s (it persists a row per run) is a write", (name) => {
-    expect(classifyToolEffect(name)).toBe("write");
-    expect(isReadSafeTool(name)).toBe(false);
+  it.each([...REVIEWED_COMPUTE, "getTasks", "searchMemories"])("%s is a read: a failed call raises no banner", (name) => {
+    expect(classifyToolEffect(name)).toBe("read");
+    const verdict = canClaimDone([toReceipt({ toolName: name, ok: false, error: "boom" })]);
+    expect(verdict.ok, `a failed ${name} made the Done-guard object`).toBe(true);
   });
 
-  it("every catalog tool is exactly read (listed) or write (not listed); none is left 'unknown'", () => {
-    const wrong = catalogNames.filter((n) => classifyToolEffect(n) !== (READ_ONLY_TOOLS.has(n) ? "read" : "write"));
-    expect(wrong, `classifyToolEffect disagrees with the list for: ${wrong.join(", ")}`).toEqual([]);
+  it("CONTROL: a failed known write still makes the Done-guard object", () => {
+    expect(canClaimDone([toReceipt({ toolName: "createTask", ok: false, error: "boom" })]).ok).toBe(false);
   });
 
-  it("the registry and the receipt classifier give one answer for every catalog tool", () => {
-    const split = catalogNames.filter((n) => isReadSafeTool(n) !== (classifyToolEffect(n) === "read"));
-    expect(split, `registry and receipts disagree for: ${split.join(", ")}`).toEqual([]);
-  });
-
-  it("a persisted receipt for an unflagged write carries sideEffecting true", () => {
-    expect(toReceipt({ toolName: "setMit", ok: true }).sideEffecting).toBe(true);
-    expect(toReceipt({ toolName: "runPython", ok: true }).sideEffecting).toBe(true);
-  });
-
-  it("CONTROL: reviewed reads stay reads", () => {
-    for (const name of ["getTasks", "searchMemories", "endOfDay", "weeklyReview", "dailyPulse", "getRevenueStats"]) {
-      expect(classifyToolEffect(name), name).toBe("read");
-      expect(isReadSafeTool(name), name).toBe(true);
-    }
+  it("runCode fails, then succeeds; the reply claims nothing: no offender, so no banner", () => {
+    const receipts = receiptsWithReadBack(
+      [
+        { name: "runCode", ok: false },
+        { name: "runCode", ok: true },
+      ],
+      [{ verified: null }, { verified: null }],
+    );
+    expect(canClaimDone(receipts).ok).toBe(true);
   });
 
   it("CONTROL: a name outside the catalog and the action-block list is still 'unknown'", () => {
     expect(classifyToolEffect("totallyMadeUpTool")).toBe("unknown");
-    expect(classifyToolEffect("task.create")).toBe("write");
   });
 });
 
@@ -155,7 +171,7 @@ describe("a tool nobody has reviewed counts as a write", () => {
     vi.resetModules();
   });
 
-  it("whatever its name or category: the registry says unreviewed and the receipt classifier says write", async () => {
+  it("whatever its name or category: the registry says unreviewed, the Retry gate says not replay-safe, and the Done-guard does NOT call it a write", async () => {
     vi.resetModules();
     vi.doMock("@/lib/ai/tools/catalog", async (importOriginal) => {
       const real = await importOriginal<typeof import("@/lib/ai/tools/catalog")>();
@@ -171,9 +187,11 @@ describe("a tool nobody has reviewed counts as a write", () => {
 
     expect(registry.classifyTool("getShinyThing")).toEqual({ readSafe: false, reason: "unreviewed" });
     expect(registry.isReplaySafeTool("getShinyThing")).toBe(false);
-    expect(receipts.classifyToolEffect("getShinyThing")).toBe("write");
-    // control: a reviewed read in the same module graph is still a read
-    expect(receipts.classifyToolEffect("getTasks")).toBe("read");
+    // Decoupled: a failed call to a tool nobody has reviewed yet must not prepend a false banner.
+    expect(receipts.classifyToolEffect("getShinyThing")).toBe("read");
+    expect(receipts.canClaimDone([receipts.toReceipt({ toolName: "getShinyThing", ok: false, error: "boom" })]).ok).toBe(true);
+    // control: a reviewed read in the same module graph is still replay-safe
+    expect(registry.isReplaySafeTool("getTasks")).toBe(true);
   });
 
   it("the registry keeps its original reasons for tools it already caught", () => {

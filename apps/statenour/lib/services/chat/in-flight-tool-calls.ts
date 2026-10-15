@@ -1,3 +1,4 @@
+import { isReplaySafeTool } from "@/lib/ai/capability-registry";
 import { toReceipt } from "@/lib/ai/receipts/action-receipt";
 import { toolReceiptRows, type ToolReceiptRow } from "@/lib/ai/receipts/tool-receipt-rows";
 
@@ -85,7 +86,13 @@ export function createInFlightToolCalls() {
     snapshot(): ToolReceiptsSnapshot {
       if (!trustworthy) return { trustworthy: false };
       const receipts = [...calls.values()].map((toolName) => toReceipt({ toolName, partial: true }));
-      return { trustworthy: true, terminal, receipts: toolReceiptRows(receipts) };
+      // These rows answer the Retry gate's question (would a replay repeat it?), not the
+      // Done-guard's: a cataloged tool the registry does not vouch for counts as a write.
+      const rows = toolReceiptRows(receipts).map((row) => ({
+        ...row,
+        sideEffecting: row.sideEffecting || (row.verifiable !== false && !isReplaySafeTool(row.toolName)),
+      }));
+      return { trustworthy: true, terminal, receipts: rows };
     },
     /** Run `callback` once the stream has ended (at once if it already has). */
     afterTerminal(callback: () => Promise<void> | void): void {
