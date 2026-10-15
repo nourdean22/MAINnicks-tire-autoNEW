@@ -97,7 +97,8 @@ github-client canaries 403'd every PR whenever another workflow had spent the bu
   execution); put test payloads in files and pipe them. Discovered live when this layer's own
   e2e test blocked itself.
 - **There is deliberately no bypass env var.** Changing a rule means editing `policy.json` in a
-  PR where the diff is reviewable.
+  PR where the diff is reviewable. That includes `infra-mutation-tool` ("Infra tools: deny by name" below): an override for it
+  was built first and removed after review, and a canary asserts that an `AGENT_OS_INFRA_OVERRIDE` in the environment changes nothing.
 
 ## MCP and native-runner coverage (2026-10-15)
 
@@ -113,7 +114,8 @@ mapped call with the unchanged `evaluate()`, and a second `PreToolUse` matcher g
 routes those tool names to `pretool.mjs` (a third group runs `lease-check.mjs` for the runners and writers, below). No
 rule text is duplicated: every existing rule applies through the adapters, judged with the session cwd. Two row-level
 narrowings: the two Desktop Commander process rows skip `install-in-junctioned-worktree` (`exceptRules`, below), and
-the four SQL text rows are judged by `destructive-sql` alone (`onlyRules`, below), because their text is SQL.
+the four SQL text rows are judged by `destructive-sql` alone (`onlyRules`, below), because their text is SQL. One row, `infra-name`,
+judges the tool NAME instead of a field (`nameAsText`, below): the infra mutation tools carry no text at all.
 
 | Adapter | Tools (matched by name SUFFIX, so both Desktop Commander registrations hit) | Judged as | Field read |
 |---|---|---|---|
@@ -128,6 +130,7 @@ the four SQL text rows are judged by `destructive-sql` alone (`onlyRules`, below
 | `neon-sql-transaction` | Neon `run_sql_transaction` | Bash | each element of the `sql_statements` list on its own, never joined, within the list budget (`ARRAY_MAX`, `ARRAY_CHAR_BUDGET`) |
 | `neon-migration-apply` | Neon `complete_database_migration` | Bash | `migration_sql` (`prepare_database_migration` runs on a temporary branch and is not judged) |
 | `prisma-sql` | Prisma Postgres `execute_sql_query`, `execute_prisma_postgres_schema_update` (connector and Prisma-Remote registrations) | Bash | `query` |
+| `infra-name` | the Railway, Neon, Vercel and Prisma infra mutation tools listed under "Infra tools: deny by name" (matched on the last name segment, whatever the server) | Bash | none: the tool NAME (`nameAsText`), judged by `infra-mutation-tool` alone |
 
 **Optional row fields.** Each is validated at run time and pinned by a canary. A malformed `clientHint`, `skipWhenTrue`
 or `expandDirectory` skips that row with a stderr line; a malformed `exceptRules` or `onlyRules` is reported and that
@@ -178,6 +181,13 @@ shell command and as raw SQL, and denied if either denies. Each fails toward MOR
   neutraliser ON, and reading it as `true` alone would erase the flags of a shell row, each hiding what the other
   reading sees, so a typo can only add denials (on a shell row it may add a false one). The shell door is unchanged: a
   commit message that mentions SQL is still data there.
+- `nameAsText`: a strict boolean `true` (only on a Bash row) makes the judged text the TOOL NAME instead of an input field, so a row
+  needs no `commandFields`. Only `infra-name` has it, with `onlyRules` exactly `["infra-mutation-tool"]`; it carries no `rawText`, because
+  `rawText` replaces `-` and the Railway names are made of hyphens. A value that is declared but malformed (`"true"`, `1`, `null`) is
+  reported and the name is judged anyway; a bad optional `commandFields` list on such a row is reported and ignored, never the row. Toward
+  denial again. With only `infra-mutation-tool` running, the name is judged whole up to `SQL_FIELD_CAP`: the rule is one anchored
+  alternation of literals after a single `.+`, linear in the name (the hyphen, underscore and 100,000-character sweep in
+  `mcpInfraDeny.test.mjs` pins it, with a nested-quantifier positive control). A row whose rule id does not exist is reported and the `onlyRules` ignored.
 - A named field may hold a **list of strings** (`neon-sql-transaction`: `sql_statements`). Each element is judged on
   its own, never joined with its neighbours, with provenance `<row>.<field>[i]` (the index in the original list).
   Elements are judged in order until `ARRAY_MAX` (2,000) elements or `ARRAY_CHAR_BUDGET` (1,000,000) characters in
@@ -320,66 +330,81 @@ client does to that text:
   replaced. A separate canary pins that the pattern is anchored (structurally) and that the unanchored form is at least
   20x slower on the same benign text (a ratio, so a fast runner cannot turn it red for a non-defect).
 
-### Native ask rules (2026-10-15)
+### Infra tools: deny by name (2026-10-15)
 
-**STATUS 2026-10-15: NOT WORKING as written. The 135 rules FAILED their live check and gate nothing yet.** The check
-ran at 17:56Z in a fresh `bypassPermissions` session started from the primary checkout after it was fast-forwarded to
-`b6faf90d9`. The positive control ran silently (Railway `list-projects`). Three probes then reached their tools with NO
-permission prompt: Railway `delete-service` (nonexistent ids; the provider returned a permission error), Vercel
-`pause_project` (`invalid_project_id`) and Prisma `delete_prisma_postgres_database` (`not_found`). The cause is NOT known:
-either a glob in the SERVER segment of an ask rule does not match, or ask rules are not honoured for these tools in this
-app. A separate live experiment decides the fix (exact tool names, or a hook); this page does not guess it. The
-`settings.json` list is left as found: inert, not harmful. Read every "prompts" below as "was meant to prompt".
+**Status: DENIED by name.** The Railway, Neon, Vercel and Prisma MCP tools that delete, redeploy, restart or change variables,
+credentials, domains, DNS or schema (the table below) are refused by rule `infra-mutation-tool`, a PreToolUse hook deny
+(exit 2). It judges the TOOL NAME, by its last segment, whatever server segment it has. It replaced 135 native
+`permissions.ask` entries that did nothing. There is NO override. Nothing here has been live-checked since the rewrite:
+step 7 of "Live check after merge" is the receipt.
 
-Railway, Neon, Vercel and Prisma Postgres mutation tools carry no command text: the tool name and its arguments ARE
-the operation (Railway `set-variables`, Neon `delete_project`, Vercel `create_project_env`), so the PreToolUse hook has
-nothing to judge. `permissions.ask` in `.claude/settings.json` was written to make Claude Code prompt before each one: 135 entries,
-one `mcp__*__<leaf>` glob per protected tool, grouped Railway, Neon, Vercel, Prisma and sorted inside each group (a leaf
-two families share, `update_project`, is listed once).
+- **Why: the live FAIL.** Job 2026-10-15-guard-sql-lease-infra wrote 135 `mcp__*__<leaf>` ask entries to make Claude Code prompt before
+  each of these tools. They FAILED their live check at 17:56Z on 2026-10-15, in a fresh `bypassPermissions` session: Railway
+  `delete-service` (nonexistent ids; a provider permission error), Vercel `pause_project` (`invalid_project_id`) and Prisma
+  `delete_prisma_postgres_database` (`not_found`) each reached the provider with NO prompt, while the positive control (Railway
+  `list-projects`) ran silently. The cause was not separated: a glob in the SERVER segment of an ask rule that does not
+  match, UUID server names, or ask not honoured in this app. A hook deny does not depend on any of that, and it was proven
+  live on this machine in the same session (push-to-main and the Neon SQL rows were refused), so the ask entries were removed
+  and replaced by the deny.
+- **How it works.** The tools carry no command text, so the tool name is the text: adapter row `infra-name` (`nameAsText: true`, `onlyRules`
+  exactly `["infra-mutation-tool"]`) hands the name to the rule, whose pattern is `^mcp__.+__(?:leaf|leaf|...)$`, anchored at both ends
+  and matching the LAST segment only. A connector UUID changes when a connector is re-added, so the server segment is never
+  matched: the connector UUID, the plugin form (`mcp__plugin_prisma_Prisma-Remote__...`), a `claude_ai_` name and a made-up UUID all
+  deny. `.claude/settings.json` routes exactly these names to `pretool.mjs` (the pretool-only MCP matcher group; `lease-check.mjs` does not
+  run for them, they never touch the worktree) and routes no read. The denial tells an agent to state the exact action to Nour, who runs it
+  himself in the provider dashboard or CLI, or changes the rule in a PR. The leaf list is the classification in `scripts/agent-os/mcpInfraDeny.test.mjs`;
+  that file pins both patterns to it and probes every leaf on four server forms through the real hook.
+- **The denied tool list (135).** Derived from `policy.json`; `mcpInfraDeny.test.mjs` fails if a leaf is missing here. `update_project` exists on both Neon
+  and Vercel and is listed once.
 
-- **Why native rules and not hook code.** The Claude Code docs (`code.claude.com/docs/en/permissions`, read 2026-10-15
-  by the manager; the lane could not re-read them) document that a tool matched by an explicit ask rule still prompts in
-  `bypassPermissions` mode, which is how this repo is usually run, and that a prompt nobody can answer (`claude -p`,
-  Night Shift) is denied, the intended failure direction. That was the reading of the docs, and step 7 of the live check
-  below tested it and FAILED for these tools. There is no JavaScript to crash (a hook fails OPEN on its own bugs and on
-  timeout), but a rule that does not match gates nothing, which is what the live check saw. A hook `ask` is not
-  documented to prompt in bypass, and a hook deny cannot honour "explicit operator instruction".
-- **No UUID, no plugin name.** Connector UUIDs are per account and change on reconnect. The `mcp__16f59cb5-...` allow
-  entries already in `settings.json` never match today's Railway connector (`7f852746-...`): proof that UUID-pinned rules
-  rot. They are left as found and flagged: delete them, or replace them with `mcp__*__<leaf>` read rules.
-- **What the rules were written to prompt on (intent; nothing prompts today).** Deletes and removals; deploys, redeploys, restarts, promotes and rollbacks; credentials, keys,
-  secrets and connection strings (`rotate_credential`, `reset-bucket-credentials`, `create_prisma_postgres_connection_string`,
-  `create_sdk_key`); env and service config writes (`set-variables`, `create_project_env`, `update-service`,
-  `update_project`); DNS, domain, certificate and firewall changes; arbitrary execution (`railway-agent`,
-  `run_session_command`, `write_session_files`); schema changes (`complete_database_migration`,
-  `execute_prisma_postgres_schema_update`: both are ALSO judged by text). What does NOT prompt: reads, additive creates,
-  and the SQL text tools (`run_sql`, `run_sql_transaction`, `explain_sql_statement`, `execute_sql_query`), which the hook
-  judges by text because a prompt per query would train the operator to tap through.
-- **Adding a name.** (1) Resolve the full tool name with ToolSearch `select:` and read its definition. (2) Add the leaf to
-  the right fixture (protected or allowed) in `scripts/agent-os/mcpAskRules.test.mjs`. (3) Add `mcp__*__<leaf>` to
-  `permissions.ask`, in the group's sorted position. (4) Run `node --test scripts/agent-os/mcpAskRules.test.mjs`.
-- **Known and deliberately not prompted.** `KNOWN_UNCLASSIFIED` in the canary names the live writers and
-  secret-bearing reads nobody has classified yet (Vercel `create_sandboxes_v2` to `v4`, `create_drain`, `update_drain`,
-  `get_shared_env_var`, `filter_project_envs`, Neon `presign_storage_object` and the others in "Still unguarded"). It is
-  disjoint from the protected and allowed lists (asserted) and asserted NOT asked, so not prompting them is a recorded
-  decision and a later edit is a conscious one.
-- **The drift caveat, exactly.** A mistyped or missing name gives NO warning from Claude Code (MCP tool names contain
-  underscores, so a typo is just a rule that never matches). The canary compares `settings.json` to the fixtures in
-  `mcpAskRules.test.mjs`, and to nothing else: it asserts every protected leaf is asked on every server form (four
-  connector UUIDs, the Prisma-Remote plugin, two synthetic reconnect forms) and that no read, additive create or other
-  connector's tool is, with BREAKS arms that name the exact leaf. It CANNOT see a tool a connector renamed or ADDED
-  after the fixtures were taken (snapshot: 2026-10-15). Refresh recipe, when a connector updates: (1) list the live
-  tools of the four connectors; (2) run ToolSearch `select:` over every leaf of every fixture list (protected, allowed,
-  known-unclassified) with its full tool name, and treat a name that does not resolve as stale; (3) diff the live
-  names against the fixtures; (4) classify each new name as protected, allowed or known-unclassified and edit the
-  fixtures and `permissions.ask` together. The 2026-10-15 pass found one stale allowed name that way: `list_edge_configs` is gone, the live name is `get_edge_configs`.
-- **What the canary cannot prove: THE RISK MATERIALISED (live FAIL, 2026-10-15).** The canary cannot show that Claude Code
-  itself applies a glob in the SERVER segment of an ask rule. The docs' own example is `mcp__*`; `mcp__*__<leaf>` rests
-  on "deny and ask rules accept glob patterns in the tool-name position", and the canary runs an emulation of that. The
-  live check was written to settle it and did: three tools ran with no prompt (see STATUS above and "Recorded result"
-  in the live check). Exact tool names are the first thing to try, but it is not established that the glob is the cause:
-  if exact names also run unprompted, ask rules are not honoured for these tools in this app. The canary still passes
-  because it compares `settings.json` to its own fixtures; a green canary here never meant the rules work.
+| Provider | Denied tools (the last segment of the MCP tool name) |
+|---|---|
+| Railway | `accept-deploy`, `connect-service-source`, `create-deployment`, `create-function`, `create-service`, `delete-bucket`, `delete-domain`, `delete-feature-flag`, `delete-service`, `delete-tcp-proxy`, `delete-volume`, `delete-webhook`, `deploy-template`, `railway-agent`, `redeploy`, `reset-bucket-credentials`, `restart-service`, `set-feature-flag`, `set-variables`, `update-bucket`, `update-domain`, `update-function-source-code`, `update-service`, `update-volume`, `update-webhook` |
+| Neon | `add_auth_oauth_provider`, `add_auth_trusted_domain`, `complete_database_migration`, `complete_query_tuning`, `create_credential`, `delete_auth_oauth_provider`, `delete_auth_trusted_domain`, `delete_auth_user`, `delete_branch`, `delete_data_api`, `delete_function`, `delete_functions_custom_domain`, `delete_postgres_database`, `delete_postgres_endpoint`, `delete_postgres_role`, `delete_project`, `delete_snapshot`, `delete_storage_bucket`, `delete_storage_object`, `delete_storage_objects_by_prefix`, `delete_trigger`, `deploy_function`, `disable_auth`, `finalize_branch_restore`, `reset_from_parent`, `reset_postgres_role_password`, `restart_postgres_endpoint`, `restore_snapshot`, `revoke_credential`, `rotate_credential`, `set_default_branch`, `suspend_postgres_endpoint`, `update_auth_config`, `update_auth_oauth_provider`, `update_auth_user_role`, `update_branch`, `update_data_api`, `update_function`, `update_postgres_database`, `update_postgres_endpoint`, `update_project`, `update_snapshot`, `update_trigger` |
+| Vercel | `accept_project_transfer_request`, `activate_kms_signing_key`, `add_project_domain`, `add_route`, `approve_rolling_release_stage`, `assign_alias`, `buy_domain`, `cancel_deployment`, `complete_rolling_release`, `create_deployment`, `create_edge_config_token`, `create_kms_signing_key`, `create_or_transfer_domain`, `create_project_env`, `create_record`, `create_sdk_key`, `edit_project_env`, `edit_route`, `issue_cert`, `patch_edge_config_items`, `patch_url_protection_bypass`, `pause_project`, `put_firewall_config`, `replace_domain_dns_records`, `request_promote`, `request_rollback`, `restore_edge_config_backup`, `restore_redirects`, `revoke_kms_signing_key`, `run_session_command`, `stage_redirects`, `stage_routes`, `start_rolling_release`, `unpause_project`, `update_attack_challenge_mode`, `update_bulk_redirect_version`, `update_connector`, `update_edge_config`, `update_firewall_config`, `update_flag`, `update_flag_segment`, `update_flag_settings`, `update_kms_issuer`, `update_kms_issuer_policy`, `update_project_protection_bypass`, `update_record`, `update_rolling_release_config`, `update_route_versions`, `upsert_connector_project_connection`, `write_session_files` |
+| Prisma | `create_object_store_bucket_key`, `create_prisma_postgres_connection_string`, `create_prisma_postgres_recovery`, `delete_object_store_bucket`, `delete_object_store_bucket_key`, `delete_prisma_compute_app`, `delete_prisma_compute_deployment`, `delete_prisma_compute_env_var`, `delete_prisma_postgres_connection_string`, `delete_prisma_postgres_database`, `execute_prisma_postgres_schema_update`, `link_prisma_github_repository`, `promote_prisma_compute_deployment`, `rollback_prisma_compute_app`, `set_prisma_compute_env_var`, `start_prisma_compute_deployment`, `stop_prisma_compute_deployment` |
+
+- **No override.** There is no environment variable, setting or flag that lifts `infra-mutation-tool`. A first version had an operator override
+  (`AGENT_OS_INFRA_OVERRIDE`); review showed that any non-blank value turned the rule off for every tool and target for the whole session, and
+  for later sessions when stored in `.claude/settings.local.json`, which contradicts "explicit instruction for the specific action, every
+  time" (AGENTS.md > Protected operations). It was removed, and `mcpInfraDeny.test.mjs` now asserts the opposite through the real hook:
+  with `AGENT_OS_INFRA_OVERRIDE` set to a reason, or the look-alikes `AGENT_OS_INFRA_OVERRIDES` and `INFRA_OVERRIDE`, a denied tool is still denied.
+  An infra deny cannot wedge a session the way `lease-check.mjs` can, so nothing needs a way around it. When Nour wants one of these actions he runs it
+  himself in the provider dashboard or CLI, or he edits the rule in a PR where the diff is reviewable. The denial message says exactly that.
+- **What is NOT affected.** Bash `railway run`, `railway variables` (a read), `railway logs`, `railway status`, `gh`, `git` and every other
+  command: they are Bash and the name rule never sees a command. MCP reads, logs, docs and analytics tools (Railway `list-projects`,
+  `get-logs`; Neon `list_projects`, `run_sql`; Vercel `list_deployments`, `get_runtime_logs`; Prisma `list_prisma_projects`), additive creates
+  (Railway `create-project`, `create-volume`; Neon `create_branch`, `create_project`; Vercel `create_project`, `create_flag`) and the
+  SQL text tools, which the hook judges by text (a prompt or a denial per query would train the operator to override). Two tools are both:
+  `complete_database_migration` and `execute_prisma_postgres_schema_update` are denied by name AND judged by text.
+- **Collisions.** A leaf is generic (`update_project`, `delete_branch`, `create_record`) and the rule never looks at the server, so a
+  non-infra server that exposes the same leaf would be denied too. Checked 2026-10-15 by name against the tool list of every non-infra MCP
+  server that listed tools in that session (Linear, Gmail, Calendar, Drive, Sheets, Shopify, Canva, Figma, Higgsfield, Clipkit, Sentry, ads, travel,
+  documents, browsers and the harness's own tools): no denied leaf was found on any of them, so there is NO known collision today. The nearest
+  names, `create_project` (Higgsfield, Clipkit, Neon, Vercel) and the many `update_*` tools, are not on the list: `create_project` is a MUST-ALLOW
+  additive create. Servers that needed authorization and listed no tools (GitHub, Datadog, Slack, PagerDuty and others) were NOT checked: a GitHub
+  `delete_branch` would be denied, and the pattern test pins that as the shape of the risk. Re-run the check whenever a connector is added. To allow a colliding non-infra tool, narrow the rule (a negative
+  look-behind on its server segment in both patterns, with an exact-name MUST-ALLOW fixture in `mcpInfraDeny.test.mjs`) rather than
+  dropping the leaf.
+- **Adding a name.** (1) Resolve the full tool name with ToolSearch `select:` and read its definition. (2) Add the leaf to the right fixture
+  (protected or allowed) in `mcpInfraDeny.test.mjs`. (3) Regenerate both patterns in `policy.json` (`infra-mutation-tool.pattern` and
+  `infra-name.toolPattern`: they must be identical) and the matcher in `.claude/settings.json`, and add the leaf to the table above.
+  (4) Run `node --test scripts/agent-os/mcpInfraDeny.test.mjs`.
+- **Known and deliberately not denied.** `KNOWN_UNCLASSIFIED` in the canary names the live writers and secret-bearing reads nobody has classified
+  yet (Vercel `create_sandboxes_v2` to `v4`, `create_drain`, `update_drain`, `get_shared_env_var`, `filter_project_envs`, Neon
+  `presign_storage_object` and the others in "Still unguarded"). It is disjoint from every other list (asserted) and asserted NOT denied,
+  so not denying them is a recorded decision and a later edit is a conscious one.
+- **The drift caveat, exactly.** The canary compares `policy.json` and `settings.json` to the fixtures in `mcpInfraDeny.test.mjs`, and to nothing
+  else. It CANNOT see a tool a connector renamed or ADDED after the fixtures were taken (snapshot: 2026-10-15): a new leaf is neither denied
+  nor reported. Refresh recipe, when a connector updates: (1) list the live tools of the four connectors; (2) run ToolSearch `select:` over
+  every leaf of every fixture list (protected, allowed, known-unclassified) with its full tool name, and treat a name that does not resolve
+  as stale; (3) diff the live names against the fixtures; (4) classify each new name as protected, allowed or known-unclassified and edit the
+  fixtures, both patterns and the matcher together. The 2026-10-15 pass found one stale allowed name that way: `list_edge_configs` is gone, the live name is `get_edge_configs`.
+- **Limits.** (a) A hook fails OPEN on its own bug or a timeout (10 s); the in-process matrix over every leaf, the real-hook probes and the 100,000-character
+  sweep are the guard, and the name rule is linear. (b) A Bash command that is exactly a denied tool name is denied too (the rule is typed Bash so the row can
+  hand it text): no real command looks like that, a canary pins it. (c) An empty server segment (`mcp____delete_project`) is not a registered tool and does
+  not match. (d) The CLI door (`railway`, `vercel`, `neonctl` through Bash or a runner) is not judged by this rule. (e) The in-process matrix and the real hook
+  call the same functions `pretool.mjs` calls; a canary compares their verdicts on a sample so the two cannot drift apart unseen.
 
 ### Still unguarded
 
@@ -393,7 +418,7 @@ Inventory of 2026-10-15. Names come from this machine's tool lists; "name only" 
   1,000,000 on a SQL row; the same per element of a list field), the elements of a list field beyond the 2,000th or
   beyond 1,000,000 judged characters in all, a WHERE farther than 5,000 characters from its `DELETE FROM` or `SET`
   (denied, not a slip), and the directory walk cap: files past the first 2,000 entries, or deeper than 6 levels, of a
-  moved directory are not seen (the walk and the list reader each print one stderr line when they stop early). A hook that times out (10 s) or crashes fails OPEN; the native ask rules have no such window, but they FAILED their live check and gate nothing yet (Native ask rules above). Canaries
+  moved directory are not seen (the walk and the list reader each print one stderr line when they stop early). A hook that times out (10 s) or crashes fails OPEN, the infra name rule included (it is linear; "Infra tools: deny by name" above). Canaries
   pin each of these.
 - **context-mode plugin runners** (`ctx_execute`, `ctx_batch_execute`). They run code and commands, and the
   manager's probe on 2026-10-15 exited 0 through both. They were not in this session's tool list, so their field
@@ -434,16 +459,15 @@ Inventory of 2026-10-15. Names come from this machine's tool lists; "name only" 
 - **Prisma-Local MCP** (`migrate-reset`, `migrate-dev`; name only, the server failed to connect on 2026-10-15).
   The tool name is the whole command, so there is no text to match. Follow-up: an adapter field that supplies a
   fixed command string such as `prisma migrate reset` to `destructive-prisma`.
-- **Infrastructure beyond the ask list.** The 135 protected leaves are on the ask list (previous section), which FAILED
-  its live check on 2026-10-15, so they are unguarded too until the fix lands. Still open: the CLI door
+- **Infrastructure beyond the deny list.** The classified leaves are denied by name (previous section). Still open: the CLI door
   (`railway`, `vercel`, `neonctl` commands typed through Bash or a runner carry mutations the text rules do not know);
   secret-revealing reads (Railway `list-variables` and `get-bucket-credentials`, Neon `get_connection_string`, Vercel
-  `get_project_env`); additive creates, unprompted on purpose (Railway `create-project`, `create-volume`,
+  `get_project_env`); additive creates, allowed on purpose (Railway `create-project`, `create-volume`,
   `create-bucket`, `create-webhook`, `generate-domain`; Neon `create_branch`, `create_project`; Vercel `create_project`,
   `create_flag`); and the unclassified tools below.
 - **Unclassified infrastructure tools** (in the live tool lists on 2026-10-15, in neither the protected nor the allowed
   fixture; the writers and secret-bearing reads among them are the `KNOWN_UNCLASSIFIED` fixture and are deliberately NOT
-  prompted until someone decides; the plain reads, analytics and docs tools are not listed). Neon:
+  denied until someone decides; the plain reads, analytics and docs tools are not listed). Neon:
   `presign_storage_object`, `get_ai_gateway`, `get_neon_auth_config`, `list_auth_oauth_providers`,
   `list_auth_trusted_domains`, `list_branch_computes`, `list_functions_custom_domains`, `list_log_fields`,
   `list_log_field_values`, `list_project_permissions`, `get_doc_resource`, `list_docs_resources`. Prisma:
@@ -453,7 +477,7 @@ Inventory of 2026-10-15. Names come from this machine's tool lists; "name only" 
   `kill_session_command`, `stop_session`, `invalidate_by_tags`, `invalidate_by_src_images`, `upload_file`,
   `upload_artifact`, `create_storage_stores_blob`, plus the toolbar, CI and observability writers; Vercel secret-bearing
   reads: `get_shared_env_var`, `filter_project_envs`, `get_edge_config_token`, `get_edge_config_tokens`,
-  `get_project_deletion_link`. Decide each, then add it to the fixtures and `settings.json` together.
+  `get_project_deletion_link`. Decide each, then add it to the fixtures, `policy.json` and `settings.json` together.
 - **Customer-facing sends through connector tools** (Gmail `send_message`, `reply`, `forward`; ad launches
   `launch_*`; calendar invites). They are not command, file or SQL tools: permission prompts only.
 - **Desktop Commander `set_config_value`** can empty its own `blockedCommands` or widen `allowedDirectories`. It
@@ -473,18 +497,17 @@ Inventory of 2026-10-15. Names come from this machine's tool lists; "name only" 
 Five minutes, in a FRESH Claude Code session started from the PRIMARY checkout after step 0. Hooks and settings load when
 a session starts, and a worktree session takes both from the primary checkout, so a session that began before the merge,
 or one that runs in a worktree, proves nothing. Steps 1 to 4 prove the runner adapters, steps 5 and 6 the SQL rows,
-step 7 the native ask rules. Three result words are used below. PASS: the stated refusal or prompt appears before
+step 7 the infra name rule. Three result words are used below. PASS: the stated refusal or prompt appears before
 anything is sent. FAIL: the call reached the tool and came back with the tool's own output or a provider error, while
 the control behaved as stated. INCONCLUSIVE: a control did not behave as stated, or the session did not load the merged
 files, so nothing can be concluded: fix the precondition and repeat. This section is a procedure; whoever runs it
-records the result under "Recorded result" at its end (the 2026-10-15 run is there: steps 1 to 6 PASS, step 7 FAIL).
+records the result under "Recorded result" at its end (the 2026-10-15 run is there: steps 1 to 6 PASS, the ask version of step 7 FAIL; the rewritten step 7 has not been run yet).
 
 0. Precondition: fast-forward the PRIMARY checkout to the merged commit (on this machine
    `C:\Users\nourd\NattyNour\nicks-tire`): `git -C <primary> fetch origin main`, then `git -C <primary> merge --ff-only origin/main`,
    never `reset --hard` (a sibling session's work may be in that tree). Confirm `git -C <primary> log -1 --format=%H`
-   is the merged commit and that `node -e "console.log(require('./.claude/settings.json').permissions.ask.length)"`, run
-   inside the primary, prints 135. Then open a FRESH session whose directory is the primary checkout, run `/permissions`
-   and confirm the `mcp__*__delete-service` ask rule is listed; if it is not, stop: INCONCLUSIVE. A worktree session
+   is the merged commit and that `node -e "console.log(require('./.claude/settings.json').permissions.ask ?? 'no ask list')"`, run
+   inside the primary, prints `no ask list`. Then open a FRESH session whose directory is the primary checkout. A worktree session
    cannot test a `settings.json` that is not merged: its own worktree's copy is not the one it loads.
 1. Ask Claude to run `git push --dry-run origin main` through the Terminal MCP (`run_in_terminal`), then through
    Desktop Commander (`start_process`), then through the native `Monitor` tool. It is harmless: a dry-run push sends nothing even if the guard fails.
@@ -508,22 +531,21 @@ records the result under "Recorded result" at its end (the 2026-10-15 run is the
 6. For the list reader, ask for Neon `run_sql_transaction` with `sql_statements: ["SELECT 1", "DELETE FROM guard_live_check_probe"]`
    and the same bogus `project_id`. PASS: `BLOCKED by repo policy: destructive-sql` and a last line that names
    `neon-sql-transaction.sql_statements[1]`. FAIL: a provider error.
-7. Ask probe, with its precondition and positive control first.
-   - Mode: run it in `bypassPermissions` (the mode shows under the input box; Shift+Tab cycles it). Ask rules are
-     documented to prompt there, so a prompt is attributable to the rule (the 2026-10-15 run did not see that: see the
-     recorded result below). In the default mode an MCP tool prompts anyway and a prompt proves nothing.
-   - Positive control: ask Claude to call Railway `list-projects` and Neon `list_projects` (reads, both MUST-ALLOW
-     fixtures). They must run with NO prompt. If either prompts: INCONCLUSIVE (wrong mode, or an entry that is too broad:
-     run `node --test scripts/agent-os/mcpAskRules.test.mjs`).
-   - Probe: ask Claude to call Railway `delete-service` with `projectId: "guard-live-check-nonexistent"` and
-     `serviceId: "00000000-0000-0000-0000-000000000000"`, then Neon `delete_project` with
-     `project_id: "guard-live-check-nonexistent"`.
-   - PASS: the control ran silently and each probe shows a permission prompt BEFORE anything is sent; you answer Deny.
-     FAIL: the control ran silently and a probe returns a provider error such as "not found" with no prompt: the
-     server-glob form is wrong, so replace the `mcp__*__<leaf>` entries with exact tool names (and keep the fixtures in
-     step). INCONCLUSIVE: the control also prompted, or a connector is not connected (its tools are absent).
+7. Infra probe, with its precondition and positive control first. There are no operator taps: a denial is a hook, so nothing waits for an answer.
+   - Mode: run it in `bypassPermissions` (the mode shows under the input box; Shift+Tab cycles it), the mode in which the ask rules
+     failed.
+   - Positive control: ask Claude to call Railway `list-projects` and Neon `list_projects` (reads, both MUST-ALLOW fixtures). They must run
+     with NO prompt and NO refusal. A refusal naming `infra-mutation-tool` on a read is a FAIL of the allow side (a read matched); a
+     connector that is not connected (its tools are absent) is INCONCLUSIVE.
+   - Probes, each with a nonexistent id: Railway `delete-service` (`projectId: "guard-live-check-nonexistent"`, `serviceId:
+     "00000000-0000-0000-0000-000000000000"`), Neon `delete_project` (`project_id: "guard-live-check-nonexistent"`), Vercel `pause_project`
+     and one Prisma tool, `delete_prisma_postgres_database`.
+   - PASS: the control ran, and each probe is refused before anything is sent, with `BLOCKED by repo policy: infra-mutation-tool` and the last
+     line `Judged through MCP adapter infra-name.toolName on tool <the full tool name>`; no permission prompt and no provider error. FAIL: a
+     probe returns a provider error ("not found", a permission error) or only a permission prompt: the hook did not see the tool, so run
+     `node --test scripts/agent-os/mcpInfraDeny.test.mjs` (the registration canaries say whether the matcher routes it) and restart the session.
+     INCONCLUSIVE: the control was refused or a connector is absent.
    - The ids are nonexistent, so even a failed check deletes nothing.
-
 **Recorded result, 2026-10-15 17:56Z.** A fresh session started from the primary checkout at `b6faf90d9` after the
 fast-forward, in `bypassPermissions`. Steps 1 to 4 PASS: `git push --dry-run origin main` was refused with `BLOCKED by
 repo policy: push-to-main` through the Terminal MCP `run_in_terminal`, Desktop Commander `start_process` and `Monitor`
@@ -534,10 +556,8 @@ line `neon-sql.sql`) and `run_sql_transaction` was refused (last line `neon-sql-
 (Railway `list-projects`) ran with no prompt, and then Railway `delete-service` (nonexistent ids; a provider permission
 error), Vercel `pause_project` (`invalid_project_id`) and Prisma `delete_prisma_postgres_database` (`not_found`) each ran
 with NO permission prompt. The recorded probes were Railway, Vercel and Prisma; the Neon connector was invalidated in that
-session. The FAIL branch of step 7 above is the instruction that applies, but the cause is not known: which of the two
-readings holds (the server-segment glob does not match, or ask rules are not honoured for these tools in this app) is
-decided by a live experiment, not by this page. The `settings.json` ask list stays as it is until that experiment says
-what replaces it, and step 0 (`prints 135`) still describes the list as shipped.
+session. That FAIL led to job 2026-10-15-infra-deny-by-name: the ask entries were removed and replaced by the hook deny described
+under "Infra tools: deny by name", whose probes are the rewritten step 7. The rewritten step 7 has not been run yet: record its result here.
 
 ## Writing a check that actually catches something
 

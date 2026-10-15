@@ -130,6 +130,7 @@ export function evaluate({ toolName, command = "", filePath = "", cwd = "", skip
 // judged. `mcpAdapters` in policy.json maps such a tool call onto the logical tool the rules already
 // understand, so EVERY rule applies and no rule text is duplicated:
 //   { id, toolPattern, as: "Bash" | "Write", commandFields | pathFields, cwdField? }
+// or, for the infra mutation tools (2026-10-15, job infra-deny-by-name), a Bash row with `nameAsText: true`: the judged text is the TOOL NAME.
 // Only the NAMED fields are read. Content, old_string and every other string field are never
 // scanned: that would block Gmail, Linear and any other tool that merely carries text. A named field may hold
 // a string or a LIST of strings (each element judged on its own, see ARRAY_MAX).
@@ -166,6 +167,10 @@ export const ARRAY_MAX = 2000;
 export const ARRAY_CHAR_BUDGET = 1_000_000;
 export const SQL_FIELD_CAP = ARRAY_CHAR_BUDGET;
 const WHOLE_FIELD_RULES = ["destructive-sql"];
+// A row that judges the TOOL NAME (nameAsText) and runs infra-mutation-tool alone judges the name whole up to SQL_FIELD_CAP: that rule is one
+// anchored alternation of literals after a single `.+` (linear, each character consumed one way: pinned by the long-name sweep in
+// mcpInfraDeny.test.mjs). A real tool name is far shorter; the cap only decides what happens to an absurd one (whole, never head and tail).
+const WHOLE_NAME_RULES = ["infra-mutation-tool"];
 const ARRAY_CAP_LINE = "[agent-os] pretool MCP adapter: array field over the judging budget, elements beyond it not judged";
 
 /** One string as the slices to judge: itself within `cap`, else its head and its tail. `at` extends the provenance. */
@@ -266,6 +271,32 @@ function rawTextModes(row, report) {
   return row.as === "Bash" ? [false, true] : [false];
 }
 
+const NAME_LINE = "[agent-os] pretool MCP adapter problem (nameAsText malformed, the tool name is judged):";
+
+// nameAsText says WHAT a Bash row judges. Absent or false: the named fields. The strict boolean true: the TOOL NAME itself (the infra tools carry
+// no command text: the name is the operation). A declared but malformed value (a string "true", 1, null) on a Bash row is reported and the name is
+// judged anyway, toward denial, like rawText and onlyRules: ignoring it would drop a row whose whole job is the name. On a Write row it has no
+// meaning: reported, no effect. Returns whether the tool name is judged.
+function judgesName(row, report) {
+  if (row.nameAsText === undefined || row.nameAsText === false) return false;
+  if (row.nameAsText === true && row.as === "Bash") return true;
+  report(`${NAME_LINE} adapter ${JSON.stringify(row.id)} nameAsText ${JSON.stringify(row.nameAsText)} must be the boolean true or false on a Bash row`);
+  return row.as === "Bash";
+}
+
+// The input fields a row reads. A row that judges the tool name may carry a field list as well (both are judged); a declared list that is not a
+// non-empty list of names is reported and IGNORED, so the name is still judged: dropping the whole row over a bad optional list would switch off
+// the one thing the row is for.
+function fieldNamesOf(row, byName, report) {
+  if (row.as === "Write") return row.pathFields;
+  const list = row.commandFields;
+  if (!byName) return list;
+  if (list === undefined) return [];
+  if (Array.isArray(list) && list.length > 0 && list.every((f) => typeof f === "string" && f)) return list;
+  report(`${NAME_LINE} adapter ${JSON.stringify(row.id)} commandFields ${JSON.stringify(list)} must be a non-empty list of field names: ignored, the tool name is still judged`);
+  return [];
+}
+
 /**
  * Names of the FILES below a directory, "/"-separated and relative to it (move_file of a directory
  * writes all of them to the new place, so the path rules must see them). Names only, read-only,
@@ -318,7 +349,9 @@ function adapterProblem(a) {
   if (typeof a.toolPattern !== "string" || !a.toolPattern) return "toolPattern must be a non-empty string";
   if (a.as !== "Bash" && a.as !== "Write") return "'as' must be \"Bash\" or \"Write\"";
   const fields = a.as === "Write" ? a.pathFields : a.commandFields;
-  if (!Array.isArray(fields) || fields.length === 0 || !fields.every((f) => typeof f === "string" && f)) {
+  // A row that judges the tool name needs no field list, and a bad one never costs the row (toward denial): see fieldNamesOf().
+  const byName = a.as === "Bash" && a.nameAsText !== undefined && a.nameAsText !== false;
+  if (!byName && (!Array.isArray(fields) || fields.length === 0 || !fields.every((f) => typeof f === "string" && f))) {
     return `${a.as === "Write" ? "pathFields" : "commandFields"} must be a non-empty list of field names`;
   }
   if (a.clientHint !== undefined && (a.as !== "Bash" || typeof a.clientHint !== "string" || !a.clientHint)) {
@@ -378,8 +411,14 @@ export function adaptToolCall(toolName, toolInput, cwd, policy, report = () => {
     const rawModes = rawTextModes(a, report);
     // A row that runs destructive-sql alone may judge a field whole (SQL_FIELD_CAP); every other row keeps FIELD_CAP.
     const cap = onlyRules?.length === WHOLE_FIELD_RULES.length && onlyRules.every((id, i) => id === WHOLE_FIELD_RULES[i]) ? SQL_FIELD_CAP : FIELD_CAP;
+    // A nameAsText row also judges the tool name itself (whole when only infra-mutation-tool runs, else head and tail like any field).
+    const nameCap = onlyRules?.length === WHOLE_NAME_RULES.length && onlyRules.every((id, i) => id === WHOLE_NAME_RULES[i]) ? SQL_FIELD_CAP : FIELD_CAP;
+    const byName = judgesName(a, report);
     // Slices are computed once, outside the cwd loop: a cap line is reported once per call, not once per cwd.
-    const judged = (asWrite ? a.pathFields : a.commandFields).flatMap((f) => fieldSlices(input, f, report, cap).map((s) => ({ f, ...s })));
+    const judged = [
+      ...(byName ? textSlices(String(toolName), "", nameCap).map((s) => ({ f: "toolName", ...s })) : []),
+      ...fieldNamesOf(a, byName, report).flatMap((f) => fieldSlices(input, f, report, cap).map((s) => ({ f, ...s }))),
+    ];
     for (const c of cwds) {
       for (const { f, text, part } of judged) {
         for (const rawText of rawModes) {
