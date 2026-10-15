@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "chore/skill-compiler-flat-path",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "d37a1982-6ae0-48f5-8d31-d27a2fbe7c24",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\hello-23f8b4",
   "claimedBy": "2026-10-15-skill-compiler-flat-path",
   "claimedAt": "2026-10-15T01:53:34.508Z",
   "expiresAt": "2026-10-15T13:53:34.508Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": null
+  "releasedAt": "2026-10-15T15:44:30.096Z",
+  "releaseReason": "operator confirmed via -ForceDirtyRelease in worktree-teardown.ps1",
+  "priorLeaseSha": "4484a1c5934a4503a4feabf71e87d4b6a5e47633",
+  "releasedBy": "d37a1982-6ae0-48f5-8d31-d27a2fbe7c24",
+  "foreignReleaseReason": null
 }
