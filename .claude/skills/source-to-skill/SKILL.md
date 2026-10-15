@@ -93,9 +93,13 @@ questions — otherwise the output is a polished hallucination factory
 
    Zero errors required. The validator checks structure, provenance
    completeness (every technique has section + evidence-class +
-   confidence), checksum integrity, eval-question minimums, and that
-   `SKILL.draft.md` is deleted (V8). Fix and re-run; never hand-wave a
-   red validator.
+   confidence; `provenance/source.json` has a 64-hex sha256, an
+   extraction date and a license field), eval-question minimums, and that
+   `SKILL.draft.md` is deleted (V8). It does not recompute the checksum:
+   the source is not in the repo, so only `scaffold.mjs` compares it, on a
+   re-run. CI runs the validator over every package under `.claude/skills/`
+   (`scripts/agent-os/compiledSkillPackages.test.mjs`). Fix and re-run;
+   never hand-wave a red validator.
 
 9. **License/rights** — record in `provenance/source.json` what the
    source's usage terms are (`license` field; `"unknown"` is allowed and
