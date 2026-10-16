@@ -104,8 +104,8 @@ detailed in `docs/CURRENT-TRUTH.md`:
 
 - New inverted flag `ig_autopost_paused` (TRUE = paused). `runIgAutopostCron` checks it after the slot gate and before the dedupe read and any generation or spend; the manual Run-a-slot-now door ignores it. Turning `legacy_autopost_live` OFF still only makes the lane a dry run that spends.
 - `instagramAdmin.autopostLaneStatus` (contract v1) returns pause and live state, the last post, today's slots, the last 20 runs and 7-day counts. A failed read is UNKNOWN or `available:false`, never 0.
-- The 'Image autopost' card on Admin -> Instagram -> Pipeline health shows that status and has Run a slot now and Pause / Resume.
-- Live proof owed: the card shows real rows in prod, one manual run returns a status line, and one paused slot logs `Skip — paused by ig_autopost_paused` in cron_log.
+- The 'Image autopost' card on Admin -> Instagram -> Pipeline health shows that status and has Pause / Resume and Run a slot now. Run a slot now (`instagramAdmin.startAutopostRun`) starts a background run, one at a time, because a run outlasts the gateway timeout; its outcome appears in the history. `nickActions.fireIgAutopostNow` still waits for the run (HTTP route, Nour-OS bridge).
+- Live proof owed: the card shows real rows in prod, one manual run starts and its row appears in the history, and one paused slot logs `Skip — paused by ig_autopost_paused` in cron_log.
 ## 2026-10-16 - the reel lane stops spending into an empty Higgsfield balance, and needs_review parks
 
 Live state read 2026-10-16 02:50Z (read-only): the keepalive balance was 29.5 Higgsfield credits;

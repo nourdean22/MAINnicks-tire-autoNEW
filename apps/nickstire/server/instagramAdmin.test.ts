@@ -260,6 +260,20 @@ describe("instagramAdmin router", () => {
     });
   });
 
+  describe("startAutopostRun (admin)", () => {
+    it("exists on the real router and refuses a non-admin caller", async () => {
+      const caller = appRouter.createCaller(ctx("user"));
+      await expect(caller.instagramAdmin.startAutopostRun({})).rejects.toMatchObject({ code: "FORBIDDEN" });
+    });
+
+    it("rejects an unknown archetype at input validation, before any run starts", async () => {
+      const caller = appRouter.createCaller(ctx("admin"));
+      await expect(
+        caller.instagramAdmin.startAutopostRun({ forceArchetype: "not-an-archetype" as never }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+  });
+
   describe("getProviderHealth (admin)", () => {
     it("returns text/image/autopost health shape without throwing", async () => {
       const caller = appRouter.createCaller(ctx("admin"));

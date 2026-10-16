@@ -72,6 +72,7 @@ describe("readAutopostLaneStatus", () => {
       today: [todayRow],
       recent: [recentRow],
       counts7d: { posted: 13, failed: 2, aborted: 10, dryrun: 0, runs: 25 },
+      manualRun: { inFlight: false, startedAt: null },
     });
   });
 
@@ -92,15 +93,20 @@ describe("readAutopostLaneStatus", () => {
     expect(s).toMatchObject({ available: true, paused: null, live: null, recent: [recentRow] });
   });
 
-  it("a failed log read is available:false with a reason, never an empty list", async () => {
+  it("a failed log read is available:false with a reason, never an empty list, and still carries the pause state", async () => {
+    process.env.IG_AUTOPOST_DRYRUN = "false";
     const s = await readAutopostLaneStatus(fakeDb([flagsOn, [posted], new Error("log read boom"), [recentRow], counts]), NOW);
-    expect(s.available).toBe(false);
+    expect(s).toEqual({ available: false, reason: expect.stringMatching(/log read boom/), paused: true, live: true });
     expect(s).not.toHaveProperty("recent");
-    expect((s as { reason: string }).reason).toMatch(/log read boom/);
   });
 
-  it("no database is available:false", async () => {
+  it("flag and log reads both failing: available:false with paused and live UNKNOWN", async () => {
+    const s = await readAutopostLaneStatus(fakeDb([new Error("flag boom"), [posted], new Error("log boom"), [recentRow], counts]), NOW);
+    expect(s).toEqual({ available: false, reason: expect.stringMatching(/log boom/), paused: null, live: null });
+  });
+
+  it("no database is available:false with paused and live UNKNOWN", async () => {
     const s = await readAutopostLaneStatus(null, NOW);
-    expect(s).toEqual({ available: false, reason: expect.stringMatching(/database/i) });
+    expect(s).toEqual({ available: false, reason: expect.stringMatching(/database/i), paused: null, live: null });
   });
 });

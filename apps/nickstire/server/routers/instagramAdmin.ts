@@ -27,6 +27,7 @@ import { invokeLLM } from "../_core/llm";
 import { sanitizeText } from "../sanitize";
 import { affectedRowCount } from "../lib/db-affected";
 import { db, dbTyped } from "../lib/db-helper";
+import { readManualRunState, startManualAutopostRun, type StartAutopostRunResult } from "../services/igAutopostManualRun";
 import { createLogger } from "../lib/logger";
 import { durableStorageConfigured, ephemeralStorageOverride, servesPermanentUrls } from "../storage";
 
@@ -86,7 +87,9 @@ export function mapInventoryStatusForQueue(status: string): string {
  *
  * Three states, never two: a failed log read is `available: false`, a failed
  * flag read is `paused: null` / `live: null` (UNKNOWN), and only a successful
- * read yields a real false or an empty list.
+ * read yields a real false or an empty list. The failure shape still carries
+ * paused / live, read independently, so the pause control stays usable while
+ * history cannot be read.
  */
 export type AutopostLaneStatus =
   | {
@@ -106,8 +109,10 @@ export type AutopostLaneStatus =
       }>;
       /** Last 7 days. runs = every row in the window. */
       counts7d: { posted: number; failed: number; aborted: number; dryrun: number; runs: number };
+      /** A manual run started by startAutopostRun and not yet settled (this replica's memory). */
+      manualRun: { inFlight: boolean; startedAt: Date | null };
     }
-  | { available: false; reason: string };
+  | { available: false; reason: string; paused: boolean | null; live: boolean | null };
 
 const errText = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
@@ -115,7 +120,9 @@ export async function readAutopostLaneStatus(
   database: Awaited<ReturnType<typeof dbTyped>>,
   now: Date = new Date(),
 ): Promise<AutopostLaneStatus> {
-  if (!database) return { available: false, reason: "Database unavailable: autopost history cannot be read." };
+  if (!database) {
+    return { available: false, reason: "Database unavailable: autopost history cannot be read.", paused: null, live: null };
+  }
   const { igAutopostLog, featureFlags } = await import("../../drizzle/schema");
   const { inArray } = await import("drizzle-orm");
   const { etDateKey } = await import("../services/igAutopost");
@@ -179,10 +186,13 @@ export async function readAutopostLaneStatus(
         counts7d[row.status] += n;
       }
     }
-    return { available: true, paused, live, lastPosted: lastPostedRows[0] ?? null, today, recent, counts7d };
+    return {
+      available: true, paused, live, lastPosted: lastPostedRows[0] ?? null, today, recent, counts7d,
+      manualRun: readManualRunState(),
+    };
   } catch (err) {
     log.warn("autopostLaneStatus log read failed", { error: errText(err) });
-    return { available: false, reason: `Autopost history could not be read: ${errText(err)}` };
+    return { available: false, reason: `Autopost history could not be read: ${errText(err)}`, paused, live };
   }
 }
 
@@ -1072,6 +1082,16 @@ Keep it under 200 characters.`;
   autopostLaneStatus: adminProcedure.query(async (): Promise<AutopostLaneStatus> =>
     readAutopostLaneStatus(await dbTyped()),
   ),
+
+  /** Start one manual image autopost slot run in the background and return at
+   *  once (a run outlasts the gateway timeout). Refused while another manual
+   *  run is in flight. The outcome is the ig_autopost_log row (source "admin")
+   *  that autopostLaneStatus shows; poll it while manualRun.inFlight is true.
+   *  nickActions.fireIgAutopostNow still awaits the run for the HTTP route and
+   *  the Nour-OS bridge. */
+  startAutopostRun: adminProcedure
+    .input(z.object({ forceArchetype: z.enum(IG_ARCHETYPES).optional() }))
+    .mutation(({ input }): StartAutopostRunResult => startManualAutopostRun(input.forceArchetype)),
 
   /** Provider + autopost run health. Surfaces WHICH AI provider is actually
    *  active and whether its key is present — the root cause of silent
