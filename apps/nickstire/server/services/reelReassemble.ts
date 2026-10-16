@@ -19,6 +19,7 @@
 import { createLogger } from "../lib/logger";
 import { probeUrl } from "./reelRecoverability";
 import { queueStateForReelStatus } from "../../shared/reelQueue";
+import { ClipMismatchRefusal, persistClipVerdicts } from "./clipVerify";
 
 const log = createLogger("services:reel-reassemble");
 
@@ -134,6 +135,19 @@ export async function reassembleFromClips(jobId: number): Promise<ReassembleResu
     });
     return { ok: true, jobId, mp4Url, durationSec, clipsUsed: clipUrls.length };
   } catch (err) {
+    // A pre-assembly clip refusal (services/clipVerify.ts) is a verdict about
+    // the SOURCE clip, not about this render: the old master must not stay
+    // publishable as "assembled". Park it failed with the typed message and
+    // keep the verdict on the payload, as the pipeline's assembly path does.
+    if (err instanceof ClipMismatchRefusal) {
+      await persistClipVerdicts(d, jobId, [err.verdict]);
+      await d
+        .update(reelJobs)
+        .set({ status: "failed", queueState: queueStateForReelStatus("failed"), error: err.message.slice(0, 1000) })
+        .where(and(eq(reelJobs.id, jobId), eq(reelJobs.status, "assembling")));
+      log.warn("re-assembly refused by clip verification — job parked failed", { jobId, beat: err.verdict.beatNumber, score: err.verdict.score });
+      return fail(err.message);
+    }
     // Release the claim so the job is actionable again rather than wedged in
     // "assembling". Nothing external happened here — ffmpeg is local and
     // idempotent — so unlike a publish, returning to the prior state is safe.
