@@ -61,7 +61,7 @@ export function LiveCallsCard({ onSelectCall }: { onSelectCall: (callId: string)
             <span className="absolute inline-flex h-full w-full rounded-full bg-primary opacity-75 animate-ping" />
             <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
           </span>
-          <span className="text-[11px] font-bold uppercase tracking-wider text-primary">
+          <span className="text-[11px] font-bold text-primary">
             Live calls
           </span>
           <span className="text-[10px] font-mono text-primary/70">
@@ -85,7 +85,7 @@ export function LiveCallsCard({ onSelectCall }: { onSelectCall: (callId: string)
               key={s.key}
               className={`rounded-md px-2 py-1.5 ${c.bg} ring-1 ${c.ring}`}
             >
-              <div className={`text-[9px] uppercase tracking-wider ${c.text} opacity-70`}>
+              <div className={`text-[9px] ${c.text} opacity-70`}>
                 {s.label}
               </div>
               <div className={`text-[18px] font-bold leading-none mt-1 ${c.text}`}>
@@ -112,7 +112,7 @@ export function LiveCallsCard({ onSelectCall }: { onSelectCall: (callId: string)
               className="flex items-center gap-2 px-2 py-1.5 rounded bg-card border border-border cursor-pointer hover:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/40 transition-colors"
               aria-label={`Open call details for ${s.callId}`}
             >
-              <span className={`text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded ${c.bg} ${c.text}`}>
+              <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded ${c.bg} ${c.text}`}>
                 {(s.latestState || "").replace("_", " ")}
               </span>
               <span className="text-[10px] font-mono text-muted-foreground flex-1 truncate">

@@ -112,17 +112,17 @@ const EMPTY_BUNDLE = { stats: null, bookings: [], leads: [], callbacks: [], owed
 
 /** SummaryCard: label div sits directly inside the card. */
 const summaryCard = (label: string) => screen.getByText(label).parentElement as HTMLElement;
-/** StatCard: label span sits in a header row inside the card, next to the .number-animate value. */
+/** StatCard: label span sits in a header row inside the card, next to the .stat-value value. */
 const statCard = (label: string) => {
   const card = screen
     .getAllByText(label)
     .map((el) => el.parentElement?.parentElement)
-    .find((el) => el?.querySelector(".number-animate"));
+    .find((el) => el?.querySelector(".stat-value"));
   if (!card) throw new Error(`no StatCard labelled ${label}`);
   return card as HTMLElement;
 };
 /** The value cell of a StatCard (label text excluded, so "VIP (3+)" does not look numeric). */
-const statValue = (label: string) => statCard(label).querySelector(".number-animate")!.textContent ?? "";
+const statValue = (label: string) => statCard(label).querySelector(".stat-value")!.textContent ?? "";
 
 beforeEach(() => {
   h.queries.clear();

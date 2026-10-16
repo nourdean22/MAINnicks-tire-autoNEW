@@ -33,7 +33,7 @@ export function DateRangeSelector({
     <div className="bg-card border border-border/30 rounded p-3 flex items-center gap-3 flex-wrap">
       <div className="flex items-center gap-1.5 shrink-0">
         <Calendar className="w-4 h-4 text-foreground/50" />
-        <span className="text-[10px] font-bold tracking-[0.18em] uppercase text-foreground/50">
+        <span className="text-[10px] font-bold text-foreground/50">
           Range
         </span>
       </div>
@@ -83,7 +83,7 @@ export function DateRangeSelector({
               type="button"
               onClick={onRefresh}
               disabled={refreshing}
-              className="inline-flex items-center gap-1.5 text-[11px] font-medium tracking-[0.15em] uppercase px-2.5 py-1 border border-primary/40 text-primary rounded hover:bg-primary/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 border border-primary/40 text-primary rounded hover:bg-primary/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               aria-label="Refresh data"
               title="Pull fresh metrics + calls for this date range"
             >

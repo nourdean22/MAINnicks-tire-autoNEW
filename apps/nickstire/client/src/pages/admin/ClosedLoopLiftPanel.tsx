@@ -34,10 +34,10 @@ interface LiftMeasurement {
 function verdictOf(s: { lifted: number; noLift: number; regression: number; total: number }) {
   if (s.total === 0) return null;
   if (s.regression > 0 && s.regression >= s.lifted)
-    return { label: "HURTING", cls: "text-red-500", Icon: TrendingDown, detail: "regressions match or beat lifts — review thresholds before more sends" };
+    return { label: "HURTING", cls: "text-red-500", Icon: TrendingDown, detail: "regressions match or beat lifts: review thresholds before more sends" };
   if (s.lifted > s.noLift + s.regression)
     return { label: "WINNING", cls: "text-emerald-500", Icon: TrendingUp, detail: "majority of measured waves show lift" };
-  return { label: "FLAT / MIXED", cls: "text-amber-500", Icon: Minus, detail: "no clear lift majority — hold caps, keep measuring" };
+  return { label: "FLAT / MIXED", cls: "text-amber-500", Icon: Minus, detail: "no clear lift majority: hold caps, keep measuring" };
 }
 
 export default function ClosedLoopLiftPanel() {
@@ -66,7 +66,7 @@ export default function ClosedLoopLiftPanel() {
     return (
       <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-4">
         <p className="text-sm text-red-500">
-          Automation lift couldn&apos;t load — state unknown, not healthy.
+          Automation lift couldn&apos;t load: state unknown, not healthy.
         </p>
         <p className="mt-1 text-xs text-muted-foreground">{unavailableCopy(reason)}</p>
       </div>
@@ -95,7 +95,7 @@ export default function ClosedLoopLiftPanel() {
 
       {s.total === 0 ? (
         <p className="text-xs text-muted-foreground">
-          No wave measurements yet — the daily closed-loop cron hasn&apos;t produced its first
+          No wave measurements yet: the daily closed-loop cron hasn&apos;t produced its first
           non-pending result. This is a measured zero, not a failure.
         </p>
       ) : (

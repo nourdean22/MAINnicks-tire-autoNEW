@@ -86,7 +86,7 @@ function ReferralHistory({ id }: { id: number }) {
             // exonerating thing an audit trail can say, so a failed read must
             // never be able to say it.
             <span className="text-[11px] text-rose-400">
-              Couldn&rsquo;t read the audit trail &mdash; this is not &ldquo;no history&rdquo;.
+              Couldn&rsquo;t read the audit trail: this is not &ldquo;no history&rdquo;.
             </span>
           ) : q.data && q.data.rows.length === 0 ? (
             <span className="text-[11px] text-foreground/40">No recorded actions yet.</span>
@@ -133,7 +133,7 @@ export function TechnicianReferralsPanel() {
   const invalidate = () => utils.technicianReferrals.list.invalidate();
   const markHired = trpc.technicianReferrals.markHired.useMutation({
     onSuccess: (r) => {
-      toast.success(`Marked hired — eligible ${new Date(r.eligibleAt).toLocaleDateString()}`);
+      toast.success(`Marked hired: eligible ${new Date(r.eligibleAt).toLocaleDateString()}`);
       invalidate();
     },
     onError: () => toast.error("Couldn't update this referral."),
@@ -161,7 +161,7 @@ export function TechnicianReferralsPanel() {
           <Gift className="w-4 h-4 text-primary" />
           Technician Referrals
           <span className="text-[11px] font-normal text-foreground/40">
-            $300 after 90 days &mdash; separate from the $25 customer program
+            $300 after 90 days: separate from the $25 customer program
           </span>
         </span>
         <ChevronRight className={`w-4 h-4 text-foreground/40 transition-transform ${open ? "rotate-90" : ""}`} />
@@ -179,13 +179,13 @@ export function TechnicianReferralsPanel() {
                 {orphans.data.rows.length} referral{orphans.data.rows.length === 1 ? "" : "s"} need
                 reconciling.
               </strong>{" "}
-              These applicants named a referrer, but no structured referral was recorded — the
+              These applicants named a referrer, but no structured referral was recorded: the
               claim survives only as text on the application. Someone is owed $300 and the
               program cannot see it.
               <ul className="mt-2 space-y-1">
                 {orphans.data.rows.slice(0, 8).map((o: { id: number; name: string; createdAt: string | Date | null; referredBy: string }) => (
                   <li key={o.id} className="text-amber-300/90">
-                    #{o.id} · {o.name} — referred by {o.referredBy}
+                    #{o.id} · {o.name} · referred by {o.referredBy}
                     {o.createdAt ? ` · ${new Date(o.createdAt).toLocaleDateString()}` : ""}
                   </li>
                 ))}
@@ -202,7 +202,7 @@ export function TechnicianReferralsPanel() {
           ) : isError ? (
             <div className="border border-red-500/40 bg-red-500/10 p-3 text-[12px] text-red-400">
               <strong>Couldn't load referrals.</strong> {error?.message || "Unknown error."} This is
-              not the same as zero referrals — retry rather than treating this as empty.
+              not the same as zero referrals: retry rather than treating this as empty.
             </div>
           ) : data?.available === false ? (
             // getTechnicianReferrals returns available:false when the DB
@@ -211,13 +211,13 @@ export function TechnicianReferralsPanel() {
             // program that owes $300 per referral.
             <div className="border border-rose-500/40 bg-rose-500/10 p-3 text-[12px] text-rose-400">
               <strong>Database unavailable.</strong> Referrals could not be read, so this
-              is not "none recorded" — it is "we don't know".
+              is not "none recorded": it is "we don't know".
             </div>
           ) : data?.migrationPending ? (
             <div className="border border-amber-500/40 bg-amber-500/10 p-3 text-[12px] text-amber-400">
               <strong>Referral tracking isn't live yet.</strong> The database migration
               (drizzle/0121_technician_referrals.sql) hasn't been applied to this
-              environment. New referrals from /careers still save &mdash; the
+              environment. New referrals from /careers still save: the
               referrer's name is preserved in the applicant's own notes until this
               is applied, but nothing here is trackable or payable yet.
             </div>
@@ -234,7 +234,7 @@ export function TechnicianReferralsPanel() {
                     key={r.id}
                     className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[12px] border border-border/20 rounded-lg px-3 py-2"
                   >
-                    <span className={`px-1.5 py-0.5 rounded font-bold uppercase tracking-wider text-[10px] shrink-0 ${statusStyle}`}>
+                    <span className={`px-1.5 py-0.5 rounded font-bold text-[10px] shrink-0 ${statusStyle}`}>
                       {r.status}
                     </span>
                     <span className="font-semibold text-foreground/85">{r.referrerName}</span>
@@ -248,8 +248,8 @@ export function TechnicianReferralsPanel() {
                       </span>
                     ) : (
                       <span
-                        className="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 text-[10px] font-bold uppercase tracking-wider"
-                        title="This referral is not linked to a candidate record — either the association failed verification at write time, or the candidate row is gone. The payout cannot be substantiated from this row alone."
+                        className="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 text-[10px] font-bold"
+                        title="This referral is not linked to a candidate record: either the association failed verification at write time, or the candidate row is gone. The payout cannot be substantiated from this row alone."
                       >
                         unlinked
                       </span>
@@ -281,7 +281,7 @@ export function TechnicianReferralsPanel() {
                           type="button"
                           onClick={() => markHired.mutate({ id: r.id })}
                           disabled={markHired.isPending}
-                          className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide bg-sky-500/10 border border-sky-500/30 text-sky-400 hover:bg-sky-500/15 rounded transition-colors disabled:opacity-50"
+                          className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold bg-sky-500/10 border border-sky-500/30 text-sky-400 hover:bg-sky-500/15 rounded transition-colors disabled:opacity-50"
                         >
                           <Check className="w-3 h-3" /> Mark hired
                         </button>
@@ -294,7 +294,7 @@ export function TechnicianReferralsPanel() {
                             onClick={() => markPaid.mutate({ id: r.id })}
                             disabled={markPaid.isPending || stillWaiting}
                             title={stillWaiting ? "The 90-day wait isn't up yet." : undefined}
-                            className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/15 rounded transition-colors disabled:opacity-50"
+                            className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/15 rounded transition-colors disabled:opacity-50"
                           >
                             <Check className="w-3 h-3" /> Mark paid
                           </button>

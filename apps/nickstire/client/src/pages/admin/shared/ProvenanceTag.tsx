@@ -18,7 +18,7 @@ export function ProvenanceTag({ provenance }: { provenance: TileProvenance }) {
     <span
       data-provenance={provenance}
       title={PROVENANCE_MEANING[provenance]}
-      className={`inline-block align-middle border px-1 py-px text-[9px] leading-none font-medium uppercase tracking-[0.12em] ${TONE[provenance]}`}
+      className={`inline-block align-middle border px-1 py-px text-[9px] leading-none font-medium ${TONE[provenance]}`}
     >
       {provenance}
     </span>

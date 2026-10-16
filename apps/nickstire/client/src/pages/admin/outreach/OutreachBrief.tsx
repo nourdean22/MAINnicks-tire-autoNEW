@@ -110,7 +110,7 @@ export function OutreachBrief({ onRecoveryAction }: OutreachBriefProps) {
         <div className="flex items-center gap-2.5">
           <AlertTriangle className="w-3.5 h-3.5 text-amber-400/70 shrink-0" />
           <span className="text-[12.5px] text-amber-200/70 leading-tight">
-            Outreach state unreadable — a data query failed; this is not a quiet day.
+            Outreach state unreadable: a data query failed; this is not a quiet day.
           </span>
         </div>
       </div>
@@ -120,7 +120,7 @@ export function OutreachBrief({ onRecoveryAction }: OutreachBriefProps) {
   if (!reviewStats || !campaignStats || !recovery) {
     return (
       <div className="bg-card border border-border/40 p-4">
-        <div className="text-[11px] font-bold tracking-[0.18em] uppercase text-foreground/30 animate-pulse">
+        <div className="text-[11px] font-bold text-foreground/30 animate-pulse">
           Loading outreach state…
         </div>
       </div>
@@ -144,7 +144,7 @@ export function OutreachBrief({ onRecoveryAction }: OutreachBriefProps) {
   return (
     <div className="bg-card border border-border/40 p-4 space-y-2.5">
       <div className="flex items-center justify-between">
-        <span className="text-[11px] font-bold tracking-[0.18em] uppercase text-foreground/45">
+        <span className="eyebrow">
           {greeting()} · outreach brief
         </span>
         <span className="text-[10px] tracking-wider text-foreground/30">
@@ -176,7 +176,7 @@ export function OutreachBrief({ onRecoveryAction }: OutreachBriefProps) {
           <div className="flex items-center gap-2.5 -mx-2 px-2 py-1">
             <AlertTriangle className="w-3.5 h-3.5 text-amber-400/70 shrink-0" />
             <span className="text-[12.5px] text-amber-200/70 leading-tight">
-              Recovery status unavailable — could not read declined estimates. This is not "nothing to recover".
+              Recovery status unavailable: could not read declined estimates. This is not "nothing to recover".
             </span>
           </div>
         )}

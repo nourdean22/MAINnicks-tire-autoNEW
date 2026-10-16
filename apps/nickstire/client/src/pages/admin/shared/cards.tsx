@@ -6,71 +6,21 @@ import React from "react";
 import {
   CalendarClock, Users, Phone, Wrench, Gauge,
 } from "lucide-react";
-import CountUpNumber from "@/components/CountUpNumber";
 import type { AdminSection } from "./types";
 import { navigateToAdminSection } from "./navigation";
 
 /**
- * renderStatValue — value-shape detector for the legacy StatCard. The
- * StatCard used to render `value` as raw text. Wave-64 upgrades it to:
- *   • detect pure-number values → animate with CountUpNumber
- *   • detect `$X,XXX` revenue values → animate the numeric portion, keep prefix
- *   • detect `XX/100` score values → animate the numerator, keep denominator
- *   • leave freeform strings ("Loading...", "—", "Healthy") as-is
- *
- * Numeric formatting preserves the existing display contract — the only
- * change is the count-up animation on first viewport entry.
+ * renderStatValue: the StatCard value, shown at once. Wave-64 counted every
+ * number up from 0 over 900 ms; Admin UI v1 W1 (2026-10-16) removed that,
+ * because a value the crew reads many times a day gets no animation and a
+ * figure that starts at 0 reads as 0 for most of a second. Numbers get
+ * rounded with locale grouping, digit-only strings get grouping; other strings ("$1,250", "85/100", "unknown") render as given.
  */
 function renderStatValue(value: string | number): React.ReactNode {
-  // Pure number → straight count-up
-  if (typeof value === "number") {
-    if (Number.isNaN(value) || !Number.isFinite(value)) return String(value);
-    return <CountUpNumber to={value} duration={900} />;
-  }
-
-  // Strings — try common KPI shapes
-  const s = value;
-
-  // "$X,XXX" or "$X.XX" → strip prefix, parse, animate. Preserves "$" prefix.
-  if (s.startsWith("$")) {
-    const rest = s.slice(1).replace(/,/g, "");
-    const num = Number(rest);
-    if (!Number.isNaN(num) && Number.isFinite(num)) {
-      const decimals = rest.includes(".") ? (rest.split(".")[1]?.length ?? 0) : 0;
-      return <CountUpNumber to={num} prefix="$" duration={900} decimals={decimals} />;
-    }
-  }
-
-  // "XX/100" or "XX/YY" score → animate numerator, keep "/YY"
-  const scoreMatch = s.match(/^(\d+(?:\.\d+)?)(\/\d+(?:\.\d+)?)$/);
-  if (scoreMatch) {
-    const num = Number(scoreMatch[1]);
-    if (!Number.isNaN(num) && Number.isFinite(num)) {
-      return <CountUpNumber to={num} suffix={scoreMatch[2]} duration={900} />;
-    }
-  }
-
-  // "X%" → animate numeric, keep "%"
-  const pctMatch = s.match(/^(\d+(?:\.\d+)?)%$/);
-  if (pctMatch) {
-    const num = Number(pctMatch[1]);
-    if (!Number.isNaN(num) && Number.isFinite(num)) {
-      const decimals = pctMatch[1].includes(".") ? (pctMatch[1].split(".")[1]?.length ?? 0) : 0;
-      return <CountUpNumber to={num} suffix="%" duration={900} decimals={decimals} />;
-    }
-  }
-
-  // Plain integer-looking string ("23", "1,250") → parse + animate
-  const plainMatch = s.match(/^[\d,]+$/);
-  if (plainMatch) {
-    const num = Number(s.replace(/,/g, ""));
-    if (!Number.isNaN(num) && Number.isFinite(num)) {
-      return <CountUpNumber to={num} duration={900} />;
-    }
-  }
-
-  // Freeform string fallback — render as-is.
-  return s;
+  if (typeof value === "number") return Number.isFinite(value) ? Math.round(value).toLocaleString() : String(value);
+  // Digit-only strings ("1250", "1,250", "$1250") get grouping, as the count-up gave them.
+  const m = /^(\$?)([\d,]+)$/.exec(value);
+  return m ? m[1] + Number(m[2].replace(/,/g, "")).toLocaleString() : value;
 }
 
 export function StatCard({ label, value, icon, color = "text-foreground", trend, trendLabel, onClick, targetSection, settingsTab, className }: {
@@ -89,8 +39,7 @@ export function StatCard({ label, value, icon, color = "text-foreground", trend,
   /** Optional Tailwind className override — useful for grid-span hierarchy */
   className?: string;
 }) {
-  // wave-64 — surgical KPI upgrade: animated count-up for numeric values,
-  // tabular-nums for hardware-style alignment, data-tokens for trend colors.
+  // wave-64 tabular-nums for hardware-style alignment, data-tokens for trend colors.
   // Preserves freeform string values ("Loading...", "—", "85/100") as-is.
   const renderedValue = renderStatValue(value);
 
@@ -100,7 +49,7 @@ export function StatCard({ label, value, icon, color = "text-foreground", trend,
         <span className="text-[11px] font-medium text-muted-foreground tracking-wide">{label}</span>
         <div className="text-muted-foreground/30 group-hover:text-primary/50 transition-colors">{icon}</div>
       </div>
-      <div className={`font-bold text-2xl tracking-tight tabular-nums number-animate ${color} ${String(value).startsWith('$') ? 'revenue-glow' : ''}`}>{renderedValue}</div>
+      <div className={`font-bold text-2xl tracking-tight tabular-nums stat-value ${color}`}>{renderedValue}</div>
       {trendLabel && (
         <div className={`mt-2 text-[10px] font-medium tracking-wide flex items-center gap-1 ${
           trend === "up" ? "text-[var(--data-up)]" : trend === "down" ? "text-[var(--data-down)]" : "text-muted-foreground"
@@ -121,7 +70,7 @@ export function StatCard({ label, value, icon, color = "text-foreground", trend,
         type="button"
         onClick={handleClick}
         className={`stat-card stat-card-interactive group glow-on-hover card-enter cursor-pointer hover:ring-1 hover:ring-primary/40 transition-shadow text-left w-full${className ? ` ${className}` : ""}`}
-        aria-label={`${label} — open detail`}
+        aria-label={`${label} · open detail`}
       >
         {inner}
       </button>
@@ -255,10 +204,10 @@ export function KpiTile({
       className={`bg-card border ${accentMap[accent]} p-5 ${onClick ? "text-left w-full hover:ring-1 hover:ring-primary/40 transition-shadow cursor-pointer" : ""}`}
     >
       <div className="flex items-start justify-between mb-3">
-        <span className="text-[10px] font-bold text-foreground/50 tracking-[0.15em] uppercase">{label}</span>
+        <span className="text-[10px] font-bold text-foreground/50">{label}</span>
         {icon && <div className="text-foreground/30">{icon}</div>}
       </div>
-      <div className="font-bold text-3xl text-foreground tracking-tight tabular-nums number-animate">{renderStatValue(value)}</div>
+      <div className="font-bold text-3xl text-foreground tracking-tight tabular-nums stat-value">{renderStatValue(value)}</div>
       {(delta || deltaLabel) && (
         <div className={`mt-2 text-[11px] font-medium ${trendColor} flex items-center gap-1`}>
           <span>{trendArrow}</span>

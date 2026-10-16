@@ -56,7 +56,7 @@ function SourceBadge({ source }: { source: string }) {
   const isNick = source === "nick_receptionist";
   return (
     <span
-      className={`inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded ${
+      className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded ${
         isHuman
           ? "bg-blue-500/10 text-blue-500"
           : isNick
@@ -85,7 +85,7 @@ function StatusPill({ status }: { status: string }) {
   };
   const c = cfg[status] ?? { cls: "bg-muted text-muted-foreground", icon: <Clock className="w-3 h-3" /> };
   return (
-    <span className={`inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded ${c.cls}`}>
+    <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded ${c.cls}`}>
       {c.icon}
       {status.replace("_", " ")}
     </span>
@@ -112,15 +112,15 @@ export default function ApprovalsSection() {
   const approve = trpc.proposals.approve.useMutation({
     onSuccess: (r) => {
       if (r.ok) toast.success("Approved and executed");
-      else toast.error(`Not executed — ${r.error ?? r.status}`);
+      else toast.error(`Not executed · ${r.error ?? r.status}`);
       invalidate();
     },
     onError: (e) => toast.error(e.message),
   });
   const reject = trpc.proposals.reject.useMutation({
     onSuccess: (r) => {
-      if (r.ok) toast.success("Rejected — nothing was executed");
-      else toast.error(`Could not reject — ${r.error ?? r.status}`);
+      if (r.ok) toast.success("Rejected: nothing was executed");
+      else toast.error(`Could not reject · ${r.error ?? r.status}`);
       setRejectingId(null);
       setRejectNote("");
       invalidate();
@@ -130,7 +130,7 @@ export default function ApprovalsSection() {
   const retry = trpc.proposals.retry.useMutation({
     onSuccess: (r) => {
       if (r.ok) toast.success("Retry succeeded");
-      else toast.error(`Retry failed — ${r.error ?? r.status}`);
+      else toast.error(`Retry failed · ${r.error ?? r.status}`);
       invalidate();
     },
     onError: (e) => toast.error(e.message),
@@ -140,10 +140,10 @@ export default function ApprovalsSection() {
       if (r.ok) {
         toast.success(
           r.status === "executed"
-            ? "Recorded as already done — nothing was re-run"
-            : "Recorded as never executed — you can retry it now",
+            ? "Recorded as already done: nothing was re-run"
+            : "Recorded as never executed: you can retry it now",
         );
-      } else toast.error(`Could not resolve — ${r.error ?? r.status}`);
+      } else toast.error(`Could not resolve · ${r.error ?? r.status}`);
       invalidate();
     },
     onError: (e) => toast.error(e.message),
@@ -171,7 +171,7 @@ export default function ApprovalsSection() {
     <div className="space-y-4">
       <PageHeader
         title="Approvals"
-        subtitle="AI- and one-tap-originated proposals wait here as drafts. Nothing in THIS queue executes without your approval — enforced server-side. Separate SMS lanes (safe auto-replies, campaigns, reminders) run under their own rollout modes: Outreach → SMS → Autonomy ladder."
+        subtitle="AI- and one-tap-originated proposals wait here as drafts. Nothing in THIS queue executes without your approval: enforced server-side. Separate SMS lanes (safe auto-replies, campaigns, reminders) run under their own rollout modes: Outreach → SMS → Autonomy ladder."
         icon={<ShieldCheck className="w-5 h-5" />}
       />
 
@@ -196,7 +196,7 @@ export default function ApprovalsSection() {
       ) : list.isError ? (
         /* Unknown is not empty: a dead query must never render a calm queue. */
         <ErrorState
-          message={`Could not read the approval queue — this is unknown, not empty. ${list.error?.message ?? ""}`}
+          message={`Could not read the approval queue: this is unknown, not empty. ${list.error?.message ?? ""}`}
           onRetry={() => void list.refetch()}
         />
       ) : rows.length === 0 ? (
@@ -332,8 +332,7 @@ export default function ApprovalsSection() {
                 )}
                 {p.status === "executing" && (
                   <div className="text-[11px] text-amber-600">
-                    Running. If it is still here in a few minutes the sweep will park it as ambiguous —
-                    it is never auto-retried, because the action may already exist.
+                    Running. If it is still here in a few minutes the sweep will park it as ambiguous: it is never auto-retried, because the action may already exist.
                   </div>
                 )}
 
@@ -342,7 +341,7 @@ export default function ApprovalsSection() {
                 {p.status === "execution_ambiguous" && (
                   <div className="space-y-2 pt-1">
                     <div className="text-[11px] text-red-500">
-                      Abandoned mid-execution — this {p.actionType === "create_callback" ? "callback" : "booking"} may
+                      Abandoned mid-execution: this {p.actionType === "create_callback" ? "callback" : "booking"} may
                       or may not exist. Check the real records first, then say which.
                     </div>
                     <div className="flex gap-2">

@@ -461,7 +461,7 @@ const CHIP_TONE: Record<ChipTone, string> = {
 function TrustChip({ label, value, tone, detail }: { label: string; value: string; tone: ChipTone; detail?: string | null }) {
   return (
     <div className={`rounded-lg border px-3 py-2 min-w-0 ${CHIP_TONE[tone]}`} title={detail ?? undefined}>
-      <div className="text-[10px] uppercase tracking-wide opacity-70">{label}</div>
+      <div className="text-[10px] opacity-70">{label}</div>
       <div className="text-[12px] font-medium leading-snug break-words">{value}</div>
       {detail && <div className="mt-0.5 text-[11px] opacity-75 leading-snug break-words">{detail}</div>}
     </div>
@@ -579,11 +579,11 @@ function CameraCard({ c, window }: { c: CameraHealth; window: BusinessWindow | n
           <div className="text-[13px] font-semibold truncate">{c.label}</div>
           <div className="text-[12px] text-foreground/50 truncate">
             {c.camera}
-            <span className="ml-2 rounded border border-foreground/15 px-1 py-px text-[10px] uppercase tracking-wide text-foreground/45">
+            <span className="ml-2 rounded border border-foreground/15 px-1 py-px text-[10px] text-foreground/45">
               {c.role.replace(/_/g, " ")}
             </span>
             {c.mode && c.mode !== "PRODUCTION" && (
-              <span className="ml-2 rounded border border-sky-500/40 bg-sky-500/10 px-1 py-px text-[10px] uppercase tracking-wide text-sky-300">
+              <span className="ml-2 rounded border border-sky-500/40 bg-sky-500/10 px-1 py-px text-[10px] text-sky-300">
                 {c.mode.toLowerCase()}
                 {c.commissioningRunId ? ` · ${c.commissioningRunId}` : ""}
               </span>
@@ -612,7 +612,7 @@ function CameraCard({ c, window }: { c: CameraHealth; window: BusinessWindow | n
         <>
           <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
             {!producerAlive && (
-              <span className="rounded border border-foreground/20 px-1 py-px text-[10px] uppercase tracking-wide text-foreground/50">
+              <span className="rounded border border-foreground/20 px-1 py-px text-[10px] text-foreground/50">
                 last known
               </span>
             )}
@@ -884,7 +884,7 @@ function ActivityPanel({ a }: { a: ActivityData }) {
              aria-label={`Arrivals by hour, ${label(from)} to ${label(to)}. Busiest hour ${label(busiest.hour)} with ${busiest.arrivals} arrivals.`}>
           {window.map((h) => (
             <div key={h.hour} className="flex-1 flex flex-col justify-end items-center gap-0.5 min-w-0"
-                 title={`${label(h.hour)} — ${h.arrivals} arrival${h.arrivals === 1 ? "" : "s"}` +
+                 title={`${label(h.hour)} · ${h.arrivals} arrival${h.arrivals === 1 ? "" : "s"}` +
                         (h.passThroughs ? `, ${h.passThroughs} drive-by` : "") +
                         (h.baselineArrivals === null ? "" : `, usual ${h.baselineArrivals.toFixed(1)}`)}>
               {/* Drive-bys stack ABOVE arrivals: they are crossings too, but they are not
@@ -1412,7 +1412,7 @@ function ConversationPanel({
         <div className="mb-2">
           <div className="text-[12px] font-semibold">Counter conversations</div>
           <div className="text-[11px] text-foreground/40">
-            Operational summaries only — raw audio and full transcripts stay off
+            Operational summaries only: raw audio and full transcripts stay off
             this screen; self-tests are hidden
           </div>
         </div>
@@ -1457,14 +1457,14 @@ function ConversationPanel({
                 (status === "SKIPPED"
                   ? "No speech was transcribed in this clip."
                   : status === "FAILED"
-                    ? "Summary unavailable — capture, transcription, or extraction failed."
+                    ? "Summary unavailable: capture, transcription, or extraction failed."
                     : row.coverage === null
-                      ? "Summary withheld — transcript coverage is unknown."
+                      ? "Summary withheld: transcript coverage is unknown."
                       : row.coverage < 0.65
-                        ? `Summary withheld — transcript coverage ${Math.round(row.coverage * 100)}% is below the 65% evidence threshold.`
+                        ? `Summary withheld: transcript coverage ${Math.round(row.coverage * 100)}% is below the 65% evidence threshold.`
                         : row.factCount === 0
                           ? "No evidence-backed actionable facts were found."
-                          : "Summary withheld — validated evidence is incomplete.");
+                          : "Summary withheld: validated evidence is incomplete.");
 
               return (
                 <div
@@ -1854,7 +1854,7 @@ export default function LotSection() {
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
           <TrustChip label="Sign camera" value={signChip.value} tone={signChip.tone} detail={signChip.detail} />
           <div className={`rounded-lg border px-3 py-2 min-w-0 ${CHIP_TONE[watchedChip.tone]}`} title={watchedChip.detail ?? undefined}>
-            <div className="text-[10px] uppercase tracking-wide opacity-70">Watched today</div>
+            <div className="text-[10px] opacity-70">Watched today</div>
             <div className="text-[12px] font-medium leading-snug break-words">{watchedChip.value}</div>
             {coverage && coverage.hours.length > 0 && (
               <div className="mt-1 flex gap-px" role="img" aria-label="coverage per business hour">
@@ -1978,7 +1978,7 @@ export default function LotSection() {
           <Panel
             title="On the lot right now"
             icon={<Hourglass className="w-4 h-4" />}
-            subtitle="Longest first — clocks are live, and a car whose arrival was never observed says so instead of guessing"
+            subtitle="Longest first: clocks are live, and a car whose arrival was never observed says so instead of guessing"
           >
             {onLotVisits.isError ? (
               <Unknown what="Floor board" reason={onLotVisits.error?.message} />
@@ -2098,7 +2098,7 @@ export default function LotSection() {
           )}
 
           <Panel title="Already on the lot at startup" icon={<ShieldQuestion className="w-4 h-4" />}
-                 subtitle="Occupancy, kept separate from today's arrivals — a car parked before the detector started never arrived">
+                 subtitle="Occupancy, kept separate from today's arrivals: a car parked before the detector started never arrived">
             <MetricGrid cols={2}>
               <StatCard
                 label="Already parked at startup"
@@ -2194,7 +2194,7 @@ export default function LotSection() {
       <ConversationPanel query={conversations} officeCamera={officeCamera} />
 
       <Panel title="Cameras" icon={<Camera className="w-4 h-4" />}
-             subtitle="Producer heartbeats — infrastructure health, independent of whether any car has arrived">
+             subtitle="Producer heartbeats: infrastructure health, independent of whether any car has arrived">
         {health.isError ? (
           <Unknown what="Camera health" reason={health.error?.message} />
         ) : health.isPending ? (
@@ -2289,7 +2289,7 @@ export default function LotSection() {
                         </span>
                         {v.dataClass !== "PRODUCTION" && (
                           <span
-                            className="ml-1 inline-flex items-center rounded border border-sky-500/40 bg-sky-500/10 px-1 py-px text-[10px] uppercase tracking-wide text-sky-300"
+                            className="ml-1 inline-flex items-center rounded border border-sky-500/40 bg-sky-500/10 px-1 py-px text-[10px] text-sky-300"
                             title={v.commissioningRunId ?? undefined}
                           >
                             {v.dataClass.toLowerCase()}

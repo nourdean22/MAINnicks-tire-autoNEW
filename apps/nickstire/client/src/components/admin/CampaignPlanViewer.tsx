@@ -9,7 +9,7 @@ interface ViewerProps {
 function SectionCard({ title, icon, children, className = "" }: { title: string, icon: React.ReactNode, children: React.ReactNode, className?: string }) {
   return (
     <section className={`border border-border bg-card/40 rounded-lg p-4 space-y-3 ${className}`}>
-      <h2 className="text-sm font-bold uppercase tracking-wide text-foreground/80 flex items-center gap-2">
+      <h2 className="text-sm font-bold text-foreground/80 flex items-center gap-2">
         {icon} {title}
       </h2>
       <div className="space-y-3 text-sm">{children}</div>
@@ -84,9 +84,9 @@ export function CampaignPlanViewer({ plan }: ViewerProps) {
 
         {plan.complianceRiskScan && (
           <div className={`flex flex-col gap-2 p-3 rounded-lg border ${risk === "high" ? "bg-red-500/10 border-red-500/30 text-red-500" : risk === "medium" ? "bg-amber-500/10 border-amber-500/30 text-amber-500" : "bg-emerald-500/10 border-emerald-500/30 text-emerald-500"}`}>
-            <div className="flex items-center gap-2 font-bold text-sm uppercase">
+            <div className="flex items-center gap-2 font-bold text-sm">
               {risk === "high" ? <AlertTriangle className="w-4 h-4" /> : risk === "medium" ? <AlertTriangle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
-              Compliance Scan: {risk} Risk
+              Compliance scan: {risk} risk
             </div>
             {plan.complianceRiskScan.riskFlags.length > 0 && (
               <ul className="text-xs list-disc pl-5 space-y-1">
@@ -105,7 +105,7 @@ export function CampaignPlanViewer({ plan }: ViewerProps) {
             <p className="font-medium">{plan.offerPositioning.summary}</p>
             <div><span className="text-xs text-muted-foreground">Value Stack:</span><br/>{plan.offerPositioning.valueStack}</div>
             <details className="cursor-pointer text-muted-foreground hover:text-foreground">
-              <summary className="font-semibold text-xs uppercase">Objections & Rebuttals</summary>
+              <summary className="font-semibold text-xs">Objections & rebuttals</summary>
               <ul className="mt-2 space-y-2 text-foreground">
                 {plan.offerPositioning.objectionsAndRebuttals.map((o, i) => (
                   <li key={i}><b>{o.objection}:</b> {o.rebuttal}</li>
@@ -150,7 +150,7 @@ export function CampaignPlanViewer({ plan }: ViewerProps) {
                   </div>
                   <h3 className="font-bold text-primary">{b.bundleName}</h3>
                   <div>
-                    <div className="text-xs text-muted-foreground uppercase mb-1 flex justify-between">
+                    <div className="text-xs text-muted-foreground mb-1 flex justify-between">
                       Headlines
                       <CopyBtn text={b.headlines.join("\n")} label="" />
                     </div>
@@ -159,8 +159,8 @@ export function CampaignPlanViewer({ plan }: ViewerProps) {
                     </ul>
                   </div>
                   <div>
-                    <div className="text-xs text-muted-foreground uppercase mb-1 flex justify-between">
-                      Primary Text (Short)
+                    <div className="text-xs text-muted-foreground mb-1 flex justify-between">
+                      Primary text (short)
                       <CopyBtn text={b.shortPrimaryTexts.join("\n")} label="" />
                     </div>
                     <ul className="list-disc pl-4">
@@ -168,14 +168,14 @@ export function CampaignPlanViewer({ plan }: ViewerProps) {
                     </ul>
                   </div>
                   <div>
-                    <div className="text-xs text-muted-foreground uppercase mb-1 flex justify-between">
-                      Primary Text (Long)
+                    <div className="text-xs text-muted-foreground mb-1 flex justify-between">
+                      Primary text (long)
                       <CopyBtn text={b.longPrimaryText} label="" />
                     </div>
                     <p className="whitespace-pre-wrap">{b.longPrimaryText}</p>
                   </div>
                   <div>
-                    <div className="text-xs text-muted-foreground uppercase mb-1">CTAs</div>
+                    <div className="text-xs text-muted-foreground mb-1">CTAs</div>
                     <p>{b.ctaButtonRecommendations.join(", ")}</p>
                   </div>
                 </div>
@@ -185,8 +185,8 @@ export function CampaignPlanViewer({ plan }: ViewerProps) {
 
           <SectionCard title="Creative Prompts" icon={<ImageIcon className="w-4 h-4" />}>
             <details className="cursor-pointer text-muted-foreground hover:text-foreground">
-              <summary className="font-semibold text-xs uppercase mb-2 flex justify-between">
-                Image Prompts ({plan.creativePrompts.imagePrompts.length})
+              <summary className="font-semibold text-xs mb-2 flex justify-between">
+                Image prompts ({plan.creativePrompts.imagePrompts.length})
                 <CopyBtn text={JSON.stringify(plan.creativePrompts.imagePrompts, null, 2)} label="" />
               </summary>
               <div className="space-y-2 mt-2 text-foreground">
@@ -198,7 +198,7 @@ export function CampaignPlanViewer({ plan }: ViewerProps) {
               </div>
             </details>
             <details className="cursor-pointer text-muted-foreground hover:text-foreground mt-2">
-              <summary className="font-semibold text-xs uppercase mb-2 flex items-center justify-between">
+              <summary className="font-semibold text-xs mb-2 flex items-center justify-between">
                 <span className="flex items-center gap-1"><Video className="w-3 h-3"/> Reels & UGC</span>
                 <CopyBtn text={JSON.stringify(plan.creativePrompts.reelPrompts, null, 2)} label="" />
               </summary>

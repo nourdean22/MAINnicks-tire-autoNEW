@@ -640,8 +640,8 @@
      2px left accent bar + ultra-subtle bg tint. Generous padding,
      lighter weights, more breathing room between groups. */
   .admin-sidebar {
-    background: oklch(0.06 0.004 260);
-    border-right: 1px solid oklch(0.12 0.004 260);
+    background: var(--sidebar);
+    border-right: 1px solid var(--sidebar-border);
   }
   .admin-sidebar-item {
     position: relative;
@@ -661,8 +661,8 @@
     background: oklch(0.10 0.005 260);
   }
   .admin-sidebar-item.active {
-    color: oklch(0.96 0.005 260);
-    background: oklch(0.82 0.14 85 / 0.06);
+    color: var(--sidebar-accent-foreground);
+    background: var(--sidebar-accent);
     font-weight: 500;
   }
   .admin-sidebar-item.active::before {
@@ -672,25 +672,22 @@
     top: 0.5rem;
     bottom: 0.5rem;
     width: 2px;
-    background: oklch(0.82 0.14 85);
+    background: var(--foreground);
     border-radius: 1px;
   }
   .admin-sidebar-group-label {
-    font-size: 0.625rem;
-    font-weight: 500;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: oklch(0.32 0.006 260);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--muted-foreground);
     padding: 0.5rem 1rem 0.375rem;
   }
 
   /* ─── ADMIN TOPBAR ─── */
   .admin-topbar {
     height: 3.5rem;
-    background: oklch(0.085 0.005 260 / 0.95);
-    -webkit-backdrop-filter: blur(20px);
-    backdrop-filter: blur(20px);
-    border-bottom: 1px solid oklch(0.14 0.004 260);
+    background: var(--background);
+    border-bottom: 1px solid var(--border);
   }
 
   /* ─── ADMIN CONTENT AREA ─── */
@@ -836,15 +833,6 @@ img[loading="lazy"] {
   50% { opacity: 0.5; transform: scale(1.5); }
 }
 
-/* Revenue breathing glow — subtle pulse on money values */
-.revenue-glow {
-  animation: revenueBreath 3s ease-in-out infinite;
-}
-@keyframes revenueBreath {
-  0%, 100% { text-shadow: 0 0 4px rgba(16, 185, 129, 0.2); }
-  50% { text-shadow: 0 0 12px rgba(16, 185, 129, 0.4), 0 0 24px rgba(16, 185, 129, 0.1); }
-}
-
 /* Stat card scale on hover */
 .stat-card-interactive {
   transition: transform 0.2s ease, border-color 0.3s, box-shadow 0.3s !important;
@@ -899,11 +887,6 @@ img[loading="lazy"] {
 @keyframes urgentGlow {
   0%, 100% { border-color: rgba(239, 68, 68, 0.2); }
   50% { border-color: rgba(239, 68, 68, 0.5); box-shadow: 0 0 8px rgba(239, 68, 68, 0.15); }
-}
-
-/* Number counter animation helper */
-.number-animate {
-  transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* Hover lift for table rows */
@@ -1038,16 +1021,6 @@ input:focus, textarea:focus, select:focus {
 }
 .neural-pulse { animation: neural-pulse 3s ease-in-out infinite; }
 
-/* Scan-line overlay — admin only, not customer-facing pages */
-.admin-shell::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 9998;
-  background: repeating-linear-gradient(0deg, transparent, transparent 1px, rgba(0,0,0,0.012) 1px, rgba(0,0,0,0.012) 2px);
-}
-
 /* ═══════════════════════════════════════════════════════════════
    ADMIN DENSITY MODE — compact toggle via DensityToggle component
    ═══════════════════════════════════════════════════════════════
@@ -1059,7 +1032,7 @@ input:focus, textarea:focus, select:focus {
    ═══════════════════════════════════════════════════════════════ */
 
 html[data-density="compact"] .admin-shell .stat-card { padding: 0.625rem; }
-html[data-density="compact"] .admin-shell .stat-card .number-animate { font-size: 1.25rem; }
+html[data-density="compact"] .admin-shell .stat-card .stat-value { font-size: 1.25rem; }
 html[data-density="compact"] .admin-shell h1,
 html[data-density="compact"] .admin-shell h2 { font-size: 0.875rem; }
 html[data-density="compact"] .admin-shell h3 { font-size: 0.8125rem; }
@@ -1091,7 +1064,7 @@ html[data-density="compact"] .admin-shell .p-4 { padding: 0.625rem; }
   .admin-shell .p-6 { padding: 0.875rem; }
   .admin-shell .p-5 { padding: 0.75rem; }
   .admin-shell .stat-card { padding: 0.75rem; }
-  .admin-shell .stat-card .number-animate { font-size: 1.25rem; }
+  .admin-shell .stat-card .stat-value { font-size: 1.25rem; }
   /* Page header tightens on phone — title/subtitle on the same row
      and actions wrap underneath naturally */
   .admin-shell h2.text-\[15px\] { font-size: 0.875rem; }
@@ -1604,17 +1577,26 @@ p.body-pretty {
 }
 
 /* ===================================================================
-   ADMIN "neutral" theme -- opt-in (2026-06-01, admin modernization)
-   Linear/Vercel-calm monochrome-neutral, scoped to .admin-shell via the
-   data-admin-theme="neutral" attribute (set from a localStorage / URL flag
-   in Admin.tsx; default "grit" = the live look, zero change until opted in).
-   Overrides only the shadcn surface/text/border tokens the admin consumes --
-   the customer site (plain :root) keeps its sodium-vapor gold untouched.
-   Works because @theme is `inline` (utilities resolve var() at runtime).
-   Semantic signal colors (emerald/red/amber, hardcoded in components)
-   intentionally survive; they read better on calm graphite.
+   ADMIN graphite -- the admin's only theme (Admin UI v1 W1, 2026-10-16)
+   The Operator's Cockpit genome (docs/design/SURFACE-DNA.md, column 2):
+   calm graphite surfaces, white text, gold only for owner priority.
+   Scoped to .admin-shell, so the customer site (plain :root) keeps its
+   gold/black. No attribute and no toggle: this is the default. The sidebar
+   is listed too because it is the one admin surface that renders fixed
+   over the page on phones. body:has(.admin-shell) carries the same tokens
+   to what portals out of the shell while the admin is mounted (Radix
+   popovers and dialogs, the sonner Toaster); iOS Safari has :has since
+   15.4, and the public site never mounts .admin-shell, so it is untouched. Works because @theme is `inline` (utilities
+   resolve var() at runtime). Semantic signal colours (emerald/red/amber,
+   the --data-* tokens) survive; they read better on calm graphite.
+   --owner-priority is the one gold: the Approvals pending badge (bar and
+   sidebar) and Today's "Needs action" card when it holds items.
+   Contrast, measured 2026-10-16: --muted-foreground #8B9096 on #0B0C0E
+   6.08:1, on #15171A 5.58:1, on #1A1D21 5.26:1 (AA 4.5:1 passes).
    =================================================================== */
-.admin-shell[data-admin-theme="neutral"] {
+.admin-shell,
+.admin-shell .admin-sidebar,
+body:has(.admin-shell) {
   --background: #0B0C0E;
   --foreground: #E6E8EB;
   --card: #15171A;
@@ -1652,6 +1634,7 @@ p.body-pretty {
   --ring-yellow: rgba(255, 255, 255, 0.10);
   --ring-yellow-strong: rgba(255, 255, 255, 0.18);
   --brand-yellow: #E6E8EB;
+  --owner-priority: #FDB913;
 }
 
 /* ===================================================================
@@ -1748,3 +1731,28 @@ p.body-pretty {
   padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px)) !important;
 }
 
+
+/* Phones: the AdminTabBar (56 px + the home indicator) is fixed over the bottom edge;
+   keep the last row of every section above it. */
+@media (max-width: 1023px) {
+  .admin-shell .admin-content {
+    padding-bottom: calc(56px + 1.5rem + env(safe-area-inset-bottom, 0px)) !important;
+  }
+}
+
+/* Section eyebrow (Admin UI v1 W1): the small label above a heading, e.g. "Good morning · daily
+   brief". Sentence case, never capitals, so the tracking stays light. Used on the four section
+   briefs only; anything else gets plain text. */
+.admin-shell .eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  color: var(--muted-foreground);
+}
+
+/* The public base layer sets h1 to Barlow Condensed capitals; inside the admin the topbar title
+   and the Intelligence HQ heading read in sentence case like every other label (Admin UI v1 W1). */
+.admin-shell h1 {
+  text-transform: none;
+}

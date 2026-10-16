@@ -63,7 +63,7 @@ export default function OpsHubSection() {
   return (
     <Section
       title="Ops Hub"
-      subtitle="Reports, owner actions, and danger-zone truth. Read-only — nothing here sends, posts, refunds, or orders."
+      subtitle="Reports, owner actions, and danger-zone truth. Read-only: nothing here sends, posts, refunds, or orders."
       icon={<Wrench className="w-5 h-5 text-primary" />}
     >
       <TabBar tabs={HUB_TABS} activeTab={tab} onChange={setTab} variant="pill" size="compact" />
@@ -80,7 +80,7 @@ export default function OpsHubSection() {
             </Panel>
           ))}
           <p className="text-[10px] text-foreground/30 leading-relaxed">
-            This registry is hand-maintained and evidence-based — update it in the
+            This registry is hand-maintained and evidence-based: update it in the
             same PR that changes an item's truth. Statuses are claims; if reality
             disagrees, the registry is wrong and should be fixed.
           </p>
@@ -93,13 +93,13 @@ export default function OpsHubSection() {
             <div key={r.path} className="bg-card border border-border/30 rounded p-3 flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="text-xs font-semibold text-foreground">{r.title}</div>
-                <div className="text-[10px] text-muted-foreground">{r.category}{r.note ? ` — ${r.note}` : ""}</div>
+                <div className="text-[10px] text-muted-foreground">{r.category}{r.note ? ` · ${r.note}` : ""}</div>
                 <code className="text-[10px] text-foreground/40 break-all">{r.path}</code>
               </div>
             </div>
           ))}
           <p className="text-[10px] text-foreground/30 leading-relaxed pt-1">
-            Reports live in the repo as markdown — open them in the repo/editor.
+            Reports live in the repo as markdown: open them in the repo/editor.
             Paths are relative to the repository root unless prefixed otherwise.
           </p>
         </div>
@@ -121,15 +121,15 @@ function OpsCard({ item, health }: {
   let liveNote: { ok: boolean; text: string } | null = null;
   if (item.id === "stripe-config" && health) {
     liveNote = health.stripe.halfConfigured
-      ? { ok: false, text: "LIVE CHECK: half-configured RIGHT NOW — paid events are being dropped." }
+      ? { ok: false, text: "LIVE CHECK: half-configured RIGHT NOW, paid events are being dropped." }
       : health.stripe.fullyConfigured
         ? { ok: true, text: "Live check: Stripe fully configured in this deploy." }
-        : { ok: false, text: "Live check: Stripe not configured — Pay Now degrades to call-to-pay." };
+        : { ok: false, text: "Live check: Stripe not configured, Pay Now degrades to call-to-pay." };
   }
   if (item.id === "sheets-tire-orders" && health) {
     liveNote = health.sheetsConfigured
       ? { ok: true, text: "Live check: GOOGLE_SHEETS_CRM_ID is set in this deploy." }
-      : { ok: false, text: "Live check: Sheets env NOT set — order rows are not mirrored." };
+      : { ok: false, text: "Live check: Sheets env NOT set, order rows are not mirrored." };
   }
 
   return (
@@ -137,7 +137,7 @@ function OpsCard({ item, health }: {
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-xs font-bold text-foreground">{item.title}</span>
         <span className={`px-1.5 py-0.5 text-[9px] font-bold border rounded ${meta.cls}`}>{meta.label}</span>
-        <span className={`px-1.5 py-0.5 text-[9px] font-bold border rounded uppercase ${RISK_CLS[item.risk]}`}>{item.risk} risk</span>
+        <span className={`px-1.5 py-0.5 text-[9px] font-bold border rounded ${RISK_CLS[item.risk]}`}>{item.risk} risk</span>
         {item.ownerRequired && (
           <span className="px-1.5 py-0.5 text-[9px] font-bold border rounded bg-purple-500/10 text-purple-400 border-purple-500/20 inline-flex items-center gap-1">
             <Lock className="w-2.5 h-2.5" /> OWNER
@@ -183,7 +183,7 @@ function MessagePreviews() {
       <div className="border border-blue-500/40 bg-blue-500/10 rounded p-3 text-xs text-blue-200 flex items-start gap-2">
         <MessageSquareText className="w-4 h-4 shrink-0 mt-0.5 text-blue-400" />
         <span>
-          <strong>Preview only — customer messages are NOT being sent automatically.</strong>{" "}
+          <strong>Preview only: customer messages are NOT being sent automatically.</strong>{" "}
           No send path exists in the codebase (it throws by design). Enabling real
           sends requires your approval of provider, cost, and this exact copy in a
           dedicated PR. Rendered below against a sample order.
@@ -193,17 +193,17 @@ function MessagePreviews() {
       {isLoading ? (
         <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
       ) : !data ? (
-        <p className="text-xs text-muted-foreground">Previews unavailable — check the server logs.</p>
+        <p className="text-xs text-muted-foreground">Previews unavailable: check the server logs.</p>
       ) : (
         data.map((t) => (
           <Panel key={t.key} title={t.key.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase())} icon={<MessageSquareText className="w-4 h-4" />}>
             <div className="space-y-2 mt-2 text-xs">
               <div>
-                <span className="text-[10px] uppercase tracking-wider text-foreground/40 font-semibold">SMS ({t.sms.length} chars)</span>
+                <span className="text-[10px] text-foreground/40 font-semibold">SMS ({t.sms.length} chars)</span>
                 <p className="bg-background/50 border border-border/30 rounded p-2 mt-1 text-foreground/80 whitespace-pre-wrap">{t.sms}</p>
               </div>
               <div>
-                <span className="text-[10px] uppercase tracking-wider text-foreground/40 font-semibold">Email — {t.emailSubject}</span>
+                <span className="text-[10px] text-foreground/40 font-semibold">Email · {t.emailSubject}</span>
                 <p className="bg-background/50 border border-border/30 rounded p-2 mt-1 text-foreground/80 whitespace-pre-wrap">{t.emailBody}</p>
               </div>
             </div>

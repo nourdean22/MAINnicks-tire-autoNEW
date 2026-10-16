@@ -157,7 +157,7 @@ export default function TrafficFunnelSection() {
             </h3>
             <p className="text-foreground/50 text-[11px] mt-0.5 max-w-2xl">
               AI-drafted title + meta for buried service pages (high impressions, page 2+). Apply by editing{" "}
-              <span className="font-mono">shared/services.ts</span> — nothing is written to the live site.
+              <span className="font-mono">shared/services.ts</span> nothing is written to the live site.
             </p>
           </div>
           <button
@@ -181,12 +181,12 @@ export default function TrafficFunnelSection() {
                 </div>
                 <div className="grid gap-2 text-[11px]">
                   <div>
-                    <span className="text-foreground/40 uppercase tracking-[0.1em] text-[9px] font-bold">Title</span>
+                    <span className="text-foreground/40 text-[9px] font-bold">Title</span>
                     <p className="text-foreground/40 line-through">{d.currentTitle}</p>
                     <p className="text-emerald-400 font-medium">{d.proposedTitle} <span className="text-foreground/30">({d.proposedTitle.length})</span></p>
                   </div>
                   <div>
-                    <span className="text-foreground/40 uppercase tracking-[0.1em] text-[9px] font-bold">Meta description</span>
+                    <span className="text-foreground/40 text-[9px] font-bold">Meta description</span>
                     <p className="text-foreground/40 line-through">{d.currentDescription}</p>
                     <p className="text-emerald-400 font-medium">{d.proposedDescription} <span className="text-foreground/30">({d.proposedDescription.length})</span></p>
                   </div>
@@ -229,7 +229,7 @@ export default function TrafficFunnelSection() {
               <div key={idx} className={`flex items-start gap-3 p-4 border ${cls}`}>
                 {icon}
                 <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-sm tracking-wide uppercase">{a.title}</div>
+                  <div className="font-semibold text-sm">{a.title}</div>
                   <p className="text-[13px] text-foreground/80 mt-1 leading-relaxed">{a.detail}</p>
                   {a.fix && (
                     <p className="text-[11px] text-foreground/60 mt-2 italic">
@@ -245,7 +245,7 @@ export default function TrafficFunnelSection() {
 
       {/* ─── FUNNEL BARS ────────────────────────────────── */}
       <div className="bg-card border border-border/30 p-5">
-        <h3 className="text-xs font-semibold text-foreground/60 tracking-wide uppercase mb-5 flex items-center gap-2">
+        <h3 className="text-xs font-semibold text-foreground/60 mb-5 flex items-center gap-2">
           <TrendingUp className="w-3.5 h-3.5" />
           The Funnel · last {data.days} days
         </h3>
@@ -269,7 +269,7 @@ export default function TrafficFunnelSection() {
                 <div className="flex items-center gap-4">
                   <div className={`flex items-center gap-2 w-48 shrink-0 ${colors.text}`}>
                     {stageIcon(stage.key)}
-                    <span className="text-[12px] font-semibold tracking-wide uppercase">{stage.label}</span>
+                    <span className="text-[12px] font-semibold">{stage.label}</span>
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="relative h-10 bg-background/40 rounded overflow-hidden">
@@ -302,7 +302,7 @@ export default function TrafficFunnelSection() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Top Queries */}
         <div className="bg-card border border-border/30 p-5 lg:col-span-2">
-          <h3 className="text-xs font-semibold text-foreground/60 tracking-wide uppercase mb-4 flex items-center gap-2">
+          <h3 className="text-xs font-semibold text-foreground/60 mb-4 flex items-center gap-2">
             <Search className="w-3.5 h-3.5" />
             Top 10 Queries by Clicks
           </h3>
@@ -315,7 +315,7 @@ export default function TrafficFunnelSection() {
                   <span className="w-4 text-foreground/30 font-mono text-[10px]">{i + 1}</span>
                   <span className="flex-1 truncate text-foreground/90" title={q.query}>
                     {q.query}
-                    {q.branded && <span className="ml-2 text-[9px] uppercase tracking-wider text-amber-400/70 font-semibold">branded</span>}
+                    {q.branded && <span className="ml-2 text-[9px] text-amber-400/70 font-semibold">branded</span>}
                   </span>
                   <span className="w-14 text-right font-mono text-foreground font-semibold">{q.clicks}</span>
                   <span className="w-14 text-right font-mono text-foreground/40">{formatNumber(q.impressions)}</span>
@@ -330,7 +330,7 @@ export default function TrafficFunnelSection() {
                   </span>
                 </div>
               ))}
-              <div className="flex items-center gap-3 text-[9px] pt-2 text-foreground/30 font-mono uppercase tracking-wider">
+              <div className="flex items-center gap-3 text-[9px] pt-2 text-foreground/30 font-mono">
                 <span className="w-4">#</span>
                 <span className="flex-1">query</span>
                 <span className="w-14 text-right">clicks</span>
@@ -344,7 +344,7 @@ export default function TrafficFunnelSection() {
 
         {/* Branded split */}
         <div className="bg-card border border-border/30 p-5">
-          <h3 className="text-xs font-semibold text-foreground/60 tracking-wide uppercase mb-4 flex items-center gap-2">
+          <h3 className="text-xs font-semibold text-foreground/60 mb-4 flex items-center gap-2">
             <Zap className="w-3.5 h-3.5" />
             Branded vs Discovery
           </h3>
@@ -378,8 +378,8 @@ export default function TrafficFunnelSection() {
             <div className="pt-3 border-t border-border/20">
               <p className="text-[10px] text-foreground/50 leading-relaxed">
                 <span className="font-bold text-amber-400">{data.branded.brandedPct}%</span> branded
-                {data.branded.brandedPct > 60 && " — SEO isn't driving new discovery. Push non-branded pages harder."}
-                {data.branded.brandedPct <= 40 && data.branded.nonBranded > 50 && " — strong discovery. SEO is working."}
+                {data.branded.brandedPct > 60 && " SEO isn't driving new discovery. Push non-branded pages harder."}
+                {data.branded.brandedPct <= 40 && data.branded.nonBranded > 50 && " strong discovery. SEO is working."}
               </p>
             </div>
           </div>
@@ -388,9 +388,9 @@ export default function TrafficFunnelSection() {
 
       {/* ─── TOP PAGES ──────────────────────────────────── */}
       <div className="bg-card border border-border/30 p-5">
-        <h3 className="text-xs font-semibold text-foreground/60 tracking-wide uppercase mb-4 flex items-center gap-2">
+        <h3 className="text-xs font-semibold text-foreground/60 mb-4 flex items-center gap-2">
           <ExternalLink className="w-3.5 h-3.5" />
-          Top 10 Landing Pages
+          Top 10 landing pages
         </h3>
         {data.topPages.length === 0 ? (
           <p className="text-sm text-foreground/40">No GSC page data yet.</p>
@@ -442,7 +442,7 @@ export default function TrafficFunnelSection() {
             gscScorecard.report.aggregateStatus === "available" ? (
               <>GSC official aggregate as of {new Date(gscScorecard.dataAsOf).toLocaleString()} · stored detail {gscScorecard.report.detailStatus}.</>
             ) : (
-              <>GSC official aggregate unavailable this window — showing stored detail only ({gscScorecard.report.detailStatus}).</>
+              <>GSC official aggregate unavailable this window: showing stored detail only ({gscScorecard.report.detailStatus}).</>
             )
           ) : (
             <>GSC sync status unavailable.</>
@@ -451,7 +451,7 @@ export default function TrafficFunnelSection() {
         </p>
         <p className="mt-1">
           Call-click events require the <code className="text-foreground/50">/api/call-events</code> tracking endpoint
-          + client-side <code className="text-foreground/50">tel:</code> wrapper. If dead, fix that first — it unlocks
+          + client-side <code className="text-foreground/50">tel:</code> wrapper. If dead, fix that first: it unlocks
           real engagement visibility.
         </p>
       </div>
@@ -483,11 +483,11 @@ function CustomerEventsPanel({ range }: { range: Range }) {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <div className="text-primary text-[10px] font-mono uppercase tracking-widest mb-1">
-            Customer-Side Events ({range})
+          <div className="text-primary text-[10px] font-mono mb-1">
+            Customer-side events ({range})
           </div>
-          <h3 className="font-bold text-base text-foreground tracking-wide uppercase">
-            Visual Surface Engagement
+          <h3 className="font-bold text-base text-foreground">
+            Visual surface engagement
           </h3>
           <p className="text-[12px] text-foreground/40 mt-1 max-w-2xl">
             PhotoRibbon photo views, sticky-CTA "Hold a Bay" clicks, and
@@ -504,8 +504,8 @@ function CustomerEventsPanel({ range }: { range: Range }) {
         <div className="bg-card border border-border/30 p-4">
           <div className="flex items-center gap-2 mb-3">
             <Activity className="w-4 h-4 text-foreground/40" />
-            <h4 className="text-xs font-bold tracking-wider uppercase text-foreground/60">
-              Event Totals
+            <h4 className="text-xs font-bold text-foreground/60">
+              Event totals
             </h4>
           </div>
           {summaryLoading ? (
@@ -541,8 +541,8 @@ function CustomerEventsPanel({ range }: { range: Range }) {
         <div className="bg-card border border-border/30 p-4">
           <div className="flex items-center gap-2 mb-3">
             <ImageIcon className="w-4 h-4 text-foreground/40" />
-            <h4 className="text-xs font-bold tracking-wider uppercase text-foreground/60">
-              Top PhotoRibbon Photos
+            <h4 className="text-xs font-bold text-foreground/60">
+              Top PhotoRibbon photos
             </h4>
           </div>
           {photosLoading ? (
@@ -591,8 +591,8 @@ function CustomerEventsPanel({ range }: { range: Range }) {
         <div className="bg-card border border-border/30 p-4">
           <div className="flex items-center gap-2 mb-3">
             <Zap className="w-4 h-4 text-foreground/40" />
-            <h4 className="text-xs font-bold tracking-wider uppercase text-foreground/60">
-              Live Tail (Last 50)
+            <h4 className="text-xs font-bold text-foreground/60">
+              Live tail (last 50)
             </h4>
           </div>
           <div className="max-h-72 overflow-y-auto space-y-0.5 text-[11px] font-mono">
@@ -641,15 +641,15 @@ function TopBookingPagesPanel({ range }: { range: Range }) {
   return (
     <div className="space-y-4">
       <div>
-        <div className="text-primary text-[10px] font-mono uppercase tracking-widest mb-1">
-          Booking Attribution ({range})
+        <div className="text-primary text-[10px] font-mono mb-1">
+          Booking attribution ({range})
         </div>
-        <h3 className="font-bold text-base text-foreground tracking-wide uppercase">
+        <h3 className="font-bold text-base text-foreground">
           Top Pages by Bookings
         </h3>
         <p className="text-[12px] text-foreground/40 mt-1 max-w-2xl">
           Which pages customers were on when they booked. Web-form bookings
-          only — tire-order and phone bookings carry no page attribution.
+          only: tire-order and phone bookings carry no page attribution.
         </p>
       </div>
 
@@ -687,7 +687,7 @@ function TopBookingPagesPanel({ range }: { range: Range }) {
             {/* Mandatory coverage caption — a thin sample must never read as the whole picture. */}
             <p className="text-[11px] text-foreground/35 mt-3">
               {data.withAttribution.toLocaleString()} of {data.totalBookings.toLocaleString()} bookings
-              in this window carry page attribution — tire-order and phone bookings carry none.
+              in this window carry page attribution: tire-order and phone bookings carry none.
             </p>
           </>
         )}
@@ -739,17 +739,17 @@ function SitemapSubmissionPanel() {
     <div className="space-y-4">
       <div className="flex items-end justify-between flex-wrap gap-3">
         <div>
-          <div className="text-primary text-[10px] font-mono uppercase tracking-widest mb-1">
+          <div className="text-primary text-[10px] font-mono mb-1">
             Search Console
           </div>
-          <h3 className="font-bold text-base text-foreground tracking-wide uppercase">
-            Sitemap Submission
+          <h3 className="font-bold text-base text-foreground">
+            Sitemap submission
           </h3>
           <p className="text-[12px] text-foreground/40 mt-1 max-w-2xl">
             Pings Google to re-crawl the 4 sitemaps. Use after content
             audits, new pages, or when a fresh sitemap-images.xml lands.
             Same JWT-signed service-account flow as the gsc-submit-sitemap
-            CLI script — just no SSH required.
+            CLI script: just no SSH required.
           </p>
         </div>
         <button
@@ -785,11 +785,11 @@ function SitemapSubmissionPanel() {
           <table className="w-full text-[12px]">
             <thead>
               <tr className="border-b border-border/20">
-                <th className="text-left p-3 text-[10px] text-foreground/40 tracking-widest uppercase">Sitemap</th>
-                <th className="text-left p-3 text-[10px] text-foreground/40 tracking-widest uppercase">Last Submitted</th>
-                <th className="text-left p-3 text-[10px] text-foreground/40 tracking-widest uppercase">Last Downloaded</th>
-                <th className="text-left p-3 text-[10px] text-foreground/40 tracking-widest uppercase">Submitted / Indexed</th>
-                <th className="text-left p-3 text-[10px] text-foreground/40 tracking-widest uppercase">State</th>
+                <th className="text-left p-3 text-[10px] text-foreground/40">Sitemap</th>
+                <th className="text-left p-3 text-[10px] text-foreground/40">Last submitted</th>
+                <th className="text-left p-3 text-[10px] text-foreground/40">Last downloaded</th>
+                <th className="text-left p-3 text-[10px] text-foreground/40">Submitted / indexed</th>
+                <th className="text-left p-3 text-[10px] text-foreground/40">State</th>
               </tr>
             </thead>
             <tbody>
@@ -867,11 +867,11 @@ function GscAuditPanel({ range }: { range: Range }) {
     <div className="space-y-4">
       <div className="flex items-end justify-between flex-wrap gap-3">
         <div>
-          <div className="text-primary text-[10px] font-mono uppercase tracking-widest mb-1">
-            Search Console Audit ({range})
+          <div className="text-primary text-[10px] font-mono mb-1">
+            Search Console audit ({range})
           </div>
-          <h3 className="font-bold text-base text-foreground tracking-wide uppercase">
-            Weekly GSC Audit
+          <h3 className="font-bold text-base text-foreground">
+            Weekly GSC audit
           </h3>
           <p className="text-[12px] text-foreground/40 mt-1 max-w-2xl">
             CTR opportunities, ranking drops, cannibalization clusters. Pulled from the
@@ -904,7 +904,7 @@ function GscAuditPanel({ range }: { range: Range }) {
               <div>
                 <div className="flex items-center gap-2 mb-2">
                   <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
-                  <h4 className="text-xs font-bold tracking-wider uppercase text-foreground/70">
+                  <h4 className="text-xs font-bold text-foreground/70">
                     CTR Opportunities ({data.ctrOpportunities.length})
                   </h4>
                 </div>
@@ -930,8 +930,8 @@ function GscAuditPanel({ range }: { range: Range }) {
               <div>
                 <div className="flex items-center gap-2 mb-2">
                   <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
-                  <h4 className="text-xs font-bold tracking-wider uppercase text-foreground/70">
-                    Ranking Drops ({data.rankingDrops.length})
+                  <h4 className="text-xs font-bold text-foreground/70">
+                    Ranking drops ({data.rankingDrops.length})
                   </h4>
                 </div>
                 {data.rankingDrops.length === 0 ? (
@@ -953,7 +953,7 @@ function GscAuditPanel({ range }: { range: Range }) {
               <div>
                 <div className="flex items-center gap-2 mb-2">
                   <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
-                  <h4 className="text-xs font-bold tracking-wider uppercase text-foreground/70">
+                  <h4 className="text-xs font-bold text-foreground/70">
                     Cannibalization ({data.cannibalization.length})
                   </h4>
                 </div>
@@ -963,7 +963,7 @@ function GscAuditPanel({ range }: { range: Range }) {
                   <div className="space-y-1 text-[11px] font-mono">
                     {data.cannibalization.slice(0, 5).map((c: { query: string; pages: { page: string; position: number }[] }, i: number) => (
                       <div key={i} className="py-1 border-b border-border/5 last:border-0">
-                        <div className="text-foreground/70 mb-0.5">{c.query} <span className="text-foreground/30">— {c.pages.length} pages</span></div>
+                        <div className="text-foreground/70 mb-0.5">{c.query} <span className="text-foreground/30">· {c.pages.length} pages</span></div>
                         <div className="text-foreground/40 pl-3 text-[10px] leading-snug">
                           {c.pages.slice(0, 3).map((p, j: number) => (
                             <div key={j}>{p.page} (pos {p.position?.toFixed(1) ?? "—"})</div>

@@ -222,7 +222,7 @@ export default function WalkInCalculatorSection() {
 
       {/* Presets */}
       <div>
-        <div className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold mb-2 flex items-center gap-1">
+        <div className="text-[10px] text-muted-foreground font-bold mb-2 flex items-center gap-1">
           <Zap className="w-3 h-3" /> Quick presets
         </div>
         <div className="flex flex-wrap gap-1.5">
@@ -245,14 +245,14 @@ export default function WalkInCalculatorSection() {
           </button>
         </div>
         <div className="mt-3 p-3 border border-yellow-500/30 bg-yellow-500/5 text-yellow-600 dark:text-yellow-400 text-xs rounded">
-          ⚠️ Note: Oil change presets include base conventional/synthetic oil changes (up to 5 quarts). Extra oil, specialized filters, disposal fees, and Ohio sales tax apply separately. Do NOT add separate labor hours for oil changes or tire flat-rate presets.
+          Note: Oil change presets include base conventional/synthetic oil changes (up to 5 quarts). Extra oil, specialized filters, disposal fees, and Ohio sales tax apply separately. Do NOT add separate labor hours for oil changes or tire flat-rate presets.
         </div>
       </div>
 
       {/* Labor rate + discount */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="border border-border/30 bg-card/50 p-3">
-          <label className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold flex items-center gap-1 mb-2">
+          <label className="text-[10px] text-muted-foreground font-bold flex items-center gap-1 mb-2">
             <Wrench className="w-3 h-3" /> Labor rate ($/hr)
           </label>
           <input
@@ -266,7 +266,7 @@ export default function WalkInCalculatorSection() {
           />
         </div>
         <div className="border border-border/30 bg-card/50 p-3">
-          <label className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold flex items-center gap-1 mb-2">
+          <label className="text-[10px] text-muted-foreground font-bold flex items-center gap-1 mb-2">
             <Percent className="w-3 h-3" /> Discount % (applied to total)
           </label>
           <input
@@ -317,7 +317,7 @@ export default function WalkInCalculatorSection() {
               {/* Inputs grid */}
               <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
                 <div>
-                  <label className="text-[9px] uppercase tracking-widest text-muted-foreground block mb-1">
+                  <label className="text-[9px] text-muted-foreground block mb-1">
                     Parts cost (cents)
                   </label>
                   <input
@@ -330,7 +330,7 @@ export default function WalkInCalculatorSection() {
                   />
                 </div>
                 <div>
-                  <label className="text-[9px] uppercase tracking-widest text-muted-foreground block mb-1">
+                  <label className="text-[9px] text-muted-foreground block mb-1">
                     Markup ×
                   </label>
                   <input
@@ -344,7 +344,7 @@ export default function WalkInCalculatorSection() {
                   />
                 </div>
                 <div>
-                  <label className="text-[9px] uppercase tracking-widest text-muted-foreground block mb-1">
+                  <label className="text-[9px] text-muted-foreground block mb-1">
                     Labor hrs
                   </label>
                   <input
@@ -372,7 +372,7 @@ export default function WalkInCalculatorSection() {
                 (line.description.toLowerCase().includes("oil change") ||
                  line.description.toLowerCase().includes("used tire")) && (
                   <div className="mt-2 text-[10px] font-bold text-red-400 flex items-center gap-1 bg-red-500/5 border border-red-500/20 p-2 rounded">
-                    ⚠️ Flat-rate item: Adding labor hours will double-charge labor!
+                    Flat-rate item: Adding labor hours will double-charge labor!
                   </div>
                 )}
             </div>
@@ -382,24 +382,24 @@ export default function WalkInCalculatorSection() {
 
       {/* Totals */}
       {items.length > 0 && (
-        <div className="sticky bottom-0 border border-primary/30 bg-gradient-to-br from-[#0a0a0a] to-[#1a1a1a] p-4 shadow-xl">
+        <div className="sticky bottom-[calc(56px+env(safe-area-inset-bottom,0px))] lg:bottom-0 border border-primary/30 bg-gradient-to-br from-[#0a0a0a] to-[#1a1a1a] p-4 shadow-xl">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
             <div>
-              <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Subtotal</div>
+              <div className="text-[10px] text-muted-foreground">Subtotal</div>
               <div className="font-mono font-bold text-foreground">{formatCents(totals.subtotalCents)}</div>
             </div>
             <div>
-              <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Tax (parts, 8%)</div>
+              <div className="text-[10px] text-muted-foreground">Tax (parts, 8%)</div>
               <div className="font-mono font-bold text-foreground">{formatCents(totals.taxCents)}</div>
             </div>
             {totals.discountCents > 0 && (
               <div>
-                <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Discount</div>
+                <div className="text-[10px] text-muted-foreground">Discount</div>
                 <div className="font-mono font-bold text-amber-400">-{formatCents(totals.discountCents)}</div>
               </div>
             )}
             <div>
-              <div className="text-[10px] uppercase tracking-widest text-primary">Customer pays</div>
+              <div className="text-[10px] text-primary">Customer pays</div>
               <div className="font-mono font-black text-2xl text-primary">
                 {formatCents(totals.totalCents)}
               </div>
@@ -407,15 +407,15 @@ export default function WalkInCalculatorSection() {
           </div>
           <div className="mt-3 pt-3 border-t border-white/10 grid grid-cols-3 gap-4 text-xs">
             <div>
-              <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Parts cost (to shop)</div>
+              <div className="text-[10px] text-muted-foreground">Parts cost (to shop)</div>
               <div className="font-mono text-muted-foreground">{formatCents(totals.totalPartsCost)}</div>
             </div>
             <div>
-              <div className="text-[10px] uppercase tracking-widest text-emerald-400">Gross margin</div>
+              <div className="text-[10px] text-emerald-400">Gross margin</div>
               <div className="font-mono font-bold text-emerald-400">{formatCents(totals.totalMargin)}</div>
             </div>
             <div>
-              <div className="text-[10px] uppercase tracking-widest text-emerald-400">Margin %</div>
+              <div className="text-[10px] text-emerald-400">Margin %</div>
               <div className="font-mono font-bold text-emerald-400">
                 {totals.marginPct.toFixed(1)}%
               </div>

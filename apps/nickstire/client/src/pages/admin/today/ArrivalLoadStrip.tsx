@@ -144,7 +144,7 @@ export default function ArrivalLoadStrip({
 
       {arrivalsQuery.isError ? (
         <p className="mt-2 text-xs text-amber-400">
-          Expected-arrivals board unreadable — treat today&apos;s load as unknown, not empty.
+          Expected-arrivals board unreadable: treat today&apos;s load as unknown, not empty.
         </p>
       ) : !arrivalsQuery.data ? (
         <p className="mt-2 text-xs text-muted-foreground">Loading expected arrivals…</p>
@@ -171,7 +171,7 @@ export default function ArrivalLoadStrip({
 
       {demandQuery.isError ? (
         <p className="mt-2 text-xs text-amber-400">
-          Phone tire requests unreadable — unknown, not zero.
+          Phone tire requests unreadable: unknown, not zero.
         </p>
       ) : demand && demandText ? (
         <div className="mt-2 flex items-start gap-2 text-xs">
@@ -193,7 +193,7 @@ export default function ArrivalLoadStrip({
             {tomorrowBookings.length === 1 ? "" : "s"} on the board
           </span>
         ) : (
-          <span className="text-amber-400">Tomorrow&apos;s booking load unreadable — unknown, not zero.</span>
+          <span className="text-amber-400">Tomorrow&apos;s booking load unreadable: unknown, not zero.</span>
         )}
       </div>
     </section>

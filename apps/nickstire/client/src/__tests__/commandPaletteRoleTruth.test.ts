@@ -1,7 +1,7 @@
 /**
  * commandPaletteRoleTruth.test.ts · 2026-08-04
  *
- * The command palette (⌘K on desktop, the floating Zap sheet on the phone)
+ * The command palette (⌘K on desktop, the Search slot of the phone bar)
  * must derive its offering from the registry's role data. Admin.tsx has
  * always gated `onNavigate` with `allowedSections`, but the palette listed
  * every section and every navigating quick action regardless of role — so a

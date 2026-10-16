@@ -204,7 +204,7 @@ export default function ReviewRequestsSection() {
       />
       {statsUnknown && (
         <div className="border border-amber-500/40 bg-amber-500/10 p-4 text-[13px] text-amber-400">
-          <strong>Review request stats could not be read.</strong> The tiles below are unknown — NOT zero. Nothing here means no request is pending and nothing has failed.
+          <strong>Review request stats could not be read.</strong> The tiles below are unknown: NOT zero. Nothing here means no request is pending and nothing has failed.
         </div>
       )}
       {/* Stats Row */}
@@ -290,7 +290,7 @@ export default function ReviewRequestsSection() {
                 const ok = await confirmDialog({
                   title: `Process the review-request queue?`,
                   message: due === null
-                    ? `This runs ALL scheduled review requests that are due. The queue could NOT be read just now, so how many are due is UNKNOWN — it is not zero, and it may be a full batch. Each fires a real outbound SMS via F25e. Sends respect quiet-hours + opt-out + daily rate limit.`
+                    ? `This runs ALL scheduled review requests that are due. The queue could NOT be read just now, so how many are due is UNKNOWN: it is not zero, and it may be a full batch. Each fires a real outbound SMS via F25e. Sends respect quiet-hours + opt-out + daily rate limit.`
                     : `This runs ALL scheduled review requests that are due (currently ~${due} due now). Each fires a real outbound SMS via F25e. Sends respect quiet-hours + opt-out + daily rate limit.`,
                   confirmLabel: "Process queue",
                   cancelLabel: "Cancel",
@@ -313,7 +313,7 @@ export default function ReviewRequestsSection() {
             </div>
           ) : requestsUnknown ? (
             <div className="border border-amber-500/40 bg-amber-500/10 p-4 text-[13px] text-amber-400">
-              <strong>The review-request queue could not be read.</strong> This is unknown — NOT empty. Nothing here means no customer is waiting on a review text. {requestsErrorObj?.message}
+              <strong>The review-request queue could not be read.</strong> This is unknown: NOT empty. Nothing here means no customer is waiting on a review text. {requestsErrorObj?.message}
             </div>
           ) : !requests?.length ? (
             <div className="text-center py-12 text-foreground/40">
@@ -398,7 +398,7 @@ export default function ReviewRequestsSection() {
           ) : settingsUnknown ? (
             <div className="border border-amber-500/40 bg-amber-500/10 p-4 text-[13px] text-amber-400 space-y-2">
               <p>
-                <strong>Review settings have not been read.</strong> They are unknown — the form is hidden rather than
+                <strong>Review settings have not been read.</strong> They are unknown: the form is hidden rather than
                 showing defaults, because saving invented values would overwrite your real stored settings, including
                 whether review texts are enabled at all. Nothing here is changed until this reads again.
               </p>
@@ -411,7 +411,7 @@ export default function ReviewRequestsSection() {
                   new false statement in place of the one being removed. */}
               <p className="text-amber-400/80">
                 {settingsError
-                  ? `The server could not read them, so the send loop cannot either — no review texts are going out while this persists. ${settingsErrorObj?.message ?? ""}`
+                  ? `The server could not read them, so the send loop cannot either: no review texts are going out while this persists. ${settingsErrorObj?.message ?? ""}`
                   : "This device has not reached the server. The shop's automation is unaffected and is still running on its stored settings."}
               </p>
             </div>
@@ -420,7 +420,7 @@ export default function ReviewRequestsSection() {
               {/* Enable/Disable Toggle */}
               <div className="flex items-center justify-between p-4 bg-card border border-border/30">
                 <div>
-                  <div className="font-bold text-foreground tracking-wider text-sm uppercase">Auto Review Requests</div>
+                  <div className="font-bold text-foreground text-sm">Auto review requests</div>
                   <div className="text-[12px] text-foreground/50 mt-1">Automatically send review request SMS after service completion</div>
                 </div>
                 <button
@@ -544,8 +544,8 @@ export default function ReviewRequestsSection() {
                 <Zap className="w-6 h-6 text-primary" />
               </div>
               <div className="flex-1">
-                <h3 className="font-bold text-foreground tracking-wider text-lg uppercase">
-                  Backfill Review Requests
+                <h3 className="font-bold text-foreground text-lg">
+                  Backfill review requests
                 </h3>
                 <p className="text-foreground/60 text-sm mt-2 leading-relaxed">
                   Send review request texts to all customers from the past year who completed service but were never asked for a review.
@@ -652,7 +652,7 @@ export default function ReviewRequestsSection() {
                 <div className="border border-amber-500/40 bg-amber-500/10 p-4 text-[13px] text-amber-400 space-y-2">
                   <p>
                     <strong>Backfill eligibility could not be read.</strong> How many past customers were never asked for a
-                    review is unknown — not zero.
+                    review is unknown, not zero.
                   </p>
                   {/* Said outright, because hiding a button can imply the same
                       thing the green checkmark used to say. The button is absent
@@ -676,7 +676,7 @@ export default function ReviewRequestsSection() {
                       its PRESENT that the code cannot support. */}
                   <p className="text-amber-400/80">
                     {backfillError
-                      ? `The server could not read it, so the backfill list cannot be built — nothing can be sent from this tab while this persists. ${backfillErrorObj?.message ?? ""}`
+                      ? `The server could not read it, so the backfill list cannot be built: nothing can be sent from this tab while this persists. ${backfillErrorObj?.message ?? ""}`
                       : "This device has not reached the server. The shop's automation is unaffected and is still running on its stored settings."}
                   </p>
                 </div>
@@ -789,8 +789,8 @@ function ProofBankPanel() {
       {/* Live Google Reviews — real social proof (read-only · trpc.reviews.google) */}
       <div className="stat-card !p-5">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-xs font-semibold text-muted-foreground tracking-wide uppercase flex items-center gap-2">
-            <Star className="w-3.5 h-3.5 text-amber-400" /> Live Google Reviews
+          <h3 className="text-xs font-semibold text-muted-foreground flex items-center gap-2">
+            <Star className="w-3.5 h-3.5 text-amber-400" /> Live Google reviews
           </h3>
           <span className="text-[10px] text-muted-foreground">real-time social proof</span>
         </div>
@@ -811,17 +811,17 @@ function ProofBankPanel() {
             </div>
             {googleData.reviews?.[0] && (
               <div className="mt-4 border-t border-border/20 pt-3">
-                <div className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Latest review</div>
+                <div className="text-[10px] text-muted-foreground mb-1">Latest review</div>
                 <p className="text-sm text-foreground/80 italic">
                   "{googleData.reviews[0].text.length > 220 ? `${googleData.reviews[0].text.slice(0, 220)}…` : googleData.reviews[0].text}"
                 </p>
                 <div className="text-[11px] text-muted-foreground mt-1">
-                  — {googleData.reviews[0].authorName} · {"★".repeat(Math.max(0, Math.min(5, Math.round(googleData.reviews[0].rating))))} · {googleData.reviews[0].relativeTime}
+                  {googleData.reviews[0].authorName} · {"★".repeat(Math.max(0, Math.min(5, Math.round(googleData.reviews[0].rating))))} · {googleData.reviews[0].relativeTime}
                 </div>
               </div>
             )}
             <p className="text-[11px] text-primary/80 mt-3">
-              Next move: turn every completed job into a review ask — the Review Requests tab grows this number.
+              Next move: turn every completed job into a review ask, the Review Requests tab grows this number.
             </p>
           </>
         )}
@@ -837,7 +837,7 @@ function ProofBankPanel() {
 
       {/* Objection Coverage Bar */}
       <div className="stat-card !p-5">
-        <h3 className="text-xs font-semibold text-muted-foreground tracking-wide uppercase mb-3">Objection Coverage</h3>
+        <h3 className="text-xs font-semibold text-muted-foreground mb-3">Objection coverage</h3>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {Object.entries(objectionCounts).sort((a, b) => b[1] - a[1]).map(([obj, count]) => (
             <button
@@ -918,7 +918,7 @@ function ProofBankPanel() {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-foreground leading-relaxed italic">"{quote.text}"</p>
                   <div className="flex items-center gap-2 mt-2 flex-wrap">
-                    <span className="text-[12px] font-medium text-foreground/70">— {quote.author}</span>
+                    <span className="text-[12px] font-medium text-foreground/70">{quote.author}</span>
                     {quote.badge && (
                       <span className="text-[9px] font-semibold tracking-wider px-1.5 py-0.5 rounded bg-primary/10 text-primary">
                         {quote.badge}

@@ -36,7 +36,7 @@ function getMonthSeason(): string {
 
 const SEASONAL_TOPICS: Record<string, ContentIdea[]> = {
   spring: [
-    { topic: "Spring Tire Changeover: When to Switch from Winter Tires", reason: "Peak season for tire swaps — captures search intent", impact: "high", source: "seasonal" },
+    { topic: "Spring Tire Changeover: When to Switch from Winter Tires", reason: "Peak season for tire swaps: captures search intent", impact: "high", source: "seasonal" },
     { topic: "Pothole Season: How to Check for Suspension Damage", reason: "Cleveland roads + spring thaw = pothole damage surge", impact: "high", source: "seasonal" },
     { topic: "Spring Car Maintenance Checklist for Cleveland Drivers", reason: "Seasonal maintenance list drives appointment bookings", impact: "medium", source: "seasonal" },
   ],
@@ -51,7 +51,7 @@ const SEASONAL_TOPICS: Record<string, ContentIdea[]> = {
     { topic: "Brake Inspection Before Winter: What to Look For", reason: "Safety-focused content builds trust and bookings", impact: "medium", source: "seasonal" },
   ],
   winter: [
-    { topic: "Dead Battery in the Cold? Here's What to Do", reason: "Battery failures spike below 20F — high search volume", impact: "high", source: "seasonal" },
+    { topic: "Dead Battery in the Cold? Here's What to Do", reason: "Battery failures spike below 20F: high search volume", impact: "high", source: "seasonal" },
     { topic: "Best Winter Tires for Cleveland Snow and Ice", reason: "Tire purchase intent peaks early winter", impact: "high", source: "seasonal" },
     { topic: "How to Handle a Flat Tire in Winter Safely", reason: "Emergency content drives brand trust", impact: "medium", source: "seasonal" },
   ],
@@ -118,7 +118,7 @@ export function AIIdeasEngine() {
     if (question) {
       ideas.push({
         topic: `Answer: "${question}"`,
-        reason: "Customers are asking this — article captures search + builds FAQ authority",
+        reason: "Customers are asking this: article captures search + builds FAQ authority",
         impact: "high",
         source: "trending",
       });
@@ -131,7 +131,7 @@ export function AIIdeasEngine() {
     if (topic) {
       ideas.push({
         topic,
-        reason: "Competitors rank for this — we don't. Content fills the gap.",
+        reason: "Competitors rank for this: we don't. Content fills the gap.",
         impact: "high",
         source: "competitor",
       });

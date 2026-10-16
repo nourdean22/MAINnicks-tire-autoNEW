@@ -224,7 +224,7 @@ export default function DraftBoardPanel({ onNavigate }: { onNavigate?: (view: "c
         <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-300">
           <strong>Could not read drafts.</strong>
           <div className="mt-1 text-xs text-amber-200/70">
-            This board is showing UNKNOWN, not empty — do not treat it as a clean slate. {readFailure}
+            This board is showing UNKNOWN, not empty: do not treat it as a clean slate. {readFailure}
           </div>
         </div>
       )}
@@ -252,19 +252,19 @@ export default function DraftBoardPanel({ onNavigate }: { onNavigate?: (view: "c
           <div className="flex bg-background border border-border/40 rounded p-0.5">
             <button
               onClick={() => setTypeFilter("all")}
-              className={`px-2 py-1.5 rounded text-[10px] font-bold uppercase transition-all ${typeFilter === "all" ? "bg-primary/15 text-primary" : "text-foreground/40"}`}
+              className={`px-2 py-1.5 rounded text-[10px] font-bold transition-all ${typeFilter === "all" ? "bg-primary/15 text-primary" : "text-foreground/40"}`}
             >
               All
             </button>
             <button
               onClick={() => setTypeFilter("carousel")}
-              className={`px-2 py-1.5 rounded text-[10px] font-bold uppercase transition-all ${typeFilter === "carousel" ? "bg-primary/15 text-primary" : "text-foreground/40"}`}
+              className={`px-2 py-1.5 rounded text-[10px] font-bold transition-all ${typeFilter === "carousel" ? "bg-primary/15 text-primary" : "text-foreground/40"}`}
             >
               Carousels
             </button>
             <button
               onClick={() => setTypeFilter("reel")}
-              className={`px-2 py-1.5 rounded text-[10px] font-bold uppercase transition-all ${typeFilter === "reel" ? "bg-primary/15 text-primary" : "text-foreground/40"}`}
+              className={`px-2 py-1.5 rounded text-[10px] font-bold transition-all ${typeFilter === "reel" ? "bg-primary/15 text-primary" : "text-foreground/40"}`}
             >
               Reels
             </button>
@@ -320,7 +320,7 @@ export default function DraftBoardPanel({ onNavigate }: { onNavigate?: (view: "c
           <p className="font-bold text-base text-foreground/40 tracking-wider">NO CONTENT DRAFTS YET</p>
           <p className="text-foreground/30 text-xs max-w-sm mx-auto leading-relaxed">
             Generate a carousel or reel in Studio and save it as a draft to begin your publishing schedule.
-            This board is for planning and editing — approving and publishing happen in the Queue tab.
+            This board is for planning and editing: approving and publishing happen in the Queue tab.
           </p>
         </div>
       ) : view === "board" ? (
@@ -331,7 +331,7 @@ export default function DraftBoardPanel({ onNavigate }: { onNavigate?: (view: "c
             return (
               <div key={col.id} className="space-y-3 bg-card/25 border border-border/20 rounded-lg p-3 min-h-[400px]">
                 <div className="flex items-center justify-between border-b border-border/20 pb-2 mb-2">
-                  <h4 className="font-bold text-xs tracking-wider text-foreground/60 uppercase">{col.label}</h4>
+                  <h4 className="font-bold text-xs text-foreground/60">{col.label}</h4>
                   <span className="text-[10px] font-bold bg-foreground/5 px-2 py-0.5 rounded text-foreground/40">{list.length}</span>
                 </div>
                 <div className="space-y-3 max-h-[600px] overflow-y-auto pr-1">
@@ -360,7 +360,7 @@ export default function DraftBoardPanel({ onNavigate }: { onNavigate?: (view: "c
         /* Calendar View */
         <div className="space-y-6 bg-card/15 border border-border/20 rounded-lg p-5">
           <div className="border-b border-border/20 pb-3">
-            <h3 className="font-bold text-sm tracking-wide text-foreground uppercase">Scheduled Posts Calendar</h3>
+            <h3 className="font-bold text-sm text-foreground">Scheduled posts calendar</h3>
             <p className="text-[11px] text-foreground/50 mt-0.5">Manage and organize your publishing schedule below.</p>
           </div>
 
@@ -374,7 +374,7 @@ export default function DraftBoardPanel({ onNavigate }: { onNavigate?: (view: "c
               });
               return (
                 <div key={date} className="space-y-3">
-                  <h4 className="font-bold text-xs text-primary tracking-wider border-l-2 border-primary pl-2 uppercase">
+                  <h4 className="font-bold text-xs text-primary border-l-2 border-primary pl-2">
                     {formattedDate} <span className="text-[10px] text-foreground/40 font-mono ml-2">({list.length} scheduled)</span>
                   </h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -398,8 +398,8 @@ export default function DraftBoardPanel({ onNavigate }: { onNavigate?: (view: "c
             {/* Unscheduled Column */}
             {groupedByDate.noDate.length > 0 && (
               <div className="space-y-3 pt-4 border-t border-border/10">
-                <h4 className="font-bold text-xs text-amber-500 tracking-wider border-l-2 border-amber-500 pl-2 uppercase">
-                  UNSCHEDULED DRAFTS <span className="text-[10px] text-foreground/40 font-mono ml-2">({groupedByDate.noDate.length} items)</span>
+                <h4 className="font-bold text-xs text-amber-500 border-l-2 border-amber-500 pl-2">
+                  Unscheduled drafts <span className="text-[10px] text-foreground/40 font-mono ml-2">({groupedByDate.noDate.length} items)</span>
                 </h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {groupedByDate.noDate.map((d) => (

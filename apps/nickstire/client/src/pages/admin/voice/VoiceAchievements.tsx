@@ -29,7 +29,7 @@ export function VoiceAchievements() {
   if (isLoading || !stats) {
     return (
       <div className="bg-card border border-border/40 p-4">
-        <div className="text-[11px] font-bold tracking-[0.18em] uppercase text-foreground/30 animate-pulse">
+        <div className="text-[11px] font-bold text-foreground/30 animate-pulse">
           Loading achievements dashboard…
         </div>
       </div>
@@ -178,7 +178,7 @@ export function VoiceAchievements() {
               />
             </svg>
             <div className="absolute flex flex-col items-center justify-center text-center">
-              <span className="text-[10px] tracking-widest text-foreground/40 font-bold uppercase">LVL</span>
+              <span className="text-[10px] text-foreground/40 font-bold">LVL</span>
               <span className="text-xl font-black text-foreground -mt-1 leading-none">{currentLevel}</span>
             </div>
           </div>
@@ -187,8 +187,8 @@ export function VoiceAchievements() {
           <div className="flex-1 w-full space-y-2 text-center sm:text-left">
             <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-1">
               <div>
-                <h4 className="font-extrabold text-sm text-foreground uppercase tracking-wide flex items-center justify-center sm:justify-start gap-1">
-                  Nick AI Receptionist <Sparkles className="w-3.5 h-3.5 text-amber-400 fill-amber-400/20" />
+                <h4 className="font-extrabold text-sm text-foreground flex items-center justify-center sm:justify-start gap-1">
+                  Nick AI receptionist <Sparkles className="w-3.5 h-3.5 text-amber-400 fill-amber-400/20" />
                 </h4>
                 <p className="text-foreground/50 text-[11px] mt-0.5">
                   XP increments on every inbound/outbound call handled. Level up every 20 calls.
@@ -216,7 +216,7 @@ export function VoiceAchievements() {
               <Flame className="w-5 h-5 fill-amber-400/20" />
             </div>
             <div className="flex-1 min-w-0">
-              <span className="text-[11px] font-bold tracking-widest uppercase text-amber-400/80">Active Hot Streak</span>
+              <span className="text-[11px] font-bold text-amber-400/80">Active hot streak</span>
               <p className="text-sm font-semibold text-foreground/90 mt-0.5">
                 Nick is on a <span className="text-amber-400 font-extrabold">{stats.streak}-call</span> perfect streak! Sentiment scores holding above 70.
               </p>
@@ -226,7 +226,7 @@ export function VoiceAchievements() {
 
         {/* Achievements Milestone grid */}
         <div className="space-y-2.5">
-          <p className="text-[10px] font-bold tracking-[0.15em] uppercase text-foreground/50">Operational Milestones</p>
+          <p className="text-[10px] font-bold text-foreground/50">Operational milestones</p>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
             {badges.map((b, idx) => {
               const val = badgeValues[idx];

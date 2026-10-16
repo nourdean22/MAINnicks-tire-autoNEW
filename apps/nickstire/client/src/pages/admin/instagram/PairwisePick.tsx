@@ -53,7 +53,7 @@ export function PairwisePick() {
         ) : next.isError || !data ? (
           <div role="alert" className="flex gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-            <span>Could not load a pair — this is <strong>unknown</strong>, not empty.{next.error?.message ? ` (${next.error.message})` : ""}</span>
+            <span>Could not load a pair: this is <strong>unknown</strong>, not empty.{next.error?.message ? ` (${next.error.message})` : ""}</span>
           </div>
         ) : !data.available ? (
           <div role="alert" className="flex gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs">
@@ -62,7 +62,7 @@ export function PairwisePick() {
           </div>
         ) : !pair ? (
           <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-            Nothing left to compare — every recent judged post has been paired ({data.candidates} in the last 30 days).
+            Nothing left to compare: every recent judged post has been paired ({data.candidates} in the last 30 days).
           </p>
         ) : (
           <>

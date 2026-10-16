@@ -82,7 +82,7 @@ export default function CouponsSection() {
       } else if (msg.includes("expired") || msg.includes("EXPIRED")) {
         toast.error("Coupon has expired.");
       } else if (msg.includes("cap") || msg.includes("CAP") || msg.includes("fully") || msg.includes("claimed")) {
-        toast.error("Redemption cap reached — offer is fully claimed.");
+        toast.error("Redemption cap reached: offer is fully claimed.");
       } else if (msg.includes("not found") || msg.includes("NOT_FOUND")) {
         toast.error("Coupon not found.");
       } else {
