@@ -328,14 +328,9 @@ function EmptyMissions() {
         Missions group your tasks toward a goal. Type a mission name in the input
         above (or ask Nick to suggest one) and tasks start flowing into it.
       </p>
-      {/* Clear the fixed capture FAB, which lives in the bottom-left corner
-          and covered this button by 22x28px (floating-collision spec).
-          THE BREAKPOINT IS NOT A GUESS: the FAB is `lg:hidden` (omni-capture-
-          modal.tsx), so the lane it occupies exists at every width below
-          1024px. The first cut of this fix reset at `sm` (640px) and the spec
-          went red again at 768px, where the FAB is still on screen. If the
-          FAB's own breakpoint ever moves, this one moves with it. */}
-      <div className="mt-5 ml-16 lg:ml-0">
+      {/* W2: the capture FAB is gone, so nothing covers this button and it
+          needs no left offset (the ml-16 lg:ml-0 that cleared it is deleted). */}
+      <div className="mt-5">
         <button
           type="button"
           onClick={handleAskNick}

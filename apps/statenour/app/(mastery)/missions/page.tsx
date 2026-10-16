@@ -224,6 +224,8 @@ function MissionsPageInner() {
     missionsData: missionsQuery.data,
     tasksErrored: tasksQuery.isError,
     missionsErrored: missionsQuery.isError,
+    tasksLoading: tasksQuery.isLoading,
+    missionsLoading: missionsQuery.isLoading,
   });
 
   const openBoardCount = boardTasks.filter((t) => t.status !== "DONE" && t.status !== "ARCHIVED").length;
@@ -235,10 +237,6 @@ function MissionsPageInner() {
         eyebrow="Execution Deck"
         title="Missions"
         description="The work that needs you."
-        // shortcut: the description stays visible at every width until W2 lands the Missions hero. Without
-        // this line the 390 render scored 0.342 against the v2 distance gate (CI runs 38834210402 and
-        // 38836221412); the md-up default hides it below 768 px, which is where the gate measures.
-        descriptionVisibility="always"
         width="workspace"
         rhythm="workspace"
         className="w-full"
@@ -325,6 +323,32 @@ function MissionsPageInner() {
             {/* 2 · readiness — dark cockpit, speaks only on exception */}
             {deck && <DeckReadinessLine readiness={deck.readiness} />}
 
+            {/* W2 (2026-10-16): the deck's two mode controls sit in one compact strip under the hero,
+                so the capture row below is the page's one capture control. 44px targets. */}
+            <div className="flex flex-wrap items-center gap-2 border-b border-edge pb-4" aria-label="deck controls">
+              <button
+                type="button"
+                onClick={() => {
+                  setExecutionModeActive(true);
+                  telemetry.event("executionModeOpen", { source: "button" });
+                }}
+                className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
+              >
+                Focus
+              </button>
+              <button
+                type="button"
+                onClick={() => filters.setShowFilters((v) => !v)}
+                aria-expanded={filters.showFilters}
+                className={cn(
+                  "inline-flex min-h-[44px] items-center gap-1.5 rounded-control border px-4 text-[13px] font-medium transition-colors duration-[var(--motion-state)]",
+                  filters.showFilters ? "border-edge-strong bg-surface-interactive text-fg" : "border-edge-default text-fg-secondary hover:border-edge-strong hover:text-fg"
+                )}
+              >
+                {filters.showFilters ? "Close filters" : "Filters"}
+              </button>
+            </div>
+
           <div className="space-y-10 xl:grid xl:grid-cols-[minmax(0,1fr)_24rem] xl:items-start xl:gap-12 xl:space-y-0" data-missions-layout="deck">
           <div className="min-w-0 space-y-10" data-missions-column="deck">
             {/* 3 · DECIDE — the airlock */}
@@ -344,47 +368,26 @@ function MissionsPageInner() {
                 <h2 id="capture-heading" className="vt-eyebrow text-fg-secondary">
                   capture
                 </h2>
-                <span className="hidden font-mono text-[11px] text-fg-tertiary sm:block">
-                  lands in decide · nothing is scheduled for today
-                </span>
+                {/* W2: "New mission" folds into the capture row as its secondary action; the quick-add
+                    input is the one capture control (the FAB and the button row are gone). */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    openMissionEdit(null, undefined);
+                    telemetry.event("createMissionOpen", { source: "button" });
+                  }}
+                  className="inline-flex min-h-[44px] items-center rounded-control px-2 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:text-fg"
+                >
+                  New mission
+                </button>
               </div>
               <div className="mt-1">
                 <MissionsQuickAdd onSubmit={actions.handleQuickAdd} busy={actions.submitting} />
               </div>
+              <p className="mt-2 font-mono text-[11px] text-fg-tertiary">
+                lands in decide · nothing is scheduled for today
+              </p>
             </section>
-
-            <div className="flex flex-wrap items-center gap-2" aria-label="mission actions">
-              <button
-                type="button"
-                onClick={() => {
-                  openMissionEdit(null, undefined);
-                  telemetry.event("createMissionOpen", { source: "button" });
-                }}
-                className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
-              >
-                + New mission
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setExecutionModeActive(true);
-                  telemetry.event("executionModeOpen", { source: "button" });
-                }}
-                className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
-              >
-                Focus
-              </button>
-              <button
-                type="button"
-                onClick={() => filters.setShowFilters((v) => !v)}
-                className={cn(
-                  "inline-flex min-h-[44px] items-center gap-1.5 rounded-control border px-4 text-[13px] font-medium transition-colors duration-[var(--motion-state)]",
-                  filters.showFilters ? "border-edge-strong bg-surface-interactive text-fg" : "border-edge-default text-fg-secondary hover:border-edge-strong hover:text-fg"
-                )}
-              >
-                {filters.showFilters ? "Close filters" : "Filters"}
-              </button>
-            </div>
 
             {filters.showFilters && (
               <TaskFilters
@@ -444,6 +447,14 @@ function MissionsPageInner() {
                 <p className="border-l-2 border-rose-500/60 py-1 pl-4 text-[13px] text-rose-300/90">
                   Board unreadable — reads failed. State unknown, not empty.
                 </p>
+              ) : boardReadState === "loading" ? (
+                // W2: a board that has not answered yet is loading, not empty (the first fetch used
+                // to render "no active missions"). Three row-height shimmers, no text claim.
+                <div className="space-y-2" aria-busy aria-label="loading the board">
+                  <ShimmerSkeleton className="h-12 rounded-surface" />
+                  <ShimmerSkeleton className="h-12 rounded-surface" />
+                  <ShimmerSkeleton className="h-12 rounded-surface" />
+                </div>
               ) : (
                 <>
                   {boardReadState === "stale" && (
