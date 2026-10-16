@@ -72,6 +72,14 @@ export function HomeConsole() {
           </p>
         )}
 
+        {/* UI v3 W2: Nick sits right under the verdict, above the brief, so "ask Nick" stays in the
+            first screen at 390 and 1440 (the brief's seven rows would otherwise push it below the fold).
+            The PLAN's W2 row lists only the verdict and the brief; this is the order that keeps the
+            five phone jobs in reach. */}
+        <section aria-label="Nick" className="mt-8">
+          <NickCommandLine />
+        </section>
+
         {unreadable ? (
           <section aria-label="brief unreadable" className="mt-10 border-l-2 border-rose-500/60 pl-5 sm:pl-6">
             <h2 className="vt-eyebrow text-rose-300">The brief couldn&apos;t be built</h2>
@@ -91,10 +99,6 @@ export function HomeConsole() {
           // at most seven ruled rows, Keep / Less per row (device-local), approvals in place.
           <BriefRows brief={brief} loading={briefQ.isLoading} />
         )}
-
-        <section aria-label="Nick" className="mt-12">
-          <NickCommandLine />
-        </section>
       </div>
 
       {/* Section 5.4 (2026-09-08): at >=1280px the horizon and the change line form a context rail
