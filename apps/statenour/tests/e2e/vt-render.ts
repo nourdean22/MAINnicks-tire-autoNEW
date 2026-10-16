@@ -37,10 +37,22 @@ export const VT_CONTEXT = { locale: "en-US", timezoneId: "America/New_York" } as
  */
 export const IGNORED_PAGE_ERRORS = /hydration/i;
 
-/** Wave 0b covers Home and Missions only; Chat, Brain, People and System come later. */
-export const V3_PAGES: { key: string; path: string; landmark: string }[] = [
+/**
+ * Wave 0b covered Home and Missions; W3a adds Chat; Brain, People and System come later.
+ *
+ * `baselinePending`: the page renders from fixtures on every run (anchor, error
+ * states, unstubbed reads all gate), but its frozen baseline has not been
+ * captured yet, so a MISSING PNG skips the distance comparison with a reason
+ * instead of failing (baselineSkipReason in ./v3-gate.ts). Chat is pending
+ * until the manager captures its pre-W3 baseline from main after W3a merges;
+ * W3b removes the flag in the same commit that adds the PNGs, and
+ * tests/repo/v3-gate.test.ts fails if a flagged page already has them.
+ */
+export const V3_PAGES: { key: string; path: string; landmark: string; baselinePending?: boolean }[] = [
   { key: "home", path: "/", landmark: "main" },
   { key: "missions", path: "/missions", landmark: "main" },
+  // ?h=1 opens the History drawer, the only way a conversation loads (openChatHistory above).
+  { key: "chat", path: "/chat?h=1", landmark: "main", baselinePending: true },
 ];
 
 export const V3_VIEWPORTS = [
@@ -53,6 +65,50 @@ export interface RenderAnchor {
   anchorText: string;
   /** The page's own error states; none may be on screen before the capture. */
   errorPattern: RegExp;
+  /** A step the page needs before its anchor can appear (Chat: pick the seeded conversation). Runs once the page has loaded. */
+  open?: (page: Page) => Promise<void>;
+  /** A step that waits for the page's own settling work, after the anchor and the error check (Chat: the island's height and the jump button). */
+  settle?: (page: Page) => Promise<void>;
+}
+
+/**
+ * Chat opens on an empty composer: it never loads a conversation by itself
+ * ("no auto-resume, user picks from history", hooks/use-conversations.ts).
+ * `/chat?h=1` opens the History drawer once React has hydrated
+ * (use-chat-deep-link-prefill.ts), so the title being visible also means the
+ * click handlers are attached. Picking the row loads the conversation and
+ * closes the drawer.
+ */
+export async function openChatHistory(page: Page, title: string): Promise<void> {
+  const row = page.getByText(title).first();
+  await expect(row, "chat: the seeded conversation never reached the History drawer").toBeVisible({ timeout: 60_000 });
+  await row.click();
+  await expect(page.getByRole("button", { name: "Close history" }), "chat: the History drawer never closed after the pick").toHaveCount(0);
+}
+
+/**
+ * What Chat does after its content lands, that a capture must not race:
+ * the header pill reads a MEASURED state ("ready"), the jump-to-latest button
+ * is not on screen (it shows while the list is mid-scroll to the newest
+ * message), and the island's height has stopped moving (the visualViewport
+ * sync and the shell's measured bottom reservation both resize it after
+ * mount, chat-island.tsx). Three equal reads 250ms apart is the stop.
+ */
+export async function settleChat(page: Page): Promise<void> {
+  await expect(page.getByRole("link", { name: "ready", exact: true }), "chat: the header pill never reached a measured state").toBeVisible({ timeout: 30_000 });
+  const island = page.locator("[data-chat-shell] > div").first();
+  const reads: number[] = [];
+  await expect
+    .poll(
+      async () => {
+        const height = await island.evaluate((el) => Math.round(el.getBoundingClientRect().height));
+        reads.push(height);
+        return reads.length >= 3 && reads.slice(-3).every((h) => h === height);
+      },
+      { message: "chat: the island's height never stopped moving", intervals: [250], timeout: 20_000 },
+    )
+    .toBe(true);
+  await expect(page.getByRole("button", { name: "Scroll to latest message" }), "chat: the jump-to-latest button is still on screen").toHaveCount(0);
 }
 
 export async function renderPage(page: Page, route: string, landmark: string, anchor: RenderAnchor): Promise<Buffer> {
@@ -74,9 +130,12 @@ export async function renderPage(page: Page, route: string, landmark: string, an
   // It must be THE FIXTURE RENDER before it is allowed to settle and be captured:
   // the DEMO anchor on screen, none of the page's error states. A late
   // hydration that would otherwise freeze a loading buffer into a baseline
-  // fails here instead.
+  // fails here instead. (A page that needs a step before its anchor can show,
+  // Chat's conversation pick, declares it as anchor.open.)
+  await anchor.open?.(page);
   await expect(page.getByText(anchor.anchorText).first(), `${route}: fixture anchor text never appeared`).toBeVisible({ timeout: 60_000 });
   await expect(page.getByText(anchor.errorPattern), `${route}: rendered one of its error states`).toHaveCount(0);
+  await anchor.settle?.(page);
   // ...and for the placeholders to leave: a skeleton root (`data-skeleton`), a
   // busy region (`aria-busy`) or a pulsing placeholder still on screen means the
   // capture would measure loading chrome, not the page. "Settled" is measured by

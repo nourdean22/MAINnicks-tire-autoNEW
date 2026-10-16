@@ -20,13 +20,16 @@
  * Baselines are the fixture renders of v2 AS IT IS, captured once in CI by the
  * `capture_v3_baselines` workflow_dispatch run of e2e-statenour.yml (VT_V3=1
  * VT_V3_CAPTURE=1), then committed into `visible-transformation-v3.spec.ts-snapshots/`.
- * That directory does not exist until then. They are frozen: re-capturing from a
- * tree that already has the redesign erases the thing being measured.
+ * They are frozen: re-capturing from a tree that already has the redesign erases
+ * the thing being measured. (W3a) A page flagged `baselinePending` in V3_PAGES,
+ * Chat until its pre-W3 baseline is captured from main, still renders, gates its
+ * anchor and its unstubbed reads, and SKIPS only the distance comparison while its
+ * PNG is missing.
  *
  * Opt-in. Without VT_V3=1 every test here is skipped and the default e2e run
- * pays nothing. With VT_V3=1 a missing baseline is a hard failure, never a silent
- * write; writing happens only under VT_V3_CAPTURE=1, and a void render is
- * refused as a baseline.
+ * pays nothing. With VT_V3=1 a missing baseline is a hard failure for every page
+ * that is not pending, never a silent write; writing happens only under
+ * VT_V3_CAPTURE=1, and a void render is refused as a baseline.
  *   VT_V3=1                    compare each render to its baseline
  *   VT_V3=1 VT_V3_CAPTURE=1    write the renders into the snapshot dir
  *   VT_OUT_DIR=<dir>           also keep the renders for a human to look at
@@ -36,8 +39,8 @@ import path from "node:path";
 import { expect, test } from "@playwright/test";
 
 import { DEMO, PAGE_ERRORS, disallowedUnstubbed, installFixtures } from "./fixtures";
-import { captureVerdict, measureAndJudge } from "./v3-gate";
-import { V3_PAGES, V3_VIEWPORTS, VT_CONTEXT, renderPage, warmRoutes, type RenderAnchor } from "./vt-render";
+import { baselineSkipReason, captureVerdict, measureAndJudge } from "./v3-gate";
+import { V3_PAGES, V3_VIEWPORTS, VT_CONTEXT, openChatHistory, renderPage, settleChat, warmRoutes, type RenderAnchor } from "./vt-render";
 import { inkCoverage } from "./visual-distance";
 
 const SNAPSHOT_DIR = path.join(__dirname, "visible-transformation-v3.spec.ts-snapshots");
@@ -48,6 +51,8 @@ const CAPTURE = process.env.VT_V3_CAPTURE === "1";
 const ANCHOR: Record<string, RenderAnchor> = {
   home: { anchorText: DEMO.homeSummary, errorPattern: PAGE_ERRORS.home },
   missions: { anchorText: DEMO.missionsNextMove, errorPattern: PAGE_ERRORS.missions },
+  // Chat loads no conversation by itself: open() picks the seeded one in the History drawer, settle() waits out the island.
+  chat: { anchorText: DEMO.chatReply, errorPattern: PAGE_ERRORS.chat, open: (page) => openChatHistory(page, DEMO.chatTitle), settle: settleChat },
 };
 
 for (const vp of V3_VIEWPORTS) {
@@ -96,6 +101,10 @@ for (const vp of V3_VIEWPORTS) {
         }
 
         const baseline = fs.existsSync(file) ? fs.readFileSync(file) : null;
+        // The render, its anchor and its unstubbed reads were all gated above; only the distance has nothing to
+        // compare to. A page not flagged baselinePending still fails on a missing PNG (measureAndJudge below).
+        const skipReason = baselineSkipReason({ label: `${p.key}/${vp.key}`, baselineExists: baseline !== null, pending: p.baselinePending === true });
+        test.skip(skipReason !== null, skipReason ?? "");
         const result = await measureAndJudge({ baseline, current, viewport: vp });
         test.info().annotations.push({
           type: "distance",

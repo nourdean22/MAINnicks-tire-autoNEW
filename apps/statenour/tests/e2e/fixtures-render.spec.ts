@@ -3,8 +3,8 @@
  * default. It proves the fixture lane works on the hermetic CI stack, so the
  * opt-in v3 gate does not discover on capture day that its data never arrived.
  *
- * Two tests, phone width: Home and Missions rendered from the DEMO fixtures
- * must show text that exists ONLY in the fixtures (tests/repo/v3-gate.test.ts
+ * Three tests, phone width: Home, Missions and (W3a) Chat rendered from the DEMO
+ * fixtures must show text that exists ONLY in the fixtures (tests/repo/v3-gate.test.ts
  * greps the app source to prove it), so a page rendered from the empty database
  * cannot pass. It also fails on the page's own error states, on an uncaught
  * page error, and on a page-data read the fixtures did not answer, so a fixture
@@ -14,7 +14,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 import { DEMO, PAGE_ERRORS, disallowedUnstubbed, installFixtures, type FixtureReport } from "./fixtures";
-import { IGNORED_PAGE_ERRORS, VT_CONTEXT } from "./vt-render";
+import { IGNORED_PAGE_ERRORS, VT_CONTEXT, openChatHistory, settleChat } from "./vt-render";
 
 test.use({ viewport: { width: 390, height: 844 }, ...VT_CONTEXT });
 
@@ -51,5 +51,19 @@ test.describe("v3 fixtures render", () => {
     await expect(page.getByText(PAGE_ERRORS.missions)).toHaveCount(0);
     expect(disallowedUnstubbed(report.unstubbed), "Missions read page data the fixtures do not answer").toEqual([]);
     expect(pageErrors, "Missions threw during render").toEqual([]);
+  });
+
+  // W3a: /chat opens empty; the seeded conversation arrives through the History drawer (?h=1).
+  test("Chat shows the DEMO conversation and a measured pill, not the empty state", async ({ page }) => {
+    const { pageErrors, report } = await openFromFixtures(page, "/chat?h=1");
+    await openChatHistory(page, DEMO.chatTitle);
+    await expect(page.getByText(DEMO.chatReply).first()).toBeVisible({ timeout: 60_000 });
+    // The assistant turn's receipt chip: it mounts only on a turn that ran a tool.
+    await expect(page.getByText(/Tool calls:/).first()).toBeVisible();
+    await settleChat(page);
+    await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => {});
+    await expect(page.getByText(PAGE_ERRORS.chat)).toHaveCount(0);
+    expect(disallowedUnstubbed(report.unstubbed), "Chat read page data the fixtures do not answer").toEqual([]);
+    expect(pageErrors, "Chat threw during render").toEqual([]);
   });
 });
