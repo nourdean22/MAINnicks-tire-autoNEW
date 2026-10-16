@@ -130,7 +130,7 @@ export function OwnerPanel() {
           ))}
           {p.decisionsHidden > 0 && (
             <li>
-              <Link href="/system/actions" className="flex min-h-[48px] items-center text-[13px] text-fg-secondary hover:text-fg">
+              <Link href="/system/actions?tab=approvals" className="flex min-h-[48px] items-center text-[13px] text-fg-secondary hover:text-fg">
                 {p.decisionsHidden} more in the approval queue ↗
               </Link>
             </li>
