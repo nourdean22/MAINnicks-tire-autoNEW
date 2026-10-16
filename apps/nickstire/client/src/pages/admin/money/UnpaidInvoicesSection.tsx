@@ -163,7 +163,7 @@ export default function UnpaidInvoicesSection() {
                   {inv.customerPhone && (
                     <MessageCustomerLink
                       phone={inv.customerPhone}
-                      body={`Hi ${firstName}, this is Nick's Tire & Auto. We have an open balance on your invoice${inv.invoiceNumber ? ` #${inv.invoiceNumber}` : ""}. You can take care of it over the phone at (216) 862-0005 or stop by anytime: thanks!`}
+                      body={`Hi ${firstName}, this is Nick's Tire & Auto. We have an open balance on your invoice${inv.invoiceNumber ? ` #${inv.invoiceNumber}` : ""}. You can take care of it over the phone at (216) 862-0005 or stop by anytime — thanks!`}
                       ariaLabel="Send text message via in-admin SMS chat"
                       className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/10 text-blue-400 text-[11px] font-bold tracking-wide border border-blue-500/20 hover:bg-blue-500/20 transition-colors"
                     >

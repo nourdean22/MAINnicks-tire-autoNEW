@@ -770,7 +770,7 @@ function ProofBankPanel() {
   }, [allQuotes, serviceFilter, objectionFilter, searchQuery]);
 
   const copyForGBP = (quote: ProofQuote) => {
-    const text = `"${quote.text}"\n · ${quote.author}${quote.badge ? ` (${quote.badge})` : ""}`;
+    const text = `"${quote.text}"\n— ${quote.author}${quote.badge ? ` (${quote.badge})` : ""}`;
     navigator.clipboard.writeText(text);
     toast.success("Copied for GBP post");
   };

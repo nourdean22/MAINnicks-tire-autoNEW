@@ -93,7 +93,7 @@ export function CreativeAssistantCards({ onNavigate }: { onNavigate: (view: IgVi
           <>
             {data.cards.length === 0 && (
               <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-                Nothing stood out from today&apos;s signals{erroredSources.length ? " and some sources could not be read, so this is incomplete" : ""}.
+                Nothing stood out from today&apos;s signals{erroredSources.length ? ", and some sources could not be read, so this is incomplete" : ""}.
               </p>
             )}
             {data.cards.map((card) => {

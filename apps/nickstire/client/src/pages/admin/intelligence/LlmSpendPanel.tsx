@@ -116,7 +116,7 @@ export function LlmSpendPanel() {
         <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
         {recording === "off" ? (
           <p>
-            Not recording <code className="text-[11px]">LLM_LEDGER_ENABLED</code> is not{" "}
+            Not recording: <code className="text-[11px]">LLM_LEDGER_ENABLED</code> is not{" "}
             <code className="text-[11px]">true</code>. Anything below was recorded earlier and is
             real; new calls are not being written down, so these numbers will not grow.
           </p>

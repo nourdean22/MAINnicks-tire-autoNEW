@@ -370,7 +370,7 @@ export default function Learn({ onNavigate }: { onNavigate?: (tab: IgView) => vo
                 <p className="flex items-start gap-2 text-sm">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
                   <span>
-                    Could not generate recommendations <strong>unknown</strong>, not "none".{" "}
+                    Could not generate recommendations: the state is <strong>unknown</strong>, not "none".{" "}
                     {report.data?.recommendationsError ?? unavailableCopy(reportStatus.reason)}
                   </span>
                 </p>

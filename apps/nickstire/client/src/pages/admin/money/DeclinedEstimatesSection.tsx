@@ -623,7 +623,7 @@ export default function DeclinedEstimatesSection() {
                   {est.customerPhone && (
                     <MessageCustomerLink
                       phone={est.customerPhone}
-                      body={`Hi ${est.customerName?.split(" ")[0] || ""}, this is Nick's Tire & Auto following up on your recent estimate. Car problems usually get worse over time: ready to take care of it? Call us at (216) 862-0005 or just stop by.`}
+                      body={`Hi ${est.customerName?.split(" ")[0] || ""}, this is Nick's Tire & Auto following up on your recent estimate. Car problems usually get worse over time — ready to take care of it? Call us at (216) 862-0005 or just stop by.`}
                       ariaLabel="Send text message via in-admin SMS chat"
                       className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/10 text-blue-400 text-[11px] font-bold tracking-wide border border-blue-500/20 hover:bg-blue-500/20 transition-colors"
                     >

@@ -93,7 +93,7 @@ export default function Settings() {
           <div>
             <strong>Could not read the Instagram settings.</strong>
             <div className="mt-1 text-xs leading-5 text-amber-200/70">
-              The configuration is <strong>unknown</strong>, not misconfigured: the read failed: {reason}. Change nothing on this screen until it can be read.
+              The configuration is <strong>unknown</strong>, not misconfigured. The read failed: {reason}. Change nothing on this screen until it can be read.
             </div>
           </div>
         </div>

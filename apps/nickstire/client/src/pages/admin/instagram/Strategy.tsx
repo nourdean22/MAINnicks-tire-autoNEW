@@ -291,7 +291,7 @@ export default function Strategy({ onNavigate }: { onNavigate: (view: IgView) =>
                 <Button className="mt-3 min-h-10" size="sm" variant="outline" onClick={() => {
                   writeCreateHandoff({
                     sourceType: "manual_idea",
-                    detail: "CONTROLLED STRUCTURE PRIOR: correlation only, not causal: " + h.statement + " Build a NEW Reel concept that tests this one structure signal while keeping the mechanic truth and topic independent. Treat the result as one candidate for a controlled comparison; do not generalize from one post.",
+                    detail: "CONTROLLED STRUCTURE PRIOR — correlation only, not causal: " + h.statement + " Build a NEW Reel concept that tests this one structure signal while keeping the mechanic truth and topic independent. Treat the result as one candidate for a controlled comparison; do not generalize from one post.",
                     format: "reel",
                     objective: "engagement",
                   });

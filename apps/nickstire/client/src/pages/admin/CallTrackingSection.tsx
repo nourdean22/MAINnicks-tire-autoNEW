@@ -253,7 +253,7 @@ export default function CallTrackingSection() {
                     </a>
                     <MessageCustomerLink
                       phone={cb.phone}
-                      body={`Hi ${(cb.name || "there").split(" ")[0]}, it's Nick's Tire. Returning your call: give us a ring back when you can: (216) 862-0005.`}
+                      body={`Hi ${(cb.name || "there").split(" ")[0]}, it's Nick's Tire. Returning your call — give us a ring back when you can: (216) 862-0005.`}
                       className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 bg-blue-500/10 text-blue-400 text-[10px] font-medium hover:bg-blue-500/20 rounded transition-all"
                       title="Open in-admin SMS chat"
                     >

@@ -339,7 +339,7 @@ export function Inbox({ onNavigate }: InboxProps) {
                             <Button size="sm" variant="ghost" className="min-h-11 px-2 text-xs text-primary" onClick={() => {
                               writeCreateHandoff({
                                 sourceType: "customer_question",
-                                detail: `A customer asked on Instagram: "${comment.text.slice(0, 400)}", answer it usefully for everyone who has the same question.`,
+                                detail: `A customer asked on Instagram: "${comment.text.slice(0, 400)}" — answer it usefully for everyone who has the same question.`,
                                 objective: "education",
                               });
                               onNavigate("studio");

@@ -143,7 +143,7 @@ export function AIIdeasEngine() {
     const title = pickString(c, ["title", "topic", "label"]);
     if (title) {
       ideas.push({
-        topic: `Follow-up: "${title}", Part 2 / Deep Dive`,
+        topic: `Follow-up: "${title}" — Part 2 / Deep Dive`,
         reason: "This topic already performs well. A follow-up compounds the traffic.",
         impact: "medium",
         source: "seo",

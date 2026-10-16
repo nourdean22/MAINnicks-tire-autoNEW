@@ -139,7 +139,7 @@ export default function PatternLab({ onNavigate }: { onNavigate?: (view: IgView)
       <div>
         <h3 className="flex items-center gap-2 text-xl font-medium"><FlaskConical className="h-5 w-5" /> Pattern Lab</h3>
         <p className="text-sm text-muted-foreground">
-          Capture the STRUCTURE of a winning reel, hook, pacing, captions, loop, then adapt it into a Nick's-truth concept.
+          Capture the STRUCTURE of a winning reel (hook, pacing, captions, loop), then adapt it into a Nick's-truth concept.
           Never copied: {PATTERN_DO_NOT_COPY.join(" · ")}.
         </p>
       </div>
