@@ -91,16 +91,17 @@ github-client canaries 403'd every PR whenever another workflow had spent the bu
   `[skill-recall] invoke: <name> (<matched words>)` lines, or `none beyond the always-on set`. The plugin trees under
   `~/.claude/plugins` are not indexed: on disk a loaded plugin and a catalog copy look the same, and a name taken from
   there was a failed Skill call for the reader (review round 3b). BM25 over the description, name and `triggers:`
-  tokens with a 3x boost, 1.5x for repo skills, the nine names other hooks force every turn filtered out, floor 7.5,
-  and two bars (review rounds 1 to 3): every entry needs a hit on a real name token or two matched terms, and a
-  user-root entry also needs 1.5x the floor, because one generic word per library description, or inside a trigger
-  phrase, printed a skill on its own. Every repo SKILL.md carries a `triggers:` frontmatter line written from its own
-  body; triggers score like name tokens. The numbers and why are comments on the constants. Also a CLI
+  tokens with a 3x boost, 1.5x for repo skills, the nine names other hooks force every turn filtered out, and one rule
+  for both roots (review rounds 1 to 4): the floor, 7.5, plus a hit on a real name token or two matched terms, because
+  one generic word inside a trigger phrase printed a skill on its own. A higher bar for the user root was measured
+  against the real binary and removed in round 4: it dropped only true matches. Every repo SKILL.md carries a
+  `triggers:` frontmatter line written from its own body; triggers score like name tokens. The numbers and why are
+  comments on the constants. Also a CLI
   for lane briefs: `--text`, `--file <brief>` (lines that appear verbatim in the brief template are dropped first),
   `--json`, and `--scope global` for the user-level entry (silent inside a project whose own settings run the hook).
   The index is cached in the OS temp dir, keyed by the roots' mtimes and the script's own source; nothing is written
   inside the repo. `skillRecall.test.mjs` runs the real script on hook-shaped stdin:
-  positive controls, the none line, the always-on filter, six mutants, a corrupted cache, and a 2 s latency bound
+  positive controls, the none line, the always-on filter, five mutants, a corrupted cache, and a 2 s latency bound
   (measured 70 to 100 ms warm on the operator machine).
   **Why fail-open:** any error prints `[skill-recall] off: <reason>` and exits 0. Exit 2 on UserPromptSubmit blocks
   the prompt itself, so a bug in a recall helper would stop the operator from typing; a missing recall line costs one

@@ -32,15 +32,16 @@ const CONTROLS = [
   ["the reel pipeline is stuck on Instagram", ["nickstire-reel-operator", "nickstire-verifier-reel-pipeline"], { first: true }],
   ["write a deny-list regex for the pretool hook", ["guard-red-team"], { first: true }],
   // "merge" and "ledger" are each one trigger word of a different skill, so nothing prints (round 3). The form with
-  // "release the lease" (B) carries the expectation: session-authority first, at most one non-repo entry.
+  // "release the lease" (B) carries the expectation: session-authority first, at most one user-root entry.
   ["merge the three ledger rows", [], { absent: ["stranded-branch-rescue", "ponytail-debt", "ponytail-audit"] }],
   ["merge the three ledger rows and release the lease", ["session-authority"], { first: true, maxNonRepo: 1 }],
   // Probe A: its generic words (brief, deck, sheet, open, approve, home) each hit one library description or one
   // trigger phrase and nothing else, so nothing may print. antislop-ui has no word of this prompt in its body.
   ["open the W2 brief for Home deck and Missions, approve in place, detent sheet", [], { maxNonRepo: 0, absent: ["nickstire-ios-pwa-primitives"] }],
-  // The non-repo bar witness: two body hits put receiving-code-review (user root) at 10.5, under 1.5x the floor, so
-  // the bar drops it; the NONREPO_BAR mutant (0) prints it. This is a true match the bar costs; recorded on purpose.
-  ["the feedback is unclear", [], { maxNonRepo: 0, absent: ["receiving-code-review"] }],
+  // Round 4: the user root scores on the same rule as the repo. These two are true matches the removed 1.5x bar had
+  // dropped (receiving-code-review 10.5, pptx 11.1); they exist only where ~/.claude/skills does, so CI skips them.
+  ...(existsSync(join(HOME_SKILLS, "receiving-code-review", "SKILL.md")) ? [["the feedback is unclear", ["receiving-code-review"]]] : []),
+  ...(existsSync(join(HOME_SKILLS, "pptx", "SKILL.md")) ? [["slides for the deck", ["pptx"]]] : []),
   // Round 3: one generic word inside a trigger phrase must not print a repo skill on its own (home screen, page,
   // empty labels, loading). The MIN_HITS mutant sets the minimum to 1 and this control fails.
   ["the home page shows no active missions while the board is loading; fix the empty state", ["empty-vs-error"],
@@ -286,7 +287,7 @@ test("runtime writes nothing inside the repo: git status is identical before and
   assert.equal(status(), before);
 });
 
-test("MUTANTS: no scorer output, a floor of 0.5, no name boost, no non-repo bar, a one-term minimum and no always-on filter are each caught", () => {
+test("MUTANTS: no scorer output, a floor of 0.5, no name boost, a one-term minimum and no always-on filter are each caught", () => {
   const src = readFileSync(SCRIPT, "utf8");
   const plant = (label, from, to) => {
     assert.ok(src.includes(from), `anchor "${from}" missing from skill-recall.mjs`);
@@ -301,9 +302,6 @@ test("MUTANTS: no scorer output, a floor of 0.5, no name boost, no non-repo bar,
   assert.ok(controlProblems(lowFloor).some((p) => p.startsWith(`"${NOISE}" printed`)), "a floor of 0.5 must print the noise prompt");
   const noBoost = plant("name", "const NAME_BOOST = 3;", "const NAME_BOOST = 1;");
   assert.ok(controlProblems(noBoost).length > 0, "removing the name boost must fail at least one control");
-  const noBar = plant("bar", "const NONREPO_BAR = 1.5;", "const NONREPO_BAR = 0;");
-  const barProblems = controlProblems(noBar).filter((p) => /non-repo entries|above a repo entry/.test(p));
-  assert.ok(barProblems.length >= 1, `removing the non-repo bar must fail a capped control: ${barProblems.join(" | ")}`);
   const oneHit = plant("minhits", "const MIN_HITS = 2;", "const MIN_HITS = 1;");
   const hitProblems = controlProblems(oneHit).filter((p) => /must stay absent/.test(p));
   assert.ok(hitProblems.length >= 1, `a one-term minimum must print a trigger-only repo skill: ${hitProblems.join(" | ")}`);

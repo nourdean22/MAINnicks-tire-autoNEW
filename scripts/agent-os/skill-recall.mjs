@@ -13,7 +13,7 @@
  * and names indexed from them were failed Skill calls for the reader). Cached in the OS temp dir, keyed by the roots,
  * their mtimes and this script's own source; never written inside the repo.
  *
- * Scoring is plain BM25 over description, with name and `triggers:` tokens boosted, and two bars (comments below).
+ * Scoring is plain BM25 over description, with name and `triggers:` tokens boosted, a floor and a two-term minimum.
  * Output: at most MAX_LINES "[skill-recall] invoke: <name> (<matched words>)" lines, or the none line.
  *
  * Fail OPEN by design: any error prints one "[skill-recall] off: <reason>" line and exits 0.
@@ -33,11 +33,11 @@ const REPO_BOOST = 1.5;
 // Floor, measured 2026-10-16: the weakest positive control ("merge the three ledger rows and release the lease" ->
 // session-authority) scores well above it, nonsense scores nothing, and two generic body words land under it.
 const FLOOR = 7.5;
-// Two bars, review rounds 1 to 3 (2026-10-16). Every entry needs a hit on a REAL name token or at least MIN_HITS
-// matched terms: one generic word inside a trigger phrase ("home screen", "expired row", "debt ledger") carries the
-// name boost and printed a repo skill on its own. A user-root entry (~/.claude/skills) also needs NONREPO_BAR x FLOOR:
-// the library's descriptions share words like "deck" and "sheet", and one such word per entry outranked repo skills.
-const NONREPO_BAR = 1.5;
+// The whole rule for both roots, review rounds 1 to 4 (2026-10-16): the floor, plus every entry needs a hit on a REAL
+// name token or at least MIN_HITS matched terms, because one generic word inside a trigger phrase ("home screen",
+// "expired row", "debt ledger") carries the name boost and printed a repo skill on its own. A higher bar for the user
+// root was measured against the real binary in round 4 and removed: it dropped only true matches (receiving-code-review
+// on "the feedback is unclear", pptx on "slides for the deck") and no noise, once the plugin roots were gone.
 const MIN_HITS = 2;
 // A prompt is at most this many distinct terms: a 547 KB pasted report took 7 s and the hook timeout is 10 s.
 const MAX_QUERY_TERMS = 2000;
@@ -206,7 +206,6 @@ function score(index, prompt) {
     }
     if (!nameHit && hits.length < MIN_HITS) continue;
     if (e.kind === "repo") s *= REPO_BOOST;
-    if (e.kind !== "repo" && s < NONREPO_BAR * FLOOR) continue;
     // Printed hits are the heaviest terms first, so a brief's real subject shows before its filler words.
     hits.sort((a, b) => b.w - a.w);
     if (s > 0) results.push({ name: e.name, kind: e.kind, score: Number(s.toFixed(3)), hits: hits.map((h) => h.word) });
