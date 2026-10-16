@@ -60,6 +60,14 @@ async function isClassMuted(cls: TelegramClass): Promise<boolean> {
   }
 }
 
+/**
+ * Would a send of this class be held right now? Lets a caller that records "sent" (the lead delivery
+ * ledger) say "skipped" instead when the class is muted, since a held send returns true.
+ */
+export async function isTelegramClassMuted(cls: TelegramClass = DEFAULT_TELEGRAM_CLASS): Promise<boolean> {
+  return isClassMuted(normalizeClass(cls));
+}
+
 /** Counts and reports a held send. The caller returns true: holding is a decision, not a failure. */
 async function heldByClass(cls: TelegramClass): Promise<boolean> {
   if (!(await isClassMuted(cls))) return false;

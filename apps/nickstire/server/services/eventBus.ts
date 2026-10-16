@@ -342,12 +342,18 @@ async function ensureInitialized(): Promise<void> {
         const leadId = Number(event.data.id);
         if (event.type !== "lead_captured" || !Number.isFinite(leadId)) return;
         const { recordLeadDelivery } = await import("../lead-delivery");
+        // A muted class returns true without sending: that is "skipped", never "sent". The status
+        // column is an enum, so this reuses an existing value instead of adding a "held" one.
+        const { isTelegramClassMuted } = await import("./telegram");
+        const held = accepted && (await isTelegramClassMuted("incident"));
         await recordLeadDelivery({
           leadId,
           channel: "telegram",
-          status: accepted ? "sent" : "failed",
+          status: held ? "skipped" : accepted ? "sent" : "failed",
           provider: "telegram",
-          detail: accepted ? null : "Telegram transport did not accept the alert",
+          detail: held
+            ? "Held: telegram_incident_muted is ON"
+            : accepted ? null : "Telegram transport did not accept the alert",
         });
       };
 

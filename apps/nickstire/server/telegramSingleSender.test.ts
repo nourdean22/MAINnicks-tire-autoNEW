@@ -17,6 +17,12 @@ const h = vi.hoisted(() => ({
   getDb: null as unknown,
   selectRows: [] as unknown[],
   accept: true,
+  flags: {} as Record<string, boolean>,
+}));
+
+vi.mock("./services/featureFlags", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./services/featureFlags")>()),
+  isEnabled: vi.fn(async (key: string) => h.flags[key] === true),
 }));
 
 vi.mock("./services/telegram", async (importOriginal) => ({
@@ -157,6 +163,7 @@ describe("one Telegram message per lead, callback, chat lead and booking", () =>
     h.getDb = fakeDb;
     h.selectRows = [];
     h.accept = true;
+    h.flags = {};
   });
 
   const submitLead = () =>
@@ -168,6 +175,13 @@ describe("one Telegram message per lead, callback, chat lead and booking", () =>
     await submitLead();
     await settle();
     expect(telegramRows()).toEqual([expect.objectContaining({ leadId: 42, status: "sent" })]);
+  });
+
+  it("records the lead's telegram delivery as skipped, never sent, when the incident class is muted", async () => {
+    h.flags.telegram_incident_muted = true; // the real transport returns true for a held send
+    await submitLead();
+    await settle();
+    expect(telegramRows()).toEqual([expect.objectContaining({ leadId: 42, status: "skipped", detail: expect.stringContaining("telegram_incident_muted") })]);
   });
 
   it("records the lead's telegram delivery as failed when the transport did not accept the alert", async () => {
