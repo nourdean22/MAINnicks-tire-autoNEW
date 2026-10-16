@@ -49,7 +49,6 @@ interface DailyScore {
 interface Habit {
   key: string;
   label: string;
-  icon: string;
   category: string;
   completed: boolean;
 }
@@ -57,7 +56,6 @@ interface Habit {
 interface Streak {
   habit_key: string;
   label: string;
-  icon: string;
   current_streak: number;
   best_streak: number;
   completion_rate: number;

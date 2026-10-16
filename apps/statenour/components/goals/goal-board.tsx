@@ -165,12 +165,12 @@ interface LifeGoal {
 // Ambition Engine P1 · stat key → character-sheet meta (color/icon/label)
 // for the goal-card stat chips. Built once from the mastery config so the
 // chips match the /stats board exactly.
-const STAT_BY_KEY: Record<string, { label: string; color: string; icon: string }> =
+const STAT_BY_KEY: Record<string, { label: string; color: string }> =
   Object.fromEntries(
     DOMAINS.map(
-      (d): [string, { label: string; color: string; icon: string }] => [
+      (d): [string, { label: string; color: string }] => [
         d.key,
-        { label: d.label, color: d.color, icon: d.icon },
+        { label: d.label, color: d.color },
       ],
     ),
   );
@@ -1510,7 +1510,6 @@ export function GoalBoard() {
                                 }}
                                 title={`Reps on this goal level ${d.label}`}
                               >
-                                <span aria-hidden>{d.icon}</span>
                                 <span>{d.label}</span>
                               </span>
                             );

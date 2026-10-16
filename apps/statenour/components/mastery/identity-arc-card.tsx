@@ -208,7 +208,7 @@ export function IdentityArcCard() {
                       className="flex items-center justify-between px-1.5 py-0.5 bg-emerald-500/2 rounded-micro border border-emerald-500/10"
                     >
                       <span className="text-fg">
-                        {g.icon} {g.label}
+                        {g.label}
                       </span>
                       <span className="font-semibold text-emerald-400">+{g.gained30d} XP</span>
                     </div>
@@ -229,7 +229,7 @@ export function IdentityArcCard() {
                       className="flex items-center justify-between px-1.5 py-0.5 bg-rose-500/2 rounded-micro border border-rose-500/10"
                     >
                       <span className="text-fg-secondary">
-                        {g.icon} {g.label}
+                        {g.label}
                       </span>
                       <span className="text-fg-tertiary">stalled</span>
                     </div>

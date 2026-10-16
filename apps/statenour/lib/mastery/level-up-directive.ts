@@ -39,7 +39,6 @@ export interface DirectiveStat {
   key: string;
   label: string;
   shortLabel?: string;
-  icon: string;
   color: string;
   branch: string;
   level: number;

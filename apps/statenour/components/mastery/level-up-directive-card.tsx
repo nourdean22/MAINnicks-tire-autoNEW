@@ -153,9 +153,6 @@ export function LevelUpDirectiveCard() {
 
       {/* the stat + the XP math */}
       <div className="flex items-center gap-2">
-        <span className="shrink-0 text-base leading-none" aria-hidden>
-          {stat.icon}
-        </span>
         <span className="truncate text-[13px] font-medium text-fg">
           {stat.shortLabel || stat.label}
         </span>

@@ -37,7 +37,6 @@ interface StatLevel {
   label: string;
   shortLabel?: string;
   description?: string;
-  icon: string;
   color: string;
   branch: string;
   xp: number;
@@ -263,7 +262,6 @@ export function CharacterSheet() {
                 const brPct = totalLevel > 0 ? (brLvl / totalLevel) * 100 : 0;
                 return (
                   <div key={br.key} className="flex flex-col items-center gap-1" title={`${br.label}: Level ${brLvl}`}>
-                    <span className="text-xs" aria-hidden>{br.icon}</span>
                     <div className="h-8 w-1.5 rounded-full bg-surface-interactive overflow-hidden flex flex-col justify-end">
                       <div className="w-full bg-fg-secondary rounded-full" style={{ height: `${brPct}%` }} />
                     </div>
@@ -284,7 +282,6 @@ export function CharacterSheet() {
               </span>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1">
-                  <span className="text-xs">{nextRep.icon}</span>
                   <span className="text-[12px] font-semibold text-fg">{nextRep.shortLabel || nextRep.label}</span>
                 </div>
                 <span className="text-[11px] font-mono font-semibold" style={{ color: nextRep.color }}>
@@ -308,12 +305,11 @@ export function CharacterSheet() {
               <div className="flex items-center gap-1.5 text-amber-300">
                 <ShieldAlert size={10} />
                 <span className="font-mono text-[11px]">
-                  neglected stat (7d idle)
+                  Neglected stat (7d idle)
                 </span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-[12px] font-medium text-fg flex items-center gap-1">
-                  <span>{highestNeglected.icon}</span>
                   <span>{highestNeglected.shortLabel || highestNeglected.label}</span>
                 </span>
                 <span className="text-[11px] font-mono text-fg-tertiary">Lvl {highestNeglected.level}</span>
@@ -338,9 +334,6 @@ export function CharacterSheet() {
               aria-expanded={!isCollapsed}
               className="flex w-full items-center gap-2 min-h-[44px] text-left"
             >
-              <span className="text-sm" aria-hidden>
-                {br.icon}
-              </span>
               <span className="font-mono text-[11px] text-fg-secondary">
                 {br.label}
               </span>
@@ -377,9 +370,6 @@ function StatCard({ stat }: { stat: StatLevel }) {
       className="scroll-mt-24 flex items-center gap-2.5 rounded-control border border-edge-subtle bg-surface-interactive px-2.5 py-1.5 hover:bg-surface-hover transition-colors duration-[var(--motion-state)]"
       title={`${stat.tier} · ${Math.round(stat.xp).toLocaleString()} XP total · ${stat.xpIntoLevel}/${stat.xpForNext} to Lvl ${stat.level + 1}`}
     >
-      <span className="text-base leading-none shrink-0" aria-hidden>
-        {stat.icon}
-      </span>
       <div className="min-w-0 flex-1">
         {/* line 1 · label + level + tier emoji */}
         <div className="flex items-baseline justify-between gap-2">
