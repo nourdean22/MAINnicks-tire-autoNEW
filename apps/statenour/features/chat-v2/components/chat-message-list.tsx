@@ -291,6 +291,8 @@ export function ChatMessageList({
   messages,
   isLoading,
   isLoadingConvo,
+  loadFailedId,
+  onRetryLoad,
   error,
   liveContextBlocks,
   lastTraceId,
@@ -303,6 +305,9 @@ export function ChatMessageList({
   messages: UIMessage[];
   isLoading: boolean;
   isLoadingConvo?: boolean;
+  /** The conversation whose open failed (hooks/use-conversations.ts); the list offers Retry instead of the starters. */
+  loadFailedId?: string | null;
+  onRetryLoad?: (id: string) => void;
   error: Error | undefined;
   liveContextBlocks?: Parameters<typeof extractContextBlocks>[1];
   lastTraceId?: string | null;
@@ -401,6 +406,20 @@ export function ChatMessageList({
   if (messages.length === 0 && pending.length === 0 && !diagnosticReport) {
     if (isLoadingConvo) {
       return <div className="flex h-full items-center justify-center p-8 text-[13px] text-fg-tertiary">Loading conversation…</div>;
+    }
+    // A failed open is not an empty chat: the active conversation did not move (chat-island.tsx
+    // openConversation), so the starters would invite a send into the wrong place.
+    if (loadFailedId) {
+      return (
+        <div role="alert" className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center text-[15px] text-fg">
+          <p>Couldn&apos;t open that conversation. Nothing was changed.</p>
+          {onRetryLoad && (
+            <button type="button" onClick={() => onRetryLoad(loadFailedId)} className="min-h-11 rounded-control border border-edge-default px-4 font-medium text-fg hover:bg-surface">
+              Retry
+            </button>
+          )}
+        </div>
+      );
     }
     return (
       <div className="mx-auto flex h-full w-full max-w-3xl flex-col justify-center p-5 sm:p-8">

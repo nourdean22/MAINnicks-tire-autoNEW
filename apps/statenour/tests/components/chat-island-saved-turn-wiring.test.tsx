@@ -97,7 +97,11 @@ beforeEach(() => {
   h.calls = [];
   h.drawer = undefined;
   h.resetTurn = () => void h.calls.push("resetTurn");
-  h.loadConvo = async (id) => void h.calls.push(`loadConvo:${id}`);
+  // W3b: loadConvo answers whether the rows landed; the store moves only on true.
+  h.loadConvo = async (id) => {
+    h.calls.push(`loadConvo:${id}`);
+    return true;
+  };
   h.newChat = () => void h.calls.push("newChat");
   h.activeId = null;
   h.deleteConvo = async (id) => {
@@ -144,13 +148,32 @@ describe("the island resets the turn when the operator opens another conversatio
     return mount();
   }
 
-  it("picking a conversation resets the turn BEFORE the store moves and the rows load", () => {
+  // W3b: the store moves AFTER the rows landed (it used to move before the read, so a failed open
+  // left the next send posting into a conversation the operator never saw). resetTurn still
+  // comes first.
+  it("picking a conversation resets the turn BEFORE the rows load, and the store moves once they landed", async () => {
     const unmount = mountWithDrawerOpen();
 
-    act(() => h.drawer!.onSelect("c2"));
+    await act(async () => void h.drawer!.onSelect("c2"));
 
-    expect(h.calls).toEqual(["resetTurn", "store:c2", "loadConvo:c2"]);
+    expect(h.calls).toEqual(["resetTurn", "loadConvo:c2", "store:c2"]);
     expect(useChatUiStore.getState().activeConversationId).toBe("c2");
+    unmount();
+  });
+
+  it("a pick whose rows never land leaves the store where it was", async () => {
+    h.loadConvo = async (id) => {
+      h.calls.push(`loadConvo:${id}`);
+      return false;
+    };
+    useChatUiStore.setState({ activeConversationId: "c1" });
+    h.calls.length = 0;
+    const unmount = mountWithDrawerOpen();
+
+    await act(async () => void h.drawer!.onSelect("c2"));
+
+    expect(h.calls).toEqual(["resetTurn", "loadConvo:c2"]);
+    expect(useChatUiStore.getState().activeConversationId).toBe("c1");
     unmount();
   });
 

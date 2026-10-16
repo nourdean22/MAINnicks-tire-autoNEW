@@ -11,6 +11,8 @@ export function OperatorConversationDrawer({
   pinnedIds,
   hasMore,
   loadingMore,
+  listState,
+  onRetryList,
   onLoadMore,
   onSelect,
   onDelete,
@@ -26,6 +28,9 @@ export function OperatorConversationDrawer({
   pinnedIds: Set<string>;
   hasMore: boolean;
   loadingMore: boolean;
+  /** The list read (hooks/use-conversations.ts): a failed read is never shown as an empty list. */
+  listState: "loading" | "error" | "ok";
+  onRetryList: () => void;
   onLoadMore: () => void;
   onSelect: (id: string) => void;
   onDelete: (id: string, event?: React.MouseEvent) => void;
@@ -86,7 +91,14 @@ export function OperatorConversationDrawer({
       </div>
 
       <div className="flex-1 overflow-y-auto p-2">
-        {visible.length === 0 && <p className="p-5 text-center text-xs text-fg-tertiary">No conversations in this view.</p>}
+        {listState === "error" && (
+          <p className="flex min-h-11 items-center justify-center gap-2 p-5 text-center text-[13px] text-fg-secondary">
+            History unavailable: the list could not be read.
+            <button type="button" onClick={onRetryList} className="min-h-11 rounded-control px-2 font-medium text-fg underline">Retry</button>
+          </p>
+        )}
+        {listState === "loading" && <p className="p-5 text-center text-xs text-fg-tertiary">Loading history…</p>}
+        {listState === "ok" && visible.length === 0 && <p className="p-5 text-center text-xs text-fg-tertiary">No conversations in this view.</p>}
         {visible.map((conversation) => (
           <div key={conversation.id} className={`group mb-1 rounded-control border p-2 transition ${activeId === conversation.id ? "border-accent/40 bg-accent-soft" : "border-transparent hover:border-edge-default hover:bg-raised"}`}>
             <button onClick={() => onSelect(conversation.id)} className="w-full text-left">
@@ -117,7 +129,7 @@ export function OperatorConversationDrawer({
                   const messageCount = conversation._count.messages;
                   const ok = await confirmDialog({
                     title: "Delete this conversation?",
-                    body: `“${conversation.title || "Untitled conversation"}” and its ${messageCount} message${messageCount === 1 ? "" : "s"} are removed. This cannot be undone — archive instead if you only want it out of the way.`,
+                    body: `“${conversation.title || "Untitled conversation"}” and its ${messageCount} message${messageCount === 1 ? "" : "s"} are removed. This cannot be undone. Archive instead if you only want it out of the way.`,
                     confirmLabel: "Delete",
                     cancelLabel: "Keep",
                     tone: "danger",

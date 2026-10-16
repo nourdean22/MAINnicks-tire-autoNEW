@@ -75,6 +75,11 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [isLoadingConvo, setIsLoadingConvo] = useState(false);
+  // W3b (empty-vs-error): the list read has three states, so the drawer can tell a failed read
+  // from an empty list; a failed open names its conversation, so the island can offer Retry
+  // instead of the starter screen.
+  const [listState, setListState] = useState<"loading" | "error" | "ok">("loading");
+  const [loadFailedId, setLoadFailedId] = useState<string | null>(null);
   // forensic-audit MEDIUM · debounce timers keyed by conversation+flag (was a
   // single shared timer, so a toggle on a different conversation within 300ms
   // cancelled the first's pending server write).
@@ -87,6 +92,7 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
    * reflects the new row without needing a full page reload).
    */
   const reloadConvos = useCallback(() => {
+    setListState("loading");
     utils.chat.list
       .fetch({})
       .then((d) => {
@@ -95,8 +101,9 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
         setConvos(d.conversations ?? []);
         setHasMore(Boolean(d.hasMore));
         setNextCursor(typeof d.nextCursor === "string" ? d.nextCursor : null);
+        setListState("ok");
       })
-      .catch(() => {});
+      .catch(() => setListState("error"));
   }, [utils]);
 
   /**
@@ -120,22 +127,26 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
       setHasMore(Boolean(d.hasMore));
       setNextCursor(typeof d.nextCursor === "string" ? d.nextCursor : null);
     } catch {
-      // silent — drawer keeps current page, no toast spam on a
-      // background pagination call
+      // The drawer keeps the current page; the tap that asked for more is answered.
+      onError?.("Couldn't load older conversations.");
     } finally {
       setLoadingMore(false);
     }
-  }, [hasMore, nextCursor, loadingMore, utils]);
+  }, [hasMore, nextCursor, loadingMore, utils, onError]);
 
   // Initial load — no auto-resume, user picks from history dropdown
   useEffect(() => {
     reloadConvos();
   }, [reloadConvos]);
 
+  // Answers true only when THIS request's rows landed: a request superseded by a later pick, or
+  // one that failed, answers false, so the caller never moves the active conversation to rows
+  // the operator did not see (claim-before-act: the latest request is the only one that may act).
   const loadConvo = useCallback(
-    async (id: string) => {
+    async (id: string): Promise<boolean> => {
       const thisRequest = ++loadRequestRef.current;
       setIsLoadingConvo(true);
+      setLoadFailedId(null);
       try {
         // Clear the in-memory messages FIRST so any lingering SDK-
         // generated ids from a concurrent stream can't collide with
@@ -146,7 +157,7 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
         // `chat.conversation` throws NOT_FOUND on a missing id (caught
         // by the catch below) · the result is always a conversation.
         const conversation = await utils.chat.conversation.fetch({ id });
-        if (thisRequest !== loadRequestRef.current) return;
+        if (thisRequest !== loadRequestRef.current) return false;
         const data = { conversation };
         if (data.conversation) {
           setActiveId(id);
@@ -236,14 +247,16 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
           );
           setShowHistory(false);
         }
+        return true;
       } catch {
-        if (thisRequest !== loadRequestRef.current) return;
-        onError?.("Couldn't load conversation.");
+        if (thisRequest !== loadRequestRef.current) return false;
+        setLoadFailedId(id);
+        return false;
       } finally {
         if (thisRequest === loadRequestRef.current) setIsLoadingConvo(false);
       }
     },
-    [setMessages, onError, utils]
+    [setMessages, utils]
   );
 
   const deleteConvo = useCallback(
@@ -278,6 +291,7 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
     setActiveId(null);
     setMessages([]);
     setShowHistory(false);
+    setLoadFailedId(null);
   }, [setMessages]);
 
   // ── Rename a conversation title ──
@@ -408,6 +422,10 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
     showHistory,
     setShowHistory,
     isLoadingConvo,
+    /** The list read: loading until it answers, error when it failed, ok when it answered (even with no rows). */
+    listState,
+    /** The conversation whose open failed, until the next open or a new chat. */
+    loadFailedId,
     loadConvo,
     readSavedTurn,
     deleteConvo,

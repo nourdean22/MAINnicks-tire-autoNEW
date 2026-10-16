@@ -22,6 +22,7 @@ import { useConversations } from "@/hooks/use-conversations";
 import type { SavedRow } from "../lib/saved-turn";
 import { useChatDeepLinkPrefill } from "../hooks/use-chat-deep-link-prefill";
 import { useTts } from "../hooks/use-tts";
+import { toast } from "sonner";
 
 function useScrollToBottom<T extends HTMLElement>() {
   const containerRef = useRef<T>(null);
@@ -145,9 +146,11 @@ export function ChatIsland() {
   // deep-links (orphaned in the chat-v2 migration; 13 callers were
   // landing on an empty composer). Prefill only — never auto-send.
   useChatDeepLinkPrefill();
+  // W3b: a failed delete, rename, archive or Load older is said once, on the same sonner
+  // channel the Retry holds use; it used to reach the console only.
   const conversations = useConversations({
     setMessages: chat.setMessages,
-    onError: (message) => console.error("useConversations error:", message),
+    onError: (message) => toast.error(message),
   });
   useEffect(() => {
     readSavedTurnRef.current = conversations.readSavedTurn;
@@ -159,6 +162,17 @@ export function ChatIsland() {
   const moveToConversation = (id: string | null) => {
     chat.resetTurn();
     setActiveConversationId(id);
+  };
+  // Opening a conversation from History: the turn is reset first, the rows are read, and the
+  // store moves only once THIS read landed (loadConvo answers false for a failed or superseded
+  // read). The store used to move before the read, so a failed open left the next send posting
+  // into a conversation the operator never saw. The active conversation stays where it was and
+  // the list shows a Retry line (W3b, empty-vs-error).
+  const openConversation = (id: string) => {
+    chat.resetTurn();
+    void conversations.loadConvo(id).then((ok) => {
+      if (ok) setActiveConversationId(id);
+    });
   };
   const { containerRef, endRef, isAtBottom, scrollToBottom } = useScrollToBottom<HTMLDivElement>();
   const islandRef = useRef<HTMLDivElement>(null);
@@ -346,6 +360,8 @@ export function ChatIsland() {
             messages={chat.messages}
             isLoading={chat.isStreaming}
             isLoadingConvo={conversations.isLoadingConvo}
+            loadFailedId={conversations.loadFailedId}
+            onRetryLoad={(id) => openConversation(id)}
             error={chat.error}
             liveContextBlocks={chat.liveContextBlocks}
             lastTraceId={chat.lastTraceId}
@@ -427,10 +443,11 @@ export function ChatIsland() {
             pinnedIds={conversations.pinnedIds}
             hasMore={conversations.hasMoreConvos}
             loadingMore={conversations.loadingMore}
+            listState={conversations.listState}
+            onRetryList={conversations.reloadConvos}
             onLoadMore={conversations.loadMoreConvos}
             onSelect={(id) => {
-              moveToConversation(id);
-              void conversations.loadConvo(id);
+              openConversation(id);
               setHistoryDrawerOpen(false);
             }}
             onDelete={(id, event) => {
