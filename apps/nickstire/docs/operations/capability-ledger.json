@@ -5152,6 +5152,34 @@
       "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "internal"
+    },
+    {
+      "capabilityId": "clip-verify-before-assembly",
+      "name": "Per-clip vision verification BEFORE reel assembly: each clip's midpoint frame is judged against its beat's planned visual; below REEL_CLIP_VERIFY_MIN the job is refused with a typed CLIP_MISMATCH (parked failed, retry budget untouched) before the voiceover is paid for and the 3-vote rendered QA runs",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "Branch nickstire/clip-verify-before-assembly cut from main 5e77a7836 (2026-10-16): server/services/clipVerify.ts (clipVerifyConfig, verifyClipsBeforeAssembly over an injected judge, ClipMismatchRefusal extends ReelAssemblyRefusedError, the real judge = one ffmpeg midpoint frame + one invokeLLM call with a { score, reason } schema), reelAssembly.ts calls it after the clip loop and before generateVoiceover and returns clipVerdicts, reelPipeline.ts persists payload.clipVerify after the assembled write and in the failure path. Mechanism from tsensei/OpenReels (docs/UPSTREAMS.md row 2026-10-16).",
+        "tests": [
+          "server/services/clipVerify.test.ts (9): config parses the exact flag string and clamps the floor to 0..1; disabled judges nothing (no spend); enabled judges every clip and passes at or above the floor; BREAKS: a clip below the floor refuses with ClipMismatchRefusal naming beat, score, reason and stops judging; the refusal is typed (assemblyFailureOutcome parks it failed with attempts untouched, control: a plain error goes back to assets_ready); an unavailable critic (throw or no numeric score) never refuses; scores clamp to 0..1 and reasons cap at 400; wiring arms read reelAssembly.ts (verify sits after the clip loop and before generateVoiceover) and reelPipeline.ts (verdicts persisted on success and on refusal). Mutation-verified 2026-10-16: floor check removed turns the BREAKS arm red; refusal un-typed turns the outcome arm red (2 failed); disabled early-return removed turns the no-spend arm red.",
+          "server/clipProbeWiring.test.ts: the assembly return literal and the pipeline destructure literal updated for clipVerdicts (the probe wiring still pins the probe loop)."
+        ]
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Flag OFF in production (REEL_CLIP_VERIFY_ENABLED unset): no production call count changes until the operator arms it. The real judge (ffmpeg midpoint frame + vision call) has run nowhere yet. Live proof once armed: one assembled job whose payload.clipVerify carries one vision verdict per beat, or one failed job whose error starts with CLIP_MISMATCH and whose payload.clipVerify.verdicts holds the refused beat.",
+          "source": "GitHub scout item 3, 2026-10-16"
+        }
+      ],
+      "deferredScope": [
+        "a refused beat is not routed into the repair lane; the job parks failed (the named follow-up)",
+        "one midpoint frame per clip, not first/last frames",
+        "no operator control in the admin client; the two env vars are the only switches"
+      ],
+      "lastVerifiedAt": "2026-10-16",
+      "codeState": "in_progress",
+      "operationalState": "unit_verified",
+      "exposure": "disabled"
     }
   ],
   "axes": {
