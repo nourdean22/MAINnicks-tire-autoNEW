@@ -382,7 +382,7 @@ export default function WalkInCalculatorSection() {
 
       {/* Totals */}
       {items.length > 0 && (
-        <div className="sticky bottom-0 border border-primary/30 bg-gradient-to-br from-[#0a0a0a] to-[#1a1a1a] p-4 shadow-xl">
+        <div className="sticky bottom-[calc(56px+env(safe-area-inset-bottom,0px))] lg:bottom-0 border border-primary/30 bg-gradient-to-br from-[#0a0a0a] to-[#1a1a1a] p-4 shadow-xl">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
             <div>
               <div className="text-[10px] text-muted-foreground">Subtotal</div>

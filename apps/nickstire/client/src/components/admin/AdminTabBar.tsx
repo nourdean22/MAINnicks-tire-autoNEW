@@ -38,7 +38,7 @@ export function NavBadge({ section, signals, className = "" }: { section: AdminS
     return <span data-badge className={`${base} bg-amber-500/15 text-amber-400`} title={title} aria-label="outstanding work unknown">?</span>;
   }
   if (badge.state === "counted" && badge.count > 0) {
-    const tone = section === "approvals" ? "bg-[var(--owner-priority)] text-[#0B0C0E]" : "bg-destructive/15 text-destructive";
+    const tone = section === "approvals" ? "bg-[var(--owner-priority)] text-[#0B0C0E]" : "bg-destructive text-[#0B0C0E]";
     return <span data-badge className={`${base} tabular-nums ${tone}`} title={title}>{badge.count > 99 ? "99+" : badge.count}</span>;
   }
   return null;
@@ -51,11 +51,12 @@ export function AdminTabBar({ role, active, signals, onNavigate, onSearch }: {
   onNavigate: (section: AdminSection) => void;
   onSearch: () => void;
 }) {
+  // z-30: under the drawer scrim (z-40) and drawer (z-50), so an open drawer covers the bar.
   const slot = "flex-1 min-w-0 min-h-12 flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium leading-tight transition-colors duration-100";
   return (
     <nav
       aria-label="Primary sections"
-      className="lg:hidden fixed bottom-0 inset-x-0 z-40 flex items-stretch border-t border-border bg-[var(--surface-raised)] px-1 h-[calc(56px+env(safe-area-inset-bottom,0px))] pb-[env(safe-area-inset-bottom,0px)]"
+      className="lg:hidden fixed bottom-0 inset-x-0 z-30 flex items-stretch border-t border-border bg-[var(--surface-raised)] px-1 h-[calc(56px+env(safe-area-inset-bottom,0px))] pb-[env(safe-area-inset-bottom,0px)]"
     >
       {barSections(role).map((item) => {
         const isActive = item.id === active;

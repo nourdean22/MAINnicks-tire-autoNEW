@@ -132,6 +132,10 @@ describe("AdminTabBar behaviour", () => {
     const badge = (id: string) => within(bar()).getAllByRole("button").find((b) => b.getAttribute("data-slot") === id)!.querySelector("[data-badge]")!;
     expect(badge("approvals").className).toContain("var(--owner-priority)");
     expect(badge("customers").className).not.toContain("var(--owner-priority)");
+    // Solid red with graphite text: #0B0C0E on #E5484D is 5.00:1 (white was 3.91:1, red on red/15 3.96:1).
+    const cls = badge("customers").className.split(/\s+/);
+    expect(cls).toContain("bg-destructive");
+    expect(cls).toContain("text-[#0B0C0E]");
   });
 });
 

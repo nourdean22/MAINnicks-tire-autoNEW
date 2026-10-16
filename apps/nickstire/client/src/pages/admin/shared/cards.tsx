@@ -14,10 +14,13 @@ import { navigateToAdminSection } from "./navigation";
  * number up from 0 over 900 ms; Admin UI v1 W1 (2026-10-16) removed that,
  * because a value the crew reads many times a day gets no animation and a
  * figure that starts at 0 reads as 0 for most of a second. Numbers get
- * locale grouping; strings ("$1,250", "85/100", "unknown") render as given.
+ * rounded with locale grouping, digit-only strings get grouping; other strings ("$1,250", "85/100", "unknown") render as given.
  */
 function renderStatValue(value: string | number): React.ReactNode {
-  return typeof value === "number" && Number.isFinite(value) ? value.toLocaleString() : String(value);
+  if (typeof value === "number") return Number.isFinite(value) ? Math.round(value).toLocaleString() : String(value);
+  // Digit-only strings ("1250", "1,250", "$1250") get grouping, as the count-up gave them.
+  const m = /^(\$?)([\d,]+)$/.exec(value);
+  return m ? m[1] + Number(m[2].replace(/,/g, "")).toLocaleString() : value;
 }
 
 export function StatCard({ label, value, icon, color = "text-foreground", trend, trendLabel, onClick, targetSection, settingsTab, className }: {

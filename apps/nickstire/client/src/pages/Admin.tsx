@@ -5,6 +5,7 @@ import AdminMfaGate from "@/components/admin/AdminMfaGate";
 import { AdminSSEProvider, useAdminSSE } from "@/components/admin/AdminSSEContext";
 import { GbpOAuthCatcher } from "./admin/content/GbpOAuthCatcher";
 import { AdminTabBar, NavBadge } from "@/components/admin/AdminTabBar";
+import { useAdminDarkClass } from "@/components/admin/useAdminDarkClass";
 import { CommandSearch, openCommandSearch } from "@/components/admin/CommandSearch";
 import ConfirmDialog from "@/components/admin/ConfirmDialog";
 import DegradedDataBanner from "@/components/admin/DegradedDataBanner";
@@ -93,6 +94,7 @@ export default function Admin() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const isAdmin = !!user && user.role === "admin";
   const utils = trpc.useUtils();
+  useAdminDarkClass();
 
   const { data: security, isLoading: securityLoading } = trpc.adminSecurity.status.useQuery(undefined, {
     enabled: isAdmin,

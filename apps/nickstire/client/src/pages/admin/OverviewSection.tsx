@@ -598,7 +598,7 @@ export default function OverviewSection() {
             </p>
             <p className="mt-1 text-[10px] text-muted-foreground">Source: {freshness?.source ?? "unknown"} · checked {freshness?.generatedAt ? new Date(freshness.generatedAt).toLocaleTimeString() : "—"}</p>
           </div>
-          <button type="button" onClick={() => refetchFreshness()} className="inline-flex items-center justify-center min-h-11 min-w-11 rounded-md border border-border/40 text-muted-foreground hover:text-foreground" aria-label="Refresh integration freshness">
+          <button type="button" onClick={() => refetchFreshness()} className="inline-flex items-center justify-center min-h-12 min-w-12 rounded-md border border-border/40 text-muted-foreground hover:text-foreground" aria-label="Refresh integration freshness">
             <RefreshCw className={`w-4 h-4 ${freshnessFetching ? "animate-spin" : ""}`} />
           </button>
         </div>
@@ -612,7 +612,7 @@ export default function OverviewSection() {
           </div>
           <div className="flex flex-wrap gap-1" role="group" aria-label="Filter queue">
             {(["all", "booking", "lead", "callback", "workOrder", "text"] as const).map((value) => (
-              <button key={value} type="button" onClick={() => setFilter(value)} aria-pressed={filter === value} className={`min-h-11 px-3 rounded text-xs ${filter === value ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"}`}>
+              <button key={value} type="button" onClick={() => setFilter(value)} aria-pressed={filter === value} className={`min-h-12 px-3 rounded text-xs ${filter === value ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"}`}>
                 {value === "all" ? "All" : value === "workOrder" ? "Work orders" : `${value.charAt(0).toUpperCase()}${value.slice(1)}s`}
               </button>
             ))}
@@ -661,10 +661,10 @@ export default function OverviewSection() {
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    {item.phone && <a href={`tel:${item.phone}`} className="inline-flex items-center justify-center min-h-11 min-w-11 rounded border border-border/40" aria-label={`Call ${item.name}`}><Phone className="w-4 h-4" /></a>}
-                    {item.phone && <MessageCustomerLink phone={item.phone} body={`Hi ${item.name.split(" ")[0]}, it's Nick's Tire following up on your ${requestLabel(item)}.`} className="inline-flex items-center justify-center min-h-11 min-w-11 rounded border border-border/40" title="Message customer" ariaLabel={`Message ${item.name}`}><MessageSquare className="w-4 h-4" /></MessageCustomerLink>}
-                    <button type="button" disabled={mutationPending} onClick={() => performPrimary(item).catch((actionError) => toast.error(actionError instanceof Error ? actionError.message : "Action failed"))} className="min-h-11 px-3 rounded bg-primary text-primary-foreground text-xs font-semibold disabled:opacity-50">{definition.primaryLabel}</button>
-                    {definition.secondaryLabel !== definition.primaryLabel && <button type="button" disabled={mutationPending} onClick={() => performSecondary(item).catch((actionError) => toast.error(actionError instanceof Error ? actionError.message : "Action failed"))} className="min-h-11 px-3 rounded border border-border/50 text-xs font-medium disabled:opacity-50">{definition.secondaryLabel}</button>}
+                    {item.phone && <a href={`tel:${item.phone}`} className="inline-flex items-center justify-center min-h-12 min-w-12 rounded border border-border/40" aria-label={`Call ${item.name}`}><Phone className="w-4 h-4" /></a>}
+                    {item.phone && <MessageCustomerLink phone={item.phone} body={`Hi ${item.name.split(" ")[0]}, it's Nick's Tire following up on your ${requestLabel(item)}.`} className="inline-flex items-center justify-center min-h-12 min-w-12 rounded border border-border/40" title="Message customer" ariaLabel={`Message ${item.name}`}><MessageSquare className="w-4 h-4" /></MessageCustomerLink>}
+                    <button type="button" disabled={mutationPending} onClick={() => performPrimary(item).catch((actionError) => toast.error(actionError instanceof Error ? actionError.message : "Action failed"))} className="min-h-12 px-3 rounded bg-primary text-primary-foreground text-xs font-semibold disabled:opacity-50">{definition.primaryLabel}</button>
+                    {definition.secondaryLabel !== definition.primaryLabel && <button type="button" disabled={mutationPending} onClick={() => performSecondary(item).catch((actionError) => toast.error(actionError instanceof Error ? actionError.message : "Action failed"))} className="min-h-12 px-3 rounded border border-border/50 text-xs font-medium disabled:opacity-50">{definition.secondaryLabel}</button>}
                   </div>
                 </article>
               );

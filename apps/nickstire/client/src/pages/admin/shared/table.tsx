@@ -214,7 +214,7 @@ export function TabBar<T extends string>({
           <button
             key={t.id}
             onClick={() => onChange(t.id)}
-            className={`flex shrink-0 min-h-11 items-center gap-1.5 px-3 ${size === "compact" ? "py-1" : "py-1.5"} text-[12px] font-bold tracking-wide rounded transition-colors whitespace-nowrap ${
+            className={`flex shrink-0 min-h-12 items-center gap-1.5 px-3 ${size === "compact" ? "py-1" : "py-1.5"} text-[12px] font-bold tracking-wide rounded transition-colors whitespace-nowrap ${
               activeTab === t.id
                 ? "bg-primary text-primary-foreground"
                 : "text-foreground/50 hover:text-foreground/80 hover:bg-foreground/5"
@@ -243,7 +243,7 @@ export function TabBar<T extends string>({
           <button
             key={t.id}
             onClick={() => onChange(t.id)}
-            className={`flex shrink-0 min-h-11 items-center gap-1.5 px-4 ${size === "compact" ? "py-1.5" : "py-2.5"} text-[12px] font-bold tracking-wide border-b-2 transition-colors whitespace-nowrap ${
+            className={`flex shrink-0 min-h-12 items-center gap-1.5 px-4 ${size === "compact" ? "py-1.5" : "py-2.5"} text-[12px] font-bold tracking-wide border-b-2 transition-colors whitespace-nowrap ${
               active
                 ? "border-primary text-primary"
                 : "border-transparent text-foreground/40 hover:text-foreground/70"

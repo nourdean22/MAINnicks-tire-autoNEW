@@ -1,7 +1,7 @@
 /**
  * Admin UI v1 Wave 1: shared TabBar strips scroll sideways instead of overflowing the phone
- * (PLAN.md section 9 item 9; Tires renders nine pills, TireOrdersSection.tsx). Each pill is a 44 px
- * target (HIG default control size). Class shape is the contract here: jsdom has no layout, so the
+ * (PLAN.md section 9 item 9; Tires renders nine pills, TireOrdersSection.tsx). Each pill is a 48 px
+ * target, the repo floor (apps/nickstire/AGENTS.md). Class shape is the contract here: jsdom has no layout, so the
  * test pins the tokens that produce the behaviour in a real browser.
  */
 import { describe, expect, it } from "vitest";
@@ -23,7 +23,7 @@ describe.each(["pill", "border"] as const)("TabBar (%s) with nine tabs", (varian
     expect(has(strip, "flex-wrap")).toBe(false);
     for (const b of buttons) {
       expect(has(b, "shrink-0"), b.className).toBe(true);
-      expect(has(b, "min-h-11"), b.className).toBe(true);
+      expect(has(b, "min-h-12"), b.className).toBe(true);
       expect(has(b, "whitespace-nowrap"), b.className).toBe(true);
     }
   });

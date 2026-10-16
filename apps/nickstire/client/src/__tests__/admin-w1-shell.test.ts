@@ -93,10 +93,10 @@ describe("the phone bar keeps the last row reachable", () => {
   });
 });
 
-describe("44 px targets on Today and the section boundary", () => {
+describe("48 px targets on Today and the section boundary", () => {
   const overview = readFileSync(join(ROOT, "client/src/pages/admin/OverviewSection.tsx"), "utf8");
   const boundary = readFileSync(join(ROOT, "client/src/components/admin/AdminSectionBoundary.tsx"), "utf8");
-  it("queue filter chips, queue verbs and the call/message links are min-h-11", () => {
+  it("queue filter chips, queue verbs and the call/message links are min-h-12", () => {
     const queue = overview.slice(overview.indexOf('aria-label="Filter queue"'), overview.indexOf('aria-labelledby="history-title"'));
     // Each control's own className (the first one after its opening tag); arrow functions in onClick
     // contain ">", so a [^>]* tag scan would stop early.
@@ -105,11 +105,30 @@ describe("44 px targets on Today and the section boundary", () => {
       return cls ? cls[1] ?? cls[2] : "";
     });
     expect(controls.length).toBeGreaterThanOrEqual(5);
-    for (const c of controls) expect(c).toMatch(/min-h-11/);
+    for (const c of controls) expect(c).toMatch(/min-h-12/);
   });
-  it("the section boundary Retry is min-h-11", () => {
+  it("the section boundary Retry is min-h-12", () => {
     const retry = boundary.slice(boundary.lastIndexOf("<button", boundary.indexOf("Retry section")), boundary.indexOf("Retry section"));
-    expect(retry).toMatch(/min-h-11/);
+    expect(retry).toMatch(/min-h-12/);
+  });
+});
+
+describe("the phone bar never hides or out-ranks what sits around it", () => {
+  const bar = readFileSync(join(ROOT, "client/src/components/admin/AdminTabBar.tsx"), "utf8");
+  const z = (src: string) => Number(/(?:^|\s)z-(\d+)(?:\s|$)/.exec(src)?.[1] ?? NaN);
+  it("the bar sits below the drawer scrim, so the open drawer covers it", () => {
+    const scrim = admin.slice(admin.indexOf("{sidebarOpen && <div"), admin.indexOf("/>", admin.indexOf("{sidebarOpen && <div")));
+    const barClass = /aria-label="Primary sections"\s*className="([^"]*)"/.exec(bar)?.[1] ?? "";
+    expect(z(barClass)).toBeLessThan(z(scrim));
+  });
+  it("the walk-in totals box sticks above the bar on phones and to the bottom on desktop", () => {
+    const walkIn = readFileSync(join(ROOT, "client/src/pages/admin/WalkInCalculatorSection.tsx"), "utf8");
+    const sticky = /className="sticky ([^"]*)"/.exec(walkIn)?.[1] ?? "";
+    expect(sticky).toMatch(/(^|\s)bottom-\[calc\(56px\+env\(safe-area-inset-bottom,0px\)\)\](\s|$)/);
+    expect(sticky).toMatch(/(^|\s)lg:bottom-0(\s|$)/);
+  });
+  it("Admin.tsx forces the dark class while it is mounted (ThemeToggle is gone)", () => {
+    expect(admin).toMatch(/useAdminDarkClass\(\);/);
   });
 });
 
