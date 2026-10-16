@@ -49,6 +49,8 @@ export interface ReelAssemblyBrief {
   captionStyle?: CaptionStyle | null;
   /** Per-shot provenance (shared/reelSourceProfile.ts); assembly verifies bound clips' bytes against it. */
   shotLineage?: unknown;
+  /** Pre-assembly clip verdicts persisted by an earlier attempt (services/clipVerify.ts); vision verdicts are reused. */
+  clipVerify?: { verdicts?: ClipVerdict[] } | null;
   storyboardBeats: AssemblyBeat[];
   /**
    * The declared end-card ask. Undeclared renders NO card — there is
@@ -935,6 +937,7 @@ export async function assembleReel(
   brief: ReelAssemblyBrief,
   clipUrls: string[],
   jobId: number | string,
+  hooks?: { onClipVerdict?: (verdict: ClipVerdict) => Promise<void> },
 ): Promise<AssembleResult> {
   const segs = briefToSegments(brief);
   if (segs.length !== clipUrls.length) {
@@ -1064,10 +1067,13 @@ export async function assembleReel(
     // runs. Flag-gated, default OFF; an unavailable critic never refuses.
     const beatVisual = new Map((brief.storyboardBeats ?? []).map((b) => [b.beatNumber, b.visual ?? b.onScreenText ?? ""]));
     const clipVerdicts = await verifyClipsBeforeAssembly(
-      segs.map((s, i) => ({ beatNumber: s.beatNumber, path: clipPaths[i], visual: beatVisual.get(s.beatNumber) ?? "", durationSec: clipProbes.find((p) => p.beatNumber === s.beatNumber)?.durationSec ?? null })),
+      segs.map((s, i) => ({ beatNumber: s.beatNumber, path: clipPaths[i], visual: beatVisual.get(s.beatNumber) ?? "", durationSec: clipProbes.find((p) => p.beatNumber === s.beatNumber)?.durationSec ?? null, workDir })),
       clipVerifyConfig(),
       undefined,
-      { jobId: typeof jobId === "number" ? jobId : undefined },
+      // Prior vision verdicts (an earlier attempt of this job) are reused, and
+      // every new verdict is handed to the caller at once, so an ffmpeg or
+      // storage failure after this point never buys the same vision call twice.
+      { jobId: typeof jobId === "number" ? jobId : undefined, prior: brief.clipVerify?.verdicts ?? null, onVerdict: hooks?.onClipVerdict },
     );
     const { generateVoiceover, generateAssSubtitles } = await import("./reelVoice");
     const vo = await generateVoiceover(brief.voiceoverScript);

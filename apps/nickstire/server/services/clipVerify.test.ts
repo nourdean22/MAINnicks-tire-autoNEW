@@ -11,7 +11,7 @@
 import { describe, expect, it, vi } from "vitest";
 import fs from "fs";
 import path from "path";
-import { ClipMismatchRefusal, clipVerifyConfig, verifyClipsBeforeAssembly, type ClipToVerify } from "./clipVerify";
+import { ClipMismatchRefusal, clipVerifyConfig, mergeClipVerdictsIntoPayload, verifyClipsBeforeAssembly, type ClipToVerify } from "./clipVerify";
 import { ReelAssemblyRefusedError } from "./reelContentRefusal";
 import { assemblyFailureOutcome } from "./reelPipeline";
 
@@ -28,6 +28,11 @@ describe("clipVerifyConfig", () => {
     expect(clipVerifyConfig({ REEL_CLIP_VERIFY_ENABLED: "true", REEL_CLIP_VERIFY_MIN: "0.8" })).toEqual({ enabled: true, min: 0.8 });
     expect(clipVerifyConfig({ REEL_CLIP_VERIFY_MIN: "1.7" }).min).toBe(0.6);
     expect(clipVerifyConfig({ REEL_CLIP_VERIFY_MIN: "abc" }).min).toBe(0.6);
+  });
+  it("a present-but-blank floor is ABSENT (0.6), never a zero floor that can no longer refuse (Codex P2)", () => {
+    expect(clipVerifyConfig({ REEL_CLIP_VERIFY_ENABLED: "true", REEL_CLIP_VERIFY_MIN: "" }).min).toBe(0.6);
+    expect(clipVerifyConfig({ REEL_CLIP_VERIFY_MIN: "   " }).min).toBe(0.6);
+    expect(clipVerifyConfig({ REEL_CLIP_VERIFY_MIN: "0" }).min).toBe(0);
   });
 });
 
@@ -74,11 +79,99 @@ describe("verifyClipsBeforeAssembly", () => {
     expect(logs).toHaveLength(2);
   });
 
+  it("a prior VISION verdict for a beat is reused without a judge call; an unavailable prior is re-judged (retry never re-buys a verdict)", async () => {
+    const prior = [
+      { beatNumber: 1, score: 0.9, reason: "earlier attempt", critic: "vision" as const, evaluatedAt: "t0" },
+      { beatNumber: 2, score: null, reason: "timeout", critic: "unavailable" as const, evaluatedAt: "t0" },
+    ];
+    const judge = vi.fn(async () => ({ score: 0.8, reason: "fresh" }));
+    const v = await verifyClipsBeforeAssembly(clips, { enabled: true, min: 0.6 }, judge, { ...quiet, prior });
+    expect(judge).toHaveBeenCalledTimes(1);
+    expect(judge.mock.calls[0][0].beatNumber).toBe(2);
+    expect(v.map((x) => [x.beatNumber, x.score, x.reason])).toEqual([[1, 0.9, "earlier attempt"], [2, 0.8, "fresh"]]);
+    // a reused prior still faces the floor
+    await expect(verifyClipsBeforeAssembly(clips.slice(0, 1), { enabled: true, min: 0.95 }, judge, { ...quiet, prior })).rejects.toBeInstanceOf(ClipMismatchRefusal);
+  });
+
+  it("onVerdict receives every NEW verdict as soon as it exists, including the refused one BEFORE the throw; a failing persister never blocks", async () => {
+    const seen: number[] = [];
+    const judge = vi.fn(async (c: ClipToVerify) => (c.beatNumber === 1 ? { score: 0.9, reason: "ok" } : { score: 0.2, reason: "drift" }));
+    const onVerdict = vi.fn(async (v: { beatNumber: number }) => {
+      seen.push(v.beatNumber);
+      if (v.beatNumber === 1) throw new Error("db down");
+    });
+    const err = await verifyClipsBeforeAssembly(clips, { enabled: true, min: 0.6 }, judge, { ...quiet, onVerdict }).catch((e) => e);
+    expect(err).toBeInstanceOf(ClipMismatchRefusal);
+    expect(seen).toEqual([1, 2]);
+    // a reused prior is not re-persisted
+    const onAgain = vi.fn(async () => {});
+    await verifyClipsBeforeAssembly(clips.slice(0, 1), { enabled: true, min: 0.6 }, judge, { ...quiet, onVerdict: onAgain, prior: [{ beatNumber: 1, score: 0.9, reason: "p", critic: "vision", evaluatedAt: "t" }] });
+    expect(onAgain).not.toHaveBeenCalled();
+  });
+
   it("scores are clamped into 0..1 and reasons capped, so a wild reply cannot produce a >1 match", async () => {
     const judge = async () => ({ score: 7, reason: "x".repeat(900) });
     const v = await verifyClipsBeforeAssembly(clips.slice(0, 1), { enabled: true, min: 0.6 }, judge, quiet);
     expect(v[0].score).toBe(1);
     expect(v[0].reason).toHaveLength(400);
+  });
+});
+
+describe("persistence: merge-by-beat into payload.clipVerify with a compare-and-swap on the exact payload read (claim-before-act)", () => {
+  const v1 = { beatNumber: 1, score: 0.9, reason: "a", critic: "vision" as const, evaluatedAt: "t1" };
+  const v2 = { beatNumber: 2, score: 0.3, reason: "b", critic: "vision" as const, evaluatedAt: "t2" };
+  function store(initial: string, loseFirst = 0) {
+    let payload: string | null = initial;
+    let losses = loseFirst;
+    const swap = vi.fn(async (expected: string, next: string) => {
+      if (losses > 0) {
+        losses -= 1;
+        // a concurrent writer (rendered QA) landed between our read and our swap
+        payload = JSON.stringify({ ...JSON.parse(payload ?? "{}"), renderedQa: { decision: "approve" } });
+        return 0;
+      }
+      if (payload !== expected) return 0;
+      payload = next;
+      return 1;
+    });
+    return { read: vi.fn(async () => payload), swap, get: () => payload };
+  }
+
+  it("merges by beat, keeps every other payload field, and pins the swap to the payload it read", async () => {
+    const s = store(JSON.stringify({ storyboardBeats: [{ beatNumber: 1 }], clipVerify: { verdicts: [{ ...v1, score: 0.1 }], recordedAt: "old" } }));
+    expect(await mergeClipVerdictsIntoPayload(s, [v2, v1], new Date("2026-10-16T00:00:00Z"))).toBe(true);
+    const out = JSON.parse(s.get()!);
+    expect(out.storyboardBeats).toEqual([{ beatNumber: 1 }]);
+    expect(out.clipVerify.verdicts).toEqual([v1, v2]);
+    expect(out.clipVerify.recordedAt).toBe("2026-10-16T00:00:00.000Z");
+    expect(s.swap.mock.calls[0][0]).toBe(s.read.mock.results[0].value instanceof Promise ? await s.read.mock.results[0].value : s.read.mock.results[0].value);
+  });
+
+  it("BREAKS: when a concurrent writer lands first, the stale swap loses (0 rows), the payload is re-read and the merge keeps THEIR field", async () => {
+    const s = store(JSON.stringify({ a: 1 }), 1);
+    expect(await mergeClipVerdictsIntoPayload(s, [v1])).toBe(true);
+    expect(s.swap).toHaveBeenCalledTimes(2);
+    const out = JSON.parse(s.get()!);
+    expect(out.renderedQa).toEqual({ decision: "approve" });
+    expect(out.clipVerify.verdicts).toEqual([v1]);
+  });
+
+  it("gives up after three lost swaps and reports false; a missing row reports false without a swap", async () => {
+    const s = store(JSON.stringify({}), 5);
+    expect(await mergeClipVerdictsIntoPayload(s, [v1])).toBe(false);
+    expect(s.swap).toHaveBeenCalledTimes(3);
+    const gone = { read: vi.fn(async () => null), swap: vi.fn(async () => 1) };
+    expect(await mergeClipVerdictsIntoPayload(gone, [v1])).toBe(false);
+    expect(gone.swap).not.toHaveBeenCalled();
+  });
+
+  it("an unparseable payload is treated as empty, never a crash; no verdicts is a no-op", async () => {
+    const s = store("{not json");
+    expect(await mergeClipVerdictsIntoPayload(s, [v1])).toBe(true);
+    expect(JSON.parse(s.get()!).clipVerify.verdicts).toEqual([v1]);
+    const n = store("{}");
+    expect(await mergeClipVerdictsIntoPayload(n, [])).toBe(true);
+    expect(n.swap).not.toHaveBeenCalled();
   });
 });
 
@@ -93,12 +186,25 @@ describe("wiring: assembleReel verifies after the bytes are local and before the
     expect(vo).toBeGreaterThan(verify);
     expect(src).toMatch(/clipVerifyConfig\(\)/);
     expect(src).toMatch(/clipVerdicts \}/);
+    // frames land in assembly's own workDir (removed in its finally), priors are reused, verdicts stream out
+    expect(src).toMatch(/durationSec \?\? null, workDir \}\)\)/);
+    expect(src).toMatch(/prior: brief\.clipVerify\?\.verdicts \?\? null, onVerdict: hooks\?\.onClipVerdict/);
   });
-  it("the pipeline persists the verdicts beside the probes", () => {
+  it("the pipeline persists each verdict as it is produced (onClipVerdict) and the refused one in the failure path, through the CAS helper", () => {
     const pipe = fs.readFileSync(path.join(__dirname, "reelPipeline.ts"), "utf8");
-    expect(pipe).toMatch(/clipVerdicts \} = await assembleReel\(/);
-    expect(pipe).toMatch(/await persistClipVerdicts\(d, job\.id, clipVerdicts\)/);
-    expect(pipe).toMatch(/payload\.clipVerify = \{ verdicts, recordedAt/);
+    expect(pipe).toMatch(/onClipVerdict: \(verdict\) => persistClipVerdicts\(d, job\.id, \[verdict\]\)/);
+    expect(pipe).toMatch(/import \{ ClipMismatchRefusal, persistClipVerdicts \} from "\.\/clipVerify"/);
+    expect(pipe).not.toMatch(/async function persistClipVerdicts\(/);
+  });
+  it("the reassembly caller parks a clip refusal failed with its verdict persisted, instead of restoring the old master to assembled", () => {
+    const re = fs.readFileSync(path.join(__dirname, "reelReassemble.ts"), "utf8");
+    const refusal = re.indexOf("if (err instanceof ClipMismatchRefusal) {");
+    const restore = re.indexOf("Release the claim so the job is actionable again");
+    expect(refusal).toBeGreaterThan(0);
+    expect(refusal).toBeLessThan(restore);
+    const block = re.slice(refusal, restore);
+    expect(block).toMatch(/persistClipVerdicts\(d, jobId, \[err\.verdict\]\)/);
+    expect(block).toMatch(/status: "failed"/);
   });
   it("a refusal also leaves its verdict on the payload (the consumer of ClipMismatchRefusal in the failure path)", () => {
     const pipe = fs.readFileSync(path.join(__dirname, "reelPipeline.ts"), "utf8");
