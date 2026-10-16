@@ -87,3 +87,28 @@ describe("uppercase safety net in base.css", () => {
     }
   });
 });
+
+describe("the net stays out of the chat shell until Wave 3 (review round 2, item 1)", () => {
+  // The attribute is data-chat-shell, not data-ui-*: ui-v2-grammar pins that no `data-ui` gate exists
+  // (the retired v1 comparison lane used one). jsdom is not installed, so the selector is checked by
+  // text and the attribute by source; a browser check is in the PR body.
+  it("excludes descendants of [data-chat-shell] by selector", () => {
+    expect(netRule()!.selector).toContain(":not([data-chat-shell] *)");
+  });
+
+  it("the chat page root carries data-chat-shell, so the seven chat-v2 uppercase sites keep their case", () => {
+    const page = read("app/(mastery)/chat/page.tsx").replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
+    const root = page.match(/return \(\s*<div([^>]*)>/);
+    expect(root, "no root <div> after return (").not.toBeNull();
+    expect(root![1]).toMatch(/\bdata-chat-shell\b/);
+  });
+
+  it("no rule anywhere re-applies uppercase to a [class*=\"uppercase\"] selector after the net", () => {
+    // A silent instrument: the first match could be the net while a later rule puts the shout back.
+    const sameSelector = rules(ALL_CSS).filter((r) => r.selector.includes('[class*="uppercase"]'));
+    expect(sameSelector.length).toBeGreaterThan(0);
+    const reapplies = sameSelector.filter((r) => /text-transform:\s*uppercase/.test(r.body)).map((r) => r.selector);
+    expect(reapplies).toEqual([]);
+    expect(sameSelector[sameSelector.length - 1].body).toMatch(/text-transform:\s*none/);
+  });
+});

@@ -98,7 +98,7 @@ Decisions, defaults assumed until Nour says otherwise (confirm before W2): v3 mu
 
 | # | Fix | Where | Wave |
 |---|---|---|---|
-| 1 | One base.css rule stops stray `uppercase`, allowlisting `.eyebrow`, `.vt-eyebrow`, `.section-label`, `.text-eyebrow`, `.vt-verdict` | `app/styles/base.css:305-320` (precedent) | W1 (ratchet in W0) |
+| 1 | One base.css rule stops stray `uppercase`, allowlisting `.eyebrow`, `.vt-eyebrow`, `.section-label`, `.text-eyebrow`, `.vt-verdict`; the chat shell (`data-chat-shell` on the chat page root) stays outside it until W3 | `app/styles/base.css:305-320` (precedent) | W1 (ratchet in W0) |
 | 2 | Replace AmbientAura with a state word + notch; edit the pinned tests | `components/hud/ambient-aura.tsx:36`, `app/styles/effects.css:657-678` | W1 |
 | 3 | Approvals link opens Approvals; approval-windows box below the list; ticker rows use `Link`; alert footer in plain words | `lib/home/operator-brief.ts` (about 408, 654), `app/(mastery)/system/actions/page.tsx:196,606-640`, `components/ultron/bottom-pulse-ticker.tsx:406-410`, `components/inspector/panels/alert-inspector.tsx:121-123` | W1 (alert footer in W0) |
 | 4 | Header diet: eyebrow only when it adds information; drop the description on core pages | `components/layout/standard-page.tsx:177-186` | W1 |

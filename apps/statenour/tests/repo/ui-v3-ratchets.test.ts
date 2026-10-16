@@ -19,7 +19,9 @@
  *                  as an identifier or shorthand key of an object passed to cn/clsx/cx/classNames/
  *                  cva/tv/twMerge/twJoin, `text-transform: uppercase` in CSS, and `@apply uppercase`.
  *                  The baseline records the five sanctioned CSS roles in app/styles (.section-label,
- *                  .text-eyebrow and three more in base.css); W1 allowlists them.
+ *                  .text-eyebrow and three more in base.css); W1 allowlists them. After W1a the 12 that
+ *                  remain are those five roles plus seven sites under features/chat-v2, which the base.css
+ *                  net leaves alone (the data-chat-shell scope on the chat page root) until Wave 3.
  *   emDash         U+2014 in a string literal, template literal or JSX text, plus the entity forms
  *                  JSX decodes (&mdash; and numeric spellings, leading zeros included) in JSX text and
  *                  JSX attribute strings. Comments never count.
