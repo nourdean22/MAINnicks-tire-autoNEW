@@ -3,7 +3,7 @@
   "totals": {
     "uppercase": 12,
     "emDash": 293,
-    "emoji": 32,
+    "emoji": 35,
     "transitionAll": 57,
     "slowDuration": 8,
     "smallInput": 113
@@ -67,6 +67,9 @@
     },
     "app/(mastery)/system/camera/page.tsx": {
       "smallInput": 3
+    },
+    "app/(mastery)/system/chat-states/page.tsx": {
+      "emoji": 3
     },
     "app/(mastery)/system/crons/page.tsx": {
       "emDash": 3
