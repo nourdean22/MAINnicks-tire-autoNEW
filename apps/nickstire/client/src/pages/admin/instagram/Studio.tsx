@@ -427,7 +427,7 @@ export default function UnifiedStudio({ onNavigate, initialSource }: StudioProps
                   {recordLane && (
                     <div className="space-y-2">
                       <label className="text-xs font-semibold text-muted-foreground block">
-                        Pick the record — these are real rows, newest first
+                        Pick the record: these are real rows, newest first
                       </label>
                       {sourceOptions.isLoading && (
                         <p className="text-xs text-muted-foreground">Loading records…</p>
@@ -436,17 +436,17 @@ export default function UnifiedStudio({ onNavigate, initialSource }: StudioProps
                           facts and must never render as the same sentence. */}
                       {sourceOptions.isError && (
                         <p className="text-xs text-destructive">
-                          Could not read this source. This is a read failure, not an empty list — the records may exist.
+                          Could not read this source. This is a read failure, not an empty list: the records may exist.
                         </p>
                       )}
                       {!sourceOptions.isLoading && !sourceOptions.isError && laneUnavailable && (
                         <p className="text-xs text-destructive">
-                          This source could not be read. Not the same as "none found" — do not conclude there are none.
+                          This source could not be read. Not the same as "none found": do not conclude there are none.
                         </p>
                       )}
                       {!sourceOptions.isLoading && !sourceOptions.isError && !laneUnavailable && recordOptions.length === 0 && (
                         <p className="text-xs text-muted-foreground">
-                          No records found. The source read cleanly — there genuinely are none to use.
+                          No records found. The source read cleanly: there genuinely are none to use.
                         </p>
                       )}
                       <div className="grid gap-2 sm:grid-cols-2">
@@ -620,7 +620,7 @@ export default function UnifiedStudio({ onNavigate, initialSource }: StudioProps
                               {workspace.preflight.blocking.map((b) => (
                                 <li key={`${b.category}-${b.message}`} className="flex gap-2">
                                   <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0 text-red-400" />
-                                  <span><span className="uppercase text-red-400">{b.category}</span> · {b.message}</span>
+                                  <span><span className="text-red-400">{b.category}</span> · {b.message}</span>
                                 </li>
                               ))}
                             </ul>
@@ -630,13 +630,13 @@ export default function UnifiedStudio({ onNavigate, initialSource }: StudioProps
                             <div className="rounded border bg-muted/20 p-3 space-y-1">
                               <p className="font-semibold text-foreground">Mechanic truth</p>
                               <p className="text-muted-foreground">
-                                {workspace.truth.mechanicTruth || <span className="text-red-400">missing — grounding will block</span>}
+                                {workspace.truth.mechanicTruth || <span className="text-red-400">missing: grounding will block</span>}
                               </p>
                             </div>
                             <div className="rounded border bg-muted/20 p-3 space-y-1">
                               <p className="font-semibold text-foreground">Evidence ({workspace.truth.evidence.length})</p>
                               {workspace.truth.evidence.length === 0 ? (
-                                <p className="text-red-400">no proof source — grounding will block</p>
+                                <p className="text-red-400">no proof source: grounding will block</p>
                               ) : (
                                 <ul className="space-y-0.5 text-muted-foreground">
                                   {workspace.truth.evidence.map((e: string) => <li key={e}>· {e}</li>)}
@@ -663,7 +663,7 @@ export default function UnifiedStudio({ onNavigate, initialSource }: StudioProps
                           {preflightWarnings.length > 0 && (
                             <ul className="space-y-1 rounded border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-muted-foreground">
                               {preflightWarnings.map((w) => (
-                                <li key={`${w.category}-${w.message}`}>· <span className="uppercase">{w.category}</span> · {w.message}</li>
+                                <li key={`${w.category}-${w.message}`}>· <span className="">{w.category}</span> · {w.message}</li>
                               ))}
                             </ul>
                           )}
@@ -691,7 +691,7 @@ export default function UnifiedStudio({ onNavigate, initialSource }: StudioProps
                                 </div>
                                 <div className="grid gap-3 sm:grid-cols-2">
                                   <div className="space-y-1">
-                                    <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wide block">Visual Prompt (Higgsfield/Veo)</span>                                    <Textarea
+                                    <span className="text-[10px] text-muted-foreground font-bold block">Visual prompt for Higgsfield/Veo</span>                                    <Textarea
                                       className="text-xs bg-background min-h-[60px]"
                                       value={beat.visual}
                                       onChange={(e) => {
@@ -704,7 +704,7 @@ export default function UnifiedStudio({ onNavigate, initialSource }: StudioProps
                                   </div>
                                   <div className="space-y-2">
                                     <div>
-                                      <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wide block">On-Screen Text Overlay</span>
+                                      <span className="text-[10px] text-muted-foreground font-bold block">On-screen text overlay</span>
                                       <Input
                                         className="text-xs bg-background h-8"
                                         value={beat.onScreenText}
@@ -717,7 +717,7 @@ export default function UnifiedStudio({ onNavigate, initialSource }: StudioProps
                                       />
                                     </div>
                                     <div>
-                                      <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wide block">Motion/Camera Instruction</span>
+                                      <span className="text-[10px] text-muted-foreground font-bold block">Motion/camera instruction</span>
                                       <Input
                                         className="text-xs bg-background h-8"
                                         value={beat.motion}
@@ -739,7 +739,7 @@ export default function UnifiedStudio({ onNavigate, initialSource }: StudioProps
  
                       {/* Voiceover Script */}
                       <div className="space-y-2">
-                        <label className="text-xs uppercase font-bold tracking-wide text-muted-foreground block">Voiceover Script (Trained ElevenLabs AI Voice)</label>
+                        <label className="text-xs font-bold text-muted-foreground block">Voiceover script (trained ElevenLabs AI voice)</label>
                         <Textarea 
                           className="min-h-[80px] bg-background text-sm"
                           value={reelBrief.voiceoverScript || ""}
@@ -752,7 +752,7 @@ export default function UnifiedStudio({ onNavigate, initialSource }: StudioProps
  
                       {/* Caption Editor */}
                       <div className="space-y-2">
-                        <label className="text-xs uppercase font-bold tracking-wide text-muted-foreground block">Final Instagram Caption</label>
+                        <label className="text-xs font-bold text-muted-foreground block">Final Instagram caption</label>
                         <Textarea 
                           className="min-h-[100px] bg-background text-sm"
                           value={content}
@@ -771,14 +771,14 @@ export default function UnifiedStudio({ onNavigate, initialSource }: StudioProps
                             <h4 className="font-bold text-sm flex items-center gap-2">
                               <ImageIcon className="h-4 w-4 text-primary" /> Visual World
                               {reelBrief?.visualWorld && (
-                                <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-bold uppercase text-primary">
+                                <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-bold text-primary">
                                   {reelBrief.visualWorld.style} locked
                                 </span>
                               )}
                             </h4>
                             <p className="text-xs text-muted-foreground">
                               Approve ONE reference frame; its invariants lock hero, environment, lighting, and palette into
-                              every clip prompt. Optional — skipping keeps the standard continuity block.
+                              every clip prompt. Optional: skipping keeps the standard continuity block.
                             </p>
                           </div>
                           <Button
@@ -824,7 +824,7 @@ export default function UnifiedStudio({ onNavigate, initialSource }: StudioProps
                                   }`}
                                 >
                                   <img src={f.url} alt={`${f.style} reference frame`} className="aspect-[9/16] w-full object-cover" />
-                                  <span className="absolute inset-x-0 bottom-0 bg-black/70 px-1 py-0.5 text-center text-[10px] font-bold uppercase tracking-wide text-white">
+                                  <span className="absolute inset-x-0 bottom-0 bg-black/70 px-1 py-0.5 text-center text-[10px] font-bold text-white">
                                     {selected ? "✓ " : ""}
                                     {f.style}
                                   </span>
@@ -1008,7 +1008,7 @@ export default function UnifiedStudio({ onNavigate, initialSource }: StudioProps
                   ) : (
                     <div className="space-y-6">
                       <div className="flex flex-col items-center justify-center py-4 bg-muted/20 rounded-xl">
-                        <span className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-1">Overall Score</span>
+                        <span className="text-xs text-muted-foreground font-bold mb-1">Overall score</span>
                         <span className={`text-4xl font-bold tracking-tighter ${score.overall < 75 ? "text-red-500" : "text-green-500"}`}>
                           {score.overall} / 75
                         </span>
@@ -1187,7 +1187,7 @@ export default function UnifiedStudio({ onNavigate, initialSource }: StudioProps
                   ) : (
                     <div className="space-y-6">
                       <div className="flex flex-col items-center justify-center py-4 bg-muted/20 rounded-xl">
-                        <span className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-1">Overall Score</span>
+                        <span className="text-xs text-muted-foreground font-bold mb-1">Overall score</span>
                         <span className={`text-4xl font-bold tracking-tighter ${score.overall < 70 ? "text-red-500" : score.overall >= 90 ? "text-green-500" : "text-yellow-500"}`}>
                           {score.overall}
                         </span>

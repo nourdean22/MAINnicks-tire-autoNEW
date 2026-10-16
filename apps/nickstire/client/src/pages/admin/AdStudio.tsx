@@ -18,7 +18,7 @@ import { PotholeAudiences } from "@/components/admin/PotholeAudiences";
 import type { CampaignInput, CampaignOutput } from "@nour/meta-ads-architect";
 
 const ANGLES = [
-  { id: "financing", label: "Payment programs", note: "Kills the price objection first — four programs, each provider decides approval." },
+  { id: "financing", label: "Payment programs", note: "Kills the price objection first: four programs, each provider decides approval." },
   { id: "free_check", label: "Free check offer", note: "Low-friction walk-in hook." },
   { id: "trust", label: "4.9★ trust / local", note: "Social proof as the engine." },
 ] as const;
@@ -90,7 +90,7 @@ function SingleAdView() {
         <input
           value={topic}
           onChange={(e) => setTopic(e.target.value)}
-          placeholder="Optional steer — e.g. summer road trip, brakes, winter"
+          placeholder="Optional steer: e.g. summer road trip, brakes, winter"
           className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm"
           maxLength={120}
         />
@@ -107,7 +107,7 @@ function SingleAdView() {
 
       {result && (
         <section className="border border-border bg-card/40 rounded-lg p-4 space-y-4">
-          <h2 className="text-sm font-bold uppercase tracking-wide text-foreground/80 flex items-center gap-2"><Sparkles className="w-4 h-4" /> Preview</h2>
+          <h2 className="text-sm font-bold text-foreground/80 flex items-center gap-2"><Sparkles className="w-4 h-4" /> Preview</h2>
 
           {result.issues.length > 0 && (
             <div className="flex items-start gap-2 text-amber-500 text-sm bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">
@@ -126,7 +126,7 @@ function SingleAdView() {
 
           <div className="space-y-1">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Caption</span>
+              <span className="text-xs font-semibold text-muted-foreground">Caption</span>
               <button onClick={() => void copyCaption()} className="text-xs inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"><Copy className="w-3 h-3" /> Copy</button>
             </div>
             <pre className="whitespace-pre-wrap text-sm bg-background border border-border rounded-lg p-3 max-h-48 overflow-auto">{result.copy.caption}</pre>
@@ -226,7 +226,7 @@ function CampaignArchitectView() {
         <section className="border border-border bg-card/40 rounded-lg p-4 space-y-4">
           <div className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-muted-foreground mb-1 uppercase">Primary Offer</label>
+              <label className="block text-xs font-semibold text-muted-foreground mb-1">Primary offer</label>
               <input
                 value={input.offer?.productOrServiceName || ""}
                 onChange={(e) => setInput({ ...input, offer: { ...input.offer!, productOrServiceName: e.target.value } })}
@@ -234,7 +234,7 @@ function CampaignArchitectView() {
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-muted-foreground mb-1 uppercase">Pain Points</label>
+              <label className="block text-xs font-semibold text-muted-foreground mb-1">Pain points</label>
               <textarea
                 value={input.audience?.painPoints || ""}
                 onChange={(e) => setInput({ ...input, audience: { ...input.audience!, painPoints: e.target.value } })}
@@ -244,7 +244,7 @@ function CampaignArchitectView() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-muted-foreground mb-1 uppercase">Core Price</label>
+                <label className="block text-xs font-semibold text-muted-foreground mb-1">Core price</label>
                 <input
                   value={input.priceStack?.corePrice || ""}
                   onChange={(e) => setInput({ ...input, priceStack: { ...input.priceStack!, corePrice: e.target.value } })}
@@ -252,7 +252,7 @@ function CampaignArchitectView() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-muted-foreground mb-1 uppercase">Daily Budget</label>
+                <label className="block text-xs font-semibold text-muted-foreground mb-1">Daily budget</label>
                 <input
                   value={input.constraints?.dailyBudgetRange || ""}
                   onChange={(e) => setInput({ ...input, constraints: { ...input.constraints!, dailyBudgetRange: e.target.value } })}
@@ -265,51 +265,51 @@ function CampaignArchitectView() {
               <summary className="font-semibold text-muted-foreground cursor-pointer outline-none">Advanced campaign inputs</summary>
               <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-muted-foreground mb-1 uppercase">Monthly Budget</label>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1">Monthly budget</label>
                   <input value={input.constraints?.monthlyBudgetRange || ""} onChange={(e) => setInput({ ...input, constraints: { ...input.constraints!, monthlyBudgetRange: e.target.value } })} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-muted-foreground mb-1 uppercase">Local Radius</label>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1">Local radius</label>
                   <input value={input.audience?.localRadius || ""} onChange={(e) => setInput({ ...input, audience: { ...input.audience!, localRadius: e.target.value } })} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-muted-foreground mb-1 uppercase">Landing Page URL</label>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1">Landing page URL</label>
                   <input value={input.constraints?.landingPageUrl || ""} onChange={(e) => setInput({ ...input, constraints: { ...input.constraints!, landingPageUrl: e.target.value } })} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-muted-foreground mb-1 uppercase">Booking URL</label>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1">Booking URL</label>
                   <input value={input.constraints?.checkoutOrBookingUrl || ""} onChange={(e) => setInput({ ...input, constraints: { ...input.constraints!, checkoutOrBookingUrl: e.target.value } })} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-muted-foreground mb-1 uppercase">Phone Number</label>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1">Phone number</label>
                   <input value={input.constraints?.phoneNumber || ""} onChange={(e) => setInput({ ...input, constraints: { ...input.constraints!, phoneNumber: e.target.value } })} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-muted-foreground mb-1 uppercase">Business Address</label>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1">Business address</label>
                   <input value={input.constraints?.businessAddress || ""} onChange={(e) => setInput({ ...input, constraints: { ...input.constraints!, businessAddress: e.target.value } })} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-muted-foreground mb-1 uppercase">Forbidden Words (Comma separated)</label>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1">Forbidden Words (Comma separated)</label>
                   <input value={input.constraints?.forbiddenWords?.join(", ") || ""} onChange={(e) => setInput({ ...input, constraints: { ...input.constraints!, forbiddenWords: e.target.value.split(",").map(s => s.trim()).filter(Boolean) } })} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-muted-foreground mb-1 uppercase">Forbidden Topics (Comma separated)</label>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1">Forbidden Topics (Comma separated)</label>
                   <input value={input.constraints?.forbiddenTopics?.join(", ") || ""} onChange={(e) => setInput({ ...input, constraints: { ...input.constraints!, forbiddenTopics: e.target.value.split(",").map(s => s.trim()).filter(Boolean) } })} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-muted-foreground mb-1 uppercase">Allowed Proof Claims</label>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1">Allowed proof claims</label>
                   <input value={input.assetsAndProof?.allowedProofClaims || ""} onChange={(e) => setInput({ ...input, assetsAndProof: { ...input.assetsAndProof!, allowedProofClaims: e.target.value } })} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-muted-foreground mb-1 uppercase">Forbidden Proof Claims</label>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1">Forbidden proof claims</label>
                   <input value={input.assetsAndProof?.forbiddenProofClaims || ""} onChange={(e) => setInput({ ...input, assetsAndProof: { ...input.assetsAndProof!, forbiddenProofClaims: e.target.value } })} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-muted-foreground mb-1 uppercase">Tracking Stack (Comma separated)</label>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1">Tracking Stack (Comma separated)</label>
                   <input value={input.constraints?.trackingStack?.join(", ") || ""} onChange={(e) => setInput({ ...input, constraints: { ...input.constraints!, trackingStack: e.target.value.split(",").map(s => s.trim()).filter(Boolean) } })} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-muted-foreground mb-1 uppercase">Creative Production Capacity</label>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1">Creative production capacity</label>
                   <input value={input.constraints?.creativeProductionCapacity || ""} onChange={(e) => setInput({ ...input, constraints: { ...input.constraints!, creativeProductionCapacity: e.target.value } })} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm" />
                 </div>
               </div>

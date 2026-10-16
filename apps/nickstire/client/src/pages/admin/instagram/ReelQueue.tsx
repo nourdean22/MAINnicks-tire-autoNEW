@@ -107,7 +107,7 @@ export default function ReelQueue() {
 
   const recordTrial = trpc.instagramAdmin.recordTrialResult.useMutation({
     onSuccess: () => {
-      toast.success("Trial result recorded", { description: "Durable on the draft — winner/archive decisions leave a trail." });
+      toast.success("Trial result recorded", { description: "Durable on the draft: winner/archive decisions leave a trail." });
       refetch();
     },
     onError: (err) => toast.error("Trial result NOT recorded", { description: err.message }),
@@ -152,7 +152,7 @@ export default function ReelQueue() {
   const rerunQa = trpc.contentAdmin.runRenderedQa.useMutation({
     onSuccess: (v: any) => {
       toast.success("Rendered QA re-run", {
-        description: `${v?.decision ?? "done"} — ${v?.findings?.length ?? 0} finding(s) across ${v?.framesEvaluated ?? "?"} frames.`,
+        description: `${v?.decision ?? "done"} · ${v?.findings?.length ?? 0} finding(s) across ${v?.framesEvaluated ?? "?"} frames.`,
       });
       refetch();
     },
@@ -165,8 +165,8 @@ export default function ReelQueue() {
       const retryAsTrial = blockedDraft?.id === vars.inventoryId && blockedDraft.asTrial;
       toast.success("Override recorded", {
         description: retryAsTrial
-          ? "Findings accepted — retrying the same MANUAL Trial publish."
-          : "Findings accepted — retrying the publish.",
+          ? "Findings accepted: retrying the same MANUAL Trial publish."
+          : "Findings accepted: retrying the publish.",
       });
       const d = (drafts || []).find((x: any) => x.id === vars.inventoryId);
       setBlockedDraft(null);
@@ -401,7 +401,7 @@ export default function ReelQueue() {
             <div className="pt-1 space-y-2 border-t border-amber-500/20">
               <p className="text-[11px] text-muted-foreground">
                 Publishing anyway records an operator override bound to this exact media.
-                A hard BLOCK finding can never be overridden — only advisory ones.
+                A hard BLOCK finding can never be overridden: only advisory ones.
               </p>
               <Input
                 value={overrideReason}
@@ -440,7 +440,7 @@ export default function ReelQueue() {
             <Film className="h-5 w-5" />
             Reels
           </h3>
-          <p className="text-sm text-muted-foreground">Approve, quality-gate, and publish reels — the verified ReelBrief pipeline's queue.</p>
+          <p className="text-sm text-muted-foreground">Approve, quality-gate, and publish reels: the verified ReelBrief pipeline's queue.</p>
         </div>
         <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isLoading}>
           {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
@@ -460,7 +460,7 @@ export default function ReelQueue() {
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <CardTitle className="flex items-center gap-2 text-base">
-                <ShieldCheck className="h-4 w-4" /> Autonomous publish — approval required
+                <ShieldCheck className="h-4 w-4" /> Autonomous publish: approval required
               </CardTitle>
               <CardDescription className="mt-1">
                 The daily cron publishes nothing without a yes recorded here. One approval covers the
@@ -485,7 +485,7 @@ export default function ReelQueue() {
                 <p className="mt-1 text-muted-foreground">
                   <code>reel_publish_approvals</code> is unreadable, so no approval can be recorded and
                   no reel can publish. Migration <code>drizzle/0112_reel_publish_approvals.sql</code> is
-                  hand-applied — it likely has not been run against production TiDB yet.
+                  hand-applied: it likely has not been run against production TiDB yet.
                 </p>
               </div>
             </div>
@@ -500,7 +500,7 @@ export default function ReelQueue() {
             </p>
           ) : !publishQueue?.entries.length ? (
             <p className="text-sm text-muted-foreground">
-              No assembled reels are waiting. Nothing to approve — the pipeline produces before it publishes.
+              No assembled reels are waiting. Nothing to approve: the pipeline produces before it publishes.
             </p>
           ) : (
             <div className="space-y-4">
@@ -533,12 +533,12 @@ export default function ReelQueue() {
                       </div>
                       {entry.productionGrammarNovelty?.collisions?.length > 0 && (
                         <p className="text-xs text-amber-500">
-                          Structure overlap: {entry.productionGrammarNovelty.collisions.join(", ")}. Diagnostic only — approval still depends on the normal safety/quality gates.
+                          Structure overlap: {entry.productionGrammarNovelty.collisions.join(", ")}. Diagnostic only: approval still depends on the normal safety/quality gates.
                         </p>
                       )}
 
                       <div>
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                        <p className="text-[10px] font-bold text-muted-foreground">
                           Exact caption that will publish
                         </p>
                         <pre className="mt-1 max-h-36 overflow-y-auto whitespace-pre-wrap break-words rounded border bg-muted/20 p-2 text-xs leading-5">{entry.caption}</pre>
@@ -591,7 +591,7 @@ export default function ReelQueue() {
                                   }}
                                 >
                                   {approveReelPublish.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
-                                  Yes — approve
+                                  Yes: approve
                                 </Button>
                               </div>
                             </div>
@@ -671,7 +671,7 @@ export default function ReelQueue() {
             onClick={() => setShowLegacyStatics((v) => !v)}
           >
             {showLegacyStatics ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            Legacy static drafts ({legacyStatics.length}) — pre-Studio content still in the old inventory
+            Legacy static drafts ({legacyStatics.length}): pre-Studio content still in the old inventory
           </button>
           {showLegacyStatics && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -719,16 +719,16 @@ export default function ReelQueue() {
                     {showSafeZones && reviewDraft.assetPack?.videoUrl && (
                       <div className="pointer-events-none absolute inset-0" aria-hidden>
                         <div className="absolute inset-x-0 top-0 border-b border-red-400/70 bg-red-500/10" style={{ height: `${REEL_SAFE.top * 100}%` }}>
-                          <span className="absolute left-1 top-1 rounded bg-black/60 px-1 text-[9px] font-semibold uppercase tracking-wide text-red-300">UI top</span>
+                          <span className="absolute left-1 top-1 rounded bg-black/60 px-1 text-[9px] font-semibold text-red-300">UI top</span>
                         </div>
                         <div className="absolute inset-x-0 bottom-0 border-t border-red-400/70 bg-red-500/10" style={{ height: `${REEL_SAFE.bottom * 100}%` }}>
-                          <span className="absolute bottom-1 left-1 rounded bg-black/60 px-1 text-[9px] font-semibold uppercase tracking-wide text-red-300">caption / actions</span>
+                          <span className="absolute bottom-1 left-1 rounded bg-black/60 px-1 text-[9px] font-semibold text-red-300">caption / actions</span>
                         </div>
                         <div
                           className="absolute right-0 border-l border-red-400/70 bg-red-500/10"
                           style={{ top: `${REEL_SAFE.top * 100}%`, bottom: `${REEL_SAFE.bottom * 100}%`, width: `${REEL_SAFE.right * 100}%` }}
                         >
-                          <span className="absolute right-1 top-1 rounded bg-black/60 px-1 text-[9px] font-semibold uppercase tracking-wide text-red-300">rail</span>
+                          <span className="absolute right-1 top-1 rounded bg-black/60 px-1 text-[9px] font-semibold text-red-300">rail</span>
                         </div>
                       </div>
                     )}
@@ -746,7 +746,7 @@ export default function ReelQueue() {
                     )}
                   </div>
                   <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
-                    Zones are approximate Instagram chrome — keep captions and the subject inside the clear area.
+                    Zones are approximate Instagram chrome: keep captions and the subject inside the clear area.
                     The first frame doubles as the cover: scrub to 0:00 and judge it as the profile-grid tile.
                     Review once with sound and once muted.
                   </p>
@@ -754,8 +754,8 @@ export default function ReelQueue() {
 
                 <div className="space-y-3">
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Exact publish caption</p>
-                    <p className="text-[11px] text-muted-foreground">For reels the server rebuilds the approved caption at publish — this is the authoritative copy.</p>
+                    <p className="text-xs font-bold text-muted-foreground">Exact publish caption</p>
+                    <p className="text-[11px] text-muted-foreground">For reels the server rebuilds the approved caption at publish: this is the authoritative copy.</p>
                     <div className="mt-1 max-h-48 overflow-y-auto whitespace-pre-wrap rounded border bg-muted/20 p-2 text-xs leading-5">
                       {reviewDraft.publishCaption ?? captionWithHashtags(reviewDraft) ?? "(no caption)"}
                     </div>
@@ -782,7 +782,7 @@ export default function ReelQueue() {
                     </Button>
                   )}
                   <div className="rounded border bg-muted/10 p-2">
-                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Approval standard</p>
+                    <p className="text-xs font-bold text-muted-foreground">Approval standard</p>
                     <p className="text-[11px] text-muted-foreground">Judge, don't hope. A reel is approvable only if every answer is yes:</p>
                     <ul className="mt-1 space-y-0.5 text-[11px] leading-relaxed text-muted-foreground">
                       <li>· Understandable muted?</li>
@@ -801,11 +801,11 @@ export default function ReelQueue() {
                       Trial-specific 24h metrics remain manual until a verified
                       Graph ingestion surface is wired. */}
                   <div className="rounded border bg-muted/10 p-2 space-y-2">
-                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Trial result · 24h (manual)</p>
+                    <p className="text-xs font-bold text-muted-foreground">Trial result · 24h (manual)</p>
                     <div className="grid grid-cols-2 gap-2">
                       {([["views24h", "Views"], ["avgWatchSeconds", "Avg watch (s)"], ["shares", "Shares"], ["saves", "Saves"], ["comments", "Comments"], ["follows", "Follows"]] as const).map(([key, label]) => (
                         <label key={key} className="space-y-0.5">
-                          <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</span>
+                          <span className="text-[10px] text-muted-foreground">{label}</span>
                           <Input
                             inputMode="numeric"
                             value={trialForm[key] ?? ""}
@@ -846,10 +846,10 @@ export default function ReelQueue() {
                       {recordTrial.isPending ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
                       Record trial result
                     </Button>
-                    <p className="text-[10px] text-muted-foreground">Empty fields stay unrecorded — never written as zero.</p>
+                    <p className="text-[10px] text-muted-foreground">Empty fields stay unrecorded: never written as zero.</p>
                   </div>
                   <p className="text-[11px] text-muted-foreground">
-                    Publishing stays on the card — close this room and use Publish… to see the exact payload before anything goes live.
+                    Publishing stays on the card: close this room and use Publish… to see the exact payload before anything goes live.
                   </p>
                 </div>
               </div>

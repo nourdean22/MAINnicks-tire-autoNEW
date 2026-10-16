@@ -178,7 +178,7 @@ export default function SiteHealthSection() {
             <div className="flex items-center gap-2 p-3 border border-amber-500/25 bg-amber-500/5">
               <AlertTriangle className="w-4 h-4 text-amber-400" />
               <span className="text-[13px] text-amber-200/90">
-                Integration-failure log could not be read — status unknown, not clear.
+                Integration-failure log could not be read: status unknown, not clear.
               </span>
             </div>
           ) : failData.failures.length === 0 ? (
@@ -195,14 +195,14 @@ export default function SiteHealthSection() {
                   with no instrumentation behind it. */}
               <span className="text-[13px] text-foreground/70">
                 No integration failures logged on the web booking / lead / emergency forms.{" "}
-                <span className="text-foreground/45">SMS and CAPI are not instrumented here — this check does not cover them.</span>
+                <span className="text-foreground/45">SMS and CAPI are not instrumented here: this check does not cover them.</span>
               </span>
             </div>
           ) : (
             <>
               {failData.counts.leadAffectingUnresolved > 0 && (
                 <div className="mb-3 border border-red-500/40 bg-red-500/5 p-3 text-[12px] text-red-300">
-                  {failData.counts.leadAffectingUnresolved} unresolved lead-affecting failure{failData.counts.leadAffectingUnresolved === 1 ? "" : "s"} (sheets / CAPI / SMS / email) — a lead may have been lost. Review the rows below.
+                  {failData.counts.leadAffectingUnresolved} unresolved lead-affecting failure{failData.counts.leadAffectingUnresolved === 1 ? "" : "s"} (sheets / CAPI / SMS / email): a lead may have been lost. Review the rows below.
                 </div>
               )}
               <div className="flex flex-wrap gap-2 mb-3">
@@ -267,7 +267,7 @@ export default function SiteHealthSection() {
           <p className="text-[12px] text-foreground/40">Last successful sync not tracked yet.</p>
 
           {sheetsSync.status === "unknown" && (
-            <p className="text-[12px] text-foreground/50">Integration log not loaded yet — status unavailable.</p>
+            <p className="text-[12px] text-foreground/50">Integration log not loaded yet: status unavailable.</p>
           )}
 
           {sheetsSync.lastFailure && (
@@ -289,13 +289,13 @@ export default function SiteHealthSection() {
           {sheetsSync.status === "failing" && (
             <div className="flex items-start gap-2 p-2.5 border border-red-500/30 bg-red-500/5">
               <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />
-              <span className="text-[12px] text-red-300">Next · investigate Sheets credentials — a recent sync failed and is unresolved.</span>
+              <span className="text-[12px] text-red-300">Next · investigate Sheets credentials: a recent sync failed and is unresolved.</span>
             </div>
           )}
           {sheetsSync.status === "warning" && (
             <div className="flex items-start gap-2 p-2.5 border border-amber-500/30 bg-amber-500/5">
               <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
-              <span className="text-[12px] text-amber-300">Next · watch the next sync — a recent failure was marked resolved.</span>
+              <span className="text-[12px] text-amber-300">Next · watch the next sync: a recent failure was marked resolved.</span>
             </div>
           )}
           {sheetsSync.status === "healthy" && (
@@ -411,11 +411,11 @@ export default function SiteHealthSection() {
             <div className="space-y-2">
               <p className="text-[11px] text-foreground/40 tracking-wide">NOT INDEXED REASONS</p>
               <div className="flex items-center justify-between p-2.5 border border-border/20">
-                <span className="text-[12px] text-foreground/60">Crawled — currently not indexed</span>
+                <span className="text-[12px] text-foreground/60">Crawled: currently not indexed</span>
                 <span className="text-[13px] font-semibold text-amber-400">{health.crawledNotIndexed || "—"}</span>
               </div>
               <div className="flex items-center justify-between p-2.5 border border-border/20">
-                <span className="text-[12px] text-foreground/60">Discovered — currently not indexed</span>
+                <span className="text-[12px] text-foreground/60">Discovered: currently not indexed</span>
                 <span className="text-[13px] font-semibold text-amber-400">{health.discoveredNotIndexed || "—"}</span>
               </div>
             </div>

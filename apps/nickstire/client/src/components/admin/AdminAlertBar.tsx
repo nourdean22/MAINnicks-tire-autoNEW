@@ -82,7 +82,7 @@ export default function AdminAlertBar({ alerts }: AdminAlertBarProps) {
             {alert.href && alert.ctaLabel && (
               <a
                 href={alert.href}
-                className={`text-xs font-bold uppercase tracking-wider hover:underline ${style.text}`}
+                className={`text-xs font-bold hover:underline ${style.text}`}
               >
                 {alert.ctaLabel}
               </a>

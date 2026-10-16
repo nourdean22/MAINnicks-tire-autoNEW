@@ -536,12 +536,13 @@ export default function OverviewSection() {
             !queueTrustworthy
               ? "Unable to determine"
               : queueSaturated
-                ? "At least this many — work-order list is capped"
+                ? "At least this many: work-order list is capped"
                 : queue.length
                   ? "Open queue items"
                   : "All clear"
           }
           alert={queue.length > 0 || !queueTrustworthy}
+          priority={queueTrustworthy && queue.length > 0}
         />
         <SummaryCard label="Bookings today" value={bookingsKnown ? todaysBookings.length : UNKNOWN} detail={bookingsKnown ? `Cleveland date · ${todayKey}` : "Unable to determine"} />
         <SummaryCard label="Urgent leads" value={leadsKnown ? urgentLeadCount : UNKNOWN} detail={leadsKnown ? "Included once" : "Unable to determine"} />
@@ -597,7 +598,7 @@ export default function OverviewSection() {
             </p>
             <p className="mt-1 text-[10px] text-muted-foreground">Source: {freshness?.source ?? "unknown"} · checked {freshness?.generatedAt ? new Date(freshness.generatedAt).toLocaleTimeString() : "—"}</p>
           </div>
-          <button type="button" onClick={() => refetchFreshness()} className="p-2 rounded-md border border-border/40 text-muted-foreground hover:text-foreground" aria-label="Refresh integration freshness">
+          <button type="button" onClick={() => refetchFreshness()} className="inline-flex items-center justify-center min-h-12 min-w-12 rounded-md border border-border/40 text-muted-foreground hover:text-foreground" aria-label="Refresh integration freshness">
             <RefreshCw className={`w-4 h-4 ${freshnessFetching ? "animate-spin" : ""}`} />
           </button>
         </div>
@@ -611,7 +612,7 @@ export default function OverviewSection() {
           </div>
           <div className="flex flex-wrap gap-1" role="group" aria-label="Filter queue">
             {(["all", "booking", "lead", "callback", "workOrder", "text"] as const).map((value) => (
-              <button key={value} type="button" onClick={() => setFilter(value)} aria-pressed={filter === value} className={`px-2.5 py-1.5 rounded text-xs ${filter === value ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"}`}>
+              <button key={value} type="button" onClick={() => setFilter(value)} aria-pressed={filter === value} className={`min-h-12 px-3 rounded text-xs ${filter === value ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"}`}>
                 {value === "all" ? "All" : value === "workOrder" ? "Work orders" : `${value.charAt(0).toUpperCase()}${value.slice(1)}s`}
               </button>
             ))}
@@ -636,7 +637,7 @@ export default function OverviewSection() {
           !queueTrustworthy ? (
             <div className="py-10 text-center text-amber-600" role="status">
               <AlertTriangle className="w-7 h-7 mx-auto mb-2" />
-              <p className="text-sm font-medium">Queue unreadable — this is UNKNOWN, not clear</p>
+              <p className="text-sm font-medium">Queue unreadable: this is UNKNOWN, not clear</p>
               <p className="text-xs mt-1 text-amber-600/80">
                 At least one source failed. Work may be waiting that this list could not load.
               </p>
@@ -654,16 +655,16 @@ export default function OverviewSection() {
                   <div className="flex items-start gap-3 flex-1 min-w-0">
                     <Icon className="w-4 h-4 text-primary mt-1 shrink-0" />
                     <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-medium truncate">{item.name}</h3><span className="text-[9px] uppercase tracking-wider rounded bg-muted px-1.5 py-0.5">{requestLabel(item)}</span>{item.urgency >= 4 && <span className="text-[9px] uppercase tracking-wider rounded bg-red-500/10 text-red-400 px-1.5 py-0.5">Urgent</span>}</div>
+                      <div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-medium truncate">{item.name}</h3><span className="text-[9px] rounded bg-muted px-1.5 py-0.5">{requestLabel(item)}</span>{item.urgency >= 4 && <span className="text-[9px] rounded bg-red-500/10 text-red-400 px-1.5 py-0.5">Urgent</span>}</div>
                       <p className="text-xs text-muted-foreground mt-1 truncate">{item.detail}</p>
                       <p className="text-[10px] text-muted-foreground/70 mt-1 flex items-center gap-1"><Clock className="w-3 h-3" />{new Date(item.createdAt).toLocaleString()}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    {item.phone && <a href={`tel:${item.phone}`} className="p-2 rounded border border-border/40" aria-label={`Call ${item.name}`}><Phone className="w-4 h-4" /></a>}
-                    {item.phone && <MessageCustomerLink phone={item.phone} body={`Hi ${item.name.split(" ")[0]}, it's Nick's Tire following up on your ${requestLabel(item)}.`} className="p-2 rounded border border-border/40" title="Message customer" ariaLabel={`Message ${item.name}`}><MessageSquare className="w-4 h-4" /></MessageCustomerLink>}
-                    <button type="button" disabled={mutationPending} onClick={() => performPrimary(item).catch((actionError) => toast.error(actionError instanceof Error ? actionError.message : "Action failed"))} className="px-3 py-2 rounded bg-primary text-primary-foreground text-xs font-semibold disabled:opacity-50">{definition.primaryLabel}</button>
-                    {definition.secondaryLabel !== definition.primaryLabel && <button type="button" disabled={mutationPending} onClick={() => performSecondary(item).catch((actionError) => toast.error(actionError instanceof Error ? actionError.message : "Action failed"))} className="px-3 py-2 rounded border border-border/50 text-xs font-medium disabled:opacity-50">{definition.secondaryLabel}</button>}
+                    {item.phone && <a href={`tel:${item.phone}`} className="inline-flex items-center justify-center min-h-12 min-w-12 rounded border border-border/40" aria-label={`Call ${item.name}`}><Phone className="w-4 h-4" /></a>}
+                    {item.phone && <MessageCustomerLink phone={item.phone} body={`Hi ${item.name.split(" ")[0]}, it's Nick's Tire following up on your ${requestLabel(item)}.`} className="inline-flex items-center justify-center min-h-12 min-w-12 rounded border border-border/40" title="Message customer" ariaLabel={`Message ${item.name}`}><MessageSquare className="w-4 h-4" /></MessageCustomerLink>}
+                    <button type="button" disabled={mutationPending} onClick={() => performPrimary(item).catch((actionError) => toast.error(actionError instanceof Error ? actionError.message : "Action failed"))} className="min-h-12 px-3 rounded bg-primary text-primary-foreground text-xs font-semibold disabled:opacity-50">{definition.primaryLabel}</button>
+                    {definition.secondaryLabel !== definition.primaryLabel && <button type="button" disabled={mutationPending} onClick={() => performSecondary(item).catch((actionError) => toast.error(actionError instanceof Error ? actionError.message : "Action failed"))} className="min-h-12 px-3 rounded border border-border/50 text-xs font-medium disabled:opacity-50">{definition.secondaryLabel}</button>}
                   </div>
                 </article>
               );
@@ -696,11 +697,12 @@ export default function OverviewSection() {
  * "we could not read this" — the only options were a count or a zero, and zero
  * is a claim. The type was enforcing the defect.
  */
-function SummaryCard({ label, value, detail, alert = false }: { label: string; value: number | string; detail: string; alert?: boolean }) {
+function SummaryCard({ label, value, detail, alert = false, priority = false }: { label: string; value: number | string; detail: string; alert?: boolean; priority?: boolean }) {
+  // `priority` is the owner-priority gold (index.css --owner-priority): work is waiting and the count is real.
   return (
-    <div className="rounded-lg border border-border/40 bg-card p-4">
-      <div className={`text-2xl font-bold tabular-nums ${alert ? "text-red-400" : "text-foreground"}`}>{value}</div>
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground mt-1">{label}</div>
+    <div className={`rounded-lg border bg-card p-4 ${priority ? "border-[var(--owner-priority)]" : "border-border/40"}`}>
+      <div className={`text-2xl font-bold tabular-nums ${priority ? "text-[var(--owner-priority)]" : alert ? "text-red-400" : "text-foreground"}`}>{value}</div>
+      <div className="text-[10px] text-muted-foreground mt-1">{label}</div>
       <div className="text-[10px] text-muted-foreground/70 mt-1">{detail}</div>
     </div>
   );

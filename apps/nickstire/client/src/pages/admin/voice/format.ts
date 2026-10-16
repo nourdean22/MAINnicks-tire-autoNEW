@@ -158,7 +158,7 @@ export const EXCLUSION_LABELS: Record<string, string> = {
   operational_not_sales: "car already at the shop",
   already_invoiced: "already paid an invoice",
   already_resolved: "resolved on the call",
-  safety_lane: "safety — handled by a human",
+  safety_lane: "safety: handled by a human",
 };
 
 export const OUTCOME_PRETTY: Record<string, { label: string; color: string; bg: string }> = {

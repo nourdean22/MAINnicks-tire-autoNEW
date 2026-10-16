@@ -90,7 +90,7 @@ export function LaneHealthStrip() {
     <div className="bg-card border border-border/30" data-card="lane-health">
       <div className="px-4 py-3 border-b border-border/30 flex items-center gap-2">
         <Radio className="w-4 h-4 text-foreground/60" />
-        <span className="text-xs uppercase tracking-[0.15em] text-foreground/70 font-medium">Customer lanes</span>
+        <span className="text-xs text-foreground/70 font-medium">Customer lanes</span>
         {needsLook > 0 && (
           <span className="ml-auto text-[11px] text-amber-400" data-lane-summary>
             {needsLook} need a look

@@ -59,7 +59,7 @@ export function FinancingAttribution() {
 
       {isError ? (
         <p className="text-[12px] text-amber-500 py-2">
-          Could not read financing clicks — unknown, not zero. {error?.message}
+          Could not read financing clicks: unknown, not zero. {error?.message}
         </p>
       ) : isLoading ? (
         <div className="flex items-center gap-2 text-[12px] text-foreground/40 py-4">
@@ -73,7 +73,7 @@ export function FinancingAttribution() {
         <div className="overflow-x-auto">
           <table className="w-full text-[11px]">
             <thead>
-              <tr className="text-foreground/40 uppercase tracking-wider text-[10px] border-b border-border/30">
+              <tr className="text-foreground/40 text-[10px] border-b border-border/30">
                 <th className="text-left font-bold py-1.5 pr-3">Provider</th>
                 <th className="text-left font-bold py-1.5 pr-3">Source</th>
                 <th className="text-left font-bold py-1.5 pr-3">Attributed lead</th>
@@ -84,7 +84,7 @@ export function FinancingAttribution() {
             <tbody>
               {rows.map((r) => (
                 <tr key={r.id} className="border-b border-border/10">
-                  <td className="py-1.5 pr-3 font-mono uppercase text-foreground/70">{r.provider}</td>
+                  <td className="py-1.5 pr-3 font-mono text-foreground/70">{r.provider}</td>
                   <td className="py-1.5 pr-3 text-foreground/50 font-mono">{r.sourcePage ?? "—"}</td>
                   <td className="py-1.5 pr-3">
                     {r.leadId != null ? (

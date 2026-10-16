@@ -55,7 +55,7 @@ export function TodaysMoneyRisks() {
     return (
       <div className="text-xs text-amber-300/80 flex items-center gap-2">
         <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-        Could not read money-at-risk signals — status unknown, not clear.
+        Could not read money-at-risk signals: status unknown, not clear.
       </div>
     );
   }
@@ -79,7 +79,7 @@ export function TodaysMoneyRisks() {
   return (
     <div className={`bg-card border ${style.border} p-4 space-y-2.5`}>
       <div className="flex items-center justify-between">
-        <span className="flex items-center gap-2 text-[11px] font-bold tracking-[0.18em] uppercase text-foreground/55">
+        <span className="flex items-center gap-2 text-[11px] font-bold text-foreground/55">
           <AlertTriangle className={`w-3.5 h-3.5 ${style.icon}`} />
           {risks.totalRisks === 0
             ? "Money at risk: could not be read in full."

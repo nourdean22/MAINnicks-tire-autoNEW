@@ -101,17 +101,17 @@ export default function DraftCard({ draft, onUpdateStatus, onUpdateDate, onUpdat
           ) : (
             <Images className="w-3.5 h-3.5 text-primary shrink-0" />
           )}
-          <span className="text-[10px] font-bold tracking-wider uppercase text-foreground/50">
+          <span className="text-[10px] font-bold text-foreground/50">
             {draft.contentType}
           </span>
           {draft.isSample && (
-            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border border-purple-500/30 bg-purple-500/10 text-purple-400 uppercase">
+            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border border-purple-500/30 bg-purple-500/10 text-purple-400">
               Sample
             </span>
           )}
         </div>
 
-        <span className={`px-2 py-0.5 text-[9px] font-bold border rounded uppercase ${statusStyle.bg} ${statusStyle.text}`}>
+        <span className={`px-2 py-0.5 text-[9px] font-bold border rounded ${statusStyle.bg} ${statusStyle.text}`}>
           {statusStyle.label}
         </span>
       </div>

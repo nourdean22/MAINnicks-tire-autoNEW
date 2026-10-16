@@ -77,7 +77,7 @@ export function InstagramAdmin() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-2xl font-bold tracking-tight">Instagram</h2>
-          <p className="text-sm text-muted-foreground">Create, approve, publish, respond, learn — one controlled workflow.</p>
+          <p className="text-sm text-muted-foreground">Create, approve, publish, respond, learn: one controlled workflow.</p>
         </div>
         <div className="flex items-center gap-2">
           {metaChip && <Badge variant="outline" className={metaChip.className}>{metaChip.label}</Badge>}
@@ -179,7 +179,7 @@ export function InstagramAdmin() {
             <AlertTriangle className="h-6 w-6 text-amber-500" />
             <p className="text-sm font-medium">This view failed to render.</p>
             <p className="max-w-md text-xs text-muted-foreground">
-              The rest of the Instagram admin still works — switch tabs and come back. If it keeps
+              The rest of the Instagram admin still works: switch tabs and come back. If it keeps
               failing, the browser console holds the error.
             </p>
           </div>

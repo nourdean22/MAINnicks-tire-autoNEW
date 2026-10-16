@@ -87,7 +87,7 @@ export default function LeadsSection() {
   // callback row exists until a human approves it there (trust ladder).
   const proposeCallback = trpc.proposals.create.useMutation({
     onSuccess: (r) => {
-      if (r.created) toast.success("Draft created — review it in Approvals");
+      if (r.created) toast.success("Draft created: review it in Approvals");
       else if ("deduped" in r && r.deduped) toast.message("Already drafted", { description: "An identical proposal is in the queue." });
       else toast.error("Could not draft: " + ("error" in r ? r.error : "unknown"));
       void utils.proposals.list.invalidate();
@@ -245,11 +245,11 @@ export default function LeadsSection() {
           <button
             type="button"
             onClick={() => openWalkInQuote()}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] tracking-wider uppercase font-medium bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/15 transition-colors rounded"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/15 transition-colors rounded"
             title="Open Walk-In Quote pricing tool"
           >
             <Calculator className="w-3.5 h-3.5" />
-            Walk-In Quote
+            Walk-in quote
           </button>
         }
       />
@@ -260,7 +260,7 @@ export default function LeadsSection() {
 
       {unknown && (
         <div className="border border-amber-500/40 bg-amber-500/10 p-4 text-[13px] text-amber-400">
-          <strong>Leads could not be read.</strong> Everything below is unknown — NOT zero, and nothing here means nobody has contacted the shop. {error?.message}
+          <strong>Leads could not be read.</strong> Everything below is unknown: NOT zero, and nothing here means nobody has contacted the shop. {error?.message}
         </div>
       )}
       <LeadsBrief
@@ -424,14 +424,14 @@ export default function LeadsSection() {
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <span
               title="How each lead ENTERED the system (web form, phone, callback artifact) â origin/type cleanliness, not marketing attribution"
-              className="text-[10px] font-bold tracking-wider text-foreground/40 uppercase cursor-help"
+              className="text-[10px] font-bold text-foreground/40 cursor-help"
             >
               Source hygiene
             </span>
             {Object.entries(sourceHygiene.countsByLabel)
               .sort((a, b) => b[1] - a[1])
               .map(([label, count]) => (
-                <span key={label} className="font-mono text-[10px] text-foreground/60 uppercase tracking-wider">
+                <span key={label} className="font-mono text-[10px] text-foreground/60">
                   {/* raw enum values read as developer-speak (FINANCING_PREAPPROVAL) â display with spaces */}
                   {label.replace(/_/g, " ")} <span className="text-foreground font-bold">{count}</span>
                 </span>
@@ -494,7 +494,7 @@ export default function LeadsSection() {
           <div className="flex items-center gap-3 flex-wrap">
             <span
               title="Marketing attribution â which campaign/channel tag (utm_source) each lead carried; direct/untagged = arrived with no campaign tag"
-              className="text-[10px] font-bold tracking-wider uppercase text-foreground/45 shrink-0 cursor-help"
+              className="text-[10px] font-bold text-foreground/45 shrink-0 cursor-help"
             >
               Leads by source
             </span>
@@ -520,7 +520,7 @@ export default function LeadsSection() {
         // whose emptiness is unverified.
         unknown ? (
           <div className="border border-amber-500/40 bg-amber-500/10 p-4 text-[13px] text-amber-400">
-            The pipeline board is unavailable — column counts would be unknown, not zero.
+            The pipeline board is unavailable: column counts would be unknown, not zero.
           </div>
         ) : (
           <KanbanBoard leadsData={leadsData} onUpdate={handleStatusChange} isLoading={isLoading} />
@@ -579,7 +579,7 @@ export default function LeadsSection() {
             <EmptyState
               icon={<Users className="w-8 h-8" />}
               title="Leads unavailable"
-              subtitle="This list could not be read — it is unknown, not empty."
+              subtitle="This list could not be read: it is unknown, not empty."
             />
           ) : filteredLeads.length === 0 ? (
             <EmptyState
@@ -699,7 +699,7 @@ export default function LeadsSection() {
                           onClick={() =>
                             proposeCallback.mutate({
                               actionType: "create_callback",
-                              title: `Callback: ${lead.name} — flagged from Sales Pipeline`,
+                              title: `Callback: ${lead.name} · flagged from Sales Pipeline`,
                               payload: {
                                 name: lead.name,
                                 phone: lead.phone,
@@ -711,7 +711,7 @@ export default function LeadsSection() {
                             })
                           }
                           disabled={proposeCallback.isPending}
-                          title="Creates a DRAFT in the approval queue — nothing happens until it is approved there"
+                          title="Creates a DRAFT in the approval queue: nothing happens until it is approved there"
                           className="flex items-center gap-2 border border-violet-500/40 text-violet-500 px-4 py-2.5 font-bold text-xs tracking-wide hover:bg-violet-500/10 disabled:opacity-50"
                         >
                           <ClipboardList className="w-4 h-4" /> FLAG CALLBACK

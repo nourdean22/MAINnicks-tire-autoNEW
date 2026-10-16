@@ -532,7 +532,7 @@ function WorkOrderDrawer({ id, onClose }: { id: string; onClose: () => void }) {
                     <ArrowRight className="w-2.5 h-2.5 text-foreground/20" />
                     <span className={STATUS_COLORS[t.toStatus] || ""}>{STATUS_LABELS[t.toStatus] || t.toStatus}</span>
                     {t.changedBy && <span className="text-foreground/30">by {t.changedBy}</span>}
-                    {t.note && <span className="text-foreground/20 truncate">— {t.note}</span>}
+                    {t.note && <span className="text-foreground/20 truncate">· {t.note}</span>}
                   </div>
                 ))}
               </div>
@@ -715,7 +715,7 @@ function BlockersView({ onSelectWO }: { onSelectWO: (id: string) => void }) {
         </div>
         {overdueError ? (
           <div className="border border-amber-500/40 bg-amber-500/10 p-3 text-[11px] text-amber-400">
-            Overdue work orders could not be read — unknown, NOT zero.
+            Overdue work orders could not be read: unknown, NOT zero.
           </div>
         ) : !overdue?.length ? (
           <div className="text-[10px] text-foreground/30 py-4 text-center">No overdue work orders</div>
@@ -749,7 +749,7 @@ function BlockersView({ onSelectWO }: { onSelectWO: (id: string) => void }) {
         </div>
         {blockedError ? (
           <div className="border border-amber-500/40 bg-amber-500/10 p-3 text-[11px] text-amber-400">
-            Blocked work orders could not be read — unknown, NOT zero.
+            Blocked work orders could not be read: unknown, NOT zero.
           </div>
         ) : !blocked?.length ? (
           <div className="text-[10px] text-foreground/30 py-4 text-center">No blocked work orders</div>
@@ -792,7 +792,7 @@ function PickupQueueView({ onSelectWO }: { onSelectWO: (id: string) => void }) {
   if (queueError) {
     return (
       <div className="border border-amber-500/40 bg-amber-500/10 p-4 text-[13px] text-amber-400">
-        <strong>The pickup queue could not be read.</strong> This is unknown — NOT empty, and nothing here means no vehicle is waiting.
+        <strong>The pickup queue could not be read.</strong> This is unknown: NOT empty, and nothing here means no vehicle is waiting.
       </div>
     );
   }
@@ -860,12 +860,12 @@ function ShopPulseMood({ stats }: { stats: AdminDashboardStats | undefined }) {
     return (
       <div className="bg-muted/20 border border-border p-4" data-testid="shop-pulse-unavailable">
         <div className="flex items-center gap-2.5">
-          <span className="text-[13px] font-semibold tracking-[0.12em] uppercase text-muted-foreground">
+          <span className="text-[13px] font-semibold text-muted-foreground">
             Shop floor · unknown
           </span>
         </div>
         <div className="mt-2 text-[11px] text-foreground/60">
-          The shop-floor read failed on the server, so today&apos;s revenue, jobs and pace are unknown — not zero.
+          The shop-floor read failed on the server, so today&apos;s revenue, jobs and pace are unknown, not zero.
           Retry in a minute; if it persists, check the ALG mirror.
         </div>
       </div>
@@ -911,7 +911,7 @@ function ShopPulseMood({ stats }: { stats: AdminDashboardStats | undefined }) {
   const pacePercent = dailyTarget > 0 ? Math.round((revenueToday / dailyTarget) * 100) : 0;
 
   let mood: "busy" | "normal" | "slow";
-  let emoji: string;
+  let dotColor: string;
   let moodLabel: string;
   let moodLine: string;
   let borderColor: string;
@@ -920,24 +920,24 @@ function ShopPulseMood({ stats }: { stats: AdminDashboardStats | undefined }) {
 
   if (pacePercent >= 110) {
     mood = "busy";
-    emoji = "\uD83D\uDFE2";
-    moodLabel = "BUSY DAY";
+    dotColor = "bg-emerald-400";
+    moodLabel = "Busy day";
     moodLine = "Keep this energy. Every car counts.";
     borderColor = "border-emerald-500/40";
     bgColor = "bg-emerald-500/5";
     textColor = "text-emerald-400";
   } else if (pacePercent >= 70) {
     mood = "normal";
-    emoji = "\uD83D\uDFE1";
-    moodLabel = "NORMAL DAY";
+    dotColor = "bg-amber-400";
+    moodLabel = "Normal day";
     moodLine = "Solid pace. Stay sharp on callbacks and follow-ups.";
     borderColor = "border-amber-500/40";
     bgColor = "bg-amber-500/5";
     textColor = "text-amber-400";
   } else {
     mood = "slow";
-    emoji = "\uD83D\uDD34";
-    moodLabel = "SLOW DAY";
+    dotColor = "bg-red-400";
+    moodLabel = "Slow day";
     moodLine = "Push harder. Call lapsed customers. Chase pending estimates.";
     borderColor = "border-red-500/40";
     bgColor = "bg-red-500/5";
@@ -947,11 +947,11 @@ function ShopPulseMood({ stats }: { stats: AdminDashboardStats | undefined }) {
   return (
     <div className={`${bgColor} border ${borderColor} p-4`}>
       <div className="flex items-center gap-4 flex-wrap">
-        {/* Mood emoji + label — wave-134 lighter weight (was font-black
+        {/* Mood dot + label (dot replaced the coloured-circle emoji in Admin UI v1 W1) — wave-134 lighter weight (was font-black
             tracking-widest uppercase) */}
         <div className="flex items-center gap-2.5">
-          <span className="text-2xl">{emoji}</span>
-          <span className={`text-[13px] font-semibold tracking-[0.12em] uppercase ${textColor}`}>
+          <span className={`w-2.5 h-2.5 rounded-full ${dotColor}`} aria-hidden />
+          <span className={`text-[13px] font-semibold ${textColor}`}>
             {moodLabel}
           </span>
         </div>
@@ -960,18 +960,18 @@ function ShopPulseMood({ stats }: { stats: AdminDashboardStats | undefined }) {
         <div className="flex items-center gap-5 ml-auto">
           <div className="text-center">
             <div className="text-[17px] font-semibold text-foreground tabular-nums">{jobsClosed}</div>
-            <div className="text-[9px] text-muted-foreground/80 tracking-[0.18em] uppercase mt-0.5">Jobs</div>
+            <div className="text-[9px] text-muted-foreground/80 mt-0.5">Jobs</div>
           </div>
           <div className="text-center">
             <div className="text-[17px] font-semibold text-foreground tabular-nums">${revenueToday.toLocaleString()}</div>
-            <div className="text-[9px] text-muted-foreground/80 tracking-[0.18em] uppercase mt-0.5">Revenue</div>
+            <div className="text-[9px] text-muted-foreground/80 mt-0.5">Revenue</div>
             {asOfLabel && (
               <div className="text-[8px] text-muted-foreground/60 tabular-nums mt-0.5">as of {asOfLabel}</div>
             )}
           </div>
           <div className="text-center">
             <div className={`text-[17px] font-semibold tabular-nums ${textColor}`}>{pacePercent}%</div>
-            <div className="text-[9px] text-muted-foreground/80 tracking-[0.18em] uppercase mt-0.5">Pace</div>
+            <div className="text-[9px] text-muted-foreground/80 mt-0.5">Pace</div>
           </div>
         </div>
       </div>
@@ -1045,7 +1045,7 @@ export default function WorkOrdersSection() {
     <div className="space-y-4">
       <PageHeader
         title="Work Orders"
-        subtitle="Kanban board grouped by lifecycle phase — queue, parts, in-shop, QC/pickup. Refreshes every 15 seconds."
+        subtitle="Kanban board grouped by lifecycle phase: queue, parts, in-shop, QC/pickup. Refreshes every 15 seconds."
         icon={<Wrench className="w-5 h-5" />}
       />
       <DegradedDataBanner stats={dashboardStats} />
@@ -1123,7 +1123,7 @@ export default function WorkOrdersSection() {
       {view === "board" && listHitCap && !searchQuery.trim() && (
         <div className="flex items-center gap-2 text-[11px] text-foreground/40 px-0.5">
           <AlertTriangle className="w-3 h-3 shrink-0 text-amber-400/70" />
-          <span>Showing newest 200 — older active work orders not listed.</span>
+          <span>Showing newest 200: older active work orders not listed.</span>
         </div>
       )}
 

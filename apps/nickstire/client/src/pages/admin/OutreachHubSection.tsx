@@ -109,7 +109,7 @@ export default function OutreachHubSection() {
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <PageHeader
           title="Outreach Hub"
-          subtitle="Campaigns · review requests · win-back · follow-ups · loyalty — scheduled and bulk customer touches."
+          subtitle="Campaigns · review requests · win-back · follow-ups · loyalty: scheduled and bulk customer touches."
           icon={<Send className="w-5 h-5" />}
         />
         <GatewayPill />

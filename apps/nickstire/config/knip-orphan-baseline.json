@@ -2,6 +2,16 @@
   "$comment": "knip + script-invoker findings accepted at baseline. ANY NEW ENTRY IS A CI FAILURE — see scripts/knip-orphan-gate.mjs. Every entry needs a real reason; an accidental orphan has none to write.",
   "entries": [
     {
+      "file": "apps/nickstire/client/src/components/CountUpNumber.tsx",
+      "symbol": null,
+      "reason": "Admin UI v1 W1 (job 2026-10-16-nick-admin-ui-v1) removed the admin StatCard's 900 ms count-up (a figure the crew reads many times a day starts at 0 for most of a second), which was the last live importer. Its one remaining importer is pages/HomeLegacy.tsx, the public home page kept as a rollback copy (itself baselined as an orphan), so this is not deleted: delete it together with HomeLegacy, or keep it while the rollback is kept."
+    },
+    {
+      "file": "apps/nickstire/client/src/hooks/useCountUp.ts",
+      "symbol": null,
+      "reason": "Admin UI v1 W1 (job 2026-10-16-nick-admin-ui-v1) removed the admin StatCard's 900 ms count-up (a figure the crew reads many times a day starts at 0 for most of a second), which was the last live importer. Only CountUpNumber.tsx imports this hook; it goes when CountUpNumber goes (see that entry: HomeLegacy rollback)."
+    },
+    {
       "file": "apps/nickstire/server/routers/instagramAdmin.ts",
       "symbol": "readCommentResponderStatus",
       "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The reader behind instagramAdmin.commentResponderStatus (contract CommentResponderStatus v1, job 2026-10-16-comment-responder-controls). commentResponderStatus.test.ts imports it to pin the three states with a fake database: a failed history read is available:false (never an empty list), a failed flag read is paused:null (never 'not paused'), an unparseable context_json row is nulls (never a throw). Its runtime consumer is the commentResponderStatus adminProcedure in the same module, which the client lane's comment responder card calls, so the rule is live, not vacuous."

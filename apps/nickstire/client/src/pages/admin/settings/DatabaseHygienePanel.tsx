@@ -194,7 +194,7 @@ export default function DatabaseHygienePanel() {
           <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
           <div className="space-y-1">
             <p className="text-[13px] text-foreground/70">
-              Could not scan the database — this is <strong>unknown</strong>, not clean.
+              Could not scan the database: this is <strong>unknown</strong>, not clean.
             </p>
             <p className="text-[11px] text-foreground/40">{unavailableCopy(scanStatus.reason)}</p>
           </div>
@@ -240,7 +240,7 @@ export default function DatabaseHygienePanel() {
           type="button"
           onClick={() => refetch()}
           disabled={isRefetching || pruneMut.isPending}
-          className="inline-flex items-center gap-1.5 text-[11px] font-bold tracking-[0.1em] uppercase px-3 py-1.5 border border-border/30 hover:border-primary/40 rounded transition-colors disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 border border-border/30 hover:border-primary/40 rounded transition-colors disabled:opacity-50"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${isRefetching ? "animate-spin" : ""}`} />
           {isRefetching ? "Scanning..." : "Rescan DB"}
@@ -266,7 +266,7 @@ export default function DatabaseHygienePanel() {
               }`}
             >
               <div className="flex items-center justify-between">
-                <span className="text-[10px] uppercase tracking-wider text-foreground/50 font-sans">Fake / Test Leads</span>
+                <span className="text-[10px] text-foreground/50 font-sans">Fake / test leads</span>
                 <ShieldAlert className={`w-3.5 h-3.5 ${fakeCount > 0 ? "text-red-400 animate-pulse" : "text-foreground/30"}`} />
               </div>
               <p className="font-bold text-xl text-foreground mt-1">{fakeCount}</p>
@@ -283,7 +283,7 @@ export default function DatabaseHygienePanel() {
               }`}
             >
               <div className="flex items-center justify-between">
-                <span className="text-[10px] uppercase tracking-wider text-foreground/50 font-sans">Duplicates</span>
+                <span className="text-[10px] text-foreground/50 font-sans">Duplicates</span>
                 <Layers className="w-3.5 h-3.5 text-amber-400" />
               </div>
               <p className="font-bold text-xl text-foreground mt-1">{dupCount}</p>
@@ -300,7 +300,7 @@ export default function DatabaseHygienePanel() {
               }`}
             >
               <div className="flex items-center justify-between">
-                <span className="text-[10px] uppercase tracking-wider text-foreground/50 font-sans">Stale (&gt;90d)</span>
+                <span className="text-[10px] text-foreground/50 font-sans">Stale (&gt;90d)</span>
                 <Clock className="w-3.5 h-3.5 text-primary" />
               </div>
               <p className="font-bold text-xl text-foreground mt-1">{staleCount}</p>
@@ -311,16 +311,16 @@ export default function DatabaseHygienePanel() {
           {/* Active List */}
           <div className="border border-border/20 rounded">
             <div className="bg-foreground/[0.02] border-b border-border/20 px-4 py-2.5 flex items-center justify-between">
-              <span className="text-[11px] font-bold text-foreground/60 tracking-wider uppercase">
-                {activeTab === "fake" ? "Fake / Test Entries (Class 1)" : activeTab === "duplicates" ? "Duplicate Entries (Class 2)" : "Stale Entries (Class 3)"}
+              <span className="text-[11px] font-bold text-foreground/60">
+                {activeTab === "fake" ? "Fake / test entries (class 1)" : activeTab === "duplicates" ? "Duplicate entries (class 2)" : "Stale entries (class 3)"}
               </span>
               <button
                 type="button"
                 onClick={() => toggleSelectAll(activeTab)}
                 disabled={pruneMut.isPending}
-                className="text-[10px] font-bold text-primary hover:text-primary/80 transition-colors uppercase tracking-wider disabled:opacity-40 disabled:cursor-not-allowed"
+                className="text-[10px] font-bold text-primary hover:text-primary/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                {isAllActiveSelected ? "Deselect All" : "Select All"}
+                {isAllActiveSelected ? "Deselect all" : "Select all"}
               </button>
             </div>
 
@@ -338,7 +338,7 @@ export default function DatabaseHygienePanel() {
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-[12px] font-semibold text-foreground">{item.name}</span>
                           <span className="text-[11px] text-foreground/50 font-mono">{item.phone}</span>
-                          <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-foreground/10 text-foreground/60 font-mono tracking-wider">
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-foreground/10 text-foreground/60 font-mono">
                             {item.table} #{item.id}
                           </span>
                         </div>
@@ -365,14 +365,14 @@ export default function DatabaseHygienePanel() {
               type="button"
               onClick={handlePrune}
               disabled={totalSelectedCount === 0 || pruneMut.isPending}
-              className={`inline-flex items-center gap-1.5 text-[11px] font-bold tracking-[0.15em] uppercase px-4 py-2 rounded transition-colors focus:outline-none focus:ring-2 focus:ring-red-500/40 ${
+              className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-4 py-2 rounded transition-colors focus:outline-none focus:ring-2 focus:ring-red-500/40 ${
                 totalSelectedCount > 0
                   ? "bg-red-500 hover:bg-red-600 text-white cursor-pointer"
                   : "bg-border/20 text-foreground/20 cursor-not-allowed border border-border/10"
               }`}
             >
               <Trash2 className="w-3.5 h-3.5" />
-              {pruneMut.isPending ? "Executing..." : "Prune Selected"}
+              {pruneMut.isPending ? "Executing..." : "Prune selected"}
             </button>
           </div>
         </div>
@@ -382,7 +382,7 @@ export default function DatabaseHygienePanel() {
       <div className="p-3.5 border border-amber-500/20 bg-amber-500/5 rounded flex gap-3">
         <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
         <div className="text-[11px] text-foreground/60 space-y-1">
-          <p className="font-semibold text-amber-400 uppercase tracking-wider">Hygiene Action Guardrails</p>
+          <p className="font-semibold text-amber-400">Hygiene action guardrails</p>
           <p>
             • **Fake/Test &amp; Duplicate** entries are permanently deleted to keep tables and reports clean.
           </p>

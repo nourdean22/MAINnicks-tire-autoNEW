@@ -159,7 +159,7 @@ export function Inbox({ onNavigate }: InboxProps) {
               // failed, the honest statement is that we could not look.
               <div className="flex flex-col items-center justify-center p-8 h-full text-center space-y-3">
                 <AlertTriangle className="h-6 w-6 text-amber-500" />
-                <p className="text-sm">Could not read the cached feed — this is <strong>unknown</strong>, not empty.</p>
+                <p className="text-sm">Could not read the cached feed: this is <strong>unknown</strong>, not empty.</p>
                 <p className="text-xs text-muted-foreground">{feedErrorDetail?.message}</p>
                 <Button size="sm" variant="outline" onClick={() => refetchFeed()}>Retry</Button>
               </div>

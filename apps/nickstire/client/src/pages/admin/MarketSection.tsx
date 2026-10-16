@@ -27,7 +27,7 @@ function Card({ title, icon, children }: { title: string; icon: React.ReactNode;
 function Unknown({ what }: { what: string }) {
   return (
     <p className="flex items-center gap-2 text-xs text-amber-300">
-      <AlertTriangle className="h-3.5 w-3.5" /> {what} could not be read — unknown, not zero.
+      <AlertTriangle className="h-3.5 w-3.5" /> {what} could not be read: unknown, not zero.
     </p>
   );
 }
@@ -72,7 +72,7 @@ export default function MarketSection() {
               ["Avg position", fixed(num(s.avgPosition))],
             ].map(([k, v]) => (
               <div key={k} className="rounded-lg bg-white/5 p-3">
-                <dt className="text-[11px] uppercase tracking-wider text-white/50">{k}</dt>
+                <dt className="text-[11px] text-white/50">{k}</dt>
                 <dd className="mt-1 text-lg font-semibold tabular-nums text-white">{v}</dd>
               </div>
             ))}
@@ -88,7 +88,7 @@ export default function MarketSection() {
               {str(s.source) === "gsc_official_no_dimension"
                 ? "Source: Google Search Console property total (official, includes anonymized queries)"
                 : str(s.source) === "stored_query_rows_partial"
-                  ? "Source: stored query rows — PARTIAL, anonymized queries are missing; not the property total"
+                  ? "Source: stored query rows, PARTIAL, anonymized queries are missing; not the property total"
                   : "Source: unknown"}
             </p>
           </dl>
@@ -105,7 +105,7 @@ export default function MarketSection() {
             <p className="text-xs text-white/50">No query rows in the window yet.</p>
           ) : (
             <table className="w-full text-xs">
-              <thead className="text-[10px] uppercase tracking-wider text-white/50">
+              <thead className="text-[10px] text-white/50">
                 <tr>
                   <th className="py-1 text-left">query</th>
                   <th className="py-1 text-right">clicks</th>
@@ -136,7 +136,7 @@ export default function MarketSection() {
             <p className="text-xs text-white/50">No page rows in the window yet.</p>
           ) : (
             <table className="w-full text-xs">
-              <thead className="text-[10px] uppercase tracking-wider text-white/50">
+              <thead className="text-[10px] text-white/50">
                 <tr>
                   <th className="py-1 text-left">page</th>
                   <th className="py-1 text-right">clicks</th>

@@ -76,7 +76,7 @@ export function CommandQueue() {
             <button
               key={status}
               onClick={() => setStatusFilter(status)}
-              className={`px-3 py-1.5 text-[11px] font-bold tracking-wider transition-colors uppercase ${
+              className={`px-3 py-1.5 text-[11px] font-bold transition-colors ${
                 statusFilter === status
                   ? "bg-primary text-primary-foreground"
                   : "bg-card border border-border/30 text-foreground/60 hover:text-foreground"
@@ -139,11 +139,11 @@ export function CommandQueue() {
                 <div className="flex-1 flex flex-col justify-between space-y-4">
                   <div className="space-y-2">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className={`inline-flex items-center px-2 py-0.5 border text-[10px] font-bold tracking-wider uppercase ${getStatusBadgeProps(item.metadata?.status || "pending")}`}>
+                      <span className={`inline-flex items-center px-2 py-0.5 border text-[10px] font-bold ${getStatusBadgeProps(item.metadata?.status || "pending")}`}>
                         {item.metadata?.status || "pending"}
                       </span>
                       {item.metadata?.kind && (
-                        <span className="text-[10px] font-bold text-primary bg-primary/10 border border-primary/25 px-2 py-0.5 uppercase tracking-wide">
+                        <span className="text-[10px] font-bold text-primary bg-primary/10 border border-primary/25 px-2 py-0.5">
                           {item.metadata.kind}
                         </span>
                       )}
@@ -161,7 +161,7 @@ export function CommandQueue() {
                     {item.metadata?.suggestedPlatforms && item.metadata.suggestedPlatforms.length > 0 && (
                       <div className="flex flex-wrap gap-1.5 pt-1">
                         {item.metadata.suggestedPlatforms.map((plat: string) => (
-                          <span key={plat} className="text-[9px] font-semibold bg-background/50 border border-border/20 px-2 py-0.5 rounded text-foreground/50 uppercase tracking-wider">
+                          <span key={plat} className="text-[9px] font-semibold bg-background/50 border border-border/20 px-2 py-0.5 rounded text-foreground/50">
                             {plat}
                           </span>
                         ))}

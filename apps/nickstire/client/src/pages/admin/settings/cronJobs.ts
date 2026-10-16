@@ -5,7 +5,7 @@
 
 export const AUTONOMOUS_OPERATIONS: Array<{ name: string; interval: string; desc: string }> = [
   // ── ALG / ShopDriver sync ─────────────────────────
-  { name: "ALG Overnight Probe", interval: "Daily 3 AM ET", desc: "Single nightly sync — shop closed, no Moe risk" },
+  { name: "ALG Overnight Probe", interval: "Daily 3 AM ET", desc: "Single nightly sync: shop closed, no Moe risk" },
   { name: "ALG On-Login Probe", interval: "On admin login", desc: "Fresh data when you arrive at /admin" },
   { name: "ALG Chat-Demand Probe", interval: "On Nick query", desc: "Probes when Nick asks for shop pulse" },
   // ── Workflow automation ───────────────────────────

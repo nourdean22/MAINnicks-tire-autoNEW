@@ -37,7 +37,7 @@ export default function UnknownSectionNotice({ slug, onDismiss }: Props) {
         <p className="text-amber-100/80 text-xs mt-1 leading-relaxed">
           No admin section matches
           <span className="mx-1 font-mono opacity-80 break-all">?tab={slug}</span>
-          so you are on Today instead. The link is probably stale or mistyped — search
+          so you are on Today instead. The link is probably stale or mistyped: search
           for the section you wanted rather than trusting it again.
         </p>
       </div>

@@ -5,7 +5,7 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Loader2, Search, ToggleLeft, ToggleRight } from "lucide-react";
+import { AlertTriangle, Loader2, Search, ToggleLeft, ToggleRight } from "lucide-react";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
 import {
   isCustomerFacingFlag,
@@ -166,7 +166,7 @@ export default function FeatureFlagsPanel() {
               key={f}
               type="button"
               onClick={() => setFilter(f)}
-              className={`text-[10.5px] font-bold tracking-[0.1em] uppercase px-2.5 py-1.5 rounded border transition-colors ${
+              className={`text-[10.5px] font-bold px-2.5 py-1.5 rounded border transition-colors ${
                 filter === f
                   ? "border-primary/40 bg-primary/10 text-primary"
                   : "border-border/30 text-foreground/50 hover:text-foreground/80"
@@ -174,7 +174,7 @@ export default function FeatureFlagsPanel() {
             >
               {f}
               {f === "risky" && (
-                <span className="ml-1 text-[9px] opacity-70">⚠</span>
+                <AlertTriangle className="inline ml-1 w-3 h-3 opacity-70" aria-label="risky" />
               )}
             </button>
           ))}
@@ -243,7 +243,7 @@ export default function FeatureFlagsPanel() {
                             className="text-[9px] font-bold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20"
                             title="Customer-facing · confirmation required to flip ON"
                           >
-                            ⚠ RISKY
+                            Risky
                           </span>
                         )}
                       </div>

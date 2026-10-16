@@ -195,7 +195,7 @@ export default function CampaignsSection() {
           <div className="space-y-6">
             {/* Campaign Name */}
             <div>
-              <label className="block text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-2">
+              <label className="block text-[11px] text-foreground/50 font-medium mb-2">
                 Campaign name
               </label>
               <input
@@ -209,7 +209,7 @@ export default function CampaignsSection() {
 
             {/* Template Selection */}
             <div>
-              <label className="block text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-3">
+              <label className="block text-[11px] text-foreground/50 font-medium mb-3">
                 Template
               </label>
               <div className="grid grid-cols-2 gap-3">
@@ -238,7 +238,7 @@ export default function CampaignsSection() {
 
             {/* Segment Selection */}
             <div>
-              <label className="block text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-3">
+              <label className="block text-[11px] text-foreground/50 font-medium mb-3">
                 Target segment
               </label>
               <div className="grid grid-cols-3 gap-3">
@@ -264,7 +264,7 @@ export default function CampaignsSection() {
 
             {/* Custom Message (Optional) */}
             <div>
-              <label className="block text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-2">
+              <label className="block text-[11px] text-foreground/50 font-medium mb-2">
                 Custom message <span className="normal-case tracking-normal text-foreground/30">(optional)</span>
               </label>
               <textarea
@@ -346,7 +346,7 @@ export default function CampaignsSection() {
               <button
                 onClick={handleCreateAndSend}
                 disabled={creating || preview.length === 0}
-                title={preview.length === 0 ? "No customers in this segment — nothing to send" : undefined}
+                title={preview.length === 0 ? "No customers in this segment: nothing to send" : undefined}
                 className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded hover:bg-emerald-500/15 transition-colors disabled:opacity-50"
               >
                 {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
@@ -397,7 +397,7 @@ export default function CampaignsSection() {
             <MessageSquare className="w-8 h-8 text-foreground/15 mx-auto mb-3" />
             <h4 className="text-foreground/70 font-medium tracking-tight">No campaigns yet</h4>
             <p className="text-foreground/40 text-[13px] mt-1 max-w-sm mx-auto">
-              Schedule your first SMS broadcast to a customer segment — maintenance reminder, special offer, or win-back.
+              Schedule your first SMS broadcast to a customer segment: maintenance reminder, special offer, or win-back.
             </p>
             <button
               onClick={() => setView("create")}
@@ -432,7 +432,7 @@ function CampaignRow({ campaign }: { campaign: Campaign }) {
     const ok = await confirmDialog({
       title: `Send "${campaign.name}"?`,
       message: exactAudience
-        ? `${audienceCount} customer${audienceCount === 1 ? "" : "s"} — the exact list this draft was prepared for. Texts go out now (or at 8 AM if we are outside the window). This cannot be undone.`
+        ? `${audienceCount} customer${audienceCount === 1 ? "" : "s"} · the exact list this draft was prepared for. Texts go out now (or at 8 AM if we are outside the window). This cannot be undone.`
         : `About ${audienceCount} customer${audienceCount === 1 ? "" : "s"} in the "${SEGMENT_CONFIG[campaign.segment as Segment].label}" segment, re-checked at send time. This cannot be undone.`,
       confirmLabel: `Send to ${audienceCount}`,
       tone: "danger",

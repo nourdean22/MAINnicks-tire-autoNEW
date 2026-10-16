@@ -152,7 +152,7 @@ function MeasurementEditor({ category, value, onChange }: { category: Category; 
 
   return (
     <div className="space-y-2 rounded-md border border-border/30 p-2.5">
-      <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-foreground/60"><Ruler className="w-3.5 h-3.5" /> Measurements</div>
+      <div className="flex items-center gap-1.5 text-[11px] font-bold text-foreground/60"><Ruler className="w-3.5 h-3.5" /> Measurements</div>
       {value.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {value.map((m, i) => {
@@ -215,7 +215,7 @@ export default function InspectionCapturePanel() {
       <header className="flex items-center justify-between px-4 py-3 border-b border-border/30">
         <div className="flex items-center gap-2">
           <Wrench className="w-4 h-4 text-nick-yellow" />
-          <h2 className="text-sm font-bold uppercase tracking-wide">Vehicle Check</h2>
+          <h2 className="text-sm font-bold">Vehicle check</h2>
         </div>
         <div className="flex rounded-md border border-border/40 overflow-hidden" role="tablist" aria-label="Vehicle check mode">
           {([["capture", "New check"], ["verify", "Verify work"]] as const).map(([m, label]) => (
@@ -251,7 +251,7 @@ function CaptureFlow() {
     onSuccess: (r) => {
       setInspectionId(r.id);
       setShareToken(r.shareToken);
-      toast.success("Check started — add findings");
+      toast.success("Check started: add findings");
     },
     onError: (e) => toast.error(e.message),
   });
@@ -260,7 +260,7 @@ function CaptureFlow() {
       setItem(emptyItem(item.category));
       utils.inspection.get.invalidate({ id: inspectionId! });
       if (r.degraded === "measurements_unavailable") {
-        toast.warning("Finding saved, but its measurements and extra photos were NOT stored — database migration 0143 is still pending.");
+        toast.warning("Finding saved, but its measurements and extra photos were NOT stored: database migration 0143 is still pending.");
       } else {
         toast.success("Finding added");
       }
@@ -272,7 +272,7 @@ function CaptureFlow() {
     onError: (e) => toast.error(e.message),
   });
   const publish = trpc.inspection.publish.useMutation({
-    onSuccess: () => { setPublished(true); toast.success("Published — link ready"); },
+    onSuccess: () => { setPublished(true); toast.success("Published: link ready"); },
     onError: (e) => toast.error(e.message),
   });
 
@@ -320,7 +320,7 @@ function CaptureFlow() {
           </div>
           <div className="flex flex-wrap gap-2">
             <input value={createForm.vehicleInfo} onChange={(e) => setCreateForm((f) => ({ ...f, vehicleInfo: e.target.value }))}
-              placeholder="Vehicle — e.g. 2018 Honda Civic *" className="flex-1 min-w-[180px] text-sm rounded-md border border-border/40 bg-background px-3 py-2.5" />
+              placeholder="Vehicle: e.g. 2018 Honda Civic *" className="flex-1 min-w-[180px] text-sm rounded-md border border-border/40 bg-background px-3 py-2.5" />
             <input value={createForm.mileage} onChange={(e) => setCreateForm((f) => ({ ...f, mileage: e.target.value }))}
               placeholder="Miles" inputMode="numeric" className="w-24 text-sm rounded-md border border-border/40 bg-background px-3 py-2.5" />
           </div>
@@ -385,7 +385,7 @@ function CaptureFlow() {
           </div>
 
           <input value={item.component} onChange={(e) => setItem((f) => ({ ...f, component: e.target.value }))}
-            placeholder="Component — e.g. front brake pads *" className="w-full text-sm rounded-md border border-border/40 bg-background px-3 py-2.5" />
+            placeholder="Component: e.g. front brake pads *" className="w-full text-sm rounded-md border border-border/40 bg-background px-3 py-2.5" />
 
           <div className="flex flex-wrap gap-1.5">
             {CATEGORIES.map((c) => (
@@ -443,7 +443,7 @@ function CaptureFlow() {
       {/* Step 3 — link ready. Sharing stays a HUMAN action. */}
       {published && shareLink && (
         <div className="px-4 py-4 space-y-2">
-          <p className="text-sm text-nick-teal font-bold">Packet published. Send the link through the usual channel — sharing stays your call.</p>
+          <p className="text-sm text-nick-teal font-bold">Packet published. Send the link through the usual channel: sharing stays your call.</p>
           <div className="flex gap-2 items-center">
             <code className="flex-1 text-[11px] text-foreground/70 bg-background border border-border/40 rounded px-2 py-2 overflow-x-auto whitespace-nowrap">{shareLink}</code>
             <button
@@ -479,7 +479,7 @@ function VerifyFlow() {
     onSuccess: () => {
       utils.inspection.get.invalidate({ id: inspectionId! });
       setOpenItemId(null); setNote(""); setAfterPhotos([]); setAfterMeasurements([]);
-      toast.success("Verified — the customer page now shows the completed work");
+      toast.success("Verified: the customer page now shows the completed work");
     },
     onError: (e) => toast.error(e.message),
   });
@@ -532,7 +532,7 @@ function VerifyFlow() {
                   <PhotoStrip urls={afterPhotos} uploading={uploading} label="After photo"
                     onAdd={async (f) => { const url = await upload(f); if (url) setAfterPhotos((p) => [...p, url].slice(0, MAX_ITEM_PHOTOS)); }}
                     onRemove={(idx) => setAfterPhotos((p) => p.filter((_, j) => j !== idx))} />
-                  <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} placeholder="Note for the customer (optional) — e.g. new pads and rotors, road tested"
+                  <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} placeholder="Note for the customer (optional): e.g. new pads and rotors, road tested"
                     className="w-full text-sm rounded-md border border-border/40 bg-background px-3 min-h-12" />
                   <button
                     disabled={verify.isPending || uploading || !verifiedBy.trim() || (afterPhotos.length === 0 && afterMeasurements.length === 0)}
@@ -540,7 +540,7 @@ function VerifyFlow() {
                     className="inline-flex items-center gap-1.5 text-[13px] font-bold bg-nick-teal text-black px-4 min-h-12 rounded disabled:opacity-40 active:scale-95">
                     {verify.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <BadgeCheck className="w-4 h-4" />} Mark verified
                   </button>
-                  <p className="text-[11px] text-foreground/40">Needs at least one after-photo or after-measurement — a claim with no evidence is not a verification.</p>
+                  <p className="text-[11px] text-foreground/40">Needs at least one after-photo or after-measurement: a claim with no evidence is not a verification.</p>
                 </div>
               )}
             </li>

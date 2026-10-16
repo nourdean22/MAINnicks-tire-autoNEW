@@ -25,7 +25,7 @@ export function ContentWarRoom() {
       <div className="p-8 text-center border border-amber-500/30 rounded-xl bg-amber-500/5">
         <AlertCircle className="w-5 h-5 text-amber-400 mx-auto mb-2" />
         <div className="text-amber-200/90 text-sm">Could not load content drafts.</div>
-        <div className="text-amber-200/50 text-xs mt-1">{error?.message ?? "unknown error"} — this is a read failure, not an empty inventory.</div>
+        <div className="text-amber-200/50 text-xs mt-1">{error?.message ?? "unknown error"} · this is a read failure, not an empty inventory.</div>
       </div>
     );
   }
@@ -79,7 +79,7 @@ export function ContentWarRoom() {
 
             <div className="flex items-center gap-2 mb-3 mt-1">
               {getTypeIcon(draft.contentType)}
-              <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+              <span className="text-xs font-bold text-muted-foreground">
                 {draft.contentType}
               </span>
               <div className="ml-auto flex items-center gap-1 bg-background/80 px-2 py-0.5 rounded-full border border-border/40 text-xs">
@@ -97,7 +97,7 @@ export function ContentWarRoom() {
 
             <div className="flex-1 space-y-3">
               <div>
-                <span className="text-xs font-semibold text-primary uppercase tracking-wide">Hook</span>
+                <span className="text-xs font-semibold text-primary">Hook</span>
                 <p className="text-sm text-foreground italic mt-1 line-clamp-3">
                   "{draft.hookText}"
                 </p>
@@ -126,7 +126,7 @@ export function ContentWarRoom() {
             {/* Asset Preview Gallery */}
             {Array.isArray(draft.assetPaths) && draft.assetPaths.length > 0 && (
               <div className="mt-4 pt-3 border-t border-border/20">
-                <span className="text-xs font-semibold text-primary uppercase tracking-wide block mb-2">Generated Assets</span>
+                <span className="text-xs font-semibold text-primary block mb-2">Generated assets</span>
                 <div className="flex gap-2 overflow-x-auto pb-2 snap-x hide-scrollbar">
                   {draft.assetPaths.map((asset: string, idx: number) => (
                     <div key={idx} className="flex-shrink-0 w-24 h-24 rounded-md overflow-hidden border border-border/40 relative snap-center">

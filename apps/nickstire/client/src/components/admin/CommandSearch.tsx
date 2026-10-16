@@ -3,6 +3,7 @@
  * Searches customers, navigates to sections, and provides quick actions.
  */
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { trpc } from "@/lib/trpc";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { Search, Users, CalendarClock, Phone, X, LayoutDashboard, Zap, RefreshCw, Sparkles, AlertTriangle, DollarSign, Star, Crown, PhoneCall, FileText, Activity, Send, MessageSquare, RotateCcw, LayoutGrid, ClipboardList } from "lucide-react";
@@ -97,6 +98,14 @@ interface QuickAction {
   run: () => void | Promise<void>;
 }
 
+/** Window event the palette listens for: one palette, several doors (topbar, phone bar, Cmd/Ctrl+K). */
+const OPEN_COMMAND_SEARCH_EVENT = "admin:open-command-search";
+
+/** Opens the command palette from outside it (the phone bar's Search slot). */
+export function openCommandSearch() {
+  window.dispatchEvent(new CustomEvent(OPEN_COMMAND_SEARCH_EVENT));
+}
+
 export function CommandSearch({ onNavigate, onSelectCustomer, allowedSections }: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -129,7 +138,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer, allowedSections }:
   const generateGbpMutation = trpc.contentAdmin.generateGBPPost.useMutation({
     onSuccess: (res) => {
       toast.success("GBP post generated", {
-        description: res?.archetype ? `Archetype: ${res.archetype} — ready to copy` : "Ready to paste into business.google.com",
+        description: res?.archetype ? `Archetype: ${res.archetype} · ready to copy` : "Ready to paste into business.google.com",
       });
     },
     onError: (err) => toast.error("GBP generation failed", { description: err.message }),
@@ -179,7 +188,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer, allowedSections }:
       keywords: ["revenue", "money", "today", "income", "sales", "invoice"],
       icon: <DollarSign className="w-4 h-4 text-green-500" />,
       group: "Drilldown",
-      run: () => openDrilldown({ kind: "revenue_today", title: "Revenue — Today" }),
+      run: () => openDrilldown({ kind: "revenue_today", title: "Revenue: Today" }),
     },
     {
       id: "drilldown-negative-reviews",
@@ -677,6 +686,13 @@ export function CommandSearch({ onNavigate, onSelectCustomer, allowedSections }:
       ).slice(0, 6)
     : permittedActions;
 
+  // The phone bar's Search slot (AdminTabBar via Admin.tsx) opens this same palette.
+  useEffect(() => {
+    const handler = () => setOpen(true);
+    window.addEventListener(OPEN_COMMAND_SEARCH_EVENT, handler);
+    return () => window.removeEventListener(OPEN_COMMAND_SEARCH_EVENT, handler);
+  }, []);
+
   // Keyboard shortcut to open
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -761,7 +777,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer, allowedSections }:
         onClick={() => setOpen(true)}
         title="Search (⌘K)"
         aria-label="Search"
-        className="inline-flex items-center justify-center gap-2 h-9 px-2.5 lg:px-3 text-muted-foreground hover:text-foreground hover:bg-foreground/5 rounded-md transition-colors"
+        className="inline-flex items-center justify-center gap-2 h-12 min-w-12 px-2.5 lg:px-3 text-muted-foreground hover:text-foreground hover:bg-foreground/5 rounded-md transition-colors"
       >
         <Search className="w-4 h-4" />
         <kbd className="hidden lg:inline-flex items-center px-1.5 py-0.5 text-[10px] font-mono text-foreground/40 border border-border/40 rounded">
@@ -769,28 +785,12 @@ export function CommandSearch({ onNavigate, onSelectCustomer, allowedSections }:
         </kbd>
       </button>
 
-      {/* Thumb-reachable entry to the SAME palette, phone only.
-          The trigger above lives in `admin-topbar` at the very top of the screen,
-          outside the thumb arc of a one-handed grip — which, together with the
-          empty-query blank sheet fixed above, is why 32 quick actions were
-          reachable in practice only by keyboard on a desktop.
-          A second trigger, not a second component: same `setOpen`, same focus
-          trap, same Escape/arrow handling, same action registry. Nothing to keep
-          in sync. `bottom` clears the iOS home indicator via safe-area inset, and
-          ActivityPulse is offset upward by the same amount so its pills (which are
-          `pointer-events-auto`) cannot cover or swallow taps on this button. */}
-      <button
-        onClick={() => setOpen(true)}
-        aria-label="Quick actions"
-        className="lg:hidden fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom,0px))] right-4 z-40 inline-flex items-center justify-center w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg shadow-black/40 active:scale-95 transition-transform"
-      >
-        <Zap className="w-5 h-5" />
-      </button>
-
-      {/* Modal overlay */}
-      {open && (
+      {/* Modal overlay. Portaled to <body>: the trigger lives in the sticky topbar, a stacking
+          context (z-30), and drawn inside it the z-50 scrim and panel lost to the phone bar.
+          Graphite tokens still apply through body:has(.admin-shell) in index.css. */}
+      {open && createPortal(
         <>
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-[2px] z-50" onClick={close} />
+          <div className="fixed inset-0 bg-black/60 z-50" onClick={close} />
           <div className="fixed top-[max(0.75rem,env(safe-area-inset-top))] sm:top-[15%] left-1/2 -translate-x-1/2 z-50 w-[calc(100vw-1.5rem)] sm:w-full max-w-lg">
             <div
               ref={overlayRef}
@@ -843,7 +843,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer, allowedSections }:
                   {/* Section shortcuts */}
                   {matchingSections.length > 0 && (
                     <div className="px-2 py-2">
-                      <div className="px-2 py-1 text-[10px] font-semibold text-foreground/40 tracking-wider uppercase">Sections</div>
+                      <div className="px-2 py-1 text-[10px] font-semibold text-foreground/40">Sections</div>
                       {matchingSections.map((s, i) => (
                         <button
                           key={s.id}
@@ -865,7 +865,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer, allowedSections }:
                   {/* Quick Actions (drilldowns + mutations) */}
                   {matchingActions.length > 0 && (
                     <div className="px-2 py-2 border-t border-border/10">
-                      <div className="px-2 py-1 text-[10px] font-semibold text-foreground/40 tracking-wider uppercase">Actions</div>
+                      <div className="px-2 py-1 text-[10px] font-semibold text-foreground/40">Actions</div>
                       {matchingActions.map((a, ai) => {
                         const idx = matchingSections.length + ai;
                         const isPending =
@@ -885,7 +885,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer, allowedSections }:
                           >
                             {a.icon}
                             <span className="flex-1">{a.label}</span>
-                            <span className="text-[10px] text-foreground/30 uppercase tracking-wider">{a.group}</span>
+                            <span className="text-[10px] text-foreground/30">{a.group}</span>
                           </button>
                         );
                       })}
@@ -895,7 +895,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer, allowedSections }:
                   {/* Customer results */}
                   {customers.length > 0 && (
                     <div className="px-2 py-2 border-t border-border/10">
-                      <div className="px-2 py-1 text-[10px] font-semibold text-foreground/40 tracking-wider uppercase">Customers</div>
+                      <div className="px-2 py-1 text-[10px] font-semibold text-foreground/40">Customers</div>
                       {customers.map((c: any, ci: number) => {
                         const idx = matchingSections.length + matchingActions.length + ci;
                         return (
@@ -939,7 +939,8 @@ export function CommandSearch({ onNavigate, onSelectCustomer, allowedSections }:
               </div>
             </div>
           </div>
-        </>
+        </>,
+        document.body,
       )}
     </>
   );

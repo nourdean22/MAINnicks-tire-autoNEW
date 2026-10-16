@@ -100,7 +100,7 @@ function VendorHealthStrip() {
       >
         <StatusIcon className={`w-4 h-4 ${statusColor}`} />
         <span className="text-xs font-semibold tracking-wide flex-1">
-          VENDOR HEALTH — {connectedCount}/{health.checks.length} CONNECTED
+          VENDOR HEALTH · {connectedCount}/{health.checks.length} CONNECTED
         </span>
         <span className={`text-[10px] font-mono ${statusColor}`}>
           {health.overallStatus.replace(/_/g, " ").toUpperCase()}
