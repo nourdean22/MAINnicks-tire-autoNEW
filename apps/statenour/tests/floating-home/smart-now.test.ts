@@ -57,6 +57,14 @@ describe("pickSmartNow · priority order", () => {
     expect(result?.label).toMatch(/5 pending/);
   });
 
+  it("skips the pending suggestion when already on /system/actions (the href carries ?tab=, the pathname never does)", () => {
+    const result = pickSmartNow({
+      pathname: "/system/actions",
+      pulse: pulse({ actionsPending: 5 }),
+    });
+    expect(result?.href ?? "").not.toMatch(/^\/system\/actions/);
+  });
+
   it("returns AI quality suggestion when error rate spikes", () => {
     const result = pickSmartNow({
       pathname: "/chat",
