@@ -20,9 +20,9 @@ export interface InstrumentStatus {
 }
 
 /** A Langfuse proof older than this is no longer a proof of the running process. */
-export const LANGFUSE_FRESH_MS = 12 * 60 * 60 * 1000;
+const LANGFUSE_FRESH_MS = 12 * 60 * 60 * 1000;
 
-export function resolveSentryInstrument(s: SentryStatus, bootAt: string): InstrumentStatus {
+function resolveSentryInstrument(s: SentryStatus, bootAt: string): InstrumentStatus {
   if (!s.dsnSet) {
     return { state: "UNKNOWN", since: bootAt, detail: "SENTRY_DSN unset: nothing is captured (set it on the Railway service)" };
   }
@@ -55,7 +55,7 @@ export function resolveSentryInstrument(s: SentryStatus, bootAt: string): Instru
   };
 }
 
-export function resolveLangfuseInstrument(s: LangfuseIngestStatus, nowMs: number, bootAt: string): InstrumentStatus {
+function resolveLangfuseInstrument(s: LangfuseIngestStatus, nowMs: number, bootAt: string): InstrumentStatus {
   if (!s.configured) {
     return { state: "UNKNOWN", since: bootAt, detail: "LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY unset: tracing is off" };
   }

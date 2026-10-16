@@ -32,7 +32,7 @@ const BOOT_AT = new Date().toISOString();
 type Target = "sentry" | "langfuse";
 const ALL_TARGETS: Target[] = ["sentry", "langfuse"];
 
-export async function probeSentry(probeId: string) {
+async function probeSentry(probeId: string) {
   const status = getSentryStatus();
   if (!status.dsnSet) {
     return { enabled: false, ok: false, eventId: null, flushed: false, acked: false, reason: "SENTRY_DSN unset: the client is disabled and nothing was sent" };
@@ -69,7 +69,7 @@ export async function probeSentry(probeId: string) {
   };
 }
 
-export async function probeLangfuse(probeId: string, fetchImpl: typeof fetch = fetch) {
+async function probeLangfuse(probeId: string) {
   const status = getLangfuseStatus();
   if (!status.configured) {
     return { enabled: false, ok: false, flushed: false, reason: "LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY unset: nothing was exported" };
@@ -89,9 +89,9 @@ export async function probeLangfuse(probeId: string, fetchImpl: typeof fetch = f
   if (queued !== "queued") {
     return { enabled: true, ok: false, flushed: false, reason: `probe event not queued (${queued})` };
   }
-  let flush = await flushLangfuse(fetchImpl);
+  let flush = await flushLangfuse();
   // A timer flush already in flight answers for an older batch; send ours too.
-  if (getLangfuseStatus().queued > 0) flush = await flushLangfuse(fetchImpl);
+  if (getLangfuseStatus().queued > 0) flush = await flushLangfuse();
   const ok = flush.ok && flush.attempted;
   return {
     enabled: true,
@@ -104,7 +104,7 @@ export async function probeLangfuse(probeId: string, fetchImpl: typeof fetch = f
   };
 }
 
-export async function observabilityProbeHandler(req: Request, res: Response): Promise<void> {
+async function observabilityProbeHandler(req: Request, res: Response): Promise<void> {
   const body = (req.body ?? {}) as { targets?: unknown };
   const requested = Array.isArray(body.targets)
     ? body.targets.filter((t): t is Target => (ALL_TARGETS as unknown[]).includes(t))
@@ -122,7 +122,7 @@ export async function observabilityProbeHandler(req: Request, res: Response): Pr
   });
 }
 
-export function observabilityStatusHandler(_req: Request, res: Response): void {
+function observabilityStatusHandler(_req: Request, res: Response): void {
   res.json(
     resolveObservabilityStatus({
       sentry: getSentryStatus(),

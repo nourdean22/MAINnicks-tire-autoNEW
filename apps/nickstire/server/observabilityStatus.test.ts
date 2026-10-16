@@ -5,12 +5,8 @@
  * planted-positive path: the probe's own event is what turns UNKNOWN into
  * HEALTHY, and a sink that rejects it turns it DEGRADED.
  */
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import {
-  resolveSentryInstrument,
-  resolveLangfuseInstrument,
-  LANGFUSE_FRESH_MS,
-} from "./lib/observabilityStatus";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { resolveObservabilityStatus } from "./lib/observabilityStatus";
 import type { SentryStatus } from "./lib/sentry";
 import { __setSentryClientForTests, getSentryStatus, recordTransportResponse } from "./lib/sentry";
 import {
@@ -20,10 +16,37 @@ import {
   traceGeneration,
   type LangfuseIngestStatus,
 } from "./lib/langfuse-ingest";
-import { probeLangfuse, probeSentry, registerObservabilityRoutes } from "./routes/observabilityRoutes";
+import { registerObservabilityRoutes } from "./routes/observabilityRoutes";
 
 const BOOT = "2026-10-16T00:00:00.000Z";
 const NOW = Date.parse("2026-10-16T12:00:00.000Z");
+const LANGFUSE_FRESH_MS = 12 * 60 * 60 * 1000;
+
+// Through the module's one production export, so the pure resolvers are tested as the route uses them.
+const resolveSentryInstrument = (s: SentryStatus, bootAt: string) =>
+  resolveObservabilityStatus({ sentry: s, langfuse: langfuse({ configured: false }), nowMs: NOW, bootAt }).instruments.sentry;
+const resolveLangfuseInstrument = (s: LangfuseIngestStatus, nowMs: number, bootAt: string) =>
+  resolveObservabilityStatus({ sentry: sentry({ dsnSet: false }), langfuse: s, nowMs, bootAt }).instruments.langfuse;
+
+/** Drive the REAL probe handler through the route table. */
+async function runProbe(targets: string[]): Promise<Record<string, any>> {
+  const routes: Record<string, any[]> = {};
+  const app = {
+    get: (p: string, ...h: any[]) => (routes[`GET ${p}`] = h),
+    post: (p: string, ...h: any[]) => (routes[`POST ${p}`] = h),
+  };
+  registerObservabilityRoutes(app as any, (() => undefined) as any);
+  let body: Record<string, any> = {};
+  const res = { json: (b: Record<string, any>) => { body = b; return res; } };
+  await routes["POST /api/system/observability-probe"][1]({ body: { targets } }, res);
+  return body;
+}
+const probeSentry = async () => (await runProbe(["sentry"])).sentry;
+async function probeLangfuse(fakeFetch?: typeof fetch) {
+  if (fakeFetch) vi.stubGlobal("fetch", fakeFetch);
+  const body = await runProbe(["langfuse"]);
+  return { ...body.langfuse, probeId: body.probeId };
+}
 
 function sentry(over: Partial<SentryStatus> = {}): SentryStatus {
   return {
@@ -120,6 +143,7 @@ describe("planted positives move the state", () => {
     __setSentryClientForTests(null);
   });
   afterEach(() => {
+    vi.unstubAllGlobals();
     __resetLangfuseForTests();
     __setSentryClientForTests(null);
     process.env = { ...saved };
@@ -136,7 +160,7 @@ describe("planted positives move the state", () => {
       },
     });
     expect(resolveSentryInstrument(getSentryStatus(), BOOT).state).toBe("UNKNOWN");
-    const r = await probeSentry("pp-1");
+    const r = await probeSentry();
     expect(r.ok).toBe(true);
     expect(resolveSentryInstrument(getSentryStatus(), BOOT).state).toBe("HEALTHY");
   });
@@ -150,13 +174,13 @@ describe("planted positives move the state", () => {
       return new Response(JSON.stringify({ successes: [], errors: [] }), { status: 207 });
     }) as unknown as typeof fetch;
     expect(resolveLangfuseInstrument(getLangfuseStatus(), Date.now(), BOOT).state).toBe("UNKNOWN");
-    const r = await probeLangfuse("pp-2", fakeFetch);
+    const r = await probeLangfuse(fakeFetch);
     expect(r.ok).toBe(true);
     expect(sent).toHaveLength(1);
     expect(sent[0].url).toBe("https://us.cloud.langfuse.com/api/public/ingestion");
     expect(sent[0].auth).toBe(`Basic ${Buffer.from("pk-lf-test:sk-lf-test").toString("base64")}`);
     expect(sent[0].body.batch.map((e) => e.type)).toEqual(["trace-create", "generation-create"]);
-    expect(sent[0].body.batch[1].body.metadata.probeId).toBe("pp-2");
+    expect(sent[0].body.batch[1].body.metadata.probeId).toBe(r.probeId);
     expect(resolveLangfuseInstrument(getLangfuseStatus(), Date.now(), BOOT).state).toBe("HEALTHY");
   });
 
@@ -165,7 +189,7 @@ describe("planted positives move the state", () => {
     process.env.LANGFUSE_SECRET_KEY = "sk-lf-test";
     const fakeFetch = (async () =>
       new Response(JSON.stringify({ successes: [], errors: [{ id: "x", status: 400 }] }), { status: 207 })) as unknown as typeof fetch;
-    const r = await probeLangfuse("pp-3", fakeFetch);
+    const r = await probeLangfuse(fakeFetch);
     expect(r.ok).toBe(false);
     expect(resolveLangfuseInstrument(getLangfuseStatus(), Date.now(), BOOT).state).toBe("DEGRADED");
   });
@@ -174,7 +198,7 @@ describe("planted positives move the state", () => {
     process.env.LANGFUSE_PUBLIC_KEY = "pk-lf-test";
     process.env.LANGFUSE_SECRET_KEY = "sk-lf-test";
     const fakeFetch = (async () => new Response("bad key", { status: 401 })) as unknown as typeof fetch;
-    const r = await probeLangfuse("pp-4", fakeFetch);
+    const r = await probeLangfuse(fakeFetch);
     expect(r).toMatchObject({ enabled: true, ok: false, httpStatus: 401 });
     expect(resolveLangfuseInstrument(getLangfuseStatus(), Date.now(), BOOT).state).toBe("DEGRADED");
   });
@@ -183,7 +207,7 @@ describe("planted positives move the state", () => {
     delete process.env.LANGFUSE_PUBLIC_KEY;
     delete process.env.LANGFUSE_SECRET_KEY;
     expect(traceGeneration({ name: "x", site: "s", model: "m", promptText: "p", latencyMs: 1, ok: true })).toBe("off");
-    const r = await probeLangfuse("pp-5");
+    const r = await probeLangfuse();
     expect(r).toMatchObject({ enabled: false, ok: false });
     expect(getLangfuseStatus().queued).toBe(0);
   });

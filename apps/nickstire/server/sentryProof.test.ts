@@ -21,12 +21,27 @@ import {
   recordTransportResponse,
   resolveSentryRelease,
 } from "./lib/sentry";
-import { probeSentry, registerObservabilityRoutes } from "./routes/observabilityRoutes";
+import { registerObservabilityRoutes } from "./routes/observabilityRoutes";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { healthHandler } from "./lib/health";
 
 const SHA = "abcdef1234567890abcdef1234567890abcdef12";
+
+/** Drive the REAL probe handler through the route table (the only export production uses). */
+async function runProbe(targets: string[]): Promise<Record<string, any>> {
+  const routes: Record<string, any[]> = {};
+  const app = {
+    get: (p: string, ...h: any[]) => (routes[`GET ${p}`] = h),
+    post: (p: string, ...h: any[]) => (routes[`POST ${p}`] = h),
+  };
+  registerObservabilityRoutes(app as any, (() => undefined) as any);
+  let body: Record<string, any> = {};
+  const res = { json: (b: Record<string, any>) => { body = b; return res; } };
+  await routes["POST /api/system/observability-probe"][1]({ body: { targets } }, res);
+  return body;
+}
+const probeSentry = async () => (await runProbe(["sentry"])).sentry;
 
 function fakeClient(opts: { ackStatus?: number; flushOk?: boolean; throwOnCapture?: boolean } = {}) {
   const calls: Array<{ msg: string; ctx?: Record<string, unknown> }> = [];
@@ -75,17 +90,18 @@ describe("observability probe plants a known positive in Sentry", () => {
   it("sends one message tagged with the probe id and the commit SHA, and is ok on a 2xx ack", async () => {
     const fake = fakeClient({ ackStatus: 200 });
     __setSentryClientForTests(fake.client);
-    const r = await probeSentry("probe-xyz");
+    const body = await runProbe(["sentry"]);
+    const r = body.sentry;
     expect(fake.calls).toHaveLength(1);
-    expect(fake.calls[0].msg).toContain("probe-xyz");
-    expect(fake.calls[0].ctx).toMatchObject({ tags: { probe_id: "probe-xyz", commit: SHA.slice(0, 9) } });
+    expect(fake.calls[0].msg).toContain(body.probeId);
+    expect(fake.calls[0].ctx).toMatchObject({ tags: { probe_id: body.probeId, commit: SHA.slice(0, 9) } });
     expect(r).toMatchObject({ enabled: true, ok: true, eventId: "evt-123", flushed: true, acked: true });
     expect(getSentryStatus().eventsAckedSinceBoot).toBe(1);
   });
 
   it("is NOT ok when the event id was issued but the transport never acked", async () => {
     __setSentryClientForTests(fakeClient({}).client);
-    const r = await probeSentry("p2");
+    const r = await probeSentry();
     expect(r.ok).toBe(false);
     expect(r.acked).toBe(false);
     expect(getSentryStatus().eventsCapturedSinceBoot).toBe(1);
@@ -94,7 +110,7 @@ describe("observability probe plants a known positive in Sentry", () => {
 
   it("is NOT ok on a non-2xx transport answer, and records the error", async () => {
     __setSentryClientForTests(fakeClient({ ackStatus: 429 }).client);
-    const r = await probeSentry("p3");
+    const r = await probeSentry();
     expect(r.ok).toBe(false);
     expect(getSentryStatus().lastCaptureError).toContain("429");
   });
@@ -107,7 +123,7 @@ describe("observability probe plants a known positive in Sentry", () => {
 
   it("reports disabled with a reason when the DSN is unset (never ok)", async () => {
     delete process.env.SENTRY_DSN;
-    const r = await probeSentry("p4");
+    const r = await probeSentry();
     expect(r).toMatchObject({ enabled: false, ok: false });
     expect(r.reason).toMatch(/SENTRY_DSN unset/);
   });

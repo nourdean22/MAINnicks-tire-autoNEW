@@ -34,12 +34,12 @@ import { resolveNickDeployIdentity } from "./deployIdentity";
 
 const log = createLogger("langfuse");
 
-export const DEFAULT_LANGFUSE_BASE_URL = "https://us.cloud.langfuse.com";
-export const FLUSH_INTERVAL_MS = 3_000;
-export const MAX_QUEUE = 200;
-export const MAX_BATCH = 50;
+const DEFAULT_LANGFUSE_BASE_URL = "https://us.cloud.langfuse.com";
+const FLUSH_INTERVAL_MS = 3_000;
+const MAX_QUEUE = 200;
+const MAX_BATCH = 50;
 /** Excerpt cap for masked input/output text. Langfuse gets a glimpse, not the transcript. */
-export const EXCERPT_CHARS = 400;
+const EXCERPT_CHARS = 400;
 
 export interface TraceGenerationInput {
   /** Trace name. Convention: `<lane>:<site>`, e.g. "receptionist:nickgpt-client". */
@@ -94,24 +94,20 @@ const state = {
   lastError: null as string | null,
 };
 
-export function langfuseConfig(env: Record<string, string | undefined> = process.env) {
+function langfuseConfig(env: Record<string, string | undefined> = process.env) {
   const publicKey = env.LANGFUSE_PUBLIC_KEY?.trim() || null;
   const secretKey = env.LANGFUSE_SECRET_KEY?.trim() || null;
   const baseUrl = (env.LANGFUSE_BASE_URL?.trim() || DEFAULT_LANGFUSE_BASE_URL).replace(/\/$/, "");
   return { configured: Boolean(publicKey && secretKey), publicKey, secretKey, baseUrl };
 }
 
-export function isLangfuseConfigured(): boolean {
-  return langfuseConfig().configured;
-}
-
 /** Masked, capped excerpt. Empty input stays empty (never a fabricated string). */
-export function maskExcerpt(text: string | null | undefined): string {
+function maskExcerpt(text: string | null | undefined): string {
   if (!text) return "";
   return redactCallerText(text, EXCERPT_CHARS);
 }
 
-export function promptHash(text: string): string {
+function promptHash(text: string): string {
   return createHash("sha256").update(text).digest("hex");
 }
 
@@ -206,7 +202,7 @@ function partsText(content: unknown): string {
 }
 
 /** Last user-authored text of an OpenAI / Ollama / Anthropic messages array, or a Gemini `contents` array. */
-export function lastUserText(messages: unknown): string {
+function lastUserText(messages: unknown): string {
   if (!Array.isArray(messages)) return typeof messages === "string" ? messages : "";
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i] as Json;
@@ -216,7 +212,7 @@ export function lastUserText(messages: unknown): string {
 }
 
 /** Output text of the provider response shapes nickstire calls (OpenAI-compatible, Ollama /api/chat, Anthropic, Gemini). */
-export function responseText(json: unknown): string {
+function responseText(json: unknown): string {
   const d = (json ?? {}) as Json;
   return (
     partsText(d.choices?.[0]?.message?.content) ||
