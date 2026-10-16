@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "chore/ci-diet-ledger-split",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "f8d930b8-3865-416c-802f-2947cc79c726",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire",
+  "claimedBy": "2026-10-16-ci-diet PR 2 (manager: bdnick UI upgrade session)",
+  "claimedAt": "2026-10-16T13:31:32.871Z",
+  "expiresAt": "2026-10-17T01:31:32.871Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
