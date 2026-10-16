@@ -26,9 +26,9 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("usePinnedTabStore", () => {
-  it("starts on Journal before hydration", () => {
+  it("starts on Journal before hydration (the initial state, which the server snapshot serves, not a value a setState planted)", () => {
     expect(PINNED_TAB_KEY).toBe("nav:pinned-tab");
-    expect(usePinnedTabStore.getState().href).toBe("/journal");
+    expect(usePinnedTabStore.getInitialState().href).toBe("/journal");
   });
 
   it("hydrate reads the stored href", () => {

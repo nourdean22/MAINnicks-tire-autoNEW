@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * MoreSheet — the "More" launcher behind the 5th bottom-tab slot.
+ * MoreSheet — the launcher behind the 5th bottom-tab slot ("Command" since UI v3 W1b).
  *
  * 2026-06-18 · IA reorg Phase 4. Replaces the FloatingHome orb's expanded
  * menu. A full-height, thumb-scrollable bottom sheet that indexes every
@@ -25,7 +25,7 @@
  *     replacing the flat mono tertiary label.
  */
 
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -98,6 +98,15 @@ export function MoreSheet() {
   const pinnedHref = usePinnedTabStore((s) => s.href);
   const pin = usePinnedTabStore((s) => s.pin);
   const pinned = resolvePinnedTab(pinnedHref, NAV);
+  // A pin removes the row the focused button sat in, so focus moves to the sheet's close button and
+  // the live region says what happened.
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const [pinNotice, setPinNotice] = useState("");
+  const pinRow = (n: { href: string; label: string }) => {
+    pin(n.href);
+    setPinNotice(`${n.label} pinned to the tab bar`);
+    closeRef.current?.focus();
+  };
 
   // Auto-close on route change (a no-op via closeSheet if already closed).
   useEffect(() => {
@@ -120,11 +129,15 @@ export function MoreSheet() {
         className="fixed inset-x-0 bottom-0 z-[71] max-h-[86dvh] overflow-y-auto overscroll-contain rounded-t-overlay border-t border-edge-default bg-overlay pb-[env(safe-area-inset-bottom,12px)] outline-none shadow-l2 data-open:animate-fadeSlideUp data-closed:animate-fadeSlideDown"
       >
         <DialogTitle className="sr-only">More navigation</DialogTitle>
+        <div role="status" aria-live="polite" className="sr-only">
+          {pinNotice}
+        </div>
         {/* Sticky header: grab handle + Search */}
         <div className="sticky top-0 z-10 border-b border-[var(--border-default)] bg-[var(--bg-void)] px-4 pb-3 pt-2">
           <div className="relative mb-2 flex min-h-11 items-center justify-center">
             <div className="h-1 w-10 rounded-full bg-[var(--border-default)]" aria-hidden />
             <button
+              ref={closeRef}
               type="button"
               onClick={close}
               aria-label="Close More menu"
@@ -248,18 +261,22 @@ export function MoreSheet() {
                         )}
                       >
                         <Icon size={15} strokeWidth={active ? 2.25 : 1.75} className="shrink-0" />
-                        <span className="truncate text-[13px] font-medium">
+                        <span className="min-w-0 truncate text-[13px] font-medium" title={n.label}>
                           {n.label}
                         </span>
                       </Link>
+                      {/* 44 px hit area, 36 px visual, pulled 6 px into the cell gutter: at 390 px the
+                          label keeps about 100 px beside it. */}
                       {isPinnable(n) && (
                         <button
                           type="button"
-                          onClick={() => pin(n.href)}
+                          onClick={() => pinRow(n)}
                           aria-label={`Pin ${n.label} to the tab bar`}
-                          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-control text-fg-tertiary hover:bg-surface-hover hover:text-fg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
+                          className="group -mr-1.5 inline-flex h-11 w-11 shrink-0 items-center justify-center text-fg-tertiary hover:text-fg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent rounded-control"
                         >
-                          <Pin size={14} strokeWidth={1.75} />
+                          <span aria-hidden className="inline-flex h-9 w-9 items-center justify-center rounded-control group-hover:bg-surface-hover">
+                            <Pin size={14} strokeWidth={1.75} />
+                          </span>
                         </button>
                       )}
                     </div>
