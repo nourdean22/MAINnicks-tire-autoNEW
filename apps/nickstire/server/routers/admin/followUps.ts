@@ -7,7 +7,10 @@ import { z } from "zod";
 import { eq, ne, desc } from "drizzle-orm";
 import { customerNotifications } from "../../../drizzle/schema";
 
-import { db } from "../../lib/db-helper";
+// dbTyped, not db(): db() returns an untyped (any) instance, which is how `status: "skipped"`
+// compiled for a year against an ENUM that did not have it (0146). The typed instance makes
+// .set() a compile error the next time a writer and the schema disagree.
+import { dbTyped } from "../../lib/db-helper";
 
 
 
@@ -17,7 +20,7 @@ export const followUpsRouter = router({
     return runFollowUps();
   }),
   pending: adminProcedure.query(async () => {
-    const d = await db();
+    const d = await dbTyped();
     if (!d) return [];
     return d.select().from(customerNotifications)
       .where(eq(customerNotifications.status, "pending"))
@@ -25,7 +28,7 @@ export const followUpsRouter = router({
       .limit(50);
   }),
   recent: adminProcedure.query(async () => {
-    const d = await db();
+    const d = await dbTyped();
     if (!d) return [];
     // Exclude status='pending' — those rows are already shown in the
     // `pending` query above. Without this filter, when total rows < 50
@@ -42,7 +45,7 @@ export const followUpsRouter = router({
   cancel: adminProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
-      const d = await db();
+      const d = await dbTyped();
       if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       const [existing] = await d.select().from(customerNotifications)
         .where(eq(customerNotifications.id, input.id)).limit(1);
@@ -73,7 +76,7 @@ export const followUpsRouter = router({
   retry: adminProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
-      const d = await db();
+      const d = await dbTyped();
       if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       const [existing] = await d.select().from(customerNotifications)
         .where(eq(customerNotifications.id, input.id)).limit(1);

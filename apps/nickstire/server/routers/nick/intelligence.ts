@@ -641,6 +641,10 @@ export async function handleRunMigrations() {
       // 2026-10-03 · drizzle/0142_chat_sessions_messages_mediumtext.sql: a long chat transcript
       // overflowed TEXT (64 KB) and STRICT rejected the write. Widening only; re-run is a no-op.
       `ALTER TABLE chat_sessions MODIFY COLUMN messagesJson MEDIUMTEXT NOT NULL`,
+      // 2026-10-16 · drizzle/0146_customer_notifications_skipped.sql. followUps.cancel wrote
+      // 'skipped' into an ENUM without it (Sentry NICKSTIRE-D). APPENDS the member; re-asserts on
+      // every run and must equal schema.ts (migrationListGuards.test.ts pins that).
+      `ALTER TABLE customer_notifications MODIFY COLUMN status ENUM('pending','sent','failed','skipped') NOT NULL DEFAULT 'pending'`,
       // 2026-07-21 · nickgpt_training_examples.edit_categories_json — training-loop edit taxonomy (matches drizzle/0095 + schema.ts)
       `ALTER TABLE nickgpt_training_examples ADD COLUMN IF NOT EXISTS edit_categories_json TEXT NULL`,
       `CREATE TABLE IF NOT EXISTS chat_analytics (id int AUTO_INCREMENT PRIMARY KEY, sessionId int, hourOfDay int NOT NULL, dayOfWeek int NOT NULL, month int NOT NULL, messageCount int NOT NULL DEFAULT 0, converted int NOT NULL DEFAULT 0, leadScore int, duration int, createdAt timestamp NOT NULL DEFAULT (now()))`,

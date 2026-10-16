@@ -1,0 +1,13 @@
+-- 0146 - customer_notifications.status gains 'skipped' (follow-up Cancel, 2026-10-16)
+--
+-- followUpsRouter.cancel has written status='skipped' since wave-115 and no migration ever
+-- added the member. TiDB runs STRICT_TRANS_TABLES: the write is rejected, the row stays
+-- 'pending', and the operator's toast said "canceled" (Sentry NICKSTIRE-D, 8 events since
+-- 2026-10-09, "Data truncated for column 'status'"). tsc never saw it because the router
+-- read through the untyped db() helper; it now reads through dbTyped().
+--
+-- APPEND-ONLY (0082, 0097, 0136): 'skipped' goes at the END so existing ordinals are
+-- unchanged and TiDB treats this as a metadata-only change. Idempotent: re-running
+-- re-asserts the same list. Hand-applied, or one tap on /admin Settings > Run Migrations
+-- (routers/nick/intelligence.ts handleRunMigrations carries the same statement).
+ALTER TABLE customer_notifications MODIFY COLUMN status ENUM('pending','sent','failed','skipped') NOT NULL DEFAULT 'pending';
