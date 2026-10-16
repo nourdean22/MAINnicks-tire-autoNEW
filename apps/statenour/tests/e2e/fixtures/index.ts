@@ -1,6 +1,7 @@
 /**
  * v3 fixture lane (2026-10-15, UI v3 Wave 0b): deterministic DEMO data for Home
- * and Missions, served by intercepting the app's own data calls in the browser.
+ * and Missions (and, since W3a, Chat), served by intercepting the app's own data
+ * calls in the browser.
  *
  * WHY. The committed v2 baselines are EMPTY-database renders. The v3 six-feet
  * gate compares W2's Home and Missions against v2 as it looks with real data at
@@ -13,7 +14,8 @@
  * WHAT IS NOT. Anything else is answered with an EXPLICIT error (a tRPC
  * NOT_FOUND entry, or a 404 for REST), never a success, so the page cannot
  * flash empty-database content between runs and a fixture cannot paper over a
- * read that the page really depends on. The unstubbed calls are returned in the
+ * read that the page really depends on (one exception: REST_NO_CONTENT, the
+ * empty 204 the real server itself sends). The unstubbed calls are returned in the
  * report so a spec can print them. Mutations are never stubbed.
  *
  * Pages that are server components reading Prisma directly could not be stubbed
