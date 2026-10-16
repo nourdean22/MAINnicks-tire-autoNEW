@@ -30,7 +30,7 @@
 
 import { getFlag } from "@/lib/feature-flags";
 import { planQuery, type QueryPlan } from "@/lib/brain/query-plan";
-import { buildEvidencePack } from "@/lib/brain/evidence-pack";
+import { buildEvidencePackAsync, extractRecallAddendum, RECALL_MODE_LIMITS, type RerankBackend, type RerankReason } from "@/lib/brain/evidence-pack";
 import { computeLaneOverlap, type LaneOverlap } from "@/lib/brain/lane-overlap";
 import { rerankContextBlocks, formatRerankSummary } from "@/lib/ai/context-reranker";
 import { buildContextReceipt, DEFAULT_CONTEXT_TOKEN_BUDGET, type ContextReceipt } from "@/lib/ai/context-budget";
@@ -109,8 +109,8 @@ export interface BuildBrainContextOutput {
   laneOverlap?: LaneOverlap;
   /** Wave 3 (2026-09-08) · the deterministic query plan this turn ran under (lib/brain/query-plan.ts). */
   queryPlan?: QueryPlan;
-  /** Wave 2 · when NICK_RECALL_ARBITER is on: how many candidates the two lanes offered and how many survived. */
-  evidencePack?: { candidates: number; items: number };
+  /** Wave 2 · when NICK_RECALL_ARBITER is on: how many candidates the two lanes offered and how many survived; W1 adds the rerank backend and the validity drops. */
+  evidencePack?: { candidates: number; items: number; reranked: RerankBackend; rerankReason: RerankReason; droppedValidity: number | null };
   /**
    * Wave 3 (2026-09-17) · what the block-assembly stage kept/dropped and why
    * (lib/ai/context-budget.ts). OBSERVABILITY ONLY — does not change
@@ -164,6 +164,8 @@ export async function buildBrainContext(
   input: BuildBrainContextInput,
 ): Promise<BuildBrainContextOutput> {
   const { userContent, mode, userEmbedding, forceRecall, messages, posture, log } = input;
+  // PR #3088 CX-2 · one table for the lane and pack sizes; scripts/recall-eval.ts mirrors it.
+  const recallLimits = RECALL_MODE_LIMITS[mode === "deep" ? "deep" : "standard"];
   const privateMode = input.privateMode === true;
   // A private turn has no conversation: with an id, the contradiction and
   // objection injectors write per-conversation dedupe rows.
@@ -215,7 +217,7 @@ export async function buildBrainContext(
   let contextualRankedIds: string[] = [];
   let contextualRankedRows: import("@/lib/brain/contextual-recall").RankedRecallRow[] = [];
   let laneOverlap: LaneOverlap | undefined;
-  let evidencePack: { candidates: number; items: number } | undefined;
+  let evidencePack: { candidates: number; items: number; reranked: RerankBackend; rerankReason: RerankReason; droppedValidity: number | null } | undefined;
   let contextReceipt: ContextReceipt | undefined;
   const arbiterOn = getFlag("NICK_RECALL_ARBITER")?.isOn ?? false;
   const correctionBoostOn = getFlag("NICK_CORRECTION_THRESHOLD_BOOST")?.isOn ?? false;
@@ -407,7 +409,7 @@ export async function buildBrainContext(
         ? withTimeout(
             contextualRecallMod.getContextualMemories(
               buildRecallMessages(queryPlan.referent, userContent),
-              mode === "deep" ? 10 : 5,
+              recallLimits.contextual,
               {
                 queryEmbedding: userEmbedding.length > 0 ? userEmbedding : undefined,
                 fastTopics: true,
@@ -451,7 +453,7 @@ export async function buildBrainContext(
       // stay within 120 chars of withTimeout( for the timeout-contract pin.)
       userContent.length > 10 && memoryRecallMod && userEmbedding.length > 0
         ? withTimeout(
-            memoryRecallMod.recallMemoriesForQuery(userContent, { embedding: userEmbedding, limit: mode === "deep" ? 8 : 5, exactTerms: queryPlan.exactTerms, sideEffects: !privateMode }),
+            memoryRecallMod.recallMemoriesForQuery(userContent, { embedding: userEmbedding, limit: recallLimits.memoryRecall, exactTerms: queryPlan.exactTerms, sideEffects: !privateMode }),
             3000,
             // withTimeout cannot distinguish a rejection from an expiry;
             // both are a FAILED read, so both must say so.
@@ -607,11 +609,31 @@ export async function buildBrainContext(
     // graceful fallback (returns blocks as-is) when embedding fails.
     let evidencePackBlock = "";
     if (arbiterOn) {
-      const pack = buildEvidencePack((hybridRecallReport?.hits ?? []) as never[], contextualRankedRows, { limit: mode === "deep" ? 14 : 10 });
+      // W1 (2026-10-16) · validity filter + ONE rerank over the fused window
+      // (the rerank call is bounded inside; the lanes already ran under their
+      // own 3s races, so this is not wrapped in withTimeout again).
+      // Same referent-aware text the contextual lane reranks with (round 1 P2-5).
+      const packQuery = buildRecallMessages(queryPlan.referent, userContent).join("\n");
+      const pack = await buildEvidencePackAsync((hybridRecallReport?.hits ?? []) as never[], contextualRankedRows, {
+        limit: recallLimits.pack,
+        query: packQuery,
+        asOf: queryPlan.asOf,
+      });
       evidencePackBlock = pack.block;
-      evidencePack = { candidates: pack.candidates, items: pack.items.length };
-      console.info("[brain-context] evidence_pack", JSON.stringify(evidencePack));
+      evidencePack = { candidates: pack.candidates, items: pack.items.length, reranked: pack.reranked, rerankReason: pack.rerankReason, droppedValidity: pack.droppedValidity };
+      console.info("[brain-context] evidence_pack", JSON.stringify({
+        candidates: pack.candidates,
+        items: pack.items.length,
+        reranked: pack.reranked,
+        rerank_reason: pack.rerankReason,
+        // null = no candidate carried a validity column: UNMEASURED, never a clean 0.
+        dropped_validity: pack.droppedValidity ?? "unmeasured",
+      }));
     }
+    // The receipt says arbiter only when a pack actually reached the prompt; a flag-on turn whose
+    // pack was empty (lane timeouts, no hits) falls through to the two-lane render below (P2-3).
+    const arbiterUsed = arbiterOn && evidencePackBlock.length > 0;
+    const recallAddendumOnly = arbiterOn && contextMemories ? extractRecallAddendum(contextMemories) : "";
     const rawBlocks = [
       { name: "recall", content: recallBlock },
       { name: "skills", content: skillsBlock },
@@ -639,9 +661,15 @@ export async function buildBrainContext(
       // the fence because the slice below is the real budget.
       { name: "Cross-Session Thread", content: threadContext ? `# CROSS-SESSION THREAD\n${truncateFenced(fenceContent("crossSessionThread", "cross_session", threadContext, { maxChars: 20_000 }), 1000)}` : "", critical: true },
       // Wave 2 (2026-09-08) · NICK_RECALL_ARBITER: one evidence pack across both lanes replaces the
-      // two overlapping blocks below; off = byte-identical to before (the lanes render separately).
+      // two overlapping memory LISTS below; off = byte-identical to before (the lanes render separately).
+      // W1 (2026-10-16) · the contextual lane's graph / cross-source / related lines live only inside
+      // its rendered block, so the pack is ADDED beside a reduced Context Memories block that keeps
+      // exactly those sections (extractRecallAddendum) instead of deleting them with the list.
       ...(arbiterOn && evidencePackBlock
-        ? [{ name: "Evidence Pack", content: `# EVIDENCE PACK\n${evidencePackBlock}`, critical: true }]
+        ? [
+            { name: "Evidence Pack", content: `# EVIDENCE PACK\n${evidencePackBlock}`, critical: true },
+            { name: "Context Memories", content: recallAddendumOnly ? `# CONTEXT MEMORIES\n${truncateFenced(recallAddendumOnly, mode === "deep" ? 2000 : 1000)}` : "", critical: true },
+          ]
         : [
             { name: "Context Memories", content: contextMemories ? `# CONTEXT MEMORIES\n${truncateFenced(contextMemories, mode === "deep" ? 2000 : 1000)}` : "", critical: true },
             // 2026-09-10 · marked CRITICAL. This is the one block the
@@ -731,8 +759,14 @@ export async function buildBrainContext(
     // as of. A false asOf silently truncates memory (see ContextReceipt's
     // recallAsOf docstring); the classifier fix removed today's trigger, this
     // removes the silence that let it survive unnoticed.
+    // W1 (2026-10-16) · the arbiter state rides the persisted receipt so
+    // scripts/arbiter-judge-split.ts can split reply_judgment composites by it.
     contextReceipt = buildContextReceipt(reranked, DEFAULT_CONTEXT_TOKEN_BUDGET, {
       asOf: queryPlan.asOf,
+      arbiter: arbiterUsed,
+      // CX-6 · the assignment rides beside it, so a flag-on turn with no pack stays in the treated group.
+      arbiterAssigned: arbiterOn,
+      rerankBackend: arbiterUsed ? (evidencePack?.reranked ?? "none") : undefined,
     });
     // 2026-09-17 (Codex review, PR #2414) · the aggregate counts alone can't
     // answer "why was THIS block dropped" -- the entries array (name, tokens,

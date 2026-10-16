@@ -12,9 +12,18 @@ import { loadDecls } from "./fixtures/script-decls";
 const CASES = [{ query: "q1", relevantKeys: ["k1"], provenance: "seed" }];
 const CWD = "/fake-app";
 const MANIFEST = join(CWD, "data", "recall-corpus.manifest.json");
+const MAIN_DECLS = [
+  "K", "hybridKnn", "memoryRecallKnn", "arbiterKnn", "memoryRecallInvalid", "arbiterInvalid", "evalMode",
+  "knnBanner", "laneInvalidBanner", "corpusFingerprint", "checkManifest", "main",
+];
+const LIMITS = { standard: { contextual: 5, memoryRecall: 5, pack: 10 }, deep: { contextual: 10, memoryRecall: 8, pack: 14 } };
+const MODULES: Record<string, unknown> = {
+  "../lib/brain/recall-corpus-tiers": { splitByTier: () => ({ development: [], regression: [], sealed: [] }), sealedCorpusPath: () => "", describeSealed: () => "" },
+  "../lib/brain/evidence-pack": { RECALL_MODE_LIMITS: LIMITS },
+};
 const report = { k: 5, meanPrecisionAtK: 0, fullRecallRate: 0, contradictionInjectionRate: 0, abstentionCleanRate: 0, casesRun: 1 };
 
-async function runMain(args: string[], manifest: object | null): Promise<{ code: unknown; files: Map<string, string> }> {
+async function runMain(args: string[], manifest: object | null): Promise<{ code: unknown; files: Map<string, string>; arbiterLimits: unknown[] }> {
   const files = new Map<string, string>();
   if (manifest) files.set(MANIFEST, JSON.stringify(manifest));
   const proc = {
@@ -27,7 +36,10 @@ async function runMain(args: string[], manifest: object | null): Promise<{ code:
     },
   };
   const lane = async () => async () => [];
-  const { main } = loadDecls("scripts/recall-eval.ts", ["K", "hybridKnn", "corpusFingerprint", "checkManifest", "main"], {
+  const arbiterLimits: unknown[] = [];
+  // Every top-level name main() reads is either loaded for real (counters, banners) or stubbed (the
+  // DB/LLM lanes). A name main() reads that is neither throws a ReferenceError, which runMain rethrows.
+  const { main } = loadDecls("scripts/recall-eval.ts", MAIN_DECLS, {
     process: proc,
     console: { log: () => {}, warn: () => {}, error: () => {} },
     createHash,
@@ -41,14 +53,27 @@ async function runMain(args: string[], manifest: object | null): Promise<{ code:
     vectorRetriever: lane,
     lexicalRetriever: lane,
     hybridRetriever: lane,
+    memoryRecallRetriever: lane,
+    arbiterRetriever: async (limits: unknown) => {
+      arbiterLimits.push(limits);
+      return async () => [];
+    },
     line: () => "",
-    require: () => ({ splitByTier: () => ({ development: [], regression: [], sealed: [] }), sealedCorpusPath: () => "", describeSealed: () => "" }),
+    require: (p: string) => {
+      if (!(p in MODULES)) throw new Error(`unstubbed require: ${p}`);
+      return MODULES[p];
+    },
   });
   const out = await main().then(
     () => ({ exited: "returned without exiting" }),
-    (e: { exited?: unknown }) => e,
+    (e: { exited?: unknown }) => {
+      // Only the fake process.exit is an outcome; anything else (a ReferenceError for a name the
+      // sandbox lacks) is a harness failure and must surface as itself, not as "exit undefined".
+      if (e && typeof e === "object" && "exited" in e) return e;
+      throw e;
+    },
   );
-  return { code: out.exited, files };
+  return { code: out.exited, files, arbiterLimits };
 }
 
 const fingerprint = () => {
@@ -74,5 +99,27 @@ describe("recall-eval · a changed corpus cannot pass as the frozen baseline", (
 
   it("no manifest yet -> exit 0 (nothing to compare against)", async () => {
     expect((await runMain([], null)).code).toBe(0);
+  });
+});
+
+describe("recall-eval · the arbiter lane mirrors one production mode, recorded in the artifact (PR #3088 CX-2)", () => {
+  const artifact = (files: Map<string, string>) =>
+    JSON.parse(files.get(join(CWD, "eval-datasets", "recall-lane-comparison.json"))!) as { arbiterConfig: Record<string, unknown> };
+
+  it("default: standard mode's sizes reach the lane and the artifact", async () => {
+    const { code, files, arbiterLimits } = await runMain([], null);
+    expect(code).toBe(0);
+    expect(arbiterLimits).toEqual([LIMITS.standard]);
+    expect(artifact(files).arbiterConfig).toMatchObject({ mode: "standard", contextual: 5, memoryRecall: 5, pack: 10, window: 20 });
+  });
+
+  it("--mode deep: deep mode's sizes reach the lane and the artifact", async () => {
+    const { files, arbiterLimits } = await runMain(["--mode", "deep"], null);
+    expect(arbiterLimits).toEqual([LIMITS.deep]);
+    expect(artifact(files).arbiterConfig).toMatchObject({ mode: "deep", contextual: 10, memoryRecall: 8, pack: 14, window: 24 });
+  });
+
+  it("an unknown --mode refuses to run instead of silently measuring standard", async () => {
+    await expect(runMain(["--mode", "fast"], null)).rejects.toThrow(/standard or deep/);
   });
 });
