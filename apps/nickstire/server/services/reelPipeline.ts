@@ -1346,12 +1346,12 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
         // One renderer for this lane AND the repair lane (renderHiggsfieldBeat):
         // persist the handle on submit, resume a persisted handle instead of
         // resubmitting, record the paid op before clearing it. Image
-        // conditioning (REEL_IMAGE_CONDITIONING): only a beat whose camera
-        // stands where the hero photo was taken starts from it
-        // (shared/reelStartFrame.ts; every beat used to, and morphed out of the
+        // conditioning (REEL_IMAGE_CONDITIONING): a generated hero anchors every
+        // beat; a real shop photo only the beats shot where it was taken
+        // (shared/reelStartFrame.ts; 2100001's underbody beats morphed out of the
         // storefront). generateReelClipVideo ignores the start image unless the
         // flag is on AND the URL looks like an image.
-        const startImageUrl = startImageForBeat(beat, brief.visualWorld?.heroFrameUrl);
+        const startImageUrl = startImageForBeat(beat, brief.visualWorld);
         finalClipUrl = await renderHiggsfieldBeat({
           beat,
           prompt,
@@ -1382,7 +1382,7 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
         // hero frame only when REEL_IMAGE_CONDITIONING is on, and only for a
         // beat shot where the photo was taken (shared/reelStartFrame.ts).
         const startImageUrl =
-          process.env.REEL_IMAGE_CONDITIONING === "true" ? startImageForBeat(beat, brief.visualWorld?.heroFrameUrl) : undefined;
+          process.env.REEL_IMAGE_CONDITIONING === "true" ? startImageForBeat(beat, brief.visualWorld) : undefined;
         const persist = async () => {
           await d.update(reelJobs).set({ payload: JSON.stringify(brief), updatedAt: new Date() }).where(eq(reelJobs.id, job.id));
         };
