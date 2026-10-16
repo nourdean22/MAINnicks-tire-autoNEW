@@ -298,3 +298,32 @@ describe("lead ledgering — Home records what it recommends (2026-10-02)", () =
     expect(await ledgerLeadShown(leadFor({ criticalFew: CRITICAL }))).toBeNull();
   });
 });
+
+describe("pending approvals carried in place (UI v3 W2, 2026-10-16)", () => {
+  const { pendingApprovalRows } = __testInternals;
+  const now = new Date("2026-10-16T12:00:00.000Z");
+  const t = (iso: string) => new Date(iso);
+
+  it("live rows only, oldest first across both sources, capped at APPROVAL_ROWS_CAP, titled from the row", () => {
+    const rows = pendingApprovalRows(
+      [
+        { id: "a-new", actionType: "sms", ruleName: "nudge", policyObjective: "Nudge a waiting supplier", expired: false, createdAt: t("2026-10-16T11:00:00Z") },
+        { id: "a-old", actionType: "archive", ruleName: "janitor", policyObjective: null, expired: false, createdAt: t("2026-10-15T09:00:00Z") },
+        { id: "a-expired", actionType: "sms", ruleName: "nudge", policyObjective: "Expired one", expired: true, createdAt: t("2026-10-14T09:00:00Z") },
+      ],
+      [
+        { id: "r-mid", reason: "Send the revised quote\nsecond line", actionType: "email", createdAt: t("2026-10-15T12:00:00Z"), expiresAt: t("2026-10-17T12:00:00Z") },
+        { id: "r-expired", reason: "Too late", actionType: "email", createdAt: t("2026-10-13T12:00:00Z"), expiresAt: t("2026-10-14T12:00:00Z") },
+      ],
+      now,
+    );
+    expect(rows.map((r) => r.id)).toEqual(["a-old", "r-mid"]);
+    expect(rows[0]).toEqual({ id: "a-old", source: "action", title: "archive (janitor)" });
+    expect(rows[1]).toEqual({ id: "r-mid", source: "request", title: "Send the revised quote" });
+  });
+
+  it("no live rows: empty, never a fabricated row", () => {
+    expect(pendingApprovalRows([], [], now)).toEqual([]);
+    expect(pendingApprovalRows([], [{ id: "r", reason: "x", actionType: "y", createdAt: now, expiresAt: t("2026-10-01T00:00:00Z") }], now)).toEqual([]);
+  });
+});

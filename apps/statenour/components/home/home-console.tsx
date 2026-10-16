@@ -38,9 +38,8 @@
 
 import { trpc } from "@/lib/trpc/client";
 import { BriefStateLine } from "./brief-state-line";
-import { BriefLead } from "./brief-lead";
+import { BriefRows } from "./brief-rows";
 import { NickCommandLine } from "./nick-command-line";
-import { JudgmentQueue } from "./judgment-queue";
 import { HorizonLine } from "./horizon-line";
 import { WaitingLine } from "./waiting-line";
 import { ChangeLine } from "./change-line";
@@ -88,14 +87,14 @@ export function HomeConsole() {
             </button>
           </section>
         ) : (
-          <BriefLead lead={brief?.lead ?? null} loading={briefQ.isLoading} />
+          // UI v3 W2 (2026-10-16): sections 2 and 4 are one finite brief under the verdict:
+          // at most seven ruled rows, Keep / Less per row (device-local), approvals in place.
+          <BriefRows brief={brief} loading={briefQ.isLoading} />
         )}
 
         <section aria-label="Nick" className="mt-12">
           <NickCommandLine />
         </section>
-
-        <JudgmentQueue judgment={brief?.judgment ?? null} loading={briefQ.isLoading} />
       </div>
 
       {/* Section 5.4 (2026-09-08): at >=1280px the horizon and the change line form a context rail

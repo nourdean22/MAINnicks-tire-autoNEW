@@ -577,7 +577,7 @@ describe("the smoke spec cannot pass on an empty-state page", () => {
 
   it("positive control: the scan finds a string that IS in the app source", () => {
     const sources = appSource();
-    expect(sources.some((s) => s.text.includes("Needs your judgment"))).toBe(true);
+    expect(sources.some((s) => s.text.includes("Done for today."))).toBe(true);
   });
 
   it("the DEMO strings are the fixtures' own, and the smoke spec reads every one of them", () => {
@@ -591,7 +591,7 @@ describe("the smoke spec cannot pass on an empty-state page", () => {
     const smoke = read(SMOKE_SPEC);
     const sources = [
       "components/home/home-console.tsx",
-      "components/home/judgment-queue.tsx",
+      "components/home/brief-rows.tsx",
       "components/home/waiting-line.tsx",
       "components/ultron/bottom-pulse-ticker.tsx",
       "app/(mastery)/missions/page.tsx",
@@ -638,10 +638,9 @@ describe("the smoke spec cannot pass on an empty-state page", () => {
     const files = [
       "components/home/home-console.tsx",
       "components/home/brief-state-line.tsx",
-      "components/home/brief-lead.tsx",
+      "components/home/brief-rows.tsx",
       "components/home/waiting-line.tsx",
       "components/home/change-line.tsx",
-      "components/home/judgment-queue.tsx",
       "components/home/horizon-line.tsx",
       "components/home/nick-command-line.tsx",
       "app/(mastery)/missions/page.tsx",

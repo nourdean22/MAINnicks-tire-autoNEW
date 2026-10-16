@@ -24,7 +24,8 @@ const APP = join(__dirname, "../..");
 const read = (p: string) => readFileSync(join(APP, p), "utf8");
 
 describe("Home lead · a null ledger id still decides", () => {
-  const lead = read("components/home/brief-lead.tsx");
+  // UI v3 W2: the lead row lives in brief-rows.tsx; Home records only `accepted` (no alternatives).
+  const lead = read("components/home/brief-rows.tsx");
 
   it("no early return on a missing id; the summary is the server's leadLedgerSummary shape", () => {
     expect(lead).not.toContain("if (!lead?.ledgerId) return;");
@@ -32,10 +33,6 @@ describe("Home lead · a null ledger id still decides", () => {
     expect(leadLedgerSummary({ headline: "Finish what's in motion", cta: { label: "Open task", href: "/x" } })).toBe(
       "Finish what's in motion: Open task",
     );
-  });
-
-  it("an alternative is a dismissal with the reason `alternative`", () => {
-    expect(lead).toContain('recordDecision("dismissed", "dismiss:alternative")');
   });
 });
 

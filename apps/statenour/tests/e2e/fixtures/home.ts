@@ -43,7 +43,19 @@ export const HOME_BRIEF: OperatorBrief = {
   },
   judgment: {
     items: [
-      { kind: "approvals", count: 3, expired: 1, oldestAgeMin: 310, href: "/system/actions?tab=approvals" },
+      {
+        kind: "approvals",
+        count: 3,
+        expired: 1,
+        oldestAgeMin: 310,
+        href: "/system/actions?tab=approvals",
+        // W2: the two oldest live rows are approvable in place; the third live one and the expired one
+        // stay behind the Review link as "2 more".
+        pending: [
+          { id: "demo-approval-1", source: "request", title: "Demo request: send Demo Supplier A the revised quote" },
+          { id: "demo-approval-2", source: "action", title: "Demo action: archive the stale demo inbox items" },
+        ],
+      },
       {
         kind: "commitment",
         id: 9001,
