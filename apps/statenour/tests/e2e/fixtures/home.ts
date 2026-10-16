@@ -92,7 +92,7 @@ export const HOME_WAITING: WaitingSummary = {
         subject: "Demo mission Bravo: floor plan sign-off",
         who: "Demo Contractor A",
         since: "2026-10-13T15:00:00.000Z",
-        ageMin: 2640,
+        ageMin: 3060,
         deadline: "2026-10-20",
         nextAction: "Nudge Demo Contractor A",
         source: "task:demo-wait-bravo",
