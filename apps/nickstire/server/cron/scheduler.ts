@@ -1263,10 +1263,14 @@ function buildTiers(): void {
             const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
             const dailyTarget = BUSINESS.revenueTarget.monthly / daysInMonth;
 
-            // Alert if a single big job came in (>$1000)
+            // Alert if a single big job came in (>$1000). Once per ET day per band of the
+            // daily target (2x, 3x, ...): this used to re-send the same line every 15 minutes.
             if (todayRevenue > 1000 && todayRevenue > dailyTarget * 2) {
-              const { sendTelegram } = await import("../services/telegram");
-              await sendTelegram(`💰 Big day building: $${Math.round(todayRevenue)} so far today (${Math.round((todayRevenue/dailyTarget)*100)}% of daily target)`);
+              const { claimAlertOnce } = await import("../services/alertClaim");
+              if (await claimAlertOnce(`revenue-pulse:over-target-${Math.floor(todayRevenue / dailyTarget)}x`)) {
+                const { sendTelegram } = await import("../services/telegram");
+                await sendTelegram(`💰 Big day building: $${Math.round(todayRevenue)} so far today (${Math.round((todayRevenue/dailyTarget)*100)}% of daily target)`);
+              }
             }
             return { recordsProcessed: 1, details: `Today: $${Math.round(todayRevenue)}` };
           } catch (e) { log.warn("[cron/scheduler] operation failed:", e); throw e; /* audit F-9: a swallowed error was recorded as completed */ }
@@ -1813,11 +1817,16 @@ function buildTiers(): void {
             const risk = await getPromiseRiskSummary();
             const atRiskJobs = (risk.jobs || []).filter((r) => r.risk === "at_risk" || r.risk === "likely_late" || r.risk === "overdue");
             if (atRiskJobs.length > 0) {
-              const { sendTelegram } = await import("../services/telegram");
-              await sendTelegram(
-                `⏰ PROMISE RISK: ${atRiskJobs.length} work orders at risk!\n\n` +
-                atRiskJobs.slice(0, 3).map((r) => `WO#${r.orderNumber || r.workOrderId}: ${r.customerName || "?"} — ${r.risk}`).join("\n")
-              );
+              // Once per ET day per SET of at-risk orders: a new order at risk is a new state.
+              const { claimAlertOnce, stateFingerprint } = await import("../services/alertClaim");
+              const state = stateFingerprint(atRiskJobs.map((r) => `${r.orderNumber || r.workOrderId}:${r.risk}`));
+              if (await claimAlertOnce(`promise-risk:${state}`)) {
+                const { sendTelegram } = await import("../services/telegram");
+                await sendTelegram(
+                  `⏰ PROMISE RISK: ${atRiskJobs.length} work orders at risk!\n\n` +
+                  atRiskJobs.slice(0, 3).map((r) => `WO#${r.orderNumber || r.workOrderId}: ${r.customerName || "?"} — ${r.risk}`).join("\n")
+                );
+              }
             }
             return { recordsProcessed: atRiskJobs.length, details: `${atRiskJobs.length} at-risk WOs` };
           } catch (e) { log.warn("[cron/scheduler] operation failed:", e); throw e; /* audit F-9: a swallowed error was recorded as completed */ }
@@ -1839,7 +1848,10 @@ function buildTiers(): void {
               ORDER BY totalAmount DESC LIMIT 5
             `);
             const stale = rows as Record<string, unknown>[];
-            if (stale.length > 0) {
+            // Once per ET day per LIST (daysOld is left out of the fingerprint: it ticks daily).
+            const { claimAlertOnce, stateFingerprint } = await import("../services/alertClaim");
+            const staleState = stateFingerprint(stale.map((e) => `${e.customerName}:${e.totalAmount}`));
+            if (stale.length > 0 && (await claimAlertOnce(`stale-estimate:${staleState}`))) {
               const { sendTelegram } = await import("../services/telegram");
               const totalPotential = stale.reduce((s: number, e) => s + Number(e.totalAmount || 0), 0);
               await sendTelegram(
@@ -1848,7 +1860,7 @@ function buildTiers(): void {
                 `\n\nFollow up NOW — every day = lost conversion probability.`
               );
             }
-            return { recordsProcessed: stale.length, details: `${stale.length} stale estimates alerted` };
+            return { recordsProcessed: stale.length, details: `${stale.length} stale estimates found` };
           } catch (e) { log.warn("[cron/scheduler] operation failed:", e); throw e; /* audit F-9: a swallowed error was recorded as completed */ }
         },
       },
