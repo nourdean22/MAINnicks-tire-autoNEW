@@ -37,6 +37,8 @@ const SAVED_TURN_READ_TIMEOUT_MS = 12_000;
 /** What the saved-turn check decided: replay, say nothing (the operator moved on), or hold with this message. */
 type SavedTurnCheck = { kind: "go"; rows: readonly SavedRow[] | null } | { kind: "stale" } | { kind: "hold"; message: string };
 
+const RETRY_REFUSED_PRIVATE = "That turn was private. Turn Private Lab back on to retry it.";
+const RETRY_REFUSED_SIDE_EFFECT = "That reply may have run an action, so it can't be replayed. Send a new message instead.";
 /** Which conversation a send belongs to: the active one, or "private" in Private Lab. */
 const conversationKeyOf = (privateMode: boolean) => (privateMode ? "private" : useChatUiStore.getState().activeConversationId);
 
@@ -457,14 +459,17 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
   // the auto-retry land here, so the refusals happen before anything changes.
   const safeRegenerate = useCallback(
     (options?: Parameters<typeof chat.regenerate>[0]): Promise<void> => {
+      // Round 3 (A5): every refusal said here also lands in the hold line, so it outlives the toast.
       if (sentPrivateRef.current && !privateModeRef.current) {
-        toast.error("That turn was private. Turn Private Lab back on to retry it.");
+        setHold(RETRY_REFUSED_PRIVATE);
+        toast.error(RETRY_REFUSED_PRIVATE);
         return Promise.resolve();
       }
       // R3-15: the server owns this turn and nothing has reattached yet, so a
       // regenerate would run it a second time. Retry reattaches instead.
       if (killedErrorRef.current) {
         setHeldError(null);
+        setHold(null);
         resumingRef.current = true;
         void chat.resumeStream();
         return Promise.resolve();
@@ -474,10 +479,12 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
         ? messages.find((m) => m.id === options.messageId)
         : messages[messages.length - 1];
       if (target?.role === "assistant" && turnHasSideEffect(target)) {
-        toast.error("That reply may have run an action, so it can't be replayed. Send a new message instead.");
+        setHold(RETRY_REFUSED_SIDE_EFFECT);
+        toast.error(RETRY_REFUSED_SIDE_EFFECT);
         return Promise.resolve();
       }
       const replay = () => {
+        setHold(null); // a "still checking" hold left by a check that came back stale ends with the replay
         resumingRef.current = false;
         cancelPartialResume();
         setStopped(null);

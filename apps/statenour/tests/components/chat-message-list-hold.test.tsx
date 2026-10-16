@@ -62,6 +62,19 @@ describe("ChatMessageList error card with a Retry hold", () => {
     expect(markup).not.toContain(RETRY_HELD_RAN.replace(/'/g, "&#x27;"));
   });
 
+  // Round 3 (A5): a refusal (a side-effecting or private turn) is held with no stream error, so the
+  // line cannot live only inside the error card or the hold is set and never shown.
+  it("shows a hold with no error card too, once", () => {
+    const words = "That turn was private. Turn Private Lab back on to retry it.";
+    const markup = renderToStaticMarkup(<ChatMessageList messages={messages} isLoading={false} hold={words} onRetry={() => {}} />);
+    expect(markup.match(/role="status"[^>]*>That turn was private/g)?.length).toBe(1);
+  });
+
+  it("CONTROL: with an error card the hold still renders once (inside the card)", () => {
+    const markup = renderToStaticMarkup(<ChatMessageList messages={messages} isLoading={false} error={error} hold={RETRY_HELD_RAN} onRetry={() => {}} />);
+    expect(markup.split(RETRY_HELD_RAN.replace(/'/g, "&#x27;")).length - 1).toBe(1);
+  });
+
   it("CONTROL: no hold, no hold line", () => {
     const markup = renderToStaticMarkup(<ChatMessageList messages={messages} isLoading={false} error={error} hold={null} onRetry={() => {}} />);
     expect(markup).not.toContain("Retry is held");

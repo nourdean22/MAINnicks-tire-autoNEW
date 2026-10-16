@@ -695,6 +695,8 @@ export function ChatMessageList({
           {hold && <p role="status" aria-live="polite" className="mt-2 text-[13px] leading-snug text-fg-secondary">{hold}</p>}
         </div>
       )}
+      {/* Round 3 (A5): a refusal (side-effecting or private turn) holds with no stream error. */}
+      {!error && hold && <p role="status" aria-live="polite" className="mx-auto px-1 text-center text-[13px] leading-snug text-fg-secondary">{hold}</p>}
 
       {/* 2026-08-08 · always-mounted completion announcer — polite regions
           must pre-exist to announce (people-scoring-panel is the in-repo
