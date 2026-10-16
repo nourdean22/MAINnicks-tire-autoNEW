@@ -187,21 +187,16 @@ describe("BriefRows", () => {
     expect(container.querySelector('[data-testid="house-dialog"]')).toBeTruthy();
   });
 
-  it("Approve on an autonomous-action row calls decideApproval with decision approved", async () => {
+  it("an autonomous-action row offers Review, never Approve: its payload is a deferred side effect Home does not show (Codex 4291673580)", async () => {
     await mount(HOME_BRIEF);
-    await act(async () => buttons("Approve")[1]!.click());
-    await flush();
-    expect(h.decideAction).toHaveBeenCalledWith({ id: pending[1].id, decision: "approved" });
-    expect(h.approveRequest).not.toHaveBeenCalled();
-  });
-
-  it("an approved action whose run failed is never a silent success", async () => {
-    h.decideAction.mockResolvedValueOnce({ result: "failed" });
-    await mount(HOME_BRIEF);
-    await act(async () => buttons("Approve")[1]!.click());
-    await flush();
-    expect(alertIn("approval")).toContain("Approved, but the run failed");
-    expect(live()).not.toContain("Approved.");
+    expect(pending[1].source).toBe("action");
+    const actionRow = container.querySelectorAll('[data-brief-row="approval"]')[1]!;
+    expect(actionRow.textContent).toContain(pending[1].title);
+    expect(actionRow.querySelector("a")?.getAttribute("href")).toBe("/system/actions?tab=approvals");
+    expect(actionRow.querySelector("a")?.textContent).toBe("Review");
+    expect(Array.from(actionRow.querySelectorAll("button")).some((b) => b.textContent?.trim() === "Approve")).toBe(false);
+    expect(buttons("Approve"), "only the request row approves in place").toHaveLength(1);
+    expect(h.decideAction).not.toHaveBeenCalled();
   });
 
   it("a rejected approve shows the failure in the row as an alert; a CONFLICT reads Already decided", async () => {

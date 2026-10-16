@@ -17,12 +17,13 @@
  *
  * Every verdict runs through the mutation the old components used, so the receipt paths hold:
  * commitment accept/dismiss, follow-up convert/dismiss, the lead's `accepted` ledger decision, and
- * the follow-up ledger sync side effect (moved here verbatim). New in W2: a live approval is
- * approved in place through the same mutations /system/actions uses, behind the house confirm
- * dialog in its danger tone (focus starts on Cancel, so Enter cannot approve; window.confirm is
- * suppressed in the iOS PWA and is never called). The server mutation is the claim: a CONFLICT
- * reads "Already decided", an autonomous action whose run failed reads as such, never as success,
- * and a row the server would refuse (owner gate) offers Review instead of Approve.
+ * the follow-up ledger sync side effect (moved here verbatim). New in W2: a live approval REQUEST
+ * (approval_requests, no executable payload of its own) is approved in place through the same
+ * mutation /system/actions uses, behind the house confirm dialog in its danger tone (focus starts
+ * on Cancel, so Enter cannot approve; window.confirm is suppressed in the iOS PWA and is never
+ * called). An autonomous ACTION row never approves from Home: approving it executes a deferred
+ * side effect whose payload this dialog does not show (review round 2, Codex 4291673580), so it
+ * offers Review. The server mutation is the claim: a CONFLICT reads "Already decided".
  *
  * Design: rows ruled by hairlines, never carded; gold only on the lead CTA (the Now line owns the
  * page's one at-rest notch); Geist sentence case; 44px targets with gaps; no fixed widths, min-w-0
@@ -85,7 +86,6 @@ const UNDER_LABEL = "pl-[5.25rem]";
 
 const SAVE_FAILED = "That did not save. The item is still waiting.";
 const ALREADY_DECIDED = "Already decided elsewhere. Refreshing the brief.";
-const RUN_FAILED = "Approved, but the run failed. Review it on Approvals.";
 
 type RunResult = { ok: boolean; note?: string };
 
@@ -117,7 +117,6 @@ export function BriefRows({ brief, loading }: { brief: BriefRowsInput | null; lo
   const convertFollowUp = trpc.operator.agendaConvertFollowUp.useMutation();
   const dismissFollowUp = trpc.operator.agendaDismissFollowUp.useMutation();
   const approveRequest = trpc.system.approveApprovalRequest.useMutation();
-  const decideAction = trpc.systemAutomation.decideApproval.useMutation();
 
   // Follow-up ledger sync (ported verbatim from JudgmentQueue, before that FollowUpsList): once per
   // distinct generated payload. NUL delimiter written as an ESCAPE, not a raw byte.
@@ -212,14 +211,7 @@ export function BriefRows({ brief, loading }: { brief: BriefRowsInput | null; lo
     await act(
       key,
       async () => {
-        if (item.source === "request") {
-          await approveRequest.mutateAsync({ id: item.id });
-          return { ok: true };
-        }
-        const res = await decideAction.mutateAsync({ id: item.id, decision: "approved" });
-        // decidePendingAction returns the row; a run that failed is written needs_review with
-        // result "failed" and must never read as a success here.
-        if ((res as { result?: string | null } | null | undefined)?.result === "failed") return { ok: false, note: RUN_FAILED };
+        await approveRequest.mutateAsync({ id: item.id });
         return { ok: true };
       },
       "Approved.",
@@ -313,8 +305,8 @@ export function BriefRows({ brief, loading }: { brief: BriefRowsInput | null; lo
               if ("item" in row) {
                 const item = row.item;
                 text = item.title;
-                if (item.requiresOwner) {
-                  detail = "Owner approval: review it with its payload.";
+                if (item.source === "action" || item.requiresOwner) {
+                  detail = item.source === "action" ? "Runs a deferred action: review its payload first." : "Owner approval: review it with its payload.";
                   action = (
                     <Link href={row.href} className={ACTION_LINK}>
                       Review
