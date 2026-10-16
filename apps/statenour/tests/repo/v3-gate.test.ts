@@ -938,8 +938,8 @@ describe("pending baselines: a missing PNG skips, a present one is always judged
     expect(baselineSkipReason({ label: "x", baselineExists: false, pending: true })).not.toBeNull();
   });
 
-  it("only chat is pending today, and it has no baseline PNG yet (the flag leaves in the commit that adds them)", () => {
-    expect(V3_PAGES.filter((p) => p.baselinePending).map((p) => p.key)).toEqual(["chat"]);
+  it("no page is pending today (chat's baselines were captured from main 7dc82474c, run 38908095706); a pending page must not have its PNGs", () => {
+    expect(V3_PAGES.filter((p) => p.baselinePending).map((p) => p.key)).toEqual([]);
     for (const p of V3_PAGES.filter((x) => x.baselinePending)) {
       for (const v of V3_VIEWPORTS) {
         const png = `${p.key}-${v.key}.png`;
