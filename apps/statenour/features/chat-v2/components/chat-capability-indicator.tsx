@@ -9,8 +9,8 @@ import { useChatUiStore } from "../stores/chat-ui-store";
 /**
  * UI v3 W3b: a 10px dot and one word, in place of the bordered pill. The three honest states of
  * capabilityBadge (checking / unknown / measured) stay: the full label is the link's accessible
- * name and a visually hidden span, the word (Ready / Checking / Unknown / Degraded / Offline)
- * shows at md and up, and the dot's shape carries the state next to its colour (filled for a
+ * name and its title, "Ready" shows at md and up while every other state shows its own words at
+ * every width, and the dot's shape carries the state next to its colour (filled for a
  * measured state, a ring for unknown, a spinner only while a read is in flight). Still a Link to
  * /system/health.
  */
@@ -39,7 +39,7 @@ export function ChatCapabilityIndicator() {
     toolsErrored: tools.isError,
   });
   const label = `${badge.label}${toolSummary && toolSummary.down > 0 ? ` · ${toolSummary.down} down` : ""}`;
-  const word = capabilityWord(badge);
+  const word = capabilityWord(label);
   const dot = badge.unknown
     ? "border-2 border-amber-400"
     : badge.cautious
@@ -49,9 +49,9 @@ export function ChatCapabilityIndicator() {
   return (
     <Link
       href="/system/health"
-      title="Open provider and capability health"
+      title={label}
       aria-label={`${label} (capability health)`}
-      className="inline-flex min-h-11 items-center gap-2 rounded-control px-1.5 text-[12px] text-fg-secondary transition-colors duration-[var(--motion-state)] hover:text-fg"
+      className="inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-control px-1.5 text-[12px] text-fg-secondary transition-colors duration-[var(--motion-state)] hover:text-fg"
     >
       {/* Only a read still in flight spins (09-F14): a failed read is static. */}
       {badge.checking ? (
@@ -59,8 +59,9 @@ export function ChatCapabilityIndicator() {
       ) : (
         <span aria-hidden className={`h-2.5 w-2.5 shrink-0 rounded-full ${dot}`} />
       )}
-      <span className="sr-only">{label}</span>
-      <span aria-hidden className="hidden md:inline">{word}</span>
+      {/* Ready is the dot alone below md; any other state shows its words at every width, so the
+          state is never colour-only (review round 2, lens B). The words sit inside the accessible name. */}
+      <span aria-hidden className={word === "Ready" ? "hidden md:inline" : undefined}>{word}</span>
     </Link>
   );
 }

@@ -50,16 +50,12 @@ export interface CapabilityBadge {
 }
 
 /**
- * W3b: the one word the header shows at md and up (the full label stays in the accessible name).
- * It never claims more than the label: a read in flight is Checking, a failed read is Unknown,
- * a measured problem is Degraded, the client's own offline observation is Offline.
+ * W3b: the words the header shows next to the dot: the badge label in sentence case, so the
+ * visible text is always inside the accessible name (label-in-name) and a down count is kept.
+ * "Ready" alone is hidden below md; every other state shows at every width.
  */
-export function capabilityWord(badge: CapabilityBadge): "Ready" | "Checking" | "Unknown" | "Degraded" | "Offline" {
-  if (badge.label === "chat offline") return "Offline";
-  if (badge.checking) return "Checking";
-  if (badge.unknown) return "Unknown";
-  if (badge.cautious) return "Degraded";
-  return "Ready";
+export function capabilityWord(label: string): string {
+  return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
 export function capabilityBadge(input: CapabilityInputs): CapabilityBadge {
