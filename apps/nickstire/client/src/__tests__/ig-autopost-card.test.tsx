@@ -48,6 +48,8 @@ vi.mock("@/lib/trpc", () => ({
           return { data: h.status, isError: h.isError, isLoading: h.isLoading, refetch: h.refetch, dataUpdatedAt: h.dataUpdatedAt ?? Date.now() };
         },
       },
+      // The comment responder card below stays loading here; its own test is comment-responder-card.test.tsx.
+      commentResponderStatus: { useQuery: () => ({ data: undefined, isError: false, isLoading: true, refetch: vi.fn() }) },
       startAutopostRun: {
         useMutation: (opts?: typeof h.runOpts) => {
           h.runOpts = opts;

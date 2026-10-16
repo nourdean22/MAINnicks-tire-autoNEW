@@ -5056,6 +5056,38 @@
       "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "internal"
+    },
+    {
+      "capabilityId": "comment-responder-controls",
+      "name": "Reel comment responder honours the kill switch and a pause before any read, audits every reply, and is controllable from the admin",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "Branch worktree-agent-ac7da074dfa4e476a on main 4d3ad1272: c9e2e8699 (server/services/commentResponder.ts runReelCommentResponder gates before any DB or Graph read: line 224 REEL_COMMENT_RESPONDER_ENABLED must be exactly 'true', line 231 isEnabled('reel_comment_responder_paused'), line 240 killSwitchBlockedPlatforms(['instagram'], { source: 'reel-comment-responder' }, 'automated') once per live run, instagram blocked forces a dry run whose details start 'kill switch: replies drafted, not posted'; first DB read getDb at line 249, first Graph read getMediaComments at line 325; flag reel_comment_responder_paused in server/services/featureFlags.ts, INVERTED_FLAGS, CUSTOMER_FACING_FLAGS and per-key resume copy in shared/flagPolicy.ts), d5f9e4aca (recordAuditEvent per reply attempt: actionType comment_reply, decision POSTED or FAILED for a live reply at line 383, DRY_RUN at line 372; context mediaId, commentId, replyId, tone, our reply text (300 chars), error; never the customer's comment text; policy version read once per run, unreadable = 0 with code policy_version_unread), 3b73194d0 (server/routers/instagramAdmin.ts instagramAdmin.commentResponderStatus, contract CommentResponderStatus v1: enabled, live, paused from the flag row, lastRun from cron_log, the last 20 comment_reply audit rows, 7-day counts), f83ab6cb2 (the available:false shape carries paused, enabled and live so the card keeps its switch); client: client/src/pages/admin/instagram/CommentResponderCard.tsx wired in Pipeline.tsx (client lane, same PR). The Meta webhook (server/routes/webhooks/meta.ts:108) calls runReelCommentResponder, so the gates cover it. Live state 2026-10-16: REEL_COMMENT_RESPONDER_ENABLED=true and REEL_COMMENT_RESPONDER_LIVE=true, last run 'live: 3 reels scanned, 0 drafted, 0 posted', watermarks last written 2026-10-03 (0 replies since), no table rows (only logs and a shop_settings watermark), no pause or history, outside the publishing kill switch, and ENABLED read three ways (cron truthy requiresEnv, webhook exactly 'true', the service read only LIVE).",
+        "tests": [
+          "server/commentResponderControls.test.ts (15): ENABLED unset, '1', 'TRUE' or 'false' skips before getDb, getMediaComments and the flag read; paused skips before any DB or Graph read and drafts nothing; control: not paused and live posts; instagram kill-switched posts nothing and details start 'kill switch: replies drafted, not posted'; the switch is asked once and before the DB read; a dry run never asks it; POSTED, FAILED, DRY_RUN and kill-switch DRY_RUN audit calls with the exact context and no customer text; unreadable policy version records 0 with policy_version_unread; a paused run writes no audit row. Red first 12 failed | 3 passed (the gated runs reached a posted reply, no audit call). Mutants 5 of 5 killed: drop the ENABLED check, drop the pause, ignore the kill-switch result, drop the live audit call, drop the dry-run audit call.",
+          "server/commentResponderStatus.test.ts (7): v1 contract on a good read with string COUNT coercion and an unparseable context_json row as nulls; enabled and live are exact 'true' reads and an absent flag row is not paused; a failed flag read is paused:null with history still rendered; a failed history read is available:false, never an empty list; a failed history read after a good flag read keeps paused, enabled and live; both reads failing gives paused:null; no database is available:false with paused:null. Red first 5 failed (reader absent); the failure-shape fix red first 3 failed | 4 passed.",
+          "server/commentResponder.test.ts (15, edited): sets REEL_COMMENT_RESPONDER_ENABLED='true' and mocks the pause, kill switch and audit writer open so the existing dry-run, live, dedup and freeze-on-failure tests still exercise the reply path.",
+          "server/instagramAdmin.test.ts (+2): commentResponderStatus answers through appRouter and refuses a non-admin with FORBIDDEN. Red first 2 failed | 21 passed (no procedure on path).",
+          "shared/flagPolicy.test.ts (+2): reel_comment_responder_paused is defined, inverted and customer-facing, confirms on resume only; the resume copy names public Instagram comment replies, not SMS. Red first 2 failed | 20 passed (key absent)."
+        ],
+        "liveRuns": [],
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Not observed in production yet. Live proof: one pause from the card makes the next pulse's cron_log read `Skip — paused by reel_comment_responder_paused`; the first live reply after deploy writes a comment_reply POSTED audit row the card shows",
+          "source": "job 2026-10-16-comment-responder-controls"
+        }
+      ],
+      "deferredScope": [
+        "the kill-switch prefix is not shown on the early returns (DB unavailable, no recent reels)",
+        "customer comment text is never stored; only our reply text"
+      ],
+      "lastVerifiedAt": "2026-10-16",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
     }
   ],
   "axes": {

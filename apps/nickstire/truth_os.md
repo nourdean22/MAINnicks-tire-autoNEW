@@ -100,6 +100,14 @@ detailed in `docs/CURRENT-TRUTH.md`:
   retail only, wholesale never leaves the server. Live sections self-suppress
   when the feed is cold (canon floors render, never an empty table).
 
+## 2026-10-16 - Reel comment responder gets gates, an audit trail and admin controls
+
+- `runReelCommentResponder` (cron and the Meta comment webhook) now stops before any DB or Graph read unless `REEL_COMMENT_RESPONDER_ENABLED` is exactly `true` and the new inverted flag `reel_comment_responder_paused` is off. Before this the cron read ENABLED as truthy, the webhook as exactly `true`, and the service read only LIVE.
+- A live run asks the autonomy publishing kill switch once; instagram blocked (or the switch unreadable) makes that run a dry run whose cron_log details start `kill switch: replies drafted, not posted`.
+- Every reply attempt writes one `autonomy_audit_events` row, action `comment_reply`, decision POSTED, FAILED or DRY_RUN, with media, comment and reply ids, tone and our reply text. The customer's comment text is never stored.
+- `instagramAdmin.commentResponderStatus` (contract v1) feeds the comment responder card on Admin -> Instagram -> Pipeline health: enabled, live, pause, last run, the last 20 replies and 7-day counts. A failed read is UNKNOWN or `available:false` and still carries the pause state.
+- Live state 2026-10-16: ENABLED and LIVE both `true`, 0 replies since 2026-10-03. Live proof owed: one pause logs `Skip — paused by reel_comment_responder_paused` on the next pulse, and the first live reply after deploy shows as a POSTED row on the card.
+
 ## 2026-10-16 - Image autopost lane gets admin controls
 
 - New inverted flag `ig_autopost_paused` (TRUE = paused). `runIgAutopostCron` checks it after the slot gate and before the dedupe read and any generation or spend; the manual Run-a-slot-now door ignores it. Turning `legacy_autopost_live` OFF still only makes the lane a dry run that spends.
