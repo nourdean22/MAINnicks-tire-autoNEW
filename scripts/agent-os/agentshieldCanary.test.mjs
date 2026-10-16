@@ -76,6 +76,12 @@ test("assert: a non-JSON report (scanner crashed, wrote nothing) fails, never pa
   assert.match(out, /not JSON/);
 });
 
+test("assert: the LIVE id shape (hooks-session-start-download-0, run 38928256156) passes by id alone, even without curl in the text", () => {
+  const live = [{ id: "hooks-session-start-download-0", severity: "critical", category: "hooks", title: "x", description: "y" }];
+  assert.equal(plantedHookCaught(live), true);
+  assert.equal(plantedHookCaught([{ ...live[0], id: "hooks-session-start-downloads" }]), false, "a different rule family must not match");
+});
+
 test("assert: a renamed rule still passes when a critical/high hooks finding names the curl command; a medium one does not", () => {
   const renamedCritical = [{ ...expected, id: "hooks-remote-download-v2" }];
   assert.equal(plantedHookCaught(renamedCritical), true);
