@@ -335,8 +335,8 @@ client does to that text:
 **Status: DENIED by name.** The Railway, Neon, Vercel and Prisma MCP tools that delete, redeploy, restart or change variables,
 credentials, domains, DNS or schema (the table below) are refused by rule `infra-mutation-tool`, a PreToolUse hook deny
 (exit 2). It judges the TOOL NAME, by its last segment, whatever server segment it has. It replaced 135 native
-`permissions.ask` entries that did nothing. There is NO override. Nothing here has been live-checked since the rewrite:
-step 7 of "Live check after merge" is the receipt.
+`permissions.ask` entries that did nothing. There is NO override. The rewritten step 7 has run once, from a worktree (evidence only, see the last paragraph of "Live check after merge");
+the official run is still owed.
 
 - **Why: the live FAIL.** Job 2026-10-15-guard-sql-lease-infra wrote 135 `mcp__*__<leaf>` ask entries to make Claude Code prompt before
   each of these tools. They FAILED their live check at 17:56Z on 2026-10-15, in a fresh `bypassPermissions` session: Railway
@@ -501,7 +501,7 @@ step 7 the infra name rule. Three result words are used below. PASS: the stated 
 anything is sent. FAIL: the call reached the tool and came back with the tool's own output or a provider error, while
 the control behaved as stated. INCONCLUSIVE: a control did not behave as stated, or the session did not load the merged
 files, so nothing can be concluded: fix the precondition and repeat. This section is a procedure; whoever runs it
-records the result under "Recorded result" at its end (the 2026-10-15 run is there: steps 1 to 6 PASS, the ask version of step 7 FAIL; the rewritten step 7 has not been run yet).
+records the result under "Recorded result" at its end (the 2026-10-15 run is there: steps 1 to 6 PASS, the ask version of step 7 FAIL; the rewritten step 7 ran once after the merge, from a worktree (evidence only), and its official run is owed, see the last paragraph of that section).
 
 0. Precondition: fast-forward the PRIMARY checkout to the merged commit (on this machine
    `C:\Users\nourd\NattyNour\nicks-tire`): `git -C <primary> fetch origin main`, then `git -C <primary> merge --ff-only origin/main`,
@@ -557,7 +557,9 @@ line `neon-sql.sql`) and `run_sql_transaction` was refused (last line `neon-sql-
 error), Vercel `pause_project` (`invalid_project_id`) and Prisma `delete_prisma_postgres_database` (`not_found`) each ran
 with NO permission prompt. The recorded probes were Railway, Vercel and Prisma; the Neon connector was invalidated in that
 session. That FAIL led to job 2026-10-15-infra-deny-by-name: the ask entries were removed and replaced by the hook deny described
-under "Infra tools: deny by name", whose probes are the rewritten step 7. The rewritten step 7 has not been run yet: record its result here.
+under "Infra tools: deny by name", whose probes are the rewritten step 7.
+
+**Recorded result, rewritten step 7, 2026-10-15 (after the merge at `00e919e58`).** Evidence only, not the official step-7 run: the session ran from the worktree `hello-23f8b4`, and step 0 requires a fresh session started in the primary checkout. In `bypassPermissions`, the merged rule fired on three probes. Railway `delete-service`, Vercel `pause_project` and Prisma `delete_prisma_postgres_database` (nonexistent ids) were each refused before anything was sent. Each banner is `BLOCKED by repo policy: infra-mutation-tool` inside a `PreToolUse` hook-error line, and its last line is `Judged through MCP adapter infra-name.toolName on tool <full tool name>`; no permission prompt, no provider error. Railway `list-projects` ran with no prompt. `git push --dry-run origin main` through `run_in_terminal` was refused with `push-to-main`. **Neon not run:** the Neon connector was absent, so the Neon control and the `delete_project` probe did not run. Step 7 says INCONCLUSIVE when a connector is absent, so the official step 7 is INCONCLUSIVE and still owed: a fresh session from the primary checkout, with the Neon connector connected. The rule is in the primary checkout's and `main`'s `config/agent-os/policy.json`; this worktree's older base lacks it, which is why the banners show the merged rule fired. The raw tool results were not readable from the child's transcript; the banner text is the child session's verbatim quote.
 
 ## Writing a check that actually catches something
 

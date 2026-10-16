@@ -790,13 +790,14 @@ test("docs truth: the live check is runnable from a worktree session, the lease 
   const ledger = readFileSync(join(ROOT, "docs", "agent-os", "MANAGER-LEDGER.md"), "utf8").split("\n").find((l) => l.startsWith("| 2026-10-15-guard-sql-lease-infra |")) ?? "";
   assert.ok(ledger, "the ledger row for this job is missing");
   assert.doesNotMatch(ledger, /every DROP kind/, "the ledger row must say the listed DROP kinds");
-  // "144 to 219" is the count AFTER that job (a historical row, never edited again); the CURRENT denyExamples total is pinned by coverage-doc.test.mjs, not here
-  for (const phrase of ["the listed DROP kinds", "144 to 219", "fast-forward", "G4 the re-review, two commits"]) assert.ok(ledger.includes(phrase), `the ledger row must say: ${phrase}`);
-  // 2026-10-15 live check: the row records the merge and the step 7 FAIL with an owner and a date
+  // The guard row is a record whose Status and Next move with the job (the infra live check rewrites its Next); a pin on that text failed the every-PR job on the next ledger edit
+  // (2026-10-15). So only history is pinned, and never the Next cell (cell[7]): the phrases below live in the Job, PR and Lesson cells. "144 to 219" (the denyExamples total after
+  // that job) sits in Next, so it is no longer pinned; the CURRENT total is pinned by coverage-doc.test.mjs.
   const cell = ledger.split("|").map((c) => c.trim());
-  assert.equal(cell[5], "MERGED", "the guard row's Status cell must be MERGED");
+  const history = cell.filter((_, i) => i !== 7).join("|");
+  for (const phrase of ["the listed DROP kinds", "fast-forward", "G4 the re-review, two commits"]) assert.ok(history.includes(phrase), `the ledger row must say: ${phrase}`);
+  assert.ok(["MERGED", "LIVE-VERIFIED"].includes(cell[5]), `the guard row's Status must be MERGED or LIVE-VERIFIED (it merged), not ${cell[5]}`);
   assert.ok(cell[6].includes("#3053 (b6faf90d9"), "the guard row's PR cell must name #3053 and its merge SHA");
-  for (const phrase of ["failed live step 7", "delete_prisma_postgres_database", "by 2026-10-17"]) assert.ok(cell[7].includes(phrase), `the guard row's Next cell must say: ${phrase}`);
   assert.ok(cell[8].includes("live result 2026-10-15"), "the guard row's Lesson must carry the live result next to the 'fails closed' claim it disproved");
 });
 
@@ -817,7 +818,7 @@ test("ledger: every row is eight cells and its Status is one of the header's wor
   for (const id of ["2026-10-15-pr3014-turbo-pins", "2026-10-15-branch-triage-closeout"]) {
     const row = rows.find((l) => l.startsWith(`| ${id} |`));
     assert.ok(row, `the ledger row ${id} is missing`);
-    assert.equal(row.split("|")[5].trim(), "MERGED", `${id} must be MERGED`);
+    assert.ok(["MERGED", "LIVE-VERIFIED"].includes(row.split("|")[5].trim()), `${id} must be MERGED or LIVE-VERIFIED (a merged job's row)`); // not "MERGED" alone: Status moves on to LIVE-VERIFIED
   }
 });
 

@@ -24,6 +24,8 @@
 
 import { prisma } from "@/lib/prisma";
 import { recordError } from "@/lib/errors/record-error";
+import { extractClientMessageId } from "@/lib/ai/chat/message-fields";
+import { findUserTurnRow } from "@/lib/services/chat/user-turn-identity";
 
 /**
  * A fast-path reply (brain dump, /save, a logged decision, a generated image)
@@ -132,7 +134,7 @@ export async function buildFastStream(
 export async function ensureConvAndPersistUser(
   convId: string | undefined,
   userContent: string,
-  lastUserMsg: { role?: string },
+  lastUserMsg: { role?: string; id?: unknown },
 ): Promise<string> {
   let id = convId;
   if (!id) {
@@ -148,30 +150,42 @@ export async function ensureConvAndPersistUser(
     }
   }
   if (lastUserMsg?.role === "user" && id && id !== "temp") {
+    // 2026-10-15 · the row carries the id the client minted, so the turn guard (turn-guard.ts) can find a
+    // finished fast-path turn once its lease has ended; without it a re-send fired the write again. A row
+    // that already has this id is the same message: save nothing twice.
+    const clientMessageId = extractClientMessageId(lastUserMsg);
+    if (clientMessageId) {
+      const saved = await findUserTurnRow({ conversationId: id, messageId: clientMessageId }).catch(() => null);
+      if (saved) return id;
+    }
     // v7 · Apr 28 · Dedup guard. Silent-retry can re-fire the same POST
     // and double-persist user messages. Skip if identical content
-    // already persisted in the last 30s.
-    const dupSince = new Date(Date.now() - 30_000);
-    const existingDupe = await prisma.chatMessage
-      .findFirst({
-        where: {
-          conversationId: id,
-          role: "user",
-          content: userContent,
-          createdAt: { gte: dupSince },
-        },
-        select: { id: true },
-      })
-      .catch(() => null);
-    if (existingDupe) {
-      console.warn(
-        `[fast-path] duplicate user message in ${id.slice(0, 8)} suppressed`,
-      );
-      return id;
+    // already persisted in the last 30s. Only for a post with no id: with one, the id above is the
+    // identity, and a repeated text under a new id is a new message that needs its own row, or the
+    // turn guard cannot see it and a re-send fires the write again.
+    if (!clientMessageId) {
+      const dupSince = new Date(Date.now() - 30_000);
+      const existingDupe = await prisma.chatMessage
+        .findFirst({
+          where: {
+            conversationId: id,
+            role: "user",
+            content: userContent,
+            createdAt: { gte: dupSince },
+          },
+          select: { id: true },
+        })
+        .catch(() => null);
+      if (existingDupe) {
+        console.warn(
+          `[fast-path] duplicate user message in ${id.slice(0, 8)} suppressed`,
+        );
+        return id;
+      }
     }
     await prisma.chatMessage
       .create({
-        data: { conversationId: id, role: "user", content: userContent },
+        data: { conversationId: id, role: "user", content: userContent, ...(clientMessageId ? { clientMessageId } : {}) },
       })
       .catch((dbErr) =>
         recordError("chat:db-write", dbErr, { path: "fast-path-user-msg" }),

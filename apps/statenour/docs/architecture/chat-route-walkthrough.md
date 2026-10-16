@@ -28,8 +28,11 @@ POST /api/ai/chat
         │     · sanitizeMessageHistory (image markdown scrub)    L137-L139
         │     · persistUserTurn (fires in parallel)              L157-L164
         │
+        ├─ Turn guard (2026-10-15, before Stage A work)
+        │     · mintTraceId, then guardTurn (lease + saved rows)  chatPostInner
+        │
         ├─ Stage B · Routing decisions
-        │     · mintTraceId                                       L172-L173
+        │     · recordTrace (the trace id arrives from chatPostInner)  chatTurn
         │     · detectChatMode → "standard" | "deep"             L199-L200
         │     · detectQueryShape → token budget + tool-first      L223
         │     · classifyTurn → temperature + COT + shape          L234-L244
@@ -118,6 +121,17 @@ JSON like budget exceeded, body parse failure, missing overrides) or
 pulls out `messages`, `conversationId`, `modeOverride`,
 `providerOverride`, `taskTypeOverride`, `personality`, `userContent`.
 
+### A1b · `guardTurn` — one live run per user message
+
+Right after the gate, before any work, `chatPostInner` mints the trace and calls
+`guardTurn` (`lib/services/chat/turn-guard.ts`). A live run holding the message, a
+re-send of an answered message, or a regenerate over a reply that may have run an
+action is refused with a 409 that carries `X-Trace-Id` and `X-Conversation-Id`;
+otherwise the handler continues as `chatTurn` with a lease (`turn-claim.ts`) that
+the streaming path holds until the stream has drained and the persist has
+finished. Design, decision table and residuals:
+[`docs/CHAT-TURN-IDEMPOTENCY-2026-10-15.md`](../CHAT-TURN-IDEMPOTENCY-2026-10-15.md).
+
 ### A2-A4 · Content-mode + interceptors + history sanitize
 
 ```ts
@@ -177,12 +191,15 @@ through `recordError` so DB rot is visible in the HUD.
 ### B1 · `mintTraceId` (v10 E.5 agent-trace contract)
 
 ```ts
-// app/api/ai/chat/route.ts:172-173
-const { mintTraceId, recordTrace } = await import("@/lib/ai/agent-trace");
-const __traceId = mintTraceId();
+// app/api/ai/chat/route.ts, chatPostInner (since 2026-10-15; it used to be minted in the turn body)
+const { mintTraceId } = await import("@/lib/ai/agent-trace");
+const traceId = mintTraceId();
+// ...guardTurn(...) takes the lease under this trace, then chatTurn runs with it:
+const { recordTrace } = await import("@/lib/ai/agent-trace");
+const __traceId = traceId;
 ```
 
-The traceId is minted **once** at the top of the turn so every
+The traceId is minted **once** before the turn guard, so the lease, the response header and the saved rows all name the same attempt, and every
 downstream call (auto-rename, distillation, tool invocations) can
 chain to it via `parentId`. Without this the operator dashboard can't
 answer "what did Nick do this turn?"

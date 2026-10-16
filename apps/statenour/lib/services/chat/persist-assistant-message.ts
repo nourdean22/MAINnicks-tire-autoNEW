@@ -21,6 +21,7 @@ import { canClaimDone, receiptsWithReadBack, summarizeClaimDoneShadow } from "@/
 import { toolReceiptRows } from "@/lib/ai/receipts/tool-receipt-rows";
 import { verifyEnvironmentState, type EnvironmentVerificationResult } from "@/lib/ai/chat/environment-verifier";
 import { buildMessageParts } from "./message-parts";
+import { findUserTurnRow } from "./user-turn-identity";
 import type { CapturedToolCall } from "./tool-telemetry-walk";
 import type { ProviderName } from "@/lib/ai/provider";
 import type { TurnSignal } from "@/lib/ai/turn-intelligence";
@@ -230,13 +231,9 @@ export async function persistAssistantMessage(a: {
     // clientMessageId. The newest user row is a different message when two
     // turns overlap (slash command mid-stream, a second device); the reply
     // then misattached and the other turn's reply was dropped as a duplicate.
+    // Either id (user-turn-identity.ts): a hydrated thread names the message by its database id.
     const ownUserRow = userClientMessageId
-      ? await prisma.chatMessage
-          .findFirst({
-            where: { conversationId: convId!, role: "user", clientMessageId: userClientMessageId },
-            select: { id: true },
-          })
-          .catch(() => null)
+      ? await findUserTurnRow({ conversationId: convId!, messageId: userClientMessageId }).catch(() => null)
       : null;
     const lastUserRow =
       ownUserRow ??
