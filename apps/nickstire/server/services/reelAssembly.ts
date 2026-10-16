@@ -67,6 +67,29 @@ export interface ReelSegment {
   fontSize: number;
   /** Absent = legacy_upper (every segment built before 2026-10-09). */
   captionStyle?: CaptionStyle;
+  /** The downloaded source clip's probed length (assembleReel). Absent = unprobed: today's trim + clone pad. */
+  sourceDurationSec?: number;
+}
+
+/**
+ * How much of a beat's source to cut, and how long to clone-pad it (2026-10-16,
+ * reel 2100001). A non-last beat must be dur + xfade long because the xfade
+ * overlaps the next beat; the old chain cut `dur` and froze the last frame for
+ * the whole fade, which read as a hitch at every cut. With real footage to
+ * spare, cut it instead. The Wan clips also hold their first frame ~0.5 s
+ * (14 near-still frames in the first second of beat1.mp4, 0 after), so a
+ * source long enough skips that hold too. The output length is unchanged
+ * either way (keep + pad === dur + xfade), so the xfade offsets and the
+ * render-integrity contract do not move.
+ */
+const START_HOLD_SKIP_SEC = 0.5;
+function planSegmentTrim(p: { dur: number; sourceDurationSec?: number; isLast: boolean; xfade: number }): { start: number; end: number; padSec: number } {
+  const need = p.isLast ? p.dur : p.dur + p.xfade;
+  const src = Number(p.sourceDurationSec);
+  const eps = 1e-6; // 4 + 0.5 must equal a probed 4.5
+  if (!Number.isFinite(src) || src + eps < need) return { start: 0, end: p.dur, padSec: p.isLast ? 0 : p.xfade };
+  const start = src + eps >= need + START_HOLD_SKIP_SEC ? START_HOLD_SKIP_SEC : 0;
+  return { start, end: Number((start + need).toFixed(3)), padSec: 0 };
 }
 
 /**
@@ -413,7 +436,11 @@ export function buildFfmpegArgs(opts: FfmpegBuildOpts): string[] {
 
   // 1. base sizing + Ken Burns pan/zoom + extend for xfade
   segs.forEach((s, i) => {
-    const pad = i < segs.length - 1 ? `:stop_duration=${XFADE_DUR}` : "";
+    const isLast = i === segs.length - 1;
+    const cut = planSegmentTrim({ dur: s.dur, sourceDurationSec: s.sourceDurationSec, isLast, xfade: XFADE_DUR });
+    // A non-last beat with real footage through the fade needs no pad at all;
+    // the last beat keeps its (no-op) clone exactly as before.
+    const tpad = cut.padSec > 0 ? `,tpad=stop_mode=clone:stop_duration=${cut.padSec}` : isLast ? ",tpad=stop_mode=clone" : "";
     fc.push(
       // fps=30 FIRST: Seedance sources are 24fps, and zoompan re-times N input
       // frames to N output frames AT ITS fps= SETTING - on a 24fps source that
@@ -422,10 +449,10 @@ export function buildFfmpegArgs(opts: FfmpegBuildOpts): string[] {
       // (observed live 2026-07-17: 25s render with 72 unique frames - "one
       // image the whole time"). Normalizing to the graph's 30fps contract up
       // front keeps native clip motion and the downstream time math honest.
-      `[${i}:v]trim=0:${s.dur},setpts=PTS-STARTPTS,fps=30,` +
+      `[${i}:v]trim=${cut.start}:${cut.end},setpts=PTS-STARTPTS,fps=30,` +
         `scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,` +
-        `setsar=1,format=yuv420p,` +
-        `tpad=stop_mode=clone${pad}[v${i}]`,
+        `setsar=1,format=yuv420p` +
+        `${tpad}[v${i}]`,
     );
   });
   // 2. xfade all beats into one video stream
@@ -472,14 +499,29 @@ export function buildFfmpegArgs(opts: FfmpegBuildOpts): string[] {
       // is switched off for them (2026-10-09). The legacy style keeps the exact
       // filter string it has always produced.
       const expansion = s.captionStyle === "sentence" ? ":expansion=none" : "";
+      const enable = `enable='gte(t,${start.toFixed(2)})*lt(t,${end.toFixed(2)})'`;
+      // ONE background plate per caption (2026-10-16). Each line used to carry
+      // its own box=1:boxborderw=28 at a 1.2em pitch, so a two-line caption drew
+      // two boxes overlapping by ~35 px (a darker band between the lines). The
+      // per-line text runs stay (the LF tofu above); the plate is one drawbox
+      // covering the same pixels the old boxes did: 28 px border round a block of
+      // (lines-1)*lineH + size, width from the safe-width estimate.
+      let lineIn = label;
+      if (s.caption.trim()) {
+        const plateW = Math.min(CAPTION_SAFE.frameW, estimateCaptionWidthPx(s.caption, size));
+        const plateH = (lines.length - 1) * lineH + size + 56;
+        const plateY = isHook ? `(ih-${lines.length * lineH})/2-28` : `ih*${CAPTION_BEAT_Y_FRAC}-28`;
+        lineIn = `d${i}p`;
+        fc.push(`[${label}]drawbox=x=(iw-${plateW})/2:y=${plateY}:w=${plateW}:h=${plateH}:color=black@0.6:t=fill:${enable}[${lineIn}]`);
+      }
       lines.forEach((_line, j) => {
-        const stepIn = j === 0 ? label : `d${i}l${j}`;
+        const stepIn = j === 0 ? lineIn : `d${i}l${j}`;
         const stepOut = j === lines.length - 1 ? next : `d${i}l${j + 1}`;
         const yExpr = isHook
           ? `(h-${lines.length * lineH})/2+${j * lineH}`
           : `h*${CAPTION_BEAT_Y_FRAC}+${j * lineH}`;
         fc.push(
-          `[${stepIn}]drawtext=fontfile='${fontEsc}':textfile='caption_${i}_${j}.txt'${expansion}:fontsize=${size}:fontcolor=0xFDB913:borderw=6:bordercolor=black:box=1:boxcolor=black@0.6:boxborderw=28:x=(w-text_w)/2:y=${yExpr}:enable='gte(t,${start.toFixed(2)})*lt(t,${end.toFixed(2)})'[${stepOut}]`,
+          `[${stepIn}]drawtext=fontfile='${fontEsc}':textfile='caption_${i}_${j}.txt'${expansion}:fontsize=${size}:fontcolor=0xFDB913:borderw=6:bordercolor=black:x=(w-text_w)/2:y=${yExpr}:${enable}[${stepOut}]`,
         );
       });
       label = next;
@@ -1049,6 +1091,10 @@ export async function assembleReel(
         const pr = await ffprobeReel(p);
         const fps = pr.nbFrames > 0 && pr.videoStreamSec > 0 ? Math.round(pr.nbFrames / pr.videoStreamSec) : null;
         clipProbes.push({ beatNumber: segs[i].beatNumber, width: pr.width, height: pr.height, fps, durationSec: Number(pr.duration.toFixed(2)) });
+        // The cut plan (planSegmentTrim) may only spend footage the VIDEO stream
+        // has; a container can run longer on its audio track. Failed probe = unset = today's pad.
+        const videoSec = pr.videoStreamSec > 0 ? Math.min(pr.videoStreamSec, pr.duration > 0 ? pr.duration : Infinity) : pr.duration;
+        if (videoSec > 0) segs[i].sourceDurationSec = videoSec;
       } catch (e) {
         log.warn("clip probe failed (assembly continues)", { jobId, beat: segs[i].beatNumber, e: e instanceof Error ? e.message : String(e) });
       }
