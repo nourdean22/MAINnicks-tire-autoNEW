@@ -483,9 +483,10 @@ export default function CustomerProfile({ customerId, onClose }: Props) {
             {/* Tabs Header */}
             <div className="flex border-b border-border/20 overflow-x-auto">
               {[
-                { id: "history", label: "Service History", count: historyData?.invoices?.length || 0 },
-                { id: "declined", label: "Declined Work", count: historyData?.declinedEstimates?.length || 0 },
-                { id: "backlog", label: "Active Backlog", count: historyData?.openWorkOrders?.length || 0 },
+                // A failed history read has no counts: "?" rather than a confident 0.
+                { id: "history", label: "Service History", count: historyFailed ? "?" : historyData?.invoices?.length || 0 },
+                { id: "declined", label: "Declined Work", count: historyFailed ? "?" : historyData?.declinedEstimates?.length || 0 },
+                { id: "backlog", label: "Active Backlog", count: historyFailed ? "?" : historyData?.openWorkOrders?.length || 0 },
               ].map((t) => (
                 <button
                   key={t.id}

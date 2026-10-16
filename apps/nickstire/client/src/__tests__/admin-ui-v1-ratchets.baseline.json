@@ -5,7 +5,7 @@
     "emoji": 19,
     "transitionAll": 76,
     "slowDuration": 7,
-    "smallInput": 145,
+    "smallInput": 168,
     "offPalette": 171
   },
   "files": {
@@ -94,7 +94,7 @@
       "uppercase": 7,
       "emDash": 2,
       "transitionAll": 6,
-      "smallInput": 1
+      "smallInput": 2
     },
     "client/src/pages/admin/GrowthSection.tsx": {
       "uppercase": 9,
@@ -105,12 +105,12 @@
     "client/src/pages/admin/InspectionCapturePanel.tsx": {
       "uppercase": 2,
       "emDash": 9,
-      "smallInput": 12
+      "smallInput": 16
     },
     "client/src/pages/admin/LeadsSection.tsx": {
       "uppercase": 4,
       "emDash": 11,
-      "smallInput": 1,
+      "smallInput": 2,
       "offPalette": 3
     },
     "client/src/pages/admin/LotSection.tsx": {
@@ -162,13 +162,13 @@
       "emDash": 4
     },
     "client/src/pages/admin/SpecialsSection.tsx": {
-      "smallInput": 8
+      "smallInput": 9
     },
     "client/src/pages/admin/TireOrdersSection.tsx": {
       "uppercase": 10,
       "emDash": 11,
       "transitionAll": 3,
-      "smallInput": 5,
+      "smallInput": 7,
       "offPalette": 5
     },
     "client/src/pages/admin/TrafficFunnelSection.tsx": {
@@ -181,7 +181,7 @@
       "uppercase": 12,
       "emDash": 9,
       "transitionAll": 3,
-      "smallInput": 1,
+      "smallInput": 2,
       "offPalette": 6
     },
     "client/src/pages/admin/WalkInCalculatorSection.tsx": {
@@ -208,11 +208,11 @@
     "client/src/pages/admin/content/GBPPostGenerator.tsx": {
       "uppercase": 4,
       "emDash": 1,
-      "smallInput": 2
+      "smallInput": 3
     },
     "client/src/pages/admin/customers/CouponsSection.tsx": {
       "emDash": 1,
-      "smallInput": 8
+      "smallInput": 9
     },
     "client/src/pages/admin/customers/Customer360Panel.tsx": {
       "uppercase": 5,
@@ -234,7 +234,7 @@
       "emDash": 11,
       "emoji": 1,
       "transitionAll": 1,
-      "smallInput": 1
+      "smallInput": 4
     },
     "client/src/pages/admin/customers/FollowUpButton.tsx": {
       "smallInput": 1
@@ -302,7 +302,7 @@
     "client/src/pages/admin/instagram/Settings.tsx": {
       "uppercase": 8,
       "emDash": 12,
-      "smallInput": 3
+      "smallInput": 4
     },
     "client/src/pages/admin/instagram/Strategy.tsx": {
       "uppercase": 1,
@@ -316,7 +316,8 @@
     },
     "client/src/pages/admin/instagram/StudioV2.tsx": {
       "uppercase": 15,
-      "emDash": 15
+      "emDash": 15,
+      "smallInput": 1
     },
     "client/src/pages/admin/instagram/Today.tsx": {
       "emDash": 11
@@ -358,7 +359,7 @@
     "client/src/pages/admin/leads/CandidatesPanel.tsx": {
       "uppercase": 10,
       "emDash": 5,
-      "smallInput": 1,
+      "smallInput": 2,
       "offPalette": 20
     },
     "client/src/pages/admin/leads/KanbanBoard.tsx": {
@@ -446,7 +447,7 @@
       "uppercase": 5,
       "emDash": 20,
       "transitionAll": 3,
-      "smallInput": 5
+      "smallInput": 7
     },
     "client/src/pages/admin/outreach/SmsOpsStrip.tsx": {
       "uppercase": 3,
@@ -456,7 +457,7 @@
       "uppercase": 24,
       "emDash": 2,
       "transitionAll": 10,
-      "smallInput": 1,
+      "smallInput": 4,
       "offPalette": 3
     },
     "client/src/pages/admin/outreach/SmsPerformanceSection.tsx": {

@@ -91,6 +91,12 @@ describe("admin shell operator-truth contract", () => {
     expect(banner).toBeGreaterThan(-1);
   });
 
+  it("the shell banner retries the overview bundle it reports on", () => {
+    expect(adminSource).toMatch(
+      /<DegradedDataBanner[^>]*onRetry=\{\(\) => void utils\.adminDashboard\.overviewMediumBundle\.invalidate\(\)\}/,
+    );
+  });
+
   it("surfaces unavailable and degraded data before section content", () => {
     const banner = adminSource.indexOf("<DegradedDataBanner");
     const content = adminSource.indexOf("<SectionContent");

@@ -1,8 +1,6 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { StatCard, useUrlFilter, FilterChips, openCustomerDrawer, ErrorState } from "../shared";
-
-const UNKNOWN = "—";
 import { CustomersBrief } from "./CustomersBrief";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
 import MessageCustomerLink from "@/components/admin/MessageCustomerLink";
@@ -22,6 +20,8 @@ import {
 import { StatusBadge } from "./StatusBadge";
 import { WinBackButton } from "./WinBackButton";
 import { Customer360Panel } from "./Customer360Panel";
+
+const UNKNOWN = "—";
 
 export function CustomersList({ onOpenCustomer }: { onOpenCustomer: (id: number) => void }) {
   const utils = trpc.useUtils();

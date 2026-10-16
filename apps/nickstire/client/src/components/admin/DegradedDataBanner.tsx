@@ -41,7 +41,7 @@ export default function DegradedDataBanner({ stats, unavailable, unavailableMess
           {unavailable ? "Dashboard data is unavailable" : "Dashboard data is degraded"}
         </p>
         <p className="text-red-200/80 text-xs mt-1 leading-relaxed">
-          {"Some of today's numbers couldn't be loaded. The counts below may be incomplete; treat them as unknown, not zero."}
+          {"Some of these numbers couldn't be loaded. The counts below may be incomplete; treat them as unknown, not zero."}
         </p>
         {reference ? (
           <p className="text-red-200/60 text-[10px] mt-1.5 leading-relaxed font-mono">Reference: {reference}</p>

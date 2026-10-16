@@ -122,7 +122,7 @@ export function MorningBrief({ priorityQueueLength, urgentLeads, queueTrustworth
     if (!queueTrustworthy) {
       out.push({
         icon: <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />,
-        text: "Now: queue unknown · the overview read failed",
+        text: "Now: queue unknown · a source read failed",
         tone: "warn",
       });
     } else if (priorityBits.length > 0) {

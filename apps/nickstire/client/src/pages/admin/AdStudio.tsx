@@ -147,7 +147,7 @@ function SingleAdView() {
                   if (!when) return toast.error("Pick a date/time first");
                   schedule.mutate({ slideUrls: result.slideUrls, caption: result.copy.caption, scheduledAt: new Date(when).toISOString() });
                 }}
-                disabled={schedule.isPending || result.issues.length > 0}
+                disabled={schedule.isPending || post.isSuccess || result.issues.length > 0}
                 className="inline-flex items-center justify-center gap-2 border border-border px-4 py-2.5 rounded-lg font-semibold hover:border-primary/40 disabled:opacity-60"
               >
                 {schedule.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CalendarClock className="w-4 h-4" />} Schedule

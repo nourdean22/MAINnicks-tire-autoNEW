@@ -310,7 +310,7 @@ export default function CallTrackingSection() {
             </ResponsiveContainer>
           ) : (
             <div className="flex items-center justify-center h-[200px] text-muted-foreground">
-              <p className="text-sm">No call data for peak hours</p>
+              {callsFailed ? <p className="text-sm">{"Call events couldn't load. Unknown, not empty."}</p> : <p className="text-sm">No call data for peak hours</p>}
             </div>
           )}
         </div>
@@ -336,7 +336,7 @@ export default function CallTrackingSection() {
             </ResponsiveContainer>
           ) : (
             <div className="flex items-center justify-center h-[200px] text-muted-foreground">
-              <p className="text-sm">No call data yet</p>
+              {callsFailed ? <p className="text-sm">{"Call events couldn't load. Unknown, not empty."}</p> : <p className="text-sm">No call data yet</p>}
             </div>
           )}
         </div>
@@ -414,7 +414,7 @@ export default function CallTrackingSection() {
         {!calls || calls.length === 0 ? (
           <div className="p-8 text-center">
             <PhoneCall className="w-8 h-8 text-foreground/20 mx-auto mb-3" />
-            <p className="text-sm text-muted-foreground">No call events yet.</p>
+            <p className="text-sm text-muted-foreground">{callsFailed ? "Call events couldn't load. Unknown, not empty." : "No call events yet."}</p>
           </div>
         ) : (
           <div className="overflow-x-auto">

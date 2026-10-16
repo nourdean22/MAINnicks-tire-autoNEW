@@ -104,6 +104,7 @@ import WinBackSection from "@/pages/admin/outreach/WinBackSection";
 import AdStudio from "@/pages/admin/AdStudio";
 import DegradedDataBanner from "@/components/admin/DegradedDataBanner";
 import AdminSectionBoundary from "@/components/admin/AdminSectionBoundary";
+import { getQueueActionDefinition } from "@/pages/admin/today/queueActions";
 
 const FAILED: Partial<Q> = { data: undefined, isError: true, error: new Error("read failed") };
 const ok = (data: unknown): Partial<Q> => ({ data, isError: false });
@@ -111,8 +112,17 @@ const EMPTY_BUNDLE = { stats: null, bookings: [], leads: [], callbacks: [], owed
 
 /** SummaryCard: label div sits directly inside the card. */
 const summaryCard = (label: string) => screen.getByText(label).parentElement as HTMLElement;
-/** StatCard: label span sits in a header row inside the card. */
-const statCard = (label: string) => screen.getByText(label).parentElement!.parentElement as HTMLElement;
+/** StatCard: label span sits in a header row inside the card, next to the .number-animate value. */
+const statCard = (label: string) => {
+  const card = screen
+    .getAllByText(label)
+    .map((el) => el.parentElement?.parentElement)
+    .find((el) => el?.querySelector(".number-animate"));
+  if (!card) throw new Error(`no StatCard labelled ${label}`);
+  return card as HTMLElement;
+};
+/** The value cell of a StatCard (label text excluded, so "VIP (3+)" does not look numeric). */
+const statValue = (label: string) => statCard(label).querySelector(".number-animate")!.textContent ?? "";
 
 beforeEach(() => {
   h.queries.clear();
@@ -125,7 +135,28 @@ beforeEach(() => {
   window.history.replaceState({}, "", "/admin");
 });
 
+// StatCard counts numbers up from 0 when they scroll into view; jsdom never intersects, so a positive
+// control asks for reduced motion, which useCountUp honours by rendering the final value at once.
+const realMatchMedia = window.matchMedia;
+function reduceMotion() {
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    writable: true,
+    value: (query: string) => ({
+      matches: query.includes("prefers-reduced-motion"),
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    }),
+  });
+}
+
 afterEach(() => {
+  Object.defineProperty(window, "matchMedia", { configurable: true, writable: true, value: realMatchMedia });
   h.queries.clear();
   h.mutations.clear();
   Reflect.deleteProperty(navigator, "clipboard");
@@ -147,7 +178,7 @@ describe("Today (OverviewSection)", () => {
       expect(within(card).getByText("Unable to determine"), label).toBeTruthy();
       expect(card.textContent, label).not.toMatch(/\d/);
     }
-    expect(screen.getByText(/Now: queue unknown/)).toBeTruthy();
+    expect(screen.getByText("Now: queue unknown · a source read failed")).toBeTruthy();
   });
 
   it("an unavailable slice makes only its own card unknown", () => {
@@ -187,6 +218,9 @@ describe("Today (OverviewSection)", () => {
       });
       expect(sections).toEqual(["revenue"]);
       expect(new URL(window.location.href).searchParams.get("moneyTab")).toBeNull();
+      const wo = getQueueActionDefinition("workOrder");
+      expect(wo.primaryConfirmMessage("Pat")).toBe("Open Pat's work order in Money.");
+      expect(wo.secondaryConfirmMessage("Pat")).toBe("Open Pat's work order in Money.");
     } finally {
       window.removeEventListener("admin:navigate-section", listener);
     }
@@ -203,20 +237,21 @@ describe("Customers", () => {
     expect(screen.getByText(/Customers couldn't load/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /try again/i }));
     expect(refetch).toHaveBeenCalled();
-    for (const label of ["Total Customers", "Total Revenue", "Lapsed", "Commercial"]) {
-      const card = statCard(label);
-      expect(card.textContent, label).not.toMatch(/\d/);
-      expect(within(card).getByText(/Unable to determine/), label).toBeTruthy();
+    for (const label of ["Total Customers", "With Visits", "VIP (3+)", "Total Revenue", "Recent", "Lapsed", "With Email", "Commercial"]) {
+      expect(statValue(label), label).not.toMatch(/\d/);
+      expect(within(statCard(label)).getByText(/Unable to determine/), label).toBeTruthy();
     }
     expect(screen.getByText(/Customer stats couldn't load, state unknown/)).toBeTruthy();
   });
 
-  it("positive control: a successful empty list still says No customers found", () => {
+  it("positive control: a successful empty list still says No customers found", async () => {
+    reduceMotion();
     h.queries.set("customers.list", ok({ customers: [], total: 0, page: 1, pageSize: 25 }));
     h.queries.set("customers.stats", ok({ total: 4, withVisits: 3, vipCount: 1, totalRevenue: 120000, recent: 1, lapsed: 1, withEmail: 2, commercial: 0 }));
     render(<CustomersList onOpenCustomer={() => {}} />);
     expect(screen.getByText("No customers found")).toBeTruthy();
     expect(statCard("Total Revenue").textContent).toContain("$");
+    await waitFor(() => expect(statValue("Total Customers")).toBe("4"), { timeout: 3000 });
     expect(screen.queryByText(/Unable to determine/)).toBeNull();
   });
 
@@ -226,13 +261,30 @@ describe("Customers", () => {
     expect(container.textContent).toMatch(/Customer stats couldn't load, state unknown/);
   });
 
-  it("CustomerProfile: each 'No ... found' line is replaced by an error when its own read failed", () => {
+  it("CustomerProfile: a failed timeline read errors only the timeline", () => {
     h.queries.set("customers.getById", ok({ id: 1, name: "Pat Example", phone: "2165550100", totalVisits: 1, totalSpent: 0 }));
     h.queries.set("customers.timeline", FAILED);
-    h.queries.set("customers.history", FAILED);
+    h.queries.set("customers.history", ok({ invoices: [], declinedEstimates: [], openWorkOrders: [] }));
     render(<CustomerProfile customerId={1} onClose={() => {}} />);
     expect(screen.queryByText("No interactions recorded yet.")).toBeNull();
     expect(screen.getByText(/Interactions couldn't load/)).toBeTruthy();
+    expect(screen.getByText("No service history invoices found.")).toBeTruthy();
+    expect(screen.queryByText(/Service history couldn't load/)).toBeNull();
+    expect(screen.getByRole("button", { name: /Service History/ }).textContent).toMatch(/0/);
+  });
+
+  it("CustomerProfile: a failed history read errors every history tab and its chips, not the timeline", () => {
+    h.queries.set("customers.getById", ok({ id: 1, name: "Pat Example", phone: "2165550100", totalVisits: 1, totalSpent: 0 }));
+    h.queries.set("customers.timeline", ok([]));
+    h.queries.set("customers.history", FAILED);
+    render(<CustomerProfile customerId={1} onClose={() => {}} />);
+    expect(screen.getByText("No interactions recorded yet.")).toBeTruthy();
+    expect(screen.queryByText(/Interactions couldn't load/)).toBeNull();
+    for (const chip of [/Service History/, /Declined Work/, /Active Backlog/]) {
+      const text = screen.getByRole("button", { name: chip }).textContent ?? "";
+      expect(text, String(chip)).not.toMatch(/\d/);
+      expect(text, String(chip)).toContain("?");
+    }
     expect(screen.queryByText("No service history invoices found.")).toBeNull();
     expect(screen.getByText(/Service history couldn't load/)).toBeTruthy();
     for (const tab of [/Declined/i, /Backlog/i]) {
@@ -265,6 +317,7 @@ describe("Instagram held-reel badge", () => {
     h.queries.set("contentAdmin.reelJobsNeedingAttention", ok({ count: 0 }));
     const { unmount } = render(<InstagramAdmin />);
     expect(screen.queryByTitle("Held reels unknown: read failed")).toBeNull();
+    expect(screen.queryByLabelText(/reel job\(s\) need attention/)).toBeNull();
     unmount();
     h.queries.set("contentAdmin.reelJobsNeedingAttention", ok({ count: 3 }));
     render(<InstagramAdmin />);
@@ -302,6 +355,18 @@ describe("Call Tracking tiles", () => {
     expect(screen.getAllByText(/Call stats couldn't load/)).toHaveLength(1);
   });
 
+  it("calls failed, stats fine: Top Source unknown, one amber block, and no empty-state lines", () => {
+    h.queries.set("adminDashboard.stats", ok({ callTracking: { totalCalls: 12, thisWeek: 4 }, callbacks: { total: 9, completed: 5 } }));
+    h.queries.set("callTracking.list", FAILED);
+    h.queries.set("callback.list", ok([]));
+    render(<CallTrackingSection />);
+    expect(within(statCard("Top Source")).getByText("Unable to determine")).toBeTruthy();
+    expect(screen.getAllByText(/Call stats couldn't load/)).toHaveLength(1);
+    for (const empty of ["No call data for peak hours", "No call data yet", "No call events yet."]) {
+      expect(screen.queryByText(empty), empty).toBeNull();
+    }
+  });
+
   it("a degraded stats sentinel (zeros with _degraded) is also unknown", () => {
     h.queries.set("adminDashboard.stats", ok({ _degraded: true, callTracking: { totalCalls: 0, thisWeek: 0 }, callbacks: { total: 0, completed: 0 } }));
     h.queries.set("callTracking.list", ok([]));
@@ -310,12 +375,15 @@ describe("Call Tracking tiles", () => {
     expect(statCard("Total Calls").textContent).not.toMatch(/\d/);
   });
 
-  it("positive control: real stats render their numbers", () => {
+  it("positive control: real stats render their numbers", async () => {
+    reduceMotion();
     h.queries.set("adminDashboard.stats", ok({ callTracking: { totalCalls: 12, thisWeek: 4 }, callbacks: { total: 9, completed: 5 } }));
     h.queries.set("callTracking.list", ok([]));
     h.queries.set("callback.list", ok([]));
     render(<CallTrackingSection />);
     expect(statCard("Total Calls").textContent).not.toMatch(/Unable to determine/);
+    await waitFor(() => expect(statValue("Total Calls")).toBe("12"), { timeout: 3000 });
+    expect(screen.getByText("No call events yet.")).toBeTruthy();
     expect(screen.queryByText(/Call stats couldn't load/)).toBeNull();
   });
 });
@@ -325,17 +393,18 @@ describe("Win-back tiles", () => {
     h.queries.set("winback.campaignStats", FAILED);
     h.queries.set("winback.campaigns", ok([]));
     render(<WinBackSection />);
-    for (const label of ["Total Campaigns", "Messages Sent", "Failed", "Pending"]) {
-      expect(statCard(label).textContent, label).not.toMatch(/\d/);
+    for (const label of ["Total Campaigns", "Active", "Messages Sent", "Holdout", "Failed", "Pending"]) {
+      expect(statValue(label), label).not.toMatch(/\d/);
     }
     expect(screen.getAllByText(/Campaign stats couldn't load/)).toHaveLength(1);
   });
 
-  it("positive control: real stats render their numbers", () => {
+  it("positive control: real stats render their numbers", async () => {
+    reduceMotion();
     h.queries.set("winback.campaignStats", ok({ totalCampaigns: 2, activeCampaigns: 1, totalSent: 30, totalHeldOut: 3, totalFailed: 1, totalPending: 4 }));
     h.queries.set("winback.campaigns", ok([]));
     render(<WinBackSection />);
-    expect(statCard("Messages Sent").textContent).not.toMatch(/Unable to determine/);
+    await waitFor(() => expect(statValue("Messages Sent")).toBe("30"), { timeout: 3000 });
     expect(screen.queryByText(/Campaign stats couldn.t load/)).toBeNull();
   });
 });
@@ -345,10 +414,13 @@ describe("Ad Studio", () => {
 
   function mountWithResult(post: Record<string, unknown> = {}) {
     const postMutate = vi.fn();
+    const postReset = vi.fn();
     h.mutations.set("adStudio.generate", (opts) => ({ mutate: () => opts?.onSuccess?.(RESULT), isPending: false }));
-    h.mutations.set("adStudio.post", () => ({ mutate: postMutate, isPending: false, isSuccess: false, reset: () => {}, ...post }));
+    h.mutations.set("adStudio.post", () => ({ mutate: postMutate, isPending: false, isSuccess: false, reset: postReset, ...post }));
     render(<AdStudio />);
     fireEvent.click(screen.getByRole("button", { name: /Generate ad/ }));
+    // A new generation clears the previous post, or the new ad would open locked as "Posted".
+    expect(postReset).toHaveBeenCalledTimes(1);
     return postMutate;
   }
 
@@ -377,6 +449,8 @@ describe("Ad Studio", () => {
     const button = screen.getByRole("button", { name: /Posted/ }) as HTMLButtonElement;
     expect(button.disabled).toBe(true);
     expect(screen.queryByRole("button", { name: /Post now/ })).toBeNull();
+    // The same carousel cannot be scheduled after it went live.
+    expect((screen.getByRole("button", { name: /Schedule/ }) as HTMLButtonElement).disabled).toBe(true);
   });
 
   it("Copy caption toasts success only after the clipboard resolves, and an error when it rejects", async () => {
@@ -399,7 +473,7 @@ describe("failure copy", () => {
   it("DegradedDataBanner speaks plain words, names no internals, and retries when it can", () => {
     const onRetry = vi.fn();
     const { container } = render(<DegradedDataBanner unavailable onRetry={onRetry} />);
-    expect(container.textContent).toMatch(/Some of today's numbers couldn't be loaded\. The counts below may be incomplete; treat them as unknown, not zero\./);
+    expect(container.textContent).toContain("Some of these numbers couldn't be loaded. The counts below may be incomplete; treat them as unknown, not zero.");
     expect(container.textContent).not.toMatch(/getDashboardStats|Telegram|Sentry|Railway/);
     fireEvent.click(screen.getByRole("button", { name: /Retry/ }));
     expect(onRetry).toHaveBeenCalled();

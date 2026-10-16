@@ -26,26 +26,36 @@
  *                  also inside CSS @apply
  *   smallInput     an input or textarea element (also Input, Textarea, TextArea and any tag ending in
  *                  one of those) whose own className sets an unprefixed font size under 16px (text-xs,
- *                  text-sm, text-[Npx], rem or em under 1) or whose inline style sets fontSize under 16px.
- *                  iOS Safari zooms on focus under 16px. Checkbox, radio, range, file, hidden, color and
+ *                  text-sm, text-[Npx], rem or em under 1, with or without the v4 `!` suffix) or whose
+ *                  inline style sets fontSize under 16px. A native <select> counts too: iOS Safari zooms
+ *                  inputs, textareas and selects on focus under 16px. Checkbox, radio, range, file, hidden, color and
  *                  button-like types are exempt. A className held in a same-file const is followed.
  *   offPalette     a colour utility whose family is purple, violet, indigo, pink, fuchsia, cyan or rose
- *                  ((text|bg|border|ring|from|to|via|fill|stroke|shadow|outline|accent|decoration|divide|
- *                  placeholder)-<family>-), any variant prefix
+ *                  ((text|bg|border|border-{t,b,l,r,x,y,s,e}|ring|ring-offset|from|to|via|fill|stroke|shadow|
+ *                  outline|accent|caret|decoration|divide|placeholder)-<family>-), any variant prefix, with or
+ *                  without the Tailwind v4 `!` suffix (bg-violet-500!)
  *
  * HOW THE BASELINE MOVES. It never tightens by itself. A wave PR that removes violations runs
  *   UPDATE_RATCHET=1 node node_modules/vitest/vitest.mjs run client/src/__tests__/admin-ui-v1-ratchets.test.ts
  * which rewrites the JSON from the tree and REFUSES (throws, writes nothing) when any number would rise
  * or the baseline is missing or malformed. A legitimate new number (new file, wider scan, new rule) uses
- * UPDATE_RATCHET=init, with the reason in the PR body. Both modes are refused when CI is set. Never
- * hand-edit a number up: the consistency test fails when the totals stop matching the files.
+ * UPDATE_RATCHET=init, with the reason in the PR body. Both modes are refused when CI is set.
+ * The baseline has ZERO SLACK: it must equal the scan exactly, so a fixed violation that is not recorded
+ * (run UPDATE_RATCHET=1) fails, and a hand-raised number fails whether or not the totals were raised to
+ * match. A totals-only consistency test also guards the JSON against partial hand edits.
  * A deleted file leaves a stale entry that mode 1 drops; a moved file must be re-keyed by hand.
  *
  * The hunted characters are built with String.fromCharCode so this file never contains one.
  *
- * shortcut: class strings built by interpolation, classNames passed in as props or imported from
- * another file, flag and keycap emoji, named entities other than &mdash;, and object-key class maps
- * (cn({ uppercase: x })) are not read. Upgrade when a wave needs them.
+ * shortcut: not read, by design for W0; upgrade in the wave that needs one:
+ *   - class strings built by interpolation (`text-${size}`), classNames passed in as props or imported
+ *     from another file, and unquoted object-key class maps (cn({ uppercase: on }))
+ *   - characters built at runtime: regex literals and String.fromCharCode
+ *   - styles set as text: el.style.cssText = "..." and el.style.setProperty("transition", ...)
+ *   - Tailwind line-height shorthands (text-sm/6) for smallInput
+ *   - framer-motion transition durations (transition={{ duration: 0.6 }})
+ *   - flag and keycap emoji, and named entities other than &mdash;
+ *   - off-palette colours written as hex, rgb or oklch values instead of utilities
  */
 import { afterAll, describe, expect, it } from "vitest";
 import ts from "typescript";
@@ -69,9 +79,9 @@ const ZWJ = 0x200d;
 const PICTOGRAPH = /\p{Extended_Pictographic}/u;
 const SANCTIONED = new Set([0x2713, 0x25cc, 0x2757, 0x2755, 0x00d7, 0x2753, 0x2754, 0x00a9, 0x00ae, 0x2122, 0x2715]);
 const MDASH_ENTITY = /&mdash;|&#0*8212;|&#[xX]0*2014;/g;
-const OFF_PALETTE = /^(?:text|bg|border|ring|from|to|via|fill|stroke|shadow|outline|accent|decoration|divide|placeholder)-(?:purple|violet|indigo|pink|fuchsia|cyan|rose)-/;
+const OFF_PALETTE = /^(?:text|bg|border(?:-[tblrxyse])?|ring(?:-offset)?|from|to|via|fill|stroke|shadow|outline|accent|caret|decoration|divide|placeholder)-(?:purple|violet|indigo|pink|fuchsia|cyan|rose)-/;
 const TRANSITION_ALL_TOKEN = /(?:^|:)!?(?:transition-all$|transition-\[[^\]]*\ball\b|\[transition(?:-property)?:[^\]]*\ball\b)/;
-const INPUT_TAG = /^(?:input|textarea)$|(?:Input|Textarea|TextArea)$/;
+const INPUT_TAG = /^(?:input|textarea|select)$|(?:Input|Textarea|TextArea)$/;
 const EXEMPT_INPUT_TYPES = new Set(["checkbox", "radio", "range", "file", "hidden", "color", "button", "submit", "reset", "image"]);
 
 const ROOT_FILES = ["client/src/pages/Admin.tsx"];
@@ -130,7 +140,7 @@ function stringsIn(node: ts.Node, consts: Map<string, ts.Expression>, depth = 0)
 function hasSmallFont(classText: string): boolean {
   return classText.split(/\s+/).some((t) => {
     if (t.includes(":")) return false;
-    const tok = t.replace(/^!/, "");
+    const tok = t.replace(/^!|!$/g, "");
     if (tok === "text-xs" || tok === "text-sm") return true;
     const m = /^text-\[(\d*\.?\d+)(px|rem|em)\]$/.exec(tok);
     return Boolean(m && Number(m[1]) < (m[2] === "px" ? 16 : 1));
@@ -370,6 +380,25 @@ describe("admin UI v1 ratchet instrument", () => {
     expect(counts.smallInput).toBe(2);
   });
 
+  it("reads the Tailwind v4 and iOS spellings: ! suffix, side borders, ring-offset, caret, select", () => {
+    const root = fixtureTree({
+      [PAGE]: [
+        `export const A = () => <div>`,
+        `  <div className="bg-violet-500!" />`,
+        `  <div className="border-t-pink-400" />`,
+        `  <div className="md:border-x-indigo-300" />`,
+        `  <div className="ring-offset-cyan-300" />`,
+        `  <div className="caret-rose-500" />`,
+        `  <select className="text-sm" />`,
+        `  <input className="w-full text-xs!" />`,
+        `  <select className="text-base" />`,
+        `</div>;`,
+      ].join("\n"),
+    });
+    const counts = scanTree(root).scan[PAGE];
+    expect(counts).toEqual({ ...zero(), offPalette: 5, smallInput: 2 });
+  });
+
   it("never counts comments, sanctioned glyphs, or a ZWJ sequence more than once", () => {
     const glyphs = [0x2713, 0x25cc, 0x00d7, 0x00a9, 0x00ae, 0x2122, 0x2715].map((cp) => String.fromCodePoint(cp)).join(" ");
     const root = fixtureTree({
@@ -468,7 +497,17 @@ describe("admin UI v1 ratchet", () => {
     expect(violations(scan, visited, readBaseline(BASELINE_PATH))).toEqual([]);
   });
 
-  it("the baseline totals equal the sum of its files (a hand-raised number fails here)", () => {
+  it("the committed baseline equals the scan exactly (zero slack)", () => {
+    if (mode) return;
+    const { scan } = scanTree(APP_ROOT);
+    const base = readBaseline(BASELINE_PATH);
+    const fresh = toBaseline(scan);
+    const hint = "a count went down: run UPDATE_RATCHET=1 and commit the lowered baseline";
+    expect(base.files, `per-file counts differ from the scan (${hint}; a count that went UP fails the test above)`).toEqual(fresh.files);
+    expect(base.totals, `totals differ from the scan (${hint})`).toEqual(fresh.totals);
+  });
+
+  it("the baseline totals equal the sum of its files (guards partial hand edits of the JSON)", () => {
     const base = readBaseline(BASELINE_PATH);
     expect(base.totals).toEqual(sumCounts(Object.values(base.files)));
   });
