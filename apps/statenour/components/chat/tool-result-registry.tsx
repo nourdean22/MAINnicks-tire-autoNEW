@@ -1,6 +1,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { isSoftFailedToolOutput } from "@/lib/ai/receipts/tool-receipt-summary";
 import {
   CheckCircle2, Plus, Swords, Target, Trash2, Trophy, Zap, HandshakeIcon,
   Flame, ChevronRight, Search, Brain, ListChecks, DollarSign, Users, Activity,
@@ -1258,4 +1259,18 @@ export const COLORS: Record<
 
 export function isKnownToolName(toolName: string): boolean {
   return toolName in TOOL_CONFIG;
+}
+
+/**
+ * W3b (B1): the words a finished known tool adds to its turn's receipt line, where its card now sits
+ * behind a disclosure ("Memories found, 1 match"). Null for an unknown tool, a running call, a failure
+ * or a refusal: those keep their own words on the card, and the receipt counts already name them.
+ * Lives here, not in the renderer: it is the registry's semantics, and the tests that stub the
+ * renderer keep working.
+ */
+export function toolReceiptLabel(toolName: string, state: unknown, output: unknown): string | null {
+  const config = TOOL_CONFIG[toolName];
+  if (!config || state !== "output-available" || isSoftFailedToolOutput(output)) return null;
+  const subtitle = config.subtitle?.(output);
+  return subtitle ? `${config.doneLabel}, ${subtitle}` : config.doneLabel;
 }

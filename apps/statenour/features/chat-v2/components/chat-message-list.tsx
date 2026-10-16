@@ -4,11 +4,12 @@ import Link from "next/link";
 import { TypedToolCards } from "./typed-tool-cards";
 import { Fragment, useState, useCallback } from "react";
 import type { UIMessage } from "ai";
-import { AlertTriangle, CheckCircle2, Copy, ExternalLink, MoreHorizontal, Pencil, RotateCcw, ShieldCheck, Volume2, VolumeX } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronRight, Copy, ExternalLink, MoreHorizontal, Pencil, RotateCcw, ShieldCheck, Volume2, VolumeX } from "lucide-react";
 import { ChatMediaPart, type ChatFilePart } from "./chat-media-part";
 import { MediaTimestampBar } from "./media-timestamp-bar";
 import { useChatUiStore } from "../stores/chat-ui-store";
 import { ToolResultCard, isKnownToolName } from "@/components/chat/tool-result-card";
+import { toolReceiptLabel } from "@/components/chat/tool-result-registry";
 import { NickMessage } from "@/components/chat/nick-message";
 import { UserMessageBubble, AssistantMessageShell } from "@/components/chat/message-bubble-shells";
 import { MessageActionSheet } from "@/components/chat/message-action-sheet";
@@ -144,12 +145,8 @@ function MessageActions({
 }) {
   if (!text.trim()) return null;
   return (
-    <div
-      className={
-        "mt-1.5 flex items-center gap-0.5 " + (role === "user" ? "justify-end" : "justify-start")
-      }
-      data-testid={`message-actions-${role}`}
-    >
+    // W3b (B1): both turns sit in one left-aligned column now, so their actions do too.
+    <div className="mt-1.5 flex items-center justify-start gap-0.5" data-testid={`message-actions-${role}`}>
       {!compact && <MessageActionButton onClick={onCopy} icon={<Copy size={14} />} label="Copy message" />}
       {!compact && role === "user" && onEdit && (
         <MessageActionButton onClick={onEdit} icon={<Pencil size={14} />} label="Edit and resend" />
@@ -197,13 +194,20 @@ function isRefusedAssistantTurn(message: UIMessage): boolean {
   return message.role === "assistant" && (message as { streamingState?: string }).streamingState === "refused";
 }
 
-function ToolReceiptSummary({ message, traceId }: { message: UIMessage; traceId?: string | null }) {
+/**
+ * The turn's receipt line. W3b (B1): it is the only chrome a finished turn carries. The tool cards
+ * (`children`) sit behind it in a native disclosure whose summary names what ran ("Memories found,
+ * 1 match"); the disclosure is open while the latest reply is still streaming so the running cards
+ * stay in view, and folds when it settles. No cards, no disclosure: the line as before.
+ */
+function ToolReceiptSummary({ message, traceId, children, openByDefault = false }: { message: UIMessage; traceId?: string | null; children?: React.ReactNode; openByDefault?: boolean }) {
   const toolParts = (message.parts ?? []).filter((part) => part.type.startsWith("tool-")) as Array<{
     type: string;
     state?: string;
     output?: unknown;
   }>;
   if (toolParts.length === 0 && !traceId) return null;
+  const named = [...new Set(toolParts.map((part) => toolReceiptLabel(part.type.replace("tool-", ""), part.state, part.output)).filter((label): label is string => Boolean(label)))];
 
   // 2026-08-29 · This chip said "N verified" over a green shield, computed
   // purely from `state === "output-available"` -- i.e. "the call did not
@@ -222,18 +226,39 @@ function ToolReceiptSummary({ message, traceId }: { message: UIMessage; traceId?
   // the common case for conversational replies, not an edge case.
   const ranNothing = counts.total === 0;
   const unproven = ranNothing || allEmpty;
+  const glyph = (
+    <ShieldCheck
+      size={13}
+      aria-hidden="true"
+      className={counts.failed > 0 ? "text-red-400" : unproven ? "text-fg-tertiary" : "text-emerald-400"}
+    />
+  );
+  const words = counts.total > 0 ? (
+    <span>
+      {formatToolReceipts(counts)}
+      {named.length > 0 ? ` · ${named.join(" · ")}` : ""}
+    </span>
+  ) : (
+    <span className="text-fg-tertiary">no tools run</span>
+  );
 
   return (
     <div className="mt-3 flex flex-wrap items-center gap-2 font-mono text-[11px] text-fg-tertiary">
-      <ShieldCheck
-        size={13}
-        aria-hidden="true"
-        className={counts.failed > 0 ? "text-red-400" : unproven ? "text-fg-tertiary" : "text-emerald-400"}
-      />
-      {counts.total > 0 ? (
-        <span>{formatToolReceipts(counts)}</span>
+      {children && counts.total > 0 ? (
+        <details className="group min-w-0 flex-1" open={openByDefault || undefined}>
+          {/* 44px: the summary is a tap target at 390. */}
+          <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-control [&::-webkit-details-marker]:hidden">
+            {glyph}
+            {words}
+            <ChevronRight size={11} aria-hidden className="transition-transform duration-[var(--motion-state)] group-open:rotate-90" />
+          </summary>
+          {children}
+        </details>
       ) : (
-        <span className="text-fg-tertiary">no tools run</span>
+        <>
+          {glyph}
+          {words}
+        </>
       )}
       {/* 10-X4: the page reads no ?search= param, so it opens unfiltered:
           name the page, do not promise this turn's trace. */}
@@ -472,7 +497,9 @@ export function ChatMessageList({
       aria-label="Chat messages"
       aria-live="off"
       aria-busy={isLoading}
-      className="mx-auto flex w-full max-w-3xl flex-col gap-7 px-4 py-5 pb-12 sm:px-6"
+      // W3b (B1): the log grows up from the composer (min-h-full + justify-end), so a short
+      // conversation sits next to the input instead of leaving the viewport's lower half empty.
+      className="mx-auto flex min-h-full w-full max-w-3xl flex-col justify-end gap-7 px-4 py-5 pb-12 sm:px-6"
     >
       {loadFailedCard}
       {diagnosticReport && (
@@ -500,26 +527,49 @@ export function ChatMessageList({
         const toolRunRepeat = new Map(
           collapseRepeatedToolParts(message.parts ?? []).map((r) => [r.index, r.repeat]),
         );
+        // W3b (B1): the tool cards leave the flow of the reply and sit behind its receipt line.
+        const toolCards = (message.parts ?? []).flatMap((part, index) => {
+          if (!part.type.startsWith("tool-")) return [];
+          const repeat = toolRunRepeat.get(index);
+          // Not the head of its run: an identical card already stands directly above it.
+          if (repeat === undefined) return [];
+          const toolName = part.type.replace("tool-", "");
+          const repeatBadge = repeat > 1 ? (
+            <div className="mt-1 font-mono text-[11px] text-fg-tertiary">
+              ×{repeat}: same call, same result
+            </div>
+          ) : null;
+          if (isKnownToolName(toolName)) return [
+            <div key={`${message.id}-${index}`}>
+              <ToolResultCard toolName={toolName} state={(part as any).state} output={(part as any).output} />
+              {repeatBadge}
+            </div>,
+          ];
+          // "verified complete" was the same overclaim as the receipt chip: `output-available` only
+          // means the call returned.
+          return [
+            <div key={`${message.id}-${index}`} className="mt-2 rounded-surface border border-edge-subtle bg-content px-3 py-2 font-mono text-[12px] text-fg-secondary">
+              {toolName}: {noCardToolLine((part as any).state, (part as any).output)}
+              {repeatBadge}
+            </div>,
+          ];
+        });
         return (
           <Fragment key={message.id}>
-          <div className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
-            {/* UI v2 (2026-10-01): the operator's message is a compact graphite block; Nick's
-                reply is editorial prose in the reading column — no bubble, no border. The
-                NICK designation replaces an avatar. docs/design/ui-v2/SURFACES.md §E1. */}
+          {/* W3b (B1): one ruled text column. Each turn opens with a rule; the operator's words
+              sit in the column in the secondary tone (no fill, no right alignment), Nick's reply is
+              the page's text at 20px, and the receipt line below it is the turn's only chrome
+              (the per-reply NICK eyebrow is gone; the header already says Nick). */}
+          <div className="border-t border-edge-subtle pt-4">
             <div
               className={
                 message.role === "user"
-                  ? "max-w-[80%] rounded-surface bg-surface-interactive px-4 py-3 text-[15px] leading-relaxed text-fg"
-                  : "w-full min-w-0 text-[16px] leading-[1.6] text-fg"
+                  ? "w-full min-w-0 text-[15px] leading-relaxed text-fg-secondary"
+                  : "w-full min-w-0 text-[20px] leading-[1.6] text-fg"
               }
             >
-              {/* 09-F20: the speaker, for screen readers; the visual NICK stays aria-hidden. */}
+              {/* 09-F20: the speaker, for screen readers. */}
               <span className="sr-only">{message.role === "user" ? "You:" : "Nick:"}</span>
-              {message.role === "assistant" && (
-                <p className="mb-2 font-mono text-[11px] tracking-[0.1em] text-fg-tertiary" aria-hidden>
-                  Nick
-                </p>
-              )}
               {message.parts?.map((part, index) => {
                 if (part.type === "text") {
                   if (message.role === "user") {
@@ -558,35 +608,14 @@ export function ChatMessageList({
                   // plays video/audio natively and always offers a link.
                   return <ChatMediaPart key={`${message.id}-${index}`} id={`${message.id}-${index}`} part={part as ChatFilePart} />;
                 }
-                if (part.type.startsWith("tool-")) {
-                  const repeat = toolRunRepeat.get(index);
-                  // Not the head of its run — an identical card already
-                  // stands directly above it.
-                  if (repeat === undefined) return null;
-                  const toolName = part.type.replace("tool-", "");
-                  const repeatBadge = repeat > 1 ? (
-                    <div className="mt-1 font-mono text-[11px] text-fg-tertiary">
-                      ×{repeat}: same call, same result
-                    </div>
-                  ) : null;
-                  if (isKnownToolName(toolName)) return (
-                    <div key={`${message.id}-${index}`}>
-                      <ToolResultCard toolName={toolName} state={(part as any).state} output={(part as any).output} />
-                      {repeatBadge}
-                    </div>
-                  );
-                  // "verified complete" was the same overclaim as the receipt
-                  // chip: `output-available` only means the call returned.
-                  return (
-                    <div key={`${message.id}-${index}`} className="mt-2 rounded-surface border border-edge-subtle bg-content px-3 py-2 font-mono text-[12px] text-fg-secondary">
-                      {toolName}: {noCardToolLine((part as any).state, (part as any).output)}
-                      {repeatBadge}
-                    </div>
-                  );
-                }
+                // tool parts render behind the receipt line (toolCards above)
                 return null;
               })}
-              {message.role === "assistant" && <ToolReceiptSummary message={message} traceId={isLatestAssistant ? lastTraceId ?? null : null} />}
+              {message.role === "assistant" && (
+                <ToolReceiptSummary message={message} traceId={isLatestAssistant ? lastTraceId ?? null : null} openByDefault={isLoading && isLatestAssistant}>
+                  {toolCards.length > 0 ? toolCards : null}
+                </ToolReceiptSummary>
+              )}
               {message.role === "assistant" && <TypedToolCards message={message} />}
               {/* 2026-08-28 · always-visible actions. Suppressed on the
                   assistant turn that is still streaming: Copy would
@@ -635,11 +664,10 @@ export function ChatMessageList({
       })}
 
       {pending.map((item) => (
-        <div key={item.tempId} className="flex justify-end">
-          <div className="max-w-[80%] rounded-surface bg-surface-interactive px-4 py-3 text-[15px] text-fg">
-            <p className="whitespace-pre-wrap">{item.text}</p>
-            <p className="mt-1 font-mono text-[11px] text-fg-tertiary">{item.status === "resolving-context" ? "Resolving live context…" : "Sending…"}</p>
-          </div>
+        // W3b (B1): a send on its way reads like the operator's turn it is about to become.
+        <div key={item.tempId} className="border-t border-edge-subtle pt-4 text-[15px] leading-relaxed text-fg-secondary">
+          <p className="whitespace-pre-wrap">{item.text}</p>
+          <p className="mt-1 font-mono text-[11px] text-fg-tertiary">{item.status === "resolving-context" ? "Resolving live context…" : "Sending…"}</p>
         </div>
       ))}
 

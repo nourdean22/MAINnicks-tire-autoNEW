@@ -59,7 +59,9 @@ describe("ChatMessageList empty state (W3b)", () => {
     }
   });
 
-  it("a reply's speaker label is sentence case", () => {
+  // W3b round 3 (B1): the visible per-reply eyebrow is gone (the receipt line is the turn's only
+  // chrome and the header already says Nick); the speaker stays for screen readers, sentence case.
+  it("a reply's speaker is read out in sentence case, with no visible eyebrow", () => {
     const withReply = renderToStaticMarkup(
       <ChatMessageList
         messages={[{ id: "a1", role: "assistant", parts: [{ type: "text", text: "hello" }] }] as unknown as UIMessage[]}
@@ -67,7 +69,8 @@ describe("ChatMessageList empty state (W3b)", () => {
         error={undefined}
       />,
     );
-    expect(withReply).toMatch(/aria-hidden="true">\s*Nick\s*<\/p>/);
+    expect(withReply).toContain('<span class="sr-only">Nick:</span>');
+    expect(withReply).not.toMatch(/aria-hidden="true">\s*Nick\s*</);
     expect(withReply).not.toMatch(/>\s*NICK\s*</);
   });
 });

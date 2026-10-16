@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ArrowDown, Brain, History, Mic, MicOff, MoreHorizontal, Volume2, VolumeX, X } from "lucide-react";
 import { isNearBottom, nextFollow } from "../lib/scroll-position";
 import { scrollBehavior } from "@/lib/ui/scroll-behavior";
@@ -23,6 +23,21 @@ import type { SavedRow } from "../lib/saved-turn";
 import { useChatDeepLinkPrefill } from "../hooks/use-chat-deep-link-prefill";
 import { useTts } from "../hooks/use-tts";
 import { toast } from "sonner";
+
+// W3b (B1): at xl the Context and Evidence inspector docks beside the conversation. Module scope,
+// like the composer's coarse-pointer query: useSyncExternalStore re-subscribes when the subscribe
+// function changes. The server (and a jsdom without matchMedia) reads "not xl"; the client takes over.
+const XL_QUERY = "(min-width: 1280px)";
+function subscribeXl(onChange: () => void): () => void {
+  const query = window.matchMedia?.(XL_QUERY);
+  query?.addEventListener?.("change", onChange);
+  return () => query?.removeEventListener?.("change", onChange);
+}
+const readXl = () => window.matchMedia?.(XL_QUERY).matches ?? false;
+const serverXl = () => false;
+function useXl(): boolean {
+  return useSyncExternalStore(subscribeXl, readXl, serverXl);
+}
 
 function useScrollToBottom<T extends HTMLElement>() {
   const containerRef = useRef<T>(null);
@@ -122,6 +137,9 @@ export function ChatIsland() {
   const toggleVoiceDock = useChatUiStore((state) => state.toggleVoiceDock);
   const memoryInspectorOpen = useChatUiStore((state) => state.memoryInspectorOpen);
   const setMemoryInspectorOpen = useChatUiStore((state) => state.setMemoryInspectorOpen);
+  // W3b (B1): docked open by default at xl until the operator chooses; an explicit choice wins at any width.
+  const xl = useXl();
+  const inspectorOpen = memoryInspectorOpen ?? xl;
   const historyDrawerOpen = useChatUiStore((state) => state.historyDrawerOpen);
   const privateMode = useChatUiStore((state) => state.privateMode);
   const activeConversationId = useChatUiStore((state) => state.activeConversationId);
@@ -292,7 +310,7 @@ export function ChatIsland() {
   }, [chat.messages]);
 
   useEffect(() => {
-    if (!memoryInspectorOpen || !lastUserText) return;
+    if (!inspectorOpen || !lastUserText) return;
     const controller = new AbortController();
     void (async () => {
       try {
@@ -317,7 +335,7 @@ export function ChatIsland() {
       }
     })();
     return () => controller.abort();
-  }, [contradictions, lastUserText, memoryInspectorOpen, setMemoryData]);
+  }, [contradictions, lastUserText, inspectorOpen, setMemoryData]);
 
   return (
     <div ref={islandRef} className="relative flex h-full w-full flex-col overflow-hidden bg-void text-fg">
@@ -348,7 +366,7 @@ export function ChatIsland() {
               {tts.enabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
             </button>
           )}
-          <button onClick={() => setMemoryInspectorOpen(!memoryInspectorOpen)} aria-label="Context and memory" aria-pressed={memoryInspectorOpen} className={`flex h-11 w-11 items-center justify-center rounded-control max-md:hidden transition-colors duration-[var(--motion-state)] ${memoryInspectorOpen ? "bg-surface-interactive text-fg" : "text-fg-tertiary hover:bg-surface hover:text-fg"}`}>
+          <button onClick={() => setMemoryInspectorOpen(!inspectorOpen)} aria-label="Context and memory" aria-pressed={inspectorOpen} className={`flex h-11 w-11 items-center justify-center rounded-control max-md:hidden transition-colors duration-[var(--motion-state)] ${inspectorOpen ? "bg-surface-interactive text-fg" : "text-fg-tertiary hover:bg-surface hover:text-fg"}`}>
             <Brain size={16} /><span className="sr-only">Context</span>
           </button>
           <button ref={historyButtonRef} onClick={() => setHistoryDrawerOpen(!historyDrawerOpen)} aria-label="Conversation history" aria-pressed={historyDrawerOpen} className={`flex h-11 w-11 items-center justify-center rounded-control transition-colors duration-[var(--motion-state)] ${historyDrawerOpen ? "bg-surface-interactive text-fg" : "text-fg-tertiary hover:bg-surface hover:text-fg"}`}>
@@ -381,7 +399,7 @@ export function ChatIsland() {
               <span className="ml-auto text-[13px] text-fg-tertiary">{tts.enabled ? "On" : "Off"}</span>
             </button>
           )}
-          <button type="button" aria-pressed={memoryInspectorOpen} onClick={() => { setMemoryInspectorOpen(!memoryInspectorOpen); setMoreOpen(false); }} className="flex min-h-11 w-full items-center gap-3 rounded-control px-3 text-left text-[15px] text-fg hover:bg-surface">
+          <button type="button" aria-pressed={inspectorOpen} onClick={() => { setMemoryInspectorOpen(!inspectorOpen); setMoreOpen(false); }} className="flex min-h-11 w-full items-center gap-3 rounded-control px-3 text-left text-[15px] text-fg hover:bg-surface">
             <Brain size={16} />
             Context and memory
           </button>
@@ -393,6 +411,12 @@ export function ChatIsland() {
         </DialogContent>
       </Dialog>
 
+      {/* W3b (B1): one row below the header. The conversation column (list, media dock, composer)
+          keeps its own width so the reading column and the composer stay centred together; at xl the
+          Context and Evidence inspector is docked beside it (below xl it is the fixed overlay and this
+          row has one child). min-h-0 lets the column's scroller shrink inside the flex row. */}
+      <div className="flex min-h-0 flex-1">
+      <div className="flex min-w-0 flex-1 flex-col">
       {/* `relative` anchors the jump-to-latest button only — plain
           relative creates no containing block for `position: fixed`
           descendants (the voice overlay's `fixed inset-0` still anchors
@@ -475,14 +499,16 @@ export function ChatIsland() {
         <ChatComposer chat={chat} />
         <div role="status" aria-live="polite" className="sr-only">{chipAnnouncement}</div>
       </div>
+      </div>
 
-      {/* BDN-315 · desktop focus panel. Overlays like the memory
-          inspector rather than re-laying-out the chat column — the plan
-          explicitly warns against forcing a permanent multi-column
-          dashboard. Renders null unless the operator opts in. */}
+      {/* W3b (B1): docked at xl (the evidence beside the answer, on its own raised surface, closable
+          from the header's Context button); the opt-in overlay below xl, as before. */}
+      <MemoryInspectorSidebar open={inspectorOpen} docked={xl} onClose={() => setMemoryInspectorOpen(false)} hits={recalledHits} contradictions={contradictions} fetchedAt={memoryFetchedAt} reply={replyQuality} recallProvenance={recallProvenance} recallProvenanceReason={recallProvenanceReason} />
+      </div>
+
+      {/* BDN-315 · desktop focus panel. Overlays rather than re-laying-out the chat column.
+          Renders null unless the operator opts in. */}
       <ChatMediaFocusPanel />
-
-      <MemoryInspectorSidebar open={memoryInspectorOpen} onClose={() => setMemoryInspectorOpen(false)} hits={recalledHits} contradictions={contradictions} fetchedAt={memoryFetchedAt} reply={replyQuality} recallProvenance={recallProvenance} recallProvenanceReason={recallProvenanceReason} />
 
       {/* 09-F4: a modal dialog (pattern: nick-side-pane.tsx): focus moves in
           and is trapped, Escape and a scrim tap close it, and focus returns
