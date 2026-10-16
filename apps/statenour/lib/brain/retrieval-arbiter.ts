@@ -73,6 +73,8 @@ export interface EvidenceItem {
   /** Best 0-based rank per nominating lane. */
   ranks: Partial<Record<Lane, number>>;
   rrf: number;
+  /** W1 (2026-10-16) · lib/brain/memory-trust TrustTier, attached by evidence-pack.ts after arbitration so the renderer can fence third-party rows. Not set by arbitrate(). */
+  trustTier?: string;
 }
 
 export interface ArbiterOptions {

@@ -141,6 +141,8 @@ describe("buildContextReceipt · garbage tolerance (never throws)", () => {
       tokensKept: 0,
       tokensDropped: 0,
       droppedCount: 0,
+      arbiter: false,
+      arbiterAssigned: false,
     });
   });
 

@@ -218,7 +218,7 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
   {
     key: "NICK_RECALL_ARBITER",
     description:
-      "Brain plan Wave 2 (2026-09-08): one evidence pack across the two chat recall lanes (memory-recall hybrid + contextual pipeline) — union by id, content-identity dedupe, RRF k=60, one rerank, MMR redundancy penalty — rendered as a single block instead of two overlapping ones. Off until the frozen 28-case corpus shows no regression (plan section 6.4). Set NICK_RECALL_ARBITER=1 to enable.",
+      "Brain plan Wave 2 (2026-09-08): one evidence pack across the two chat recall lanes (memory-recall hybrid + contextual pipeline) — union by id, content-identity dedupe, RRF k=60, one rerank, MMR redundancy penalty — rendered as a single block instead of two overlapping ones. Off until the frozen 121-case corpus (manifest data/recall-corpus.manifest.json) or a 7-day prod judge-split (scripts/arbiter-judge-split.ts) shows no regression (plan section 6.4). Set NICK_RECALL_ARBITER=1 to enable.",
     status: "experimental",
     onValue: "true",
     defaultOn: false,
