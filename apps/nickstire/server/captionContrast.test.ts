@@ -22,8 +22,8 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { buildFfmpegArgs } from "./services/reelAssembly";
 
-const ASSEMBLY = readFileSync(path.join(__dirname, "services", "reelAssembly.ts"), "utf8");
 const VOICE = readFileSync(path.join(__dirname, "services", "reelVoice.ts"), "utf8");
 
 type Rgb = [number, number, number];
@@ -43,29 +43,68 @@ const contrast = (a: Rgb, b: Rgb) => {
 const over = (color: Rgb, opacity: number, under: Rgb): Rgb =>
   color.map((c, i) => Math.round(c * opacity + under[i] * (1 - opacity))) as Rgb;
 
-interface DrawtextStyle { fill: Rgb; stroke: Rgb; strokeWidth: number; box: Rgb; boxOpacity: number }
+interface DrawtextStyle { file: string; fill: Rgb; stroke: Rgb; strokeWidth: number; box: Rgb; boxOpacity: number }
 
-function drawtextStyles(src: string): DrawtextStyle[] {
-  const re = /fontcolor=0x([0-9A-Fa-f]{6}):borderw=(\d+):bordercolor=(\w+):box=1:boxcolor=(\w+)@([0-9.]+)/g;
-  return [...src.matchAll(re)].map((m) => ({
-    fill: hex(m[1]),
-    strokeWidth: Number(m[2]),
-    stroke: NAMED[m[3]] ?? [-1, -1, -1],
-    box: NAMED[m[4]] ?? [-1, -1, -1],
-    boxOpacity: Number(m[5]),
-  }));
+/**
+ * Read every caption style from a BUILT filter graph, not from source text.
+ * The backing is the drawtext's own `box=1:boxcolor=` (the SAVE card) or, for
+ * beat captions since 2026-10-16, the one `drawbox ... color=` plate drawn on
+ * the SAME enable window. A caption with neither has no translucent backing:
+ * it gets box opacity 0, which the 3:1 bar then fails over white footage.
+ */
+function captionStyles(fc: string): DrawtextStyle[] {
+  const filters = fc.split(";");
+  const enableOf = (f: string) => f.match(/enable='[^']*'/)?.[0] ?? null;
+  return filters
+    .filter((f) => f.includes("drawtext="))
+    .map((f) => {
+      const m = f.match(/textfile='([^']+)'.*?fontcolor=0x([0-9A-Fa-f]{6}):borderw=(\d+):bordercolor=(\w+)/);
+      if (!m) throw new Error(`caption drawtext not parsed: ${f.slice(0, 120)}`);
+      const inline = f.match(/:box=1:boxcolor=(\w+)@([0-9.]+)/);
+      const plate = inline ? null : filters.find((p) => p.includes("drawbox=") && enableOf(p) !== null && enableOf(p) === enableOf(f));
+      const backing = inline ?? plate?.match(/:color=(\w+)@([0-9.]+)/) ?? null;
+      return {
+        file: m[1],
+        fill: hex(m[2]),
+        strokeWidth: Number(m[3]),
+        stroke: NAMED[m[4]] ?? [-1, -1, -1],
+        box: backing ? (NAMED[backing[1]] ?? [-1, -1, -1]) : NAMED.black,
+        boxOpacity: backing ? Number(backing[2]) : 0,
+      };
+    });
 }
 
 /** Worst contrast of the fill against its translucent box over white and over black footage. */
 const worstBoxContrast = (s: DrawtextStyle) =>
   Math.min(contrast(s.fill, over(s.box, s.boxOpacity, NAMED.white)), contrast(s.fill, over(s.box, s.boxOpacity, NAMED.black)));
 
+const RENDERED_FC = (() => {
+  const args = buildFfmpegArgs({
+    segs: [
+      { beatNumber: 1, dur: 4, caption: "HOOK LINE", fontSize: 64 },
+      { beatNumber: 2, dur: 4, caption: "CHECK THE INNER EDGE\nBEFORE IT CORDS", fontSize: 56 },
+    ],
+    clipPaths: ["a.mp4", "b.mp4"], voPath: null, musicPath: null, assPath: null, fontPath: "font.ttf", outPath: "out.mp4",
+    askText: "SAVE THIS",
+  });
+  return args[args.indexOf("-filter_complex") + 1];
+})();
+
 describe("burned-in captions (drawtext) keep their contrast on any footage", () => {
-  const styles = drawtextStyles(ASSEMBLY);
+  const styles = captionStyles(RENDERED_FC);
 
   it("the scan read the renderer's caption styles (beat captions and the SAVE card)", () => {
     expect(styles.length).toBeGreaterThanOrEqual(2);
+    expect(styles.some((s) => s.file.startsWith("caption_0_")), "no beat caption read").toBe(true);
+    expect(styles.some((s) => s.file === "caption_save.txt"), "no SAVE card read").toBe(true);
     for (const s of styles) expect(s.stroke[0], "an unknown stroke colour name").toBeGreaterThanOrEqual(0);
+  });
+
+  it("CONTROL: a beat caption with no plate (text straight over footage) fails the box bar", () => {
+    const bare = RENDERED_FC.split(";").filter((f) => !f.includes("drawbox=")).join(";");
+    const beat = captionStyles(bare).find((s) => s.file.startsWith("caption_1_"))!;
+    expect(beat.boxOpacity).toBe(0);
+    expect(worstBoxContrast(beat)).toBeLessThan(3);
   });
 
   it("the fill against its stroke clears 7:1, and against the box over white or black clears 3:1", () => {
