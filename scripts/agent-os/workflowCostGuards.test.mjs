@@ -14,7 +14,7 @@
  *                     a required check that nothing reports (a permanent hold the day the ruleset is applied)
  *   adoption-paths    adoption gates skip docs-only diffs but never skip a directory they scan
  *   adoption-no-main-push  adoption gates run on PRs only (the PR head ran them; node covers main)
- *   proof-paths       the post-deploy storefront proof skips apps/nickstire/docs only
+ *   proof-paths       the post-deploy storefront proof skips apps/nickstire/docs, except docs/reel-packs (read at runtime)
  *   notify-pr         the summary-only notify job does not bill on PRs
  *   security-in-node  the dependency audit is the tail of `node`: blocking, runs when an earlier step is red
  *   needs-resolve     no job `needs:` a job that a fold deleted
@@ -335,7 +335,11 @@ export function checkWorkflows(root) {
   for (const f of ["apps/nickstire/client/src/x.tsx", "apps/nickstire/server/x.ts", "apps/nickstire/tests/episodes/x.json", ".github/workflows/nickstire-proof.yml"]) {
     if (!pathMatches(proofPaths, f)) flag("proof-paths", `the storefront proof would not run for ${f}`);
   }
-  if (triggers(proofPaths, ["apps/nickstire/docs/x.md", "apps/nickstire/docs/operations/y.json"])) flag("proof-paths", "the storefront proof still runs for an apps/nickstire/docs-only diff");
+  if (triggers(proofPaths, ["apps/nickstire/docs/README.md", "apps/nickstire/docs/x.md", "apps/nickstire/docs/operations/y.json"])) flag("proof-paths", "the storefront proof still runs for an apps/nickstire/docs-only diff");
+  // approvedReelPackRotation reads apps/nickstire/docs/reel-packs at runtime: that subtree is not documentation.
+  for (const f of ["apps/nickstire/docs/reel-packs/some-pack/brief.json", "apps/nickstire/docs/reel-packs/some-pack/variants/arm-1/brief.json"]) {
+    if (!pathMatches(proofPaths, f)) flag("proof-paths", `the storefront proof would not run for a reel-pack diff (${f}); the runtime reads that tree`);
+  }
 
   // notify-pr
   const notifyIf = wfs["test.yml"]?.jobs?.notify?.if;
@@ -443,6 +447,7 @@ const MUTANTS = [
   ["adoption-paths", "the adoption gates stop skipping docs", wf("adoption-gates.yml"), (t) => t.replace(/ {4}paths-ignore:\n( {6}- .*\n)+/g, "")],
   ["adoption-paths", "the adoption gates ignore a directory they scan", wf("adoption-gates.yml"), (t) => t.replace(/( {4}paths-ignore:\n)/, "$1      - 'apps/statenour/components/**'\n")],
   ["proof-paths", "the storefront proof runs for docs-only diffs again", wf("nickstire-proof.yml"), (t) => t.replace(/ {6}- "!apps\/nickstire\/docs\/\*\*"\n/, "")],
+  ["proof-paths", "the reel-pack re-include is dropped", wf("nickstire-proof.yml"), (t) => t.replace(/ {6}- "apps\/nickstire\/docs\/reel-packs\/\*\*"\n/, "")],
   ["notify-pr", "notify bills on every PR again", wf("test.yml"), (t) => t.replace(/(\n {2}notify:\n(?: {4}.*\n)*? {4}if: ).*/, "$1always()")],
   ["needs-resolve", "notify still needs the deleted security job", wf("test.yml"), (t) => t.replace("needs: [changes, node, railway-smoke]", "needs: [changes, node, security, railway-smoke]")],
   ["security-in-node", "the critical audit can no longer fail", wf("test.yml"), (t) => t.replace("      - name: Dependency audit (critical severity · blocking)\n", "      - name: Dependency audit (critical severity · blocking)\n        continue-on-error: true\n")],
