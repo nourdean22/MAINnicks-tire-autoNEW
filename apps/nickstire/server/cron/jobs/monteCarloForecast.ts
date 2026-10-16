@@ -223,7 +223,7 @@ export async function processMonteCarloForecast(): Promise<ProcessResult> {
       ``,
       `Plan against ${fmt(p10)} downside · staff to ${fmt(p50)} · don't promise ${fmt(p90)} unless inputs lean upper-band.`,
     ];
-    await sendTelegram(lines.join("\n"));
+    await sendTelegram(lines.join("\n"), "digest");
   } catch (e) {
     log.warn("[monte-carlo] telegram failed", { error: e instanceof Error ? e.message : String(e) });
   }

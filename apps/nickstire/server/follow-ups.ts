@@ -234,7 +234,7 @@ export async function reportFollowUpsToOwner(title: string, content: string): Pr
   if (delivered) return;
   try {
     const { sendTelegram } = await import("./services/telegram");
-    await sendTelegram(`📨 ${title}\n${content}`);
+    await sendTelegram(`📨 ${title}\n${content}`, "receipt");
   } catch (e) {
     log.warn("[follow-ups] telegram report failed:", e);
   }

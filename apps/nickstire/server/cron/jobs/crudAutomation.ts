@@ -108,7 +108,7 @@ export async function detectNoShows(): Promise<{ recordsProcessed: number; detai
     if (noShows.length > 0) {
       try {
         const { sendTelegram } = await import("../../services/telegram");
-        await sendTelegram(`📋 NO-SHOW: ${noShows.length} bookings past date, marked as no-show. ${smsSent} follow-up SMS sent.`);
+        await sendTelegram(`📋 NO-SHOW: ${noShows.length} bookings past date, marked as no-show. ${smsSent} follow-up SMS sent.`, "receipt");
       } catch (err) { log.warn("detectNoShows: Telegram alert failed", { error: err instanceof Error ? err.message : String(err) }); }
     }
 
@@ -294,7 +294,7 @@ export async function alertLowStock(): Promise<{ recordsProcessed: number; detai
     const { sendTelegram } = await import("../../services/telegram");
     await sendTelegram(
       `📦 LOW STOCK ALERT: ${lowItems.length} items need reorder\n\n` +
-      lowItems.slice(0, 10).map((i) => `${i.name || i.sku}: ${i.quantity} left (reorder at ${i.reorderPoint || 2})`).join("\n")
+      lowItems.slice(0, 10).map((i) => `${i.name || i.sku}: ${i.quantity} left (reorder at ${i.reorderPoint || 2})`).join("\n"), "digest"
     );
 
     return { recordsProcessed: lowItems.length, details: `${lowItems.length} low-stock items alerted` };
@@ -408,7 +408,7 @@ export async function autoEscalateBookingPriority(): Promise<{ recordsProcessed:
     if (affected > 0) {
       try {
         const { sendTelegram } = await import("../../services/telegram");
-        await sendTelegram(`🔺 ${affected} booking${affected > 1 ? "s" : ""} auto-escalated to HIGH priority (untouched >48h). Check the bookings tab.`);
+        await sendTelegram(`🔺 ${affected} booking${affected > 1 ? "s" : ""} auto-escalated to HIGH priority (untouched >48h). Check the bookings tab.`, "receipt");
       } catch (err) { log.warn("autoEscalateBookingPriority: Telegram alert failed", { error: err instanceof Error ? err.message : String(err) }); }
     }
     return { recordsProcessed: affected, details: `${affected} bookings escalated` };
@@ -513,7 +513,7 @@ export async function autoGenerateContent(): Promise<{ recordsProcessed: number;
         await sendTelegram(
           `📝 AUTO-CONTENT: New article drafted!\n\n` +
           `"${article.title || "Untitled"}"${draftId ? ` (draft #${draftId})` : " (NOT SAVED — no DB)"}\n\n` +
-          `Review in admin → Content → Drafts`
+          `Review in admin → Content → Drafts`, "receipt"
         );
       } catch (err) { log.warn("autoGenerateContent: Telegram alert failed", { error: err instanceof Error ? err.message : String(err) }); }
     }
@@ -594,7 +594,7 @@ export async function closeReferralLoop(): Promise<{ recordsProcessed: number; d
         // Honest about the texts: the credit is active either way, but
         // "both parties notified" was a claim the sends never backed.
         const texts = `${textsSent} sent · ${textsQueued} queued for 8 AM · ${textsFailed} failed`;
-        await sendTelegram(`🤝 REFERRAL LOOP: ${closed} referral${closed > 1 ? "s" : ""} matched — $25 credits active. Texts: ${texts}.`);
+        await sendTelegram(`🤝 REFERRAL LOOP: ${closed} referral${closed > 1 ? "s" : ""} matched — $25 credits active. Texts: ${texts}.`, "receipt");
       } catch (err) { log.warn("closeReferralLoop: Telegram alert failed", { error: err instanceof Error ? err.message : String(err) }); }
     }
 
@@ -683,7 +683,7 @@ export async function notifyNewVips(): Promise<{ recordsProcessed: number; detai
 
       try {
         const { sendTelegram } = await import("../../services/telegram");
-        await sendTelegram(`⭐ VIP RECOGNITION: ${notified} customer${notified > 1 ? "s" : ""} newly recognized as VIP and notified with 10% off perk.`);
+        await sendTelegram(`⭐ VIP RECOGNITION: ${notified} customer${notified > 1 ? "s" : ""} newly recognized as VIP and notified with 10% off perk.`, "receipt");
       } catch (err) { log.warn("notifyNewVips: Telegram alert failed", { error: err instanceof Error ? err.message : String(err) }); }
     }
 

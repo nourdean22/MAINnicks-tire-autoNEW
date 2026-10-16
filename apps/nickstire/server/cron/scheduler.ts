@@ -1269,7 +1269,7 @@ function buildTiers(): void {
               const { claimAlertOnce } = await import("../services/alertClaim");
               if (await claimAlertOnce(`revenue-pulse:over-target-${Math.floor(todayRevenue / dailyTarget)}x`)) {
                 const { sendTelegram } = await import("../services/telegram");
-                await sendTelegram(`💰 Big day building: $${Math.round(todayRevenue)} so far today (${Math.round((todayRevenue/dailyTarget)*100)}% of daily target)`);
+                await sendTelegram(`💰 Big day building: $${Math.round(todayRevenue)} so far today (${Math.round((todayRevenue/dailyTarget)*100)}% of daily target)`, "digest");
               }
             }
             return { recordsProcessed: 1, details: `Today: $${Math.round(todayRevenue)}` };
@@ -1824,7 +1824,7 @@ function buildTiers(): void {
                 const { sendTelegram } = await import("../services/telegram");
                 await sendTelegram(
                   `⏰ PROMISE RISK: ${atRiskJobs.length} work orders at risk!\n\n` +
-                  atRiskJobs.slice(0, 3).map((r) => `WO#${r.orderNumber || r.workOrderId}: ${r.customerName || "?"} — ${r.risk}`).join("\n")
+                  atRiskJobs.slice(0, 3).map((r) => `WO#${r.orderNumber || r.workOrderId}: ${r.customerName || "?"} — ${r.risk}`).join("\n"), "digest"
                 );
               }
             }
@@ -1857,7 +1857,7 @@ function buildTiers(): void {
               await sendTelegram(
                 `💰 STALE ESTIMATES — ${stale.length} pending 3+ days ($${Math.round(totalPotential/100)})\n\n` +
                 stale.map((e) => `${e.customerName} — $${Math.round(Number(e.totalAmount)/100)} (${e.daysOld}d old)`).join("\n") +
-                `\n\nFollow up NOW — every day = lost conversion probability.`
+                `\n\nFollow up NOW — every day = lost conversion probability.`, "digest"
               );
             }
             return { recordsProcessed: stale.length, details: `${stale.length} stale estimates found` };

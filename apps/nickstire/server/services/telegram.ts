@@ -28,12 +28,58 @@ const telegramCB = getOrCreateBreaker("telegram", {
 // ─── Channels ────────────────────────────────────────
 export type TelegramChannel = "critical" | "reviews" | "system" | "digest";
 
+// ─── Classes (what Nour can mute) ────────────────────
+/**
+ * incident  something is broken or a customer is waiting: sent unless telegram_incident_muted
+ * digest    a scheduled summary or a once-per-state status: sent unless telegram_digest_muted
+ * approval  a draft that needs Nour's yes: sent unless telegram_approval_muted
+ * receipt   "this thing happened" confirmations: HELD unless telegram_receipt is ON; they roll into
+ *           the daily summary as a count
+ * noise     never sent
+ * An unclassified send is an incident, so a caller nobody classified keeps alerting exactly as before.
+ */
+export type TelegramClass = "incident" | "digest" | "approval" | "receipt" | "noise";
+export const DEFAULT_TELEGRAM_CLASS: TelegramClass = "incident";
+const TELEGRAM_CLASSES: readonly TelegramClass[] = ["incident", "digest", "approval", "receipt", "noise"];
+
+/**
+ * True when this class must not be sent right now. incident/digest/approval use PAUSE flags (absent or
+ * unreadable = not muted: an unreadable flag table never silences an incident); receipt uses an enable
+ * flag (absent or unreadable = held: receipts are the expendable class).
+ */
+async function isClassMuted(cls: TelegramClass): Promise<boolean> {
+  if (cls === "noise") return true;
+  try {
+    const { isEnabled } = await import("./featureFlags");
+    if (cls === "incident") return await isEnabled("telegram_incident_muted");
+    if (cls === "digest") return await isEnabled("telegram_digest_muted");
+    if (cls === "approval") return await isEnabled("telegram_approval_muted");
+    return !(await isEnabled("telegram_receipt"));
+  } catch {
+    return cls === "receipt";
+  }
+}
+
+/** Counts and reports a held send. The caller returns true: holding is a decision, not a failure. */
+async function heldByClass(cls: TelegramClass): Promise<boolean> {
+  if (!(await isClassMuted(cls))) return false;
+  stats.muted[cls]++;
+  log.debug("Telegram send held by class", { cls });
+  return true;
+}
+
+function normalizeClass(cls: string): TelegramClass {
+  return (TELEGRAM_CLASSES as readonly string[]).includes(cls) ? (cls as TelegramClass) : DEFAULT_TELEGRAM_CLASS;
+}
+
 // ─── Delivery Tracking ──────────────────────────────
 interface DeliveryStats {
   sent: number;
   failed: number;
   /** Dropped before the API call because 20 sends already went out in the last second. */
   rateLimited: number;
+  /** Held by class (a muted class, held receipts, noise): decisions, not failures. */
+  muted: Record<TelegramClass, number>;
   lastSentAt: string | null;
   lastError: string | null;
 }
@@ -42,13 +88,14 @@ const stats: DeliveryStats = {
   sent: 0,
   failed: 0,
   rateLimited: 0,
+  muted: { incident: 0, digest: 0, approval: 0, receipt: 0, noise: 0 },
   lastSentAt: null,
   lastError: null,
 };
 
 /** In-process counters since this server booted (they reset on every deploy). */
 export function getTelegramStats(): DeliveryStats {
-  return { ...stats };
+  return { ...stats, muted: { ...stats.muted } };
 }
 
 // Rate limiting: Telegram allows 30 msgs/sec, we stay well under
@@ -105,11 +152,12 @@ function toPlainText(html: string): string {
     .replace(/&amp;/g, "&");
 }
 
-async function sendRaw(text: string): Promise<boolean> {
+async function sendRaw(text: string, cls: TelegramClass = DEFAULT_TELEGRAM_CLASS): Promise<boolean> {
   if (!isConfigured()) {
     log.debug("Telegram not configured, skipping");
     return false;
   }
+  if (await heldByClass(normalizeClass(cls))) return true;
 
   if (isRateLimited()) {
     log.warn("Telegram rate limited, dropping message");
@@ -183,26 +231,27 @@ function divider(): string {
 
 export async function sendTelegramMessage(
   text: string,
-  channel: TelegramChannel = "system"
+  channel: TelegramChannel = "system",
+  cls: TelegramClass = DEFAULT_TELEGRAM_CLASS,
 ): Promise<boolean> {
   if (!isConfigured()) return false;
 
-  // Real-time dispatch: Bypass the 5-minute queue completely
-  return sendRaw(`[${channel.toUpperCase()}] ` + text);
+  return sendRaw(`[${channel.toUpperCase()}] ` + text, cls);
 }
 
 /**
  * Legacy compatibility: Send a plain text message (immediate).
  */
-export async function sendTelegram(text: string): Promise<boolean> {
-  return sendRaw(text);
+export async function sendTelegram(text: string, cls: TelegramClass = DEFAULT_TELEGRAM_CLASS): Promise<boolean> {
+  return sendRaw(text, cls);
 }
 
 /**
  * Send a photo via Telegram (URL or file_id).
  */
-export async function sendTelegramPhoto(photoUrl: string, caption?: string): Promise<boolean> {
+export async function sendTelegramPhoto(photoUrl: string, caption?: string, cls: TelegramClass = DEFAULT_TELEGRAM_CLASS): Promise<boolean> {
   if (!isConfigured()) return false;
+  if (await heldByClass(normalizeClass(cls))) return true;
   try {
     const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {
       method: "POST",
@@ -230,8 +279,9 @@ export async function sendTelegramPhoto(photoUrl: string, caption?: string): Pro
 /**
  * Send a video via Telegram (URL or file_id).
  */
-export async function sendTelegramVideo(videoUrl: string, caption?: string): Promise<boolean> {
+export async function sendTelegramVideo(videoUrl: string, caption?: string, cls: TelegramClass = DEFAULT_TELEGRAM_CLASS): Promise<boolean> {
   if (!isConfigured()) return false;
+  if (await heldByClass(normalizeClass(cls))) return true;
   try {
     const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendVideo`, {
       method: "POST",
@@ -259,8 +309,9 @@ export async function sendTelegramVideo(videoUrl: string, caption?: string): Pro
 /**
  * Send a document/file via Telegram.
  */
-export async function sendTelegramDocument(docUrl: string, caption?: string): Promise<boolean> {
+export async function sendTelegramDocument(docUrl: string, caption?: string, cls: TelegramClass = DEFAULT_TELEGRAM_CLASS): Promise<boolean> {
   if (!isConfigured()) return false;
+  if (await heldByClass(normalizeClass(cls))) return true;
   try {
     const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendDocument`, {
       method: "POST",
@@ -282,9 +333,11 @@ export async function sendTelegramDocument(docUrl: string, caption?: string): Pr
  * Send a group of photos (album) via Telegram.
  */
 export async function sendTelegramMediaGroup(
-  media: Array<{ type: "photo" | "video"; url: string; caption?: string }>
+  media: Array<{ type: "photo" | "video"; url: string; caption?: string }>,
+  cls: TelegramClass = DEFAULT_TELEGRAM_CLASS,
 ): Promise<boolean> {
   if (!isConfigured() || media.length === 0) return false;
+  if (await heldByClass(normalizeClass(cls))) return true;
   try {
     const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMediaGroup`, {
       method: "POST",
@@ -377,7 +430,7 @@ export function alertLowReview(review: {
     review.platform ? `📍 ${review.platform}` : "",
     `"${review.text.slice(0, 150)}${review.text.length > 150 ? "..." : ""}"`,
   ];
-  return sendTelegramMessage(lines.filter(Boolean).join("\n"), "reviews");
+  return sendTelegramMessage(lines.filter(Boolean).join("\n"), "reviews", "incident");
 }
 
 /** Positive review alert — REVIEWS channel (batched) */
@@ -395,7 +448,7 @@ export function alertGoodReview(review: {
     review.platform ? `📍 ${review.platform}` : "",
     `"${review.text.slice(0, 150)}${review.text.length > 150 ? "..." : ""}"`,
   ];
-  return sendTelegramMessage(lines.filter(Boolean).join("\n"), "reviews");
+  return sendTelegramMessage(lines.filter(Boolean).join("\n"), "reviews", "receipt");
 }
 
 /** After-hours lead/request — CRITICAL channel (immediate) */
@@ -426,7 +479,7 @@ export function alertRevenueMilestone(data: {
     `📊 ${data.period}: $${data.amount.toLocaleString()}`,
     `🎯 ${data.milestone}`,
   ];
-  return sendTelegramMessage(lines.filter(Boolean).join("\n"), "digest");
+  return sendTelegramMessage(lines.filter(Boolean).join("\n"), "digest", "digest");
 }
 
 /** System alert (errors, vendor down, etc.) — SYSTEM channel (batched) */
@@ -460,7 +513,10 @@ export function alertVendorRecovered(vendor: string) {
 /** One line from the live counters: how many alerts went out, were dropped by the rate limit, or failed (since boot). */
 function telegramStatsLine(): string {
   const t = getTelegramStats();
-  return `📨 Telegram: ${t.sent} sent, ${t.rateLimited} dropped by rate limit, ${t.failed} failed (since last restart)`;
+  const held = Object.entries(t.muted)
+    .filter(([, n]) => n > 0)
+    .map(([cls, n]) => `${n} ${cls === "receipt" ? "receipts held" : `${cls} muted`}`);
+  return `📨 Telegram: ${t.sent} sent, ${t.rateLimited} dropped by rate limit, ${t.failed} failed${held.length ? `, ${held.join(", ")}` : ""} (since last restart)`;
 }
 
 /** Daily summary — immediate send (scheduled, not batched) */
@@ -487,5 +543,5 @@ export function sendDailySummary(data: {
     `${link("Admin Panel", "https://nickstire.org/admin")}`,
   ];
   // Daily summary sends immediately (it's a scheduled job)
-  return sendRaw(lines.filter(Boolean).join("\n"));
+  return sendRaw(lines.filter(Boolean).join("\n"), "digest");
 }

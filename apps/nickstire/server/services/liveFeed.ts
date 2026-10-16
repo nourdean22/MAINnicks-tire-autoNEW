@@ -101,7 +101,7 @@ async function sendFeedMessage(text: string): Promise<boolean> {
     }
 
     const { sendTelegram } = await import("./telegram");
-    return sendTelegram(text);
+    return sendTelegram(text, "receipt");
   } catch (err) {
     log.warn("Live feed send failed", { error: err instanceof Error ? err.message : String(err) });
     return false;
@@ -286,7 +286,7 @@ export async function sendDailyWinsDigest(): Promise<{ recordsProcessed: number;
     ];
 
     const { sendTelegram } = await import("./telegram");
-    await sendTelegram(lines.filter(Boolean).join("\n"));
+    await sendTelegram(lines.filter(Boolean).join("\n"), "digest");
 
     log.info("Daily wins digest sent", { revenue: daily.revenue, jobs: daily.jobCount });
     return { recordsProcessed: 1, details: `Revenue: $${daily.revenue}, Jobs: ${daily.jobCount}` };

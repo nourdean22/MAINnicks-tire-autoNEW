@@ -425,7 +425,7 @@ export async function runWeeklyRevenueDigest(now: Date = new Date()): Promise<Pr
 
   const text = buildWeeklyRevenueDigestText(data);
   const { sendTelegram } = await import("../../services/telegram");
-  const sent = await sendTelegram(text);
+  const sent = await sendTelegram(text, "digest");
   if (!sent) {
     throw new Error("digest computed but Telegram send failed");
   }

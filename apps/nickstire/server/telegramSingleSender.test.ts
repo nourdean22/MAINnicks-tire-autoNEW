@@ -11,7 +11,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
-  sends: [] as Array<{ via: string; text: string }>,
+  sends: [] as Array<{ via: string; text: string; cls?: string }>,
   recordLeadDelivery: vi.fn(async () => undefined),
   fakeDb: null as unknown,
   getDb: null as unknown,
@@ -21,8 +21,8 @@ const h = vi.hoisted(() => ({
 
 vi.mock("./services/telegram", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./services/telegram")>()),
-  sendTelegram: vi.fn(async (text: string) => {
-    h.sends.push({ via: "sendTelegram", text });
+  sendTelegram: vi.fn(async (text: string, cls?: string) => {
+    h.sends.push({ via: "sendTelegram", text, cls });
     return h.accept;
   }),
   sendTelegramMessage: vi.fn(async (text: string) => {
@@ -52,6 +52,7 @@ vi.mock("./services/eventBus", async (importOriginal) => {
       leadCaptured: (d: Record<string, unknown>) => runTelegramDestination("lead_captured", d),
       callbackRequested: (d: Record<string, unknown>) => runTelegramDestination("callback_requested", d),
       bookingCreated: (d: Record<string, unknown>) => runTelegramDestination("booking_created", d),
+      bookingCompleted: (d: Record<string, unknown>) => runTelegramDestination("booking_completed", d),
     },
   };
 });
@@ -204,6 +205,14 @@ describe("one Telegram message per lead, callback, chat lead and booking", () =>
     );
     await settle();
     expect(h.sends).toHaveLength(1);
+  });
+
+  it("a completed job sends exactly one Telegram message and it is a receipt (held unless telegram_receipt is ON)", async () => {
+    await emit.bookingCompleted({ id: 9, name: "Ann Test", service: "Brakes" });
+    await settle();
+    expect(h.sends).toHaveLength(1);
+    expect(h.sends[0]).toMatchObject({ cls: "receipt" });
+    expect(h.sends[0].text).toContain("JOB COMPLETED");
   });
 
   it("an online booking sends exactly one Telegram alert, not NEW BOOKING plus NEW LEAD", async () => {

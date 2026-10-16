@@ -177,7 +177,7 @@ export async function runChatFaqPipeline(): Promise<{
         `📊 TOP CHAT QUESTIONS THIS WEEK\n` +
         `${sessions.length} sessions, ${allQuestions.length} questions\n\n` +
         digest +
-        `\n\nUse this to improve FAQ page and train Nick AI.`
+        `\n\nUse this to improve FAQ page and train Nick AI.`, "digest"
       );
     } catch (e) { log.warn("[jobs/chatFaqPipeline] operation failed:", e); }
 

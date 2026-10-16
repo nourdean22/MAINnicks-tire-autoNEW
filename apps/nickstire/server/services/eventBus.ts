@@ -361,7 +361,7 @@ async function ensureInitialized(): Promise<void> {
       if (event.type === "payment_received") {
         await sendTelegram(
           `💳 PAYMENT: $${event.data.amount} from ${event.data.customerName}\n` +
-          `Invoice: ${event.data.invoiceNumber || "N/A"}`
+          `Invoice: ${event.data.invoiceNumber || "N/A"}`, "receipt"
         );
       }
       // 2026-06-10 checkout-hardening · tire_order_placed was declared in
@@ -440,7 +440,7 @@ async function ensureInitialized(): Promise<void> {
         await sendTelegram(
           `✅ JOB COMPLETED: ${event.data.name}\n` +
           `Service: ${event.data.service}\n` +
-          `💡 Send review request before they leave`
+          `💡 Send review request before they leave`, "receipt"
         );
       }
       // invoice_paid handled by live-feed destination (notifyClosedJob) — no duplicate here

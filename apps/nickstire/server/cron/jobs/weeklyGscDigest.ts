@@ -307,7 +307,7 @@ export async function runWeeklyGscDigest(now: Date = new Date()): Promise<Proces
 
   const text = buildWeeklyGscDigestText(data);
   const { sendTelegram } = await import("../../services/telegram");
-  const sent = await sendTelegram(text);
+  const sent = await sendTelegram(text, "digest");
   if (!sent) {
     throw new Error("digest computed but Telegram send failed");
   }

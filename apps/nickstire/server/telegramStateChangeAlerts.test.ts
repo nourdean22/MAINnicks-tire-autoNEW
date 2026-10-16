@@ -16,6 +16,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
   sends: [] as string[],
+  classes: [] as string[],
   claims: new Set<string>(),
   claimFails: false,
   todayRevenue: 100_000,
@@ -25,8 +26,9 @@ const h = vi.hoisted(() => ({
 
 vi.mock("./services/telegram", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./services/telegram")>()),
-  sendTelegram: vi.fn(async (text: string) => {
+  sendTelegram: vi.fn(async (text: string, cls?: string) => {
     h.sends.push(text);
+    h.classes.push(cls ?? "(none)");
     return true;
   }),
 }));
@@ -90,6 +92,7 @@ describe("repeating business-hours alerts claim before they send", () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     at(TUE_11AM_ET);
     h.sends.length = 0;
+    h.classes.length = 0;
     h.claims.clear();
     h.claimFails = false;
     h.todayRevenue = 100_000;
@@ -107,6 +110,8 @@ describe("repeating business-hours alerts claim before they send", () => {
       await runTierJobHandlerUnlocked(name);
       expect(h.sends).toHaveLength(1);
       expect(h.sends[0]).toContain(marker);
+      // a once-per-state status is a digest: Nour can mute it from the admin flags
+      expect(h.classes).toEqual(["digest"]);
     });
 
     it("sends again after the Cleveland day rolls over, not at the UTC midnight", async () => {

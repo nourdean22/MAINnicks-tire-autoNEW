@@ -298,7 +298,7 @@ export async function autoCampaignRetry(): Promise<{ recordsProcessed: number; d
 
     if (sent > 0) {
       const { sendTelegram } = await import("./telegram");
-      await sendTelegram(`📱 AUTO CAMPAIGN: ${sent}/${untexted.length} review+referral texts sent automatically.`);
+      await sendTelegram(`📱 AUTO CAMPAIGN: ${sent}/${untexted.length} review+referral texts sent automatically.`, "receipt");
     }
 
     return { recordsProcessed: sent, details: `${sent} campaign SMS auto-sent · ${queued} queued for 8 AM · ${uncertain} unconfirmed (not retried)` };

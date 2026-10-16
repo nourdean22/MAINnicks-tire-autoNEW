@@ -397,7 +397,7 @@ export async function measureDueWaves(): Promise<{
           ``,
           ...digestLines,
         ];
-        await sendTelegram(summary.join("\n"));
+        await sendTelegram(summary.join("\n"), "digest");
       } catch (err) {
         log.warn("telegram digest failed", { err: err instanceof Error ? err.message : String(err) });
       }
