@@ -25,6 +25,7 @@
  */
 import type { Page } from "@playwright/test";
 
+import { CHAT_CONVERSATION, CHAT_LIST, CHAT_PROVIDER_HEALTH, CHAT_REPLY, CHAT_TITLE, CHAT_TOOLS_HEALTH } from "./chat";
 import { HOME_BRIEF, HOME_REMEMBERS, HOME_WAITING } from "./home";
 import { ALPHA_TITLE, MISSIONS, MISSIONS_DECK, MISSION_TASKS, NEXT_MOVE_TITLE } from "./missions";
 import { SHELL_PULSE, SHELL_TICKER } from "./shell";
@@ -41,6 +42,9 @@ export { FIXED_TIME, NOW_ISO, NOW_MS } from "./time";
 export const PAGE_ERRORS = {
   home: /couldn.t be built|refresh failed|unknown, read failed|partial read|pulse unavailable/i,
   missions: /deck unreadable|board unreadable|showing the last confirmed board|pulse unavailable/i,
+  // Chat has no error panel: its failures are a pill that never reaches "ready" (the header's capability words
+  // for unmeasured, unknown, degraded and offline), or a list that never left the empty / loading state.
+  chat: /checking capabilities|AI health unknown|tool health unknown|chat offline|chat degraded|AI offline|fallback active|tools limited|Loading conversation|What are we solving/i,
 } as const;
 
 /**
@@ -56,11 +60,14 @@ export const UNSTUBBED_ALLOWLIST: ReadonlyArray<string | RegExp> = [
   /^systemAutomation\./, // the PWA badge; renders nothing
 ];
 
-/** `GET operator.*` / `GET task.*` entries of a FixtureReport that the gate does not allow. */
+/**
+ * `GET operator.*` / `GET task.*` / `GET chat.*` entries of a FixtureReport that the gate does not allow, and the
+ * two system reads the Chat header pill depends on (W3a). The rest of `system.*` is the shell's and stays printed.
+ */
 export function disallowedUnstubbed(unstubbed: Iterable<string>): string[] {
   const out: string[] = [];
   for (const entry of unstubbed) {
-    const m = /^GET ((?:operator|task)\.[A-Za-z0-9_.]+)$/.exec(entry);
+    const m = /^GET ((?:(?:operator|task|chat)\.[A-Za-z0-9_.]+)|system\.(?:providerHealth|toolsHealth))$/.exec(entry);
     if (!m) continue;
     const procedure = m[1];
     const allowed = UNSTUBBED_ALLOWLIST.some((a) => (typeof a === "string" ? a === procedure : a.test(procedure)));
@@ -79,6 +86,11 @@ export const TRPC_FIXTURES: Record<string, unknown> = {
   "task.deck": MISSIONS_DECK,
   "task.list": MISSION_TASKS,
   "task.missions": MISSIONS,
+  // Chat (W3a)
+  "system.providerHealth": CHAT_PROVIDER_HEALTH,
+  "system.toolsHealth": CHAT_TOOLS_HEALTH,
+  "chat.list": CHAT_LIST,
+  "chat.conversation": CHAT_CONVERSATION,
 };
 
 /**
@@ -95,6 +107,8 @@ export const DEMO = {
   homeApproval: HOME_APPROVAL,
   missionsNextMove: NEXT_MOVE_TITLE,
   missionTitle: ALPHA_TITLE,
+  chatReply: CHAT_REPLY,
+  chatTitle: CHAT_TITLE,
 } as const;
 
 export interface FixtureReport {

@@ -39,6 +39,8 @@ import {
 import { MISSION_TASKS } from "../e2e/fixtures/missions";
 import { MIN_DISTANCE, MIN_INK, captureVerdict, measureAndJudge, v3GateVerdict, type MeasureDeps } from "../e2e/v3-gate";
 import { visualDistance } from "../e2e/visual-distance";
+import { capabilityBadge } from "@/features/chat-v2/lib/capability-label";
+import { formatToolReceipts, summarizeToolReceipts } from "@/lib/ai/receipts/tool-receipt-summary";
 
 const APP_DIR = path.join(__dirname, "..", "..");
 const E2E_DIR = path.join(__dirname, "..", "e2e");
@@ -431,7 +433,7 @@ describe("installFixtures (the wiring, against a recording Page)", () => {
 const NONDETERMINISTIC = /Date\.now|new Date\(\s*\)|Math\.random|performance\.now|toLocale|Intl\.|randomUUID|process\.env/;
 
 describe("fixture data", () => {
-  const dataFiles = ["time.ts", "home.ts", "missions.ts", "shell.ts"].map((f) => path.join(E2E_DIR, "fixtures", f));
+  const dataFiles = ["time.ts", "home.ts", "missions.ts", "shell.ts", "chat.ts"].map((f) => path.join(E2E_DIR, "fixtures", f));
 
   it("positive control: the determinism scan flags a clock read, a random and a locale call", () => {
     for (const bad of ["Date.now()", "new Date()", "Math.random()", "x.toLocaleString()", "new Intl.DateTimeFormat()"]) {
@@ -580,6 +582,10 @@ describe("the smoke spec cannot pass on an empty-state page", () => {
     expect(sources.some((s) => s.text.includes("Done for today."))).toBe(true);
   });
 
+  it("positive control: the scan reaches features/, where the chat copy lives", () => {
+    expect(appSource().some((s) => /features[\\/]chat-v2/.test(s.file) && s.text.includes("What are we solving?"))).toBe(true);
+  });
+
   /** Literal `getByText(/.../)` regexes in a spec that no app source under components/ or lib/ satisfies. */
   function unsourcedTextRegexes(spec: string, sources: string[]): string[] {
     const joined = sources.join("\n").replace(/&apos;/g, "'");
@@ -614,6 +620,9 @@ describe("the smoke spec cannot pass on an empty-state page", () => {
       "components/home/waiting-line.tsx",
       "components/ultron/bottom-pulse-ticker.tsx",
       "app/(mastery)/missions/page.tsx",
+      // Chat (W3a): the header pill's words and the list's empty and loading states.
+      "features/chat-v2/lib/capability-label.ts",
+      "features/chat-v2/components/chat-message-list.tsx",
     ].map((f) => read(path.join(APP_DIR, f)).replace(/&apos;/g, "'"));
     for (const [name, re] of Object.entries(PAGE_ERRORS)) {
       for (const alt of re.source.split("|")) {
@@ -633,10 +642,15 @@ describe("the smoke spec cannot pass on an empty-state page", () => {
     for (const line of [
       "await expect(page.getByText(PAGE_ERRORS.home)).toHaveCount(0);",
       "await expect(page.getByText(PAGE_ERRORS.missions)).toHaveCount(0);",
+      "await expect(page.getByText(PAGE_ERRORS.chat)).toHaveCount(0);",
       'expect(pageErrors, "Home threw during render").toEqual([]);',
       'expect(pageErrors, "Missions threw during render").toEqual([]);',
+      'expect(pageErrors, "Chat threw during render").toEqual([]);',
       'expect(disallowedUnstubbed(report.unstubbed), "Home read page data the fixtures do not answer").toEqual([]);',
       'expect(disallowedUnstubbed(report.unstubbed), "Missions read page data the fixtures do not answer").toEqual([]);',
+      'expect(disallowedUnstubbed(report.unstubbed), "Chat read page data the fixtures do not answer").toEqual([]);',
+      "await openChatHistory(page, DEMO.chatTitle);",
+      "await settleChat(page);",
       "if (!IGNORED_PAGE_ERRORS.test(err.message)) pageErrors.push(err.message);",
       "const report = await installFixtures(page);",
       "return { pageErrors, report };",
@@ -695,6 +709,100 @@ describe("disallowedUnstubbed (the v3 gate's unstubbed-read rule)", () => {
         "GET /api/coach/events",
       ]),
     ).toEqual(["GET operator.brief", "GET operator.somethingNew", "GET task.somethingNew"]);
+  });
+});
+
+// ── Chat fixtures (UI v3 W3a): the instrument for the Chat six-feet gate ─────
+
+describe("chat fixtures (W3a)", () => {
+  type Part = { type: string; text?: string; state?: string; output?: unknown };
+  type Conversation = { id: string; title: string | null; messageCount: number; messages: { id: string; role: string; content: string; parts: Part[] }[] };
+  type List = { conversations: { id: string; title: string | null; _count: { messages: number } }[]; hasMore: boolean; nextCursor: string | null };
+  const chatDemo = DEMO as Record<string, string | undefined>;
+  const conversation = TRPC_FIXTURES["chat.conversation"] as Conversation | undefined;
+  const list = TRPC_FIXTURES["chat.list"] as List | undefined;
+  const assistantTurn = conversation?.messages.find((m) => m.role === "assistant");
+
+  it("the chat anchors exist and are the fixtures' own sentences", () => {
+    expect(typeof chatDemo.chatReply).toBe("string");
+    expect(typeof chatDemo.chatTitle).toBe("string");
+    expect(chatDemo.chatReply!.length).toBeGreaterThan(20);
+    expect(chatDemo.chatReply).toMatch(/\bDemo\b/);
+    expect(chatDemo.chatTitle).toMatch(/\bDemo\b/);
+  });
+
+  it("the assistant turn carries DEMO.chatReply as its text part, and the title is the list row's", () => {
+    expect(assistantTurn, "chat.conversation has no assistant turn").toBeDefined();
+    expect(assistantTurn!.parts.some((p) => p.type === "text" && p.text === chatDemo.chatReply)).toBe(true);
+    expect(list?.conversations).toHaveLength(1);
+    expect(list!.conversations[0].title).toBe(chatDemo.chatTitle);
+    expect(conversation!.title).toBe(chatDemo.chatTitle);
+  });
+
+  it("the list and the conversation agree: one id, one message count, no next page", () => {
+    expect(list!.conversations[0].id).toBe(conversation!.id);
+    expect(list!.conversations[0]._count.messages).toBe(conversation!.messages.length);
+    expect(conversation!.messageCount).toBe(conversation!.messages.length);
+    expect(list!.hasMore).toBe(false);
+    expect(list!.nextCursor).toBeNull();
+  });
+
+  it("renders a user turn then an assistant turn, and the assistant turn has a receipt line", () => {
+    expect(conversation!.messages.map((m) => m.role)).toEqual(["user", "assistant"]);
+    const toolParts = assistantTurn!.parts.filter((p) => p.type.startsWith("tool-"));
+    expect(toolParts.length).toBeGreaterThan(0);
+    // ToolReceiptSummary returns null without tool parts (chat-message-list.tsx): this is the line it prints.
+    expect(formatToolReceipts(summarizeToolReceipts(toolParts))).toBe("Tool calls: 1 returned data");
+  });
+
+  it("the header pill reads MEASURED: 'ready', neither checking nor unknown", () => {
+    const providers = TRPC_FIXTURES["system.providerHealth"] as { overallTone: "green" | "amber" | "red" } | undefined;
+    const tools = TRPC_FIXTURES["system.toolsHealth"] as { summary: { totalTools: number; degraded: number; down: number } } | undefined;
+    expect(providers, "system.providerHealth is not stubbed").toBeDefined();
+    expect(tools, "system.toolsHealth is not stubbed").toBeDefined();
+    const badge = capabilityBadge({ connection: "unknown", providerTone: providers!.overallTone, providerErrored: false, toolSummary: tools!.summary, toolsErrored: false });
+    expect(badge).toEqual({ label: "ready", cautious: false, unknown: false, checking: false });
+    // positive control: with the tools read missing the same call says it is still checking
+    expect(capabilityBadge({ connection: "unknown", providerTone: "green", providerErrored: false }).label).toBe("checking capabilities");
+  });
+
+  it("every read /chat makes on load is stubbed, or listed here with the reason it is not", () => {
+    const NOT_STUBBED: Record<string, string> = {
+      "system.diagnoseChat": "only the /diagnose command fetches it (chat-composer.tsx)",
+      "brain.mediaMoments": "media-saved-moments.tsx renders only inside the focus panel, which renders null unless the operator opts in",
+      "systemAutomation.getPendingApprovals": "the PWA badge (app-badge.tsx); renders nothing, and the Badge API is absent in CI chromium",
+      "systemAutomation.approvals": "the PWA badge (app-badge.tsx); same",
+    };
+    const files = [
+      "features/chat-v2/components/chat-capability-indicator.tsx",
+      "features/chat-v2/components/chat-composer.tsx",
+      "features/chat-v2/components/chat-island.tsx",
+      "features/chat-v2/components/chat-message-list.tsx",
+      "features/chat-v2/components/media-saved-moments.tsx",
+      "hooks/use-conversations.ts",
+      "components/ultron/bottom-pulse-ticker.tsx",
+      "components/hud/app-badge.tsx",
+    ];
+    const used = new Set<string>();
+    for (const f of files) {
+      const src = read(path.join(APP_DIR, f));
+      for (const m of src.matchAll(/trpc\.([a-zA-Z]+)\.([a-zA-Z]+)\.use(?:Suspense)?Query\b/g)) used.add(`${m[1]}.${m[2]}`);
+      for (const m of src.matchAll(/utils\.([a-zA-Z]+)\.([a-zA-Z]+)\.fetch\(/g)) used.add(`${m[1]}.${m[2]}`);
+    }
+    // positive control: the scan sees the four reads this wave stubs
+    for (const p of ["chat.list", "chat.conversation", "system.providerHealth", "system.toolsHealth"]) expect(used.has(p), `the scan never saw ${p}`).toBe(true);
+    const uncovered = [...used].filter((p) => !(p in TRPC_FIXTURES) && !(p in NOT_STUBBED));
+    expect(uncovered, "a /chat read is neither stubbed nor explained").toEqual([]);
+    for (const p of ["chat.list", "chat.conversation", "system.providerHealth", "system.toolsHealth"]) expect(p in TRPC_FIXTURES, `${p} is not stubbed`).toBe(true);
+  });
+
+  it("the unstubbed gate now covers the chat reads, and still ignores the rest of the shell", () => {
+    expect(disallowedUnstubbed(["GET chat.list", "GET chat.conversation", "GET system.providerHealth", "GET system.toolsHealth", "GET system.sessionExpiry", "POST chat.deleteMessage"])).toEqual([
+      "GET chat.conversation",
+      "GET chat.list",
+      "GET system.providerHealth",
+      "GET system.toolsHealth",
+    ]);
   });
 });
 
@@ -1094,6 +1202,7 @@ describe("tsconfig.e2e.json typechecks the fixture lane", () => {
       for (const f of [
         "tests/e2e/fixtures/home.ts",
         "tests/e2e/fixtures/missions.ts",
+        "tests/e2e/fixtures/chat.ts",
         "tests/e2e/fixtures/index.ts",
         "tests/e2e/v3-gate.ts",
         "tests/e2e/visible-transformation-v3.spec.ts",
