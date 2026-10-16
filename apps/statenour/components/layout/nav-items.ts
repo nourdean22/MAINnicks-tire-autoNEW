@@ -110,9 +110,41 @@ export const NAV: NavEntry[] = [
   { href: "/settings", label: "Settings", icon: Settings, section: "operate", footer: true },
 ];
 
-/** The 4 always-visible bottom content tabs (a synthetic "More" is added by the renderer). */
+/** The 4 bottom content tabs. Since UI v3 W1b the fourth slot is pinnable (default Journal), and the fifth is Command. */
 export const BOTTOM_TABS = NAV.filter((n) => n.bottomTab);
 
 /** MORE-sheet rows for a verb section — excludes the bottom tabs + footer. */
 export const bySection = (s: NavSection) =>
   NAV.filter((n) => n.section === s && !n.bottomTab && !n.footer);
+
+// ── UI v3 W1b · pin-to-tab-bar ───────────────────────────────────────
+// The fourth bottom slot holds one entry the operator picks from the More
+// sheet (Linear mobile, 2026-01-22); Journal is the default. The stored
+// value is a bare href in localStorage (lib/state/pinned-tab-store.ts);
+// everything below is pure so the bar, the sheet and the tests share one
+// answer for "what is in the slot" and "what is a row".
+
+/** The default occupant of the pinned slot. Pinning it again restores the default. */
+export const DEFAULT_PINNED_HREF = "/journal";
+
+/** The three slots that never move: every bottom tab except the default pinned one. */
+export const FIXED_TABS = BOTTOM_TABS.filter((n) => n.href !== DEFAULT_PINNED_HREF);
+
+/** A flat More row, or Journal itself. Hubs, the footer and the fixed tabs cannot take the slot (a fixed tab would show twice). */
+export const isPinnable = (n: NavEntry): boolean => {
+  if (n.footer) return false;
+  if (n.bottomTab) return n.href === DEFAULT_PINNED_HREF;
+  return n.flatRow === true;
+};
+
+/** The entry in the pinned slot for a stored href; anything stale, unknown or not pinnable is Journal. */
+export function resolvePinnedTab(stored: string | null | undefined, nav: NavEntry[]): NavEntry {
+  const hit = stored ? nav.find((n) => n.href === stored && isPinnable(n)) : undefined;
+  return hit ?? nav.find((n) => n.href === DEFAULT_PINNED_HREF) ?? nav[0];
+}
+
+/** MORE-sheet rows for a verb section given the pinned href: the pinned entry leaves, Journal joins Reflect when displaced. */
+export const moreRows = (s: NavSection, pinnedHref: string) =>
+  NAV.filter(
+    (n) => n.section === s && !n.footer && n.href !== pinnedHref && (!n.bottomTab || n.href === DEFAULT_PINNED_HREF),
+  );

@@ -28,14 +28,15 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { NAV, bySection, type NavSection } from "./nav-items";
+import { NAV, isPinnable, moreRows, resolvePinnedTab, type NavSection } from "./nav-items";
 import { useMoreSheetStore } from "@/lib/state/more-sheet-store";
+import { usePinnedTabStore } from "@/lib/state/pinned-tab-store";
 import { useRecentPages } from "@/lib/hooks/use-recent-pages";
 import { useSystemPulse } from "@/lib/hooks/use-system-pulse";
 import { pickSmartNow } from "@/lib/floating-home/smart-now";
 import { COMMAND_PALETTE_OPEN_EVENT } from "@/components/command-palette";
 import { CAPTURE_OPEN_EVENT } from "@/components/brain-dump-modal";
-import { Search, NotebookPen, ArrowRight, Clock, Brain, X } from "lucide-react";
+import { Search, NotebookPen, ArrowRight, Clock, Brain, X, Pin } from "lucide-react";
 import { NICK_PANE_OPEN_EVENT, NICK_PANE_MOUNTED_ATTR } from "@/components/mastery/nick-side-pane";
 
 const SECTIONS: { key: NavSection; label: string; ordinal: string }[] = [
@@ -91,6 +92,10 @@ export function MoreSheet() {
     open && typeof document !== "undefined" && document.documentElement.dataset[NICK_PANE_MOUNTED_ATTR] === "1";
   const pathname = usePathname() ?? "/";
   const { candidates: recentCandidates } = useRecentPages();
+  // UI v3 W1b · the pinned entry sits in the bar, so it is not a row here; Journal takes its place.
+  const pinnedHref = usePinnedTabStore((s) => s.href);
+  const pin = usePinnedTabStore((s) => s.pin);
+  const pinned = resolvePinnedTab(pinnedHref, NAV);
 
   // Auto-close on route change (a no-op via closeSheet if already closed).
   useEffect(() => {
@@ -202,7 +207,7 @@ export function MoreSheet() {
 
         {/* Verb sections — read from the single NAV source */}
         {SECTIONS.map(({ key, label, ordinal }) => {
-          const rows = bySection(key);
+          const rows = moreRows(key, pinned.href);
           if (rows.length === 0) return null;
           return (
             <div key={key} className="border-t border-[var(--border-default)] px-3 py-2">
@@ -226,23 +231,36 @@ export function MoreSheet() {
                   const Icon = n.icon;
                   const active = isActiveHref(pathname, n.href);
                   return (
-                    <Link
-                      key={n.href}
-                      href={n.href}
-                      onClick={close}
-                      aria-current={active ? "page" : undefined}
-                      className={cn(
-                        "flex min-h-11 items-center gap-2 rounded-control px-2.5 py-2 press-spring",
-                        active
-                          ? "bg-accent-soft text-fg"
-                          : "text-[var(--text-secondary)] hover:bg-[var(--bg-raised)] hover:text-[var(--text-primary)]",
+                    // The Pin control is a sibling of the link, never inside it: a tap on it cannot
+                    // navigate, and Tab reaches the link and then the pin.
+                    <div key={n.href} className="flex min-w-0 items-center">
+                      <Link
+                        href={n.href}
+                        onClick={close}
+                        aria-current={active ? "page" : undefined}
+                        className={cn(
+                          "flex min-h-11 items-center gap-2 rounded-control px-2.5 py-2 press-spring min-w-0 flex-1",
+                          active
+                            ? "bg-accent-soft text-fg"
+                            : "text-[var(--text-secondary)] hover:bg-[var(--bg-raised)] hover:text-[var(--text-primary)]",
+                        )}
+                      >
+                        <Icon size={15} strokeWidth={active ? 2.25 : 1.75} className="shrink-0" />
+                        <span className="truncate text-[13px] font-medium">
+                          {n.label}
+                        </span>
+                      </Link>
+                      {isPinnable(n) && (
+                        <button
+                          type="button"
+                          onClick={() => pin(n.href)}
+                          aria-label={`Pin ${n.label} to the tab bar`}
+                          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-control text-fg-tertiary hover:bg-surface-hover hover:text-fg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
+                        >
+                          <Pin size={14} strokeWidth={1.75} />
+                        </button>
                       )}
-                    >
-                      <Icon size={15} strokeWidth={active ? 2.25 : 1.75} className="shrink-0" />
-                      <span className="truncate text-[13px] font-medium">
-                        {n.label}
-                      </span>
-                    </Link>
+                    </div>
                   );
                 })}
               </div>
