@@ -99,6 +99,44 @@ describe("admin-v1 distance: the measure", () => {
     expect(gridDistance(a, b, 0).ratio).toBe(1);
   });
 
+  it("visualDistance itself reduces to 48 px cells: 8x18 at 390x844, 30x19 at 1440x900", async () => {
+    const phone = await render(390, 844, listPage(390, 844));
+    const desk = await render(1440, 900, listPage(1440, 900));
+    const p = await visualDistance(phone, phone, { width: 390, height: 844 });
+    const d = await visualDistance(desk, desk, { width: 1440, height: 900 });
+    expect([p.cols, p.rows]).toEqual([8, 18]);
+    expect([d.cols, d.rows]).toEqual([30, 19]);
+  });
+
+  it("1440: a 96x96 px slide needs registration (unregistered it reads as a redesign) and the shift is found", async () => {
+    const size = { width: 1440, height: 900 };
+    const a = await render(1440, 900, listPage(1440, 900));
+    const b = await render(1440, 900, listPage(1440, 900), 96, 96);
+    const registered = await visualDistance(a, b, size);
+    const unregistered = await visualDistance(a, b, size, { reach: 0 });
+    expect(unregistered.ratio).toBeGreaterThan(0.35);
+    expect(registered.ratio).toBeLessThan(0.35);
+    expect(registered.shift).not.toEqual({ dx: 0, dy: 0 });
+  });
+
+  it("measures luminance, not one colour channel: a pure green block on the void scores above 0.3", async () => {
+    const width = 390;
+    const height = 844;
+    const voidPx = Buffer.alloc(width * height * 3, 0); // pure black: a red-only read sees nothing at all
+    const green = Buffer.from(voidPx);
+    for (let y = 200; y < 700; y++) {
+      for (let x = 0; x < width; x++) {
+        const i = (y * width + x) * 3;
+        green[i] = 0;
+        green[i + 1] = 255;
+        green[i + 2] = 0;
+      }
+    }
+    const png = (px: Buffer) => sharp(px, { raw: { width, height, channels: 3 } }).png().toBuffer();
+    const d = await visualDistance(await png(voidPx), await png(green), { width, height });
+    expect(d.ratio).toBeGreaterThan(0.3);
+  });
+
   it("two all-black renders score 0, not NaN", () => {
     const z = { cols: 2, rows: 2, data: new Float64Array(4) };
     expect(gridDistance(z, z).ratio).toBe(0);

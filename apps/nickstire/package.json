@@ -21,6 +21,7 @@
     "prerender:semantic-check": "node scripts/check-prerender-semantic.mjs",
     "start": "NODE_ENV=production node dist/index.js",
     "check": "tsc --noEmit",
+    "typecheck:e2e": "tsc -p tests/e2e/tsconfig.json",
     "format": "prettier --write .",
     "test": "turbo run build --filter=\"nicks-tire-auto^...\" --output-logs=errors-only && vitest run",
     "test:only": "vitest run",

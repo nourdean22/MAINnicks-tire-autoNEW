@@ -24,6 +24,43 @@ describe("admin v1 fixture router", () => {
     expect(status).toMatchObject({ mfaRequired: false, mfaVerified: true, adminRole: "owner" });
   });
 
+  it("pins the DEMO clock to Tuesday 2026-10-13, 2:30 pm in Cleveland", () => {
+    expect(DEMO_CLOCK.toISOString()).toBe("2026-10-13T18:30:00.000Z");
+  });
+
+  it("revives Dates on the wire: auth.me createdAt deserializes as a Date (superjson meta is sent)", () => {
+    const res = answerAdminApi(batchUrl(["auth.me"]), DEMO_CLOCK);
+    const me = superjson.deserialize((res.body as Item[])[0].result!.data) as { createdAt: unknown };
+    expect(me.createdAt).toBeInstanceOf(Date);
+  });
+
+  it("answers an unbatched GET with a single envelope, and an unknown one with 404 and its name", () => {
+    const ok = answerAdminApi("http://x.test/api/trpc/proposals.counts", DEMO_CLOCK);
+    expect(ok.status).toBe(200);
+    expect(ok.missing).toEqual([]);
+    expect(superjson.deserialize((ok.body as Item).result!.data)).toEqual({ readable: true, count: 3 });
+    const miss = answerAdminApi("http://x.test/api/trpc/reports.secretThing", DEMO_CLOCK);
+    expect(miss.status).toBe(404);
+    expect(miss.missing).toEqual(["reports.secretThing"]);
+    expect((superjson.deserialize((miss.body as Item).error!) as { data: { code: string } }).data.code).toBe("NOT_FOUND");
+  });
+
+  it("answers an empty /api/trpc/ path as 404 and names the path", () => {
+    const res = answerAdminApi("http://x.test/api/trpc/", DEMO_CLOCK);
+    expect(res.status).toBe(404);
+    expect(res.missing).toEqual(["/api/trpc/"]);
+    expect((superjson.deserialize((res.body as Item).error!) as { data: { code: string } }).data.code).toBe("NOT_FOUND");
+  });
+
+  it("the overview bundle never claims a slice is available while its value is null", () => {
+    const bundle = (answerProcedure("adminDashboard.overviewMediumBundle", undefined, DEMO_CLOCK) as {
+      data: { slices: Record<string, { available: boolean }> } & Record<string, unknown>;
+    }).data;
+    for (const [name, slice] of Object.entries(bundle.slices)) {
+      if (slice.available) expect(bundle[name], `slice ${name} is available`).not.toBeNull();
+    }
+  });
+
   it("returns NOT_FOUND for a procedure with no fixture", () => {
     expect(answerProcedure("customers.deleteEverything", undefined, DEMO_CLOCK)).toBe(NOT_FOUND);
   });
@@ -64,8 +101,8 @@ describe("admin v1 fixture router", () => {
       (bundle.callbacks as Array<{ status: string }>).filter((c) => c.status === "new" || c.status === "pending").length +
       bundle.owedTexts.length +
       wos.length;
-    expect(queueish).toBeGreaterThanOrEqual(6);
-    expect(queueish).toBeLessThanOrEqual(9);
+    // 2 new bookings, 2 active leads, 1 open callback, 1 owed text, 2 active work orders.
+    expect(queueish).toBe(8);
     const held = (answerProcedure("proposals.list", undefined, DEMO_CLOCK) as { data: Array<{ status: string }> }).data;
     expect(held.filter((p) => p.status === "pending_review")).toHaveLength(3);
   });

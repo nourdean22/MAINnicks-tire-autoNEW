@@ -145,6 +145,40 @@ function healthyCamera(cam: (typeof EXPECTED_CAMERAS)[number], c: Date) {
   };
 }
 
+/** getDashboardStats(): the bundle's stats slice and adminDashboard.stats are the same read. */
+const dashboardStats = () => ({
+  _unavailableCounts: [],
+  bookings: { total: 3, new: 2, confirmed: 0, completed: 1, cancelled: 0, thisWeek: 3, byService: [] },
+  leads: { total: 2, new: 1, contacted: 1, booked: 0, closed: 0, lost: 0, urgent: 1, thisWeek: 2, bySource: [], avgUrgency: 3.5 },
+  content: { totalArticles: 0, published: 0, drafts: 0, rejected: 0, totalNotifications: 0, activeNotifications: 0, generationLogs: 0, recentGenerations: 0 },
+  chat: { totalSessions: 0, converted: 0, thisWeek: 0 },
+  users: { total: 1, admins: 1 },
+  recentActivity: [],
+  sourceAttribution: { bookingsBySource: [], leadsBySource: [], callsBySource: [] },
+  callTracking: { totalCalls: 6, thisWeek: 6, byPage: [] },
+  callbacks: { total: 1, new: 1, completed: 0, thisWeek: 1 },
+  memberships: { warning: 0 },
+  tires: { new: 0 },
+  shopFloor: { invoicesToday: 7, invoicesThisWeek: 12, invoicesThisMonth: 81, revenueToday: 1840, revenueThisWeek: 3120, revenueThisMonth: 21400, dataAsOf: null, avgTicket: 263, estimatesToday: 4, estimatesThisWeek: 9, conversionRate: 0.62, declinedWorkCount: 3, declinedWorkValue: 940, paymentMethods: [], totalCustomers: 0, vipCustomers: 0 },
+});
+
+/** getSiteHealth(): its own honest unknowns (0 = "GSC sync required", review numbers fetched elsewhere). */
+const siteHealth = () => ({
+  domains: ["nickstire.org", "www.nickstire.org"],
+  sitemapPageCount: 120,
+  totalBlogPosts: 16,
+  hardcodedBlogPosts: 6,
+  dynamicBlogPosts: 10,
+  googleReviewRating: null,
+  googleReviewCount: null,
+  sheetsConfigured: false,
+  sheetsUrl: "",
+  indexedPages: 0,
+  notIndexedPages: 0,
+  crawledNotIndexed: 0,
+  discoveredNotIndexed: 0,
+});
+
 const ok = { available: true, error: null };
 
 export const HANDLERS = {
@@ -155,11 +189,11 @@ export const HANDLERS = {
   ],
   "adminSecurity.integrationFreshness": (_i, c) => ({ readable: true, source: "alg_probe_log", connected: true, lastSuccessfulAt: at(c, 12), lastAttemptAt: at(c, 12), lastAttemptOutcome: "success", failuresSinceLastSuccess: 0, generatedAt: c }),
   "adminDashboard.overviewMediumBundle": (_i, c) => ({
-    stats: null,
+    stats: dashboardStats(),
     bookings: bookings(c),
     leads: leads(c),
     callbacks: callbacks(c),
-    health: null,
+    health: siteHealth(),
     owedTexts: owedTexts(c),
     callbackServed: {},
     slices: { stats: ok, bookings: ok, leads: ok, callbacks: ok, health: ok, owedTexts: ok, callbackServed: ok },
@@ -228,21 +262,7 @@ export const HANDLERS = {
   "lot.commissioningRuns": () => ({ ok: true, runs: [] }),
   "nourOsBridge.shopFloor": () => ({ active: 2, blocked: 1, overdue: 0, readyForPickup: 0, inProgress: 1, totalValueInProgress: 701, byStatus: { in_progress: 1, waiting_parts: 1 } }),
   "contentAdmin.operationsSignal": () => ({ heldReels: 0, openPublishes: 0, total: 0, unknown: false, videoProviderBlocked: 0 }),
-  "adminDashboard.stats": () => ({
-    _unavailableCounts: [],
-    bookings: { total: 3, new: 2, confirmed: 0, completed: 1, cancelled: 0, thisWeek: 3, byService: [] },
-    leads: { total: 2, new: 1, contacted: 1, booked: 0, closed: 0, lost: 0, urgent: 1, thisWeek: 2, bySource: [], avgUrgency: 3.5 },
-    content: { totalArticles: 0, published: 0, drafts: 0, rejected: 0, totalNotifications: 0, activeNotifications: 0, generationLogs: 0, recentGenerations: 0 },
-    chat: { totalSessions: 0, converted: 0, thisWeek: 0 },
-    users: { total: 1, admins: 1 },
-    recentActivity: [],
-    sourceAttribution: { bookingsBySource: [], leadsBySource: [], callsBySource: [] },
-    callTracking: { totalCalls: 6, thisWeek: 6, byPage: [] },
-    callbacks: { total: 1, new: 1, completed: 0, thisWeek: 1 },
-    memberships: { warning: 0 },
-    tires: { new: 0 },
-    shopFloor: { invoicesToday: 7, invoicesThisWeek: 12, invoicesThisMonth: 81, revenueToday: 1840, revenueThisWeek: 3120, revenueThisMonth: 21400, dataAsOf: null, avgTicket: 263, estimatesToday: 4, estimatesThisWeek: 9, conversionRate: 0.62, declinedWorkCount: 3, declinedWorkValue: 940, paymentMethods: [], totalCustomers: 0, vipCustomers: 0 },
-  }),
+  "adminDashboard.stats": () => dashboardStats(),
   "controlCenter.shopSales": () => ({
     available: true,
     cents: 312_000,

@@ -28,14 +28,22 @@
  * slid back into place and scores high. Identical renders score 0.
  *
  * Statenour calibration (2026-09-16): shifted 11.4 to 26.4%, recomposed 49.8 to
- * 60.8%, threshold 0.35. The nickstire numbers per viewport are recorded by the
- * controls in admin-v1-distance.test.ts (synthetic) and admin-v1-gate.spec.ts
- * (real renders); the threshold stays 0.35 unless those controls say it cannot.
+ * 60.8%, threshold 0.35. Here the controls ASSERT their thresholds rather than
+ * record numbers: admin-v1-distance.test.ts (synthetic: identical 0, slides under
+ * 0.35, recomposed above 0.35, the cell size, registration and luminance pinned)
+ * and admin-v1-gate.spec.ts (real renders: re-render under 0.02, slides under
+ * 0.35, a different page above the 0.30 real-render floor). The threshold stays
+ * 0.35 unless those controls say it cannot.
+ *
+ * Not ported: statenour's `inkCoverage` (its "page failed to render" check). The
+ * admin specs prove the render instead, by waiting for a DEMO row and failing on
+ * any unstubbed read or first-party error.
  *
  * PNG decoding: `sharp`, the decoder the statenour module uses. Here it is a
- * direct dependency of this app (package.json), so no resolve-through-next.
+ * direct dependency of this app (package.json), so no resolve-through-next. It is
+ * imported lazily, inside massGrid, so a Playwright run that merely COLLECTS the
+ * specs (the live canary job collects every *.spec.ts) never loads it.
  */
-import sharp from "sharp";
 
 export interface DistanceOptions {
   /** Cell size in CSS px of the viewport the render was taken at. Default 48. */
@@ -68,6 +76,7 @@ export async function massGrid(
 ): Promise<MassGrid> {
   const cols = Math.max(1, Math.round(viewport.width / cellPx));
   const rows = Math.max(1, Math.round(viewport.height / cellPx));
+  const { default: sharp } = await import("sharp");
   const { data } = await sharp(png)
     .resize({ width: cols, height: rows, fit: "fill", kernel: "cubic" })
     .grayscale()
