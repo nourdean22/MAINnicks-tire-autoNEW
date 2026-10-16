@@ -1,5 +1,22 @@
 # Reconciliation · statenour-os
 
+> ## 2026-10-16 · UI v3 Wave 3b · Chat, the six-feet composition (branch `statenour/ui-v3-w3b`) · 1 statenour PR
+>
+> Not live until merged. Every claim below is from unit tests and code reading; the two distance readings (chat at 390 and 1440 against `chat-phone.png` / `chat-desktop.png`, captured from main 7dc82474c and carried in this PR because a baseline identical to the render measures 0.000) come only from this PR's e2e run.
+>
+> - **Header (`chat-island.tsx`, `chat-capability-indicator.tsx`, `lib/capability-label.ts`).** One line: "Nick", a 10 px dot with one word at md-up (`capabilityWord`: Ready / Checking / Unknown / Degraded / Offline) while the full badge label stays in the link's accessible name (`${label} (capability health)`) and a visually hidden span; the dot's shape carries the state next to its colour (filled measured, a ring for unknown, the spinner only while a read is in flight); still a Link to /system/health. "Private" in sentence case. Below md the header shows History and More; auto-read, context and voice sit in an in-DOM More sheet (Dialog; focus returns to More); at md and up all four stay. The five controls keep the 44 px box (`max-md:hidden` on the three that leave the phone line; mobile-a11y's count 4 to 5). `settleChat` waits on the link named "ready (capability health)".
+> - **Empty state and the page-context chip (`chat-message-list.tsx`, `lib/page-context-anchors.ts`, `use-chat-stream.ts`).** The NICK eyebrow and the description are gone; the headline carries `vt-verdict`; the four starters keep their words. Page context was attached silently and always; the chip above the composer says "Page context: <route> attached" and its x leaves the anchors out of the next send (nothing written on the server; the send after re-attaches). The per-reply speaker label reads "Nick".
+> - **Hold card.** `useChatStream` exposes `hold` (set where the two hold toasts fire, cleared by a replay that went, a new send, resetTurn); the error card renders it under Retry. The 38 toast assertions are untouched; one glue case added.
+> - **Honest History reads (`hooks/use-conversations.ts`, `operator-conversation-drawer.tsx`).** The list read carries loading / error / ok ("History unavailable: Retry", "Loading history", and "No conversations in this view." only for a measured empty list); `loadConvo` answers whether THIS request's rows landed, the island moves the active conversation only then (resetTurn still first), and a failed open renders a Retry line instead of the starters; delete / rename / archive / Load older failures toast.
+> - **Grammar.** The net at base.css:332 covers the chat shell (the `data-chat-shell` attribute stays as the render's island locator); seven uppercase sites reworded with their text children re-read, nine em dashes, `d.urgency` through a word map; ratchet uppercase 12 to 5, emDash 284 to 275.
+> - **Desktop.** Read, not changed: `--bottom-chrome-h` is published from the measured chrome and the tab row is `xl:hidden`, so the xl reservation is the ticker (about 20 px) plus the safe area, not the inferred 96 px; `tests/components/bottom-tab-bar-xl-reservation.test.tsx` pins it (two mutants red).
+>
+> **Flagged · NOT fixed**
+> - The pin toggle writes localStorage only; a refused write still flips in memory and is not toasted (no server write exists to fail).
+> - `use-chat-stream.ts:457` still carries an inline literal that drifts from RETRY_HELD_RAN; the brief ruled out logic edits there.
+> - The chat-states e2e win32 baselines stay stale (W3a flag).
+> - Not measured here: the six-feet distance at 390 and 1440, and a real iPhone keyboard pass.
+
 > ## 2026-10-16 · UI v3 Wave 3a · the Chat six-feet instrument (branch `statenour/ui-v3-w3a`) · 1 statenour PR, nothing user-visible
 >
 > Not live until merged. Every claim below is from unit tests, a local Playwright run against a hermetic `next dev --webpack` (dummy env, no database) and code reading; CI has not run this PR yet.
