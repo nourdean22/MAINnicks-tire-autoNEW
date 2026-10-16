@@ -137,8 +137,8 @@ export function NextActionWhisperer() {
     >
       <Zap size={14} className="text-fg-tertiary shrink-0" />
       <div className="flex-1 min-w-0">
-        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-0.5">
-          next action · {suggestion.effort ? EFFORT_LABEL[suggestion.effort] ?? suggestion.effort : "—"} slot
+        <p className="font-mono text-[11px] text-fg-tertiary mb-0.5">
+          Next action · {suggestion.effort ? EFFORT_LABEL[suggestion.effort] ?? suggestion.effort : "—"} slot
         </p>
         <p className="text-[12px] text-fg leading-snug truncate">
           {suggestion.title}

@@ -1,4 +1,5 @@
 import { ParentBackLink } from "./parent-back-link";
+import { eyebrowAddsInformation } from "./header-diet";
 
 type PageHeaderProps = {
   /** v10.0.221 · ReactNode so adopters can fold a domain code +
@@ -18,10 +19,14 @@ type PageHeaderProps = {
    *  Pre-fix, sub-pages were a dead end · operator had to retype URLs. */
   parentHref?: string;
   parentLabel?: string;
+  /** UI v3 header diet. "md-up" (default) shows the description from the md breakpoint up; "never"
+   *  leaves it out at every width (the core pages); "always" keeps it at every width, for a description
+   *  that carries a live value (a count, a version) the phone has nowhere else. The `description` prop stays. */
+  descriptionVisibility?: "md-up" | "never" | "always";
 };
 
 
-export function PageHeader({ eyebrow, title, description, actions, parentHref, parentLabel }: PageHeaderProps) {
+export function PageHeader({ eyebrow, title, description, actions, parentHref, parentLabel, descriptionVisibility = "md-up" }: PageHeaderProps) {
   return (
     <header className="page-header">
       <div>
@@ -30,9 +35,11 @@ export function PageHeader({ eyebrow, title, description, actions, parentHref, p
             <ParentBackLink href={parentHref} label={parentLabel} />
           </div>
         )}
-        <p className="eyebrow">{eyebrow}</p>
+        {eyebrowAddsInformation(eyebrow, title, parentLabel) ? <p className="eyebrow">{eyebrow}</p> : null}
         <h1 className="page-title">{title}</h1>
-        <p className="page-copy">{description}</p>
+        {descriptionVisibility === "never" ? null : (
+          <p className={descriptionVisibility === "always" ? "page-copy" : "page-copy hidden md:block"}>{description}</p>
+        )}
       </div>
       {actions ? <div className="page-actions">{actions}</div> : null}
     </header>

@@ -50,9 +50,9 @@ function Row({ item }: { item: OwnerItem }) {
         {item.detail && <span className="block truncate text-[13px] text-fg-secondary">{item.detail}</span>}
         <span className="block truncate font-mono text-[11px] text-fg-tertiary">{item.evidence}</span>
       </span>
-      <span className="shrink-0 text-right font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+      <span className="shrink-0 text-right font-mono text-[11px] text-fg-tertiary">
         {age(item.ageMin)}
-        {item.href && <span className="block text-fg-secondary group-hover:text-fg">open ↗</span>}
+        {item.href && <span className="block text-fg-secondary group-hover:text-fg">Open ↗</span>}
       </span>
     </>
   );
@@ -120,8 +120,8 @@ export function OwnerPanel() {
         </ul>
       )}
 
-      <h3 className="mt-6 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
-        decisions waiting · {decisionsUnknown ? "unknown" : p.decisions.length + p.decisionsHidden}
+      <h3 className="mt-6 font-mono text-[11px] text-fg-tertiary">
+        Decisions waiting · {decisionsUnknown ? "unknown" : p.decisions.length + p.decisionsHidden}
       </h3>
       {p.decisions.length > 0 ? (
         <ul aria-label="decisions waiting" className="mt-2 divide-y divide-edge border-y border-edge">
@@ -144,7 +144,7 @@ export function OwnerPanel() {
         </p>
       )}
 
-      <h3 className="mt-6 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">cost per outcome</h3>
+      <h3 className="mt-6 font-mono text-[11px] text-fg-tertiary">Cost per outcome</h3>
       <dl className="mt-2 grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
         {p.cost.map((t) => (
           <div key={t.key} className="min-w-0">

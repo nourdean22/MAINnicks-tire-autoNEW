@@ -178,7 +178,7 @@ export function JournalInsightsPreview() {
       className="rounded-surface border border-edge-subtle bg-content p-4 space-y-3"
     >
       <header className="flex items-center gap-2">
-        <h3 className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+        <h3 className="font-mono text-[11px] text-fg-tertiary">
           <span className="text-fg-secondary">NICK ·</span> extracted journal takes
         </h3>
         <Badge variant="outline" className="ml-auto rounded-micro text-[11px] font-mono text-fg-tertiary border-edge-subtle bg-transparent">

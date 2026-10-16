@@ -68,7 +68,7 @@ export function OpportunityCard({ opportunity, onStatusChange }: OpportunityCard
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div className="flex flex-wrap items-center gap-2">
-          <span className={`rounded-micro border px-2 py-0.5 font-mono text-[11px] font-medium uppercase tracking-[0.12em] ${domainColor}`}>
+          <span className={`rounded-micro border px-2 py-0.5 font-mono text-[11px] font-medium ${domainColor}`}>
             {opportunity.domain}
           </span>
           <span className="flex items-center gap-1 rounded-micro bg-surface-interactive px-2 py-0.5 text-xs font-semibold text-fg-tertiary">

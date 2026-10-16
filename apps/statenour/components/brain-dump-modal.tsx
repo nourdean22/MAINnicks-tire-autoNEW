@@ -255,7 +255,7 @@ export function BrainDumpModal() {
         <div className="px-4 py-3 border-b border-[var(--border-default)] flex items-center justify-between">
           <div className="flex items-center gap-2">
             <NotebookPen size={14} className="text-[var(--gold)]" />
-            <DialogTitle className="text-[10px] font-[var(--font-display)] font-bold uppercase tracking-[0.22em] text-[var(--gold)]">
+            <DialogTitle className="text-[10px] font-[var(--font-display)] font-bold text-[var(--gold)]">
               Capture a Thought
             </DialogTitle>
             {inFlight > 0 && (
@@ -326,7 +326,7 @@ export function BrainDumpModal() {
                   }}
                   aria-pressed={m.key === mode.key}
                   className={cn(
-                    "rounded-micro border px-2 py-1 text-[9px] font-bold uppercase tracking-wider transition-all",
+                    "rounded-micro border px-2 py-1 text-[9px] font-bold transition-all",
                     "[@media(pointer:coarse)]:min-h-[44px] [@media(pointer:coarse)]:px-3",
                     m.key === mode.key
                       ? "bg-[var(--gold)]/15 border-[var(--gold)]/40 text-[var(--gold)]"
@@ -399,7 +399,7 @@ export function BrainDumpModal() {
               <Sparkles size={11} className="text-emerald-400 flex-shrink-0" />
               <span className="text-[10px] text-emerald-300 font-medium truncate">
                 Last:{" "}
-                <span className="font-bold uppercase">{lastResult.entryType}</span>
+                <span className="font-bold">{lastResult.entryType}</span>
                 {lastResult.tasksCreated > 0 && (
                   <span className="text-amber-400">
                     {" · "}+{lastResult.tasksCreated} task

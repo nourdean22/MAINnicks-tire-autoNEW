@@ -42,7 +42,7 @@ function Row({ label, value, tone }: { label: string; value: string | null | und
   if (!value) return null;
   return (
     <div>
-      <dt className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">{label}</dt>
+      <dt className="font-mono text-[11px] text-fg-tertiary">{label}</dt>
       <dd className={tone === "warn" ? "text-[13px] text-amber-300" : tone === "gold" ? "text-[13px] text-fg" : "text-[13px] text-fg-secondary"}>
         {value}
       </dd>
@@ -137,11 +137,11 @@ export function TaskInspector({ entity }: InspectorPanelProps) {
     <div className="space-y-5" data-task-inspector={t.id}>
       <header className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-micro border border-edge-default px-1.5 py-px font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+          <span className="rounded-micro border border-edge-default px-1.5 py-px font-mono text-[11px] text-fg-tertiary">
             {t.status.toLowerCase()}
           </span>
           {t.mission ? (
-            <span className="rounded-micro border border-edge-default px-1.5 py-px font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+            <span className="rounded-micro border border-edge-default px-1.5 py-px font-mono text-[11px] text-fg-tertiary">
               {t.mission.title}
             </span>
           ) : null}
@@ -162,7 +162,7 @@ export function TaskInspector({ entity }: InspectorPanelProps) {
       </dl>
 
       <section aria-label="Why">
-        <p className="mb-1 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">why this priority</p>
+        <p className="mb-1 font-mono text-[11px] text-fg-tertiary">Why this priority</p>
         {t.priorityManual && manualScore !== null ? (
           <p className="font-mono text-[12px] text-fg-secondary" data-priority-manual={manualScore}>
             manual override {manualScore} · set by you; the scorer is not consulted
@@ -176,13 +176,13 @@ export function TaskInspector({ entity }: InspectorPanelProps) {
             {typeof t.autoPriority === "number" ? ` → ${t.autoPriority}` : ""}
           </p>
         ) : (
-          <p className="font-mono text-[11px] text-fg-tertiary">not scored yet · the scorer has not seen this task</p>
+          <p className="font-mono text-[11px] text-fg-tertiary">Not scored yet · the scorer has not seen this task</p>
         )}
       </section>
 
       <EntityActionRow entities={[entity]} labelOf={() => t.title} />
       {!pageActions || pageActions.length === 0 ? (
-        <p className="font-mono text-[11px] text-fg-tertiary">complete · snooze · park run from the Missions board — open it there to act</p>
+        <p className="font-mono text-[11px] text-fg-tertiary">Complete · snooze · park run from the Missions board — open it there to act</p>
       ) : null}
     </div>
   );

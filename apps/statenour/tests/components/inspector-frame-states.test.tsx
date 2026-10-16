@@ -79,7 +79,7 @@ describe("InspectorFrame / mode", () => {
   it("peek shows the eyebrow word and the keyboard hint", () => {
     const html = render({ mode: "peek" });
     expect(html).toContain('data-inspector-mode="peek"');
-    expect(html).toContain(">peek<");
+    expect(html).toContain(">Peek<");
     const body = text(html);
     expect(body).toContain("Enter opens");
     expect(body).toContain("Esc closes");
@@ -88,7 +88,7 @@ describe("InspectorFrame / mode", () => {
   it("POSITIVE CONTROL: inspect shows neither", () => {
     const html = render({ mode: "inspect" });
     expect(html).toContain('data-inspector-mode="inspect"');
-    expect(html).not.toContain(">peek<");
+    expect(html).not.toContain(">Peek<");
     const body = text(html);
     expect(body).not.toContain("Enter opens");
     expect(body).not.toContain("Esc closes");

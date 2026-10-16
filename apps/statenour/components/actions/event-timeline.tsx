@@ -97,8 +97,8 @@ export function EventTimeline({ taskId }: EventTimelineProps) {
 
   return (
     <div className="space-y-1">
-      <div className="text-[11px] uppercase tracking-[0.12em] text-fg-tertiary font-mono">
-        timeline · {events.length}
+      <div className="text-[11px] text-fg-tertiary font-mono">
+        Timeline · {events.length}
       </div>
       <ul className="space-y-0.5">
         {events.slice(0, 8).map((e) => {

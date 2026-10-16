@@ -139,14 +139,14 @@ export function PersonaDriftCard() {
       data-testid="persona-drift-card"
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+        <span className="inline-flex items-center gap-2 font-mono text-[11px] text-fg-tertiary">
           <Compass size={11} />
-          identity · drift
+          Identity · drift
           <span className="rounded-micro border border-edge-default px-1 py-px text-[11px] tabular-nums text-fg-secondary">
             {items.length} · {Math.round(strongest * 100)}% max
           </span>
         </span>
-        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary tabular-nums">
+        <span className="font-mono text-[11px] text-fg-tertiary tabular-nums">
           7d window
         </span>
       </div>
@@ -161,7 +161,7 @@ export function PersonaDriftCard() {
               <div className="-mx-1 flex items-start gap-2 px-1 py-1 rounded-micro">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-baseline gap-1.5">
-                    <span className="shrink-0 font-mono text-[11px] uppercase tracking-[0.12em] text-amber-400/80 tabular-nums">
+                    <span className="shrink-0 font-mono text-[11px] text-amber-400/80 tabular-nums">
                       {driftPct}%
                     </span>
                     <span className="text-fg">
@@ -215,7 +215,7 @@ export function PersonaDriftCard() {
           );
         })}
         {more > 0 && (
-          <li className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary pl-3">
+          <li className="font-mono text-[11px] text-fg-tertiary pl-3">
             <span className="inline-flex items-center gap-1">
               <ChevronRight size={9} />+ {more} more in window
             </span>

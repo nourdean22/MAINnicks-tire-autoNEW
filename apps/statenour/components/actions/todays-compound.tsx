@@ -135,8 +135,8 @@ export function TodaysCompound() {
       aria-label="today's compounded growth"
       className="flex items-center gap-1 flex-wrap rounded-control border border-edge-subtle bg-content px-2.5 py-1.5"
     >
-      <span className="text-[11px] font-mono uppercase tracking-[0.12em] text-[var(--text-tertiary)] shrink-0">
-        today ·
+      <span className="text-[11px] font-mono text-[var(--text-tertiary)] shrink-0">
+        Today ·
       </span>
       {chips.map((c) => {
         const inner = (

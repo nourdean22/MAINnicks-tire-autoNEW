@@ -165,12 +165,12 @@ interface LifeGoal {
 // Ambition Engine P1 · stat key → character-sheet meta (color/icon/label)
 // for the goal-card stat chips. Built once from the mastery config so the
 // chips match the /stats board exactly.
-const STAT_BY_KEY: Record<string, { label: string; color: string; icon: string }> =
+const STAT_BY_KEY: Record<string, { label: string; color: string }> =
   Object.fromEntries(
     DOMAINS.map(
-      (d): [string, { label: string; color: string; icon: string }] => [
+      (d): [string, { label: string; color: string }] => [
         d.key,
-        { label: d.label, color: d.color, icon: d.icon },
+        { label: d.label, color: d.color },
       ],
     ),
   );
@@ -749,7 +749,7 @@ export function GoalBoard() {
                 className="h-7 bg-content border-edge-subtle text-[11px] placeholder:text-fg-tertiary"
               />
               <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="font-mono text-[11px] text-fg-tertiary uppercase tracking-[0.12em]">
+                <span className="font-mono text-[11px] text-fg-tertiary">
                   Horizon:
                 </span>
                 {(["DAY", "WEEK", "MONTH", "QUARTER", "YEAR", "LIFE"] as Horizon[]).map(
@@ -816,7 +816,7 @@ export function GoalBoard() {
       {/* ── AI suggestions ── */}
       {suggested.length > 0 && (
         <div className="space-y-1.5">
-          <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-violet-400/80 px-0.5">
+          <p className="text-[11px] font-mono text-violet-400/80 px-0.5">
             Nick suggests ({suggested.length})
           </p>
           {suggested.map((s, i) => (
@@ -1069,7 +1069,7 @@ export function GoalBoard() {
                               onChange={(e) => setEditDomain(e.target.value)}
                               className="bg-content border border-edge-default rounded-control px-2 py-0.5 text-[11px] text-fg-secondary focus:outline-none focus:border-accent"
                             >
-                              <option value="">— domain —</option>
+                              <option value="" disabled>Pick a domain</option>
                               <option value="business">business</option>
                               <option value="personal">personal</option>
                               <option value="health">health</option>
@@ -1081,7 +1081,7 @@ export function GoalBoard() {
                               onChange={(e) => setEditStatus(e.target.value)}
                               className="bg-content border border-edge-default rounded-control px-2 py-0.5 text-[11px] text-fg-secondary focus:outline-none focus:border-accent"
                             >
-                              <option value="">— status —</option>
+                              <option value="" disabled>Pick a status</option>
                               <option value="active">active</option>
                               <option value="paused">paused</option>
                               <option value="achieved">achieved</option>
@@ -1098,7 +1098,7 @@ export function GoalBoard() {
                             onChange={(e) => setEditParentId(e.target.value)}
                             className="w-full bg-content border border-edge-default rounded-control px-2 py-0.5 text-[11px] text-fg-secondary focus:outline-none focus:border-accent"
                           >
-                            <option value="">— no parent goal —</option>
+                            <option value="">No parent goal</option>
                             {goals
                               .filter((o) => o.id !== g.id)
                               .map((o) => (
@@ -1117,7 +1117,7 @@ export function GoalBoard() {
                               onChange={(e) => setEditKind(e.target.value)}
                               className="bg-content border border-edge-default rounded-control px-2 py-0.5 text-[11px] text-fg-secondary focus:outline-none focus:border-accent"
                             >
-                              <option value="">— kind —</option>
+                              <option value="" disabled>Pick a kind</option>
                               <option value="metric">metric (target)</option>
                               <option value="milestone">milestone (checklist)</option>
                               <option value="narrative">narrative (identity)</option>
@@ -1127,7 +1127,7 @@ export function GoalBoard() {
                               onChange={(e) => setEditConviction(e.target.value)}
                               className="bg-content border border-edge-default rounded-control px-2 py-0.5 text-[11px] text-fg-secondary focus:outline-none focus:border-accent"
                             >
-                              <option value="">— conviction —</option>
+                              <option value="">No conviction</option>
                               <option value="1">1 · meh</option>
                               <option value="2">2</option>
                               <option value="3">3</option>
@@ -1159,7 +1159,7 @@ export function GoalBoard() {
                             />
                           </div>
                           <div className="flex items-center gap-1.5">
-                            <span className="font-mono text-[11px] text-fg-tertiary uppercase tracking-[0.12em]">
+                            <span className="font-mono text-[11px] text-fg-tertiary">
                               Ambition:
                             </span>
                             {(["tenx", "incremental"] as const).map((a) => (
@@ -1265,7 +1265,7 @@ export function GoalBoard() {
                                 e.stopPropagation();
                                 const ok = await confirm({
                                   title: `Archive "${g.title}"?`,
-                                  body: `${v.reason}\n\nIt'll move to paused — you can revive it later from /goals.`,
+                                  body: `${v.reason}\n\nIt'll move to paused: you can revive it later from /goals.`,
                                   confirmLabel: "Archive",
                                 });
                                 if (ok) {
@@ -1348,7 +1348,7 @@ export function GoalBoard() {
                             {typeof g.conviction === "number" && (
                               <span
                                 className="inline-flex items-center gap-0.5 rounded-control border border-pink-500/30 bg-pink-500/5 px-1.5 py-0.5 text-pink-300/90"
-                                title="Conviction — how devastated you'd be to lose this"
+                                title="Conviction: how devastated you'd be to lose this"
                               >
                                 <Flame size={9} className="shrink-0" />
                                 {g.conviction}/5
@@ -1378,7 +1378,7 @@ export function GoalBoard() {
                             {(g.minutesInvested ?? 0) > 0 && g.progress > 0 && (
                               <span
                                 className="inline-flex items-center gap-0.5 rounded-control border border-edge-default bg-surface-interactive text-fg-tertiary px-1.5 py-0.5"
-                                title="Idiot index — hours invested per 1% of progress (lower is better)"
+                                title="Idiot index: hours invested per 1% of progress (lower is better)"
                               >
                                 <Gauge size={9} className="shrink-0" />
                                 {(Math.round((g.minutesInvested ?? 0) / 60) / g.progress).toFixed(1)}h/%
@@ -1502,7 +1502,7 @@ export function GoalBoard() {
                             return (
                               <span
                                 key={s.statKey}
-                                className="inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] font-mono uppercase tracking-[0.12em]"
+                                className="inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] font-mono"
                                 style={{
                                   color: d.color,
                                   borderColor: `${d.color}40`,
@@ -1510,7 +1510,6 @@ export function GoalBoard() {
                                 }}
                                 title={`Reps on this goal level ${d.label}`}
                               >
-                                <span aria-hidden>{d.icon}</span>
                                 <span>{d.label}</span>
                               </span>
                             );
@@ -1612,7 +1611,7 @@ export function GoalBoard() {
                           title="Open this task on the Actions page"
                         >
                           <Zap size={9} className="text-emerald-400 shrink-0" />
-                          <span className="font-mono uppercase tracking-[0.12em] text-emerald-400/70 shrink-0">
+                          <span className="font-mono text-emerald-400/70 shrink-0">
                             {g.nextMove.status === "DOING" ? "In flight:" : "Next:"}
                           </span>
                           <span className="text-fg-secondary truncate">
@@ -1639,7 +1638,7 @@ export function GoalBoard() {
                               setMilestonesGoalId(g.id);
                             }}
                             className="text-[11px] px-1.5 py-0.5 rounded-control border border-blue-500/40 bg-blue-500/10 text-blue-300 hover:border-blue-500/70 hover:bg-blue-500/25 transition-all font-medium inline-flex items-center gap-0.5"
-                            title="Break this goal into 3-5 milestones with Nick — then spawn the mission"
+                            title="Break this goal into 3-5 milestones with Nick, then spawn the mission"
                           >
                             <Brain size={8} />
                             Plan it
@@ -1725,7 +1724,7 @@ export function GoalBoard() {
                         {latestCoach ? (
                           <div className="mt-2 space-y-1.5">
                             <div className="flex items-center justify-between">
-                              <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-amber-400/70">
+                              <p className="text-[11px] font-mono text-amber-400/70">
                                 Nick&apos;s read
                               </p>
                               <button
@@ -1742,7 +1741,7 @@ export function GoalBoard() {
                             <div className="flex items-start gap-2 p-2 rounded-surface bg-emerald-500/5 border border-emerald-500/20">
                               <Zap size={10} className="text-emerald-400 shrink-0 mt-0.5" />
                               <div>
-                                <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-emerald-400/70">
+                                <p className="text-[11px] font-mono text-emerald-400/70">
                                   Next move
                                 </p>
                                 <p className="text-[11px] text-fg">
@@ -1785,7 +1784,7 @@ export function GoalBoard() {
                             children) — tap to scroll to that goal's card. */}
                         {(g.ladder?.children.length ?? 0) > 0 && (
                           <div className="mt-2 space-y-1">
-                            <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-sky-400/70">
+                            <p className="text-[11px] font-mono text-sky-400/70">
                               Sub-goals ({g.ladder!.children.length})
                             </p>
                             {g.ladder!.children.map((c) => (

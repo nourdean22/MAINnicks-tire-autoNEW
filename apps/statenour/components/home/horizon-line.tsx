@@ -33,8 +33,8 @@ export function HorizonLine({ horizon }: { horizon: BriefHorizonSection | null }
     return (
       <section aria-label="horizon">
         <h2 className="vt-eyebrow text-fg-secondary">Horizon</h2>
-        <p className="mt-3 font-mono text-[12px] uppercase tracking-[0.12em] text-amber-300/90">
-          horizon unmeasured — reads failed
+        <p className="mt-3 font-mono text-[12px] text-amber-300/90">
+          Horizon unmeasured — reads failed
         </p>
       </section>
     );
@@ -48,7 +48,7 @@ export function HorizonLine({ horizon }: { horizon: BriefHorizonSection | null }
         {horizon.slots.map((slot) => (
           <li key={slot.scope} className="relative flex min-h-[44px] items-start gap-3 pl-5">
             <span aria-hidden className="absolute -left-[3.5px] top-[19px] h-1.5 w-1.5 rounded-full bg-fg-tertiary" />
-            <span className="w-12 shrink-0 pt-3 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+            <span className="w-12 shrink-0 pt-3 font-mono text-[11px] text-fg-tertiary">
               {SCOPE_LABEL[slot.scope] ?? slot.scope}
             </span>
             {/* No title attr: the source is already the visible span beside
@@ -60,7 +60,7 @@ export function HorizonLine({ horizon }: { horizon: BriefHorizonSection | null }
             >
               {slot.label}
             </Link>
-            <span className="shrink-0 pt-3 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary/80">
+            <span className="shrink-0 pt-3 font-mono text-[11px] text-fg-tertiary/80">
               {slot.source}
             </span>
           </li>

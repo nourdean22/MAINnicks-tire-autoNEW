@@ -21,7 +21,6 @@ export interface StatLevel {
   shortLabel: string;
   /** One-line plain-coach description of what this stat is. */
   description: string;
-  icon: string;
   color: string;
   /** Which skill-tree branch this stat belongs to (body/mind/empire/influence). */
   branch: string;
@@ -120,7 +119,6 @@ export async function computeCharacterSheet(): Promise<StatLevel[]> {
       label: d.label,
       shortLabel: d.shortLabel,
       description: d.description,
-      icon: d.icon,
       color: d.color,
       branch: d.branch,
       xp,
@@ -137,7 +135,7 @@ export async function computeCharacterSheet(): Promise<StatLevel[]> {
 }
 
 /** Compact one-liner per stat for AI context / Telegram — e.g.
- *  "🗣️ Persuasion & Influence · Lvl 1 Apprentice (0/5 XP)". */
+ *  "Persuasion & Influence · Lvl 1 Apprentice (0/5 XP)". */
 export function statLine(s: StatLevel): string {
-  return `${s.icon} ${s.label} · Lvl ${s.level} ${s.tier} (${s.xpIntoLevel}/${s.xpForNext} XP)`;
+  return `${s.label} · Lvl ${s.level} ${s.tier} (${s.xpIntoLevel}/${s.xpForNext} XP)`;
 }

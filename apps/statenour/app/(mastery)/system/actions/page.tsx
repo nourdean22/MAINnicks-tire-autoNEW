@@ -315,6 +315,7 @@ export default function ActionsPage() {
     <StandardPage
       eyebrow="NOUR OS · System"
       title="Actions"
+      descriptionVisibility="always"
       description={
         feed
           ? `${feed.totalInWindow} in window · ${feed.rules.length} unique rules${pendingCount > 0 ? ` · ${pendingCount} pending approval` : ""}`
@@ -459,17 +460,17 @@ export default function ActionsPage() {
                     </div>
                     <div className="text-right">
               <div className="font-mono text-sm tabular-nums text-fg"><AnimatedCounter value={r.total} /></div>
-                      <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">total</div>
+                      <div className="font-mono text-[11px] text-fg-tertiary">Total</div>
                     </div>
                     <div className="hidden text-right sm:block">
                       <div className="font-mono text-xs tabular-nums text-emerald-400"><AnimatedCounter value={r.success} /></div>
-                      <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">success</div>
+                      <div className="font-mono text-[11px] text-fg-tertiary">Success</div>
                     </div>
                     <div className={cn("text-right", r.failed > 0 ? "" : "opacity-40")}>
                       <div className={cn("font-mono text-xs tabular-nums", r.failed > 0 ? "text-rose-400" : "text-fg-tertiary")}>
                         <AnimatedCounter value={r.failed} />
                       </div>
-                      <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">failed</div>
+                      <div className="font-mono text-[11px] text-fg-tertiary">Failed</div>
                     </div>
                   </button>
                 ))}
@@ -564,7 +565,7 @@ export default function ActionsPage() {
                           <div className="truncate text-[11px] text-fg-tertiary">{a.trigger}</div>
                         </div>
                         <span className={cn("font-mono text-[11px] tabular-nums", resultTint(a.result))}>
-                          {a.result ?? "—"}
+                          {a.result ?? "n/a"}
                         </span>
                         <span className="text-[11px] text-fg-tertiary">{timeAgo(a.createdAt)}</span>
                         <span className="text-fg-tertiary">{isOpen ? "▼" : "▸"}</span>
@@ -573,13 +574,13 @@ export default function ActionsPage() {
                         <div className="space-y-2 border-t border-edge-subtle px-3 pb-3 pt-2">
                           {a.error && (
                             <div className="rounded-micro bg-rose-500/10 p-2 text-[11px] text-rose-300">
-              <div className="mb-1 font-mono text-[11px] uppercase tracking-[0.12em] text-rose-400/70">error</div>
+              <div className="mb-1 font-mono text-[11px] text-rose-400/70">Error</div>
                               <pre className="overflow-x-auto whitespace-pre-wrap break-words">{a.error}</pre>
                             </div>
                           )}
                           {a.payload !== null && a.payload !== undefined && (
                             <div className="rounded-micro bg-content p-2">
-              <div className="mb-1 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">payload</div>
+              <div className="mb-1 font-mono text-[11px] text-fg-tertiary">Payload</div>
                               <pre className="overflow-x-auto whitespace-pre-wrap break-words text-[11px] text-fg-secondary">
                                 {JSON.stringify(a.payload, null, 2)}
                               </pre>
@@ -587,8 +588,8 @@ export default function ActionsPage() {
                           )}
                           <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-fg-tertiary">
                             <div>createdAt: {a.createdAt}</div>
-                            <div>executedAt: {a.executedAt ?? "—"}</div>
-                            <div>approvedBy: {a.approvedBy ?? "—"}</div>
+                            <div>executedAt: {a.executedAt ?? "n/a"}</div>
+                            <div>approvedBy: {a.approvedBy ?? "n/a"}</div>
                             <div>id: {a.id}</div>
                           </div>
                         </div>
@@ -688,7 +689,7 @@ export default function ActionsPage() {
                             "min-h-11 rounded-control px-3 py-1.5 text-xs font-semibold transition disabled:opacity-40",
                             approveTone(index, isCritical),
                           )}
-                          title={isExpired ? "Authorization expired — re-request or reject" : needsOwner ? "Requires owner privilege" : undefined}
+                          title={isExpired ? "Authorization expired: re-request or reject" : needsOwner ? "Requires owner privilege" : undefined}
                         >
                           Approve
                         </button>
@@ -697,7 +698,7 @@ export default function ActionsPage() {
 
                     <div className="rounded-micro bg-content p-3 space-y-1">
                       <div className="flex items-center justify-between">
-                        <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">payload parameters</div>
+                        <div className="font-mono text-[11px] text-fg-tertiary">Payload parameters</div>
                         <button
                           onClick={() => {
                             if (editingId === req.id) {
@@ -727,7 +728,7 @@ export default function ActionsPage() {
                           />
                           <div className="flex items-center justify-between gap-2 flex-wrap">
               <span className={cn("text-[11px] font-mono", editParse.ok ? "text-fg-tertiary" : "text-rose-400")}>
-                              {editParse.ok ? "valid JSON — approval executes with THESE args" : "invalid JSON"}
+                              {editParse.ok ? "valid JSON: approval executes with THESE args" : "invalid JSON"}
                             </span>
                             <button
                               onClick={() => {
@@ -737,7 +738,7 @@ export default function ActionsPage() {
                               }}
                               disabled={cannotApprove || !editParse.ok || rejectMutation.isPending || approveMutation.isPending}
                               className="rounded-control bg-sky-500 px-3 py-1.5 text-xs font-semibold text-black hover:bg-sky-400 disabled:opacity-40 transition"
-                              title={isExpired ? "Authorization expired — re-request or reject" : needsOwner ? "Requires owner privilege" : undefined}
+                              title={isExpired ? "Authorization expired: re-request or reject" : needsOwner ? "Requires owner privilege" : undefined}
                             >
                               Approve edited
                             </button>
@@ -752,7 +753,7 @@ export default function ActionsPage() {
 
                     {isExpired && (
                       <div className="text-xs text-amber-300 flex items-center gap-1.5">
-                        <span>⏱</span> Authorization expired{req.expiresAt ? ` ${new Date(req.expiresAt).toLocaleString()}` : ""} — approve is refused. Re-request it against current state, or reject it.
+                        <span>⏱</span> Authorization expired{req.expiresAt ? ` ${new Date(req.expiresAt).toLocaleString()}` : ""}. Approve is refused. Re-request it against current state, or reject it.
                       </div>
                     )}
                     {needsOwner && (
@@ -771,7 +772,7 @@ export default function ActionsPage() {
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-sm font-semibold text-fg">deferred automation</h3>
               <span className="text-xs text-fg-tertiary">
-                {autoQueue.data ? `${autoQueue.data.summary.live} live · ${autoQueue.data.summary.expired} expired` : autoQueue.isError ? "read failed — unknown, not zero" : "loading…"}
+                {autoQueue.data ? `${autoQueue.data.summary.live} live · ${autoQueue.data.summary.expired} expired` : autoQueue.isError ? "read failed: unknown, not zero" : "loading…"}
               </span>
             </div>
             {autoQueue.data && autoQueue.data.rows.length === 0 && (
@@ -828,7 +829,7 @@ export default function ActionsPage() {
                     </details>
                   )}
                   {row.expired && (
-                    <p className="text-xs text-amber-300">Authorization expired — approve is refused; reject it or re-run the rule against current state.</p>
+                    <p className="text-xs text-amber-300">Authorization expired: approve is refused; reject it or re-run the rule against current state.</p>
                   )}
                 </div>
               ))}

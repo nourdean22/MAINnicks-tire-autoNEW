@@ -203,7 +203,7 @@ export function ExecutionPanel({
       <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-2">
           <span className={cn("h-2 w-2 rounded-full bg-amber-400", isDoing && "pulse-live")} />
-          <h2 className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+          <h2 className="font-mono text-[11px] text-fg-tertiary">
             Execution Mode · active task
           </h2>
         </div>
@@ -221,7 +221,7 @@ export function ExecutionPanel({
         {/* Task Title */}
         <div className="space-y-1">
           {mission && (
-            <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+            <p className="font-mono text-[11px] text-fg-tertiary">
               {mission.title}
             </p>
           )}
@@ -236,7 +236,7 @@ export function ExecutionPanel({
         </div>
 
         {/* Current status info */}
-        <div className="flex items-center gap-2 flex-wrap font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary bg-surface-raised p-2 rounded-control border border-edge-subtle">
+        <div className="flex items-center gap-2 flex-wrap font-mono text-[11px] text-fg-tertiary bg-surface-raised p-2 rounded-control border border-edge-subtle">
           <span className="text-fg-tertiary">Status:</span>
           <span
             className={cn(
@@ -251,13 +251,13 @@ export function ExecutionPanel({
           {task.dueDate && (
             <>
               <span className="text-fg-tertiary">·</span>
-              <span>due {new Date(task.dueDate).toLocaleDateString()}</span>
+              <span>Due {new Date(task.dueDate).toLocaleDateString()}</span>
             </>
           )}
           {task.effort && (
             <>
               <span className="text-fg-tertiary">·</span>
-              <span>effort: {task.effort}</span>
+              <span>Effort: {task.effort}</span>
             </>
           )}
         </div>
@@ -270,7 +270,7 @@ export function ExecutionPanel({
           >
             <label
               htmlFor="park-note-input"
-              className="block font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary"
+              className="block font-mono text-[11px] text-fg-tertiary"
             >
               Where did you stop? What&apos;s the next physical step?
             </label>
@@ -304,7 +304,7 @@ export function ExecutionPanel({
                   ] as const
                 ).map(([key, label, hint]) => (
                   <label key={key} className="block">
-                    <span className="block font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">{label}</span>
+                    <span className="block font-mono text-[11px] text-fg-tertiary">{label}</span>
                     <input
                       type="text"
                       maxLength={300}
@@ -316,7 +316,7 @@ export function ExecutionPanel({
                   </label>
                 ))}
                 <label className="block">
-                  <span className="block font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">Evidence links, one per line, max {MAX_RESUME_LINKS}</span>
+                  <span className="block font-mono text-[11px] text-fg-tertiary">Evidence links, one per line, max {MAX_RESUME_LINKS}</span>
                   <textarea
                     rows={2}
                     value={evidenceText}
@@ -354,7 +354,7 @@ export function ExecutionPanel({
           >
             <label
               htmlFor="blocker-input"
-              className="block font-mono text-[11px] uppercase tracking-[0.12em] text-violet-300"
+              className="block font-mono text-[11px] text-violet-300"
             >
               What is blocking this task?
             </label>
@@ -393,7 +393,7 @@ export function ExecutionPanel({
         {/* Sub-form: Snooze options */}
         {showSnoozeOptions && (
           <div className="p-3 bg-surface-raised rounded-surface border border-violet-500/20 space-y-2 animate-slide-down">
-            <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-violet-300">
+            <p className="font-mono text-[11px] text-violet-300">
               Snooze / Defer Task Until
             </p>
             <div className="grid grid-cols-2 gap-2 text-xs">
@@ -432,7 +432,7 @@ export function ExecutionPanel({
             <div className="flex items-start gap-2">
               <AlertTriangle className="h-4 w-4 text-rose-400 shrink-0 mt-0.5" />
               <div className="space-y-1">
-                <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-rose-300">
+                <p className="font-mono text-[11px] text-rose-300">
                   Confirm Abandonment
                 </p>
                 <p className="text-[13px] text-fg-secondary leading-snug">

@@ -144,7 +144,7 @@ export function SystemHealthCard() {
     return (
       <p
         aria-label="System health digest (unreadable)"
-        className="font-mono text-[11px] uppercase tracking-[0.12em] text-amber-300/90"
+        className="font-mono text-[11px] text-amber-300/90"
       >
         Health digest: unreadable — the read failed (not healthy).
       </p>
@@ -157,7 +157,7 @@ export function SystemHealthCard() {
     return (
       <p
         aria-label="System health digest (healthy)"
-        className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary"
+        className="font-mono text-[11px] text-fg-tertiary"
       >
         Health digest: healthy · generated {Math.round(ageHealthy)}h ago
         {ageHealthy > 36 ? " · stale" : ""}
@@ -305,7 +305,7 @@ export function SystemHealthCard() {
           <span
             title={`vs ${data.trend.priorDate}: critical ${signedNum(data.trend.criticalDelta)} · warning ${signedNum(data.trend.warningDelta)} · silent crons ${signedNum(data.trend.silentCronsDelta)}`}
             className={cn(
-              "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-[11px] uppercase tracking-[0.12em]",
+              "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-[11px]",
               data.trend.overallDirection === "degrading"
                 ? "border-rose-500/40 bg-rose-500/10 text-rose-300"
                 : "border-emerald-500/40 bg-emerald-500/10 text-emerald-300",
@@ -322,10 +322,10 @@ export function SystemHealthCard() {
         {data.trend?.overallDirection === "stable" && (
           <span
             title={`vs ${data.trend.priorDate}: no change`}
-            className="inline-flex items-center gap-1 rounded-full border border-edge-default bg-content px-2 py-0.5 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary"
+            className="inline-flex items-center gap-1 rounded-full border border-edge-default bg-content px-2 py-0.5 font-mono text-[11px] text-fg-tertiary"
           >
             <Minus className="h-2.5 w-2.5" />
-            <span>stable</span>
+            <span>Stable</span>
           </span>
         )}
         {stale && (
@@ -334,7 +334,7 @@ export function SystemHealthCard() {
             onClick={manualRefresh}
             disabled={refreshing}
             title={`Digest generated ${Math.round(ageH)}h ago — tap to refresh now`}
-            className="inline-flex items-center gap-1 rounded-full border border-rose-500/40 bg-rose-500/10 px-2 py-0.5 font-mono text-[11px] uppercase tracking-[0.12em] text-rose-300 hover:bg-rose-500/20 transition-colors disabled:opacity-50"
+            className="inline-flex items-center gap-1 rounded-full border border-rose-500/40 bg-rose-500/10 px-2 py-0.5 font-mono text-[11px] text-rose-300 hover:bg-rose-500/20 transition-colors disabled:opacity-50"
           >
             <RefreshCw className={cn("h-2.5 w-2.5", refreshing && "animate-spin")} />
             <span>{refreshing ? "refreshing" : `stale ${Math.round(ageH)}h`}</span>
@@ -343,9 +343,9 @@ export function SystemHealthCard() {
         {data.livelyComputed && !stale && (
           <span
             title="Recomputed live in this request, not read from a stored digest"
-            className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 font-mono text-[11px] uppercase tracking-[0.12em] text-emerald-300"
+            className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 font-mono text-[11px] text-emerald-300"
           >
-            live
+            Live
           </span>
         )}
         <Link
@@ -451,7 +451,7 @@ function StatCell({
 }) {
   return (
     <div className="rounded-control border border-edge-subtle bg-content px-2 py-1">
-      <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+      <div className="font-mono text-[11px] text-fg-tertiary">
         {label}
       </div>
       <div

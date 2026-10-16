@@ -30,7 +30,7 @@ export function Metric({ result, spec, now, className }: MetricProps) {
   const view = describeMetric(result, spec, now);
   return (
     <div className={cn("space-y-0.5", className)} data-metric-status={view.status} data-metric-out-of-range={view.outOfRange || undefined}>
-      <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">{view.label}</p>
+      <p className="font-mono text-[11px] text-fg-tertiary">{view.label}</p>
       <p className="flex items-baseline gap-1">
         <span
           className={cn(

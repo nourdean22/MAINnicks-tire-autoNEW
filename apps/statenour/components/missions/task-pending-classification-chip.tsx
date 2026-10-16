@@ -49,8 +49,8 @@ export function TaskPendingClassificationChip({
 
   return (
     <div className="mt-1.5 flex flex-wrap items-center gap-2 rounded-control border border-edge-default bg-surface-raised px-2 py-1">
-      <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary">
-        suggested mission{conf != null ? ` · ${conf}% (est.)` : " (hypothesis)"}
+      <span className="font-mono text-[11px] text-fg-secondary">
+        Suggested mission{conf != null ? ` · ${conf}% (est.)` : " (hypothesis)"}
       </span>
       {pc.rationale && (
         <span className="text-[11px] text-fg-tertiary truncate max-w-[14rem]">

@@ -129,7 +129,7 @@ export function OutreachTab() {
 
       {/* Segment */}
       <section className="mt-8 space-y-4">
-        <h2 className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+        <h2 className="font-mono text-[11px] text-fg-tertiary">
           Segment
         </h2>
         <Field label="Audience (sent to)">
@@ -177,7 +177,7 @@ export function OutreachTab() {
 
       {/* Composition */}
       <section className="mt-8 space-y-4">
-        <h2 className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+        <h2 className="font-mono text-[11px] text-fg-tertiary">
           Composition
         </h2>
         <Field label="Campaign ID">
@@ -248,8 +248,8 @@ export function OutreachTab() {
         ) : null}
       </div>
 
-      <p className="mt-12 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
-        dispatch · wired to nickstire · dry-run unless FEATURE_BULK_SMS_LIVE=1
+      <p className="mt-12 font-mono text-[11px] text-fg-tertiary">
+        Dispatch · wired to nickstire · dry-run unless FEATURE_BULK_SMS_LIVE=1
       </p>
     </>
   );

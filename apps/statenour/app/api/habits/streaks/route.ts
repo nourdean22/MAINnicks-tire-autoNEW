@@ -46,7 +46,6 @@ export async function GET(req: Request) {
       return {
         habit_key: h.key,
         label: h.label,
-        icon: h.icon,
         current_streak: currentStreak,
         best_streak: bestStreak,
         completion_rate: totalDays > 0 ? Math.round((completedDays / totalDays) * 100) : 0,

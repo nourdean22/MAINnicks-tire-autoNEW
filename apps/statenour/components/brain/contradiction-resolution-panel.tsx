@@ -201,14 +201,14 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
 
               <div className="grid grid-cols-[1fr_auto_1fr] gap-2 items-start">
                 <div className="min-w-0">
-                  <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">now</p>
+                  <p className="text-[11px] font-mono text-fg-tertiary">Now</p>
                   <p className="text-[11px] text-[var(--text-primary)] break-words">
                     "{c.new_excerpt}"
                   </p>
                 </div>
                 <Split size={12} className="text-[var(--text-tertiary)] mt-3" />
                 <div className="min-w-0">
-                  <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
+                  <p className="text-[11px] font-mono text-fg-tertiary">
                     {c.days_apart}d ago
                   </p>
                   <p className="text-[11px] text-[var(--text-secondary)] break-words">
@@ -257,8 +257,8 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
 
               {notingKey === c.key && pendingResolve && (
                 <div className="mt-2 space-y-1.5">
-                  <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
-                    note (optional — why?) · applying: {pendingResolve.replace(/_/g, " ")}
+                  <p className="text-[11px] font-mono text-fg-tertiary">
+                    Note (optional — why?) · applying: {pendingResolve.replace(/_/g, " ")}
                   </p>
                   <textarea
                     value={noteText}

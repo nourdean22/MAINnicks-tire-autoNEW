@@ -9,7 +9,7 @@
  */
 export function UnmeasuredLine({ label }: { label: string }) {
   return (
-    <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+    <p className="font-mono text-[11px] text-fg-tertiary">
       {label}: unmeasured — the read failed (not zero).
     </p>
   );

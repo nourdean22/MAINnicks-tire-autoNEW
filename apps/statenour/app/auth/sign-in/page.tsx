@@ -55,7 +55,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
         <div className="w-10 h-10 rounded-control border border-edge-default bg-surface-interactive text-fg font-mono text-sm font-bold flex items-center justify-center mx-auto mb-6">
           N
         </div>
-        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-2">NOUR OS</p>
+        <p className="font-mono text-[11px] text-fg-tertiary mb-2">NOUR OS</p>
         <h1 className="text-xl font-semibold mb-2">Operator access</h1>
         <p className="text-sm text-fg-secondary mb-6">
           {runtimeMode === "google"

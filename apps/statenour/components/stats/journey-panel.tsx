@@ -14,7 +14,7 @@ import { trpc } from "@/lib/trpc/client";
 function SectionHeader({ label, since, source }: { label: string; since: string; source: string }) {
   return (
     <div className="flex items-baseline justify-between mb-1.5">
-      <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">{label}</span>
+      <span className="font-mono text-[11px] text-fg-tertiary">{label}</span>
       <span className="font-mono text-[11px] text-fg-tertiary">
         {since} · {source}
       </span>

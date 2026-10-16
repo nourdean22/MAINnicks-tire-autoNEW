@@ -377,10 +377,10 @@ export function ToolTelemetryPanel() {
                           {/* Metadata grid */}
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             <div className="space-y-1 text-left">
-                              <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">Description</p>
+                              <p className="font-mono text-[11px] text-fg-tertiary">Description</p>
                               <p className="text-[10.5px] leading-relaxed">{s.description}</p>
                               
-                              <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary pt-1">Category & Operations</p>
+                              <p className="font-mono text-[11px] text-fg-tertiary pt-1">Category & Operations</p>
                               <div className="flex flex-wrap gap-1.5 text-[9.5px]">
                                 <span className="px-1.5 py-0.5 bg-content border border-edge-subtle rounded-micro">
                                   {CATEGORY_LABELS[s.category] ?? s.category}
@@ -401,7 +401,7 @@ export function ToolTelemetryPanel() {
                             {/* Environment checklist */}
                             {s.requiredEnv.length > 0 && (
                               <div className="space-y-1 text-left">
-                                <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">Environment Check</p>
+                                <p className="font-mono text-[11px] text-fg-tertiary">Environment Check</p>
                                 <div className="space-y-1 font-mono text-[9.5px]">
                                   {s.requiredEnv.map((key) => {
                                     const missing = s.missingEnv.includes(key);

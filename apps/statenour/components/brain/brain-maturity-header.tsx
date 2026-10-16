@@ -226,8 +226,8 @@ export function BrainMaturityHeader({ refreshKey = 0 }: { refreshKey?: number })
               <span className="text-[15px] text-[var(--text-tertiary)]">/{data.scoreMax}</span>
             )}
           </p>
-          <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary mt-1">
-            {score == null ? "maturity unknown" : "brain maturity"}
+          <p className="text-[11px] font-mono text-fg-tertiary mt-1">
+            {score == null ? "Maturity unknown" : "Brain maturity"}
           </p>
         </div>
 

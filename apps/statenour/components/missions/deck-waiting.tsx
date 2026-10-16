@@ -56,7 +56,7 @@ export function DeckWaiting({ waiting, tasks, onEditTask, onUnblock }: Props) {
               </span>
               <div className="min-w-0 flex-1 basis-40">
                 <p className="truncate text-[15px] text-fg">{w.title}</p>
-                <p className="truncate font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+                <p className="truncate font-mono text-[11px] text-fg-tertiary">
                   {w.delegatedToNick ? "with Nick" : `waiting on ${w.waitingOn}`} ·{" "}
                   {w.ageDays === 0 ? "today" : `${w.ageDays}d`}
                 </p>

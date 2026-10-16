@@ -249,7 +249,7 @@ async function LearnPageInner({
                     >
                       <div className="flex items-baseline gap-2 flex-wrap">
                         {t.language && (
-                          <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary shrink-0">
+                          <span className="font-mono text-[11px] text-fg-tertiary shrink-0">
                             {t.language}
                           </span>
                         )}

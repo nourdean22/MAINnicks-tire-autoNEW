@@ -86,7 +86,7 @@ function Fact({ label, value }: { label: string; value: string | null | undefine
   if (!value) return null;
   return (
     <div className="min-w-0">
-      <dt className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">{label}</dt>
+      <dt className="font-mono text-[11px] text-fg-tertiary">{label}</dt>
       <dd className="break-words font-mono text-[12px] text-fg-secondary">{value}</dd>
     </div>
   );
@@ -121,12 +121,12 @@ export function ToolInspector({ entity }: InspectorPanelProps) {
     <div className="space-y-5" data-tool-inspector={t.id}>
       <header className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
-          <span className={cn("rounded-micro border px-1.5 py-px font-mono text-[11px] uppercase tracking-[0.12em]", STATUS_CLS[t.status] ?? "border-edge-default text-fg-tertiary")}>
+          <span className={cn("rounded-micro border px-1.5 py-px font-mono text-[11px]", STATUS_CLS[t.status] ?? "border-edge-default text-fg-tertiary")}>
             {t.status.replace(/_/g, " ")}
           </span>
-          <span className="rounded-micro border border-edge-default px-1.5 py-px font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">{t.category}</span>
-          <span className={cn("font-mono text-[11px] uppercase tracking-[0.12em]", HEALTH_CLS[t.health] ?? "text-fg-tertiary")} data-tool-health={t.health}>
-            health · {t.health.replace(/_/g, " ")}
+          <span className="rounded-micro border border-edge-default px-1.5 py-px font-mono text-[11px] text-fg-tertiary">{t.category}</span>
+          <span className={cn("font-mono text-[11px]", HEALTH_CLS[t.health] ?? "text-fg-tertiary")} data-tool-health={t.health}>
+            Health · {t.health.replace(/_/g, " ")}
           </span>
         </div>
         <h2 className="text-[17px] font-semibold leading-tight text-fg">{t.label}</h2>
@@ -135,7 +135,7 @@ export function ToolInspector({ entity }: InspectorPanelProps) {
       </header>
 
       <section aria-label="Access">
-        <p className="mb-1 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">access</p>
+        <p className="mb-1 font-mono text-[11px] text-fg-tertiary">Access</p>
         <ul className="space-y-1">
           <Flag on={t.readAccess} label="read" meaning="reads external or local data" />
           <Flag on={t.writeAccess} label="write" meaning="writes to a system it does not own" />
@@ -146,8 +146,8 @@ export function ToolInspector({ entity }: InspectorPanelProps) {
 
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
         <div>
-          <dt className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">risk</dt>
-          <dd className={cn("font-mono text-[11px] uppercase tracking-[0.12em]", RISK_CLS[t.riskClass] ?? "text-fg-secondary")} data-tool-risk={t.riskClass}>
+          <dt className="font-mono text-[11px] text-fg-tertiary">Risk</dt>
+          <dd className={cn("font-mono text-[11px]", RISK_CLS[t.riskClass] ?? "text-fg-secondary")} data-tool-risk={t.riskClass}>
             {t.riskClass}
           </dd>
         </div>
@@ -159,7 +159,7 @@ export function ToolInspector({ entity }: InspectorPanelProps) {
       </dl>
 
       <section aria-label="Environment" data-tool-missing-env={t.missingEnv.length}>
-        <p className="mb-1 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">env</p>
+        <p className="mb-1 font-mono text-[11px] text-fg-tertiary">Env</p>
         {t.missingEnv.length > 0 ? (
           <p className="font-mono text-[12px] text-amber-300">missing · {t.missingEnv.join(", ")}</p>
         ) : t.requiredEnv.length > 0 ? (
@@ -167,12 +167,12 @@ export function ToolInspector({ entity }: InspectorPanelProps) {
         ) : (
           <p className="font-mono text-[12px] text-fg-tertiary">no env required</p>
         )}
-        {t.optionalEnv?.length ? <p className="font-mono text-[11px] text-fg-tertiary">optional · {t.optionalEnv.join(", ")}</p> : null}
+        {t.optionalEnv?.length ? <p className="font-mono text-[11px] text-fg-tertiary">Optional · {t.optionalEnv.join(", ")}</p> : null}
       </section>
 
       {t.currentLimitations.length > 0 ? (
         <section aria-label="Limitations">
-          <p className="mb-1 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">current limitations</p>
+          <p className="mb-1 font-mono text-[11px] text-fg-tertiary">Current limitations</p>
           <ul className="list-disc space-y-0.5 pl-4 text-[12px] text-fg-secondary">
             {t.currentLimitations.map((l) => (
               <li key={l}>{l}</li>
@@ -183,7 +183,7 @@ export function ToolInspector({ entity }: InspectorPanelProps) {
       {t.notes ? <p className="text-[12px] italic text-fg-tertiary">{t.notes}</p> : null}
 
       <EntityActionRow entities={[entity]} labelOf={() => t.label} />
-      <p className="font-mono text-[11px] text-fg-tertiary">policy evaluation stays on the registry page — this is the capability as declared, not a toggle</p>
+      <p className="font-mono text-[11px] text-fg-tertiary">Policy evaluation stays on the registry page — this is the capability as declared, not a toggle</p>
     </div>
   );
 }

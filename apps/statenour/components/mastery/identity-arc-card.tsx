@@ -82,7 +82,7 @@ export function IdentityArcCard() {
       className="rounded-surface border border-edge-subtle bg-content p-3.5 flex flex-col justify-between space-y-3 min-h-[195px]"
     >
       <div className="flex items-center justify-between border-b border-edge-subtle pb-2">
-        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+        <p className="font-mono text-[11px] text-fg-tertiary">
           Identity evolution & arc
         </p>
         <div className="flex gap-1">
@@ -175,7 +175,7 @@ export function IdentityArcCard() {
             {/* MoM / QoQ Trend Metrics Grid */}
             <div className="grid grid-cols-2 gap-2 border-b border-edge-subtle pb-2">
               <div className="p-2 rounded-control bg-surface-interactive border border-edge-subtle">
-                <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">MoM Growth</p>
+                <p className="font-mono text-[11px] text-fg-tertiary">MoM Growth</p>
                 <div className="flex items-baseline justify-between mt-0.5">
                   <span className="text-xs font-semibold text-fg">{momXp.toFixed(0)} XP</span>
                   <span className={cn("text-[11px] font-semibold flex items-center gap-0.5", momPct >= 0 ? "text-emerald-400" : "text-rose-400")}>
@@ -185,7 +185,7 @@ export function IdentityArcCard() {
                 </div>
               </div>
               <div className="p-2 rounded-control bg-surface-interactive border border-edge-subtle">
-                <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">QoQ Growth</p>
+                <p className="font-mono text-[11px] text-fg-tertiary">QoQ Growth</p>
                 <div className="flex items-baseline justify-between mt-0.5">
                   <span className="text-xs font-semibold text-fg">{qoqXp.toFixed(0)} XP</span>
                   <span className={cn("text-[11px] font-semibold flex items-center gap-0.5", qoqPct >= 0 ? "text-emerald-400" : "text-rose-400")}>
@@ -198,7 +198,7 @@ export function IdentityArcCard() {
 
             {topActive.length > 0 && (
               <div className="space-y-1.5">
-                <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-emerald-400 flex items-center gap-1">
+                <p className="font-mono text-[11px] text-emerald-400 flex items-center gap-1">
                   <Zap className="h-2.5 w-2.5" /> Top 3 Active stats (30d)
                 </p>
                 <div className="grid grid-cols-1 gap-1">
@@ -208,7 +208,7 @@ export function IdentityArcCard() {
                       className="flex items-center justify-between px-1.5 py-0.5 bg-emerald-500/2 rounded-micro border border-emerald-500/10"
                     >
                       <span className="text-fg">
-                        {g.icon} {g.label}
+                        {g.label}
                       </span>
                       <span className="font-semibold text-emerald-400">+{g.gained30d} XP</span>
                     </div>
@@ -219,7 +219,7 @@ export function IdentityArcCard() {
 
             {stalled.length > 0 && (
               <div className="space-y-1.5">
-                <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-rose-400 flex items-center gap-1">
+                <p className="font-mono text-[11px] text-rose-400 flex items-center gap-1">
                   <Activity className="h-2.5 w-2.5" /> Stalled stats (Active past 180d, 0 XP in 30d)
                 </p>
                 <div className="grid grid-cols-1 gap-1">
@@ -229,7 +229,7 @@ export function IdentityArcCard() {
                       className="flex items-center justify-between px-1.5 py-0.5 bg-rose-500/2 rounded-micro border border-rose-500/10"
                     >
                       <span className="text-fg-secondary">
-                        {g.icon} {g.label}
+                        {g.label}
                       </span>
                       <span className="text-fg-tertiary">stalled</span>
                     </div>

@@ -117,8 +117,8 @@ export function EmailDraftCard({ draft: initial }: { draft: EmailDraft }) {
   return (
     <div className="my-3 rounded-surface border border-edge-subtle bg-content overflow-hidden">
       <div className="flex items-center justify-between px-3 py-1.5 border-b border-[var(--border-default)] bg-[var(--bg-elevated)]">
-        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
-          email draft
+        <span className="font-mono text-[11px] text-[var(--text-tertiary)]">
+          Email draft
           {draft.tone && (
             <span className="ml-2 text-[var(--text-tertiary)] normal-case tracking-normal">
               · tone: {draft.tone}
@@ -241,7 +241,7 @@ function Field({
 }) {
   return (
     <div className="flex items-baseline gap-2">
-      <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)] w-12 shrink-0">
+      <span className="font-mono text-[11px] text-[var(--text-tertiary)] w-12 shrink-0">
         {label}
       </span>
       {editable ? (
@@ -268,7 +268,7 @@ function BodyField({
 }) {
   return (
     <div className="pt-1">
-      <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)] block mb-1">
+      <span className="font-mono text-[11px] text-[var(--text-tertiary)] block mb-1">
         Body
       </span>
       {editable ? (

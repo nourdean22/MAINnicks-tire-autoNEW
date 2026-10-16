@@ -73,7 +73,7 @@ describe("OwnerPanel render states", () => {
   it("does not print a decisions count of 0 when approvals were unreadable", () => {
     stub.q = { data: composeOwnerPanel({ ...base, pendingActions: null }), isError: false };
     const html = renderToStaticMarkup(<OwnerPanel />);
-    expect(html).toContain("decisions waiting · unknown");
+    expect(html).toContain("Decisions waiting · unknown");
     expect(html).toContain("Decision sources unreadable — state unknown.");
     expect(html).toContain("Unreadable, so not cleared: approvals");
     expect(html).toContain('data-owner-panel="unknown"');
@@ -84,7 +84,7 @@ describe("OwnerPanel render states", () => {
     const html = renderToStaticMarkup(<OwnerPanel />);
     expect(html).toContain("a ratio over zero outcomes is not a number");
     expect(html).not.toContain("$0.00");
-    expect(html).toContain("decisions waiting · 0");
+    expect(html).toContain("Decisions waiting · 0");
   });
 
   it("renders an exception with its evidence and a link to the surface", () => {

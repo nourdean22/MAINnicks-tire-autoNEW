@@ -107,7 +107,7 @@ export function BottomTabBar() {
               href={tab.href}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "relative flex min-h-[52px] flex-1 flex-col items-center justify-center gap-1 py-1.5 transition-colors duration-[var(--motion-state)]",
+                "relative flex min-h-[52px] flex-1 flex-col items-center justify-center gap-1 py-1.5 press-spring",
                 active ? "text-fg" : "text-fg-tertiary hover:text-fg-secondary",
               )}
             >
@@ -121,7 +121,7 @@ export function BottomTabBar() {
         <button
           onClick={openMoreSheet}
           aria-label="More — all surfaces and search"
-          className="relative flex min-h-[52px] flex-1 flex-col items-center justify-center gap-1 py-1.5 text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg-secondary"
+          className="relative flex min-h-[52px] flex-1 flex-col items-center justify-center gap-1 py-1.5 text-fg-tertiary press-spring hover:text-fg-secondary"
         >
           <LayoutGrid size={20} strokeWidth={1.75} />
           <span className="text-[11px] font-medium leading-none">More</span>

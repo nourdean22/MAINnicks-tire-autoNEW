@@ -1,38 +1,29 @@
 /**
- * 2026-08-05 · The AmbientAura wrapper must never establish a containing
- * block for `position: fixed` descendants.
+ * 2026-08-05, narrowed by UI v3 W1a (2026-10-15) · No ancestor of /chat's
+ * `position: fixed` shell may establish a containing block.
  *
  * THE LIVE DEFECT THIS PINS. The operator reported the /chat composer sitting
- * under the bottom tab bar ("theres an overlap at the bottom"). Nothing was
- * wrong with the reservation: BottomTabBar measures its real height into
- * --bottom-chrome-h via ResizeObserver, and the chat shell reserves exactly
- * that with pb-[var(--bottom-chrome-h)]. The math was right. The ANCHOR was
- * wrong.
- *
- * AmbientAura wraps every mastery page in
+ * under the bottom tab bar. The reservation was right (BottomTabBar measures
+ * --bottom-chrome-h, the chat shell reserves it); the ANCHOR was wrong.
+ * AmbientAura wrapped every mastery page in
  *   <div class="state-aura state-aura-<state> min-h-screen">
- * and app/(mastery)/chat/page.tsx nests a `fixed inset-0` shell inside it,
- * documenting the assumption in its own comment: "A fixed child resolves
- * inset-0 against the viewport". That holds ONLY while no ancestor
- * establishes a containing block.
+ * and `.state-aura-drift` carried `filter: saturate(0.72)`, which establishes
+ * a containing block, so `fixed inset-0` stopped meaning the viewport and
+ * started meaning the wrapper's padding box (100vh plus the aura's padding),
+ * which runs past the fold on mobile. `.state-aura-scattered` did the same
+ * through a `transform` keyframe for the life of the animation. detectState()
+ * returns "drift" on any unresolved drift alert, so the filter door was the
+ * common path, not a rare one.
  *
- * .state-aura-drift carried `filter: saturate(0.72)`, which does establish
- * one. So inset-0 stopped meaning the viewport and started meaning the
- * wrapper's padding box — min-h-screen (100vh) plus .state-aura's 4px
- * padding — which runs past the visible fold on mobile. The composer rode
- * down with it while BottomTabBar, rendered OUTSIDE AmbientAura, stayed
- * correctly viewport-pinned and painted over it.
+ * W1a REMOVED THE AURA (the state is a one-word label now,
+ * components/hud/state-word.tsx). What is left to guard is the rest of the
+ * chain, body > wrapper.min-h-screen > main#main-content > .feed.page-enter >
+ * .fixed: the CSS here, the wrapper's classes in tests/repo/ui-v3-aura.test.ts.
+ * The guard still names `.state-aura`, so a returning aura is scanned like it
+ * always was, and "keeps the aura gone" fails on its mere presence.
  *
- * detectState() returns "drift" on ANY unresolved drift alert and it is the
- * FIRST branch checked, so this was the common path, not a rare one.
- * .state-aura-low_energy carried the same filter; .state-aura-scattered
- * animated `transform: translateX`, which does the same thing for the life
- * of the animation.
- *
- * v10.0.474 already fixed this once by removing `position: relative`, and
- * effects.css carries three separate warning comments about the hazard — but
- * `position: relative` is only one of the doors. This test closes the rest,
- * including the keyframe path, which is where the scattered bug hid.
+ * `position: relative` is only one door. This test closes the rest, including
+ * the keyframe path, which is where the scattered bug hid.
  */
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
@@ -144,7 +135,7 @@ function animationNames(decls: Array<[string, string]>): string[] {
   return names;
 }
 
-describe("state-aura containing-block invariant", () => {
+describe("containing-block invariant for the ancestors of the fixed chat shell", () => {
   const raw = readFileSync(CSS_PATH, "utf8");
   const css = stripComments(raw);
   const { keyframes, rest } = extractKeyframes(css);
@@ -170,16 +161,20 @@ describe("state-aura containing-block invariant", () => {
 
   it("finds the rules it is meant to guard", () => {
     // A guard that silently matches nothing always passes. Pin that the scan
-    // reaches the aura states AND the rest of the shell's ancestor chain.
+    // reaches the shell's ancestor chain; if these stop matching, the
+    // .feed/.page-enter hole reopens unseen.
     const selectors = auraRules.map((r) => r.selector).join(" ");
-    expect(auraRules.length).toBeGreaterThanOrEqual(5);
-    for (const state of ["drift", "scattered", "low_energy", "on_fire", "normal"]) {
-      expect(selectors).toContain(`.state-aura-${state}`);
-    }
-    // The widened surface — if these stop matching, the guard has silently
-    // narrowed back to what it was before and the .feed/.page-enter hole reopens.
+    expect(auraRules.length).toBeGreaterThanOrEqual(3);
     expect(selectors, "the .feed ancestor is no longer covered").toContain(".feed");
     expect(selectors, "the .page-enter ancestor is no longer covered").toContain(".page-enter");
+  });
+
+  it("keeps the aura gone: no .state-aura rule exists", () => {
+    // The guard above still names .state-aura, so a returning aura is scanned.
+    // Presence alone is the failure now (W1a replaced it with the state word).
+    const aura = auraRules.filter((r) => /\.state-aura/.test(r.selector)).map((r) => r.selector);
+    expect(aura, "the state aura is back").toEqual([]);
+    expect(css).not.toMatch(/state-scattered-aura/);
   });
 
   it("declares no property that traps fixed descendants", () => {

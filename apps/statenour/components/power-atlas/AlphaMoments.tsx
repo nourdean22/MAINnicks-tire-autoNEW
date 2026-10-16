@@ -51,7 +51,7 @@ export default function AlphaMoments({ personId }: AlphaMomentsProps) {
         <h2 className="text-[17px] font-semibold text-fg">
           Alpha moments
         </h2>
-        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary tabular-nums">
+        <span className="font-mono text-[11px] text-fg-tertiary tabular-nums">
           {moments.length}
         </span>
       </div>
@@ -61,7 +61,7 @@ export default function AlphaMoments({ personId }: AlphaMomentsProps) {
             key={`${m.ledgerId}:${i}`}
             className="border-l-2 border-edge-strong pl-3"
           >
-            <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-amber-300/80">
+            <div className="font-mono text-[11px] text-amber-300/80">
               {m.kind}
             </div>
             <p className="text-sm text-fg-secondary mt-1 leading-snug break-words">

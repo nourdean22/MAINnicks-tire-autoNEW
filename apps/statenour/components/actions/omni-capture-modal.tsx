@@ -133,7 +133,7 @@ export function OmniCaptureModal({
       >
         <div className="flex items-center gap-2 border-b border-[var(--border-default)] px-4 py-2.5">
           <Sparkles size={13} className="text-fg-tertiary" strokeWidth={1.75} />
-          <DialogTitle className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
+          <DialogTitle className="text-[11px] font-mono text-fg-tertiary">
             Omni capture
           </DialogTitle>
           <span className="ml-auto hidden lg:inline text-[11px] font-mono tabular-nums text-[var(--text-tertiary)]">
@@ -172,7 +172,7 @@ export function OmniCaptureModal({
             aria-label="task or note"
           />
           <div className="mt-2 flex items-center justify-between gap-3">
-            <span className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
+            <span className="text-[11px] font-mono text-fg-tertiary">
               {text ? `${text.trim().length} chars · enter to capture` : "type · enter · done"}
             </span>
             <button

@@ -37,6 +37,7 @@
 import type { HTMLAttributes, ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { PageHeader } from "@/components/layout/ui";
+import { isCorePage } from "@/components/layout/header-diet";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
 import { cn } from "@/lib/utils/cn";
 
@@ -137,6 +138,11 @@ interface StandardPageProps {
   showHeader?: boolean;
   /** Root attributes/events for deliberate workspace behavior (pull-refresh, data flags). */
   rootProps?: Omit<HTMLAttributes<HTMLDivElement>, "className" | "children"> & DataAttributes;
+  /**
+   * UI v3 header diet. Unset: "never" on the seven core pages, "md-up" elsewhere. Pass "always" when the
+   * description carries a live value (tests/repo/standard-page-description.test.ts requires it).
+   */
+  descriptionVisibility?: "md-up" | "never" | "always";
 }
 
 export function StandardPage({
@@ -153,6 +159,7 @@ export function StandardPage({
   loading = false,
   showHeader = true,
   rootProps,
+  descriptionVisibility,
 }: StandardPageProps) {
   const pathname = usePathname();
   // Resolve the effective parent · explicit override > auto-detect.
@@ -179,6 +186,7 @@ export function StandardPage({
           eyebrow={eyebrow}
           title={title}
           description={description ?? ""}
+          descriptionVisibility={descriptionVisibility ?? (isCorePage(pathname) ? "never" : "md-up")}
           actions={actions}
           parentHref={effectiveParent?.href}
           parentLabel={effectiveParent?.label}

@@ -97,7 +97,7 @@ export default async function ProofPage() {
         </div>
       )}
       <section aria-labelledby="grades" className="mb-8">
-        <h2 id="grades" className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-3">
+        <h2 id="grades" className="font-mono text-[11px] text-fg-tertiary mb-3">
           Evidence on file · {totalClaims} claim{totalClaims === 1 ? "" : "s"}
         </h2>
         <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
@@ -112,7 +112,7 @@ export default async function ProofPage() {
       </section>
 
       <section aria-labelledby="claims" className="mb-8">
-        <h2 id="claims" className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-3">Standing claims</h2>
+        <h2 id="claims" className="font-mono text-[11px] text-fg-tertiary mb-3">Standing claims</h2>
         {s.claims.length === 0 ? (
           <p className="text-sm text-fg-secondary">No claims yet. The first arrives when a web experiment resolves or a proof run fails an episode.</p>
         ) : (
@@ -133,7 +133,7 @@ export default async function ProofPage() {
       </section>
 
       <section aria-labelledby="events" className="mb-8">
-        <h2 id="events" className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-3">Reality, most recent</h2>
+        <h2 id="events" className="font-mono text-[11px] text-fg-tertiary mb-3">Reality, most recent</h2>
         {s.events.length === 0 ? (
           <p className="text-sm text-fg-secondary">No events yet. The nickstire cron and the proof workflow post here.</p>
         ) : (
@@ -151,7 +151,7 @@ export default async function ProofPage() {
       </section>
 
       <section aria-labelledby="timeline" className="mb-8">
-        <h2 id="timeline" className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-3">Repo Time Machine · judged commits</h2>
+        <h2 id="timeline" className="font-mono text-[11px] text-fg-tertiary mb-3">Repo Time Machine · judged commits</h2>
         {timeline.commits.length === 0 ? (
           <p className="text-sm text-fg-secondary">No judged commits yet. Every proof run records the commit the live site actually served; rows appear here, newest first, with the delta against the previous judged commit.</p>
         ) : (
@@ -187,7 +187,7 @@ export default async function ProofPage() {
       </section>
 
       <section aria-labelledby="receptionist" className="mb-8">
-        <h2 id="receptionist" className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-3">Receptionist experiments &middot; weekly prompt evolution</h2>
+        <h2 id="receptionist" className="font-mono text-[11px] text-fg-tertiary mb-3">Receptionist experiments &middot; weekly prompt evolution</h2>
         {experiments.status === "unavailable" ? (
           <p role="status" data-experiments-state="unavailable" className="text-sm text-fg-secondary">
             {experiments.reason === "not_migrated"
@@ -218,7 +218,7 @@ export default async function ProofPage() {
       </section>
 
       <section aria-labelledby="taste" className="mb-8">
-        <h2 id="taste" className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-3">Your judgments</h2>
+        <h2 id="taste" className="font-mono text-[11px] text-fg-tertiary mb-3">Your judgments</h2>
         {s.judgments.length === 0 ? (
           <p className="text-sm text-fg-secondary">None yet. Every accept/reject between two candidates lands here and teaches the critic what you prefer &mdash; never what is &ldquo;objectively better&rdquo;.</p>
         ) : (
@@ -236,7 +236,7 @@ export default async function ProofPage() {
       </section>
 
       <section aria-labelledby="proposals">
-        <h2 id="proposals" className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-3">Night Shift proposals</h2>
+        <h2 id="proposals" className="font-mono text-[11px] text-fg-tertiary mb-3">Night Shift proposals</h2>
         {s.proposals.length === 0 ? (
           <p className="text-sm text-fg-secondary">None yet. A proposal is one PR with its proof receipts; merging it is the only way it ships.</p>
         ) : (

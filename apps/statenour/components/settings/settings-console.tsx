@@ -85,7 +85,7 @@ export function SettingsConsole() {
     <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 items-start w-full relative">
       {/* LEFT PANE: Navigation Matrix */}
       <aside className="w-full lg:w-64 shrink-0 flex flex-col gap-2 lg:sticky lg:top-6">
-        <h2 className="font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-fg-tertiary px-2 pb-2">
+        <h2 className="font-mono text-[11px] font-medium text-fg-tertiary px-2 pb-2">
           Domains
         </h2>
         {/* Mobile: one compact wrapping row (the old stacked list spent a full
@@ -116,7 +116,7 @@ export function SettingsConsole() {
 
         {/* Operations moved out of Settings (wave 2): pointers only. */}
         <div className="mt-3 lg:mt-8 px-2">
-          <p className="font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-fg-tertiary mb-2">
+          <p className="font-mono text-[11px] font-medium text-fg-tertiary mb-2">
             Elsewhere
           </p>
           <ul className="flex flex-col">

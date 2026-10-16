@@ -151,14 +151,14 @@ export default function PowerBalanceGauge({
         </div>
       )}
 
-      <div className="mt-3 flex items-center justify-between font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary tabular-nums">
-        <span>them −1.0</span>
+      <div className="mt-3 flex items-center justify-between font-mono text-[11px] text-fg-tertiary tabular-nums">
+        <span>Them −1.0</span>
         <span className={signColor}>
           {sign}
           {manualLock ? " · locked" : ""}
           {saving ? " · saving…" : ""}
         </span>
-        <span>you +1.0</span>
+        <span>You +1.0</span>
       </div>
     </section>
   );

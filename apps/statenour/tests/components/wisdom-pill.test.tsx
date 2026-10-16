@@ -108,7 +108,7 @@ describe("WisdomPill · loading state", () => {
     const html = renderToStaticMarkup(
       <WisdomPill draft="long enough draft of more than twenty-five characters" onUseThis={() => {}} />,
     );
-    expect(html).toContain("listening");
+    expect(html).toContain("Listening");
     // Pill is mounted · the live-region role is present.
     expect(html).toContain('role="status"');
     expect(html).toContain('aria-live="polite"');

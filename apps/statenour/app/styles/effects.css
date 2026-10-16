@@ -117,8 +117,12 @@ select optgroup {
     transition: background-color var(--motion-micro) var(--ease-standard), color var(--motion-micro) var(--ease-standard), border-color var(--motion-micro) var(--ease-standard), opacity var(--motion-micro) var(--ease-standard), transform 80ms ease;
   }
 }
-button:active, [role="button"]:active {
-  transform: scale(0.97);
+/* The press is motion, so it exists only where the operator allows motion (UI v3 W1a review; pinned by
+   tests/repo/ui-v3-motion.test.ts). */
+@media (prefers-reduced-motion: no-preference) {
+  button:active, [role="button"]:active {
+    transform: scale(0.97);
+  }
 }
 
 /* Card hover — border brightens to gold */
@@ -192,7 +196,22 @@ button:active, [role="button"]:active {
 /* Six live consumers (brain-dump modal, error-card, dialog, brain-node-detail-panel, page-nick,
    next-action-whisperer). The 2026-10-01 prune dropped this rule while keeping the keyframe —
    restored; the grammar test now pins it. */
-.animate-fade-in-scale { animation: fade-in-scale 220ms cubic-bezier(0.22, 1, 0.36, 1); }
+.animate-fade-in-scale { animation: fade-in-scale 220ms var(--ease-spring-soft); }
+/* UI v3 W1a · press feedback. A spring on transform only; colour keeps the standard ease it had.
+   Tabs and tappable rows opt in with the class. Its :active scale, like the generic button press
+   above, sits inside prefers-reduced-motion: no-preference; the reduced-motion block below also
+   collapses the transition itself.
+   Pinned by tests/repo/ui-v3-motion.test.ts. */
+.press-spring {
+  transition:
+    color var(--motion-state) var(--ease-standard),
+    background-color var(--motion-state) var(--ease-standard),
+    border-color var(--motion-state) var(--ease-standard),
+    transform var(--motion-micro) var(--ease-spring-snap);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .press-spring:active { transform: scale(0.97); }
+}
 /* v10.0.453 · prefers-reduced-motion · WCAG 2.3.3 compliance.
    Was scoped to 2 keyframes (animate-breath + animate-fade-in-scale)
    while 57 other keyframes ran unimpeded under reduced-motion preference.
@@ -275,9 +294,12 @@ button:active, [role="button"]:active {
   button, [role="button"] {
     min-width: 44px;
   }
-  .touch-feedback:active {
-    transform: scale(0.96);
-    transition: transform 0.05s ease;
+  /* The press is motion: only where the operator allows it (UI v3 W1a review). */
+  @media (prefers-reduced-motion: no-preference) {
+    .touch-feedback:active {
+      transform: scale(0.96);
+      transition: transform 0.05s ease;
+    }
   }
 }
 
@@ -549,7 +571,7 @@ button:active, [role="button"]:active {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
-.animate-fadeSlideUp { animation: fadeSlideUp 0.3s ease-out; }
+.animate-fadeSlideUp { animation: fadeSlideUp 240ms var(--ease-spring-soft); }
 
 /* 2026-08-12 · symmetric exit for fadeSlideUp — full-screen sheets (More,
    Pulse feed) previously only animated IN; every close path (scrim tap,
@@ -589,93 +611,17 @@ button:active, [role="button"]:active {
 /* Themes removed — Command Center (gold + void black) is the only theme. */
 
 /* ═══════════════════════════════════════════════════════
-   STATE AURA — v9.0
-   Page-level visual mood reflecting currentState.
-   Applied to the NERVE CENTER feed wrapper.
+   NO STATE AURA (UI v3 W1a, 2026-10-15)
+   The state-colored glow around every page is gone; the state is one word now
+   (components/hud/state-word.tsx). Do not bring a wrapper effect back.
+
+   CONTAINING-BLOCK INVARIANT, still true for every ancestor of /chat's `position: fixed; inset-0`
+   shell: the AmbientAura wrapper, main, .feed and .page-enter. None may establish a containing block.
+   These all do: position relative/absolute/sticky, transform, translate/rotate/scale, filter,
+   backdrop-filter, perspective, contain layout/paint/strict, will-change naming any of them, and
+   @keyframes that animate them. Guarded by __tests__/state-aura-containing-block.test.ts and
+   tests/repo/ui-v3-aura.test.ts.
    ═══════════════════════════════════════════════════════ */
-
-/* v10.0.474 · the auras live in box-shadow on the wrapper, never a positioned pseudo-element:
- * `position: relative` on the wrapper re-anchored /chat's `position: fixed` shell to the wrapper's
- * full scroll height (~2625px) instead of the viewport.
- *
- * 2026-10-10 (audit 09-F14) · on_fire / drift / low_energy were infinite breathing loops; drift is
- * the COMMON state (any unresolved drift alert), so the whole page throbbed red at rest. SYSTEM.md
- * §1.4: nothing animates at rest except a working state. They now hold their quiet rest frame as a
- * static tint; .state-aura's box-shadow transition still eases the change between states. */
-
-/* Was `state-scattered-wobble`, a 420ms translateX jitter. A running
- * transform animation makes the wrapper a containing block for fixed
- * descendants for the life of the animation — the same trap the
- * box-shadow reverts above were written to avoid, just intermittent
- * instead of permanent. Re-expressed as a one-shot box-shadow flare so
- * "scattered" still reads without touching the containing block. */
-@keyframes state-scattered-aura {
-  0%, 100% {
-    box-shadow: inset 0 0 40px rgba(253, 185, 19, 0.05);
-  }
-  50% {
-    box-shadow: inset 0 0 90px rgba(253, 185, 19, 0.16),
-                0 0 72px rgba(253, 185, 19, 0.10);
-  }
-}
-
-.state-aura {
-  /* position is intentionally not set — allows consumers to use fixed,
-     absolute, or default static without the aura overriding it. */
-  transition: filter 800ms ease, box-shadow 800ms ease;
-  border-radius: 16px;
-  padding: 4px;
-  margin: -4px;
-}
-
-/* CONTAINING-BLOCK INVARIANT — read before adding any property here.
- *
- * AmbientAura wraps EVERY mastery page in
- *   <div class="state-aura state-aura-<state> min-h-screen">
- * and /chat nests a `position: fixed; inset: 0` shell inside it. A fixed
- * element resolves inset-0 against the viewport ONLY while no ancestor
- * establishes a containing block. If one does, the shell instead spans
- * the wrapper's padding box — min-h-screen (100vh) + the 4px .state-aura
- * padding — which on mobile runs past the visible fold, dragging the chat
- * composer under the (correctly viewport-pinned) BottomTabBar.
- *
- * v10.0.474 removed `position: relative` for exactly this reason but left
- * two other doors open: `filter: saturate(...)` on .state-aura-drift and
- * .state-aura-low_energy, and a transform-keyframe wobble on
- * .state-aura-scattered. detectState() returns "drift" on ANY unresolved
- * drift alert (the FIRST branch it checks), so the filter door was not a
- * rare path — it was the common one.
- *
- * These properties ALL create a containing block for fixed descendants:
- *   position: relative/absolute/sticky · transform · translate/rotate/scale
- *   filter · backdrop-filter · perspective · contain: layout/paint/strict
- *   will-change naming any of the above · @keyframes that animate them
- *
- * None of them may appear on .state-aura or .state-aura-*. Convey state
- * with box-shadow (safe, and what every aura below uses) or opacity.
- * Guarded by __tests__/state-aura-containing-block.test.ts. */
-.state-aura-on_fire {
-  box-shadow: inset 0 0 40px rgba(16, 185, 129, 0.08),
-              0 0 48px rgba(16, 185, 129, 0.06);
-}
-
-.state-aura-drift {
-  box-shadow: inset 0 0 40px rgba(239, 68, 68, 0.10),
-              0 0 48px rgba(239, 68, 68, 0.08);
-}
-
-.state-aura-scattered {
-  animation: state-scattered-aura 420ms ease-in-out 1;
-}
-
-.state-aura-low_energy {
-  box-shadow: inset 0 0 60px rgba(59, 130, 246, 0.08);
-}
-
-.state-aura-normal {
-  /* intentional no-op — neutral default */
-  animation: none;
-}
 
 /* v10.0.467 · COCKPIT glow · box-shadow → opacity-on-pseudo conversion */
 /* ═══════════════════════════════════════════════════════

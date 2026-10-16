@@ -56,13 +56,13 @@ export function StitchPromptCard({ data }: StitchPromptCardProps) {
       <div className="p-4 space-y-4">
         {/* Purpose */}
         <div>
-          <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">Purpose</div>
+          <div className="font-mono text-[11px] text-fg-tertiary">Purpose</div>
           <p className="text-sm font-medium text-fg mt-1">{data.oneLinePurpose}</p>
         </div>
 
         {/* Design System Tokens */}
         <div>
-          <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-2">Design System Grid</div>
+          <div className="font-mono text-[11px] text-fg-tertiary mb-2">Design System Grid</div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
             {Object.entries(designSystem).map(([key, val]) => {
               if (!val || typeof val !== "string" || key === "platform") return null;
@@ -88,7 +88,7 @@ export function StitchPromptCard({ data }: StitchPromptCardProps) {
         {/* Page Structure */}
         {pageStructure && pageStructure.length > 0 && (
           <div>
-            <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-2">Layout Structure</div>
+            <div className="font-mono text-[11px] text-fg-tertiary mb-2">Layout Structure</div>
             <div className="space-y-1.5 text-xs">
               {pageStructure.map((sec, idx) => (
                 <div key={idx} className="flex gap-3 bg-surface-raised border border-edge-subtle p-2 rounded-control">
@@ -109,7 +109,7 @@ export function StitchPromptCard({ data }: StitchPromptCardProps) {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs pt-1">
           {constraints && constraints.length > 0 && (
             <div>
-              <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-1.5">Constraints</div>
+              <div className="font-mono text-[11px] text-fg-tertiary mb-1.5">Constraints</div>
               <ul className="space-y-1 text-fg-secondary list-disc list-inside pl-1 text-[11px]">
                 {constraints.map((c, idx) => (
                   <li key={idx}>{c}</li>
@@ -119,7 +119,7 @@ export function StitchPromptCard({ data }: StitchPromptCardProps) {
           )}
           {interactionNotes && interactionNotes.length > 0 && (
             <div>
-              <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-1.5">Interactions</div>
+              <div className="font-mono text-[11px] text-fg-tertiary mb-1.5">Interactions</div>
               <ul className="space-y-1 text-fg-secondary list-disc list-inside pl-1 text-[11px]">
                 {interactionNotes.map((n, idx) => (
                   <li key={idx}>{n}</li>

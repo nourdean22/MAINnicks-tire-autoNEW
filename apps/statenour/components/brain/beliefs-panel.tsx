@@ -245,8 +245,8 @@ export function BeliefsPanel() {
 
       {candidates && candidates.length > 0 && (
         <div className="mb-3">
-          <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary mb-1.5">
-            candidates ({candidates.length})
+          <p className="text-[11px] font-mono text-fg-tertiary mb-1.5">
+            Candidates ({candidates.length})
           </p>
           <div className="space-y-1.5">
             {candidates.map((c) => renderRow(c, "belief_candidate"))}
@@ -255,8 +255,8 @@ export function BeliefsPanel() {
       )}
 
       <div>
-        <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary mb-1.5">
-          active ({active?.length ?? 0})
+        <p className="text-[11px] font-mono text-fg-tertiary mb-1.5">
+          Active ({active?.length ?? 0})
         </p>
         <div className="space-y-1.5">
           {active?.map((b) => renderRow(b, "belief"))}

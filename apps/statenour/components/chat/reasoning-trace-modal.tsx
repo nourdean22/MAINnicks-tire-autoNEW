@@ -201,7 +201,7 @@ export function ReasoningTraceModal({ open, messageId, onClose }: Props) {
                                 : "text-rose-300";
                         return (
                           <div key={key} className="flex flex-col items-center">
-                            <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
+                            <span className="font-mono text-[11px] text-[var(--text-tertiary)]">
                               {label}
                             </span>
                             <span className={`${tone} text-base`}>{v.toFixed(0)}</span>

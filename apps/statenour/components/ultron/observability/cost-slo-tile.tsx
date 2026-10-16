@@ -113,9 +113,9 @@ export function CostSloTile({ state }: Props) {
       {/* Header strip · label + freshness/tier dot · matches the
           existing tile vocabulary (mono eyebrow). */}
       <div className="flex items-center justify-between mb-1">
-        <span className="inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+        <span className="inline-flex items-center gap-1.5 font-mono text-[11px] text-fg-tertiary">
           <DollarSign size={11} />
-          cost · today
+          Cost · today
         </span>
         {utilization !== null && (
           <span className={cn("font-mono text-[11px] tabular-nums", tierText)}>
@@ -196,7 +196,7 @@ export function EmptyTile({
 }) {
   return (
     <GlassCard ruled className="min-h-[112px] border-l-edge-strong">
-      <div className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+      <div className="flex items-center gap-1.5 font-mono text-[11px] text-fg-tertiary">
         {icon}
         {label}
       </div>
@@ -213,7 +213,7 @@ export function EmptyTile({
 export function ErrorTile({ label, message }: { label: string; message: string }) {
   return (
     <GlassCard ruled className="min-h-[112px] border-rose-500/30 bg-rose-500/5">
-      <div className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-rose-300">
+      <div className="flex items-center gap-1.5 font-mono text-[11px] text-rose-300">
         <AlertTriangle size={11} />
         {label} · failed
       </div>

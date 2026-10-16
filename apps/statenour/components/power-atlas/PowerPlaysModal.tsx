@@ -85,16 +85,16 @@ function PlayOutput({ kind, output }: { kind: PlayKind; output: unknown }) {
       <div className="space-y-2 text-xs text-fg-secondary">
         {o.goal && (
           <p>
-            <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mr-2">
-              goal
+            <span className="font-mono text-[11px] text-fg-tertiary mr-2">
+              Goal
             </span>
             {o.goal}
           </p>
         )}
         {o.currentState && o.desiredState && (
           <p>
-            <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mr-2">
-              from → to
+            <span className="font-mono text-[11px] text-fg-tertiary mr-2">
+              From → to
             </span>
             {o.currentState} → {o.desiredState}
           </p>
@@ -106,7 +106,7 @@ function PlayOutput({ kind, output }: { kind: PlayKind; output: unknown }) {
                 key={i}
                 className="border-l-2 border-edge-strong pl-3"
               >
-                <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-amber-300/80">
+                <div className="font-mono text-[11px] text-amber-300/80">
                   {String(ph.order ?? i + 1).padStart(2, "0")} ·{" "}
                   {ph.label ?? "phase"}
                 </div>
@@ -125,8 +125,8 @@ function PlayOutput({ kind, output }: { kind: PlayKind; output: unknown }) {
       <div className="space-y-3 text-xs text-fg-secondary">
         {o.subject && (
           <p>
-            <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mr-2">
-              subject
+            <span className="font-mono text-[11px] text-fg-tertiary mr-2">
+              Subject
             </span>
             <span className="font-mono">{o.subject}</span>
           </p>
@@ -153,16 +153,16 @@ function PlayOutput({ kind, output }: { kind: PlayKind; output: unknown }) {
       <div className="space-y-2 text-xs text-fg-secondary">
         {o.when && (
           <p>
-            <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mr-2">
-              when
+            <span className="font-mono text-[11px] text-fg-tertiary mr-2">
+              When
             </span>
             {o.when}
           </p>
         )}
         {o.how && (
           <p>
-            <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mr-2">
-              how
+            <span className="font-mono text-[11px] text-fg-tertiary mr-2">
+              How
             </span>
             {o.how}
           </p>
@@ -174,8 +174,8 @@ function PlayOutput({ kind, output }: { kind: PlayKind; output: unknown }) {
             &ldquo;{o.why}&rdquo;
           </p>
         )}
-        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-amber-300/70">
-          law applied · {o.lawApplied ?? 16}
+        <p className="font-mono text-[11px] text-amber-300/70">
+          Law applied · {o.lawApplied ?? 16}
         </p>
       </div>
     );
@@ -270,7 +270,7 @@ export default function PowerPlaysModal({
         <div className="space-y-2 mt-2">
           <label
             htmlFor="power-play-goal"
-            className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary"
+            className="font-mono text-[11px] text-fg-tertiary"
           >
             Your goal (optional)
           </label>

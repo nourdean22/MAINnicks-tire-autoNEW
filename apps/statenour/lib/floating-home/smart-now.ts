@@ -26,8 +26,6 @@ export interface SmartNowSuggestion {
   label: string;
   reason: string;
   urgency: SmartNowUrgency;
-  /** Optional emoji prefix · adds personality to the suggestion. */
-  emoji?: string;
 }
 
 /**
@@ -54,7 +52,6 @@ export function pickSmartNow(args: {
           label: `${issues} system issue${issues === 1 ? "" : "s"}`,
           reason: fatalErrors > 0 ? "fatal errors detected" : "cron failures",
           urgency: "high",
-          emoji: "🚨",
         };
       }
     }
@@ -69,7 +66,6 @@ export function pickSmartNow(args: {
         label: `${pulse.actionsPending} pending`,
         reason: "actions awaiting approval",
         urgency: "high",
-        emoji: "⏳",
       };
     }
   }
@@ -85,7 +81,6 @@ export function pickSmartNow(args: {
           label: `${Math.round(errorRate)}% AI errors`,
           reason: "AI error rate spike",
           urgency: "medium",
-          emoji: "⚠️",
         };
       }
     }
@@ -101,7 +96,6 @@ export function pickSmartNow(args: {
         label: "Plan today",
         reason: "morning planning window",
         urgency: "low",
-        emoji: "🌅",
       };
     }
   }
@@ -115,7 +109,6 @@ export function pickSmartNow(args: {
         label: "Active tasks",
         reason: "execution window",
         urgency: "low",
-        emoji: "⚡",
       };
     }
   }
@@ -129,7 +122,6 @@ export function pickSmartNow(args: {
         label: "Journal today",
         reason: "evening reflection",
         urgency: "low",
-        emoji: "📓",
       };
     }
   }
@@ -142,7 +134,6 @@ export function pickSmartNow(args: {
       label: "Ask Nick",
       reason: "default daily-driver",
       urgency: "low",
-      emoji: "💬",
     };
   }
 

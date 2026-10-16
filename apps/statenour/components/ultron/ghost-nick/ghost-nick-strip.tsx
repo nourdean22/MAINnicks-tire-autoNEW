@@ -128,7 +128,7 @@ export function GhostNickStrip() {
           {accPct != null && (
             <span
               className={cn(
-                "font-mono text-[11px] uppercase tracking-[0.12em] px-1.5 py-0.5 rounded-micro",
+                "font-mono text-[11px] px-1.5 py-0.5 rounded-micro",
                 accPct >= 65
                   ? "text-emerald-400 bg-emerald-500/10"
                   : accPct >= 40
@@ -141,8 +141,8 @@ export function GhostNickStrip() {
             </span>
           )}
           {calibrating && (
-            <span className="font-mono text-[11px] uppercase tracking-[0.12em] px-1.5 py-0.5 rounded-micro text-fg-tertiary bg-surface-interactive" title="need ≥3 outcomes to show accuracy">
-              calibrating {totalCalls}/3
+            <span className="font-mono text-[11px] px-1.5 py-0.5 rounded-micro text-fg-tertiary bg-surface-interactive" title="need ≥3 outcomes to show accuracy">
+              Calibrating {totalCalls}/3
             </span>
           )}
           {predictedAgo != null && (

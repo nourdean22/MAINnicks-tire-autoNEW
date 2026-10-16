@@ -90,15 +90,15 @@ const TEMPLATES: TemplateDef[] = [
   },
 ];
 
-const MOODS: Array<{ emoji: string; label: string }> = [
-  { emoji: "🎯", label: "focused" },
-  { emoji: "🔥", label: "motivated" },
-  { emoji: "🌊", label: "calm" },
-  { emoji: "🪞", label: "reflective" },
-  { emoji: "⚡", label: "energized" },
-  { emoji: "😤", label: "frustrated" },
-  { emoji: "😴", label: "tired" },
-  { emoji: "🌪️", label: "scattered" },
+const MOODS: Array<{ label: string }> = [
+  { label: "focused" },
+  { label: "motivated" },
+  { label: "calm" },
+  { label: "reflective" },
+  { label: "energized" },
+  { label: "frustrated" },
+  { label: "tired" },
+  { label: "scattered" },
 ];
 
 const LAST_TEMPLATE_KEY = "ultron:reflect:last-template";
@@ -322,8 +322,8 @@ export function ReflectComposer() {
       {/* Header */}
       <div className="flex items-center gap-2">
         <Eye size={12} className="text-fg-tertiary" />
-        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
-          reflect
+        <span className="font-mono text-[11px] text-fg-tertiary">
+          Reflect
         </span>
         <span className="text-[11px] font-mono text-fg-tertiary">
           · {tmpl.label.toLowerCase()}
@@ -371,7 +371,7 @@ export function ReflectComposer() {
       <div className="space-y-1.5">
         {tmpl.fields.map((f) => (
           <div key={f.key}>
-            <label className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary block mb-0.5">
+            <label className="font-mono text-[11px] text-fg-tertiary block mb-0.5">
               {f.label}
             </label>
             <textarea
@@ -394,12 +394,12 @@ export function ReflectComposer() {
 
       {/* Mood row */}
       <div className="flex items-center gap-1 flex-wrap">
-        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mr-1">
-          mood
+        <span className="font-mono text-[11px] text-fg-tertiary mr-1">
+          Mood
         </span>
         {MOODS.map((m) => (
           <button
-            key={m.emoji}
+            key={m.label}
             onClick={() => setMood((cur) => (cur === m.label ? "" : m.label))}
             className={cn(
               "flex items-center gap-1 px-1.5 py-0.5 rounded-micro border text-[11px] font-mono transition-colors",
@@ -409,8 +409,7 @@ export function ReflectComposer() {
             )}
             title={m.label}
           >
-            <span>{m.emoji}</span>
-            <span className="hidden sm:inline">{m.label}</span>
+            <span>{m.label}</span>
           </button>
         ))}
       </div>
@@ -485,8 +484,8 @@ export function ReflectComposer() {
         <div className="rounded-control border border-edge-default bg-surface-raised p-2.5">
           <div className="flex items-center gap-1.5 mb-1">
             <Target size={10} className="text-fg-tertiary" />
-            <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
-              nick counters
+            <span className="font-mono text-[11px] text-fg-tertiary">
+              Nick counters
             </span>
           </div>
           <p className="text-[13px] text-fg leading-snug italic">
@@ -559,7 +558,7 @@ function GhostCounterQuestionInline() {
       <Eye size={11} className="mt-0.5 shrink-0 text-fg-tertiary" aria-hidden />
       <div className="flex-1 min-w-0">
         <p className="text-fg leading-snug">
-          <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">NICK · </span>
+          <span className="font-mono text-[11px] text-fg-tertiary">NICK · </span>
           {data.question}
         </p>
         {data.basis && (

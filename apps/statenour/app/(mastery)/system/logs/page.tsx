@@ -242,6 +242,7 @@ function LogsPageInner() {
     <StandardPage
       eyebrow="NOUR OS · System"
       title="Logs"
+      descriptionVisibility="always"
       description={
         feed
           ? `${summary.total} entries in last ${win} · ${summary.err} errors · ${summary.warn} warnings${newSince > 0 ? ` · ${newSince} new` : ""}`

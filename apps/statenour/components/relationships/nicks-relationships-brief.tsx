@@ -72,8 +72,8 @@ export function NicksRelationshipsBrief({
           strokeWidth={1.75}
         />
         <div className="flex-1 min-w-0">
-          <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
-            nick · today&apos;s relationships
+          <p className="font-mono text-[11px] text-fg-tertiary">
+            Nick · today&apos;s relationships
           </p>
           <p className="mt-1 text-[12px] text-[var(--text-primary)] leading-snug whitespace-pre-line">
             {brief}

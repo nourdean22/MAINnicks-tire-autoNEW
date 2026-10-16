@@ -38,7 +38,7 @@ function HealthTrendCard() {
     // Not "quiet": the nightly health-digest cron writes one row a day, so an
     // empty 7-day series means the writer has not run. /system/crons has it.
     return (
-      <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-amber-300/90">
+      <p className="font-mono text-[11px] text-amber-300/90">
         Health trend: no digest rows in 7 days — the nightly health-digest cron has not written.
       </p>
     );
@@ -245,7 +245,7 @@ function IntegrationQuotasCard() {
               className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-2 text-[11px] font-mono py-1 border-b border-edge-subtle last:border-0"
             >
               <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
-              <span className="text-fg-secondary uppercase tracking-[0.12em]">
+              <span className="text-fg-secondary">
                 {p.provider}
               </span>
               <span className={tint}>{p.status}</span>

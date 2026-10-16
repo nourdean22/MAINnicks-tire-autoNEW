@@ -1,5 +1,5 @@
 /**
- * The cockpit Avg Feedback tile with no thumbs in 30 days (audit 06-F9-N1). The service now returns
+ * The cockpit Avg feedback tile with no thumbs in 30 days (audit 06-F9-N1). The service now returns
  * kpis.averageFeedback = null for "no feedback", and the tile called .toFixed(1) on it: the whole
  * cockpit threw. It renders "unmeasured" instead; a real average still renders signed.
  */
@@ -26,12 +26,12 @@ const kpis = (averageFeedback: number | null) => ({
 
 function feedbackTile(): string {
   const html = renderToStaticMarkup(<CockpitObservabilityView />);
-  const start = html.indexOf("Avg Feedback");
+  const start = html.indexOf("Avg feedback");
   expect(start).toBeGreaterThan(-1); // anchor found, or the checks below scan nothing
   return html.slice(start, start + 600);
 }
 
-describe("cockpit Avg Feedback tile", () => {
+describe("cockpit Avg feedback tile", () => {
   it("no feedback in the window renders 'unmeasured', not a crash or +0.0", () => {
     stubs.stats = kpis(null);
     const tile = feedbackTile();

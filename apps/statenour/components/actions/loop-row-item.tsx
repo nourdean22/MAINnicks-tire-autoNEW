@@ -534,8 +534,8 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
             on iPhone-14 width). Truncates so a long mission name
             never wraps and pushes the layout. */}
         {task.mission?.title && task.mission.title !== "Inbox" && (
-          <div className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary truncate leading-tight mb-0.5">
-            {task.mission.title.toLowerCase()}
+          <div className="text-[11px] font-mono text-fg-tertiary truncate leading-tight mb-0.5">
+            {task.mission.title}
           </div>
         )}
         <div className="flex items-center gap-1.5 flex-wrap">
@@ -592,7 +592,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
               expansion is already 1 tap away. */}
           {kind === "DAILY" && (task.streakCount ?? 0) > 0 && (
             <span className="text-[11px] text-amber-400 font-mono shrink-0">
-              🔥{task.streakCount}
+              {task.streakCount} streak
             </span>
           )}
           {/* 2026-05-24 · Wave U feature-mining #4 · streak-at-risk
@@ -612,7 +612,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
             return (
               <span
                 className={cn(
-                  "text-[11px] font-mono shrink-0 uppercase tracking-[0.12em]",
+                  "text-[11px] font-mono shrink-0",
                   critical ? "text-rose-300" : "text-amber-300/80",
                 )}
                 title={`Streak at risk · ${Math.round(hoursSince)}h since last completion · breaks at 36h`}
@@ -633,14 +633,14 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                 }
               }}
               className={cn(
-                "text-[11px] font-mono shrink-0 uppercase tracking-[0.12em] transition-colors px-1.5 py-0.5 rounded-micro border",
+                "text-[11px] font-mono shrink-0 transition-colors px-1.5 py-0.5 rounded-micro border",
                 isDecideOpen
                   ? "text-amber-300 bg-amber-500/15 border-amber-500/40"
                   : "text-amber-500/80 border-amber-500/20 hover:bg-amber-500/10"
               )}
               title="Decide: kill / reframe / blocker"
             >
-              stale {ageDays}d
+              Stale {ageDays}d
             </button>
           )}
           {kind === "PROMISE" && daysUntilDeadline !== null && (
@@ -733,7 +733,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
             return (
               <span
                 title={`Created via ${task.originSource}`}
-                className="text-[11px] uppercase tracking-[0.12em] font-mono shrink-0 px-1 rounded-micro bg-surface-interactive text-fg-tertiary border border-edge-subtle"
+                className="text-[11px] font-mono shrink-0 px-1 rounded-micro bg-surface-interactive text-fg-tertiary border border-edge-subtle"
               >
                 {label}
               </span>
@@ -855,7 +855,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
         {task.goalId && goalLineage?.get(task.goalId) ? (
           <div className="mt-0.5 flex items-center gap-1 flex-wrap">
             <span
-              className="inline-flex items-center gap-1 rounded-micro border border-violet-500/30 bg-violet-500/5 px-1 py-0.5 text-[11px] font-mono uppercase tracking-[0.12em] text-violet-300 max-w-full"
+              className="inline-flex items-center gap-1 rounded-micro border border-violet-500/30 bg-violet-500/5 px-1 py-0.5 text-[11px] font-mono text-violet-300 max-w-full"
               title="Completing this task auto-lifts this goal"
             >
               <Target size={8} className="shrink-0" />
@@ -879,9 +879,9 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                 return (
                   <span
                     title="Linked goal's deadline has passed unmet — completing this still logs progress"
-                    className="inline-flex items-center gap-1 rounded-micro border border-rose-500/40 bg-rose-500/10 px-1 py-0.5 text-[11px] font-mono uppercase tracking-[0.12em] text-rose-300"
+                    className="inline-flex items-center gap-1 rounded-micro border border-rose-500/40 bg-rose-500/10 px-1 py-0.5 text-[11px] font-mono text-rose-300"
                   >
-                    goal missed
+                    Goal missed
                   </span>
                 );
               }
@@ -889,9 +889,9 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                 return (
                   <span
                     title="Linked goal is behind pace — finishing this lifts it"
-                    className="inline-flex items-center gap-1 rounded-micro border border-amber-500/40 bg-amber-500/10 px-1 py-0.5 text-[11px] font-mono uppercase tracking-[0.12em] text-amber-300"
+                    className="inline-flex items-center gap-1 rounded-micro border border-amber-500/40 bg-amber-500/10 px-1 py-0.5 text-[11px] font-mono text-amber-300"
                   >
-                    goal behind
+                    Goal behind
                   </span>
                 );
               }
@@ -899,9 +899,9 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                 return (
                   <span
                     title="Linked goal needs daily progress — finishing this lifts it"
-                    className="inline-flex items-center gap-1 rounded-micro border border-sky-500/40 bg-sky-500/10 px-1 py-0.5 text-[11px] font-mono uppercase tracking-[0.12em] text-sky-300"
+                    className="inline-flex items-center gap-1 rounded-micro border border-sky-500/40 bg-sky-500/10 px-1 py-0.5 text-[11px] font-mono text-sky-300"
                   >
-                    goal needs +1
+                    Goal needs +1
                   </span>
                 );
               }
@@ -921,7 +921,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
             his effort estimates calibrate over time. ── */}
         {(task.actualMinutes ?? 0) > 0 && (
           <p className="text-[11px] text-fg-tertiary mt-0.5 font-mono">
-            ⏱ {task.actualMinutes}m actual
+            {task.actualMinutes}m actual
           </p>
         )}
 
@@ -933,13 +933,13 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
           <div className="mt-2 rounded-control border border-amber-500/30 bg-amber-500/[0.03] p-2 space-y-2">
             <div className="flex items-center gap-2">
               <Edit3 size={11} className="text-amber-400 shrink-0" />
-              <span className="text-[11px] uppercase tracking-[0.12em] text-amber-400 font-mono">
-                editing
+              <span className="text-[11px] text-amber-400 font-mono">
+                Editing
               </span>
             </div>
             <div className="space-y-1.5">
               <label className="block">
-                <span className="block text-[11px] uppercase tracking-[0.12em] text-fg-tertiary font-mono mb-0.5">title</span>
+                <span className="block text-[11px] text-fg-tertiary font-mono mb-0.5">Title</span>
                 <input
                   autoFocus
                   value={editTitle}
@@ -948,7 +948,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                 />
               </label>
               <label className="block">
-                <span className="block text-[11px] uppercase tracking-[0.12em] text-fg-tertiary font-mono mb-0.5">next physical action</span>
+                <span className="block text-[11px] text-fg-tertiary font-mono mb-0.5">Next physical action</span>
                 <input
                   value={editAction}
                   onChange={(e) => onChangeEditAction(e.target.value)}
@@ -958,7 +958,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
               </label>
               <div className="grid grid-cols-2 gap-1.5">
                 <label className="block">
-                  <span className="block text-[11px] uppercase tracking-[0.12em] text-fg-tertiary font-mono mb-0.5">effort</span>
+                  <span className="block text-[11px] text-fg-tertiary font-mono mb-0.5">Effort</span>
                   <select
                     value={editEffort}
                     onChange={(e) => onChangeEditEffort(e.target.value)}
@@ -970,7 +970,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                   </select>
                 </label>
                 <label className="block">
-                  <span className="block text-[11px] uppercase tracking-[0.12em] text-fg-tertiary font-mono mb-0.5">due</span>
+                  <span className="block text-[11px] text-fg-tertiary font-mono mb-0.5">Due</span>
                   <input
                     type="date"
                     value={editDueDate}
@@ -1021,8 +1021,8 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
               if (!why) return null;
               return (
                 <p className="text-[12px] text-amber-400/80 italic flex items-start gap-1.5">
-                  <span className="text-amber-500/50 font-mono uppercase tracking-[0.12em] text-[11px] not-italic shrink-0 mt-0.5">
-                    why
+                  <span className="text-amber-500/50 font-mono text-[11px] not-italic shrink-0 mt-0.5">
+                    Why
                   </span>
                   <span>{why}</span>
                 </p>
@@ -1032,8 +1032,8 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
             {/* Next physical action — full text, not truncated */}
             {task.nextPhysicalAction && task.nextPhysicalAction !== task.title && (
               <p className="text-[12px] text-fg-secondary leading-snug">
-                <span className="text-fg-tertiary font-mono uppercase tracking-[0.12em] text-[11px] mr-1.5">
-                  next
+                <span className="text-fg-tertiary font-mono text-[11px] mr-1.5">
+                  Next
                 </span>
                 → {task.nextPhysicalAction}
               </p>
@@ -1042,8 +1042,8 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
             {/* Finish condition */}
             {task.finishCondition && (
               <p className="text-[12px] text-fg-secondary leading-snug">
-                <span className="text-fg-tertiary font-mono uppercase tracking-[0.12em] text-[11px] mr-1.5">
-                  done when
+                <span className="text-fg-tertiary font-mono text-[11px] mr-1.5">
+                  Done when
                 </span>
                 {task.finishCondition}
               </p>
@@ -1052,8 +1052,8 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
             {/* Promise to (full, not truncated) */}
             {kind === "PROMISE" && task.promiseTo && (
               <p className="text-[12px] text-violet-300">
-                <span className="text-violet-400/50 font-mono uppercase tracking-[0.12em] text-[11px] mr-1.5">
-                  promised to
+                <span className="text-violet-400/50 font-mono text-[11px] mr-1.5">
+                  Promised to
                 </span>
                 {task.promiseTo}
               </p>
@@ -1070,7 +1070,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
             <div className="grid grid-cols-2 gap-1.5 text-[11px] pt-1 border-t border-edge-subtle">
               {task.mission?.title && (
                 <div>
-                  <div className="text-fg-tertiary uppercase tracking-[0.12em] text-[11px] font-mono">mission</div>
+                  <div className="text-fg-tertiary text-[11px] font-mono">Mission</div>
                   <div className="text-fg-secondary truncate">{task.mission.title}</div>
                 </div>
               )}
@@ -1082,7 +1082,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                   to a per-domain Inbox. */}
               {task.mission?.domain && (
                 <div className="col-span-1">
-                  <div className="text-fg-tertiary uppercase tracking-[0.12em] text-[11px] font-mono">domain</div>
+                  <div className="text-fg-tertiary text-[11px] font-mono">Domain</div>
                   {isDomainEditing ? (
                     <div className="flex flex-wrap gap-1 mt-0.5">
                       {(() => {
@@ -1142,19 +1142,19 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
               )}
               {task.effort && (
                 <div>
-                  <div className="text-fg-tertiary uppercase tracking-[0.12em] text-[11px] font-mono">effort</div>
+                  <div className="text-fg-tertiary text-[11px] font-mono">Effort</div>
                   <div className="text-fg-secondary font-mono">{EFF[task.effort] || task.effort}</div>
                 </div>
               )}
               {task.context && (
                 <div>
-                  <div className="text-fg-tertiary uppercase tracking-[0.12em] text-[11px] font-mono">context</div>
+                  <div className="text-fg-tertiary text-[11px] font-mono">Context</div>
                   <div className="text-fg-secondary">{task.context}</div>
                 </div>
               )}
               {task.energyRequired && (
                 <div>
-                  <div className="text-fg-tertiary uppercase tracking-[0.12em] text-[11px] font-mono">energy</div>
+                  <div className="text-fg-tertiary text-[11px] font-mono">Energy</div>
                   <div className="text-fg-secondary">
                     {task.energyRequired?.toLowerCase()}
                   </div>
@@ -1162,7 +1162,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
               )}
               {task.autoPriority != null && (
                 <div>
-                  <div className="text-fg-tertiary uppercase tracking-[0.12em] text-[11px] font-mono">priority</div>
+                  <div className="text-fg-tertiary text-[11px] font-mono">Priority</div>
                   <div className="text-fg-secondary font-mono">
                     {task.autoPriority}
                   </div>
@@ -1170,7 +1170,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
               )}
               {task.dueDate && (
                 <div>
-                  <div className="text-fg-tertiary uppercase tracking-[0.12em] text-[11px] font-mono">due</div>
+                  <div className="text-fg-tertiary text-[11px] font-mono">Due</div>
                   <div className={cn("font-mono", overdue ? "text-red-400" : "text-fg-secondary")}>
                     {new Date(task.dueDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                   </div>
@@ -1178,13 +1178,13 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
               )}
               {task.createdAt && (
                 <div>
-                  <div className="text-fg-tertiary uppercase tracking-[0.12em] text-[11px] font-mono">created</div>
+                  <div className="text-fg-tertiary text-[11px] font-mono">Created</div>
                   <div className="text-fg-secondary">{ag(task.createdAt)} ago</div>
                 </div>
               )}
               {task.originSource && (
                 <div>
-                  <div className="text-fg-tertiary uppercase tracking-[0.12em] text-[11px] font-mono">source</div>
+                  <div className="text-fg-tertiary text-[11px] font-mono">Source</div>
                   <div className="text-fg-secondary font-mono truncate" title={task.originSource}>
                     {originSourceLabel(task.originSource) ?? task.originSource}
                   </div>
@@ -1196,8 +1196,8 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                 active; otherwise default verbs render. */}
             {isSnoozing ? (
               <div className="flex items-center gap-1.5 pt-1 border-t border-edge-subtle">
-                <span className="text-[11px] uppercase tracking-[0.12em] text-fg-tertiary font-mono mr-1">
-                  push to
+                <span className="text-[11px] text-fg-tertiary font-mono mr-1">
+                  Push to
                 </span>
                 {([
                   { d: 1, label: "tomorrow" },

@@ -213,7 +213,7 @@ export function MessageActionSheet({
 
         {/* Message preview */}
         <div className="px-4 py-2.5 border-b border-(--border-default)">
-          <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-(--text-tertiary) mb-1">
+          <p className="font-mono text-[11px] text-(--text-tertiary) mb-1">
             {role === "user" ? "your message" : "nick's reply"}
           </p>
           <p className="text-[12.5px] text-(--text-secondary) line-clamp-3 leading-relaxed">

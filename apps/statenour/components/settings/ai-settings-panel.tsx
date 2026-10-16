@@ -440,7 +440,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-control border border-edge-subtle bg-surface-raised px-2.5 py-1.5">
-      <p className="font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-fg-tertiary">
+      <p className="font-mono text-[11px] font-medium text-fg-tertiary">
         {label}
       </p>
       <p className="text-[13px] font-semibold tabular-nums text-fg">{value}</p>

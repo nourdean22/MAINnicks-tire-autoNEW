@@ -112,7 +112,7 @@ export function BreakPromiseModal({
           <div className="flex-1">
             <p
               id={titleId}
-              className="font-mono text-[11px] uppercase tracking-[0.12em] text-red-400"
+              className="font-mono text-[11px] text-red-400"
             >
               Break promise
             </p>
@@ -133,7 +133,7 @@ export function BreakPromiseModal({
           <label
             id={descId}
             htmlFor={`break-reason-${task.id}`}
-            className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-1 block"
+            className="font-mono text-[11px] text-fg-tertiary mb-1 block"
           >
             What got in the way?
           </label>

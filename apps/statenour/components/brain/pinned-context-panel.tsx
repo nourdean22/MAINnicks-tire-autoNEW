@@ -430,8 +430,8 @@ export function PinnedContextPanel() {
       {/* Add-new drawer */}
       {addOpen && (
         <div className="rounded-surface border border-edge-subtle bg-content p-3 space-y-2 animate-fade-in">
-          <div className="flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
-            <Plus size={10} /> new pin
+          <div className="flex items-center gap-2 text-[11px] font-mono text-fg-tertiary">
+            <Plus size={10} /> New pin
           </div>
           <textarea
             autoFocus
@@ -699,11 +699,11 @@ export function PinnedContextPanel() {
 
       {brainRules && brainRules.length > 0 && (
         <div className="pt-3 border-t border-edge-subtle space-y-2">
-          <div className="flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
+          <div className="flex items-center gap-1.5 text-[11px] font-mono text-fg-tertiary">
             <Sparkles size={11} />
             <span>Active Hot Rules</span>
             <span className="text-[11px] text-[var(--text-tertiary)] font-normal font-mono normal-case">
-              most-re-sighted constraints
+              Most-re-sighted constraints
             </span>
           </div>
           <ul className="space-y-1.5">

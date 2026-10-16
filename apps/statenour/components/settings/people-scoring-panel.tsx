@@ -76,7 +76,7 @@ export function PeopleScoringPanel() {
         <span
           role="status"
           aria-live="polite"
-          className="font-mono text-[11px] uppercase tracking-[0.12em] text-emerald-300"
+          className="font-mono text-[11px] text-emerald-300"
         >
           {savedAt && !dirty ? "saved" : ""}
         </span>

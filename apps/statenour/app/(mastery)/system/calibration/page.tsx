@@ -122,6 +122,7 @@ export default function CalibrationPage() {
     <StandardPage
       eyebrow="NOUR OS · System"
       title="State Calibration"
+      descriptionVisibility="always"
       description={
         // 2026-05-23 · Wave M · "failed to load" distinct from empty.
         // 2026-05-24 · Wave N · surface non-zero malformed +
@@ -420,7 +421,7 @@ export default function CalibrationPage() {
               <div className="text-2xl font-bold font-mono text-fg-secondary">
                   {judgeData.agreementPct >= 0 ? `${judgeData.agreementPct.toFixed(1)}%` : "—"}
                 </div>
-                <div className="text-fg-tertiary font-mono text-[11px] uppercase tracking-[0.12em]">
+                <div className="text-fg-tertiary font-mono text-[11px]">
                   Agreement (n={judgeData.totalScored})
                 </div>
               </div>
@@ -429,7 +430,7 @@ export default function CalibrationPage() {
             {judgeData.totalScored > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="rounded-surface border border-edge-default bg-surface-raised p-3">
-                  <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-2">
+                  <div className="font-mono text-[11px] text-fg-tertiary mb-2">
                     Confusion Matrix
                   </div>
                   <table className="w-full text-center border-separate border-spacing-1">
@@ -465,7 +466,7 @@ export default function CalibrationPage() {
 
                 <div className="rounded-surface border border-edge-default bg-surface-raised p-3 space-y-2 flex flex-col justify-between">
                   <div>
-                    <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-1">
+                    <div className="font-mono text-[11px] text-fg-tertiary mb-1">
                       Exclusion Summary
                     </div>
                     <ul className="text-[11px] text-fg-secondary space-y-1 font-mono">

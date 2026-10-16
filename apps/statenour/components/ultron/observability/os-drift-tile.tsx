@@ -54,10 +54,10 @@ export function OsDriftTile({ state }: Props) {
     return <ShimmerSkeleton variant="card" className="min-h-[112px]" />;
   }
   if (state.kind === "empty") {
-    return <EmptyTile label="os · drift" hint="no snapshot yet" icon={<Activity size={14} />} />;
+    return <EmptyTile label="OS drift" hint="no snapshot yet" icon={<Activity size={14} />} />;
   }
   if (state.kind === "error") {
-    return <ErrorTile label="os · drift" message={state.message} />;
+    return <ErrorTile label="OS drift" message={state.message} />;
   }
 
   const now = state.data.now ?? {};
@@ -67,9 +67,9 @@ export function OsDriftTile({ state }: Props) {
   return (
     <GlassCard ruled className="min-h-[112px] border-l-edge-strong">
       <div className="flex items-center justify-between mb-1">
-        <span className="inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+        <span className="inline-flex items-center gap-1.5 font-mono text-[11px] text-fg-tertiary">
           <Activity size={11} />
-          os · drift
+          OS drift
         </span>
         <span className="font-mono text-[11px] text-fg-tertiary">
           vs 7d ago

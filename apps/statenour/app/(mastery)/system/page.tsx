@@ -223,6 +223,7 @@ export default function SystemPage() {
     <StandardPage
       eyebrow="NOUR OS"
       title="System"
+      descriptionVisibility="always"
       description={`v${d?.version ?? "..."}${mounted && diagnosticsQuery.dataUpdatedAt > 0 ? ` · Last refresh: ${new Date(diagnosticsQuery.dataUpdatedAt).toLocaleTimeString()}` : ""}`}
       width="2xl"
       rhythm="workspace"
@@ -302,8 +303,8 @@ export default function SystemPage() {
             ))}
           </ul>
         )}
-        <p className="mt-5 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
-          db {d ? (d.db.connected ? `${d.db.latency_ms}ms` : "down") : "…"} · requests 24h{" "}
+        <p className="mt-5 font-mono text-[11px] text-fg-tertiary">
+          DB {d ? (d.db.connected ? `${d.db.latency_ms}ms` : "down") : "…"} · requests 24h{" "}
           {d ? d.kpis.requests_24h : "…"} · avg latency{" "}
           {d ? (d.kpis.latency_24h.avg_ms > 0 ? `${d.kpis.latency_24h.avg_ms}ms` : "no data") : "…"} · errors 24h{" "}
           {d ? d.kpis.errors_24h : diagnosticsQuery.isError ? "unknown" : "…"}
@@ -390,7 +391,7 @@ export default function SystemPage() {
         <Panel className="border-edge-default p-5 flex flex-col gap-4">
               <div className="flex items-center justify-between border-b border-edge-subtle pb-3">
             <div>
-              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">F2 · System Change Digest</span>
+              <span className="font-mono text-[11px] text-fg-tertiary">F2 · System Change Digest</span>
               <h3 className="text-sm font-semibold text-fg mt-0.5">Reconciliation Summary</h3>
             </div>
             {changeDigestQuery.data?.deployment.status && (
@@ -482,7 +483,7 @@ export default function SystemPage() {
         <Panel className="border-edge-default p-5 flex flex-col gap-4">
               <div className="flex items-center justify-between border-b border-edge-subtle pb-3">
             <div>
-              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">P5 · Grounded Truth Evals</span>
+              <span className="font-mono text-[11px] text-fg-tertiary">P5 · Grounded Truth Evals</span>
               <h3 className="text-sm font-semibold text-fg mt-0.5">Scoreboard</h3>
             </div>
             {memoryEvalsQuery.data && (
@@ -502,21 +503,21 @@ export default function SystemPage() {
               <div className="grid grid-cols-3 gap-2 text-center">
                 <div className="rounded-micro bg-content border border-edge-subtle p-1.5">
                   <div className="text-emerald-400 text-sm font-bold">{memoryEvalsQuery.data.passed}</div>
-                  <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">Passed</div>
+                  <div className="font-mono text-[11px] text-fg-tertiary">Passed</div>
                 </div>
                 <div className="rounded-micro bg-content border border-edge-subtle p-1.5">
                   <div className="text-red-400 text-sm font-bold">{memoryEvalsQuery.data.failed}</div>
-                  <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">Failed</div>
+                  <div className="font-mono text-[11px] text-fg-tertiary">Failed</div>
                 </div>
                 <div className="rounded-micro bg-content border border-edge-subtle p-1.5">
               <div className="text-fg-secondary text-sm font-bold">{memoryEvalsQuery.data.manual}</div>
-                  <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">Manual</div>
+                  <div className="font-mono text-[11px] text-fg-tertiary">Manual</div>
                 </div>
               </div>
 
               {/* Failures List */}
               <div className="flex-1 overflow-auto max-h-[160px] pr-1 space-y-1.5">
-              <div className="text-fg-tertiary font-mono text-[11px] uppercase tracking-[0.12em]">Failures</div>
+              <div className="text-fg-tertiary font-mono text-[11px]">Failures</div>
                 {/* An eval "ran" only if it passed or failed; total 0, or every
                     eval manual (docs/ not bundled), is not a pass. */}
                 {memoryEvalsQuery.data.passed + memoryEvalsQuery.data.failed === 0 ? (
@@ -562,7 +563,7 @@ export default function SystemPage() {
         <Panel className="border-edge-default p-5 flex flex-col gap-4 md:col-span-2 lg:col-span-1">
               <div className="flex items-center justify-between border-b border-edge-subtle pb-3">
             <div>
-              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">F4 · Action Receipt Feed</span>
+              <span className="font-mono text-[11px] text-fg-tertiary">F4 · Action Receipt Feed</span>
               <h3 className="text-sm font-semibold text-fg mt-0.5">Recent Activities</h3>
             </div>
             {receiptFeedQuery.data?.counts && (

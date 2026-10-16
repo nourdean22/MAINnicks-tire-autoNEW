@@ -21,7 +21,7 @@
  * 2026-09-16: the Visible Transformation wave moved its last caller
  * (/journal) onto PageHeader, leaving it unreachable from any
  * entrypoint. The mastery surfaces keep the lower-density
- * editorial-minimalist pattern (text-xs uppercase tracked) — this
+ * editorial-minimalist pattern (text-xs mono tracked, sentence case since UI v3) — this
  * primitive is now the only section-heading idiom here.
  *
  * Anatomy:
@@ -32,7 +32,7 @@ import { cn } from "@/lib/utils";
 import type { ReactNode } from "react";
 
 interface MasterySectionLabelProps {
-  /** The label text. Always rendered as uppercase. */
+  /** The label text, rendered as written (sentence case since UI v3 W1a). */
   label: string;
   /** Optional count rendered after a `·` separator. */
   count?: number | string;
@@ -77,8 +77,8 @@ export function MasterySectionLabel({
         role="heading"
         aria-level={2}
         className={cn(
-          // Mirrors `.eyebrow` (base.css): Geist Mono 11px · uppercase · letter-spacing 0.12em
-          "font-mono text-[11px] font-medium uppercase tracking-[0.12em] truncate m-0",
+          // Mirrors `.eyebrow` (base.css): Geist Mono 11px · sentence case · letter-spacing 0.12em
+          "font-mono text-[11px] font-medium truncate m-0",
           TONE_TEXT[tone],
         )}
       >
@@ -88,7 +88,7 @@ export function MasterySectionLabel({
         ) : null}
       </p>
       {action ? (
-        <div className="shrink-0 font-mono text-[11px] uppercase tracking-[0.12em]">
+        <div className="shrink-0 font-mono text-[11px]">
           {action}
         </div>
       ) : null}

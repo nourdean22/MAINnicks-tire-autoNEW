@@ -78,8 +78,8 @@ export function ContextualGreeneSidebar({
 
   if (loading) {
     return (
-      <div className="rounded-control border border-edge-subtle bg-content px-3 py-3 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
-        nick is choosing laws…
+      <div className="rounded-control border border-edge-subtle bg-content px-3 py-3 font-mono text-[11px] text-fg-tertiary">
+        Nick is choosing laws…
       </div>
     );
   }
@@ -98,8 +98,8 @@ export function ContextualGreeneSidebar({
       className="space-y-2"
     >
       <header className="flex items-center gap-2 px-1">
-        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
-          greene · applicable now
+        <span className="font-mono text-[11px] text-fg-tertiary">
+          Greene · applicable now
         </span>
         <span className="text-[11px] font-mono text-fg-tertiary">
           ·
@@ -116,7 +116,7 @@ export function ContextualGreeneSidebar({
             className="rounded-surface border border-edge-subtle bg-content p-3 space-y-2"
           >
             <div className="flex items-start gap-2">
-              <span className="shrink-0 inline-flex items-center rounded-micro border border-edge-default bg-surface-raised px-1.5 py-0.5 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary">
+              <span className="shrink-0 inline-flex items-center rounded-micro border border-edge-default bg-surface-raised px-1.5 py-0.5 font-mono text-[11px] text-fg-secondary">
                 {BOOK_LABEL[law.book] ?? law.book}
               </span>
               <h4 className="flex-1 text-[13px] font-semibold text-fg truncate">

@@ -99,7 +99,7 @@ export function IntelligenceFlagsPanel() {
             Cognitive & autonomy substrates
           </span>
         </div>
-        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+        <span className="font-mono text-[11px] text-fg-tertiary">
           {flags.filter(f => f.isOn).length} Active / {flags.length} Total
         </span>
       </div>
@@ -184,7 +184,7 @@ export function IntelligenceFlagsPanel() {
                     {/* Lifecycle Badge */}
                     <span 
                       className={cn(
-                        "px-1.5 py-0.5 rounded-micro font-mono text-[11px] font-medium uppercase tracking-[0.12em]",
+                        "px-1.5 py-0.5 rounded-micro font-mono text-[11px] font-medium",
                         flag.status === "stable" ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400" :
                         flag.status === "canary" ? "bg-blue-500/10 border border-blue-500/20 text-blue-400" :
                         flag.status === "experimental" ? "bg-amber-500/10 border border-amber-500/20 text-amber-400" :
@@ -195,7 +195,7 @@ export function IntelligenceFlagsPanel() {
                     </span>
                     {/* High Risk warning badge */}
                     {isHighRisk && (
-                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-micro font-mono text-[11px] font-medium bg-red-500/15 border border-red-500/25 text-red-400 uppercase tracking-[0.12em]">
+                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-micro font-mono text-[11px] font-medium bg-red-500/15 border border-red-500/25 text-red-400">
                         <AlertTriangle size={8} /> High Risk
                       </span>
                     )}
@@ -210,7 +210,7 @@ export function IntelligenceFlagsPanel() {
                     <span><strong>Default behaviour:</strong> {flag.defaultBehavior}</span>
                   </div>
                   {isReadOnly && (
-                    <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-amber-300/80">
+                    <p className="font-mono text-[11px] text-amber-300/80">
                       Environment-controlled · read-only here
                     </p>
                   )}
@@ -219,7 +219,7 @@ export function IntelligenceFlagsPanel() {
                 {/* Right Side: Override Controls */}
                 <div className="shrink-0 flex items-center gap-2 self-end md:self-center">
                   {isReadOnly ? (
-                    <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+                    <span className="font-mono text-[11px] text-fg-tertiary">
                       ENV ONLY
                     </span>
                   ) : (
@@ -275,7 +275,7 @@ export function IntelligenceFlagsPanel() {
                   {isHighRisk && (
                     <div className="flex items-center">
                       {overrideState === "ON" ? (
-                        <span className="font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1.5 rounded-control">
+                        <span className="font-mono text-[11px] font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1.5 rounded-control">
                           FORCED ON
                         </span>
                       ) : (

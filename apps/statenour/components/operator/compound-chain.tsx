@@ -139,10 +139,10 @@ export function CompoundChain({
       {hasBackward ? (
         <div className="space-y-3">
           <header className="flex items-baseline justify-between gap-3">
-            <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
+            <p className="text-[11px] font-mono text-fg-tertiary">
               {stats.window} · compounded
             </p>
-            <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary tabular-nums">
+            <p className="text-[11px] font-mono text-fg-tertiary tabular-nums">
               {stats.totalTasks} task{stats.totalTasks === 1 ? "" : "s"} ·{" "}
               {stats.totalGoalsLifted} goal{stats.totalGoalsLifted === 1 ? "" : "s"} ·{" "}
               {stats.totalAxesMoved} ax{stats.totalAxesMoved === 1 ? "is" : "es"}
@@ -160,10 +160,10 @@ export function CompoundChain({
       {hasForward ? (
         <div className="space-y-3">
           <header className="flex items-baseline justify-between gap-3">
-            <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
+            <p className="text-[11px] font-mono text-fg-tertiary">
               {hasBackward ? "next · potential" : "potential · ready"}
             </p>
-            <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary tabular-nums">
+            <p className="text-[11px] font-mono text-fg-tertiary tabular-nums">
               {potential.reduce((s, p) => s + p.goals.reduce((g, g2) => g + g2.tasks.length, 0), 0)} open ·{" "}
               {potential.length} ax{potential.length === 1 ? "is" : "es"}
             </p>
@@ -193,8 +193,8 @@ export function CompoundChain({
               className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400"
             />
             <span className="min-w-0 flex-1">
-              <span className="mr-2 text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
-                gap
+              <span className="mr-2 text-[11px] font-mono text-fg-tertiary">
+                Gap
               </span>
               <span className="text-[var(--text-primary)]">
                 {orphanDoneCount} task{orphanDoneCount === 1 ? "" : "s"} done today without a goal link · tag to compound
@@ -237,7 +237,7 @@ function AxisChainRow({
           aria-hidden
           className="inline-block h-2 w-px bg-[var(--text-tertiary)]/40"
         />
-        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary">
+        <span className="font-mono text-[11px] text-fg-secondary">
           {axis.domain}
         </span>
         {axis.score != null ? (
@@ -250,13 +250,13 @@ function AxisChainRow({
           axis.scoreboard.href ? (
             <Link
               href={axis.scoreboard.href}
-              className="ml-auto text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary hover:text-[var(--text-primary)]"
+              className="ml-auto text-[11px] font-mono text-fg-tertiary hover:text-[var(--text-primary)]"
               title={`open ${axis.scoreboard.label}`}
             >
               → {axis.scoreboard.label}
             </Link>
           ) : (
-            <span className="ml-auto text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
+            <span className="ml-auto text-[11px] font-mono text-fg-tertiary">
               → {axis.scoreboard.label}
             </span>
           )
@@ -287,7 +287,7 @@ function GoalChainRow({
         <span className="font-medium text-[var(--text-primary)] truncate">
           {goal.title}
         </span>
-        <span className="shrink-0 text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary tabular-nums">
+        <span className="shrink-0 text-[11px] font-mono text-fg-tertiary tabular-nums">
           {goal.progress.toFixed(0)}%
         </span>
       </div>

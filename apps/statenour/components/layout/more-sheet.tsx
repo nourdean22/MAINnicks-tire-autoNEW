@@ -70,13 +70,8 @@ function SmartNowLink({ pathname, onNavigate }: { pathname: string; onNavigate: 
       )}
       title={`${smartNow.reason} \u00b7 tap to jump`}
     >
-      {smartNow.emoji && (
-        <span className="shrink-0 text-[13px]" aria-hidden>
-          {smartNow.emoji}
-        </span>
-      )}
       <div className="min-w-0 flex-1">
-        <div className="font-mono text-[11px] uppercase tracking-[0.12em] opacity-60">
+        <div className="font-mono text-[11px] opacity-60">
           Now
         </div>
         <div className="truncate text-[11px] font-medium">{smartNow.label}</div>
@@ -169,8 +164,8 @@ export function MoreSheet() {
             <div className="rounded-surface bg-[var(--bg-raised)]/30 px-2 py-1.5">
               <div className="mb-1 flex items-center gap-1">
                 <Clock size={9} className="text-[var(--text-tertiary)]" />
-                <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
-                  recent
+                <span className="font-mono text-[11px] text-[var(--text-tertiary)]">
+                  Recent
                 </span>
               </div>
               <div className="flex flex-wrap items-center gap-1">
@@ -222,7 +217,7 @@ export function MoreSheet() {
                 >
                   {ordinal}
                 </span>
-                <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+                <span className="font-mono text-[11px] text-fg-tertiary">
                   {label}
                 </span>
               </div>
@@ -237,7 +232,7 @@ export function MoreSheet() {
                       onClick={close}
                       aria-current={active ? "page" : undefined}
                       className={cn(
-                        "flex min-h-11 items-center gap-2 rounded-control px-2.5 py-2 transition-colors",
+                        "flex min-h-11 items-center gap-2 rounded-control px-2.5 py-2 press-spring",
                         active
                           ? "bg-accent-soft text-fg"
                           : "text-[var(--text-secondary)] hover:bg-[var(--bg-raised)] hover:text-[var(--text-primary)]",
@@ -273,9 +268,6 @@ export function MoreSheet() {
                 >
                   <Icon size={14} strokeWidth={1.75} />
                   {n.label}
-                  <span aria-hidden className="text-[11px] text-[var(--text-tertiary)]">
-                    ↗
-                  </span>
                 </a>
               );
             }

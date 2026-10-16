@@ -55,7 +55,7 @@ function Cohort({
   const drivers = Object.entries(cohort.byDriver).filter(([, n]) => n > 0);
   return (
     <div className="flex-1 min-w-0 rounded-micro border border-edge-subtle p-2.5 space-y-1.5">
-              <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary">{title}</p>
+              <p className="font-mono text-[11px] text-fg-secondary">{title}</p>
       <p className="text-[11px] font-mono text-fg-tertiary">{subtitle}</p>
       <p className="font-mono text-fg">
         {cohort.wouldBlockPct === null ? (
@@ -104,8 +104,8 @@ function BufferShadowBlock({ shadow }: { shadow: BufferShadow }) {
       className="rounded-micro border border-edge-subtle p-2.5 space-y-1.5"
     >
       <div className="flex items-baseline justify-between gap-2 flex-wrap">
-              <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary">
-          pre-flush buffer shadow
+              <p className="font-mono text-[11px] text-fg-secondary">
+          Pre-flush buffer shadow
         </p>
         <p className="text-[11px] font-mono text-fg-tertiary">
           {`>= ${shadow.since.slice(0, 16).replace("T", " ")}`}
@@ -191,7 +191,7 @@ export function EvidenceGatePanel() {
       className="rounded-surface border border-edge-subtle p-4 flex flex-col space-y-3"
     >
       <div className="flex items-center justify-between gap-2 flex-wrap border-b border-edge-subtle pb-2">
-              <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg flex items-center gap-1.5">
+              <p className="font-mono text-[11px] text-fg flex items-center gap-1.5">
           <ShieldAlert className="h-3.5 w-3.5 text-fg-secondary" /> Evidence Gate · promotion readout
         </p>
         <span

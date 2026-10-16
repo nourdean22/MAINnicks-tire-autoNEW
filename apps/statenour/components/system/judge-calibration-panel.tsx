@@ -22,8 +22,8 @@ export function TriageAdoptionStrip() {
   if (adoption.isLoading) return null;
   return (
     <Panel>
-      <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary/70 mb-1">
-        triage ritual — decisions in 14d
+      <p className="font-mono text-[11px] text-fg-secondary/70 mb-1">
+        Triage ritual — decisions in 14d
       </p>
       {adoption.isError || !adoption.data ? (
         <p className="text-[12px] text-fg-secondary">adoption unreadable — state UNKNOWN</p>
@@ -64,8 +64,8 @@ export function JudgeCalibrationPanel() {
 
   return (
     <Panel>
-      <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary/70 mb-1">
-        judge calibration — does the judge agree with you?
+      <p className="font-mono text-[11px] text-fg-secondary/70 mb-1">
+        Judge calibration — does the judge agree with you?
       </p>
 
       {calibration.isLoading ? (

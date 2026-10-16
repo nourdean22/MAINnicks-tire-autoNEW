@@ -339,7 +339,6 @@ export const operatorRouter = router({
       return {
         stat: d.key,
         label: d.label,
-        icon: d.icon,
         gained30d: Math.round(g30 * 10) / 10,
         gained60d: Math.round(g60 * 10) / 10,
         gained90d: Math.round(g90 * 10) / 10,

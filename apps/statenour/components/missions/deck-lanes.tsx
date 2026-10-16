@@ -28,9 +28,9 @@ export function DeckLanes({ lanes, tasks }: Props) {
     <section aria-labelledby="lanes-heading" className="space-y-1.5">
       <h2
         id="lanes-heading"
-        className="px-1 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary"
+        className="px-1 font-mono text-[11px] text-fg-tertiary"
       >
-        lanes
+        Lanes
       </h2>
       {lanes.map((lane) => {
         const isOpen = openLane === lane.id;

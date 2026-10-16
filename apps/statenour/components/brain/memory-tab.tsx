@@ -326,7 +326,7 @@ function LearningVelocityScoreboard() {
   return (
     <div className="rounded-surface border border-edge-subtle bg-content p-3 space-y-2">
       <div className="flex items-baseline justify-between gap-3 flex-wrap">
-        <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
+        <p className="text-[11px] font-mono text-fg-tertiary">
           Learning velocity
         </p>
         <p
@@ -446,7 +446,7 @@ function CalibrationTile() {
       <div className="flex items-baseline justify-between gap-3 flex-wrap">
         {/* "resolved 30d", not "30d" — the population is predictions that
             RESOLVED in the last 30 days, whenever they were made. */}
-        <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
+        <p className="text-[11px] font-mono text-fg-tertiary">
           Calibration · resolved 30d
         </p>
         <p className={cn("text-[11px] font-mono tabular-nums", verdictTint)}>

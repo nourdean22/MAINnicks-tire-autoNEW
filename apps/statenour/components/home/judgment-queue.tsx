@@ -229,7 +229,7 @@ function JudgmentRow({
   onFollowupVerdict: (id: string, verdict: "task" | "dismiss") => void;
 }) {
   const kindChip = (
-    <span className="w-24 shrink-0 pt-1 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+    <span className="w-24 shrink-0 pt-1 font-mono text-[11px] text-fg-tertiary">
       {KIND_LABEL[item.kind]}
     </span>
   );

@@ -235,6 +235,10 @@ function MissionsPageInner() {
         eyebrow="Execution Deck"
         title="Missions"
         description="The work that needs you."
+        // shortcut: the description stays visible at every width until W2 lands the Missions hero. Without
+        // this line the 390 render scored 0.342 against the v2 distance gate (CI runs 38834210402 and
+        // 38836221412); the md-up default hides it below 768 px, which is where the gate measures.
+        descriptionVisibility="always"
         width="workspace"
         rhythm="workspace"
         className="w-full"

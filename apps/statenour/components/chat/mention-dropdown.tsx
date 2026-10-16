@@ -20,8 +20,8 @@ export function MentionDropdown({
 }) {
   return (
     <div className="border-b border-edge-default bg-[var(--bg-raised)] max-h-[240px] overflow-y-auto">
-      <div className="px-4 py-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
-        insert context
+      <div className="px-4 py-1.5 font-mono text-[11px] text-fg-tertiary">
+        Insert context
       </div>
       {filtered.length === 0 ? (
         <div className="px-4 py-3 text-[11px] text-[var(--text-tertiary)]">
@@ -35,7 +35,6 @@ export function MentionDropdown({
             onClick={() => onPick(m)}
             className="flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left transition-colors hover:bg-surface-hover"
           >
-            <span className="text-base">{m.icon}</span>
             <div className="flex-1 min-w-0">
               <span className="text-xs font-medium text-fg font-mono">{m.label}</span>
               <span className="text-[11px] text-[var(--text-tertiary)] ml-2">{m.description}</span>

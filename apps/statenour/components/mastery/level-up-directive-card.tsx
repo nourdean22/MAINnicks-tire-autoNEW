@@ -112,7 +112,7 @@ export function LevelUpDirectiveCard() {
         aria-label="level-up directive"
         className="rounded-surface border border-edge-subtle bg-content px-3.5 py-2.5"
       >
-        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+        <p className="font-mono text-[11px] text-fg-tertiary">
           Level-up directive
         </p>
         <p className="mt-1 text-[12px] leading-snug text-fg-secondary">
@@ -141,11 +141,11 @@ export function LevelUpDirectiveCard() {
     >
       {/* eyebrow + avoidance mirror */}
       <div className="flex items-baseline justify-between gap-2">
-        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+        <p className="font-mono text-[11px] text-fg-tertiary">
           Level-up directive
         </p>
         {directive.neglected ? (
-          <p className="shrink-0 font-mono text-[11px] uppercase tracking-[0.12em] text-amber-300">
+          <p className="shrink-0 font-mono text-[11px] text-amber-300">
             Neglected this week · 0 XP in 7 days
           </p>
         ) : null}
@@ -153,9 +153,6 @@ export function LevelUpDirectiveCard() {
 
       {/* the stat + the XP math */}
       <div className="flex items-center gap-2">
-        <span className="shrink-0 text-base leading-none" aria-hidden>
-          {stat.icon}
-        </span>
         <span className="truncate text-[13px] font-medium text-fg">
           {stat.shortLabel || stat.label}
         </span>
@@ -205,7 +202,7 @@ export function LevelUpDirectiveCard() {
 
       {/* build diagnosis · only when the math is clear */}
       {directive.imbalance ? (
-        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+        <p className="font-mono text-[11px] text-fg-tertiary">
           Build imbalance · {directive.imbalance}
         </p>
       ) : null}

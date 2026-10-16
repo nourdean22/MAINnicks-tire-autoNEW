@@ -67,8 +67,8 @@ export function InsightRibbon() {
   return (
     <section className="space-y-2">
       <div className="flex items-baseline justify-between">
-        <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
-          this week
+        <p className="text-[11px] font-mono text-fg-tertiary">
+          This week
         </p>
         <p className="text-[11px] font-mono text-[var(--text-tertiary)]/70">
           {data.insights.length} pattern{data.insights.length === 1 ? "" : "s"}
@@ -98,7 +98,7 @@ function InsightCard({ insight }: { insight: BrainInsight }) {
         insight.link && "hover:border-edge-strong",
       )}
     >
-      <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary mb-1">
+      <p className="text-[11px] font-mono text-fg-tertiary mb-1">
         {insight.eyebrow}
       </p>
       <h3

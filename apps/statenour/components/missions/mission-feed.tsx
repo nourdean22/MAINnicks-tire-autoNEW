@@ -165,10 +165,10 @@ export function MissionFeed({
   return (
     <div className="space-y-8">
       {(nextDeadline || autonomicHealth) && (
-      <div className="flex items-center gap-4 py-1 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+      <div className="flex items-center gap-4 py-1 font-mono text-[11px] text-fg-tertiary">
         {nextDeadline && (
           <span>
-            next deadline ·{" "}
+            Next deadline ·{" "}
             <span className="text-fg-secondary">
               {nextDeadline}
             </span>

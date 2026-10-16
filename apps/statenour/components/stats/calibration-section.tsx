@@ -626,7 +626,7 @@ export function CalibrationSection() {
                     {isExpanded && (
                       <div className="pt-2 pb-1 space-y-3 animate-fade-in">
                         <Separator className="bg-edge-subtle" />
-                        <h5 className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary flex items-center gap-1.5">
+                        <h5 className="font-mono text-[11px] text-fg-tertiary flex items-center gap-1.5">
                           <FileText className="h-3 w-3" />
                           Evidence Details
                         </h5>
@@ -688,7 +688,7 @@ export function CalibrationSection() {
                     {/* Action Form for Correcting */}
                     {isCorrecting && (
                       <div className="pt-2 pb-1 space-y-4 animate-fade-in bg-surface-interactive p-3 rounded-surface border border-edge-subtle">
-                        <h5 className="font-mono text-[11px] uppercase tracking-[0.12em] text-amber-300 flex items-center gap-1.5">
+                        <h5 className="font-mono text-[11px] text-amber-300 flex items-center gap-1.5">
                           <Sliders className="h-3 w-3" />
                           Override Calibrated Outcome
                         </h5>

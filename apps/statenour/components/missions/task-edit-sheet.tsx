@@ -281,8 +281,8 @@ function TaskEditSheetBody({
       >
         <header className="sticky top-0 z-10 bg-overlay flex items-center gap-2 border-b border-edge-subtle px-4 py-3">
           <div className="flex-1 min-w-0">
-            <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
-              edit task
+            <p className="font-mono text-[11px] text-fg-tertiary">
+              Edit task
             </p>
             <DialogTitle className="mt-0.5 truncate text-[15px] font-semibold text-fg">
               {task.title}
@@ -547,7 +547,7 @@ function Field({
 }) {
   return (
     <label className="block space-y-1">
-      <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+      <span className="font-mono text-[11px] text-fg-tertiary">
         {label}
       </span>
       {children}

@@ -79,8 +79,8 @@ export function WaitingLineView({ summary, status }: { summary: WaitingSummary |
     return (
       <section aria-label="waiting on others" className="mt-10 first:mt-0">
         <h2 className="vt-eyebrow text-fg-secondary">Waiting on others</h2>
-        <p className="mt-3 font-mono text-[12px] uppercase tracking-[0.12em] text-amber-300/90">
-          unknown, read failed: {model.failedSources.join(", ") || "unnamed source"}
+        <p className="mt-3 font-mono text-[12px] text-amber-300/90">
+          Unknown, read failed: {model.failedSources.join(", ") || "unnamed source"}
         </p>
       </section>
     );
@@ -105,7 +105,7 @@ export function WaitingLineView({ summary, status }: { summary: WaitingSummary |
               <span className="min-w-0 flex-1 truncate">
                 <span className="text-fg-secondary">{i.who}</span> · {i.subject}
               </span>
-              <span className="shrink-0 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+              <span className="shrink-0 font-mono text-[11px] text-fg-tertiary">
                 {formatWaitingAge(i.ageMin)}
                 {i.deadline ? ` · due ${i.deadline}` : ""}
               </span>
@@ -116,7 +116,7 @@ export function WaitingLineView({ summary, status }: { summary: WaitingSummary |
       {model.more > 0 && (
         <Link
           href="/missions"
-          className="mt-2 inline-flex min-h-[44px] items-center font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary hover:text-fg"
+          className="mt-2 inline-flex min-h-[44px] items-center font-mono text-[11px] text-fg-tertiary hover:text-fg"
         >
           +{model.more} more on /missions →
         </Link>

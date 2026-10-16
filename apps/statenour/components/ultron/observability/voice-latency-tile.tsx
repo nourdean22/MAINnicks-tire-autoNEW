@@ -86,13 +86,13 @@ export function VoiceLatencyTile({ state }: Props) {
   return (
     <GlassCard ruled className={cn("min-h-[112px]", tierBorder)}>
       <div className="flex items-center justify-between mb-1">
-        <span className="inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+        <span className="inline-flex items-center gap-1.5 font-mono text-[11px] text-fg-tertiary">
           <Phone size={11} />
-          voice · p50
+          Voice p50
         </span>
         <span
           className={cn(
-            "font-mono text-[11px] uppercase tracking-[0.12em]",
+            "font-mono text-[11px]",
             tierText,
           )}
         >

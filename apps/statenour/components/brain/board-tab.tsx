@@ -136,8 +136,8 @@ export function BoardTab() {
 
       {/* ── Board selector · row of chips ───────────────────────── */}
       <div>
-        <p className="mb-2 text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
-          board
+        <p className="mb-2 text-[11px] font-mono text-fg-tertiary">
+          Board
         </p>
         <div className="flex items-center gap-1.5 flex-wrap">
           {BOARD_OPTIONS.map((b) => {
@@ -168,8 +168,8 @@ export function BoardTab() {
 
       {/* ── Question + consult button ──────────────────────────── */}
       <div className="space-y-2 mt-5">
-        <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
-          question
+        <p className="text-[11px] font-mono text-fg-tertiary">
+          Question
         </p>
         <textarea
           value={question}
@@ -211,7 +211,7 @@ export function BoardTab() {
         <div className="rounded-surface border border-edge-subtle bg-content p-4 space-y-3 mt-5">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[11px] font-mono text-fg-secondary">
-              synthesis · {result.boardName.toLowerCase()}
+              synthesis · {result.boardName}
             </span>
             <span className="text-[11px] font-mono tabular-nums text-[var(--text-tertiary)]">
               {Math.round(result.synthesis.confidence * 100)}% confidence
@@ -231,8 +231,8 @@ export function BoardTab() {
               on a decision described as having compound consequences. */}
           {dropped.length > 0 && (
             <div className="border-t border-amber-400/20 pt-2.5">
-              <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-amber-400/80 mb-1">
-                lenses withheld ({dropped.length})
+              <p className="text-[11px] font-mono text-amber-400/80 mb-1">
+                Lenses withheld ({dropped.length})
               </p>
               <p className="text-[12px] text-[var(--text-secondary)]">
                 {gatingMood
@@ -257,8 +257,8 @@ export function BoardTab() {
           {/* Tension axis · only when present · the highest-signal divergence */}
           {result.synthesis.tension && (
             <div className="border-t border-edge-subtle pt-2.5">
-              <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-amber-400/80 mb-1">
-                tension
+              <p className="text-[11px] font-mono text-amber-400/80 mb-1">
+                Tension
               </p>
               <p className="text-[12px] text-[var(--text-secondary)]">
                 {result.synthesis.tension}
@@ -269,8 +269,8 @@ export function BoardTab() {
           {/* Consensus bullets */}
           {result.synthesis.consensus.length > 0 && (
             <div className="border-t border-edge-subtle pt-2.5">
-              <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary mb-1">
-                consensus
+              <p className="text-[11px] font-mono text-fg-tertiary mb-1">
+                Consensus
               </p>
               <ul className="space-y-1 text-[12px] text-[var(--text-secondary)]">
                 {result.synthesis.consensus.map((c, i) => (
@@ -286,8 +286,8 @@ export function BoardTab() {
           {/* Divergences · where the board split */}
           {result.synthesis.divergences.length > 0 && (
             <div className="border-t border-edge-subtle pt-2.5">
-              <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-amber-400/80 mb-1">
-                divergence
+              <p className="text-[11px] font-mono text-amber-400/80 mb-1">
+                Divergence
               </p>
               <ul className="space-y-1 text-[12px] text-[var(--text-secondary)]">
                 {result.synthesis.divergences.map((d, i) => (
@@ -305,8 +305,8 @@ export function BoardTab() {
       {/* ── Advisor takes · one per board member · expandable ──── */}
       {result && result.takes.length > 0 && (
         <div className="space-y-2 mt-5">
-          <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
-            advisor takes ({result.takes.length}
+          <p className="text-[11px] font-mono text-fg-tertiary">
+            Advisor takes ({result.takes.length}
             {dropped.length > 0 ? ` of ${boardSize}` : ""})
           </p>
           {result.takes.map((take) => {
@@ -329,7 +329,7 @@ export function BoardTab() {
                   className="w-full text-left flex items-start gap-2 flex-wrap"
                 >
                   <span className="text-[11px] font-mono text-[var(--text-primary)]">
-                    {take.advisorName.toLowerCase()}
+                    {take.advisorName}
                   </span>
                   {isErrored ? (
                     <span className="text-[11px] font-mono text-red-400">
@@ -342,7 +342,7 @@ export function BoardTab() {
                   )}
                   {take.divergenceFlag && (
                     <span className="text-[11px] font-mono text-amber-400/80">
-                      ⚡ divergence
+                      divergence
                     </span>
                   )}
                   <span className="ml-auto text-[11px] font-mono text-[var(--text-tertiary)]">
@@ -365,16 +365,16 @@ export function BoardTab() {
                     ) : (
                       <>
                         <div>
-                          <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary mb-0.5">
-                            insight
+                          <p className="text-[11px] font-mono text-fg-tertiary mb-0.5">
+                            Insight
                           </p>
                           <p className="text-[12px] text-[var(--text-secondary)]">
                             {take.keyInsight}
                           </p>
                         </div>
                         <div>
-                          <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary mb-0.5">
-                            recommendation
+                          <p className="text-[11px] font-mono text-fg-tertiary mb-0.5">
+                            Recommendation
                           </p>
                           <p className="text-[12px] text-[var(--text-primary)]">
                             {take.recommendation}
@@ -382,8 +382,8 @@ export function BoardTab() {
                         </div>
                         {take.divergenceFlag && (
                           <div>
-                            <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-amber-400/80 mb-0.5">
-                              divergence flag
+                            <p className="text-[11px] font-mono text-amber-400/80 mb-0.5">
+                              Divergence flag
                             </p>
                             <p className="text-[12px] text-[var(--text-secondary)]">
                               {take.divergenceFlag}
@@ -434,8 +434,8 @@ export function BoardTab() {
 
       {recents.length > 0 && (
         <div className="pt-4 border-t border-[var(--border-default)] space-y-2 mt-5">
-          <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
-            recent consultations ({recents.length})
+          <p className="text-[11px] font-mono text-fg-tertiary">
+            Recent consultations ({recents.length})
           </p>
           <ul className="space-y-1.5">
             {recents.map((r) => (
@@ -452,7 +452,7 @@ export function BoardTab() {
                   </span>
                   {r.divergenceCount > 0 && (
                     <span className="text-[11px] font-mono text-amber-400/80">
-                      ⚡ {r.divergenceCount} div
+                      {r.divergenceCount} div
                     </span>
                   )}
                   {/* The persisted gate verdict · without it a 3-advisor

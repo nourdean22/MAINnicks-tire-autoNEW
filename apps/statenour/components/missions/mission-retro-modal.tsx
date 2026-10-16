@@ -116,8 +116,8 @@ export function MissionRetroModal({
       >
         <header className="flex items-center gap-2 border-b border-edge-subtle px-4 py-3">
           <div className="flex-1 min-w-0">
-            <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
-              mission complete
+            <p className="font-mono text-[11px] text-fg-tertiary">
+              Mission complete
             </p>
             <DialogTitle className="mt-0.5 truncate text-[15px] font-semibold text-fg">
               {missionTitle}

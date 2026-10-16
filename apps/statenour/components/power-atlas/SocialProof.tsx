@@ -65,7 +65,7 @@ export default function SocialProof({ personId }: SocialProofProps) {
         <h2 className="text-[17px] font-semibold text-fg">
           Social proof
         </h2>
-        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary tabular-nums">
+        <span className="font-mono text-[11px] text-fg-tertiary tabular-nums">
           {data?.totalCrossMentions ?? 0} cross-mentions
         </span>
       </div>

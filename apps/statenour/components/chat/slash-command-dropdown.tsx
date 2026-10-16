@@ -40,7 +40,6 @@ export function SlashCommandDropdown({
           }}
           className="flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-surface-hover"
         >
-          <span className="text-base" aria-hidden>{command.icon}</span>
           <div className="min-w-0 flex-1">
             <span className="text-xs font-medium text-fg">{command.label}</span>
             <span className="ml-2 font-mono text-[11px] text-fg-tertiary">{command.cmd}</span>

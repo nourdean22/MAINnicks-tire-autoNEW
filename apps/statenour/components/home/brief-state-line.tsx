@@ -76,7 +76,7 @@ export function BriefStateLine({
             in @layer base (28px Geist, sentence case) — keep it bare so the
             page title stays uniform across pages. */}
         <h1>Nour</h1>
-        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+        <p className="font-mono text-[11px] text-fg-tertiary">
           {dateStr}
           {timeStr && <span className="text-fg-secondary"> · {timeStr}</span>}
         </p>

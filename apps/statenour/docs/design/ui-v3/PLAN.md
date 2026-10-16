@@ -1,6 +1,6 @@
 # UI v3 plan: Command Deck, finished
 
-**Status (2026-10-15):** Wave 0 approved by Nour ("go wave 0"). Every later wave needs his go.
+**Status (2026-10-15):** Wave 0 merged (#3056). W1a (global grammar: uppercase sweep + net, header diet, aura to state word, spring tokens, em dash and emoji sweep) is on branch `statenour/ui-v3-w1a` awaiting integration; W1b (shell) is separate. Every later wave needs Nour's go.
 **Base:** origin/main `ec21736f9` when W0 started; the W0 PR merged newer main before integration. **Owner:** the manager session "bdnick ui upgrade" (job id `2026-10-15-bdnick-ui-v3`).
 **Genome:** COMMAND DECK ([`docs/design/SURFACE-DNA.md`](../../../../../docs/design/SURFACE-DNA.md)): one dominant thought per screen, then a rail; void and depth; the mission is the dominant object.
 **Builds on:** UI v2 ([`../ui-v2/PLAN.md`](../ui-v2/PLAN.md), [`SYSTEM.md`](../ui-v2/SYSTEM.md)) and the workbench grammar ([`../ui-workbench-2026-09-15.md`](../ui-workbench-2026-09-15.md)).
@@ -98,10 +98,10 @@ Decisions, defaults assumed until Nour says otherwise (confirm before W2): v3 mu
 
 | # | Fix | Where | Wave |
 |---|---|---|---|
-| 1 | One base.css rule stops stray `uppercase`, allowlisting `.eyebrow`, `.vt-eyebrow`, `.section-label`, `.text-eyebrow`, `.vt-verdict` | `app/styles/base.css:305-320` (precedent) | W1 (ratchet in W0) |
+| 1 | One base.css rule stops stray `uppercase`, allowlisting `.eyebrow`, `.vt-eyebrow`, `.section-label`, `.text-eyebrow`, `.vt-verdict`; the chat shell (`data-chat-shell` on the chat page root) stays outside it until W3 | `app/styles/base.css:305-320` (precedent) | W1 (ratchet in W0) |
 | 2 | Replace AmbientAura with a state word + notch; edit the pinned tests | `components/hud/ambient-aura.tsx:36`, `app/styles/effects.css:657-678` | W1 |
 | 3 | Approvals link opens Approvals; approval-windows box below the list; ticker rows use `Link`; alert footer in plain words | `lib/home/operator-brief.ts` (about 408, 654), `app/(mastery)/system/actions/page.tsx:196,606-640`, `components/ultron/bottom-pulse-ticker.tsx:406-410`, `components/inspector/panels/alert-inspector.tsx:121-123` | W1 (alert footer in W0) |
-| 4 | Header diet: eyebrow only when it adds information; drop the description on core pages | `components/layout/standard-page.tsx:177-186` | W1 |
+| 4 | Header diet: eyebrow only when it adds information; drop the description on core pages. Exception: /missions keeps its description until W2 lands its hero (without it the 390 render scored 0.342 against the v2 gate, CI run 38834210402) | `components/layout/standard-page.tsx:177-186`, `components/layout/header-diet.ts` | W1 (Missions in W2) |
 | 5 | One state block with Retry for empty, loading, error | `app/(mastery)/people/page.tsx` (failure branch, fixed in W0), `app/(mastery)/stats/page.tsx:62-72` | W0 (People), W4 |
 | 6 | Sweep em dashes, emoji, More-sheet emoji | `lib/floating-home/smart-now.ts`, `components/journal/reflect-composer.tsx:93-102` | W1, W4 |
 | 7 | Delete the Missions FAB, fold "New mission" into the capture row | `components/actions/omni-capture-modal.tsx:112-115`, `app/(mastery)/missions/page.tsx:352-381` | W2 |

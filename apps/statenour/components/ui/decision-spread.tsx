@@ -104,8 +104,6 @@ export function DecisionSpread({
         .label {
           font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
           font-size: 11px;
-          letter-spacing: 0.12em;
-          text-transform: uppercase;
           color: var(--text-tertiary);
         }
         .score {

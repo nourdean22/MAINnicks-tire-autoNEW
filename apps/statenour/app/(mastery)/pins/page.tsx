@@ -225,6 +225,7 @@ export default function PinsPage() {
     <StandardPage
       eyebrow="NOUR OS · Brain"
       title="pinned memory"
+      descriptionVisibility="always"
       description={
         data?.stats
           ? `${data.count} pins`
@@ -374,12 +375,12 @@ export default function PinsPage() {
                   <div className="space-y-1.5">
                     <div className="flex items-center gap-2 flex-wrap">
                       {isInjected ? (
-                        <span className="text-[11px] font-mono uppercase tracking-[0.12em] px-1.5 py-0.5 rounded-micro bg-emerald-500/15 border border-emerald-500/30 text-emerald-300">
-                          <Sparkles className="h-2.5 w-2.5 inline mr-0.5" /> injected
+                        <span className="text-[11px] font-mono px-1.5 py-0.5 rounded-micro bg-emerald-500/15 border border-emerald-500/30 text-emerald-300">
+                          <Sparkles className="h-2.5 w-2.5 inline mr-0.5" /> Injected
                         </span>
                       ) : (
-                        <span className="text-[11px] font-mono uppercase tracking-[0.12em] px-1.5 py-0.5 rounded-micro bg-surface-interactive border border-edge-subtle text-fg-tertiary">
-                          stored
+                        <span className="text-[11px] font-mono px-1.5 py-0.5 rounded-micro bg-surface-interactive border border-edge-subtle text-fg-tertiary">
+                          Stored
                         </span>
                       )}
                       {p.metadata?.label && (
@@ -429,7 +430,7 @@ export default function PinsPage() {
 function Stat({ label, value, tone = "text-fg-secondary" }: { label: string; value: number; tone?: string }) {
   return (
     <div className="border-l-2 border-edge py-1 pl-3">
-      <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">{label}</div>
+      <div className="font-mono text-[11px] text-fg-tertiary">{label}</div>
       <div className={cn("mt-0.5 font-mono text-lg font-bold tabular-nums", tone)}>{value}</div>
     </div>
   );

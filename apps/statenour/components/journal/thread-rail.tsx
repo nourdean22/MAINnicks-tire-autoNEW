@@ -221,7 +221,7 @@ export function ThreadRail({
 
       {showDormant && dormant.length > 0 ? (
         <div className="pt-2 mt-3 border-t border-edge-subtle">
-          <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-2">
+          <p className="font-mono text-[11px] text-fg-tertiary mb-2">
             Dormant · 30+ days quiet
           </p>
           <ul className="space-y-2 opacity-60">
@@ -415,7 +415,7 @@ function NewThreadForm({
 }) {
   return (
     <div className="rounded-surface border border-edge-default bg-surface-raised p-3 space-y-2">
-      <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+      <p className="font-mono text-[11px] text-fg-tertiary">
         New thread
       </p>
       <div className="flex gap-2 items-stretch">

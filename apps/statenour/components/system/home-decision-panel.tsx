@@ -46,7 +46,7 @@ export function HomeDecisionPanel() {
       className="rounded-surface border border-edge-subtle p-4 flex flex-col space-y-3"
     >
       <div className="flex items-center justify-between gap-2 border-b border-edge-subtle pb-2">
-              <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg flex items-center gap-1.5">
+              <p className="font-mono text-[11px] text-fg flex items-center gap-1.5">
           <MousePointerClick className="h-3.5 w-3.5 text-fg-secondary" /> Home Decisions
         </p>
         <span className="text-[11px] font-mono text-fg-tertiary">last {m?.windowDays}d</span>
@@ -55,15 +55,15 @@ export function HomeDecisionPanel() {
       <div className="flex items-baseline gap-4">
         <div>
           <p className="text-lg font-semibold text-fg/90">{m?.verdicts ?? 0}</p>
-          <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">verdicts</p>
+          <p className="font-mono text-[11px] text-fg-tertiary">Verdicts</p>
         </div>
         <div>
           <p className="text-lg font-semibold text-fg/90">{m?.resumes ?? 0}</p>
-          <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">resumes</p>
+          <p className="font-mono text-[11px] text-fg-tertiary">Resumes</p>
         </div>
         <div>
           <p className="text-lg font-semibold text-fg/90">{m?.activeDays ?? 0}</p>
-          <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">active days</p>
+          <p className="font-mono text-[11px] text-fg-tertiary">Active days</p>
         </div>
       </div>
 

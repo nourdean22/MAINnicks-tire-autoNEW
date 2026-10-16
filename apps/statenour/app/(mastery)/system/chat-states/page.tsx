@@ -63,7 +63,7 @@ const decisionsMessage = {
             id: "d1",
             urgency: "critical",
             state: "new",
-            recommendedAction: "Call Sarah back — she asked for a call about the van",
+            recommendedAction: "Call Sarah back: she asked for a call about the van",
             valueDollars: 0,
             dataQuality: "verified",
           },
@@ -92,12 +92,12 @@ const unregisteredToolMessage = {
 const FRESH_FETCHED_AT = new Date(Date.now() - 12_000);
 
 const SECTIONS = [
-  "Evidence panel — fresh recall",
-  "Evidence panel — never fetched",
-  "Typed card — fleet truth (mixed states)",
-  "Typed card — decision inbox",
-  "Unregistered tool — must render NOTHING typed",
-  "Completion message — receipts sample",
+  "Evidence panel: fresh recall",
+  "Evidence panel: never fetched",
+  "Typed card: fleet truth (mixed states)",
+  "Typed card: decision inbox",
+  "Unregistered tool: must render NOTHING typed",
+  "Completion message: receipts sample",
 ] as const;
 
 export default function ChatStatesPage() {
@@ -107,52 +107,54 @@ export default function ChatStatesPage() {
     <StandardPage
       eyebrow="System"
       title="Chat States"
-      description="Real components against fixtures — eyeball after UI changes; nothing here is mocked."
+      description="Real components against fixtures: eyeball after UI changes; nothing here is mocked."
       width="sm"
       rhythm="comfortable"
       className="px-4 pb-[var(--bottom-chrome-h)]"
     >
 
       <Panel>
-        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary/70 mb-2">{SECTIONS[0]} / {SECTIONS[1]}</p>
+        <p className="font-mono text-[11px] text-fg-secondary/70 mb-2">{SECTIONS[0]} / {SECTIONS[1]}</p>
         <div className="flex gap-2">
           <button
             onClick={() => setEvidenceOpen("fresh")}
             className="rounded-surface border border-glass px-3 py-2 text-[12px] text-fg-secondary hover:text-fg"
           >
-            Open — fresh recall
+            Open: fresh recall
           </button>
           <button
             onClick={() => setEvidenceOpen("unfetched")}
             className="rounded-control border border-glass px-3 py-2 text-[12px] text-fg-secondary hover:text-fg"
           >
-            Open — never fetched
+            Open: never fetched
           </button>
         </div>
       </Panel>
 
       <Panel>
-        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary/70 mb-1">{SECTIONS[2]}</p>
+        <p className="font-mono text-[11px] text-fg-secondary/70 mb-1">{SECTIONS[2]}</p>
         <TypedToolCards message={fleetMessage} />
       </Panel>
 
       <Panel>
-        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary/70 mb-1">{SECTIONS[3]}</p>
+        <p className="font-mono text-[11px] text-fg-secondary/70 mb-1">{SECTIONS[3]}</p>
         <TypedToolCards message={decisionsMessage} />
       </Panel>
 
       <Panel>
-        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary/70 mb-1">{SECTIONS[4]}</p>
+        <p className="font-mono text-[11px] text-fg-secondary/70 mb-1">{SECTIONS[4]}</p>
         <TypedToolCards message={unregisteredToolMessage} />
         <p className="text-[11px] text-fg-tertiary">
-          (Correct result: nothing above this line — unknown shapes fall back to the generic receipt row in real chat.)
+          (Correct result: nothing above this line, unknown shapes fall back to the generic receipt row in real chat.)
         </p>
       </Panel>
 
       <Panel>
-        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary/70 mb-1">{SECTIONS[5]}</p>
+        <p className="font-mono text-[11px] text-fg-secondary/70 mb-1">{SECTIONS[5]}</p>
         <div className="rounded-surface border border-edge-subtle px-3 py-2 text-[12px] leading-relaxed text-fg whitespace-pre-wrap">
-          {"**Action receipts**\n✅ telegram.send — receipt verified\n⏸ shop.sendSms — awaiting your approval (ID apr_x1). Approve in System → Actions.\n❌ task.create — failed: validation error\n\n— receipts · trace tr_demo1234"}
+          {/* Mirrors lib/services/chat/deferred-background-work.ts (the receipt writer) glyph for glyph:
+              the markers are the writer's, not this page's. Counted as sanctioned in the ratchet baseline. */}
+          {"**Action receipts**\n✅ telegram.send - receipt verified\n⏸ shop.sendSms - awaiting your approval (ID apr_x1). Approve in System → Actions.\n❌ task.create - failed: validation error\n\n- receipts · trace tr_demo1234"}
         </div>
       </Panel>
 

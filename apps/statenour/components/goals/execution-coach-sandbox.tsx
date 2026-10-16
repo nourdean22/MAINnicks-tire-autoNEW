@@ -45,11 +45,11 @@ interface ExecutionCoachSandboxProps {
 type Step = "BRIEFING" | "TIMER" | "RESISTANCE" | "SURVEY" | "REFLECTION" | "COMPLETED";
 
 const FRICTION_OPTIONS = [
-  { emoji: "🔋", label: "Low energy", key: "low-energy" },
-  { emoji: "❓", label: "Vague next step", key: "vague" },
-  { emoji: "🎯", label: "Fear of failure", key: "fear" },
-  { emoji: "📱", label: "Distraction", key: "distraction" },
-  { emoji: "⚡", label: "No friction", key: "none" },
+  { label: "Low energy", key: "low-energy" },
+  { label: "Vague next step", key: "vague" },
+  { label: "Fear of failure", key: "fear" },
+  { label: "Distraction", key: "distraction" },
+  { label: "No friction", key: "none" },
 ];
 
 const GOAL_DOMAIN_TO_STAT: Record<string, string> = {
@@ -538,14 +538,14 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
         <div className="space-y-4 animate-fade-in">
           <header className="flex items-center gap-2">
             <Sparkles size={14} className="text-amber-400" />
-            <h4 className="text-[11px] font-mono uppercase tracking-[0.12em] text-amber-300">
-              execution briefing
+            <h4 className="text-[11px] font-mono text-amber-300">
+              Execution briefing
             </h4>
           </header>
 
           {/* Goal Why / Clarity Anchor */}
           <div className="space-y-1.5 p-3 rounded-control bg-surface-raised border border-edge-subtle">
-            <span className="text-[11px] font-mono text-fg-tertiary uppercase tracking-[0.12em]">
+            <span className="text-[11px] font-mono text-fg-tertiary">
               Clarity Anchor (Why it matters)
             </span>
             {goal.why ? (
@@ -582,7 +582,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
             <div className="flex items-start gap-2.5 p-3 rounded-control bg-amber-500/[0.03] border border-amber-500/10 text-amber-400/90 text-[11px] leading-relaxed">
               <ShieldAlert size={14} className="text-amber-400 mt-0.5 shrink-0" />
               <div>
-                <p className="font-mono uppercase tracking-[0.12em] text-[11px] text-amber-300 mb-0.5">Physical deficit warning</p>
+                <p className="font-mono text-[11px] text-amber-300 mb-0.5">Physical deficit warning</p>
                 <p>
                   {isLowSleep && `Sleep is low (${latestBody?.sleepHours}h today). `}
                   {isLowEnergy && `Energy level is low (${latestBody?.energy}/5 today). `}
@@ -602,7 +602,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
 
           {/* Singular Mission Definition */}
           <div className="space-y-1.5">
-            <label htmlFor="mission-step" className="text-[11px] font-mono text-fg-tertiary uppercase tracking-[0.12em]">
+            <label htmlFor="mission-step" className="text-[11px] font-mono text-fg-tertiary">
               Today's singular physical step
             </label>
             <div className="flex gap-2">
@@ -644,7 +644,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
           {/* AI Micro-steps Display */}
           {microSteps.length > 0 && (
             <div className="space-y-2 p-3 rounded-control bg-surface-raised border border-edge-subtle">
-              <span className="text-[11px] font-mono text-fg-tertiary uppercase tracking-[0.12em] flex justify-between items-center">
+              <span className="text-[11px] font-mono text-fg-tertiary flex justify-between items-center">
                 <span>AI Micro-Steps</span>
                 <button
                   type="button"
@@ -704,7 +704,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
           {/* Working Memory Clutter Dump */}
           {efMode && (
             <div className="space-y-1.5 animate-fade-in">
-              <label htmlFor="clutter-dump" className="text-[11px] font-mono text-fg-tertiary uppercase tracking-[0.12em]">
+              <label htmlFor="clutter-dump" className="text-[11px] font-mono text-fg-tertiary">
                 Mental Clutter Dump (Ephemeral)
               </label>
               <textarea
@@ -719,7 +719,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
 
           {/* Horizon Selection */}
           <div className="flex items-center gap-2 pt-1">
-            <span className="text-[11px] font-mono text-fg-tertiary uppercase tracking-[0.12em]">
+            <span className="text-[11px] font-mono text-fg-tertiary">
               Focus span:
             </span>
             {[
@@ -765,7 +765,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
         <div className="fixed inset-0 z-50 bg-canvas flex flex-col justify-between p-8 text-center animate-fade-in">
           {/* Top header */}
           <div className="flex justify-between items-center w-full max-w-2xl mx-auto border-b border-edge-subtle pb-4">
-            <span className="text-[11px] font-mono uppercase tracking-[0.12em] text-amber-500 flex items-center gap-1.5">
+            <span className="text-[11px] font-mono text-amber-500 flex items-center gap-1.5">
               <ShieldAlert size={14} className="text-amber-500" />
               EF Rescue Focus Mode
             </span>
@@ -783,7 +783,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
           <div className="flex-1 flex flex-col justify-center items-center max-w-2xl mx-auto space-y-8 py-8">
             {microSteps.length > 0 ? (
               <div className="space-y-4">
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 font-mono uppercase tracking-[0.12em]">
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 font-mono">
                   Step {activeMicroStepIdx + 1} of {microSteps.length}
                 </span>
                 <h2 className="text-2xl md:text-4xl text-fg font-semibold leading-normal select-none tracking-tight">
@@ -792,7 +792,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
               </div>
             ) : (
               <div className="space-y-4">
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 font-mono uppercase tracking-[0.12em]">
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 font-mono">
                   Singular Action
                 </span>
                 <h2 className="text-2xl md:text-3xl text-fg font-semibold leading-normal select-none tracking-tight">
@@ -806,8 +806,8 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
               <div className="stat-number text-6xl md:text-8xl text-fg">
                 {formatTime(timeLeft)}
               </div>
-              <span className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
-                time remaining
+              <span className="text-[11px] font-mono text-fg-tertiary">
+                Time remaining
               </span>
             </div>
 
@@ -860,7 +860,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
       {step === "TIMER" && !efMode && (
         <div className="space-y-5 py-2 text-center animate-fade-in relative z-10">
           <div className="space-y-1">
-            <span className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary">
+            <span className="text-[11px] font-mono text-fg-tertiary">
               Focusing on step
             </span>
             <p className="text-[14px] font-semibold text-fg max-w-[280px] mx-auto leading-snug">
@@ -895,8 +895,8 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
               <span className="text-[20px] font-semibold font-mono text-fg tabular-nums leading-none">
                 {formatTime(timeLeft)}
               </span>
-              <span className="text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary mt-1">
-                remaining
+              <span className="text-[11px] font-mono text-fg-tertiary mt-1">
+                Remaining
               </span>
             </div>
           </div>
@@ -928,8 +928,8 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
         <div className="space-y-4 animate-fade-in">
           <header className="flex items-center gap-2">
             <AlertTriangle size={14} className="text-rose-400" />
-            <h4 className="text-[11px] font-mono uppercase tracking-[0.12em] text-rose-300">
-              resistance protocol
+            <h4 className="text-[11px] font-mono text-rose-300">
+              Resistance protocol
             </h4>
           </header>
 
@@ -943,7 +943,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
           </div>
 
           <div className="space-y-1.5 pt-1">
-            <span className="text-[11px] font-mono text-fg-tertiary uppercase tracking-[0.12em]">
+            <span className="text-[11px] font-mono text-fg-tertiary">
               Choose micro action:
             </span>
             <div className="grid grid-cols-1 gap-2">
@@ -993,8 +993,8 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
         <div className="space-y-4 animate-fade-in">
           <header className="flex items-center gap-2">
             <Timer size={14} className="text-violet-400" />
-            <h4 className="text-[11px] font-mono uppercase tracking-[0.12em] text-violet-300">
-              friction survey
+            <h4 className="text-[11px] font-mono text-violet-300">
+              Friction survey
             </h4>
           </header>
 
@@ -1018,7 +1018,6 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
                       : "border-edge-subtle bg-content text-fg-secondary"
                   )}
                 >
-                  <span aria-hidden>{opt.emoji}</span>
                   <span>{opt.label}</span>
                 </button>
               );
@@ -1040,15 +1039,15 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
         <div className="space-y-4 animate-fade-in">
           <header className="flex items-center gap-2">
             <Sparkles size={14} className="text-emerald-400" />
-            <h4 className="text-[11px] font-mono uppercase tracking-[0.12em] text-emerald-300">
-              reflection & logging
+            <h4 className="text-[11px] font-mono text-emerald-300">
+              Reflection & logging
             </h4>
           </header>
 
           <div className="space-y-3">
             {/* Seed action */}
             <div className="space-y-1.5">
-              <label htmlFor="seed-action" className="text-[11px] font-mono text-fg-tertiary uppercase tracking-[0.12em]">
+              <label htmlFor="seed-action" className="text-[11px] font-mono text-fg-tertiary">
                 Tomorrow's seed action
               </label>
               <Input
@@ -1063,7 +1062,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
             {/* Goal Metric Delta */}
             {goal.targetValue > 0 && (
               <div className="space-y-1.5">
-                <label htmlFor="metric-delta" className="text-[11px] font-mono text-fg-tertiary uppercase tracking-[0.12em]">
+                <label htmlFor="metric-delta" className="text-[11px] font-mono text-fg-tertiary">
                   Log progress ({goal.metric || "current"}: {goal.currentValue}/{goal.targetValue} {goal.unit})
                 </label>
                 <div className="flex gap-2">
@@ -1084,7 +1083,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
             {(selectedFrictions.has("vague") || selectedFrictions.has("low-energy")) && (
               <div className="p-3 rounded-control bg-surface-raised border border-edge-subtle space-y-2">
                 <div className="space-y-1">
-                  <span className="text-[11px] font-mono text-fg-secondary uppercase tracking-[0.12em] flex items-center gap-1">
+                  <span className="text-[11px] font-mono text-fg-secondary flex items-center gap-1">
                     <BookOpen size={11} className="text-amber-400" />
                     Continuous Learning
                   </span>
@@ -1152,20 +1151,20 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
 
           <div className="p-3 rounded-control bg-surface-raised border border-edge-subtle text-left text-[11px] space-y-2 max-w-[280px] mx-auto">
             <div className="flex justify-between">
-              <span className="text-fg-tertiary font-mono text-[11px] uppercase tracking-[0.12em]">Goal</span>
+              <span className="text-fg-tertiary font-mono text-[11px]">Goal</span>
               <span className="text-fg-secondary font-medium truncate max-w-[180px]">{goal.title}</span>
             </div>
             
             {seedAction && (
               <div className="flex flex-col gap-0.5 border-t border-edge-subtle pt-1.5">
-                <span className="text-fg-tertiary font-mono text-[11px] uppercase tracking-[0.12em]">Tomorrow's Seed</span>
+                <span className="text-fg-tertiary font-mono text-[11px]">Tomorrow's seed</span>
                 <span className="text-fg italic">&ldquo;{seedAction}&rdquo;</span>
               </div>
             )}
 
             {progressDelta && (
               <div className="flex justify-between border-t border-edge-subtle pt-1.5">
-                <span className="text-fg-tertiary font-mono text-[11px] uppercase tracking-[0.12em]">Metric delta</span>
+                <span className="text-fg-tertiary font-mono text-[11px]">Metric delta</span>
                 <span className="text-emerald-400 font-semibold">+{progressDelta} {goal.unit}</span>
               </div>
             )}

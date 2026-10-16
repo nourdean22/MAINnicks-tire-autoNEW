@@ -82,10 +82,10 @@ function PinControl({
   if (pinnedKind) {
     return (
       <span
-        className="font-mono text-[11px] uppercase tracking-[0.12em] px-1.5 py-0.5 rounded-micro border border-amber-500/30 bg-amber-500/[0.08] text-amber-200"
+        className="font-mono text-[11px] px-1.5 py-0.5 rounded-micro border border-amber-500/30 bg-amber-500/[0.08] text-amber-200"
         aria-label={`already pinned as ${pinnedKind}`}
       >
-        pinned · {pinnedKind}
+        Pinned · {pinnedKind}
       </span>
     );
   }
@@ -214,7 +214,7 @@ export default function LedgerTimeline({
         <h2 className="text-[17px] font-semibold text-fg">
           Ledger
         </h2>
-        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary tabular-nums">
+        <span className="font-mono text-[11px] text-fg-tertiary tabular-nums">
           {entries.length} {entries.length === 1 ? "entry" : "entries"}
         </span>
       </div>
@@ -253,7 +253,7 @@ export default function LedgerTimeline({
                   <p className="text-sm text-fg-secondary leading-snug break-words">
                     {entry.note}
                   </p>
-                  <div className="mt-0.5 flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary tabular-nums flex-wrap">
+                  <div className="mt-0.5 flex items-center gap-2 font-mono text-[11px] text-fg-tertiary tabular-nums flex-wrap">
                     <span>{relativeTime(entry.createdAt)}</span>
                     <span>·</span>
                     <span className="px-1.5 py-0.5 rounded-micro border border-edge-subtle">

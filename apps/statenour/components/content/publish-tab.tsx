@@ -242,7 +242,7 @@ export function PublishTab() {
         <Panel>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             <div className="rounded-surface border border-edge-subtle bg-content p-2 text-xs">
-              <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">Buffer</div>
+              <div className="font-mono text-[11px] text-fg-tertiary">Buffer</div>
               <div className={cn(
                 "mt-1 font-mono",
                 bufferConn?.ok ? "text-emerald-300" : "text-rose-300",
@@ -251,7 +251,7 @@ export function PublishTab() {
               </div>
             </div>
             <div className="rounded-surface border border-edge-subtle bg-content p-2 text-xs">
-              <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">Meta IG</div>
+              <div className="font-mono text-[11px] text-fg-tertiary">Meta IG</div>
               <div className={cn(
                 "mt-1 font-mono",
                 scheduleQuery.data?.meta?.instagram === "connected" ? "text-emerald-300" : "text-rose-300"
@@ -260,7 +260,7 @@ export function PublishTab() {
               </div>
             </div>
             <div className="rounded-surface border border-edge-subtle bg-content p-2 text-xs">
-              <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">Meta FB</div>
+              <div className="font-mono text-[11px] text-fg-tertiary">Meta FB</div>
               <div className={cn(
                 "mt-1 font-mono",
                 scheduleQuery.data?.meta?.facebook === "connected" ? "text-emerald-300" : "text-rose-300"
@@ -321,7 +321,7 @@ export function PublishTab() {
 
             {recentImages.length > 0 && (
               <div>
-                <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-1">recent generated images</div>
+                <div className="font-mono text-[11px] text-fg-tertiary mb-1">Recent generated images</div>
                 <div className="flex gap-1.5 flex-wrap">
                   {recentImages.slice(0, 8).map((img) => (
                     <button
@@ -345,14 +345,14 @@ export function PublishTab() {
             <div className="flex flex-wrap gap-4">
               {imageUrl && (
                 <div>
-                  <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-1">Image preview</div>
+                  <div className="font-mono text-[11px] text-fg-tertiary mb-1">Image preview</div>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={imageUrl} alt="preview" className="rounded-control max-h-48 border border-edge-subtle" />
                 </div>
               )}
               {videoUrl && (
                 <div>
-                  <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-1">Video preview</div>
+                  <div className="font-mono text-[11px] text-fg-tertiary mb-1">Video preview</div>
                   <video src={videoUrl} controls className="rounded-control max-h-48 border border-edge-subtle" />
                 </div>
               )}
@@ -431,7 +431,7 @@ export function PublishTab() {
             </h2>
             <div className="space-y-2">
               <div>
-                <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-1">when</div>
+                <div className="font-mono text-[11px] text-fg-tertiary mb-1">When</div>
                 <div className="flex gap-1 flex-wrap">
                   {(["now", "next-slot", "datetime"] as const).map((m) => (
                     <button
@@ -457,7 +457,7 @@ export function PublishTab() {
               </div>
               {profiles.length > 0 && (
                 <div>
-                  <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-1">channels</div>
+                  <div className="font-mono text-[11px] text-fg-tertiary mb-1">Channels</div>
                   <div className="flex gap-1 flex-wrap">
                     {profiles.map((p) => (
                       <label
@@ -534,7 +534,7 @@ export function PublishTab() {
                       : "border-rose-500/30 bg-rose-500/5 text-rose-200",
                   )}
                 >
-                  <span className="font-mono text-[11px] uppercase tracking-[0.12em]">{r.platform}</span>
+                  <span className="font-mono text-[11px]">{r.platform}</span>
                   {r.ok && r.permalink ? (
                     <a href={r.permalink} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:underline">
                       <Globe className="h-3 w-3" /> View post

@@ -40,7 +40,7 @@ export function MissionBreadcrumb() {
           mission · {displayTitle}
         </span>
         {mission?.openTaskCount != null && (
-          <span className="ml-2 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+          <span className="ml-2 font-mono text-[11px] text-fg-tertiary">
             · {mission.openTaskCount} open
           </span>
         )}

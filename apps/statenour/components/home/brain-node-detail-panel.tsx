@@ -163,23 +163,23 @@ Connected in view: ${inViewConnections.map((c) => `${c.node.label} (${c.type})`)
       <div className="flex items-center justify-between pb-3 border-b border-(--border-default)">
         <div className="flex items-center gap-2 flex-wrap">
           <IconComponent size={14} className="text-fg-tertiary" />
-          <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-(--text-tertiary)">
+          <span className="font-mono text-[11px] text-(--text-tertiary)">
             {node.type}
           </span>
           {evidence && (
-            <span className={cn("inline-flex items-center px-1.5 py-0.5 rounded-micro font-mono text-[11px] font-medium uppercase tracking-[0.12em] border", evidence.cls)}>
+            <span className={cn("inline-flex items-center px-1.5 py-0.5 rounded-micro font-mono text-[11px] font-medium border", evidence.cls)}>
               {evidence.text}
             </span>
           )}
           {node.contradicted && (
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-micro font-mono text-[11px] font-medium uppercase tracking-[0.12em] border border-rose-500/30 text-rose-300 bg-rose-500/10">
-              contradicted
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-micro font-mono text-[11px] font-medium border border-rose-500/30 text-rose-300 bg-rose-500/10">
+              Contradicted
             </span>
           )}
           {node.status && node.status !== "active" && (
             <span
               className={cn(
-                "inline-flex items-center px-1.5 py-0.5 rounded-micro font-mono text-[11px] font-medium uppercase tracking-[0.12em] border",
+                "inline-flex items-center px-1.5 py-0.5 rounded-micro font-mono text-[11px] font-medium border",
                 node.status === "risk" && "bg-rose-500/10 border-rose-500/20 text-rose-400",
                 node.status === "opportunity" && "bg-amber-500/10 border-amber-500/20 text-amber-300",
                 node.status === "done" && "bg-emerald-500/10 border-emerald-500/20 text-emerald-400",
@@ -236,8 +236,8 @@ Connected in view: ${inViewConnections.map((c) => `${c.node.label} (${c.type})`)
 
         {/* Connections — in view */}
         <div className="space-y-1.5">
-          <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-(--text-tertiary) inline-flex items-center gap-1">
-            <Link2 size={10} /> connected here ({inViewConnections.length})
+          <span className="font-mono text-[11px] text-(--text-tertiary) inline-flex items-center gap-1">
+            <Link2 size={10} /> Connected here ({inViewConnections.length})
           </span>
           {inViewConnections.length === 0 ? (
             <p className="text-[11px] font-mono text-(--text-tertiary) italic">
@@ -270,8 +270,8 @@ Connected in view: ${inViewConnections.map((c) => `${c.node.label} (${c.type})`)
         {/* Stored neighborhood (memory_edges lane) */}
         {nType !== null && (
           <div className="space-y-1.5">
-            <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-(--text-tertiary)">
-              stored relationships
+            <span className="font-mono text-[11px] text-(--text-tertiary)">
+              Stored relationships
             </span>
             {neighborhood.isLoading ? (
               <p className="text-[11px] font-mono text-(--text-tertiary)">loading…</p>

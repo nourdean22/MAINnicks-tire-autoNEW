@@ -342,6 +342,7 @@ export default function CronsPage() {
     <StandardPage
       eyebrow="NOUR OS · system"
       title="crons"
+      descriptionVisibility="always"
       description={
         feed
           ? `${summary?.active ?? 0} active · ${summary?.disabled ?? 0} killed · ${summary?.folded ?? 0} folded · ${summary?.runs24h ?? 0} runs/24h · ${summary?.failures24h ?? 0} failures/24h · ${summary?.drifted ?? 0} drifted`
@@ -452,7 +453,7 @@ export default function CronsPage() {
           const groupMeta = CATEGORY_META[category] ?? FALLBACK_META;
           return (
           <section key={category} className="space-y-2">
-              <h2 className={cn("font-mono text-[11px] uppercase tracking-[0.12em]", groupMeta.tint)}>
+              <h2 className={cn("font-mono text-[11px]", groupMeta.tint)}>
               {groupMeta.label} · <span className="text-fg-tertiary font-normal normal-case">{list.length}</span>
             </h2>
             <div className="space-y-1.5" data-selection-scope={`crons-${category}`}>
@@ -489,7 +490,7 @@ function SummaryCell({ label, value, tint }: { label: string; value: number; tin
       <div className={cn("text-2xl font-bold tabular-nums", tint)}>
         <AnimatedCounter value={value} />
       </div>
-      <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">{label}</div>
+      <div className="font-mono text-[11px] text-fg-tertiary">{label}</div>
     </div>
   );
 }
@@ -602,7 +603,7 @@ function CronRowView({
         )}>
           {row.successRate === null ? "no runs" : `${row.successRate}%`}
         </div>
-        <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">14d</div>
+        <div className="font-mono text-[11px] text-fg-tertiary">14d</div>
       </div>
 
       <div className="flex items-center gap-1.5">

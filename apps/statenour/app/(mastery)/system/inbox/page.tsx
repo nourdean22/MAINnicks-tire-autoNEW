@@ -69,6 +69,7 @@ export default function MemoryInboxPage() {
     <StandardPage
       eyebrow="NOUR OS · System"
       title="Memory Ingestion Inbox"
+      descriptionVisibility="always"
       description={
         items.length > 0
           ? `${items.length} claim(s) quarantined for safety review`
@@ -122,7 +123,7 @@ export default function MemoryInboxPage() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* Sidebar list of quarantined items */}
           <div className="lg:col-span-5 space-y-3 max-h-[75vh] overflow-y-auto pr-1">
-              <h2 className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary mb-2">
+              <h2 className="font-mono text-[11px] text-fg-tertiary mb-2">
               Quarantined Items ({items.length})
             </h2>
             {items.map((item) => {
@@ -239,7 +240,7 @@ export default function MemoryInboxPage() {
 
                 {/* Raw content fenced */}
                 <div className="space-y-1.5">
-              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+              <span className="font-mono text-[11px] text-fg-tertiary">
                     Raw Ingested Text
                   </span>
                   <div className="rounded-micro bg-content p-4 border border-edge-subtle">
@@ -251,7 +252,7 @@ export default function MemoryInboxPage() {
 
                 {/* Extracted claims */}
                 <div className="space-y-2">
-              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
+              <span className="font-mono text-[11px] text-fg-tertiary">
                     Extracted Claims
                   </span>
                   <div className="space-y-1.5">
