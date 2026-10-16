@@ -1,7 +1,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { isSoftFailedToolOutput } from "@/lib/ai/receipts/tool-receipt-summary";
+import { isEmptyToolOutput, isSoftFailedToolOutput } from "@/lib/ai/receipts/tool-receipt-summary";
 import {
   CheckCircle2, Plus, Swords, Target, Trash2, Trophy, Zap, HandshakeIcon,
   Flame, ChevronRight, Search, Brain, ListChecks, DollarSign, Users, Activity,
@@ -1271,6 +1271,8 @@ export function isKnownToolName(toolName: string): boolean {
 export function toolReceiptLabel(toolName: string, state: unknown, output: unknown): string | null {
   const config = TOOL_CONFIG[toolName];
   if (!config || state !== "output-available" || isSoftFailedToolOutput(output)) return null;
+  // PR #3090: an empty success says what the receipt counts say ("found nothing"), not the success label.
+  if (isEmptyToolOutput(output)) return `${config.label}: found nothing`;
   const subtitle = config.subtitle?.(output);
   return subtitle ? `${config.doneLabel}, ${subtitle}` : config.doneLabel;
 }
