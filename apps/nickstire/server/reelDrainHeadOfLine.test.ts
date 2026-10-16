@@ -90,7 +90,7 @@ describe("what it must NOT pre-check — the load-bearing half", () => {
   it("skips ONLY the parked QA verdicts, never the ones that clear themselves", () => {
     expect(LOOP).toContain("evaluateReelPublishGate");
     expect(LOOP).toContain("PARKED_QA_GATES.has(cGate.gate)");
-    // The parked set is exactly the human-blocked three.
+    // The parked set is exactly the human-blocked gates.
     const set = SRC.slice(SRC.indexOf("const PARKED_QA_GATES"));
     const decl = set.slice(0, set.indexOf(";") + 1);
     expect(decl).toContain("needs_paid_repair");
