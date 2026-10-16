@@ -89,6 +89,10 @@ async function lexicalRetriever(): Promise<Retriever> {
  * run — see the banner in main(). A zero here invalidates the hybrid number.
  */
 const hybridKnn = { withEmbedding: 0, withoutEmbedding: 0 };
+// W1 (2026-10-16) · the two new lanes are gated on the query embedding the same
+// way, so each keeps its own counter and gets the same banner.
+const memoryRecallKnn = { withEmbedding: 0, withoutEmbedding: 0 };
+const arbiterKnn = { withEmbedding: 0, withoutEmbedding: 0 };
 
 async function hybridRetriever(): Promise<Retriever> {
   const { getContextualMemories } = await import("../lib/brain/contextual-recall");
@@ -127,6 +131,78 @@ async function hybridRetriever(): Promise<Retriever> {
     });
     return ranked.slice(0, k).map((r, i) => ({ key: r.key, score: 1 / (i + 1) }));
   };
+}
+
+/**
+ * W1 (2026-10-16) · the OTHER chat lane: memory-recall's 3-lane RRF + rerank
+ * (lib/brain/memory-recall.ts). sideEffects:false is the read-only door the
+ * /brain recall preview uses, so the eval does not bump lastSeen (the reason
+ * this file avoided the lane until that door existed).
+ */
+async function memoryRecallRetriever(): Promise<Retriever> {
+  const { recallMemoriesForQuery } = await import("../lib/brain/memory-recall");
+  const { getEmbedding } = await import("../lib/ai/provider");
+  return async (query, k) => {
+    const embedding = await getEmbedding(query).catch((): number[] => []);
+    if (embedding.length > 0) memoryRecallKnn.withEmbedding++;
+    else memoryRecallKnn.withoutEmbedding++;
+    const report = await recallMemoriesForQuery(query, { limit: Math.max(k, 10), embedding: embedding.length > 0 ? embedding : undefined, sideEffects: false });
+    return report.hits.slice(0, k).map((h) => ({ key: h.key, score: h.finalScore }));
+  };
+}
+
+/**
+ * W1 (2026-10-16) · the arbiter lane: both chat lanes for the query, then the
+ * REAL evidence pack (validity filter, RRF/MMR fusion, one rerank) exactly as
+ * brain-context builds it under NICK_RECALL_ARBITER, scored on its item order.
+ */
+async function arbiterRetriever(): Promise<Retriever> {
+  const { getContextualMemories } = await import("../lib/brain/contextual-recall");
+  const { recallMemoriesForQuery } = await import("../lib/brain/memory-recall");
+  const { buildEvidencePackAsync, toRetrievedMemories } = await import("../lib/brain/evidence-pack");
+  const { getEmbedding } = await import("../lib/ai/provider");
+  return async (query, k) => {
+    const embedding = await getEmbedding(query).catch((): number[] => []);
+    if (embedding.length > 0) arbiterKnn.withEmbedding++;
+    else arbiterKnn.withoutEmbedding++;
+    const queryEmbedding = embedding.length > 0 ? embedding : undefined;
+    let ranked: import("../lib/brain/contextual-recall").RankedRecallRow[] = [];
+    const [hybrid] = await Promise.all([
+      recallMemoriesForQuery(query, { limit: Math.max(k, 10), embedding: queryEmbedding, sideEffects: false }),
+      getContextualMemories([query], Math.max(k, 10), {
+        fastTopics: true,
+        queryEmbedding,
+        sideEffects: false,
+        onRanked: (rows) => {
+          ranked = rows;
+        },
+      }),
+    ]);
+    const pack = await buildEvidencePackAsync(hybrid.hits, ranked, { limit: k, query });
+    return toRetrievedMemories(pack.items);
+  };
+}
+
+/** The lane's configuration is part of its number, so it is printed beside it (see the hybrid note in main). */
+function knnBanner(label: string, c: { withEmbedding: number; withoutEmbedding: number }): void {
+  const pad = label.padEnd(9);
+  const total = c.withEmbedding + c.withoutEmbedding;
+  if (total === 0) {
+    console.log(`${pad} (lane did not run)`);
+  } else if (c.withEmbedding === 0) {
+    console.log(
+      `${pad} !! INVALID — 0 of ${total} queries got a query embedding, so the true-KNN pool\n` +
+        "          was EMPTY on every case (contextual-recall.ts gates it on queryEmbedding).\n" +
+        "          This is NOT production recall. Do not compare it to the vector lane.",
+    );
+  } else if (c.withoutEmbedding > 0) {
+    console.log(
+      `${pad} !! DEGRADED — ${c.withoutEmbedding} of ${total} queries ran with NO KNN pool;\n` +
+        "          the score is a blend of two different pipelines.",
+    );
+  } else {
+    console.log(`${pad} knn pool ACTIVE on all ${total} queries (matches the chat hot path).`);
+  }
 }
 
 function corpusFingerprint(cases: RecallEvalCase[]): { count: number; sha256: string } {
@@ -213,36 +289,25 @@ async function main() {
   const vector = await runRecallEval(cases, await vectorRetriever(), K);
   const lexical = await runRecallEval(cases, await lexicalRetriever(), K);
   const hybrid = await runRecallEval(cases, await hybridRetriever(), K);
+  const memoryRecall = await runRecallEval(cases, await memoryRecallRetriever(), K);
+  const arbiter = await runRecallEval(cases, await arbiterRetriever(), K);
 
   console.log(line("vector", vector));
   console.log(line("lexical", lexical));
   console.log(line("hybrid", hybrid));
+  console.log(line("memory-recall", memoryRecall));
+  console.log(line("arbiter", arbiter));
 
   // ⚠ THE HYBRID LANE'S CONFIGURATION IS PART OF ITS NUMBER, SO IT IS PRINTED
   // BESIDE IT. Without this, a hybrid running with an empty KNN pool prints a
   // plausible-looking score next to a fully-configured vector lane and invites
   // exactly one wrong conclusion. Never let the degraded case be silent — the
   // same rule nickstire's holdout applies by reporting UNMEASURED rather than
-  // treating an absent evaluator as a pass.
-  const knnTotal = hybridKnn.withEmbedding + hybridKnn.withoutEmbedding;
-  if (knnTotal === 0) {
-    console.log("hybrid    (lane did not run)");
-  } else if (hybridKnn.withEmbedding === 0) {
-    console.log(
-      `hybrid    !! INVALID — 0 of ${knnTotal} queries got a query embedding, so the true-KNN pool\n` +
-        "          was EMPTY on every case (contextual-recall.ts gates it on queryEmbedding).\n" +
-        "          This is NOT production recall. Do not compare it to the vector lane.",
-    );
-  } else if (hybridKnn.withoutEmbedding > 0) {
-    console.log(
-      `hybrid    !! DEGRADED — ${hybridKnn.withoutEmbedding} of ${knnTotal} queries ran with NO KNN pool;\n` +
-        "          the score is a blend of two different pipelines.",
-    );
-  } else {
-    console.log(
-      `hybrid    knn pool ACTIVE on all ${knnTotal} queries (matches the chat hot path).`,
-    );
-  }
+  // treating an absent evaluator as a pass. W1: the memory-recall and arbiter
+  // lanes are gated on the same embedding and get the same banner.
+  knnBanner("hybrid", hybridKnn);
+  knnBanner("memory-recall", memoryRecallKnn);
+  knnBanner("arbiter", arbiterKnn);
 
   // ★★★ REFUSE A VERDICT THE CORPUS CANNOT SUPPORT.
   //
@@ -289,7 +354,7 @@ async function main() {
   const outPath = join(outDir, "recall-lane-comparison.json");
   writeFileSync(
     outPath,
-    JSON.stringify({ ranAt: new Date().toISOString(), k: K, syntheticOnly, corpus: corpusFingerprint(cases), vector, lexical, hybrid, verdict }, null, 2),
+    JSON.stringify({ ranAt: new Date().toISOString(), k: K, syntheticOnly, corpus: corpusFingerprint(cases), vector, lexical, hybrid, memoryRecall, arbiter, verdict }, null, 2),
   );
   console.log(`artifact: ${outPath}`);
   process.exit(); // keeps the exitCode a changed corpus set (4); 0 otherwise

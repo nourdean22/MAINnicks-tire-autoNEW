@@ -105,6 +105,15 @@ export interface ContextReceipt {
    * string, not a Date: this object round-trips through a Prisma Json column.
    */
   recallAsOf?: string;
+  /**
+   * 2026-10-16 (Brain W1) · whether NICK_RECALL_ARBITER shaped this turn's
+   * recall blocks. Optional in the TYPE because receipts persisted before W1
+   * lack it (scripts/arbiter-judge-split.ts reads those as "unknown"); the
+   * builder always sets it, so a receipt it produces is never unknown.
+   */
+  arbiter?: boolean;
+  /** Present only when `arbiter` is true: which backend reordered the evidence pack ("none" = identity). */
+  rerankBackend?: "cohere" | "bge" | "none";
 }
 
 /**
@@ -148,8 +157,16 @@ export function buildContextReceipt(
     similarityFn?: (a: string, b: string) => number;
     /** The point-in-time filter recall ran under; omitted/invalid = current. */
     asOf?: Date | null;
+    /** W1 · NICK_RECALL_ARBITER state for this turn; default false. */
+    arbiter?: boolean;
+    /** W1 · recorded only with arbiter: true. */
+    rerankBackend?: "cohere" | "bge" | "none";
   } = {},
 ): ContextReceipt {
+  const arbiterFields = {
+    arbiter: options.arbiter === true,
+    ...(options.arbiter === true && options.rerankBackend ? { rerankBackend: options.rerankBackend } : {}),
+  };
   // A Date that is not a Date, or an Invalid Date, must not become the string
   // "Invalid Date" in a persisted receipt — it reads as a real filter.
   const asOfIso =
@@ -166,6 +183,7 @@ export function buildContextReceipt(
       tokensDropped: 0,
       droppedCount: 0,
       ...(asOfIso ? { recallAsOf: asOfIso } : {}),
+      ...arbiterFields,
     };
   }
   const { redundancyPenalty = DEFAULT_REDUNDANCY_PENALTY, similarityFn } = options;
@@ -245,5 +263,6 @@ export function buildContextReceipt(
     tokensDropped,
     droppedCount: entries.filter((e) => !e.kept).length,
     ...(asOfIso ? { recallAsOf: asOfIso } : {}),
+    ...arbiterFields,
   };
 }
