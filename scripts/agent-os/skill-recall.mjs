@@ -151,13 +151,16 @@ function buildIndex(roots) {
       entries.push({ ...s, realName, nameTokens: [...realName, ...tokens(s.triggers)], bodyTokens: tokens(s.description) });
     }
   }
-  // Term statistics come from the REPO cohort alone (round 5): a repo result must not move when the user installs
-  // 500 unrelated skills. User entries are scored against the same table; a term the repo never uses is a singleton.
+  // Term statistics come from the REPO cohort when there is one (round 5): a repo result must not move when the user
+  // installs 500 unrelated skills, and user entries are scored against the same table (a term the repo never uses is
+  // a singleton). Outside a repo, which is what `--scope global` is for, the cohort is the user root itself: with an
+  // empty table N is 0, the idf goes negative and every user skill scores under zero (round 6, found live).
   const repo = entries.filter((e) => e.kind === "repo");
+  const cohort = repo.length ? repo : entries.filter((e) => e.kind === "user");
   const df = {};
-  for (const e of repo) for (const t of new Set([...e.nameTokens, ...e.bodyTokens])) df[t] = (df[t] || 0) + 1;
-  const avgLen = repo.reduce((n, e) => n + e.bodyTokens.length, 0) / Math.max(1, repo.length);
-  return { entries, df, avgLen, N: repo.length };
+  for (const e of cohort) for (const t of new Set([...e.nameTokens, ...e.bodyTokens])) df[t] = (df[t] || 0) + 1;
+  const avgLen = cohort.reduce((n, e) => n + e.bodyTokens.length, 0) / Math.max(1, cohort.length);
+  return { entries, df, avgLen, N: cohort.length };
 }
 
 function loadIndex(root) {
@@ -243,8 +246,11 @@ function readInput(argv, root) {
 }
 
 /** `--scope global` (the ~/.claude/settings.json entry): stay silent in a project whose own settings already run this
- * script, so the repo hook and the user hook never print twice. Any read error means "not registered": run normally. */
+ * script, so the repo hook and the user hook never print twice. Any read error means "not registered": run normally.
+ * The home directory is never a project: its `.claude/settings.json` IS the user file that carries the global entry,
+ * so a session started in `~` must still get recall (round 6, found live). */
 function projectAlreadyRuns(root) {
+  if (resolve(root) === resolve(homedir())) return false;
   try {
     const settings = JSON.parse(readFileSync(join(root, ".claude", "settings.json"), "utf8"));
     return (settings.hooks?.UserPromptSubmit ?? []).some((g) => (g.hooks ?? []).some((h) => String(h.command || "").includes("skill-recall.mjs")));
