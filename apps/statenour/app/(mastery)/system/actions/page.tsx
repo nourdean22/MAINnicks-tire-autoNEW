@@ -20,7 +20,7 @@
 
 import { ConfirmHold } from "@/components/ui/confirm-hold";
 import { Suspense, useState, useEffect } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Panel } from "@/components/panel";
 import { ACTIONS_TAB_PARAM, resolveActionsTab, type ActionsTab } from "./actions-tab";
 import { StandardPage } from "@/components/layout/standard-page";
@@ -207,14 +207,15 @@ export default function ActionsPage() {
 
 function ActionsPageInner() {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const pathname = usePathname() ?? "/system/actions";
   const activeTab = resolveActionsTab(searchParams?.get(ACTIONS_TAB_PARAM));
   const setActiveTab = (next: ActionsTab) => {
     const params = new URLSearchParams(searchParams?.toString() ?? "");
     params.set(ACTIONS_TAB_PARAM, next);
-    // replace, not push: a tab change is not a history entry; scroll: false keeps the page where it is.
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    // window.history.replaceState, not router.replace: Next patches replaceState into the app
+    // router (next/dist/client/components/app-router.js, "Patch replaceState"), so useSearchParams
+    // updates with no RSC refetch (this page is dynamic), no history entry and no scroll.
+    window.history.replaceState(null, "", `${pathname}?${params.toString()}`);
   };
   const [win, setWin] = useState<Win>("7d");
   const [ruleFilter, setRuleFilter] = useState<string | null>(null);
@@ -389,9 +390,10 @@ function ActionsPageInner() {
           )}
         >
           Pending Approvals
-          {pendingCount > 0 && (
+          {/* A failed read never shows 0: the last count if a refetch failed, a dash if nothing was ever read. */}
+          {(approvalsQuery.isError || pendingCount > 0) && (
             <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-xs text-amber-200 font-mono">
-              {pendingCount}
+              {approvalsQuery.isError && !approvalsQuery.data ? "-" : pendingCount}
             </span>
           )}
         </button>
@@ -630,7 +632,22 @@ function ActionsPageInner() {
             <span className="text-xs text-fg-tertiary">requires owner/operator approval</span>
           </div>
 
-          {approvals.length === 0 ? (
+          {/* empty-vs-error: a failed read is not an empty queue. */}
+          {approvalsQuery.isError && (
+            <div className="mb-3 flex flex-wrap items-center gap-3 rounded-surface border border-amber-500/30 p-3">
+              <p role="status" className="text-xs text-amber-300">
+                Approvals could not be read. State unknown, not empty.
+              </p>
+              <button
+                type="button"
+                onClick={() => approvalsQuery.refetch()}
+                className="min-h-11 rounded-control border border-edge-default px-3 text-xs text-fg hover:border-edge-strong"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+          {approvalsQuery.isError && approvals.length === 0 ? null : approvals.length === 0 ? (
             <p className="text-xs text-fg-tertiary p-4">
               {loading ? "loading approvals…" : "no pending tool approvals"}
             </p>
