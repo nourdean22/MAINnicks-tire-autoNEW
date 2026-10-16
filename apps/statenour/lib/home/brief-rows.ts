@@ -10,17 +10,20 @@
  * number of rows after the filter and before the cap, so the page can say "N more" instead of
  * dropping rows silently. Pure, so tests/home/brief-rows.test.ts pins all of it without React.
  */
-import {
-  ATTENTION_CAP,
-  type BriefHorizonSection,
-  type BriefJudgmentSection,
-  type BriefLeadSection,
-  type HorizonSlot,
-  type JudgmentItem,
-  type PendingApproval,
+// TYPE imports only: operator-brief.ts is server code (prisma), and this module is imported by a
+// "use client" component. A value import here put the whole server graph in the browser bundle and
+// broke `next build` on PR #3073 (tests/repo/client-server-boundary.test.ts pins the rule).
+import type {
+  BriefHorizonSection,
+  BriefJudgmentSection,
+  BriefLeadSection,
+  HorizonSlot,
+  JudgmentItem,
+  PendingApproval,
 } from "./operator-brief";
 
-export const BRIEF_ROW_CAP = ATTENTION_CAP;
+/** The attention budget (operator-brief.ts ATTENTION_CAP), spelled here so the client never imports the builder. */
+export const BRIEF_ROW_CAP = 7;
 
 export type BriefRowKind = "lead" | "approval" | "commitment" | "followup" | "contradiction" | "horizon";
 
