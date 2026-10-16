@@ -473,7 +473,7 @@ export function ChatMessageList({
         <section className="rounded-surface border border-edge-subtle bg-content p-4">
           <div className="mb-3 flex items-center gap-2 text-fg-secondary">
             <CheckCircle2 size={15} />
-            <h3 className="font-mono text-[11px] uppercase tracking-[0.12em]">Independent chat diagnostic</h3>
+            <h3 className="font-mono text-[11px] tracking-[0.12em]">Independent chat diagnostic</h3>
             <button onClick={() => setDiagnosticReport(null)} className="ml-auto min-h-11 px-2 text-[11px] text-fg-tertiary hover:text-fg sm:min-h-8">Dismiss</button>
           </div>
           <NickMessage text={diagnosticReport} streaming={false} messageId="chat-diagnostic" />

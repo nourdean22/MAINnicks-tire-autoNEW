@@ -45,7 +45,7 @@ function FleetTruthCard({ output }: { output: FleetTruthOutput }) {
   return (
     <div className="mt-2 rounded-surface border border-edge-subtle bg-content p-3" data-testid="fleet-truth-card">
       <div className="mb-2 flex items-center justify-between">
-        <span className="font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-fg-tertiary">
+        <span className="font-mono text-[11px] font-medium tracking-[0.12em] text-fg-tertiary">
           Fleet truth
         </span>
         <span
@@ -97,6 +97,12 @@ const URGENCY_COLOR: Record<string, string> = {
   this_week: "text-sky-300",
   later: "text-fg-tertiary",
 };
+// W3b: the raw key (this_week) used to render in capitals; a word map, sentence case, one per known urgency.
+const URGENCY_WORD: Record<string, string> = { critical: "Critical", today: "Today", this_week: "This week", later: "Later" };
+export function urgencyWord(urgency: string | undefined): string {
+  if (!urgency) return "Unranked";
+  return URGENCY_WORD[urgency] ?? urgency.replace(/_/g, " ");
+}
 
 function TopDecisionsCard({ output }: { output: TopDecisionsOutput }) {
   if (output.ok === false) return null;
@@ -105,8 +111,8 @@ function TopDecisionsCard({ output }: { output: TopDecisionsOutput }) {
   return (
     <div className="mt-2 rounded-surface border border-edge-subtle bg-content p-3" data-testid="top-decisions-card">
       <div className="mb-2 flex items-center justify-between">
-        <span className="font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-fg-tertiary">
-          Decision inbox — top {rows.length}
+        <span className="font-mono text-[11px] font-medium tracking-[0.12em] text-fg-tertiary">
+          Decision inbox: top {rows.length}
         </span>
         <span className="text-[11px] text-fg-tertiary">
           {output.totalLive ?? 0} live
@@ -118,8 +124,8 @@ function TopDecisionsCard({ output }: { output: TopDecisionsOutput }) {
         {rows.map((d, i) => (
           <li key={d.id ?? i} className="rounded-control border border-edge-subtle bg-surface-raised px-3 py-2">
             <div className="flex items-baseline justify-between gap-2">
-              <span className={`font-mono text-[11px] font-medium uppercase tracking-[0.12em] ${URGENCY_COLOR[d.urgency ?? ""] ?? "text-fg-tertiary"}`}>
-                {d.urgency ?? "unranked"}
+              <span className={`font-mono text-[11px] font-medium tracking-[0.12em] ${URGENCY_COLOR[d.urgency ?? ""] ?? "text-fg-tertiary"}`}>
+                {urgencyWord(d.urgency)}
               </span>
               <span className="text-[11px] tabular-nums text-fg-secondary">
                 {d.valueDollars && d.valueDollars > 0 ? `$${d.valueDollars.toLocaleString()}` : "value unknown"}
@@ -131,7 +137,7 @@ function TopDecisionsCard({ output }: { output: TopDecisionsOutput }) {
         ))}
       </ol>
       <p className="mt-2 text-[11px] text-fg-tertiary">
-        Same read as the admin Decision Inbox — decide there; this card never mutates.
+        Same read as the admin Decision Inbox: decide there; this card never mutates.
       </p>
     </div>
   );

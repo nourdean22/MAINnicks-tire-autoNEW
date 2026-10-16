@@ -101,7 +101,7 @@ W2 decisions (2026-10-16, branch `statenour/ui-v3-w2`): the brief is rows, not c
 
 | # | Fix | Where | Wave |
 |---|---|---|---|
-| 1 | One base.css rule stops stray `uppercase`, allowlisting `.eyebrow`, `.vt-eyebrow`, `.section-label`, `.text-eyebrow`, `.vt-verdict`; the chat shell (`data-chat-shell` on the chat page root) stays outside it until W3 | `app/styles/base.css:305-320` (precedent) | W1 (ratchet in W0) |
+| 1 | One base.css rule stops stray `uppercase`, allowlisting `.eyebrow`, `.vt-eyebrow`, `.section-label`, `.text-eyebrow`, `.vt-verdict`; the chat shell was outside it until W3b reworded the seven chat-v2 sites (the `data-chat-shell` attribute stays as the render's island locator) | `app/styles/base.css:305-320` (precedent) | W1 (ratchet in W0) |
 | 2 | Replace AmbientAura with a state word + notch; edit the pinned tests | `components/hud/ambient-aura.tsx:36`, `app/styles/effects.css:657-678` | W1 |
 | 3 | Approvals link opens Approvals; approval-windows box below the list; ticker rows use `Link`; alert footer in plain words | `lib/home/operator-brief.ts` (about 408, 654), `app/(mastery)/system/actions/page.tsx:196,606-640`, `components/ultron/bottom-pulse-ticker.tsx:406-410`, `components/inspector/panels/alert-inspector.tsx:121-123` | W1 (alert footer in W0) |
 | 4 | Header diet: eyebrow only when it adds information; drop the description on core pages. The W1a exception (/missions kept its description because the 390 render scored 0.342 against the v2 gate, CI run 38834210402) was lifted in W2 | `components/layout/standard-page.tsx:177-186`, `components/layout/header-diet.ts` | W1, W2 |

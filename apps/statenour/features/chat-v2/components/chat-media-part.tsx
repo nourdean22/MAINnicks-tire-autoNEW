@@ -267,7 +267,7 @@ export function ChatMediaPart({ part, id }: { part: ChatFilePart; id?: string })
   ) : null;
 
   if (!isRenderableUrl(part.url)) {
-    return <FileCard part={part} kind={kind} reason="unavailable — no usable link" />;
+    return <FileCard part={part} kind={kind} reason="unavailable: no usable link" />;
   }
 
   const label = part.filename || `${humanKind(kind)} attachment`;
