@@ -12,6 +12,7 @@
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../../server/routers";
 import { permissionsForAdminRole } from "../../../../shared/adminPermissions";
+import { EXPECTED_CAMERAS } from "../../../../shared/cameras";
 
 type Out = inferRouterOutputs<AppRouter>;
 type Proc<P extends string> = P extends `${infer A}.${infer B}`
@@ -115,6 +116,35 @@ const proposals = (c: Date) => [
   { id: "6f1c2d1e-0003-4c55-9b7a-1a2b3c4d5e03", source: "ai", actor: "nick-agent", actionType: "create_callback", entityType: "lead", entityId: "7202", title: "Follow up with Mike Petrovic on the check engine light", payloadJson: { name: "Mike Petrovic", reason: "Check engine light, no visit booked" }, contextJson: { why: "Contacted 3 hours ago, no booking since" }, confidence: 61, status: "pending_review", reviewedBy: null, reviewedAt: null, reviewNote: null, executedAt: null, executionResultJson: null, idempotencyKey: null, createdAt: at(c, 55), updatedAt: at(c, 55), downstream: null },
 ];
 
+/** A commissioned camera reporting HEALTHY all day (the shape lot.health builds per camera). */
+function healthyCamera(cam: (typeof EXPECTED_CAMERAS)[number], c: Date) {
+  const dayStart = new Date("2026-10-13T00:00:00-04:00").getTime();
+  return {
+    camera: cam.camera,
+    label: cam.label,
+    role: cam.role,
+    healthProfile: cam.healthProfile,
+    commissioned: true,
+    registered: true,
+    state: "HEALTHY" as const,
+    facets: { producer: "alive", source: "connected", frames: "fresh", pose: "ok", calibration: "valid", vision: "seeing", auth: "ok", events: "ok", control: "ok", media: "ok", home: "ok", cloud: "ok" } as const,
+    reason: "heartbeat 12s ago",
+    ageSeconds: 12,
+    stateForSeconds: 6 * 3600,
+    stability: { dropsToday: 0, transitionsToday: 0 },
+    mode: "PRODUCTION" as string | null,
+    commissioningRunId: null,
+    producer: null,
+    source: null,
+    vision: null,
+    transport: null,
+    conversation: null,
+    cloud: null,
+    openVisits: cam.role === "vehicle_truth" ? 5 : 0,
+    timeline: { anchorKnown: true, segments: [{ state: "HEALTHY", fromMs: dayStart, toMs: c.getTime(), open: true, reason: null }], current: { state: "HEALTHY", sinceMs: dayStart, forSeconds: Math.round((c.getTime() - dayStart) / 1000) } },
+  };
+}
+
 const ok = { available: true, error: null };
 
 export const HANDLERS = {
@@ -177,10 +207,21 @@ export const HANDLERS = {
     thresholds: { heartbeatSeconds: 30, staleAfterSeconds: 60, offlineAfterSeconds: 120, frameStaleAfterSeconds: 15, backlogWarnSeconds: 60, blindInferenceMaxAgeSeconds: 600 },
     windowColumnsStored: true,
     shopOpen: true,
-    cameras: [],
-    healthy: 0,
-    expected: 0,
-    coverage: null,
+    cameras: EXPECTED_CAMERAS.filter((cam) => cam.commissioned).map((cam) => healthyCamera(cam, c)),
+    healthy: 2,
+    expected: 2,
+    coverage: (() => {
+      const openMs = new Date("2026-10-13T08:00:00-04:00").getTime();
+      const nowMs = c.getTime();
+      const hours = [8, 9, 10, 11, 12, 13, 14].map((hour) => {
+        const startMs = openMs + (hour - 8) * 60 * MIN;
+        const endMs = Math.min(startMs + 60 * MIN, nowMs);
+        const m = Math.round((endMs - startMs) / MIN);
+        return { hour, startMs, endMs, elapsedMinutes: m, watchedMinutes: m, unknownMinutes: 0, solarMinutes: 0, pct: 1, pctExpected: 1 };
+      });
+      const elapsed = hours.reduce((n, h) => n + h.elapsedMinutes, 0);
+      return { camera: "sign", weekday: "tuesday", openMs, closeMs: new Date("2026-10-13T18:00:00-04:00").getTime(), nowMs, anchorKnown: true, pct: 1, pctExpected: 1, elapsedMinutes: elapsed, watchedMinutes: elapsed, unknownMinutes: 0, solarMinutes: 0, hours };
+    })(),
     transitions: [],
   }),
   "lot.conversations": () => ({ ok: true, conversations: [], visualAvailable: false }),
