@@ -318,6 +318,7 @@ export default function DecisionDetailPage() {
         </span>
       }
       title={d.title}
+      descriptionVisibility="always"
       description={
         timeline.isReviewed
           ? `reviewed · grade ${d.grade ?? "n/a"} · logged ${timeline.ageDays}d ago`
@@ -489,7 +490,7 @@ export default function DecisionDetailPage() {
                   onChange={(e) => setEditGrade(e.target.value)}
                   className="w-full min-h-[44px] rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] text-fg focus:border-accent focus:outline-none"
                 >
-                  <option value="">pick</option>
+                  <option value="" disabled>Pick one</option>
                   <option value="A">A · prediction held + outcome was great</option>
                   <option value="B">B · prediction mostly right</option>
                   <option value="C">C · partial · some wrong</option>

@@ -225,6 +225,7 @@ export default function PinsPage() {
     <StandardPage
       eyebrow="NOUR OS · Brain"
       title="pinned memory"
+      descriptionVisibility="always"
       description={
         data?.stats
           ? `${data.count} pins`
@@ -375,7 +376,7 @@ export default function PinsPage() {
                     <div className="flex items-center gap-2 flex-wrap">
                       {isInjected ? (
                         <span className="text-[11px] font-mono px-1.5 py-0.5 rounded-micro bg-emerald-500/15 border border-emerald-500/30 text-emerald-300">
-                          <Sparkles className="h-2.5 w-2.5 inline mr-0.5" /> injected
+                          <Sparkles className="h-2.5 w-2.5 inline mr-0.5" /> Injected
                         </span>
                       ) : (
                         <span className="text-[11px] font-mono px-1.5 py-0.5 rounded-micro bg-surface-interactive border border-edge-subtle text-fg-tertiary">

@@ -315,6 +315,7 @@ export default function ActionsPage() {
     <StandardPage
       eyebrow="NOUR OS · System"
       title="Actions"
+      descriptionVisibility="always"
       description={
         feed
           ? `${feed.totalInWindow} in window · ${feed.rules.length} unique rules${pendingCount > 0 ? ` · ${pendingCount} pending approval` : ""}`
@@ -752,7 +753,7 @@ export default function ActionsPage() {
 
                     {isExpired && (
                       <div className="text-xs text-amber-300 flex items-center gap-1.5">
-                        <span>⏱</span> Authorization expired{req.expiresAt ? ` ${new Date(req.expiresAt).toLocaleString()}` : ""}, approve is refused. Re-request it against current state, or reject it.
+                        <span>⏱</span> Authorization expired{req.expiresAt ? ` ${new Date(req.expiresAt).toLocaleString()}` : ""}. Approve is refused. Re-request it against current state, or reject it.
                       </div>
                     )}
                     {needsOwner && (

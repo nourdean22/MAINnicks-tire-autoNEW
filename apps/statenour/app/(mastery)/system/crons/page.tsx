@@ -342,6 +342,7 @@ export default function CronsPage() {
     <StandardPage
       eyebrow="NOUR OS · system"
       title="crons"
+      descriptionVisibility="always"
       description={
         feed
           ? `${summary?.active ?? 0} active · ${summary?.disabled ?? 0} killed · ${summary?.folded ?? 0} folded · ${summary?.runs24h ?? 0} runs/24h · ${summary?.failures24h ?? 0} failures/24h · ${summary?.drifted ?? 0} drifted`

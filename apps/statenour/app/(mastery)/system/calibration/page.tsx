@@ -122,6 +122,7 @@ export default function CalibrationPage() {
     <StandardPage
       eyebrow="NOUR OS · System"
       title="State Calibration"
+      descriptionVisibility="always"
       description={
         // 2026-05-23 · Wave M · "failed to load" distinct from empty.
         // 2026-05-24 · Wave N · surface non-zero malformed +

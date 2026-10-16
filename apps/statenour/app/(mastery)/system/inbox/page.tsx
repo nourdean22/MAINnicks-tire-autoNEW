@@ -69,6 +69,7 @@ export default function MemoryInboxPage() {
     <StandardPage
       eyebrow="NOUR OS · System"
       title="Memory Ingestion Inbox"
+      descriptionVisibility="always"
       description={
         items.length > 0
           ? `${items.length} claim(s) quarantined for safety review`

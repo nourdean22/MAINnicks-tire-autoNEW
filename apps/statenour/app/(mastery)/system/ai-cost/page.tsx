@@ -143,6 +143,7 @@ export default function AiCostPage() {
     <StandardPage
       eyebrow="NOUR OS · System"
       title="ai cost"
+      descriptionVisibility="always"
       description={
         feed
           ? `today ${dollars(feed.today.totalCostCents)} · 7d ${dollars(feed.last7d.totalCostCents)} · 30d ${dollars(feed.last30d.totalCostCents)}`

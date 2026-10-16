@@ -41,6 +41,12 @@ describe("PageHeader", () => {
     expect(html).toMatch(/<p class="page-copy hidden md:block">The long line<\/p>/);
   });
 
+  it("keeps the description at every width when it carries a live value (always)", () => {
+    const html = renderToString(<PageHeader eyebrow="x" title="T" description="v1.2 · 3 pins" descriptionVisibility="always" />);
+    expect(html).toMatch(/<p class="page-copy">v1\.2 · 3 pins<\/p>/);
+    expect(html).not.toContain("hidden md:block");
+  });
+
   it("omits the description element at every width when asked", () => {
     const html = renderToString(<PageHeader eyebrow="x" title="T" description="The long line" descriptionVisibility="never" />);
     expect(html).not.toContain("The long line");

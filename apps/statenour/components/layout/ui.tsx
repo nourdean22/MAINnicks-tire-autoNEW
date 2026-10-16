@@ -20,8 +20,9 @@ type PageHeaderProps = {
   parentHref?: string;
   parentLabel?: string;
   /** UI v3 header diet. "md-up" (default) shows the description from the md breakpoint up; "never"
-   *  leaves it out at every width (the core pages). The `description` prop stays in the API. */
-  descriptionVisibility?: "md-up" | "never";
+   *  leaves it out at every width (the core pages); "always" keeps it at every width, for a description
+   *  that carries a live value (a count, a version) the phone has nowhere else. The `description` prop stays. */
+  descriptionVisibility?: "md-up" | "never" | "always";
 };
 
 
@@ -36,7 +37,9 @@ export function PageHeader({ eyebrow, title, description, actions, parentHref, p
         )}
         {eyebrowAddsInformation(eyebrow, title, parentLabel) ? <p className="eyebrow">{eyebrow}</p> : null}
         <h1 className="page-title">{title}</h1>
-        {descriptionVisibility === "never" ? null : <p className="page-copy hidden md:block">{description}</p>}
+        {descriptionVisibility === "never" ? null : (
+          <p className={descriptionVisibility === "always" ? "page-copy" : "page-copy hidden md:block"}>{description}</p>
+        )}
       </div>
       {actions ? <div className="page-actions">{actions}</div> : null}
     </header>

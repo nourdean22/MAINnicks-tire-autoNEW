@@ -223,6 +223,7 @@ export default function SystemPage() {
     <StandardPage
       eyebrow="NOUR OS"
       title="System"
+      descriptionVisibility="always"
       description={`v${d?.version ?? "..."}${mounted && diagnosticsQuery.dataUpdatedAt > 0 ? ` · Last refresh: ${new Date(diagnosticsQuery.dataUpdatedAt).toLocaleTimeString()}` : ""}`}
       width="2xl"
       rhythm="workspace"
