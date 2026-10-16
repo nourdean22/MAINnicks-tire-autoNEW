@@ -288,6 +288,20 @@ describe("instagramAdmin router", () => {
     it("refuses a non-admin caller", async () => {
       const caller = appRouter.createCaller(ctx("user"));
       await expect(caller.instagramAdmin.commentResponderStatus()).rejects.toMatchObject({ code: "FORBIDDEN" });
+  describe("attachExternalClips (admin)", () => {
+    const input = { jobId: 2100001, clipUrls: ["https://cdn.example.com/1.mp4"], source: "higgsfield-web" as const };
+
+    it("exists on the real router and refuses a non-admin caller", async () => {
+      expect(appRouter._def.procedures["instagramAdmin.attachExternalClips"]).toBeDefined();
+      const caller = appRouter.createCaller(ctx("user"));
+      await expect(caller.instagramAdmin.attachExternalClips(input)).rejects.toMatchObject({ code: "FORBIDDEN" });
+    });
+
+    it("rejects an unknown source at input validation, before any download", async () => {
+      const caller = appRouter.createCaller(ctx("admin"));
+      await expect(
+        caller.instagramAdmin.attachExternalClips({ ...input, source: "local-file" as never }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
     });
   });
 

@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-16T10:35:22.893Z",
-  "count": 787,
+  "generatedAt": "2026-10-16T11:26:11.059Z",
+  "count": 788,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -164,6 +164,7 @@
     "mutation.inspection.verifyItem",
     "mutation.instagramAdmin.approveDraft",
     "mutation.instagramAdmin.approveReelPublish",
+    "mutation.instagramAdmin.attachExternalClips",
     "mutation.instagramAdmin.clearActiveSlate",
     "mutation.instagramAdmin.createQualityOverride",
     "mutation.instagramAdmin.deleteReelPattern",
