@@ -117,8 +117,12 @@ select optgroup {
     transition: background-color var(--motion-micro) var(--ease-standard), color var(--motion-micro) var(--ease-standard), border-color var(--motion-micro) var(--ease-standard), opacity var(--motion-micro) var(--ease-standard), transform 80ms ease;
   }
 }
-button:active, [role="button"]:active {
-  transform: scale(0.97);
+/* The press is motion, so it exists only where the operator allows motion (UI v3 W1a review; pinned by
+   tests/repo/ui-v3-motion.test.ts). */
+@media (prefers-reduced-motion: no-preference) {
+  button:active, [role="button"]:active {
+    transform: scale(0.97);
+  }
 }
 
 /* Card hover — border brightens to gold */
@@ -194,8 +198,9 @@ button:active, [role="button"]:active {
    restored; the grammar test now pins it. */
 .animate-fade-in-scale { animation: fade-in-scale 220ms var(--ease-spring-soft); }
 /* UI v3 W1a · press feedback. A spring on transform only; colour keeps the standard ease it had.
-   Tabs and tappable rows opt in with the class. The scale is a press state, so it exists only where
-   motion is allowed (the reduced-motion block below also collapses the transition itself).
+   Tabs and tappable rows opt in with the class. Its :active scale, like the generic button press
+   above, sits inside prefers-reduced-motion: no-preference; the reduced-motion block below also
+   collapses the transition itself.
    Pinned by tests/repo/ui-v3-motion.test.ts. */
 .press-spring {
   transition:
@@ -289,9 +294,12 @@ button:active, [role="button"]:active {
   button, [role="button"] {
     min-width: 44px;
   }
-  .touch-feedback:active {
-    transform: scale(0.96);
-    transition: transform 0.05s ease;
+  /* The press is motion: only where the operator allows it (UI v3 W1a review). */
+  @media (prefers-reduced-motion: no-preference) {
+    .touch-feedback:active {
+      transform: scale(0.96);
+      transition: transform 0.05s ease;
+    }
   }
 }
 

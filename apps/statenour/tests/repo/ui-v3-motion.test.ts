@@ -147,3 +147,39 @@ describe("the press feedback has callers", () => {
     expect((more.match(/press-spring/g) ?? []).length).toBeGreaterThanOrEqual(1);
   });
 });
+
+describe("press motion lives only where motion is allowed (review round 2, items 4 and 9)", () => {
+  const styleFiles = ["app/styles/base.css", "app/styles/effects.css", "app/styles/tokens.css"];
+  const allRules = styleFiles.flatMap((f) => rules(stripComments(read(f))).map((r) => ({ ...r, file: f })));
+
+  it("no :active rule sets a transform outside a prefers-reduced-motion: no-preference block", () => {
+    const bad = allRules
+      .filter((r) => /:active\b/.test(r.selector) && /(^|[\s;])transform\s*:/.test(r.body))
+      .filter((r) => !r.within.some((w) => /prefers-reduced-motion:\s*no-preference/.test(w)))
+      .map((r) => `${r.file} ${r.selector}`);
+    expect(bad).toEqual([]);
+  });
+
+  it("the generic button press still exists, inside the no-preference block", () => {
+    const press = allRules.filter((r) => /button:active/.test(r.selector) && /transform\s*:\s*scale\(0\.97\)/.test(r.body));
+    expect(press).toHaveLength(1);
+    expect(press[0].within.join(" ")).toMatch(/prefers-reduced-motion:\s*no-preference/);
+  });
+
+  it("a spring user never hides its duration behind calc()", () => {
+    const users = allRules.filter((r) => r.body.includes(`var(${SOFT})`) || r.body.includes(`var(${SNAP})`));
+    expect(users.length).toBeGreaterThan(0);
+    for (const r of users) expect(r.body, `${r.selector} uses calc() in a motion declaration`).not.toMatch(/calc\(/);
+  });
+
+  it("press-spring is counted in JSX class strings only, never in a comment", () => {
+    const inClassStrings = (src: string) => {
+      const code = src.replace(/\{\/\*[\s\S]*?\*\/\}/g, "").replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
+      return (code.match(/["'`][^"'`\n]*\bpress-spring\b[^"'`\n]*["'`]/g) ?? []).length;
+    };
+    expect(inClassStrings("// press-spring in a comment\nconst a = 1; {/* press-spring */}")).toBe(0);
+    expect(inClassStrings('className="x press-spring"')).toBe(1);
+    expect(inClassStrings(read("components/layout/bottom-tab-bar.tsx"))).toBeGreaterThanOrEqual(2);
+    expect(inClassStrings(read("components/layout/more-sheet.tsx"))).toBeGreaterThanOrEqual(1);
+  });
+});
