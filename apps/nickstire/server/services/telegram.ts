@@ -43,37 +43,48 @@ export const DEFAULT_TELEGRAM_CLASS: TelegramClass = "incident";
 const TELEGRAM_CLASSES: readonly TelegramClass[] = ["incident", "digest", "approval", "receipt", "noise"];
 
 /**
- * True when this class must not be sent right now. incident/digest/approval use PAUSE flags (absent or
- * unreadable = not muted: an unreadable flag table never silences an incident); receipt uses an enable
- * flag (absent or unreadable = held: receipts are the expendable class).
+ * Why this class is held right now, or null when it may be sent. incident/digest/approval use PAUSE flags
+ * (absent or unreadable = not muted: an unreadable flag table never silences an incident); receipt uses an
+ * enable flag (absent or unreadable = held: receipts are the expendable class).
  */
-async function isClassMuted(cls: TelegramClass): Promise<boolean> {
-  if (cls === "noise") return true;
+async function classHoldReason(cls: TelegramClass): Promise<string | null> {
+  if (cls === "noise") return "noise (never sent)";
   try {
     const { isEnabled } = await import("./featureFlags");
-    if (cls === "incident") return await isEnabled("telegram_incident_muted");
-    if (cls === "digest") return await isEnabled("telegram_digest_muted");
-    if (cls === "approval") return await isEnabled("telegram_approval_muted");
-    return !(await isEnabled("telegram_receipt"));
+    if (cls === "incident") return (await isEnabled("telegram_incident_muted")) ? "telegram_incident_muted" : null;
+    if (cls === "digest") return (await isEnabled("telegram_digest_muted")) ? "telegram_digest_muted" : null;
+    if (cls === "approval") return (await isEnabled("telegram_approval_muted")) ? "telegram_approval_muted" : null;
+    return (await isEnabled("telegram_receipt")) ? null : "telegram_receipt (off)";
   } catch {
-    return cls === "receipt";
+    return cls === "receipt" ? "telegram_receipt (unreadable)" : null;
   }
 }
 
 /**
  * Would a send of this class be held right now? Lets a caller that records "sent" (the lead delivery
- * ledger) say "skipped" instead when the class is muted, since a held send returns true.
+ * ledger) say "skipped" instead when the class is muted, since a held send is accepted (returns true).
  */
 export async function isTelegramClassMuted(cls: TelegramClass = DEFAULT_TELEGRAM_CLASS): Promise<boolean> {
-  return isClassMuted(normalizeClass(cls));
+  return (await classHoldReason(normalizeClass(cls))) !== null;
 }
 
-/** Counts and reports a held send. The caller returns true: holding is a decision, not a failure. */
-async function heldByClass(cls: TelegramClass): Promise<boolean> {
-  if (!(await isClassMuted(cls))) return false;
+/**
+ * The three honest outcomes of a send. "held" is a decision (a muted class, a receipt turned off, noise),
+ * not a failure and not a delivery: callers that tell the operator "sent" must not say it for a held send.
+ */
+export interface TelegramSendResult {
+  status: "delivered" | "held" | "failed";
+  /** The flag (or rule) that held it, when status is "held". */
+  heldBy?: string;
+}
+
+/** Counts a held send and returns the result to hand back, or null when the class may be sent. */
+async function holdIfMuted(cls: TelegramClass): Promise<TelegramSendResult | null> {
+  const heldBy = await classHoldReason(cls);
+  if (heldBy === null) return null;
   stats.muted[cls]++;
-  log.debug("Telegram send held by class", { cls });
-  return true;
+  log.debug("Telegram send held by class", { cls, heldBy });
+  return { status: "held", heldBy };
 }
 
 function normalizeClass(cls: string): TelegramClass {
@@ -160,17 +171,18 @@ function toPlainText(html: string): string {
     .replace(/&amp;/g, "&");
 }
 
-async function sendRaw(text: string, cls: TelegramClass = DEFAULT_TELEGRAM_CLASS): Promise<boolean> {
+async function sendRawResult(text: string, cls: TelegramClass = DEFAULT_TELEGRAM_CLASS): Promise<TelegramSendResult> {
   if (!isConfigured()) {
     log.debug("Telegram not configured, skipping");
-    return false;
+    return { status: "failed" };
   }
-  if (await heldByClass(normalizeClass(cls))) return true;
+  const held = await holdIfMuted(normalizeClass(cls));
+  if (held) return held;
 
   if (isRateLimited()) {
     log.warn("Telegram rate limited, dropping message");
     stats.rateLimited++;
-    return false;
+    return { status: "failed" };
   }
   // Count the send at admission: a burst started in the same tick must see it.
   recordSend();
@@ -200,14 +212,19 @@ async function sendRaw(text: string, cls: TelegramClass = DEFAULT_TELEGRAM_CLASS
 
     stats.sent++;
     stats.lastSentAt = new Date().toISOString();
-    return result;
+    return result ? { status: "delivered" } : { status: "failed" };
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
     stats.failed++;
     stats.lastError = errMsg;
     log.warn("Telegram send failed", { error: errMsg });
-    return false;
+    return { status: "failed" };
   }
+}
+
+/** Boolean form for the many callers that only need "accepted" (delivered OR held). */
+async function sendRaw(text: string, cls: TelegramClass = DEFAULT_TELEGRAM_CLASS): Promise<boolean> {
+  return (await sendRawResult(text, cls)).status !== "failed";
 }
 
 // ─── Rich Formatting Templates ──────────────────────
@@ -248,122 +265,83 @@ export async function sendTelegramMessage(
 }
 
 /**
- * Legacy compatibility: Send a plain text message (immediate).
+ * Legacy compatibility: send a plain text message (immediate). The boolean means ACCEPTED: the message was
+ * delivered OR deliberately held by a class mute. It is false only for a failure (unconfigured, rate-limited
+ * or rejected). Use sendTelegramResult when you report "sent" to the operator.
  */
 export async function sendTelegram(text: string, cls: TelegramClass = DEFAULT_TELEGRAM_CLASS): Promise<boolean> {
   return sendRaw(text, cls);
 }
 
-/**
- * Send a photo via Telegram (URL or file_id).
- */
-export async function sendTelegramPhoto(photoUrl: string, caption?: string, cls: TelegramClass = DEFAULT_TELEGRAM_CLASS): Promise<boolean> {
-  if (!isConfigured()) return false;
-  if (await heldByClass(normalizeClass(cls))) return true;
+/** Same send with the honest outcome: delivered, held (and by which flag), or failed. */
+export async function sendTelegramResult(text: string, cls: TelegramClass = DEFAULT_TELEGRAM_CLASS): Promise<TelegramSendResult> {
+  return sendRawResult(text, cls);
+}
+
+/** POSTs one media request. Every failure path (HTTP error and exception) is counted, like the text path. */
+async function postMedia(method: string, body: Record<string, unknown>, cls: TelegramClass): Promise<TelegramSendResult> {
+  if (!isConfigured()) return { status: "failed" };
+  const held = await holdIfMuted(normalizeClass(cls));
+  if (held) return held;
   try {
-    const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {
+    const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${method}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: CHAT_ID,
-        photo: photoUrl,
-        caption: caption?.slice(0, 1024) || undefined,
-        parse_mode: "HTML",
-      }),
+      body: JSON.stringify({ chat_id: CHAT_ID, ...body }),
     });
     if (!res.ok) {
-      log.error("Telegram photo send failed:", { status: res.status });
+      log.error(`Telegram ${method} failed`, { status: res.status });
       stats.failed++;
-      return false;
+      stats.lastError = `Telegram ${method} HTTP ${res.status}`;
+      return { status: "failed" };
     }
     stats.sent++;
-    return true;
+    stats.lastSentAt = new Date().toISOString();
+    return { status: "delivered" };
   } catch (err) {
-    log.error("Telegram photo error:", { error: err instanceof Error ? err.message : String(err) });
-    return false;
+    const errMsg = err instanceof Error ? err.message : String(err);
+    stats.failed++;
+    stats.lastError = errMsg;
+    log.error(`Telegram ${method} error`, { error: errMsg });
+    return { status: "failed" };
   }
 }
 
-/**
- * Send a video via Telegram (URL or file_id).
- */
-export async function sendTelegramVideo(videoUrl: string, caption?: string, cls: TelegramClass = DEFAULT_TELEGRAM_CLASS): Promise<boolean> {
-  if (!isConfigured()) return false;
-  if (await heldByClass(normalizeClass(cls))) return true;
-  try {
-    const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendVideo`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: CHAT_ID,
-        video: videoUrl,
-        caption: caption?.slice(0, 1024) || undefined,
-        parse_mode: "HTML",
-      }),
-    });
-    if (!res.ok) {
-      log.error("Telegram video send failed:", { status: res.status });
-      stats.failed++;
-      return false;
-    }
-    stats.sent++;
-    return true;
-  } catch (err) {
-    log.error("Telegram video error:", { error: err instanceof Error ? err.message : String(err) });
-    return false;
-  }
+const caption1024 = (caption?: string) => caption?.slice(0, 1024) || undefined;
+
+/** Send a photo via Telegram (URL or file_id). */
+export function sendTelegramPhotoResult(photoUrl: string, caption?: string, cls: TelegramClass = DEFAULT_TELEGRAM_CLASS): Promise<TelegramSendResult> {
+  return postMedia("sendPhoto", { photo: photoUrl, caption: caption1024(caption), parse_mode: "HTML" }, cls);
 }
 
-/**
- * Send a document/file via Telegram.
- */
-export async function sendTelegramDocument(docUrl: string, caption?: string, cls: TelegramClass = DEFAULT_TELEGRAM_CLASS): Promise<boolean> {
-  if (!isConfigured()) return false;
-  if (await heldByClass(normalizeClass(cls))) return true;
-  try {
-    const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendDocument`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: CHAT_ID,
-        document: docUrl,
-        caption: caption?.slice(0, 1024) || undefined,
-        parse_mode: "HTML",
-      }),
-    });
-    if (!res.ok) return false;
-    stats.sent++;
-    return true;
-  } catch (e) { log.warn("[services/telegram] operation failed:", e); return false; }
+/** Send a video via Telegram (URL or file_id). */
+export function sendTelegramVideoResult(videoUrl: string, caption?: string, cls: TelegramClass = DEFAULT_TELEGRAM_CLASS): Promise<TelegramSendResult> {
+  return postMedia("sendVideo", { video: videoUrl, caption: caption1024(caption), parse_mode: "HTML" }, cls);
 }
 
-/**
- * Send a group of photos (album) via Telegram.
- */
-export async function sendTelegramMediaGroup(
+/** Send a document/file via Telegram. */
+export function sendTelegramDocumentResult(docUrl: string, caption?: string, cls: TelegramClass = DEFAULT_TELEGRAM_CLASS): Promise<TelegramSendResult> {
+  return postMedia("sendDocument", { document: docUrl, caption: caption1024(caption), parse_mode: "HTML" }, cls);
+}
+
+/** Send a group of photos (album) via Telegram. */
+export function sendTelegramMediaGroupResult(
   media: Array<{ type: "photo" | "video"; url: string; caption?: string }>,
   cls: TelegramClass = DEFAULT_TELEGRAM_CLASS,
-): Promise<boolean> {
-  if (!isConfigured() || media.length === 0) return false;
-  if (await heldByClass(normalizeClass(cls))) return true;
-  try {
-    const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMediaGroup`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: CHAT_ID,
-        media: media.map((m, i) => ({
-          type: m.type,
-          media: m.url,
-          caption: i === 0 ? m.caption?.slice(0, 1024) : undefined,
-          parse_mode: i === 0 ? "HTML" : undefined,
-        })),
-      }),
-    });
-    if (!res.ok) return false;
-    stats.sent++;
-    return true;
-  } catch (e) { log.warn("[services/telegram] operation failed:", e); return false; }
+): Promise<TelegramSendResult> {
+  if (media.length === 0) return Promise.resolve({ status: "failed" });
+  return postMedia(
+    "sendMediaGroup",
+    {
+      media: media.map((m, i) => ({
+        type: m.type,
+        media: m.url,
+        caption: i === 0 ? caption1024(m.caption) : undefined,
+        parse_mode: i === 0 ? "HTML" : undefined,
+      })),
+    },
+    cls,
+  );
 }
 
 // ─── Formatted Alert Helpers (UPGRADED with channels + rich formatting) ──

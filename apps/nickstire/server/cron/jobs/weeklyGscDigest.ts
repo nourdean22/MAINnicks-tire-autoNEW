@@ -306,10 +306,15 @@ export async function runWeeklyGscDigest(now: Date = new Date()): Promise<Proces
   }
 
   const text = buildWeeklyGscDigestText(data);
-  const { sendTelegram } = await import("../../services/telegram");
-  const sent = await sendTelegram(text, "digest");
-  if (!sent) {
+  const { sendTelegramResult } = await import("../../services/telegram");
+  const sent = await sendTelegramResult(text, "digest");
+  if (sent.status === "failed") {
     throw new Error("digest computed but Telegram send failed");
+  }
+  if (sent.status === "held") {
+    // Muted on purpose: not a failure, but also not sent, so it must not read as a delivered digest.
+    log.info("weekly GSC digest computed but held", { heldBy: sent.heldBy });
+    return { recordsProcessed: 0, details: `digest computed, NOT sent: held by ${sent.heldBy}` };
   }
 
   const clicksDelta = data.priorTotals ? deltaPct(data.totals.clicks, data.priorTotals.clicks) : null;
