@@ -100,6 +100,23 @@ detailed in `docs/CURRENT-TRUTH.md`:
   retail only, wholesale never leaves the server. Live sections self-suppress
   when the feed is cold (canon floors render, never an empty table).
 
+## 2026-10-16 - the reel lane stops spending into an empty Higgsfield balance, and needs_review parks
+
+Live state read 2026-10-16 02:50Z (read-only): the keepalive balance was 29.5 Higgsfield credits;
+job 2100001 (the 18:00 ET cron reel) rendered 2 clips, failed with `not_enough_credits`, was
+retried 3 times as UNKNOWN and is `needs_regen`; job 2070013 (rendered-QA gate `needs_review`) was
+selected by the drain on 149 consecutive pulses, 2026-10-13 22:08Z to 2026-10-15 11:10Z, so
+production skipped 10-14 (both slots) and 10-15 06:00 ET until the operator rejected it.
+
+- `shared/providerErrors.ts`: `not_enough_credits` (and its spellings) classifies
+  QUOTA_OR_CREDIT / PAUSE_PROVIDER, so the job goes terminal on attempt 1.
+- `server/services/reelProviderFunds.ts` + `dailyReelPost.ts`: before building a brief, reserving
+  or moving the rotation, the cron compares the keepalive balance with 6 beats (the most a brief may carry) x the clip model's
+  measured price (seedance1_5 12, seedance_2_5 26). A shortfall holds the run, Telegram once per
+  ET day. An unknown or stale balance, a non-Higgsfield provider or an unpriced model never holds.
+- `dailyReelPost.ts`: `needs_review` is in `PARKED_QA_GATES` (not `RETRYABLE_QA_GATES`), so the
+  drain skips it and moves on instead of re-selecting it every pulse.
+
 ## 2026-10-02 — Admin closure wave (#2885, #2891): queues close their loops, migrations 0127–0139 applied AND recorded
 
 Merged as `d583840268129c2115d44e08c0c80f7b6240ca4c` (#2885, squash of 20 commits) and

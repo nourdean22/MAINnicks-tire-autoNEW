@@ -224,6 +224,34 @@ describe("requestReservation", () => {
 });
 
 describe("assertPublishCadence (publish door)", () => {
+  // The cap counts only rows since clevelandDayStart(). Fixtures built from the
+  // real clock ("1 h ago") fell on yesterday between 00:00 and about 02:00 ET, so
+  // the cap and spacing tests resolved instead of rejecting (CI on #3069 ran at
+  // 00:25 ET). Pin a mid-day clock so every fixture lands on the same shop day.
+  beforeEach(() => { vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date("2026-10-15T19:00:00Z")); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it("counts only posts since Cleveland midnight: 23:30 ET yesterday is not today, 00:15 ET is", async () => {
+    vi.setSystemTime(new Date("2026-10-16T04:30:00Z")); // 00:30 ET
+    const capAt = async (rows: Row[]) => {
+      vi.doUnmock("./db");
+      vi.doMock("./db", () => ({ getDb: vi.fn().mockResolvedValue(fakeGovernorDb([], rows)) }));
+      vi.resetModules();
+      const { assertPublishCadence } = await import("./services/contentGovernor");
+      return assertPublishCadence({ format: "reel" });
+    };
+    // Two posts an hour ago, both 23:xx ET on the 15th: neither counts, so no cap and no spacing.
+    await expect(capAt([
+      { publishedAt: new Date("2026-10-16T03:30:00Z"), contentType: "reel" },
+      { publishedAt: new Date("2026-10-16T03:45:00Z"), contentType: "post" },
+    ])).resolves.toBeUndefined();
+    // The same two posts after midnight ET count toward today's cap.
+    await expect(capAt([
+      { publishedAt: new Date("2026-10-16T04:15:00Z"), contentType: "reel" },
+      { publishedAt: new Date("2026-10-16T04:20:00Z"), contentType: "post" },
+    ])).rejects.toThrow(/PUBLISH_FEED_CAP/);
+  });
+
   it("denies the publish when today's published feed count is at cap", async () => {
     const inventory = [
       { publishedAt: new Date(Date.now() - 3600_000), contentType: "reel" },
