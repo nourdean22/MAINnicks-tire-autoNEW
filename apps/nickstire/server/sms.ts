@@ -1660,22 +1660,6 @@ async function sendSmsViaShopGateway(
 }
 
 /**
- * Wave-103 — fire a Telegram alert when the shop gateway falls back to
- * Twilio. Operator needs to know if the phone went offline so they can
- * fix it before too many sends bypass the shop number.
- */
-async function alertShopGatewayFallback(reason: string, to: string): Promise<void> {
-  try {
-    const { sendTelegram } = await import("./services/telegram");
-    await sendTelegram(
-      `⚠️ Shop SMS gateway offline · falling back to Twilio for ${to.slice(-4)}\nReason: ${reason}\n\nCheck the SMS Gateway app on the F25e — it may need to be reopened or the phone may be offline.`
-    );
-  } catch {
-    // Don't break the SMS flow if Telegram is also down
-  }
-}
-
-/**
  * wave-181.101 (#2) — persist an outbound shop-gateway send to the durable
  * `smsMessages` table. Two reasons this is required:
  *
@@ -2453,7 +2437,8 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
       log.warn(
         `Shop gateway timed out for ${normalizedEarly.slice(-4)} — NOT falling back (delivery uncertain, avoids double-send)`,
       );
-      await alertShopGatewayFallback("timeout — delivery uncertain, not retried", normalizedEarly);
+      // No per-message Telegram alert: the outage is alerted once per incident by
+      // smsGatewayHealthMonitor and the stuck-queue alert below.
       addToThread(normalizedEarly, "outbound", body);
       if (!opts?.skipPersist) {
         // Stamp the uncertainty ON the row. Without it this row is
@@ -2482,7 +2467,6 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
     // queues BEFORE attempting a send, so it can never double-send.
     if (isShopGatewayConfigured()) {
       log.warn(`Shop gateway send failed (${gw.error}) for ${normalizedEarly.slice(-4)} -- not retried (ambiguous delivery, avoids double-send)`);
-      await alertShopGatewayFallback(gw.error || "unknown", normalizedEarly);
     }
     // Drop through to Twilio below (off -> returns failure -> degraded).
   }
