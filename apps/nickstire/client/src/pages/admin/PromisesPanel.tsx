@@ -103,7 +103,7 @@ export default function PromisesPanel() {
   const cancelPromise = async (id: string, action: string) => {
     const okay = await confirmDialog({
       title: "Cancel this promise?",
-      message: `"${action.slice(0, 80)}": cancelling records who cancelled; it does not tell the customer.`,
+      message: `"${action.slice(0, 80)}", cancelling records who cancelled; it does not tell the customer.`,
       confirmLabel: "Cancel promise",
     });
     if (okay) cancel.mutate({ id });
