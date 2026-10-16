@@ -167,6 +167,22 @@ describe("BriefRows", () => {
     expect(window.localStorage.getItem(BRIEF_FEEDBACK_KEY)).toBe("{}");
   });
 
+  it("two Less taps both hold when the device refuses to store them (quota or private mode)", async () => {
+    const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("quota");
+    });
+    try {
+      await mount(HOME_BRIEF);
+      await act(async () => (container.querySelector('[data-brief-row="followup"] button[data-brief-verdict="less"]') as HTMLButtonElement).click());
+      await act(async () => (container.querySelector('[data-brief-row="commitment"] button[data-brief-verdict="less"]') as HTMLButtonElement).click());
+      expect(rows()).not.toContain("followup");
+      expect(rows()).not.toContain("commitment");
+      expect(button("Show hidden (2)")).toBeTruthy();
+    } finally {
+      setItem.mockRestore();
+    }
+  });
+
   it("a Less older than seven days no longer hides anything", async () => {
     window.localStorage.setItem(BRIEF_FEEDBACK_KEY, JSON.stringify({ commitment: { verdict: "less", at: Date.now() - 8 * 86_400_000 } }));
     await mount(HOME_BRIEF);

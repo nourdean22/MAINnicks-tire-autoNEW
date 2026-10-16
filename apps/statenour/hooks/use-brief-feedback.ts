@@ -46,7 +46,8 @@ export function useBriefFeedback(): {
   const setVerdict = useCallback((kind: string, verdict: BriefVerdict) => {
     const at = Date.now();
     const s = storage();
-    setState((prev) => ({ map: s ? writeBriefVerdict(s, kind, verdict, at) : { ...prev.map, [kind]: { verdict, at } }, hydrated: true }));
+    // Always merge into the map React holds: a storage that refuses the write must not lose the last verdict.
+    setState((prev) => ({ map: s ? writeBriefVerdict(s, kind, verdict, at, prev.map) : { ...prev.map, [kind]: { verdict, at } }, hydrated: true }));
   }, []);
 
   const clear = useCallback(() => {

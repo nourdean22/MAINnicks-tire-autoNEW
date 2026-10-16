@@ -45,8 +45,13 @@ export function hiddenKinds(map: BriefFeedbackMap, now: number): string[] {
     .map(([kind]) => kind);
 }
 
-export function writeBriefVerdict(storage: FeedbackStorage, kind: string, verdict: BriefVerdict, now = Date.now()): BriefFeedbackMap {
-  const map = readBriefFeedback(storage);
+/**
+ * Merge one verdict into `prev` (the caller's in-memory map; a fresh read of storage when absent)
+ * and persist the whole map. Merging into `prev` is what keeps a second verdict when `setItem`
+ * throws: rebuilding from unchanged storage dropped the first one (review round 2).
+ */
+export function writeBriefVerdict(storage: FeedbackStorage, kind: string, verdict: BriefVerdict, now = Date.now(), prev?: BriefFeedbackMap): BriefFeedbackMap {
+  const map: BriefFeedbackMap = { ...(prev ?? readBriefFeedback(storage)) };
   map[kind] = { verdict, at: now };
   try {
     storage.setItem(BRIEF_FEEDBACK_KEY, JSON.stringify(map));

@@ -78,4 +78,21 @@ describe("brief feedback store", () => {
     expect(readBriefFeedback(broken)).toEqual({});
     expect(() => writeBriefVerdict(broken, "lead", "less", NOW)).not.toThrow();
   });
+
+  it("when setItem throws, the next verdict merges into the in-memory map instead of rebuilding from unchanged storage (Codex 4291673616)", () => {
+    const s = memoryStorage();
+    const quota = { getItem: s.getItem, setItem: () => { throw new Error("quota"); } };
+    const first = writeBriefVerdict(quota, "approval", "less", NOW);
+    const second = writeBriefVerdict(quota, "followup", "less", NOW + 1, first);
+    expect(hiddenKinds(second, NOW + 2).sort()).toEqual(["approval", "followup"]);
+    expect(s.dump()[BRIEF_FEEDBACK_KEY], "nothing reached storage").toBeUndefined();
+  });
+
+  it("with working storage the in-memory map and storage agree after a merge write", () => {
+    const s = memoryStorage();
+    const first = writeBriefVerdict(s, "approval", "less", NOW);
+    const second = writeBriefVerdict(s, "followup", "keep", NOW + 1, first);
+    expect(readBriefFeedback(s)).toEqual(second);
+    expect(Object.keys(second).sort()).toEqual(["approval", "followup"]);
+  });
 });
