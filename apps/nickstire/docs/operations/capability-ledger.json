@@ -5103,7 +5103,7 @@
         "liveRuns": [
           "2026-10-16 12:44Z attach of 5 Wan 3.0 clips to job 2100001 through instagramAdmin.attachExternalClips from the admin session: 200 in 14.5 s, audit row aud_6a4dda97 OK, row assets_ready with 5 re-hosted URLs; 12:48Z reel-canary advance assembled it (reel-2100001.mp4, 23.0 s, 690 frames); 12:50Z rendered QA ran (decision repair); 15:3xZ forced publish by operator decision B: igPostId 18637319911062972, https://www.instagram.com/reel/Dej4FdTFBcH/"
         ],
-        "deploymentId": null
+        "deploymentId": "f485a8b8a88c8fd0d5934228908f590879c96074 (nickstire.org /api/health deploy.commit at 2026-10-16T12:13Z, uptime 10 s)"
       },
       "blockers": [],
       "deferredScope": [
