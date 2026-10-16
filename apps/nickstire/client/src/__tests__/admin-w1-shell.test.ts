@@ -33,10 +33,13 @@ describe("graphite is the admin default", () => {
     expect(body).toMatch(/--owner-priority:\s*#FDB913/i);
   });
 
-  it("the public :root keeps its own primary (the customer site is untouched)", () => {
+  it("the public :root keeps its own tokens (the customer site is untouched)", () => {
     const root = ruleBody(/^:root$/);
     expect(root).not.toBeNull();
-    expect(root).not.toMatch(/--primary:\s*#FAFAFA/i);
+    // Values as of 2026-10-16: the gold-and-black public site.
+    for (const [token, value] of [["--background", "#0A0A0A"], ["--foreground", "#F5F5F5"], ["--card", "#141414"], ["--primary", "#FDB913"], ["--border", "#2A2A2A"]]) {
+      expect(root, token).toMatch(new RegExp(`${token}:\\s*${value};`, "i"));
+    }
   });
 
   it("the admin topbar no longer mounts the theme toggle (one admin theme, nothing to toggle)", () => {
@@ -46,12 +49,17 @@ describe("graphite is the admin default", () => {
 
 describe("decoration the cockpit genome forbids is gone", () => {
   it("no scan-line overlay on the shell", () => {
-    expect(css).not.toMatch(/\.admin-shell::after\s*\{/);
+    expect(css).not.toMatch(/\.admin-shell::?after\s*[,{]/);
   });
   it("no revenue glow and no transition: all on stat values", () => {
     expect(css).not.toMatch(/\.revenue-glow\s*\{/);
     expect(css).not.toMatch(/\.number-animate\s*\{/);
     expect(cards).not.toMatch(/revenue-glow|number-animate|CountUpNumber/);
+  });
+  it("no backdrop-blur class token anywhere in the shell markup", () => {
+    // Comments stripped first: the scrim's comment explains why it has no blur.
+    const code = admin.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+    expect(code).not.toMatch(/(^|[\s"`:])backdrop-blur(-[\w[\]./]+)?(?=[\s"`]|$)/m);
   });
   it("no backdrop blur on the admin topbar", () => {
     for (const m of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
@@ -121,6 +129,11 @@ describe("the phone bar never hides or out-ranks what sits around it", () => {
     const barClass = /aria-label="Primary sections"\s*className="([^"]*)"/.exec(bar)?.[1] ?? "";
     expect(z(barClass)).toBeLessThan(z(scrim));
   });
+  it("the drawer itself sits above the bar", () => {
+    const aside = /<aside className=\{`admin-sidebar ([^`]*)`\}/.exec(admin)?.[1] ?? "";
+    const barClass = /aria-label="Primary sections"\s*className="([^"]*)"/.exec(bar)?.[1] ?? "";
+    expect(z(aside)).toBeGreaterThan(z(barClass));
+  });
   it("the walk-in totals box sticks above the bar on phones and to the bottom on desktop", () => {
     const walkIn = readFileSync(join(ROOT, "client/src/pages/admin/WalkInCalculatorSection.tsx"), "utf8");
     const sticky = /className="sticky ([^"]*)"/.exec(walkIn)?.[1] ?? "";
@@ -128,7 +141,16 @@ describe("the phone bar never hides or out-ranks what sits around it", () => {
     expect(sticky).toMatch(/(^|\s)lg:bottom-0(\s|$)/);
   });
   it("Admin.tsx forces the dark class while it is mounted (ThemeToggle is gone)", () => {
-    expect(admin).toMatch(/useAdminDarkClass\(\);/);
+    // Anchored to a code line: `// useAdminDarkClass();` must not count.
+    expect(admin).toMatch(/^\s*useAdminDarkClass\(\);\s*$/m);
+  });
+  it("the bar gets the signed-in role, the live section, the real signals and the palette opener", () => {
+    const tag = admin.slice(admin.indexOf("<AdminTabBar"), admin.indexOf("/>", admin.indexOf("<AdminTabBar")));
+    expect(tag).toMatch(/\brole=\{adminRole\}/);
+    expect(tag).toMatch(/\bactive=\{section\}/);
+    expect(tag).toMatch(/\bsignals=\{signals\}/);
+    expect(tag).toMatch(/\bonSearch=\{openCommandSearch\}/);
+    expect(tag).toMatch(/\bonNavigate=\{\(nextSection\) => allowedSections\.includes\(nextSection\) && setSection\(nextSection\)\}/);
   });
 });
 

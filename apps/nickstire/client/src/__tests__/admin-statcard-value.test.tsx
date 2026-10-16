@@ -18,6 +18,7 @@ const value = (v: string | number) => {
 describe("StatCard renders values at once, formatted as the count-up did", () => {
   it("rounds numbers and groups thousands", () => {
     expect(value(1250.4)).toBe("1,250");
+    expect(value(1250.6)).toBe("1,251"); // rounds, not floors
     expect(value(7)).toBe("7");
   });
   it("groups digit-only strings, with or without existing commas or a dollar sign", () => {
@@ -27,6 +28,9 @@ describe("StatCard renders values at once, formatted as the count-up did", () =>
   });
   it("leaves every other string as given", () => {
     for (const s of ["85/100", "12%", "unknown", "$1,234.50"]) expect(value(s)).toBe(s);
-    expect(screen.queryByText("NaN")).toBeNull();
+  });
+  it("a number that is not finite is shown as itself, not formatted", () => {
+    render(<StatCard label="Revenue" value={Number.NaN} icon={null} />);
+    expect(screen.getByText("NaN")).toBeTruthy();
   });
 });

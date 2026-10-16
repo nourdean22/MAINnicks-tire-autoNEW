@@ -1,7 +1,7 @@
 {
   "totals": {
     "uppercase": 4,
-    "emDash": 162,
+    "emDash": 166,
     "emoji": 0,
     "transitionAll": 74,
     "slowDuration": 7,
@@ -107,6 +107,7 @@
       "offPalette": 6
     },
     "client/src/pages/admin/WalkInCalculatorSection.tsx": {
+      "emDash": 4,
       "transitionAll": 2,
       "smallInput": 8
     },

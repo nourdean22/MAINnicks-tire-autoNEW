@@ -125,6 +125,13 @@ describe("AdminTabBar behaviour", () => {
     expect(slot("customers").querySelector("[data-badge]")).toBeNull();
   });
 
+  it("caps a count at 99+ and names its source in the title", () => {
+    renderBar("owner", { signals: [signal("approvals", { state: "counted", count: 150 })] });
+    const b = within(bar()).getAllByRole("button").find((x) => x.getAttribute("data-slot") === "approvals")!.querySelector("[data-badge]")!;
+    expect(b.textContent).toBe("99+");
+    expect(b.getAttribute("title") ?? "").toContain("test.fixture");
+  });
+
   it("the Approvals count is the one gold mark (owner priority); other counts stay neutral red", () => {
     renderBar("owner", {
       signals: [signal("approvals", { state: "counted", count: 2 }), signal("customers", { state: "counted", count: 5 })],

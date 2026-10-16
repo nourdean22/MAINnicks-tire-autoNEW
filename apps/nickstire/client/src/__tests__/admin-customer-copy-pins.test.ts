@@ -12,6 +12,8 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { OIL_PRICE } from "@shared/pricing";
+import { PRESETS } from "@/pages/admin/WalkInCalculatorSection";
 
 const ROOT = process.cwd();
 const D = String.fromCharCode(0x2014); // em dash, spelled so the ratchet scanner never sees one here
@@ -35,9 +37,34 @@ const PINS: Array<[file: string, line: string]> = [
   ["client/src/pages/admin/instagram/Inbox.tsx",
     'detail: `A customer asked on Instagram: "${comment.text.slice(0, 400)}" ' + D + " answer it usefully for everyone who has the same question.`,"],
   ["client/src/pages/admin/instagram/Strategy.tsx", 'detail: "CONTROLLED STRUCTURE PRIOR ' + D + ' correlation only, not causal: " + h.statement'],
+  // Walk-in quote lines: copyQuote() and window.print() hand these descriptions to the customer.
+  ["client/src/pages/admin/WalkInCalculatorSection.tsx", "{ description: `Oil Change (conventional/blend 5qt) " + D + " starting at $${OIL_PRICE.conventional}`,"],
+  ["client/src/pages/admin/WalkInCalculatorSection.tsx", "{ description: `Oil Change (full synthetic 5qt) " + D + " starting at $${OIL_PRICE.fullSynthetic}`,"],
+  ["client/src/pages/admin/WalkInCalculatorSection.tsx", '{ description: "Brake Pads ' + D + ' Front Axle",'],
+  ["client/src/pages/admin/WalkInCalculatorSection.tsx", '{ description: "Brake Pads + Rotors ' + D + ' Front",'],
 ];
 
 const lines = (file: string) => read(file).split("\n").map((l) => l.trim());
+
+const OUTBOUND_COUNT = 5;
+const CHROME_COUNT = 32;
+
+/** Every walk-in preset as the printed or copied quote shows it (OIL_PRICE from shared/pricing). */
+const WALK_IN_DESCRIPTIONS = [
+  `Oil Change (conventional/blend 5qt) ${D} starting at $${OIL_PRICE.conventional}`,
+  `Oil Change (full synthetic 5qt) ${D} starting at $${OIL_PRICE.fullSynthetic}`,
+  "Used Tire ($60 each, mount+balance)",
+  `Brake Pads ${D} Front Axle`,
+  `Brake Pads + Rotors ${D} Front`,
+  "Wheel Alignment (4-wheel)",
+  "Battery (standard)",
+  "Diagnostic Scan",
+  "Engine Air Filter",
+  "Cabin Air Filter",
+  "Wiper Blades (pair)",
+  "Coolant Flush",
+  "A/C Recharge (R134a)",
+];
 
 describe("customer and outbound copy in the admin is pinned byte for byte", () => {
   it.each(PINS)("%s keeps its outbound string", (file, line) => {
@@ -57,15 +84,33 @@ describe("every customer text in the admin tree is pinned", () => {
       }
     };
     ["client/src/pages/admin", "client/src/components/admin"].forEach(walk);
-    const found: string[] = [];
+    // Candidates: any `body={`...`}` template (SMS prefills), any `message: `...`` template string and
+    // any "Reply STOP" footer. A `message:` inside a confirmDialog({...}) call is the operator's own
+    // confirm text (UI chrome); every other candidate leaves the admin and must be pinned.
+    const outbound: string[] = [];
+    const chrome: string[] = [];
     for (const f of files) {
-      for (const l of lines(f)) {
-        if (/^(\/\/|\*|\/\*)/.test(l)) continue;
-        if (/body=\{`Hi \$\{|message: `Hi \$\{|Reply STOP/.test(l)) found.push(`${f} :: ${l}`);
-      }
+      const ls = lines(f);
+      ls.forEach((l, i) => {
+        if (/^(\/\/|\*|\/\*)/.test(l)) return;
+        if (!/body=\{`|message: `|Reply STOP/.test(l)) return;
+        const confirm = /message: `/.test(l) && ls.slice(Math.max(0, i - 4), i + 1).some((p) => p.includes("confirmDialog("));
+        (confirm ? chrome : outbound).push(`${f} :: ${l}`);
+      });
     }
-    expect(found.length, "the scan must see the known customer texts").toBeGreaterThanOrEqual(5);
-    const unpinned = found.filter((hit) => !PINS.some(([f, line]) => hit.startsWith(`${f} :: `) && hit.includes(line)));
+    // Exact counts (2026-10-16): a new candidate of either kind turns this red until it is classified.
+    expect(outbound.length, outbound.join("\n")).toBe(OUTBOUND_COUNT);
+    expect(chrome.length, "confirm-dialog messages seen by the scan").toBe(CHROME_COUNT);
+    const unpinned = outbound.filter((hit) => !PINS.some(([f, line]) => hit.startsWith(`${f} :: `) && hit.includes(line)));
     expect(unpinned).toEqual([]);
+  });
+
+  it("every walk-in preset description is the one the customer's quote shows", () => {
+    const desc = PRESETS.map((p) => p.description);
+    expect(desc).toEqual(WALK_IN_DESCRIPTIONS);
+    // The source array and the import agree: no preset hides from the pin by being built elsewhere.
+    const src = read("client/src/pages/admin/WalkInCalculatorSection.tsx");
+    const block = src.slice(src.indexOf("export const PRESETS"), src.indexOf("];", src.indexOf("export const PRESETS")));
+    expect((block.match(/\{ description: /g) ?? []).length).toBe(WALK_IN_DESCRIPTIONS.length);
   });
 });
