@@ -11,12 +11,21 @@
  *
  * The REAL transport runs against a stubbed fetch; only the flag reader is faked.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => {
+  // The transport reads these at import, so they are set before it loads; the originals come back in afterAll.
+  const savedEnv = { token: process.env.TELEGRAM_BOT_TOKEN, chat: process.env.TELEGRAM_CHAT_ID };
   process.env.TELEGRAM_BOT_TOKEN = "test-token";
   process.env.TELEGRAM_CHAT_ID = "4242";
-  return { flags: {} as Record<string, boolean>, flagsThrow: false };
+  return { flags: {} as Record<string, boolean>, flagsThrow: false, savedEnv };
+});
+
+afterAll(() => {
+  if (h.savedEnv.token === undefined) delete process.env.TELEGRAM_BOT_TOKEN;
+  else process.env.TELEGRAM_BOT_TOKEN = h.savedEnv.token;
+  if (h.savedEnv.chat === undefined) delete process.env.TELEGRAM_CHAT_ID;
+  else process.env.TELEGRAM_CHAT_ID = h.savedEnv.chat;
 });
 
 vi.mock("./services/featureFlags", async (importOriginal) => ({

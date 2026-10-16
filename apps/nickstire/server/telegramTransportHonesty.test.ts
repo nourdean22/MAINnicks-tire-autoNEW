@@ -4,14 +4,22 @@
  * Transport tests run the REAL services/telegram.ts against a stubbed fetch (the Bot API is
  * never reached). Each test loads a fresh module so the in-process counters start at zero.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const env = vi.hoisted(() => {
+  // The transport reads these at import, so they are set before it loads; the originals come back in afterAll.
+  const saved = { token: process.env.TELEGRAM_BOT_TOKEN, chat: process.env.TELEGRAM_CHAT_ID };
   process.env.TELEGRAM_BOT_TOKEN = "test-token";
   process.env.TELEGRAM_CHAT_ID = "4242";
-  return {};
+  return { saved };
 });
-void env;
+
+afterAll(() => {
+  if (env.saved.token === undefined) delete process.env.TELEGRAM_BOT_TOKEN;
+  else process.env.TELEGRAM_BOT_TOKEN = env.saved.token;
+  if (env.saved.chat === undefined) delete process.env.TELEGRAM_CHAT_ID;
+  else process.env.TELEGRAM_CHAT_ID = env.saved.chat;
+});
 
 type TelegramModule = typeof import("./services/telegram");
 async function load(): Promise<TelegramModule> {

@@ -27,7 +27,12 @@ vi.mock("./db", async (importOriginal) => ({
 import { sendSms } from "./sms";
 import { smsGatewayWebhookRouter } from "./routes/webhooks/smsGateway";
 
-const ENV_KEYS = ["SHOP_SMS_GATEWAY_USERNAME", "SHOP_SMS_GATEWAY_PASSWORD", "SHOP_SMS_GATEWAY_WEBHOOK_SECRET"] as const;
+const ENV_KEYS = [
+  "SHOP_SMS_GATEWAY_USERNAME",
+  "SHOP_SMS_GATEWAY_PASSWORD",
+  "SHOP_SMS_GATEWAY_WEBHOOK_SECRET",
+  "SHOP_SMS_GATEWAY_DEVICE_ID",
+] as const;
 const saved: Record<string, string | undefined> = {};
 
 beforeAll(() => {
