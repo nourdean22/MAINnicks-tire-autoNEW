@@ -1,6 +1,7 @@
 /**
  * v3 fixture lane (2026-10-15, UI v3 Wave 0b): deterministic DEMO data for Home
- * and Missions, served by intercepting the app's own data calls in the browser.
+ * and Missions (and, since W3a, Chat), served by intercepting the app's own data
+ * calls in the browser.
  *
  * WHY. The committed v2 baselines are EMPTY-database renders. The v3 six-feet
  * gate compares W2's Home and Missions against v2 as it looks with real data at
@@ -13,7 +14,8 @@
  * WHAT IS NOT. Anything else is answered with an EXPLICIT error (a tRPC
  * NOT_FOUND entry, or a 404 for REST), never a success, so the page cannot
  * flash empty-database content between runs and a fixture cannot paper over a
- * read that the page really depends on. The unstubbed calls are returned in the
+ * read that the page really depends on (one exception: REST_NO_CONTENT, the
+ * empty 204 the real server itself sends). The unstubbed calls are returned in the
  * report so a spec can print them. Mutations are never stubbed.
  *
  * Pages that are server components reading Prisma directly could not be stubbed
@@ -25,6 +27,7 @@
  */
 import type { Page } from "@playwright/test";
 
+import { CHAT_CONVERSATION, CHAT_LIST, CHAT_MIT, CHAT_PROVIDER_HEALTH, CHAT_REPLY, CHAT_TITLE, CHAT_TOOLS_HEALTH } from "./chat";
 import { HOME_BRIEF, HOME_REMEMBERS, HOME_WAITING } from "./home";
 import { ALPHA_TITLE, MISSIONS, MISSIONS_DECK, MISSION_TASKS, NEXT_MOVE_TITLE } from "./missions";
 import { SHELL_PULSE, SHELL_TICKER } from "./shell";
@@ -41,6 +44,9 @@ export { FIXED_TIME, NOW_ISO, NOW_MS } from "./time";
 export const PAGE_ERRORS = {
   home: /couldn.t be built|refresh failed|unknown, read failed|partial read|pulse unavailable/i,
   missions: /deck unreadable|board unreadable|showing the last confirmed board|pulse unavailable/i,
+  // Chat has no error panel: its failures are a pill that never reaches "ready" (the header's capability words
+  // for unmeasured, unknown, degraded and offline), or a list that never left the empty / loading state.
+  chat: /checking capabilities|AI health unknown|tool health unknown|chat offline|chat degraded|AI offline|fallback active|tools limited|Loading conversation|What are we solving/i,
 } as const;
 
 /**
@@ -56,11 +62,14 @@ export const UNSTUBBED_ALLOWLIST: ReadonlyArray<string | RegExp> = [
   /^systemAutomation\./, // the PWA badge; renders nothing
 ];
 
-/** `GET operator.*` / `GET task.*` entries of a FixtureReport that the gate does not allow. */
+/**
+ * `GET operator.*` / `GET task.*` / `GET chat.*` entries of a FixtureReport that the gate does not allow, and the
+ * two system reads the Chat header pill depends on (W3a). The rest of `system.*` is the shell's and stays printed.
+ */
 export function disallowedUnstubbed(unstubbed: Iterable<string>): string[] {
   const out: string[] = [];
   for (const entry of unstubbed) {
-    const m = /^GET ((?:operator|task)\.[A-Za-z0-9_.]+)$/.exec(entry);
+    const m = /^GET ((?:(?:operator|task|chat)\.[A-Za-z0-9_.]+)|system\.(?:providerHealth|toolsHealth))$/.exec(entry);
     if (!m) continue;
     const procedure = m[1];
     const allowed = UNSTUBBED_ALLOWLIST.some((a) => (typeof a === "string" ? a === procedure : a.test(procedure)));
@@ -79,6 +88,12 @@ export const TRPC_FIXTURES: Record<string, unknown> = {
   "task.deck": MISSIONS_DECK,
   "task.list": MISSION_TASKS,
   "task.missions": MISSIONS,
+  // Chat (W3a)
+  "system.providerHealth": CHAT_PROVIDER_HEALTH,
+  "system.toolsHealth": CHAT_TOOLS_HEALTH,
+  "chat.list": CHAT_LIST,
+  "chat.conversation": CHAT_CONVERSATION,
+  "operator.mit": CHAT_MIT,
 };
 
 /**
@@ -95,7 +110,19 @@ export const DEMO = {
   homeApproval: HOME_APPROVAL,
   missionsNextMove: NEXT_MOVE_TITLE,
   missionTitle: ALPHA_TITLE,
+  chatReply: CHAT_REPLY,
+  chatTitle: CHAT_TITLE,
 } as const;
+
+/**
+ * REST reads a page makes on load that the real server answers with an empty 204 (W3a).
+ * useChat({ resume: true }) probes /api/ai/chat/none/stream on every /chat mount and the
+ * route answers 204 for "none"; a 404 there makes useChat's onError flip the header pill
+ * to "chat degraded". Exact "METHOD /path" only, so a real conversation id is never
+ * pretended into having a stream; tests/repo/v3-gate.test.ts reads the route to prove
+ * the 204 is the server's own.
+ */
+export const REST_NO_CONTENT: ReadonlySet<string> = new Set(["GET /api/ai/chat/none/stream"]);
 
 export interface FixtureReport {
   /** "METHOD procedure" or "METHOD /path" for every data call the fixtures refused. */
@@ -132,6 +159,8 @@ export function answerApi(method: string, url: URL, report: FixtureReport): ApiA
     return { kind: "fulfill", status: 200, body: batched ? results : results[0] };
   }
 
+  if (REST_NO_CONTENT.has(`${method} ${pathname}`)) return { kind: "fulfill", status: 204, body: undefined };
+
   report.unstubbed.add(`${method} ${pathname}`);
   return { kind: "fulfill", status: 404, body: { error: "not stubbed by the v3 fixtures" } };
 }
@@ -152,6 +181,10 @@ export async function installFixtures(page: Page): Promise<FixtureReport> {
       const answer = answerApi(request.method(), new URL(request.url()), report);
       if (answer.kind === "passthrough") {
         await route.fallback();
+        return;
+      }
+      if (answer.status === 204) {
+        await route.fulfill({ status: 204 });
         return;
       }
       await route.fulfill({

@@ -37,8 +37,11 @@ import {
   type FixtureReport,
 } from "../e2e/fixtures";
 import { MISSION_TASKS } from "../e2e/fixtures/missions";
-import { MIN_DISTANCE, MIN_INK, captureVerdict, measureAndJudge, v3GateVerdict, type MeasureDeps } from "../e2e/v3-gate";
+import { MIN_DISTANCE, MIN_INK, baselineSkipReason, captureVerdict, measureAndJudge, v3GateVerdict, type MeasureDeps } from "../e2e/v3-gate";
+import { V3_PAGES, V3_VIEWPORTS } from "../e2e/vt-render";
 import { visualDistance } from "../e2e/visual-distance";
+import { capabilityBadge } from "@/features/chat-v2/lib/capability-label";
+import { formatToolReceipts, summarizeToolReceipts } from "@/lib/ai/receipts/tool-receipt-summary";
 
 const APP_DIR = path.join(__dirname, "..", "..");
 const E2E_DIR = path.join(__dirname, "..", "e2e");
@@ -359,6 +362,24 @@ describe("fixture router (answerApi)", () => {
     expect([...report.unstubbed]).toEqual(["GET /api/coach/events"]);
   });
 
+  it("answers Chat's mount-time stream-resume probe with the server's own empty 204, and nothing near it", () => {
+    // useChat({ resume: true }) GETs /api/ai/chat/none/stream on every /chat load; the real route answers
+    // `new Response(null, { status: 204 })` for "none". A 404 here made onError flip the header pill to "chat degraded".
+    const report = newReport();
+    expect(answerApi("GET", new URL(`${BASE}/api/ai/chat/none/stream`), report)).toEqual({ kind: "fulfill", status: 204, body: undefined });
+    expect([...report.unstubbed]).toEqual([]);
+    // positive control: a real conversation id, another method and a sibling path stay refused
+    for (const [method, p] of [["GET", "/api/ai/chat/demo-conv-1/stream"], ["POST", "/api/ai/chat/none/stream"], ["GET", "/api/ai/chat/none"]] as const) {
+      expect(answerApi(method, new URL(`${BASE}${p}`), report), `${method} ${p}`).toMatchObject({ kind: "fulfill", status: 404 });
+    }
+    expect([...report.unstubbed].sort()).toEqual(["GET /api/ai/chat/demo-conv-1/stream", "GET /api/ai/chat/none", "POST /api/ai/chat/none/stream"]);
+  });
+
+  it("the live stream route really answers 204 for 'none' (the fixture copies the server, it does not invent)", () => {
+    const route = read(path.join(APP_DIR, "app", "api", "ai", "chat", "[conversationId]", "stream", "route.ts"));
+    expect(route).toMatch(/conversationId === "none"\) \{\s*return new Response\(null, \{ status: 204 \}\);/);
+  });
+
   /** Paths whose value JSON would drop or rewrite: undefined, Date, function, symbol, bigint, NaN/Infinity. */
   function nonWireValues(value: unknown, at = "$"): string[] {
     if (value === undefined) return [`${at}: undefined`];
@@ -421,6 +442,12 @@ describe("installFixtures (the wiring, against a recording Page)", () => {
 
     await seen.handler!(fakeRoute("GET", `${BASE}/api/brain/wisdom`));
     expect([...report.unstubbed]).toEqual(["GET /api/brain/wisdom"]);
+
+    // A 204 carries no body and no content type: the browser's fetch would reject a 204 with a payload.
+    const empty = fakeRoute("GET", `${BASE}/api/ai/chat/none/stream`);
+    await seen.handler!(empty);
+    expect(empty.fulfilled).toEqual({ status: 204 });
+    expect([...report.unstubbed]).toEqual(["GET /api/brain/wisdom"]);
   });
 });
 
@@ -431,7 +458,7 @@ describe("installFixtures (the wiring, against a recording Page)", () => {
 const NONDETERMINISTIC = /Date\.now|new Date\(\s*\)|Math\.random|performance\.now|toLocale|Intl\.|randomUUID|process\.env/;
 
 describe("fixture data", () => {
-  const dataFiles = ["time.ts", "home.ts", "missions.ts", "shell.ts"].map((f) => path.join(E2E_DIR, "fixtures", f));
+  const dataFiles = ["time.ts", "home.ts", "missions.ts", "shell.ts", "chat.ts"].map((f) => path.join(E2E_DIR, "fixtures", f));
 
   it("positive control: the determinism scan flags a clock read, a random and a locale call", () => {
     for (const bad of ["Date.now()", "new Date()", "Math.random()", "x.toLocaleString()", "new Intl.DateTimeFormat()"]) {
@@ -580,6 +607,10 @@ describe("the smoke spec cannot pass on an empty-state page", () => {
     expect(sources.some((s) => s.text.includes("Done for today."))).toBe(true);
   });
 
+  it("positive control: the scan reaches features/, where the chat copy lives", () => {
+    expect(appSource().some((s) => /features[\\/]chat-v2/.test(s.file) && s.text.includes("What are we solving?"))).toBe(true);
+  });
+
   /** Literal `getByText(/.../)` regexes in a spec that no app source under components/ or lib/ satisfies. */
   function unsourcedTextRegexes(spec: string, sources: string[]): string[] {
     const joined = sources.join("\n").replace(/&apos;/g, "'");
@@ -614,6 +645,9 @@ describe("the smoke spec cannot pass on an empty-state page", () => {
       "components/home/waiting-line.tsx",
       "components/ultron/bottom-pulse-ticker.tsx",
       "app/(mastery)/missions/page.tsx",
+      // Chat (W3a): the header pill's words and the list's empty and loading states.
+      "features/chat-v2/lib/capability-label.ts",
+      "features/chat-v2/components/chat-message-list.tsx",
     ].map((f) => read(path.join(APP_DIR, f)).replace(/&apos;/g, "'"));
     for (const [name, re] of Object.entries(PAGE_ERRORS)) {
       for (const alt of re.source.split("|")) {
@@ -633,10 +667,15 @@ describe("the smoke spec cannot pass on an empty-state page", () => {
     for (const line of [
       "await expect(page.getByText(PAGE_ERRORS.home)).toHaveCount(0);",
       "await expect(page.getByText(PAGE_ERRORS.missions)).toHaveCount(0);",
+      "await expect(page.getByText(PAGE_ERRORS.chat)).toHaveCount(0);",
       'expect(pageErrors, "Home threw during render").toEqual([]);',
       'expect(pageErrors, "Missions threw during render").toEqual([]);',
+      'expect(pageErrors, "Chat threw during render").toEqual([]);',
       'expect(disallowedUnstubbed(report.unstubbed), "Home read page data the fixtures do not answer").toEqual([]);',
       'expect(disallowedUnstubbed(report.unstubbed), "Missions read page data the fixtures do not answer").toEqual([]);',
+      'expect(disallowedUnstubbed(report.unstubbed), "Chat read page data the fixtures do not answer").toEqual([]);',
+      "await openChatHistory(page, DEMO.chatTitle);",
+      "await settleChat(page);",
       "if (!IGNORED_PAGE_ERRORS.test(err.message)) pageErrors.push(err.message);",
       "const report = await installFixtures(page);",
       "return { pageErrors, report };",
@@ -698,17 +737,241 @@ describe("disallowedUnstubbed (the v3 gate's unstubbed-read rule)", () => {
   });
 });
 
+// ── chat-states.spec.ts waits only for copy the live source renders (W3a) ────
+
+describe("chat-states.spec.ts: every literal it waits for exists in live source", () => {
+  const CHAT_STATES_SPEC = path.join(E2E_DIR, "chat-states.spec.ts");
+
+  /** The string literals a spec waits on: getByText("..."), openPanel(page, "button", "proof"), a heading's name. */
+  function waitedLiterals(spec: string): string[] {
+    const q = String.raw`"((?:[^"\\]|\\.)*)"`;
+    const out: string[] = [];
+    for (const m of spec.matchAll(new RegExp(String.raw`getByText\(\s*${q}\s*,?\s*\)`, "g"))) out.push(m[1]);
+    for (const m of spec.matchAll(new RegExp(String.raw`openPanel\(page,\s*${q},\s*${q}\s*\)`, "g"))) out.push(m[1], m[2]);
+    for (const m of spec.matchAll(new RegExp(String.raw`getByRole\("heading",\s*\{\s*name:\s*${q}`, "g"))) out.push(m[1]);
+    return out;
+  }
+
+  /** Literals no rendered source contains. JSX entities are decoded the way the DOM shows them. */
+  function unsourced(literals: string[], sources: string[]): string[] {
+    const joined = sources.join("\n").replace(/&apos;/g, "'").replace(/&amp;/g, "&");
+    return literals.filter((l) => !joined.includes(l));
+  }
+
+  const sources = ["app/(mastery)/system/chat-states/page.tsx", "components/chat/memory-inspector-sidebar.tsx"].map((f) => read(path.join(APP_DIR, f)));
+
+  it("the spec's own waits are all found in the page and the evidence panel it renders", () => {
+    const literals = waitedLiterals(read(CHAT_STATES_SPEC));
+    expect(literals.length, "the extractor saw too few waits: it proves nothing").toBeGreaterThanOrEqual(6);
+    expect(unsourced(literals, sources)).toEqual([]);
+  });
+
+  it("positive control: the em-dash forms W1a reworded are reported, the colon forms are not", () => {
+    const stale = [
+      'await expect(page.getByText("Completion message — receipts sample")).toBeVisible();',
+      'await openPanel(page, "Open — fresh recall", "Context & Evidence");',
+      'await expect(\n        page.getByText("not yet fetched — open state, not evidence"),\n      ).toBeVisible();',
+    ].join("\n");
+    expect(unsourced(waitedLiterals(stale), sources)).toEqual(["Completion message — receipts sample", "not yet fetched — open state, not evidence", "Open — fresh recall"]);
+    const live = stale.replaceAll(" — ", ": ");
+    expect(unsourced(waitedLiterals(live), sources)).toEqual([]);
+  });
+});
+
+// ── Chat fixtures (UI v3 W3a): the instrument for the Chat six-feet gate ─────
+
+describe("chat fixtures (W3a)", () => {
+  type Part = { type: string; text?: string; state?: string; output?: unknown };
+  type Conversation = { id: string; title: string | null; messageCount: number; messages: { id: string; role: string; content: string; parts: Part[] }[] };
+  type List = { conversations: { id: string; title: string | null; _count: { messages: number } }[]; hasMore: boolean; nextCursor: string | null };
+  const chatDemo = DEMO as Record<string, string | undefined>;
+  const conversation = TRPC_FIXTURES["chat.conversation"] as Conversation | undefined;
+  const list = TRPC_FIXTURES["chat.list"] as List | undefined;
+  const assistantTurn = conversation?.messages.find((m) => m.role === "assistant");
+
+  it("the chat anchors exist and are the fixtures' own sentences", () => {
+    expect(typeof chatDemo.chatReply).toBe("string");
+    expect(typeof chatDemo.chatTitle).toBe("string");
+    expect(chatDemo.chatReply!.length).toBeGreaterThan(20);
+    expect(chatDemo.chatReply).toMatch(/\bDemo\b/);
+    expect(chatDemo.chatTitle).toMatch(/\bDemo\b/);
+  });
+
+  it("the assistant turn carries DEMO.chatReply as its text part, and the title is the list row's", () => {
+    expect(assistantTurn, "chat.conversation has no assistant turn").toBeDefined();
+    expect(assistantTurn!.parts.some((p) => p.type === "text" && p.text === chatDemo.chatReply)).toBe(true);
+    expect(list?.conversations).toHaveLength(1);
+    expect(list!.conversations[0].title).toBe(chatDemo.chatTitle);
+    expect(conversation!.title).toBe(chatDemo.chatTitle);
+  });
+
+  it("the list and the conversation agree: one id, one message count, no next page", () => {
+    expect(list!.conversations[0].id).toBe(conversation!.id);
+    expect(list!.conversations[0]._count.messages).toBe(conversation!.messages.length);
+    expect(conversation!.messageCount).toBe(conversation!.messages.length);
+    expect(list!.hasMore).toBe(false);
+    expect(list!.nextCursor).toBeNull();
+  });
+
+  it("renders a user turn then an assistant turn, and the assistant turn has a receipt line", () => {
+    expect(conversation!.messages.map((m) => m.role)).toEqual(["user", "assistant"]);
+    const toolParts = assistantTurn!.parts.filter((p) => p.type.startsWith("tool-"));
+    expect(toolParts.length).toBeGreaterThan(0);
+    // ToolReceiptSummary returns null without tool parts (chat-message-list.tsx): this is the line it prints.
+    expect(formatToolReceipts(summarizeToolReceipts(toolParts))).toBe("Tool calls: 1 returned data");
+  });
+
+  it("the header pill reads MEASURED: 'ready', neither checking nor unknown", () => {
+    const providers = TRPC_FIXTURES["system.providerHealth"] as { overallTone: "green" | "amber" | "red" } | undefined;
+    const tools = TRPC_FIXTURES["system.toolsHealth"] as { summary: { totalTools: number; degraded: number; down: number } } | undefined;
+    expect(providers, "system.providerHealth is not stubbed").toBeDefined();
+    expect(tools, "system.toolsHealth is not stubbed").toBeDefined();
+    const badge = capabilityBadge({ connection: "unknown", providerTone: providers!.overallTone, providerErrored: false, toolSummary: tools!.summary, toolsErrored: false });
+    expect(badge).toEqual({ label: "ready", cautious: false, unknown: false, checking: false });
+    // positive control: with the tools read missing the same call says it is still checking
+    expect(capabilityBadge({ connection: "unknown", providerTone: "green", providerErrored: false }).label).toBe("checking capabilities");
+  });
+
+  it("every read /chat makes on load is stubbed, or listed here with the reason it is not", () => {
+    const NOT_STUBBED: Record<string, string> = {
+      "system.diagnoseChat": "only the /diagnose command fetches it (chat-composer.tsx)",
+      "chat.resolveMention": "fetched imperatively right before a send that names @yesterday, @week or @cold (use-mention-suggestions.ts)",
+      "brain.mediaMoments": "media-saved-moments.tsx renders only inside the focus panel, which renders null unless the operator opts in",
+      "systemAutomation.getPendingApprovals": "the PWA badge (app-badge.tsx); renders nothing, and the Badge API is absent in CI chromium",
+      "systemAutomation.approvals": "the PWA badge (app-badge.tsx); same",
+    };
+    const files = [
+      "features/chat-v2/components/chat-capability-indicator.tsx",
+      "features/chat-v2/components/chat-composer.tsx",
+      "features/chat-v2/components/chat-island.tsx",
+      "features/chat-v2/components/chat-message-list.tsx",
+      "features/chat-v2/components/media-saved-moments.tsx",
+      "hooks/use-conversations.ts",
+      // Read through the composer's hooks, not in a chat component: the first draft of this list missed it and
+      // the render found it (GET operator.mit, the @mit mention). Hooks the chat components import belong here.
+      "hooks/use-mention-suggestions.ts",
+      "components/ultron/bottom-pulse-ticker.tsx",
+      "components/hud/app-badge.tsx",
+    ];
+    const used = new Set<string>();
+    for (const f of files) {
+      const src = read(path.join(APP_DIR, f));
+      for (const m of src.matchAll(/trpc\.([a-zA-Z]+)\.([a-zA-Z]+)\.use(?:Suspense)?Query\b/g)) used.add(`${m[1]}.${m[2]}`);
+      for (const m of src.matchAll(/utils\.([a-zA-Z]+)\.([a-zA-Z]+)\.fetch\(/g)) used.add(`${m[1]}.${m[2]}`);
+    }
+    // positive control: the scan sees the four reads this wave stubs
+    for (const p of ["chat.list", "chat.conversation", "system.providerHealth", "system.toolsHealth"]) expect(used.has(p), `the scan never saw ${p}`).toBe(true);
+    const uncovered = [...used].filter((p) => !(p in TRPC_FIXTURES) && !(p in NOT_STUBBED));
+    expect(uncovered, "a /chat read is neither stubbed nor explained").toEqual([]);
+    for (const p of ["chat.list", "chat.conversation", "system.providerHealth", "system.toolsHealth", "operator.mit"]) expect(p in TRPC_FIXTURES, `${p} is not stubbed`).toBe(true);
+    expect(used.has("operator.mit"), "the scan never saw operator.mit (the composer's @mit hook)").toBe(true);
+  });
+
+  it("the unstubbed gate now covers the chat reads, and still ignores the rest of the shell", () => {
+    expect(disallowedUnstubbed(["GET chat.list", "GET chat.conversation", "GET system.providerHealth", "GET system.toolsHealth", "GET system.sessionExpiry", "POST chat.deleteMessage"])).toEqual([
+      "GET chat.conversation",
+      "GET chat.list",
+      "GET system.providerHealth",
+      "GET system.toolsHealth",
+    ]);
+  });
+});
+
+// ── Pending baselines (W3a): a missing PNG skips only a page declared pending ─
+
+describe("pending baselines: a missing PNG skips, a present one is always judged", () => {
+  const SNAPSHOTS = path.join(E2E_DIR, "visible-transformation-v3.spec.ts-snapshots");
+  const VP = { width: 390, height: 844 };
+  /** The spec's own baseline read (SPEC_LINES.baseline), applied to a planted directory. */
+  const readBaseline = (file: string) => (fs.existsSync(file) ? fs.readFileSync(file) : null);
+  const planted = <T>(run: (dir: string) => Promise<T> | T): Promise<T> => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "w3a-baseline-"));
+    return Promise.resolve(run(dir)).finally(() => fs.rmSync(dir, { recursive: true, force: true }));
+  };
+
+  it("a planted MISSING png on a pending page skips, with a reason that names the page and the way out", () =>
+    planted((dir) => {
+      const baseline = readBaseline(path.join(dir, "chat-phone.png"));
+      expect(baseline).toBeNull();
+      const reason = baselineSkipReason({ label: "chat/phone", baselineExists: baseline !== null, pending: true });
+      expect(reason).toMatch(/^chat\/phone: baseline not captured yet/);
+      expect(reason).toMatch(/capture_v3_baselines/);
+      expect(reason!.split("\n")).toHaveLength(1);
+    }));
+
+  it("the same missing png on a page that is NOT pending does not skip, and the verdict fails it", () =>
+    planted(async (dir) => {
+      const baseline = readBaseline(path.join(dir, "home-phone.png"));
+      expect(baselineSkipReason({ label: "home/phone", baselineExists: baseline !== null, pending: false })).toBeNull();
+      const png = fs.readFileSync(path.join(SNAPSHOTS, "home-phone.png"));
+      const r = await measureAndJudge({ baseline, current: png, viewport: VP });
+      expect(r.verdict.ok).toBe(false);
+      expect(r.verdict.reason).toMatch(/missing baseline/i);
+    }));
+
+  it("a planted png that MATCHES the render never skips, pending or not, and fails as looking like v2", () =>
+    planted(async (dir) => {
+      const file = path.join(dir, "chat-phone.png");
+      fs.copyFileSync(path.join(SNAPSHOTS, "home-phone.png"), file);
+      const baseline = readBaseline(file);
+      expect(baselineSkipReason({ label: "chat/phone", baselineExists: baseline !== null, pending: true })).toBeNull();
+      const r = await measureAndJudge({ baseline, current: fs.readFileSync(file), viewport: VP });
+      expect(r.distance).toBe(0);
+      expect(r.verdict.ok).toBe(false);
+      expect(r.verdict.reason).toMatch(/still looks like/i);
+    }));
+
+  it("positive control: a planted png the render has moved away from passes the same path", () =>
+    planted(async (dir) => {
+      const file = path.join(dir, "chat-phone.png");
+      fs.copyFileSync(path.join(SNAPSHOTS, "home-phone.png"), file);
+      // A render that kept some ink but none of the baseline's layout (the same wipe the instrument controls use, inked).
+      const current = await loadSharp()({ create: { ...VP, channels: 3, background: "#808080" } }).png().toBuffer();
+      const r = await measureAndJudge({ baseline: readBaseline(file), current, viewport: VP });
+      expect(r.verdict, `distance ${r.distance}, ink ${r.ink}`).toMatchObject({ ok: true });
+    }));
+
+  it("a skip needs BOTH facts: nothing to compare to, and the page declared pending", () => {
+    expect(baselineSkipReason({ label: "x", baselineExists: true, pending: true })).toBeNull();
+    expect(baselineSkipReason({ label: "x", baselineExists: true, pending: false })).toBeNull();
+    expect(baselineSkipReason({ label: "x", baselineExists: false, pending: false })).toBeNull();
+    expect(baselineSkipReason({ label: "x", baselineExists: false, pending: true })).not.toBeNull();
+  });
+
+  it("only chat is pending today, and it has no baseline PNG yet (the flag leaves in the commit that adds them)", () => {
+    expect(V3_PAGES.filter((p) => p.baselinePending).map((p) => p.key)).toEqual(["chat"]);
+    for (const p of V3_PAGES.filter((x) => x.baselinePending)) {
+      for (const v of V3_VIEWPORTS) {
+        const png = `${p.key}-${v.key}.png`;
+        expect(fs.existsSync(path.join(SNAPSHOTS, png)), `${png} exists: remove baselinePending for ${p.key} in the same commit`).toBe(false);
+      }
+    }
+  });
+
+  it("every page that is NOT pending has both of its baselines committed (deleting one must not turn into a quiet skip)", () => {
+    for (const p of V3_PAGES.filter((x) => !x.baselinePending)) {
+      for (const v of V3_VIEWPORTS) {
+        const png = `${p.key}-${v.key}.png`;
+        expect(fs.existsSync(path.join(SNAPSHOTS, png)), `${png} is missing`).toBe(true);
+      }
+    }
+  });
+});
+
 // ── The v3 spec really asks the verdict function ────────────────────────────
 
 /** The exact lines the spec must contain: measurement and decision happen only inside measureAndJudge. */
 const SPEC_LINES = {
-  import: 'import { captureVerdict, measureAndJudge } from "./v3-gate";',
+  import: 'import { baselineSkipReason, captureVerdict, measureAndJudge } from "./v3-gate";',
   baseline: "const baseline = fs.existsSync(file) ? fs.readFileSync(file) : null;",
+  skipReason: "const skipReason = baselineSkipReason({ label: `${p.key}/${vp.key}`, baselineExists: baseline !== null, pending: p.baselinePending === true });",
+  skipCall: 'test.skip(skipReason !== null, skipReason ?? "");',
   measure: "const result = await measureAndJudge({ baseline, current, viewport: vp });",
   assert: "expect(result.verdict.ok, `${p.key}/${vp.key}: ${result.verdict.reason}`).toBe(true);",
   anchorMap: "const ANCHOR: Record<string, RenderAnchor> = {",
   homeAnchor: "home: { anchorText: DEMO.homeSummary, errorPattern: PAGE_ERRORS.home },",
   missionsAnchor: "missions: { anchorText: DEMO.missionsNextMove, errorPattern: PAGE_ERRORS.missions },",
+  chatAnchor: "chat: { anchorText: DEMO.chatReply, errorPattern: PAGE_ERRORS.chat, open: (page) => openChatHistory(page, DEMO.chatTitle), settle: settleChat },",
   render: "const current = await renderPage(page, p.path, p.landmark, ANCHOR[p.key]);",
   unstubbed: "expect(disallowedUnstubbed(unstubbed), `${p.key}/${vp.key} read page data the fixtures do not answer`).toEqual([]);",
   capture: "const capture = captureVerdict({ ink: await inkCoverage(current, vp) });",
@@ -739,6 +1002,12 @@ function specProblems(src: string): string[] {
   const renderAt = src.indexOf(SPEC_LINES.render);
   const unstubbedAt = src.indexOf(SPEC_LINES.unstubbed);
   if (!(renderAt > 0 && renderAt < unstubbedAt && unstubbedAt < captureAt)) problems.push("the render, the unstubbed gate, capture and judgment are out of order");
+  // The pending skip sits between the baseline read and the judgment: it needs the read, and it must come
+  // before measureAndJudge or a pending page would fail on its missing PNG.
+  const skipReasonAt = src.indexOf(SPEC_LINES.skipReason);
+  const skipCallAt = src.indexOf(SPEC_LINES.skipCall);
+  const measureAt = src.indexOf(SPEC_LINES.measure);
+  if (!(compareAt < skipReasonAt && skipReasonAt < skipCallAt && skipCallAt < measureAt)) problems.push("the pending skip is not between the baseline read and the judgment");
   return problems;
 }
 
@@ -824,6 +1093,12 @@ describe("visible-transformation-v3.spec.ts consumes measureAndJudge", () => {
       "silent baseline write on compare": spec.replace(SPEC_LINES.baseline, `fs.writeFileSync(file, current);\n        ${SPEC_LINES.baseline}`),
       "anchor dropped from the render call": spec.replace(SPEC_LINES.render, "const current = await renderPage(page, p.path, p.landmark);"),
       "home anchor points at a string the empty page shows": spec.replace(SPEC_LINES.homeAnchor, 'home: { anchorText: "Now", errorPattern: PAGE_ERRORS.home },'),
+      "chat anchor points at a string the empty page shows": spec.replace(SPEC_LINES.chatAnchor, 'chat: { anchorText: "What are we solving?", errorPattern: PAGE_ERRORS.chat, open: (page) => openChatHistory(page, DEMO.chatTitle), settle: settleChat },'),
+      "chat anchor loses the conversation pick": spec.replace(SPEC_LINES.chatAnchor, "chat: { anchorText: DEMO.chatReply, errorPattern: PAGE_ERRORS.chat, settle: settleChat },"),
+      "every page may skip on a missing baseline": spec.replace(SPEC_LINES.skipReason, "const skipReason = baselineSkipReason({ label: `${p.key}/${vp.key}`, baselineExists: baseline !== null, pending: true });"),
+      "the skip is decided without the baseline read": spec.replace(SPEC_LINES.skipReason, "const skipReason = baselineSkipReason({ label: `${p.key}/${vp.key}`, baselineExists: false, pending: p.baselinePending === true });"),
+      "the skip call removed": spec.replace(SPEC_LINES.skipCall, ""),
+      "the skip moved after the judgment": spec.replace(SPEC_LINES.skipCall, "").replace(SPEC_LINES.assert, `${SPEC_LINES.assert}\n        ${SPEC_LINES.skipCall}`),
       "unstubbed gate removed": spec.replace(SPEC_LINES.unstubbed, ""),
       "unstubbed gate moved after the judgment": spec.replace(SPEC_LINES.unstubbed, "").replace(SPEC_LINES.assert, `${SPEC_LINES.assert}\n        ${SPEC_LINES.unstubbed}`),
     };
@@ -894,9 +1169,15 @@ function workflowProblems(wf: Workflow): string[] {
   if (check.if !== CAPTURE_GUARD) problems.push("completeness check is not guarded by the capture condition");
   if (check["working-directory"] !== "apps/statenour") problems.push("completeness check does not run in apps/statenour");
   const checkRun = check.run ?? "";
-  for (const name of ["home-desktop", "home-phone", "missions-desktop", "missions-phone"]) {
+  // The names are V3_PAGES x V3_VIEWPORTS, derived here so a page added to the spec cannot be captured
+  // without the check noticing it (W3a: chat made it six), and the check names exactly those, no more.
+  const wantNames = V3_PAGES.flatMap((p) => V3_VIEWPORTS.map((v) => `${p.key}-${v.key}`));
+  for (const name of wantNames) {
     if (!new RegExp(`\\b${name}\\b`).test(checkRun)) problems.push(`completeness check does not name ${name}`);
   }
+  const loop = /for f in ([^;]+); do/.exec(checkRun);
+  if (!loop) problems.push("completeness check has no `for f in ...; do` loop over the baseline names");
+  else if ([...new Set(loop[1].trim().split(/\s+/))].sort().join(" ") !== [...wantNames].sort().join(" ")) problems.push(`completeness check names ${loop[1].trim()}, not exactly ${wantNames.join(" ")}`);
   if (!checkRun.includes("test -f")) problems.push("completeness check does not test for the files");
   if (!checkRun.includes("exit 1")) problems.push("completeness check cannot fail");
   if (!checkRun.includes("tests/e2e/visible-transformation-v3.spec.ts-snapshots")) problems.push("completeness check looks in the wrong directory");
@@ -988,6 +1269,12 @@ describe(".github/workflows/e2e-statenour.yml capture path", () => {
       },
       "the completeness check misses one name": (w) => {
         named(w, "Check v3 baselines are complete").run = named(w, "Check v3 baselines are complete").run!.replace(" missions-phone", "");
+      },
+      "the completeness check misses the chat pair": (w) => {
+        named(w, "Check v3 baselines are complete").run = named(w, "Check v3 baselines are complete").run!.replace(" chat-desktop chat-phone", "");
+      },
+      "the completeness check names a file the spec never captures": (w) => {
+        named(w, "Check v3 baselines are complete").run = named(w, "Check v3 baselines are complete").run!.replace("chat-phone;", "chat-phone brain-phone;");
       },
       "the completeness check removed": (w) => {
         w.jobs.e2e.steps = steps(w).filter((s) => !s.name?.startsWith("Check v3 baselines are complete"));
@@ -1094,6 +1381,7 @@ describe("tsconfig.e2e.json typechecks the fixture lane", () => {
       for (const f of [
         "tests/e2e/fixtures/home.ts",
         "tests/e2e/fixtures/missions.ts",
+        "tests/e2e/fixtures/chat.ts",
         "tests/e2e/fixtures/index.ts",
         "tests/e2e/v3-gate.ts",
         "tests/e2e/visible-transformation-v3.spec.ts",

@@ -355,13 +355,15 @@ jobs:
         run: pnpm exec playwright test visible-transformation-v3 --timeout=120000
 
       # A partial capture (a page or viewport dropped from the v3 spec) must not
-      # become the artifact: exactly these four files, named here, or fail.
+      # become the artifact: exactly these six files, named here, or fail. The
+      # list is V3_PAGES x V3_VIEWPORTS (tests/e2e/vt-render.ts); tests/repo/
+      # v3-gate.test.ts fails if the two drift (W3a added chat).
       - name: Check v3 baselines are complete
         if: "${{ github.event_name == 'workflow_dispatch' && inputs.capture_v3_baselines }}"
         working-directory: apps/statenour
         run: |
           dir=tests/e2e/visible-transformation-v3.spec.ts-snapshots
-          for f in home-desktop home-phone missions-desktop missions-phone; do
+          for f in home-desktop home-phone missions-desktop missions-phone chat-desktop chat-phone; do
             test -f "$dir/$f.png" || { echo "missing baseline: $dir/$f.png"; exit 1; }
           done
           ls -l "$dir"
