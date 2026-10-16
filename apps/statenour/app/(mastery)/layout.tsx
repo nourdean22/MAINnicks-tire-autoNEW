@@ -109,8 +109,9 @@ export default function MasteryLayout({
             status bar; it resolves to 0 where there's no inset (e.g. desktop). */}
         {/* md:pr-[var(--nick-fab-lane,0px)] · 2026-09-07 · pages that mount
             NickSidePane set --nick-fab-lane on <html> so content never scrolls
-            under the fixed FAB at the bottom-right (the ANSWER NOW / capture "+"
-            collisions). 0px everywhere else. See components/mastery/nick-side-pane.tsx. */}
+            under the fixed FAB at the bottom-right (the ANSWER NOW collision; the
+            /missions capture "+" it also hit was removed in UI v3 W2, 2026-10-16).
+            0px everywhere else. See components/mastery/nick-side-pane.tsx. */}
         {/* xl:pr-[calc(...)] · 2026-09-15 · the inspector host sets --inspector-lane
             on <html> while its docked panel is showing at >=1280px, so content
             reflows beside it instead of being covered. Summed with the FAB lane

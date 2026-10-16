@@ -126,7 +126,19 @@ export type JudgmentItem =
       expired: number;
       oldestAgeMin: number | null;
       href: string;
+      /** UI v3 W2: the oldest live rows, approvable in place from Home; the rest stay behind `href`. */
+      pending: PendingApproval[];
     };
+
+export interface PendingApproval {
+  id: string;
+  /** Which store holds the row, so which mutation approves it: approval_requests or autonomous_actions. */
+  source: "request" | "action";
+  title: string;
+}
+
+/** Live approvals the brief carries for in-place verdicts (components/home/brief-rows.tsx). */
+export const APPROVAL_ROWS_CAP = 2;
 
 export interface BriefJudgmentSection {
   /** Every open item (bounded upstream). The page renders `visibleCap` of
@@ -253,7 +265,7 @@ export async function buildOperatorBrief(now = new Date()): Promise<OperatorBrie
       prisma.approvalRequest.findMany({
         where: { status: "pending_approval" },
         orderBy: { createdAt: "asc" },
-        select: { id: true, createdAt: true, expiresAt: true },
+        select: { id: true, createdAt: true, expiresAt: true, reason: true, actionType: true },
       }),
     ),
     // 14-day unresolved window — parity with the bottom ticker's
@@ -393,8 +405,11 @@ export async function buildOperatorBrief(now = new Date()): Promise<OperatorBrie
 
   const judgmentAll: JudgmentItem[] = [];
 
-  // Approvals roll up to ONE row: their verdicts need payload review, which
-  // lives at /system/actions — Home states the queue, it does not re-host it.
+  // Approvals are ONE item with a count and, since W2, the oldest live rows in
+  // `pending`. Home approves a REQUEST row in place; an autonomous ACTION row
+  // (a deferred side effect with a payload) only links to Review, like
+  // everything past APPROVAL_ROWS_CAP. The owner gate stays server-side: the
+  // one user is the owner, and a refusal's message is shown verbatim.
   if (pendingDecisions !== null && (pendingDecisions > 0 || (expiredDecisions ?? 0) > 0)) {
     const oldest = [
       ...(pendingActions ?? []).map((r) => r.createdAt.getTime()),
@@ -406,6 +421,7 @@ export async function buildOperatorBrief(now = new Date()): Promise<OperatorBrie
       expired: expiredDecisions ?? 0,
       oldestAgeMin: oldest ? Math.round((nowMs - oldest) / 60_000) : null,
       href: "/system/actions?tab=approvals",
+      pending: pendingApprovalRows(pendingActions ?? [], approvalRequests ?? [], nowForExpiry),
     });
   }
 
@@ -819,7 +835,31 @@ function buildHorizon(i: {
 /** Pure internals pinned by tests/home/operator-brief.test.ts — the house
  *  precedent (operator-state.ts __testInternals): decisions you cannot
  *  import without side effects are decisions you cannot canary. */
-export const __testInternals = { mapLead, composeStateSummary, buildHorizon, startOfEtDay, ledgerLeadShown };
+/**
+ * UI v3 W2: the live approvals Home can approve in place. Oldest first across both stores, expired
+ * rows excluded (they are listed behind the Review link, never approvable), capped so the brief
+ * stays finite. The title is the row's own words: the request's reason (first line) or the policy
+ * objective; never a fabricated summary.
+ */
+function pendingApprovalRows(
+  actions: Array<{ id: string; actionType: string; ruleName: string; policyObjective: string | null; expired: boolean; createdAt: Date }>,
+  requests: Array<{ id: string; reason: string; actionType: string; createdAt: Date; expiresAt: Date | null }>,
+  now: Date,
+): PendingApproval[] {
+  const live: Array<PendingApproval & { at: number }> = [];
+  for (const a of actions) {
+    if (a.expired) continue;
+    live.push({ id: a.id, source: "action", title: a.policyObjective || `${a.actionType} (${a.ruleName})`, at: a.createdAt.getTime() });
+  }
+  for (const r of requests) {
+    if (isApprovalRequestExpired(r, now)) continue;
+    live.push({ id: r.id, source: "request", title: r.reason.split("\n")[0].trim() || r.actionType, at: r.createdAt.getTime() });
+  }
+  live.sort((a, b) => a.at - b.at);
+  return live.slice(0, APPROVAL_ROWS_CAP).map(({ at: _at, ...row }) => row);
+}
+
+export const __testInternals = { mapLead, composeStateSummary, buildHorizon, startOfEtDay, ledgerLeadShown, pendingApprovalRows };
 
 function firstCalendarEventToday(
   rows: Array<{ content: string; metadata: unknown }>,

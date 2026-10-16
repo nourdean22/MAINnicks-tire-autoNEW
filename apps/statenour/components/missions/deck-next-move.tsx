@@ -40,6 +40,10 @@ const RECORD_LABEL = "shrink-0 w-[9.5rem] pt-0.5 font-mono text-[11px] text-fg-t
 
 export function DeckNextMove({ nextMove, capacity, onStart, onPickDifferent }: Props) {
   const [alternatesOpen, setAlternatesOpen] = useState(false);
+  // UI v3 W2 (2026-10-16): the resume record (four rows) and the two mono footnotes fold behind
+  // Details, closed by default, so the hero is the title, the first step and Start, and the control
+  // strip and the board reach the fold at 390.
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   if (!nextMove) {
     return (
@@ -94,8 +98,17 @@ export function DeckNextMove({ nextMove, capacity, onStart, onPickDifferent }: P
           </p>
         )}
 
-        {kind === "resume" && resumeRecord && (
-          <dl className="mt-4 border-t border-edge pt-3 text-[15px] text-fg">
+        <button
+          type="button"
+          aria-expanded={detailsOpen}
+          onClick={() => setDetailsOpen((v) => !v)}
+          className="mt-3 inline-flex min-h-[44px] items-center rounded-control px-2 font-mono text-[12px] text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg"
+        >
+          {detailsOpen ? "Hide details" : "Details"}
+        </button>
+
+        {detailsOpen && kind === "resume" && resumeRecord && (
+          <dl className="mt-2 border-t border-edge pt-3 text-[15px] text-fg">
             {(
               [
                 ["Intended outcome", resumeRecord.intendedOutcome],
@@ -135,10 +148,12 @@ export function DeckNextMove({ nextMove, capacity, onStart, onPickDifferent }: P
           </dl>
         )}
 
-        <p className="mt-4 font-mono text-[12px] text-fg-tertiary">
-          {task.missionTitle ? `${task.missionTitle} · ` : ""}
-          {task.why.replace(/^picked because: /, "why: ")}
-        </p>
+        {detailsOpen && (
+          <p className="mt-3 font-mono text-[12px] text-fg-tertiary">
+            {task.missionTitle ? `${task.missionTitle} · ` : ""}
+            {task.why.replace(/^picked because: /, "why: ")}
+          </p>
+        )}
       </div>
 
       <div className="mt-6 flex flex-col gap-3 xl:mt-0 xl:justify-end">

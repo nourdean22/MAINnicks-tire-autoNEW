@@ -26,7 +26,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Sparkles, X, Plus } from "lucide-react";
+import { Sparkles, X } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
 interface OmniCaptureModalProps {
@@ -100,22 +100,10 @@ export function OmniCaptureModal({
     }
   }, [text, submitting, onCapture]);
 
-  // Mobile sweep #3 (2026-05-27) · render a mobile-only "+" FAB when
-  // closed so iOS PWA operators have a tap path to omni-capture (⌘K
-  // is keyboard-only). Positioned bottom-LEFT to stay clear of the
-  // brain FAB (bottom-right). Hidden on desktop where ⌘K dominates.
-  if (!open) {
-    return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        aria-label="omni capture"
-        className="lg:hidden fixed bottom-4 left-4 z-40 inline-flex h-11 w-11 items-center justify-center ui-material rounded-full border border-edge-default text-fg shadow-l1 active:scale-95 transition-colors duration-[var(--motion-state)] hover:border-edge-strong pb-[env(safe-area-inset-bottom,0px)]"
-      >
-        <Plus size={18} strokeWidth={2} />
-      </button>
-    );
-  }
+  // UI v3 W2 (2026-10-16): no floating "+" when closed. The capture row on
+  // /missions is the one capture control on a phone; Cmd+K still opens this
+  // dialog on a keyboard. (The 2026-05-27 mobile FAB lived here until W2.)
+  if (!open) return null;
 
   return (
     <Dialog
