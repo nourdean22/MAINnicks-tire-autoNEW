@@ -37,7 +37,7 @@ import { expect, test } from "@playwright/test";
 
 import { DEMO, PAGE_ERRORS, disallowedUnstubbed, installFixtures } from "./fixtures";
 import { captureVerdict, measureAndJudge } from "./v3-gate";
-import { V3_PAGES, V3_VIEWPORTS, VT_CONTEXT, renderPage, warmRoutes } from "./vt-render";
+import { V3_PAGES, V3_VIEWPORTS, VT_CONTEXT, renderPage, warmRoutes, type RenderAnchor } from "./vt-render";
 import { inkCoverage } from "./visual-distance";
 
 const SNAPSHOT_DIR = path.join(__dirname, "visible-transformation-v3.spec.ts-snapshots");
@@ -45,9 +45,9 @@ const ENABLED = process.env.VT_V3 === "1";
 const CAPTURE = process.env.VT_V3_CAPTURE === "1";
 
 /** The text that proves each render came from the fixtures, and the error texts that prove it did not. */
-const ANCHOR: Record<string, { text: string; errors: RegExp }> = {
-  home: { text: DEMO.homeSummary, errors: PAGE_ERRORS.home },
-  missions: { text: DEMO.missionsNextMove, errors: PAGE_ERRORS.missions },
+const ANCHOR: Record<string, RenderAnchor> = {
+  home: { anchorText: DEMO.homeSummary, errorPattern: PAGE_ERRORS.home },
+  missions: { anchorText: DEMO.missionsNextMove, errorPattern: PAGE_ERRORS.missions },
 };
 
 for (const vp of V3_VIEWPORTS) {
@@ -71,12 +71,11 @@ for (const vp of V3_VIEWPORTS) {
       test(`${p.key} ${CAPTURE ? "capture" : "looks unmistakably different from the v2 baseline"}`, async ({ page }) => {
         const file = path.join(SNAPSHOT_DIR, `${p.key}-${vp.key}.png`);
         const report = await installFixtures(page);
-        const current = await renderPage(page, p.path, p.landmark);
+        // renderPage waits for the DEMO anchor and for the absence of the page's
+        // error states BEFORE the settle wait and the screenshot (vt-render.ts).
+        const current = await renderPage(page, p.path, p.landmark, ANCHOR[p.key]);
 
-        // It must be THE FIXTURE RENDER before it is measured.
-        const anchor = ANCHOR[p.key];
-        await expect(page.getByText(anchor.text).first()).toBeVisible();
-        await expect(page.getByText(anchor.errors)).toHaveCount(0);
+        // ...and no page-data read went unanswered (the report is complete only after the render).
         const unstubbed = [...report.unstubbed].sort();
         console.log(`[visible-transformation-v3] ${p.key}/${vp.key} unstubbed=${unstubbed.join(" | ") || "none"}`);
         expect(disallowedUnstubbed(unstubbed), `${p.key}/${vp.key} read page data the fixtures do not answer`).toEqual([]);
