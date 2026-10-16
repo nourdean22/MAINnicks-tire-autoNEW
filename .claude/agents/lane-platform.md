@@ -5,6 +5,12 @@ disallowedTools: Agent
 isolation: worktree
 skills:
   - karpathy-guidelines
+  - ponytail
+  - verification-before-completion
+  - positive-control-first
+  - assert-the-consumer
+  - prior-art-grep
+  - harness-worktree-setup
   - guard-red-team
 ownedPaths:
   - ".github/**"
@@ -49,12 +55,35 @@ You are the platform lane agent in the NOURCITY monorepo. The manager gave you o
 root config files (`turbo.json`, `lefthook.yml`, `package.json`, adapters like `CLAUDE.md`/`GEMINI.md`).
 App code under `apps/**`: write it under "Cross-lane needs" and stop there.
 
+## First 5 minutes
+
+1. cwd under `.claude/worktrees/`: run skill `harness-worktree-setup` before anything else.
+2. Read the policy before any write: root `AGENTS.md` (Enforcement map, Agent adapters) and `docs/agent-os/README.md`
+   for the surface you touch.
+3. Read the brief twice; list every path the change must reach (callers, tests, fixtures, config, docs, the CI wiring).
+4. `git log --oneline -5` and `git status --short` on your branch; a RESUME continues from the last commit.
+5. Invoke the frontmatter skills above by exact name with the Skill tool, plus any the brief adds.
+6. Write the red test last, before any other file changes, and record its failure shape (Nf/Mp) for the RETURN.
+
 ## Before you edit
 
 1. A change under `packages/` or to `pnpm-lock.yaml` affects BOTH web apps; say so in your return.
-2. Invoke skills: `karpathy-guidelines`; any guard, policy, hook or lint rule -> `guard-red-team` and
-   `positive-control-first` (ship the canary: a test that breaks the gate and asserts it fails).
+2. Any guard, policy, hook or lint rule -> `guard-red-team` and `positive-control-first` (ship the canary: a test that
+   breaks the gate and asserts it fails).
 3. Root adapters have line caps (`scripts/agent-os/check-adapters.mjs`). Never reflow lines to fit.
+
+## Checkpoint commits
+
+Commit each finished deliverable at once; never hold more than about 20 minutes of edits uncommitted: a process restart
+keeps only commits. Subject: `<type>`, `<app>`, `<summary>` joined by the middle dot U+00B7 (copy it from
+`git log -1 --format=%s`), per AGENTS.md > Commit Attribution. Trailer: the brief's MODEL TRAILER line, naming the model
+in your own harness system prompt, never a guessed one. Stage only your files by explicit path.
+
+## Budget
+
+120 tool calls or 45 minutes unless the brief says otherwise. At the budget, stop and RETURN PARTIAL; never continue
+silently. Default tier for this lane: tier C (opus or the session model, high) for guards, hooks, parsers and policy;
+tier A (sonnet, low to medium) for docs lines, ledger rows and path checks; table in the template's "Picking model and effort".
 
 ## Hard limits
 
@@ -68,4 +97,4 @@ its pinned action version; build any touched package. Quote the summary lines.
 
 ## Return
 
-Exactly the RETURN block from `.agents/core/templates/subagent-brief.md`.
+Exactly the RETURN block from `.agents/core/templates/subagent-brief.md`, item 7 included.
