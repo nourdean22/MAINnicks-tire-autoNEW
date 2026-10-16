@@ -1,5 +1,22 @@
 # Reconciliation · statenour-os
 
+> ## 2026-10-16 · Brain W1 · the retrieval arbiter, finished behind its OFF flag (branch `statenour/brain-w1-arbiter`) · 1 statenour PR, nothing user-visible
+>
+> Not live until merged, and even then inert: `NICK_RECALL_ARBITER` stays default OFF and has no prod override (read-only prod probe, 2026-10-16 19:52Z). With the flag off the prompt is byte-identical to before; the only persisted change is `arbiter: false` on each turn's context receipt. Every claim below is from unit tests and code reading.
+>
+> - **Evidence pack (`lib/brain/evidence-pack.ts`).** A validity filter over both lanes' candidates (as-of aware, the lanes' own `isVisibleAsOf` rule), reporting `droppedValidity: null` (UNMEASURED) when no candidate carries a validity column instead of a clean 0; ONE bounded rerank (1.5 s, window min(limit x 2, 24), only above the contextual lane's 5-item bar, query capped at 500 chars) with a `rerankReason`; every item rendered through the lanes' per-row trust rule, so third-party rows stay inside the untrusted-memory wrapper.
+> - **Producers (`lib/brain/memory-recall.ts`, `lib/brain/contextual-recall.ts`).** `RecallHit` and `RankedRecallRow` now carry `validUntil` / `supersededById` / `expiresAt` from rows the lanes already select (the SQL filters stay); `RECALL_ADDENDUM_HEADINGS` exported and used at its five push sites.
+> - **Prompt (`lib/services/chat/brain-context.ts`).** With the flag on, the pack is added beside a reduced Context Memories block that keeps the graph / cross-source / related sections (and the injection annotation) instead of deleting them; the pack reranks on the referent-aware recall text.
+> - **Receipt (`lib/ai/context-budget.ts`).** `ContextReceipt.arbiter` is true only when a pack actually reached the prompt; `rerankBackend` rides with it.
+> - **Instruments.** `scripts/recall-eval.ts` gains lanes `memory-recall` and `arbiter` (limit 10, window 20, INVALID banners when a lane did not really run); `scripts/arbiter-judge-split.ts` is SELECT-only (pinned by a source scan with a positive control) and splits `reply_judgment` composites by the receipt's arbiter state (true / false / unknown).
+>
+> **Promotion is Nour's.** Settings > Intelligence flags > `NICK_RECALL_ARBITER` > On (audited flip). After 7 days, from `apps/statenour`: `railway run -s statenour-web -- pnpm exec tsx scripts/arbiter-judge-split.ts --days 14`; keep it on only if the arbiter=true mean composite is not below the false / unknown buckets.
+>
+> **Flagged · NOT fixed**
+> - The frozen 121-case recall corpus and the sealed holdout were lost in a PC reset; `pnpm eval:recall` runs synthetic-only until a SELECT-only regeneration (a separate wave) exists.
+> - `tests/ai/chat/private-brain-context.test.ts` fails in the full `tests/brain` + `tests/ai` run (identity-snapshot score events from another file's state) and passes alone, both on this branch and on 18136ef0b: test-order pollution, not this diff.
+> - The reduced Context Memories block still carries the lane's heading "(N for: ...)" while its list moved into the pack.
+
 > ## 2026-10-16 · UI v3 Wave 3a · the Chat six-feet instrument (branch `statenour/ui-v3-w3a`) · 1 statenour PR, nothing user-visible
 >
 > Not live until merged. Every claim below is from unit tests, a local Playwright run against a hermetic `next dev --webpack` (dummy env, no database) and code reading; CI has not run this PR yet.
