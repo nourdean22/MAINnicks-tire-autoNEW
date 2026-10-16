@@ -15,7 +15,7 @@
 - ✅ **VAPI call event tracking** — call events logged to DB via webhooks
 - ✅ **Lighthouse CI** — runs on every PR
 - ✅ **GitHub Actions CI** — Build & Deploy + Verify Prerender + Test/Lint
-- ⚠️ **Sentry server-side** — `server/lib/sentry.ts` shim EXISTS with conditional integration (no-ops if `SENTRY_DSN` env unset). Just needs `pnpm add @sentry/node` + DSN env var to activate. Client-side Sentry NOT installed.
+- ⚠️ **Sentry server-side** — `server/lib/sentry.ts` shim EXISTS with conditional integration (no-ops if `SENTRY_DSN` env unset). `@sentry/node` 10.59.0 is installed; it activates when the DSN env var is set. Client-side Sentry NOT installed.
 - ✅ **Structured logger** — `server/lib/logger.ts` already provides leveled JSON output (similar to pino) — wave-51's "install pino" recommendation is moot
 - ⚠️ **No SLO targets defined** — what's "healthy" is implicit, not codified (this audit doc fixes that)
 - ⚠️ **No alert routing** — errors logged but not pushed to a notification channel

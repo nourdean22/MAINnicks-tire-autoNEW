@@ -17,7 +17,7 @@
 #                            they scan the whole server tree, so running only "my" test files misses them
 #   vitest related           every test that imports a changed file (a pinned budget in another
 #                            file's canary went red this way)
-#   ledger + DoD compiler    the completion-authority job
+#   ledger + DoD compiler    the completion-authority steps of the agent-policy job
 # Not covered: unresolved review threads (check-review-gate needs the PR) and the build of the
 # other app. CI stays the authority; this only stops the avoidable reds.
 

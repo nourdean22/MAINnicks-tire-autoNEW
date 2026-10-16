@@ -261,7 +261,7 @@ if (isMain) {
     const text =
       `ledger entry ${e.capabilityId} expires ${e.expiresAt} (${e.daysLeft}d left, ${e.operationalState} @ ${e.exposure}). ` +
       `Re-prove it with a live receipt and reset verificationExpiresAt, or lower the claim (scripts/regress-capability.mjs), ` +
-      `before then; after that every PR fails completion-authority.`;
+      `before then; after that every PR fails the completion-authority steps of the agent-policy job.`;
     console.log(
       process.env.GITHUB_ACTIONS === "true"
         ? `::warning title=Load-bearing ledger claim expiring soon::${escapeData(text)}`

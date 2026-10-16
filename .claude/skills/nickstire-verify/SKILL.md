@@ -22,7 +22,7 @@ multiple sessions.
 
 ## Before pushing a diff that touches `client/` — the DoD compiler
 
-`completion-authority` derives its requirements **per-diff**. Touching any
+The completion-authority steps of the agent-policy job derive their requirements **per-diff**. Touching any
 `client/` file (an edit, a rename, even a DELETION) derives an
 `operator-walkthrough` requirement, and any evidence already on `main` was
 written for a PREVIOUS diff — so it is **stale by definition** and fails the
@@ -42,7 +42,7 @@ every concurrent PR — don't.
 Witnessed on #1428: red in 22s on a stale entry, green in 31s once rewritten.
 
 **One check name, FOUR different sub-gates — a red is not "the same gate
-again."** Witnessed on #1830: `completion-authority` went red four times
+again."** Witnessed on #1830: the completion-authority steps of the agent-policy job went red four times
 on one PR, each a different sub-gate, ~50 minutes of fix-push-poll cycles
 because only sub-gate 1 was documented:
 1. Stale or missing per-diff completion evidence (above) — fix: add a

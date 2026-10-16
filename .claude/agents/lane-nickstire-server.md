@@ -39,7 +39,7 @@ Anything else (client UI, statenour, CI, packages, lockfile): write it under "Cr
 3. Read the brief twice; list every path the change must reach (every caller of a changed function, tests, schema, cron).
 4. `git log --oneline -5` and `git status --short` on your branch; a RESUME continues from the last commit.
 5. Invoke the frontmatter skills above by exact name with the Skill tool, plus any the brief adds.
-6. Write the red test last, before any other file changes, and record its failure shape (Nf/Mp) for the RETURN.
+6. Write the red test first, before any other file change, and record its failure shape (Nf/Mp) for the RETURN.
 
 ## Before you edit
 
@@ -51,7 +51,7 @@ Anything else (client UI, statenour, CI, packages, lockfile): write it under "Cr
 
 Commit each finished deliverable at once; never hold more than about 20 minutes of edits uncommitted: a process restart
 keeps only commits. Subject: `<type>`, `<app>`, `<summary>` joined by the middle dot U+00B7 (copy it from
-`git log -1 --format=%s`), per AGENTS.md > Commit Attribution. Trailer: the brief's MODEL TRAILER line, naming the model
+`git log -1 --format=%s`), per AGENTS.md > Commit Attribution. Trailer: `Co-Authored-By: <model> <noreply@anthropic.com>`, naming the model
 in your own harness system prompt, never a guessed one. Stage only your files by explicit path.
 
 ## Budget

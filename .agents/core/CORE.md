@@ -21,4 +21,4 @@ Keep them small: every line is paid for in every conversation. Caps: `scripts/ag
 | [HEARTBEAT.md](HEARTBEAT.md) | Nour says "heartbeat", or the 8 AM / 6 PM scheduled run |
 | [templates/](templates/) | task spec, subagent brief, completion report, handoff, memory entry |
 | [Manager skill](../../.claude/skills/monorepo-manager/SKILL.md) | a job touches more than one lane, or Nour says "manager" |
-| [Manager ledger](../../docs/agent-os/MANAGER-LEDGER.md) | job history and lessons; read the last 20 rows before managing |
+| [Manager ledger](../../docs/agent-os/MANAGER-LEDGER.md) | job history and lessons, one file per job in `docs/agent-os/ledger/`; `node scripts/agent-os/ledger-render.mjs --tail 20` before managing |

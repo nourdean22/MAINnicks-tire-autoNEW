@@ -33,15 +33,15 @@ const RESEARCH_FORBIDDEN_SKILLS = ["harness-worktree-setup"];
 // Matched as line starts inside the fenced block, so a field that survives only in the intro prose still fails.
 const FENCE_FIELDS = [
   "LANE:", "MODEL / EFFORT:", "GOAL:", "ACCEPTANCE:", "WHY:", "KNOWN:", "RULED OUT:", "DESIGN:", "FIXTURES:",
-  "PITFALLS:", "YOU MAY EDIT:", "PATH EXCEPTIONS:", "YOU MAY NOT:", "DATA:", "BUDGET:", "MODEL TRAILER:", "CHECKPOINTS:",
-  "COST:", "RESUME:", "ANTISLOP MODE:", "CODEMOD RULE:", "CONTROLS RULE:", "FIRST:", "SKILLS TO INVOKE FIRST:",
+  "PITFALLS:", "PATH EXCEPTIONS:", "YOU MAY NOT:", "DATA:", "LANE FILE GOVERNS:",
+  "RESUME:", "CODEMOD RULE:", "CONTROLS RULE:", "FIRST:", "SKILLS TO INVOKE FIRST:",
   "VERIFY WITH:", "SELF-AUDIT (before you return):", "RETURN (exactly):",
 ];
 const FENCE_INLINE_FIELDS = ["JOB ID:", "BASE SHA:", "CONTRACT:"];
 const RETURN_ITEMS = 7;
 const TEMPLATE_PHRASES = [
   "Subagent brief v3", "2026-10-15", "## Picking model and effort", "Token and tool-call count",
-  "<noreply@anthropic.com>", "tier A", "tier B", "tier C",
+  "tier A", "tier B", "tier C",
   // Skill recall for lane briefs (2026-10-16): the real command, not a shorthand that resolves nowhere.
   "plus the `node scripts/agent-os/skill-recall.mjs --file <brief>` output",
 ];
@@ -190,7 +190,7 @@ test("POSITIVE CONTROL: planted template mutants are reported", () => {
   const hit = (mutant, needle) => assert.ok(templateProblems(mutant).some((p) => p.includes(needle)), needle);
   hit(good.replace("MODEL / EFFORT:", "MODEL EFFORT:"), "MODEL / EFFORT:");
   hit(good.replace("## Picking model and effort", "## Picking"), "Picking");
-  hit(good.replace("CHECKPOINTS:", "CHECKPOINT:"), "CHECKPOINTS:");
+  hit(good.replace("LANE FILE GOVERNS:", "LANE FILE:"), "LANE FILE GOVERNS:");
   // Field deleted from the fence while the intro prose still says "SELF-AUDIT": a whole-file includes() would stay green.
   const selfAuditField = /^SELF-AUDIT \(before you return\):[\s\S]*?(?=^RETURN)/m;
   assert.match(good, selfAuditField);

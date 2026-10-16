@@ -44,8 +44,9 @@ workflow fan-outs and background suites count toward both (four concurrent suite
 
 ## Procedure (Execute)
 
-1. **Recover state.** Read EVERY row of `docs/agent-os/MANAGER-LEDGER.md` whose status is not MERGED/CANCELLED, plus the
-   last 5; run `node scripts/agent-os/ledger-check.mjs`; then `gh pr list --state open` and
+1. **Recover state.** Read EVERY ledger row whose status is not MERGED/CANCELLED, plus the last 5:
+   `node scripts/agent-os/ledger-render.mjs --open --tail 5` (rows live one per job in `docs/agent-os/ledger/`);
+   run `node scripts/agent-os/ledger-check.mjs`; then `gh pr list --state open` and
    `node scripts/agent-os/repo-status.mjs`. A row that names a PR: `gh pr view <n> --json state`; a MERGED PR under an
    open row is stale, fix the row in your PR. A request that matches an open job resumes it; never start a duplicate. Pasted plan? `plan-gate` first.
 2. **Spec.** Fill `.agents/core/templates/task-spec.md`. Record the base SHA (`git rev-parse origin/main`). A design choice gets two
@@ -103,8 +104,9 @@ workflow fan-outs and background suites count toward both (four concurrent suite
 14. **Report** with `.agents/core/templates/completion-report.md`, one line per lane, labels kept, and the highest evidence
     rung reached. Merge is not deploy: report live verification separately (nickstire `/api/health` `.deploy.commit`,
     statenour heartbeat).
-15. **Log and learn.** Write the job's ledger row in the SAME PR as `MERGED` with PR cell `this PR` (never `pending`), and
-    append the job's row to `docs/agent-os/MANAGER-METRICS.md`. A lesson repeated in an earlier row, or one severe incident, ->
+15. **Log and learn.** Add `docs/agent-os/ledger/<job-id>.md` in the SAME PR: the job's ledger row as `MERGED` with PR cell
+    `this PR` (never `pending`) and its metrics row under it; one file per job, so no sibling PR conflicts with it.
+    A lesson repeated in an earlier row, or one severe incident, ->
     `session-observer` proposal in `docs/skill-proposals.md`. Proposals only; Nour approves skill and policy edits. Never edit
     evaluators or guards to make a job pass. [references/ledger-and-metrics.md](references/ledger-and-metrics.md)
 

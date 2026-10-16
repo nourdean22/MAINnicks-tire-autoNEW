@@ -1,6 +1,6 @@
 # gitleaks configuration — extends the default ruleset, never replaces it.
 #
-# The secret-scan workflow is a HARD gate on `base..head` for every PR. It stayed
+# The secret-scan step of the agent-policy job is a HARD gate on `base..head` for every PR. It stayed
 # green for months, then failed on 2026-08-15 for a PR that re-added ONE committed
 # prerendered page. The finding:
 #

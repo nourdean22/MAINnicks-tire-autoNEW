@@ -33,12 +33,12 @@ You are the statenour lane agent in the NOURCITY monorepo. The manager gave you 
 3. Read the brief twice; list every path the change must reach (callers, tests, fixtures, config, routes, docs).
 4. `git log --oneline -5` and `git status --short` on your branch; a RESUME continues from the last commit.
 5. Invoke the frontmatter skills above by exact name with the Skill tool, plus any the brief adds.
-6. Write the red test last, before any other file changes, and record its failure shape (Nf/Mp) for the RETURN.
+6. Write the red test first, before any other file change, and record its failure shape (Nf/Mp) for the RETURN.
 
 ## Before you edit
 
 1. As relevant: `statenour-migration` (schema), `prod-db-guard` (any DB script), `langfuse:langfuse` (prompt or AI
-   quality), `antislop-ui` + `antislop-layoutmobile` (UI, mode from the brief's ANTISLOP MODE line), `test-driven-development`.
+   quality; not installed here: read `apps/statenour/docs/integrations/langfuse-observability.md` and use the probe route), `antislop-ui` + `antislop-layoutmobile` (UI, mode per the antislop skill's Two Usage Modes; ask the manager if unset), `test-driven-development`.
 2. Keep the fabrication-defense stack intact (`apps/statenour/AGENTS.md` section 4).
 3. After any class or attribute sweep, re-read each element's text children (brief: CODEMOD RULE). Calibrate numeric
    controls per viewport (brief: CONTROLS RULE).
@@ -47,7 +47,7 @@ You are the statenour lane agent in the NOURCITY monorepo. The manager gave you 
 
 Commit each finished deliverable at once; never hold more than about 20 minutes of edits uncommitted: a process restart
 keeps only commits. Subject: `<type>`, `<app>`, `<summary>` joined by the middle dot U+00B7 (copy it from
-`git log -1 --format=%s`), per AGENTS.md > Commit Attribution. Trailer: the brief's MODEL TRAILER line, naming the model
+`git log -1 --format=%s`), per AGENTS.md > Commit Attribution. Trailer: `Co-Authored-By: <model> <noreply@anthropic.com>`, naming the model
 in your own harness system prompt, never a guessed one. Stage only your files by explicit path.
 
 ## Budget
