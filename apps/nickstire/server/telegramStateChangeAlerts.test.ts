@@ -24,7 +24,7 @@ const h = vi.hoisted(() => ({
   atRisk: [{ risk: "overdue", orderNumber: "WO-1", workOrderId: 1, customerName: "Ann" }] as Array<Record<string, unknown>>,
   stale: [{ id: 1, customerName: "Bob", totalAmount: 25_000, invoiceDate: "2026-10-01", daysOld: 9 }] as Array<Record<string, unknown>>,
   /** What the transport answers to a once-per-state send. */
-  status: "delivered" as "delivered" | "held" | "failed",
+  status: "delivered" as "delivered" | "held" | "failed" | "throw",
 }));
 
 vi.mock("./services/telegram", async (importOriginal) => ({
@@ -37,6 +37,7 @@ vi.mock("./services/telegram", async (importOriginal) => ({
   sendTelegramResult: vi.fn(async (text: string, cls?: string) => {
     h.sends.push(text);
     h.classes.push(cls ?? "(none)");
+    if (h.status === "throw") throw new Error("transport exploded");
     return h.status === "held" ? { status: "held", heldBy: "telegram_digest_muted" } : { status: h.status };
   }),
 }));
@@ -135,6 +136,33 @@ describe("repeating business-hours alerts claim before they send", () => {
       at(WED_0030_ET); // new ET day
       await runTierJobHandlerUnlocked(name);
       expect(h.sends).toHaveLength(2);
+    });
+
+    it("releases the claim when the transport FAILS, so the next tick retries and a later success sends once", async () => {
+      h.status = "failed";
+      await runTierJobHandlerUnlocked(name);
+      expect(h.claims.size).toBe(0); // nothing was delivered: the day's claim is handed back
+      await runTierJobHandlerUnlocked(name);
+      expect(h.sends).toHaveLength(2); // retried on the next tick
+      h.status = "delivered";
+      await runTierJobHandlerUnlocked(name);
+      await runTierJobHandlerUnlocked(name);
+      expect(h.sends).toHaveLength(3); // delivered once, then deduped
+      expect(h.claims.size).toBe(1);
+    });
+
+    it("keeps the claim when the send is HELD by a mute: muted means do not retry today", async () => {
+      h.status = "held";
+      await runTierJobHandlerUnlocked(name);
+      await runTierJobHandlerUnlocked(name);
+      expect(h.sends).toHaveLength(1);
+      expect(h.claims.size).toBe(1);
+    });
+
+    it("releases the claim and rethrows when the transport throws", async () => {
+      h.status = "throw";
+      await expect(runTierJobHandlerUnlocked(name)).rejects.toThrow(/transport exploded/);
+      expect(h.claims.size).toBe(0);
     });
 
     it("still sends when the claim table is unreadable (fail open: an alert beats silence)", async () => {

@@ -1270,11 +1270,11 @@ function buildTiers(): void {
             // Alert if a single big job came in (>$1000). Once per ET day per band of the
             // daily target (2x, 3x, ...): this used to re-send the same line every 15 minutes.
             if (todayRevenue > 1000 && todayRevenue > dailyTarget * 2) {
-              const { claimAlertOnce } = await import("../services/alertClaim");
-              if (await claimAlertOnce(`revenue-pulse:over-target-${Math.floor(todayRevenue / dailyTarget)}x`)) {
-                const { sendTelegram } = await import("../services/telegram");
-                await sendTelegram(`💰 Big day building: $${Math.round(todayRevenue)} so far today (${Math.round((todayRevenue/dailyTarget)*100)}% of daily target)`, "digest");
-              }
+              const { sendOncePerState } = await import("../services/alertClaim");
+              const { sendTelegramResult } = await import("../services/telegram");
+              await sendOncePerState(`revenue-pulse:over-target-${Math.floor(todayRevenue / dailyTarget)}x`, () =>
+                sendTelegramResult(`💰 Big day building: $${Math.round(todayRevenue)} so far today (${Math.round((todayRevenue/dailyTarget)*100)}% of daily target)`, "digest"),
+              );
             }
             return { recordsProcessed: 1, details: `Today: $${Math.round(todayRevenue)}` };
           } catch (e) { log.warn("[cron/scheduler] operation failed:", e); throw e; /* audit F-9: a swallowed error was recorded as completed */ }
@@ -1822,15 +1822,15 @@ function buildTiers(): void {
             const atRiskJobs = (risk.jobs || []).filter((r) => r.risk === "at_risk" || r.risk === "likely_late" || r.risk === "overdue");
             if (atRiskJobs.length > 0) {
               // Once per ET day per SET of at-risk orders: a new order at risk is a new state.
-              const { claimAlertOnce, stateFingerprint } = await import("../services/alertClaim");
+              const { sendOncePerState, stateFingerprint } = await import("../services/alertClaim");
+              const { sendTelegramResult } = await import("../services/telegram");
               const state = stateFingerprint(atRiskJobs.map((r) => `${r.orderNumber || r.workOrderId}:${r.risk}`));
-              if (await claimAlertOnce(`promise-risk:${state}`)) {
-                const { sendTelegram } = await import("../services/telegram");
-                await sendTelegram(
+              await sendOncePerState(`promise-risk:${state}`, () =>
+                sendTelegramResult(
                   `⏰ PROMISE RISK: ${atRiskJobs.length} work orders at risk!\n\n` +
                   atRiskJobs.slice(0, 3).map((r) => `WO#${r.orderNumber || r.workOrderId}: ${r.customerName || "?"} — ${r.risk}`).join("\n"), "digest"
-                );
-              }
+                ),
+              );
             }
             return { recordsProcessed: atRiskJobs.length, details: `${atRiskJobs.length} at-risk WOs` };
           } catch (e) { log.warn("[cron/scheduler] operation failed:", e); throw e; /* audit F-9: a swallowed error was recorded as completed */ }
@@ -1854,15 +1854,17 @@ function buildTiers(): void {
             const stale = rows as Record<string, unknown>[];
             // Once per ET day per LIST of invoices (by id: two invoices can share a name and an amount;
             // daysOld is left out of the fingerprint because it ticks daily).
-            const { claimAlertOnce, stateFingerprint } = await import("../services/alertClaim");
-            const staleState = stateFingerprint(stale.map((e) => String(e.id ?? `${e.customerName}:${e.totalAmount}`)));
-            if (stale.length > 0 && (await claimAlertOnce(`stale-estimate:${staleState}`))) {
-              const { sendTelegram } = await import("../services/telegram");
+            if (stale.length > 0) {
+              const { sendOncePerState, stateFingerprint } = await import("../services/alertClaim");
+              const { sendTelegramResult } = await import("../services/telegram");
+              const staleState = stateFingerprint(stale.map((e) => String(e.id ?? `${e.customerName}:${e.totalAmount}`)));
               const totalPotential = stale.reduce((s: number, e) => s + Number(e.totalAmount || 0), 0);
-              await sendTelegram(
-                `💰 STALE ESTIMATES — ${stale.length} pending 3+ days ($${Math.round(totalPotential/100)})\n\n` +
-                stale.map((e) => `${e.customerName} — $${Math.round(Number(e.totalAmount)/100)} (${e.daysOld}d old)`).join("\n") +
-                `\n\nFollow up NOW — every day = lost conversion probability.`, "digest"
+              await sendOncePerState(`stale-estimate:${staleState}`, () =>
+                sendTelegramResult(
+                  `💰 STALE ESTIMATES — ${stale.length} pending 3+ days ($${Math.round(totalPotential/100)})\n\n` +
+                  stale.map((e) => `${e.customerName} — $${Math.round(Number(e.totalAmount)/100)} (${e.daysOld}d old)`).join("\n") +
+                  `\n\nFollow up NOW — every day = lost conversion probability.`, "digest"
+                ),
               );
             }
             return { recordsProcessed: stale.length, details: `${stale.length} stale estimates found` };
