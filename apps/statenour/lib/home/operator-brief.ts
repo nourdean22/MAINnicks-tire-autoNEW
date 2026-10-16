@@ -405,7 +405,7 @@ export async function buildOperatorBrief(now = new Date()): Promise<OperatorBrie
       count: pendingDecisions,
       expired: expiredDecisions ?? 0,
       oldestAgeMin: oldest ? Math.round((nowMs - oldest) / 60_000) : null,
-      href: "/system/actions",
+      href: "/system/actions?tab=approvals",
     });
   }
 
@@ -651,7 +651,7 @@ function mapLead(
         kind: "decide",
         headline: "Decisions are blocking the system",
         body: b.message,
-        cta: { label: "Review approvals", href: "/system/actions" },
+        cta: { label: "Review approvals", href: "/system/actions?tab=approvals" },
         taskId: null,
         ledgerId: null,
         alternatives: altFromCritical(null, 1),

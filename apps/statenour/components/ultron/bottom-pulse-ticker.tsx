@@ -34,6 +34,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 import { trpc } from "@/lib/trpc/client";
@@ -404,14 +405,14 @@ export function PulseFeedSheet({
                 <span className="notch absolute left-0 top-1/2 -translate-y-1/2" aria-hidden />
               )}
               {it.href ? (
-                <a
+                <Link
                   href={it.href}
                   className="flex-1 min-w-0 py-2 rounded-control hover:bg-surface-hover transition-colors duration-[var(--motion-state)]"
                   aria-label={`${it.label}: ${it.text}`}
                   onClick={onClose}
                 >
                   <PulseContent item={it} row />
-                </a>
+                </Link>
               ) : (
                 <button
                   type="button"

@@ -2326,3 +2326,39 @@ measurement. Every proposal below cites the moment in this wave that produced it
 - **Proposed edit:** in step 5, after the dispatch: "write the dispatch time (UTC) into the ledger row's Next cell"; step 15 then computes cycle time from it.
 - **Confidence:** medium (three rows, same gap)
 - **Status:** proposed
+## 2026-10-16 · bdnick UI v3 waves W0 to W1b (manager session "bdnick ui upgrade")
+
+### P1 · monorepo-manager (references/verify.md, step 6)
+- **Trigger (witnessed):** I granted a one-line href change (`lib/floating-home/smart-now.ts:62`, `/system/actions` to `/system/actions?tab=approvals`) from a lane's cross-lane note without checking its readers; the same file's `pathname.startsWith(target)` guard then never matched, so the More sheet kept suggesting the page the operator was already on (W1b review P1-1).
+- **Cost:** one extra lane round and one extra CI run on PR W1b.
+- **Proposed edit:** under step 6 add: "A granted one-line value change (an href, a key, a label) is reviewed like code: grep every reader of the OLD value, including guards that compare against it, before the grant."
+- **Confidence:** high (the same shape hit W1a: `toLowerCase()` hidden behind a removed `uppercase` class, and the mastery `icon` field whose readers only tsc found).
+- **Status:** proposed
+
+### P1 · statenour-verify
+- **Trigger (witnessed):** the W1a lane's "broad sweep" ran `tests/components tests/repo __tests__ tests/lib tests/hooks tests/floating-home` and reported INFERRED green; CI then failed on `tests/home/waiting-line.test.tsx:59`, a casing pin outside that list (#3066 node run 38834210409). The same lane later ran the whole suite from PowerShell and saw two reds that were only `'bash' is not recognized` (the anti-slop gate files spawn bash).
+- **Cost:** one CI run (about 45 runner-minutes) and one rework push.
+- **Proposed edit:** "Before RETURN on any copy or class sweep, run the whole statenour vitest suite once, from Git Bash, alone; a partial directory list is not a sweep. If `tests/repo/anti-slop-gate.test.ts` and `tests/redteam/repo-canary-gates.redteam.test.ts` are the only reds and the shell is PowerShell, rerun those two from Git Bash before calling them real."
+- **Confidence:** high (two incidents in one job).
+- **Status:** proposed
+
+### P2 · antislop-layoutmobile (or a repo note in empty-vs-error)
+- **Trigger (witnessed):** to recover ink on `missions/phone` the lane moved `/missions` off the core-page list, which only changed its description from `never` to the `md-up` default, still hidden at 390 px; the CI distance stayed at 0.342 (run 38836221412). The real fix was `descriptionVisibility="always"`.
+- **Cost:** one CI run and one lane round.
+- **Proposed edit:** add the rule: "A width-conditional default is not a restore. Before calling a prop flip a fix, state what the default renders at the width the gate measures."
+- **Confidence:** medium (once, clear).
+- **Status:** proposed
+
+### P2 · monorepo-manager (step 10, review-and-merge.md)
+- **Trigger (witnessed):** three process restarts in one night killed the running `adversarial-review` workflow and two lane rounds; only committed work and scratchpad notes survived. Lanes that committed per deliverable lost nothing; the W0b lane lost 76 minutes of uncommitted edits once.
+- **Cost:** about 2 hours of repeated agent work.
+- **Proposed edit:** "Write every lane brief and every review brief to the session scratchpad before dispatch, and re-dispatch from the file after a restart; prefer two read-only lens agents over a multi-agent workflow when the machine is below 2 GB free." The CHECKPOINTS rule already landed in brief v3 (#3064).
+- **Confidence:** medium.
+- **Status:** proposed (CHECKPOINTS part: applied #3064)
+
+### P2 · skill-fire-audit
+- **Trigger (witnessed):** `fire_audit.py --days 14` crashed with `FileNotFoundError` on a transcript path over 260 characters under `~/.claude/projects/` (Windows long path), so the instrument meant to answer "which skills fire" could not run.
+- **Cost:** the measurement Nour asked for was unavailable until the fix on chore/skill-recall-hook.
+- **Proposed edit:** "Per-file reads are wrapped; skipped files are counted and printed; on Windows retry with the extended-length prefix." (Being applied in the skill-recall PR.)
+- **Confidence:** high.
+- **Status:** proposed (fix in flight)

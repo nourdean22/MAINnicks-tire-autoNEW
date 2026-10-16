@@ -167,7 +167,7 @@ export const GET = cronHandler(async () => {
   if (pendingActionsSweep.purged > 0) {
     const n = pendingActionsSweep.purged;
     await sendTelegram(
-      `🧹 Auto-rejected ${n} pending approval${n === 1 ? "" : "s"} older than 7 days. Review the queue at bdnick.info/system/actions`,
+      `🧹 Auto-rejected ${n} pending approval${n === 1 ? "" : "s"} older than 7 days. Review the queue at bdnick.info/system/actions?tab=approvals`,
     ).catch((err: unknown) => {
       logError("cron.data-cleanup", err, { fn: "autoPurgeNotice" }, "warn");
       return false;

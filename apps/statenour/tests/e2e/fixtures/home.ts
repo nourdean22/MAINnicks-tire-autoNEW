@@ -43,7 +43,7 @@ export const HOME_BRIEF: OperatorBrief = {
   },
   judgment: {
     items: [
-      { kind: "approvals", count: 3, expired: 1, oldestAgeMin: 310, href: "/system/actions" },
+      { kind: "approvals", count: 3, expired: 1, oldestAgeMin: 310, href: "/system/actions?tab=approvals" },
       {
         kind: "commitment",
         id: 9001,

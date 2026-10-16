@@ -456,7 +456,7 @@ export function composeOwnerPanel(input: OwnerPanelInput): OwnerPanel {
               clip(attempt.reason) ??
               `${attempt.effectClass} · ${clip(attempt.operationKey, 100) ?? attempt.operationKey}`,
             since: attempt.startedAt,
-            href: "/system/actions",
+            href: "/system/actions?tab=approvals",
             evidence,
           }),
         );
@@ -542,7 +542,7 @@ export function composeOwnerPanel(input: OwnerPanelInput): OwnerPanel {
           title: `approve ${a.actionType}?`,
           detail: `rule ${a.ruleName}`,
           since: a.createdAt,
-          href: "/system/actions",
+          href: "/system/actions?tab=approvals",
           evidence: `autonomous_actions ${a.id}`,
         }),
       );
@@ -561,7 +561,7 @@ export function composeOwnerPanel(input: OwnerPanelInput): OwnerPanel {
           title: `approve ${r.actionType}?`,
           detail: clip(r.reason),
           since: r.createdAt,
-          href: "/system/actions",
+          href: "/system/actions?tab=approvals",
           evidence: `approval_requests ${r.id}`,
         }),
       );
@@ -575,7 +575,7 @@ export function composeOwnerPanel(input: OwnerPanelInput): OwnerPanel {
           title: `${expiredCount} ${expiredCount === 1 ? "approval" : "approvals"} expired unanswered`,
           detail: "each needs a re-request or a dismissal",
           since: Number.isFinite(oldestExpired) ? new Date(oldestExpired) : null,
-          href: "/system/actions",
+          href: "/system/actions?tab=approvals",
           evidence: "autonomous_actions + approval_requests past their freshness window",
         }),
       );

@@ -19,7 +19,7 @@
  *
  * The bottom tab bar keeps `aria-label="Primary"` — the e2e suite derives
  * the bottom chrome from it — so this nav is "Workspace", and its launcher
- * button carries a different accessible name from the tab bar's "More".
+ * button carries a different accessible name from the tab bar's "Command".
  */
 
 import Link from "next/link";
