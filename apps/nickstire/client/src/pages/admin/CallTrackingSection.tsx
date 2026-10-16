@@ -193,8 +193,9 @@ export default function CallTrackingSection() {
       </div>
 
       {(statsUnknown || callsFailed) && (
-        <div className="border border-amber-500/40 bg-amber-500/10 p-4 text-[13px] text-amber-400">
-          {"Call stats couldn't load. The counts above are unknown, not zero."}
+        <div className="border border-amber-500/40 bg-amber-500/10 p-4 text-[13px] text-amber-400 space-y-1">
+          {statsUnknown && <p>{"Call stats couldn't load. The counts above are unknown, not zero."}</p>}
+          {callsFailed && <p>{"Call events couldn't load. Top Source and the charts below are unknown, not empty."}</p>}
         </div>
       )}
 

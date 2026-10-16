@@ -202,13 +202,60 @@ describe("Today (OverviewSection)", () => {
     expect(screen.getByText(/Now: all clear/)).toBeTruthy();
   });
 
-  it("Open work order goes to Money's work orders tab, and shows one button", async () => {
-    window.history.replaceState({}, "", "/admin?tab=overview&moneyTab=declined");
+  function workOrderScenario(role: string, customerId?: number) {
+    h.queries.set("adminSecurity.status", ok({ adminRole: role, permissions: [] }));
     h.queries.set("adminDashboard.overviewMediumBundle", ok(EMPTY_BUNDLE));
-    h.queries.set("workOrders.list", ok([{ id: 7, status: "in_progress", customerName: "Pat Example", createdAt: new Date().toISOString() }]));
+    h.queries.set("workOrders.list", ok([{ id: 7, status: "in_progress", customerName: "Pat Example", customerId, createdAt: new Date().toISOString() }]));
+    const receipts: Array<{ action: string; changes: Record<string, unknown> }> = [];
+    h.mutations.set("adminSecurity.recordAction", () => ({
+      mutateAsync: async (input: { action: string; changes: Record<string, unknown> }) => {
+        receipts.push(input);
+        return { reference: "ACT-1" };
+      },
+      isPending: false,
+    }));
     const sections: string[] = [];
     const listener = (e: Event) => sections.push((e as CustomEvent<{ section: string }>).detail.section);
     window.addEventListener("admin:navigate-section", listener);
+    return { receipts, sections, done: () => window.removeEventListener("admin:navigate-section", listener) };
+  }
+
+  it("front desk opens the customer's Active Backlog instead of Money, and the receipt names it", async () => {
+    const s = workOrderScenario("front_desk", 42);
+    try {
+      render(<OverviewSection />);
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Open work order" }));
+      });
+      expect(s.sections).toEqual(["customers"]);
+      const url = new URL(window.location.href);
+      expect(url.searchParams.get("id")).toBe("42");
+      expect(url.searchParams.get("profileTab")).toBe("backlog");
+      expect(s.receipts).toEqual([expect.objectContaining({ action: "admin.work_order_opened", changes: expect.objectContaining({ target: "customers" }) })]);
+    } finally {
+      s.done();
+    }
+  });
+
+  it("front desk with no customer on the work order: no navigation, a toast, and no opened receipt", async () => {
+    const s = workOrderScenario("front_desk");
+    try {
+      render(<OverviewSection />);
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Open work order" }));
+      });
+      expect(s.sections).toEqual([]);
+      expect(h.toastError).toHaveBeenCalledWith("Work orders are in Money, which your role cannot open");
+      expect(s.receipts).toEqual([]);
+    } finally {
+      s.done();
+    }
+  });
+
+  it("Open work order goes to Money's work orders tab for an owner, and shows one button", async () => {
+    window.history.replaceState({}, "", "/admin?tab=overview&moneyTab=declined");
+    const s = workOrderScenario("owner", 42);
+    const { sections, receipts } = s;
     try {
       render(<OverviewSection />);
       const buttons = screen.getAllByRole("button", { name: "Open work order" });
@@ -218,11 +265,12 @@ describe("Today (OverviewSection)", () => {
       });
       expect(sections).toEqual(["revenue"]);
       expect(new URL(window.location.href).searchParams.get("moneyTab")).toBeNull();
+      expect(receipts).toEqual([expect.objectContaining({ action: "admin.work_order_opened", changes: expect.objectContaining({ target: "revenue" }) })]);
       const wo = getQueueActionDefinition("workOrder");
       expect(wo.primaryConfirmMessage("Pat")).toBe("Open Pat's work order in Money.");
       expect(wo.secondaryConfirmMessage("Pat")).toBe("Open Pat's work order in Money.");
     } finally {
-      window.removeEventListener("admin:navigate-section", listener);
+      s.done();
     }
   });
 });
@@ -295,6 +343,16 @@ describe("Customers", () => {
     }
   });
 
+  it("CustomerProfile opens the tab named by ?profileTab once, then drops the param", () => {
+    window.history.replaceState({}, "", "/admin?tab=customers&id=1&profileTab=backlog");
+    h.queries.set("customers.getById", ok({ id: 1, name: "Pat Example", phone: "2165550100", totalVisits: 1, totalSpent: 0 }));
+    h.queries.set("customers.timeline", ok([]));
+    h.queries.set("customers.history", ok({ invoices: [], declinedEstimates: [], openWorkOrders: [] }));
+    render(<CustomerProfile customerId={1} onClose={() => {}} />);
+    expect(screen.getByText("No active work orders found.")).toBeTruthy();
+    expect(new URL(window.location.href).searchParams.get("profileTab")).toBeNull();
+  });
+
   it("positive control: CustomerProfile still says none found on a clean empty read", () => {
     h.queries.set("customers.getById", ok({ id: 1, name: "Pat Example", phone: "2165550100", totalVisits: 1, totalSpent: 0 }));
     h.queries.set("customers.timeline", ok([]));
@@ -331,9 +389,13 @@ describe("Voice today calls", () => {
     h.queries.set("vapi.todayCalls", { ...FAILED, refetch });
     render(<VoiceReceptionistSection />);
     expect(screen.queryByText("No calls yet today")).toBeNull();
-    expect(screen.getByText(/Today's calls couldn't load, state unknown, not empty/)).toBeTruthy();
+    // The default range is the last 7 days; the message names the range on screen.
+    expect(screen.getByText("Calls for last 7 days couldn't load, state unknown, not empty")).toBeTruthy();
+    expect(screen.queryByText(/Today's calls couldn't load/)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /try again/i }));
     expect(refetch).toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Today" }));
+    expect(screen.getByText("Today's calls couldn't load, state unknown, not empty")).toBeTruthy();
   });
 
   it("positive control: a clean empty read still says No calls yet today", () => {
@@ -352,7 +414,8 @@ describe("Call Tracking tiles", () => {
     for (const label of ["Total Calls", "This Week", "Callbacks Total"]) {
       expect(statCard(label).textContent, label).not.toMatch(/\d/);
     }
-    expect(screen.getAllByText(/Call stats couldn't load/)).toHaveLength(1);
+    expect(screen.getAllByText("Call stats couldn't load. The counts above are unknown, not zero.")).toHaveLength(1);
+    expect(screen.getAllByText("Call events couldn't load. Top Source and the charts below are unknown, not empty.")).toHaveLength(1);
   });
 
   it("calls failed, stats fine: Top Source unknown, one amber block, and no empty-state lines", () => {
@@ -361,7 +424,9 @@ describe("Call Tracking tiles", () => {
     h.queries.set("callback.list", ok([]));
     render(<CallTrackingSection />);
     expect(within(statCard("Top Source")).getByText("Unable to determine")).toBeTruthy();
-    expect(screen.getAllByText(/Call stats couldn't load/)).toHaveLength(1);
+    // The stats tiles above are valid here, so the line must not call them unknown.
+    expect(screen.queryByText("Call stats couldn't load. The counts above are unknown, not zero.")).toBeNull();
+    expect(screen.getAllByText("Call events couldn't load. Top Source and the charts below are unknown, not empty.")).toHaveLength(1);
     for (const empty of ["No call data for peak hours", "No call data yet", "No call events yet."]) {
       expect(screen.queryByText(empty), empty).toBeNull();
     }
@@ -373,6 +438,8 @@ describe("Call Tracking tiles", () => {
     h.queries.set("callback.list", ok([]));
     render(<CallTrackingSection />);
     expect(statCard("Total Calls").textContent).not.toMatch(/\d/);
+    expect(screen.getByText("Call stats couldn't load. The counts above are unknown, not zero.")).toBeTruthy();
+    expect(screen.queryByText("Call events couldn't load. Top Source and the charts below are unknown, not empty.")).toBeNull();
   });
 
   it("positive control: real stats render their numbers", async () => {

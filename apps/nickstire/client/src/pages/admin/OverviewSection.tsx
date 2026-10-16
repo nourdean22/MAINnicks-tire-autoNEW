@@ -28,7 +28,8 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { navigateToAdminSection } from "./shared";
+import { navigateToAdminSection, sectionsForRole } from "./shared";
+import type { AdminRole } from "@shared/adminPermissions";
 import { navigateToAdminUrl } from "./shared/navigation";
 import ArrivalLoadStrip from "./today/ArrivalLoadStrip";
 import ExceptionFeed from "./today/ExceptionFeed";
@@ -105,6 +106,8 @@ export default function OverviewSection() {
   const [filter, setFilter] = useState<"all" | ActionItem["type"]>("all");
   const { data: security } = trpc.adminSecurity.status.useQuery();
   const canViewHistory = security?.permissions.includes("reports.view") ?? false;
+  // Same derivation as the shell (Admin.tsx): the role decides where a work order can open.
+  const adminRole = (security?.adminRole ?? "viewer") as AdminRole;
 
   const {
     data: bundle,
@@ -351,13 +354,31 @@ export default function OverviewSection() {
     );
   }
 
-  // Work orders live on Money's default tab (Shop Pulse); drop a stale moneyTab so the tab
-  // that renders WorkOrdersSection opens. Work orders have no deep link to a single row yet.
-  function openWorkOrders() {
+  /**
+   * Work orders live on Money's default tab (Shop Pulse). Money is closed to front desk and tech,
+   * whose queue still carries work orders, so they get the customer's Active Backlog instead.
+   * Returns where it went, or null when no section this role can open shows the work order.
+   * Work orders have no deep link to a single row yet.
+   */
+  function openWorkOrder(item: ActionItem): "revenue" | "customers" | null {
+    const allowed = sectionsForRole(adminRole);
     const url = new URL(window.location.href);
-    url.searchParams.delete("moneyTab");
-    window.history.replaceState({}, "", url.toString());
-    navigateToAdminSection("revenue");
+    if (allowed.includes("revenue")) {
+      url.searchParams.delete("moneyTab");
+      window.history.replaceState({}, "", url.toString());
+      navigateToAdminSection("revenue");
+      return "revenue";
+    }
+    const customerId = Number(currentWorkOrders.find((wo) => wo.id === item.entityId)?.customerId);
+    if (allowed.includes("customers") && customerId > 0) {
+      url.searchParams.set("id", String(customerId));
+      url.searchParams.set("profileTab", "backlog");
+      window.history.replaceState({}, "", url.toString());
+      navigateToAdminSection("customers");
+      return "customers";
+    }
+    toast.error("Work orders are in Money, which your role cannot open");
+    return null;
   }
 
   async function performPrimary(item: ActionItem) {
@@ -367,8 +388,8 @@ export default function OverviewSection() {
       return;
     }
     if (item.type === "workOrder") {
-      openWorkOrders();
-      await logReceipt(item, "admin.work_order_opened", { status: item.status });
+      const target = openWorkOrder(item);
+      if (target) await logReceipt(item, "admin.work_order_opened", { status: item.status, target });
       return;
     }
     const confirmed = await confirmDialog({
@@ -410,8 +431,8 @@ export default function OverviewSection() {
       return;
     }
     if (item.type === "workOrder") {
-      openWorkOrders();
-      await logReceipt(item, "admin.work_order_opened", { status: item.status });
+      const target = openWorkOrder(item);
+      if (target) await logReceipt(item, "admin.work_order_opened", { status: item.status, target });
       return;
     }
     const confirmed = await confirmDialog({

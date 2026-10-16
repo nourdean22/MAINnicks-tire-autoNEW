@@ -674,7 +674,7 @@ export default function VoiceReceptionistSection() {
             {callsLoading ? (
               <SkeletonTable rows={6} cells={5} />
             ) : callsFailed ? (
-              <ErrorState message="Today's calls couldn't load, state unknown, not empty" onRetry={() => void refetchCalls()} />
+              <ErrorState message={`${rangePreset === "today" ? "Today's calls couldn't load" : `Calls for ${range.shortLabel} couldn't load`}, state unknown, not empty`} onRetry={() => void refetchCalls()} />
             ) : callsList.length === 0 && rawCalls.length === 0 ? (
               <EmptyState
                 icon={<PhoneCall className="w-8 h-8" />}

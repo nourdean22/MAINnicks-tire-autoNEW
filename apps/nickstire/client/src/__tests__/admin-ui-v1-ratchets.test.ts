@@ -29,7 +29,9 @@
  *                  text-sm, text-[Npx], rem or em under 1, with or without the v4 `!` suffix) or whose
  *                  inline style sets fontSize under 16px. A native <select> counts too: iOS Safari zooms
  *                  inputs, textareas and selects on focus under 16px. Checkbox, radio, range, file, hidden, color and
- *                  button-like types are exempt. A className held in a same-file const is followed.
+ *                  button-like types are exempt. A className held in a same-file const is followed; a
+ *                  name declared more than once in a file is read as the union of its initializers, so
+ *                  shadowed locals may over-count (never under-count).
  *   offPalette     a colour utility whose family is purple, violet, indigo, pink, fuchsia, cyan or rose
  *                  ((text|bg|border|border-{t,b,l,r,x,y,s,e}|ring|ring-offset|from|to|via|fill|stroke|shadow|
  *                  outline|accent|caret|decoration|divide|placeholder)-<family>-), any variant prefix, with or
@@ -123,14 +125,14 @@ function literalText(node: ts.Node): string | null {
   return null;
 }
 
-/** Every string piece inside an expression, following same-file consts. */
-function stringsIn(node: ts.Node, consts: Map<string, ts.Expression>, depth = 0): string[] {
+/** Every string piece inside an expression, following same-file consts (every declaration of a name). */
+function stringsIn(node: ts.Node, consts: Map<string, ts.Expression[]>, depth = 0): string[] {
   if (depth > 4) return [];
   const out: string[] = [];
   const visit = (n: ts.Node) => {
     const text = ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n) || ts.isTemplateHead(n) || ts.isTemplateMiddle(n) || ts.isTemplateTail(n) ? n.text : null;
     if (text !== null) out.push(text);
-    else if (ts.isIdentifier(n) && consts.has(n.text)) out.push(...stringsIn(consts.get(n.text)!, consts, depth + 1));
+    else if (ts.isIdentifier(n) && consts.has(n.text)) for (const init of consts.get(n.text)!) out.push(...stringsIn(init, consts, depth + 1));
     ts.forEachChild(n, visit);
   };
   visit(node);
@@ -162,7 +164,7 @@ function styleIsSmall(node: ts.Node): boolean {
   return small;
 }
 
-function isSmallInput(n: ts.JsxOpeningElement | ts.JsxSelfClosingElement, consts: Map<string, ts.Expression>): boolean {
+function isSmallInput(n: ts.JsxOpeningElement | ts.JsxSelfClosingElement, consts: Map<string, ts.Expression[]>): boolean {
   const tag = n.tagName.getText().split(".").pop() ?? "";
   if (!INPUT_TAG.test(tag)) return false;
   let small = false;
@@ -185,9 +187,11 @@ function scanCode(source: string, fileName: string): Counts {
   const c = zero();
   const kind = fileName.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
   const sf = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true, kind);
-  const consts = new Map<string, ts.Expression>();
+  // Name-keyed but not scope-aware: a name declared twice reads as the UNION of its initializers,
+  // so a later wide `cls` can never hide an earlier small one (the ratchet errs toward counting).
+  const consts = new Map<string, ts.Expression[]>();
   const collect = (n: ts.Node) => {
-    if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.initializer) consts.set(n.name.text, n.initializer);
+    if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.initializer) consts.set(n.name.text, [...(consts.get(n.name.text) ?? []), n.initializer]);
     ts.forEachChild(n, collect);
   };
   collect(sf);
@@ -397,6 +401,17 @@ describe("admin UI v1 ratchet instrument", () => {
     });
     const counts = scanTree(root).scan[PAGE];
     expect(counts).toEqual({ ...zero(), offPalette: 5, smallInput: 2 });
+  });
+
+  it("a const name declared twice in one file is read as the union, so a later wide one cannot hide a small one", () => {
+    const root = fixtureTree({
+      [PAGE]: [
+        `function A() { const cls = "w-full text-sm"; return <input className={cls} />; }`,
+        `function B() { const cls = "w-full text-base"; return <div className={cls} />; }`,
+        `export { A, B };`,
+      ].join("\n"),
+    });
+    expect(scanTree(root).scan[PAGE].smallInput).toBe(1);
   });
 
   it("never counts comments, sanctioned glyphs, or a ZWJ sequence more than once", () => {

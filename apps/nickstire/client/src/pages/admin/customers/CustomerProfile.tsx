@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { formatDate, ErrorState } from "../shared";
 import MessageCustomerLink from "@/components/admin/MessageCustomerLink";
@@ -90,7 +90,17 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function CustomerProfile({ customerId, onClose }: Props) {
   const utils = trpc.useUtils();
-  const [activeTab, setActiveTab] = useState<TabType>("history");
+  // ?profileTab= lets another section open a tab (Today sends backlog for a work order); read once.
+  const [activeTab, setActiveTab] = useState<TabType>(() => {
+    const raw = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("profileTab");
+    return raw === "declined" || raw === "backlog" ? raw : "history";
+  });
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("profileTab")) return;
+    url.searchParams.delete("profileTab");
+    window.history.replaceState({}, "", url.toString());
+  }, []);
   const [notesEditing, setNotesEditing] = useState(false);
   const [notesText, setNotesText] = useState("");
 
