@@ -69,7 +69,7 @@ export function DeckNextMove({ nextMove, capacity, onStart, onPickDifferent }: P
             {kind === "resume" ? "resume" : "next move"}
           </h2>
           <span className="font-mono text-[12px] tabular-nums text-fg-tertiary">
-            today: {capacity.chosenCount} chosen · {minutesLabel(capacity.chosenMinutes)}
+            Today: {capacity.chosenCount} chosen · {minutesLabel(capacity.chosenMinutes)}
           </span>
         </div>
 

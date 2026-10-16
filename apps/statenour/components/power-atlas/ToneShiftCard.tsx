@@ -65,7 +65,7 @@ export default function ToneShiftCard({ metadata }: ToneShiftCardProps) {
             Tone shift
           </h3>
           <span className="font-mono text-[11px] text-fg-tertiary">
-            trailing 3 vs 30
+            Trailing 3 vs 30
           </span>
         </div>
         <p className="text-xs text-fg-tertiary">
@@ -87,7 +87,7 @@ export default function ToneShiftCard({ metadata }: ToneShiftCardProps) {
           Tone shift
         </h3>
         <span className="font-mono text-[11px] text-fg-tertiary">
-          trailing 3 vs 30
+          Trailing 3 vs 30
         </span>
       </div>
 

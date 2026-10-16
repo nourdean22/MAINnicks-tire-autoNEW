@@ -148,7 +148,7 @@ describe("MemoryInspector / a loaded memory", () => {
     const html = render({ data: MEMORY });
     expect(html).toContain('data-memory-time="absent"');
     const body = text(html);
-    expect(body).toContain("no validity interval or supersession recorded");
+    expect(body).toContain("No validity interval or supersession recorded");
     expect(body).not.toContain("believed since");
     expect(body).not.toContain("superseded by");
   });
@@ -163,6 +163,6 @@ describe("MemoryInspector / a loaded memory", () => {
     expect(body).toContain("believed since");
     expect(body).toContain("superseded by");
     expect(body).toContain("newer");
-    expect(body).not.toContain("no validity interval or supersession recorded");
+    expect(body).not.toContain("No validity interval or supersession recorded");
   });
 });

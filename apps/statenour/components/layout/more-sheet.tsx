@@ -165,7 +165,7 @@ export function MoreSheet() {
               <div className="mb-1 flex items-center gap-1">
                 <Clock size={9} className="text-[var(--text-tertiary)]" />
                 <span className="font-mono text-[11px] text-[var(--text-tertiary)]">
-                  recent
+                  Recent
                 </span>
               </div>
               <div className="flex flex-wrap items-center gap-1">

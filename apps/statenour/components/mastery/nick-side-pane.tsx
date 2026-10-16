@@ -287,7 +287,7 @@ export function NickSidePane({
        *  Coach Channel layer + new side-pane-chat endpoint. */}
       <footer className="px-4 py-2 border-t border-[var(--border-default)]/60 shrink-0">
         <p className="font-mono text-[11px] text-fg-tertiary">
-          phase 5 full · multi-turn · proactive chips · per-device thread
+          Phase 5 full · multi-turn · proactive chips · per-device thread
         </p>
       </footer>
     </>
@@ -326,7 +326,7 @@ export function NickSidePane({
         )}
       >
         <Brain size={14} strokeWidth={1.75} />
-        <span className="font-mono text-[11px]">nick</span>
+        <span className="font-mono text-[11px]">Nick</span>
       </button>
 
       {/* Desktop (lg+) · a non-modal right pane: the page beside it stays usable. */}

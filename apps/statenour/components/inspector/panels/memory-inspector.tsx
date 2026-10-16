@@ -240,7 +240,7 @@ export function MemoryInspector({ entity }: InspectorPanelProps) {
           </ul>
         ) : (
           <p className="font-mono text-[11px] text-fg-tertiary">
-            no validity interval or supersession recorded · current belief by default
+            No validity interval or supersession recorded · current belief by default
           </p>
         )}
       </section>

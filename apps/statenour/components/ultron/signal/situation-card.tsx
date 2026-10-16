@@ -185,7 +185,7 @@ export function SituationCard({ initial = null }: SituationCardProps) {
         <div className="flex items-center gap-2 mb-1">
           <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
           <span className="font-mono text-[11px] text-rose-400">
-            situation
+            Situation
           </span>
           <span className="ml-auto font-mono text-[11px] text-fg-tertiary">
             unreadable
@@ -213,7 +213,7 @@ export function SituationCard({ initial = null }: SituationCardProps) {
         <div className="flex items-center gap-2 mb-1">
           <span className={cn("w-1.5 h-1.5 rounded-full", SEV_DOT.win)} />
           <span className="font-mono text-[11px] text-emerald-400">
-            situation
+            Situation
           </span>
           <span className="ml-auto font-mono text-[11px] text-fg-tertiary">
             clear
@@ -250,7 +250,7 @@ export function SituationCard({ initial = null }: SituationCardProps) {
           />
         )}
         <span className="font-mono text-[11px] text-fg-secondary">
-          situation
+          Situation
         </span>
         {primary && (
           <span

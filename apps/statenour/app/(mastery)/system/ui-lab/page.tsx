@@ -340,7 +340,7 @@ export default function UiLabPage() {
           mode={frameOpen}
           presentation="sheet"
           onClose={() => setFrameOpen(null)}
-          actions={<p className="font-mono text-[11px] text-fg-tertiary">actions slot: open · ask Nick · workset · copy link</p>}
+          actions={<p className="font-mono text-[11px] text-fg-tertiary">Actions slot: open · ask Nick · workset · copy link</p>}
         >
           <FixtureMemoryBody />
         </InspectorFrame>

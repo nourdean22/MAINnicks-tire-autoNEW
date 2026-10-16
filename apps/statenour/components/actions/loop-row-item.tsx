@@ -934,7 +934,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
             <div className="flex items-center gap-2">
               <Edit3 size={11} className="text-amber-400 shrink-0" />
               <span className="text-[11px] text-amber-400 font-mono">
-                editing
+                Editing
               </span>
             </div>
             <div className="space-y-1.5">

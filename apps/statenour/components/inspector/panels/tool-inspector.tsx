@@ -126,7 +126,7 @@ export function ToolInspector({ entity }: InspectorPanelProps) {
           </span>
           <span className="rounded-micro border border-edge-default px-1.5 py-px font-mono text-[11px] text-fg-tertiary">{t.category}</span>
           <span className={cn("font-mono text-[11px]", HEALTH_CLS[t.health] ?? "text-fg-tertiary")} data-tool-health={t.health}>
-            health · {t.health.replace(/_/g, " ")}
+            Health · {t.health.replace(/_/g, " ")}
           </span>
         </div>
         <h2 className="text-[17px] font-semibold leading-tight text-fg">{t.label}</h2>
@@ -167,7 +167,7 @@ export function ToolInspector({ entity }: InspectorPanelProps) {
         ) : (
           <p className="font-mono text-[12px] text-fg-tertiary">no env required</p>
         )}
-        {t.optionalEnv?.length ? <p className="font-mono text-[11px] text-fg-tertiary">optional · {t.optionalEnv.join(", ")}</p> : null}
+        {t.optionalEnv?.length ? <p className="font-mono text-[11px] text-fg-tertiary">Optional · {t.optionalEnv.join(", ")}</p> : null}
       </section>
 
       {t.currentLimitations.length > 0 ? (
@@ -183,7 +183,7 @@ export function ToolInspector({ entity }: InspectorPanelProps) {
       {t.notes ? <p className="text-[12px] italic text-fg-tertiary">{t.notes}</p> : null}
 
       <EntityActionRow entities={[entity]} labelOf={() => t.label} />
-      <p className="font-mono text-[11px] text-fg-tertiary">policy evaluation stays on the registry page — this is the capability as declared, not a toggle</p>
+      <p className="font-mono text-[11px] text-fg-tertiary">Policy evaluation stays on the registry page — this is the capability as declared, not a toggle</p>
     </div>
   );
 }

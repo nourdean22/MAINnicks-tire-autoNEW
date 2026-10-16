@@ -176,13 +176,13 @@ export function TaskInspector({ entity }: InspectorPanelProps) {
             {typeof t.autoPriority === "number" ? ` → ${t.autoPriority}` : ""}
           </p>
         ) : (
-          <p className="font-mono text-[11px] text-fg-tertiary">not scored yet · the scorer has not seen this task</p>
+          <p className="font-mono text-[11px] text-fg-tertiary">Not scored yet · the scorer has not seen this task</p>
         )}
       </section>
 
       <EntityActionRow entities={[entity]} labelOf={() => t.title} />
       {!pageActions || pageActions.length === 0 ? (
-        <p className="font-mono text-[11px] text-fg-tertiary">complete · snooze · park run from the Missions board — open it there to act</p>
+        <p className="font-mono text-[11px] text-fg-tertiary">Complete · snooze · park run from the Missions board — open it there to act</p>
       ) : null}
     </div>
   );

@@ -160,7 +160,7 @@ export function MemoryCalibrationRitual({ onClose, autoLoad = true }: Calibratio
       <div className="flex items-center gap-2">
         <RotateCcw size={11} className="text-fg-tertiary" />
         <span className="font-mono text-[11px] text-fg-tertiary">
-          calibrate memory
+          Calibrate memory
         </span>
         <span className="text-[11px] font-mono text-fg-tertiary">
           {samples.length} aging
@@ -296,7 +296,7 @@ export function MemoryCalibrationCard() {
       <section className="rounded-control border border-edge-subtle bg-content px-3 py-1.5 flex items-center gap-2">
         <RotateCcw size={10} className="text-fg-tertiary" />
         <span className="font-mono text-[11px] text-fg-tertiary">
-          calibrate memory
+          Calibrate memory
         </span>
         <span className="text-[11px] text-fg-secondary truncate">
           3 aging beliefs · re-rule them in 30s

@@ -323,7 +323,7 @@ export function ReflectComposer() {
       <div className="flex items-center gap-2">
         <Eye size={12} className="text-fg-tertiary" />
         <span className="font-mono text-[11px] text-fg-tertiary">
-          reflect
+          Reflect
         </span>
         <span className="text-[11px] font-mono text-fg-tertiary">
           · {tmpl.label.toLowerCase()}
@@ -485,7 +485,7 @@ export function ReflectComposer() {
           <div className="flex items-center gap-1.5 mb-1">
             <Target size={10} className="text-fg-tertiary" />
             <span className="font-mono text-[11px] text-fg-tertiary">
-              nick counters
+              Nick counters
             </span>
           </div>
           <p className="text-[13px] text-fg leading-snug italic">

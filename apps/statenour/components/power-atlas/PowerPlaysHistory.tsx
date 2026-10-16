@@ -223,7 +223,7 @@ export default function PowerPlaysHistory({
           Plays history
         </h3>
         <span className="font-mono text-[11px] text-fg-tertiary">
-          last 10
+          Last 10
         </span>
       </div>
       <ol>

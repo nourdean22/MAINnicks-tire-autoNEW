@@ -208,7 +208,7 @@ export default function AlertsInspectorPage() {
                 className="text-xl font-bold text-fg"
               />
               <span className="font-mono text-[11px] text-fg-tertiary">
-                visible
+                Visible
               </span>
             </div>
             <span className="text-[11px] text-fg-tertiary">/</span>
@@ -218,7 +218,7 @@ export default function AlertsInspectorPage() {
                 className="text-base font-semibold text-fg-secondary"
               />
               <span className="font-mono text-[11px] text-fg-tertiary">
-                total
+                Total
               </span>
             </div>
           </div>
@@ -250,7 +250,7 @@ export default function AlertsInspectorPage() {
             </button>
           ))}
           <span className="ml-3 font-mono text-[11px] text-fg-tertiary">
-            sort:
+            Sort:
           </span>
           {/* v10.0.437 · was a 2-mode toggle · now 4-mode SortDropdown */}
           <SortDropdown<AlertSort>

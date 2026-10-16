@@ -807,7 +807,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
                 {formatTime(timeLeft)}
               </div>
               <span className="text-[11px] font-mono text-fg-tertiary">
-                time remaining
+                Time remaining
               </span>
             </div>
 
@@ -896,7 +896,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
                 {formatTime(timeLeft)}
               </span>
               <span className="text-[11px] font-mono text-fg-tertiary mt-1">
-                remaining
+                Remaining
               </span>
             </div>
           </div>

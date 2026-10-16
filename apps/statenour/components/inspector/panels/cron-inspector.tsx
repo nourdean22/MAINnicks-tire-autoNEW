@@ -98,17 +98,17 @@ export function CronInspector({ entity }: InspectorPanelProps) {
         <p className="text-[13px] leading-relaxed text-fg-secondary">{row.description}</p>
         <dl className="grid grid-cols-2 gap-x-4 gap-y-1 font-mono text-[11px] text-fg-tertiary">
           <div>
-            <dt>schedule</dt>
+            <dt>Schedule</dt>
             <dd className="text-fg-secondary">{row.schedule ?? "—"}</dd>
           </div>
           <div>
-            <dt>last run</dt>
+            <dt>Last run</dt>
             <dd className="text-fg-secondary">
               {row.lastRunAt ? `${formatAge(row.lastRunAt, now)}${row.lastStatus ? ` · ${row.lastStatus}` : ""}` : "never"}
             </dd>
           </div>
           <div>
-            <dt>next run</dt>
+            <dt>Next run</dt>
             <dd className="text-fg-secondary">{row.nextRunAt ? formatAge(row.nextRunAt, now).replace(" ago", "") : "—"}</dd>
           </div>
         </dl>
