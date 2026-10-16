@@ -94,6 +94,8 @@ Unknown (cheapest check in brackets): Nour's iOS version [Settings, General, Abo
 
 Decisions, defaults assumed until Nour says otherwise (confirm before W2): v3 must pass the six-feet test vs v2 on Home and Missions (yes); the bottom ticker shows only when something changed (yes, his earlier request makes it his call); keep Home's brief and retire `/intelligence/brief` (yes); Keep/Less stored on the device first, no schema (yes); an accessibility gate via `@axe-core/playwright` as a separate platform PR (yes).
 
+W2 decisions (2026-10-16, branch `statenour/ui-v3-w2`): the brief is rows, not cards (`components/home/brief-rows.tsx`, cap `BRIEF_ROW_CAP` = 7); Keep / Less lives under `nour:brief-feedback` as `{kind -> {verdict, at}}`, Less hides a KIND for seven days, Show hidden is the way back; Home records only `accepted` on the lead (alternatives and Why left Home; the Missions hero keeps Pick different); the brief carries the two oldest LIVE approvals (`APPROVAL_ROWS_CAP`) for in-place approve through the /system/actions mutations behind the house confirm; the detent sheet pilot was not shipped (kill criterion 2: snap points and scroll lock cannot be proven in jsdom, and no device was in the loop), so `PulseFeedSheet` stays a Dialog.
+
 ## 9. Audit top ten mapped to waves (file:line dated 2026-10-15)
 
 | # | Fix | Where | Wave |

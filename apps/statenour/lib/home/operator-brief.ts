@@ -846,7 +846,7 @@ function pendingApprovalRows(
   const live: Array<PendingApproval & { at: number }> = [];
   for (const a of actions) {
     if (a.expired) continue;
-    live.push({ id: a.id, source: "action", title: a.policyObjective ?? `${a.actionType} (${a.ruleName})`, at: a.createdAt.getTime() });
+    live.push({ id: a.id, source: "action", title: a.policyObjective || `${a.actionType} (${a.ruleName})`, at: a.createdAt.getTime() });
   }
   for (const r of requests) {
     if (isApprovalRequestExpired(r, now)) continue;

@@ -349,6 +349,45 @@ function MissionsPageInner() {
               </button>
             </div>
 
+            {/* The filter panel and the active-filter chips open right under their control. */}
+            {filters.showFilters && (
+              <TaskFilters
+                showFilters={filters.showFilters}
+                kindFilter={filters.kindFilter}
+                setKindFilter={filters.setKindFilter}
+                domainFilter={filters.domainFilter}
+                setDomainFilter={filters.setDomainFilter}
+                searchQuery={filters.searchQuery}
+                setSearchQuery={filters.setSearchQuery}
+                onceCount={filters.onceCount}
+                dailyCount={filters.dailyCount}
+                promiseCount={filters.promiseCount}
+                activeCount={filters.activeCount}
+                activeDomains={filters.activeDomains}
+                customDomains={customDomains}
+                setCustomDomains={setCustomDomains}
+                addingDomain={filters.addingDomain}
+                setAddingDomain={filters.setAddingDomain}
+                newDomainInput={filters.newDomainInput}
+                setNewDomainInput={filters.setNewDomainInput}
+                filterEditMode={filters.filterEditMode}
+                setFilterEditMode={filters.setFilterEditMode}
+              />
+            )}
+
+            {filters.filtersActive && (
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <ActiveFiltersStrip
+                  filters={[
+                    ...(filters.searchQuery.trim() ? [{ label: `search · "${filters.searchQuery.trim().slice(0, 20)}"`, onRemove: () => filters.setSearchQuery("") }] : []),
+                    ...(filters.kindFilter !== "all" ? [{ label: `kind · ${filters.kindFilter}`, onRemove: () => filters.setKindFilter("all") }] : []),
+                    ...(filters.domainFilter ? [{ label: `domain · ${filters.domainFilter}`, onRemove: () => filters.setDomainFilter(null) }] : []),
+                  ]}
+                  onClearAll={filters.handleClearFilters}
+                />
+              </div>
+            )}
+
           <div className="space-y-10 xl:grid xl:grid-cols-[minmax(0,1fr)_24rem] xl:items-start xl:gap-12 xl:space-y-0" data-missions-layout="deck">
           <div className="min-w-0 space-y-10" data-missions-column="deck">
             {/* 3 · DECIDE — the airlock */}
@@ -388,44 +427,6 @@ function MissionsPageInner() {
                 lands in decide · nothing is scheduled for today
               </p>
             </section>
-
-            {filters.showFilters && (
-              <TaskFilters
-                showFilters={filters.showFilters}
-                kindFilter={filters.kindFilter}
-                setKindFilter={filters.setKindFilter}
-                domainFilter={filters.domainFilter}
-                setDomainFilter={filters.setDomainFilter}
-                searchQuery={filters.searchQuery}
-                setSearchQuery={filters.setSearchQuery}
-                onceCount={filters.onceCount}
-                dailyCount={filters.dailyCount}
-                promiseCount={filters.promiseCount}
-                activeCount={filters.activeCount}
-                activeDomains={filters.activeDomains}
-                customDomains={customDomains}
-                setCustomDomains={setCustomDomains}
-                addingDomain={filters.addingDomain}
-                setAddingDomain={filters.setAddingDomain}
-                newDomainInput={filters.newDomainInput}
-                setNewDomainInput={filters.setNewDomainInput}
-                filterEditMode={filters.filterEditMode}
-                setFilterEditMode={filters.setFilterEditMode}
-              />
-            )}
-
-            {filters.filtersActive && (
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <ActiveFiltersStrip
-                  filters={[
-                    ...(filters.searchQuery.trim() ? [{ label: `search · "${filters.searchQuery.trim().slice(0, 20)}"`, onRemove: () => filters.setSearchQuery("") }] : []),
-                    ...(filters.kindFilter !== "all" ? [{ label: `kind · ${filters.kindFilter}`, onRemove: () => filters.setKindFilter("all") }] : []),
-                    ...(filters.domainFilter ? [{ label: `domain · ${filters.domainFilter}`, onRemove: () => filters.setDomainFilter(null) }] : []),
-                  ]}
-                  onClearAll={filters.handleClearFilters}
-                />
-              </div>
-            )}
 
             {/* 5 · MISSIONS — finite projects, WIP-capped */}
             {/* data-selection-scope · 2026-09-15 · task rows carry data-entity, so

@@ -56,9 +56,10 @@ const LEAD_TONE: Record<BriefLeadSection["kind"], string> = {
 
 const ACTION = "inline-flex min-h-[44px] items-center gap-1 rounded-control px-3 text-[13px] font-medium transition-colors duration-[var(--motion-state)]";
 const ACTION_QUIET = cn(ACTION, "border border-edge-default text-fg-secondary hover:border-edge-strong hover:text-fg disabled:opacity-50");
-const ACTION_LINK = cn(ACTION, "px-2 text-fg-secondary hover:text-fg");
+// Short words ("Open", "Less") get a 44px minimum box, not only a 44px height (tests/e2e/target-size.spec.ts).
+const ACTION_LINK = cn(ACTION, "min-w-[44px] justify-center text-fg-secondary hover:text-fg");
 const ICON_ACTION = "inline-flex size-11 items-center justify-center rounded-control border border-edge text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg disabled:opacity-50";
-const VERDICT = "inline-flex min-h-[44px] items-center px-2 font-mono text-[12px] text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg aria-pressed:text-fg";
+const VERDICT = "inline-flex min-h-[44px] min-w-[44px] items-center justify-center px-3 font-mono text-[12px] text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg aria-pressed:text-fg";
 
 const SAVE_FAILED = "That did not save. The item is still waiting.";
 
