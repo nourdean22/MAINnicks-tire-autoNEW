@@ -19,8 +19,10 @@
  */
 
 import { ConfirmHold } from "@/components/ui/confirm-hold";
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Panel } from "@/components/panel";
+import { ACTIONS_TAB_PARAM, resolveActionsTab, type ActionsTab } from "./actions-tab";
 import { StandardPage } from "@/components/layout/standard-page";
 import { SortDropdown } from "@/components/ui/sort-dropdown";
 import { cn } from "@/lib/utils/cn";
@@ -192,8 +194,28 @@ function NeedsReviewGroup() {
   );
 }
 
+// UI v3 W1b · the tab lives in the URL so Home's "Review approvals" (`?tab=approvals`) opens the
+// queue on load instead of the log. `useSearchParams` needs a Suspense boundary for `next build`
+// (the People / Stats / Logs pages set the precedent), hence the thin default export below.
 export default function ActionsPage() {
-  const [activeTab, setActiveTab] = useState<"logs" | "approvals">("logs");
+  return (
+    <Suspense fallback={null}>
+      <ActionsPageInner />
+    </Suspense>
+  );
+}
+
+function ActionsPageInner() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname() ?? "/system/actions";
+  const activeTab = resolveActionsTab(searchParams?.get(ACTIONS_TAB_PARAM));
+  const setActiveTab = (next: ActionsTab) => {
+    const params = new URLSearchParams(searchParams?.toString() ?? "");
+    params.set(ACTIONS_TAB_PARAM, next);
+    // replace, not push: a tab change is not a history entry; scroll: false keeps the page where it is.
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  };
   const [win, setWin] = useState<Win>("7d");
   const [ruleFilter, setRuleFilter] = useState<string | null>(null);
   const [approvalFilter, setApprovalFilter] = useState<string | null>(null);
@@ -608,32 +630,6 @@ export default function ActionsPage() {
             <span className="text-xs text-fg-tertiary">requires owner/operator approval</span>
           </div>
 
-          {/* 2026-09-08 · approval windows — the operator could not find them (they were code constants). */}
-          <div className="mb-4 rounded-surface border border-edge-subtle bg-canvas p-3">
-            <div className="mb-1.5 flex items-center justify-between">
-              <h3 className="text-xs font-semibold text-fg">approval windows</h3>
-              <span className="text-[11px] font-mono text-fg-tertiary">
-                {windowsQuery.data?.source === "env" ? "overridden by APPROVAL_FRESHNESS_DAYS" : "defaults · override with APPROVAL_FRESHNESS_DAYS (JSON)"}
-              </span>
-            </div>
-            {windowsQuery.isError ? (
-              <p className="text-xs text-amber-300">windows could not be read.</p>
-            ) : !windowsQuery.data ? (
-              <p className="text-xs text-fg-tertiary">loading…</p>
-            ) : (
-              <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
-                {windowsQuery.data.windows.map((w) => (
-                  <li key={w.actionType} className="font-mono text-fg">
-                    {w.actionType} · {w.days} d{w.source === "env" ? " (env)" : ""}
-                  </li>
-                ))}
-                <li className="font-mono text-fg-tertiary">anything else · {windowsQuery.data.defaultDays} d</li>
-              </ul>
-            )}
-            <p className="mt-1.5 text-[11px] text-fg-tertiary">
-              An approval past its window cannot be approved (the server refuses); it can be rejected, or the rule re-run.
-            </p>
-          </div>
           {approvals.length === 0 ? (
             <p className="text-xs text-fg-tertiary p-4">
               {loading ? "loading approvals…" : "no pending tool approvals"}
@@ -834,6 +830,34 @@ export default function ActionsPage() {
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* 2026-09-08 · approval windows — the operator could not find them (they were code constants).
+              UI v3 W1b (plan row 3): below the queues, so the decisions come first on a phone. */}
+          <div className="mt-4 rounded-surface border border-edge-subtle bg-canvas p-3">
+            <div className="mb-1.5 flex items-center justify-between">
+              <h3 className="text-xs font-semibold text-fg">approval windows</h3>
+              <span className="text-[11px] font-mono text-fg-tertiary">
+                {windowsQuery.data?.source === "env" ? "overridden by APPROVAL_FRESHNESS_DAYS" : "defaults · override with APPROVAL_FRESHNESS_DAYS (JSON)"}
+              </span>
+            </div>
+            {windowsQuery.isError ? (
+              <p className="text-xs text-amber-300">windows could not be read.</p>
+            ) : !windowsQuery.data ? (
+              <p className="text-xs text-fg-tertiary">loading…</p>
+            ) : (
+              <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+                {windowsQuery.data.windows.map((w) => (
+                  <li key={w.actionType} className="font-mono text-fg">
+                    {w.actionType} · {w.days} d{w.source === "env" ? " (env)" : ""}
+                  </li>
+                ))}
+                <li className="font-mono text-fg-tertiary">anything else · {windowsQuery.data.defaultDays} d</li>
+              </ul>
+            )}
+            <p className="mt-1.5 text-[11px] text-fg-tertiary">
+              An approval past its window cannot be approved (the server refuses); it can be rejected, or the rule re-run.
+            </p>
           </div>
         </Panel>
       )}

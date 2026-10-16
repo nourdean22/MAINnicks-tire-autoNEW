@@ -8,6 +8,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactNode } from "react";
+vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams(""), usePathname: () => "/system/actions", useRouter: () => ({ replace: () => {}, push: () => {} }) }));
 
 const stub = vi.hoisted(() => ({ review: {} as Record<string, unknown> }));
 

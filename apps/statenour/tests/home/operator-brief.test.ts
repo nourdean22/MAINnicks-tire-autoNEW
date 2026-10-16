@@ -113,7 +113,7 @@ describe("lead mapping — receipts, not confidence theater", () => {
   it("the decide arm routes to /system/actions — Home never re-hosts approval verdicts", () => {
     const lead = leadFor({ pendingDecisions: 3 }, { pendingDecisions: 3 });
     expect(lead.kind).toBe("decide");
-    expect(lead.cta?.href).toBe("/system/actions");
+    expect(lead.cta?.href).toBe("/system/actions?tab=approvals");
   });
 
   it("the error arm refuses to recommend and says why", () => {
