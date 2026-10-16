@@ -18,7 +18,8 @@
  *   notify-pr         the summary-only notify job does not bill on PRs
  *   security-in-node  the dependency audit is the tail of `node`: blocking, runs when an earlier step is red
  *   needs-resolve     no job `needs:` a job that a fold deleted
- *   policy-order      the folded PR gates run before the verifier, which carries its own step timeout
+ *   node-filter       a diff to the dependency scanner (or its imports) selects node; a README diff does not
+ *   policy-orderthe folded PR gates run before the verifier, which carries its own step timeout
  *   diag-no-pr        the always-green typecheck diagnostic does not run on every PR
  *
  * Every rule is proven twice: the live tree must be clean, and a mutated COPY of the workflows (temp dir) must
@@ -392,6 +393,22 @@ export function checkWorkflows(root) {
     }
   }
 
+  // node-filter (Codex review of #3083): the blocking dependency scanner and everything it imports must select `node`.
+  // The closure is READ from the real source, so a new import in the scanner cannot drift out of the filter.
+  const m = /\n {12}node:\n((?: {14}.*\n)+)/.exec(text("test.yml"));
+  const nodeFilter = m ? m[1].split("\n").map((l) => l.trim()).filter((l) => l.startsWith("- ")).map((l) => l.slice(2).replace(/^['"]|['"]$/g, "")) : [];
+  if (!nodeFilter.length) flag("node-filter", "could not read the `node` path filter in test.yml");
+  const closure = (rel, seen = new Set()) => {
+    if (seen.has(rel)) return seen;
+    seen.add(rel);
+    const src = readFileSync(join(REPO, rel), "utf8");
+    for (const [, spec] of src.matchAll(/\bfrom\s+["'](\.[^"']+)["']/g)) closure(join(dirname(rel), spec).split("\\").join("/"), seen);
+    return seen;
+  };
+  for (const f of closure("scripts/audit-advisories.mjs")) if (!pathMatches(nodeFilter, f)) flag("node-filter", `a diff touching ${f} would skip node, and with it the dependency audit`);
+  for (const f of ["apps/statenour/components/x.tsx", "pnpm-lock.yaml", "packages/utils/src/x.ts"]) if (!pathMatches(nodeFilter, f)) flag("node-filter", `node no longer selects ${f}`);
+  for (const f of ["README.md", "docs/agent-os/x.md"]) if (pathMatches(nodeFilter, f)) flag("node-filter", `node selects ${f}: a docs-only diff would run the full sweep`);
+
   // diag-no-pr
   const diag = triggersOf(wfs["admin-completion-diagnostic.yml"] ?? {});
   if ("pull_request" in diag) flag("diag-no-pr", "the always-green admin typecheck diagnostic runs on every PR again");
@@ -477,6 +494,8 @@ const MUTANTS = [
   }],
   ["policy-order", "the verify step loses its own timeout", wf("agent-policy.yml"), (t) => t.replace("        timeout-minutes: 8\n", "")],
   ["policy-order", "the job timeout shrinks below the step's", wf("agent-policy.yml"), (t) => t.replace(/timeout-minutes: 15 #.*\n/, "timeout-minutes: 5\n")],
+  ["node-filter", "the scanner itself drops out of the node filter", wf("test.yml"), (t) => t.replace("              - 'scripts/audit-advisories.mjs'\n", "")],
+  ["node-filter", "the scanner's import drops out of the node filter", wf("test.yml"), (t) => t.replace("              - 'scripts/lib/advisory-fetch.mjs'\n", "")],
   ["notify-pr", "notify bills on every PR again", wf("test.yml"), (t) => t.replace(/(\n {2}notify:\n(?: {4}.*\n)*? {4}if: ).*/, "$1always()")],
   ["needs-resolve", "notify still needs the deleted security job", wf("test.yml"), (t) => t.replace("needs: [changes, node, railway-smoke]", "needs: [changes, node, security, railway-smoke]")],
   ["security-in-node", "the critical audit can no longer fail", wf("test.yml"), (t) => t.replace("      - name: Dependency audit (critical severity · blocking)\n", "      - name: Dependency audit (critical severity · blocking)\n        continue-on-error: true\n")],

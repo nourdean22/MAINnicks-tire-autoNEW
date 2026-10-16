@@ -105,6 +105,11 @@ jobs:
               - 'turbo.json'
               - 'config/retired-claude-models.json'
               - 'config/nickstire-bridge-events.json'
+              # The blocking dependency scanner and its one local import. A PR that changes only these used to
+              # skip the node job, and with it the only scanner (Codex review of #3083). Canaried against the real
+              # import closure in scripts/agent-os/workflowCostGuards.test.mjs.
+              - 'scripts/audit-advisories.mjs'
+              - 'scripts/lib/advisory-fetch.mjs'
               - '.github/workflows/**'
             workflow:
               - '.github/workflows/**'
