@@ -542,6 +542,7 @@ export default function OverviewSection() {
                   : "All clear"
           }
           alert={queue.length > 0 || !queueTrustworthy}
+          priority={queueTrustworthy && queue.length > 0}
         />
         <SummaryCard label="Bookings today" value={bookingsKnown ? todaysBookings.length : UNKNOWN} detail={bookingsKnown ? `Cleveland date · ${todayKey}` : "Unable to determine"} />
         <SummaryCard label="Urgent leads" value={leadsKnown ? urgentLeadCount : UNKNOWN} detail={leadsKnown ? "Included once" : "Unable to determine"} />
@@ -696,10 +697,11 @@ export default function OverviewSection() {
  * "we could not read this" — the only options were a count or a zero, and zero
  * is a claim. The type was enforcing the defect.
  */
-function SummaryCard({ label, value, detail, alert = false }: { label: string; value: number | string; detail: string; alert?: boolean }) {
+function SummaryCard({ label, value, detail, alert = false, priority = false }: { label: string; value: number | string; detail: string; alert?: boolean; priority?: boolean }) {
+  // `priority` is the owner-priority gold (index.css --owner-priority): work is waiting and the count is real.
   return (
-    <div className="rounded-lg border border-border/40 bg-card p-4">
-      <div className={`text-2xl font-bold tabular-nums ${alert ? "text-red-400" : "text-foreground"}`}>{value}</div>
+    <div className={`rounded-lg border bg-card p-4 ${priority ? "border-[var(--owner-priority)]" : "border-border/40"}`}>
+      <div className={`text-2xl font-bold tabular-nums ${priority ? "text-[var(--owner-priority)]" : alert ? "text-red-400" : "text-foreground"}`}>{value}</div>
       <div className="text-[10px] uppercase tracking-wider text-muted-foreground mt-1">{label}</div>
       <div className="text-[10px] text-muted-foreground/70 mt-1">{detail}</div>
     </div>

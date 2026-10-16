@@ -10,7 +10,6 @@ import DegradedDataBanner from "@/components/admin/DegradedDataBanner";
 import UnknownSectionNotice from "@/components/admin/UnknownSectionNotice";
 import DensityToggle from "@/components/admin/DensityToggle";
 import DrilldownDrawer from "@/components/admin/DrilldownDrawer";
-import ThemeToggle from "@/components/admin/ThemeToggle";
 import WalkInQuoteDrawer from "@/components/admin/WalkInQuoteDrawer";
 import { getAdminActionableCounts } from "@/lib/adminActionableCounts";
 import { buildAdminSignals } from "@/lib/adminSignals";
@@ -340,7 +339,7 @@ export default function Admin() {
             <button onClick={() => setSidebarOpen(true)} className="lg:hidden inline-flex items-center justify-center w-9 h-9 text-muted-foreground hover:text-foreground" aria-label="Open sidebar"><Menu className="w-4 h-4" /></button>
             <h1 className="text-[14px] font-semibold text-foreground tracking-tight px-2 truncate">{SECTION_TITLES[section]}</h1><div className="flex-1" />
             <CommandSearch allowedSections={allowedSections} onNavigate={(nextSection) => allowedSections.includes(nextSection) && setSection(nextSection)} onSelectCustomer={(id) => openCustomerDrawer(id)} />
-            <DensityToggle /><ThemeToggle />
+            <DensityToggle />
             {TOPBAR_ACTIONS.filter((action) => !action.sectionTrigger || allowedSections.includes(action.sectionTrigger)).map((action) => <Link key={action.href} href={action.href} title={action.title} aria-label={action.title} onClick={(event) => { if (action.sectionTrigger) { event.preventDefault(); window.history.replaceState({}, "", action.href); setSection(action.sectionTrigger); } }} className={`${action.mobileHidden ? "hidden lg:inline-flex" : "inline-flex"} items-center justify-center w-9 h-9 text-muted-foreground hover:text-primary`}>{action.icon}</Link>)}
           </header>
           <div className="admin-content"><div className="px-4 pt-4 space-y-3"><UnknownSectionNotice slug={unresolvedSlug} onDismiss={dismissUnresolvedSlug} /><DegradedDataBanner stats={stats} unavailable={overviewUnavailable} unavailableMessage={overviewError?.message} onRetry={() => void utils.adminDashboard.overviewMediumBundle.invalidate()} /></div><SectionContent section={section} /></div>
