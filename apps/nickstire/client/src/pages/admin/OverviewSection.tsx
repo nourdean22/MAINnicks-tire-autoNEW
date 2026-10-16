@@ -133,7 +133,7 @@ export default function OverviewSection() {
    * blocked, so the HIGHEST-priority items were the ones that vanished, and the
    * summary card kept showing a confident count of what was left.
    */
-  const { data: workOrders, isError: workOrdersFailed, isLoading: workOrdersLoading } = trpc.workOrders.list.useQuery(
+  const { data: workOrders, isError: workOrdersFailed } = trpc.workOrders.list.useQuery(
     { limit: WORK_ORDER_QUEUE_LIMIT },
     { refetchInterval: 30_000, refetchIntervalInBackground: false },
   );
@@ -337,8 +337,11 @@ export default function OverviewSection() {
   /**
    * Both reads the queue is built from have answered. The bundle can answer while the separate
    * work-order read is still in flight; until it lands an empty board is not "done", it is loading.
+   * `data !== undefined` alone covers a pending, paused or disabled read: TanStack Query v5 derives
+   * isLoading as isPending && isFetching (query-core queryObserver.ts, `const isLoading`), and a
+   * query that is pending has no data, so a separate isLoading check could never veto anything.
    */
-  const queueAnswered = bundle !== undefined && workOrders !== undefined && !workOrdersLoading;
+  const queueAnswered = bundle !== undefined && workOrders !== undefined;
 
   const filteredQueue = filter === "all" ? queue : queue.filter((item) => item.type === filter);
   const boardRows = showAll ? filteredQueue : filteredQueue.slice(0, BOARD_ROW_CAP);

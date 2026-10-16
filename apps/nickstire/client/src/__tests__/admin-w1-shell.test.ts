@@ -21,6 +21,19 @@ function ruleBody(selector: RegExp): string | null {
   return null;
 }
 
+/**
+ * Each control's own className: searched only up to the next opening tag, so a control with no
+ * className of its own cannot borrow the one after it. Arrow functions in onClick contain ">", so
+ * the tag's end is not used as the boundary.
+ */
+function controlClassNames(src: string): string[] {
+  return [...src.matchAll(/<(?:button|a|MessageCustomerLink)\b/g)].map((m) => {
+    const own = src.slice(m.index! + 1).split(/<[A-Za-z]/)[0];
+    const cls = /className=(?:"([^"]*)"|\{`([^`]*)`\})/.exec(own);
+    return cls ? cls[1] ?? cls[2] : "";
+  });
+}
+
 describe("graphite is the admin default", () => {
   it("the neutral tokens apply to .admin-shell itself, with no attribute gate left", () => {
     expect(css).not.toContain("data-admin-theme");
@@ -112,14 +125,14 @@ describe("48 px targets on Today and the section boundary", () => {
     const queue =
       sliceBlock(overview, 'aria-label="Filter queue"', 'aria-labelledby="history-title"', { label: "OverviewSection.tsx" }) +
       readFileSync(join(ROOT, "client/src/pages/admin/today/QueueRow.tsx"), "utf8");
-    // Each control's own className (the first one after its opening tag); arrow functions in onClick
-    // contain ">", so a [^>]* tag scan would stop early.
-    const controls = [...queue.matchAll(/<(?:button|a|MessageCustomerLink)\b/g)].map((m) => {
-      const cls = /className=(?:"([^"]*)"|\{`([^`]*)`\})/.exec(queue.slice(m.index!));
-      return cls ? cls[1] ?? cls[2] : "";
-    });
+    const controls = controlClassNames(queue);
     expect(controls.length).toBeGreaterThanOrEqual(5);
     for (const c of controls) expect(c).toMatch(/min-h-12/);
+  });
+  it("the scan reads a control's own className and never the next element's", () => {
+    // Positive control for the scan above: the first button has no className, the link after it has min-h-12.
+    const src = '<button type="button" onClick={() => go()}>x</button>\n<a href="/y" className="min-h-12">y</a>';
+    expect(controlClassNames(src)).toEqual(["", "min-h-12"]);
   });
   it("the section boundary Retry is min-h-12", () => {
     const retry = sliceBlock(boundary, "onClick={this.handleRetry}", "Retry section", { label: "AdminSectionBoundary.tsx" });
