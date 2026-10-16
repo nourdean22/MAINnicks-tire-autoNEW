@@ -60,9 +60,13 @@ export function buildReelSsml(script: string): string {
   return `<speak>${parts.join('<break time="350ms"/> ')}</speak>`;
 }
 
-const envNumber = (raw: string | undefined, fallback: number): number => {
-  const n = raw === undefined || raw.trim() === "" ? NaN : Number(raw);
-  return Number.isFinite(n) ? n : fallback;
+/** An env number inside Google's accepted range, else the default: one typo must not fail every narrated reel. */
+const envNumber = (name: string, raw: string | undefined, fallback: number, min: number, max: number): number => {
+  if (raw === undefined || raw.trim() === "") return fallback;
+  const n = Number(raw);
+  if (Number.isFinite(n) && n >= min && n <= max) return n;
+  log.warn(`${name} is not a number in [${min}, ${max}] — using ${fallback}`, { value: raw.slice(0, 20) });
+  return fallback;
 };
 
 /**
@@ -73,9 +77,10 @@ const envNumber = (raw: string | undefined, fallback: number): number => {
  */
 export function googleTtsRequest(script: string, env: NodeJS.ProcessEnv = process.env): { url: string; body: Record<string, unknown> } {
   const name = (env.REEL_GOOGLE_VOICE ?? "").trim() || "en-US-Neural2-J";
-  const speakingRate = envNumber(env.REEL_GOOGLE_SPEAKING_RATE, 0.97);
+  // Ranges: speaking_rate 0.25-2.0 (Chirp 3 HD page), pitch -20.0-20.0 (AudioConfig).
+  const speakingRate = envNumber("REEL_GOOGLE_SPEAKING_RATE", env.REEL_GOOGLE_SPEAKING_RATE, 0.97, 0.25, 2.0);
   const audioConfig: Record<string, unknown> = { audioEncoding: "LINEAR16", speakingRate };
-  if (!/chirp/i.test(name)) audioConfig.pitch = envNumber(env.REEL_GOOGLE_PITCH, -1.5);
+  if (!/chirp/i.test(name)) audioConfig.pitch = envNumber("REEL_GOOGLE_PITCH", env.REEL_GOOGLE_PITCH, -1.5, -20, 20);
   return {
     url: "https://texttospeech.googleapis.com/v1/text:synthesize",
     body: {

@@ -89,6 +89,13 @@ describe("googleTtsRequest voice env (2026-10-16)", () => {
     const b = googleTtsRequest("x", { REEL_GOOGLE_SPEAKING_RATE: "fast", REEL_GOOGLE_PITCH: "" } as NodeJS.ProcessEnv).body.audioConfig;
     expect(b).toMatchObject({ speakingRate: 0.97, pitch: -1.5 });
   });
+  it("out-of-range rate or pitch falls back to the default (Google rejects them; Codex P2 on #3087)", () => {
+    const audio = (env: Record<string, string>) => googleTtsRequest("x", env as NodeJS.ProcessEnv).body.audioConfig;
+    expect(audio({ REEL_GOOGLE_SPEAKING_RATE: "3", REEL_GOOGLE_PITCH: "-30" })).toMatchObject({ speakingRate: 0.97, pitch: -1.5 });
+    expect(audio({ REEL_GOOGLE_SPEAKING_RATE: "0.2", REEL_GOOGLE_PITCH: "20.5" })).toMatchObject({ speakingRate: 0.97, pitch: -1.5 });
+    expect(audio({ REEL_GOOGLE_SPEAKING_RATE: "2.0", REEL_GOOGLE_PITCH: "20" })).toMatchObject({ speakingRate: 2, pitch: 20 });
+    expect(audio({ REEL_GOOGLE_SPEAKING_RATE: "0.25", REEL_GOOGLE_PITCH: "-20" })).toMatchObject({ speakingRate: 0.25, pitch: -20 });
+  });
   it("the language code follows the voice name", () => {
     const { body } = googleTtsRequest("x", { REEL_GOOGLE_VOICE: "en-GB-Chirp3-HD-Orus" } as NodeJS.ProcessEnv);
     expect((body.voice as { languageCode: string }).languageCode).toBe("en-GB");
