@@ -31,6 +31,7 @@ import { shopSettings, reelJobs, reelPublishApprovals } from "../../../drizzle/s
 import { BUSINESS } from "@shared/business";
 import { prepareCleanReelBrief, PreflightExhaustedError } from "../../services/reelDraftPrep";
 import { enqueueReelJob } from "../../services/reelPipeline";
+import { readProviderFundsHold, DEFAULT_REEL_BEATS } from "../../services/reelProviderFunds";
 import { reelPublicationIntentFor } from "@shared/reelPublicationSchedule";
 import { publishToSocial } from "../../services/socialPublish";
 import { publishDisclosureProblem, shouldDiscloseAi } from "@shared/reelDisclosure";
@@ -76,25 +77,33 @@ const DAY_COUNT_KEY = "reel_autopost_day_count";
 /**
  * Rendered-QA gate values that WAIT ON A HUMAN and therefore read identically on
  * every future pulse: needs_paid_repair parks until an operator authorizes the
- * spend, reject and stock_fallback park until the reel is regenerated.
+ * spend, reject and stock_fallback park until the reel is regenerated, and
+ * needs_review parks until an operator reviews it in the Queue (qualityGate.ts
+ * returns it as "operator review required"; nothing re-verdicts it on its own).
+ *
+ * needs_review used to be listed below as self-clearing, and that cost two days.
+ * Job 2070013 (one unrecognised critic code dropped) was selected by the drain on
+ * 149 consecutive pulses, 2026-10-13 22:08Z to 2026-10-15 11:10Z; production was
+ * skipped on 10-14 (both slots) and 10-15 06:00 ET, and the jam ended only when
+ * the operator rejected it.
  *
  * Deliberately EXCLUDED, because these do change by themselves and belong to the
  * gate chain: auto_repair (the chain queues the free repair, QA re-verdicts the
  * new render), unavailable (QA has not run yet, or could not be read - the chain
- * fails closed on it), needs_review, and disabled (which is allowed anyway).
+ * fails closed on it), and disabled (which is allowed anyway).
  *
  * Used ONLY to decide what is worth SELECTING in the drain. The authoritative
  * chain still runs in full on whatever is selected, so no reel reaches Instagram
  * that the chain would refuse.
  */
-const PARKED_QA_GATES: ReadonlySet<string> = new Set(["needs_paid_repair", "reject", "stock_fallback"]);
+export const PARKED_QA_GATES: ReadonlySet<string> = new Set(["needs_paid_repair", "reject", "stock_fallback", "needs_review"]);
 /**
  * Verdicts the pre-filter reads but never skips. needs_paid_repair stays in
  * PARKED_QA_GATES, but it is re-asked on every pulse: a repair refusal parks the
  * reel, and only a budget refusal holds it. A skip here would stop the repair from
  * being asked again once the daily budget resets.
  */
-const RETRYABLE_QA_GATES: ReadonlySet<string> = new Set(["needs_paid_repair"]);
+export const RETRYABLE_QA_GATES: ReadonlySet<string> = new Set(["needs_paid_repair"]);
 /** The drain reads this many approved candidates per pass, oldest id first. */
 const DRAIN_SCAN_LIMIT = 25;
 
@@ -878,6 +887,35 @@ async function runDailyReelPostOnce(
         details: `production held: usable READY buffer ${usableReadyCount >= REEL_READY_TARGET ? `>=${REEL_READY_TARGET}` : usableReadyCount} (${readyDecision}); publication remains separately approval-gated`,
       };
     }
+
+    // FUNDS HOLD, before anything is spent or moved (2026-10-16). Higgsfield held
+    // 29.5 credits; job 2100001 rendered 2 clips, died on not_enough_credits and
+    // burned an approved pack. Past this point the run builds a brief (LLM
+    // calls), reserves, and advances the rotation cursor, so a known shortfall
+    // stops here. An UNKNOWN balance never holds (empty-vs-error): it is logged
+    // and production carries on.
+    const funds = await readProviderFundsHold();
+    if (funds.hold) {
+      const { balance, needed, model } = funds.hold;
+      log.error("daily reel: provider credits below one reel; production held", { balance, needed, model });
+      try {
+        if ((await getKv("reel_provider_funds_alert_date")) !== date) {
+          await setKv("reel_provider_funds_alert_date", date, "Reel provider low-credit alert, last ET date sent");
+          const { sendTelegram } = await import("../../services/telegram");
+          void sendTelegram(
+            `Reel production held: Higgsfield has ${balance} credits and a ${DEFAULT_REEL_BEATS}-beat ${model} reel needs about ${needed}. ` +
+              `Top up Higgsfield, or set REEL_CLIP_MODEL / REEL_VIDEO_PROVIDER to a lane you can afford. No pack was used and the rotation did not move.`,
+          ).catch(() => {});
+        }
+      } catch (err) {
+        log.warn("daily reel: low-credit alert bookkeeping failed", { err: err instanceof Error ? err.message : String(err) });
+      }
+      return {
+        recordsProcessed: 0,
+        details: `held: provider higgsfield has ${balance} credits; a ${DEFAULT_REEL_BEATS}-beat ${model} reel needs about ${needed}; top up Higgsfield or change REEL_CLIP_MODEL / REEL_VIDEO_PROVIDER; rotation not advanced`,
+      };
+    }
+    if (funds.unknown) log.warn("daily reel: provider credit balance UNKNOWN; not holding", { detail: funds.detail });
 
     // Topic authority is the LIVE MINER, not the hardcoded manifest. The
     // manifest is a fixed campaign list written once; it cannot know what

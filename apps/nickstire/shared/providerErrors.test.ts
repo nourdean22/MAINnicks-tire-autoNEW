@@ -192,3 +192,34 @@ describe("error stamping stays greppable", () => {
     expect(parseErrorClass(stampError(v, "x".repeat(5000)).slice(0, 1000))).toBe("UNKNOWN");
   });
 });
+
+/**
+ * Production, 2026-10-16: reel job 2100001 rendered 2 clips, then the
+ * Higgsfield CLI refused the third with this exact stderr. It classified
+ * UNKNOWN (RETRY_BACKOFF), so the worker retried three times into an empty
+ * balance before parking it as needs_regen. The `\b(...billing...)\b` entry
+ * cannot see it: `_` is a word character, so no boundary sits between
+ * `billing` and `_period`, and nothing else named the error_type.
+ */
+describe("a Higgsfield out-of-credits refusal pauses the provider on attempt 1", () => {
+  const HIGGSFIELD_NOT_ENOUGH_CREDITS =
+    'Higgsfield CLI exited with code 3. Stderr: Error: {"billing_period":"monthly","error_type":"not_enough_credits","plan_type":"ultra","workspace":{"role":"owner","type":"private"}}';
+
+  it("classifies the verbatim prod stderr as QUOTA_OR_CREDIT / PAUSE_PROVIDER", () => {
+    const v = classifyProviderError(new Error(HIGGSFIELD_NOT_ENOUGH_CREDITS));
+    expect(v.errorClass).toBe("QUOTA_OR_CREDIT");
+    expect(v.action).toBe("PAUSE_PROVIDER");
+  });
+
+  it("goes terminal on the first attempt instead of retrying into an empty balance", () => {
+    const v = classifyProviderError(new Error(HIGGSFIELD_NOT_ENOUGH_CREDITS));
+    expect(nextStatusFor(v, 1, MAX, "queued")).toEqual({ status: "failed", attempts: 1, terminal: true });
+  });
+
+  it.each(["not enough credits", "not-enough-funds", "NotEnoughBalance"])(
+    "covers the spelling variants (%s)",
+    (msg) => {
+      expect(classifyProviderError(new Error(msg)).errorClass).toBe("QUOTA_OR_CREDIT");
+    },
+  );
+});

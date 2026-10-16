@@ -1,6 +1,16 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { sliceBlock } from "../../testUtils/sourceBlock";
 import { checkReviewReply } from "@shared/reviewReplyQa";
-import { MANIFEST, runDailyReelPost, reelPublishPlatforms, facebookLiveWithoutInstagram } from "./dailyReelPost";
+import {
+  MANIFEST,
+  runDailyReelPost,
+  reelPublishPlatforms,
+  facebookLiveWithoutInstagram,
+  PARKED_QA_GATES,
+  RETRYABLE_QA_GATES,
+} from "./dailyReelPost";
 
 describe("dailyReelPost", () => {
   it("covers reels 5-30 in order (26 reels)", () => {
@@ -128,5 +138,63 @@ describe("facebookLiveWithoutInstagram (partial publish must PARK, never retry)"
     expect(facebookLiveWithoutInstagram([{ platform: "facebook", success: true, postId: "x" }, { platform: "instagram", success: true, postId: "y" }])).toBeNull();
     expect(facebookLiveWithoutInstagram([{ platform: "facebook", success: false }, { platform: "instagram", success: false }])).toBeNull();
     expect(facebookLiveWithoutInstagram([{ platform: "instagram", success: false }])).toBeNull();
+  });
+});
+
+/**
+ * needs_review waits on a human ("operator review required", qualityGate.ts),
+ * so it reads identically on every pulse. Before 2026-10-16 it was not parked:
+ * job 2070013 (one unrecognised critic code dropped) was selected by the drain
+ * on 149 consecutive pulses, 2026-10-13 22:08Z to 2026-10-15 11:10Z, and
+ * production never ran on 10-14 (both slots) or 10-15 06:00 ET.
+ */
+describe("parked QA gates: what the drain skips without re-asking", () => {
+  // The exact predicate the drain and today's-job pre-filters apply.
+  const skippedByPreFilter = (gate: string) => PARKED_QA_GATES.has(gate) && !RETRYABLE_QA_GATES.has(gate);
+
+  it("skips needs_review, reject and stock_fallback", () => {
+    for (const gate of ["needs_review", "reject", "stock_fallback"]) expect(skippedByPreFilter(gate), gate).toBe(true);
+  });
+
+  it("keeps needs_review out of the retryable set (no spend path re-asks it)", () => {
+    expect(RETRYABLE_QA_GATES.has("needs_review")).toBe(false);
+    expect([...RETRYABLE_QA_GATES]).toEqual(["needs_paid_repair"]);
+  });
+
+  it("never skips the gates that clear by themselves, nor needs_paid_repair", () => {
+    for (const gate of ["auto_repair", "unavailable", "disabled", "needs_paid_repair"]) {
+      expect(skippedByPreFilter(gate), gate).toBe(false);
+    }
+  });
+});
+
+/**
+ * The funds hold (2026-10-16) is only worth anything if it runs BEFORE the run
+ * spends or moves: brief building (LLM calls), the reservation, and the
+ * rotation-cursor advance. The helper itself is tested in
+ * services/reelProviderFunds.test.ts; this pins where the cron consults it.
+ */
+describe("the provider funds hold sits before any spend or cursor move", () => {
+  const SRC = readFileSync(path.join(__dirname, "dailyReelPost.ts"), "utf8");
+  const HOLD = "const funds = await readProviderFundsHold();";
+  const label = "dailyReelPost.ts";
+  it("is consulted after the READY-buffer early return and before brief, enqueue and cursor writes", () => {
+    // sliceBlock throws when an anchor is missing or out of order, so each call
+    // below is itself an ordering assertion.
+    const before = sliceBlock(SRC, "not production hour", HOLD, { label });
+    expect(before).toContain('if (readyDecision !== "refill")');
+    // Nothing between the production-hour gate and the hold writes a cursor or KV.
+    for (const writer of ["setApprovedPackProgress(", "setAutopostProgress(", "advancePastRefusedPack(", "setKv("]) {
+      expect(before, writer).not.toContain(writer);
+    }
+    expect(sliceBlock(SRC, HOLD, "prepared = await prepareCleanReelBrief(", { label })).toContain(HOLD);
+    expect(sliceBlock(SRC, HOLD, 'await enqueueReelJob(brief, "cron"', { label })).toContain(HOLD);
+    // A hold returns before anything below it runs.
+    const block = sliceBlock(SRC, HOLD, "if (funds.unknown)", { label });
+    // Holds on a KNOWN shortfall only (an inverted condition would hold every
+    // funded run and spend on every dry one).
+    expect(block).toMatch(/\n\s*if \(funds\.hold\) \{/);
+    expect(block).toContain("return {");
+    expect(block).toContain("rotation not advanced");
   });
 });
