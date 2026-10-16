@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "chore/subagent-brief-v3",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "f8d930b8-3865-416c-802f-2947cc79c726",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire",
+  "claimedBy": "2026-10-15-subagent-brief-v3 lane briefs and agents upgrade",
+  "claimedAt": "2026-10-16T00:03:07.202Z",
+  "expiresAt": "2026-10-16T12:03:07.202Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
