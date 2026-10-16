@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { sliceBlock } from "../../testUtils/sourceBlock";
 import { checkReviewReply } from "@shared/reviewReplyQa";
 import {
   MANIFEST,
@@ -175,23 +176,21 @@ describe("parked QA gates: what the drain skips without re-asking", () => {
  */
 describe("the provider funds hold sits before any spend or cursor move", () => {
   const SRC = readFileSync(path.join(__dirname, "dailyReelPost.ts"), "utf8");
-  const at = (needle: string) => {
-    const i = SRC.indexOf(needle);
-    expect(i, needle).toBeGreaterThan(-1);
-    return i;
-  };
+  const HOLD = "const funds = await readProviderFundsHold();";
+  const label = "dailyReelPost.ts";
   it("is consulted after the READY-buffer early return and before brief, enqueue and cursor writes", () => {
-    const hold = at("const funds = await readProviderFundsHold();");
-    expect(hold).toBeGreaterThan(at('if (readyDecision !== "refill")'));
-    expect(hold).toBeLessThan(at("prepared = await prepareCleanReelBrief("));
-    expect(hold).toBeLessThan(at('await enqueueReelJob(brief, "cron"'));
+    // sliceBlock throws when an anchor is missing or out of order, so each call
+    // below is itself an ordering assertion.
+    const before = sliceBlock(SRC, "not production hour", HOLD, { label });
+    expect(before).toContain('if (readyDecision !== "refill")');
     // Nothing between the production-hour gate and the hold writes a cursor or KV.
-    const before = SRC.slice(at("not production hour"), hold);
     for (const writer of ["setApprovedPackProgress(", "setAutopostProgress(", "advancePastRefusedPack(", "setKv("]) {
       expect(before, writer).not.toContain(writer);
     }
+    expect(sliceBlock(SRC, HOLD, "prepared = await prepareCleanReelBrief(", { label })).toContain(HOLD);
+    expect(sliceBlock(SRC, HOLD, 'await enqueueReelJob(brief, "cron"', { label })).toContain(HOLD);
     // A hold returns before anything below it runs.
-    const block = SRC.slice(hold, SRC.indexOf("if (funds.unknown)", hold));
+    const block = sliceBlock(SRC, HOLD, "if (funds.unknown)", { label });
     // Holds on a KNOWN shortfall only (an inverted condition would hold every
     // funded run and spend on every dry one).
     expect(block).toMatch(/\n\s*if \(funds\.hold\) \{/);

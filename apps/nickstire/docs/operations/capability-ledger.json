@@ -3734,6 +3734,36 @@
       "exposure": "internal"
     },
     {
+      "capabilityId": "reel-provider-funds-hold",
+      "name": "Daily reel production holds when Higgsfield cannot pay for one reel; needs_review parks",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "branch worktree-agent-aec084b83a0514544 (job 2026-10-16-reel-autonomy): shared/providerErrors.ts classifies not_enough_credits as QUOTA_OR_CREDIT (terminal on attempt 1); new server/services/reelProviderFunds.ts (providerFundsHold, readProviderFundsHold) consulted by server/cron/jobs/dailyReelPost.ts after the READY-buffer early return and before brief, reservation or cursor writes; needs_review added to PARKED_QA_GATES. Written against the 2026-10-16 live state (read-only): Higgsfield keepalive balance 29.5 credits; job 2100001 rendered 2 clips, failed not_enough_credits, retried 3x as UNKNOWN, now needs_regen; job 2070013 (needs_review) jammed the drain for 149 pulses, 2026-10-13 22:08Z to 2026-10-15 11:10Z.",
+        "tests": [
+          "shared/providerErrors.test.ts (32, +5): the verbatim prod stderr classifies QUOTA_OR_CREDIT / PAUSE_PROVIDER and goes terminal on attempt 1; red on the old code 5 failed (UNKNOWN).",
+          "server/services/reelProviderFunds.test.ts (11, new): 29.5 holds (needs 130), 130 does not, seedance1_5 59 holds (needs 60), kling / veo / null / NaN / +-Infinity never hold; red first as a missing module. Mutation: 4 of 5 killed (the price-guard mutant is equivalent).",
+          "server/cron/jobs/dailyReelPost.test.ts (17, +4): needs_review parked and not retryable (red before the fix: needs_review expected true); the hold sits after the READY return and before prepareCleanReelBrief, enqueueReelJob and any cursor write, holds only on funds.hold and returns (sliceBlock, fail-closed). Mutation: removing the hold call or inverting its condition turns it red.",
+          "server/reelDrainHeadOfLine.test.ts (12): now pins needs_review in the parked set; 1 failed | 11 passed before the change."
+        ],
+        "liveRuns": [],
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Not observed in production yet. Live proof: the first production pulse after deploy logs `held: provider higgsfield has ... credits` while the balance is below about 130, or an enqueue after a top-up",
+          "source": "2026-10-16 reel autonomy job"
+        }
+      ],
+      "deferredScope": [
+        "the paid beat-repair path does not consult the funds hold"
+      ],
+      "lastVerifiedAt": "2026-10-16",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
+    },
+    {
       "capabilityId": "article-draft-generation-diagnostics",
       "name": "Blog article drafts get an output budget and an empty reply names its cause",
       "owner": "operator",
