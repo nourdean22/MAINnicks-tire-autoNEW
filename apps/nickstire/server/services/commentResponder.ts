@@ -260,6 +260,17 @@ export async function runReelCommentResponder(): Promise<{ recordsProcessed: num
 
   if (posted.length === 0) return { recordsProcessed: 0, details: "no recently-posted reels to scan" };
 
+  // Audit trail: one autonomy_audit_events row per reply attempt. recordAuditEvent
+  // never throws. The policy version is read once per run; unreadable = 0, said so.
+  const { recordAuditEvent, getActivePolicy } = await import("./autonomyControl");
+  let policyVersion = 0;
+  let policyCodes: string[] = [];
+  try {
+    policyVersion = (await getActivePolicy()).version;
+  } catch {
+    policyCodes = ["policy_version_unread"];
+  }
+
   // Calculate dynamic velocity limit (first-hour bonus).
   //
   // AGE IS COMPUTED BY THE DATABASE, not from a driver-parsed Date. mysql2 parses
@@ -353,12 +364,29 @@ export async function runReelCommentResponder(): Promise<{ recordsProcessed: num
         continue;
       }
       drafted++;
+      // Our reply only: the customer's comment text never enters the audit row.
+      const tone = toneClassified ?? null;
+      const replyText = draft.slice(0, 300);
       if (!live) {
         log.info("[dry-run] would reply to comment", { mediaId, commentId: c.id, draft, tone: toneClassified });
+        await recordAuditEvent({
+          actionType: "comment_reply",
+          decision: "DRY_RUN",
+          reasoningCodes: [tone ?? "tone_unknown", killSwitched ? "kill_switch" : "dry_run", ...policyCodes],
+          policyVersion,
+          context: { mediaId, commentId: c.id, tone, replyText, error: null },
+        });
         advance(c.timestamp);
         continue;
       }
       const r = await replyToComment(c.id, draft);
+      await recordAuditEvent({
+        actionType: "comment_reply",
+        decision: r.success ? "POSTED" : "FAILED",
+        reasoningCodes: [tone ?? "tone_unknown", r.success ? "posted" : "reply_failed", ...policyCodes],
+        policyVersion,
+        context: { mediaId, commentId: c.id, replyId: r.replyId ?? null, tone, replyText, error: r.error ?? null },
+      });
       if (r.success) {
         postedCount++;
         advance(c.timestamp);
