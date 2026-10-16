@@ -2,6 +2,8 @@
 // Every control goes through the REAL script as a child process with the stdin JSON the harness sends
 // (guard-red-team rule 5), never through an imported function. Mutants are planted by copying the script
 // to the OS temp dir with one constant changed and running that copy against the same controls.
+// The routing controls run against a FIXTURE home (two user skills shaped like receiving-code-review and pptx, plus
+// an unloadable nested SKILL.md), so the suite reads the same on every machine; one test looks at the real user root.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -14,19 +16,47 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..", "..");
 const SCRIPT = join(HERE, "skill-recall.mjs");
 const SETTINGS = JSON.parse(readFileSync(join(ROOT, ".claude", "settings.json"), "utf8"));
-const HOME_SKILLS = join(homedir(), ".claude", "skills");
+const REAL_HOME_SKILLS = join(homedir(), ".claude", "skills");
 const TEMPLATE = join(ROOT, ".agents", "core", "templates", "subagent-brief.md");
 const SCRATCH = mkdtempSync(join(tmpdir(), "skill-recall-test-"));
 
-// Exactly the names other hooks and the lane frontmatter force every turn (review round 3b).
+// Exactly the names other hooks and the lane frontmatter force every turn (review round 5: the scoped ones score).
 const ALWAYS_ON = [
   "using-superpowers", "ponytail", "karpathy-guidelines", "i-have-adhd", "verification-before-completion",
-  "antislop", "monorepo-manager", "nour-command", "find-skill",
+  "nour-command", "find-skill",
 ];
 
+const skillFile = (name, description, triggers) => `---\nname: ${name}\ndescription: ${description}\n${triggers ? `triggers: ${triggers}\n` : ""}---\n# ${name}\n`;
+
+/** A fixture home: ~/.claude/skills with two user skills, an unloadable nested SKILL.md, and optionally N synthetic skills. */
+function makeHome(label, synthetic = 0) {
+  const home = join(SCRATCH, label);
+  const skills = join(home, ".claude", "skills");
+  mkdirSync(join(skills, "receiving-code-review"), { recursive: true });
+  writeFileSync(join(skills, "receiving-code-review", "SKILL.md"), skillFile("receiving-code-review",
+    "Use when receiving code review feedback, before implementing suggestions, especially if feedback seems unclear or technically questionable - requires technical rigor and verification, not performative agreement or blind implementation"));
+  mkdirSync(join(skills, "pptx"), { recursive: true });
+  writeFileSync(join(skills, "pptx", "SKILL.md"), skillFile("pptx",
+    "Use when creating, editing or reading PowerPoint slide decks: slides, layouts, speaker notes, templates and exports to pdf or images"));
+  // Not loadable by Claude Code: a SKILL.md two levels down (a draft under references). It must never be indexed.
+  mkdirSync(join(skills, "nested-host", "references", "draft"), { recursive: true });
+  writeFileSync(join(skills, "nested-host", "SKILL.md"), skillFile("nested-host", "Use when hosting nested fixtures for this canary."));
+  writeFileSync(join(skills, "nested-host", "references", "draft", "SKILL.md"), skillFile("nested-draft-skill", "A draft that is not a skill.", "zorblatt, quxxle"));
+  // Synthetic user skills of average length that share no word with any control prompt (round 5: idf stability).
+  for (let i = 0; i < synthetic; i++) {
+    const words = Array.from({ length: 25 }, (_, j) => `syn${i}w${j}`).join(" ");
+    mkdirSync(join(skills, `synthetic-${i}`), { recursive: true });
+    writeFileSync(join(skills, `synthetic-${i}`, "SKILL.md"), skillFile(`synthetic-${i}`, `Use when ${words}.`));
+  }
+  return home;
+}
+
+const HOME_SMALL = makeHome("home-small");
+const HOME_BIG = makeHome("home-big", 500);
+
 // prompt -> at least one of these names must be printed. Options: `first` (must be the FIRST line), `maxNonRepo`
-// (cap on entries from ~/.claude/skills), `repoFirst` (no non-repo entry above a repo entry), `absent` (names that
-// must NOT print). Scores quoted in comments were measured 2026-10-16 on the operator machine (83 indexed names).
+// (cap on entries from the user root), `repoFirst` (no user entry above a repo entry), `absent` (names that must NOT
+// print). Scores quoted in comments were measured 2026-10-16 on the operator machine.
 const CONTROLS = [
   ["fix the Prisma migration for statenour", ["statenour-migration"], { first: true }],
   ["the reel pipeline is stuck on Instagram", ["nickstire-reel-operator", "nickstire-verifier-reel-pipeline"], { first: true }],
@@ -35,19 +65,20 @@ const CONTROLS = [
   // "release the lease" (B) carries the expectation: session-authority first, at most one user-root entry.
   ["merge the three ledger rows", [], { absent: ["stranded-branch-rescue", "ponytail-debt", "ponytail-audit"] }],
   ["merge the three ledger rows and release the lease", ["session-authority"], { first: true, maxNonRepo: 1 }],
-  // Probe A: its generic words (brief, deck, sheet, open, approve, home) each hit one library description or one
-  // trigger phrase and nothing else, so nothing may print. antislop-ui has no word of this prompt in its body.
+  // Probe A: its generic words (brief, deck, sheet, open, approve, home) each hit one description or one trigger
+  // phrase and nothing else, so nothing may print. antislop-ui has no word of this prompt in its body.
   ["open the W2 brief for Home deck and Missions, approve in place, detent sheet", [], { maxNonRepo: 0, absent: ["nickstire-ios-pwa-primitives"] }],
-  // Round 4: the user root scores on the same rule as the repo. These two are true matches the removed 1.5x bar had
-  // dropped (receiving-code-review 10.5, pptx 11.1); they exist only where ~/.claude/skills does, so CI skips them.
-  ...(existsSync(join(HOME_SKILLS, "receiving-code-review", "SKILL.md")) ? [["the feedback is unclear", ["receiving-code-review"]]] : []),
-  ...(existsSync(join(HOME_SKILLS, "pptx", "SKILL.md")) ? [["slides for the deck", ["pptx"]]] : []),
+  // Round 4: the user root scores on the same rule as the repo; these two are true matches a 1.5x bar had dropped.
+  ["the feedback is unclear", ["receiving-code-review"], { first: true }],
+  ["slides for the deck", ["pptx"], { first: true }],
   // Round 3: one generic word inside a trigger phrase must not print a repo skill on its own (home screen, page,
   // empty labels, loading). The MIN_HITS mutant sets the minimum to 1 and this control fails.
   ["the home page shows no active missions while the board is loading; fix the empty state", ["empty-vs-error"],
     { first: true, absent: ["nickstire-ios-pwa-primitives", "defuddle", "antislop-code", "ponytail-review"] }],
   // Round 3b: ALWAYS_ON hid skills nothing forces; harness-worktree-setup is the FIRST action CLAUDE.md names.
   ["tsc is not recognized in this worktree", ["harness-worktree-setup"], { first: true }],
+  // Round 5: monorepo-manager and antislop are scoped, not forced every turn, so they must score.
+  ["manage the repo, dispatch two lanes and run the backlog", ["monorepo-manager"], { first: true }],
   // Round 3b P1-3: wrong or missing top match, fixed with stop words and triggers.
   ["fix the failing vitest for the booking page", ["test-driven-development", "systematic-debugging"], { first: true }],
   ["the nickstire SMS reminder cron is failing in prod", ["systematic-debugging", "prod-db-guard"], { first: true }],
@@ -61,11 +92,16 @@ const CONTROLS = [
   ["remove the generic comments from this file", ["antislop-code"], { first: true }],
   ["which skills actually fire", ["skill-fire-audit"], { first: true }],
   ["the subagents are using the same skills over and over", ["skill-fire-audit"]],
+  // Round 5: the query cap keeps both ends, so a request after a long paste still routes.
+  [Array.from({ length: 2100 }, (_, i) => `filler${i}`).join(" ") + " fix the Prisma migration for statenour", ["statenour-migration"], { first: true, label: "2100 filler tokens then the Prisma prompt" }],
+  // Round 5: a SKILL.md nested under a skill's references is not loadable and must not be indexed.
+  ["zorblatt quxxle", [], { absent: ["nested-draft-skill"] }],
 ];
 const NONSENSE = "zxqv florp wibble quux";
 // Two body-only hits on one skill (nickstire-reel-operator 5.3): above zero, under the floor, so the none line.
 // The FLOOR mutant (0.5) prints it.
 const NOISE = "reads on his iphone mid-task";
+const label = (prompt, opt) => opt.label || prompt;
 
 function countSkillFiles(dir) {
   let n = 0;
@@ -76,20 +112,21 @@ function countSkillFiles(dir) {
   return n;
 }
 
-/** Run a script the way the hook runs: cwd = project, CLAUDE_PROJECT_DIR set, no GIT_* env, JSON on stdin. */
-function run(args, input, script = SCRIPT, extraEnv = {}) {
+/** Run a script the way the hook runs: cwd = project, CLAUDE_PROJECT_DIR set, no GIT_* env, JSON on stdin, fixture home. */
+function run(args, input, script = SCRIPT, extraEnv = {}, home = HOME_SMALL) {
   const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("GIT_")));
   env.CLAUDE_PROJECT_DIR = ROOT;
-  env.SKILL_RECALL_CACHE_DIR = join(SCRATCH, "cache");
+  env.SKILL_RECALL_CACHE_DIR = join(SCRATCH, "cache-" + (home === HOME_BIG ? "big" : home === HOME_SMALL ? "small" : "real"));
+  if (home) { env.HOME = home; env.USERPROFILE = home; }
   Object.assign(env, extraEnv);
   for (const [k, v] of Object.entries(env)) if (v === undefined) delete env[k];
   const t0 = performance.now();
-  const r = spawnSync(process.execPath, [script, ...args], { input, encoding: "utf8", cwd: ROOT, env, timeout: 20000 });
+  const r = spawnSync(process.execPath, [script, ...args], { input, encoding: "utf8", cwd: ROOT, env, timeout: 30000, maxBuffer: 64 * 1024 * 1024 });
   return { code: r.status, out: r.stdout ?? "", err: r.stderr ?? "", ms: performance.now() - t0 };
 }
 
 const hookInput = (prompt) => JSON.stringify({ session_id: "t", cwd: ROOT, hook_event_name: "UserPromptSubmit", prompt });
-const hook = (prompt, script, extraEnv) => run([], hookInput(prompt), script, extraEnv);
+const hook = (prompt, script, extraEnv, home) => run([], hookInput(prompt), script, extraEnv, home);
 const named = (out) => [...out.matchAll(/^\[skill-recall\] invoke: (\S+)/gm)].map((m) => m[1]);
 const NONE_LINE = /^\[skill-recall\] none beyond the always-on set$/m;
 
@@ -103,36 +140,39 @@ function configuredRecall() {
 function runConfigured(command, prompt) {
   const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("GIT_")));
   env.CLAUDE_PROJECT_DIR = ROOT;
-  env.SKILL_RECALL_CACHE_DIR = join(SCRATCH, "cache");
+  env.SKILL_RECALL_CACHE_DIR = join(SCRATCH, "cache-small");
+  env.HOME = HOME_SMALL;
+  env.USERPROFILE = HOME_SMALL;
   const cmd = process.platform === "win32" ? command.replaceAll("${CLAUDE_PROJECT_DIR}", ROOT) : command;
-  const r = spawnSync(cmd, { shell: process.platform === "win32" ? true : "/bin/sh", input: hookInput(prompt), encoding: "utf8", cwd: ROOT, env, timeout: 20000 });
+  const r = spawnSync(cmd, { shell: process.platform === "win32" ? true : "/bin/sh", input: hookInput(prompt), encoding: "utf8", cwd: ROOT, env, timeout: 30000 });
   return { code: r.status, out: `${r.stdout ?? ""}${r.stderr ?? ""}` };
 }
 
 /** The whole contract for one script: every control holds, nonsense and noise print the none line, always-on never appears. */
-function controlProblems(script = SCRIPT) {
+function controlProblems(script = SCRIPT, home = HOME_SMALL) {
   const problems = [];
   for (const [prompt, expected, opt = {}] of CONTROLS) {
-    const r = hook(prompt, script);
-    if (r.code !== 0) problems.push(`exit ${r.code} for "${prompt}": ${r.err}`);
+    const r = hook(prompt, script, {}, home);
+    const name = label(prompt, opt);
+    if (r.code !== 0) problems.push(`exit ${r.code} for "${name}": ${r.err}`);
     const got = named(r.out);
     const pool = opt.first ? got.slice(0, 1) : got;
-    if (expected.length && !expected.some((e) => pool.includes(e))) problems.push(`"${prompt}" named [${got.join(", ")}], expected one of [${expected.join(", ")}]${opt.first ? " first" : ""}`);
-    for (const a of opt.absent ?? []) if (got.includes(a)) problems.push(`"${prompt}" printed ${a}, which must stay absent`);
-    for (const g of got) if (ALWAYS_ON.includes(g)) problems.push(`always-on skill ${g} printed for "${prompt}"`);
-    if (got.length > 5) problems.push(`${got.length} lines for "${prompt}", cap is 5`);
+    if (expected.length && !expected.some((e) => pool.includes(e))) problems.push(`"${name}" named [${got.join(", ")}], expected one of [${expected.join(", ")}]${opt.first ? " first" : ""}`);
+    for (const a of opt.absent ?? []) if (got.includes(a)) problems.push(`"${name}" printed ${a}, which must stay absent`);
+    for (const g of got) if (ALWAYS_ON.includes(g)) problems.push(`always-on skill ${g} printed for "${name}"`);
+    if (got.length > 5) problems.push(`${got.length} lines for "${name}", cap is 5`);
     if (opt.maxNonRepo !== undefined || opt.repoFirst) {
       // The hook line carries no root, so the same scorer's --json output supplies the kinds for the same prompt.
-      const picked = JSON.parse(run(["--json", "--text", prompt], undefined, script).out).picked;
+      const picked = JSON.parse(run(["--json", "--text", prompt], undefined, script, {}, home).out).picked;
       const nonRepo = picked.filter((p) => p.kind !== "repo").map((p) => p.name);
-      if (opt.maxNonRepo !== undefined && nonRepo.length > opt.maxNonRepo) problems.push(`"${prompt}" printed ${nonRepo.length} non-repo entries [${nonRepo.join(", ")}], cap ${opt.maxNonRepo}`);
+      if (opt.maxNonRepo !== undefined && nonRepo.length > opt.maxNonRepo) problems.push(`"${name}" printed ${nonRepo.length} non-repo entries [${nonRepo.join(", ")}], cap ${opt.maxNonRepo}`);
       const lastRepo = picked.map((p) => p.kind).lastIndexOf("repo");
       const firstNonRepo = picked.findIndex((p) => p.kind !== "repo");
-      if (opt.repoFirst && firstNonRepo >= 0 && firstNonRepo < lastRepo) problems.push(`"${prompt}" ranks non-repo ${picked[firstNonRepo].name} above a repo entry`);
+      if (opt.repoFirst && firstNonRepo >= 0 && firstNonRepo < lastRepo) problems.push(`"${name}" ranks non-repo ${picked[firstNonRepo].name} above a repo entry`);
     }
   }
   for (const p of [NONSENSE, NOISE]) {
-    const r = hook(p, script);
+    const r = hook(p, script, {}, home);
     if (r.code !== 0) problems.push(`exit ${r.code} for "${p}"`);
     if (!NONE_LINE.test(r.out)) problems.push(`"${p}" printed: ${JSON.stringify(r.out)}`);
   }
@@ -190,24 +230,46 @@ test("registered on UserPromptSubmit after the skills-first reminder; the config
   assert.match(r.out, /^\[skill-recall\] invoke: statenour-migration/m, `the configured command did not print recall lines:\n${r.out}`);
 });
 
-test("index covers every .claude/skills SKILL.md and the user root when it exists, and nothing from plugins", () => {
+test("index: every flat .claude/skills SKILL.md, the fixture user skills, no nested SKILL.md, nothing from plugins", () => {
   const r = run(["--json", "--text", "probe"]);
   assert.equal(r.code, 0, r.err);
   const j = JSON.parse(r.out);
   const repoCount = countSkillFiles(join(ROOT, ".claude", "skills"));
   assert.ok(repoCount >= 50, `repo has ${repoCount} SKILL.md files, expected at least 50`);
   assert.ok(j.index.repo >= repoCount, `indexed ${j.index.repo} repo skills, on disk ${repoCount}`);
-  if (existsSync(HOME_SKILLS)) assert.ok(j.index.user > 0, `user root exists but indexed ${j.index.user}`);
+  assert.equal(j.index.user, 3, `fixture home holds receiving-code-review, pptx and nested-host: indexed ${j.index.user}`);
+  assert.ok(j.index.names.includes("pptx") && j.index.names.includes("nested-host"));
+  assert.ok(!j.index.names.includes("nested-draft-skill"), "a SKILL.md under a skill's references must not be indexed");
   assert.equal(j.index.total, j.index.repo + j.index.user);
   assert.equal(j.index.plugin, undefined, "plugin trees must not be indexed: the Skill tool cannot load them by those names");
+});
+
+test("the REAL user root is discovered when it exists (count only, no ranking asserted)", () => {
+  const r = run(["--json", "--text", "probe"], undefined, SCRIPT, {}, null);
+  assert.equal(r.code, 0, r.err);
+  const j = JSON.parse(r.out);
+  if (existsSync(REAL_HOME_SKILLS)) assert.ok(j.index.user > 0, `real user root exists but indexed ${j.index.user}`);
+  else assert.equal(j.index.user, 0);
 });
 
 test("positive controls through the real hook: expected skills, none line for nonsense and noise, always-on filtered", () => {
   assert.deepEqual(controlProblems(), []);
 });
 
+test("500 unrelated user skills change no repo result: same first lines, noise still prints the none line", () => {
+  const big = JSON.parse(run(["--json", "--text", "probe"], undefined, SCRIPT, {}, HOME_BIG).out);
+  assert.equal(big.index.user, 503, `big fixture home indexed ${big.index.user} user skills`);
+  assert.deepEqual(controlProblems(SCRIPT, HOME_BIG), []);
+  for (const [prompt, expected, opt = {}] of CONTROLS) {
+    if (!expected.length) continue;
+    const small = named(hook(prompt, SCRIPT, {}, HOME_SMALL).out)[0];
+    const withBig = named(hook(prompt, SCRIPT, {}, HOME_BIG).out)[0];
+    assert.equal(withBig, small, `"${label(prompt, opt)}": first line moved from ${small} to ${withBig} after 500 user skills`);
+  }
+});
+
 test("a prompt that names the always-on skills never prints them, and a skill nothing forces is not hidden", () => {
-  const r = hook("run ponytail, karpathy-guidelines, find-skill, nour-command and monorepo-manager with antislop and i-have-adhd");
+  const r = hook("run ponytail, karpathy-guidelines, find-skill, nour-command and verification-before-completion with using-superpowers and i-have-adhd");
   assert.equal(r.code, 0, r.err);
   for (const n of named(r.out)) assert.ok(!ALWAYS_ON.includes(n), `always-on ${n} printed`);
   assert.ok(named(hook("prior art before the new table").out).includes("prior-art-grep"), "prior-art-grep must be able to score");
@@ -236,7 +298,7 @@ test("fail OPEN: malformed stdin exits 0 with the off line; a corrupted cache re
   assert.match(bad.out, /^\[skill-recall\] off: /m, bad.out);
   const healthy = hook("fix the Prisma migration for statenour");
   assert.doesNotMatch(healthy.out, /\[skill-recall\] off:/, `a healthy run must never print the off line: ${healthy.out}`);
-  const cacheDir = join(SCRATCH, "cache");
+  const cacheDir = join(SCRATCH, "cache-small");
   for (const f of existsSync(cacheDir) ? readdirSync(cacheDir) : []) writeFileSync(join(cacheDir, f), "{corrupt");
   const r = hook("fix the Prisma migration for statenour");
   assert.equal(r.code, 0, r.err);
@@ -273,17 +335,17 @@ test("latency: a warm-cache hook run stays under 2 s (local target 300 ms, recor
   process.stdout.write(`# skill-recall warm hook run: ${r.ms.toFixed(0)} ms\n`);
 });
 
-test("runtime writes nothing inside the repo: git status is identical before and after three hook runs on the DEFAULT cache dir", () => {
+test("runtime writes nothing inside the repo: git status is identical before and after three hook runs on the DEFAULT cache dir and the real home", () => {
   const status = () => spawnSync("git", ["status", "--porcelain"], { cwd: ROOT, encoding: "utf8" }).stdout ?? "";
   const before = status();
   const defaults = { SKILL_RECALL_CACHE_DIR: undefined };
   for (const p of ["fix the Prisma migration for statenour", NONSENSE, "warm"]) {
-    const r = hook(p, SCRIPT, defaults);
+    const r = hook(p, SCRIPT, defaults, null);
     assert.equal(r.code, 0);
     // The default cache may hold an index written by an older version of the script; it must never turn the hook off.
     assert.doesNotMatch(r.out, /^\[skill-recall\] off: /m, `default cache turned the hook off for "${p}": ${r.out}`);
   }
-  assert.match(hook("fix the Prisma migration for statenour", SCRIPT, defaults).out, /invoke: statenour-migration/);
+  assert.match(hook("fix the Prisma migration for statenour", SCRIPT, defaults, null).out, /invoke: statenour-migration/);
   assert.equal(status(), before);
 });
 

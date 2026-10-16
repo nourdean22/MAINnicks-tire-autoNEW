@@ -85,23 +85,25 @@ github-client canaries 403'd every PR whenever another workflow had spent the bu
   lines name before any work. It is advice, not enforcement: it has no path to exit 2, so it never blocks a prompt,
   and it cannot make the model comply. `skillsFirstReminder.test.mjs` runs the configured command verbatim and
   asserts the line, the sources it names, and exit 0.
-- **UserPromptSubmit** (`skill-recall.mjs`, 2026-10-16, runs after the reminder) scores the prompt against every
-  SKILL.md under the two roots the Skill tool provably resolves, `.claude/skills` and `~/.claude/skills` (83 names on
-  the operator machine: 58 repo + 25 user-only; 58 in CI), and prints at most five
-  `[skill-recall] invoke: <name> (<matched words>)` lines, or `none beyond the always-on set`. The plugin trees under
-  `~/.claude/plugins` are not indexed: on disk a loaded plugin and a catalog copy look the same, and a name taken from
-  there was a failed Skill call for the reader (review round 3b). BM25 over the description, name and `triggers:`
-  tokens with a 3x boost, 1.5x for repo skills, the nine names other hooks force every turn filtered out, and one rule
-  for both roots (review rounds 1 to 4): the floor, 7.5, plus a hit on a real name token or two matched terms, because
-  one generic word inside a trigger phrase printed a skill on its own. A higher bar for the user root was measured
-  against the real binary and removed in round 4: it dropped only true matches. Every repo SKILL.md carries a
-  `triggers:` frontmatter line written from its own body; triggers score like name tokens. The numbers and why are
-  comments on the constants. Also a CLI
+- **UserPromptSubmit** (`skill-recall.mjs`, 2026-10-16, runs after the reminder) scores the prompt against the flat
+  `<root>/<slug>/SKILL.md` files under the two roots the Skill tool provably resolves, `.claude/skills` and
+  `~/.claude/skills` (58 repo names plus whatever the user root holds), and prints at most five
+  `[skill-recall] invoke: <name> (<matched words>)` lines, or `none beyond the always-on set`. Not indexed: the plugin
+  trees under `~/.claude/plugins` (on disk a loaded plugin and a catalog copy look the same, and a name taken from there
+  was a failed Skill call for the reader, review round 3b) and any SKILL.md nested deeper than the slug directory (a
+  draft or a reference, not loadable, round 5). BM25 over the description, name and `triggers:` tokens with a 3x
+  boost, 1.5x for repo skills, term statistics from the repo cohort alone so a repo result never moves when user skills
+  are installed, the seven names other hooks force every turn filtered out (scoped skills such as monorepo-manager and
+  antislop score), a prompt capped at 2000 distinct terms taken from both ends, and one rule for both roots (review
+  rounds 1 to 4): the floor, 7.5, plus a hit on a real name token or two matched terms, because one generic word
+  inside a trigger phrase printed a skill on its own. Every repo SKILL.md carries a `triggers:` frontmatter line
+  written from its own body; triggers score like name tokens. The numbers and why are comments on the constants. Also a CLI
   for lane briefs: `--text`, `--file <brief>` (lines that appear verbatim in the brief template are dropped first),
   `--json`, and `--scope global` for the user-level entry (silent inside a project whose own settings run the hook).
   The index is cached in the OS temp dir, keyed by the roots' mtimes and the script's own source; nothing is written
-  inside the repo. `skillRecall.test.mjs` runs the real script on hook-shaped stdin:
-  positive controls, the none line, the always-on filter, five mutants, a corrupted cache, and a 2 s latency bound
+  inside the repo. `skillRecall.test.mjs` runs the real script on hook-shaped stdin against a fixture home (so the
+  suite reads the same on every machine): positive controls, the none line, the always-on filter, 500 synthetic user
+  skills that must change nothing, five mutants, a corrupted cache, and a 2 s latency bound
   (measured 70 to 100 ms warm on the operator machine).
   **Why fail-open:** any error prints `[skill-recall] off: <reason>` and exits 0. Exit 2 on UserPromptSubmit blocks
   the prompt itself, so a bug in a recall helper would stop the operator from typing; a missing recall line costs one

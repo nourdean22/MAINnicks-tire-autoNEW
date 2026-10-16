@@ -8,10 +8,11 @@
  *   add --json for the full ranking and the index counts
  *   --scope global: the ~/.claude/settings.json entry; silent in a project whose own settings run this script
  *
- * Index: every SKILL.md under the two roots the Skill tool provably resolves, `<project>/.claude/skills` and
- * `~/.claude/skills` (review round 3b, 2026-10-16: the plugin trees on disk cannot be told apart from catalog copies,
- * and names indexed from them were failed Skill calls for the reader). Cached in the OS temp dir, keyed by the roots,
- * their mtimes and this script's own source; never written inside the repo.
+ * Index: the flat `<root>/<slug>/SKILL.md` files under the two roots the Skill tool provably resolves,
+ * `<project>/.claude/skills` and `~/.claude/skills` (review round 3b, 2026-10-16: the plugin trees on disk cannot be
+ * told apart from catalog copies, and names indexed from them were failed Skill calls for the reader; round 5: a
+ * SKILL.md nested deeper, a draft or a reference, is not loadable either). Cached in the OS temp dir, keyed by the
+ * roots, their mtimes and this script's own source; never written inside the repo.
  *
  * Scoring is plain BM25 over description, with name and `triggers:` tokens boosted, a floor and a two-term minimum.
  * Output: at most MAX_LINES "[skill-recall] invoke: <name> (<matched words>)" lines, or the none line.
@@ -22,7 +23,7 @@
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { basename, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const MAX_LINES = 5;
@@ -39,13 +40,14 @@ const FLOOR = 7.5;
 // root was measured against the real binary in round 4 and removed: it dropped only true matches (receiving-code-review
 // on "the feedback is unclear", pptx on "slides for the deck") and no noise, once the plugin roots were gone.
 const MIN_HITS = 2;
-// A prompt is at most this many distinct terms: a 547 KB pasted report took 7 s and the hook timeout is 10 s.
+// A prompt is at most this many distinct terms, taken from both ends: a 547 KB pasted report took 7 s against a 10 s
+// hook timeout, and the request usually sits at the end of a paste (round 5), so the head alone would lose it.
 const MAX_QUERY_TERMS = 2000;
-// Exactly the names other hooks and the lane frontmatter force every turn. Anything else must be able to score
-// (harness-worktree-setup, positive-control-first, assert-the-consumer, prior-art-grep...).
+// Exactly the names other hooks and the lane frontmatter force every turn. Anything scoped to a kind of work
+// (monorepo-manager, antislop, harness-worktree-setup, positive-control-first...) must be able to score (round 5).
 const ALWAYS_ON = new Set([
   "using-superpowers", "ponytail", "karpathy-guidelines", "i-have-adhd", "verification-before-completion",
-  "antislop", "monorepo-manager", "nour-command", "find-skill",
+  "nour-command", "find-skill",
 ]);
 // A skill name is what the Skill tool accepts; anything else on disk is skipped so the output never prints junk.
 const NAME_OK = /^[a-z0-9][\w:.-]{0,63}$/i;
@@ -59,7 +61,7 @@ const B = 0.75;
 const TEMPLATE = ".agents/core/templates/subagent-brief.md";
 // Bump when the shape of an index entry changes (the script hash below catches code changes; this is for a cache
 // written by a script whose text happens to be identical, which cannot happen, so it is documentation as much as key).
-const INDEX_VERSION = 3;
+const INDEX_VERSION = 4;
 
 function repoRoot() {
   return resolve(process.env.CLAUDE_PROJECT_DIR || process.cwd());
@@ -73,7 +75,16 @@ function skillRoots(root) {
   ].filter((r) => existsSync(r.dir));
 }
 
-/** Cache key: this script's own source, the root list, each root's mtime, each child dir's mtime and its SKILL.md
+/** The flat `<root>/<slug>` skill directories: what Claude Code loads (forge.mjs enforces the same layout). */
+function skillDirs(rootDir) {
+  return readdirSync(rootDir, { withFileTypes: true })
+    .filter((e) => e.isDirectory() && !SKIP_DIRS.has(e.name))
+    .map((e) => join(rootDir, e.name))
+    .filter((d) => existsSync(join(d, "SKILL.md")))
+    .sort();
+}
+
+/** Cache key: this script's own source, the root list, each root's mtime, each skill dir's mtime and its SKILL.md
  * mtime (sessions edit those in place, which bumps no directory; review round 2 hit exactly that). */
 function cacheKey(roots) {
   const h = createHash("sha1");
@@ -81,12 +92,8 @@ function cacheKey(roots) {
   h.update(readFileSync(fileURLToPath(import.meta.url)));
   for (const r of roots) {
     h.update(`${r.kind}:${r.dir}:${statSync(r.dir).mtimeMs}\n`);
-    for (const e of readdirSync(r.dir, { withFileTypes: true })) {
-      if (!e.isDirectory() || SKIP_DIRS.has(e.name)) continue;
-      try {
-        h.update(`${e.name}:${statSync(join(r.dir, e.name)).mtimeMs}\n`);
-        h.update(`${statSync(join(r.dir, e.name, "SKILL.md")).mtimeMs}\n`);
-      } catch { /* vanished mid-walk, or a folder with no SKILL.md */ }
+    for (const d of skillDirs(r.dir)) {
+      try { h.update(`${d}:${statSync(d).mtimeMs}:${statSync(join(d, "SKILL.md")).mtimeMs}\n`); } catch { /* vanished mid-walk */ }
     }
   }
   return h.digest("hex");
@@ -109,20 +116,14 @@ function frontmatter(text) {
   return out;
 }
 
-function walk(dir, kind, out) {
-  let entries;
-  try { entries = readdirSync(dir, { withFileTypes: true }); } catch { return; }
-  if (entries.some((e) => e.name === "SKILL.md")) {
-    try {
-      const fm = frontmatter(readFileSync(join(dir, "SKILL.md"), "utf8"));
-      const name = (fm.name || basename(dir)).trim();
-      if (NAME_OK.test(name)) {
-        out.push({ name, description: fm.description || "", triggers: [fm.triggers, fm.when].filter(Boolean).join(" "), kind, path: join(dir, "SKILL.md") });
-      }
-    } catch { /* unreadable file: skip it, the rest of the index still works */ }
-  }
-  for (const e of entries) {
-    if (e.isDirectory() && !SKIP_DIRS.has(e.name)) walk(join(dir, e.name), kind, out);
+function readSkill(dir, kind) {
+  try {
+    const fm = frontmatter(readFileSync(join(dir, "SKILL.md"), "utf8"));
+    const name = (fm.name || dir.split(/[\\/]/).pop()).trim();
+    if (!NAME_OK.test(name)) return null;
+    return { name, description: fm.description || "", triggers: [fm.triggers, fm.when].filter(Boolean).join(" "), kind, path: join(dir, "SKILL.md") };
+  } catch {
+    return null; // unreadable file: skip it, the rest of the index still works
   }
 }
 
@@ -140,11 +141,9 @@ function buildIndex(roots) {
   const seen = new Set();
   const entries = [];
   for (const r of roots) {
-    const found = [];
-    walk(r.dir, r.kind, found);
-    found.sort((a, b) => a.path.localeCompare(b.path));
-    for (const s of found) {
-      if (seen.has(s.name)) continue;
+    for (const dir of skillDirs(r.dir)) {
+      const s = readSkill(dir, r.kind);
+      if (!s || seen.has(s.name)) continue;
       seen.add(s.name);
       // triggers: are routing words by definition, so they carry the name boost; realName keeps the bare name apart,
       // because only a hit on it exempts an entry from the two-term minimum.
@@ -152,10 +151,13 @@ function buildIndex(roots) {
       entries.push({ ...s, realName, nameTokens: [...realName, ...tokens(s.triggers)], bodyTokens: tokens(s.description) });
     }
   }
+  // Term statistics come from the REPO cohort alone (round 5): a repo result must not move when the user installs
+  // 500 unrelated skills. User entries are scored against the same table; a term the repo never uses is a singleton.
+  const repo = entries.filter((e) => e.kind === "repo");
   const df = {};
-  for (const e of entries) for (const t of new Set([...e.nameTokens, ...e.bodyTokens])) df[t] = (df[t] || 0) + 1;
-  const avgLen = entries.reduce((n, e) => n + e.bodyTokens.length, 0) / Math.max(1, entries.length);
-  return { entries, df, avgLen };
+  for (const e of repo) for (const t of new Set([...e.nameTokens, ...e.bodyTokens])) df[t] = (df[t] || 0) + 1;
+  const avgLen = repo.reduce((n, e) => n + e.bodyTokens.length, 0) / Math.max(1, repo.length);
+  return { entries, df, avgLen, N: repo.length };
 }
 
 function loadIndex(root) {
@@ -175,12 +177,20 @@ function loadIndex(root) {
   return index;
 }
 
+/** Distinct query terms, capped from both ends so a request after a long paste still counts. */
+function queryTerms(prompt) {
+  const q = [...new Set(tokens(prompt))];
+  if (q.length <= MAX_QUERY_TERMS) return q;
+  const half = MAX_QUERY_TERMS / 2;
+  return [...q.slice(0, half), ...q.slice(-half)];
+}
+
 function score(index, prompt) {
   // Keep the first prompt word behind each stem so the output reads "migration", not "migrat".
   const word = new Map();
   for (const w of String(prompt).toLowerCase().split(/[^a-z0-9]+/)) if (w && !word.has(stem(w))) word.set(stem(w), w);
-  const q = [...new Set(tokens(prompt))].slice(0, MAX_QUERY_TERMS);
-  const N = index.entries.length;
+  const q = queryTerms(prompt);
+  const N = index.N;
   const results = [];
   for (const e of index.entries) {
     if (ALWAYS_ON.has(e.name)) continue;
@@ -253,7 +263,7 @@ function main() {
   const ranked = score(index, prompt);
   const picked = ranked.filter((r) => r.score >= FLOOR).slice(0, MAX_LINES);
   if (json) {
-    const counts = { total: index.entries.length, repo: 0, user: 0 };
+    const counts = { total: index.entries.length, repo: 0, user: 0, names: index.entries.map((e) => e.name) };
     for (const e of index.entries) counts[e.kind] += 1;
     process.stdout.write(JSON.stringify({ index: counts, floor: FLOOR, picked, ranked: ranked.slice(0, 25) }, null, 2) + "\n");
     return;
