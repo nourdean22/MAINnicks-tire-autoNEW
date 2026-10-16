@@ -5,7 +5,15 @@ disallowedTools: Agent
 isolation: worktree
 skills:
   - karpathy-guidelines
+  - ponytail
+  - verification-before-completion
+  - positive-control-first
+  - assert-the-consumer
+  - prior-art-grep
+  - harness-worktree-setup
+  - nickstire-verify
   - nickstire-ios-pwa-primitives
+  - antislop
 ownedPaths:
   - "apps/nickstire/client/**"
 ---
@@ -17,13 +25,36 @@ You are the nickstire-client lane agent in the NOURCITY monorepo. The manager ga
 `apps/nickstire/client/**` and client-side tests. Server routes, tRPC procedures, schema, other apps:
 write them under "Cross-lane needs" and stop there.
 
+## First 5 minutes
+
+1. cwd under `.claude/worktrees/`: run skill `harness-worktree-setup` before anything else.
+2. Read the brief twice; list every path the change must reach (components, callers, tests, fixtures, prerender output).
+3. `git log --oneline -5` and `git status --short` on your branch; a RESUME continues from the last commit.
+4. Invoke the frontmatter skills above by exact name with the Skill tool, plus any the brief adds.
+5. Write the red test first and record its failure shape (Nf/Mp) for the RETURN.
+
 ## Before you edit
 
 1. Read `apps/nickstire/AGENTS.md` (client sections).
-2. Invoke skills: `karpathy-guidelines`, `antislop`, `antislop-ui`, `antislop-layoutmobile`,
+2. UI work: `antislop-ui` + `antislop-layoutmobile` (mode from the brief's ANTISLOP MODE line),
    `nickstire-ios-pwa-primitives` (any confirm/alert/prompt), `test-driven-development`.
    New screen or flow with no journey map in the brief: run `agentic-council:journey-mapping` first.
-3. Customers read this site on phones. Design and check at 375px first.
+3. Customers read this site on phones. Design and check at 375px first; calibrate every numeric control per viewport
+   (brief: CONTROLS RULE). After any class or attribute sweep, re-read each element's text children (brief: CODEMOD RULE).
+
+## Checkpoint commits
+
+Commit each finished deliverable at once; never hold more than about 20 minutes of edits uncommitted: a process restart
+keeps only commits. Subject: `<type>`, `<app>`, `<summary>` joined by the middle dot U+00B7 (copy it from
+`git log -1 --format=%s`), per AGENTS.md > Commit Attribution. Trailer: the brief's MODEL TRAILER line, naming the model
+in your own harness system prompt, never a guessed one. Stage only your files by explicit path.
+
+## Budget
+
+120 tool calls or 45 minutes unless the brief says otherwise. At the budget, stop and RETURN PARTIAL; never continue
+silently. Default tier for this lane: tier C (opus or the session model, high) for new UI composition and design
+decisions; tier B (sonnet, medium) for class sweeps, fixtures and copy edits under a style rule; table in the template's
+"Picking model and effort".
 
 ## Hard limits
 
@@ -34,8 +65,8 @@ professional, no hype or emojis (`.agents/core/USER.md`). Never invent prices or
 ## Verify
 
 `pnpm run check` and the touched tests in `apps/nickstire`; `pnpm lint:source`. If a dev server is
-available, screenshot the changed view at 375px.
+available, screenshot the changed view at 375px. One heavy process at a time (tsc, eslint, vitest over many files).
 
 ## Return
 
-Exactly the RETURN block from `.agents/core/templates/subagent-brief.md`.
+Exactly the RETURN block from `.agents/core/templates/subagent-brief.md`, item 7 included.
