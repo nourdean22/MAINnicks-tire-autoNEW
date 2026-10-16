@@ -4,8 +4,11 @@
  * Order is the attention order: the lead CTA first, then the judgment items in the order the
  * builder ranked them (approvals expand to the live rows the brief carries, then one remainder row
  * for the Review link), then horizon slots fill whatever is left. `hidden` is the device-local Less
- * filter (lib/ui/brief-feedback.ts): a hidden KIND contributes no rows and the next kind moves up.
- * Pure, so tests/home/brief-rows.test.ts pins the order, the cap and the filter without React.
+ * filter (lib/ui/brief-feedback.ts): a hidden KIND contributes no rows and the next kind moves up,
+ * except a PINNED lead (an unreadable board or a decide-first lead): those stay whatever the filter
+ * says, because hiding "Open system" for seven days is a lockout, not a preference. `total` is the
+ * number of rows after the filter and before the cap, so the page can say "N more" instead of
+ * dropping rows silently. Pure, so tests/home/brief-rows.test.ts pins all of it without React.
  */
 import {
   ATTENTION_CAP,
@@ -21,8 +24,11 @@ export const BRIEF_ROW_CAP = ATTENTION_CAP;
 
 export type BriefRowKind = "lead" | "approval" | "commitment" | "followup" | "contradiction" | "horizon";
 
+/** Lead kinds Less can never hide. */
+export const PINNED_LEAD_KINDS: ReadonlySet<BriefLeadSection["kind"]> = new Set(["error", "decide"]);
+
 export type BriefRow =
-  | { key: string; kind: "lead"; lead: BriefLeadSection & { cta: NonNullable<BriefLeadSection["cta"]> } }
+  | { key: string; kind: "lead"; pinned: boolean; lead: BriefLeadSection & { cta: NonNullable<BriefLeadSection["cta"]> } }
   | { key: string; kind: "approval"; item: PendingApproval; href: string }
   | { key: string; kind: "approval"; more: number; expired: number; href: string }
   | { key: string; kind: "commitment"; item: Extract<JudgmentItem, { kind: "commitment" }> }
@@ -36,15 +42,23 @@ export interface BriefRowsInput {
   horizon: BriefHorizonSection | null;
 }
 
-export function composeBriefRows(brief: BriefRowsInput, hidden: ReadonlySet<string>, cap = BRIEF_ROW_CAP): BriefRow[] {
-  const rows: BriefRow[] = [];
+export interface ComposedBrief {
+  /** The rows to render, in order, at most `cap`. */
+  rows: BriefRow[];
+  /** Rows that survived the Less filter, before the cap. `total - rows.length` is "N more". */
+  total: number;
+}
+
+export function composeBriefRows(brief: BriefRowsInput, hidden: ReadonlySet<string>, cap = BRIEF_ROW_CAP): ComposedBrief {
+  const all: BriefRow[] = [];
   const push = (row: BriefRow) => {
-    if (!hidden.has(row.kind)) rows.push(row);
+    if (row.kind === "lead" && row.pinned) return void all.push(row);
+    if (!hidden.has(row.kind)) all.push(row);
   };
 
   const lead = brief.lead;
   // A lead without a CTA has nothing to act on, and a row is one line plus one action.
-  if (lead?.cta) push({ key: "lead", kind: "lead", lead: { ...lead, cta: lead.cta } });
+  if (lead?.cta) push({ key: "lead", kind: "lead", pinned: PINNED_LEAD_KINDS.has(lead.kind), lead: { ...lead, cta: lead.cta } });
 
   for (const item of brief.judgment?.items ?? []) {
     switch (item.kind) {
@@ -70,5 +84,5 @@ export function composeBriefRows(brief: BriefRowsInput, hidden: ReadonlySet<stri
     push({ key: `horizon:${slot.scope}`, kind: "horizon", slot });
   }
 
-  return rows.slice(0, cap);
+  return { rows: all.slice(0, cap), total: all.length };
 }

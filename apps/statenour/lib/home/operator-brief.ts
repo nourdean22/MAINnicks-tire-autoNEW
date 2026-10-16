@@ -135,6 +135,12 @@ export interface PendingApproval {
   /** Which store holds the row, so which mutation approves it: approval_requests or autonomous_actions. */
   source: "request" | "action";
   title: string;
+  /**
+   * The server refuses a non-owner approve on a high/critical risk class or a require_owner decision
+   * (lib/trpc/routers/system/actions.ts owner gate). Home sends these rows to Review instead of
+   * offering an Approve that can only fail.
+   */
+  requiresOwner: boolean;
 }
 
 /** Live approvals the brief carries for in-place verdicts (components/home/brief-rows.tsx). */
@@ -265,7 +271,7 @@ export async function buildOperatorBrief(now = new Date()): Promise<OperatorBrie
       prisma.approvalRequest.findMany({
         where: { status: "pending_approval" },
         orderBy: { createdAt: "asc" },
-        select: { id: true, createdAt: true, expiresAt: true, reason: true, actionType: true },
+        select: { id: true, createdAt: true, expiresAt: true, reason: true, actionType: true, riskClass: true },
       }),
     ),
     // 14-day unresolved window — parity with the bottom ticker's
@@ -405,8 +411,9 @@ export async function buildOperatorBrief(now = new Date()): Promise<OperatorBrie
 
   const judgmentAll: JudgmentItem[] = [];
 
-  // Approvals roll up to ONE row: their verdicts need payload review, which
-  // lives at /system/actions — Home states the queue, it does not re-host it.
+  // Approvals are ONE item with a count and, since W2, the oldest live rows in
+  // `pending` so Home can approve them in place; payload review and everything
+  // past APPROVAL_ROWS_CAP stay at /system/actions behind `href`.
   if (pendingDecisions !== null && (pendingDecisions > 0 || (expiredDecisions ?? 0) > 0)) {
     const oldest = [
       ...(pendingActions ?? []).map((r) => r.createdAt.getTime()),
@@ -840,17 +847,23 @@ function buildHorizon(i: {
  */
 function pendingApprovalRows(
   actions: Array<{ id: string; actionType: string; ruleName: string; policyObjective: string | null; expired: boolean; createdAt: Date }>,
-  requests: Array<{ id: string; reason: string; actionType: string; createdAt: Date; expiresAt: Date | null }>,
+  requests: Array<{ id: string; reason: string; actionType: string; riskClass: string; createdAt: Date; expiresAt: Date | null }>,
   now: Date,
 ): PendingApproval[] {
   const live: Array<PendingApproval & { at: number }> = [];
   for (const a of actions) {
     if (a.expired) continue;
-    live.push({ id: a.id, source: "action", title: a.policyObjective || `${a.actionType} (${a.ruleName})`, at: a.createdAt.getTime() });
+    live.push({ id: a.id, source: "action", title: a.policyObjective || `${a.actionType} (${a.ruleName})`, requiresOwner: false, at: a.createdAt.getTime() });
   }
   for (const r of requests) {
     if (isApprovalRequestExpired(r, now)) continue;
-    live.push({ id: r.id, source: "request", title: r.reason.split("\n")[0].trim() || r.actionType, at: r.createdAt.getTime() });
+    live.push({
+      id: r.id,
+      source: "request",
+      title: r.reason.split("\n")[0].trim() || r.actionType,
+      requiresOwner: r.riskClass === "critical" || r.riskClass === "high" || r.actionType === "require_owner",
+      at: r.createdAt.getTime(),
+    });
   }
   live.sort((a, b) => a.at - b.at);
   return live.slice(0, APPROVAL_ROWS_CAP).map(({ at: _at, ...row }) => row);

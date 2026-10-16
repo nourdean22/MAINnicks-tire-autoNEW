@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
 /**
  * UI v3 W2 (2026-10-16): BriefRows as rendered and as clicked (react-dom/client in jsdom, the
- * bottom-tab-bar-pinned pattern). Pins the four behaviours a source grep cannot: Less removes the
- * kind and persists under nour:brief-feedback, Approve goes through the house confirm (never
- * window.confirm) and then the existing approve mutation, the lead CTA records `accepted`, and an
- * empty brief reads "Done for today." with a way back when Less hid everything.
+ * bottom-tab-bar-pinned pattern). Pins what a source grep cannot: Less removes the kind, persists
+ * under nour:brief-feedback and announces it; Show hidden is there while anything is hidden; the
+ * three empty states; Approve goes through the house confirm in its danger tone (never
+ * window.confirm) and then the right existing mutation per source, with a failed run, a conflict
+ * and a rejection each reading honestly; owner-gated rows offer Review; the lead CTA records
+ * `accepted`; "N more" expands instead of dropping rows.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import React, { act } from "react";
@@ -13,9 +15,9 @@ import { createRoot, type Root } from "react-dom/client";
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const h = vi.hoisted(() => ({
-  confirm: vi.fn(async () => true),
-  approveRequest: vi.fn(async () => ({ ok: true })),
-  decideAction: vi.fn(async () => ({ ok: true })),
+  confirm: vi.fn(async (_o: unknown) => true),
+  approveRequest: vi.fn(async (_i: unknown) => ({ ok: true })),
+  decideAction: vi.fn(async (_i: unknown) => ({ result: null as string | null })),
   decide: vi.fn(),
   invalidateBrief: vi.fn(),
 }));
@@ -58,9 +60,7 @@ import { HOME_BRIEF } from "../e2e/fixtures/home";
 let container: HTMLDivElement;
 let root: Root;
 
-// The feedback hook hydrates from localStorage on a 0 ms timer (the use-local-storage-state
-// precedent), so a flush is a macrotask, not a microtask. A microtask flush made the "stored Less"
-// case pass or fail on timing (seen once each way on 2026-10-16).
+// The feedback hook hydrates from localStorage on a 0 ms timer, so a flush is a macrotask.
 const flush = async () => {
   await act(async () => {
     await new Promise((r) => setTimeout(r, 5));
@@ -75,15 +75,31 @@ async function mount(brief: typeof HOME_BRIEF | null, loading = false) {
 }
 
 const rows = () => Array.from(container.querySelectorAll("[data-brief-row]")).map((el) => el.getAttribute("data-brief-row"));
-const button = (text: string) =>
-  Array.from(container.querySelectorAll("button")).find((b) => b.textContent?.trim() === text) as HTMLButtonElement | undefined;
+const buttons = (text: string) =>
+  Array.from(container.querySelectorAll("button")).filter((b) => b.textContent?.trim() === text) as HTMLButtonElement[];
+const button = (text: string) => buttons(text)[0] as HTMLButtonElement | undefined;
+const buttonStartingWith = (text: string) =>
+  Array.from(container.querySelectorAll("button")).find((b) => b.textContent?.trim().startsWith(text)) as HTMLButtonElement | undefined;
+const approvalsItem = HOME_BRIEF.judgment.items.find((i) => i.kind === "approvals");
+const pending = approvalsItem?.kind === "approvals" ? approvalsItem.pending : [];
+const live = () => container.querySelector('[aria-live="polite"]')?.textContent ?? "";
+const alertIn = (kind: string) => container.querySelector(`[data-brief-row="${kind}"] [role="alert"]`)?.textContent ?? "";
+const hideAll = () =>
+  window.localStorage.setItem(
+    BRIEF_FEEDBACK_KEY,
+    JSON.stringify(Object.fromEntries(["lead", "approval", "commitment", "followup", "contradiction", "horizon"].map((k) => [k, { verdict: "less", at: Date.now() }]))),
+  );
 
 beforeEach(() => {
   window.localStorage.clear();
   h.confirm.mockClear();
+  h.confirm.mockImplementation(async () => true);
   h.approveRequest.mockClear();
+  h.approveRequest.mockImplementation(async () => ({ ok: true }));
   h.decideAction.mockClear();
+  h.decideAction.mockImplementation(async () => ({ result: null }));
   h.decide.mockClear();
+  h.invalidateBrief.mockClear();
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
@@ -95,29 +111,50 @@ afterEach(async () => {
 });
 
 describe("BriefRows", () => {
-  it("renders the DEMO brief as seven ruled rows, lead first, each with Keep and Less", async () => {
+  it("renders the DEMO brief as seven ruled rows, lead first, each with Keep and Less, plus an N more row", async () => {
     await mount(HOME_BRIEF);
     expect(rows()).toEqual(["lead", "approval", "approval", "approval", "commitment", "followup", "contradiction"]);
     expect(container.querySelectorAll('button[data-brief-verdict="less"]')).toHaveLength(7);
     expect(container.querySelectorAll('button[data-brief-verdict="keep"]')).toHaveLength(7);
     expect(container.textContent).toContain(HOME_BRIEF.lead.headline);
+    expect(container.textContent).not.toContain("7 of 7");
+    expect(button("4 more"), "11 candidate rows, 7 shown").toBeTruthy();
   });
 
-  it("Less on a follow-up row removes the kind at once and persists it under nour:brief-feedback", async () => {
+  it("N more expands the brief in place instead of dropping rows", async () => {
+    await mount(HOME_BRIEF);
+    await act(async () => button("4 more")!.click());
+    expect(rows()).toHaveLength(11);
+    expect(button("Show fewer")).toBeTruthy();
+  });
+
+  it("decision detail sits on its own line: the contradiction's Before side and the commitment's domain and evidence", async () => {
+    await mount(HOME_BRIEF);
+    expect(container.querySelector('[data-brief-row="contradiction"]')?.textContent).toContain("Before: Demo: the quote ships on Friday");
+    expect(container.querySelector('[data-brief-row="commitment"]')?.textContent).toContain("work · proposed from a demo conversation");
+  });
+
+  it("Less on a follow-up row removes the kind at once, persists it under nour:brief-feedback and announces it", async () => {
     await mount(HOME_BRIEF);
     const less = container.querySelector('[data-brief-row="followup"] button[data-brief-verdict="less"]') as HTMLButtonElement;
+    expect(less.getAttribute("aria-label")).toBe("Fewer follow-ups: hide them for seven days");
     await act(async () => less.click());
     expect(rows()).not.toContain("followup");
     const stored = JSON.parse(window.localStorage.getItem(BRIEF_FEEDBACK_KEY) ?? "{}");
     expect(stored.followup?.verdict).toBe("less");
     expect(typeof stored.followup?.at).toBe("number");
+    expect(live()).toContain("Hidden: follow-ups");
+    expect(document.activeElement?.textContent, "focus moved to the section heading").toBe("The brief");
   });
 
-  it("a Less stored on the device hides that kind on the next mount, and the horizon moves up into the freed slot", async () => {
+  it("Show hidden is offered while rows remain, not only when the brief is empty (review round 1: a 7-day lockout)", async () => {
     window.localStorage.setItem(BRIEF_FEEDBACK_KEY, JSON.stringify({ commitment: { verdict: "less", at: Date.now() } }));
     await mount(HOME_BRIEF);
     expect(rows()).not.toContain("commitment");
     expect(rows()).toContain("horizon");
+    await act(async () => button("Show hidden (1)")!.click());
+    expect(rows()).toContain("commitment");
+    expect(window.localStorage.getItem(BRIEF_FEEDBACK_KEY)).toBe("{}");
   });
 
   it("a Less older than seven days no longer hides anything", async () => {
@@ -126,7 +163,14 @@ describe("BriefRows", () => {
     expect(rows()).toContain("commitment");
   });
 
-  it("Approve on a request row asks the house dialog, never window.confirm, then calls the existing approve mutation", async () => {
+  it("an error lead stays visible with no Less button even when the lead kind is hidden on the device", async () => {
+    window.localStorage.setItem(BRIEF_FEEDBACK_KEY, JSON.stringify({ lead: { verdict: "less", at: Date.now() } }));
+    await mount({ ...HOME_BRIEF, lead: { ...HOME_BRIEF.lead, kind: "error", headline: "Board unreadable" } });
+    expect(rows()[0]).toBe("lead");
+    expect(container.querySelector('[data-brief-row="lead"] button[data-brief-verdict="less"]')).toBeNull();
+  });
+
+  it("Approve on a request row asks the house dialog in its danger tone, never window.confirm, then calls the request mutation", async () => {
     const native = vi.spyOn(window, "confirm");
     await mount(HOME_BRIEF);
     const approve = button("Approve");
@@ -135,9 +179,42 @@ describe("BriefRows", () => {
     await flush();
     expect(native).not.toHaveBeenCalled();
     expect(h.confirm).toHaveBeenCalledTimes(1);
-    expect(h.approveRequest).toHaveBeenCalledWith({ id: HOME_BRIEF.judgment.items[0].kind === "approvals" ? HOME_BRIEF.judgment.items[0].pending[0].id : "" });
+    expect(h.confirm.mock.calls[0][0]).toMatchObject({ tone: "danger", confirmLabel: "Approve" });
+    expect(h.approveRequest).toHaveBeenCalledWith({ id: pending[0].id });
+    expect(h.decideAction).not.toHaveBeenCalled();
     expect(h.invalidateBrief).toHaveBeenCalled();
+    expect(live()).toContain("Approved");
     expect(container.querySelector('[data-testid="house-dialog"]')).toBeTruthy();
+  });
+
+  it("Approve on an autonomous-action row calls decideApproval with decision approved", async () => {
+    await mount(HOME_BRIEF);
+    await act(async () => buttons("Approve")[1]!.click());
+    await flush();
+    expect(h.decideAction).toHaveBeenCalledWith({ id: pending[1].id, decision: "approved" });
+    expect(h.approveRequest).not.toHaveBeenCalled();
+  });
+
+  it("an approved action whose run failed is never a silent success", async () => {
+    h.decideAction.mockResolvedValueOnce({ result: "failed" });
+    await mount(HOME_BRIEF);
+    await act(async () => buttons("Approve")[1]!.click());
+    await flush();
+    expect(alertIn("approval")).toContain("Approved, but the run failed");
+    expect(live()).not.toContain("Approved.");
+  });
+
+  it("a rejected approve shows the failure in the row as an alert; a CONFLICT reads Already decided", async () => {
+    h.approveRequest.mockRejectedValueOnce(new Error("boom"));
+    await mount(HOME_BRIEF);
+    await act(async () => button("Approve")!.click());
+    await flush();
+    expect(alertIn("approval")).toContain("That did not save");
+
+    h.approveRequest.mockRejectedValueOnce(Object.assign(new Error("decided"), { data: { code: "CONFLICT" } }));
+    await act(async () => button("Approve")!.click());
+    await flush();
+    expect(alertIn("approval")).toContain("Already decided");
   });
 
   it("a declined confirm approves nothing", async () => {
@@ -148,6 +225,21 @@ describe("BriefRows", () => {
     expect(h.approveRequest).not.toHaveBeenCalled();
   });
 
+  it("an owner-gated approval offers Review, not an Approve the server would refuse", async () => {
+    const gated = {
+      ...HOME_BRIEF,
+      judgment: {
+        ...HOME_BRIEF.judgment,
+        items: HOME_BRIEF.judgment.items.map((i) => (i.kind === "approvals" ? { ...i, pending: i.pending.map((p, n) => (n === 0 ? { ...p, requiresOwner: true } : p)) } : i)),
+      },
+    };
+    await mount(gated);
+    const first = container.querySelector('[data-brief-row="approval"]')!;
+    expect(first.textContent).toContain("Owner approval");
+    expect(first.querySelector("a")?.textContent).toBe("Review");
+    expect(Array.from(first.querySelectorAll("button")).some((b) => b.textContent?.trim() === "Approve")).toBe(false);
+  });
+
   it("the lead CTA records accepted with the task as resultRef (the ledger wiring survives the recomposition)", async () => {
     await mount(HOME_BRIEF);
     const cta = container.querySelector('[data-lead-decision="accepted"]') as HTMLAnchorElement;
@@ -156,22 +248,32 @@ describe("BriefRows", () => {
     expect(h.decide).toHaveBeenCalledWith(expect.objectContaining({ decision: "accepted", resultRef: `task:${HOME_BRIEF.lead.taskId}` }));
   });
 
-  it("Done for today: an empty brief is one line, with no Show hidden when nothing is hidden", async () => {
+  it("Done for today: nothing failed and nothing hidden, one line, no Show hidden", async () => {
     const empty = { ...HOME_BRIEF, lead: { ...HOME_BRIEF.lead, cta: null }, judgment: { ...HOME_BRIEF.judgment, items: [], totalCount: 0 }, horizon: { slots: [], measured: true } };
     await mount(empty);
     expect(container.textContent).toContain("Done for today.");
-    expect(button("Show hidden")).toBeUndefined();
+    expect(buttonStartingWith("Show hidden")).toBeUndefined();
   });
 
-  it("when Less hid everything, Done for today offers Show hidden, which clears the map and brings the rows back", async () => {
-    window.localStorage.setItem(
-      BRIEF_FEEDBACK_KEY,
-      JSON.stringify(Object.fromEntries(["lead", "approval", "commitment", "followup", "contradiction", "horizon"].map((k) => [k, { verdict: "less", at: Date.now() }]))),
-    );
+  it("zero rows with a failed source is State unknown, never Done (empty-vs-error)", async () => {
+    const failed = {
+      ...HOME_BRIEF,
+      lead: { ...HOME_BRIEF.lead, cta: null },
+      judgment: { ...HOME_BRIEF.judgment, items: [], totalCount: 0, failedSources: ["approvals"] },
+      horizon: { slots: [], measured: true },
+    };
+    await mount(failed);
+    expect(container.textContent).toContain("State unknown: approvals unavailable, not empty.");
+    expect(container.textContent).not.toContain("Done for today");
+  });
+
+  it("when Less hid everything the line is Nothing shown, and Show hidden brings the rows back", async () => {
+    hideAll();
     await mount(HOME_BRIEF);
     expect(rows()).toEqual([]);
-    expect(container.textContent).toContain("Done for today.");
-    await act(async () => button("Show hidden")!.click());
+    expect(container.textContent).toContain("Nothing shown.");
+    expect(container.textContent).not.toContain("Done for today");
+    await act(async () => buttonStartingWith("Show hidden")!.click());
     expect(rows()).toHaveLength(7);
     expect(window.localStorage.getItem(BRIEF_FEEDBACK_KEY)).toBe("{}");
   });

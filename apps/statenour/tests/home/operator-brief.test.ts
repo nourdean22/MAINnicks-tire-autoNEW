@@ -312,18 +312,26 @@ describe("pending approvals carried in place (UI v3 W2, 2026-10-16)", () => {
         { id: "a-expired", actionType: "sms", ruleName: "nudge", policyObjective: "Expired one", expired: true, createdAt: t("2026-10-14T09:00:00Z") },
       ],
       [
-        { id: "r-mid", reason: "Send the revised quote\nsecond line", actionType: "email", createdAt: t("2026-10-15T12:00:00Z"), expiresAt: t("2026-10-17T12:00:00Z") },
-        { id: "r-expired", reason: "Too late", actionType: "email", createdAt: t("2026-10-13T12:00:00Z"), expiresAt: t("2026-10-14T12:00:00Z") },
+        { id: "r-mid", reason: "Send the revised quote\nsecond line", actionType: "email", riskClass: "low", createdAt: t("2026-10-15T12:00:00Z"), expiresAt: t("2026-10-17T12:00:00Z") },
+        { id: "r-expired", reason: "Too late", actionType: "email", riskClass: "low", createdAt: t("2026-10-13T12:00:00Z"), expiresAt: t("2026-10-14T12:00:00Z") },
       ],
       now,
     );
     expect(rows.map((r) => r.id)).toEqual(["a-old", "r-mid"]);
-    expect(rows[0]).toEqual({ id: "a-old", source: "action", title: "archive (janitor)" });
-    expect(rows[1]).toEqual({ id: "r-mid", source: "request", title: "Send the revised quote" });
+    expect(rows[0]).toEqual({ id: "a-old", source: "action", title: "archive (janitor)", requiresOwner: false });
+    expect(rows[1]).toEqual({ id: "r-mid", source: "request", title: "Send the revised quote", requiresOwner: false });
+  });
+
+  it("a high or critical risk class, or a require_owner decision, is marked requiresOwner (the server's own gate), so Home sends it to Review", () => {
+    const req = (id: string, riskClass: string, actionType = "email") => ({ id, reason: id, actionType, riskClass, createdAt: now, expiresAt: t("2026-10-20T00:00:00Z") });
+    const rows = pendingApprovalRows([], [req("hi", "high"), req("crit", "critical")], now);
+    expect(rows.map((r) => r.requiresOwner)).toEqual([true, true]);
+    expect(pendingApprovalRows([], [req("own", "low", "require_owner")], now)[0].requiresOwner).toBe(true);
+    expect(pendingApprovalRows([], [req("low", "low")], now)[0].requiresOwner).toBe(false);
   });
 
   it("no live rows: empty, never a fabricated row", () => {
     expect(pendingApprovalRows([], [], now)).toEqual([]);
-    expect(pendingApprovalRows([], [{ id: "r", reason: "x", actionType: "y", createdAt: now, expiresAt: t("2026-10-01T00:00:00Z") }], now)).toEqual([]);
+    expect(pendingApprovalRows([], [{ id: "r", reason: "x", actionType: "y", riskClass: "low", createdAt: now, expiresAt: t("2026-10-01T00:00:00Z") }], now)).toEqual([]);
   });
 });

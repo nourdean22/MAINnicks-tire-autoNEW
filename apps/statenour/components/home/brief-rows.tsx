@@ -5,20 +5,29 @@
  *
  * Replaces BriefLead (headline, body paragraph, gold button block, Why, Different move) and
  * JudgmentQueue (eyebrow, count, kind chips) with ONE ruled list of at most BRIEF_ROW_CAP rows:
- * the lead CTA first, then the judgment items, then horizon slots. Each row is one line of text
- * and one action, plus Keep / Less. Less hides that row kind on this device for seven days
- * (lib/ui/brief-feedback.ts); nothing is written to the server and the brief writer is unchanged.
- * "Done for today." is the state when no row remains, with Show hidden as the way back.
+ * the lead CTA first, then the judgment items, then horizon slots; "N more" expands the rest in
+ * place, never a silent drop. Each row is one line of text (plus one line of decision detail where
+ * the item has one) and one action, plus Keep / Less. Less hides that row kind on this device for
+ * seven days (lib/ui/brief-feedback.ts); Show hidden is always one tap away while anything is
+ * hidden; a lead that reports an unreadable board or asks for a decision cannot be hidden. Nothing
+ * is written to the server and the brief writer is unchanged.
+ *
+ * Empty states are three, never one: "Done for today." only when nothing failed and nothing is
+ * hidden; "State unknown" when a source failed (empty-vs-error); "Nothing shown" when Less hid it.
  *
  * Every verdict runs through the mutation the old components used, so the receipt paths hold:
  * commitment accept/dismiss, follow-up convert/dismiss, the lead's `accepted` ledger decision, and
  * the follow-up ledger sync side effect (moved here verbatim). New in W2: a live approval is
  * approved in place through the same mutations /system/actions uses, behind the house confirm
- * dialog (window.confirm is suppressed in the iOS PWA and is never called). The server mutation is
- * the claim: it refuses a row that is no longer pending or whose window has passed.
+ * dialog in its danger tone (focus starts on Cancel, so Enter cannot approve; window.confirm is
+ * suppressed in the iOS PWA and is never called). The server mutation is the claim: a CONFLICT
+ * reads "Already decided", an autonomous action whose run failed reads as such, never as success,
+ * and a row the server would refuse (owner gate) offers Review instead of Approve.
  *
  * Design: rows ruled by hairlines, never carded; gold only on the lead CTA (the Now line owns the
- * page's one at-rest notch); Geist sentence case; 44px targets; no fixed widths, min-w-0 on text.
+ * page's one at-rest notch); Geist sentence case; 44px targets with gaps; no fixed widths, min-w-0
+ * on text. One polite live region announces what a tap did; focus returns to the heading when the
+ * control that had it leaves the page.
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -29,16 +38,27 @@ import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils/cn";
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useBriefFeedback } from "@/hooks/use-brief-feedback";
+import { hiddenKinds } from "@/lib/ui/brief-feedback";
 import { BRIEF_ROW_CAP, composeBriefRows, type BriefRow, type BriefRowKind, type BriefRowsInput } from "@/lib/home/brief-rows";
-import type { BriefLeadSection } from "@/lib/home/operator-brief";
+import type { BriefLeadSection, PendingApproval } from "@/lib/home/operator-brief";
 
 const KIND_LABEL: Record<BriefRowKind, string> = {
   lead: "Move",
   approval: "Approve",
   commitment: "Commit",
-  followup: "Follow up",
+  followup: "Follow-up",
   contradiction: "Conflict",
   horizon: "Horizon",
+};
+
+/** What Keep / Less act on, as a noun phrase for accessible names and the live region. */
+const KIND_NOUN: Record<BriefRowKind, string> = {
+  lead: "the move",
+  approval: "approvals",
+  commitment: "commitments",
+  followup: "follow-ups",
+  contradiction: "conflicts",
+  horizon: "horizon rows",
 };
 
 const SCOPE_LABEL: Record<string, string> = { now: "Now", today: "Today", week: "Week", later: "Later" };
@@ -60,15 +80,30 @@ const ACTION_QUIET = cn(ACTION, "border border-edge-default text-fg-secondary ho
 const ACTION_LINK = cn(ACTION, "min-w-[44px] justify-center text-fg-secondary hover:text-fg");
 const ICON_ACTION = "inline-flex size-11 items-center justify-center rounded-control border border-edge text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg disabled:opacity-50";
 const VERDICT = "inline-flex min-h-[44px] min-w-[44px] items-center justify-center px-3 font-mono text-[12px] text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg aria-pressed:text-fg";
+const LABEL_COL = "w-[4.5rem] shrink-0 pt-0.5 font-mono text-[11px] text-fg-tertiary";
+const UNDER_LABEL = "pl-[5.25rem]";
 
 const SAVE_FAILED = "That did not save. The item is still waiting.";
+const ALREADY_DECIDED = "Already decided elsewhere. Refreshing the brief.";
+const RUN_FAILED = "Approved, but the run failed. Review it on Approvals.";
+
+type RunResult = { ok: boolean; note?: string };
+
+function isConflict(err: unknown): boolean {
+  const code = (err as { data?: { code?: string } } | null)?.data?.code;
+  return code === "CONFLICT" || code === "BAD_REQUEST";
+}
 
 export function BriefRows({ brief, loading }: { brief: BriefRowsInput | null; loading: boolean }) {
   const utils = trpc.useUtils();
-  const { feedback, hidden, setVerdict, clear } = useBriefFeedback();
+  const { feedback, hydrated, setVerdict, clear } = useBriefFeedback();
   const { confirm, dialog } = useConfirmDialog();
   const [busyKey, setBusyKey] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const [live, setLive] = useState("");
+  const [expanded, setExpanded] = useState(false);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const refocus = useRef(false);
 
   // 2026-10-02 · the lead is a ledgered recommendation (operator-brief.ts ledgerLeadShown). Taking
   // the CTA is `accepted`. No id (the bounded ledger write answered late) -> send the summary the row
@@ -101,9 +136,24 @@ export function BriefRows({ brief, loading }: { brief: BriefRowsInput | null; lo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [remembersQ.data?.followUps]);
 
-  const rows = useMemo(() => (brief ? composeBriefRows(brief, hidden) : []), [brief, hidden]);
+  // Expiry is read at render, so a Less that ages out during a long session lifts without a reload.
+  const hidden = new Set(hiddenKinds(feedback, Date.now()));
+  const hiddenKey = [...hidden].sort().join(",");
+  const composed = useMemo(
+    () => (brief ? composeBriefRows(brief, new Set(hiddenKey ? hiddenKey.split(",") : []), expanded ? Number.POSITIVE_INFINITY : BRIEF_ROW_CAP) : { rows: [], total: 0 }),
+    [brief, hiddenKey, expanded],
+  );
+  const { rows, total } = composed;
 
-  if (loading) {
+  // A tap that removes the control holding focus (Less, a verdict, Approve) would drop focus to body.
+  useEffect(() => {
+    if (!refocus.current) return;
+    refocus.current = false;
+    headingRef.current?.focus();
+    // keyed on the composition, not its length: a hidden kind is replaced by the next row, same count
+  }, [composed]);
+
+  if (loading || !hydrated) {
     return (
       <section aria-label="the brief" className="mt-10 space-y-3" aria-busy>
         <div className="h-3 w-24 animate-pulse rounded-micro bg-raised" />
@@ -118,18 +168,33 @@ export function BriefRows({ brief, loading }: { brief: BriefRowsInput | null; lo
   const failedSources = brief.judgment?.failedSources ?? [];
   const refresh = () => void utils.operator.brief.invalidate();
 
-  const act = async (key: string, run: () => Promise<{ ok: boolean }>, onOk?: () => void) => {
+  const less = (kind: BriefRowKind) => {
+    refocus.current = true;
+    setVerdict(kind, "less");
+    setLive(`Hidden: ${KIND_NOUN[kind]} for seven days.`);
+  };
+
+  const act = async (key: string, run: () => Promise<RunResult>, done: string, onOk?: () => void) => {
     setBusyKey(key);
-    setActionError(null);
+    setNotes((n) => ({ ...n, [key]: "" }));
     try {
       const res = await run();
-      if (!res.ok) setActionError(SAVE_FAILED);
-      else {
+      if (!res.ok) {
+        setNotes((n) => ({ ...n, [key]: res.note ?? SAVE_FAILED }));
+        if (res.note) refresh();
+      } else {
         onOk?.();
+        setLive(done);
+        refocus.current = true;
         refresh();
       }
-    } catch {
-      setActionError(SAVE_FAILED);
+    } catch (err) {
+      if (isConflict(err)) {
+        setNotes((n) => ({ ...n, [key]: ALREADY_DECIDED }));
+        refresh();
+      } else {
+        setNotes((n) => ({ ...n, [key]: SAVE_FAILED }));
+      }
     } finally {
       setBusyKey(null);
     }
@@ -141,15 +206,45 @@ export function BriefRows({ brief, loading }: { brief: BriefRowsInput | null; lo
     decide.mutate({ ...target, decision: "accepted", resultRef });
   };
 
-  const approve = async (key: string, item: { id: string; source: "request" | "action"; title: string }) => {
-    const ok = await confirm({ title: "Approve this action?", body: item.title, confirmLabel: "Approve" });
+  const approve = async (key: string, item: PendingApproval) => {
+    const ok = await confirm({ title: "Approve this action?", body: item.title, confirmLabel: "Approve", tone: "danger" });
     if (!ok) return;
-    await act(key, async () => {
-      if (item.source === "request") await approveRequest.mutateAsync({ id: item.id });
-      else await decideAction.mutateAsync({ id: item.id, decision: "approved" });
-      return { ok: true };
-    });
+    await act(
+      key,
+      async () => {
+        if (item.source === "request") {
+          await approveRequest.mutateAsync({ id: item.id });
+          return { ok: true };
+        }
+        const res = await decideAction.mutateAsync({ id: item.id, decision: "approved" });
+        // decidePendingAction returns the row; a run that failed is written needs_review with
+        // result "failed" and must never read as a success here.
+        if ((res as { result?: string | null } | null | undefined)?.result === "failed") return { ok: false, note: RUN_FAILED };
+        return { ok: true };
+      },
+      "Approved.",
+    );
   };
+
+  const showHidden =
+    hidden.size > 0 ? (
+      <button
+        type="button"
+        onClick={() => {
+          clear();
+          setLive("Hidden rows are back.");
+        }}
+        className={ACTION_LINK}
+      >
+        Show hidden ({hidden.size})
+      </button>
+    ) : null;
+
+  const liveRegion = (
+    <p className="sr-only" aria-live="polite" role="status">
+      {live}
+    </p>
+  );
 
   const partialRead = failedSources.length > 0 && (
     <p className="mt-3 flex items-center gap-1.5 text-[12px] text-amber-300">
@@ -159,17 +254,19 @@ export function BriefRows({ brief, loading }: { brief: BriefRowsInput | null; lo
   );
 
   if (rows.length === 0) {
+    const line =
+      failedSources.length > 0
+        ? `State unknown: ${failedSources.join(", ")} unavailable, not empty.`
+        : hidden.size > 0
+          ? "Nothing shown."
+          : "Done for today.";
     return (
       <section aria-label="the brief" className="mt-10 border-t border-edge-subtle pt-6">
-        {partialRead}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-          <p className="text-[17px] text-fg-secondary">Done for today.</p>
-          {hidden.size > 0 && (
-            <button type="button" onClick={clear} className={ACTION_LINK}>
-              Show hidden
-            </button>
-          )}
+          <p className={cn("text-[17px]", failedSources.length > 0 ? "text-amber-300" : "text-fg-secondary")}>{line}</p>
+          {showHidden}
         </div>
+        {liveRegion}
         {dialog}
       </section>
     );
@@ -177,28 +274,30 @@ export function BriefRows({ brief, loading }: { brief: BriefRowsInput | null; lo
 
   return (
     <section aria-label="the brief" className="mt-10">
-      <div className="flex items-end justify-between border-b border-edge-subtle pb-3">
-        <h2 className="vt-eyebrow text-fg-secondary">The brief</h2>
-        <span className="font-mono text-[11px] tabular-nums text-fg-tertiary">
-          {rows.length} of {BRIEF_ROW_CAP}
-        </span>
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-edge-subtle pb-2">
+        <h2 ref={headingRef} tabIndex={-1} className="vt-eyebrow text-fg-secondary outline-none focus-visible:underline focus-visible:underline-offset-4">
+          The brief
+        </h2>
+        {showHidden}
       </div>
       {partialRead}
-      {actionError && <p className="mt-3 text-[13px] text-amber-300">{actionError}</p>}
 
       <ol className="divide-y divide-edge/60">
         {rows.map((row) => {
           const busy = busyKey === row.key;
           let label = KIND_LABEL[row.kind];
           let text: string;
+          let detail: string | null = null;
           let tone = "text-fg";
           let action: React.ReactNode;
           let secondary: React.ReactNode = null;
+          let canHide = true;
 
           switch (row.kind) {
             case "lead":
               text = row.lead.headline;
               tone = LEAD_TONE[row.lead.kind];
+              canHide = !row.pinned;
               action = (
                 <Link
                   href={row.lead.cta.href}
@@ -214,11 +313,20 @@ export function BriefRows({ brief, loading }: { brief: BriefRowsInput | null; lo
               if ("item" in row) {
                 const item = row.item;
                 text = item.title;
-                action = (
-                  <button type="button" disabled={busy} onClick={() => void approve(row.key, item)} className={ACTION_QUIET}>
-                    <Check className="h-3 w-3" /> Approve
-                  </button>
-                );
+                if (item.requiresOwner) {
+                  detail = "Owner approval: review it with its payload.";
+                  action = (
+                    <Link href={row.href} className={ACTION_LINK}>
+                      Review
+                    </Link>
+                  );
+                } else {
+                  action = (
+                    <button type="button" disabled={busy} onClick={() => void approve(row.key, item)} className={ACTION_QUIET}>
+                      <Check className="h-3 w-3" /> Approve
+                    </button>
+                  );
+                }
               } else {
                 text = `${row.more} more await${row.more === 1 ? "s" : ""} your verdict${row.expired > 0 ? ` (${row.expired} expired)` : ""}`;
                 action = (
@@ -231,12 +339,13 @@ export function BriefRows({ brief, loading }: { brief: BriefRowsInput | null; lo
             case "commitment": {
               const item = row.item;
               text = item.description;
+              detail = [item.domain, item.evidence].filter(Boolean).join(" · ") || "machine-proposed";
               action = (
                 <button
                   type="button"
                   disabled={busy}
                   title="Accept: goes on the books as active"
-                  onClick={() => void act(row.key, () => acceptCommitment.mutateAsync({ id: item.id }), () => signal.mutate({ kind: "verdict_accept" }))}
+                  onClick={() => void act(row.key, () => acceptCommitment.mutateAsync({ id: item.id }), "Commitment accepted.", () => signal.mutate({ kind: "verdict_accept" }))}
                   className={ACTION_QUIET}
                 >
                   <Check className="h-3 w-3" /> Accept
@@ -248,7 +357,7 @@ export function BriefRows({ brief, loading }: { brief: BriefRowsInput | null; lo
                   disabled={busy}
                   aria-label="Dismiss proposal: remembered, never re-proposed"
                   title="Dismiss: remembered, never re-proposed"
-                  onClick={() => void act(row.key, () => dismissCommitment.mutateAsync({ id: item.id }), () => signal.mutate({ kind: "verdict_dismiss" }))}
+                  onClick={() => void act(row.key, () => dismissCommitment.mutateAsync({ id: item.id }), "Proposal dismissed.", () => signal.mutate({ kind: "verdict_dismiss" }))}
                   className={ICON_ACTION}
                 >
                   <X className="h-3.5 w-3.5" />
@@ -263,11 +372,11 @@ export function BriefRows({ brief, loading }: { brief: BriefRowsInput | null; lo
                 <button
                   type="button"
                   disabled={busy}
-                  title="Convert to task"
                   onClick={() =>
                     void act(
                       row.key,
                       () => convertFollowUp.mutateAsync({ id: item.id }),
+                      "Follow-up added as a task.",
                       () => {
                         signal.mutate({ kind: "followup_convert" });
                         void utils.task.inboxCount.invalidate();
@@ -276,7 +385,7 @@ export function BriefRows({ brief, loading }: { brief: BriefRowsInput | null; lo
                   }
                   className={ACTION_QUIET}
                 >
-                  Task
+                  Add as task
                 </button>
               );
               secondary = (
@@ -285,16 +394,17 @@ export function BriefRows({ brief, loading }: { brief: BriefRowsInput | null; lo
                   disabled={busy}
                   aria-label="Dismiss follow-up"
                   title="Dismiss follow-up"
-                  onClick={() => void act(row.key, () => dismissFollowUp.mutateAsync({ id: item.id }), () => signal.mutate({ kind: "followup_dismiss" }))}
+                  onClick={() => void act(row.key, () => dismissFollowUp.mutateAsync({ id: item.id }), "Follow-up dismissed.", () => signal.mutate({ kind: "followup_dismiss" }))}
                   className={ICON_ACTION}
                 >
-                  <Check className="h-3.5 w-3.5" />
+                  <X className="h-3.5 w-3.5" />
                 </button>
               );
               break;
             }
             case "contradiction":
-              text = `Now: ${row.item.nowExcerpt}. Before: ${row.item.beforeExcerpt}${row.item.daysApart > 0 ? ` (${row.item.daysApart}d apart)` : ""}`;
+              text = `Now: ${row.item.nowExcerpt}`;
+              detail = `Before: ${row.item.beforeExcerpt}${row.item.daysApart > 0 ? ` (${row.item.daysApart}d apart)` : ""}`;
               action = (
                 <Link href={row.item.href} className={ACTION_LINK}>
                   Resolve
@@ -312,41 +422,77 @@ export function BriefRows({ brief, loading }: { brief: BriefRowsInput | null; lo
               break;
           }
 
+          const note = notes[row.key];
           return (
             <li key={row.key} data-brief-row={row.kind} className={cn("py-3", busy && "opacity-50")}>
               <div className="flex items-start gap-3">
-                <span className="w-14 shrink-0 pt-0.5 font-mono text-[11px] text-fg-tertiary">{label}</span>
-                <span className={cn("min-w-0 flex-1 line-clamp-2 text-[15px] leading-snug", tone)}>{text}</span>
-              </div>
-              <div className="mt-1 flex flex-wrap items-center gap-x-1 gap-y-1 pl-[4.25rem]">
-                {action}
-                {secondary}
-                <span className="ml-auto flex items-center">
-                  <button
-                    type="button"
-                    data-brief-verdict="keep"
-                    aria-pressed={feedback[row.kind]?.verdict === "keep"}
-                    aria-label={`Keep ${KIND_LABEL[row.kind].toLowerCase()} rows in the brief`}
-                    onClick={() => setVerdict(row.kind, "keep")}
-                    className={VERDICT}
-                  >
-                    Keep
-                  </button>
-                  <button
-                    type="button"
-                    data-brief-verdict="less"
-                    aria-label={`Less: hide ${KIND_LABEL[row.kind].toLowerCase()} rows for seven days`}
-                    onClick={() => setVerdict(row.kind, "less")}
-                    className={VERDICT}
-                  >
-                    Less
-                  </button>
+                <span className={LABEL_COL}>{label}</span>
+                <span className="min-w-0 flex-1">
+                  <span className={cn("block line-clamp-2 text-[15px] leading-snug", tone)}>{text}</span>
+                  {detail && <span className="mt-0.5 block break-words text-[12px] leading-snug text-fg-tertiary">{detail}</span>}
                 </span>
               </div>
+              <div className={cn("mt-1 flex flex-wrap items-center gap-x-2 gap-y-1", UNDER_LABEL)}>
+                {action}
+                {secondary}
+                {canHide && (
+                  <span className="ml-auto flex items-center gap-2">
+                    <button
+                      type="button"
+                      data-brief-verdict="keep"
+                      aria-pressed={feedback[row.kind]?.verdict === "keep"}
+                      aria-label={`Keep ${KIND_NOUN[row.kind]} in the brief`}
+                      onClick={() => setVerdict(row.kind, "keep")}
+                      className={VERDICT}
+                    >
+                      Keep
+                    </button>
+                    <button
+                      type="button"
+                      data-brief-verdict="less"
+                      aria-label={`Fewer ${KIND_NOUN[row.kind]}: hide them for seven days`}
+                      onClick={() => less(row.kind)}
+                      className={VERDICT}
+                    >
+                      Less
+                    </button>
+                  </span>
+                )}
+              </div>
+              {note && (
+                <p role="alert" className={cn("mt-1 text-[13px] text-amber-300", UNDER_LABEL)}>
+                  {note}
+                </p>
+              )}
             </li>
           );
         })}
+        {total > rows.length && (
+          <li data-brief-more>
+            <button
+              type="button"
+              aria-expanded={false}
+              onClick={() => setExpanded(true)}
+              className="inline-flex min-h-[44px] w-full items-center justify-center text-[13px] font-medium text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg"
+            >
+              {total - rows.length} more
+            </button>
+          </li>
+        )}
+        {expanded && total > BRIEF_ROW_CAP && (
+          <li data-brief-more>
+            <button
+              type="button"
+              aria-expanded
+              onClick={() => setExpanded(false)}
+              className="inline-flex min-h-[44px] w-full items-center justify-center text-[13px] font-medium text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg"
+            >
+              Show fewer
+            </button>
+          </li>
+        )}
       </ol>
+      {liveRegion}
       {dialog}
     </section>
   );
