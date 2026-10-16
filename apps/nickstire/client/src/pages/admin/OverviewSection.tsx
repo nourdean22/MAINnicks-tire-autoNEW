@@ -28,7 +28,8 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { navigateToAdminSection } from "./shared";
+import { navigateToAdminSection, sectionsForRole } from "./shared";
+import type { AdminRole } from "@shared/adminPermissions";
 import { navigateToAdminUrl } from "./shared/navigation";
 import ArrivalLoadStrip from "./today/ArrivalLoadStrip";
 import ExceptionFeed from "./today/ExceptionFeed";
@@ -47,6 +48,7 @@ const ACTIVE_WORK_ORDER_STATUSES = new Set(["new", "scheduled", "in_progress", "
  * that into a visible "30+" rather than a precise-looking lie.
  */
 const WORK_ORDER_QUEUE_LIMIT = 30;
+const UNKNOWN = "—";
 
 /**
  * Signals the action queue below already renders, hidden from the exception
@@ -104,12 +106,15 @@ export default function OverviewSection() {
   const [filter, setFilter] = useState<"all" | ActionItem["type"]>("all");
   const { data: security } = trpc.adminSecurity.status.useQuery();
   const canViewHistory = security?.permissions.includes("reports.view") ?? false;
+  // Same derivation as the shell (Admin.tsx): the role decides where a work order can open.
+  const adminRole = (security?.adminRole ?? "viewer") as AdminRole;
 
   const {
     data: bundle,
     isLoading,
     isError,
     error,
+    refetch: refetchBundle,
   } = trpc.adminDashboard.overviewMediumBundle.useQuery(undefined, {
     refetchInterval: 30_000,
     staleTime: 25_000,
@@ -196,6 +201,7 @@ export default function OverviewSection() {
    */
   const queueTrustworthy =
     !workOrdersFailed &&
+    !isError &&
     !unavailable.some((s) => s === "leads" || s === "bookings" || s === "callbacks" || s === "owedTexts");
   /**
    * The work-order read is capped, so a full page is a LOWER BOUND, not a count.
@@ -203,6 +209,9 @@ export default function OverviewSection() {
    * false-precision problem as saying "0" for an unread source.
    */
   const queueSaturated = currentWorkOrders.length >= WORK_ORDER_QUEUE_LIMIT;
+  // Each card is only as known as its own slice: a failed bundle or slice is "unknown", never 0.
+  const bookingsKnown = !isError && !unavailable.includes("bookings");
+  const leadsKnown = !isError && !unavailable.includes("leads");
 
   /**
    * Built from the SAME builder the sidebar badges use, so a section cannot be
@@ -345,6 +354,33 @@ export default function OverviewSection() {
     );
   }
 
+  /**
+   * Work orders live on Money's default tab (Shop Pulse). Money is closed to front desk and tech,
+   * whose queue still carries work orders, so they get the customer's Active Backlog instead.
+   * Returns where it went, or null when no section this role can open shows the work order.
+   * Work orders have no deep link to a single row yet.
+   */
+  function openWorkOrder(item: ActionItem): "revenue" | "customers" | null {
+    const allowed = sectionsForRole(adminRole);
+    const url = new URL(window.location.href);
+    if (allowed.includes("revenue")) {
+      url.searchParams.delete("moneyTab");
+      window.history.replaceState({}, "", url.toString());
+      navigateToAdminSection("revenue");
+      return "revenue";
+    }
+    const customerId = Number(currentWorkOrders.find((wo) => wo.id === item.entityId)?.customerId);
+    if (allowed.includes("customers") && customerId > 0) {
+      url.searchParams.set("id", String(customerId));
+      url.searchParams.set("profileTab", "backlog");
+      window.history.replaceState({}, "", url.toString());
+      navigateToAdminSection("customers");
+      return "customers";
+    }
+    toast.error("Work orders are in Money, which your role cannot open");
+    return null;
+  }
+
   async function performPrimary(item: ActionItem) {
     const definition = getQueueActionDefinition(item.type);
     if (item.type === "text") {
@@ -352,8 +388,8 @@ export default function OverviewSection() {
       return;
     }
     if (item.type === "workOrder") {
-      navigateToAdminSection("customers");
-      await logReceipt(item, "admin.work_order_opened", { status: item.status });
+      const target = openWorkOrder(item);
+      if (target) await logReceipt(item, "admin.work_order_opened", { status: item.status, target });
       return;
     }
     const confirmed = await confirmDialog({
@@ -395,8 +431,8 @@ export default function OverviewSection() {
       return;
     }
     if (item.type === "workOrder") {
-      navigateToAdminSection("customers");
-      await logReceipt(item, "admin.work_order_opened", { status: item.status });
+      const target = openWorkOrder(item);
+      if (target) await logReceipt(item, "admin.work_order_opened", { status: item.status, target });
       return;
     }
     const confirmed = await confirmDialog({
@@ -442,14 +478,14 @@ export default function OverviewSection() {
 
   return (
     <div className="space-y-5" aria-label="Today operator command center">
-      <DegradedDataBanner stats={stats} unavailable={isError} unavailableMessage={error?.message} />
+      <DegradedDataBanner stats={stats} unavailable={isError} unavailableMessage={error?.message} onRetry={() => void refetchBundle()} />
 
       {/* The overnight header. It reads from the SAME `queue` and
           `urgentLeadCount` the cards below render, so the brief cannot
           disagree with the page it introduces — the failure mode that made
           `countActionableLeads` a shared function rather than two SQL
           predicates. It self-suppresses when there is no real signal. */}
-      <MorningBrief priorityQueueLength={queue.length} urgentLeads={urgentLeadCount} />
+      <MorningBrief priorityQueueLength={queue.length} urgentLeads={urgentLeadCount} queueTrustworthy={queueTrustworthy} />
 
       {/* SALES LEADS THE PAGE (2026-09-07).
           Measured on the live admin the same day: this home carried NO revenue
@@ -495,7 +531,7 @@ export default function OverviewSection() {
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-3" aria-label="Today summary">
         <SummaryCard
           label="Needs action"
-          value={queueTrustworthy ? (queueSaturated ? `${queue.length}+` : queue.length) : "—"}
+          value={queueTrustworthy ? (queueSaturated ? `${queue.length}+` : queue.length) : UNKNOWN}
           detail={
             !queueTrustworthy
               ? "Unable to determine"
@@ -507,8 +543,8 @@ export default function OverviewSection() {
           }
           alert={queue.length > 0 || !queueTrustworthy}
         />
-        <SummaryCard label="Bookings today" value={todaysBookings.length} detail={`Cleveland date · ${todayKey}`} />
-        <SummaryCard label="Urgent leads" value={urgentLeadCount} detail="Included once" />
+        <SummaryCard label="Bookings today" value={bookingsKnown ? todaysBookings.length : UNKNOWN} detail={bookingsKnown ? `Cleveland date · ${todayKey}` : "Unable to determine"} />
+        <SummaryCard label="Urgent leads" value={leadsKnown ? urgentLeadCount : UNKNOWN} detail={leadsKnown ? "Included once" : "Unable to determine"} />
         {/*
           Fed by the SAME query as the "Needs action" card. It used to render a
           neutral "0" while that card, on the identical failure, correctly read
@@ -517,7 +553,7 @@ export default function OverviewSection() {
         */}
         <SummaryCard
           label="Active work orders"
-          value={workOrdersFailed ? "—" : currentWorkOrders.filter((wo) => ACTIVE_WORK_ORDER_STATUSES.has(wo.status ?? "")).length}
+          value={workOrdersFailed ? UNKNOWN : currentWorkOrders.filter((wo) => ACTIVE_WORK_ORDER_STATUSES.has(wo.status ?? "")).length}
           detail={workOrdersFailed ? "Unable to determine" : "Shop floor"}
           alert={workOrdersFailed}
         />

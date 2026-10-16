@@ -53,6 +53,8 @@ export function InstagramAdmin() {
     staleTime: 60_000,
   });
   const needsAttention = attention.data?.count ?? 0;
+  // A failed read is unknown, never 0 and never hidden: the badge shows "?" (the shell's unknown badge).
+  const attentionUnknown = attention.isError;
 
   // Meta liveness chip in the header — the operator should not need to open
   // Settings to learn publishing is down. Tri-state, same source HQ uses.
@@ -83,7 +85,15 @@ export function InstagramAdmin() {
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="icon" aria-label="More surfaces" className="relative h-11 w-11">
                 <Settings2 className="h-4 w-4" />
-                {needsAttention > 0 && (
+                {attentionUnknown ? (
+                  <span
+                    className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500/15 px-1 text-[10px] font-bold text-amber-600"
+                    title="Held reels unknown: read failed"
+                    aria-label="Held reels unknown: read failed"
+                  >
+                    ?
+                  </span>
+                ) : needsAttention > 0 && (
                   <span
                     className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-white"
                     aria-label={`${needsAttention} reel job(s) need attention`}
@@ -99,7 +109,10 @@ export function InstagramAdmin() {
               {IG_SECONDARY_VIEWS.map((view) => (
                 <DropdownMenuItem key={view.key} onSelect={() => navigate(view.key)}>
                   {view.label}
-                  {view.key === "actions" && needsAttention > 0 && (
+                  {view.key === "actions" && attentionUnknown && (
+                    <Badge variant="outline" className="ml-2 border-amber-500/40 text-amber-500" title="Held reels unknown: read failed">?</Badge>
+                  )}
+                  {view.key === "actions" && !attentionUnknown && needsAttention > 0 && (
                     <Badge variant="outline" className="ml-2 border-amber-500/40 text-amber-500">{needsAttention}</Badge>
                   )}
                 </DropdownMenuItem>

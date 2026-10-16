@@ -46,10 +46,10 @@ export function getQueueActionDefinition(type: ActionItem["type"]): QueueActionD
       return {
         primaryLabel: "Open work order",
         primaryConfirmTitle: "Open work order?",
-        primaryConfirmMessage: (name) => `Open ${name}'s work order in Customers.`,
+        primaryConfirmMessage: (name) => `Open ${name}'s work order in Money.`,
         secondaryLabel: "Open work order",
         secondaryConfirmTitle: "Open work order?",
-        secondaryConfirmMessage: (name) => `Open ${name}'s work order in Customers.`,
+        secondaryConfirmMessage: (name) => `Open ${name}'s work order in Money.`,
         secondaryDestructive: false,
       };
     case "text":

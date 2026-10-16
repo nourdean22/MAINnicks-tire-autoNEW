@@ -26,6 +26,8 @@ import {
   ResponsiveContainer, Cell,
 } from "recharts";
 
+const UNKNOWN = "—";
+
 const TOOLTIP_STYLE = {
   background: "oklch(0.12 0.005 260)",
   border: "1px solid oklch(0.20 0.005 260)",
@@ -36,8 +38,10 @@ const TOOLTIP_STYLE = {
 };
 
 export default function CallTrackingSection() {
-  const { data: stats, isLoading: statsLoading } = trpc.adminDashboard.stats.useQuery();
-  const { data: calls, isLoading: callsLoading } = trpc.callTracking.list.useQuery();
+  const { data: stats, isLoading: statsLoading, isError: statsFailed } = trpc.adminDashboard.stats.useQuery();
+  const { data: calls, isLoading: callsLoading, isError: callsFailed } = trpc.callTracking.list.useQuery();
+  // Same rule as callbacksUnknown below: a failed read, or the all-zero `_degraded` fallback, is unknown.
+  const statsUnknown = statsFailed || stats?._degraded === true;
   const { data: callbacks, isError: callbacksError, error: callbacksErr } = trpc.callback.list.useQuery();
   /**
    * ROS-083 · UNKNOWN IS NOT ZERO — and this is the worst place for it.
@@ -151,17 +155,18 @@ export default function CallTrackingSection() {
           honest filter target on this section. */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <StatCard
-          label="Total Calls" value={callTracking?.totalCalls ?? 0}
+          label="Total Calls" value={statsUnknown ? UNKNOWN : callTracking?.totalCalls ?? 0}
+          trendLabel={statsUnknown ? "Unable to determine" : undefined}
           icon={<PhoneCall className="w-4 h-4" />}
         />
         <StatCard
-          label="This Week" value={callTracking?.thisWeek ?? 0}
+          label="This Week" value={statsUnknown ? UNKNOWN : callTracking?.thisWeek ?? 0}
           icon={<Clock className="w-4 h-4" />}
-          trend={(callTracking?.thisWeek ?? 0) > 0 ? "up" : "neutral"}
-          trendLabel="phone clicks"
+          trend={!statsUnknown && (callTracking?.thisWeek ?? 0) > 0 ? "up" : "neutral"}
+          trendLabel={statsUnknown ? "Unable to determine" : "phone clicks"}
         />
         <StatCard
-          label="Missed / Pending" value={callbacksUnknown ? "—" : pendingCallbacks.length}
+          label="Missed / Pending" value={callbacksUnknown ? UNKNOWN : pendingCallbacks.length}
           icon={<AlertTriangle className="w-4 h-4" />}
           color={callbacksUnknown ? "text-amber-400" : pendingCallbacks.length > 0 ? "text-red-400" : "text-emerald-400"}
           trend={!callbacksUnknown && pendingCallbacks.length > 0 ? "up" : "neutral"}
@@ -176,15 +181,23 @@ export default function CallTrackingSection() {
           }}
         />
         <StatCard
-          label="Callbacks Total" value={stats?.callbacks?.total ?? 0}
+          label="Callbacks Total" value={statsUnknown ? UNKNOWN : stats?.callbacks?.total ?? 0}
           icon={<Phone className="w-4 h-4" />}
-          trendLabel={`${stats?.callbacks?.completed ?? 0} completed`}
+          trendLabel={statsUnknown ? "Unable to determine" : `${stats?.callbacks?.completed ?? 0} completed`}
         />
         <StatCard
           label="Top Source" value={sourceBreakdown[0]?.source ?? "—"}
+          trendLabel={callsFailed ? "Unable to determine" : undefined}
           icon={<TrendingUp className="w-4 h-4" />} color="text-primary"
         />
       </div>
+
+      {(statsUnknown || callsFailed) && (
+        <div className="border border-amber-500/40 bg-amber-500/10 p-4 text-[13px] text-amber-400 space-y-1">
+          {statsUnknown && <p>{"Call stats couldn't load. The counts above are unknown, not zero."}</p>}
+          {callsFailed && <p>{"Call events couldn't load. Top Source and the charts below are unknown, not empty."}</p>}
+        </div>
+      )}
 
       {/* The queue block self-hides on `length > 0`, so an unreadable queue was
           indistinguishable from an empty one. Say so where the block would be. */}
@@ -298,7 +311,7 @@ export default function CallTrackingSection() {
             </ResponsiveContainer>
           ) : (
             <div className="flex items-center justify-center h-[200px] text-muted-foreground">
-              <p className="text-sm">No call data for peak hours</p>
+              {callsFailed ? <p className="text-sm">{"Call events couldn't load. Unknown, not empty."}</p> : <p className="text-sm">No call data for peak hours</p>}
             </div>
           )}
         </div>
@@ -324,7 +337,7 @@ export default function CallTrackingSection() {
             </ResponsiveContainer>
           ) : (
             <div className="flex items-center justify-center h-[200px] text-muted-foreground">
-              <p className="text-sm">No call data yet</p>
+              {callsFailed ? <p className="text-sm">{"Call events couldn't load. Unknown, not empty."}</p> : <p className="text-sm">No call data yet</p>}
             </div>
           )}
         </div>
@@ -402,7 +415,7 @@ export default function CallTrackingSection() {
         {!calls || calls.length === 0 ? (
           <div className="p-8 text-center">
             <PhoneCall className="w-8 h-8 text-foreground/20 mx-auto mb-3" />
-            <p className="text-sm text-muted-foreground">No call events yet.</p>
+            <p className="text-sm text-muted-foreground">{callsFailed ? "Call events couldn't load. Unknown, not empty." : "No call events yet."}</p>
           </div>
         ) : (
           <div className="overflow-x-auto">

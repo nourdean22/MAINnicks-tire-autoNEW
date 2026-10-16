@@ -119,7 +119,10 @@ const PATTERNS: Array<{ cls: ProviderErrorClass; re: RegExp }> = [
   // "grace_daily_limit_reached", because the boundary it wants sits between
   // `limit` and `_reached` where both sides are word characters. The first
   // draft of this fix did exactly that and the test caught it.
-  { cls: "QUOTA_OR_CREDIT", re: /(grace[_ -]?daily[_ -]?limit|daily[_ -]?limit[_ -]?reached|unlock[_ -]?full[_ -]?access|upgrade[_ -]?required|trial[_ -]?expired|subscription[_ -]?required|plan[_ -]?limit)/i },
+  // `not_enough_credits` (Higgsfield CLI, reel job 2100001, 2026-10-16) lives
+  // here for the same reason: inside that JSON body the only other credit word
+  // is `billing_period`, which the `\b` entry below cannot see either.
+  { cls: "QUOTA_OR_CREDIT", re: /(grace[_ -]?daily[_ -]?limit|daily[_ -]?limit[_ -]?reached|unlock[_ -]?full[_ -]?access|upgrade[_ -]?required|trial[_ -]?expired|subscription[_ -]?required|plan[_ -]?limit|not[_ -]?enough[_ -]?(credits?|funds|balance))/i },
   { cls: "QUOTA_OR_CREDIT", re: /\b(quota[_ ]exceeded|insufficient[_ ](credits?|funds|balance)|out of credits|billing|payment[_ ]required|402|exhausted)\b/i },
   { cls: "RATE_LIMIT", re: /\b(429|rate[_ ]?limit|too many requests|resource[_ ]exhausted|retry[- ]after)\b/i },
   { cls: "PROMPT_INVALID", re: /\b(400|invalid[_ ](argument|request|parameter|value)|unsupported[_ ](model|parameter|aspect|ratio|duration)|malformed|is not found|model.*not found)\b/i },
