@@ -2,6 +2,8 @@ import type { ActionItem } from "./types";
 
 export interface QueueActionDefinition {
   primaryLabel: string;
+  /** The verb a phone row shows (at most 10 characters); primaryLabel stays its accessible name. */
+  shortLabel: string;
   primaryConfirmTitle: string;
   primaryConfirmMessage: (name: string) => string;
   secondaryLabel: string;
@@ -15,6 +17,7 @@ export function getQueueActionDefinition(type: ActionItem["type"]): QueueActionD
     case "booking":
       return {
         primaryLabel: "Confirm booking",
+        shortLabel: "Confirm",
         primaryConfirmTitle: "Confirm booking?",
         primaryConfirmMessage: (name) => `Confirm the booking for ${name}.`,
         secondaryLabel: "Cancel booking",
@@ -25,6 +28,7 @@ export function getQueueActionDefinition(type: ActionItem["type"]): QueueActionD
     case "lead":
       return {
         primaryLabel: "Mark contacted",
+        shortLabel: "Contacted",
         primaryConfirmTitle: "Mark lead contacted?",
         primaryConfirmMessage: (name) => `Record that ${name} was contacted.`,
         secondaryLabel: "Close lead",
@@ -35,6 +39,7 @@ export function getQueueActionDefinition(type: ActionItem["type"]): QueueActionD
     case "callback":
       return {
         primaryLabel: "Complete callback",
+        shortLabel: "Done",
         primaryConfirmTitle: "Complete callback?",
         primaryConfirmMessage: (name) => `Record the callback to ${name} as completed.`,
         secondaryLabel: "Open callback",
@@ -45,6 +50,7 @@ export function getQueueActionDefinition(type: ActionItem["type"]): QueueActionD
     case "workOrder":
       return {
         primaryLabel: "Open work order",
+        shortLabel: "Open",
         primaryConfirmTitle: "Open work order?",
         primaryConfirmMessage: (name) => `Open ${name}'s work order in Money.`,
         secondaryLabel: "Open work order",
@@ -57,6 +63,7 @@ export function getQueueActionDefinition(type: ActionItem["type"]): QueueActionD
       // thread closes it; so does "No reply needed" (e.g. answered by phone).
       return {
         primaryLabel: "Open thread",
+        shortLabel: "Reply",
         primaryConfirmTitle: "Open text thread?",
         primaryConfirmMessage: (name) => `Open ${name}'s text thread to reply.`,
         secondaryLabel: "No reply needed",

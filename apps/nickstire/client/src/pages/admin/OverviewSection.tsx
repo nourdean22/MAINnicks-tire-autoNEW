@@ -14,7 +14,7 @@ import { trpc } from "@/lib/trpc";
 import { isCallbackDuplicateLead } from "@shared/leadSource";
 import { exceptionFeed } from "@shared/adminSignal";
 import { AlertTriangle, History, Loader2, Plug, RefreshCw } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { navigateToAdminSection, sectionsForRole } from "./shared";
 import type { AdminRole } from "@shared/adminPermissions";
@@ -97,8 +97,14 @@ export default function OverviewSection() {
   const utils = trpc.useUtils();
   const [filter, setFilter] = useState<"all" | ActionItem["type"]>("all");
   const [showAll, setShowAll] = useState(false);
-  // Rows an action took off the queue, hidden until the refetch drops them for real.
-  const [doneIds, setDoneIds] = useState<ReadonlySet<string>>(() => new Set());
+  /**
+   * Rows an action took off the queue, by id, with the detail line they had then. A row stays hidden
+   * only while the data still shows that same item; an id that leaves the data is forgotten, and an
+   * id that returns with a different detail (a customer texting again) shows at once.
+   */
+  const [doneRows, setDoneRows] = useState<ReadonlyMap<string, string>>(() => new Map());
+  // The polite live region's text: "Done: <name>" when a row leaves the board.
+  const [announcement, setAnnouncement] = useState("");
   const { data: security } = trpc.adminSecurity.status.useQuery();
   const canViewHistory = security?.permissions.includes("reports.view") ?? false;
   // Same derivation as the shell (Admin.tsx): the role decides where a work order can open.
@@ -127,7 +133,7 @@ export default function OverviewSection() {
    * blocked, so the HIGHEST-priority items were the ones that vanished, and the
    * summary card kept showing a confident count of what was left.
    */
-  const { data: workOrders, isError: workOrdersFailed } = trpc.workOrders.list.useQuery(
+  const { data: workOrders, isError: workOrdersFailed, isLoading: workOrdersLoading } = trpc.workOrders.list.useQuery(
     { limit: WORK_ORDER_QUEUE_LIMIT },
     { refetchInterval: 30_000, refetchIntervalInBackground: false },
   );
@@ -160,6 +166,9 @@ export default function OverviewSection() {
   // Same key and options as MorningBrief's read, so this observer shares its cache: the Checks rail
   // counts a down gateway as an open item now that the brief's gateway line lives inside it.
   const { data: smsGw, isError: smsGwError } = trpc.sms.gatewayHealth.useQuery(undefined, { staleTime: 60_000 });
+  // Same key and options as PromisesPanel's read (limit 50, staleTime 60 s, retry 1), so the rail's
+  // overdue count comes from the panel's own cache entry, not a second fetch.
+  const { data: openPromises, isError: promisesFailed } = trpc.promises.listOpen.useQuery({ limit: 50 }, { staleTime: 60_000, retry: 1 });
   const { data: recentActions } = trpc.adminSecurity.recentActions.useQuery(
     { limit: 8 },
     { enabled: canViewHistory, refetchInterval: 60_000, refetchIntervalInBackground: false },
@@ -235,7 +244,7 @@ export default function OverviewSection() {
   );
   const todayKey = getBusinessDateKey();
 
-  const queue = useMemo<ActionItem[]>(() => {
+  const allItems = useMemo<ActionItem[]>(() => {
     const items: ActionItem[] = [];
     for (const booking of bookings) {
       if (booking.status !== "new") continue;
@@ -314,10 +323,22 @@ export default function OverviewSection() {
         status: "awaiting_reply",
       });
     }
-    return items
-      .filter((item) => !doneIds.has(item.id))
-      .sort((a, b) => b.urgency - a.urgency || new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-  }, [bookings, callbacks, callbackServed, currentWorkOrders, leads, owedTexts, doneIds]);
+    return items.sort((a, b) => b.urgency - a.urgency || new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  }, [bookings, callbacks, callbackServed, currentWorkOrders, leads, owedTexts]);
+  const queue = useMemo(() => allItems.filter((item) => doneRows.get(item.id) !== item.detail), [allItems, doneRows]);
+  // Forget done rows whose id is no longer in the data, so the same id coming back later is shown.
+  useEffect(() => {
+    setDoneRows((prev) => {
+      const present = new Set(allItems.map((item) => item.id));
+      const next = new Map([...prev].filter(([id]) => present.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [allItems, doneRows]);
+  /**
+   * Both reads the queue is built from have answered. The bundle can answer while the separate
+   * work-order read is still in flight; until it lands an empty board is not "done", it is loading.
+   */
+  const queueAnswered = bundle !== undefined && workOrders !== undefined && !workOrdersLoading;
 
   const filteredQueue = filter === "all" ? queue : queue.filter((item) => item.type === filter);
   const boardRows = showAll ? filteredQueue : filteredQueue.slice(0, BOARD_ROW_CAP);
@@ -498,16 +519,25 @@ export default function OverviewSection() {
   const feedHidden = new Set<string>([...QUEUE_COVERED_SIGNAL_IDS, ...DUPLICATE_ALIAS_SIGNAL_IDS]);
   const feedSignals = signals.filter((s) => !feedHidden.has(s.id));
   const gateway = gatewayState(smsGw, smsGwError);
-  const openChecks =
-    exceptionFeed(feedSignals).length +
-    (integration.state === "fresh" ? 0 : 1) +
-    (gateway === "offline" || gateway === "unknown" || gateway === "not_configured" ? 1 : 0);
-  const checksStatus =
-    openChecks > 0
-      ? `${openChecks} open`
-      : feedSignals.length > 0 && feedSignals.every((s) => s.reading.state === "counted")
-        ? "nothing open"
-        : "not all measured";
+  // Promises count only when overdue; a failed promise read is "promises unknown", never zero.
+  const overduePromises = promisesFailed || !openPromises ? null : openPromises.filter((p) => new Date(p.dueAt).getTime() < Date.now()).length;
+  const exceptionCount = exceptionFeed(feedSignals).length;
+  const freshnessOpen = integration.state !== "fresh";
+  const gatewayOpen = gateway === "offline" || gateway === "unknown" || gateway === "not_configured";
+  const openChecks = (overduePromises ?? 0) + exceptionCount + (freshnessOpen ? 1 : 0) + (gatewayOpen ? 1 : 0);
+  const openParts = [
+    overduePromises ? `${overduePromises} overdue promise${overduePromises === 1 ? "" : "s"}` : null,
+    exceptionCount ? `${exceptionCount} exception${exceptionCount === 1 ? "" : "s"}` : null,
+    freshnessOpen ? "freshness" : null,
+    gatewayOpen ? "gateway" : null,
+  ].filter(Boolean);
+  const allMeasured = overduePromises !== null && feedSignals.length > 0 && feedSignals.every((s) => s.reading.state === "counted");
+  const checksStatus = [
+    openChecks > 0 ? `${openChecks} open: ${openParts.join(", ")}` : allMeasured ? "nothing open in promises, exceptions, freshness, gateway" : "not all measured",
+    promisesFailed ? "promises unknown" : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   if (isLoading) {
     return <div className="min-h-[50vh] flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
@@ -539,7 +569,13 @@ export default function OverviewSection() {
           here under another name. */}
       <section aria-labelledby="queue-title">
         <h2 id="queue-title" className="text-[15px] font-semibold">Priority action queue</h2>
-        <div className="mt-2 -mx-1 px-1 flex gap-1.5 overflow-x-auto" role="group" aria-label="Filter queue">
+        {/* Six chips do not fit 390 px, so the strip scrolls; the right-edge fade says there is more. */}
+        <div
+          className="mt-2 -mx-1 px-1 flex gap-1.5 overflow-x-auto"
+          style={{ maskImage: "linear-gradient(to right, black calc(100% - 24px), transparent)", WebkitMaskImage: "linear-gradient(to right, black calc(100% - 24px), transparent)" }}
+          role="group"
+          aria-label="Filter queue"
+        >
           {(["all", "booking", "lead", "callback", "workOrder", "text"] as const).map((value) => (
             <button key={value} type="button" onClick={() => setFilter(value)} aria-pressed={filter === value} className={`min-h-12 px-3.5 shrink-0 rounded-md text-[13px] ${filter === value ? "bg-secondary text-foreground font-semibold border border-border/60" : "text-muted-foreground"}`}>
               {value === "all" ? "All" : value === "workOrder" ? "Work orders" : `${value.charAt(0).toUpperCase()}${value.slice(1)}s`}
@@ -561,6 +597,8 @@ export default function OverviewSection() {
                 At least one source failed. Work may be waiting that this list could not load.
               </p>
             </div>
+          ) : !queueAnswered ? (
+            <p className="py-8 text-center text-[13px] text-muted-foreground" role="status">Loading the queue</p>
           ) : filter === "all" ? (
             <div className="py-10 text-center" role="status">
               <p className="text-[17px] font-medium">Done for today. Nothing needs you.</p>
@@ -574,7 +612,7 @@ export default function OverviewSection() {
             <p className="py-8 text-center text-[13px] text-muted-foreground" role="status">No pending actions in this view</p>
           )
         ) : (
-          <div className="mt-1 divide-y divide-border/40 border-y border-border/40">
+          <div className="mt-1 divide-y divide-border border-y border-border">
             {boardRows.map((item) => {
               const definition = getQueueActionDefinition(item.type);
               return (
@@ -583,12 +621,16 @@ export default function OverviewSection() {
                   item={item}
                   typeLabel={requestLabel(item)}
                   primaryLabel={definition.primaryLabel}
+                  shortLabel={definition.shortLabel}
                   secondaryLabel={definition.secondaryLabel !== definition.primaryLabel ? definition.secondaryLabel : undefined}
                   body={`Hi ${item.name.split(" ")[0]}, it's Nick's Tire following up on your ${requestLabel(item)}.`}
                   disabled={mutationPending}
                   onPrimary={guarded(performPrimary, item)}
                   onSecondary={guarded(performSecondary, item)}
-                  onGone={() => setDoneIds((prev) => new Set(prev).add(item.id))}
+                  onGone={() => {
+                    setDoneRows((prev) => new Map(prev).set(item.id, item.detail));
+                    setAnnouncement(`Done: ${item.name}`);
+                  }}
                 />
               );
             })}
@@ -599,6 +641,7 @@ export default function OverviewSection() {
             )}
           </div>
         )}
+        <p className="sr-only" aria-live="polite">{announcement}</p>
       </section>
 
       <section className="grid grid-cols-4 gap-2" aria-label="Today summary">
@@ -612,7 +655,9 @@ export default function OverviewSection() {
                 ? "At least this many: work-order list is capped"
                 : queue.length
                   ? undefined
-                  : "All clear"
+                  : queueAnswered
+                    ? "All clear"
+                    : "Loading"
           }
           alert={queue.length > 0 || !queueTrustworthy}
           priority={queueTrustworthy && queue.length > 0}
@@ -641,7 +686,7 @@ export default function OverviewSection() {
       <ArrivalLoadStrip bookings={bookings} bookingsTrustworthy={!unavailable.includes("bookings")} />
 
       {/* CHECKS: everything that monitors rather than asks for work, under one rail. */}
-      <ChecksRail status={checksStatus} alert={openChecks > 0}>
+      <ChecksRail status={checksStatus} alert={openChecks > 0 || promisesFailed}>
         <MorningBrief part="signals" priorityQueueLength={queue.length} urgentLeads={urgentLeadCount} queueTrustworthy={queueTrustworthy} />
 
         {/* Promise Ledger (0102): log promises the moment they're made; the sweep escalates overdue
@@ -714,7 +759,7 @@ function SummaryCard({ label, value, detail, alert = false, priority = false }: 
     <div className="min-w-0">
       <div className={`text-2xl font-bold tabular-nums leading-none ${priority ? "text-[var(--owner-priority)]" : alert ? "text-red-400" : "text-foreground"}`}>{value}</div>
       <div className="mt-1.5 text-[12px] leading-tight text-muted-foreground">{label}</div>
-      {detail && <div className="mt-1 text-[11px] leading-tight text-muted-foreground">{detail}</div>}
+      {detail && <div className="mt-1 text-[12px] leading-tight text-muted-foreground">{detail}</div>}
     </div>
   );
 }

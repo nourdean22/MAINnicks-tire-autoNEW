@@ -23,6 +23,7 @@ const h = vi.hoisted(() => ({
   toastError: vi.fn(),
   Null: () => null,
   Marker: (id: string) => () => <div data-testid={id} />,
+  onInvalidate: null as null | ((path: string) => void),
 }));
 vi.mock("@/lib/trpc", () => {
   const query = (path: string) => () => ({
@@ -42,7 +43,7 @@ vi.mock("@/lib/trpc", () => {
         if (typeof key === "symbol" || key === "then") return undefined;
         if (key === "useQuery" || key === "useSuspenseQuery" || key === "useInfiniteQuery") return query(path);
         if (key === "useMutation") return mutation(path);
-        if (key === "invalidate") return async () => {};
+        if (key === "invalidate") return async () => { h.onInvalidate?.(path); };
         return node(path ? `${path}.${String(key)}` : String(key));
       },
       apply() {
@@ -105,6 +106,7 @@ beforeEach(() => {
   h.confirm.mockResolvedValue(true);
   h.toastSuccess.mockReset();
   h.toastError.mockReset();
+  h.onInvalidate = null;
   h.queries.set("workOrders.list", ok([]));
   h.mutations.set("adminSecurity.recordAction", () => ({ mutateAsync: async () => ({ reference: "ACT-1" }), isPending: false }));
   try { window.localStorage.clear(); } catch { /* storage blocked: the rail must still render */ }
@@ -168,6 +170,33 @@ describe("the board", () => {
     expect(screen.queryByText(/UNKNOWN, not clear/)).toBeNull();
   });
 
+  it("the end state waits for the work-order read too: bundle answered, work orders pending, no all-clear", () => {
+    h.queries.set("adminDashboard.overviewMediumBundle", ok(BUNDLE()));
+    h.queries.set("workOrders.list", { data: undefined, isLoading: true, isError: false });
+    render(<OverviewSection />);
+    expect(screen.queryByText(/Done for today/)).toBeNull();
+    expect(screen.queryByText("All clear")).toBeNull();
+    expect(screen.getByText("Loading the queue")).toBeTruthy();
+  });
+
+  it("an urgent item past position 12 is sorted into the first 12 rows", () => {
+    const calm = Array.from({ length: 12 }, (_, i) => booking(i + 1, `Customer ${i + 1}`));
+    const urgent = { ...booking(13, "Urgent Driver"), urgency: "emergency" };
+    h.queries.set("adminDashboard.overviewMediumBundle", ok(BUNDLE([...calm, urgent])));
+    render(<OverviewSection />);
+    expect(rows()).toHaveLength(12);
+    expect(rows().some((r) => r.textContent?.includes("Urgent Driver"))).toBe(true);
+  });
+
+  it("phones get a short verb of at most 10 characters; the full verb stays the accessible name", () => {
+    h.queries.set("adminDashboard.overviewMediumBundle", ok(BUNDLE([], { callbacks: [{ id: 5, name: "Linda Nowak", phone: "(216) 555-0105", status: "new", createdAt: now() }] })));
+    render(<OverviewSection />);
+    const verb = screen.getByRole("button", { name: "Complete callback" });
+    const phone = verb.querySelector(".lg\\:hidden");
+    expect(phone?.textContent?.length ?? 99).toBeLessThanOrEqual(10);
+    expect(verb.querySelector(".hidden.lg\\:inline")?.textContent).toBe("Complete callback");
+  });
+
   it("an unreadable queue keeps the W0 unknown state and never says Done for today", () => {
     h.queries.set("adminDashboard.overviewMediumBundle", FAILED);
     render(<OverviewSection />);
@@ -195,7 +224,12 @@ describe("the board", () => {
 describe("act in place", () => {
   it("a confirmed booking leaves the board and the Needs action number drops with it", async () => {
     const update = vi.fn(async () => ({}));
+    const receipts: Array<{ action: string; entityId: number }> = [];
     h.mutations.set("booking.updateStatus", () => ({ mutateAsync: update, isPending: false }));
+    h.mutations.set("adminSecurity.recordAction", () => ({
+      mutateAsync: async (input: { action: string; entityId: number }) => { receipts.push(input); return { reference: "ACT-7" }; },
+      isPending: false,
+    }));
     h.queries.set("adminDashboard.overviewMediumBundle", ok(BUNDLE([booking(1, "Rosa Delgado"), booking(2, "Paul Szabo")])));
     render(<OverviewSection />);
     expect(within(needsAction()).getByText("2")).toBeTruthy();
@@ -205,11 +239,59 @@ describe("act in place", () => {
     });
     expect(update).toHaveBeenCalledWith({ id: 1, status: "confirmed" });
     expect(row.className).toMatch(/(^|\s)transition-opacity(\s|$)/);
+    expect(row.className).toMatch(/(^|\s)opacity-0(\s|$)/);
+    expect(receipts).toEqual([expect.objectContaining({ action: "admin.booking_confirmed", entityId: 1 })]);
     // A fading row takes no second tap: a double tap must not open a second confirm.
     expect((within(row).getByRole("button", { name: "Confirm booking" }) as HTMLButtonElement).disabled).toBe(true);
     await waitFor(() => expect(screen.queryByText("Rosa Delgado")).toBeNull());
     expect(within(needsAction()).getByText("1")).toBeTruthy();
     expect(screen.getByText("Paul Szabo")).toBeTruthy();
+    expect(screen.getByText("Done: Rosa Delgado").getAttribute("aria-live") ?? screen.getByText("Done: Rosa Delgado").closest("[aria-live]")?.getAttribute("aria-live")).toBe("polite");
+  });
+
+  it("when the refetch drops the item before the action resolves, the row is gone through the data path", async () => {
+    h.mutations.set("callback.updateStatus", () => ({ mutateAsync: async () => ({}), isPending: false }));
+    const cb = { id: 5, name: "Linda Nowak", phone: "(216) 555-0105", status: "new", reason: "Price on an alignment", createdAt: now() };
+    h.queries.set("adminDashboard.overviewMediumBundle", ok(BUNDLE([], { callbacks: [cb] })));
+    h.onInvalidate = (path) => {
+      if (path.endsWith("overviewMediumBundle")) h.queries.set("adminDashboard.overviewMediumBundle", ok(BUNDLE([], { callbacks: [] })));
+    };
+    render(<OverviewSection />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Complete callback" }));
+    });
+    await waitFor(() => expect(screen.queryByText("Linda Nowak")).toBeNull());
+    expect(screen.getByText("Done for today. Nothing needs you.")).toBeTruthy();
+  });
+
+  it("a done row whose id leaves the data and returns unchanged is shown again", async () => {
+    h.mutations.set("booking.updateStatus", () => ({ mutateAsync: async () => ({}), isPending: false }));
+    h.queries.set("adminDashboard.overviewMediumBundle", ok(BUNDLE([booking(1, "Rosa Delgado")])));
+    const view = render(<OverviewSection />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Confirm booking" }));
+    });
+    await waitFor(() => expect(screen.queryByText("Rosa Delgado")).toBeNull());
+    h.queries.set("adminDashboard.overviewMediumBundle", ok(BUNDLE([])));
+    view.rerender(<OverviewSection />);
+    h.queries.set("adminDashboard.overviewMediumBundle", ok(BUNDLE([booking(1, "Rosa Delgado")])));
+    view.rerender(<OverviewSection />);
+    await waitFor(() => expect(screen.getByText("Rosa Delgado")).toBeTruthy());
+  });
+
+  it("a text closed with No reply needed comes back when the customer texts again", async () => {
+    h.mutations.set("smsConversations.markNoReplyNeeded", () => ({ mutateAsync: async () => ({ closed: true }), isPending: false }));
+    const text = (waitingMinutes: number) => ({ conversationId: 31, phone: "(216) 555-0131", customerName: "DeShawn Carter", preview: "Is my car ready?", waitingMinutes, overdue: false });
+    h.queries.set("adminDashboard.overviewMediumBundle", ok(BUNDLE([], { owedTexts: [text(42)] })));
+    const view = render(<OverviewSection />);
+    fireEvent.click(screen.getByRole("button", { name: "More actions for DeShawn Carter" }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "No reply needed" }));
+    });
+    await waitFor(() => expect(screen.queryByText("DeShawn Carter")).toBeNull());
+    h.queries.set("adminDashboard.overviewMediumBundle", ok(BUNDLE([], { owedTexts: [text(2)] })));
+    view.rerender(<OverviewSection />);
+    await waitFor(() => expect(screen.getByText("DeShawn Carter")).toBeTruthy());
   });
 
   it("the secondary action waits behind the row's overflow, and a cancelled booking leaves the board", async () => {
@@ -255,13 +337,15 @@ describe("act in place", () => {
   });
 
   it("a lead marked contacted stays on the board: contacted is still an active lead", async () => {
-    h.mutations.set("lead.update", () => ({ mutateAsync: async () => ({}), isPending: false }));
+    const leadUpdate = vi.fn(async () => ({}));
+    h.mutations.set("lead.update", () => ({ mutateAsync: leadUpdate, isPending: false }));
     h.queries.set("adminDashboard.overviewMediumBundle", ok(BUNDLE([], { leads: [{ id: 9, name: "Aisha Brooks", status: "new", phone: "(216) 555-0109", createdAt: now() }] })));
     render(<OverviewSection />);
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Mark contacted" }));
     });
     await new Promise((r) => setTimeout(r, 200));
+    expect(leadUpdate).toHaveBeenCalledWith({ id: 9, status: "contacted", contacted: 1 });
     expect(screen.getByText("Aisha Brooks")).toBeTruthy();
   });
 });
@@ -289,6 +373,36 @@ describe("the Checks rail", () => {
     setDesktop(true);
     render(<OverviewSection />);
     expect(rail().open).toBe(true);
+  });
+
+  it("does not store the mount-time default, only an operator toggle", () => {
+    setDesktop(true);
+    h.queries.set("adminDashboard.overviewMediumBundle", ok(BUNDLE()));
+    render(<OverviewSection />);
+    fireEvent(rail(), new Event("toggle"));
+    expect(window.localStorage.getItem("nicks-admin-today-checks")).toBeNull();
+  });
+
+  it("an overdue promise is an open check, and a failed promise read says promises unknown", () => {
+    const summary = () => rail().querySelector("summary")!.textContent ?? "";
+    h.queries.set("adminDashboard.overviewMediumBundle", ok(BUNDLE()));
+    h.queries.set("sms.gatewayHealth", ok({ configured: true, readable: true, online: true }));
+    h.queries.set("adminSecurity.integrationFreshness", ok(FRESH));
+    h.queries.set("promises.listOpen", ok([]));
+    const first = render(<OverviewSection />);
+    const base = Number(/(\d+) open/.exec(summary())?.[1] ?? 0);
+    first.unmount();
+    const overdue = { id: 1, customerName: "Pat", promise: "Call back", dueAt: new Date(Date.now() - 3 * 3_600_000).toISOString() };
+    const later = { id: 2, customerName: "Sam", promise: "Quote", dueAt: new Date(Date.now() + 3_600_000).toISOString() };
+    h.queries.set("promises.listOpen", ok([overdue, later]));
+    const second = render(<OverviewSection />);
+    expect(summary()).toMatch(new RegExp(`${base + 1} open`));
+    expect(summary()).toMatch(/promise/);
+    second.unmount();
+    h.queries.set("promises.listOpen", FAILED);
+    render(<OverviewSection />);
+    expect(summary()).toMatch(/promises unknown/);
+    expect(summary()).not.toMatch(/nothing open/);
   });
 
   it("remembers the operator's choice across mounts", () => {

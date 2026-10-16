@@ -20,6 +20,8 @@ interface QueueRowProps {
   /** "booking", "lead", "callback", "work order" or "text". */
   typeLabel: string;
   primaryLabel: string;
+  /** Shown under lg, where a 375 px row cannot hold the full verb beside three 48 px buttons. */
+  shortLabel: string;
   /** Omitted when the secondary action is the same as the primary. */
   secondaryLabel?: string;
   /** The text prefill, owned by the caller (admin-customer-copy-pins pins it there). */
@@ -34,7 +36,7 @@ interface QueueRowProps {
 const money = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`;
 
 // Named, not default: the admin render matrix (admin.test.tsx) mounts every default export with no props.
-export function QueueRow({ item, typeLabel, primaryLabel, secondaryLabel, body, disabled, onPrimary, onSecondary, onGone }: QueueRowProps) {
+export function QueueRow({ item, typeLabel, primaryLabel, shortLabel, secondaryLabel, body, disabled, onPrimary, onSecondary, onGone }: QueueRowProps) {
   const [leaving, setLeaving] = useState(false);
   const [more, setMore] = useState(false);
   const urgent = item.urgency >= 4;
@@ -77,8 +79,9 @@ export function QueueRow({ item, typeLabel, primaryLabel, secondaryLabel, body, 
             <MoreHorizontal className="w-4 h-4" />
           </button>
         )}
-        <button type="button" disabled={disabled || leaving} onClick={() => void run(onPrimary)} className="min-h-12 px-4 ml-auto lg:ml-0 whitespace-nowrap rounded-md bg-secondary text-foreground text-[14px] font-semibold border border-border/60 disabled:opacity-50">
-          {primaryLabel}
+        <button type="button" disabled={disabled || leaving} onClick={() => void run(onPrimary)} aria-label={primaryLabel} className="min-h-12 px-4 ml-auto lg:ml-0 whitespace-nowrap rounded-md bg-secondary text-foreground text-[14px] font-semibold border border-border/60 disabled:opacity-50">
+          <span className="lg:hidden">{shortLabel}</span>
+          <span className="hidden lg:inline">{primaryLabel}</span>
         </button>
       </div>
       {secondaryLabel && more && (
