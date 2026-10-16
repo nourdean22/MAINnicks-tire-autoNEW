@@ -188,7 +188,7 @@ for (const vp of viewports) {
       await expect(page.getByRole("heading", { name: "Chat States" })).toBeVisible();
       // The fixture page is static after hydration; waiting on the last
       // section's heading is a real readiness signal, not a sleep.
-      await expect(page.getByText("Completion message — receipts sample")).toBeVisible();
+      await expect(page.getByText("Completion message: receipts sample")).toBeVisible();
       await expect(page).toHaveScreenshot(`chat-states-${vp.name}.png`, {
         fullPage: true,
         animations: "disabled",
@@ -198,7 +198,7 @@ for (const vp of viewports) {
     test("evidence panel — fresh recall (open state)", async ({ page }) => {
       requireBaseline(`evidence-fresh-${vp.name}`);
       await page.goto(PAGE);
-      await openPanel(page, "Open — fresh recall", "Context & Evidence");
+      await openPanel(page, "Open: fresh recall", "Context & Evidence");
       await expect(page).toHaveScreenshot(`evidence-fresh-${vp.name}.png`, {
         animations: "disabled",
         mask: timestampMask(page),
@@ -214,9 +214,9 @@ for (const vp of viewports) {
       // THEN assert the variant-specific honesty line. Splitting these
       // was diagnostic: it separates "panel never opened" from "panel
       // opened but the empty-state line is missing".
-      await openPanel(page, "Open — never fetched", "Context & Evidence");
+      await openPanel(page, "Open: never fetched", "Context & Evidence");
       await expect(
-        page.getByText("not yet fetched — open state, not evidence"),
+        page.getByText("not yet fetched: open state, not evidence"),
       ).toBeVisible();
       await expect(page).toHaveScreenshot(`evidence-unfetched-${vp.name}.png`, {
         animations: "disabled",
