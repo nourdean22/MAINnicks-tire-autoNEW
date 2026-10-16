@@ -71,7 +71,12 @@ const DECISION_LABELS: Record<string, { label: string; score: number }> = {
 };
 
 const et = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
-const clip = (s: string, max: number) => (s.length <= max ? s : `${s.slice(0, max - 3).trimEnd()}...`);
+const clip = (raw: string, max: number) => {
+  const s = raw.replace(/\s+/g, " ").trim();
+  return s.length <= max ? s : `${s.slice(0, max - 3).trimEnd()}...`;
+};
+const hashOf = (s: string) => [...s].reduce((n, c) => n + c.charCodeAt(0), 0);
+const rotate = <T,>(xs: T[], by: number): T[] => (xs.length ? [...xs.slice(by % xs.length), ...xs.slice(0, by % xs.length)] : xs);
 
 /** Streak-driven next review: correct climbs the ladder, a miss resets to tomorrow. */
 export function spacedReviewStep(prevStreak: number, correct: boolean): { streak: number; days: number } {
@@ -139,7 +144,7 @@ async function pickRecall(now: Date): Promise<TutorItem | null> {
       where: { category: BRAIN_CATEGORIES.WISDOM, deletedAt: null },
       select: { id: true, content: true },
       orderBy: { createdAt: "desc" },
-      take: 120,
+      take: 400, // 281 live rows (2026-10-16); a due row for an older wisdom must still be found
     }),
   ]);
   if (wisdom.length < 3) return null;
@@ -160,14 +165,17 @@ async function pickRecall(now: Date): Promise<TutorItem | null> {
   if (!target) return null;
 
   // Distractors from a different discipline make the choice a real test, not a guess.
+  // Rotated by the target id so each wisdom gets its own pair, not the two newest rows every day.
   const discipline = tagMungerDisciplines(target.content)[0];
+  const seed = hashOf(target.id);
   const others = wisdom.filter((w) => w.id !== target.id && w.content !== target.content);
   const foreign = others.filter((w) => tagMungerDisciplines(w.content)[0] !== discipline);
-  const distractors = [...foreign, ...others.filter((w) => !foreign.includes(w))].slice(0, 2);
+  const same = others.filter((w) => !foreign.includes(w));
+  const distractors = [...rotate(foreign, seed), ...rotate(same, seed)].slice(0, 2);
   if (distractors.length < 2) return null;
 
   // Deterministic correct position from the id, so the answer is not always A.
-  const pos = [...target.id].reduce((n, c) => n + c.charCodeAt(0), 0) % 3;
+  const pos = seed % 3;
   const options = [distractors[0].content, distractors[1].content] as string[];
   options.splice(pos, 0, target.content);
   return {
@@ -181,7 +189,14 @@ async function pickRecall(now: Date): Promise<TutorItem | null> {
 
 /** Priority: overdue decision review, else a recall question, else null (silent day). */
 export async function composeTutorItem(now: Date = new Date()): Promise<TutorItem | null> {
-  return (await pickOverdueDecision(now)) ?? (await pickRecall(now));
+  // A failed read is a silent day, logged; it must never surface as a question built from nothing.
+  return (
+    (await pickOverdueDecision(now)) ??
+    (await pickRecall(now).catch((err) => {
+      logError("brain.tutor-pack", err, { fn: "pickRecall" }, "warn");
+      return null;
+    }))
+  );
 }
 
 /** Nour's voice: direct, calm, no emojis, no exclamation marks. HTML parse mode, so escape. */
@@ -218,7 +233,8 @@ export async function fireTutorPush(options?: { dryRun?: boolean; now?: Date }):
   const quietHoursBlocked = etHour >= 0 && etHour <= 5;
 
   const isDup = await alreadyPushed("tutor", dateKey);
-  const item = await composeTutorItem(now);
+  // Live ticks after the send (the morning hour spans 6-11 ET) skip the compose reads; a preview still shows the text.
+  const item = isDup && !options?.dryRun ? null : await composeTutorItem(now);
   const skipReason = isDup ? "already_pushed_today" : quietHoursBlocked ? "quiet_hours_overnight" : !item ? "nothing_eligible" : "";
 
   if (options?.dryRun) {
@@ -230,7 +246,7 @@ export async function fireTutorPush(options?: { dryRun?: boolean; now?: Date }):
     const sources: PushSource[] = item
       ? [
           item.kind === "recall"
-            ? { id: item.memoryId, category: "system_context", title: "Wisdom recall", summary: `3-option retrieval on a wisdom row (${item.topic})`, confidence: "high", reason: "Not asked in 30 days, or its spaced review is due.", href: "/brain/wisdom" }
+            ? { id: item.memoryId, category: "system_context", title: "Wisdom recall", summary: `3-option retrieval on a wisdom row (${item.topic})`, confidence: "high", reason: "Not asked in 30 days, or its spaced review is due." }
             : { id: item.replayId, category: "system_context", title: "Overdue decision review", summary: `${item.title} (${item.date})`, confidence: "high", reason: "DecisionReplay reviewAt passed and reviewed=false.", href: "/journal" },
         ]
       : [{ category: "system_context", title: "Nothing eligible", summary: "No overdue decision and no unasked wisdom.", confidence: "medium", reason: "Silent day by design." }];
@@ -353,7 +369,7 @@ export async function handleTutorAnswer(ledgerId: string, choice: string): Promi
     const options = Array.isArray(ev.options) ? (ev.options as string[]) : [];
     const answer = options["ABC".indexOf(String(ev.correct))] ?? "";
     const memoryId = typeof ev.memoryId === "string" ? ev.memoryId : null;
-    let days = correct ? 1 : 1;
+    let days = 1;
     if (memoryId) {
       days = await scheduleSpacedReview(memoryId, tagMungerDisciplines(answer)[0], answer, correct, now).catch((err) => {
         logError("brain.tutor-pack", err, { fn: "handleTutorAnswer.spaced", ledgerId }, "warn");
