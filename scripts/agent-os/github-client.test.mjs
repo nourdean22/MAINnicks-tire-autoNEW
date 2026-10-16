@@ -102,19 +102,23 @@ test("resolveToken falls back to GITHUB_TOKEN when GH_TOKEN is absent and gh is 
 });
 
 test("LIVE: ghPaginate crosses a real page boundary without the numeric-ID proxy 403 (real regression)", { skip: liveSkip }, () => {
-  // The repo's own /branches endpoint has 130+ branches (>100 = at least 2 pages)
-  // at last count, and this environment's proxy previously 403'd the second page
-  // because ghPaginate followed the Link header's numeric-ID URL verbatim. This
-  // must be run in a properly-flagged child, same reasoning as the FIXED test above.
+  // The subject must be a collection that is larger than one page AND stays so. It used to be /branches
+  // (130+ at the time) until the 2026-10-15 triage deleted most of them (9 left) and this arm went red on
+  // every PR that woke it (found by the 2026-10-16 CI diet, PR #3083). Closed pull requests only ever grow:
+  // 3,076 on 2026-10-16. Starting at page 30 of 100 keeps it to 2 requests today (page 30 is full, page 31
+  // holds the rest) instead of walking all ~31 pages, so the count must exceed one page: 100 + the tail.
+  // This environment's proxy previously 403'd the second page because ghPaginate followed the Link
+  // header's numeric-ID URL verbatim. This must be run in a properly-flagged child, same reasoning as the
+  // FIXED test above.
   const env = { ...process.env, NODE_USE_ENV_PROXY: "1", GH_TOKEN: auth.token };
   const r = spawnSync(
     process.execPath,
-    ["-e", "import('./github-client.mjs').then(m=>m.ghPaginate('/repos/" + REPO + "/branches')).then(b=>{console.log(b.length);process.exit(0)}).catch(e=>{console.log('ERR '+e.message);process.exit(0)})"],
+    ["-e", "import('./github-client.mjs').then(m=>m.ghPaginate('/repos/" + REPO + "/pulls?state=closed&per_page=100&page=30')).then(b=>{console.log(b.length);process.exit(0)}).catch(e=>{console.log('ERR '+e.message);process.exit(0)})"],
     { encoding: "utf8", env, cwd: import.meta.dirname, timeout: 20000 },
   );
   const out = r.stdout.trim();
   assert.doesNotMatch(out, /^ERR/, `ghPaginate failed: ${out}${r.stderr}`);
-  assert.ok(Number(out) > 100, `expected >100 branches (proof pagination actually crossed a page boundary), got ${out}`);
+  assert.ok(Number(out) > 100, `expected >100 closed pull requests from page 30 on (proof pagination actually crossed a page boundary), got ${out}`);
 });
 
 test("resolveToken returns null when nothing is available", () => {
