@@ -52,6 +52,26 @@
       "reason": "INTENTIONAL TEST-VISIBLE OPERATING POLICY. The daily production job exports the READY low-watermark so its buffer test can assert the refill boundary directly; it only holds or refills production and cannot publish."
     },
     {
+      "file": "apps/nickstire/server/cron/jobs/dailyReelPost.ts",
+      "symbol": "PARKED_QA_GATES",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The rendered-QA gates that wait on a human (needs_paid_repair, reject, stock_fallback, needs_review) are exported so dailyReelPost.test.ts can pin the drain's skip rule as behaviour (job 2070013's needs_review jam, 149 pulses, 2026-10-13/15). Its runtime consumers are the drain and today's-job pre-filters in the same module, so the rule is live, not vacuous."
+    },
+    {
+      "file": "apps/nickstire/server/cron/jobs/dailyReelPost.ts",
+      "symbol": "RETRYABLE_QA_GATES",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The parked gates the pre-filter re-asks every pulse (needs_paid_repair only) are exported so dailyReelPost.test.ts can pin that needs_review never joins them. Its runtime consumers are the drain and today's-job pre-filters in the same module, so the rule is live, not vacuous."
+    },
+    {
+      "file": "apps/nickstire/server/services/reelProviderFunds.ts",
+      "symbol": "providerFundsHold",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The pure funds-hold decision (hold only on a KNOWN Higgsfield shortfall; unknown balance, other provider or unpriced model never holds) is exported so reelProviderFunds.test.ts can pin it without a database. Its runtime consumer is readProviderFundsHold in the same module, which the daily reel cron calls, so the rule is live, not vacuous."
+    },
+    {
+      "file": "apps/nickstire/server/services/reelProviderFunds.ts",
+      "symbol": "CLIP_CREDITS_PER_BEAT",
+      "reason": "INTENTIONAL TEST-VISIBLE OPERATING POLICY. The measured per-clip credit prices (seedance1_5 12, seedance_2_5 26) are exported so reelProviderFunds.test.ts can pin them. Its runtime consumers are providerFundsHold and readProviderFundsHold in the same module, which the daily reel cron calls, so the price table is live, not vacuous."
+    },
+    {
       "file": "apps/nickstire/server/services/reelPackRegistry.ts",
       "symbol": "listCommittedPacks",
       "reason": "PRE-EXISTING TEST-VISIBLE HELPER. The function is consumed by packCoveredTopics in the same service and retained as the registry test seam; it does not represent an unreachable production module or a new capability in this Reel contract change."

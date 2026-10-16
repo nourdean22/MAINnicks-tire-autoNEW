@@ -90,7 +90,7 @@ describe("what it must NOT pre-check — the load-bearing half", () => {
   it("skips ONLY the parked QA verdicts, never the ones that clear themselves", () => {
     expect(LOOP).toContain("evaluateReelPublishGate");
     expect(LOOP).toContain("PARKED_QA_GATES.has(cGate.gate)");
-    // The parked set is exactly the human-blocked three.
+    // The parked set is exactly the human-blocked gates.
     const set = SRC.slice(SRC.indexOf("const PARKED_QA_GATES"));
     const decl = set.slice(0, set.indexOf(";") + 1);
     expect(decl).toContain("needs_paid_repair");
@@ -99,7 +99,9 @@ describe("what it must NOT pre-check — the load-bearing half", () => {
     // These clear themselves and must NEVER be pre-filtered away.
     expect(decl).not.toContain("auto_repair");
     expect(decl).not.toContain("unavailable");
-    expect(decl).not.toContain("needs_review");
+    // needs_review waits on a human (operator review in the Queue), so it parks:
+    // job 2070013 jammed the drain for 149 pulses, 2026-10-13 22:08Z to 2026-10-15 11:10Z.
+    expect(decl).toContain("needs_review");
   });
 
   it("reads the verdict WITHOUT running QA — a selection filter cannot spend money", () => {
