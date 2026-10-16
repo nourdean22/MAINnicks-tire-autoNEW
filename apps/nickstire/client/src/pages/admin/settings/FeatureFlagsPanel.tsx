@@ -166,7 +166,7 @@ export default function FeatureFlagsPanel() {
               key={f}
               type="button"
               onClick={() => setFilter(f)}
-              className={`text-[10.5px] font-bold tracking-[0.1em] uppercase px-2.5 py-1.5 rounded border transition-colors ${
+              className={`text-[10.5px] font-bold px-2.5 py-1.5 rounded border transition-colors ${
                 filter === f
                   ? "border-primary/40 bg-primary/10 text-primary"
                   : "border-border/30 text-foreground/50 hover:text-foreground/80"

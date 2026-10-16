@@ -138,7 +138,7 @@ export default function PromisesPanel() {
       <header className="flex items-center justify-between px-4 py-3 border-b border-border/30">
         <div className="flex items-center gap-2">
           <HandHeart className="w-4 h-4 text-nick-yellow" />
-          <h2 className="text-sm font-bold uppercase tracking-wide">Promises</h2>
+          <h2 className="text-sm font-bold ">Promises</h2>
           {openLabel && <span className="text-[10px] text-muted-foreground">{openLabel}</span>}
         </div>
         <button
@@ -252,7 +252,7 @@ export default function PromisesPanel() {
             return (
               <li key={p.id} className="px-4 py-2.5">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border border-border/40 text-foreground/60">
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded border border-border/40 text-foreground/60">
                     {TYPE_LABELS[p.promiseType] ?? p.promiseType}
                   </span>
                   <span className="text-sm text-foreground">{p.promisedAction}</span>

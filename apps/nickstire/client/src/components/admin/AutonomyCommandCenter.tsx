@@ -317,7 +317,7 @@ export default function AutonomyCommandCenter() {
             {(shadow.data as any).format && (
               <div className="mb-3 rounded-md border border-primary/30 bg-primary/5 p-3 space-y-1">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs uppercase tracking-wider text-muted-foreground">Suggested format today</span>
+                  <span className="text-xs text-muted-foreground">Suggested format today</span>
                   <span className="font-semibold capitalize">{(shadow.data as any).format.format}</span>
                   <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${
                     (shadow.data as any).format.confidence === "high" ? "border-green-500/40 text-green-600"

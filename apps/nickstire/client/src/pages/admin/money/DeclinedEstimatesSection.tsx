@@ -306,7 +306,7 @@ export default function DeclinedEstimatesSection() {
           </div>
           {/* Sort mode */}
           <div className="flex items-center gap-1">
-            <span className="text-[9px] text-foreground/30 tracking-wider uppercase mr-0.5">Sort</span>
+            <span className="text-[9px] text-foreground/30 mr-0.5">Sort</span>
             {(["score", "amount", "date"] as SortMode[]).map((s) => (
               <button
                 key={s}
@@ -325,7 +325,7 @@ export default function DeclinedEstimatesSection() {
           </div>
           {/* Min amount */}
           <div className="flex items-center gap-1">
-            <span className="text-[9px] text-foreground/30 tracking-wider uppercase mr-0.5">Min $</span>
+            <span className="text-[9px] text-foreground/30 mr-0.5">Min $</span>
             {[0, 250, 500, 1000].map((m) => (
               <button
                 key={m}

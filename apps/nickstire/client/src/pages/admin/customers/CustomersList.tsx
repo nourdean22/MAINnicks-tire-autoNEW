@@ -410,7 +410,7 @@ export function CustomersList({ onOpenCustomer }: { onOpenCustomer: (id: number)
               to know whether to recompute or look deeper. */}
           {freshness?.lastComputedAt && (
             <span
-              className="hidden md:inline-flex items-center gap-1 px-2.5 py-1.5 text-[10px] uppercase tracking-[0.12em] font-medium text-foreground/45 bg-card/50 border border-border/25 whitespace-nowrap"
+              className="hidden md:inline-flex items-center gap-1 px-2.5 py-1.5 text-[10px] font-medium text-foreground/45 bg-card/50 border border-border/25 whitespace-nowrap"
               title={`Materialized aggregates last computed at ${freshness.lastComputedAt} (${freshness.rowCount} rows)`}
             >
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400/70" />

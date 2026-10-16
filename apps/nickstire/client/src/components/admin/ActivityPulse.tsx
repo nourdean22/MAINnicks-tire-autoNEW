@@ -113,7 +113,7 @@ export default function ActivityPulse({ disabled = false, className = "" }: { di
                   className={`inline-flex items-start gap-2 px-3 py-2 rounded-lg border backdrop-blur-md text-xs pointer-events-auto shadow-xl ${config.className}`}
                 >
                   <span className="shrink-0 mt-0.5">{config.icon}</span>
-                  <div className="min-w-0"><div className="font-bold text-[11px] uppercase tracking-wider">{pulse.title}</div>{pulse.detail && <div className="opacity-80 text-[11px] mt-0.5 truncate">{pulse.detail}</div>}</div>
+                  <div className="min-w-0"><div className="font-bold text-[11px] ">{pulse.title}</div>{pulse.detail && <div className="opacity-80 text-[11px] mt-0.5 truncate">{pulse.detail}</div>}</div>
                 </motion.div>
               );
             })}

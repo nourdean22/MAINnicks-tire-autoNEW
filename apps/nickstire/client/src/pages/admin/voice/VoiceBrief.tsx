@@ -63,7 +63,7 @@ export function VoiceBrief({ onStuckCallsAction }: VoiceBriefProps) {
   if (scorecardLoading || (!live && !liveError)) {
     return (
       <div className="border border-border/40 bg-card p-4">
-        <div className="animate-pulse text-[11px] font-bold uppercase tracking-[0.18em] text-foreground/30">
+        <div className="animate-pulse text-[11px] font-bold text-foreground/30">
           Loading evidence-backed voice scorecard…
         </div>
       </div>
@@ -113,7 +113,7 @@ export function VoiceBrief({ onStuckCallsAction }: VoiceBriefProps) {
     <section className="space-y-3 border border-border/40 bg-card p-4" aria-label="Revenue operations voice scorecard">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-foreground/45">
+          <div className="text-[11px] font-bold text-foreground/45">
             Voice revenue operations · today
           </div>
           <p className="mt-1 text-xs text-foreground/50">
@@ -128,7 +128,7 @@ export function VoiceBrief({ onStuckCallsAction }: VoiceBriefProps) {
              today. Showing a permanent amber warning for a guaranteed state is
              how a real alarm gets trained away. */
           <span
-            className="inline-flex items-center gap-1.5 rounded-full border border-border/40 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-foreground/55"
+            className="inline-flex items-center gap-1.5 rounded-full border border-border/40 px-2.5 py-1 text-[10px] font-bold text-foreground/55"
             title="Calls are scored by a daily job, and each call waits for its provider analysis. Today's calls are evaluated on the next cycle."
           >
             <Clock className="h-3 w-3" /> Scored on the next daily cycle
@@ -136,11 +136,11 @@ export function VoiceBrief({ onStuckCallsAction }: VoiceBriefProps) {
         ) : noVersionedData ? (
           /* GENUINELY BEHIND. An unscored call older than two full cycles is a
              stalled pipeline, not a pending one, and it keeps the alarm. */
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-300">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/30 px-2.5 py-1 text-[10px] font-bold text-amber-300">
             <ShieldAlert className="h-3 w-3" /> Evaluations behind · oldest {oldestUnversionedHours}h
           </span>
         ) : (
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-300">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/30 px-2.5 py-1 text-[10px] font-bold text-emerald-300">
             <CheckCircle2 className="h-3 w-3" /> Versioned data
           </span>
         )}
@@ -148,7 +148,7 @@ export function VoiceBrief({ onStuckCallsAction }: VoiceBriefProps) {
 
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         <div className="border border-border/30 bg-background/30 p-3">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-foreground/40">Inbound records</p>
+          <p className="text-[10px] font-bold text-foreground/40">Inbound records</p>
           <p className="mt-1 text-xl font-bold tabular-nums">{counts.totalInboundRecords}</p>
           {/* "LEGACY EXCLUDED" WAS THE WRONG WORD FOR TODAY'S CALLS. It reads
               as "these predate the metric and never will be counted", when the
@@ -161,17 +161,17 @@ export function VoiceBrief({ onStuckCallsAction }: VoiceBriefProps) {
           </p>
         </div>
         <div className="border border-border/30 bg-background/30 p-3">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-foreground/40">Qualified inquiries</p>
+          <p className="text-[10px] font-bold text-foreground/40">Qualified inquiries</p>
           <p className="mt-1 text-xl font-bold tabular-nums">{counts.qualifiedServiceInquiries}</p>
           <p className="text-[11px] text-foreground/45">classifier-v2 · inferred</p>
         </div>
         <div className="border border-border/30 bg-background/30 p-3">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-foreground/40">Verified capture</p>
+          <p className="text-[10px] font-bold text-foreground/40">Verified capture</p>
           <p className="mt-1 text-xl font-bold tabular-nums">{counts.leadsCreated + counts.callbacksCreated + counts.bookingsCreated}</p>
           <p className="text-[11px] text-foreground/45">{counts.leadsCreated} leads · {counts.callbacksCreated} callbacks · {counts.bookingsCreated} bookings</p>
         </div>
         <div className="border border-border/30 bg-background/30 p-3">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-foreground/40">Conversation quality</p>
+          <p className="text-[10px] font-bold text-foreground/40">Conversation quality</p>
           <p className="mt-1 text-xl font-bold tabular-nums">{scorecard.quality.average ?? "—"}</p>
           <p className="text-[11px] text-foreground/45">{scorecard.quality.scoredCalls} scored · outcome-independent</p>
         </div>
@@ -179,7 +179,7 @@ export function VoiceBrief({ onStuckCallsAction }: VoiceBriefProps) {
 
       <div className="grid gap-2 sm:grid-cols-3">
         <div className="border border-emerald-400/20 bg-emerald-500/5 p-3">
-          <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-emerald-300/80">
+          <div className="flex items-center gap-2 text-[10px] font-bold text-emerald-300/80">
             <CircleDollarSign className="h-3.5 w-3.5" /> Verified attributed revenue
           </div>
           <p className="mt-1 text-xl font-bold tabular-nums">
@@ -190,14 +190,14 @@ export function VoiceBrief({ onStuckCallsAction }: VoiceBriefProps) {
           </p>
         </div>
         <div className="border border-amber-400/20 bg-amber-500/5 p-3">
-          <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-amber-300/80">
+          <div className="flex items-center gap-2 text-[10px] font-bold text-amber-300/80">
             <SearchCheck className="h-3.5 w-3.5" /> Attribution review
           </div>
           <p className="mt-1 text-xl font-bold tabular-nums">{manualReviewCount ?? "—"}</p>
           <p className="text-[11px] text-foreground/45">phone/time/service matches remain inferred</p>
         </div>
         <div className="border border-border/30 bg-background/30 p-3">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-foreground/40">Excluded from revenue</p>
+          <p className="text-[10px] font-bold text-foreground/40">Excluded from revenue</p>
           <p className="mt-1 text-xl font-bold tabular-nums">
             {attribution ? (attribution.totals.ambiguousInvoiceCount ?? 0) + (attribution.totals.unpaidOrMissingInvoiceLinks ?? 0) : "—"}
           </p>

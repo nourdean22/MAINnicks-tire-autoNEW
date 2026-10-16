@@ -154,7 +154,7 @@ function MetricsStrip({ load: loadQuery }: { load: DispatchLoadQuery }) {
       {metrics.map(m => (
         <div key={m.label} className="bg-card border border-border/40 p-3 text-center">
           <div className={`text-xl font-bold ${m.color}`}>{m.value}</div>
-          <div className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">{m.label}</div>
+          <div className="text-[10px] text-muted-foreground mt-0.5">{m.label}</div>
         </div>
       ))}
     </div>

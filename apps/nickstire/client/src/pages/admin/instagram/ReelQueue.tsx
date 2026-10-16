@@ -538,7 +538,7 @@ export default function ReelQueue() {
                       )}
 
                       <div>
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                        <p className="text-[10px] font-bold text-muted-foreground">
                           Exact caption that will publish
                         </p>
                         <pre className="mt-1 max-h-36 overflow-y-auto whitespace-pre-wrap break-words rounded border bg-muted/20 p-2 text-xs leading-5">{entry.caption}</pre>
@@ -719,16 +719,16 @@ export default function ReelQueue() {
                     {showSafeZones && reviewDraft.assetPack?.videoUrl && (
                       <div className="pointer-events-none absolute inset-0" aria-hidden>
                         <div className="absolute inset-x-0 top-0 border-b border-red-400/70 bg-red-500/10" style={{ height: `${REEL_SAFE.top * 100}%` }}>
-                          <span className="absolute left-1 top-1 rounded bg-black/60 px-1 text-[9px] font-semibold uppercase tracking-wide text-red-300">UI top</span>
+                          <span className="absolute left-1 top-1 rounded bg-black/60 px-1 text-[9px] font-semibold text-red-300">UI top</span>
                         </div>
                         <div className="absolute inset-x-0 bottom-0 border-t border-red-400/70 bg-red-500/10" style={{ height: `${REEL_SAFE.bottom * 100}%` }}>
-                          <span className="absolute bottom-1 left-1 rounded bg-black/60 px-1 text-[9px] font-semibold uppercase tracking-wide text-red-300">caption / actions</span>
+                          <span className="absolute bottom-1 left-1 rounded bg-black/60 px-1 text-[9px] font-semibold text-red-300">caption / actions</span>
                         </div>
                         <div
                           className="absolute right-0 border-l border-red-400/70 bg-red-500/10"
                           style={{ top: `${REEL_SAFE.top * 100}%`, bottom: `${REEL_SAFE.bottom * 100}%`, width: `${REEL_SAFE.right * 100}%` }}
                         >
-                          <span className="absolute right-1 top-1 rounded bg-black/60 px-1 text-[9px] font-semibold uppercase tracking-wide text-red-300">rail</span>
+                          <span className="absolute right-1 top-1 rounded bg-black/60 px-1 text-[9px] font-semibold text-red-300">rail</span>
                         </div>
                       </div>
                     )}
@@ -754,7 +754,7 @@ export default function ReelQueue() {
 
                 <div className="space-y-3">
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Exact publish caption</p>
+                    <p className="text-xs font-bold text-muted-foreground">Exact publish caption</p>
                     <p className="text-[11px] text-muted-foreground">For reels the server rebuilds the approved caption at publish — this is the authoritative copy.</p>
                     <div className="mt-1 max-h-48 overflow-y-auto whitespace-pre-wrap rounded border bg-muted/20 p-2 text-xs leading-5">
                       {reviewDraft.publishCaption ?? captionWithHashtags(reviewDraft) ?? "(no caption)"}
@@ -782,7 +782,7 @@ export default function ReelQueue() {
                     </Button>
                   )}
                   <div className="rounded border bg-muted/10 p-2">
-                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Approval standard</p>
+                    <p className="text-xs font-bold text-muted-foreground">Approval standard</p>
                     <p className="text-[11px] text-muted-foreground">Judge, don't hope. A reel is approvable only if every answer is yes:</p>
                     <ul className="mt-1 space-y-0.5 text-[11px] leading-relaxed text-muted-foreground">
                       <li>· Understandable muted?</li>
@@ -801,11 +801,11 @@ export default function ReelQueue() {
                       Trial-specific 24h metrics remain manual until a verified
                       Graph ingestion surface is wired. */}
                   <div className="rounded border bg-muted/10 p-2 space-y-2">
-                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Trial result · 24h (manual)</p>
+                    <p className="text-xs font-bold text-muted-foreground">Trial result · 24h (manual)</p>
                     <div className="grid grid-cols-2 gap-2">
                       {([["views24h", "Views"], ["avgWatchSeconds", "Avg watch (s)"], ["shares", "Shares"], ["saves", "Saves"], ["comments", "Comments"], ["follows", "Follows"]] as const).map(([key, label]) => (
                         <label key={key} className="space-y-0.5">
-                          <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</span>
+                          <span className="text-[10px] text-muted-foreground">{label}</span>
                           <Input
                             inputMode="numeric"
                             value={trialForm[key] ?? ""}

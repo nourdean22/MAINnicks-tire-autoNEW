@@ -152,7 +152,7 @@ function MeasurementEditor({ category, value, onChange }: { category: Category; 
 
   return (
     <div className="space-y-2 rounded-md border border-border/30 p-2.5">
-      <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-foreground/60"><Ruler className="w-3.5 h-3.5" /> Measurements</div>
+      <div className="flex items-center gap-1.5 text-[11px] font-bold text-foreground/60"><Ruler className="w-3.5 h-3.5" /> Measurements</div>
       {value.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {value.map((m, i) => {
@@ -215,7 +215,7 @@ export default function InspectionCapturePanel() {
       <header className="flex items-center justify-between px-4 py-3 border-b border-border/30">
         <div className="flex items-center gap-2">
           <Wrench className="w-4 h-4 text-nick-yellow" />
-          <h2 className="text-sm font-bold uppercase tracking-wide">Vehicle Check</h2>
+          <h2 className="text-sm font-bold ">Vehicle check</h2>
         </div>
         <div className="flex rounded-md border border-border/40 overflow-hidden" role="tablist" aria-label="Vehicle check mode">
           {([["capture", "New check"], ["verify", "Verify work"]] as const).map(([m, label]) => (

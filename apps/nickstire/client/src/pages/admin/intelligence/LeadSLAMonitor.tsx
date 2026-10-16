@@ -21,7 +21,7 @@ export function LeadSLAMonitor() {
       <div className="bg-card border border-amber-500/30 p-5 rounded-xl shadow-sm">
         <div className="flex items-center gap-2 pb-2">
           <Clock className="w-5 h-5 text-amber-400" />
-          <h2 className="text-sm font-black text-amber-400 tracking-wide uppercase">Lead SLA Monitor</h2>
+          <h2 className="text-sm font-black text-amber-400 ">Lead SLA monitor</h2>
         </div>
         <p className="text-xs text-muted-foreground">SLA metrics could not be read — response times are <strong className="text-amber-400">unknown</strong>, not 0 minutes. {error?.message}</p>
       </div>
@@ -51,10 +51,10 @@ export function LeadSLAMonitor() {
       <div className="flex items-center justify-between pb-2 border-b border-border/10">
         <div className="flex items-center gap-2">
           <Clock className="w-5 h-5 text-fuchsia-400" />
-          <h2 className="text-sm font-black text-fuchsia-400 tracking-wide uppercase">Lead SLA Monitor</h2>
+          <h2 className="text-sm font-black text-fuchsia-400 ">Lead SLA monitor</h2>
         </div>
         <div className="flex items-center gap-1.5">
-          <div data-sla-avg className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${avgTone}`}>
+          <div data-sla-avg className={`text-[10px] font-bold px-2 py-0.5 rounded ${avgTone}`}>
             {avgText}
           </div>
           <ProvenanceTag provenance={sla.provenance} />
@@ -75,16 +75,16 @@ export function LeadSLAMonitor() {
       {sla.state !== "unread" && (
       <div className="grid grid-cols-2 gap-3">
         <div className="p-3 bg-background/50 border border-border/40 rounded-lg flex flex-col gap-1">
-          <div className="flex items-center gap-1.5 text-[10px] font-bold tracking-wider uppercase text-emerald-400">
-            <Zap className="w-3.5 h-3.5" /> Under 5 Min
+          <div className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-400">
+            <Zap className="w-3.5 h-3.5" /> Under 5 min
           </div>
           <div className="text-xl font-black text-foreground">{sla.under5.leads} leads</div>
           <div className="text-[10px] text-muted-foreground font-medium">{convLine(sla.under5)}</div>
         </div>
         
         <div className="p-3 bg-red-500/5 border border-red-500/20 rounded-lg flex flex-col gap-1">
-          <div className="flex items-center gap-1.5 text-[10px] font-bold tracking-wider uppercase text-red-400">
-            <AlertCircle className="w-3.5 h-3.5" /> Over 1 Hour
+          <div className="flex items-center gap-1.5 text-[10px] font-bold text-red-400">
+            <AlertCircle className="w-3.5 h-3.5" /> Over 1 hour
           </div>
           <div className="text-xl font-black text-foreground">{sla.over1h.leads} leads</div>
           <div className="text-[10px] text-muted-foreground font-medium">{convLine(sla.over1h)}</div>
@@ -94,7 +94,7 @@ export function LeadSLAMonitor() {
 
       {sla.state !== "unread" && (
       <div className="space-y-3 pt-2">
-        <h3 className="text-[11px] font-bold tracking-[0.15em] uppercase text-foreground/50 mb-1">Impact Analysis</h3>
+        <h3 className="text-[11px] font-bold text-foreground/50 mb-1">Impact analysis</h3>
         {under5Conv > 0 && over1hConv > 0 ? (
           <div className="p-3 bg-fuchsia-500/5 border border-fuchsia-500/20 rounded-lg">
             <p className="text-xs text-foreground leading-snug">

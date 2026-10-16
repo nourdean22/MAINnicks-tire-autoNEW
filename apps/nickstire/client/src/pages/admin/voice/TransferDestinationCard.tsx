@@ -176,7 +176,7 @@ export function TransferDestinationCard() {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <PhoneForwarded className="w-4 h-4 text-primary/80" />
-            <span className="text-[10px] font-bold tracking-[0.18em] uppercase text-foreground/50">
+            <span className="text-[10px] font-bold text-foreground/50">
               Calls forward to
             </span>
           </div>
@@ -272,7 +272,7 @@ export function TransferDestinationCard() {
       {editing && (
         <div className="mt-3 pt-3 border-t border-border/20">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-bold tracking-[0.15em] uppercase text-foreground/40">
+            <span className="text-[10px] font-bold text-foreground/40">
               Quick destinations {presets.length > 0 && <span className="text-foreground/30 ml-1">({presets.length})</span>}
             </span>
             {!showSavePreset && (
@@ -282,7 +282,7 @@ export function TransferDestinationCard() {
                    so the button enables once a valid US number has been typed
                    in any common shape (10-digit, 11-digit, formatted with dashes). */
                 disabled={toE164(draftNumber) === null || setDest.isPending}
-                className="text-[11px] font-medium tracking-[0.15em] uppercase text-primary hover:underline disabled:opacity-30 disabled:no-underline"
+                className="text-[11px] font-medium text-primary hover:underline disabled:opacity-30 disabled:no-underline"
                 title="Save the current draft number as a labeled preset"
               >
                 + Save current as preset

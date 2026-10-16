@@ -82,10 +82,10 @@ export function LeadDeliveryLog({ leadId }: { leadId: number }) {
                 return (
                   <li key={ev.id} className="flex items-center gap-2 text-[11px]">
                     <Icon className="w-3 h-3 text-foreground/40 shrink-0" />
-                    <span className="font-mono text-foreground/60 uppercase tracking-wider w-14 shrink-0">
+                    <span className="font-mono text-foreground/60 w-14 shrink-0">
                       {ev.channel}
                     </span>
-                    <span className={`px-1.5 py-0.5 rounded font-bold uppercase tracking-wider text-[10px] ${statusStyle}`}>
+                    <span className={`px-1.5 py-0.5 rounded font-bold text-[10px] ${statusStyle}`}>
                       {ev.status}
                     </span>
                     {ev.provider && (

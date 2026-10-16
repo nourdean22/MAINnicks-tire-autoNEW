@@ -234,7 +234,7 @@ export function TechnicianReferralsPanel() {
                     key={r.id}
                     className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[12px] border border-border/20 rounded-lg px-3 py-2"
                   >
-                    <span className={`px-1.5 py-0.5 rounded font-bold uppercase tracking-wider text-[10px] shrink-0 ${statusStyle}`}>
+                    <span className={`px-1.5 py-0.5 rounded font-bold text-[10px] shrink-0 ${statusStyle}`}>
                       {r.status}
                     </span>
                     <span className="font-semibold text-foreground/85">{r.referrerName}</span>
@@ -248,7 +248,7 @@ export function TechnicianReferralsPanel() {
                       </span>
                     ) : (
                       <span
-                        className="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 text-[10px] font-bold uppercase tracking-wider"
+                        className="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 text-[10px] font-bold "
                         title="This referral is not linked to a candidate record — either the association failed verification at write time, or the candidate row is gone. The payout cannot be substantiated from this row alone."
                       >
                         unlinked
@@ -281,7 +281,7 @@ export function TechnicianReferralsPanel() {
                           type="button"
                           onClick={() => markHired.mutate({ id: r.id })}
                           disabled={markHired.isPending}
-                          className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide bg-sky-500/10 border border-sky-500/30 text-sky-400 hover:bg-sky-500/15 rounded transition-colors disabled:opacity-50"
+                          className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold bg-sky-500/10 border border-sky-500/30 text-sky-400 hover:bg-sky-500/15 rounded transition-colors disabled:opacity-50"
                         >
                           <Check className="w-3 h-3" /> Mark hired
                         </button>
@@ -294,7 +294,7 @@ export function TechnicianReferralsPanel() {
                             onClick={() => markPaid.mutate({ id: r.id })}
                             disabled={markPaid.isPending || stillWaiting}
                             title={stillWaiting ? "The 90-day wait isn't up yet." : undefined}
-                            className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/15 rounded transition-colors disabled:opacity-50"
+                            className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/15 rounded transition-colors disabled:opacity-50"
                           >
                             <Check className="w-3 h-3" /> Mark paid
                           </button>

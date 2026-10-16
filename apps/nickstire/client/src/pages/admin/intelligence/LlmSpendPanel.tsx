@@ -45,7 +45,7 @@ export function LlmSpendPanel() {
     <div className="flex items-center justify-between gap-2 mb-3">
       <div className="flex items-center gap-2">
         <Cpu className="w-4 h-4 text-indigo-400" />
-        <h2 className="text-sm font-black tracking-wide uppercase">AI usage by lane</h2>
+        <h2 className="text-sm font-black ">AI usage by lane</h2>
       </div>
       <div className="flex gap-1">
         {WINDOWS.map((w) => (
@@ -163,21 +163,21 @@ export function LlmSpendPanel() {
       <div className="grid grid-cols-3 gap-2 mb-4">
         <div>
           <div className="text-xl font-black tabular-nums">{num(totals.calls)}</div>
-          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">calls</div>
+          <div className="text-[10px] text-muted-foreground">calls</div>
           <div data-provenance-for="calls"><ProvenanceTag provenance={countProvenance} /></div>
         </div>
         <div>
           <div className={`text-xl font-black tabular-nums ${totals.failed > 0 ? "text-red-400" : ""}`}>
             {failRate.toFixed(1)}%
           </div>
-          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">failed</div>
+          <div className="text-[10px] text-muted-foreground">failed</div>
           <div data-provenance-for="failed"><ProvenanceTag provenance={countProvenance} /></div>
         </div>
         <div>
           <div className="text-xl font-black tabular-nums">
             {num(totals.promptTokens + totals.completionTokens)}
           </div>
-          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">tokens</div>
+          <div className="text-[10px] text-muted-foreground">tokens</div>
           <div data-provenance-for="tokens"><ProvenanceTag provenance={tokenProvenance} /></div>
         </div>
       </div>

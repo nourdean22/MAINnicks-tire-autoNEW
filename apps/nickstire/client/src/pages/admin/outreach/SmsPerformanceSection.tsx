@@ -103,19 +103,19 @@ export default function SmsPerformanceSection() {
       {/* Totals row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-card border border-border/30 p-4">
-          <span className="block text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-1.5">Sent · 30d</span>
+          <span className="block text-[11px] text-foreground/50 font-medium mb-1.5">Sent · 30d</span>
           <span className="text-2xl font-semibold tabular-nums">{sumLoading ? "—" : totalSent}</span>
         </div>
         <div className="bg-card border border-border/30 p-4">
-          <span className="block text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-1.5">Reply rate</span>
+          <span className="block text-[11px] text-foreground/50 font-medium mb-1.5">Reply rate</span>
           <span className="text-2xl font-semibold text-emerald-400 tabular-nums">{sumLoading ? "—" : pct(totalReplied, totalSent)}</span>
         </div>
         <div className="bg-card border border-border/30 p-4">
-          <span className="block text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-1.5">Conv rate · 14d</span>
+          <span className="block text-[11px] text-foreground/50 font-medium mb-1.5">Conv rate · 14d</span>
           <span className="text-2xl font-semibold text-primary tabular-nums">{sumLoading ? "—" : pct(totalConverted, totalSent)}</span>
         </div>
         <div className="bg-card border border-border/30 p-4">
-          <span className="block text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-1.5">Opt-out rate</span>
+          <span className="block text-[11px] text-foreground/50 font-medium mb-1.5">Opt-out rate</span>
           <span className="text-2xl font-semibold text-red-400 tabular-nums">{sumLoading ? "—" : pct(totalOptedOut, totalSent)}</span>
         </div>
       </div>
@@ -128,7 +128,7 @@ export default function SmsPerformanceSection() {
       <div className="bg-card border border-border/30 overflow-hidden">
         <div className="px-4 py-3 border-b border-border/30 flex items-center gap-2">
           <DollarSign className="w-4 h-4 text-foreground/60" />
-          <span className="text-xs uppercase tracking-[0.15em] text-foreground/70 font-medium">
+          <span className="text-xs text-foreground/70 font-medium">
             Money / outcome board · {money?.windowDays ?? 180}d
           </span>
         </div>
@@ -186,7 +186,7 @@ export default function SmsPerformanceSection() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-[11px] uppercase tracking-[0.12em] text-foreground/50 border-b border-border/30">
+                <tr className="text-[11px] text-foreground/50 border-b border-border/30">
                   <th className="text-left font-medium px-4 py-2">Loop</th>
                   <th className="text-right font-medium px-3 py-2">Sent</th>
                   <th className="text-right font-medium px-3 py-2">Invoices</th>
@@ -280,7 +280,7 @@ export default function SmsPerformanceSection() {
       <div className="bg-card border border-border/30 overflow-x-auto">
         <div className="px-4 py-3 border-b border-border/30 flex items-center gap-2">
           <MessageSquare className="w-4 h-4 text-foreground/60" />
-          <span className="text-xs uppercase tracking-[0.15em] text-foreground/70 font-medium">By tier · 30d</span>
+          <span className="text-xs text-foreground/70 font-medium">By tier · 30d</span>
         </div>
         {sumLoading ? (
           <LoadingState label="Loading SMS performance..." />
@@ -293,7 +293,7 @@ export default function SmsPerformanceSection() {
         ) : (
           <table className="w-full text-sm">
             <thead className="bg-foreground/[0.02] border-b border-border/30">
-              <tr className="text-left text-[11px] uppercase tracking-[0.15em] text-foreground/50">
+              <tr className="text-left text-[11px] text-foreground/50">
                 <th className="px-4 py-2.5 font-medium">Tier</th>
                 <th className="px-4 py-2.5 font-medium text-right">Sent</th>
                 <th className="px-4 py-2.5 font-medium text-right">Replied</th>
@@ -330,7 +330,7 @@ export default function SmsPerformanceSection() {
         <div className="px-4 py-3 border-b border-border/30 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <MessageSquare className="w-4 h-4 text-foreground/60" />
-            <span className="text-xs uppercase tracking-[0.15em] text-foreground/70 font-medium">
+            <span className="text-xs text-foreground/70 font-medium">
               Recent sends {tierFilter ? <span className="text-primary">· filtered: {tierFilter}</span> : ""}
             </span>
           </div>
@@ -354,7 +354,7 @@ export default function SmsPerformanceSection() {
         ) : (
           <table className="w-full text-sm">
             <thead className="bg-foreground/[0.02] border-b border-border/30">
-              <tr className="text-left text-[11px] uppercase tracking-[0.15em] text-foreground/50">
+              <tr className="text-left text-[11px] text-foreground/50">
                 <th className="px-4 py-2.5 font-medium">When</th>
                 <th className="px-4 py-2.5 font-medium">Phone</th>
                 <th className="px-4 py-2.5 font-medium">Tier</th>

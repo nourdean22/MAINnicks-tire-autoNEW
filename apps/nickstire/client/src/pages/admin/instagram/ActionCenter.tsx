@@ -721,7 +721,7 @@ export default function ActionCenter({ onPublishStaged }: { onPublishStaged?: ()
                           {/* The class, once, as a label — then 160 chars spent on
                               the part that actually differs between jobs. */}
                           {job.errorClass && (
-                            <p className="text-[10px] uppercase tracking-wide text-destructive/70 font-semibold">{job.errorClass.replace(/_/g, " ")}</p>
+                            <p className="text-[10px] text-destructive/70 font-semibold">{job.errorClass.replace(/_/g, " ")}</p>
                           )}
                           {/* MEASURED: the stamp is "[CLASS] <reason> :: " and the
                               reason is a per-class constant. Two of the eleven

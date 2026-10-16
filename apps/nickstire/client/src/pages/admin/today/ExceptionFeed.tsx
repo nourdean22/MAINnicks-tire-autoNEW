@@ -101,7 +101,7 @@ export default function ExceptionFeed({ signals = [], hideIds = [] }: ExceptionF
     <section aria-label="Exceptions" className="rounded-lg border border-border/40 bg-card">
       <div className="px-4 py-3 border-b border-border/30 flex items-center gap-2">
         <AlertTriangle className="w-4 h-4 text-muted-foreground/70" aria-hidden />
-        <h2 className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">
+        <h2 className="text-[11px] text-muted-foreground font-medium">
           Needs a decision
         </h2>
       </div>

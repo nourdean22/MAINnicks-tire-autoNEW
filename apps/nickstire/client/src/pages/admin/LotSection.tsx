@@ -461,7 +461,7 @@ const CHIP_TONE: Record<ChipTone, string> = {
 function TrustChip({ label, value, tone, detail }: { label: string; value: string; tone: ChipTone; detail?: string | null }) {
   return (
     <div className={`rounded-lg border px-3 py-2 min-w-0 ${CHIP_TONE[tone]}`} title={detail ?? undefined}>
-      <div className="text-[10px] uppercase tracking-wide opacity-70">{label}</div>
+      <div className="text-[10px] opacity-70">{label}</div>
       <div className="text-[12px] font-medium leading-snug break-words">{value}</div>
       {detail && <div className="mt-0.5 text-[11px] opacity-75 leading-snug break-words">{detail}</div>}
     </div>
@@ -579,11 +579,11 @@ function CameraCard({ c, window }: { c: CameraHealth; window: BusinessWindow | n
           <div className="text-[13px] font-semibold truncate">{c.label}</div>
           <div className="text-[12px] text-foreground/50 truncate">
             {c.camera}
-            <span className="ml-2 rounded border border-foreground/15 px-1 py-px text-[10px] uppercase tracking-wide text-foreground/45">
+            <span className="ml-2 rounded border border-foreground/15 px-1 py-px text-[10px] text-foreground/45">
               {c.role.replace(/_/g, " ")}
             </span>
             {c.mode && c.mode !== "PRODUCTION" && (
-              <span className="ml-2 rounded border border-sky-500/40 bg-sky-500/10 px-1 py-px text-[10px] uppercase tracking-wide text-sky-300">
+              <span className="ml-2 rounded border border-sky-500/40 bg-sky-500/10 px-1 py-px text-[10px] text-sky-300">
                 {c.mode.toLowerCase()}
                 {c.commissioningRunId ? ` · ${c.commissioningRunId}` : ""}
               </span>
@@ -612,7 +612,7 @@ function CameraCard({ c, window }: { c: CameraHealth; window: BusinessWindow | n
         <>
           <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
             {!producerAlive && (
-              <span className="rounded border border-foreground/20 px-1 py-px text-[10px] uppercase tracking-wide text-foreground/50">
+              <span className="rounded border border-foreground/20 px-1 py-px text-[10px] text-foreground/50">
                 last known
               </span>
             )}
@@ -1854,7 +1854,7 @@ export default function LotSection() {
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
           <TrustChip label="Sign camera" value={signChip.value} tone={signChip.tone} detail={signChip.detail} />
           <div className={`rounded-lg border px-3 py-2 min-w-0 ${CHIP_TONE[watchedChip.tone]}`} title={watchedChip.detail ?? undefined}>
-            <div className="text-[10px] uppercase tracking-wide opacity-70">Watched today</div>
+            <div className="text-[10px] opacity-70">Watched today</div>
             <div className="text-[12px] font-medium leading-snug break-words">{watchedChip.value}</div>
             {coverage && coverage.hours.length > 0 && (
               <div className="mt-1 flex gap-px" role="img" aria-label="coverage per business hour">
@@ -2289,7 +2289,7 @@ export default function LotSection() {
                         </span>
                         {v.dataClass !== "PRODUCTION" && (
                           <span
-                            className="ml-1 inline-flex items-center rounded border border-sky-500/40 bg-sky-500/10 px-1 py-px text-[10px] uppercase tracking-wide text-sky-300"
+                            className="ml-1 inline-flex items-center rounded border border-sky-500/40 bg-sky-500/10 px-1 py-px text-[10px] text-sky-300"
                             title={v.commissioningRunId ?? undefined}
                           >
                             {v.dataClass.toLowerCase()}

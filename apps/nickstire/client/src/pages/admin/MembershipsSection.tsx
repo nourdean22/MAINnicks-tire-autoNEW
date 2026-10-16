@@ -144,8 +144,9 @@ export default function MembershipsSection() {
                   placeholder="Plate"
                   value={plate}
                   onChange={(e) => setPlate(e.target.value)}
-                  className="rounded-md border border-border bg-background px-3 py-2 text-sm uppercase focus:outline-none focus:border-primary"
+                  className="rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:border-primary"
                   aria-label="License plate"
+                  autoCapitalize="characters"
                 />
                 <input
                   type="text"
@@ -158,7 +159,7 @@ export default function MembershipsSection() {
                 <button
                   onClick={() => {
                     if (!plate.trim()) { toast.error("Enter the plate."); return; }
-                    bind.mutate({ membershipId: m.id, vehiclePlate: plate.trim(), vehicleDesc: desc.trim() || undefined });
+                    bind.mutate({ membershipId: m.id, vehiclePlate: plate.trim().toUpperCase(), vehicleDesc: desc.trim() || undefined });
                   }}
                   disabled={bind.isPending}
                   className="inline-flex items-center justify-center gap-1.5 bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-semibold disabled:opacity-60"

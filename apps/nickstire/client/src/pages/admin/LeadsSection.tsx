@@ -245,11 +245,11 @@ export default function LeadsSection() {
           <button
             type="button"
             onClick={() => openWalkInQuote()}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] tracking-wider uppercase font-medium bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/15 transition-colors rounded"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/15 transition-colors rounded"
             title="Open Walk-In Quote pricing tool"
           >
             <Calculator className="w-3.5 h-3.5" />
-            Walk-In Quote
+            Walk-in quote
           </button>
         }
       />
@@ -424,14 +424,14 @@ export default function LeadsSection() {
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <span
               title="How each lead ENTERED the system (web form, phone, callback artifact) â origin/type cleanliness, not marketing attribution"
-              className="text-[10px] font-bold tracking-wider text-foreground/40 uppercase cursor-help"
+              className="text-[10px] font-bold text-foreground/40 cursor-help"
             >
               Source hygiene
             </span>
             {Object.entries(sourceHygiene.countsByLabel)
               .sort((a, b) => b[1] - a[1])
               .map(([label, count]) => (
-                <span key={label} className="font-mono text-[10px] text-foreground/60 uppercase tracking-wider">
+                <span key={label} className="font-mono text-[10px] text-foreground/60 ">
                   {/* raw enum values read as developer-speak (FINANCING_PREAPPROVAL) â display with spaces */}
                   {label.replace(/_/g, " ")} <span className="text-foreground font-bold">{count}</span>
                 </span>
@@ -494,7 +494,7 @@ export default function LeadsSection() {
           <div className="flex items-center gap-3 flex-wrap">
             <span
               title="Marketing attribution â which campaign/channel tag (utm_source) each lead carried; direct/untagged = arrived with no campaign tag"
-              className="text-[10px] font-bold tracking-wider uppercase text-foreground/45 shrink-0 cursor-help"
+              className="text-[10px] font-bold text-foreground/45 shrink-0 cursor-help"
             >
               Leads by source
             </span>

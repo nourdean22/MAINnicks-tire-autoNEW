@@ -60,7 +60,7 @@ export default function IntelligenceHQSection() {
                   status === "live" ? "bg-emerald-500" : status === "partial" ? "bg-yellow-500" : "bg-red-500"
                 }`}></span>
               </span>
-              <span className={`font-mono text-xs uppercase ${
+              <span className={`font-mono text-xs ${
                 status === "live" ? "text-emerald-400" : status === "partial" ? "text-yellow-400" : "text-red-400"
               }`}>
                 System {status}
@@ -138,7 +138,7 @@ export default function IntelligenceHQSection() {
               <div className="stat-card !p-5 !border-emerald-500/20 bg-emerald-500/5">
                 <div className="flex items-center gap-2 mb-4">
                   <Target className="w-5 h-5 text-emerald-400" />
-                  <h2 className="text-sm font-black text-emerald-400 tracking-wide uppercase">Top Money Moves</h2>
+                  <h2 className="text-sm font-black text-emerald-400 ">Top money moves</h2>
                 </div>
                 <TopMoneyMoves />
               </div>
@@ -147,7 +147,7 @@ export default function IntelligenceHQSection() {
               <div className="stat-card !p-5 !border-blue-500/20 bg-blue-500/5">
                 <div className="flex items-center gap-2 mb-4">
                   <Zap className="w-5 h-5 text-blue-400" />
-                  <h2 className="text-sm font-black text-blue-400 tracking-wide uppercase">Next Best Actions</h2>
+                  <h2 className="text-sm font-black text-blue-400 ">Next best actions</h2>
                 </div>
                 <NextBestActions />
               </div>
@@ -175,7 +175,7 @@ export default function IntelligenceHQSection() {
               <div className="stat-card !p-5 !border-red-500/20 bg-red-500/5">
                 <div className="flex items-center gap-2 mb-4">
                   <ShieldAlert className="w-5 h-5 text-red-400" />
-                  <h2 className="text-sm font-black text-red-400 tracking-wide uppercase">Money At Risk</h2>
+                  <h2 className="text-sm font-black text-red-400 ">Money at risk</h2>
                 </div>
                 <TodaysMoneyRisks />
               </div>
@@ -202,14 +202,14 @@ export default function IntelligenceHQSection() {
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
-                <thead className="bg-background/50 text-xs uppercase text-muted-foreground/70">
+                <thead className="bg-background/50 text-xs text-muted-foreground/70">
                   <tr>
                     <th className="px-4 py-3 font-semibold">Time</th>
                     <th className="px-4 py-3 font-semibold">Engine</th>
                     <th className="px-4 py-3 font-semibold">Recommendation</th>
-                    <th className="px-4 py-3 font-semibold">Action Taken</th>
+                    <th className="px-4 py-3 font-semibold">Action taken</th>
                     <th className="px-4 py-3 font-semibold">Value at Risk</th>
-                    <th className="px-4 py-3 font-semibold">Actual Captured</th>
+                    <th className="px-4 py-3 font-semibold">Actual captured</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/10">

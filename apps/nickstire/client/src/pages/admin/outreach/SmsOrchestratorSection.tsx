@@ -329,11 +329,11 @@ export default function SmsOrchestratorSection() {
                           </span>
                         </div>
                         <div className="bg-card p-2 border border-border/25 rounded">
-                          <span className="block text-[10px] uppercase font-bold text-foreground/40 mb-1">Triggering Cause / Reason</span>
+                          <span className="block text-[10px] font-bold text-foreground/40 mb-1">Triggering cause / reason</span>
                           <p className="font-mono text-[11px] text-foreground/60">{item.reason}</p>
                         </div>
                         <div className="space-y-1">
-                          <span className="block text-[10px] uppercase font-bold text-foreground/40">Suggested Response</span>
+                          <span className="block text-[10px] font-bold text-foreground/40">Suggested response</span>
                           <textarea
                             value={currentEditVal}
                             onChange={(e) => setReviewEdits({ ...reviewEdits, [item.id]: e.target.value })}
@@ -378,7 +378,7 @@ export default function SmsOrchestratorSection() {
 
           {/* Filters Bar */}
           <div className="flex flex-wrap items-center gap-2 bg-card p-3 border border-border/20">
-            <span className="text-[10px] uppercase font-bold text-foreground/40 mr-2">Filter By:</span>
+            <span className="text-[10px] font-bold text-foreground/40 mr-2">Filter by:</span>
             {[
               { label: "All Events", value: "" },
               { label: "Sent", value: "sent" },
@@ -412,14 +412,14 @@ export default function SmsOrchestratorSection() {
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="border-b border-border/50 text-[10px] uppercase tracking-[0.1em] text-foreground/50 font-semibold bg-accent/30">
+                    <tr className="border-b border-border/50 text-[10px] text-foreground/50 font-semibold bg-accent/30">
                       <th className="py-3 px-4">Timestamp</th>
-                      <th className="py-3 px-4">Event Type</th>
+                      <th className="py-3 px-4">Event type</th>
                       <th className="py-3 px-4">Recipient</th>
                       <th className="py-3 px-4">Variant</th>
                       <th className="py-3 px-4">Status</th>
-                      <th className="py-3 px-4">Reason / Outcome</th>
-                      <th className="py-3 px-4 text-right">Details & Timeline</th>
+                      <th className="py-3 px-4">Reason / outcome</th>
+                      <th className="py-3 px-4 text-right">Details & timeline</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/20 text-xs tabular-nums">
@@ -438,7 +438,7 @@ export default function SmsOrchestratorSection() {
                           {item.variantKey}
                         </td>
                         <td className="py-3.5 px-4 whitespace-nowrap">
-                          <span className={`px-2 py-0.5 border text-[10px] uppercase font-bold tracking-wider ${STATUS_STYLES[item.status] || "text-foreground/50 bg-foreground/5 border-foreground/10"}`}>
+                          <span className={`px-2 py-0.5 border text-[10px] font-bold ${STATUS_STYLES[item.status] || "text-foreground/50 bg-foreground/5 border-foreground/10"}`}>
                             {item.status}
                           </span>
                         </td>
@@ -500,8 +500,8 @@ export default function SmsOrchestratorSection() {
             {/* Revenue influence Summary */}
             <div className="bg-card border border-border/30 p-6 flex flex-col justify-between">
               <div>
-                <span className="text-[10px] uppercase tracking-wider font-bold text-foreground/40 block mb-1">
-                  Estimated Influenced Revenue
+                <span className="text-[10px] font-bold text-foreground/40 block mb-1">
+                  Estimated influenced revenue
                 </span>
                 <span className="text-3xl font-bold text-emerald-400">$3,450.00</span>
               </div>
@@ -514,7 +514,7 @@ export default function SmsOrchestratorSection() {
             {/* Inbound Funnel */}
             <div className="bg-card border border-border/30 p-6 flex flex-col justify-between">
               <div>
-                <span className="text-[10px] uppercase tracking-wider font-bold text-foreground/40 block mb-1">
+                <span className="text-[10px] font-bold text-foreground/40 block mb-1">
                   Outbound-to-Reply Funnel
                 </span>
                 <span className="text-3xl font-bold text-primary">31.4%</span>
@@ -528,8 +528,8 @@ export default function SmsOrchestratorSection() {
             {/* Campaign conversion */}
             <div className="bg-card border border-border/30 p-6 flex flex-col justify-between">
               <div>
-                <span className="text-[10px] uppercase tracking-wider font-bold text-foreground/40 block mb-1">
-                  Stale Lead Nudge Conversion
+                <span className="text-[10px] font-bold text-foreground/40 block mb-1">
+                  Stale lead nudge conversion
                 </span>
                 <span className="text-3xl font-bold text-blue-400">12.5%</span>
               </div>
@@ -561,14 +561,14 @@ export default function SmsOrchestratorSection() {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="border-b border-border/50 text-[10px] uppercase tracking-[0.1em] text-foreground/50 font-semibold bg-accent/30">
-                    <th className="py-2.5 px-4">Variant Key</th>
+                  <tr className="border-b border-border/50 text-[10px] text-foreground/50 font-semibold bg-accent/30">
+                    <th className="py-2.5 px-4">Variant key</th>
                     <th className="py-2.5 px-4">Sends</th>
                     <th className="py-2.5 px-4">Replies</th>
-                    <th className="py-2.5 px-4">Reply Rate</th>
+                    <th className="py-2.5 px-4">Reply rate</th>
                     <th className="py-2.5 px-4">Bookings</th>
-                    <th className="py-2.5 px-4">Conversion Rate</th>
-                    <th className="py-2.5 px-4">Opt-Outs</th>
+                    <th className="py-2.5 px-4">Conversion rate</th>
+                    <th className="py-2.5 px-4">Opt-outs</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/20 tabular-nums">
@@ -686,7 +686,7 @@ export default function SmsOrchestratorSection() {
                   <div key={r.id} className="p-4 border border-border bg-accent/15 rounded space-y-3 text-xs">
                     <div className="flex items-start justify-between">
                       <div>
-                        <span className="px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider bg-primary/10 border border-primary/20 text-primary mr-2">
+                        <span className="px-2 py-0.5 text-[9px] font-bold bg-primary/10 border border-primary/20 text-primary mr-2">
                           {r.recommendationType.replace("_", " ")}
                         </span>
                         <span className="font-semibold text-foreground/75">
@@ -710,14 +710,14 @@ export default function SmsOrchestratorSection() {
                     </div>
 
                     <div className="space-y-1">
-                      <span className="block text-[10px] uppercase font-bold text-foreground/40">Reason</span>
+                      <span className="block text-[10px] font-bold text-foreground/40">Reason</span>
                       <p className="text-foreground/70 leading-relaxed font-mono text-[11px] bg-card p-2 border border-border/20 rounded">
                         {r.reason}
                       </p>
                     </div>
 
                     <div className="space-y-1">
-                      <span className="block text-[10px] uppercase font-bold text-foreground/40">Proposed Copy Changes</span>
+                      <span className="block text-[10px] font-bold text-foreground/40">Proposed copy changes</span>
                       <p className="text-foreground/80 leading-relaxed font-semibold italic bg-card p-2.5 border border-border/20 rounded">
                         "{r.proposedMessage}"
                       </p>
@@ -758,41 +758,41 @@ export default function SmsOrchestratorSection() {
               <div className="space-y-4 pr-3 border-r border-border/10">
                 <div className="grid grid-cols-2 gap-4 text-xs">
                   <div>
-                    <span className="block text-[10px] uppercase text-foreground/50 font-medium mb-0.5">Event Type</span>
+                    <span className="block text-[10px] text-foreground/50 font-medium mb-0.5">Event type</span>
                     <span className="font-semibold text-foreground/80">{EVENT_TYPE_LABELS[selectedItem.eventType] || selectedItem.eventType}</span>
                   </div>
                   <div>
-                    <span className="block text-[10px] uppercase text-foreground/50 font-medium mb-0.5">Variant Key</span>
+                    <span className="block text-[10px] text-foreground/50 font-medium mb-0.5">Variant key</span>
                     <span className="font-mono text-foreground/85">{selectedItem.variantKey}</span>
                   </div>
                   <div>
-                    <span className="block text-[10px] uppercase text-foreground/50 font-medium mb-0.5">Provider Route</span>
+                    <span className="block text-[10px] text-foreground/50 font-medium mb-0.5">Provider route</span>
                     <span className="font-semibold text-foreground/80 capitalize">{selectedItem.providerUsed}</span>
                   </div>
                   <div>
-                    <span className="block text-[10px] uppercase text-foreground/50 font-medium mb-0.5">Transmission Status</span>
+                    <span className="block text-[10px] text-foreground/50 font-medium mb-0.5">Transmission status</span>
                     <span className="font-semibold capitalize text-foreground/80">{selectedItem.status}</span>
                   </div>
                   <div className="col-span-2">
-                    <span className="block text-[10px] uppercase text-foreground/50 font-medium mb-0.5">Dedupe Cooldown Key</span>
+                    <span className="block text-[10px] text-foreground/50 font-medium mb-0.5">Dedupe cooldown key</span>
                     <span className="font-mono text-foreground/70">{selectedItem.cooldownKey || "(none)"}</span>
                   </div>
                   {selectedItem.sourceTable && (
                     <div>
-                      <span className="block text-[10px] uppercase text-foreground/50 font-medium mb-0.5">Relation</span>
+                      <span className="block text-[10px] text-foreground/50 font-medium mb-0.5">Relation</span>
                       <span className="font-semibold text-foreground/80">{selectedItem.sourceTable} (#{selectedItem.sourceId || "?"})</span>
                     </div>
                   )}
                   {selectedItem.deliveryStatus && (
                     <div>
-                      <span className="block text-[10px] uppercase text-foreground/50 font-medium mb-0.5">Delivery Status</span>
+                      <span className="block text-[10px] text-foreground/50 font-medium mb-0.5">Delivery status</span>
                       <span className="font-semibold capitalize text-foreground/85">{selectedItem.deliveryStatus}</span>
                     </div>
                   )}
                 </div>
 
                 <div className="space-y-1">
-                  <span className="block text-[10px] uppercase text-foreground/50 font-medium">Orchestration Reason</span>
+                  <span className="block text-[10px] text-foreground/50 font-medium">Orchestration reason</span>
                   <div className="p-3 bg-accent/20 border border-border/50 text-[11px] font-mono rounded text-foreground/85 whitespace-pre-wrap">
                     {selectedItem.reason || "No detail provided"}
                   </div>
@@ -800,7 +800,7 @@ export default function SmsOrchestratorSection() {
 
                 {selectedItem.failureReason && (
                   <div className="space-y-1">
-                    <span className="block text-[10px] uppercase text-foreground/50 font-medium text-red-400">Carrier Failure logs</span>
+                    <span className="block text-[10px] text-foreground/50 font-medium text-red-400">Carrier Failure logs</span>
                     <div className="p-3 bg-red-500/5 border border-red-500/20 text-[11px] font-mono rounded text-red-400 whitespace-pre-wrap">
                       {selectedItem.failureReason}
                     </div>
@@ -808,14 +808,14 @@ export default function SmsOrchestratorSection() {
                 )}
 
                 <div className="space-y-1">
-                  <span className="block text-[10px] uppercase text-foreground/50 font-medium">Output Message Body</span>
+                  <span className="block text-[10px] text-foreground/50 font-medium">Output message body</span>
                   <div className="p-3 bg-accent/20 border border-border/50 text-xs rounded text-foreground/85 whitespace-pre-wrap">
                     {selectedItem.messageBody || "(empty body / skipped)"}
                   </div>
                 </div>
 
                 <div className="space-y-1">
-                  <span className="block text-[10px] uppercase text-foreground/50 font-medium">Decision Trace Context</span>
+                  <span className="block text-[10px] text-foreground/50 font-medium">Decision trace context</span>
                   <div className="p-3 bg-accent/20 border border-border/50 text-[10px] font-mono rounded text-foreground/70 overflow-x-auto max-h-[140px]">
                     {(() => {
                       try {
@@ -830,8 +830,8 @@ export default function SmsOrchestratorSection() {
 
               {/* Right Column: Customer Journey Timeline */}
               <div className="flex flex-col space-y-3">
-                <span className="block text-[10px] uppercase text-foreground/50 font-medium border-b border-border/10 pb-2">
-                  Customer Journey Timeline
+                <span className="block text-[10px] text-foreground/50 font-medium border-b border-border/10 pb-2">
+                  Customer journey timeline
                 </span>
                 
                 {isTimelineLoading ? (

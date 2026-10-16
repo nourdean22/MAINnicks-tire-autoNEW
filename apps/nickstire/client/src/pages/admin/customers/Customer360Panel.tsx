@@ -44,7 +44,7 @@ function GraceButton({ membershipId, onComplete }: { membershipId: number; onCom
       type="button"
       onClick={handleGrant}
       disabled={loading}
-      className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[9px] font-bold tracking-wider text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded uppercase transition-colors"
+      className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[9px] font-bold text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded transition-colors"
     >
       {loading ? (
         <>
@@ -314,7 +314,7 @@ export function Customer360Panel({ customer }: {
                           <span className="text-xs font-bold text-foreground truncate">
                             {m.plan === "nonstop-nick-plus" ? "Plus ($9.99/mo)" : "Base ($7.99/mo)"}
                           </span>
-                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded tracking-wider uppercase whitespace-nowrap ${
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded whitespace-nowrap ${
                             m.isActive
                               ? "bg-emerald-500/10 text-emerald-400"
                               : "bg-red-500/10 text-red-400"
@@ -352,8 +352,8 @@ export function Customer360Panel({ customer }: {
             <div className="flex items-center justify-between border-b border-border/20 pb-3 flex-wrap gap-2">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                <span className="font-mono text-xs font-bold text-foreground tracking-wider uppercase">
-                  Nick AI Cashier Assistant
+                <span className="font-mono text-xs font-bold text-foreground ">
+                  Nick AI cashier assistant
                 </span>
               </div>
               <div className="flex items-center gap-1.5 bg-background/50 p-1 border border-border/15 rounded">
@@ -382,8 +382,8 @@ export function Customer360Panel({ customer }: {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Call Script Column */}
               <div className="bg-background/40 border border-border/10 p-3.5 rounded space-y-2">
-                <span className="font-mono text-[9px] text-foreground/40 tracking-wider block uppercase">
-                  Personalized Call Script
+                <span className="font-mono text-[9px] text-foreground/40 block ">
+                  Personalized call script
                 </span>
                 <p className="text-[11.5px] leading-relaxed text-foreground/80 italic">
                   {(() => {
@@ -404,8 +404,8 @@ export function Customer360Panel({ customer }: {
 
               {/* Objection Rebuttal Column */}
               <div className="bg-background/40 border border-border/10 p-3.5 rounded space-y-3">
-                <span className="font-mono text-[9px] text-foreground/40 tracking-wider block uppercase">
-                  Service Rebuttals (Brakes & Tires)
+                <span className="font-mono text-[9px] text-foreground/40 block ">
+                  Service rebuttals (brakes & tires)
                 </span>
                 <div className="space-y-2.5">
                   <div>

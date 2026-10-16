@@ -167,7 +167,7 @@ export function ReferralReasonButton({
       onClick={() => setExpanded(true)}
       disabled={disabled || mutation.isPending}
       title={disabled ? disabledTitle : undefined}
-      className={`inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide ${tone.soft} border ${tone.border} ${tone.text} ${tone.bg} rounded transition-colors disabled:opacity-50`}
+      className={`inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold ${tone.soft} border ${tone.border} ${tone.text} ${tone.bg} rounded transition-colors disabled:opacity-50`}
     >
       <X className="w-3 h-3" /> {isDq ? "Disqualify" : "Forfeit"}
     </button>

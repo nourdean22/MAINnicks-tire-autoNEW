@@ -104,19 +104,19 @@ export function CreativeAssistantCards({ onNavigate }: { onNavigate: (view: IgVi
                   <div className="flex items-start gap-2">
                     <Icon className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                     <div className="min-w-0 flex-1">
-                      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{TYPE_LABEL[card.type]}</p>
+                      <p className="text-[11px] text-muted-foreground">{TYPE_LABEL[card.type]}</p>
                       <p className="text-sm font-medium leading-5">{card.title}</p>
                     </div>
-                    <span className="shrink-0 rounded-full border px-2 py-0.5 text-[11px] uppercase tracking-wide">{card.format}</span>
+                    <span className="shrink-0 rounded-full border px-2 py-0.5 text-[11px] ">{card.format}</span>
                   </div>
-                  <p className="mt-2 text-[11px] uppercase tracking-wide text-muted-foreground">Why this</p>
+                  <p className="mt-2 text-[11px] text-muted-foreground">Why this</p>
                   <ul className="mt-1 space-y-1 text-xs">
                     {card.why.map((line) => (
                       <li key={line} className="flex gap-1.5"><span className="text-muted-foreground">·</span><span className="min-w-0 break-words">{line}</span></li>
                     ))}
                   </ul>
                   <p className="mt-2 text-xs">
-                    <span className={`font-semibold uppercase ${CONFIDENCE_CLASS[card.confidence]}`}>{card.confidence} confidence</span>
+                    <span className={`font-semibold ${CONFIDENCE_CLASS[card.confidence]}`}>{card.confidence} confidence</span>
                     <span className="text-muted-foreground"> — {card.confidenceReason}</span>
                   </p>
                   <Button

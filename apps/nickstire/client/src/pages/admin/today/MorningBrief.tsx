@@ -146,7 +146,7 @@ export function MorningBrief({ priorityQueueLength, urgentLeads, queueTrustworth
     <div className="bg-card border border-border/40 p-4 space-y-2.5">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-[11px] font-bold tracking-[0.18em] uppercase text-foreground/45">
+          <span className="eyebrow">
             {greeting()} · daily brief
           </span>
         </div>

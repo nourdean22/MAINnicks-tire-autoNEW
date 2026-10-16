@@ -85,7 +85,7 @@ export default function PublishBoard() {
       {lanes.map((lane) => (
         <div key={lane.key} className="w-72 shrink-0 space-y-3">
           <div className="flex items-center justify-between px-1">
-            <h4 className={`text-sm font-bold uppercase tracking-wide ${lane.key === "attention" && lane.items.length > 0 ? "text-red-400" : "text-muted-foreground"}`}>{lane.title}</h4>
+            <h4 className={`text-sm font-bold ${lane.key === "attention" && lane.items.length > 0 ? "text-red-400" : "text-muted-foreground"}`}>{lane.title}</h4>
             <Badge variant="outline">{lane.items.length}</Badge>
           </div>
           {lane.items.length === 0 ? (

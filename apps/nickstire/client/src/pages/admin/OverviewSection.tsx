@@ -655,7 +655,7 @@ export default function OverviewSection() {
                   <div className="flex items-start gap-3 flex-1 min-w-0">
                     <Icon className="w-4 h-4 text-primary mt-1 shrink-0" />
                     <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-medium truncate">{item.name}</h3><span className="text-[9px] uppercase tracking-wider rounded bg-muted px-1.5 py-0.5">{requestLabel(item)}</span>{item.urgency >= 4 && <span className="text-[9px] uppercase tracking-wider rounded bg-red-500/10 text-red-400 px-1.5 py-0.5">Urgent</span>}</div>
+                      <div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-medium truncate">{item.name}</h3><span className="text-[9px] rounded bg-muted px-1.5 py-0.5">{requestLabel(item)}</span>{item.urgency >= 4 && <span className="text-[9px] rounded bg-red-500/10 text-red-400 px-1.5 py-0.5">Urgent</span>}</div>
                       <p className="text-xs text-muted-foreground mt-1 truncate">{item.detail}</p>
                       <p className="text-[10px] text-muted-foreground/70 mt-1 flex items-center gap-1"><Clock className="w-3 h-3" />{new Date(item.createdAt).toLocaleString()}</p>
                     </div>
@@ -702,7 +702,7 @@ function SummaryCard({ label, value, detail, alert = false, priority = false }: 
   return (
     <div className={`rounded-lg border bg-card p-4 ${priority ? "border-[var(--owner-priority)]" : "border-border/40"}`}>
       <div className={`text-2xl font-bold tabular-nums ${priority ? "text-[var(--owner-priority)]" : alert ? "text-red-400" : "text-foreground"}`}>{value}</div>
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground mt-1">{label}</div>
+      <div className="text-[10px] text-muted-foreground mt-1">{label}</div>
       <div className="text-[10px] text-muted-foreground/70 mt-1">{detail}</div>
     </div>
   );

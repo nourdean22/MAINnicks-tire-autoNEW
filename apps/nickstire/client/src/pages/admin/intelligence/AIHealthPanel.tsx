@@ -27,7 +27,7 @@ export function AIHealthPanel() {
       <div className="stat-card p-5 border-red-500/20 bg-red-500/5">
         <div className="flex items-center gap-2 mb-2 text-red-400">
           <AlertTriangle className="w-5 h-5" />
-          <h2 className="text-sm font-black tracking-wide uppercase">AI Health (Degraded)</h2>
+          <h2 className="text-sm font-black ">AI Health (Degraded)</h2>
         </div>
         <p className="text-sm text-red-400/80">Master intelligence unavailable: {error?.message}</p>
       </div>
@@ -60,12 +60,12 @@ export function AIHealthPanel() {
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-2">
             <Activity className="w-5 h-5 text-indigo-400" />
-            <h2 className="text-sm font-black text-indigo-400 tracking-wide uppercase">AI Health & Opportunities</h2>
+            <h2 className="text-sm font-black text-indigo-400 ">AI Health & Opportunities</h2>
           </div>
           <div className="text-right">
             <div className={`text-3xl font-black ${scoreColor}`}>{scoreReliable ? Math.round(score) : "—"}</div>
-            <div className="text-[10px] text-muted-foreground uppercase tracking-widest">
-              {scoreReliable ? "Health Score" : "Score unavailable"}
+            <div className="text-[10px] text-muted-foreground ">
+              {scoreReliable ? "Health score" : "Score unavailable"}
             </div>
             <div data-score-provenance className="mt-1">
               <ProvenanceTag provenance={scoreProvenance} />
@@ -87,7 +87,7 @@ export function AIHealthPanel() {
           <div className="flex items-start gap-3 p-3 rounded-lg bg-red-500/10 border border-red-500/20">
             <AlertTriangle className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
             <div>
-              <div className="text-xs font-bold text-red-400 uppercase tracking-wider mb-0.5">Top Alert</div>
+              <div className="text-xs font-bold text-red-400 mb-0.5">Top alert</div>
               <div className="text-sm text-foreground">{topAlert}</div>
             </div>
           </div>
@@ -95,7 +95,7 @@ export function AIHealthPanel() {
           <div className="flex items-start gap-3 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
             <TrendingUp className="w-4 h-4 text-emerald-400 mt-0.5 shrink-0" />
             <div>
-              <div className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-0.5">Top Opportunity</div>
+              <div className="text-xs font-bold text-emerald-400 mb-0.5">Top opportunity</div>
               <div className="text-sm text-foreground">{topOpportunity}</div>
             </div>
           </div>
@@ -103,7 +103,7 @@ export function AIHealthPanel() {
           <div className="flex items-start gap-3 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
             <ShieldAlert className="w-4 h-4 text-yellow-400 mt-0.5 shrink-0" />
             <div>
-              <div className="text-xs font-bold text-yellow-400 uppercase tracking-wider mb-0.5">Top Risk</div>
+              <div className="text-xs font-bold text-yellow-400 mb-0.5">Top risk</div>
               <div className="text-sm text-foreground">{topRisk}</div>
             </div>
           </div>

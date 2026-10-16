@@ -17,7 +17,7 @@ function Tile({ label, value, tone }: { label: string; value: string; tone?: "ok
     tone === "bad" ? "text-red-400" : tone === "warn" ? "text-amber-300" : tone === "ok" ? "text-emerald-400" : "text-foreground/80";
   return (
     <div className="rounded border border-border/40 bg-background/40 px-2.5 py-1.5 min-w-[92px]">
-      <div className="text-[9px] uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className="text-[9px] text-muted-foreground">{label}</div>
       <div className={`text-sm font-mono font-semibold ${toneClass}`}>{value}</div>
     </div>
   );
@@ -150,7 +150,7 @@ export default function SmsOpsStrip() {
 
       {/* Autonomy ladder — declared level + live rollout per automation */}
       <details className="mt-2">
-        <summary className="text-[10px] uppercase tracking-wider text-muted-foreground cursor-pointer select-none">
+        <summary className="text-[10px] text-muted-foreground cursor-pointer select-none">
           Autonomy ladder ({data.autonomy.length} automations)
         </summary>
         <div className="mt-1.5 grid gap-1">
@@ -171,7 +171,7 @@ export default function SmsOpsStrip() {
       {/* Suppression rollup */}
       {data.suppressions7d.length > 0 && (
         <details className="mt-1.5">
-          <summary className="text-[10px] uppercase tracking-wider text-muted-foreground cursor-pointer select-none">
+          <summary className="text-[10px] text-muted-foreground cursor-pointer select-none">
             What the AI held back (7d)
           </summary>
           <div className="mt-1.5 grid gap-0.5">

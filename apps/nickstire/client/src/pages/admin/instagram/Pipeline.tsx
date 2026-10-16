@@ -183,7 +183,7 @@ function ReelHealth() {
           ) : (
             <div className="grid gap-4 md:grid-cols-2">
               <div>
-                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                <p className="mb-2 text-xs font-medium text-muted-foreground">
                   Held viewers
                 </p>
                 <ul className="space-y-2">
@@ -198,7 +198,7 @@ function ReelHealth() {
                 </ul>
               </div>
               <div>
-                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                <p className="mb-2 text-xs font-medium text-muted-foreground">
                   Lost viewers
                 </p>
                 <ul className="space-y-2">

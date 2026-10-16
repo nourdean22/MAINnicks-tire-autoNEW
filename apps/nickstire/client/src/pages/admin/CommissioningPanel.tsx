@@ -529,7 +529,7 @@ export default function CommissioningPanel({ camera = "sign" }: { camera?: strin
               {report.data?.ok === true && verdictChip(report.data.report.verdict)}
               {report.data?.ok === true && !report.data.run.settled && (
                 <span
-                  className="rounded border border-foreground/20 px-1.5 py-0.5 text-[11px] uppercase tracking-wide text-foreground/50"
+                  className="rounded border border-foreground/20 px-1.5 py-0.5 text-[11px] text-foreground/50"
                   // Elapsed time is the FLOOR, not the whole condition. Saying "recorded
                   // after Ns" was true of an earlier version and is now a promise the
                   // server does not keep: settlement also needs the camera to report,

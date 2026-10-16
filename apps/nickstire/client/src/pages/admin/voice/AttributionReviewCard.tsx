@@ -39,7 +39,7 @@ export function AttributionReviewCard() {
 
   if (isLoading) {
     return (
-      <div className="border border-border/40 bg-card p-4 text-[11px] font-bold uppercase tracking-[0.18em] text-foreground/30">
+      <div className="border border-border/40 bg-card p-4 text-[11px] font-bold text-foreground/30">
         Loading attribution review queue…
       </div>
     );

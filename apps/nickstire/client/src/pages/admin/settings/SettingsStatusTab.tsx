@@ -81,7 +81,7 @@ function OpenIssueRow({ issue }: { issue: OpenIssue }) {
       <div className="mt-0.5">{style.icon}</div>
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline gap-2 flex-wrap">
-          <span className={`text-[10px] font-bold tracking-[0.15em] uppercase ${style.text}`}>
+          <span className={`text-[10px] font-bold ${style.text}`}>
             {issue.severity}
           </span>
           <span className="font-semibold text-foreground text-[13px]">{issue.title}</span>

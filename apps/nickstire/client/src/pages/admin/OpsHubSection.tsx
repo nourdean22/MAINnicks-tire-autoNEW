@@ -137,7 +137,7 @@ function OpsCard({ item, health }: {
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-xs font-bold text-foreground">{item.title}</span>
         <span className={`px-1.5 py-0.5 text-[9px] font-bold border rounded ${meta.cls}`}>{meta.label}</span>
-        <span className={`px-1.5 py-0.5 text-[9px] font-bold border rounded uppercase ${RISK_CLS[item.risk]}`}>{item.risk} risk</span>
+        <span className={`px-1.5 py-0.5 text-[9px] font-bold border rounded ${RISK_CLS[item.risk]}`}>{item.risk} risk</span>
         {item.ownerRequired && (
           <span className="px-1.5 py-0.5 text-[9px] font-bold border rounded bg-purple-500/10 text-purple-400 border-purple-500/20 inline-flex items-center gap-1">
             <Lock className="w-2.5 h-2.5" /> OWNER
@@ -199,11 +199,11 @@ function MessagePreviews() {
           <Panel key={t.key} title={t.key.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase())} icon={<MessageSquareText className="w-4 h-4" />}>
             <div className="space-y-2 mt-2 text-xs">
               <div>
-                <span className="text-[10px] uppercase tracking-wider text-foreground/40 font-semibold">SMS ({t.sms.length} chars)</span>
+                <span className="text-[10px] text-foreground/40 font-semibold">SMS ({t.sms.length} chars)</span>
                 <p className="bg-background/50 border border-border/30 rounded p-2 mt-1 text-foreground/80 whitespace-pre-wrap">{t.sms}</p>
               </div>
               <div>
-                <span className="text-[10px] uppercase tracking-wider text-foreground/40 font-semibold">Email — {t.emailSubject}</span>
+                <span className="text-[10px] text-foreground/40 font-semibold">Email — {t.emailSubject}</span>
                 <p className="bg-background/50 border border-border/30 rounded p-2 mt-1 text-foreground/80 whitespace-pre-wrap">{t.emailBody}</p>
               </div>
             </div>

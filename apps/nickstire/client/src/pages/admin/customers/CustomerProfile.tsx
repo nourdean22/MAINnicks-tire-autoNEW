@@ -378,7 +378,7 @@ export default function CustomerProfile({ customerId, onClose }: Props) {
           {/* Notes Section */}
           <div className="bg-card border border-border/30 p-5 space-y-3">
             <div className="flex items-center justify-between">
-              <h4 className="font-bold text-xs tracking-wider text-foreground/40 uppercase">Notes</h4>
+              <h4 className="font-bold text-xs text-foreground/40 ">Notes</h4>
               {notesEditing ? (
                 <div className="flex items-center gap-1.5">
                   <button
@@ -423,7 +423,7 @@ export default function CustomerProfile({ customerId, onClose }: Props) {
           {/* Vehicle Info */}
           {customer.vehicleMake && (
             <div className="bg-card border border-border/30 p-5">
-              <h4 className="font-bold text-xs tracking-wider text-foreground/40 uppercase mb-3 flex items-center gap-1.5">
+              <h4 className="font-bold text-xs text-foreground/40 mb-3 flex items-center gap-1.5">
                 <Car className="w-3.5 h-3.5" /> Vehicle
               </h4>
               <p className="text-sm font-semibold text-foreground">
@@ -434,8 +434,8 @@ export default function CustomerProfile({ customerId, onClose }: Props) {
 
           {/* Timeline Section */}
           <div className="bg-card border border-border/30 p-5 space-y-4">
-            <h4 className="font-bold text-xs tracking-wider text-foreground/40 uppercase flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5" /> Interaction Timeline
+            <h4 className="font-bold text-xs text-foreground/40 flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5" /> Interaction timeline
             </h4>
 
             {timelineLoading ? (

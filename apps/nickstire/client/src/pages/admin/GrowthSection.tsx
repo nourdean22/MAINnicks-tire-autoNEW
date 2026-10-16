@@ -70,7 +70,7 @@ const MODE_CLS: Record<Mode, string> = {
 
 function ModeBadge({ mode }: { mode: Mode }) {
   return (
-    <span className={`px-1.5 py-0.5 text-[9px] font-bold border rounded uppercase ${MODE_CLS[mode]}`}>
+    <span className={`px-1.5 py-0.5 text-[9px] font-bold border rounded ${MODE_CLS[mode]}`}>
       {mode}
     </span>
   );
@@ -280,7 +280,7 @@ function SocialPipelineHealth() {
       </div>
 
       {/* Env gates */}
-      <p className="text-[9px] uppercase tracking-wider text-foreground/40 font-semibold mb-1">Environment Gates (Railway)</p>
+      <p className="text-[9px] text-foreground/40 font-semibold mb-1">Environment gates (Railway)</p>
       <div className="space-y-1 mb-3">
         {envGates.map((g) => (
           <div key={g.key} className="flex items-center gap-2 text-[10px]">
@@ -294,7 +294,7 @@ function SocialPipelineHealth() {
       </div>
 
       {/* DB flags */}
-      <p className="text-[9px] uppercase tracking-wider text-foreground/40 font-semibold mb-1">Feature Flags (Database)</p>
+      <p className="text-[9px] text-foreground/40 font-semibold mb-1">Feature flags (database)</p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
         {dbFlags.map((f) => (
           <div key={f.key} className="flex items-center gap-2 text-[10px]">
@@ -485,12 +485,12 @@ function ReplyCard({ reply, onApprove, onSkip, onMarkPosted, onSaveDraft, busy }
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-xs font-bold text-foreground">{reply.reviewerName}</span>
         <span className="text-[10px] text-amber-400">{"★".repeat(reply.reviewRating)}{"☆".repeat(Math.max(0, 5 - reply.reviewRating))}</span>
-        <span className={`px-1.5 py-0.5 text-[9px] font-bold border rounded uppercase ${reply.status === "posted" ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/30" : "bg-foreground/5 text-foreground/50 border-border/20"}`}>{reply.status}</span>
+        <span className={`px-1.5 py-0.5 text-[9px] font-bold border rounded ${reply.status === "posted" ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/30" : "bg-foreground/5 text-foreground/50 border-border/20"}`}>{reply.status}</span>
       </div>
       {reply.reviewText && <p className="text-[11px] text-foreground/60 leading-relaxed">"{reply.reviewText}"</p>}
       {editText !== null ? (
         <div className="bg-background/60 border border-border/30 rounded p-2 space-y-1.5">
-          <span className="text-[9px] uppercase tracking-wider text-foreground/40 font-semibold">Edit reply draft</span>
+          <span className="text-[9px] text-foreground/40 font-semibold">Edit reply draft</span>
           <textarea
             value={editText}
             onChange={(e) => setEditText(e.target.value)}
@@ -524,7 +524,7 @@ function ReplyCard({ reply, onApprove, onSkip, onMarkPosted, onSaveDraft, busy }
         </div>
       ) : text ? (
         <div className="bg-background/60 border border-border/30 rounded p-2">
-          <span className="text-[9px] uppercase tracking-wider text-foreground/40 font-semibold">Reply draft</span>
+          <span className="text-[9px] text-foreground/40 font-semibold">Reply draft</span>
           <p className="text-[11px] text-foreground/80 leading-relaxed mt-0.5">{text}</p>
         </div>
       ) : null}
@@ -599,7 +599,7 @@ function GbpQaTab() {
       {GBP_QA_SEEDS.map((qa) => (
         <div key={qa.question} className="bg-background/40 border border-border/30 rounded p-3 space-y-2">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="px-1.5 py-0.5 text-[9px] font-bold border rounded uppercase bg-foreground/5 text-foreground/50 border-border/20">{qa.category}</span>
+            <span className="px-1.5 py-0.5 text-[9px] font-bold border rounded bg-foreground/5 text-foreground/50 border-border/20">{qa.category}</span>
             <span className="px-1.5 py-0.5 text-[9px] font-bold border rounded bg-emerald-500/10 text-emerald-400 border-emerald-500/20">CLAIM-SAFE</span>
             <ModeBadge mode="copy-only" />
           </div>
@@ -646,7 +646,7 @@ function PhotoQueueTab() {
           <div key={t.title} className="bg-background/40 border border-border/30 rounded p-3 space-y-1.5">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs font-bold text-foreground">{i + 1}. {t.title}</span>
-              <span className="px-1.5 py-0.5 text-[9px] font-bold border rounded uppercase bg-foreground/5 text-foreground/50 border-border/20">{t.category}</span>
+              <span className="px-1.5 py-0.5 text-[9px] font-bold border rounded bg-foreground/5 text-foreground/50 border-border/20">{t.category}</span>
               <ModeBadge mode="manual" />
             </div>
             <p className="text-[11px] text-foreground/70 leading-relaxed"><span className="font-semibold text-primary">Shot:</span> {t.instructions}</p>
@@ -683,7 +683,7 @@ function EntityTab() {
         <div key={p.platform} className="bg-background/40 border border-border/30 rounded p-3 space-y-1.5">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs font-bold text-foreground">{p.platform}</span>
-            <span className="px-1.5 py-0.5 text-[9px] font-bold border rounded uppercase bg-foreground/5 text-foreground/50 border-border/20">{p.status.replace("_", " ")}</span>
+            <span className="px-1.5 py-0.5 text-[9px] font-bold border rounded bg-foreground/5 text-foreground/50 border-border/20">{p.status.replace("_", " ")}</span>
             <span className="px-1.5 py-0.5 text-[9px] font-bold border rounded bg-purple-500/10 text-purple-400 border-purple-500/20 inline-flex items-center gap-1"><Lock className="w-2.5 h-2.5" /> OWNER MANUAL</span>
           </div>
           <p className="text-[11px] text-foreground/70"><span className="font-semibold text-primary">Check:</span> {p.checkFields.join(" · ")}</p>

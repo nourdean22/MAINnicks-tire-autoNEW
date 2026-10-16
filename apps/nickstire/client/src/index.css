@@ -1735,3 +1735,20 @@ p.body-pretty {
     padding-bottom: calc(56px + 1.5rem + env(safe-area-inset-bottom, 0px)) !important;
   }
 }
+
+/* Section eyebrow (Admin UI v1 W1): the small label above a heading, e.g. "Good morning · daily
+   brief". Sentence case, never capitals, so the tracking stays light. Used on the four section
+   briefs only; anything else gets plain text. */
+.admin-shell .eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  color: var(--muted-foreground);
+}
+
+/* The public base layer sets h1 to Barlow Condensed capitals; inside the admin the topbar title
+   and the Intelligence HQ heading read in sentence case like every other label (Admin UI v1 W1). */
+.admin-shell h1 {
+  text-transform: none;
+}

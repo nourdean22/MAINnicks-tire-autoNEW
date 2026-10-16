@@ -56,7 +56,7 @@ function SourceBadge({ source }: { source: string }) {
   const isNick = source === "nick_receptionist";
   return (
     <span
-      className={`inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded ${
+      className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded ${
         isHuman
           ? "bg-blue-500/10 text-blue-500"
           : isNick
@@ -85,7 +85,7 @@ function StatusPill({ status }: { status: string }) {
   };
   const c = cfg[status] ?? { cls: "bg-muted text-muted-foreground", icon: <Clock className="w-3 h-3" /> };
   return (
-    <span className={`inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded ${c.cls}`}>
+    <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded ${c.cls}`}>
       {c.icon}
       {status.replace("_", " ")}
     </span>

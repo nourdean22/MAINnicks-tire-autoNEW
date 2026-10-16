@@ -210,9 +210,9 @@ export default function CallTrackingSection() {
       {/* ─── MISSED CALL QUEUE ─── */}
       {!callbacksUnknown && pendingCallbacks.length > 0 && (
         <div id="missed-call-queue" className="stat-card !p-5 !border-red-500/20">
-          <h3 className="text-xs font-semibold text-red-400 tracking-wide uppercase mb-3 flex items-center gap-2">
+          <h3 className="text-xs font-semibold text-red-400 mb-3 flex items-center gap-2">
             <AlertTriangle className="w-3.5 h-3.5" />
-            Missed Call Queue
+            Missed call queue
             <span className="text-[10px] bg-red-500/15 text-red-400 px-1.5 py-0.5 rounded-full font-bold ml-1">
               {pendingCallbacks.length}
             </span>
@@ -292,9 +292,9 @@ export default function CallTrackingSection() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Peak Hours */}
         <div className="stat-card !p-5">
-          <h3 className="text-xs font-semibold text-muted-foreground tracking-wide uppercase mb-4 flex items-center gap-2">
+          <h3 className="text-xs font-semibold text-muted-foreground mb-4 flex items-center gap-2">
             <BarChart3 className="w-3.5 h-3.5 text-primary" />
-            Peak Call Hours
+            Peak call hours
           </h3>
           {peakHours.length > 0 && peakHours.some(h => h.count > 0) ? (
             <ResponsiveContainer width="100%" height={200}>
@@ -318,7 +318,7 @@ export default function CallTrackingSection() {
 
         {/* Day of Week */}
         <div className="stat-card !p-5">
-          <h3 className="text-xs font-semibold text-muted-foreground tracking-wide uppercase mb-4 flex items-center gap-2">
+          <h3 className="text-xs font-semibold text-muted-foreground mb-4 flex items-center gap-2">
             <TrendingUp className="w-3.5 h-3.5 text-primary" />
             Calls by Day
           </h3>
@@ -346,9 +346,9 @@ export default function CallTrackingSection() {
       {/* ─── SOURCE ATTRIBUTION ─── */}
       {sourceBreakdown.length > 0 && (
         <div className="stat-card !p-5">
-          <h3 className="text-xs font-semibold text-muted-foreground tracking-wide uppercase mb-4 flex items-center gap-2">
+          <h3 className="text-xs font-semibold text-muted-foreground mb-4 flex items-center gap-2">
             <Users className="w-3.5 h-3.5 text-primary" />
-            Call Source Attribution
+            Call source attribution
           </h3>
           <div className="space-y-3">
             {sourceBreakdown.map((s, i) => {
@@ -376,7 +376,7 @@ export default function CallTrackingSection() {
       {/* ─── CALLS BY PAGE ─── */}
       {callTracking?.byPage && callTracking.byPage.length > 0 && (
         <div className="stat-card !p-5">
-          <h3 className="text-xs font-semibold text-muted-foreground tracking-wide uppercase mb-4 flex items-center gap-2">
+          <h3 className="text-xs font-semibold text-muted-foreground mb-4 flex items-center gap-2">
             <MapPin className="w-3.5 h-3.5 text-primary" />
             Calls by Page
           </h3>
@@ -406,9 +406,9 @@ export default function CallTrackingSection() {
       {/* ─── RECENT CALL LOG ─── */}
       <div className="stat-card overflow-hidden !p-0">
         <div className="p-4 border-b border-border/20">
-          <h3 className="text-xs font-semibold text-muted-foreground tracking-wide uppercase flex items-center gap-2">
+          <h3 className="text-xs font-semibold text-muted-foreground flex items-center gap-2">
             <PhoneCall className="w-3.5 h-3.5 text-primary" />
-            Recent Call Events
+            Recent call events
           </h3>
           <p className="text-[10px] text-muted-foreground/50 mt-0.5">Most recent {calls?.length ?? 0} phone clicks on the site with source attribution</p>
         </div>

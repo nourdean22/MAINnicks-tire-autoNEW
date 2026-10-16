@@ -25,7 +25,7 @@ export function HQ({ onNavigate }: HQProps) {
         reel-recovery link, which carries real intent rather than duplicating a
         door.
       */}
-      <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
+      <h3 className="text-sm font-bold text-muted-foreground">
         Creation brief &amp; pipeline
       </h3>
 

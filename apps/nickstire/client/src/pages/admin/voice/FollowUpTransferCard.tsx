@@ -116,15 +116,15 @@ export function FollowUpTransferCard() {
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-[10px] font-bold tracking-[0.15em] uppercase text-foreground/40">
+            <span className="text-[10px] font-bold text-foreground/40">
               Follow-Up Caller transfer
             </span>
             {isShop ? (
-              <span className="text-[10px] font-medium tracking-[0.12em] uppercase px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                 Shop landline
               </span>
             ) : (
-              <span className="text-[10px] font-medium tracking-[0.12em] uppercase px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">
+              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">
                 Off shop number
               </span>
             )}
@@ -141,7 +141,7 @@ export function FollowUpTransferCard() {
             <button
               onClick={resetToShop}
               disabled={setDest.isPending}
-              className="text-[11px] font-medium tracking-[0.15em] uppercase px-2.5 py-1 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20 disabled:opacity-50"
+              className="text-[11px] font-medium px-2.5 py-1 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20 disabled:opacity-50"
               title="One-click reset to (216) 862-0005"
             >
               Reset to shop
@@ -154,7 +154,7 @@ export function FollowUpTransferCard() {
                 setEditing(true);
               }}
               disabled={setDest.isPending}
-              className="text-[11px] font-medium tracking-[0.15em] uppercase px-2.5 py-1 rounded text-foreground/60 border border-border/40 hover:text-foreground hover:border-foreground/40 disabled:opacity-50"
+              className="text-[11px] font-medium px-2.5 py-1 rounded text-foreground/60 border border-border/40 hover:text-foreground hover:border-foreground/40 disabled:opacity-50"
               title="Change the follow-up transfer destination (will require confirmation)"
             >
               Edit (advanced)
@@ -174,14 +174,14 @@ export function FollowUpTransferCard() {
               <button
                 onClick={submitEdit}
                 disabled={setDest.isPending}
-                className="text-[11px] font-medium tracking-[0.15em] uppercase px-2.5 py-1 rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                className="text-[11px] font-medium px-2.5 py-1 rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
               >
                 {setDest.isPending ? "Saving" : "Save"}
               </button>
               <button
                 onClick={() => setEditing(false)}
                 disabled={setDest.isPending}
-                className="text-[11px] font-medium tracking-[0.15em] uppercase px-2.5 py-1 rounded text-foreground/50 hover:text-foreground"
+                className="text-[11px] font-medium px-2.5 py-1 rounded text-foreground/50 hover:text-foreground"
               >
                 Cancel
               </button>

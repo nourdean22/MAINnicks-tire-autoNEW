@@ -49,7 +49,7 @@ export default function ComplianceSection() {
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold uppercase tracking-widest border-b-2 transition-colors ${
+              className={`inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold border-b-2 transition-colors ${
                 tab === t.id
                   ? "border-primary text-foreground"
                   : "border-transparent text-muted-foreground hover:text-foreground"
@@ -83,7 +83,7 @@ export default function ComplianceSection() {
                 <div className="border border-border/30 bg-card/50 p-3 text-xs">
                   <div className="flex items-center gap-2 mb-2 text-muted-foreground">
                     <Globe className="w-3.5 h-3.5" />
-                    <span className="uppercase tracking-widest text-[10px] font-bold">
+                    <span className=" text-[10px] font-bold">
                       Unique IPs, last 30 days ({loginData.uniqueIpsLast30d.length})
                     </span>
                   </div>
@@ -102,12 +102,12 @@ export default function ComplianceSection() {
                   can scroll the table on phone to read security audit info. */}
               <div className="overflow-x-auto border border-border/30 bg-card/50">
                 <table className="w-full text-sm">
-                  <thead className="bg-background/50 text-[10px] uppercase tracking-widest text-muted-foreground">
+                  <thead className="bg-background/50 text-[10px] text-muted-foreground">
                     <tr>
                       <th className="text-left p-3">When</th>
                       <th className="text-left p-3">Email</th>
                       <th className="text-left p-3">IP</th>
-                      <th className="text-left p-3 hidden sm:table-cell">User-Agent</th>
+                      <th className="text-left p-3 hidden sm:table-cell">User-agent</th>
                     </tr>
                   </thead>
                   <tbody className="font-mono text-xs">
@@ -149,26 +149,26 @@ export default function ComplianceSection() {
                 <div className="border border-emerald-500/30 bg-emerald-500/5 p-4">
                   <div className="flex items-center gap-2 text-emerald-400 mb-1">
                     <UserCheck className="w-4 h-4" />
-                    <span className="text-[10px] uppercase tracking-widest font-bold">Opt-ins</span>
+                    <span className="text-[10px] font-bold">Opt-ins</span>
                   </div>
                   <div className="font-mono font-black text-3xl text-foreground">{consentData.totalOptIns}</div>
                 </div>
                 <div className="border border-red-500/30 bg-red-500/5 p-4">
                   <div className="flex items-center gap-2 text-red-400 mb-1">
                     <UserX className="w-4 h-4" />
-                    <span className="text-[10px] uppercase tracking-widest font-bold">Opt-outs</span>
+                    <span className="text-[10px] font-bold">Opt-outs</span>
                   </div>
                   <div className="font-mono font-black text-3xl text-foreground">{consentData.totalOptOuts}</div>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">
+                <h3 className="text-[10px] text-muted-foreground font-bold">
                   Recent consent events
                 </h3>
                 <div className="overflow-x-auto border border-border/30 bg-card/50">
                   <table className="w-full text-xs">
-                    <thead className="bg-background/50 text-[10px] uppercase tracking-widest text-muted-foreground">
+                    <thead className="bg-background/50 text-[10px] text-muted-foreground">
                       <tr>
                         <th className="text-left p-2.5">When</th>
                         <th className="text-left p-2.5">Type</th>
@@ -235,7 +235,7 @@ export default function ComplianceSection() {
             // login-history table above. Operator can scroll on phone.
             <div className="overflow-x-auto border border-red-500/30 bg-red-500/5">
               <table className="w-full text-sm">
-                <thead className="bg-background/50 text-[10px] uppercase tracking-widest text-muted-foreground">
+                <thead className="bg-background/50 text-[10px] text-muted-foreground">
                   <tr>
                     <th className="text-left p-3">When</th>
                     <th className="text-left p-3">Attempted</th>

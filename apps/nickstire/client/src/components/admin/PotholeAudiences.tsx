@@ -58,7 +58,7 @@ export function PotholeAudiences({ days, onDaysChange }: { days: number; onDaysC
     <div className="space-y-4">
       <section className="border border-border bg-card/40 rounded-lg p-4 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-sm font-bold uppercase tracking-wide text-foreground/80 flex items-center gap-2">
+          <h2 className="text-sm font-bold text-foreground/80 flex items-center gap-2">
             <MapPin className="w-4 h-4" /> Pothole requests by ward
           </h2>
           <div className="flex bg-muted rounded-lg p-1">

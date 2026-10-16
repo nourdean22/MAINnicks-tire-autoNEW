@@ -68,21 +68,21 @@ export default function AlgProbeBudgetPanel() {
       {/* State summary */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-[11px]">
         <div className="border border-border/20 p-2.5">
-          <p className="text-foreground/40 uppercase tracking-wider mb-1">Last Fresh</p>
+          <p className="text-foreground/40 mb-1">Last fresh</p>
           <p className="text-foreground font-medium">{ageSec !== null ? `${Math.round(ageSec / 60)} min ago` : "—"}</p>
         </div>
         <div className="border border-border/20 p-2.5">
-          <p className="text-foreground/40 uppercase tracking-wider mb-1">In Flight</p>
+          <p className="text-foreground/40 mb-1">In flight</p>
           <p className="text-foreground font-medium">{state?.inFlight ? "Yes" : "No"}</p>
         </div>
         <div className="border border-border/20 p-2.5">
-          <p className="text-foreground/40 uppercase tracking-wider mb-1">Probes (24h)</p>
+          <p className="text-foreground/40 mb-1">Probes (24h)</p>
           <p className="text-foreground font-medium">
             {probes.filter((p: { startedAt: string | Date }) => new Date(p.startedAt) > new Date(Date.now() - 24 * 60 * 60 * 1000)).length}
           </p>
         </div>
         <div className="border border-border/20 p-2.5">
-          <p className="text-foreground/40 uppercase tracking-wider mb-1">Last Outcome</p>
+          <p className="text-foreground/40 mb-1">Last outcome</p>
           <p className={`font-medium ${probes[0] ? (outcomeColor[probes[0].outcome] || "text-foreground") : "text-foreground/40"}`}>
             {probes[0]?.outcome?.toUpperCase() || "—"}
           </p>

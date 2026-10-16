@@ -131,7 +131,7 @@ export default function PatternLab({ onNavigate }: { onNavigate?: (view: IgView)
   };
 
   const label = (text: string) => (
-    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{text}</span>
+    <span className="text-[10px] font-bold text-muted-foreground">{text}</span>
   );
 
   return (

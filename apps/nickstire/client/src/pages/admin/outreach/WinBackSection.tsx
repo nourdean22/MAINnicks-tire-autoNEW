@@ -120,7 +120,7 @@ function CreateCampaign({ onClose, onCreated }: { onClose: () => void; onCreated
         </div>
 
         <div>
-          <label className="block text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-2">Target segment</label>
+          <label className="block text-[11px] text-foreground/50 font-medium mb-2">Target segment</label>
           {/* wave-133 — was grid-cols-4 fixed; many segments × ~79px wide
               at 375px = unusable touch targets. Mobile collapses to
               2 cols (~160px each), 4 cols only at sm+ (640px+). */}
@@ -278,7 +278,7 @@ function SafetyGateModal({
   /**
    * COMPARE WHAT THE OPERATOR SEES.
    *
-   * The input below carries the CSS class `uppercase`, which is
+   * The input below carried the CSS class `uppercase` until Admin UI v1 W1, which is
    * `text-transform` — purely VISUAL. `e.target.value` is still exactly what was
    * typed. So typing "confirm" DISPLAYS "CONFIRM" while confirmText stays
    * "confirm", `confirmText === "CONFIRM"` is false, and ACTIVATE CAMPAIGN sits
@@ -312,7 +312,7 @@ function SafetyGateModal({
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border/10 pb-3">
-          <h3 className="text-sm font-bold text-red-400 uppercase tracking-wider flex items-center gap-2">
+          <h3 className="text-sm font-bold text-red-400 flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 text-red-400" />
             Win-back Campaign Safety Gate
           </h3>
@@ -415,7 +415,7 @@ function SafetyGateModal({
                 value={confirmText}
                 onChange={(e) => setConfirmText(e.target.value)}
                 placeholder="Type CONFIRM here"
-                className="w-full bg-card border border-border/30 px-3 py-2 text-sm text-foreground focus:outline-none focus:border-red-500/50 rounded uppercase tracking-wider"
+                className="w-full bg-card border border-border/30 px-3 py-2 text-sm text-foreground focus:outline-none focus:border-red-500/50 rounded "
               />
             </div>
           </div>

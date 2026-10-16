@@ -112,8 +112,8 @@ export function TopMoneyMoves() {
           <div className="p-1 rounded bg-primary/10">
             <Zap className="w-4 h-4 text-primary" />
           </div>
-          <h3 className="text-xs font-bold tracking-widest text-foreground/75 uppercase flex items-center gap-1.5">
-            Top 3 Money Moves
+          <h3 className="text-xs font-bold text-foreground/75 flex items-center gap-1.5">
+            Top 3 money moves
             <span className="text-[10px] lowercase font-normal text-muted-foreground">(derived from live opportunities)</span>
           </h3>
         </div>
@@ -137,7 +137,7 @@ export function TopMoneyMoves() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="p-1 rounded bg-foreground/5">{config.icon}</span>
-                    <span className={`text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded uppercase ${config.badge}`}>
+                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${config.badge}`}>
                       {move.type}
                     </span>
                   </div>
@@ -158,14 +158,14 @@ export function TopMoneyMoves() {
                 
                 <div className="flex items-center gap-2 mt-2 pt-2 border-t border-border/10">
                   <div className="flex items-center gap-1">
-                    <span className="text-[9px] uppercase tracking-wider text-muted-foreground">Urgency:</span>
+                    <span className="text-[9px] text-muted-foreground">Urgency:</span>
                     <span className={`text-[10px] font-bold ${move.urgency >= 4 ? "text-red-400" : move.urgency === 3 ? "text-yellow-400" : "text-emerald-400"}`}>
                       {move.urgency}/5
                     </span>
                   </div>
                   <div className="w-1 h-1 rounded-full bg-border/50"></div>
                   <div className="flex items-center gap-1">
-                    <span className="text-[9px] uppercase tracking-wider text-muted-foreground">Confidence:</span>
+                    <span className="text-[9px] text-muted-foreground">Confidence:</span>
                     <span className={`text-[10px] font-bold ${move.confidence === "High" ? "text-emerald-400" : move.confidence === "Medium" ? "text-yellow-400" : "text-muted-foreground"}`}>
                       {move.confidence}
                     </span>

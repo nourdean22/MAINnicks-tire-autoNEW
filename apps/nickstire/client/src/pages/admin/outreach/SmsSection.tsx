@@ -50,7 +50,7 @@ function TemplateChipRow({
 }) {
   return (
     <div className="flex items-center gap-1.5 overflow-x-auto -mx-3 px-3 py-2 scrollbar-none">
-      <span className="text-[10px] uppercase tracking-[0.15em] text-foreground/40 font-medium shrink-0 flex items-center gap-1">
+      <span className="text-[10px] text-foreground/40 font-medium shrink-0 flex items-center gap-1">
         <Sparkles className="w-3 h-3" /> presets
       </span>
       {SMS_TEMPLATES.map((t: SmsTemplate) => (
@@ -346,7 +346,7 @@ export function ThreadView({
           <div key={g.key} className="space-y-2">
             <div className="flex items-center gap-3 my-3">
               <div className="flex-1 h-px bg-border/30" />
-              <span className="text-[10px] uppercase tracking-[0.2em] text-foreground/40 font-medium">{g.label}</span>
+              <span className="text-[10px] text-foreground/40 font-medium">{g.label}</span>
               <div className="flex-1 h-px bg-border/30" />
             </div>
             {g.items.map((m) => {
@@ -639,7 +639,7 @@ function NewConversationDialog({
         </header>
         <div className="px-5 py-4 space-y-3">
           <label className="block">
-            <span className="block text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-1.5">To</span>
+            <span className="block text-[11px] text-foreground/50 font-medium mb-1.5">To</span>
             <input
               type="tel"
               autoFocus
@@ -650,7 +650,7 @@ function NewConversationDialog({
             />
           </label>
           <label className="block">
-            <span className="block text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-1.5">Name <span className="text-foreground/30 normal-case tracking-normal">(optional)</span></span>
+            <span className="block text-[11px] text-foreground/50 font-medium mb-1.5">Name <span className="text-foreground/30 normal-case tracking-normal">(optional)</span></span>
             <input
               type="text"
               placeholder="Customer name"
@@ -666,7 +666,7 @@ function NewConversationDialog({
               span as required by HTML semantics. */}
           <div className="block">
             <label className="block">
-              <span className="block text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-1.5">Message</span>
+              <span className="block text-[11px] text-foreground/50 font-medium mb-1.5">Message</span>
             </label>
             <TemplateChipRow
               ctx={{ name, vehicle: null }}
@@ -930,7 +930,7 @@ function NickGptDashboard({ onNew }: { onNew: () => void }) {
         <div className="space-y-6">
           {/* Feature Flags */}
           <div className="space-y-3.5">
-            <h4 className="text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-semibold">Engine Control Flags</h4>
+            <h4 className="text-[11px] text-foreground/50 font-semibold">Engine control flags</h4>
             
             <div className="space-y-2">
               <div className="flex items-center justify-between p-3 rounded-xl bg-foreground/[0.02] border border-border/10">
@@ -991,19 +991,19 @@ function NickGptDashboard({ onNew }: { onNew: () => void }) {
 
           {/* Stats Grid */}
           <div className="space-y-3.5">
-            <h4 className="text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-semibold">Today's Performance</h4>
+            <h4 className="text-[11px] text-foreground/50 font-semibold">Today's performance</h4>
             
             <div className="grid grid-cols-3 gap-3">
               <div className="p-3 rounded-xl bg-foreground/[0.02] border border-border/10 text-center">
-                <p className="text-foreground/45 text-[10px] uppercase font-medium">Generated</p>
+                <p className="text-foreground/45 text-[10px] font-medium">Generated</p>
                 <p className="text-xl font-bold text-foreground mt-1">{stats?.draftsGeneratedToday ?? 0}</p>
               </div>
               <div className="p-3 rounded-xl bg-foreground/[0.02] border border-border/10 text-center">
-                <p className="text-foreground/45 text-[10px] uppercase font-medium">Approved</p>
+                <p className="text-foreground/45 text-[10px] font-medium">Approved</p>
                 <p className="text-xl font-bold text-foreground mt-1">{stats?.draftsApprovedToday ?? 0}</p>
               </div>
               <div className="p-3 rounded-xl bg-foreground/[0.02] border border-border/10 text-center">
-                <p className="text-foreground/45 text-[10px] uppercase font-medium">Approval Rate</p>
+                <p className="text-foreground/45 text-[10px] font-medium">Approval rate</p>
                 <p className="text-xl font-bold text-amber-500 mt-1">{stats?.approvalRate == null ? "—" : `${stats.approvalRate}%`}</p>
               </div>
             </div>
@@ -1012,7 +1012,7 @@ function NickGptDashboard({ onNew }: { onNew: () => void }) {
 
         {/* Right Side: Interactive Test Console */}
         <div className="flex flex-col space-y-4 border-t md:border-t-0 md:border-l border-border/10 pt-6 md:pt-0 md:pl-6">
-          <h4 className="text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-semibold">Interactive Test Console</h4>
+          <h4 className="text-[11px] text-foreground/50 font-semibold">Interactive test console</h4>
           
           <div className="flex flex-wrap gap-1.5">
             <button
@@ -1061,7 +1061,7 @@ function NickGptDashboard({ onNew }: { onNew: () => void }) {
                 </span>
               </div>
               <div>
-                <p className="text-[10px] text-foreground/45 uppercase font-medium">Generated Draft</p>
+                <p className="text-[10px] text-foreground/45 font-medium">Generated draft</p>
                 <p className="text-[13px] text-foreground/90 italic leading-relaxed bg-background/50 p-2.5 rounded-lg border border-border/20 mt-1">
                   "{testResult.draft}"
                 </p>

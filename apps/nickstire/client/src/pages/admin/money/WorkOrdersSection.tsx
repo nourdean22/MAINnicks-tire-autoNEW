@@ -860,7 +860,7 @@ function ShopPulseMood({ stats }: { stats: AdminDashboardStats | undefined }) {
     return (
       <div className="bg-muted/20 border border-border p-4" data-testid="shop-pulse-unavailable">
         <div className="flex items-center gap-2.5">
-          <span className="text-[13px] font-semibold tracking-[0.12em] uppercase text-muted-foreground">
+          <span className="text-[13px] font-semibold text-muted-foreground">
             Shop floor · unknown
           </span>
         </div>
@@ -951,7 +951,7 @@ function ShopPulseMood({ stats }: { stats: AdminDashboardStats | undefined }) {
             tracking-widest uppercase) */}
         <div className="flex items-center gap-2.5">
           <span className="text-2xl">{emoji}</span>
-          <span className={`text-[13px] font-semibold tracking-[0.12em] uppercase ${textColor}`}>
+          <span className={`text-[13px] font-semibold ${textColor}`}>
             {moodLabel}
           </span>
         </div>
@@ -960,18 +960,18 @@ function ShopPulseMood({ stats }: { stats: AdminDashboardStats | undefined }) {
         <div className="flex items-center gap-5 ml-auto">
           <div className="text-center">
             <div className="text-[17px] font-semibold text-foreground tabular-nums">{jobsClosed}</div>
-            <div className="text-[9px] text-muted-foreground/80 tracking-[0.18em] uppercase mt-0.5">Jobs</div>
+            <div className="text-[9px] text-muted-foreground/80 mt-0.5">Jobs</div>
           </div>
           <div className="text-center">
             <div className="text-[17px] font-semibold text-foreground tabular-nums">${revenueToday.toLocaleString()}</div>
-            <div className="text-[9px] text-muted-foreground/80 tracking-[0.18em] uppercase mt-0.5">Revenue</div>
+            <div className="text-[9px] text-muted-foreground/80 mt-0.5">Revenue</div>
             {asOfLabel && (
               <div className="text-[8px] text-muted-foreground/60 tabular-nums mt-0.5">as of {asOfLabel}</div>
             )}
           </div>
           <div className="text-center">
             <div className={`text-[17px] font-semibold tabular-nums ${textColor}`}>{pacePercent}%</div>
-            <div className="text-[9px] text-muted-foreground/80 tracking-[0.18em] uppercase mt-0.5">Pace</div>
+            <div className="text-[9px] text-muted-foreground/80 mt-0.5">Pace</div>
           </div>
         </div>
       </div>

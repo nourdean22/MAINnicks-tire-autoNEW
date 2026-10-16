@@ -139,7 +139,7 @@ export function FilterChips({ chips, onClearAll }: {
 
   return (
     <div className="flex items-center gap-2 flex-wrap py-1">
-      <span className="text-[10px] font-bold tracking-[0.15em] text-foreground/40 uppercase">
+      <span className="text-[10px] font-bold text-foreground/40 ">
         Filtered by
       </span>
       {active.map((chip) => (

@@ -124,7 +124,7 @@ export default function CampaignPackageCard() {
         </div>
         {(evidenceOptions.data?.length ?? 0) > 0 && (
           <div className="space-y-1.5">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <p className="text-xs font-semibold text-muted-foreground">
               Attach real evidence (verified before use) — {proofHandles.length}/{MAX_PROOF_HANDLES}
             </p>
             <div className="flex max-h-36 flex-col gap-1 overflow-y-auto">

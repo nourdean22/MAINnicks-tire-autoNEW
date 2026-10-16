@@ -40,7 +40,7 @@ export function TodaysRealNumbers() {
     <div className="bg-card border border-border/30">
       <div className="px-4 py-3 border-b border-border/30 flex items-center gap-2">
         <TrendingUp className="w-4 h-4 text-foreground/60" />
-        <span className="text-xs uppercase tracking-[0.15em] text-foreground/70 font-medium">
+        <span className="text-xs text-foreground/70 font-medium">
           Today, for real
         </span>
       </div>

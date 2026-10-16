@@ -81,7 +81,7 @@ export default function PublishDrawer({ isOpen, onClose, draft, onMarkPosted, is
             <Images className="w-4 h-4 text-primary" />
           )}
           <div>
-            <h3 className="font-bold text-sm text-foreground tracking-wider uppercase">Publish Guide</h3>
+            <h3 className="font-bold text-sm text-foreground ">Publish guide</h3>
             <p className="text-[10px] text-foreground/40 font-mono truncate max-w-[320px]">{draft.topic}</p>
           </div>
         </div>
@@ -129,7 +129,7 @@ export default function PublishDrawer({ isOpen, onClose, draft, onMarkPosted, is
             <div className="w-0.5 flex-1 bg-border/20 my-1" />
           </div>
           <div className="flex-1 space-y-2 pb-4">
-            <h4 className="font-bold text-xs text-foreground/90 tracking-wide uppercase">Copy AI Asset Prompts</h4>
+            <h4 className="font-bold text-xs text-foreground/90 ">Copy AI asset prompts</h4>
             <p className="text-[11px] text-foreground/55 leading-relaxed">
               Grab the Higgsfield prompts and visual outline for this concept to generate your images or storyboard beats.
             </p>
@@ -152,7 +152,7 @@ export default function PublishDrawer({ isOpen, onClose, draft, onMarkPosted, is
             <div className="w-0.5 flex-1 bg-border/20 my-1" />
           </div>
           <div className="flex-1 space-y-2 pb-4">
-            <h4 className="font-bold text-xs text-foreground/90 tracking-wide uppercase">Generate Assets</h4>
+            <h4 className="font-bold text-xs text-foreground/90 ">Generate assets</h4>
             <p className="text-[11px] text-foreground/55 leading-relaxed">
               Open Higgsfield or your choice of generator, paste the prompts, download the rendered video/images, and prepare your draft.
             </p>
@@ -178,7 +178,7 @@ export default function PublishDrawer({ isOpen, onClose, draft, onMarkPosted, is
             <div className="w-0.5 flex-1 bg-border/20 my-1" />
           </div>
           <div className="flex-1 space-y-2 pb-4">
-            <h4 className="font-bold text-xs text-foreground/90 tracking-wide uppercase">Copy Caption & Tags</h4>
+            <h4 className="font-bold text-xs text-foreground/90 ">Copy caption & tags</h4>
             <p className="text-[11px] text-foreground/55 leading-relaxed">
               Copy the claim-safe description and hashtags and paste them in your Instagram/Facebook composer.
             </p>
@@ -200,7 +200,7 @@ export default function PublishDrawer({ isOpen, onClose, draft, onMarkPosted, is
             </div>
           </div>
           <div className="flex-1 space-y-2">
-            <h4 className="font-bold text-xs text-foreground/90 tracking-wide uppercase">Mark Posted</h4>
+            <h4 className="font-bold text-xs text-foreground/90 ">Mark posted</h4>
             <p className="text-[11px] text-foreground/55 leading-relaxed">
               Once you've posted the content manually, mark it as posted here to update the Google Sheet CRM status.
             </p>

@@ -209,27 +209,27 @@ export default function Settings() {
         <Card>
           <CardHeader><CardTitle>Meta IDs</CardTitle><CardDescription>Database overrides take precedence over environment defaults.</CardDescription></CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-1"><label className="text-xs font-semibold uppercase text-muted-foreground">Meta App ID</label><Input value={appId} onChange={(event) => setAppId(event.target.value)} /></div>
-            <div className="space-y-1"><label className="text-xs font-semibold uppercase text-muted-foreground">Facebook Page ID</label><Input value={pageId} onChange={(event) => setPageId(event.target.value)} /></div>
-            <div className="space-y-1"><label className="text-xs font-semibold uppercase text-muted-foreground">Instagram Business User ID</label><Input value={igUserId} onChange={(event) => setIgUserId(event.target.value)} /></div>
-            <div className="space-y-1"><label className="text-xs font-semibold uppercase text-muted-foreground">Replace App Secret</label><Input type="password" value={appSecret} onChange={(event) => setAppSecret(event.target.value)} placeholder={config.data?.hasSecret ? "Secret already stored — leave blank to keep it" : "Enter Meta app secret"} /></div>
+            <div className="space-y-1"><label className="text-xs font-semibold text-muted-foreground">Meta app ID</label><Input value={appId} onChange={(event) => setAppId(event.target.value)} /></div>
+            <div className="space-y-1"><label className="text-xs font-semibold text-muted-foreground">Facebook page ID</label><Input value={pageId} onChange={(event) => setPageId(event.target.value)} /></div>
+            <div className="space-y-1"><label className="text-xs font-semibold text-muted-foreground">Instagram business user ID</label><Input value={igUserId} onChange={(event) => setIgUserId(event.target.value)} /></div>
+            <div className="space-y-1"><label className="text-xs font-semibold text-muted-foreground">Replace app secret</label><Input type="password" value={appSecret} onChange={(event) => setAppSecret(event.target.value)} placeholder={config.data?.hasSecret ? "Secret already stored — leave blank to keep it" : "Enter Meta app secret"} /></div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader><CardTitle>Generation Provider</CardTitle><CardDescription>Studio V2 static cards render deterministically. This provider remains available for autonomous imagery and Reel assets.</CardDescription></CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-1"><label className="text-xs font-semibold uppercase text-muted-foreground">Image provider</label><select value={imageProvider} onChange={(event) => setImageProvider(event.target.value as typeof imageProvider)} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"><option value="gemini">Gemini</option><option value="openai">OpenAI-compatible</option><option value="higgsfield">Higgsfield</option></select></div>
+            <div className="space-y-1"><label className="text-xs font-semibold text-muted-foreground">Image provider</label><select value={imageProvider} onChange={(event) => setImageProvider(event.target.value as typeof imageProvider)} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"><option value="gemini">Gemini</option><option value="openai">OpenAI-compatible</option><option value="higgsfield">Higgsfield</option></select></div>
             <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 space-y-3">
               <p className="text-xs leading-5 text-muted-foreground">
                 <strong className="text-foreground">Higgsfield API key (preferred).</strong> A static key — nothing
                 expires, no device flow, nothing to revoke. Set BOTH fields and reel generation uses this lane
                 automatically. Get one at cloud.higgsfield.ai → API. Leave blank to keep the stored key.
               </p>
-              <div className="space-y-1"><label className="text-xs font-semibold uppercase text-muted-foreground">API Key ID</label><Input value={higgsfieldApiKeyId} onChange={(event) => setHiggsfieldApiKeyId(event.target.value)} className="font-mono text-xs" placeholder={config.data?.hasHiggsfieldApiKey ? "API key already stored — leave blank to keep it" : "d8781441-..."} /></div>
-              <div className="space-y-1"><label className="text-xs font-semibold uppercase text-muted-foreground">API Key Secret</label><Input type="password" value={higgsfieldApiKeySecret} onChange={(event) => setHiggsfieldApiKeySecret(event.target.value)} className="font-mono text-xs" placeholder={config.data?.hasHiggsfieldApiKey ? "Stored — leave blank to keep it" : "paste the secret"} /></div>
+              <div className="space-y-1"><label className="text-xs font-semibold text-muted-foreground">API Key ID</label><Input value={higgsfieldApiKeyId} onChange={(event) => setHiggsfieldApiKeyId(event.target.value)} className="font-mono text-xs" placeholder={config.data?.hasHiggsfieldApiKey ? "API key already stored — leave blank to keep it" : "d8781441-..."} /></div>
+              <div className="space-y-1"><label className="text-xs font-semibold text-muted-foreground">API Key Secret</label><Input type="password" value={higgsfieldApiKeySecret} onChange={(event) => setHiggsfieldApiKeySecret(event.target.value)} className="font-mono text-xs" placeholder={config.data?.hasHiggsfieldApiKey ? "Stored — leave blank to keep it" : "paste the secret"} /></div>
             </div>
-            <div className="space-y-1"><label className="text-xs font-semibold uppercase text-muted-foreground">Replace Higgsfield credentials JSON (CLI session — legacy, expires)</label><Textarea value={higgsfieldCredentialsJson} onChange={(event) => setHiggsfieldCredentialsJson(event.target.value)} className="min-h-40 font-mono text-xs" placeholder={config.data?.hasHiggsfieldCreds ? "Credentials already stored — leave blank to keep them" : "Paste credentials JSON only when rotating credentials"} /></div>
+            <div className="space-y-1"><label className="text-xs font-semibold text-muted-foreground">Replace Higgsfield credentials JSON (CLI session — legacy, expires)</label><Textarea value={higgsfieldCredentialsJson} onChange={(event) => setHiggsfieldCredentialsJson(event.target.value)} className="min-h-40 font-mono text-xs" placeholder={config.data?.hasHiggsfieldCreds ? "Credentials already stored — leave blank to keep them" : "Paste credentials JSON only when rotating credentials"} /></div>
             <div className="rounded-lg border bg-muted/20 p-3 text-xs leading-5 text-muted-foreground"><CheckCircle2 className="mr-2 inline h-4 w-4 text-emerald-400" />Studio V2 post, ad, carousel, and Story layouts do not depend on generative text rendering, preventing the garbled lettering shown in the old poster.</div>
           </CardContent>
         </Card>

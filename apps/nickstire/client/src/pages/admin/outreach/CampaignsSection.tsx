@@ -195,7 +195,7 @@ export default function CampaignsSection() {
           <div className="space-y-6">
             {/* Campaign Name */}
             <div>
-              <label className="block text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-2">
+              <label className="block text-[11px] text-foreground/50 font-medium mb-2">
                 Campaign name
               </label>
               <input
@@ -209,7 +209,7 @@ export default function CampaignsSection() {
 
             {/* Template Selection */}
             <div>
-              <label className="block text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-3">
+              <label className="block text-[11px] text-foreground/50 font-medium mb-3">
                 Template
               </label>
               <div className="grid grid-cols-2 gap-3">
@@ -238,7 +238,7 @@ export default function CampaignsSection() {
 
             {/* Segment Selection */}
             <div>
-              <label className="block text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-3">
+              <label className="block text-[11px] text-foreground/50 font-medium mb-3">
                 Target segment
               </label>
               <div className="grid grid-cols-3 gap-3">
@@ -264,7 +264,7 @@ export default function CampaignsSection() {
 
             {/* Custom Message (Optional) */}
             <div>
-              <label className="block text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-2">
+              <label className="block text-[11px] text-foreground/50 font-medium mb-2">
                 Custom message <span className="normal-case tracking-normal text-foreground/30">(optional)</span>
               </label>
               <textarea

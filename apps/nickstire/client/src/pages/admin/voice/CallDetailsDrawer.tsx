@@ -68,7 +68,7 @@ export function CallDetailsDrawer({ callId, onClose }: { callId: string; onClose
               href={VAPI_LINKS.callDetail(callId)}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-[11px] font-medium tracking-[0.15em] uppercase text-foreground/60 hover:text-primary border border-border/40 hover:border-primary/40 rounded px-2 py-1 transition-colors"
+              className="inline-flex items-center gap-1 text-[11px] font-medium text-foreground/60 hover:text-primary border border-border/40 hover:border-primary/40 rounded px-2 py-1 transition-colors"
               title="Open this call in the VAPI dashboard (recordings, raw events, etc.)"
             >
               Open in VAPI <ExternalLink className="w-3 h-3" />
@@ -132,7 +132,7 @@ export function CallDetailsDrawer({ callId, onClose }: { callId: string; onClose
                     }
                     disabled={proposeCallback.isPending}
                     title="Creates a DRAFT in the approval queue — nothing happens until it is approved there"
-                    className="ml-auto inline-flex items-center gap-1.5 min-h-[44px] border border-violet-500/40 text-violet-500 px-3 py-2 font-bold text-[11px] tracking-wide uppercase hover:bg-violet-500/10 disabled:opacity-50 rounded"
+                    className="ml-auto inline-flex items-center gap-1.5 min-h-[44px] border border-violet-500/40 text-violet-500 px-3 py-2 font-bold text-[11px] hover:bg-violet-500/10 disabled:opacity-50 rounded"
                   >
                     <ClipboardList className="w-3.5 h-3.5" /> Flag callback
                   </button>
@@ -142,7 +142,7 @@ export function CallDetailsDrawer({ callId, onClose }: { callId: string; onClose
               {/* Recording — keeps prime real estate so you can listen while reading */}
               {details.recordingUrl && (
                 <div className="rounded border border-border/30 bg-card/40 p-2 flex items-center gap-2">
-                  <span className="text-[10px] uppercase tracking-[0.15em] text-foreground/45 shrink-0">
+                  <span className="text-[10px] text-foreground/45 shrink-0">
                     Recording
                   </span>
                   <audio controls src={details.recordingUrl} className="flex-1 h-8" />
@@ -173,7 +173,7 @@ export function CallDetailsDrawer({ callId, onClose }: { callId: string; onClose
                 if (conversation.length === 0 && details.transcript) {
                   return (
                     <div>
-                      <div className="text-[11px] uppercase tracking-[0.15em] font-medium text-foreground/60 mb-2">
+                      <div className="text-[11px] font-medium text-foreground/60 mb-2">
                         Transcript
                       </div>
                       <pre className="text-[13px] leading-relaxed whitespace-pre-wrap font-sans bg-card/40 border border-border/30 rounded p-3">
@@ -185,7 +185,7 @@ export function CallDetailsDrawer({ callId, onClose }: { callId: string; onClose
                 return (
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-[11px] uppercase tracking-[0.15em] font-medium text-foreground/60">
+                      <span className="text-[11px] font-medium text-foreground/60">
                         Transcript ({conversation.length} {conversation.length === 1 ? "turn" : "turns"})
                       </span>
                       <span className="text-[10px] text-foreground/30">
@@ -208,7 +208,7 @@ export function CallDetailsDrawer({ callId, onClose }: { callId: string; onClose
                             }`}
                           >
                             <div className="flex items-center gap-2 mb-0.5">
-                              <span className="text-[10px] uppercase tracking-[0.12em] font-medium text-foreground/50">
+                              <span className="text-[10px] font-medium text-foreground/50">
                                 {isUser ? "Caller" : "Nick"}
                               </span>
                               {msg.secondsFromStart !== null && (
@@ -228,7 +228,7 @@ export function CallDetailsDrawer({ callId, onClose }: { callId: string; onClose
 
               {/* Below-transcript: secondary detail (collapsed by default) */}
               <details className="rounded border border-border/30 bg-card/30">
-                <summary className="cursor-pointer px-3 py-2 text-[11px] font-medium uppercase tracking-[0.15em] text-foreground/60 hover:text-foreground select-none">
+                <summary className="cursor-pointer px-3 py-2 text-[11px] font-medium text-foreground/60 hover:text-foreground select-none">
                   Call detail + tool calls{details.toolCalls.length > 0 ? ` (${details.toolCalls.length})` : ""}
                 </summary>
                 <div className="px-3 py-3 border-t border-border/20 space-y-3">
@@ -236,18 +236,18 @@ export function CallDetailsDrawer({ callId, onClose }: { callId: string; onClose
                   <dl className="grid grid-cols-2 gap-3 text-sm">
                     {details.cost !== null && (
                       <div>
-                        <dt className="text-[10px] uppercase tracking-[0.15em] text-foreground/45">Cost</dt>
+                        <dt className="text-[10px] text-foreground/45">Cost</dt>
                         <dd className="font-mono tabular-nums">${details.cost.toFixed(3)}</dd>
                       </div>
                     )}
                     {details.successEvaluation && (
                       <div>
-                        <dt className="text-[10px] uppercase tracking-[0.15em] text-foreground/45">VAPI Success Eval</dt>
+                        <dt className="text-[10px] text-foreground/45">VAPI Success Eval</dt>
                         <dd className="text-[12px]">{details.successEvaluation}</dd>
                       </div>
                     )}
                     <div>
-                      <dt className="text-[10px] uppercase tracking-[0.15em] text-foreground/45">Call ID</dt>
+                      <dt className="text-[10px] text-foreground/45">Call ID</dt>
                       <dd className="font-mono text-[11px] text-foreground/70 break-all">{details.id}</dd>
                     </div>
                   </dl>
@@ -255,7 +255,7 @@ export function CallDetailsDrawer({ callId, onClose }: { callId: string; onClose
                   {/* Summary (AI-generated) */}
                   {details.summary && (
                     <div>
-                      <div className="text-[10px] uppercase tracking-[0.15em] text-foreground/45 mb-1">AI Summary</div>
+                      <div className="text-[10px] text-foreground/45 mb-1">AI Summary</div>
                       <div className="text-[12px] leading-relaxed text-foreground/80">{details.summary}</div>
                     </div>
                   )}
@@ -263,7 +263,7 @@ export function CallDetailsDrawer({ callId, onClose }: { callId: string; onClose
                   {/* Tool calls */}
                   {details.toolCalls.length > 0 && (
                     <div>
-                      <div className="text-[10px] uppercase tracking-wider text-primary/80 mb-2">
+                      <div className="text-[10px] text-primary/80 mb-2">
                         Tool calls
                       </div>
                       <ul className="space-y-1.5">

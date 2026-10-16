@@ -60,7 +60,7 @@ export default function SalesCard() {
       aria-label="Shop sales"
     >
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-        <h2 className="text-sm uppercase tracking-wide text-foreground/60 flex items-center gap-2">
+        <h2 className="text-sm text-foreground/60 flex items-center gap-2">
           <DollarSign className="w-4 h-4" /> Billed
         </h2>
         <div className="flex flex-wrap gap-1" role="group" aria-label="Sales period">

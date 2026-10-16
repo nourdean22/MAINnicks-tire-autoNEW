@@ -152,7 +152,7 @@ export default function VapiPanel() {
       {status?.assistants && status.assistants.length > 0 && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <p className="text-[10px] font-bold tracking-[0.15em] uppercase text-foreground/50">Configured Assistants</p>
+            <p className="text-[10px] font-bold text-foreground/50">Configured assistants</p>
             <div className="flex items-center gap-2 flex-wrap justify-end">
             {firstAssistantId && (
               <button
@@ -201,7 +201,7 @@ export default function VapiPanel() {
                     : "border border-border/30 bg-background/30 p-2.5"
               }
             >
-              <p className="text-[10px] font-bold tracking-[0.12em] uppercase text-foreground/60 mb-1">
+              <p className="text-[10px] font-bold text-foreground/60 mb-1">
                 {routing.state === "mismatch"
                   ? "Pushes are not reaching the answering assistant"
                   : routing.state === "match"
@@ -227,7 +227,7 @@ export default function VapiPanel() {
           )}
           {promptLessons && promptLessons.length > 0 && (
             <div className="border border-primary/20 bg-primary/[0.04] p-2.5">
-              <p className="text-[10px] font-bold tracking-[0.12em] uppercase text-primary/80 mb-1">
+              <p className="text-[10px] font-bold text-primary/80 mb-1">
                 Learned lessons appended on next push ({promptLessons.length})
               </p>
               <ul className="space-y-1">
@@ -355,7 +355,7 @@ export default function VapiPanel() {
         <div data-testid="prompt-evolution" className="border border-border/40 bg-background/40 p-3 space-y-2">
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <div>
-              <p className="text-[10px] font-bold tracking-[0.15em] uppercase text-foreground/50">Prompt experiment</p>
+              <p className="text-[10px] font-bold text-foreground/50">Prompt experiment</p>
               <p className="text-[11px] text-foreground/60">
                 {evolution?.active
                   ? `Running for ${Math.round(evolution.active.elapsedMs / 60000)} min of a ${Math.round(evolution.active.budgetMs / 60000)}-minute budget. This panel refreshes every 30s.`

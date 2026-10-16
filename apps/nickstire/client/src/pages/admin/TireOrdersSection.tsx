@@ -360,7 +360,7 @@ export default function TireOrdersSection() {
                   >
                     <div className="flex-1 min-w-0 space-y-1.5">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className={`px-2 py-0.5 border rounded text-xs font-extrabold uppercase tracking-wider ${priorityStyle.badge}`}>
+                        <span className={`px-2 py-0.5 border rounded text-xs font-extrabold ${priorityStyle.badge}`}>
                           {nextAction.priority.toUpperCase()}
                         </span>
                         <span className="text-sm font-bold text-foreground">{order.orderNumber}</span>
@@ -440,7 +440,7 @@ export default function TireOrdersSection() {
                         </div>
 
                         {/* Quote confidence */}
-                        <span className={`px-2 py-0.5 text-xs font-bold border rounded uppercase ${getConfidenceBadgeStyles(confidence.grade)}`}>
+                        <span className={`px-2 py-0.5 text-xs font-bold border rounded ${getConfidenceBadgeStyles(confidence.grade)}`}>
                           {confidence.grade} Confidence
                         </span>
                       </div>
@@ -721,8 +721,8 @@ function OrderFormEdit({
           accent={nextAction.priority === "urgent" ? "danger" : nextAction.priority === "high" ? "warning" : "primary"}
           icon={<Wrench className="w-4 h-4" />}
           actions={
-            <span className="text-xs uppercase font-extrabold tracking-wider text-muted-foreground">
-              Confidence Score: {confidence.score}/100
+            <span className="text-xs font-extrabold text-muted-foreground">
+              Confidence score: {confidence.score}/100
             </span>
           }
         >
@@ -755,7 +755,7 @@ function OrderFormEdit({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Status Selector */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-foreground/85 tracking-wide uppercase">Order Status</label>
+              <label className="text-xs font-bold text-foreground/85 ">Order status</label>
               <select
                 ref={statusRef}
                 value={status}
@@ -775,7 +775,7 @@ function OrderFormEdit({
 
             {/* Gateway PO reference */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-foreground/85 tracking-wide uppercase">Gateway PO / Order Ref</label>
+              <label className="text-xs font-bold text-foreground/85 ">Gateway PO / order ref</label>
               <input
                 ref={gatewayRef}
                 type="text"
@@ -788,7 +788,7 @@ function OrderFormEdit({
 
             {/* Expected delivery */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-foreground/85 tracking-wide uppercase">Expected Supplier Delivery</label>
+              <label className="text-xs font-bold text-foreground/85 ">Expected supplier delivery</label>
               <input
                 ref={deliveryRef}
                 type="datetime-local"
@@ -800,7 +800,7 @@ function OrderFormEdit({
 
             {/* Installation Date */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-foreground/85 tracking-wide uppercase">Scheduled Installation Date</label>
+              <label className="text-xs font-bold text-foreground/85 ">Scheduled installation date</label>
               <input
                 ref={installRef}
                 type="datetime-local"
@@ -812,7 +812,7 @@ function OrderFormEdit({
 
             {/* Admin notes (full width) */}
             <div className="flex flex-col gap-1.5 md:col-span-2">
-              <label className="text-xs font-bold text-foreground/85 tracking-wide uppercase">Admin Notes (internal only)</label>
+              <label className="text-xs font-bold text-foreground/85 ">Admin Notes (internal only)</label>
               <textarea
                 ref={notesRef}
                 value={adminNotes}
@@ -826,16 +826,16 @@ function OrderFormEdit({
             {/* Refund Options / Status Banners */}
             {order.paymentStatus === "paid" && (
               <div className="flex flex-col gap-2.5 p-3.5 bg-red-500/[0.02] border border-red-500/15 rounded-lg md:col-span-2 shadow-[0_1px_3px_rgba(239,68,68,0.02)]">
-                <h5 className="text-xs font-black uppercase tracking-wider text-red-400 flex items-center gap-1.5">
+                <h5 className="text-xs font-black text-red-400 flex items-center gap-1.5">
                   <AlertTriangle className="w-4 h-4" />
-                  Online Stripe Payment Refund
+                  Online Stripe payment refund
                 </h5>
                 <p className="text-xs font-medium text-muted-foreground/90 leading-relaxed">
                   This order has been paid online. If the order is cancelled or customer needs their money back, you can issue a full refund directly to the original card.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-3 mt-1 items-stretch sm:items-end">
                   <div className="flex-1 flex flex-col gap-1.5">
-                    <label className="text-[10px] font-black text-foreground/75 tracking-wider uppercase">Refund Reason (required)</label>
+                    <label className="text-[10px] font-black text-foreground/75 ">Refund Reason (required)</label>
                     <input
                       type="text"
                       value={refundReason}
