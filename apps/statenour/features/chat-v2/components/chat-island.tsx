@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown, Brain, History, Mic, MicOff, MoreHorizontal, Volume2, VolumeX } from "lucide-react";
+import { ArrowDown, Brain, History, Mic, MicOff, MoreHorizontal, Volume2, VolumeX, X } from "lucide-react";
 import { isNearBottom, nextFollow } from "../lib/scroll-position";
 import { scrollBehavior } from "@/lib/ui/scroll-behavior";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -444,6 +444,21 @@ export function ChatIsland() {
       <ChatMediaDock />
 
       <div className="relative z-10 bg-canvas px-3 pb-3 pt-2 sm:px-4">
+        {/* W3b: page context was attached silently and always (PageContextBridge, use-chat-stream.ts).
+            The chip says what rides the next turn; its x leaves the anchors out of that send. */}
+        {chat.pageContext && (
+          <div className="mx-auto mb-1 flex max-w-4xl items-center gap-1 text-[12px] text-fg-secondary">
+            <span className="min-w-0 truncate">Page context: {chat.pageContext.route} attached</span>
+            <button
+              type="button"
+              onClick={chat.detachPageContext}
+              aria-label="Detach page context for this turn"
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-control text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:bg-surface hover:text-fg"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        )}
         <ChatComposer chat={chat} />
       </div>
 

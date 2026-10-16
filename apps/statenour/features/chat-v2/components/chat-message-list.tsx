@@ -426,12 +426,10 @@ export function ChatMessageList({
     }
     return (
       <div className="mx-auto flex h-full w-full max-w-3xl flex-col justify-center p-5 sm:p-8">
-        <div className="mb-8">
-          <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">NICK</p>
-          <h2 className="mt-2 text-[26px] font-semibold tracking-[-0.02em] text-fg">What are we solving?</h2>
-          <p className="mt-2 max-w-[48ch] text-[15px] leading-relaxed text-fg-secondary">
-            Live business data, memory, tasks, research, and verified system actions from one surface.
-          </p>
+        {/* W3b: the headline is the hero, in the verdict role Home uses (the one line a page may
+            shout). The NICK eyebrow (the header says Nick) and the description are gone. */}
+        <div className="mb-7">
+          <h2 className="vt-verdict text-[2.25rem] leading-[1.04] sm:text-[2.75rem] xl:text-[3.25rem]">What are we solving?</h2>
           {(connection === "degraded" || connection === "offline") && (
             <p className="mt-3 inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-[12px] text-amber-300">
               <AlertTriangle size={12} /> Chat is degraded. Run /diagnose for an independent check.
@@ -513,7 +511,7 @@ export function ChatMessageList({
               <span className="sr-only">{message.role === "user" ? "You:" : "Nick:"}</span>
               {message.role === "assistant" && (
                 <p className="mb-2 font-mono text-[11px] tracking-[0.1em] text-fg-tertiary" aria-hidden>
-                  NICK
+                  Nick
                 </p>
               )}
               {message.parts?.map((part, index) => {

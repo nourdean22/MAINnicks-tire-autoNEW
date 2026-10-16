@@ -43,19 +43,7 @@ const conversationKeyOf = (privateMode: boolean) => (privateMode ? "private" : u
 const isTailCutOf = (now: readonly ChatUIMessage[], before: readonly ChatUIMessage[]) =>
   now.length < before.length && now.every((m, i) => m.id === before[i].id);
 
-const PAGE_ANCHOR_KEYS = [
-  "lastTaskId",
-  "lastGoalId",
-  "lastJournalEntryId",
-  "lastDecisionId",
-  "lastPinId",
-  "lastReflectionId",
-  "lastMissionId",
-  // 2026-08-12 · the source page's route — the server has consumed
-  // body.contextRoute (route hint + TOOL_BIAS) since Wave 30, but no
-  // text-chat client ever sent it. The bridge now stores it per page.
-  "contextRoute",
-] as const;
+import { PAGE_ANCHOR_KEYS, pageContextForTurn } from "../lib/page-context-anchors";
 
 export type UseChatStreamOptions = {
   /**
@@ -121,18 +109,35 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
     else delete bodyRef.current.actionPermission;
   }, [privateMode, posture, depth, actionPermission]);
 
-  useEffect(() => {
-    const apply = (ctx: PageContextPayload | null) => {
-      for (const key of PAGE_ANCHOR_KEYS) delete bodyRef.current[key];
-      if (!ctx) return;
-      for (const key of PAGE_ANCHOR_KEYS) {
-        const value = ctx[key];
-        if (value) bodyRef.current[key] = value;
-      }
-    };
-    apply(readPageContext());
-    return onPageContextChanged(apply);
+  // W3b: the page-context chip. The anchors still ride every request by default; the chip's x
+  // detaches them for this turn (the next send that goes out re-attaches whatever the bridge holds).
+  const [pageContext, setPageContext] = useState<{ route: string } | null>(null);
+  const pageContextDetachedRef = useRef(false);
+  const applyPageContext = useCallback((ctx: PageContextPayload | null) => {
+    for (const key of PAGE_ANCHOR_KEYS) delete bodyRef.current[key];
+    const turn = pageContextForTurn(ctx, pageContextDetachedRef.current);
+    Object.assign(bodyRef.current, turn.anchors);
+    setPageContext(turn.chip);
   }, []);
+  const detachPageContext = useCallback(() => {
+    pageContextDetachedRef.current = true;
+    applyPageContext(readPageContext());
+  }, [applyPageContext]);
+  // Called after a send went out: a detach covers one turn only.
+  const reattachPageContextAfter = useCallback(
+    (sent: Promise<unknown> | void) => {
+      if (!pageContextDetachedRef.current) return;
+      void Promise.resolve(sent).finally(() => {
+        pageContextDetachedRef.current = false;
+        applyPageContext(readPageContext());
+      });
+    },
+    [applyPageContext],
+  );
+  useEffect(() => {
+    applyPageContext(readPageContext());
+    return onPageContextChanged(applyPageContext);
+  }, [applyPageContext]);
 
   // 2026-08-28 · WP2 review fix · automatic re-resume.
   //
@@ -758,7 +763,9 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
       // A new turn gets a fresh partial-resume budget; the cap exists to
       // bound ONE turn's reattachments, not the session's.
       resumeAttemptsRef.current = 0;
-      return chat.sendMessage({ text }, turboOpts);
+      const sent = chat.sendMessage({ text }, turboOpts);
+      reattachPageContextAfter(sent);
+      return sent;
     },
     append: ((...args: Parameters<typeof chat.sendMessage>) => {
       sentPrivateRef.current = privateMode;
@@ -771,7 +778,9 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
       clearStall();
       setStopped(null);
       setHold(null);
-      return chat.sendMessage(...args);
+      const sent = chat.sendMessage(...args);
+      reattachPageContextAfter(sent);
+      return sent;
     }) as typeof chat.sendMessage,
     stop: () => {
       cancelPartialResume();
@@ -785,5 +794,7 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
     setMessages: chat.setMessages,
     liveContextBlocks,
     lastTraceId,
+    pageContext,
+    detachPageContext,
   };
 }
