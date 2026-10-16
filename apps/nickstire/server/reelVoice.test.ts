@@ -48,6 +48,53 @@ describe("buildReelSsml", () => {
   });
 });
 
+describe("REEL_VO_PROVIDER (2026-10-16): the operator picks the provider by env; unset keeps the key-presence rule", () => {
+  const both = { GOOGLE_SERVICE_ACCOUNT_EMAIL: "a@b.com", GOOGLE_SERVICE_ACCOUNT_KEY: "k", ELEVENLABS_API_KEY: "x" };
+  it("elevenlabs wins over Google when the operator names it", () => {
+    expect(pickVoiceProvider({ ...both, REEL_VO_PROVIDER: "elevenlabs" } as NodeJS.ProcessEnv)).toBe("elevenlabs");
+  });
+  it("google can be named explicitly, case and spaces ignored", () => {
+    expect(pickVoiceProvider({ ...both, REEL_VO_PROVIDER: " Google " } as NodeJS.ProcessEnv)).toBe("google");
+  });
+  it("a named provider without its key is null, never the other provider", () => {
+    expect(
+      pickVoiceProvider({ GOOGLE_SERVICE_ACCOUNT_EMAIL: "a@b.com", GOOGLE_SERVICE_ACCOUNT_KEY: "k", REEL_VO_PROVIDER: "elevenlabs" } as NodeJS.ProcessEnv),
+    ).toBeNull();
+  });
+  it("an unknown value keeps today's rule (Google first)", () => {
+    expect(pickVoiceProvider({ ...both, REEL_VO_PROVIDER: "polly" } as NodeJS.ProcessEnv)).toBe("google");
+  });
+});
+
+describe("googleTtsRequest voice env (2026-10-16)", () => {
+  it("no env: identical to the pre-env request (Neural2-J, 0.97, -1.5, SSML)", () => {
+    const { body } = googleTtsRequest("Check the inner edge. Then the outer.", {} as NodeJS.ProcessEnv);
+    expect(body).toEqual({
+      input: { ssml: buildReelSsml("Check the inner edge. Then the outer.") },
+      voice: { languageCode: "en-US", name: "en-US-Neural2-J" },
+      audioConfig: { audioEncoding: "LINEAR16", speakingRate: 0.97, pitch: -1.5 },
+    });
+  });
+  it("a Chirp 3 HD voice keeps SSML and speakingRate and sends NO pitch key", () => {
+    const { body } = googleTtsRequest("Hello there.", { REEL_GOOGLE_VOICE: "en-US-Chirp3-HD-Charon" } as NodeJS.ProcessEnv);
+    expect(body.voice).toEqual({ languageCode: "en-US", name: "en-US-Chirp3-HD-Charon" });
+    expect((body.input as { ssml: string }).ssml).toContain("<speak>");
+    const audio = body.audioConfig as Record<string, unknown>;
+    expect(audio.speakingRate).toBe(0.97);
+    expect("pitch" in audio).toBe(false);
+  });
+  it("rate and pitch come from env; a non-number falls back to the default", () => {
+    const a = googleTtsRequest("x", { REEL_GOOGLE_SPEAKING_RATE: "1.05", REEL_GOOGLE_PITCH: "-3" } as NodeJS.ProcessEnv).body.audioConfig;
+    expect(a).toMatchObject({ speakingRate: 1.05, pitch: -3 });
+    const b = googleTtsRequest("x", { REEL_GOOGLE_SPEAKING_RATE: "fast", REEL_GOOGLE_PITCH: "" } as NodeJS.ProcessEnv).body.audioConfig;
+    expect(b).toMatchObject({ speakingRate: 0.97, pitch: -1.5 });
+  });
+  it("the language code follows the voice name", () => {
+    const { body } = googleTtsRequest("x", { REEL_GOOGLE_VOICE: "en-GB-Chirp3-HD-Orus" } as NodeJS.ProcessEnv);
+    expect((body.voice as { languageCode: string }).languageCode).toBe("en-GB");
+  });
+});
+
 describe("generateVoiceover", () => {
   it("returns null for empty/whitespace script without calling any provider", async () => {
     expect(await generateVoiceover("   ")).toBeNull();
