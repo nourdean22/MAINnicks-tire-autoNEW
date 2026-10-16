@@ -21,15 +21,11 @@ name: Adoption gates
 #  - the curdate gate was its own 16-second job, billed as a full minute. It needs no install, same as
 #    static-gates, so its steps live here now, unchanged. `!cancelled()` keeps both verdicts visible when
 #    the first half is red, as the separate jobs did.
-#  - a push to main gets its own group per commit and is never cancelled (this group used to cancel main
-#    runs); PR pushes supersede each other.
+#  - PR only: the PR head already ran these gates on the merge result, and a push to main re-ran the same
+#    scan for ~5.4 billed minutes a merge. No push trigger means no main run to cancel; PR pushes
+#    supersede each other. `node` in test.yml stays on main as the safety net.
 on:
   pull_request:
-    branches: [main]
-    paths-ignore:
-      - '**/*.md'
-      - 'docs/**'
-  push:
     branches: [main]
     paths-ignore:
       - '**/*.md'
@@ -40,8 +36,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: adoption-gates-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name == 'push' && github.sha || 'run' }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: adoption-gates-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   static-gates:

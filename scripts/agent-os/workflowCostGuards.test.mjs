@@ -13,6 +13,7 @@
  *   required-context  the staged ruleset names only checks that exist ("Workflow / job"), so a fold cannot make
  *                     a required check that nothing reports (a permanent hold the day the ruleset is applied)
  *   adoption-paths    adoption gates skip docs-only diffs but never skip a directory they scan
+ *   adoption-no-main-push  adoption gates run on PRs only (the PR head ran them; node covers main)
  *   proof-paths       the post-deploy storefront proof skips apps/nickstire/docs only
  *   notify-pr         the summary-only notify job does not bill on PRs
  *   diag-no-pr        the always-green typecheck diagnostic does not run on every PR
@@ -299,7 +300,8 @@ export function checkWorkflows(root) {
 
   // adoption-paths
   const adoption = wfs["adoption-gates.yml"] ? triggersOf(wfs["adoption-gates.yml"]) : {};
-  for (const ev of ["pull_request", "push"]) {
+  if ("push" in adoption) flag("adoption-no-main-push", "adoption-gates.yml triggers on push again (PR only: the PR head already ran it; node covers main)");
+  for (const ev of ["pull_request"]) {
     const ig = adoption[ev]?.["paths-ignore"] ?? [];
     if (!ig.length) { flag("adoption-paths", `adoption-gates ${ev} has no paths-ignore, so a docs-only diff still bills the gates`); continue; }
     if (adoption[ev]?.paths) flag("adoption-paths", `adoption-gates ${ev} mixes paths and paths-ignore (GitHub rejects it)`);
@@ -391,6 +393,7 @@ const MUTANTS = [
   ["required-context", "the required job is renamed and the ruleset is not", wf("agent-policy.yml"), (t) => t.replace("name: parity, canaries, authority, secrets, citation", "name: something else")],
   ["required-context", "the ruleset still requires the folded-away check", RULESET,
     (t) => t.replace('"required_status_checks": [', '"required_status_checks": [\n          { "context": "Completion Authority / completion-authority" },')],
+  ["adoption-no-main-push", "adoption-gates runs on push to main again", wf("adoption-gates.yml"), (t) => t.replace("  workflow_dispatch:", "  push:\n    branches: [main]\n  workflow_dispatch:")],
   ["adoption-paths", "the adoption gates stop skipping docs", wf("adoption-gates.yml"), (t) => t.replace(/ {4}paths-ignore:\n( {6}- .*\n)+/g, "")],
   ["adoption-paths", "the adoption gates ignore a directory they scan", wf("adoption-gates.yml"), (t) => t.replace(/( {4}paths-ignore:\n)/, "$1      - 'apps/statenour/components/**'\n")],
   ["proof-paths", "the storefront proof runs for docs-only diffs again", wf("nickstire-proof.yml"), (t) => t.replace(/ {6}- "!apps\/nickstire\/docs\/\*\*"\n/, "")],
