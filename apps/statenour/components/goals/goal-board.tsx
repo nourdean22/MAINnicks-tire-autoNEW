@@ -1127,7 +1127,7 @@ export function GoalBoard() {
                               onChange={(e) => setEditConviction(e.target.value)}
                               className="bg-content border border-edge-default rounded-control px-2 py-0.5 text-[11px] text-fg-secondary focus:outline-none focus:border-accent"
                             >
-                              <option value="" disabled>Pick a conviction</option>
+                              <option value="">No conviction</option>
                               <option value="1">1 · meh</option>
                               <option value="2">2</option>
                               <option value="3">3</option>

@@ -17,7 +17,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { notifyDataChanged, onDataChanged } from "@/lib/events/data-change";
 import { apiFetch } from "@/lib/utils/api-fetch";
-import { readHealthFeed } from "@/lib/state/health-feed";
+import { readHealthFeed, summarizeFeeds } from "@/lib/state/health-feed";
 
 // hooks-lib REST→tRPC slice (2026-05-22) · the FINAL slice.
 // NourStateProvider's `loadAll` fans out across FOUR heterogeneous
@@ -254,7 +254,9 @@ export function NourStateProvider({ children }: { children: ReactNode }) {
         soft(apiFetch<any>("/api/habits/streaks")),
         soft(apiFetch<any>("/api/command/data")),
       ]);
-      const failedFeeds = [health, habitsData, streaksData, cmd].filter((x) => x === null).length;
+      // One pure step for what the feeds add up to (tests/lib/nour-state-feeds.test.tsx): a missing feed, or a
+      // health body whose alerts metric is unavailable, counts as failed and keeps the state word at unknown.
+      const feeds = summarizeFeeds({ health, habitsData, streaksData, cmd });
       // Revenue-aging was removed 2026-04-17 — shop data lives in nickstire.
       // Its source has been a hard-coded null ever since, so every consumer
       // below has been taking its fallback branch the whole time. Left explicit
@@ -304,20 +306,20 @@ export function NourStateProvider({ children }: { children: ReactNode }) {
         streaks: streaksData?.streaks ?? [],
         // truth-substrate audit #4-6: alerts is now a MetricResult — read
         // .value.unresolved (undefined when the read was unavailable → 0 here).
-        driftAlerts: health?.alerts?.value?.unresolved ?? 0,
+        driftAlerts: feeds.driftAlerts ?? 0,
         mit: cmd?.brief?.topTasks?.[0]?.title ?? null,
         urgentItems: cmd?.urgentItems ?? [],
         brainHealth: cmd?.brain?.healthScore ?? 0,
         memoryCount: cmd?.brain?.memoryCount ?? 0,
         agingItems: aging?.agingItems?.slice(0, 5) ?? [],
         agingCritical: aging?.criticalCount ?? 0,
-        systemStatus: health?.status ?? "unknown",
+        systemStatus: feeds.systemStatus,
         bridgeUp: cmd?.system?.bridgeConnected !== false, // default healthy
         agentOnline: cmd?.system?.agentOnline !== false || cmd?.system?.agentRecent === true,
         lastRefresh: new Date(),
         isLoading: false,
         error: null as string | null,
-        failedFeeds,
+        failedFeeds: feeds.failedFeeds,
         currentState: "normal" as const,
       };
 

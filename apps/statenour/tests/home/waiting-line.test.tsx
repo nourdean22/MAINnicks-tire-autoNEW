@@ -56,8 +56,7 @@ describe("waitingLineModel", () => {
 
   it("a failed first read is unknown, and says so", () => {
     const html = renderToStaticMarkup(<WaitingLineView summary={null} status="error" />);
-    expect(html).toContain("unknown");
-    expect(html).toContain("read failed");
+    expect(html).toContain("Unknown, read failed");
     expect(html).not.toContain("<ul");
   });
 

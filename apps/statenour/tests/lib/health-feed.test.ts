@@ -5,7 +5,7 @@
  * no usable body.
  */
 import { describe, expect, it } from "vitest";
-import { readHealthFeed } from "@/lib/state/health-feed";
+import { healthAlertsUnresolved, readHealthFeed } from "@/lib/state/health-feed";
 
 const res = (status: number, body: unknown, json = true) =>
   ({ ok: status < 400, status, json: async () => { if (!json) throw new Error("not json"); return body; } }) as unknown as Response;
@@ -21,6 +21,15 @@ describe("readHealthFeed", () => {
   it("a 200 body comes back as is, unwrapped from an envelope when there is one", async () => {
     expect(await readHealthFeed(async () => res(200, { status: "healthy" }))).toEqual({ status: "healthy" });
     expect(await readHealthFeed(async () => res(200, { ok: true, meta: {}, data: { status: "healthy" } }))).toEqual({ status: "healthy" });
+  });
+
+  it("the alerts metric is read as a number only when its MetricResult carries one (review round 3, item 2)", () => {
+    expect(healthAlertsUnresolved({ status: "degraded", alerts: { status: "ok", value: { unresolved: 2 } } })).toBe(2);
+    expect(healthAlertsUnresolved({ status: "degraded", alerts: { status: "degraded", value: { unresolved: 0 } } })).toBe(0);
+    expect(healthAlertsUnresolved({ status: "degraded", alerts: { status: "unavailable", source: "db", errorCode: "ECONN" } })).toBeNull();
+    expect(healthAlertsUnresolved({ status: "degraded", alerts: { status: "degraded", source: "db", errorCode: "ETIMEDOUT" } })).toBeNull();
+    expect(healthAlertsUnresolved({ status: "healthy" })).toBeNull();
+    expect(healthAlertsUnresolved(null)).toBeNull();
   });
 
   it("a network error, a non-JSON body, or a body without a status is a failed read (null)", async () => {

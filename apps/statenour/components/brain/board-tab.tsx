@@ -211,7 +211,7 @@ export function BoardTab() {
         <div className="rounded-surface border border-edge-subtle bg-content p-4 space-y-3 mt-5">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[11px] font-mono text-fg-secondary">
-              synthesis · {result.boardName.toLowerCase()}
+              synthesis · {result.boardName}
             </span>
             <span className="text-[11px] font-mono tabular-nums text-[var(--text-tertiary)]">
               {Math.round(result.synthesis.confidence * 100)}% confidence
@@ -329,7 +329,7 @@ export function BoardTab() {
                   className="w-full text-left flex items-start gap-2 flex-wrap"
                 >
                   <span className="text-[11px] font-mono text-[var(--text-primary)]">
-                    {take.advisorName.toLowerCase()}
+                    {take.advisorName}
                   </span>
                   {isErrored ? (
                     <span className="text-[11px] font-mono text-red-400">

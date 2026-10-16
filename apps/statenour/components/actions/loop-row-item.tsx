@@ -535,7 +535,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
             never wraps and pushes the layout. */}
         {task.mission?.title && task.mission.title !== "Inbox" && (
           <div className="text-[11px] font-mono text-fg-tertiary truncate leading-tight mb-0.5">
-            {task.mission.title.toLowerCase()}
+            {task.mission.title}
           </div>
         )}
         <div className="flex items-center gap-1.5 flex-wrap">
