@@ -45,6 +45,9 @@ import { loadFeatureFlagOverrides } from "@/lib/feature-flags";
 // also called by the new `chat.list` tRPC procedure · drift impossible.
 import { listConversations } from "@/lib/services/chat-conversation-read";
 import { createInFlightToolCalls, terminateWhenDrained } from "@/lib/services/chat/in-flight-tool-calls";
+import { guardTurn } from "@/lib/services/chat/turn-guard";
+import { afterDrain, type TurnClaim } from "@/lib/services/chat/turn-claim";
+import type { GatePass } from "@/lib/ai/chat/gate";
 
 const log = rootLogger.withSurface("api/ai/chat");
 
@@ -81,7 +84,7 @@ export async function POST(req: Request) {
 
 async function chatPostInner(req: Request) {
   // ── Pipeline timing ──────────────────────────────────────────
-  const { createStageTracker, formatStageLog } = await import("@/lib/ai/chat/timing");
+  const { createStageTracker } = await import("@/lib/ai/chat/timing");
   const stageTracker = createStageTracker();
   const reqId = Math.random().toString(36).slice(2, 9);
 
@@ -95,6 +98,51 @@ async function chatPostInner(req: Request) {
   gateTimer.end();
   if (gate.kind === "block") return gate.response;
 
+  // 2026-10-15 · server-side turn idempotency (lib/services/chat/turn-guard.ts). One live run per
+  // user message, decided BEFORE any work (interceptors, specialists and the model all persist or
+  // act): a re-sent message while the first is still running, or after it was answered, is refused;
+  // a deliberate regenerate (body.trigger) still gets a fresh run. The trace is minted here so the
+  // lease, the response header and the saved rows all name the same attempt.
+  const { mintTraceId } = await import("@/lib/ai/agent-trace");
+  const traceId = mintTraceId();
+  const guardTimer = stageTracker.start("guard");
+  const guard = await guardTurn({
+    lastMessage: gate.messages[gate.messages.length - 1],
+    conversationId: gate.conversationId,
+    trigger: gate.body.trigger,
+    traceId,
+    transcriptOff: gate.privateMode || gate.ephemeral,
+  });
+  guardTimer.end();
+  if (guard.kind === "refuse") return guard.response;
+  // A replay of a first send re-sends with no thread id; it belongs in the thread the first attempt made.
+  const turnGate = guard.conversationId && !gate.conversationId ? { ...gate, conversationId: guard.conversationId } : gate;
+  let response: Response;
+  try {
+    response = await chatTurn({ gate: turnGate, stageTracker, reqId, traceId, turnClaim: guard.claim });
+  } catch (error) {
+    guard.claim?.finish();
+    throw error;
+  }
+  // The streaming path bound the lease to the run (settleWith) and this is a no-op. Any other response
+  // either has nothing running (an error status: released now) or a body that still does the work (an
+  // image, an alternate lane): the lease follows the body.
+  return guard.claim ? guard.claim.holdWhileBodyOpen(response) : response;
+}
+
+async function chatTurn({
+  gate,
+  stageTracker,
+  reqId,
+  traceId,
+  turnClaim,
+}: {
+  gate: GatePass;
+  stageTracker: ReturnType<typeof import("@/lib/ai/chat/timing").createStageTracker>;
+  reqId: string;
+  traceId: string;
+  turnClaim: TurnClaim | null;
+}) {
   const {
     body,
     messages: rawMessages,
@@ -295,8 +343,8 @@ async function chatPostInner(req: Request) {
   // chat turn so every downstream call (auto-rename, distillation,
   // tool invocations) can chain to it via parentId. Without a traceId
   // the operator dashboard can't answer "what did Nick do this turn".
-  const { mintTraceId, recordTrace } = await import("@/lib/ai/agent-trace");
-  const __traceId = mintTraceId();
+  const { recordTrace } = await import("@/lib/ai/agent-trace");
+  const __traceId = traceId;
   // v7.6 · Apr 29 · ChatMessage Batch A · C2 — first-token latency
   // (TTFT). Captured on the first onChunk fire; used as a perceived-
   // quality metric. `let` so onChunk can mutate it once.
@@ -806,6 +854,8 @@ async function chatPostInner(req: Request) {
   // visible in the chat-pipeline log line.
   const streamConfigTimer = stageTracker.start("stream-config");
   convId = resolvedConvId;
+  // A new thread had no id when the lease was taken; a replay of this message needs it.
+  if (convId && convId !== "temp" && convId !== "private") turnClaim?.setConversation(convId);
   // Publish the resolved thread + trust posture to the turn scope so a
   // tool executing below can schedule a follow-up against THIS thread.
   updateTurnContext({
@@ -1301,6 +1351,7 @@ ${priorsBlock}`;
   // always trips, which both misses the tier-keyed prompt cache and admits
   // the ~62k business-knowledge pack. No PII: a length, an enum, a boolean —
   // never the message text.
+  const { formatStageLog } = await import("@/lib/ai/chat/timing");
   log.info("chat_pipeline_stages", {
     line: formatStageLog(reqId, mode, stageTracker.summary()),
     userContentLength: userContent.length,
@@ -1319,7 +1370,12 @@ ${priorsBlock}`;
   // stub or a future wrapper shape omits it, the turn must degrade to
   // pre-WP-A behavior (client-driven completion), never crash.
   // Once it is drained the stream has ended for good: the tool record is final.
-  terminateWhenDrained(__toolCalls, result.consumeStream?.());
+  const toolRecordFinal = terminateWhenDrained(__toolCalls, result.consumeStream?.());
+  // The lease outlives this handler: it ends when the stream has drained (tool record final,
+  // errored row settled) AND the onFinish / onError persist has finished, however either ended.
+  // A replay of a turn whose drain rejected is judged by the errored row's receipts, not held
+  // out by the lease.
+  turnClaim?.settleWith(afterDrain(toolRecordFinal, onFinishPromise));
   if (!transcriptOff && convId) {
     const { registerActiveStream, completeActiveStream } = await import(
       "@/lib/services/chat/active-stream"

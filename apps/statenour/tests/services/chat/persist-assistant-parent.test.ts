@@ -31,6 +31,10 @@ const h = vi.hoisted(() => ({ rows: [] as Row[], seq: 0 }));
 function matches(row: Row, where: Record<string, unknown>): boolean {
   for (const [k, v] of Object.entries(where)) {
     if (v === undefined) continue;
+    if (k === "OR") {
+      if (!(v as Record<string, unknown>[]).some((w) => matches(row, w))) return false;
+      continue;
+    }
     if ((row as Record<string, unknown>)[k] !== v) return false;
   }
   return true;
@@ -179,6 +183,38 @@ describe("overlapping turns keep their own parent", () => {
     const out = await persistAssistantMessage(args("c2", "T2"));
     expect(out.kind).toBe("done");
     expect(assistantParents()).toEqual(["U1", "U2"]);
+  });
+});
+
+describe("a hydrated conversation names its user message by DATABASE id", () => {
+  // useConversations hydrates messages with id = chat_messages.id; the client-minted id lives in
+  // metadata. The first Regenerate of a loaded thread therefore sends "U1", which no row carries
+  // as clientMessageId (2026-10-15).
+  it("U1's database id still resolves to U1, not the newest user row", async () => {
+    const out = await persistAssistantMessage(args("U1", "T1"));
+    expect(out.kind).toBe("done");
+    expect(assistantParents()).toEqual(["U1"]);
+  });
+
+  // KNOWN LIMIT, pinned so it cannot change unseen. Before the either-id lookup, the first Regenerate of a loaded
+  // thread wrote a copy of the user row (client_message_id = the database id) and parented the new reply on the
+  // COPY, so the reply was saved under a duplicate user bubble. It now resolves to the original row, which already
+  // has a reply: chat_messages_assistant_reply_uniq (and this guard) keep the first, and the regenerated reply is
+  // shown but not saved. Same drop as a live thread's Regenerate; the separate "persisted record omits regenerated
+  // reply" task changes this test when it lands.
+  it("a hydrated Regenerate over a thread that already has its reply: the new reply is skipped as a duplicate", async () => {
+    await persistAssistantMessage(args("U1", "T1"));
+    expect(assistantParents()).toEqual(["U1"]);
+
+    const again = await persistAssistantMessage(args("U1", "T2"));
+
+    expect(again.kind).toBe("duplicate-skip");
+    expect(assistantParents()).toEqual(["U1"]);
+  });
+
+  it("an id that matches no row still falls back to the newest user row", async () => {
+    await persistAssistantMessage(args("nobody", "T1"));
+    expect(assistantParents()).toEqual(["U2"]);
   });
 });
 

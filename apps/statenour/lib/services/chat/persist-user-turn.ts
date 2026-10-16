@@ -27,6 +27,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { findUserTurnRow } from "@/lib/services/chat/user-turn-identity";
 import { currentTurn } from "@/lib/agent/turn-context";
 import type { ErrorDomain } from "@/lib/errors/record-error";
 import type { ChatActionPermission } from "@/lib/ai/chat/gate";
@@ -142,12 +143,10 @@ export async function persistUserTurn(input: PersistUserTurnInput): Promise<stri
         // wiring). Don't dedup if attachments differ — re-uploads with
         // the photo are intentional.
         if (clientMessageId) {
-          const existingByClientId = await prisma.chatMessage
-            .findFirst({
-              where: { conversationId: convId, clientMessageId },
-              select: { id: true },
-            })
-            .catch(() => null);
+          // Either id: a hydrated thread names its message by the database id (user-turn-identity.ts).
+          const existingByClientId = await findUserTurnRow({ conversationId: convId, messageId: clientMessageId }).catch(
+            () => null,
+          );
           if (existingByClientId) {
             log.warn("duplicate_client_msg_id_suppressed", {
               conversationId: convId.slice(0, 8),
