@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "nickstire/admin-ui-v1-w0",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "03ea674c-77bd-40aa-9a8a-51c0b1956d0a",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\wonderful-euler-00bf80",
   "claimedBy": "2026-10-16-nick-admin-ui-v1",
   "claimedAt": "2026-10-16T03:03:48.943Z",
   "expiresAt": "2026-10-16T15:03:48.943Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": null
+  "releasedAt": "2026-10-16T06:34:47.599Z",
+  "releaseReason": "branch squash-merged as 4c7fe9067 (#3070) and the remote branch deleted by merge-gate; the push went by URL from a hook-free clone so no origin/ tracking ref was ever created",
+  "priorLeaseSha": "1f92fa9d48fbc9e1550fa0a7778d1bbebc4c5cf6",
+  "releasedBy": "03ea674c-77bd-40aa-9a8a-51c0b1956d0a",
+  "foreignReleaseReason": null
 }
