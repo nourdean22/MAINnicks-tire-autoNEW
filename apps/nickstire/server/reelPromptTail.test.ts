@@ -34,6 +34,12 @@ describe("prompt pack tail", () => {
     expect(pack[2].prompt).toContain(NO_MORPH);
   });
 
+  it("a real_shop_still world with no hero frame (conditioning off) gives the exterior beat the no-morph line too", () => {
+    const off = { ...brief, visualWorld: { ...(brief as any).visualWorld, heroFrameUrl: undefined } } as typeof brief;
+    const offPack = buildHiggsfieldReelPromptPack(off);
+    for (const p of offPack) expect(p.prompt).toContain(NO_MORPH);
+  });
+
   it("the beat restatement is still the last thing the model reads", () => {
     for (const p of pack) {
       const tailAt = p.prompt.indexOf(UNBRANDED);
