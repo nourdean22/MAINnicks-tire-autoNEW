@@ -32,7 +32,7 @@ ANTISLOP MODE: <during|after|n/a> (<session override|global preference>) for any
 CODEMOD RULE: after any class or attribute sweep, re-read each element's rendered text children and fix what the removed class used to hide (case, spacing, separators).
 CONTROLS RULE: a numeric control (threshold, distance, cap) is calibrated per viewport or per input size, never copied from another.
 FIRST: if your cwd is under .claude/worktrees/ and tsc/vitest are "not recognized", run skill harness-worktree-setup.
-SKILLS TO INVOKE FIRST: the lane file's frontmatter list by exact name, then <lane skills, playbook skills>
+SKILLS TO INVOKE FIRST: the lane file's frontmatter list by exact name, then <lane skills, playbook skills>, plus the `skill-recall --file <brief>` output
 VERIFY WITH: <exact command(s) and what passing looks like>
 SELF-AUDIT (before you return): re-read your full diff as a hostile reviewer. Run every new test or gate RED against the
   unfixed code first and record the failure shape (Nf/Mp, and why it failed). Mutate each rule you added and report how many

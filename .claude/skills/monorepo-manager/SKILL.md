@@ -62,6 +62,7 @@ workflow fan-outs and background suites count toward both (four concurrent suite
    prerequisite in the brief or wait for it. Run in background; do not poll. A message to a running session carries ONE
    decision and a first line of REPLY NEEDED or NO REPLY NEEDED; never ask twice ([references/sessions-and-plans.md](references/sessions-and-plans.md)).
    Set the Agent tool's `model` and `effort` from the brief's MODEL / EFFORT line (routing table in the template); a lane never picks its own.
+   Run `node scripts/agent-os/skill-recall.mjs --file <brief>` and put its matches in SKILLS TO INVOKE FIRST.
 6. **Check every return.** Read the real diff in the lane's worktree; reject edits outside owned paths (from the lane
    worktree: `node <your checkout>/scripts/agent-os/check-lane-paths.mjs --lane <lane> --base <base SHA>`, exit 1 = reject;
    exit 2 = not checked, an error or an EMPTY diff from a lane that owns paths, never a pass); re-run its verify command or one
