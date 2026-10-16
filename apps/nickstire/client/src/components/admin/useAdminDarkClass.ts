@@ -1,18 +1,17 @@
 import { useEffect } from "react";
+import { useSetForcedDark } from "@/contexts/ThemeContext";
 
 /**
- * The admin is graphite only (Admin UI v1 W1) and has no theme toggle, but ThemeProvider still
- * restores localStorage.theme, so an admin who once stored "light" would lose every `dark:` variant.
- * While the admin is mounted, <html> carries `dark`; on unmount the previous state comes back, so the
- * public site keeps whatever the visitor chose.
+ * The admin is graphite only (Admin UI v1 W1) and has no theme toggle, but ThemeProvider applies the
+ * visitor's stored theme to <html>. While the admin is mounted it asks the provider to force dark;
+ * the provider owns the class, so its own apply effect cannot undo this on a direct /admin load, and
+ * leaving the admin restores exactly the visitor's theme (localStorage is never touched).
  */
 export function useAdminDarkClass() {
+  const setForcedDark = useSetForcedDark();
   useEffect(() => {
-    const root = document.documentElement;
-    const hadDark = root.classList.contains("dark");
-    root.classList.add("dark");
-    return () => {
-      if (!hadDark) root.classList.remove("dark");
-    };
-  }, []);
+    if (!setForcedDark) return;
+    setForcedDark(true);
+    return () => setForcedDark(false);
+  }, [setForcedDark]);
 }

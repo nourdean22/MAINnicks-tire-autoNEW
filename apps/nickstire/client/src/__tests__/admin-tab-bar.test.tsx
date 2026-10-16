@@ -154,6 +154,32 @@ describe("Search reaches the one command palette", () => {
     expect(screen.getByRole("dialog", { name: "Command search" })).toBeTruthy();
   });
 
+  it("the open palette escapes the sticky topbar's stacking context and covers the bar", () => {
+    // Admin.tsx renders the palette inside `header.admin-topbar` (sticky, z-30, its own stacking
+    // context). Drawn inside it, the palette's z-50 never beat the bar's z-30 on phones.
+    const { container } = render(
+      <div>
+        <header className="admin-topbar sticky top-0 z-30">
+          <CommandSearch allowedSections={sectionsForRole("owner")} onNavigate={noop} onSelectCustomer={noop} />
+        </header>
+        <AdminTabBar role="owner" active="overview" signals={[]} onNavigate={noop} onSearch={noop} />
+      </div>,
+    );
+    act(() => openCommandSearch());
+    const dialog = screen.getByRole("dialog", { name: "Command search" });
+    const topbar = container.querySelector(".admin-topbar")!;
+    expect(document.body.contains(dialog)).toBe(true);
+    expect(topbar.contains(dialog)).toBe(false);
+    expect(topbar.querySelector("button[aria-label='Search']")).not.toBeNull(); // the trigger stays in the header
+    const zOf = (el: Element | null) => Number(/(?:^|\s)z-(\d+)(?:\s|$)/.exec(el?.className ?? "")?.[1] ?? NaN);
+    const scrim = [...document.body.querySelectorAll("div")].find((d) => /(^|\s)fixed(\s)/.test(d.className) && /(^|\s)inset-0(\s|$)/.test(d.className) && !topbar.contains(d));
+    expect(scrim, "a palette scrim outside the topbar").toBeTruthy();
+    expect(zOf(scrim!)).toBeGreaterThan(zOf(bar()));
+    // Escape still closes it after the move.
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog", { name: "Command search" })).toBeNull();
+  });
+
   it("the floating Quick actions button is gone (the bar's Search replaces it)", () => {
     render(<CommandSearch allowedSections={sectionsForRole("owner")} onNavigate={noop} onSelectCustomer={noop} />);
     expect(screen.queryByLabelText("Quick actions")).toBeNull();

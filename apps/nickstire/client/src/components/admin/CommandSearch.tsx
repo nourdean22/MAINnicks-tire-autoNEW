@@ -3,6 +3,7 @@
  * Searches customers, navigates to sections, and provides quick actions.
  */
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { trpc } from "@/lib/trpc";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { Search, Users, CalendarClock, Phone, X, LayoutDashboard, Zap, RefreshCw, Sparkles, AlertTriangle, DollarSign, Star, Crown, PhoneCall, FileText, Activity, Send, MessageSquare, RotateCcw, LayoutGrid, ClipboardList } from "lucide-react";
@@ -784,8 +785,10 @@ export function CommandSearch({ onNavigate, onSelectCustomer, allowedSections }:
         </kbd>
       </button>
 
-      {/* Modal overlay */}
-      {open && (
+      {/* Modal overlay. Portaled to <body>: the trigger lives in the sticky topbar, a stacking
+          context (z-30), and drawn inside it the z-50 scrim and panel lost to the phone bar.
+          Graphite tokens still apply through body:has(.admin-shell) in index.css. */}
+      {open && createPortal(
         <>
           <div className="fixed inset-0 bg-black/60 z-50" onClick={close} />
           <div className="fixed top-[max(0.75rem,env(safe-area-inset-top))] sm:top-[15%] left-1/2 -translate-x-1/2 z-50 w-[calc(100vw-1.5rem)] sm:w-full max-w-lg">
@@ -936,7 +939,8 @@ export function CommandSearch({ onNavigate, onSelectCustomer, allowedSections }:
               </div>
             </div>
           </div>
-        </>
+        </>,
+        document.body,
       )}
     </>
   );

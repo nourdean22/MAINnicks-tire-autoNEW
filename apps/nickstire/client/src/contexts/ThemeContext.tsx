@@ -1,4 +1,4 @@
-import React, { createContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
 
 type Theme = "light" | "dark";
 
@@ -6,6 +6,8 @@ interface ThemeContextType {
   theme: Theme;
   toggleTheme?: () => void;
   switchable: boolean;
+  /** Admin: force the dark class while true, without changing or storing the visitor's theme. */
+  setForcedDark: (on: boolean) => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -35,10 +37,12 @@ export function ThemeProvider({
     }
     return defaultTheme;
   });
+  // The admin (graphite only) forces dark while it is mounted; the visitor's theme is left alone.
+  const [forcedDark, setForcedDark] = useState(false);
 
   useEffect(() => {
     const root = document.documentElement;
-    if (theme === "dark") {
+    if (forcedDark || theme === "dark") {
       root.classList.add("dark");
     } else {
       root.classList.remove("dark");
@@ -47,7 +51,7 @@ export function ThemeProvider({
     if (switchable) {
       localStorage.setItem("theme", theme);
     }
-  }, [theme, switchable]);
+  }, [theme, forcedDark, switchable]);
 
   const toggleTheme = switchable
     ? () => {
@@ -56,8 +60,13 @@ export function ThemeProvider({
     : undefined;
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme, switchable }}>
+    <ThemeContext.Provider value={{ theme, toggleTheme, switchable, setForcedDark }}>
       {children}
     </ThemeContext.Provider>
   );
+}
+
+/** The provider's forced-dark switch, or undefined outside a ThemeProvider. */
+export function useSetForcedDark() {
+  return useContext(ThemeContext)?.setForcedDark;
 }

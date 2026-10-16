@@ -1,34 +1,49 @@
 /**
- * Admin UI v1 W1: the admin is graphite only and its ThemeToggle is gone, but ThemeProvider still
- * restores localStorage.theme. An admin who once stored "light" would load the admin without the
- * `dark` class, switching every `dark:` variant off. useAdminDarkClass adds `dark` to <html> while
- * the admin is mounted and puts the previous state back when it unmounts (the public site keeps
- * whatever the visitor chose).
+ * Admin UI v1 W1: the admin is graphite only and has no theme toggle, but the app's ThemeProvider
+ * applies the visitor's stored theme to <html>. useAdminDarkClass asks the provider to force dark
+ * while the admin is mounted (setForcedDark) instead of editing the class itself, so the provider's
+ * own apply effect can never undo it on a direct /admin load, leaving the admin never strips a dark
+ * class the provider owns, and the stored theme in localStorage stays the visitor's choice.
+ * Rendered inside the real ThemeProvider, the way App.tsx mounts it.
  */
 import { afterEach, describe, expect, it } from "vitest";
-import { renderHook } from "@testing-library/react";
+import { render } from "@testing-library/react";
+import React from "react";
+import { ThemeProvider } from "@/contexts/ThemeContext";
 import { useAdminDarkClass } from "@/components/admin/useAdminDarkClass";
 
-const root = () => document.documentElement.classList;
+function AdminProbe() {
+  useAdminDarkClass();
+  return null;
+}
+const app = (adminMounted: boolean) => (
+  <ThemeProvider defaultTheme="dark" switchable>
+    {adminMounted ? <AdminProbe /> : null}
+  </ThemeProvider>
+);
+const dark = () => document.documentElement.classList.contains("dark");
+
 afterEach(() => {
   document.documentElement.className = "";
+  window.localStorage.removeItem("theme");
 });
 
-describe("useAdminDarkClass", () => {
-  it("a stored light theme gets the dark class while the admin is mounted, and back to light after", () => {
-    root().add("light");
-    const { unmount } = renderHook(() => useAdminDarkClass());
-    expect(root().contains("dark")).toBe(true);
-    unmount();
-    expect(root().contains("dark")).toBe(false);
-    expect(root().contains("light")).toBe(true);
+describe("useAdminDarkClass inside the real ThemeProvider", () => {
+  it("a stored light theme: dark while the admin is mounted, light again after, stored theme untouched", () => {
+    window.localStorage.setItem("theme", "light");
+    const { rerender } = render(app(true));
+    expect(dark()).toBe(true);
+    rerender(app(false));
+    expect(dark()).toBe(false);
+    expect(window.localStorage.getItem("theme")).toBe("light");
   });
 
-  it("an already dark page stays dark after the admin unmounts", () => {
-    root().add("dark");
-    const { unmount } = renderHook(() => useAdminDarkClass());
-    expect(root().contains("dark")).toBe(true);
-    unmount();
-    expect(root().contains("dark")).toBe(true);
+  it("a stored dark theme stays dark after the admin unmounts", () => {
+    window.localStorage.setItem("theme", "dark");
+    const { rerender } = render(app(true));
+    expect(dark()).toBe(true);
+    rerender(app(false));
+    expect(dark()).toBe(true);
+    expect(window.localStorage.getItem("theme")).toBe("dark");
   });
 });
