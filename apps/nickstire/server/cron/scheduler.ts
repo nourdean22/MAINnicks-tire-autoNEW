@@ -1846,15 +1846,16 @@ function buildTiers(): void {
             const d = await getDb();
             if (!d) return { details: "No DB" };
             const [rows] = await d.execute(rawSql`
-              SELECT customerName, totalAmount, invoiceDate, DATEDIFF(NOW(), invoiceDate) as daysOld
+              SELECT id, customerName, totalAmount, invoiceDate, DATEDIFF(NOW(), invoiceDate) as daysOld
               FROM invoices WHERE paymentStatus = 'pending'
               AND invoiceDate < DATE_SUB(NOW(), INTERVAL 3 DAY)
               ORDER BY totalAmount DESC LIMIT 5
             `);
             const stale = rows as Record<string, unknown>[];
-            // Once per ET day per LIST (daysOld is left out of the fingerprint: it ticks daily).
+            // Once per ET day per LIST of invoices (by id: two invoices can share a name and an amount;
+            // daysOld is left out of the fingerprint because it ticks daily).
             const { claimAlertOnce, stateFingerprint } = await import("../services/alertClaim");
-            const staleState = stateFingerprint(stale.map((e) => `${e.customerName}:${e.totalAmount}`));
+            const staleState = stateFingerprint(stale.map((e) => String(e.id ?? `${e.customerName}:${e.totalAmount}`)));
             if (stale.length > 0 && (await claimAlertOnce(`stale-estimate:${staleState}`))) {
               const { sendTelegram } = await import("../services/telegram");
               const totalPotential = stale.reduce((s: number, e) => s + Number(e.totalAmount || 0), 0);

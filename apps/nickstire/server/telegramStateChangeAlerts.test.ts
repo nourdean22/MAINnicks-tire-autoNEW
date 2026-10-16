@@ -186,6 +186,22 @@ describe("repeating business-hours alerts claim before they send", () => {
     expect(h.sends[1]).toContain("WO-2");
   });
 
+  it("stale-estimate: a different invoice with the same name and amount is a new state and sends once", async () => {
+    await runTierJobHandlerUnlocked("stale-estimate-alert");
+    // invoice 1 got paid; invoice 2 (same customer, same amount) took its place in the top five
+    h.stale = [{ id: 2, customerName: "Bob", totalAmount: 25_000, invoiceDate: "2026-10-05", daysOld: 8 }];
+    await runTierJobHandlerUnlocked("stale-estimate-alert");
+    await runTierJobHandlerUnlocked("stale-estimate-alert");
+    expect(h.sends).toHaveLength(2);
+  });
+
+  it("stale-estimate: the same invoices aging a day do not make a new state", async () => {
+    await runTierJobHandlerUnlocked("stale-estimate-alert");
+    h.stale = h.stale.map((e) => ({ ...e, daysOld: Number(e.daysOld) + 1 }));
+    await runTierJobHandlerUnlocked("stale-estimate-alert");
+    expect(h.sends).toHaveLength(1);
+  });
+
   it("stale-estimate: a changed list is a new state and sends once", async () => {
     await runTierJobHandlerUnlocked("stale-estimate-alert");
     h.stale = [{ customerName: "Dee", totalAmount: 99_000, invoiceDate: "2026-10-02", daysOld: 8 }, ...h.stale];
