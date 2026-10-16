@@ -23,6 +23,7 @@ import {
   Panel,
   MetricGrid,
   EmptyState,
+  ErrorState,
   SearchInput,
 } from "./shared";
 import { AttributionReviewCard } from "./voice/AttributionReviewCard";
@@ -142,7 +143,7 @@ export default function VoiceReceptionistSection() {
   const { data: scorecard } = trpc.revenueOps.voiceScorecard.useQuery(queryInput, {
     refetchInterval: rangePreset === "today" ? 60_000 : false,
   });
-  const { data: calls, isLoading: callsLoading, refetch: refetchCalls, isFetching: callsFetching } = trpc.vapi.todayCalls.useQuery(queryInput, {
+  const { data: calls, isLoading: callsLoading, isError: callsFailed, refetch: refetchCalls, isFetching: callsFetching } = trpc.vapi.todayCalls.useQuery(queryInput, {
     refetchInterval: rangePreset === "today" ? 60_000 : false,
   });
 
@@ -672,6 +673,8 @@ export default function VoiceReceptionistSection() {
 
             {callsLoading ? (
               <SkeletonTable rows={6} cells={5} />
+            ) : callsFailed ? (
+              <ErrorState message="Today's calls couldn't load, state unknown, not empty" onRetry={() => void refetchCalls()} />
             ) : callsList.length === 0 && rawCalls.length === 0 ? (
               <EmptyState
                 icon={<PhoneCall className="w-8 h-8" />}

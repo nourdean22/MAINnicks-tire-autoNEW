@@ -510,7 +510,7 @@ export default function OverviewSection() {
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-3" aria-label="Today summary">
         <SummaryCard
           label="Needs action"
-          value={queueTrustworthy ? (queueSaturated ? `${queue.length}+` : queue.length) : "—"}
+          value={queueTrustworthy ? (queueSaturated ? `${queue.length}+` : queue.length) : UNKNOWN}
           detail={
             !queueTrustworthy
               ? "Unable to determine"
@@ -532,7 +532,7 @@ export default function OverviewSection() {
         */}
         <SummaryCard
           label="Active work orders"
-          value={workOrdersFailed ? "—" : currentWorkOrders.filter((wo) => ACTIVE_WORK_ORDER_STATUSES.has(wo.status ?? "")).length}
+          value={workOrdersFailed ? UNKNOWN : currentWorkOrders.filter((wo) => ACTIVE_WORK_ORDER_STATUSES.has(wo.status ?? "")).length}
           detail={workOrdersFailed ? "Unable to determine" : "Shop floor"}
           alert={workOrdersFailed}
         />

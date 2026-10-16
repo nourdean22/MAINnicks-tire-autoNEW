@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
-import { formatDate } from "../shared";
+import { formatDate, ErrorState } from "../shared";
 import MessageCustomerLink from "@/components/admin/MessageCustomerLink";
 import {
   Phone, Mail, MapPin, MessageSquare, Loader2,
@@ -98,12 +98,12 @@ export default function CustomerProfile({ customerId, onClose }: Props) {
     { id: customerId }
   );
 
-  const { data: timeline, isLoading: timelineLoading } = trpc.customers.timeline.useQuery(
+  const { data: timeline, isLoading: timelineLoading, isError: timelineFailed, refetch: refetchTimeline } = trpc.customers.timeline.useQuery(
     { phone: customer?.phone || "" },
     { enabled: !!customer?.phone }
   );
 
-  const { data: historyData, isLoading: historyLoading } = trpc.customers.history.useQuery(
+  const { data: historyData, isLoading: historyLoading, isError: historyFailed, refetch: refetchHistory } = trpc.customers.history.useQuery(
     { phone: customer?.phone || "" },
     { enabled: !!customer?.phone }
   );
@@ -432,6 +432,8 @@ export default function CustomerProfile({ customerId, onClose }: Props) {
               <div className="flex justify-center py-8">
                 <Loader2 className="w-5 h-5 animate-spin text-primary/60" />
               </div>
+            ) : timelineFailed ? (
+              <ErrorState message="Interactions couldn't load. Unknown, not empty." onRetry={() => void refetchTimeline()} />
             ) : !timeline || timeline.length === 0 ? (
               <p className="text-xs text-foreground/35 py-4 italic text-center">No interactions recorded yet.</p>
             ) : (
@@ -515,7 +517,9 @@ export default function CustomerProfile({ customerId, onClose }: Props) {
                   {/* Service History Tab */}
                   {activeTab === "history" && (
                     <div className="overflow-x-auto">
-                      {!historyData?.invoices || historyData.invoices.length === 0 ? (
+                      {historyFailed ? (
+                        <ErrorState message="Service history couldn't load. Unknown, not empty." onRetry={() => void refetchHistory()} />
+                      ) : !historyData?.invoices || historyData.invoices.length === 0 ? (
                         <p className="text-xs text-foreground/40 italic py-6 text-center">No service history invoices found.</p>
                       ) : (
                         <table className="w-full text-xs">
@@ -568,7 +572,9 @@ export default function CustomerProfile({ customerId, onClose }: Props) {
                   {/* Declined Work Tab */}
                   {activeTab === "declined" && (
                     <div className="overflow-x-auto">
-                      {!historyData?.declinedEstimates || historyData.declinedEstimates.length === 0 ? (
+                      {historyFailed ? (
+                        <ErrorState message="Service history couldn't load. Unknown, not empty." onRetry={() => void refetchHistory()} />
+                      ) : !historyData?.declinedEstimates || historyData.declinedEstimates.length === 0 ? (
                         <p className="text-xs text-foreground/40 italic py-6 text-center">No declined estimates found.</p>
                       ) : (
                         <table className="w-full text-xs">
@@ -620,7 +626,9 @@ export default function CustomerProfile({ customerId, onClose }: Props) {
                   {/* Active Backlog Tab */}
                   {activeTab === "backlog" && (
                     <div className="overflow-x-auto">
-                      {!historyData?.openWorkOrders || historyData.openWorkOrders.length === 0 ? (
+                      {historyFailed ? (
+                        <ErrorState message="Service history couldn't load. Unknown, not empty." onRetry={() => void refetchHistory()} />
+                      ) : !historyData?.openWorkOrders || historyData.openWorkOrders.length === 0 ? (
                         <p className="text-xs text-foreground/40 italic py-6 text-center">No active work orders found.</p>
                       ) : (
                         <table className="w-full text-xs">

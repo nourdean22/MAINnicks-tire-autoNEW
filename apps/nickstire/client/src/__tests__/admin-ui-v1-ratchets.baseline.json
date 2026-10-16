@@ -1,7 +1,7 @@
 {
   "totals": {
     "uppercase": 480,
-    "emDash": 629,
+    "emDash": 628,
     "emoji": 19,
     "transitionAll": 76,
     "slowDuration": 7,
@@ -36,9 +36,6 @@
       "uppercase": 4,
       "emDash": 2,
       "offPalette": 5
-    },
-    "client/src/components/admin/DegradedDataBanner.tsx": {
-      "emDash": 2
     },
     "client/src/components/admin/DraftCard.tsx": {
       "uppercase": 3,
@@ -143,7 +140,7 @@
     },
     "client/src/pages/admin/OverviewSection.tsx": {
       "uppercase": 3,
-      "emDash": 6
+      "emDash": 5
     },
     "client/src/pages/admin/PromisesPanel.tsx": {
       "uppercase": 2,
@@ -234,7 +231,7 @@
     },
     "client/src/pages/admin/customers/CustomersList.tsx": {
       "uppercase": 1,
-      "emDash": 10,
+      "emDash": 11,
       "emoji": 1,
       "transitionAll": 1,
       "smallInput": 1
@@ -475,7 +472,7 @@
     },
     "client/src/pages/admin/outreach/WinBackSection.tsx": {
       "uppercase": 3,
-      "emDash": 4,
+      "emDash": 5,
       "transitionAll": 2,
       "smallInput": 2
     },

@@ -27,6 +27,8 @@ const h = vi.hoisted(() => ({
   toastError: vi.fn(),
   user: { role: "admin" } as { role: string } | null,
   Null: () => null,
+  // Stands in for the confirm host so a test can see whether a page mounts one.
+  ConfirmHost: () => <div data-testid="confirm-host" />,
 }));
 
 vi.mock("@/lib/trpc", () => {
@@ -67,7 +69,7 @@ vi.mock("sonner", () => ({
   toast: Object.assign(vi.fn(), { success: h.toastSuccess, error: h.toastError, info: vi.fn(), warning: vi.fn(), message: vi.fn() }),
   Toaster: () => null,
 }));
-vi.mock("@/components/admin/ConfirmDialog", () => ({ confirmDialog: h.confirm, default: () => null, ConfirmDialogHost: () => null }));
+vi.mock("@/components/admin/ConfirmDialog", () => ({ confirmDialog: h.confirm, default: h.ConfirmHost }));
 vi.mock("@/_core/hooks/useAuth", () => ({ useAuth: () => ({ user: h.user, loading: false }) }));
 
 // Child panels that are not under test.
@@ -344,7 +346,7 @@ describe("Ad Studio", () => {
   function mountWithResult(post: Record<string, unknown> = {}) {
     const postMutate = vi.fn();
     h.mutations.set("adStudio.generate", (opts) => ({ mutate: () => opts?.onSuccess?.(RESULT), isPending: false }));
-    h.mutations.set("adStudio.post", () => ({ mutate: postMutate, isPending: false, isSuccess: false, ...post }));
+    h.mutations.set("adStudio.post", () => ({ mutate: postMutate, isPending: false, isSuccess: false, reset: () => {}, ...post }));
     render(<AdStudio />);
     fireEvent.click(screen.getByRole("button", { name: /Generate ad/ }));
     return postMutate;
@@ -363,6 +365,11 @@ describe("Ad Studio", () => {
       fireEvent.click(screen.getByRole("button", { name: /Post now/ }));
     });
     expect(postMutate).toHaveBeenCalledTimes(1);
+  });
+
+  it("the standalone Ad Studio route mounts its own confirm host, or confirmDialog would never resolve", () => {
+    mountWithResult();
+    expect(screen.getByTestId("confirm-host")).toBeTruthy();
   });
 
   it("after a successful post the button locks and reads Posted", () => {
