@@ -1,14 +1,10 @@
 /**
- * Telegram Push Notifications — Real-time alerts to Nour's phone
+ * Telegram Push Notifications — alerts to Nour's phone.
  *
- * UPGRADED: Message channels, rich formatting, message queuing/batching,
- * delivery tracking, rate limiting awareness, circuit breaker protection.
- *
- * Channels:
- *   CRITICAL  — new leads (high priority), bookings, emergencies → send immediately
- *   REVIEWS   — review alerts → batched into digests
- *   SYSTEM    — vendor health, system errors → batched
- *   DIGEST    — daily summaries, revenue milestones → batched
+ * Every send is immediate (event-driven). The old "batched" channels were never
+ * flushed (the flush timer is a documented no-op), so they are gone: the channel is
+ * only a label in the message text. A send dropped by the rate limit is counted
+ * (getTelegramStats().rateLimited) and shown in the daily summary.
  *
  * Requires: TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID env vars
  */
@@ -36,8 +32,8 @@ export type TelegramChannel = "critical" | "reviews" | "system" | "digest";
 interface DeliveryStats {
   sent: number;
   failed: number;
-  queued: number;
-  batched: number;
+  /** Dropped before the API call because 20 sends already went out in the last second. */
+  rateLimited: number;
   lastSentAt: string | null;
   lastError: string | null;
 }
@@ -45,33 +41,15 @@ interface DeliveryStats {
 const stats: DeliveryStats = {
   sent: 0,
   failed: 0,
-  queued: 0,
-  batched: 0,
+  rateLimited: 0,
   lastSentAt: null,
   lastError: null,
 };
 
-export function getTelegramStats(): DeliveryStats & { queueSize: number } {
-  const queueSize = messageQueue.critical.length +
-    messageQueue.reviews.length +
-    messageQueue.system.length +
-    messageQueue.digest.length;
-  return { ...stats, queueSize };
+/** In-process counters since this server booted (they reset on every deploy). */
+export function getTelegramStats(): DeliveryStats {
+  return { ...stats };
 }
-
-// ─── Message Queue ──────────────────────────────────
-interface QueuedMessage {
-  text: string;
-  channel: TelegramChannel;
-  queuedAt: number;
-}
-
-const messageQueue: Record<TelegramChannel, QueuedMessage[]> = {
-  critical: [],
-  reviews: [],
-  system: [],
-  digest: [],
-};
 
 // Rate limiting: Telegram allows 30 msgs/sec, we stay well under
 const RATE_LIMIT_WINDOW_MS = 1_000;
@@ -134,10 +112,12 @@ async function sendRaw(text: string): Promise<boolean> {
   }
 
   if (isRateLimited()) {
-    log.warn("Telegram rate limited, queuing message");
-    stats.queued++;
+    log.warn("Telegram rate limited, dropping message");
+    stats.rateLimited++;
     return false;
   }
+  // Count the send at admission: a burst started in the same tick must see it.
+  recordSend();
 
   try {
     const result = await telegramCB.call(async () => {
@@ -162,7 +142,6 @@ async function sendRaw(text: string): Promise<boolean> {
       return true;
     });
 
-    recordSend();
     stats.sent++;
     stats.lastSentAt = new Date().toISOString();
     return result;
@@ -237,6 +216,7 @@ export async function sendTelegramPhoto(photoUrl: string, caption?: string): Pro
     });
     if (!res.ok) {
       log.error("Telegram photo send failed:", { status: res.status });
+      stats.failed++;
       return false;
     }
     stats.sent++;
@@ -265,6 +245,7 @@ export async function sendTelegramVideo(videoUrl: string, caption?: string): Pro
     });
     if (!res.ok) {
       log.error("Telegram video send failed:", { status: res.status });
+      stats.failed++;
       return false;
     }
     stats.sent++;
@@ -323,102 +304,6 @@ export async function sendTelegramMediaGroup(
     return true;
   } catch (e) { log.warn("[services/telegram] operation failed:", e); return false; }
 }
-
-// ─── Batch Flush (runs every 5 minutes) ─────────────
-
-const BATCH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
-let batchTimer: ReturnType<typeof setInterval> | null = null;
-
-/**
- * Flush all queued messages as batched digests.
- * Groups by channel, sends one message per channel.
- */
-export async function flushMessageQueue(): Promise<number> {
-  let totalFlushed = 0;
-
-  for (const channel of ["reviews", "system", "digest"] as TelegramChannel[]) {
-    const queue = messageQueue[channel];
-    if (queue.length === 0) continue;
-
-    // Drain the queue
-    const messages = queue.splice(0);
-    totalFlushed += messages.length;
-
-    // Build a single batched digest
-    const channelLabel = channel.toUpperCase();
-    const header = `📋 ${bold(`${channelLabel} DIGEST`)} (${messages.length} item${messages.length > 1 ? "s" : ""})`;
-    const body = messages
-      .map((m, i) => `${i + 1}. ${m.text}`)
-      .join("\n\n");
-    const footer = `\n${divider()}\n⏰ ${formatTimestamp()}`;
-
-    const digestText = `${header}\n${divider()}\n\n${body}${footer}`;
-
-    // Telegram max message length is 4096 chars
-    if (digestText.length > 4000) {
-      // Split into chunks
-      const chunks = splitMessage(messages);
-      for (const chunk of chunks) {
-        await sendRaw(chunk);
-        stats.batched++;
-      }
-    } else {
-      await sendRaw(digestText);
-      stats.batched++;
-    }
-  }
-
-  return totalFlushed;
-}
-
-function splitMessage(messages: QueuedMessage[]): string[] {
-  const chunks: string[] = [];
-  let current: QueuedMessage[] = [];
-  let currentLength = 0;
-
-  for (const msg of messages) {
-    if (currentLength + msg.text.length > 3500 && current.length > 0) {
-      chunks.push(formatChunk(current));
-      current = [];
-      currentLength = 0;
-    }
-    current.push(msg);
-    currentLength += msg.text.length;
-  }
-
-  if (current.length > 0) {
-    chunks.push(formatChunk(current));
-  }
-
-  return chunks;
-}
-
-function formatChunk(messages: QueuedMessage[]): string {
-  const channel = messages[0]?.channel || "system";
-  return [
-    `📋 ${bold(`${channel.toUpperCase()} DIGEST`)} (${messages.length} items)`,
-    divider(),
-    ...messages.map((m, i) => `${i + 1}. ${m.text}`),
-    divider(),
-    `⏰ ${formatTimestamp()}`,
-  ].join("\n");
-}
-
-/** Start the batch flush timer (No-op after direct-dispatch upgrade) */
-export function startBatchTimer(): void {
-  log.info("Telegram batch timer disabled (event-driven mode active)");
-}
-
-/** Stop the batch timer */
-export function stopBatchTimer(): void {
-  if (batchTimer) {
-    clearInterval(batchTimer);
-    batchTimer = null;
-  }
-}
-
-// NOTE: startBatchTimer() is called from server startup in _core/index.ts
-// Do NOT auto-start here — it causes side effects during imports and tests
 
 // ─── Formatted Alert Helpers (UPGRADED with channels + rich formatting) ──
 
@@ -572,6 +457,12 @@ export function alertVendorRecovered(vendor: string) {
   );
 }
 
+/** One line from the live counters: how many alerts went out, were dropped by the rate limit, or failed (since boot). */
+function telegramStatsLine(): string {
+  const t = getTelegramStats();
+  return `📨 Telegram: ${t.sent} sent, ${t.rateLimited} dropped by rate limit, ${t.failed} failed (since last restart)`;
+}
+
 /** Daily summary — immediate send (scheduled, not batched) */
 export function sendDailySummary(data: {
   leads: number;
@@ -590,6 +481,7 @@ export function sendDailySummary(data: {
     `💰 Revenue: ${data.revenue === null ? bold("unknown (read failed)") : bold(`$${data.revenue.toLocaleString()}`)}`,
     `⭐ Reviews: ${data.reviews}${data.avgRating ? ` (avg ${data.avgRating.toFixed(1)})` : ""}`,
     data.vendorHealth ? `\n🏥 Systems: ${data.vendorHealth}` : "",
+    telegramStatsLine(),
     divider(),
     `— Nick's Tire & Auto`,
     `${link("Admin Panel", "https://nickstire.org/admin")}`,

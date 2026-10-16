@@ -16,13 +16,14 @@ const h = vi.hoisted(() => ({
   fakeDb: null as unknown,
   getDb: null as unknown,
   selectRows: [] as unknown[],
+  accept: true,
 }));
 
 vi.mock("./services/telegram", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./services/telegram")>()),
   sendTelegram: vi.fn(async (text: string) => {
     h.sends.push({ via: "sendTelegram", text });
-    return true;
+    return h.accept;
   }),
   sendTelegramMessage: vi.fn(async (text: string) => {
     h.sends.push({ via: "sendTelegramMessage", text });
@@ -154,6 +155,25 @@ describe("one Telegram message per lead, callback, chat lead and booking", () =>
     h.fakeDb = fakeDb;
     h.getDb = fakeDb;
     h.selectRows = [];
+    h.accept = true;
+  });
+
+  const submitLead = () =>
+    leadRouter.createCaller(PUBLIC_CTX).submit({ name: "Ann Test", phone: "2165550142", problem: "brakes grind", source: "popup" });
+  const telegramRows = () =>
+    h.recordLeadDelivery.mock.calls.map((c) => c[0] as { leadId: number; channel: string; status: string }).filter((r) => r.channel === "telegram");
+
+  it("records the lead's telegram delivery as sent only when the transport accepted the alert", async () => {
+    await submitLead();
+    await settle();
+    expect(telegramRows()).toEqual([expect.objectContaining({ leadId: 42, status: "sent" })]);
+  });
+
+  it("records the lead's telegram delivery as failed when the transport did not accept the alert", async () => {
+    h.accept = false;
+    await submitLead();
+    await settle();
+    expect(telegramRows()).toEqual([expect.objectContaining({ leadId: 42, status: "failed" })]);
   });
 
   it("lead.submit sends exactly one Telegram alert when the router and the bus both run", async () => {
