@@ -7,6 +7,8 @@
  */
 import { describe, expect, it, vi } from "vitest";
 import { renderToString } from "react-dom/server";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 const nav = vi.hoisted(() => ({ path: "/system/observability" as string | null }));
 vi.mock("next/navigation", () => ({ usePathname: () => nav.path }));
@@ -71,6 +73,18 @@ describe("StandardPage", () => {
     nav.path = "/missions";
     const html = renderToString(<StandardPage eyebrow="Execution Deck" title="Missions" description="The work that needs you." />);
     expect(html).toMatch(/<p class="page-copy hidden md:block">The work that needs you\.<\/p>/);
+  });
+
+  it("an explicit descriptionVisibility wins over the core-page default (review round 4)", () => {
+    nav.path = "/brain";
+    const html = renderToString(<StandardPage eyebrow="Mastery" title="Brain" description="Live: 3 pins" descriptionVisibility="always" />);
+    expect(html).toMatch(/<p class="page-copy">Live: 3 pins<\/p>/);
+  });
+
+  it("the Missions page passes always, so its description shows at 390", () => {
+    const src = readFileSync(join(__dirname, "..", "..", "app", "(mastery)", "missions", "page.tsx"), "utf8");
+    const open = src.slice(src.indexOf("<StandardPage"), src.indexOf(">", src.indexOf("<StandardPage")));
+    expect(open).toContain('descriptionVisibility="always"');
   });
 
   it("keeps the description, md and up, on any other page", () => {
