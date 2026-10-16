@@ -58,10 +58,12 @@ App code under `apps/**`: write it under "Cross-lane needs" and stop there.
 ## First 5 minutes
 
 1. cwd under `.claude/worktrees/`: run skill `harness-worktree-setup` before anything else.
-2. Read the brief twice; list every path the change must reach (callers, tests, fixtures, config, docs, the CI wiring).
-3. `git log --oneline -5` and `git status --short` on your branch; a RESUME continues from the last commit.
-4. Invoke the frontmatter skills above by exact name with the Skill tool, plus any the brief adds.
-5. Write the red test first and record its failure shape (Nf/Mp) for the RETURN.
+2. Read the policy before any write: root `AGENTS.md` (Enforcement map, Agent adapters) and `docs/agent-os/README.md`
+   for the surface you touch.
+3. Read the brief twice; list every path the change must reach (callers, tests, fixtures, config, docs, the CI wiring).
+4. `git log --oneline -5` and `git status --short` on your branch; a RESUME continues from the last commit.
+5. Invoke the frontmatter skills above by exact name with the Skill tool, plus any the brief adds.
+6. Write the red test last, before any other file changes, and record its failure shape (Nf/Mp) for the RETURN.
 
 ## Before you edit
 

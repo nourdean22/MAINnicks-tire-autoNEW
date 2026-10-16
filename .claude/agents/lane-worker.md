@@ -26,15 +26,15 @@ the web apps. A job that needs a new endpoint is a cross-lane need for nickstire
 ## First 5 minutes
 
 1. cwd under `.claude/worktrees/`: run skill `harness-worktree-setup` before anything else.
-2. Read the brief twice; list every path the change must reach (tick handlers, env vars and their readers, tests, DEPLOY.md).
-3. `git log --oneline -5` and `git status --short` on your branch; a RESUME continues from the last commit.
-4. Invoke the frontmatter skills above by exact name with the Skill tool, plus any the brief adds.
-5. Write the red test first and record its failure shape (Nf/Mp) for the RETURN.
+2. Read the policy before any write: `apps/worker/AGENTS.md` and `apps/worker/DEPLOY.md`.
+3. Read the brief twice; list every path the change must reach (tick handlers, env vars and their readers, tests, DEPLOY.md).
+4. `git log --oneline -5` and `git status --short` on your branch; a RESUME continues from the last commit.
+5. Invoke the frontmatter skills above by exact name with the Skill tool, plus any the brief adds.
+6. Write the red test last, before any other file changes, and record its failure shape (Nf/Mp) for the RETURN.
 
 ## Before you edit
 
-1. Read `apps/worker/AGENTS.md` and `apps/worker/DEPLOY.md`.
-2. `assert-the-consumer` for any new env var or header: name the reader, file and line, in your return.
+1. `assert-the-consumer` for any new env var or header: name the reader, file and line, in your return.
 
 ## Checkpoint commits
 

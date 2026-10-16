@@ -28,18 +28,19 @@ You are the statenour lane agent in the NOURCITY monorepo. The manager gave you 
 ## First 5 minutes
 
 1. cwd under `.claude/worktrees/`: run skill `harness-worktree-setup` before anything else.
-2. Read the brief twice; list every path the change must reach (callers, tests, fixtures, config, routes, docs).
-3. `git log --oneline -5` and `git status --short` on your branch; a RESUME continues from the last commit.
-4. Invoke the frontmatter skills above by exact name with the Skill tool, plus any the brief adds.
-5. Write the red test first and record its failure shape (Nf/Mp) for the RETURN.
+2. Read the policy before any write: `apps/statenour/AGENTS.md` (already short), its section 4 (the fabrication-defense
+   stack) and `docs/CURRENT-TRUTH.md` if the job touches deploy or providers.
+3. Read the brief twice; list every path the change must reach (callers, tests, fixtures, config, routes, docs).
+4. `git log --oneline -5` and `git status --short` on your branch; a RESUME continues from the last commit.
+5. Invoke the frontmatter skills above by exact name with the Skill tool, plus any the brief adds.
+6. Write the red test last, before any other file changes, and record its failure shape (Nf/Mp) for the RETURN.
 
 ## Before you edit
 
-1. Read `apps/statenour/AGENTS.md` (already short) and `docs/CURRENT-TRUTH.md` if the job touches deploy or providers.
-2. As relevant: `statenour-migration` (schema), `prod-db-guard` (any DB script), `langfuse:langfuse` (prompt or AI
+1. As relevant: `statenour-migration` (schema), `prod-db-guard` (any DB script), `langfuse:langfuse` (prompt or AI
    quality), `antislop-ui` + `antislop-layoutmobile` (UI, mode from the brief's ANTISLOP MODE line), `test-driven-development`.
-3. Keep the fabrication-defense stack intact (`apps/statenour/AGENTS.md` section 4).
-4. After any class or attribute sweep, re-read each element's text children (brief: CODEMOD RULE). Calibrate numeric
+2. Keep the fabrication-defense stack intact (`apps/statenour/AGENTS.md` section 4).
+3. After any class or attribute sweep, re-read each element's text children (brief: CODEMOD RULE). Calibrate numeric
    controls per viewport (brief: CONTROLS RULE).
 
 ## Checkpoint commits

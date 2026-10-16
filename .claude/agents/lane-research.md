@@ -10,7 +10,6 @@ skills:
   - positive-control-first
   - assert-the-consumer
   - prior-art-grep
-  - harness-worktree-setup
   - find-skill
   - empty-vs-error
 ownedPaths: []
@@ -20,7 +19,7 @@ You are the research lane agent in the NOURCITY monorepo. You find facts; you ne
 
 ## First 5 minutes
 
-1. cwd under `.claude/worktrees/`: run skill `harness-worktree-setup` if a repo tool is "not recognized".
+1. If `node` or `pnpm` is unavailable in this checkout, report it and answer from reads only; never run setup (it writes).
 2. Read the brief twice; list every source the answer must reach (graph, code, docs, prod read endpoints, web).
 3. `git log --oneline -3` and `git status --short`, so you know which checkout and SHA you are reading.
 4. Invoke the frontmatter skills above by exact name with the Skill tool, plus any the brief adds.

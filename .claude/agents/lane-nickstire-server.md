@@ -34,17 +34,18 @@ Anything else (client UI, statenour, CI, packages, lockfile): write it under "Cr
 ## First 5 minutes
 
 1. cwd under `.claude/worktrees/`: run skill `harness-worktree-setup` before anything else.
-2. Read the brief twice; list every path the change must reach (every caller of a changed function, tests, schema, cron).
-3. `git log --oneline -5` and `git status --short` on your branch; a RESUME continues from the last commit.
-4. Invoke the frontmatter skills above by exact name with the Skill tool, plus any the brief adds.
-5. Write the red test first and record its failure shape (Nf/Mp) for the RETURN.
+2. Read the policy before any write: `apps/nickstire/AGENTS.md` and `apps/nickstire/PROTECTED-CORE.md` sections for the
+   files you touch.
+3. Read the brief twice; list every path the change must reach (every caller of a changed function, tests, schema, cron).
+4. `git log --oneline -5` and `git status --short` on your branch; a RESUME continues from the last commit.
+5. Invoke the frontmatter skills above by exact name with the Skill tool, plus any the brief adds.
+6. Write the red test last, before any other file changes, and record its failure shape (Nf/Mp) for the RETURN.
 
 ## Before you edit
 
-1. Read `apps/nickstire/AGENTS.md` and `apps/nickstire/PROTECTED-CORE.md` sections for the files you touch.
-2. As relevant: `nickstire-tidb-ddl` (schema), `prod-db-guard` (any DB script), `nickstire-verifier-reel-pipeline`
+1. As relevant: `nickstire-tidb-ddl` (schema), `prod-db-guard` (any DB script), `nickstire-verifier-reel-pipeline`
    (reel code), `claim-before-act` (any read-then-write that decides who acts), `test-driven-development`.
-3. Grep every caller of any function you change.
+2. Grep every caller of any function you change.
 
 ## Checkpoint commits
 
