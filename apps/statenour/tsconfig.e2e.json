@@ -1,0 +1,17 @@
+{
+  // Typecheck program for the Playwright specs and the v3 fixture lane (2026-10-15,
+  // UI v3 W0b). tsconfig.json and tsconfig.typecheck.json both exclude `tests`, so
+  // without this nothing compiles tests/e2e. Spawned by tests/repo/v3-gate.test.ts.
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "incremental": false, "noEmit": true },
+  "include": ["next-env.d.ts", "tests/e2e/**/*.ts", "tests/repo/v3-gate.test.ts"],
+  "exclude": [
+    "node_modules",
+    "scratch",
+    // Pre-existing, outside the W0b lane (reported 2026-10-15): line 40 assigns
+    // `(arg?: unknown) => unknown` to document.startViewTransition, which the
+    // current dom lib types as returning ViewTransition (TS2322). Remove this
+    // line once that spec casts through `unknown`.
+    "tests/e2e/inspector-view-transition.spec.ts"
+  ]
+}
