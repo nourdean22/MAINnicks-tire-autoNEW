@@ -8,6 +8,7 @@
  * These pins fail if the aura comes back in the stylesheet, the wrapper, or the layout.
  */
 import { describe, expect, it } from "vitest";
+import ts from "typescript";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -43,5 +44,25 @@ describe("the state aura is gone", () => {
     const layout = stripTsx(read("app/(mastery)/layout.tsx"));
     expect(layout.match(/<StateWord\b/g) ?? []).toHaveLength(1);
     expect(layout).toContain('from "@/components/hud/state-word"');
+  });
+});
+
+describe("the state word mount is unconditional (review round 2, item 9)", () => {
+  it("StateWord is a direct child of <main>, not inside a conditional, and the main/feed classes stand", () => {
+    const src = read("app/(mastery)/layout.tsx");
+    const sf = ts.createSourceFile("layout.tsx", src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    const mounts: ts.JsxSelfClosingElement[] = [];
+    (function visit(n: ts.Node) {
+      if (ts.isJsxSelfClosingElement(n) && n.tagName.getText(sf) === "StateWord") mounts.push(n);
+      ts.forEachChild(n, visit);
+    })(sf);
+    expect(mounts).toHaveLength(1);
+    const parent = mounts[0].parent;
+    expect(ts.isJsxElement(parent) && parent.openingElement.tagName.getText(sf) === "main", "StateWord is not a direct child of <main>").toBe(true);
+    const main = parent as ts.JsxElement;
+    const mainAttrs = main.openingElement.attributes.properties.map((p) => p.getText(sf)).join(" ");
+    expect(mainAttrs).toContain('id="main-content"');
+    expect(mainAttrs).toContain("pb-[var(--bottom-chrome-h)]");
+    expect(src).toMatch(/className="feed py-4 md:py-6 page-enter"/);
   });
 });

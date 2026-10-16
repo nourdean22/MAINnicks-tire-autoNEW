@@ -8,12 +8,13 @@ import { describe, expect, it, vi } from "vitest";
 import { renderToString } from "react-dom/server";
 import type { NourState } from "@/lib/state/nour-state";
 
-const h = vi.hoisted(() => ({ state: {} as Partial<NourState> }));
+const h = vi.hoisted(() => ({ state: {} as Partial<NourState>, path: "/missions" }));
 vi.mock("@/lib/state/nour-state", () => ({ useNourState: () => h.state }));
+vi.mock("next/navigation", () => ({ usePathname: () => h.path }));
 
 import { StateWord } from "@/components/hud/state-word";
 
-const base = { currentState: "normal", isLoading: false, error: null, systemStatus: "ok" } as const;
+const base = { currentState: "normal", isLoading: false, error: null, systemStatus: "ok", failedFeeds: 0 } as const;
 const html = (over: Partial<NourState>) => {
   h.state = { ...base, ...over };
   return renderToString(<StateWord />);
@@ -63,5 +64,14 @@ describe("StateWord", () => {
     const out = html({ currentState: "scattered" });
     expect(out).toContain("text-[12px]");
     expect(out).toContain("text-fg-tertiary");
+  });
+
+  it("renders nothing on /chat, whose fixed shell paints over the band (review round 2, item 11)", () => {
+    h.path = "/chat";
+    try {
+      expect(html({ currentState: "drift" })).toBe("");
+    } finally {
+      h.path = "/missions";
+    }
   });
 });

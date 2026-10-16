@@ -17,6 +17,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { notifyDataChanged, onDataChanged } from "@/lib/events/data-change";
 import { apiFetch } from "@/lib/utils/api-fetch";
+import { readHealthFeed } from "@/lib/state/health-feed";
 
 // hooks-lib REST→tRPC slice (2026-05-22) · the FINAL slice.
 // NourStateProvider's `loadAll` fans out across FOUR heterogeneous
@@ -119,6 +120,8 @@ export interface NourState {
   lastRefresh: Date | null;
   isLoading: boolean;
   error: string | null;
+  /** Feeds of the last load that returned nothing (health, habits, streaks, command). 0 when all four read. */
+  failedFeeds: number;
 
   // Actions
   refresh: () => void;
@@ -157,6 +160,7 @@ const DEFAULT_STATE: NourState = {
   lastRefresh: null,
   isLoading: true,
   error: null,
+  failedFeeds: 0,
   refresh: () => {},
   toggleHabit: () => {},
 };
@@ -243,12 +247,14 @@ export function NourStateProvider({ children }: { children: ReactNode }) {
       // Shapes stay `any` deliberately — these are four different endpoints and
       // typing each is a separate job from removing the duplicate helper.
       const soft = <T,>(p: Promise<T>): Promise<T | null> => p.catch((): null => null);
+      // /api/health answers 503 when degraded, which apiFetch would throw; readHealthFeed keeps the body.
       const [health, habitsData, streaksData, cmd] = await Promise.all([
-        soft(apiFetch<any>("/api/health")),
+        readHealthFeed() as Promise<any>,
         soft(apiFetch<any>(`/api/habits?date=${todayStr}`)),
         soft(apiFetch<any>("/api/habits/streaks")),
         soft(apiFetch<any>("/api/command/data")),
       ]);
+      const failedFeeds = [health, habitsData, streaksData, cmd].filter((x) => x === null).length;
       // Revenue-aging was removed 2026-04-17 — shop data lives in nickstire.
       // Its source has been a hard-coded null ever since, so every consumer
       // below has been taking its fallback branch the whole time. Left explicit
@@ -311,6 +317,7 @@ export function NourStateProvider({ children }: { children: ReactNode }) {
         lastRefresh: new Date(),
         isLoading: false,
         error: null as string | null,
+        failedFeeds,
         currentState: "normal" as const,
       };
 

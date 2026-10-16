@@ -13,11 +13,15 @@
  *   flagging. "Steady" and "State unknown" carry none, so Home keeps its single at-rest notch.
  * - Quiet: 12px, the tertiary text token (5.5:1 on the canvas), no glow, no pulse, no gradient.
  */
+import { usePathname } from "next/navigation";
 import { useNourState } from "@/lib/state/nour-state";
 import { stateWord } from "@/lib/state/state-word";
 
 export function StateWord() {
   const word = stateWord(useNourState());
+  const pathname = usePathname();
+  // /chat is a fixed full-viewport shell that paints over this band; the word has no place there.
+  if (pathname === "/chat" || pathname?.startsWith("/chat/")) return null;
   return (
     <div className="feed">
       <p role="status" className="flex h-5 items-center gap-2 pt-1 text-[12px] font-medium leading-none text-fg-tertiary">

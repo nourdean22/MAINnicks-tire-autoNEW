@@ -52,3 +52,20 @@ describe("stateWord", () => {
     expect(Object.values(STATE_WORD)).not.toContain(w?.text);
   });
 });
+
+describe("stateWord and the feeds it depends on (review round 2, item 7)", () => {
+  const full = (over: Partial<Input & { failedFeeds: number }> = {}) => ({ ...loaded(), failedFeeds: 0, ...over });
+
+  it("a degraded health feed is still a reading: the state label shows, not unknown", () => {
+    expect(stateWord(full({ systemStatus: "degraded", currentState: "drift" }))).toEqual({ text: STATE_WORD.drift, tone: "signal" });
+  });
+
+  it("any failed feed makes the word unknown, even when detectState would say normal", () => {
+    expect(stateWord(full({ failedFeeds: 1, currentState: "normal" }))).toEqual({ text: "State unknown", tone: "unknown" });
+    expect(stateWord(full({ failedFeeds: 3 }))?.tone).toBe("unknown");
+  });
+
+  it("zero failed feeds and a read health status keeps the label", () => {
+    expect(stateWord(full({ failedFeeds: 0, currentState: "normal" }))).toEqual({ text: STATE_WORD.normal, tone: "calm" });
+  });
+});

@@ -30,4 +30,10 @@ describe("mastery config has no icon field", () => {
     const hits = files.flatMap((f) => (read(f).match(/\b(?:br|stat|g|d|s|nextRep|highestNeglected)\.icon\b/g) ?? []).map((m) => `${f}: ${m}`));
     expect(hits).toEqual([]);
   });
+
+  it("the former readers outside the mastery components stay clean too (review round 2, item 9)", () => {
+    const files = ["lib/services/ultron-ticker.ts", "app/api/habits/streaks/route.ts", "lib/trpc/routers/operator.ts"];
+    const hits = files.flatMap((f) => (read(f).match(/\b(?:riser|next|h|d|s|stat)\.icon\b/g) ?? []).map((m) => `${f}: ${m}`));
+    expect(hits).toEqual([]);
+  });
 });
