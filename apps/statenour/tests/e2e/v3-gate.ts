@@ -1,18 +1,20 @@
 /**
  * v3-gate · the six-feet gate's decision, as a pure function (2026-10-15, UI v3 W0b).
  *
- * tests/e2e/visible-transformation-v3.spec.ts measures a render (ink coverage,
- * registered distance from the frozen v2 baseline) and hands the numbers here;
- * this file decides. It lives apart from the spec so tests/repo/v3-gate.test.ts
- * can pin the decision with no browser, and the spec cannot grow a looser
- * private copy of it.
+ * tests/e2e/visible-transformation-v3.spec.ts renders a page and hands the PNGs
+ * to measureAndJudge, which measures (ink coverage, registered distance from the
+ * frozen v2 baseline) through injectable deps and decides with v3GateVerdict.
+ * Both live apart from the spec so tests/repo/v3-gate.test.ts can pin the whole
+ * path with stub deps and no browser, and the spec holds no arithmetic of its
+ * own to loosen.
  *
  * The two thresholds are the v2 gate's, mirrored from
  * tests/e2e/visible-transformation.spec.ts (which stays untouched). Mirrored,
  * not imported: that file is a Playwright spec, and importing a spec registers
- * its tests. tests/repo/v3-gate.test.ts reads the v2 source and fails if either
- * value drifts, so there is still ONE place to change them.
+ * its tests. So there are two copies; tests/repo/v3-gate.test.ts reads the v2
+ * source and fails if either value drifts, which is what keeps them one.
  */
+import { inkCoverage as realInkCoverage, visualDistance as realVisualDistance } from "./visual-distance";
 
 /** The registered ink-mass distance a page must have moved from its v2 baseline. */
 export const MIN_DISTANCE = 0.35;
@@ -72,4 +74,39 @@ export function captureVerdict(input: { ink: number }): GateVerdict {
     };
   }
   return { ok: true, reason: "capturable" };
+}
+
+export interface Viewport {
+  width: number;
+  height: number;
+}
+
+export interface MeasureDeps {
+  inkCoverage: (png: Buffer, viewport: Viewport) => Promise<number>;
+  visualDistance: (a: Buffer, b: Buffer, viewport: Viewport) => Promise<{ ratio: number }>;
+}
+
+export interface Measurement {
+  ink: number;
+  /** NaN when there is no baseline to measure against. */
+  distance: number;
+  verdict: GateVerdict;
+}
+
+const REAL_DEPS: MeasureDeps = { inkCoverage: realInkCoverage, visualDistance: realVisualDistance };
+
+/**
+ * Measure a fresh render against its baseline and decide. The ONLY path the v3
+ * spec uses: the ink is always measured (never assumed), the distance is
+ * measured only when a baseline exists and is NaN otherwise (never a stand-in
+ * number), and the verdict is v3GateVerdict over exactly those numbers.
+ */
+export async function measureAndJudge(
+  input: { baseline: Buffer | null; current: Buffer; viewport: Viewport },
+  deps: MeasureDeps = REAL_DEPS,
+): Promise<Measurement> {
+  const ink = await deps.inkCoverage(input.current, input.viewport);
+  const distance = input.baseline ? (await deps.visualDistance(input.baseline, input.current, input.viewport)).ratio : Number.NaN;
+  const verdict = v3GateVerdict({ baselineExists: input.baseline !== null, ink, distance });
+  return { ink, distance, verdict };
 }

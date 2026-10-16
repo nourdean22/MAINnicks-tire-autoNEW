@@ -30,7 +30,44 @@ import { ALPHA_TITLE, MISSIONS, MISSIONS_DECK, MISSION_TASKS, NEXT_MOVE_TITLE } 
 import { SHELL_PULSE, SHELL_TICKER } from "./shell";
 import { FIXED_TIME } from "./time";
 
-export { FIXED_TIME, NOW_ISO } from "./time";
+export { FIXED_TIME, NOW_ISO, NOW_MS } from "./time";
+
+/**
+ * The pages' own error states, by the text they render. Both specs assert these
+ * have count 0 after a fixture render: a page that fell into one is not a
+ * fixture render, whatever its distance from v2. tests/repo/v3-gate.test.ts
+ * checks each alternative still matches a string the app really renders.
+ */
+export const PAGE_ERRORS = {
+  home: /couldn.t be built|refresh failed|unknown, read failed|partial read|pulse unavailable/i,
+  missions: /deck unreadable|board unreadable|showing the last confirmed board|pulse unavailable/i,
+} as const;
+
+/**
+ * Page-data procedures a fixture render may legitimately ask for and not get.
+ * Any OTHER unstubbed `operator.*` or `task.*` read fails the v3 gate: a page
+ * that grew a query the fixtures do not answer renders an error state, which is
+ * "far" from v2 and would pass on distance alone. Shell reads outside those two
+ * routers (system.*, brain.*, REST) are printed, not gated.
+ */
+export const UNSTUBBED_ALLOWLIST: ReadonlyArray<string | RegExp> = [
+  "operator.briefChanges", // only requested once a last-visit cursor exists; a fresh browser has none
+  "operator.commandCenterState", // Missions reads only the active command id and renders nothing without it
+  /^systemAutomation\./, // the PWA badge; renders nothing
+];
+
+/** `GET operator.*` / `GET task.*` entries of a FixtureReport that the gate does not allow. */
+export function disallowedUnstubbed(unstubbed: Iterable<string>): string[] {
+  const out: string[] = [];
+  for (const entry of unstubbed) {
+    const m = /^GET ((?:operator|task)\.[A-Za-z0-9_.]+)$/.exec(entry);
+    if (!m) continue;
+    const procedure = m[1];
+    const allowed = UNSTUBBED_ALLOWLIST.some((a) => (typeof a === "string" ? a === procedure : a.test(procedure)));
+    if (!allowed) out.push(entry);
+  }
+  return out.sort();
+}
 
 /** Procedure path (as it appears in /api/trpc/<path>) to its wire payload. */
 export const TRPC_FIXTURES: Record<string, unknown> = {

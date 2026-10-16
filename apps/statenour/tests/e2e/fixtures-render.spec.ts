@@ -12,14 +12,10 @@
  */
 import { expect, test, type Page } from "@playwright/test";
 
-import { DEMO, installFixtures } from "./fixtures";
+import { DEMO, PAGE_ERRORS, installFixtures } from "./fixtures";
 import { IGNORED_PAGE_ERRORS, VT_CONTEXT } from "./vt-render";
 
 test.use({ viewport: { width: 390, height: 844 }, ...VT_CONTEXT });
-
-// The pages' own unreadable / partial-read states, plus the shell's pulse failure.
-const HOME_ERRORS = /couldn.t be built|refresh failed|unknown, read failed|partial read|pulse unavailable/i;
-const MISSIONS_ERRORS = /deck unreadable|board unreadable|showing the last confirmed board|pulse unavailable/i;
 
 async function openFromFixtures(page: Page, route: string): Promise<string[]> {
   const pageErrors: string[] = [];
@@ -40,7 +36,7 @@ test.describe("v3 fixtures render", () => {
     await expect(page.getByText(DEMO.homeHeadline).first()).toBeVisible();
     await expect(page.getByText(/deferred actions await your verdict/i).first()).toBeVisible();
     await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => {});
-    await expect(page.getByText(HOME_ERRORS)).toHaveCount(0);
+    await expect(page.getByText(PAGE_ERRORS.home)).toHaveCount(0);
     expect(pageErrors, "Home threw during render").toEqual([]);
   });
 
@@ -49,7 +45,7 @@ test.describe("v3 fixtures render", () => {
     await expect(page.getByText(DEMO.missionsNextMove).first()).toBeVisible({ timeout: 60_000 });
     await expect(page.getByText(DEMO.missionTitle).first()).toBeVisible();
     await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => {});
-    await expect(page.getByText(MISSIONS_ERRORS)).toHaveCount(0);
+    await expect(page.getByText(PAGE_ERRORS.missions)).toHaveCount(0);
     expect(pageErrors, "Missions threw during render").toEqual([]);
   });
 });
