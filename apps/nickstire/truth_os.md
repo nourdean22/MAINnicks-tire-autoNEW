@@ -100,6 +100,10 @@ detailed in `docs/CURRENT-TRUTH.md`:
   retail only, wholesale never leaves the server. Live sections self-suppress
   when the feed is cold (canon floors render, never an empty table).
 
+## 2026-10-16 - Observability is proven by planted positives, not by env presence (branch nickstire/observability-proof, NOT yet merged)
+
+- `GET /api/system/observability-status` (Bearer `ADMIN_API_KEY`) answers HEALTHY / DEGRADED / UNKNOWN per instrument (Sentry, Langfuse) from in-process counters (`server/lib/observabilityStatus.ts`); keys unset, zero acks or a proof older than 12 h read UNKNOWN, never HEALTHY. Counters reset on every deploy.
+
 ## 2026-10-16 - Reel comment responder gets gates, an audit trail and admin controls
 
 - `runReelCommentResponder` (cron and the Meta comment webhook) now stops before any DB or Graph read unless `REEL_COMMENT_RESPONDER_ENABLED` is exactly `true` and the new inverted flag `reel_comment_responder_paused` is off. Before this the cron read ENABLED as truthy, the webhook as exactly `true`, and the service read only LIVE.
