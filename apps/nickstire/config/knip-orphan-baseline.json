@@ -3,6 +3,11 @@
   "entries": [
     {
       "file": "apps/nickstire/server/routers/instagramAdmin.ts",
+      "symbol": "readCommentResponderStatus",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The reader behind instagramAdmin.commentResponderStatus (contract CommentResponderStatus v1, job 2026-10-16-comment-responder-controls). commentResponderStatus.test.ts imports it to pin the three states with a fake database: a failed history read is available:false (never an empty list), a failed flag read is paused:null (never 'not paused'), an unparseable context_json row is nulls (never a throw). Its runtime consumer is the commentResponderStatus adminProcedure in the same module, which the client lane's comment responder card calls, so the rule is live, not vacuous."
+    },
+    {
+      "file": "apps/nickstire/server/routers/instagramAdmin.ts",
       "symbol": "readAutopostLaneStatus",
       "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The reader behind instagramAdmin.autopostLaneStatus (contract AutopostLaneStatus v1, job 2026-10-16-ig-autopost-controls). igAutopostLaneStatus.test.ts imports it to pin the three states with a fake database: a failed log read is available:false (never an empty list), a failed flag read is paused:null (never 'not paused'), an absent flag row is false. Its runtime consumer is the autopostLaneStatus adminProcedure in the same module, which the client lane's Pipeline health card calls, so the rule is live, not vacuous."
     },

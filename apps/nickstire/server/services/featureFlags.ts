@@ -132,6 +132,10 @@ export const FLAG_DEFINITIONS = [
   // the lane into a dry run that still generates and spends; this stops it.
   // Read by runIgAutopostCron only; the manual Run-a-slot-now door ignores it.
   { key: "ig_autopost_paused", description: "OFF-SWITCH (inverted). Set TRUE to PAUSE the Instagram image autopost cron before any generation or spend; the manual Run-a-slot-now door still works. Default FALSE (lane runs)." },
+  // REEL COMMENT RESPONDER PAUSE (2026-10-16). Same inverted polarity: an absent
+  // row or a failed read is false = "not paused". Read by runReelCommentResponder,
+  // which both the cron and the Meta comment webhook call.
+  { key: "reel_comment_responder_paused", description: "OFF-SWITCH (inverted). Set TRUE to PAUSE public Instagram comment replies from the reel comment responder (cron and webhook) before any Graph read; drafts are not made either. Default FALSE (lane runs)." },
   { key: "missed_call_recovery", description: "Proactively text unconverted VAPI missed callers (last 24h) a 'sorry we missed you' follow-up. MASTER enable. Even ON, the cron runs in SHADOW (logs+Telegrams the audience, sends nothing) unless env MISSED_CALL_RECOVERY_SEND=1. Reuses the vapi_forwarded_call_followup type → full opt-out/quiet-hours/STOP-footer/caps compliance. TCPA: relationship follow-up to people who just called the business." },
   // ─── TRUST LADDER (approval queue) ────────────────
   // OFF by default ON PURPOSE, and that is also the deploy-order guard: the

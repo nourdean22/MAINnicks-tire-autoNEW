@@ -274,6 +274,23 @@ describe("instagramAdmin router", () => {
     });
   });
 
+  describe("commentResponderStatus (admin)", () => {
+    it("is an admin query that returns the v1 contract", async () => {
+      const caller = appRouter.createCaller(ctx("admin"));
+      const s = await caller.instagramAdmin.commentResponderStatus();
+      expect(s.available).toBe(true);
+      if (s.available) {
+        expect(s.recentReplies).toEqual([]);
+        expect(s.counts7d).toEqual({ posted: 0, failed: 0, dryRun: 0 });
+      }
+    });
+
+    it("refuses a non-admin caller", async () => {
+      const caller = appRouter.createCaller(ctx("user"));
+      await expect(caller.instagramAdmin.commentResponderStatus()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    });
+  });
+
   describe("getProviderHealth (admin)", () => {
     it("returns text/image/autopost health shape without throwing", async () => {
       const caller = appRouter.createCaller(ctx("admin"));
