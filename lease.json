@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "statenour/ui-v3-w2",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "f8d930b8-3865-416c-802f-2947cc79c726",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire",
+  "claimedBy": "2026-10-16-bdnick-ui-v3-w2 Home deck + Missions",
+  "claimedAt": "2026-10-16T03:19:07.174Z",
+  "expiresAt": "2026-10-16T15:19:07.174Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
