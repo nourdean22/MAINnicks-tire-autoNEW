@@ -72,6 +72,8 @@ describe("the page-context chip", () => {
     expect(x).not.toBeNull();
     act(() => x.click());
     expect(h.detach).toHaveBeenCalledTimes(1);
+    const status = Array.from(container.querySelectorAll('[role="status"]')).map((n) => n.textContent).join(" ");
+    expect(status).toContain("Page context detached for this turn");
     unmount();
   });
 

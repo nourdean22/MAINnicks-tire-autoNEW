@@ -13,6 +13,7 @@ import {
   type PageContextPayload,
 } from "@/components/chat/page-context-bridge";
 import type { ChatRuntimeController } from "../types/chat-runtime-controller";
+import { PAGE_ANCHOR_KEYS, pageContextForTurn } from "../lib/page-context-anchors";
 import type { ContextBlocks } from "@/components/chat/context-block-badges";
 import { looksLikeImageGenerationRequest } from "@/lib/ai/chat/handlers/patterns";
 import { bindPersistedMessage, stopTurn as requestStop, type StoppedTurn } from "../lib/turn-lifecycle";
@@ -43,7 +44,6 @@ const conversationKeyOf = (privateMode: boolean) => (privateMode ? "private" : u
 const isTailCutOf = (now: readonly ChatUIMessage[], before: readonly ChatUIMessage[]) =>
   now.length < before.length && now.every((m, i) => m.id === before[i].id);
 
-import { PAGE_ANCHOR_KEYS, pageContextForTurn } from "../lib/page-context-anchors";
 
 export type UseChatStreamOptions = {
   /**
@@ -110,9 +110,12 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
   }, [privateMode, posture, depth, actionPermission]);
 
   // W3b: the page-context chip. The anchors still ride every request by default; the chip's x
-  // detaches them for this turn (the next send that goes out re-attaches whatever the bridge holds).
+  // detaches them for this turn: the detached USER send goes out clean, its replays (Retry, the auto
+  // retry) stay clean, and the next user send or resetTurn re-attaches whatever the bridge holds
+  // (round 2, lens A: a re-attach on settle let Retry resend the anchors).
   const [pageContext, setPageContext] = useState<{ route: string } | null>(null);
   const pageContextDetachedRef = useRef(false);
+  const detachedSendWentRef = useRef(false);
   const applyPageContext = useCallback((ctx: PageContextPayload | null) => {
     for (const key of PAGE_ANCHOR_KEYS) delete bodyRef.current[key];
     const turn = pageContextForTurn(ctx, pageContextDetachedRef.current);
@@ -121,19 +124,21 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
   }, []);
   const detachPageContext = useCallback(() => {
     pageContextDetachedRef.current = true;
+    detachedSendWentRef.current = false;
     applyPageContext(readPageContext());
   }, [applyPageContext]);
-  // Called after a send went out: a detach covers one turn only.
-  const reattachPageContextAfter = useCallback(
-    (sent: Promise<unknown> | void) => {
-      if (!pageContextDetachedRef.current) return;
-      void Promise.resolve(sent).finally(() => {
-        pageContextDetachedRef.current = false;
-        applyPageContext(readPageContext());
-      });
-    },
-    [applyPageContext],
-  );
+  const reattachPageContext = useCallback(() => {
+    if (!pageContextDetachedRef.current) return;
+    pageContextDetachedRef.current = false;
+    detachedSendWentRef.current = false;
+    applyPageContext(readPageContext());
+  }, [applyPageContext]);
+  // Before a USER send: the first send after a detach goes out clean; the one after re-attaches first.
+  const settlePageContextForSend = useCallback(() => {
+    if (!pageContextDetachedRef.current) return;
+    if (detachedSendWentRef.current) reattachPageContext();
+    else detachedSendWentRef.current = true;
+  }, [reattachPageContext]);
   useEffect(() => {
     applyPageContext(readPageContext());
     return onPageContextChanged(applyPageContext);
@@ -724,6 +729,7 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
     retryCountRef.current = 0;
     setStopped(null);
     setHold(null);
+    reattachPageContext();
     clearError();
     replaySnapshotRef.current = null;
     if (requestInFlight) return;
@@ -733,7 +739,7 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
     setLastTraceId(null);
     replayOutstandingRef.current = null;
     acknowledgedTracesRef.current.clear();
-  }, [cancelPartialResume, clearStall, clearError, requestInFlight]);
+  }, [cancelPartialResume, clearStall, clearError, requestInFlight, reattachPageContext]);
 
   return {
     messages: chat.messages,
@@ -763,9 +769,8 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
       // A new turn gets a fresh partial-resume budget; the cap exists to
       // bound ONE turn's reattachments, not the session's.
       resumeAttemptsRef.current = 0;
-      const sent = chat.sendMessage({ text }, turboOpts);
-      reattachPageContextAfter(sent);
-      return sent;
+      settlePageContextForSend();
+      return chat.sendMessage({ text }, turboOpts);
     },
     append: ((...args: Parameters<typeof chat.sendMessage>) => {
       sentPrivateRef.current = privateMode;
@@ -778,9 +783,8 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
       clearStall();
       setStopped(null);
       setHold(null);
-      const sent = chat.sendMessage(...args);
-      reattachPageContextAfter(sent);
-      return sent;
+      settlePageContextForSend();
+      return chat.sendMessage(...args);
     }) as typeof chat.sendMessage,
     stop: () => {
       cancelPartialResume();

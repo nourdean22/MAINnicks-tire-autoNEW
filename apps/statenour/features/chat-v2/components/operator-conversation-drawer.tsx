@@ -91,14 +91,16 @@ export function OperatorConversationDrawer({
       </div>
 
       <div className="flex-1 overflow-y-auto p-2">
-        {listState === "error" && (
-          <p className="flex min-h-11 items-center justify-center gap-2 p-5 text-center text-[13px] text-fg-secondary">
-            History unavailable: the list could not be read.
-            <button type="button" onClick={onRetryList} className="min-h-11 rounded-control px-2 font-medium text-fg underline">Retry</button>
-          </p>
-        )}
-        {/* A background reload (after a new conversation) keeps the rows; the loading line is for an empty drawer. */}
-        {listState === "loading" && convos.length === 0 && <p className="p-5 text-center text-xs text-fg-tertiary">Loading history…</p>}
+        {/* One always-mounted status region for the read (announced); Retry stays mounted while the
+            re-read is in flight. A background reload (after a new conversation) keeps the rows; the
+            loading line is for an empty drawer. */}
+        <div role="status" aria-live="polite" className={listState === "ok" || (listState === "loading" && convos.length > 0) ? "sr-only" : "flex min-h-11 flex-wrap items-center justify-center gap-2 p-5 text-center text-[13px] text-fg-secondary"}>
+          {listState === "error" && "History unavailable: the list could not be read."}
+          {listState === "loading" && convos.length === 0 && "Loading history…"}
+          {listState !== "ok" && (
+            <button type="button" onClick={onRetryList} disabled={listState === "loading"} className="min-h-11 rounded-control px-2 font-medium text-fg underline disabled:opacity-50">Retry</button>
+          )}
+        </div>
         {listState === "ok" && visible.length === 0 && <p className="p-5 text-center text-xs text-fg-tertiary">No conversations in this view.</p>}
         {visible.map((conversation) => (
           <div key={conversation.id} className={`group mb-1 rounded-control border p-2 transition ${activeId === conversation.id ? "border-accent/40 bg-accent-soft" : "border-transparent hover:border-edge-default hover:bg-raised"}`}>

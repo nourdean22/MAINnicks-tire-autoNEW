@@ -62,10 +62,14 @@ describe("OperatorConversationDrawer list states", () => {
     unmount();
   });
 
-  it("a read still in flight says so, not 'empty'", () => {
+  it("a read still in flight says so, not 'empty', in a status region with Retry still mounted but disabled", () => {
     const { container, unmount } = mount(drawer({ listState: "loading" }));
     expect(container.textContent).toContain("Loading history");
     expect(container.textContent).not.toContain("No conversations in this view.");
+    const status = container.querySelector('[role="status"]') as HTMLElement;
+    expect(status.textContent).toContain("Loading history");
+    const retry = Array.from(container.querySelectorAll("button")).find((b) => b.textContent?.trim() === "Retry") as HTMLButtonElement;
+    expect(retry.disabled).toBe(true);
     unmount();
   });
 

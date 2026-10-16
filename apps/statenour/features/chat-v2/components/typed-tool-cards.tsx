@@ -137,7 +137,7 @@ function TopDecisionsCard({ output }: { output: TopDecisionsOutput }) {
         ))}
       </ol>
       <p className="mt-2 text-[11px] text-fg-tertiary">
-        Same read as the admin Decision Inbox: decide there; this card never mutates.
+        Same read as the admin Decision Inbox. Decide there; this card never mutates.
       </p>
     </div>
   );

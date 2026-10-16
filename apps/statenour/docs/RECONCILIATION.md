@@ -9,13 +9,14 @@
 > - **Hold card.** `useChatStream` exposes `hold` (set where the two hold toasts fire, cleared by a replay that went, a new send, resetTurn); the error card renders it under Retry. The 38 toast assertions are untouched; one glue case added.
 > - **Honest History reads (`hooks/use-conversations.ts`, `operator-conversation-drawer.tsx`).** The list read carries loading / error / ok ("History unavailable: Retry", "Loading history", and "No conversations in this view." only for a measured empty list); `loadConvo` answers whether THIS request's rows landed, the island moves the active conversation only then (resetTurn still first), and a failed open renders a Retry line instead of the starters; delete / rename / archive / Load older failures toast.
 > - **Grammar.** The net at base.css:332 covers the chat shell (the `data-chat-shell` attribute stays as the render's island locator); seven uppercase sites reworded with their text children re-read, nine em dashes, `d.urgency` through a word map; ratchet uppercase 12 to 5, emDash 284 to 275.
-> - **Desktop.** Read, not changed: `--bottom-chrome-h` is published from the measured chrome and the tab row is `xl:hidden`, so the xl reservation is the ticker (about 20 px) plus the safe area, not the inferred 96 px; `tests/components/bottom-tab-bar-xl-reservation.test.tsx` pins it (two mutants red).
+> - **Desktop.** Read, not changed: `--bottom-chrome-h` is published from the measured chrome and the tab row is `xl:hidden`, so the xl reservation is the ticker's measured height (about 32 px in the baseline) plus the safe area, not the inferred 96 px; `tests/components/bottom-tab-bar-xl-reservation.test.tsx` pins it (two mutants red).
 >
 > **Flagged · NOT fixed**
 > - The pin toggle writes localStorage only; a refused write still flips in memory and is not toasted (no server write exists to fail).
 > - `use-chat-stream.ts:457` still carries an inline literal that drifts from RETRY_HELD_RAN; the brief ruled out logic edits there.
 > - The chat-states e2e win32 baselines stay stale (W3a flag).
 > - Not measured here: the six-feet distance at 390 and 1440, and a real iPhone keyboard pass.
+> - Home's `brief-state-line.tsx:99` carries the same dead utility sizes on a `.vt-verdict` heading (the unlayered role wins); out of this lane's scope, noted for W4.
 
 > ## 2026-10-16 · UI v3 Wave 3a · the Chat six-feet instrument (branch `statenour/ui-v3-w3a`) · 1 statenour PR, nothing user-visible
 >

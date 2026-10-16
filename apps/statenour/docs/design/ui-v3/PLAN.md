@@ -109,5 +109,5 @@ W2 decisions (2026-10-16, branch `statenour/ui-v3-w2`): the brief is rows, not c
 | 6 | Sweep em dashes, emoji, More-sheet emoji | `lib/floating-home/smart-now.ts`, `components/journal/reflect-composer.tsx:93-102` | W1, W4 |
 | 7 | Delete the Missions FAB, fold "New mission" into the capture row | `components/actions/omni-capture-modal.tsx:112-115`, `app/(mastery)/missions/page.tsx:352-381` | W2 |
 | 8 | Brain single scrolling lens row, filters inside the canvas | `components/layout/page-tabs.tsx:223`, `app/(mastery)/brain/page.tsx:80-100` | W4 |
-| 9 | Chat capability pill becomes a dot (shipped in W3b: a 10 px dot, one word at md-up, full words in the accessible name) | `features/chat-v2/components/chat-capability-indicator.tsx` | W3b |
+| 9 | Chat capability pill becomes a dot (W3b, this PR: a 10 px dot, the label words at every non-Ready state, full words in the accessible name) | `features/chat-v2/components/chat-capability-indicator.tsx` | W3b |
 | 10 | Fold the 5 QA fixtures under Lab; palette System group from the hub list (/goals and /scoreboard already `redirect()`, since 2026-05-30) | `components/system/hub-grid.tsx:121-386`, `components/command-palette.tsx:345-357` | W5 |

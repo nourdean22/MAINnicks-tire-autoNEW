@@ -36,6 +36,7 @@ vi.mock("@/components/chat/reasoning-trace-modal", () => ({ ReasoningTraceModal:
 vi.mock("@/components/chat/reasoning-trace-live", () => ({ ReasoningTraceLive: () => null }));
 vi.mock("@/features/chat-v2/components/typed-tool-cards", () => ({ TypedToolCards: () => null }));
 
+import type { UIMessage } from "ai";
 import { ChatMessageList } from "@/features/chat-v2/components/chat-message-list";
 
 describe("ChatMessageList with a failed open", () => {
@@ -47,6 +48,17 @@ describe("ChatMessageList with a failed open", () => {
     expect(markup).toContain(">Retry<");
     expect(markup).not.toContain("What are we solving?");
     expect(markup).not.toContain("Run my command brief");
+  });
+
+  it("renders above a restored transcript too, and keeps Retry mounted (disabled) while the re-read runs", () => {
+    const messages = [{ id: "u1", role: "user", parts: [{ type: "text", text: "hi" }] }] as unknown as UIMessage[];
+    const markup = renderToStaticMarkup(
+      <ChatMessageList messages={messages} isLoading={false} isLoadingConvo error={undefined} loadFailedId="c9" onRetryLoad={() => {}} />,
+    );
+    expect(markup).toContain("Couldn&#x27;t open that conversation");
+    expect(markup).toMatch(/<button[^>]*disabled=""[^>]*>Retry<\/button>/);
+    expect(markup).toContain('role="status"');
+    expect(markup).toContain("hi");
   });
 
   it("CONTROL: with no failed open the starters render", () => {

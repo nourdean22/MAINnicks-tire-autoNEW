@@ -147,6 +147,27 @@ describe("loadConvo answers whether the rows landed", () => {
     hook.unmount();
   });
 
+  it("a failed open puts the transcript that was on screen back (round 2, lens B)", async () => {
+    h.listFetch.mockResolvedValue(okList);
+    h.conversationFetch.mockRejectedValue(new Error("NOT_FOUND"));
+    const onScreen = [{ id: "m0", role: "user", parts: [] }];
+    let messages: unknown = onScreen;
+    const setMessages = (next: unknown) => {
+      messages = typeof next === "function" ? (next as (m: unknown) => unknown)(messages) : next;
+    };
+    let api!: ReturnType<typeof useConversations>;
+    function Probe() {
+      api = useConversations({ setMessages: setMessages as never, onError: () => {} });
+      return null;
+    }
+    const root = createRoot(document.createElement("div"));
+    act(() => root.render(<Probe />));
+    await act(async () => { await api.loadConvo("c9"); });
+    expect(messages).toBe(onScreen);
+    expect(api.loadFailedId).toBe("c9");
+    act(() => root.unmount());
+  });
+
   it("a new chat clears a recorded load failure", async () => {
     h.listFetch.mockResolvedValue(okList);
     h.conversationFetch.mockRejectedValue(new Error("NOT_FOUND"));

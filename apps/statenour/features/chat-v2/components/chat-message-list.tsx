@@ -406,30 +406,35 @@ export function ChatMessageList({
   // A stop recorded in another conversation names a message that is not here.
   const stoppedHere = stopped && !isLoading && messages.some((m) => m.id === stopped.messageId) ? stopped : null;
 
+  // The failed-open card (W3b): the transcript on screen was put back by use-conversations, so it
+  // also renders above a restored transcript. Announced; Retry stays mounted while the re-read runs.
+  const loadFailedCard = loadFailedId ? (
+    <div role="status" aria-live="polite" className="flex flex-col items-center gap-3 text-center text-[15px] text-fg">
+      <p>Couldn&apos;t open that conversation. Nothing was changed.</p>
+      {onRetryLoad && (
+        <button type="button" onClick={() => onRetryLoad(loadFailedId)} disabled={isLoadingConvo} className="min-h-11 rounded-control border border-edge-default px-4 font-medium text-fg hover:bg-surface disabled:opacity-50">
+          Retry
+        </button>
+      )}
+    </div>
+  ) : null;
+
   if (messages.length === 0 && pending.length === 0 && !diagnosticReport) {
-    if (isLoadingConvo) {
+    if (isLoadingConvo && !loadFailedId) {
       return <div className="flex h-full items-center justify-center p-8 text-[13px] text-fg-tertiary">Loading conversation…</div>;
     }
     // A failed open is not an empty chat: the active conversation did not move (chat-island.tsx
     // openConversation), so the starters would invite a send into the wrong place.
     if (loadFailedId) {
-      return (
-        <div role="alert" className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center text-[15px] text-fg">
-          <p>Couldn&apos;t open that conversation. Nothing was changed.</p>
-          {onRetryLoad && (
-            <button type="button" onClick={() => onRetryLoad(loadFailedId)} className="min-h-11 rounded-control border border-edge-default px-4 font-medium text-fg hover:bg-surface">
-              Retry
-            </button>
-          )}
-        </div>
-      );
+      return <div className="flex h-full flex-col items-center justify-center p-8">{loadFailedCard}</div>;
     }
     return (
       <div className="mx-auto flex h-full w-full max-w-3xl flex-col justify-center p-5 sm:p-8">
         {/* W3b: the headline is the hero, in the verdict role Home uses (the one line a page may
             shout). The NICK eyebrow (the header says Nick) and the description are gone. */}
         <div className="mb-7">
-          <h2 className="vt-verdict text-[2.25rem] leading-[1.04] sm:text-[2.75rem] xl:text-[3.25rem]">What are we solving?</h2>
+          {/* .vt-verdict is unlayered and sets its own 30 / 40 / 48 px scale; utility sizes here would be dead. */}
+          <h2 className="vt-verdict">What are we solving?</h2>
           {(connection === "degraded" || connection === "offline") && (
             <p className="mt-3 inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-[12px] text-amber-300">
               <AlertTriangle size={12} /> Chat is degraded. Run /diagnose for an independent check.
@@ -469,6 +474,7 @@ export function ChatMessageList({
       aria-busy={isLoading}
       className="mx-auto flex w-full max-w-3xl flex-col gap-7 px-4 py-5 pb-12 sm:px-6"
     >
+      {loadFailedCard}
       {diagnosticReport && (
         <section className="rounded-surface border border-edge-subtle bg-content p-4">
           <div className="mb-3 flex items-center gap-2 text-fg-secondary">
@@ -658,7 +664,7 @@ export function ChatMessageList({
           )}
           {/* W3b: the hold's words (use-chat-stream.ts toasts them once; the card keeps them). Retry
               stays: a tap re-checks the saved turn through safeRegenerate. */}
-          {hold && <p className="mt-2 text-[13px] leading-snug text-fg-secondary">{hold}</p>}
+          {hold && <p role="status" aria-live="polite" className="mt-2 text-[13px] leading-snug text-fg-secondary">{hold}</p>}
         </div>
       )}
 

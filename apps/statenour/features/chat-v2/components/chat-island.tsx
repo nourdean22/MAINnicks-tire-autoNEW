@@ -134,6 +134,8 @@ export function ChatIsland() {
   const [memoryFetchedAt, setMemoryFetchedAt] = useState<Date | null>(null);
   // W3b: below md the header shows History and More; auto-read, context and voice live in this sheet.
   const [moreOpen, setMoreOpen] = useState(false);
+  // W3b: one polite region for the chip's detach (the x unmounts under the finger).
+  const [chipAnnouncement, setChipAnnouncement] = useState("");
   const moreButtonRef = useRef<HTMLButtonElement>(null);
 
   // Retry after a stream error reads the conversation as saved before it replays a
@@ -158,6 +160,13 @@ export function ChatIsland() {
   useEffect(() => {
     readSavedTurnRef.current = conversations.readSavedTurn;
   }, [conversations.readSavedTurn]);
+  // /new (the composer), a delete and a successful open all move the store; a failure never does, so
+  // any store move means the failed-open card is about a conversation that is no longer the one
+  // in question (round 2, lenses A and B).
+  const { clearLoadFailure } = conversations;
+  useEffect(() => {
+    clearLoadFailure?.();
+  }, [activeConversationId, clearLoadFailure]);
   // Every path here that empties or switches the conversation (pick one, New, delete the active one)
   // goes through this: the old turn's error, trace refs and outstanding replay are reset BEFORE the
   // active conversation moves, so none of it stays attached to the next chat. resetTurn leaves a turn
@@ -451,7 +460,11 @@ export function ChatIsland() {
             <span className="min-w-0 truncate">Page context: {chat.pageContext.route} attached</span>
             <button
               type="button"
-              onClick={chat.detachPageContext}
+              onClick={() => {
+                chat.detachPageContext();
+                setChipAnnouncement("Page context detached for this turn");
+                islandRef.current?.querySelector("textarea")?.focus();
+              }}
               aria-label="Detach page context for this turn"
               className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-control text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:bg-surface hover:text-fg"
             >
@@ -460,6 +473,7 @@ export function ChatIsland() {
           </div>
         )}
         <ChatComposer chat={chat} />
+        <div role="status" aria-live="polite" className="sr-only">{chipAnnouncement}</div>
       </div>
 
       {/* BDN-315 · desktop focus panel. Overlays like the memory

@@ -136,7 +136,9 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
 
   // Initial load — no auto-resume, user picks from history dropdown
   useEffect(() => {
-    reloadConvos();
+    // A microtask, not a synchronous call: reloadConvos sets listState, and the initial state is
+    // already "loading" (react-hooks/set-state-in-effect).
+    void Promise.resolve().then(reloadConvos);
   }, [reloadConvos]);
 
   // Answers true only when THIS request's rows landed: a request superseded by a later pick, or
@@ -146,18 +148,17 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
     async (id: string): Promise<boolean> => {
       const thisRequest = ++loadRequestRef.current;
       setIsLoadingConvo(true);
-      setLoadFailedId(null);
       try {
-        // Clear the in-memory messages FIRST so any lingering SDK-
-        // generated ids from a concurrent stream can't collide with
-        // the DB cuid ids we're about to load. Without this reset,
-        // React sees duplicate keys when a convo is loaded while the
-        // previous one is still streaming.
-        setMessages([]);
         // `chat.conversation` throws NOT_FOUND on a missing id (caught
         // by the catch below) · the result is always a conversation.
         const conversation = await utils.chat.conversation.fetch({ id });
         if (thisRequest !== loadRequestRef.current) return false;
+        // The transcript on screen stays until THIS request's rows are in hand (round 2): a failed
+        // or superseded open changes nothing the operator sees, and the next send still posts into
+        // what is on screen. Clearing before the rows land is what let a failed open blank the chat.
+        // The clear still precedes the new rows in the same tick, so SDK-generated ids from a
+        // concurrent stream cannot collide with the DB cuid ids.
+        setMessages([]);
         const data = { conversation };
         if (data.conversation) {
           setActiveId(id);
@@ -247,6 +248,7 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
           );
           setShowHistory(false);
         }
+        setLoadFailedId(null);
         return true;
       } catch {
         if (thisRequest !== loadRequestRef.current) return false;
@@ -286,6 +288,8 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
     },
     [activeId, setMessages, onError, deleteConversationMutation]
   );
+
+  const clearLoadFailure = useCallback(() => setLoadFailedId(null), []);
 
   const newChat = useCallback(() => {
     setActiveId(null);
@@ -424,8 +428,9 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
     isLoadingConvo,
     /** The list read: loading until it answers, error when it failed, ok when it answered (even with no rows). */
     listState,
-    /** The conversation whose open failed, until the next open or a new chat. */
+    /** The conversation whose open failed, until an open succeeds or the chat is emptied. */
     loadFailedId,
+    clearLoadFailure,
     loadConvo,
     readSavedTurn,
     deleteConvo,
