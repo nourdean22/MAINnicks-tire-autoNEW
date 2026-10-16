@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "nickstire/reel-quality-fixes",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "72e6a5b1-c131-4290-9859-4519ea80536a",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\musing-ramanujan-25e4e3",
+  "claimedBy": "2026-10-16-reel-quality-fixes",
+  "claimedAt": "2026-10-16T15:42:01.149Z",
+  "expiresAt": "2026-10-17T03:42:01.149Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
