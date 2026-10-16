@@ -1,6 +1,7 @@
 ---
 name: reel-hook-mechanism
 description: Use when Nour or a session wants reel hook ideas or hook mechanics for Nick's Tire Instagram or Facebook reels from the awesome-opus5-5-videos list, says "steal the mechanism", or is about to paste, copy or mine that list's prompts. Source yihui-dev/awesome-opus5-5-videos at commit 92aee2f, 2026-10-13.
+triggers: reel hook, hook ideas, hook mechanics, steal the mechanism, awesome-opus5-5-videos, instagram reels, facebook reels, mine the prompts, video prompt list
 ---
 
 # reel-hook-mechanism

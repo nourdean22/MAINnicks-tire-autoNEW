@@ -1,6 +1,7 @@
 ---
 name: session-observer
 description: PROPOSE-ONLY session review — turn what actually happened this session into dated, evidence-backed skill improvement proposals in docs/skill-proposals.md. Never edits a skill, CLAUDE.md, or AGENTS.md itself. Use at the end of a wave, after a correction, or when the operator says "observe this session".
+triggers: session review, skill proposals, end of a wave, after a correction, witnessed trigger, evidence-backed proposal, propose only, what happened this session, skill-proposals.md
 ---
 
 # Session Observer (propose-only)

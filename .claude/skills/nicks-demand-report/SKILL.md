@@ -1,6 +1,7 @@
 ---
 name: nicks-demand-report
 description: Produce an executive demand and growth report for Nick's Tire & Auto by reconciling the strongest available evidence across Google Search Console, Google Business Profile/local visibility, website leads, calls/Vapi, appointments, CRM, reviews, Meta/Instagram, and revenue. Use when the user asks how Nick's is doing, wants a monthly/quarterly growth report, asks whether marketing is creating real demand, or wants a cross-channel business-performance review rather than a single-platform dashboard.
+triggers: demand report, monthly report, growth report, how are we doing, is demand growing, what moved the shop, leaking customers, executive report, nick's tire, search console, local visibility, website leads
 ---
 
 # Nick's Demand Report

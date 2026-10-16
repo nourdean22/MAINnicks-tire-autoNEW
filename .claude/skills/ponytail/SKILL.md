@@ -10,6 +10,7 @@ description: >
   or changing code. Levels: lite, full (default), ultra.
 argument-hint: "[lite|full|ultra]"
 license: MIT
+triggers: lazy senior dev, smallest change, simplest solution, yagni, over-engineering, bloat, be lazy, coding task, dependencies, ponytail, levels
 ---
 
 # Ponytail

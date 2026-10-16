@@ -1,6 +1,7 @@
 ---
 name: gbp-local-report
 description: Analyze Google Business Profile and local-search performance for visibility, search terms, calls, directions, website clicks, bookings/actions, reviews, profile completeness, local-pack presence, and local demand capture. Use when the user asks for a Google Business Profile/GBP report, local SEO report, Maps performance review, review/reputation audit, or provides GBP Performance exports/screenshots and wants to know how Nick's Tire & Auto is performing locally.
+triggers: google business profile, gbp report, maps, local search, search terms, calls from google, directions, website clicks, reviews, local pack, profile completeness, local visibility
 ---
 
 # GBP Local Report

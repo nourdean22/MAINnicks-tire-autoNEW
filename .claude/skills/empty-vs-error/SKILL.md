@@ -1,6 +1,7 @@
 ---
 name: empty-vs-error
 description: Use whenever code READS something (query, fetch, groupBy, aggregate, probe) and RENDERS or SCORES the result — a panel, a stat tile, a health verdict, a score, a report section. A failed read must never render as a confident zero. Also use when auditing a wave for this shape, or when fixing one instance of it.
+triggers: read, query, fetch, groupby, aggregate, probe, render, score, panel, stat tile, health verdict, report section, confident zero, failed read
 ---
 
 # Empty vs Error vs Unmeasured

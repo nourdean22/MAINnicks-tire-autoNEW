@@ -1,6 +1,7 @@
 ---
 name: vapi-call-ops-report
 description: Analyze Vapi voice-agent and call performance for call outcomes, lead handling, bookings/transfers, tool execution, failures, latency, cost, conversation quality, prompt/knowledge issues, missed revenue, and operational reliability. Use when the user asks for a Vapi report or audit, provides Vapi call logs/exports/transcripts/JSON/screenshots, wants to inspect agent performance, or needs to understand why calls are failing, expensive, low quality, or not converting.
+triggers: vapi, voice agent, call performance, call outcomes, lead handling, bookings, transfers, call failures, latency, cost, missed leads, assistant version, yesterday's calls, call report
 ---
 
 # Vapi Call Ops Report

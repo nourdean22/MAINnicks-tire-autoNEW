@@ -1,6 +1,7 @@
 ---
 name: harness-worktree-setup
 description: Make a Claude-harness worktree (.claude/worktrees/*) actually runnable - junction node_modules, then obey the one-checkout rule. Use as the FIRST action whenever cwd is under .claude/worktrees/, or when tsc/eslint report "not recognized" and node_modules looks missing.
+triggers: harness worktree, claude worktrees, junction node_modules, tsc not recognized, eslint missing, one-checkout rule, lefthook pre-commit, worktree setup, env files, lenses build
 ---
 
 # Harness Worktree Setup

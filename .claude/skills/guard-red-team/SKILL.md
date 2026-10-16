@@ -1,6 +1,7 @@
 ---
 name: guard-red-team
 description: Use whenever authoring or modifying ANY deny-list, guard regex, lint rule, policy file, or enforcement hook (config/agent-os/policy.json, pretool hooks, lint-source rules, CI gates). A guard that goes green on its own canaries is unproven - adversarially probe the REAL binary end-to-end before trusting it.
+triggers: deny-list, guard regex, lint rule, policy file, enforcement hook, policy.json, pretool hook, ci gate, bypass, false positive, adversarial probe, canary green, exit codes
 ---
 
 # Guard Red-Team

@@ -2,6 +2,7 @@
 name: antislop-ui
 description: "UI and visual skill for antislop. Use when building or editing any interface: color, layout, components, motion. Load with the core."
 allowed-tools: Read Write Edit Glob Grep
+triggers: interface, visual design, color palette, layout, components, motion, gradient, glassmorphism, border radius, shadows, icons, feature cards, bento grid, dark mode
 ---
 # antislop-ui
 

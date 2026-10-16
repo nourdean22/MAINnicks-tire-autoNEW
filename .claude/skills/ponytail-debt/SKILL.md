@@ -4,6 +4,7 @@ description: >
   List every `shortcut:` comment (and older `ponytail:` ones) as a debt ledger. One-shot report,
   changes nothing. Use for "ponytail debt", "what did ponytail defer", "list the
   shortcuts", /ponytail-debt.
+triggers: shortcut comments, debt ledger, ponytail debt, what did ponytail defer, list the shortcuts, no-trigger tag, ceiling, upgrade trigger
 ---
 
 Every deliberate ponytail shortcut is marked with a `shortcut:` comment naming

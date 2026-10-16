@@ -1,6 +1,7 @@
 ---
 name: statenour-wave-reconcile
 description: Use at the end of a statenour work wave (a batch of commits) — refresh docs/RECONCILIATION.md and AGENTS.md so the next session resumes on accurate ground truth.
+triggers: end of a wave, batch of commits, reconciliation.md, refresh docs, ground truth, ship history, wave reconcile, statenour docs
 ---
 
 # statenour-wave-reconcile

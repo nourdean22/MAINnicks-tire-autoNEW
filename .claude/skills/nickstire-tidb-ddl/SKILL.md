@@ -1,6 +1,7 @@
 ---
 name: nickstire-tidb-ddl
 description: Use when adding or altering a column, table, status value, or index in the nickstire database (apps/nickstire/drizzle/). TiDB rejects several things MySQL allows, and one of them loses the row silently instead of erroring.
+triggers: tidb, drizzle, column, table, index, status value, ddl, nickstire database, altering a column, schema change, mysql, silent row loss
 ---
 
 # nickstire-tidb-ddl

@@ -1,6 +1,7 @@
 ---
 name: shop-retention-report
 description: Analyze auto-repair shop CRM, customer, invoice, and service history for retention, repeat visits, customer cohorts, recency/frequency, average repair order or revenue per visit, declined-work recovery, service mix, tire-to-service cross-sell, dormant customers, review capture, and retention leakage. Use when the user asks for a customer retention report, CRM report, repeat-customer audit, shop economics review, declined-work analysis, or uploads Autolaborexperts/CRM/invoice/customer exports.
+triggers: retention, repeat visits, customer cohorts, recency frequency, average repair order, revenue per visit, declined work, service mix, tire-to-service cross-sell, dormant customers, customers come back, crm invoices
 ---
 
 # Shop Retention Report

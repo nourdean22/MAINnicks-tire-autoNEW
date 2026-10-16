@@ -4,6 +4,7 @@ description: >
   Show ponytail's measured savings (code, cost, speed) from the benchmark.
   One-shot display. Use for /ponytail-gain, "what does ponytail save",
   "ponytail impact".
+triggers: ponytail gain, what does ponytail save, ponytail impact, measured savings, benchmark, scoreboard, code cost speed
 ---
 
 # Ponytail Gain

@@ -1,6 +1,7 @@
 ---
 name: prod-db-guard
 description: Use before running ANY script that touches a database from a worktree or local shell. Every worktree binds the PRODUCTION DATABASE_URL, so a "local" script hits prod — and a --dry-run flag is not a guard until a non-executing check proves it returns before the write.
+triggers: database script, worktree, local shell, production database_url, hits prod, dry-run flag, non-executing check, db write, prod probe, script that touches a database
 ---
 
 # prod-db-guard

@@ -1,6 +1,7 @@
 ---
 name: monorepo-manager
 description: Run the NOURCITY monorepo as a manager that never edits code itself. Use when Nour says "manager", "manage the repo", "run the backlog", "continue the job", when a job touches more than one lane (nickstire server/client, statenour, worker, platform, research), or after a heartbeat proposes jobs. Splits work one lane agent per area, dispatches, verifies every diff, integrates, reports, and keeps the job ledger.
+triggers: manager, manage the repo, run the backlog, continue the job, more than one lane, dispatch lanes, job ledger, heartbeat jobs, integrate lanes, verify every diff
 ---
 
 # Monorepo manager

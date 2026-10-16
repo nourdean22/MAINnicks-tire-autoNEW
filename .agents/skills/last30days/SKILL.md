@@ -61,6 +61,7 @@ metadata:
       - hiring-signals
       - ai-skill
       - clawhub
+triggers: last 30 days, what people say, reddit, x, youtube, tiktok, hacker news, polymarket, github, recent posts, engagement, research a topic
 ---
 
 # STEP 0: STALE-CLONE SELF-CHECK — RUN BEFORE READING BELOW

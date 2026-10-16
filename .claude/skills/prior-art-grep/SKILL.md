@@ -1,6 +1,7 @@
 ---
 name: prior-art-grep
 description: Use BEFORE adding any new table, queue, tool, feature flag, cron, env var, or registry entry. Run a fixed grep set and write the answer down before building. This repo has standing "no second implementation" rules that are easy to violate by accident.
+triggers: new table, queue, tool, feature flag, cron, env var, registry entry, grep set, prior art, second implementation, duplicate store, schema models
 ---
 
 # Prior-Art Grep
