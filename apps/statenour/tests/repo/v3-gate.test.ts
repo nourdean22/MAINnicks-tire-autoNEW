@@ -5,20 +5,39 @@
  * runnable with no browser. The gate is the inverse of a snapshot test: it
  * FAILS when a page still looks like the frozen v2 render, so a verdict
  * function that says "ok" too easily lets an untouched page through. This
- * file pins (1) the verdict arithmetic and its thresholds, (2) the instrument
- * on REAL committed renders (the existing visual-distance-metric test draws
- * synthetic rectangles; it never touches a committed PNG), and (3) later
- * sections: the fixture router, the spec's use of the verdict, the workflow.
+ * file pins (1) the verdict arithmetic and its thresholds and measureAndJudge
+ * with stub instruments, (2) the instrument on REAL committed renders (the
+ * existing visual-distance-metric test draws synthetic rectangles; it never
+ * touches a committed PNG), (3) the fixture router and wiring, the fixture
+ * data's hygiene and age arithmetic, (4) that the smoke cannot pass on an
+ * empty page, (5) that the v3 spec judges only through measureAndJudge,
+ * (6) the workflow's capture path, and (7) that tsconfig.e2e.json really
+ * compiles the fixtures against their contracts (two tsc spawns, ~1 min).
  */
+import { execFile } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
 import type { Page } from "@playwright/test";
 import { load } from "js-yaml";
 import { describe, expect, it } from "vitest";
 
-import { DEMO, FIXED_TIME, TRPC_FIXTURES, answerApi, installFixtures, type FixtureReport } from "../e2e/fixtures";
-import { MIN_DISTANCE, MIN_INK, captureVerdict, v3GateVerdict } from "../e2e/v3-gate";
+import {
+  DEMO,
+  FIXED_TIME,
+  NOW_ISO,
+  NOW_MS,
+  PAGE_ERRORS,
+  TRPC_FIXTURES,
+  UNSTUBBED_ALLOWLIST,
+  answerApi,
+  disallowedUnstubbed,
+  installFixtures,
+  type FixtureReport,
+} from "../e2e/fixtures";
+import { MISSION_TASKS } from "../e2e/fixtures/missions";
+import { MIN_DISTANCE, MIN_INK, captureVerdict, measureAndJudge, v3GateVerdict, type MeasureDeps } from "../e2e/v3-gate";
 import { visualDistance } from "../e2e/visual-distance";
 
 const APP_DIR = path.join(__dirname, "..", "..");
@@ -92,6 +111,71 @@ describe("v3 gate thresholds vs the v2 spec", () => {
     const m = /const MIN_INK = ([0-9.]+);/.exec(v2);
     expect(m, "v2 spec no longer declares MIN_INK the way this test reads it").not.toBeNull();
     expect(MIN_INK).toBe(Number(m![1]));
+  });
+});
+
+// ── measureAndJudge: the spec's only path, with stub instruments ────────────
+
+describe("measureAndJudge (stub deps)", () => {
+  const VP = { width: 390, height: 844 };
+  const A = Buffer.from("baseline");
+  const B = Buffer.from("current");
+  const deps = (ink: number, distance: number): MeasureDeps & { calls: string[] } => {
+    const calls: string[] = [];
+    return {
+      calls,
+      inkCoverage: async (png, vp) => {
+        calls.push(`ink:${png.toString()}:${vp.width}`);
+        return ink;
+      },
+      visualDistance: async (a, b, vp) => {
+        calls.push(`dist:${a.toString()}>${b.toString()}:${vp.width}`);
+        return { ratio: distance };
+      },
+    };
+  };
+
+  it("measures the CURRENT render's ink and the baseline->current distance, in that order", async () => {
+    const d = deps(0.03, 0.5);
+    const r = await measureAndJudge({ baseline: A, current: B, viewport: VP }, d);
+    expect(d.calls).toEqual(["ink:current:390", "dist:baseline>current:390"]);
+    expect(r).toEqual({ ink: 0.03, distance: 0.5, verdict: { ok: true, reason: "distance 50.0%" } });
+  });
+
+  it("missing baseline: FAILS, never calls the distance, reports NaN not a stand-in number", async () => {
+    const d = deps(0.03, 0.5);
+    const r = await measureAndJudge({ baseline: null, current: B, viewport: VP }, d);
+    expect(r.verdict.ok).toBe(false);
+    expect(r.verdict.reason).toMatch(/missing baseline/i);
+    expect(Number.isNaN(r.distance)).toBe(true);
+    expect(d.calls).toEqual(["ink:current:390"]);
+  });
+
+  it("NaN from the instrument never passes", async () => {
+    expect((await measureAndJudge({ baseline: A, current: B, viewport: VP }, deps(Number.NaN, 0.5))).verdict.ok).toBe(false);
+    expect((await measureAndJudge({ baseline: A, current: B, viewport: VP }, deps(0.03, Number.NaN))).verdict.ok).toBe(false);
+  });
+
+  it("ink exactly MIN_INK fails, a hair above passes the ink check", async () => {
+    const atFloor = await measureAndJudge({ baseline: A, current: B, viewport: VP }, deps(MIN_INK, 0.5));
+    expect(atFloor.verdict).toMatchObject({ ok: false });
+    expect(atFloor.verdict.reason).toMatch(/ink/i);
+    expect((await measureAndJudge({ baseline: A, current: B, viewport: VP }, deps(MIN_INK + 1e-6, 0.5))).verdict.ok).toBe(true);
+  });
+
+  it("distance 0.3499 fails, 0.35 passes", async () => {
+    const low = await measureAndJudge({ baseline: A, current: B, viewport: VP }, deps(0.03, 0.3499));
+    expect(low.verdict.ok).toBe(false);
+    expect(low.verdict.reason).toMatch(/still looks like/i);
+    expect((await measureAndJudge({ baseline: A, current: B, viewport: VP }, deps(0.03, 0.35))).verdict.ok).toBe(true);
+  });
+
+  it("with the real instruments, a committed render against itself fails as identical", async () => {
+    const png = fs.readFileSync(path.join(V2_SNAPSHOTS, "home-phone.png"));
+    const r = await measureAndJudge({ baseline: png, current: Buffer.from(png), viewport: VP });
+    expect(r.ink).toBeGreaterThan(MIN_INK);
+    expect(r.distance).toBe(0);
+    expect(r.verdict.ok).toBe(false);
   });
 });
 
@@ -275,9 +359,28 @@ describe("fixture router (answerApi)", () => {
     expect([...report.unstubbed]).toEqual(["GET /api/coach/events"]);
   });
 
-  it("every fixture survives JSON unchanged (no Date, undefined or function reaches the wire)", () => {
+  /** Paths whose value JSON would drop or rewrite: undefined, Date, function, symbol, bigint, NaN/Infinity. */
+  function nonWireValues(value: unknown, at = "$"): string[] {
+    if (value === undefined) return [`${at}: undefined`];
+    if (value instanceof Date) return [`${at}: Date`];
+    if (typeof value === "function" || typeof value === "symbol" || typeof value === "bigint") return [`${at}: ${typeof value}`];
+    if (typeof value === "number" && !Number.isFinite(value)) return [`${at}: ${value}`];
+    if (Array.isArray(value)) return value.flatMap((v, i) => nonWireValues(v, `${at}[${i}]`));
+    if (value && typeof value === "object") return Object.entries(value).flatMap(([k, v]) => nonWireValues(v, `${at}.${k}`));
+    return [];
+  }
+
+  it("positive control: the wire walk flags an undefined property, a Date and a function", () => {
+    expect(nonWireValues({ a: 1, b: undefined })).toEqual(["$.b: undefined"]);
+    expect(nonWireValues({ a: [new Date(0)] })).toEqual(["$.a[0]: Date"]);
+    expect(nonWireValues({ f: () => 1 })).toEqual(["$.f: function"]);
+    // The naive JSON round-trip the first draft used is blind to the first case.
+    expect(JSON.parse(JSON.stringify({ a: 1, b: undefined }))).toEqual({ a: 1, b: undefined });
+  });
+
+  it("every fixture reaches the wire whole: no undefined, Date, function or non-finite number anywhere", () => {
     for (const [procedure, data] of Object.entries(TRPC_FIXTURES)) {
-      expect(JSON.parse(JSON.stringify(data)), procedure).toEqual(data);
+      expect(nonWireValues(data), procedure).toEqual([]);
     }
   });
 });
@@ -324,7 +427,8 @@ describe("installFixtures (the wiring, against a recording Page)", () => {
 // ── The fixtures: fictional, deterministic, and unable to hide a failed read ─
 
 /** Lines that would make a fixture depend on the machine or the moment. */
-const NONDETERMINISTIC = /Date\.now|new Date\(|Math\.random|performance\.now|toLocale|Intl\.|randomUUID|process\.env/;
+// `new Date(<literal>)` is deterministic (time.ts derives NOW_ISO that way); a bare `new Date()` reads the clock.
+const NONDETERMINISTIC = /Date\.now|new Date\(\s*\)|Math\.random|performance\.now|toLocale|Intl\.|randomUUID|process\.env/;
 
 describe("fixture data", () => {
   const dataFiles = ["time.ts", "home.ts", "missions.ts", "shell.ts"].map((f) => path.join(E2E_DIR, "fixtures", f));
@@ -379,6 +483,56 @@ describe("fixture data", () => {
     const wire = JSON.stringify(TRPC_FIXTURES);
     expect(wire).not.toMatch(/@[a-z0-9-]+\.[a-z]{2,}/i);
     expect(wire).not.toMatch(/\b\d{3}[-.\s)]\s?\d{3}[-.\s]\d{4}\b/);
+  });
+
+  it("NOW_ISO is derived from FIXED_TIME, not a second literal", () => {
+    expect(NOW_ISO).toBe(new Date(FIXED_TIME).toISOString());
+    expect(NOW_ISO).toBe("2026-10-15T18:00:00.000Z");
+    expect(NOW_MS).toBe(Date.parse(FIXED_TIME));
+    expect(read(path.join(E2E_DIR, "fixtures", "time.ts"))).toContain("export const NOW_ISO = new Date(FIXED_TIME).toISOString();");
+  });
+
+  /** Age arithmetic the builders use: waiting-summary.ts:167 (round, minutes) and deck.ts daysBetween (floor, days). */
+  const ageMinOf = (sinceIso: string) => Math.max(0, Math.round((NOW_MS - Date.parse(sinceIso)) / 60_000));
+  const ageDaysOf = (iso: string) => Math.max(0, Math.floor((NOW_MS - Date.parse(iso)) / 86_400_000));
+
+  function ageProblems(fixtures: Record<string, unknown>): string[] {
+    const problems: string[] = [];
+    const brief = fixtures["operator.brief"] as { generatedAt: string };
+    const waiting = fixtures["operator.waitingSummary"] as { measuredAt: string; others: { items: { key: string; since: string | null; ageMin: number | null }[] }; system: { items: { key: string; since: string | null; ageMin: number | null }[] } };
+    const deck = fixtures["task.deck"] as { generatedAt: string; waiting: { id: string; ageDays: number }[] };
+    const pulse = fixtures["operator.personalPulse"] as { generatedAt: string };
+    const ticker = fixtures["operator.ticker"] as { generatedAt: string };
+    for (const [name, stamp] of [["brief.generatedAt", brief.generatedAt], ["waiting.measuredAt", waiting.measuredAt], ["deck.generatedAt", deck.generatedAt], ["pulse.generatedAt", pulse.generatedAt], ["ticker.generatedAt", ticker.generatedAt]]) {
+      if (stamp !== NOW_ISO) problems.push(`${name} is ${stamp}, not NOW_ISO`);
+    }
+    for (const i of [...waiting.others.items, ...waiting.system.items]) {
+      const want = i.since ? ageMinOf(i.since) : null;
+      if (i.ageMin !== want) problems.push(`${i.key}: ageMin ${i.ageMin}, since ${i.since} says ${want}`);
+    }
+    for (const w of deck.waiting) {
+      const t = MISSION_TASKS.find((x) => x.id === w.id);
+      if (!t) {
+        problems.push(`${w.id}: deck.waiting row has no task in MISSION_TASKS`);
+        continue;
+      }
+      if (w.ageDays !== ageDaysOf(t.updatedAt)) problems.push(`${w.id}: ageDays ${w.ageDays}, updatedAt ${t.updatedAt} says ${ageDaysOf(t.updatedAt)}`);
+    }
+    return problems;
+  }
+
+  it("every age in the fixtures is what the builders would compute from NOW_ISO", () => {
+    expect(ageProblems(TRPC_FIXTURES)).toEqual([]);
+  });
+
+  it("positive control: the age check catches the drifted values the first draft shipped", () => {
+    const drifted = structuredClone(TRPC_FIXTURES) as Record<string, unknown>;
+    const w = drifted["operator.waitingSummary"] as { others: { items: { ageMin: number | null }[] } };
+    w.others.items[0].ageMin = 2640;
+    const d = drifted["task.deck"] as { waiting: { ageDays: number }[]; generatedAt: string };
+    d.waiting[0].ageDays = 3;
+    d.generatedAt = "2026-10-15T17:00:00.000Z";
+    expect(ageProblems(drifted)).toHaveLength(3);
   });
 
   it("the fixture world is a healthy one: no field in it already reports a failed read", () => {
@@ -442,17 +596,29 @@ describe("the smoke spec cannot pass on an empty-state page", () => {
       "components/ultron/bottom-pulse-ticker.tsx",
       "app/(mastery)/missions/page.tsx",
     ].map((f) => read(path.join(APP_DIR, f)).replace(/&apos;/g, "'"));
-    for (const name of ["HOME_ERRORS", "MISSIONS_ERRORS"]) {
-      const m = new RegExp(`const ${name} = /(.+)/i;`).exec(smoke);
-      expect(m, `${name} not found in the smoke spec`).not.toBeNull();
-      for (const alt of m![1].split("|")) {
-        const re = new RegExp(alt, "i");
+    for (const [name, re] of Object.entries(PAGE_ERRORS)) {
+      for (const alt of re.source.split("|")) {
+        const one = new RegExp(alt, "i");
         // An absent-text assertion that can never match is a silent instrument.
         expect(
-          sources.some((s) => re.test(s)),
-          `${name} alternative /${alt}/ matches no error string in the app: retarget it`,
+          sources.some((s) => one.test(s)),
+          `PAGE_ERRORS.${name} alternative /${alt}/ matches no error string in the app: retarget it`,
         ).toBe(true);
       }
+    }
+    expect(smoke).toContain('import { DEMO, PAGE_ERRORS, installFixtures } from "./fixtures";');
+  });
+
+  it("the smoke's absent-error and no-page-error assertions are the exact lines this test expects", () => {
+    const smoke = read(SMOKE_SPEC);
+    for (const line of [
+      "await expect(page.getByText(PAGE_ERRORS.home)).toHaveCount(0);",
+      "await expect(page.getByText(PAGE_ERRORS.missions)).toHaveCount(0);",
+      'expect(pageErrors, "Home threw during render").toEqual([]);',
+      'expect(pageErrors, "Missions threw during render").toEqual([]);',
+      "if (!IGNORED_PAGE_ERRORS.test(err.message)) pageErrors.push(err.message);",
+    ]) {
+      expect(smoke, `smoke spec lost: ${line}`).toContain(line);
     }
   });
 
@@ -460,44 +626,98 @@ describe("the smoke spec cannot pass on an empty-state page", () => {
     const NOT_STUBBED: Record<string, string> = {
       "operator.briefChanges": "only requested once a last-visit cursor exists; a fresh browser has none",
       "operator.commandCenterState": "the page reads only the active command id and renders nothing without it",
+      "systemAutomation.getPendingApprovals": "the PWA badge (app-badge.tsx); renders nothing, and the Badge API is absent in CI chromium",
+      "systemAutomation.approvals": "the PWA badge (app-badge.tsx); same",
     };
+    // The two page roots, every sibling they import for data, and the shell
+    // components the (mastery) layout mounts that query over tRPC.
     const files = [
       "components/home/home-console.tsx",
+      "components/home/brief-state-line.tsx",
+      "components/home/brief-lead.tsx",
       "components/home/waiting-line.tsx",
       "components/home/change-line.tsx",
       "components/home/judgment-queue.tsx",
+      "components/home/horizon-line.tsx",
       "components/home/nick-command-line.tsx",
+      "app/(mastery)/missions/page.tsx",
       "app/(mastery)/missions/hooks/use-missions-data.ts",
+      "components/ultron/bottom-pulse-ticker.tsx",
+      "components/hud/app-badge.tsx",
     ];
     const used = new Set<string>();
     for (const f of files) {
-      for (const m of read(path.join(APP_DIR, f)).matchAll(/trpc\.([a-zA-Z]+)\.([a-zA-Z]+)\.useQuery/g)) used.add(`${m[1]}.${m[2]}`);
+      for (const m of read(path.join(APP_DIR, f)).matchAll(/trpc\.([a-zA-Z]+)\.([a-zA-Z]+)\.use(?:Suspense)?Query\b/g)) used.add(`${m[1]}.${m[2]}`);
     }
-    expect(used.size, "the query scan found nothing").toBeGreaterThanOrEqual(7);
+    expect(used.size, "the query scan found nothing").toBeGreaterThanOrEqual(9);
     const uncovered = [...used].filter((p) => !(p in TRPC_FIXTURES) && !(p in NOT_STUBBED));
     expect(uncovered, "a page query is neither stubbed nor explained").toEqual([]);
+    // ...and the v3 gate's allowlist agrees with this list, no wider and no narrower.
+    for (const p of Object.keys(NOT_STUBBED)) expect(disallowedUnstubbed([`GET ${p}`]), p).toEqual([]);
+    expect(UNSTUBBED_ALLOWLIST).toHaveLength(3);
+  });
+});
+
+describe("disallowedUnstubbed (the v3 gate's unstubbed-read rule)", () => {
+  it("fails an unknown operator.* or task.* read, allows the listed ones, ignores the rest", () => {
+    expect(
+      disallowedUnstubbed([
+        "GET operator.brief", // stubbed reads never appear in a report, but a stale allowlist must not hide one either
+        "GET operator.briefChanges",
+        "GET operator.commandCenterState",
+        "GET systemAutomation.getPendingApprovals",
+        "GET task.somethingNew",
+        "GET operator.somethingNew",
+        "POST operator.recordHomeSignal",
+        "GET system.sessionExpiry",
+        "GET /api/coach/events",
+      ]),
+    ).toEqual(["GET operator.brief", "GET operator.somethingNew", "GET task.somethingNew"]);
   });
 });
 
 // ── The v3 spec really asks the verdict function ────────────────────────────
 
+/** The exact lines the spec must contain: measurement and decision happen only inside measureAndJudge. */
+const SPEC_LINES = {
+  import: 'import { captureVerdict, measureAndJudge } from "./v3-gate";',
+  baseline: "const baseline = fs.existsSync(file) ? fs.readFileSync(file) : null;",
+  measure: "const result = await measureAndJudge({ baseline, current, viewport: vp });",
+  assert: "expect(result.verdict.ok, `${p.key}/${vp.key}: ${result.verdict.reason}`).toBe(true);",
+  anchor: "await expect(page.getByText(anchor.text).first()).toBeVisible();",
+  noErrors: "await expect(page.getByText(anchor.errors)).toHaveCount(0);",
+  unstubbed: "expect(disallowedUnstubbed(unstubbed), `${p.key}/${vp.key} read page data the fixtures do not answer`).toEqual([]);",
+  capture: "const capture = captureVerdict({ ink: await inkCoverage(current, vp) });",
+  captureAssert: "expect(capture.ok, `${p.key}/${vp.key}: ${capture.reason}`).toBe(true);",
+  optIn: 'const ENABLED = process.env.VT_V3 === "1";',
+  skip: "test.skip(!ENABLED, ",
+} as const;
+
 /** What must be true of the spec's source for the unit tests above to guard its decision. */
 function specProblems(src: string): string[] {
   const problems: string[] = [];
-  if (!/import \{[^}]*\bv3GateVerdict\b[^}]*\} from "\.\/v3-gate"/.test(src)) problems.push("does not import v3GateVerdict from ./v3-gate");
-  if (!/const verdict = v3GateVerdict\(\{ baselineExists, ink, distance \}\);/.test(src)) problems.push("does not call v3GateVerdict with the measured numbers");
-  if (!/expect\(verdict\.ok, /.test(src)) problems.push("does not assert verdict.ok");
-  if (!/test\.skip\(!ENABLED, /.test(src)) problems.push("is not opt-in (no test.skip(!ENABLED))");
-  if (!/const ENABLED = process\.env\.VT_V3 === "1";/.test(src)) problems.push("ENABLED is not VT_V3 === 1");
+  for (const [name, line] of Object.entries(SPEC_LINES)) {
+    const n = src.split(line).length - 1;
+    if (n !== 1) problems.push(`${name}: expected exactly one occurrence of the pinned line, found ${n}`);
+  }
+  // No measurement outside measureAndJudge: inkCoverage appears only in the
+  // capture line above, visualDistance not at all, and nothing else reads
+  // `.ink`/`.distance` to decide.
+  if (src.split("inkCoverage(").length - 1 !== 1) problems.push("inkCoverage is called outside the capture branch");
+  if (src.includes("visualDistance(")) problems.push("the spec measures distance itself");
+  if (src.includes("v3GateVerdict(")) problems.push("the spec calls the verdict directly, bypassing measureAndJudge");
+  // Exactly one baseline write, inside the capture branch, before the compare path.
   const writes = [...src.matchAll(/fs\.writeFileSync\(file,/g)].map((m) => m.index!);
   const captureAt = src.indexOf("if (CAPTURE) {");
-  const compareAt = src.indexOf("const baselineExists");
+  const compareAt = src.indexOf(SPEC_LINES.baseline);
   if (writes.length !== 1 || captureAt < 0 || !(captureAt < writes[0] && writes[0] < compareAt)) problems.push("writes a baseline outside the capture branch");
-  if (!/captureVerdict\(\{ ink \}\)/.test(src)) problems.push("capture does not refuse a void render");
+  // The anchor checks run BEFORE anything is captured or judged.
+  const anchorAt = src.indexOf(SPEC_LINES.anchor);
+  if (!(anchorAt > 0 && anchorAt < captureAt)) problems.push("the fixture-render checks do not precede capture and judgment");
   return problems;
 }
 
-describe("visible-transformation-v3.spec.ts consumes the verdict", () => {
+describe("visible-transformation-v3.spec.ts consumes measureAndJudge", () => {
   const spec = read(V3_SPEC);
 
   it("the real spec has no problems", () => {
@@ -506,12 +726,24 @@ describe("visible-transformation-v3.spec.ts consumes the verdict", () => {
 
   it("MUTANTS: each of these edits to the spec is noticed", () => {
     const mutants: Record<string, string> = {
-      "verdict call removed": spec.replace("const verdict = v3GateVerdict({ baselineExists, ink, distance });", "const verdict = { ok: true, reason: '' };"),
-      "assertion removed": spec.replace("expect(verdict.ok, ", "void (verdict.ok, "),
+      // The four from review round 1 (two of them in their post-refactor form: the spec no longer holds an ink or a distance line).
+      "toBe(true) -> toBeDefined()": spec.replace("${result.verdict.reason}`).toBe(true);", "${result.verdict.reason}`).toBeDefined();"),
+      "toBe(true) -> toBe(false)": spec.replace("${result.verdict.reason}`).toBe(true);", "${result.verdict.reason}`).toBe(false);"),
+      "ink assumed (measurement replaced)": spec.replace(SPEC_LINES.measure, 'const result = { ink: 1, distance: 1, verdict: { ok: true, reason: "" } };'),
+      "distance forged (baseline forced)": spec.replace(SPEC_LINES.baseline, "const baseline = current;"),
+      // The earlier set.
+      "measureAndJudge call removed": spec.replace(SPEC_LINES.measure, "const result = await measureAndJudge({ baseline, current, viewport: vp }).then(() => ({ ink: 1, distance: 1, verdict: { ok: true, reason: '' } }));"),
+      "assertion removed": spec.replace(SPEC_LINES.assert, "void result.verdict.ok;"),
+      "direct verdict call": spec.replace(SPEC_LINES.measure, "const result = { ink: 1, distance: 1, verdict: v3GateVerdict({ baselineExists: true, ink: 1, distance: 1 }) };"),
+      "own distance measurement": spec.replace(SPEC_LINES.measure, "const result = { ink: 1, distance: (await visualDistance(current, current, vp)).ratio, verdict: { ok: true, reason: '' } };"),
       "not opt-in": spec.replace("test.skip(!ENABLED, ", "test.skip(false, "),
       "opt-in by any value": spec.replace('process.env.VT_V3 === "1"', "process.env.VT_V3"),
-      "capture refusal removed": spec.replace("captureVerdict({ ink })", "{ ok: true, reason: '' }"),
-      "silent baseline write on compare": spec.replace("const baselineExists", "fs.writeFileSync(file, current);\n        const baselineExists"),
+      "capture refusal removed": spec.replace(SPEC_LINES.capture, 'const capture = { ok: true, reason: "" };'),
+      "silent baseline write on compare": spec.replace(SPEC_LINES.baseline, `fs.writeFileSync(file, current);\n        ${SPEC_LINES.baseline}`),
+      "anchor check removed": spec.replace(SPEC_LINES.anchor, ""),
+      "error-state check removed": spec.replace(SPEC_LINES.noErrors, ""),
+      "unstubbed gate removed": spec.replace(SPEC_LINES.unstubbed, ""),
+      "anchor check moved after the judgment": spec.replace(SPEC_LINES.anchor, "").replace(SPEC_LINES.assert, `${SPEC_LINES.assert}\n        ${SPEC_LINES.anchor}`),
     };
     for (const [name, mutated] of Object.entries(mutants)) {
       expect(mutated, `${name}: the mutation did not apply`).not.toBe(spec);
@@ -543,6 +775,8 @@ interface Workflow {
 const RUN_GUARD = "${{ !(github.event_name == 'workflow_dispatch' && inputs.capture_v3_baselines) }}";
 const CAPTURE_GUARD = "${{ github.event_name == 'workflow_dispatch' && inputs.capture_v3_baselines }}";
 const SMOKE_RUN = "pnpm exec playwright test --timeout=120000";
+const CAPTURE_RUN = "pnpm exec playwright test visible-transformation-v3 --timeout=120000";
+const SNAPSHOT_ARTIFACT_PATH = "apps/statenour/tests/e2e/visible-transformation-v3.spec.ts-snapshots/";
 
 type Ctx = { event: string; ref: string; sha: string; capture?: boolean };
 
@@ -580,7 +814,7 @@ function workflowProblems(wf: Workflow): string[] {
   if (smoke.if !== RUN_GUARD) problems.push("smoke step guard changed");
   if (smoke.run !== SMOKE_RUN) problems.push("smoke step command changed");
   if (capture.if !== CAPTURE_GUARD) problems.push("capture step guard is not the inverse of the smoke guard");
-  if (!capture.run?.includes("visible-transformation-v3") || capture.run === SMOKE_RUN) problems.push("capture step does not run only the v3 spec");
+  if (capture.run !== CAPTURE_RUN) problems.push(`capture step command is not exactly the v3-only run: ${JSON.stringify(capture.run)}`);
   if (capture.env?.VT_V3 !== "1" || capture.env?.VT_V3_CAPTURE !== "1") problems.push("capture step does not set VT_V3=1 and VT_V3_CAPTURE=1");
   if (!(smokeAt < captureAt && captureAt < uploadAt)) problems.push("steps are out of order (smoke, capture, upload)");
 
@@ -588,7 +822,7 @@ function workflowProblems(wf: Workflow): string[] {
   if (upload.uses !== steps[tracesAt].uses) problems.push("upload step is not pinned to the same upload-artifact commit as the traces step");
   if (upload.with?.name !== "v3-baselines") problems.push("artifact is not named v3-baselines");
   if (upload.with?.["retention-days"] !== 14) problems.push("artifact retention is not 14 days");
-  if (!String(upload.with?.path).includes("visible-transformation-v3.spec.ts-snapshots")) problems.push("artifact path is not the spec's snapshot directory");
+  if (upload.with?.path !== SNAPSHOT_ARTIFACT_PATH) problems.push(`artifact path is not exactly the spec's snapshot directory: ${JSON.stringify(upload.with?.path)}`);
   if (upload.with?.["if-no-files-found"] !== "error") problems.push("an empty capture would upload nothing and still pass");
 
   // Mutual exclusion, by evaluating both guards for the events that matter.
@@ -651,6 +885,12 @@ describe(".github/workflows/e2e-statenour.yml capture path", () => {
       "the capture step runs the whole suite": (w) => {
         named(w, "Capture v3 baselines").run = SMOKE_RUN;
       },
+      "the capture step cannot fail (|| true)": (w) => {
+        named(w, "Capture v3 baselines").run = `${CAPTURE_RUN} || true`;
+      },
+      "the artifact path drops /e2e": (w) => {
+        named(w, "Upload v3 baselines").with!.path = SNAPSHOT_ARTIFACT_PATH.replace("/e2e", "");
+      },
       "the upload step removed": (w) => {
         w.jobs.e2e.steps = steps(w).filter((s) => !s.name?.startsWith("Upload v3 baselines"));
       },
@@ -682,4 +922,101 @@ describe(".github/workflows/e2e-statenour.yml capture path", () => {
       expect(workflowProblems(copy), name).not.toEqual([]);
     }
   });
+});
+
+// ── tsconfig.e2e.json: the fixtures really are typechecked against the contracts ──
+
+const TSC = path.join(APP_DIR, "node_modules", "typescript", "bin", "tsc");
+
+/**
+ * Spawn tsc on a config; resolve with exit code and combined output (never
+ * rejects). Async on purpose: a synchronous spawn blocks the vitest worker's
+ * event loop for the whole compile and its RPC heartbeat times out
+ * ("Timeout calling onTaskUpdate"), which vitest counts as an unhandled error.
+ */
+function runTsc(configPath: string, extraArgs: string[] = []): Promise<{ code: number; out: string }> {
+  return new Promise((resolve) => {
+    execFile(
+      process.execPath,
+      [TSC, "-p", configPath, ...extraArgs],
+      { cwd: APP_DIR, encoding: "utf8", timeout: 120_000, maxBuffer: 64 * 1024 * 1024 },
+      (error, stdout, stderr) => {
+        const err = error as (Error & { code?: number | string | null }) | null;
+        const code = err ? (typeof err.code === "number" ? err.code : -1) : 0;
+        resolve({ code, out: `${stdout}${stderr}${err && typeof err.code !== "number" ? err.message : ""}` });
+      },
+    );
+  });
+}
+
+describe("tsconfig.e2e.json typechecks the fixture lane", () => {
+  const E2E_TSCONFIG = path.join(APP_DIR, "tsconfig.e2e.json");
+
+  it("exists, extends the app config, and includes tests/e2e", () => {
+    const cfg = read(E2E_TSCONFIG);
+    expect(cfg).toContain('"extends": "./tsconfig.json"');
+    expect(cfg).toContain('"tests/e2e/**/*.ts"');
+    expect(cfg).toContain('"tests/repo/v3-gate.test.ts"');
+  });
+
+  it(
+    "tsc -p tsconfig.e2e.json exits 0 and its program contains the fixtures",
+    async () => {
+      const r = await runTsc(E2E_TSCONFIG, ["--listFiles"]);
+      expect(r.code, r.out.slice(0, 4000)).toBe(0);
+      const listed = r.out.split(/\r?\n/).map((l) => l.replace(/\\/g, "/"));
+      for (const f of [
+        "tests/e2e/fixtures/home.ts",
+        "tests/e2e/fixtures/missions.ts",
+        "tests/e2e/fixtures/index.ts",
+        "tests/e2e/v3-gate.ts",
+        "tests/e2e/visible-transformation-v3.spec.ts",
+        "tests/e2e/fixtures-render.spec.ts",
+      ]) {
+        expect(listed.some((l) => l.endsWith(`apps/statenour/${f}`)), `${f} is not in the tsc program`).toBe(true);
+      }
+    },
+    150_000,
+  );
+
+  it(
+    "positive control: a fixture with a bogus field fails the same typecheck",
+    async () => {
+      // A scratch program outside the tree: the app's tsconfig by absolute path,
+      // its @types, and one file that spreads HOME_BRIEF into OperatorBrief with
+      // an extra property. The expected failure is TS2353 on that property.
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), "w0b-tsc-"));
+      try {
+        const abs = (p: string) => path.join(APP_DIR, p).replace(/\\/g, "/");
+        fs.writeFileSync(
+          path.join(dir, "bogus.ts"),
+          [
+            'import type { OperatorBrief } from "@/lib/home/operator-brief";',
+            `import { HOME_BRIEF } from "${abs("tests/e2e/fixtures/home")}";`,
+            "export const bogus: OperatorBrief = { ...HOME_BRIEF, bogusField: 1 };",
+            "",
+          ].join("\n"),
+        );
+        fs.writeFileSync(
+          path.join(dir, "tsconfig.json"),
+          JSON.stringify(
+            {
+              extends: abs("tsconfig.json"),
+              compilerOptions: { incremental: false, noEmit: true, typeRoots: [abs("node_modules/@types")] },
+              include: [abs("next-env.d.ts"), path.join(dir, "bogus.ts").replace(/\\/g, "/")],
+            },
+            null,
+            2,
+          ),
+        );
+        const r = await runTsc(path.join(dir, "tsconfig.json"));
+        expect(r.code, "the bogus fixture compiled").not.toBe(0);
+        expect(r.out).toMatch(/bogusField/);
+        expect(r.out).toMatch(/TS2353/);
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    },
+    150_000,
+  );
 });
