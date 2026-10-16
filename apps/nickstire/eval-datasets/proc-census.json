@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-15T13:36:03.623Z",
-  "count": 784,
+  "generatedAt": "2026-10-16T04:50:53.746Z",
+  "count": 785,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -550,6 +550,7 @@
     "query.inspection.list",
     "query.instagram.account",
     "query.instagram.posts",
+    "query.instagramAdmin.autopostLaneStatus",
     "query.instagramAdmin.getActiveSlate",
     "query.instagramAdmin.getAllDrafts",
     "query.instagramAdmin.getAnalytics",
