@@ -108,7 +108,10 @@ describe("48 px targets on Today and the section boundary", () => {
   const overview = readFileSync(join(ROOT, "client/src/pages/admin/OverviewSection.tsx"), "utf8");
   const boundary = readFileSync(join(ROOT, "client/src/components/admin/AdminSectionBoundary.tsx"), "utf8");
   it("queue filter chips, queue verbs and the call/message links are min-h-12", () => {
-    const queue = sliceBlock(overview, 'aria-label="Filter queue"', 'aria-labelledby="history-title"', { label: "OverviewSection.tsx" });
+    // W2 moved the row verbs and the call/message links into today/QueueRow.tsx, so both files are scanned.
+    const queue =
+      sliceBlock(overview, 'aria-label="Filter queue"', 'aria-labelledby="history-title"', { label: "OverviewSection.tsx" }) +
+      readFileSync(join(ROOT, "client/src/pages/admin/today/QueueRow.tsx"), "utf8");
     // Each control's own className (the first one after its opening tag); arrow functions in onClick
     // contain ">", so a [^>]* tag scan would stop early.
     const controls = [...queue.matchAll(/<(?:button|a|MessageCustomerLink)\b/g)].map((m) => {
