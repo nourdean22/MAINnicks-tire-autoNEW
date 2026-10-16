@@ -174,7 +174,7 @@ export default function FleetPage() {
     <StandardPage
       eyebrow="System"
       title="Fleet Truth"
-      description="Capability artifacts across both apps, produced, not just invoked."
+      description="Capability artifacts across both apps: produced, not just invoked."
       width="sm"
       rhythm="comfortable"
       className="px-4 pb-[var(--bottom-chrome-h)]"

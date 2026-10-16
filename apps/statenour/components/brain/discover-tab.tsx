@@ -208,7 +208,7 @@ export function discoverEmptyState(s: {
     title: "Nothing new to judge",
     why: "This surface read successfully, nothing is being withheld, and the queue is genuinely empty. What it CANNOT tell you is which of the two remaining causes produced that: every recent discovery already has a verdict, or the engines found nothing this cycle. Both are real zeros here.",
     unlock:
-      "The brain-intelligence cron runs nightly, check back tomorrow, or include judged items above.",
+      "The brain-intelligence cron runs nightly. Check back tomorrow, or include judged items above.",
   };
 }
 
@@ -329,8 +329,7 @@ export function DiscoverTab() {
           {/* EXACT, not a floor: restoredHidden is its own scoped SQL count and
               is unaffected by where the card scan stopped. Appending "+" here
               presented an exact 237 as a lower bound. */}
-          <span className="font-mono">{restoredHidden} hidden</span>{" "}
-          , recovered by the 2026-08-16 embedding rescue, not found by an engine. Their dates are
+          <span className="font-mono">{restoredHidden} hidden</span>, recovered by the 2026-08-16 embedding rescue, not found by an engine. Their dates are
           restore time, so they would sort as if they were new. Tap to include them.
         </button>
       )}
@@ -356,8 +355,7 @@ export function DiscoverTab() {
           <span className="font-mono">
             {suppressedSimilar}
             {truncated ? "+" : ""} suppressed
-          </span>{" "}
-          , regenerated copies of findings you already judged known or noise. Your verdicts
+          </span>, regenerated copies of findings you already judged known or noise. Your verdicts
           keep applying to new copies automatically.
         </p>
       )}

@@ -153,7 +153,7 @@
   --sidebar-ring: var(--accent);
 }
 
-/* linear() since iOS 17.2 (docs/design/ui-v3/PLAN.md section 4). Damped springs, 14 stops each:
+/* linear() since iOS 17.2 (docs/design/ui-v3/PLAN.md section 4). Damped springs, 15 stops each:
    soft overshoots by 1.5%, snap by 8.4%, both settled by 80% of the duration. */
 @supports (transition-timing-function: linear(0, 1)) {
   :root {

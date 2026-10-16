@@ -1069,7 +1069,7 @@ export function GoalBoard() {
                               onChange={(e) => setEditDomain(e.target.value)}
                               className="bg-content border border-edge-default rounded-control px-2 py-0.5 text-[11px] text-fg-secondary focus:outline-none focus:border-accent"
                             >
-                              <option value="">domain</option>
+                              <option value="" disabled>Pick a domain</option>
                               <option value="business">business</option>
                               <option value="personal">personal</option>
                               <option value="health">health</option>
@@ -1081,7 +1081,7 @@ export function GoalBoard() {
                               onChange={(e) => setEditStatus(e.target.value)}
                               className="bg-content border border-edge-default rounded-control px-2 py-0.5 text-[11px] text-fg-secondary focus:outline-none focus:border-accent"
                             >
-                              <option value="">status</option>
+                              <option value="" disabled>Pick a status</option>
                               <option value="active">active</option>
                               <option value="paused">paused</option>
                               <option value="achieved">achieved</option>
@@ -1098,7 +1098,7 @@ export function GoalBoard() {
                             onChange={(e) => setEditParentId(e.target.value)}
                             className="w-full bg-content border border-edge-default rounded-control px-2 py-0.5 text-[11px] text-fg-secondary focus:outline-none focus:border-accent"
                           >
-                            <option value="">no parent goal</option>
+                            <option value="">No parent goal</option>
                             {goals
                               .filter((o) => o.id !== g.id)
                               .map((o) => (
@@ -1117,7 +1117,7 @@ export function GoalBoard() {
                               onChange={(e) => setEditKind(e.target.value)}
                               className="bg-content border border-edge-default rounded-control px-2 py-0.5 text-[11px] text-fg-secondary focus:outline-none focus:border-accent"
                             >
-                              <option value="">kind</option>
+                              <option value="" disabled>Pick a kind</option>
                               <option value="metric">metric (target)</option>
                               <option value="milestone">milestone (checklist)</option>
                               <option value="narrative">narrative (identity)</option>
@@ -1127,7 +1127,7 @@ export function GoalBoard() {
                               onChange={(e) => setEditConviction(e.target.value)}
                               className="bg-content border border-edge-default rounded-control px-2 py-0.5 text-[11px] text-fg-secondary focus:outline-none focus:border-accent"
                             >
-                              <option value="">conviction</option>
+                              <option value="" disabled>Pick a conviction</option>
                               <option value="1">1 · meh</option>
                               <option value="2">2</option>
                               <option value="3">3</option>

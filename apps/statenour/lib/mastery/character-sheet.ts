@@ -135,7 +135,7 @@ export async function computeCharacterSheet(): Promise<StatLevel[]> {
 }
 
 /** Compact one-liner per stat for AI context / Telegram — e.g.
- *  "🗣️ Persuasion & Influence · Lvl 1 Apprentice (0/5 XP)". */
+ *  "Persuasion & Influence · Lvl 1 Apprentice (0/5 XP)". */
 export function statLine(s: StatLevel): string {
   return `${s.label} · Lvl ${s.level} ${s.tier} (${s.xpIntoLevel}/${s.xpForNext} XP)`;
 }

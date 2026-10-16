@@ -1,5 +1,5 @@
 /**
- * Cockpit "Latest Eval" panel (2026-10-10): eval_result has had no writer
+ * Cockpit "Latest eval" panel (2026-10-10): eval_result has had no writer
  * since 2026-05-28, and the panel drew the leftover 0/75 row as the latest
  * eval. The service now nulls a run older than 7 days and ships its date as
  * `evalLastRanAt`; this pins what the panel RENDERS for each case.
@@ -24,10 +24,10 @@ vi.mock("sonner", () => ({ toast: { success: () => {}, error: () => {} } }));
 
 import { CockpitObservabilityView } from "@/components/system/cockpit-observability-view";
 
-/** The "Latest Eval" panel's markup only, so other panels cannot satisfy a match. */
+/** The "Latest eval" panel's markup only, so other panels cannot satisfy a match. */
 function evalPanel(): string {
   const html = renderToStaticMarkup(<CockpitObservabilityView />);
-  const start = html.indexOf("Latest Eval");
+  const start = html.indexOf("Latest eval");
   expect(start).toBeGreaterThan(-1);
   return html.slice(start, html.indexOf("</section>", start));
 }
@@ -36,7 +36,7 @@ beforeEach(() => {
   stubs.stats = undefined;
 });
 
-describe("cockpit Latest Eval panel", () => {
+describe("cockpit Latest eval panel", () => {
   it("a stale run shows its date and no pass rate", () => {
     stubs.stats = { eval: null, evalLastRanAt: "2026-05-27T06:00:00.000Z" };
     const panel = evalPanel();

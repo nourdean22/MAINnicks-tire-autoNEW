@@ -1157,7 +1157,7 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
             
             {seedAction && (
               <div className="flex flex-col gap-0.5 border-t border-edge-subtle pt-1.5">
-                <span className="text-fg-tertiary font-mono text-[11px]">Tomorrow's Seed</span>
+                <span className="text-fg-tertiary font-mono text-[11px]">Tomorrow's seed</span>
                 <span className="text-fg italic">&ldquo;{seedAction}&rdquo;</span>
               </div>
             )}
