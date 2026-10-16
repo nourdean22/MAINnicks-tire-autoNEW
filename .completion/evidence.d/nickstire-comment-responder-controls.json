@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "ref": "Admin > Instagram > Pipeline health: a new Comment responder card sits under the Image autopost card (apps/nickstire/client/src/pages/admin/instagram/CommentResponderCard.tsx, mounted in Pipeline.tsx). It reads instagramAdmin.commentResponderStatus and shows Enabled/Disabled, Live/Dry run and Paused (or Unknown) chips, the last run time, status and details, '<posted> posted, <failed> failed, <dry runs> dry runs in 7 days', and a 'Last 20 reply attempts' list of decision, time, tone, our reply text and error. A failed read shows 'Comment responder state could not be read, state unknown, not empty' with Retry and keeps the Pause / Resume switch; an empty history says 'No reply attempt recorded yet'. 'Pause replies' is one tap; 'Resume replies' asks through the in-page confirmDialog (copy from shared/flagPolicy.ts confirmationCopy) before setting reel_comment_responder_paused to false; an unreadable pause flag disables the switch with 'Pause state unknown until a refresh reads it.' Verified by client/src/__tests__/comment-responder-card.test.tsx (11 tests, red-first 11 failed before the card existed, 4 mutations killed). Not walked in a real browser or on the iPhone PWA: no dev server or prod session from the lane agent."
+    },
+    "capability-ledger-updated": {
+      "deferred": "deferred: the manager adds the ledger entry in the same PR"
+    }
+  }
+}
