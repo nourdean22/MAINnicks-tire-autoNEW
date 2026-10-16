@@ -27,6 +27,9 @@ const MOBILE = {
 
 export default defineConfig({
   testDir: "./tests/e2e",
+  // Specs only: tests/e2e also holds vitest unit tests (*.test.ts) for the pure
+  // helpers of the admin v1 fixture lane, which import vitest, not Playwright.
+  testMatch: "**/*.spec.ts",
   outputDir: "./test-results",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
