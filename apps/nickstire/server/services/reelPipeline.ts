@@ -24,6 +24,7 @@ import { queueStateForReelStatus } from "../../shared/reelQueue";
 import { captionAskMismatch, resolveReelAsk, type ReelAsk } from "../../shared/reelAsk";
 import { RETIRED_MOTION_LENSES } from "../../shared/contentExperiments";
 import { ReelAssemblyRefusedError } from "./reelContentRefusal";
+import { ClipMismatchRefusal } from "./clipVerify";
 
 const log = createLogger("services:reel-pipeline");
 
@@ -1851,7 +1852,7 @@ export async function processNextAssemblyJob(scopeJobId?: number): Promise<{
     assertDurableStorageForGeneration(`reel job ${job.id} assembly`);
 
     const { assembleReel } = await import("./reelAssembly");
-    const { mp4Url, durationSec, clipProbes } = await assembleReel(brief, clipUrls, job.id);
+    const { mp4Url, durationSec, clipProbes, clipVerdicts } = await assembleReel(brief, clipUrls, job.id);
 
     await d.update(reelJobs).set({ status: "assembled", queueState: queueStateForReelStatus("assembled"), mp4Url, error: null, productionReadyAt: new Date() }).where(eq(reelJobs.id, job.id));
     // Provider drift evidence (shared/clipDrift.ts): each clip's probed shape,
@@ -1859,6 +1860,9 @@ export async function processNextAssemblyJob(scopeJobId?: number): Promise<{
     // CURRENT payload (assembly itself re-reads and writes audioQa). Best
     // effort — an assembled Reel is never failed over its bookkeeping.
     await persistClipProbes(d, job.id, clipProbes);
+    // Pre-assembly clip verdicts (services/clipVerify.ts): evidence on the
+    // payload under `clipVerify`, same best-effort posture as the probes.
+    await persistClipVerdicts(d, job.id, clipVerdicts);
     // Rendered creative QA (flag-gated; default OFF so prod behavior is
     // unchanged until the operator arms it). Best-effort: QA never fails an
     // assembled job - its verdict is evidence for the approve gate.
@@ -1955,6 +1959,10 @@ export async function processNextAssemblyJob(scopeJobId?: number): Promise<{
     // Retry assembly (back to assets_ready, NOT queued — clips are already gen'd).
     const { status: nextStatus, attempts: nextAttempts } = assemblyFailureOutcome(err, attempt);
     await d.update(reelJobs).set({ status: nextStatus, queueState: queueStateForReelStatus(nextStatus), attempts: nextAttempts, error: msg.slice(0, 1000) }).where(eq(reelJobs.id, job.id));
+    // A pre-assembly clip refusal leaves its verdict on the payload (the error
+    // column holds the sentence; the payload holds the beat, score and reason
+    // the repair lane will want when it learns to take these).
+    if (err instanceof ClipMismatchRefusal) await persistClipVerdicts(d, job.id, [err.verdict]);
     if (nextStatus === "failed") {
       await releaseFailedJobReservation(job.payload, job.id);
       const { advanceContentRunByReelJobId, RUN_STAGE, IMPLEMENTATION_STATE } = await import("./contentRun");
@@ -2172,6 +2180,26 @@ export async function recoverStuckReelJobs(): Promise<{ recovered: number }> {
  * ffmpeg render with no op) to the probes assembly measured, and write them to
  * the payload as `clipProbes`. reelLaneHealth reads them across the week.
  */
+/** Persist pre-assembly clip verdicts as `payload.clipVerify` (best effort, never fails an assembled job). */
+async function persistClipVerdicts(
+  d: NonNullable<Awaited<ReturnType<typeof import("../db").getDb>>>,
+  jobId: number,
+  verdicts: import("./clipVerify").ClipVerdict[],
+): Promise<void> {
+  if (!verdicts.length) return;
+  try {
+    const { reelJobs } = await import("../../drizzle/schema");
+    const { eq } = await import("drizzle-orm");
+    const [row] = await d.select({ payload: reelJobs.payload }).from(reelJobs).where(eq(reelJobs.id, jobId)).limit(1);
+    if (!row) return;
+    const payload = JSON.parse(row.payload ?? "{}") as { clipVerify?: unknown };
+    payload.clipVerify = { verdicts, recordedAt: new Date().toISOString() };
+    await d.update(reelJobs).set({ payload: JSON.stringify(payload) }).where(eq(reelJobs.id, jobId));
+  } catch (e) {
+    log.warn("clip verdict persistence failed (job remains assembled)", { jobId, e: e instanceof Error ? e.message : String(e) });
+  }
+}
+
 async function persistClipProbes(
   d: NonNullable<Awaited<ReturnType<typeof import("../db").getDb>>>,
   jobId: number,

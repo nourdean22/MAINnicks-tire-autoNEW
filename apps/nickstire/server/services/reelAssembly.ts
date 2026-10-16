@@ -16,6 +16,7 @@ import path from "path";
 import { createLogger } from "../lib/logger";
 import { askProblem, askLeakageProblem, renderAskText, resolveReelAsk, type ReelAsk } from "@shared/reelAsk";
 import { ReelAssemblyRefusedError } from "./reelContentRefusal";
+import { clipVerifyConfig, verifyClipsBeforeAssembly, type ClipVerdict } from "./clipVerify";
 import { declaredTextSurfaces, undeclaredTextProblem } from "@shared/reelTextSurfaces";
 import { REEL_OUTPUT_RULES } from "../../client/src/lib/facelessReelStudio";
 import { parseCaptionStyle, type CaptionStyle } from "../../shared/reelSourceProfile";
@@ -889,6 +890,8 @@ export interface AssembleResult {
   usedVo: boolean;
   /** Each clip's shape as ffprobe read it here, by beat (provider attached by the pipeline; shared/clipDrift.ts). */
   clipProbes: Array<Omit<ClipProbe, "provider">>;
+  /** Per-clip pre-assembly verdicts (services/clipVerify.ts); [] when REEL_CLIP_VERIFY_ENABLED is off. */
+  clipVerdicts: ClipVerdict[];
 }
 
 /**
@@ -1053,6 +1056,19 @@ export async function assembleReel(
         log.warn("clip probe failed (assembly continues)", { jobId, beat: segs[i].beatNumber, e: e instanceof Error ? e.message : String(e) });
       }
     }
+    // PER-CLIP VERIFICATION BEFORE ASSEMBLY (2026-10-16, services/clipVerify.ts).
+    // Every clip's bytes are local; one vision call per clip asks whether its
+    // midpoint frame shows the planned visual. Below the floor it refuses with
+    // ClipMismatchRefusal (a ReelAssemblyRefusedError: parked failed, no retry
+    // budget spent) BEFORE the voiceover is paid for and the 3-vote rendered QA
+    // runs. Flag-gated, default OFF; an unavailable critic never refuses.
+    const beatVisual = new Map((brief.storyboardBeats ?? []).map((b) => [b.beatNumber, b.visual ?? b.onScreenText ?? ""]));
+    const clipVerdicts = await verifyClipsBeforeAssembly(
+      segs.map((s, i) => ({ beatNumber: s.beatNumber, path: clipPaths[i], visual: beatVisual.get(s.beatNumber) ?? "", durationSec: clipProbes.find((p) => p.beatNumber === s.beatNumber)?.durationSec ?? null })),
+      clipVerifyConfig(),
+      undefined,
+      { jobId: typeof jobId === "number" ? jobId : undefined },
+    );
     const { generateVoiceover, generateAssSubtitles } = await import("./reelVoice");
     const vo = await generateVoiceover(brief.voiceoverScript);
     let voPath: string | null = null;
@@ -1233,7 +1249,7 @@ export async function assembleReel(
       }
     } catch { /* registerProducedAsset is already tolerant; belt over suspenders */ }
     // Report the REAL file length (beats + the save-payload freeze), not just the beats.
-    return { mp4Url: put.url, durationSec: total + SAVE_FREEZE_SECONDS, usedVo: !!voPath, clipProbes };
+    return { mp4Url: put.url, durationSec: total + SAVE_FREEZE_SECONDS, usedVo: !!voPath, clipProbes, clipVerdicts };
   } finally {
     fs.promises.rm(workDir, { recursive: true, force: true }).catch(() => {});
   }

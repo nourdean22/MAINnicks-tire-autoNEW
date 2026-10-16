@@ -24,11 +24,11 @@ describe("clip probes: measured at assembly, persisted by the pipeline, read by 
     expect(loop.indexOf("await ffprobeReel(p)")).toBeGreaterThan(loop.indexOf("clipPaths.push(p);"));
     expect(loop).toContain("clipProbes.push({ beatNumber: segs[i].beatNumber");
     expect(loop).toContain("clip probe failed (assembly continues)");
-    expect(ASSEMBLY).toContain("usedVo: !!voPath, clipProbes };");
+    expect(ASSEMBLY).toContain("usedVo: !!voPath, clipProbes, clipVerdicts };");
   });
 
   it("the pipeline persists the probes after the assembled write, labelled by the beat's last succeeded providerOp", () => {
-    const stage = sliceBlock(PIPELINE, "const { mp4Url, durationSec, clipProbes } = await assembleReel(", 'if (process.env.RENDERED_QA_ENABLED === "true")', { label: "assemble stage" });
+    const stage = sliceBlock(PIPELINE, "const { mp4Url, durationSec, clipProbes, clipVerdicts } = await assembleReel(", 'if (process.env.RENDERED_QA_ENABLED === "true")', { label: "assemble stage" });
     expect(stage.indexOf("await persistClipProbes(d, job.id, clipProbes);")).toBeGreaterThan(stage.indexOf('status: "assembled"'));
     const helper = sliceBlock(PIPELINE, "async function persistClipProbes(", "could not persist clip probes", { label: "persistClipProbes" });
     expect(helper).toContain('find((o) => o.outcome === "succeeded")');
