@@ -19,8 +19,10 @@
  * first day with nothing to post, because that is the day the account goes
  * quiet. It is a date, not a count, and a count cannot express it.
  *
- * READ-ONLY. Nothing here publishes, generates or spends; it is safe to leave
- * open and refresh.
+ * The reel sections are read-only. The image autopost card below them
+ * (ImageAutopostCard.tsx) has two controls, run a slot and pause the lane,
+ * and each asks before it can post. It renders on its own read, so a failed
+ * reel read never hides it.
  */
 import { trpc } from "@/lib/trpc";
 import {
@@ -30,6 +32,7 @@ import {
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ImageAutopostCard } from "./ImageAutopostCard";
 
 /** Skip rate is a percentage where LOWER is better. Banded against this
  *  account's own measured corpus mean (66.4% on 2026-09-09), not against a
@@ -47,6 +50,18 @@ function dayLabel(iso: string): string {
 }
 
 export function Pipeline() {
+  return (
+    <div className="space-y-4">
+      <ReelHealth />
+      <ImageAutopostCard />
+      <p className="px-1 text-xs text-muted-foreground">
+        The reel sections are read-only. Image autopost can run a slot and pause its lane.
+      </p>
+    </div>
+  );
+}
+
+function ReelHealth() {
   const q = trpc.instagramAdmin.reelPipelineHealth.useQuery({ windowDays: 30 });
 
   if (q.isLoading) {
@@ -295,10 +310,6 @@ export function Pipeline() {
           </ul>
         </CardContent>
       </Card>
-
-      <p className="px-1 text-xs text-muted-foreground">
-        Read-only. Nothing on this screen publishes, generates or spends.
-      </p>
     </div>
   );
 }
