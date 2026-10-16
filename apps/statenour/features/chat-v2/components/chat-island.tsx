@@ -363,6 +363,7 @@ export function ChatIsland() {
             loadFailedId={conversations.loadFailedId}
             onRetryLoad={(id) => openConversation(id)}
             error={chat.error}
+            hold={chat.hold}
             liveContextBlocks={chat.liveContextBlocks}
             lastTraceId={chat.lastTraceId}
             onRetry={() => void chat.regenerate()}

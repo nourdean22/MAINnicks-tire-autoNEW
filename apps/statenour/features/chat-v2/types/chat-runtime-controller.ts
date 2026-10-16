@@ -15,6 +15,8 @@ export type ChatRuntimeController = {
   stopTurn: () => void;
   /** The turn the operator stopped, until the next send (09-F29). */
   stopped: StoppedTurn | null;
+  /** The words of the current Retry hold (a RETRY_* constant from lib/saved-turn.ts), or null (W3b). */
+  hold: string | null;
   regenerate: (options?: { messageId?: string } & any) => Promise<void>;
   /**
    * The operator opened another conversation or a new chat: drop the old turn's error, held

@@ -294,6 +294,7 @@ export function ChatMessageList({
   loadFailedId,
   onRetryLoad,
   error,
+  hold,
   liveContextBlocks,
   lastTraceId,
   onRetry,
@@ -309,6 +310,8 @@ export function ChatMessageList({
   loadFailedId?: string | null;
   onRetryLoad?: (id: string) => void;
   error: Error | undefined;
+  /** The current Retry hold's words (W3b): the toast's RETRY_* constant, kept on the error card. */
+  hold?: string | null;
   liveContextBlocks?: Parameters<typeof extractContextBlocks>[1];
   lastTraceId?: string | null;
   onRetry?: () => void;
@@ -655,6 +658,9 @@ export function ChatMessageList({
               Retry
             </button>
           )}
+          {/* W3b: the hold's words (use-chat-stream.ts toasts them once; the card keeps them). Retry
+              stays: a tap re-checks the saved turn through safeRegenerate. */}
+          {hold && <p className="mt-2 text-[13px] leading-snug text-fg-secondary">{hold}</p>}
         </div>
       )}
 

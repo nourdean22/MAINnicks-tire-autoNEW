@@ -98,6 +98,9 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
   const turnRefusedRef = useRef(false);
   const [liveContextBlocks, setLiveContextBlocks] = useState<ContextBlocks | null>(null);
   const [lastTraceId, setLastTraceId] = useState<string | null>(null);
+  // W3b: the words of the current Retry hold (a RETRY_* constant), kept for the error card after the
+  // toast has gone. Set where the hold toasts fire; cleared by a replay that went, a new send, or resetTurn.
+  const [hold, setHold] = useState<string | null>(null);
   const lastPersonaHeaderRef = useRef(null);
 
   useEffect(() => {
@@ -415,12 +418,19 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
       unconfirmedMessage: string = RETRY_HELD_UNCONFIRMED,
     ): Promise<void> => {
       // An earlier check may hold the flag for up to the read timeout: say so, a silent tap reads as a dead button.
-      if (checkingSavedTurnRef.current) return void toast.error(RETRY_STILL_CHECKING);
+      if (checkingSavedTurnRef.current) {
+        setHold(RETRY_STILL_CHECKING);
+        return void toast.error(RETRY_STILL_CHECKING);
+      }
       checkingSavedTurnRef.current = true;
       try {
         const check = await checkSavedTurn(judge, unconfirmedMessage);
-        if (check.kind === "hold") return void toast.error(check.message);
+        if (check.kind === "hold") {
+          setHold(check.message);
+          return void toast.error(check.message);
+        }
         if (check.kind === "go") {
+          setHold(null);
           // Acknowledge what this replay was approved on BEFORE it posts, so the same rows cannot approve the next one.
           for (const trace of latestTurnTraces(check.rows)) acknowledgedTracesRef.current.add(trace);
           await replay();
@@ -708,6 +718,7 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
     clearStall();
     retryCountRef.current = 0;
     setStopped(null);
+    setHold(null);
     clearError();
     replaySnapshotRef.current = null;
     if (requestInFlight) return;
@@ -734,6 +745,7 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
       cancelPartialResume();
       clearStall();
       setStopped(null);
+      setHold(null);
       // 2026-08-12 · OPTIONAL TURBO: per-MESSAGE body override (race-free —
       // the option rides this exact send, not the shared bodyRef), consumed
       // and reset in the same tick so it can never stick to a second turn.
@@ -758,6 +770,7 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
       cancelPartialResume();
       clearStall();
       setStopped(null);
+      setHold(null);
       return chat.sendMessage(...args);
     }) as typeof chat.sendMessage,
     stop: () => {
@@ -766,6 +779,7 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
     },
     stopTurn,
     stopped,
+    hold,
     regenerate: safeRegenerate,
     resetTurn,
     setMessages: chat.setMessages,
