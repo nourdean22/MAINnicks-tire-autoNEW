@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { ArrowLeft, Sparkles, Loader2, Send, CalendarClock, AlertTriangle, Megaphone, Copy, Target } from "lucide-react";
 import { CampaignPlanViewer } from "@/components/admin/CampaignPlanViewer";
+import ConfirmDialog, { confirmDialog } from "@/components/admin/ConfirmDialog";
 import { PotholeAudiences } from "@/components/admin/PotholeAudiences";
 import type { CampaignInput, CampaignOutput } from "@nour/meta-ads-architect";
 
@@ -50,6 +51,27 @@ function SingleAdView() {
 
   const busy = generate.isPending;
 
+  // A live publish is never one tap: ask first, then lock the button once it posted.
+  async function postNow() {
+    if (!result) return;
+    const ok = await confirmDialog({
+      title: "Post this carousel to Instagram now?",
+      message: "This publishes to the live account.",
+      confirmLabel: "Post now",
+    });
+    if (ok) post.mutate({ slideUrls: result.slideUrls, caption: result.copy.caption });
+  }
+
+  async function copyCaption() {
+    if (!result) return;
+    try {
+      await navigator.clipboard.writeText(result.copy.caption);
+      toast.success("Caption copied");
+    } catch {
+      toast.error("Couldn't copy the caption. Select the text and copy it by hand.");
+    }
+  }
+
   return (
     <div className="space-y-6">
       <section className="border border-border bg-card/40 rounded-lg p-4 space-y-4">
@@ -73,7 +95,7 @@ function SingleAdView() {
           maxLength={120}
         />
         <button
-          onClick={() => { setResult(null); generate.mutate({ angle, topic: topic.trim() || undefined }); }}
+          onClick={() => { setResult(null); post.reset(); generate.mutate({ angle, topic: topic.trim() || undefined }); }}
           disabled={busy}
           className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 rounded-lg font-semibold disabled:opacity-60"
         >
@@ -105,18 +127,18 @@ function SingleAdView() {
           <div className="space-y-1">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Caption</span>
-              <button onClick={() => { navigator.clipboard.writeText(result.copy.caption); toast.success("Caption copied"); }} className="text-xs inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"><Copy className="w-3 h-3" /> Copy</button>
+              <button onClick={() => void copyCaption()} className="text-xs inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"><Copy className="w-3 h-3" /> Copy</button>
             </div>
             <pre className="whitespace-pre-wrap text-sm bg-background border border-border rounded-lg p-3 max-h-48 overflow-auto">{result.copy.caption}</pre>
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3 pt-1">
             <button
-              onClick={() => post.mutate({ slideUrls: result.slideUrls, caption: result.copy.caption })}
-              disabled={post.isPending || result.issues.length > 0}
+              onClick={() => void postNow()}
+              disabled={post.isPending || post.isSuccess || result.issues.length > 0}
               className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 rounded-lg font-semibold disabled:opacity-60"
             >
-              {post.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} Post now
+              {post.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} {post.isSuccess ? "Posted" : "Post now"}
             </button>
             <div className="flex items-center gap-2">
               <input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} className="bg-background border border-border rounded-lg px-3 py-2 text-sm" />
@@ -125,7 +147,7 @@ function SingleAdView() {
                   if (!when) return toast.error("Pick a date/time first");
                   schedule.mutate({ slideUrls: result.slideUrls, caption: result.copy.caption, scheduledAt: new Date(when).toISOString() });
                 }}
-                disabled={schedule.isPending || result.issues.length > 0}
+                disabled={schedule.isPending || post.isSuccess || result.issues.length > 0}
                 className="inline-flex items-center justify-center gap-2 border border-border px-4 py-2.5 rounded-lg font-semibold hover:border-primary/40 disabled:opacity-60"
               >
                 {schedule.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CalendarClock className="w-4 h-4" />} Schedule
@@ -339,6 +361,8 @@ export default function AdStudio() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
+      {/* This route renders outside Admin.tsx, which hosts the only other confirm dialog. */}
+      <ConfirmDialog />
       <header className="border-b border-border px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
         <div className="flex items-center gap-3">
           <Link href="/admin" className="text-muted-foreground hover:text-foreground"><ArrowLeft className="w-5 h-5" /></Link>
