@@ -6,7 +6,10 @@
  * comment, drafts a reply with the SAME LLM prompt + claim-safety detector the
  * operator's send button uses.
  *
- * SAFE BY DEFAULT — three independent guards:
+ * SAFE BY DEFAULT — independent guards:
+ *   0. Before any DB or Graph read: REEL_COMMENT_RESPONDER_ENABLED must be
+ *      exactly "true", the reel_comment_responder_paused flag must be off, and
+ *      a live run asks the autonomy kill switch (blocked = this run dry-runs).
  *   1. The cron only RUNS when REEL_COMMENT_RESPONDER_ENABLED=true (scheduler
  *      requiresEnv) — off by default, exactly like reel-pipeline / daily-reel-post.
  *   2. Even when it runs it DRY-RUNS (logs drafts, posts nothing) unless
@@ -215,7 +218,32 @@ async function setKv(d: any, key: string, value: string): Promise<void> {
 }
 
 export async function runReelCommentResponder(): Promise<{ recordsProcessed: number; details: string }> {
-  const live = process.env.REEL_COMMENT_RESPONDER_LIVE === "true";
+  // Gates, in order, before any DB or Graph read. The cron (truthy requiresEnv)
+  // and the Meta webhook (exact "true") both call this, so the exact check here
+  // is the one reading that both paths share.
+  if (process.env.REEL_COMMENT_RESPONDER_ENABLED !== "true") {
+    return { recordsProcessed: 0, details: "Skip — REEL_COMMENT_RESPONDER_ENABLED is not \"true\"" };
+  }
+  // Operator pause. isEnabled reads false on a failed read, so a DB blip runs the
+  // lane as it ran before this flag existed; the admin status query reads the row
+  // itself and shows UNKNOWN instead. A flip that lands mid-run stops the next run.
+  const { isEnabled } = await import("./featureFlags");
+  if (await isEnabled("reel_comment_responder_paused")) {
+    return { recordsProcessed: 0, details: "Skip — paused by reel_comment_responder_paused" };
+  }
+  let live = process.env.REEL_COMMENT_RESPONDER_LIVE === "true";
+  // The autonomy publishing kill switch covers public replies too. Asked once per
+  // run; "automated" fails CLOSED (blocks) when the switch state is unreadable.
+  let killSwitched = false;
+  if (live) {
+    const { killSwitchBlockedPlatforms } = await import("./socialPublish");
+    const blocked = await killSwitchBlockedPlatforms(["instagram"], { source: "reel-comment-responder" }, "automated");
+    if (blocked.includes("instagram")) {
+      killSwitched = true;
+      live = false;
+      log.warn("autonomy kill switch blocks instagram: this run drafts replies and posts none");
+    }
+  }
 
   const { getDb } = await import("../db");
   const d = await getDb();
@@ -345,8 +373,9 @@ export async function runReelCommentResponder(): Promise<{ recordsProcessed: num
   }
 
   const mode = live ? "live" : "dry-run";
+  const prefix = killSwitched ? "kill switch: replies drafted, not posted; " : "";
   return {
     recordsProcessed: postedCount,
-    details: `${mode}: ${posted.length} reels scanned, ${drafted} drafted, ${postedCount} posted, ${blocked} claim-blocked`,
+    details: `${prefix}${mode}: ${posted.length} reels scanned, ${drafted} drafted, ${postedCount} posted, ${blocked} claim-blocked`,
   };
 }

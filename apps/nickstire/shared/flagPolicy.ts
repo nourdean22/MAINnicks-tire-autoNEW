@@ -38,6 +38,7 @@ export const INVERTED_FLAGS: ReadonlySet<string> = new Set([
   "sms_global_pause",
   "vapi_forward_followup_paused",
   "ig_autopost_paused", // TRUE stops the scheduled Instagram image autopost
+  "reel_comment_responder_paused", // TRUE stops public IG comment replies
 ]);
 
 /**
@@ -59,6 +60,7 @@ export const CUSTOMER_FACING_FLAGS: ReadonlySet<string> = new Set([
   "legacy_autopost_live",              // live IG/FB posting
   "missed_call_recovery",
   "ig_autopost_paused",                // inverted: OFF resumes unattended IG/FB posting
+  "reel_comment_responder_paused",     // inverted: OFF resumes unattended public IG replies
   // Matched by the regex too, listed so the intent is recorded rather than
   // inferred from a pattern that may later be edited:
   "smart_sms_auto_reply",
@@ -107,6 +109,17 @@ export function confirmationCopy(
         "Resuming lets the image autopost cron post to Instagram and the Facebook Page unattended at the next slot " +
         "(8:07, 13:07 or 20:07 ET). Nothing is queued; the next slot simply runs.",
       confirmLabel: "Resume posting",
+      cancelLabel: "Stay paused",
+    };
+  }
+  if (key === "reel_comment_responder_paused") {
+    // Resuming this pause restarts unattended public comment replies; there is no SMS queue.
+    return {
+      title: "Resume public comment replies? (reel_comment_responder_paused OFF)",
+      message:
+        "Resuming lets the responder post public replies to Instagram comments on recent reels, unattended, " +
+        "on the next pulse (every 15 minutes). Nothing is queued.",
+      confirmLabel: "Resume replies",
       cancelLabel: "Stay paused",
     };
   }
