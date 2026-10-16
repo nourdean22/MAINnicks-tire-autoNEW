@@ -26,22 +26,22 @@ export default function DeclinedRecoveryPanel() {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-[11px]">
         <div className="border border-border/20 p-2.5">
-          <p className="text-foreground/40 uppercase tracking-wider mb-1">Eligible</p>
+          <p className="text-foreground/40 mb-1">Eligible</p>
           <p className="text-foreground font-bold text-lg">{data.eligible ?? 0}</p>
           <p className="text-foreground/40 text-[10px]">unmatched estimates</p>
         </div>
         <div className="border border-border/20 p-2.5">
-          <p className="text-foreground/40 uppercase tracking-wider mb-1">Recoverable</p>
+          <p className="text-foreground/40 mb-1">Recoverable</p>
           <p className="text-emerald-400 font-bold text-lg">${data.recoverableDollars ?? 0}</p>
           <p className="text-foreground/40 text-[10px]">walked-away $</p>
         </div>
         <div className="border border-border/20 p-2.5">
-          <p className="text-foreground/40 uppercase tracking-wider mb-1">Next 7-day</p>
+          <p className="text-foreground/40 mb-1">Next 7-day</p>
           <p className="text-foreground font-bold text-lg">{data.next7dSends ?? 0}</p>
           <p className="text-foreground/40 text-[10px]">due to send</p>
         </div>
         <div className="border border-border/20 p-2.5">
-          <p className="text-foreground/40 uppercase tracking-wider mb-1">Next 30-day</p>
+          <p className="text-foreground/40 mb-1">Next 30-day</p>
           <p className="text-foreground font-bold text-lg">{data.next30dSends ?? 0}</p>
           <p className="text-foreground/40 text-[10px]">due to send</p>
         </div>

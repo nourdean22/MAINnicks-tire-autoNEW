@@ -10,6 +10,11 @@ const adminSource = readFileSync(
   resolve(process.cwd(), "client/src/pages/Admin.tsx"),
   "utf8",
 );
+// Since Admin UI v1 W1 the sidebar and the phone bar render one shared badge, NavBadge.
+const badgeSource = readFileSync(
+  resolve(process.cwd(), "client/src/components/admin/AdminTabBar.tsx"),
+  "utf8",
+);
 
 describe("admin shell operator-truth contract", () => {
   it("uses the shared overview bundle instead of parallel stats and callback polling", () => {
@@ -48,11 +53,12 @@ describe("admin shell operator-truth contract", () => {
    */
   it("badges come from the signal fold, not a hand-written per-section switch", () => {
     expect(adminSource).not.toContain("function getBadgeCount");
-    expect(adminSource).toContain("foldSignals(sectionSignals)");
+    expect(adminSource).toContain("<NavBadge section={item.id} signals={signals} />");
+    expect(badgeSource).toContain("foldSignals(sectionSignals)");
     // The three states must all reach the render, or one of them is being
     // collapsed into another somewhere between the fold and the eye.
-    expect(adminSource).toMatch(/badge\.state === "unknown"/);
-    expect(adminSource).toMatch(/badge\.state === "counted" && badge\.count > 0/);
+    expect(badgeSource).toMatch(/badge\.state === "unknown"/);
+    expect(badgeSource).toMatch(/badge\.state === "counted" && badge\.count > 0/);
   });
 
   /**
@@ -70,7 +76,7 @@ describe("admin shell operator-truth contract", () => {
     expect(adminSource).toMatch(/opsFailed,/);
     expect(adminSource).toMatch(/opsUnknown: opsSignal\?\.unknown === true/);
     // And the unknown state must reach the eye, not just the variable.
-    expect(adminSource).toMatch(/badge\.state === "unknown"/);
+    expect(badgeSource).toMatch(/badge\.state === "unknown"/);
   });
 
   /**

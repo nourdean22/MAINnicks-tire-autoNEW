@@ -41,7 +41,7 @@ export default function PromptEvalsPanel() {
       {/* Title Header */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <h4 className="font-bold text-sm text-foreground tracking-wider uppercase">Prompt & Classifier Audits</h4>
+          <h4 className="font-bold text-sm text-foreground">Prompt & classifier audits</h4>
           <p className="text-[12px] text-foreground/40 mt-0.5">
             Test system prompt safety and VAPI classification accuracy against deterministic golden fixtures.
           </p>
@@ -79,15 +79,15 @@ export default function PromptEvalsPanel() {
           {/* Summary Box */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <div className="bg-background/40 border border-border/20 rounded p-3 text-center">
-              <span className="text-[10px] text-foreground/40 font-bold uppercase tracking-wider block">Total Audited</span>
+              <span className="text-[10px] text-foreground/40 font-bold block">Total audited</span>
               <span className="text-xl font-extrabold text-foreground mt-0.5 block">{reports.length}</span>
             </div>
             <div className="bg-background/40 border border-border/20 rounded p-3 text-center">
-              <span className="text-[10px] text-foreground/40 font-bold uppercase tracking-wider block">Passed</span>
+              <span className="text-[10px] text-foreground/40 font-bold block">Passed</span>
               <span className="text-xl font-extrabold text-emerald-400 mt-0.5 block">{passedCount}</span>
             </div>
             <div className="bg-background/40 border border-border/20 rounded p-3 text-center col-span-2 sm:col-span-1">
-              <span className="text-[10px] text-foreground/40 font-bold uppercase tracking-wider block">Failed</span>
+              <span className="text-[10px] text-foreground/40 font-bold block">Failed</span>
               <span className={`text-xl font-extrabold mt-0.5 block ${failedCount > 0 ? "text-red-400 animate-pulse" : "text-foreground/20"}`}>
                 {failedCount}
               </span>
@@ -114,7 +114,7 @@ export default function PromptEvalsPanel() {
                       <td className="p-3 font-semibold text-foreground/80">{rep.suite}</td>
                       <td className="p-3 font-mono text-foreground/60">{rep.id}</td>
                       <td className="p-3">
-                        <span className={`inline-flex items-center gap-1 font-bold text-[10px] uppercase ${rep.passed ? "text-emerald-400" : "text-red-400"}`}>
+                        <span className={`inline-flex items-center gap-1 font-bold text-[10px] ${rep.passed ? "text-emerald-400" : "text-red-400"}`}>
                           {rep.passed ? (
                             <>
                               <ShieldCheck className="w-3.5 h-3.5" /> Passed

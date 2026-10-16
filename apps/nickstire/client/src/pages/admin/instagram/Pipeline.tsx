@@ -91,7 +91,7 @@ function ReelHealth() {
             <AlertTriangle className="h-4 w-4" /> Pipeline state is UNKNOWN
           </CardTitle>
           <CardDescription>
-            This is not "nothing is scheduled" — the read itself did not complete, so nothing below
+            This is not "nothing is scheduled": the read itself did not complete, so nothing below
             can be trusted. {d?.reason ? `Reason: ${d.reason}` : ""}
           </CardDescription>
         </CardHeader>
@@ -188,7 +188,7 @@ function ReelHealth() {
           ) : (
             <div className="grid gap-4 md:grid-cols-2">
               <div>
-                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                <p className="mb-2 text-xs font-medium text-muted-foreground">
                   Held viewers
                 </p>
                 <ul className="space-y-2">
@@ -203,7 +203,7 @@ function ReelHealth() {
                 </ul>
               </div>
               <div>
-                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                <p className="mb-2 text-xs font-medium text-muted-foreground">
                   Lost viewers
                 </p>
                 <ul className="space-y-2">
@@ -250,7 +250,7 @@ function ReelHealth() {
             </CardTitle>
             <CardDescription>
               All generation spend in the last {d.economics.windowDays} days over the reels that
-              actually published — failures included, because they were paid for too.
+              actually published: failures included, because they were paid for too.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -264,7 +264,7 @@ function ReelHealth() {
             </p>
             {d.economics.costPerPublishedUsd === null && (
               <p className="mt-2 text-sm text-amber-600">
-                Nothing published in this window, so there is no denominator — not a cost of zero.
+                Nothing published in this window, so there is no denominator, not a cost of zero.
               </p>
             )}
           </CardContent>

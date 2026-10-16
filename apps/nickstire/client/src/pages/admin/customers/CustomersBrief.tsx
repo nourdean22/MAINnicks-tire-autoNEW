@@ -57,7 +57,7 @@ export function CustomersBrief({ onLapsedAction }: CustomersBriefProps) {
   if (isLoading) {
     return (
       <div className="bg-card border border-border/40 p-4">
-        <div className="text-[11px] font-bold tracking-[0.18em] uppercase text-foreground/30 animate-pulse">
+        <div className="text-[11px] font-bold text-foreground/30 animate-pulse">
           Loading customer roster…
         </div>
       </div>
@@ -88,7 +88,7 @@ export function CustomersBrief({ onLapsedAction }: CustomersBriefProps) {
   return (
     <div className="bg-card border border-border/40 p-4 space-y-2.5">
       <div className="flex items-center justify-between">
-        <span className="text-[11px] font-bold tracking-[0.18em] uppercase text-foreground/45">
+        <span className="eyebrow">
           {greeting()} · customer brief
         </span>
         <span className="text-[10px] tracking-wider text-foreground/30">

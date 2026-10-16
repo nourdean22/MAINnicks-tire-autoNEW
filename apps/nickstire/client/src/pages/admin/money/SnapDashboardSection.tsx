@@ -157,22 +157,22 @@ export default function SnapDashboardSection() {
       {summary.data && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="border border-border/30 bg-card/50 p-3">
-            <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Total</div>
+            <div className="text-[10px] text-muted-foreground">Total</div>
             <div className="font-mono font-black text-2xl text-foreground">{summary.data.total}</div>
           </div>
           <div className="border border-amber-500/30 bg-amber-500/5 p-3">
-            <div className="text-[10px] uppercase tracking-widest text-amber-400">Pending</div>
+            <div className="text-[10px] text-amber-400">Pending</div>
             <div className="font-mono font-black text-2xl text-amber-400">{summary.data.pending}</div>
           </div>
           <div className="border border-emerald-500/30 bg-emerald-500/5 p-3">
-            <div className="text-[10px] uppercase tracking-widest text-emerald-400">Approved</div>
+            <div className="text-[10px] text-emerald-400">Approved</div>
             <div className="font-mono font-black text-2xl text-emerald-400">{summary.data.approved}</div>
             <div className="text-[10px] text-emerald-400/70 font-mono mt-0.5">
               ${summary.data.totalApprovedAmount.toLocaleString()}
             </div>
           </div>
           <div className="border border-red-500/30 bg-red-500/5 p-3">
-            <div className="text-[10px] uppercase tracking-widest text-red-400">Declined</div>
+            <div className="text-[10px] text-red-400">Declined</div>
             <div className="font-mono font-black text-2xl text-red-400">{summary.data.declined}</div>
           </div>
         </div>
@@ -336,7 +336,7 @@ export default function SnapDashboardSection() {
                 </div>
                 {app.statusHistory.length > 0 && (
                   <details className="mt-2">
-                    <summary className="text-[10px] uppercase tracking-widest text-muted-foreground cursor-pointer hover:text-foreground transition-colors select-none">
+                    <summary className="text-[10px] text-muted-foreground cursor-pointer hover:text-foreground transition-colors select-none">
                       Status history ({app.statusHistory.length})
                     </summary>
                     <ul className="mt-2 space-y-1 text-[11px] pl-4">

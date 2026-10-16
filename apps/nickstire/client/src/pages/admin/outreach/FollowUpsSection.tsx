@@ -45,7 +45,7 @@ export default function FollowUpsSection() {
       if (data.error) {
         toast.error(`Follow-ups failed: ${data.error.slice(0, 140)}`);
       } else if (data.sent + data.queued + data.failed === 0) {
-        toast.warning(data.skipReason ? `Nothing sent — ${data.skipReason}` : "Nothing eligible to send");
+        toast.warning(data.skipReason ? `Nothing sent · ${data.skipReason}` : "Nothing eligible to send");
       } else {
         const parts = [`${data.sent} sent`];
         if (data.queued) parts.push(`${data.queued} queued for 8 AM`);
@@ -75,9 +75,9 @@ export default function FollowUpsSection() {
       // The retry SENDS now (it used to flip the row to "pending", which
       // nothing drained). Say what happened, not what was queued.
       if (r.outcome === "sent") toast.success("Follow-up sent");
-      else if (r.outcome === "queued") toast.info("Follow-up queued — goes out at 8 AM (quiet hours)");
-      else if (r.outcome === "uncertain") toast.warning("Attempted — delivery unconfirmed (gateway timeout). Do not retry.");
-      else toast.error(`Send failed${r.error ? `: ${r.error}` : ""} — still marked failed`);
+      else if (r.outcome === "queued") toast.info("Follow-up queued: goes out at 8 AM (quiet hours)");
+      else if (r.outcome === "uncertain") toast.warning("Attempted: delivery unconfirmed (gateway timeout). Do not retry.");
+      else toast.error(`Send failed${r.error ? `: ${r.error}` : ""} · still marked failed`);
       utils.followUps.pending.invalidate();
       utils.followUps.recent.invalidate();
     },
@@ -112,15 +112,15 @@ export default function FollowUpsSection() {
           flashing the real numbers. Now placeholders during load. */}
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-card border border-border/30 p-4">
-          <span className="block text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-1.5">Pending</span>
+          <span className="block text-[11px] text-foreground/50 font-medium mb-1.5">Pending</span>
           <span className="text-2xl font-semibold text-amber-400 tabular-nums">{isLoading ? "—" : pendingCount}</span>
         </div>
         <div className="bg-card border border-border/30 p-4">
-          <span className="block text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-1.5">Sent · recent 50</span>
+          <span className="block text-[11px] text-foreground/50 font-medium mb-1.5">Sent · recent 50</span>
           <span className="text-2xl font-semibold text-emerald-400 tabular-nums">{isLoading ? "—" : sentCount}</span>
         </div>
         <div className="bg-card border border-border/30 p-4">
-          <span className="block text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-1.5">Failed</span>
+          <span className="block text-[11px] text-foreground/50 font-medium mb-1.5">Failed</span>
           <span className="text-2xl font-semibold text-red-400 tabular-nums">{isLoading ? "—" : failedCount}</span>
         </div>
       </div>
@@ -173,7 +173,7 @@ export default function FollowUpsSection() {
                         }}
                         disabled={cancelFollowUp.isPending}
                         className="text-foreground/40 hover:text-red-400 transition-colors disabled:opacity-30"
-                        title="Cancel this follow-up — it won't send"
+                        title="Cancel this follow-up: it won't send"
                         aria-label="Cancel follow-up"
                       >
                         <X className="w-4 h-4" />
@@ -222,7 +222,7 @@ export default function FollowUpsSection() {
                           onClick={() => retryFollowUp.mutate({ id: fu.id })}
                           disabled={retryFollowUp.isPending}
                           className="text-amber-400/60 hover:text-amber-400 transition-colors disabled:opacity-30"
-                          title="Retry this follow-up — re-queues it for the next run"
+                          title="Retry this follow-up: re-queues it for the next run"
                           aria-label="Retry follow-up"
                         >
                           <RotateCw className="w-4 h-4" />

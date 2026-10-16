@@ -219,7 +219,7 @@ export function CustomersList({ onOpenCustomer }: { onOpenCustomer: (id: number)
           label="Total Revenue"
           value={statsFailed ? UNKNOWN : `$${Math.round((stats?.totalRevenue ?? 0) / 100).toLocaleString()}`}
           trendLabel={tileNote}
-          icon={<span className="text-[14px]">💰</span>}
+          icon={<DollarSign className="w-4 h-4" aria-hidden />}
           color="text-emerald-400"
           onClick={() => { setSegment("all"); setSortBy("totalSpent"); setSortDir("desc"); setPage(1); }}
         />
@@ -332,7 +332,7 @@ export function CustomersList({ onOpenCustomer }: { onOpenCustomer: (id: number)
               // `truncated`. Surface it so the operator knows rows past the
               // cap were silently dropped (was ignored → silent data loss).
               if (data.truncated) {
-                toast.warning("Export capped at 10,000 rows — narrow the segment or filters to export the rest");
+                toast.warning("Export capped at 10,000 rows: narrow the segment or filters to export the rest");
               }
             } catch (err) {
               toast.error(err instanceof Error ? err.message : "Export failed");
@@ -410,7 +410,7 @@ export function CustomersList({ onOpenCustomer }: { onOpenCustomer: (id: number)
               to know whether to recompute or look deeper. */}
           {freshness?.lastComputedAt && (
             <span
-              className="hidden md:inline-flex items-center gap-1 px-2.5 py-1.5 text-[10px] uppercase tracking-[0.12em] font-medium text-foreground/45 bg-card/50 border border-border/25 whitespace-nowrap"
+              className="hidden md:inline-flex items-center gap-1 px-2.5 py-1.5 text-[10px] font-medium text-foreground/45 bg-card/50 border border-border/25 whitespace-nowrap"
               title={`Materialized aggregates last computed at ${freshness.lastComputedAt} (${freshness.rowCount} rows)`}
             >
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400/70" />
@@ -555,12 +555,12 @@ export function CustomersList({ onOpenCustomer }: { onOpenCustomer: (id: number)
                   Visits <ArrowUpDown className="w-3 h-3" />
                 </button>
               </th>
-              <th className="text-left p-3 text-[10px] text-foreground/40 tracking-wide hidden md:table-cell" title="Outstanding ALG estimates — recovery opportunities">
+              <th className="text-left p-3 text-[10px] text-foreground/40 tracking-wide hidden md:table-cell" title="Outstanding ALG estimates: recovery opportunities">
                 <button onClick={() => toggleSort("declined")} className="flex items-center gap-1 hover:text-foreground/60">
                   <FileWarning className="w-3 h-3" /> Declined <ArrowUpDown className="w-3 h-3" />
                 </button>
               </th>
-              <th className="text-left p-3 text-[10px] text-foreground/40 tracking-wide hidden lg:table-cell" title="Open work orders — current backlog">
+              <th className="text-left p-3 text-[10px] text-foreground/40 tracking-wide hidden lg:table-cell" title="Open work orders: current backlog">
                 <button onClick={() => toggleSort("backlog")} className="flex items-center gap-1 hover:text-foreground/60">
                   <Wrench className="w-3 h-3" /> Backlog <ArrowUpDown className="w-3 h-3" />
                 </button>
@@ -796,7 +796,7 @@ export function CustomersList({ onOpenCustomer }: { onOpenCustomer: (id: number)
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
           <span className="font-mono text-[10px] text-foreground/40 tracking-wider">
-            {listData?.total ?? 0} CUSTOMERS — PAGE {page} OF {totalPages}
+            {listData?.total ?? 0} CUSTOMERS: PAGE {page} OF {totalPages}
           </span>
           <div className="flex items-center gap-2">
             <button

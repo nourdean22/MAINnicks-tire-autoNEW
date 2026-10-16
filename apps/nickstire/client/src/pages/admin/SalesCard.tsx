@@ -60,7 +60,7 @@ export default function SalesCard() {
       aria-label="Shop sales"
     >
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-        <h2 className="text-sm uppercase tracking-wide text-foreground/60 flex items-center gap-2">
+        <h2 className="text-sm text-foreground/60 flex items-center gap-2">
           <DollarSign className="w-4 h-4" /> Billed
         </h2>
         <div className="flex flex-wrap gap-1" role="group" aria-label="Sales period">
@@ -91,7 +91,7 @@ export default function SalesCard() {
         <div className="rounded border border-amber-500/50 bg-amber-500/10 p-3 text-sm flex items-start gap-2">
           <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
           <span>
-            <strong>Sales unreadable — this is UNKNOWN, not $0.</strong>{" "}
+            <strong>Sales unreadable: this is UNKNOWN, not $0.</strong>{" "}
             {data?.available === false ? data.reason : "The query failed."}
           </span>
         </div>
@@ -133,7 +133,7 @@ export default function SalesCard() {
               </div>
               {data.exclusions.blankInvoiceNumbers > 0 && (
                 <div className="text-amber-400">
-                  {data.exclusions.blankInvoiceNumbers} row(s) have no invoice number — dedupe is keyed on it.
+                  {data.exclusions.blankInvoiceNumbers} row(s) have no invoice number: dedupe is keyed on it.
                 </div>
               )}
               <ul className="list-disc pl-4 space-y-0.5 text-foreground/60">

@@ -47,7 +47,7 @@ function LegacyTireOrdersRedirect() {
   return (
     <div className="flex items-center justify-center gap-2 py-12 text-xs text-muted-foreground">
       <Loader2 className="w-4 h-4 animate-spin text-primary" />
-      Tire Orders moved — opening the Tire Orders cockpit…
+      Tire Orders moved: opening the Tire Orders cockpit…
     </div>
   );
 }

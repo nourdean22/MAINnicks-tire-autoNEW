@@ -29,7 +29,7 @@ export function WinBackButton({ customerId, firstName, phone }: {
     e.stopPropagation();
     const ok = await confirmDialog({
       title: `Win back ${name}?`,
-      message: `Sends ONE re-engagement text to ${phone} — a free safety-inspection offer. Real SMS · opt-out honored.`,
+      message: `Sends ONE re-engagement text to ${phone} · a free safety-inspection offer. Real SMS · opt-out honored.`,
       confirmLabel: "Send text",
       cancelLabel: "Cancel",
       tone: "default",

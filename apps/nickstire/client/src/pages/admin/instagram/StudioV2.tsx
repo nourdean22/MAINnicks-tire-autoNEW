@@ -212,10 +212,10 @@ export default function StudioV2({ onNavigate }: { onNavigate?: (view: IgView) =
         setSavedAt(persisted ? new Date() : null);
         toast.success("Draft generated", {
           description: persisted
-            ? "Saved to the server — safe across refresh."
-            : "NOT server-saved (persistence failed) — stage it before leaving.",
+            ? "Saved to the server: safe across refresh."
+            : "NOT server-saved (persistence failed): stage it before leaving.",
         });
-      }, "A generation finished for a concept you already discarded — it was not applied."),
+      }, "A generation finished for a concept you already discarded: it was not applied."),
     });
   };
 
@@ -289,7 +289,7 @@ export default function StudioV2({ onNavigate }: { onNavigate?: (view: IgView) =
       onSuccess: (result) => applyIfCurrent(seq, () => {
         setDraft(result as InstagramStudioDraft);
         toast.success("Quality gate refreshed");
-      }, "A re-score finished for a concept you already discarded — it was not applied."),
+      }, "A re-score finished for a concept you already discarded: it was not applied."),
     });
   };
   const runRender = (current: InstagramStudioDraft) => {
@@ -298,7 +298,7 @@ export default function StudioV2({ onNavigate }: { onNavigate?: (view: IgView) =
       onSuccess: (result) => applyIfCurrent(seq, () => {
         setDraft(result as InstagramStudioDraft);
         toast.success("Assets rendered", { description: `${result.imageUrls.length} permanent JPEG asset${result.imageUrls.length === 1 ? "" : "s"} ready.` });
-      }, "A render finished for a concept you already discarded — it was not applied."),
+      }, "A render finished for a concept you already discarded: it was not applied."),
     });
   };
   const runStage = (current: InstagramStudioDraft) => {
@@ -313,7 +313,7 @@ export default function StudioV2({ onNavigate }: { onNavigate?: (view: IgView) =
           setRowVersion(null);
           setSavedAt(null);
           toast.success("Sent to review queue", { description: "Approve, schedule, or publish from Queue." });
-        }, "Staged — find it in Queue.");
+        }, "Staged: find it in Queue.");
       },
     });
   };
@@ -419,7 +419,7 @@ export default function StudioV2({ onNavigate }: { onNavigate?: (view: IgView) =
             <p className="text-sm font-semibold">Creative entropy watch</p>
             <p className="text-xs text-muted-foreground">
               {slateStrategy.isError
-                ? "Active-slate structure is unknown — do not assume variety."
+                ? "Active-slate structure is unknown: do not assume variety."
                 : slateRows.length === 0
                   ? "No active slate is available yet."
                   : slateTwinCount > 0
@@ -454,7 +454,7 @@ export default function StudioV2({ onNavigate }: { onNavigate?: (view: IgView) =
               </div>
             )}
             <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">1. Source of truth</label>
+              <label className="text-xs font-bold text-muted-foreground">1. Source of truth</label>
               <div className="grid grid-cols-2 gap-2">
                 {INSTAGRAM_SOURCE_TYPES.map((type) => (
                   <button
@@ -471,13 +471,13 @@ export default function StudioV2({ onNavigate }: { onNavigate?: (view: IgView) =
 
             {recordLane && (
               <div className="space-y-2">
-                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                <label className="text-xs font-bold text-muted-foreground">
                   {RECORD_LANE_LABELS[recordLane]}
                 </label>
                 {sourceOptions.isLoading ? (
                   <div className="flex items-center gap-2 rounded-lg border border-dashed p-3 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Loading records…</div>
                 ) : sourceOptions.isError ? (
-                  <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs">Records could not be listed — unknown, not empty. You can still paste an ID below.</p>
+                  <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs">Records could not be listed: unknown, not empty. You can still paste an ID below.</p>
                 ) : laneUnavailable ? (
                   /* The QUERY succeeded but THIS lane's read threw. Distinct
                      from both "request failed" and "verified empty", and it was
@@ -485,7 +485,7 @@ export default function StudioV2({ onNavigate }: { onNavigate?: (view: IgView) =
                      an empty array, so a broken table read displayed as "no
                      matching records found". */
                   <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs">
-                    This source could not be read — unknown, not empty. Do not conclude there are none.
+                    This source could not be read: unknown, not empty. Do not conclude there are none.
                   </p>
                 ) : (
                   <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
@@ -501,7 +501,7 @@ export default function StudioV2({ onNavigate }: { onNavigate?: (view: IgView) =
                       </button>
                     ))}
                     {recordOptions.length === 0 && (
-                      <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">No matching records found — verified empty.</p>
+                      <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">No matching records found: verified empty.</p>
                     )}
                   </div>
                 )}
@@ -518,7 +518,7 @@ export default function StudioV2({ onNavigate }: { onNavigate?: (view: IgView) =
                 every caption downstream. */}
             {sourceType === "faq_service_education" && (
               <div className="space-y-2">
-                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Pick the service</label>
+                <label className="text-xs font-bold text-muted-foreground">Pick the service</label>
                 <div className="flex flex-wrap gap-2">
                   {SERVICE_FEED.map((service) => (
                     <button
@@ -536,12 +536,12 @@ export default function StudioV2({ onNavigate }: { onNavigate?: (view: IgView) =
                     </button>
                   ))}
                 </div>
-                <p className="text-xs text-muted-foreground">Fills the evidence box with the service's framing — edit freely; add a shop photo below to make it real.</p>
+                <p className="text-xs text-muted-foreground">Fills the evidence box with the service's framing: edit freely; add a shop photo below to make it real.</p>
               </div>
             )}
 
             <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Context or evidence</label>
+              <label className="text-xs font-bold text-muted-foreground">Context or evidence</label>
               <Textarea value={sourceDetail} onChange={(event) => setSourceDetail(event.target.value)} placeholder="What happened, what customers keep asking, what offer is active, or what the photo shows." className="min-h-24" />
             </div>
 
@@ -550,7 +550,7 @@ export default function StudioV2({ onNavigate }: { onNavigate?: (view: IgView) =
                 rides into the draft as its subject image — the renderer frames
                 it instead of painting a family background. */}
             <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Shop photo (optional, up to 3)</label>
+              <label className="text-xs font-bold text-muted-foreground">Shop photo (optional, up to 3)</label>
               <div className="flex flex-wrap items-center gap-2">
                 {evidenceUrls.map((url) => (
                   <div key={url} className="relative h-20 w-20 overflow-hidden rounded-lg border">
@@ -581,7 +581,7 @@ export default function StudioV2({ onNavigate }: { onNavigate?: (view: IgView) =
                         event.target.value = "";
                         if (!file) return;
                         if (file.size > 7_500_000) {
-                          toast.error("Photo too large", { description: "Max 7.5MB — take it at normal quality, not RAW." });
+                          toast.error("Photo too large", { description: "Max 7.5MB: take it at normal quality, not RAW." });
                           return;
                         }
                         const mime = (["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"] as const)
@@ -610,7 +610,7 @@ export default function StudioV2({ onNavigate }: { onNavigate?: (view: IgView) =
                 )}
               </div>
               <p className="text-xs text-muted-foreground">
-                Stored durably before generation — a draft never depends on your phone keeping the file.
+                Stored durably before generation: a draft never depends on your phone keeping the file.
               </p>
 
               <div className="rounded-lg border bg-muted/20 p-3">
@@ -622,7 +622,7 @@ export default function StudioV2({ onNavigate }: { onNavigate?: (view: IgView) =
                   <Badge variant="outline">{realShopMedia.data?.length ?? 0} available</Badge>
                 </div>
                 {realShopMedia.isError ? (
-                  <p className="text-xs text-amber-500">Library read failed — unknown, not empty.</p>
+                  <p className="text-xs text-amber-500">Library read failed: unknown, not empty.</p>
                 ) : realShopMedia.isLoading ? (
                   <p className="text-xs text-muted-foreground">Loading library…</p>
                 ) : (realShopMedia.data?.length ?? 0) === 0 ? (
@@ -651,7 +651,7 @@ export default function StudioV2({ onNavigate }: { onNavigate?: (view: IgView) =
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">2. Format</label>
+              <label className="text-xs font-bold text-muted-foreground">2. Format</label>
               <div className="grid grid-cols-2 gap-2">
                 {STATIC_FORMATS.map(({ id, icon: Icon, description }) => (
                   <button
@@ -669,14 +669,14 @@ export default function StudioV2({ onNavigate }: { onNavigate?: (view: IgView) =
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">3. Business objective</label>
+              <label className="text-xs font-bold text-muted-foreground">3. Business objective</label>
               <select value={objective} onChange={(event) => setObjective(event.target.value as InstagramObjective)} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
                 {INSTAGRAM_OBJECTIVES.map((item) => <option key={item} value={item}>{OBJECTIVE_LABELS[item]}</option>)}
               </select>
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">4. Your order</label>
+              <label className="text-xs font-bold text-muted-foreground">4. Your order</label>
               <Textarea value={direction} onChange={(event) => setDirection(event.target.value)} placeholder="Example: Make this blunt, useful, brake-focused, and designed to drive walk-ins today. No fake statistics. One strong visual." className="min-h-28" />
             </div>
           </CardContent>
@@ -700,7 +700,7 @@ export default function StudioV2({ onNavigate }: { onNavigate?: (view: IgView) =
               <p className="mt-2 max-w-lg text-sm text-muted-foreground">Select the source, format, and business goal. The output will include editable copy, actual quality findings, and clean rendered media.</p>
               {(recentDrafts.data?.length ?? 0) > 0 && (
                 <div className="mt-6 w-full max-w-md space-y-2 text-left">
-                  <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Resume a saved draft</p>
+                  <p className="text-xs font-bold text-muted-foreground">Resume a saved draft</p>
                   {recentDrafts.data!.map((row) => row.draft && (
                     <button
                       type="button"
@@ -729,7 +729,7 @@ export default function StudioV2({ onNavigate }: { onNavigate?: (view: IgView) =
                     <Badge className={gateClass(draft.quality.gate)} variant="outline">{draft.quality.gate.toUpperCase()} · {draft.quality.overall}</Badge>
                     <span className={`text-[11px] ${draftVersion === null ? "text-amber-500" : "text-muted-foreground"}`}>
                       {draftVersion === null
-                        ? "Not server-saved — stage before leaving"
+                        ? "Not server-saved: stage before leaving"
                         : saveDraft.isPending
                           ? "Saving…"
                           : savedAt
@@ -742,16 +742,16 @@ export default function StudioV2({ onNavigate }: { onNavigate?: (view: IgView) =
               <CardContent className="grid gap-6 pt-6 lg:grid-cols-[minmax(0,1fr)_340px]">
                 <div className="space-y-5">
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2"><label className="text-xs font-bold uppercase text-muted-foreground">Visual headline</label><Input value={draft.headline} maxLength={42} onChange={(event) => patchDraft("headline", event.target.value)} /><div className="text-right text-[11px] text-muted-foreground">{draft.headline.length}/42</div></div>
-                    <div className="space-y-2"><label className="text-xs font-bold uppercase text-muted-foreground">CTA</label><Input value={draft.cta} maxLength={52} onChange={(event) => patchDraft("cta", event.target.value)} /><div className="text-right text-[11px] text-muted-foreground">{draft.cta.length}/52</div></div>
+                    <div className="space-y-2"><label className="text-xs font-bold text-muted-foreground">Visual headline</label><Input value={draft.headline} maxLength={42} onChange={(event) => patchDraft("headline", event.target.value)} /><div className="text-right text-[11px] text-muted-foreground">{draft.headline.length}/42</div></div>
+                    <div className="space-y-2"><label className="text-xs font-bold text-muted-foreground">CTA</label><Input value={draft.cta} maxLength={52} onChange={(event) => patchDraft("cta", event.target.value)} /><div className="text-right text-[11px] text-muted-foreground">{draft.cta.length}/52</div></div>
                   </div>
-                  <div className="space-y-2"><label className="text-xs font-bold uppercase text-muted-foreground">Visual subheadline</label><Textarea value={draft.subheadline} maxLength={90} onChange={(event) => patchDraft("subheadline", event.target.value)} className="min-h-20" /><div className="text-right text-[11px] text-muted-foreground">{draft.subheadline.length}/90</div></div>
-                  <div className="space-y-2"><label className="text-xs font-bold uppercase text-muted-foreground">Caption</label><Textarea value={draft.caption} maxLength={2200} onChange={(event) => patchDraft("caption", event.target.value)} className="min-h-52 text-base leading-7" /><div className="text-right text-[11px] text-muted-foreground">{assembledCaption.length}/2200 with hashtags</div></div>
-                  <div className="space-y-2"><label className="text-xs font-bold uppercase text-muted-foreground">Art direction</label><Textarea value={draft.artDirection} onChange={(event) => patchDraft("artDirection", event.target.value)} className="min-h-24" /></div>
+                  <div className="space-y-2"><label className="text-xs font-bold text-muted-foreground">Visual subheadline</label><Textarea value={draft.subheadline} maxLength={90} onChange={(event) => patchDraft("subheadline", event.target.value)} className="min-h-20" /><div className="text-right text-[11px] text-muted-foreground">{draft.subheadline.length}/90</div></div>
+                  <div className="space-y-2"><label className="text-xs font-bold text-muted-foreground">Caption</label><Textarea value={draft.caption} maxLength={2200} onChange={(event) => patchDraft("caption", event.target.value)} className="min-h-52 text-base leading-7" /><div className="text-right text-[11px] text-muted-foreground">{assembledCaption.length}/2200 with hashtags</div></div>
+                  <div className="space-y-2"><label className="text-xs font-bold text-muted-foreground">Art direction</label><Textarea value={draft.artDirection} onChange={(event) => patchDraft("artDirection", event.target.value)} className="min-h-24" /></div>
 
                   {draft.format === "carousel" && (
                     <div className="space-y-3">
-                      <label className="text-xs font-bold uppercase text-muted-foreground">Five-slide sequence</label>
+                      <label className="text-xs font-bold text-muted-foreground">Five-slide sequence</label>
                       {draft.carouselSlides.map((slide, index) => (
                         <div key={`${slide.role}-${index}`} className="rounded-lg border p-4">
                           <div className="mb-3 flex items-center justify-between"><Badge variant="outline">{index + 1} · {slide.role}</Badge><span className="text-xs text-muted-foreground">{slide.headline.length}/42</span></div>

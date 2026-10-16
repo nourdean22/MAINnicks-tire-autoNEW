@@ -182,25 +182,33 @@ describe("phone-reachable controls meet the 48px touch minimum", () => {
    *
    * What IS pinned below are the two controls that genuinely render.
    */
-  it("the mobile quick-actions trigger is at least 48px and phone-only", () => {
-    const s = read("client/src/components/admin/CommandSearch.tsx");
-    expect(s).toMatch(/aria-label="Quick actions"/);
-    // w-14 h-14 = 56px, comfortably over the minimum.
-    expect(s).toMatch(/lg:hidden fixed[^"`]*w-14 h-14/);
+  /**
+   * Admin UI v1 W1 replaced the floating "Quick actions" button with a phone bottom
+   * bar (AdminTabBar): four section slots and Search, which opens the same palette.
+   * The bar is the phone-reachable door now, so its slots carry the 48px floor.
+   */
+  it("the phone bottom bar's slots are at least 48px and the bar is phone-only", () => {
+    const s = read("client/src/components/admin/AdminTabBar.tsx");
+    expect(s).toMatch(/aria-label="Primary sections"/);
+    expect(s).toMatch(/className="lg:hidden fixed bottom-0/);
+    // min-h-12 = 48px; every slot, Search included, uses the one `slot` class string.
+    expect(s).toMatch(/const slot = "[^"]*\bmin-h-12\b/);
+    expect(s).toMatch(/data-slot="search" onClick=\{onSearch\} className=\{`\$\{slot\}/);
+    expect(read("client/src/components/admin/CommandSearch.tsx")).not.toMatch(/aria-label="Quick actions"/);
   });
 
   /**
-   * The FAB and the SSE pulse stack both occupy bottom-right. The pulse container
-   * is pointer-events-none but its pills are pointer-events-auto, up to three at
-   * once for 6s each — so without the mobile offset an SSE burst would cover the
-   * button and swallow taps aimed at it, on the busiest screen in the admin.
+   * The bar and the SSE pulse stack both sit at the bottom of the phone. The pulse
+   * container is pointer-events-none but its pills are pointer-events-auto, up to
+   * three at once for 6s each, so without the mobile offset an SSE burst would cover
+   * the bar and swallow taps aimed at it, on the busiest screen in the admin.
    */
-  it("ActivityPulse clears the quick-actions button on mobile", () => {
+  it("ActivityPulse clears the phone bottom bar on mobile", () => {
     const s = read("client/src/components/admin/ActivityPulse.tsx");
     expect(s).toMatch(/lg:bottom-\[calc\(1rem\+env\(safe-area-inset-bottom,0\)\)\]/);
-    // The mobile inset must be strictly larger than the desktop 1rem one.
+    // The bar is 56px (3.5rem) plus the same inset, so the pulse must sit above 3.5rem.
     const mobile = s.match(/bottom-\[calc\((\d+(?:\.\d+)?)rem\+env\(safe-area-inset-bottom,0\)\)\]\s+lg:bottom/);
     expect(mobile).not.toBeNull();
-    expect(Number(mobile![1])).toBeGreaterThan(1);
+    expect(Number(mobile![1])).toBeGreaterThan(3.5);
   });
 });

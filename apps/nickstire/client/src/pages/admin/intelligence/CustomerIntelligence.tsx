@@ -27,11 +27,11 @@ export function CustomerIntelligence() {
       <div className="bg-card border border-amber-500/30 p-5 rounded-xl">
         <div className="flex items-center gap-2 pb-2 border-b border-border/10">
           <Users className="w-5 h-5 text-amber-400" />
-          <h2 className="text-sm font-black text-amber-400 tracking-wide uppercase">Customer Intelligence</h2>
+          <h2 className="text-sm font-black text-amber-400">Customer intelligence</h2>
         </div>
         <div className="flex items-center gap-2 mt-4 text-amber-200/90 text-xs">
           <AlertTriangle className="w-4 h-4 shrink-0" />
-          <span>Customer signals could not be read — churn and retention status unknown, not clear.</span>
+          <span>Customer signals could not be read: churn and retention status unknown, not clear.</span>
         </div>
       </div>
     );
@@ -50,7 +50,7 @@ export function CustomerIntelligence() {
     <div className="bg-card border border-border/40 p-5 space-y-5 rounded-xl shadow-sm">
       <div className="flex items-center gap-2 pb-2 border-b border-border/10">
         <Users className="w-5 h-5 text-indigo-400" />
-        <h2 className="text-sm font-black text-indigo-400 tracking-wide uppercase">Customer Intelligence</h2>
+        <h2 className="text-sm font-black text-indigo-400">Customer intelligence</h2>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -60,7 +60,7 @@ export function CustomerIntelligence() {
           </div>
           <div>
             <SignalValue signal={churnHighRisk} name="churn" />
-            <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mt-1">High Churn Risk</div>
+            <div className="text-[10px] text-muted-foreground font-semibold mt-1">High churn risk</div>
           </div>
         </div>
         <div className="p-3 bg-emerald-500/5 border border-emerald-500/20 rounded-lg flex items-center gap-3">
@@ -69,13 +69,13 @@ export function CustomerIntelligence() {
           </div>
           <div>
             <SignalValue signal={dueSoon} name="due" />
-            <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mt-1">Due Or Overdue</div>
+            <div className="text-[10px] text-muted-foreground font-semibold mt-1">Due or overdue</div>
           </div>
         </div>
       </div>
 
       <div className="space-y-3 pt-2">
-        <h3 className="text-[11px] font-bold tracking-[0.15em] uppercase text-foreground/50 mb-1">VIPs Going Cold</h3>
+        <h3 className="text-[11px] font-bold text-foreground/50 mb-1">VIPs Going Cold</h3>
         {vips.length === 0 ? (
           <div className="text-xs text-muted-foreground py-2 italic bg-foreground/[0.02] px-3 rounded-md border border-border/20">
             No VIP win-back made the top 8 actions right now. Higher-urgency leads, invoices and callbacks can fill the list, so this is not a retention verdict.

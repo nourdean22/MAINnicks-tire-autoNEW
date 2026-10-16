@@ -154,7 +154,7 @@ export default function SettingsSection() {
     // budget-gated "Refresh from ALG" panel below.
     const ok = await confirmDialog({
       title: "Probe ALG endpoints directly?",
-      message: "This logs in to ALG directly and can briefly log the shop counter out of ShopDriver. Only run it to diagnose a sync problem — for routine data, use the budget-gated Refresh from ALG panel instead.",
+      message: "This logs in to ALG directly and can briefly log the shop counter out of ShopDriver. Only run it to diagnose a sync problem, for routine data, use the budget-gated Refresh from ALG panel instead.",
       confirmLabel: "Probe anyway",
       cancelLabel: "Cancel",
       tone: "danger",
@@ -251,7 +251,7 @@ export default function SettingsSection() {
         {connected ? <Wifi className="w-5 h-5 text-emerald-400" /> : <WifiOff className="w-5 h-5 text-red-400" />}
         <div className="flex-1">
           <span className={`font-bold text-sm ${connected ? "text-emerald-400" : "text-red-400"}`}>
-            {connected ? "ALG CONNECTED" : "ALG OFFLINE — Using Built-in Labor Guide"}
+            {connected ? "ALG CONNECTED" : "ALG OFFLINE: Using Built-in Labor Guide"}
           </span>
           <p className="text-foreground/50 text-[11px] mt-0.5">
             {connected

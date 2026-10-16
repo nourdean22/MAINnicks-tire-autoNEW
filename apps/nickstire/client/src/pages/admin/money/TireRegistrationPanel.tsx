@@ -106,7 +106,7 @@ export default function TireRegistrationPanel({ workOrderId }: { workOrderId: st
         <div role="alert" className="bg-red-500/10 border border-red-500/20 p-3 text-xs text-red-300 space-y-2">
           <div className="flex items-start gap-2">
             <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-            <span>Couldn't load tire registration — this is NOT the same as "no tires". {reg.error?.message}</span>
+            <span>Couldn't load tire registration: this is NOT the same as "no tires". {reg.error?.message}</span>
           </div>
           <button type="button" onClick={() => reg.refetch()} className={`${BTN} border-red-400/40 inline-flex items-center gap-1.5`}>
             <RefreshCw className="w-3.5 h-3.5" /> Retry
@@ -209,7 +209,7 @@ export default function TireRegistrationPanel({ workOrderId }: { workOrderId: st
         </label>
         {live && (
           <div className={`text-[11px] ${live.status === "valid" ? "text-emerald-400" : live.status === "legacy_date_code" ? "text-amber-400" : "text-red-400"}`}>
-            {live.status === "valid" ? `Looks right — made week ${live.week} of ${live.year}.` : live.issues.join(" ")}
+            {live.status === "valid" ? `Looks right, made week ${live.week} of ${live.year}.` : live.issues.join(" ")}
           </div>
         )}
         <div className="flex flex-wrap gap-2 items-end">

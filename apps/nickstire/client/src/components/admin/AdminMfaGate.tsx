@@ -61,7 +61,7 @@ export default function AdminMfaGate({ enabled, verified, accountLabel, onVerifi
               Open authenticator setup
             </a>
             <div className="rounded-lg border border-border/50 bg-background p-3">
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Manual setup key</div>
+              <div className="text-[10px] text-muted-foreground">Manual setup key</div>
               <code className="mt-1 block break-all text-sm text-foreground select-all">{setup.secret}</code>
             </div>
           </div>

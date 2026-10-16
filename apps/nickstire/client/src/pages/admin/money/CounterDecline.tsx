@@ -29,7 +29,7 @@ export function DeclineProvenanceBadge({ provenance }: { provenance: DeclineProv
         provenance === "counter"
           ? "Recorded at the counter: the customer said no."
           : provenance === "inferred"
-            ? "No invoice matched this estimate. The customer may have declined — or paid under another phone, or the invoice never mirrored."
+            ? "No invoice matched this estimate. The customer may have declined, or paid under another phone, or the invoice never mirrored."
             : "Counter captures could not be read, so it is unknown whether this decline was observed."
       }
     >
@@ -48,7 +48,7 @@ export function DeclineProvenanceStrip({
   if (captureStatus === "error") {
     return (
       <p className="text-[12px] text-amber-400">
-        Counter captures couldn&apos;t load — which of these declines were observed is unknown.
+        Counter captures couldn&apos;t load, which of these declines were observed is unknown.
       </p>
     );
   }
@@ -87,7 +87,7 @@ export function CounterDeclineButton({ estimateId, provenance }: { estimateId: n
       onClick={() => capture.mutate({ id: estimateId })}
       disabled={capture.isPending}
       aria-label="Customer declined at the counter"
-      title="The customer said no at the counter — record it (contacts no one)"
+      title="The customer said no at the counter: record it (contacts no one)"
       className="min-h-12 min-w-12 px-3 bg-emerald-500/10 text-emerald-400 text-[11px] font-bold tracking-wide border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors disabled:opacity-50"
     >
       DECLINED

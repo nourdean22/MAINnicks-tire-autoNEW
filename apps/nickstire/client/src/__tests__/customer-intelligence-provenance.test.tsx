@@ -80,13 +80,13 @@ describe("CustomerIntelligence · unknown is not zero", () => {
     expect(signal(container, "due")).toEqual({ text: "7", tag: "ESTIMATE" });
   });
 
-  it("the due count is labelled Due Or Overdue, which is what dueSoon holds (Q-23 phase 7)", () => {
+  it("the due count is labelled Due or overdue (sentence case since Admin UI v1 W1), which is what dueSoon holds (Q-23 phase 7)", () => {
     // predictRepeatVisits puts overdue customers in dueSoon too, so the old
     // "Due For Maintenance" label understated what the number counts.
     h.report = withCustomers({ highRisk: [], mediumRisk: [] }, { dueSoon: rows(4), overdueCount: 1 });
     const { container } = render(<CustomerIntelligence />);
     const label = container.querySelector('[data-signal="due"]')?.parentElement?.parentElement?.textContent;
-    expect(label).toMatch(/Due Or Overdue/);
+    expect(label).toMatch(/Due or overdue/);
     expect(container.textContent).not.toMatch(/Due For Maintenance/);
   });
 

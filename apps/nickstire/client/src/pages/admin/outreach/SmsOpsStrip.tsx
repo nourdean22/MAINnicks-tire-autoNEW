@@ -17,7 +17,7 @@ function Tile({ label, value, tone }: { label: string; value: string; tone?: "ok
     tone === "bad" ? "text-red-400" : tone === "warn" ? "text-amber-300" : tone === "ok" ? "text-emerald-400" : "text-foreground/80";
   return (
     <div className="rounded border border-border/40 bg-background/40 px-2.5 py-1.5 min-w-[92px]">
-      <div className="text-[9px] uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className="text-[9px] text-muted-foreground">{label}</div>
       <div className={`text-sm font-mono font-semibold ${toneClass}`}>{value}</div>
     </div>
   );
@@ -32,7 +32,7 @@ export default function SmsOpsStrip() {
   const { data: latency } = trpc.smsOps.latencyMetrics.useQuery(undefined, { staleTime: 120_000, retry: 1 });
   const setPause = trpc.smsOps.setPause.useMutation({
     onSuccess: (r) => {
-      toast.success(r.paused ? "SMS PAUSED — automated customer sends now hold in the queue" : "SMS resumed — held queue drains on the next cycle");
+      toast.success(r.paused ? "SMS PAUSED: automated customer sends now hold in the queue" : "SMS resumed: held queue drains on the next cycle");
       utils.smsOps.opsStatus.invalidate();
     },
     onError: (e) => toast.error(e.message),
@@ -60,7 +60,7 @@ export default function SmsOpsStrip() {
   if (isError || !data) {
     return (
       <div className="rounded-lg border border-amber-500/40 bg-card p-3 text-xs text-amber-300">
-        SMS ops status UNKNOWN — the read failed. This is not "all clear".
+        SMS ops status UNKNOWN: the read failed. This is not "all clear".
       </div>
     );
   }
@@ -87,7 +87,7 @@ export default function SmsOpsStrip() {
         </button>
         {!data.pause.readable && (
           <span className="inline-flex items-center gap-1 text-[10px] text-amber-300">
-            <ShieldAlert className="w-3 h-3" /> pause state UNKNOWN ({data.pause.reason ?? "unreadable"}) — marketing holds, follow-ups flow
+            <ShieldAlert className="w-3 h-3" /> pause state UNKNOWN ({data.pause.reason ?? "unreadable"}): marketing holds, follow-ups flow
           </span>
         )}
 
@@ -150,7 +150,7 @@ export default function SmsOpsStrip() {
 
       {/* Autonomy ladder — declared level + live rollout per automation */}
       <details className="mt-2">
-        <summary className="text-[10px] uppercase tracking-wider text-muted-foreground cursor-pointer select-none">
+        <summary className="text-[10px] text-muted-foreground cursor-pointer select-none">
           Autonomy ladder ({data.autonomy.length} automations)
         </summary>
         <div className="mt-1.5 grid gap-1">
@@ -171,13 +171,13 @@ export default function SmsOpsStrip() {
       {/* Suppression rollup */}
       {data.suppressions7d.length > 0 && (
         <details className="mt-1.5">
-          <summary className="text-[10px] uppercase tracking-wider text-muted-foreground cursor-pointer select-none">
+          <summary className="text-[10px] text-muted-foreground cursor-pointer select-none">
             What the AI held back (7d)
           </summary>
           <div className="mt-1.5 grid gap-0.5">
             {data.suppressions7d.map((s, i) => (
               <div key={i} className="text-[10px] font-mono text-foreground/70">
-                {s.count}× {s.status}{s.statusReason ? ` — ${s.statusReason}` : ""}
+                {s.count}× {s.status}{s.statusReason ? `: ${s.statusReason}` : ""}
               </div>
             ))}
           </div>

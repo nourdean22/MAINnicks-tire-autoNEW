@@ -33,7 +33,7 @@ export default function UnpaidInvoicesSection() {
     <div className="space-y-6">
       {unknown && (
         <div className="border border-amber-500/40 bg-amber-500/10 p-4 text-[13px] text-amber-400">
-          <strong>Unpaid invoices could not be read.</strong> The numbers below are unknown — NOT zero, and nothing here means you have been paid. {error?.message}
+          <strong>Unpaid invoices could not be read.</strong> The numbers below are unknown: NOT zero, and nothing here means you have been paid. {error?.message}
         </div>
       )}
 
@@ -74,7 +74,7 @@ export default function UnpaidInvoicesSection() {
         <LoadingState label="Loading unpaid invoices..." />
       ) : unknown ? (
         <div className="text-center py-12 text-amber-400/80">
-          <p className="text-[13px]">The worklist is unavailable — retry before trusting any collection state.</p>
+          <p className="text-[13px]">The worklist is unavailable: retry before trusting any collection state.</p>
         </div>
       ) : items.length === 0 ? (
         <div className="text-center py-12 text-foreground/40">

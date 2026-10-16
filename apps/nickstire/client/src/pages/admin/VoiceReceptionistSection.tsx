@@ -248,7 +248,7 @@ export default function VoiceReceptionistSection() {
         setCopiedId(id);
         setTimeout(() => setCopiedId(null), 2000);
       },
-      () => toast.error("Copy failed — long-press the text to copy it manually."),
+      () => toast.error("Copy failed: long-press the text to copy it manually."),
     );
   };
 
@@ -504,12 +504,12 @@ export default function VoiceReceptionistSection() {
           {roi?.ok && roi.hardConversions > 0 && (
             <Panel
               title="Voice Receptionist ROI (estimate)"
-              subtitle="Measured conversions × your average paid ticket. An estimate, not billed revenue — no bookings are fabricated."
+              subtitle="Measured conversions × your average paid ticket. An estimate, not billed revenue: no bookings are fabricated."
               padding="md"
             >
               <div className="flex flex-wrap items-end gap-x-10 gap-y-4">
                 <div>
-                  <p className="text-[10px] uppercase tracking-[0.12em] text-foreground/40 font-bold">Est. recovered revenue</p>
+                  <p className="text-[10px] text-foreground/40 font-bold">Est. recovered revenue</p>
                   <p className="text-3xl font-bold text-emerald-400 tabular-nums">
                     ${(roi.estLowCents / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}–${(roi.estHighCents / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                   </p>
@@ -518,12 +518,12 @@ export default function VoiceReceptionistSection() {
                   </p>
                 </div>
                 <div>
-                  <p className="text-[10px] uppercase tracking-[0.12em] text-foreground/40 font-bold">Conversions</p>
+                  <p className="text-[10px] text-foreground/40 font-bold">Conversions</p>
                   <p className="text-2xl font-bold text-foreground tabular-nums">{roi.hardConversions}</p>
                   <p className="text-[11px] text-foreground/40 mt-0.5">hard conversions · {roi.convertingCalls} incl. intents</p>
                 </div>
                 <div>
-                  <p className="text-[10px] uppercase tracking-[0.12em] text-foreground/40 font-bold">Avg paid ticket</p>
+                  <p className="text-[10px] text-foreground/40 font-bold">Avg paid ticket</p>
                   <p className="text-2xl font-bold text-foreground tabular-nums">
                     ${(roi.avgTicketCents / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                   </p>
@@ -646,7 +646,7 @@ export default function VoiceReceptionistSection() {
 
                 {/* Reason filter chips */}
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-[10px] uppercase tracking-[0.15em] text-foreground/45 mr-1">Filter:</span>
+                  <span className="text-[10px] text-foreground/45 mr-1">Filter:</span>
                   <FilterChip
                     label="All"
                     count={rawCalls.length}
@@ -689,11 +689,11 @@ export default function VoiceReceptionistSection() {
               />
             ) : (
               <div className="divide-y divide-border/20">
-                <div className="flex items-center gap-3 px-4 py-2.5 bg-foreground/[0.02] text-[11px] font-medium tracking-[0.15em] uppercase text-foreground/40">
+                <div className="flex items-center gap-3 px-4 py-2.5 bg-foreground/[0.02] text-[11px] font-medium text-foreground/40">
                   <span className="w-16">Time</span>
                   <span className="flex-1">Caller</span>
                   <span className="w-20 text-right">Duration</span>
-                  <span className="w-32">Outcome Category</span>
+                  <span className="w-32">Outcome category</span>
                   <span className="w-6"></span>
                 </div>
                 {callsList.map((c: any) => {
@@ -756,7 +756,7 @@ export default function VoiceReceptionistSection() {
             <div className="bg-card border border-amber-500/30 rounded-lg p-4 flex items-start gap-2">
               <AlertTriangle className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
               <p className="text-xs text-muted-foreground">
-                Call population unreadable — the breakdown below is{" "}
+                Call population unreadable: the breakdown below is{" "}
                 <span className="text-amber-400 font-medium">unknown, not empty</span>. The roster
                 itself may still be accurate; this panel is not.
               </p>
@@ -764,7 +764,7 @@ export default function VoiceReceptionistSection() {
           ) : queueSummary ? (
             <div className="bg-card border border-border/20 rounded-lg p-4 space-y-3">
               <div className="flex items-baseline gap-3 flex-wrap">
-                <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                <span className="text-xs text-muted-foreground">
                   Needs attention
                 </span>
                 <span className="text-2xl font-semibold text-foreground tabular-nums">
@@ -783,7 +783,7 @@ export default function VoiceReceptionistSection() {
 
               {Object.keys(queueSummary.exclusionCounts).length > 0 && (
                 <div className="pt-2 border-t border-border/10">
-                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1.5">
+                  <p className="text-[11px] text-muted-foreground mb-1.5">
                     Not an obligation, and why
                   </p>
                   <div className="flex flex-wrap gap-x-4 gap-y-1">
@@ -814,8 +814,8 @@ export default function VoiceReceptionistSection() {
                   clean bill of health.
                 */
                 <div className="pt-2 border-t border-border/10">
-                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1.5">
-                    Transfers — did they reach a human
+                  <p className="text-[11px] text-muted-foreground mb-1.5">
+                    Transfers: did they reach a human
                   </p>
                   {queueSummary.transferConnect.coveragePct === 0 ? (
                     <p className="text-xs text-muted-foreground">
@@ -825,7 +825,7 @@ export default function VoiceReceptionistSection() {
                         {queueSummary.transferConnect.attempted}
                       </span>{" "}
                       transfer attempts, so connect rate is{" "}
-                      <span className="text-amber-400">unknown</span> — not good, not bad.
+                      <span className="text-amber-400">unknown</span> not good, not bad.
                     </p>
                   ) : (
                     <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
@@ -851,7 +851,7 @@ export default function VoiceReceptionistSection() {
                       )}
                       <span className="text-muted-foreground ml-auto">
                         {queueSummary.transferConnect.connectRate === null
-                          ? "rate withheld — too few resolved to be meaningful"
+                          ? "rate withheld: too few resolved to be meaningful"
                           : `${queueSummary.transferConnect.connectRate}% connected, over ${queueSummary.transferConnect.coveragePct}% coverage`}
                       </span>
                     </div>
@@ -872,7 +872,7 @@ export default function VoiceReceptionistSection() {
                           : "mt-2 border border-border/20 bg-background/30 p-2.5"
                       }
                     >
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-foreground/50 mb-1">
+                      <p className="text-[10px] font-bold text-foreground/50 mb-1">
                         {queueSummary.transferAgreement.verdict === "contradicted"
                           ? "The two transfer instruments disagree"
                           : queueSummary.transferAgreement.verdict === "corroborated"
@@ -903,7 +903,7 @@ export default function VoiceReceptionistSection() {
                   <span className="text-amber-400 font-medium tabular-nums">
                     {queueSummary.unclassified}
                   </span>{" "}
-                  could not be read well enough to classify — not measured, not &ldquo;no
+                  could not be read well enough to classify, not measured, not &ldquo;no
                   demand&rdquo;.
                 </p>
               )}
@@ -935,7 +935,7 @@ export default function VoiceReceptionistSection() {
             <EmptyState
               icon={<AlertTriangle className="w-10 h-10 text-amber-400" />}
               title="Queue unreadable"
-              subtitle="Missed opportunities could not be loaded — this is unknown, NOT caught up. Retry before trusting it."
+              subtitle="Missed opportunities could not be loaded: this is unknown, NOT caught up. Retry before trusting it."
             />
           ) : !queueItems || queueItems.length === 0 ? (
             <EmptyState
@@ -1031,7 +1031,7 @@ export default function VoiceReceptionistSection() {
                       {/* SMS Draft Sub-Panel */}
                       <div className="border border-border/15 bg-background rounded p-3 space-y-2 mt-2">
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">SMS Follow-Up Draft</span>
+                          <span className="text-[10px] font-bold text-muted-foreground">SMS Follow-Up Draft</span>
                           <button
                             onClick={() => handleCopy(item.id, smsText)}
                             className="flex items-center gap-1 text-[11px] bg-foreground/5 hover:bg-foreground/10 text-foreground border border-border/20 px-2 py-0.5 rounded transition-colors font-medium"
@@ -1058,7 +1058,7 @@ export default function VoiceReceptionistSection() {
                     {/* Right Column: Workflow Actions */}
                     <div className="w-full md:w-56 shrink-0 space-y-2.5 pt-3 md:pt-0 border-t md:border-t-0 md:border-l border-border/15 md:pl-6">
                       <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Staff Notes</label>
+                        <label className="text-[10px] font-bold text-muted-foreground">Staff notes</label>
                         <textarea
                           value={editingNotes[item.id] !== undefined ? editingNotes[item.id] : item.notes}
                           onChange={(e) => setEditingNotes({ ...editingNotes, [item.id]: e.target.value })}
@@ -1080,7 +1080,7 @@ export default function VoiceReceptionistSection() {
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Mark Status</label>
+                        <label className="text-[10px] font-bold text-muted-foreground block">Mark status</label>
                         <div className="grid grid-cols-2 gap-1.5">
                           {(["reviewed", "converted", "came_in", "ignored"] as const).map((status) => (
                             <button

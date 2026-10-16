@@ -67,11 +67,11 @@ export default function Today({ onNavigate }: { onNavigate: (view: IgView) => vo
   for (const item of rows.broken) {
     const name = `"${item.draft?.topic ?? item.id}"`;
     const label = item.health === "ambiguous"
-      ? `${name} may be LIVE — verify on Instagram before retrying`
+      ? `${name} may be LIVE: verify on Instagram before retrying`
       : item.health === "stalled"
         ? item.lifecycle === "publishing"
-          ? `${name} has been publishing for over 15 minutes — stalled, the claim may be wedged`
-          : `${name} is marked scheduled but no publish is pending — stalled, it will never fire`
+          ? `${name} has been publishing for over 15 minutes: stalled, the claim may be wedged`
+          : `${name} is marked scheduled but no publish is pending: stalled, it will never fire`
         : `${name} failed to publish`;
     decisionRows.push({
       key: `broken-${item.id}`,
@@ -86,10 +86,10 @@ export default function Today({ onNavigate }: { onNavigate: (view: IgView) => vo
     decisionRows.push({ key: "review", tone: "amber", label: `${rows.needsReview} draft${rows.needsReview === 1 ? "" : "s"} waiting for your review`, action: "Review", view: "publish" });
   }
   if ((reelCount ?? 0) > 0) {
-    decisionRows.push({ key: "reels", tone: "amber", label: `${reelCount} reel job${reelCount === 1 ? "" : "s"} need attention`, detail: "Held jobs of any age, plus failures active in the last 14 days — a different population from the 30-day reliability panel below, so the two numbers are not meant to reconcile.", action: "Open recovery", view: "actions" });
+    decisionRows.push({ key: "reels", tone: "amber", label: `${reelCount} reel job${reelCount === 1 ? "" : "s"} need attention`, detail: "Held jobs of any age, plus failures active in the last 14 days: a different population from the 30-day reliability panel below, so the two numbers are not meant to reconcile.", action: "Open recovery", view: "actions" });
   }
   if (meta && meta.connected && meta.live === false) {
-    decisionRows.push({ key: "meta", tone: "red", label: "Meta rejected the access token — publishing is down", detail: meta.liveError ?? undefined, action: "Open Settings", view: "settings" });
+    decisionRows.push({ key: "meta", tone: "red", label: "Meta rejected the access token: publishing is down", detail: meta.liveError ?? undefined, action: "Open Settings", view: "settings" });
   }
   if ((rows.readyCount ?? 0) > 0) {
     decisionRows.push({ key: "ready", tone: "blue", label: `${rows.readyCount} approved draft${rows.readyCount === 1 ? "" : "s"} ready to publish or schedule`, action: "Queue", view: "publish" });
@@ -147,7 +147,7 @@ export default function Today({ onNavigate }: { onNavigate: (view: IgView) => vo
               {decisionsUnknown && (
                 <div className="flex gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-                  <span>Some checks could not be read — this list may be <strong>incomplete</strong>, not clear.</span>
+                  <span>Some checks could not be read: this list may be <strong>incomplete</strong>, not clear.</span>
                 </div>
               )}
               {decisionRows.map((row) => (
@@ -161,7 +161,7 @@ export default function Today({ onNavigate }: { onNavigate: (view: IgView) => vo
               ))}
               {decisionRows.length === 0 && !decisionsUnknown && (
                 <div className="flex items-center gap-2 rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-400" /> Nothing needs you right now — verified, not assumed.
+                  <CheckCircle2 className="h-4 w-4 text-emerald-400" /> Nothing needs you right now: verified, not assumed.
                 </div>
               )}
             </>
@@ -182,7 +182,7 @@ export default function Today({ onNavigate }: { onNavigate: (view: IgView) => vo
           </CardHeader>
           <CardContent className="space-y-2">
             {board.isError ? (
-              <p className="text-xs text-amber-500">Could not read the schedule — unknown, not empty.</p>
+              <p className="text-xs text-amber-500">Could not read the schedule: unknown, not empty.</p>
             ) : rows.scheduled.length === 0 ? (
               <p className="text-sm text-muted-foreground">No posts scheduled.</p>
             ) : rows.scheduled.slice(0, 3).map((item) => (
@@ -243,7 +243,7 @@ export default function Today({ onNavigate }: { onNavigate: (view: IgView) => vo
           {reliability.isLoading ? (
             <p className="text-sm text-muted-foreground">Reading…</p>
           ) : reliability.isError || reliability.data?.total == null ? (
-            <p className="text-xs text-amber-500">Could not read reel-job history — reliability is <strong>unknown</strong>, not healthy.</p>
+            <p className="text-xs text-amber-500">Could not read reel-job history: reliability is <strong>unknown</strong>, not healthy.</p>
           ) : reliability.data.total === 0 ? (
             <p className="text-sm text-muted-foreground">No reel jobs created in the last 30 days.</p>
           ) : (
@@ -257,12 +257,12 @@ export default function Today({ onNavigate }: { onNavigate: (view: IgView) => vo
                 {(reliability.data.closedFailures ?? 0) > 0 && <> · <span className="text-muted-foreground tabular-nums">{reliability.data.closedFailures} closed by you (excluded)</span></>}
               </p>
               <p className="text-xs text-muted-foreground">
-                Windowed on job CREATION date, by current stage — a fixed cohort, so the rate cannot
+                Windowed on job CREATION date, by current stage, a fixed cohort, so the rate cannot
                 move just because a row was touched. Deliberately NOT the same population as
                 &ldquo;needs attention&rdquo; above, which is scoped by last activity. It is also a
                 trailing mean with no incident weighting: one bad day can dominate it for a month and
                 then vanish on its own, so read a spike against the day it came from before acting.
-                A green render is still not a good reel — sample published output monthly.
+                A green render is still not a good reel, sample published output monthly.
               </p>
             </div>
           )}

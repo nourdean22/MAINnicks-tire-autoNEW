@@ -49,7 +49,7 @@ function Unavailable({ what, detail, onRetry }: { what: string; detail?: string;
       <div className="flex items-start gap-2">
         <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
         <span>
-          NHTSA {what} unavailable — this is NOT the same as "none on file".{detail ? ` ${detail}` : ""}
+          NHTSA {what} unavailable: this is NOT the same as "none on file".{detail ? ` ${detail}` : ""}
         </span>
       </div>
       <button
