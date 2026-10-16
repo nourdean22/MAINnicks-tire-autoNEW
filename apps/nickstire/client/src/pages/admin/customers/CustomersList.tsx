@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
-import { StatCard, useUrlFilter, FilterChips, openCustomerDrawer } from "../shared";
+import { StatCard, useUrlFilter, FilterChips, openCustomerDrawer, ErrorState } from "../shared";
 import { CustomersBrief } from "./CustomersBrief";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
 import MessageCustomerLink from "@/components/admin/MessageCustomerLink";
@@ -20,6 +20,8 @@ import {
 import { StatusBadge } from "./StatusBadge";
 import { WinBackButton } from "./WinBackButton";
 import { Customer360Panel } from "./Customer360Panel";
+
+const UNKNOWN = "—";
 
 export function CustomersList({ onOpenCustomer }: { onOpenCustomer: (id: number) => void }) {
   const utils = trpc.useUtils();
@@ -71,7 +73,10 @@ export function CustomersList({ onOpenCustomer }: { onOpenCustomer: (id: number)
   const [commercialOnly, setCommercialOnly] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
 
-  const { data: stats } = trpc.customers.stats.useQuery(undefined, { refetchInterval: 30000 });
+  const { data: stats, isError: statsFailed } = trpc.customers.stats.useQuery(undefined, { refetchInterval: 30000 });
+  // A failed stats read is unknown, not zero: every tile shows a dash and says so.
+  const tile = (n: number | undefined) => (statsFailed ? UNKNOWN : n ?? 0);
+  const tileNote = statsFailed ? "Unable to determine" : undefined;
   const { data: campaignStats } = trpc.customers.campaignStats.useQuery(undefined, { refetchInterval: 30000 });
 
   // wave-181.x SA v2 Wave 3 (Elon · single surface) · pull v2 service-
@@ -94,7 +99,7 @@ export function CustomersList({ onOpenCustomer }: { onOpenCustomer: (id: number)
     return map;
   }, [affinityData]);
 
-  const { data: listData, isLoading } = trpc.customers.list.useQuery({
+  const { data: listData, isLoading, isError: listFailed, refetch: refetchList } = trpc.customers.list.useQuery({
     page,
     pageSize,
     search: debouncedSearch || undefined,
@@ -181,7 +186,8 @@ export function CustomersList({ onOpenCustomer }: { onOpenCustomer: (id: number)
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
         <StatCard
           label="Total Customers"
-          value={stats?.total ?? 0}
+          value={tile(stats?.total)}
+          trendLabel={tileNote}
           icon={<Users className="w-4 h-4" />}
           color="text-foreground"
           onClick={() => {
@@ -195,42 +201,48 @@ export function CustomersList({ onOpenCustomer }: { onOpenCustomer: (id: number)
         />
         <StatCard
           label="With Visits"
-          value={stats?.withVisits ?? 0}
+          value={tile(stats?.withVisits)}
+          trendLabel={tileNote}
           icon={<UserCheck className="w-4 h-4" />}
           color="text-emerald-400"
           onClick={() => { setSegment("all"); setMinVisits(1); setPage(1); }}
         />
         <StatCard
           label="VIP (3+)"
-          value={stats?.vipCount ?? 0}
+          value={tile(stats?.vipCount)}
+          trendLabel={tileNote}
           icon={<Crown className="w-4 h-4" />}
           color="text-amber-400"
           onClick={() => { setSegment("all"); setMinVisits(3); setSortBy("visits"); setSortDir("desc"); setPage(1); }}
         />
         <StatCard
           label="Total Revenue"
-          value={`$${Math.round((stats?.totalRevenue ?? 0) / 100).toLocaleString()}`}
+          value={statsFailed ? UNKNOWN : `$${Math.round((stats?.totalRevenue ?? 0) / 100).toLocaleString()}`}
+          trendLabel={tileNote}
           icon={<span className="text-[14px]">💰</span>}
           color="text-emerald-400"
           onClick={() => { setSegment("all"); setSortBy("totalSpent"); setSortDir("desc"); setPage(1); }}
         />
         <StatCard
           label="Recent"
-          value={stats?.recent ?? 0}
+          value={tile(stats?.recent)}
+          trendLabel={tileNote}
           icon={<UserCheck className="w-4 h-4" />}
           color="text-emerald-400"
           onClick={() => { setSegment("recent"); setPage(1); }}
         />
         <StatCard
           label="Lapsed"
-          value={stats?.lapsed ?? 0}
+          value={tile(stats?.lapsed)}
+          trendLabel={tileNote}
           icon={<AlertTriangle className="w-4 h-4" />}
           color="text-amber-400"
           onClick={() => { setSegment("lapsed"); setPage(1); }}
         />
         <StatCard
           label="With Email"
-          value={stats?.withEmail ?? 0}
+          value={tile(stats?.withEmail)}
+          trendLabel={tileNote}
           icon={<Mail className="w-4 h-4" />}
           color="text-blue-400"
           onClick={() => { setSegment("all"); setHasEmail(true); setCommercialOnly(false); setPage(1); }}
@@ -240,7 +252,8 @@ export function CustomersList({ onOpenCustomer }: { onOpenCustomer: (id: number)
             text-foreground/60 (neutral). */}
         <StatCard
           label="Commercial"
-          value={stats?.commercial ?? 0}
+          value={tile(stats?.commercial)}
+          trendLabel={tileNote}
           icon={<Building2 className="w-4 h-4" />}
           color="text-foreground/60"
           onClick={() => { setSegment("all"); setCommercialOnly(true); setHasEmail(false); setPage(1); }}
@@ -575,6 +588,12 @@ export function CustomersList({ onOpenCustomer }: { onOpenCustomer: (id: number)
               <tr>
                 <td colSpan={10} className="p-8 text-center text-foreground/30">
                   <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+                </td>
+              </tr>
+            ) : listFailed ? (
+              <tr>
+                <td colSpan={10}>
+                  <ErrorState message="Customers couldn't load. The list is unknown, not empty." onRetry={() => void refetchList()} />
                 </td>
               </tr>
             ) : listData?.customers.length === 0 ? (

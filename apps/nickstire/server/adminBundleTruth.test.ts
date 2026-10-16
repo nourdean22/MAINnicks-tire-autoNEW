@@ -62,7 +62,9 @@ describe("Overview stops claiming All clear on reads that did not happen", () =>
     // The value expression gained a saturation branch (`30+` when the capped
     // work-order page is full), so this asserts the GUARANTEE — untrusted still
     // renders the em dash — rather than one exact line.
-    expect(overview).toMatch(/value=\{queueTrustworthy \?[\s\S]{0,90}: "—"\}/);
+    // Admin UI v1 W0 routes the dash through one const; it must stay the dash, never a 0.
+    expect(overview).toMatch(/value=\{queueTrustworthy \?[\s\S]{0,90}: (?:UNKNOWN|"—")\}/);
+    expect(overview).toMatch(/^const UNKNOWN = "—";$/m);
     expect(overview).toMatch(/Unable to determine/);
   });
 
@@ -79,7 +81,7 @@ describe("Overview stops claiming All clear on reads that did not happen", () =>
   });
 
   it("the Active work orders card cannot show a count from a failed read", () => {
-    expect(overview).toMatch(/value=\{workOrdersFailed \? "—"/);
+    expect(overview).toMatch(/value=\{workOrdersFailed \? (?:UNKNOWN|"—")/);
   });
 
   it("SummaryCard can express UNKNOWN at all", () => {

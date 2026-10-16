@@ -85,7 +85,8 @@ describe("adStudio.schedule applies the deferred-execution rules NOW", () => {
 describe("the client no longer offers doomed taps", () => {
   it("Post and Schedule disable while claim-safety flags are displayed", () => {
     const s = readFileSync(resolve(process.cwd(), "client/src/pages/admin/AdStudio.tsx"), "utf8");
-    expect(s).toMatch(/post\.isPending \|\| result\.issues\.length > 0/);
-    expect(s).toMatch(/schedule\.isPending \|\| result\.issues\.length > 0/);
+    // W0 also locks both buttons once the carousel has posted (post.isSuccess).
+    expect(s).toMatch(/post\.isPending \|\| (?:post\.isSuccess \|\| )?result\.issues\.length > 0/);
+    expect(s).toMatch(/schedule\.isPending \|\| (?:post\.isSuccess \|\| )?result\.issues\.length > 0/);
   });
 });

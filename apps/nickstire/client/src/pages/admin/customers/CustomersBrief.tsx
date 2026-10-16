@@ -49,7 +49,7 @@ function greeting(): string {
 }
 
 export function CustomersBrief({ onLapsedAction }: CustomersBriefProps) {
-  const { data: stats, isLoading } = trpc.customers.stats.useQuery(undefined, {
+  const { data: stats, isLoading, isError } = trpc.customers.stats.useQuery(undefined, {
     staleTime: 60_000,
   });
 
@@ -60,6 +60,15 @@ export function CustomersBrief({ onLapsedAction }: CustomersBriefProps) {
         <div className="text-[11px] font-bold tracking-[0.18em] uppercase text-foreground/30 animate-pulse">
           Loading customer roster…
         </div>
+      </div>
+    );
+  }
+
+  // A failed read must not vanish: an empty header reads as "nothing to say".
+  if (isError) {
+    return (
+      <div className="bg-card border border-border/40 p-4">
+        <div className="text-[12.5px] text-amber-300">{"Customer stats couldn't load, state unknown"}</div>
       </div>
     );
   }

@@ -721,7 +721,9 @@ export default function WinBackSection() {
   );
   const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null);
 
-  const { data: stats } = trpc.winback.campaignStats.useQuery();
+  const { data: stats, isError: statsFailed } = trpc.winback.campaignStats.useQuery();
+  // A failed read is unknown, not zero.
+  const stat = (n: number | undefined) => (statsFailed ? "—" : n ?? 0);
   const { data: campaigns, isLoading, isError, refetch } = trpc.winback.campaigns.useQuery();
 
   function openDetail(id: number) {
@@ -754,13 +756,16 @@ export default function WinBackSection() {
       />
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-        <StatCard label="Total Campaigns" value={stats?.totalCampaigns ?? 0} icon={<RotateCcw className="w-4 h-4" />} />
-        <StatCard label="Active" value={stats?.activeCampaigns ?? 0} icon={<Zap className="w-4 h-4" />} color="text-emerald-400" />
-        <StatCard label="Messages Sent" value={stats?.totalSent ?? 0} icon={<Send className="w-4 h-4" />} color="text-blue-400" />
-        <StatCard label="Holdout" value={stats?.totalHeldOut ?? 0} icon={<Clock className="w-4 h-4" />} />
-        <StatCard label="Failed" value={stats?.totalFailed ?? 0} icon={<XCircle className="w-4 h-4" />} color="text-red-400" />
-        <StatCard label="Pending" value={stats?.totalPending ?? 0} icon={<Clock className="w-4 h-4" />} color="text-amber-400" />
+        <StatCard label="Total Campaigns" value={stat(stats?.totalCampaigns)} icon={<RotateCcw className="w-4 h-4" />} />
+        <StatCard label="Active" value={stat(stats?.activeCampaigns)} icon={<Zap className="w-4 h-4" />} color="text-emerald-400" />
+        <StatCard label="Messages Sent" value={stat(stats?.totalSent)} icon={<Send className="w-4 h-4" />} color="text-blue-400" />
+        <StatCard label="Holdout" value={stat(stats?.totalHeldOut)} icon={<Clock className="w-4 h-4" />} />
+        <StatCard label="Failed" value={stat(stats?.totalFailed)} icon={<XCircle className="w-4 h-4" />} color="text-red-400" />
+        <StatCard label="Pending" value={stat(stats?.totalPending)} icon={<Clock className="w-4 h-4" />} color="text-amber-400" />
       </div>
+      {statsFailed && (
+        <p className="text-[12px] text-amber-400">{"Campaign stats couldn't load. The counts above are unknown, not zero."}</p>
+      )}
 
       {/* Actions */}
       <div className="flex items-center justify-between">
