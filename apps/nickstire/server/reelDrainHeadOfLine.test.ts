@@ -99,7 +99,9 @@ describe("what it must NOT pre-check — the load-bearing half", () => {
     // These clear themselves and must NEVER be pre-filtered away.
     expect(decl).not.toContain("auto_repair");
     expect(decl).not.toContain("unavailable");
-    expect(decl).not.toContain("needs_review");
+    // needs_review waits on a human (operator review in the Queue), so it parks:
+    // job 2070013 jammed the drain for 149 pulses, 2026-10-13 22:08Z to 2026-10-15 11:10Z.
+    expect(decl).toContain("needs_review");
   });
 
   it("reads the verdict WITHOUT running QA — a selection filter cannot spend money", () => {
