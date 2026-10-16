@@ -1,6 +1,7 @@
 ---
 name: production-health-report
 description: Audit production health across Nick's Tire/StateNour infrastructure including live sites, Railway services and deploys, Neon/Postgres, GitHub main/PR/CI state, schedulers/cron/workers/queues, logs, errors, observability, and feature wiring. Use when the user asks for a production health report, system status, reliability audit, "what is actually working", periodic infrastructure review, or wants LIVE vs BUILT-UNWIRED vs BROKEN vs DUPLICATE vs MISSING classification.
+triggers: production health, what's actually live, railway, neon, github main, ci state, cron, workers, queues, logs, errors, built but unwired, system reality report, deploys
 ---
 
 # Production Health Report

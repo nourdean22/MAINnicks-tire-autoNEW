@@ -1,6 +1,7 @@
 ---
 name: statenour-migration
 description: Use when changing the statenour Prisma schema (apps/statenour/prisma/schema.prisma) — migrations are hand-applied and one wrong flag silently drops pgvector data.
+triggers: prisma schema, schema.prisma, prisma migration, statenour schema, hand-applied migration, pgvector, migrate, data loss flag, apply migration
 ---
 
 # statenour-migration

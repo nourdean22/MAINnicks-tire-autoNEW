@@ -1,6 +1,7 @@
 ---
 name: answer-first
 description: Output contract for this repo — lead with the answer, number every procedure, and delete filler. Use when writing any operator-facing response, report, PR body, or handoff note. Origin - the "I Have ADHD" pattern, adapted to this monorepo.
+triggers: operator-facing response, report, pr body, handoff note, lead with the answer, number every procedure, delete filler, output contract
 ---
 
 # Answer-First Output Contract

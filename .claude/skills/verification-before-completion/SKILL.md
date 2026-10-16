@@ -1,6 +1,7 @@
 ---
 name: verification-before-completion
 description: Use when about to claim work is complete, fixed, or passing, before committing or creating PRs - requires running verification commands and confirming output before making any success claims; evidence before assertions always. Always on for this operator - invoke at the start of every session and again right after any context compaction, so it is loaded before the first claim, not remembered after it.
+triggers: claim complete, fixed, passing, before committing, before pr, run verification, confirm output, evidence before assertions, tests pass claim, done
 ---
 
 # Verification Before Completion

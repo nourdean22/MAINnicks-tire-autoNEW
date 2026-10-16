@@ -1,6 +1,7 @@
 ---
 name: stranded-branch-rescue
 description: Use when a pushed branch looks finished but has no merged PR (authoring session died before gh pr create), or when auditing origin branches for unlanded work. Encodes the rescue protocol - PR-record check FIRST (cherry lies across squash merges), worktree-attachment and SHA-stability gates, provenance in the PR body, and the zombie rule (never re-merge).
+triggers: pushed branch, no merged pr, stranded branch, unlanded work, origin branches, session died, gh pr create, rescue, squash merge, zombie branch, provenance, cherry
 ---
 
 # Stranded-Branch Rescue

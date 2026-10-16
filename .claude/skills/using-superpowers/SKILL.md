@@ -1,6 +1,7 @@
 ---
 name: using-superpowers
 description: Use at the start of EVERY session and again right after any context compaction, before the first reply or tool call - establishes how to find and use skills, requiring skill invocation before ANY response including clarifying questions
+triggers: session start, after compaction, find and use skills, skill invocation, before any response, which skill applies, plan mode, brainstorm first, clarifying questions
 ---
 
 <SUBAGENT-STOP>

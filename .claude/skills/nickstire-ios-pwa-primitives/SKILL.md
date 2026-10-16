@@ -1,6 +1,7 @@
 ---
 name: nickstire-ios-pwa-primitives
 description: Use when writing or editing client code in EITHER PWA (apps/nickstire/client/ or apps/statenour) that needs a confirm dialog, text capture, or alert — and as a periodic sweep — because window.prompt/alert/confirm is silently suppressed in iOS PWA standalone mode (the operator's actual operating environment on both apps) and customer-facing PWAs.
+triggers: confirm dialog, alert, window.prompt, text capture, ios pwa, standalone mode, home screen, suppressed primitive, button does nothing on my phone, toast, modal, drawer, client code, sweep, admin pages, mobile
 ---
 
 # nickstire-ios-pwa-primitives

@@ -1,6 +1,7 @@
 ---
 name: gsc-opportunity-report
 description: Analyze Google Search Console performance for SEO growth, local-demand capture, ranking opportunities, CTR gaps, query/page trends, cannibalization, and emerging demand. Use when the user asks for a GSC/Search Console report, uploads a GSC CSV/Sheet/export/screenshot, wants period-over-period SEO analysis, asks what pages or queries to improve, or wants a search-demand audit for Nick's Tire & Auto or another site.
+triggers: search console, gsc report, seo, ranking opportunities, ctr gaps, queries, pages, cannibalization, emerging demand, gsc export, last 28 days, local demand
 ---
 
 # GSC Opportunity Report

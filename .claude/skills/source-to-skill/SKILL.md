@@ -1,6 +1,7 @@
 ---
 name: source-to-skill
 description: Compile a source (book text, transcript, doc, repo file) into a provenance-carrying skill package on CGD rails — claims cite sections, confidence is explicit, eval questions ship with the skill. Use when the operator says "turn this into a skill" / "compile this book/video/doc".
+triggers: turn this into a skill, compile this book, transcript, doc, repo file, provenance, citations, eval questions, cgd rails, skill package, confidence
 ---
 
 # Source-to-Skill Compiler

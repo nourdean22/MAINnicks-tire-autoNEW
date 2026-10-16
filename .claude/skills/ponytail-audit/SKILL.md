@@ -6,6 +6,7 @@ description: >
   split. Ranked, each finding explained in plain English. One-shot report,
   changes nothing. Use for "audit this codebase", "review the whole repo",
   "find bloat", "what can I delete", /ponytail-audit.
+triggers: audit this repo, quality audit, bugs, security holes, real load, risky code without tests, slow paths, delete merge or split, ranked findings, one-shot report
 ---
 
 Audit the whole repo like the senior developer who just inherited it and

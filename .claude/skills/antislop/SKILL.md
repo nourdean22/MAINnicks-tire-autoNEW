@@ -2,6 +2,7 @@
 name: antislop
 description: "Anti Slop: the core filter that stops generic AI slop. Use whenever the work touches UI, user-facing copy, accessibility, mobile layout or code comments (then load the matching antislop-* skill), at the start of that work and again right after any context compaction, before the first edit or review."
 allowed-tools: Read Write Edit Glob Grep
+triggers: ai slop, generic design, ui work, user-facing copy, accessibility, mobile layout, code comments, delivery gate, audit the output, during mode
 ---
 # antislop
 

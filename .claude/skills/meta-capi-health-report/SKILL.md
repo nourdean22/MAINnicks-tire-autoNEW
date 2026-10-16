@@ -1,6 +1,7 @@
 ---
 name: meta-capi-health-report
 description: Audit Meta Conversions API (CAPI) and browser/server event tracking for signal quality, event coverage, deduplication, event match quality, freshness, diagnostics, parameter completeness, attribution readiness, and broken or duplicate events. Use when the user asks for a CAPI report, Meta Events Manager audit, Pixel/CAPI health check, tracking diagnosis, conversion-event review, or provides Meta diagnostics/screenshots/exports/logs for analysis.
+triggers: meta conversions api, capi, pixel, event tracking, deduplication, event match quality, events manager, duplicate events, browser and server events, signal quality, attribution readiness, diagnostics
 ---
 
 # Meta CAPI Health Report

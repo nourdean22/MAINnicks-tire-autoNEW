@@ -1,6 +1,7 @@
 ---
 name: brainstorming
 description: "You MUST use this before any creative work - creating features, building components, adding functionality, or modifying behavior. Explores user intent, requirements and design before implementation."
+triggers: creative work, new feature, building components, adding functionality, modifying behavior, user intent, requirements, design before implementation, explore the idea, writing-plans
 ---
 
 # Brainstorming Ideas Into Designs

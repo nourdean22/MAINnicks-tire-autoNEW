@@ -1,6 +1,7 @@
 ---
 name: reels-performance-report
 description: Analyze Instagram Reels and short-form content performance for hook strength, retention/watch time, shares/sends, saves, profile visits, follower conversion, local reach, content cohorts, creative structure, and downstream business impact. Use when the user asks for an Instagram/Reels report, uploads Insights exports/screenshots, wants to compare formats or creative patterns, or needs to decide what Nick's Tire & Auto or a personal account should make more or less of.
+triggers: reels report, reels performance, hook strength, retention, watch time, shares, saves, profile visits, follower conversion, which formats are winning, what to post, structurepatternid, generated content
 ---
 
 # Reels Performance Report
