@@ -196,6 +196,14 @@ const ADOPTION_STEPS = [
   "gate - no NEW bare CURDATE()",
 ];
 const SHARED_NAMES = new Set(["canary - the gate must PASS on a clean tree"]);
+// The two knip gates, now steps of test.yml's `node` job (they were adoption-gates.yml jobs). Still blocking.
+const KNIP_STEPS = [
+  "canary - knip must fail on a planted unused file",
+  "knip reachability gate - zero unused files (blocking since 2026-08-27)",
+  "canary - the gate must FAIL on a planted orphan",
+  "canary - the gate must PASS on a clean tree",
+  "gate - no NEW unconsumed exports, files, or scripts",
+];
 // Directories the adoption gates scan or run in; no ignore pattern may swallow a file under any of them.
 const ADOPTION_SCANNED = [
   "apps/statenour/app/x.tsx", "apps/statenour/components/x.tsx", "apps/statenour/features/x.ts", "apps/statenour/hooks/x.ts",
@@ -263,7 +271,7 @@ export function checkWorkflows(root) {
   // folded-steps: each listed step exists, in exactly one job anywhere
   const where = new Map();
   for (const f of Object.keys(wfs)) for (const [id, job] of jobsOf(f)) for (const s of job.steps ?? []) if (s?.name) where.set(s.name, [...(where.get(s.name) ?? []), `${f}#${id}`]);
-  for (const [file, id, list] of [["agent-policy.yml", "policy", POLICY_STEPS], ["adoption-gates.yml", "static-gates", ADOPTION_STEPS]]) {
+  for (const [file, id, list] of [["agent-policy.yml", "policy", POLICY_STEPS], ["adoption-gates.yml", "static-gates", ADOPTION_STEPS], ["test.yml", "node", KNIP_STEPS]]) {
     const mine = new Set((wfs[file]?.jobs?.[id]?.steps ?? []).map((s) => s?.name));
     for (const name of list) {
       if (!mine.has(name)) flag("folded-steps", `${file}#${id} lost step "${name}"`);
@@ -281,6 +289,17 @@ export function checkWorkflows(root) {
   for (const frag of ["run: cd apps/nickstire && node scripts/lint-curdate.mjs", "--package=@ast-grep/cli@0.45.2 dlx ast-grep scan -c config/adoption-gates/sgconfig.yml apps/statenour/app", "dlx depcruise --config config/adoption-gates/.dependency-cruiser.cjs apps/statenour/app"]) {
     if (!text("adoption-gates.yml").includes(frag)) flag("folded-steps", `adoption-gates.yml no longer runs \`${frag}\``);
   }
+  // knip stays BLOCKING and keeps its commands inside `node`; the standalone knip jobs are gone.
+  for (const frag of ["pnpm dlx knip@6.32.3 --workspace apps/statenour --reporter markdown | tee -a \"$GITHUB_STEP_SUMMARY\"\n", "run: cd apps/nickstire && node scripts/knip-orphan-gate.mjs", "printf '\\nexport function __orphanCanary__() { return 1; }\\n' >> shared/reelScore.ts"]) {
+    if (!text("test.yml").includes(frag)) flag("folded-steps", `test.yml no longer runs \`${frag}\``);
+  }
+  for (const s of wfs["test.yml"]?.jobs?.node?.steps ?? []) {
+    if (!KNIP_STEPS.includes(s?.name)) continue;
+    const g = String(s.if ?? "");
+    if (!g.includes("!cancelled()") || !g.includes("needs.changes.outputs.")) flag("folded-steps", `node step "${s.name}" lost its changes/!cancelled() guard`);
+    if (s["continue-on-error"] !== undefined) flag("folded-steps", `node step "${s.name}" is continue-on-error: knip must stay blocking`);
+  }
+  for (const id of ["knip-advisory", "knip-orphan-gate"]) if (jobsOf("adoption-gates.yml").some(([j]) => j === id)) flag("folded-steps", `adoption-gates.yml: the ${id} job is back next to its folded copy`);
   // The PR-only steps must stay PR-only (they read the PR event) and must not hide each other's failures.
   for (const s of wfs["agent-policy.yml"]?.jobs?.policy?.steps ?? []) {
     if (!POLICY_STEPS.slice(2).includes(s?.name)) continue;
@@ -389,6 +408,10 @@ const MUTANTS = [
   ["folded-steps", "the folded curdate gate is neutered", wf("adoption-gates.yml"), (t) => t.replace("run: cd apps/nickstire && node scripts/lint-curdate.mjs", "run: cd apps/nickstire && true")],
   ["folded-steps", "the secret-scan workflow comes back beside its folded copy", wf("secret-scan.yml"),
     () => "name: Secret Scanning\non:\n  pull_request:\n    branches: [main]\njobs:\n  gitleaks:\n    runs-on: ubuntu-latest\n    steps:\n      - name: Install gitleaks\n        run: true\n"],
+  ["folded-steps", "a knip step in node is renamed away", wf("test.yml"), (t) => t.replace("name: gate - no NEW unconsumed exports, files, or scripts", "name: gate - nothing")],
+  ["folded-steps", "the knip census gate stops failing (|| true)", wf("test.yml"), (t) => t.replace("--reporter markdown | tee -a \"$GITHUB_STEP_SUMMARY\"", "--reporter markdown | tee -a \"$GITHUB_STEP_SUMMARY\" || true")],
+  ["folded-steps", "the orphan gate loses its guard", wf("test.yml"), (t) => t.replace("      - name: gate - no NEW unconsumed exports, files, or scripts\n        if: ${{ !cancelled() && (needs.changes.outputs.nickstire == 'true' || needs.changes.outputs.workflow == 'true') }}\n", "      - name: gate - no NEW unconsumed exports, files, or scripts\n")],
+  ["folded-steps", "the knip-orphan-gate job comes back", wf("adoption-gates.yml"), (t) => t.replace(/\njobs:\n/, "\njobs:\n  knip-orphan-gate:\n    runs-on: ubuntu-latest\n    steps:\n      - run: true\n")],
   ["folded-steps", "the curdate job comes back", wf("adoption-gates.yml"), (t) => t.replace(/\njobs:\n/, "\njobs:\n  curdate-gate:\n    runs-on: ubuntu-latest\n    steps:\n      - run: true\n")],
   ["required-context", "the required job is renamed and the ruleset is not", wf("agent-policy.yml"), (t) => t.replace("name: parity, canaries, authority, secrets, citation", "name: something else")],
   ["required-context", "the ruleset still requires the folded-away check", RULESET,

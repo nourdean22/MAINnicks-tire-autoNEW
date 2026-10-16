@@ -469,6 +469,64 @@ jobs:
           should_fail_on_script_error: 'true'
           should_comment_on_pr: 'false'
 
+      # ─── knip gates (were adoption-gates.yml jobs `knip reachability census (advisory)` and `knip orphan gate`) ───
+      # 2026-10-16 · CI diet. Each was its own job with its own checkout, pnpm setup and filtered install
+      # (55s and 93s, billed 1.2 and 2.0 minutes) on every non-docs PR AND every main push. This job already
+      # holds a full install, so they are steps here, unchanged and still BLOCKING, and they run on main with
+      # the rest of `node`. They run when their app (or a workflow) changed, like the other per-app steps.
+      # They run after the turbo sweep, so any built output is already on disk; knip reads the git-tracked
+      # tree. `!cancelled()` keeps each verdict visible when an earlier step is red.
+      - name: canary - knip must fail on a planted unused file
+        if: ${{ !cancelled() && (needs.changes.outputs.statenour == 'true' || needs.changes.outputs.workflow == 'true') }}
+        run: |
+          echo "export const knipCanary = 1" > apps/statenour/lib/__knip_canary__.ts
+          if pnpm dlx knip@6.32.3 --workspace apps/statenour --include files > /dev/null 2>&1; then
+            rm apps/statenour/lib/__knip_canary__.ts
+            echo "::error::knip canary - a planted unused file scanned clean; the census is blind"
+            exit 1
+          fi
+          rm apps/statenour/lib/__knip_canary__.ts
+          echo "canary OK: knip still sees unreachable files"
+
+      - name: knip reachability gate - zero unused files (blocking since 2026-08-27)
+        if: ${{ !cancelled() && (needs.changes.outputs.statenour == 'true' || needs.changes.outputs.workflow == 'true') }}
+        run: |
+          echo "## knip reachability gate - apps/statenour (blocking)" >> "$GITHUB_STEP_SUMMARY"
+          # GH Actions bash runs with pipefail, so knip's exit survives the tee.
+          pnpm dlx knip@6.32.3 --workspace apps/statenour --reporter markdown | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "_Blocking since the 2026-08-27 wire-or-delete wave took the census 341 -> 0 (172 scripts declared as entries, 134 dead files deleted, 24 dynamic-referenced keeps in knip.json ignore with receipts). A new finding = a genuinely unreachable new file: wire it or delete it, never grow the ignore list without a path-reference receipt._" >> "$GITHUB_STEP_SUMMARY"
+
+      # The orphan gate sets its own dummy DATABASE_URL (knip loads drizzle.config.ts as a config file;
+      # nothing connects).
+      - name: canary - the gate must FAIL on a planted orphan
+        if: ${{ !cancelled() && (needs.changes.outputs.nickstire == 'true' || needs.changes.outputs.workflow == 'true') }}
+        run: |
+          cd apps/nickstire
+          cp shared/reelScore.ts shared/reelScore.ts.bak
+          printf '\nexport function __orphanCanary__() { return 1; }\n' >> shared/reelScore.ts
+          if node scripts/knip-orphan-gate.mjs > /dev/null 2>&1; then
+            mv shared/reelScore.ts.bak shared/reelScore.ts
+            echo "::error::knip-orphan-gate canary - a planted unconsumed export scanned clean; the gate is blind"
+            exit 1
+          fi
+          mv shared/reelScore.ts.bak shared/reelScore.ts
+          echo "canary ok - planted orphan was caught"
+
+      - name: canary - the gate must PASS on a clean tree
+        if: ${{ !cancelled() && (needs.changes.outputs.nickstire == 'true' || needs.changes.outputs.workflow == 'true') }}
+        run: |
+          cd apps/nickstire
+          node scripts/knip-orphan-gate.mjs > /dev/null || {
+            echo "::error::knip-orphan-gate reports failure on an unmodified tree - the gate is stuck red"
+            exit 1
+          }
+          echo "canary ok - clean tree passes"
+
+      - name: gate - no NEW unconsumed exports, files, or scripts
+        if: ${{ !cancelled() && (needs.changes.outputs.nickstire == 'true' || needs.changes.outputs.workflow == 'true') }}
+        run: cd apps/nickstire && node scripts/knip-orphan-gate.mjs
+
   # ─── Dependency gate — deliberately its OWN job ────────────────────
   # These two steps used to be the last steps of `node`. That placement meant
   # ANY unrelated failure above them skipped the gate silently, and in
