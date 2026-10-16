@@ -87,8 +87,16 @@ const alertIn = (kind: string) => container.querySelector(`[data-brief-row="${ki
 const hideAll = () =>
   window.localStorage.setItem(
     BRIEF_FEEDBACK_KEY,
-    JSON.stringify(Object.fromEntries(["lead", "approval", "commitment", "followup", "contradiction", "horizon"].map((k) => [k, { verdict: "less", at: Date.now() }]))),
+    JSON.stringify(Object.fromEntries(["lead", "approval", "commitment", "followup", "contradiction"].map((k) => [k, { verdict: "less", at: Date.now() }]))),
   );
+/** Ten candidate rows: the DEMO seven plus three follow-ups, so the cap has something to hold back. */
+const TEN_ROWS = {
+  ...HOME_BRIEF,
+  judgment: {
+    ...HOME_BRIEF.judgment,
+    items: [...HOME_BRIEF.judgment.items, ...Array.from({ length: 3 }, (_, i) => ({ kind: "followup" as const, id: `extra-${i}`, title: `Demo extra follow-up ${i}` }))],
+  },
+};
 
 beforeEach(() => {
   window.localStorage.clear();
@@ -111,20 +119,22 @@ afterEach(async () => {
 });
 
 describe("BriefRows", () => {
-  it("renders the DEMO brief as seven ruled rows, lead first, each with Keep and Less, plus an N more row", async () => {
+  it("renders the DEMO brief as seven ruled rows, lead first, each with Keep and Less, no horizon rows and no N more", async () => {
     await mount(HOME_BRIEF);
     expect(rows()).toEqual(["lead", "approval", "approval", "approval", "commitment", "followup", "contradiction"]);
     expect(container.querySelectorAll('button[data-brief-verdict="less"]')).toHaveLength(7);
     expect(container.querySelectorAll('button[data-brief-verdict="keep"]')).toHaveLength(7);
     expect(container.textContent).toContain(HOME_BRIEF.lead.headline);
     expect(container.textContent).not.toContain("7 of 7");
-    expect(button("4 more"), "11 candidate rows, 7 shown").toBeTruthy();
+    expect(container.querySelector("[data-brief-more]"), "seven candidates, seven shown: nothing to expand").toBeNull();
+    expect(container.textContent, "the horizon is the rail's, not a row").not.toContain(HOME_BRIEF.horizon.slots[0].label);
   });
 
   it("N more expands the brief in place instead of dropping rows", async () => {
-    await mount(HOME_BRIEF);
-    await act(async () => button("4 more")!.click());
-    expect(rows()).toHaveLength(11);
+    await mount(TEN_ROWS);
+    expect(rows()).toHaveLength(7);
+    await act(async () => button("3 more")!.click());
+    expect(rows()).toHaveLength(10);
     expect(button("Show fewer")).toBeTruthy();
   });
 
@@ -151,7 +161,7 @@ describe("BriefRows", () => {
     window.localStorage.setItem(BRIEF_FEEDBACK_KEY, JSON.stringify({ commitment: { verdict: "less", at: Date.now() } }));
     await mount(HOME_BRIEF);
     expect(rows()).not.toContain("commitment");
-    expect(rows()).toContain("horizon");
+    expect(rows()).toHaveLength(6);
     await act(async () => button("Show hidden (1)")!.click());
     expect(rows()).toContain("commitment");
     expect(window.localStorage.getItem(BRIEF_FEEDBACK_KEY)).toBe("{}");

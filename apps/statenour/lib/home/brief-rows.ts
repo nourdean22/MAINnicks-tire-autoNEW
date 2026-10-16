@@ -1,31 +1,26 @@
 /**
  * The finite brief (UI v3 W2, 2026-10-16): the server brief as at most BRIEF_ROW_CAP ruled rows.
  *
- * Order is the attention order: the lead CTA first, then the judgment items in the order the
- * builder ranked them (approvals expand to the live rows the brief carries, then one remainder row
- * for the Review link), then horizon slots fill whatever is left. `hidden` is the device-local Less
- * filter (lib/ui/brief-feedback.ts): a hidden KIND contributes no rows and the next kind moves up,
- * except a PINNED lead (an unreadable board or a decide-first lead): those stay whatever the filter
- * says, because hiding "Open system" for seven days is a lockout, not a preference. `total` is the
- * number of rows after the filter and before the cap, so the page can say "N more" instead of
- * dropping rows silently. Pure, so tests/home/brief-rows.test.ts pins all of it without React.
+ * Decisions only. Order is the attention order: the lead CTA first, then the judgment items in the
+ * order the builder ranked them (approvals expand to the live rows the brief carries, then one
+ * remainder row for the Review link). Horizon slots are the rail's (HorizonLine) and never rows:
+ * rendered in both places they ate the cap and inflated "N more" (review round 2). `hidden` is the
+ * device-local Less filter (lib/ui/brief-feedback.ts): a hidden KIND contributes no rows and the
+ * next kind moves up, except a PINNED lead (an unreadable board or a decide-first lead): those stay
+ * whatever the filter says, because hiding "Open system" for seven days is a lockout, not a
+ * preference. `total` is the number of rows after the filter and before the cap, so the page can
+ * say "N more" instead of dropping rows silently. Pure, so tests/home/brief-rows.test.ts pins all
+ * of it without React.
  */
 // TYPE imports only: operator-brief.ts is server code (prisma), and this module is imported by a
 // "use client" component. A value import here put the whole server graph in the browser bundle and
 // broke `next build` on PR #3073 (tests/repo/client-server-boundary.test.ts pins the rule).
-import type {
-  BriefHorizonSection,
-  BriefJudgmentSection,
-  BriefLeadSection,
-  HorizonSlot,
-  JudgmentItem,
-  PendingApproval,
-} from "./operator-brief";
+import type { BriefJudgmentSection, BriefLeadSection, JudgmentItem, PendingApproval } from "./operator-brief";
 
 /** The attention budget (operator-brief.ts ATTENTION_CAP), spelled here so the client never imports the builder. */
 export const BRIEF_ROW_CAP = 7;
 
-export type BriefRowKind = "lead" | "approval" | "commitment" | "followup" | "contradiction" | "horizon";
+export type BriefRowKind = "lead" | "approval" | "commitment" | "followup" | "contradiction";
 
 /** Lead kinds Less can never hide. */
 export const PINNED_LEAD_KINDS: ReadonlySet<BriefLeadSection["kind"]> = new Set(["error", "decide"]);
@@ -36,13 +31,11 @@ export type BriefRow =
   | { key: string; kind: "approval"; more: number; expired: number; href: string }
   | { key: string; kind: "commitment"; item: Extract<JudgmentItem, { kind: "commitment" }> }
   | { key: string; kind: "followup"; item: Extract<JudgmentItem, { kind: "followup" }> }
-  | { key: string; kind: "contradiction"; item: Extract<JudgmentItem, { kind: "contradiction" }> }
-  | { key: string; kind: "horizon"; slot: HorizonSlot };
+  | { key: string; kind: "contradiction"; item: Extract<JudgmentItem, { kind: "contradiction" }> };
 
 export interface BriefRowsInput {
   lead: BriefLeadSection | null;
   judgment: BriefJudgmentSection | null;
-  horizon: BriefHorizonSection | null;
 }
 
 export interface ComposedBrief {
@@ -81,10 +74,6 @@ export function composeBriefRows(brief: BriefRowsInput, hidden: ReadonlySet<stri
         push({ key: `contradiction:${item.key}`, kind: "contradiction", item });
         break;
     }
-  }
-
-  for (const slot of brief.horizon?.measured ? brief.horizon.slots : []) {
-    push({ key: `horizon:${slot.scope}`, kind: "horizon", slot });
   }
 
   return { rows: all.slice(0, cap), total: all.length };

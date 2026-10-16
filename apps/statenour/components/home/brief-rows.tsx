@@ -5,8 +5,8 @@
  *
  * Replaces BriefLead (headline, body paragraph, gold button block, Why, Different move) and
  * JudgmentQueue (eyebrow, count, kind chips) with ONE ruled list of at most BRIEF_ROW_CAP rows:
- * the lead CTA first, then the judgment items, then horizon slots; "N more" expands the rest in
- * place, never a silent drop. Each row is one line of text (plus one line of decision detail where
+ * the lead CTA first, then the judgment items (decisions only; the horizon stays in the rail);
+ * "N more" expands the rest in place, never a silent drop. Each row is one line of text (plus one line of decision detail where
  * the item has one) and one action, plus Keep / Less. Less hides that row kind on this device for
  * seven days (lib/ui/brief-feedback.ts); Show hidden is always one tap away while anything is
  * hidden; a lead that reports an unreadable board or asks for a decision cannot be hidden. Nothing
@@ -49,7 +49,6 @@ const KIND_LABEL: Record<BriefRowKind, string> = {
   commitment: "Commit",
   followup: "Follow-up",
   contradiction: "Conflict",
-  horizon: "Horizon",
 };
 
 /** What Keep / Less act on, as a noun phrase for accessible names and the live region. */
@@ -59,10 +58,7 @@ const KIND_NOUN: Record<BriefRowKind, string> = {
   commitment: "commitments",
   followup: "follow-ups",
   contradiction: "conflicts",
-  horizon: "horizon rows",
 };
-
-const SCOPE_LABEL: Record<string, string> = { now: "Now", today: "Today", week: "Week", later: "Later" };
 
 /** Lead tones carried from BriefLead: one semantic color per meaning, nothing else. */
 const LEAD_TONE: Record<BriefLeadSection["kind"], string> = {
@@ -282,7 +278,7 @@ export function BriefRows({ brief, loading }: { brief: BriefRowsInput | null; lo
       <ol className="divide-y divide-edge/60">
         {rows.map((row) => {
           const busy = busyKey === row.key;
-          let label = KIND_LABEL[row.kind];
+          const label = KIND_LABEL[row.kind];
           let text: string;
           let detail: string | null = null;
           let tone = "text-fg";
@@ -405,15 +401,6 @@ export function BriefRows({ brief, loading }: { brief: BriefRowsInput | null; lo
               action = (
                 <Link href={row.item.href} className={ACTION_LINK}>
                   Resolve
-                </Link>
-              );
-              break;
-            case "horizon":
-              label = SCOPE_LABEL[row.slot.scope] ?? row.slot.scope;
-              text = row.slot.label;
-              action = (
-                <Link href={row.slot.href} className={ACTION_LINK}>
-                  Open
                 </Link>
               );
               break;
