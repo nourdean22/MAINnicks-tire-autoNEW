@@ -37,6 +37,7 @@
 export const INVERTED_FLAGS: ReadonlySet<string> = new Set([
   "sms_global_pause",
   "vapi_forward_followup_paused",
+  "ig_autopost_paused", // TRUE stops the scheduled Instagram image autopost
 ]);
 
 /**
@@ -57,6 +58,7 @@ export const CUSTOMER_FACING_FLAGS: ReadonlySet<string> = new Set([
   "photo_assess_enabled",
   "legacy_autopost_live",              // live IG/FB posting
   "missed_call_recovery",
+  "ig_autopost_paused",                // inverted: OFF resumes unattended IG/FB posting
   // Matched by the regex too, listed so the intent is recorded rather than
   // inferred from a pattern that may later be edited:
   "smart_sms_auto_reply",

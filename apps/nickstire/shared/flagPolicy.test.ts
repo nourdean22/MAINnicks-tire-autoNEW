@@ -107,3 +107,14 @@ describe("flagPolicy · every listed flag actually exists", () => {
     expect(isInvertedFlag("sms_review_requests")).toBe(false);
   });
 });
+
+describe("flagPolicy · ig_autopost_paused (image autopost pause)", () => {
+  it("is a defined, inverted, customer-facing off-switch that confirms the resume only", () => {
+    const defined = new Set(FLAG_DEFINITIONS.map((f) => f.key as string));
+    expect(defined.has("ig_autopost_paused")).toBe(true);
+    expect(INVERTED_FLAGS.has("ig_autopost_paused")).toBe(true);
+    expect(isCustomerFacingFlag("ig_autopost_paused")).toBe(true);
+    expect(requiresConfirmation("ig_autopost_paused", false)).toBe(true);
+    expect(requiresConfirmation("ig_autopost_paused", true)).toBe(false);
+  });
+});

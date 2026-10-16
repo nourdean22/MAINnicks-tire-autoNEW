@@ -126,6 +126,12 @@ export const FLAG_DEFINITIONS = [
   // stop must land in seconds. Nothing is dropped: lifting the pause drains
   // the held queue through the normal window machinery.
   { key: "sms_global_pause", description: "OFF-SWITCH (inverted). Set TRUE to PAUSE all automated customer SMS shop-wide (marketing + follow-ups are durably queued, not dropped; confirmations and internal alerts still send). The first real kill switch for the F25e path — SMS_KILL_SWITCH env only ever gated the dead Twilio fallback." },
+  // IG IMAGE AUTOPOST PAUSE (2026-10-16). Same inverted polarity as the two
+  // pauses above: an absent row or a failed read is false = "not paused", so the
+  // live lane keeps its current behaviour. legacy_autopost_live OFF only turns
+  // the lane into a dry run that still generates and spends; this stops it.
+  // Read by runIgAutopostCron only; the manual Run-a-slot-now door ignores it.
+  { key: "ig_autopost_paused", description: "OFF-SWITCH (inverted). Set TRUE to PAUSE the Instagram image autopost cron before any generation or spend; the manual Run-a-slot-now door still works. Default FALSE (lane runs)." },
   { key: "missed_call_recovery", description: "Proactively text unconverted VAPI missed callers (last 24h) a 'sorry we missed you' follow-up. MASTER enable. Even ON, the cron runs in SHADOW (logs+Telegrams the audience, sends nothing) unless env MISSED_CALL_RECOVERY_SEND=1. Reuses the vapi_forwarded_call_followup type → full opt-out/quiet-hours/STOP-footer/caps compliance. TCPA: relationship follow-up to people who just called the business." },
   // ─── TRUST LADDER (approval queue) ────────────────
   // OFF by default ON PURPOSE, and that is also the deploy-order guard: the
