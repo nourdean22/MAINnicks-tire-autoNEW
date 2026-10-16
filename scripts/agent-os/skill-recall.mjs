@@ -178,6 +178,9 @@ function loadIndex(root) {
 }
 
 function score(index, prompt) {
+  // Keep the first prompt word behind each stem so the output reads "migration", not "migrat".
+  const word = new Map();
+  for (const w of String(prompt).toLowerCase().split(/[^a-z0-9]+/)) if (w && !word.has(stem(w))) word.set(stem(w), w);
   const q = [...new Set(tokens(prompt))];
   const N = index.entries.length;
   const results = [];
@@ -195,7 +198,7 @@ function score(index, prompt) {
       const tf = inBody + inName;
       // The name boost multiplies the saturated term, so it is a real 3x and not a tf bump BM25 flattens to 1.5x.
       s += idf * (tf * (K1 + 1)) / (tf + K1 * (1 - B + B * len / index.avgLen)) * (inName ? NAME_BOOST : 1);
-      hits.push(t);
+      hits.push(word.get(t) || t);
     }
     if (e.kind === "repo") s *= REPO_BOOST;
     if (s > 0) results.push({ name: e.name, kind: e.kind, score: Number(s.toFixed(3)), hits });

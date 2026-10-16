@@ -51,6 +51,7 @@ function run(args, input, script = SCRIPT, extraEnv = {}) {
   env.CLAUDE_PROJECT_DIR = ROOT;
   env.SKILL_RECALL_CACHE_DIR = join(SCRATCH, "cache");
   Object.assign(env, extraEnv);
+  for (const [k, v] of Object.entries(env)) if (v === undefined) delete env[k];
   const t0 = performance.now();
   const r = spawnSync(process.execPath, [script, ...args], { input, encoding: "utf8", cwd: ROOT, env, timeout: 20000 });
   return { code: r.status, out: r.stdout ?? "", err: r.stderr ?? "", ms: performance.now() - t0 };
@@ -156,10 +157,11 @@ test("latency: a warm-cache hook run stays under 2 s (local target 300 ms, recor
   process.stdout.write(`# skill-recall warm hook run: ${r.ms.toFixed(0)} ms\n`);
 });
 
-test("runtime writes nothing inside the repo: git status is identical before and after three hook runs", () => {
+test("runtime writes nothing inside the repo: git status is identical before and after three hook runs on the DEFAULT cache dir", () => {
   const status = () => spawnSync("git", ["status", "--porcelain"], { cwd: ROOT, encoding: "utf8" }).stdout ?? "";
   const before = status();
-  for (const p of ["fix the Prisma migration for statenour", NONSENSE, "warm"]) assert.equal(hook(p).code, 0);
+  const defaults = { SKILL_RECALL_CACHE_DIR: undefined };
+  for (const p of ["fix the Prisma migration for statenour", NONSENSE, "warm"]) assert.equal(hook(p, SCRIPT, defaults).code, 0);
   assert.equal(status(), before);
 });
 
