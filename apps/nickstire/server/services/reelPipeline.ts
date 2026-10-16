@@ -24,6 +24,7 @@ import { queueStateForReelStatus } from "../../shared/reelQueue";
 import { captionAskMismatch, resolveReelAsk, type ReelAsk } from "../../shared/reelAsk";
 import { RETIRED_MOTION_LENSES } from "../../shared/contentExperiments";
 import { ReelAssemblyRefusedError } from "./reelContentRefusal";
+import { ClipMismatchRefusal, persistClipVerdicts } from "./clipVerify";
 
 const log = createLogger("services:reel-pipeline");
 
@@ -1851,7 +1852,13 @@ export async function processNextAssemblyJob(scopeJobId?: number): Promise<{
     assertDurableStorageForGeneration(`reel job ${job.id} assembly`);
 
     const { assembleReel } = await import("./reelAssembly");
-    const { mp4Url, durationSec, clipProbes } = await assembleReel(brief, clipUrls, job.id);
+    // Each pre-assembly clip verdict is persisted the moment it exists
+    // (services/clipVerify.ts, compare-and-swap on the payload), so a later
+    // ffmpeg or storage failure that sends the job back to assets_ready never
+    // buys the same vision call twice: the next attempt reuses payload.clipVerify.
+    const { mp4Url, durationSec, clipProbes } = await assembleReel(brief, clipUrls, job.id, {
+      onClipVerdict: (verdict) => persistClipVerdicts(d, job.id, [verdict]),
+    });
 
     await d.update(reelJobs).set({ status: "assembled", queueState: queueStateForReelStatus("assembled"), mp4Url, error: null, productionReadyAt: new Date() }).where(eq(reelJobs.id, job.id));
     // Provider drift evidence (shared/clipDrift.ts): each clip's probed shape,
@@ -1955,6 +1962,10 @@ export async function processNextAssemblyJob(scopeJobId?: number): Promise<{
     // Retry assembly (back to assets_ready, NOT queued — clips are already gen'd).
     const { status: nextStatus, attempts: nextAttempts } = assemblyFailureOutcome(err, attempt);
     await d.update(reelJobs).set({ status: nextStatus, queueState: queueStateForReelStatus(nextStatus), attempts: nextAttempts, error: msg.slice(0, 1000) }).where(eq(reelJobs.id, job.id));
+    // A pre-assembly clip refusal leaves its verdict on the payload (the error
+    // column holds the sentence; the payload holds the beat, score and reason
+    // the repair lane will want when it learns to take these).
+    if (err instanceof ClipMismatchRefusal) await persistClipVerdicts(d, job.id, [err.verdict]);
     if (nextStatus === "failed") {
       await releaseFailedJobReservation(job.payload, job.id);
       const { advanceContentRunByReelJobId, RUN_STAGE, IMPLEMENTATION_STATE } = await import("./contentRun");
