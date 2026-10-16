@@ -119,7 +119,7 @@ export function EvalPassRateTile({ state }: Props) {
         <div className="flex items-center justify-between mb-1">
           <span className="inline-flex items-center gap-1.5 font-mono text-[11px] text-fg-tertiary">
             <Target size={11} />
-            eval · pass rate
+            Eval · pass rate
           </span>
         </div>
 

@@ -339,37 +339,37 @@ export function SituationCard({ initial = null }: SituationCardProps) {
               changes worth a 600ms tick-up). */}
           <div className="grid grid-cols-3 gap-2 pt-1 font-mono text-[11px] text-fg-tertiary">
             <div>
-              <span className="text-fg-tertiary">blind:</span>{" "}
+              <span className="text-fg-tertiary">Blind:</span>{" "}
               <span className="text-fg tabular-nums">
                 <AnimatedCounter value={counts.blindSpots} duration={600} />
               </span>
             </div>
             <div>
-              <span className="text-fg-tertiary">bets:</span>{" "}
+              <span className="text-fg-tertiary">Bets:</span>{" "}
               <span className="text-fg tabular-nums">
                 <AnimatedCounter value={counts.activeBets} duration={600} />
               </span>
             </div>
             <div>
-              <span className="text-fg-tertiary">beliefs:</span>{" "}
+              <span className="text-fg-tertiary">Beliefs:</span>{" "}
               <span className="text-fg tabular-nums">
                 <AnimatedCounter value={counts.agingBeliefs} duration={600} />
               </span>
             </div>
             <div>
-              <span className="text-fg-tertiary">stale pins:</span>{" "}
+              <span className="text-fg-tertiary">Stale pins:</span>{" "}
               <span className="text-fg tabular-nums">
                 <AnimatedCounter value={counts.stalePins} duration={600} />
               </span>
             </div>
             <div>
-              <span className="text-fg-tertiary">decisions:</span>{" "}
+              <span className="text-fg-tertiary">Decisions:</span>{" "}
               <span className="text-fg tabular-nums">
                 <AnimatedCounter value={counts.openRuminations} duration={600} />
               </span>
             </div>
             <div>
-              <span className="text-fg-tertiary">reflects:</span>{" "}
+              <span className="text-fg-tertiary">Reflects:</span>{" "}
               <span className="text-fg tabular-nums">
                 <AnimatedCounter value={counts.reflectionsToday} duration={600} />
               </span>

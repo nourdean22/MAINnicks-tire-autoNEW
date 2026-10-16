@@ -1162,7 +1162,7 @@ export function LoopStream({
       {pinnedRows.length > 0 && pinnedRows.some((r) => r !== nextMove) && (
         <div className="flex items-center gap-1.5 px-2 pt-1 pb-0.5 text-[11px] font-mono text-fg-tertiary">
           <Pin size={8} />
-          <span>pinned · {pinnedRows.length}</span>
+          <span>Pinned · {pinnedRows.length}</span>
           <div className="flex-1 h-px bg-edge-subtle" />
         </div>
       )}
@@ -1262,7 +1262,7 @@ export function LoopStream({
               aria-level={3}
             >
               <KindIcon kind={kind} size={8} />
-              <span>{kind === "DAILY" ? "daily · habits" : kind === "PROMISE" ? "promises" : "once · tasks"}</span>
+              <span>{kind === "DAILY" ? "Daily · habits" : kind === "PROMISE" ? "Promises" : "Once · tasks"}</span>
               <div className="flex-1 h-px bg-surface-interactive" />
             </div>
           ) : showStatusHeader ? (

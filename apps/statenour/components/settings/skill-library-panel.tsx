@@ -372,7 +372,7 @@ export function SkillLibraryPanel() {
                         )}
                         {stale && tab !== "graduated" && (
                           <span className="inline-flex items-center gap-0.5 font-mono text-[11px] text-amber-400">
-                            <AlertTriangle size={9} /> stale
+                            <AlertTriangle size={9} /> Stale
                           </span>
                         )}
                       </div>

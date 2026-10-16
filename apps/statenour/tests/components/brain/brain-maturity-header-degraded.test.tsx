@@ -125,8 +125,8 @@ describe("BrainMaturityHeader · a degraded read never renders as health", () =>
   it("withholds the score instead of printing one, and says so", () => {
     const html = render(degradedPayload());
 
-    expect(html).toContain("maturity unknown");
-    expect(html).not.toContain("brain maturity");
+    expect(html).toContain("Maturity unknown");
+    expect(html).not.toContain("Brain maturity");
     expect(html).toContain("read failed — unknown, not zero");
     // Names what could not be read — an unnamed failure is not actionable.
     expect(html).toContain("contradictions, skills_active, ghost_accuracy");
@@ -150,7 +150,7 @@ describe("BrainMaturityHeader · a degraded read never renders as health", () =>
     const html = render(healthyPayload());
 
     expect(html).not.toContain("read failed — unknown, not zero");
-    expect(html).toContain("brain maturity");
+    expect(html).toContain("Brain maturity");
   });
 
   /**

@@ -325,7 +325,7 @@ export function SystemHealthCard() {
             className="inline-flex items-center gap-1 rounded-full border border-edge-default bg-content px-2 py-0.5 font-mono text-[11px] text-fg-tertiary"
           >
             <Minus className="h-2.5 w-2.5" />
-            <span>stable</span>
+            <span>Stable</span>
           </span>
         )}
         {stale && (

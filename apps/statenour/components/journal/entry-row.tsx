@@ -530,7 +530,7 @@ function ImpactReceipt({
         <>
           <div className="flex items-baseline justify-between gap-2">
             <span className="flex items-center gap-1 font-mono text-[11px] text-fg-tertiary">
-              <Sparkles size={9} aria-hidden /> impact
+              <Sparkles size={9} aria-hidden /> Impact
             </span>
             <span className="text-[12px] font-semibold tabular-nums text-fg">
               +{data.totalXp} XP

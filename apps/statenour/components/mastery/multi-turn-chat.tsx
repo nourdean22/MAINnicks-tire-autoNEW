@@ -279,7 +279,7 @@ export function MultiTurnChat({ page, data, focus, presets }: MultiTurnChatProps
             className="inline-flex min-h-[36px] items-center gap-1.5 text-fg-tertiary hover:text-fg active:scale-95 transition-all focus-visible:outline-none rounded-control px-2 disabled:opacity-50"
           >
             <RotateCcw size={12} strokeWidth={1.75} />
-            clear
+            Clear
           </button>
         </div>
       )}

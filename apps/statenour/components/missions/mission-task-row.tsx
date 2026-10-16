@@ -345,15 +345,15 @@ export function MissionTaskRow({
           (task as unknown as { loopKind?: string }).loopKind === "DAILY" ||
           isNicksPick) && (
           <div className="mt-1 flex flex-wrap items-center gap-2 font-mono text-[11px] text-fg-tertiary">
-            {isDoing && <span className="text-amber-400">doing</span>}
+            {isDoing && <span className="text-amber-400">Doing</span>}
             {isNicksPick && (
               <span className="text-fg-secondary px-1 py-0.5 rounded-micro border border-edge-default bg-surface-raised">
                 Nick's pick (hypothesis)
               </span>
             )}
-            {isComplex && <span className="text-fg-secondary">complex</span>}
+            {isComplex && <span className="text-fg-secondary">Complex</span>}
             {task.waitingOn && (
-              <span className="text-amber-200/80">waiting on {task.waitingOn}</span>
+              <span className="text-amber-200/80">Waiting on {task.waitingOn}</span>
             )}
             {isDaily && (
               <span className="inline-flex items-center gap-1.5 text-fg-secondary">
@@ -411,7 +411,7 @@ export function MissionTaskRow({
                       }}
                       className="block w-full min-h-[44px] text-left px-3 py-2 text-[13px] font-medium text-fg-secondary hover:bg-surface-hover hover:text-fg"
                     >
-                      tomorrow · 6am
+                      Tomorrow · 6am
                     </button>
                     <button
                       type="button"
@@ -427,7 +427,7 @@ export function MissionTaskRow({
                       }}
                       className="block w-full min-h-[44px] text-left px-3 py-2 text-[13px] font-medium text-fg-secondary hover:bg-surface-hover hover:text-fg border-t border-edge-subtle"
                     >
-                      next mon · 6am
+                      Next mon · 6am
                     </button>
                     {isSnoozed && (
                       <button

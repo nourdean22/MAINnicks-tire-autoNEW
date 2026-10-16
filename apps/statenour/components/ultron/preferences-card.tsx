@@ -445,7 +445,7 @@ export function PreferencesCard() {
         <div className="mt-2 pt-2 border-t border-edge-subtle">
           <div className="inline-flex items-center gap-1.5 font-mono text-[11px] text-fg-tertiary mb-1">
             <Sparkles size={9} />
-            system prompt addendum
+            System prompt addendum
           </div>
           <pre className="text-[11px] leading-[1.5] text-fg-tertiary whitespace-pre-wrap font-mono">
             {addendum}

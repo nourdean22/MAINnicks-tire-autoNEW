@@ -52,7 +52,7 @@ function Row({ item }: { item: OwnerItem }) {
       </span>
       <span className="shrink-0 text-right font-mono text-[11px] text-fg-tertiary">
         {age(item.ageMin)}
-        {item.href && <span className="block text-fg-secondary group-hover:text-fg">open ↗</span>}
+        {item.href && <span className="block text-fg-secondary group-hover:text-fg">Open ↗</span>}
       </span>
     </>
   );

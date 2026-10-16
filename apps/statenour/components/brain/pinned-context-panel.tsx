@@ -431,7 +431,7 @@ export function PinnedContextPanel() {
       {addOpen && (
         <div className="rounded-surface border border-edge-subtle bg-content p-3 space-y-2 animate-fade-in">
           <div className="flex items-center gap-2 text-[11px] font-mono text-fg-tertiary">
-            <Plus size={10} /> new pin
+            <Plus size={10} /> New pin
           </div>
           <textarea
             autoFocus
@@ -703,7 +703,7 @@ export function PinnedContextPanel() {
             <Sparkles size={11} />
             <span>Active Hot Rules</span>
             <span className="text-[11px] text-[var(--text-tertiary)] font-normal font-mono normal-case">
-              most-re-sighted constraints
+              Most-re-sighted constraints
             </span>
           </div>
           <ul className="space-y-1.5">

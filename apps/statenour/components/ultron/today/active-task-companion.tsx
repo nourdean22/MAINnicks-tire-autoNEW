@@ -276,7 +276,7 @@ export function ActiveTaskCompanion({ task, onSessionChange }: Props) {
       <div className="px-3 py-1.5 flex items-center gap-1 flex-wrap">
         <span className="shrink-0 font-mono text-[11px] text-fg-tertiary mr-1">
           <Sparkles size={9} className="inline mr-0.5" />
-          session
+          Session
         </span>
 
         <Link

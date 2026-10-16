@@ -115,7 +115,7 @@ export function CostSloTile({ state }: Props) {
       <div className="flex items-center justify-between mb-1">
         <span className="inline-flex items-center gap-1.5 font-mono text-[11px] text-fg-tertiary">
           <DollarSign size={11} />
-          cost · today
+          Cost · today
         </span>
         {utilization !== null && (
           <span className={cn("font-mono text-[11px] tabular-nums", tierText)}>

@@ -237,7 +237,7 @@ Connected in view: ${inViewConnections.map((c) => `${c.node.label} (${c.type})`)
         {/* Connections — in view */}
         <div className="space-y-1.5">
           <span className="font-mono text-[11px] text-(--text-tertiary) inline-flex items-center gap-1">
-            <Link2 size={10} /> connected here ({inViewConnections.length})
+            <Link2 size={10} /> Connected here ({inViewConnections.length})
           </span>
           {inViewConnections.length === 0 ? (
             <p className="text-[11px] font-mono text-(--text-tertiary) italic">

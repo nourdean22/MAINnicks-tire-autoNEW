@@ -141,7 +141,7 @@ export function PersonaDriftCard() {
       <div className="flex items-center justify-between gap-2">
         <span className="inline-flex items-center gap-2 font-mono text-[11px] text-fg-tertiary">
           <Compass size={11} />
-          identity · drift
+          Identity · drift
           <span className="rounded-micro border border-edge-default px-1 py-px text-[11px] tabular-nums text-fg-secondary">
             {items.length} · {Math.round(strongest * 100)}% max
           </span>

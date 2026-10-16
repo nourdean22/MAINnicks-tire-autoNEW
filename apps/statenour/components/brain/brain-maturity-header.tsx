@@ -227,7 +227,7 @@ export function BrainMaturityHeader({ refreshKey = 0 }: { refreshKey?: number })
             )}
           </p>
           <p className="text-[11px] font-mono text-fg-tertiary mt-1">
-            {score == null ? "maturity unknown" : "brain maturity"}
+            {score == null ? "Maturity unknown" : "Brain maturity"}
           </p>
         </div>
 

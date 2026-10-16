@@ -119,7 +119,7 @@ export function InspectorFrame({ kind, mode, presentation, onClose, actions, chi
         <p className="font-mono text-[11px] text-fg-tertiary">
           <span className="notch mr-2 align-middle" aria-hidden />
           {eyebrow}
-          {mode === "peek" ? <span className="ml-2 text-fg-secondary">peek</span> : null}
+          {mode === "peek" ? <span className="ml-2 text-fg-secondary">Peek</span> : null}
         </p>
         {mode === "peek" ? (
           <p className="mt-0.5 text-[11px] text-fg-tertiary">

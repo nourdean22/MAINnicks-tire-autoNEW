@@ -251,13 +251,13 @@ export function ExecutionPanel({
           {task.dueDate && (
             <>
               <span className="text-fg-tertiary">·</span>
-              <span>due {new Date(task.dueDate).toLocaleDateString()}</span>
+              <span>Due {new Date(task.dueDate).toLocaleDateString()}</span>
             </>
           )}
           {task.effort && (
             <>
               <span className="text-fg-tertiary">·</span>
-              <span>effort: {task.effort}</span>
+              <span>Effort: {task.effort}</span>
             </>
           )}
         </div>
