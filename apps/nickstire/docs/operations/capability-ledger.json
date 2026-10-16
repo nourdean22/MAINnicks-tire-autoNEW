@@ -5100,21 +5100,52 @@
           "server/instagramAdmin.test.ts (+2): the procedure exists and refuses a non-admin with FORBIDDEN; an unknown source is BAD_REQUEST at input validation. Red first 2 failed | 23 passed.",
           "Manager probes 2026-10-16 (not committed): 4, 5 and 6 clips for a 5-beat job refuse, pass, refuse; 3.999 s refuses, 4.0 s passes, NaN refuses; javascript:, ftp:, empty refuse; HTTPS://, https:/ and a leading space pass (WHATWG URL normalisation, the SSRF-guarded fetch sees the same host); CAS loss writes nothing else; the two old Seedance clips are replaced in beat order. ftyp sniff and probeMaster duration confirmed on three real Wan 3.0 clips (5.038 s, 1078x1920)."
         ],
+        "liveRuns": [
+          "2026-10-16 12:44Z attach of 5 Wan 3.0 clips to job 2100001 through instagramAdmin.attachExternalClips from the admin session: 200 in 14.5 s, audit row aud_6a4dda97 OK, row assets_ready with 5 re-hosted URLs; 12:48Z reel-canary advance assembled it (reel-2100001.mp4, 23.0 s, 690 frames); 12:50Z rendered QA ran (decision repair); 15:3xZ forced publish by operator decision B: igPostId 18637319911062972, https://www.instagram.com/reel/Dej4FdTFBcH/"
+        ],
+        "deploymentId": null
+      },
+      "blockers": [],
+      "deferredScope": [
+        "no client control yet: the door is called from a tRPC client or the admin console (client lane C1 follows)",
+        "the door settles or releases no generation reservation for the job",
+        "re-hosted objects stay in storage if the CAS loses after the re-host",
+        "clips are held in memory (up to 60 MB each) and downloaded one after another"
+      ],
+      "lastVerifiedAt": "2026-10-16",
+      "codeState": "merged",
+      "operationalState": "live_verified",
+      "exposure": "internal",
+      "verificationExpiresAt": "2026-11-15"
+    },
+    {
+      "capabilityId": "reel-quality-fixes",
+      "name": "Reel assembly cuts real footage through every crossfade, draws one caption plate per caption, picks the voice by env, and hands the start photo only to beats shot where it was taken",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "Branch nickstire/reel-quality-fixes on main 5e77a7836 (server lane worktree-agent-ad3621f563e223114, cherry-picked): 134cdf36d (server/services/reelAssembly.ts planSegmentTrim: a non-last beat trims dur + XFADE_DUR of real footage and skips the 0.5 s start hold when the probed source is long enough, otherwise the clone pad exactly as before; sourceDurationSec from the existing ffprobeReel probe, min of video stream and container; one drawbox plate per caption at the same pixels the per-line boxes covered, text runs without box=1), 2148ccd31 (server/services/reelVoice.ts REEL_VO_PROVIDER (a named provider without its key fails loudly, never falls back), REEL_GOOGLE_VOICE / REEL_GOOGLE_SPEAKING_RATE / REEL_GOOGLE_PITCH, a /chirp/i voice keeps SSML and rate and omits pitch; scripts/reel-voice-candidates.ts dry-run by default, --execute renders Neural2-J, Chirp3-HD Charon, Orus, Enceladus), 335179212 (shared/reelStartFrame.ts startImageForBeat consumed by both reelPipeline.ts start-image sites), 40e493317 + 7b8ae1131 (truth_os). Client slice (prompt pack tail: unbranded hardware line on every beat, no-morph opening on beats without the photo) follows in the same PR from the client lane. Why: reel 2100001 (posted 2026-10-16) read as laggy at every cut, its mid-frame captions sat on baked-in storefront lettering, the voice read robotic, and the storefront start photo forced a morph on underbody beats; frame analysis showed 0 duplicated frames, so the hitch was the tpad clone during the fade plus the half-second start hold of the Wan clips.",
+        "tests": [
+          "server/reelAssemblyCuts.test.ts (new): cut cases for 5.04 s, 4.0 s and 4.49 s sources, boundary probes at 4.49/4.50/4.51 and 4.99/5.00/5.01 s, xfade offsets unchanged, one plate per caption. Red first 12 failed / 5 passed (with captionSafeZone). Mutants: clone pad on every source 7 failed; no caption plate 5 failed.",
+          "server/reelVoice.test.ts (+8): provider env, missing-key refusal, voice/rate/pitch env, Chirp keeps SSML and rate and drops pitch. Red first 5 failed / 18 passed. Mutants: REEL_VO_PROVIDER ignored 2 failed; Chirp keeps pitch 1 failed.",
+          "shared/reelStartFrame.test.ts (new): storefront beat gets the url, under-the-car and road beats do not. Red first 3 failed / 5 passed; mutant every-beat-gets-the-photo 3 failed.",
+          "server/captionSafeZone.test.ts: model updated to the plate (y=ih*0.55-28, h=179), bottom edge unchanged; the Instagram bottom-35% reserve gate is why captions stay at 0.55 (a 0.68 move was refused by the lane on that gate).",
+          "Manager run on the combined tree: 5 files, 89 passed, 3 skipped (reelAssemblyCuts, captionSafeZone, reelVoice, reelStartFrame, reelAssembly)."
+        ],
         "liveRuns": [],
         "deploymentId": null
       },
       "blockers": [
         {
           "severity": "P2",
-          "description": "Not observed in production yet. Live proof: the first attach to job 2100001 shows the row in assets_ready with the re-hosted URLs and payload.externalClips, the next reel-pipeline pulse moves it to assembled with renderedQa present, and the published reel carries the AI label",
-          "source": "job 2026-10-16-external-clips-door"
+          "description": "Not observed in production yet. Live proof: the next assembled reel shows no frozen frames across each cut (frame compare), one plate per caption, and the voice request body naming the env voice; Nour picks the voice by ear from the four candidate WAVs",
+          "source": "job 2026-10-16-reel-quality-fixes"
         }
       ],
       "deferredScope": [
-        "no client control yet: the door is called from a tRPC client or the admin console (client lane C1 follows)",
-        "the door settles or releases no generation reservation for the job",
-        "re-hosted objects stay in storage if the CAS loses after the re-host",
-        "clips are held in memory (up to 60 MB each) and downloaded one after another"
+        "selectiveRepair.ts still hands the hero to every repaired beat",
+        "the 0.5 s start skip also applies to 4 s Seedance clips under beats shorter than 3.5 s (measured on Wan clips only)",
+        "rendered QA may flag text-to-video underbody beats for drifting from the storefront photo while the hero is set",
+        "the real_shop_still lockedInvariants text still says every shot opens on the photo"
       ],
       "lastVerifiedAt": "2026-10-16",
       "codeState": "merged",

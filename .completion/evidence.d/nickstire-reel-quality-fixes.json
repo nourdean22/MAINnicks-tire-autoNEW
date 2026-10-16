@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "ref": "apps/nickstire/docs/operations/capability-ledger.json: external-clips-door promoted to live_verified with the 2026-10-16 live run (attach 200 in 14.5 s with audit row aud_6a4dda97, assets_ready with five re-hosted URLs, assembled by reel-canary advance, rendered QA ran, forced publish igPostId 18637319911062972 at instagram.com/reel/Dej4FdTFBcH) and its P2 blocker cleared; new entry reel-quality-fixes (merged, unit_verified, internal) with the five lane commits (planSegmentTrim real-footage cuts and 0.5 s start skip, one drawbox plate per caption, REEL_VO_PROVIDER and REEL_GOOGLE_* env with the Chirp branch, startImageForBeat, the voice-candidates script), the red-first counts and mutants per test file, the manager's combined-tree run (5 files, 89 passed, 3 skipped), one P2 live-proof blocker and four deferred-scope items from the lane's self-audit. REALITY-LEDGER.md re-rendered (164 capabilities); node apps/nickstire/scripts/check-capability-ledger.mjs exits 0."
+    },
+    "operator-walkthrough": {
+      "ref": "client/src/lib/facelessReelStudio.ts changes only the generator prompt pack text (two prompt lines for the video model, built by buildHiggsfieldReelPromptPack); nothing the admin PWA renders changes. Verified by server/reelPromptTail.test.ts (red 3 failed before the patch, green after) and the unchanged admin ratchet counts; not walked in a browser."
+    }
+  }
+}
