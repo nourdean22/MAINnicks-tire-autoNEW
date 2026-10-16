@@ -10,16 +10,15 @@
  */
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { after } from "node:test";
 import { fileURLToPath } from "node:url";
-import { ledgerProblems } from "./ledger-check.mjs";
+import { ledgerProblems, ledgerRootProblems, loadJobs, renderLedger } from "./ledger-check.mjs";
 
 const REPO = fileURLToPath(new URL("../..", import.meta.url));
 const SCRIPT = fileURLToPath(new URL("./ledger-check.mjs", import.meta.url));
-const REAL = join(REPO, "docs", "agent-os", "MANAGER-LEDGER.md");
 const tmp = mkdtempSync(join(tmpdir(), "ledger-"));
 after(() => rmSync(tmp, { recursive: true, force: true }));
 
@@ -165,12 +164,26 @@ test("the CLI exits 1 on an error and 0 on a clean ledger, and prints the row", 
   assert.equal(spawnSync(process.execPath, [SCRIPT, "--file", good], { encoding: "utf8" }).status, 0);
 });
 
-test("the real ledger is clean: no job keeps `pending` in its PR cell", (t) => {
-  const { errors, warnings, rows } = ledgerProblems(readFileSync(REAL, "utf8"));
+test("the real ledger is clean: no job keeps `pending` in its PR cell (read from the per-job files, the way the CLI reads them)", (t) => {
+  const { errors, warnings, rows } = ledgerRootProblems(REPO);
   t.diagnostic(`checked ${rows} rows, ${warnings.length} warning(s)`);
-  const text = readFileSync(REAL, "utf8");
+  const text = renderLedger(REPO);
   const jobLines = (text.match(/^\s*\|\s*\d{4}-\d{2}-\d{2}-/gm) ?? []).length;
-  assert.equal(rows, jobLines, `the parser read ${rows} rows but the file has ${jobLines} job-id lines: a row was skipped`);
+  assert.equal(rows, jobLines, `the parser read ${rows} rows but the view has ${jobLines} job-id lines: a row was skipped`);
+  assert.equal(rows, loadJobs(REPO).jobs.length, "a job file did not become a row");
   assert.ok(rows > 20, `only ${rows} rows were read: the parser lost the table`);
   assert.deepEqual(errors, [], `\n${errors.join("\n")}`);
+});
+
+test("the planted bad row of the old real-ledger canary, pointed at a per-job file: the CLI names the file's row and exits 1", () => {
+  // the shared-table canaries above plant a bad row in a throwaway ledger text; this one plants it where rows now live
+  const root = join(tmp, "root");
+  mkdirSync(join(root, "docs", "agent-os", "ledger"), { recursive: true });
+  writeFileSync(join(root, "docs", "agent-os", "MANAGER-LEDGER.md"), "# Manager ledger\n\nStatus: PLANNED | RUNNING | BLOCKED | BUILT | MERGED | LIVE-VERIFIED | CANCELLED\n");
+  writeFileSync(join(root, "docs", "agent-os", "MANAGER-METRICS.md"), "# Manager job metrics\n");
+  const id = "2026-10-15-compiler-provenance-hardening"; // the row that was `pending (...)` on main after #3044 merged
+  writeFileSync(join(root, "docs", "agent-os", "ledger", `${id}.md`), [...HEAD.slice(4), row({ id, pr: "pending (chore/compiler-provenance-hardening)" }), ""].join("\n"));
+  const r = spawnSync(process.execPath, [SCRIPT, "--root", root], { encoding: "utf8" });
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.match(r.stderr, /ERROR  2026-10-15-compiler-provenance-hardening: PR \/ SHA cell says "pending"/);
 });
