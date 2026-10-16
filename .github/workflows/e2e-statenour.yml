@@ -46,6 +46,17 @@ on:
     paths:
       - 'apps/statenour/**'
       - '!apps/statenour/docs/**'
+      # Docs that lib/services/system-change-digest.ts (and lib/evals/memory-evals.ts, which it runs) READ AT
+      # RUNTIME: system.changeDigest exposes them and the /system smoke page renders them, so a diff to one
+      # of these is not documentation-only. Re-included after the negation (the last matching pattern wins).
+      # scripts/agent-os/workflowCostGuards.test.mjs derives this list from those two sources and fails if a
+      # runtime-read doc is not selected (Codex review of #3083).
+      - 'apps/statenour/docs/RECONCILIATION.md'
+      - 'apps/statenour/docs/CURRENT-TRUTH.md'
+      - 'apps/statenour/docs/runbooks/index.md'
+      - 'apps/statenour/docs/runbooks/task-classifier-domain-missions.md'
+      - 'apps/statenour/docs/runbooks/memory-evals.md'
+      - 'apps/statenour/docs/runbooks/statenour-claude-code-session.md'
       - 'packages/**'
       - 'pnpm-lock.yaml'
       - '.github/workflows/e2e-statenour.yml'

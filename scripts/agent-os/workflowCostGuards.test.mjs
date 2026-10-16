@@ -224,7 +224,15 @@ const V3_W3A_FILES = [
   ".github/workflows/e2e-statenour.yml", "apps/statenour/tests/e2e/fixtures/chat.ts", "apps/statenour/tests/e2e/vt-render.ts",
   "apps/statenour/tests/repo/v3-gate.test.ts", "apps/statenour/docs/design/ui-v3/PLAN.md",
 ];
-const DOCS_ONLY_FILES = ["apps/statenour/docs/RECONCILIATION.md", "apps/statenour/docs/design/ui-v3/PLAN.md", "apps/statenour/docs/x/y/z.md"];
+const DOCS_ONLY_FILES = ["apps/statenour/docs/design/ui-v3/PLAN.md", "apps/statenour/docs/design/outcome-ledger-coverage-2026-10-02.md", "apps/statenour/docs/x/y/z.md"];
+// Docs the app READS AT RUNTIME (system.changeDigest, the /system smoke page): not documentation-only. Read from the
+// two real sources so a doc added to either cannot fall outside the e2e filter.
+const RUNTIME_READ_SOURCES = ["apps/statenour/lib/services/system-change-digest.ts", "apps/statenour/lib/evals/memory-evals.ts"];
+// Only literals that are LOADED: system-change-digest.ts in full, and in memory-evals.ts the `groundingDoc:` values
+// and the CURRENT_TRUTH constant. Its `sourceHints` strings are citations, never opened (NOT scanned on purpose).
+const runtimeReadDocs = () => [...new Set(RUNTIME_READ_SOURCES.flatMap((f) => readFileSync(join(REPO, f), "utf8").split("\n")
+  .filter((l) => f.endsWith("system-change-digest.ts") || /groundingDoc:|const CURRENT_TRUTH/.test(l))
+  .flatMap((l) => [...l.matchAll(/["'](docs\/[A-Za-z0-9_./-]+\.md)["']/g)].map((m) => m[1]))))];
 
 export function checkWorkflows(root) {
   const bad = [];
@@ -267,6 +275,9 @@ export function checkWorkflows(root) {
     ["a package", ["packages/utils/src/x.ts"]], ["the lockfile", ["pnpm-lock.yaml"]], ["the workflow", [".github/workflows/e2e-statenour.yml"]],
   ];
   for (const [label, files] of must) if (!triggers(e2ePaths, files)) flag("e2e-paths", `e2e would NOT run for ${label} (${files[0]})`);
+  const rtDocs = runtimeReadDocs();
+  if (rtDocs.length < 5 || !rtDocs.includes("docs/RECONCILIATION.md")) flag("e2e-paths", `the runtime-read doc scan found ${rtDocs.length} docs: the instrument is blind`);
+  for (const d of rtDocs) if (!pathMatches(e2ePaths, `apps/statenour/${d}`)) flag("e2e-paths", `apps/statenour/${d} is read at runtime but a diff to it would skip e2e`);
   if (triggers(e2ePaths, DOCS_ONLY_FILES)) flag("e2e-paths", "e2e still runs for a diff that only touches apps/statenour/docs");
   if (triggers(e2ePaths, ["apps/nickstire/server/x.ts", "docs/agent-os/MANAGER-LEDGER.md"])) flag("e2e-paths", "e2e runs for a diff outside statenour");
   if ("push" in e2e) flag("e2e-no-main-push", "e2e-statenour.yml still triggers on push");
@@ -464,6 +475,7 @@ const MUTANTS = [
   ["concurrency-main", "two main pushes share a group (the old camera-bridge shape)", wf("camera-bridge.yml"),
     (t) => t.replace(/group: .*\n\s*cancel-in-progress: .*/, "group: camera-bridge-${{ github.ref }}\n  cancel-in-progress: ${{ github.event_name == 'pull_request' }}")],
   ["e2e-paths", "e2e runs for docs-only diffs again", wf("e2e-statenour.yml"), (t) => t.replace("      - '!apps/statenour/docs/**'\n", "")],
+  ["e2e-paths", "a runtime-read doc drops out of the re-include", wf("e2e-statenour.yml"), (t) => t.replace("      - 'apps/statenour/docs/RECONCILIATION.md'\n", "")],
   ["e2e-paths", "e2e stops running for statenour code", wf("e2e-statenour.yml"), (t) => t.replace("  pull_request:\n    paths:\n      - 'apps/statenour/**'\n", "  pull_request:\n    paths:\n")],
   ["e2e-no-main-push", "e2e is back on push to main", wf("e2e-statenour.yml"), (t) => t.replace("  workflow_dispatch:", "  push:\n    branches: [main]\n  workflow_dispatch:")],
   ["folded-steps", "a folded step is renamed away", wf("agent-policy.yml"), (t) => t.replace("name: Install gitleaks", "name: Install g1tleaks")],
