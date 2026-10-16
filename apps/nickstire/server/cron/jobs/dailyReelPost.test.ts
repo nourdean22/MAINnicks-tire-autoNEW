@@ -2,7 +2,14 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { checkReviewReply } from "@shared/reviewReplyQa";
-import { MANIFEST, runDailyReelPost, reelPublishPlatforms, facebookLiveWithoutInstagram } from "./dailyReelPost";
+import {
+  MANIFEST,
+  runDailyReelPost,
+  reelPublishPlatforms,
+  facebookLiveWithoutInstagram,
+  PARKED_QA_GATES,
+  RETRYABLE_QA_GATES,
+} from "./dailyReelPost";
 
 describe("dailyReelPost", () => {
   it("covers reels 5-30 in order (26 reels)", () => {
@@ -130,6 +137,33 @@ describe("facebookLiveWithoutInstagram (partial publish must PARK, never retry)"
     expect(facebookLiveWithoutInstagram([{ platform: "facebook", success: true, postId: "x" }, { platform: "instagram", success: true, postId: "y" }])).toBeNull();
     expect(facebookLiveWithoutInstagram([{ platform: "facebook", success: false }, { platform: "instagram", success: false }])).toBeNull();
     expect(facebookLiveWithoutInstagram([{ platform: "instagram", success: false }])).toBeNull();
+  });
+});
+
+/**
+ * needs_review waits on a human ("operator review required", qualityGate.ts),
+ * so it reads identically on every pulse. Before 2026-10-16 it was not parked:
+ * job 2070013 (one unrecognised critic code dropped) was selected by the drain
+ * on 149 consecutive pulses, 2026-10-13 22:08Z to 2026-10-15 11:10Z, and
+ * production never ran on 10-14 (both slots) or 10-15 06:00 ET.
+ */
+describe("parked QA gates: what the drain skips without re-asking", () => {
+  // The exact predicate the drain and today's-job pre-filters apply.
+  const skippedByPreFilter = (gate: string) => PARKED_QA_GATES.has(gate) && !RETRYABLE_QA_GATES.has(gate);
+
+  it("skips needs_review, reject and stock_fallback", () => {
+    for (const gate of ["needs_review", "reject", "stock_fallback"]) expect(skippedByPreFilter(gate), gate).toBe(true);
+  });
+
+  it("keeps needs_review out of the retryable set (no spend path re-asks it)", () => {
+    expect(RETRYABLE_QA_GATES.has("needs_review")).toBe(false);
+    expect([...RETRYABLE_QA_GATES]).toEqual(["needs_paid_repair"]);
+  });
+
+  it("never skips the gates that clear by themselves, nor needs_paid_repair", () => {
+    for (const gate of ["auto_repair", "unavailable", "disabled", "needs_paid_repair"]) {
+      expect(skippedByPreFilter(gate), gate).toBe(false);
+    }
   });
 });
 

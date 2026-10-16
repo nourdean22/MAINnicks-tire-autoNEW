@@ -77,25 +77,33 @@ const DAY_COUNT_KEY = "reel_autopost_day_count";
 /**
  * Rendered-QA gate values that WAIT ON A HUMAN and therefore read identically on
  * every future pulse: needs_paid_repair parks until an operator authorizes the
- * spend, reject and stock_fallback park until the reel is regenerated.
+ * spend, reject and stock_fallback park until the reel is regenerated, and
+ * needs_review parks until an operator reviews it in the Queue (qualityGate.ts
+ * returns it as "operator review required"; nothing re-verdicts it on its own).
+ *
+ * needs_review used to be listed below as self-clearing, and that cost two days.
+ * Job 2070013 (one unrecognised critic code dropped) was selected by the drain on
+ * 149 consecutive pulses, 2026-10-13 22:08Z to 2026-10-15 11:10Z; production was
+ * skipped on 10-14 (both slots) and 10-15 06:00 ET, and the jam ended only when
+ * the operator rejected it.
  *
  * Deliberately EXCLUDED, because these do change by themselves and belong to the
  * gate chain: auto_repair (the chain queues the free repair, QA re-verdicts the
  * new render), unavailable (QA has not run yet, or could not be read - the chain
- * fails closed on it), needs_review, and disabled (which is allowed anyway).
+ * fails closed on it), and disabled (which is allowed anyway).
  *
  * Used ONLY to decide what is worth SELECTING in the drain. The authoritative
  * chain still runs in full on whatever is selected, so no reel reaches Instagram
  * that the chain would refuse.
  */
-const PARKED_QA_GATES: ReadonlySet<string> = new Set(["needs_paid_repair", "reject", "stock_fallback"]);
+export const PARKED_QA_GATES: ReadonlySet<string> = new Set(["needs_paid_repair", "reject", "stock_fallback", "needs_review"]);
 /**
  * Verdicts the pre-filter reads but never skips. needs_paid_repair stays in
  * PARKED_QA_GATES, but it is re-asked on every pulse: a repair refusal parks the
  * reel, and only a budget refusal holds it. A skip here would stop the repair from
  * being asked again once the daily budget resets.
  */
-const RETRYABLE_QA_GATES: ReadonlySet<string> = new Set(["needs_paid_repair"]);
+export const RETRYABLE_QA_GATES: ReadonlySet<string> = new Set(["needs_paid_repair"]);
 /** The drain reads this many approved candidates per pass, oldest id first. */
 const DRAIN_SCAN_LIMIT = 25;
 
