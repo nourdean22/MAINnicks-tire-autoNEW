@@ -16,6 +16,8 @@
  *   adoption-no-main-push  adoption gates run on PRs only (the PR head ran them; node covers main)
  *   proof-paths       the post-deploy storefront proof skips apps/nickstire/docs only
  *   notify-pr         the summary-only notify job does not bill on PRs
+ *   security-in-node  the dependency audit is the tail of `node`: blocking, runs when an earlier step is red
+ *   needs-resolve     no job `needs:` a job that a fold deleted
  *   diag-no-pr        the always-green typecheck diagnostic does not run on every PR
  *
  * Every rule is proven twice: the live tree must be clean, and a mutated COPY of the workflows (temp dir) must
@@ -343,6 +345,27 @@ export function checkWorkflows(root) {
     if (!evalIf(notifyIf, context("push"))) flag("notify-pr", "test.yml notify no longer runs on a push to main");
   }
 
+  // security-in-node: the dependency gate is the tail of `node`, still blocking, still runs when an earlier step is red
+  const nodeSteps = wfs["test.yml"]?.jobs?.node?.steps ?? [];
+  const adv = nodeSteps.find((s) => s?.name === "Dependency audit (high+ severity · advisory)");
+  const crit = nodeSteps.find((s) => s?.name === "Dependency audit (critical severity · blocking)");
+  if (!adv || !crit) flag("security-in-node", "test.yml node lost a dependency audit step");
+  else {
+    if (adv["continue-on-error"] !== true) flag("security-in-node", "the advisory audit is no longer continue-on-error");
+    if (crit["continue-on-error"] !== undefined) flag("security-in-node", "the critical audit is continue-on-error: the dependency gate cannot fail");
+    for (const s of [adv, crit]) if (!String(s.if ?? "").includes("!cancelled()")) flag("security-in-node", `"${s.name}" lost !cancelled(): an earlier red step would switch the gate off`);
+    if (nodeSteps.indexOf(crit) !== nodeSteps.length - 1) flag("security-in-node", "the critical audit is no longer the last step of node");
+  }
+  if (!text("test.yml").includes("run: node scripts/audit-advisories.mjs --audit-level=critical\n")) flag("security-in-node", "test.yml no longer runs audit-advisories at --audit-level=critical");
+  if (wfs["test.yml"]?.jobs?.security) flag("security-in-node", "a standalone security job is back next to its folded copy");
+
+  // needs-resolve: a `needs:` naming a job that is gone invalidates the whole workflow file
+  for (const [f, w] of Object.entries(wfs)) {
+    for (const [id, job] of Object.entries(w.jobs ?? {})) {
+      for (const n of [].concat(job.needs ?? [])) if (!(n in w.jobs)) flag("needs-resolve", `${f}#${id} needs "${n}", which is not a job in that file`);
+    }
+  }
+
   // diag-no-pr
   const diag = triggersOf(wfs["admin-completion-diagnostic.yml"] ?? {});
   if ("pull_request" in diag) flag("diag-no-pr", "the always-green admin typecheck diagnostic runs on every PR again");
@@ -421,6 +444,11 @@ const MUTANTS = [
   ["adoption-paths", "the adoption gates ignore a directory they scan", wf("adoption-gates.yml"), (t) => t.replace(/( {4}paths-ignore:\n)/, "$1      - 'apps/statenour/components/**'\n")],
   ["proof-paths", "the storefront proof runs for docs-only diffs again", wf("nickstire-proof.yml"), (t) => t.replace(/ {6}- "!apps\/nickstire\/docs\/\*\*"\n/, "")],
   ["notify-pr", "notify bills on every PR again", wf("test.yml"), (t) => t.replace(/(\n {2}notify:\n(?: {4}.*\n)*? {4}if: ).*/, "$1always()")],
+  ["needs-resolve", "notify still needs the deleted security job", wf("test.yml"), (t) => t.replace("needs: [changes, node, railway-smoke]", "needs: [changes, node, security, railway-smoke]")],
+  ["security-in-node", "the critical audit can no longer fail", wf("test.yml"), (t) => t.replace("      - name: Dependency audit (critical severity · blocking)\n", "      - name: Dependency audit (critical severity · blocking)\n        continue-on-error: true\n")],
+  ["security-in-node", "an earlier red step switches the audit off", wf("test.yml"), (t) => t.replace("      - name: Dependency audit (critical severity · blocking)\n        if: ${{ !cancelled() }}\n", "      - name: Dependency audit (critical severity · blocking)\n")],
+  ["security-in-node", "the audit step is renamed away", wf("test.yml"), (t) => t.replace("Dependency audit (high+ severity · advisory)", "Dependency audit (high+)")],
+  ["security-in-node", "a standalone security job comes back", wf("test.yml"), (t) => t.replace("\n  railway-smoke:\n", "\n  security:\n    runs-on: ubuntu-latest\n    steps:\n      - run: true\n\n  railway-smoke:\n")],
   ["diag-no-pr", "the diagnostic is back on every PR", wf("admin-completion-diagnostic.yml"), (t) => t.replace("on:\n", "on:\n  pull_request:\n    branches: [main]\n")],
 ];
 

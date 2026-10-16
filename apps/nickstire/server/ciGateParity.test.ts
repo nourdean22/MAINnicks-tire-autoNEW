@@ -138,7 +138,7 @@ describe("CI honesty · the notify summary cannot claim success over a red gate"
     // survived in the loop body that reads it. A check satisfied by the
     // reference to a value it never confirms is wired is not a check.
     const notify = workflow.slice(workflow.indexOf("Notify Slack"));
-    for (const job of ["node", "security", "railway-smoke"]) {
+    for (const job of ["node", "railway-smoke"]) {
       expect(notify, `Slack status must bind needs.${job}.result`).toContain(
         `needs.${job}.result`,
       );
@@ -147,8 +147,15 @@ describe("CI honesty · the notify summary cannot claim success over a red gate"
     expect(notify, "status should be derived by loop, not a single if").toMatch(/for job in/);
   });
 
-  it("the step summary reports the security job", () => {
-    const summary = workflow.slice(workflow.indexOf("Generate Summary"));
-    expect(summary).toContain("needs.security.result");
+  it("the dependency gate is the last step of node, so needs.node.result carries it", () => {
+    // 2026-10-16 CI diet: the `security` job was folded into `node`. The summary and the Slack loop read
+    // needs.node.result, so the audit must stay a node step that runs even when an earlier step is red, and
+    // the blocking one must not become continue-on-error. A binding to the deleted job would invalidate the file.
+    const node = workflow.slice(workflow.indexOf("\n  node:\n"), workflow.indexOf("\n  railway-smoke:\n"));
+    const critical = node.slice(node.indexOf("- name: Dependency audit (critical severity"));
+    expect(critical, "the blocking audit step must be in the node job").toContain("node scripts/audit-advisories.mjs --audit-level=critical");
+    expect(critical.split("\n").slice(0, 4).join("\n")).toContain("!cancelled()");
+    expect(critical.split("\n").slice(0, 4).join("\n")).not.toContain("continue-on-error");
+    expect(workflow).not.toContain("needs.security");
   });
 });

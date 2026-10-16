@@ -527,40 +527,15 @@ jobs:
         if: ${{ !cancelled() && (needs.changes.outputs.nickstire == 'true' || needs.changes.outputs.workflow == 'true') }}
         run: cd apps/nickstire && node scripts/knip-orphan-gate.mjs
 
-  # ─── Dependency gate — deliberately its OWN job ────────────────────
-  # These two steps used to be the last steps of `node`. That placement meant
-  # ANY unrelated failure above them skipped the gate silently, and in
-  # practice it never ran once:
-  #   - the prompt:size-check hang (removed in #762) ate the 25-min budget
-  #     -> both audit steps "skipped"
-  #   - with the hang gone, `prisma validate` failed P1012 on run 29507730752
-  #     -> both audit steps "skipped" again
-  # A security gate that an unrelated statenour validator can switch off is
-  # not a gate. In its own job it runs regardless of what else breaks, and it
-  # cannot be disabled by anything except itself.
-  #
-  # Ungated on `changes` on purpose: advisories are published against
-  # dependencies you ALREADY have, so "nothing changed" is not a reason to
-  # skip. It costs ~1 min.
-  security:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-
-      - name: Setup Node 24 (matches Railway runtime)
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
-        with:
-          node-version: 24
-          cache: pnpm
-
-      - name: Install workspace deps
-        run: pnpm install --frozen-lockfile
-
+      # ─── Dependency gate (was its OWN job, `security`) ───
+      # 2026-10-16 · CI diet. It was a separate job with its own checkout, pnpm setup and install (54s, billed
+      # 1.1 minutes) on every PR and main push. These two steps need only the lockfile and `node` already holds
+      # the install, so they live here, unchanged. The original reason for a separate job still holds: a failure
+      # earlier in this job (a statenour validator, a build) must not switch the gate off, so each step carries
+      # `!cancelled()` and runs whatever happened above. TRADE: they now run only when `node` runs (an app,
+      # package, lockfile, turbo or workflow change). A docs-only PR no longer audits; a new advisory against
+      # existing dependencies surfaces on the next code PR or main push instead.
+      #
       # scripts/audit-advisories.mjs replaced `pnpm audit`, which POSTs to
       # npm's legacy audit endpoint. npm RETIRED it — every call returns 410,
       # so the blocking gate failed on 100% of PRs regardless of content and a
@@ -572,6 +547,7 @@ jobs:
       # decorative green while doing nothing. This job is the repo's ONLY
       # dependency gate.
       - name: Dependency audit (high+ severity · advisory)
+        if: ${{ !cancelled() }}
         continue-on-error: true
         run: node scripts/audit-advisories.mjs --audit-level=high --advisory
 
@@ -579,8 +555,8 @@ jobs:
       # a scan that silently passes when it is broken is how this gate rotted
       # into permanent red that everyone learned to ignore.
       - name: Dependency audit (critical severity · blocking)
+        if: ${{ !cancelled() }}
         run: node scripts/audit-advisories.mjs --audit-level=critical
-
 
   railway-smoke:
     needs: [changes, node]
@@ -655,8 +631,11 @@ jobs:
   # not configured (SLACK_WEBHOOK_URL unset), yet it billed a full minute on every PR push. Each job's own
   # result already shows in the PR checks list. On a push to main it still runs, so the summary and the
   # (armed-later) Slack message are unchanged there. Guarded by scripts/agent-os/workflowCostGuards.test.mjs.
+  #
+  # (d) 2026-10-16 · the `security` job is gone: its two audit steps are the last steps of `node`, so
+  # needs.node.result carries the dependency gate and the summary and Slack loop below no longer list it.
   notify:
-    needs: [changes, node, security, railway-smoke]
+    needs: [changes, node, railway-smoke]
     if: ${{ always() && github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     steps:
@@ -672,7 +651,6 @@ jobs:
           **Job Results:**
           - Node Job: \`${{ needs.node.result }}\`
           - Smoke Tests: \`${{ needs.railway-smoke.result }}\`
-          - Security (advisories): \`${{ needs.security.result }}\`
           EOF
 
       # 2026-08-23 · this reported "Status: SUCCESS" whenever `node` was not a
@@ -695,13 +673,12 @@ jobs:
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           NODE_RESULT: ${{ needs.node.result }}
-          SECURITY_RESULT: ${{ needs.security.result }}
           SMOKE_RESULT: ${{ needs.railway-smoke.result }}
         run: |
           if [[ -n "${SLACK_WEBHOOK_URL:-}" ]]; then
             status="SUCCESS"
             failed=""
-            for job in node:"$NODE_RESULT" security:"$SECURITY_RESULT" smoke:"$SMOKE_RESULT"; do
+            for job in node:"$NODE_RESULT" smoke:"$SMOKE_RESULT"; do
               name="${job%%:*}"
               result="${job#*:}"
               # `skipped` and `success` are both fine; anything else is not.
