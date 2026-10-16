@@ -36,6 +36,13 @@ const SAVED_TURN_READ_TIMEOUT_MS = 12_000;
 /** What the saved-turn check decided: replay, say nothing (the operator moved on), or hold with this message. */
 type SavedTurnCheck = { kind: "go"; rows: readonly SavedRow[] | null } | { kind: "stale" } | { kind: "hold"; message: string };
 
+/** Which conversation a send belongs to: the active one, or "private" in Private Lab. */
+const conversationKeyOf = (privateMode: boolean) => (privateMode ? "private" : useChatUiStore.getState().activeConversationId);
+
+/** True when `now` is `before` with its tail cut (what regenerate() leaves), not some other thread. */
+const isTailCutOf = (now: readonly ChatUIMessage[], before: readonly ChatUIMessage[]) =>
+  now.length < before.length && now.every((m, i) => m.id === before[i].id);
+
 const PAGE_ANCHOR_KEYS = [
   "lastTaskId",
   "lastGoalId",
@@ -81,9 +88,14 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
   // and an error is set, Retry and the auto retry are judged from the saved turn instead of replaying
   // blind, whatever the trace in hand is. An explicit record, not a trace comparison: a comparison
   // was off whenever the trace in hand was null, or became null.
-  // Cleared by a new send, by opening another conversation when nothing is in flight, and by a response
-  // that carries a trace header other than `from`.
+  // Cleared by a new send, by opening another conversation when nothing is in flight, by a response that
+  // carries a trace header other than `from`, and by the server refusing the replay (X-Turn-Refusal).
   const replayOutstandingRef = useRef<{ from: string | null } | null>(null);
+  // The messages on screen when the latest replay started, and the conversation they belong to, for
+  // putting back what regenerate() removes. Dropped by resetTurn even with a request in flight.
+  const replaySnapshotRef = useRef<{ conversation: string | null; messages: ChatUIMessage[] } | null>(null);
+  // The server refused the replay: the restore waits for the status to settle (see the effect below).
+  const turnRefusedRef = useRef(false);
   const [liveContextBlocks, setLiveContextBlocks] = useState<ContextBlocks | null>(null);
   const [lastTraceId, setLastTraceId] = useState<string | null>(null);
   const lastPersonaHeaderRef = useRef(null);
@@ -242,6 +254,15 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
     ),
     onResumePartial,
     onResumeEmpty,
+    // 2026-10-15 · the server refused the send on purpose (turn guard). That is an explicit answer: the
+    // replay was received, so it is no longer outstanding even when the refusal names the very trace
+    // already held (onTraceId only clears on a DIFFERENT one). Every code counts the same, so the payload
+    // is unused: the next tap asks the server again. This runs before the SDK sets the error, so the
+    // reply regenerate() removed is put back by the effect below once the status settles.
+    onTurnRefused: useCallback(() => {
+      replayOutstandingRef.current = null;
+      turnRefusedRef.current = true;
+    }, []),
     // 2026-08-28 · make escalation legible. The operator explicitly asked
     // for depth on this turn, so telling them what happened is expected
     // feedback, not noise — and a REFUSED escalation that says nothing is
@@ -446,6 +467,8 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
         // replay whose attempt is running unseen: acknowledge what the hydrated messages carry.
         for (const trace of latestTurnTraces(messagesRef.current as unknown as SavedRow[])) acknowledgedTracesRef.current.add(trace);
         traceAtSendRef.current = lastTraceIdRef.current;
+        replaySnapshotRef.current = { conversation: conversationKeyOf(privateModeRef.current), messages: messagesRef.current };
+        turnRefusedRef.current = false;
         return chat.regenerate(options);
       };
       // A stream error is not the end of the turn: ai@6 keeps going after an error
@@ -508,6 +531,18 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
     setMessages((messages) => bindPersistedMessage(messages, persisted));
     setStopped((s) => (s && s.messageId === boundId ? { ...s, messageId: persisted.id } : s));
   }, [isStreaming, setMessages]);
+
+  // Put back the reply regenerate() removed when the server refused the replay. Only once the status has
+  // settled: restored while still 'submitted' it reads as a streaming reply and read-aloud speaks it again.
+  // Only into the thread the replay started in: another conversation's screen is never written over.
+  useEffect(() => {
+    if (chat.status !== "error" || !turnRefusedRef.current) return;
+    turnRefusedRef.current = false;
+    const snapshot = replaySnapshotRef.current;
+    replaySnapshotRef.current = null;
+    if (!snapshot || snapshot.conversation !== conversationKeyOf(privateModeRef.current)) return;
+    setMessages((now) => (isTailCutOf(now, snapshot.messages) ? snapshot.messages : now));
+  }, [chat.status, setMessages]);
 
   // 04-F6 / 09-F29 · operator Stop: the server hears it first, the bubble is
   // marked at once, and the label settles when the DELETE answers.
@@ -674,6 +709,7 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
     retryCountRef.current = 0;
     setStopped(null);
     clearError();
+    replaySnapshotRef.current = null;
     if (requestInFlight) return;
     sentPrivateRef.current = false;
     traceAtSendRef.current = null;
@@ -692,6 +728,7 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
       sentPrivateRef.current = privateMode;
       resumingRef.current = false;
       replayOutstandingRef.current = null;
+      replaySnapshotRef.current = null;
       acknowledgedTracesRef.current.clear();
       traceAtSendRef.current = lastTraceIdRef.current;
       cancelPartialResume();
@@ -715,6 +752,7 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
       sentPrivateRef.current = privateMode;
       resumingRef.current = false;
       replayOutstandingRef.current = null;
+      replaySnapshotRef.current = null;
       acknowledgedTracesRef.current.clear();
       traceAtSendRef.current = lastTraceIdRef.current;
       cancelPartialResume();
