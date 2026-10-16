@@ -91,20 +91,38 @@ def collect_skills():
     return out
 
 
+def long_path(p):
+    """Windows caps a path at 260 chars unless it carries the extended-length prefix. Harness worktree
+    transcripts (projects/C--Users-...-Temp-claude-...-workspac-xxxx/<uuid>.jsonl) go past it; the
+    2026-10-16 run died there in scan_usage with FileNotFoundError."""
+    if os.name == "nt" and len(p) >= 248 and not p.startswith("\\\\?\\"):
+        return "\\\\?\\" + os.path.abspath(p)
+    return p
+
+
 def scan_usage(cutoff=None):
-    """Count Skill tool_use, slash commands, and MCP calls."""
+    """Count Skill tool_use, slash commands, and MCP calls. Returns the skipped-file count too."""
     skill, slash, mcp = collections.Counter(), collections.Counter(), collections.Counter()
-    files = 0
+    files = skipped = 0
     for dp, dn, fn in os.walk(TRANSCRIPTS):
         for f in fn:
             if not f.endswith(".jsonl"):
                 continue
             fp = os.path.join(dp, f)
-            if cutoff and datetime.datetime.fromtimestamp(os.path.getmtime(fp)) < cutoff:
+            try:
+                mtime = os.path.getmtime(fp)
+            except OSError:
+                try:
+                    fp = long_path(fp)
+                    mtime = os.path.getmtime(fp)
+                except OSError:
+                    skipped += 1
+                    continue
+            if cutoff and datetime.datetime.fromtimestamp(mtime) < cutoff:
                 continue
             files += 1
             try:
-                for line in open(fp, encoding="utf-8", errors="replace"):
+                for line in open(long_path(fp), encoding="utf-8", errors="replace"):
                     if "<command-name>" in line:
                         for m in SLASH_RE.finditer(line):
                             slash[m.group(1).split(":")[-1]] += 1
@@ -128,8 +146,10 @@ def scan_usage(cutoff=None):
                             if isinstance(s, str) and s.strip():
                                 skill[s.strip().split(":")[-1]] += 1
             except OSError:
+                files -= 1
+                skipped += 1
                 continue
-    return skill, slash, mcp, files
+    return skill, slash, mcp, files, skipped
 
 
 def main():
@@ -139,7 +159,7 @@ def main():
     cutoff = (datetime.datetime.now() - datetime.timedelta(days=days)) if days else None
 
     skills = collect_skills()
-    sk, sl, mcp, files = scan_usage(cutoff)
+    sk, sl, mcp, files, skipped = scan_usage(cutoff)
 
     # BUG 1: counting only Skill tool_use under-reports. A slash invocation IS a use --
     # the first pass nearly archived social-post-writer-seo (/social-post-writer-seo x2).
@@ -160,6 +180,7 @@ def main():
     print(f"SKILL FIRE AUDIT{'  (last %d days)' % days if days else ''}")
     print("=" * 78)
     print(f"  transcripts scanned : {files}")
+    print(f"  transcripts skipped : {skipped}  (unreadable even with the long-path prefix)")
     print(f"  SKILL.md files      : {len(skills)}")
     print(f"  distinct names      : {total_names}")
     print(f"  ever fired          : {len(live)}  ({100*len(live)/max(1,total_names):.1f}%)")
@@ -221,7 +242,8 @@ def main():
     if "--json" in sys.argv:
         out = sys.argv[sys.argv.index("--json") + 1]
         json.dump({"skills": skills, "fired": dict(fired), "mcp": dict(mcp),
-                   "live": sorted(live), "weak_triggers": weak},
+                   "live": sorted(live), "weak_triggers": weak,
+                   "transcripts": files, "skipped": skipped},
                   open(out, "w", encoding="utf-8"), indent=1)
         print(f"\n  wrote {out}")
 
