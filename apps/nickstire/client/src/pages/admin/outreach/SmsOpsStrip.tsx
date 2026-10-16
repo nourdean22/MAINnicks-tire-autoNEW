@@ -177,7 +177,7 @@ export default function SmsOpsStrip() {
           <div className="mt-1.5 grid gap-0.5">
             {data.suppressions7d.map((s, i) => (
               <div key={i} className="text-[10px] font-mono text-foreground/70">
-                {s.count}× {s.status}{s.statusReason ? ` — ${s.statusReason}` : ""}
+                {s.count}× {s.status}{s.statusReason ? `: ${s.statusReason}` : ""}
               </div>
             ))}
           </div>

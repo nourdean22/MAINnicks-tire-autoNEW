@@ -532,7 +532,7 @@ function WorkOrderDrawer({ id, onClose }: { id: string; onClose: () => void }) {
                     <ArrowRight className="w-2.5 h-2.5 text-foreground/20" />
                     <span className={STATUS_COLORS[t.toStatus] || ""}>{STATUS_LABELS[t.toStatus] || t.toStatus}</span>
                     {t.changedBy && <span className="text-foreground/30">by {t.changedBy}</span>}
-                    {t.note && <span className="text-foreground/20 truncate">— {t.note}</span>}
+                    {t.note && <span className="text-foreground/20 truncate">· {t.note}</span>}
                   </div>
                 ))}
               </div>

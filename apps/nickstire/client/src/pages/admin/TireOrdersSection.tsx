@@ -459,7 +459,7 @@ export default function TireOrdersSection() {
                     <div className="flex items-center gap-2 text-sm">
                       <span className="font-semibold text-foreground/80">Next Action:</span>
                       <span className="text-primary font-extrabold">{nextAction.label}</span>
-                      <span className="text-muted-foreground/95">— {nextAction.reason}</span>
+                      <span className="text-muted-foreground/95">· {nextAction.reason}</span>
                     </div>
 
                     {flags.length > 0 && (

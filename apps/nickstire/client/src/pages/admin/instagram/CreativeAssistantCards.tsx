@@ -117,7 +117,7 @@ export function CreativeAssistantCards({ onNavigate }: { onNavigate: (view: IgVi
                   </ul>
                   <p className="mt-2 text-xs">
                     <span className={`font-semibold ${CONFIDENCE_CLASS[card.confidence]}`}>{card.confidence} confidence</span>
-                    <span className="text-muted-foreground"> — {card.confidenceReason}</span>
+                    <span className="text-muted-foreground"> · {card.confidenceReason}</span>
                   </p>
                   <Button
                     size="sm"

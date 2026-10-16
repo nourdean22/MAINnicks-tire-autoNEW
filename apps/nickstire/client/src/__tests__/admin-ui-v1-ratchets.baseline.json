@@ -1,7 +1,7 @@
 {
   "totals": {
     "uppercase": 4,
-    "emDash": 163,
+    "emDash": 154,
     "emoji": 0,
     "transitionAll": 74,
     "slowDuration": 7,
@@ -72,7 +72,6 @@
       "smallInput": 2
     },
     "client/src/pages/admin/OpsHubSection.tsx": {
-      "emDash": 1,
       "offPalette": 6
     },
     "client/src/pages/admin/OverviewSection.tsx": {
@@ -91,13 +90,13 @@
       "smallInput": 9
     },
     "client/src/pages/admin/TireOrdersSection.tsx": {
-      "emDash": 7,
+      "emDash": 6,
       "transitionAll": 3,
       "smallInput": 7,
       "offPalette": 5
     },
     "client/src/pages/admin/TrafficFunnelSection.tsx": {
-      "emDash": 8,
+      "emDash": 7,
       "transitionAll": 5,
       "slowDuration": 3
     },
@@ -152,9 +151,6 @@
     "client/src/pages/admin/instagram/ActionCenter.tsx": {
       "emDash": 1,
       "smallInput": 1
-    },
-    "client/src/pages/admin/instagram/CreativeAssistantCards.tsx": {
-      "emDash": 1
     },
     "client/src/pages/admin/instagram/Inbox.tsx": {
       "smallInput": 1,
@@ -244,7 +240,7 @@
       "offPalette": 3
     },
     "client/src/pages/admin/money/WorkOrdersSection.tsx": {
-      "emDash": 8,
+      "emDash": 7,
       "transitionAll": 3,
       "smallInput": 3,
       "offPalette": 1
@@ -257,15 +253,14 @@
       "emDash": 3
     },
     "client/src/pages/admin/outreach/ReviewRequestsSection.tsx": {
-      "emDash": 11,
+      "emDash": 9,
       "transitionAll": 3,
       "smallInput": 7
     },
     "client/src/pages/admin/outreach/SmsOpsStrip.tsx": {
-      "emDash": 4
+      "emDash": 3
     },
     "client/src/pages/admin/outreach/SmsOrchestratorSection.tsx": {
-      "emDash": 1,
       "transitionAll": 10,
       "smallInput": 4,
       "offPalette": 3

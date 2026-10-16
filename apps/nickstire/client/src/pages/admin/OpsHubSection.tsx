@@ -93,7 +93,7 @@ export default function OpsHubSection() {
             <div key={r.path} className="bg-card border border-border/30 rounded p-3 flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="text-xs font-semibold text-foreground">{r.title}</div>
-                <div className="text-[10px] text-muted-foreground">{r.category}{r.note ? ` — ${r.note}` : ""}</div>
+                <div className="text-[10px] text-muted-foreground">{r.category}{r.note ? ` · ${r.note}` : ""}</div>
                 <code className="text-[10px] text-foreground/40 break-all">{r.path}</code>
               </div>
             </div>

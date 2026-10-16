@@ -181,7 +181,7 @@ export default function SmsOrchestratorSection() {
           <strong>{needsReply.humanPending}</strong> customer{needsReply.humanPending === 1 ? "" : "s"} waiting on a human reply
           {needsReply.overdue > 0 && <> · <strong>{needsReply.overdue}</strong> past the 30-min SLA</>}
           {needsReply.oldestWaitingMinutes != null && <> · oldest waiting {needsReply.oldestWaitingMinutes}m</>}
-          {" — "}answer from the review queue below or the conversation thread.
+          {": "}answer from the review queue below or the conversation thread.
         </div>
       ) : null}
       <div className="flex items-start justify-between gap-4">

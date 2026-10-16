@@ -816,7 +816,7 @@ function ProofBankPanel() {
                   "{googleData.reviews[0].text.length > 220 ? `${googleData.reviews[0].text.slice(0, 220)}…` : googleData.reviews[0].text}"
                 </p>
                 <div className="text-[11px] text-muted-foreground mt-1">
-                  — {googleData.reviews[0].authorName} · {"★".repeat(Math.max(0, Math.min(5, Math.round(googleData.reviews[0].rating))))} · {googleData.reviews[0].relativeTime}
+                  {googleData.reviews[0].authorName} · {"★".repeat(Math.max(0, Math.min(5, Math.round(googleData.reviews[0].rating))))} · {googleData.reviews[0].relativeTime}
                 </div>
               </div>
             )}
@@ -918,7 +918,7 @@ function ProofBankPanel() {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-foreground leading-relaxed italic">"{quote.text}"</p>
                   <div className="flex items-center gap-2 mt-2 flex-wrap">
-                    <span className="text-[12px] font-medium text-foreground/70">— {quote.author}</span>
+                    <span className="text-[12px] font-medium text-foreground/70">{quote.author}</span>
                     {quote.badge && (
                       <span className="text-[9px] font-semibold tracking-wider px-1.5 py-0.5 rounded bg-primary/10 text-primary">
                         {quote.badge}

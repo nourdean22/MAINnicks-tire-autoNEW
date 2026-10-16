@@ -963,7 +963,7 @@ function GscAuditPanel({ range }: { range: Range }) {
                   <div className="space-y-1 text-[11px] font-mono">
                     {data.cannibalization.slice(0, 5).map((c: { query: string; pages: { page: string; position: number }[] }, i: number) => (
                       <div key={i} className="py-1 border-b border-border/5 last:border-0">
-                        <div className="text-foreground/70 mb-0.5">{c.query} <span className="text-foreground/30">— {c.pages.length} pages</span></div>
+                        <div className="text-foreground/70 mb-0.5">{c.query} <span className="text-foreground/30">· {c.pages.length} pages</span></div>
                         <div className="text-foreground/40 pl-3 text-[10px] leading-snug">
                           {c.pages.slice(0, 3).map((p, j: number) => (
                             <div key={j}>{p.page} (pos {p.position?.toFixed(1) ?? "—"})</div>
