@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "statenour/brain-w1-arbiter",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "84e1132c-8e9d-46ae-bcda-005ee74abc7c",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\fewer-permission-prompts-269694",
+  "claimedBy": "2026-10-16-brain-w1",
+  "claimedAt": "2026-10-16T15:47:39.139Z",
+  "expiresAt": "2026-10-17T03:47:39.139Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
