@@ -1583,7 +1583,10 @@ p.body-pretty {
    Scoped to .admin-shell, so the customer site (plain :root) keeps its
    gold/black. No attribute and no toggle: this is the default. The sidebar
    is listed too because it is the one admin surface that renders fixed
-   over the page on phones. Works because @theme is `inline` (utilities
+   over the page on phones. body:has(.admin-shell) carries the same tokens
+   to what portals out of the shell while the admin is mounted (Radix
+   popovers and dialogs, the sonner Toaster); iOS Safari has :has since
+   15.4, and the public site never mounts .admin-shell, so it is untouched. Works because @theme is `inline` (utilities
    resolve var() at runtime). Semantic signal colours (emerald/red/amber,
    the --data-* tokens) survive; they read better on calm graphite.
    --owner-priority is the one gold: the Approvals pending badge (bar and
@@ -1592,7 +1595,8 @@ p.body-pretty {
    6.08:1, on #15171A 5.58:1, on #1A1D21 5.26:1 (AA 4.5:1 passes).
    =================================================================== */
 .admin-shell,
-.admin-shell .admin-sidebar {
+.admin-shell .admin-sidebar,
+body:has(.admin-shell) {
   --background: #0B0C0E;
   --foreground: #E6E8EB;
   --card: #15171A;

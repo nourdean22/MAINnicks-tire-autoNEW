@@ -776,7 +776,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer, allowedSections }:
         onClick={() => setOpen(true)}
         title="Search (⌘K)"
         aria-label="Search"
-        className="inline-flex items-center justify-center gap-2 h-11 min-w-11 px-2.5 lg:px-3 text-muted-foreground hover:text-foreground hover:bg-foreground/5 rounded-md transition-colors"
+        className="inline-flex items-center justify-center gap-2 h-12 min-w-12 px-2.5 lg:px-3 text-muted-foreground hover:text-foreground hover:bg-foreground/5 rounded-md transition-colors"
       >
         <Search className="w-4 h-4" />
         <kbd className="hidden lg:inline-flex items-center px-1.5 py-0.5 text-[10px] font-mono text-foreground/40 border border-border/40 rounded">

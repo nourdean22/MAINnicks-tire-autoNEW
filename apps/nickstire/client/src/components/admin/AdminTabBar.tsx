@@ -51,7 +51,7 @@ export function AdminTabBar({ role, active, signals, onNavigate, onSearch }: {
   onNavigate: (section: AdminSection) => void;
   onSearch: () => void;
 }) {
-  const slot = "flex-1 min-w-0 min-h-11 flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium leading-tight transition-colors duration-100";
+  const slot = "flex-1 min-w-0 min-h-12 flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium leading-tight transition-colors duration-100";
   return (
     <nav
       aria-label="Primary sections"

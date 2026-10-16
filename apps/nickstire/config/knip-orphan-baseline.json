@@ -4,17 +4,12 @@
     {
       "file": "apps/nickstire/client/src/components/CountUpNumber.tsx",
       "symbol": null,
-      "reason": "Admin UI v1 W1 (job 2026-10-16-nick-admin-ui-v1) removed the admin StatCard's 900 ms count-up (a figure the crew reads many times a day starts at 0 for most of a second), which was the last importer. The file sits outside the admin client lane's owned paths (client/src/components, shared with the public site), so the lane could not delete it; the manager or a public-site lane should delete it or wire it."
+      "reason": "Admin UI v1 W1 (job 2026-10-16-nick-admin-ui-v1) removed the admin StatCard's 900 ms count-up (a figure the crew reads many times a day starts at 0 for most of a second), which was the last live importer. Its one remaining importer is pages/HomeLegacy.tsx, the public home page kept as a rollback copy (itself baselined as an orphan), so this is not deleted: delete it together with HomeLegacy, or keep it while the rollback is kept."
     },
     {
       "file": "apps/nickstire/client/src/hooks/useCountUp.ts",
       "symbol": null,
-      "reason": "Admin UI v1 W1 (job 2026-10-16-nick-admin-ui-v1) removed the admin StatCard's 900 ms count-up (a figure the crew reads many times a day starts at 0 for most of a second), which was the last importer. Only CountUpNumber.tsx imported this hook; same ownership note, delete together with it."
-    },
-    {
-      "file": "apps/nickstire/client/src/contexts/ThemeContext.tsx",
-      "symbol": "useTheme",
-      "reason": "Admin UI v1 W1 deleted components/admin/ThemeToggle.tsx, the only useTheme consumer: graphite tokens on .admin-shell made the toggle a no-op that could only switch off dark: variants. ThemeProvider (App.tsx) still mounts and sets the class; useTheme is kept until the public site decides whether it wants a theme switch. Outside the admin lane's owned paths."
+      "reason": "Admin UI v1 W1 (job 2026-10-16-nick-admin-ui-v1) removed the admin StatCard's 900 ms count-up (a figure the crew reads many times a day starts at 0 for most of a second), which was the last live importer. Only CountUpNumber.tsx imports this hook; it goes when CountUpNumber goes (see that entry: HomeLegacy rollback)."
     },
     {
       "file": "apps/nickstire/server/routers/instagramAdmin.ts",

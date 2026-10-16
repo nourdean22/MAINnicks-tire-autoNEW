@@ -23,8 +23,10 @@ function ruleBody(selector: RegExp): string | null {
 describe("graphite is the admin default", () => {
   it("the neutral tokens apply to .admin-shell itself, with no attribute gate left", () => {
     expect(css).not.toContain("data-admin-theme");
-    const body = ruleBody(/^\.admin-shell\s*,\s*\.admin-shell \.admin-sidebar$/);
-    expect(body, "a `.admin-shell, .admin-shell .admin-sidebar` token block").not.toBeNull();
+    // body:has(.admin-shell) carries the tokens to portals (Radix popovers, dialogs, the sonner
+    // Toaster) that render outside the shell while the admin is mounted.
+    const body = ruleBody(/^\.admin-shell\s*,\s*\.admin-shell \.admin-sidebar\s*,\s*body:has\(\.admin-shell\)$/);
+    expect(body, "a `.admin-shell, .admin-shell .admin-sidebar, body:has(.admin-shell)` token block").not.toBeNull();
     expect(body).toMatch(/--background:\s*#0B0C0E/i);
     expect(body).toMatch(/--card:\s*#15171A/i);
     expect(body).toMatch(/--primary:\s*#FAFAFA/i);
@@ -58,20 +60,27 @@ describe("decoration the cockpit genome forbids is gone", () => {
   });
 });
 
-describe("44 px targets in the shell", () => {
-  it("the hamburger and every topbar action are h-11 w-11", () => {
+describe("48 px targets in the shell", () => {
+  it("the topbar search trigger and density toggle are 48 px too (they live in their own files)", () => {
+    const search = readFileSync(join(ROOT, "client/src/components/admin/CommandSearch.tsx"), "utf8");
+    const density = readFileSync(join(ROOT, "client/src/components/admin/DensityToggle.tsx"), "utf8");
+    const trigger = search.slice(search.lastIndexOf("<button", search.indexOf('aria-label="Search"')), search.indexOf('aria-label="Search"') + 400);
+    expect(trigger).toMatch(/\bh-12 min-w-12\b/);
+    expect(density).toMatch(/\bw-12 h-12\b/);
+  });
+  it("the hamburger and every topbar action are w-12 h-12 (48 px, the repo floor)", () => {
     const header = admin.slice(admin.indexOf("<header"), admin.indexOf("</header>"));
     expect(header).toMatch(/aria-label="Open sidebar"/);
-    const sized = header.match(/w-11 h-11/g) ?? [];
+    const sized = header.match(/w-12 h-12/g) ?? [];
     // hamburger + the topbar action links (one template literal renders all of them)
     expect(sized.length).toBeGreaterThanOrEqual(2);
     expect(header).not.toMatch(/\bw-9 h-9\b/);
   });
-  it("the sidebar close button and every sidebar item are min-h-11", () => {
+  it("the sidebar close button and every sidebar item are min-h-12", () => {
     expect(admin).toMatch(/aria-label="Close sidebar"/);
     const close = admin.slice(admin.lastIndexOf("<button", admin.indexOf('aria-label="Close sidebar"')), admin.indexOf('aria-label="Close sidebar"'));
-    expect(close).toMatch(/min-h-11/);
-    expect(admin).toMatch(/admin-sidebar-item w-full min-h-11/);
+    expect(close).toMatch(/min-h-12/);
+    expect(admin).toMatch(/admin-sidebar-item w-full min-h-12/);
   });
 });
 

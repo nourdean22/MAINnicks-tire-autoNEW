@@ -102,9 +102,9 @@ describe("AdminTabBar behaviour", () => {
     expect(onNavigate).toHaveBeenCalledTimes(1);
   });
 
-  it("every slot is at least 44 px tall and the bar reserves the safe area", () => {
+  it("every slot is at least 48 px tall (repo floor, AGENTS.md section 6) and the bar reserves the safe area", () => {
     renderBar("owner");
-    for (const b of within(bar()).getAllByRole("button")) expect(b.className).toMatch(/(^|\s)min-h-11(\s|$)/);
+    for (const b of within(bar()).getAllByRole("button")) expect(b.className).toMatch(/(^|\s)min-h-12(\s|$)/);
     expect(bar().className).toMatch(/(^|\s)lg:hidden(\s|$)/);
     // jsdom drops env() from inline styles and computes no CSS, so the Tailwind tokens are the receipt.
     expect(bar().className).toMatch(/(^|\s)h-\[calc\(56px\+env\(safe-area-inset-bottom,0px\)\)\](\s|$)/);
