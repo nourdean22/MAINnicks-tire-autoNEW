@@ -29,7 +29,7 @@ export function WinBackButton({ customerId, firstName, phone }: {
     e.stopPropagation();
     const ok = await confirmDialog({
       title: `Win back ${name}?`,
-      message: `Sends ONE re-engagement text to ${phone} — a free safety-inspection offer. Real SMS · opt-out honored.`,
+      message: `Sends ONE re-engagement text to ${phone} · a free safety-inspection offer. Real SMS · opt-out honored.`,
       confirmLabel: "Send text",
       cancelLabel: "Cancel",
       tone: "default",
@@ -37,7 +37,7 @@ export function WinBackButton({ customerId, firstName, phone }: {
     if (!ok) return;
     mutation.mutate({
       customerId,
-      message: `Hi ${name}, it's Nick's Tire & Auto — been a while! Come in for a FREE safety inspection, no charge, no appointment needed. (216) 862-0005. Reply STOP to opt out.`,
+      message: `Hi ${name}, it's Nick's Tire & Auto: been a while! Come in for a FREE safety inspection, no charge, no appointment needed. (216) 862-0005. Reply STOP to opt out.`,
     });
   };
 

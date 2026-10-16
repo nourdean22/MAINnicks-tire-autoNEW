@@ -35,11 +35,11 @@ export const PRESETS: Array<Omit<LineItem, "id">> = [
   // Oil is a flat-rate service: the advertised price ($49 conv/blend, $80 full synthetic — shared/pricing.ts)
   // is all-in for parts + labor, so NO separate labor bundle. partsCost x markup lands the pre-tax line on
   // the advertised number exactly; Ohio tax (parts-only) still shows separately, as on a real receipt.
-  { description: `Oil Change (conventional/blend 5qt) — starting at $${OIL_PRICE.conventional}`, partsCostCents: (OIL_PRICE.conventional * 100) / 2, partsMarkup: 2.0, laborHours: 0 },
-  { description: `Oil Change (full synthetic 5qt) — starting at $${OIL_PRICE.fullSynthetic}`,     partsCostCents: (OIL_PRICE.fullSynthetic * 100) / 2, partsMarkup: 2.0, laborHours: 0 },
+  { description: `Oil Change (conventional/blend 5qt): starting at $${OIL_PRICE.conventional}`, partsCostCents: (OIL_PRICE.conventional * 100) / 2, partsMarkup: 2.0, laborHours: 0 },
+  { description: `Oil Change (full synthetic 5qt): starting at $${OIL_PRICE.fullSynthetic}`,     partsCostCents: (OIL_PRICE.fullSynthetic * 100) / 2, partsMarkup: 2.0, laborHours: 0 },
   { description: "Used Tire ($60 each, mount+balance)", partsCostCents: 2500, partsMarkup: 2.4, laborHours: 0 },
-  { description: "Brake Pads — Front Axle",        partsCostCents: 3500, partsMarkup: 2.2, laborHours: 1.5 },
-  { description: "Brake Pads + Rotors — Front",    partsCostCents: 9500, partsMarkup: 1.9, laborHours: 2.0 },
+  { description: "Brake Pads: Front Axle",        partsCostCents: 3500, partsMarkup: 2.2, laborHours: 1.5 },
+  { description: "Brake Pads + Rotors: Front",    partsCostCents: 9500, partsMarkup: 1.9, laborHours: 2.0 },
   { description: "Wheel Alignment (4-wheel)",      partsCostCents: 0,    partsMarkup: 1,   laborHours: 1.0 },
   { description: "Battery (standard)",             partsCostCents: 7000, partsMarkup: 1.8, laborHours: 0.3 },
   { description: "Diagnostic Scan",                partsCostCents: 0,    partsMarkup: 1,   laborHours: 1.0 },
@@ -245,7 +245,7 @@ export default function WalkInCalculatorSection() {
           </button>
         </div>
         <div className="mt-3 p-3 border border-yellow-500/30 bg-yellow-500/5 text-yellow-600 dark:text-yellow-400 text-xs rounded">
-          ⚠️ Note: Oil change presets include base conventional/synthetic oil changes (up to 5 quarts). Extra oil, specialized filters, disposal fees, and Ohio sales tax apply separately. Do NOT add separate labor hours for oil changes or tire flat-rate presets.
+          Note: Oil change presets include base conventional/synthetic oil changes (up to 5 quarts). Extra oil, specialized filters, disposal fees, and Ohio sales tax apply separately. Do NOT add separate labor hours for oil changes or tire flat-rate presets.
         </div>
       </div>
 
@@ -372,7 +372,7 @@ export default function WalkInCalculatorSection() {
                 (line.description.toLowerCase().includes("oil change") ||
                  line.description.toLowerCase().includes("used tire")) && (
                   <div className="mt-2 text-[10px] font-bold text-red-400 flex items-center gap-1 bg-red-500/5 border border-red-500/20 p-2 rounded">
-                    ⚠️ Flat-rate item: Adding labor hours will double-charge labor!
+                    Flat-rate item: Adding labor hours will double-charge labor!
                   </div>
                 )}
             </div>

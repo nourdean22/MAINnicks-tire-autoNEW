@@ -139,7 +139,7 @@ export default function PatternLab({ onNavigate }: { onNavigate?: (view: IgView)
       <div>
         <h3 className="flex items-center gap-2 text-xl font-medium"><FlaskConical className="h-5 w-5" /> Pattern Lab</h3>
         <p className="text-sm text-muted-foreground">
-          Capture the STRUCTURE of a winning reel — hook, pacing, captions, loop — then adapt it into a Nick's-truth concept.
+          Capture the STRUCTURE of a winning reel, hook, pacing, captions, loop, then adapt it into a Nick's-truth concept.
           Never copied: {PATTERN_DO_NOT_COPY.join(" · ")}.
         </p>
       </div>
@@ -147,7 +147,7 @@ export default function PatternLab({ onNavigate }: { onNavigate?: (view: IgView)
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Capture a reference pattern</CardTitle>
-          <CardDescription>Manual by design — describe what you SAW; the system never fetches or scrapes the reference.</CardDescription>
+          <CardDescription>Manual by design: describe what you SAW; the system never fetches or scrapes the reference.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-3 md:grid-cols-2">
@@ -213,7 +213,7 @@ export default function PatternLab({ onNavigate }: { onNavigate?: (view: IgView)
               {label("Voiceover?")}
               <button type="button" onClick={() => set("voiceover", !form.voiceover)}
                 className={`min-h-11 w-full rounded border px-2 text-xs transition ${form.voiceover ? "border-primary bg-primary/10" : "border-border/70 text-muted-foreground"}`}>
-                {form.voiceover ? "Yes — close, dry VO" : "No — captions carry it"}
+                {form.voiceover ? "Yes: close, dry VO" : "No: captions carry it"}
               </button>
             </div>
           </div>
@@ -224,12 +224,12 @@ export default function PatternLab({ onNavigate }: { onNavigate?: (view: IgView)
           </div>
 
           <div className="grid gap-3 md:grid-cols-2">
-            <div className="space-y-1">{label("Share trigger — who sends this to whom?")}<Textarea value={form.shareTrigger} onChange={(e) => set("shareTrigger", e.target.value)} className="min-h-16" placeholder='"Send this to someone whose car pulls left"' /></div>
-            <div className="space-y-1">{label("Save trigger — why keep it?")}<Textarea value={form.saveTrigger} onChange={(e) => set("saveTrigger", e.target.value)} className="min-h-16" placeholder="one reusable mechanic truth worth remembering" /></div>
+            <div className="space-y-1">{label("Share trigger: who sends this to whom?")}<Textarea value={form.shareTrigger} onChange={(e) => set("shareTrigger", e.target.value)} className="min-h-16" placeholder='"Send this to someone whose car pulls left"' /></div>
+            <div className="space-y-1">{label("Save trigger: why keep it?")}<Textarea value={form.saveTrigger} onChange={(e) => set("saveTrigger", e.target.value)} className="min-h-16" placeholder="one reusable mechanic truth worth remembering" /></div>
           </div>
 
           <div className="space-y-1">
-            {label("Nick adaptation (required) — the Nick's-truth version of this idea")}
+            {label("Nick adaptation (required): the Nick's-truth version of this idea")}
             <Textarea value={form.nickAdaptation} onChange={(e) => set("nickAdaptation", e.target.value)} className="min-h-20"
               placeholder="e.g. Pothole gremlin steals a wheel weight; alignment lines bend; 'THE TIRE GETS BLAMED / BUT THE ALIGNMENT MOVED'; gremlin waits again (loop)." />
           </div>
@@ -249,7 +249,7 @@ export default function PatternLab({ onNavigate }: { onNavigate?: (view: IgView)
           <Card className="border-amber-500/40 bg-amber-500/5">
             <CardContent className="flex items-start gap-2 p-4 text-sm">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-              <span>Could not read the pattern store — this is <strong>unknown</strong>, not empty. {list.error?.message}</span>
+              <span>Could not read the pattern store: this is <strong>unknown</strong>, not empty. {list.error?.message}</span>
             </CardContent>
           </Card>
         ) : (list.data?.length ?? 0) === 0 ? (

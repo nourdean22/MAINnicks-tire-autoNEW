@@ -119,7 +119,7 @@ export default function VapiPanel() {
           {status?.errorKind === "outage" ? (
             <>
               <span className="text-amber-400 font-semibold">VAPI vendor outage.</span> Their API
-              is unreachable — this is on VAPI&apos;s side, not your key or config. The receptionist
+              is unreachable: this is on VAPI&apos;s side, not your key or config. The receptionist
               reconnects automatically once VAPI recovers; check{" "}
               <span className="font-mono">status.vapi.ai</span>.
               {status.error && <> <span className="font-mono text-foreground/40">({status.error})</span></>}
@@ -396,7 +396,7 @@ export default function VapiPanel() {
 
       {connected && callsData?.calls && callsData.calls.length === 0 && (
         <p className="text-[11px] text-foreground/40 italic">
-          No calls yet. The assistant goes live when Twilio is configured to forward unanswered calls to Vapi (one-time Twilio dashboard setup — ask vendor for SIP URL).
+          No calls yet. The assistant goes live when Twilio is configured to forward unanswered calls to Vapi (one-time Twilio dashboard setup: ask vendor for SIP URL).
         </p>
       )}
     </div>

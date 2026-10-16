@@ -27,7 +27,7 @@ function Card({ title, icon, children }: { title: string; icon: React.ReactNode;
 function Unknown({ what }: { what: string }) {
   return (
     <p className="flex items-center gap-2 text-xs text-amber-300">
-      <AlertTriangle className="h-3.5 w-3.5" /> {what} could not be read — unknown, not zero.
+      <AlertTriangle className="h-3.5 w-3.5" /> {what} could not be read: unknown, not zero.
     </p>
   );
 }
@@ -88,7 +88,7 @@ export default function MarketSection() {
               {str(s.source) === "gsc_official_no_dimension"
                 ? "Source: Google Search Console property total (official, includes anonymized queries)"
                 : str(s.source) === "stored_query_rows_partial"
-                  ? "Source: stored query rows — PARTIAL, anonymized queries are missing; not the property total"
+                  ? "Source: stored query rows, PARTIAL, anonymized queries are missing; not the property total"
                   : "Source: unknown"}
             </p>
           </dl>

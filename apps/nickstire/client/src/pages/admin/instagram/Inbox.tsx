@@ -159,7 +159,7 @@ export function Inbox({ onNavigate }: InboxProps) {
               // failed, the honest statement is that we could not look.
               <div className="flex flex-col items-center justify-center p-8 h-full text-center space-y-3">
                 <AlertTriangle className="h-6 w-6 text-amber-500" />
-                <p className="text-sm">Could not read the cached feed — this is <strong>unknown</strong>, not empty.</p>
+                <p className="text-sm">Could not read the cached feed: this is <strong>unknown</strong>, not empty.</p>
                 <p className="text-xs text-muted-foreground">{feedErrorDetail?.message}</p>
                 <Button size="sm" variant="outline" onClick={() => refetchFeed()}>Retry</Button>
               </div>
@@ -339,7 +339,7 @@ export function Inbox({ onNavigate }: InboxProps) {
                             <Button size="sm" variant="ghost" className="min-h-11 px-2 text-xs text-primary" onClick={() => {
                               writeCreateHandoff({
                                 sourceType: "customer_question",
-                                detail: `A customer asked on Instagram: "${comment.text.slice(0, 400)}" — answer it usefully for everyone who has the same question.`,
+                                detail: `A customer asked on Instagram: "${comment.text.slice(0, 400)}": answer it usefully for everyone who has the same question.`,
                                 objective: "education",
                               });
                               onNavigate("studio");

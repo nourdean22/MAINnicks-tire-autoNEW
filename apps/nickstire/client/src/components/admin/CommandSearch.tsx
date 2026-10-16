@@ -137,7 +137,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer, allowedSections }:
   const generateGbpMutation = trpc.contentAdmin.generateGBPPost.useMutation({
     onSuccess: (res) => {
       toast.success("GBP post generated", {
-        description: res?.archetype ? `Archetype: ${res.archetype} — ready to copy` : "Ready to paste into business.google.com",
+        description: res?.archetype ? `Archetype: ${res.archetype} · ready to copy` : "Ready to paste into business.google.com",
       });
     },
     onError: (err) => toast.error("GBP generation failed", { description: err.message }),
@@ -187,7 +187,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer, allowedSections }:
       keywords: ["revenue", "money", "today", "income", "sales", "invoice"],
       icon: <DollarSign className="w-4 h-4 text-green-500" />,
       group: "Drilldown",
-      run: () => openDrilldown({ kind: "revenue_today", title: "Revenue — Today" }),
+      run: () => openDrilldown({ kind: "revenue_today", title: "Revenue: Today" }),
     },
     {
       id: "drilldown-negative-reviews",

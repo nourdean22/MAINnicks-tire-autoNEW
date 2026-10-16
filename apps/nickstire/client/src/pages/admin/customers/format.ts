@@ -28,7 +28,7 @@ export type SortByExt = "name" | "visits" | "lastVisit" | "totalSpent" | "firstV
 // Returns "computed Xm ago" / "Xh ago" / "Xd ago" — short form for chip.
 export function formatMetricsAge(iso: string): string {
   const t = new Date(iso).getTime();
-  if (Number.isNaN(t)) return "computed —";
+  if (Number.isNaN(t)) return "computed";
   const sec = Math.max(0, Math.floor((Date.now() - t) / 1000));
   if (sec < 60) return `computed ${sec}s ago`;
   const min = Math.floor(sec / 60);

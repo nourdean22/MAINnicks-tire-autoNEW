@@ -59,7 +59,7 @@ export function FinancingAttribution() {
 
       {isError ? (
         <p className="text-[12px] text-amber-500 py-2">
-          Could not read financing clicks — unknown, not zero. {error?.message}
+          Could not read financing clicks: unknown, not zero. {error?.message}
         </p>
       ) : isLoading ? (
         <div className="flex items-center gap-2 text-[12px] text-foreground/40 py-4">

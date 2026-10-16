@@ -75,7 +75,7 @@ export function TopMoneyMoves() {
     return (
       <div className="text-xs text-amber-300/80 flex items-center gap-2">
         <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-        Could not load money moves — read failed, not "nothing to do".
+        Could not load money moves: read failed, not "nothing to do".
       </div>
     );
   }

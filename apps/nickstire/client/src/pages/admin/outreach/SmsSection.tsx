@@ -60,7 +60,7 @@ function TemplateChipRow({
           onClick={() => onInsert(renderSmsTemplate(t.body, ctx))}
           title={t.description}
           className="shrink-0 text-[11px] font-medium px-2.5 py-1 rounded-full bg-foreground/[0.04] hover:bg-foreground/[0.08] border border-border/30 text-foreground/80 hover:text-foreground transition-colors min-h-[28px]"
-          aria-label={`Insert template: ${t.label} — ${t.description}`}
+          aria-label={`Insert template: ${t.label} · ${t.description}`}
         >
           {t.label}
         </button>
@@ -301,10 +301,10 @@ export function ThreadView({
       });
       // 2026-09-01 (audit F-7): a reply parked for the quiet-hours window is
       // not "Sent" — say when it will go out.
-      if (res.outcome === "uncertain") toast.warning("Attempted — delivery unconfirmed (gateway timeout). Do not re-send; check the thread.");
-      else if (res.success && res.queued) toast.info("Queued — goes out at 8 AM (quiet hours)");
+      if (res.outcome === "uncertain") toast.warning("Attempted: delivery unconfirmed (gateway timeout). Do not re-send; check the thread.");
+      else if (res.success && res.queued) toast.info("Queued: goes out at 8 AM (quiet hours)");
       else if (res.success) toast.success("Sent");
-      else toast.error("Send failed — check gateway status");
+      else toast.error("Send failed: check gateway status");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Send failed");
     }
@@ -340,7 +340,7 @@ export function ThreadView({
           <div className="text-foreground/40 text-sm text-center py-12">Loading messages…</div>
         )}
         {messagesQ.data && messagesQ.data.length === 0 && (
-          <div className="text-foreground/40 text-sm text-center py-12">No messages yet — say hi.</div>
+          <div className="text-foreground/40 text-sm text-center py-12">No messages yet: say hi.</div>
         )}
         {grouped.map((g) => (
           <div key={g.key} className="space-y-2">
@@ -515,8 +515,9 @@ export function ThreadView({
                   }}
                   className="p-1 hover:bg-green-500/10 text-foreground/50 hover:text-green-400 rounded transition-colors text-[12px]"
                   title="Rate Good"
+                  aria-label="Rate good"
                 >
-                  👍
+                  <ThumbsUp className="w-3.5 h-3.5" aria-hidden />
                 </button>
                 <button
                   type="button"
@@ -526,8 +527,9 @@ export function ThreadView({
                   }}
                   className="p-1 hover:bg-red-500/10 text-foreground/50 hover:text-red-400 rounded transition-colors text-[12px]"
                   title="Rate Bad"
+                  aria-label="Rate bad"
                 >
-                  👎
+                  <ThumbsDown className="w-3.5 h-3.5" aria-hidden />
                 </button>
                 <div className="w-px h-3 bg-border/30 mx-1" />
                 <button
@@ -601,13 +603,13 @@ function NewConversationDialog({
   const send = trpc.smsConversations.send.useMutation({
     onSuccess: (res) => {
       if (res.conversationId && (res.success || res.outcome === "uncertain")) {
-        if (res.outcome === "uncertain") toast.warning("Attempted — delivery unconfirmed (gateway timeout). Do not re-send; check the thread.");
-        else if (res.queued) toast.info("Queued — goes out at 8 AM (quiet hours)");
+        if (res.outcome === "uncertain") toast.warning("Attempted: delivery unconfirmed (gateway timeout). Do not re-send; check the thread.");
+        else if (res.queued) toast.info("Queued: goes out at 8 AM (quiet hours)");
         else toast.success("Sent");
         void utils.smsConversations.list.invalidate();
         onCreated(res.conversationId);
       } else {
-        toast.error("Send failed — check gateway status");
+        toast.error("Send failed: check gateway status");
       }
     },
     onError: (err) => toast.error(err.message || "Send failed"),
@@ -784,7 +786,7 @@ function ConversationList({
             highest-frequency admin surface so silent failure mattered. */}
         {list.isError && (
           <div className="text-red-300 text-sm text-center py-12 px-4">
-            Couldn't load conversations. Retrying every 30s — check the SMS gateway / Railway logs if this persists.
+            Couldn't load conversations. Retrying every 30s: check the SMS gateway / Railway logs if this persists.
           </div>
         )}
         {!list.isLoading && !list.isError && filtered.length === 0 && !searchQ && (

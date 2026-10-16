@@ -135,12 +135,12 @@ function ReferralLinkCard() {
                 type="button"
                 onClick={() => {
                   if (!navigator.clipboard) {
-                    toast.error("Copy isn't available here — long-press the link above instead.");
+                    toast.error("Copy isn't available here: long-press the link above instead.");
                     return;
                   }
                   navigator.clipboard.writeText(link).then(
                     () => toast.success("Link copied."),
-                    () => toast.error("Couldn't copy — long-press the link instead."),
+                    () => toast.error("Couldn't copy: long-press the link instead."),
                   );
                 }}
                 className="min-h-[48px] rounded border border-border/30 px-3 text-[11px] font-semibold text-foreground/80 hover:border-primary/40"
@@ -336,13 +336,13 @@ export function CandidatesPanel() {
             // TechnicianReferralsPanel already branched on this.
             <div className="border border-rose-500/40 bg-rose-500/10 p-3 text-[12px] text-rose-400">
               <strong>Couldn't load candidates.</strong> This is a read failure, not an
-              empty list — applications may exist that aren't shown.
+              empty list: applications may exist that aren't shown.
               {error?.message ? <span className="block mt-1 opacity-80">{error.message}</span> : null}
             </div>
           ) : data?.available === false ? (
             <div className="border border-rose-500/40 bg-rose-500/10 p-3 text-[12px] text-rose-400">
               <strong>Database unavailable.</strong> The candidates table could not be
-              read, so this is not "no applicants" — it is "we don't know".
+              read, so this is not "no applicants": it is "we don't know".
             </div>
           ) : data?.migrationPending ? (
             <div className="border border-amber-500/40 bg-amber-500/10 p-3 text-[12px] text-amber-400">
@@ -451,7 +451,7 @@ function SourceRollup({ rows }: { rows: Array<{ refCode?: string | null; utmSour
   return (
     <div className="mt-4 border-t border-border/20 pt-3">
       <p className="text-[11px] font-bold text-foreground/50 mb-2">
-        By source — {rows.length} candidates (possible bots left out)
+        By source · {rows.length} candidates (possible bots left out)
       </p>
       <ul className="space-y-1 text-[12px]">
         {data.map(([src, v]) => (

@@ -24,7 +24,7 @@ function SwitchRow({ label, on, scope, busy, onToggle }: { label: string; on: bo
       </span>
       <Button size="sm" variant={on ? "destructive" : "outline"} disabled={busy} onClick={() => onToggle(scope, !on)}>
         <Power className="mr-1.5 h-3.5 w-3.5" />
-        {on ? "ARMED — release" : "arm"}
+        {on ? "ARMED: release" : "arm"}
       </Button>
     </div>
   );
@@ -43,7 +43,7 @@ export default function AutonomyCommandCenter() {
   // it — the Generation budget could not be changed from the phone.
   const setLimit = trpc.contentAdmin.setAutonomyLimit.useMutation({
     onSuccess: (r) => {
-      toast.success("Policy updated", { description: `Published as v${r.version} — the previous version stays in history.` });
+      toast.success("Policy updated", { description: `Published as v${r.version} · the previous version stays in history.` });
       setEditingLimit(null);
       center.refetch();
     },
@@ -53,7 +53,7 @@ export default function AutonomyCommandCenter() {
   const paidRepair = trpc.contentAdmin.setAutonomyPaidRepair.useMutation({
     onSuccess: (r, vars) => {
       toast.success(vars.permission === "auto" ? "Paid repairs: automatic" : "Paid repairs: ask me first", {
-        description: `Published as v${r.version} — the previous version stays in history.`,
+        description: `Published as v${r.version} · the previous version stays in history.`,
       });
       center.refetch();
     },
@@ -63,7 +63,7 @@ export default function AutonomyCommandCenter() {
 
   const killSwitch = trpc.contentAdmin.setAutonomyKillSwitch.useMutation({
     onSuccess: (r) => {
-      toast.success(`Kill switch updated — policy v${r.version} published`);
+      toast.success(`Kill switch updated: policy v${r.version} published`);
       center.refetch();
     },
     onError: (e) => toast.error("Kill switch change failed", { description: e.message }),
@@ -77,7 +77,7 @@ export default function AutonomyCommandCenter() {
     );
   }
   const s = center.data;
-  if (!s) return <p className="p-8 text-sm text-destructive">Command center unavailable — see server logs.</p>;
+  if (!s) return <p className="p-8 text-sm text-destructive">Command center unavailable: see server logs.</p>;
 
   const spendPct = s.spend.available && s.spend.todayUsd !== null ? Math.min(100, Math.round((s.spend.todayUsd / s.spend.capUsd) * 100)) : null;
 
@@ -88,7 +88,7 @@ export default function AutonomyCommandCenter() {
           <span className="font-bold">
             {s.policy.source === "fallback_unreachable" ? "POLICY STORAGE UNREACHABLE" : "NO POLICY VERSIONS PUBLISHED"}
           </span>{" "}
-          — the code-default policy governs. Kill-switch changes cannot persist until migration 0086 is applied
+          · the code-default policy governs. Kill-switch changes cannot persist until migration 0086 is applied
           (<code>pnpm exec tsx scripts/apply-0086-autonomy-control.mts</code>).
         </div>
       )}
@@ -113,7 +113,7 @@ export default function AutonomyCommandCenter() {
                 </div>
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">Spend ledger unavailable (0086 pending) — coarse fallback governs the budget check.</p>
+              <p className="text-sm text-muted-foreground">Spend ledger unavailable (0086 pending): coarse fallback governs the budget check.</p>
             )}
             {/* EDITABLE. These were display-only while publishAutonomyPolicy sat
                 with zero callers — so the operator could SEE a spend cap stop
@@ -141,7 +141,7 @@ export default function AutonomyCommandCenter() {
                         type="button"
                         className="font-mono tabular-nums underline decoration-dotted underline-offset-2 hover:text-primary"
                         onClick={() => { setEditingLimit(key); setLimitDraft(String(current)); }}
-                        title="Tap to change — publishes a new policy version"
+                        title="Tap to change: publishes a new policy version"
                       >
                         {current}{unit}
                       </button>
@@ -231,7 +231,7 @@ export default function AutonomyCommandCenter() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base"><ShieldAlert className="h-4 w-4 text-primary" /> Emergency controls</CardTitle>
-            <CardDescription>Arming publishes a new policy version — instant across boundaries (2s fresh reads).</CardDescription>
+            <CardDescription>Arming publishes a new policy version: instant across boundaries (2s fresh reads).</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
             <SwitchRow label="Global kill switch" scope="global" on={s.policy.emergencyControls.globalKillSwitch} busy={killSwitch.isPending} onToggle={(scope, next) => killSwitch.mutate({ scope, on: next })} />
@@ -275,7 +275,7 @@ export default function AutonomyCommandCenter() {
                 yet" when the truth is "we could not look" is the same defect the
                 publish gate, the HQ counter and the sidebar badge all had. */}
             {!s.recentJobs.available ? (
-              <p className="text-sm text-amber-500">Recent renders unavailable — this is not zero.</p>
+              <p className="text-sm text-amber-500">Recent renders unavailable: this is not zero.</p>
             ) : s.recentJobs.rows.length === 0 ? (
               <p className="text-sm text-muted-foreground">No reel jobs yet.</p>
             ) : (
@@ -299,11 +299,11 @@ export default function AutonomyCommandCenter() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <Compass className="h-4 w-4 text-primary" /> Shadow planner
-            <Badge variant="outline">SHADOW — takes no action</Badge>
+            <Badge variant="outline">SHADOW: takes no action</Badge>
           </CardTitle>
           <CardDescription>
             Deterministic ranked recommendations from live signals (season, weather triggers, creative memory,
-            repetition). Compare against your own instinct — nothing here spends or posts.
+            repetition). Compare against your own instinct: nothing here spends or posts.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -330,7 +330,7 @@ export default function AutonomyCommandCenter() {
                 <p className="text-xs text-muted-foreground leading-relaxed">{(shadow.data as any).format.reason}</p>
                 {(shadow.data as any).format.signalsMissing?.length > 0 && (
                   <p className="text-[11px] text-amber-600/80">
-                    Missing signals: {(shadow.data as any).format.signalsMissing.join(", ")} — this is a weaker call than it looks.
+                    Missing signals: {(shadow.data as any).format.signalsMissing.join(", ")} · this is a weaker call than it looks.
                   </p>
                 )}
               </div>
@@ -357,11 +357,11 @@ export default function AutonomyCommandCenter() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base"><ScrollText className="h-4 w-4 text-primary" /> Recent policy decisions</CardTitle>
-          <CardDescription>Append-only audit trail — every boundary decision with its reasoning codes.</CardDescription>
+          <CardDescription>Append-only audit trail: every boundary decision with its reasoning codes.</CardDescription>
         </CardHeader>
         <CardContent>
           {!s.auditTail.available ? (
-            <p className="text-sm text-muted-foreground">Audit trail unavailable (0086 pending) — decisions are logged to the server console instead.</p>
+            <p className="text-sm text-muted-foreground">Audit trail unavailable (0086 pending): decisions are logged to the server console instead.</p>
           ) : s.auditTail.rows.length === 0 ? (
             <p className="text-sm text-muted-foreground">No decisions recorded yet.</p>
           ) : (

@@ -224,7 +224,7 @@ export default function DraftBoardPanel({ onNavigate }: { onNavigate?: (view: "c
         <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-300">
           <strong>Could not read drafts.</strong>
           <div className="mt-1 text-xs text-amber-200/70">
-            This board is showing UNKNOWN, not empty — do not treat it as a clean slate. {readFailure}
+            This board is showing UNKNOWN, not empty: do not treat it as a clean slate. {readFailure}
           </div>
         </div>
       )}
@@ -320,7 +320,7 @@ export default function DraftBoardPanel({ onNavigate }: { onNavigate?: (view: "c
           <p className="font-bold text-base text-foreground/40 tracking-wider">NO CONTENT DRAFTS YET</p>
           <p className="text-foreground/30 text-xs max-w-sm mx-auto leading-relaxed">
             Generate a carousel or reel in Studio and save it as a draft to begin your publishing schedule.
-            This board is for planning and editing — approving and publishing happen in the Queue tab.
+            This board is for planning and editing: approving and publishing happen in the Queue tab.
           </p>
         </div>
       ) : view === "board" ? (

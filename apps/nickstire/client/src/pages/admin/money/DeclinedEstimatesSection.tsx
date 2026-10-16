@@ -98,10 +98,10 @@ export default function DeclinedEstimatesSection() {
         }, {});
       const reasonStr = Object.entries(failedReasons).map(([k, v]) => `${v} ${k}`).join(", ");
       if (result.killSwitchOn) {
-        toast.error(`SMS_KILL_SWITCH is on — 0 sent. Flip the env var on Railway when Twilio is back.`);
+        toast.error(`SMS_KILL_SWITCH is on: 0 sent. Flip the env var on Railway when Twilio is back.`);
       } else if (result.sentCount + result.queuedCount + result.uncertainCount > 0) {
         const queuedStr = result.queuedCount > 0 ? ` · ${result.queuedCount} queued for 8 AM` : "";
-        const uncertainStr = result.uncertainCount > 0 ? ` · ${result.uncertainCount} unconfirmed (gateway timeout — do not re-send)` : "";
+        const uncertainStr = result.uncertainCount > 0 ? ` · ${result.uncertainCount} unconfirmed (gateway timeout: do not re-send)` : "";
         const failedStr = result.failedCount > 0 ? ` · ${result.failedCount} failed${reasonStr ? ` (${reasonStr})` : ""}` : "";
         toast.success(`Sent ${result.sentCount}${queuedStr}${uncertainStr}${failedStr}`);
       } else {
@@ -132,7 +132,7 @@ export default function DeclinedEstimatesSection() {
   const runRecoveryNow = trpc.invoices.runDeclinedRecoveryNow.useMutation({
     onSuccess: (result) => {
       if (result.killSwitchOn) {
-        toast.error("SMS_KILL_SWITCH=true — aborted before any sends. Flip it on Railway to enable.");
+        toast.error("SMS_KILL_SWITCH=true: aborted before any sends. Flip it on Railway to enable.");
       } else if (result.recordsProcessed > 0) {
         toast.success(`Recovery fired · ${result.recordsProcessed} attempted · ${result.details || "see admin logs"}`);
       } else {
@@ -150,7 +150,7 @@ export default function DeclinedEstimatesSection() {
   const dismissEstimate = trpc.invoices.dismissEstimate.useMutation({
     onSuccess: () => {
       utils.invoices.declined.invalidate();
-      toast.success("Estimate dismissed — won't appear in the queue again");
+      toast.success("Estimate dismissed: won't appear in the queue again");
     },
     onError: (err) => toast.error(err.message.slice(0, 120)),
   });
@@ -215,7 +215,7 @@ export default function DeclinedEstimatesSection() {
        * Banner self-hides when no aged work pending (clarity-gate). */}
       {unknown && (
         <div className="border border-amber-500/40 bg-amber-500/10 p-4 text-[13px] text-amber-400">
-          <strong>Declined work could not be read.</strong> The numbers below are unknown — NOT zero, and nothing here means there is no money to recover. {error?.message}
+          <strong>Declined work could not be read.</strong> The numbers below are unknown: NOT zero, and nothing here means there is no money to recover. {error?.message}
         </div>
       )}
 
@@ -319,7 +319,7 @@ export default function DeclinedEstimatesSection() {
                     : "bg-foreground/5 text-foreground/50 hover:text-foreground"
                 }`}
               >
-                {s === "score" ? "🔥 SCORE" : s === "amount" ? "$ AMT" : "DATE"}
+                {s === "score" ? "Score" : s === "amount" ? "Amount" : "Date"}
               </button>
             ))}
           </div>
@@ -378,7 +378,7 @@ export default function DeclinedEstimatesSection() {
             title="One-click: fire the daily cron's recovery flow right now (skips the env gate)"
           >
             {runRecoveryNow.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Flame className="w-3 h-3" />}
-            {runRecoveryNow.isPending ? "FIRING..." : "🔥 FIRE ALL ELIGIBLE NOW"}
+            {runRecoveryNow.isPending ? "Firing..." : "Fire all eligible now"}
           </button>
           <button
             onClick={() => {
@@ -479,7 +479,7 @@ export default function DeclinedEstimatesSection() {
         // read that failed.
         <div className="text-center py-12 text-amber-400/80">
           <AlertTriangle className="w-8 h-8 mx-auto mb-3 opacity-40" />
-          <p className="text-[13px]">Declined estimates could not be read — this list is unknown, not empty.</p>
+          <p className="text-[13px]">Declined estimates could not be read: this list is unknown, not empty.</p>
         </div>
       ) : estimates.length === 0 ? (
         <div className="text-center py-12 text-foreground/40">
@@ -542,7 +542,7 @@ export default function DeclinedEstimatesSection() {
                     </span>
                     <DeclineProvenanceBadge provenance={est.provenance} />
                     {isHotPriority && (
-                      <span className="text-[10px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 font-semibold border border-amber-500/30 flex items-center gap-1" title="High recovery score — prioritize this lead">
+                      <span className="text-[10px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 font-semibold border border-amber-500/30 flex items-center gap-1" title="High recovery score: prioritize this lead">
                         <Flame className="w-2.5 h-2.5" /> SCORE {score}
                       </span>
                     )}
@@ -623,7 +623,7 @@ export default function DeclinedEstimatesSection() {
                   {est.customerPhone && (
                     <MessageCustomerLink
                       phone={est.customerPhone}
-                      body={`Hi ${est.customerName?.split(" ")[0] || ""}, this is Nick's Tire & Auto following up on your recent estimate. Car problems usually get worse over time — ready to take care of it? Call us at (216) 862-0005 or just stop by.`}
+                      body={`Hi ${est.customerName?.split(" ")[0] || ""}, this is Nick's Tire & Auto following up on your recent estimate. Car problems usually get worse over time: ready to take care of it? Call us at (216) 862-0005 or just stop by.`}
                       ariaLabel="Send text message via in-admin SMS chat"
                       className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/10 text-blue-400 text-[11px] font-bold tracking-wide border border-blue-500/20 hover:bg-blue-500/20 transition-colors"
                     >

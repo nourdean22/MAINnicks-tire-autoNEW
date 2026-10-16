@@ -117,7 +117,7 @@ export default function ExceptionFeed({ signals = [], hideIds = [] }: ExceptionF
             <>
               <HelpCircle className="w-4 h-4 text-amber-600" aria-hidden />
               <span className="text-amber-600">
-                Nothing measured yet — this is not an all-clear. No source has reported.
+                Nothing measured yet: this is not an all-clear. No source has reported.
               </span>
             </>
           )}

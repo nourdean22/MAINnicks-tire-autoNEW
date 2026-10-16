@@ -55,7 +55,7 @@ export default function DispatchSection() {
     <div className="space-y-4">
       <PageHeader
         title="Shop Floor"
-        subtitle="Ready queue · tech assignments · QC review. First-come, no bays or slots — by design."
+        subtitle="Ready queue · tech assignments · QC review. First-come, no bays or slots, by design."
         icon={<Wrench className="w-5 h-5" />}
       />
       {/* Metrics Strip */}
@@ -253,9 +253,9 @@ function AssignmentPanel({ workOrderId }: { workOrderId: string }) {
         {isLoading ? (
           <Loader2 className="w-4 h-4 animate-spin" />
         ) : isError ? (
-          <span className="text-xs text-red-400">Couldn't score techs — assign from the Technicians tab.</span>
+          <span className="text-xs text-red-400">Couldn't score techs: assign from the Technicians tab.</span>
         ) : (recs || []).length === 0 ? (
-          <span className="text-xs text-muted-foreground">No tech recommendations yet — clock a tech in first.</span>
+          <span className="text-xs text-muted-foreground">No tech recommendations yet: clock a tech in first.</span>
         ) : (
           <div className="space-y-1">
             {(recs || []).map((rec: DispatchRecommendation) => (

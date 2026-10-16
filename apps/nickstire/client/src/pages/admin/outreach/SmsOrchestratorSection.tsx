@@ -174,7 +174,7 @@ export default function SmsOrchestratorSection() {
           held draft can never again read as "all handled". Unknown ≠ zero. */}
       {needsReplyError ? (
         <div className="rounded border border-red-500/40 bg-red-500/5 px-3 py-2 text-xs text-red-400">
-          NEEDS-REPLY COUNT UNKNOWN — the human-pending query failed. Customers may be waiting; check the review queue directly.
+          NEEDS-REPLY COUNT UNKNOWN: the human-pending query failed. Customers may be waiting; check the review queue directly.
         </div>
       ) : needsReply && needsReply.humanPending > 0 ? (
         <div className={`rounded border px-3 py-2 text-xs ${needsReply.overdue > 0 ? "border-red-500/40 bg-red-500/5 text-red-400" : "border-amber-500/40 bg-amber-500/5 text-amber-400"}`}>

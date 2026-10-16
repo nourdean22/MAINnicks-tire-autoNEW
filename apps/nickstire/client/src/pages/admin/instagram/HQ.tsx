@@ -159,7 +159,7 @@ function PipelineHealthCard({ onNavigate }: { onNavigate?: (tab: string) => void
               <div className="text-xs text-muted-foreground mt-1">
                 {health.storage.permanentUrls
                   ? health.storage.cdn ? "Permanent URLs via CDN" : "Permanent URLs via the app"
-                  : "Expiring URLs — set S3_ENDPOINT or CLOUDFRONT_DOMAIN"}
+                  : "Expiring URLs: set S3_ENDPOINT or CLOUDFRONT_DOMAIN"}
               </div>
             </div>
 
@@ -193,9 +193,9 @@ function PipelineHealthCard({ onNavigate }: { onNavigate?: (tab: string) => void
                         isHf && sess?.balanceCredits != null ? ` · ${sess.balanceCredits} cr` : ""
                       }`
                     : unknown
-                      ? "Session UNKNOWN — not missing, could not verify"
+                      ? "Session UNKNOWN, not missing, could not verify"
                       : isHf && sess?.credsPresent
-                        ? "Session DEAD — re-login required"
+                        ? "Session DEAD: re-login required"
                         : "Missing credentials";
                   return (
                     <div>
@@ -224,7 +224,7 @@ function PipelineHealthCard({ onNavigate }: { onNavigate?: (tab: string) => void
                     </div>
                   ) : (
                     <div className="text-destructive font-medium text-[10px] leading-tight">
-                      ⚠ CLI STALE. Run `hf auth login`
+                      CLI STALE. Run `hf auth login`
                     </div>
                   )}
                   {/*
@@ -249,21 +249,21 @@ function PipelineHealthCard({ onNavigate }: { onNavigate?: (tab: string) => void
                         <div className="text-green-500 font-medium">✓ API key valid ({higgsfieldHealth.data.api.store})</div>
                       ) : higgsfieldHealth.data.api.healthy === false ? (
                         <div className="text-destructive font-medium text-[10px] leading-tight">
-                          ⚠ API key REJECTED — {higgsfieldHealth.data.api.reason}
+                          API key REJECTED · {higgsfieldHealth.data.api.reason}
                         </div>
                       ) : (
                         <div className="text-yellow-500 font-medium text-[10px] leading-tight">
-                          ? API key set, liveness unverified — {higgsfieldHealth.data.api.reason}
+                          ? API key set, liveness unverified · {higgsfieldHealth.data.api.reason}
                         </div>
                       )
                     ) : higgsfieldHealth.data.api.configured === "unknown" ? (
                       <div className="text-yellow-500 font-medium text-[10px] leading-tight">
-                        ? API key UNKNOWN — could not read the key store. Not "unset": fix
+                        ? API key UNKNOWN: could not read the key store. Not "unset": fix
                         connectivity, do NOT rotate the key.
                       </div>
                     ) : (
                       <div className="text-muted-foreground text-[10px] leading-tight">
-                        ○ No API key — set one in Settings to stop depending on the CLI session
+                        ○ No API key: set one in Settings to stop depending on the CLI session
                       </div>
                     )}
                     <div className="text-muted-foreground text-[10px] mt-0.5">
@@ -323,7 +323,7 @@ function PipelineHealthCard({ onNavigate }: { onNavigate?: (tab: string) => void
                 }`} />
                 <span>
                   {health.failedJobs === null
-                    ? "Unable to determine — count unavailable"
+                    ? "Unable to determine: count unavailable"
                     : `${health.failedJobs} job${health.failedJobs === 1 ? "" : "s"} needing attention`}
                 </span>
               </div>

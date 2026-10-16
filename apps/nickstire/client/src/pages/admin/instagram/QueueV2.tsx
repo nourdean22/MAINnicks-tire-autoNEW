@@ -43,7 +43,7 @@ function describeScheduleEt(localValue: string): string | null {
     hour: "numeric", minute: "2-digit", timeZoneName: "short",
   }).format(when);
   const deltaMs = when.getTime() - Date.now();
-  if (deltaMs <= 0) return `${et} — in the past`;
+  if (deltaMs <= 0) return `${et} · in the past`;
   const hours = Math.floor(deltaMs / 3_600_000);
   const minutes = Math.round((deltaMs % 3_600_000) / 60_000);
   const rel = hours >= 48 ? `in ${Math.floor(hours / 24)} days, ${hours % 24}h` : hours >= 1 ? `in ${hours}h ${minutes}m` : `in ${minutes}m`;
@@ -98,7 +98,7 @@ export default function QueueV2() {
         setEditDraft(result as InstagramStudioDraft);
         toast.success("Edited visual re-rendered");
       } else {
-        toast.info("A re-render finished for an item you are no longer editing — it was not applied.");
+        toast.info("A re-render finished for an item you are no longer editing: it was not applied.");
       }
     },
     onError: (e) => toast.error("Re-render failed", { description: e.message }),
@@ -154,7 +154,7 @@ export default function QueueV2() {
       {countsUnavailable && !diagnostics.isLoading && (
         <div className="flex gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-500">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>Queue counts are <strong>unknown</strong>, not zero — the diagnostics read failed{diagnostics.data?.connected === false ? " (database unreachable)" : ""}.</span>
+          <span>Queue counts are <strong>unknown</strong>, not zero: the diagnostics read failed{diagnostics.data?.connected === false ? " (database unreachable)" : ""}.</span>
         </div>
       )}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -196,7 +196,7 @@ export default function QueueV2() {
                   {confirmPublishId === item.id && item.status === "ready" && (
                     <div className="space-y-3 rounded-lg border border-primary/40 bg-primary/5 p-4">
                       <div className="text-sm font-semibold">Publish this to Instagram now?</div>
-                      <p className="text-xs text-muted-foreground">This is exactly what goes live — {draft.imageUrls.length} media asset{draft.imageUrls.length === 1 ? "" : "s"} (shown above) as a {draft.format}, with this final caption:</p>
+                      <p className="text-xs text-muted-foreground">This is exactly what goes live · {draft.imageUrls.length} media asset{draft.imageUrls.length === 1 ? "" : "s"} (shown above) as a {draft.format}, with this final caption:</p>
                       <div className="max-h-40 overflow-y-auto whitespace-pre-wrap rounded border bg-background/60 p-3 text-xs leading-5">{`${draft.caption}${draft.hashtags.length ? `\n\n${draft.hashtags.map((tag) => `#${tag}`).join(" ")}` : ""}`}</div>
                       <div className="flex justify-end gap-2">
                         <Button variant="ghost" onClick={() => setConfirmPublishId(null)}>Cancel</Button>

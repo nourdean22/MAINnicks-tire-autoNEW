@@ -96,7 +96,7 @@ export default function TireOrdersSection() {
 
   const cancelOrderMutation = trpc.gatewayTire.cancelOrder.useMutation({
     onSuccess: () => {
-      toast.success("Order cancelled — kept in history");
+      toast.success("Order cancelled: kept in history");
       refetchOrders();
       refetchStats();
       setExpandedOrderId(null);
@@ -109,7 +109,7 @@ export default function TireOrdersSection() {
   const handleCancel = async (orderId: number, orderNumber: string, customerName: string) => {
     const ok = await confirmDialog({
       title: "Cancel Tire Order?",
-      message: `Cancel order ${orderNumber} for ${customerName}? The order stays in history as CANCELLED — nothing is deleted, so refund risk and walked-order patterns stay visible.`,
+      message: `Cancel order ${orderNumber} for ${customerName}? The order stays in history as CANCELLED: nothing is deleted, so refund risk and walked-order patterns stay visible.`,
       confirmLabel: "Cancel Order",
       tone: "danger",
     });
@@ -235,7 +235,7 @@ export default function TireOrdersSection() {
 
       {statsUnknown && (
         <div className="border border-amber-500/40 bg-amber-500/10 p-4 text-[13px] text-amber-400">
-          <strong>Tire order counts could not be read.</strong> The tiles below are unknown — NOT zero. No stage is confirmed clear and no revenue figure is confirmed. {statsErrorObj?.message}
+          <strong>Tire order counts could not be read.</strong> The tiles below are unknown: NOT zero. No stage is confirmed clear and no revenue figure is confirmed. {statsErrorObj?.message}
         </div>
       )}
 
@@ -499,7 +499,7 @@ export default function TireOrdersSection() {
         {/* Operating truths — keeps the cockpit honest about what is and
             is NOT automated. */}
         <p className="text-[10px] text-foreground/30 leading-relaxed pt-2">
-          The database (this cockpit) is the source of truth — email/Telegram/Sheets
+          The database (this cockpit) is the source of truth: email/Telegram/Sheets
           are copies. Supplier tires are NOT auto-ordered and online payment does NOT
           reserve supplier stock: confirm availability with the customer, order from
           Gateway (b2b.dktire.com), record the PO above, and advance the status.

@@ -23,7 +23,7 @@ export function LeadSLAMonitor() {
           <Clock className="w-5 h-5 text-amber-400" />
           <h2 className="text-sm font-black text-amber-400 ">Lead SLA monitor</h2>
         </div>
-        <p className="text-xs text-muted-foreground">SLA metrics could not be read — response times are <strong className="text-amber-400">unknown</strong>, not 0 minutes. {error?.message}</p>
+        <p className="text-xs text-muted-foreground">SLA metrics could not be read: response times are <strong className="text-amber-400">unknown</strong>, not 0 minutes. {error?.message}</p>
       </div>
     );
   }

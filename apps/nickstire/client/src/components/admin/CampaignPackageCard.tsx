@@ -99,7 +99,7 @@ export default function CampaignPackageCard() {
         </CardTitle>
         <CardDescription>
           Four creative directors pitch, an independent judge picks, claim safety gates, creative memory
-          steers away from what you already posted — one judged campaign with ready-to-paste seeds.
+          steers away from what you already posted: one judged campaign with ready-to-paste seeds.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -125,7 +125,7 @@ export default function CampaignPackageCard() {
         {(evidenceOptions.data?.length ?? 0) > 0 && (
           <div className="space-y-1.5">
             <p className="text-xs font-semibold text-muted-foreground">
-              Attach real evidence (verified before use) — {proofHandles.length}/{MAX_PROOF_HANDLES}
+              Attach real evidence (verified before use) · {proofHandles.length}/{MAX_PROOF_HANDLES}
             </p>
             <div className="flex max-h-36 flex-col gap-1 overflow-y-auto">
               {evidenceOptions.data?.map((o) => (
@@ -186,7 +186,7 @@ export default function CampaignPackageCard() {
             )}
             {result.seeds?.reel && (
               <p className="text-xs text-muted-foreground">
-                Reel suggestion: {result.seeds.reel.archetype} · {result.seeds.reel.motionLens} — paste the seed into the
+                Reel suggestion: {result.seeds.reel.archetype} · {result.seeds.reel.motionLens} · paste the seed into the
                 Reel wizard's context box (Manual Idea source), or draft directly below.
               </p>
             )}
@@ -253,11 +253,11 @@ export default function CampaignPackageCard() {
                       }}
                     >
                       {enqueue.isPending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Send className="mr-1.5 h-3.5 w-3.5" />}
-                      {enqueue.isSuccess ? "Enqueued — review in Queue" : "Enqueue render (uses provider credits)"}
+                      {enqueue.isSuccess ? "Enqueued: review in Queue" : "Enqueue render (uses provider credits)"}
                     </Button>
                     {!reelDraft.data.qualityScore.passing && (
                       <p className="text-xs text-destructive">
-                        Below the 70/75 gate — redraft, or refine in the Advanced Reel Studio instead.
+                        Below the 70/75 gate: redraft, or refine in the Advanced Reel Studio instead.
                       </p>
                     )}
                   </div>
@@ -315,7 +315,7 @@ export default function CampaignPackageCard() {
                     )}
                     <p className="text-xs text-muted-foreground">
                       {saveCarousel.isSuccess
-                        ? "Saved — open the Drafts tab to render slides and publish."
+                        ? "Saved: open the Drafts tab to render slides and publish."
                         : "Saving to Draft Board..."}
                     </p>
                   </div>

@@ -100,7 +100,7 @@ export function MorningBrief({ priorityQueueLength, urgentLeads, queueTrustworth
       // and do not call the phone OFFLINE when nobody could ask it.
       out.push({
         icon: <Phone className="w-3.5 h-3.5 text-blue-400" />,
-        text: "Last 24h: no AI calls · F25e gateway status unknown — the status read failed",
+        text: "Last 24h: no AI calls · F25e gateway status unknown, the status read failed",
         tone: "warn",
       });
     } else if (gw === "offline" || gw === "not_configured") {
@@ -110,7 +110,7 @@ export function MorningBrief({ priorityQueueLength, urgentLeads, queueTrustworth
       // customer texts are NOT sending until the F25e phone is back.
       out.push({
         icon: <Phone className="w-3.5 h-3.5 text-blue-400" />,
-        text: "Last 24h: no AI calls · F25e SMS gateway OFFLINE — customer texts are not sending",
+        text: "Last 24h: no AI calls · F25e SMS gateway OFFLINE, customer texts are not sending",
         tone: "warn",
       });
     }

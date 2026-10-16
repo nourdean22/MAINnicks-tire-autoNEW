@@ -215,7 +215,7 @@ function CreateCampaign({ onClose, onCreated }: { onClose: () => void; onCreated
           <button
             onClick={handleCreate}
             disabled={!name.trim() || creating || !segmentCount || segmentCount === 0}
-            title={!segmentCount || segmentCount === 0 ? "No customers in this segment yet — pick another segment or wait for the lapsed cohort to grow" : undefined}
+            title={!segmentCount || segmentCount === 0 ? "No customers in this segment yet: pick another segment or wait for the lapsed cohort to grow" : undefined}
             className="flex items-center gap-2 bg-primary text-primary-foreground px-6 py-2.5 font-bold text-xs tracking-wide hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
@@ -332,7 +332,7 @@ function SafetyGateModal({
           <div className="flex items-start gap-3 p-4 bg-amber-500/10 border border-amber-400/30 rounded-lg">
             <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
             <p className="text-xs text-amber-200 leading-relaxed">
-              Audience unreadable — this is a failed lookup, NOT zero customers. Fix the connection before activating.
+              Audience unreadable: this is a failed lookup, NOT zero customers. Fix the connection before activating.
             </p>
           </div>
         ) : (
@@ -487,7 +487,7 @@ function CampaignDetail({ campaignId, onBack }: { campaignId: number; onBack: ()
       utils.winback.recentSends.invalidate({ campaignId });
       utils.winback.campaignStats.invalidate();
       const sent = (r as { sent?: number } | undefined)?.sent ?? 0;
-      toast.success(`Queue processed — ${sent} SMS sent`);
+      toast.success(`Queue processed · ${sent} SMS sent`);
     },
     onError: (e) => toast.error(`Process failed: ${e.message}`),
   });
@@ -545,7 +545,7 @@ function CampaignDetail({ campaignId, onBack }: { campaignId: number; onBack: ()
                 {statusCfg.icon} {statusCfg.label.toUpperCase()}
               </span>
               <span className="font-mono text-[10px] text-foreground/40 tracking-wider">
-                {SEGMENT_LABELS[campaign.targetSegment]} — {campaign.targetCount} targets
+                {SEGMENT_LABELS[campaign.targetSegment]} · {campaign.targetCount} targets
               </span>
             </div>
           </div>

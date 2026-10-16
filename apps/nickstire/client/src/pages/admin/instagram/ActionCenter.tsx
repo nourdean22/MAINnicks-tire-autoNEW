@@ -32,10 +32,10 @@ import { Input } from "@/components/ui/input";
 const RECOVERABILITY_LABEL: Record<string, { label: string; tone: string; hint: string }> = {
   master_available: {
     label: "Ready", tone: "bg-green-500/10 text-green-600 border-green-500/30",
-    hint: "The rendered video is still fetchable — normal actions apply.",
+    hint: "The rendered video is still fetchable: normal actions apply.",
   },
   clips_available_master_missing: {
-    label: "Rebuildable — free", tone: "bg-blue-500/10 text-blue-600 border-blue-500/30",
+    label: "Rebuildable: free", tone: "bg-blue-500/10 text-blue-600 border-blue-500/30",
     hint: "The final video is gone but every source clip survives. Rebuilding costs nothing.",
   },
   provider_resume_available: {
@@ -124,7 +124,7 @@ export default function ActionCenter({ onPublishStaged }: { onPublishStaged?: ()
       setIngestSource(""); setIngestTopic(""); setIngestCaption("");
       setIngestOpen(false);
       toast.success(`Ingested as ${r.inventoryId}`, {
-        description: `${(r.bytes / 1_000_000).toFixed(1)} MB · reel job ${r.reelJobId}. It is a DRAFT — approve and publish it in Queue → Reels.`,
+        description: `${(r.bytes / 1_000_000).toFixed(1)} MB · reel job ${r.reelJobId}. It is a DRAFT: approve and publish it in Queue → Reels.`,
       });
       attention.refetch();
     },
@@ -147,7 +147,7 @@ export default function ActionCenter({ onPublishStaged }: { onPublishStaged?: ()
       setBusyJob(null);
       attention.refetch();
       if (r.outcome === "job_marked_published") {
-        toast.success("Already live", { description: "This reel's draft was published earlier — the job card is now closed." });
+        toast.success("Already live", { description: "This reel's draft was published earlier: the job card is now closed." });
         return;
       }
       toast.success(r.outcome === "staged" ? "Staged for publish" : "Already in the queue", {
@@ -164,7 +164,7 @@ export default function ActionCenter({ onPublishStaged }: { onPublishStaged?: ()
   const reassemble = trpc.contentAdmin.reassembleReelFromClips.useMutation({
     onSuccess: (r: any) => {
       toast.success(`Reel ${r.jobId} rebuilt`, {
-        description: `${r.durationSec}s from ${r.clipsUsed} surviving clips — no generation spend. It needs fresh QA before publishing.`,
+        description: `${r.durationSec}s from ${r.clipsUsed} surviving clips: no generation spend. It needs fresh QA before publishing.`,
       });
       attention.refetch();
     },
@@ -175,7 +175,7 @@ export default function ActionCenter({ onPublishStaged }: { onPublishStaged?: ()
   const rerunQa = trpc.contentAdmin.runRenderedQa.useMutation({
     onSuccess: (v: any) => {
       toast.success("Quality check re-run", {
-        description: `${v?.decision ?? "done"} — ${v?.findings?.length ?? 0} finding(s) across ${v?.framesEvaluated ?? "?"} frames.`,
+        description: `${v?.decision ?? "done"} · ${v?.findings?.length ?? 0} finding(s) across ${v?.framesEvaluated ?? "?"} frames.`,
       });
       attention.refetch();
     },
@@ -206,7 +206,7 @@ export default function ActionCenter({ onPublishStaged }: { onPublishStaged?: ()
   const regenerate = trpc.contentAdmin.regenerateReelFromBrief.useMutation({
     onSuccess: (r: any) => {
       toast.success(`New reel job ${r.newJobId} queued`, {
-        description: `Reel ${r.supersededJobId} was closed and superseded. This is a new paid generation — it needs its own QA and approval.`,
+        description: `Reel ${r.supersededJobId} was closed and superseded. This is a new paid generation: it needs its own QA and approval.`,
       });
       setRegenerating(null);
       attention.refetch();
@@ -376,7 +376,7 @@ export default function ActionCenter({ onPublishStaged }: { onPublishStaged?: ()
             <div className="min-w-0">
               <CardTitle className="text-base flex items-center gap-2"><Film className="h-4 w-4" />Bring in a finished MP4</CardTitle>
               <CardDescription>
-                A MoneyPrinter render or a hand-edited cut. It lands as a review-ready draft — it does NOT publish, and it
+                A MoneyPrinter render or a hand-edited cut. It lands as a review-ready draft: it does NOT publish, and it
                 still passes every approval and publish gate. Requires MP4_INGEST_ENABLED.
               </CardDescription>
             </div>
@@ -470,7 +470,7 @@ export default function ActionCenter({ onPublishStaged }: { onPublishStaged?: ()
               Their generation job failed and no media exists, so nothing about them is reviewable.
               {queueTruth.data!.regenerable > 0 && (
                 <> <strong>{queueTruth.data!.regenerable}</strong> failed for an environmental reason
-                (key, quota or session) — those briefs are intact and can be regenerated.</>
+                (key, quota or session): those briefs are intact and can be regenerated.</>
               )}
             </CardDescription>
           </CardHeader>
@@ -505,8 +505,7 @@ export default function ActionCenter({ onPublishStaged }: { onPublishStaged?: ()
               Could not check for ambiguous publishes
             </CardTitle>
             <CardDescription className="text-xs">
-              {openAttempts.error?.message ?? "The check failed."} Treat this as unknown, not clear —
-              a publish may be open and unreconciled.
+              {openAttempts.error?.message ?? "The check failed."} Treat this as unknown, not clear: a publish may be open and unreconciled.
             </CardDescription>
           </CardHeader>
         </Card>
@@ -520,7 +519,7 @@ export default function ActionCenter({ onPublishStaged }: { onPublishStaged?: ()
               {openCount} publish{openCount === 1 ? "" : "es"} may or may not be live
             </CardTitle>
             <CardDescription className="text-xs">
-              An attempt was recorded but no outcome came back — the process died between Meta accepting
+              An attempt was recorded but no outcome came back: the process died between Meta accepting
               the post and the database being updated. <strong>Check Instagram before retrying any of these</strong>,
               or you may post twice.
             </CardDescription>
@@ -562,7 +561,7 @@ export default function ActionCenter({ onPublishStaged }: { onPublishStaged?: ()
                             attemptId: a.attemptId, decision: "published", igPostId: v.igPostId,
                           })}
                         >
-                          <CheckCircle2 className="h-3 w-3 mr-1" /> Confirm it is live — do not retry
+                          <CheckCircle2 className="h-3 w-3 mr-1" /> Confirm it is live: do not retry
                         </Button>
                       )}
 
@@ -608,7 +607,7 @@ export default function ActionCenter({ onPublishStaged }: { onPublishStaged?: ()
                                           igPostId: c.igPostId, operatorNote: "matched by operator",
                                         });
                                       }}
-                                    >{armed ? "Tap again — mark it LIVE (irreversible)" : "This is the one — mark it live"}</Button>
+                                    >{armed ? "Tap again: mark it LIVE (irreversible)" : "This is the one: mark it live"}</Button>
                                   );
                                 })()}
                               </div>
@@ -632,7 +631,7 @@ export default function ActionCenter({ onPublishStaged }: { onPublishStaged?: ()
                                     operatorNote: "operator confirmed none of the candidates match",
                                   });
                                 }}
-                              >{armed ? "Tap again — confirm it never posted (irreversible)" : "None of these — it never posted"}</Button>
+                              >{armed ? "Tap again: confirm it never posted (irreversible)" : "None of these: it never posted"}</Button>
                             );
                           })()}
                         </div>
@@ -655,8 +654,7 @@ export default function ActionCenter({ onPublishStaged }: { onPublishStaged?: ()
                 Reels needing attention
               </CardTitle>
               <CardDescription className="text-xs">
-                Jobs that are held, stuck, or mid-flight. Actions reflect what actually survives —
-                a job whose video is gone will not offer to publish it.
+                Jobs that are held, stuck, or mid-flight. Actions reflect what actually survives: a job whose video is gone will not offer to publish it.
               </CardDescription>
             </div>
             <Button variant="outline" size="sm" onClick={() => attention.refetch()} disabled={attention.isFetching}>
@@ -677,8 +675,7 @@ export default function ActionCenter({ onPublishStaged }: { onPublishStaged?: ()
               <AlertTriangle className="h-10 w-10 text-amber-500/60 mx-auto" />
               <p className="text-sm font-medium">Unable to determine system state</p>
               <p className="text-xs text-muted-foreground/80 max-w-sm mx-auto">
-                {attention.error?.message ?? "The check failed."} This is NOT an all-clear —
-                there may be held or stuck reels that cannot be listed right now.
+                {attention.error?.message ?? "The check failed."} This is NOT an all-clear: there may be held or stuck reels that cannot be listed right now.
               </p>
               <Button size="sm" variant="outline" onClick={() => attention.refetch()}>Try again</Button>
             </div>
@@ -800,7 +797,7 @@ export default function ActionCenter({ onPublishStaged }: { onPublishStaged?: ()
                     <div className="rounded border border-amber-500/40 bg-amber-500/5 p-2 space-y-2">
                       <p className="text-[11px] leading-relaxed">
                         <strong>This spends generation budget.</strong> It starts a brand-new reel from
-                        the surviving brief — different footage, a different file, its own quality check
+                        the surviving brief: different footage, a different file, its own quality check
                         and its own approval. Reel {job.jobId} will be closed and superseded.
                         It still passes the daily spend cap and the defect preflight, so it may be refused.
                       </p>
@@ -885,7 +882,7 @@ export default function ActionCenter({ onPublishStaged }: { onPublishStaged?: ()
           {runs.isLoading ? (
             <p className="text-sm text-muted-foreground">Checking…</p>
           ) : runs.isError ? (
-            <p className="text-sm text-amber-500">Could not read the run trail — this is unknown, not empty. {runs.error?.message}</p>
+            <p className="text-sm text-amber-500">Could not read the run trail: this is unknown, not empty. {runs.error?.message}</p>
           ) : (runs.data?.runs.length ?? 0) === 0 ? (
             <p className="text-sm text-muted-foreground">
               No content runs recorded yet. A run opens when you generate something in the Studio.
@@ -917,7 +914,7 @@ export default function ActionCenter({ onPublishStaged }: { onPublishStaged?: ()
                           : "bg-muted text-muted-foreground"
                       }`}
                       title={r.isProvenPublished
-                        ? "Proven live — a real post id was recorded"
+                        ? "Proven live: a real post id was recorded"
                         : "NOT proven published. This is the half of the model that a single green check would hide."}
                     >
                       {r.isProvenPublished ? "published" : r.operationalState}

@@ -204,7 +204,7 @@ export default function ReviewRequestsSection() {
       />
       {statsUnknown && (
         <div className="border border-amber-500/40 bg-amber-500/10 p-4 text-[13px] text-amber-400">
-          <strong>Review request stats could not be read.</strong> The tiles below are unknown — NOT zero. Nothing here means no request is pending and nothing has failed.
+          <strong>Review request stats could not be read.</strong> The tiles below are unknown: NOT zero. Nothing here means no request is pending and nothing has failed.
         </div>
       )}
       {/* Stats Row */}
@@ -290,7 +290,7 @@ export default function ReviewRequestsSection() {
                 const ok = await confirmDialog({
                   title: `Process the review-request queue?`,
                   message: due === null
-                    ? `This runs ALL scheduled review requests that are due. The queue could NOT be read just now, so how many are due is UNKNOWN — it is not zero, and it may be a full batch. Each fires a real outbound SMS via F25e. Sends respect quiet-hours + opt-out + daily rate limit.`
+                    ? `This runs ALL scheduled review requests that are due. The queue could NOT be read just now, so how many are due is UNKNOWN: it is not zero, and it may be a full batch. Each fires a real outbound SMS via F25e. Sends respect quiet-hours + opt-out + daily rate limit.`
                     : `This runs ALL scheduled review requests that are due (currently ~${due} due now). Each fires a real outbound SMS via F25e. Sends respect quiet-hours + opt-out + daily rate limit.`,
                   confirmLabel: "Process queue",
                   cancelLabel: "Cancel",
@@ -313,7 +313,7 @@ export default function ReviewRequestsSection() {
             </div>
           ) : requestsUnknown ? (
             <div className="border border-amber-500/40 bg-amber-500/10 p-4 text-[13px] text-amber-400">
-              <strong>The review-request queue could not be read.</strong> This is unknown — NOT empty. Nothing here means no customer is waiting on a review text. {requestsErrorObj?.message}
+              <strong>The review-request queue could not be read.</strong> This is unknown: NOT empty. Nothing here means no customer is waiting on a review text. {requestsErrorObj?.message}
             </div>
           ) : !requests?.length ? (
             <div className="text-center py-12 text-foreground/40">
@@ -398,7 +398,7 @@ export default function ReviewRequestsSection() {
           ) : settingsUnknown ? (
             <div className="border border-amber-500/40 bg-amber-500/10 p-4 text-[13px] text-amber-400 space-y-2">
               <p>
-                <strong>Review settings have not been read.</strong> They are unknown — the form is hidden rather than
+                <strong>Review settings have not been read.</strong> They are unknown: the form is hidden rather than
                 showing defaults, because saving invented values would overwrite your real stored settings, including
                 whether review texts are enabled at all. Nothing here is changed until this reads again.
               </p>
@@ -411,7 +411,7 @@ export default function ReviewRequestsSection() {
                   new false statement in place of the one being removed. */}
               <p className="text-amber-400/80">
                 {settingsError
-                  ? `The server could not read them, so the send loop cannot either — no review texts are going out while this persists. ${settingsErrorObj?.message ?? ""}`
+                  ? `The server could not read them, so the send loop cannot either: no review texts are going out while this persists. ${settingsErrorObj?.message ?? ""}`
                   : "This device has not reached the server. The shop's automation is unaffected and is still running on its stored settings."}
               </p>
             </div>
@@ -652,7 +652,7 @@ export default function ReviewRequestsSection() {
                 <div className="border border-amber-500/40 bg-amber-500/10 p-4 text-[13px] text-amber-400 space-y-2">
                   <p>
                     <strong>Backfill eligibility could not be read.</strong> How many past customers were never asked for a
-                    review is unknown — not zero.
+                    review is unknown, not zero.
                   </p>
                   {/* Said outright, because hiding a button can imply the same
                       thing the green checkmark used to say. The button is absent
@@ -676,7 +676,7 @@ export default function ReviewRequestsSection() {
                       its PRESENT that the code cannot support. */}
                   <p className="text-amber-400/80">
                     {backfillError
-                      ? `The server could not read it, so the backfill list cannot be built — nothing can be sent from this tab while this persists. ${backfillErrorObj?.message ?? ""}`
+                      ? `The server could not read it, so the backfill list cannot be built: nothing can be sent from this tab while this persists. ${backfillErrorObj?.message ?? ""}`
                       : "This device has not reached the server. The shop's automation is unaffected and is still running on its stored settings."}
                   </p>
                 </div>
@@ -770,7 +770,7 @@ function ProofBankPanel() {
   }, [allQuotes, serviceFilter, objectionFilter, searchQuery]);
 
   const copyForGBP = (quote: ProofQuote) => {
-    const text = `"${quote.text}"\n— ${quote.author}${quote.badge ? ` (${quote.badge})` : ""}`;
+    const text = `"${quote.text}"\n · ${quote.author}${quote.badge ? ` (${quote.badge})` : ""}`;
     navigator.clipboard.writeText(text);
     toast.success("Copied for GBP post");
   };
@@ -821,7 +821,7 @@ function ProofBankPanel() {
               </div>
             )}
             <p className="text-[11px] text-primary/80 mt-3">
-              Next move: turn every completed job into a review ask — the Review Requests tab grows this number.
+              Next move: turn every completed job into a review ask, the Review Requests tab grows this number.
             </p>
           </>
         )}

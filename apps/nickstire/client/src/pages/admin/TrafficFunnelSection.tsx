@@ -157,7 +157,7 @@ export default function TrafficFunnelSection() {
             </h3>
             <p className="text-foreground/50 text-[11px] mt-0.5 max-w-2xl">
               AI-drafted title + meta for buried service pages (high impressions, page 2+). Apply by editing{" "}
-              <span className="font-mono">shared/services.ts</span> — nothing is written to the live site.
+              <span className="font-mono">shared/services.ts</span> nothing is written to the live site.
             </p>
           </div>
           <button
@@ -378,8 +378,8 @@ export default function TrafficFunnelSection() {
             <div className="pt-3 border-t border-border/20">
               <p className="text-[10px] text-foreground/50 leading-relaxed">
                 <span className="font-bold text-amber-400">{data.branded.brandedPct}%</span> branded
-                {data.branded.brandedPct > 60 && " — SEO isn't driving new discovery. Push non-branded pages harder."}
-                {data.branded.brandedPct <= 40 && data.branded.nonBranded > 50 && " — strong discovery. SEO is working."}
+                {data.branded.brandedPct > 60 && " SEO isn't driving new discovery. Push non-branded pages harder."}
+                {data.branded.brandedPct <= 40 && data.branded.nonBranded > 50 && " strong discovery. SEO is working."}
               </p>
             </div>
           </div>
@@ -442,7 +442,7 @@ export default function TrafficFunnelSection() {
             gscScorecard.report.aggregateStatus === "available" ? (
               <>GSC official aggregate as of {new Date(gscScorecard.dataAsOf).toLocaleString()} · stored detail {gscScorecard.report.detailStatus}.</>
             ) : (
-              <>GSC official aggregate unavailable this window — showing stored detail only ({gscScorecard.report.detailStatus}).</>
+              <>GSC official aggregate unavailable this window: showing stored detail only ({gscScorecard.report.detailStatus}).</>
             )
           ) : (
             <>GSC sync status unavailable.</>
@@ -451,7 +451,7 @@ export default function TrafficFunnelSection() {
         </p>
         <p className="mt-1">
           Call-click events require the <code className="text-foreground/50">/api/call-events</code> tracking endpoint
-          + client-side <code className="text-foreground/50">tel:</code> wrapper. If dead, fix that first — it unlocks
+          + client-side <code className="text-foreground/50">tel:</code> wrapper. If dead, fix that first: it unlocks
           real engagement visibility.
         </p>
       </div>
@@ -649,7 +649,7 @@ function TopBookingPagesPanel({ range }: { range: Range }) {
         </h3>
         <p className="text-[12px] text-foreground/40 mt-1 max-w-2xl">
           Which pages customers were on when they booked. Web-form bookings
-          only — tire-order and phone bookings carry no page attribution.
+          only: tire-order and phone bookings carry no page attribution.
         </p>
       </div>
 
@@ -687,7 +687,7 @@ function TopBookingPagesPanel({ range }: { range: Range }) {
             {/* Mandatory coverage caption — a thin sample must never read as the whole picture. */}
             <p className="text-[11px] text-foreground/35 mt-3">
               {data.withAttribution.toLocaleString()} of {data.totalBookings.toLocaleString()} bookings
-              in this window carry page attribution — tire-order and phone bookings carry none.
+              in this window carry page attribution: tire-order and phone bookings carry none.
             </p>
           </>
         )}
@@ -749,7 +749,7 @@ function SitemapSubmissionPanel() {
             Pings Google to re-crawl the 4 sitemaps. Use after content
             audits, new pages, or when a fresh sitemap-images.xml lands.
             Same JWT-signed service-account flow as the gsc-submit-sitemap
-            CLI script — just no SSH required.
+            CLI script: just no SSH required.
           </p>
         </div>
         <button

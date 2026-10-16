@@ -78,7 +78,7 @@ export function AIHealthPanel() {
         {!scoreReliable && (
           <div role="alert" className="mb-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs text-amber-300">
             <strong>{enginesFailed} of {enginesTotal} intelligence engines failed.</strong>{" "}
-            The health score is UNKNOWN, not average — it starts at a baseline of 50 and a dead
+            The health score is UNKNOWN, not average: it starts at a baseline of 50 and a dead
             engine is simply absent from it, so a number here would describe silence.
           </div>
         )}

@@ -31,7 +31,7 @@ export function CustomerIntelligence() {
         </div>
         <div className="flex items-center gap-2 mt-4 text-amber-200/90 text-xs">
           <AlertTriangle className="w-4 h-4 shrink-0" />
-          <span>Customer signals could not be read — churn and retention status unknown, not clear.</span>
+          <span>Customer signals could not be read: churn and retention status unknown, not clear.</span>
         </div>
       </div>
     );

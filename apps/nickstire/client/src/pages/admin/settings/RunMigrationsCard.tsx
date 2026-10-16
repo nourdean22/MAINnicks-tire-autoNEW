@@ -44,8 +44,8 @@ export default function RunMigrationsCard() {
       const res = r as MigrationResult;
       setLast(res);
       if (!res.success) toast.error(`Migrations failed: ${res.error ?? "unknown error"}`);
-      else if (res.errors?.length) toast.warning(`${res.errors.length} step(s) failed — see below.`);
-      else toast.success("Built-in migration list applied — no step failed.");
+      else if (res.errors?.length) toast.warning(`${res.errors.length} step(s) failed: see below.`);
+      else toast.success("Built-in migration list applied: no step failed.");
     },
     onError: (e) => toast.error(`Couldn't run migrations: ${e.message}`),
   });
@@ -69,7 +69,7 @@ export default function RunMigrationsCard() {
         <h3 className="text-sm font-bold text-foreground">Database migrations</h3>
       </div>
       <p className="text-[12px] text-foreground/55 mb-3">
-        Applies the built-in migration list — a maintained subset, not every migration file. A new or restored database still needs the full migration runner.
+        Applies the built-in migration list: a maintained subset, not every migration file. A new or restored database still needs the full migration runner.
       </p>
       <button
         type="button"

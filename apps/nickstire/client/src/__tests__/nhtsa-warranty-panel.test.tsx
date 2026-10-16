@@ -60,7 +60,7 @@ describe("manufacturer programs: empty vs error (§7.3)", () => {
       h.warranty = w;
       const { unmount } = render(<NhtsaVehiclePanel vehicle={car} />);
       const alert = screen.getByRole("alert");
-      expect(alert.textContent).toMatch(/manufacturer program list unavailable — this is NOT the same as "none on file"/);
+      expect(alert.textContent).toMatch(/manufacturer program list unavailable: this is NOT the same as "none on file"/);
       expect(screen.getByRole("button", { name: /retry/i })).toBeTruthy();
       expect(text()).not.toMatch(/None listed by NHTSA/);
       unmount();

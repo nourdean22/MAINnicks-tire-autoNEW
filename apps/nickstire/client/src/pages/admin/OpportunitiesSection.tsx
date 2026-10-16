@@ -94,7 +94,7 @@ export default function OpportunitiesSection() {
         <div className="rounded border border-amber-500/50 bg-amber-500/10 p-3 text-sm flex items-start gap-2">
           <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
           <span>
-            <strong>Opportunities unreadable — this is UNKNOWN, not clear.</strong> The queue could not
+            <strong>Opportunities unreadable: this is UNKNOWN, not clear.</strong> The queue could not
             be read, so this list is not evidence that nothing needs doing.
           </span>
         </div>
@@ -109,7 +109,7 @@ export default function OpportunitiesSection() {
       {/* Only claim "clear" when the queue was actually READ and was empty. */}
       {!query.isLoading && !query.isError && queryable === true && items.length === 0 && (
         <div className="rounded border border-border/40 p-4 text-sm text-foreground/60">
-          No open opportunities. The queue was read successfully — this one is genuinely clear.
+          No open opportunities. The queue was read successfully: this one is genuinely clear.
         </div>
       )}
 

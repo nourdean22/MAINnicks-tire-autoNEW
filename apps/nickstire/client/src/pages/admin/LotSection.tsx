@@ -884,7 +884,7 @@ function ActivityPanel({ a }: { a: ActivityData }) {
              aria-label={`Arrivals by hour, ${label(from)} to ${label(to)}. Busiest hour ${label(busiest.hour)} with ${busiest.arrivals} arrivals.`}>
           {window.map((h) => (
             <div key={h.hour} className="flex-1 flex flex-col justify-end items-center gap-0.5 min-w-0"
-                 title={`${label(h.hour)} — ${h.arrivals} arrival${h.arrivals === 1 ? "" : "s"}` +
+                 title={`${label(h.hour)} · ${h.arrivals} arrival${h.arrivals === 1 ? "" : "s"}` +
                         (h.passThroughs ? `, ${h.passThroughs} drive-by` : "") +
                         (h.baselineArrivals === null ? "" : `, usual ${h.baselineArrivals.toFixed(1)}`)}>
               {/* Drive-bys stack ABOVE arrivals: they are crossings too, but they are not
@@ -1412,7 +1412,7 @@ function ConversationPanel({
         <div className="mb-2">
           <div className="text-[12px] font-semibold">Counter conversations</div>
           <div className="text-[11px] text-foreground/40">
-            Operational summaries only — raw audio and full transcripts stay off
+            Operational summaries only: raw audio and full transcripts stay off
             this screen; self-tests are hidden
           </div>
         </div>
@@ -1457,14 +1457,14 @@ function ConversationPanel({
                 (status === "SKIPPED"
                   ? "No speech was transcribed in this clip."
                   : status === "FAILED"
-                    ? "Summary unavailable — capture, transcription, or extraction failed."
+                    ? "Summary unavailable: capture, transcription, or extraction failed."
                     : row.coverage === null
-                      ? "Summary withheld — transcript coverage is unknown."
+                      ? "Summary withheld: transcript coverage is unknown."
                       : row.coverage < 0.65
-                        ? `Summary withheld — transcript coverage ${Math.round(row.coverage * 100)}% is below the 65% evidence threshold.`
+                        ? `Summary withheld: transcript coverage ${Math.round(row.coverage * 100)}% is below the 65% evidence threshold.`
                         : row.factCount === 0
                           ? "No evidence-backed actionable facts were found."
-                          : "Summary withheld — validated evidence is incomplete.");
+                          : "Summary withheld: validated evidence is incomplete.");
 
               return (
                 <div
@@ -1978,7 +1978,7 @@ export default function LotSection() {
           <Panel
             title="On the lot right now"
             icon={<Hourglass className="w-4 h-4" />}
-            subtitle="Longest first — clocks are live, and a car whose arrival was never observed says so instead of guessing"
+            subtitle="Longest first: clocks are live, and a car whose arrival was never observed says so instead of guessing"
           >
             {onLotVisits.isError ? (
               <Unknown what="Floor board" reason={onLotVisits.error?.message} />
@@ -2098,7 +2098,7 @@ export default function LotSection() {
           )}
 
           <Panel title="Already on the lot at startup" icon={<ShieldQuestion className="w-4 h-4" />}
-                 subtitle="Occupancy, kept separate from today's arrivals — a car parked before the detector started never arrived">
+                 subtitle="Occupancy, kept separate from today's arrivals: a car parked before the detector started never arrived">
             <MetricGrid cols={2}>
               <StatCard
                 label="Already parked at startup"
@@ -2194,7 +2194,7 @@ export default function LotSection() {
       <ConversationPanel query={conversations} officeCamera={officeCamera} />
 
       <Panel title="Cameras" icon={<Camera className="w-4 h-4" />}
-             subtitle="Producer heartbeats — infrastructure health, independent of whether any car has arrived">
+             subtitle="Producer heartbeats: infrastructure health, independent of whether any car has arrived">
         {health.isError ? (
           <Unknown what="Camera health" reason={health.error?.message} />
         ) : health.isPending ? (

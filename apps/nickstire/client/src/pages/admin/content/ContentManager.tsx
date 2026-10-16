@@ -444,7 +444,7 @@ export function ContentManager() {
                   </div>
                   <p className="text-foreground/80 text-xs font-bold">{result.article.title}</p>
                   <p className="text-foreground/60 text-xs mt-0.5">{result.article.excerpt}</p>
-                  <p className="text-[10px] text-foreground/30 mt-1">Status: Draft — review in the Articles tab to publish</p>
+                  <p className="text-[10px] text-foreground/30 mt-1">Status: Draft, review in the Articles tab to publish</p>
                 </div>
               )}
 

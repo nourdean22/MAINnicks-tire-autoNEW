@@ -25,7 +25,7 @@ export function ContentWarRoom() {
       <div className="p-8 text-center border border-amber-500/30 rounded-xl bg-amber-500/5">
         <AlertCircle className="w-5 h-5 text-amber-400 mx-auto mb-2" />
         <div className="text-amber-200/90 text-sm">Could not load content drafts.</div>
-        <div className="text-amber-200/50 text-xs mt-1">{error?.message ?? "unknown error"} — this is a read failure, not an empty inventory.</div>
+        <div className="text-amber-200/50 text-xs mt-1">{error?.message ?? "unknown error"} · this is a read failure, not an empty inventory.</div>
       </div>
     );
   }

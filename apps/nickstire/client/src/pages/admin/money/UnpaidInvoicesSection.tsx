@@ -33,7 +33,7 @@ export default function UnpaidInvoicesSection() {
     <div className="space-y-6">
       {unknown && (
         <div className="border border-amber-500/40 bg-amber-500/10 p-4 text-[13px] text-amber-400">
-          <strong>Unpaid invoices could not be read.</strong> The numbers below are unknown — NOT zero, and nothing here means you have been paid. {error?.message}
+          <strong>Unpaid invoices could not be read.</strong> The numbers below are unknown: NOT zero, and nothing here means you have been paid. {error?.message}
         </div>
       )}
 
@@ -74,7 +74,7 @@ export default function UnpaidInvoicesSection() {
         <LoadingState label="Loading unpaid invoices..." />
       ) : unknown ? (
         <div className="text-center py-12 text-amber-400/80">
-          <p className="text-[13px]">The worklist is unavailable — retry before trusting any collection state.</p>
+          <p className="text-[13px]">The worklist is unavailable: retry before trusting any collection state.</p>
         </div>
       ) : items.length === 0 ? (
         <div className="text-center py-12 text-foreground/40">
@@ -163,7 +163,7 @@ export default function UnpaidInvoicesSection() {
                   {inv.customerPhone && (
                     <MessageCustomerLink
                       phone={inv.customerPhone}
-                      body={`Hi ${firstName}, this is Nick's Tire & Auto. We have an open balance on your invoice${inv.invoiceNumber ? ` #${inv.invoiceNumber}` : ""}. You can take care of it over the phone at (216) 862-0005 or stop by anytime — thanks!`}
+                      body={`Hi ${firstName}, this is Nick's Tire & Auto. We have an open balance on your invoice${inv.invoiceNumber ? ` #${inv.invoiceNumber}` : ""}. You can take care of it over the phone at (216) 862-0005 or stop by anytime: thanks!`}
                       ariaLabel="Send text message via in-admin SMS chat"
                       className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/10 text-blue-400 text-[11px] font-bold tracking-wide border border-blue-500/20 hover:bg-blue-500/20 transition-colors"
                     >

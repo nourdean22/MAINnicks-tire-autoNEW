@@ -102,7 +102,7 @@ export default function PublishDrawer({ isOpen, onClose, draft, onMarkPosted, is
           <div className="border border-emerald-500/30 bg-emerald-500/5 rounded p-3 space-y-2">
             <p className="text-xs text-emerald-300 leading-relaxed">
               <strong>Canonical path.</strong> Stage this carousel's rendered slides and caption into the gated
-              Publish queue — it then flows through the same approve → publish door as everything else
+              Publish queue: it then flows through the same approve → publish door as everything else
               (kill switches, attempt ledger, reconciliation), and "posted" means Meta confirmed it.
             </p>
             <button
@@ -116,7 +116,7 @@ export default function PublishDrawer({ isOpen, onClose, draft, onMarkPosted, is
         )}
         <div className="border border-blue-500/20 bg-blue-500/5 rounded p-3 text-xs text-blue-300 leading-relaxed">
           <strong>Manual EXPORT FALLBACK.</strong> The steps below prepare assets for posting by hand. Note:
-          "Mark as Posted" here only updates the sheet CRM — it records no platform media id and no ledger
+          "Mark as Posted" here only updates the sheet CRM, it records no platform media id and no ledger
           attempt. Prefer the canonical path above whenever it is available.
         </div>
 

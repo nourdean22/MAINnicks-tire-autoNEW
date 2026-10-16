@@ -69,7 +69,7 @@ export function FollowUpTransferCard() {
   const submitEdit = async () => {
     const e164 = toE164(draftNumber);
     if (!e164) {
-      toast.error("Invalid number — type a 10-digit US number");
+      toast.error("Invalid number: type a 10-digit US number");
       return;
     }
     if (e164 !== SHOP_LANDLINE) {

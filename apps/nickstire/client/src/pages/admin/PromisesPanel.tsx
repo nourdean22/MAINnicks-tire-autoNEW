@@ -90,7 +90,7 @@ export default function PromisesPanel() {
   const keep = trpc.promises.keep.useMutation({
     onSuccess: (r) => {
       if (r && "ok" in r && !r.ok) toast.error(r.error);
-      else { toast.success("Kept — evidence logged"); setKeepFor(null); setEvidence(""); }
+      else { toast.success("Kept: evidence logged"); setKeepFor(null); setEvidence(""); }
       refresh();
     },
     onError: (e) => toast.error(e.message),
@@ -103,7 +103,7 @@ export default function PromisesPanel() {
   const cancelPromise = async (id: string, action: string) => {
     const okay = await confirmDialog({
       title: "Cancel this promise?",
-      message: `"${action.slice(0, 80)}" — cancelling records who cancelled; it does not tell the customer.`,
+      message: `"${action.slice(0, 80)}": cancelling records who cancelled; it does not tell the customer.`,
       confirmLabel: "Cancel promise",
     });
     if (okay) cancel.mutate({ id });
@@ -165,7 +165,7 @@ export default function PromisesPanel() {
           <input
             value={form.promisedAction}
             onChange={(e) => setForm((f) => ({ ...f, promisedAction: e.target.value }))}
-            placeholder="Exactly what was promised — e.g. 'text when the Camry is ready'"
+            placeholder="Exactly what was promised: e.g. 'text when the Camry is ready'"
             maxLength={500}
             className="w-full text-sm rounded-md border border-border/40 bg-background px-3 py-2.5"
           />
@@ -203,7 +203,7 @@ export default function PromisesPanel() {
                   // be the one true at the moment of the click.
                   const stored = resolveDueSafely(form.duePick);
                   if (!stored) {
-                    toast.error("Shop hours unreadable — not logging a promise with a guessed due time.");
+                    toast.error("Shop hours unreadable, not logging a promise with a guessed due time.");
                     return;
                   }
                   create.mutate({
@@ -224,7 +224,7 @@ export default function PromisesPanel() {
               <p className="text-[10px] text-muted-foreground">Comes due {due.detail}</p>
             ) : (
               <p className="text-[10px] text-amber-600" role="status">
-                Shop hours unreadable — cannot compute a due time, so logging is blocked rather than storing a guess.
+                Shop hours unreadable: cannot compute a due time, so logging is blocked rather than storing a guess.
               </p>
             )}
           </div>
@@ -237,11 +237,11 @@ export default function PromisesPanel() {
         </div>
       ) : isError ? (
         <div className="px-4 py-4 text-sm text-amber-600" role="status">
-          Promises unavailable — this is UNKNOWN, not zero. Open promises may exist that this panel could not read.
+          Promises unavailable: this is UNKNOWN, not zero. Open promises may exist that this panel could not read.
         </div>
       ) : !open || open.length === 0 ? (
         <div className="px-4 py-4 text-sm text-muted-foreground">
-          No open promises. Log one the moment you say "we'll call you back" — the sweep escalates anything overdue into the inbox.
+          No open promises. Log one the moment you say "we'll call you back": the sweep escalates anything overdue into the inbox.
         </div>
       ) : (
         <ul className="divide-y divide-border/30">

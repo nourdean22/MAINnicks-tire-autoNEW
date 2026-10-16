@@ -110,7 +110,7 @@ export function OutreachBrief({ onRecoveryAction }: OutreachBriefProps) {
         <div className="flex items-center gap-2.5">
           <AlertTriangle className="w-3.5 h-3.5 text-amber-400/70 shrink-0" />
           <span className="text-[12.5px] text-amber-200/70 leading-tight">
-            Outreach state unreadable — a data query failed; this is not a quiet day.
+            Outreach state unreadable: a data query failed; this is not a quiet day.
           </span>
         </div>
       </div>
@@ -176,7 +176,7 @@ export function OutreachBrief({ onRecoveryAction }: OutreachBriefProps) {
           <div className="flex items-center gap-2.5 -mx-2 px-2 py-1">
             <AlertTriangle className="w-3.5 h-3.5 text-amber-400/70 shrink-0" />
             <span className="text-[12.5px] text-amber-200/70 leading-tight">
-              Recovery status unavailable — could not read declined estimates. This is not "nothing to recover".
+              Recovery status unavailable: could not read declined estimates. This is not "nothing to recover".
             </span>
           </div>
         )}

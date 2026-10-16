@@ -84,7 +84,7 @@ export function LlmSpendPanel() {
           <HelpCircle className="w-4 h-4 mt-0.5 shrink-0" />
           <ProvenanceTag provenance={provenanceOf("observed", "unavailable")} />
           <p className="text-sm">
-            Ledger unreadable — this is UNKNOWN, not zero. Model calls may well be running; this panel
+            Ledger unreadable: this is UNKNOWN, not zero. Model calls may well be running; this panel
             could not read them.{isError && error?.message ? ` (${error.message})` : ""}
           </p>
         </div>
@@ -116,14 +116,14 @@ export function LlmSpendPanel() {
         <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
         {recording === "off" ? (
           <p>
-            Not recording — <code className="text-[11px]">LLM_LEDGER_ENABLED</code> is not{" "}
+            Not recording <code className="text-[11px]">LLM_LEDGER_ENABLED</code> is not{" "}
             <code className="text-[11px]">true</code>. Anything below was recorded earlier and is
             real; new calls are not being written down, so these numbers will not grow.
           </p>
         ) : (
           <p>
             Recording <strong>stopped after a write failure</strong> and stays stopped until the
-            server restarts. History below is real but is no longer growing — treat it as a
+            server restarts. History below is real but is no longer growing: treat it as a
             snapshot, not as current usage.
           </p>
         )}
@@ -185,7 +185,7 @@ export function LlmSpendPanel() {
       {tokenCoverage < 99.5 && (
         <p className="text-[11px] text-amber-400/90 mb-3">
           Token counts cover {num(totals.callsWithTokens)} of {num(totals.calls)} calls (
-          {tokenCoverage.toFixed(0)}%) — the rest returned no usage, so the total above is a floor, not
+          {tokenCoverage.toFixed(0)}%): the rest returned no usage, so the total above is a floor, not
           the full figure.
         </p>
       )}
@@ -229,7 +229,7 @@ export function LlmSpendPanel() {
       )}
 
       <p className="text-[10px] text-muted-foreground mt-3">
-        Tokens only — no cost. There is no price table in this repo, so a dollar figure here would be
+        Tokens only: no cost. There is no price table in this repo, so a dollar figure here would be
         invented. Lane names come from the calling function; generic inner helpers report themselves
         rather than the feature that owns the call.
       </p>

@@ -715,7 +715,7 @@ function BlockersView({ onSelectWO }: { onSelectWO: (id: string) => void }) {
         </div>
         {overdueError ? (
           <div className="border border-amber-500/40 bg-amber-500/10 p-3 text-[11px] text-amber-400">
-            Overdue work orders could not be read — unknown, NOT zero.
+            Overdue work orders could not be read: unknown, NOT zero.
           </div>
         ) : !overdue?.length ? (
           <div className="text-[10px] text-foreground/30 py-4 text-center">No overdue work orders</div>
@@ -749,7 +749,7 @@ function BlockersView({ onSelectWO }: { onSelectWO: (id: string) => void }) {
         </div>
         {blockedError ? (
           <div className="border border-amber-500/40 bg-amber-500/10 p-3 text-[11px] text-amber-400">
-            Blocked work orders could not be read — unknown, NOT zero.
+            Blocked work orders could not be read: unknown, NOT zero.
           </div>
         ) : !blocked?.length ? (
           <div className="text-[10px] text-foreground/30 py-4 text-center">No blocked work orders</div>
@@ -792,7 +792,7 @@ function PickupQueueView({ onSelectWO }: { onSelectWO: (id: string) => void }) {
   if (queueError) {
     return (
       <div className="border border-amber-500/40 bg-amber-500/10 p-4 text-[13px] text-amber-400">
-        <strong>The pickup queue could not be read.</strong> This is unknown — NOT empty, and nothing here means no vehicle is waiting.
+        <strong>The pickup queue could not be read.</strong> This is unknown: NOT empty, and nothing here means no vehicle is waiting.
       </div>
     );
   }
@@ -865,7 +865,7 @@ function ShopPulseMood({ stats }: { stats: AdminDashboardStats | undefined }) {
           </span>
         </div>
         <div className="mt-2 text-[11px] text-foreground/60">
-          The shop-floor read failed on the server, so today&apos;s revenue, jobs and pace are unknown — not zero.
+          The shop-floor read failed on the server, so today&apos;s revenue, jobs and pace are unknown, not zero.
           Retry in a minute; if it persists, check the ALG mirror.
         </div>
       </div>
@@ -1045,7 +1045,7 @@ export default function WorkOrdersSection() {
     <div className="space-y-4">
       <PageHeader
         title="Work Orders"
-        subtitle="Kanban board grouped by lifecycle phase — queue, parts, in-shop, QC/pickup. Refreshes every 15 seconds."
+        subtitle="Kanban board grouped by lifecycle phase: queue, parts, in-shop, QC/pickup. Refreshes every 15 seconds."
         icon={<Wrench className="w-5 h-5" />}
       />
       <DegradedDataBanner stats={dashboardStats} />
@@ -1123,7 +1123,7 @@ export default function WorkOrdersSection() {
       {view === "board" && listHitCap && !searchQuery.trim() && (
         <div className="flex items-center gap-2 text-[11px] text-foreground/40 px-0.5">
           <AlertTriangle className="w-3 h-3 shrink-0 text-amber-400/70" />
-          <span>Showing newest 200 — older active work orders not listed.</span>
+          <span>Showing newest 200: older active work orders not listed.</span>
         </div>
       )}
 

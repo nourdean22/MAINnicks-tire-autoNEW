@@ -94,7 +94,7 @@ export function AttributionReviewCard() {
       title: `${label} this match?`,
       message:
         `Call #${row.callId}` +
-        (row.invoiceId ? ` ↔ invoice #${row.invoiceId}` : "") +
+        (row.invoiceId ? ` · invoice #${row.invoiceId}` : "") +
         (row.leadId ? ` · lead #${row.leadId}` : "") +
         (row.matchMethod ? ` · matched by ${row.matchMethod}` : "") +
         `. Your ruling becomes the attribution record.`,
@@ -126,7 +126,7 @@ export function AttributionReviewCard() {
         <h3 className="text-sm font-semibold">Attribution review · {rows.length} weak match{rows.length === 1 ? "" : "es"}</h3>
       </div>
       {rows.length === 0 ? (
-        <p className="text-xs text-muted-foreground">No call ↔ invoice matches are waiting for a ruling.</p>
+        <p className="text-xs text-muted-foreground">No call-to-invoice matches are waiting for a ruling.</p>
       ) : (
         <ul className="divide-y divide-border/30">
           {/* Same-invoice contacts are collapsed, never silently dropped. An
@@ -167,7 +167,7 @@ export function AttributionReviewCard() {
               {data.bands.inferredPct != null && (
                 <span className={data.bands.inferredPct >= 80 ? "block mt-1 text-amber-300" : "block mt-1"}>
                   {data.bands.inferredPct}% of these rest on inference rather than a
-                  recorded link{data.bands.inferredPct >= 80 ? " — confirming in bulk here is guessing in bulk." : "."}
+                  recorded link{data.bands.inferredPct >= 80 ? " confirming in bulk here is guessing in bulk." : "."}
                 </span>
               )}
               <span className="block mt-1 text-foreground/40">{data.bandCaveat}</span>
@@ -181,7 +181,7 @@ export function AttributionReviewCard() {
                 <div className="min-w-0 text-xs">
                   <div className="font-medium text-foreground">
                     Call #{row.callId}
-                    {row.invoiceId ? <> ↔ invoice #{row.invoiceId}</> : <span className="text-muted-foreground"> · no invoice</span>}
+                    {row.invoiceId ? <> · invoice #{row.invoiceId}</> : <span className="text-muted-foreground"> · no invoice</span>}
                   </div>
                   <div className="text-muted-foreground truncate">
                     {row.matchMethod ?? "unknown method"} · {row.evidenceLevel ?? "no evidence level"}

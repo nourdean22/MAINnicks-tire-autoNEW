@@ -215,9 +215,9 @@ export default function SettingsStatusTab() {
         <div className="bg-amber-500/[0.06] border border-amber-500/30 p-6 flex items-center gap-4">
           <AlertTriangle className="w-8 h-8 text-amber-400 shrink-0" />
           <div>
-            <h3 className="font-semibold text-foreground tracking-tight">Status unknown — {failedChecks.length} of {SETTINGS_STATUS_CHECK_COUNT} checks could not run.</h3>
+            <h3 className="font-semibold text-foreground tracking-tight">Status unknown · {failedChecks.length} of {SETTINGS_STATUS_CHECK_COUNT} checks could not run.</h3>
             <p className="text-foreground/55 text-[12.5px] mt-0.5">
-              Unreadable: {failedChecks.join(" · ")}. No news here is NOT good news — retry before trusting this page.
+              Unreadable: {failedChecks.join(" · ")}. No news here is NOT good news: retry before trusting this page.
             </p>
           </div>
         </div>
@@ -235,7 +235,7 @@ export default function SettingsStatusTab() {
 
       {failedChecks.length > 0 && openIssues.length > 0 && (
         <p className="text-[12px] text-amber-400/80">
-          Note: {failedChecks.length} health check{failedChecks.length === 1 ? "" : "s"} could not run ({failedChecks.join(", ")}) — the issue list above may be incomplete.
+          Note: {failedChecks.length} health check{failedChecks.length === 1 ? "" : "s"} could not run ({failedChecks.join(", ")}): the issue list above may be incomplete.
         </p>
       )}
 
@@ -284,7 +284,7 @@ export default function SettingsStatusTab() {
           AMBER — so "what ran / what's failing" is one glance, not a log dive. */}
       <Panel
         title="Cron Health"
-        subtitle="Last 24h — failed (red) + skipped (amber) surfaced"
+        subtitle="Last 24h: failed (red) + skipped (amber) surfaced"
         icon={<Activity className="w-4 h-4" />}
       >
         {(!cronHealth || cronHealth.length === 0) ? (

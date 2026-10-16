@@ -67,7 +67,7 @@ export function StatCard({ label, value, icon, color = "text-foreground", trend,
         type="button"
         onClick={handleClick}
         className={`stat-card stat-card-interactive group glow-on-hover card-enter cursor-pointer hover:ring-1 hover:ring-primary/40 transition-shadow text-left w-full${className ? ` ${className}` : ""}`}
-        aria-label={`${label} — open detail`}
+        aria-label={`${label} · open detail`}
       >
         {inner}
       </button>

@@ -56,7 +56,7 @@ export function deriveCronIssues(rows: readonly CronHealthRow[]): OpenIssue[] {
           title: "Data accuracy issues detected",
           detail: details,
           whyText:
-            "The data-accuracy cron found records that break downstream automation (e.g. invoices with no customer phone can never be texted). It only reports — remediation is manual until a backfill runs.",
+            "The data-accuracy cron found records that break downstream automation (e.g. invoices with no customer phone can never be texted). It only reports: remediation is manual until a backfill runs.",
         });
       }
       continue;

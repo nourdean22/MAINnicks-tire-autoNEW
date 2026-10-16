@@ -65,7 +65,7 @@ export default function MembershipsSection() {
     <div className="space-y-6">
       <PageHeader
         title="Nonstop Nick"
-        subtitle="Counter lookup — verify a member by phone, bind their vehicle"
+        subtitle="Counter lookup: verify a member by phone, bind their vehicle"
         icon={<BadgeCheck className="w-5 h-5" />}
       />
 
@@ -123,7 +123,7 @@ export default function MembershipsSection() {
           {m.isActive && m.repairDiscountPct > 0 && (
             <div className="mt-3 rounded-md bg-primary/10 border border-primary/30 px-3 py-2 text-sm font-semibold text-primary flex items-center gap-2">
               <BadgeCheck className="w-4 h-4 text-primary" />
-              {m.repairDiscountPct}% OFF this repair — apply it on the invoice (Nonstop Nick+)
+              {m.repairDiscountPct}% OFF this repair: apply it on the invoice (Nonstop Nick+)
             </div>
           )}
 
@@ -137,7 +137,7 @@ export default function MembershipsSection() {
               </p>
             ) : bindFor === m.id ? (
               <div className="space-y-2">
-                <p className="text-[12px] text-foreground/50">Vehicle not bound yet — bind at first use. One vehicle per membership.</p>
+                <p className="text-[12px] text-foreground/50">Vehicle not bound yet: bind at first use. One vehicle per membership.</p>
                 <div className="flex flex-col sm:flex-row gap-2">
                 <input
                   type="text"
@@ -150,7 +150,7 @@ export default function MembershipsSection() {
                 />
                 <input
                   type="text"
-                  placeholder="Vehicle (e.g. silver Civic) — optional"
+                  placeholder="Vehicle (e.g. silver Civic): optional"
                   value={desc}
                   onChange={(e) => setDesc(e.target.value)}
                   className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:border-primary"
@@ -193,7 +193,7 @@ export default function MembershipsSection() {
               <li>Tire rotation</li>
               <li>Rim cleans</li>
               <li>Air top-off + tread check</li>
-              <li>Wiper &amp; bulb swaps — member brings the part</li>
+              <li>Wiper &amp; bulb swaps: member brings the part</li>
             </ul>
           </div>
           <div>
@@ -208,8 +208,8 @@ export default function MembershipsSection() {
           </div>
         </div>
         <div className="mt-4 pt-3 border-t border-border/20 space-y-1 text-foreground/60">
-          <p><span className="font-semibold text-foreground/80">Nonstop Nick+ members:</span> 15% off repairs (parts + labor) — the lookup card shows the banner; apply it on the invoice.</p>
-          <p><span className="font-semibold text-foreground/80">Status not Active</span> (past due / canceled / incomplete): no covered work — they can rejoin online or at the counter.</p>
+          <p><span className="font-semibold text-foreground/80">Nonstop Nick+ members:</span> 15% off repairs (parts + labor): the lookup card shows the banner; apply it on the invoice.</p>
+          <p><span className="font-semibold text-foreground/80">Status not Active</span> (past due / canceled / incomplete): no covered work, they can rejoin online or at the counter.</p>
           <p><span className="font-semibold text-foreground/80">Anything outside the plan:</span> tell the member and quote it before work starts.</p>
         </div>
       </div>

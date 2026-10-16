@@ -37,7 +37,7 @@ export function NextBestActions() {
   if (isError) {
     return (
       <div className="text-xs text-amber-300/80">
-        Could not load next best actions — read failed, not "nothing to do".
+        Could not load next best actions: read failed, not "nothing to do".
       </div>
     );
   }

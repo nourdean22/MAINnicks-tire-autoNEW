@@ -122,7 +122,7 @@ export default function GrowthSection() {
   return (
     <Section
       title="Growth"
-      subtitle="Local SEO + social systems. Nothing on this screen posts, sends, or edits anything outside this app — every external action is yours, labeled per card."
+      subtitle="Local SEO + social systems. Nothing on this screen posts, sends, or edits anything outside this app: every external action is yours, labeled per card."
       icon={<TrendingUp className="w-5 h-5 text-primary" />}
     >
       <TabBar tabs={GROWTH_TABS} activeTab={tab} onChange={setTab} variant="pill" size="compact" />
@@ -152,9 +152,9 @@ function LocalGrowthTab() {
   return (
     <div className="space-y-4">
       <Panel title="Automation armed-state" icon={<Lock className="w-4 h-4" />}>
-        <div className="flex items-center gap-2 mb-2"><ModeBadge mode="read-only" /><span className="text-[10px] text-foreground/40">booleans only — token values are never returned</span></div>
+        <div className="flex items-center gap-2 mb-2"><ModeBadge mode="read-only" /><span className="text-[10px] text-foreground/40">booleans only: token values are never returned</span></div>
         {armedLoading ? <Loader2 className="w-4 h-4 animate-spin text-primary" /> : !armed ? (
-          <p className="text-xs text-muted-foreground">Unavailable — check server logs.</p>
+          <p className="text-xs text-muted-foreground">Unavailable: check server logs.</p>
         ) : (
           <div className="space-y-1.5 text-xs">
             <div className="flex flex-wrap gap-x-4 gap-y-1">
@@ -178,7 +178,7 @@ function LocalGrowthTab() {
             )}
             <p className="text-[11px] text-foreground/60 leading-relaxed">{armed.disarmNote}</p>
             <p className="text-[11px] text-foreground/50">
-              GBP posting: direct API posting is {armed.gbp.directPostingPossible ? "possible" : "NOT possible"} (Posts API deprecated 2024) — mode: {armed.gbp.mode}.
+              GBP posting: direct API posting is {armed.gbp.directPostingPossible ? "possible" : "NOT possible"} (Posts API deprecated 2024): mode: {armed.gbp.mode}.
             </p>
           </div>
         )}
@@ -187,7 +187,7 @@ function LocalGrowthTab() {
       <Panel title="Google Reviews / Place ID health" icon={<Star className="w-4 h-4" />}>
         <div className="flex items-center gap-2 mb-2"><ModeBadge mode="read-only" /></div>
         {healthLoading ? <Loader2 className="w-4 h-4 animate-spin text-primary" /> : !health ? (
-          <p className="text-xs text-muted-foreground">Unavailable — check server logs.</p>
+          <p className="text-xs text-muted-foreground">Unavailable: check server logs.</p>
         ) : (
           <div className="space-y-1.5 text-xs">
             <div className="flex flex-wrap gap-x-4 gap-y-1">
@@ -205,10 +205,10 @@ function LocalGrowthTab() {
       </Panel>
 
       <Panel title="Search visibility (rank tracker)" icon={<TrendingUp className="w-4 h-4" />}>
-        <div className="flex items-center gap-2 mb-2"><ModeBadge mode="manual" /><span className="text-[10px] text-foreground/40">no measured ranks yet — never faked</span></div>
+        <div className="flex items-center gap-2 mb-2"><ModeBadge mode="manual" /><span className="text-[10px] text-foreground/40">no measured ranks yet: never faked</span></div>
         <p className="text-[11px] text-foreground/60 leading-relaxed mb-2">
           {RANK_KEYWORDS.length} target keywords are defined. Ranks show only after a real
-          measurement (GSC average position or a manual SERP check) — the GSC env-aliasing
+          measurement (GSC average position or a manual SERP check): the GSC env-aliasing
           fix in this stack stops Search Console syncing from silently dying when the Maps
           key changes.
         </p>
@@ -224,7 +224,7 @@ function LocalGrowthTab() {
       <Panel title="Next owner actions" icon={<CheckCircle2 className="w-4 h-4" />}>
         <div className="flex items-center gap-2 mb-2"><ModeBadge mode="manual" /></div>
         <ol className="list-decimal list-inside space-y-1 text-[11px] text-foreground/70">
-          <li>Post the GBP Q&A seeds (next tab over) — ~15 min, highest local-SEO ROI.</li>
+          <li>Post the GBP Q&A seeds (next tab over): ~15 min, highest local-SEO ROI.</li>
           <li>Shoot this week's 6 photos (Photo Queue tab) and upload to GBP.</li>
           <li>Work the Entity / Brand checklist top-to-bottom (GBP first).</li>
           <li>Reply to draft reviews from the Review Replies tab, worst rating first, then Mark posted (copy → paste in GBP).</li>
@@ -354,11 +354,11 @@ function ReviewRepliesTab() {
       <div className="border border-blue-500/40 bg-blue-500/10 rounded p-3 text-xs text-blue-200 flex items-start gap-2">
         <Star className="w-4 h-4 shrink-0 mt-0.5 text-blue-400" />
         <span>
-          <strong>Copy-only — nothing here posts to Google.</strong> The full loop:
+          <strong>Copy-only: nothing here posts to Google.</strong> The full loop:
           edit the draft if needed → Approve → Copy → paste it on the review in
           the Google Business app → then come back and tap <strong>Mark posted</strong>{" "}
           so the backlog below stays honest. Every button only marks rows in our
-          database. Drafts are ordered worst rating first — handle the angry ones first.
+          database. Drafts are ordered worst rating first: handle the angry ones first.
         </span>
       </div>
 
@@ -372,7 +372,7 @@ function ReviewRepliesTab() {
             <strong>
               {stats.draft} {stats.draft === 1 ? "draft reply is" : "draft replies are"} waiting for review
             </strong>
-            . Worst ratings first — read, edit if needed, Approve, then copy into
+            . Worst ratings first: read, edit if needed, Approve, then copy into
             the Google Business app.
           </span>
         </div>
@@ -387,11 +387,11 @@ function ReviewRepliesTab() {
               marked posted yet
             </strong>
             {oldestApprovedDays !== null && oldestApprovedDays >= 1 && (
-              <> — oldest approved {oldestApprovedDays} {oldestApprovedDays === 1 ? "day" : "days"} ago</>
+              <> oldest approved {oldestApprovedDays} {oldestApprovedDays === 1 ? "day" : "days"} ago</>
             )}
             . Next move: copy each one, paste it on the review in the Google Business
             app, then tap "Mark posted". Already replied on Google? Just tap
-            "Mark posted". (Counts our DB state only — we can't see Google's side.)
+            "Mark posted". (Counts our DB state only, we can't see Google's side.)
           </span>
         </div>
       )}
@@ -430,7 +430,7 @@ function ReviewRepliesTab() {
         "Fetch" reads Google reviews (read-only) and AI-drafts replies into OUR database.
         It posts nothing.
         {fetchNew.data && ` Last run: ${fetchNew.data.created} new draft(s) from ${fetchNew.data.total} reviews.`}
-        {fetchNew.error && " Last run failed — likely a missing Google key; see Reviews health on the Local Growth tab."}
+        {fetchNew.error && " Last run failed: likely a missing Google key; see Reviews health on the Local Growth tab."}
       </p>
 
       {mutationError && (
@@ -533,7 +533,7 @@ function ReplyCard({ reply, onApprove, onSkip, onMarkPosted, onSaveDraft, busy }
           {findings.map((f) => (
             <p key={`${f.rule}-${f.match}`} className={`text-[10px] leading-relaxed flex items-start gap-1 ${f.severity === "block" ? "text-red-400" : "text-amber-400"}`}>
               <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />
-              <span><strong>{f.severity === "block" ? "BLOCKED" : "CHECK"}</strong> · {f.rule} ("{f.match}") — {f.fix}</span>
+              <span><strong>{f.severity === "block" ? "BLOCKED" : "CHECK"}</strong> · {f.rule} ("{f.match}") · {f.fix}</span>
             </p>
           ))}
         </div>
@@ -555,7 +555,7 @@ function ReplyCard({ reply, onApprove, onSkip, onMarkPosted, onSaveDraft, busy }
               title={blockers.length > 0 ? "Fix the blocked wording first (Edit)" : undefined}
               className={`px-2 py-1 text-[10px] font-semibold rounded border transition-colors disabled:opacity-50 ${confirming === "approve" ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/50" : "text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10"}`}
             >
-              {blockers.length > 0 ? "Blocked — edit first" : confirming === "approve" ? "Tap again — marks DB only" : "Approve (DB only)"}
+              {blockers.length > 0 ? "Blocked: edit first" : confirming === "approve" ? "Tap again: marks DB only" : "Approve (DB only)"}
             </button>
             <button
               onClick={() => (confirming === "skip" ? (onSkip(), setConfirming(null)) : setConfirming("skip"))}
@@ -572,7 +572,7 @@ function ReplyCard({ reply, onApprove, onSkip, onMarkPosted, onSaveDraft, busy }
             disabled={busy}
             className={`px-2 py-1 text-[10px] font-semibold rounded border transition-colors ${confirming === "posted" ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/50" : "text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10"}`}
           >
-            {confirming === "posted" ? "Tap again — confirms you pasted it" : "Mark posted (DB only)"}
+            {confirming === "posted" ? "Tap again: confirms you pasted it" : "Mark posted (DB only)"}
           </button>
         )}
         <ModeBadge mode="db-only" />
@@ -591,7 +591,7 @@ function GbpQaTab() {
         <span>
           <strong>Manual posting:</strong> open your Google Business Profile → Q&A,
           post the question, then answer it from the business account. Space a few
-          out over days — a burst of same-minute Q&As looks manufactured. All{" "}
+          out over days: a burst of same-minute Q&As looks manufactured. All{" "}
           {GBP_QA_SEEDS.length} pairs below are claim-safety test-enforced (no invented
           warranties, no "guaranteed", approved $25 used-tire wording only).
         </span>
@@ -693,7 +693,7 @@ function EntityTab() {
         </div>
       ))}
       <p className="text-[10px] text-foreground/30 leading-relaxed">
-        Statuses are hand-maintained — nothing is marked fixed until you verify it on the
+        Statuses are hand-maintained: nothing is marked fixed until you verify it on the
         platform. Automated listing edits violate most platforms' terms, so this stays manual
         by design.
       </p>
@@ -715,7 +715,7 @@ function CompetitorsTab() {
       <div className="border border-amber-500/40 bg-amber-500/10 rounded p-3 text-xs text-amber-200 flex items-start gap-2">
         <Swords className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
         <span>
-          <strong>Baseline {COMPETITOR_BASELINE_DATE} — a comparison anchor, not live data.</strong>{" "}
+          <strong>Baseline {COMPETITOR_BASELINE_DATE} · a comparison anchor, not live data.</strong>{" "}
           Competitor numbers below were captured in the {COMPETITOR_BASELINE_DATE} audit.
           The weekly check is manual (~10 min): open each profile, log the fields, compare
           against this anchor.
@@ -745,7 +745,7 @@ function CompetitorsTab() {
         <p className="text-[10px] text-foreground/40 mt-2">
           {typeof nicksCount === "number"
             ? `Gap math uses our LIVE Google review count (${nicksCount}) vs each competitor's ${COMPETITOR_BASELINE_DATE} baseline.`
-            : "Live Nick's review count unreachable right now — gap math hidden rather than faked. See Reviews health on the Local Growth tab."}
+            : "Live Nick's review count unreachable right now: gap math hidden rather than faked. See Reviews health on the Local Growth tab."}
         </p>
       </Panel>
       <Panel title="Weekly check fields (log these per competitor)" icon={<CheckCircle2 className="w-4 h-4" />}>
@@ -755,7 +755,7 @@ function CompetitorsTab() {
         <p className="text-[10px] text-foreground/40 mt-2">
           The server keeps each competitor's Google place ID only. Google's terms do not
           allow storing their ratings or review counts, so there is no automatic trend or
-          alert — log the weekly fields here by hand.
+          alert: log the weekly fields here by hand.
         </p>
       </Panel>
     </div>

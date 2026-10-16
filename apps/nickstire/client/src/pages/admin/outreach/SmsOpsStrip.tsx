@@ -32,7 +32,7 @@ export default function SmsOpsStrip() {
   const { data: latency } = trpc.smsOps.latencyMetrics.useQuery(undefined, { staleTime: 120_000, retry: 1 });
   const setPause = trpc.smsOps.setPause.useMutation({
     onSuccess: (r) => {
-      toast.success(r.paused ? "SMS PAUSED — automated customer sends now hold in the queue" : "SMS resumed — held queue drains on the next cycle");
+      toast.success(r.paused ? "SMS PAUSED: automated customer sends now hold in the queue" : "SMS resumed: held queue drains on the next cycle");
       utils.smsOps.opsStatus.invalidate();
     },
     onError: (e) => toast.error(e.message),
@@ -60,7 +60,7 @@ export default function SmsOpsStrip() {
   if (isError || !data) {
     return (
       <div className="rounded-lg border border-amber-500/40 bg-card p-3 text-xs text-amber-300">
-        SMS ops status UNKNOWN — the read failed. This is not "all clear".
+        SMS ops status UNKNOWN: the read failed. This is not "all clear".
       </div>
     );
   }
@@ -87,7 +87,7 @@ export default function SmsOpsStrip() {
         </button>
         {!data.pause.readable && (
           <span className="inline-flex items-center gap-1 text-[10px] text-amber-300">
-            <ShieldAlert className="w-3 h-3" /> pause state UNKNOWN ({data.pause.reason ?? "unreadable"}) — marketing holds, follow-ups flow
+            <ShieldAlert className="w-3 h-3" /> pause state UNKNOWN ({data.pause.reason ?? "unreadable"}): marketing holds, follow-ups flow
           </span>
         )}
 

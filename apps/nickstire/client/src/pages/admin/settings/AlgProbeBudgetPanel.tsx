@@ -15,9 +15,9 @@ export default function AlgProbeBudgetPanel() {
         result.outcome === "success"
           ? `Probe complete · ${result.recordsProcessed} records`
           : result.outcome === "skipped_recent"
-            ? "Skipped — data is already fresh (<5 min)"
+            ? "Skipped: data is already fresh (<5 min)"
             : result.outcome === "dedup"
-              ? "Deduped — another probe just fired"
+              ? "Deduped: another probe just fired"
               : `Probe ${result.outcome}`,
       );
       utils.shopdriver.recentProbes.invalidate();

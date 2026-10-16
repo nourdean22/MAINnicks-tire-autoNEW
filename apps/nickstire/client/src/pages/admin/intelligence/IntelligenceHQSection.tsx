@@ -126,7 +126,7 @@ export default function IntelligenceHQSection() {
             <div className="text-sm font-medium">
               {mainFight
                 ? <><span className="text-primary font-bold">Today's main fight:</span> {mainFight}</>
-                : <span className="text-amber-300/90">Main fight unavailable — intelligence read failed.</span>}
+                : <span className="text-amber-300/90">Main fight unavailable: intelligence read failed.</span>}
             </div>
           </div>
 
@@ -245,7 +245,7 @@ export default function IntelligenceHQSection() {
                   {decisionsError ? (
                     <tr>
                       <td colSpan={6} className="px-4 py-8 text-center text-amber-300/80">
-                        Ledger unavailable — could not read recent decisions. This is a read failure, not an empty ledger.
+                        Ledger unavailable: could not read recent decisions. This is a read failure, not an empty ledger.
                       </td>
                     </tr>
                   ) : !recentDecisions?.length ? (

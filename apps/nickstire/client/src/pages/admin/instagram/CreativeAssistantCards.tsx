@@ -32,7 +32,7 @@ const TYPE_LABEL: Record<AssistantCard["type"], string> = {
   fatigue: "Fatigue warning",
   quality: "Quality cost, measured",
   experiment: "Experiment",
-  reuse: "Article ↔ social reuse",
+  reuse: "Article and social reuse",
 };
 
 const CONFIDENCE_CLASS: Record<AssistantCard["confidence"], string> = {
@@ -79,7 +79,7 @@ export function CreativeAssistantCards({ onNavigate }: { onNavigate: (view: IgVi
     <Card className="border-primary/30">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-lg"><Target className="h-5 w-5 text-primary" /> What should we make today?</CardTitle>
-        <CardDescription>Ranked on signals the shop actually has — every card lists them. Nothing here is a model&apos;s opinion.</CardDescription>
+        <CardDescription>Ranked on signals the shop actually has: every card lists them. Nothing here is a model&apos;s opinion.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {q.isLoading ? (
@@ -87,13 +87,13 @@ export function CreativeAssistantCards({ onNavigate }: { onNavigate: (view: IgVi
         ) : q.isError || !data ? (
           <div role="alert" className="flex gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-            <span>Could not load the assistant — recommendations are <strong>unknown</strong>, not empty.{q.error?.message ? ` (${q.error.message})` : ""}</span>
+            <span>Could not load the assistant: recommendations are <strong>unknown</strong>, not empty.{q.error?.message ? ` (${q.error.message})` : ""}</span>
           </div>
         ) : (
           <>
             {data.cards.length === 0 && (
               <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-                Nothing stood out from today&apos;s signals{erroredSources.length ? " — and some sources could not be read, so this is incomplete" : ""}.
+                Nothing stood out from today&apos;s signals{erroredSources.length ? " and some sources could not be read, so this is incomplete" : ""}.
               </p>
             )}
             {data.cards.map((card) => {
@@ -138,7 +138,7 @@ export function CreativeAssistantCards({ onNavigate }: { onNavigate: (view: IgVi
               <div className="flex gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
                 <span>
-                  Could not read {erroredSources.map(([k]) => k).join(", ")} — cards that depend on {erroredSources.length === 1 ? "it" : "them"} are <strong>missing, not absent</strong>.
+                  Could not read {erroredSources.map(([k]) => k).join(", ")} · cards that depend on {erroredSources.length === 1 ? "it" : "them"} are <strong>missing, not absent</strong>.
                 </span>
               </div>
             )}

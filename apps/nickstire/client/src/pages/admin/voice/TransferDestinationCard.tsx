@@ -119,7 +119,7 @@ export function TransferDestinationCard() {
   const submit = async () => {
     const e164 = toE164(draftNumber);
     if (!e164) {
-      toast.error("Invalid number — type a 10-digit US number (e.g. 605-691-6315)");
+      toast.error("Invalid number: type a 10-digit US number (e.g. 605-691-6315)");
       return;
     }
     await confirmAndSetDest(e164, draftMessage || undefined);
@@ -163,7 +163,7 @@ export function TransferDestinationCard() {
         <div className="flex-1">
           <div className="text-sm font-bold text-red-400">Transfer destination unknown</div>
           <div className="text-[12px] text-foreground/60 mt-0.5">
-            {dest?.error || "VAPI API unreachable. Calls may still be forwarding correctly — check the VAPI dashboard directly."}
+            {dest?.error || "VAPI API unreachable. Calls may still be forwarding correctly: check the VAPI dashboard directly."}
           </div>
         </div>
       </div>

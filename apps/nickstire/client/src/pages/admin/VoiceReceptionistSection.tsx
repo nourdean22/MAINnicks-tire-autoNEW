@@ -248,7 +248,7 @@ export default function VoiceReceptionistSection() {
         setCopiedId(id);
         setTimeout(() => setCopiedId(null), 2000);
       },
-      () => toast.error("Copy failed — long-press the text to copy it manually."),
+      () => toast.error("Copy failed: long-press the text to copy it manually."),
     );
   };
 
@@ -504,7 +504,7 @@ export default function VoiceReceptionistSection() {
           {roi?.ok && roi.hardConversions > 0 && (
             <Panel
               title="Voice Receptionist ROI (estimate)"
-              subtitle="Measured conversions × your average paid ticket. An estimate, not billed revenue — no bookings are fabricated."
+              subtitle="Measured conversions × your average paid ticket. An estimate, not billed revenue: no bookings are fabricated."
               padding="md"
             >
               <div className="flex flex-wrap items-end gap-x-10 gap-y-4">
@@ -756,7 +756,7 @@ export default function VoiceReceptionistSection() {
             <div className="bg-card border border-amber-500/30 rounded-lg p-4 flex items-start gap-2">
               <AlertTriangle className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
               <p className="text-xs text-muted-foreground">
-                Call population unreadable — the breakdown below is{" "}
+                Call population unreadable: the breakdown below is{" "}
                 <span className="text-amber-400 font-medium">unknown, not empty</span>. The roster
                 itself may still be accurate; this panel is not.
               </p>
@@ -815,7 +815,7 @@ export default function VoiceReceptionistSection() {
                 */
                 <div className="pt-2 border-t border-border/10">
                   <p className="text-[11px] text-muted-foreground mb-1.5">
-                    Transfers — did they reach a human
+                    Transfers: did they reach a human
                   </p>
                   {queueSummary.transferConnect.coveragePct === 0 ? (
                     <p className="text-xs text-muted-foreground">
@@ -825,7 +825,7 @@ export default function VoiceReceptionistSection() {
                         {queueSummary.transferConnect.attempted}
                       </span>{" "}
                       transfer attempts, so connect rate is{" "}
-                      <span className="text-amber-400">unknown</span> — not good, not bad.
+                      <span className="text-amber-400">unknown</span> not good, not bad.
                     </p>
                   ) : (
                     <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
@@ -851,7 +851,7 @@ export default function VoiceReceptionistSection() {
                       )}
                       <span className="text-muted-foreground ml-auto">
                         {queueSummary.transferConnect.connectRate === null
-                          ? "rate withheld — too few resolved to be meaningful"
+                          ? "rate withheld: too few resolved to be meaningful"
                           : `${queueSummary.transferConnect.connectRate}% connected, over ${queueSummary.transferConnect.coveragePct}% coverage`}
                       </span>
                     </div>
@@ -903,7 +903,7 @@ export default function VoiceReceptionistSection() {
                   <span className="text-amber-400 font-medium tabular-nums">
                     {queueSummary.unclassified}
                   </span>{" "}
-                  could not be read well enough to classify — not measured, not &ldquo;no
+                  could not be read well enough to classify, not measured, not &ldquo;no
                   demand&rdquo;.
                 </p>
               )}
@@ -935,7 +935,7 @@ export default function VoiceReceptionistSection() {
             <EmptyState
               icon={<AlertTriangle className="w-10 h-10 text-amber-400" />}
               title="Queue unreadable"
-              subtitle="Missed opportunities could not be loaded — this is unknown, NOT caught up. Retry before trusting it."
+              subtitle="Missed opportunities could not be loaded: this is unknown, NOT caught up. Retry before trusting it."
             />
           ) : !queueItems || queueItems.length === 0 ? (
             <EmptyState

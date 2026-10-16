@@ -172,7 +172,7 @@ export default function DrilldownDrawer() {
                 <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
                   <p className="text-[13px] font-medium text-foreground/40">Nothing to show.</p>
                   <p className="text-[11px] text-foreground/30 mt-1">
-                    No matching rows right now — that's a clean state.
+                    No matching rows right now: that's a clean state.
                   </p>
                 </div>
               )}

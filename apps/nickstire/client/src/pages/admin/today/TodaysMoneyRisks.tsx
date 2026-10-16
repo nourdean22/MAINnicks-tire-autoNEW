@@ -55,7 +55,7 @@ export function TodaysMoneyRisks() {
     return (
       <div className="text-xs text-amber-300/80 flex items-center gap-2">
         <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-        Could not read money-at-risk signals — status unknown, not clear.
+        Could not read money-at-risk signals: status unknown, not clear.
       </div>
     );
   }

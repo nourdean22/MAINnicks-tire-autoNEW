@@ -194,7 +194,7 @@ export default function DatabaseHygienePanel() {
           <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
           <div className="space-y-1">
             <p className="text-[13px] text-foreground/70">
-              Could not scan the database — this is <strong>unknown</strong>, not clean.
+              Could not scan the database: this is <strong>unknown</strong>, not clean.
             </p>
             <p className="text-[11px] text-foreground/40">{unavailableCopy(scanStatus.reason)}</p>
           </div>

@@ -427,7 +427,7 @@ export default function UnifiedStudio({ onNavigate, initialSource }: StudioProps
                   {recordLane && (
                     <div className="space-y-2">
                       <label className="text-xs font-semibold text-muted-foreground block">
-                        Pick the record — these are real rows, newest first
+                        Pick the record: these are real rows, newest first
                       </label>
                       {sourceOptions.isLoading && (
                         <p className="text-xs text-muted-foreground">Loading records…</p>
@@ -436,17 +436,17 @@ export default function UnifiedStudio({ onNavigate, initialSource }: StudioProps
                           facts and must never render as the same sentence. */}
                       {sourceOptions.isError && (
                         <p className="text-xs text-destructive">
-                          Could not read this source. This is a read failure, not an empty list — the records may exist.
+                          Could not read this source. This is a read failure, not an empty list: the records may exist.
                         </p>
                       )}
                       {!sourceOptions.isLoading && !sourceOptions.isError && laneUnavailable && (
                         <p className="text-xs text-destructive">
-                          This source could not be read. Not the same as "none found" — do not conclude there are none.
+                          This source could not be read. Not the same as "none found": do not conclude there are none.
                         </p>
                       )}
                       {!sourceOptions.isLoading && !sourceOptions.isError && !laneUnavailable && recordOptions.length === 0 && (
                         <p className="text-xs text-muted-foreground">
-                          No records found. The source read cleanly — there genuinely are none to use.
+                          No records found. The source read cleanly: there genuinely are none to use.
                         </p>
                       )}
                       <div className="grid gap-2 sm:grid-cols-2">
@@ -630,13 +630,13 @@ export default function UnifiedStudio({ onNavigate, initialSource }: StudioProps
                             <div className="rounded border bg-muted/20 p-3 space-y-1">
                               <p className="font-semibold text-foreground">Mechanic truth</p>
                               <p className="text-muted-foreground">
-                                {workspace.truth.mechanicTruth || <span className="text-red-400">missing — grounding will block</span>}
+                                {workspace.truth.mechanicTruth || <span className="text-red-400">missing: grounding will block</span>}
                               </p>
                             </div>
                             <div className="rounded border bg-muted/20 p-3 space-y-1">
                               <p className="font-semibold text-foreground">Evidence ({workspace.truth.evidence.length})</p>
                               {workspace.truth.evidence.length === 0 ? (
-                                <p className="text-red-400">no proof source — grounding will block</p>
+                                <p className="text-red-400">no proof source: grounding will block</p>
                               ) : (
                                 <ul className="space-y-0.5 text-muted-foreground">
                                   {workspace.truth.evidence.map((e: string) => <li key={e}>· {e}</li>)}
@@ -778,7 +778,7 @@ export default function UnifiedStudio({ onNavigate, initialSource }: StudioProps
                             </h4>
                             <p className="text-xs text-muted-foreground">
                               Approve ONE reference frame; its invariants lock hero, environment, lighting, and palette into
-                              every clip prompt. Optional — skipping keeps the standard continuity block.
+                              every clip prompt. Optional: skipping keeps the standard continuity block.
                             </p>
                           </div>
                           <Button

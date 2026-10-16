@@ -53,7 +53,7 @@ export default function PublishBoard() {
     await Promise.all([utils.instagramStudio.board.invalidate(), utils.instagramStudio.list.invalidate(), utils.instagramStudio.diagnostics.invalidate()]);
   };
   const cancelSchedule = trpc.instagramStudio.cancelSchedule.useMutation({
-    onSuccess: async () => { await invalidate(); toast.success("Unscheduled — back in Approved"); },
+    onSuccess: async () => { await invalidate(); toast.success("Unscheduled: back in Approved"); },
     onError: (e) => toast.error("Cancel failed", { description: e.message }),
   });
   const reschedule = trpc.instagramStudio.reschedule.useMutation({
@@ -90,7 +90,7 @@ export default function PublishBoard() {
           </div>
           {lane.items.length === 0 ? (
             <div className="rounded-lg border border-dashed p-4 text-center text-xs text-muted-foreground">
-              {lane.key === "attention" ? "Nothing needs intervention — verified." : "Empty"}
+              {lane.key === "attention" ? "Nothing needs intervention: verified." : "Empty"}
             </div>
           ) : lane.items.map((item) => {
             const badge = healthBadge(item);
@@ -113,11 +113,11 @@ export default function PublishBoard() {
                       <div className="flex flex-col gap-1.5">
                         <Button size="sm" variant="outline" className="min-h-11 border-emerald-500/40 text-emerald-500" disabled={resolveAmbiguous.isPending}
                           onClick={() => resolveAmbiguous.mutate({ id: item.id, decision: "published" })}>
-                          <CheckCircle2 className="mr-1 h-3 w-3" /> It IS live — mark published
+                          <CheckCircle2 className="mr-1 h-3 w-3" /> It IS live: mark published
                         </Button>
                         <Button size="sm" variant="outline" className="min-h-11" disabled={resolveAmbiguous.isPending}
                           onClick={() => resolveAmbiguous.mutate({ id: item.id, decision: "not_published" })}>
-                          It never posted — return to Approved
+                          It never posted: return to Approved
                         </Button>
                       </div>
                     </div>
@@ -148,7 +148,7 @@ export default function PublishBoard() {
                     <div className="space-y-1.5 border-t pt-2">
                       <p className="flex items-start gap-1 text-[11px] text-amber-500"><AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" /> Marked scheduled but NO pending publish exists to fire it.</p>
                       <Button size="sm" variant="outline" className="min-h-10 w-full" disabled={cancelSchedule.isPending}
-                        onClick={() => cancelSchedule.mutate({ id: item.id })}>Rescue — return to Approved</Button>
+                        onClick={() => cancelSchedule.mutate({ id: item.id })}>Rescue: return to Approved</Button>
                     </div>
                   )}
                 </CardContent>

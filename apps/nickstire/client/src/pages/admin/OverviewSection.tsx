@@ -536,7 +536,7 @@ export default function OverviewSection() {
             !queueTrustworthy
               ? "Unable to determine"
               : queueSaturated
-                ? "At least this many — work-order list is capped"
+                ? "At least this many: work-order list is capped"
                 : queue.length
                   ? "Open queue items"
                   : "All clear"
@@ -637,7 +637,7 @@ export default function OverviewSection() {
           !queueTrustworthy ? (
             <div className="py-10 text-center text-amber-600" role="status">
               <AlertTriangle className="w-7 h-7 mx-auto mb-2" />
-              <p className="text-sm font-medium">Queue unreadable — this is UNKNOWN, not clear</p>
+              <p className="text-sm font-medium">Queue unreadable: this is UNKNOWN, not clear</p>
               <p className="text-xs mt-1 text-amber-600/80">
                 At least one source failed. Work may be waiting that this list could not load.
               </p>

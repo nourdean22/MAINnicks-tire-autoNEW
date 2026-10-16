@@ -323,7 +323,7 @@ export default function CommissioningPanel({ camera = "sign" }: { camera?: strin
       if (stillUnsent > 0) {
         setError(
           `${stillUnsent} tap(s) still have not reached the server, so this run cannot be `
-          + `scored yet — the report would blame the camera for the missing taps. The run is `
+          + `scored yet: the report would blame the camera for the missing taps. The run is `
           + `still open; check the connection and press End run again.`,
         );
         return;
@@ -392,7 +392,7 @@ export default function CommissioningPanel({ camera = "sign" }: { camera?: strin
 
           {!armed && (
             <div className="mt-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-[13px] text-amber-200">
-              <div className="font-semibold">Waiting for the camera to acknowledge — do not drive yet.</div>
+              <div className="font-semibold">Waiting for the camera to acknowledge: do not drive yet.</div>
               <div className="mt-1 text-amber-200/80">
                 The producer picks up a run on its next heartbeat, up to 30 seconds. A car driven
                 before then is recorded as a real customer visit and cannot be reclassified
@@ -448,8 +448,7 @@ export default function CommissioningPanel({ camera = "sign" }: { camera?: strin
             Every tap is stamped with this phone's wall clock and a monotonic timer, and the
             offset against the server was measured before the run. Rows recorded during a run
             are tagged <span className="font-mono">COMMISSIONING</span> and stay out of the
-            shop's counters. If this page reloads mid-run, the run stays open on the server —
-            reopen the Lot page and resume or end it from the list.
+            shop's counters. If this page reloads mid-run, the run stays open on the server: reopen the Lot page and resume or end it from the list.
           </p>
         </div>
       </div>
@@ -461,7 +460,7 @@ export default function CommissioningPanel({ camera = "sign" }: { camera?: strin
     <Panel
       title="Commissioning"
       icon={<ClipboardCheck className="h-4 w-4" />}
-      subtitle="Drive a known car through while tapping what you see — the report diffs your timeline against the camera's"
+      subtitle="Drive a known car through while tapping what you see: the report diffs your timeline against the camera's"
       actions={
         <button
           type="button"
@@ -481,7 +480,7 @@ export default function CommissioningPanel({ camera = "sign" }: { camera?: strin
         <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-[13px] text-amber-200">
           <div className="font-semibold">
             <span className="font-mono">{endingRunId}</span> has ended, but the camera has not
-            noticed yet — keep the lot clear.
+            noticed yet: keep the lot clear.
           </div>
           <div className="mt-1 text-amber-200/80">
             The producer learns a run ended on its next heartbeat, up to 30 seconds. A car that
@@ -627,7 +626,7 @@ export default function CommissioningPanel({ camera = "sign" }: { camera?: strin
       )}
 
       {runs.isError ? (
-        <div className="text-[13px] text-red-300">Commissioning history unavailable — this is not "no runs".</div>
+        <div className="text-[13px] text-red-300">Commissioning history unavailable: this is not "no runs".</div>
       ) : runs.isPending ? (
         <div className="text-[13px] text-foreground/50">Loading runs…</div>
       ) : runs.data?.ok === false ? (

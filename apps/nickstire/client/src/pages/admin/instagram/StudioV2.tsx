@@ -212,10 +212,10 @@ export default function StudioV2({ onNavigate }: { onNavigate?: (view: IgView) =
         setSavedAt(persisted ? new Date() : null);
         toast.success("Draft generated", {
           description: persisted
-            ? "Saved to the server — safe across refresh."
-            : "NOT server-saved (persistence failed) — stage it before leaving.",
+            ? "Saved to the server: safe across refresh."
+            : "NOT server-saved (persistence failed): stage it before leaving.",
         });
-      }, "A generation finished for a concept you already discarded — it was not applied."),
+      }, "A generation finished for a concept you already discarded: it was not applied."),
     });
   };
 
@@ -289,7 +289,7 @@ export default function StudioV2({ onNavigate }: { onNavigate?: (view: IgView) =
       onSuccess: (result) => applyIfCurrent(seq, () => {
         setDraft(result as InstagramStudioDraft);
         toast.success("Quality gate refreshed");
-      }, "A re-score finished for a concept you already discarded — it was not applied."),
+      }, "A re-score finished for a concept you already discarded: it was not applied."),
     });
   };
   const runRender = (current: InstagramStudioDraft) => {
@@ -298,7 +298,7 @@ export default function StudioV2({ onNavigate }: { onNavigate?: (view: IgView) =
       onSuccess: (result) => applyIfCurrent(seq, () => {
         setDraft(result as InstagramStudioDraft);
         toast.success("Assets rendered", { description: `${result.imageUrls.length} permanent JPEG asset${result.imageUrls.length === 1 ? "" : "s"} ready.` });
-      }, "A render finished for a concept you already discarded — it was not applied."),
+      }, "A render finished for a concept you already discarded: it was not applied."),
     });
   };
   const runStage = (current: InstagramStudioDraft) => {
@@ -313,7 +313,7 @@ export default function StudioV2({ onNavigate }: { onNavigate?: (view: IgView) =
           setRowVersion(null);
           setSavedAt(null);
           toast.success("Sent to review queue", { description: "Approve, schedule, or publish from Queue." });
-        }, "Staged — find it in Queue.");
+        }, "Staged: find it in Queue.");
       },
     });
   };
@@ -419,7 +419,7 @@ export default function StudioV2({ onNavigate }: { onNavigate?: (view: IgView) =
             <p className="text-sm font-semibold">Creative entropy watch</p>
             <p className="text-xs text-muted-foreground">
               {slateStrategy.isError
-                ? "Active-slate structure is unknown — do not assume variety."
+                ? "Active-slate structure is unknown: do not assume variety."
                 : slateRows.length === 0
                   ? "No active slate is available yet."
                   : slateTwinCount > 0
@@ -477,7 +477,7 @@ export default function StudioV2({ onNavigate }: { onNavigate?: (view: IgView) =
                 {sourceOptions.isLoading ? (
                   <div className="flex items-center gap-2 rounded-lg border border-dashed p-3 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Loading records…</div>
                 ) : sourceOptions.isError ? (
-                  <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs">Records could not be listed — unknown, not empty. You can still paste an ID below.</p>
+                  <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs">Records could not be listed: unknown, not empty. You can still paste an ID below.</p>
                 ) : laneUnavailable ? (
                   /* The QUERY succeeded but THIS lane's read threw. Distinct
                      from both "request failed" and "verified empty", and it was
@@ -485,7 +485,7 @@ export default function StudioV2({ onNavigate }: { onNavigate?: (view: IgView) =
                      an empty array, so a broken table read displayed as "no
                      matching records found". */
                   <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs">
-                    This source could not be read — unknown, not empty. Do not conclude there are none.
+                    This source could not be read: unknown, not empty. Do not conclude there are none.
                   </p>
                 ) : (
                   <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
@@ -501,7 +501,7 @@ export default function StudioV2({ onNavigate }: { onNavigate?: (view: IgView) =
                       </button>
                     ))}
                     {recordOptions.length === 0 && (
-                      <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">No matching records found — verified empty.</p>
+                      <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">No matching records found: verified empty.</p>
                     )}
                   </div>
                 )}
@@ -536,7 +536,7 @@ export default function StudioV2({ onNavigate }: { onNavigate?: (view: IgView) =
                     </button>
                   ))}
                 </div>
-                <p className="text-xs text-muted-foreground">Fills the evidence box with the service's framing — edit freely; add a shop photo below to make it real.</p>
+                <p className="text-xs text-muted-foreground">Fills the evidence box with the service's framing: edit freely; add a shop photo below to make it real.</p>
               </div>
             )}
 
@@ -581,7 +581,7 @@ export default function StudioV2({ onNavigate }: { onNavigate?: (view: IgView) =
                         event.target.value = "";
                         if (!file) return;
                         if (file.size > 7_500_000) {
-                          toast.error("Photo too large", { description: "Max 7.5MB — take it at normal quality, not RAW." });
+                          toast.error("Photo too large", { description: "Max 7.5MB: take it at normal quality, not RAW." });
                           return;
                         }
                         const mime = (["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"] as const)
@@ -610,7 +610,7 @@ export default function StudioV2({ onNavigate }: { onNavigate?: (view: IgView) =
                 )}
               </div>
               <p className="text-xs text-muted-foreground">
-                Stored durably before generation — a draft never depends on your phone keeping the file.
+                Stored durably before generation: a draft never depends on your phone keeping the file.
               </p>
 
               <div className="rounded-lg border bg-muted/20 p-3">
@@ -622,7 +622,7 @@ export default function StudioV2({ onNavigate }: { onNavigate?: (view: IgView) =
                   <Badge variant="outline">{realShopMedia.data?.length ?? 0} available</Badge>
                 </div>
                 {realShopMedia.isError ? (
-                  <p className="text-xs text-amber-500">Library read failed — unknown, not empty.</p>
+                  <p className="text-xs text-amber-500">Library read failed: unknown, not empty.</p>
                 ) : realShopMedia.isLoading ? (
                   <p className="text-xs text-muted-foreground">Loading library…</p>
                 ) : (realShopMedia.data?.length ?? 0) === 0 ? (
@@ -729,7 +729,7 @@ export default function StudioV2({ onNavigate }: { onNavigate?: (view: IgView) =
                     <Badge className={gateClass(draft.quality.gate)} variant="outline">{draft.quality.gate.toUpperCase()} · {draft.quality.overall}</Badge>
                     <span className={`text-[11px] ${draftVersion === null ? "text-amber-500" : "text-muted-foreground"}`}>
                       {draftVersion === null
-                        ? "Not server-saved — stage before leaving"
+                        ? "Not server-saved: stage before leaving"
                         : saveDraft.isPending
                           ? "Saving…"
                           : savedAt

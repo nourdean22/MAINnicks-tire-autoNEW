@@ -42,7 +42,7 @@ export default function Learn({ onNavigate }: { onNavigate?: (tab: IgView) => vo
     const failed = results.filter((r) => r.status === "rejected").length;
     if (failed === 0) toast.success("Live Instagram intelligence refreshed");
     else if (failed === results.length) toast.error("Refresh failed — nothing was updated.");
-    else toast.warning(`Refreshed with ${failed} of ${results.length} reads failing — some cards may be stale.`);
+    else toast.warning(`Refreshed with ${failed} of ${results.length} reads failing: some cards may be stale.`);
   };
 
   // Classified once so every card below branches on the same four states.
@@ -111,7 +111,7 @@ export default function Learn({ onNavigate }: { onNavigate?: (tab: IgView) => vo
     return (
       <div className="flex h-64 flex-col items-center justify-center gap-3 text-center">
         <AlertTriangle className="h-6 w-6 text-amber-500" />
-        <p className="text-sm">Could not read performance data — this is <strong>unknown</strong>, not zero.</p>
+        <p className="text-sm">Could not read performance data: this is <strong>unknown</strong>, not zero.</p>
         <p className="text-xs text-muted-foreground">{unavailableCopy(shellStatus.reason)}</p>
         <Button size="sm" variant="outline" onClick={() => analytics.refetch()}>Retry</Button>
       </div>
@@ -166,7 +166,7 @@ export default function Learn({ onNavigate }: { onNavigate?: (tab: IgView) => vo
             <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-sm">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
               <span>
-                Could not read attribution — this is <strong>unknown</strong>, not zero.{" "}
+                Could not read attribution: this is <strong>unknown</strong>, not zero.{" "}
                 {revenue.error?.message ?? unavailableCopy(revenueStatus.reason)}
               </span>
             </div>
@@ -190,7 +190,7 @@ export default function Learn({ onNavigate }: { onNavigate?: (tab: IgView) => vo
               {(revenue.data?.runs.length ?? 0) === 0 ? (
                 <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
                   No lead in this window carried a content run id, so nothing can be attributed yet. Posts
-                  staged from the Studio now rewrite the shop links in their caption to carry one — this
+                  staged from the Studio now rewrite the shop links in their caption to carry one: this
                   fills in as those posts publish and produce leads.
                 </p>
               ) : (
@@ -256,12 +256,12 @@ export default function Learn({ onNavigate }: { onNavigate?: (tab: IgView) => vo
         </div>
         <p className="text-xs text-muted-foreground">
           Source: Meta analytics cache (sync via Community → Sync Feed) · window: all-time · engagement = (likes+comments)/followers at sync time.
-          Reach, saves, shares, and views appear per post only when Meta insights were captured for it — absent means unknown, never zero.
+          Reach, saves, shares, and views appear per post only when Meta insights were captured for it, absent means unknown, never zero.
           {" "}{analytics.data?.snapshotStats == null
             ? "Metric-history snapshots: unknown (could not read)."
             : analytics.data.snapshotStats.rows === 0
-              ? "Metric-history snapshots: none yet — the first sync after this deploy starts them; 24h/7d/30d windows unlock as history ages."
-              : `Metric-history snapshots: ${analytics.data.snapshotStats.rows} accruing since ${analytics.data.snapshotStats.earliest ? new Date(analytics.data.snapshotStats.earliest).toLocaleDateString() : "recently"} — 24h/7d/30d windows unlock as history ages.`}
+              ? "Metric-history snapshots: none yet, the first sync after this deploy starts them; 24h/7d/30d windows unlock as history ages."
+              : `Metric-history snapshots: ${analytics.data.snapshotStats.rows} accruing since ${analytics.data.snapshotStats.earliest ? new Date(analytics.data.snapshotStats.earliest).toLocaleDateString() : "recently"} · 24h/7d/30d windows unlock as history ages.`}
           {/* Migration 0108 has stored reel watch-time and skip-rate since
               2026-07-31 and nothing ever read them back. This reports COVERAGE
               (how many snapshots carry the fields), not the values: a count has
@@ -274,7 +274,7 @@ export default function Learn({ onNavigate }: { onNavigate?: (tab: IgView) => vo
               {analytics.data.snapshotStats.withWatchTime == null
                 ? "Reel watch-time coverage: unknown (could not count)."
                 : analytics.data.snapshotStats.withWatchTime === 0
-                  ? "Reel watch-time: stored by the pipeline since 2026-07-31, but no snapshot carries it yet (reels-only) — so no watch-time view is offered rather than an empty one."
+                  ? "Reel watch-time: stored by the pipeline since 2026-07-31, but no snapshot carries it yet (reels-only), so no watch-time view is offered rather than an empty one."
                   : `Reel watch-time: ${analytics.data.snapshotStats.withWatchTime} of ${analytics.data.snapshotStats.rows} snapshots carry it (reels-only); per-post display is not offered until the value's units are confirmed.`}
             </>
           )}
@@ -290,7 +290,7 @@ export default function Learn({ onNavigate }: { onNavigate?: (tab: IgView) => vo
               // the query failed, the honest statement is that we could not ask.
               <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-4 text-sm">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-                <span>Could not load measured posts — this is <strong>unknown</strong>, not empty. {analytics.error?.message}</span>
+                <span>Could not load measured posts: this is <strong>unknown</strong>, not empty. {analytics.error?.message}</span>
               </div>
             ) : winners.length === 0 ? (
               <div className="rounded-lg border border-dashed py-12 text-center text-sm text-muted-foreground">No measured Instagram posts are available yet. Sync the feed from HQ after publishing.</div>
@@ -370,7 +370,7 @@ export default function Learn({ onNavigate }: { onNavigate?: (tab: IgView) => vo
                 <p className="flex items-start gap-2 text-sm">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
                   <span>
-                    Could not generate recommendations — <strong>unknown</strong>, not "none".{" "}
+                    Could not generate recommendations <strong>unknown</strong>, not "none".{" "}
                     {report.data?.recommendationsError ?? unavailableCopy(reportStatus.reason)}
                   </span>
                 </p>
@@ -387,23 +387,23 @@ export default function Learn({ onNavigate }: { onNavigate?: (tab: IgView) => vo
               swipeFileConviction never returns HIGH; that only comes from a
               deliberate shared/contentExperiments.ts run. */}
           <Card>
-            <CardHeader><CardTitle className="flex items-center gap-2"><Zap className="h-4 w-4" /> Hook &amp; beat-structure signals</CardTitle><CardDescription>Correlated against saves-per-reach. Directional only — not a rule to enforce.</CardDescription></CardHeader>
+            <CardHeader><CardTitle className="flex items-center gap-2"><Zap className="h-4 w-4" /> Hook &amp; beat-structure signals</CardTitle><CardDescription>Correlated against saves-per-reach. Directional only, not a rule to enforce.</CardDescription></CardHeader>
             <CardContent className="space-y-3">
               {swipeStatus.state === "loading" ? (
                 <p className="text-sm text-muted-foreground">Checking…</p>
               ) : swipeStatus.state === "unavailable" ? (
                 <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-sm">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-                  <span>Could not read swipe-file data — this is <strong>unknown</strong>, not empty. {swipeFile.error?.message ?? unavailableCopy(swipeStatus.reason)}</span>
+                  <span>Could not read swipe-file data: this is <strong>unknown</strong>, not empty. {swipeFile.error?.message ?? unavailableCopy(swipeStatus.reason)}</span>
                 </div>
               ) : (
                 (() => {
                   const reportable = (swipeFile.data?.comparisons ?? []).filter((c) => c.sufficient);
                   if (!swipeFile.data || swipeFile.data.sampleCount === 0) {
-                    return <p className="text-sm text-muted-foreground">No published reels are joined to Instagram metrics yet — this fills in as reels publish and get measured.</p>;
+                    return <p className="text-sm text-muted-foreground">No published reels are joined to Instagram metrics yet: this fills in as reels publish and get measured.</p>;
                   }
                   if (reportable.length === 0) {
-                    return <p className="text-sm text-muted-foreground">{swipeFile.data.sampleCount} measured reel(s) — not enough per-signal group yet to compare (needs 4+ with vs. without each signal).</p>;
+                    return <p className="text-sm text-muted-foreground">{swipeFile.data.sampleCount} measured reel(s), not enough per-signal group yet to compare (needs 4+ with vs. without each signal).</p>;
                   }
                   return reportable.map((c) => (
                     <div key={`${c.family}-${c.signal}`} className="rounded-lg border p-3 text-sm">
@@ -433,7 +433,7 @@ export default function Learn({ onNavigate }: { onNavigate?: (tab: IgView) => vo
               ) : dubStatus.state === "unavailable" ? (
                 <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-sm">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-                  <span>Could not read the worklist — this is <strong>unknown</strong>, not empty. {dubCandidates.error?.message ?? unavailableCopy(dubStatus.reason)}</span>
+                  <span>Could not read the worklist: this is <strong>unknown</strong>, not empty. {dubCandidates.error?.message ?? unavailableCopy(dubStatus.reason)}</span>
                 </div>
               ) : (dubCandidates.data?.candidates.length ?? 0) === 0 ? (
                 <p className="text-sm text-muted-foreground">No reel currently clears the reach/engagement floor to qualify.</p>

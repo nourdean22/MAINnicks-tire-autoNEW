@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { Link } from "wouter";
 import {
-  Phone, Car, MessageSquare, UserCheck, PhoneCall, ChevronUp, ChevronDown, ChevronRight, Users, Loader2
+  Phone, Car, MessageSquare, UserCheck, PhoneCall, ChevronUp, ChevronDown, ChevronRight, Users, Loader2, Clock
 } from "lucide-react";
 import { UrgencyBadge, type LeadStatus } from "../shared";
 import { SkeletonPanel } from "@/components/admin/AdminSkeletons";
@@ -55,7 +55,7 @@ export function LeadSourceBadge({ lead, hideWebSource = false }: { lead: LeadIte
     return (
       <span
         title={origin === "duplicateLink"
-          ? "Callback request — same person also appears under Call Tracking"
+          ? "Callback request: same person also appears under Call Tracking"
           : "Callback request"}
         className="inline-flex items-center gap-1 px-2 py-0.5 border text-[10px] tracking-wider font-bold text-amber-400 bg-amber-500/10 border-amber-500/30"
       >
@@ -111,7 +111,7 @@ export function LeadAge({ dateStr }: { dateStr: string | Date }) {
 
   return (
     <span className={`inline-flex items-center gap-0.5 px-1 py-0.5 text-[9px] font-mono font-bold tracking-wide rounded ${color}`}>
-      ⏱ {label}
+      <Clock className="w-3 h-3 inline mr-0.5" aria-hidden />{label}
     </span>
   );
 }

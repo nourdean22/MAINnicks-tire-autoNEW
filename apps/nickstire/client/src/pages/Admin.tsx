@@ -230,7 +230,7 @@ export default function Admin() {
           <div className="w-14 h-14 bg-amber-500/10 flex items-center justify-center rounded-xl mx-auto mb-6"><Shield className="w-7 h-7 text-amber-500" /></div>
           <h1 className="text-2xl font-semibold text-foreground tracking-tight mb-2">Could not verify your session</h1>
           <p className="text-sm text-muted-foreground mb-2 leading-relaxed">
-            This is <strong>unknown</strong>, not signed out — signing in again will not help if the check itself is failing.
+            This is <strong>unknown</strong>, not signed out: signing in again will not help if the check itself is failing.
           </p>
           <p className="text-xs text-muted-foreground mb-8">
             {rateLimited
@@ -373,7 +373,7 @@ function AdminSSEListeners() {
       // 2026-09-01 (audit F-23): a customer answering an inspection item used to
       // be a silent DB write — the advisor found out by re-opening the report.
       ["inspection_decided", () => {
-        toast.info("A customer answered an inspection item — open Customers to see the decision");
+        toast.info("A customer answered an inspection item: open Customers to see the decision");
         utils.customers.invalidate();
       }],
     ];

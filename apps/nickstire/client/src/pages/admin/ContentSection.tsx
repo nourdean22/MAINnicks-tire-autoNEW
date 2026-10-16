@@ -42,7 +42,7 @@ export default function ContentSection() {
     <div className="space-y-6">
       <PageHeader
         title="Website & Local"
-        subtitle="Articles, notifications, GBP posts, AI ideas engine, specials — everything customer-facing copy + automation"
+        subtitle="Articles, notifications, GBP posts, AI ideas engine, specials: everything customer-facing copy + automation"
         icon={<FileText className="w-5 h-5" />}
       />
       <TabBar

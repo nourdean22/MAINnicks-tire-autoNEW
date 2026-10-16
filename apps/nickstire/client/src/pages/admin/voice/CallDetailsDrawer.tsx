@@ -16,7 +16,7 @@ export function CallDetailsDrawer({ callId, onClose }: { callId: string; onClose
   // callback row exists until a human approves it there (trust ladder).
   const proposeCallback = trpc.proposals.create.useMutation({
     onSuccess: (r) => {
-      if (r.created) toast.success("Draft created — review it in Approvals");
+      if (r.created) toast.success("Draft created: review it in Approvals");
       else if ("deduped" in r && r.deduped) toast.message("Already drafted", { description: "A proposal for this call is in the queue." });
       else toast.error("Could not draft: " + ("error" in r ? r.error : "unknown"));
       void utils.proposals.list.invalidate();
@@ -118,7 +118,7 @@ export function CallDetailsDrawer({ callId, onClose }: { callId: string; onClose
                     onClick={() =>
                       proposeCallback.mutate({
                         actionType: "create_callback",
-                        title: `Callback: ${details.customerName || fmtPhone(details.customerNumber)} — flagged from call review`,
+                        title: `Callback: ${details.customerName || fmtPhone(details.customerNumber)} · flagged from call review`,
                         payload: {
                           name: details.customerName || "Caller",
                           phone: details.customerNumber,
@@ -131,7 +131,7 @@ export function CallDetailsDrawer({ callId, onClose }: { callId: string; onClose
                       })
                     }
                     disabled={proposeCallback.isPending}
-                    title="Creates a DRAFT in the approval queue — nothing happens until it is approved there"
+                    title="Creates a DRAFT in the approval queue: nothing happens until it is approved there"
                     className="ml-auto inline-flex items-center gap-1.5 min-h-[44px] border border-violet-500/40 text-violet-500 px-3 py-2 font-bold text-[11px] hover:bg-violet-500/10 disabled:opacity-50 rounded"
                   >
                     <ClipboardList className="w-3.5 h-3.5" /> Flag callback
@@ -164,7 +164,7 @@ export function CallDetailsDrawer({ callId, onClose }: { callId: string; onClose
                       No conversation captured for this call.
                       {details.messages.length > 0 && (
                         <div className="mt-1 text-[11px]">
-                          ({details.messages.length} system/tool message{details.messages.length === 1 ? "" : "s"} hidden — open in VAPI for raw stream)
+                          ({details.messages.length} system/tool message{details.messages.length === 1 ? "" : "s"} hidden: open in VAPI for raw stream)
                         </div>
                       )}
                     </div>

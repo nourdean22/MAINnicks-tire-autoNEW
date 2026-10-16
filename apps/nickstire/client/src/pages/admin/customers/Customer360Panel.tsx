@@ -33,7 +33,7 @@ function GraceButton({ membershipId, onComplete }: { membershipId: number; onCom
       await mutation.mutateAsync({ membershipId, days: 3 });
     } catch (err) {
       console.error(err);
-      toast.error("Couldn't grant grace period — try again.", { description: err instanceof Error ? err.message : undefined });
+      toast.error("Couldn't grant grace period: try again.", { description: err instanceof Error ? err.message : undefined });
     } finally {
       setLoading(false);
     }
@@ -524,7 +524,7 @@ export function Customer360Panel({ customer }: {
               <div className="flex items-center justify-between mb-2">
                 <span className="font-mono text-[9px] text-amber-400 tracking-wider">
                   <FileWarning className="w-3 h-3 inline mr-1" />
-                  DECLINED WORK — RECOVERY OPPORTUNITIES ({historyData.declinedEstimates.length})
+                  DECLINED WORK: RECOVERY OPPORTUNITIES ({historyData.declinedEstimates.length})
                 </span>
                 <span className="font-mono text-[10px] text-amber-400">
                   ${Math.round(historyData.declinedEstimates.reduce((sum: number, e: CustomerDeclinedEstimate) => sum + e.estimatedAmount, 0) / 100).toLocaleString()} total
@@ -583,7 +583,7 @@ export function Customer360Panel({ customer }: {
               <div className="flex items-center justify-between mb-2">
                 <span className="font-mono text-[9px] text-blue-400 tracking-wider">
                   <Wrench className="w-3 h-3 inline mr-1" />
-                  ACTIVE BACKLOG — OPEN WORK ORDERS ({historyData.openWorkOrders.length})
+                  ACTIVE BACKLOG: OPEN WORK ORDERS ({historyData.openWorkOrders.length})
                 </span>
                 <span className="font-mono text-[10px] text-blue-400">
                   ${Math.round(historyData.openWorkOrders.reduce((sum: number, w: CustomerOpenWorkOrder) => sum + (w.total ? Number(w.total) : 0), 0)).toLocaleString()} total

@@ -93,7 +93,7 @@ export default function Settings() {
           <div>
             <strong>Could not read the Instagram settings.</strong>
             <div className="mt-1 text-xs leading-5 text-amber-200/70">
-              The configuration is <strong>unknown</strong>, not misconfigured — the read failed: {reason}. Change nothing on this screen until it can be read.
+              The configuration is <strong>unknown</strong>, not misconfigured: the read failed: {reason}. Change nothing on this screen until it can be read.
             </div>
           </div>
         </div>
@@ -125,7 +125,7 @@ export default function Settings() {
         ? `Configured, but Meta could not be reached to verify: ${live.error ?? "transport error"}. This is unknown, not a dead token.`
         : live?.ok === false
           ? `Configured, but the Graph API rejected the token: ${live.error ?? "unknown error"}`
-          : "Configured — no live verification result is available yet.";
+          : "Configured: no live verification result is available yet.";
   const tokenReady = Boolean(connection.data?.token?.present);
   /**
    * THREE storage states, not two.
@@ -156,9 +156,9 @@ export default function Settings() {
         health.data?.generator?.higgsfieldLane ? ` Active Higgsfield lane: ${health.data.generator.higgsfieldLane}.` : ""
       }${generatorSession?.balanceCredits != null ? ` Account balance: ${generatorSession.balanceCredits} credits.` : ""}`
     : generatorState === "unknown"
-      ? `Session state could not be verified — not the same as missing credentials. ${generatorSession?.reason ?? ""}`
+      ? `Session state could not be verified, not the same as missing credentials. ${generatorSession?.reason ?? ""}`
       : generatorSession?.credsPresent
-        ? `Credentials are present but the session is DEAD — re-login required. ${generatorSession?.reason ?? ""}`
+        ? `Credentials are present but the session is DEAD: re-login required. ${generatorSession?.reason ?? ""}`
         : "The Reel/media generation provider is not fully configured.";
 
   return (
@@ -187,7 +187,7 @@ export default function Settings() {
                 : "Permanent Meta-readable URLs, served through the app from S3. A CDN is optional."
               : storageState === "expiring"
                 ? "Durable bucket, but its URLs EXPIRE after 24h (presigned). Meta stores the URL, so set S3_ENDPOINT for app-proxied permanent URLs, or CLOUDFRONT_DOMAIN for a CDN."
-                : "No durable bucket — set S3_BUCKET. Generation refuses to spend credits without it."
+                : "No durable bucket: set S3_BUCKET. Generation refuses to spend credits without it."
           }
           icon={Database}
         />
@@ -198,7 +198,7 @@ export default function Settings() {
           the banner simply never rendered. A held-reel count that cannot be read
           is exactly when the operator most needs to know. */}
       {health.data?.failedJobs === null && (
-        <div className="flex gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-300"><ShieldAlert className="mt-0.5 h-5 w-5 shrink-0" /><div><strong>Unable to determine held Reel jobs.</strong><div className="mt-1 text-xs text-amber-200/70">This is not zero — the count could not be read. Do not enable autonomous publishing on this reading.</div></div></div>
+        <div className="flex gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-300"><ShieldAlert className="mt-0.5 h-5 w-5 shrink-0" /><div><strong>Unable to determine held Reel jobs.</strong><div className="mt-1 text-xs text-amber-200/70">This is not zero: the count could not be read. Do not enable autonomous publishing on this reading.</div></div></div>
       )}
 
       {(health.data?.failedJobs ?? 0) > 0 && (
@@ -212,7 +212,7 @@ export default function Settings() {
             <div className="space-y-1"><label className="text-xs font-semibold text-muted-foreground">Meta app ID</label><Input value={appId} onChange={(event) => setAppId(event.target.value)} /></div>
             <div className="space-y-1"><label className="text-xs font-semibold text-muted-foreground">Facebook page ID</label><Input value={pageId} onChange={(event) => setPageId(event.target.value)} /></div>
             <div className="space-y-1"><label className="text-xs font-semibold text-muted-foreground">Instagram business user ID</label><Input value={igUserId} onChange={(event) => setIgUserId(event.target.value)} /></div>
-            <div className="space-y-1"><label className="text-xs font-semibold text-muted-foreground">Replace app secret</label><Input type="password" value={appSecret} onChange={(event) => setAppSecret(event.target.value)} placeholder={config.data?.hasSecret ? "Secret already stored — leave blank to keep it" : "Enter Meta app secret"} /></div>
+            <div className="space-y-1"><label className="text-xs font-semibold text-muted-foreground">Replace app secret</label><Input type="password" value={appSecret} onChange={(event) => setAppSecret(event.target.value)} placeholder={config.data?.hasSecret ? "Secret already stored: leave blank to keep it" : "Enter Meta app secret"} /></div>
           </CardContent>
         </Card>
 
@@ -222,14 +222,14 @@ export default function Settings() {
             <div className="space-y-1"><label className="text-xs font-semibold text-muted-foreground">Image provider</label><select value={imageProvider} onChange={(event) => setImageProvider(event.target.value as typeof imageProvider)} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"><option value="gemini">Gemini</option><option value="openai">OpenAI-compatible</option><option value="higgsfield">Higgsfield</option></select></div>
             <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 space-y-3">
               <p className="text-xs leading-5 text-muted-foreground">
-                <strong className="text-foreground">Higgsfield API key (preferred).</strong> A static key — nothing
+                <strong className="text-foreground">Higgsfield API key (preferred).</strong> A static key: nothing
                 expires, no device flow, nothing to revoke. Set BOTH fields and reel generation uses this lane
                 automatically. Get one at cloud.higgsfield.ai → API. Leave blank to keep the stored key.
               </p>
-              <div className="space-y-1"><label className="text-xs font-semibold text-muted-foreground">API Key ID</label><Input value={higgsfieldApiKeyId} onChange={(event) => setHiggsfieldApiKeyId(event.target.value)} className="font-mono text-xs" placeholder={config.data?.hasHiggsfieldApiKey ? "API key already stored — leave blank to keep it" : "d8781441-..."} /></div>
-              <div className="space-y-1"><label className="text-xs font-semibold text-muted-foreground">API Key Secret</label><Input type="password" value={higgsfieldApiKeySecret} onChange={(event) => setHiggsfieldApiKeySecret(event.target.value)} className="font-mono text-xs" placeholder={config.data?.hasHiggsfieldApiKey ? "Stored — leave blank to keep it" : "paste the secret"} /></div>
+              <div className="space-y-1"><label className="text-xs font-semibold text-muted-foreground">API Key ID</label><Input value={higgsfieldApiKeyId} onChange={(event) => setHiggsfieldApiKeyId(event.target.value)} className="font-mono text-xs" placeholder={config.data?.hasHiggsfieldApiKey ? "API key already stored: leave blank to keep it" : "d8781441-..."} /></div>
+              <div className="space-y-1"><label className="text-xs font-semibold text-muted-foreground">API Key Secret</label><Input type="password" value={higgsfieldApiKeySecret} onChange={(event) => setHiggsfieldApiKeySecret(event.target.value)} className="font-mono text-xs" placeholder={config.data?.hasHiggsfieldApiKey ? "Stored: leave blank to keep it" : "paste the secret"} /></div>
             </div>
-            <div className="space-y-1"><label className="text-xs font-semibold text-muted-foreground">Replace Higgsfield credentials JSON (CLI session — legacy, expires)</label><Textarea value={higgsfieldCredentialsJson} onChange={(event) => setHiggsfieldCredentialsJson(event.target.value)} className="min-h-40 font-mono text-xs" placeholder={config.data?.hasHiggsfieldCreds ? "Credentials already stored — leave blank to keep them" : "Paste credentials JSON only when rotating credentials"} /></div>
+            <div className="space-y-1"><label className="text-xs font-semibold text-muted-foreground">Replace Higgsfield credentials JSON (CLI session: legacy, expires)</label><Textarea value={higgsfieldCredentialsJson} onChange={(event) => setHiggsfieldCredentialsJson(event.target.value)} className="min-h-40 font-mono text-xs" placeholder={config.data?.hasHiggsfieldCreds ? "Credentials already stored: leave blank to keep them" : "Paste credentials JSON only when rotating credentials"} /></div>
             <div className="rounded-lg border bg-muted/20 p-3 text-xs leading-5 text-muted-foreground"><CheckCircle2 className="mr-2 inline h-4 w-4 text-emerald-400" />Studio V2 post, ad, carousel, and Story layouts do not depend on generative text rendering, preventing the garbled lettering shown in the old poster.</div>
           </CardContent>
         </Card>

@@ -209,7 +209,7 @@ export function GBPPostGenerator() {
                   disabled={authUrlLoading}
                   title={
                     authStatus?.connected
-                      ? "Re-run Google OAuth — use this to switch which Google account owns the connection"
+                      ? "Re-run Google OAuth: use this to switch which Google account owns the connection"
                       : "Connect this app to Google Business Profile"
                   }
                   /* min-h/min-w 48px per apps/nickstire/AGENTS.md: the operator

@@ -119,7 +119,7 @@ export function TodaysRealNumbers() {
           <span className="text-[11px] text-amber-200/90">
             {neverSynced
               ? "No invoices have synced yet, so revenue above is not measured."
-              : `Invoice sync is ${freshness.label} — revenue above is understated until the mirror catches up.`}
+              : `Invoice sync is ${freshness.label} · revenue above is understated until the mirror catches up.`}
           </span>
         </div>
       )}

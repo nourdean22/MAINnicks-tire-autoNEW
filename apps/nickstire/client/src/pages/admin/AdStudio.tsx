@@ -18,7 +18,7 @@ import { PotholeAudiences } from "@/components/admin/PotholeAudiences";
 import type { CampaignInput, CampaignOutput } from "@nour/meta-ads-architect";
 
 const ANGLES = [
-  { id: "financing", label: "Payment programs", note: "Kills the price objection first — four programs, each provider decides approval." },
+  { id: "financing", label: "Payment programs", note: "Kills the price objection first: four programs, each provider decides approval." },
   { id: "free_check", label: "Free check offer", note: "Low-friction walk-in hook." },
   { id: "trust", label: "4.9★ trust / local", note: "Social proof as the engine." },
 ] as const;
@@ -90,7 +90,7 @@ function SingleAdView() {
         <input
           value={topic}
           onChange={(e) => setTopic(e.target.value)}
-          placeholder="Optional steer — e.g. summer road trip, brakes, winter"
+          placeholder="Optional steer: e.g. summer road trip, brakes, winter"
           className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm"
           maxLength={120}
         />

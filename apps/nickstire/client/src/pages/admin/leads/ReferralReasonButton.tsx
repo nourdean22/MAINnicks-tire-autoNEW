@@ -89,7 +89,7 @@ export function ReferralReasonButton({
     onError: (err) => toast.error(err.message || "Couldn't update this referral."),
   });
   const forfeit = trpc.technicianReferrals.markForfeited.useMutation({
-    onSuccess: () => done("Marked forfeited — no bonus owed."),
+    onSuccess: () => done("Marked forfeited: no bonus owed."),
     onError: (err) => toast.error(err.message || "Couldn't update this referral."),
   });
   const mutation = isDq ? disqualify : forfeit;
@@ -133,7 +133,7 @@ export function ReferralReasonButton({
         </div>
         {!isDq && (
           <p className="text-[10px] text-foreground/45 leading-snug">
-            The claim was good — only the 90-day condition went unmet. Use Disqualify when the claim
+            The claim was good: only the 90-day condition went unmet. Use Disqualify when the claim
             itself was invalid.
           </p>
         )}
