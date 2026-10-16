@@ -2,6 +2,11 @@
   "$comment": "knip + script-invoker findings accepted at baseline. ANY NEW ENTRY IS A CI FAILURE — see scripts/knip-orphan-gate.mjs. Every entry needs a real reason; an accidental orphan has none to write.",
   "entries": [
     {
+      "file": "apps/nickstire/server/routers/instagramAdmin.ts",
+      "symbol": "readAutopostLaneStatus",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The reader behind instagramAdmin.autopostLaneStatus (contract AutopostLaneStatus v1, job 2026-10-16-ig-autopost-controls). igAutopostLaneStatus.test.ts imports it to pin the three states with a fake database: a failed log read is available:false (never an empty list), a failed flag read is paused:null (never 'not paused'), an absent flag row is false. Its runtime consumer is the autopostLaneStatus adminProcedure in the same module, which the client lane's Pipeline health card calls, so the rule is live, not vacuous."
+    },
+    {
       "file": "apps/nickstire/server/routers/nick/intelligence.ts",
       "symbol": "reviewRequestsSentSinceQuery",
       "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The operator-context count of review requests that actually went out (status sent/clicked only; pending, failed, skipped and Q-21 heldout controls never reached a customer). reviewRequestsSentCount.test.ts imports it to pin the status filter in the emitted SQL, because the only other route to it is handleOperatorCommand's LLM path. Its runtime consumer is handleOperatorCommand in the same module (the monthReviews slot), so the rule is live, not vacuous."
