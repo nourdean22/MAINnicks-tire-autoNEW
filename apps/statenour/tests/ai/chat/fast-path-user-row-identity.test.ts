@@ -23,7 +23,9 @@ type Row = {
   createdAt: Date;
 };
 
-const h = vi.hoisted(() => ({ rows: [] as unknown[], seq: 0, clock: 0, conversations: 0 }));
+// base: the epoch the saved rows are stamped from. Far in the past by default; the 30 s content window
+// only sees a row as a repeat when it is stamped near the real clock.
+const h = vi.hoisted(() => ({ rows: [] as unknown[], seq: 0, clock: 0, conversations: 0, base: 1_000 }));
 const rows = () => h.rows as Row[];
 
 function matches(row: Row, where: Record<string, unknown>): boolean {
@@ -52,7 +54,7 @@ vi.mock("@/lib/prisma", () => ({
     },
     chatMessage: {
       create: async (a: { data: Omit<Row, "id" | "createdAt"> }) => {
-        const row = { ...a.data, id: `row-${++h.seq}`, createdAt: new Date(1_000 + ++h.clock * 10) } as Row;
+        const row = { ...a.data, id: `row-${++h.seq}`, createdAt: new Date(h.base + ++h.clock * 10) } as Row;
         rows().push(row);
         return { id: row.id };
       },
@@ -96,6 +98,7 @@ beforeEach(() => {
   h.seq = 0;
   h.clock = 0;
   h.conversations = 0;
+  h.base = 1_000;
   vi.spyOn(console, "warn").mockImplementation(() => {});
 });
 
@@ -122,6 +125,39 @@ describe("a fast-path user row names its message", () => {
     const convId = await send(undefined, "m-dec-1");
     expect(convId).toBe("conv-new-1");
     expect(userRows()[0]).toMatchObject({ conversationId: "conv-new-1", clientMessageId: "m-dec-1" });
+  });
+});
+
+// The 30 s content window used to return before saving, so a repeated text under a NEW id left that id
+// with no row and the guard blind to it (second re-review of #3060). The id is the identity now.
+describe("the same text sent twice inside 30 s under two ids", () => {
+  beforeEach(() => {
+    h.base = Date.now() - 1_000;
+  });
+
+  it("each id gets its own user row: the second is a new message, not a repeat of the first", async () => {
+    await send("conv-1", "m-dec-1");
+    await send("conv-1", "m-dec-2");
+
+    expect(userRows().map((r) => r.clientMessageId)).toEqual(["m-dec-1", "m-dec-2"]);
+  });
+
+  it("a replay of the second one after it finished is refused, not run again", async () => {
+    await send("conv-1", "m-dec-1");
+    await buildFastStream("conv-1", "Decision logged.", "dec", "nl-decision");
+    await send("conv-1", "m-dec-2");
+    await buildFastStream("conv-1", "Decision logged.", "dec", "nl-decision");
+
+    const result = await guard({ lastMessage: { id: "m-dec-2", role: "user" }, trigger: "regenerate-message" });
+
+    expect(result.kind).toBe("refuse");
+  });
+
+  it("CONTROL - a post with no id at all is still de-duplicated by content", async () => {
+    await send("conv-1", undefined);
+    await send("conv-1", undefined);
+
+    expect(userRows()).toHaveLength(1);
   });
 });
 

@@ -27,6 +27,9 @@ const h = vi.hoisted(() => ({
   beforeUpdateMany: undefined as undefined | (() => void),
   failCreate: false,
   creates: 0,
+  // Run just before a create / a findUnique: the windows in which a row can appear or vanish under a racer.
+  beforeCreate: undefined as undefined | (() => void),
+  beforeFindUnique: undefined as undefined | (() => void),
   // After the claim is taken: every updateMany/deleteMany throws synchronously ("throw") or rejects ("reject").
   storeCalls: "ok" as "ok" | "throw" | "reject",
   failFind: false,
@@ -57,6 +60,7 @@ vi.mock("@/lib/prisma", () => ({
     brainMemory: {
       create: async (a: { data: Omit<Row, "id" | "updatedAt" | "deletedAt"> }) => {
         h.creates += 1;
+        h.beforeCreate?.();
         if (h.failCreate) throw new Error("connection refused");
         if (rows().some((r) => r.category === a.data.category && r.key === a.data.key)) {
           throw Object.assign(new Error("unique"), { code: "P2002" });
@@ -65,11 +69,15 @@ vi.mock("@/lib/prisma", () => ({
         rows().push(row);
         return { id: row.id };
       },
-      findUnique: async (a: { where: { category_key: { category: string; key: string } } }) => {
+      findUnique: async (a: { where: { category_key: { category: string; key: string } }; select?: Record<string, boolean> }) => {
+        h.beforeFindUnique?.();
         if (h.failFind) throw new Error("connection reset");
         const { category, key } = a.where.category_key;
         const row = rows().find((r) => r.category === category && r.key === key);
-        return row ? { ...row } : null;
+        if (!row) return null;
+        // Like the database: only the selected columns come back. A column the code forgot to select is
+        // undefined, and Prisma reads `undefined` in a where as "no filter" (the CAS pin would vanish).
+        return a.select ? Object.fromEntries(Object.entries(a.select).filter(([, on]) => on).map(([k]) => [k, (row as unknown as Record<string, unknown>)[k]])) : { ...row };
       },
       updateMany: (a: { where: Record<string, unknown>; data: Partial<Row> }) => {
         if (h.storeCalls === "throw") throw new TypeError("updateMany is not a function");
@@ -102,7 +110,7 @@ async function deleteManyOk(a: { where: Record<string, unknown> }) {
 }
 vi.mock("@/lib/utils/error-log", () => ({ logError: vi.fn() }));
 
-import { afterDrain, claimTurn, POST_DRAIN_GRACE_MS, TURN_BEAT_MS, TURN_LEASE_MS, TURN_MAX_RUN_MS } from "@/lib/services/chat/turn-claim";
+import { afterDrain, claimTurn, POST_DRAIN_GRACE_MS, TURN_BEAT_MS, TURN_BODY_IDLE_MS, TURN_LEASE_MS, TURN_MAX_RUN_MS } from "@/lib/services/chat/turn-claim";
 
 const T0 = new Date("2026-10-15T12:00:00Z");
 const claimArgs = (traceId: string, clientMessageId = "msg-1") => ({ clientMessageId, traceId, conversationId: null });
@@ -122,6 +130,8 @@ beforeEach(() => {
   h.beforeUpdateMany = undefined;
   h.failCreate = false;
   h.creates = 0;
+  h.beforeCreate = undefined;
+  h.beforeFindUnique = undefined;
   h.storeCalls = "ok";
   h.failFind = false;
   h.writes = [];
@@ -155,6 +165,17 @@ describe("claimTurn", () => {
     // The loser names the WINNER, not the dead run it read.
     const winnerTrace = results[0].kind === "claimed" ? "trace-B" : "trace-C";
     expect(lost[0]).toMatchObject({ traceId: winnerTrace });
+  });
+
+  it("the reclaim swaps only the row it read, even when another lease has the same version and deadline", async () => {
+    await expectClaimed("trace-A");
+    vi.setSystemTime(new Date(T0.getTime() + TURN_LEASE_MS + 1));
+    const twin: Row = { ...rows()[0], id: "twin", key: "turn:msg-other", metadata: { traceId: "trace-X", conversationId: null } };
+    h.rows = [rows()[0], twin];
+
+    await expectClaimed("trace-B");
+
+    expect(rows().find((r) => r.id === "twin")!.metadata, "the swap overwrote a lease it never read").toMatchObject({ traceId: "trace-X" });
   });
 
   // The swap must pin EVERY field the "lapsed" verdict read. A real renewal moves both the deadline and
@@ -208,6 +229,63 @@ describe("claimTurn", () => {
     rows()[0].expiresAt = null;
     await expectClaimed("trace-B");
   });
+
+  // A row can vanish under a racer (its owner just finished, or the sweeper took it). Each of the three
+  // places the code looks again has its own arm: none of them may guess "held", and none may loop forever.
+  describe("a row that vanishes under the racer", () => {
+    const seed = (): Row => ({
+      id: "gone",
+      category: "active_chat_stream",
+      key: "turn:msg-1",
+      content: "chat turn trace-A",
+      expiresAt: new Date(Date.now() + TURN_LEASE_MS),
+      deletedAt: null,
+      updatedAt: new Date(1),
+      metadata: { traceId: "trace-A", conversationId: null },
+    });
+
+    it("between the failed create and the read: a free slot, so the claim goes round again and wins", async () => {
+      h.rows = [seed()];
+      h.beforeFindUnique = () => {
+        h.beforeFindUnique = undefined;
+        h.rows = [];
+      };
+
+      const result = await claimTurn(claimArgs("trace-B"));
+
+      expect(result.kind).toBe("claimed");
+      expect(h.creates, "the second create is the one that won").toBe(2);
+    });
+
+    it("between a lost swap and the re-read of the winner: also a free slot", async () => {
+      await expectClaimed("trace-A");
+      vi.setSystemTime(new Date(T0.getTime() + TURN_LEASE_MS + 1));
+      h.beforeUpdateMany = () => {
+        h.beforeUpdateMany = undefined;
+        rows()[0].updatedAt = new Date(9_999); // a write lands after our read: the swap misses
+        let reads = 0;
+        h.beforeFindUnique = () => {
+          if (++reads === 1) h.rows = []; // and the winner is gone by the time we look for it
+        };
+      };
+
+      const result = await claimTurn(claimArgs("trace-B"));
+
+      expect(result.kind).toBe("claimed");
+    });
+
+    it("again and again: three rounds are all it takes, then the store counts as unavailable (fail open), never as held", async () => {
+      h.beforeCreate = () => {
+        if (rows().length === 0) h.rows = [seed()]; // taken just before every create
+      };
+      h.beforeFindUnique = () => {
+        h.rows = []; // and gone just before every read
+      };
+
+      await expect(claimTurn(claimArgs("trace-B"))).resolves.toEqual({ kind: "unavailable" });
+      expect(h.creates).toBe(3);
+    });
+  });
 });
 
 describe("heartbeat and lifetime", () => {
@@ -219,12 +297,25 @@ describe("heartbeat and lifetime", () => {
     claim.finish();
   });
 
-  it("stops renewing once finished, and the claim row is gone", async () => {
+  it("finishing deletes the claim row and frees the message", async () => {
     const claim = await expectClaimed("trace-A");
     claim.finish();
     await vi.advanceTimersByTimeAsync(0);
     expect(rows()).toHaveLength(0);
     await expectClaimed("trace-B");
+  });
+
+  // A heartbeat on a deleted row is a no-op write, so the row being gone does not show the timer stopped.
+  it("finishing clears the heartbeat timer, and a rename after release writes nothing", async () => {
+    const claim = await expectClaimed("trace-A");
+    expect(vi.getTimerCount()).toBe(1);
+    claim.finish();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(vi.getTimerCount(), "the heartbeat kept ticking after release").toBe(0);
+
+    claim.setConversation("conv-late");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.writes, "a rename after release reached the store").toEqual([]);
   });
 
   it("a hung run cannot hold the message forever: renewals stop after the max run time", async () => {
@@ -345,9 +436,29 @@ describe("holdWhileBodyOpen: a response whose body still does the work of the ru
     await vi.advanceTimersByTimeAsync(0);
 
     expect(rows()).toHaveLength(1);
+    expect(vi.getTimerCount(), 'the heartbeat kept ticking after the reader left').toBe(0);
     expect(await claimTurn(claimArgs('trace-B'))).toMatchObject({ kind: 'in_flight', traceId: 'trace-A' });
     await vi.advanceTimersByTimeAsync(TURN_LEASE_MS + TURN_BEAT_MS); // nobody renews it any more
     await expectClaimed('trace-B');
+  });
+
+  // Next pipes the body to the socket with an abort signal, so a client that drops while the work is silent
+  // cancels the stream with a read PENDING. The inner read then ends, pull() closes a cancelled stream
+  // (which throws) and its catch releases: only the flag lapse() set keeps that release from deleting
+  // the row of a run that is still going.
+  it('a reader that leaves with a read pending does not get the lease deleted either', async () => {
+    const claim = await expectClaimed('trace-A');
+    const res = claim.holdWhileBodyOpen(new Response(openBody().body));
+    claim.finish();
+    const reader = res.body!.getReader();
+    void reader.read().catch(() => {});
+    await vi.advanceTimersByTimeAsync(0);
+
+    await reader.cancel();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(rows(), 'the lease was deleted while the work may still be running').toHaveLength(1);
+    expect(await claimTurn(claimArgs('trace-B'))).toMatchObject({ kind: 'in_flight', traceId: 'trace-A' });
   });
 
   it('a body that errors releases', async () => {
@@ -407,13 +518,18 @@ describe("holdWhileBodyOpen: a body that is not being read", () => {
   });
 
   // Next does not read or cancel the body of a response whose socket closed before the handler returned.
+  // The very first beat finds the body idle (nothing asked for 30 s) and stops renewing, so the lease ends
+  // with its first 90 s: not at the idle beat (the work may still be running) and not a beat or two later.
   it("a body nobody ever reads (the client left before the handler returned) stops being renewed and lapses", async () => {
     const claim = await expectClaimed("trace-A");
     claim.holdWhileBodyOpen(new Response(openBody().body));
     claim.finish();
 
-    await vi.advanceTimersByTimeAsync(TURN_BEAT_MS * 3 + TURN_LEASE_MS);
+    await vi.advanceTimersByTimeAsync(TURN_BODY_IDLE_MS + TURN_BEAT_MS / 2);
+    expect(rows(), 'the idle beat deleted a lease whose work may still be running').toHaveLength(1);
+    expect(await claimTurn(claimArgs("trace-B"))).toMatchObject({ kind: "in_flight", traceId: "trace-A" });
 
+    await vi.advanceTimersByTimeAsync(TURN_LEASE_MS - TURN_BODY_IDLE_MS - TURN_BEAT_MS / 2 + 1_000);
     await expectClaimed("trace-B");
   });
 
@@ -427,6 +543,21 @@ describe("holdWhileBodyOpen: a body that is not being read", () => {
     await vi.advanceTimersByTimeAsync(TURN_BEAT_MS * 3 + TURN_LEASE_MS);
 
     await expectClaimed("trace-B");
+  });
+
+  // A paused iOS tab, a slow link: the reader is attached and asks again within the idle window each time.
+  it("a slow reader that asks again every 20 s keeps the lease well past one lease period", async () => {
+    const claim = await expectClaimed("trace-A");
+    const src = openBody();
+    const reader = claim.holdWhileBodyOpen(new Response(src.body)).body!.getReader();
+
+    for (let i = 0; i < 8; i += 1) {
+      src.ctl().enqueue(bytes(`chunk ${i}`));
+      await reader.read();
+      await vi.advanceTimersByTimeAsync(20_000);
+    }
+
+    expect(await claimTurn(claimArgs("trace-B"))).toMatchObject({ kind: "in_flight", traceId: "trace-A" });
   });
 
   it("a reader that is WAITING on a silent upstream (the work is running, the client is there) keeps the lease", async () => {
@@ -443,6 +574,7 @@ describe("holdWhileBodyOpen: a body that is not being read", () => {
 describe("the documented bounds", () => {
   it("pins the numbers the design doc quotes", () => {
     expect(TURN_BEAT_MS).toBe(30_000);
+    expect(TURN_BODY_IDLE_MS, "the doc says a reader quiet for 30 s lapses the lease").toBe(30_000);
     expect(TURN_LEASE_MS, "two beats can be lost before the lease lapses").toBe(3 * TURN_BEAT_MS);
     expect(TURN_MAX_RUN_MS).toBe(6 * 60_000);
     expect(POST_DRAIN_GRACE_MS).toBe(60_000);

@@ -122,7 +122,8 @@ export interface UseChatTransportOpts<TBody extends object = Record<string, unkn
    * 2026-10-15 · the turn guard (lib/services/chat/turn-guard.ts) REFUSED this send on purpose:
    * the response carries X-Turn-Refusal (turn_in_flight, turn_answered, turn_ran, turn_unreadable).
    * The server ANSWERED, so the caller must not treat the replay as one that may never have
-   * arrived; `traceId` is the run the send collided with (null when the refusal names none).
+   * arrived. `traceId` is the live run's for turn_in_flight and the newest SAVED reply's for
+   * turn_answered and turn_ran (null when the refusal names none).
    */
   onTurnRefused?: (info: { code: string; traceId: string | null }) => void;
   /**

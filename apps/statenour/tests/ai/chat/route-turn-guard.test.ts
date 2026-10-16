@@ -160,7 +160,13 @@ vi.mock("@/lib/ai/chat/timing", async (importOriginal) => {
       const start = tracker.start.bind(tracker);
       tracker.start = (name: Parameters<typeof start>[0]) => {
         (h.seen.stages as string[]).push(String(name));
-        return start(name);
+        const timer = start(name);
+        const end = timer.end.bind(timer);
+        timer.end = () => {
+          (h.seen.ended as string[]).push(String(name));
+          return end();
+        };
+        return timer;
       };
       return tracker;
     },
@@ -203,6 +209,7 @@ const pending = async (p: Promise<unknown>) => (await Promise.race([p.then(() =>
 beforeEach(() => {
   for (const k of Object.keys(h.seen)) delete h.seen[k];
   h.seen.stages = [];
+  h.seen.ended = [];
   h.drain = undefined;
   h.claimCalls = [];
   h.claim = { setConversation: vi.fn(), settleWith: vi.fn(), finish: vi.fn(), holdWhileBodyOpen: vi.fn((r: Response) => r) };
@@ -290,6 +297,19 @@ describe("the guard shows up in the stage log", () => {
     const stages = h.seen.stages as string[];
     expect(stages).toContain("guard");
     expect(stages.indexOf("guard"), "after the gate, before the interceptors").toBeGreaterThan(stages.indexOf("gate"));
+  });
+
+  // A timer that is started and never ended reports 0 ms, so the stage log would always say the guard was free.
+  it("the guard's timer is ended, so its milliseconds reach the log", async () => {
+    h.drain = () => Promise.resolve();
+    await post();
+    expect(h.seen.ended as string[]).toContain("guard");
+  });
+
+  it("the guard's timer is ended on a refusal too (the slow case worth explaining)", async () => {
+    h.claimResult = { kind: "in_flight", traceId: "T-live", conversationId: "conv-123" };
+    expect((await post()).status).toBe(409);
+    expect(h.seen.ended as string[]).toContain("guard");
   });
 });
 

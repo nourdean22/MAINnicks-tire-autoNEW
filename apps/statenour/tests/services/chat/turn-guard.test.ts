@@ -68,11 +68,16 @@ const pick = (a: { where: Record<string, unknown>; orderBy?: { createdAt?: strin
   hits.sort((x, y) => (a.orderBy?.createdAt === "desc" ? -1 : 1) * (x.createdAt.getTime() - y.createdAt.getTime()));
   return hits;
 };
+// Like the database: only the selected columns come back, so a column the code forgot to select is undefined.
+const project = (row: Row, select?: Record<string, boolean>) =>
+  select
+    ? Object.fromEntries(Object.entries(select).filter(([, on]) => on).map(([k]) => [k, (row as unknown as Record<string, unknown>)[k]]))
+    : { ...row };
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     chatMessage: {
-      findFirst: async (a: { where: Record<string, unknown>; orderBy?: { createdAt?: string } }) => {
+      findFirst: async (a: { where: Record<string, unknown>; orderBy?: { createdAt?: string }; select?: Record<string, boolean> }) => {
         if (h.failRead === "findFirst") throw new Error("neon: connection terminated");
         if (h.failRead === "assistantOnly" && a.where.role === "assistant") throw new Error("neon: connection terminated");
         const isUserLookup = a.where.role === "user" && (a.where.clientMessageId !== undefined || a.where.OR !== undefined);
@@ -86,12 +91,12 @@ vi.mock("@/lib/prisma", () => ({
           return null;
         }
         const hit = pick(a)[0];
-        return hit ? { ...hit } : null;
+        return hit ? project(hit, a.select) : null;
       },
-      findMany: async (a: { where: Record<string, unknown>; orderBy?: { createdAt?: string } }) => {
+      findMany: async (a: { where: Record<string, unknown>; orderBy?: { createdAt?: string }; select?: Record<string, boolean> }) => {
         if (h.hang === "replies") return new Promise(() => {});
         if (h.failRead === "findMany" || h.failRead === "assistantOnly") throw new Error("neon: connection terminated");
-        return pick(a).map((r) => ({ ...r }));
+        return pick(a).map((r) => project(r, a.select));
       },
     },
   },
@@ -351,12 +356,20 @@ describe("a failed read is never read as 'nothing happened'", () => {
 });
 
 describe("the lease key follows the message's real identity", () => {
+  // Every claim handed out, in order: the wrong-key claim and the right-key one are different objects.
+  let made: Array<ReturnType<typeof claim>> = [];
+  beforeEach(() => {
+    made = [];
+  });
   const leaseTable = (taken: string[]) => {
     const leases = new Set(taken);
-    h.claimImpl = (input) =>
-      leases.has(input.clientMessageId)
-        ? { kind: "in_flight", traceId: "T-live", conversationId: "conv-1" }
-        : (leases.add(input.clientMessageId), claimed());
+    h.claimImpl = (input) => {
+      if (leases.has(input.clientMessageId)) return { kind: "in_flight", traceId: "T-live", conversationId: "conv-1" };
+      leases.add(input.clientMessageId);
+      const outcome = claimed();
+      made.push(outcome.claim);
+      return outcome;
+    };
   };
   const keys = () => h.claimCalls.map((c) => (c as { clientMessageId: string }).clientMessageId);
 
@@ -384,6 +397,12 @@ describe("the lease key follows the message's real identity", () => {
     expect(result).toMatchObject({ kind: "run", conversationId: "conv-1" });
     expect(keys()).toEqual(["C1", "U1"]);
     expect(h.finished).toBe(1);
+    // The route settles or finishes the claim it is handed. If that were the first one, already let go,
+    // the lease under the real key would have no owner and would lock the message until it lapses.
+    expect(made).toHaveLength(2);
+    expect(result.kind === "run" ? result.claim : null, "the route was handed the wrong-key claim").toBe(made[1]);
+    expect(made[0].finish).toHaveBeenCalledTimes(1);
+    expect(made[1].finish, "the claim under the real key must still be live").not.toHaveBeenCalled();
   });
 
   it("CONTROL - no failure: one claim, under the minted id", async () => {
@@ -422,12 +441,37 @@ describe("what a refusal tells the client", () => {
     h.rows = [user("U1", "m-1", 1_000), reply("A1", 2_000, { traceId: "T-old", toolReceipts: [write] }, { parentMessageId: "U1" })];
     expect((await refused(await guard({ trigger: "regenerate-message" }))).headers.get("X-Turn-Refusal")).toBe("turn_ran");
     expect((await refused(await guard({ trigger: "submit-message" }))).headers.get("X-Turn-Refusal")).toBe("turn_answered");
+    h.rows = [user("U1", "m-1", 1_000)];
+    h.failRead = "findMany";
+    expect((await refused(await guard({ trigger: "submit-message" }))).headers.get("X-Turn-Refusal")).toBe("turn_unreadable");
   });
 
-  it("the refusal copy does not promise a reply will appear (nothing on the client re-reads the thread)", async () => {
+  // A refusal answers one POST for one message. A cache between the client and the server must not
+  // keep it and serve it to the next attempt.
+  it("no refusal can be cached", async () => {
     h.claimResult = { kind: "in_flight", traceId: "T-live", conversationId: "conv-1" };
-    const r = await refused(await guard());
-    expect(String(r.body.reason)).not.toMatch(/appear/i);
+    expect((await refused(await guard())).headers.get("Cache-Control")).toBe("no-store");
+
+    h.claimResult = claimed();
+    h.rows = [user("U1", "m-1", 1_000), reply("A1", 2_000, { traceId: "T-old", toolReceipts: [] }, { parentMessageId: "U1" })];
+    expect((await refused(await guard())).headers.get("Cache-Control")).toBe("no-store");
+  });
+
+  it("no refusal copy promises a reply will appear (nothing on the client re-reads the thread)", async () => {
+    const reasons: string[] = [];
+    h.claimResult = { kind: "in_flight", traceId: "T-live", conversationId: "conv-1" };
+    reasons.push(String((await refused(await guard())).body.reason));
+
+    h.claimResult = claimed();
+    h.rows = [user("U1", "m-1", 1_000), reply("A1", 2_000, { traceId: "T-old", toolReceipts: [write] }, { parentMessageId: "U1" })];
+    reasons.push(String((await refused(await guard())).body.reason)); // turn_answered
+    reasons.push(String((await refused(await guard({ trigger: "regenerate-message" }))).body.reason)); // turn_ran
+
+    h.failRead = "findMany";
+    reasons.push(String((await refused(await guard())).body.reason)); // turn_unreadable
+
+    expect(reasons).toHaveLength(4);
+    for (const reason of reasons) expect(reason).not.toMatch(/appear/i);
   });
 
   it("the trace on a refusal is the NEWEST reply's", async () => {

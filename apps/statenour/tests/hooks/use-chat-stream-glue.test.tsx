@@ -2232,26 +2232,53 @@ describe("a refused replay", () => {
 
   const refusalBody = () => new Error('{"error":"Nick is still working on that message.","code":"turn_in_flight"}');
 
-  it("Regenerate on the reply on screen, refused by the run that wrote it: the reply comes back and Retry replays instead of being held", async () => {
+  /** What the screen holds after the last restore the hook asked for (no restore asked: the list is left as it is). */
+  const afterRefusal = (list: Msg[]): Msg[] => {
+    const restore = setMessages.mock.calls.at(-1)?.[0] as ((m: Msg[]) => Msg[]) | undefined;
+    return restore ? restore(list) : list;
+  };
+
+  /** Regenerate on `reply` in c1: the SDK takes the reply off the screen and the POST is out (status submitted). */
+  async function replayInFlight() {
     h.chat.status = "ready";
     render();
     await retryNow();
     expect(h.chat.regenerate).toHaveBeenCalledTimes(1);
-
-    // The SDK took the reply off the screen before the POST. The server answers 409 with the holder's trace: T1.
     h.chat.messages = [user];
+    h.chat.status = "submitted";
+    render();
+  }
+
+  /** The transport reports the 409 (it runs inside the fetch wrapper, before the SDK throws), then the SDK settles in error. */
+  function refuseAndSettle(trace = "T1") {
     act(() => {
-      transport().onTraceId?.("T1");
-      transport().onTurnRefused?.({ code: "turn_in_flight", traceId: "T1" });
+      transport().onTraceId?.(trace);
+      transport().onTurnRefused?.({ code: "turn_in_flight", traceId: trace });
     });
     h.chat.status = "error";
     h.chat.error = refusalBody();
     render();
+  }
 
-    const restore = setMessages.mock.calls.at(-1)?.[0] as ((m: Msg[]) => Msg[]) | undefined;
-    expect(typeof restore, "the reply the SDK removed was not put back").toBe("function");
-    expect(restore!([user])).toEqual([user, reply]);
-    expect(restore!([user, reply, { id: "u2", role: "user", parts: [] }]), "a thread that moved on is left alone").toHaveLength(3);
+  it("Regenerate on the reply on screen, refused by the run that wrote it: the reply comes back once the status settles, and Retry replays instead of being held", async () => {
+    await replayInFlight();
+
+    // The transport reports the refusal while the status is still 'submitted'. Restoring now makes read-aloud
+    // treat the old reply as a streaming one and speak all of it again.
+    act(() => {
+      transport().onTraceId?.("T1");
+      transport().onTurnRefused?.({ code: "turn_in_flight", traceId: "T1" });
+    });
+    render(); // the component re-renders while the status is still 'submitted'
+    expect(setMessages, "restoring while still submitted re-reads the reply aloud").not.toHaveBeenCalled();
+
+    h.chat.status = "error";
+    h.chat.error = refusalBody();
+    render();
+
+    expect(typeof setMessages.mock.calls.at(-1)?.[0], "the reply the SDK removed was not put back").toBe("function");
+    expect(afterRefusal([user])).toEqual([user, reply]);
+    expect(afterRefusal([user, reply, { id: "u2", role: "user", parts: [] }]), "a thread that moved on is left alone").toHaveLength(3);
 
     h.chat.messages = [user, reply];
     render();
@@ -2259,6 +2286,62 @@ describe("a refused replay", () => {
 
     expect(h.chat.regenerate, "Retry must replay: the server decides").toHaveBeenCalledTimes(2);
     expect(vi.mocked(toast.error)).not.toHaveBeenCalled();
+  });
+
+  it("the operator opened another conversation (resetTurn) while the replay was out: the refusal puts nothing back", async () => {
+    await replayInFlight();
+    act(() => ctl.resetTurn()); // a request in flight: the trace refs stay, the old thread's snapshot must not
+
+    refuseAndSettle();
+
+    expect(afterRefusal([user]), "the old thread's reply was written over the screen").toEqual([user]);
+  });
+
+  it("the active conversation moved on its own (no resetTurn): the refusal puts nothing back, whatever is on screen", async () => {
+    await replayInFlight();
+    useChatUiStore.setState({ activeConversationId: "cB" });
+    render();
+
+    refuseAndSettle();
+
+    // [user] shares its ids with c1's snapshot, so only the conversation check can tell it is B's screen.
+    expect(afterRefusal([user])).toEqual([user]);
+  });
+
+  it("another thread is on screen in the same conversation (not the replay's list with its tail cut): it is left alone", async () => {
+    await replayInFlight();
+    h.chat.messages = [userB];
+    render();
+
+    refuseAndSettle();
+
+    expect(afterRefusal([userB]), "a shorter thread was replaced by the old one").toEqual([userB]);
+  });
+
+  it("a refusal that never reached an error (the operator stopped) does not restore after a LATER replay dies with a plain error", async () => {
+    await replayInFlight();
+    act(() => transport().onTurnRefused?.({ code: "turn_in_flight", traceId: "T1" }));
+    h.chat.status = "ready"; // stopped before the SDK threw
+    render();
+
+    h.chat.messages = [user, reply];
+    render();
+    await retryNow();
+    h.chat.messages = [user];
+    h.chat.status = "error";
+    h.chat.error = new Error(NOT_A_NETWORK_DROP);
+    render();
+
+    expect(afterRefusal([user]), "an old refusal restored a reply the server never refused this time").toEqual([user]);
+  });
+
+  it("a refusal that arrives after the operator already sent something new restores nothing", async () => {
+    await replayInFlight();
+    act(() => void ctl.sendText("something else"));
+
+    refuseAndSettle();
+
+    expect(afterRefusal([user])).toEqual([user]);
   });
 
   it("CONTROL - a replay whose POST died with no header at all is still held (the record is only cleared by an explicit refusal)", async () => {

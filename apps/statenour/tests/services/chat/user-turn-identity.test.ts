@@ -1,7 +1,7 @@
 /**
  * A user message is named by the id the client holds: the client-minted id on a live thread, the
- * DATABASE id on a hydrated one (use-conversations.ts maps id = chat_messages.id and keeps the
- * minted id in metadata). Every lookup that resolves a turn's user row must accept either, or the
+ * DATABASE id on a hydrated one (use-conversations.ts maps id = chat_messages.id and carries the
+ * minted id as a separate top-level clientMessageId field). Every lookup that resolves a turn's user row must accept either, or the
  * first Regenerate of a loaded conversation writes a second copy of the user message
  * (2026-10-15, found while designing server-side turn idempotency).
  */
@@ -22,10 +22,15 @@ function matches(row: Row, where: Record<string, unknown>): boolean {
 
 vi.mock("@/lib/prisma", () => {
   const chatMessage = {
-    findFirst: async (a: { where: Record<string, unknown>; orderBy?: { createdAt?: string } }) => {
+    findFirst: async (a: { where: Record<string, unknown>; orderBy?: { createdAt?: string }; select?: Record<string, boolean> }) => {
       const list = rows().filter((r) => matches(r, a.where));
       if (a.orderBy?.createdAt === "asc") list.sort((x, y) => x.createdAt.getTime() - y.createdAt.getTime());
-      return list[0] ? { ...list[0] } : null;
+      const hit = list[0];
+      if (!hit) return null;
+      // Like the database: only the selected columns come back.
+      return a.select
+        ? Object.fromEntries(Object.entries(a.select).filter(([, on]) => on).map(([k]) => [k, (hit as unknown as Record<string, unknown>)[k]]))
+        : { ...hit };
     },
     create: async (a: { data: Record<string, unknown> }) => {
       h.created.push(a.data);

@@ -3,7 +3,8 @@
  *
  * A live thread names its user message by the client-minted id (stored in
  * chat_messages.client_message_id). A hydrated thread names it by the DATABASE id:
- * use-conversations.ts maps id = chat_messages.id and keeps the minted id in metadata.
+ * use-conversations.ts maps id = chat_messages.id and carries the minted id as a separate top-level
+ * clientMessageId field on the message, which the chat route does not read.
  * So the first Regenerate of a loaded conversation arrives as "cuid..." while the row's
  * client_message_id is still the original UUID, and a lookup by clientMessageId alone
  * misses it (persistUserTurn then wrote a second copy of the user message).

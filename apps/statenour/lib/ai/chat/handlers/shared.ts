@@ -160,24 +160,28 @@ export async function ensureConvAndPersistUser(
     }
     // v7 · Apr 28 · Dedup guard. Silent-retry can re-fire the same POST
     // and double-persist user messages. Skip if identical content
-    // already persisted in the last 30s.
-    const dupSince = new Date(Date.now() - 30_000);
-    const existingDupe = await prisma.chatMessage
-      .findFirst({
-        where: {
-          conversationId: id,
-          role: "user",
-          content: userContent,
-          createdAt: { gte: dupSince },
-        },
-        select: { id: true },
-      })
-      .catch(() => null);
-    if (existingDupe) {
-      console.warn(
-        `[fast-path] duplicate user message in ${id.slice(0, 8)} suppressed`,
-      );
-      return id;
+    // already persisted in the last 30s. Only for a post with no id: with one, the id above is the
+    // identity, and a repeated text under a new id is a new message that needs its own row, or the
+    // turn guard cannot see it and a re-send fires the write again.
+    if (!clientMessageId) {
+      const dupSince = new Date(Date.now() - 30_000);
+      const existingDupe = await prisma.chatMessage
+        .findFirst({
+          where: {
+            conversationId: id,
+            role: "user",
+            content: userContent,
+            createdAt: { gte: dupSince },
+          },
+          select: { id: true },
+        })
+        .catch(() => null);
+      if (existingDupe) {
+        console.warn(
+          `[fast-path] duplicate user message in ${id.slice(0, 8)} suppressed`,
+        );
+        return id;
+      }
     }
     await prisma.chatMessage
       .create({
