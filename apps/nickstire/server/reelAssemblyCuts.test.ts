@@ -10,12 +10,27 @@
 import { describe, expect, it } from "vitest";
 import { buildFfmpegArgs, CAPTION_BEAT_Y_FRAC, type ReelSegment } from "./services/reelAssembly";
 
-const seg = (beatNumber: number, sourceDurationSec?: number, caption = "CHECK IT"): ReelSegment => ({
+/** A generated (provider) clip by default: the measured start hold is a property of those clips. */
+const seg = (beatNumber: number, sourceDurationSec?: number, caption = "CHECK IT", sourceIsGenerated = true): ReelSegment => ({
   beatNumber,
   dur: 4,
   caption,
   fontSize: 56,
-  ...(sourceDurationSec === undefined ? {} : { sourceDurationSec }),
+  ...(sourceDurationSec === undefined ? {} : { sourceDurationSec, sourceIsGenerated }),
+});
+
+describe("the start-hold skip is for generated clips only (Codex P2 on #3087)", () => {
+  // realShotBinding records a registry_real_shop shot as trimInSec 0; cutting its
+  // first 0.5 s would show different frames than the lineage says. It still runs
+  // real footage through the fade (that removes nothing).
+  it("a long real-shop source keeps start 0 and runs real footage through the xfade", () => {
+    const c = chain(filterGraph([seg(1, 5.04, "REAL", false), seg(2, 5.04)]), 0);
+    expect(c).toContain("trim=0:4.5,");
+    expect(c).not.toContain("tpad");
+  });
+  it("a long generated source still skips its 0.5 s hold", () => {
+    expect(chain(filterGraph([seg(1, 5.04), seg(2, 5.04)]), 0)).toContain("trim=0.5:5,");
+  });
 });
 
 function filterGraph(segs: ReelSegment[]): string {

@@ -20,6 +20,7 @@ import { declaredTextSurfaces, undeclaredTextProblem } from "@shared/reelTextSur
 import { REEL_OUTPUT_RULES } from "../../client/src/lib/facelessReelStudio";
 import { parseCaptionStyle, type CaptionStyle } from "../../shared/reelSourceProfile";
 import { declaredBeatSource, type ShotSource } from "../../shared/shotRouter";
+import { clipProvenance } from "../../shared/reelDisclosure";
 
 const log = createLogger("services:reel-assembly");
 
@@ -69,6 +70,8 @@ export interface ReelSegment {
   captionStyle?: CaptionStyle;
   /** The downloaded source clip's probed length (assembleReel). Absent = unprobed: today's trim + clone pad. */
   sourceDurationSec?: number;
+  /** The clip URL reads as provider-generated (clipProvenance). Only those clips carry the measured first-frame hold. */
+  sourceIsGenerated?: boolean;
 }
 
 /**
@@ -78,17 +81,18 @@ export interface ReelSegment {
  * the whole fade, which read as a hitch at every cut. With real footage to
  * spare, cut it instead. The Wan clips also hold their first frame ~0.5 s
  * (14 near-still frames in the first second of beat1.mp4, 0 after), so a
- * source long enough skips that hold too. The output length is unchanged
+ * GENERATED source long enough skips that hold too; real-shop footage keeps
+ * start 0, which is what its lineage (realShotBinding trimInSec 0) records. The output length is unchanged
  * either way (keep + pad === dur + xfade), so the xfade offsets and the
  * render-integrity contract do not move.
  */
 const START_HOLD_SKIP_SEC = 0.5;
-function planSegmentTrim(p: { dur: number; sourceDurationSec?: number; isLast: boolean; xfade: number }): { start: number; end: number; padSec: number } {
+function planSegmentTrim(p: { dur: number; sourceDurationSec?: number; sourceIsGenerated?: boolean; isLast: boolean; xfade: number }): { start: number; end: number; padSec: number } {
   const need = p.isLast ? p.dur : p.dur + p.xfade;
   const src = Number(p.sourceDurationSec);
   const eps = 1e-6; // 4 + 0.5 must equal a probed 4.5
   if (!Number.isFinite(src) || src + eps < need) return { start: 0, end: p.dur, padSec: p.isLast ? 0 : p.xfade };
-  const start = src + eps >= need + START_HOLD_SKIP_SEC ? START_HOLD_SKIP_SEC : 0;
+  const start = p.sourceIsGenerated === true && src + eps >= need + START_HOLD_SKIP_SEC ? START_HOLD_SKIP_SEC : 0;
   return { start, end: Number((start + need).toFixed(3)), padSec: 0 };
 }
 
@@ -437,7 +441,7 @@ export function buildFfmpegArgs(opts: FfmpegBuildOpts): string[] {
   // 1. base sizing + Ken Burns pan/zoom + extend for xfade
   segs.forEach((s, i) => {
     const isLast = i === segs.length - 1;
-    const cut = planSegmentTrim({ dur: s.dur, sourceDurationSec: s.sourceDurationSec, isLast, xfade: XFADE_DUR });
+    const cut = planSegmentTrim({ dur: s.dur, sourceDurationSec: s.sourceDurationSec, sourceIsGenerated: s.sourceIsGenerated, isLast, xfade: XFADE_DUR });
     // A non-last beat with real footage through the fade needs no pad at all;
     // the last beat keeps its (no-op) clone exactly as before.
     const tpad = cut.padSec > 0 ? `,tpad=stop_mode=clone:stop_duration=${cut.padSec}` : isLast ? ",tpad=stop_mode=clone" : "";
@@ -1095,6 +1099,7 @@ export async function assembleReel(
         // has; a container can run longer on its audio track. Failed probe = unset = today's pad.
         const videoSec = pr.videoStreamSec > 0 ? Math.min(pr.videoStreamSec, pr.duration > 0 ? pr.duration : Infinity) : pr.duration;
         if (videoSec > 0) segs[i].sourceDurationSec = videoSec;
+        segs[i].sourceIsGenerated = clipProvenance(JSON.stringify([url])) === "generative";
       } catch (e) {
         log.warn("clip probe failed (assembly continues)", { jobId, beat: segs[i].beatNumber, e: e instanceof Error ? e.message : String(e) });
       }
