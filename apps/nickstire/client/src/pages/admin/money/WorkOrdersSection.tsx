@@ -911,7 +911,7 @@ function ShopPulseMood({ stats }: { stats: AdminDashboardStats | undefined }) {
   const pacePercent = dailyTarget > 0 ? Math.round((revenueToday / dailyTarget) * 100) : 0;
 
   let mood: "busy" | "normal" | "slow";
-  let emoji: string;
+  let dotColor: string;
   let moodLabel: string;
   let moodLine: string;
   let borderColor: string;
@@ -920,24 +920,24 @@ function ShopPulseMood({ stats }: { stats: AdminDashboardStats | undefined }) {
 
   if (pacePercent >= 110) {
     mood = "busy";
-    emoji = "\uD83D\uDFE2";
-    moodLabel = "BUSY DAY";
+    dotColor = "bg-emerald-400";
+    moodLabel = "Busy day";
     moodLine = "Keep this energy. Every car counts.";
     borderColor = "border-emerald-500/40";
     bgColor = "bg-emerald-500/5";
     textColor = "text-emerald-400";
   } else if (pacePercent >= 70) {
     mood = "normal";
-    emoji = "\uD83D\uDFE1";
-    moodLabel = "NORMAL DAY";
+    dotColor = "bg-amber-400";
+    moodLabel = "Normal day";
     moodLine = "Solid pace. Stay sharp on callbacks and follow-ups.";
     borderColor = "border-amber-500/40";
     bgColor = "bg-amber-500/5";
     textColor = "text-amber-400";
   } else {
     mood = "slow";
-    emoji = "\uD83D\uDD34";
-    moodLabel = "SLOW DAY";
+    dotColor = "bg-red-400";
+    moodLabel = "Slow day";
     moodLine = "Push harder. Call lapsed customers. Chase pending estimates.";
     borderColor = "border-red-500/40";
     bgColor = "bg-red-500/5";
@@ -947,10 +947,10 @@ function ShopPulseMood({ stats }: { stats: AdminDashboardStats | undefined }) {
   return (
     <div className={`${bgColor} border ${borderColor} p-4`}>
       <div className="flex items-center gap-4 flex-wrap">
-        {/* Mood emoji + label — wave-134 lighter weight (was font-black
+        {/* Mood dot + label (dot replaced the coloured-circle emoji in Admin UI v1 W1) — wave-134 lighter weight (was font-black
             tracking-widest uppercase) */}
         <div className="flex items-center gap-2.5">
-          <span className="text-2xl">{emoji}</span>
+          <span className={`w-2.5 h-2.5 rounded-full ${dotColor}`} aria-hidden />
           <span className={`text-[13px] font-semibold ${textColor}`}>
             {moodLabel}
           </span>
