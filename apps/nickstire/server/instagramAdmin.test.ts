@@ -288,6 +288,9 @@ describe("instagramAdmin router", () => {
     it("refuses a non-admin caller", async () => {
       const caller = appRouter.createCaller(ctx("user"));
       await expect(caller.instagramAdmin.commentResponderStatus()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    });
+  });
+
   describe("attachExternalClips (admin)", () => {
     const input = { jobId: 2100001, clipUrls: ["https://cdn.example.com/1.mp4"], source: "higgsfield-web" as const };
 
