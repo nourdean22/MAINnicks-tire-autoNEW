@@ -28,6 +28,7 @@ import {
 import { askLeakageProblem } from "@shared/reelAsk";
 import { checkEditorialContract } from "@shared/editorialContract";
 import { declaredBeatSource, shotRouteProblems, type ShotSource } from "@shared/shotRouter";
+import { startImageForBeat } from "@shared/reelStartFrame";
 import { beatAllowsHands, parsePresenceProfile, type CaptionStyle, type PresenceProfile } from "@shared/reelSourceProfile";
 import { classifyHookGrammar, saturatedHookGrammar } from "@shared/reelHookGrammar";
 import { BUSINESS } from "@shared/business";
@@ -1945,6 +1946,14 @@ export const REALISM_DIRECTIVE = [
   `One continuous take at natural speed with 24fps motion blur; no speed ramps, no synthetic glow, no uniform sheen across surfaces that should differ.`,
 ].join("\n");
 
+// Reel 2100001 (2026-10-16) showed an invented tire brand and a plate, and its
+// underbody beats morphed out of the shop-front start photo. Both lines are
+// positive scene wording, so they sit in the prompt, not the negative prompt.
+const UNBRANDED_HARDWARE_LINE =
+  "unbranded all-black tire with a blank sidewall, no lettering, no numbers, no logo; plain wheel with a blank centre cap; no license plate; plain painted lift columns with no stickers";
+const NO_MORPH_OPENING_LINE =
+  "the subject fills the opening frame from the very first frame; no establishing shot, no transition, no morph";
+
 export function buildHiggsfieldReelPromptPack(brief: ReelBrief): HiggsfieldBeatPrompt[] {
   const lens = MOTION_LENSES[brief.motionLens];
   const persona = heroPersona(brief.objectCharacter);
@@ -2001,8 +2010,11 @@ export function buildHiggsfieldReelPromptPack(brief: ReelBrief): HiggsfieldBeatP
           : (conditioningMode === "hero_image"
               ? `Opening frame: establish the hero identity every later beat will share - clear, unbranded, wordless; strongest possible first frame.`
               : `Opening frame: strongest possible first frame - the hero object clearly readable at a glance.`),
+        // Same rule the pipeline uses to hand out the start photo (shared/reelStartFrame.ts).
+        ...(startImageForBeat(b, brief.visualWorld?.heroFrameUrl) ? [] : [NO_MORPH_OPENING_LINE]),
         `Timing: complete the primary action by ${actionCompleteBySec} seconds; keep every frame after that visually stable${isLast ? ", settled on a frame that echoes the opening shot for a seamless loop" : ", ready for a match cut into the next shot"}.`,
         facelessCleanSceneDirective(brief.motionLens),
+        UNBRANDED_HARDWARE_LINE,
         REALISM_DIRECTIVE,
         // The last thing the model reads is the beat, not the lens (2026-10-10).
         `This shot must show: ${providerScene.scene} When the style grammar or the visual world and this shot disagree, render this shot in that style; the style never replaces the subject.`,
