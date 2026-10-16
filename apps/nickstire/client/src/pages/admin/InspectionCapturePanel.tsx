@@ -215,7 +215,7 @@ export default function InspectionCapturePanel() {
       <header className="flex items-center justify-between px-4 py-3 border-b border-border/30">
         <div className="flex items-center gap-2">
           <Wrench className="w-4 h-4 text-nick-yellow" />
-          <h2 className="text-sm font-bold ">Vehicle check</h2>
+          <h2 className="text-sm font-bold">Vehicle check</h2>
         </div>
         <div className="flex rounded-md border border-border/40 overflow-hidden" role="tablist" aria-label="Vehicle check mode">
           {([["capture", "New check"], ["verify", "Verify work"]] as const).map(([m, label]) => (

@@ -311,7 +311,7 @@ export default function DatabaseHygienePanel() {
           {/* Active List */}
           <div className="border border-border/20 rounded">
             <div className="bg-foreground/[0.02] border-b border-border/20 px-4 py-2.5 flex items-center justify-between">
-              <span className="text-[11px] font-bold text-foreground/60 ">
+              <span className="text-[11px] font-bold text-foreground/60">
                 {activeTab === "fake" ? "Fake / test entries (class 1)" : activeTab === "duplicates" ? "Duplicate entries (class 2)" : "Stale entries (class 3)"}
               </span>
               <button
@@ -338,7 +338,7 @@ export default function DatabaseHygienePanel() {
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-[12px] font-semibold text-foreground">{item.name}</span>
                           <span className="text-[11px] text-foreground/50 font-mono">{item.phone}</span>
-                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-foreground/10 text-foreground/60 font-mono ">
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-foreground/10 text-foreground/60 font-mono">
                             {item.table} #{item.id}
                           </span>
                         </div>
@@ -382,7 +382,7 @@ export default function DatabaseHygienePanel() {
       <div className="p-3.5 border border-amber-500/20 bg-amber-500/5 rounded flex gap-3">
         <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
         <div className="text-[11px] text-foreground/60 space-y-1">
-          <p className="font-semibold text-amber-400 ">Hygiene action guardrails</p>
+          <p className="font-semibold text-amber-400">Hygiene action guardrails</p>
           <p>
             • **Fake/Test &amp; Duplicate** entries are permanently deleted to keep tables and reports clean.
           </p>

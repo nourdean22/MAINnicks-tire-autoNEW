@@ -107,7 +107,7 @@ export function CreativeAssistantCards({ onNavigate }: { onNavigate: (view: IgVi
                       <p className="text-[11px] text-muted-foreground">{TYPE_LABEL[card.type]}</p>
                       <p className="text-sm font-medium leading-5">{card.title}</p>
                     </div>
-                    <span className="shrink-0 rounded-full border px-2 py-0.5 text-[11px] ">{card.format}</span>
+                    <span className="shrink-0 rounded-full border px-2 py-0.5 text-[11px]">{card.format}</span>
                   </div>
                   <p className="mt-2 text-[11px] text-muted-foreground">Why this</p>
                   <ul className="mt-1 space-y-1 text-xs">

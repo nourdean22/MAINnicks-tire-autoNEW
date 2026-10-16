@@ -65,7 +65,7 @@ export function LeadSourceBadge({ lead, hideWebSource = false }: { lead: LeadIte
   }
   if (hideWebSource) return null;
   return (
-    <span className="font-mono text-[10px] text-foreground/30 ">
+    <span className="font-mono text-[10px] text-foreground/30">
       via {lead.source}
     </span>
   );

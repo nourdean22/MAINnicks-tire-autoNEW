@@ -201,7 +201,7 @@ export function KpiTile({
       className={`bg-card border ${accentMap[accent]} p-5 ${onClick ? "text-left w-full hover:ring-1 hover:ring-primary/40 transition-shadow cursor-pointer" : ""}`}
     >
       <div className="flex items-start justify-between mb-3">
-        <span className="text-[10px] font-bold text-foreground/50 ">{label}</span>
+        <span className="text-[10px] font-bold text-foreground/50">{label}</span>
         {icon && <div className="text-foreground/30">{icon}</div>}
       </div>
       <div className="font-bold text-3xl text-foreground tracking-tight tabular-nums stat-value">{renderStatValue(value)}</div>

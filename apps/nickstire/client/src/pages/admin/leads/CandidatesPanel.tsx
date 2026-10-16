@@ -264,7 +264,7 @@ export function CandidatesPanel() {
                           printing a number the row does not support. */}
                       {r.hoursWaiting == null ? "age unknown" : `${r.hoursWaiting}h`}
                     </span>
-                    <span className=" text-[10px] font-bold opacity-70">{r.band}</span>
+                    <span className="text-[10px] font-bold opacity-70">{r.band}</span>
                   </li>
                 ))}
               </ul>
@@ -284,7 +284,7 @@ export function CandidatesPanel() {
                 {followUpRows.map((r) => (
                   <li key={r.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px]">
                     <span className="font-semibold">{r.name}</span>
-                    <span className=" text-[10px] font-bold opacity-70">{r.status}</span>
+                    <span className="text-[10px] font-bold opacity-70">{r.status}</span>
                     {r.positionTitle && <span className="opacity-70">{r.positionTitle}</span>}
                     <span className="opacity-80">
                       {r.daysOverdue == null ? "due" : r.daysOverdue <= 0 ? "due today" : `${r.daysOverdue}d overdue`}

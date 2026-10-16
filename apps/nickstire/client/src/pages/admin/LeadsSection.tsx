@@ -431,7 +431,7 @@ export default function LeadsSection() {
             {Object.entries(sourceHygiene.countsByLabel)
               .sort((a, b) => b[1] - a[1])
               .map(([label, count]) => (
-                <span key={label} className="font-mono text-[10px] text-foreground/60 ">
+                <span key={label} className="font-mono text-[10px] text-foreground/60">
                   {/* raw enum values read as developer-speak (FINANCING_PREAPPROVAL) â display with spaces */}
                   {label.replace(/_/g, " ")} <span className="text-foreground font-bold">{count}</span>
                 </span>

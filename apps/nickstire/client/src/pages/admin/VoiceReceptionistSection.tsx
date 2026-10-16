@@ -1031,7 +1031,7 @@ export default function VoiceReceptionistSection() {
                       {/* SMS Draft Sub-Panel */}
                       <div className="border border-border/15 bg-background rounded p-3 space-y-2 mt-2">
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-bold text-muted-foreground ">SMS Follow-Up Draft</span>
+                          <span className="text-[10px] font-bold text-muted-foreground">SMS Follow-Up Draft</span>
                           <button
                             onClick={() => handleCopy(item.id, smsText)}
                             className="flex items-center gap-1 text-[11px] bg-foreground/5 hover:bg-foreground/10 text-foreground border border-border/20 px-2 py-0.5 rounded transition-colors font-medium"
@@ -1058,7 +1058,7 @@ export default function VoiceReceptionistSection() {
                     {/* Right Column: Workflow Actions */}
                     <div className="w-full md:w-56 shrink-0 space-y-2.5 pt-3 md:pt-0 border-t md:border-t-0 md:border-l border-border/15 md:pl-6">
                       <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-muted-foreground ">Staff notes</label>
+                        <label className="text-[10px] font-bold text-muted-foreground">Staff notes</label>
                         <textarea
                           value={editingNotes[item.id] !== undefined ? editingNotes[item.id] : item.notes}
                           onChange={(e) => setEditingNotes({ ...editingNotes, [item.id]: e.target.value })}

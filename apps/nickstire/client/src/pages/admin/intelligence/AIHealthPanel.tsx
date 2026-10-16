@@ -27,7 +27,7 @@ export function AIHealthPanel() {
       <div className="stat-card p-5 border-red-500/20 bg-red-500/5">
         <div className="flex items-center gap-2 mb-2 text-red-400">
           <AlertTriangle className="w-5 h-5" />
-          <h2 className="text-sm font-black ">AI Health (Degraded)</h2>
+          <h2 className="text-sm font-black">AI Health (Degraded)</h2>
         </div>
         <p className="text-sm text-red-400/80">Master intelligence unavailable: {error?.message}</p>
       </div>
@@ -60,11 +60,11 @@ export function AIHealthPanel() {
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-2">
             <Activity className="w-5 h-5 text-indigo-400" />
-            <h2 className="text-sm font-black text-indigo-400 ">AI Health & Opportunities</h2>
+            <h2 className="text-sm font-black text-indigo-400">AI Health & Opportunities</h2>
           </div>
           <div className="text-right">
             <div className={`text-3xl font-black ${scoreColor}`}>{scoreReliable ? Math.round(score) : "—"}</div>
-            <div className="text-[10px] text-muted-foreground ">
+            <div className="text-[10px] text-muted-foreground">
               {scoreReliable ? "Health score" : "Score unavailable"}
             </div>
             <div data-score-provenance className="mt-1">

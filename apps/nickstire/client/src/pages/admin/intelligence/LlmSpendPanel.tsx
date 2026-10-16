@@ -45,7 +45,7 @@ export function LlmSpendPanel() {
     <div className="flex items-center justify-between gap-2 mb-3">
       <div className="flex items-center gap-2">
         <Cpu className="w-4 h-4 text-indigo-400" />
-        <h2 className="text-sm font-black ">AI usage by lane</h2>
+        <h2 className="text-sm font-black">AI usage by lane</h2>
       </div>
       <div className="flex gap-1">
         {WINDOWS.map((w) => (

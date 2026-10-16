@@ -755,7 +755,7 @@ function OrderFormEdit({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Status Selector */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-foreground/85 ">Order status</label>
+              <label className="text-xs font-bold text-foreground/85">Order status</label>
               <select
                 ref={statusRef}
                 value={status}
@@ -775,7 +775,7 @@ function OrderFormEdit({
 
             {/* Gateway PO reference */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-foreground/85 ">Gateway PO / order ref</label>
+              <label className="text-xs font-bold text-foreground/85">Gateway PO / order ref</label>
               <input
                 ref={gatewayRef}
                 type="text"
@@ -788,7 +788,7 @@ function OrderFormEdit({
 
             {/* Expected delivery */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-foreground/85 ">Expected supplier delivery</label>
+              <label className="text-xs font-bold text-foreground/85">Expected supplier delivery</label>
               <input
                 ref={deliveryRef}
                 type="datetime-local"
@@ -800,7 +800,7 @@ function OrderFormEdit({
 
             {/* Installation Date */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-foreground/85 ">Scheduled installation date</label>
+              <label className="text-xs font-bold text-foreground/85">Scheduled installation date</label>
               <input
                 ref={installRef}
                 type="datetime-local"
@@ -812,7 +812,7 @@ function OrderFormEdit({
 
             {/* Admin notes (full width) */}
             <div className="flex flex-col gap-1.5 md:col-span-2">
-              <label className="text-xs font-bold text-foreground/85 ">Admin Notes (internal only)</label>
+              <label className="text-xs font-bold text-foreground/85">Admin Notes (internal only)</label>
               <textarea
                 ref={notesRef}
                 value={adminNotes}
@@ -835,7 +835,7 @@ function OrderFormEdit({
                 </p>
                 <div className="flex flex-col sm:flex-row gap-3 mt-1 items-stretch sm:items-end">
                   <div className="flex-1 flex flex-col gap-1.5">
-                    <label className="text-[10px] font-black text-foreground/75 ">Refund Reason (required)</label>
+                    <label className="text-[10px] font-black text-foreground/75">Refund Reason (required)</label>
                     <input
                       type="text"
                       value={refundReason}

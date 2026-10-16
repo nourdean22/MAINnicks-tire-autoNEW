@@ -21,7 +21,7 @@ export function LeadSLAMonitor() {
       <div className="bg-card border border-amber-500/30 p-5 rounded-xl shadow-sm">
         <div className="flex items-center gap-2 pb-2">
           <Clock className="w-5 h-5 text-amber-400" />
-          <h2 className="text-sm font-black text-amber-400 ">Lead SLA monitor</h2>
+          <h2 className="text-sm font-black text-amber-400">Lead SLA monitor</h2>
         </div>
         <p className="text-xs text-muted-foreground">SLA metrics could not be read: response times are <strong className="text-amber-400">unknown</strong>, not 0 minutes. {error?.message}</p>
       </div>
@@ -51,7 +51,7 @@ export function LeadSLAMonitor() {
       <div className="flex items-center justify-between pb-2 border-b border-border/10">
         <div className="flex items-center gap-2">
           <Clock className="w-5 h-5 text-fuchsia-400" />
-          <h2 className="text-sm font-black text-fuchsia-400 ">Lead SLA monitor</h2>
+          <h2 className="text-sm font-black text-fuchsia-400">Lead SLA monitor</h2>
         </div>
         <div className="flex items-center gap-1.5">
           <div data-sla-avg className={`text-[10px] font-bold px-2 py-0.5 rounded ${avgTone}`}>

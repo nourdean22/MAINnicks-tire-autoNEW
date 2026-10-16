@@ -105,7 +105,7 @@ export default function DraftCard({ draft, onUpdateStatus, onUpdateDate, onUpdat
             {draft.contentType}
           </span>
           {draft.isSample && (
-            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border border-purple-500/30 bg-purple-500/10 text-purple-400 ">
+            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border border-purple-500/30 bg-purple-500/10 text-purple-400">
               Sample
             </span>
           )}

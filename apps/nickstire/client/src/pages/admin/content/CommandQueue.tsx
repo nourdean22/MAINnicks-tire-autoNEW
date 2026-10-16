@@ -143,7 +143,7 @@ export function CommandQueue() {
                         {item.metadata?.status || "pending"}
                       </span>
                       {item.metadata?.kind && (
-                        <span className="text-[10px] font-bold text-primary bg-primary/10 border border-primary/25 px-2 py-0.5 ">
+                        <span className="text-[10px] font-bold text-primary bg-primary/10 border border-primary/25 px-2 py-0.5">
                           {item.metadata.kind}
                         </span>
                       )}
@@ -161,7 +161,7 @@ export function CommandQueue() {
                     {item.metadata?.suggestedPlatforms && item.metadata.suggestedPlatforms.length > 0 && (
                       <div className="flex flex-wrap gap-1.5 pt-1">
                         {item.metadata.suggestedPlatforms.map((plat: string) => (
-                          <span key={plat} className="text-[9px] font-semibold bg-background/50 border border-border/20 px-2 py-0.5 rounded text-foreground/50 ">
+                          <span key={plat} className="text-[9px] font-semibold bg-background/50 border border-border/20 px-2 py-0.5 rounded text-foreground/50">
                             {plat}
                           </span>
                         ))}

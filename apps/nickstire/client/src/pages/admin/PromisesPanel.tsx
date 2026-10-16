@@ -138,7 +138,7 @@ export default function PromisesPanel() {
       <header className="flex items-center justify-between px-4 py-3 border-b border-border/30">
         <div className="flex items-center gap-2">
           <HandHeart className="w-4 h-4 text-nick-yellow" />
-          <h2 className="text-sm font-bold ">Promises</h2>
+          <h2 className="text-sm font-bold">Promises</h2>
           {openLabel && <span className="text-[10px] text-muted-foreground">{openLabel}</span>}
         </div>
         <button

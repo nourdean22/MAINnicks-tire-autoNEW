@@ -248,7 +248,7 @@ export function TechnicianReferralsPanel() {
                       </span>
                     ) : (
                       <span
-                        className="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 text-[10px] font-bold "
+                        className="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 text-[10px] font-bold"
                         title="This referral is not linked to a candidate record: either the association failed verification at write time, or the candidate row is gone. The payout cannot be substantiated from this row alone."
                       >
                         unlinked

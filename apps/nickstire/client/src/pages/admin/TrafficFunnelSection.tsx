@@ -229,7 +229,7 @@ export default function TrafficFunnelSection() {
               <div key={idx} className={`flex items-start gap-3 p-4 border ${cls}`}>
                 {icon}
                 <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-sm ">{a.title}</div>
+                  <div className="font-semibold text-sm">{a.title}</div>
                   <p className="text-[13px] text-foreground/80 mt-1 leading-relaxed">{a.detail}</p>
                   {a.fix && (
                     <p className="text-[11px] text-foreground/60 mt-2 italic">
@@ -269,7 +269,7 @@ export default function TrafficFunnelSection() {
                 <div className="flex items-center gap-4">
                   <div className={`flex items-center gap-2 w-48 shrink-0 ${colors.text}`}>
                     {stageIcon(stage.key)}
-                    <span className="text-[12px] font-semibold ">{stage.label}</span>
+                    <span className="text-[12px] font-semibold">{stage.label}</span>
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="relative h-10 bg-background/40 rounded overflow-hidden">
@@ -330,7 +330,7 @@ export default function TrafficFunnelSection() {
                   </span>
                 </div>
               ))}
-              <div className="flex items-center gap-3 text-[9px] pt-2 text-foreground/30 font-mono ">
+              <div className="flex items-center gap-3 text-[9px] pt-2 text-foreground/30 font-mono">
                 <span className="w-4">#</span>
                 <span className="flex-1">query</span>
                 <span className="w-14 text-right">clicks</span>
@@ -486,7 +486,7 @@ function CustomerEventsPanel({ range }: { range: Range }) {
           <div className="text-primary text-[10px] font-mono mb-1">
             Customer-side events ({range})
           </div>
-          <h3 className="font-bold text-base text-foreground ">
+          <h3 className="font-bold text-base text-foreground">
             Visual surface engagement
           </h3>
           <p className="text-[12px] text-foreground/40 mt-1 max-w-2xl">
@@ -644,7 +644,7 @@ function TopBookingPagesPanel({ range }: { range: Range }) {
         <div className="text-primary text-[10px] font-mono mb-1">
           Booking attribution ({range})
         </div>
-        <h3 className="font-bold text-base text-foreground ">
+        <h3 className="font-bold text-base text-foreground">
           Top Pages by Bookings
         </h3>
         <p className="text-[12px] text-foreground/40 mt-1 max-w-2xl">
@@ -742,7 +742,7 @@ function SitemapSubmissionPanel() {
           <div className="text-primary text-[10px] font-mono mb-1">
             Search Console
           </div>
-          <h3 className="font-bold text-base text-foreground ">
+          <h3 className="font-bold text-base text-foreground">
             Sitemap submission
           </h3>
           <p className="text-[12px] text-foreground/40 mt-1 max-w-2xl">
@@ -785,11 +785,11 @@ function SitemapSubmissionPanel() {
           <table className="w-full text-[12px]">
             <thead>
               <tr className="border-b border-border/20">
-                <th className="text-left p-3 text-[10px] text-foreground/40 ">Sitemap</th>
-                <th className="text-left p-3 text-[10px] text-foreground/40 ">Last submitted</th>
-                <th className="text-left p-3 text-[10px] text-foreground/40 ">Last downloaded</th>
-                <th className="text-left p-3 text-[10px] text-foreground/40 ">Submitted / indexed</th>
-                <th className="text-left p-3 text-[10px] text-foreground/40 ">State</th>
+                <th className="text-left p-3 text-[10px] text-foreground/40">Sitemap</th>
+                <th className="text-left p-3 text-[10px] text-foreground/40">Last submitted</th>
+                <th className="text-left p-3 text-[10px] text-foreground/40">Last downloaded</th>
+                <th className="text-left p-3 text-[10px] text-foreground/40">Submitted / indexed</th>
+                <th className="text-left p-3 text-[10px] text-foreground/40">State</th>
               </tr>
             </thead>
             <tbody>
@@ -870,7 +870,7 @@ function GscAuditPanel({ range }: { range: Range }) {
           <div className="text-primary text-[10px] font-mono mb-1">
             Search Console audit ({range})
           </div>
-          <h3 className="font-bold text-base text-foreground ">
+          <h3 className="font-bold text-base text-foreground">
             Weekly GSC audit
           </h3>
           <p className="text-[12px] text-foreground/40 mt-1 max-w-2xl">

@@ -41,7 +41,7 @@ export default function PromptEvalsPanel() {
       {/* Title Header */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <h4 className="font-bold text-sm text-foreground ">Prompt & classifier audits</h4>
+          <h4 className="font-bold text-sm text-foreground">Prompt & classifier audits</h4>
           <p className="text-[12px] text-foreground/40 mt-0.5">
             Test system prompt safety and VAPI classification accuracy against deterministic golden fixtures.
           </p>

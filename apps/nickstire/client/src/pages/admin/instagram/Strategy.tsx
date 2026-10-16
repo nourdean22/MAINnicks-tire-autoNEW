@@ -371,7 +371,7 @@ export default function Strategy({ onNavigate }: { onNavigate: (view: IgView) =>
                   {(profile.data?.highlightPlan ?? []).map((h) => (
                     <div key={h.label} className="rounded-lg border p-3 text-center">
                       <div
-                        className="mx-auto flex aspect-square w-24 items-center justify-center rounded-full border-4 bg-black px-2 text-center text-xs font-black "
+                        className="mx-auto flex aspect-square w-24 items-center justify-center rounded-full border-4 bg-black px-2 text-center text-xs font-black"
                         style={{ borderColor: "#FDB913", color: "#FDB913" }}
                       >
                         {h.label}

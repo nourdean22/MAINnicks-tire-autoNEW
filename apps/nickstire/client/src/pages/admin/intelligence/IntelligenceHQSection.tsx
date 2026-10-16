@@ -138,7 +138,7 @@ export default function IntelligenceHQSection() {
               <div className="stat-card !p-5 !border-emerald-500/20 bg-emerald-500/5">
                 <div className="flex items-center gap-2 mb-4">
                   <Target className="w-5 h-5 text-emerald-400" />
-                  <h2 className="text-sm font-black text-emerald-400 ">Top money moves</h2>
+                  <h2 className="text-sm font-black text-emerald-400">Top money moves</h2>
                 </div>
                 <TopMoneyMoves />
               </div>
@@ -147,7 +147,7 @@ export default function IntelligenceHQSection() {
               <div className="stat-card !p-5 !border-blue-500/20 bg-blue-500/5">
                 <div className="flex items-center gap-2 mb-4">
                   <Zap className="w-5 h-5 text-blue-400" />
-                  <h2 className="text-sm font-black text-blue-400 ">Next best actions</h2>
+                  <h2 className="text-sm font-black text-blue-400">Next best actions</h2>
                 </div>
                 <NextBestActions />
               </div>
@@ -175,7 +175,7 @@ export default function IntelligenceHQSection() {
               <div className="stat-card !p-5 !border-red-500/20 bg-red-500/5">
                 <div className="flex items-center gap-2 mb-4">
                   <ShieldAlert className="w-5 h-5 text-red-400" />
-                  <h2 className="text-sm font-black text-red-400 ">Money at risk</h2>
+                  <h2 className="text-sm font-black text-red-400">Money at risk</h2>
                 </div>
                 <TodaysMoneyRisks />
               </div>

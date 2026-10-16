@@ -420,7 +420,7 @@ export default function ReviewRequestsSection() {
               {/* Enable/Disable Toggle */}
               <div className="flex items-center justify-between p-4 bg-card border border-border/30">
                 <div>
-                  <div className="font-bold text-foreground text-sm ">Auto review requests</div>
+                  <div className="font-bold text-foreground text-sm">Auto review requests</div>
                   <div className="text-[12px] text-foreground/50 mt-1">Automatically send review request SMS after service completion</div>
                 </div>
                 <button
@@ -544,7 +544,7 @@ export default function ReviewRequestsSection() {
                 <Zap className="w-6 h-6 text-primary" />
               </div>
               <div className="flex-1">
-                <h3 className="font-bold text-foreground text-lg ">
+                <h3 className="font-bold text-foreground text-lg">
                   Backfill review requests
                 </h3>
                 <p className="text-foreground/60 text-sm mt-2 leading-relaxed">

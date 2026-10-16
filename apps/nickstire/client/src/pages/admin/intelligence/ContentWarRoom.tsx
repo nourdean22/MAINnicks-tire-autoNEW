@@ -79,7 +79,7 @@ export function ContentWarRoom() {
 
             <div className="flex items-center gap-2 mb-3 mt-1">
               {getTypeIcon(draft.contentType)}
-              <span className="text-xs font-bold text-muted-foreground ">
+              <span className="text-xs font-bold text-muted-foreground">
                 {draft.contentType}
               </span>
               <div className="ml-auto flex items-center gap-1 bg-background/80 px-2 py-0.5 rounded-full border border-border/40 text-xs">
@@ -97,7 +97,7 @@ export function ContentWarRoom() {
 
             <div className="flex-1 space-y-3">
               <div>
-                <span className="text-xs font-semibold text-primary ">Hook</span>
+                <span className="text-xs font-semibold text-primary">Hook</span>
                 <p className="text-sm text-foreground italic mt-1 line-clamp-3">
                   "{draft.hookText}"
                 </p>

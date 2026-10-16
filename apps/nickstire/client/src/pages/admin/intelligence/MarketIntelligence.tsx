@@ -34,7 +34,7 @@ export function MarketIntelligence() {
     <div className="bg-card border border-border/40 p-5 space-y-5 rounded-xl shadow-sm">
       <div className="flex items-center gap-2 pb-2 border-b border-border/10">
         <Globe className="w-5 h-5 text-cyan-400" />
-        <h2 className="text-sm font-black text-cyan-400 ">Market intelligence</h2>
+        <h2 className="text-sm font-black text-cyan-400">Market intelligence</h2>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -69,7 +69,7 @@ export function MarketIntelligence() {
           {missingServices.length > 0 ? (
             <div className="flex flex-wrap gap-2">
               {missingServices.map((s: string, i: number) => (
-                <span key={i} className="px-2 py-1 bg-cyan-500/10 text-cyan-400 text-[10px] font-bold rounded ">
+                <span key={i} className="px-2 py-1 bg-cyan-500/10 text-cyan-400 text-[10px] font-bold rounded">
                   {s}
                 </span>
               ))}

@@ -299,7 +299,7 @@ export function ContentManager() {
       {activeSubTab === "notifications" && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h4 className="font-bold text-sm text-foreground ">Notification list</h4>
+            <h4 className="font-bold text-sm text-foreground">Notification list</h4>
             <button onClick={() => refetchNotifs()} className="p-2 text-foreground/50 hover:text-primary transition-colors">
               <RefreshCw className="w-4 h-4" />
             </button>
@@ -322,7 +322,7 @@ export function ContentManager() {
                       <span className={`inline-flex items-center px-2 py-0.5 text-[9px] font-bold tracking-wider ${notif.isActive === 1 ? "text-emerald-400 bg-emerald-500/10 border border-emerald-500/30" : "text-foreground/40 bg-background/50 border border-border/20"}`}>
                         {notif.isActive === 1 ? "ACTIVE" : "INACTIVE"}
                       </span>
-                      <span className="text-[10px] text-foreground/30 ">{notif.season}</span>
+                      <span className="text-[10px] text-foreground/30">{notif.season}</span>
                       <span className="text-[10px] text-foreground/30">{notif.generatedBy === "ai" ? "AI" : "MANUAL"}</span>
                     </div>
                     <p className="text-foreground/80 text-xs">{notif.message}</p>
@@ -372,7 +372,7 @@ export function ContentManager() {
             <div className="bg-card border border-border/30 p-5">
               <div className="flex items-center gap-3 mb-3">
                 <Sparkles className="w-5 h-5 text-primary" />
-                <h4 className="font-bold text-sm text-foreground ">Generate all</h4>
+                <h4 className="font-bold text-sm text-foreground">Generate all</h4>
               </div>
               <p className="text-foreground/60 text-xs leading-relaxed mb-6">
                 Generates one seasonal blog article and three notification bar messages based on the current season and trending auto repair topics for Cleveland.
@@ -400,7 +400,7 @@ export function ContentManager() {
             <div className="bg-card border border-border/30 p-5">
               <div className="flex items-center gap-3 mb-3">
                 <FileText className="w-5 h-5 text-primary" />
-                <h4 className="font-bold text-sm text-foreground ">Custom article</h4>
+                <h4 className="font-bold text-sm text-foreground">Custom article</h4>
               </div>
               <p className="text-foreground/60 text-xs leading-relaxed mb-4">
                 Generate a blog article on a specific topic. The AI will follow the brand voice and content structure.
@@ -434,7 +434,7 @@ export function ContentManager() {
 
           {result && (
             <div className="bg-card border border-border/30 p-5">
-              <h4 className="font-bold text-sm text-foreground mb-4 ">Generation result</h4>
+              <h4 className="font-bold text-sm text-foreground mb-4">Generation result</h4>
 
               {result.article && (
                 <div className="mb-4">
@@ -486,7 +486,7 @@ export function ContentManager() {
       {activeSubTab === "log" && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h4 className="font-bold text-sm text-foreground ">Generation log</h4>
+            <h4 className="font-bold text-sm text-foreground">Generation log</h4>
             <button onClick={() => refetchLog()} className="p-2 text-foreground/50 hover:text-primary transition-colors">
               <RefreshCw className="w-4 h-4" />
             </button>

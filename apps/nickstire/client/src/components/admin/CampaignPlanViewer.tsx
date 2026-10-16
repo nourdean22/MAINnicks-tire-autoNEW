@@ -84,7 +84,7 @@ export function CampaignPlanViewer({ plan }: ViewerProps) {
 
         {plan.complianceRiskScan && (
           <div className={`flex flex-col gap-2 p-3 rounded-lg border ${risk === "high" ? "bg-red-500/10 border-red-500/30 text-red-500" : risk === "medium" ? "bg-amber-500/10 border-amber-500/30 text-amber-500" : "bg-emerald-500/10 border-emerald-500/30 text-emerald-500"}`}>
-            <div className="flex items-center gap-2 font-bold text-sm ">
+            <div className="flex items-center gap-2 font-bold text-sm">
               {risk === "high" ? <AlertTriangle className="w-4 h-4" /> : risk === "medium" ? <AlertTriangle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
               Compliance scan: {risk} risk
             </div>
@@ -105,7 +105,7 @@ export function CampaignPlanViewer({ plan }: ViewerProps) {
             <p className="font-medium">{plan.offerPositioning.summary}</p>
             <div><span className="text-xs text-muted-foreground">Value Stack:</span><br/>{plan.offerPositioning.valueStack}</div>
             <details className="cursor-pointer text-muted-foreground hover:text-foreground">
-              <summary className="font-semibold text-xs ">Objections & rebuttals</summary>
+              <summary className="font-semibold text-xs">Objections & rebuttals</summary>
               <ul className="mt-2 space-y-2 text-foreground">
                 {plan.offerPositioning.objectionsAndRebuttals.map((o, i) => (
                   <li key={i}><b>{o.objection}:</b> {o.rebuttal}</li>

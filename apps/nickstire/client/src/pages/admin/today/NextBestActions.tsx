@@ -49,7 +49,7 @@ export function NextBestActions() {
         <div className="p-1.5 rounded bg-red-500/15">
           <Zap className="w-4 h-4 text-red-400" />
         </div>
-        <h3 className="text-xs font-black text-red-400 ">
+        <h3 className="text-xs font-black text-red-400">
           What to do now
         </h3>
         <span className="ml-1 text-[10px] bg-red-500/15 text-red-400 px-2 py-0.5 rounded-full font-bold">

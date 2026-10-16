@@ -226,7 +226,7 @@ function CampaignArchitectView() {
         <section className="border border-border bg-card/40 rounded-lg p-4 space-y-4">
           <div className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-muted-foreground mb-1 ">Primary offer</label>
+              <label className="block text-xs font-semibold text-muted-foreground mb-1">Primary offer</label>
               <input
                 value={input.offer?.productOrServiceName || ""}
                 onChange={(e) => setInput({ ...input, offer: { ...input.offer!, productOrServiceName: e.target.value } })}
@@ -234,7 +234,7 @@ function CampaignArchitectView() {
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-muted-foreground mb-1 ">Pain points</label>
+              <label className="block text-xs font-semibold text-muted-foreground mb-1">Pain points</label>
               <textarea
                 value={input.audience?.painPoints || ""}
                 onChange={(e) => setInput({ ...input, audience: { ...input.audience!, painPoints: e.target.value } })}
@@ -244,7 +244,7 @@ function CampaignArchitectView() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-muted-foreground mb-1 ">Core price</label>
+                <label className="block text-xs font-semibold text-muted-foreground mb-1">Core price</label>
                 <input
                   value={input.priceStack?.corePrice || ""}
                   onChange={(e) => setInput({ ...input, priceStack: { ...input.priceStack!, corePrice: e.target.value } })}
@@ -252,7 +252,7 @@ function CampaignArchitectView() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-muted-foreground mb-1 ">Daily budget</label>
+                <label className="block text-xs font-semibold text-muted-foreground mb-1">Daily budget</label>
                 <input
                   value={input.constraints?.dailyBudgetRange || ""}
                   onChange={(e) => setInput({ ...input, constraints: { ...input.constraints!, dailyBudgetRange: e.target.value } })}
@@ -265,51 +265,51 @@ function CampaignArchitectView() {
               <summary className="font-semibold text-muted-foreground cursor-pointer outline-none">Advanced campaign inputs</summary>
               <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-muted-foreground mb-1 ">Monthly budget</label>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1">Monthly budget</label>
                   <input value={input.constraints?.monthlyBudgetRange || ""} onChange={(e) => setInput({ ...input, constraints: { ...input.constraints!, monthlyBudgetRange: e.target.value } })} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-muted-foreground mb-1 ">Local radius</label>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1">Local radius</label>
                   <input value={input.audience?.localRadius || ""} onChange={(e) => setInput({ ...input, audience: { ...input.audience!, localRadius: e.target.value } })} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-muted-foreground mb-1 ">Landing page URL</label>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1">Landing page URL</label>
                   <input value={input.constraints?.landingPageUrl || ""} onChange={(e) => setInput({ ...input, constraints: { ...input.constraints!, landingPageUrl: e.target.value } })} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-muted-foreground mb-1 ">Booking URL</label>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1">Booking URL</label>
                   <input value={input.constraints?.checkoutOrBookingUrl || ""} onChange={(e) => setInput({ ...input, constraints: { ...input.constraints!, checkoutOrBookingUrl: e.target.value } })} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-muted-foreground mb-1 ">Phone number</label>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1">Phone number</label>
                   <input value={input.constraints?.phoneNumber || ""} onChange={(e) => setInput({ ...input, constraints: { ...input.constraints!, phoneNumber: e.target.value } })} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-muted-foreground mb-1 ">Business address</label>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1">Business address</label>
                   <input value={input.constraints?.businessAddress || ""} onChange={(e) => setInput({ ...input, constraints: { ...input.constraints!, businessAddress: e.target.value } })} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-muted-foreground mb-1 ">Forbidden Words (Comma separated)</label>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1">Forbidden Words (Comma separated)</label>
                   <input value={input.constraints?.forbiddenWords?.join(", ") || ""} onChange={(e) => setInput({ ...input, constraints: { ...input.constraints!, forbiddenWords: e.target.value.split(",").map(s => s.trim()).filter(Boolean) } })} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-muted-foreground mb-1 ">Forbidden Topics (Comma separated)</label>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1">Forbidden Topics (Comma separated)</label>
                   <input value={input.constraints?.forbiddenTopics?.join(", ") || ""} onChange={(e) => setInput({ ...input, constraints: { ...input.constraints!, forbiddenTopics: e.target.value.split(",").map(s => s.trim()).filter(Boolean) } })} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-muted-foreground mb-1 ">Allowed proof claims</label>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1">Allowed proof claims</label>
                   <input value={input.assetsAndProof?.allowedProofClaims || ""} onChange={(e) => setInput({ ...input, assetsAndProof: { ...input.assetsAndProof!, allowedProofClaims: e.target.value } })} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-muted-foreground mb-1 ">Forbidden proof claims</label>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1">Forbidden proof claims</label>
                   <input value={input.assetsAndProof?.forbiddenProofClaims || ""} onChange={(e) => setInput({ ...input, assetsAndProof: { ...input.assetsAndProof!, forbiddenProofClaims: e.target.value } })} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-muted-foreground mb-1 ">Tracking Stack (Comma separated)</label>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1">Tracking Stack (Comma separated)</label>
                   <input value={input.constraints?.trackingStack?.join(", ") || ""} onChange={(e) => setInput({ ...input, constraints: { ...input.constraints!, trackingStack: e.target.value.split(",").map(s => s.trim()).filter(Boolean) } })} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-muted-foreground mb-1 ">Creative production capacity</label>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1">Creative production capacity</label>
                   <input value={input.constraints?.creativeProductionCapacity || ""} onChange={(e) => setInput({ ...input, constraints: { ...input.constraints!, creativeProductionCapacity: e.target.value } })} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm" />
                 </div>
               </div>

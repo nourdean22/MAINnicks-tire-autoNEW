@@ -178,7 +178,7 @@ export function VoiceAchievements() {
               />
             </svg>
             <div className="absolute flex flex-col items-center justify-center text-center">
-              <span className="text-[10px] text-foreground/40 font-bold ">LVL</span>
+              <span className="text-[10px] text-foreground/40 font-bold">LVL</span>
               <span className="text-xl font-black text-foreground -mt-1 leading-none">{currentLevel}</span>
             </div>
           </div>

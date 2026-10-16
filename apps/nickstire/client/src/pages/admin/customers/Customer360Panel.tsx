@@ -352,7 +352,7 @@ export function Customer360Panel({ customer }: {
             <div className="flex items-center justify-between border-b border-border/20 pb-3 flex-wrap gap-2">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                <span className="font-mono text-xs font-bold text-foreground ">
+                <span className="font-mono text-xs font-bold text-foreground">
                   Nick AI cashier assistant
                 </span>
               </div>
@@ -382,7 +382,7 @@ export function Customer360Panel({ customer }: {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Call Script Column */}
               <div className="bg-background/40 border border-border/10 p-3.5 rounded space-y-2">
-                <span className="font-mono text-[9px] text-foreground/40 block ">
+                <span className="font-mono text-[9px] text-foreground/40 block">
                   Personalized call script
                 </span>
                 <p className="text-[11.5px] leading-relaxed text-foreground/80 italic">
@@ -404,7 +404,7 @@ export function Customer360Panel({ customer }: {
 
               {/* Objection Rebuttal Column */}
               <div className="bg-background/40 border border-border/10 p-3.5 rounded space-y-3">
-                <span className="font-mono text-[9px] text-foreground/40 block ">
+                <span className="font-mono text-[9px] text-foreground/40 block">
                   Service rebuttals (brakes & tires)
                 </span>
                 <div className="space-y-2.5">

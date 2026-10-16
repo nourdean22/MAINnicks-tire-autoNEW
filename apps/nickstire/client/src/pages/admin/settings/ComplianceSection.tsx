@@ -83,7 +83,7 @@ export default function ComplianceSection() {
                 <div className="border border-border/30 bg-card/50 p-3 text-xs">
                   <div className="flex items-center gap-2 mb-2 text-muted-foreground">
                     <Globe className="w-3.5 h-3.5" />
-                    <span className=" text-[10px] font-bold">
+                    <span className="text-[10px] font-bold">
                       Unique IPs, last 30 days ({loginData.uniqueIpsLast30d.length})
                     </span>
                   </div>

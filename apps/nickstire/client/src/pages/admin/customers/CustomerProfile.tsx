@@ -378,7 +378,7 @@ export default function CustomerProfile({ customerId, onClose }: Props) {
           {/* Notes Section */}
           <div className="bg-card border border-border/30 p-5 space-y-3">
             <div className="flex items-center justify-between">
-              <h4 className="font-bold text-xs text-foreground/40 ">Notes</h4>
+              <h4 className="font-bold text-xs text-foreground/40">Notes</h4>
               {notesEditing ? (
                 <div className="flex items-center gap-1.5">
                   <button

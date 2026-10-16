@@ -620,7 +620,7 @@ export default function UnifiedStudio({ onNavigate, initialSource }: StudioProps
                               {workspace.preflight.blocking.map((b) => (
                                 <li key={`${b.category}-${b.message}`} className="flex gap-2">
                                   <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0 text-red-400" />
-                                  <span><span className=" text-red-400">{b.category}</span> · {b.message}</span>
+                                  <span><span className="text-red-400">{b.category}</span> · {b.message}</span>
                                 </li>
                               ))}
                             </ul>

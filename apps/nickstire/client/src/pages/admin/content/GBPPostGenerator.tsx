@@ -157,7 +157,7 @@ export function GBPPostGenerator() {
         <div className="flex items-center gap-3">
           <Settings className="w-5 h-5 text-primary" />
           <div>
-            <h4 className="font-bold text-sm text-foreground ">Google connection config</h4>
+            <h4 className="font-bold text-sm text-foreground">Google connection config</h4>
             <p className="text-[11px] text-foreground/40">Secure OAuth 2.0 API connection registry</p>
           </div>
         </div>
@@ -170,7 +170,7 @@ export function GBPPostGenerator() {
             <div className="p-3 border border-border/30 bg-background/30 rounded flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <StatusDot status={authStatus?.connected ? "completed" : "lost"} />
-                <span className="font-bold ">
+                <span className="font-bold">
                   {authStatus?.connected ? "Connected" : "Disconnected"}
                 </span>
               </div>
@@ -324,7 +324,7 @@ export function GBPPostGenerator() {
           <div className="flex items-center gap-3">
             <Target className="w-5 h-5 text-primary" />
             <div>
-              <p className="font-bold text-sm text-foreground ">GBP post generator</p>
+              <p className="font-bold text-sm text-foreground">GBP post generator</p>
               <p className="text-[12px] text-foreground/40">Voice-graded post compiler & direct publisher</p>
             </div>
           </div>

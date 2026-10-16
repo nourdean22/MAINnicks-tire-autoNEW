@@ -27,7 +27,7 @@ export function CustomerIntelligence() {
       <div className="bg-card border border-amber-500/30 p-5 rounded-xl">
         <div className="flex items-center gap-2 pb-2 border-b border-border/10">
           <Users className="w-5 h-5 text-amber-400" />
-          <h2 className="text-sm font-black text-amber-400 ">Customer intelligence</h2>
+          <h2 className="text-sm font-black text-amber-400">Customer intelligence</h2>
         </div>
         <div className="flex items-center gap-2 mt-4 text-amber-200/90 text-xs">
           <AlertTriangle className="w-4 h-4 shrink-0" />
@@ -50,7 +50,7 @@ export function CustomerIntelligence() {
     <div className="bg-card border border-border/40 p-5 space-y-5 rounded-xl shadow-sm">
       <div className="flex items-center gap-2 pb-2 border-b border-border/10">
         <Users className="w-5 h-5 text-indigo-400" />
-        <h2 className="text-sm font-black text-indigo-400 ">Customer intelligence</h2>
+        <h2 className="text-sm font-black text-indigo-400">Customer intelligence</h2>
       </div>
 
       <div className="grid grid-cols-2 gap-3">

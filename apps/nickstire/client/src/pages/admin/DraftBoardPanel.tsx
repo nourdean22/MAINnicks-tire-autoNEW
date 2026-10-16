@@ -331,7 +331,7 @@ export default function DraftBoardPanel({ onNavigate }: { onNavigate?: (view: "c
             return (
               <div key={col.id} className="space-y-3 bg-card/25 border border-border/20 rounded-lg p-3 min-h-[400px]">
                 <div className="flex items-center justify-between border-b border-border/20 pb-2 mb-2">
-                  <h4 className="font-bold text-xs text-foreground/60 ">{col.label}</h4>
+                  <h4 className="font-bold text-xs text-foreground/60">{col.label}</h4>
                   <span className="text-[10px] font-bold bg-foreground/5 px-2 py-0.5 rounded text-foreground/40">{list.length}</span>
                 </div>
                 <div className="space-y-3 max-h-[600px] overflow-y-auto pr-1">
@@ -360,7 +360,7 @@ export default function DraftBoardPanel({ onNavigate }: { onNavigate?: (view: "c
         /* Calendar View */
         <div className="space-y-6 bg-card/15 border border-border/20 rounded-lg p-5">
           <div className="border-b border-border/20 pb-3">
-            <h3 className="font-bold text-sm text-foreground ">Scheduled posts calendar</h3>
+            <h3 className="font-bold text-sm text-foreground">Scheduled posts calendar</h3>
             <p className="text-[11px] text-foreground/50 mt-0.5">Manage and organize your publishing schedule below.</p>
           </div>
 
@@ -374,7 +374,7 @@ export default function DraftBoardPanel({ onNavigate }: { onNavigate?: (view: "c
               });
               return (
                 <div key={date} className="space-y-3">
-                  <h4 className="font-bold text-xs text-primary border-l-2 border-primary pl-2 ">
+                  <h4 className="font-bold text-xs text-primary border-l-2 border-primary pl-2">
                     {formattedDate} <span className="text-[10px] text-foreground/40 font-mono ml-2">({list.length} scheduled)</span>
                   </h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -398,7 +398,7 @@ export default function DraftBoardPanel({ onNavigate }: { onNavigate?: (view: "c
             {/* Unscheduled Column */}
             {groupedByDate.noDate.length > 0 && (
               <div className="space-y-3 pt-4 border-t border-border/10">
-                <h4 className="font-bold text-xs text-amber-500 border-l-2 border-amber-500 pl-2 ">
+                <h4 className="font-bold text-xs text-amber-500 border-l-2 border-amber-500 pl-2">
                   Unscheduled drafts <span className="text-[10px] text-foreground/40 font-mono ml-2">({groupedByDate.noDate.length} items)</span>
                 </h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
