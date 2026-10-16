@@ -114,7 +114,10 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((e) => {
-  console.error("arbiter-judge-split failed:", e instanceof Error ? e.message : e);
-  process.exit(1);
-});
+// Run only as a CLI (tsx scripts/arbiter-judge-split.ts); importing the module (tests) runs nothing.
+if (/arbiter-judge-split\.[cm]?[jt]s$/.test((process.argv[1] ?? "").replace(/\\/g, "/"))) {
+  main().catch((e) => {
+    console.error("arbiter-judge-split failed:", e instanceof Error ? e.message : e);
+    process.exit(1);
+  });
+}

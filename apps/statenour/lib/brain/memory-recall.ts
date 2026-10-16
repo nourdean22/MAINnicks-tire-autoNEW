@@ -217,6 +217,15 @@ export interface RecallHit {
    * ignoring it let model inferences recall as system facts.
    */
   trustTier: TrustTier;
+  /**
+   * W1 (2026-10-16) · validity columns as fetched. Every lane's SQL already
+   * filters on them, so on a live hit they read null/future; they are carried
+   * so lib/brain/evidence-pack.ts can tell "filter ran, nothing to drop" from
+   * "rows carried no validity at all" (empty-vs-error).
+   */
+  validUntil: Date | null;
+  supersededById: string | null;
+  expiresAt: Date | null;
 }
 
 export interface RecallReport {
@@ -339,6 +348,10 @@ type KnnRow = {
   /** 2026-10-10 (05-M2) · stored tier + admission envelope, see resolveTrustTier. */
   trust_tier?: string | null;
   admission?: unknown;
+  /** W1 (2026-10-16) · validity columns (the SQL filters on them; carried for the evidence pack). */
+  valid_until?: Date | null;
+  superseded_by_id?: string | null;
+  expires_at?: Date | null;
 };
 
 /** Shared lane scorer. Module-level since 2026-09-10 so the lexical
@@ -383,6 +396,9 @@ function scoreRow(r: KnnRow, now: number): RecallHit {
         trustTier: r.trust_tier,
         metadata: r.admission ? { admission: r.admission } : null,
       }),
+      validUntil: r.valid_until ?? null,
+      supersededById: r.superseded_by_id ?? null,
+      expiresAt: r.expires_at ?? null,
     };
   }
 
@@ -435,6 +451,7 @@ function lexicalLane(query: string, limit: number, onFail?: () => void): Promise
               bm.last_seen, bm.created_at,
               bm.source::text AS source, bm.created_by::text AS created_by,
               bm.trust_tier::text AS trust_tier, bm.metadata->'admission' AS admission,
+              bm.valid_until AS valid_until, bm.superseded_by_id AS superseded_by_id, bm.expires_at AS expires_at,
               -- Presented as a DISTANCE so the shared scorer needs no
               -- special case: higher rank -> smaller distance.
               --
@@ -539,6 +556,7 @@ function exactLane(terms: string[], limit: number, onFail?: () => void): Promise
               bm.last_seen, bm.created_at,
               bm.source::text AS source, bm.created_by::text AS created_by,
               bm.trust_tier::text AS trust_tier, bm.metadata->'admission' AS admission,
+              bm.valid_until AS valid_until, bm.superseded_by_id AS superseded_by_id, bm.expires_at AS expires_at,
               0.0::float AS distance
        FROM brain_memories bm
        WHERE bm.deleted_at IS NULL
@@ -707,7 +725,8 @@ export async function recallMemoriesForQuery(
       `WITH durable AS MATERIALIZED (
          SELECT bm.id, bm.category, bm.key, bm.content, bm.confidence,
                 bm.seen_count, bm.last_seen, bm.created_at,
-                bm.source, bm.created_by, bm.trust_tier, bm.metadata, ve.embedding_vec_1536
+                bm.source, bm.created_by, bm.trust_tier, bm.metadata, ve.embedding_vec_1536,
+                bm.valid_until, bm.superseded_by_id, bm.expires_at
          FROM vector_embeddings ve
          JOIN brain_memories bm
            ON bm.id = ve."sourceId"
@@ -727,6 +746,7 @@ export async function recallMemoriesForQuery(
               last_seen, created_at,
               source::text AS source, created_by::text AS created_by,
               trust_tier::text AS trust_tier, metadata->'admission' AS admission,
+              valid_until, superseded_by_id, expires_at,
               (embedding_vec_1536 <=> $1::vector(${TARGET_DIM})) AS distance
        FROM durable
        ORDER BY embedding_vec_1536 <=> $1::vector(${TARGET_DIM})
@@ -757,6 +777,7 @@ export async function recallMemoriesForQuery(
          bm.created_by::text AS created_by,
          bm.trust_tier::text AS trust_tier,
          bm.metadata->'admission' AS admission,
+         bm.valid_until AS valid_until, bm.superseded_by_id AS superseded_by_id, bm.expires_at AS expires_at,
          (ve.embedding_vec_1536 <=> $1::vector(${TARGET_DIM})) AS distance
        FROM vector_embeddings ve
        JOIN brain_memories bm

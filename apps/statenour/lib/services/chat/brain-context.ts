@@ -30,7 +30,7 @@
 
 import { getFlag } from "@/lib/feature-flags";
 import { planQuery, type QueryPlan } from "@/lib/brain/query-plan";
-import { buildEvidencePackAsync, extractRecallAddendum, type RerankBackend } from "@/lib/brain/evidence-pack";
+import { buildEvidencePackAsync, extractRecallAddendum, type RerankBackend, type RerankReason } from "@/lib/brain/evidence-pack";
 import { computeLaneOverlap, type LaneOverlap } from "@/lib/brain/lane-overlap";
 import { rerankContextBlocks, formatRerankSummary } from "@/lib/ai/context-reranker";
 import { buildContextReceipt, DEFAULT_CONTEXT_TOKEN_BUDGET, type ContextReceipt } from "@/lib/ai/context-budget";
@@ -110,7 +110,7 @@ export interface BuildBrainContextOutput {
   /** Wave 3 (2026-09-08) · the deterministic query plan this turn ran under (lib/brain/query-plan.ts). */
   queryPlan?: QueryPlan;
   /** Wave 2 · when NICK_RECALL_ARBITER is on: how many candidates the two lanes offered and how many survived; W1 adds the rerank backend and the validity drops. */
-  evidencePack?: { candidates: number; items: number; reranked: RerankBackend; droppedValidity: number };
+  evidencePack?: { candidates: number; items: number; reranked: RerankBackend; rerankReason: RerankReason; droppedValidity: number | null };
   /**
    * Wave 3 (2026-09-17) · what the block-assembly stage kept/dropped and why
    * (lib/ai/context-budget.ts). OBSERVABILITY ONLY — does not change
@@ -215,7 +215,7 @@ export async function buildBrainContext(
   let contextualRankedIds: string[] = [];
   let contextualRankedRows: import("@/lib/brain/contextual-recall").RankedRecallRow[] = [];
   let laneOverlap: LaneOverlap | undefined;
-  let evidencePack: { candidates: number; items: number; reranked: RerankBackend; droppedValidity: number } | undefined;
+  let evidencePack: { candidates: number; items: number; reranked: RerankBackend; rerankReason: RerankReason; droppedValidity: number | null } | undefined;
   let contextReceipt: ContextReceipt | undefined;
   const arbiterOn = getFlag("NICK_RECALL_ARBITER")?.isOn ?? false;
   const correctionBoostOn = getFlag("NICK_CORRECTION_THRESHOLD_BOOST")?.isOn ?? false;
@@ -610,14 +610,27 @@ export async function buildBrainContext(
       // W1 (2026-10-16) · validity filter + ONE rerank over the fused window
       // (the rerank call is bounded inside; the lanes already ran under their
       // own 3s races, so this is not wrapped in withTimeout again).
+      // Same referent-aware text the contextual lane reranks with (round 1 P2-5).
+      const packQuery = buildRecallMessages(queryPlan.referent, userContent).join("\n");
       const pack = await buildEvidencePackAsync((hybridRecallReport?.hits ?? []) as never[], contextualRankedRows, {
         limit: mode === "deep" ? 14 : 10,
-        query: userContent,
+        query: packQuery,
+        asOf: queryPlan.asOf,
       });
       evidencePackBlock = pack.block;
-      evidencePack = { candidates: pack.candidates, items: pack.items.length, reranked: pack.reranked, droppedValidity: pack.droppedValidity };
-      console.info("[brain-context] evidence_pack", JSON.stringify({ candidates: pack.candidates, items: pack.items.length, reranked: pack.reranked, dropped_validity: pack.droppedValidity }));
+      evidencePack = { candidates: pack.candidates, items: pack.items.length, reranked: pack.reranked, rerankReason: pack.rerankReason, droppedValidity: pack.droppedValidity };
+      console.info("[brain-context] evidence_pack", JSON.stringify({
+        candidates: pack.candidates,
+        items: pack.items.length,
+        reranked: pack.reranked,
+        rerank_reason: pack.rerankReason,
+        // null = no candidate carried a validity column: UNMEASURED, never a clean 0.
+        dropped_validity: pack.droppedValidity ?? "unmeasured",
+      }));
     }
+    // The receipt says arbiter only when a pack actually reached the prompt; a flag-on turn whose
+    // pack was empty (lane timeouts, no hits) falls through to the two-lane render below (P2-3).
+    const arbiterUsed = arbiterOn && evidencePackBlock.length > 0;
     const recallAddendumOnly = arbiterOn && contextMemories ? extractRecallAddendum(contextMemories) : "";
     const rawBlocks = [
       { name: "recall", content: recallBlock },
@@ -748,8 +761,8 @@ export async function buildBrainContext(
     // scripts/arbiter-judge-split.ts can split reply_judgment composites by it.
     contextReceipt = buildContextReceipt(reranked, DEFAULT_CONTEXT_TOKEN_BUDGET, {
       asOf: queryPlan.asOf,
-      arbiter: arbiterOn,
-      rerankBackend: arbiterOn ? (evidencePack?.reranked ?? "none") : undefined,
+      arbiter: arbiterUsed,
+      rerankBackend: arbiterUsed ? (evidencePack?.reranked ?? "none") : undefined,
     });
     // 2026-09-17 (Codex review, PR #2414) · the aggregate counts alone can't
     // answer "why was THIS block dropped" -- the entries array (name, tokens,

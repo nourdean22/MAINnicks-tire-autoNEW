@@ -259,6 +259,10 @@ export interface RelevantMemory {
   source?: string;
   /** Re-sighting count. confidence is derived from this, not from evidence. */
   seenCount?: number;
+  /** W1 (2026-10-16) · validity columns as fetched (already filtered by validityWhere/notExpiredWhere); the evidence pack reads them. */
+  validUntil?: Date | null;
+  supersededById?: string | null;
+  expiresAt?: Date | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -552,6 +556,10 @@ interface LexicalRow {
   seen_count: number | null;
   updated_at: Date;
   rank: number;
+  /** W1 (2026-10-16) · validity columns, carried so the evidence pack can measure its filter (the SQL still filters). */
+  valid_until: Date | null;
+  superseded_by_id: string | null;
+  expires_at: Date | null;
 }
 
 /**
@@ -757,6 +765,9 @@ export async function getLexicalMatches(topics: string[], limit = 50, asOf?: Dat
               bm.source            AS source,
               bm.seen_count        AS seen_count,
               bm.updated_at        AS updated_at,
+              bm.valid_until       AS valid_until,
+              bm.superseded_by_id  AS superseded_by_id,
+              bm.expires_at        AS expires_at,
               ts_rank(bm.content_tsv,
                       websearch_to_tsquery('english', $1)) AS rank
        FROM brain_memories bm
@@ -847,6 +858,9 @@ async function getKnnPoolRows(queryVec: number[], limit = 50, asOf?: Date): Prom
               bm.source            AS source,
               bm.seen_count        AS seen_count,
               bm.updated_at        AS updated_at,
+              bm.valid_until       AS valid_until,
+              bm.superseded_by_id  AS superseded_by_id,
+              bm.expires_at        AS expires_at,
               0::float             AS rank
        FROM vector_embeddings ve
        JOIN brain_memories bm
@@ -978,7 +992,25 @@ export interface RankedRecallRow {
   content: string;
   seenCount?: number;
   confidence?: number;
+  /** W1 (2026-10-16) · validity columns as fetched, so the evidence pack's filter is measurable (null = column empty, undefined = not carried). */
+  validUntil?: Date | null;
+  supersededById?: string | null;
+  expiresAt?: Date | null;
 }
+
+/**
+ * W1 (2026-10-16) · the section headings this lane appends AFTER the memory
+ * list (graph, cross-source, related). lib/brain/evidence-pack.ts splits the
+ * rendered block on these when NICK_RECALL_ARBITER is on; one constant so the
+ * two cannot drift.
+ */
+export const RECALL_ADDENDUM_HEADINGS = {
+  connected: "### Connected (linked in your brain graph)",
+  deeper: "### Deeper Context",
+  commitments: "### Related Commitments",
+  tasks: "### Related Active Tasks",
+  people: "### Related People",
+} as const;
 
 export type ValidityRow = {
   createdAt: Date;
@@ -1200,7 +1232,7 @@ export async function getContextualMemories(
         take: 300,
         // v10.0.354 · pull `source` so we can weight by ingestion pipeline
         // v10.0.396 · seenCount + updatedAt for wisdom freshness decay
-        select: { id: true, category: true, key: true, content: true, confidence: true, createdAt: true, source: true, seenCount: true, updatedAt: true },
+        select: { id: true, category: true, key: true, content: true, confidence: true, createdAt: true, source: true, seenCount: true, updatedAt: true, validUntil: true, supersededById: true, expiresAt: true },
       }),
     ),
     // Wave B · lexical lane + candidate-pool union. Run a real Postgres FTS
@@ -1264,6 +1296,9 @@ export async function getContextualMemories(
     source: r.source ?? "system",
     seenCount: r.seen_count ?? 1,
     updatedAt: r.updated_at,
+    validUntil: r.valid_until,
+    supersededById: r.superseded_by_id,
+    expiresAt: r.expires_at,
   });
   const unioned: ReturnType<typeof toPoolRow>[] = [];
   for (const r of [...lexicalRows, ...knnRows]) {
@@ -1384,6 +1419,9 @@ export async function getContextualMemories(
       // here, so provenance at render time read `undefined`. `source` survived
       // this map; seenCount did not.
       seenCount: m.seenCount,
+      validUntil: m.validUntil,
+      supersededById: m.supersededById,
+      expiresAt: m.expiresAt,
       hybrid,
       semantic: m.sSemantic,
     };
@@ -1512,6 +1550,9 @@ export async function getContextualMemories(
       relevance: "background",
       source: w.source,
       seenCount: w.seenCount,
+      validUntil: w.validUntil,
+      supersededById: w.supersededById,
+      expiresAt: w.expiresAt,
     });
   }
 
@@ -1572,6 +1613,9 @@ export async function getContextualMemories(
       relevance: m.hybrid >= 0.5 ? "direct" : m.hybrid >= 0.15 ? "supporting" : "background",
       source: m.source,
       seenCount: m.seenCount,
+      validUntil: m.validUntil,
+      supersededById: m.supersededById,
+      expiresAt: m.expiresAt,
     });
     addedIds.add(m.id);
   }
@@ -1596,6 +1640,9 @@ export async function getContextualMemories(
       relevance: m.hybrid >= 0.5 ? "direct" : "supporting",
       source: m.source,
       seenCount: m.seenCount,
+      validUntil: m.validUntil,
+      supersededById: m.supersededById,
+      expiresAt: m.expiresAt,
     });
   }
 
@@ -1614,6 +1661,9 @@ export async function getContextualMemories(
         relevance: "background",
         source: m.source,
         seenCount: m.seenCount,
+        validUntil: m.validUntil,
+        supersededById: m.supersededById,
+        expiresAt: m.expiresAt,
       });
     }
   }
@@ -1659,6 +1709,9 @@ export async function getContextualMemories(
           content: m.content,
           seenCount: m.seenCount,
           confidence: m.confidence,
+          validUntil: m.validUntil,
+          supersededById: m.supersededById,
+          expiresAt: m.expiresAt,
         })),
       );
     } catch {
@@ -1887,7 +1940,7 @@ async function appendCrossSourceContext(
       return `${(days / 365).toFixed(1)}y ago`;
     };
 
-    lines.push(`### Deeper Context`);
+    lines.push(RECALL_ADDENDUM_HEADINGS.deeper);
     for (const type of TYPE_ORDER) {
       const group = byType.get(type);
       if (!group || group.length === 0) continue;
@@ -2030,7 +2083,7 @@ async function appendGraphContext(
       );
     }
     if (out.length > 0) {
-      lines.push(`### Connected (linked in your brain graph)`);
+      lines.push(RECALL_ADDENDUM_HEADINGS.connected);
       lines.push(...out);
     }
   } catch (err) {
@@ -2062,7 +2115,7 @@ async function appendRelatedContext(lines: string[], topicLower: string[]): Prom
 
   const relevantCommitments = commitments.filter((c) => matchesTopic(c.description));
   if (relevantCommitments.length > 0) {
-    lines.push(`### Related Commitments`);
+    lines.push(RECALL_ADDENDUM_HEADINGS.commitments);
     for (const c of relevantCommitments.slice(0, 3)) {
       lines.push(`- "${c.description.slice(0, 100)}"${c.deadline ? ` (due ${c.deadline})` : ""}`);
     }
@@ -2080,7 +2133,7 @@ async function appendRelatedContext(lines: string[], topicLower: string[]): Prom
 
   const relevantLoops = loops.filter((l) => matchesTopic(l.title));
   if (relevantLoops.length > 0) {
-    lines.push(`### Related Active Tasks`);
+    lines.push(RECALL_ADDENDUM_HEADINGS.tasks);
     for (const l of relevantLoops.slice(0, 3)) {
       lines.push(`- "${l.title}" (${l.domain})`);
     }
@@ -2098,7 +2151,7 @@ async function appendRelatedContext(lines: string[], topicLower: string[]): Prom
     (p) => matchesTopic(p.name) || matchesTopic(p.relationship)
   );
   if (relevantPeople.length > 0) {
-    lines.push(`### Related People`);
+    lines.push(RECALL_ADDENDUM_HEADINGS.people);
     for (const p of relevantPeople.slice(0, 3)) {
       lines.push(`- ${p.name} (${p.role}): ${p.relationship.slice(0, 80)}`);
     }

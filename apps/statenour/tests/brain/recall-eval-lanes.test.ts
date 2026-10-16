@@ -1,5 +1,5 @@
 /**
- * tests/brain/recall-eval-lanes.test.ts · 2026-10-16 (Brain W1, the arbiter)
+ * tests/brain/recall-eval-lanes.test.ts · 2026-10-16 (Brain W1, the arbiter; round 1 P2-9)
  *
  * scripts/recall-eval.ts runs main() at import and needs a DATABASE_URL, so
  * its lanes are pinned by a source scan; the mapping an arbiter lane feeds the
@@ -36,6 +36,24 @@ describe("recall-eval registers the memory-recall and arbiter lanes (W1)", () =>
     expect(src).toMatch(/knnBanner\("arbiter"/);
     expect(src).toMatch(/INVALID/);
     expect(src).toMatch(/SYNTHETIC ONLY/);
+  });
+
+  it("a memory-recall ERROR / UNMEASURED provenance marks the lane INVALID instead of scoring 0 (P2-9a)", () => {
+    expect(src).toMatch(/provenance === "ERROR" \|\| [a-zA-Z.]+provenance === "UNMEASURED"/);
+    expect(src).toMatch(/memoryRecallInvalid/);
+    expect(src).toMatch(/laneInvalidBanner\("memory-recall"/);
+  });
+
+  it("an arbiter lane whose contextual onRanked never fired is reported hybrid-only and INVALID (P2-9b)", () => {
+    expect(src).toMatch(/arbiterHybridOnly/);
+    expect(src).toMatch(/ran hybrid-only/);
+    expect(src).toMatch(/laneInvalidBanner\("arbiter"/);
+  });
+
+  it("the arbiter lane builds the pack at the production size (limit 10, window 20) and records it in the artifact (P2-9c)", () => {
+    expect(src).toMatch(/ARBITER_PACK_LIMIT = 10/);
+    expect(src).toMatch(/limit: ARBITER_PACK_LIMIT/);
+    expect(src).toMatch(/arbiterConfig/);
   });
 
   it("both new lanes land in the JSON artifact beside the existing three", () => {

@@ -93,6 +93,12 @@ const hybridKnn = { withEmbedding: 0, withoutEmbedding: 0 };
 // way, so each keeps its own counter and gets the same banner.
 const memoryRecallKnn = { withEmbedding: 0, withoutEmbedding: 0 };
 const arbiterKnn = { withEmbedding: 0, withoutEmbedding: 0 };
+// Round 1 P2-9 · a lane that did not actually run its pipeline must not score as 0.
+const memoryRecallInvalid = { count: 0 };
+const arbiterHybridOnly = { count: 0 };
+/** Production pack size (brain-context: standard mode limit 10, rerank window min(limit*2, 24) = 20). */
+const ARBITER_PACK_LIMIT = 10;
+const ARBITER_LANE_LIMIT = 10;
 
 async function hybridRetriever(): Promise<Retriever> {
   const { getContextualMemories } = await import("../lib/brain/contextual-recall");
@@ -147,6 +153,10 @@ async function memoryRecallRetriever(): Promise<Retriever> {
     if (embedding.length > 0) memoryRecallKnn.withEmbedding++;
     else memoryRecallKnn.withoutEmbedding++;
     const report = await recallMemoriesForQuery(query, { limit: Math.max(k, 10), embedding: embedding.length > 0 ? embedding : undefined, sideEffects: false });
+    if (report.provenance === "ERROR" || report.provenance === "UNMEASURED") {
+      memoryRecallInvalid.count++;
+      return [];
+    }
     return report.hits.slice(0, k).map((h) => ({ key: h.key, score: h.finalScore }));
   };
 }
@@ -168,8 +178,8 @@ async function arbiterRetriever(): Promise<Retriever> {
     const queryEmbedding = embedding.length > 0 ? embedding : undefined;
     let ranked: import("../lib/brain/contextual-recall").RankedRecallRow[] = [];
     const [hybrid] = await Promise.all([
-      recallMemoriesForQuery(query, { limit: Math.max(k, 10), embedding: queryEmbedding, sideEffects: false }),
-      getContextualMemories([query], Math.max(k, 10), {
+      recallMemoriesForQuery(query, { limit: ARBITER_LANE_LIMIT, embedding: queryEmbedding, sideEffects: false }),
+      getContextualMemories([query], ARBITER_LANE_LIMIT, {
         fastTopics: true,
         queryEmbedding,
         sideEffects: false,
@@ -178,8 +188,10 @@ async function arbiterRetriever(): Promise<Retriever> {
         },
       }),
     ]);
-    const pack = await buildEvidencePackAsync(hybrid.hits, ranked, { limit: k, query });
-    return toRetrievedMemories(pack.items);
+    // The contextual lane rendered nothing (timeout, empty pool): the pack is hybrid-only, not the arbiter.
+    if (ranked.length === 0) arbiterHybridOnly.count++;
+    const pack = await buildEvidencePackAsync(hybrid.hits, ranked, { limit: ARBITER_PACK_LIMIT, query });
+    return toRetrievedMemories(pack.items).slice(0, k);
   };
 }
 
@@ -203,6 +215,12 @@ function knnBanner(label: string, c: { withEmbedding: number; withoutEmbedding: 
   } else {
     console.log(`${pad} knn pool ACTIVE on all ${total} queries (matches the chat hot path).`);
   }
+}
+
+/** Round 1 P2-9 · a lane whose pipeline did not run on some queries is INVALID beside its number. */
+function laneInvalidBanner(label: string, bad: number, total: number, why: string): void {
+  if (bad === 0) return;
+  console.log(`${label.padEnd(9)} !! INVALID — ${why} on ${bad} of ${total} queries; the score above is not that lane.`);
 }
 
 function corpusFingerprint(cases: RecallEvalCase[]): { count: number; sha256: string } {
@@ -308,6 +326,8 @@ async function main() {
   knnBanner("hybrid", hybridKnn);
   knnBanner("memory-recall", memoryRecallKnn);
   knnBanner("arbiter", arbiterKnn);
+  laneInvalidBanner("memory-recall", memoryRecallInvalid.count, memoryRecallKnn.withEmbedding + memoryRecallKnn.withoutEmbedding, "recall reported ERROR / UNMEASURED provenance");
+  laneInvalidBanner("arbiter", arbiterHybridOnly.count, arbiterKnn.withEmbedding + arbiterKnn.withoutEmbedding, "arbiter lane ran hybrid-only (contextual onRanked never fired)");
 
   // ★★★ REFUSE A VERDICT THE CORPUS CANNOT SUPPORT.
   //
@@ -354,7 +374,15 @@ async function main() {
   const outPath = join(outDir, "recall-lane-comparison.json");
   writeFileSync(
     outPath,
-    JSON.stringify({ ranAt: new Date().toISOString(), k: K, syntheticOnly, corpus: corpusFingerprint(cases), vector, lexical, hybrid, memoryRecall, arbiter, verdict }, null, 2),
+    JSON.stringify({
+      ranAt: new Date().toISOString(),
+      k: K,
+      syntheticOnly,
+      corpus: corpusFingerprint(cases),
+      vector, lexical, hybrid, memoryRecall, arbiter, verdict,
+      // The arbiter lane is scored at k but built at the production size; its pool sizes are not the chat route's exactly (standard mode: contextual max 5, hybrid default limit).
+      arbiterConfig: { limit: ARBITER_PACK_LIMIT, window: Math.min(ARBITER_PACK_LIMIT * 2, 24), laneLimit: ARBITER_LANE_LIMIT, memoryRecallInvalid: memoryRecallInvalid.count, arbiterHybridOnly: arbiterHybridOnly.count },
+    }, null, 2),
   );
   console.log(`artifact: ${outPath}`);
   process.exit(); // keeps the exitCode a changed corpus set (4); 0 otherwise
