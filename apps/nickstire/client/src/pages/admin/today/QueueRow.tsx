@@ -77,13 +77,13 @@ export function QueueRow({ item, typeLabel, primaryLabel, secondaryLabel, body, 
             <MoreHorizontal className="w-4 h-4" />
           </button>
         )}
-        <button type="button" disabled={disabled} onClick={() => void run(onPrimary)} className="min-h-12 px-4 ml-auto lg:ml-0 whitespace-nowrap rounded-md bg-secondary text-foreground text-[14px] font-semibold border border-border/60 disabled:opacity-50">
+        <button type="button" disabled={disabled || leaving} onClick={() => void run(onPrimary)} className="min-h-12 px-4 ml-auto lg:ml-0 whitespace-nowrap rounded-md bg-secondary text-foreground text-[14px] font-semibold border border-border/60 disabled:opacity-50">
           {primaryLabel}
         </button>
       </div>
       {secondaryLabel && more && (
         <div className="flex justify-end lg:order-last">
-          <button type="button" disabled={disabled} onClick={() => void run(onSecondary)} className="min-h-12 px-4 whitespace-nowrap rounded-md border border-border/40 text-[14px] text-foreground/85 disabled:opacity-50">
+          <button type="button" disabled={disabled || leaving} onClick={() => void run(onSecondary)} className="min-h-12 px-4 whitespace-nowrap rounded-md border border-border/40 text-[14px] text-foreground/85 disabled:opacity-50">
             {secondaryLabel}
           </button>
         </div>

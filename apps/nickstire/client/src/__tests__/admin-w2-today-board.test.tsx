@@ -205,6 +205,8 @@ describe("act in place", () => {
     });
     expect(update).toHaveBeenCalledWith({ id: 1, status: "confirmed" });
     expect(row.className).toMatch(/(^|\s)transition-opacity(\s|$)/);
+    // A fading row takes no second tap: a double tap must not open a second confirm.
+    expect((within(row).getByRole("button", { name: "Confirm booking" }) as HTMLButtonElement).disabled).toBe(true);
     await waitFor(() => expect(screen.queryByText("Rosa Delgado")).toBeNull());
     expect(within(needsAction()).getByText("1")).toBeTruthy();
     expect(screen.getByText("Paul Szabo")).toBeTruthy();
