@@ -1,11 +1,16 @@
 /**
  * Image autopost: the unattended Instagram image lane, on the operator's phone.
  *
- * Consumer of contract autopostLaneStatus v1 (instagramAdmin.autopostLaneStatus),
- * the run-now door (nickActions.fireIgAutopostNow) and the inverted pause flag
- * (featureFlags key ig_autopost_paused). Three states, never two: a failed read
+ * Consumer of contract autopostLaneStatus v1.1 (instagramAdmin.autopostLaneStatus),
+ * the background run door (instagramAdmin.startAutopostRun) and the inverted pause
+ * flag (featureFlags key ig_autopost_paused). Three states, never two: a failed read
  * is "state unknown, not empty", a read with no runs is "not recorded yet", and
- * only a successful read with rows shows counts.
+ * only a successful read with rows shows counts. The pause switch stays on the
+ * error card whenever the server could still read the flag.
+ *
+ * A manual run takes minutes, longer than the gateway timeout, so the card only
+ * starts it; it then polls the status while manualRun.inFlight and reads the result
+ * from the newest admin row written after the start.
  *
  * Run now and Resume ask first through confirmDialog, because both can post to
  * Instagram (window.confirm is suppressed in the iOS standalone PWA). Pause is
@@ -21,6 +26,7 @@ import { Button } from "@/components/ui/button";
 
 type LaneStatus = RouterOutputs["instagramAdmin"]["autopostLaneStatus"];
 type Measured = Extract<LaneStatus, { available: true }>;
+type RecentRow = Measured["recent"][number];
 
 const PAUSE_FLAG = "ig_autopost_paused";
 
@@ -35,6 +41,11 @@ function when(v: Date | string): string {
 
 const statusWord = (s: string) => (s === "dryrun" ? "dry run" : s);
 
+const ms = (v: Date | string) => (v instanceof Date ? v : new Date(v)).getTime();
+
+const resultLine = (r: RecentRow) =>
+  `Manual run finished: ${statusWord(r.status)}${r.igPostId ? `, post ${r.igPostId}` : ""}${r.error ? `: ${r.error}` : ""}`;
+
 function stateChip(s: Measured): { label: string; tone: string } {
   if (s.paused === null) return { label: "Unknown", tone: "border-dashed border-muted-foreground/40 text-muted-foreground" };
   if (s.paused) return { label: "Paused", tone: "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-500" };
@@ -44,16 +55,24 @@ function stateChip(s: Measured): { label: string; tone: string } {
 }
 
 export function ImageAutopostCard() {
-  const q = trpc.instagramAdmin.autopostLaneStatus.useQuery();
+  const q = trpc.instagramAdmin.autopostLaneStatus.useQuery(undefined, {
+    refetchInterval: (query) => (query.state.data?.available && query.state.data.manualRun.inFlight ? 15_000 : false),
+  });
   const [note, setNote] = useState<string | null>(null);
+  // The run this screen started: server start time (rows after it are its result) and
+  // client time (a read fetched before it still shows the pre-start state).
+  const [started, setStarted] = useState<{ server: number; client: number } | null>(null);
 
-  const run = trpc.nickActions.fireIgAutopostNow.useMutation({
+  const run = trpc.instagramAdmin.startAutopostRun.useMutation({
     onSuccess: (r) => {
-      const where =
-        (r.igPostId ? ` Instagram post ${r.igPostId}.` : "") + (r.fbPostId ? ` Facebook post ${r.fbPostId}.` : "");
-      setNote(`${r.dryRun ? "Dry run" : "Run"} finished: ${r.status}. ${r.details}${where}`);
+      if (r.started) {
+        setStarted({ server: ms(r.startedAt), client: Date.now() });
+        setNote(`Run started ${when(r.startedAt)}; the result appears in the history`);
+      } else {
+        setNote(`Run not started: ${r.refusal}`);
+      }
     },
-    onError: (err) => setNote(`Run failed: ${err.message}`),
+    onError: (err) => setNote(`The start request failed: ${err.message}. Refresh to see whether a run is in flight.`),
     onSettled: () => q.refetch(),
   });
   const toggle = trpc.featureFlags.toggle.useMutation({
@@ -63,6 +82,29 @@ export function ImageAutopostCard() {
   });
 
   const s = q.data;
+
+  const onToggle = async (paused: boolean | null) => {
+    if (paused === null) return;
+    if (paused) {
+      const ok = await confirmDialog({
+        title: "Resume the image lane?",
+        message: "Resuming lets the cron post to Instagram and the Facebook Page unattended at the next slot (8:07, 13:07 or 20:07 ET).",
+        confirmLabel: "Resume",
+        tone: "danger",
+      });
+      if (!ok) return;
+    }
+    toggle.mutate({ key: PAUSE_FLAG, value: !paused });
+  };
+
+  const pauseButton = (paused: boolean | null, disabled: boolean) => (
+    <Button variant="outline" onClick={() => onToggle(paused)} disabled={disabled || paused === null} className="min-h-11 text-base">
+      {paused ? "Resume lane" : "Pause lane"}
+    </Button>
+  );
+  const pauseUnknown = <p className="text-muted-foreground">Pause state unknown until a refresh reads it.</p>;
+
+  const noteLine = note && <p role="status" className="break-words rounded-md border border-border p-3">{note}</p>;
 
   if (q.isLoading) {
     return (
@@ -81,6 +123,8 @@ export function ImageAutopostCard() {
 
   // ERROR: a failed read is not an empty lane. Never fall through to counts.
   if (q.isError || !s || !s.available) {
+    // A thrown query leaves no trustworthy pause state, even if stale data is cached.
+    const paused = !q.isError && s && !s.available ? s.paused : null;
     return (
       <Card className="border-amber-500/40">
         <CardHeader>
@@ -93,10 +137,15 @@ export function ImageAutopostCard() {
           </div>
           {s && !s.available && <CardDescription className="break-words">Reason: {s.reason}</CardDescription>}
         </CardHeader>
-        <CardContent>
-          <Button variant="outline" onClick={() => q.refetch()} className="min-h-11 text-base">
-            <RefreshCw className="mr-2 h-4 w-4" /> Retry
-          </Button>
+        <CardContent className="space-y-2 text-base">
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button variant="outline" onClick={() => q.refetch()} className="min-h-11 text-base">
+              <RefreshCw className="mr-2 h-4 w-4" /> Retry
+            </Button>
+            {pauseButton(paused, toggle.isPending)}
+          </div>
+          {paused === null && pauseUnknown}
+          {noteLine}
         </CardContent>
       </Card>
     );
@@ -104,6 +153,11 @@ export function ImageAutopostCard() {
 
   const chip = stateChip(s);
   const busy = run.isPending || toggle.isPending;
+  const inFlight = s.manualRun.inFlight;
+  const finished =
+    started !== null && !inFlight && q.dataUpdatedAt >= started.client
+      ? (s.recent.find((r) => r.source === "admin" && ms(r.createdAt) >= started.server) ?? null)
+      : undefined;
 
   const onRunNow = async () => {
     const mode =
@@ -119,20 +173,6 @@ export function ImageAutopostCard() {
       tone: s.live === false ? "default" : "danger",
     });
     if (ok) run.mutate({});
-  };
-
-  const onToggle = async () => {
-    if (s.paused === null) return;
-    if (s.paused) {
-      const ok = await confirmDialog({
-        title: "Resume the image lane?",
-        message: "Resuming lets the cron post to Instagram and the Facebook Page unattended at the next slot (8:07, 13:07 or 20:07 ET).",
-        confirmLabel: "Resume",
-        tone: "danger",
-      });
-      if (!ok) return;
-    }
-    toggle.mutate({ key: PAUSE_FLAG, value: !s.paused });
   };
 
   return (
@@ -215,18 +255,24 @@ export function ImageAutopostCard() {
         )}
 
         <div className="flex flex-col gap-2 sm:flex-row">
-          <Button onClick={onRunNow} disabled={busy} className="min-h-11 text-base">
-            {run.isPending ? "Running a slot..." : "Run a slot now"}
+          <Button onClick={onRunNow} disabled={busy || inFlight} className="min-h-11 text-base">
+            {run.isPending ? "Starting a run..." : "Run a slot now"}
           </Button>
-          <Button variant="outline" onClick={onToggle} disabled={busy || s.paused === null} className="min-h-11 text-base">
-            {s.paused ? "Resume lane" : "Pause lane"}
-          </Button>
+          {pauseButton(s.paused, busy)}
         </div>
-        {s.paused === null && (
-          <p className="text-muted-foreground">The pause flag could not be read, so the switch is off until a refresh reads it.</p>
+        {s.paused === null && pauseUnknown}
+        {inFlight && (
+          <p className="flex items-center gap-2 text-muted-foreground">
+            <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+            <span>Run in flight since {s.manualRun.startedAt ? when(s.manualRun.startedAt) : "an unrecorded time"}</span>
+          </p>
         )}
-        {note && (
-          <p role="status" className="break-words rounded-md border border-border p-3">{note}</p>
+        {noteLine}
+        {finished && <p role="status" className="break-words rounded-md border border-border p-3">{resultLine(finished)}</p>}
+        {finished === null && (
+          <p role="status" className="break-words rounded-md border border-border p-3">
+            The run is no longer in flight, and no result row was recorded for it. A server restart clears the run marker; check the history.
+          </p>
         )}
       </CardContent>
     </Card>
