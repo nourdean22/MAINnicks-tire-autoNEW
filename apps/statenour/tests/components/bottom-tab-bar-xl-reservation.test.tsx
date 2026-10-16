@@ -80,6 +80,17 @@ describe("the bottom reservation at xl", () => {
     expect(others.map((c) => c.hasAttribute("data-ticker"))).toEqual([true]);
   });
 
+  // Round 3 (A4): the island root and the composer wrapper are read too, not only the page root; a
+  // second reservation on either would double the gap under the composer at xl.
+  it("the island root and the composer wrapper add no bottom reservation of their own", () => {
+    const island = readFileSync(join(__dirname, "..", "..", "features/chat-v2/components/chat-island.tsx"), "utf8");
+    const islandRoot = island.match(/<div ref=\{islandRef\} className="([^"]*)"/)![1];
+    expect(islandRoot).not.toMatch(/\bpb-|\bxl:pb-/);
+    const composerWrapper = island.match(/<div className="([^"]*)">\s*\{\/\* W3b: page context/)![1];
+    expect(composerWrapper).toContain("pb-3");
+    expect(composerWrapper).not.toMatch(/pb-safe|xl:pb-|pb-\[/);
+  });
+
   it("the chat shell reserves that measured token and nothing else at the bottom", () => {
     const page = readFileSync(join(__dirname, "..", "..", "app/(mastery)/chat/page.tsx"), "utf8");
     const root = page.match(/return \(\s*<div([^>]*)>/)![1];

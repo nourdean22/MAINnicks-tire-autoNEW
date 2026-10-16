@@ -146,4 +146,36 @@ describe("ChatCapabilityIndicator · W3b dot and words", () => {
     expect(markup).toMatch(/<span aria-hidden="true">Tools limited · 2 down<\/span>/);
     expect(markup).not.toMatch(/hidden md:inline/);
   });
+
+  // Round 3 (A4): the dot's SHAPE carries the state next to its colour. An unknown read turned into a
+  // green fill must fail here; the words alone would not catch it.
+  describe("the dot per state", () => {
+    const dot = (markup: string) => /<span aria-hidden="true" class="h-2\.5 w-2\.5 shrink-0 rounded-full ([^"]*)"/.exec(markup)?.[1] ?? null;
+
+    it("measured and healthy: a filled green dot", () => {
+      providers = { data: { overallTone: "green" }, isError: false };
+      tools = { data: healthyTools, isError: false };
+      expect(dot(renderToStaticMarkup(<ChatCapabilityIndicator />))).toBe("bg-emerald-400");
+    });
+
+    it("unknown (a failed read): a ring, never a fill", () => {
+      providers = { data: undefined, isError: true };
+      tools = { data: healthyTools, isError: false };
+      const cls = dot(renderToStaticMarkup(<ChatCapabilityIndicator />));
+      expect(cls).toBe("border-2 border-amber-400");
+      expect(cls).not.toContain("bg-emerald-400");
+    });
+
+    it("a measured problem: a filled amber dot", () => {
+      providers = { data: { overallTone: "amber" }, isError: false };
+      tools = { data: healthyTools, isError: false };
+      expect(dot(renderToStaticMarkup(<ChatCapabilityIndicator />))).toBe("bg-amber-400");
+    });
+
+    it("a read in flight: no dot at all, the spinner", () => {
+      const markup = renderToStaticMarkup(<ChatCapabilityIndicator />);
+      expect(dot(markup)).toBeNull();
+      expect(markup).toContain("animate-spin");
+    });
+  });
 });

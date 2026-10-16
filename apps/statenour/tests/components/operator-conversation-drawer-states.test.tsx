@@ -79,4 +79,24 @@ describe("OperatorConversationDrawer list states", () => {
     expect(container.textContent).not.toContain("History unavailable");
     unmount();
   });
+
+  // d07fe3e11: reloadConvos runs again after a new conversation is created, so the loading line used to
+  // flash above rows the drawer already held. Round 3 (A4) pins the guard with rows present.
+  describe("with rows already in the drawer", () => {
+    const rows = [{ id: "c1", title: "A kept conversation", createdAt: "2026-10-16T12:00:00.000Z", _count: { messages: 2 } }];
+
+    it("a background reload keeps the rows and shows no loading line", () => {
+      const { container, unmount } = mount(drawer({ listState: "loading", convos: rows }));
+      expect(container.textContent).toContain("A kept conversation");
+      expect(container.textContent).not.toContain("Loading history");
+      unmount();
+    });
+
+    it("a failed reload with rows present still says the list is unavailable (the rows are stale)", () => {
+      const { container, unmount } = mount(drawer({ listState: "error", convos: rows }));
+      expect(container.textContent).toContain("A kept conversation");
+      expect(container.textContent).toContain("History unavailable");
+      unmount();
+    });
+  });
 });
