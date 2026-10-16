@@ -1,6 +1,7 @@
 ---
 name: claim-before-act
 description: Use whenever a read-then-write decides WHICH CALLER ACTS — an idempotency claim, a lease, a dedupe marker, a reclaim of an expired or failed row, an approval slot. The write must be a compare-and-swap on the exact row you read (or a serializable transaction); an unconditional update by id lets two racers both win. Triggers on lib/ai/tools/tool-idempotency.ts, lib/services/action-attempts.ts, and any create -> P2002 -> update sequence.
+triggers: read-then-write, idempotency claim, lease, dedupe marker, reclaim, expired row, failed row, approval slot, compare-and-swap, serializable transaction, two racers, p2002
 ---
 
 # Claim before act

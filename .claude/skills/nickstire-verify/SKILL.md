@@ -1,6 +1,7 @@
 ---
 name: nickstire-verify
 description: Use before committing or pushing changes to the nickstire app (apps/nickstire/) — the real local verification sequence, the brand-voice linter false-positive trap, and the prerender regen rule.
+triggers: nickstire commit, nickstire push, verification sequence, brand-voice linter, false positive, prerender regen, verify gate, lint, typecheck, ai_force_ollama, railway watch-paths
 ---
 
 # nickstire-verify

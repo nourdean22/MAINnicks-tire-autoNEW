@@ -1,6 +1,7 @@
 ---
 name: positive-control-first
 description: Use whenever you write a new test, canary, gate, guard regex, or alarm. Run it against the UNFIXED code first and record the failure shape. A test that has never failed is a silent instrument, not coverage.
+triggers: new test, canary, gate, guard regex, alarm, unfixed code, failure shape, red first, silent instrument, mutation, noisy alarm, true case, red-green
 ---
 
 # Positive Control First

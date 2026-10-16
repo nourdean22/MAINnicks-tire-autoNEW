@@ -1,6 +1,7 @@
 ---
 name: statenour-verify
 description: Use before committing or pushing changes to the statenour app (apps/statenour/) — the real local verification sequence and the two gates that silently pass when run naively.
+triggers: statenour commit, statenour push, verification sequence, gates that silently pass, tsc noemit, cross-env, windows paths in .env, verify gate, prunetools phrasings
 ---
 
 # statenour-verify

@@ -1,6 +1,7 @@
 ---
 name: funnel-attribution-report
 description: Reconcile cross-system marketing and sales attribution from traffic/ad/search/social sources through website events, calls, Vapi, bookings, CRM, completed jobs, and revenue. Use when the user asks where leads or revenue came from, whether tracking is trustworthy, why platform conversions disagree, how many leads are lost between systems, or wants an attribution/data-integrity audit across GSC, Meta CAPI, GA/website, phone, CRM, and business outcomes.
+triggers: attribution, where leads came from, where revenue came from, tracking trustworthy, meta leads vs crm, trace calls to revenue, dropping out, conversion funnel, ad sources, website events, bookings
 ---
 
 # Funnel Attribution Report

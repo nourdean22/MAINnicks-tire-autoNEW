@@ -1,6 +1,7 @@
 ---
 name: session-authority
 description: Use before starting real work in a git checkout this repo's Session Authority can't reach automatically (a cloud session, which never runs worktree-setup.ps1) — acquire a lease so a concurrent session can't silently collide with your uncommitted work, and release it cleanly when you finish. On a Windows bridge session, worktree-setup.ps1/worktree-teardown.ps1 already do this for you; this skill is the manual fallback for the one path nothing mechanically wires.
+triggers: lease, acquire a lease, release the lease, cloud session, git checkout, concurrent session, uncommitted work, session authority, worktree-setup, collide, abandoned branch
 ---
 
 # Session Authority

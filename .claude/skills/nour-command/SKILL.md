@@ -1,6 +1,7 @@
 ---
 name: nour-command
 description: Use for any non-trivial Nour task that needs context recovery, end-to-end execution, MAX EFFORT, backlog reconciliation, deep research, audit-and-fix work, or proof-backed completion. Also use when Nour says continue, finish it, figure out what is left, reconcile sessions, audit and fix, deep research, or NOUR COMMAND.
+triggers: context recovery, end-to-end execution, max effort, backlog reconciliation, deep research, audit and fix, proof-backed completion, continue, finish it, what is left, reconcile sessions, nour command
 ---
 
 # NOUR COMMAND

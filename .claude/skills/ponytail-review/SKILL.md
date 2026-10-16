@@ -6,6 +6,7 @@ description: >
   needed. Reads the connected code, not only the diff. Each finding is
   explained in plain English. Use for "review this", "code review", "review
   the last commit", "review my PR", "is this over-engineered", /ponytail-review.
+triggers: review this change, quality review, logic right, is it safe, real load, risky code tested, fast enough, every line needed, connected code, diff review
 ---
 
 Review a change like the senior developer who will be paged when it breaks.

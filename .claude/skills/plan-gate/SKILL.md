@@ -1,6 +1,7 @@
 ---
 name: plan-gate
 description: Use when handed a pasted plan, audit, roadmap, or "here's what you should build" from another agent or tool — before doing any of the work. In this repo most such plans are already built; docs/UPSTREAMS.md exists specifically to prove it.
+triggers: pasted plan, audit, roadmap, what you should build, another agent, plan from a tool, already built, upstreams, gate the plan, revisit trigger, watch verdict
 ---
 
 # plan-gate

@@ -5,6 +5,7 @@ license: MIT
 metadata:
   tags: "ADHD, Output Style, Productivity, Formatting"
   category: "productivity"
+triggers: adhd, reply shape, next action, number steps, restate progress, time estimates, suppress tangents, make wins visible, session start, compaction, ranked options
 ---
 
 # i-have-adhd

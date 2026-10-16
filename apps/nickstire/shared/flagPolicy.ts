@@ -37,6 +37,7 @@
 export const INVERTED_FLAGS: ReadonlySet<string> = new Set([
   "sms_global_pause",
   "vapi_forward_followup_paused",
+  "ig_autopost_paused", // TRUE stops the scheduled Instagram image autopost
 ]);
 
 /**
@@ -57,6 +58,7 @@ export const CUSTOMER_FACING_FLAGS: ReadonlySet<string> = new Set([
   "photo_assess_enabled",
   "legacy_autopost_live",              // live IG/FB posting
   "missed_call_recovery",
+  "ig_autopost_paused",                // inverted: OFF resumes unattended IG/FB posting
   // Matched by the regex too, listed so the intent is recorded rather than
   // inferred from a pattern that may later be edited:
   "smart_sms_auto_reply",
@@ -97,6 +99,17 @@ export function confirmationCopy(
   key: string,
   nextValue: boolean,
 ): { title: string; message: string; confirmLabel: string; cancelLabel: string } {
+  if (key === "ig_autopost_paused") {
+    // Resuming this pause restarts unattended image posts; there is no SMS queue.
+    return {
+      title: "Resume the image autopost to Instagram and Facebook? (ig_autopost_paused OFF)",
+      message:
+        "Resuming lets the image autopost cron post to Instagram and the Facebook Page unattended at the next slot " +
+        "(8:07, 13:07 or 20:07 ET). Nothing is queued; the next slot simply runs.",
+      confirmLabel: "Resume posting",
+      cancelLabel: "Stay paused",
+    };
+  }
   if (isInvertedFlag(key)) {
     // Only reached when turning an off-switch OFF, i.e. RESUMING sends.
     return {

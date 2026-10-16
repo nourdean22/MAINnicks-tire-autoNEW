@@ -30,7 +30,8 @@ import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 
 // The official quick_validate.py list, plus the keys Claude Code itself reads that the official validator would reject.
-const ALLOWED_KEYS = new Set(["name", "description", "license", "allowed-tools", "metadata", "compatibility", "argument-hint", "disable-model-invocation", "user-invocable"]);
+// "triggers" is the repo's routing line: scripts/agent-os/skill-recall.mjs scores it like the name (2026-10-16).
+const ALLOWED_KEYS = new Set(["name", "description", "license", "allowed-tools", "metadata", "compatibility", "argument-hint", "disable-model-invocation", "user-invocable", "triggers"]);
 const MIN_QUERIES = 12;
 const TX = /^tx:[0-9a-f]{8}$/;
 // fire_audit.py's notion of "has a routing trigger": position 0 is style, a trigger anywhere is what routes.

@@ -26,7 +26,8 @@ import { IG_ARCHETYPES } from "@shared/const";
 import { invokeLLM } from "../_core/llm";
 import { sanitizeText } from "../sanitize";
 import { affectedRowCount } from "../lib/db-affected";
-import { db } from "../lib/db-helper";
+import { db, dbTyped } from "../lib/db-helper";
+import { readManualRunState, startManualAutopostRun, type StartAutopostRunResult } from "../services/igAutopostManualRun";
 import { createLogger } from "../lib/logger";
 import { durableStorageConfigured, ephemeralStorageOverride, servesPermanentUrls } from "../storage";
 
@@ -77,6 +78,122 @@ export function mapInventoryStatusForQueue(status: string): string {
   if (status === "generating") return "needs_review";
   if (status === "review_ready") return "needs_review";
   return status;
+}
+
+/**
+ * Contract autopostLaneStatus v1: the Instagram image autopost lane's controls
+ * card (client: the Pipeline health view). Captions and image URLs are left out
+ * on purpose; the card links to the post by igPostId.
+ *
+ * Three states, never two: a failed log read is `available: false`, a failed
+ * flag read is `paused: null` / `live: null` (UNKNOWN), and only a successful
+ * read yields a real false or an empty list. The failure shape still carries
+ * paused / live, read independently, so the pause control stays usable while
+ * history cannot be read.
+ */
+export type AutopostLaneStatus =
+  | {
+      available: true;
+      /** ig_autopost_paused. null = the flag row could not be read. */
+      paused: boolean | null;
+      /** legacy_autopost_live AND IG_AUTOPOST_DRYRUN === "false". null = unreadable. */
+      live: boolean | null;
+      /** Newest status='posted' row. */
+      lastPosted: { id: number; slot: string; slotDate: string; igPostId: string | null; createdAt: Date } | null;
+      /** Rows whose slotDate is today in America/New_York, newest first. */
+      today: Array<{ slot: string; status: string; createdAt: Date; error: string | null }>;
+      /** Last 20 runs by createdAt, newest first. */
+      recent: Array<{
+        id: number; slot: string; slotDate: string; status: string; source: string;
+        igPostId: string | null; error: string | null; overallScore: number | null; createdAt: Date;
+      }>;
+      /** Last 7 days. runs = every row in the window. */
+      counts7d: { posted: number; failed: number; aborted: number; dryrun: number; runs: number };
+      /** A manual run started by startAutopostRun and not yet settled (this replica's memory). */
+      manualRun: { inFlight: boolean; startedAt: Date | null };
+    }
+  | { available: false; reason: string; paused: boolean | null; live: boolean | null };
+
+const errText = (err: unknown) => (err instanceof Error ? err.message : String(err));
+
+export async function readAutopostLaneStatus(
+  database: Awaited<ReturnType<typeof dbTyped>>,
+  now: Date = new Date(),
+): Promise<AutopostLaneStatus> {
+  if (!database) {
+    return { available: false, reason: "Database unavailable: autopost history cannot be read.", paused: null, live: null };
+  }
+  const { igAutopostLog, featureFlags } = await import("../../drizzle/schema");
+  const { inArray } = await import("drizzle-orm");
+  const { etDateKey } = await import("../services/igAutopost");
+
+  // Read the rows directly, not through isEnabled(): isEnabled answers false on
+  // a failed read, which for an inverted pause flag would render "not paused".
+  // An ABSENT row reads false, the same value isEnabled and so the cron see.
+  let paused: boolean | null = null;
+  let live: boolean | null = null;
+  try {
+    const flags = await database
+      .select({ key: featureFlags.key, value: featureFlags.value })
+      .from(featureFlags)
+      .where(inArray(featureFlags.key, ["ig_autopost_paused", "legacy_autopost_live"]));
+    const on = (key: string) => Boolean(flags.find((f) => f.key === key)?.value);
+    paused = on("ig_autopost_paused");
+    live = on("legacy_autopost_live") && process.env.IG_AUTOPOST_DRYRUN === "false";
+  } catch (err) {
+    log.warn("autopostLaneStatus flag read failed; paused/live are UNKNOWN", { error: errText(err) });
+  }
+
+  try {
+    const since = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const [lastPostedRows, today, recent, countRows] = await Promise.all([
+      database
+        .select({
+          id: igAutopostLog.id, slot: igAutopostLog.slot, slotDate: igAutopostLog.slotDate,
+          igPostId: igAutopostLog.igPostId, createdAt: igAutopostLog.createdAt,
+        })
+        .from(igAutopostLog)
+        .where(eq(igAutopostLog.status, "posted"))
+        .orderBy(desc(igAutopostLog.createdAt))
+        .limit(1),
+      database
+        .select({ slot: igAutopostLog.slot, status: igAutopostLog.status, createdAt: igAutopostLog.createdAt, error: igAutopostLog.error })
+        .from(igAutopostLog)
+        .where(eq(igAutopostLog.slotDate, etDateKey(now)))
+        .orderBy(desc(igAutopostLog.createdAt))
+        // shortcut: a day holds 3 slots and a few retries; raise if retries ever pass 50.
+        .limit(50),
+      database
+        .select({
+          id: igAutopostLog.id, slot: igAutopostLog.slot, slotDate: igAutopostLog.slotDate,
+          status: igAutopostLog.status, source: igAutopostLog.source, igPostId: igAutopostLog.igPostId,
+          error: igAutopostLog.error, overallScore: igAutopostLog.overallScore, createdAt: igAutopostLog.createdAt,
+        })
+        .from(igAutopostLog)
+        .orderBy(desc(igAutopostLog.createdAt))
+        .limit(20),
+      database
+        .select({ status: igAutopostLog.status, n: sql<number>`count(*)` })
+        .from(igAutopostLog)
+        .where(gte(igAutopostLog.createdAt, since))
+        .groupBy(igAutopostLog.status),
+    ]);
+    const counts7d = { posted: 0, failed: 0, aborted: 0, dryrun: 0, runs: 0 };
+    for (const row of countRows) {
+      const n = Number(row.n);
+      counts7d.runs += n;
+      if (row.status === "posted" || row.status === "failed" || row.status === "aborted" || row.status === "dryrun") {
+        counts7d[row.status] += n;
+      }
+    }
+    return {
+      available: true, paused, live, lastPosted: lastPostedRows[0] ?? null, today, recent, counts7d,
+      manualRun: readManualRunState(),
+    };
+  } catch (err) {
+    log.warn("autopostLaneStatus log read failed", { error: errText(err) });
+    return { available: false, reason: `Autopost history could not be read: ${errText(err)}`, paused, live };
+  }
 }
 
 export const instagramAdminRouter = router({
@@ -958,6 +1075,23 @@ Keep it under 200 characters.`;
         .orderBy(desc(igAutopostLog.createdAt))
         .limit(input?.limit ?? 25);
     }),
+
+  /** Instagram image autopost lane: pause state, live/dry-run, today's slots,
+   *  the last 20 runs and 7-day counts (contract AutopostLaneStatus v1). The
+   *  run-now door is nickActions.fireIgAutopostNow. */
+  autopostLaneStatus: adminProcedure.query(async (): Promise<AutopostLaneStatus> =>
+    readAutopostLaneStatus(await dbTyped()),
+  ),
+
+  /** Start one manual image autopost slot run in the background and return at
+   *  once (a run outlasts the gateway timeout). Refused while another manual
+   *  run is in flight. The outcome is the ig_autopost_log row (source "admin")
+   *  that autopostLaneStatus shows; poll it while manualRun.inFlight is true.
+   *  nickActions.fireIgAutopostNow still awaits the run for the HTTP route and
+   *  the Nour-OS bridge. */
+  startAutopostRun: adminProcedure
+    .input(z.object({ forceArchetype: z.enum(IG_ARCHETYPES).optional() }))
+    .mutation(({ input }): StartAutopostRunResult => startManualAutopostRun(input.forceArchetype)),
 
   /** Provider + autopost run health. Surfaces WHICH AI provider is actually
    *  active and whether its key is present — the root cause of silent

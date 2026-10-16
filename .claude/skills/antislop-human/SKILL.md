@@ -2,6 +2,7 @@
 name: antislop-human
 description: "Human and accessibility skill for antislop. Contrast, keyboard, focus, and states for real people. Includes the contrast checker."
 allowed-tools: Bash(python *) Bash(python3 *) Read Write Edit Glob Grep
+triggers: accessibility, contrast, contrast checker, color pairing, low-contrast text, keyboard, focus outline, tab order, focus indicator, color-only feedback, ui states, zoom, mobile use, text over a photo
 ---
 # antislop-human
 

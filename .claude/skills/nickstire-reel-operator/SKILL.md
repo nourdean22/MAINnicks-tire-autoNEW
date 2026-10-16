@@ -1,6 +1,7 @@
 ---
 name: nickstire-reel-operator
 description: Run the Nick's Tire & Auto Faceless Reel Intelligence Operator — turn a driver problem into a scored Reel concept, then a production pack, draft, or (only with explicit live operator authorization) a publish. Use this whenever asked to research/ideate Reel topics, produce a Reel production pack, render/QA a draft Reel, or run any INTELLIGENCE/PRODUCTION/DRAFT/PUBLISH/SCHEDULED mode for nickstire's Instagram/Facebook Reels. Grounds every "connected route," "claim registry," "repetition ledger," and "quality gate" in this operator spec against the real files that implement them in this repo, and states plainly which parts of the spec (live model catalog/pricing, music-rights ledger) have no real read-back here yet. Read this before running any reel content-generation task, and read `nickstire-verifier-reel-pipeline` first if the task is instead about verifying pipeline *code changes* rather than producing Reel content.
+triggers: reel, reels, faceless reel, reel concept, reel topics, production pack, driver problem, instagram reel, publish a reel, reel draft, ideate reels, scored concept
 ---
 
 # Nick's Tire & Auto Faceless Reel Intelligence Operator (v2)

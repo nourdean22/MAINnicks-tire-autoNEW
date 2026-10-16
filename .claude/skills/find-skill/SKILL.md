@@ -1,6 +1,7 @@
 ---
 name: find-skill
 description: Always-on discovery gate. Every turn, decide in one line whether an outside search (skills, MCPs, plugins, libraries, tools, fresh facts) would change the answer. If not, say so and skip the search. If yes, check repo prior art first, then search, filter, and return a short verdict table. Discovery only; adoption is a separate change.
+triggers: discovery gate, outside search, skills, mcps, plugins, libraries, tools, fresh facts, prior art, upstreams, adoption verdict, verdict table
 ---
 
 # find-skill

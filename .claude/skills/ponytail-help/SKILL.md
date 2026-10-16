@@ -3,6 +3,7 @@ name: ponytail-help
 description: >
   Quick reference for ponytail levels, skills and commands. One-shot display.
   Use for /ponytail-help, "ponytail help", "how do I use ponytail".
+triggers: ponytail help, how do i use ponytail, ponytail levels, ponytail commands, reference card, lite full ultra, skills and commands
 ---
 
 # Ponytail Help

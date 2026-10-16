@@ -1,6 +1,7 @@
 ---
 name: nickstire-shared-main-push
 description: Use before any `git push` from the nickstire app while a sibling Claude session is also working on the same repo (statenour, voice, worker). Codifies the all-or-nothing shared-main protocol so you don't surprise the other session or get blocked by a state you don't own.
+triggers: git push, shared main, sibling session, concurrent sessions, push protocol, nickstire push, all-or-nothing, blocked push
 ---
 
 # nickstire-shared-main-push

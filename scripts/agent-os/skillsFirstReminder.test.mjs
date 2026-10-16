@@ -33,14 +33,14 @@ function runHook(command) {
   return { code: r.status, out: `${r.stdout ?? ""}${r.stderr ?? ""}` };
 }
 
-/** The contract: before any work, the text the model receives tells it to search every skill source and load the best matches. */
+/** The contract: one line, before any work, pointing at the [skill-recall] output (the matcher registered right after it). */
 function assertReminds(r) {
   assert.equal(r.code, 0, `the hook must exit 0, it is advice and never a block:\n${r.out}`);
   assert.match(r.out, /\[skills-first\]/, "the reminder marker is missing");
   assert.match(r.out, /before any work/i, "the reminder must say when: before any work");
-  assert.match(r.out, /load[\s\S]*\.claude\/skills\//, "the reminder must say to load skills from .claude/skills/");
-  assert.match(r.out, /search every skill source/i, "the reminder must search every skill source, not only the always-on skills");
-  assert.match(r.out, /account skills and plugin skills/i, "the reminder must name account and plugin skills as sources");
+  assert.match(r.out, /invoke[\s\S]*\[skill-recall\]/, "the reminder must point at the [skill-recall] lines");
+  assert.match(r.out, /\.claude\/skills\/.*account and plugin skills/i, "the reminder must still name the repo, account and plugin sources");
+  assert.equal(r.out.trim().split(/\r?\n/).length, 1, "the reminder is one line; the matches come from skill-recall.mjs");
 }
 
 test("UserPromptSubmit registers the skills-first reminder", () => {

@@ -1,6 +1,7 @@
 ---
 name: monorepo-manager
 description: Run the NOURCITY monorepo as a manager that never edits code itself. Use when Nour says "manager", "manage the repo", "run the backlog", "continue the job", when a job touches more than one lane (nickstire server/client, statenour, worker, platform, research), or after a heartbeat proposes jobs. Splits work one lane agent per area, dispatches, verifies every diff, integrates, reports, and keeps the job ledger.
+triggers: manager, manage the repo, run the backlog, continue the job, more than one lane, dispatch lanes, job ledger, heartbeat jobs, integrate lanes, verify every diff
 ---
 
 # Monorepo manager
@@ -62,6 +63,7 @@ workflow fan-outs and background suites count toward both (four concurrent suite
    prerequisite in the brief or wait for it. Run in background; do not poll. A message to a running session carries ONE
    decision and a first line of REPLY NEEDED or NO REPLY NEEDED; never ask twice ([references/sessions-and-plans.md](references/sessions-and-plans.md)).
    Set the Agent tool's `model` and `effort` from the brief's MODEL / EFFORT line (routing table in the template); a lane never picks its own.
+   Run `node scripts/agent-os/skill-recall.mjs --file <brief>` and put its matches in SKILLS TO INVOKE FIRST.
 6. **Check every return.** Read the real diff in the lane's worktree; reject edits outside owned paths (from the lane
    worktree: `node <your checkout>/scripts/agent-os/check-lane-paths.mjs --lane <lane> --base <base SHA>`, exit 1 = reject;
    exit 2 = not checked, an error or an EMPTY diff from a lane that owns paths, never a pass); re-run its verify command or one

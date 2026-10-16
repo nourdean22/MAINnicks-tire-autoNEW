@@ -1,6 +1,7 @@
 ---
 name: skill-fire-audit
 description: Use when asked which skills or plugins are actually being used, before installing or pruning skills, or on a periodic library review. Measures real invocations from session transcripts instead of guessing, and refuses to archive anything without a reference check.
+triggers: which skills fire, skills actually used, skill usage, plugin usage, installing skills, pruning skills, library review, invocations from transcripts, archive skills, routing trigger, fire rate, dead skills, uninstall candidates
 ---
 
 # skill-fire-audit

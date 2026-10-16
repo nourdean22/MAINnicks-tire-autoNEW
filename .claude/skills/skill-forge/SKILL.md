@@ -1,6 +1,7 @@
 ---
 name: skill-forge
 description: Use when creating a new skill, when an existing skill never loads, does not fire or fires on the wrong prompts, when its description, trigger or routing needs rewriting, or when turning a workflow or runbook into a skill for this repo. Wraps the official skill-creator with this repo's evidence gates. Not for changing the steps or wording inside an existing skill's body (edit that file directly), compiling a book, doc or transcript into a cited package (source-to-skill), proposing skill edits after a session (session-observer), or running, listing or auditing skills (skill-fire-audit).
+triggers: new skill, create a skill, skill never loads, does not fire, fires on wrong prompts, description rewrite, trigger rewrite, routing, runbook into a skill, skill-creator, trigger queries, held-out score, baseline, write a skill
 ---
 
 # skill-forge

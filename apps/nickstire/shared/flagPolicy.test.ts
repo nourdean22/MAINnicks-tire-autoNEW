@@ -107,3 +107,33 @@ describe("flagPolicy · every listed flag actually exists", () => {
     expect(isInvertedFlag("sms_review_requests")).toBe(false);
   });
 });
+
+describe("flagPolicy · ig_autopost_paused (image autopost pause)", () => {
+  it("is a defined, inverted, customer-facing off-switch that confirms the resume only", () => {
+    const defined = new Set(FLAG_DEFINITIONS.map((f) => f.key as string));
+    expect(defined.has("ig_autopost_paused")).toBe(true);
+    expect(INVERTED_FLAGS.has("ig_autopost_paused")).toBe(true);
+    expect(isCustomerFacingFlag("ig_autopost_paused")).toBe(true);
+    expect(requiresConfirmation("ig_autopost_paused", false)).toBe(true);
+    expect(requiresConfirmation("ig_autopost_paused", true)).toBe(false);
+  });
+});
+
+describe("flagPolicy · resume copy names the lane", () => {
+  it("ig_autopost_paused OFF describes unattended image posts at the next slot, not queued SMS", () => {
+    const copy = confirmationCopy("ig_autopost_paused", false);
+    expect(copy.message).toBe(
+      "Resuming lets the image autopost cron post to Instagram and the Facebook Page unattended at the next slot (8:07, 13:07 or 20:07 ET). Nothing is queued; the next slot simply runs.",
+    );
+    expect(copy.title).toBe("Resume the image autopost to Instagram and Facebook? (ig_autopost_paused OFF)");
+    expect(copy.message).not.toMatch(/customer messages|queued while/i);
+    expect(copy.cancelLabel).toBe("Stay paused");
+  });
+
+  it("sms_global_pause keeps its SMS resume copy", () => {
+    const copy = confirmationCopy("sms_global_pause", false);
+    expect(copy.message).toMatch(/RESUMES automated customer messages shop-wide/);
+    expect(copy.confirmLabel).toBe("Resume sending");
+    expect(copy.cancelLabel).toBe("Stay paused");
+  });
+});

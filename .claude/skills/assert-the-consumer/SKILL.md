@@ -1,6 +1,7 @@
 ---
 name: assert-the-consumer
 description: Use whenever a change adds a WRITER — a response header, an env var, a DB column, a queue row, a tool registration, a config flag, a response field, a metric. Before calling it done, prove something READS it. Registration is not reachability, and a green test on the writer is the exact evidence that will fool you.
+triggers: writer, response header, env var, db column, queue row, tool registration, config flag, response field, metric, consumer, reachability, registration
 ---
 
 # Assert the Consumer
