@@ -229,14 +229,7 @@ export async function autoCreateLeadFromBooking(data: {
 
     log.info(`Auto-created lead from booking #${data.id}`);
 
-    // Telegram alert for visibility
-    try {
-      const { alertNewLead } = await import("./telegram");
-      await alertNewLead({ name: data.name, phone: data.phone, service: data.service, source: "booking" });
-    } catch (e) {
-      log.warn("[services/workOrderAutomation] operation failed:", e);
-      // Non-critical
-    }
+    // No Telegram alert here: the booking_created bus alert already told Nour about this booking.
   } catch (err: unknown) {
     // Don't throw — this is fire-and-forget from event bus
     log.warn(`Auto lead creation failed for booking #${data.id}: ${(err as Error).message}`);
