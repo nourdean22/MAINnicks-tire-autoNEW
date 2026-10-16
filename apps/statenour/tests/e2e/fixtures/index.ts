@@ -86,9 +86,13 @@ export const TRPC_FIXTURES: Record<string, unknown> = {
  * repo test greps the app source for them), so a page rendered from an empty
  * database, or from the wrong fixture, cannot satisfy the assertion.
  */
+const HOME_APPROVAL = HOME_BRIEF.judgment.items.flatMap((i) => (i.kind === "approvals" ? i.pending : []))[0]?.title;
+if (!HOME_APPROVAL) throw new Error("HOME_BRIEF must carry at least one pending approval: it is a smoke anchor");
+
 export const DEMO = {
   homeSummary: HOME_BRIEF.state.summary,
   homeHeadline: HOME_BRIEF.lead.headline,
+  homeApproval: HOME_APPROVAL,
   missionsNextMove: NEXT_MOVE_TITLE,
   missionTitle: ALPHA_TITLE,
 } as const;

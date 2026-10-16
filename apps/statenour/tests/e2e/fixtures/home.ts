@@ -16,8 +16,10 @@ import type { AppRouter } from "@/lib/trpc/root";
 
 import { NOW_ISO } from "./time";
 
-// Attention budget arithmetic the builder enforces: lead CTA (1) + two
-// alternatives (2) + visibleCap judgment rows (3) = 6 of ATTENTION_CAP 7.
+// The builder's attention budget (lead CTA + alternatives + visibleCap judgment rows) is kept in
+// the payload as a receipt. Since W2 the page composes its own cap of seven rows from this brief
+// (lib/home/brief-rows.ts): lead, two pending approvals, one "more" row, commitment, follow-up,
+// contradiction, with the horizon left over.
 export const HOME_BRIEF: OperatorBrief = {
   generatedAt: NOW_ISO,
   state: {

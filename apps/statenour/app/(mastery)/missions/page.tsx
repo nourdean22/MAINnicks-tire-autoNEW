@@ -224,9 +224,8 @@ function MissionsPageInner() {
     missionsData: missionsQuery.data,
     tasksErrored: tasksQuery.isError,
     missionsErrored: missionsQuery.isError,
-    tasksLoading: tasksQuery.isLoading,
-    missionsLoading: missionsQuery.isLoading,
   });
+  const boardCounted = boardReadState === "ready" || boardReadState === "stale";
 
   const openBoardCount = boardTasks.filter((t) => t.status !== "DONE" && t.status !== "ARCHIVED").length;
 
@@ -325,7 +324,7 @@ function MissionsPageInner() {
 
             {/* W2 (2026-10-16): the deck's two mode controls sit in one compact strip under the hero,
                 so the capture row below is the page's one capture control. 44px targets. */}
-            <div className="flex flex-wrap items-center gap-2 border-b border-edge pb-4" aria-label="deck controls">
+            <div role="group" className="flex flex-wrap items-center gap-2 border-b border-edge pb-4" aria-label="deck controls">
               <button
                 type="button"
                 onClick={() => {
@@ -436,10 +435,13 @@ function MissionsPageInner() {
                 <h2 id="mission-board-heading" className="vt-eyebrow text-fg-secondary">
                   Active missions
                 </h2>
-                <span className="font-mono text-[11px] tabular-nums text-fg-tertiary">
-                  {boardMissions.length} active · {openBoardCount} open
-                  {deck ? ` · ${deck.missionSlotsOpen} slot${deck.missionSlotsOpen === 1 ? "" : "s"} open` : ""}
-                </span>
+                {/* A count is a claim: shown only once the board has answered (never "0 active" over a skeleton). */}
+                {boardCounted && (
+                  <span className="font-mono text-[11px] tabular-nums text-fg-tertiary">
+                    {boardMissions.length} active · {openBoardCount} open
+                    {deck ? ` · ${deck.missionSlotsOpen} slot${deck.missionSlotsOpen === 1 ? "" : "s"} open` : ""}
+                  </span>
+                )}
               </div>
               {/* Unknown-is-not-empty (2026-08-19): a failed task/mission
                   read used to fall through to <EmptyMissions /> — a dead
@@ -451,7 +453,7 @@ function MissionsPageInner() {
               ) : boardReadState === "loading" ? (
                 // W2: a board that has not answered yet is loading, not empty (the first fetch used
                 // to render "no active missions"). Three row-height shimmers, no text claim.
-                <div className="space-y-2" aria-busy aria-label="loading the board">
+                <div role="status" className="space-y-2" aria-busy aria-label="loading the board">
                   <ShimmerSkeleton className="h-12 rounded-surface" />
                   <ShimmerSkeleton className="h-12 rounded-surface" />
                   <ShimmerSkeleton className="h-12 rounded-surface" />

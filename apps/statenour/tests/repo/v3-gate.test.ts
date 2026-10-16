@@ -580,6 +580,25 @@ describe("the smoke spec cannot pass on an empty-state page", () => {
     expect(sources.some((s) => s.text.includes("Done for today."))).toBe(true);
   });
 
+  /** Literal `getByText(/.../)` regexes in a spec that no app source under components/ or lib/ satisfies. */
+  function unsourcedTextRegexes(spec: string, sources: string[]): string[] {
+    const joined = sources.join("\n").replace(/&apos;/g, "'");
+    const out: string[] = [];
+    for (const m of spec.matchAll(/getByText\(\/((?:\\\/|[^/])+)\/([a-z]*)\)/g)) {
+      if (!new RegExp(m[1], m[2].replace("g", "")).test(joined)) out.push(`/${m[1]}/${m[2]}`);
+    }
+    return out;
+  }
+
+  it("every literal copy regex the fixtures-render spec waits for is rendered by live source (review round 1: a deleted component's copy stayed pinned)", () => {
+    const sources = appSource().filter((s) => /[\\/](components|lib)[\\/]/.test(s.file)).map((s) => s.text);
+    expect(sources.length).toBeGreaterThan(100);
+    expect(unsourcedTextRegexes(read(SMOKE_SPEC), sources)).toEqual([]);
+    // positive control: the old pin is reported against today's source, a live one is not
+    const planted = 'await expect(page.getByText(/deferred actions await your verdict/i).first()).toBeVisible();\nawait expect(page.getByText(/Done for today\\./).first()).toBeVisible();';
+    expect(unsourcedTextRegexes(planted, sources)).toEqual(["/deferred actions await your verdict/i"]);
+  });
+
   it("the DEMO strings are the fixtures' own, and the smoke spec reads every one of them", () => {
     const smoke = read(SMOKE_SPEC);
     for (const key of Object.keys(DEMO)) expect(smoke, `smoke spec never reads DEMO.${key}`).toContain(`DEMO.${key}`);
