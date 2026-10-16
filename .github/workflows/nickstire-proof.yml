@@ -37,7 +37,23 @@ on:
     paths:
       - "apps/nickstire/**"
       - ".github/workflows/nickstire-proof.yml"
+  # 2026-10-16 · admin UI v1 Wave 0b. Tick capture_admin_v1_baselines to skip the
+  # live canaries and instead render Today, Lot and Approvals from the DEMO
+  # fixtures (apps/nickstire/tests/e2e/admin-v1-*.spec.ts) against a static build
+  # of `ref`, uploading the six PNGs as the `admin-v1-baselines` artifact. The
+  # harness comes from the dispatched commit; only the admin being frozen comes
+  # from `ref`, so a pre-W1 SHA can be captured after W1 has merged. Like every
+  # workflow_dispatch input, this exists only once the file is on main.
   workflow_dispatch:
+    inputs:
+      capture_admin_v1_baselines:
+        description: "Capture the admin v1 six-feet baselines (skips the live canaries)"
+        type: boolean
+        default: false
+      ref:
+        description: "Commit, tag or branch whose admin is frozen as the baseline"
+        type: string
+        default: main
 
 permissions:
   contents: read
@@ -49,6 +65,7 @@ concurrency:
 jobs:
   playwright:
     name: critical pages + episodes
+    if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.capture_admin_v1_baselines) }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -186,6 +203,7 @@ jobs:
 
   sitespeed:
     name: core web vitals (desktop canary)
+    if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.capture_admin_v1_baselines) }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -230,4 +248,82 @@ jobs:
         with:
           name: sitespeed-desktop
           path: apps/nickstire/test-results/sitespeed-desktop
+          retention-days: 14
+
+  # Dispatch-only (capture_admin_v1_baselines). Nothing here reaches nickstire.org,
+  # a database or a secret: the specs serve the static build through page.route on
+  # a fake .test origin and abort every other host.
+  admin-v1-capture:
+    name: admin v1 baselines (capture)
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.capture_admin_v1_baselines }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      # The harness: fixtures, router and specs from the dispatched commit.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      # The admin being frozen, from `ref`.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.ref }}
+          path: admin-ref
+
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: install harness (frozen)
+        run: pnpm install --frozen-lockfile --filter "nicks-tire-auto..."
+
+      - name: install ref (frozen)
+        working-directory: admin-ref
+        run: pnpm install --frozen-lockfile --filter "nicks-tire-auto..."
+
+      - name: build the ref's SPA (vite only, no server, no prerender)
+        working-directory: admin-ref/apps/nickstire
+        run: |
+          pnpm exec vite build
+          git -C "$GITHUB_WORKSPACE/admin-ref" rev-parse HEAD | tee "$RUNNER_TEMP/admin-v1-ref.txt"
+
+      - name: install chromium
+        run: pnpm --filter nicks-tire-auto exec playwright install --with-deps chromium
+
+      # The fixture spec first: a render with an unstubbed procedure or a
+      # first-party error must not become a baseline.
+      - name: fixture render (390 and 1440)
+        working-directory: apps/nickstire
+        env:
+          CI: "true"
+          ADMIN_V1_DIST: ${{ github.workspace }}/admin-ref/apps/nickstire/dist/public
+        run: pnpm exec playwright test tests/e2e/admin-v1-fixtures.spec.ts --project=iphone-14 --project=desktop --workers=1
+
+      - name: capture baselines
+        working-directory: apps/nickstire
+        env:
+          CI: "true"
+          ADMIN_V1_DIST: ${{ github.workspace }}/admin-ref/apps/nickstire/dist/public
+          ADMIN_V1_GATE: "1"
+          ADMIN_V1_CAPTURE: "1"
+        run: pnpm exec playwright test tests/e2e/admin-v1-gate.spec.ts --project=iphone-14 --project=desktop --workers=1
+
+      # Exactly these six files, or fail: a dropped page or viewport must not
+      # upload as a complete set. The ref SHA travels with the PNGs.
+      - name: check baselines are complete
+        working-directory: apps/nickstire/tests/e2e/admin-v1-baselines
+        run: |
+          for f in overview-390 overview-1440 lot-390 lot-1440 approvals-390 approvals-1440; do
+            test -f "$f.png" || { echo "missing baseline: $f.png"; exit 1; }
+          done
+          cp "$RUNNER_TEMP/admin-v1-ref.txt" SOURCE_REF.txt
+          ls -l
+
+      - name: upload admin v1 baselines
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: admin-v1-baselines
+          path: apps/nickstire/tests/e2e/admin-v1-baselines/
+          if-no-files-found: error
           retention-days: 14

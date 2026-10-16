@@ -10,8 +10,10 @@
  * Run (from apps/nickstire, after a vite build):
  *   node node_modules/@playwright/test/cli.js test tests/e2e/admin-v1-fixtures.spec.ts --project=iphone-14 --workers=1
  */
+import { existsSync } from "node:fs";
+import path from "node:path";
 import { expect, test } from "@playwright/test";
-import { FIXTURE_ORIGIN, PAGES, serveAdminFixtures } from "./fixtures/admin-v1/serve";
+import { DIST_DIR, FIXTURE_ORIGIN, PAGES, serveAdminFixtures } from "./fixtures/admin-v1/serve";
 import { collectFirstPartyErrors } from "./helpers";
 
 test.use({ baseURL: FIXTURE_ORIGIN, serviceWorkers: "block", timezoneId: "America/New_York", locale: "en-US" });
@@ -25,6 +27,10 @@ const FIXTURE_ROW: Record<(typeof PAGES)[number]["key"], string> = {
 
 test.beforeEach(({}, info) => {
   test.skip(info.project.name === "iphone-se", "admin v1 measures 390 and 1440 only");
+  // The live canary job (nickstire-proof.yml `playwright`) runs every spec without a
+  // build; there this one has nothing to render. The capture job builds first, and
+  // the gate spec throws on a missing build instead of skipping.
+  test.skip(!existsSync(path.join(DIST_DIR, "index.html")), `no SPA build at ${DIST_DIR}: run vite build first`);
 });
 
 for (const pg of PAGES) {
