@@ -18,6 +18,7 @@
  *   notify-pr         the summary-only notify job does not bill on PRs
  *   security-in-node  the dependency audit is the tail of `node`: blocking, runs when an earlier step is red
  *   needs-resolve     no job `needs:` a job that a fold deleted
+ *   policy-order      the folded PR gates run before the verifier, which carries its own step timeout
  *   diag-no-pr        the always-green typecheck diagnostic does not run on every PR
  *
  * Every rule is proven twice: the live tree must be clean, and a mutated COPY of the workflows (temp dir) must
@@ -291,6 +292,21 @@ export function checkWorkflows(root) {
   for (const frag of ["run: cd apps/nickstire && node scripts/lint-curdate.mjs", "--package=@ast-grep/cli@0.45.2 dlx ast-grep scan -c config/adoption-gates/sgconfig.yml apps/statenour/app", "dlx depcruise --config config/adoption-gates/.dependency-cruiser.cjs apps/statenour/app"]) {
     if (!text("adoption-gates.yml").includes(frag)) flag("folded-steps", `adoption-gates.yml no longer runs \`${frag}\``);
   }
+  // policy-order (Codex review of #3083): a verifier that hits a JOB timeout cancels the whole job, and `!cancelled()` cannot
+  // save the gates behind it. So the cheap gates run first and the verifier has its own, smaller STEP timeout.
+  const pol = wfs["agent-policy.yml"]?.jobs?.policy;
+  const psteps = pol?.steps ?? [];
+  const vi = psteps.findIndex((s) => s?.name === "agent-os verify");
+  if (vi < 0) flag("policy-order", "agent-policy.yml has no `agent-os verify` step");
+  else {
+    for (const n of POLICY_STEPS.slice(2)) {
+      const i = psteps.findIndex((s) => s?.name === n);
+      if (i < 0 || i > vi) flag("policy-order", `"${n}" must run BEFORE agent-os verify (a hung verifier would cancel it)`);
+    }
+    const stepT = Number(psteps[vi]["timeout-minutes"]);
+    if (!(stepT > 0)) flag("policy-order", "the agent-os verify step has no timeout-minutes of its own");
+    if (pol["timeout-minutes"] !== undefined && !(Number(pol["timeout-minutes"]) > stepT)) flag("policy-order", "the job timeout is not larger than the verify step's, so the job dies before the step fails");
+  }
   // knip stays BLOCKING and keeps its commands inside `node`; the standalone knip jobs are gone.
   for (const frag of ["pnpm dlx knip@6.32.3 --workspace apps/statenour --reporter markdown | tee -a \"$GITHUB_STEP_SUMMARY\"\n", "run: cd apps/nickstire && node scripts/knip-orphan-gate.mjs", "printf '\\nexport function __orphanCanary__() { return 1; }\\n' >> shared/reelScore.ts"]) {
     if (!text("test.yml").includes(frag)) flag("folded-steps", `test.yml no longer runs \`${frag}\``);
@@ -448,6 +464,13 @@ const MUTANTS = [
   ["adoption-paths", "the adoption gates ignore a directory they scan", wf("adoption-gates.yml"), (t) => t.replace(/( {4}paths-ignore:\n)/, "$1      - 'apps/statenour/components/**'\n")],
   ["proof-paths", "the storefront proof runs for docs-only diffs again", wf("nickstire-proof.yml"), (t) => t.replace(/ {6}- "!apps\/nickstire\/docs\/\*\*"\n/, "")],
   ["proof-paths", "the reel-pack re-include is dropped", wf("nickstire-proof.yml"), (t) => t.replace(/ {6}- "apps\/nickstire\/docs\/reel-packs\/\*\*"\n/, "")],
+  ["policy-order", "the verifier moves ahead of the PR gates", wf("agent-policy.yml"), (t) => {
+    const i = t.indexOf("      - name: agent-os verify\n");
+    const block = t.slice(i);
+    return t.slice(0, i).replace("      - name: Validate capability ledger (evidence-gated states)\n", block + "\n      - name: Validate capability ledger (evidence-gated states)\n");
+  }],
+  ["policy-order", "the verify step loses its own timeout", wf("agent-policy.yml"), (t) => t.replace("        timeout-minutes: 8\n", "")],
+  ["policy-order", "the job timeout shrinks below the step's", wf("agent-policy.yml"), (t) => t.replace(/timeout-minutes: 15 #.*\n/, "timeout-minutes: 5\n")],
   ["notify-pr", "notify bills on every PR again", wf("test.yml"), (t) => t.replace(/(\n {2}notify:\n(?: {4}.*\n)*? {4}if: ).*/, "$1always()")],
   ["needs-resolve", "notify still needs the deleted security job", wf("test.yml"), (t) => t.replace("needs: [changes, node, railway-smoke]", "needs: [changes, node, security, railway-smoke]")],
   ["security-in-node", "the critical audit can no longer fail", wf("test.yml"), (t) => t.replace("      - name: Dependency audit (critical severity · blocking)\n", "      - name: Dependency audit (critical severity · blocking)\n        continue-on-error: true\n")],

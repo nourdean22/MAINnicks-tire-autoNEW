@@ -12,9 +12,9 @@ name: Agent policy
 # 2026-10-16 · CI diet. This ONE job now also carries the three small PR-only checks that were
 # separate workflows or jobs (Completion Authority, Secret Scanning, source citation). GitHub bills
 # every job as a whole minute, so four 25-to-110 second jobs billed ~5 minutes a PR push; as steps
-# of one job they bill ~3. Every step kept its name and its command. The PR-only steps run AFTER
-# the verify step and each carries `!cancelled()`, so one red step never hides another red step
-# the way separate jobs never did. scripts/agent-os/workflowCostGuards.test.mjs asserts every step
+# of one job they bill ~3. Every step kept its name and its command. The PR-only steps run BEFORE
+# the verify step (which has its own step timeout) and each carries `!cancelled()`, so one red step never
+# hides another red step the way separate jobs never did, and a hung verifier cannot cancel them. scripts/agent-os/workflowCostGuards.test.mjs asserts every step
 # below still exists, in exactly one job, and that the staged ruleset names this job.
 #
 # NOTE: this repo has no branch protection, so a red run does not mechanically
@@ -50,7 +50,7 @@ jobs:
     # "Agent policy / <name>". Rename both together; workflowCostGuards.test.mjs fails if they drift.
     name: parity, canaries, authority, secrets, citation
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15 # larger than the verify step's own 8; the step timeout is the one that bites first
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -79,18 +79,6 @@ jobs:
             *) BASE=$(git rev-parse HEAD) ;;
           esac
           node scripts/agent-os/live-gate.mjs --base "$BASE" >> "$GITHUB_ENV"
-
-      - name: agent-os verify
-        env:
-          # Session Authority canaries (2026-09-23) make read-only GitHub API calls
-          # (branch/PR reads, compare) via scripts/agent-os/github-client.mjs and
-          # skip themselves when no token is available -- but this job's own
-          # checkout provides none by default, so they skipped everywhere until
-          # this line. No write-scoped call exists in any of them (verified:
-          # repo-rescue.test.mjs's real-PR path is dry-run only).
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: node scripts/agent-os/verify.mjs
 
       # ─── Completion Authority (was .github/workflows/completion-authority.yml) ───
       # The machine that makes it impossible to call incomplete work complete:
@@ -168,10 +156,10 @@ jobs:
             --redact \
             --no-banner \
             --report-format json \
-            --report-path gitleaks-report.json \
+            --report-path "$RUNNER_TEMP/gitleaks-report.json" \
             --exit-code 1 || {
               echo '--- findings (secret values redacted) ---'
-              cat gitleaks-report.json || echo '(no report written)'
+              cat "$RUNNER_TEMP/gitleaks-report.json" || echo '(no report written)'
               exit 1
             }
 
@@ -205,3 +193,20 @@ jobs:
       - name: check source citation
         if: ${{ github.event_name == 'pull_request' && !cancelled() }}
         run: node scripts/agent-os/check-source-citation.mjs --diff /tmp/pr.diff --body /tmp/pr-body.txt
+
+      # ─── the verifier runs LAST (2026-10-16, Codex review of #3083) ───
+      # The cheap PR gates above run first, so a verifier that hangs to its step timeout cannot cancel them.
+      - name: agent-os verify
+        # A STEP timeout fails this step and lets the job go on; the old job-level 10 minutes cancelled the whole
+        # job, so a hung verifier took the three gates above with it however `!cancelled()` was written.
+        timeout-minutes: 8
+        env:
+          # Session Authority canaries (2026-09-23) make read-only GitHub API calls
+          # (branch/PR reads, compare) via scripts/agent-os/github-client.mjs and
+          # skip themselves when no token is available -- but this job's own
+          # checkout provides none by default, so they skipped everywhere until
+          # this line. No write-scoped call exists in any of them (verified:
+          # repo-rescue.test.mjs's real-PR path is dry-run only).
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/agent-os/verify.mjs
