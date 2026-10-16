@@ -4,7 +4,7 @@
  *
  * Priority order (top wins):
  *   1. CRITICAL · system has fatal errors or cron failures · → health-grid
- *   2. PENDING · actionsPending > 0 · → /system/actions
+ *   2. PENDING · actionsPending > 0 · → /system/actions?tab=approvals (skipped on /system/actions)
  *   3. QUALITY · AI error rate spike > 30% · → /system/diagnostics
  *   4. TIME-OF-DAY · morning → /plan, afternoon → /tasks, evening → /journal
  *   5. DEFAULT · /chat (Nick is the daily-driver)
@@ -59,8 +59,11 @@ export function pickSmartNow(args: {
 
   // ── 2. PENDING · actions awaiting approval ──
   if (pulse && pulse.actionsPending > 0) {
-    const target = "/system/actions";
-    if (!pathname.startsWith(target)) {
+    // The href carries ?tab=approvals (UI v3 W1b); usePathname never carries a query, so the
+    // "already here" check compares the path part only.
+    const targetPath = "/system/actions";
+    const target = `${targetPath}?tab=approvals`;
+    if (!pathname.startsWith(targetPath)) {
       return {
         href: target,
         label: `${pulse.actionsPending} pending`,

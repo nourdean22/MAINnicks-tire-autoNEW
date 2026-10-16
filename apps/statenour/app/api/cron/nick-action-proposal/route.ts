@@ -167,7 +167,7 @@ async function runProposerCore(today: string) {
     `<b>Nick · ${queuedIds.length} ${queuedIds.length === 1 ? "move" : "moves"} for today</b>\n\n` +
     lines.join("\n") +
     `\n\n<i>Reply <code>/qa 1 3</code> · or <code>/qa all</code> / <code>/qa none</code></i>` +
-    `\n<i>Queue: bdnick.info/system/actions</i>`;
+    `\n<i>Queue: bdnick.info/system/actions?tab=approvals</i>`;
 
   let telegramOk = false;
   try {
