@@ -220,19 +220,13 @@ describe("BriefRows", () => {
     expect(h.approveRequest).not.toHaveBeenCalled();
   });
 
-  it("an owner-gated approval offers Review, not an Approve the server would refuse", async () => {
-    const gated = {
-      ...HOME_BRIEF,
-      judgment: {
-        ...HOME_BRIEF.judgment,
-        items: HOME_BRIEF.judgment.items.map((i) => (i.kind === "approvals" ? { ...i, pending: i.pending.map((p, n) => (n === 0 ? { ...p, requiresOwner: true } : p)) } : i)),
-      },
-    };
-    await mount(gated);
-    const first = container.querySelector('[data-brief-row="approval"]')!;
-    expect(first.textContent).toContain("Owner approval");
-    expect(first.querySelector("a")?.textContent).toBe("Review");
-    expect(Array.from(first.querySelectorAll("button")).some((b) => b.textContent?.trim() === "Approve")).toBe(false);
+  it("a server refusal (the owner gate, a message with a code) shows its message verbatim in the row; no client-side gate decides for the one user", async () => {
+    h.approveRequest.mockRejectedValueOnce(Object.assign(new Error("Owner privilege is required to approve this action"), { data: { code: "FORBIDDEN" } }));
+    await mount(HOME_BRIEF);
+    expect(container.textContent).not.toContain("Owner approval");
+    await act(async () => button("Approve")!.click());
+    await flush();
+    expect(alertIn("approval")).toContain("Owner privilege is required to approve this action");
   });
 
   it("the lead CTA records accepted with the task as resultRef (the ledger wiring survives the recomposition)", async () => {

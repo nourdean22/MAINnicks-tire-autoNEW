@@ -89,9 +89,18 @@ const ALREADY_DECIDED = "Already decided elsewhere. Refreshing the brief.";
 
 type RunResult = { ok: boolean; note?: string };
 
+/** A tRPC error carries a code; its message is the server's own words (the owner gate, an expired window). */
+function serverCode(err: unknown): string | null {
+  return (err as { data?: { code?: string } } | null)?.data?.code ?? null;
+}
 function isConflict(err: unknown): boolean {
-  const code = (err as { data?: { code?: string } } | null)?.data?.code;
+  const code = serverCode(err);
   return code === "CONFLICT" || code === "BAD_REQUEST";
+}
+function failureNote(err: unknown): string {
+  if (isConflict(err)) return ALREADY_DECIDED;
+  const message = (err as { message?: string } | null)?.message;
+  return serverCode(err) && message ? message : SAVE_FAILED;
 }
 
 export function BriefRows({ brief, loading }: { brief: BriefRowsInput | null; loading: boolean }) {
@@ -188,12 +197,8 @@ export function BriefRows({ brief, loading }: { brief: BriefRowsInput | null; lo
         refresh();
       }
     } catch (err) {
-      if (isConflict(err)) {
-        setNotes((n) => ({ ...n, [key]: ALREADY_DECIDED }));
-        refresh();
-      } else {
-        setNotes((n) => ({ ...n, [key]: SAVE_FAILED }));
-      }
+      setNotes((n) => ({ ...n, [key]: failureNote(err) }));
+      if (isConflict(err)) refresh();
     } finally {
       setBusyKey(null);
     }
@@ -305,8 +310,8 @@ export function BriefRows({ brief, loading }: { brief: BriefRowsInput | null; lo
               if ("item" in row) {
                 const item = row.item;
                 text = item.title;
-                if (item.source === "action" || item.requiresOwner) {
-                  detail = item.source === "action" ? "Runs a deferred action: review its payload first." : "Owner approval: review it with its payload.";
+                if (item.source === "action") {
+                  detail = "Runs a deferred action: review its payload first.";
                   action = (
                     <Link href={row.href} className={ACTION_LINK}>
                       Review
