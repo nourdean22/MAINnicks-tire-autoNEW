@@ -7,10 +7,13 @@
  * server brief (`operator.brief`, built by lib/home/operator-brief.ts)
  * feeds a FIXED six-section structure whose CONTENT adapts:
  *
- *   1 · State line — date · measured health · one sentence of state
- *   2 · The brief — one recommended move, real reasons, ≤2 alternatives
- *   3 · Nick — a single command line (slash routing; power hidden until asked)
- *   4 · Needs judgment — the only queue: things only Nour can decide
+ *   1 · State line — date · measured health · one sentence of state (the
+ *       verdict; since UI v3 W2 the hero of the page)
+ *   2 · Nick — a single command line (slash routing; power hidden until asked);
+ *       since W2 it sits right under the verdict
+ *   3+4 · The brief (W2: components/home/brief-rows.tsx) — one ruled list of at
+ *       most seven rows: the recommended move, then what needs judgment, then the
+ *       horizon; Keep / Less per row; approvals in place
  *   5 · Horizon — one pointer per time scope, never a task list
  *   6 · Since last visit — a semantic diff, not a timeline
  *   7 · Waiting on others (rail, 2026-10-02) — who owes the operator what,
@@ -38,9 +41,8 @@
 
 import { trpc } from "@/lib/trpc/client";
 import { BriefStateLine } from "./brief-state-line";
-import { BriefLead } from "./brief-lead";
+import { BriefRows } from "./brief-rows";
 import { NickCommandLine } from "./nick-command-line";
-import { JudgmentQueue } from "./judgment-queue";
 import { HorizonLine } from "./horizon-line";
 import { WaitingLine } from "./waiting-line";
 import { ChangeLine } from "./change-line";
@@ -73,6 +75,14 @@ export function HomeConsole() {
           </p>
         )}
 
+        {/* UI v3 W2: Nick sits right under the verdict, above the brief, so "ask Nick" stays in the
+            first screen at 390 and 1440 (the brief's seven rows would otherwise push it below the fold).
+            The PLAN's W2 row lists only the verdict and the brief; this is the order that keeps the
+            five phone jobs in reach. */}
+        <section aria-label="Nick" className="mt-8">
+          <NickCommandLine />
+        </section>
+
         {unreadable ? (
           <section aria-label="brief unreadable" className="mt-10 border-l-2 border-rose-500/60 pl-5 sm:pl-6">
             <h2 className="vt-eyebrow text-rose-300">The brief couldn&apos;t be built</h2>
@@ -88,14 +98,10 @@ export function HomeConsole() {
             </button>
           </section>
         ) : (
-          <BriefLead lead={brief?.lead ?? null} loading={briefQ.isLoading} />
+          // UI v3 W2 (2026-10-16): sections 2 and 4 are one finite brief under the verdict:
+          // at most seven ruled rows, Keep / Less per row (device-local), approvals in place.
+          <BriefRows brief={brief} loading={briefQ.isLoading} />
         )}
-
-        <section aria-label="Nick" className="mt-12">
-          <NickCommandLine />
-        </section>
-
-        <JudgmentQueue judgment={brief?.judgment ?? null} loading={briefQ.isLoading} />
       </div>
 
       {/* Section 5.4 (2026-09-08): at >=1280px the horizon and the change line form a context rail

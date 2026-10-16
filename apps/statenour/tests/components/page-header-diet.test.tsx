@@ -69,10 +69,10 @@ describe("StandardPage", () => {
     expect(html).toContain("<i>body</i>");
   });
 
-  it("keeps the Missions description (md and up) until W2 recomposes the page", () => {
+  it("drops the Missions description at every width (W2: the hero and the control strip carry it)", () => {
     nav.path = "/missions";
     const html = renderToString(<StandardPage eyebrow="Execution Deck" title="Missions" description="The work that needs you." />);
-    expect(html).toMatch(/<p class="page-copy hidden md:block">The work that needs you\.<\/p>/);
+    expect(html).not.toContain("The work that needs you");
   });
 
   it("an explicit descriptionVisibility wins over the core-page default (review round 4)", () => {
@@ -81,10 +81,10 @@ describe("StandardPage", () => {
     expect(html).toMatch(/<p class="page-copy">Live: 3 pins<\/p>/);
   });
 
-  it("the Missions page passes always, so its description shows at 390", () => {
+  it("the Missions page no longer forces its description (the W1a shortcut is gone)", () => {
     const src = readFileSync(join(__dirname, "..", "..", "app", "(mastery)", "missions", "page.tsx"), "utf8");
     const open = src.slice(src.indexOf("<StandardPage"), src.indexOf(">", src.indexOf("<StandardPage")));
-    expect(open).toContain('descriptionVisibility="always"');
+    expect(open).not.toContain("descriptionVisibility");
   });
 
   it("keeps the description, md and up, on any other page", () => {

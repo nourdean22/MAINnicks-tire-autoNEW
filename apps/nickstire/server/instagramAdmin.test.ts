@@ -274,6 +274,40 @@ describe("instagramAdmin router", () => {
     });
   });
 
+  describe("commentResponderStatus (admin)", () => {
+    it("is an admin query that returns the v1 contract", async () => {
+      const caller = appRouter.createCaller(ctx("admin"));
+      const s = await caller.instagramAdmin.commentResponderStatus();
+      expect(s.available).toBe(true);
+      if (s.available) {
+        expect(s.recentReplies).toEqual([]);
+        expect(s.counts7d).toEqual({ posted: 0, failed: 0, dryRun: 0 });
+      }
+    });
+
+    it("refuses a non-admin caller", async () => {
+      const caller = appRouter.createCaller(ctx("user"));
+      await expect(caller.instagramAdmin.commentResponderStatus()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    });
+  });
+
+  describe("attachExternalClips (admin)", () => {
+    const input = { jobId: 2100001, clipUrls: ["https://cdn.example.com/1.mp4"], source: "higgsfield-web" as const };
+
+    it("exists on the real router and refuses a non-admin caller", async () => {
+      expect(appRouter._def.procedures["instagramAdmin.attachExternalClips"]).toBeDefined();
+      const caller = appRouter.createCaller(ctx("user"));
+      await expect(caller.instagramAdmin.attachExternalClips(input)).rejects.toMatchObject({ code: "FORBIDDEN" });
+    });
+
+    it("rejects an unknown source at input validation, before any download", async () => {
+      const caller = appRouter.createCaller(ctx("admin"));
+      await expect(
+        caller.instagramAdmin.attachExternalClips({ ...input, source: "local-file" as never }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+  });
+
   describe("getProviderHealth (admin)", () => {
     it("returns text/image/autopost health shape without throwing", async () => {
       const caller = appRouter.createCaller(ctx("admin"));

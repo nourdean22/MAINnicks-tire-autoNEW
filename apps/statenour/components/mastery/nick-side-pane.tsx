@@ -43,7 +43,7 @@ const STORAGE_KEY = "nour:nick-side-pane:open:v1";
  * 2026-09-07 · the FAB lane. The toggle below is `position: fixed` at the
  * bottom-right, so ANY page content that scrolls under that spot collides
  * with it — live-verified on /journal ("ANSWER NOW") and /missions (the
- * capture "+") at ~1090 CSS px. A fixed element cannot be scrolled past; the
+ * capture "+", gone since UI v3 W2) at ~1090 CSS px. A fixed element cannot be scrolled past; the
  * only honest fix is to reserve the lane it occupies. While a pane is
  * mounted, `--nick-fab-lane` is set on <html> and (mastery)/layout.tsx's
  * <main> pads its right edge by it on md+ screens; pages without the pane

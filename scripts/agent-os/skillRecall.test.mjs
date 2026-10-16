@@ -310,6 +310,57 @@ test("fail OPEN: malformed stdin exits 0 with the off line; a corrupted cache re
   assert.match(u.out, /invoke: statenour-migration/, `a cache write that fails must not turn the hook off: ${u.out}`);
 });
 
+test("--scope global outside a repo: no .claude/skills at the root, statistics fall back to the user cohort, recall still prints", () => {
+  // The whole point of the global entry: a folder with no repo skills. Round 6 found every user skill scoring under
+  // zero there, because the repo-only term table had N = 0. The REPO_ONLY mutant below forces that table back.
+  // The user cohort must be of realistic size for the idf to mean anything: the big fixture home (503 skills) stands
+  // in for a real ~/.claude/skills; with three skills alone no term clears the floor, which is a limit, not a defect.
+  const bare = join(SCRATCH, "proj-bare");
+  mkdirSync(bare, { recursive: true });
+  const r = run(["--scope", "global"], hookInput("the feedback is unclear"), SCRIPT, { CLAUDE_PROJECT_DIR: bare }, HOME_BIG);
+  assert.equal(r.code, 0, r.err);
+  assert.equal(named(r.out)[0], "receiving-code-review", `expected receiving-code-review from a bare folder, got: ${r.out}`);
+  const j = JSON.parse(run(["--json", "--text", "the feedback is unclear"], undefined, SCRIPT, { CLAUDE_PROJECT_DIR: bare }, HOME_BIG).out);
+  assert.equal(j.index.repo, 0);
+  assert.ok(j.picked.every((p) => p.score > 0), `scores must stay positive without a repo cohort: ${JSON.stringify(j.picked)}`);
+  const src = readFileSync(SCRIPT, "utf8");
+  const anchor = 'const cohort = repo.length ? repo : entries.filter((e) => e.kind === "user");';
+  assert.ok(src.includes(anchor), `anchor "${anchor}" missing from skill-recall.mjs`);
+  const repoOnly = join(SCRATCH, "mutant-repo-only.mjs");
+  writeFileSync(repoOnly, src.replace(anchor, "const cohort = repo;"));
+  const m = run(["--scope", "global"], hookInput("the feedback is unclear"), repoOnly, { CLAUDE_PROJECT_DIR: bare, SKILL_RECALL_CACHE_DIR: join(SCRATCH, "cache-mutant-repo-only") }, HOME_BIG);
+  assert.notEqual(named(m.out)[0], "receiving-code-review", `the repo-only table must fail this control, got: ${m.out}`);
+});
+
+test("--scope global from the home directory itself: the user settings file is not a project file, recall still prints", () => {
+  // Round 6, found live: `cd ~` made CLAUDE_PROJECT_DIR the home dir, whose .claude/settings.json carries the global
+  // entry, so the duplicate guard went silent in the one place that has no repo hook at all.
+  // A home of realistic size (the same 503-skill fixture) whose own settings.json carries the global entry.
+  const home = makeHome("home-as-project", 500);
+  writeFileSync(join(home, ".claude", "settings.json"), JSON.stringify({
+    hooks: { UserPromptSubmit: [{ matcher: "", hooks: [{ type: "command", command: 'node "C:/x/scripts/agent-os/skill-recall.mjs" --scope global' }] }] },
+  }));
+  const env = { CLAUDE_PROJECT_DIR: home, HOME: home, USERPROFILE: home, SKILL_RECALL_CACHE_DIR: join(SCRATCH, "cache-home-as-project") };
+  const r = run(["--scope", "global"], hookInput("the feedback is unclear"), SCRIPT, env);
+  assert.equal(r.code, 0, r.err);
+  assert.equal(named(r.out)[0], "receiving-code-review", `expected recall from the home directory, got: ${JSON.stringify(r.out)}`);
+  // Round 7: the one directory is the user root only, never counted twice as repo and user (which gave every user
+  // skill REPO_BOOST and the kind "repo").
+  const j = JSON.parse(run(["--json", "--text", "the feedback is unclear"], undefined, SCRIPT, env).out);
+  assert.equal(j.index.repo, 0, `home-as-project must index no repo skills: ${JSON.stringify(j.index)}`);
+  assert.equal(j.index.user, 503);
+  assert.equal(j.picked[0]?.name, "receiving-code-review");
+  assert.equal(j.picked[0]?.kind, "user", `the match must carry kind user: ${JSON.stringify(j.picked[0])}`);
+  // Mutant: without the home-directory exemption the guard reads the user file as a project file and goes silent.
+  const src = readFileSync(SCRIPT, "utf8");
+  const anchor = "if (resolve(root) === resolve(homedir())) return false;";
+  assert.ok(src.includes(anchor), `anchor "${anchor}" missing from skill-recall.mjs`);
+  const noExempt = join(SCRATCH, "mutant-no-home-exempt.mjs");
+  writeFileSync(noExempt, src.replace(anchor, ""));
+  const m = run(["--scope", "global"], hookInput("the feedback is unclear"), noExempt, env);
+  assert.equal(m.out, "", `without the exemption the hook must go silent (that is the defect): ${m.out}`);
+});
+
 test("--scope global: silent in a project whose settings already run the script, normal elsewhere", () => {
   const withHook = join(SCRATCH, "proj-with-hook");
   const without = join(SCRATCH, "proj-without-hook");

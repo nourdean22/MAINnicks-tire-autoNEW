@@ -196,6 +196,125 @@ export async function readAutopostLaneStatus(
   }
 }
 
+/**
+ * Contract commentResponderStatus v1: the reel comment responder's controls card.
+ * Public Instagram replies, posted unattended by the cron and the Meta webhook.
+ * Same three-state rule as AutopostLaneStatus: a failed history read is
+ * `available: false`, a failed flag read is `paused: null` (UNKNOWN).
+ */
+export type CommentResponderStatus =
+  | {
+      available: true;
+      /** REEL_COMMENT_RESPONDER_ENABLED is exactly "true". */
+      enabled: boolean;
+      /** REEL_COMMENT_RESPONDER_LIVE is exactly "true". */
+      live: boolean;
+      /** reel_comment_responder_paused. null = the flag row could not be read. */
+      paused: boolean | null;
+      /** Newest cron_log row for job_name 'reel-comment-responder'. */
+      lastRun: { startedAt: Date; status: string; details: string } | null;
+      /** Last 20 comment_reply audit rows, newest first. */
+      recentReplies: Array<{
+        id: string; occurredAt: Date; decision: string; mediaId: string | null; commentId: string | null;
+        replyId: string | null; tone: string | null; replyText: string | null; error: string | null;
+      }>;
+      /** Last 7 days of comment_reply audit rows by decision. */
+      counts7d: { posted: number; failed: number; dryRun: number };
+    }
+  // The flag and env values travel with a failure so the card keeps its Pause / Resume switch.
+  | { available: false; reason: string; paused: boolean | null; enabled: boolean; live: boolean };
+
+/** context_json -> the contract's fields; anything unparseable or non-string is null, never a throw. */
+function parseReplyContext(
+  json: string | null,
+): Record<"mediaId" | "commentId" | "replyId" | "tone" | "replyText" | "error", string | null> {
+  let ctx: Record<string, unknown> = {};
+  try {
+    const parsed: unknown = json ? JSON.parse(json) : null;
+    if (parsed && typeof parsed === "object") ctx = parsed as Record<string, unknown>;
+  } catch {
+    // unparseable row: every field null
+  }
+  const pick = (k: string) => (typeof ctx[k] === "string" ? (ctx[k] as string) : null);
+  return {
+    mediaId: pick("mediaId"), commentId: pick("commentId"), replyId: pick("replyId"),
+    tone: pick("tone"), replyText: pick("replyText"), error: pick("error"),
+  };
+}
+
+export async function readCommentResponderStatus(
+  database: Awaited<ReturnType<typeof dbTyped>>,
+  now: Date = new Date(),
+): Promise<CommentResponderStatus> {
+  const enabled = process.env.REEL_COMMENT_RESPONDER_ENABLED === "true";
+  const live = process.env.REEL_COMMENT_RESPONDER_LIVE === "true";
+  if (!database) {
+    return { available: false, reason: "Database unavailable: comment responder history cannot be read.", paused: null, enabled, live };
+  }
+  const { cronLog, autonomyAuditEvents, featureFlags } = await import("../../drizzle/schema");
+
+  // The row, not isEnabled(): isEnabled answers false on a failed read, which for
+  // an inverted pause would render "not paused". An ABSENT row reads false.
+  let paused: boolean | null = null;
+  try {
+    const flags = await database
+      .select({ key: featureFlags.key, value: featureFlags.value })
+      .from(featureFlags)
+      .where(eq(featureFlags.key, "reel_comment_responder_paused"));
+    paused = Boolean(flags[0]?.value);
+  } catch (err) {
+    log.warn("commentResponderStatus flag read failed; paused is UNKNOWN", { error: errText(err) });
+  }
+
+  try {
+    const since = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const [runs, rows, countRows] = await Promise.all([
+      database
+        .select({ startedAt: cronLog.startedAt, status: cronLog.status, details: cronLog.details })
+        .from(cronLog)
+        .where(eq(cronLog.jobName, "reel-comment-responder"))
+        .orderBy(desc(cronLog.startedAt))
+        .limit(1),
+      database
+        .select({
+          id: autonomyAuditEvents.id, occurredAt: autonomyAuditEvents.occurredAt,
+          decision: autonomyAuditEvents.decision, contextJson: autonomyAuditEvents.contextJson,
+        })
+        .from(autonomyAuditEvents)
+        .where(eq(autonomyAuditEvents.actionType, "comment_reply"))
+        .orderBy(desc(autonomyAuditEvents.occurredAt))
+        .limit(20),
+      database
+        .select({ decision: autonomyAuditEvents.decision, n: sql<number>`count(*)` })
+        .from(autonomyAuditEvents)
+        .where(and(eq(autonomyAuditEvents.actionType, "comment_reply"), gte(autonomyAuditEvents.occurredAt, since)))
+        .groupBy(autonomyAuditEvents.decision),
+    ]);
+    const counts7d = { posted: 0, failed: 0, dryRun: 0 };
+    for (const row of countRows) {
+      const n = Number(row.n);
+      if (row.decision === "POSTED") counts7d.posted += n;
+      else if (row.decision === "FAILED") counts7d.failed += n;
+      else if (row.decision === "DRY_RUN") counts7d.dryRun += n;
+    }
+    const run = runs[0];
+    return {
+      available: true,
+      enabled,
+      live,
+      paused,
+      lastRun: run ? { startedAt: run.startedAt, status: run.status, details: run.details ?? "" } : null,
+      recentReplies: rows.map((r) => ({
+        id: r.id, occurredAt: r.occurredAt, decision: r.decision, ...parseReplyContext(r.contextJson),
+      })),
+      counts7d,
+    };
+  } catch (err) {
+    log.warn("commentResponderStatus history read failed", { error: errText(err) });
+    return { available: false, reason: `Comment responder history could not be read: ${errText(err)}`, paused, enabled, live };
+  }
+}
+
 export const instagramAdminRouter = router({
   /** Connection diagnostics: credential/token status + durable-store fingerprint
    *  + a LIVE Graph probe. Presence checks alone showed "ready" with a dead
@@ -1092,6 +1211,28 @@ Keep it under 200 characters.`;
   startAutopostRun: adminProcedure
     .input(z.object({ forceArchetype: z.enum(IG_ARCHETYPES).optional() }))
     .mutation(({ input }): StartAutopostRunResult => startManualAutopostRun(input.forceArchetype)),
+
+  /** Reel comment responder (public IG replies): enabled/live env, pause flag,
+   *  last cron run, the last 20 reply attempts and 7-day counts from
+   *  autonomy_audit_events (contract CommentResponderStatus v1). */
+  commentResponderStatus: adminProcedure.query(async (): Promise<CommentResponderStatus> =>
+    readCommentResponderStatus(await dbTyped()),
+  ),
+  /** Attach operator-rendered per-beat clips (higgsfield.ai web app) to a needs_regen or queued
+   *  reel job as assets_ready; assembly, QA, approval and publish then run as usual. Refusals are
+   *  returned as { ok: false, refusal }, never thrown (services/externalClips.ts). */
+  attachExternalClips: adminProcedure
+    .input(z.object({
+      jobId: z.number().int().positive(),
+      clipUrls: z.array(z.string().min(1).max(2000)).min(1).max(12),
+      source: z.literal("higgsfield-web"),
+      model: z.string().max(64).optional(),
+      note: z.string().max(500).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const { attachExternalClips } = await import("../services/externalClips");
+      return attachExternalClips(input, { attachedBy: `admin:${ctx.user?.id ?? "unknown"}` });
+    }),
 
   /** Provider + autopost run health. Surfaces WHICH AI provider is actually
    *  active and whether its key is present — the root cause of silent

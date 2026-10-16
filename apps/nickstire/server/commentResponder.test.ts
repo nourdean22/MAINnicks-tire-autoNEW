@@ -13,6 +13,14 @@ vi.mock("../drizzle/schema", () => ({
   socialContentInventory: { __name: "social_content_inventory", status: {}, interactiveDmKeyword: {} },
 }));
 vi.mock("drizzle-orm", () => ({ eq: () => ({}), and: () => ({}), isNotNull: () => ({}), desc: () => ({}), sql: () => ({}) }));
+// The run gates (pause flag, kill switch) and the audit writer are pinned in
+// commentResponderControls.test.ts; here they are open so the reply path runs.
+vi.mock("./services/featureFlags", () => ({ isEnabled: vi.fn(async () => false) }));
+vi.mock("./services/socialPublish", () => ({ killSwitchBlockedPlatforms: vi.fn(async () => []) }));
+vi.mock("./services/autonomyControl", () => ({
+  recordAuditEvent: vi.fn(async () => undefined),
+  getActivePolicy: vi.fn(async () => ({ version: 1 })),
+}));
 
 import { collectActiveCampaignKeywords, draftCommentReply, matchCampaignKeyword, runReelCommentResponder } from "./services/commentResponder";
 import { invokeLLM } from "./_core/llm";
@@ -44,12 +52,16 @@ function makeDb(reels: unknown[], kv: unknown[], writeSpy?: (op: string) => void
   };
 }
 
+const savedEnabled = process.env.REEL_COMMENT_RESPONDER_ENABLED;
 beforeEach(() => {
   vi.clearAllMocks();
   delete process.env.REEL_COMMENT_RESPONDER_LIVE;
+  process.env.REEL_COMMENT_RESPONDER_ENABLED = "true";
 });
 afterEach(() => {
   delete process.env.REEL_COMMENT_RESPONDER_LIVE;
+  if (savedEnabled === undefined) delete process.env.REEL_COMMENT_RESPONDER_ENABLED;
+  else process.env.REEL_COMMENT_RESPONDER_ENABLED = savedEnabled;
 });
 
 describe("draftCommentReply — claim safety", () => {

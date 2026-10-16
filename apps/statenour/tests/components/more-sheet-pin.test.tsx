@@ -5,6 +5,12 @@
  * Activating it calls pin(href), announces "<Label> pinned to the tab bar" in the sheet's live
  * region and moves focus to the sheet's close button, because the row it sat in unmounts. The
  * pinned entry is not a row; Journal takes its place in Reflect. Mocks follow more-sheet-pulse.
+ *
+ * The clock is frozen (W2 round 3, 2026-10-16). The sheet's Smart Now header link is picked by the
+ * live ET hour (lib/floating-home/smart-now.ts: 05-10 /stats, 10-17 /missions, 17-22 /journal,
+ * else /chat), so "no a[href=/stats] in the sheet" was true at night and false every morning: red on
+ * main and on #3073 at 07:00 ET, green after 22:00 ET, with no code change in between. FIXED_TIME is
+ * 14:00 ET, where the header points at /missions, which no assertion here declares absent.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import React, { act } from "react";
@@ -49,11 +55,14 @@ vi.mock("@/components/brain-dump-modal", () => ({ CAPTURE_OPEN_EVENT: "capture:o
 vi.mock("@/components/mastery/nick-side-pane", () => ({ NICK_PANE_OPEN_EVENT: "nick:open", NICK_PANE_MOUNTED_ATTR: "nickPane" }));
 
 import { MoreSheet } from "@/components/layout/more-sheet";
+import { FIXED_TIME } from "../e2e/fixtures/time";
 
 let container: HTMLDivElement;
 let root: Root;
 
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(FIXED_TIME));
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
@@ -63,6 +72,7 @@ afterEach(() => {
   container.remove();
   h.pinned = "/journal";
   h.pin.mockClear();
+  vi.useRealTimers();
 });
 
 const render = () => {
@@ -138,6 +148,18 @@ describe("MoreSheet pin control", () => {
     const el = render();
     expect(el.querySelector('a[href="/stats"]')).not.toBeNull();
     expect(el.querySelector('a[href="/journal"]')).toBeNull();
+  });
+
+  it("control: the Smart Now header link follows the clock, which is why the clock is frozen above (08:00 ET says /stats, 14:00 ET says /missions)", () => {
+    // The header link is the one anchor with a title; rows carry none.
+    vi.setSystemTime(new Date("2026-10-15T08:00:00-04:00"));
+    expect(render().querySelector('a[title][href="/stats"]')).not.toBeNull();
+    act(() => root.unmount());
+    root = createRoot(container);
+    vi.setSystemTime(new Date(FIXED_TIME));
+    const el = render();
+    expect(el.querySelector('a[title][href="/stats"]')).toBeNull();
+    expect(el.querySelector('a[title][href="/missions"]')).not.toBeNull();
   });
 
   it("writes no em dash and no emoji (the ratchets stay at zero for this file)", () => {
