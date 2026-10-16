@@ -30,7 +30,7 @@ describe("providerFundsHold", () => {
     expect(providerFundsHold({ provider: "veo", model: "seedance_2_5", balanceCredits: 0 })).toBeNull();
   });
 
-  it.each([null, Number.NaN, Number.POSITIVE_INFINITY])(
+  it.each([null, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
     "an unreadable balance (%s) is UNKNOWN, never a hold",
     (balanceCredits) => {
       expect(providerFundsHold({ provider: "higgsfield", model: "seedance_2_5", balanceCredits })).toBeNull();

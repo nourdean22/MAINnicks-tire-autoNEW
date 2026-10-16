@@ -192,6 +192,9 @@ describe("the provider funds hold sits before any spend or cursor move", () => {
     }
     // A hold returns before anything below it runs.
     const block = SRC.slice(hold, SRC.indexOf("if (funds.unknown)", hold));
+    // Holds on a KNOWN shortfall only (an inverted condition would hold every
+    // funded run and spend on every dry one).
+    expect(block).toMatch(/\n\s*if \(funds\.hold\) \{/);
     expect(block).toContain("return {");
     expect(block).toContain("rotation not advanced");
   });
