@@ -299,6 +299,7 @@ describe("the Backfill tab stops claiming everyone was contacted", () => {
     // say. The copy has to close that reading explicitly, because the operator
     // sees an absence either way.
     expect(CLIENT).toMatch(/hidden because there is no count to authorise, not because everyone has been\s*\n?\s*contacted/);
-    expect(CLIENT).toMatch(/unknown — not zero/);
+    // Punctuation-agnostic since Admin UI v1 W1 swept em dashes out of admin copy ("unknown, not zero").
+    expect(CLIENT).toMatch(/unknown(?: —|:|,) not zero/);
   });
 });

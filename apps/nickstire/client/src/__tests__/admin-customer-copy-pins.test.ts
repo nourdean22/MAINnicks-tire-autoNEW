@@ -12,6 +12,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { sliceBlock } from "../../../server/testUtils/sourceBlock";
 import { OIL_PRICE } from "@shared/pricing";
 import { PRESETS } from "@/pages/admin/WalkInCalculatorSection";
 
@@ -110,7 +111,7 @@ describe("every customer text in the admin tree is pinned", () => {
     expect(desc).toEqual(WALK_IN_DESCRIPTIONS);
     // The source array and the import agree: no preset hides from the pin by being built elsewhere.
     const src = read("client/src/pages/admin/WalkInCalculatorSection.tsx");
-    const block = src.slice(src.indexOf("export const PRESETS"), src.indexOf("];", src.indexOf("export const PRESETS")));
+    const block = sliceBlock(src, "export const PRESETS", "];", { label: "WalkInCalculatorSection.tsx" });
     expect((block.match(/\{ description: /g) ?? []).length).toBe(WALK_IN_DESCRIPTIONS.length);
   });
 });

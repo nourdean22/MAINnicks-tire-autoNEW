@@ -8,6 +8,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { sliceBlock } from "../../../server/testUtils/sourceBlock";
 
 const ROOT = process.cwd();
 const css = readFileSync(join(ROOT, "client/src/index.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
@@ -72,12 +73,13 @@ describe("48 px targets in the shell", () => {
   it("the topbar search trigger and density toggle are 48 px too (they live in their own files)", () => {
     const search = readFileSync(join(ROOT, "client/src/components/admin/CommandSearch.tsx"), "utf8");
     const density = readFileSync(join(ROOT, "client/src/components/admin/DensityToggle.tsx"), "utf8");
-    const trigger = search.slice(search.lastIndexOf("<button", search.indexOf('aria-label="Search"')), search.indexOf('aria-label="Search"') + 400);
+    // The trigger's className follows its aria-label inside the same <button>.
+    const trigger = sliceBlock(search, 'aria-label="Search"', "</button>", { label: "CommandSearch.tsx" });
     expect(trigger).toMatch(/\bh-12 min-w-12\b/);
     expect(density).toMatch(/\bw-12 h-12\b/);
   });
   it("the hamburger and every topbar action are w-12 h-12 (48 px, the repo floor)", () => {
-    const header = admin.slice(admin.indexOf("<header"), admin.indexOf("</header>"));
+    const header = sliceBlock(admin, "<header", "</header>", { label: "Admin.tsx" });
     expect(header).toMatch(/aria-label="Open sidebar"/);
     const sized = header.match(/w-12 h-12/g) ?? [];
     // hamburger + the topbar action links (one template literal renders all of them)
@@ -86,8 +88,9 @@ describe("48 px targets in the shell", () => {
   });
   it("the sidebar close button and every sidebar item are min-h-12", () => {
     expect(admin).toMatch(/aria-label="Close sidebar"/);
-    const close = admin.slice(admin.lastIndexOf("<button", admin.indexOf('aria-label="Close sidebar"')), admin.indexOf('aria-label="Close sidebar"'));
-    expect(close).toMatch(/min-h-12/);
+    const close = /className="([^"]*)" aria-label="Close sidebar"/.exec(admin);
+    expect(close, "the close button's own className").not.toBeNull();
+    expect(close![1]).toMatch(/\bmin-h-12\b/);
     expect(admin).toMatch(/admin-sidebar-item w-full min-h-12/);
   });
 });
@@ -105,7 +108,7 @@ describe("48 px targets on Today and the section boundary", () => {
   const overview = readFileSync(join(ROOT, "client/src/pages/admin/OverviewSection.tsx"), "utf8");
   const boundary = readFileSync(join(ROOT, "client/src/components/admin/AdminSectionBoundary.tsx"), "utf8");
   it("queue filter chips, queue verbs and the call/message links are min-h-12", () => {
-    const queue = overview.slice(overview.indexOf('aria-label="Filter queue"'), overview.indexOf('aria-labelledby="history-title"'));
+    const queue = sliceBlock(overview, 'aria-label="Filter queue"', 'aria-labelledby="history-title"', { label: "OverviewSection.tsx" });
     // Each control's own className (the first one after its opening tag); arrow functions in onClick
     // contain ">", so a [^>]* tag scan would stop early.
     const controls = [...queue.matchAll(/<(?:button|a|MessageCustomerLink)\b/g)].map((m) => {
@@ -116,7 +119,7 @@ describe("48 px targets on Today and the section boundary", () => {
     for (const c of controls) expect(c).toMatch(/min-h-12/);
   });
   it("the section boundary Retry is min-h-12", () => {
-    const retry = boundary.slice(boundary.lastIndexOf("<button", boundary.indexOf("Retry section")), boundary.indexOf("Retry section"));
+    const retry = sliceBlock(boundary, "onClick={this.handleRetry}", "Retry section", { label: "AdminSectionBoundary.tsx" });
     expect(retry).toMatch(/min-h-12/);
   });
 });
@@ -125,7 +128,7 @@ describe("the phone bar never hides or out-ranks what sits around it", () => {
   const bar = readFileSync(join(ROOT, "client/src/components/admin/AdminTabBar.tsx"), "utf8");
   const z = (src: string) => Number(/(?:^|\s)z-(\d+)(?:\s|$)/.exec(src)?.[1] ?? NaN);
   it("the bar sits below the drawer scrim, so the open drawer covers it", () => {
-    const scrim = admin.slice(admin.indexOf("{sidebarOpen && <div"), admin.indexOf("/>", admin.indexOf("{sidebarOpen && <div")));
+    const scrim = sliceBlock(admin, "{sidebarOpen && <div", "/>", { label: "Admin.tsx" });
     const barClass = /aria-label="Primary sections"\s*className="([^"]*)"/.exec(bar)?.[1] ?? "";
     expect(z(barClass)).toBeLessThan(z(scrim));
   });
@@ -145,7 +148,7 @@ describe("the phone bar never hides or out-ranks what sits around it", () => {
     expect(admin).toMatch(/^\s*useAdminDarkClass\(\);\s*$/m);
   });
   it("the bar gets the signed-in role, the live section, the real signals and the palette opener", () => {
-    const tag = admin.slice(admin.indexOf("<AdminTabBar"), admin.indexOf("/>", admin.indexOf("<AdminTabBar")));
+    const tag = sliceBlock(admin, "<AdminTabBar", "/>", { label: "Admin.tsx" });
     expect(tag).toMatch(/\brole=\{adminRole\}/);
     expect(tag).toMatch(/\bactive=\{section\}/);
     expect(tag).toMatch(/\bsignals=\{signals\}/);
@@ -157,8 +160,7 @@ describe("the phone bar never hides or out-ranks what sits around it", () => {
 describe("gold marks owner priority only", () => {
   const overview = readFileSync(join(ROOT, "client/src/pages/admin/OverviewSection.tsx"), "utf8");
   it("Today's Needs action card turns gold only when the queue is readable and holds items", () => {
-    const at = overview.indexOf('label="Needs action"');
-    const card = overview.slice(at, overview.indexOf("/>", at));
+    const card = sliceBlock(overview, 'label="Needs action"', "/>", { label: "OverviewSection.tsx" });
     expect(card).toMatch(/priority=\{queueTrustworthy && queue\.length > 0\}/);
     expect(overview).toMatch(/priority \? "[^"]*var\(--owner-priority\)/);
   });
