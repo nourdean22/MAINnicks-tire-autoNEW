@@ -97,6 +97,14 @@ interface QuickAction {
   run: () => void | Promise<void>;
 }
 
+/** Window event the palette listens for: one palette, several doors (topbar, phone bar, Cmd/Ctrl+K). */
+const OPEN_COMMAND_SEARCH_EVENT = "admin:open-command-search";
+
+/** Opens the command palette from outside it (the phone bar's Search slot). */
+export function openCommandSearch() {
+  window.dispatchEvent(new CustomEvent(OPEN_COMMAND_SEARCH_EVENT));
+}
+
 export function CommandSearch({ onNavigate, onSelectCustomer, allowedSections }: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -677,6 +685,13 @@ export function CommandSearch({ onNavigate, onSelectCustomer, allowedSections }:
       ).slice(0, 6)
     : permittedActions;
 
+  // The phone bar's Search slot (AdminTabBar via Admin.tsx) opens this same palette.
+  useEffect(() => {
+    const handler = () => setOpen(true);
+    window.addEventListener(OPEN_COMMAND_SEARCH_EVENT, handler);
+    return () => window.removeEventListener(OPEN_COMMAND_SEARCH_EVENT, handler);
+  }, []);
+
   // Keyboard shortcut to open
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -761,7 +776,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer, allowedSections }:
         onClick={() => setOpen(true)}
         title="Search (⌘K)"
         aria-label="Search"
-        className="inline-flex items-center justify-center gap-2 h-9 px-2.5 lg:px-3 text-muted-foreground hover:text-foreground hover:bg-foreground/5 rounded-md transition-colors"
+        className="inline-flex items-center justify-center gap-2 h-11 min-w-11 px-2.5 lg:px-3 text-muted-foreground hover:text-foreground hover:bg-foreground/5 rounded-md transition-colors"
       >
         <Search className="w-4 h-4" />
         <kbd className="hidden lg:inline-flex items-center px-1.5 py-0.5 text-[10px] font-mono text-foreground/40 border border-border/40 rounded">
@@ -769,28 +784,10 @@ export function CommandSearch({ onNavigate, onSelectCustomer, allowedSections }:
         </kbd>
       </button>
 
-      {/* Thumb-reachable entry to the SAME palette, phone only.
-          The trigger above lives in `admin-topbar` at the very top of the screen,
-          outside the thumb arc of a one-handed grip — which, together with the
-          empty-query blank sheet fixed above, is why 32 quick actions were
-          reachable in practice only by keyboard on a desktop.
-          A second trigger, not a second component: same `setOpen`, same focus
-          trap, same Escape/arrow handling, same action registry. Nothing to keep
-          in sync. `bottom` clears the iOS home indicator via safe-area inset, and
-          ActivityPulse is offset upward by the same amount so its pills (which are
-          `pointer-events-auto`) cannot cover or swallow taps on this button. */}
-      <button
-        onClick={() => setOpen(true)}
-        aria-label="Quick actions"
-        className="lg:hidden fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom,0px))] right-4 z-40 inline-flex items-center justify-center w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg shadow-black/40 active:scale-95 transition-transform"
-      >
-        <Zap className="w-5 h-5" />
-      </button>
-
       {/* Modal overlay */}
       {open && (
         <>
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-[2px] z-50" onClick={close} />
+          <div className="fixed inset-0 bg-black/60 z-50" onClick={close} />
           <div className="fixed top-[max(0.75rem,env(safe-area-inset-top))] sm:top-[15%] left-1/2 -translate-x-1/2 z-50 w-[calc(100vw-1.5rem)] sm:w-full max-w-lg">
             <div
               ref={overlayRef}

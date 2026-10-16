@@ -4,7 +4,8 @@ import ActivityPulse from "@/components/admin/ActivityPulse";
 import AdminMfaGate from "@/components/admin/AdminMfaGate";
 import { AdminSSEProvider, useAdminSSE } from "@/components/admin/AdminSSEContext";
 import { GbpOAuthCatcher } from "./admin/content/GbpOAuthCatcher";
-import { CommandSearch } from "@/components/admin/CommandSearch";
+import { AdminTabBar, NavBadge } from "@/components/admin/AdminTabBar";
+import { CommandSearch, openCommandSearch } from "@/components/admin/CommandSearch";
 import ConfirmDialog from "@/components/admin/ConfirmDialog";
 import DegradedDataBanner from "@/components/admin/DegradedDataBanner";
 import UnknownSectionNotice from "@/components/admin/UnknownSectionNotice";
@@ -14,7 +15,6 @@ import WalkInQuoteDrawer from "@/components/admin/WalkInQuoteDrawer";
 import { getAdminActionableCounts } from "@/lib/adminActionableCounts";
 import { buildAdminSignals } from "@/lib/adminSignals";
 import { trpc } from "@/lib/trpc";
-import { describeBadge, foldSignals, signalsForSection } from "@shared/adminSignal";
 import type { AdminRole } from "@shared/adminPermissions";
 import {
   ArrowLeft,
@@ -319,31 +319,28 @@ export default function Admin() {
         <aside className={`admin-sidebar fixed lg:sticky top-0 left-0 z-50 lg:z-auto h-dvh w-[260px] flex flex-col transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`} aria-label="Admin navigation">
           <div className="h-14 flex items-center px-4 border-b border-sidebar-border shrink-0">
             <Link href="/" className="flex items-center gap-2.5 group flex-1 min-w-0"><div className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" aria-hidden /><div className="flex flex-col min-w-0"><span className="font-semibold text-foreground text-[13.5px] leading-tight tracking-tight group-hover:text-primary transition-colors truncate">Nick&apos;s Admin</span><span className="text-[10px] text-muted-foreground/70 tracking-[0.06em]">{adminRole.replace("_", " ")}</span></div></Link>
-            <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-muted-foreground/60 hover:text-foreground p-1.5 rounded-md" aria-label="Close sidebar"><X className="w-4 h-4" /></button>
+            <button onClick={() => setSidebarOpen(false)} className="lg:hidden inline-flex items-center justify-center min-h-11 min-w-11 text-muted-foreground hover:text-foreground rounded-md" aria-label="Close sidebar"><X className="w-4 h-4" /></button>
           </div>
           <nav className="flex-1 py-4 px-2 space-y-5 overflow-y-auto" aria-label="Admin sections">
             {visibleGroups.map((group) => <div key={group.label || "_flat"}>{group.label && <div className="admin-sidebar-group-label">{group.label}</div>}<div className="space-y-0.5 mt-0.5">{group.items.map((item) => {
               const isActive = section === item.id;
-              const sectionSignals = signalsForSection(signals, item.id);
-              const badge = foldSignals(sectionSignals);
-              // Every number on screen names its source, so a badge can be traced
-              // without reading the code that produced it.
-              const badgeTitle = describeBadge(badge, sectionSignals);
-              return <button key={item.id} onClick={() => { setSection(item.id); setSidebarOpen(false); }} aria-current={isActive ? "page" : undefined} className={`admin-sidebar-item w-full ${isActive ? "active" : ""}`}><span className={`shrink-0 ${isActive ? "text-primary" : "text-foreground/45"}`}>{item.icon}</span><span className="flex-1 text-left truncate">{item.label}</span>{badge.state === "unknown" ? <span className="shrink-0 text-[10px] font-semibold min-w-[18px] h-[18px] px-1 rounded-full bg-amber-500/15 text-amber-600 flex items-center justify-center" title={badgeTitle} aria-label="outstanding work unknown">?</span> : badge.state === "counted" && badge.count > 0 ? <span className="shrink-0 text-[10px] font-semibold tabular-nums min-w-[18px] h-[18px] px-1 rounded-full bg-destructive/12 text-destructive flex items-center justify-center" title={badgeTitle}>{badge.count > 99 ? "99+" : badge.count}</span> : null}</button>;
+              // NavBadge is the same three-state badge the phone bar shows (count, "?", nothing).
+              return <button key={item.id} onClick={() => { setSection(item.id); setSidebarOpen(false); }} aria-current={isActive ? "page" : undefined} className={`admin-sidebar-item w-full min-h-11 ${isActive ? "active" : ""}`}><span className={`shrink-0 ${isActive ? "text-foreground" : "text-foreground/45"}`}>{item.icon}</span><span className="flex-1 text-left truncate">{item.label}</span><NavBadge section={item.id} signals={signals} /></button>;
             })}</div></div>)}
           </nav>
           <div className="px-3 py-3 border-t border-sidebar-border shrink-0 space-y-2"><div className="px-2"><p className="text-[12px] font-medium text-foreground truncate">{user.name || "Admin"}</p><p className="text-[10px] text-muted-foreground/70">{adminRole.replace("_", " ")}</p></div><Link href="/" className="px-2 inline-flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground"><ArrowLeft className="w-3 h-3" />Back to site</Link></div>
         </aside>
         <main id="main-content" className="flex-1 min-w-0">
           <header className="admin-topbar sticky top-0 z-30 flex items-center px-3 lg:px-5 gap-1 pt-[env(safe-area-inset-top,0px)]">
-            <button onClick={() => setSidebarOpen(true)} className="lg:hidden inline-flex items-center justify-center w-9 h-9 text-muted-foreground hover:text-foreground" aria-label="Open sidebar"><Menu className="w-4 h-4" /></button>
+            <button onClick={() => setSidebarOpen(true)} className="lg:hidden inline-flex items-center justify-center w-11 h-11 text-muted-foreground hover:text-foreground" aria-label="Open sidebar"><Menu className="w-4 h-4" /></button>
             <h1 className="text-[14px] font-semibold text-foreground tracking-tight px-2 truncate">{SECTION_TITLES[section]}</h1><div className="flex-1" />
             <CommandSearch allowedSections={allowedSections} onNavigate={(nextSection) => allowedSections.includes(nextSection) && setSection(nextSection)} onSelectCustomer={(id) => openCustomerDrawer(id)} />
             <DensityToggle />
-            {TOPBAR_ACTIONS.filter((action) => !action.sectionTrigger || allowedSections.includes(action.sectionTrigger)).map((action) => <Link key={action.href} href={action.href} title={action.title} aria-label={action.title} onClick={(event) => { if (action.sectionTrigger) { event.preventDefault(); window.history.replaceState({}, "", action.href); setSection(action.sectionTrigger); } }} className={`${action.mobileHidden ? "hidden lg:inline-flex" : "inline-flex"} items-center justify-center w-9 h-9 text-muted-foreground hover:text-primary`}>{action.icon}</Link>)}
+            {TOPBAR_ACTIONS.filter((action) => !action.sectionTrigger || allowedSections.includes(action.sectionTrigger)).map((action) => <Link key={action.href} href={action.href} title={action.title} aria-label={action.title} onClick={(event) => { if (action.sectionTrigger) { event.preventDefault(); window.history.replaceState({}, "", action.href); setSection(action.sectionTrigger); } }} className={`${action.mobileHidden ? "hidden lg:inline-flex" : "inline-flex"} items-center justify-center w-11 h-11 text-muted-foreground hover:text-foreground`}>{action.icon}</Link>)}
           </header>
           <div className="admin-content"><div className="px-4 pt-4 space-y-3"><UnknownSectionNotice slug={unresolvedSlug} onDismiss={dismissUnresolvedSlug} /><DegradedDataBanner stats={stats} unavailable={overviewUnavailable} unavailableMessage={overviewError?.message} onRetry={() => void utils.adminDashboard.overviewMediumBundle.invalidate()} /></div><SectionContent section={section} /></div>
         </main>
+        <AdminTabBar role={adminRole} active={section} signals={signals} onNavigate={(nextSection) => allowedSections.includes(nextSection) && setSection(nextSection)} onSearch={openCommandSearch} />
         <DrilldownDrawer /><ConfirmDialog /><WalkInQuoteDrawer /><ActivityPulse />
       </div>
     </AdminSSEProvider>

@@ -78,9 +78,29 @@ describe("44 px targets in the shell", () => {
 describe("the phone bar keeps the last row reachable", () => {
   it("Admin.tsx renders the bar and .admin-content pads for it below lg", () => {
     expect(admin).toMatch(/<AdminTabBar\b/);
-    const phone = css.match(/@media \(max-width: 1023px\)\s*\{\s*\.admin-content\s*\{([^}]*)\}/);
+    const phone = css.match(/@media \(max-width: 1023px\)\s*\{\s*\.admin-shell \.admin-content\s*\{([^}]*)\}/);
     expect(phone, "a max-width 1023px .admin-content rule").not.toBeNull();
     expect(phone![1]).toMatch(/padding-bottom:\s*calc\(56px[^;]*env\(safe-area-inset-bottom/);
+  });
+});
+
+describe("44 px targets on Today and the section boundary", () => {
+  const overview = readFileSync(join(ROOT, "client/src/pages/admin/OverviewSection.tsx"), "utf8");
+  const boundary = readFileSync(join(ROOT, "client/src/components/admin/AdminSectionBoundary.tsx"), "utf8");
+  it("queue filter chips, queue verbs and the call/message links are min-h-11", () => {
+    const queue = overview.slice(overview.indexOf('aria-label="Filter queue"'), overview.indexOf('aria-labelledby="history-title"'));
+    // Each control's own className (the first one after its opening tag); arrow functions in onClick
+    // contain ">", so a [^>]* tag scan would stop early.
+    const controls = [...queue.matchAll(/<(?:button|a|MessageCustomerLink)\b/g)].map((m) => {
+      const cls = /className=(?:"([^"]*)"|\{`([^`]*)`\})/.exec(queue.slice(m.index!));
+      return cls ? cls[1] ?? cls[2] : "";
+    });
+    expect(controls.length).toBeGreaterThanOrEqual(5);
+    for (const c of controls) expect(c).toMatch(/min-h-11/);
+  });
+  it("the section boundary Retry is min-h-11", () => {
+    const retry = boundary.slice(boundary.lastIndexOf("<button", boundary.indexOf("Retry section")), boundary.indexOf("Retry section"));
+    expect(retry).toMatch(/min-h-11/);
   });
 });
 

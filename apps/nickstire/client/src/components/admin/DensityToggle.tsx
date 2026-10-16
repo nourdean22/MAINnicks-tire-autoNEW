@@ -48,7 +48,7 @@ export default function DensityToggle() {
       onClick={() => setDensity(next)}
       title={title}
       aria-label={title}
-      className="inline-flex items-center justify-center w-9 h-9 text-muted-foreground hover:text-foreground hover:bg-foreground/5 rounded-md transition-colors"
+      className="inline-flex items-center justify-center w-11 h-11 text-muted-foreground hover:text-foreground hover:bg-foreground/5 rounded-md transition-colors"
     >
       <Icon className="w-4 h-4" />
     </button>

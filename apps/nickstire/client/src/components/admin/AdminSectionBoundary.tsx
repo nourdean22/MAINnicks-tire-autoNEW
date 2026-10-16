@@ -74,7 +74,7 @@ class AdminSectionBoundary extends Component<Props, State> {
             )}
             <button
               onClick={this.handleRetry}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-bold rounded hover:opacity-90 transition-opacity"
+              className="inline-flex items-center gap-2 min-h-11 px-4 py-2 bg-primary text-primary-foreground text-sm font-bold rounded hover:opacity-90 transition-opacity"
             >
               <RefreshCw className="w-4 h-4" />
               Retry section

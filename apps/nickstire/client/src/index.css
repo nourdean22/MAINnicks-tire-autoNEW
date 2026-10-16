@@ -1727,3 +1727,11 @@ p.body-pretty {
   padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px)) !important;
 }
 
+
+/* Phones: the AdminTabBar (56 px + the home indicator) is fixed over the bottom edge;
+   keep the last row of every section above it. */
+@media (max-width: 1023px) {
+  .admin-shell .admin-content {
+    padding-bottom: calc(56px + 1.5rem + env(safe-area-inset-bottom, 0px)) !important;
+  }
+}
