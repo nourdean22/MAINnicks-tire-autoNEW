@@ -5,7 +5,7 @@
  * entry from its rows and shows Journal there instead.
  */
 import { describe, expect, it } from "vitest";
-import { NAV, FIXED_TABS, bySection, moreRows, resolvePinnedTab, isPinnable, DEFAULT_PINNED_HREF } from "@/components/layout/nav-items";
+import { NAV, FIXED_TABS, moreRows, resolvePinnedTab, isPinnable, DEFAULT_PINNED_HREF } from "@/components/layout/nav-items";
 
 const hrefs = (rows: { href: string }[]) => rows.map((r) => r.href);
 
@@ -51,9 +51,9 @@ describe("resolvePinnedTab", () => {
 });
 
 describe("moreRows", () => {
-  it("with the default pin the rows equal bySection (Journal is in the bar, not the sheet)", () => {
+  it("with the default pin the rows are the section minus bottom tabs and footer (Journal is in the bar, not the sheet)", () => {
     for (const s of ["capture", "execute", "reflect", "operate"] as const) {
-      expect(hrefs(moreRows(s, "/journal"))).toEqual(hrefs(bySection(s)));
+      expect(hrefs(moreRows(s, "/journal"))).toEqual(hrefs(NAV.filter((n) => n.section === s && !n.bottomTab && !n.footer)));
     }
     expect(hrefs(moreRows("reflect", "/journal"))).not.toContain("/journal");
   });

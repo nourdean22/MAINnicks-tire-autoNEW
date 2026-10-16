@@ -113,10 +113,6 @@ export const NAV: NavEntry[] = [
 /** The 4 bottom content tabs. Since UI v3 W1b the fourth slot is pinnable (default Journal), and the fifth is Command. */
 export const BOTTOM_TABS = NAV.filter((n) => n.bottomTab);
 
-/** MORE-sheet rows for a verb section — excludes the bottom tabs + footer. */
-export const bySection = (s: NavSection) =>
-  NAV.filter((n) => n.section === s && !n.bottomTab && !n.footer);
-
 // ── UI v3 W1b · pin-to-tab-bar ───────────────────────────────────────
 // The fourth bottom slot holds one entry the operator picks from the More
 // sheet (Linear mobile, 2026-01-22); Journal is the default. The stored

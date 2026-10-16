@@ -134,9 +134,10 @@ export default function MasteryLayout({
         </main>
       </AmbientAura>
       {/* 2026-06-18 · IA reorg Phase 4 · the FloatingHome orb is RETIRED as
-          primary nav. BottomTabBar (4 daily tabs Home/Chat/Missions/Journal
-          + a "More" slot) is the fixed primary surface; MoreSheet is the
-          verb-grouped launcher behind "More" with the ⌘K Search tap-trigger.
+          primary nav. BottomTabBar (3 fixed tabs Home/Chat/Missions, a pinned
+          slot that defaults to Journal, + a "Command" slot) is the fixed primary
+          surface; MoreSheet is the verb-grouped launcher behind "Command" with
+          the ⌘K Search tap-trigger and the per-row Pin control (UI v3 W1b).
           The ambient BottomPulseTicker now rides inside BottomTabBar so the
           whole bottom chrome is one stacked, safe-area-aware unit. */}
       <BottomTabBar />
