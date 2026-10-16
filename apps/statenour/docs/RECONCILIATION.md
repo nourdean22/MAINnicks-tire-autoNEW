@@ -1,5 +1,19 @@
 # Reconciliation · statenour-os
 
+> ## 2026-10-16 · UI v3 Wave 3a · the Chat six-feet instrument (branch `statenour/ui-v3-w3a`) · 1 statenour PR, nothing user-visible
+>
+> Not live until merged. Every claim below is from unit tests, a local Playwright run against a hermetic `next dev --webpack` (dummy env, no database) and code reading; CI has not run this PR yet.
+>
+> - **Fixtures (`tests/e2e/fixtures/chat.ts`, wired in `index.ts`).** `system.providerHealth` and `system.toolsHealth` in the measured shape (the pill reads "ready"), `chat.list` with one seeded conversation, `chat.conversation` with a user turn and an assistant turn that ran one tool (the receipt line), `operator.mit` (the composer's @mit hook), and a 204 for `GET /api/ai/chat/none/stream` (REST_NO_CONTENT: the real route answers 204; a 404 made `useChat` flip the pill to "chat degraded"). `DEMO.chatReply` and `DEMO.chatTitle` exist nowhere in app source. `disallowedUnstubbed` now gates `chat.*` and the two pill reads.
+> - **Gate (`vt-render.ts`, `visible-transformation-v3.spec.ts`, `v3-gate.ts`).** `chat` joins `V3_PAGES` at `/chat?h=1`: `/chat` loads no conversation by itself, so the render opens the History drawer and taps the seeded row (`openChatHistory`), then waits for the pill, the island height and the jump button (`settleChat`). `baselinePending` makes a MISSING chat PNG skip with a one-line reason (`baselineSkipReason`); any page not pending still fails on a missing PNG, a present PNG is always judged, and a repo test fails if a pending page already has its PNGs. Two local renders of chat at 390 and 1440 were byte identical (md5).
+> - **Workflow.** `.github/workflows/e2e-statenour.yml`: the capture completeness check names six files; a repo test derives the list from `V3_PAGES` x `V3_VIEWPORTS`.
+> - **`chat-states.spec.ts`.** Four waits moved to the colon copy W1a shipped; a repo pin checks every literal the spec waits for against the page and the evidence panel.
+>
+> **Flagged · NOT fixed**
+> - The committed `chat-states.spec.ts-snapshots/*-win32.png` are stale (sizes changed since); locally all six screenshots differ after the text waits pass. CI skips them on linux.
+> - `useConversations` swallows a failed list read (`reloadConvos` ends in `.catch(() => {})`) and a failed `loadConvo` only reaches `console.error`: a failed history read renders as the empty chat. W3b should decide how that reads.
+> - The Chat baseline is not captured. `capture_v3_baselines` re-captures all six files, Home and Missions included; commit only the two `chat-*.png`.
+
 > ## 2026-10-16 · UI v3 Wave 2 · Home deck and Missions, the six-feet wave (this PR, branch `statenour/ui-v3-w2`) · 1 statenour PR
 >
 > Not live until merged and `/api/version` serves this PR's squash SHA. Every claim below is from CI, unit tests and code reading.
