@@ -83,12 +83,17 @@ test("control: a finished skill reads clean", () => {
   assert.deepEqual(errs(skill()), []);
 });
 
+test("control: a triggers: line is a known key (skill-recall.mjs scores it), so it raises no frontmatter-key problem", () => {
+  const s = skill("good-skill", { "SKILL.md": "---\nname: good-skill\ndescription: Use when x.\ntriggers: reel hook, hook ideas\n---\n[a](references/gates.md) [b](scripts/tool.mjs)\n" });
+  assert.deepEqual(errs(s).filter((e) => /frontmatter key/.test(e)), []);
+});
+
 for (const [label, make, want] of [
   ["a name that differs from the directory", () => skill("good-skill", { "SKILL.md": "---\nname: other-name\ndescription: Use when x.\n---\n" }), /name "other-name" must equal the directory name "good-skill"/],
   ["a description that does not start with Use when", () => skill("good-skill", { "SKILL.md": "---\nname: good-skill\ndescription: A forge for skills.\n---\n" }), /must start with "Use when"/],
   ["a description over 1024 characters", () => skill("good-skill", { "SKILL.md": `---\nname: good-skill\ndescription: Use when ${"x".repeat(1100)}\n---\n` }), /description is \d+ characters/],
   ["angle brackets in the description", () => skill("good-skill", { "SKILL.md": "---\nname: good-skill\ndescription: Use when <x> happens.\n---\n" }), /angle brackets/],
-  ["an unknown frontmatter key", () => skill("good-skill", { "SKILL.md": "---\nname: good-skill\ndescription: Use when x.\ntriggers: y\n---\n" }), /frontmatter key "triggers"/],
+  ["an unknown frontmatter key", () => skill("good-skill", { "SKILL.md": "---\nname: good-skill\ndescription: Use when x.\ntags: y\n---\n" }), /frontmatter key "tags"/],
   ["a link to a file that does not exist", () => skill("good-skill", { "SKILL.md": "---\nname: good-skill\ndescription: Use when x.\n---\n[a](references/gates.md) [b](scripts/tool.mjs) [c](references/missing.md)\n" }), /links references\/missing\.md, which does not exist/],
   ["a reference no link reaches (a prose-only reference)", () => skill("good-skill", { "references/orphan.md": "x\n" }), /references\/orphan\.md exists but SKILL\.md does not link it/],
   ["a script no link reaches", () => skill("good-skill", { "scripts/orphan.mjs": "x\n" }), /scripts\/orphan\.mjs exists but SKILL\.md does not link it/],

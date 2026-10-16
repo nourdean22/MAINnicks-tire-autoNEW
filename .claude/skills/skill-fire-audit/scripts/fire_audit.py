@@ -20,7 +20,8 @@ SKILL_ROOTS = [
 for p in glob.glob(os.path.join(os.getcwd(), "apps", "*", ".claude", "skills")):
     SKILL_ROOTS.append(("project-app", p))
 
-TRANSCRIPTS = os.path.join(HOME, ".claude", "projects")
+# FIRE_AUDIT_TRANSCRIPTS lets the canary point the scan at a temp tree (fireAudit.test.mjs); unset means the real one.
+TRANSCRIPTS = os.environ.get("FIRE_AUDIT_TRANSCRIPTS") or os.path.join(HOME, ".claude", "projects")
 KEY_RE = re.compile(r"^([A-Za-z_][\w-]*):\s*(.*)$")
 SLASH_RE = re.compile(r"<command-name>\s*/?([A-Za-z0-9_:\-]+)")
 MCP_RE = re.compile(r'"name"\s*:\s*"mcp__([A-Za-z0-9_\-]+?)__')

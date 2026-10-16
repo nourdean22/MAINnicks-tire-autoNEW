@@ -42,7 +42,11 @@ const RETURN_ITEMS = 7;
 const TEMPLATE_PHRASES = [
   "Subagent brief v3", "2026-10-15", "## Picking model and effort", "Token and tool-call count",
   "<noreply@anthropic.com>", "tier A", "tier B", "tier C",
+  // Skill recall for lane briefs (2026-10-16): the real command, not a shorthand that resolves nowhere.
+  "plus the `node scripts/agent-os/skill-recall.mjs --file <brief>` output",
 ];
+const MANAGER_SKILL = join(ROOT, ".claude", "skills", "monorepo-manager", "SKILL.md");
+const MANAGER_RECALL_SENTENCE = "Run `node scripts/agent-os/skill-recall.mjs --file <brief>` and put its matches in SKILLS TO INVOKE FIRST.";
 const TEMPLATE_MAX_LINES = 90;
 
 const LANE_SECTIONS = ["## First 5 minutes", "## Checkpoint commits", "## Budget", "## Verify", "## Return"];
@@ -170,6 +174,10 @@ test("every lane skill resolves in the repo; machine-local-only names are labell
   }
   // A fresh clone and CI have no ~/.claude/skills, so a home-only name would be silent there.
   assert.deepEqual(homeOnly, [], `machine-local only (~/.claude/skills), not in .claude/skills: ${homeOnly.join(", ")}`);
+});
+
+test("monorepo-manager step 5 tells the manager to run skill-recall on the brief", () => {
+  assert.ok(readFileSync(MANAGER_SKILL, "utf8").includes(MANAGER_RECALL_SENTENCE), "the skill-recall sentence is missing from monorepo-manager/SKILL.md");
 });
 
 test("this canary is itself ASCII-only", () => {

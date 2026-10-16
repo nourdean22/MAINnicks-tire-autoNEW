@@ -1,7 +1,7 @@
 ---
 name: test-driven-development
 description: Use when implementing any feature or bugfix, before writing implementation code
-triggers: implementing a feature, bugfix, before writing implementation, write the test first, red green, tdd, failing test, regression test
+triggers: implementing a feature, bugfix, before writing implementation, write the test first, red green, tdd, failing test, regression test, vitest
 ---
 
 # Test-Driven Development (TDD)

@@ -4,14 +4,16 @@
  *
  * UserPromptSubmit hook (stdin JSON with a `prompt` field) and a CLI for lane briefs:
  *   node scripts/agent-os/skill-recall.mjs --text "<prompt>"     one-line prompt
- *   node scripts/agent-os/skill-recall.mjs --file <path>         a brief or any text file
+ *   node scripts/agent-os/skill-recall.mjs --file <path>         a brief or any text file (template boilerplate dropped)
  *   add --json for the full ranking and the index counts
+ *   --scope global: the ~/.claude/settings.json entry; silent in a project whose own settings run this script
  *
- * Index: every SKILL.md under the repo roots (.claude/skills, apps/*\/.claude/skills, .agents/skills),
- * ~/.claude/skills and the plugin roots under ~/.claude/plugins (marketplaces, synced, cache when present).
- * Cached in the OS temp dir, keyed by the roots and their mtimes; never written inside the repo.
+ * Index: every SKILL.md under the two roots the Skill tool provably resolves, `<project>/.claude/skills` and
+ * `~/.claude/skills` (review round 3b, 2026-10-16: the plugin trees on disk cannot be told apart from catalog copies,
+ * and names indexed from them were failed Skill calls for the reader). Cached in the OS temp dir, keyed by the roots,
+ * their mtimes and this script's own source; never written inside the repo.
  *
- * Scoring is plain BM25 over name + description + triggers/when, with two documented boosts.
+ * Scoring is plain BM25 over description, with name and `triggers:` tokens boosted, and two bars (comments below).
  * Output: at most MAX_LINES "[skill-recall] invoke: <name> (<matched words>)" lines, or the none line.
  *
  * Fail OPEN by design: any error prints one "[skill-recall] off: <reason>" line and exits 0.
@@ -20,37 +22,44 @@
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { basename, dirname, join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const MAX_LINES = 5;
-// Hits on the skill NAME are the strongest routing signal a prompt carries ("prisma migration" -> statenour-migration).
+// Hits on the skill NAME, and on its triggers: line, are the routing signal a prompt carries.
 const NAME_BOOST = 3;
 // Repo skills fired 18x more than the library in the 2026-08-03 audit; a tie goes to the skill written for this repo.
 const REPO_BOOST = 1.5;
-// Floor, measured 2026-10-16 over 498 indexed skills: the weakest positive control ("merge the three ledger rows" ->
-// stranded-branch-rescue) scores 8.5 and the library noise under it (body hits on "ledger" and "rows") 5.9 to 7.3;
-// nonsense scores nothing. 7.5 keeps every control and cuts that noise. A lone generic word ("test") still prints its
-// skills (9 and up): a one-word prompt naming a domain is a real request, not noise.
+// Floor, measured 2026-10-16: the weakest positive control ("merge the three ledger rows and release the lease" ->
+// session-authority) scores well above it, nonsense scores nothing, and two generic body words land under it.
 const FLOOR = 7.5;
-// Plugin-root entries (not repo, not ~/.claude/skills) clear a higher bar: PLUGIN_BAR x FLOOR, and a name hit or at
-// least PLUGIN_MIN_HITS matched terms. Review round 1 (2026-10-16): 400 library descriptions and names share generic
-// words ("brief", "deck", "sheet", "ledger", "rows", "release"); one such word per plugin outranked the repo skills,
-// and a name hit alone is not enough because "brief" is a name token of cos-decision-brief (8.7, under 11.25).
-const PLUGIN_BAR = 1.5;
-const PLUGIN_MIN_HITS = 2;
-// Forced by other hooks and the lane frontmatter already; printing them again would bury the real matches.
+// Two bars, review rounds 1 to 3 (2026-10-16). Every entry needs a hit on a REAL name token or at least MIN_HITS
+// matched terms: one generic word inside a trigger phrase ("home screen", "expired row", "debt ledger") carries the
+// name boost and printed a repo skill on its own. A user-root entry (~/.claude/skills) also needs NONREPO_BAR x FLOOR:
+// the library's descriptions share words like "deck" and "sheet", and one such word per entry outranked repo skills.
+const NONREPO_BAR = 1.5;
+const MIN_HITS = 2;
+// A prompt is at most this many distinct terms: a 547 KB pasted report took 7 s and the hook timeout is 10 s.
+const MAX_QUERY_TERMS = 2000;
+// Exactly the names other hooks and the lane frontmatter force every turn. Anything else must be able to score
+// (harness-worktree-setup, positive-control-first, assert-the-consumer, prior-art-grep...).
 const ALWAYS_ON = new Set([
-  "karpathy-guidelines", "ponytail", "verification-before-completion", "i-have-adhd", "using-superpowers",
-  "antislop", "find-skill", "nour-command", "monorepo-manager", "harness-worktree-setup",
-  "positive-control-first", "assert-the-consumer", "prior-art-grep",
+  "using-superpowers", "ponytail", "karpathy-guidelines", "i-have-adhd", "verification-before-completion",
+  "antislop", "monorepo-manager", "nour-command", "find-skill",
 ]);
-const SKIP_DIRS = new Set([".git", "node_modules", ".trash", ".staging"]);
+// A skill name is what the Skill tool accepts; anything else on disk is skipped so the output never prints junk.
+const NAME_OK = /^[a-z0-9][\w:.-]{0,63}$/i;
+const SKIP_DIRS = new Set([".git", "node_modules", ".trash", ".staging", "_archive"]);
 const STOP = new Set(("a an and are as at be been before but by can do does for from has have how i if in into is it its " +
   "me my no not of on one or our so that the their them then there these they this to up us use used using was we " +
-  "what when where which while who will with would you your please make fix get set run add new any all some " +
-  "just like want need help also into over about after again").split(" "));
+  "what when where which while who why will with would you your please make fix get set run any all some " +
+  "just like want need help also over about after again should").split(" "));
 const K1 = 1.2;
 const B = 0.75;
+const TEMPLATE = ".agents/core/templates/subagent-brief.md";
+// Bump when the shape of an index entry changes (the script hash below catches code changes; this is for a cache
+// written by a script whose text happens to be identical, which cannot happen, so it is documentation as much as key).
+const INDEX_VERSION = 3;
 
 function repoRoot() {
   return resolve(process.env.CLAUDE_PROJECT_DIR || process.cwd());
@@ -58,32 +67,26 @@ function repoRoot() {
 
 /** Skill roots in priority order: a name seen in an earlier root wins over the same name later. */
 function skillRoots(root) {
-  const home = homedir();
-  const roots = [
+  return [
     { kind: "repo", dir: join(root, ".claude", "skills") },
-    { kind: "repo", dir: join(root, ".agents", "skills") },
-  ];
-  const apps = join(root, "apps");
-  if (existsSync(apps)) {
-    for (const e of readdirSync(apps, { withFileTypes: true })) {
-      if (e.isDirectory()) roots.push({ kind: "repo", dir: join(apps, e.name, ".claude", "skills") });
-    }
-  }
-  roots.push({ kind: "user", dir: join(home, ".claude", "skills") });
-  for (const sub of ["marketplaces", "synced", "cache"]) roots.push({ kind: "plugin", dir: join(home, ".claude", "plugins", sub) });
-  return roots.filter((r) => existsSync(r.dir));
+    { kind: "user", dir: join(homedir(), ".claude", "skills") },
+  ].filter((r) => existsSync(r.dir));
 }
 
-/** Cache key: the root list plus each root's mtime and its direct children's mtimes (cheap, one readdir per root).
- * shortcut: an edit two levels down does not bump these, so a changed description is picked up only when a skill
- * dir is added, removed or renamed; upgrade to a full stat walk if descriptions start changing without renames. */
+/** Cache key: this script's own source, the root list, each root's mtime, each child dir's mtime and its SKILL.md
+ * mtime (sessions edit those in place, which bumps no directory; review round 2 hit exactly that). */
 function cacheKey(roots) {
   const h = createHash("sha1");
+  h.update(`v${INDEX_VERSION}\n`);
+  h.update(readFileSync(fileURLToPath(import.meta.url)));
   for (const r of roots) {
     h.update(`${r.kind}:${r.dir}:${statSync(r.dir).mtimeMs}\n`);
     for (const e of readdirSync(r.dir, { withFileTypes: true })) {
       if (!e.isDirectory() || SKIP_DIRS.has(e.name)) continue;
-      try { h.update(`${e.name}:${statSync(join(r.dir, e.name)).mtimeMs}\n`); } catch { /* vanished mid-walk */ }
+      try {
+        h.update(`${e.name}:${statSync(join(r.dir, e.name)).mtimeMs}\n`);
+        h.update(`${statSync(join(r.dir, e.name, "SKILL.md")).mtimeMs}\n`);
+      } catch { /* vanished mid-walk, or a folder with no SKILL.md */ }
     }
   }
   return h.digest("hex");
@@ -106,34 +109,20 @@ function frontmatter(text) {
   return out;
 }
 
-function pluginName(dir) {
-  try {
-    const p = join(dir, ".claude-plugin", "plugin.json");
-    if (existsSync(p)) return JSON.parse(readFileSync(p, "utf8")).name || null;
-  } catch { /* a broken manifest just means no prefix */ }
-  return null;
-}
-
-function walk(dir, kind, prefix, out) {
+function walk(dir, kind, out) {
   let entries;
   try { entries = readdirSync(dir, { withFileTypes: true }); } catch { return; }
-  const names = new Set(entries.map((e) => e.name));
-  if (names.has(".claude-plugin")) prefix = pluginName(dir) || prefix;
-  if (names.has("SKILL.md")) {
+  if (entries.some((e) => e.name === "SKILL.md")) {
     try {
       const fm = frontmatter(readFileSync(join(dir, "SKILL.md"), "utf8"));
-      const bare = (fm.name || basename(dir)).trim();
-      out.push({
-        name: kind === "plugin" && prefix ? `${prefix}:${bare}` : bare,
-        description: fm.description || "",
-        triggers: [fm.triggers, fm.when].filter(Boolean).join(" "),
-        kind,
-        path: join(dir, "SKILL.md"),
-      });
+      const name = (fm.name || basename(dir)).trim();
+      if (NAME_OK.test(name)) {
+        out.push({ name, description: fm.description || "", triggers: [fm.triggers, fm.when].filter(Boolean).join(" "), kind, path: join(dir, "SKILL.md") });
+      }
     } catch { /* unreadable file: skip it, the rest of the index still works */ }
   }
   for (const e of entries) {
-    if (e.isDirectory() && !SKIP_DIRS.has(e.name) && !e.name.startsWith(".bucket-")) walk(join(dir, e.name), kind, prefix, out);
+    if (e.isDirectory() && !SKIP_DIRS.has(e.name)) walk(join(dir, e.name), kind, out);
   }
 }
 
@@ -152,17 +141,20 @@ function buildIndex(roots) {
   const entries = [];
   for (const r of roots) {
     const found = [];
-    walk(r.dir, r.kind, null, found);
+    walk(r.dir, r.kind, found);
     found.sort((a, b) => a.path.localeCompare(b.path));
     for (const s of found) {
       if (seen.has(s.name)) continue;
       seen.add(s.name);
-      entries.push({ ...s, nameTokens: tokens(s.name.replace(/[:-]/g, " ")), bodyTokens: tokens(`${s.description} ${s.triggers}`) });
+      // triggers: are routing words by definition, so they carry the name boost; realName keeps the bare name apart,
+      // because only a hit on it exempts an entry from the two-term minimum.
+      const realName = tokens(s.name.replace(/[:-]/g, " "));
+      entries.push({ ...s, realName, nameTokens: [...realName, ...tokens(s.triggers)], bodyTokens: tokens(s.description) });
     }
   }
   const df = {};
   for (const e of entries) for (const t of new Set([...e.nameTokens, ...e.bodyTokens])) df[t] = (df[t] || 0) + 1;
-  const avgLen = entries.reduce((n, e) => n + e.nameTokens.length + e.bodyTokens.length, 0) / Math.max(1, entries.length);
+  const avgLen = entries.reduce((n, e) => n + e.bodyTokens.length, 0) / Math.max(1, entries.length);
   return { entries, df, avgLen };
 }
 
@@ -187,12 +179,12 @@ function score(index, prompt) {
   // Keep the first prompt word behind each stem so the output reads "migration", not "migrat".
   const word = new Map();
   for (const w of String(prompt).toLowerCase().split(/[^a-z0-9]+/)) if (w && !word.has(stem(w))) word.set(stem(w), w);
-  const q = [...new Set(tokens(prompt))];
+  const q = [...new Set(tokens(prompt))].slice(0, MAX_QUERY_TERMS);
   const N = index.entries.length;
   const results = [];
   for (const e of index.entries) {
-    if (ALWAYS_ON.has(e.name.split(":").pop())) continue;
-    const len = e.nameTokens.length + e.bodyTokens.length;
+    if (ALWAYS_ON.has(e.name)) continue;
+    const len = e.bodyTokens.length;
     let s = 0;
     let nameHit = false;
     const hits = [];
@@ -200,44 +192,74 @@ function score(index, prompt) {
       const inName = e.nameTokens.filter((x) => x === t).length;
       const inBody = e.bodyTokens.filter((x) => x === t).length;
       if (!inName && !inBody) continue;
-      if (inName) nameHit = true;
+      if (e.realName.includes(t)) nameHit = true;
       const df = index.df[t] || 1;
       const idf = Math.log(1 + (N - df + 0.5) / (df + 0.5));
-      const tf = inBody + inName;
-      // The name boost multiplies the saturated term, so it is a real 3x and not a tf bump BM25 flattens to 1.5x.
-      s += idf * (tf * (K1 + 1)) / (tf + K1 * (1 - B + B * len / index.avgLen)) * (inName ? NAME_BOOST : 1);
-      hits.push(word.get(t) || t);
+      // Body hits: BM25 with length normalization. Name and trigger hits: saturated but NOT length-normalized, so a
+      // skill with fourteen triggers is not penalized for having them, times the name boost (a real 3x: the boost
+      // multiplies the saturated term instead of bumping tf, which BM25 would flatten to about 1.5x).
+      let w = 0;
+      if (inBody) w += idf * (inBody * (K1 + 1)) / (inBody + K1 * (1 - B + B * len / index.avgLen));
+      if (inName) w += idf * (inName * (K1 + 1)) / (inName + K1) * NAME_BOOST;
+      s += w;
+      hits.push({ word: word.get(t) || t, w });
     }
+    if (!nameHit && hits.length < MIN_HITS) continue;
     if (e.kind === "repo") s *= REPO_BOOST;
-    if (e.kind === "plugin" && (s < PLUGIN_BAR * FLOOR || (!nameHit && hits.length < PLUGIN_MIN_HITS))) continue;
-    if (s > 0) results.push({ name: e.name, kind: e.kind, score: Number(s.toFixed(3)), hits });
+    if (e.kind !== "repo" && s < NONREPO_BAR * FLOOR) continue;
+    // Printed hits are the heaviest terms first, so a brief's real subject shows before its filler words.
+    hits.sort((a, b) => b.w - a.w);
+    if (s > 0) results.push({ name: e.name, kind: e.kind, score: Number(s.toFixed(3)), hits: hits.map((h) => h.word) });
   }
   results.sort((a, b) => b.score - a.score || (b.kind === "repo") - (a.kind === "repo") || a.name.localeCompare(b.name));
   return results;
 }
 
-function readInput(argv) {
+/** A lane brief is mostly the template; every line that appears verbatim in the template says nothing about the task. */
+function withoutTemplate(text, root) {
+  let template;
+  try { template = readFileSync(join(root, TEMPLATE), "utf8"); } catch { return text; }
+  const boiler = new Set(template.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 12));
+  return text.split(/\r?\n/).filter((l) => !boiler.has(l.trim())).join("\n");
+}
+
+function readInput(argv, root) {
   const at = (flag) => { const i = argv.indexOf(flag); return i >= 0 ? argv[i + 1] : undefined; };
   if (at("--text") !== undefined) return { prompt: at("--text"), json: argv.includes("--json") };
-  if (at("--file") !== undefined) return { prompt: readFileSync(resolve(at("--file")), "utf8"), json: argv.includes("--json") };
+  if (at("--file") !== undefined) return { prompt: withoutTemplate(readFileSync(resolve(at("--file")), "utf8"), root), json: argv.includes("--json") };
   const raw = readFileSync(0, "utf8");
   const parsed = JSON.parse(raw);
   if (typeof parsed.prompt !== "string") throw new Error("stdin JSON has no prompt field");
   return { prompt: parsed.prompt, json: argv.includes("--json") };
 }
 
+/** `--scope global` (the ~/.claude/settings.json entry): stay silent in a project whose own settings already run this
+ * script, so the repo hook and the user hook never print twice. Any read error means "not registered": run normally. */
+function projectAlreadyRuns(root) {
+  try {
+    const settings = JSON.parse(readFileSync(join(root, ".claude", "settings.json"), "utf8"));
+    return (settings.hooks?.UserPromptSubmit ?? []).some((g) => (g.hooks ?? []).some((h) => String(h.command || "").includes("skill-recall.mjs")));
+  } catch {
+    return false;
+  }
+}
+
 function main() {
-  const { prompt, json } = readInput(process.argv.slice(2));
-  const index = loadIndex(repoRoot());
+  const argv = process.argv.slice(2);
+  const root = repoRoot();
+  const scope = argv.indexOf("--scope");
+  if (scope >= 0 && argv[scope + 1] === "global" && projectAlreadyRuns(root)) return;
+  const { prompt, json } = readInput(argv, root);
+  const index = loadIndex(root);
   const ranked = score(index, prompt);
   const picked = ranked.filter((r) => r.score >= FLOOR).slice(0, MAX_LINES);
   if (json) {
-    const counts = { total: index.entries.length, repo: 0, user: 0, plugin: 0 };
+    const counts = { total: index.entries.length, repo: 0, user: 0 };
     for (const e of index.entries) counts[e.kind] += 1;
     process.stdout.write(JSON.stringify({ index: counts, floor: FLOOR, picked, ranked: ranked.slice(0, 25) }, null, 2) + "\n");
     return;
   }
-  const lines = picked.map((r) => `[skill-recall] invoke: ${r.name} (${r.hits.slice(0, 4).join(", ")})`);
+  const lines = picked.map((r) => `[skill-recall] invoke: ${r.name.slice(0, 64)} (${r.hits.slice(0, 4).join(", ")})`);
   process.stdout.write((lines.length ? lines : ["[skill-recall] none beyond the always-on set"]).join("\n") + "\n");
 }
 

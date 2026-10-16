@@ -86,15 +86,21 @@ github-client canaries 403'd every PR whenever another workflow had spent the bu
   and it cannot make the model comply. `skillsFirstReminder.test.mjs` runs the configured command verbatim and
   asserts the line, the sources it names, and exit 0.
 - **UserPromptSubmit** (`skill-recall.mjs`, 2026-10-16, runs after the reminder) scores the prompt against every
-  installed SKILL.md (repo roots, `~/.claude/skills`, the plugin roots under `~/.claude/plugins`; 498 names on the
-  operator machine, 65 in CI) and prints at most five `[skill-recall] invoke: <name> (<matched words>)` lines, or
-  `none beyond the always-on set`. BM25 over name + description + triggers, a 3x name boost, 1.5x for repo skills,
-  the 13 always-on names filtered out, floor 7.5, and a higher bar for plugin-root entries (1.5x the floor plus a
-  name hit or two matched terms, review round 1: one generic word per library description outranked the repo
-  skills). The numbers and why are comments on the constants. Also a CLI
-  for lane briefs: `--text`, `--file <brief>`, `--json`. The index is cached in the OS temp dir, keyed by the roots'
-  mtimes; nothing is written inside the repo. `skillRecall.test.mjs` runs the real script on hook-shaped stdin:
-  positive controls, the none line, the always-on filter, three mutants, a corrupted cache, and a 2 s latency bound
+  SKILL.md under the two roots the Skill tool provably resolves, `.claude/skills` and `~/.claude/skills` (83 names on
+  the operator machine: 58 repo + 25 user-only; 58 in CI), and prints at most five
+  `[skill-recall] invoke: <name> (<matched words>)` lines, or `none beyond the always-on set`. The plugin trees under
+  `~/.claude/plugins` are not indexed: on disk a loaded plugin and a catalog copy look the same, and a name taken from
+  there was a failed Skill call for the reader (review round 3b). BM25 over the description, name and `triggers:`
+  tokens with a 3x boost, 1.5x for repo skills, the nine names other hooks force every turn filtered out, floor 7.5,
+  and two bars (review rounds 1 to 3): every entry needs a hit on a real name token or two matched terms, and a
+  user-root entry also needs 1.5x the floor, because one generic word per library description, or inside a trigger
+  phrase, printed a skill on its own. Every repo SKILL.md carries a `triggers:` frontmatter line written from its own
+  body; triggers score like name tokens. The numbers and why are comments on the constants. Also a CLI
+  for lane briefs: `--text`, `--file <brief>` (lines that appear verbatim in the brief template are dropped first),
+  `--json`, and `--scope global` for the user-level entry (silent inside a project whose own settings run the hook).
+  The index is cached in the OS temp dir, keyed by the roots' mtimes and the script's own source; nothing is written
+  inside the repo. `skillRecall.test.mjs` runs the real script on hook-shaped stdin:
+  positive controls, the none line, the always-on filter, six mutants, a corrupted cache, and a 2 s latency bound
   (measured 70 to 100 ms warm on the operator machine).
   **Why fail-open:** any error prints `[skill-recall] off: <reason>` and exits 0. Exit 2 on UserPromptSubmit blocks
   the prompt itself, so a bug in a recall helper would stop the operator from typing; a missing recall line costs one
