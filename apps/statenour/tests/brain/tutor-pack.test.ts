@@ -10,11 +10,12 @@
  * Stubs follow tests/brain/proactive-pushes.test.ts (prisma + telegram mocked,
  * the claim marker is the real claimPushSlot over a mocked create).
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const h = vi.hoisted(() => ({
   prisma: {
-    decisionReplay: { findFirst: vi.fn(), updateMany: vi.fn() },
+    decisionReplay: { findMany: vi.fn(), updateMany: vi.fn() },
+    masteryDecision: { findMany: vi.fn() },
     intelligenceOutcome: { findMany: vi.fn(), findUnique: vi.fn() },
     brainMemory: {
       findMany: vi.fn(),
@@ -91,6 +92,8 @@ function ledgerRow(over: Record<string, unknown> = {}) {
     id: "led_1",
     sourceEngine: "tutor:recall",
     decision: null,
+    resultRef: null,
+    outcomeAt: null,
     evidenceRefs: { correct: "B", memoryId: "w1", options: ["x", WISDOM[0].content, "y"] },
     ...over,
   };
@@ -98,7 +101,10 @@ function ledgerRow(over: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  h.prisma.decisionReplay.findFirst.mockResolvedValue(null);
+  h.prisma.decisionReplay.findMany.mockResolvedValue([]);
+  h.prisma.masteryDecision.findMany.mockImplementation(async (args: { where: { id: { in: number[] } } }) =>
+    args.where.id.in.map((id) => ({ id })),
+  );
   h.prisma.decisionReplay.updateMany.mockResolvedValue({ count: 1 });
   h.prisma.intelligenceOutcome.findMany.mockResolvedValue([]);
   h.prisma.intelligenceOutcome.findUnique.mockResolvedValue(null);
@@ -121,13 +127,13 @@ beforeEach(() => {
 
 describe("composeTutorItem priority", () => {
   it("an overdue decision review beats a recall question", async () => {
-    h.prisma.decisionReplay.findFirst.mockResolvedValue(REPLAY);
+    h.prisma.decisionReplay.findMany.mockResolvedValue([REPLAY]);
     const item = await composeTutorItem(NOW);
     expect(item).toMatchObject({ kind: "decision", replayId: "rp_1", decisionId: 41, title: "Hire a second tech" });
-    const where = h.prisma.decisionReplay.findFirst.mock.calls[0][0].where;
+    const where = h.prisma.decisionReplay.findMany.mock.calls[0][0].where;
     expect(where).toMatchObject({ reviewed: false, decisionId: { not: null } });
     expect(where.reviewAt.lte).toEqual(NOW);
-    expect(h.prisma.decisionReplay.findFirst.mock.calls[0][0].orderBy).toEqual({ reviewAt: "asc" });
+    expect(h.prisma.decisionReplay.findMany.mock.calls[0][0].orderBy).toEqual({ reviewAt: "asc" });
   });
 
   it("a wisdom asked in the last 30 days is excluded", async () => {
@@ -205,8 +211,8 @@ describe("renderTutorMessage", () => {
     for (const b of flat) expect(Buffer.byteLength(b.callback_data ?? "")).toBeLessThanOrEqual(64);
   });
 
-  it("decision: title, date, the choice, and Worked/Mixed/Didn't/Not yet buttons", async () => {
-    h.prisma.decisionReplay.findFirst.mockResolvedValue(REPLAY);
+  it("decision: title, date, the choice, and Worked/Mixed/Didn't/Not yet/Skip buttons", async () => {
+    h.prisma.decisionReplay.findMany.mockResolvedValue([REPLAY]);
     const item = (await composeTutorItem(NOW)) as TutorItem;
     const { text, buttons } = renderTutorMessage(item, "led_9");
     expect(text).toMatch(/^Decision review\. Hire a second tech \(2026-09-01\)\. You chose: Hire Zach part-time first\. How did it go\?$/);
@@ -215,6 +221,7 @@ describe("renderTutorMessage", () => {
       ["Mixed", "tut:led_9:M"],
       ["Didn't", "tut:led_9:D"],
       ["Not yet", "tut:led_9:N"],
+      ["Skip", "tut:led_9:S"],
     ]);
   });
 });
@@ -288,7 +295,8 @@ describe("handleTutorAnswer: recall grading", () => {
   it("skip -> dismissed, no grade, no spaced row", async () => {
     h.prisma.intelligenceOutcome.findUnique.mockResolvedValue(ledgerRow());
     expect(await handleTutorAnswer("led_1", "S")).toEqual({ reply: "Skipped." });
-    expect(h.recordDecision).toHaveBeenCalledWith(expect.objectContaining({ id: "led_1", decision: "dismissed" }));
+    // dismiss:timing keeps a Skip out of CORRECTION_WHERE (it is "not now", not a verdict).
+    expect(h.recordDecision).toHaveBeenCalledWith({ id: "led_1", decision: "dismissed", resultRef: "dismiss:timing" });
     expect(h.recordOutcomeResult).not.toHaveBeenCalled();
     expect(h.remember).not.toHaveBeenCalled();
   });
@@ -313,15 +321,24 @@ describe("handleTutorAnswer: decision mapping", () => {
     expect(h.recordOutcomeResult).toHaveBeenCalledWith(expect.objectContaining({ id: "led_1", useful: true }));
   });
 
-  it("Not yet -> dismissed, reviewAt pushed 7 days by compare-and-swap, never marked reviewed", async () => {
+  it("Not yet -> dismissed, reviewAt = max(now, prev) + 7 days by compare-and-swap, never marked reviewed", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(NOW);
     h.prisma.intelligenceOutcome.findUnique.mockResolvedValue(decisionRow());
     expect(await handleTutorAnswer("led_1", "N")).toEqual({ reply: "Pushed a week." });
     expect(h.markReplayed).not.toHaveBeenCalled();
-    expect(h.recordDecision).toHaveBeenCalledWith(expect.objectContaining({ id: "led_1", decision: "dismissed" }));
+    expect(h.recordDecision).toHaveBeenCalledWith({ id: "led_1", decision: "dismissed", resultRef: "dismiss:timing" });
     const call = h.prisma.decisionReplay.updateMany.mock.calls[0][0];
     expect(call.where).toEqual({ id: "rp_1", reviewed: false, reviewAt: REPLAY.reviewAt });
     expect(call.data.reviewed).toBeUndefined();
-    expect(call.data.reviewAt.getTime()).toBe(REPLAY.reviewAt.getTime() + 7 * DAY);
+    // REPLAY.reviewAt is 15 days overdue: prev + 7 would land in the past and re-ask tomorrow.
+    expect(call.data.reviewAt.getTime()).toBe(NOW.getTime() + 7 * DAY);
+  });
+
+  it("Not yet on a row whose review date already moved -> the lost swap is said, not Pushed a week.", async () => {
+    h.prisma.intelligenceOutcome.findUnique.mockResolvedValue(decisionRow());
+    h.prisma.decisionReplay.updateMany.mockResolvedValue({ count: 0 });
+    expect(await handleTutorAnswer("led_1", "N")).toEqual({ reply: "Noted. The review date had already moved." });
   });
 
   it("a failed markReplayed is said, not folded into Logged.", async () => {
@@ -334,7 +351,7 @@ describe("handleTutorAnswer: decision mapping", () => {
 
 describe("handleTutorAnswer: a redelivered tap is a no-op", () => {
   it("row already decided -> Already recorded. and no writes", async () => {
-    h.prisma.intelligenceOutcome.findUnique.mockResolvedValue(ledgerRow({ decision: "accepted" }));
+    h.prisma.intelligenceOutcome.findUnique.mockResolvedValue(ledgerRow({ decision: "accepted", resultRef: "tutor:B", outcomeAt: NOW }));
     expect(await handleTutorAnswer("led_1", "B")).toEqual({ reply: "Already recorded." });
     expect(h.recordDecision).not.toHaveBeenCalled();
     expect(h.recordOutcomeResult).not.toHaveBeenCalled();
@@ -359,11 +376,17 @@ describe("handleTutorAnswer: a redelivered tap is a no-op", () => {
 
   it("CONTROL: two identical taps -> one grade (second answers Already recorded.)", async () => {
     let decided: string | null = null;
-    h.prisma.intelligenceOutcome.findUnique.mockImplementation(async () => ledgerRow({ decision: decided }));
+    let outcomeAt: Date | null = null;
+    h.prisma.intelligenceOutcome.findUnique.mockImplementation(async () => ledgerRow({ decision: decided, outcomeAt, resultRef: decided ? "tutor:B" : null }));
     h.recordDecision.mockImplementation(async ({ decision }: { decision: string }) => {
       if (decided) return false;
       decided = decision;
       return true;
+    });
+    h.recordOutcomeResult.mockImplementation(async () => {
+      if (outcomeAt) return "already";
+      outcomeAt = NOW;
+      return "recorded";
     });
     expect((await handleTutorAnswer("led_1", "B")).reply).toBe("Right. Next ask in 1 day.");
     expect((await handleTutorAnswer("led_1", "B")).reply).toBe("Already recorded.");
@@ -471,5 +494,184 @@ describe("fireSlotForCurrentHour: the tutor rides the morning hour, after the mo
     const r = await fireSlotForCurrentHour({ now: new Date("2026-10-16T14:00:00-04:00") });
     expect((r as { tutor?: unknown }).tutor).toBeUndefined();
     expect(h.recordShown).not.toHaveBeenCalledWith(expect.objectContaining({ sourceEngine: expect.stringMatching(/^tutor:/) }));
+  });
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+describe("review round 1 (2026-10-16)", () => {
+  const decisionRow = (over: Record<string, unknown> = {}) =>
+    ledgerRow({
+      sourceEngine: "tutor:decision",
+      evidenceRefs: { decisionId: 41, replayId: "rp_1", reviewAt: REPLAY.reviewAt.toISOString(), options: ["W", "M", "D", "N", "S"] },
+      ...over,
+    });
+  const spacedRow = (over: Record<string, unknown> = {}) => ({
+    id: "sr_1",
+    deletedAt: null,
+    content: JSON.stringify({ topic: "physics", summary: WISDOM[0].content, reviewAt: new Date(NOW.getTime() - DAY).toISOString(), interval: 3, completed: false, streak: 2, memoryId: "w1" }),
+    ...over,
+  });
+
+  // P1-A: a spaced_review row must outlive the nightly TTL sweep, or the 1/3/7/30 ladder never climbs.
+  it("P1-A: a new spaced_review row is written with no TTL (expiresAt null after remember())", async () => {
+    h.prisma.intelligenceOutcome.findUnique.mockResolvedValue(ledgerRow());
+    await handleTutorAnswer("led_1", "B");
+    expect(h.remember).toHaveBeenCalledTimes(1);
+    const ttl = h.prisma.brainMemory.updateMany.mock.calls.map((c) => c[0]).find((a) => a.data && "expiresAt" in a.data);
+    expect(ttl).toMatchObject({ where: { category: "spaced_review", key: "tutor_w1" }, data: { expiresAt: null } });
+  });
+
+  it("P1-A: an updated spaced_review row also clears expiresAt", async () => {
+    h.prisma.intelligenceOutcome.findUnique.mockResolvedValue(ledgerRow());
+    h.prisma.brainMemory.findUnique.mockResolvedValue(spacedRow());
+    await handleTutorAnswer("led_1", "B");
+    expect(h.prisma.brainMemory.updateMany.mock.calls[0][0].data.expiresAt).toBeNull();
+  });
+
+  // P1-B: a failure after the won claim must not strand the tap behind "Already recorded."
+  it("P1-B: recordOutcomeResult failed, then an identical tap resumes and completes the grade", async () => {
+    h.prisma.intelligenceOutcome.findUnique.mockResolvedValueOnce(ledgerRow());
+    h.recordOutcomeResult.mockResolvedValueOnce("failed");
+    expect((await handleTutorAnswer("led_1", "B")).reply).toBe("Could not record - try again.");
+    h.prisma.intelligenceOutcome.findUnique.mockResolvedValueOnce(ledgerRow({ decision: "accepted", resultRef: "tutor:B" }));
+    expect((await handleTutorAnswer("led_1", "B")).reply).toBe("Right. Next ask in 1 day.");
+    expect(h.recordDecision).toHaveBeenCalledTimes(1);
+    expect(h.recordOutcomeResult).toHaveBeenCalledTimes(2);
+    expect(h.remember).toHaveBeenCalledTimes(1);
+  });
+
+  it("P1-B: a resumed tap grades the choice the claim recorded, not a different later tap", async () => {
+    h.prisma.intelligenceOutcome.findUnique.mockResolvedValue(ledgerRow({ decision: "accepted", resultRef: "tutor:A" }));
+    expect((await handleTutorAnswer("led_1", "B")).reply).toMatch(/^Not this one\./);
+    expect(h.recordOutcomeResult).toHaveBeenCalledWith(expect.objectContaining({ useful: false }));
+  });
+
+  it("P1-B: two resumes race; the outcome swap loser answers Already recorded. and schedules nothing", async () => {
+    h.prisma.intelligenceOutcome.findUnique.mockResolvedValue(ledgerRow({ decision: "accepted", resultRef: "tutor:B" }));
+    h.recordOutcomeResult.mockResolvedValue("already");
+    expect((await handleTutorAnswer("led_1", "B")).reply).toBe("Already recorded.");
+    expect(h.remember).not.toHaveBeenCalled();
+    expect(h.prisma.brainMemory.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("P1-B: markReplayed ok:false, then a retry completes the decision review", async () => {
+    h.prisma.intelligenceOutcome.findUnique.mockResolvedValueOnce(decisionRow());
+    h.markReplayed.mockResolvedValueOnce({ ok: false, replayId: null, lessonStored: false });
+    expect((await handleTutorAnswer("led_1", "W")).reply).toBe("Could not record - try again.");
+    h.prisma.intelligenceOutcome.findUnique.mockResolvedValueOnce(decisionRow({ decision: "accepted", resultRef: "tutor:W" }));
+    expect((await handleTutorAnswer("led_1", "W")).reply).toBe("Logged.");
+    expect(h.markReplayed).toHaveBeenCalledTimes(2);
+    expect(h.recordOutcomeResult).toHaveBeenCalledTimes(1);
+  });
+
+  it("P1-B: a dismissed row (Skip / Not yet) is final: a redelivered tap is Already recorded.", async () => {
+    h.prisma.intelligenceOutcome.findUnique.mockResolvedValue(ledgerRow({ decision: "dismissed", resultRef: "dismiss:timing" }));
+    expect((await handleTutorAnswer("led_1", "S")).reply).toBe("Already recorded.");
+    expect(h.recordOutcomeResult).not.toHaveBeenCalled();
+  });
+
+  it("P1-B: a spaced write that throws is said: no 'Next ask in N days'", async () => {
+    h.prisma.intelligenceOutcome.findUnique.mockResolvedValue(ledgerRow());
+    h.remember.mockRejectedValue(new Error("db down"));
+    expect((await handleTutorAnswer("led_1", "B")).reply).toBe("Logged, schedule failed.");
+  });
+
+  it("P1-B: a lost spaced swap (count 0) is a failed schedule, not a silent success", async () => {
+    h.prisma.intelligenceOutcome.findUnique.mockResolvedValue(ledgerRow());
+    h.prisma.brainMemory.findUnique.mockResolvedValue(spacedRow());
+    h.prisma.brainMemory.updateMany.mockResolvedValue({ count: 0 });
+    expect((await handleTutorAnswer("led_1", "A")).reply).toBe(`Not this one. It was: ${WISDOM[0].content}. Logged, schedule failed.`);
+  });
+
+  // P1-E: decision and wisdom text must not reach Railway logs or Inngest step output.
+  it("P1-E: a live fire result carries no message text", async () => {
+    const r = await fireTutorPush({ now: NOW });
+    expect(r).toMatchObject({ kind: "live", fired: true });
+    expect("text" in r).toBe(false);
+    const slot = await fireSlotForCurrentHour({ now: new Date(NOW.getTime() + 60_000) });
+    const tutor = (slot as { tutor?: Record<string, unknown> }).tutor;
+    expect(tutor).toBeDefined();
+    expect("text" in (tutor as object)).toBe(false);
+  });
+
+  it("P2-F: a long decision title is clipped to 200 chars", () => {
+    const item: TutorItem = { kind: "decision", replayId: "r", decisionId: 1, title: "t".repeat(400), date: "2026-09-01", chosen: "c", reviewAt: NOW };
+    const { text } = renderTutorMessage(item, "led_1");
+    expect(text).toContain(`${"t".repeat(197)}...`);
+    expect(text).not.toContain("t".repeat(201));
+  });
+
+  it("P2-G: the correct letter for one wisdom changes across days", async () => {
+    const letters = new Set<string>();
+    for (let d = 0; d < 3; d++) {
+      const item = (await composeTutorItem(new Date(NOW.getTime() + d * DAY))) as Extract<TutorItem, { kind: "recall" }>;
+      expect(item.memoryId).toBe("w1");
+      expect(item.options["ABC".indexOf(item.correct)]).toBe(WISDOM[0].content);
+      letters.add(item.correct);
+    }
+    expect(letters.size).toBeGreaterThan(1);
+  });
+
+  it("P2-H: a replay whose MasteryDecision is gone is skipped; the next live one is asked", async () => {
+    h.prisma.decisionReplay.findMany.mockResolvedValue([{ ...REPLAY, id: "rp_dead", decisionId: 99 }, REPLAY]);
+    h.prisma.masteryDecision.findMany.mockResolvedValue([{ id: 41 }]);
+    const item = await composeTutorItem(NOW);
+    expect(item).toMatchObject({ kind: "decision", replayId: "rp_1", decisionId: 41 });
+  });
+
+  it("P2-H: only dead replays -> recall is asked instead (a stuck decision does not starve recall)", async () => {
+    h.prisma.decisionReplay.findMany.mockResolvedValue([{ ...REPLAY, id: "rp_dead", decisionId: 99 }]);
+    h.prisma.masteryDecision.findMany.mockResolvedValue([]);
+    expect((await composeTutorItem(NOW))?.kind).toBe("recall");
+  });
+
+  it("P2-H: Skip on a decision review -> dismissed as timing, no reschedule, no markReplayed", async () => {
+    h.prisma.intelligenceOutcome.findUnique.mockResolvedValue(decisionRow());
+    expect(await handleTutorAnswer("led_1", "S")).toEqual({ reply: "Skipped." });
+    expect(h.recordDecision).toHaveBeenCalledWith({ id: "led_1", decision: "dismissed", resultRef: "dismiss:timing" });
+    expect(h.prisma.decisionReplay.updateMany).not.toHaveBeenCalled();
+    expect(h.markReplayed).not.toHaveBeenCalled();
+  });
+
+  it("P2-I: a picker read that threw reports read_failed, not nothing_eligible", async () => {
+    h.prisma.brainMemory.findMany.mockRejectedValue(new Error("db down"));
+    const r = await fireTutorPush({ now: NOW });
+    expect(r).toMatchObject({ fired: false, reason: "read_failed" });
+    const p = await fireTutorPush({ now: NOW, dryRun: true });
+    expect(p.reason).toBe("read_failed");
+  });
+
+  it("P2-J: Skip on a recall item with a due spaced row pushes its reviewAt one day (compare-and-swap)", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(NOW);
+    h.prisma.intelligenceOutcome.findUnique.mockResolvedValue(ledgerRow());
+    const prev = spacedRow();
+    h.prisma.brainMemory.findUnique.mockResolvedValue(prev);
+    expect(await handleTutorAnswer("led_1", "S")).toEqual({ reply: "Skipped." });
+    const call = h.prisma.brainMemory.updateMany.mock.calls[0][0];
+    expect(call.where).toMatchObject({ id: "sr_1", content: prev.content, deletedAt: null });
+    const next = JSON.parse(call.data.content);
+    expect(new Date(next.reviewAt).getTime()).toBe(NOW.getTime() + DAY);
+    expect(next.streak).toBe(2);
+  });
+
+  it("P2-J: Skip with no spaced row writes nothing", async () => {
+    h.prisma.intelligenceOutcome.findUnique.mockResolvedValue(ledgerRow());
+    await handleTutorAnswer("led_1", "S");
+    expect(h.prisma.brainMemory.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("P2-K: a soft-deleted spaced row is treated as absent: fresh streak, revived visible, no TTL", async () => {
+    h.prisma.intelligenceOutcome.findUnique.mockResolvedValue(ledgerRow());
+    const deletedAt = new Date("2026-10-10T00:00:00Z");
+    h.prisma.brainMemory.findUnique.mockResolvedValue(spacedRow({ deletedAt }));
+    expect((await handleTutorAnswer("led_1", "B")).reply).toBe("Right. Next ask in 1 day.");
+    const call = h.prisma.brainMemory.updateMany.mock.calls[0][0];
+    expect(call.where).toMatchObject({ id: "sr_1", deletedAt });
+    expect(call.data).toMatchObject({ deletedAt: null, expiresAt: null });
+    expect(JSON.parse(call.data.content)).toMatchObject({ streak: 1, interval: 1 });
   });
 });
