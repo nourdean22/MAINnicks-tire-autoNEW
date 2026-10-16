@@ -24,7 +24,7 @@ import ChecksRail from "./today/ChecksRail";
 import ExceptionFeed from "./today/ExceptionFeed";
 import { MorningBrief } from "./today/MorningBrief";
 import { getQueueActionDefinition } from "./today/queueActions";
-import QueueRow from "./today/QueueRow";
+import { QueueRow } from "./today/QueueRow";
 import type { ActionItem, BookingItem, CallbackItem, LeadItem, WorkOrderItem } from "./today/types";
 
 const ACTIVE_LEAD_STATUSES = new Set(["new", "contacted"]);

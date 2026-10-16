@@ -6,7 +6,7 @@
 import { useState, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 
-export const CHECKS_STORAGE_KEY = "nicks-admin-today-checks";
+const CHECKS_STORAGE_KEY = "nicks-admin-today-checks";
 
 function initialOpen(): boolean {
   try {
