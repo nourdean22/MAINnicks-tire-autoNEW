@@ -7,10 +7,13 @@
  * server brief (`operator.brief`, built by lib/home/operator-brief.ts)
  * feeds a FIXED six-section structure whose CONTENT adapts:
  *
- *   1 · State line — date · measured health · one sentence of state
- *   2 · The brief — one recommended move, real reasons, ≤2 alternatives
- *   3 · Nick — a single command line (slash routing; power hidden until asked)
- *   4 · Needs judgment — the only queue: things only Nour can decide
+ *   1 · State line — date · measured health · one sentence of state (the
+ *       verdict; since UI v3 W2 the hero of the page)
+ *   2 · Nick — a single command line (slash routing; power hidden until asked);
+ *       since W2 it sits right under the verdict
+ *   3+4 · The brief (W2: components/home/brief-rows.tsx) — one ruled list of at
+ *       most seven rows: the recommended move, then what needs judgment, then the
+ *       horizon; Keep / Less per row; approvals in place
  *   5 · Horizon — one pointer per time scope, never a task list
  *   6 · Since last visit — a semantic diff, not a timeline
  *   7 · Waiting on others (rail, 2026-10-02) — who owes the operator what,
