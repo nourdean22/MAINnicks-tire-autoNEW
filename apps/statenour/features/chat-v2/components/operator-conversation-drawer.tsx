@@ -21,6 +21,7 @@ export function OperatorConversationDrawer({
   onArchive,
   onNew,
   onShowActions,
+  actionsDisabled = false,
   onClose,
 }: {
   convos: Convo[];
@@ -39,6 +40,8 @@ export function OperatorConversationDrawer({
   onArchive: (id: string) => void;
   onNew: () => void;
   onShowActions: () => void;
+  /** PR #3090: true while a conversation opens; "/receipts" would land in a thread not yet on screen. */
+  actionsDisabled?: boolean;
   onClose: () => void;
 }) {
   const [query, setQuery] = useState("");
@@ -74,7 +77,7 @@ export function OperatorConversationDrawer({
       </div>
 
       <div className="space-y-2 border-b border-edge p-3">
-        <button onClick={onShowActions} className="flex min-h-11 w-full items-center gap-2 rounded-control border border-edge-default bg-content px-3 text-left text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg">
+        <button type="button" onClick={onShowActions} disabled={actionsDisabled} className="disabled:opacity-50 flex min-h-11 w-full items-center gap-2 rounded-control border border-edge-default bg-content px-3 text-left text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg">
           <History size={14} /> Verified recent actions
         </button>
         <div className="relative">

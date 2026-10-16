@@ -436,8 +436,8 @@ export function ChatIsland() {
             hold={chat.hold}
             liveContextBlocks={chat.liveContextBlocks}
             lastTraceId={chat.lastTraceId}
-            onRetry={() => void chat.regenerate()}
-            onCommand={(prompt) => chat.sendText(prompt)}
+            onRetry={() => { if (!conversations.isLoadingConvo) void chat.regenerate(); }}
+            onCommand={(prompt) => { if (!conversations.isLoadingConvo) chat.sendText(prompt); }}
             tts={tts}
             stopped={chat.stopped}
             conversationId={privateMode ? null : activeConversationId}
@@ -557,7 +557,10 @@ export function ChatIsland() {
               conversations.newChat();
               setHistoryDrawerOpen(false);
             }}
+            // PR #3090: every send entry point waits for an opening conversation (the composer says why).
+            actionsDisabled={conversations.isLoadingConvo}
             onShowActions={() => {
+              if (conversations.isLoadingConvo) return;
               setHistoryDrawerOpen(false);
               chat.sendText("/receipts");
             }}
