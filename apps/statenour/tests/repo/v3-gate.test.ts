@@ -892,6 +892,10 @@ function workflowProblems(wf: Workflow): string[] {
 
   if (smoke.if !== RUN_GUARD) problems.push("smoke step guard changed");
   if (smoke.run !== SMOKE_RUN) problems.push("smoke step command changed");
+  // W2 (2026-10-16): the v3 gate runs in every statenour e2e run. The spec's opt-in reads exactly
+  // process.env.VT_V3 === "1" (RENDER_LINES.optIn above), so this is the line the consumer reads.
+  if (smoke.env?.VT_V3 !== "1") problems.push("smoke step does not set VT_V3=1, so the v3 gate is skipped in the default run");
+  if (smoke.env?.VT_V3_CAPTURE !== undefined) problems.push("smoke step sets VT_V3_CAPTURE, which would overwrite the frozen baselines on every run");
   if (capture.if !== CAPTURE_GUARD) problems.push("capture step guard is not the inverse of the smoke guard");
   if (capture.run !== CAPTURE_RUN) problems.push(`capture step command is not exactly the v3-only run: ${JSON.stringify(capture.run)}`);
   if (capture.env?.VT_V3 !== "1" || capture.env?.VT_V3_CAPTURE !== "1") problems.push("capture step does not set VT_V3=1 and VT_V3_CAPTURE=1");
@@ -1009,6 +1013,15 @@ describe(".github/workflows/e2e-statenour.yml capture path", () => {
       },
       "the smoke step loses its guard": (w) => {
         delete named(w, "Run authenticated E2E smoke").if;
+      },
+      "the smoke step no longer switches the v3 gate on": (w) => {
+        delete named(w, "Run authenticated E2E smoke").env!.VT_V3;
+      },
+      "the smoke step switches the gate on by any value": (w) => {
+        named(w, "Run authenticated E2E smoke").env!.VT_V3 = "true";
+      },
+      "the smoke step captures instead of comparing": (w) => {
+        named(w, "Run authenticated E2E smoke").env!.VT_V3_CAPTURE = "1";
       },
     };
     for (const [name, mutate] of Object.entries(mutants)) {
