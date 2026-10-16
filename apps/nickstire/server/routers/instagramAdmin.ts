@@ -1218,6 +1218,21 @@ Keep it under 200 characters.`;
   commentResponderStatus: adminProcedure.query(async (): Promise<CommentResponderStatus> =>
     readCommentResponderStatus(await dbTyped()),
   ),
+  /** Attach operator-rendered per-beat clips (higgsfield.ai web app) to a needs_regen or queued
+   *  reel job as assets_ready; assembly, QA, approval and publish then run as usual. Refusals are
+   *  returned as { ok: false, refusal }, never thrown (services/externalClips.ts). */
+  attachExternalClips: adminProcedure
+    .input(z.object({
+      jobId: z.number().int().positive(),
+      clipUrls: z.array(z.string().min(1).max(2000)).min(1).max(12),
+      source: z.literal("higgsfield-web"),
+      model: z.string().max(64).optional(),
+      note: z.string().max(500).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const { attachExternalClips } = await import("../services/externalClips");
+      return attachExternalClips(input, { attachedBy: `admin:${ctx.user?.id ?? "unknown"}` });
+    }),
 
   /** Provider + autopost run health. Surfaces WHICH AI provider is actually
    *  active and whether its key is present — the root cause of silent

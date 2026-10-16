@@ -1,21 +1,11 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 import { mkdirSync } from "node:fs";
+import { collectFirstPartyErrors } from "./helpers";
 
 const STORAGE_STATE = process.env.E2E_ADMIN_STORAGE_STATE;
 test.use(STORAGE_STATE ? { storageState: STORAGE_STATE } : {});
 
 const VIEWS = ["today", "create", "publish", "community", "insights", "strategy"] as const;
-
-function collectFirstPartyErrors(page: Page): string[] {
-  const errors: string[] = [];
-  page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
-  page.on("console", (m) => {
-    if (m.type() !== "error") return;
-    const text = m.text();
-    if (/TRPCClientError|\/api\/|\/trpc\//.test(text)) errors.push("console: " + text);
-  });
-  return errors;
-}
 
 test.beforeEach(() => {
   test.skip(!STORAGE_STATE, "E2E_ADMIN_STORAGE_STATE is required for authenticated admin visual QA");

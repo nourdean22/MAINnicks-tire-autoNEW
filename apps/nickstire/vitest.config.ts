@@ -66,6 +66,9 @@ export default defineConfig({
       // COULD be unit-tested; this glob is what makes that extraction worth
       // anything.
       "scripts/**/*.test.ts",
+      // Pure helpers of the Playwright lane (the admin v1 distance measure and
+      // fixture router); playwright.config.ts collects only *.spec.ts there.
+      "tests/e2e/**/*.test.ts",
     ],
     environmentMatchGlobs: [
       ["client/src/__tests__/**", "jsdom"],
