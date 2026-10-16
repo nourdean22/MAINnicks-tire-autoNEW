@@ -766,7 +766,7 @@ export async function enqueueReelJob(
 
   try {
     const { buildHiggsfieldReelPromptPack } = await import("../../client/src/lib/facelessReelStudio");
-    const promptPack = buildHiggsfieldReelPromptPack(brief as any);
+    const promptPack = buildHiggsfieldReelPromptPack(brief as any, { imageConditioning: process.env.REEL_IMAGE_CONDITIONING === "true" });
     brief.promptPack = promptPack;
     brief.higgsfieldPromptPack = promptPack;
   } catch (e) {

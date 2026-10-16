@@ -1367,7 +1367,7 @@ If any aspect is not perfect, rewrite the fields directly. OUTPUT ONLY the corre
   };
 
   const { buildHiggsfieldReelPromptPack } = await import("../../client/src/lib/facelessReelStudio");
-  const pPack = buildHiggsfieldReelPromptPack(brief);
+  const pPack = buildHiggsfieldReelPromptPack(brief, { imageConditioning: process.env.REEL_IMAGE_CONDITIONING === "true" });
   brief.promptPack = pPack;
   brief.higgsfieldPromptPack = pPack;
 

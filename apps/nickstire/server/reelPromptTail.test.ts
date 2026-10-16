@@ -40,6 +40,14 @@ describe("prompt pack tail", () => {
     for (const p of offPack) expect(p.prompt).toContain(NO_MORPH);
   });
 
+  it("real_shop_still world WITH a hero URL, imageConditioning false -> the storefront beat carries the no-morph line", () => {
+    // REEL_IMAGE_CONDITIONING off: the pipeline sends no start image to any beat, so none may skip the line.
+    const offPack = buildHiggsfieldReelPromptPack(brief, { imageConditioning: false });
+    for (const p of offPack) expect(p.prompt).toContain(NO_MORPH);
+    // and explicitly on matches the default
+    expect(buildHiggsfieldReelPromptPack(brief, { imageConditioning: true })[0].prompt).not.toContain(NO_MORPH);
+  });
+
   it("the beat restatement is still the last thing the model reads", () => {
     for (const p of pack) {
       const tailAt = p.prompt.indexOf(UNBRANDED);

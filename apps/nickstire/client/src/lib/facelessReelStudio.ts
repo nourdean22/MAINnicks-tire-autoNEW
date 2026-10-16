@@ -1954,7 +1954,7 @@ const UNBRANDED_HARDWARE_LINE =
 const NO_MORPH_OPENING_LINE =
   "the subject fills the opening frame from the very first frame; no establishing shot, no transition, no morph";
 
-export function buildHiggsfieldReelPromptPack(brief: ReelBrief): HiggsfieldBeatPrompt[] {
+export function buildHiggsfieldReelPromptPack(brief: ReelBrief, opts: { imageConditioning?: boolean } = {}): HiggsfieldBeatPrompt[] {
   const lens = MOTION_LENSES[brief.motionLens];
   const persona = heroPersona(brief.objectCharacter);
   const continuity = buildReelContinuityBlock(brief);
@@ -2010,9 +2010,9 @@ export function buildHiggsfieldReelPromptPack(brief: ReelBrief): HiggsfieldBeatP
           : (conditioningMode === "hero_image"
               ? `Opening frame: establish the hero identity every later beat will share - clear, unbranded, wordless; strongest possible first frame.`
               : `Opening frame: strongest possible first frame - the hero object clearly readable at a glance.`),
-        // Same rule the pipeline uses to hand out the start photo (shared/reelStartFrame.ts).
-        // shortcut: conditioningMode tracks the stored hero URL, not REEL_IMAGE_CONDITIONING (client code cannot read it); with the flag off and a stored hero the line is still omitted. Upgrade by passing the flag in.
-        ...(conditioningMode === "hero_image" && startImageForBeat(b, brief.visualWorld) ? [] : [NO_MORPH_OPENING_LINE]),
+        // Same rule the pipeline uses to hand out the start photo (shared/reelStartFrame.ts), plus the
+        // REEL_IMAGE_CONDITIONING flag the server callers pass in: with it off no beat gets a start image.
+        ...(opts.imageConditioning !== false && conditioningMode === "hero_image" && startImageForBeat(b, brief.visualWorld) ? [] : [NO_MORPH_OPENING_LINE]),
         `Timing: complete the primary action by ${actionCompleteBySec} seconds; keep every frame after that visually stable${isLast ? ", settled on a frame that echoes the opening shot for a seamless loop" : ", ready for a match cut into the next shot"}.`,
         facelessCleanSceneDirective(brief.motionLens),
         UNBRANDED_HARDWARE_LINE,
