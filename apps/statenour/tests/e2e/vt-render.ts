@@ -37,10 +37,22 @@ export const VT_CONTEXT = { locale: "en-US", timezoneId: "America/New_York" } as
  */
 export const IGNORED_PAGE_ERRORS = /hydration/i;
 
-/** Wave 0b covers Home and Missions only; Chat, Brain, People and System come later. */
-export const V3_PAGES: { key: string; path: string; landmark: string }[] = [
+/**
+ * Wave 0b covered Home and Missions; W3a adds Chat; Brain, People and System come later.
+ *
+ * `baselinePending`: the page renders from fixtures on every run (anchor, error
+ * states, unstubbed reads all gate), but its frozen baseline has not been
+ * captured yet, so a MISSING PNG skips the distance comparison with a reason
+ * instead of failing (baselineSkipReason in ./v3-gate.ts). Chat is pending
+ * until the manager captures its pre-W3 baseline from main after W3a merges;
+ * W3b removes the flag in the same commit that adds the PNGs, and
+ * tests/repo/v3-gate.test.ts fails if a flagged page already has them.
+ */
+export const V3_PAGES: { key: string; path: string; landmark: string; baselinePending?: boolean }[] = [
   { key: "home", path: "/", landmark: "main" },
   { key: "missions", path: "/missions", landmark: "main" },
+  // ?h=1 opens the History drawer, the only way a conversation loads (openChatHistory above).
+  { key: "chat", path: "/chat?h=1", landmark: "main", baselinePending: true },
 ];
 
 export const V3_VIEWPORTS = [

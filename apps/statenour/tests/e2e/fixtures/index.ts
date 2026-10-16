@@ -25,7 +25,7 @@
  */
 import type { Page } from "@playwright/test";
 
-import { CHAT_CONVERSATION, CHAT_LIST, CHAT_PROVIDER_HEALTH, CHAT_REPLY, CHAT_TITLE, CHAT_TOOLS_HEALTH } from "./chat";
+import { CHAT_CONVERSATION, CHAT_LIST, CHAT_MIT, CHAT_PROVIDER_HEALTH, CHAT_REPLY, CHAT_TITLE, CHAT_TOOLS_HEALTH } from "./chat";
 import { HOME_BRIEF, HOME_REMEMBERS, HOME_WAITING } from "./home";
 import { ALPHA_TITLE, MISSIONS, MISSIONS_DECK, MISSION_TASKS, NEXT_MOVE_TITLE } from "./missions";
 import { SHELL_PULSE, SHELL_TICKER } from "./shell";
@@ -91,6 +91,7 @@ export const TRPC_FIXTURES: Record<string, unknown> = {
   "system.toolsHealth": CHAT_TOOLS_HEALTH,
   "chat.list": CHAT_LIST,
   "chat.conversation": CHAT_CONVERSATION,
+  "operator.mit": CHAT_MIT,
 };
 
 /**
@@ -110,6 +111,16 @@ export const DEMO = {
   chatReply: CHAT_REPLY,
   chatTitle: CHAT_TITLE,
 } as const;
+
+/**
+ * REST reads a page makes on load that the real server answers with an empty 204 (W3a).
+ * useChat({ resume: true }) probes /api/ai/chat/none/stream on every /chat mount and the
+ * route answers 204 for "none"; a 404 there makes useChat's onError flip the header pill
+ * to "chat degraded". Exact "METHOD /path" only, so a real conversation id is never
+ * pretended into having a stream; tests/repo/v3-gate.test.ts reads the route to prove
+ * the 204 is the server's own.
+ */
+export const REST_NO_CONTENT: ReadonlySet<string> = new Set(["GET /api/ai/chat/none/stream"]);
 
 export interface FixtureReport {
   /** "METHOD procedure" or "METHOD /path" for every data call the fixtures refused. */
@@ -146,6 +157,8 @@ export function answerApi(method: string, url: URL, report: FixtureReport): ApiA
     return { kind: "fulfill", status: 200, body: batched ? results : results[0] };
   }
 
+  if (REST_NO_CONTENT.has(`${method} ${pathname}`)) return { kind: "fulfill", status: 204, body: undefined };
+
   report.unstubbed.add(`${method} ${pathname}`);
   return { kind: "fulfill", status: 404, body: { error: "not stubbed by the v3 fixtures" } };
 }
@@ -166,6 +179,10 @@ export async function installFixtures(page: Page): Promise<FixtureReport> {
       const answer = answerApi(request.method(), new URL(request.url()), report);
       if (answer.kind === "passthrough") {
         await route.fallback();
+        return;
+      }
+      if (answer.status === 204) {
+        await route.fulfill({ status: 204 });
         return;
       }
       await route.fulfill({

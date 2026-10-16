@@ -3,11 +3,13 @@
  * Wave 3a). Typed against the routers' own output types, so a contract change
  * breaks `tsc` here (a failing type is a fixture bug, not something to cast away).
  *
- * The four reads /chat makes on load:
+ * The reads /chat makes on load:
  *   system.providerHealth, system.toolsHealth  the header pill (chat-capability-indicator.tsx)
  *   chat.list                                  the conversation list (hooks/use-conversations.ts)
  *   chat.conversation                          the seeded conversation's messages, read when the
  *                                              operator picks it in the History drawer
+ *   operator.mit                               the composer's @mit mention (hooks/use-mention-suggestions.ts)
+ * plus one REST probe, GET /api/ai/chat/none/stream, answered with a 204 in ./index.ts (REST_NO_CONTENT).
  *
  * /chat does NOT open a conversation on its own ("no auto-resume, user picks from
  * history", use-conversations.ts), so the six-feet render opens the drawer with
@@ -22,7 +24,8 @@ import type { inferRouterOutputs } from "@trpc/server";
 
 import type { AppRouter } from "@/lib/trpc/root";
 
-import { NOW_MS } from "./time";
+import { SHELL_PULSE } from "./shell";
+import { FIXED_TIME, NOW_MS } from "./time";
 
 type RouterOutputs = inferRouterOutputs<AppRouter>;
 
@@ -36,6 +39,16 @@ export const CHAT_REPLY = "Demo reply: the demo supplier quote is drafted and wa
 const CHAT_QUESTION = "Demo question: where does the demo supplier quote stand?";
 
 const CONVERSATION_ID = "demo-conv-1";
+
+/**
+ * operator.mit, read by the composer's @mit mention hook on mount. The same MIT the shell's pulse strip
+ * shows (SHELL_PULSE), keyed by the ET day of the pinned clock (FIXED_TIME is written in ET).
+ */
+export const CHAT_MIT: RouterOutputs["operator"]["mit"] = {
+  key: FIXED_TIME.slice(0, 10),
+  text: SHELL_PULSE.items.find((i) => i.kind === "mit")?.text ?? null,
+  updatedAt: minutesAgo(240),
+};
 
 export const CHAT_PROVIDER_HEALTH: RouterOutputs["system"]["providerHealth"] = {
   generatedAt: minutesAgo(0),

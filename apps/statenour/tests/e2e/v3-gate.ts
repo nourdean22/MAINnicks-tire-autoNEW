@@ -63,6 +63,21 @@ export function v3GateVerdict(input: GateInput): GateVerdict {
 }
 
 /**
+ * Why a page's comparison is skipped, or null when it must run (W3a).
+ *
+ * A page that is still `baselinePending` (V3_PAGES in ./vt-render.ts) and has no
+ * baseline PNG yet skips with a reason, so CI stays green while its baseline is
+ * waiting to be captured from main. Everything else keeps the hard rule in
+ * v3GateVerdict: a missing baseline for a page that is NOT pending is a failure,
+ * and once the PNG exists the page is compared whatever the flag says, so a
+ * stale flag can never hide a regression.
+ */
+export function baselineSkipReason(input: { label: string; baselineExists: boolean; pending: boolean }): string | null {
+  if (input.baselineExists || !input.pending) return null;
+  return `${input.label}: baseline not captured yet (pending); capture it from main with the capture_v3_baselines workflow run`;
+}
+
+/**
  * A baseline captured from a blank page would be "far" from every real render
  * and make the gate pass for free. Capture mode therefore refuses a void render.
  */
