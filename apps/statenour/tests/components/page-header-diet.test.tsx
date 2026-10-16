@@ -56,15 +56,21 @@ describe("PageHeader", () => {
 
 describe("StandardPage", () => {
   it("drops the description on a core page at every width", () => {
-    nav.path = "/missions";
+    nav.path = "/brain";
     const html = renderToString(
-      <StandardPage eyebrow="Execution Deck" title="Missions" description="The work that needs you.">
+      <StandardPage eyebrow="Mastery" title="Brain" description="What is saved, where it came from, and what is inferred.">
         <i>body</i>
       </StandardPage>,
     );
-    expect(html).not.toContain("The work that needs you.");
-    expect(html).toContain("Execution Deck");
+    expect(html).not.toContain("What is saved");
+    expect(html).toContain("Mastery");
     expect(html).toContain("<i>body</i>");
+  });
+
+  it("keeps the Missions description (md and up) until W2 recomposes the page", () => {
+    nav.path = "/missions";
+    const html = renderToString(<StandardPage eyebrow="Execution Deck" title="Missions" description="The work that needs you." />);
+    expect(html).toMatch(/<p class="page-copy hidden md:block">The work that needs you\.<\/p>/);
   });
 
   it("keeps the description, md and up, on any other page", () => {

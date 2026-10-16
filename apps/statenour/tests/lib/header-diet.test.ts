@@ -51,8 +51,9 @@ describe("eyebrowAddsInformation", () => {
 });
 
 describe("isCorePage", () => {
-  it("lists the seven core pages once", () => {
-    expect([...CORE_PAGE_PATHS]).toEqual(["/", "/missions", "/chat", "/brain", "/people", "/journal", "/stats"]);
+  it("lists the six core pages once; /missions waits for W2 (distance gate 0.342 at 390 without its description)", () => {
+    expect([...CORE_PAGE_PATHS]).toEqual(["/", "/chat", "/brain", "/people", "/journal", "/stats"]);
+    expect(isCorePage("/missions")).toBe(false);
   });
 
   it("matches each core pathname, with or without a trailing slash", () => {
