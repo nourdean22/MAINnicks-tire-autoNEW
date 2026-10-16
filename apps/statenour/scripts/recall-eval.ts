@@ -8,7 +8,8 @@
  * (pgvector) on the recall corpus?
  *
  * Run (operator, from apps/statenour, DATABASE_URL required):
- *   pnpm eval:recall
+ *   pnpm eval:recall                 # arbiter lane mirrors standard chat mode
+ *   pnpm eval:recall --mode deep     # ... or deep mode's lane and pack sizes
  *
  * Read-only by construction: the two retrievers are semanticSearch
  * (no writes) and getLexicalMatches (SELECT only). Deliberately NOT
@@ -95,10 +96,17 @@ const memoryRecallKnn = { withEmbedding: 0, withoutEmbedding: 0 };
 const arbiterKnn = { withEmbedding: 0, withoutEmbedding: 0 };
 // Round 1 P2-9 · a lane that did not actually run its pipeline must not score as 0.
 const memoryRecallInvalid = { count: 0 };
-const arbiterHybridOnly = { count: 0 };
-/** Production pack size (brain-context: standard mode limit 10, rerank window min(limit*2, 24) = 20). */
-const ARBITER_PACK_LIMIT = 10;
-const ARBITER_LANE_LIMIT = 10;
+// PR #3088 CX-4 · the arbiter case is INVALID when EITHER input lane did not run; each side is counted.
+const arbiterInvalid = { cases: 0, contextualMissing: 0, hybridMissing: 0 };
+
+/** PR #3088 CX-2 · which production chat mode the arbiter lane mirrors: --mode standard|deep, default standard. */
+function evalMode(argv: string[]): "standard" | "deep" {
+  const i = argv.findIndex((a) => a === "--mode" || a.startsWith("--mode="));
+  if (i === -1) return "standard";
+  const v = argv[i].startsWith("--mode=") ? argv[i].slice("--mode=".length) : argv[i + 1];
+  if (v === "standard" || v === "deep") return v;
+  throw new Error(`--mode must be standard or deep, got ${v ?? "nothing"}`);
+}
 
 async function hybridRetriever(): Promise<Retriever> {
   const { getContextualMemories } = await import("../lib/brain/contextual-recall");
@@ -131,6 +139,8 @@ async function hybridRetriever(): Promise<Retriever> {
     await getContextualMemories([query], Math.max(k, 10), {
       fastTopics: true,
       queryEmbedding: queryEmbedding.length > 0 ? queryEmbedding : undefined,
+      // PR #3088 CX-5 · without it this lane bumps last_seen / recallCount and reorders the lanes run after it.
+      sideEffects: false,
       onRanked: (rows) => {
         ranked = rows;
       },
@@ -165,8 +175,10 @@ async function memoryRecallRetriever(): Promise<Retriever> {
  * W1 (2026-10-16) · the arbiter lane: both chat lanes for the query, then the
  * REAL evidence pack (validity filter, RRF/MMR fusion, one rerank) exactly as
  * brain-context builds it under NICK_RECALL_ARBITER, scored on its item order.
+ * PR #3088 CX-2 · the lane and pack sizes are production's for one mode
+ * (RECALL_MODE_LIMITS, the table brain-context reads), not eval-only numbers.
  */
-async function arbiterRetriever(): Promise<Retriever> {
+async function arbiterRetriever(limits: import("../lib/brain/evidence-pack").RecallModeLimits): Promise<Retriever> {
   const { getContextualMemories } = await import("../lib/brain/contextual-recall");
   const { recallMemoriesForQuery } = await import("../lib/brain/memory-recall");
   const { buildEvidencePackAsync, toRetrievedMemories } = await import("../lib/brain/evidence-pack");
@@ -178,8 +190,8 @@ async function arbiterRetriever(): Promise<Retriever> {
     const queryEmbedding = embedding.length > 0 ? embedding : undefined;
     let ranked: import("../lib/brain/contextual-recall").RankedRecallRow[] = [];
     const [hybrid] = await Promise.all([
-      recallMemoriesForQuery(query, { limit: ARBITER_LANE_LIMIT, embedding: queryEmbedding, sideEffects: false }),
-      getContextualMemories([query], ARBITER_LANE_LIMIT, {
+      recallMemoriesForQuery(query, { limit: limits.memoryRecall, embedding: queryEmbedding, sideEffects: false }),
+      getContextualMemories([query], limits.contextual, {
         fastTopics: true,
         queryEmbedding,
         sideEffects: false,
@@ -188,9 +200,14 @@ async function arbiterRetriever(): Promise<Retriever> {
         },
       }),
     ]);
-    // The contextual lane rendered nothing (timeout, empty pool): the pack is hybrid-only, not the arbiter.
-    if (ranked.length === 0) arbiterHybridOnly.count++;
-    const pack = await buildEvidencePackAsync(hybrid.hits, ranked, { limit: ARBITER_PACK_LIMIT, query });
+    // A lane that did not run (contextual: onRanked never fired; hybrid: ERROR / UNMEASURED with no hits)
+    // makes the pack a one-lane pack, not the arbiter. A hybrid ZERO is a measured empty answer.
+    const contextualMissing = ranked.length === 0;
+    const hybridMissing = (hybrid.provenance === "ERROR" || hybrid.provenance === "UNMEASURED") && hybrid.hits.length === 0;
+    if (contextualMissing) arbiterInvalid.contextualMissing++;
+    if (hybridMissing) arbiterInvalid.hybridMissing++;
+    if (contextualMissing || hybridMissing) arbiterInvalid.cases++;
+    const pack = await buildEvidencePackAsync(hybrid.hits, ranked, { limit: limits.pack, query });
     return toRetrievedMemories(pack.items).slice(0, k);
   };
 }
@@ -274,6 +291,9 @@ async function main() {
     console.error("DATABASE_URL is required — this runner queries the live BrainMemory store (read-only).");
     process.exit(1);
   }
+  const mode = evalMode(process.argv);
+  const { RECALL_MODE_LIMITS } = await import("../lib/brain/evidence-pack");
+  const limits = RECALL_MODE_LIMITS[mode];
   const { cases, syntheticOnly } = loadCorpus();
   checkManifest(cases);
 
@@ -301,14 +321,14 @@ async function main() {
     );
   }
   console.log(
-    `recall-eval · ${cases.length} cases (${syntheticOnly ? "SYNTHETIC ONLY — run pnpm harvest:evals for real cases; this run proves the harness, not the ranking" : "seed + harvested"}) · k=${K}`,
+    `recall-eval · ${cases.length} cases (${syntheticOnly ? "SYNTHETIC ONLY — run pnpm harvest:evals for real cases; this run proves the harness, not the ranking" : "seed + harvested"}) · k=${K} · arbiter mirrors ${mode} mode (contextual ${limits.contextual}, memory-recall ${limits.memoryRecall}, pack ${limits.pack})`,
   );
 
   const vector = await runRecallEval(cases, await vectorRetriever(), K);
   const lexical = await runRecallEval(cases, await lexicalRetriever(), K);
   const hybrid = await runRecallEval(cases, await hybridRetriever(), K);
   const memoryRecall = await runRecallEval(cases, await memoryRecallRetriever(), K);
-  const arbiter = await runRecallEval(cases, await arbiterRetriever(), K);
+  const arbiter = await runRecallEval(cases, await arbiterRetriever(limits), K);
 
   console.log(line("vector", vector));
   console.log(line("lexical", lexical));
@@ -327,7 +347,12 @@ async function main() {
   knnBanner("memory-recall", memoryRecallKnn);
   knnBanner("arbiter", arbiterKnn);
   laneInvalidBanner("memory-recall", memoryRecallInvalid.count, memoryRecallKnn.withEmbedding + memoryRecallKnn.withoutEmbedding, "recall reported ERROR / UNMEASURED provenance");
-  laneInvalidBanner("arbiter", arbiterHybridOnly.count, arbiterKnn.withEmbedding + arbiterKnn.withoutEmbedding, "arbiter lane ran hybrid-only (contextual onRanked never fired)");
+  laneInvalidBanner(
+    "arbiter",
+    arbiterInvalid.cases,
+    arbiterKnn.withEmbedding + arbiterKnn.withoutEmbedding,
+    `an input lane did not run (contextual onRanked never fired: ${arbiterInvalid.contextualMissing}; memory-recall ERROR/UNMEASURED: ${arbiterInvalid.hybridMissing})`,
+  );
 
   // ★★★ REFUSE A VERDICT THE CORPUS CANNOT SUPPORT.
   //
@@ -380,8 +405,8 @@ async function main() {
       syntheticOnly,
       corpus: corpusFingerprint(cases),
       vector, lexical, hybrid, memoryRecall, arbiter, verdict,
-      // The arbiter lane is scored at k but built at the production size; its pool sizes are not the chat route's exactly (standard mode: contextual max 5, hybrid default limit).
-      arbiterConfig: { limit: ARBITER_PACK_LIMIT, window: Math.min(ARBITER_PACK_LIMIT * 2, 24), laneLimit: ARBITER_LANE_LIMIT, memoryRecallInvalid: memoryRecallInvalid.count, arbiterHybridOnly: arbiterHybridOnly.count },
+      // The arbiter lane is scored at k but built at production's sizes for `mode` (RECALL_MODE_LIMITS).
+      arbiterConfig: { mode, ...limits, window: Math.min(limits.pack * 2, 24), memoryRecallInvalid: memoryRecallInvalid.count, arbiterInvalid: { ...arbiterInvalid } },
     }, null, 2),
   );
   console.log(`artifact: ${outPath}`);

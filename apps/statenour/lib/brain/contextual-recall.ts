@@ -263,6 +263,9 @@ export interface RelevantMemory {
   validUntil?: Date | null;
   supersededById?: string | null;
   expiresAt?: Date | null;
+  /** CX-3 · the start bound (validFrom ?? createdAt) the as-of evidence pack checks; undefined = not carried. */
+  validFrom?: Date | null;
+  createdAt?: Date;
 }
 
 // ---------------------------------------------------------------------------
@@ -560,6 +563,7 @@ interface LexicalRow {
   valid_until: Date | null;
   superseded_by_id: string | null;
   expires_at: Date | null;
+  valid_from: Date | null;
 }
 
 /**
@@ -768,6 +772,7 @@ export async function getLexicalMatches(topics: string[], limit = 50, asOf?: Dat
               bm.valid_until       AS valid_until,
               bm.superseded_by_id  AS superseded_by_id,
               bm.expires_at        AS expires_at,
+              bm.valid_from        AS valid_from,
               ts_rank(bm.content_tsv,
                       websearch_to_tsquery('english', $1)) AS rank
        FROM brain_memories bm
@@ -861,6 +866,7 @@ async function getKnnPoolRows(queryVec: number[], limit = 50, asOf?: Date): Prom
               bm.valid_until       AS valid_until,
               bm.superseded_by_id  AS superseded_by_id,
               bm.expires_at        AS expires_at,
+              bm.valid_from        AS valid_from,
               0::float             AS rank
        FROM vector_embeddings ve
        JOIN brain_memories bm
@@ -996,6 +1002,9 @@ export interface RankedRecallRow {
   validUntil?: Date | null;
   supersededById?: string | null;
   expiresAt?: Date | null;
+  /** CX-3 · start bound for the as-of evidence pack (validFrom ?? createdAt). */
+  validFrom?: Date | null;
+  createdAt?: Date;
 }
 
 /**
@@ -1232,7 +1241,7 @@ export async function getContextualMemories(
         take: 300,
         // v10.0.354 · pull `source` so we can weight by ingestion pipeline
         // v10.0.396 · seenCount + updatedAt for wisdom freshness decay
-        select: { id: true, category: true, key: true, content: true, confidence: true, createdAt: true, source: true, seenCount: true, updatedAt: true, validUntil: true, supersededById: true, expiresAt: true },
+        select: { id: true, category: true, key: true, content: true, confidence: true, createdAt: true, source: true, seenCount: true, updatedAt: true, validUntil: true, supersededById: true, expiresAt: true, validFrom: true },
       }),
     ),
     // Wave B · lexical lane + candidate-pool union. Run a real Postgres FTS
@@ -1299,6 +1308,7 @@ export async function getContextualMemories(
     validUntil: r.valid_until,
     supersededById: r.superseded_by_id,
     expiresAt: r.expires_at,
+    validFrom: r.valid_from,
   });
   const unioned: ReturnType<typeof toPoolRow>[] = [];
   for (const r of [...lexicalRows, ...knnRows]) {
@@ -1422,6 +1432,7 @@ export async function getContextualMemories(
       validUntil: m.validUntil,
       supersededById: m.supersededById,
       expiresAt: m.expiresAt,
+      validFrom: m.validFrom,
       hybrid,
       semantic: m.sSemantic,
     };
@@ -1553,6 +1564,8 @@ export async function getContextualMemories(
       validUntil: w.validUntil,
       supersededById: w.supersededById,
       expiresAt: w.expiresAt,
+      validFrom: w.validFrom,
+      createdAt: w.createdAt,
     });
   }
 
@@ -1616,6 +1629,8 @@ export async function getContextualMemories(
       validUntil: m.validUntil,
       supersededById: m.supersededById,
       expiresAt: m.expiresAt,
+      validFrom: m.validFrom,
+      createdAt: m.createdAt,
     });
     addedIds.add(m.id);
   }
@@ -1643,6 +1658,8 @@ export async function getContextualMemories(
       validUntil: m.validUntil,
       supersededById: m.supersededById,
       expiresAt: m.expiresAt,
+      validFrom: m.validFrom,
+      createdAt: m.createdAt,
     });
   }
 
@@ -1664,6 +1681,8 @@ export async function getContextualMemories(
         validUntil: m.validUntil,
         supersededById: m.supersededById,
         expiresAt: m.expiresAt,
+        validFrom: m.validFrom,
+        createdAt: m.createdAt,
       });
     }
   }
@@ -1712,6 +1731,8 @@ export async function getContextualMemories(
           validUntil: m.validUntil,
           supersededById: m.supersededById,
           expiresAt: m.expiresAt,
+          validFrom: m.validFrom,
+          createdAt: m.createdAt,
         })),
       );
     } catch {

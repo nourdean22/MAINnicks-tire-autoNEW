@@ -3,8 +3,8 @@
  *
  * The second instrument for promoting NICK_RECALL_ARBITER (the first is the
  * frozen corpus in scripts/recall-eval.ts, absent on some machines): split the
- * judge's reply_judgment composites by whether the arbiter shaped the turn,
- * read from the chat message's persisted contextReceipt.arbiter
+ * judge's reply_judgment composites by whether the turn was ASSIGNED to the
+ * arbiter, read from the chat message's persisted contextReceipt.arbiterAssigned
  * (lib/ai/context-budget.ts, written by brain-context, persisted in
  * ChatMessage.tokenUsage by persist-assistant-message.ts).
  *
@@ -16,10 +16,13 @@
  *   pnpm exec tsx scripts/arbiter-judge-split.ts            # last 7 days
  *   pnpm exec tsx scripts/arbiter-judge-split.ts --days 14
  *
- * Prints: the window, then one row per arbiter state (true / false / unknown)
- * with n, mean composite and p50 composite. "unknown" = the judge row's message
- * has no persisted receipt, or a receipt from before W1 (no `arbiter` field),
- * or the message row is gone. It is never folded into false.
+ * Prints: the window, then one row per assignment (true / false / unknown)
+ * with n, mean composite and p50 composite, then the pack-rendered rate inside
+ * the assigned bucket (contextReceipt.arbiter). Splitting by `arbiter` instead
+ * would move flag-on turns with no recall into the control group (PR #3088
+ * CX-6). "unknown" = the judge row's message has no persisted receipt, or a
+ * receipt without `arbiterAssigned`, or the message row is gone. It is never
+ * folded into false.
  */
 
 import { loadEnvConfig } from "@next/env";
@@ -46,13 +49,41 @@ function mean(xs: number[]): number {
   return xs.length === 0 ? NaN : xs.reduce((a, b) => a + b, 0) / xs.length;
 }
 
-/** The persisted receipt lives at tokenUsage.contextReceipt; absent or pre-W1 = unknown. */
-export function arbiterStateOf(tokenUsage: unknown): ArbiterState {
+/** One boolean field of the persisted receipt at tokenUsage.contextReceipt; absent or not a boolean = unknown. */
+function receiptField(tokenUsage: unknown, field: "arbiter" | "arbiterAssigned"): ArbiterState {
   if (!tokenUsage || typeof tokenUsage !== "object") return "unknown";
   const receipt = (tokenUsage as { contextReceipt?: unknown }).contextReceipt;
   if (!receipt || typeof receipt !== "object") return "unknown";
-  const a = (receipt as { arbiter?: unknown }).arbiter;
+  const a = (receipt as Record<string, unknown>)[field];
   return a === true ? "true" : a === false ? "false" : "unknown";
+}
+
+/** Did an evidence pack reach the prompt (contextReceipt.arbiter)? */
+export function arbiterStateOf(tokenUsage: unknown): ArbiterState {
+  return receiptField(tokenUsage, "arbiter");
+}
+
+/** Was the turn assigned to the arbiter (contextReceipt.arbiterAssigned, the flag state)? The split key. */
+export function arbiterAssignmentOf(tokenUsage: unknown): ArbiterState {
+  return receiptField(tokenUsage, "arbiterAssigned");
+}
+
+export interface JudgeSplit {
+  /** Composites per assignment. */
+  buckets: Record<ArbiterState, number[]>;
+  /** Inside the assigned=true bucket only: how many turns had a pack rendered (arbiter true / false / unknown). */
+  rendered: Record<ArbiterState, number>;
+}
+
+/** `tokenUsage: undefined` = the message row is gone (unknown). */
+export function splitJudgments(rows: Iterable<{ composite: number; tokenUsage?: unknown }>): JudgeSplit {
+  const out: JudgeSplit = { buckets: { true: [], false: [], unknown: [] }, rendered: { true: 0, false: 0, unknown: 0 } };
+  for (const { composite, tokenUsage } of rows) {
+    const assigned = arbiterAssignmentOf(tokenUsage);
+    out.buckets[assigned].push(composite);
+    if (assigned === "true") out.rendered[arbiterStateOf(tokenUsage)]++;
+  }
+  return out;
 }
 
 async function main(): Promise<void> {
@@ -93,21 +124,20 @@ async function main(): Promise<void> {
       : [];
     const usageById = new Map(messages.map((m) => [m.id, m.tokenUsage]));
 
-    const buckets: Record<ArbiterState, number[]> = { true: [], false: [], unknown: [] };
-    for (const [messageId, composite] of byMessage) {
-      const state = usageById.has(messageId) ? arbiterStateOf(usageById.get(messageId)) : "unknown";
-      buckets[state].push(composite);
-    }
+    const { buckets, rendered } = splitJudgments(
+      [...byMessage].map(([messageId, composite]) => ({ composite, tokenUsage: usageById.get(messageId) })),
+    );
 
     console.log(`arbiter judge-split · window ${days} days (since ${since.toISOString()}) · ${judged.length} judge rows, ${byMessage.size} scored messages, ${messages.length} message rows found`);
-    console.log("arbiter   n     mean   p50");
+    console.log("assigned  n     mean   p50");
     for (const state of ["true", "false", "unknown"] as const) {
       const xs = [...buckets[state]].sort((a, b) => a - b);
       const fmt = (x: number) => (Number.isFinite(x) ? x.toFixed(2) : "n/a");
       console.log(`${state.padEnd(9)} ${String(xs.length).padEnd(5)} ${fmt(mean(xs)).padEnd(6)} ${fmt(p50(xs))}`);
     }
+    console.log(`pack rendered in assigned turns: ${rendered.true} yes, ${rendered.false} no, ${rendered.unknown} unknown (of ${buckets.true.length})`);
     if (buckets.true.length === 0) {
-      console.log("note: no arbiter=true turns in the window — the flag is off or the receipts predate W1; this split cannot judge the arbiter yet.");
+      console.log("note: no assigned=true turns in the window — the flag is off or the receipts predate arbiterAssigned; this split cannot judge the arbiter yet.");
     }
   } finally {
     await prisma.$disconnect();

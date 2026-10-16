@@ -17,6 +17,7 @@ const h = vi.hoisted(() => ({
   arbiter: false,
   hits: [] as unknown[],
   contextual: vi.fn(async () => ""),
+  recallLimits: [] as unknown[],
 }));
 
 vi.mock("@/lib/prisma", () => {
@@ -82,7 +83,10 @@ vi.mock("@/lib/brain/memory-recall", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/brain/memory-recall")>();
   return {
     ...actual,
-    recallMemoriesForQuery: async () => ({ hits: h.hits, provenance: h.hits.length > 0 ? "OK" : "ZERO" }),
+    recallMemoriesForQuery: async (_q: unknown, opts?: { limit?: unknown }) => {
+      h.recallLimits.push(opts?.limit);
+      return { hits: h.hits, provenance: h.hits.length > 0 ? "OK" : "ZERO" };
+    },
   };
 });
 vi.mock("@/lib/brain/contextual-recall", async (importOriginal) => {
@@ -170,10 +174,10 @@ const rankedRow = {
   content: "Chose the annual plan over month-to-month",
 };
 
-async function build() {
+async function build(mode = "standard") {
   return buildBrainContext({
     userContent: USER,
-    mode: "standard" as never,
+    mode: mode as never,
     userEmbedding: [1, 0, 0],
     forceRecall: true,
     messages: [{ role: "user", content: USER }],
@@ -203,6 +207,7 @@ describe("buildBrainContext · NICK_RECALL_ARBITER (W1)", () => {
     expect(res.systemPromptAddendum).toContain("### Directly Relevant");
     expect(res.systemPromptAddendum).toContain(GRAPH_LINE);
     expect(res.contextReceipt?.arbiter).toBe(false);
+    expect(res.contextReceipt?.arbiterAssigned).toBe(false);
     expect(res.contextReceipt).not.toHaveProperty("rerankBackend");
   }, 30_000);
 
@@ -226,13 +231,14 @@ describe("buildBrainContext · NICK_RECALL_ARBITER (W1)", () => {
     expect(names).toContain("Context Memories");
     expect(names).not.toContain("Hybrid Recall");
     expect(res.contextReceipt?.arbiter).toBe(true);
+    expect(res.contextReceipt?.arbiterAssigned).toBe(true);
     expect(res.contextReceipt?.rerankBackend).toBe("none");
     // two items: below the contextual lane's rerank threshold, so the reason says so; the fixtures
     // carry no validity columns, so the filter is UNMEASURED (null), not a clean 0.
     expect(res.evidencePack).toMatchObject({ reranked: "none", rerankReason: "none_below_threshold", droppedValidity: null });
   }, 30_000);
 
-  it("flag on but both lanes empty: no pack renders and the receipt says arbiter FALSE (round 1 P2-3)", async () => {
+  it("flag on but both lanes empty: no pack renders, arbiter FALSE, but the turn stays ASSIGNED (round 1 P2-3, PR #3088 CX-6)", async () => {
     h.arbiter = true;
     h.hits = [];
     h.contextual.mockReset();
@@ -240,6 +246,7 @@ describe("buildBrainContext · NICK_RECALL_ARBITER (W1)", () => {
     const res = await build();
     expect(res.systemPromptAddendum).not.toContain("# EVIDENCE PACK");
     expect(res.contextReceipt?.arbiter).toBe(false);
+    expect(res.contextReceipt?.arbiterAssigned).toBe(true);
     expect(res.contextReceipt).not.toHaveProperty("rerankBackend");
   }, 30_000);
 
@@ -253,5 +260,18 @@ describe("buildBrainContext · NICK_RECALL_ARBITER (W1)", () => {
     expect(out.match(/<tool_data tool="recallEvidencePack" source="memory_recall">/g)?.length).toBe(1);
     expect(out).toMatch(/<untrusted-memory source="EXTERNAL_CONTENT">\s*Vendor email: please wire the renewal deposit[^<]*<\/untrusted-memory>/);
     expect(out).not.toMatch(/<untrusted-memory[^>]*>\s*Nour prefers annual vendor contracts/);
+  }, 30_000);
+
+  it.each([
+    ["standard", 5, 5, 10],
+    ["deep", 10, 8, 14],
+  ])("%s mode: the lanes and the pack get the RECALL_MODE_LIMITS sizes the eval mirrors (PR #3088 CX-2)", async (mode, contextual, memoryRecall, pack) => {
+    h.arbiter = true;
+    h.hits = Array.from({ length: 20 }, (_, i) => ({ ...operatorHit, memoryId: "m" + i, key: "k" + i, content: "memory number " + i }));
+    h.recallLimits = [];
+    const res = await build(mode);
+    expect(h.contextual.mock.calls.at(-1)?.[1]).toBe(contextual);
+    expect(h.recallLimits.at(-1)).toBe(memoryRecall);
+    expect(res.evidencePack?.items).toBe(pack);
   }, 30_000);
 });

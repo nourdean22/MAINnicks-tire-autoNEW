@@ -9,7 +9,7 @@
  */
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
-import { arbiterStateOf } from "../../scripts/arbiter-judge-split";
+import { arbiterStateOf, arbiterAssignmentOf, splitJudgments } from "../../scripts/arbiter-judge-split";
 
 const src = readFileSync(new URL("../../scripts/arbiter-judge-split.ts", import.meta.url), "utf8");
 
@@ -87,5 +87,37 @@ describe("arbiterStateOf · the persisted tokenUsage.contextReceipt.arbiter read
     expect(arbiterStateOf({ contextReceipt: { entries: [], tokensBudget: 7250 } })).toBe("unknown");
     expect(arbiterStateOf({ contextReceipt: { arbiter: "true" } })).toBe("unknown");
     expect(arbiterStateOf("nope")).toBe("unknown");
+  });
+});
+
+describe("PR #3088 CX-6 · the split is by ASSIGNMENT (arbiterAssigned), not by whether a pack rendered", () => {
+  const r = (arbiterAssigned: unknown, arbiter: unknown) => ({ contextReceipt: { arbiterAssigned, arbiter, entries: [] } });
+
+  it("arbiterAssignmentOf reads arbiterAssigned; a receipt without it is unknown, never false", () => {
+    expect(arbiterAssignmentOf(r(true, false))).toBe("true");
+    expect(arbiterAssignmentOf(r(false, false))).toBe("false");
+    expect(arbiterAssignmentOf({ contextReceipt: { arbiter: true } })).toBe("unknown");
+    expect(arbiterAssignmentOf(null)).toBe("unknown");
+    expect(arbiterAssignmentOf(r("true", true))).toBe("unknown");
+  });
+
+  it("a flag-on turn whose pack was empty stays in the TREATED bucket, and is counted as not rendered there", () => {
+    const split = splitJudgments([
+      { composite: 8, tokenUsage: r(true, true) },
+      { composite: 4, tokenUsage: r(true, false) }, // assigned, no recall: still treated
+      { composite: 6, tokenUsage: r(false, false) },
+      { composite: 7, tokenUsage: { contextReceipt: { arbiter: false } } }, // pre-fix receipt
+      { composite: 5, tokenUsage: undefined }, // message row gone
+    ]);
+    expect(split.buckets.true.sort()).toEqual([4, 8]);
+    expect(split.buckets.false).toEqual([6]);
+    expect(split.buckets.unknown.sort()).toEqual([5, 7]);
+    expect(split.rendered).toEqual({ true: 1, false: 1, unknown: 0 });
+  });
+
+  it("the script buckets by assignment and prints the pack-rendered rate", () => {
+    expect(src).toMatch(/arbiterAssigned/);
+    expect(src).toMatch(/splitJudgments\(/);
+    expect(src).toMatch(/pack rendered/);
   });
 });

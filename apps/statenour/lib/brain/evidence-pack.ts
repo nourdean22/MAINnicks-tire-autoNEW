@@ -37,7 +37,21 @@ export interface ValidityLike {
   validUntil?: Date | string | null;
   supersededById?: string | null;
   expiresAt?: Date | string | null;
+  /** PR #3088 CX-3 · the start bound (validFrom ?? createdAt), checked in as-of mode only. */
+  validFrom?: Date | string | null;
+  createdAt?: Date | string | null;
 }
+
+/**
+ * PR #3088 CX-2 · per chat mode: the contextual lane's limit, memory-recall's
+ * limit and the pack limit brain-context passes. scripts/recall-eval.ts reads
+ * this same table, so the eval's arbiter lane cannot drift from production.
+ */
+export const RECALL_MODE_LIMITS = {
+  standard: { contextual: 5, memoryRecall: 5, pack: 10 },
+  deep: { contextual: 10, memoryRecall: 8, pack: 14 },
+} as const;
+export type RecallModeLimits = (typeof RECALL_MODE_LIMITS)[keyof typeof RECALL_MODE_LIMITS];
 
 export interface HybridHitLike extends ValidityLike {
   memoryId?: string;
@@ -69,16 +83,19 @@ function pastOrAt(x: Date | string | null | undefined, t: number): boolean {
   return Number.isFinite(v) && v <= t;
 }
 
-export function hasValidityFields(row: ValidityLike): boolean {
-  return row.validUntil !== undefined || row.supersededById !== undefined || row.expiresAt !== undefined;
+/** In as-of mode the start bound is part of the filter, so a row without validFrom or createdAt is not measured. */
+export function hasValidityFields(row: ValidityLike, asOf?: Date | null): boolean {
+  const end = row.validUntil !== undefined || row.supersededById !== undefined || row.expiresAt !== undefined;
+  return asOf ? end && (row.validFrom ?? row.createdAt) != null : end;
 }
 
 /**
  * contextual-recall's isVisibleAsOf(row, asOf) semantics: in current mode a
- * superseded row or one whose validity ended is hidden; in as-of mode only the
- * end bound applies (a superseded belief was still the belief back then; the
- * lanes applied the start bound at fetch). The 05-M5 probation expiry is a
- * wall-clock fact in both modes.
+ * superseded row or one whose validity ended is hidden; in as-of mode the row
+ * must have started by asOf (validFrom, else createdAt) and not ended (a
+ * superseded belief was still the belief back then). The start bound is checked
+ * here, not trusted to the lanes: memory-recall fetches at current time
+ * (PR #3088 CX-3). The 05-M5 probation expiry is a wall-clock fact in both modes.
  */
 export function isCandidateVisible(row: ValidityLike, asOf?: Date | null, now: Date = new Date()): boolean {
   if (pastOrAt(row.expiresAt, now.getTime())) return false;
@@ -86,6 +103,9 @@ export function isCandidateVisible(row: ValidityLike, asOf?: Date | null, now: D
     if (row.supersededById) return false;
     return !pastOrAt(row.validUntil, now.getTime());
   }
+  const start = row.validFrom ?? row.createdAt;
+  const startMs = start == null ? NaN : new Date(start).getTime();
+  if (Number.isFinite(startMs) && startMs > asOf.getTime()) return false;
   return !pastOrAt(row.validUntil, asOf.getTime());
 }
 
@@ -178,7 +198,7 @@ const DEFAULT_RERANK_BUDGET_MS = 1_500;
 function prepare(hybridHits: readonly HybridHitLike[], contextualRows: readonly RankedRowLike[], opts?: EvidencePackOptions) {
   const now = opts?.now ?? new Date();
   const asOf = opts?.asOf ?? null;
-  const measured = hybridHits.some(hasValidityFields) || contextualRows.some(hasValidityFields);
+  const measured = hybridHits.some((h) => hasValidityFields(h, asOf)) || contextualRows.some((r) => hasValidityFields(r, asOf));
   const hv = hybridHits.filter((h) => isCandidateVisible(h, asOf, now));
   const cv = contextualRows.filter((r) => isCandidateVisible(r, asOf, now));
   const droppedValidity = measured ? hybridHits.length - hv.length + (contextualRows.length - cv.length) : null;

@@ -41,7 +41,7 @@ const contextual = [
 /** Six token-disjoint hits: above the rerank threshold, immune to the MMR cut. */
 const hybrid6 = Array.from({ length: 6 }, (_, i) => ({ memoryId: `h${i}`, key: `kh${i}`, category: "x", source: "manual", content: `memory${i} token${i}x` }));
 
-/** The REAL producer shape (memory-recall.ts RecallHit) with the W1 validity columns. */
+/** The REAL producer shape (memory-recall.ts RecallHit) with the W1 validity columns and the CX-3 start bound. */
 function recallHit(over: Partial<Record<string, unknown>> = {}) {
   return {
     memoryId: "rh1",
@@ -58,6 +58,8 @@ function recallHit(over: Partial<Record<string, unknown>> = {}) {
     validUntil: null,
     supersededById: null,
     expiresAt: null,
+    validFrom: null,
+    createdAt: new Date("2026-01-01T00:00:00Z"),
     ...over,
   };
 }
@@ -161,6 +163,57 @@ describe("evidence pack · validity filter (round 1 P1-2)", () => {
     const pack = buildEvidencePack([superseded, endedBefore, endsAfter], [], { asOf });
     expect(pack.items.map((i) => i.id).sort()).toEqual(["s", "y"]);
     expect(pack.droppedValidity).toBe(1);
+  });
+});
+
+describe("evidence pack · as-of start bound (PR #3088 CX-3)", () => {
+  const asOf = new Date("2026-03-01T00:00:00Z");
+  const before = new Date("2026-02-01T00:00:00Z");
+  const after = new Date("2026-04-01T00:00:00Z");
+
+  it("drops a hybrid hit created after asOf and keeps one created before it", () => {
+    const pack = buildEvidencePack(
+      [recallHit({ memoryId: "old", key: "k_old", content: "known in feb", createdAt: before }), recallHit({ memoryId: "new", key: "k_new", content: "learned in april", createdAt: after })],
+      [],
+      { asOf },
+    );
+    expect(pack.items.map((i) => i.id)).toEqual(["old"]);
+    expect(pack.droppedValidity).toBe(1);
+    expect(pack.block).not.toContain("learned in april");
+  });
+
+  it("validFrom wins over createdAt (a backdated row stays, a row valid only from later goes)", () => {
+    const pack = buildEvidencePack(
+      [
+        recallHit({ memoryId: "back", key: "k_back", content: "backdated", createdAt: after, validFrom: before }),
+        recallHit({ memoryId: "fwd", key: "k_fwd", content: "valid from april", createdAt: before, validFrom: after }),
+      ],
+      [],
+      { asOf },
+    );
+    expect(pack.items.map((i) => i.id)).toEqual(["back"]);
+    expect(pack.droppedValidity).toBe(1);
+  });
+
+  it("the contextual lane's rows are held to the same bound", () => {
+    const row = (id: string, createdAt: Date) => ({ id, key: `k_${id}`, category: "x", source: "manual", content: id, validUntil: null, supersededById: null, expiresAt: null, validFrom: null, createdAt });
+    const pack = buildEvidencePack([], [row("c_old", before), row("c_new", after)], { asOf });
+    expect(pack.items.map((i) => i.id)).toEqual(["c_old"]);
+    expect(pack.droppedValidity).toBe(1);
+  });
+
+  it("current mode ignores the start bound (a row created after a past date is current)", () => {
+    const pack = buildEvidencePack([recallHit({ memoryId: "new", key: "k_new", createdAt: after })], [], { now: new Date("2026-05-01T00:00:00Z") });
+    expect(pack.items.map((i) => i.id)).toEqual(["new"]);
+  });
+
+  it("UNMEASURED: in as-of mode a row with end fields but no start bound (no validFrom, no createdAt) is not a measured filter", () => {
+    const bare = { ...recallHit({ memoryId: "b", key: "k_b" }) } as Record<string, unknown>;
+    delete bare.validFrom;
+    delete bare.createdAt;
+    const pack = buildEvidencePack([bare], [], { asOf });
+    expect(pack.droppedValidity).toBeNull();
+    expect(pack.items.map((i) => i.id)).toEqual(["b"]);
   });
 });
 

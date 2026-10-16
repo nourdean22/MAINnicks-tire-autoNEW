@@ -30,8 +30,21 @@ describe("buildContextReceipt · arbiter (W1)", () => {
   });
 
   it("the garbage branch (non-array blocks) still carries the field", () => {
-    const receipt = buildContextReceipt(null as unknown as ContextBudgetBlock[], 100, { arbiter: true, rerankBackend: "bge" });
+    const receipt = buildContextReceipt(null as unknown as ContextBudgetBlock[], 100, { arbiter: true, rerankBackend: "bge", arbiterAssigned: true });
     expect(receipt.arbiter).toBe(true);
     expect(receipt.rerankBackend).toBe("bge");
+    expect(receipt.arbiterAssigned).toBe(true);
+  });
+});
+
+describe("buildContextReceipt · arbiterAssigned, the experiment assignment (PR #3088 CX-6)", () => {
+  it("defaults to false and is always present, so a builder receipt is never 'unknown'", () => {
+    expect(buildContextReceipt([block], 100).arbiterAssigned).toBe(false);
+  });
+  it("is recorded independently of arbiter: assigned with no pack rendered stays assigned", () => {
+    const receipt = buildContextReceipt([block], 100, { arbiterAssigned: true, arbiter: false });
+    expect(receipt.arbiterAssigned).toBe(true);
+    expect(receipt.arbiter).toBe(false);
+    expect(JSON.parse(JSON.stringify(receipt))).toMatchObject({ arbiterAssigned: true, arbiter: false });
   });
 });

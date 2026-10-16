@@ -30,7 +30,7 @@
 
 import { getFlag } from "@/lib/feature-flags";
 import { planQuery, type QueryPlan } from "@/lib/brain/query-plan";
-import { buildEvidencePackAsync, extractRecallAddendum, type RerankBackend, type RerankReason } from "@/lib/brain/evidence-pack";
+import { buildEvidencePackAsync, extractRecallAddendum, RECALL_MODE_LIMITS, type RerankBackend, type RerankReason } from "@/lib/brain/evidence-pack";
 import { computeLaneOverlap, type LaneOverlap } from "@/lib/brain/lane-overlap";
 import { rerankContextBlocks, formatRerankSummary } from "@/lib/ai/context-reranker";
 import { buildContextReceipt, DEFAULT_CONTEXT_TOKEN_BUDGET, type ContextReceipt } from "@/lib/ai/context-budget";
@@ -164,6 +164,8 @@ export async function buildBrainContext(
   input: BuildBrainContextInput,
 ): Promise<BuildBrainContextOutput> {
   const { userContent, mode, userEmbedding, forceRecall, messages, posture, log } = input;
+  // PR #3088 CX-2 · one table for the lane and pack sizes; scripts/recall-eval.ts mirrors it.
+  const recallLimits = RECALL_MODE_LIMITS[mode === "deep" ? "deep" : "standard"];
   const privateMode = input.privateMode === true;
   // A private turn has no conversation: with an id, the contradiction and
   // objection injectors write per-conversation dedupe rows.
@@ -407,7 +409,7 @@ export async function buildBrainContext(
         ? withTimeout(
             contextualRecallMod.getContextualMemories(
               buildRecallMessages(queryPlan.referent, userContent),
-              mode === "deep" ? 10 : 5,
+              recallLimits.contextual,
               {
                 queryEmbedding: userEmbedding.length > 0 ? userEmbedding : undefined,
                 fastTopics: true,
@@ -451,7 +453,7 @@ export async function buildBrainContext(
       // stay within 120 chars of withTimeout( for the timeout-contract pin.)
       userContent.length > 10 && memoryRecallMod && userEmbedding.length > 0
         ? withTimeout(
-            memoryRecallMod.recallMemoriesForQuery(userContent, { embedding: userEmbedding, limit: mode === "deep" ? 8 : 5, exactTerms: queryPlan.exactTerms, sideEffects: !privateMode }),
+            memoryRecallMod.recallMemoriesForQuery(userContent, { embedding: userEmbedding, limit: recallLimits.memoryRecall, exactTerms: queryPlan.exactTerms, sideEffects: !privateMode }),
             3000,
             // withTimeout cannot distinguish a rejection from an expiry;
             // both are a FAILED read, so both must say so.
@@ -613,7 +615,7 @@ export async function buildBrainContext(
       // Same referent-aware text the contextual lane reranks with (round 1 P2-5).
       const packQuery = buildRecallMessages(queryPlan.referent, userContent).join("\n");
       const pack = await buildEvidencePackAsync((hybridRecallReport?.hits ?? []) as never[], contextualRankedRows, {
-        limit: mode === "deep" ? 14 : 10,
+        limit: recallLimits.pack,
         query: packQuery,
         asOf: queryPlan.asOf,
       });
@@ -762,6 +764,8 @@ export async function buildBrainContext(
     contextReceipt = buildContextReceipt(reranked, DEFAULT_CONTEXT_TOKEN_BUDGET, {
       asOf: queryPlan.asOf,
       arbiter: arbiterUsed,
+      // CX-6 · the assignment rides beside it, so a flag-on turn with no pack stays in the treated group.
+      arbiterAssigned: arbiterOn,
       rerankBackend: arbiterUsed ? (evidencePack?.reranked ?? "none") : undefined,
     });
     // 2026-09-17 (Codex review, PR #2414) · the aggregate counts alone can't
