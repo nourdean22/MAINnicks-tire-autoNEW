@@ -2437,8 +2437,7 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
       log.warn(
         `Shop gateway timed out for ${normalizedEarly.slice(-4)} — NOT falling back (delivery uncertain, avoids double-send)`,
       );
-      // No per-message Telegram alert: the outage is alerted once per incident by
-      // smsGatewayHealthMonitor and the stuck-queue alert below.
+      // Outage alerts: smsGatewayHealthMonitor, once per incident.
       addToThread(normalizedEarly, "outbound", body);
       if (!opts?.skipPersist) {
         // Stamp the uncertainty ON the row. Without it this row is

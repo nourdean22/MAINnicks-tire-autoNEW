@@ -6320,6 +6320,21 @@
       "file": "apps/nickstire/server/services/approvedReelPackRotation.ts",
       "symbol": "packLensFor",
       "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Its production consumer is the pack brief builder in this same file (motionLens in the pack and brief builders); the export lets visualDirectionExperiment.test.ts pin the lens each briefId gets, including the retired-lens bucket remap to extreme_macro_push_in."
+    },
+    {
+      "file": "apps/nickstire/server/services/vendorHealth.ts",
+      "symbol": "checkTelegram",
+      "reason": "Telegram alert diet (job 2026-10-16-telegram-alerts): the production caller is getVendorHealthReport in the same file; the export exists only so server/telegramTransportHonesty.test.ts can prove a valid token with a wrong chat id reads degraded. A test-only export, not a missing consumer."
+    },
+    {
+      "file": "apps/nickstire/server/routers/chat.ts",
+      "symbol": "createChatLead",
+      "reason": "Telegram alert diet (job 2026-10-16-telegram-alerts): the production caller is the chat handler in the same file; the export exists only so server/telegramSingleSender.test.ts can prove a chat lead sends exactly one Telegram alert. A test-only export, not a missing consumer."
+    },
+    {
+      "file": "apps/nickstire/server/follow-ups.ts",
+      "symbol": "reportFollowUpsToOwner",
+      "reason": "Telegram alert diet (job 2026-10-16-telegram-alerts): the production caller is runFollowUps in the same file; the export exists only so server/followUpOwnerReport.test.ts can prove the run report reaches the owner once. A test-only export, not a missing consumer."
     }
   ]
 }
