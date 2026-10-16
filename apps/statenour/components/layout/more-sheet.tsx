@@ -7,8 +7,10 @@
  * menu. A full-height, thumb-scrollable bottom sheet that indexes every
  * surface NOT in the 4 bottom tabs, grouped by the operator's OS-loop verbs
  * (Capture · Execute · Reflect · Money · Operate) read straight from the
- * single NAV source (nav-items.ts `bySection`). Top of the sheet is a
- * Search button — the only tap-path to ⌘K on the keyboardless iOS PWA.
+ * single NAV source (nav-items.ts `moreRows`, which drops the entry pinned
+ * to the fourth tab slot and lists Journal in its place, UI v3 W1b). Top of
+ * the sheet is a Search button — the only tap-path to ⌘K on the keyboardless
+ * iOS PWA.
  *
  * 2026-08-12 · two fixes, operator-reported ("stale UI and architecture"):
  *   · Open state now lives in useMoreSheetStore (Zustand — matches the
