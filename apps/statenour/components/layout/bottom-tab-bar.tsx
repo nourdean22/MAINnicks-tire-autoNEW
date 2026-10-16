@@ -4,9 +4,11 @@
  * BottomTabBar — the primary, always-visible navigation surface.
  *
  * 2026-06-18 · IA reorg Phase 4. Replaces the FloatingHome orb as primary
- * nav. 5 fixed slots: the 4 daily content tabs (BOTTOM_TABS, read from the
- * single NAV source) + a "More" slot that opens the MoreSheet. Below XL it is
- * the primary nav; at XL the DesktopSpine takes over and this nav row hides.
+ * nav. 5 slots: 3 fixed daily tabs (FIXED_TABS, read from the single NAV
+ * source), one pinned slot (default Journal; the operator pins any flat More
+ * row from the sheet, UI v3 W1b) + a "Command" slot that opens the MoreSheet.
+ * Below XL it is the primary nav; at XL the DesktopSpine takes over and this
+ * nav row hides.
  * The ambient BottomPulseTicker stays visible as a thin signal strip
  * so the whole bottom chrome is one stacked unit (no z-index overlap with
  * the old separately-fixed ticker).
@@ -17,10 +19,13 @@ import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { BOTTOM_TABS } from "./nav-items";
+import { FIXED_TABS, NAV, resolvePinnedTab } from "./nav-items";
 import { BottomPulseTicker } from "@/components/ultron/bottom-pulse-ticker";
 import { useMoreSheetStore } from "@/lib/state/more-sheet-store";
-import { LayoutGrid } from "lucide-react";
+import { usePinnedTabStore } from "@/lib/state/pinned-tab-store";
+// Search, not lucide's Command (the Mac glyph means nothing on an iPhone): the slot's first row is
+// "Search everything", and search-as-a-tab is the mechanism (Apple, 2026-06-08).
+import { Search } from "lucide-react";
 
 function isActiveHref(pathname: string, href: string): boolean {
   if (href === "/") return pathname === "/";
@@ -31,6 +36,13 @@ export function BottomTabBar() {
   const pathname = usePathname() ?? "/";
   const chromeRef = useRef<HTMLDivElement>(null);
   const openMoreSheet = useMoreSheetStore((s) => s.openSheet);
+  const pinnedHref = usePinnedTabStore((s) => s.href);
+  const hydratePinnedTab = usePinnedTabStore((s) => s.hydrate);
+  // Server and first client render show Journal; the stored pin lands after mount (no mismatch).
+  useEffect(() => {
+    hydratePinnedTab();
+  }, [hydratePinnedTab]);
+  const tabs = [...FIXED_TABS, resolvePinnedTab(pinnedHref, NAV)];
 
   /**
    * 2026-07-29 · Publish the chrome's REAL height into --bottom-chrome-h.
@@ -98,7 +110,7 @@ export function BottomTabBar() {
         aria-label="Primary"
         className="ui-material flex items-stretch border-t border-edge-subtle xl:hidden"
       >
-        {BOTTOM_TABS.map((tab) => {
+        {tabs.map((tab) => {
           const Icon = tab.icon;
           const active = isActiveHref(pathname, tab.href);
           return (
@@ -118,13 +130,16 @@ export function BottomTabBar() {
             </Link>
           );
         })}
+        {/* Command: the same visual grammar as the tabs, never the notch (it is not a page). */}
         <button
+          type="button"
           onClick={openMoreSheet}
-          aria-label="More — all surfaces and search"
+          aria-label="Command: all surfaces and search"
+          aria-haspopup="dialog"
           className="relative flex min-h-[52px] flex-1 flex-col items-center justify-center gap-1 py-1.5 text-fg-tertiary press-spring hover:text-fg-secondary"
         >
-          <LayoutGrid size={20} strokeWidth={1.75} />
-          <span className="text-[11px] font-medium leading-none">More</span>
+          <Search size={20} strokeWidth={1.75} />
+          <span className="text-[11px] font-medium leading-none">Command</span>
         </button>
       </nav>
     </div>

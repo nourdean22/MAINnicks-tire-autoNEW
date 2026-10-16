@@ -96,7 +96,7 @@ describe("composeWaitingSummary · ownership follows the source", () => {
     });
     expect(s.me.count).toBe(3);
     expect(s.me.items.map((i) => i.key)).toEqual(["request:r1", "action:a1", "attempt:t1"]);
-    expect(s.me.items[0]).toMatchObject({ who: "you", deadline: new Date(now.getTime() + 3_600_000).toISOString(), href: "/system/actions", source: "approval_requests r1", ageMin: 90 });
+    expect(s.me.items[0]).toMatchObject({ who: "you", deadline: new Date(now.getTime() + 3_600_000).toISOString(), href: "/system/actions?tab=approvals", source: "approval_requests r1", ageMin: 90 });
     expect(s.system.count).toBe(1);
     expect(s.system.items[0]).toMatchObject({ owner: "system", who: "firecrawl-scrape", subject: "firecrawl-scrape is executing", source: "action_attempts t2" });
   });

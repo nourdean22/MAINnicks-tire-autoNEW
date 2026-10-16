@@ -150,7 +150,7 @@ describe("approvals · live is a decision, expired is an exception", () => {
     // Expired approvals roll up into ONE exception, aged from the oldest.
     expect(p.exceptions).toHaveLength(1);
     expect(p.exceptions[0]).toMatchObject({ kind: "approval_expired", title: "2 approvals expired unanswered", ageMin: 20_000 });
-    expect(p.decisions.every((d) => d.href === "/system/actions")).toBe(true);
+    expect(p.decisions.every((d) => d.href === "/system/actions?tab=approvals")).toBe(true);
   });
 
   it("an expired backlog cannot hide live decisions or flood the exceptions (Codex P1 on #2645)", () => {
@@ -365,7 +365,7 @@ describe("durable exception consolidation", () => {
         key: "attempt:wait-1",
         kind: "approval",
         title: "approve gmail.send?",
-        href: "/system/actions",
+        href: "/system/actions?tab=approvals",
         evidence: "action_attempts wait-1",
       }),
     ]);

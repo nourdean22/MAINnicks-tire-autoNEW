@@ -122,7 +122,7 @@ test.describe("selection grammar · /system/ui-lab fixtures", () => {
     await openLab(page, PHONE, `${LAB}?inspect=content:fx-1`);
     await expect(page.locator('[data-inspector="sheet"]')).toBeVisible();
     const hit = await page.evaluate(() => {
-      const more = document.querySelector<HTMLElement>('button[aria-label="More — all surfaces and search"]');
+      const more = document.querySelector<HTMLElement>('button[aria-label="Command: all surfaces and search"]');
       if (!more) return "no-more-button";
       const r = more.getBoundingClientRect();
       const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);

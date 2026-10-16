@@ -202,7 +202,7 @@ export function composeWaitingSummary(input: WaitingInput): WaitingSummary {
           deadline: r.expiresAt.toISOString(),
           consequence: clip(r.reason),
           nextAction: "approve or dismiss on /system/actions",
-          href: "/system/actions",
+          href: "/system/actions?tab=approvals",
           source: `approval_requests ${r.id}`,
         }),
       );
@@ -219,7 +219,7 @@ export function composeWaitingSummary(input: WaitingInput): WaitingSummary {
           deadline: null,
           consequence: `rule ${a.ruleName}`,
           nextAction: "approve or dismiss on /system/actions",
-          href: "/system/actions",
+          href: "/system/actions?tab=approvals",
           source: `autonomous_actions ${a.id}`,
         }),
       );
@@ -244,7 +244,7 @@ export function composeWaitingSummary(input: WaitingInput): WaitingSummary {
             deadline: null,
             consequence: clip(a.reason),
             nextAction: "approve or dismiss on /system/actions",
-            href: "/system/actions",
+            href: "/system/actions?tab=approvals",
             source: `action_attempts ${a.id}`,
           }),
         );

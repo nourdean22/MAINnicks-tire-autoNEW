@@ -1,6 +1,6 @@
 # UI v3 plan: Command Deck, finished
 
-**Status (2026-10-15):** Wave 0 merged (#3056). W1a (global grammar: uppercase sweep + net, header diet, aura to state word, spring tokens, em dash and emoji sweep) is on branch `statenour/ui-v3-w1a` awaiting integration; W1b (shell) is separate. Every later wave needs Nour's go.
+**Status (2026-10-15):** Wave 0 merged (#3056), W0b merged (#3065), W1a merged (#3066: uppercase sweep + net, header diet, aura to state word, spring tokens, em dash and emoji sweep). W1b (the shell: approvals land on Approvals, ticker rows as `Link`, pin-to-tab-bar, Command slot, v3 baselines committed) is in progress on `statenour/ui-v3-w1b`. Every later wave needs Nour's go.
 **Base:** origin/main `ec21736f9` when W0 started; the W0 PR merged newer main before integration. **Owner:** the manager session "bdnick ui upgrade" (job id `2026-10-15-bdnick-ui-v3`).
 **Genome:** COMMAND DECK ([`docs/design/SURFACE-DNA.md`](../../../../../docs/design/SURFACE-DNA.md)): one dominant thought per screen, then a rail; void and depth; the mission is the dominant object.
 **Builds on:** UI v2 ([`../ui-v2/PLAN.md`](../ui-v2/PLAN.md), [`SYSTEM.md`](../ui-v2/SYSTEM.md)) and the workbench grammar ([`../ui-workbench-2026-09-15.md`](../ui-workbench-2026-09-15.md)).
@@ -25,7 +25,7 @@
 |---|---|---|---|
 | W0 gates and honesty, invisible | Four honesty fixes (haptics row, People read failure + Retry, alert inspector copy, Brain loading line); ratchet tests for uppercase, em dash, emoji, `transition: all`, Tailwind duration classes over 300 ms, inputs under 16 px; this doc | Tests red first; ratchets proven by planted violations | nothing |
 | W0b fixture lane | v3 distance spec (opt-in until baselines exist), Playwright-stubbed DEMO fixtures under `tests/e2e/fixtures/`, workflow dispatch wiring, v2 baselines captured in CI | Controls first: identical re-render scores 0.000, a 16 to 64 px shift stays under 0.35 | a platform-lane edit to `.github/workflows/e2e-statenour.yml` (dependabot #3014 merged as 2d7d5175e; Playwright 1.64.0 is on main); lands before W2 |
-| W1 shell and grammar | Stop stray uppercase; header diet; replace the aura with a state word + notch; pin-to-tab-bar + Command tab; spring tokens; approvals land on Approvals; /goals and /scoreboard become redirects | Ratchet baselines drop; Home and Missions at 390 vs v2 | W0 |
+| W1 shell and grammar | W1a (merged #3066): stop stray uppercase; header diet; replace the aura with a state word + notch; spring tokens. W1b (in progress): pin-to-tab-bar + Command tab; approvals land on Approvals; ticker rows as `Link`. Not in scope: /goals and /scoreboard, which have been `redirect()` stubs since 2026-05-30 (f162673e6), so nothing to do | Ratchet baselines drop; Home and Missions at 390 vs v2 | W0 |
 | W2 Home deck + Missions | Verdict hero; finite brief (max 7 ruled cards, Keep/Less, "Done for today"); approve in place; right rail at 1280+; one capture control; detent sheet pilot | Distance >= 0.35 at 390 and 1440; iPhone check | W1, W0b |
 | W3 Chat | Header pill becomes a dot; tap-to-attach chip; error card for the new Retry behavior; composer at least 16 px | Distance gate; iPhone check | the T2 branch `statenour/t2-streaming-receipts` merged |
 | W4 Mind | Brain 1-row compact tabs; People attention list first (Retry shipped in W0); Journal one field, no emoji; Stats 3 tabs + verdict line | Ratchets + gate | W2 |
@@ -40,8 +40,8 @@ Estimates (not measured): about 1 day per wave at v2's pace; CI cost about 8 to 
 
 | Idea | Source, date | Wave |
 |---|---|---|
-| Pin-to-tab-bar | https://linear.app/changelog/2026-01-22-customize-your-navigation-in-linear-mobile (2026-01-22) | W1 |
-| Command as a tab | https://developer.apple.com/design/whats-new/ (2026-06-08) | W1 |
+| Pin-to-tab-bar | https://linear.app/changelog/2026-01-22-customize-your-navigation-in-linear-mobile (2026-01-22) | W1b |
+| Command as a tab | https://developer.apple.com/design/whats-new/ (2026-06-08) | W1b |
 | CSS `linear()` spring tokens | https://www.joshwcomeau.com/animation/linear-timing-function/ (2025-10-28, updated 2026-05-05) | W1 |
 | Animate first encounters only | https://rauno.me/craft/novelty (2026-02) | W1 |
 | Detent sheet (peek, half, full) | https://base-ui.com/react/components/drawer (docs show v1.9.0, undated) | W2 pilot |
@@ -107,4 +107,4 @@ Decisions, defaults assumed until Nour says otherwise (confirm before W2): v3 mu
 | 7 | Delete the Missions FAB, fold "New mission" into the capture row | `components/actions/omni-capture-modal.tsx:112-115`, `app/(mastery)/missions/page.tsx:352-381` | W2 |
 | 8 | Brain single scrolling lens row, filters inside the canvas | `components/layout/page-tabs.tsx:223`, `app/(mastery)/brain/page.tsx:80-100` | W4 |
 | 9 | Chat capability pill becomes a dot | `features/chat-v2/components/chat-capability-indicator.tsx:49-57`, `chat-island.tsx:285-289` (leased by T2) | W3 |
-| 10 | Fold the 5 QA fixtures under Lab; palette System group from the hub list; /goals and /scoreboard redirects | `components/system/hub-grid.tsx:121-386`, `components/command-palette.tsx:345-357`, `app/(mastery)/goals/page.tsx:15-19` | W1, W5 |
+| 10 | Fold the 5 QA fixtures under Lab; palette System group from the hub list (/goals and /scoreboard already `redirect()`, since 2026-05-30) | `components/system/hub-grid.tsx:121-386`, `components/command-palette.tsx:345-357` | W5 |

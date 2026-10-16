@@ -1,8 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useMemo, useRef, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { BOTTOM_TABS } from "./nav-items";
+import { FIXED_TABS, NAV, resolvePinnedTab, type NavEntry } from "./nav-items";
+import { usePinnedTabStore } from "@/lib/state/pinned-tab-store";
+
+/** The swipe loop in bar order: the three fixed tabs plus the pinned slot (UI v3 W1b), same resolver as the bar. */
+export function swipeTabs(pinnedHref: string): NavEntry[] {
+  return [...FIXED_TABS, resolvePinnedTab(pinnedHref, NAV)].filter((t) => !t.external);
+}
+
+/** Index of the tab the pathname sits on (a sub-route counts), or -1 off the loop. */
+export function swipeIndex(tabs: NavEntry[], pathname: string): number {
+  return tabs.findIndex((t) => pathname === t.href || pathname.startsWith(t.href + "/"));
+}
 
 /** The slice of a DOM Element the swipe guard reads (pure, so tests pass plain objects). */
 export interface SwipeNode {
@@ -54,13 +65,13 @@ export function SwipeNavigation() {
   // can't navigate to absolute URLs, and swiping shouldn't yank Nour
   // off-site. External entries remain reachable via the floating orb +
   // bottom nav, just not via swipe gesture.
-  // 2026-06-18 · IA reorg Phase 4 · now derives from BOTTOM_TABS (the 4 daily
-  // content tabs Home/Missions/Journal/Stats) — Stats joins the swipe loop.
-  const SWIPEABLE = BOTTOM_TABS.filter((t) => !t.external);
+  // UI v3 W1b · the loop is the bar: Home, Chat, Missions, then whatever is
+  // pinned in the fourth slot (default Journal), so a swipe never lands on a
+  // tab the bar does not show.
+  const pinnedHref = usePinnedTabStore((s) => s.href);
+  const SWIPEABLE = useMemo(() => swipeTabs(pinnedHref), [pinnedHref]);
 
-  const currentTabIndex = SWIPEABLE.findIndex(
-    t => pathname === t.href || pathname.startsWith(t.href + "/")
-  );
+  const currentTabIndex = swipeIndex(SWIPEABLE, pathname);
 
   const handleTouchStart = useCallback((e: TouchEvent) => {
     const touch = e.touches[0];
@@ -120,10 +131,7 @@ export function SwipeNavigation() {
 
     touchStartRef.current = null;
     pullRef.current = { startY: 0, pulling: false };
-    // SWIPEABLE is derived from BOTTOM_TABS which is module-const, so
-    // it's stable across renders — no need to include in deps.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentTabIndex, router]);
+  }, [currentTabIndex, router, SWIPEABLE]);
 
   useEffect(() => {
     // Only enable on mobile (check for touch support + narrow viewport)

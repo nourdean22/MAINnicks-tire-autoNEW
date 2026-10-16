@@ -1,14 +1,16 @@
 "use client";
 
 /**
- * MoreSheet — the "More" launcher behind the 5th bottom-tab slot.
+ * MoreSheet — the launcher behind the 5th bottom-tab slot ("Command" since UI v3 W1b).
  *
  * 2026-06-18 · IA reorg Phase 4. Replaces the FloatingHome orb's expanded
  * menu. A full-height, thumb-scrollable bottom sheet that indexes every
  * surface NOT in the 4 bottom tabs, grouped by the operator's OS-loop verbs
  * (Capture · Execute · Reflect · Money · Operate) read straight from the
- * single NAV source (nav-items.ts `bySection`). Top of the sheet is a
- * Search button — the only tap-path to ⌘K on the keyboardless iOS PWA.
+ * single NAV source (nav-items.ts `moreRows`, which drops the entry pinned
+ * to the fourth tab slot and lists Journal in its place, UI v3 W1b). Top of
+ * the sheet is a Search button — the only tap-path to ⌘K on the keyboardless
+ * iOS PWA.
  *
  * 2026-08-12 · two fixes, operator-reported ("stale UI and architecture"):
  *   · Open state now lives in useMoreSheetStore (Zustand — matches the
@@ -23,19 +25,20 @@
  *     replacing the flat mono tertiary label.
  */
 
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { NAV, bySection, type NavSection } from "./nav-items";
+import { NAV, isPinnable, moreRows, resolvePinnedTab, type NavSection } from "./nav-items";
 import { useMoreSheetStore } from "@/lib/state/more-sheet-store";
+import { usePinnedTabStore } from "@/lib/state/pinned-tab-store";
 import { useRecentPages } from "@/lib/hooks/use-recent-pages";
 import { useSystemPulse } from "@/lib/hooks/use-system-pulse";
 import { pickSmartNow } from "@/lib/floating-home/smart-now";
 import { COMMAND_PALETTE_OPEN_EVENT } from "@/components/command-palette";
 import { CAPTURE_OPEN_EVENT } from "@/components/brain-dump-modal";
-import { Search, NotebookPen, ArrowRight, Clock, Brain, X } from "lucide-react";
+import { Search, NotebookPen, ArrowRight, Clock, Brain, X, Pin } from "lucide-react";
 import { NICK_PANE_OPEN_EVENT, NICK_PANE_MOUNTED_ATTR } from "@/components/mastery/nick-side-pane";
 
 const SECTIONS: { key: NavSection; label: string; ordinal: string }[] = [
@@ -91,6 +94,19 @@ export function MoreSheet() {
     open && typeof document !== "undefined" && document.documentElement.dataset[NICK_PANE_MOUNTED_ATTR] === "1";
   const pathname = usePathname() ?? "/";
   const { candidates: recentCandidates } = useRecentPages();
+  // UI v3 W1b · the pinned entry sits in the bar, so it is not a row here; Journal takes its place.
+  const pinnedHref = usePinnedTabStore((s) => s.href);
+  const pin = usePinnedTabStore((s) => s.pin);
+  const pinned = resolvePinnedTab(pinnedHref, NAV);
+  // A pin removes the row the focused button sat in, so focus moves to the sheet's close button and
+  // the live region says what happened.
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const [pinNotice, setPinNotice] = useState("");
+  const pinRow = (n: { href: string; label: string }) => {
+    pin(n.href);
+    setPinNotice(`${n.label} pinned to the tab bar`);
+    closeRef.current?.focus();
+  };
 
   // Auto-close on route change (a no-op via closeSheet if already closed).
   useEffect(() => {
@@ -113,11 +129,15 @@ export function MoreSheet() {
         className="fixed inset-x-0 bottom-0 z-[71] max-h-[86dvh] overflow-y-auto overscroll-contain rounded-t-overlay border-t border-edge-default bg-overlay pb-[env(safe-area-inset-bottom,12px)] outline-none shadow-l2 data-open:animate-fadeSlideUp data-closed:animate-fadeSlideDown"
       >
         <DialogTitle className="sr-only">More navigation</DialogTitle>
+        <div role="status" aria-live="polite" className="sr-only">
+          {pinNotice}
+        </div>
         {/* Sticky header: grab handle + Search */}
         <div className="sticky top-0 z-10 border-b border-[var(--border-default)] bg-[var(--bg-void)] px-4 pb-3 pt-2">
           <div className="relative mb-2 flex min-h-11 items-center justify-center">
             <div className="h-1 w-10 rounded-full bg-[var(--border-default)]" aria-hidden />
             <button
+              ref={closeRef}
               type="button"
               onClick={close}
               aria-label="Close More menu"
@@ -202,7 +222,7 @@ export function MoreSheet() {
 
         {/* Verb sections — read from the single NAV source */}
         {SECTIONS.map(({ key, label, ordinal }) => {
-          const rows = bySection(key);
+          const rows = moreRows(key, pinned.href);
           if (rows.length === 0) return null;
           return (
             <div key={key} className="border-t border-[var(--border-default)] px-3 py-2">
@@ -226,23 +246,40 @@ export function MoreSheet() {
                   const Icon = n.icon;
                   const active = isActiveHref(pathname, n.href);
                   return (
-                    <Link
-                      key={n.href}
-                      href={n.href}
-                      onClick={close}
-                      aria-current={active ? "page" : undefined}
-                      className={cn(
-                        "flex min-h-11 items-center gap-2 rounded-control px-2.5 py-2 press-spring",
-                        active
-                          ? "bg-accent-soft text-fg"
-                          : "text-[var(--text-secondary)] hover:bg-[var(--bg-raised)] hover:text-[var(--text-primary)]",
+                    // The Pin control is a sibling of the link, never inside it: a tap on it cannot
+                    // navigate, and Tab reaches the link and then the pin.
+                    <div key={n.href} className="flex min-w-0 items-center">
+                      <Link
+                        href={n.href}
+                        onClick={close}
+                        aria-current={active ? "page" : undefined}
+                        className={cn(
+                          "flex min-h-11 items-center gap-2 rounded-control px-2.5 py-2 press-spring min-w-0 flex-1",
+                          active
+                            ? "bg-accent-soft text-fg"
+                            : "text-[var(--text-secondary)] hover:bg-[var(--bg-raised)] hover:text-[var(--text-primary)]",
+                        )}
+                      >
+                        <Icon size={15} strokeWidth={active ? 2.25 : 1.75} className="shrink-0" />
+                        <span className="min-w-0 truncate text-[13px] font-medium" title={n.label}>
+                          {n.label}
+                        </span>
+                      </Link>
+                      {/* 44 px hit area, 36 px visual, pulled 6 px into the cell gutter: at 390 px the
+                          label keeps about 100 px beside it. */}
+                      {isPinnable(n) && (
+                        <button
+                          type="button"
+                          onClick={() => pinRow(n)}
+                          aria-label={`Pin ${n.label} to the tab bar`}
+                          className="group -mr-1.5 inline-flex h-11 w-11 shrink-0 items-center justify-center text-fg-tertiary hover:text-fg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent rounded-control"
+                        >
+                          <span aria-hidden className="inline-flex h-9 w-9 items-center justify-center rounded-control group-hover:bg-surface-hover">
+                            <Pin size={14} strokeWidth={1.75} />
+                          </span>
+                        </button>
                       )}
-                    >
-                      <Icon size={15} strokeWidth={active ? 2.25 : 1.75} className="shrink-0" />
-                      <span className="truncate text-[13px] font-medium">
-                        {n.label}
-                      </span>
-                    </Link>
+                    </div>
                   );
                 })}
               </div>
