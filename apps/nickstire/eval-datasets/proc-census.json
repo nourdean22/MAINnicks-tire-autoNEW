@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-15T13:36:03.623Z",
-  "count": 784,
+  "generatedAt": "2026-10-16T05:13:46.052Z",
+  "count": 786,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -180,6 +180,7 @@
     "mutation.instagramAdmin.saveActiveSlate",
     "mutation.instagramAdmin.saveReelPattern",
     "mutation.instagramAdmin.stageDraft",
+    "mutation.instagramAdmin.startAutopostRun",
     "mutation.instagramAdmin.suggestReply",
     "mutation.instagramAdmin.syncFeed",
     "mutation.instagramAdmin.updateMetaConfig",
@@ -550,6 +551,7 @@
     "query.inspection.list",
     "query.instagram.account",
     "query.instagram.posts",
+    "query.instagramAdmin.autopostLaneStatus",
     "query.instagramAdmin.getActiveSlate",
     "query.instagramAdmin.getAllDrafts",
     "query.instagramAdmin.getAnalytics",

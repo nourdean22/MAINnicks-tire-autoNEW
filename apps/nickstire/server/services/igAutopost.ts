@@ -266,7 +266,7 @@ function currentSlot(now: Date): IgSlot | null {
 }
 
 /** ET calendar date (YYYY-MM-DD) — used to dedupe one post per slot per day. */
-function etDateKey(now: Date): string {
+export function etDateKey(now: Date): string {
   return now.toLocaleDateString("en-CA", { timeZone: BUSINESS.timezone }); // en-CA → ISO-like
 }
 
@@ -2056,6 +2056,15 @@ export async function runIgAutopostCron(): Promise<{ recordsProcessed: number; d
   const slot = currentSlot(now);
   if (!slot) {
     return { recordsProcessed: 0, details: "Skip — not within a posting-slot window" };
+  }
+  // Operator pause: checked after the slot gate (a paused lane reports a skip
+  // only when it would have acted) and before the dedupe read and any
+  // generation or spend. isEnabled reads false on a failed read, so a DB blip
+  // runs the lane as it ran before this flag existed; the admin status query
+  // reads the row itself and shows UNKNOWN instead. No claim is needed: a flip
+  // that lands mid-run stops the next tick, the same as a flip one second later.
+  if (await isEnabled("ig_autopost_paused")) {
+    return { recordsProcessed: 0, details: "Skip — paused by ig_autopost_paused" };
   }
   if (await alreadyRanSlotToday(slot, now)) {
     return { recordsProcessed: 0, details: `Skip — ${slot} slot already ran today` };
