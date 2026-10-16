@@ -14,6 +14,7 @@ the two: `AGENTS.md` carries judgment, and code carries enforcement.
 | 3 · Executable parity | `scripts/agent-os/check-adapters.mjs` | Adapters exist, point at their `AGENTS.md`, stay under cap; retired claims (`.husky/pre-*`, `push-main.sh`, "no CODEOWNERS", live `apps/voice`) stay deleted. |
 | 4 · Local enforcement | `.claude/settings.json` hooks + `scripts/agent-os/` | Deny unsafe tool calls before they run; gate completion claims. Claude-only — see "Honest limits". |
 | 5 · CI | [`.github/workflows/agent-policy.yml`](../../.github/workflows/agent-policy.yml) | Runs layers 3–4's checks on every PR, for every author, including humans. |
+| 5b · CI, config scan | [`.github/workflows/agentshield.yml`](../../.github/workflows/agentshield.yml) | Scans layer 4's own config (`.claude/`) with `ecc-agentshield` (268 rules: hooks, MCP, permissions, secrets, agents). Advisory since 2026-10-16; the job goes red only when the planted fixture (`scripts/agent-os/fixtures/agentshield-canary/`) stops being flagged. Canary: `agentshieldCanary.test.mjs`. |
 
 ## Execution framework
 
@@ -78,6 +79,12 @@ github-client canaries 403'd every PR whenever another workflow had spent the bu
   junctioned worktree, and writes to `.env*` files. Git rules expand a `__GIT__` macro so global
   options (`git -C <path> push …`) cannot slip between `git` and the verb — that exact shape
   defeated every git rule in the first draft (red-team, 2026-08-04, 22 verified bypasses → 0).
+- **PreCompact** (`precompact-handoff.mjs`, 2026-10-16) writes a handoff note BEFORE the context is compacted: branch,
+  HEAD, ahead/behind `origin/main`, the Session Authority lease, uncommitted paths, the last 5 commits. It lands outside
+  the repo (`~/.claude/agent-os/handoffs/<cwd slug>/`, newest 10 kept; `AGENT_OS_HANDOFF_DIR` overrides) so the tree
+  `stop-check.mjs` judges stays clean. **SessionStart** with matcher `compact` runs the same script with `--recall`
+  and prints the newest note (capped at 4,000 chars); other SessionStart sources print nothing. Mechanism taken from
+  affaan-m/ECC ("persist everything else"); neither mode can block. Canary: `precompactHandoff.test.mjs`.
 - **Stop** (`stop-check.mjs`) blocks ending a turn with uncommitted work while ON `main` —
   one precise invariant, nothing else. A Stop hook that blocks routine turns trains the
   operator to disable it; widen only behind a canary.
