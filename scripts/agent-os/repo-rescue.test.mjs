@@ -81,7 +81,26 @@ test("LIVE, real fixture: rescueBranch on a genuinely-stranded (no ref, no PR) b
   assert.equal(r.reason, "no-remote-branch-to-rescue");
 });
 
-test("LIVE, real fixture, DRY-RUN ONLY: the messy reel-generate-schedule branch passes the early gates and reaches dry-run — never opens a real PR", { skip: liveSkip }, async () => {
+// 2026-10-16 · fixture rot, found when the CI diet touched agent-policy.yml (which is one of this canary's
+// subjects, so live-gate ran it): nickstire/reel-generate-schedule was deleted by the 2026-10-15 branch triage, so
+// rescueBranch classifies it LANDED (zombie-rule) and this arm could never reach dry-run again. The arm needs a branch
+// that EXISTS and is unlanded; when its fixture is gone it skips with that reason instead of failing every PR that
+// touches its subjects. `git ls-remote` is a local git read (no REST budget). Replace the fixture to re-arm it.
+const remoteBranchGone = (branch) => {
+  try {
+    return execSync(`git ls-remote --heads origin ${branch}`, { cwd: join(HERE, "..", ".."), encoding: "utf8", env: cleanEnv(), stdio: ["ignore", "pipe", "ignore"] }).trim() === "";
+  } catch {
+    return false; // cannot tell: run the arm (fail toward coverage, never toward a silent skip)
+  }
+};
+
+test("LIVE: the fixture-rot probe says gone for a branch that cannot exist and present for main", { skip: liveSkip }, () => {
+  assert.equal(remoteBranchGone("agent-os-fixture-that-never-existed-9f3a"), true);
+  assert.equal(remoteBranchGone("main"), false);
+});
+
+test("LIVE, real fixture, DRY-RUN ONLY: the messy reel-generate-schedule branch passes the early gates and reaches dry-run — never opens a real PR", { skip: liveSkip }, async (t) => {
+  if (remoteBranchGone("nickstire/reel-generate-schedule")) return t.skip("fixture rot: nickstire/reel-generate-schedule no longer exists on origin (deleted by the 2026-10-15 branch triage); this arm needs a new unlanded fixture branch");
   const r = await rescueBranch("nickstire/reel-generate-schedule", { owner: OWNER, repo: REPO, dryRun: true });
   assert.equal(r.reason, "dry-run", `expected to reach dry-run (this branch exists, has no merged PR of its own, no local worktree here); got: ${JSON.stringify(r)}`);
   assert.ok(r.wouldOpen.title.includes("reel-generate-schedule"));

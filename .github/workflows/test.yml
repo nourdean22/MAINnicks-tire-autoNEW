@@ -592,9 +592,14 @@ jobs:
   # echoing the whole script source in the ##[group] block, where all
   # three hardcoded error strings appear regardless of which branch runs.
   # Packing three of them into one step is what made the log unreadable.
+  #
+  # (c) 2026-10-16 · CI diet: not on PRs. This job only prints a summary and posts to a Slack webhook that is
+  # not configured (SLACK_WEBHOOK_URL unset), yet it billed a full minute on every PR push. Each job's own
+  # result already shows in the PR checks list. On a push to main it still runs, so the summary and the
+  # (armed-later) Slack message are unchanged there. Guarded by scripts/agent-os/workflowCostGuards.test.mjs.
   notify:
     needs: [changes, node, security, railway-smoke]
-    if: always()
+    if: ${{ always() && github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     steps:
       - name: Generate Summary

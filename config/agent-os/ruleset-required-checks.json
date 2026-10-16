@@ -11,8 +11,7 @@
       "type": "required_status_checks",
       "parameters": {
         "required_status_checks": [
-          { "context": "Completion Authority / completion-authority" },
-          { "context": "Agent policy / adapter parity + canaries" }
+          { "context": "Agent policy / parity, canaries, authority, secrets, citation" }
         ],
         "strict_required_status_checks_policy": true
       }

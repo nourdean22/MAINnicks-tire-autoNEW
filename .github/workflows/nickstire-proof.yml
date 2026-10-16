@@ -34,8 +34,14 @@ on:
     - cron: "0 9 * * *" # 09:00 UTC daily · 05:00 ET, before the shop opens
   push:
     branches: [main]
+    # 2026-10-16 · CI diet (~19 billed minutes a run). The storefront's critical pages and episodes cannot
+    # change from a diff that only touches apps/nickstire/docs, so that diff skips this post-deploy run; the
+    # daily 09:00 UTC schedule below still measures the live site either way. NOTE the one runtime reader of
+    # that tree: approvedReelPackRotation reads apps/nickstire/docs/reel-packs, which this proof does not
+    # exercise. `!` un-matches what the line above matched.
     paths:
       - "apps/nickstire/**"
+      - "!apps/nickstire/docs/**"
       - ".github/workflows/nickstire-proof.yml"
   # 2026-10-16 · admin UI v1 Wave 0b. Tick capture_admin_v1_baselines to skip the
   # live canaries and instead render Today, Lot and Approvals from the DEMO

@@ -3,11 +3,19 @@ name: Agent policy
 # Guards the agent control plane: instruction-adapter parity + policy canaries.
 #
 # Deliberately self-contained — Node only, no pnpm install, no turbo. It runs on
-# EVERY PR (a stale-instruction fix can land anywhere) and finishes in seconds.
+# EVERY PR (a stale-instruction fix can land anywhere) and finishes in about two minutes.
 # New checks are added by dropping a scripts/agent-os/*.test.mjs file; verify.mjs
 # discovers them, so this workflow file does not need editing. That matters here:
 # editing .github/workflows/** flips test.yml's path filter into a full turbo
 # sweep (~50 min). See docs/agent-os/README.md.
+#
+# 2026-10-16 · CI diet. This ONE job now also carries the three small PR-only checks that were
+# separate workflows or jobs (Completion Authority, Secret Scanning, source citation). GitHub bills
+# every job as a whole minute, so four 25-to-110 second jobs billed ~5 minutes a PR push; as steps
+# of one job they bill ~3. Every step kept its name and its command. The PR-only steps run AFTER
+# the verify step and each carries `!cancelled()`, so one red step never hides another red step
+# the way separate jobs never did. scripts/agent-os/workflowCostGuards.test.mjs asserts every step
+# below still exists, in exactly one job, and that the staged ruleset names this job.
 #
 # NOTE: this repo has no branch protection, so a red run does not mechanically
 # block `gh pr merge`. Red means stop, by convention.
@@ -25,16 +33,24 @@ permissions:
     # an explicit `permissions:` block implicitly sets every OTHER scope to none,
     # so contents:read alone 403'd GET /pulls with "Resource not accessible by
     # integration" -- caught from the real CI log, not anticipated up front.
+  # for any future non --skip-ci-check invocation of the review gate that queries statusCheckRollup
+  checks: read
 
 concurrency:
-  group: agent-policy-${{ github.ref }}
-  cancel-in-progress: true
+  # PR runs share one group per PR (a new push supersedes the old verdict). A push to main gets a
+  # group of its own per commit and is never cancelled: that run is the only verdict the commit
+  # will get, and one shared group lets GitHub evict the pending run when a third push arrives
+  # (same fix as test.yml and e2e-statenour.yml; this file used to cancel main runs).
+  group: agent-policy-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name == 'push' && github.sha || 'run' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   policy:
-    name: adapter parity + canaries
+    # The staged ruleset (config/agent-os/ruleset-required-checks.json) names this job as
+    # "Agent policy / <name>". Rename both together; workflowCostGuards.test.mjs fails if they drift.
+    name: parity, canaries, authority, secrets, citation
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -76,35 +92,105 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node scripts/agent-os/verify.mjs
 
-  source-citation:
-    # Charter rule 7, mechanical slice: a PR that CHANGES A DEPENDENCY must cite
-    # a current source (url + date) in its body. Training data is a fact about
-    # the past, so an uncited version bump is a memory claim wearing a fact's
-    # clothes.
-    #
-    # This needs its own job because it is the one check that cannot run from
-    # the tree alone — the PR BODY is only available from the event payload, so
-    # verify.mjs's drop-in-a-test-file discovery cannot reach it. The pure logic
-    # IS canaried through that path (sourceCitation.test.mjs, 12 arms incl. the
-    # #1972 and #1974 false positives); this job is what makes it bite.
-    #
-    # SCOPE, stated so nobody reads it as broader than it is: dependency edits
-    # only. "Switched an approach" and "assumed a platform still behaves this
-    # way" leave no syntactic trace and stay on review.
-    name: source citation (rule 7)
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          fetch-depth: 0
+      # ─── Completion Authority (was .github/workflows/completion-authority.yml) ───
+      # The machine that makes it impossible to call incomplete work complete:
+      # - capability ledger states only advance with evidence (validator)
+      # - completion requirements are DERIVED from the diff (DoD compiler) and
+      #   must carry evidence refs or explicit deferrals — never silence.
+      # The review gate reads PR threads/reviews via GraphQL — the default
+      # restricted workflow token gets FORBIDDEN without an explicit pull-requests:read
+      # (first live PR-event run of the gate, #828).
+      - name: Validate capability ledger (evidence-gated states)
+        if: ${{ github.event_name == 'pull_request' && !cancelled() }}
+        run: node apps/nickstire/scripts/check-capability-ledger.mjs
 
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
-        with:
-          node-version: 24
+      - name: Reality ledger is in sync with the JSON
+        if: ${{ github.event_name == 'pull_request' && !cancelled() }}
+        run: |
+          node apps/nickstire/scripts/render-reality-ledger.mjs
+          git diff --exit-code apps/nickstire/docs/operations/REALITY-LEDGER.md || {
+            echo "::error::REALITY-LEDGER.md is stale — run scripts/render-reality-ledger.mjs and commit the result"
+            exit 1
+          }
 
+      - name: DoD compiler (requirements derived from the diff)
+        if: ${{ github.event_name == 'pull_request' && !cancelled() }}
+        run: node apps/nickstire/scripts/dod-compiler.mjs --base "origin/${{ github.base_ref }}" --enforce
+
+      - name: Review gate (unresolved P0/P1/P2 threads, stale approvals, changes-requested)
+        if: ${{ github.event_name == 'pull_request' && !cancelled() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node apps/nickstire/scripts/check-review-gate.mjs ${{ github.event.pull_request.number }} --enforce --skip-ci-check
+
+      - name: Contradiction detector (claims vs evidence vs ledger vs PR body)
+        if: ${{ github.event_name == 'pull_request' && !cancelled() }}
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          printf '%s' "$PR_BODY" > /tmp/pr-body.txt
+          node apps/nickstire/scripts/detect-contradictions.mjs --pr-body-file /tmp/pr-body.txt --enforce
+
+      # ─── Secret scanning (was .github/workflows/secret-scan.yml) ───
+      # HARD gate: fail a PR if it introduces a NEW secret. Deterministic by design —
+      # we scan ONLY the PR's own commit range (base..head), never full history, so the
+      # known archived leaks already on main (the old vars.json env dump, the archived
+      # check-gateway creds) can't false-positive and block every PR. gitleaks' own
+      # `--exit-code 1` guarantees the catch: any secret in the scanned range fails the job.
+      - name: Install gitleaks
+        if: ${{ github.event_name == 'pull_request' && !cancelled() }}
+        run: |
+          set -euo pipefail
+          VER=8.30.1
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${VER}/gitleaks_${VER}_linux_x64.tar.gz" -o /tmp/gitleaks.tar.gz
+          tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
+          sudo mv /tmp/gitleaks /usr/local/bin/gitleaks
+          gitleaks version
+
+      - name: Scan the PR's new commits for secrets (hard gate)
+        if: ${{ github.event_name == 'pull_request' && !cancelled() }}
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          echo "Scanning ${BASE_SHA}..${HEAD_SHA} (this PR's commits only)"
+          # --report-path is what makes a failure actionable. Without it the
+          # step prints only 'leaks found: 1' and exits — no rule, no file, no
+          # line — so the first thing anyone does on a red gate is GUESS which
+          # secret it meant. (2026-08-15: a session guessed wrong, shipped an
+          # allowlist for the wrong pattern, and the gate stayed red.) The
+          # report is written WITH --redact, so the value is masked and the
+          # findings are safe to print in a public log.
+          gitleaks git . \
+            --log-opts="${BASE_SHA}..${HEAD_SHA}" \
+            --config .gitleaks.toml \
+            --redact \
+            --no-banner \
+            --report-format json \
+            --report-path gitleaks-report.json \
+            --exit-code 1 || {
+              echo '--- findings (secret values redacted) ---'
+              cat gitleaks-report.json || echo '(no report written)'
+              exit 1
+            }
+
+      # ─── Source citation, charter rule 7 (was the `source citation (rule 7)` job) ───
+      # A PR that CHANGES A DEPENDENCY must cite a current source (url + date) in its
+      # body. Training data is a fact about the past, so an uncited version bump is a
+      # memory claim wearing a fact's clothes.
+      #
+      # This needs the PR event because it is the one check that cannot run from the
+      # tree alone — the PR BODY is only available from the event payload, so
+      # verify.mjs's drop-in-a-test-file discovery cannot reach it. The pure logic
+      # IS canaried through that path (sourceCitation.test.mjs, 12 arms incl. the
+      # #1972 and #1974 false positives); these steps are what make it bite.
+      #
+      # SCOPE, stated so nobody reads it as broader than it is: dependency edits
+      # only. "Switched an approach" and "assumed a platform still behaves this
+      # way" leave no syntactic trace and stay on review.
       - name: collect PR diff and body
+        if: ${{ github.event_name == 'pull_request' && !cancelled() }}
         env:
           # Via env, never interpolated into the script body — a PR title or
           # body is attacker-controlled text and must not reach the shell.
@@ -117,4 +203,5 @@ jobs:
           wc -l /tmp/pr.diff /tmp/pr-body.txt
 
       - name: check source citation
+        if: ${{ github.event_name == 'pull_request' && !cancelled() }}
         run: node scripts/agent-os/check-source-citation.mjs --diff /tmp/pr.diff --body /tmp/pr-body.txt
