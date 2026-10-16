@@ -197,8 +197,8 @@ export default function OverviewSection() {
    * therefore invisible to this check.
    */
   const queueTrustworthy =
-    !isError &&
     !workOrdersFailed &&
+    !isError &&
     !unavailable.some((s) => s === "leads" || s === "bookings" || s === "callbacks" || s === "owedTexts");
   /**
    * The work-order read is capped, so a full page is a LOWER BOUND, not a count.
