@@ -221,7 +221,8 @@ export type CommentResponderStatus =
       /** Last 7 days of comment_reply audit rows by decision. */
       counts7d: { posted: number; failed: number; dryRun: number };
     }
-  | { available: false; reason: string };
+  // The flag and env values travel with a failure so the card keeps its Pause / Resume switch.
+  | { available: false; reason: string; paused: boolean | null; enabled: boolean; live: boolean };
 
 /** context_json -> the contract's fields; anything unparseable or non-string is null, never a throw. */
 function parseReplyContext(
@@ -245,10 +246,12 @@ export async function readCommentResponderStatus(
   database: Awaited<ReturnType<typeof dbTyped>>,
   now: Date = new Date(),
 ): Promise<CommentResponderStatus> {
-  if (!database) return { available: false, reason: "Database unavailable: comment responder history cannot be read." };
-  const { cronLog, autonomyAuditEvents, featureFlags } = await import("../../drizzle/schema");
   const enabled = process.env.REEL_COMMENT_RESPONDER_ENABLED === "true";
   const live = process.env.REEL_COMMENT_RESPONDER_LIVE === "true";
+  if (!database) {
+    return { available: false, reason: "Database unavailable: comment responder history cannot be read.", paused: null, enabled, live };
+  }
+  const { cronLog, autonomyAuditEvents, featureFlags } = await import("../../drizzle/schema");
 
   // The row, not isEnabled(): isEnabled answers false on a failed read, which for
   // an inverted pause would render "not paused". An ABSENT row reads false.
@@ -308,7 +311,7 @@ export async function readCommentResponderStatus(
     };
   } catch (err) {
     log.warn("commentResponderStatus history read failed", { error: errText(err) });
-    return { available: false, reason: `Comment responder history could not be read: ${errText(err)}` };
+    return { available: false, reason: `Comment responder history could not be read: ${errText(err)}`, paused, enabled, live };
   }
 }
 

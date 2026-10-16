@@ -108,8 +108,31 @@ describe("readCommentResponderStatus", () => {
     expect((s as { reason: string }).reason).toMatch(/audit read boom/);
   });
 
-  it("no database is available:false", async () => {
+  it("a failed history read after a good flag read keeps the pause state, so the card keeps its switch", async () => {
+    process.env.REEL_COMMENT_RESPONDER_ENABLED = "true";
+    delete process.env.REEL_COMMENT_RESPONDER_LIVE;
+    const s = await readCommentResponderStatus(
+      fakeDb([[{ key: "reel_comment_responder_paused", value: true }], new Error("cron_log read boom"), auditRows, counts]),
+      NOW,
+    );
+    expect(s).toEqual({
+      available: false,
+      reason: expect.stringMatching(/cron_log read boom/),
+      paused: true,
+      enabled: true,
+      live: false,
+    });
+  });
+
+  it("both reads failing is available:false with paused UNKNOWN (null), never false", async () => {
+    const s = await readCommentResponderStatus(fakeDb([new Error("flag boom"), new Error("history boom"), auditRows, counts]), NOW);
+    expect(s).toMatchObject({ available: false, paused: null });
+  });
+
+  it("no database is available:false with paused UNKNOWN", async () => {
+    process.env.REEL_COMMENT_RESPONDER_ENABLED = "true";
+    process.env.REEL_COMMENT_RESPONDER_LIVE = "true";
     const s = await readCommentResponderStatus(null, NOW);
-    expect(s).toEqual({ available: false, reason: expect.stringMatching(/database/i) });
+    expect(s).toEqual({ available: false, reason: expect.stringMatching(/database/i), paused: null, enabled: true, live: true });
   });
 });
