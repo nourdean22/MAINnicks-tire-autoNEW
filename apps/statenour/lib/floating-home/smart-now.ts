@@ -59,7 +59,7 @@ export function pickSmartNow(args: {
 
   // ── 2. PENDING · actions awaiting approval ──
   if (pulse && pulse.actionsPending > 0) {
-    const target = "/system/actions";
+    const target = "/system/actions?tab=approvals";
     if (!pathname.startsWith(target)) {
       return {
         href: target,

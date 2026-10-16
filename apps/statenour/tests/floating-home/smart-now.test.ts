@@ -52,7 +52,7 @@ describe("pickSmartNow · priority order", () => {
       pathname: "/chat",
       pulse: pulse({ actionsPending: 5 }),
     });
-    expect(result?.href).toBe("/system/actions");
+    expect(result?.href).toBe("/system/actions?tab=approvals");
     expect(result?.urgency).toBe("high");
     expect(result?.label).toMatch(/5 pending/);
   });
@@ -87,7 +87,7 @@ describe("pickSmartNow · priority order", () => {
         aiErrorRate1h: 50,
       }),
     });
-    expect(result?.href).toBe("/system/actions");
+    expect(result?.href).toBe("/system/actions?tab=approvals");
   });
 });
 
