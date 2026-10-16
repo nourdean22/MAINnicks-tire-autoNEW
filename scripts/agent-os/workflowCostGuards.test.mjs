@@ -374,7 +374,13 @@ export function checkWorkflows(root) {
     if (adv["continue-on-error"] !== true) flag("security-in-node", "the advisory audit is no longer continue-on-error");
     if (crit["continue-on-error"] !== undefined) flag("security-in-node", "the critical audit is continue-on-error: the dependency gate cannot fail");
     for (const s of [adv, crit]) if (!String(s.if ?? "").includes("!cancelled()")) flag("security-in-node", `"${s.name}" lost !cancelled(): an earlier red step would switch the gate off`);
-    if (nodeSteps.indexOf(crit) !== nodeSteps.length - 1) flag("security-in-node", "the critical audit is no longer the last step of node");
+    // Codex review of #3083: at the tail of a 50-minute job a hung validator starves the gate (the 421-425 failure),
+    // so both audits run FIRST, right after the install, each with a step timeout of its own.
+    const sweepAt = nodeSteps.findIndex((s) => String(s?.name ?? "").startsWith("Verify affected"));
+    for (const s of [adv, crit]) {
+      if (sweepAt < 0 || nodeSteps.indexOf(s) > sweepAt) flag("security-in-node", `"${s.name}" must run BEFORE the turbo sweep, not behind a step that can hang`);
+      if (!(Number(s["timeout-minutes"]) > 0)) flag("security-in-node", `"${s.name}" has no step timeout of its own`);
+    }
   }
   if (!text("test.yml").includes("run: node scripts/audit-advisories.mjs --audit-level=critical\n")) flag("security-in-node", "test.yml no longer runs audit-advisories at --audit-level=critical");
   if (wfs["test.yml"]?.jobs?.security) flag("security-in-node", "a standalone security job is back next to its folded copy");
@@ -475,6 +481,13 @@ const MUTANTS = [
   ["needs-resolve", "notify still needs the deleted security job", wf("test.yml"), (t) => t.replace("needs: [changes, node, railway-smoke]", "needs: [changes, node, security, railway-smoke]")],
   ["security-in-node", "the critical audit can no longer fail", wf("test.yml"), (t) => t.replace("      - name: Dependency audit (critical severity · blocking)\n", "      - name: Dependency audit (critical severity · blocking)\n        continue-on-error: true\n")],
   ["security-in-node", "an earlier red step switches the audit off", wf("test.yml"), (t) => t.replace("      - name: Dependency audit (critical severity · blocking)\n        if: ${{ !cancelled() }}\n", "      - name: Dependency audit (critical severity · blocking)\n")],
+  ["security-in-node", "the audits move back to the tail of node", wf("test.yml"), (t) => {
+    const a = t.indexOf("      - name: Dependency audit (high+ severity");
+    const b = t.indexOf("      - name: Ensure base ref");
+    const block = t.slice(a, b);
+    return (t.slice(0, a) + t.slice(b)).replace("\n  railway-smoke:\n", "\n" + block + "\n  railway-smoke:\n");
+  }],
+  ["security-in-node", "the critical audit loses its step timeout", wf("test.yml"), (t) => t.replace("      - name: Dependency audit (critical severity · blocking)\n        if: ${{ !cancelled() }}\n        timeout-minutes: 5\n", "      - name: Dependency audit (critical severity · blocking)\n        if: ${{ !cancelled() }}\n")],
   ["security-in-node", "the audit step is renamed away", wf("test.yml"), (t) => t.replace("Dependency audit (high+ severity · advisory)", "Dependency audit (high+)")],
   ["security-in-node", "a standalone security job comes back", wf("test.yml"), (t) => t.replace("\n  railway-smoke:\n", "\n  security:\n    runs-on: ubuntu-latest\n    steps:\n      - run: true\n\n  railway-smoke:\n")],
   ["diag-no-pr", "the diagnostic is back on every PR", wf("admin-completion-diagnostic.yml"), (t) => t.replace("on:\n", "on:\n  pull_request:\n    branches: [main]\n")],

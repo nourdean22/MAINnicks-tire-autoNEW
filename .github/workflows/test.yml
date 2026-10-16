@@ -173,6 +173,30 @@ jobs:
       - name: Install workspace deps
         run: pnpm install --frozen-lockfile
 
+      # ─── Dependency gate (was its OWN job, `security`): FIRST in this job, on purpose ───
+      # 2026-10-16 · CI diet folded the `security` job in (it billed 1.1 minutes for its own checkout and install).
+      # The reason it had been a separate job still holds: a hung validator below (the documented 421-425
+      # failure: a prompt:size-check that ate the whole budget and skipped both audits) must not switch the
+      # gate off. At the tail of a 50-minute job a job timeout would starve it (Codex review of #3083), so
+      # these two fast steps run right after the install, before anything that can hang, and carry their own
+      # step timeout. `!cancelled()` keeps them running if the install-adjacent steps are red.
+      # TRADE: they now run only when `node` runs (an app, package, lockfile, turbo or workflow change).
+      # A docs-only PR no longer audits; a new advisory surfaces on the next code PR or main push.
+      #
+      - name: Dependency audit (high+ severity · advisory)
+        if: ${{ !cancelled() }}
+        timeout-minutes: 5
+        continue-on-error: true
+        run: node scripts/audit-advisories.mjs --audit-level=high --advisory
+
+      # Exits 2 (fails) if the scanner itself cannot run. That is deliberate:
+      # a scan that silently passes when it is broken is how this gate rotted
+      # into permanent red that everyone learned to ignore.
+      - name: Dependency audit (critical severity · blocking)
+        if: ${{ !cancelled() }}
+        timeout-minutes: 5
+        run: node scripts/audit-advisories.mjs --audit-level=critical
+
       # Turbo `--affected` diffs against the local `main` branch, which a
       # detached-HEAD PR checkout does not have — it only has `origin/main`.
       # Without this, turbo logged "Failed to resolve base ref 'main'" and
@@ -526,37 +550,6 @@ jobs:
       - name: gate - no NEW unconsumed exports, files, or scripts
         if: ${{ !cancelled() && (needs.changes.outputs.nickstire == 'true' || needs.changes.outputs.workflow == 'true') }}
         run: cd apps/nickstire && node scripts/knip-orphan-gate.mjs
-
-      # ─── Dependency gate (was its OWN job, `security`) ───
-      # 2026-10-16 · CI diet. It was a separate job with its own checkout, pnpm setup and install (54s, billed
-      # 1.1 minutes) on every PR and main push. These two steps need only the lockfile and `node` already holds
-      # the install, so they live here, unchanged. The original reason for a separate job still holds: a failure
-      # earlier in this job (a statenour validator, a build) must not switch the gate off, so each step carries
-      # `!cancelled()` and runs whatever happened above. TRADE: they now run only when `node` runs (an app,
-      # package, lockfile, turbo or workflow change). A docs-only PR no longer audits; a new advisory against
-      # existing dependencies surfaces on the next code PR or main push instead.
-      #
-      # scripts/audit-advisories.mjs replaced `pnpm audit`, which POSTs to
-      # npm's legacy audit endpoint. npm RETIRED it — every call returns 410,
-      # so the blocking gate failed on 100% of PRs regardless of content and a
-      # real CVE was indistinguishable from the endpoint being gone (#760).
-      # NOTE: dependency-review.yml does NOT backstop this, and cannot. That
-      # action needs a PUBLIC repo or private+GitHub Advanced Security; this
-      # repo is private and owned by a personal account, and GHAS is an
-      # Enterprise-org product. It is continue-on-error, so it reports a
-      # decorative green while doing nothing. This job is the repo's ONLY
-      # dependency gate.
-      - name: Dependency audit (high+ severity · advisory)
-        if: ${{ !cancelled() }}
-        continue-on-error: true
-        run: node scripts/audit-advisories.mjs --audit-level=high --advisory
-
-      # Exits 2 (fails) if the scanner itself cannot run. That is deliberate:
-      # a scan that silently passes when it is broken is how this gate rotted
-      # into permanent red that everyone learned to ignore.
-      - name: Dependency audit (critical severity · blocking)
-        if: ${{ !cancelled() }}
-        run: node scripts/audit-advisories.mjs --audit-level=critical
 
   railway-smoke:
     needs: [changes, node]
