@@ -664,14 +664,48 @@ describe("review round 1 (2026-10-16)", () => {
     expect(h.prisma.brainMemory.updateMany).not.toHaveBeenCalled();
   });
 
-  it("P2-K: a soft-deleted spaced row is treated as absent: fresh streak, revived visible, no TTL", async () => {
+  // Round 2: the tutor writes schedule fields only. A card Nour cleared in Learn stays cleared.
+  it("P2-K: a card cleared in Learn stays cleared: nothing is written, the reply says so", async () => {
     h.prisma.intelligenceOutcome.findUnique.mockResolvedValue(ledgerRow());
-    const deletedAt = new Date("2026-10-10T00:00:00Z");
-    h.prisma.brainMemory.findUnique.mockResolvedValue(spacedRow({ deletedAt }));
-    expect((await handleTutorAnswer("led_1", "B")).reply).toBe("Right. Next ask in 1 day.");
-    const call = h.prisma.brainMemory.updateMany.mock.calls[0][0];
-    expect(call.where).toMatchObject({ id: "sr_1", deletedAt });
-    expect(call.data).toMatchObject({ deletedAt: null, expiresAt: null });
-    expect(JSON.parse(call.data.content)).toMatchObject({ streak: 1, interval: 1 });
+    h.prisma.brainMemory.findUnique.mockResolvedValue(spacedRow({ deletedAt: new Date("2026-10-10T00:00:00Z") }));
+    expect((await handleTutorAnswer("led_1", "B")).reply).toBe("Logged. That card was cleared in Learn, so no new date.");
+    expect(h.prisma.brainMemory.updateMany).not.toHaveBeenCalled();
+    expect(h.remember).not.toHaveBeenCalled();
+    expect(h.recordOutcomeResult).toHaveBeenCalledWith(expect.objectContaining({ id: "led_1", useful: true }));
   });
+
+  it("P2-K: a wrong answer on a cleared card keeps the miss text and says it was cleared", async () => {
+    h.prisma.intelligenceOutcome.findUnique.mockResolvedValue(ledgerRow());
+    h.prisma.brainMemory.findUnique.mockResolvedValue(spacedRow({ deletedAt: new Date("2026-10-10T00:00:00Z") }));
+    expect((await handleTutorAnswer("led_1", "A")).reply).toBe(
+      `Not this one. It was: ${WISDOM[0].content}. Logged. That card was cleared in Learn, so no new date.`,
+    );
+    expect(h.prisma.brainMemory.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("round 2: an update keeps topic, summary and memoryId from the existing row, whatever text the caller carries", async () => {
+    h.prisma.intelligenceOutcome.findUnique.mockResolvedValue(ledgerRow());
+    // The stored card was edited in Learn; the caller's wisdom text (the question's answer) differs.
+    const stored = spacedRow({
+      content: JSON.stringify({ topic: "my edited topic", summary: "my edited summary", reviewAt: NOW.toISOString(), interval: 3, completed: false, streak: 2, memoryId: "w1" }),
+    });
+    h.prisma.brainMemory.findUnique.mockResolvedValue(stored);
+    await handleTutorAnswer("led_1", "B");
+    const call = h.prisma.brainMemory.updateMany.mock.calls[0][0];
+    const next = JSON.parse(call.data.content);
+    expect(next).toMatchObject({ topic: "my edited topic", summary: "my edited summary", memoryId: "w1", streak: 3, interval: 7, completed: false });
+    expect(next.summary).not.toBe(WISDOM[0].content);
+  });
+
+  it("round 2: the swap writes schedule state only: no deletedAt key, and deletedAt: null is in the WHERE", async () => {
+    h.prisma.intelligenceOutcome.findUnique.mockResolvedValue(ledgerRow());
+    const prev = spacedRow();
+    h.prisma.brainMemory.findUnique.mockResolvedValue(prev);
+    await handleTutorAnswer("led_1", "B");
+    const call = h.prisma.brainMemory.updateMany.mock.calls[0][0];
+    expect("deletedAt" in call.data).toBe(false);
+    expect(Object.keys(call.data).sort()).toEqual(["content", "expiresAt", "lastSeen"]);
+    expect(call.where).toMatchObject({ id: "sr_1", category: "spaced_review", key: "tutor_w1", content: prev.content, deletedAt: null });
+  });
+
 });

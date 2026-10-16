@@ -334,25 +334,34 @@ function readSpaced(key: string) {
 }
 
 /**
- * Compare-and-swap on the previous row (content = streak + due, and its soft-delete
- * state), never an update by id. Throws when the schedule was not written, so the
- * reply never claims a "Next ask in N days" that does not exist.
+ * Compare-and-swap on the previous row (content = streak + due, and not soft-deleted),
+ * never an update by id. On an existing row it writes schedule fields only: topic,
+ * summary and memoryId stay as the row has them, and deletedAt is never in the data.
+ * Returns "cleared" without writing when the card was removed in Learn. Throws when the
+ * schedule was not written, so the reply never claims a "Next ask in N days" that does not exist.
  */
-async function scheduleSpacedReview(memoryId: string, topic: string, summary: string, correct: boolean, now: Date): Promise<number> {
+async function scheduleSpacedReview(
+  memoryId: string,
+  topic: string,
+  summary: string,
+  correct: boolean,
+  now: Date,
+): Promise<number | "cleared"> {
   const key = `tutor_${memoryId}`;
   const existing = await readSpaced(key);
-  // A row soft-deleted from the Learn tab is absent: the schedule restarts from streak 0
-  // (revived below, since remember() would only reinforce the hidden row).
-  const prev = existing && !existing.deletedAt ? parseSpaced(existing.content) : null;
+  // A cleared card stays cleared: no write, no revive.
+  if (existing?.deletedAt) return "cleared";
+  const prev = existing ? parseSpaced(existing.content) : null;
   const step = spacedReviewStep(typeof prev?.streak === "number" ? prev.streak : 0, correct);
   const next: SpacedReview = {
-    topic,
-    summary: clip(summary, 300),
+    // The caller's text only seeds a new row, or fills a field an unreadable row lacks.
+    topic: prev?.topic ?? topic,
+    summary: prev?.summary ?? clip(summary, 300),
     reviewAt: new Date(now.getTime() + step.days * DAY_MS).toISOString(),
     interval: step.days,
     completed: false,
     streak: step.streak,
-    memoryId,
+    memoryId: prev?.memoryId ?? memoryId,
   };
   if (!existing) {
     await brainMemory.remember(SPACED_REVIEW_CATEGORY, key, JSON.stringify(next), "tutor", { memoryId });
@@ -362,8 +371,8 @@ async function scheduleSpacedReview(memoryId: string, topic: string, summary: st
     return step.days;
   }
   const res = await prisma.brainMemory.updateMany({
-    where: { id: existing.id, category: SPACED_REVIEW_CATEGORY, key, content: existing.content, deletedAt: existing.deletedAt },
-    data: { content: JSON.stringify(next), lastSeen: now, expiresAt: null, deletedAt: null },
+    where: { id: existing.id, category: SPACED_REVIEW_CATEGORY, key, content: existing.content, deletedAt: null },
+    data: { content: JSON.stringify(next), lastSeen: now, expiresAt: null },
   });
   if (res.count !== 1) throw new Error("spaced_review swap lost");
   return step.days;
@@ -452,6 +461,10 @@ export async function handleTutorAnswer(ledgerId: string, tapped: string): Promi
         })
       : null;
     const miss = `Not this one. It was: ${clip(answer, 100)}.`;
+    if (days === "cleared") {
+      const note = "Logged. That card was cleared in Learn, so no new date.";
+      return { reply: correct ? note : `${miss} ${note}` };
+    }
     if (days === null) return { reply: correct ? "Logged, schedule failed." : `${miss} Logged, schedule failed.` };
     return { reply: correct ? `Right. Next ask in ${days} day${days === 1 ? "" : "s"}.` : `${miss} Again tomorrow.` };
   }
