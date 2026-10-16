@@ -56,11 +56,12 @@ workflow fan-outs and background suites count toward both (four concurrent suite
    --claimed-by "<job id>"`. It exits 0 even when it took NO lease (`agent-start.mjs:32-54`); only a line starting
    `[agent-start] leased` is a receipt. No receipt = do not dispatch writers; keep read-only work going and tell Nour.
    Also check open PRs and sibling worktrees (`repo-status.mjs`) for the same paths before dispatching a lane.
-5. **Dispatch.** Agent tool, `subagent_type` = lane agent, prompt = `.agents/core/templates/subagent-brief.md` (v2)
+5. **Dispatch.** Agent tool, `subagent_type` = lane agent, prompt = `.agents/core/templates/subagent-brief.md` (v3)
    filled in: base SHA, RULED OUT, DESIGN decisions, fixtures, PITFALLS, the SELF-AUDIT demand and an explicit path-exception
    line. The child does not see this chat. Lane worktrees branch from the default branch, not your HEAD: put any unmerged
    prerequisite in the brief or wait for it. Run in background; do not poll. A message to a running session carries ONE
    decision and a first line of REPLY NEEDED or NO REPLY NEEDED; never ask twice ([references/sessions-and-plans.md](references/sessions-and-plans.md)).
+   Set the Agent tool's `model` and `effort` from the brief's MODEL / EFFORT line (routing table in the template); a lane never picks its own.
 6. **Check every return.** Read the real diff in the lane's worktree; reject edits outside owned paths (from the lane
    worktree: `node <your checkout>/scripts/agent-os/check-lane-paths.mjs --lane <lane> --base <base SHA>`, exit 1 = reject;
    exit 2 = not checked, an error or an EMPTY diff from a lane that owns paths, never a pass); re-run its verify command or one
