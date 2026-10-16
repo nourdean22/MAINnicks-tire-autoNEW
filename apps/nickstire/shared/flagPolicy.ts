@@ -99,6 +99,17 @@ export function confirmationCopy(
   key: string,
   nextValue: boolean,
 ): { title: string; message: string; confirmLabel: string; cancelLabel: string } {
+  if (key === "ig_autopost_paused") {
+    // Resuming this pause restarts unattended image posts; there is no SMS queue.
+    return {
+      title: "Resume the Instagram image autopost? (ig_autopost_paused OFF)",
+      message:
+        "Resuming lets the image autopost cron post to Instagram unattended at the next slot " +
+        "(8:07, 13:07 or 20:07 ET). Nothing is queued; the next slot simply runs.",
+      confirmLabel: "Resume posting",
+      cancelLabel: "Stay paused",
+    };
+  }
   if (isInvertedFlag(key)) {
     // Only reached when turning an off-switch OFF, i.e. RESUMING sends.
     return {
