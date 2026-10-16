@@ -209,12 +209,12 @@ export function TabBar<T extends string>({
 }) {
   if (variant === "pill") {
     return (
-      <div className="inline-flex items-center gap-1 bg-card/50 border border-border/30 p-1 rounded-md">
+      <div className="flex w-fit max-w-full items-center gap-1 overflow-x-auto scroll-touch bg-card/50 border border-border/30 p-1 rounded-md">
         {tabs.map((t) => (
           <button
             key={t.id}
             onClick={() => onChange(t.id)}
-            className={`flex items-center gap-1.5 px-3 ${size === "compact" ? "py-2.5 sm:py-1" : "py-3 sm:py-1.5"} text-[12px] font-bold tracking-wide rounded transition-all whitespace-nowrap ${
+            className={`flex shrink-0 min-h-11 items-center gap-1.5 px-3 ${size === "compact" ? "py-1" : "py-1.5"} text-[12px] font-bold tracking-wide rounded transition-colors whitespace-nowrap ${
               activeTab === t.id
                 ? "bg-primary text-primary-foreground"
                 : "text-foreground/50 hover:text-foreground/80 hover:bg-foreground/5"
@@ -236,14 +236,14 @@ export function TabBar<T extends string>({
   }
 
   return (
-    <div className="flex items-center gap-1 border-b border-border/20 overflow-x-auto">
+    <div className="flex items-center gap-1 border-b border-border/20 overflow-x-auto scroll-touch">
       {tabs.map((t) => {
         const active = activeTab === t.id;
         return (
           <button
             key={t.id}
             onClick={() => onChange(t.id)}
-            className={`flex items-center gap-1.5 px-4 ${size === "compact" ? "py-3 sm:py-1.5" : "py-3.5 sm:py-2.5"} text-[12px] font-bold tracking-wide border-b-2 transition-colors whitespace-nowrap ${
+            className={`flex shrink-0 min-h-11 items-center gap-1.5 px-4 ${size === "compact" ? "py-1.5" : "py-2.5"} text-[12px] font-bold tracking-wide border-b-2 transition-colors whitespace-nowrap ${
               active
                 ? "border-primary text-primary"
                 : "border-transparent text-foreground/40 hover:text-foreground/70"
