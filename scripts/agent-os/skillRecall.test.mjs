@@ -344,6 +344,13 @@ test("--scope global from the home directory itself: the user settings file is n
   const r = run(["--scope", "global"], hookInput("the feedback is unclear"), SCRIPT, env);
   assert.equal(r.code, 0, r.err);
   assert.equal(named(r.out)[0], "receiving-code-review", `expected recall from the home directory, got: ${JSON.stringify(r.out)}`);
+  // Round 7: the one directory is the user root only, never counted twice as repo and user (which gave every user
+  // skill REPO_BOOST and the kind "repo").
+  const j = JSON.parse(run(["--json", "--text", "the feedback is unclear"], undefined, SCRIPT, env).out);
+  assert.equal(j.index.repo, 0, `home-as-project must index no repo skills: ${JSON.stringify(j.index)}`);
+  assert.equal(j.index.user, 503);
+  assert.equal(j.picked[0]?.name, "receiving-code-review");
+  assert.equal(j.picked[0]?.kind, "user", `the match must carry kind user: ${JSON.stringify(j.picked[0])}`);
   // Mutant: without the home-directory exemption the guard reads the user file as a project file and goes silent.
   const src = readFileSync(SCRIPT, "utf8");
   const anchor = "if (resolve(root) === resolve(homedir())) return false;";

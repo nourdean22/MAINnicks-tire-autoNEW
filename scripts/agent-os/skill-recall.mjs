@@ -67,12 +67,15 @@ function repoRoot() {
   return resolve(process.env.CLAUDE_PROJECT_DIR || process.cwd());
 }
 
-/** Skill roots in priority order: a name seen in an earlier root wins over the same name later. */
+/** Skill roots in priority order: a name seen in an earlier root wins over the same name later. When the project IS
+ * the home directory the two paths coincide; the directory is then the user root only (round 7: counted as repo, every
+ * user skill got REPO_BOOST and reported kind "repo"). */
 function skillRoots(root) {
-  return [
-    { kind: "repo", dir: join(root, ".claude", "skills") },
-    { kind: "user", dir: join(homedir(), ".claude", "skills") },
-  ].filter((r) => existsSync(r.dir));
+  const repoDir = join(root, ".claude", "skills");
+  const userDir = join(homedir(), ".claude", "skills");
+  const roots = [{ kind: "user", dir: userDir }];
+  if (resolve(repoDir) !== resolve(userDir)) roots.unshift({ kind: "repo", dir: repoDir });
+  return roots.filter((r) => existsSync(r.dir));
 }
 
 /** The flat `<root>/<slug>` skill directories: what Claude Code loads (forge.mjs enforces the same layout). */
