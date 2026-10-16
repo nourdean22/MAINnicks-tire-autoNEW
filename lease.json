@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "statenour/ui-v3-w0b",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "f8d930b8-3865-416c-802f-2947cc79c726",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\new-session-ea186a",
   "claimedBy": "2026-10-15-bdnick-ui-v3-w0b v3 distance spec + fixtures + dispatch wiring",
   "claimedAt": "2026-10-15T22:21:47.792Z",
   "expiresAt": "2026-10-16T10:21:47.792Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": null
+  "releasedAt": "2026-10-16T01:51:29.824Z",
+  "releaseReason": "merged as #3065 squash b0a994f61; merge-gate deleted the remote branch; worktree clean",
+  "priorLeaseSha": "4511d576e31b2d52ea7d9522c437259707f14e43",
+  "releasedBy": "f8d930b8-3865-416c-802f-2947cc79c726",
+  "foreignReleaseReason": null
 }
