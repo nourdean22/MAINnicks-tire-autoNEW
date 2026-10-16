@@ -1,6 +1,6 @@
 # Admin UI v1 plan: Operator's Cockpit, finally the default
 
-**Status (2026-10-16):** Wave 0 approved by Nour and on branch `nickstire/admin-ui-v1-w0` (one PR: honesty fixes, ratchet, this doc). Every later wave needs its own go.
+**Status (2026-10-16, evening):** W0 (#3070, 4c7fe9067), W0b (#3078, df837a15c) and W1 (#3080, 03bb78b57) merged and live; six pre-W1 renders frozen under `tests/e2e/admin-v1-baselines`; Today at 390 measured 0.296 after W1. W2 (the Today board) approved by Nour and in flight on `nickstire/admin-ui-v1-w2`; W3 onward need their own go.
 **Base:** origin/main `5cfad6b78`. **Owner:** the manager session "nick admin ui upgrade" (job id `2026-10-16-nick-admin-ui-v1`).
 **Genome:** OPERATOR'S COCKPIT ([`docs/design/SURFACE-DNA.md`](../../../../../docs/design/SURFACE-DNA.md) column 2, [`docs/ADMIN_PHILOSOPHY.md`](../../ADMIN_PHILOSOPHY.md)): dispatch board, rows and rails, graphite, gold only for owner priority, motion at or under 200 ms. Both docs have said this since 2026-05-07 and 2026-09-16; the live admin is still black and gold with a scan-line overlay.
 **Method:** copied from the bdnick plan ([`apps/statenour/docs/design/ui-v3/PLAN.md`](../../../../statenour/docs/design/ui-v3/PLAN.md)): read-only audit, honesty first, ratchet tests, one PR per wave, a six-feet gate. Mechanism copied, files not.
