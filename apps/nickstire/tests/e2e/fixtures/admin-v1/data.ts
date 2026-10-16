@@ -184,6 +184,7 @@ export const HANDLERS = {
     transitions: [],
   }),
   "lot.conversations": () => ({ ok: true, conversations: [], visualAvailable: false }),
+  "lot.commissioningRuns": () => ({ ok: true, runs: [] }),
   "nourOsBridge.shopFloor": () => ({ active: 2, blocked: 1, overdue: 0, readyForPickup: 0, inProgress: 1, totalValueInProgress: 701, byStatus: { in_progress: 1, waiting_parts: 1 } }),
   "contentAdmin.operationsSignal": () => ({ heldReels: 0, openPublishes: 0, total: 0, unknown: false, videoProviderBlocked: 0 }),
   "adminDashboard.stats": () => ({
