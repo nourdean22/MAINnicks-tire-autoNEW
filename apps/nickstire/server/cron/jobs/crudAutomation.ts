@@ -513,7 +513,7 @@ export async function autoGenerateContent(): Promise<{ recordsProcessed: number;
         await sendTelegram(
           `📝 AUTO-CONTENT: New article drafted!\n\n` +
           `"${article.title || "Untitled"}"${draftId ? ` (draft #${draftId})` : " (NOT SAVED — no DB)"}\n\n` +
-          `Review in admin → Content → Drafts`, "receipt"
+          `Review in admin → Content → Drafts`, "approval"
         );
       } catch (err) { log.warn("autoGenerateContent: Telegram alert failed", { error: err instanceof Error ? err.message : String(err) }); }
     }

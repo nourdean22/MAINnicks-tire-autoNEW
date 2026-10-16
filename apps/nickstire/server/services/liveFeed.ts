@@ -101,7 +101,7 @@ async function sendFeedMessage(text: string): Promise<boolean> {
     }
 
     const { sendTelegram } = await import("./telegram");
-    return sendTelegram(text, "receipt");
+    return sendTelegram(text, "digest");
   } catch (err) {
     log.warn("Live feed send failed", { error: err instanceof Error ? err.message : String(err) });
     return false;

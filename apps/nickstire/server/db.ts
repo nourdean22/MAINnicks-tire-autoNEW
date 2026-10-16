@@ -1826,7 +1826,7 @@ async function notifyInspectionDecision(
     (row.vehicleInfo ? ` · ${row.vehicleInfo}` : "") +
     (note ? `\nNote: ${note.slice(0, 200)}` : "") +
     priceChanged +
-    `\nInspection #${row.inspectionId} · open the admin → Customers`, "receipt",
+    `\nInspection #${row.inspectionId} · open the admin → Customers`, "incident",
   );
 }
 
