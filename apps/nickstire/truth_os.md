@@ -100,6 +100,13 @@ detailed in `docs/CURRENT-TRUTH.md`:
   retail only, wholesale never leaves the server. Live sections self-suppress
   when the feed is cold (canon floors render, never an empty table).
 
+## 2026-10-16 - Image autopost lane gets admin controls
+
+- New inverted flag `ig_autopost_paused` (TRUE = paused). `runIgAutopostCron` checks it after the slot gate and before the dedupe read and any generation or spend; the manual Run-a-slot-now door ignores it. Turning `legacy_autopost_live` OFF still only makes the lane a dry run that spends.
+- `instagramAdmin.autopostLaneStatus` (contract v1) returns pause and live state, the last post, today's slots, the last 20 runs and 7-day counts. A failed read is UNKNOWN or `available:false`, never 0.
+- The 'Image autopost' card on Admin -> Instagram -> Pipeline health shows that status and has Run a slot now and Pause / Resume.
+- Live proof owed: the card shows real rows in prod, one manual run returns a status line, and one paused slot logs `Skip — paused by ig_autopost_paused` in cron_log.
+
 ## 2026-10-02 — Admin closure wave (#2885, #2891): queues close their loops, migrations 0127–0139 applied AND recorded
 
 Merged as `d583840268129c2115d44e08c0c80f7b6240ca4c` (#2885, squash of 20 commits) and

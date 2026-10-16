@@ -4992,6 +4992,39 @@
       "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "disabled"
+    },
+    {
+      "capabilityId": "ig-autopost-admin-controls",
+      "name": "Image autopost lane is controllable from the admin: status and history, run a slot now, pause and resume",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "Branch worktree-agent-a505a4dd90804ad57 on main 7eaffa7ee/58af96534: server 7a8c2ab45 (flag ig_autopost_paused in server/services/featureFlags.ts, INVERTED_FLAGS and CUSTOMER_FACING_FLAGS in shared/flagPolicy.ts; server/services/igAutopost.ts runIgAutopostCron returns the paused skip after the slot gate and before the dedupe read and any generation or spend), 6a8ffdd68 (server/routers/instagramAdmin.ts instagramAdmin.autopostLaneStatus, contract AutopostLaneStatus v1), daefd2654 and d46f5fec8 (resume confirmation copy for ig_autopost_paused names Instagram and the Facebook Page); client 3ef312c4b (client/src/pages/admin/instagram/ImageAutopostCard.tsx, wired in Pipeline.tsx) and e09e22006 (its tests). Evidence 2026-10-16 (ig_autopost_log, last 7 days): 13 posted and 10 judge-aborted runs, with no history view, no manual run button and no real pause: legacy_autopost_live OFF only turned the lane into a dry run that still generated, spent and Telegrammed.",
+        "tests": [
+          "server/igAutopostPause.test.ts (4): paused inside a slot window returns 'Skip — paused by ig_autopost_paused' before the dedupe read and before runIgAutopost; control: not paused reaches both; outside a window the slot gate answers first; runIgAutopostOneOff ignores the pause. Red first 2 failed | 2 passed (the paused run reached generation).",
+          "server/igAutopostLaneStatus.test.ts (6): v1 contract on a good read; absent flag rows read false; live needs IG_AUTOPOST_DRYRUN='false'; a failed flag read is paused:null, never 'not paused'; a failed log read is available:false, never an empty list; no database is available:false. Red first 6 failed (reader absent).",
+          "server/instagramAdmin.test.ts (+2): the procedure answers through appRouter and refuses a non-admin with FORBIDDEN. Red first 2 failed (no procedure on path).",
+          "shared/flagPolicy.test.ts (+3): the key is defined, inverted and customer-facing, confirms on resume only; the resume copy names Instagram and the Facebook Page and the sms_global_pause copy is unchanged. Red first 1 failed (key absent), then 1 failed | 19 passed (SMS copy), then 1 failed | 19 passed (Instagram only).",
+          "Mutants 6 of 6 killed on the server side: drop the cron pause check, flip its polarity, flip the reader's polarity, make the log-read catch return an empty list, default paused to false on a failed flag read, drop the key from INVERTED_FLAGS.",
+          "client/src/__tests__/ig-autopost-card.test.tsx (11): ERROR renders the could-not-be-read card with Retry and never '0 posted'; run and resume ask first, pause is one tap. Red first 11 failed before the card existed; mutants 3 of 3 killed (client lane receipt)."
+        ],
+        "liveRuns": [],
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Not observed in production yet. Live proof: the card renders real rows on nickstire.org/admin, one manual slot run returns a status line, and one pause makes the next slot's cron_log read 'Skip — paused by ig_autopost_paused'.",
+          "source": "job 2026-10-16-ig-autopost-controls"
+        }
+      ],
+      "deferredScope": [
+        "igPostId shown as text, not a link: the Graph media id has no permalink; add permalink to the contract",
+        "the inverted-flag confirmation copy is per-key only for ig_autopost_paused"
+      ],
+      "lastVerifiedAt": "2026-10-16",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
     }
   ],
   "axes": {
