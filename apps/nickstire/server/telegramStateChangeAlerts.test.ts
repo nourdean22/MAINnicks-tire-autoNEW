@@ -13,6 +13,7 @@
  * are faked.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { BUSINESS } from "@shared/business";
 
 const h = vi.hoisted(() => ({
   sends: [] as string[],
@@ -21,7 +22,9 @@ const h = vi.hoisted(() => ({
   claimFails: false,
   todayRevenue: 100_000,
   atRisk: [{ risk: "overdue", orderNumber: "WO-1", workOrderId: 1, customerName: "Ann" }] as Array<Record<string, unknown>>,
-  stale: [{ customerName: "Bob", totalAmount: 25_000, invoiceDate: "2026-10-01", daysOld: 9 }] as Array<Record<string, unknown>>,
+  stale: [{ id: 1, customerName: "Bob", totalAmount: 25_000, invoiceDate: "2026-10-01", daysOld: 9 }] as Array<Record<string, unknown>>,
+  /** What the transport answers to a once-per-state send. */
+  status: "delivered" as "delivered" | "held" | "failed",
 }));
 
 vi.mock("./services/telegram", async (importOriginal) => ({
@@ -30,6 +33,11 @@ vi.mock("./services/telegram", async (importOriginal) => ({
     h.sends.push(text);
     h.classes.push(cls ?? "(none)");
     return true;
+  }),
+  sendTelegramResult: vi.fn(async (text: string, cls?: string) => {
+    h.sends.push(text);
+    h.classes.push(cls ?? "(none)");
+    return h.status === "held" ? { status: "held", heldBy: "telegram_digest_muted" } : { status: h.status };
   }),
 }));
 vi.mock("./services/intelligenceEngines", async (importOriginal) => ({
@@ -55,6 +63,10 @@ function sqlParts(query: unknown): { text: string; params: string[] } {
 const fakeDb = {
   execute: async (query: unknown) => {
     const { text, params } = sqlParts(query);
+    if (/DELETE FROM cron_alerts_fired/i.test(text)) {
+      h.claims.delete(`${params[0]}|${params[1]}`);
+      return [{ affectedRows: 1 }];
+    }
     if (/INSERT IGNORE INTO cron_alerts_fired/i.test(text)) {
       if (h.claimFails) throw new Error("db down");
       const k = `${params[0]}|${params[1]}`;
@@ -97,7 +109,8 @@ describe("repeating business-hours alerts claim before they send", () => {
     h.claimFails = false;
     h.todayRevenue = 100_000;
     h.atRisk = [{ risk: "overdue", orderNumber: "WO-1", workOrderId: 1, customerName: "Ann" }];
-    h.stale = [{ customerName: "Bob", totalAmount: 25_000, invoiceDate: "2026-10-01", daysOld: 9 }];
+    h.stale = [{ id: 1, customerName: "Bob", totalAmount: 25_000, invoiceDate: "2026-10-01", daysOld: 9 }];
+    h.status = "delivered";
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -137,6 +150,24 @@ describe("repeating business-hours alerts claim before they send", () => {
     await runTierJobHandlerUnlocked("revenue-pulse");
     await runTierJobHandlerUnlocked("revenue-pulse");
     expect(h.sends).toHaveLength(2);
+  });
+
+  it("revenue-pulse: the daily target uses the Cleveland month, not the server clock's month", async () => {
+    // 23:30 ET on Oct 31 is already Nov 1 in UTC. A UTC server derived 30 days from the November month
+    // and a different band than the 31-day October that the claim's ET date names.
+    const savedTz = process.env.TZ;
+    process.env.TZ = "UTC";
+    try {
+      at("2026-11-01T03:30:00Z");
+      h.todayRevenue = (6.05 * BUSINESS.revenueTarget.monthly) / 31; // band 6 of a 31-day month, band 5 of a 30-day one
+      await runTierJobHandlerUnlocked("revenue-pulse");
+      await runTierJobHandlerUnlocked("revenue-pulse");
+      expect(h.sends).toHaveLength(1);
+      expect([...h.claims]).toEqual(["revenue-pulse:over-target-6x|2026-10-31"]);
+    } finally {
+      if (savedTz === undefined) delete process.env.TZ;
+      else process.env.TZ = savedTz;
+    }
   });
 
   it("revenue-pulse: below the threshold nothing is claimed or sent", async () => {

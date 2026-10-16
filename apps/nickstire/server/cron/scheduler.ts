@@ -1260,7 +1260,11 @@ function buildTiers(): void {
             const { forecastRevenue } = await import("../services/intelligenceEngines");
             const forecast = await forecastRevenue();
             const todayRevenue = forecast.today?.soFar || 0;
-            const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+            // The shop's month, not the server clock's: at 23:30 ET on the last day a UTC server is already
+            // in next month, and the claim below is keyed on the ET date.
+            const { getBusinessDateKey } = await import("../lib/timezoneAssert");
+            const [etYear, etMonth] = getBusinessDateKey().split("-").map(Number);
+            const daysInMonth = new Date(Date.UTC(etYear, etMonth, 0)).getUTCDate();
             const dailyTarget = BUSINESS.revenueTarget.monthly / daysInMonth;
 
             // Alert if a single big job came in (>$1000). Once per ET day per band of the
