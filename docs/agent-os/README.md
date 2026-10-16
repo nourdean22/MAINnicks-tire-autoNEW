@@ -14,6 +14,7 @@ the two: `AGENTS.md` carries judgment, and code carries enforcement.
 | 3 · Executable parity | `scripts/agent-os/check-adapters.mjs` | Adapters exist, point at their `AGENTS.md`, stay under cap; retired claims (`.husky/pre-*`, `push-main.sh`, "no CODEOWNERS", live `apps/voice`) stay deleted. |
 | 4 · Local enforcement | `.claude/settings.json` hooks + `scripts/agent-os/` | Deny unsafe tool calls before they run; gate completion claims. Claude-only — see "Honest limits". |
 | 5 · CI | [`.github/workflows/agent-policy.yml`](../../.github/workflows/agent-policy.yml) | Runs layers 3–4's checks on every PR, for every author, including humans. |
+| 5b · CI, config scan | [`.github/workflows/agentshield.yml`](../../.github/workflows/agentshield.yml) | Scans layer 4's own config (`.claude/`) with `ecc-agentshield` (268 rules: hooks, MCP, permissions, secrets, agents). Advisory since 2026-10-16; the job goes red only when the planted fixture (`scripts/agent-os/fixtures/agentshield-canary/`) stops being flagged. Canary: `agentshieldCanary.test.mjs`. |
 
 ## Execution framework
 
