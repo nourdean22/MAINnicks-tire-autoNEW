@@ -39,6 +39,7 @@
 import { BUSINESS } from "@shared/business";
 import { renderBannedWordsForPrompt, renderCriticRubricForPrompt } from "@shared/voice";
 import { createLogger } from "../lib/logger";
+import { traceChat } from "../lib/langfuse-ingest";
 import { db } from "../lib/db-helper";
 import { igAutopostLog, algEstimates, smsConversations, smsMessages, specials } from "../../drizzle/schema";
 import { and, desc, eq, gte, sql } from "drizzle-orm";
@@ -934,6 +935,7 @@ async function generatePostImageGeminiDirect(prompt: string): Promise<{ url: str
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
   log.info("Generating image via Gemini Direct...", { model, promptLen: prompt.length });
+  const t0 = Date.now();
   const response = await fetch(url, {
     method: "POST",
     headers: {
@@ -957,10 +959,12 @@ async function generatePostImageGeminiDirect(prompt: string): Promise<{ url: str
   if (!response.ok) {
     const errorText = await response.text().catch(() => "");
     log.error("Gemini Direct image API error", { status: response.status, errorText: errorText.slice(0, 500) });
+    traceChat({ name: "igAutopost:image-gemini", site: "services/igAutopost.ts", model, messages: prompt, startedAt: t0, ok: false, error: `HTTP ${response.status}` });
     throw new Error(`Gemini Direct image generation failed (${response.status} ${response.statusText}): ${errorText.slice(0, 300)}`);
   }
 
   const data = (await response.json()) as any;
+  traceChat({ name: "igAutopost:image-gemini", site: "services/igAutopost.ts", model, messages: prompt, outputText: "[image]", response: { usageMetadata: data.usageMetadata }, startedAt: t0, ok: true });
   const parts = data.candidates?.[0]?.content?.parts ?? [];
   let b64: string | undefined;
   let mimeType = "image/png";
@@ -1005,6 +1009,7 @@ async function generateImageOpenRouter(prompt: string): Promise<string> {
   const url = "https://openrouter.ai/api/v1/chat/completions";
 
   log.info("Generating image via OpenRouter...", { model, prompt });
+  const t0 = Date.now();
   const response = await fetch(url, {
     method: "POST",
     headers: {
@@ -1022,10 +1027,12 @@ async function generateImageOpenRouter(prompt: string): Promise<string> {
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => "");
+    traceChat({ name: "igAutopost:image-openrouter", site: "services/igAutopost.ts", model, messages: prompt, startedAt: t0, ok: false, error: `HTTP ${response.status}` });
     throw new Error(`OpenRouter image generation failed (${response.status} ${response.statusText}): ${errorText}`);
   }
 
   const data = (await response.json()) as any;
+  traceChat({ name: "igAutopost:image-openrouter", site: "services/igAutopost.ts", model, messages: prompt, outputText: "[image]", response: { usage: data.usage }, startedAt: t0, ok: true });
   const message = data.choices?.[0]?.message;
   const images = message?.images ?? [];
   let base64Url: string | undefined;

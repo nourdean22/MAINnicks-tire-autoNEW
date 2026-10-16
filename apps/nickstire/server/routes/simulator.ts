@@ -13,6 +13,7 @@
 import type { Express, Request, Response } from "express";
 
 import { createLogger } from "../lib/logger";
+import { traceChat } from "../lib/langfuse-ingest";
 import { statenourAuth } from "../middleware/statenourAuth";
 
 const log = createLogger("routes:simulator");
@@ -36,6 +37,7 @@ async function simulateScenario(scenario: string): Promise<string> {
     process.env.OPENAI_BASE_URL?.replace(/\/$/, "") || "https://api.openai.com";
   const url = `${baseUrl}/v1/chat/completions`;
 
+  const t0 = Date.now();
   const response = await fetch(url, {
     method: "POST",
     headers: {
@@ -63,12 +65,14 @@ async function simulateScenario(scenario: string): Promise<string> {
 
   if (!response.ok) {
     const errorText = await response.text();
+    traceChat({ name: "strategist:simulator", site: "routes/simulator.ts", model: "gpt-4o-mini", messages: scenario, startedAt: t0, ok: false, error: `HTTP ${response.status}` });
     throw new Error(
       `OpenAI API error: ${response.status} ${response.statusText} – ${errorText}`
     );
   }
 
   const data = (await response.json()) as OpenAIResponse;
+  traceChat({ name: "strategist:simulator", site: "routes/simulator.ts", model: "gpt-4o-mini", messages: scenario, response: data, startedAt: t0, ok: true });
   return data.choices?.[0]?.message?.content?.trim() ?? "";
 }
 

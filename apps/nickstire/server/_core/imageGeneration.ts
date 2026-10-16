@@ -3,6 +3,7 @@
  * (replaces Manus Forge ImageService proxy)
  */
 import { storagePut } from "../storage";
+import { traceChat } from "../lib/langfuse-ingest";
 
 export type GenerateImageOptions = {
   prompt: string;
@@ -25,6 +26,7 @@ export async function generateImage(
     const model = process.env.GEMINI_IMAGE_MODEL || "gemini-3.1-flash-image";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
+    const t0 = Date.now();
     const response = await fetch(url, {
       method: "POST",
       headers: {
@@ -45,8 +47,12 @@ export async function generateImage(
       signal: AbortSignal.timeout(60_000), // image gen can take 30-50s
     });
 
+    if (!response.ok) {
+      traceChat({ name: "image:gemini", site: "_core/imageGeneration.ts", model, messages: options.prompt, startedAt: t0, ok: false, error: `HTTP ${response.status}` });
+    }
     if (response.ok) {
       const data = (await response.json()) as any;
+      traceChat({ name: "image:gemini", site: "_core/imageGeneration.ts", model, messages: options.prompt, outputText: "[image]", response: { usageMetadata: data.usageMetadata }, startedAt: t0, ok: true });
       const parts = data.candidates?.[0]?.content?.parts ?? [];
       let b64: string | undefined;
       let mimeType = "image/png";
@@ -76,6 +82,7 @@ export async function generateImage(
 
   const baseUrl = process.env.OPENAI_BASE_URL?.replace(/\/$/, "") || "https://api.openai.com";
 
+  const t0 = Date.now();
   const response = await fetch(`${baseUrl}/v1/images/generations`, {
     method: "POST",
     headers: {
@@ -93,6 +100,7 @@ export async function generateImage(
 
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
+    traceChat({ name: "image:openai", site: "_core/imageGeneration.ts", model: "dall-e-3", messages: options.prompt, startedAt: t0, ok: false, error: `HTTP ${response.status}` });
     throw new Error(
       `Image generation request failed (${response.status} ${response.statusText})${detail ? `: ${detail}` : ""}`
     );
@@ -102,6 +110,7 @@ export async function generateImage(
     data: Array<{ b64_json: string }>;
   };
 
+  traceChat({ name: "image:openai", site: "_core/imageGeneration.ts", model: "dall-e-3", messages: options.prompt, outputText: "[image]", startedAt: t0, ok: true });
   const base64Data = result.data[0].b64_json;
   const buffer = Buffer.from(base64Data, "base64");
 

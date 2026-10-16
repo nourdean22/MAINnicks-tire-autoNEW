@@ -13,6 +13,7 @@
 import type { Express, Request, Response } from "express";
 
 import { createLogger } from "../lib/logger";
+import { traceChat } from "../lib/langfuse-ingest";
 import { statenourAuth } from "../middleware/statenourAuth";
 
 const log = createLogger("routes:nour-chief-strategist");
@@ -45,6 +46,7 @@ RULES:
 2. Provide 3 strategies to turn it into a power move.
 3. Be direct. No fluff.`;
 
+  const t0 = Date.now();
   const response = await fetch(url, {
     method: "POST",
     headers: {
@@ -72,12 +74,14 @@ RULES:
 
   if (!response.ok) {
     const errorText = await response.text();
+    traceChat({ name: "strategist:chief", site: "routes/nour-chief-strategist.ts", model: "gpt-4o-mini", messages: userPrompt, startedAt: t0, ok: false, error: `HTTP ${response.status}` });
     throw new Error(
       `OpenAI API error: ${response.status} ${response.statusText} – ${errorText}`
     );
   }
 
   const data = (await response.json()) as OpenAIResponse;
+  traceChat({ name: "strategist:chief", site: "routes/nour-chief-strategist.ts", model: "gpt-4o-mini", messages: userPrompt, response: data, startedAt: t0, ok: true });
   const content = data.choices?.[0]?.message?.content?.trim() ?? "";
 
   if (!content) {
