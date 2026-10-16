@@ -35,7 +35,8 @@ test.describe("v3 fixtures render", () => {
     const { pageErrors, report } = await openFromFixtures(page, "/");
     await expect(page.getByText(DEMO.homeSummary).first()).toBeVisible({ timeout: 60_000 });
     await expect(page.getByText(DEMO.homeHeadline).first()).toBeVisible();
-    await expect(page.getByText(/deferred actions await your verdict/i).first()).toBeVisible();
+    // W2: approvals are rows of their own; the first pending DEMO approval is the anchor.
+    await expect(page.getByText(DEMO.homeApproval).first()).toBeVisible();
     await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => {});
     await expect(page.getByText(PAGE_ERRORS.home)).toHaveCount(0);
     expect(disallowedUnstubbed(report.unstubbed), "Home read page data the fixtures do not answer").toEqual([]);

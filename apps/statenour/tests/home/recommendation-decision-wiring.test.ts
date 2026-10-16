@@ -30,16 +30,17 @@ describe("recordRecommendationDecision · the one decision mutation", () => {
 });
 
 describe("Home lead → decision", () => {
-  const lead = read("components/home/brief-lead.tsx");
+  // UI v3 W2 (2026-10-16): the lead is the first row of components/home/brief-rows.tsx. Home no
+  // longer offers alternatives (the Missions hero keeps Pick different), so the only decision Home
+  // records is `accepted`; the behaviour is rendered and clicked in tests/home/brief-rows-render.test.tsx.
+  const lead = read("components/home/brief-rows.tsx");
 
-  it("the CTA records accepted with the task as resultRef; an alternative records dismissed", () => {
+  it("the CTA records accepted with the task as resultRef, and never a dismissal", () => {
     expect(lead).toContain("trpc.operator.recordRecommendationDecision.useMutation()");
-    expect(lead).toContain('recordDecision("accepted", lead.taskId ? `task:${lead.taskId}` : lead.cta?.href ?? null)');
-    // A dismissal never carries a task ref (bug-hunt 2026-10-02); since
-    // 2026-10-10 it carries its reason instead (audit 06-F5).
-    expect(lead).toContain('recordDecision("dismissed", "dismiss:alternative")');
+    expect(lead).toContain("const resultRef = lead.taskId ? `task:${lead.taskId}` : lead.cta.href;");
+    expect(lead).toContain('decision: "accepted"');
     expect(lead).toContain('data-lead-decision="accepted"');
-    expect(lead).toContain('data-lead-decision="dismissed"');
+    expect(lead).not.toContain('"dismissed"');
   });
 
   it("no ledger id → decide by the ledgered summary (audit 2026-10-10, 06-F2; tests/home/lost-click-decide-by-content.test.ts)", () => {

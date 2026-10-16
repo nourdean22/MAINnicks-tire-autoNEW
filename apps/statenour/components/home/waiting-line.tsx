@@ -7,7 +7,7 @@
  * Renders the `others` bucket (a person owes the operator something: a task
  * with waitingOn, aged from its last update) and the `system` bucket (Nick or
  * an executing action attempt is working on it). The `me` bucket is NOT
- * rendered here: decisions already have one home on this page (JudgmentQueue)
+ * rendered here: decisions already have one home on this page (BriefRows, since W2)
  * and the shop's callbacks and urgent leads belong to nickstire.org/admin —
  * never on the personal command surface (operator verdict, 2026-09-02). A
  * belt-and-braces filter drops any item whose source is the shop bridge.

@@ -335,6 +335,7 @@ jobs:
         env:
           E2E_BASE_URL: http://localhost:3001
           CI: "true"
+          VT_V3: "1"
         # 120s per-test budget: even warmed, dev-mode hydration on a
         # 2-core runner is slower than the 30s default assumes.
         run: pnpm exec playwright test --timeout=120000

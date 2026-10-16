@@ -6,12 +6,12 @@ import type { ReactNode } from "react";
  */
 
 /**
- * Home, Chat, Brain, People, Journal, Stats: no description at any width. Exact pathnames.
- * shortcut: /missions stays off the core list until W2 lands its hero, then add it back. Without its
- * description line the page at 390 scored 0.342 against the v2 distance gate (CI run 38834210402,
- * 2026-10-15); W2 recomposes Missions, and the gate is the measurement.
+ * Home, Chat, Missions, Brain, People, Journal, Stats: no description at any width. Exact pathnames.
+ * /missions joined in W2 (2026-10-16): the hero and the control strip under it carry what the
+ * description line said. W1a had kept it off the list while the page's 390 render scored 0.342
+ * against the v2 distance gate (CI run 38834210402).
  */
-export const CORE_PAGE_PATHS = ["/", "/chat", "/brain", "/people", "/journal", "/stats"] as const;
+export const CORE_PAGE_PATHS = ["/", "/chat", "/missions", "/brain", "/people", "/journal", "/stats"] as const;
 
 export function isCorePage(pathname: string | null | undefined): boolean {
   if (!pathname) return false;

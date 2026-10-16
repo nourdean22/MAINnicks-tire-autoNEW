@@ -99,7 +99,9 @@ github-client canaries 403'd every PR whenever another workflow had spent the bu
   inside a trigger phrase printed a skill on its own. Every repo SKILL.md carries a `triggers:` frontmatter line
   written from its own body; triggers score like name tokens. The numbers and why are comments on the constants. Also a CLI
   for lane briefs: `--text`, `--file <brief>` (lines that appear verbatim in the brief template are dropped first),
-  `--json`, and `--scope global` for the user-level entry (silent inside a project whose own settings run the hook).
+  `--json`, and `--scope global` for the user-level entry (silent inside a project whose own settings run the hook,
+  never silent in the home directory itself, whose settings file is the user file; outside a repo the term
+  statistics fall back to the user cohort, since a repo-only table with no repo scores every skill under zero).
   The index is cached in the OS temp dir, keyed by the roots' mtimes and the script's own source; nothing is written
   inside the repo. `skillRecall.test.mjs` runs the real script on hook-shaped stdin against a fixture home (so the
   suite reads the same on every machine): positive controls, the none line, the always-on filter, 500 synthetic user

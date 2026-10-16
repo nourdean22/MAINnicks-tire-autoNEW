@@ -137,3 +137,24 @@ describe("flagPolicy · resume copy names the lane", () => {
     expect(copy.cancelLabel).toBe("Stay paused");
   });
 });
+
+describe("flagPolicy · reel_comment_responder_paused (public comment replies pause)", () => {
+  it("is a defined, inverted, customer-facing off-switch that confirms the resume only", () => {
+    const defined = new Set(FLAG_DEFINITIONS.map((f) => f.key as string));
+    expect(defined.has("reel_comment_responder_paused")).toBe(true);
+    expect(INVERTED_FLAGS.has("reel_comment_responder_paused")).toBe(true);
+    expect(isCustomerFacingFlag("reel_comment_responder_paused")).toBe(true);
+    expect(requiresConfirmation("reel_comment_responder_paused", false)).toBe(true);
+    expect(requiresConfirmation("reel_comment_responder_paused", true)).toBe(false);
+  });
+
+  it("resume copy names public Instagram comment replies, not SMS", () => {
+    const copy = confirmationCopy("reel_comment_responder_paused", false);
+    expect(copy.title).toBe("Resume public comment replies? (reel_comment_responder_paused OFF)");
+    expect(copy.message).toBe(
+      "Resuming lets the responder post public replies to Instagram comments on recent reels, unattended, on the next pulse (every 15 minutes). Nothing is queued.",
+    );
+    expect(copy.message).not.toMatch(/customer messages|queued while/i);
+    expect(copy.cancelLabel).toBe("Stay paused");
+  });
+});

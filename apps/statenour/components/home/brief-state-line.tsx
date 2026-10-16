@@ -82,20 +82,27 @@ export function BriefStateLine({
         </p>
       </div>
 
-      <div className="mt-6 border-t border-edge-subtle pt-6">
-        {/* UI v2: the signal notch marks NOW — the one gold mark on the page that is not an action. */}
+      {/* UI v3 W2 (2026-10-16): the verdict is the hero. It starts right under the wordmark, runs the
+          full column instead of an 18ch measure, and steps up a size at each width, so from six feet
+          Home reads as one sentence with a brief under it. The signal notch marks NOW, the one gold
+          mark on the page that is not an action. */}
+      <div className="mt-5 border-b border-edge-subtle pb-5">
         <div className="flex items-center gap-2">
           <span className="notch h-3" aria-hidden />
           <h2 className="vt-eyebrow text-fg-secondary">Now</h2>
         </div>
 
         {loading ? (
-          <div className="mt-4 h-14 w-4/5 animate-pulse rounded-micro bg-raised sm:h-20" aria-hidden />
+          <div className="mt-3 h-24 w-11/12 animate-pulse rounded-micro bg-raised sm:h-28" aria-hidden />
         ) : (
-          state && <p className="vt-verdict mt-3 max-w-[18ch]">{state.summary}</p>
+          state && (
+            <p className="vt-verdict mt-3 max-w-none text-balance text-[2.25rem] leading-[1.04] tracking-tight sm:text-[2.75rem] xl:text-[3.5rem]">
+              {state.summary}
+            </p>
+          )
         )}
 
-        <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-1">
+        <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-1">
           <Link
             href="/system"
             className="inline-flex min-h-[44px] items-center gap-2 rounded-control font-mono text-[12px] text-fg-tertiary transition-colors duration-150 hover:text-fg"
