@@ -123,8 +123,9 @@ describe("flagPolicy · resume copy names the lane", () => {
   it("ig_autopost_paused OFF describes unattended image posts at the next slot, not queued SMS", () => {
     const copy = confirmationCopy("ig_autopost_paused", false);
     expect(copy.message).toBe(
-      "Resuming lets the image autopost cron post to Instagram unattended at the next slot (8:07, 13:07 or 20:07 ET). Nothing is queued; the next slot simply runs.",
+      "Resuming lets the image autopost cron post to Instagram and the Facebook Page unattended at the next slot (8:07, 13:07 or 20:07 ET). Nothing is queued; the next slot simply runs.",
     );
+    expect(copy.title).toBe("Resume the image autopost to Instagram and Facebook? (ig_autopost_paused OFF)");
     expect(copy.message).not.toMatch(/customer messages|queued while/i);
     expect(copy.cancelLabel).toBe("Stay paused");
   });
