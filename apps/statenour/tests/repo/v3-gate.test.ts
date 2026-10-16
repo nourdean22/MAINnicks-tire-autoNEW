@@ -606,7 +606,7 @@ describe("the smoke spec cannot pass on an empty-state page", () => {
         ).toBe(true);
       }
     }
-    expect(smoke).toContain('import { DEMO, PAGE_ERRORS, installFixtures } from "./fixtures";');
+    expect(smoke).toContain('import { DEMO, PAGE_ERRORS, disallowedUnstubbed, installFixtures, type FixtureReport } from "./fixtures";');
   });
 
   it("the smoke's absent-error and no-page-error assertions are the exact lines this test expects", () => {
@@ -616,7 +616,11 @@ describe("the smoke spec cannot pass on an empty-state page", () => {
       "await expect(page.getByText(PAGE_ERRORS.missions)).toHaveCount(0);",
       'expect(pageErrors, "Home threw during render").toEqual([]);',
       'expect(pageErrors, "Missions threw during render").toEqual([]);',
+      'expect(disallowedUnstubbed(report.unstubbed), "Home read page data the fixtures do not answer").toEqual([]);',
+      'expect(disallowedUnstubbed(report.unstubbed), "Missions read page data the fixtures do not answer").toEqual([]);',
       "if (!IGNORED_PAGE_ERRORS.test(err.message)) pageErrors.push(err.message);",
+      "const report = await installFixtures(page);",
+      "return { pageErrors, report };",
     ]) {
       expect(smoke, `smoke spec lost: ${line}`).toContain(line);
     }
@@ -684,8 +688,10 @@ const SPEC_LINES = {
   baseline: "const baseline = fs.existsSync(file) ? fs.readFileSync(file) : null;",
   measure: "const result = await measureAndJudge({ baseline, current, viewport: vp });",
   assert: "expect(result.verdict.ok, `${p.key}/${vp.key}: ${result.verdict.reason}`).toBe(true);",
-  anchor: "await expect(page.getByText(anchor.text).first()).toBeVisible();",
-  noErrors: "await expect(page.getByText(anchor.errors)).toHaveCount(0);",
+  anchorMap: "const ANCHOR: Record<string, RenderAnchor> = {",
+  homeAnchor: "home: { anchorText: DEMO.homeSummary, errorPattern: PAGE_ERRORS.home },",
+  missionsAnchor: "missions: { anchorText: DEMO.missionsNextMove, errorPattern: PAGE_ERRORS.missions },",
+  render: "const current = await renderPage(page, p.path, p.landmark, ANCHOR[p.key]);",
   unstubbed: "expect(disallowedUnstubbed(unstubbed), `${p.key}/${vp.key} read page data the fixtures do not answer`).toEqual([]);",
   capture: "const capture = captureVerdict({ ink: await inkCoverage(current, vp) });",
   captureAssert: "expect(capture.ok, `${p.key}/${vp.key}: ${capture.reason}`).toBe(true);",
@@ -711,11 +717,69 @@ function specProblems(src: string): string[] {
   const captureAt = src.indexOf("if (CAPTURE) {");
   const compareAt = src.indexOf(SPEC_LINES.baseline);
   if (writes.length !== 1 || captureAt < 0 || !(captureAt < writes[0] && writes[0] < compareAt)) problems.push("writes a baseline outside the capture branch");
-  // The anchor checks run BEFORE anything is captured or judged.
-  const anchorAt = src.indexOf(SPEC_LINES.anchor);
-  if (!(anchorAt > 0 && anchorAt < captureAt)) problems.push("the fixture-render checks do not precede capture and judgment");
+  // The render (which waits for the anchor inside renderPage) precedes the unstubbed gate, capture and judgment.
+  const renderAt = src.indexOf(SPEC_LINES.render);
+  const unstubbedAt = src.indexOf(SPEC_LINES.unstubbed);
+  if (!(renderAt > 0 && renderAt < unstubbedAt && unstubbedAt < captureAt)) problems.push("the render, the unstubbed gate, capture and judgment are out of order");
   return problems;
 }
+
+/** The exact lines vt-render.ts must contain, in this order: the anchor wait happens before the settle wait and the screenshot. */
+const RENDER_LINES = {
+  baseUrl: 'export const E2E_BASE_URL = process.env.E2E_BASE_URL ?? "http://localhost:3001";',
+  goto: 'const res = await page.goto(route, { waitUntil: "domcontentloaded" });',
+  anchor: "await expect(page.getByText(anchor.anchorText).first(), `${route}: fixture anchor text never appeared`).toBeVisible({ timeout: 60_000 });",
+  noErrors: "await expect(page.getByText(anchor.errorPattern), `${route}: rendered one of its error states`).toHaveCount(0);",
+  settle: "const settled = await page",
+  screenshot: 'return page.screenshot({ type: "png", animations: "disabled", caret: "hide" });',
+  warmContext: "const ctx = await browser.newContext({ viewport, baseURL: E2E_BASE_URL, ...VT_CONTEXT });",
+  warmGoto: 'const res = await page.goto(p, { waitUntil: "domcontentloaded", timeout: 180_000 });',
+  warmStatus: "expect(res?.status(), `warm-up: ${p} must respond 200`).toBe(200);",
+} as const;
+
+function renderProblems(src: string): string[] {
+  const problems: string[] = [];
+  const at: Record<string, number> = {};
+  for (const [name, line] of Object.entries(RENDER_LINES)) {
+    const n = src.split(line).length - 1;
+    if (n !== 1) problems.push(`${name}: expected exactly one occurrence, found ${n}`);
+    at[name] = src.indexOf(line);
+  }
+  if (problems.length) return problems;
+  if (!(at.goto < at.anchor && at.anchor < at.noErrors && at.noErrors < at.settle && at.settle < at.screenshot)) {
+    problems.push("the anchor and error-state waits do not sit between the goto and the settle wait / screenshot");
+  }
+  // The warm goto must not swallow its failure.
+  const afterWarmGoto = src.slice(at.warmGoto, at.warmGoto + RENDER_LINES.warmGoto.length + 40);
+  if (/\.catch\(/.test(afterWarmGoto)) problems.push("the warm-up goto swallows its failure");
+  if (!(at.warmGoto < at.warmStatus)) problems.push("the warm-up does not assert 200 after each goto");
+  return problems;
+}
+
+describe("vt-render.ts renders the fixture page before it settles, and really warms", () => {
+  const src = read(path.join(E2E_DIR, "vt-render.ts"));
+
+  it("the real helper has no problems", () => {
+    expect(renderProblems(src)).toEqual([]);
+  });
+
+  it("MUTANTS: each of these edits is noticed", () => {
+    const mutants: Record<string, string> = {
+      "anchor wait moved after the screenshot": src.replace(RENDER_LINES.anchor, "").replace(RENDER_LINES.screenshot, `${RENDER_LINES.anchor}\n  ${RENDER_LINES.screenshot}`),
+      "anchor wait moved after the settle wait": src.replace(RENDER_LINES.anchor, "").replace("  await page.waitForTimeout(1500);", `  ${RENDER_LINES.anchor}\n  await page.waitForTimeout(1500);`),
+      "anchor wait removed": src.replace(RENDER_LINES.anchor, ""),
+      "error-state wait removed": src.replace(RENDER_LINES.noErrors, ""),
+      "baseURL dropped from the warm context": src.replace(RENDER_LINES.warmContext, "const ctx = await browser.newContext({ viewport, ...VT_CONTEXT });"),
+      "warm goto swallowed again": src.replace(RENDER_LINES.warmGoto, 'const res = await page.goto(p, { waitUntil: "domcontentloaded", timeout: 180_000 }).catch(() => null);'),
+      "warm 200 assertion removed": src.replace(RENDER_LINES.warmStatus, "void res;"),
+      "base URL hardcoded (env ignored)": src.replace(RENDER_LINES.baseUrl, 'export const E2E_BASE_URL = "http://localhost:3001";'),
+    };
+    for (const [name, mutated] of Object.entries(mutants)) {
+      expect(mutated, `${name}: the mutation did not apply`).not.toBe(src);
+      expect(renderProblems(mutated), name).not.toEqual([]);
+    }
+  });
+});
 
 describe("visible-transformation-v3.spec.ts consumes measureAndJudge", () => {
   const spec = read(V3_SPEC);
@@ -740,10 +804,10 @@ describe("visible-transformation-v3.spec.ts consumes measureAndJudge", () => {
       "opt-in by any value": spec.replace('process.env.VT_V3 === "1"', "process.env.VT_V3"),
       "capture refusal removed": spec.replace(SPEC_LINES.capture, 'const capture = { ok: true, reason: "" };'),
       "silent baseline write on compare": spec.replace(SPEC_LINES.baseline, `fs.writeFileSync(file, current);\n        ${SPEC_LINES.baseline}`),
-      "anchor check removed": spec.replace(SPEC_LINES.anchor, ""),
-      "error-state check removed": spec.replace(SPEC_LINES.noErrors, ""),
+      "anchor dropped from the render call": spec.replace(SPEC_LINES.render, "const current = await renderPage(page, p.path, p.landmark);"),
+      "home anchor points at a string the empty page shows": spec.replace(SPEC_LINES.homeAnchor, 'home: { anchorText: "Now", errorPattern: PAGE_ERRORS.home },'),
       "unstubbed gate removed": spec.replace(SPEC_LINES.unstubbed, ""),
-      "anchor check moved after the judgment": spec.replace(SPEC_LINES.anchor, "").replace(SPEC_LINES.assert, `${SPEC_LINES.assert}\n        ${SPEC_LINES.anchor}`),
+      "unstubbed gate moved after the judgment": spec.replace(SPEC_LINES.unstubbed, "").replace(SPEC_LINES.assert, `${SPEC_LINES.assert}\n        ${SPEC_LINES.unstubbed}`),
     };
     for (const [name, mutated] of Object.entries(mutants)) {
       expect(mutated, `${name}: the mutation did not apply`).not.toBe(spec);
@@ -759,6 +823,7 @@ interface Step {
   if?: string;
   uses?: string;
   run?: string;
+  "working-directory"?: string;
   env?: Record<string, string>;
   with?: Record<string, unknown>;
 }
@@ -796,14 +861,28 @@ function workflowProblems(wf: Workflow): string[] {
   const idx = (name: string) => steps.findIndex((s) => s.name?.startsWith(name));
   const smokeAt = idx("Run authenticated E2E smoke");
   const captureAt = idx("Capture v3 baselines");
+  const checkAt = idx("Check v3 baselines are complete");
   const uploadAt = idx("Upload v3 baselines");
   const tracesAt = idx("Upload Playwright traces on failure");
-  if ([smokeAt, captureAt, uploadAt, tracesAt].includes(-1)) {
-    return [`missing step: smoke=${smokeAt} capture=${captureAt} upload=${uploadAt} traces=${tracesAt}`];
+  if ([smokeAt, captureAt, checkAt, uploadAt, tracesAt].includes(-1)) {
+    return [`missing step: smoke=${smokeAt} capture=${captureAt} check=${checkAt} upload=${uploadAt} traces=${tracesAt}`];
   }
   const smoke = steps[smokeAt];
   const capture = steps[captureAt];
+  const check = steps[checkAt];
   const upload = steps[uploadAt];
+
+  // The completeness check: same guard, in the app dir, names all four files, fails on a missing one.
+  if (check.if !== CAPTURE_GUARD) problems.push("completeness check is not guarded by the capture condition");
+  if (check["working-directory"] !== "apps/statenour") problems.push("completeness check does not run in apps/statenour");
+  const checkRun = check.run ?? "";
+  for (const name of ["home-desktop", "home-phone", "missions-desktop", "missions-phone"]) {
+    if (!new RegExp(`\\b${name}\\b`).test(checkRun)) problems.push(`completeness check does not name ${name}`);
+  }
+  if (!checkRun.includes("test -f")) problems.push("completeness check does not test for the files");
+  if (!checkRun.includes("exit 1")) problems.push("completeness check cannot fail");
+  if (!checkRun.includes("tests/e2e/visible-transformation-v3.spec.ts-snapshots")) problems.push("completeness check looks in the wrong directory");
+  if (!(captureAt < checkAt && checkAt < uploadAt)) problems.push("completeness check is not between capture and upload");
 
   const input = wf.on.workflow_dispatch?.inputs?.capture_v3_baselines;
   if (!input || input.type !== "boolean" || input.default !== false) problems.push("workflow_dispatch input capture_v3_baselines is not a boolean defaulting to false");
@@ -884,6 +963,22 @@ describe(".github/workflows/e2e-statenour.yml capture path", () => {
       },
       "the capture step runs the whole suite": (w) => {
         named(w, "Capture v3 baselines").run = SMOKE_RUN;
+      },
+      "the completeness check misses one name": (w) => {
+        named(w, "Check v3 baselines are complete").run = named(w, "Check v3 baselines are complete").run!.replace(" missions-phone", "");
+      },
+      "the completeness check removed": (w) => {
+        w.jobs.e2e.steps = steps(w).filter((s) => !s.name?.startsWith("Check v3 baselines are complete"));
+      },
+      "the completeness check unguarded": (w) => {
+        delete named(w, "Check v3 baselines are complete").if;
+      },
+      "the completeness check after the upload": (w) => {
+        const all = steps(w);
+        const i = all.findIndex((s) => s.name?.startsWith("Check v3 baselines are complete"));
+        const [step] = all.splice(i, 1);
+        const u = all.findIndex((s) => s.name?.startsWith("Upload v3 baselines"));
+        all.splice(u + 1, 0, step);
       },
       "the capture step cannot fail (|| true)": (w) => {
         named(w, "Capture v3 baselines").run = `${CAPTURE_RUN} || true`;
