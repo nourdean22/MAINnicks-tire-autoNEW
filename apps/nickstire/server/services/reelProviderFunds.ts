@@ -1,4 +1,5 @@
 import type { ClipModel } from "./higgsfieldStudio";
+import { REEL_OUTPUT_RULES } from "../../client/src/lib/facelessReelStudio";
 
 /**
  * Does the paid video provider hold enough credits for one more reel?
@@ -16,8 +17,12 @@ import type { ClipModel } from "./higgsfieldStudio";
 /** Credits per 4 s clip, measured (higgsfieldStudio.ts CLIP_MODELS doc block). Kling is unmeasured, so absent. */
 export const CLIP_CREDITS_PER_BEAT: Partial<Record<ClipModel, number>> = { seedance1_5: 12, seedance_2_5: 26 };
 
-/** The brief does not exist yet when the gate runs; every reel since 2026-10-09 has had 5 beats. */
-export const DEFAULT_REEL_BEATS = 5;
+/**
+ * The brief does not exist yet when the gate runs, so price the most beats a brief
+ * may carry; a 5-beat reel is over-held by one clip, never under-held (Codex P1 on
+ * #3069: at 5 beats, 130 credits passed and a 6-beat pack died on its sixth clip).
+ */
+export const DEFAULT_REEL_BEATS = REEL_OUTPUT_RULES.maxBeats;
 
 export type ProviderFundsHold = { needed: number; balance: number; model: ClipModel };
 

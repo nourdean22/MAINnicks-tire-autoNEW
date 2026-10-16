@@ -8,18 +8,23 @@ import { providerFundsHold, CLIP_CREDITS_PER_BEAT, DEFAULT_REEL_BEATS } from "./
  * helper BEFORE it builds a brief, reserves, or moves the rotation cursor.
  */
 describe("providerFundsHold", () => {
-  it("holds when the balance cannot cover one 5-beat seedance_2_5 reel (the 2026-10-16 state)", () => {
+  it("holds when the balance cannot cover one 6-beat seedance_2_5 reel (the 2026-10-16 state)", () => {
     expect(providerFundsHold({ provider: "higgsfield", model: "seedance_2_5", balanceCredits: 29.5 }))
-      .toEqual({ needed: 130, balance: 29.5, model: "seedance_2_5" });
+      .toEqual({ needed: 156, balance: 29.5, model: "seedance_2_5" });
+  });
+
+  it("holds at 130: enough for five clips, not a six-beat pack's sixth (Codex P1, #3069)", () => {
+    expect(providerFundsHold({ provider: "higgsfield", model: "seedance_2_5", balanceCredits: 130 }))
+      .toEqual({ needed: 156, balance: 130, model: "seedance_2_5" });
   });
 
   it("does not hold at exactly the needed balance", () => {
-    expect(providerFundsHold({ provider: "higgsfield", model: "seedance_2_5", balanceCredits: 130 })).toBeNull();
+    expect(providerFundsHold({ provider: "higgsfield", model: "seedance_2_5", balanceCredits: 156 })).toBeNull();
   });
 
   it("prices seedance1_5 at 12 credits a beat", () => {
-    expect(providerFundsHold({ provider: "higgsfield", model: "seedance1_5", balanceCredits: 59 }))
-      .toEqual({ needed: 60, balance: 59, model: "seedance1_5" });
+    expect(providerFundsHold({ provider: "higgsfield", model: "seedance1_5", balanceCredits: 71 }))
+      .toEqual({ needed: 72, balance: 71, model: "seedance1_5" });
   });
 
   it("an unpriced model is not a hold (unknown price is not evidence of no funds)", () => {
@@ -42,8 +47,8 @@ describe("providerFundsHold", () => {
       .toEqual({ needed: 36, balance: 30, model: "seedance1_5" });
   });
 
-  it("keeps the measured prices and the standard storyboard length", () => {
+  it("keeps the measured prices and prices the most beats a brief may carry", () => {
     expect(CLIP_CREDITS_PER_BEAT).toEqual({ seedance1_5: 12, seedance_2_5: 26 });
-    expect(DEFAULT_REEL_BEATS).toBe(5);
+    expect(DEFAULT_REEL_BEATS).toBe(6);
   });
 });

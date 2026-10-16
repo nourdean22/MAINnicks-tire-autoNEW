@@ -111,7 +111,7 @@ production skipped 10-14 (both slots) and 10-15 06:00 ET until the operator reje
 - `shared/providerErrors.ts`: `not_enough_credits` (and its spellings) classifies
   QUOTA_OR_CREDIT / PAUSE_PROVIDER, so the job goes terminal on attempt 1.
 - `server/services/reelProviderFunds.ts` + `dailyReelPost.ts`: before building a brief, reserving
-  or moving the rotation, the cron compares the keepalive balance with 5 beats x the clip model's
+  or moving the rotation, the cron compares the keepalive balance with 6 beats (the most a brief may carry) x the clip model's
   measured price (seedance1_5 12, seedance_2_5 26). A shortfall holds the run, Telegram once per
   ET day. An unknown or stale balance, a non-Higgsfield provider or an unpriced model never holds.
 - `dailyReelPost.ts`: `needs_review` is in `PARKED_QA_GATES` (not `RETRYABLE_QA_GATES`), so the
