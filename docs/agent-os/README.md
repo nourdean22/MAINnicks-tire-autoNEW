@@ -81,10 +81,25 @@ github-client canaries 403'd every PR whenever another workflow had spent the bu
 - **Stop** (`stop-check.mjs`) blocks ending a turn with uncommitted work while ON `main` —
   one precise invariant, nothing else. A Stop hook that blocks routine turns trains the
   operator to disable it; widen only behind a canary.
-- **UserPromptSubmit** (`skills-first-reminder.mjs`) prints a reminder on every prompt to search every skill source
-  (repo, account, plugin) and load the best matches before any work. It is advice, not enforcement: it has no path
-  to exit 2, so it never blocks a prompt, and it cannot make the model comply. `skillsFirstReminder.test.mjs` runs
-  the configured command verbatim and asserts the reminder text, the skill sources it names, and exit 0.
+- **UserPromptSubmit** (`skills-first-reminder.mjs`) prints one line on every prompt: invoke the skills the recall
+  lines name before any work. It is advice, not enforcement: it has no path to exit 2, so it never blocks a prompt,
+  and it cannot make the model comply. `skillsFirstReminder.test.mjs` runs the configured command verbatim and
+  asserts the line, the sources it names, and exit 0.
+- **UserPromptSubmit** (`skill-recall.mjs`, 2026-10-16, runs after the reminder) scores the prompt against every
+  installed SKILL.md (repo roots, `~/.claude/skills`, the plugin roots under `~/.claude/plugins`; 498 names on the
+  operator machine, 65 in CI) and prints at most five `[skill-recall] invoke: <name> (<matched words>)` lines, or
+  `none beyond the always-on set`. BM25 over name + description + triggers, a 3x name boost, 1.5x for repo skills,
+  the 13 always-on names filtered out, floor 7.5 (the numbers and why are comments on the constants). Also a CLI
+  for lane briefs: `--text`, `--file <brief>`, `--json`. The index is cached in the OS temp dir, keyed by the roots'
+  mtimes; nothing is written inside the repo. `skillRecall.test.mjs` runs the real script on hook-shaped stdin:
+  positive controls, the none line, the always-on filter, three mutants, a corrupted cache, and a 2 s latency bound
+  (measured 70 to 100 ms warm on the operator machine).
+  **Why fail-open:** any error prints `[skill-recall] off: <reason>` and exits 0. Exit 2 on UserPromptSubmit blocks
+  the prompt itself, so a bug in a recall helper would stop the operator from typing; a missing recall line costs one
+  turn of routing and nothing else. The off line keeps the failure visible in the transcript instead of silent.
+  What the docs settle (code.claude.com/docs/en/hooks, read 2026-10-16): UserPromptSubmit stdout is added to context;
+  the hook fires on typed prompts, scheduled tasks, a background subagent reporting back, and cross-session messages.
+  A subagent's own brief is not in that list, so lane agents get recall through the brief template instead.
 - **Failure posture is asymmetric on purpose:** a matched rule fails CLOSED; a bug in the hook
   itself fails OPEN with a stderr warning. Bricking every tool call is worse than missing one
   check, and Claude Code fails open on hook crash/timeout anyway — pretending otherwise is theatre.

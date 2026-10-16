@@ -37,6 +37,11 @@
             "type": "command",
             "command": "node \"${CLAUDE_PROJECT_DIR}/scripts/agent-os/skills-first-reminder.mjs\"",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/scripts/agent-os/skill-recall.mjs\"",
+            "timeout": 10
           }
         ]
       }
