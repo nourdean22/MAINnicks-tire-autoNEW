@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "nickstire/external-clips-door",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "72e6a5b1-c131-4290-9859-4519ea80536a",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\musing-ramanujan-25e4e3",
+  "claimedBy": "2026-10-16-external-clips-door",
+  "claimedAt": "2026-10-16T11:20:43.117Z",
+  "expiresAt": "2026-10-16T23:20:43.117Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
