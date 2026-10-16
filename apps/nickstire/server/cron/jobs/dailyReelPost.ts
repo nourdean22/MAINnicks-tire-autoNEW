@@ -31,6 +31,7 @@ import { shopSettings, reelJobs, reelPublishApprovals } from "../../../drizzle/s
 import { BUSINESS } from "@shared/business";
 import { prepareCleanReelBrief, PreflightExhaustedError } from "../../services/reelDraftPrep";
 import { enqueueReelJob } from "../../services/reelPipeline";
+import { readProviderFundsHold, DEFAULT_REEL_BEATS } from "../../services/reelProviderFunds";
 import { reelPublicationIntentFor } from "@shared/reelPublicationSchedule";
 import { publishToSocial } from "../../services/socialPublish";
 import { publishDisclosureProblem, shouldDiscloseAi } from "@shared/reelDisclosure";
@@ -878,6 +879,35 @@ async function runDailyReelPostOnce(
         details: `production held: usable READY buffer ${usableReadyCount >= REEL_READY_TARGET ? `>=${REEL_READY_TARGET}` : usableReadyCount} (${readyDecision}); publication remains separately approval-gated`,
       };
     }
+
+    // FUNDS HOLD, before anything is spent or moved (2026-10-16). Higgsfield held
+    // 29.5 credits; job 2100001 rendered 2 clips, died on not_enough_credits and
+    // burned an approved pack. Past this point the run builds a brief (LLM
+    // calls), reserves, and advances the rotation cursor, so a known shortfall
+    // stops here. An UNKNOWN balance never holds (empty-vs-error): it is logged
+    // and production carries on.
+    const funds = await readProviderFundsHold();
+    if (funds.hold) {
+      const { balance, needed, model } = funds.hold;
+      log.error("daily reel: provider credits below one reel; production held", { balance, needed, model });
+      try {
+        if ((await getKv("reel_provider_funds_alert_date")) !== date) {
+          await setKv("reel_provider_funds_alert_date", date, "Reel provider low-credit alert, last ET date sent");
+          const { sendTelegram } = await import("../../services/telegram");
+          void sendTelegram(
+            `Reel production held: Higgsfield has ${balance} credits and a ${DEFAULT_REEL_BEATS}-beat ${model} reel needs about ${needed}. ` +
+              `Top up Higgsfield, or set REEL_CLIP_MODEL / REEL_VIDEO_PROVIDER to a lane you can afford. No pack was used and the rotation did not move.`,
+          ).catch(() => {});
+        }
+      } catch (err) {
+        log.warn("daily reel: low-credit alert bookkeeping failed", { err: err instanceof Error ? err.message : String(err) });
+      }
+      return {
+        recordsProcessed: 0,
+        details: `held: provider higgsfield has ${balance} credits; a ${DEFAULT_REEL_BEATS}-beat ${model} reel needs about ${needed}; top up Higgsfield or change REEL_CLIP_MODEL / REEL_VIDEO_PROVIDER; rotation not advanced`,
+      };
+    }
+    if (funds.unknown) log.warn("daily reel: provider credit balance UNKNOWN; not holding", { detail: funds.detail });
 
     // Topic authority is the LIVE MINER, not the hardcoded manifest. The
     // manifest is a fixed campaign list written once; it cannot know what

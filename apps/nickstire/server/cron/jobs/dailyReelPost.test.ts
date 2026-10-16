@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { checkReviewReply } from "@shared/reviewReplyQa";
 import { MANIFEST, runDailyReelPost, reelPublishPlatforms, facebookLiveWithoutInstagram } from "./dailyReelPost";
 
@@ -128,5 +130,35 @@ describe("facebookLiveWithoutInstagram (partial publish must PARK, never retry)"
     expect(facebookLiveWithoutInstagram([{ platform: "facebook", success: true, postId: "x" }, { platform: "instagram", success: true, postId: "y" }])).toBeNull();
     expect(facebookLiveWithoutInstagram([{ platform: "facebook", success: false }, { platform: "instagram", success: false }])).toBeNull();
     expect(facebookLiveWithoutInstagram([{ platform: "instagram", success: false }])).toBeNull();
+  });
+});
+
+/**
+ * The funds hold (2026-10-16) is only worth anything if it runs BEFORE the run
+ * spends or moves: brief building (LLM calls), the reservation, and the
+ * rotation-cursor advance. The helper itself is tested in
+ * services/reelProviderFunds.test.ts; this pins where the cron consults it.
+ */
+describe("the provider funds hold sits before any spend or cursor move", () => {
+  const SRC = readFileSync(path.join(__dirname, "dailyReelPost.ts"), "utf8");
+  const at = (needle: string) => {
+    const i = SRC.indexOf(needle);
+    expect(i, needle).toBeGreaterThan(-1);
+    return i;
+  };
+  it("is consulted after the READY-buffer early return and before brief, enqueue and cursor writes", () => {
+    const hold = at("const funds = await readProviderFundsHold();");
+    expect(hold).toBeGreaterThan(at('if (readyDecision !== "refill")'));
+    expect(hold).toBeLessThan(at("prepared = await prepareCleanReelBrief("));
+    expect(hold).toBeLessThan(at('await enqueueReelJob(brief, "cron"'));
+    // Nothing between the production-hour gate and the hold writes a cursor or KV.
+    const before = SRC.slice(at("not production hour"), hold);
+    for (const writer of ["setApprovedPackProgress(", "setAutopostProgress(", "advancePastRefusedPack(", "setKv("]) {
+      expect(before, writer).not.toContain(writer);
+    }
+    // A hold returns before anything below it runs.
+    const block = SRC.slice(hold, SRC.indexOf("if (funds.unknown)", hold));
+    expect(block).toContain("return {");
+    expect(block).toContain("rotation not advanced");
   });
 });
