@@ -89,7 +89,9 @@ github-client canaries 403'd every PR whenever another workflow had spent the bu
   installed SKILL.md (repo roots, `~/.claude/skills`, the plugin roots under `~/.claude/plugins`; 498 names on the
   operator machine, 65 in CI) and prints at most five `[skill-recall] invoke: <name> (<matched words>)` lines, or
   `none beyond the always-on set`. BM25 over name + description + triggers, a 3x name boost, 1.5x for repo skills,
-  the 13 always-on names filtered out, floor 7.5 (the numbers and why are comments on the constants). Also a CLI
+  the 13 always-on names filtered out, floor 7.5, and a higher bar for plugin-root entries (1.5x the floor plus a
+  name hit or two matched terms, review round 1: one generic word per library description outranked the repo
+  skills). The numbers and why are comments on the constants. Also a CLI
   for lane briefs: `--text`, `--file <brief>`, `--json`. The index is cached in the OS temp dir, keyed by the roots'
   mtimes; nothing is written inside the repo. `skillRecall.test.mjs` runs the real script on hook-shaped stdin:
   positive controls, the none line, the always-on filter, three mutants, a corrupted cache, and a 2 s latency bound

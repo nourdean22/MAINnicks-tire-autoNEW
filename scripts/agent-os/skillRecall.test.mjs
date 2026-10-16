@@ -33,6 +33,10 @@ const CONTROLS = [
   ["write a deny-list regex for the pretool hook", ["guard-red-team"]],
   ["merge the three ledger rows", ["session-authority", "stranded-branch-rescue", "statenour-wave-reconcile", "nickstire-shared-main-push"]],
   ["brainstorming report the errors in the code review", ["brainstorming"], { first: true }],
+  // Review round 1 (2026-10-16): the plugin bar. B: session-authority first, at most one plugin entry. A: no plugin
+  // entry at all; its generic words (brief, deck, sheet, open, approve) each hit one plugin description.
+  ["merge the three ledger rows and release the lease", ["session-authority"], { first: true, maxPlugin: 1 }],
+  ["open the W2 brief for Home deck and Missions, approve in place, detent sheet", [], { maxPlugin: 0 }],
 ];
 const NONSENSE = "zxqv florp wibble quux";
 
@@ -75,7 +79,11 @@ function controlProblems(script = SCRIPT) {
     if (r.code !== 0) problems.push(`exit ${r.code} for "${prompt}": ${r.err}`);
     const got = named(r.out);
     const pool = opt.first ? got.slice(0, 1) : got;
-    if (!expected.some((e) => pool.includes(e))) problems.push(`"${prompt}" named [${got.join(", ")}], expected one of [${expected.join(", ")}]${opt.first ? " first" : ""}`);
+    if (expected.length && !expected.some((e) => pool.includes(e))) problems.push(`"${prompt}" named [${got.join(", ")}], expected one of [${expected.join(", ")}]${opt.first ? " first" : ""}`);
+    if (opt.maxPlugin !== undefined) {
+      const plugins = got.filter((g) => g.includes(":"));
+      if (plugins.length > opt.maxPlugin) problems.push(`"${prompt}" printed ${plugins.length} plugin entries [${plugins.join(", ")}], cap ${opt.maxPlugin}`);
+    }
     for (const g of got) if (ALWAYS_ON.includes(g.split(":").pop())) problems.push(`always-on skill ${g} printed for "${prompt}"`);
     if (got.length > 5) problems.push(`${got.length} lines for "${prompt}", cap is 5`);
   }
@@ -165,7 +173,7 @@ test("runtime writes nothing inside the repo: git status is identical before and
   assert.equal(status(), before);
 });
 
-test("MUTANTS: no scorer output, no name boost and no always-on filter are each caught by the controls", () => {
+test("MUTANTS: no scorer output, no name boost, no plugin bar and no always-on filter are each caught by the controls", () => {
   const src = readFileSync(SCRIPT, "utf8");
   const plant = (label, from, to) => {
     assert.ok(src.includes(from), `anchor "${from}" missing from skill-recall.mjs`);
@@ -178,6 +186,12 @@ test("MUTANTS: no scorer output, no name boost and no always-on filter are each 
   assert.ok(controlProblems(noScore).some((p) => /expected one of/.test(p)), "a scorer that returns nothing must fail the controls");
   const noBoost = plant("name", "const NAME_BOOST = 3;", "const NAME_BOOST = 1;");
   assert.ok(controlProblems(noBoost).length > 0, "removing the name boost must fail at least one control");
+  // Both halves of the plugin bar off: the score multiple and the two-term minimum.
+  const noBar = plant("bar", "const PLUGIN_BAR = 1.5;", "const PLUGIN_BAR = 0;");
+  assert.ok(src.includes("const PLUGIN_MIN_HITS = 2;"), 'anchor "const PLUGIN_MIN_HITS = 2;" missing from skill-recall.mjs');
+  writeFileSync(noBar, readFileSync(noBar, "utf8").replace("const PLUGIN_MIN_HITS = 2;", "const PLUGIN_MIN_HITS = 0;"));
+  const barProblems = controlProblems(noBar).filter((p) => /plugin entries/.test(p));
+  assert.ok(barProblems.length >= 2, `removing the plugin bar must fail both plugin-cap controls: ${barProblems.join(" | ")}`);
   const noFilter = plant("filter", "const ALWAYS_ON = new Set([", "const ALWAYS_ON = new Set([]); const ALWAYS_ON_ORIGINAL = new Set([");
   const r = hook("run ponytail and verification-before-completion and karpathy-guidelines before writing code", noFilter);
   assert.ok(named(r.out).some((n) => ALWAYS_ON.includes(n.split(":").pop())), `without the filter an always-on skill must appear: ${r.out}`);

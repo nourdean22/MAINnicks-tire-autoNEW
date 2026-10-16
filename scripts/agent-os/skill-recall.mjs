@@ -32,6 +32,12 @@ const REPO_BOOST = 1.5;
 // nonsense scores nothing. 7.5 keeps every control and cuts that noise. A lone generic word ("test") still prints its
 // skills (9 and up): a one-word prompt naming a domain is a real request, not noise.
 const FLOOR = 7.5;
+// Plugin-root entries (not repo, not ~/.claude/skills) clear a higher bar: PLUGIN_BAR x FLOOR, and a name hit or at
+// least PLUGIN_MIN_HITS matched terms. Review round 1 (2026-10-16): 400 library descriptions and names share generic
+// words ("brief", "deck", "sheet", "ledger", "rows", "release"); one such word per plugin outranked the repo skills,
+// and a name hit alone is not enough because "brief" is a name token of cos-decision-brief (8.7, under 11.25).
+const PLUGIN_BAR = 1.5;
+const PLUGIN_MIN_HITS = 2;
 // Forced by other hooks and the lane frontmatter already; printing them again would bury the real matches.
 const ALWAYS_ON = new Set([
   "karpathy-guidelines", "ponytail", "verification-before-completion", "i-have-adhd", "using-superpowers",
@@ -188,11 +194,13 @@ function score(index, prompt) {
     if (ALWAYS_ON.has(e.name.split(":").pop())) continue;
     const len = e.nameTokens.length + e.bodyTokens.length;
     let s = 0;
+    let nameHit = false;
     const hits = [];
     for (const t of q) {
       const inName = e.nameTokens.filter((x) => x === t).length;
       const inBody = e.bodyTokens.filter((x) => x === t).length;
       if (!inName && !inBody) continue;
+      if (inName) nameHit = true;
       const df = index.df[t] || 1;
       const idf = Math.log(1 + (N - df + 0.5) / (df + 0.5));
       const tf = inBody + inName;
@@ -201,6 +209,7 @@ function score(index, prompt) {
       hits.push(word.get(t) || t);
     }
     if (e.kind === "repo") s *= REPO_BOOST;
+    if (e.kind === "plugin" && (s < PLUGIN_BAR * FLOOR || (!nameHit && hits.length < PLUGIN_MIN_HITS))) continue;
     if (s > 0) results.push({ name: e.name, kind: e.kind, score: Number(s.toFixed(3)), hits });
   }
   results.sort((a, b) => b.score - a.score || (b.kind === "repo") - (a.kind === "repo") || a.name.localeCompare(b.name));
