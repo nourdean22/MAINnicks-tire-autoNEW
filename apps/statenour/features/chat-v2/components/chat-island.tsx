@@ -27,6 +27,8 @@ import { toast } from "sonner";
 // W3b (B1): at xl the Context and Evidence inspector docks beside the conversation. Module scope,
 // like the composer's coarse-pointer query: useSyncExternalStore re-subscribes when the subscribe
 // function changes. The server (and a jsdom without matchMedia) reads "not xl"; the client takes over.
+// A1b: the composer's line while a conversation opens (use-conversations isLoadingConvo).
+export const COMPOSER_OPENING_REASON = "Opening that conversation. Send once it is on screen.";
 const XL_QUERY = "(min-width: 1280px)";
 function subscribeXl(onChange: () => void): () => void {
   const query = window.matchMedia?.(XL_QUERY);
@@ -496,7 +498,7 @@ export function ChatIsland() {
             </button>
           </div>
         )}
-        <ChatComposer chat={chat} />
+        <ChatComposer chat={chat} disabledReason={conversations.isLoadingConvo ? COMPOSER_OPENING_REASON : undefined} />
         <div role="status" aria-live="polite" className="sr-only">{chipAnnouncement}</div>
       </div>
       </div>
