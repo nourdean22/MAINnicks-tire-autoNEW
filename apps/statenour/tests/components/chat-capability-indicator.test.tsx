@@ -36,7 +36,7 @@ vi.mock("@/lib/trpc/client", () => ({
 }));
 
 import { ChatCapabilityIndicator } from "@/features/chat-v2/components/chat-capability-indicator";
-import { capabilityBadge } from "@/features/chat-v2/lib/capability-label";
+import { capabilityBadge, capabilityWord } from "@/features/chat-v2/lib/capability-label";
 import { useChatUiStore } from "@/features/chat-v2/stores/chat-ui-store";
 
 const healthyTools = { summary: { totalTools: 10, degraded: 0, down: 0 } };
@@ -98,5 +98,49 @@ describe("capabilityBadge · `checking` is true only while a read is in flight",
       toolSummary: healthyTools.summary,
     });
     expect(b.checking).toBe(false);
+  });
+});
+
+// W3b: the header shows a 10px dot and ONE word at md and up; the full label stays in the
+// accessible name and a visually hidden span. The word never claims more than the label does.
+describe("capabilityWord · one honest word per badge state", () => {
+  const word = (input: Parameters<typeof capabilityBadge>[0]) => capabilityWord(capabilityBadge(input));
+  it("measured and healthy: Ready", () => {
+    expect(word({ connection: "online", providerTone: "green", providerErrored: false, toolSummary: healthyTools.summary })).toBe("Ready");
+  });
+  it("a read in flight: Checking", () => {
+    expect(word({ connection: "online", providerTone: undefined, providerErrored: false })).toBe("Checking");
+  });
+  it("a failed read: Unknown, never Ready and never a diagnosis", () => {
+    expect(word({ connection: "online", providerTone: undefined, providerErrored: true })).toBe("Unknown");
+    expect(word({ connection: "online", providerTone: "green", providerErrored: false, toolsErrored: true })).toBe("Unknown");
+  });
+  it("a measured problem: Degraded", () => {
+    expect(word({ connection: "online", providerTone: "amber", providerErrored: false })).toBe("Degraded");
+    expect(word({ connection: "degraded", providerTone: "green", providerErrored: false, toolSummary: healthyTools.summary })).toBe("Degraded");
+  });
+  it("the client's own offline observation: Offline", () => {
+    expect(word({ connection: "offline", providerTone: "green", providerErrored: false })).toBe("Offline");
+  });
+});
+
+describe("ChatCapabilityIndicator · W3b dot and words", () => {
+  it("keeps the full state words in the link's accessible name and a visually hidden span, and the one word for md-up", () => {
+    providers = { data: { overallTone: "green" }, isError: false };
+    tools = { data: healthyTools, isError: false };
+    const markup = renderToStaticMarkup(<ChatCapabilityIndicator />);
+    expect(markup).toContain('href="/system/health"');
+    expect(markup).toMatch(/aria-label="ready \(capability health\)"/);
+    expect(markup).toMatch(/<span class="sr-only">ready<\/span>/);
+    expect(markup).toMatch(/hidden md:inline[^>]*>Ready</);
+    expect(markup).not.toContain("animate-spin");
+  });
+
+  it("names the down count in the accessible words, not only in a suffix", () => {
+    providers = { data: { overallTone: "green" }, isError: false };
+    tools = { data: { summary: { totalTools: 10, degraded: 0, down: 2 } }, isError: false };
+    const markup = renderToStaticMarkup(<ChatCapabilityIndicator />);
+    expect(markup).toMatch(/aria-label="tools limited · 2 down \(capability health\)"/);
+    expect(markup).toMatch(/hidden md:inline[^>]*>Degraded</);
   });
 });

@@ -1,11 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { AlertTriangle, CheckCircle2, Loader2, WifiOff } from "lucide-react";
-import { capabilityBadge, type ProviderTone } from "../lib/capability-label";
+import { Loader2 } from "lucide-react";
+import { capabilityBadge, capabilityWord, type ProviderTone } from "../lib/capability-label";
 import { trpc } from "@/lib/trpc/client";
 import { useChatUiStore } from "../stores/chat-ui-store";
 
+/**
+ * UI v3 W3b: a 10px dot and one word, in place of the bordered pill. The three honest states of
+ * capabilityBadge (checking / unknown / measured) stay: the full label is the link's accessible
+ * name and a visually hidden span, the word (Ready / Checking / Unknown / Degraded / Offline)
+ * shows at md and up, and the dot's shape carries the state next to its colour (filled for a
+ * measured state, a ring for unknown, a spinner only while a read is in flight). Still a Link to
+ * /system/health.
+ */
 export function ChatCapabilityIndicator() {
   const connection = useChatUiStore((state) => state.connection);
   const providers = trpc.system.providerHealth.useQuery(undefined, {
@@ -30,31 +38,29 @@ export function ChatCapabilityIndicator() {
     toolSummary,
     toolsErrored: tools.isError,
   });
-  const degraded = badge.cautious;
-  const label = badge.label;
-
-  // Only a read still in flight spins (09-F14): a failed read is static.
-  const Icon = connection === "offline"
-    ? WifiOff
-    : badge.checking
-      ? Loader2
-      : degraded
-        ? AlertTriangle
-        : CheckCircle2;
+  const label = `${badge.label}${toolSummary && toolSummary.down > 0 ? ` · ${toolSummary.down} down` : ""}`;
+  const word = capabilityWord(badge);
+  const dot = badge.unknown
+    ? "border-2 border-amber-400"
+    : badge.cautious
+      ? "bg-amber-400"
+      : "bg-emerald-400";
 
   return (
     <Link
       href="/system/health"
       title="Open provider and capability health"
-      className={`inline-flex min-h-11 items-center gap-1.5 rounded-full border px-2.5 font-mono text-[11px] transition ${
-        degraded
-          ? "border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/15"
-          : "border-emerald-500/25 bg-emerald-500/[0.07] text-emerald-300 hover:bg-emerald-500/10"
-      }`}
+      aria-label={`${label} (capability health)`}
+      className="inline-flex min-h-11 items-center gap-2 rounded-control px-1.5 text-[12px] text-fg-secondary transition-colors duration-[var(--motion-state)] hover:text-fg"
     >
-      <Icon size={11} className={badge.checking ? "animate-spin" : undefined} />
-      {label}
-      {toolSummary && toolSummary.down > 0 ? ` · ${toolSummary.down} down` : ""}
+      {/* Only a read still in flight spins (09-F14): a failed read is static. */}
+      {badge.checking ? (
+        <Loader2 size={10} aria-hidden className="animate-spin text-fg-tertiary" />
+      ) : (
+        <span aria-hidden className={`h-2.5 w-2.5 shrink-0 rounded-full ${dot}`} />
+      )}
+      <span className="sr-only">{label}</span>
+      <span aria-hidden className="hidden md:inline">{word}</span>
     </Link>
   );
 }

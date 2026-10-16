@@ -65,6 +65,7 @@ vi.mock("@/hooks/use-conversations", () => ({
 vi.mock("@/components/ui/dialog", () => ({
   Dialog: ({ open, children }: { open?: boolean; children?: React.ReactNode }) => (open ? <>{children}</> : null),
   DialogContent: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
+  DialogTitle: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
 }));
 vi.mock("@/features/chat-v2/components/chat-composer", () => ({ ChatComposer: () => null }));
 vi.mock("@/features/chat-v2/components/chat-media-dock", () => ({ ChatMediaDock: () => null }));

@@ -95,7 +95,9 @@ export async function openChatHistory(page: Page, title: string): Promise<void> 
  * mount, chat-island.tsx). Three equal reads 250ms apart is the stop.
  */
 export async function settleChat(page: Page): Promise<void> {
-  await expect(page.getByRole("link", { name: "ready", exact: true }), "chat: the header pill never reached a measured state").toBeVisible({ timeout: 30_000 });
+  // W3b: the indicator is a dot plus words; its accessible name is `${label} (capability health)`
+  // (chat-capability-indicator.tsx), so "ready" is the measured state here as before.
+  await expect(page.getByRole("link", { name: "ready (capability health)", exact: true }), "chat: the header indicator never reached a measured state").toBeVisible({ timeout: 30_000 });
   const island = page.locator("[data-chat-shell] > div").first();
   const reads: number[] = [];
   await expect

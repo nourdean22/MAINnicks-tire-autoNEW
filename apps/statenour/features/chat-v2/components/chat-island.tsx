@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown, Brain, History, Mic, MicOff, Volume2, VolumeX } from "lucide-react";
+import { ArrowDown, Brain, History, Mic, MicOff, MoreHorizontal, Volume2, VolumeX } from "lucide-react";
 import { isNearBottom, nextFollow } from "../lib/scroll-position";
 import { scrollBehavior } from "@/lib/ui/scroll-behavior";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useChatUiStore } from "../stores/chat-ui-store";
 import { useChatStream } from "../hooks/use-chat-stream";
 import { resolveIslandHeight } from "../lib/island-height";
@@ -132,6 +132,9 @@ export function ChatIsland() {
   const contradictions = useChatUiStore((state) => state.contradictions);
   const setMemoryData = useChatUiStore((state) => state.setMemoryData);
   const [memoryFetchedAt, setMemoryFetchedAt] = useState<Date | null>(null);
+  // W3b: below md the header shows History and More; auto-read, context and voice live in this sheet.
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreButtonRef = useRef<HTMLButtonElement>(null);
 
   // Retry after a stream error reads the conversation as saved before it replays a
   // turn. useConversations owns the tRPC client but is created after this hook, so
@@ -309,19 +312,18 @@ export function ChatIsland() {
 
   return (
     <div ref={islandRef} className="relative flex h-full w-full flex-col overflow-hidden bg-void text-fg">
-      {/* flex-wrap: four 44px controls plus a long capability label ("tool
-          health unknown") pass 390px, so the controls drop to their own line
-          instead of running under the label. */}
-      <header className="z-10 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-edge-subtle bg-canvas px-3 py-2 sm:px-4">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2.5">
-            <h1 className="font-mono text-[13px] font-semibold tracking-[0.08em] text-fg">NICK</h1>
-            <ChatCapabilityIndicator />
-          </div>
+      {/* W3b: one line. Nick, the capability dot and its word, Private when it is on; History and
+          More on the right below md (auto-read, context and voice sit in the More sheet there),
+          all of them at md and up. The five controls keep the 44px box the mobile-a11y pin counts;
+          the three that leave the phone line are hidden by max-md:hidden, never made smaller. */}
+      <header className="z-10 flex items-center justify-between gap-3 border-b border-edge-subtle bg-canvas px-3 py-1 sm:px-4">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <h1 className="text-[15px] font-semibold tracking-[-0.01em] text-fg">Nick</h1>
+          <ChatCapabilityIndicator />
           {/* 09-F22: the posture/depth strip read selectors the composer lost
-              on 2026-08-28, so it always said the same thing. PRIVATE is the
+              on 2026-08-28, so it always said the same thing. Private is the
               one mode left to show. */}
-          {privateMode && <p className="mt-0.5 font-mono text-[11px] text-accent">PRIVATE</p>}
+          {privateMode && <p className="font-mono text-[11px] text-accent">Private</p>}
         </div>
         <div className="ml-auto flex items-center gap-0.5">
           {/* 09-F23: one global preference, so one control (it was a button
@@ -332,22 +334,55 @@ export function ChatIsland() {
               aria-label={tts.enabled ? "Auto-read replies is on (tap to turn off)" : "Auto-read replies is off (tap to turn on)"}
               aria-pressed={tts.enabled}
               onClick={tts.toggle}
-              className={`flex h-11 w-11 items-center justify-center rounded-control transition-colors duration-[var(--motion-state)] ${tts.enabled ? "bg-surface-interactive text-fg" : "text-fg-tertiary hover:bg-surface hover:text-fg"}`}
+              className={`flex h-11 w-11 items-center justify-center rounded-control max-md:hidden transition-colors duration-[var(--motion-state)] ${tts.enabled ? "bg-surface-interactive text-fg" : "text-fg-tertiary hover:bg-surface hover:text-fg"}`}
             >
               {tts.enabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
             </button>
           )}
-          <button onClick={() => setMemoryInspectorOpen(!memoryInspectorOpen)} aria-label="Context and memory" aria-pressed={memoryInspectorOpen} className={`flex h-11 w-11 items-center justify-center rounded-control transition-colors duration-[var(--motion-state)] ${memoryInspectorOpen ? "bg-surface-interactive text-fg" : "text-fg-tertiary hover:bg-surface hover:text-fg"}`}>
+          <button onClick={() => setMemoryInspectorOpen(!memoryInspectorOpen)} aria-label="Context and memory" aria-pressed={memoryInspectorOpen} className={`flex h-11 w-11 items-center justify-center rounded-control max-md:hidden transition-colors duration-[var(--motion-state)] ${memoryInspectorOpen ? "bg-surface-interactive text-fg" : "text-fg-tertiary hover:bg-surface hover:text-fg"}`}>
             <Brain size={16} /><span className="sr-only">Context</span>
           </button>
           <button ref={historyButtonRef} onClick={() => setHistoryDrawerOpen(!historyDrawerOpen)} aria-label="Conversation history" aria-pressed={historyDrawerOpen} className={`flex h-11 w-11 items-center justify-center rounded-control transition-colors duration-[var(--motion-state)] ${historyDrawerOpen ? "bg-surface-interactive text-fg" : "text-fg-tertiary hover:bg-surface hover:text-fg"}`}>
             <History size={16} /><span className="sr-only">History</span>
           </button>
-          <button onClick={toggleVoiceDock} aria-label={isVoiceDocked ? "Close voice" : "Open voice"} aria-pressed={isVoiceDocked} className={`flex h-11 w-11 items-center justify-center rounded-control transition-colors duration-[var(--motion-state)] ${isVoiceDocked ? "bg-rose-500/15 text-rose-300" : "text-fg-tertiary hover:bg-surface hover:text-fg"}`}>
+          <button onClick={toggleVoiceDock} aria-label={isVoiceDocked ? "Close voice" : "Open voice"} aria-pressed={isVoiceDocked} className={`flex h-11 w-11 items-center justify-center rounded-control max-md:hidden transition-colors duration-[var(--motion-state)] ${isVoiceDocked ? "bg-rose-500/15 text-rose-300" : "text-fg-tertiary hover:bg-surface hover:text-fg"}`}>
             {isVoiceDocked ? <MicOff size={16} /> : <Mic size={16} />}<span className="sr-only">Voice</span>
+          </button>
+          <button ref={moreButtonRef} type="button" onClick={() => setMoreOpen(true)} aria-label="More chat controls" aria-expanded={moreOpen} aria-haspopup="dialog" className="flex h-11 w-11 items-center justify-center rounded-control md:hidden text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:bg-surface hover:text-fg">
+            <MoreHorizontal size={16} />
           </button>
         </div>
       </header>
+
+      {/* The More sheet (below md): the same three controls as rows, in the DOM (window.* menus do
+          not exist in the installed iOS PWA). Each row acts and closes the sheet; focus returns to More. */}
+      <Dialog open={moreOpen} onOpenChange={(open) => { if (!open) setMoreOpen(false); }}>
+        <DialogContent
+          unstyled
+          showCloseButton={false}
+          finalFocus={moreButtonRef}
+          overlayClassName="z-[58] bg-canvas/60"
+          className="fixed inset-x-0 bottom-0 z-[59] rounded-t-float border-t border-edge-default bg-overlay p-2 pb-[calc(env(safe-area-inset-bottom,0px)+0.5rem)] shadow-l1 outline-none"
+        >
+          <DialogTitle className="px-3 py-2 text-[13px] font-medium text-fg-secondary">More chat controls</DialogTitle>
+          {tts.supported && (
+            <button type="button" aria-pressed={tts.enabled} onClick={() => { tts.toggle(); setMoreOpen(false); }} className="flex min-h-11 w-full items-center gap-3 rounded-control px-3 text-left text-[15px] text-fg hover:bg-surface">
+              {tts.enabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
+              Auto-read replies
+              <span className="ml-auto text-[13px] text-fg-tertiary">{tts.enabled ? "On" : "Off"}</span>
+            </button>
+          )}
+          <button type="button" aria-pressed={memoryInspectorOpen} onClick={() => { setMemoryInspectorOpen(!memoryInspectorOpen); setMoreOpen(false); }} className="flex min-h-11 w-full items-center gap-3 rounded-control px-3 text-left text-[15px] text-fg hover:bg-surface">
+            <Brain size={16} />
+            Context and memory
+          </button>
+          <button type="button" aria-pressed={isVoiceDocked} onClick={() => { toggleVoiceDock(); setMoreOpen(false); }} className="flex min-h-11 w-full items-center gap-3 rounded-control px-3 text-left text-[15px] text-fg hover:bg-surface">
+            {isVoiceDocked ? <MicOff size={16} /> : <Mic size={16} />}
+            Voice
+            <span className="ml-auto text-[13px] text-fg-tertiary">{isVoiceDocked ? "Open" : "Closed"}</span>
+          </button>
+        </DialogContent>
+      </Dialog>
 
       {/* `relative` anchors the jump-to-latest button only — plain
           relative creates no containing block for `position: fixed`
