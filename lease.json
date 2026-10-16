@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "statenour/current-truth-2026-10-16",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "f8d930b8-3865-416c-802f-2947cc79c726",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire",
   "claimedBy": "2026-10-16-current-truth-reverify fix-forward for main node red (check-stale-docs lag)",
   "claimedAt": "2026-10-16T03:34:18.107Z",
   "expiresAt": "2026-10-16T15:34:18.107Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": null
+  "releasedAt": "2026-10-16T04:07:05.159Z",
+  "releaseReason": "PR #3068 merged as 58af96534 via merge-gate; remote branch deleted by the gate",
+  "priorLeaseSha": "aee793d7df7416f4876ba931b8a884a788785599",
+  "releasedBy": "f8d930b8-3865-416c-802f-2947cc79c726",
+  "foreignReleaseReason": null
 }
