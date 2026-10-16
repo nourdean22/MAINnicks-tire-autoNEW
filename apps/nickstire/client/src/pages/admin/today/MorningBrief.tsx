@@ -36,6 +36,12 @@ interface MorningBriefProps {
   priorityQueueLength: number;
   /** Number of urgent leads (subset of hot leads) */
   urgentLeads: number;
+  /**
+   * False when a source the queue is built from failed: the counts above are unknown, not zero.
+   * Optional only so the gateway-reader tests that render the brief alone keep compiling; the one
+   * production caller (OverviewSection) always passes it.
+   */
+  queueTrustworthy?: boolean;
 }
 
 /** Time-of-day greeting */
@@ -47,7 +53,7 @@ function greeting(): string {
   return "Good evening";
 }
 
-export function MorningBrief({ priorityQueueLength, urgentLeads }: MorningBriefProps) {
+export function MorningBrief({ priorityQueueLength, urgentLeads, queueTrustworthy = true }: MorningBriefProps) {
   // Existing queries that already render elsewhere · cheap to reuse
   const { data: dashStats } = trpc.adminDashboard.stats.useQuery(undefined, { staleTime: 60_000 });
   const { data: smsGw, isError: smsGwError } = trpc.sms.gatewayHealth.useQuery(undefined, { staleTime: 60_000 });
@@ -113,7 +119,13 @@ export function MorningBrief({ priorityQueueLength, urgentLeads }: MorningBriefP
     const priorityBits: string[] = [];
     if (urgentLeads > 0) priorityBits.push(`${urgentLeads} urgent lead${urgentLeads === 1 ? "" : "s"}`);
     if (priorityQueueLength > 0) priorityBits.push(`${priorityQueueLength} in queue`);
-    if (priorityBits.length > 0) {
+    if (!queueTrustworthy) {
+      out.push({
+        icon: <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />,
+        text: "Now: queue unknown · the overview read failed",
+        tone: "warn",
+      });
+    } else if (priorityBits.length > 0) {
       out.push({
         icon: <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />,
         text: `Now: ${priorityBits.join(" · ")}`,
@@ -128,7 +140,7 @@ export function MorningBrief({ priorityQueueLength, urgentLeads }: MorningBriefP
     }
 
     return out;
-  }, [dashStats, smsGw, smsGwError, callsData, priorityQueueLength, urgentLeads]);
+  }, [dashStats, smsGw, smsGwError, callsData, priorityQueueLength, urgentLeads, queueTrustworthy]);
 
   return (
     <div className="bg-card border border-border/40 p-4 space-y-2.5">

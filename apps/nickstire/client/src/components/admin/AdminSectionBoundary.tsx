@@ -1,6 +1,8 @@
 import { AlertTriangle, RefreshCw } from "lucide-react";
 import React, { Component, type ReactNode } from "react";
 import { recordAdminClientError } from "@/lib/adminClientTelemetry";
+import { SECTION_TITLES } from "@/pages/admin/shared/constants";
+import type { AdminSection } from "@/pages/admin/shared/types";
 
 interface Props {
   children: ReactNode;
@@ -52,7 +54,7 @@ class AdminSectionBoundary extends Component<Props, State> {
           <div className="max-w-md text-center">
             <AlertTriangle className="w-10 h-10 text-amber-400 mx-auto mb-4" />
             <h3 className="font-bold text-lg text-foreground mb-2">
-              The {this.props.sectionName} section failed.
+              The {SECTION_TITLES[this.props.sectionName as AdminSection] ?? this.props.sectionName} section failed.
             </h3>
             <p className="text-sm text-foreground/60 mb-3">
               The rest of the admin still works. Retry this section or choose another area from the navigation.

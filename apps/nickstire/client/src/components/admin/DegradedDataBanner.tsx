@@ -4,6 +4,8 @@ interface Props {
   stats?: { _degraded?: boolean; _errorId?: string } | null;
   unavailable?: boolean;
   unavailableMessage?: string;
+  /** Refetch for the failed read; the Retry button renders only when a caller passes one. */
+  onRetry?: () => void;
 }
 
 /**
@@ -23,9 +25,10 @@ interface Props {
  *   · unavailable     → the query itself failed; there is no stats object
  *     at all and sections may render empty rather than zeroed.
  */
-export default function DegradedDataBanner({ stats, unavailable, unavailableMessage }: Props) {
+export default function DegradedDataBanner({ stats, unavailable, unavailableMessage, onRetry }: Props) {
   const degraded = Boolean(stats?._degraded);
   if (!degraded && !unavailable) return null;
+  const reference = unavailable ? unavailableMessage : stats?._errorId;
 
   return (
     <div
@@ -38,28 +41,20 @@ export default function DegradedDataBanner({ stats, unavailable, unavailableMess
           {unavailable ? "Dashboard data is unavailable" : "Dashboard data is degraded"}
         </p>
         <p className="text-red-200/80 text-xs mt-1 leading-relaxed">
-          {unavailable ? (
-            <>
-              The stats query failed — nothing below is live data.
-              {unavailableMessage ? (
-                <span className="ml-1 font-mono opacity-70">[{unavailableMessage}]</span>
-              ) : null}
-            </>
-          ) : (
-            <>
-              The stats pipeline threw inside `getDashboardStats()` and returned
-              all-zero defaults. The numbers below are NOT real — they're the
-              fallback shape. A Telegram alert was sent to ops.
-              {stats?._errorId ? (
-                <span className="ml-1 font-mono opacity-70">[errorId: {stats._errorId}]</span>
-              ) : null}
-            </>
-          )}
+          {"Some of today's numbers couldn't be loaded. The counts below may be incomplete; treat them as unknown, not zero."}
         </p>
-        <p className="text-red-200/60 text-[10px] mt-1.5 leading-relaxed">
-          Check Sentry / Railway logs for the underlying failure. Refresh once
-          the backend is fixed to clear this banner.
-        </p>
+        {reference ? (
+          <p className="text-red-200/60 text-[10px] mt-1.5 leading-relaxed font-mono">Reference: {reference}</p>
+        ) : null}
+        {onRetry ? (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="mt-2 min-h-11 px-4 rounded border border-red-500/40 text-xs font-medium text-red-200"
+          >
+            Retry
+          </button>
+        ) : null}
       </div>
     </div>
   );

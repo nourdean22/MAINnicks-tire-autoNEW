@@ -47,6 +47,7 @@ const ACTIVE_WORK_ORDER_STATUSES = new Set(["new", "scheduled", "in_progress", "
  * that into a visible "30+" rather than a precise-looking lie.
  */
 const WORK_ORDER_QUEUE_LIMIT = 30;
+const UNKNOWN = "—";
 
 /**
  * Signals the action queue below already renders, hidden from the exception
@@ -110,6 +111,7 @@ export default function OverviewSection() {
     isLoading,
     isError,
     error,
+    refetch: refetchBundle,
   } = trpc.adminDashboard.overviewMediumBundle.useQuery(undefined, {
     refetchInterval: 30_000,
     staleTime: 25_000,
@@ -195,6 +197,7 @@ export default function OverviewSection() {
    * therefore invisible to this check.
    */
   const queueTrustworthy =
+    !isError &&
     !workOrdersFailed &&
     !unavailable.some((s) => s === "leads" || s === "bookings" || s === "callbacks" || s === "owedTexts");
   /**
@@ -203,6 +206,9 @@ export default function OverviewSection() {
    * false-precision problem as saying "0" for an unread source.
    */
   const queueSaturated = currentWorkOrders.length >= WORK_ORDER_QUEUE_LIMIT;
+  // Each card is only as known as its own slice: a failed bundle or slice is "unknown", never 0.
+  const bookingsKnown = !isError && !unavailable.includes("bookings");
+  const leadsKnown = !isError && !unavailable.includes("leads");
 
   /**
    * Built from the SAME builder the sidebar badges use, so a section cannot be
@@ -345,6 +351,15 @@ export default function OverviewSection() {
     );
   }
 
+  // Work orders live on Money's default tab (Shop Pulse); drop a stale moneyTab so the tab
+  // that renders WorkOrdersSection opens. Work orders have no deep link to a single row yet.
+  function openWorkOrders() {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("moneyTab");
+    window.history.replaceState({}, "", url.toString());
+    navigateToAdminSection("revenue");
+  }
+
   async function performPrimary(item: ActionItem) {
     const definition = getQueueActionDefinition(item.type);
     if (item.type === "text") {
@@ -352,7 +367,7 @@ export default function OverviewSection() {
       return;
     }
     if (item.type === "workOrder") {
-      navigateToAdminSection("customers");
+      openWorkOrders();
       await logReceipt(item, "admin.work_order_opened", { status: item.status });
       return;
     }
@@ -395,7 +410,7 @@ export default function OverviewSection() {
       return;
     }
     if (item.type === "workOrder") {
-      navigateToAdminSection("customers");
+      openWorkOrders();
       await logReceipt(item, "admin.work_order_opened", { status: item.status });
       return;
     }
@@ -442,14 +457,14 @@ export default function OverviewSection() {
 
   return (
     <div className="space-y-5" aria-label="Today operator command center">
-      <DegradedDataBanner stats={stats} unavailable={isError} unavailableMessage={error?.message} />
+      <DegradedDataBanner stats={stats} unavailable={isError} unavailableMessage={error?.message} onRetry={() => void refetchBundle()} />
 
       {/* The overnight header. It reads from the SAME `queue` and
           `urgentLeadCount` the cards below render, so the brief cannot
           disagree with the page it introduces — the failure mode that made
           `countActionableLeads` a shared function rather than two SQL
           predicates. It self-suppresses when there is no real signal. */}
-      <MorningBrief priorityQueueLength={queue.length} urgentLeads={urgentLeadCount} />
+      <MorningBrief priorityQueueLength={queue.length} urgentLeads={urgentLeadCount} queueTrustworthy={queueTrustworthy} />
 
       {/* SALES LEADS THE PAGE (2026-09-07).
           Measured on the live admin the same day: this home carried NO revenue
@@ -507,8 +522,8 @@ export default function OverviewSection() {
           }
           alert={queue.length > 0 || !queueTrustworthy}
         />
-        <SummaryCard label="Bookings today" value={todaysBookings.length} detail={`Cleveland date · ${todayKey}`} />
-        <SummaryCard label="Urgent leads" value={urgentLeadCount} detail="Included once" />
+        <SummaryCard label="Bookings today" value={bookingsKnown ? todaysBookings.length : UNKNOWN} detail={bookingsKnown ? `Cleveland date · ${todayKey}` : "Unable to determine"} />
+        <SummaryCard label="Urgent leads" value={leadsKnown ? urgentLeadCount : UNKNOWN} detail={leadsKnown ? "Included once" : "Unable to determine"} />
         {/*
           Fed by the SAME query as the "Needs action" card. It used to render a
           neutral "0" while that card, on the identical failure, correctly read
