@@ -1,0 +1,627 @@
+{
+  "totals": {
+    "uppercase": 480,
+    "emDash": 629,
+    "emoji": 19,
+    "transitionAll": 76,
+    "slowDuration": 7,
+    "smallInput": 145,
+    "offPalette": 171
+  },
+  "files": {
+    "client/src/components/admin/ActivityPulse.tsx": {
+      "uppercase": 1,
+      "offPalette": 6
+    },
+    "client/src/components/admin/AdminAlertBar.tsx": {
+      "uppercase": 1
+    },
+    "client/src/components/admin/AdminMfaGate.tsx": {
+      "uppercase": 1
+    },
+    "client/src/components/admin/AutonomyCommandCenter.tsx": {
+      "uppercase": 1,
+      "emDash": 15,
+      "smallInput": 1
+    },
+    "client/src/components/admin/CampaignPackageCard.tsx": {
+      "uppercase": 1,
+      "emDash": 6
+    },
+    "client/src/components/admin/CampaignPlanViewer.tsx": {
+      "uppercase": 9,
+      "offPalette": 3
+    },
+    "client/src/components/admin/CommandSearch.tsx": {
+      "uppercase": 4,
+      "emDash": 2,
+      "offPalette": 5
+    },
+    "client/src/components/admin/DegradedDataBanner.tsx": {
+      "emDash": 2
+    },
+    "client/src/components/admin/DraftCard.tsx": {
+      "uppercase": 3,
+      "transitionAll": 4,
+      "smallInput": 2,
+      "offPalette": 6
+    },
+    "client/src/components/admin/DrilldownDrawer.tsx": {
+      "emDash": 1
+    },
+    "client/src/components/admin/PotholeAudiences.tsx": {
+      "uppercase": 1
+    },
+    "client/src/components/admin/PublishDrawer.tsx": {
+      "uppercase": 5,
+      "emDash": 2
+    },
+    "client/src/components/admin/UnknownSectionNotice.tsx": {
+      "emDash": 1
+    },
+    "client/src/index.css": {
+      "uppercase": 5,
+      "transitionAll": 3
+    },
+    "client/src/pages/Admin.tsx": {
+      "emDash": 2
+    },
+    "client/src/pages/admin/AdStudio.tsx": {
+      "uppercase": 18,
+      "emDash": 2,
+      "smallInput": 18
+    },
+    "client/src/pages/admin/ApprovalsSection.tsx": {
+      "uppercase": 2,
+      "emDash": 11,
+      "smallInput": 1,
+      "offPalette": 2
+    },
+    "client/src/pages/admin/CallTrackingSection.tsx": {
+      "uppercase": 6,
+      "emDash": 10,
+      "transitionAll": 5,
+      "slowDuration": 1
+    },
+    "client/src/pages/admin/ClosedLoopLiftPanel.tsx": {
+      "emDash": 5
+    },
+    "client/src/pages/admin/CommissioningPanel.tsx": {
+      "uppercase": 1,
+      "emDash": 8
+    },
+    "client/src/pages/admin/ContentSection.tsx": {
+      "emDash": 1
+    },
+    "client/src/pages/admin/DraftBoardPanel.tsx": {
+      "uppercase": 7,
+      "emDash": 2,
+      "transitionAll": 6,
+      "smallInput": 1
+    },
+    "client/src/pages/admin/GrowthSection.tsx": {
+      "uppercase": 9,
+      "emDash": 23,
+      "smallInput": 1,
+      "offPalette": 15
+    },
+    "client/src/pages/admin/InspectionCapturePanel.tsx": {
+      "uppercase": 2,
+      "emDash": 9,
+      "smallInput": 12
+    },
+    "client/src/pages/admin/LeadsSection.tsx": {
+      "uppercase": 4,
+      "emDash": 11,
+      "smallInput": 1,
+      "offPalette": 3
+    },
+    "client/src/pages/admin/LotSection.tsx": {
+      "uppercase": 6,
+      "emDash": 14,
+      "smallInput": 1
+    },
+    "client/src/pages/admin/MarketSection.tsx": {
+      "uppercase": 3,
+      "emDash": 2
+    },
+    "client/src/pages/admin/MembershipsSection.tsx": {
+      "uppercase": 1,
+      "emDash": 7,
+      "smallInput": 2
+    },
+    "client/src/pages/admin/OpportunitiesSection.tsx": {
+      "emDash": 2
+    },
+    "client/src/pages/admin/OpsHubSection.tsx": {
+      "uppercase": 3,
+      "emDash": 10,
+      "offPalette": 6
+    },
+    "client/src/pages/admin/OutreachHubSection.tsx": {
+      "emDash": 1
+    },
+    "client/src/pages/admin/OverviewSection.tsx": {
+      "uppercase": 3,
+      "emDash": 6
+    },
+    "client/src/pages/admin/PromisesPanel.tsx": {
+      "uppercase": 2,
+      "emDash": 7,
+      "smallInput": 4
+    },
+    "client/src/pages/admin/PromptEvalsPanel.tsx": {
+      "uppercase": 5,
+      "emDash": 1
+    },
+    "client/src/pages/admin/RevenueSection.tsx": {
+      "emDash": 1
+    },
+    "client/src/pages/admin/SalesCard.tsx": {
+      "uppercase": 1,
+      "emDash": 2
+    },
+    "client/src/pages/admin/SettingsSection.tsx": {
+      "emDash": 4
+    },
+    "client/src/pages/admin/SpecialsSection.tsx": {
+      "smallInput": 8
+    },
+    "client/src/pages/admin/TireOrdersSection.tsx": {
+      "uppercase": 10,
+      "emDash": 11,
+      "transitionAll": 3,
+      "smallInput": 5,
+      "offPalette": 5
+    },
+    "client/src/pages/admin/TrafficFunnelSection.tsx": {
+      "uppercase": 29,
+      "emDash": 16,
+      "transitionAll": 5,
+      "slowDuration": 3
+    },
+    "client/src/pages/admin/VoiceReceptionistSection.tsx": {
+      "uppercase": 12,
+      "emDash": 9,
+      "transitionAll": 3,
+      "smallInput": 1,
+      "offPalette": 6
+    },
+    "client/src/pages/admin/WalkInCalculatorSection.tsx": {
+      "uppercase": 13,
+      "emDash": 4,
+      "emoji": 2,
+      "transitionAll": 2,
+      "smallInput": 8
+    },
+    "client/src/pages/admin/content/AIIdeasEngine.tsx": {
+      "emDash": 5
+    },
+    "client/src/pages/admin/content/CommandQueue.tsx": {
+      "uppercase": 4,
+      "transitionAll": 5,
+      "smallInput": 1,
+      "offPalette": 11
+    },
+    "client/src/pages/admin/content/ContentManager.tsx": {
+      "uppercase": 8,
+      "emDash": 1,
+      "smallInput": 1
+    },
+    "client/src/pages/admin/content/GBPPostGenerator.tsx": {
+      "uppercase": 4,
+      "emDash": 1,
+      "smallInput": 2
+    },
+    "client/src/pages/admin/customers/CouponsSection.tsx": {
+      "emDash": 1,
+      "smallInput": 8
+    },
+    "client/src/pages/admin/customers/Customer360Panel.tsx": {
+      "uppercase": 5,
+      "emDash": 8,
+      "transitionAll": 1,
+      "offPalette": 2
+    },
+    "client/src/pages/admin/customers/CustomerProfile.tsx": {
+      "uppercase": 3,
+      "emDash": 5,
+      "smallInput": 1,
+      "offPalette": 8
+    },
+    "client/src/pages/admin/customers/CustomersBrief.tsx": {
+      "uppercase": 2
+    },
+    "client/src/pages/admin/customers/CustomersList.tsx": {
+      "uppercase": 1,
+      "emDash": 10,
+      "emoji": 1,
+      "transitionAll": 1,
+      "smallInput": 1
+    },
+    "client/src/pages/admin/customers/FollowUpButton.tsx": {
+      "smallInput": 1
+    },
+    "client/src/pages/admin/customers/LoyaltyAdminSection.tsx": {
+      "smallInput": 4
+    },
+    "client/src/pages/admin/customers/WinBackButton.tsx": {
+      "emDash": 2
+    },
+    "client/src/pages/admin/customers/format.ts": {
+      "emDash": 2
+    },
+    "client/src/pages/admin/instagram/ActionCenter.tsx": {
+      "uppercase": 1,
+      "emDash": 22,
+      "smallInput": 1
+    },
+    "client/src/pages/admin/instagram/CreativeAssistantCards.tsx": {
+      "uppercase": 4,
+      "emDash": 5,
+      "emoji": 1
+    },
+    "client/src/pages/admin/instagram/HQ.tsx": {
+      "uppercase": 1,
+      "emDash": 8,
+      "emoji": 2
+    },
+    "client/src/pages/admin/instagram/Inbox.tsx": {
+      "emDash": 2,
+      "smallInput": 1,
+      "offPalette": 1
+    },
+    "client/src/pages/admin/instagram/InstagramAdmin.tsx": {
+      "emDash": 2
+    },
+    "client/src/pages/admin/instagram/Learn.tsx": {
+      "emDash": 16
+    },
+    "client/src/pages/admin/instagram/PairwisePick.tsx": {
+      "emDash": 2
+    },
+    "client/src/pages/admin/instagram/PatternLab.tsx": {
+      "uppercase": 1,
+      "emDash": 9
+    },
+    "client/src/pages/admin/instagram/Pipeline.tsx": {
+      "uppercase": 2,
+      "emDash": 5
+    },
+    "client/src/pages/admin/instagram/PublishBoard.tsx": {
+      "uppercase": 1,
+      "emDash": 5,
+      "smallInput": 1
+    },
+    "client/src/pages/admin/instagram/QueueV2.tsx": {
+      "uppercase": 3,
+      "emDash": 6
+    },
+    "client/src/pages/admin/instagram/ReelQueue.tsx": {
+      "uppercase": 8,
+      "emDash": 18,
+      "smallInput": 2
+    },
+    "client/src/pages/admin/instagram/Settings.tsx": {
+      "uppercase": 8,
+      "emDash": 12,
+      "smallInput": 3
+    },
+    "client/src/pages/admin/instagram/Strategy.tsx": {
+      "uppercase": 1,
+      "emDash": 3
+    },
+    "client/src/pages/admin/instagram/Studio.tsx": {
+      "uppercase": 11,
+      "emDash": 7,
+      "transitionAll": 1,
+      "smallInput": 5
+    },
+    "client/src/pages/admin/instagram/StudioV2.tsx": {
+      "uppercase": 15,
+      "emDash": 15
+    },
+    "client/src/pages/admin/instagram/Today.tsx": {
+      "emDash": 11
+    },
+    "client/src/pages/admin/intelligence/AIHealthPanel.tsx": {
+      "uppercase": 6,
+      "emDash": 2,
+      "offPalette": 4
+    },
+    "client/src/pages/admin/intelligence/ContentWarRoom.tsx": {
+      "uppercase": 3,
+      "emDash": 1
+    },
+    "client/src/pages/admin/intelligence/CustomerIntelligence.tsx": {
+      "uppercase": 5,
+      "emDash": 1,
+      "offPalette": 2
+    },
+    "client/src/pages/admin/intelligence/IntelligenceHQSection.tsx": {
+      "uppercase": 5,
+      "emDash": 2,
+      "transitionAll": 3,
+      "offPalette": 2
+    },
+    "client/src/pages/admin/intelligence/LeadSLAMonitor.tsx": {
+      "uppercase": 6,
+      "emDash": 1,
+      "offPalette": 4
+    },
+    "client/src/pages/admin/intelligence/LlmSpendPanel.tsx": {
+      "uppercase": 4,
+      "emDash": 5,
+      "offPalette": 4
+    },
+    "client/src/pages/admin/intelligence/MarketIntelligence.tsx": {
+      "uppercase": 7,
+      "offPalette": 5
+    },
+    "client/src/pages/admin/leads/CandidatesPanel.tsx": {
+      "uppercase": 10,
+      "emDash": 5,
+      "smallInput": 1,
+      "offPalette": 20
+    },
+    "client/src/pages/admin/leads/KanbanBoard.tsx": {
+      "uppercase": 1,
+      "emDash": 1,
+      "emoji": 1,
+      "offPalette": 5
+    },
+    "client/src/pages/admin/leads/LeadDeliveryLog.tsx": {
+      "uppercase": 2
+    },
+    "client/src/pages/admin/leads/LeadsBrief.tsx": {
+      "uppercase": 2
+    },
+    "client/src/pages/admin/leads/MarkContactedButton.tsx": {
+      "smallInput": 1
+    },
+    "client/src/pages/admin/leads/ReferralReasonButton.tsx": {
+      "uppercase": 1,
+      "emDash": 2
+    },
+    "client/src/pages/admin/leads/TechnicianReferralsPanel.tsx": {
+      "uppercase": 4,
+      "emDash": 9,
+      "offPalette": 4
+    },
+    "client/src/pages/admin/money/CounterDecline.tsx": {
+      "emDash": 3
+    },
+    "client/src/pages/admin/money/DeclinedEstimatesSection.tsx": {
+      "uppercase": 2,
+      "emDash": 12,
+      "emoji": 2
+    },
+    "client/src/pages/admin/money/DispatchSection.tsx": {
+      "uppercase": 1,
+      "emDash": 7,
+      "offPalette": 6
+    },
+    "client/src/pages/admin/money/FinancingAttribution.tsx": {
+      "uppercase": 2,
+      "emDash": 2
+    },
+    "client/src/pages/admin/money/NhtsaVehiclePanel.tsx": {
+      "emDash": 2
+    },
+    "client/src/pages/admin/money/SnapDashboardSection.tsx": {
+      "uppercase": 5,
+      "smallInput": 6
+    },
+    "client/src/pages/admin/money/TireRegistrationPanel.tsx": {
+      "emDash": 3,
+      "smallInput": 2
+    },
+    "client/src/pages/admin/money/UnpaidInvoicesSection.tsx": {
+      "emDash": 6,
+      "offPalette": 3
+    },
+    "client/src/pages/admin/money/WorkOrdersSection.tsx": {
+      "uppercase": 5,
+      "emDash": 14,
+      "emoji": 3,
+      "transitionAll": 3,
+      "smallInput": 3,
+      "offPalette": 1
+    },
+    "client/src/pages/admin/outreach/AutonomyCensusPanel.tsx": {
+      "emDash": 3
+    },
+    "client/src/pages/admin/outreach/CampaignsSection.tsx": {
+      "uppercase": 4,
+      "emDash": 3,
+      "transitionAll": 3,
+      "smallInput": 2
+    },
+    "client/src/pages/admin/outreach/FollowUpsSection.tsx": {
+      "uppercase": 3,
+      "emDash": 9
+    },
+    "client/src/pages/admin/outreach/OutreachBrief.tsx": {
+      "uppercase": 2,
+      "emDash": 2
+    },
+    "client/src/pages/admin/outreach/ReviewRequestsSection.tsx": {
+      "uppercase": 5,
+      "emDash": 20,
+      "transitionAll": 3,
+      "smallInput": 5
+    },
+    "client/src/pages/admin/outreach/SmsOpsStrip.tsx": {
+      "uppercase": 3,
+      "emDash": 8
+    },
+    "client/src/pages/admin/outreach/SmsOrchestratorSection.tsx": {
+      "uppercase": 24,
+      "emDash": 2,
+      "transitionAll": 10,
+      "smallInput": 1,
+      "offPalette": 3
+    },
+    "client/src/pages/admin/outreach/SmsPerformanceSection.tsx": {
+      "uppercase": 10,
+      "emDash": 12
+    },
+    "client/src/pages/admin/outreach/SmsSection.tsx": {
+      "uppercase": 12,
+      "emDash": 10,
+      "emoji": 2,
+      "transitionAll": 1,
+      "smallInput": 6
+    },
+    "client/src/pages/admin/outreach/WinBackSection.tsx": {
+      "uppercase": 3,
+      "emDash": 4,
+      "transitionAll": 2,
+      "smallInput": 2
+    },
+    "client/src/pages/admin/registry.tsx": {
+      "offPalette": 2
+    },
+    "client/src/pages/admin/settings/AlgProbeBudgetPanel.tsx": {
+      "uppercase": 4,
+      "emDash": 4,
+      "offPalette": 1
+    },
+    "client/src/pages/admin/settings/ComplianceSection.tsx": {
+      "uppercase": 8,
+      "emDash": 9
+    },
+    "client/src/pages/admin/settings/DatabaseHygienePanel.tsx": {
+      "uppercase": 9,
+      "emDash": 1
+    },
+    "client/src/pages/admin/settings/DeclinedRecoveryPanel.tsx": {
+      "uppercase": 4
+    },
+    "client/src/pages/admin/settings/FeatureFlagsPanel.tsx": {
+      "uppercase": 1,
+      "emoji": 2,
+      "smallInput": 1
+    },
+    "client/src/pages/admin/settings/IntegrationsSection.tsx": {
+      "emDash": 2,
+      "smallInput": 10
+    },
+    "client/src/pages/admin/settings/RunMigrationsCard.tsx": {
+      "uppercase": 1,
+      "emDash": 3,
+      "offPalette": 1
+    },
+    "client/src/pages/admin/settings/SettingsStatusTab.tsx": {
+      "uppercase": 1,
+      "emDash": 6
+    },
+    "client/src/pages/admin/settings/SiteHealthSection.tsx": {
+      "emDash": 16
+    },
+    "client/src/pages/admin/settings/VapiPanel.tsx": {
+      "uppercase": 4,
+      "emDash": 5
+    },
+    "client/src/pages/admin/settings/cron-issues.ts": {
+      "emDash": 1
+    },
+    "client/src/pages/admin/settings/cronJobs.ts": {
+      "emDash": 1
+    },
+    "client/src/pages/admin/settings/useSettingsStatus.ts": {
+      "emDash": 1
+    },
+    "client/src/pages/admin/shared/ProvenanceTag.tsx": {
+      "uppercase": 1
+    },
+    "client/src/pages/admin/shared/cards.tsx": {
+      "uppercase": 1,
+      "emDash": 1
+    },
+    "client/src/pages/admin/shared/format.ts": {
+      "emDash": 8
+    },
+    "client/src/pages/admin/shared/table.tsx": {
+      "uppercase": 1,
+      "transitionAll": 2,
+      "smallInput": 1
+    },
+    "client/src/pages/admin/today/ArrivalLoadStrip.tsx": {
+      "emDash": 3
+    },
+    "client/src/pages/admin/today/DataFreshness.tsx": {
+      "uppercase": 1
+    },
+    "client/src/pages/admin/today/ExceptionFeed.tsx": {
+      "uppercase": 1,
+      "emDash": 1
+    },
+    "client/src/pages/admin/today/LaneHealthStrip.tsx": {
+      "uppercase": 1
+    },
+    "client/src/pages/admin/today/MorningBrief.tsx": {
+      "uppercase": 1,
+      "emDash": 2
+    },
+    "client/src/pages/admin/today/NextBestActions.tsx": {
+      "uppercase": 1,
+      "emDash": 1,
+      "transitionAll": 4
+    },
+    "client/src/pages/admin/today/TodaysMoneyRisks.tsx": {
+      "uppercase": 1,
+      "emDash": 1
+    },
+    "client/src/pages/admin/today/TodaysRealNumbers.tsx": {
+      "uppercase": 1,
+      "emDash": 1
+    },
+    "client/src/pages/admin/today/TopMoneyMoves.tsx": {
+      "uppercase": 4,
+      "emDash": 1,
+      "transitionAll": 2
+    },
+    "client/src/pages/admin/voice/AttributionReviewCard.tsx": {
+      "uppercase": 1,
+      "emDash": 1,
+      "emoji": 3
+    },
+    "client/src/pages/admin/voice/CallDetailsDrawer.tsx": {
+      "uppercase": 12,
+      "emDash": 5,
+      "offPalette": 3
+    },
+    "client/src/pages/admin/voice/DateRangeSelector.tsx": {
+      "uppercase": 2,
+      "smallInput": 2
+    },
+    "client/src/pages/admin/voice/FollowUpTransferCard.tsx": {
+      "uppercase": 7,
+      "emDash": 1,
+      "smallInput": 1
+    },
+    "client/src/pages/admin/voice/LiveCallsCard.tsx": {
+      "uppercase": 3
+    },
+    "client/src/pages/admin/voice/TransferDestinationCard.tsx": {
+      "uppercase": 3,
+      "emDash": 3,
+      "smallInput": 3
+    },
+    "client/src/pages/admin/voice/VoiceAchievements.tsx": {
+      "uppercase": 5,
+      "transitionAll": 4,
+      "slowDuration": 3,
+      "offPalette": 10
+    },
+    "client/src/pages/admin/voice/VoiceBrief.tsx": {
+      "uppercase": 12,
+      "emDash": 5
+    },
+    "client/src/pages/admin/voice/format.ts": {
+      "emDash": 2,
+      "offPalette": 12
+    }
+  }
+}
