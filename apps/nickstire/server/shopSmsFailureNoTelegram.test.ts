@@ -3,25 +3,65 @@
  *
  * Before: sendSms alerted on every gateway failure or timeout ("falling back to
  * Twilio" -- false, Twilio is intentionally off), and the gateway's own sms:failed
- * webhook alerted again per message. The outage is already covered once per
- * incident by smsGatewayHealthMonitor (cron) and the stuck-queue alert in sms.ts,
- * so the per-message sends are noise. The outcome for the caller is unchanged.
+ * webhook alerted again per message. Now a transport failure on an immediate SMS
+ * (timeout, HTTP error, connection failure) sends ONE incident per ET day per error
+ * kind through a cron_alerts_fired claim, naming the count so far and the last error;
+ * the sms:failed webhook sends nothing. smsGatewayHealthMonitor (cron) and the
+ * stuck-queue alert in sms.ts still cover a sustained outage. The caller's result
+ * is unchanged.
  */
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import express from "express";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 
-const h = vi.hoisted(() => ({ telegram: vi.fn(async (_text: string) => true) }));
+const h = vi.hoisted(() => ({
+  telegram: vi.fn(async (_text: string) => true),
+  classes: [] as string[],
+  claims: new Set<string>(),
+}));
 
 vi.mock("./services/telegram", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./services/telegram")>()),
   sendTelegram: (text: string) => h.telegram(text),
   sendTelegramMessage: (text: string) => h.telegram(text),
+  sendTelegramResult: async (text: string, cls?: string) => {
+    h.classes.push(cls ?? "(none)");
+    await h.telegram(text);
+    return { status: "delivered" };
+  },
 }));
+
+/** A drizzle-shaped fake with INSERT IGNORE claim semantics for cron_alerts_fired. */
+function sqlParts(query: unknown): { text: string; params: string[] } {
+  const chunks = (query as { queryChunks?: unknown[] }).queryChunks ?? [];
+  let text = "";
+  const params: string[] = [];
+  for (const c of chunks) {
+    if (typeof c === "string") params.push(c);
+    else if (c && typeof c === "object" && "value" in c) text += (c as { value: string[] }).value.join("");
+  }
+  return { text, params };
+}
+const fakeDb = {
+  execute: async (query: unknown) => {
+    const { text, params } = sqlParts(query);
+    if (/DELETE FROM cron_alerts_fired/i.test(text)) {
+      h.claims.delete(`${params[0]}|${params[1]}`);
+      return [{ affectedRows: 1 }];
+    }
+    if (/INSERT IGNORE INTO cron_alerts_fired/i.test(text)) {
+      const k = `${params[0]}|${params[1]}`;
+      if (h.claims.has(k)) return [{ affectedRows: 0 }];
+      h.claims.add(k);
+      return [{ affectedRows: 1 }];
+    }
+    return [[], []];
+  },
+};
 vi.mock("./db", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./db")>()),
-  getDb: async () => null,
+  getDb: async () => fakeDb,
 }));
 
 import { sendSms } from "./sms";
@@ -48,6 +88,8 @@ afterAll(() => {
 describe("sendSms · shop gateway failure", () => {
   beforeEach(() => {
     h.telegram.mockClear();
+    h.classes.length = 0;
+    h.claims.clear();
     process.env.SHOP_SMS_GATEWAY_USERNAME = "shop";
     process.env.SHOP_SMS_GATEWAY_PASSWORD = "test-password";
   });
@@ -64,22 +106,61 @@ describe("sendSms · shop gateway failure", () => {
       skipPersist: true,
     });
 
-  it("a non-OK gateway response sends no Telegram message and still reports the failure", async () => {
-    vi.stubGlobal("fetch", async () => new Response("relay error", { status: 502 }));
-    const res = await send();
-    await vi.dynamicImportSettled();
-    expect(res.success).toBe(false);
-    expect(h.telegram).not.toHaveBeenCalled();
-  });
-
-  it("a gateway timeout sends no Telegram message and still reports uncertain delivery", async () => {
+  const timeout = () => {
     vi.stubGlobal("fetch", async () => {
       throw Object.assign(new Error("timed out"), { name: "TimeoutError" });
     });
+  };
+  const http502 = () => vi.stubGlobal("fetch", async () => new Response("relay error", { status: 502 }));
+  const refused = () =>
+    vi.stubGlobal("fetch", async () => {
+      throw new Error("connect ECONNREFUSED 10.0.0.1:443");
+    });
+
+  it("five failures in a row send ONE incident, naming the kind, the count and the last error; the callers still get their results", async () => {
+    http502();
+    for (let i = 0; i < 5; i++) {
+      const res = await send();
+      expect(res.success).toBe(false);
+    }
+    expect(h.telegram).toHaveBeenCalledTimes(1);
+    const text = h.telegram.mock.calls[0][0];
+    expect(text).toContain("http-5xx");
+    expect(text).toContain("502");
+    expect(text).not.toContain("falling back to Twilio");
+    expect(h.classes).toEqual(["incident"]);
+  });
+
+  it("a gateway timeout is its own kind, sends one incident, and still reports uncertain delivery", async () => {
+    timeout();
     const res = await send();
-    await vi.dynamicImportSettled();
     expect(res).toMatchObject({ success: true, uncertain: true });
-    expect(h.telegram).not.toHaveBeenCalled();
+    await send();
+    expect(h.telegram).toHaveBeenCalledTimes(1);
+    expect(h.telegram.mock.calls[0][0]).toContain("timeout");
+  });
+
+  it("a different error kind later the same day sends one more incident; repeats of either send nothing", async () => {
+    http502();
+    await send();
+    timeout();
+    await send();
+    await send();
+    refused();
+    await send();
+    await send();
+    expect(h.telegram).toHaveBeenCalledTimes(3);
+    expect(h.telegram.mock.calls.map((c) => c[0]).join("|")).toMatch(/connection/);
+  });
+
+  it("a success after a failure the same day does not resend, and a later failure of the same kind stays quiet", async () => {
+    http502();
+    await send();
+    vi.stubGlobal("fetch", async () => new Response(JSON.stringify({ id: "m1", state: "Pending" }), { status: 200 }));
+    expect((await send()).success).toBe(true);
+    http502();
+    await send();
+    expect(h.telegram).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -1592,6 +1592,47 @@ interface ShopGatewayResult {
   timedOut?: boolean;
 }
 
+// ─── One incident per outage kind (never one per message) ───
+const gatewayFailureCounts = new Map<string, number>();
+
+/** timeout | http-5xx | http-4xx | connection: what kind of transport failure the gateway call was. */
+function gatewayFailureKind(gw: ShopGatewayResult): string {
+  if (gw.timedOut === true) return "timeout";
+  const m = /^Gateway returned (\d{3})/.exec(gw.error || "");
+  if (m) return m[1].startsWith("5") ? "http-5xx" : "http-4xx";
+  return "connection";
+}
+
+/**
+ * A transport failure on an immediate shop-gateway send (timeout, HTTP error, connection failure) sends ONE
+ * Telegram incident per ET day per error kind, naming the count so far and the last error. The claim is a
+ * cron_alerts_fired row (sendOncePerState), so a later success the same day does not resend and a different
+ * kind sends once more. Never alerts per message, never breaks the SMS flow.
+ */
+async function alertGatewayTransportFailure(gw: ShopGatewayResult): Promise<void> {
+  try {
+    const kind = gatewayFailureKind(gw);
+    const { getBusinessDateKey } = await import("./lib/timezoneAssert");
+    const day = getBusinessDateKey();
+    const countKey = `${day}:${kind}`;
+    const count = (gatewayFailureCounts.get(countKey) ?? 0) + 1;
+    gatewayFailureCounts.set(countKey, count);
+    for (const k of gatewayFailureCounts.keys()) if (!k.startsWith(day)) gatewayFailureCounts.delete(k);
+    const { sendOncePerState } = await import("./services/alertClaim");
+    const { sendTelegramResult } = await import("./services/telegram");
+    await sendOncePerState(`sms-gateway-transport:${day}:${kind}`, () =>
+      sendTelegramResult(
+        `⚠️ Shop SMS gateway transport failure (${kind}): ${count} so far today\n` +
+          `Last error: ${(gw.error || "unknown").slice(0, 200)}\n\n` +
+          `One alert per kind per day. Texts that cannot go out now are queued or marked uncertain, not dropped; the gateway monitor alerts if the phone stays offline.`,
+        "incident",
+      ),
+    );
+  } catch (err) {
+    log.warn("gateway transport alert failed", { error: err instanceof Error ? err.message : String(err) });
+  }
+}
+
 async function sendSmsViaShopGateway(
   to: string,
   body: string
@@ -2437,7 +2478,7 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
       log.warn(
         `Shop gateway timed out for ${normalizedEarly.slice(-4)} — NOT falling back (delivery uncertain, avoids double-send)`,
       );
-      // Outage alerts: smsGatewayHealthMonitor, once per incident.
+      await alertGatewayTransportFailure(gw);
       addToThread(normalizedEarly, "outbound", body);
       if (!opts?.skipPersist) {
         // Stamp the uncertainty ON the row. Without it this row is
@@ -2466,6 +2507,7 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
     // queues BEFORE attempting a send, so it can never double-send.
     if (isShopGatewayConfigured()) {
       log.warn(`Shop gateway send failed (${gw.error}) for ${normalizedEarly.slice(-4)} -- not retried (ambiguous delivery, avoids double-send)`);
+      await alertGatewayTransportFailure(gw);
     }
     // Drop through to Twilio below (off -> returns failure -> degraded).
   }
