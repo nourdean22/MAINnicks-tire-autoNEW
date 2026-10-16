@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "nickstire/admin-ui-v1-w0b",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "03ea674c-77bd-40aa-9a8a-51c0b1956d0a",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\wonderful-euler-00bf80",
+  "claimedBy": "2026-10-16-nick-admin-ui-v1",
+  "claimedAt": "2026-10-16T10:41:11.375Z",
+  "expiresAt": "2026-10-16T22:41:11.375Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
