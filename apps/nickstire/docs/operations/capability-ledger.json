@@ -5088,6 +5088,38 @@
       "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "internal"
+    },
+    {
+      "capabilityId": "external-clips-door",
+      "name": "Operator-rendered per-beat clips (higgsfield.ai web app, Unlimited models) attach to a needs_regen or queued reel job as assets_ready through an admin door",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "Branch nickstire/external-clips-door on main ba6dc5904 (lane worktree-agent-a3029095124275b3c, rebased): 4f5496d2c (server/services/externalClips.ts attachExternalClips(input, ctx, deps): refuses when the db is unavailable, the job is missing, the status is not needs_regen or queued, the payload has no beats, the clip count differs from the number of beats whose beatGenerationRoute is generate, a local beat has no resolved clip, a URL is not https, durable storage is not configured, a download fails (fetchPublicBounded, 60 MB, 60 s, 3 redirects), a body has no ftyp box, probeMaster fails, a clip is under REEL_OUTPUT_RULES.maxClipSeconds (4 s), a re-host fails, the re-hosted URLs do not read as generative, or the compare-and-swap loses; every clip is validated before any is re-hosted; re-host key reel-clips/higgsfield-external-<job>-b<beat>-<ts>-<rand>.mp4 keeps the higgsfield- segment that clipProvenance reads as generative under every REEL_VIDEO_PROVIDER pin; one UPDATE pinned on id, status, payload and clipUrlsJson sets assets_ready, queue_state, clipUrlsJson in beat order, attempts 0, error null and merges payload.externalClips (source, model, note, attachedBy, attachedAt, originalUrls); one attach_external_clips audit row OK or REFUSED), 2038640ea (server/routers/instagramAdmin.ts instagramAdmin.attachExternalClips adminProcedure, input { jobId, clipUrls 1-12, source literal higgsfield-web, model?, note? }; proc-census 788), 1d2a2c09a (truth_os block). Why: Higgsfield API credits are gone until 2026-11-01 and the plan Unlimited models (Wan 3.0) exist only in the web app; the manager renders the beats of job 2100001 in Chrome and this door is the only one that takes per-beat AI clips (mp4Ingest takes a finished reel; register-real-shop-clip labels footage real_shop, which Rule 1 forbids for AI clips).",
+        "tests": [
+          "server/services/externalClips.test.ts (20): success path re-hosts in beat order and CAS-attaches with the four-field WHERE rendered through MySqlDialect; refusals for db unavailable, job missing, assembled and posted status, no beats, 5 clips for 6 beats, unresolved local beat, http URL last in the list (refused before any download), no durable storage, download failure, PNG body, probe failure, 3.1 s clip, re-host failure, lost disclosure marker, CAS affectedRows 0; shouldDiscloseAi true for the attached job under the pins higgsfield, veo, template_stock, self_hosted, empty and undefined; one real fetchPublicBounded run refusing a 61 MB declared body. Red first: import failure (module absent), then 12 passed | 8 failed on the test helper itself. Mutants 5 of 5 killed: drop the count check (2 fail), drop the CAS status predicate (1), store vendor URLs (3), skip the ftyp sniff (1), drop the higgsfield- key marker (5).",
+          "server/instagramAdmin.test.ts (+2): the procedure exists and refuses a non-admin with FORBIDDEN; an unknown source is BAD_REQUEST at input validation. Red first 2 failed | 23 passed.",
+          "Manager probes 2026-10-16 (not committed): 4, 5 and 6 clips for a 5-beat job refuse, pass, refuse; 3.999 s refuses, 4.0 s passes, NaN refuses; javascript:, ftp:, empty refuse; HTTPS://, https:/ and a leading space pass (WHATWG URL normalisation, the SSRF-guarded fetch sees the same host); CAS loss writes nothing else; the two old Seedance clips are replaced in beat order. ftyp sniff and probeMaster duration confirmed on three real Wan 3.0 clips (5.038 s, 1078x1920)."
+        ],
+        "liveRuns": [],
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Not observed in production yet. Live proof: the first attach to job 2100001 shows the row in assets_ready with the re-hosted URLs and payload.externalClips, the next reel-pipeline pulse moves it to assembled with renderedQa present, and the published reel carries the AI label",
+          "source": "job 2026-10-16-external-clips-door"
+        }
+      ],
+      "deferredScope": [
+        "no client control yet: the door is called from a tRPC client or the admin console (client lane C1 follows)",
+        "the door settles or releases no generation reservation for the job",
+        "re-hosted objects stay in storage if the CAS loses after the re-host",
+        "clips are held in memory (up to 60 MB each) and downloaded one after another"
+      ],
+      "lastVerifiedAt": "2026-10-16",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
     }
   ],
   "axes": {
