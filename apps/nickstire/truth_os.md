@@ -103,6 +103,9 @@ detailed in `docs/CURRENT-TRUTH.md`:
 ## 2026-10-16 - Observability is proven by planted positives, not by env presence (branch nickstire/observability-proof, NOT yet merged)
 
 - `GET /api/system/observability-status` (Bearer `ADMIN_API_KEY`) answers HEALTHY / DEGRADED / UNKNOWN per instrument (Sentry, Langfuse) from in-process counters (`server/lib/observabilityStatus.ts`); keys unset, zero acks or a proof older than 12 h read UNKNOWN, never HEALTHY. Counters reset on every deploy.
+- `POST /api/system/observability-probe` (same gate) plants one Sentry message tagged `probe_id` + `commit` and one synthetic Langfuse generation, then reports `ok` only on the sink's own 2xx. Sentry's release is now the deployed commit; `/api/health` `checks.sentry` says `dsn_set` plus receipts, no longer `configured`.
+- Langfuse tracing covers every server AI call site (`server/langfuseTraceGate.test.ts`), masked; it is OFF in production until `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` are set on the nickstire service (Nour's step, `docs/OBSERVABILITY.md`).
+- `customer_notifications.status` gains `skipped` (drizzle/0146); follow-up Cancel keeps failing in production until that ALTER is applied (Admin > Settings > Run Migrations).
 
 ## 2026-10-16 - Reel comment responder gets gates, an audit trail and admin controls
 
