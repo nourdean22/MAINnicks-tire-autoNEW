@@ -184,7 +184,7 @@ export function CustomersList({ onOpenCustomer }: { onOpenCustomer: (id: number)
             enterKeyHint="search"
             autoComplete="off"
             aria-label="Search customers"
-            placeholder="Name, phone, email, city or vehicle"
+            placeholder="Search name, phone, email, city or vehicle"
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="w-full min-h-12 bg-card border border-border/40 rounded-md pl-10 pr-4 text-base text-foreground placeholder:text-foreground/40 focus:outline-none focus:border-primary/60"
