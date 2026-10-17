@@ -15,8 +15,11 @@
  *   · sentry   one info-level message tagged probe_id + commit, then flush().
  *              Read back in Sentry by event id or tag probe_id.
  *   · langfuse one synthetic generation named observability-probe (no model
- *              call, no tokens) with the probe id in metadata, then one
- *              ingestion POST. Read back with GET /api/public/observations?name=observability-probe.
+ *              call, no tokens) with the probe id in metadata, then one OTLP
+ *              export (POST /api/public/otel/v1/traces). Read back with
+ *              GET /api/public/v2/observations?name=observability-probe&fromStartTime=<iso>&fields=core,basic,metadata
+ *              (Basic auth, cursor paging) and take the row whose metadata.probeId is
+ *              the probeId in this response. The old GET read-backs are removed on 2026-11-16.
  *
  * Observe-only: no database writes.
  */

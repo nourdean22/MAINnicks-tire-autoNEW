@@ -141,6 +141,27 @@ describe("the legacy ingestion endpoint is never called", () => {
   });
 });
 
+describe("the documented read-back is the v2 observations API", () => {
+  // GET /traces, /observations, /sessions are removed on 2026-11-16 (same Langfuse FAQ). The read-back
+  // is operator-run (curl), so its consumer is the probe route's header and OBSERVABILITY.md.
+  const LEGACY_READ = /\/api\/public\/(observations|traces)\b/;
+  const read = (rel: string) => readFileSync(join(__dirname, "..", rel), "utf8");
+
+  it("planted control: the pattern flags the removed paths and not the v2 path", () => {
+    expect(LEGACY_READ.test("GET /api/public/observations?name=x")).toBe(true);
+    expect(LEGACY_READ.test("GET /api/public/traces/abc")).toBe(true);
+    expect(LEGACY_READ.test("GET /api/public/v2/observations?name=x")).toBe(false);
+  });
+
+  it("the probe route and OBSERVABILITY.md name GET /api/public/v2/observations and no removed read", () => {
+    for (const f of ["server/routes/observabilityRoutes.ts", "docs/OBSERVABILITY.md"]) {
+      const text = read(f);
+      expect(text, `${f} names the v2 read-back`).toContain("/api/public/v2/observations");
+      expect(text, `${f} still names a removed read`).not.toMatch(LEGACY_READ);
+    }
+  });
+});
+
 describe("the request", () => {
   it("POST with Basic auth, JSON content type and x-langfuse-ingestion-version: 4", async () => {
     queueOne();
