@@ -51,8 +51,8 @@ describe("traces carry no free text by default", () => {
       expect(wire.length).toBeGreaterThan(0);
       expect(wire).not.toMatch(/Maria|Lopez|44101/);
       // What a default trace DOES carry: lengths and the prompt hash.
-      expect(wire).toMatch(/"inputChars":\d+/);
-      expect(wire).toMatch(/"promptSha256":"[0-9a-f]{64}"/);
+      expect(wire).toMatch(/"langfuse\.observation\.metadata\.inputChars","value":\{"stringValue":"\d+"\}/);
+      expect(wire).toMatch(/"langfuse\.observation\.metadata\.promptSha256","value":\{"stringValue":"[0-9a-f]{64}"\}/);
     });
   }
 
@@ -61,8 +61,8 @@ describe("traces carry no free text by default", () => {
     traceChat({ name: "x", site: "s", model: "m", messages: "p", startedAt: Date.now(), ok: false, error: timeout });
     traceChat({ name: "x", site: "s", model: "m", messages: "p", startedAt: Date.now(), ok: false, error: "HTTP 503: upstream said Maria Lopez" });
     const wire = await wireBodies();
-    expect(wire).toContain('"statusMessage":"TimeoutError"');
-    expect(wire).toContain('"statusMessage":"HTTP 503"');
+    expect(wire).toContain('"langfuse.observation.status_message","value":{"stringValue":"TimeoutError"}');
+    expect(wire).toContain('"langfuse.observation.status_message","value":{"stringValue":"HTTP 503"}');
     expect(wire).not.toContain("aborted due to timeout");
   });
 

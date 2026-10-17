@@ -1,6 +1,6 @@
 /**
  * Consumer end of the Langfuse wiring: a real invokeLLM call (provider fetch
- * stubbed) produces one masked trace that reaches the ingestion request. A gate
+ * stubbed) produces one masked trace that reaches the OTLP request. A gate
  * that only checks the source for `traceChat(` cannot tell a trace that is
  * called from one that is built and never sent.
  */
@@ -55,11 +55,12 @@ describe("invokeLLM is traced in Langfuse", () => {
     }) as unknown as typeof fetch;
     const r = await flushLangfuse(ingest);
     expect(r).toMatchObject({ ok: true, attempted: true, sent: 2 });
-    const batch = JSON.parse(bodies[0]).batch as Array<{ type: string; body: Record<string, any> }>;
-    const gen = batch.find((e) => e.type === "generation-create")!;
-    expect(gen.body.model).toBe("gpt-4o-mini");
-    expect(gen.body.usage).toEqual({ input: 11, output: 7, total: 18 });
-    expect(gen.body.metadata.site).toBe("_core/llm.ts");
+    const spans = JSON.parse(bodies[0]).resourceSpans[0].scopeSpans[0].spans as Array<{ attributes: Array<{ key: string; value: { stringValue?: string } }> }>;
+    const attrs = (sp: (typeof spans)[number]) => Object.fromEntries(sp.attributes.map((a) => [a.key, a.value.stringValue]));
+    const gen = spans.map(attrs).find((a) => a["langfuse.observation.type"] === "generation")!;
+    expect(gen["langfuse.observation.model.name"]).toBe("gpt-4o-mini");
+    expect(JSON.parse(gen["langfuse.observation.usage_details"]!)).toEqual({ input: 11, output: 7, total: 18 });
+    expect(gen["langfuse.observation.metadata.site"]).toBe("_core/llm.ts");
     expect(bodies[0]).not.toMatch(/555[-\s]?01(42|99)/);
     expect(bodies[0]).not.toContain("You are the shop assistant.");
   });

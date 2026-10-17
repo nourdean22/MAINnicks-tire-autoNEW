@@ -76,7 +76,7 @@ async function probeLangfuse(probeId: string) {
     return { enabled: false, ok: false, flushed: false, reason: "LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY unset: nothing was exported" };
   }
   const t0 = Date.now();
-  const traceId = randomUUID();
+  const traceId = randomUUID().replace(/-/g, ""); // an OTLP trace id is 32 hex: flush.traceIds echoes it back
   const queued = traceGeneration({
     traceId,
     name: "observability-probe",

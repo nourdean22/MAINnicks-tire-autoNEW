@@ -56,14 +56,22 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-async function wire(): Promise<Array<{ type: string; body: Record<string, any> }>> {
+/** The generation spans of every OTLP request, attributes flattened to { key: string }. */
+async function wire(): Promise<Array<{ name: string; attrs: Record<string, string>; status?: { code: number; message?: string } }>> {
   const bodies: string[] = [];
   const ingest = (async (_u: string, init: RequestInit) => {
     bodies.push(String(init.body));
     return new Response("{}", { status: 200 });
   }) as unknown as typeof fetch;
   await flushLangfuse(ingest);
-  return bodies.flatMap((b) => JSON.parse(b).batch);
+  return bodies
+    .flatMap((b) => JSON.parse(b).resourceSpans.flatMap((r: any) => r.scopeSpans.flatMap((s: any) => s.spans)))
+    .map((sp: any) => ({
+      name: sp.name,
+      status: sp.status,
+      attrs: Object.fromEntries(sp.attributes.map((a: any) => [a.key, a.value.stringValue])) as Record<string, string>,
+    }))
+    .filter((sp) => sp.attrs["langfuse.observation.type"] === "generation");
 }
 
 describe("a thrown provider fetch is traced, then rethrown", () => {
@@ -87,22 +95,23 @@ describe("a thrown provider fetch is traced, then rethrown", () => {
   it("aiGateway: DNS failure -> one ok:false generation 'TypeError:ENOTFOUND', original error rethrown", async () => {
     await expect(aiGateway({ task: "chat", messages: [{ role: "user", content: "hi" }] })).rejects.toThrow("fetch failed");
     expect(getLangfuseStatus().queued).toBe(2);
-    const gen = (await wire()).find((e) => e.type === "generation-create")!;
-    expect(gen.body).toMatchObject({ name: "gateway:openai", level: "ERROR", statusMessage: "TypeError:ENOTFOUND" });
+    const [gen] = await wire();
+    expect(gen.name).toBe("gateway:openai");
+    expect(gen.attrs).toMatchObject({ "langfuse.observation.level": "ERROR", "langfuse.observation.status_message": "TypeError:ENOTFOUND" });
   });
 
   it("generateImage: DNS failure -> one ok:false generation, original error rethrown", async () => {
     await expect(generateImage({ prompt: "a tire" })).rejects.toThrow("fetch failed");
-    const gens = (await wire()).filter((e) => e.type === "generation-create");
+    const gens = await wire();
     expect(gens).toHaveLength(1);
-    expect(gens[0].body).toMatchObject({ name: "image:openai", level: "ERROR", statusMessage: "TypeError:ENOTFOUND" });
+    expect(gens[0].name).toBe("image:openai");
+    expect(gens[0].attrs).toMatchObject({ "langfuse.observation.level": "ERROR", "langfuse.observation.status_message": "TypeError:ENOTFOUND" });
   });
 
   it("a non-2xx already traced is not traced a second time by the catch-all", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("down", { status: 503 })));
     await expect(aiGateway({ task: "chat", messages: [{ role: "user", content: "hi" }] })).rejects.toThrow("AI Gateway 503");
-    const gens = (await wire()).filter((e) => e.type === "generation-create");
-    expect(gens).toHaveLength(1);
+    expect(await wire()).toHaveLength(1);
   });
 });
 
