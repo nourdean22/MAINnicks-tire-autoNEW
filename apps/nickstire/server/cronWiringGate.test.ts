@@ -168,7 +168,7 @@ describe("canary - the gate that replaces the sentence is wired", () => {
   it("REAL SOURCE: the five tier labels are excluded from the job set", () => {
     const scheduler = readFileSync(join(APP_ROOT, "server/cron/scheduler.ts"), "utf-8");
     const jobs = extractTierJobNames(scheduler);
-    for (const label of ["heartbeat", "pulse", "hourly", "daily", "briefings"]) {
+    for (const label of ["heartbeat", "pulse", "hourly", "daily", "briefings", "nightly"]) {
       expect(jobs.has(label), `tier label "${label}" is being counted as a job`).toBe(false);
     }
     // ...and the instrument still sees plenty of real jobs.

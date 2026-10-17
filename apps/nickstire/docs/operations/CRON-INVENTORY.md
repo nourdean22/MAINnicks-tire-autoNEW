@@ -4,7 +4,7 @@ Every background job in `server/cron/scheduler.ts` (tiered scheduler) and the
 HTTP-triggerable registry in `server/cron/index.ts`. **This file is generated** from
 those two sources — `server/cron/cronInventoryParity.test.ts` fails when they drift.
 
-**Last regenerated: 2026-10-15 by `scripts/gen-cron-inventory.mts`.**
+**Last regenerated: 2026-10-17 by `scripts/gen-cron-inventory.mts`.**
 
 > The code is the source of truth. To add or change a job, edit the scheduler and
 > re-run the generator in the same commit; write the job's purpose in the last column.
@@ -20,8 +20,9 @@ those two sources — `server/cron/cronInventoryParity.test.ts` fails when they 
 | hourly | every 2h | 37 / 1 |
 | daily | every 1d | 52 / 0 |
 | briefings | every 12h | 6 / 0 |
+| nightly | every 1d | 1 / 0 |
 
-**Total: 125 tiered jobs (122 scheduled automatically, 3 staged off the scheduler) + 6 HTTP-only registry jobs.**
+**Total: 126 tiered jobs (123 scheduled automatically, 3 staged off the scheduler) + 6 HTTP-only registry jobs.**
 
 ## heartbeat (every 5m)
 
@@ -172,6 +173,12 @@ those two sources — `server/cron/cronInventoryParity.test.ts` fails when they 
 | `nick-morning-brief` | no | no | yes | Owner morning brief (Telegram) |
 | `weather-intel` | no | no | yes | Weather impact on demand (snow → tire surge, etc.) |
 | `weekly-strategic-insight` | no | no | yes | — |
+
+## nightly (every 1d)
+
+| Job | Business hours only | Once per shop day | Scheduled | Purpose |
+|---|---|---|---|---|
+| `tidb-backup` | no | no | yes | Independent TiDB backup to the private bucket (backups/tidb/<date>/), flag TIDB_BACKUP_ENABLED; runbook docs/runbooks/tidb-backup-restore.md |
 
 ## HTTP-only registry jobs (`server/cron/index.ts`)
 

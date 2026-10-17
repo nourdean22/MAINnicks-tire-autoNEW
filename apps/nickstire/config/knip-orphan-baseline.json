@@ -6340,6 +6340,26 @@
       "file": "apps/nickstire/server/follow-ups.ts",
       "symbol": "reportFollowUpsToOwner",
       "reason": "Telegram alert diet (job 2026-10-16-telegram-alerts): the production caller is runFollowUps in the same file; the export exists only so server/followUpOwnerReport.test.ts can prove the run report reaches the owner once. A test-only export, not a missing consumer."
+    },
+    {
+      "file": "apps/nickstire/server/services/tidbBackup.ts",
+      "symbol": "buildBatchQuery",
+      "reason": "TEST-VISIBLE CONTRACT for the nightly TiDB backup: consumed in-file by the mysql source's readBatch; exported so server/services/tidbBackup.test.ts can pin the SQL shape against the REAL builder (keyset WHERE, bounded LIMIT, no SELECT *, HEX/UNHEX for binary keys, JSON as CHAR). The production path needs a live database, which no test may touch."
+    },
+    {
+      "file": "apps/nickstire/server/services/tidbBackup.ts",
+      "symbol": "backupTypeCast",
+      "reason": "TEST-VISIBLE CONTRACT for the nightly TiDB backup: consumed in-file by runTidbBackupJob's dedicated mysql2 connection; exported so the test can prove JSON columns decode as utf8 (the default binary decode would corrupt non-ASCII JSON in every backup)."
+    },
+    {
+      "file": "apps/nickstire/server/services/tidbBackup.ts",
+      "symbol": "createS3BackupStore",
+      "reason": "TEST-VISIBLE CONTRACT for the nightly TiDB backup: consumed in-file by runTidbBackupJob; exported so the test can prove, against a fake S3 client, that no ACL is ever sent and that a delete outside backups/tidb/<date>/ is refused before anything is sent."
+    },
+    {
+      "file": "apps/nickstire/server/services/tidbBackup.ts",
+      "symbol": "planRetention",
+      "reason": "TEST-VISIBLE CONTRACT for the nightly TiDB backup: consumed in-file by runTidbBackup; exported so the test can prove the 14 daily + 8 weekly rule and that keys outside backups/tidb/<date>/ are never planned for deletion."
     }
   ]
 }

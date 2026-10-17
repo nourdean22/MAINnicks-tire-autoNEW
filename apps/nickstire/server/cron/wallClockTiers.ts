@@ -72,6 +72,9 @@ export interface WallClockSlot {
  */
 const WALL_CLOCK_SLOTS: Readonly<Record<string, readonly WallClockSlot[]>> = {
   daily: [{ key: "daily", startMin: 9 * 60 + 30, endMin: 24 * 60 }],
+  // nightly · the TiDB backup (services/tidbBackup.ts): after the shop's day,
+  // before its next, when writes are fewest. Opens after 03:00, clear of both DST hours.
+  nightly: [{ key: "nightly", startMin: 3 * 60 + 30, endMin: 6 * 60 }],
   briefings: [
     { key: "briefings-am", startMin: 7 * 60, endMin: 12 * 60 },
     { key: "briefings-pm", startMin: 19 * 60, endMin: 22 * 60 },

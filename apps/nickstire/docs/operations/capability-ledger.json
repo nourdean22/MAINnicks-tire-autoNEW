@@ -5250,6 +5250,44 @@
       "codeState": "in_progress",
       "operationalState": "unit_verified",
       "exposure": "disabled"
+    },
+    {
+      "capabilityId": "nickstire-tidb-independent-backup",
+      "name": "Nightly independent TiDB backup with verified manifest (cron tidb-backup -> private bucket backups/tidb/<date>/)",
+      "owner": "system",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "disabled",
+      "evidence": {
+        "codeCommit": "JOB 2026-10-17-tidb-independent-backup, branch nickstire/tidb-independent-backup: server/services/tidbBackup.ts (keyset-paged gzipped JSONL per table + manifest, weekly class for two derived tables, 14 daily + 8 weekly retention, prefix-guarded deletes), nightly wall-clock tier (03:30 ET, claimed per night) behind TIDB_BACKUP_ENABLED, storage.ts refuses backups/ on the public /generated proxy, safetyMonitor critical alert on 27h without a completed run, scripts/tidb-restore-from-backup.mjs (dry run default, production-host refusal, --verify-only).",
+        "tests": [
+          "server/services/tidbBackup.test.ts: files + manifest under the ET date, keyset pages bounded by LIMIT, _tidb_rowid paging for PK-less tables, hex for binary columns, weekly classing, a failed table or an unconfirmed upload fails the run with no manifest, an existing manifest makes the night a no-op, retention keeps 14 + 8 and never deletes outside backups/tidb/<date>/, S3 adapter sends no ACL and refuses foreign deletes.",
+          "server/storagePrivateBackups.test.ts: backups/ keys never reach the bucket through storageGetStream or storageGet; an ordinary media key still does.",
+          "server/services/safetyMonitorTidbBackup.test.ts: silent while off; 30h or never completed is critical; a failed read reports UNKNOWN.",
+          "server/cron/nightlyTier.test.ts: nightly is a wall-clock tier, 03:30-06:00 ET, two containers -> one fires; flag and 30-minute budget pinned in tier and manual registry.",
+          "scripts/tidbRestore.test.ts: production target refused in six spellings and when DATABASE_URL is unknown; a fixture target reaches the dry run and exits before connecting; the backup's format round-trips through the restore's decoder and verify-only names a changed or missing file."
+        ],
+        "liveRuns": []
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Never run against production: the first manual run (scripts/tidb-backup-run-once.mts --execute) and a --verify-only check are owed before TIDB_BACKUP_ENABLED is armed."
+        },
+        {
+          "severity": "P2",
+          "description": "RU cost is an estimate (2-5M RU/month of a 50M free quota, runbook); the app's own monthly RU use is unread, and an exhausted free quota throttles the whole shop app."
+        },
+        {
+          "severity": "P3",
+          "description": "The restore refuses any target on the production host; TiDB Cloud Starter clusters in one region share a gateway host, so a new same-region cluster is refused too."
+        }
+      ],
+      "deferredScope": [
+        "No cross-table snapshot: each table is read in its own key order during the 03:30 ET slot, so rows written during the run may appear in one table and not another.",
+        "The nightly run confirms each file by listing size; sha256 and row counts are re-checked by --verify-only, not by the nightly job."
+      ],
+      "lastVerifiedAt": "2026-10-17"
     }
   ],
   "axes": {
