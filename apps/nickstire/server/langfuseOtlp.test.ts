@@ -244,6 +244,18 @@ describe("the payload contract", () => {
     expect(r["langfuse.trace.metadata.probeId"]).toBe("p1");
   });
 
+  it("a non-finite latency cannot put an invalid timestamp into the batch (one bad trace must not poison the others)", async () => {
+    queueOne({ latencyMs: Number.NaN });
+    queueOne();
+    const { calls, fetchImpl } = recorder();
+    const r = await flushLangfuse(fetchImpl);
+    expect(r.ok).toBe(true);
+    for (const s of spansOf(calls[0].json)) {
+      expect(s.startTimeUnixNano).toMatch(/^\d{19}$/);
+      expect(s.endTimeUnixNano).toMatch(/^\d{19}$/);
+    }
+  });
+
   it("a generation with no usage carries no usage_details", async () => {
     queueOne();
     const { calls, fetchImpl } = recorder();

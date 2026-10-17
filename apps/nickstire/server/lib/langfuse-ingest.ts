@@ -178,7 +178,7 @@ export function traceGeneration(g: TraceGenerationInput): "queued" | "skipped_pr
       return "dropped";
     }
     const endMs = Date.now();
-    const startMs = endMs - Math.max(0, g.latencyMs);
+    const startMs = endMs - (Number.isFinite(g.latencyMs) ? Math.max(0, g.latencyMs) : 0);
     const traceId = otlpTraceId(g.traceId);
     const rootId = newSpanId();
     const identity = resolveNickDeployIdentity(process.env);
