@@ -19,12 +19,12 @@
  * Every case drives the real script against a synthetic server. Nothing here
  * reads CI config, and no case can pass because a file merely exists.
  */
-import { test } from "node:test";
+import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync, existsSync, readFileSync, openSync, closeSync } from "node:fs";
+import { spawnSync, spawn } from "node:child_process";
+import { mkdtempSync, writeFileSync, existsSync, readFileSync, openSync, closeSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve, dirname } from "node:path";
+import { join, resolve, dirname, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import { canListen, holdAsClient } from "./free-port.mjs";
 
@@ -35,6 +35,58 @@ const NULL_DEV = process.platform === "win32" ? "NUL" : "/dev/null";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const SCRIPT = join(ROOT, "scripts", "ci", "wait-for-dev-server.sh");
 const DIR = mkdtempSync(join(tmpdir(), "wfds-"));
+
+/**
+ * NO LEAKS (2026-10-16). The script under test leaves the server it started RUNNING on success (the workflow's
+ * next steps need it) and the boot wrapper detaches it with nohup, so every run leaves a `node fake-server.cjs`
+ * behind, plus a nohup wrapper on Windows. Nothing reaped them: 74 were found alive on one machine, the oldest 16
+ * hours old, about 30 MB of commit each, at a time the machine was at 42 of 45 GB. They are found by the random
+ * temp-dir name that appears in their command line (`wfds-XXXXXX/fake-server.cjs`, or the marker comment in the
+ * kill_port holder), not by a list of PIDs: the processes we need to kill are exactly the ones we never held a
+ * handle to. `after()` runs on failure too, and the exit handler covers a crashed run.
+ */
+const TOKEN = basename(DIR);
+
+function livePids(token = TOKEN) {
+  if (process.platform === "win32") {
+    const r = spawnSync("powershell", ["-NoProfile", "-Command",
+      `Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -and $_.CommandLine.Contains('${token}') -and $_.ProcessId -ne $PID } | ForEach-Object { $_.ProcessId }`],
+    { encoding: "utf8", timeout: 60_000 });
+    if (r.error || r.status !== 0) throw new Error(`cannot list processes: ${r.error?.message ?? r.stderr}`);
+    return r.stdout.split(/\s+/).filter(Boolean).map(Number).filter((p) => p !== process.pid);
+  }
+  const r = spawnSync("pgrep", ["-f", "--", token], { encoding: "utf8", timeout: 30_000 });
+  if (r.error) throw new Error(`cannot list processes (pgrep): ${r.error.message}`); // never read "could not look" as "none"
+  if (r.status === 1) return [];
+  if (r.status !== 0) throw new Error(`pgrep failed (${r.status}): ${r.stderr}`);
+  return r.stdout.split(/\s+/).filter(Boolean).map(Number).filter((p) => p !== process.pid);
+}
+
+/** Kill every process whose command line names `token`, tree and all, until none is left. Returns how many it killed. */
+function sweep(token = TOKEN) {
+  let killed = 0;
+  for (let round = 0; round < 5; round++) {
+    const pids = livePids(token);
+    if (!pids.length) return killed;
+    for (const pid of pids) {
+      killed++;
+      if (process.platform === "win32") spawnSync("taskkill", ["/PID", String(pid), "/T", "/F"], { stdio: "ignore" });
+      else { try { process.kill(pid, "SIGKILL"); } catch { /* already gone */ } }
+    }
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 300);
+  }
+  return killed;
+}
+
+after(() => {
+  try {
+    sweep();
+    assert.deepEqual(livePids(), [], "a process of this run survived the final sweep");
+  } finally {
+    rmSync(DIR, { recursive: true, force: true });
+  }
+});
+process.on("exit", () => { try { sweep(); } catch { /* best effort on a crash */ } });
 
 /**
  * Forward slashes for every path handed to bash. On Windows `join` yields
@@ -213,7 +265,8 @@ test("kill_port frees a port held by a process the script never started", () => 
   // PID cannot reach. It is the one assertion that fails if kill_port is gutted.
   const port = freePort();
   const holder = spawnSync("bash", ["-c",
-    `nohup node -e 'require("http").createServer((_q,r)=>r.end("x")).listen(${port})' >/dev/null 2>&1 & sleep 2`]);
+    // The trailing comment carries this run's temp-dir token so the exit sweep can find the holder if kill_port fails.
+    `nohup node -e 'require("http").createServer((_q,r)=>r.end("x")).listen(${port});//${TOKEN}' >/dev/null 2>&1 & sleep 2`]);
   assert.equal(holder.status, 0);
 
   const alive = spawnSync("curl", ["-s", "-o", NULL_DEV, "-m", "2", `http://localhost:${port}/`]);
@@ -237,4 +290,23 @@ test("START_CMD is required — no silent default", () => {
   });
   assert.equal(r.status, 2);
   assert.match(`${r.stdout ?? ""}${r.stderr ?? ""}`, /START_CMD is required/);
+});
+
+test("LEAK CANARY (positive control): an UNTRACKED fake-server is found and killed by the sweep", () => {
+  // Plant a process we hold no handle to, named like the real leak. If sweep() found nothing it would print the same
+  // green as a clean run, so the plant must be seen first and gone after.
+  const planted = spawn(process.execPath, ["-e", "setInterval(()=>{},1e6)", sh(join(DIR, "fake-server.cjs"))], { detached: true, stdio: "ignore" });
+  planted.unref();
+  assert.ok(planted.pid, "the plant did not start");
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 500);
+  assert.ok(livePids().includes(planted.pid), "the sweep's lister cannot see a planted fake-server: it would also miss a real leak");
+  assert.ok(sweep() >= 1, "the sweep killed nothing");
+  assert.deepEqual(livePids(), [], "a fake-server.cjs survived the sweep");
+});
+
+test("LEAK CANARY: no fake-server.cjs (or kill_port holder) child of this run survives after the sweep", () => {
+  // The cases above leave their servers running by design (the script does on success), so this is where leaks are
+  // reaped and then proven gone. A no-op sweep fails here and in the positive control.
+  sweep();
+  assert.deepEqual(livePids(), []);
 });

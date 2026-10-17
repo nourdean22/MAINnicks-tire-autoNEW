@@ -36,8 +36,10 @@ permissions:
   contents: read
 
 concurrency:
-  group: camera-bridge-${{ github.ref }}
-  cancel-in-progress: true
+  # 2026-10-16 · a push to main gets a group of its own per commit and is never cancelled (this group used
+  # to cancel main runs); PR pushes supersede each other. Same expression as test.yml and e2e-statenour.yml.
+  group: camera-bridge-${{ github.ref }}-${{ github.event_name == 'push' && github.sha || 'pr' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   pytest:

@@ -146,7 +146,10 @@ describe("beat captions end above Instagram's bottom 35% (arithmetic, runs every
       ],
       clipPaths: ["a.mp4", "b.mp4"], voPath: null, musicPath: null, assPath: null, fontPath: "font.ttf", outPath: "out.mp4", askText: null,
     }).join(" ");
-    expect(fc).toContain("boxborderw=28");
+    // One plate per caption since 2026-10-16: top = anchor - 28, height = (lines-1)*lineH + size + 2*28,
+    // so its bottom is exactly boxBottom() above.
+    expect(fc).toContain(`y=ih*${CAPTION_BEAT_Y_FRAC}-28:w=`);
+    expect(fc).toContain(`h=${Math.round(56 * 1.2) + 56 + 56}:color=black@0.6`);
     expect(fc).toContain(`y=h*${CAPTION_BEAT_Y_FRAC}+0`);
     expect(fc).toContain(`y=h*${CAPTION_BEAT_Y_FRAC}+${Math.round(56 * 1.2)}`);
   });
