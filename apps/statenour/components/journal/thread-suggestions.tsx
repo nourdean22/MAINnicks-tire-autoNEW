@@ -144,7 +144,7 @@ export function ThreadSuggestions({
           the same suggestion forever. Auto-clears on next tap. */}
       {actionError && (
         <div className="rounded-control border border-rose-500/30 bg-rose-500/10 px-2 py-1.5 text-[11px] text-rose-300">
-          ⚠ {actionError}
+          Failed: {actionError}
         </div>
       )}
       <ul className="space-y-2">

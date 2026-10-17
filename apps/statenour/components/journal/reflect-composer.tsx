@@ -12,6 +12,11 @@
  * Each field is one or two lines — deliberately short. Tab moves between.
  * Submit → POST /api/ultron/reflect → stores a Reflection row.
  *
+ * UI v3 W4 (2026-10-17, audit item 6): the composer opens on ONE 16px field that saves as the
+ * What of a What / So What / Now What reflection (the payload shape the server already accepts);
+ * "Use a template" opens the structured forms. A draft that filled more than that one field
+ * reopens structured. Pinned by tests/components/reflect-composer-one-field.test.tsx.
+ *
  * On submit Nick offers ONE counter-question to push Nour's reasoning.
  * Then the MemoryCalibration card surfaces inline so the loop closes:
  * reflect → verify past beliefs → next reflection builds on calibrated
@@ -49,7 +54,7 @@ const TEMPLATES: TemplateDef[] = [
   {
     key: "driscoll",
     label: "What · So What · Now What",
-    tagline: "fastest — 3 short lines",
+    tagline: "fastest: 3 short lines",
     fields: [
       { key: "what",     label: "what",     placeholder: "what actually happened" },
       { key: "so_what",  label: "so what",  placeholder: "what does it mean / why does it matter" },
@@ -101,6 +106,10 @@ const MOODS: Array<{ label: string }> = [
   { label: "scattered" },
 ];
 
+/** One-field mode (W4) writes the What of a What / So What / Now What reflection. */
+const ONE_FIELD_TEMPLATE: Template = "driscoll";
+const ONE_FIELD_KEY = "what";
+
 const LAST_TEMPLATE_KEY = "ultron:reflect:last-template";
 const DRAFT_KEY = "ultron:reflect:draft";
 // v10.0.529.25 · /journal audit #R · persist the extract-intelligence
@@ -112,6 +121,8 @@ const EXTRACT_TOGGLE_KEY = "ultron:reflect:extract-intelligence";
 export function ReflectComposer() {
   const [templateKey, setTemplateKey] = useState<Template>("driscoll");
   const [showPicker, setShowPicker] = useState(false);
+  // W4: one field until Nour asks for a template (or a draft already used more than one box).
+  const [structured, setStructured] = useState(false);
   const [fields, setFields] = useState<Record<string, string>>({});
   const [mood, setMood] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
@@ -156,7 +167,10 @@ export function ReflectComposer() {
       const draft = localStorage.getItem(DRAFT_KEY);
       if (draft) {
         const parsed = JSON.parse(draft) as { fields?: Record<string, string>; mood?: string; templateKey?: Template };
-        if (parsed.fields) setFields(parsed.fields);
+        if (parsed.fields) {
+          setFields(parsed.fields);
+          if (Object.entries(parsed.fields).some(([k, v]) => k !== ONE_FIELD_KEY && v.trim())) setStructured(true);
+        }
         if (parsed.mood) setMood(parsed.mood);
         if (parsed.templateKey) setTemplateKey(parsed.templateKey);
       }
@@ -198,16 +212,8 @@ export function ReflectComposer() {
         if (seedMatch) {
           try {
             const seed = decodeURIComponent(seedMatch[1]);
-            // First field of whichever template loaded
-            setFields((prev) => {
-              const effectiveTemplate: Template =
-                savedTemplate === "soap" || savedTemplate === "driscoll" || savedTemplate === "ssc" || savedTemplate === "aar"
-                  ? savedTemplate
-                  : "driscoll";
-              const t = TEMPLATES.find((x) => x.key === effectiveTemplate) ?? TEMPLATES[0];
-              const firstKey = t.fields[0].key;
-              return { ...prev, [firstKey]: prev[firstKey] || seed };
-            });
+            // W4: the seed lands in the one field the composer opens on (driscoll's What).
+            setFields((prev) => ({ ...prev, [ONE_FIELD_KEY]: prev[ONE_FIELD_KEY] || seed }));
           } catch {}
         }
       }
@@ -231,8 +237,13 @@ export function ReflectComposer() {
   const tmpl = useMemo(() => TEMPLATES.find((t) => t.key === templateKey)!, [templateKey]);
 
   const filledCount = useMemo(
-    () => tmpl.fields.filter((f) => (fields[f.key] ?? "").trim()).length,
-    [tmpl.fields, fields],
+    () =>
+      structured
+        ? tmpl.fields.filter((f) => (fields[f.key] ?? "").trim()).length
+        : (fields[ONE_FIELD_KEY] ?? "").trim()
+          ? 1
+          : 0,
+    [structured, tmpl.fields, fields],
   );
 
   const setTemplate = (key: Template) => {
@@ -253,8 +264,9 @@ export function ReflectComposer() {
       // Phase TT.2 · typed mutation · tRPC returns the result
       // unwrapped (no { data } envelope · the REST route had one).
       const result = await reflectMutation.mutateAsync({
-        template: templateKey,
-        fields,
+        // One-field mode saves as the What of a driscoll reflection (no server contract change).
+        template: structured ? templateKey : ONE_FIELD_TEMPLATE,
+        fields: structured ? fields : { [ONE_FIELD_KEY]: fields[ONE_FIELD_KEY] ?? "" },
         mood: mood || undefined,
         askPushback: true,
         // pass the toggle so the service knows whether to also run
@@ -293,7 +305,7 @@ export function ReflectComposer() {
     } finally {
       setSubmitting(false);
     }
-  }, [templateKey, fields, mood, filledCount, extractIntelligence, reflectMutation]);
+  }, [structured, templateKey, fields, mood, filledCount, extractIntelligence, reflectMutation]);
 
   const resetForNext = () => {
     setFields({});
@@ -325,11 +337,24 @@ export function ReflectComposer() {
         <span className="font-mono text-[11px] text-fg-tertiary">
           Reflect
         </span>
-        <span className="text-[11px] font-mono text-fg-tertiary">
-          · {tmpl.label.toLowerCase()}
-        </span>
+        {structured && (
+          <span className="text-[11px] font-mono text-fg-tertiary">
+            · {tmpl.label.toLowerCase()}
+          </span>
+        )}
+
+        {!structured && (
+          <button
+            type="button"
+            onClick={() => setStructured(true)}
+            className="ml-auto inline-flex min-h-[44px] items-center text-[13px] text-fg-tertiary transition-colors hover:text-fg"
+          >
+            Use a template
+          </button>
+        )}
 
         {/* Template picker */}
+        {structured && (
         <div className="relative ml-auto">
           <button
             onClick={() => setShowPicker((v) => !v)}
@@ -356,6 +381,7 @@ export function ReflectComposer() {
             </div>
           )}
         </div>
+        )}
       </div>
 
       {/* 2026-05-24 · Wave S #4 · Ghost counter-question. The composer
@@ -367,7 +393,24 @@ export function ReflectComposer() {
           dismissals · the prediction set rotates daily). */}
       <GhostCounterQuestionInline />
 
-      {/* Fields */}
+      {/* Fields: one by default (W4), the template's boxes once a template is in use */}
+      {!structured && (
+        <textarea
+          aria-label="Reflection"
+          value={fields[ONE_FIELD_KEY] ?? ""}
+          onChange={(e) => setFields((prev) => ({ ...prev, [ONE_FIELD_KEY]: e.target.value }))}
+          placeholder="What happened, and what changes next?"
+          rows={3}
+          disabled={submitting}
+          className={cn(
+            "w-full resize-y rounded-control bg-surface-interactive border border-edge-default",
+            "text-[16px] leading-relaxed px-3 py-2 text-fg",
+            "placeholder:text-fg-tertiary",
+            "focus:border-accent/40 focus:outline-none transition-colors",
+          )}
+        />
+      )}
+      {structured && (
       <div className="space-y-1.5">
         {tmpl.fields.map((f) => (
           <div key={f.key}>
@@ -382,15 +425,16 @@ export function ReflectComposer() {
               disabled={submitting}
               className={cn(
                 "w-full resize-y rounded-control bg-surface-interactive border border-edge-default",
-                "text-[13px] leading-snug px-2 py-1.5 text-fg",
+                "text-[16px] leading-snug px-2 py-1.5 text-fg",
                 "placeholder:text-fg-tertiary",
                 "focus:border-accent/40 focus:outline-none transition-colors",
-                "min-h-[30px]",
+                "min-h-[44px]",
               )}
             />
           </div>
         ))}
       </div>
+      )}
 
       {/* Mood row */}
       <div className="flex items-center gap-1 flex-wrap">
@@ -460,7 +504,7 @@ export function ReflectComposer() {
       {/* Submit */}
       <div className="flex items-center justify-between">
         <span className="text-[11px] font-mono text-fg-tertiary">
-          {filledCount}/{tmpl.fields.length} filled
+          {structured ? `${filledCount}/${tmpl.fields.length} filled` : ""}
         </span>
         <button
           onClick={submit}
