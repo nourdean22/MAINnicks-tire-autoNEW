@@ -175,6 +175,10 @@ export async function retireParkedReels(nowMs: number = Date.now()): Promise<{
   const c = Number(pol?.limits?.maxRepairAttemptsPerAsset);
   const cap = Number.isInteger(c) && c >= 0 ? c : 2;
 
+  // Stamped BEFORE the scan: a pass that throws must still throttle, or each of the pulse's
+  // ~30 drain iterations reruns up to RETIRE_SCAN_LIMIT gate reads. A failed pass waits an hour.
+  await setKv(RETIRE_LAST_RUN_KEY, new Date(nowMs).toISOString(), "Daily reel autopost — last parked-reel retirement pass");
+
   const rows = await d
     .select({ id: reelJobs.id, payload: reelJobs.payload, productionReadyAt: reelJobs.productionReadyAt, createdAt: reelJobs.createdAt, igPostId: reelJobs.igPostId })
     .from(reelJobs)
@@ -226,7 +230,6 @@ export async function retireParkedReels(nowMs: number = Date.now()): Promise<{
     const { affectedRowCount } = await import("../../lib/db-affected");
     if (affectedRowCount(res) === 1) retired.push({ jobId: p.jobId, reason });
   }
-  await setKv(RETIRE_LAST_RUN_KEY, new Date(nowMs).toISOString(), "Daily reel autopost — last parked-reel retirement pass");
   if (retired.length) log.info("daily reel: retired parked reels", { retired: retired.map((r) => r.jobId), parked: parked.length, kept: parked.length - retired.length });
   return { retired, kept: parked.length - retired.length };
 }

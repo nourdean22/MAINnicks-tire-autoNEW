@@ -29,6 +29,7 @@ let gates: Record<number, { gate: string; allowed: boolean; findings: unknown[];
 let policy: Record<string, unknown> = {};
 /** Runs inside the gate read for a job: a re-QA landing while the pass is mid-loop. */
 let duringGate: Record<number, () => void> = {};
+let updateThrows = false;
 
 vi.mock("./db", () => ({
   getDb: async () => ({
@@ -47,6 +48,7 @@ vi.mock("./db", () => ({
       set: (v: Record<string, unknown>) => ({
         where: async (cond: never) => {
           const params = dialect.sqlToQuery(cond).params;
+          if (updateThrows && getTableName(t as never) === "reel_jobs") throw new Error("ER_LOCK_WAIT_TIMEOUT");
           if (getTableName(t as never) === "shop_settings") { kv.set(String(params[0] ?? "k"), String(v.value)); return [{ affectedRows: 1 }]; }
           // and(eq(id, X), eq(status, "assembled")): the CAS the retirement must use
           // A third param, when present, is the payload the pass read (P3-1).
@@ -76,7 +78,7 @@ const parked = (gate: string) => ({ gate, allowed: false, findings: [], repairAt
 const drainWindow = () => rows.filter((r) => r.status === "assembled").sort((a, b) => a.id - b.id).slice(0, 25).map((r) => r.id);
 
 beforeEach(() => {
-  rows = []; kv = new Map(); gates = {}; duringGate = {};
+  rows = []; kv = new Map(); gates = {}; duringGate = {}; updateThrows = false;
   policy = { autonomousRepair: { paidBeatRegeneration: "approval_required" }, limits: { maxRepairAttemptsPerAsset: 2 } };
   vi.useFakeTimers({ now: NOW, toFake: ["Date"] });
 });
@@ -179,6 +181,15 @@ describe("retireParkedReels", () => {
     const out = await retire();
     expect(out.retired.map((r) => r.jobId)).toEqual([2]); // CONTROL: the untouched row still retires
     expect(rows[0].status).toBe("assembled");
+  });
+
+  it("P3-2: a pass that throws still throttles, so the pulse's next iterations do not rescan 100 rows each", async () => {
+    rows = [job(1, 30)];
+    gates = { 1: parked("reject") };
+    updateThrows = true;
+    await expect(retire()).rejects.toThrow("ER_LOCK_WAIT_TIMEOUT");
+    const again = await retire();
+    expect(again.skippedRun).toBe("throttled");
   });
 
   it("an already-published row is never retired", async () => {
