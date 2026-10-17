@@ -1,15 +1,26 @@
 import React from "react";
 import { trpc } from "@/lib/trpc";
 import { TrendingUp, BarChart3, Globe, Crosshair } from "lucide-react";
-import { LoadingState } from "../shared";
+import { LoadingState, ErrorState } from "../shared";
 
 export function MarketIntelligence() {
-  const { data: report, isLoading } = trpc.intelligence.masterReport.useQuery(undefined, {
+  const { data: report, isLoading, isError, refetch } = trpc.intelligence.masterReport.useQuery(undefined, {
     refetchInterval: 60000,
   });
 
   if (isLoading) {
     return <LoadingState label="Loading market intelligence..." />;
+  }
+
+  if (isError || !report) {
+    return (
+      <div className="bg-card border border-border/40 p-5 rounded-xl shadow-sm">
+        <ErrorState
+          message="Market intelligence couldn't load. Review velocity, top channel and gaps are unknown, not zero."
+          onRetry={() => void refetch()}
+        />
+      </div>
+    );
   }
 
   const content = report?.marketing?.contentPerformance as any;
@@ -33,8 +44,8 @@ export function MarketIntelligence() {
   return (
     <div className="bg-card border border-border/40 p-5 space-y-5 rounded-xl shadow-sm">
       <div className="flex items-center gap-2 pb-2 border-b border-border/10">
-        <Globe className="w-5 h-5 text-cyan-400" />
-        <h2 className="text-sm font-black text-cyan-400">Market intelligence</h2>
+        <Globe className="w-5 h-5 text-primary" />
+        <h2 className="text-sm font-black text-primary">Market intelligence</h2>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -69,7 +80,7 @@ export function MarketIntelligence() {
           {missingServices.length > 0 ? (
             <div className="flex flex-wrap gap-2">
               {missingServices.map((s: string, i: number) => (
-                <span key={i} className="px-2 py-1 bg-cyan-500/10 text-cyan-400 text-[10px] font-bold rounded">
+                <span key={i} className="px-2 py-1 bg-primary/10 text-primary text-[10px] font-bold rounded">
                   {s}
                 </span>
               ))}
@@ -90,7 +101,7 @@ export function MarketIntelligence() {
                 <div className="text-[10px] text-muted-foreground mt-0.5">{topPage.leads} leads generated</div>
               </div>
               <div className="text-right shrink-0">
-                <div className="text-sm font-black text-cyan-400">{topPage.conversionRate}%</div>
+                <div className="text-sm font-black text-primary">{topPage.conversionRate}%</div>
                 <div className="text-[9px] text-muted-foreground">Conv. rate</div>
               </div>
             </div>

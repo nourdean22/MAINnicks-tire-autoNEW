@@ -630,8 +630,8 @@ function CustomerEventsPanel({ range }: { range: Range }) {
  * "N of M bookings carry page attribution" whenever data renders, and the
  * empty state explains the gap instead of showing a hollow chart.
  */
-function TopBookingPagesPanel({ range }: { range: Range }) {
-  const { data, isLoading } = trpc.trafficFunnel.topBookingPages.useQuery(
+export function TopBookingPagesPanel({ range }: { range: Range }) {
+  const { data, isLoading, isError, refetch } = trpc.trafficFunnel.topBookingPages.useQuery(
     { range },
     { refetchInterval: 120_000 },
   );
@@ -658,7 +658,9 @@ function TopBookingPagesPanel({ range }: { range: Range }) {
           <div className="flex items-center justify-center py-6">
             <Loader2 className="w-4 h-4 animate-spin text-primary" />
           </div>
-        ) : !data || data.withAttribution === 0 ? (
+        ) : isError || !data ? (
+          <ErrorState message="Booking pages couldn't load. Attribution is unknown, not empty." onRetry={() => void refetch()} />
+        ) : data.withAttribution === 0 ? (
           <div className="text-[12px] text-foreground/40 py-6 text-center">
             No bookings with page attribution in this window. Web-form
             bookings started carrying landing-page data when UTM capture
@@ -854,11 +856,11 @@ function SitemapSubmissionPanel() {
  *
  * Default-collapsed to avoid cluttering the funnel page; click to expand.
  */
-function GscAuditPanel({ range }: { range: Range }) {
+export function GscAuditPanel({ range }: { range: Range }) {
   const [expanded, setExpanded] = useState(false);
   const days = range === "7d" ? 7 : range === "30d" ? 30 : 90;
 
-  const { data, isLoading } = trpc.seoTools.weeklyAudit.useQuery(
+  const { data, isLoading, isError, refetch } = trpc.seoTools.weeklyAudit.useQuery(
     { days },
     { enabled: expanded, staleTime: 60 * 60 * 1000 },
   );
@@ -890,10 +892,12 @@ function GscAuditPanel({ range }: { range: Range }) {
 
       {expanded && (
         <div className="bg-card border border-border/30 p-4 space-y-5">
-          {isLoading || !data ? (
+          {isLoading ? (
             <div className="flex items-center justify-center py-10">
               <Loader2 className="w-4 h-4 animate-spin text-primary" />
             </div>
+          ) : isError || !data ? (
+            <ErrorState message="Search Console audit couldn't load. Unknown, not empty." onRetry={() => void refetch()} />
           ) : !data.ok ? (
             <div className="text-[12px] text-amber-400">
               GSC audit unavailable. {("authError" in data && data.authError) || "Check pipeline status."}

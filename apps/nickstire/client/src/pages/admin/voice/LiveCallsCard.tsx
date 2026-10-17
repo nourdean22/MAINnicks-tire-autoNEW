@@ -13,7 +13,7 @@ import { VAPI_LINKS } from "./format";
 //   tool_called      amber   · agent is writing (booking, callback)
 //   confirmed        emerald · sendConfirmationSms fired · success
 export function LiveCallsCard({ onSelectCall }: { onSelectCall: (callId: string) => void }) {
-  const { data, isLoading } = trpc.vapi.activeCallStates.useQuery(
+  const { data, isLoading, isError, refetch } = trpc.vapi.activeCallStates.useQuery(
     { maxAgeMinutes: 10 },
     {
       // wave-181.x Voice Phase 1 · M4 fix · was 5_000 which is 12
@@ -31,7 +31,18 @@ export function LiveCallsCard({ onSelectCall }: { onSelectCall: (callId: string)
   // empty-state noise on quiet hours. The state-tracker still runs
   // continuously · the card just doesn't paint zero-state.
   if (isLoading) return null;
-  if (!data || data.count === 0) return null;
+  // A failed read is unknown, not "no calls in flight": the card stays and says so.
+  if (isError || !data) {
+    return (
+      <div id="voice-live-calls" role="alert" className="border border-amber-500/30 bg-amber-500/5 p-3 flex items-center justify-between gap-3">
+        <p className="text-[12px] text-amber-300">Live calls couldn't load. Calls in flight are unknown, not zero.</p>
+        <button type="button" onClick={() => void refetch()} className="min-h-12 shrink-0 px-3 text-[12px] font-medium text-primary hover:underline">
+          Try again
+        </button>
+      </div>
+    );
+  }
+  if (data.count === 0) return null;
 
   const stateOrder: Array<{
     key: "greeted" | "intent_captured" | "tool_called" | "confirmed";
@@ -57,10 +68,7 @@ export function LiveCallsCard({ onSelectCall }: { onSelectCall: (callId: string)
     <div id="voice-live-calls" className="border border-primary/30 bg-primary/5 p-4">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full rounded-full bg-primary opacity-75 animate-ping" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
-          </span>
+          <span className="inline-flex h-2 w-2 rounded-full bg-primary" aria-hidden="true" />
           <span className="text-[11px] font-bold text-primary">
             Live calls
           </span>

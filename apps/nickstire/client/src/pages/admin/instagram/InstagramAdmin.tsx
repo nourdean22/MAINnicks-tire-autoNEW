@@ -61,7 +61,9 @@ export function InstagramAdmin() {
   const health = trpc.instagramAdmin.getPipelineHealth.useQuery(undefined, { refetchInterval: 120_000 });
   const meta = health.data?.meta;
   const metaChip = !meta
-    ? null
+    ? health.isError
+      ? { className: "border-amber-500/40 text-amber-400", label: "Meta unknown" }
+      : null
     : !meta.connected
       ? { className: "border-red-500/40 text-red-400", label: "Meta off" }
       : meta.live === true
