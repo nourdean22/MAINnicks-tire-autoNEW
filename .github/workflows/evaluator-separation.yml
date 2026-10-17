@@ -18,6 +18,11 @@ on:
 permissions:
   contents: read
 
+# PR-only: a newer push to the same PR supersedes this run (2026-10-16 CI diet).
+concurrency:
+  group: evaluator-separation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   separation:
     name: candidate branch may not edit its judges

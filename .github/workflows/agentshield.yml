@@ -42,8 +42,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: agentshield-${{ github.ref }}
-  cancel-in-progress: true
+  # A newer push to the same PR supersedes the older run; a push to main gets a group of its own per
+  # commit and is never cancelled (the old shared group cancelled main runs). Same shape as
+  # agent-policy.yml; scripts/agent-os/workflowCostGuards.test.mjs asserts it for every PR+push workflow.
+  group: agentshield-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name == 'push' && github.sha || 'run' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   scan:
