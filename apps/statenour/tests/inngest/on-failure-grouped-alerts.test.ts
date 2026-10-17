@@ -26,13 +26,14 @@ const h = vi.hoisted(() => {
       else r[k] = v;
     }
   };
+  const createImpl = async ({ data }: { data: Record<string, unknown> }) => {
+    if ([...rows.values()].some((r) => r.operationKey === data.operationKey)) throw Object.assign(new Error("dup"), { code: "P2002" });
+    const row = { id: `a${++seq}`, inputEvidenceIds: [], ...data } as Row;
+    rows.set(row.id, row);
+    return { id: row.id, attemptNo: row.attemptNo };
+  };
   const actionAttempt = {
-    create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
-      if ([...rows.values()].some((r) => r.operationKey === data.operationKey)) throw Object.assign(new Error("dup"), { code: "P2002" });
-      const row = { id: `a${++seq}`, inputEvidenceIds: [], ...data } as Row;
-      rows.set(row.id, row);
-      return { id: row.id, attemptNo: row.attemptNo };
-    }),
+    create: vi.fn(createImpl),
     findUnique: vi.fn(async ({ where }: { where: Record<string, unknown> }) => byWhere(where)[0] ?? null),
     updateMany: vi.fn(async ({ where, data }: { where: Record<string, unknown>; data: Record<string, unknown> }) => {
       const hit = byWhere(where);
@@ -46,7 +47,7 @@ const h = vi.hoisted(() => {
       return r;
     }),
   };
-  return { rows, actionAttempt, sendTelegram: vi.fn(async (..._a: unknown[]) => true) };
+  return { rows, actionAttempt, createImpl, sendTelegram: vi.fn(async (..._a: unknown[]) => true) };
 });
 
 vi.mock("@/lib/prisma", () => ({
@@ -115,5 +116,29 @@ describe("Inngest failure alerts are grouped per function per window", () => {
     h.actionAttempt.create.mockRejectedValueOnce(new Error("connection refused"));
     await fail("statenour-mega-fanout", "run_1");
     expect(h.sendTelegram).toHaveBeenCalledTimes(1);
+  });
+
+  // #3097 review P2-5: a database outage made every beginAttempt throw, and each
+  // failure then sent its own alert: the storm this file exists to stop.
+  it("with the claim store down, 5 failures of one function still send once (in-process window)", async () => {
+    h.actionAttempt.create.mockRejectedValue(new Error("connection refused"));
+    try {
+      for (let i = 0; i < 5; i++) await fail("statenour-outage-fn", `run_${i}`);
+      expect(h.sendTelegram).toHaveBeenCalledTimes(1);
+      await fail("statenour-outage-other", "run_x");
+      expect(h.sendTelegram).toHaveBeenCalledTimes(2);
+    } finally {
+      h.actionAttempt.create.mockReset();
+      h.actionAttempt.create.mockImplementation(h.createImpl);
+    }
+  });
+
+  // #3097 review P3-1: a non-critical alert's window must not hold a critical page.
+  it("a critical failure pages even inside a non-critical window of the same function", async () => {
+    await fail("statenour-crit-fn", "run_1");
+    await fail("statenour-crit-fn", "run_2", "Can't reach database server at db.neon.tech:5432");
+    expect(h.sendTelegram).toHaveBeenCalledTimes(2);
+    await fail("statenour-crit-fn", "run_3", "Can't reach database server at db.neon.tech:5432");
+    expect(h.sendTelegram).toHaveBeenCalledTimes(2);
   });
 });

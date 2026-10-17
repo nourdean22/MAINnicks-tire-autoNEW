@@ -42,6 +42,14 @@ const log = rootLogger.withSurface("inngest/on-failure");
  * failure after 07:00 pages; cron_job_log keeps the overnight `failed` rows.
  */
 const ALERT_WINDOW_MS = 6 * 3_600_000;
+
+/**
+ * Fallback window, used ONLY when the claim store throws (#3097 review P2-5): a
+ * database outage made every beginAttempt fail, and failing open then sent one
+ * alert per failed run, the storm this file exists to stop. Per process, so a
+ * restart or a second replica can send once more; that is the accepted limit.
+ */
+const fallbackLastSent = new Map<string, number>();
 const QUIET_START_HOUR_ET = 22;
 const QUIET_END_HOUR_ET = 7;
 
@@ -79,7 +87,8 @@ async function notifyTelegram(args: FailurePayload): Promise<void> {
     const runLine = runId ? `\nrun: <code>${escapeHtml(runId)}</code>` : "";
 
     const now = new Date();
-    if (!isCriticalInngestFailure(errMsg) && isAlertQuietHour(now)) {
+    const critical = isCriticalInngestFailure(errMsg);
+    if (!critical && isAlertQuietHour(now)) {
       log.info("inngest_failure_quiet_deferred", { fn: functionId, runId });
       return;
     }
@@ -88,10 +97,14 @@ async function notifyTelegram(args: FailurePayload): Promise<void> {
     // a missed alert is worse than a repeated one.
     const attempts = await import("@/lib/services/action-attempts");
     const { prisma } = await import("@/lib/prisma");
+    // Critical failures have their own window (#3097 review P3-1): an earlier
+    // non-critical alert must never hold a database-outage page.
+    const operationKey = `inngest_failure_alert:${functionId}${critical ? ":critical" : ""}`;
     let claim: Awaited<ReturnType<typeof attempts.beginAttempt>> | null = null;
+    let fallbackKey: string | null = null;
     try {
       claim = await attempts.beginAttempt({
-        operationKey: `inngest_failure_alert:${functionId}`,
+        operationKey,
         tool: "inngest_failure_alert",
         argumentsHash: createHash("sha256").update(functionId).digest("hex"),
         effectClass: "write",
@@ -99,6 +112,13 @@ async function notifyTelegram(args: FailurePayload): Promise<void> {
       });
     } catch (err) {
       log.warn("inngest_failure_dedupe_unavailable", { fn: functionId, error: err instanceof Error ? err.message.slice(0, 120) : String(err) });
+      const last = fallbackLastSent.get(operationKey);
+      if (last !== undefined && now.getTime() - last < ALERT_WINDOW_MS) {
+        log.info("inngest_failure_held", { fn: functionId, runId, heldBy: "in_process_window" });
+        return;
+      }
+      fallbackLastSent.set(operationKey, now.getTime());
+      fallbackKey = operationKey;
     }
 
     if (claim?.kind === "duplicate") {
@@ -141,6 +161,8 @@ async function notifyTelegram(args: FailurePayload): Promise<void> {
     // system that reports success when it delivered nothing is the blind
     // instrument its own alerts exist to prevent.
     const delivered = await sendTelegram(message, undefined, "HTML");
+    // An undelivered alert must not hold the in-process window either.
+    if (fallbackKey && !delivered) fallbackLastSent.delete(fallbackKey);
     if (claim) {
       // FAILED clears the hold, so an undelivered alert does not silence the window.
       await attempts
