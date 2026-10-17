@@ -12,7 +12,7 @@
  * untrusted input (a request to confirm, never an instruction).
  */
 import { NextResponse } from "next/server";
-import { assertBridgeAuth, type BridgeIdentity } from "./auth";
+import { assertNotesBridgeAuth, type NotesBridgeIdentity } from "./auth";
 
 export const PHONE_NOTE_KIND = "agent_bridge_note";
 export const PHONE_NOTE_UNREAD = "bridge_unread";
@@ -21,13 +21,14 @@ export const PHONE_NOTE_MAX_CHARS = 4000;
 export const PHONE_NOTES_PAGE = 20;
 
 /**
- * The Agent Bridge auth (AGENT_BRIDGE_ENABLED + a scoped AGENT_BRIDGE_TOKEN_*),
- * mapped to the same statuses app/api/mcp/route.ts answers with. Any scope may
- * read and ack: the ack flips only a note's read marker.
+ * Auth for the notes routes: AGENT_BRIDGE_ENABLED plus the dedicated
+ * AGENT_BRIDGE_TOKEN_NOTES (assertNotesBridgeAuth). The read, tasks and legacy
+ * bridge tokens get 403: the notes are Nour's private phone text. An unset notes
+ * slot is 503 (fail closed). Statuses match app/api/mcp/route.ts.
  */
-export function requireBridgeAuth(req: Request): BridgeIdentity | NextResponse {
+export function requireBridgeAuth(req: Request): NotesBridgeIdentity | NextResponse {
   try {
-    return assertBridgeAuth(req);
+    return assertNotesBridgeAuth(req);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     if (message === "Unauthorized") return NextResponse.json({ error: "unauthorized" }, { status: 401 });

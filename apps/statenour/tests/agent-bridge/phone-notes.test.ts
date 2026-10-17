@@ -2,9 +2,9 @@
  * Telegram job, lane 2 (2026-10-17) - the session bridge Nour asked for: /note
  * on the phone stores a note a coding session reads the next time one starts.
  * Notes are CaptureInboxItem rows (kind agent_bridge_note, status bridge_unread),
- * so no new table and no existing inbox reader sees them (they all filter
- * status "active"). The read and ack endpoints reuse the Agent Bridge's own
- * Bearer auth (AGENT_BRIDGE_ENABLED + scoped AGENT_BRIDGE_TOKEN_* slots).
+ * so no new table. The read and ack endpoints accept ONLY the dedicated
+ * `notes` token (AGENT_BRIDGE_TOKEN_NOTES): Nour's phone notes are private, so
+ * the read, tasks and legacy bridge tokens get 403, and an unset notes slot is 503.
  * The note text is returned as data, never rendered or executed.
  */
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -15,6 +15,8 @@ type Note = { id: string; kind: string; status: string; summary: string; created
 const h = vi.hoisted(() => {
   vi.stubEnv("AGENT_BRIDGE_ENABLED", "true");
   vi.stubEnv("AGENT_BRIDGE_TOKEN_READ", "test-read-token-value");
+  vi.stubEnv("AGENT_BRIDGE_SECRET_TOKEN", "test-legacy-token-value");
+  vi.stubEnv("AGENT_BRIDGE_TOKEN_NOTES", "test-notes-token-value");
   vi.stubEnv("TELEGRAM_WEBHOOK_SECRET", "test-webhook-secret");
   vi.stubEnv("TELEGRAM_OWNER_ID", "4242");
   vi.stubEnv("TELEGRAM_CHAT_ID", "");
@@ -61,7 +63,9 @@ vi.mock("@/lib/services/telegram", () => ({
 vi.mock("@/lib/brain/journal-brain", () => ({ confirmJournalLink: vi.fn() }));
 vi.mock("@/lib/observability/langfuse", () => ({ langfuseTelemetry: () => undefined }));
 
-const AUTH = { authorization: "Bearer test-read-token-value" };
+const AUTH = { authorization: "Bearer test-notes-token-value" };
+const READ_SCOPE = { authorization: "Bearer test-read-token-value" };
+const LEGACY = { authorization: "Bearer test-legacy-token-value" };
 const readNotes = async (query = "", headers: Record<string, string> = AUTH) => {
   const { GET } = await import("@/app/api/agent-bridge/notes/route");
   return GET(new NextRequest(`http://localhost/api/agent-bridge/notes${query}`, { headers }));
@@ -136,6 +140,34 @@ describe("GET /api/agent-bridge/notes", () => {
     const res = await readNotes();
     expect(res.status).toBe(500);
     expect((await res.json()).notes).toBeUndefined();
+  });
+});
+
+describe("only the dedicated notes token reaches Nour's notes", () => {
+  it.each([["read scope", READ_SCOPE], ["legacy", LEGACY]])("the %s token is refused on GET and ack", async (_n, headers) => {
+    await phone("/note private");
+    expect((await readNotes("", headers)).status).toBe(403);
+    expect((await ack([h.notes[0].id], headers)).status).toBe(403);
+    expect(h.notes[0].status).toBe("bridge_unread");
+  });
+
+  it("the notes token cannot reach the MCP tool surface", async () => {
+    const { resolveBridgeToken } = await import("@/lib/agent-bridge/auth");
+    expect(resolveBridgeToken("test-notes-token-value")).toBeNull();
+  });
+
+  it("an unset notes slot fails closed with 503", async () => {
+    vi.stubEnv("AGENT_BRIDGE_TOKEN_NOTES", "");
+    try {
+      expect((await readNotes()).status).toBe(503);
+      expect((await ack(["n001"])).status).toBe(503);
+    } finally {
+      vi.stubEnv("AGENT_BRIDGE_TOKEN_NOTES", "test-notes-token-value");
+    }
+  });
+
+  it("CONTROL - the notes token is accepted", async () => {
+    expect((await readNotes()).status).toBe(200);
   });
 });
 
