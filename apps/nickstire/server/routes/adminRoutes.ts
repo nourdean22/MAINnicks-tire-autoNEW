@@ -216,6 +216,23 @@ export function registerAdminRoutes(app: Express): void {
     };
     try {
       if (action === "start") {
+        // Optional DUE-AT, the same option the cron passes when it schedules
+        // ahead: the governor reserves the slot on that day, so a batch started
+        // today books its own post days. Checked before any brief is generated.
+        let publicationIntendedAt: Date | undefined;
+        const rawIntent = req.body?.publicationIntendedAt;
+        if (rawIntent !== undefined && rawIntent !== null) {
+          const ms = typeof rawIntent === "string" ? Date.parse(rawIntent) : NaN;
+          const why = typeof rawIntent !== "string" ? "publicationIntendedAt must be an ISO date string"
+            : !Number.isFinite(ms) ? "publicationIntendedAt is not a valid date"
+            // A bare "2026-10-20" parses as UTC midnight, 20:00 the evening before in Cleveland.
+            : !/T\d{2}:\d{2}/.test(rawIntent) ? "publicationIntendedAt needs a time and offset, e.g. 2026-10-20T10:00:00-04:00"
+            : ms < Date.now() ? "publicationIntendedAt is in the past"
+            : ms > Date.now() + 90 * 86_400_000 ? "publicationIntendedAt is more than 90 days ahead"
+            : null;
+          if (why) { res.status(400).json({ error: why, action }); return; }
+          publicationIntendedAt = new Date(ms);
+        }
         const topic = (typeof req.body?.topic === "string" && req.body.topic.trim())
           || "The pothole that has been quietly eating Cleveland tires all winter";
         const maxAttempts = Number.isInteger(req.body?.maxAttempts)
@@ -236,13 +253,15 @@ export function registerAdminRoutes(app: Express): void {
         const { brief, attempts, rejectedForPreflight } = await prepareCleanReelBrief({ topic, caption }, { maxAttempts });
         brief.id = `canary-${Date.now()}`;
         const conditioningMode = resolveConditioningMode(brief);
-        const { jobId: newJobId } = await enqueueReelJob(brief, "admin", {
+        const { jobId: newJobId, reservationWindow } = await enqueueReelJob(brief, "admin", {
           objective: "DISCOVERY",
           disclosureMode: "visibly_animated",
           ctaType: (brief as { ctaType?: "SEND" | "SAVE" | "COMMENT" | "VISIT" | "FOLLOW" | "NONE" }).ctaType ?? "NONE",
+          ...(publicationIntendedAt ? { publicationIntendedAt } : {}),
         });
         res.json({
           ok: true, action, jobId: newJobId, conditioningMode, attempts,
+          reservationWindow: reservationWindow ?? null,
           preflightRejections: rejectedForPreflight.length,
           topic: brief.topic,
           hook: brief.captionHooks?.[0] ?? brief.mechanicTruth ?? null,
