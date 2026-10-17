@@ -9,6 +9,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { logger as rootLogger } from "@/lib/logger";
 import {
+  auditNotesCall,
   requireBridgeAuth,
   PHONE_NOTE_KIND,
   PHONE_NOTE_READ,
@@ -19,20 +20,28 @@ const log = rootLogger.withSurface("api/agent-bridge/notes/ack");
 const AckBody = z.object({ ids: z.array(z.string().min(1).max(64)).min(1).max(50) });
 
 export async function POST(req: NextRequest) {
-  const auth = requireBridgeAuth(req);
+  const startedAt = Date.now();
+  const auth = await requireBridgeAuth(req, "phone_notes_ack");
   if (auth instanceof NextResponse) return auth;
 
-  const parsed = AckBody.safeParse(await req.json().catch(() => null));
-  if (!parsed.success) return NextResponse.json({ error: "body must be { ids: string[] } (1-50 ids)" }, { status: 400 });
+  const raw: unknown = await req.json().catch(() => null);
+  const inputRaw = JSON.stringify(raw ?? null);
+  const parsed = AckBody.safeParse(raw);
+  if (!parsed.success) {
+    await auditNotesCall(auth, "phone_notes_ack", startedAt, inputRaw, { status: "error", errorCode: "bad_body" });
+    return NextResponse.json({ error: "body must be { ids: string[] } (1-50 ids)" }, { status: 400 });
+  }
 
   try {
     const res = await prisma.captureInboxItem.updateMany({
       where: { id: { in: parsed.data.ids }, kind: PHONE_NOTE_KIND, status: PHONE_NOTE_UNREAD },
       data: { status: PHONE_NOTE_READ, triagedAt: new Date() },
     });
+    await auditNotesCall(auth, "phone_notes_ack", startedAt, inputRaw, { status: "success", resultSize: res.count });
     return NextResponse.json({ acked: res.count });
   } catch (err) {
     log.error("phone_notes_ack_failed", { client: auth.clientId, error: err instanceof Error ? err.message.slice(0, 160) : String(err) });
+    await auditNotesCall(auth, "phone_notes_ack", startedAt, inputRaw, { status: "error", errorCode: "ack_failed" });
     return NextResponse.json({ error: "ack_failed" }, { status: 500 });
   }
 }

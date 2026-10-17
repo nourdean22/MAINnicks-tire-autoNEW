@@ -73,6 +73,11 @@ probe against a protected tool is detectable, not silent. The write is
 fault-tolerant (CIITTY: never crash the API on a missing table) — it degrades to
 the console line rather than failing a good call.
 
+The phone-notes routes write the same trail: protocol `notes`, toolName
+`phone_notes_read` / `phone_notes_ack`, one row per authenticated call; a refusal
+goes through `classifyBridgeFailure` + `auditBridgeRejection` (the console line,
+like /api/mcp: no row is written for an unauthenticated caller).
+
 ## Canaries
 
 `tests/agent-bridge/bridge-hardening.test.ts` — every property carries its

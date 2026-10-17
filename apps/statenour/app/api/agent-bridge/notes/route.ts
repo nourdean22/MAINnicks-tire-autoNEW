@@ -7,6 +7,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { logger as rootLogger } from "@/lib/logger";
 import {
+  auditNotesCall,
   requireBridgeAuth,
   PHONE_NOTE_KIND,
   PHONE_NOTE_UNREAD,
@@ -17,8 +18,10 @@ const log = rootLogger.withSurface("api/agent-bridge/notes");
 const NO_STORE = { "Cache-Control": "no-store" };
 
 export async function GET(req: NextRequest) {
-  const auth = requireBridgeAuth(req);
+  const startedAt = Date.now();
+  const auth = await requireBridgeAuth(req, "phone_notes_read");
   if (auth instanceof NextResponse) return auth;
+  const inputRaw = req.nextUrl.search;
 
   try {
     const since = req.nextUrl.searchParams.get("since");
@@ -28,7 +31,10 @@ export async function GET(req: NextRequest) {
         where: { id: since.slice(0, 64), kind: PHONE_NOTE_KIND },
         select: { createdAt: true },
       });
-      if (!anchor) return NextResponse.json({ error: "unknown since id" }, { status: 400, headers: NO_STORE });
+      if (!anchor) {
+        await auditNotesCall(auth, "phone_notes_read", startedAt, inputRaw, { status: "error", errorCode: "unknown_since" });
+        return NextResponse.json({ error: "unknown since id" }, { status: 400, headers: NO_STORE });
+      }
       after = anchor.createdAt;
     }
     const rows = await prisma.captureInboxItem.findMany({
@@ -37,6 +43,7 @@ export async function GET(req: NextRequest) {
       take: PHONE_NOTES_PAGE,
       select: { id: true, createdAt: true, summary: true },
     });
+    await auditNotesCall(auth, "phone_notes_read", startedAt, inputRaw, { status: "success", resultSize: rows.length });
     return NextResponse.json(
       { notes: rows.map((r) => ({ id: r.id, created_at: r.createdAt.toISOString(), text: r.summary })) },
       { headers: NO_STORE },
@@ -44,6 +51,7 @@ export async function GET(req: NextRequest) {
   } catch (err) {
     // A failed read must not look like an empty inbox.
     log.error("phone_notes_read_failed", { client: auth.clientId, error: err instanceof Error ? err.message.slice(0, 160) : String(err) });
+    await auditNotesCall(auth, "phone_notes_read", startedAt, inputRaw, { status: "error", errorCode: "read_failed" });
     return NextResponse.json({ error: "read_failed" }, { status: 500, headers: NO_STORE });
   }
 }
