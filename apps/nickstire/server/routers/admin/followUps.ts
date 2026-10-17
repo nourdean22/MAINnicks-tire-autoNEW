@@ -4,7 +4,7 @@
 import { adminProcedure, router } from "../../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { eq, ne, desc } from "drizzle-orm";
+import { and, eq, ne, desc } from "drizzle-orm";
 import { customerNotifications } from "../../../drizzle/schema";
 
 // dbTyped, not db(): db() returns an untyped (any) instance, which is how `status: "skipped"`
@@ -52,15 +52,24 @@ export const followUpsRouter = router({
       if (!existing) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Follow-up not found" });
       }
-      if (existing.status !== "pending") {
-        throw new TRPCError({
+      const notPending = (status: string) =>
+        new TRPCError({
           code: "PRECONDITION_FAILED",
-          message: `Can only cancel pending follow-ups (this one is "${existing.status}")`,
+          message: `Can only cancel pending follow-ups (this one is "${status}")`,
         });
-      }
-      await d.update(customerNotifications)
+      if (existing.status !== "pending") throw notPending(existing.status);
+      // Compare-and-swap: a send that lands between the read above and this write
+      // must win, never be overwritten to 'skipped' (followUpCancelRace.test.ts).
+      const result = await d.update(customerNotifications)
         .set({ status: "skipped" })
-        .where(eq(customerNotifications.id, input.id));
+        .where(and(eq(customerNotifications.id, input.id), eq(customerNotifications.status, "pending")));
+      const header = (Array.isArray(result) ? result[0] : result) as { affectedRows?: number } | undefined;
+      if ((header?.affectedRows ?? 0) === 0) {
+        const [current] = await d.select().from(customerNotifications)
+          .where(eq(customerNotifications.id, input.id)).limit(1);
+        if (!current) throw new TRPCError({ code: "NOT_FOUND", message: "Follow-up not found" });
+        throw notPending(current.status);
+      }
       return { ok: true as const, id: input.id };
     }),
   /**
