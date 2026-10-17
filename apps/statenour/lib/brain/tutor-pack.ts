@@ -546,7 +546,7 @@ export async function handleTutorAnswer(ledgerId: string, tapped: string): Promi
   const decisionId = typeof ev.decisionId === "number" ? ev.decisionId : NaN;
   const marked = Number.isFinite(decisionId)
     ? await markReplayed({ decisionId, outcome: `telegram one-tap: ${label}`, outcomeScore: score })
-    : { ok: false, replayId: null };
+    : { ok: false, replayId: null, brier: null };
   if (!marked.ok) return again;
   // markReplayed upserts by its own idempotency key; if the overdue row carried another key, close it too.
   if (replayId && marked.replayId !== replayId) {
@@ -556,5 +556,7 @@ export async function handleTutorAnswer(ledgerId: string, tapped: string): Promi
   }
   const outcome = await recordOutcomeResult({ id: ledgerId, useful: true, resultRef: `tutor:${choice}` });
   if (outcome === "failed") return again;
-  return outcome === "already" ? already : { reply: "Logged." };
+  if (outcome === "already") return already;
+  // Brain W3 · a Socratic forecast gets its score back at review: (p - outcome)^2.
+  return { reply: typeof marked.brier === "number" ? `Logged. Brier ${marked.brier.toFixed(2)} (0 is perfect, 0.25 is a coin flip).` : "Logged." };
 }

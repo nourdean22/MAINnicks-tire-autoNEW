@@ -341,6 +341,18 @@ describe("handleTutorAnswer: decision mapping", () => {
     expect(await handleTutorAnswer("led_1", "N")).toEqual({ reply: "Noted. The review date had already moved." });
   });
 
+  it("brain W3: a review of a stored forecast replies with its Brier score", async () => {
+    h.prisma.intelligenceOutcome.findUnique.mockResolvedValue(decisionRow());
+    h.markReplayed.mockResolvedValue({ ok: true, replayId: "rp_1", lessonStored: false, brier: 0.09 });
+    expect(await handleTutorAnswer("led_1", "W")).toEqual({ reply: "Logged. Brier 0.09 (0 is perfect, 0.25 is a coin flip)." });
+  });
+
+  it("brain W3: no probability (brier null) keeps the plain Logged.", async () => {
+    h.prisma.intelligenceOutcome.findUnique.mockResolvedValue(decisionRow());
+    h.markReplayed.mockResolvedValue({ ok: true, replayId: "rp_1", lessonStored: false, brier: null });
+    expect(await handleTutorAnswer("led_1", "M")).toEqual({ reply: "Logged." });
+  });
+
   it("a failed markReplayed is said, not folded into Logged.", async () => {
     h.prisma.intelligenceOutcome.findUnique.mockResolvedValue(decisionRow());
     h.markReplayed.mockResolvedValue({ ok: false, replayId: null, lessonStored: false });

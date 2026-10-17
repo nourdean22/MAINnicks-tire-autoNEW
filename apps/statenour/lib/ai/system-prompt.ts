@@ -311,6 +311,8 @@ export function trimPromptToBudget(
     if (t.includes("nour's rules") || t.includes("rules (override")) return 1;
     if (t.includes("response style")) return 6;
     if (t.includes("## tools") || t.includes("processing intake")) return 7;
+    // Brain W3 · this turn's decision ask / forecast receipt (lib/ai/prompt/policy/decision-mode.ts).
+    if (t.includes("decision mode")) return 8;
     if (t.includes("behavior directive") || t.includes("how to respond") || t.includes("identity") || t.includes("voice")) return 1;
     if (t.includes("pinned by") || t.includes("hot rules") || t.includes("anchor")) return 2;
     if (t.includes("command state") || t.includes("active command") || t.includes("queue")) return 3;

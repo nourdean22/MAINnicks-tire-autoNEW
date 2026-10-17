@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { trimPromptToBudget } from "@/lib/ai/system-prompt";
+import { DECISION_MODE_ASK } from "@/lib/ai/prompt/policy/decision-mode";
 
 describe("trimPromptToBudget", () => {
   it("passes prompt through untouched if under limit", () => {
@@ -41,5 +42,20 @@ describe("trimPromptToBudget", () => {
     // and instead perform hard slice truncation as a fallback.
     const trimmed = trimPromptToBudget(prompt, 60);
     expect(trimmed).toContain("[PROMPT TRUNCATED FOR BUDGET HARDENING]");
+  });
+});
+
+describe("trimPromptToBudget · brain W3 decision block", () => {
+  it("the ## DECISION MODE block is its own protected section, never the first one trimmed", () => {
+    const prompt = [
+      "## IDENTITY\nAlways stay in character.",
+      "## RECENT BRAIN DUMPS\n" + "dump ".repeat(40),
+      "## MISC NOTES\n" + "note ".repeat(40),
+      DECISION_MODE_ASK,
+    ].join("\n");
+    const trimmed = trimPromptToBudget(prompt, DECISION_MODE_ASK.length + 80);
+    expect(trimmed).toContain(DECISION_MODE_ASK);
+    expect(trimmed).not.toContain("## MISC NOTES");
+    expect(trimmed).not.toContain("## RECENT BRAIN DUMPS");
   });
 });

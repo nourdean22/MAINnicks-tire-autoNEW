@@ -49,6 +49,7 @@ import { prisma } from "@/lib/prisma";
 import { activeOnly } from "@/lib/db/soft-delete";
 import { logger as rootLogger } from "@/lib/logger";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { decisionBrier } from "@/lib/brain/decision-forecast";
 import {
   matchWisdom as matchWisdomShared,
   extractKeywords,
@@ -491,16 +492,19 @@ export async function markReplayed(input: MarkReplayedInput): Promise<{
   ok: boolean;
   replayId: string | null;
   lessonStored: boolean;
+  /** Brain W3 · Brier of the stored forecast (decision-forecast.ts); null without a probability or outcome. */
+  brier: number | null;
 }> {
   const decision = await prisma.masteryDecision
     .findUnique({
       where: { id: input.decisionId },
-      select: { id: true, title: true, chosen: true, reasoning: true },
+      select: { id: true, title: true, chosen: true, reasoning: true, predictedOutcome: true },
     })
     .catch((): null => null);
   if (!decision) {
-    return { ok: false, replayId: null, lessonStored: false };
+    return { ok: false, replayId: null, lessonStored: false, brier: null };
   }
+  const brier = decisionBrier(decision.predictedOutcome, input.outcomeScore);
 
   // Idempotency key · stable across retries.
   const idemKey = `decision_${decision.id}_30d`;
@@ -508,9 +512,13 @@ export async function markReplayed(input: MarkReplayedInput): Promise<{
 
   // Find existing queue row (the replay may have been logged with
   // reviewed=false earlier) · update if it exists, create otherwise.
+  // Brain W3 · a Socratic forecast row carries a "soc:" key, not idemKey.
   const existing = await prisma.decisionReplay
     .findFirst({
-      where: { decisionId: decision.id, idempotencyKey: idemKey },
+      where: {
+        decisionId: decision.id,
+        OR: [{ idempotencyKey: idemKey }, { idempotencyKey: { startsWith: "soc:" } }],
+      },
       select: { id: true },
     })
     .catch((): null => null);
@@ -577,7 +585,7 @@ export async function markReplayed(input: MarkReplayedInput): Promise<{
       decisionId: decision.id,
       err: String(err),
     });
-    return { ok: false, replayId: null, lessonStored: false };
+    return { ok: false, replayId: null, lessonStored: false, brier: null };
   }
 
   // Persist the lesson as a brain memory · skip when blank.
@@ -626,7 +634,7 @@ export async function markReplayed(input: MarkReplayedInput): Promise<{
     }
   }
 
-  return { ok: true, replayId, lessonStored };
+  return { ok: true, replayId, lessonStored, brier };
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────
