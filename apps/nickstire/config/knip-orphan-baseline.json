@@ -6272,6 +6272,11 @@
       "reason": "2026-10-10 lane unjam: pure stale rule; exported for reelDrainStaleUnavailable.test.ts, consumed internally by the drain pre-filter and the today-job branch in runDailyReelPost"
     },
     {
+      "file": "apps/nickstire/server/cron/jobs/dailyReelPost.ts",
+      "symbol": "retireParkedReels",
+      "reason": "2026-10-17 F6 (job 2026-10-17-reel-f5-f6): the parked-reel retirement pass; exported for reelParkedRetire.test.ts, consumed internally by runDailyReelPostOnce before the drain reads its window"
+    },
+    {
       "file": "apps/nickstire/server/cron/lockLiveness.ts",
       "symbol": "releaseLocksOfDeadHolders",
       "reason": "2026-10-10 stale-holder lock sweep · INTENTIONAL TEST-VISIBLE CONTRACT: the sweep body, called by scheduleStaleHolderSweep inside this module and pinned directly by cron/staleHolderSweep.test.ts (other-replica-only delete by name+holder, local no-op, DB error no-op). knip excludes *.test.ts as consumers."
