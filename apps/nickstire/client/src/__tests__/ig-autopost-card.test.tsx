@@ -50,6 +50,8 @@ vi.mock("@/lib/trpc", () => ({
       },
       // The comment responder card below stays loading here; its own test is comment-responder-card.test.tsx.
       commentResponderStatus: { useQuery: () => ({ data: undefined, isError: false, isLoading: true, refetch: vi.fn() }) },
+      // The send switches card below stays loading here; its own test is send-switches-card.test.tsx.
+      sendSwitchesStatus: { useQuery: () => ({ data: undefined, isError: false, isLoading: true, refetch: vi.fn() }) },
       startAutopostRun: {
         useMutation: (opts?: typeof h.runOpts) => {
           h.runOpts = opts;

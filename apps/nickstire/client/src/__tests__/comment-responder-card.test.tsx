@@ -36,6 +36,8 @@ vi.mock("@/lib/trpc", () => ({
       // The image card stays in its loading state so its buttons never compete with this card's.
       autopostLaneStatus: { useQuery: () => ({ data: undefined, isError: false, isLoading: true, refetch: vi.fn(), dataUpdatedAt: 0 }) },
       startAutopostRun: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
+      // The send switches card stays loading so its buttons never compete with this card's.
+      sendSwitchesStatus: { useQuery: () => ({ data: undefined, isError: false, isLoading: true, refetch: vi.fn() }) },
       commentResponderStatus: {
         useQuery: () => ({ data: h.status, isError: h.isError, isLoading: h.isLoading, refetch: h.refetch }),
       },
