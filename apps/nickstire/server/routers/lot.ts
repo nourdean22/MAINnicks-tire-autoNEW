@@ -378,6 +378,9 @@ export const lotRouter = router({
    * Privacy/truth boundary:
    * - raw audio is never returned here
    * - full transcripts are never returned here
+   * - fact quotes ARE returned: each fact's evidenceText (at most 240 chars, at most 12 facts per
+   *   conversation) reaches this owner-only admin by operator decision 2026-10-17 ("Keep the short
+   *   verbatim quote under each fact in admin. Admin is owner-only.")
    * - candidate visit/work-order links stay explicitly confidence-scored
    * - self-test rows are hidden by default so commissioning does not look like customers
    *
@@ -458,7 +461,7 @@ export const lotRouter = router({
     }),
 
   /**
-   * Hourly office digest (contract office-digest v1): the last N clock hours, newest first,
+   * Hourly office digest (contract office-digest v2): the last N clock hours, newest first,
    * including the current partial hour. Same privacy boundary as `conversations`: the digest
    * is built from gists and validated fact kind/value pairs only (services/officeDigest.ts).
    *
@@ -467,7 +470,9 @@ export const lotRouter = router({
    * (the repeated 1 AM on fall-back is two distinct epoch hours, as it should be).
    *
    * NO_ACTIVITY = no episodes. THIN = episodes but no gist and no fact (nothing honest to
-   * summarise, no LLM call). A failed read is { ok: false }, never an hours list of NO_ACTIVITY.
+   * summarise, no LLM call). FAILED without an LLM call = no gist or fact and at least one
+   * transcriptStatus FAILED capture. computedAtMs is when the digest's LLM call finished, null when
+   * none ran. A failed read is { ok: false }, never an hours list of NO_ACTIVITY.
    */
   officeDigest: adminProcedure
     .input(z.object({ hours: z.number().int().min(1).max(12).default(6) }).optional())
@@ -484,7 +489,7 @@ export const lotRouter = router({
         nowHour = clock;
         const gistReady = await conversationEpisodeColumnReady(d, "gist");
         rows = rowsOf(await d.execute(sql`
-          SELECT episodeId, durationSeconds, facts,
+          SELECT episodeId, durationSeconds, facts, transcriptStatus,
                  FLOOR(UNIX_TIMESTAMP(COALESCE(startedAt, createdAt)) / 3600) AS hourIdx
                  ${gistReady ? sql`, gist` : sql``}
             FROM conversation_episodes
@@ -507,13 +512,22 @@ export const lotRouter = router({
             durationSeconds: num(r.durationSeconds),
             gist: typeof r.gist === "string" && r.gist.trim() ? r.gist : null,
             facts: storedFacts(r.facts).map((f) => ({ kind: f.kind, value: f.value })),
+            transcriptFailed: r.transcriptStatus === "FAILED",
           }));
         const factCount = episodes.reduce((n, e) => n + e.facts.length, 0);
         const hasInput = factCount > 0 || episodes.some((e) => e.gist !== null);
-        const status = episodes.length === 0 ? "NO_ACTIVITY" as const : hasInput ? null : "THIN" as const;
-        const llm = status === null
+        const failedCaptures = episodes.filter((e) => e.transcriptFailed).length;
+        // Nothing usable AND a failed transcription is a failure, not a quiet hour: THIN would
+        // read as "people talked, nothing worth noting" when the pipeline never heard them.
+        const noLlm = episodes.length === 0
+          ? { status: "NO_ACTIVITY" as const, error: null }
+          : hasInput ? null
+          : failedCaptures > 0
+            ? { status: "FAILED" as const, error: `transcription or extraction failed for ${failedCaptures} conversation${failedCaptures === 1 ? "" : "s"}` }
+            : { status: "THIN" as const, error: null };
+        const llm = noLlm === null
           ? await officeHourDigest(hourStartMs, isCurrent, episodes.map(({ episodeId, gist, facts }) => ({ episodeId, gist, facts })))
-          : { status, digest: null, topics: [], error: null };
+          : { ...noLlm, digest: null, topics: [], computedAtMs: null };
         return {
           hourStartMs,
           hourEndMs: hourStartMs + 3_600_000,
@@ -525,6 +539,7 @@ export const lotRouter = router({
           digest: llm.digest,
           topics: llm.topics,
           error: llm.error,
+          computedAtMs: llm.computedAtMs,
         };
       }));
 
