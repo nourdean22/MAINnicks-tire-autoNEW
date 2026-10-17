@@ -79,6 +79,8 @@ import OverviewSection from "@/pages/admin/OverviewSection";
 const SUMMARY_PATH = "adminSecurity.queueFeedbackSummary";
 /** The owner holds security.manage; the front desk does not (queueFeedbackSummary is owner-only). */
 const asOwner = () => h.queries.set("adminSecurity.status", ok({ adminRole: "owner", permissions: ["security.manage", "reports.view"] }));
+/** A manager holds reports.view (so canViewHistory is true) but not security.manage: no count, no read. */
+const asManager = () => h.queries.set("adminSecurity.status", ok({ adminRole: "manager", permissions: ["admin.view", "reports.view", "bookings.manage"] }));
 const asFrontDesk = () => h.queries.set("adminSecurity.status", ok({ adminRole: "front_desk", permissions: ["bookings.manage"] }));
 const ok = (data: unknown): Partial<Q> => ({ data, isError: false });
 const now = () => new Date().toISOString();
@@ -217,6 +219,17 @@ describe("tapping a verdict", () => {
     expect(detailLine(row)).toMatch(/^Kept · booking/);
   });
 
+  it("while a verdict write is pending, Keep and Less are disabled so a second tap cannot double-record", () => {
+    h.mutations.set("adminSecurity.recordAction", () => ({ mutateAsync: async () => ({ reference: "ACT-1" }), isPending: true }));
+    h.queries.set("adminDashboard.overviewMediumBundle", ok(BUNDLE([booking(1, "Rosa Delgado")])));
+    render(<OverviewSection />);
+    const row = rowFor("Rosa Delgado");
+    more(row, "Rosa Delgado");
+    for (const name of ["Keep", "Less"]) {
+      expect((within(row).getByRole("button", { name }) as HTMLButtonElement).disabled, name).toBe(true);
+    }
+  });
+
   it("a work order row records its own type and entity", async () => {
     h.queries.set("adminDashboard.overviewMediumBundle", ok(BUNDLE()));
     h.queries.set("workOrders.list", ok([workOrder(7, "Dana Whitfield")]));
@@ -255,6 +268,13 @@ describe("the Checks rail counts the stored verdicts", () => {
     expect(feedbackLine().closest("details")).toBe(rail());
   });
 
+  it("the since day is the shop's day: 02:00 UTC on Oct 4 is still Oct 3 in New York", () => {
+    h.queries.set("adminDashboard.overviewMediumBundle", ok(BUNDLE()));
+    h.queries.set(SUMMARY_PATH, ok({ readable: true, total: 3, since: "2026-10-04T02:00:00Z", byType: [] }));
+    render(<OverviewSection />);
+    expect(feedbackLine().textContent).toBe("Keep/Less: 3 marked since Oct 3");
+  });
+
   it("a real zero says none yet", () => {
     h.queries.set("adminDashboard.overviewMediumBundle", ok(BUNDLE()));
     h.queries.set(SUMMARY_PATH, ok({ readable: true, total: 0, since: null, byType: [] }));
@@ -287,6 +307,12 @@ describe("the Checks rail counts the stored verdicts", () => {
     expect(screen.queryByText(/Keep\/Less:/)).toBeNull();
     expect(h.opts.get(SUMMARY_PATH)?.enabled).toBe(false);
     desk.unmount();
+    // A manager can read history (reports.view) but is not the owner: still no line, still no read.
+    asManager();
+    const manager = render(<OverviewSection />);
+    expect(screen.queryByText(/Keep\/Less:/)).toBeNull();
+    expect(h.opts.get(SUMMARY_PATH)?.enabled).toBe(false);
+    manager.unmount();
     // Permissions not loaded yet is not a grant either.
     h.queries.set("adminSecurity.status", { data: undefined });
     const unknown = render(<OverviewSection />);
