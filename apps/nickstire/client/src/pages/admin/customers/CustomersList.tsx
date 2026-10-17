@@ -565,7 +565,7 @@ export function CustomersList({ onOpenCustomer }: { onOpenCustomer: (id: number)
       ) : (
       <>
       {/* Phones: ruled rows, one verb (admin UI v1 W4, Today's row grammar). The table below stays for lg and up. */}
-      {/* Phones have no sortable table header: one select with the table's sort options. */}
+      {/* Phones have no sortable table header: one select with every sort the list supports. */}
       <label className="lg:hidden flex items-center gap-2 text-[13px] text-foreground/60">
         Sort
         <select
@@ -579,12 +579,15 @@ export function CustomersList({ onOpenCustomer }: { onOpenCustomer: (id: number)
           }}
           className="flex-1 min-h-12 rounded-md border border-border/40 bg-card px-3 text-base text-foreground"
         >
-          <option value="totalSpent">Most spent</option>
-          <option value="visits">Most visits</option>
-          <option value="lastVisit">Most recent visit</option>
-          <option value="name">Name, A to Z</option>
-          <option value="declined">Most declined work</option>
-          <option value="backlog">Most open work orders</option>
+          {/* Every sort the list supports (same set and order as the Advanced panel), so the select never shows one order over another. */}
+          <option value="totalSpent">Total spent</option>
+          <option value="visits">Visit count</option>
+          <option value="lastVisit">Last visit</option>
+          <option value="firstVisit">First visit</option>
+          <option value="declined">Declined value</option>
+          <option value="backlog">Backlog value</option>
+          <option value="name">Name</option>
+          <option value="created">Date added</option>
         </select>
       </label>
       <ul aria-label="Customers" className="lg:hidden divide-y divide-border/30 border-y border-border/30">

@@ -93,6 +93,9 @@ const PAUSED: Partial<Q> = { data: undefined, isError: false, isLoading: false, 
 const ok = (data: unknown): Partial<Q> => ({ data, isError: false, fetchStatus: "idle" });
 const CUSTOMER = { id: 1, name: "Pat Example", phone: "2165550100", totalVisits: 1, totalSpent: 0 };
 const EMPTY_HISTORY = { invoices: [], declinedEstimates: [], openWorkOrders: [] };
+/** Exact class token, no responsive prefix: "lg:min-h-12" or "min-h-120" must not satisfy "min-h-12". */
+const tok = (el: Element, token: string) =>
+  new RegExp(`(^|\\s)${token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\s|$)`).test(el.getAttribute("class") ?? "");
 
 beforeEach(() => {
   h.queries.clear();
@@ -150,9 +153,9 @@ describe("Nonstop Nick counter lookup", () => {
 
   it("the phone field is a 48 px, 16 px text control", () => {
     render(<MembershipsSection />);
-    const cls = screen.getByRole("textbox", { name: "Member phone number" }).className;
-    expect(cls).toContain("min-h-12");
-    expect(cls).toContain("text-base");
+    const field = screen.getByRole("textbox", { name: "Member phone number" });
+    expect(tok(field, "min-h-12"), "min-h-12").toBe(true);
+    expect(tok(field, "text-base"), "text-base").toBe(true);
   });
 });
 
@@ -191,9 +194,9 @@ describe("Customer profile tabs", () => {
     const strip = tabs[0].parentElement as HTMLElement;
     for (const t of tabs) {
       expect(t.parentElement).toBe(strip);
-      expect(t.className).toContain("min-h-12");
+      expect(tok(t, "min-h-12"), "min-h-12").toBe(true);
     }
-    expect(strip.className).toContain("overflow-x-auto");
+    expect(tok(strip, "overflow-x-auto"), "overflow-x-auto").toBe(true);
   });
 });
 
@@ -212,8 +215,8 @@ describe("Customers list lookup", () => {
     render(<CustomersList onOpenCustomer={() => {}} />);
     const input = screen.getByRole("searchbox", { name: /search customers/i }) as HTMLInputElement;
     expect(input.type).toBe("search");
-    expect(input.className).toContain("min-h-12");
-    expect(input.className).toContain("text-base");
+    expect(tok(input, "min-h-12"), "min-h-12").toBe(true);
+    expect(tok(input, "text-base"), "text-base").toBe(true);
     expect(document.activeElement).not.toBe(input);
     const firstTile = screen.getAllByText("Total Customers")[0];
     expect(input.compareDocumentPosition(firstTile) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -265,7 +268,7 @@ describe("Work orders as rows", () => {
     const choice = within(rows).getByRole("group", { name: "Move WO-0007 to" });
     const options = within(choice).getAllByRole("button").map((b) => b.textContent);
     expect(options).toEqual(["QC review", "Ready for pickup", "On hold", "Cancelled", "Cancel"]);
-    for (const b of within(choice).getAllByRole("button")) expect(b.className).toContain("min-h-12");
+    for (const b of within(choice).getAllByRole("button")) expect(tok(b, "min-h-12"), "min-h-12").toBe(true);
     fireEvent.click(within(choice).getByRole("button", { name: "Cancel" }));
     expect(within(rows).queryByRole("group", { name: "Move WO-0007 to" })).toBeNull();
     expect(mutate).not.toHaveBeenCalled();
@@ -363,12 +366,12 @@ describe("W4 round 1", () => {
     render(<CustomersList onOpenCustomer={() => {}} />);
     const rows = screen.getByRole("list", { name: "Customers" });
     const more = within(rows).getByRole("button", { name: "More actions for Pat Example" });
-    expect(more.className).toContain("min-h-12");
+    expect(tok(more, "min-h-12"), "min-h-12").toBe(true);
     expect(within(rows).queryByRole("link", { name: "Call Pat Example" })).toBeNull();
     fireEvent.click(more);
     const call = within(rows).getByRole("link", { name: "Call Pat Example" });
     expect(call.getAttribute("href")).toBe("tel:2165550100");
-    expect(call.className).toContain("min-h-12");
+    expect(tok(call, "min-h-12"), "min-h-12").toBe(true);
     expect(within(rows).getByRole("link", { name: "Text Pat" })).toBeTruthy();
     expect(within(rows).getByRole("button", { name: "Win back Pat" })).toBeTruthy();
   });
@@ -377,8 +380,8 @@ describe("W4 round 1", () => {
     h.queries.set("customers.list", ok({ customers: [LAPSED], total: 1, page: 1, pageSize: 25 }));
     render(<CustomersList onOpenCustomer={() => {}} />);
     const sort = screen.getByRole("combobox", { name: "Sort customers" }) as HTMLSelectElement;
-    expect(sort.className).toContain("min-h-12");
-    expect(Array.from(sort.options).map((o) => o.value)).toEqual(["totalSpent", "visits", "lastVisit", "name", "declined", "backlog"]);
+    expect(tok(sort, "min-h-12"), "min-h-12").toBe(true);
+    expect(Array.from(sort.options).map((o) => o.value)).toEqual(["totalSpent", "visits", "lastVisit", "firstVisit", "declined", "backlog", "name", "created"]);
     fireEvent.change(sort, { target: { value: "visits" } });
     const last = h.calls.filter(([p]) => p === "customers.list").pop()?.[1] as { sortBy?: string };
     expect(last?.sortBy).toBe("visits");
@@ -423,5 +426,156 @@ describe("W4 round 1", () => {
     } finally {
       Reflect.deleteProperty(Element.prototype, "scrollIntoView");
     }
+  });
+});
+
+/* ------------------------------ Round 2 review ----------------------------- */
+
+describe("W4 round 2", () => {
+  const LAPSED2 = {
+    id: 5, firstName: "Pat", lastName: "Example", phone: "2165550100", email: null, totalVisits: 2, totalSpent: 45000,
+    lastVisitDate: new Date(Date.now() - 120 * 86400000).toISOString(), daysSinceLastVisit: 120, isVip: false, churnRisk: "medium",
+    declinedCount: 0, backlogCount: 0, customerType: "retail", notes: null,
+  };
+  const RECENT = { ...LAPSED2, id: 6, firstName: "Rae", lastName: "Recent", lastVisitDate: new Date(Date.now() - 3 * 86400000).toISOString(), daysSinceLastVisit: 3, churnRisk: "low" };
+  const NOPHONE = { ...LAPSED2, id: 9, firstName: "Nia", lastName: "Nophone", phone: null };
+
+  function lookUp(phone = "2165550100") {
+    fireEvent.change(screen.getByRole("textbox", { name: "Member phone number" }), { target: { value: phone } });
+    fireEvent.click(screen.getByRole("button", { name: /look up/i }));
+  }
+
+  it("Move to runs the option tapped, not the first one; the approved list is pinned", () => {
+    const mutate = vi.fn();
+    h.mutations.set("workOrders.advanceStatus", () => ({ mutate, isPending: false }));
+    h.queries.set("workOrders.list", ok(WOS));
+    render(<WorkOrdersSection />);
+    const rows = screen.getByRole("region", { name: "Work orders by stage" });
+    fireEvent.click(within(rows).getByRole("button", { name: "Move WO-0008 to" }));
+    const choice = within(rows).getByRole("group", { name: "Move WO-0008 to" });
+    expect(within(choice).getAllByRole("button").map((b) => b.textContent)).toEqual(["Parts needed", "Ready for bay", "On hold", "Cancelled", "Cancel"]);
+    fireEvent.click(within(choice).getByRole("button", { name: "On hold" }));
+    expect(mutate).toHaveBeenLastCalledWith({ id: "8", status: "on_hold" });
+    fireEvent.click(within(rows).getByRole("button", { name: "Move WO-0007 to" }));
+    fireEvent.click(within(within(rows).getByRole("group", { name: "Move WO-0007 to" })).getByRole("button", { name: "Cancelled" }));
+    expect(mutate).toHaveBeenLastCalledWith({ id: "7", status: "cancelled" });
+    expect(mutate).toHaveBeenCalledTimes(2);
+  });
+
+  it("work-order controls are 48 px: Move to, its options, the row's open button, and the search field is 16 px", () => {
+    h.queries.set("workOrders.list", ok(WOS));
+    render(<WorkOrdersSection />);
+    const rows = screen.getByRole("region", { name: "Work orders by stage" });
+    const move = within(rows).getByRole("button", { name: "Move WO-0007 to" });
+    expect(tok(move, "min-h-12")).toBe(true);
+    fireEvent.click(move);
+    for (const b of within(within(rows).getByRole("group", { name: "Move WO-0007 to" })).getAllByRole("button")) expect(tok(b, "min-h-12"), b.textContent ?? "").toBe(true);
+    expect(tok(within(rows).getByRole("button", { name: "Open WO-0007" }), "min-h-12")).toBe(true);
+    const search = screen.getByRole("searchbox", { name: "Search work orders" });
+    expect(tok(search, "min-h-12")).toBe(true);
+    expect(tok(search, "text-base")).toBe(true);
+  });
+
+  it("Today with a stale moneyTab drops it and sets wo, and that URL opens WO-0007 in Money", async () => {
+    window.history.replaceState({}, "", "/admin?tab=overview&moneyTab=unpaid");
+    h.queries.set("adminSecurity.status", ok({ adminRole: "owner", permissions: [] }));
+    h.queries.set("adminDashboard.overviewMediumBundle", ok({ stats: null, bookings: [], leads: [], callbacks: [], owedTexts: [], callbackServed: {}, unavailableSlices: [] }));
+    h.queries.set("workOrders.list", ok([{ id: 7, status: "in_progress", customerName: "Pat Example", customerId: 42, createdAt: new Date().toISOString() }]));
+    h.mutations.set("adminSecurity.recordAction", () => ({ mutateAsync: async () => ({ reference: "ACT-1" }), isPending: false }));
+    const { unmount } = render(<OverviewSection />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Open work order" }));
+    });
+    const url = new URL(window.location.href);
+    expect(url.searchParams.get("moneyTab")).toBeNull();
+    expect(url.searchParams.get("wo")).toBe("7");
+    unmount();
+    h.queries.set("workOrders.list", ok(WOS));
+    h.queries.set("workOrders.getById", ok({ ...WOS[0], items: [], transitions: [] }));
+    render(<WorkOrdersSection />);
+    expect(await screen.findByRole("dialog", { name: "Work order WO-0007" })).toBeTruthy();
+  });
+
+  it("Nonstop Nick: Look up button and the plate input are 48 px with 16 px text", () => {
+    h.queries.set("memberships.lookupByPhone", ok({ found: true, members: [{ id: 3, name: "Pat Member", phone: "2165550100", isActive: true, status: "active", repairDiscountPct: 0, vehiclePlate: null, vehicleDesc: null }] }));
+    render(<MembershipsSection />);
+    expect(tok(screen.getByRole("button", { name: /look up/i }), "min-h-12")).toBe(true);
+    lookUp();
+    fireEvent.click(screen.getByRole("button", { name: /Bind the covered vehicle/ }));
+    const plate = screen.getByRole("textbox", { name: "License plate" });
+    expect(tok(plate, "min-h-12")).toBe(true);
+    expect(tok(plate, "text-base")).toBe(true);
+  });
+
+  it("Nonstop Nick: a failed re-lookup hides the stale member card", () => {
+    h.queries.set("memberships.lookupByPhone", { ...FAILED, data: { found: true, members: [{ id: 3, name: "Pat Member", phone: "2165550100", isActive: true, status: "active", repairDiscountPct: 0, vehiclePlate: "ABC123", vehicleDesc: null }] } });
+    render(<MembershipsSection />);
+    lookUp();
+    expect(screen.queryByText("Pat Member")).toBeNull();
+    expect(screen.getByText(/Lookup failed/)).toBeTruthy();
+  });
+
+  it("a paused history read says not checked on the Declined and Backlog tabs too", () => {
+    h.queries.set("customers.getById", ok(CUSTOMER));
+    h.queries.set("customers.timeline", ok([]));
+    h.queries.set("customers.history", PAUSED);
+    render(<CustomerProfile customerId={1} onClose={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: /Declined Work/ }));
+    expect(screen.queryByText("No declined estimates found.")).toBeNull();
+    expect(screen.getByText(/Service history not checked/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Active Backlog/ }));
+    expect(screen.queryByText("No active work orders found.")).toBeNull();
+    expect(screen.getByText(/Service history not checked/)).toBeTruthy();
+  });
+
+  it("no phone on file: the tab chips show ?, never 0", () => {
+    h.queries.set("customers.getById", ok({ ...CUSTOMER, phone: null }));
+    render(<CustomerProfile customerId={1} onClose={() => {}} />);
+    for (const chip of [/Service History/, /Declined Work/, /Active Backlog/]) {
+      const text = screen.getByRole("button", { name: chip }).textContent ?? "";
+      expect(text, String(chip)).not.toMatch(/\d/);
+      expect(text, String(chip)).toContain("?");
+    }
+  });
+
+  it("Dispatch: a paused QC queue says not checked; a failed Ready queue says couldn't load, not offline", () => {
+    h.queries.set("workOrders.list", PAUSED);
+    const { unmount } = render(<DispatchSection />);
+    fireEvent.click(screen.getByRole("button", { name: "QC Review" }));
+    expect(screen.queryByText("No jobs pending QC review")).toBeNull();
+    expect(screen.getByText(/QC review not checked/)).toBeTruthy();
+    unmount();
+    h.queries.set("workOrders.list", FAILED);
+    render(<DispatchSection />);
+    expect(screen.getByText(/Couldn't load ready-queue/)).toBeTruthy();
+    expect(screen.queryByText(/not checked/)).toBeNull();
+  });
+
+  it("Dispatch: Check scrolls the QC panel into view", () => {
+    const scroll = vi.fn();
+    Object.defineProperty(Element.prototype, "scrollIntoView", { configurable: true, writable: true, value: scroll });
+    try {
+      h.queries.set("workOrders.list", ok([{ ...WOS[1], status: "qc_review" }]));
+      render(<DispatchSection />);
+      fireEvent.click(screen.getByRole("button", { name: "QC Review" }));
+      fireEvent.click(within(screen.getByRole("list", { name: "Awaiting QC" })).getByRole("button", { name: "Check Sam Driver" }));
+      expect(scroll).toHaveBeenCalled();
+    } finally {
+      Reflect.deleteProperty(Element.prototype, "scrollIntoView");
+    }
+  });
+
+  it("customer overflow: Text and the Win back wrapper are 48 px; no Win back when not lapsed; no More without a phone", () => {
+    h.queries.set("customers.list", ok({ customers: [LAPSED2, RECENT, NOPHONE], total: 3, page: 1, pageSize: 25 }));
+    render(<CustomersList onOpenCustomer={() => {}} />);
+    const rows = screen.getByRole("list", { name: "Customers" });
+    fireEvent.click(within(rows).getByRole("button", { name: "More actions for Pat Example" }));
+    expect(tok(within(rows).getByRole("link", { name: "Text Pat" }), "min-h-12")).toBe(true);
+    const winBackWrap = within(rows).getByRole("button", { name: "Win back Pat" }).parentElement as HTMLElement;
+    expect(tok(winBackWrap, "[&>button]:min-h-12")).toBe(true);
+    fireEvent.click(within(rows).getByRole("button", { name: "More actions for Rae Recent" }));
+    expect(within(rows).getByRole("link", { name: "Text Rae" })).toBeTruthy();
+    expect(within(rows).queryByRole("button", { name: "Win back Rae" })).toBeNull();
+    expect(within(rows).queryByRole("button", { name: "More actions for Nia Nophone" })).toBeNull();
   });
 });
