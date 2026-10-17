@@ -287,8 +287,38 @@ async function dispatchToolCall(call: VapiToolCall, phoneCallId?: string, custom
   // bookSlot only: the connected caller ID, so a number the model heard short
   // can still file the expected arrival. Overwrites — the model never owns it.
   if (call.function.name === "bookSlot" && customerNumber) args.callerNumber = customerNumber;
+  // sendConfirmationSms texts the connected party only: call.customer.number is
+  // the caller ID inbound and the number Vapi dialled outbound. A model-chosen
+  // number would let a caller have the shop's line text anyone (security review
+  // 2026-10-16 F1), so the model never owns the destination. A withheld number
+  // can arrive as "anonymous" or a short placeholder, so it must carry 10 digits.
+  const recapTo =
+    call.function.name === "sendConfirmationSms" && (customerNumber ?? "").replace(/\D/g, "").length >= 10
+      ? customerNumber?.trim()
+      : undefined;
+  if (recapTo) args.phone = recapTo;
 
   log.info("Vapi tool call", { ...toolCallLogFields(call.function.name, args) });
+
+  // No connected number (withheld caller ID, web call): refuse rather than fall
+  // back to the model's number. degraded:true makes the prompt read verbalRecap.
+  if (call.function.name === "sendConfirmationSms" && !recapTo) {
+    log.warn("recap text refused: no connected caller number", {
+      callId: phoneCallId,
+      callType,
+      errorId: "VAPI_RECAP_NO_CALLER_ID",
+    });
+    const { spokenShopDirections } = await import("../../routers/voiceAgent");
+    return {
+      toolCallId: call.id,
+      result: JSON.stringify({
+        sent: false,
+        degraded: true,
+        error: "no_caller_id",
+        verbalRecap: `I can't send a text to this line, so here it is out loud: ${spokenShopDirections()}`,
+      }),
+    };
+  }
 
   // Q-45 · handled before the voiceAgent router: it needs the DIALLED number,
   // which only this layer has. Outbound, Vapi speaks the tool's own
