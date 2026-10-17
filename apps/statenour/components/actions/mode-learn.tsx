@@ -34,7 +34,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc/client";
-import { learnReviewRow, reviewCompletion } from "@/lib/brain/fsrs-schedule";
+import { reviewCompletion } from "@/lib/brain/fsrs-schedule";
 import { isSubmitEnter } from "@/features/chat-v2/lib/submit-enter";
 import {
   BookOpen,
@@ -160,6 +160,7 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
   const recordMemoryMut = trpc.brain.recordMemory.useMutation();
   const forgetMemoryMut = trpc.brain.forgetMemoryByKey.useMutation();
   const gradeSpacedReviewMut = trpc.brain.gradeSpacedReview.useMutation();
+  const ensureLearnCardMut = trpc.brain.ensureLearnCard.useMutation();
   const utils = trpc.useUtils();
   useEffect(() => {
     setHistory(loadHistory());
@@ -250,23 +251,17 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
   );
 
   // ── Spaced repetition: schedule a review reminder ──
-  // When Nour learns something, write ONE spaced_review row: a new FSRS
-  // card due tomorrow (lib/brain/fsrs-schedule.ts). FSRS replaced the
-  // four pre-made Day 1/3/7/30 rows; older items keep theirs.
-  // Upserted by its `key` via trpc.brain.recordMemory.
+  // When Nour learns something, the server makes sure the topic has ONE
+  // spaced_review card (brain.ensureLearnCard): a new FSRS card due tomorrow,
+  // or, when the topic already has one, the same card with the newest
+  // summary, so learning a topic again never resets its schedule.
   const scheduleSpacedReview = useCallback(
     async (topic: string, mvuSummary: string) => {
-      const row = learnReviewRow(topic, mvuSummary, new Date());
       try {
-        await recordMemoryMut.mutateAsync({
-          category: "spaced_review",
-          key: row.key,
-          content: row.content,
-          source: "learn_mode",
-        });
+        await ensureLearnCardMut.mutateAsync({ topic, summary: mvuSummary });
       } catch {}
     },
-    [recordMemoryMut],
+    [ensureLearnCardMut],
   );
 
   // ── Decision journal integration ──

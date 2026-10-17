@@ -16,14 +16,17 @@ const code = readFileSync(join(__dirname, "../../components/actions/mode-learn.t
   .join("\n");
 
 describe("mode-learn spaced review scheduling", () => {
-  it("(f) scheduleSpacedReview writes one row through learnReviewRow, with no interval loop", () => {
+  it("(f) scheduleSpacedReview asks the server to ensure the card (ensureLearnCard), with no client-built row and no interval loop", () => {
     const start = code.indexOf("const scheduleSpacedReview = useCallback(");
     expect(start).toBeGreaterThan(-1);
-    const body = code.slice(start, code.indexOf("[recordMemoryMut]", start));
-    expect(body.match(/recordMemoryMut\.mutateAsync\(/g) ?? []).toHaveLength(1);
-    expect(body.match(/learnReviewRow\(/g) ?? []).toHaveLength(1);
-    expect(body).toMatch(/category:\s*"spaced_review"/);
+    const body = code.slice(start, code.indexOf("[ensureLearnCardMut]", start));
+    expect(body.match(/ensureLearnCardMut\.mutateAsync\(/g) ?? []).toHaveLength(1);
+    expect(body).toMatch(/ensureLearnCardMut\.mutateAsync\(\{\s*topic,\s*summary:\s*mvuSummary\s*\}\)/);
+    // The old path upserted a NEW card by key and reset a mature one: it must be gone.
+    expect(body).not.toMatch(/recordMemoryMut|learnReviewRow\(|category:\s*"spaced_review"/);
     expect(body).not.toMatch(/\bfor\s*\(|\bwhile\s*\(|\.forEach\(|\.map\(|\[\s*1\s*,\s*3\s*,\s*7\s*,\s*30\s*\]/);
+    expect(code).toMatch(/const ensureLearnCardMut = trpc\.brain\.ensureLearnCard\.useMutation\(\)/);
+    expect(code).not.toMatch(/\blearnReviewRow\b/);
   });
 
   it("round 2: Got it grades an FSRS row (gradeSpacedReview good) and forgets only a legacy row", () => {
@@ -60,7 +63,7 @@ describe("mode-learn spaced review scheduling", () => {
     expect(code).toMatch(/const utils = trpc\.useUtils\(\)/);
   });
 
-  it("the Learn tab is the only spaced_review writer in this file", () => {
-    expect(code.match(/category:\s*"spaced_review"/g) ?? []).toHaveLength(2); // the write + the due-list read
+  it("this file no longer writes a spaced_review row itself: the one category literal is the due-list read", () => {
+    expect(code.match(/category:\s*"spaced_review"/g) ?? []).toHaveLength(1);
   });
 });

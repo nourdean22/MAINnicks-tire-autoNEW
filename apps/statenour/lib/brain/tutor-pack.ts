@@ -40,7 +40,7 @@ import { markReplayed } from "@/lib/services/decision-replay-coach";
 import type { InlineButton } from "@/lib/services/telegram";
 import { escapeHtml } from "@/lib/utils/escape-html";
 import { logError } from "@/lib/utils/error-log";
-import { fsrsStateProblem, nextReview, ratingFor, readFsrsState, type FsrsState, type ReviewRating } from "@/lib/brain/fsrs-schedule";
+import { fsrsStateProblem, learnReviewRow, nextReview, ratingFor, readFsrsState, type FsrsState, type ReviewRating } from "@/lib/brain/fsrs-schedule";
 import { logger as rootLogger } from "@/lib/logger";
 import { today } from "@/lib/utils/datetime";
 import {
@@ -363,7 +363,7 @@ export async function fireTutorPush(options?: { dryRun?: boolean; now?: Date }):
 function readSpaced(key: string) {
   return prisma.brainMemory.findUnique({
     where: { category_key: { category: SPACED_REVIEW_CATEGORY, key } },
-    select: { id: true, content: true, deletedAt: true },
+    select: { id: true, content: true, deletedAt: true, supersededById: true },
   });
 }
 
@@ -414,6 +414,76 @@ export async function gradeSpacedReview(key: string, rating: ReviewRating, now: 
   });
   if (res.count !== 1) return { status: "lost" };
   return { status: "graded", due: fields.reviewAt, days };
+}
+
+export type EnsureLearnCardResult =
+  | { status: "created" }
+  | { status: "kept" }
+  | { status: "legacy" }
+  | { status: "reset" }
+  | { status: "lost" };
+
+const isUniqueViolation = (err: unknown) => !!err && typeof err === "object" && (err as { code?: string }).code === "P2002";
+
+/**
+ * The Learn tab's "learned it" write (brain.ensureLearnCard): make sure the topic has a
+ * card without resetting one it already has. The key is learnReviewRow's, so it is the
+ * row Learn has always used (the old ladder's rows were review_<topic>_d1/_d3/_d7/_d30).
+ *  - no row: a new card (due +1 day) through brainMemory.remember, so admission applies;
+ *    a concurrent first learn loses remember()'s create (P2002), re-reads the row, is `kept`;
+ *  - soft-deleted or superseded row: a new card in its place, never the old state. One
+ *    compare-and-swap pinned to the tombstone and supersededById read, which also clears
+ *    both and validUntil, so the card is live again and shows in the Learn list;
+ *  - live row with a readable fsrs state: schedule untouched; topic and summary refresh,
+ *    compare-and-swap on the content read, so a grade landing in between wins;
+ *  - live row with an `fsrs` key it cannot schedule, or content that is not JSON: reset to
+ *    a new card (compare-and-swap on the content read) with one info line, as
+ *    gradeSpacedReview does, so a corrupt row is repaired, not skipped (`reset`);
+ *  - live JSON object with no `fsrs` key: untouched, nothing else written (`legacy`).
+ * "lost" = a swap failed and nothing was written. No result carries a date.
+ * Stated decisions: a revive does not restore the embedding the forget dropped (no
+ * spaced_review consumer reads it), and re-learning a topic revives a card Nour forgot in
+ * the inspector (learning it again is the instruction to schedule it again).
+ * shortcut: two topics sharing their first 40 characters share a key (learnReviewRow), so
+ * the later one refreshes the earlier one's card; the key format stays or existing cards orphan.
+ */
+export async function ensureLearnCard(topic: string, summary: string, now: Date): Promise<EnsureLearnCardResult> {
+  const row = learnReviewRow(topic, summary, now);
+  const existing = await readSpaced(row.key);
+  if (!existing) {
+    try {
+      await brainMemory.remember(SPACED_REVIEW_CATEGORY, row.key, row.content, "learn_mode");
+      return { status: "created" };
+    } catch (err) {
+      // A concurrent first learn won remember()'s create: its card is there, so this one is kept.
+      if (!isUniqueViolation(err) || !(await readSpaced(row.key))) throw err;
+      return { status: "kept" };
+    }
+  }
+  // Compare-and-swap on the row as read: every field the decision used is in the WHERE.
+  const swap = async (pinned: Record<string, unknown>, data: Record<string, unknown>) => {
+    const where = { id: existing.id, category: SPACED_REVIEW_CATEGORY, key: row.key, content: existing.content, ...pinned };
+    return (await prisma.brainMemory.updateMany({ where, data })).count === 1;
+  };
+  if (existing.deletedAt || existing.supersededById) {
+    const won = await swap(
+      { deletedAt: existing.deletedAt, supersededById: existing.supersededById },
+      { content: row.content, deletedAt: null, supersededById: null, validUntil: null, lastSeen: now, expiresAt: null },
+    );
+    return won ? { status: "created" } : { status: "lost" };
+  }
+  const prev = parseSpaced(existing.content);
+  if (prev && !("fsrs" in prev)) return { status: "legacy" };
+  if (!prev || !readFsrsState(prev.fsrs)) {
+    log.info("spaced_review_fsrs_reset", { key: row.key, reason: prev ? fsrsStateProblem(prev.fsrs) : "content is not JSON" });
+    const won = await swap({ deletedAt: null, supersededById: null }, { content: row.content, lastSeen: now, expiresAt: null });
+    return won ? { status: "reset" } : { status: "lost" };
+  }
+  const won = await swap(
+    { deletedAt: null, supersededById: null },
+    { content: JSON.stringify({ ...prev, topic, summary: summary.slice(0, 300) }), lastSeen: now },
+  );
+  return won ? { status: "kept" } : { status: "lost" };
 }
 
 /**
