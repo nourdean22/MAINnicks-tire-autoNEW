@@ -1,5 +1,19 @@
 # Reconciliation · statenour-os
 
+> ## 2026-10-17 · Brain W3 · Socratic decision mode (branch `statenour/brain-w3-socratic`) · 1 statenour PR, live chat behaviour behind a default-ON kill switch
+>
+> Not live until merged and deployed. Unit tests only; no live chat turn. The first live proof is a chat turn with `contextBlocks.decisionAsk`, then a DecisionReplay with `soc:` idempotency key.
+>
+> - **The ask.** On a turn with an explicit decision cue ("should I", "should we", "worth it", "decide between", "which should I") and no stored forecast in the conversation, Nick asks the decision, the alternatives, Nour's probability that it works and a review date, in one turn, before advising. "just answer" or "just tell me" skips it for the conversation; a finalized decision is never re-asked.
+> - **The store.** Nour's reply writes one forecast: a DecisionReplay plus the probability on the linked MasteryDecision (`predictedOutcome = "p=0.7"`), no schema change. If only one of the two parses, Nick says what is missing.
+> - **The score.** Every review path (tutor taps, the review tool, the replay form) goes through `markReplayed`, which now returns a Brier score: Worked 1, Mixed 0.5, Didn't 0. No probability means no score, never 0.
+> - **Kill switch and criterion.** `NICK_DECISION_MODE` (default ON) turns it off without a deploy. Nour skips it on more than half of decision turns in two weeks -> make it opt-in ("/decide").
+>
+> **Flagged · NOT fixed**
+> - The 30-day replay coach (`pickDueReplays`) asks at day 30 from creation, ignoring the stored review date.
+> - The replay-inbox path discards the Brier score; the review tool counts any positive outcomeScore as Worked.
+> - brain-context's other history readers (`__priorTurns`, the follow-up referent lookup) still read `content` only, so they see no history from the v6 client: the same bug W3's first build had.
+
 > ## 2026-10-17 · Daily Tutor asks for free recall first (branch `statenour/scout9-free-recall`) · 1 statenour PR
 >
 > Not live until merged and deployed; the first live proof is a `tutor:R:unaided`, `tutor:X:unaided` or `tutor:<letter>:hint` ledger row. Unit tests only, no Telegram round trip.
