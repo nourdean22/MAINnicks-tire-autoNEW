@@ -97,6 +97,7 @@ import { createLogger } from "../lib/logger";
 import { markInvoicePaid, stripeWebhookPreflight, webhookStatusForClaim } from "../lib/stripeWebhook";
 import { errorTelemetry } from "../lib/error-telemetry";
 import { initSentry, flushSentry } from "../lib/sentry";
+import { registerObservabilityRoutes } from "../routes/observabilityRoutes";
 import { AppError, isAppError, errorToHttpResponse } from "../lib/errors";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
@@ -387,6 +388,10 @@ async function startServer() {
   // hoisted function declaration (defined ~240 lines below) · forward
   // reference is safe (same pattern as the SSE registration at L487).
   app.post("/api/health/recover", requireAdminApiKey, recoverHandler);
+  // Observability proof (2026-10-16): plant a known positive per instrument
+  // and read its state from the server's own counters (routes/observabilityRoutes.ts).
+  // Same Bearer gate as /api/health/recover.
+  registerObservabilityRoutes(app, requireAdminApiKey);
 
   // ─── Public analytics + telemetry sinks ────────────────
   // POST /api/analytics/conversion, /api/track-abandoned, /api/uber-code,

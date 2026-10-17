@@ -1,4 +1,5 @@
 import { createLogger } from "../lib/logger";
+import { rethrowTraced, traceChat } from "../lib/langfuse-ingest";
 const log = createLogger("_core:voiceTranscription");
 
 /**
@@ -154,6 +155,7 @@ export async function transcribeAudio(
     const baseUrl = process.env.OPENAI_BASE_URL?.replace(/\/$/, "") || "https://api.openai.com";
     const fullUrl = `${baseUrl}/v1/audio/transcriptions`;
 
+    const t0 = Date.now();
     const response = await fetch(fullUrl, {
       method: "POST",
       headers: {
@@ -162,10 +164,11 @@ export async function transcribeAudio(
       },
       body: formData,
       signal: AbortSignal.timeout(30_000),
-    });
+    }).catch(rethrowTraced({ name: "transcription:whisper", site: "_core/voiceTranscription.ts", model: "whisper-1", messages: "[audio]", startedAt: t0 }));
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => "");
+      traceChat({ name: "transcription:whisper", site: "_core/voiceTranscription.ts", model: "whisper-1", messages: "[audio]", startedAt: t0, ok: false, error: `HTTP ${response.status}` });
       return {
         error: "Transcription service request failed",
         code: "TRANSCRIPTION_FAILED",
@@ -175,6 +178,8 @@ export async function transcribeAudio(
 
     // Step 5: Parse and return the transcription result
     const whisperResponse = await response.json() as WhisperResponse;
+    // Audio is never sent; the transcript leaves only as a masked, capped excerpt.
+    traceChat({ name: "transcription:whisper", site: "_core/voiceTranscription.ts", model: "whisper-1", messages: "[audio]", outputText: typeof whisperResponse.text === "string" ? whisperResponse.text : null, startedAt: t0, ok: true });
     
     // Validate response structure
     if (!whisperResponse.text || typeof whisperResponse.text !== 'string') {

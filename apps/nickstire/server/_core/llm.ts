@@ -1,3 +1,5 @@
+import { traceChat } from "../lib/langfuse-ingest";
+
 export type Role = "system" | "user" | "assistant" | "tool" | "function";
 
 export type TextContent = {
@@ -457,6 +459,15 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   const lane = callerLane();
   try {
     const result = await invokeLLMUnrecorded(params);
+    traceChat({
+      name: `llm:${lane ?? "unlabeled"}`,
+      site: "_core/llm.ts",
+      model: result.model || resolveEffectiveModel(params.model),
+      messages: params.messages,
+      response: result,
+      startedAt,
+      ok: true,
+    });
     recordLlmCall({
       params,
       lane,
@@ -467,6 +478,15 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     });
     return result;
   } catch (err) {
+    traceChat({
+      name: `llm:${lane ?? "unlabeled"}`,
+      site: "_core/llm.ts",
+      model: resolveEffectiveModel(params.model),
+      messages: params.messages,
+      startedAt,
+      ok: false,
+      error: err,
+    });
     recordLlmCall({
       params,
       lane,

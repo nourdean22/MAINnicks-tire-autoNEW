@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "migration-evidence": {
+      "deferred": "operator-pending (2026-10-16, nickstire/observability-proof, job 2026-10-16-nickstire-observability): drizzle/0146_customer_notifications_skipped.sql is one statement, ALTER TABLE customer_notifications MODIFY COLUMN status ENUM('pending','sent','failed','skipped') NOT NULL DEFAULT 'pending', append-only (existing ordinals unchanged, metadata-only on TiDB) and idempotent (re-running re-asserts the same list); journaled in drizzle/meta/_journal.json and mirrored verbatim in routers/nick/intelligence.ts handleRunMigrations, which is the apply path (Admin > Settings > Run Migrations, one tap) besides hand-applying the file. server/customerNotificationsSkipped.test.ts pins schema.ts, the migration file and the Run Migrations copy to the same list (red 6f/1p against the old enum). Not applied to production at PR time: no lane agent touches production. Until Nour applies it, followUps.cancel still fails exactly as today (TiDB rejects 'skipped', Sentry NICKSTIRE-D) and the row stays 'pending'; nothing new breaks. Receipt after apply: SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='customer_notifications' AND COLUMN_NAME='status' shows 'skipped'."
+    }
+  }
+}
