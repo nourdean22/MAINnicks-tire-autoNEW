@@ -160,7 +160,9 @@ export async function readSendSwitchesStatus(
   // Sequential on purpose: five one-row reads, and concurrent first-time dynamic
   // imports of a mocked ../db fail under vitest, which would read as UNKNOWN.
   for (const lane of Object.keys(SEND_PAUSE_LANES) as SendPauseLane[]) {
-    const s = await sendPause(lane);
+    // Fresh: the card refetches right after a toggle, and a cached answer would show the old chip
+    // (in this process for 5 s, and in any other process that cached it).
+    const s = await sendPause(lane, { fresh: true });
     out.push({
       lane,
       paused: s.readable ? s.paused : null,
@@ -171,6 +173,12 @@ export async function readSendSwitchesStatus(
     });
   }
   return { lanes: out };
+}
+
+/** Drop one lane's cached state, so the next read in this process sees the DB. featureFlags.setFlag calls
+ *  it on every send_pause_<lane> write; other processes still see the flip within the 5 s cache window. */
+export function invalidateSendPause(lane: SendPauseLane): void {
+  cache.delete(lane);
 }
 
 /** Test hook: the 5 s cache would otherwise leak across serial test files. */

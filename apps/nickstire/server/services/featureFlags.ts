@@ -313,6 +313,12 @@ export async function setFlag(key: FlagKey, value: boolean): Promise<void> {
   }
 
   flagCache.set(key, value);
+  // C5.5: send_pause_<lane> is also cached 5 s in sendPause; drop it so this process reads the new value now.
+  if (key.startsWith("send_pause_")) {
+    const { invalidateSendPause, SEND_PAUSE_LANES } = await import("./sendPause");
+    const lane = key.slice("send_pause_".length);
+    if (lane in SEND_PAUSE_LANES) invalidateSendPause(lane as keyof typeof SEND_PAUSE_LANES);
+  }
   log.info(`Feature flag toggled: ${key} = ${value ? "ENABLED" : "DISABLED"}`);
 }
 
