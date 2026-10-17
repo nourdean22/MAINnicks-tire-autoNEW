@@ -144,6 +144,7 @@ vi.mock("@/app/api/ai/chat/prepare-tools", () => ({
 }));
 
 import { POST } from "@/app/api/ai/chat/route";
+import { buildModelMessages } from "@/app/api/ai/chat/build-model-messages";
 
 vi.setConfig({ testTimeout: 60_000 });
 
@@ -186,5 +187,48 @@ describe("chat route - compression gets the gate's historyOffset (04-F15)", () =
   it("CONTROL - no offset from the gate = no shift", async () => {
     await turn(history);
     expect(h.compress.mock.calls[0]?.[2] ?? 0).toBe(0);
+  });
+});
+
+/**
+ * Brain FU3b (2026-10-17). When compressConversation throws or hits the 4 s race, the route
+ * substitutes its own fallbackCompression. It read `m.content`, which a v6 parts-only message
+ * does not have, so every history line became the string '""' and the model got empty history.
+ * buildModelMessages receives that fallback, so its `compression.messages` is the consumer end.
+ */
+describe("chat route - compression fallback keeps the history text (brain FU3b)", () => {
+  type Line = { role: string; content: unknown };
+  const handedCompression = (): { compressed: boolean; messages: Line[] } => {
+    const call = vi.mocked(buildModelMessages).mock.calls[0]?.[0] as
+      | { compression: { compressed: boolean; messages: Line[] } }
+      | undefined;
+    expect(call, "the harness reached buildModelMessages").toBeDefined();
+    return call!.compression;
+  };
+
+  beforeEach(() => {
+    vi.mocked(buildModelMessages).mockClear();
+    h.compress.mockReset().mockRejectedValue(new Error("summary provider down"));
+  });
+
+  it("a parts-only history reaches the model as real text on every line", async () => {
+    await turn(history);
+    const c = handedCompression();
+    expect(c.compressed).toBe(false);
+    expect(c.messages.map((m) => m.role)).toEqual(["user", "assistant", "user"]);
+    expect(c.messages.map((m) => m.content)).toEqual(["first", "reply", "what changed on the lease"]);
+  });
+
+  it("CONTROL - a legacy { role, content } history is carried through unchanged", async () => {
+    await turn([
+      { role: "user", content: "legacy question" },
+      { role: "assistant", content: "legacy answer" },
+      { role: "user", content: "legacy follow-up" },
+    ]);
+    expect(handedCompression().messages.map((m) => m.content)).toEqual([
+      "legacy question",
+      "legacy answer",
+      "legacy follow-up",
+    ]);
   });
 });

@@ -12,7 +12,7 @@ import { currentTurn } from "@/lib/agent/turn-context";
 import { beginAttempt, settleAttempt } from "@/lib/services/action-attempts";
 import type { ChatActionPermission } from "@/lib/ai/chat/gate";
 import { recordInteraction } from "@/lib/ai/memory";
-import { messageContentToText } from "@/lib/ai/chat/message-text";
+import { extractText } from "@/lib/ai/chat/extract-text";
 import { buildVerifierBanner, isVerifierRewritten } from "@/lib/ai/chat/fabrication-rewriter";
 import { parseActions, executeActions } from "@/lib/ai/nick-agent";
 import {
@@ -210,17 +210,19 @@ export async function runDeferredBackgroundWork(ctx: DeferredBackgroundCtx) {
       withErrorCapture(
         "chat:post-process",
         async () => {
+          // OFF by default: these rows feed the content-mode prompt (augment-final-prompt.ts),
+          // and the reader below had been seeing "" for every parts-only turn, so on live chat
+          // the writes have never run. Turning them on is the operator's call.
+          if (process.env.CHAT_CONTENT_FEEDBACK_WRITES !== "true") return;
           const { detectContentFeedback, persistContentFeedback } = await import("@/lib/ai/content-feedback");
           const feedback = detectContentFeedback(userContent);
           if (!feedback) return;
           const priorAssistant = [...messages]
             .reverse()
-            .find((m) => (m as { role?: string }).role === "assistant" && (m as { id?: unknown }).id !== undefined) as { content?: unknown } | undefined;
-          // priorAssistant.content can be undefined (parts-only turns) — the
-          // old `as unknown as string` cast produced undefined and the
-          // .match() below threw (the recurring chat:post-process crash).
-          // messageContentToText always returns a string.
-          const priorText = priorAssistant ? messageContentToText(priorAssistant.content) : "";
+            .find((m) => (m as { role?: string }).role === "assistant" && (m as { id?: unknown }).id !== undefined) as object | undefined;
+          // extractText reads both history shapes and always returns a string (a
+          // parts-only turn has no `content`; the old cast threw on `.match()`).
+          const priorText = priorAssistant ? extractText(priorAssistant) : "";
           const priorHasHashtags = (priorText.match(/#\w+/g) || []).length >= 2;
           const priorHasMarker = /\b(caption|reel|carousel|headline|tagline)\b/i.test(priorText);
           if (!priorHasHashtags && !priorHasMarker) return;
@@ -308,16 +310,17 @@ export async function runDeferredBackgroundWork(ctx: DeferredBackgroundCtx) {
         withErrorCapture(
           "chat:post-process",
           async () => {
-            type UserMsgShape = { role?: unknown; content?: unknown };
-            const userMsgs = (messages as UserMsgShape[]).filter(
-              (m) => (m as { role?: string }).role === "user",
-            ) as Array<{ content?: string }>;
-            const avgLen = userMsgs.length > 0
-              ? Math.round(userMsgs.reduce((s: number, m) => s + (m.content?.length || 0), 0) / userMsgs.length)
+            // Lengths come from extractText: v6 history has `parts`, no `content`, so the
+            // old `m.content?.length` measured every message as 0 chars.
+            const userLens = messages
+              .filter((m) => (m as { role?: string }).role === "user")
+              .map((m) => extractText(m as object).length);
+            const avgLen = userLens.length > 0
+              ? Math.round(userLens.reduce((s, n) => s + n, 0) / userLens.length)
               : 0;
-            const shortMsgs = userMsgs.filter((m) => (m.content?.length || 0) < 30).length;
-            const longMsgs = userMsgs.filter((m) => (m.content?.length || 0) > 200).length;
-            const content = `[Chat Pattern ${new Date().toISOString().slice(0, 10)}] Avg msg: ${avgLen} chars. ${shortMsgs}/${userMsgs.length} short (<30ch), ${longMsgs}/${userMsgs.length} long (>200ch). Topic tier: ${topicTier}. Personality: ${personality}. Mode: ${mode}.`;
+            const shortMsgs = userLens.filter((n) => n < 30).length;
+            const longMsgs = userLens.filter((n) => n > 200).length;
+            const content = `[Chat Pattern ${new Date().toISOString().slice(0, 10)}] Avg msg: ${avgLen} chars. ${shortMsgs}/${userLens.length} short (<30ch), ${longMsgs}/${userLens.length} long (>200ch). Topic tier: ${topicTier}. Personality: ${personality}. Mode: ${mode}.`;
             await prisma.brainMemory.upsert({
               where: { category_key: { category: BRAIN_CATEGORIES.CHAT_PATTERN, key: "latest_session" } },
               update: { content, confidence: 0.7, updatedAt: new Date() },
