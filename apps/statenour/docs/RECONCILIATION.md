@@ -1,5 +1,17 @@
 # Reconciliation · statenour-os
 
+> ## 2026-10-17 · Decision replays follow their own review date (branch `statenour/brain-fu2-replay-date`) · 1 statenour PR, no live effect today
+>
+> Not live: `pickDueReplays` and `composeReplayPrompt` have no caller outside tests. Unit tests only.
+>
+> - **Fixed.** A decision with a passed review date is due at any age; one dated in the future is not due even past 30 days; with no replay row the 30-day rule stays. The prompt says "review date reached" for dated decisions.
+> - **Latent bug removed.** A failed replay lookup used to treat every decision as unreviewed (re-asking reviewed ones); it now returns nothing and logs which query failed.
+>
+> **Flagged · NOT fixed**
+> - The replay coach is not wired to any push or cron. The live decision review is the Daily Tutor's `pickOverdueDecision`, which already reads `reviewAt`.
+> - `gatherOutcomeSignals` still reads evidence from creation to creation + 30 days, so a 90-day decision misses its day 30-90 evidence.
+> - The candidate over-fetch (`max(limit*4, 20)` oldest first) can hide eligible decisions behind blocked ones.
+
 > ## 2026-10-17 · Re-learning a topic keeps its FSRS card (branch `statenour/brain-fu1-relearn`) · 1 statenour PR
 >
 > Not live until merged and deployed. Unit tests only; no prod read or write.
@@ -47,7 +59,7 @@
 > - **Kill switch and criterion.** `NICK_DECISION_MODE` (default ON) turns it off without a deploy. Nour skips it on more than half of decision turns in two weeks -> make it opt-in ("/decide").
 >
 > **Flagged · NOT fixed**
-> - The 30-day replay coach (`pickDueReplays`) asks at day 30 from creation, ignoring the stored review date.
+> - The 30-day replay coach (`pickDueReplays`) asked at day 30 from creation, ignoring the stored review date: fixed in brain FU2 (2026-10-17). It has no production caller; the live decision review (tutor) already read the date.
 > - The replay-inbox path discards the Brier score; the review tool counts any positive outcomeScore as Worked.
 > - brain-context's other history readers (`__priorTurns`, the follow-up referent lookup) still read `content` only, so they see no history from the v6 client: the same bug W3's first build had.
 
