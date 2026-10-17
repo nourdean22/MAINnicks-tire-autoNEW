@@ -36,9 +36,7 @@ Lowest-friction first move = Spanish auto-detect on the chat widget. Validates t
 
 ### Step 2 · Install the dep
 
-```bash
-pnpm --filter @nickstire/nickstire add @xenova/transformers
-```
+New or changed deps go through the scratchpad-clone recipe in `.claude/skills/harness-worktree-setup/SKILL.md` section 3 (add `@xenova/transformers` to `apps/nickstire` there, copy the regenerated `pnpm-lock.yaml` back), then a full unfiltered `pnpm install --frozen-lockfile` in the primary checkout when no sibling session is mid-run. Do not use a filtered add: on 2026-10-17 that shape pruned the shared store, and #3121 blocks it for agents.
 
 This adds ~250KB to the **dynamically-imported chunk** · NOT to the main bundle. Main bundle stays under the current budget. Verify with `pnpm --filter @nickstire/nickstire run build` + bundle analyzer · the `@xenova/transformers` chunk should NOT appear in the entry chunk.
 
