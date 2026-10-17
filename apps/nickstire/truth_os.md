@@ -100,6 +100,13 @@ detailed in `docs/CURRENT-TRUTH.md`:
   retail only, wholesale never leaves the server. Live sections self-suppress
   when the feed is cold (canon floors render, never an empty table).
 
+## 2026-10-16 - Observability is proven by planted positives, not by env presence (branch nickstire/observability-proof, NOT yet merged)
+
+- `GET /api/system/observability-status` (Bearer `ADMIN_API_KEY`) answers HEALTHY / DEGRADED / UNKNOWN per instrument (Sentry, Langfuse) from in-process counters (`server/lib/observabilityStatus.ts`); keys unset, zero acks or a proof older than 12 h read UNKNOWN, never HEALTHY. Counters reset on every deploy.
+- `POST /api/system/observability-probe` (same gate) plants one Sentry message tagged `probe_id` + `commit` and one synthetic Langfuse generation, then reports `ok` only on the sink's own 2xx. Sentry's release is now the deployed commit; `/api/health` `checks.sentry` says `dsn_set` plus receipts, no longer `configured`.
+- Langfuse tracing covers every server AI call site, including calls that throw (`server/langfuseTraceGate.test.ts`, `server/langfuseThrowTraced.test.ts`). A trace carries NO free text by default: model, prompt sha256, input/output character counts, tokens, latency and an error class; masked excerpts are opt-in per call and enabled only for the probe (the masker misses names like "Lopez, Maria 44101"). Keys were set on the nickstire service on 2026-10-17; not yet proven by a production probe.
+- `customer_notifications.status` gains `skipped` (drizzle/0146); follow-up Cancel keeps failing in production until that ALTER is applied (Admin > Settings > Run Migrations).
+
 ## 2026-10-16 - Telegram alert diet: one sender per event, once per state, a class on every send, and honest counts
 
 - **One sender per event.** The event bus `telegram` destination (`eventBus.ts`) is the only nickstire sender for a captured lead, callback, chat lead, booking and completed job. `lead.submit`, `callback.submit`, the chat lead capture and `autoCreateLeadFromBooking` no longer call `alertNewLead`; the bus writes the `lead_delivery_events` telegram row (sent only when the transport accepted, failed otherwise). The StateNour bridge (`/api/webhooks/nickstire`) still sends its own copy of lead and job-complete: that is the statenour lane's cut. `live_telegram_feed` (liveFeed destination) is a separate flag-gated path, not touched.

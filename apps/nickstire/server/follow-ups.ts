@@ -85,6 +85,7 @@ async function sendAndRecord(
   const outcome = smsOutcome(smsResult);
   if (outcome === "sent") {
     counts.sent++;
+    // markNotificationSent records 'sent' even over an operator's 'skipped' and logs followup.cancel_lost_race.
     if (notification.id) await markNotificationSent(notification.id).catch((e) => log.warn("[follow-ups] fire-and-forget failed:", e));
   } else if (outcome === "queued") {
     // Parked for the 8 AM window by the durable queue: it WILL go out, so the

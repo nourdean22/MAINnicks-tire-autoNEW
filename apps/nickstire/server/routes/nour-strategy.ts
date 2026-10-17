@@ -14,6 +14,7 @@
 import type { Express, Request, Response } from "express";
 
 import { createLogger } from "../lib/logger";
+import { rethrowTraced, traceChat } from "../lib/langfuse-ingest";
 import { statenourAuth } from "../middleware/statenourAuth";
 
 const log = createLogger("routes:nour-strategy");
@@ -64,6 +65,7 @@ Return JSON with exactly these fields:
   "recommendedAction": <"CALL_NOW" | "SMS_ONLY" | "IGNORE">
 }`;
 
+  const t0 = Date.now();
   const response = await fetch(url, {
     method: "POST",
     headers: {
@@ -86,16 +88,18 @@ Return JSON with exactly these fields:
       temperature: 0.3,
     }),
     signal: AbortSignal.timeout(30_000),
-  });
+  }).catch(rethrowTraced({ name: "strategist:revenue", site: "routes/nour-strategy.ts", model: "gpt-4o-mini", messages: prompt, startedAt: t0 }));
 
   if (!response.ok) {
     const errorText = await response.text();
+    traceChat({ name: "strategist:revenue", site: "routes/nour-strategy.ts", model: "gpt-4o-mini", messages: prompt, startedAt: t0, ok: false, error: `HTTP ${response.status}` });
     throw new Error(
       `OpenAI API error: ${response.status} ${response.statusText} – ${errorText}`
     );
   }
 
   const data = (await response.json()) as OpenAIResponse;
+  traceChat({ name: "strategist:revenue", site: "routes/nour-strategy.ts", model: "gpt-4o-mini", messages: prompt, response: data, startedAt: t0, ok: true });
   const content = data.choices?.[0]?.message?.content?.trim() ?? "";
 
   let scores: {
