@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "ref": "docs/operations/capability-ledger.json: new entry reel-lane-self-heal (unit_verified, merged, internal) for F5 (reelAutoApproval.ts repairedReelRefusal G1/G3, reelApproval.ts repairVoidsApproval at every publish door) and F6 (dailyReelPost.ts retireParkedReels, qualityGate.ts breaker exclusion, reelRecoverability.ts closed marker), with a P2 live-proof blocker; REALITY-LEDGER.md re-rendered (171 capabilities)"
+    }
+  }
+}
