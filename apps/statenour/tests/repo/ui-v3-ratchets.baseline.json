@@ -2,11 +2,11 @@
   "_about": "UI v3 ratchet baseline (tests/repo/ui-v3-ratchets.test.ts). Keys are app-root-relative POSIX paths; a file or counter that is absent is 0. A count may fall and never rise. It does not tighten by itself: each wave PR that removes violations runs UPDATE_RATCHET=1 pnpm exec vitest run tests/repo/ui-v3-ratchets.test.ts and commits the lowered numbers. That mode refuses to raise any number and refuses a missing, corrupt or non-object file. A deleted file's entry is dropped when it runs; a moved or renamed file is re-keyed by hand, its numbers moving with it and the totals unchanged. To ADD a legitimate number run UPDATE_RATCHET=init in the PR that adds it, give the reason in the PR body, and expect it to be reviewed like any raise. Both modes are refused when CI is set. Do not hand-edit a number up.",
   "totals": {
     "uppercase": 5,
-    "emDash": 275,
-    "emoji": 35,
-    "transitionAll": 57,
+    "emDash": 269,
+    "emoji": 33,
+    "transitionAll": 56,
     "slowDuration": 8,
-    "smallInput": 113
+    "smallInput": 112
   },
   "files": {
     "app/(mastery)/content/page.tsx": {
@@ -38,9 +38,6 @@
     "app/(mastery)/missions/page.tsx": {
       "emDash": 4
     },
-    "app/(mastery)/people/page.tsx": {
-      "emDash": 2
-    },
     "app/(mastery)/photo-improver/page.tsx": {
       "emDash": 2,
       "smallInput": 1
@@ -51,9 +48,6 @@
     },
     "app/(mastery)/proof/page.tsx": {
       "emDash": 3
-    },
-    "app/(mastery)/stats/page.tsx": {
-      "transitionAll": 1
     },
     "app/(mastery)/system/actions/page.tsx": {
       "emoji": 1,
@@ -298,29 +292,16 @@
       "transitionAll": 2
     },
     "components/journal/entry-row.tsx": {
-      "emDash": 1,
       "smallInput": 2
     },
-    "components/journal/journal-insights-preview.tsx": {
-      "emDash": 1
-    },
     "components/journal/memory-calibration.tsx": {
-      "smallInput": 1
-    },
-    "components/journal/reflect-composer.tsx": {
-      "emDash": 1,
       "smallInput": 1
     },
     "components/journal/thread-radar.tsx": {
       "smallInput": 1
     },
     "components/journal/thread-rail.tsx": {
-      "emDash": 1,
-      "emoji": 1,
       "smallInput": 1
-    },
-    "components/journal/thread-suggestions.tsx": {
-      "emoji": 1
     },
     "components/layout/desktop-spine.tsx": {
       "emDash": 1

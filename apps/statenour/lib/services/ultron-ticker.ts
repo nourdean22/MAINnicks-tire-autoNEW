@@ -496,7 +496,7 @@ async function fetchBrainPulseItems(): Promise<TickerItem[]> {
  * spine to the ambient feed. Reads the character sheet (cached by the outer
  * wrapper). Best-effort: a failure just omits the lane.
  */
-async function fetchMasteryItems(): Promise<TickerItem[]> {
+export async function fetchMasteryItems(): Promise<TickerItem[]> {
   try {
     const { computeCharacterSheet } = await import("@/lib/mastery/character-sheet");
     const stats = await computeCharacterSheet().catch((): never[] => []);
@@ -508,7 +508,8 @@ async function fetchMasteryItems(): Promise<TickerItem[]> {
       (best, s) => (s.rising7dXp > (best?.rising7dXp ?? 0) ? s : best),
       null,
     );
-    if (riser && riser.rising7dXp > 0) {
+    // W4 fix round 2: an unread week (rising7dUnknown) is no riser, however large a partial number reads.
+    if (riser && riser.rising7dXp > 0 && !stats.some((s) => s.rising7dUnknown)) {
       items.push({
         id: "mastery-riser",
         category: BRAIN_CATEGORIES.TIMELINE,

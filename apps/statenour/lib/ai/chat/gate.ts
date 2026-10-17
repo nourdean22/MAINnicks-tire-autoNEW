@@ -23,6 +23,7 @@ import { checkAiBudget } from "@/lib/services/power-panel";
 import { inferPersona } from "@/lib/ai/intent-classifier";
 import type { ChatMode } from "@/lib/ai/chat-mode";
 import type { ProviderName, TaskType } from "@/lib/ai/provider";
+import { extractText } from "./extract-text";
 
 export interface GateBlock {
   kind: "block";
@@ -142,21 +143,7 @@ export function parseHistoryOffset(body: Record<string, unknown>): number {
   return typeof v === "number" && Number.isSafeInteger(v) && v > 0 ? v : 0;
 }
 
-/**
- * Extract plain text from a UIMessage. Handles both legacy string
- * content + v6 parts arrays. Tolerant of malformed input.
- */
-export function extractText(msg: Record<string, unknown>): string {
-  if (typeof msg.content === "string") return msg.content;
-  if (Array.isArray(msg.parts)) {
-    const textParts = (msg.parts as Array<Record<string, unknown>>)
-      .filter((p) => p?.type === "text" && typeof p?.text === "string")
-      .map((p) => p.text as string);
-    if (textParts.length > 0) return textParts.join(" ");
-  }
-  if (msg.content != null) return JSON.stringify(msg.content);
-  return "";
-}
+export { extractText };
 
 export async function runGate(req: Request): Promise<GateResult> {
   // 1. Rate limit

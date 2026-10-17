@@ -158,6 +158,9 @@ vi.mock("./db", () => ({
                 return dbBehaviour === "row" && storedRow ? [storedRow] : [];
               },
             }),
+            // The job's own row (reelApprovalProblem reads payload.mp4History, F5):
+            // it exists and was never repaired, so the approval decision is unchanged.
+            limit: async () => [{ payload: null }],
           }),
         }),
       }),
