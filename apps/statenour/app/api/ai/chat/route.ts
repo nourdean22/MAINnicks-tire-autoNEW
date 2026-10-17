@@ -22,6 +22,7 @@ import { getCachedPrompt, setCachedPrompt } from "@/lib/ai/system-prompt-cache";
 // unused import here since the three-layer mode priority landed.)
 import { compressConversation } from "@/lib/ai/conversation-compress";
 import { extractClientMessageId } from "@/lib/ai/chat/message-fields";
+import { extractText } from "@/lib/ai/chat/extract-text";
 import {
   embedUserMessage,
   warmToolEmbeddings,
@@ -196,7 +197,13 @@ async function chatTurn({
   const { sanitizeMessageHistory } = await import(
     "@/lib/ai/chat/sanitize-history"
   );
-  const messages = sanitizeMessageHistory(rawMessages as Parameters<typeof sanitizeMessageHistory>[0]);
+  // The one boundary where the client's JSON becomes a typed history: the two shapes
+  // lib/ai/chat/extract-text.ts reads (ChatHistoryMessage, with a mutable `parts` so the
+  // sanitizer accepts it). Readers downstream take it as is; none re-casts it.
+  type HistoryMessage =
+    | { role: string; content: string }
+    | { id?: string; role: string; parts: Array<{ type: string; text?: string }> };
+  const messages = sanitizeMessageHistory(rawMessages as HistoryMessage[]);
 
   let convId = conversationId;
   void body; // body kept for downstream interceptors that read raw fields
@@ -744,7 +751,8 @@ async function chatTurn({
     compressed: false,
     messages: messages.map((m: Record<string, unknown>) => ({
       role: m.role as string,
-      content: typeof m.content === "string" ? m.content : JSON.stringify(m.content ?? ""),
+      // v6 messages carry `parts`, not `content`; reading `content` here sent '""' for every line.
+      content: extractText(m),
     })),
     summary: null as string | null,
     compressedCount: 0,
@@ -816,7 +824,7 @@ async function chatTurn({
           mode,
           userEmbedding: ue,
           forceRecall,
-          messages: messages as Array<{ role: string; content: string }>,
+          messages,
           // Private Lab: no conversation id at all. The "private" placeholder
           // is truthy, so the contradiction injector wrote a dedupe row.
           convId: privateMode ? undefined : cid,
