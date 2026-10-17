@@ -442,7 +442,7 @@ export async function processPromptEvolutionWeekly(now: Date = new Date(), optio
 
   const summary = telegramSummary(result, { experimentId: receipt?.experimentId ?? null, receiptDelivered, previousStatus, trigger });
   const { sendTelegram } = await import("../../services/telegram");
-  await sendTelegram(summary).catch(() => undefined);
+  await sendTelegram(summary, "digest").catch(() => undefined);
 
   const gate = result.gate;
   return {

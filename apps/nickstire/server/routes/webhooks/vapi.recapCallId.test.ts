@@ -96,15 +96,22 @@ function postEvent(message: Record<string, unknown>): Promise<{ status: number; 
   });
 }
 
-const recapCall = (callId?: string) => ({
+/** The connected caller ID (call.customer.number). The recap goes here and nowhere else. */
+const CALLER = "+12165550100";
+
+const recapCall = (callId?: string, opts: { phone?: string; customer?: string | null; type?: string } = {}) => ({
   type: "tool-calls",
-  ...(callId ? { call: { id: callId } } : {}),
+  call: {
+    ...(callId ? { id: callId } : {}),
+    ...(opts.type ? { type: opts.type } : {}),
+    ...(opts.customer === null ? {} : { customer: { number: opts.customer ?? CALLER } }),
+  },
   toolCalls: [
     {
       id: "tool-call-1",
       function: {
         name: "sendConfirmationSms",
-        arguments: { phone: "2165550100", summary: "Brake inspection, walk in any time today" },
+        arguments: { phone: opts.phone ?? "2165550100", summary: "Brake inspection, walk in any time today" },
       },
     },
   ],
@@ -160,7 +167,7 @@ describe("the Vapi tool call log line", () => {
     try {
       await postEvent({
         type: "tool-calls",
-        call: { id: "call-log-1" },
+        call: { id: "call-log-1", customer: { number: "+12165550187" } },
         toolCalls: [
           {
             id: "tool-call-2",
@@ -267,9 +274,9 @@ describe("the spoken fallback on a degraded recap", () => {
 // idempotency_key is not a unique index, so two recap calls in one turn both
 // missed the dedupe and both texted the caller.
 describe("two recap calls for the same call in one webhook", () => {
-  const twoRecaps = (callId: string, phones: [string, string]) => ({
+  const twoRecaps = (callId: string, phones: [string, string], customer = CALLER) => ({
     type: "tool-calls",
-    call: { id: callId },
+    call: { id: callId, customer: { number: customer } },
     toolCalls: phones.map((phone, i) => ({
       id: `tool-call-par-${i}`,
       function: { name: "sendConfirmationSms", arguments: { phone, summary: "Brake inspection today" } },
@@ -287,13 +294,27 @@ describe("two recap calls for the same call in one webhook", () => {
     for (const r of results) expect(r).toMatchObject({ sent: true, degraded: false });
   });
 
+  // 2026-10-16: two different model numbers on one call no longer mean two
+  // texts. Both are bound to the caller ID, so the in-flight dedupe sends once.
+  it("to two different model numbers text the caller once", async () => {
+    h.delayMs = 50;
+    await postEvent(twoRecaps("call-par-2", ["2165550177", "2165550199"]));
+    expect(h.events).toHaveLength(1);
+    expect(h.events[0].phone).toBe(CALLER);
+  });
+
   // Also the canary for voiceAgent's shared orchestrator import: vitest 3.2.7
   // resolves concurrent dynamic import()s of a vi.mock'ed module past the mock
   // (all but the first get the REAL module), so without loadOrchestrator the
   // second call here reaches the real orchestrator and this count is 1.
-  it("to two different numbers still send both", async () => {
+  // (Before 2026-10-16 this was one webhook with two model numbers; the
+  // caller-ID binding folds those into one send, so two calls carry it now.)
+  it("on two concurrent calls with different callers still send both", async () => {
     h.delayMs = 50;
-    await postEvent(twoRecaps("call-par-2", ["2165550100", "2165550199"]));
+    await Promise.all([
+      postEvent(recapCall("call-par-2a")),
+      postEvent(recapCall("call-par-2b", { customer: "+12165550199" })),
+    ]);
     expect(h.events).toHaveLength(2);
   });
 
@@ -301,5 +322,71 @@ describe("two recap calls for the same call in one webhook", () => {
     await postEvent(recapCall("call-par-3"));
     await postEvent(recapCall("call-par-3"));
     expect(h.events).toHaveLength(2);
+  });
+});
+
+// webhook-security-review-2026-10-16 F1. `phone` came straight from the
+// model's tool arguments, so a caller could talk Nick into texting any number
+// from the shop's line with model-written text. The recap now goes to the
+// connected party only: call.customer.number, which is the caller ID inbound
+// and the number Vapi dialled outbound. No connected number, no text.
+describe("the recap goes to the connected caller, never a number the model chose", () => {
+  const resultOf = (res: { body: { results?: Array<{ result: string }> } }) =>
+    JSON.parse(res.body.results?.[0]?.result ?? "{}") as Record<string, unknown>;
+
+  it("a model phone that differs from the caller ID is replaced by the caller ID", async () => {
+    const res = await postEvent(recapCall("call-bind-1", { phone: "(216) 555-0199" }));
+
+    expect(res.status).toBe(200);
+    expect(resultOf(res)).toMatchObject({ sent: true });
+    expect(h.events).toHaveLength(1);
+    expect(h.events[0].phone).toBe(CALLER);
+    expect(JSON.stringify(h.events)).not.toContain("0199");
+  });
+
+  it("an outbound call texts the number Vapi dialled", async () => {
+    const dialled = "+12165550133";
+    const res = await postEvent(recapCall("call-bind-out", { phone: "2165550199", customer: dialled, type: "outboundPhoneCall" }));
+
+    expect(resultOf(res)).toMatchObject({ sent: true });
+    expect(h.events).toHaveLength(1);
+    expect(h.events[0].phone).toBe(dialled);
+  });
+
+  for (const [label, opts] of [
+    ["withheld number (no customer)", { customer: null }],
+    ["web call (no customer)", { customer: null, type: "webCall" }],
+    ["blank caller ID", { customer: "   " }],
+    // Withheld numbers can arrive as a word or a short placeholder, not as absent.
+    ["caller ID 'anonymous'", { customer: "anonymous" }],
+    ["caller ID '+266696687' (carrier placeholder)", { customer: "+266696687" }],
+  ] as const) {
+    it(`${label}: refuses, sends nothing, and gives Nick the address to read aloud`, async () => {
+      const res = await postEvent(recapCall(`call-refuse-${label}`, { phone: "2165550199", ...opts }));
+
+      expect(res.status).toBe(200);
+      expect(h.events).toHaveLength(0);
+      const r = resultOf(res);
+      expect(r).toMatchObject({ sent: false, degraded: true, error: "no_caller_id" });
+      expect(String(r.verbalRecap)).toContain("17625 Euclid Avenue");
+      // The text was never attempted, so the line must not say it might arrive.
+      expect(String(r.verbalRecap)).not.toMatch(/in case the text/i);
+    });
+  }
+
+  it("the refusal is logged with a countable id and no phone digits", async () => {
+    const lines: string[] = [];
+    const spy = vi.spyOn(process.stdout, "write").mockImplementation((chunk: unknown) => {
+      lines.push(String(chunk));
+      return true;
+    });
+    try {
+      await postEvent(recapCall("call-refuse-log", { phone: "2165550199", customer: null }));
+    } finally {
+      spy.mockRestore();
+    }
+    const line = lines.find((l) => l.includes("VAPI_RECAP_NO_CALLER_ID"));
+    expect(line).toBeDefined();
+    expect(line).not.toContain("5550199");
   });
 });

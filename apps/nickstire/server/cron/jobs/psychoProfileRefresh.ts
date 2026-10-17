@@ -56,7 +56,7 @@ export async function processPsychoProfileRefresh(): Promise<ProcessResult> {
         `📊 PSYCHO PROFILE REFRESH · ${result.processed} customers classified ` +
           `(${result.updated} changed segments, ${result.unchanged} stable). ` +
           `Distribution: ${sortedSegments}` +
-          (result.errored > 0 ? ` ⚠️ ${result.errored} row errors — see logs.` : ""),
+          (result.errored > 0 ? ` ⚠️ ${result.errored} row errors — see logs.` : ""), "digest",
       );
     } catch (e) {
       log.warn("[psycho-profile] telegram notify failed", { error: e instanceof Error ? e.message : String(e) });
