@@ -6325,6 +6325,21 @@
       "file": "apps/nickstire/server/services/clipVerify.ts",
       "symbol": "mergeClipVerdictsIntoPayload",
       "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The pure compare-and-swap merge behind persistClipVerdicts (payload.clipVerify, PR #3086, Codex review 2026-10-16). Production reaches it only through persistClipVerdicts in the same module; clipVerify.test.ts imports it to pin the race with a fake store (a concurrent rendered-QA write lands between read and swap: the stale swap must lose and the re-read merge must keep their field). Mutation-verified: dropping the swap check turns 2 arms red."
+    },
+    {
+      "file": "apps/nickstire/server/services/vendorHealth.ts",
+      "symbol": "checkTelegram",
+      "reason": "Telegram alert diet (job 2026-10-16-telegram-alerts): the production caller is getVendorHealthReport in the same file; the export exists only so server/telegramTransportHonesty.test.ts can prove a valid token with a wrong chat id reads degraded. A test-only export, not a missing consumer."
+    },
+    {
+      "file": "apps/nickstire/server/routers/chat.ts",
+      "symbol": "createChatLead",
+      "reason": "Telegram alert diet (job 2026-10-16-telegram-alerts): the production caller is the chat handler in the same file; the export exists only so server/telegramSingleSender.test.ts can prove a chat lead sends exactly one Telegram alert. A test-only export, not a missing consumer."
+    },
+    {
+      "file": "apps/nickstire/server/follow-ups.ts",
+      "symbol": "reportFollowUpsToOwner",
+      "reason": "Telegram alert diet (job 2026-10-16-telegram-alerts): the production caller is runFollowUps in the same file; the export exists only so server/followUpOwnerReport.test.ts can prove the run report reaches the owner once. A test-only export, not a missing consumer."
     }
   ]
 }

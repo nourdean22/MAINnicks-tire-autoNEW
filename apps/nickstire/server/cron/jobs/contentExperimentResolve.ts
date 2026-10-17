@@ -67,7 +67,7 @@ export async function processContentExperimentResolve(): Promise<ProcessResult> 
         const line = verdict.status === "winner"
           ? `CONTENT EXPERIMENT CONCLUDED: ${def.experimentId} — winner "${verdict.variantValue}" (arm ${verdict.armId}, lift ${(verdict.lift * 100).toFixed(0)}% on ${def.primaryMetric}). Proposal: adopt the winning ${def.primaryVariable} as the lane default and start the next experiment. Nothing changes until you act.`
           : `CONTENT EXPERIMENT CONCLUDED: ${def.experimentId} — TIE on ${def.primaryMetric}. Proposal: retire this variable and test a different one. Nothing changes until you act.`;
-        await sendTelegram(line).catch(() => undefined);
+        await sendTelegram(line, "digest").catch(() => undefined);
       }
     } catch (error) {
       outcomes.push(`${def.experimentId}: ERROR`);

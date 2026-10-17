@@ -212,9 +212,9 @@ describe("processPromptEvolutionWeekly", () => {
     expect(mocks.insert).toHaveBeenCalled(); // kv row written
     // 9c6b591d renamed "ACCEPTED": an offline holdout pass is not a production
     // winner, and the message must say so.
-    expect(mocks.sendTelegram).toHaveBeenCalledWith(expect.stringContaining("OFFLINE CANDIDATE"));
-    expect(mocks.sendTelegram).toHaveBeenCalledWith(expect.stringContaining("NOT a production/business winner"));
-    expect(mocks.sendTelegram).toHaveBeenCalledWith(expect.stringContaining("Offline evidence only (H2); not served to customers."));
+    expect(mocks.sendTelegram).toHaveBeenCalledWith(expect.stringContaining("OFFLINE CANDIDATE"), "digest");
+    expect(mocks.sendTelegram).toHaveBeenCalledWith(expect.stringContaining("NOT a production/business winner"), "digest");
+    expect(mocks.sendTelegram).toHaveBeenCalledWith(expect.stringContaining("Offline evidence only (H2); not served to customers."), "digest");
     expect(telegramText()).toContain("PROMPT EVOLUTION (weekly · propose-only)");
     expect(JSON.parse(mocks.kv.get("prompt_evolution_latest")!).trigger).toBe("scheduled");
   });
@@ -224,7 +224,7 @@ describe("processPromptEvolutionWeekly", () => {
     const r = await processPromptEvolutionWeekly(MONDAY);
     expect(r.recordsProcessed).toBe(0);
     expect(r.details).toContain("rejected-holdout");
-    expect(mocks.sendTelegram).toHaveBeenCalledWith(expect.stringContaining("gate held"));
+    expect(mocks.sendTelegram).toHaveBeenCalledWith(expect.stringContaining("gate held"), "digest");
     expect(telegramText()).toMatch(/No proposal shipped \S outcome: rejected-holdout\./);
   });
 
@@ -243,7 +243,7 @@ describe("processPromptEvolutionWeekly", () => {
     const r = await processPromptEvolutionWeekly(MONDAY);
     expect(r.recordsProcessed).toBe(0);
     expect(r.details).toContain("gate regressed-seed +5/-1 p=0.040");
-    expect(mocks.sendTelegram).toHaveBeenCalledWith(expect.stringContaining("regressed call-7"));
+    expect(mocks.sendTelegram).toHaveBeenCalledWith(expect.stringContaining("regressed call-7"), "digest");
   });
 
   it("the live baseline is resolved first and passed in; a refusal fails the run before any replay, kv write or Telegram", async () => {

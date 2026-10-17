@@ -1,14 +1,10 @@
 /**
- * Telegram Push Notifications — Real-time alerts to Nour's phone
+ * Telegram Push Notifications — alerts to Nour's phone.
  *
- * UPGRADED: Message channels, rich formatting, message queuing/batching,
- * delivery tracking, rate limiting awareness, circuit breaker protection.
- *
- * Channels:
- *   CRITICAL  — new leads (high priority), bookings, emergencies → send immediately
- *   REVIEWS   — review alerts → batched into digests
- *   SYSTEM    — vendor health, system errors → batched
- *   DIGEST    — daily summaries, revenue milestones → batched
+ * Every send is immediate (event-driven). The old "batched" channels were never
+ * flushed (the flush timer is a documented no-op), so they are gone: the channel is
+ * only a label in the message text. A send dropped by the rate limit is counted
+ * (getTelegramStats().rateLimited) and shown in the daily summary.
  *
  * Requires: TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID env vars
  */
@@ -32,12 +28,77 @@ const telegramCB = getOrCreateBreaker("telegram", {
 // ─── Channels ────────────────────────────────────────
 export type TelegramChannel = "critical" | "reviews" | "system" | "digest";
 
+// ─── Classes (what Nour can mute) ────────────────────
+/**
+ * incident  something is broken or a customer is waiting: sent unless telegram_incident_muted
+ * digest    a scheduled summary or a once-per-state status: sent unless telegram_digest_muted
+ * approval  a draft that needs Nour's yes: sent unless telegram_approval_muted
+ * receipt   "this thing happened" confirmations: HELD unless telegram_receipt is ON; they roll into
+ *           the daily summary as a count
+ * noise     never sent
+ * An unclassified send is an incident, so a caller nobody classified keeps alerting exactly as before.
+ */
+export type TelegramClass = "incident" | "digest" | "approval" | "receipt" | "noise";
+export const DEFAULT_TELEGRAM_CLASS: TelegramClass = "incident";
+const TELEGRAM_CLASSES: readonly TelegramClass[] = ["incident", "digest", "approval", "receipt", "noise"];
+
+/**
+ * Why this class is held right now, or null when it may be sent. incident/digest/approval use PAUSE flags
+ * (absent or unreadable = not muted: an unreadable flag table never silences an incident); receipt uses an
+ * enable flag (absent or unreadable = held: receipts are the expendable class).
+ */
+async function classHoldReason(cls: TelegramClass): Promise<string | null> {
+  if (cls === "noise") return "noise (never sent)";
+  try {
+    const { isEnabled } = await import("./featureFlags");
+    if (cls === "incident") return (await isEnabled("telegram_incident_muted")) ? "telegram_incident_muted" : null;
+    if (cls === "digest") return (await isEnabled("telegram_digest_muted")) ? "telegram_digest_muted" : null;
+    if (cls === "approval") return (await isEnabled("telegram_approval_muted")) ? "telegram_approval_muted" : null;
+    return (await isEnabled("telegram_receipt")) ? null : "telegram_receipt (off)";
+  } catch {
+    return cls === "receipt" ? "telegram_receipt (unreadable)" : null;
+  }
+}
+
+/**
+ * Would a send of this class be held right now? Lets a caller that records "sent" (the lead delivery
+ * ledger) say "skipped" instead when the class is muted, since a held send is accepted (returns true).
+ */
+export async function isTelegramClassMuted(cls: TelegramClass = DEFAULT_TELEGRAM_CLASS): Promise<boolean> {
+  return (await classHoldReason(normalizeClass(cls))) !== null;
+}
+
+/**
+ * The three honest outcomes of a send. "held" is a decision (a muted class, a receipt turned off, noise),
+ * not a failure and not a delivery: callers that tell the operator "sent" must not say it for a held send.
+ */
+export interface TelegramSendResult {
+  status: "delivered" | "held" | "failed";
+  /** The flag (or rule) that held it, when status is "held". */
+  heldBy?: string;
+}
+
+/** Counts a held send and returns the result to hand back, or null when the class may be sent. */
+async function holdIfMuted(cls: TelegramClass): Promise<TelegramSendResult | null> {
+  const heldBy = await classHoldReason(cls);
+  if (heldBy === null) return null;
+  stats.muted[cls]++;
+  log.debug("Telegram send held by class", { cls, heldBy });
+  return { status: "held", heldBy };
+}
+
+function normalizeClass(cls: string): TelegramClass {
+  return (TELEGRAM_CLASSES as readonly string[]).includes(cls) ? (cls as TelegramClass) : DEFAULT_TELEGRAM_CLASS;
+}
+
 // ─── Delivery Tracking ──────────────────────────────
 interface DeliveryStats {
   sent: number;
   failed: number;
-  queued: number;
-  batched: number;
+  /** Dropped before the API call because 20 sends already went out in the last second. */
+  rateLimited: number;
+  /** Held by class (a muted class, held receipts, noise): decisions, not failures. */
+  muted: Record<TelegramClass, number>;
   lastSentAt: string | null;
   lastError: string | null;
 }
@@ -45,33 +106,16 @@ interface DeliveryStats {
 const stats: DeliveryStats = {
   sent: 0,
   failed: 0,
-  queued: 0,
-  batched: 0,
+  rateLimited: 0,
+  muted: { incident: 0, digest: 0, approval: 0, receipt: 0, noise: 0 },
   lastSentAt: null,
   lastError: null,
 };
 
-export function getTelegramStats(): DeliveryStats & { queueSize: number } {
-  const queueSize = messageQueue.critical.length +
-    messageQueue.reviews.length +
-    messageQueue.system.length +
-    messageQueue.digest.length;
-  return { ...stats, queueSize };
+/** In-process counters since this server booted (they reset on every deploy). */
+export function getTelegramStats(): DeliveryStats {
+  return { ...stats, muted: { ...stats.muted } };
 }
-
-// ─── Message Queue ──────────────────────────────────
-interface QueuedMessage {
-  text: string;
-  channel: TelegramChannel;
-  queuedAt: number;
-}
-
-const messageQueue: Record<TelegramChannel, QueuedMessage[]> = {
-  critical: [],
-  reviews: [],
-  system: [],
-  digest: [],
-};
 
 // Rate limiting: Telegram allows 30 msgs/sec, we stay well under
 const RATE_LIMIT_WINDOW_MS = 1_000;
@@ -127,17 +171,21 @@ function toPlainText(html: string): string {
     .replace(/&amp;/g, "&");
 }
 
-async function sendRaw(text: string): Promise<boolean> {
+async function sendRawResult(text: string, cls: TelegramClass = DEFAULT_TELEGRAM_CLASS): Promise<TelegramSendResult> {
   if (!isConfigured()) {
     log.debug("Telegram not configured, skipping");
-    return false;
+    return { status: "failed" };
   }
+  const held = await holdIfMuted(normalizeClass(cls));
+  if (held) return held;
 
   if (isRateLimited()) {
-    log.warn("Telegram rate limited, queuing message");
-    stats.queued++;
-    return false;
+    log.warn("Telegram rate limited, dropping message");
+    stats.rateLimited++;
+    return { status: "failed" };
   }
+  // Count the send at admission: a burst started in the same tick must see it.
+  recordSend();
 
   try {
     const result = await telegramCB.call(async () => {
@@ -162,17 +210,21 @@ async function sendRaw(text: string): Promise<boolean> {
       return true;
     });
 
-    recordSend();
     stats.sent++;
     stats.lastSentAt = new Date().toISOString();
-    return result;
+    return result ? { status: "delivered" } : { status: "failed" };
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
     stats.failed++;
     stats.lastError = errMsg;
     log.warn("Telegram send failed", { error: errMsg });
-    return false;
+    return { status: "failed" };
   }
+}
+
+/** Boolean form for the many callers that only need "accepted" (delivered OR held). */
+async function sendRaw(text: string, cls: TelegramClass = DEFAULT_TELEGRAM_CLASS): Promise<boolean> {
+  return (await sendRawResult(text, cls)).status !== "failed";
 }
 
 // ─── Rich Formatting Templates ──────────────────────
@@ -204,221 +256,93 @@ function divider(): string {
 
 export async function sendTelegramMessage(
   text: string,
-  channel: TelegramChannel = "system"
+  channel: TelegramChannel = "system",
+  cls: TelegramClass = DEFAULT_TELEGRAM_CLASS,
 ): Promise<boolean> {
   if (!isConfigured()) return false;
 
-  // Real-time dispatch: Bypass the 5-minute queue completely
-  return sendRaw(`[${channel.toUpperCase()}] ` + text);
+  return sendRaw(`[${channel.toUpperCase()}] ` + text, cls);
 }
 
 /**
- * Legacy compatibility: Send a plain text message (immediate).
+ * Legacy compatibility: send a plain text message (immediate). The boolean means ACCEPTED: the message was
+ * delivered OR deliberately held by a class mute. It is false only for a failure (unconfigured, rate-limited
+ * or rejected). Use sendTelegramResult when you report "sent" to the operator.
  */
-export async function sendTelegram(text: string): Promise<boolean> {
-  return sendRaw(text);
+export async function sendTelegram(text: string, cls: TelegramClass = DEFAULT_TELEGRAM_CLASS): Promise<boolean> {
+  return sendRaw(text, cls);
 }
 
-/**
- * Send a photo via Telegram (URL or file_id).
- */
-export async function sendTelegramPhoto(photoUrl: string, caption?: string): Promise<boolean> {
-  if (!isConfigured()) return false;
+/** Same send with the honest outcome: delivered, held (and by which flag), or failed. */
+export async function sendTelegramResult(text: string, cls: TelegramClass = DEFAULT_TELEGRAM_CLASS): Promise<TelegramSendResult> {
+  return sendRawResult(text, cls);
+}
+
+/** POSTs one media request. Every failure path (HTTP error and exception) is counted, like the text path. */
+async function postMedia(method: string, body: Record<string, unknown>, cls: TelegramClass): Promise<TelegramSendResult> {
+  if (!isConfigured()) return { status: "failed" };
+  const held = await holdIfMuted(normalizeClass(cls));
+  if (held) return held;
   try {
-    const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {
+    const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${method}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: CHAT_ID,
-        photo: photoUrl,
-        caption: caption?.slice(0, 1024) || undefined,
-        parse_mode: "HTML",
-      }),
+      body: JSON.stringify({ chat_id: CHAT_ID, ...body }),
     });
     if (!res.ok) {
-      log.error("Telegram photo send failed:", { status: res.status });
-      return false;
+      log.error(`Telegram ${method} failed`, { status: res.status });
+      stats.failed++;
+      stats.lastError = `Telegram ${method} HTTP ${res.status}`;
+      return { status: "failed" };
     }
     stats.sent++;
-    return true;
+    stats.lastSentAt = new Date().toISOString();
+    return { status: "delivered" };
   } catch (err) {
-    log.error("Telegram photo error:", { error: err instanceof Error ? err.message : String(err) });
-    return false;
+    const errMsg = err instanceof Error ? err.message : String(err);
+    stats.failed++;
+    stats.lastError = errMsg;
+    log.error(`Telegram ${method} error`, { error: errMsg });
+    return { status: "failed" };
   }
 }
 
-/**
- * Send a video via Telegram (URL or file_id).
- */
-export async function sendTelegramVideo(videoUrl: string, caption?: string): Promise<boolean> {
-  if (!isConfigured()) return false;
-  try {
-    const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendVideo`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: CHAT_ID,
-        video: videoUrl,
-        caption: caption?.slice(0, 1024) || undefined,
-        parse_mode: "HTML",
-      }),
-    });
-    if (!res.ok) {
-      log.error("Telegram video send failed:", { status: res.status });
-      return false;
-    }
-    stats.sent++;
-    return true;
-  } catch (err) {
-    log.error("Telegram video error:", { error: err instanceof Error ? err.message : String(err) });
-    return false;
-  }
+const caption1024 = (caption?: string) => caption?.slice(0, 1024) || undefined;
+
+/** Send a photo via Telegram (URL or file_id). */
+export function sendTelegramPhotoResult(photoUrl: string, caption?: string, cls: TelegramClass = DEFAULT_TELEGRAM_CLASS): Promise<TelegramSendResult> {
+  return postMedia("sendPhoto", { photo: photoUrl, caption: caption1024(caption), parse_mode: "HTML" }, cls);
 }
 
-/**
- * Send a document/file via Telegram.
- */
-export async function sendTelegramDocument(docUrl: string, caption?: string): Promise<boolean> {
-  if (!isConfigured()) return false;
-  try {
-    const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendDocument`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: CHAT_ID,
-        document: docUrl,
-        caption: caption?.slice(0, 1024) || undefined,
-        parse_mode: "HTML",
-      }),
-    });
-    if (!res.ok) return false;
-    stats.sent++;
-    return true;
-  } catch (e) { log.warn("[services/telegram] operation failed:", e); return false; }
+/** Send a video via Telegram (URL or file_id). */
+export function sendTelegramVideoResult(videoUrl: string, caption?: string, cls: TelegramClass = DEFAULT_TELEGRAM_CLASS): Promise<TelegramSendResult> {
+  return postMedia("sendVideo", { video: videoUrl, caption: caption1024(caption), parse_mode: "HTML" }, cls);
 }
 
-/**
- * Send a group of photos (album) via Telegram.
- */
-export async function sendTelegramMediaGroup(
-  media: Array<{ type: "photo" | "video"; url: string; caption?: string }>
-): Promise<boolean> {
-  if (!isConfigured() || media.length === 0) return false;
-  try {
-    const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMediaGroup`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: CHAT_ID,
-        media: media.map((m, i) => ({
-          type: m.type,
-          media: m.url,
-          caption: i === 0 ? m.caption?.slice(0, 1024) : undefined,
-          parse_mode: i === 0 ? "HTML" : undefined,
-        })),
-      }),
-    });
-    if (!res.ok) return false;
-    stats.sent++;
-    return true;
-  } catch (e) { log.warn("[services/telegram] operation failed:", e); return false; }
+/** Send a document/file via Telegram. */
+export function sendTelegramDocumentResult(docUrl: string, caption?: string, cls: TelegramClass = DEFAULT_TELEGRAM_CLASS): Promise<TelegramSendResult> {
+  return postMedia("sendDocument", { document: docUrl, caption: caption1024(caption), parse_mode: "HTML" }, cls);
 }
 
-// ─── Batch Flush (runs every 5 minutes) ─────────────
-
-const BATCH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
-let batchTimer: ReturnType<typeof setInterval> | null = null;
-
-/**
- * Flush all queued messages as batched digests.
- * Groups by channel, sends one message per channel.
- */
-export async function flushMessageQueue(): Promise<number> {
-  let totalFlushed = 0;
-
-  for (const channel of ["reviews", "system", "digest"] as TelegramChannel[]) {
-    const queue = messageQueue[channel];
-    if (queue.length === 0) continue;
-
-    // Drain the queue
-    const messages = queue.splice(0);
-    totalFlushed += messages.length;
-
-    // Build a single batched digest
-    const channelLabel = channel.toUpperCase();
-    const header = `📋 ${bold(`${channelLabel} DIGEST`)} (${messages.length} item${messages.length > 1 ? "s" : ""})`;
-    const body = messages
-      .map((m, i) => `${i + 1}. ${m.text}`)
-      .join("\n\n");
-    const footer = `\n${divider()}\n⏰ ${formatTimestamp()}`;
-
-    const digestText = `${header}\n${divider()}\n\n${body}${footer}`;
-
-    // Telegram max message length is 4096 chars
-    if (digestText.length > 4000) {
-      // Split into chunks
-      const chunks = splitMessage(messages);
-      for (const chunk of chunks) {
-        await sendRaw(chunk);
-        stats.batched++;
-      }
-    } else {
-      await sendRaw(digestText);
-      stats.batched++;
-    }
-  }
-
-  return totalFlushed;
+/** Send a group of photos (album) via Telegram. */
+export function sendTelegramMediaGroupResult(
+  media: Array<{ type: "photo" | "video"; url: string; caption?: string }>,
+  cls: TelegramClass = DEFAULT_TELEGRAM_CLASS,
+): Promise<TelegramSendResult> {
+  if (media.length === 0) return Promise.resolve({ status: "failed" });
+  return postMedia(
+    "sendMediaGroup",
+    {
+      media: media.map((m, i) => ({
+        type: m.type,
+        media: m.url,
+        caption: i === 0 ? caption1024(m.caption) : undefined,
+        parse_mode: i === 0 ? "HTML" : undefined,
+      })),
+    },
+    cls,
+  );
 }
-
-function splitMessage(messages: QueuedMessage[]): string[] {
-  const chunks: string[] = [];
-  let current: QueuedMessage[] = [];
-  let currentLength = 0;
-
-  for (const msg of messages) {
-    if (currentLength + msg.text.length > 3500 && current.length > 0) {
-      chunks.push(formatChunk(current));
-      current = [];
-      currentLength = 0;
-    }
-    current.push(msg);
-    currentLength += msg.text.length;
-  }
-
-  if (current.length > 0) {
-    chunks.push(formatChunk(current));
-  }
-
-  return chunks;
-}
-
-function formatChunk(messages: QueuedMessage[]): string {
-  const channel = messages[0]?.channel || "system";
-  return [
-    `📋 ${bold(`${channel.toUpperCase()} DIGEST`)} (${messages.length} items)`,
-    divider(),
-    ...messages.map((m, i) => `${i + 1}. ${m.text}`),
-    divider(),
-    `⏰ ${formatTimestamp()}`,
-  ].join("\n");
-}
-
-/** Start the batch flush timer (No-op after direct-dispatch upgrade) */
-export function startBatchTimer(): void {
-  log.info("Telegram batch timer disabled (event-driven mode active)");
-}
-
-/** Stop the batch timer */
-export function stopBatchTimer(): void {
-  if (batchTimer) {
-    clearInterval(batchTimer);
-    batchTimer = null;
-  }
-}
-
-// NOTE: startBatchTimer() is called from server startup in _core/index.ts
-// Do NOT auto-start here — it causes side effects during imports and tests
 
 // ─── Formatted Alert Helpers (UPGRADED with channels + rich formatting) ──
 
@@ -492,7 +416,7 @@ export function alertLowReview(review: {
     review.platform ? `📍 ${review.platform}` : "",
     `"${review.text.slice(0, 150)}${review.text.length > 150 ? "..." : ""}"`,
   ];
-  return sendTelegramMessage(lines.filter(Boolean).join("\n"), "reviews");
+  return sendTelegramMessage(lines.filter(Boolean).join("\n"), "reviews", "incident");
 }
 
 /** Positive review alert — REVIEWS channel (batched) */
@@ -510,7 +434,7 @@ export function alertGoodReview(review: {
     review.platform ? `📍 ${review.platform}` : "",
     `"${review.text.slice(0, 150)}${review.text.length > 150 ? "..." : ""}"`,
   ];
-  return sendTelegramMessage(lines.filter(Boolean).join("\n"), "reviews");
+  return sendTelegramMessage(lines.filter(Boolean).join("\n"), "reviews", "receipt");
 }
 
 /** After-hours lead/request — CRITICAL channel (immediate) */
@@ -541,7 +465,7 @@ export function alertRevenueMilestone(data: {
     `📊 ${data.period}: $${data.amount.toLocaleString()}`,
     `🎯 ${data.milestone}`,
   ];
-  return sendTelegramMessage(lines.filter(Boolean).join("\n"), "digest");
+  return sendTelegramMessage(lines.filter(Boolean).join("\n"), "digest", "digest");
 }
 
 /** System alert (errors, vendor down, etc.) — SYSTEM channel (batched) */
@@ -572,6 +496,15 @@ export function alertVendorRecovered(vendor: string) {
   );
 }
 
+/** One line from the live counters: how many alerts went out, were dropped by the rate limit, or failed (since boot). */
+function telegramStatsLine(): string {
+  const t = getTelegramStats();
+  const held = Object.entries(t.muted)
+    .filter(([, n]) => n > 0)
+    .map(([cls, n]) => `${n} ${cls === "receipt" ? "receipts held" : `${cls} muted`}`);
+  return `📨 Telegram: ${t.sent} sent, ${t.rateLimited} dropped by rate limit, ${t.failed} failed${held.length ? `, ${held.join(", ")}` : ""} (since last restart)`;
+}
+
 /** Daily summary — immediate send (scheduled, not batched) */
 export function sendDailySummary(data: {
   leads: number;
@@ -590,10 +523,11 @@ export function sendDailySummary(data: {
     `💰 Revenue: ${data.revenue === null ? bold("unknown (read failed)") : bold(`$${data.revenue.toLocaleString()}`)}`,
     `⭐ Reviews: ${data.reviews}${data.avgRating ? ` (avg ${data.avgRating.toFixed(1)})` : ""}`,
     data.vendorHealth ? `\n🏥 Systems: ${data.vendorHealth}` : "",
+    telegramStatsLine(),
     divider(),
     `— Nick's Tire & Auto`,
     `${link("Admin Panel", "https://nickstire.org/admin")}`,
   ];
   // Daily summary sends immediately (it's a scheduled job)
-  return sendRaw(lines.filter(Boolean).join("\n"));
+  return sendRaw(lines.filter(Boolean).join("\n"), "digest");
 }

@@ -39,6 +39,11 @@ vi.mock("../../db", () => ({
 }));
 vi.mock("../../services/telegram", () => ({
   sendTelegram: (...args: unknown[]) => sendTelegram(...args),
+  // the digests use the tri-state result; this shim maps the tests' boolean mock (true/false) onto it
+  sendTelegramResult: async (...args: unknown[]) => {
+    const r = await sendTelegram(...args);
+    return r === true ? { status: "delivered" } : r === false ? { status: "failed" } : r;
+  },
 }));
 
 import { runWeeklyGscDigest } from "./weeklyGscDigest";
@@ -250,6 +255,14 @@ describe("runWeeklyGscDigest — gate and failure posture", () => {
     expect(res.details).toBe(
       "clicks 1,234 (+8%) · 2026-09-12..2026-10-09 · 1 ctr opps · 1 drops · mirror 2026-10-09",
     );
+  });
+
+  it("reports a digest HELD by a mute as not sent: recordsProcessed 0 and the flag named, no throw", async () => {
+    queue();
+    sendTelegram.mockResolvedValue({ status: "held", heldBy: "telegram_digest_muted" });
+    const res = await runWeeklyGscDigest(MONDAY_NOON_ET);
+    expect(res.recordsProcessed).toBe(0);
+    expect(res.details).toContain("held by telegram_digest_muted");
   });
 
   it("sends NOTHING and REJECTS when the Google call throws", async () => {

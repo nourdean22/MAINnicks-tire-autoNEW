@@ -896,7 +896,7 @@ export function registerStatenourBridgeRoutes(app: Express): void {
               `Segment: ${segment} · Targets: <b>${targets.length}</b>` +
               (truncated ? ` (capped from ${allTargets.length})` : "") + `\n` +
               `Preview: ${preview.slice(0, 200)}\n\n` +
-              `No SMS sent. Re-send with dryRun:false to go live.`,
+              `No SMS sent. Re-send with dryRun:false to go live.`, "receipt",
           );
         } catch (e) {
           log.warn("[bulk-sms-send] dry-run telegram notify failed:", e);
@@ -955,7 +955,7 @@ export function registerStatenourBridgeRoutes(app: Express): void {
         await sendTelegram(
           `📤 <b>Bulk SMS LIVE</b> · campaign <code>${campaignId}</code> (db#${campaignDbId})\n` +
             `Segment: ${segment} · Sending to <b>${targets.length}</b>` +
-            (truncated ? ` (capped from ${allTargets.length})` : "") + ` customers.`,
+            (truncated ? ` (capped from ${allTargets.length})` : "") + ` customers.`, "receipt",
         );
       } catch (e) {
         log.warn("[bulk-sms-send] live-send telegram notify failed:", e);

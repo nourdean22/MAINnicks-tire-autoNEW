@@ -83,7 +83,8 @@ describe("generateAndNotifyGBPPost", () => {
     expect(result.details).toContain("GBP weekly post");
     expect(gbpContentGenerator.generateGBPPost).toHaveBeenCalled();
     expect(telegram.sendTelegram).toHaveBeenCalledWith(
-      expect.stringContaining("GBP POST")
+      expect.stringContaining("GBP POST"),
+      "approval",
     );
   });
 });

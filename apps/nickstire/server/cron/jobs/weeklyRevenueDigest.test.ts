@@ -25,6 +25,11 @@ vi.mock("../../db", () => ({
 }));
 vi.mock("../../services/telegram", () => ({
   sendTelegram: (...args: unknown[]) => sendTelegram(...args),
+  // the digests use the tri-state result; this shim maps the tests' boolean mock (true/false) onto it
+  sendTelegramResult: async (...args: unknown[]) => {
+    const r = await sendTelegram(...args);
+    return r === true ? { status: "delivered" } : r === false ? { status: "failed" } : r;
+  },
 }));
 
 import {
@@ -460,5 +465,13 @@ describe("runWeeklyRevenueDigest", () => {
     queueHappyPath();
     sendTelegram.mockResolvedValue(false);
     await expect(runWeeklyRevenueDigest(MONDAY_NOON_ET)).rejects.toThrow(/Telegram send failed/);
+  });
+
+  it("reports a digest HELD by a mute as not sent: recordsProcessed 0 and the flag named, no throw", async () => {
+    queueHappyPath();
+    sendTelegram.mockResolvedValue({ status: "held", heldBy: "telegram_digest_muted" });
+    const res = await runWeeklyRevenueDigest(MONDAY_NOON_ET);
+    expect(res.recordsProcessed).toBe(0);
+    expect(res.details).toContain("held by telegram_digest_muted");
   });
 });

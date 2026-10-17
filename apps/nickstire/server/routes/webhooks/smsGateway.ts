@@ -467,7 +467,7 @@ router.post("/sms-gateway", async (req: Request, res: Response) => {
     }
 
     if (eventType === "sms:failed") {
-      // ─── Delivery failed — log + Telegram alert ─────
+      // ─── Delivery failed — log + mark the rows failed ─────
       const reason = payload.reason || "unknown";
       log.warn("Shop SMS failed", {
         messageId: messageId.slice(0, 12),
@@ -499,17 +499,7 @@ router.post("/sms-gateway", async (req: Request, res: Response) => {
           }
         })();
       }
-      // Fire-and-forget Telegram alert
-      (async () => {
-        try {
-          const { sendTelegram } = await import("../../services/telegram");
-          await sendTelegram(
-            `❌ Shop SMS failed to ${phone.slice(-4)}\nReason: ${reason}\nMessageId: ${messageId.slice(0, 16)}`
-          );
-        } catch {
-          // Don't break the webhook
-        }
-      })();
+      // No per-message Telegram alert: smsGatewayHealthMonitor alerts once per outage.
       res.status(200).json({ received: true });
       return;
     }
