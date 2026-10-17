@@ -68,7 +68,11 @@ export function JourneyPanel() {
 
       <Panel>
         <SectionHeader label="xp growth" since={j.xp.since} source={j.xp.source} />
-        {!j.xp.enoughData ? (
+        {j.xp.unknown ? (
+          <p className="text-[11px] text-fg-tertiary italic">
+            XP couldn&apos;t be read. State unknown, not a quiet month.
+          </p>
+        ) : !j.xp.enoughData ? (
           <p className="text-[11px] text-fg-tertiary italic">No XP events in either window yet.</p>
         ) : (
           <div className="flex items-center gap-4 text-[12px] tabular-nums">

@@ -12,7 +12,7 @@
  * Reuses credit.ts's existing DB-side GROUP BY sum - no new query, no
  * migration. Read-only.
  */
-import { xpEventTotalsSince } from "./credit";
+import { xpEventTotalsSinceOrNull } from "./credit";
 import { daysAgo } from "@/lib/utils/datetime";
 
 export interface XpDrift {
@@ -33,13 +33,20 @@ const SURGE_RATIO = 2.5; // recent >= 250% of baseline = surging
 
 /**
  * Returns drifting stats, most-significant first (decays before surges -
- * a slip is the higher-value coaching nudge). Empty when nothing's drifting.
+ * a slip is the higher-value coaching nudge). Empty when nothing's drifting,
+ * and empty (one warn line) when either window could not be read: a failed
+ * read is not an empty week, and an empty map would score as a decay.
  */
 export async function detectXpDrift(): Promise<XpDrift[]> {
   const [last7, last35] = await Promise.all([
-    xpEventTotalsSince(daysAgo(7)),
-    xpEventTotalsSince(daysAgo(35)),
+    xpEventTotalsSinceOrNull(daysAgo(7)),
+    xpEventTotalsSinceOrNull(daysAgo(35)),
   ]);
+  if (last7 === null || last35 === null) {
+    const failed = [last7 === null ? "7d" : null, last35 === null ? "35d" : null].filter(Boolean);
+    console.warn(`[xp-drift] xp_drift_read_failed window=${failed.join("+")}: no drift claimed`);
+    return [];
+  }
 
   const drifts: XpDrift[] = [];
   for (const [stat, total35] of last35) {
