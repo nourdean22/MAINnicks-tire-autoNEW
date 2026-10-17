@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "chore/session-workflow-ab",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "f8d930b8-3865-416c-802f-2947cc79c726",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire",
+  "claimedBy": "2026-10-16-session-workflow-upgrade PR1 (manager: bdnick ui upgrade session)",
+  "claimedAt": "2026-10-17T02:22:06.822Z",
+  "expiresAt": "2026-10-17T14:22:06.822Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
