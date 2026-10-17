@@ -22,15 +22,11 @@
 import { getFlag } from "@/lib/feature-flags";
 import { semanticSearch } from "@/lib/brain/embedding-utils";
 import { fenceContent } from "@/lib/ai/tool-result-fencing";
+import { extractText, type ChatHistoryMessage } from "@/lib/ai/chat/extract-text";
 
 const ANTICIPATE_TIMEOUT_MS = 2000;
 const MIN_SIMILARITY = 0.35; // only confident next-topic matches
 const MAX_HITS = 3;
-
-interface TrajectoryMessage {
-  role: string;
-  content: string;
-}
 
 /**
  * Build the trajectory query text from the last few turns. The most
@@ -38,12 +34,12 @@ interface TrajectoryMessage {
  * weighted toward where the conversation is heading right now, while
  * still carrying the broader topic from earlier turns.
  */
-function buildTrajectoryText(messages: TrajectoryMessage[]): string {
-  const turns = messages
-    .filter((m) => typeof m?.content === "string" && m.content.trim().length > 0)
+function buildTrajectoryText(messages: ReadonlyArray<ChatHistoryMessage>): string {
+  const flat = messages
+    .map((m) => extractText(m).trim())
+    .filter((t) => t.length > 0)
     .slice(-4);
-  if (turns.length === 0) return "";
-  const flat = turns.map((m) => m.content.trim());
+  if (flat.length === 0) return "";
   // Most-recent pair (last up-to-2 turns) gets double weight.
   const recentPair = flat.slice(-2);
   return [...flat, ...recentPair].join("\n").slice(0, 1500);
@@ -54,14 +50,14 @@ function buildTrajectoryText(messages: TrajectoryMessage[]): string {
  * the recent conversation trajectory. Returns a short formatted
  * "### Likely-next context" block, or "" when off / empty / on any error.
  *
- * @param recentMessages last few chat turns ({ role, content }); the
- *   most recent pair is weighted highest.
+ * @param recentMessages last few chat turns, v6 `parts` or legacy
+ *   `{ role, content }`; the most recent pair is weighted highest.
  * @param alreadyRecalled the current recall block string (e.g. the
  *   getContextualMemories output) — hits whose content already appears
  *   here are skipped to avoid duplicating context.
  */
 export async function anticipateMemories(
-  recentMessages: TrajectoryMessage[],
+  recentMessages: ReadonlyArray<ChatHistoryMessage>,
   alreadyRecalled = "",
 ): Promise<string> {
   if (!getFlag("NICK_ANTICIPATORY_RECALL")?.isOn) return "";
