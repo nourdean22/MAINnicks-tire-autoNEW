@@ -560,7 +560,10 @@ export function ChatMessageList({
               sit in the column in the secondary tone (no fill, no right alignment), Nick's reply is
               the page's text at 20px, and the receipt line below it is the turn's only chrome
               (the per-reply NICK eyebrow is gone; the header already says Nick). */}
-          <div className="border-t border-edge-subtle pt-4">
+          {/* PR #3090 fix round: Nick's reply sits on the reading plane (surface-interactive,
+              column-bleed, no radius, no border); the operator's turn stays on the ground with its
+              rule. The plane tells the speakers apart, so neither needs an eyebrow or a bubble. */}
+          <div className={message.role === "assistant" ? "-mx-4 bg-surface-interactive px-4 pb-4 pt-4 sm:-mx-6 sm:px-6" : "border-t border-edge-subtle pt-4"}>
             <div
               className={
                 message.role === "user"

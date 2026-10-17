@@ -84,6 +84,16 @@ describe("the loaded conversation view (W3b round 3, B1)", () => {
     expect(markup).toMatch(/class="[^"]*\btext-\[20px\][^"]*"[^>]*><span class="sr-only">Nick:<\/span>/);
   });
 
+  // PR #3090 fix round (the gate measured chat/phone 0.280): Nick's reply sits on the reading plane, a
+  // column-bleed band on surface-interactive with no radius and no border; the operator's turn stays on
+  // the ground with its rule. The plane, not an eyebrow or a bubble, tells the two speakers apart.
+  it("Nick's reply sits on a column-bleed plane; the operator's turn does not", () => {
+    const markup = render(conversation);
+    expect(markup).toMatch(/<div class="(?=[^"]*\bbg-surface-interactive\b)(?=(?:[^"]*\s)?-mx-4\b)[^"]*"><div class="[^"]*\btext-\[20px\]/);
+    expect(markup).not.toMatch(/<div class="[^"]*\bbg-surface-interactive\b[^"]*"><div class="[^"]*\btext-\[15px\]/);
+    expect(markup).not.toMatch(/<div class="[^"]*\bbg-surface-interactive\b[^"]*\brounded/);
+  });
+
   it("the receipt line is the only chrome per turn: no per-reply Nick eyebrow, the speaker stays for screen readers", () => {
     const markup = render(conversation);
     expect(markup).not.toMatch(/aria-hidden="true">\s*Nick\s*</);
