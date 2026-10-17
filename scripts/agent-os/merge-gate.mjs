@@ -13,6 +13,9 @@
  *   3. merges with --match-head-commit, so GitHub itself refuses if the head moved after step 2;
  *   4. re-reads the PR and deletes the branch through the API ONLY once it reads MERGED. Deleting the head branch of an
  *      unmerged PR closes it (happened on #2948), and `--delete-branch` can fail locally after the remote merge succeeded.
+ *   5. once MERGED, tears down the local worktree(s) holding the merged head that prove LANDED (repo-status.mjs
+ *      sweepAfterMerge, through worktree-teardown.ps1) and prints what it removed or kept. A sweep failure is logged and
+ *      never changes the exit code.
  *
  * Exit codes:
  *   0 ready (without --merge) or merged
@@ -87,7 +90,7 @@ export async function holdWhileBusy({ list, self, minutes, sleep, now, everyMs =
 const VIEW_FIELDS = "state,isDraft,mergeStateStatus,headRefOid,headRefName,isCrossRepository,statusCheckRollup";
 
 /** The whole protocol. `gh(args)` returns stdout; injected so the order of calls can be proven. */
-export async function mergeGate({ gh, pr, sha, wait, merge, sleep, now, log }) {
+export async function mergeGate({ gh, pr, sha, wait, merge, sleep, now, log, sweep }) {
   // A NaN deadline never arrives, which would turn the bounded wait into an endless poll.
   if (!Number.isFinite(wait) || wait < 0) throw new Error("--wait-minutes must be a finite number of minutes, 0 or more");
   const json = (args) => JSON.parse(gh(args));
@@ -118,6 +121,16 @@ export async function mergeGate({ gh, pr, sha, wait, merge, sleep, now, log }) {
     log(`ERROR: gh pr merge failed (${firstLine(e)}). The merge may still have happened: run gh pr view ${pr} --json state before any retry`);
     return 6;
   }
+  // Step 5: tear down the local worktree(s) holding the merged head when they prove LANDED (repo-status.mjs sweepAfterMerge).
+  // Never fails the merge: anything it throws is logged and the exit code stays what the merge earned.
+  const sweepMerged = async () => {
+    if (!sweep) return;
+    try {
+      await sweep({ branch: before.headRefName, headSha: before.headRefOid }, log);
+    } catch (e) {
+      log(`SWEEP failed: ${firstLine(e)}; the merge is unaffected. Run node scripts/agent-os/repo-status.mjs --sweep to see why`);
+    }
+  };
   try {
     const after = json(["pr", "view", String(pr), "--json", "state,mergeCommit"]);
     if (after.state !== "MERGED") {
@@ -127,11 +140,13 @@ export async function mergeGate({ gh, pr, sha, wait, merge, sleep, now, log }) {
     if (before.isCrossRepository) {
       // headRefName names a branch in the fork; deleting that name in the base repository could remove an unrelated branch.
       log(`MERGED: #${pr} as ${after.mergeCommit?.oid}; cross-repository PR, branch ${before.headRefName} left in the fork`);
+      await sweepMerged();
       return 0;
     }
     const repo = gh(["repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"]).trim();
     gh(["api", "-X", "DELETE", `repos/${repo}/git/refs/heads/${before.headRefName}`]);
     log(`MERGED: #${pr} as ${after.mergeCommit?.oid}; branch ${before.headRefName} deleted`);
+    await sweepMerged();
     return 0;
   } catch (e) {
     log(`ERROR after the merge call (${firstLine(e)}). The merge HAPPENED for #${pr}: do not retry it. Check gh pr view ${pr} --json state,mergeCommit; once it reads MERGED, delete branch ${before.headRefName} through the API if it is still there`);
@@ -161,6 +176,8 @@ if (isMainModule(import.meta.url)) {
     sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
     now: () => Date.now(),
     log: (m) => console.log(m),
+    // Imported only after a merge, so a broken sweep module can never stop a merge (the throw lands in the SWEEP failed log).
+    sweep: async (head, log) => (await import("./repo-status.mjs")).sweepAfterMerge(head, { cwd: process.cwd(), log }),
   });
   process.exit(code);
 }

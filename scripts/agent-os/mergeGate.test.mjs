@@ -257,3 +257,33 @@ test("the CLI refuses a following flag taken as the wait value (exit 64), and ba
   assert.match(r.stderr, /--wait-minutes/);
   assert.equal(spawnSync(process.execPath, [GATE, "notanumber"], { encoding: "utf8" }).status, 64);
 });
+
+// Worktree sweep after a merge (job 2026-10-17-worktree-sweep): the sweep runs only once the PR reads MERGED, gets the
+// merged head, and can never change the merge's exit code.
+test("after MERGED, the sweep runs once for the merged head and its log lines are printed; exit stays 0", async () => {
+  const g = fakeGh();
+  const seen = [];
+  const sweep = async (head, log) => {
+    seen.push(head);
+    log("SWEEP: removed /wt/x (PR #3100 merged)");
+  };
+  const { code, logs } = await logsOf(g, { sweep });
+  assert.equal(code, 0);
+  assert.deepEqual(seen, [{ branch: "chore/some-branch", headSha: SHA }]);
+  assert.ok(logs.some((l) => l.startsWith("MERGED:")) && logs.includes("SWEEP: removed /wt/x (PR #3100 merged)"), JSON.stringify(logs));
+});
+
+test("a sweep that throws is logged and the merge still exits 0", async () => {
+  const g = fakeGh();
+  const { code, logs } = await logsOf(g, { sweep: async () => { throw new Error("teardown exploded"); } });
+  assert.equal(code, 0);
+  assert.ok(logs.some((l) => /SWEEP failed: teardown exploded.*merge is unaffected/.test(l)), JSON.stringify(logs));
+});
+
+test("no sweep when the PR does not read MERGED, when blocked, or without --merge", async () => {
+  for (const over of [{ g: fakeGh({ afterMerge: { state: "OPEN" } }) }, { g: fakeGh({ prs: { 3100: view({ isDraft: true }) } }) }, { g: fakeGh(), merge: false }]) {
+    let called = 0;
+    await logsOf(over.g, { sweep: async () => called++, ...(over.merge === false ? { merge: false } : {}) });
+    assert.equal(called, 0);
+  }
+});
