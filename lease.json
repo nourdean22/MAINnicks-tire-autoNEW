@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "nickstire/vapi-sms-caller-binding",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "f8d930b8-3865-416c-802f-2947cc79c726",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire",
   "claimedBy": "2026-10-16-vapi-sms-caller-binding (manager: bdnick ui upgrade session)",
   "claimedAt": "2026-10-16T21:13:09.881Z",
   "expiresAt": "2026-10-17T09:13:09.881Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": null
+  "releasedAt": "2026-10-17T15:12:01.244Z",
+  "releaseReason": "operator confirmed via -ForceDirtyRelease in worktree-teardown.ps1",
+  "priorLeaseSha": "976cd34505adcc0d0c634d0c4893750f4fb5f4ab",
+  "releasedBy": "57ddae97-2431-4bb5-9ff7-0735d7189921",
+  "foreignReleaseReason": null
 }
