@@ -24,7 +24,9 @@
  * and each asks before it can post. It renders on its own read, so a failed
  * reel read never hides it. The comment responder card under it
  * (CommentResponderCard.tsx) is the second controllable card: pause is one
- * tap and resume asks first, also on its own read.
+ * tap and resume asks first, also on its own read. The send switches card
+ * (SendSwitchesCard.tsx) is the third: one pause / resume row per send lane,
+ * on its own read.
  */
 import { trpc } from "@/lib/trpc";
 import {
@@ -36,6 +38,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ImageAutopostCard } from "./ImageAutopostCard";
 import { CommentResponderCard } from "./CommentResponderCard";
+import { SendSwitchesCard } from "./SendSwitchesCard";
 
 /** Skip rate is a percentage where LOWER is better. Banded against this
  *  account's own measured corpus mean (66.4% on 2026-09-09), not against a
@@ -58,9 +61,10 @@ export function Pipeline() {
       <ReelHealth />
       <ImageAutopostCard />
       <CommentResponderCard />
+      <SendSwitchesCard />
       <p className="px-1 text-xs text-muted-foreground">
         The reel sections are read-only. Image autopost can run a slot and pause its lane. The comment
-        responder can be paused and resumed.
+        responder and each send lane can be paused and resumed.
       </p>
     </div>
   );
