@@ -27,7 +27,7 @@
  * Receipts for the status route: last ingestion time, result, HTTP status and
  * error, batches sent/failed, events traced/dropped/skipped.
  *
- * Env (set on the nickstire Railway service; unset today):
+ * Env (set on the nickstire Railway service by the operator on 2026-10-17):
  *   LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_BASE_URL (default
  *   https://us.cloud.langfuse.com, the region statenour uses).
  */

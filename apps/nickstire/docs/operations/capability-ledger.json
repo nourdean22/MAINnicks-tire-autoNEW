@@ -5183,15 +5183,19 @@
     },
     {
       "capabilityId": "observability-proof-20261016",
-      "name": "Sentry and Langfuse are proven by planted positives: authenticated observability probe + HEALTHY/DEGRADED/UNKNOWN status route, Sentry release = deployed commit, every server AI call traced in Langfuse with masking",
+      "name": "Sentry and Langfuse are proven by planted positives: authenticated observability probe (checks its own event and batch) + HEALTHY/DEGRADED/UNKNOWN status route, Sentry release = deployed commit, every server AI call (including throws) traced in Langfuse with NO free text by default",
       "owner": "operator",
       "evidence": {
-        "codeCommit": "Branch worktree-agent-aef843569bf5a1aac (job 2026-10-16-nickstire-observability, intended PR branch nickstire/observability-proof) on 5e77a7836: 49dd8652c (lib/sentry.ts release from resolveNickDeployIdentity, capture/ack receipts via afterSendEvent; POST /api/system/observability-probe behind requireAdminApiKey; lib/health.ts checks.sentry dsn_set + last_event_id + events_sent_since_boot), 876d00a8a (lib/observabilityStatus.ts, GET /api/system/observability-status, lib/langfuse-ingest.ts fetch ingestion with bounded queue and 207 per-event error handling), 5b0d57b22 (traceChat at every provider call site: _core/llm.ts invokeLLM, lib/ai-gateway.ts, services/nickgpt-client.ts, igAutopost.ts, vision-analyzer.ts, classifiers.ts, voice-clone.ts, _core/imageGeneration.ts, _core/voiceTranscription.ts, veoStudio.ts, four strategist routes), 3126d3830 (docs/OBSERVABILITY.md current state, truth_os), 73c3bd668 (exports trimmed to production callers), 7b885e4 (followUps.cancel compare-and-swap, followUpCancelRace.test.ts red 1f/2p).",
+        "codeCommit": "Branch worktree-agent-aef843569bf5a1aac (job 2026-10-16-nickstire-observability, intended PR branch nickstire/observability-proof) on 5e77a7836: 49dd8652c (lib/sentry.ts release from resolveNickDeployIdentity, capture/ack receipts via afterSendEvent; POST /api/system/observability-probe behind requireAdminApiKey; lib/health.ts checks.sentry dsn_set + last_event_id + events_sent_since_boot), 876d00a8a (lib/observabilityStatus.ts, GET /api/system/observability-status, lib/langfuse-ingest.ts fetch ingestion with bounded queue and 207 per-event error handling), 5b0d57b22 (traceChat at every provider call site: _core/llm.ts invokeLLM, lib/ai-gateway.ts, services/nickgpt-client.ts, igAutopost.ts, vision-analyzer.ts, classifiers.ts, voice-clone.ts, _core/imageGeneration.ts, _core/voiceTranscription.ts, veoStudio.ts, four strategist routes), 3126d3830 (docs/OBSERVABILITY.md current state, truth_os), 73c3bd668 (exports trimmed to production callers), 7b885e4 (followUps.cancel compare-and-swap, followUpCancelRace.test.ts red 1f/2p). Fix round 2026-10-17 (review of #3094): 1e653c231 (traces carry no free text by default; excerpt: true opt-in, enabled only for the probe; error sent as a class; tracing off returns before serialisation), 89b58cd89 (thrown provider failures traced then rethrown at every raw-fetch site; nickgpt empty reply traced as an error), 55463eb25 (markNotificationSent / markNotificationFailed compare-and-swap on status = 'pending'), dde61826e (public /api/health keeps only dsn_set; Sentry HEALTHY needs an ack within 12 h; dropped Langfuse traces read DEGRADED; probe checks its own event id and its own batch; probe handler 500 on throw).",
         "tests": [
           "server/sentryProof.test.ts (10): release is the commit; probe sends one message tagged probe_id + commit and is ok only on a 2xx ack; un-acked and 429 are not ok; capture throw never reaches the caller; health reads dsn_set not configured; route gated. Red against old health.ts + probe without the ack check: 3f/5p.",
           "server/observabilityStatus.test.ts (19): every Sentry and Langfuse state, planted positives move UNKNOWN to HEALTHY, 207-with-errors and 401 are DEGRADED, masking on the wire, private calls skipped. Control: unset keys read HEALTHY + 207 check removed -> 2f/17p.",
           "server/langfuseTraceGate.test.ts (3): no server file names a provider endpoint without a trace call; planted untraced fetch flagged. Control: untraced routes/simulator.ts -> 1f/2p.",
-          "server/langfuseInvokeLLM.test.ts (2): a real invokeLLM call (provider stubbed) reaches the ingestion body with tokens and the phone masked. Control: success trace removed -> 1f/1p."
+          "server/langfuseInvokeLLM.test.ts (2): a real invokeLLM call (provider stubbed) reaches the ingestion body with tokens and the phone masked. Control: success trace removed -> 1f/1p.",
+          "server/langfuseNoExcerptDefault.test.ts (5): 'Customer name: Maria Lopez', 'Maria Lopez here', 'Lopez, Maria 44101' never reach the wire as input, output or error; errors sent as a class; excerpt: true still masked. Red against the old default 4f/1p; mutant (excerpts on by default) 3f/2p.",
+          "server/langfuseThrowTraced.test.ts (5): a rejected fetch at aiGateway and generateImage leaves one ok:false generation 'TypeError:ENOTFOUND' and rethrows; a 503 is not traced twice; source gate with a planted control. Red against the pre-fix sites 3f/2p.",
+          "server/followUpNotificationCas.test.ts (4): pending moves, an operator's 'skipped' stays, for both writers. Red 4f/0p; mutant (status clause dropped) 1f/3p.",
+          "sentryProof + observabilityStatus additions: red against the pre-fix health, status and routes files 5f/28p (receipts on the public route, a 13 h old ack read HEALTHY, dropped traces read HEALTHY, another event's ack made the probe ok, the handler threw)."
         ],
         "liveRuns": [],
         "deploymentId": null
@@ -5199,18 +5203,19 @@
       "blockers": [
         {
           "severity": "P2",
-          "description": "Not observed in production. Live proof: after deploy, POST /api/system/observability-probe returns sentry.ok true with an eventId findable in Sentry by tag probe_id, and GET /api/system/observability-status shows sentry HEALTHY. Langfuse stays UNKNOWN until Nour sets LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY on the nickstire service.",
+          "description": "Not observed in production. Live proof: after deploy, POST /api/system/observability-probe returns sentry.ok true with an eventId findable in Sentry by tag probe_id and langfuse.ok true, and GET /api/system/observability-status shows both instruments HEALTHY. Langfuse keys were set on the nickstire service on 2026-10-17 (operator, per the coordinator; not read back by the lane).",
           "source": "job 2026-10-16-nickstire-observability"
         }
       ],
       "deferredScope": [
         "Sentry capture is not widened to Express route errors or cron failures (quota decision)",
         "no client-side Sentry",
-        "the trace gate is per file: a second untraced fetch inside a traced file passes",
+        "the trace gates are per file: a second untraced fetch inside a traced file passes",
         "Higgsfield video calls are not traced",
-        "queued Langfuse events are lost on a deploy (no shutdown flush)"
+        "queued Langfuse events are lost on a deploy (no shutdown flush); eventsDropped counts since boot",
+        "no free-text excerpts except the probe: a future site may opt in only if its text holds no customer data"
       ],
-      "lastVerifiedAt": "2026-10-16",
+      "lastVerifiedAt": "2026-10-17",
       "codeState": "in_progress",
       "operationalState": "unit_verified",
       "exposure": "disabled"

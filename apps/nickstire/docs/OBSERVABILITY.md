@@ -12,52 +12,54 @@
 
 | Instrument | Code | How to prove it | State today |
 |---|---|---|---|
-| **Sentry (server)** | `server/lib/sentry.ts`. `@sentry/node` 10.59 is a real dependency (installed). Release = the deployed commit via `resolveNickDeployIdentity` (`RAILWAY_GIT_COMMIT_SHA`), not `RAILWAY_DEPLOYMENT_ID`. Traces sample rate 0 by design. `sendDefaultPii` off; cookies and auth headers stripped in `beforeSend`. | `POST /api/system/observability-probe` (Bearer `ADMIN_API_KEY`) plants one info message tagged `probe_id` + `commit`, flushes, and reports `ok` only when Sentry's transport answered 2xx (`afterSendEvent` hook). Find it in Sentry by tag `probe_id`. | DSN is set on Railway (events reached project NICKSTIRE, e.g. issue NICKSTIRE-D). Probe not yet run against production. |
+| **Sentry (server)** | `server/lib/sentry.ts`. `@sentry/node` 10.59 is a real dependency (installed). Release = the deployed commit via `resolveNickDeployIdentity` (`RAILWAY_GIT_COMMIT_SHA`), not `RAILWAY_DEPLOYMENT_ID`. Traces sample rate 0 by design. `sendDefaultPii` off; cookies and auth headers stripped in `beforeSend`. | `POST /api/system/observability-probe` (Bearer `ADMIN_API_KEY`) plants one info message tagged `probe_id` + `commit`, flushes, and reports `ok` only when Sentry's transport answered 2xx for THAT event id (`afterSendEvent` hook, per-event answers kept for the last 50 events). Find it in Sentry by tag `probe_id`. | DSN is set on Railway (events reached project NICKSTIRE, e.g. issue NICKSTIRE-D). Probe not yet run against production. |
 | **Sentry capture scope** | `lib/error-telemetry.ts` forwards non-operational errors from tRPC `onError` and `unhandledRejection`. Express route errors and cron failures do NOT reach Sentry. | n/a | Widening capture is a separate decision (Sentry quota). |
 | **Sentry client-side** | none | n/a | Not installed; separate PR. |
-| **Langfuse (AI calls)** | `server/lib/langfuse-ingest.ts`: `fetch` to `POST {LANGFUSE_BASE_URL}/api/public/ingestion`, basic auth `public:secret`, batched `trace-create` + `generation-create`, bounded queue (200 events), one HTTP batch every 3 s, never throws into or blocks the caller. No SDK, no OpenTelemetry. | The same probe (target `langfuse`) sends one synthetic generation named `observability-probe` (no model call). Read back: `GET /api/public/observations?name=observability-probe`. A 207 with per-event `errors` counts as a failure. | OFF: `LANGFUSE_*` unset on the nickstire Railway service. Status route says UNKNOWN until Nour sets them (below). |
-| **Status route** | `GET /api/system/observability-status` (Bearer `ADMIN_API_KEY`), `server/lib/observabilityStatus.ts` | HEALTHY / DEGRADED / UNKNOWN per instrument with `since`, `detail` and the raw receipts. | Counters are in-process: every deploy resets them to UNKNOWN until the next event or probe. |
-| **/api/health `checks.sentry`** | `server/lib/health.ts` | `status: dsn_set / dsn_unset` (presence only, named honestly) plus `last_event_id`, `events_sent_since_boot` (transport 2xx) and `events_captured_since_boot` (locally issued ids). | It used to say `configured` from the DSN alone. |
+| **Langfuse (AI calls)** | `server/lib/langfuse-ingest.ts`: `fetch` to `POST {LANGFUSE_BASE_URL}/api/public/ingestion`, basic auth `public:secret`, batched `trace-create` + `generation-create`, bounded queue (200 events), one HTTP batch every 3 s, never throws into or blocks the caller. No SDK, no OpenTelemetry. | The same probe (target `langfuse`) sends one synthetic generation named `observability-probe` (no model call) under a trace id it chose, and is `ok` only when a batch containing that trace id was accepted whole. Read back: `GET /api/public/observations?name=observability-probe`. A 207 with per-event `errors` counts as a failure. | Keys set on the nickstire Railway service by Nour on 2026-10-17 (CLAIM from the coordinator; not read back by this lane). Not yet proven by a probe in production. |
+| **Status route** | `GET /api/system/observability-status` (Bearer `ADMIN_API_KEY`), `server/lib/observabilityStatus.ts` | HEALTHY / DEGRADED / UNKNOWN per instrument with `since`, `detail` and the raw receipts (event ids, captured / acked counters, last ingestion). | Counters are in-process: every deploy resets them to UNKNOWN until the next event or probe. |
+| **/api/health `checks.sentry`** | `server/lib/health.ts` | `status: dsn_set / dsn_unset` only (presence, named honestly). The route is public, so event ids and counters are on the authenticated status route instead. | It used to say `configured` from the DSN alone. |
 | **Structured logger** | `server/lib/logger.ts` (leveled JSON). `console.log/warn/error` are banned in `server/` by `pnpm lint:source`. | n/a | In place. |
 | **LLM ledger** | `services/llmLedger.ts` writes `llm_calls` for every `invokeLLM` (gated by `LLM_LEDGER_ENABLED`). Langfuse is the cross-provider trace; the ledger is the DB record. | n/a | Separate from Langfuse. |
 
 ### State rules (status route)
 
-- **Sentry:** DSN unset = UNKNOWN. DSN set but init failed = DEGRADED. At least one event acked (2xx) since boot = HEALTHY. Events captured but none acked = UNKNOWN. A capture error or a non-2xx after the last ack, or a flush that did not drain = DEGRADED.
-- **Langfuse:** keys unset = UNKNOWN. Keys set, nothing sent yet = UNKNOWN. Last ingestion 2xx (no per-event errors) within 12 h = HEALTHY; older = UNKNOWN. Last ingestion failed = DEGRADED.
+- **Sentry:** DSN unset = UNKNOWN. DSN set but init failed = DEGRADED. At least one event acked (2xx) since boot AND the last ack within 12 h = HEALTHY; an older ack = UNKNOWN. Events captured but none acked = UNKNOWN. A capture error or a non-2xx after the last ack, or a flush that did not drain = DEGRADED.
+- **Langfuse:** keys unset = UNKNOWN. Any trace dropped since boot (queue overflow) = DEGRADED. Keys set, nothing sent yet = UNKNOWN. Last ingestion 2xx (no per-event errors) within 12 h = HEALTHY; older = UNKNOWN. Last ingestion failed = DEGRADED.
 - Missing telemetry is never HEALTHY.
 
-### What Langfuse receives (masking)
+### What Langfuse receives (no free text by default)
 
-- Every input/output excerpt goes through `services/callerTextRedaction.ts` (phones, names, emails, VINs, addresses) and is capped at 400 characters. Provider error text is masked the same way.
-- The prompt is sent only as a sha256 (`metadata.promptSha256`), never as text. Images, audio and video are never sent (`[image]`, `[audio]` placeholders).
+- **Default (every site but one):** model, prompt sha256 (`metadata.promptSha256`), `metadata.inputChars` / `outputChars`, token counts, latency, ok / error, and the error as a CLASS only (`HTTP 503`, `TimeoutError`, `TypeError:ENOTFOUND`), never a provider message (messages can echo the request). No input, output or transcript text leaves the server.
+- **Why:** `services/callerTextRedaction.ts` misses names in structured or unintroduced text; "Customer name: Maria Lopez", "Maria Lopez here" and "Lopez, Maria 44101" pass through it unchanged (review P2-1, 2026-10-17). `server/langfuseNoExcerptDefault.test.ts` pins that none of the three reaches the wire.
+- **Opt-in:** `excerpt: true` on one call sends masked (callerTextRedaction), 400-character excerpts. Allowed only where the text holds no customer data. Enabled at exactly one site: the observability probe (synthetic `ping` / `pong` text).
+- Images, audio and video are never sent (`[image]`, `[audio]` placeholders). Tracing off (keys unset) returns before any serialisation.
 - A call marked `private: true` is counted under `skipped.private` and never queued. No nickstire call site sets it today (no private/do-not-record mode was found in the nickstire server on 2026-10-16); the seam exists for one.
 - Trace names: `<lane>:<site>`, e.g. `llm:<calling function>`, `gateway:openai`, `nickgpt:ollama`, `vision:gemini`.
 
-### AI call sites and tracing (2026-10-16)
+### AI call sites and tracing (2026-10-17)
 
-Gate: `server/langfuseTraceGate.test.ts` fails when a server file names a provider endpoint and never calls `traceChat(` / `traceGeneration(` (comments stripped; a planted untraced fetch proves it fires).
+Gates: `server/langfuseTraceGate.test.ts` fails when a server file names a provider endpoint and never calls `traceChat(` / `traceGeneration(`; `server/langfuseThrowTraced.test.ts` fails when a provider file's raw `fetch(` has no throw trace (`traceThrown` / `rethrowTraced`), with five reasoned exemptions. Both strip comments and carry a planted control.
 
-| Site | Provider | Traced |
+| Site | Provider | Traced (success / non-2xx / throw) |
 |---|---|---|
-| `_core/llm.ts` `invokeLLM` (about 48 importing files: receptionist, replay lane, critic, reel generation, most AI) | OpenAI / Gemini / Ollama | yes, success and failure |
-| `lib/ai-gateway.ts` `callOpenAI` | OpenAI / Gemini | yes |
-| `services/nickgpt-client.ts` (Ollama, Anthropic, Gemini, OpenAI fallbacks) | 4 | yes, each |
-| `services/igAutopost.ts` image generation (Gemini direct, OpenRouter) | 2 | yes |
-| `services/vision-analyzer.ts` `analyzePhoto` (4 backends) and `describeImagesOpenAiCompatible` | Replicate / HF / Gemini / Ollama | yes, at the entry points |
-| `services/classifiers.ts` prompt-injection screen + SMS intent | Hugging Face | yes |
-| `services/voice-clone.ts` `cloneVoice` | Replicate / Modal XTTS | yes |
-| `_core/imageGeneration.ts` | Gemini / DALL-E | yes |
-| `_core/voiceTranscription.ts` | Whisper | yes (masked transcript excerpt only) |
-| `services/veoStudio.ts` submit | Veo | yes (submit; polls are not generations) |
-| `routes/nour-chief-strategist.ts`, `psych-dominance.ts`, `nour-strategy.ts`, `simulator.ts` | OpenAI | yes |
-| `services/higgsfieldStudio.ts` / `higgsfieldApiClient.ts` | Higgsfield video | NO (not an LLM endpoint; the gate does not cover it) |
+| `_core/llm.ts` `invokeLLM` (about 48 importing files: receptionist, replay lane, critic, reel generation, most AI) | OpenAI / Gemini / Ollama | yes / yes / yes |
+| `lib/ai-gateway.ts` `callOpenAI` | OpenAI / Gemini | yes / yes / yes |
+| `services/nickgpt-client.ts` (Ollama, Anthropic, Gemini, OpenAI fallbacks) | 4 | yes / yes / yes, each; an empty reply is an error |
+| `services/igAutopost.ts` image generation (Gemini direct, OpenRouter) | 2 | yes / yes / yes |
+| `services/vision-analyzer.ts` `analyzePhoto` (4 backends) and `describeImagesOpenAiCompatible` | Replicate / HF / Gemini / Ollama | at the entry points; backends turn throws into `{ ok: false }` results |
+| `services/classifiers.ts` prompt-injection screen + SMS intent | Hugging Face | at the entry points, same |
+| `services/voice-clone.ts` `cloneVoice` | Replicate / Modal XTTS | at the entry point, same |
+| `_core/imageGeneration.ts` | Gemini / DALL-E | yes / yes / yes |
+| `_core/voiceTranscription.ts` | Whisper | yes / yes / yes (no transcript text) |
+| `services/veoStudio.ts` submit | Veo | yes / yes / yes (polls are not generations) |
+| `routes/nour-chief-strategist.ts`, `psych-dominance.ts`, `nour-strategy.ts`, `simulator.ts` | OpenAI | yes / yes / yes |
+| `services/higgsfieldStudio.ts` / `higgsfieldApiClient.ts` | Higgsfield video | NO (not an LLM endpoint; the gates do not cover it) |
 
-Known limits: the gate is per file, so a second untraced fetch inside a traced file passes; network errors thrown by `fetch` itself (before a response) are traced at `invokeLLM` and the wrapped entry points, not at the raw-fetch sites; queued events are lost on a deploy (up to 3 s of traces; there is no shutdown flush).
+Known limits: the gates are per file, so a second untraced fetch inside a traced file passes; queued events are lost on a deploy (up to 3 s of traces; there is no shutdown flush); `eventsDropped` counts since boot, so one overflow keeps Langfuse DEGRADED until the next deploy.
 
 ### Nour's steps (not done by any agent)
 
-1. Set the Langfuse keys on the nickstire service (same project or a new one in Langfuse Cloud, US region):
+1. Langfuse keys: set on the nickstire service on 2026-10-17. For reference, the shape was
    `railway variables --service MAINnicks-tire-auto --set LANGFUSE_PUBLIC_KEY=pk-lf-... --set LANGFUSE_SECRET_KEY=sk-lf-... --set LANGFUSE_BASE_URL=https://us.cloud.langfuse.com`
 2. After the deploy, run the probe and read the status:
    `curl -s -X POST -H "Authorization: Bearer $ADMIN_API_KEY" https://nickstire.org/api/system/observability-probe`

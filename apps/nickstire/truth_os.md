@@ -104,7 +104,7 @@ detailed in `docs/CURRENT-TRUTH.md`:
 
 - `GET /api/system/observability-status` (Bearer `ADMIN_API_KEY`) answers HEALTHY / DEGRADED / UNKNOWN per instrument (Sentry, Langfuse) from in-process counters (`server/lib/observabilityStatus.ts`); keys unset, zero acks or a proof older than 12 h read UNKNOWN, never HEALTHY. Counters reset on every deploy.
 - `POST /api/system/observability-probe` (same gate) plants one Sentry message tagged `probe_id` + `commit` and one synthetic Langfuse generation, then reports `ok` only on the sink's own 2xx. Sentry's release is now the deployed commit; `/api/health` `checks.sentry` says `dsn_set` plus receipts, no longer `configured`.
-- Langfuse tracing covers every server AI call site (`server/langfuseTraceGate.test.ts`), masked; it is OFF in production until `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` are set on the nickstire service (Nour's step, `docs/OBSERVABILITY.md`).
+- Langfuse tracing covers every server AI call site, including calls that throw (`server/langfuseTraceGate.test.ts`, `server/langfuseThrowTraced.test.ts`). A trace carries NO free text by default: model, prompt sha256, input/output character counts, tokens, latency and an error class; masked excerpts are opt-in per call and enabled only for the probe (the masker misses names like "Lopez, Maria 44101"). Keys were set on the nickstire service on 2026-10-17; not yet proven by a production probe.
 - `customer_notifications.status` gains `skipped` (drizzle/0146); follow-up Cancel keeps failing in production until that ALTER is applied (Admin > Settings > Run Migrations).
 
 ## 2026-10-16 - Reel quality fixes: real-footage cuts, one-plate captions, voice env, start frame only where the photo was taken
