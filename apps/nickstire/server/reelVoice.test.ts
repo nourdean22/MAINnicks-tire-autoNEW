@@ -23,7 +23,8 @@ describe("googleTtsRequest", () => {
     expect((body.audioConfig as { audioEncoding: string }).audioEncoding).toBe("LINEAR16");
     // Sends SSML (not plain text) for natural pacing; the script is wrapped in <speak>.
     expect((body.input as { ssml: string }).ssml).toContain("<speak>");
-    expect((body.input as { ssml: string }).ssml).toContain("hello there");
+    // Word marks (2026-10-17) sit between the words; the spoken text is unchanged once they are stripped.
+    expect((body.input as { ssml: string }).ssml.replace(/<mark name="w\d+"\/>/g, "")).toContain("hello there");
     expect((body.input as { text?: string }).text).toBeUndefined();
   });
 });
@@ -67,12 +68,13 @@ describe("REEL_VO_PROVIDER (2026-10-16): the operator picks the provider by env;
 });
 
 describe("googleTtsRequest voice env (2026-10-16)", () => {
-  it("no env: identical to the pre-env request (Neural2-J, 0.97, -1.5, SSML)", () => {
+  it("no env: identical to the pre-env request (Neural2-J, 0.97, -1.5, SSML), plus the 2026-10-17 word marks", () => {
     const { body } = googleTtsRequest("Check the inner edge. Then the outer.", {} as NodeJS.ProcessEnv);
     expect(body).toEqual({
-      input: { ssml: buildReelSsml("Check the inner edge. Then the outer.") },
+      input: { ssml: buildReelSsml("Check the inner edge. Then the outer.", { marks: true }) },
       voice: { languageCode: "en-US", name: "en-US-Neural2-J" },
       audioConfig: { audioEncoding: "LINEAR16", speakingRate: 0.97, pitch: -1.5 },
+      enableTimePointing: ["SSML_MARK"],
     });
   });
   it("a Chirp 3 HD voice keeps SSML and speakingRate and sends NO pitch key", () => {

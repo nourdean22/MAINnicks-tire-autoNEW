@@ -16,7 +16,8 @@ import path from "path";
 import { createLogger } from "../lib/logger";
 import { askProblem, askLeakageProblem, renderAskText, resolveReelAsk, type ReelAsk } from "@shared/reelAsk";
 import { ReelAssemblyRefusedError } from "./reelContentRefusal";
-import { clipVerifyConfig, verifyClipsBeforeAssembly, type ClipVerdict } from "./clipVerify";
+import { clipVerifyConfig, pickSiblingBeats, verifyClipsBeforeAssembly, type ClipVerdict } from "./clipVerify";
+import { audioMixFilters, loudnormFilter, measureMixLoudness, type LoudnormMeasured } from "./audioQa";
 import { declaredTextSurfaces, undeclaredTextProblem } from "@shared/reelTextSurfaces";
 import { REEL_OUTPUT_RULES } from "../../client/src/lib/facelessReelStudio";
 import { parseCaptionStyle, type CaptionStyle } from "../../shared/reelSourceProfile";
@@ -402,6 +403,8 @@ export interface FfmpegBuildOpts {
    * while its payload declared only five beats. See shared/reelTextSurfaces.ts.
    */
   askText?: string | null;
+  /** Loudnorm first-pass measurement (measureMixLoudness). Absent or null = single-pass loudnorm, as before. */
+  loudnorm?: LoudnormMeasured | null;
 }
 
 /**
@@ -416,7 +419,7 @@ export function buildFfmpegArgs(opts: FfmpegBuildOpts): string[] {
     throw new Error(`segment/clip count mismatch: ${segs.length} segs vs ${clipPaths.length} clips`);
   }
   const total = segmentsTotalSeconds(segs);
-  const videoTotal = Number((total + SAVE_FREEZE_SECONDS).toFixed(2));
+  const videoTotal = renderVideoTotal(segs);
   // The font is copied to the working directory so it's just 'font.ttf'.
   // No Windows drive letter colon escaping hell.
   const fontEsc = fontPath.replace(/\\/g, "/");
@@ -605,45 +608,9 @@ export function buildFfmpegArgs(opts: FfmpegBuildOpts): string[] {
 
   // 4. audio: VO loud over ducked music, degrading gracefully when either is absent
   const maps: string[] = ["-map", "[vout]"];
-  if (haveVo && haveMusic) {
-    // Phase 4.2: duck the music DYNAMICALLY under the VO via sidechaincompress
-    // (keyed off the VO) instead of a static volume — music breathes back in the
-    // gaps. Both sources resampled to a common rate first (sidechaincompress
-    // requires it).
-    //
-    // TWO length bugs lived here and produced the published dead-air defect
-    // (reel-30008: silent from VO-end 7.1s to 22.0s — measured, see
-    // docs/execution/creative-quality/QUALITY-BASELINE.json):
-    //  1. sidechaincompress ENDS ITS OUTPUT when the KEY input ends. A 7s VO
-    //     key truncated the ducked music to 7s, amix had nothing longer, and
-    //     apad filled the rest with digital silence — so "music carries
-    //     through" was never true. The key is now silence-padded to the full
-    //     timeline: silence key = zero compression = music actually breathes
-    //     back in after the VO.
-    //  2. a bed shorter than the reel died at bed-end the same way. Beds are
-    //     now looped (aloop) before trimming, so any bed covers any legal
-    //     reel length (duration gate allows up to 90s).
-    fc.push(
-      `[${voIdx}:a]aresample=48000,volume=1.15,asplit=2[vo_mix][vo_key]`,
-      `[vo_key]apad=whole_dur=${videoTotal}[vo_key_p]`,
-      `[${musIdx}:a]aloop=loop=-1:size=4000000,aresample=48000,volume=0.6,atrim=0:${videoTotal}[mus_raw]`,
-      `[mus_raw][vo_key_p]sidechaincompress=threshold=0.03:ratio=8:attack=20:release=400[mus_duck]`,
-      `[vo_mix][mus_duck]amix=inputs=2:duration=longest:normalize=0[am]`,
-      `[am]atrim=0:${videoTotal},asetpts=PTS-STARTPTS,apad=whole_dur=${videoTotal},loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000[aout]`,
-    );
-    maps.push("-map", "[aout]");
-  } else if (haveVo) {
-    // aresample FIRST so loudnorm computes the apad/duration on a known 48k rate.
-    // NOTE: this branch pads everything after the VO with silence — acceptable
-    // only for VO that spans (most of) the video. The dead-air render gate in
-    // assembleReel refuses the result otherwise.
-    fc.push(`[${voIdx}:a]aresample=48000,volume=1.15,atrim=0:${videoTotal},asetpts=PTS-STARTPTS,apad=whole_dur=${videoTotal},loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000[aout]`);
-    maps.push("-map", "[aout]");
-  } else if (haveMusic) {
-    // Loop the bed here too — a 60s bed under a 90s reel must not die at 60s.
-    fc.push(`[${musIdx}:a]aloop=loop=-1:size=4000000,aresample=48000,volume=0.5,atrim=0:${videoTotal},asetpts=PTS-STARTPTS,apad=whole_dur=${videoTotal},loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000[aout]`);
-    maps.push("-map", "[aout]");
-  }
+  const audio = audioMixFilters(haveVo ? voIdx : null, haveMusic ? musIdx : null, videoTotal, `${loudnormFilter(opts.loudnorm)},aresample=48000`);
+  fc.push(...audio);
+  if (audio.length) maps.push("-map", "[aout]");
   const hasAudio = maps.includes("[aout]");
 
   const filterStr = fc.join(";");
@@ -697,6 +664,11 @@ export function buildFfmpegArgs(opts: FfmpegBuildOpts): string[] {
     "-y",
     outPath,
   ];
+}
+
+/** Rendered length: the beats plus the SAVE freeze. One definition for the render and the loudnorm measure pass. */
+function renderVideoTotal(segs: ReelSegment[]): number {
+  return Number((segmentsTotalSeconds(segs) + SAVE_FREEZE_SECONDS).toFixed(2));
 }
 
 /**
@@ -1118,7 +1090,7 @@ export async function assembleReel(
     // runs. Flag-gated, default OFF; an unavailable critic never refuses.
     const beatVisual = new Map((brief.storyboardBeats ?? []).map((b) => [b.beatNumber, b.visual ?? b.onScreenText ?? ""]));
     const clipVerdicts = await verifyClipsBeforeAssembly(
-      segs.map((s, i) => ({ beatNumber: s.beatNumber, path: clipPaths[i], visual: beatVisual.get(s.beatNumber) ?? "", durationSec: clipProbes.find((p) => p.beatNumber === s.beatNumber)?.durationSec ?? null, workDir })),
+      segs.map((s, i) => ({ beatNumber: s.beatNumber, path: clipPaths[i], visual: beatVisual.get(s.beatNumber) ?? "", siblings: pickSiblingBeats(segs.map((x) => ({ beatNumber: x.beatNumber, visual: beatVisual.get(x.beatNumber) ?? "" })), s.beatNumber), durationSec: clipProbes.find((p) => p.beatNumber === s.beatNumber)?.durationSec ?? null, workDir })),
       clipVerifyConfig(),
       undefined,
       // Prior vision verdicts (an earlier attempt of this job) are reused, and
@@ -1151,7 +1123,9 @@ export async function assembleReel(
     }
 
     const musicPath = pickMusicBed(brief);
-    const args = buildFfmpegArgs({ segs, clipPaths, voPath, assPath, musicPath, fontPath: "font.ttf", outPath, askText });
+    // Two-pass loudnorm: measure the exact mix first; a failed measure renders single-pass as before.
+    const loudnorm = await measureMixLoudness({ voPath, musicPath, videoTotal: renderVideoTotal(segs) }, runFfmpeg, workDir);
+    const args = buildFfmpegArgs({ segs, clipPaths, voPath, assPath, musicPath, fontPath: "font.ttf", outPath, askText, loudnorm });
 
     // The render must draw exactly what was declared - no more, no less. This
     // fires BEFORE ffmpeg runs, so an undeclared card costs a failed job rather
