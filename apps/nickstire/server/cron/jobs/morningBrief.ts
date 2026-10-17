@@ -501,7 +501,7 @@ ${intelligenceBlock}
 Systems over motivation. Let's go.`;
     }
 
-    await sendTelegram(briefText);
+    await sendTelegram(briefText, "digest");
     log.info("Morning brief sent via Telegram");
 
     // Track brief delivery for feedback loop

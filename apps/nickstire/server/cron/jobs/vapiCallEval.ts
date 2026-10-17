@@ -428,7 +428,7 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
         `Technical failures: ${technicalFailures}/${rows.length} total inbound records`,
         `Low-quality calls: ${lowQuality}/${scored.length} scored calls`,
         ...worst,
-      ].join("\n")).catch(() => undefined);
+      ].join("\n"), "digest").catch(() => undefined);
     }
   }
 

@@ -122,7 +122,7 @@ export async function runDailyBackup(): Promise<{ recordsProcessed?: number; det
         // Was hardcoded to the success line regardless of what happened.
         (archived
           ? `✅ Digest archived to StateNour`
-          : `🚨 DIGEST ARCHIVE FAILED\n${archiveError}\n\nThe counts above were read, but no record left this server.`)
+          : `🚨 DIGEST ARCHIVE FAILED\n${archiveError}\n\nThe counts above were read, but no record left this server.`), "digest"
       );
     } catch (e) { log.warn("[services/dbBackup] operation failed:", e); }
 

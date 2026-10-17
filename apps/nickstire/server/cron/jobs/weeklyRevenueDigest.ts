@@ -424,10 +424,15 @@ export async function runWeeklyRevenueDigest(now: Date = new Date()): Promise<Pr
   }
 
   const text = buildWeeklyRevenueDigestText(data);
-  const { sendTelegram } = await import("../../services/telegram");
-  const sent = await sendTelegram(text);
-  if (!sent) {
+  const { sendTelegramResult } = await import("../../services/telegram");
+  const sent = await sendTelegramResult(text, "digest");
+  if (sent.status === "failed") {
     throw new Error("digest computed but Telegram send failed");
+  }
+  if (sent.status === "held") {
+    // Muted on purpose: not a failure, but also not sent, so it must not read as a delivered digest.
+    log.info("weekly revenue digest computed but held", { heldBy: sent.heldBy });
+    return { recordsProcessed: 0, details: `digest computed, NOT sent: held by ${sent.heldBy}` };
   }
 
   log.info("weekly revenue digest sent", {

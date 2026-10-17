@@ -163,7 +163,7 @@ export async function processWinbackPending(): Promise<{ recordsProcessed: numbe
     if (sent + queued + heldOut > 0) {
       try {
         const { sendTelegram } = await import("./telegram");
-        await sendTelegram(`📬 WINBACK AUTO: ${sent} messages sent, ${queued} queued for 8 AM, ${heldOut} holdout controls, ${failed} failed`);
+        await sendTelegram(`📬 WINBACK AUTO: ${sent} messages sent, ${queued} queued for 8 AM, ${heldOut} holdout controls, ${failed} failed`, "receipt");
       } catch (err: unknown) {
         log.warn(`Winback Telegram notification failed: ${(err as Error).message}`);
       }

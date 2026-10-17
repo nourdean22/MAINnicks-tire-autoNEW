@@ -529,7 +529,7 @@ export const bookingRouter = router({
       // Fire-and-forget Telegram so front desk sees it before customer arrives
       import("../services/telegram")
         .then(({ sendTelegram }) =>
-          sendTelegram(`🎯 UPSELL added by customer · booking #${booking.id} (${booking.name})\n${input.upsellTitle}${input.upsellPrice ? ` · ${input.upsellPrice}` : ""}`)
+          sendTelegram(`🎯 UPSELL added by customer · booking #${booking.id} (${booking.name})\n${input.upsellTitle}${input.upsellPrice ? ` · ${input.upsellPrice}` : ""}`, "receipt")
         )
         .catch((e) => log.warn("[booking:addUpsellInterest] telegram alert failed:", e));
 
