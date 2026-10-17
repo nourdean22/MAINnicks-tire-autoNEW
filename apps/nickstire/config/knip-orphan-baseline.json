@@ -6325,6 +6325,11 @@
       "file": "apps/nickstire/server/services/approvedReelPackRotation.ts",
       "symbol": "packLensFor",
       "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Its production consumer is the pack brief builder in this same file (motionLens in the pack and brief builders); the export lets visualDirectionExperiment.test.ts pin the lens each briefId gets, including the retired-lens bucket remap to extreme_macro_push_in."
+    },
+    {
+      "file": "apps/nickstire/server/services/clipVerify.ts",
+      "symbol": "mergeClipVerdictsIntoPayload",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The pure compare-and-swap merge behind persistClipVerdicts (payload.clipVerify, PR #3086, Codex review 2026-10-16). Production reaches it only through persistClipVerdicts in the same module; clipVerify.test.ts imports it to pin the race with a fake store (a concurrent rendered-QA write lands between read and swap: the stale swap must lose and the re-read merge must keep their field). Mutation-verified: dropping the swap check turns 2 arms red."
     }
   ]
 }

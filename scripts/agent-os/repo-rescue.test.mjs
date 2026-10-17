@@ -81,11 +81,33 @@ test("LIVE, real fixture: rescueBranch on a genuinely-stranded (no ref, no PR) b
   assert.equal(r.reason, "no-remote-branch-to-rescue");
 });
 
-test("LIVE, real fixture, DRY-RUN ONLY: the messy reel-generate-schedule branch passes the early gates and reaches dry-run — never opens a real PR", { skip: liveSkip }, async () => {
-  const r = await rescueBranch("nickstire/reel-generate-schedule", { owner: OWNER, repo: REPO, dryRun: true });
-  assert.equal(r.reason, "dry-run", `expected to reach dry-run (this branch exists, has no merged PR of its own, no local worktree here); got: ${JSON.stringify(r)}`);
-  assert.ok(r.wouldOpen.title.includes("reel-generate-schedule"));
-  // classify-branch must flag this one (moved past its own merged PR #2184), not
-  // silently call it ordinary SALVAGE material.
-  assert.equal(r.classification.signals.hasMergedPrButStillAhead, true);
+// 2026-10-16 · fixture rot, found when the CI diet touched agent-policy.yml (one of this canary's subjects, so live-gate
+// ran it): the old subject, nickstire/reel-generate-schedule, was deleted by the 2026-10-15 branch triage, so
+// rescueBranch classified it LANDED (zombie-rule) and this arm could never reach dry-run again. The subject is now a
+// DURABLE fixture: one commit on an old main that adds fixtures/repo-rescue-dry-run.md, no pull request, never to be
+// opened as one or merged. It stays ahead of main by one and is classified QUARANTINE. The arm skips ONLY when that ref
+// is missing, and prints how to recreate it. `git ls-remote` is a local git read (no REST budget).
+const FIXTURE_BRANCH = "fixtures/repo-rescue-dry-run";
+const remoteBranchGone = (branch) => {
+  try {
+    return execSync(`git ls-remote --heads origin ${branch}`, { cwd: join(HERE, "..", ".."), encoding: "utf8", env: cleanEnv(), stdio: ["ignore", "pipe", "ignore"] }).trim() === "";
+  } catch {
+    return false; // cannot tell: run the arm (fail toward coverage, never toward a silent skip)
+  }
+};
+
+test("LIVE: the fixture-rot probe says gone for a branch that cannot exist and present for main", { skip: liveSkip }, () => {
+  assert.equal(remoteBranchGone("agent-os-fixture-that-never-existed-9f3a"), true);
+  assert.equal(remoteBranchGone("main"), false);
+});
+
+test("LIVE, real fixture, DRY-RUN ONLY: the durable unlanded fixture branch passes the early gates and reaches dry-run — never opens a real PR", { skip: liveSkip }, async (t) => {
+  if (remoteBranchGone(FIXTURE_BRANCH)) return t.skip(`fixture missing: origin has no ${FIXTURE_BRANCH}. Recreate it: one commit on an old main (git rev-list -n1 --before=2026-10-01 origin/main) that adds fixtures/repo-rescue-dry-run.md, pushed as that branch; never open a PR for it.`);
+  const r = await rescueBranch(FIXTURE_BRANCH, { owner: OWNER, repo: REPO, dryRun: true });
+  assert.equal(r.reason, "dry-run", `expected to reach dry-run (this branch exists, is ahead of main, has no PR, no local worktree here); got: ${JSON.stringify(r)}`);
+  assert.ok(r.wouldOpen.title.includes("repo-rescue-dry-run"));
+  // Unlanded and unmerged: QUARANTINE (a human decision), no merged PR of its own. The hasMergedPrButStillAhead
+  // signal itself is covered by classify-branch's own tests; a fixture with no PR cannot exercise it.
+  assert.equal(r.classification.classification, "QUARANTINE");
+  assert.equal(r.classification.signals.hasMergedPrButStillAhead, false);
 });

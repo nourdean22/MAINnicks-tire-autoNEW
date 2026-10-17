@@ -5100,16 +5100,12 @@
           "server/instagramAdmin.test.ts (+2): the procedure exists and refuses a non-admin with FORBIDDEN; an unknown source is BAD_REQUEST at input validation. Red first 2 failed | 23 passed.",
           "Manager probes 2026-10-16 (not committed): 4, 5 and 6 clips for a 5-beat job refuse, pass, refuse; 3.999 s refuses, 4.0 s passes, NaN refuses; javascript:, ftp:, empty refuse; HTTPS://, https:/ and a leading space pass (WHATWG URL normalisation, the SSRF-guarded fetch sees the same host); CAS loss writes nothing else; the two old Seedance clips are replaced in beat order. ftyp sniff and probeMaster duration confirmed on three real Wan 3.0 clips (5.038 s, 1078x1920)."
         ],
-        "liveRuns": [],
-        "deploymentId": null
+        "liveRuns": [
+          "2026-10-16 12:44Z attach of 5 Wan 3.0 clips to job 2100001 through instagramAdmin.attachExternalClips from the admin session: 200 in 14.5 s, audit row aud_6a4dda97 OK, row assets_ready with 5 re-hosted URLs; 12:48Z reel-canary advance assembled it (reel-2100001.mp4, 23.0 s, 690 frames); 12:50Z rendered QA ran (decision repair); 15:3xZ forced publish by operator decision B: igPostId 18637319911062972, https://www.instagram.com/reel/Dej4FdTFBcH/"
+        ],
+        "deploymentId": "f485a8b8a88c8fd0d5934228908f590879c96074 (nickstire.org /api/health deploy.commit at 2026-10-16T12:13Z, uptime 10 s)"
       },
-      "blockers": [
-        {
-          "severity": "P2",
-          "description": "Not observed in production yet. Live proof: the first attach to job 2100001 shows the row in assets_ready with the re-hosted URLs and payload.externalClips, the next reel-pipeline pulse moves it to assembled with renderedQa present, and the published reel carries the AI label",
-          "source": "job 2026-10-16-external-clips-door"
-        }
-      ],
+      "blockers": [],
       "deferredScope": [
         "no client control yet: the door is called from a tRPC client or the admin console (client lane C1 follows)",
         "the door settles or releases no generation reservation for the job",
@@ -5118,15 +5114,79 @@
       ],
       "lastVerifiedAt": "2026-10-16",
       "codeState": "merged",
+      "operationalState": "live_verified",
+      "exposure": "internal",
+      "verificationExpiresAt": "2026-11-15"
+    },
+    {
+      "capabilityId": "reel-quality-fixes",
+      "name": "Reel assembly cuts real footage through every crossfade, draws one caption plate per caption, picks the voice by env, and hands the start photo only to beats shot where it was taken",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "Branch nickstire/reel-quality-fixes on main 5e77a7836 (server lane worktree-agent-ad3621f563e223114, cherry-picked): 134cdf36d (server/services/reelAssembly.ts planSegmentTrim: a non-last beat trims dur + XFADE_DUR of real footage and skips the 0.5 s start hold when the probed source is long enough, otherwise the clone pad exactly as before; sourceDurationSec from the existing ffprobeReel probe, min of video stream and container; one drawbox plate per caption at the same pixels the per-line boxes covered, text runs without box=1), 2148ccd31 (server/services/reelVoice.ts REEL_VO_PROVIDER (a named provider without its key fails loudly, never falls back), REEL_GOOGLE_VOICE / REEL_GOOGLE_SPEAKING_RATE / REEL_GOOGLE_PITCH, a /chirp/i voice keeps SSML and rate and omits pitch; scripts/reel-voice-candidates.ts dry-run by default, --execute renders Neural2-J, Chirp3-HD Charon, Orus, Enceladus), 335179212 (shared/reelStartFrame.ts startImageForBeat consumed by both reelPipeline.ts start-image sites), 40e493317 + 7b8ae1131 (truth_os). Client slice (prompt pack tail: unbranded hardware line on every beat, no-morph opening on beats without the photo) follows in the same PR from the client lane. Why: reel 2100001 (posted 2026-10-16) read as laggy at every cut, its mid-frame captions sat on baked-in storefront lettering, the voice read robotic, and the storefront start photo forced a morph on underbody beats; frame analysis showed 0 duplicated frames, so the hitch was the tpad clone during the fade plus the half-second start hold of the Wan clips.",
+        "tests": [
+          "server/reelAssemblyCuts.test.ts (new): cut cases for 5.04 s, 4.0 s and 4.49 s sources, boundary probes at 4.49/4.50/4.51 and 4.99/5.00/5.01 s, xfade offsets unchanged, one plate per caption. Red first 12 failed / 5 passed (with captionSafeZone). Mutants: clone pad on every source 7 failed; no caption plate 5 failed.",
+          "server/reelVoice.test.ts (+8): provider env, missing-key refusal, voice/rate/pitch env, Chirp keeps SSML and rate and drops pitch. Red first 5 failed / 18 passed. Mutants: REEL_VO_PROVIDER ignored 2 failed; Chirp keeps pitch 1 failed.",
+          "shared/reelStartFrame.test.ts (new): storefront beat gets the url, under-the-car and road beats do not. Red first 3 failed / 5 passed; mutant every-beat-gets-the-photo 3 failed.",
+          "server/captionSafeZone.test.ts: model updated to the plate (y=ih*0.55-28, h=179), bottom edge unchanged; the Instagram bottom-35% reserve gate is why captions stay at 0.55 (a 0.68 move was refused by the lane on that gate).",
+          "Manager run on the combined tree: 5 files, 89 passed, 3 skipped (reelAssemblyCuts, captionSafeZone, reelVoice, reelStartFrame, reelAssembly).",
+          "Review round on PR #3087 (CI node red + 4 Codex P2s, all fixed red-first): c57073010 captionContrast reads the built filter graph and pairs each drawtext with its drawbox plate (red 1 failed as in CI; control: plate-less caption fails; mutant delete drawbox push -> 1.73:1 fails 3:1); 127d35fa5 the 0.5 s start skip only for generated clips (clipProvenance), real_shop keeps start 0 matching realShotBinding trimInSec 0 (red 1f/18p); e5e429a56 startImageForBeat filters by location only for a real_shop_still hero, a generated hero anchors every beat (red 6f/4p); 3bf48549d out-of-range REEL_GOOGLE_SPEAKING_RATE (0.25-2.0) / PITCH (-20..20) fall back with a warn (red 1f/23p); 0f8c1ee99 + 3cfb1449d the pack takes imageConditioning from the five server callers so the no-morph line follows REEL_IMAGE_CONDITIONING (red 1f/4p, mutant ignore-flag 1f). Manager run on the combined tree: 8 files, 116 passed, 3 skipped; lane related run 136 files, 1,693 passed, exit 0."
+        ],
+        "liveRuns": [],
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Not observed in production yet. Live proof: the next assembled reel shows no frozen frames across each cut (frame compare), one plate per caption, and the voice request body naming the env voice; Nour picks the voice by ear from the four candidate WAVs",
+          "source": "job 2026-10-16-reel-quality-fixes"
+        }
+      ],
+      "deferredScope": [
+        "selectiveRepair.ts still hands the hero to every repaired beat",
+        "the 0.5 s start skip also applies to 4 s Seedance clips under beats shorter than 3.5 s (measured on Wan clips only)",
+        "rendered QA may flag text-to-video underbody beats for drifting from the storefront photo while the hero is set",
+        "the real_shop_still lockedInvariants text still says every shot opens on the photo"
+      ],
+      "lastVerifiedAt": "2026-10-16",
+      "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "internal"
+    },
+    {
+      "capabilityId": "clip-verify-before-assembly",
+      "name": "Per-clip vision verification BEFORE reel assembly: each clip's midpoint frame is judged against its beat's planned visual; below REEL_CLIP_VERIFY_MIN the job is refused with a typed CLIP_MISMATCH (parked failed, retry budget untouched) before the voiceover is paid for and the 3-vote rendered QA runs",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "Branch nickstire/clip-verify-before-assembly cut from main 5e77a7836 (2026-10-16): server/services/clipVerify.ts (clipVerifyConfig, verifyClipsBeforeAssembly over an injected judge, ClipMismatchRefusal extends ReelAssemblyRefusedError, the real judge = one ffmpeg midpoint frame + one invokeLLM call with a { score, reason } schema), reelAssembly.ts calls it after the clip loop and before generateVoiceover and returns clipVerdicts, reelPipeline.ts persists payload.clipVerify after the assembled write and in the failure path. Mechanism from tsensei/OpenReels (docs/UPSTREAMS.md row 2026-10-16).",
+        "tests": [
+          "server/services/clipVerify.test.ts (9): config parses the exact flag string and clamps the floor to 0..1; disabled judges nothing (no spend); enabled judges every clip and passes at or above the floor; BREAKS: a clip below the floor refuses with ClipMismatchRefusal naming beat, score, reason and stops judging; the refusal is typed (assemblyFailureOutcome parks it failed with attempts untouched, control: a plain error goes back to assets_ready); an unavailable critic (throw or no numeric score) never refuses; scores clamp to 0..1 and reasons cap at 400; wiring arms read reelAssembly.ts (verify sits after the clip loop and before generateVoiceover) and reelPipeline.ts (verdicts persisted on success and on refusal). Mutation-verified 2026-10-16: floor check removed turns the BREAKS arm red; refusal un-typed turns the outcome arm red (2 failed); disabled early-return removed turns the no-spend arm red.",
+          "server/clipProbeWiring.test.ts: the assembly return literal and the pipeline destructure literal updated for clipVerdicts (the probe wiring still pins the probe loop)."
+        ]
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Flag OFF in production (REEL_CLIP_VERIFY_ENABLED unset): no production call count changes until the operator arms it. The real judge (ffmpeg midpoint frame + vision call) has run nowhere yet. Live proof once armed: one assembled job whose payload.clipVerify carries one vision verdict per beat, or one failed job whose error starts with CLIP_MISMATCH and whose payload.clipVerify.verdicts holds the refused beat.",
+          "source": "GitHub scout item 3, 2026-10-16"
+        }
+      ],
+      "deferredScope": [
+        "a refused beat is not routed into the repair lane; the job parks failed (the named follow-up)",
+        "one midpoint frame per clip, not first/last frames",
+        "no operator control in the admin client; the two env vars are the only switches"
+      ],
+      "lastVerifiedAt": "2026-10-16",
+      "codeState": "in_progress",
+      "operationalState": "unit_verified",
+      "exposure": "disabled"
     },
     {
       "capabilityId": "observability-proof-20261016",
       "name": "Sentry and Langfuse are proven by planted positives: authenticated observability probe + HEALTHY/DEGRADED/UNKNOWN status route, Sentry release = deployed commit, every server AI call traced in Langfuse with masking",
       "owner": "operator",
       "evidence": {
-        "codeCommit": "Branch worktree-agent-aef843569bf5a1aac (job 2026-10-16-nickstire-observability, intended PR branch nickstire/observability-proof) on 5e77a7836: 49dd8652c (lib/sentry.ts release from resolveNickDeployIdentity, capture/ack receipts via afterSendEvent; POST /api/system/observability-probe behind requireAdminApiKey; lib/health.ts checks.sentry dsn_set + last_event_id + events_sent_since_boot), 876d00a8a (lib/observabilityStatus.ts, GET /api/system/observability-status, lib/langfuse-ingest.ts fetch ingestion with bounded queue and 207 per-event error handling), 5b0d57b22 (traceChat at every provider call site: _core/llm.ts invokeLLM, lib/ai-gateway.ts, services/nickgpt-client.ts, igAutopost.ts, vision-analyzer.ts, classifiers.ts, voice-clone.ts, _core/imageGeneration.ts, _core/voiceTranscription.ts, veoStudio.ts, four strategist routes), 3126d3830 (docs/OBSERVABILITY.md current state, truth_os).",
+        "codeCommit": "Branch worktree-agent-aef843569bf5a1aac (job 2026-10-16-nickstire-observability, intended PR branch nickstire/observability-proof) on 5e77a7836: 49dd8652c (lib/sentry.ts release from resolveNickDeployIdentity, capture/ack receipts via afterSendEvent; POST /api/system/observability-probe behind requireAdminApiKey; lib/health.ts checks.sentry dsn_set + last_event_id + events_sent_since_boot), 876d00a8a (lib/observabilityStatus.ts, GET /api/system/observability-status, lib/langfuse-ingest.ts fetch ingestion with bounded queue and 207 per-event error handling), 5b0d57b22 (traceChat at every provider call site: _core/llm.ts invokeLLM, lib/ai-gateway.ts, services/nickgpt-client.ts, igAutopost.ts, vision-analyzer.ts, classifiers.ts, voice-clone.ts, _core/imageGeneration.ts, _core/voiceTranscription.ts, veoStudio.ts, four strategist routes), 3126d3830 (docs/OBSERVABILITY.md current state, truth_os), 73c3bd668 (exports trimmed to production callers), 7b885e4 (followUps.cancel compare-and-swap, followUpCancelRace.test.ts red 1f/2p).",
         "tests": [
           "server/sentryProof.test.ts (10): release is the commit; probe sends one message tagged probe_id + commit and is ok only on a 2xx ack; un-acked and 429 are not ok; capture throw never reaches the caller; health reads dsn_set not configured; route gated. Red against old health.ts + probe without the ack check: 3f/5p.",
           "server/observabilityStatus.test.ts (19): every Sentry and Langfuse state, planted positives move UNKNOWN to HEALTHY, 207-with-errors and 401 are DEGRADED, masking on the wire, private calls skipped. Control: unset keys read HEALTHY + 207 check removed -> 2f/17p.",

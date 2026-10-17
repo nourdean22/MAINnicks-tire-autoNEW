@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "render-spend-trajectory": {
+      "ref": "server/services/clipVerify.test.ts (2026-10-16): the spend path through reelPipeline.ts is touched only by persistence of clipVerdicts (after the assembled write, and in the failure path for a refusal); the verifier itself is flag-gated, default OFF, and the no-spend arm proves a disabled config calls the judge zero times, while the enabled arm proves exactly one judge call per clip and a stop at the first refusal (judge called once of two). Production spend trajectory is unchanged until REEL_CLIP_VERIFY_ENABLED=true; when armed it adds one vision call per clip, before the voiceover and the 3-vote rendered QA it can now avoid."
+    },
+    "capability-ledger-updated": {
+      "ref": "docs/operations/capability-ledger.json: new entry clip-verify-before-assembly (codeState in_progress, operationalState unit_verified, exposure disabled, P2 blocker naming the live proof once the flag is armed); REALITY-LEDGER.md re-rendered beside it (2026-10-16)."
+    }
+  }
+}
