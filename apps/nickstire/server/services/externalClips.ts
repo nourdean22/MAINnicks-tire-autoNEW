@@ -5,6 +5,7 @@
  * approval and publish drain take over unchanged.
  *
  * What it does, in order, all before any write:
+ *   0. startFrame ("none" | "shop_still", required) is the operator's attestation, stored on the record;
  *   1. the job exists and is `needs_regen` or `queued` (never assembled/posted);
  *   2. one clip per GENERATED beat (same rule as the enqueue reservation in
  *      reelPipeline.ts: beatGenerationRoute(b) === "generate"); a local beat
