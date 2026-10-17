@@ -2,8 +2,9 @@
 --
 -- followUpsRouter.cancel has written status='skipped' since wave-115 and no migration ever
 -- added the member. TiDB runs STRICT_TRANS_TABLES: the write is rejected, the row stays
--- 'pending', and the operator's toast said "canceled" (Sentry NICKSTIRE-D, 8 events since
--- 2026-10-09, "Data truncated for column 'status'"). tsc never saw it because the router
+-- 'pending', and the mutation throws, so the operator saw an error toast, not "canceled"
+-- (FollowUpsSection.tsx shows success only in onSuccess) (Sentry NICKSTIRE-D, 8 events
+-- since 2026-10-09, "Data truncated for column 'status'"). tsc never saw it because the router
 -- read through the untyped db() helper; it now reads through dbTyped().
 --
 -- APPEND-ONLY (0082, 0097, 0136): 'skipped' goes at the END so existing ordinals are
