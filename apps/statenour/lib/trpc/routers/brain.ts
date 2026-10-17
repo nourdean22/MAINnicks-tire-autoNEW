@@ -1603,6 +1603,21 @@ export const brainRouter = router({
     }),
 
   /**
+   * Learn tab "learned it" (brain follow-up 1, 2026-10-17): ensure the topic has an FSRS
+   * card without resetting one it already has. Replaces the recordMemory upsert, which
+   * overwrote a mature card with a new one due tomorrow. `created` / `kept` / `legacy` /
+   * `lost` carry no date, because none is the caller's to show.
+   */
+  ensureLearnCard: operatorProcedure
+    // Ceilings match what the caller can send: ai.teach topics go to 500, recordMemory content to
+    // 20000. The server clips the stored summary to 300 (learnReviewRow), so a long read never rejects.
+    .input(z.object({ topic: z.string().min(1).max(500), summary: z.string().max(20_000) }))
+    .mutation(async ({ input }) => {
+      const { ensureLearnCard } = await import("@/lib/brain/tutor-pack");
+      return ensureLearnCard(input.topic, input.summary, new Date());
+    }),
+
+  /**
    * 05-M12: owner-only. Forget ONE memory from /brain or the inspector:
    * soft-delete plus its embedding copy. A second call is `deleted: false`.
    */
