@@ -1,5 +1,17 @@
 # Reconciliation · statenour-os
 
+> ## 2026-10-17 · Arbiter judge-split gets error bars and a verdict (branch `statenour/scout1-judge-split-ci`) · 1 statenour PR, read-only script
+>
+> The script only reads production; nothing a user sees changes. One read-only production run on 2026-10-17 checked it end to end.
+>
+> - **Intervals.** Each arm prints a cluster-robust 95% CI over conversations (the inspect_ai `_clustered_stderr` estimator), and the difference true minus false prints its own CI and a verdict: better, worse, cannot tell, or "cannot tell (n too small)" under 5 conversations or 20 turns. Under 2 clusters the CI is n/a, never 0.
+> - **Control arm.** No turn ever carried `arbiterAssigned=false`: the receipt field shipped after the last pre-flip turn. A turn with no field, created before the audited flip at 2026-10-17T04:49:22Z, now counts as control (the flag had no override then). Production: 95 judged turns in 19 conversations, mean 8.12, CI [7.86, 8.38]; 0 turns since the flip.
+> - **Window.** `--since YYYY-MM-DD` pins the start. The 2026-10-23 read is `railway run -s statenour-web -- pnpm exec tsx scripts/arbiter-judge-split.ts --since 2026-10-02`; a rolling `--days` window would drain the control arm.
+> - **Rule (printed).** worse: switch the flag off; better or cannot tell: keep it on and re-read in a week. A before/after split, not randomized: a difference can be time, not the arbiter.
+>
+> **Flagged · NOT fixed**
+> - The difference CI treats the arms as independent; a conversation that spans the flip makes it slightly too narrow (the code comment says so).
+
 > ## 2026-10-17 · Brain W5 · a vector-gap gauge and a decay dry run (branch `statenour/brain-w5-reliability`) · 1 statenour PR
 >
 > Not live until merged and deployed. The two counts below are from read-only production probes on 2026-10-17; everything else is from unit tests and code reading.
