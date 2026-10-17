@@ -5182,6 +5182,37 @@
       "exposure": "disabled"
     },
     {
+      "capabilityId": "telegram-delivery-classes",
+      "name": "Nickstire Telegram alerts: one sender per event, once per state for repeating alerts, a class on every send (incident, digest, approval, receipt, noise) that Nour can mute from the admin flags, and delivery counts that are not claimed as sent when held or dropped",
+      "owner": "nickstire",
+      "evidence": {
+        "codeCommit": "Branch nickstire/telegram-alert-diet on main 03bb78b57: 5b3651c56 (event bus is the only sender for lead, callback, chat lead and booking), 93528fe46 (per-SMS gateway alerts deleted), 3abac8bfe (revenue-pulse, promise-risk, stale-estimate claim cron_alerts_fired per ET day per state), 85f7145df (rate-limit drops counted and in the daily summary, notifyOwner false when log-only, follow-up report once, vendor health reads the chat id), abdc5ae88 (TelegramClass on services/telegram.ts, 57 call sites classified, flags telegram_incident_muted, telegram_digest_muted, telegram_approval_muted, telegram_receipt), 9eb750ac7 (a lead alert held by a mute is recorded skipped), 857ddef95 (orphan baseline, sms timeout window).",
+        "tests": [
+          "server/telegramSingleSender.test.ts (8): lead.submit, callback.submit, a chat lead and an online booking each produce exactly one Telegram message with the router and the real bus telegram destination both running (positive control: 4 failed counting 2 on the unfixed tree); a completed job is one receipt; the lead delivery row is sent only when the transport accepted, failed when it did not, skipped when the incident class is muted",
+          "server/telegramStateChangeAlerts.test.ts (13): revenue-pulse, promise-risk and stale-estimate send once per state, resend after the Cleveland midnight (not UTC midnight), send once for a changed state, fail open when the claim table is unreadable, and are classed digest (positive control: 9 failed / 4 passed on the unfixed tree)",
+          "server/telegramClassMute.test.ts (11): default is an incident; a muted incident, digest or approval is held, counted and returns true; a muted class does not mute the others; receipt is held unless telegram_receipt is ON; noise is never sent; an unreadable flag table never silences incident, digest or approval; an unknown class is treated as an incident; held receipts show in the daily summary line (positive control: 9 failed / 2 passed)",
+          "server/telegramTransportHonesty.test.ts (7): a rate-limited send is counted as dropped and returns false, a rejected send is counted failed, the daily summary carries sent / dropped / failed, notifyOwner returns false when it only logged, vendor health reads degraded for a valid token with a wrong chat id",
+          "server/shopSmsFailureNoTelegram.test.ts (4) and server/followUpOwnerReport.test.ts (3): a failed or timed-out shop SMS and the sms:failed webhook send no Telegram message while the gateway monitor still alerts once per incident; the follow-up report reaches the owner once"
+        ]
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Not observed in production yet. Live proof owed after deploy: one new web lead produces one Telegram message from nickstire (the StateNour bridge copy is the statenour lane's change); the next daily summary shows the 'Telegram: N sent, M dropped by rate limit, K failed' line; flipping telegram_digest_muted ON and back holds then resumes a digest; prod volume per class is still unmeasured because nothing counted sends before this change.",
+          "source": "job 2026-10-16-telegram-alerts"
+        }
+      ],
+      "deferredScope": [
+        "the StateNour bridge's own Telegram copy of lead, callback, booking and job-complete, the bot's /approve_N routing and Inngest failure grouping belong to the statenour lane",
+        "feedbackLoop 'Revenue pacing' and nickIntelligence proactive checks are classed digest but still repeat; churn_prediction_alerts and pricing_intelligence_alerts remain orphan flags",
+        "the send counters are per process and reset on every deploy; there is no durable send ledger"
+      ],
+      "lastVerifiedAt": "2026-10-16",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
+    },
+    {
       "capabilityId": "observability-proof-20261016",
       "name": "Sentry and Langfuse are proven by planted positives: authenticated observability probe (checks its own event and batch) + HEALTHY/DEGRADED/UNKNOWN status route, Sentry release = deployed commit, every server AI call (including throws) traced in Langfuse with NO free text by default",
       "owner": "operator",

@@ -406,7 +406,7 @@ export async function runProactiveCheck(): Promise<{ recordsProcessed?: number; 
         `🧠 NICK AI — Proactive Check\n\n` +
         allAlerts.join("\n") +
         `\n\n💡 INSIGHT: ${insight}\n\n` +
-        `Command Center: https://nickstire.org/admin`
+        `Command Center: https://nickstire.org/admin`, "digest"
       );
 
       // Track alert outcomes — schedule a check to see if action was taken

@@ -16,7 +16,6 @@ import { logIntegrationFailure } from "../integration-failures";
 import { withRetry } from "../retry";
 import { SITE_URL, BUSINESS } from "@shared/business";
 import { handleAfterHoursCapture, isAfterHours } from "../services/afterHours";
-import { alertNewLead } from "../services/telegram";
 import { logAdminAction } from "../services/auditTrail";
 
 import { db } from "../lib/db-helper";
@@ -201,9 +200,6 @@ export const callbackRouter = router({
           });
         });
       }
-
-      // Telegram alert (always, regardless of hours)
-      alertNewLead({ name, phone, service: input.context || "Callback", source: "callback" }).catch(e => log.warn("[callback:submit] telegram lead alert failed:", e));
 
       return result;
       } catch (err) {

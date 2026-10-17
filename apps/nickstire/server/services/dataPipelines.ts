@@ -104,7 +104,7 @@ export async function refreshGatewayPrices(): Promise<{ recordsProcessed: number
       await sendTelegram(
         `💰 GATEWAY TIRE PRICE CHANGES\n\n${priceChanges.slice(0, 10).join("\n")}\n\n` +
         `${priceChanges.length > 10 ? `...and ${priceChanges.length - 10} more\n` : ""}` +
-        `Updated: ${sizesUpdated} sizes, ${totalFetched} tires`
+        `Updated: ${sizesUpdated} sizes, ${totalFetched} tires`, "digest"
       );
     } catch (e) { log.warn("[services/dataPipelines] operation failed:", e); }
   }
@@ -225,7 +225,7 @@ export async function pollGatewayOrderStatuses(): Promise<{ recordsProcessed: nu
           const days = Math.round((Date.now() - new Date(o.createdAt).getTime()) / 86400000);
           return `${o.orderNumber}: ${o.quantity}x ${o.tireBrand} ${o.tireModel} (${o.tireSize}) — ${days}d old — ${o.customerName}`;
         }).join("\n") +
-        `\n\n🔧 Log into Gateway (b2b.dktire.com) and place these orders, then update status.`
+        `\n\n🔧 Log into Gateway (b2b.dktire.com) and place these orders, then update status.`, "digest"
       );
     }
 
@@ -241,7 +241,7 @@ export async function pollGatewayOrderStatuses(): Promise<{ recordsProcessed: nu
       await sendTelegram(
         `📦 TIRE DELIVERY CHECK — ${possiblyDelivered.length} orders "ordered" 3+ days ago:\n\n` +
         possiblyDelivered.map((o: TireOrder) => `${o.orderNumber}: ${o.tireBrand} ${o.tireModel} — ${o.customerName}`).join("\n") +
-        `\n\n✅ If tires arrived, update status to "delivered". If not, check tracking.`
+        `\n\n✅ If tires arrived, update status to "delivered". If not, check tracking.`, "digest"
       );
     }
 
@@ -385,7 +385,7 @@ export async function crossReconcileInvoices(): Promise<{ recordsProcessed: numb
           [...dailyTotals.entries()].slice(0, 5).map(([day, d]) =>
             `${day}: ${d.count} invoices | $${d.total.toFixed(0)} total | $${d.paid.toFixed(0)} paid | $${d.pending.toFixed(0)} pending`
           ).join("\n") +
-          `\n\n${anomalies.join("\n")}`
+          `\n\n${anomalies.join("\n")}`, "digest"
         );
       } catch (e) { log.warn("[services/dataPipelines] operation failed:", e); }
     }
@@ -653,7 +653,7 @@ export async function analyzeTireInventory(): Promise<{ recordsProcessed: number
       await sendTelegram(
         `📦 TIRE STOCK ALERT — Low Gateway inventory on popular sizes:\n\n` +
         lowStockSizes.join("\n") +
-        `\n\nConsider pre-ordering or finding alternate suppliers.`
+        `\n\nConsider pre-ordering or finding alternate suppliers.`, "digest"
       );
     }
 

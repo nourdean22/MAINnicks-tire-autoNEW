@@ -479,10 +479,6 @@ async function startServer() {
     import("../services/businessFacts").then(({ seedBusinessFacts }) => {
       void seedBusinessFacts();
     }).catch(e => console.warn("[server:init] business-facts seed failed:", e));
-    import("../services/telegram").then(({ startBatchTimer }) => {
-      startBatchTimer();
-      serverLog.info("Telegram batch timer started");
-    }).catch(e => console.warn("[server:init] Telegram batch timer startup failed:", e));
     import("../nour-os-bridge").then(({ startRetryProcessor }) => {
       startRetryProcessor();
       serverLog.info("NOUR OS bridge retry processor started");
@@ -1398,7 +1394,6 @@ const shutdownOnSigterm = createGracefulShutdown({
       },
     },
     { label: "SMS queue", run: () => require("../sms").stopDelayedQueueProcessor() },
-    { label: "Telegram timer", run: () => require("../services/telegram").stopBatchTimer?.() },
     { label: "NOUR OS bridge", run: () => require("../nour-os-bridge").stopRetryProcessor?.() },
   ],
   sources: [

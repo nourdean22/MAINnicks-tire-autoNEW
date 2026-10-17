@@ -1016,7 +1016,7 @@ export function registerBridgeRoutes(app: Express): void {
         const { sendTelegram } = await import("../services/telegram");
         await sendTelegram(
           `📝 Win-back campaign DRAFTED by the bridge (not sent)\n\n` +
-          `${messages.length} customer(s) matched (last ${daysSince} days). Review and send from the admin: Outreach → Campaigns.`,
+          `${messages.length} customer(s) matched (last ${daysSince} days). Review and send from the admin: Outreach → Campaigns.`, "approval",
         );
       } catch (e) { log.warn("[bridge] operation failed:", e); }
 

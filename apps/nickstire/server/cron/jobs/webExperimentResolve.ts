@@ -194,7 +194,7 @@ export async function processWebExperimentResolve(): Promise<ProcessResult> {
       const line = telegramLine(def, verdict);
       if (line) {
         const { sendTelegram } = await import("../../services/telegram");
-        await sendTelegram(line).catch(() => undefined);
+        await sendTelegram(line, "digest").catch(() => undefined);
       }
 
       const { postToEvidenceLedger } = await import("../../services/evidenceLedger");
