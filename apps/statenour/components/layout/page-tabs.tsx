@@ -26,6 +26,12 @@
  * Aesthetic (UI v2, 2026-10-02 · docs/design/ui-v2/SYSTEM.md): Geist sentence-case labels, the
  * selected tab is the one gold signal (a 2px underline), everything else is text colour. No
  * display face on a tab, no uppercase, no gold text.
+ *
+ * UI v3 W4 (2026-10-17, PLAN section 4 "compact content-width tab strips", audit item 8): the lens
+ * strip is ONE row at content width (it scrolls, never wraps), 14px labels with the hint as a
+ * tooltip only, and a lens's sub-sections are a filter row INSIDE the tabpanel, so the phone shows
+ * one strip of chrome before the canvas instead of two. Pinned by
+ * tests/components/page-tabs-compact-lens.test.tsx.
  */
 
 import { Suspense, useCallback } from "react";
@@ -48,7 +54,7 @@ export interface PageLens {
   key: string;
   /** Display-type label on the lens bar. */
   label: string;
-  /** One mono line under the label (desktop only). */
+  /** Tooltip on the lens tab (W4: no longer drawn as a line under the label). */
   hint?: string;
   /** Tab keys grouped under this lens, in display order; the first is its landing tab. */
   tabs: string[];
@@ -90,10 +96,10 @@ function SubSwitch({
     <nav
       aria-label={label}
       className={cn(
-        "-mx-1 flex gap-x-6 gap-y-1 overflow-x-auto px-1 py-1",
-        variant === "index" && "border-b border-edge pb-2 xl:flex-col xl:gap-y-0 xl:border-b-0 xl:border-r xl:border-edge xl:pb-0 xl:pr-6",
-        variant === "row" && "justify-end border-b border-edge",
-        variant === "centered" && "justify-center border-b border-edge",
+        "-mx-1 flex gap-x-5 gap-y-1 overflow-x-auto px-1 py-1",
+        variant === "index" && "xl:flex-col xl:gap-y-0 xl:border-r xl:border-edge xl:pr-6",
+        variant === "row" && "justify-end",
+        variant === "centered" && "justify-center",
       )}
     >
       {tabs.map((t) => {
@@ -147,41 +153,33 @@ function LensBody({
       // An indexed library: a vertical index on the left at >=1280px, the
       // reading surface beside it; the index collapses to a row below that.
       return (
-        <div data-lens-layout="index" className="mt-6 xl:grid xl:grid-cols-[13rem_minmax(0,1fr)] xl:gap-10">
+        <div role="tabpanel" data-lens-layout="index" className="mt-4 xl:grid xl:grid-cols-[13rem_minmax(0,1fr)] xl:gap-10">
           <SubSwitch tabs={tabs} activeKey={activeKey} onSelect={onSelect} label={label} variant="index" />
-          <div role="tabpanel" className="mt-4 min-w-0 xl:mt-0">
-            {children}
-          </div>
+          <div className="mt-3 min-w-0 xl:mt-0">{children}</div>
         </div>
       );
     case "reading":
       // A reading column: operator cognition gets a narrow, centered measure.
       return (
-        <div data-lens-layout="reading" className="mx-auto mt-6 max-w-3xl">
+        <div role="tabpanel" data-lens-layout="reading" className="mx-auto mt-4 max-w-3xl">
           <SubSwitch tabs={tabs} activeKey={activeKey} onSelect={onSelect} label={label} variant="centered" />
-          <div role="tabpanel" className="mt-6">
-            {children}
-          </div>
+          <div className="mt-4">{children}</div>
         </div>
       );
     case "ledger":
       // A governed ledger: full width, the switch (if any) tucked right.
       return (
-        <div data-lens-layout="ledger" className="mt-6">
+        <div role="tabpanel" data-lens-layout="ledger" className="mt-4">
           <SubSwitch tabs={tabs} activeKey={activeKey} onSelect={onSelect} label={label} variant="row" />
-          <div role="tabpanel" className="mt-4">
-            {children}
-          </div>
+          <div className="mt-3">{children}</div>
         </div>
       );
     case "board":
       // A ruled board: a left rule frames the pulse readings.
       return (
-        <div data-lens-layout="board" className="mt-6 border-l-2 border-edge pl-5 sm:pl-6">
+        <div role="tabpanel" data-lens-layout="board" className="mt-4 border-l-2 border-edge pl-5 sm:pl-6">
           <SubSwitch tabs={tabs} activeKey={activeKey} onSelect={onSelect} label={label} variant="row" />
-          <div role="tabpanel" className="mt-4">
-            {children}
-          </div>
+          <div className="mt-3">{children}</div>
         </div>
       );
   }
@@ -220,7 +218,7 @@ function PageTabsInner({ tabs, param = "tab", defaultKey, lenses, className }: P
         <div
           role="tablist"
           aria-label="Lenses"
-          className="-mx-1 flex flex-wrap items-end gap-x-8 gap-y-1 overflow-x-auto border-b border-edge px-1 py-1"
+          className="-mx-1 flex w-fit max-w-full flex-nowrap items-end gap-x-5 overflow-x-auto border-b border-edge px-1 py-1"
         >
           {lenses.map((l) => {
             const isActive = l.key === activeLens.key;
@@ -230,20 +228,14 @@ function PageTabsInner({ tabs, param = "tab", defaultKey, lenses, className }: P
                 type="button"
                 role="tab"
                 aria-selected={isActive}
+                title={l.hint}
                 onClick={() => select(l.tabs[0])}
                 className={cn(
-                  "flex min-h-[52px] shrink-0 flex-col justify-end border-b-2 pb-2 text-left transition-colors duration-[var(--motion-state)]",
+                  "inline-flex min-h-[44px] shrink-0 items-center border-b-2 text-[14px] font-medium transition-colors duration-[var(--motion-state)]",
                   isActive ? "border-accent text-fg" : "border-transparent text-fg-tertiary hover:text-fg-secondary",
                 )}
               >
-                <span className="text-[17px] font-semibold leading-none tracking-[-0.01em] sm:text-[18px]">
-                  {l.label}
-                </span>
-                {l.hint && (
-                  <span className="mt-1 hidden font-mono text-[11px] text-fg-tertiary sm:block">
-                    {l.hint}
-                  </span>
-                )}
+                {l.label}
               </button>
             );
           })}
