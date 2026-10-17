@@ -419,7 +419,6 @@ export async function gradeSpacedReview(key: string, rating: ReviewRating, now: 
 export type EnsureLearnCardResult =
   | { status: "created" }
   | { status: "kept" }
-  | { status: "legacy" }
   | { status: "reset" }
   | { status: "lost" };
 
@@ -439,7 +438,9 @@ const isUniqueViolation = (err: unknown) => !!err && typeof err === "object" && 
  *  - live row with an `fsrs` key it cannot schedule, or content that is not JSON: reset to
  *    a new card (compare-and-swap on the content read) with one info line, as
  *    gradeSpacedReview does, so a corrupt row is repaired, not skipped (`reset`);
- *  - live JSON object with no `fsrs` key: untouched, nothing else written (`legacy`).
+ *  - live JSON object with no `fsrs` key (the old ladder's shape, which Got it would
+ *    forget): the same reset, plus one `legacy_upgraded_at` marker in the content (`reset`).
+ *    The legacy schedule (reviewAt, interval, streak) is not carried: the card starts new.
  * "lost" = a swap failed and nothing was written. No result carries a date.
  * Stated decisions: a revive does not restore the embedding the forget dropped (no
  * spaced_review consumer reads it), and re-learning a topic revives a card Nour forgot in
@@ -473,10 +474,14 @@ export async function ensureLearnCard(topic: string, summary: string, now: Date)
     return won ? { status: "created" } : { status: "lost" };
   }
   const prev = parseSpaced(existing.content);
-  if (prev && !("fsrs" in prev)) return { status: "legacy" };
-  if (!prev || !readFsrsState(prev.fsrs)) {
-    log.info("spaced_review_fsrs_reset", { key: row.key, reason: prev ? fsrsStateProblem(prev.fsrs) : "content is not JSON" });
-    const won = await swap({ deletedAt: null, supersededById: null }, { content: row.content, lastSeen: now, expiresAt: null });
+  const legacy = !!prev && !("fsrs" in prev);
+  if (legacy || !prev || !readFsrsState(prev.fsrs)) {
+    log.info("spaced_review_fsrs_reset", {
+      key: row.key,
+      reason: legacy ? "legacy row: no fsrs key" : prev ? fsrsStateProblem(prev.fsrs) : "content is not JSON",
+    });
+    const content = legacy ? JSON.stringify({ ...JSON.parse(row.content), legacy_upgraded_at: now.toISOString() }) : row.content;
+    const won = await swap({ deletedAt: null, supersededById: null }, { content, lastSeen: now, expiresAt: null });
     return won ? { status: "reset" } : { status: "lost" };
   }
   const won = await swap(

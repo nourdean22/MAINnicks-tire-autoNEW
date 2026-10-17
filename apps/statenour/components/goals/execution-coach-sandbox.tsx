@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { learnReviewRow } from "@/lib/brain/fsrs-schedule";
 
 interface CoachEntry {
   at: string;
@@ -329,18 +330,13 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
     try {
       const topic = `Friction: ${missionTitle || goal.title}`;
       const summary = `Nour hit execution friction ("${Array.from(selectedFrictions).join(", ")}") on task: "${missionTitle || goal.title}" under goal "${goal.title}". Research how to break this down or solve the cognitive block.`;
-      const reviewDate = new Date(); // Due immediately
-      
+      // Learn's FSRS card (the one Got it grades). learnReviewRow dates a card one day on, so backdate a day for due now.
+      const row = learnReviewRow(topic, summary, new Date(Date.now() - 86_400_000));
+
       await recordMemoryMut.mutateAsync({
         category: "spaced_review",
         key: `review_friction_${goal.id}_${Date.now()}`,
-        content: JSON.stringify({
-          topic,
-          summary,
-          reviewAt: reviewDate.toISOString(),
-          interval: 1,
-          completed: false,
-        }),
+        content: row.content,
         source: "execution_coach",
       });
       setHasQueuedReview(true);
