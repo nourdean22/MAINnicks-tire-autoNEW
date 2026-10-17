@@ -34,6 +34,7 @@ vi.mock("@/lib/prisma", () => {
   const record = (sql: string, params: unknown[]) => {
     h.sql.push({ sql, params });
     if (sql.includes("embedding_vec_1536 <=>") && !sql.includes("DISTINCT ON")) return Promise.resolve(h.knnRows);
+    if (/SELECT COUNT\(\*\)/i.test(sql) && sql.includes("FROM brain_memories")) return Promise.resolve([{ n: 7 }]);
     return Promise.resolve([]);
   };
   const exec = (sql: string, ...params: unknown[]) => {
@@ -343,7 +344,7 @@ describe("M8 · KNN never mixes embedding spaces", () => {
   });
 });
 
-describe("M5 · decay is wired and guarded", () => {
+describe("M5 · decay is guarded (NOT wired: data-cleanup reports a dry-run count, see data-cleanup-decay-dry-run.test.ts)", () => {
   it("runMemoryDecay runs one guarded UPDATE that never touches updated_at", async () => {
     const n = await runMemoryDecay();
     expect(n).toBe(3);
@@ -355,5 +356,26 @@ describe("M5 · decay is wired and guarded", () => {
     expect(u.sql).toMatch(/created_by.*'user'/);
     expect(u.sql).toMatch(/source.*'manual'/);
     expect(u.sql).not.toContain("updated_at");
+  });
+
+  it("the dry-run count and the UPDATE share ONE where-clause and ONE parameter list", async () => {
+    const { countMemoryDecayCandidates } = await import("@/lib/brain/memory-decay");
+    const n = await countMemoryDecayCandidates();
+    expect(n).toBe(7);
+    await runMemoryDecay();
+
+    const count = h.sql.find((s) => /SELECT COUNT\(\*\)/i.test(s.sql) && s.sql.includes("FROM brain_memories"))!;
+    const update = h.exec.find((e) => /UPDATE brain_memories/.test(e.sql))!;
+    const whereOf = (sql: string) => sql.slice(sql.indexOf("WHERE")).replace(/\s+/g, " ").trim();
+    expect(whereOf(count.sql)).toBe(whereOf(update.sql));
+    // $1 is "now minus 30 days" computed per call, so two calls differ by a few ms:
+    // same exempt list, cutoffs within a second.
+    const sameParams = (a: unknown[], b: unknown[]) => {
+      expect(Math.abs((a[0] as Date).getTime() - (b[0] as Date).getTime())).toBeLessThan(1000);
+      expect(a[1]).toEqual(b[1]);
+      expect(a).toHaveLength(2);
+    };
+    sameParams(count.params, update.params);
+    expect(h.exec.filter((e) => /brain_memories/.test(e.sql)), "counting wrote nothing").toHaveLength(1);
   });
 });

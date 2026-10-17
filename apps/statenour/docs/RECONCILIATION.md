@@ -1,5 +1,31 @@
 # Reconciliation · statenour-os
 
+> ## 2026-10-17 · Arbiter judge-split gets error bars and a verdict (branch `statenour/scout1-judge-split-ci`) · 1 statenour PR, read-only script
+>
+> The script only reads production; nothing a user sees changes. One read-only production run on 2026-10-17 checked it end to end.
+>
+> - **Intervals.** Each arm prints a cluster-robust 95% CI over conversations (the inspect_ai `_clustered_stderr` estimator), and the difference true minus false prints its own CI and a verdict: better, worse, cannot tell, or "cannot tell (n too small)" under 5 conversations or 20 turns. Under 2 clusters the CI is n/a, never 0.
+> - **Control arm.** No turn ever carried `arbiterAssigned=false`: the receipt field shipped after the last pre-flip turn. A turn with no field, created before the audited flip at 2026-10-17T04:49:22Z, now counts as control (the flag had no override then). Production: 95 judged turns in 19 conversations, mean 8.12, CI [7.86, 8.38]; 0 turns since the flip.
+> - **Window.** `--since YYYY-MM-DD` pins the start. The 2026-10-23 read is `railway run -s statenour-web -- pnpm exec tsx scripts/arbiter-judge-split.ts --since 2026-10-02`; a rolling `--days` window would drain the control arm.
+> - **Rule (printed).** worse: switch the flag off; better or cannot tell: keep it on and re-read in a week. A before/after split, not randomized: a difference can be time, not the arbiter.
+>
+> **Flagged · NOT fixed**
+> - The difference CI treats the arms as independent; a conversation that spans the flip makes it slightly too narrow (the code comment says so).
+
+> ## 2026-10-17 · Brain W5 · a vector-gap gauge and a decay dry run (branch `statenour/brain-w5-reliability`) · 1 statenour PR
+>
+> Not live until merged and deployed. The two counts below are from read-only production probes on 2026-10-17; everything else is from unit tests and code reading.
+>
+> - **Gauge (`lib/services/personal-gap.ts`, `buildPersonalGap` in `lib/services/embedding-coverage.ts`).** Live `brain_memories` outside the telemetry list with confidence >= 0.2 and no `brain_memory` vector in the active space, shown on /system/health as "searchable memories without a vector". Above 1% it warns; a failed read, or no eligible rows, renders unknown, never 0. Production: 18 missing of 17,721 eligible. The 2026-09-08 "19% unembedded" figure counted telemetry rows that are never embedded.
+> - **Decay dry run (`lib/brain/memory-decay.ts`, `app/api/cron/data-cleanup/route.ts`).** `buildDecayWhere` is now the one WHERE for both `runMemoryDecay` and `countMemoryDecayCandidates` (SELECT count only). The nightly cleanup writes `decayWouldAffect` and the top 5 categories to its audit row; a failed count writes null plus `decayDryRunError` and does not change the cron's status. Decay is never applied. Production: 26,718 rows would be touched.
+> - **Headers corrected.** `external-memory-intake.ts` (all four external doors call the intake), the `NICK_NOVELTY_RECALL` description, and `runMemoryDecay`'s "runs nightly" claim.
+>
+> **Decision owed (Nour).** After a week of nightly counts, read the audit rows' `decayByCategoryTop5`: applying decay is a production write and needs Nour's go.
+>
+> **Flagged · NOT fixed**
+> - The eligible set is "not telemetry", so bulk imports (`archive_document`, mail, drive) count as searchable memories; the label says searchable, not own.
+> - `semantic_edge` and `archive_document` are not exempt from decay; the category breakdown will show whether they dominate the 26,718.
+
 > ## 2026-10-17 · Brain W4 · dead code out, headers honest (branch `statenour/brain-w4-wisdom`) · 1 statenour PR, nothing user-visible
 >
 > Not live until merged; nothing a user sees changes. Every claim below is from unit tests, an import scan and code reading.

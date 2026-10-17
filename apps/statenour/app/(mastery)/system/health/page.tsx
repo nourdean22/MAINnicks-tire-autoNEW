@@ -44,6 +44,7 @@ import { SystemHealthDataCards } from "@/components/system/health-data-cards";
 import { SystemHealthCard } from "@/components/ultron/system-health-card";
 import { trpc } from "@/lib/trpc/client";
 import type { HealthReport } from "@/lib/services/system-health";
+import { formatPersonalGap } from "@/lib/services/personal-gap";
 
 export default function SystemHealthPage() {
   const [range, setRange] = useState<"24h" | "7d" | "30d">("7d");
@@ -88,6 +89,7 @@ export default function SystemHealthPage() {
   }
 
   const totalVectors = data.vectorIndex.reduce((s, v) => s + v.count, 0);
+  const personalGap = formatPersonalGap(data.personalGap);
   const cronFailureRate = data.cron.totalLogs
     ? Math.round((data.cron.failureCount / data.cron.totalLogs) * 100)
     : 0;
@@ -377,6 +379,11 @@ export default function SystemHealthPage() {
             <span className="text-[11px] font-mono text-fg-tertiary ml-auto"><AnimatedCounter value={totalVectors} /> rows</span>
           </header>
           <dl className="p-3 space-y-1.5 text-[11px] font-mono">
+            {/* unknown = the gauge read failed: "?" with warn tone, never a clean 0 */}
+            <KVRow k={personalGap.label} v={personalGap.value} tone={personalGap.tone} />
+            {personalGap.detail.map((d) => (
+              <p key={d} className="text-fg-tertiary pl-2">{d}</p>
+            ))}
             {data.vectorIndex.length === 0 ? (
               <p className="italic text-fg-tertiary">no vector rows</p>
             ) : (
