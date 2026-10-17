@@ -38,6 +38,8 @@ export async function backfillStatXp(perSource = 25): Promise<BackfillResult> {
       .catch(() => [] as { id: string; content: string }[]),
     prisma.captureInboxItem
       .findMany({
+        // Phone notes for the coding sessions (lib/agent-bridge/phone-notes.ts) are not captures.
+        where: { kind: { not: "agent_bridge_note" } },
         orderBy: { createdAt: "desc" },
         take: perSource,
         select: { id: true, title: true, summary: true },

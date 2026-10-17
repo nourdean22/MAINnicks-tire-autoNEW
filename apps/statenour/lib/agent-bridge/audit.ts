@@ -2,7 +2,8 @@ import crypto from "crypto";
 
 export async function auditBridgeCall(params: {
   requestId: string;
-  protocol: "mcp" | "actions";
+  /** "notes" = the phone-notes routes (lib/agent-bridge/phone-notes.ts). */
+  protocol: "mcp" | "actions" | "notes";
   toolName: string;
   externalName: string;
   /** "success" | "error" | "denied" — a scope/HARD_DENY refusal is audited too. */
@@ -97,7 +98,8 @@ export type BridgeRejectionReason =
  * attempts stay correlatable without holding an address in the clear.
  */
 export async function auditBridgeRejection(params: {
-  protocol: "mcp" | "actions";
+  /** "notes" = the phone-notes routes (lib/agent-bridge/phone-notes.ts). */
+  protocol: "mcp" | "actions" | "notes";
   reason: BridgeRejectionReason;
   req: Request;
   externalName?: string;
