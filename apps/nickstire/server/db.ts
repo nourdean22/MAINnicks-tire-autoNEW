@@ -1259,16 +1259,27 @@ function affectedRows(result: unknown): number {
 }
 
 /**
- * Compare-and-swap (review P3-2, 2026-10-17): only a still-pending row moves, so a
- * send that finishes after the operator tapped Cancel cannot overwrite 'skipped'.
- * `changed: false` tells the caller the row was no longer pending.
+ * The text went out, so the row says 'sent' whatever it said before: a row must
+ * never read 'skipped' when the customer got the message (2026-10-17). A send
+ * that lands after the operator's Cancel overwrites 'skipped' and logs
+ * followup.cancel_lost_race so the race is visible. Steps are ordered so that
+ * overwrite is detected: pending first, then skipped, then any other state.
  */
 export async function markNotificationSent(id: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db.update(customerNotifications).set({ status: "sent", sentAt: new Date() })
+  const sent = { status: "sent" as const, sentAt: new Date() };
+  const fromPending = await db.update(customerNotifications).set(sent)
     .where(and(eq(customerNotifications.id, id), eq(customerNotifications.status, "pending")));
-  return { success: true, changed: affectedRows(result) > 0 };
+  if (affectedRows(fromPending) > 0) return { success: true, changed: true, cancelLostRace: false };
+  const fromSkipped = await db.update(customerNotifications).set(sent)
+    .where(and(eq(customerNotifications.id, id), eq(customerNotifications.status, "skipped")));
+  if (affectedRows(fromSkipped) > 0) {
+    log.warn("followup.cancel_lost_race", { notificationId: id });
+    return { success: true, changed: true, cancelLostRace: true };
+  }
+  const any = await db.update(customerNotifications).set(sent).where(eq(customerNotifications.id, id));
+  return { success: true, changed: affectedRows(any) > 0, cancelLostRace: false };
 }
 
 /**

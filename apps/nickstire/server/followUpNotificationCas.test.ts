@@ -1,10 +1,11 @@
 /**
- * The follow-up sender's writers are compare-and-swaps too (review P3-2).
+ * The follow-up sender's writers against an operator's Cancel (review P3-2,
+ * corrected 2026-10-17: a row never says 'skipped' when the customer got the text).
  *
- * markNotificationSent / markNotificationFailed wrote `WHERE id = ?` only, so a
- * send that finished after the operator tapped Cancel overwrote 'skipped'. Both
- * now carry `AND status = 'pending'` and report whether the row changed.
- * Both directions: a pending row moves; a skipped row stays skipped.
+ * - markNotificationSent: the send HAPPENED, so the row ends 'sent' even over
+ *   'skipped', and overwriting a 'skipped' logs followup.cancel_lost_race.
+ * - markNotificationFailed: compare-and-swap on 'pending'; a failed send after a
+ *   Cancel leaves 'skipped' (nothing went out, the operator's choice stands).
  *
  * No real database: mysql2 and drizzle are mocked, and the fake evaluates the
  * UPDATE's real WHERE clause rendered by drizzle's MySqlDialect.
@@ -31,7 +32,11 @@ const fakeDb = {
   }),
 };
 
-vi.mock("mysql2/promise", () => ({ default: { createPool: () => ({ end: async () => {} }) } }));
+const { warn } = vi.hoisted(() => ({ warn: vi.fn() }));
+vi.mock("./lib/logger", () => ({
+  createLogger: () => ({ warn, info: vi.fn(), debug: vi.fn(), error: vi.fn() }),
+}));
+vi.mock("mysql2/promise",() => ({ default: { createPool: () => ({ end: async () => {} }) } }));
 vi.mock("drizzle-orm/mysql2", () => ({ drizzle: () => fakeDb }));
 
 // stubEnv, not a bare assignment: process.env is shared with every other test file in this worker.
@@ -47,17 +52,22 @@ afterAll(() => {
 
 beforeEach(() => {
   store.row = { id: 7, status: "pending" };
+  warn.mockClear();
 });
 
-describe("markNotificationSent is a compare-and-swap", () => {
-  it("pending -> sent", async () => {
+describe("markNotificationSent records the truth: the text went out", () => {
+  it("pending -> sent, no warning", async () => {
     await expect(markNotificationSent(7)).resolves.toMatchObject({ success: true, changed: true });
     expect(store.row.status).toBe("sent");
+    expect(warn).not.toHaveBeenCalled();
   });
-  it("an operator's 'skipped' is never overwritten by a late send", async () => {
+  it("a send after a Cancel ends 'sent' (the customer got the text) and logs followup.cancel_lost_race", async () => {
     store.row.status = "skipped";
-    await expect(markNotificationSent(7)).resolves.toMatchObject({ changed: false });
-    expect(store.row.status).toBe("skipped");
+    await expect(markNotificationSent(7)).resolves.toMatchObject({ changed: true, cancelLostRace: true });
+    expect(store.row.status).toBe("sent");
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0][0]).toBe("followup.cancel_lost_race");
+    expect(warn.mock.calls[0][1]).toMatchObject({ notificationId: 7 });
   });
 });
 
