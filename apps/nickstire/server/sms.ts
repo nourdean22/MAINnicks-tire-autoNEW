@@ -616,6 +616,12 @@ interface DelayedMessage {
   dbId?: number;
   /** The stored row's variantKey (rehydrated rows only; in-memory rows carry opts). Maps the row to its send_pause lane. */
   variantKey?: string | null;
+  /** When the text was queued (the row's createdAt for a rehydrated row). Ages a lane-held text for its expiry. */
+  createdAt?: Date;
+  /** Set the first time a send_pause held this text; on release it is checked against laneHoldExpiryMs. */
+  heldAt?: number;
+  /** The persisted row's status as this process last set or claimed it. A held text is never left "sending". */
+  dbStatus?: "queued" | "sending";
 }
 
 const delayedQueue: DelayedMessage[] = [];
@@ -642,7 +648,7 @@ function queueForLater(to: string, body: string, opts?: SendSmsOptions): void {
   // rehydrate re-sends the message (a customer double-text). scheduledFor
   // is always hours out (next 8AM window), so dbId is set long before
   // the message becomes eligible to send.
-  const queued: DelayedMessage = { to, body, scheduledFor, opts };
+  const queued: DelayedMessage = { to, body, scheduledFor, opts, createdAt: new Date() };
   delayedQueue.push(queued);
   smsStats.queued++;
   log.info("SMS queued for sending window", {
@@ -681,6 +687,7 @@ function queueForLater(to: string, body: string, opts?: SendSmsOptions): void {
         variantKey: opts?.variantKey ?? null,
       }).$returningId();
       queued.dbId = row?.id;
+      queued.dbStatus = "queued";
     } catch (err) {
       // describeDbError, never err.message: the insert binds the phone and body.
       log.warn("Failed to persist delayed SMS to DB", { error: describeDbError(err) });
@@ -711,6 +718,67 @@ function noteDrainHold(reason: string | null, queued: number): void {
   drainHoldReason = reason;
 }
 
+/**
+ * How long a text held by its lane's send_pause stays worth sending once the lane is resumed. Weather: 6 h,
+ * because every weather template speaks in the present ("heavy rain today", "first freeze alert!") and the
+ * drain cannot tell which forecast period fired; the trigger's own window (IMMINENT_HOURS, 24 h) is only an
+ * upper bound and would let a "today" text arrive the next day. Everything else: 48 h, the queue's
+ * existing bound for an unsent row (recoverStaleSendingRows).
+ */
+function laneHoldExpiryMs(lane: SendPauseLane): number {
+  return (lane === "weather_sms" ? 6 : 48) * 3_600_000;
+}
+
+/** A held text must sit "queued", never "sending" (the stale-sending sweep would requeue or fail it under us). */
+async function unclaimForHold(msg: DelayedMessage): Promise<void> {
+  if (msg.dbId == null || msg.dbStatus !== "sending") return;
+  try {
+    const { getDb } = await import("./db");
+    const { smsMessages } = await import("../drizzle/schema");
+    const { and, eq } = await import("drizzle-orm");
+    const db = await getDb();
+    if (!db) return;
+    await db.update(smsMessages).set({ status: "queued" })
+      .where(and(eq(smsMessages.id, msg.dbId), eq(smsMessages.status, "sending")));
+    msg.dbStatus = "queued";
+  } catch (err) {
+    log.warn("Failed to return a held SMS row to queued", { error: describeDbError(err) });
+  }
+}
+
+/** Claim a released held row queued -> sending before sending it; false = another process has it (drop ours). */
+async function claimHeldForSend(msg: DelayedMessage): Promise<boolean> {
+  if (msg.dbId == null || msg.dbStatus !== "queued") return true;
+  const { getDb } = await import("./db");
+  const { smsMessages } = await import("../drizzle/schema");
+  const { and, eq } = await import("drizzle-orm");
+  const db = await getDb();
+  if (!db) return false;
+  const claim = await db.update(smsMessages).set({ status: "sending" })
+    .where(and(eq(smsMessages.id, msg.dbId), eq(smsMessages.status, "queued")));
+  if (affectedRowCount(claim) < 1) return false;
+  msg.dbStatus = "sending";
+  return true;
+}
+
+/** An obsolete held text: failed with send_pause_expired:<lane>, never sent. The caller has already taken it out of memory. */
+async function expireHeld(msg: DelayedMessage, lane: SendPauseLane): Promise<void> {
+  const reason = `send_pause_expired:${lane}`;
+  log.info(`[sms queue] expired a held message — ${reason}`, { heldMinutes: Math.round((Date.now() - (msg.heldAt ?? Date.now())) / 60_000) });
+  if (msg.dbId == null) return;
+  try {
+    const { getDb } = await import("./db");
+    const { smsMessages } = await import("../drizzle/schema");
+    const { and, eq, inArray } = await import("drizzle-orm");
+    const db = await getDb();
+    if (!db) return;
+    await db.update(smsMessages).set({ status: "failed", failureReason: reason })
+      .where(and(eq(smsMessages.id, msg.dbId), inArray(smsMessages.status, ["queued", "sending"])));
+  } catch (err) {
+    log.warn("Failed to mark an expired held SMS row", { error: describeDbError(err) });
+  }
+}
+
 /** The send_pause lane of a queued text: in-memory rows carry their send options, rehydrated rows their stored variantKey. */
 function laneOf(m: DelayedMessage): SendPauseLane | null {
   return queuedSendPauseLane(m.opts?.messageClass, m.opts?.variantKey ?? m.variantKey);
@@ -725,23 +793,24 @@ function laneOf(m: DelayedMessage): SendPauseLane | null {
  */
 export async function countQueuedByLane(): Promise<Map<SendPauseLane, number> | null> {
   const counts = new Map<SendPauseLane, number>();
-  const add = (lane: SendPauseLane | null) => { if (lane) counts.set(lane, (counts.get(lane) ?? 0) + 1); };
-  const inMemory = new Set<number>();
-  for (const m of delayedQueue) {
-    add(laneOf(m));
-    if (m.dbId != null) inMemory.add(m.dbId);
-  }
+  const add = (lane: SendPauseLane | null, n = 1) => { if (lane && n > 0) counts.set(lane, (counts.get(lane) ?? 0) + n); };
   try {
     const { getDb } = await import("./db");
-    const { smsMessages } = await import("../drizzle/schema");
-    const { and, eq } = await import("drizzle-orm");
+    const { sql } = await import("drizzle-orm");
     const db = await getDb();
     if (!db) return null;
-    const rows = await db.select({ id: smsMessages.id, variantKey: smsMessages.variantKey })
-      .from(smsMessages)
-      .where(and(eq(smsMessages.direction, "outbound"), eq(smsMessages.status, "queued")))
-      .limit(2000);
-    for (const r of rows) if (!inMemory.has(r.id)) add(queuedSendPauseLane(undefined, r.variantKey));
+    // Aggregated in SQL with no cap: a LIMIT before classifying under-reported a big backlog (Codex P2, #3136).
+    const [rows] = await db.execute(sql`
+      SELECT variantKey AS variantKey, COUNT(*) AS n
+      FROM sms_messages
+      WHERE direction = 'outbound' AND status = 'queued'
+      GROUP BY variantKey
+    `);
+    for (const g of (Array.isArray(rows) ? rows : []) as Array<{ variantKey?: unknown; n?: unknown }>) {
+      add(queuedSendPauseLane(undefined, typeof g.variantKey === "string" ? g.variantKey : null), Number(g.n ?? 0));
+    }
+    // Plus the in-memory texts the DB does not count as queued: not yet persisted, or claimed "sending" here.
+    for (const m of delayedQueue) if (m.dbId == null || m.dbStatus === "sending") add(laneOf(m));
   } catch (err) {
     log.warn("queued-by-lane count failed", { error: describeDbError(err) });
     return null;
@@ -817,6 +886,7 @@ async function processDelayedQueue(): Promise<void> {
     } else if (now >= msg.scheduledFor.getTime()) {
       const lane = laneOf(msg);
       if (lane && laneHold.get(lane)) {
+        msg.heldAt ??= now;
         stillPending.push(msg);
         laneHeld.set(lane, (laneHeld.get(lane) ?? 0) + 1);
       } else {
@@ -836,8 +906,31 @@ async function processDelayedQueue(): Promise<void> {
     laneHoldLogged.set(lane, { count, atMs: now });
     log.info(`[sms queue] holding ${count} due message(s) — ${laneHold.get(lane)}`);
   }
+  // Held rows a rehydrate had claimed go back to "queued" (after the await-free partition above).
+  for (const msg of stillPending) if (msg.heldAt != null) await unclaimForHold(msg);
 
   for (const msg of ready) {
+    // Re-check the lane FRESH before EACH send (Codex P1, #3136): one read per drain let a pause set
+    // during the first in-flight send release the rest of the batch. A newly held text goes back to
+    // the queue: not dropped, not stamped sent.
+    const lane = laneOf(msg);
+    if (lane) {
+      const { sendPauseHoldReason } = await import("./services/sendPause");
+      if (await sendPauseHoldReason(lane, "automated", { fresh: true })) {
+        msg.heldAt ??= Date.now();
+        delayedQueue.push(msg);
+        await unclaimForHold(msg);
+        continue;
+      }
+      if (msg.heldAt != null) {
+        // Released after a hold: an obsolete text is expired, never sent; a live one is claimed first.
+        if (Date.now() - (msg.createdAt?.getTime() ?? msg.heldAt) > laneHoldExpiryMs(lane)) {
+          await expireHeld(msg, lane);
+          continue;
+        }
+        if (!(await claimHeldForSend(msg))) continue;
+      }
+    }
     // Send with force flag to skip timing check
     const result = await sendSms(msg.to, msg.body, { ...msg.opts, _forceImmediate: true });
     // 2026-07-29 — the queued gauge previously only ever incremented
@@ -1042,12 +1135,16 @@ export async function rehydrateQueuedFromDb(limit = 100): Promise<number> {
         body: smsMessages.body,
         phone: smsConversations.phone,
         variantKey: smsMessages.variantKey,
+        createdAt: smsMessages.createdAt,
       })
         .from(smsMessages)
         .innerJoin(smsConversations, eq(smsMessages.conversationId, smsConversations.id))
         .where(and(eq(smsMessages.status, "queued"), lt(smsMessages.createdAt, claimableBefore)))
         .limit(limit);
 
+    // A row whose send_pause lane is held is loaded UNCLAIMED (it stays "queued", never "sending"):
+    // the drain claims it on release, after its expiry check. One fresh read per lane per pass.
+    const laneHolds = new Map<SendPauseLane, string | null>();
     for (const msg of pending) {
         // Dedup BEFORE claiming (2026-07-29). The old order claimed
         // queued→sending first and deduped after — combined with the old
@@ -1057,6 +1154,25 @@ export async function rehydrateQueuedFromDb(limit = 100): Promise<number> {
         // the same number are DIFFERENT obligations), and a row already held
         // in memory is skipped without ever being claimed.
         if (delayedQueue.some((q) => q.dbId === msg.id)) continue;
+        const lane = queuedSendPauseLane(undefined, msg.variantKey);
+        if (lane && !laneHolds.has(lane)) {
+          const { sendPauseHoldReason } = await import("./services/sendPause");
+          laneHolds.set(lane, await sendPauseHoldReason(lane, "automated", { fresh: true }));
+        }
+        if (lane && laneHolds.get(lane)) {
+          delayedQueue.push({
+            to: msg.phone,
+            body: msg.body,
+            scheduledFor: getNextSendWindow(),
+            dbId: msg.id,
+            variantKey: msg.variantKey,
+            createdAt: msg.createdAt ?? undefined,
+            heldAt: Date.now(),
+            dbStatus: "queued",
+          });
+          rehydrated++;
+          continue;
+        }
         // wave-181.59 · atomic queued -> sending claim. Walks the enum
         // forward correctly — the row stays accurately "in-flight" until
         // the gateway actually responds via processDelayedQueue ->
@@ -1104,6 +1220,8 @@ export async function rehydrateQueuedFromDb(limit = 100): Promise<number> {
           scheduledFor: replay ? new Date() : getNextSendWindow(),
           dbId: msg.id,
           variantKey: msg.variantKey,
+          createdAt: msg.createdAt ?? undefined,
+          dbStatus: "sending",
           ...(replay ? { opts: replay } : {}),
         });
         rehydrated++;

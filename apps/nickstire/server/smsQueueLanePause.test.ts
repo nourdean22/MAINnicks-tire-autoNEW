@@ -21,7 +21,12 @@ import { getTableName } from "drizzle-orm";
 vi.unmock("./sms");
 
 const h = vi.hoisted(() => ({
-  pendingRows: [] as Array<{ id: number; body: string; phone: string; variantKey: string | null }>,
+  pendingRows: [] as Array<{ id: number; body: string; phone: string; variantKey: string | null; createdAt?: Date }>,
+  statusWrites: [] as Array<{ status: unknown; failureReason?: unknown }>,
+  sendAttempts: 0,
+  flipOnFirstSend: null as string | null,
+  queuedRows: [] as Array<{ id: number; variantKey: string | null }>,
+  queuedGroups: [] as Array<{ variantKey: string | null; n: number }>,
   pausedKeys: new Set<string>(),
   unreadable: false,
   sentMarks: 0,
@@ -46,12 +51,19 @@ vi.mock("./db", () => ({
     select: () => ({
       from: (table: Parameters<typeof getTableName>[0]) =>
         getTableName(table) === "sms_messages"
-          ? { innerJoin: () => ({ where: () => ({ limit: async () => h.pendingRows }) }), where: () => chain([]) }
+          ? {
+              innerJoin: () => ({ where: () => ({ limit: async () => h.pendingRows }) }),
+              // countQueuedByLane's old row read honoured its LIMIT; the fix aggregates in SQL instead
+              where: () => new Proxy(chain([]) as object, {
+                get: (t, p) => (p === "limit" ? async (n: number) => h.queuedRows.slice(0, n) : (t as Record<string | symbol, unknown>)[p]),
+              }),
+            }
           : chain([]),
     }),
     update: () => ({
       set: (v: Record<string, unknown>) => {
         if (v.status === "sent") h.sentMarks++;
+        if ("status" in v) h.statusWrites.push({ status: v.status, failureReason: v.failureReason });
         return chain([{ affectedRows: 1 }, []]);
       },
     }),
@@ -65,6 +77,13 @@ vi.mock("./db", () => ({
       }
       // checkStuckQueueAlert: queued rows older than the threshold, one row per variantKey
       if (text.includes("TIMESTAMPDIFF")) return [h.stuckGroups, []];
+      // countQueuedByLane: every queued row, grouped by variantKey, no cap
+      if (text.includes("GROUP BY variantKey")) return [h.queuedGroups, []];
+      // recordSendFailure: one per attempted send (no transport is configured, so every send fails)
+      if (text.includes("send_attempts")) {
+        h.sendAttempts++;
+        if (h.flipOnFirstSend) { h.pausedKeys.add(h.flipOnFirstSend); h.flipOnFirstSend = null; }
+      }
       return [[], []];
     },
   }),
@@ -98,6 +117,11 @@ beforeEach(() => {
   h.stuckGroups = [];
   h.telegrams = [];
   h.globalPaused = false;
+  h.statusWrites = [];
+  h.sendAttempts = 0;
+  h.flipOnFirstSend = null;
+  h.queuedRows = [];
+  h.queuedGroups = [];
   for (const k of TRANSPORT_ENV) {
     savedEnv[k] = process.env[k];
     delete process.env[k];
@@ -302,5 +326,118 @@ describe("delayed queue · held-count log rate limit", () => {
     } finally {
       spy.mockRestore();
     }
+  });
+});
+
+/** Codex P1/P2 on #3136: re-check before EACH drained send, expire obsolete held rows, count without a cap. */
+describe("delayed queue · round 2b (per-send re-check, held-row expiry, uncapped count)", () => {
+  const NOW = new Date("2026-10-14T14:00:00Z"); // 10:00 Cleveland
+  const HOUR = 3_600_000;
+  async function boot() {
+    vi.useFakeTimers({ now: NOW, toFake: ["Date", "setInterval", "clearInterval"] });
+    return import("./sms");
+  }
+  async function cycle(sms: typeof import("./sms")) {
+    await vi.advanceTimersByTimeAsync(60_000);
+    await Promise.all(sms.delayedQueueCyclesInFlight());
+  }
+
+  it("three due rows of one lane, the pause flips after send 1 -> one attempt, two rows stay pending", async () => {
+    h.pendingRows = [71, 72, 73].map((id) => ({ id, body: "Your tires are ready.", phone: `21655501${id}`, variantKey: CONFIRM }));
+    h.flipOnFirstSend = "send_pause_customer_confirmations";
+    const sms = await boot();
+    expect(await sms.rehydrateQueuedFromDb()).toBe(3);
+    h.pendingRows = []; // nothing new to rehydrate after this
+    sms.startDelayedQueueProcessor();
+    await cycle(sms);
+    expect(h.sendAttempts, "only the first row was sent").toBe(1);
+    expect(sms.getSmsStats().delayedQueueSize, "rows 2-3 back in the queue").toBe(2);
+    expect(h.sentMarks).toBe(0);
+  });
+
+  it("CONTROL: never paused -> all three are attempted", async () => {
+    h.pendingRows = [71, 72, 73].map((id) => ({ id, body: "Your tires are ready.", phone: `21655501${id}`, variantKey: CONFIRM }));
+    const sms = await boot();
+    expect(await sms.rehydrateQueuedFromDb()).toBe(3);
+    h.pendingRows = [];
+    sms.startDelayedQueueProcessor();
+    await cycle(sms);
+    expect(h.sendAttempts).toBe(3);
+  });
+
+  it("a row rehydrated while its lane is paused is NOT marked sending (it stays queued)", async () => {
+    h.pausedKeys.add("send_pause_weather_sms");
+    h.pendingRows = [{ id: 81, body: "Hi Pat, heavy rain today.", phone: "2165550181", variantKey: "weather_heavy_rain", createdAt: new Date(NOW.getTime() - HOUR) }];
+    const sms = await boot();
+    await sms.rehydrateQueuedFromDb();
+    expect(h.statusWrites.map((w) => w.status)).not.toContain("sending");
+  });
+
+  it("a weather row held past the 6 h bound is expired on release: marked failed send_pause_expired:weather_sms, never sent", async () => {
+    h.pausedKeys.add("send_pause_weather_sms");
+    h.pendingRows = [{ id: 82, body: "Hi Pat, heavy rain today.", phone: "2165550182", variantKey: "weather_heavy_rain", createdAt: new Date(NOW.getTime() - 7 * HOUR) }];
+    const sms = await boot();
+    await sms.rehydrateQueuedFromDb();
+    h.pendingRows = [];
+    sms.startDelayedQueueProcessor();
+    await cycle(sms); // held
+    h.pausedKeys.delete("send_pause_weather_sms"); // the operator resumes
+    await cycle(sms); // released
+    expect(h.sendAttempts, "an obsolete weather text is never sent").toBe(0);
+    expect(h.statusWrites).toContainEqual({ status: "failed", failureReason: "send_pause_expired:weather_sms" });
+    expect(sms.getSmsStats().delayedQueueSize, "and removed from memory").toBe(0);
+  });
+
+  it("CONTROL: a weather row held for under the bound is sent on release", async () => {
+    h.pausedKeys.add("send_pause_weather_sms");
+    h.pendingRows = [{ id: 83, body: "Hi Pat, heavy rain today.", phone: "2165550183", variantKey: "weather_heavy_rain", createdAt: new Date(NOW.getTime() - HOUR) }];
+    const sms = await boot();
+    await sms.rehydrateQueuedFromDb();
+    h.pendingRows = [];
+    sms.startDelayedQueueProcessor();
+    await cycle(sms);
+    h.pausedKeys.delete("send_pause_weather_sms");
+    await cycle(sms);
+    expect(h.sendAttempts).toBe(1);
+    expect(h.statusWrites.map((w) => w.failureReason)).not.toContain("send_pause_expired:weather_sms");
+  });
+
+  it("a missed-call row held past 48 h is expired; a confirmation held 47 h is sent", async () => {
+    h.pausedKeys.add("send_pause_missed_call_recovery");
+    h.pausedKeys.add("send_pause_customer_confirmations");
+    h.pendingRows = [
+      { id: 84, body: "Hey, this is Nick's.", phone: "2165550184", variantKey: "missed_call_recovery", createdAt: new Date(NOW.getTime() - 49 * HOUR) },
+      { id: 85, body: "Your tires are ready.", phone: "2165550185", variantKey: CONFIRM, createdAt: new Date(NOW.getTime() - 47 * HOUR) },
+    ];
+    const sms = await boot();
+    await sms.rehydrateQueuedFromDb();
+    h.pendingRows = [];
+    sms.startDelayedQueueProcessor();
+    await cycle(sms);
+    h.pausedKeys.clear();
+    await cycle(sms);
+    expect(h.statusWrites).toContainEqual({ status: "failed", failureReason: "send_pause_expired:missed_call_recovery" });
+    expect(h.sendAttempts, "only the confirmation").toBe(1);
+  });
+
+  it("a row the drain holds after it was claimed goes back to queued in the DB", async () => {
+    h.pendingRows = [{ id: 86, body: "Your tires are ready.", phone: "2165550186", variantKey: CONFIRM }];
+    const sms = await boot();
+    await sms.rehydrateQueuedFromDb(); // lane live: claimed queued -> sending
+    expect(h.statusWrites.map((w) => w.status)).toContain("sending");
+    h.pendingRows = [];
+    h.pausedKeys.add("send_pause_customer_confirmations");
+    sms.startDelayedQueueProcessor();
+    await cycle(sms);
+    expect(h.statusWrites.at(-1)?.status, "held rows never sit in sending").toBe("queued");
+    expect(sms.getSmsStats().delayedQueueSize).toBe(1);
+  });
+
+  it("heldQueued counts a 2001-row backlog exactly, never a capped 2000", async () => {
+    h.queuedRows = Array.from({ length: 2001 }, (_, i) => ({ id: 10_000 + i, variantKey: CONFIRM }));
+    h.queuedGroups = [{ variantKey: CONFIRM, n: 2001 }, { variantKey: null, n: 5 }];
+    const sms = await boot();
+    const counts = await sms.countQueuedByLane();
+    expect(counts?.get("customer_confirmations")).toBe(2001);
   });
 });
