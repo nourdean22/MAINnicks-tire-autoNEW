@@ -11,7 +11,7 @@ import {
   ArrowUpDown, Filter, Eye, X, Download, Send, CheckCircle2,
   MessageSquare, StickyNote, RefreshCw, Loader2, Crown,
   Clock, ChevronDown, ChevronUp, DollarSign,
-  Hash, Wrench, FileWarning
+  Hash, Wrench, FileWarning, MoreHorizontal
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -38,6 +38,8 @@ export function CustomersList({ onOpenCustomer }: { onOpenCustomer: (id: number)
     { validate: (v) => (["all", "recent", "lapsed", "unknown"].includes(v) ? (v as Segment) : null) },
   );
   const [sortBy, setSortBy] = useState<SortByExt>("totalSpent");
+  // Phones: which row's overflow (Call, Text, Win back) is open; one at a time.
+  const [moreId, setMoreId] = useState<number | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [page, setPage] = useState(1);
   // wave-181.x Customers Phase 1 · removed selectedId state · was only
@@ -77,7 +79,7 @@ export function CustomersList({ onOpenCustomer }: { onOpenCustomer: (id: number)
   const statsQuery = trpc.customers.stats.useQuery(undefined, { refetchInterval: 30000 });
   const { data: stats, isError: statsFailed } = statsQuery;
   // A paused (offline PWA) stats read has no data and no error: show no number, never a 0.
-  const statsPaused = !statsFailed && statsQuery.fetchStatus === "paused";
+  const statsPaused = !statsFailed && stats === undefined && statsQuery.fetchStatus === "paused";
   // A failed stats read is unknown, not zero: every tile shows a dash and says so.
   const tile = (n: number | undefined) => (statsFailed || statsPaused ? UNKNOWN : n ?? 0);
   const tileNote = statsFailed || statsPaused ? "Unable to determine" : undefined;
@@ -563,28 +565,85 @@ export function CustomersList({ onOpenCustomer }: { onOpenCustomer: (id: number)
       ) : (
       <>
       {/* Phones: ruled rows, one verb (admin UI v1 W4, Today's row grammar). The table below stays for lg and up. */}
+      {/* Phones have no sortable table header: one select with the table's sort options. */}
+      <label className="lg:hidden flex items-center gap-2 text-[13px] text-foreground/60">
+        Sort
+        <select
+          aria-label="Sort customers"
+          value={sortBy}
+          onChange={(e) => {
+            const next = e.target.value as SortByExt;
+            setSortBy(next);
+            setSortDir(next === "name" ? "asc" : "desc");
+            setPage(1);
+          }}
+          className="flex-1 min-h-12 rounded-md border border-border/40 bg-card px-3 text-base text-foreground"
+        >
+          <option value="totalSpent">Most spent</option>
+          <option value="visits">Most visits</option>
+          <option value="lastVisit">Most recent visit</option>
+          <option value="name">Name, A to Z</option>
+          <option value="declined">Most declined work</option>
+          <option value="backlog">Most open work orders</option>
+        </select>
+      </label>
       <ul aria-label="Customers" className="lg:hidden divide-y divide-border/30 border-y border-border/30">
         {listData.customers.map((c: ListedCustomer) => {
           const name = `${c.firstName} ${c.lastName || ""}`.trim() || c.phone || "Customer";
           const daysAgo = c.daysSinceLastVisit ?? (c.lastVisitDate ? Math.floor((Date.now() - new Date(c.lastVisitDate).getTime()) / 86400000) : null);
           return (
-            <li key={c.id} className="py-3 flex items-center gap-3">
-              <div className="min-w-0 flex-1">
-                <p className="text-[16px] leading-snug font-semibold truncate">{name}</p>
-                <p className="text-[13px] text-muted-foreground truncate">
-                  {c.phone ? <a href={`tel:${c.phone}`} className="underline-offset-2 hover:underline">{c.phone}</a> : "No phone"}
-                  {" · "}
-                  {daysAgo === null ? "No visit on file" : daysAgo === 0 ? "Visited today" : `Last visit ${daysAgo} ${daysAgo === 1 ? "day" : "days"} ago`}
-                </p>
+            <li key={c.id} className="py-3">
+              <div className="flex items-center gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[16px] leading-snug font-semibold truncate">{name}</p>
+                  <p className="text-[13px] text-muted-foreground truncate">
+                    {c.phone || "No phone"}
+                    {" · "}
+                    {daysAgo === null ? "No visit on file" : daysAgo === 0 ? "Visited today" : `Last visit ${daysAgo} ${daysAgo === 1 ? "day" : "days"} ago`}
+                  </p>
+                </div>
+                {c.phone && (
+                  <button
+                    type="button"
+                    onClick={() => setMoreId(moreId === c.id ? null : c.id)}
+                    aria-expanded={moreId === c.id}
+                    aria-label={`More actions for ${name}`}
+                    className="inline-flex items-center justify-center min-h-12 min-w-12 shrink-0 rounded-md text-muted-foreground hover:text-foreground"
+                  >
+                    <MoreHorizontal className="w-4 h-4" aria-hidden />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => onOpenCustomer(c.id)}
+                  aria-label={`Open ${name}`}
+                  className="min-h-12 px-4 shrink-0 rounded-md bg-secondary text-foreground text-[14px] font-semibold border border-border/60"
+                >
+                  Open
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => onOpenCustomer(c.id)}
-                aria-label={`Open ${name}`}
-                className="min-h-12 px-4 shrink-0 rounded-md bg-secondary text-foreground text-[14px] font-semibold border border-border/60"
-              >
-                Open
-              </button>
+              {c.phone && moreId === c.id && (
+                <div className="mt-2 flex flex-wrap justify-end gap-2">
+                  <a href={`tel:${c.phone}`} aria-label={`Call ${name}`} className="inline-flex items-center gap-2 min-h-12 px-4 rounded-md border border-border/40 text-[14px] text-foreground/85">
+                    <Phone className="w-4 h-4" aria-hidden /> Call
+                  </a>
+                  {/* Same link and no body, as the table's Text action: no new outbound copy. */}
+                  <MessageCustomerLink
+                    phone={c.phone}
+                    className="inline-flex items-center gap-2 min-h-12 px-4 rounded-md border border-border/40 text-[14px] text-foreground/85"
+                    ariaLabel={`Text ${c.firstName || c.phone}`}
+                    title="Open in-admin SMS chat"
+                  >
+                    <MessageSquare className="w-4 h-4" aria-hidden /> Text
+                  </MessageCustomerLink>
+                  {(c.churnRisk === "high" || (daysAgo ?? 0) > 90) && (
+                    // WinBackButton owns its pinned SMS body and confirm; this only grows its tap target to 48 px.
+                    <span className="inline-flex items-center rounded-md border border-border/40 [&>button]:min-h-12 [&>button]:min-w-12 [&>button]:inline-flex [&>button]:items-center [&>button]:justify-center">
+                      <WinBackButton customerId={c.id} firstName={c.firstName} phone={c.phone} />
+                    </span>
+                  )}
+                </div>
+              )}
             </li>
           );
         })}
