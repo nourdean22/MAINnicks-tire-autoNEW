@@ -128,9 +128,13 @@ github-client canaries 403'd every PR whenever another workflow had spent the bu
   - `board.mjs` (UserPromptSubmit `hook`): at most 3 lines of what changed since this session last looked (main moved,
     a PR went red, the heavy holder), from `board/board.json`; a cache over 60 s starts a detached refresh (one
     `gh pr list`); over 10 min old it prints STALE. `node scripts/agent-os/board.mjs` prints the whole board.
-  - `stuck-watch.mjs` (PostToolUse `--post`, PreToolUse `--pre`, every tool): the same call with the same result on an
-    unchanged tree nudges on the 3rd and 4th repeat and is denied on the 5th. Durations and timestamps are ignored;
-    polling tools are exempt; it fails open. Cost: about 100 ms per call, plus a `git status` only on a repeat.
+  - `stuck-watch.mjs` (PostToolUse and PostToolUseFailure `--post`, PreToolUse `--pre`, every tool, matcher `""`): the
+    same call with the same result on an unchanged tree nudges on the 3rd and 4th repeat and is denied on the 5th. A
+    failed call (non-zero Bash exit) fires PostToolUseFailure, and its `error` is the result. State is keyed on
+    `agent_id`, else `session_id`, so parallel lanes do not reset each other. Durations and timestamps are ignored;
+    Monitor-style tools are exempt; read-only polling (Read, Grep, Glob, an unchained `gh` or `curl`) is nudged, never
+    denied; it fails open. A call denied before it runs fires neither post event, so it is not counted. Cost: about
+    100 ms per call, plus a `git status` only on a repeat.
   - `lane-dispatch-brief` (policy.json, `Agent|Task` routed to pretool.mjs): a `lane-*` dispatch needs `model`, a brief
     file path ending `brief.md` and a `MODEL / EFFORT` line. Not checked: `effort`, and `start_session` prompts.
 - **Failure posture is asymmetric on purpose:** a matched rule fails CLOSED; a bug in the hook

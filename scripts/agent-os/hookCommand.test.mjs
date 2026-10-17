@@ -120,3 +120,18 @@ test("loop watchdog (2026-10-16): the configured stuck-watch hooks DENY the 5th 
   assert.equal(r.code, 2, `expected a deny (exit 2), got ${r.code}\n${r.out}`);
   assert.match(r.out, /stuck-watch\] DENIED/);
 });
+
+test("loop watchdog: the configured PostToolUseFailure string records failed calls (error payload), so 5 identical failures are denied", async () => {
+  const fail = nodeHooks.find((h) => h.event === "PostToolUseFailure" && h.command.includes("stuck-watch.mjs"));
+  const pre = nodeHooks.find((h) => h.event === "PreToolUse" && h.command.includes("stuck-watch.mjs"));
+  assert.ok(fail, "stuck-watch.mjs must be configured as a PostToolUseFailure hook: a non-zero Bash exit never fires PostToolUse");
+  const { mkdtempSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  process.env.STUCK_WATCH_DIR = mkdtempSync(join(tmpdir(), "stuck-hookfail-"));
+  const call = { session_id: `hookfail-${process.pid}`, cwd: ROOT, tool_name: "Bash", tool_input: { command: "pnpm test" } };
+  for (let i = 0; i < 4; i++) runHook(fail.command, JSON.stringify({ ...call, hook_event_name: "PostToolUseFailure", error: "Exit code 1: 1 failed" }));
+  const r = runHook(pre.command, JSON.stringify(call));
+  delete process.env.STUCK_WATCH_DIR;
+  assert.equal(r.code, 2, `expected a deny (exit 2), got ${r.code}\n${r.out}`);
+  assert.match(r.out, /stuck-watch\] DENIED/);
+});

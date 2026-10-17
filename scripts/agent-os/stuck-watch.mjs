@@ -4,14 +4,19 @@
  * conversation/stuck_detector.py). Lanes looped on one failing action (identical command, identical
  * failure) until their tool budget ran out.
  *
- *   PostToolUse  node stuck-watch.mjs --post   records (tool + input, result) per session; when the same pair
+ *   PostToolUse  node stuck-watch.mjs --post   records (tool + input, result) per agent; when the same pair
  *                                              repeats on an unchanged tree, the 3rd and 4th time nudge (exit 2:
  *                                              stderr reaches the model, the tool has already run)
- *   PreToolUse   node stuck-watch.mjs --pre    the 5th identical call on an unchanged tree is DENIED (exit 2)
+ *   PostToolUseFailure  (same --post)          a failed call (non-zero Bash exit) fires this event, not PostToolUse;
+ *                                              its result is the payload's `error` string
+ *   PreToolUse   node stuck-watch.mjs --pre    the 5th identical call on an unchanged tree is DENIED (exit 2), except
+ *                                              read-only polling (Read, Grep, Glob, an unchained gh or curl): nudge only
+ * A call denied before it runs (any PreToolUse deny) fires neither post event, so it is not counted.
  *
  * Any different call, a different result, or a changed tree (HEAD or `git status`) resets the streak.
  * The tree is read only for a repeat, so a normal call costs one small file read.
- * State is machine-local: %LOCALAPPDATA%/nourcity/stuck/<session>.json (STUCK_WATCH_DIR overrides).
+ * State is machine-local: %LOCALAPPDATA%/nourcity/stuck/<agent_id or session_id>.json (STUCK_WATCH_DIR overrides);
+ * keyed on agent_id first so parallel lanes in one session do not reset each other.
  * FAILURE POSTURE: like pretool.mjs, a bug here fails OPEN (exit 0). Canary: stuck-watch.test.mjs.
  */
 import { spawnSync } from "node:child_process";
@@ -25,6 +30,11 @@ const DENY_AT = 5;
 // Repetition is the mechanism of these: polling, waiting, bookkeeping.
 const EXEMPT = new Set(["Monitor", "TaskOutput", "BashOutput", "TaskStop", "ScheduleWakeup", "TodoWrite", "ToolSearch", "Skill"]);
 const EXEMPT_RE = /^mcp__ccd_(turn|session)__/;
+// Read-only polling (a CI check, a task output file): repeats are nudged but never denied.
+const NUDGE_ONLY = new Set(["Read", "Grep", "Glob"]);
+const isPolling = (tool, input) =>
+  NUDGE_ONLY.has(tool) ||
+  ((tool === "Bash" || tool === "PowerShell") && /^\s*(?:gh|curl)\s/.test(String(input?.command ?? "")) && !/[;&|\n]/.test(String(input?.command)));
 
 const hash = (v) => createHash("sha1").update(typeof v === "string" ? v : JSON.stringify(v ?? null)).digest("hex").slice(0, 16);
 const stateDir = () =>
@@ -42,7 +52,7 @@ function main(mode) {
   } catch {
     return 0;
   }
-  const session = String(payload.session_id ?? "").replace(/[^\w.-]/g, "");
+  const session = String(payload.agent_id ?? payload.session_id ?? "").replace(/[^\w.-]/g, "");
   const tool = payload.tool_name;
   if (!session || !tool || EXEMPT.has(tool) || EXEMPT_RE.test(tool)) return 0;
   const cwd = payload.cwd || process.cwd();
@@ -54,7 +64,7 @@ function main(mode) {
   const key = hash([tool, payload.tool_input]);
 
   if (mode === "--pre") {
-    if (last.key !== key || last.streak < DENY_AT - 1 || treeState(cwd) !== last.tree) return 0;
+    if (last.key !== key || last.streak < DENY_AT - 1 || isPolling(tool, payload.tool_input) || treeState(cwd) !== last.tree) return 0;
     process.stderr.write(
       `[stuck-watch] DENIED: this is the ${DENY_AT}th identical ${tool} call with the same result on an unchanged tree. ` +
         "Same action, same result: change approach (read the error, test a different hypothesis, or report the blocker). " +
@@ -63,9 +73,12 @@ function main(mode) {
     return 2;
   }
 
+  // A failed call (PostToolUseFailure) has no tool_response; its result is the error. Neither present: not judged.
+  const failed = payload.hook_event_name === "PostToolUseFailure" || (payload.tool_response === undefined && payload.error !== undefined);
+  if (!failed && payload.tool_response === undefined) return 0;
   // Durations and timestamps change on every rerun of an identical failure (vitest's "Duration 3.21s"); drop them.
   const result = hash(
-    JSON.stringify(payload.tool_response ?? null)
+    JSON.stringify(failed ? { error: payload.error } : payload.tool_response)
       .replace(/\d{4}-\d\d-\d\dT[\d:.]+Z?/g, "<ts>")
       .replace(/\b\d+(?:\.\d+)?\s?(?:ms|s|sec|seconds)\b/g, "<dur>"),
   );
@@ -79,7 +92,7 @@ function main(mode) {
   if (next.streak >= NUDGE_AT) {
     process.stderr.write(
       `[stuck-watch] same action, same result ${next.streak} times on an unchanged tree: change approach. ` +
-        `The ${DENY_AT}th identical call will be denied.\n`,
+        (isPolling(tool, payload.tool_input) ? "Polling is never denied: wait with Monitor instead.\n" : `The ${DENY_AT}th identical call will be denied.\n`),
     );
     return 2;
   }

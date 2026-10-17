@@ -413,7 +413,7 @@ const commandsOf = (g) => (g.hooks ?? []).filter((h) => h.type === "command").ma
 // so it is left out here. This pins the GUARD routing: pretool exactly once, never lease-check. Its own canaries:
 // stuck-watch.test.mjs and hookCommand.test.mjs.
 const hooksFor = (s, name) =>
-  groupsFor(s, name).flatMap((g) => commandsOf(g).map((c) => c.match(/([\w-]+)\.mjs/)?.[1])).filter((h) => h !== "stuck-watch");
+  groupsFor(s, name).flatMap((g) => commandsOf(g).flatMap((c) => [...c.matchAll(/([\w-]+)\.mjs/g)].map((m) => m[1]))).filter((h) => h !== "stuck-watch");
 
 /** Every way the registration of the infra tools is wrong, as readable lines. [] means right. */
 function infraRoutingProblems(s) {
@@ -430,6 +430,18 @@ function infraRoutingProblems(s) {
 
 test("registration: every denied leaf on every form runs pretool.mjs exactly once and never lease-check; reads and other connectors' tools run no hook", () => {
   assert.deepEqual(infraRoutingProblems(settings), []);
+});
+
+test("registration: stuck-watch is pinned to matcher \"\" on all three events, and the filter that leaves it out still sees a guard chained after it", () => {
+  for (const event of ["PreToolUse", "PostToolUse", "PostToolUseFailure"]) {
+    const groups = (settings.hooks?.[event] ?? []).filter((g) => commandsOf(g).some((c) => /stuck-watch\.mjs/.test(c)));
+    assert.deepEqual(groups.map((g) => g.matcher), [""], `${event}: stuck-watch must be one group with matcher "" (it watches every tool)`);
+  }
+  // BREAKS: a lease-check smuggled into the same command string as stuck-watch must still be seen on a denied leaf.
+  const smuggled = structuredClone(settings);
+  const g = smuggled.hooks.PreToolUse.find((x) => commandsOf(x).some((c) => /stuck-watch\.mjs/.test(c)));
+  g.hooks[0].command += " && node scripts/agent-os/lease-check.mjs";
+  assert.ok(infraRoutingProblems(smuggled).some((p) => /lease-check/.test(p)), "a guard chained after stuck-watch in one command string went unseen");
 });
 
 test("registration: the matcher is one anchored regex that means the same anchored or unanchored for every name probed", () => {
