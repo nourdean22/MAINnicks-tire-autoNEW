@@ -379,6 +379,9 @@ export const OPERATOR_CLOSED_MARKERS = [
   // "session-expired failures don't count", which would hide the next real
   // outage. A row with no marker still shows, however familiar its error text.
   "closed — root cause resolved",
+  // Written by dailyReelPost retireParkedReels (F6): the operator decided 2026-10-13
+  // that parked reels retire, so a retirement is an explicit close, not a failure.
+  "retired automatically:",
 ] as const;
 
 /**

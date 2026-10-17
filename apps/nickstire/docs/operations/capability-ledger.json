@@ -5340,6 +5340,39 @@
       "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "internal"
+    },
+    {
+      "capabilityId": "reel-lane-self-heal",
+      "name": "The autonomous reel lane self-heals: a repaired reel auto-posts after a clean re-QA, a pre-repair approval never covers the repaired video, and parked reels retire automatically so they cannot fill the drain window",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "Branch nickstire/reel-f5-f6 on main 5d6872a77 (server lane, cherry-picked). F5: server/services/reelAutoApproval.ts repairedReelRefusal (G1 the rendered-QA verdict's evaluatedAt postdates the newest payload.mp4History replacedAt and evaluateReelPublishGate(runIfMissing:false) reads proceed; G3 repair attempts <= policy limits.maxRepairAttemptsPerAsset, fallback 2) re-approves only the repair-void codes (video_changed / asset_bytes_changed / asset_digest_unverifiable) when the repair postdates the approval, through recordReelApproval bound to the current caption sha and mp4; caption changes stay a human's call; server/services/reelApproval.ts repairVoidsApproval voids a pre-repair approval at every publish door (cron, content.ts, adminRoutes.ts). F6: server/cron/jobs/dailyReelPost.ts retireParkedReels keeps the newest 10 human-parked reels and retires the rest and any parked over 7 days (status failed, reason 'retired automatically: ...' in error, the Archive button's shape; CAS on status assembled AND the payload it judged; hourly, the throttle stamped before the scan; skipped when getActivePolicy returns the DEFAULT_AUTONOMY_POLICY object; budget holds never retire); server/services/qualityGate.ts provider-health breaker excludes retirements; server/services/reelRecoverability.ts OPERATOR_CLOSED_MARKERS includes the retirement prefix so retired reels leave the admin attention list. Why: operator decisions 2026-10-13 (budget refusals HOLD, repaired reels AUTO-POST after a clean re-QA, parked reels RETIRE automatically).",
+        "tests": [
+          "server/reelRepairAutoPost.test.ts (new, 14): clean re-QA after the repair -> approved by policy; stale verdict (evaluatedAt <= replacedAt) -> no; approval for the old mp4 only -> voided; repair count over cap -> no; caption change -> human. Red first 8 failed / 6 passed; mutant drop G1: 2 failed.",
+          "server/reelParkedRetire.test.ts (new, 15): parked past 7 days -> retired with reason; beyond the newest 10 -> retired; budget hold -> never; transient gates -> never; DEFAULT policy object -> skipped (a value-equal clone still runs); CAS on the judged payload; a throwing pass is throttled; 30 parked + 1 clean -> clean reached. Red first 12 failed / 1 passed; mutants drop the cap, drop the identity check, drop the payload CAS, no throttle stamp: each red.",
+          "server/reelRetiredNotAttention.test.ts (new, 3) and server/reelBreakerRetiredExclusion.test.ts (new): the real attention predicate and the real breaker WHERE clause rendered with drizzle's MySQL dialect over sample rows; mutants drop the marker, flip not(like) to like, remove the exclusion: each red.",
+          "Manager run on the combined tree: 9 files, 127 passed (reelRepairAutoPost, reelParkedRetire, reelRetiredNotAttention, reelBreakerRetiredExclusion, reelApprovalGate, reelNeedsRegenSurfaces, qualityGate, reelTwiceDaily, reelDrainHeadOfLine); lane: pnpm run check exit 0 on every commit. Pre-PR Opus review lens: FIX FIRST on 1 P2 + 3 P3, all fixed."
+        ],
+        "liveRuns": [],
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Not observed in production yet. Live proof: a real repair that re-assembles, re-QAs clean and posts on the next drain pulse with no tap; cron_log or logs showing 'retired parked reels' and the drain then reaching a clean reel",
+          "source": "job 2026-10-17-reel-f5-f6"
+        }
+      ],
+      "deferredScope": [
+        "an mp4History entry without a readable replacedAt voids every approval (no writer produces one today)",
+        "renderedQaAttempts is not reset by a repair, so a repaired reel whose QA budget is spent waits on 'unavailable' after a critic outage",
+        "a retired reel's Queue inventory draft is left as it is",
+        "blocked rows that are not parked (budget holds, expired approvals, stale) can still occupy the 25-row drain window"
+      ],
+      "lastVerifiedAt": "2026-10-17",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
     }
   ],
   "axes": {

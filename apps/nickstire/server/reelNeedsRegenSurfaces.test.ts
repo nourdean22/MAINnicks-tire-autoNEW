@@ -85,7 +85,8 @@ describe("adminRoutes.ts — the /api/admin/reel-jobs/attention REST endpoint's 
 describe("qualityGate.ts — the paid-repair circuit breaker counts needs_regen alongside failed", () => {
   it("providerHealthy's hourly count is no longer blind to the outage population this remediation creates", () => {
     expect(QUALITY_GATE).toMatch(
-      /\.where\(and\(inArray\(reelJobs\.status, \["failed", "needs_regen"\]\), gte\(reelJobs\.updatedAt, since\)\)\);/,
+      // F6 added a third condition (retirements are not provider failures); the two pinned here stand.
+      /\.where\(and\(\s*inArray\(reelJobs\.status, \["failed", "needs_regen"\]\),\s*gte\(reelJobs\.updatedAt, since\),/,
     );
   });
 });

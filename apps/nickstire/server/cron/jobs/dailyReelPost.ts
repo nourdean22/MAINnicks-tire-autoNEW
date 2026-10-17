@@ -126,6 +126,114 @@ export function staleUnavailable(
   if (!Number.isFinite(t)) return false; // no timestamp: never park on a guess
   return nowMs - t > STALE_UNAVAILABLE_MS;
 }
+/**
+ * F6 · PARKED REELS RETIRE (operator decision 2026-10-13: "parked reels RETIRE
+ * automatically"). A parked reel reads the same on every pulse, and the drain reads
+ * the oldest DRAIN_SCAN_LIMIT approved assembled jobs, so enough parked rows ahead of
+ * a clean reel keep it out of the window forever. Retirement keeps the newest
+ * PARKED_KEEP_NEWEST parked reels for a human and retires the rest, and any parked
+ * longer than PARKED_RETIRE_AFTER_MS.
+ *
+ * Retired = the shape the operator's own Archive button writes (content.ts): status
+ * "failed", the reason in `error`. Never a delete; CAS on status = "assembled", so a
+ * row that moved on (repair queued, publishing) is not touched and a rerun is a no-op.
+ *
+ * Parked means a gate that waits on a human: reject, stock_fallback, needs_review, and
+ * needs_paid_repair when no paid repair will be tried (spend not authorized, or the
+ * verdict cannot be cleared). A paid repair that could still run is NOT parked: a
+ * budget refusal holds it until the budget resets, and it never retires. Transient
+ * gates (unavailable, auto_repair, stale) never retire: a critic outage must not
+ * retire good reels. Read-only gate reads (runIfMissing:false), once an hour.
+ */
+const PARKED_RETIRE_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
+const PARKED_KEEP_NEWEST = 10;
+const RETIRE_SCAN_LIMIT = 100;
+const RETIRE_EVERY_MS = 60 * 60 * 1000;
+const RETIRE_LAST_RUN_KEY = "reel_parked_retire_last_at";
+// The drain's own parked set, minus the retryable gate handled case by case below.
+const HUMAN_PARKED_GATES: ReadonlySet<string> = new Set([...PARKED_QA_GATES].filter((g) => !RETRYABLE_QA_GATES.has(g)));
+
+export async function retireParkedReels(nowMs: number = Date.now()): Promise<{
+  retired: Array<{ jobId: number; reason: string }>;
+  kept: number;
+  skippedRun?: string;
+}> {
+  const last = Date.parse(String((await getKv(RETIRE_LAST_RUN_KEY)) ?? ""));
+  if (Number.isFinite(last) && nowMs - last < RETIRE_EVERY_MS) return { retired: [], kept: 0, skippedRun: "throttled" };
+  const { getDb } = await import("../../db");
+  const d = await getDb();
+  if (!d) return { retired: [], kept: 0, skippedRun: "no_database" };
+
+  // getActivePolicy never throws: on a read error or a stored row that fails strict
+  // validation it returns this exact object. Its approval_required and cap 2 are not the
+  // operator's policy, so a budget-held paid repair would read as a park. Skip the pass.
+  const { getActivePolicy } = await import("../../services/autonomyControl");
+  const { DEFAULT_AUTONOMY_POLICY } = await import("../../../client/src/lib/autonomyPolicy");
+  const pol = await getActivePolicy();
+  if (pol === DEFAULT_AUTONOMY_POLICY) return { retired: [], kept: 0, skippedRun: "default_policy" };
+  const paidAuto = pol?.autonomousRepair?.paidBeatRegeneration === "auto";
+  const c = Number(pol?.limits?.maxRepairAttemptsPerAsset);
+  const cap = Number.isInteger(c) && c >= 0 ? c : 2;
+
+  // Stamped BEFORE the scan: a pass that throws must still throttle, or each of the pulse's
+  // ~30 drain iterations reruns up to RETIRE_SCAN_LIMIT gate reads. A failed pass waits an hour.
+  await setKv(RETIRE_LAST_RUN_KEY, new Date(nowMs).toISOString(), "Daily reel autopost — last parked-reel retirement pass");
+
+  const rows = await d
+    .select({ id: reelJobs.id, payload: reelJobs.payload, productionReadyAt: reelJobs.productionReadyAt, createdAt: reelJobs.createdAt, igPostId: reelJobs.igPostId })
+    .from(reelJobs)
+    .where(eq(reelJobs.status, "assembled"))
+    .orderBy(asc(reelJobs.id))
+    .limit(RETIRE_SCAN_LIMIT);
+
+  const { evaluateReelPublishGate } = await import("../../services/qualityGate");
+  const { paidRepairCanClearVerdict } = await import("../../services/repairRouter");
+  const { beatRepairRefusal } = await import("../../services/selectiveRepair");
+  const parked: Array<{ jobId: number; at: number; gate: string; payload: string | null }> = [];
+  for (const row of rows) {
+    if (row.igPostId) continue;
+    const at = (row.productionReadyAt ?? row.createdAt) instanceof Date ? (row.productionReadyAt ?? row.createdAt).getTime() : NaN;
+    if (!Number.isFinite(at)) continue; // no timestamp: never retire on a guess
+    let g: Awaited<ReturnType<typeof evaluateReelPublishGate>>;
+    try {
+      g = await evaluateReelPublishGate(Number(row.id), { runIfMissing: false });
+    } catch {
+      continue; // an unreadable gate is not evidence of a park
+    }
+    if (g.allowed) continue;
+    let isParked = HUMAN_PARKED_GATES.has(g.gate);
+    if (g.gate === "needs_paid_repair") {
+      const payload = parseReelJobPayload(row.payload);
+      const plan = paidRepairCanClearVerdict(g.findings, { repairAttempts: g.repairAttempts, maxRepairAttempts: cap }, {}, (beat) => beatRepairRefusal(payload, beat, Number(row.id)) === null);
+      isParked = !paidAuto || !plan.clearable;
+    }
+    if (isParked) parked.push({ jobId: Number(row.id), at, gate: g.gate, payload: row.payload ?? null });
+  }
+
+  parked.sort((a, b) => b.at - a.at); // newest first
+  const retired: Array<{ jobId: number; reason: string }> = [];
+  for (const [i, p] of parked.entries()) {
+    const old = nowMs - p.at > PARKED_RETIRE_AFTER_MS;
+    if (i < PARKED_KEEP_NEWEST && !old) continue;
+    const rule = old ? `parked longer than ${PARKED_RETIRE_AFTER_MS / 86_400_000} days` : `beyond the newest ${PARKED_KEEP_NEWEST} parked reels`;
+    const reason = `retired automatically: parked on ${p.gate} since ${new Date(p.at).toISOString()} (${rule}); the drain never reads it again. Operator decision 2026-10-13 (F6).`;
+    const res = await d
+      .update(reelJobs)
+      .set({ status: "failed", queueState: queueStateForReelStatus("failed"), error: reason.slice(0, 1000) })
+      // CAS on the payload too: runRenderedQaOnJob rewrites it without touching status, so a
+      // re-QA landing mid-pass (a now-clean verdict) must stop the retirement it was read for.
+      .where(and(
+        eq(reelJobs.id, p.jobId),
+        eq(reelJobs.status, "assembled"),
+        p.payload === null ? isNull(reelJobs.payload) : eq(reelJobs.payload, p.payload),
+      ));
+    const { affectedRowCount } = await import("../../lib/db-affected");
+    if (affectedRowCount(res) === 1) retired.push({ jobId: p.jobId, reason });
+  }
+  if (retired.length) log.info("daily reel: retired parked reels", { retired: retired.map((r) => r.jobId), parked: parked.length, kept: parked.length - retired.length });
+  return { retired, kept: parked.length - retired.length };
+}
+
 export const REEL_READY_TARGET = 3;
 export const REEL_READY_LOW_WATERMARK = 1;
 
@@ -517,6 +625,15 @@ async function runDailyReelPostOnce(
   const { getDb } = await import("../../db");
   const d = await getDb();
   if (!d) return { recordsProcessed: 0, details: "DB not available" };
+
+  // F6: parked reels retire before the drain reads its window, only on a pulse that
+  // will drain (a slot is open). Hourly-throttled inside, so the pass loop pays one
+  // KV read per extra iteration. Failure never stops the pulse.
+  try {
+    await retireParkedReels();
+  } catch (err) {
+    log.warn("daily reel: parked-reel retirement failed — parked reels stay, cron continues", { err: err instanceof Error ? err.message : String(err) });
+  }
 
   // The evening run has its own job row, or it would dedupe onto the morning one.
   const evening = hour >= EVENING_PRODUCTION_HOUR_ET;
