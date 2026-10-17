@@ -60,13 +60,9 @@ async function notifyOrLog(
 /**
  * POST /api/webhooks/nickstire — Real-time event receiver from nickstire.org
  *
- * Processes business events instantly:
- * - new_lead → Telegram alert + create lead record
- * - job_complete → update revenue + trigger review request
- * - quote_sent → track for follow-up
- * - review_received → alert + store for response
- * - callback → urgent Telegram alert
- * - emergency → critical Telegram alert
+ * Records every event in the audit trail. Telegram alerts only for review and
+ * emergency: lead, callback, booking-complete and invoice are already sent to
+ * Telegram by nickstire's event bus, so they are recorded here, not re-sent.
  *
  * v9.1.14 · Auth-hardened. Previous version had two HIGH-severity
  * bugs caught in code review:
@@ -112,41 +108,13 @@ export async function POST(req: Request) {
 
       try {
       switch (type) {
-        case "nickstire:lead": {
-          // Instant lead alert to Telegram
-          const name = data.customer || data.name || data.customerName || "Unknown";
-          const phone = data.phone || "";
-          const vehicle = data.vehicle || "";
-          const problem = data.problem || data.service || data.interest || "";
-          const value = data.estimatedValue ? `$${data.estimatedValue}` : "";
-
-          const delivered = await notifyOrLog(
-            () => sendTelegram(
-              `🔴 <b>NEW LEAD — ${h(name)}</b>\n\n` +
-              `📞 ${h(phone)}\n` +
-              `🚗 ${h(vehicle)}\n` +
-              `🔧 ${h(problem)}\n` +
-              (value ? `💰 Est: ${h(value)}\n` : "") +
-              `\n⏱ Response time starts NOW.\nCall within 15 min for max conversion.`,
-            ),
-            { eventType: type, isEmergency: false },
-          );
-
-          results.push({ type, action: "telegram_alert", status: delivered ? "sent" : "undelivered" });
-          break;
-        }
-
-        case "nickstire:callback": {
-          const delivered = await notifyOrLog(
-            () => sendTelegram(
-              `📞 <b>CALLBACK REQUEST</b>\n\n` +
-              `${h(data.customer || data.name || "Customer")} — ${h(data.phone || "no phone")}\n` +
-              `${h(data.reason)}\n\n` +
-              `Call back IMMEDIATELY.`,
-            ),
-            { eventType: type, isEmergency: false },
-          );
-          results.push({ type, action: "telegram_alert", status: delivered ? "sent" : "undelivered" });
+        case "nickstire:lead":
+        case "nickstire:callback":
+        case "nickstire:booking:complete":
+        case "nickstire:invoice": {
+          // nickstire's own event bus already sends these to Telegram (#3089); a second
+          // copy from here buzzed Nour twice for one event. Recorded (audit row below), not sent.
+          results.push({ type, action: "recorded", status: "ok" });
           break;
         }
 
@@ -164,25 +132,6 @@ export async function POST(req: Request) {
             { eventType: type, isEmergency: true },
           );
           if (!delivered) emergencyUndelivered = true;
-          results.push({ type, action: "telegram_alert", status: delivered ? "sent" : "undelivered" });
-          break;
-        }
-
-        case "nickstire:booking:complete":
-        case "nickstire:invoice": {
-          // The bridge sends totalAmount in DOLLARS (null when the completion carries no
-          // invoice). An unknown amount is omitted, never rendered as "$0".
-          const rawAmount = data.totalCents ? data.totalCents / 100 : (data.totalAmount ?? data.total);
-          const amount = rawAmount == null || rawAmount === "" ? null : Number(rawAmount);
-          const amountLabel = amount != null && Number.isFinite(amount) ? ` — $${amount.toFixed(0)}` : "";
-          const delivered = await notifyOrLog(
-            () => sendTelegram(
-              `✅ <b>JOB COMPLETE${amountLabel}</b>\n\n` +
-              `${h(data.customer || data.customerName)} — ${h(data.vehicle)}\n` +
-              `${h(data.service || data.services)}`,
-            ),
-            { eventType: type, isEmergency: false },
-          );
           results.push({ type, action: "telegram_alert", status: delivered ? "sent" : "undelivered" });
           break;
         }
