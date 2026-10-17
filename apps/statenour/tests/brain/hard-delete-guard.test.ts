@@ -69,6 +69,11 @@ describe("NEVER_HARD_DELETE_CATEGORIES · what a TTL sweep may never touch", () 
     }
   });
 
+  it("BREAKS: spaced_review is the operator's own learning schedule (W2 tutor + Learn tab); a 24h TTL sweep killed every row", () => {
+    // remember() stamps a 24h expiresAt on new rows; without this the 1/3/7/30 ladder never climbs (prod: 0 rows ever).
+    expect(NEVER_HARD_DELETE_CATEGORIES.includes("spaced_review")).toBe(true);
+  });
+
   it("positive control: pure telemetry stays sweepable — the guard is not a blanket 'never delete'", () => {
     for (const c of ["memory_gateway_shadow", "nick_quality", "reply_quality", "mastery_xp_event"]) {
       expect(NEVER_HARD_DELETE_CATEGORIES.includes(c), `${c} is telemetry and must remain collectable`).toBe(false);
