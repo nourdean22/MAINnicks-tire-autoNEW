@@ -222,7 +222,6 @@ describe("retireParkedReels", () => {
 
 describe("wiring", () => {
   const CRON = readFileSync(path.join(__dirname, "cron", "jobs", "dailyReelPost.ts"), "utf8");
-  const GATE = readFileSync(path.join(__dirname, "services", "qualityGate.ts"), "utf8");
 
   it("a pass that will drain retires parked reels first: after the arm switch and slot guard, before the drain query", () => {
     const body = CRON.slice(CRON.indexOf("\nasync function runDailyReelPostOnce("));
@@ -245,9 +244,5 @@ describe("wiring", () => {
     expect(CRON).toContain('eq(reelJobs.status, "assembled"),\n              isNotNull(reelJobs.mp4Url),');
   });
 
-  it("the provider-health breaker does not count retirements as provider failures", () => {
-    const breaker = GATE.slice(GATE.indexOf("let providerHealthy = true;"), GATE.indexOf("providerHealthy = Number("));
-    expect(breaker).toContain('inArray(reelJobs.status, ["failed", "needs_regen"])');
-    expect(breaker).toContain("retired automatically");
-  });
+  // The breaker exclusion is tested by behaviour in reelBreakerRetiredExclusion.test.ts.
 });
