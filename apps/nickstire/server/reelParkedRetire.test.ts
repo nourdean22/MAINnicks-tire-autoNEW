@@ -26,7 +26,7 @@ type Row = { id: number; status: string; error: string | null; payload: string; 
 let rows: Row[] = [];
 let kv = new Map<string, string>();
 let gates: Record<number, { gate: string; allowed: boolean; findings: unknown[]; repairAttempts: number } | Error> = {};
-let policy: Record<string, unknown> | Error = {};
+let policy: Record<string, unknown> = {};
 
 vi.mock("./db", () => ({
   getDb: async () => ({
@@ -60,7 +60,7 @@ vi.mock("./services/qualityGate", () => ({
   evaluateReelPublishGate: async (id: number) => { const g = gates[id]; if (g instanceof Error) throw g; return g ?? { gate: "proceed", allowed: true, findings: [], repairAttempts: 0, source: "persisted", reason: "" }; },
 }));
 vi.mock("./services/autonomyControl", () => ({
-  getActivePolicy: async () => { if (policy instanceof Error) throw policy; return policy; },
+  getActivePolicy: async () => policy,
 }));
 
 const job = (id: number, ageDays: number, over: Partial<Row> = {}): Row => ({
@@ -132,11 +132,25 @@ describe("retireParkedReels", () => {
     expect(rows.every((r) => r.status === "assembled")).toBe(true);
   });
 
-  it("an unreadable policy retires no paid-repair reel (unknown spend is not a park)", async () => {
-    policy = new Error("policy table down");
-    rows = [job(1, 30)];
-    gates = { 1: parked("needs_paid_repair") };
-    expect((await retire()).retired).toEqual([]);
+  it("the DEFAULT policy (getActivePolicy's fallback on a read error or an invalid row) skips the whole pass", async () => {
+    // getActivePolicy never throws: it returns this exact object, whose approval_required and
+    // cap 2 are not the operator's real policy, so a held paid repair would read as a park.
+    const { DEFAULT_AUTONOMY_POLICY } = await import("../client/src/lib/autonomyPolicy");
+    policy = DEFAULT_AUTONOMY_POLICY as unknown as Record<string, unknown>;
+    rows = [job(1, 30), job(2, 30)];
+    gates = { 1: parked("needs_paid_repair"), 2: parked("reject") };
+    const out = await retire();
+    expect(out.retired).toEqual([]);
+    expect(out.skippedRun).toBe("default_policy");
+    expect(rows.every((r) => r.status === "assembled")).toBe(true);
+  });
+
+  it("CONTROL: a stored policy with the same values as DEFAULT, but not the fallback object, does run", async () => {
+    const { DEFAULT_AUTONOMY_POLICY } = await import("../client/src/lib/autonomyPolicy");
+    policy = structuredClone(DEFAULT_AUTONOMY_POLICY) as unknown as Record<string, unknown>;
+    rows = [job(2, 30)];
+    gates = { 2: parked("reject") };
+    expect((await retire()).retired.map((r) => r.jobId)).toEqual([2]);
   });
 
   it("a paid repair that cannot run (spend not authorized) is a park and retires past the threshold", async () => {

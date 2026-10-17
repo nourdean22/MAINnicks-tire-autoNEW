@@ -164,16 +164,16 @@ export async function retireParkedReels(nowMs: number = Date.now()): Promise<{
   const d = await getDb();
   if (!d) return { retired: [], kept: 0, skippedRun: "no_database" };
 
-  // Unknown policy leaves "will a paid repair run?" undecided, so no paid-repair reel retires.
-  let paidAuto: boolean | null = null;
-  let cap = 2;
-  try {
-    const { getActivePolicy } = await import("../../services/autonomyControl");
-    const pol = await getActivePolicy();
-    paidAuto = pol?.autonomousRepair?.paidBeatRegeneration === "auto";
-    const c = Number(pol?.limits?.maxRepairAttemptsPerAsset);
-    if (Number.isInteger(c) && c >= 0) cap = c;
-  } catch { /* paidAuto stays null */ }
+  // getActivePolicy never throws: on a read error or a stored row that fails strict
+  // validation it returns this exact object. Its approval_required and cap 2 are not the
+  // operator's policy, so a budget-held paid repair would read as a park. Skip the pass.
+  const { getActivePolicy } = await import("../../services/autonomyControl");
+  const { DEFAULT_AUTONOMY_POLICY } = await import("../../../client/src/lib/autonomyPolicy");
+  const pol = await getActivePolicy();
+  if (pol === DEFAULT_AUTONOMY_POLICY) return { retired: [], kept: 0, skippedRun: "default_policy" };
+  const paidAuto = pol?.autonomousRepair?.paidBeatRegeneration === "auto";
+  const c = Number(pol?.limits?.maxRepairAttemptsPerAsset);
+  const cap = Number.isInteger(c) && c >= 0 ? c : 2;
 
   const rows = await d
     .select({ id: reelJobs.id, payload: reelJobs.payload, productionReadyAt: reelJobs.productionReadyAt, createdAt: reelJobs.createdAt, igPostId: reelJobs.igPostId })
@@ -198,7 +198,7 @@ export async function retireParkedReels(nowMs: number = Date.now()): Promise<{
     }
     if (g.allowed) continue;
     let isParked = HUMAN_PARKED_GATES.has(g.gate);
-    if (g.gate === "needs_paid_repair" && paidAuto !== null) {
+    if (g.gate === "needs_paid_repair") {
       const payload = parseReelJobPayload(row.payload);
       const plan = paidRepairCanClearVerdict(g.findings, { repairAttempts: g.repairAttempts, maxRepairAttempts: cap }, {}, (beat) => beatRepairRefusal(payload, beat, Number(row.id)) === null);
       isParked = !paidAuto || !plan.clearable;
