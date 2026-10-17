@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "nickstire/c55-send-pause-followup",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "11dd3c15-6c98-4bc9-9fa1-c404986839c6",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\new-session-bbf695",
   "claimedBy": "2026-10-17-c55-send-pause-followup",
   "claimedAt": "2026-10-17T23:16:24.296Z",
   "expiresAt": "2026-10-18T11:16:24.296Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": null
+  "releasedAt": "2026-10-17T23:55:00.928Z",
+  "releaseReason": "PR merged; merge-gate deleted the remote branch",
+  "priorLeaseSha": "f4d7c9bd995ec46bdb62e811fab422f6e8144fd0",
+  "releasedBy": "11dd3c15-6c98-4bc9-9fa1-c404986839c6",
+  "foreignReleaseReason": null
 }
