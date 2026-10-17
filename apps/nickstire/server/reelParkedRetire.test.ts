@@ -27,6 +27,8 @@ let rows: Row[] = [];
 let kv = new Map<string, string>();
 let gates: Record<number, { gate: string; allowed: boolean; findings: unknown[]; repairAttempts: number } | Error> = {};
 let policy: Record<string, unknown> = {};
+/** Runs inside the gate read for a job: a re-QA landing while the pass is mid-loop. */
+let duringGate: Record<number, () => void> = {};
 
 vi.mock("./db", () => ({
   getDb: async () => ({
@@ -34,7 +36,8 @@ vi.mock("./db", () => ({
       from: (t: unknown) => {
         const name = getTableName(t as never);
         let result: unknown[] = [];
-        if (name === "reel_jobs") result = rows.filter((r) => r.status === "assembled").sort((a, b) => a.id - b.id);
+        // Copies, as a real read is a snapshot: a later write to the row must not change what was read.
+        if (name === "reel_jobs") result = rows.filter((r) => r.status === "assembled").sort((a, b) => a.id - b.id).map((r) => ({ ...r }));
         if (name === "shop_settings") result = [...kv].map(([key, value]) => ({ key, value }));
         const tail = { limit: async (n: number) => result.slice(0, n) };
         return { where: () => ({ ...tail, orderBy: () => tail }) };
@@ -46,7 +49,8 @@ vi.mock("./db", () => ({
           const params = dialect.sqlToQuery(cond).params;
           if (getTableName(t as never) === "shop_settings") { kv.set(String(params[0] ?? "k"), String(v.value)); return [{ affectedRows: 1 }]; }
           // and(eq(id, X), eq(status, "assembled")): the CAS the retirement must use
-          const row = rows.find((r) => r.id === params[0] && r.status === params[1]);
+          // A third param, when present, is the payload the pass read (P3-1).
+          const row = rows.find((r) => r.id === params[0] && r.status === params[1] && (params.length < 3 || r.payload === params[2]));
           if (!row) return [{ affectedRows: 0 }];
           Object.assign(row, v);
           return [{ affectedRows: 1 }];
@@ -57,7 +61,7 @@ vi.mock("./db", () => ({
   }),
 }));
 vi.mock("./services/qualityGate", () => ({
-  evaluateReelPublishGate: async (id: number) => { const g = gates[id]; if (g instanceof Error) throw g; return g ?? { gate: "proceed", allowed: true, findings: [], repairAttempts: 0, source: "persisted", reason: "" }; },
+  evaluateReelPublishGate: async (id: number) => { duringGate[id]?.(); const g = gates[id]; if (g instanceof Error) throw g; return g ?? { gate: "proceed", allowed: true, findings: [], repairAttempts: 0, source: "persisted", reason: "" }; },
 }));
 vi.mock("./services/autonomyControl", () => ({
   getActivePolicy: async () => policy,
@@ -72,7 +76,7 @@ const parked = (gate: string) => ({ gate, allowed: false, findings: [], repairAt
 const drainWindow = () => rows.filter((r) => r.status === "assembled").sort((a, b) => a.id - b.id).slice(0, 25).map((r) => r.id);
 
 beforeEach(() => {
-  rows = []; kv = new Map(); gates = {};
+  rows = []; kv = new Map(); gates = {}; duringGate = {};
   policy = { autonomousRepair: { paidBeatRegeneration: "approval_required" }, limits: { maxRepairAttemptsPerAsset: 2 } };
   vi.useFakeTimers({ now: NOW, toFake: ["Date"] });
 });
@@ -165,6 +169,16 @@ describe("retireParkedReels", () => {
     rows = [job(1, 30), job(2, 30), job(3, 30), job(4, 30)];
     gates = { 1: parked("unavailable"), 2: parked("auto_repair"), 3: parked("stale"), 4: new Error("gate read failed") };
     expect((await retire()).retired).toEqual([]);
+  });
+
+  it("P3-1: a re-QA that rewrites the payload between the read and the write stops the retirement", async () => {
+    rows = [job(1, 30), job(2, 30)];
+    gates = { 1: parked("reject"), 2: parked("reject") };
+    // job 1's verdict is re-computed (payload rewritten, status unchanged) while the pass runs
+    duringGate[1] = () => { rows[0].payload = JSON.stringify({ renderedQa: { decision: "approve" } }); };
+    const out = await retire();
+    expect(out.retired.map((r) => r.jobId)).toEqual([2]); // CONTROL: the untouched row still retires
+    expect(rows[0].status).toBe("assembled");
   });
 
   it("an already-published row is never retired", async () => {

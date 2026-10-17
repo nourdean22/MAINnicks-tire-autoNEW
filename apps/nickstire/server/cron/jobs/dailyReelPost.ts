@@ -185,7 +185,7 @@ export async function retireParkedReels(nowMs: number = Date.now()): Promise<{
   const { evaluateReelPublishGate } = await import("../../services/qualityGate");
   const { paidRepairCanClearVerdict } = await import("../../services/repairRouter");
   const { beatRepairRefusal } = await import("../../services/selectiveRepair");
-  const parked: Array<{ jobId: number; at: number; gate: string }> = [];
+  const parked: Array<{ jobId: number; at: number; gate: string; payload: string | null }> = [];
   for (const row of rows) {
     if (row.igPostId) continue;
     const at = (row.productionReadyAt ?? row.createdAt) instanceof Date ? (row.productionReadyAt ?? row.createdAt).getTime() : NaN;
@@ -203,7 +203,7 @@ export async function retireParkedReels(nowMs: number = Date.now()): Promise<{
       const plan = paidRepairCanClearVerdict(g.findings, { repairAttempts: g.repairAttempts, maxRepairAttempts: cap }, {}, (beat) => beatRepairRefusal(payload, beat, Number(row.id)) === null);
       isParked = !paidAuto || !plan.clearable;
     }
-    if (isParked) parked.push({ jobId: Number(row.id), at, gate: g.gate });
+    if (isParked) parked.push({ jobId: Number(row.id), at, gate: g.gate, payload: row.payload ?? null });
   }
 
   parked.sort((a, b) => b.at - a.at); // newest first
@@ -216,7 +216,13 @@ export async function retireParkedReels(nowMs: number = Date.now()): Promise<{
     const res = await d
       .update(reelJobs)
       .set({ status: "failed", queueState: queueStateForReelStatus("failed"), error: reason.slice(0, 1000) })
-      .where(and(eq(reelJobs.id, p.jobId), eq(reelJobs.status, "assembled")));
+      // CAS on the payload too: runRenderedQaOnJob rewrites it without touching status, so a
+      // re-QA landing mid-pass (a now-clean verdict) must stop the retirement it was read for.
+      .where(and(
+        eq(reelJobs.id, p.jobId),
+        eq(reelJobs.status, "assembled"),
+        p.payload === null ? isNull(reelJobs.payload) : eq(reelJobs.payload, p.payload),
+      ));
     const { affectedRowCount } = await import("../../lib/db-affected");
     if (affectedRowCount(res) === 1) retired.push({ jobId: p.jobId, reason });
   }
