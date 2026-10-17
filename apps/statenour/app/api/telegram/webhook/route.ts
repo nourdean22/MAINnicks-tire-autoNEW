@@ -889,6 +889,9 @@ async function handleCommand(text: string, chatId: string, forwarded = false): P
       // 2026-09-16 · the phone-side ledger writer.
       case "/log":
         return await cmdLog(args.join(" "), chatId);
+      // 2026-10-17 · the session bridge: a note for the coding sessions.
+      case "/note":
+        return await cmdNote(trimmed.slice(cmd.length).trim(), chatId);
       case "/ask":
       case "/nick":
         return await cmdAsk(args.join(" "), chatId);
@@ -961,6 +964,7 @@ async function handleCommand(text: string, chatId: string, forwarded = false): P
             `/mit [text] — Set today's MIT\n` +
             `/commit [text] — Create commitment\n` +
             `/log [name] [+n|-n] [note] — Log a relationship deposit/withdrawal\n` +
+            `/note [text] — Leave a note a coding session reads when it next starts\n` +
             `/ask [question] — Ask Nick anything\n\n` +
             `\n<b>COUNCIL (AG-13)</b>\n` +
             `/board [strategic|invest|product|operator|full|team] [q] — Convene an advisor board\n` +
@@ -1086,6 +1090,43 @@ async function cmdTask(args: string, chatId: string): Promise<void> {
   } catch (err) {
     await sendTelegram(`⚠️ Task failed: ${await safeErrorText(err)}`, chatId);
   }
+}
+
+/**
+ * /note — the session bridge (Telegram job lane 2, 2026-10-17). Stores the text
+ * for the coding sessions (lib/agent-bridge/phone-notes.ts); a session reads it
+ * when it starts. /task stays Nour's own task inbox and does not bridge: a task
+ * is his to-do, a note is a request to an agent.
+ */
+async function cmdNote(text: string, chatId: string): Promise<void> {
+  if (!text) {
+    await sendTelegram(`Usage: /note [text]\n\nLeaves a note for the coding sessions.`, chatId);
+    return;
+  }
+  const { prisma } = await import("@/lib/prisma");
+  const { randomUUID } = await import("node:crypto");
+  const { PHONE_NOTE_KIND, PHONE_NOTE_UNREAD, PHONE_NOTE_MAX_CHARS } = await import("@/lib/agent-bridge/phone-notes");
+  const body = text.slice(0, PHONE_NOTE_MAX_CHARS);
+  try {
+    await prisma.captureInboxItem.create({
+      data: {
+        itemKey: `${PHONE_NOTE_KIND}:${randomUUID()}`,
+        source: "telegram",
+        kind: PHONE_NOTE_KIND,
+        title: body.slice(0, 120),
+        summary: body,
+        status: PHONE_NOTE_UNREAD,
+        capturedAt: new Date(),
+      },
+    });
+  } catch (err) {
+    await sendTelegram(`⚠️ Note not saved: ${await safeErrorText(err)}`, chatId);
+    return;
+  }
+  await sendTelegram(
+    `📝 <b>Note saved for the coding sessions.</b>\nA coding session reads it the next time one starts. Nothing answers when no session runs.`,
+    chatId,
+  );
 }
 
 async function cmdMit(args: string, chatId: string): Promise<void> {
