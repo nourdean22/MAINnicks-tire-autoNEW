@@ -19,10 +19,10 @@
  * obedience, not a stub offense. The badge ORs critic + gate verdicts,
  * so BOTH scorers must waive or the chip still fires.
  *
- * Heavier gates (fact-check against brain memory) live in fact-check.ts.
+ * Heavier gates (fact-check against brain memory) live in chat/output-guardian.ts.
  */
 
-import { detectBrevityRequest, type CriticScore } from "./output-critic";
+import { detectBrevityRequest, type CriticScore } from "./chat/output-guardian";
 import type { TurnSignal } from "./turn-intelligence";
 import type { ResponseContract } from "./response-contract";
 

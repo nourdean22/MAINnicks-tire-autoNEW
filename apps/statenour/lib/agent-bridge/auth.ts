@@ -103,3 +103,40 @@ export function assertBridgeAuth(req: Request): BridgeIdentity {
   }
   return identity;
 }
+
+/**
+ * Nour's phone notes (lib/agent-bridge/phone-notes.ts) are private: only the
+ * dedicated notes token reads or acks them. The slot is deliberately NOT in
+ * TOKEN_SLOTS, so the notes token never reaches the MCP or Actions tool surface,
+ * and no read, tasks or legacy token reaches the notes. Same disabled / 401 /
+ * 403 / fail-closed messages as assertBridgeAuth, so classifyBridgeFailure and
+ * the status mapping are shared. An unset slot fails closed (503).
+ */
+export const NOTES_TOKEN_ENV = "AGENT_BRIDGE_TOKEN_NOTES";
+
+export interface NotesBridgeIdentity {
+  clientId: "notes-client";
+  scope: "notes";
+}
+
+export function assertNotesBridgeAuth(req: Request): NotesBridgeIdentity {
+  if (!isAgentBridgeEnabled()) {
+    throw new Error("Agent Bridge is disabled.");
+  }
+  const authHeader = req.headers.get("Authorization") || req.headers.get("authorization");
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    throw new Error("Unauthorized");
+  }
+  const token = authHeader.split(" ")[1];
+  if (!token) {
+    throw new Error("Unauthorized");
+  }
+  const secret = (process.env[NOTES_TOKEN_ENV] ?? "").trim();
+  if (!secret) {
+    throw new Error(`Server configuration error: ${NOTES_TOKEN_ENV} is not set. Failing closed.`);
+  }
+  if (!secretsMatch(token, secret)) {
+    throw new Error("Forbidden");
+  }
+  return { clientId: "notes-client", scope: "notes" };
+}

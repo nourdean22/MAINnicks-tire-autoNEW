@@ -1,5 +1,18 @@
 # Reconciliation · statenour-os
 
+> ## 2026-10-17 · Brain W4 · dead code out, headers honest (branch `statenour/brain-w4-wisdom`) · 1 statenour PR, nothing user-visible
+>
+> Not live until merged; nothing a user sees changes. Every claim below is from unit tests, an import scan and code reading.
+>
+> - **Deleted.** `lib/brain/reflection-engine.ts` (no production caller; production's 83 reflections in 90 days are all `scope=triggered`, written by `lib/services/reflection.ts`) and the three `export *` shims `lib/ai/output-critic.ts`, `hallucination-guard.ts`, `fact-check.ts`; 11 importers now import `lib/ai/chat/output-guardian` directly.
+> - **Pinned.** `tests/repo/deleted-brain-w4-modules.test.ts` scans every import form (alias, `lib/`-relative, dynamic, `vi.mock`), resolves from `__dirname`, asserts it read more than 100 files, and its positive control fails on each planted shape.
+> - **Headers corrected.** Teaching moments surface on the /brain Discover feed, not in the prompt; `vnext/effort-policy.ts` is partly live (`canaryDeepForce`, `claude5EffortForAttempt`) and partly caller-less (`routeCapability`); improve-agent runs on view from the /brain insights panel (no cron, and no `brain-feedback-loop` exists); stale engine references in journal-feed, reflection, reply-gate, self-consistency and quality-bench-core.
+>
+> **Flagged · NOT fixed**
+> - A weekly improve-agent writer was built and reverted: nothing reads persisted `improvement_hypothesis` rows, and the panel already computes the same hypotheses on every view.
+> - `knip.json:32` still lists the deleted `lib/brain/reflection-engine.ts` (root config; knip is advisory).
+> - `lib/services/chat/persist-assistant-turn.ts` still imports `sanitizeResponse` from the `output-sanitizer` shim; `cliche-detector.ts` and `output-sanitizer.ts` remain one-line shims.
+
 > ## 2026-10-16 · Brain W2 · the Daily Tutor, one tap a day (branch `statenour/brain-w2-tutor`) · 1 statenour PR
 >
 > Not live until merged and `/api/version` serves the squash SHA; the first send is the next morning slot after deploy. Every claim below is from unit tests and code reading.
@@ -104,6 +117,25 @@
 > - `app/api/relationships/watchlist/route.ts:45-50` answers `{items: []}` with 200 on error and People reads it as empty (W4).
 > - `features/chat-v2` keeps 7 `uppercase` sites and 9 em dashes (W3).
 > - W1b was verified in jsdom and by typecheck only: no browser or phone render of the 390 px More-sheet row (36 px pin visual beside a truncating label) or of `replaceState` inside a real Next runtime.
+
+> ## 2026-10-16 · Telegram lane 2 · the bot gets quieter and honest, and a phone-to-session note bridge (branch `statenour/telegram-bot-bridge`) · 6 statenour commits, 1 PR
+>
+> Not live until merged and deployed. Every claim below is from unit tests against mocked transports and stores; nothing was sent to Telegram and no database was touched.
+>
+> - **Bridge Telegram copies cut (`app/api/webhooks/nickstire/route.ts`).** Lead, callback, booking-complete and invoice are recorded (audit row) without statenour's own Telegram copy. Lead and callback were duplicates; job-complete and invoice-created were statenour's only Telegram path and are now cut by design (nickstire classes booking-complete as a receipt, held unless telegram_receipt is on; invoice_created is not sent). Emergency and review keep their alert.
+> - **Inngest failure alerts grouped (`lib/inngest/on-failure.ts`).** One alert per function per 6 h window, claimed in `action_attempts` (beginAttempt); repeats are counted on the claim row and reported on the next alert; non-critical failures wait out 22:00-07:00 ET; a database outage pages at night; a store error fails open.
+> - **One message per voice note or link (`app/api/telegram/webhook/route.ts`, `lib/services/telegram.ts`).** `sendTelegramForId` + an edit-in-place progress message replace "Transcribing...", "Transcribed" and "Analyzing..." as separate messages; a failed edit sends nothing more. The "routed as" receipt is gone.
+> - **Honest `/status` and `/alerts`.** A failed read prints "unknown", urgent leads come from nickstire's `leads_urgent`, `/alerts` keeps its 30-day window and honours `alert_mute`.
+> - **Idempotent inbound.** Each authorized `update_id` is claimed in `action_attempts` before dispatch; a redelivered `/task` or `/dump` acts once. A failed command is not retried on redelivery (the handlers catch their own errors and settle as handled); Nour resends it.
+> - **Session bridge.** `/note <text>` stores a `CaptureInboxItem` (kind `agent_bridge_note`, status `bridge_unread`; no new table). `GET /api/agent-bridge/notes?since=<id>` and `POST /api/agent-bridge/notes/ack` accept only the dedicated notes token (`AGENT_BRIDGE_ENABLED` + `AGENT_BRIDGE_TOKEN_NOTES`; read, tasks and legacy tokens get 403, unset slot 503) and write the bridge audit trail. The three CaptureInboxItem readers that read every row (both mastery backfills, system-health capture freshness) exclude the note kind. The consumer hook (a platform lane) is not built yet.
+>
+> **Flagged · NOT fixed**
+> - `config/nickstire-bridge-events.json` still lists `webhookAlert` text for the four removed types; `tests/api/nickstire-bridge-contract.test.ts` overrides it with `TELEGRAM_COPY_REMOVED` until a platform lane sets them to null.
+> - statenour's emergency alert still duplicates nickstire's `emergency_request` Telegram destination; kept because the undelivered-emergency 500 retry contract lives here.
+> - A non-critical Inngest failure that happens only overnight is not paged in the morning; it stays in `cron_job_log` as `failed`.
+> - `scripts/check-sensitive-get-auth.ts` recognises the notes route through the helper name `requireBridgeAuth`, which `lib/bridge-auth.ts` also uses for a different guard; adding `assertBridgeAuth` to the checker would remove the name overlap.
+> - Prod values of `AGENT_BRIDGE_ENABLED` and `AGENT_BRIDGE_TOKEN_NOTES` were not checked; until Nour sets the notes token the routes answer 503.
+> - The Inngest in-process fallback window is per process: a restart or a second replica during a database outage can send once more.
 
 > ## 2026-10-10 · Audit-fix wave 1 (PR #2981, merged as b5bb183eb) · BDNICK audit findings in auth, approvals, chat safety, crons and failed reads · 1 statenour PR with staged commits
 >

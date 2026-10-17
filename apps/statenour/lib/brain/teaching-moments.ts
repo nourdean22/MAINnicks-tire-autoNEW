@@ -4,8 +4,11 @@
  * Watches for patterns in Nour's data and generates "teaching moments" —
  * short, data-backed explanations of WHY something happened, not just WHAT.
  *
- * Runs during the evening cron. Stores moments as brain memories.
- * The system prompt surfaces them so Nick can teach proactively.
+ * Runs during the evening cron (brain-intelligence, folded into mega-evening).
+ * Stores moments as `teaching_moment` brain memories. They surface on the
+ * /brain Discover feed (components/brain/discover-tab.tsx via
+ * lib/brain/discoveries.ts), NOT in the system prompt: nothing injects them
+ * into a chat turn (checked 2026-10-16; 3 rows ever in prod).
  *
  * A teaching moment has:
  * - OBSERVATION: what the data shows

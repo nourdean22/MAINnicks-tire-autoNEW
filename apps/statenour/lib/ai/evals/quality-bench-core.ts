@@ -257,10 +257,10 @@ export async function runPrompt(prompt: QualityPrompt, dry: boolean): Promise<Pr
         ),
       );
     }
-    // Critic-overall floor · uses output-critic.ts
+    // Critic-overall floor · uses chat/output-guardian.ts
     if (typeof prompt.checks.minCriticOverall === "number") {
       try {
-        const { critiqueOutput } = await import("@/lib/ai/output-critic");
+        const { critiqueOutput } = await import("@/lib/ai/chat/output-guardian");
         // The extracted script passed prompt.intent here, but the intent
         // vocabulary (creative/factual/actionable/summary) was never a valid
         // OutputShape — the invalid string fell through to no-shape-branch

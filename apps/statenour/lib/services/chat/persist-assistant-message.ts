@@ -29,7 +29,7 @@ import type { runReplyGate, runReplyGateWithContract } from "@/lib/ai/reply-gate
 import type { ContextBlocksFired } from "./brain-context";
 import type { RecallReceipt } from "./persist-assistant-turn";
 import type { ContextReceipt } from "@/lib/ai/context-budget";
-import type { critiqueOutput, ContentCriticScore } from "@/lib/ai/output-critic";
+import type { critiqueOutput, ContentCriticScore } from "@/lib/ai/chat/output-guardian";
 
 /**
  * Map the SDK finishReason onto the persisted streamingState vocabulary.

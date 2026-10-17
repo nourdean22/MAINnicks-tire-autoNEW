@@ -12,7 +12,7 @@
  *   lengthScore <= 30
  */
 import { describe, it, expect } from "vitest";
-import { critiqueOutput } from "@/lib/ai/output-critic";
+import { critiqueOutput } from "@/lib/ai/chat/output-guardian";
 
 describe("output-critic · axis-specific regen gate (v10.0.490)", () => {
   it("fires shouldRegen when spec is critical even if overall passes", () => {

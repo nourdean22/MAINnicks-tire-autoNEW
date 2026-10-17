@@ -20,12 +20,12 @@
  * first usable sample". Worst case is "self-consistency was a no-op",
  * never "the chat turn broke".
  *
- * Fact extraction reuses fact-check.ts's `factCheck` extractors so the
+ * Fact extraction reuses output-guardian.ts's `factCheck` extractors so the
  * notion of "a checkable claim" is identical to the surfacing tool.
  */
 import "server-only";
 
-import { factCheck, type FactClaim } from "@/lib/ai/fact-check";
+import { factCheck, type FactClaim } from "@/lib/ai/chat/output-guardian";
 import { logger as rootLogger } from "@/lib/logger";
 
 const log = rootLogger.withSurface("ai/self-consistency");

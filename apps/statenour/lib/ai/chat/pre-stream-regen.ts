@@ -20,7 +20,7 @@
  * docs/adr/0011-axis-specific-regen-gate-chat-vagueness.md.
  */
 
-import { critiqueOutput, type CriticScore } from "@/lib/ai/output-critic";
+import { critiqueOutput, type CriticScore } from "@/lib/ai/chat/output-guardian";
 import {
   runReplyGateWithContract,
   type ContractGateDecision,

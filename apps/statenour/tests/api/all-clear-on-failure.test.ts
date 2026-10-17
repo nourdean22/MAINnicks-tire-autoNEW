@@ -81,14 +81,14 @@ beforeEach(() => {
 
 describe("webhooks/nickstire · telegram delivery is observed, not assumed", () => {
   it("records 'sent' only when Telegram actually accepted it", async () => {
-    const res = await webhook([{ type: "nickstire:lead", data: { name: "Moe" } }]);
+    const res = await webhook([{ type: "nickstire:review", data: { rating: 5 } }]);
     const body = await res.json();
     expect(body.results[0].status).toBe("sent");
   });
 
   it("records 'undelivered' when sendTelegram returns false — it never throws", async () => {
     sendTelegram.mockResolvedValue(false);
-    const res = await webhook([{ type: "nickstire:lead", data: { name: "Moe" } }]);
+    const res = await webhook([{ type: "nickstire:review", data: { rating: 5 } }]);
     const body = await res.json();
     expect(body.results[0].status).toBe("undelivered");
   });
