@@ -49,8 +49,8 @@ export function CustomerIntelligence() {
   return (
     <div className="bg-card border border-border/40 p-5 space-y-5 rounded-xl shadow-sm">
       <div className="flex items-center gap-2 pb-2 border-b border-border/10">
-        <Users className="w-5 h-5 text-indigo-400" />
-        <h2 className="text-sm font-black text-indigo-400">Customer intelligence</h2>
+        <Users className="w-5 h-5 text-primary" />
+        <h2 className="text-sm font-black text-primary">Customer intelligence</h2>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -82,7 +82,7 @@ export function CustomerIntelligence() {
           </div>
         ) : (
           vips.map((vip, i) => (
-            <div key={i} className="flex items-start justify-between gap-3 p-3 bg-background/50 border border-border/40 rounded-lg group">
+            <div key={i} className="flex items-start justify-between gap-3 p-3 bg-background/50 border border-border/40 rounded-lg">
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold text-foreground truncate">{vip.message}</p>
                 <div className="flex items-center gap-2 mt-1">
@@ -90,14 +90,25 @@ export function CustomerIntelligence() {
                   {vip.phone && <span className="text-[10px] text-muted-foreground font-mono">{vip.phone}</span>}
                 </div>
               </div>
-              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button className="p-1.5 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 rounded-md transition-colors" title="Call">
-                  <PhoneCall className="w-3.5 h-3.5" />
-                </button>
-                <button className="p-1.5 bg-green-500/10 text-green-400 hover:bg-green-500/20 rounded-md transition-colors" title="SMS">
-                  <MessageSquare className="w-3.5 h-3.5" />
-                </button>
-              </div>
+              {vip.phone && (
+                // Plain tel: and sms: links. The sms: link carries no body: this screen authors no customer text.
+                <div className="flex items-center gap-2 shrink-0">
+                  <a
+                    href={`tel:${vip.phone.replace(/\D/g, "")}`}
+                    aria-label={`Call ${vip.phone}`}
+                    className="inline-flex min-h-12 min-w-12 items-center justify-center bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 rounded-md transition-colors"
+                  >
+                    <PhoneCall className="w-4 h-4" />
+                  </a>
+                  <a
+                    href={`sms:${vip.phone.replace(/\D/g, "")}`}
+                    aria-label={`Text ${vip.phone}`}
+                    className="inline-flex min-h-12 min-w-12 items-center justify-center bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 rounded-md transition-colors"
+                  >
+                    <MessageSquare className="w-4 h-4" />
+                  </a>
+                </div>
+              )}
             </div>
           ))
         )}

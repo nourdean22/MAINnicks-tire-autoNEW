@@ -94,14 +94,9 @@ export default function OpsHubSection() {
               <div className="min-w-0">
                 <div className="text-xs font-semibold text-foreground">{r.title}</div>
                 <div className="text-[10px] text-muted-foreground">{r.category}{r.note ? ` · ${r.note}` : ""}</div>
-                <code className="text-[10px] text-foreground/40 break-all">{r.path}</code>
               </div>
             </div>
           ))}
-          <p className="text-[10px] text-foreground/30 leading-relaxed pt-1">
-            Reports live in the repo as markdown: open them in the repo/editor.
-            Paths are relative to the repository root unless prefixed otherwise.
-          </p>
         </div>
       )}
 

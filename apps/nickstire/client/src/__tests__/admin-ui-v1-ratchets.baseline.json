@@ -6,7 +6,7 @@
     "transitionAll": 74,
     "slowDuration": 7,
     "smallInput": 168,
-    "offPalette": 160
+    "offPalette": 158
   },
   "files": {
     "client/src/components/admin/ActivityPulse.tsx": {
@@ -190,9 +190,6 @@
     "client/src/pages/admin/intelligence/AIHealthPanel.tsx": {
       "emDash": 1,
       "offPalette": 4
-    },
-    "client/src/pages/admin/intelligence/CustomerIntelligence.tsx": {
-      "offPalette": 2
     },
     "client/src/pages/admin/intelligence/IntelligenceHQSection.tsx": {
       "transitionAll": 3,
