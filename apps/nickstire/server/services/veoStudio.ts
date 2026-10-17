@@ -19,6 +19,7 @@
  *   REEL_VEO_POLL_MAX_MS (360000).
  */
 import { createLogger } from "../lib/logger";
+import { rethrowTraced, traceChat } from "../lib/langfuse-ingest";
 
 const log = createLogger("services:veo-studio");
 
@@ -105,13 +106,24 @@ export async function submitVeoRequest(prompt: string): Promise<string> {
   const auth = await veoAuthHeader();
   log.info("Submitting reel clip via Veo predictLongRunning...", { model: VEO_MODEL, prompt: prompt.slice(0, 120) });
 
+  const t0 = Date.now();
   const submitRes = await fetch(`${VEO_BASE}/models/${VEO_MODEL}:predictLongRunning`, {
     method: "POST",
     headers: { ...auth, "Content-Type": "application/json" },
     body: JSON.stringify(buildVeoRequestBody(prompt)),
     signal: AbortSignal.timeout(30_000),
-  });
+  }).catch(rethrowTraced({ name: "reel:veo-submit", site: "services/veoStudio.ts", model: VEO_MODEL, messages: prompt, startedAt: t0 }));
   const submitData = (await submitRes.json().catch(() => null)) as VeoOperation | null;
+  traceChat({
+    name: "reel:veo-submit",
+    site: "services/veoStudio.ts",
+    model: VEO_MODEL,
+    messages: prompt,
+    outputText: submitData?.name ? `[video operation ${submitData.name}]` : null,
+    startedAt: t0,
+    ok: submitRes.ok && !!submitData?.name,
+    error: submitRes.ok ? null : `HTTP ${submitRes.status}`,
+  });
   if (!submitRes.ok || !submitData?.name) {
     throw new Error(`Veo submit failed (HTTP ${submitRes.status}): ${submitData?.error?.message ?? "no operation name returned"}`);
   }

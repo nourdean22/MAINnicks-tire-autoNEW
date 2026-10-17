@@ -12,6 +12,11 @@
       "reason": "Admin UI v1 W1 (job 2026-10-16-nick-admin-ui-v1) removed the admin StatCard's 900 ms count-up (a figure the crew reads many times a day starts at 0 for most of a second), which was the last live importer. Only CountUpNumber.tsx imports this hook; it goes when CountUpNumber goes (see that entry: HomeLegacy rollback)."
     },
     {
+      "file": "apps/nickstire/server/lib/langfuse-ingest.ts",
+      "symbol": "__resetLangfuseForTests",
+      "reason": "test seam (2026-10-16, observability proof): the ingest queue and its receipts are module state; observabilityStatus.test.ts and langfuseInvokeLLM.test.ts reset them between cases. No production caller by design."
+    },
+    {
       "file": "apps/nickstire/server/routers/instagramAdmin.ts",
       "symbol": "readCommentResponderStatus",
       "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The reader behind instagramAdmin.commentResponderStatus (contract CommentResponderStatus v1, job 2026-10-16-comment-responder-controls). commentResponderStatus.test.ts imports it to pin the three states with a fake database: a failed history read is available:false (never an empty list), a failed flag read is paused:null (never 'not paused'), an unparseable context_json row is nulls (never a throw). Its runtime consumer is the commentResponderStatus adminProcedure in the same module, which the client lane's comment responder card calls, so the rule is live, not vacuous."

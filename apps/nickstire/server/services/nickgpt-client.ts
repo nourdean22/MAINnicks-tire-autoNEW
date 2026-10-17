@@ -20,6 +20,7 @@
  */
 
 import { createLogger } from "../lib/logger";
+import { traceChat, traceThrown } from "../lib/langfuse-ingest";
 import { withTimeout } from "@nour/utils";
 import { NICK_SMS_SYSTEM_PROMPT } from "./nickSmsPersona";
 import { claudeThinkingOffParams } from "./claudeThinkingParams";
@@ -184,6 +185,7 @@ async function callOllama(opts: Required<Pick<DraftOpts, "inboundMessage" | "sys
     },
   };
 
+  const t0 = Date.now();
   const fetchPromise = fetch(`${url.replace(/\/$/, "")}/api/chat`, {
     method: "POST",
     headers: {
@@ -193,15 +195,21 @@ async function callOllama(opts: Required<Pick<DraftOpts, "inboundMessage" | "sys
     body: JSON.stringify(reqBody),
   });
 
-  const response = await withTimeout(fetchPromise, opts.timeoutMs, "ollama");
-  if (!response.ok) {
-    const text = await response.text().catch(() => "<no body>");
-    throw new Error(`Ollama HTTP ${response.status} · ${text.slice(0, 200)}`);
+  try {
+    const response = await withTimeout(fetchPromise, opts.timeoutMs, "ollama");
+    if (!response.ok) {
+      const text = await response.text().catch(() => "<no body>");
+      throw new Error(`Ollama HTTP ${response.status} · ${text.slice(0, 200)}`);
+    }
+    const json = (await response.json()) as { message?: { content?: string }; done_reason?: string };
+    const content = json.message?.content?.trim() ?? "";
+    if (!content) throw new Error("Ollama returned empty content");
+    traceChat({ name: "nickgpt:ollama", site: "services/nickgpt-client.ts", model, messages, response: json, startedAt: t0, ok: true });
+    return { text: content, completion: classifyStopReason(json.done_reason) };
+  } catch (err) {
+    traceThrown(err, { name: "nickgpt:ollama", site: "services/nickgpt-client.ts", model, messages, startedAt: t0 });
+    throw err;
   }
-  const json = (await response.json()) as { message?: { content?: string }; done_reason?: string };
-  const content = json.message?.content?.trim() ?? "";
-  if (!content) throw new Error("Ollama returned empty content");
-  return { text: content, completion: classifyStopReason(json.done_reason) };
 }
 
 /**
@@ -228,8 +236,9 @@ async function callClaudeFallback(opts: Required<Pick<DraftOpts, "inboundMessage
   messages.push({ role: "user", content: opts.inboundMessage });
 
   if (anthropicKey) {
+    const modelName = process.env.ANTHROPIC_MODEL || ANTHROPIC_FALLBACK_MODEL;
+    const t0 = Date.now();
     try {
-      const modelName = process.env.ANTHROPIC_MODEL || ANTHROPIC_FALLBACK_MODEL;
       const resp = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: {
@@ -257,15 +266,18 @@ async function callClaudeFallback(opts: Required<Pick<DraftOpts, "inboundMessage
       const json = (await resp.json()) as { content?: Array<{ type?: string; text?: string }>; stop_reason?: string };
       const text = json.content?.find((b) => b.type === "text")?.text?.trim() ?? "";
       if (!text) throw new Error("Anthropic returned empty content");
+      traceChat({ name: "nickgpt:anthropic-fallback", site: "services/nickgpt-client.ts", model: modelName, messages, response: json, startedAt: t0, ok: true });
       return { text, source: "fallback-claude", modelName, completion: classifyStopReason(json.stop_reason) };
     } catch (err) {
+      traceThrown(err, { name: "nickgpt:anthropic-fallback", site: "services/nickgpt-client.ts", model: modelName, messages, startedAt: t0 });
       log.warn("Anthropic fallback draft generation failed, trying next provider", { error: err instanceof Error ? err.message : String(err) });
     }
   }
 
   if (geminiKey) {
+    const modelName = process.env.GEMINI_MODEL || "gemini-3.5-flash";
+    const t0 = Date.now();
     try {
-      const modelName = process.env.GEMINI_MODEL || "gemini-3.5-flash";
       const baseUrl = "https://generativelanguage.googleapis.com/v1beta/openai";
       const resp = await fetch(`${baseUrl}/v1/chat/completions`, {
         method: "POST",
@@ -287,15 +299,18 @@ async function callClaudeFallback(opts: Required<Pick<DraftOpts, "inboundMessage
       const json = (await resp.json()) as { choices?: Array<{ message?: { content?: string }; finish_reason?: string }> };
       const text = json.choices?.[0]?.message?.content?.trim() ?? "";
       if (!text) throw new Error("Gemini returned empty content");
+      traceChat({ name: "nickgpt:gemini-fallback", site: "services/nickgpt-client.ts", model: modelName, messages, response: json, startedAt: t0, ok: true });
       return { text, source: "fallback-openai", modelName, completion: classifyStopReason(json.choices?.[0]?.finish_reason) };
     } catch (err) {
+      traceThrown(err, { name: "nickgpt:gemini-fallback", site: "services/nickgpt-client.ts", model: modelName, messages, startedAt: t0 });
       log.warn("Gemini fallback draft generation failed, trying next provider", { error: err instanceof Error ? err.message : String(err) });
     }
   }
 
   if (openaiKey) {
+    const modelName = process.env.LLM_MODEL || "gpt-4o";
+    const t0 = Date.now();
     try {
-      const modelName = process.env.LLM_MODEL || "gpt-4o";
       const base = process.env.OPENAI_BASE_URL?.replace(/\/$/, "") || "https://api.openai.com";
       const completionsUrl = `${base}/v1/chat/completions`;
       const resp = await fetch(completionsUrl, {
@@ -318,8 +333,10 @@ async function callClaudeFallback(opts: Required<Pick<DraftOpts, "inboundMessage
       const json = (await resp.json()) as { choices?: Array<{ message?: { content?: string }; finish_reason?: string }> };
       const text = json.choices?.[0]?.message?.content?.trim() ?? "";
       if (!text) throw new Error("OpenAI returned empty content");
+      traceChat({ name: "nickgpt:openai-fallback", site: "services/nickgpt-client.ts", model: modelName, messages, response: json, startedAt: t0, ok: true });
       return { text, source: "fallback-openai", modelName, completion: classifyStopReason(json.choices?.[0]?.finish_reason) };
     } catch (err) {
+      traceThrown(err, { name: "nickgpt:openai-fallback", site: "services/nickgpt-client.ts", model: modelName, messages, startedAt: t0 });
       log.warn("OpenAI fallback draft generation failed", { error: err instanceof Error ? err.message : String(err) });
     }
   }
