@@ -4,8 +4,10 @@
  * Nour sends `/note <text>` to the bot; a coding session reads the unread notes
  * when it starts (GET /api/agent-bridge/notes) and acks the ones it showed
  * (POST /api/agent-bridge/notes/ack). Notes are CaptureInboxItem rows with their
- * own kind and status, so no new table: every existing inbox reader filters
- * status "active" and never sees them.
+ * own kind and status, so no new table. The inbox readers filter status
+ * "active"; the three that read every row (lib/mastery/backfill.ts,
+ * lib/mastery/comprehensive-backfill.ts, lib/services/system-health.ts) exclude
+ * kind "agent_bridge_note" explicitly (tests/mastery/backfill-skips-bridge-notes.test.ts).
  *
  * The text is Nour's words from a phone, delivered to an agent: the endpoints
  * return it as a JSON string and nothing else. The consumer must fence it as
