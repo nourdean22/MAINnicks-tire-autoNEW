@@ -1,5 +1,16 @@
 # Reconciliation · statenour-os
 
+> ## 2026-10-17 · Judge calibration reads kappa (branch `statenour/scout7-judge-kappa`) · 1 statenour PR, read-side report
+>
+> Not live until merged and deployed. Unit and render tests only; no production read.
+>
+> - **Report (`lib/services/judge-calibration.ts`).** Adds Cohen's kappa (the existing `cohensKappa`), the false-pass rate (judge picked V2, Nour gave a thumbs-down) and the false-fail rate. Each is null when it cannot be computed, never 0.
+> - **Verdict.** It reads kappa: 0.6 or more well-calibrated, 0.4 to under 0.6 moderate, under 0.4 miscalibrated. Under 30 scored, or reactions that are all one class, it stays preliminary. A judge that always picks V2 used to score "well-calibrated" on raw agreement when most reactions were thumbs-up; it now reads kappa near 0.
+> - **Page (`app/(mastery)/system/calibration`).** The LLM Judge Calibration card shows kappa and the two rates; a null reads "unknown".
+>
+> **Flagged · NOT fixed**
+> - `scripts/check-calibration.ts` and a doc comment in `lib/trpc/routers/system/prompts.ts` still say "agreement".
+
 > ## 2026-10-17 · Arbiter judge-split gets error bars and a verdict (branch `statenour/scout1-judge-split-ci`) · 1 statenour PR, read-only script
 >
 > The script only reads production; nothing a user sees changes. One read-only production run on 2026-10-17 checked it end to end.
