@@ -16,10 +16,12 @@ import path from "path";
 import { createLogger } from "../lib/logger";
 import { askProblem, askLeakageProblem, renderAskText, resolveReelAsk, type ReelAsk } from "@shared/reelAsk";
 import { ReelAssemblyRefusedError } from "./reelContentRefusal";
+import { clipVerifyConfig, verifyClipsBeforeAssembly, type ClipVerdict } from "./clipVerify";
 import { declaredTextSurfaces, undeclaredTextProblem } from "@shared/reelTextSurfaces";
 import { REEL_OUTPUT_RULES } from "../../client/src/lib/facelessReelStudio";
 import { parseCaptionStyle, type CaptionStyle } from "../../shared/reelSourceProfile";
 import { declaredBeatSource, type ShotSource } from "../../shared/shotRouter";
+import { clipProvenance } from "../../shared/reelDisclosure";
 
 const log = createLogger("services:reel-assembly");
 
@@ -48,6 +50,8 @@ export interface ReelAssemblyBrief {
   captionStyle?: CaptionStyle | null;
   /** Per-shot provenance (shared/reelSourceProfile.ts); assembly verifies bound clips' bytes against it. */
   shotLineage?: unknown;
+  /** Pre-assembly clip verdicts persisted by an earlier attempt (services/clipVerify.ts); vision verdicts are reused. */
+  clipVerify?: { verdicts?: ClipVerdict[] } | null;
   storyboardBeats: AssemblyBeat[];
   /**
    * The declared end-card ask. Undeclared renders NO card — there is
@@ -67,6 +71,32 @@ export interface ReelSegment {
   fontSize: number;
   /** Absent = legacy_upper (every segment built before 2026-10-09). */
   captionStyle?: CaptionStyle;
+  /** The downloaded source clip's probed length (assembleReel). Absent = unprobed: today's trim + clone pad. */
+  sourceDurationSec?: number;
+  /** The clip URL reads as provider-generated (clipProvenance). Only those clips carry the measured first-frame hold. */
+  sourceIsGenerated?: boolean;
+}
+
+/**
+ * How much of a beat's source to cut, and how long to clone-pad it (2026-10-16,
+ * reel 2100001). A non-last beat must be dur + xfade long because the xfade
+ * overlaps the next beat; the old chain cut `dur` and froze the last frame for
+ * the whole fade, which read as a hitch at every cut. With real footage to
+ * spare, cut it instead. The Wan clips also hold their first frame ~0.5 s
+ * (14 near-still frames in the first second of beat1.mp4, 0 after), so a
+ * GENERATED source long enough skips that hold too; real-shop footage keeps
+ * start 0, which is what its lineage (realShotBinding trimInSec 0) records. The output length is unchanged
+ * either way (keep + pad === dur + xfade), so the xfade offsets and the
+ * render-integrity contract do not move.
+ */
+const START_HOLD_SKIP_SEC = 0.5;
+function planSegmentTrim(p: { dur: number; sourceDurationSec?: number; sourceIsGenerated?: boolean; isLast: boolean; xfade: number }): { start: number; end: number; padSec: number } {
+  const need = p.isLast ? p.dur : p.dur + p.xfade;
+  const src = Number(p.sourceDurationSec);
+  const eps = 1e-6; // 4 + 0.5 must equal a probed 4.5
+  if (!Number.isFinite(src) || src + eps < need) return { start: 0, end: p.dur, padSec: p.isLast ? 0 : p.xfade };
+  const start = p.sourceIsGenerated === true && src + eps >= need + START_HOLD_SKIP_SEC ? START_HOLD_SKIP_SEC : 0;
+  return { start, end: Number((start + need).toFixed(3)), padSec: 0 };
 }
 
 /**
@@ -413,7 +443,11 @@ export function buildFfmpegArgs(opts: FfmpegBuildOpts): string[] {
 
   // 1. base sizing + Ken Burns pan/zoom + extend for xfade
   segs.forEach((s, i) => {
-    const pad = i < segs.length - 1 ? `:stop_duration=${XFADE_DUR}` : "";
+    const isLast = i === segs.length - 1;
+    const cut = planSegmentTrim({ dur: s.dur, sourceDurationSec: s.sourceDurationSec, sourceIsGenerated: s.sourceIsGenerated, isLast, xfade: XFADE_DUR });
+    // A non-last beat with real footage through the fade needs no pad at all;
+    // the last beat keeps its (no-op) clone exactly as before.
+    const tpad = cut.padSec > 0 ? `,tpad=stop_mode=clone:stop_duration=${cut.padSec}` : isLast ? ",tpad=stop_mode=clone" : "";
     fc.push(
       // fps=30 FIRST: Seedance sources are 24fps, and zoompan re-times N input
       // frames to N output frames AT ITS fps= SETTING - on a 24fps source that
@@ -422,10 +456,10 @@ export function buildFfmpegArgs(opts: FfmpegBuildOpts): string[] {
       // (observed live 2026-07-17: 25s render with 72 unique frames - "one
       // image the whole time"). Normalizing to the graph's 30fps contract up
       // front keeps native clip motion and the downstream time math honest.
-      `[${i}:v]trim=0:${s.dur},setpts=PTS-STARTPTS,fps=30,` +
+      `[${i}:v]trim=${cut.start}:${cut.end},setpts=PTS-STARTPTS,fps=30,` +
         `scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,` +
-        `setsar=1,format=yuv420p,` +
-        `tpad=stop_mode=clone${pad}[v${i}]`,
+        `setsar=1,format=yuv420p` +
+        `${tpad}[v${i}]`,
     );
   });
   // 2. xfade all beats into one video stream
@@ -472,14 +506,29 @@ export function buildFfmpegArgs(opts: FfmpegBuildOpts): string[] {
       // is switched off for them (2026-10-09). The legacy style keeps the exact
       // filter string it has always produced.
       const expansion = s.captionStyle === "sentence" ? ":expansion=none" : "";
+      const enable = `enable='gte(t,${start.toFixed(2)})*lt(t,${end.toFixed(2)})'`;
+      // ONE background plate per caption (2026-10-16). Each line used to carry
+      // its own box=1:boxborderw=28 at a 1.2em pitch, so a two-line caption drew
+      // two boxes overlapping by ~35 px (a darker band between the lines). The
+      // per-line text runs stay (the LF tofu above); the plate is one drawbox
+      // covering the same pixels the old boxes did: 28 px border round a block of
+      // (lines-1)*lineH + size, width from the safe-width estimate.
+      let lineIn = label;
+      if (s.caption.trim()) {
+        const plateW = Math.min(CAPTION_SAFE.frameW, estimateCaptionWidthPx(s.caption, size));
+        const plateH = (lines.length - 1) * lineH + size + 56;
+        const plateY = isHook ? `(ih-${lines.length * lineH})/2-28` : `ih*${CAPTION_BEAT_Y_FRAC}-28`;
+        lineIn = `d${i}p`;
+        fc.push(`[${label}]drawbox=x=(iw-${plateW})/2:y=${plateY}:w=${plateW}:h=${plateH}:color=black@0.6:t=fill:${enable}[${lineIn}]`);
+      }
       lines.forEach((_line, j) => {
-        const stepIn = j === 0 ? label : `d${i}l${j}`;
+        const stepIn = j === 0 ? lineIn : `d${i}l${j}`;
         const stepOut = j === lines.length - 1 ? next : `d${i}l${j + 1}`;
         const yExpr = isHook
           ? `(h-${lines.length * lineH})/2+${j * lineH}`
           : `h*${CAPTION_BEAT_Y_FRAC}+${j * lineH}`;
         fc.push(
-          `[${stepIn}]drawtext=fontfile='${fontEsc}':textfile='caption_${i}_${j}.txt'${expansion}:fontsize=${size}:fontcolor=0xFDB913:borderw=6:bordercolor=black:box=1:boxcolor=black@0.6:boxborderw=28:x=(w-text_w)/2:y=${yExpr}:enable='gte(t,${start.toFixed(2)})*lt(t,${end.toFixed(2)})'[${stepOut}]`,
+          `[${stepIn}]drawtext=fontfile='${fontEsc}':textfile='caption_${i}_${j}.txt'${expansion}:fontsize=${size}:fontcolor=0xFDB913:borderw=6:bordercolor=black:x=(w-text_w)/2:y=${yExpr}:${enable}[${stepOut}]`,
         );
       });
       label = next;
@@ -889,6 +938,8 @@ export interface AssembleResult {
   usedVo: boolean;
   /** Each clip's shape as ffprobe read it here, by beat (provider attached by the pipeline; shared/clipDrift.ts). */
   clipProbes: Array<Omit<ClipProbe, "provider">>;
+  /** Per-clip pre-assembly verdicts (services/clipVerify.ts); [] when REEL_CLIP_VERIFY_ENABLED is off. */
+  clipVerdicts: ClipVerdict[];
 }
 
 /**
@@ -932,6 +983,7 @@ export async function assembleReel(
   brief: ReelAssemblyBrief,
   clipUrls: string[],
   jobId: number | string,
+  hooks?: { onClipVerdict?: (verdict: ClipVerdict) => Promise<void> },
 ): Promise<AssembleResult> {
   const segs = briefToSegments(brief);
   if (segs.length !== clipUrls.length) {
@@ -1049,10 +1101,31 @@ export async function assembleReel(
         const pr = await ffprobeReel(p);
         const fps = pr.nbFrames > 0 && pr.videoStreamSec > 0 ? Math.round(pr.nbFrames / pr.videoStreamSec) : null;
         clipProbes.push({ beatNumber: segs[i].beatNumber, width: pr.width, height: pr.height, fps, durationSec: Number(pr.duration.toFixed(2)) });
+        // The cut plan (planSegmentTrim) may only spend footage the VIDEO stream
+        // has; a container can run longer on its audio track. Failed probe = unset = today's pad.
+        const videoSec = pr.videoStreamSec > 0 ? Math.min(pr.videoStreamSec, pr.duration > 0 ? pr.duration : Infinity) : pr.duration;
+        if (videoSec > 0) segs[i].sourceDurationSec = videoSec;
+        segs[i].sourceIsGenerated = clipProvenance(JSON.stringify([url])) === "generative";
       } catch (e) {
         log.warn("clip probe failed (assembly continues)", { jobId, beat: segs[i].beatNumber, e: e instanceof Error ? e.message : String(e) });
       }
     }
+    // PER-CLIP VERIFICATION BEFORE ASSEMBLY (2026-10-16, services/clipVerify.ts).
+    // Every clip's bytes are local; one vision call per clip asks whether its
+    // midpoint frame shows the planned visual. Below the floor it refuses with
+    // ClipMismatchRefusal (a ReelAssemblyRefusedError: parked failed, no retry
+    // budget spent) BEFORE the voiceover is paid for and the 3-vote rendered QA
+    // runs. Flag-gated, default OFF; an unavailable critic never refuses.
+    const beatVisual = new Map((brief.storyboardBeats ?? []).map((b) => [b.beatNumber, b.visual ?? b.onScreenText ?? ""]));
+    const clipVerdicts = await verifyClipsBeforeAssembly(
+      segs.map((s, i) => ({ beatNumber: s.beatNumber, path: clipPaths[i], visual: beatVisual.get(s.beatNumber) ?? "", durationSec: clipProbes.find((p) => p.beatNumber === s.beatNumber)?.durationSec ?? null, workDir })),
+      clipVerifyConfig(),
+      undefined,
+      // Prior vision verdicts (an earlier attempt of this job) are reused, and
+      // every new verdict is handed to the caller at once, so an ffmpeg or
+      // storage failure after this point never buys the same vision call twice.
+      { jobId: typeof jobId === "number" ? jobId : undefined, prior: brief.clipVerify?.verdicts ?? null, onVerdict: hooks?.onClipVerdict },
+    );
     const { generateVoiceover, generateAssSubtitles } = await import("./reelVoice");
     const vo = await generateVoiceover(brief.voiceoverScript);
     let voPath: string | null = null;
@@ -1233,7 +1306,7 @@ export async function assembleReel(
       }
     } catch { /* registerProducedAsset is already tolerant; belt over suspenders */ }
     // Report the REAL file length (beats + the save-payload freeze), not just the beats.
-    return { mp4Url: put.url, durationSec: total + SAVE_FREEZE_SECONDS, usedVo: !!voPath, clipProbes };
+    return { mp4Url: put.url, durationSec: total + SAVE_FREEZE_SECONDS, usedVo: !!voPath, clipProbes, clipVerdicts };
   } finally {
     fs.promises.rm(workDir, { recursive: true, force: true }).catch(() => {});
   }

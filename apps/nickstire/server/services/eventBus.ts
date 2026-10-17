@@ -336,6 +336,27 @@ async function ensureInitialized(): Promise<void> {
     handler: async (event) => {
       const { sendTelegram } = await import("./telegram");
 
+      // The bus is the one Telegram sender for a captured lead, so it also owns the
+      // delivery ledger row: "sent" only when the transport accepted the message.
+      const recordLeadTelegram = async (accepted: boolean) => {
+        const leadId = Number(event.data.id);
+        if (event.type !== "lead_captured" || !Number.isFinite(leadId)) return;
+        const { recordLeadDelivery } = await import("../lead-delivery");
+        // A muted class returns true without sending: that is "skipped", never "sent". The status
+        // column is an enum, so this reuses an existing value instead of adding a "held" one.
+        const { isTelegramClassMuted } = await import("./telegram");
+        const held = accepted && (await isTelegramClassMuted("incident"));
+        await recordLeadDelivery({
+          leadId,
+          channel: "telegram",
+          status: held ? "skipped" : accepted ? "sent" : "failed",
+          provider: "telegram",
+          detail: held
+            ? "Held: telegram_incident_muted is ON"
+            : accepted ? null : "Telegram transport did not accept the alert",
+        });
+      };
+
       if (event.type === "emergency_request") {
         await sendTelegram(
           `🚨 EMERGENCY: ${event.data.name} (${event.data.phone})\n` +
@@ -346,7 +367,7 @@ async function ensureInitialized(): Promise<void> {
       if (event.type === "payment_received") {
         await sendTelegram(
           `💳 PAYMENT: $${event.data.amount} from ${event.data.customerName}\n` +
-          `Invoice: ${event.data.invoiceNumber || "N/A"}`
+          `Invoice: ${event.data.invoiceNumber || "N/A"}`, "receipt"
         );
       }
       // 2026-06-10 checkout-hardening · tire_order_placed was declared in
@@ -395,22 +416,22 @@ async function ensureInitialized(): Promise<void> {
             if (prior.length > 1) returnNote = "\n🔄 RETURNING CUSTOMER — they've contacted before";
           }
         } catch (e) { log.warn("[eventBus:telegram] returning customer check failed:", e); }
-        await sendTelegram(
+        await recordLeadTelegram(await sendTelegram(
           `🔴 HIGH-URGENCY LEAD: ${event.data.name} (${event.data.phone})\n` +
           `Source: ${event.data.source} | Urgency: ${event.data.urgencyScore}/5${returnNote}\n` +
           `⚡ Call within 5 minutes — conversion drops 50% after 30 min`
-        );
+        ));
       }
       // Wave-105: every regular lead from nickstire.org → Telegram alert
       // (high-urgency already alerted above with extra detail; skip those)
       if (event.type === "lead_captured" && event.data.urgencyScore < 4 && event.data.source !== "emergency") {
         const source = event.data.source || "site";
         const message = event.data.message ? `\nMsg: ${String(event.data.message).slice(0, 100)}` : "";
-        await sendTelegram(
+        await recordLeadTelegram(await sendTelegram(
           `🟡 NEW LEAD\n` +
           `${event.data.name || "Unknown"} — ${event.data.phone || "no phone"}\n` +
           `Source: ${source}${message}`
-        );
+        ));
       }
       // Callback = someone is waiting
       if (event.type === "callback_requested") {
@@ -425,7 +446,7 @@ async function ensureInitialized(): Promise<void> {
         await sendTelegram(
           `✅ JOB COMPLETED: ${event.data.name}\n` +
           `Service: ${event.data.service}\n` +
-          `💡 Send review request before they leave`
+          `💡 Send review request before they leave`, "receipt"
         );
       }
       // invoice_paid handled by live-feed destination (notifyClosedJob) — no duplicate here

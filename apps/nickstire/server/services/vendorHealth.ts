@@ -601,7 +601,7 @@ async function checkNourOsBridge(): Promise<VendorHealthResult> {
   }
 }
 
-async function checkTelegram(): Promise<VendorHealthResult> {
+export async function checkTelegram(): Promise<VendorHealthResult> {
   const start = Date.now();
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
@@ -620,7 +620,28 @@ async function checkTelegram(): Promise<VendorHealthResult> {
       fetch(`https://api.telegram.org/bot${botToken}/getMe`, { method: "GET" }),
       5000
     );
-    const ok = res.ok;
+    const botOk = res.ok;
+    // A valid token with a wrong chat id (a deleted group, a typo) still read "healthy"
+    // while every alert failed. getChat is a read: it sends nothing.
+    let chatOk = false;
+    let chatError: string | undefined;
+    if (botOk) {
+      try {
+        const chatRes = await withTimeout(
+          fetch(`https://api.telegram.org/bot${botToken}/getChat`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chat_id: chatId }),
+          }),
+          5000,
+        );
+        chatOk = chatRes.ok;
+        if (!chatOk) chatError = `getChat returned ${chatRes.status}`;
+      } catch (chatErr) {
+        chatError = (chatErr as Error).message;
+      }
+    }
+    const ok = botOk && chatOk;
     const latency = Date.now() - start;
 
     trackApiCost("Telegram", 0);
@@ -631,7 +652,8 @@ async function checkTelegram(): Promise<VendorHealthResult> {
       status: ok ? "healthy" : "degraded",
       checks: [
         { name: "credentials", passed: true, latencyMs: 0 },
-        { name: "bot_verify", passed: ok, latencyMs: latency, error: ok ? undefined : `API returned ${res.status}` },
+        { name: "bot_verify", passed: botOk, latencyMs: latency, error: botOk ? undefined : `API returned ${res.status}` },
+        ...(botOk ? [{ name: "chat_verify", passed: chatOk, latencyMs: latency, error: chatOk ? undefined : chatError }] : []),
       ],
       checkedAt: new Date().toISOString(),
     };

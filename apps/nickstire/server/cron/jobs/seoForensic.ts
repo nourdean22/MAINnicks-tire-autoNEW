@@ -179,7 +179,7 @@ export async function processSeoForensic(): Promise<ProcessResult> {
       if (alertCount > 0) {
         lines.push(``, `⚠ ${alertCount} alert-tier drops · investigate immediately · these queries previously drove traffic that's now bleeding`);
       }
-      await sendTelegram(lines.join("\n"));
+      await sendTelegram(lines.join("\n"), "digest");
     } catch (e) {
       log.warn("[seo-forensic] telegram failed", { error: e instanceof Error ? e.message : String(e) });
     }

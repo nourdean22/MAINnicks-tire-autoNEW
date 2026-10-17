@@ -105,6 +105,11 @@ jobs:
               - 'turbo.json'
               - 'config/retired-claude-models.json'
               - 'config/nickstire-bridge-events.json'
+              # The blocking dependency scanner and its one local import. A PR that changes only these used to
+              # skip the node job, and with it the only scanner (Codex review of #3083). Canaried against the real
+              # import closure in scripts/agent-os/workflowCostGuards.test.mjs.
+              - 'scripts/audit-advisories.mjs'
+              - 'scripts/lib/advisory-fetch.mjs'
               - '.github/workflows/**'
             workflow:
               - '.github/workflows/**'
@@ -172,6 +177,30 @@ jobs:
 
       - name: Install workspace deps
         run: pnpm install --frozen-lockfile
+
+      # ─── Dependency gate (was its OWN job, `security`): FIRST in this job, on purpose ───
+      # 2026-10-16 · CI diet folded the `security` job in (it billed 1.1 minutes for its own checkout and install).
+      # The reason it had been a separate job still holds: a hung validator below (the documented 421-425
+      # failure: a prompt:size-check that ate the whole budget and skipped both audits) must not switch the
+      # gate off. At the tail of a 50-minute job a job timeout would starve it (Codex review of #3083), so
+      # these two fast steps run right after the install, before anything that can hang, and carry their own
+      # step timeout. `!cancelled()` keeps them running if the install-adjacent steps are red.
+      # TRADE: they now run only when `node` runs (an app, package, lockfile, turbo or workflow change).
+      # A docs-only PR no longer audits; a new advisory surfaces on the next code PR or main push.
+      #
+      - name: Dependency audit (high+ severity · advisory)
+        if: ${{ !cancelled() }}
+        timeout-minutes: 5
+        continue-on-error: true
+        run: node scripts/audit-advisories.mjs --audit-level=high --advisory
+
+      # Exits 2 (fails) if the scanner itself cannot run. That is deliberate:
+      # a scan that silently passes when it is broken is how this gate rotted
+      # into permanent red that everyone learned to ignore.
+      - name: Dependency audit (critical severity · blocking)
+        if: ${{ !cancelled() }}
+        timeout-minutes: 5
+        run: node scripts/audit-advisories.mjs --audit-level=critical
 
       # Turbo `--affected` diffs against the local `main` branch, which a
       # detached-HEAD PR checkout does not have — it only has `origin/main`.
@@ -469,60 +498,63 @@ jobs:
           should_fail_on_script_error: 'true'
           should_comment_on_pr: 'false'
 
-  # ─── Dependency gate — deliberately its OWN job ────────────────────
-  # These two steps used to be the last steps of `node`. That placement meant
-  # ANY unrelated failure above them skipped the gate silently, and in
-  # practice it never ran once:
-  #   - the prompt:size-check hang (removed in #762) ate the 25-min budget
-  #     -> both audit steps "skipped"
-  #   - with the hang gone, `prisma validate` failed P1012 on run 29507730752
-  #     -> both audit steps "skipped" again
-  # A security gate that an unrelated statenour validator can switch off is
-  # not a gate. In its own job it runs regardless of what else breaks, and it
-  # cannot be disabled by anything except itself.
-  #
-  # Ungated on `changes` on purpose: advisories are published against
-  # dependencies you ALREADY have, so "nothing changed" is not a reason to
-  # skip. It costs ~1 min.
-  security:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      # ─── knip gates (were adoption-gates.yml jobs `knip reachability census (advisory)` and `knip orphan gate`) ───
+      # 2026-10-16 · CI diet. Each was its own job with its own checkout, pnpm setup and filtered install
+      # (55s and 93s, billed 1.2 and 2.0 minutes) on every non-docs PR AND every main push. This job already
+      # holds a full install, so they are steps here, unchanged and still BLOCKING, and they run on main with
+      # the rest of `node`. They run when their app (or a workflow) changed, like the other per-app steps.
+      # They run after the turbo sweep, so any built output is already on disk; knip reads the git-tracked
+      # tree. `!cancelled()` keeps each verdict visible when an earlier step is red.
+      - name: canary - knip must fail on a planted unused file
+        if: ${{ !cancelled() && (needs.changes.outputs.statenour == 'true' || needs.changes.outputs.workflow == 'true') }}
+        run: |
+          echo "export const knipCanary = 1" > apps/statenour/lib/__knip_canary__.ts
+          if pnpm dlx knip@6.32.3 --workspace apps/statenour --include files > /dev/null 2>&1; then
+            rm apps/statenour/lib/__knip_canary__.ts
+            echo "::error::knip canary - a planted unused file scanned clean; the census is blind"
+            exit 1
+          fi
+          rm apps/statenour/lib/__knip_canary__.ts
+          echo "canary OK: knip still sees unreachable files"
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - name: knip reachability gate - zero unused files (blocking since 2026-08-27)
+        if: ${{ !cancelled() && (needs.changes.outputs.statenour == 'true' || needs.changes.outputs.workflow == 'true') }}
+        run: |
+          echo "## knip reachability gate - apps/statenour (blocking)" >> "$GITHUB_STEP_SUMMARY"
+          # GH Actions bash runs with pipefail, so knip's exit survives the tee.
+          pnpm dlx knip@6.32.3 --workspace apps/statenour --reporter markdown | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "_Blocking since the 2026-08-27 wire-or-delete wave took the census 341 -> 0 (172 scripts declared as entries, 134 dead files deleted, 24 dynamic-referenced keeps in knip.json ignore with receipts). A new finding = a genuinely unreachable new file: wire it or delete it, never grow the ignore list without a path-reference receipt._" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Setup Node 24 (matches Railway runtime)
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
-        with:
-          node-version: 24
-          cache: pnpm
+      # The orphan gate sets its own dummy DATABASE_URL (knip loads drizzle.config.ts as a config file;
+      # nothing connects).
+      - name: canary - the gate must FAIL on a planted orphan
+        if: ${{ !cancelled() && (needs.changes.outputs.nickstire == 'true' || needs.changes.outputs.workflow == 'true') }}
+        run: |
+          cd apps/nickstire
+          cp shared/reelScore.ts shared/reelScore.ts.bak
+          printf '\nexport function __orphanCanary__() { return 1; }\n' >> shared/reelScore.ts
+          if node scripts/knip-orphan-gate.mjs > /dev/null 2>&1; then
+            mv shared/reelScore.ts.bak shared/reelScore.ts
+            echo "::error::knip-orphan-gate canary - a planted unconsumed export scanned clean; the gate is blind"
+            exit 1
+          fi
+          mv shared/reelScore.ts.bak shared/reelScore.ts
+          echo "canary ok - planted orphan was caught"
 
-      - name: Install workspace deps
-        run: pnpm install --frozen-lockfile
+      - name: canary - the gate must PASS on a clean tree
+        if: ${{ !cancelled() && (needs.changes.outputs.nickstire == 'true' || needs.changes.outputs.workflow == 'true') }}
+        run: |
+          cd apps/nickstire
+          node scripts/knip-orphan-gate.mjs > /dev/null || {
+            echo "::error::knip-orphan-gate reports failure on an unmodified tree - the gate is stuck red"
+            exit 1
+          }
+          echo "canary ok - clean tree passes"
 
-      # scripts/audit-advisories.mjs replaced `pnpm audit`, which POSTs to
-      # npm's legacy audit endpoint. npm RETIRED it — every call returns 410,
-      # so the blocking gate failed on 100% of PRs regardless of content and a
-      # real CVE was indistinguishable from the endpoint being gone (#760).
-      # NOTE: dependency-review.yml does NOT backstop this, and cannot. That
-      # action needs a PUBLIC repo or private+GitHub Advanced Security; this
-      # repo is private and owned by a personal account, and GHAS is an
-      # Enterprise-org product. It is continue-on-error, so it reports a
-      # decorative green while doing nothing. This job is the repo's ONLY
-      # dependency gate.
-      - name: Dependency audit (high+ severity · advisory)
-        continue-on-error: true
-        run: node scripts/audit-advisories.mjs --audit-level=high --advisory
-
-      # Exits 2 (fails) if the scanner itself cannot run. That is deliberate:
-      # a scan that silently passes when it is broken is how this gate rotted
-      # into permanent red that everyone learned to ignore.
-      - name: Dependency audit (critical severity · blocking)
-        run: node scripts/audit-advisories.mjs --audit-level=critical
-
+      - name: gate - no NEW unconsumed exports, files, or scripts
+        if: ${{ !cancelled() && (needs.changes.outputs.nickstire == 'true' || needs.changes.outputs.workflow == 'true') }}
+        run: cd apps/nickstire && node scripts/knip-orphan-gate.mjs
 
   railway-smoke:
     needs: [changes, node]
@@ -592,9 +624,17 @@ jobs:
   # echoing the whole script source in the ##[group] block, where all
   # three hardcoded error strings appear regardless of which branch runs.
   # Packing three of them into one step is what made the log unreadable.
+  #
+  # (c) 2026-10-16 · CI diet: not on PRs. This job only prints a summary and posts to a Slack webhook that is
+  # not configured (SLACK_WEBHOOK_URL unset), yet it billed a full minute on every PR push. Each job's own
+  # result already shows in the PR checks list. On a push to main it still runs, so the summary and the
+  # (armed-later) Slack message are unchanged there. Guarded by scripts/agent-os/workflowCostGuards.test.mjs.
+  #
+  # (d) 2026-10-16 · the `security` job is gone: its two audit steps are the last steps of `node`, so
+  # needs.node.result carries the dependency gate and the summary and Slack loop below no longer list it.
   notify:
-    needs: [changes, node, security, railway-smoke]
-    if: always()
+    needs: [changes, node, railway-smoke]
+    if: ${{ always() && github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     steps:
       - name: Generate Summary
@@ -609,7 +649,6 @@ jobs:
           **Job Results:**
           - Node Job: \`${{ needs.node.result }}\`
           - Smoke Tests: \`${{ needs.railway-smoke.result }}\`
-          - Security (advisories): \`${{ needs.security.result }}\`
           EOF
 
       # 2026-08-23 · this reported "Status: SUCCESS" whenever `node` was not a
@@ -632,13 +671,12 @@ jobs:
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           NODE_RESULT: ${{ needs.node.result }}
-          SECURITY_RESULT: ${{ needs.security.result }}
           SMOKE_RESULT: ${{ needs.railway-smoke.result }}
         run: |
           if [[ -n "${SLACK_WEBHOOK_URL:-}" ]]; then
             status="SUCCESS"
             failed=""
-            for job in node:"$NODE_RESULT" security:"$SECURITY_RESULT" smoke:"$SMOKE_RESULT"; do
+            for job in node:"$NODE_RESULT" smoke:"$SMOKE_RESULT"; do
               name="${job%%:*}"
               result="${job#*:}"
               # `skipped` and `success` are both fine; anything else is not.

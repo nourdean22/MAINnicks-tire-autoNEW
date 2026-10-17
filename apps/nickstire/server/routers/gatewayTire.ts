@@ -1351,7 +1351,7 @@ export const gatewayTireRouter = router({
               `🚚 TIRES SHIPPING — ${currentOrder.orderNumber}\n` +
               `${orderDesc}\n` +
               `Customer: ${currentOrder.customerName}\n` +
-              (input.expectedDelivery ? `ETA: ${input.expectedDelivery}` : "")
+              (input.expectedDelivery ? `ETA: ${input.expectedDelivery}` : ""), "receipt"
             )
           ).catch(e => log.warn("[gatewayTire:updateOrder] in-transit telegram alert failed:", e));
         }
@@ -1362,7 +1362,7 @@ export const gatewayTireRouter = router({
             sendTelegram(
               `✅ INSTALLED — ${currentOrder.orderNumber}\n` +
               `${orderDesc}\n` +
-              `Customer: ${currentOrder.customerName} | $${((currentOrder.totalAmount || 0) / 100).toFixed(2)}`
+              `Customer: ${currentOrder.customerName} | $${((currentOrder.totalAmount || 0) / 100).toFixed(2)}`, "receipt"
             )
           ).catch(e => log.warn("[gatewayTire:updateOrder] installed telegram alert failed:", e));
         }

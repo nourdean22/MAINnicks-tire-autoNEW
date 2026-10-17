@@ -22,10 +22,20 @@ export interface VoiceAudio {
   alignment?: VoiceAlignment;
 }
 
-/** Google Neural2 preferred (free/commercial-clean); ElevenLabs if only its key is set. */
+/**
+ * Google Neural2 preferred (free/commercial-clean); ElevenLabs if only its key is set.
+ * REEL_VO_PROVIDER=google|elevenlabs (2026-10-16) lets the operator pick by ear; a
+ * named provider without its key is null (the job fails loudly) rather than quietly
+ * the other voice. Unset or unknown keeps the key-presence rule.
+ */
 export function pickVoiceProvider(env: NodeJS.ProcessEnv = process.env): VoiceProvider | null {
-  if (env.GOOGLE_SERVICE_ACCOUNT_EMAIL && env.GOOGLE_SERVICE_ACCOUNT_KEY) return "google";
-  if (env.ELEVENLABS_API_KEY) return "elevenlabs";
+  const hasGoogle = Boolean(env.GOOGLE_SERVICE_ACCOUNT_EMAIL && env.GOOGLE_SERVICE_ACCOUNT_KEY);
+  const hasEleven = Boolean(env.ELEVENLABS_API_KEY);
+  const named = (env.REEL_VO_PROVIDER ?? "").trim().toLowerCase();
+  if (named === "google") return hasGoogle ? "google" : null;
+  if (named === "elevenlabs") return hasEleven ? "elevenlabs" : null;
+  if (hasGoogle) return "google";
+  if (hasEleven) return "elevenlabs";
   return null;
 }
 
@@ -50,25 +60,45 @@ export function buildReelSsml(script: string): string {
   return `<speak>${parts.join('<break time="350ms"/> ')}</speak>`;
 }
 
-/** Pure request shape for Google Cloud TTS (Neural2-J, LINEAR16 → WAV container). SSML for natural pacing. */
-export function googleTtsRequest(script: string): { url: string; body: Record<string, unknown> } {
+/** An env number inside Google's accepted range, else the default: one typo must not fail every narrated reel. */
+const envNumber = (name: string, raw: string | undefined, fallback: number, min: number, max: number): number => {
+  if (raw === undefined || raw.trim() === "") return fallback;
+  const n = Number(raw);
+  if (Number.isFinite(n) && n >= min && n <= max) return n;
+  log.warn(`${name} is not a number in [${min}, ${max}] — using ${fallback}`, { value: raw.slice(0, 20) });
+  return fallback;
+};
+
+/**
+ * Pure request shape for Google Cloud TTS (LINEAR16 → WAV container). SSML for natural pacing.
+ * Voice, rate and pitch are env (2026-10-16): REEL_GOOGLE_VOICE (default en-US-Neural2-J),
+ * REEL_GOOGLE_SPEAKING_RATE (0.97), REEL_GOOGLE_PITCH (-1.5). Chirp 3 HD voices take SSML
+ * and speaking_rate but document no pitch control, so pitch is left out for them.
+ */
+export function googleTtsRequest(script: string, env: NodeJS.ProcessEnv = process.env): { url: string; body: Record<string, unknown> } {
+  const name = (env.REEL_GOOGLE_VOICE ?? "").trim() || "en-US-Neural2-J";
+  // Ranges: speaking_rate 0.25-2.0 (Chirp 3 HD page), pitch -20.0-20.0 (AudioConfig).
+  const speakingRate = envNumber("REEL_GOOGLE_SPEAKING_RATE", env.REEL_GOOGLE_SPEAKING_RATE, 0.97, 0.25, 2.0);
+  const audioConfig: Record<string, unknown> = { audioEncoding: "LINEAR16", speakingRate };
+  if (!/chirp/i.test(name)) audioConfig.pitch = envNumber("REEL_GOOGLE_PITCH", env.REEL_GOOGLE_PITCH, -1.5, -20, 20);
   return {
     url: "https://texttospeech.googleapis.com/v1/text:synthesize",
     body: {
       input: { ssml: buildReelSsml(script) },
-      voice: { languageCode: "en-US", name: "en-US-Neural2-J" },
-      audioConfig: { audioEncoding: "LINEAR16", speakingRate: 0.97, pitch: -1.5 },
+      voice: { languageCode: name.split("-").slice(0, 2).join("-"), name },
+      audioConfig,
     },
   };
 }
 
-async function googleVoice(script: string): Promise<Buffer> {
-  const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-  const key = (process.env.GOOGLE_SERVICE_ACCOUNT_KEY || "").replace(/\\n/g, "\n").replace(/^"|"$/g, "");
+/** One Google TTS render. Exported for scripts/reel-voice-candidates.ts, which renders the same script in several voices. */
+export async function googleVoice(script: string, env: NodeJS.ProcessEnv = process.env): Promise<Buffer> {
+  const email = env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  const key = (env.GOOGLE_SERVICE_ACCOUNT_KEY || "").replace(/\\n/g, "\n").replace(/^"|"$/g, "");
   const { google } = await import("googleapis");
   const jwt = new google.auth.JWT({ email, key, scopes: ["https://www.googleapis.com/auth/cloud-platform"] });
   const { token } = await jwt.getAccessToken();
-  const { url, body } = googleTtsRequest(script);
+  const { url, body } = googleTtsRequest(script, env);
   const r = await fetch(url, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -144,7 +174,7 @@ export async function generateVoiceover(script: string | undefined | null): Prom
       return null;
     }
     throw new Error(
-      "Reel brief has a voiceover script but no TTS provider is configured (set GOOGLE_SERVICE_ACCOUNT_EMAIL + GOOGLE_SERVICE_ACCOUNT_KEY, or ELEVENLABS_API_KEY; or set REEL_VO_OPTIONAL=true to allow silent assembly)",
+      "Reel brief has a voiceover script but no TTS provider is configured (set GOOGLE_SERVICE_ACCOUNT_EMAIL + GOOGLE_SERVICE_ACCOUNT_KEY, or ELEVENLABS_API_KEY, matching REEL_VO_PROVIDER when it is set; or set REEL_VO_OPTIONAL=true to allow silent assembly)",
     );
   }
   try {

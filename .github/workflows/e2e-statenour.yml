@@ -32,16 +32,31 @@
 name: e2e · statenour
 
 on:
+  # 2026-10-16 · CI diet (~8.5 billed minutes a run, 9 more on every main push).
+  #  - PR: a diff that only touches apps/statenour/docs cannot change a rendered page, so it skips this run.
+  #    Any other statenour file (components, app, lib, hooks, tests, fixtures) still triggers it, which keeps
+  #    the v3 six-feet gate on every UI PR; the W2 and W3a diffs are the positive controls in
+  #    scripts/agent-os/workflowCostGuards.test.mjs. A `!` pattern un-matches what the lines above matched.
+  #  - No `push` trigger: the PR head already ran this suite with main merged in (the merge commit is what a
+  #    pull_request run checks out), merge-gate.mjs waits for every check to finish green before it merges, and
+  #    `node` in test.yml still runs on main as the safety net. The cost is the one case the old main run
+  #    covered: a session that merges by hand with this run still in flight (AGENTS.md "CI is advisory").
+  #    Re-add a push block, and re-widen scripts/agent-os/workflowCostGuards.test.mjs, to bring it back.
   pull_request:
     paths:
       - 'apps/statenour/**'
-      - 'packages/**'
-      - 'pnpm-lock.yaml'
-      - '.github/workflows/e2e-statenour.yml'
-  push:
-    branches: [main]
-    paths:
-      - 'apps/statenour/**'
+      - '!apps/statenour/docs/**'
+      # Docs that lib/services/system-change-digest.ts (and lib/evals/memory-evals.ts, which it runs) READ AT
+      # RUNTIME: system.changeDigest exposes them and the /system smoke page renders them, so a diff to one
+      # of these is not documentation-only. Re-included after the negation (the last matching pattern wins).
+      # scripts/agent-os/workflowCostGuards.test.mjs derives this list from those two sources and fails if a
+      # runtime-read doc is not selected (Codex review of #3083).
+      - 'apps/statenour/docs/RECONCILIATION.md'
+      - 'apps/statenour/docs/CURRENT-TRUTH.md'
+      - 'apps/statenour/docs/runbooks/index.md'
+      - 'apps/statenour/docs/runbooks/task-classifier-domain-missions.md'
+      - 'apps/statenour/docs/runbooks/memory-evals.md'
+      - 'apps/statenour/docs/runbooks/statenour-claude-code-session.md'
       - 'packages/**'
       - 'pnpm-lock.yaml'
       - '.github/workflows/e2e-statenour.yml'

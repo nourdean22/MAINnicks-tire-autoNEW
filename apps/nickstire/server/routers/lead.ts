@@ -18,7 +18,6 @@ import { withRetry } from "../retry";
 import { sendSmsOrThrow, leadConfirmationSms } from "../sms";
 import { SITE_URL, BUSINESS } from "@shared/business";
 import { handleAfterHoursCapture, isAfterHours } from "../services/afterHours";
-import { alertNewLead } from "../services/telegram";
 import { logAdminAction } from "../services/auditTrail";
 import { withActivityLedger } from "../services/activityLedger";
 
@@ -310,10 +309,8 @@ export const leadRouter = router({
           });
       }
 
-      // Telegram alert (always, regardless of hours)
-      alertNewLead({ name, phone, service: scoring.recommendedService, source: input.source })
-        .then(() => recordLeadDelivery({ leadId, channel: "telegram", status: "sent", provider: "telegram" }))
-        .catch((e) => { log.warn("[routers/lead] fire-and-forget failed:", e); void recordLeadDelivery({ leadId, channel: "telegram", status: "failed", provider: "telegram", detail: e instanceof Error ? e.message : String(e) }); });
+      // The Telegram alert and its lead_delivery_events row come from the event bus
+      // emit above: one sender per lead.
 
       return {
         success: true,

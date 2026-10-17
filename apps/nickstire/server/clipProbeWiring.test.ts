@@ -24,7 +24,7 @@ describe("clip probes: measured at assembly, persisted by the pipeline, read by 
     expect(loop.indexOf("await ffprobeReel(p)")).toBeGreaterThan(loop.indexOf("clipPaths.push(p);"));
     expect(loop).toContain("clipProbes.push({ beatNumber: segs[i].beatNumber");
     expect(loop).toContain("clip probe failed (assembly continues)");
-    expect(ASSEMBLY).toContain("usedVo: !!voPath, clipProbes };");
+    expect(ASSEMBLY).toContain("usedVo: !!voPath, clipProbes, clipVerdicts };");
   });
 
   it("the pipeline persists the probes after the assembled write, labelled by the beat's last succeeded providerOp", () => {
