@@ -73,6 +73,7 @@
     "lib/brain/strategic-plans.ts",
     "lib/brain/suggestion-loop.ts",
     "lib/brain/time-intelligence.ts",
+    "lib/brain/tutor-pack.ts",
     "lib/brain/wisdom-suggest.ts",
     "lib/db/brain-bus-handlers.ts",
     "lib/db/conversation-mission-linker.ts",

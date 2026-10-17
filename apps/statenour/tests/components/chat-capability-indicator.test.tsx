@@ -36,7 +36,7 @@ vi.mock("@/lib/trpc/client", () => ({
 }));
 
 import { ChatCapabilityIndicator } from "@/features/chat-v2/components/chat-capability-indicator";
-import { capabilityBadge } from "@/features/chat-v2/lib/capability-label";
+import { capabilityBadge, capabilityWord } from "@/features/chat-v2/lib/capability-label";
 import { useChatUiStore } from "@/features/chat-v2/stores/chat-ui-store";
 
 const healthyTools = { summary: { totalTools: 10, degraded: 0, down: 0 } };
@@ -98,5 +98,84 @@ describe("capabilityBadge · `checking` is true only while a read is in flight",
       toolSummary: healthyTools.summary,
     });
     expect(b.checking).toBe(false);
+  });
+});
+
+// W3b: the header shows a 10px dot and ONE word at md and up; the full label stays in the
+// accessible name and a visually hidden span. The word never claims more than the label does.
+// Round 2 (lens B): the visible words are the label itself in sentence case, so label-in-name holds
+// for every state and a down count is never flattened into "Degraded".
+describe("capabilityWord · the label's own words, sentence case", () => {
+  const word = (input: Parameters<typeof capabilityBadge>[0]) => capabilityWord(capabilityBadge(input).label);
+  it("measured and healthy: Ready", () => {
+    expect(word({ connection: "online", providerTone: "green", providerErrored: false, toolSummary: healthyTools.summary })).toBe("Ready");
+  });
+  it("a read in flight keeps its words", () => {
+    expect(word({ connection: "online", providerTone: undefined, providerErrored: false })).toBe("Checking capabilities");
+  });
+  it("a failed read says unknown, never Ready and never a diagnosis", () => {
+    expect(word({ connection: "online", providerTone: undefined, providerErrored: true })).toBe("AI health unknown");
+    expect(word({ connection: "online", providerTone: "green", providerErrored: false, toolsErrored: true })).toBe("Tool health unknown");
+  });
+  it("each measured problem keeps its own words (red providers included)", () => {
+    expect(word({ connection: "online", providerTone: "red", providerErrored: false })).toBe("AI offline");
+    expect(word({ connection: "online", providerTone: "amber", providerErrored: false })).toBe("Fallback active");
+    expect(word({ connection: "degraded", providerTone: "green", providerErrored: false, toolSummary: healthyTools.summary })).toBe("Chat degraded");
+    expect(word({ connection: "offline", providerTone: "green", providerErrored: false })).toBe("Chat offline");
+  });
+});
+
+describe("ChatCapabilityIndicator · W3b dot and words", () => {
+  it("Ready: the full words in the accessible name and title, the word visible at md-up only, a 44px box", () => {
+    providers = { data: { overallTone: "green" }, isError: false };
+    tools = { data: healthyTools, isError: false };
+    const markup = renderToStaticMarkup(<ChatCapabilityIndicator />);
+    expect(markup).toContain('href="/system/health"');
+    expect(markup).toMatch(/aria-label="ready \(capability health\)"/);
+    expect(markup).toMatch(/title="ready"/);
+    expect(markup).toMatch(/hidden md:inline[^>]*>Ready</);
+    expect(markup).toMatch(/class="inline-flex min-h-11 min-w-11 items-center justify-center/);
+    expect(markup).not.toContain("animate-spin");
+  });
+
+  it("a measured problem shows its words at every width, with the down count, never a colour-only dot", () => {
+    providers = { data: { overallTone: "green" }, isError: false };
+    tools = { data: { summary: { totalTools: 10, degraded: 0, down: 2 } }, isError: false };
+    const markup = renderToStaticMarkup(<ChatCapabilityIndicator />);
+    expect(markup).toMatch(/aria-label="tools limited · 2 down \(capability health\)"/);
+    expect(markup).toMatch(/<span aria-hidden="true">Tools limited · 2 down<\/span>/);
+    expect(markup).not.toMatch(/hidden md:inline/);
+  });
+
+  // Round 3 (A4): the dot's SHAPE carries the state next to its colour. An unknown read turned into a
+  // green fill must fail here; the words alone would not catch it.
+  describe("the dot per state", () => {
+    const dot = (markup: string) => /<span aria-hidden="true" class="h-2\.5 w-2\.5 shrink-0 rounded-full ([^"]*)"/.exec(markup)?.[1] ?? null;
+
+    it("measured and healthy: a filled green dot", () => {
+      providers = { data: { overallTone: "green" }, isError: false };
+      tools = { data: healthyTools, isError: false };
+      expect(dot(renderToStaticMarkup(<ChatCapabilityIndicator />))).toBe("bg-emerald-400");
+    });
+
+    it("unknown (a failed read): a ring, never a fill", () => {
+      providers = { data: undefined, isError: true };
+      tools = { data: healthyTools, isError: false };
+      const cls = dot(renderToStaticMarkup(<ChatCapabilityIndicator />));
+      expect(cls).toBe("border-2 border-amber-400");
+      expect(cls).not.toContain("bg-emerald-400");
+    });
+
+    it("a measured problem: a filled amber dot", () => {
+      providers = { data: { overallTone: "amber" }, isError: false };
+      tools = { data: healthyTools, isError: false };
+      expect(dot(renderToStaticMarkup(<ChatCapabilityIndicator />))).toBe("bg-amber-400");
+    });
+
+    it("a read in flight: no dot at all, the spinner", () => {
+      const markup = renderToStaticMarkup(<ChatCapabilityIndicator />);
+      expect(dot(markup)).toBeNull();
+      expect(markup).toContain("animate-spin");
+    });
   });
 });

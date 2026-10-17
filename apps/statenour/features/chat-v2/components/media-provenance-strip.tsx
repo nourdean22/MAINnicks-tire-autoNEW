@@ -43,7 +43,7 @@ export function MediaProvenanceStrip({ input }: { input: MediaProvenanceInput })
           <span
             key={s}
             className="rounded-micro border border-dashed border-edge-default px-1.5 py-0.5 font-mono text-[11px] text-fg-tertiary opacity-50"
-            title={`Not ${s} — not attempted, not failed`}
+            title={`Not ${s}: not attempted, not failed`}
           >
             {s}
           </span>

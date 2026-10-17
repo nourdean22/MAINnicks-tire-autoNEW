@@ -63,7 +63,11 @@ function messageText(message: { parts?: Array<{ type?: string; text?: string }> 
     .trim();
 }
 
-export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
+/**
+ * `disabledReason` (W3b round 3, A1b): set while a conversation is opening. The field and Send are
+ * disabled and the line says why, so a send cannot race the open into a thread not yet on screen.
+ */
+export function ChatComposer({ chat, disabledReason }: { chat: ChatRuntimeController; disabledReason?: string }) {
   const draft = useChatUiStore((s) => s.draft);
   const setDraft = useChatUiStore((s) => s.setDraft);
   const editingMessageId = useChatUiStore((s) => s.editingMessageId);
@@ -202,6 +206,7 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
   const mentions = useMentionSuggestions();
 
   const sendOrQueue = async (textToSend: string) => {
+    if (disabledReason) return; // the status line above the field already says why (voice and slash sends land here too)
     if (!textToSend.trim() && !imgAttached) return;
 
     // 2026-08-18 · edit-resend. When the draft came from tapping an
@@ -412,6 +417,8 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
         attachImgFromDrop(e);
       }}
     >
+      {/* A1b: mounted empty so the reason is announced when it arrives; no margin while empty. */}
+      <p role="status" aria-live="polite" className={disabledReason ? "px-2 text-[13px] leading-snug text-fg-secondary" : "sr-only"}>{disabledReason ?? ""}</p>
       {/* 2026-08-18 · edit-resend banner. Editing is armed by the Edit
           button on a sent message (2026-08-28: promoted out of the
           long-press sheet into the visible per-message action row), or
@@ -600,6 +607,7 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
             enterKeyHint={coarsePointer ? "enter" : "send"}
             className="max-h-[200px] min-h-11 w-full resize-none bg-transparent px-2 py-2.5 text-[16px] leading-[1.5] text-fg outline-none placeholder:text-fg-tertiary"
             rows={1}
+            disabled={Boolean(disabledReason)}
           />
         </div>
 
@@ -608,7 +616,7 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
             <span className="block h-3 w-3 rounded-[3px] bg-current" />
           </button>
         ) : (
-          <button type="submit" aria-label="Send message" disabled={!draft.trim() && !imgAttached} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-control bg-accent text-[var(--text-inverse)] transition-colors duration-[var(--motion-micro)] hover:bg-accent-hover disabled:opacity-40">
+          <button type="submit" aria-label="Send message" disabled={Boolean(disabledReason) || (!draft.trim() && !imgAttached)} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-control bg-accent text-[var(--text-inverse)] transition-colors duration-[var(--motion-micro)] hover:bg-accent-hover disabled:opacity-40">
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 19V5m0 0l-7 7m7-7l7 7" />
             </svg>

@@ -42,6 +42,7 @@ function matches(row: Record<string, unknown>, where: Record<string, unknown>): 
       const json = (value ?? {}) as Record<string, unknown>;
       return json[(c.path as string[])[0]] === c.equals;
     }
+    if ("startsWith" in c) return typeof value === "string" && value.startsWith(c.startsWith as string);
     if ("not" in c) return value !== c.not;
     if ("notIn" in c) return value != null && !(c.notIn as unknown[]).includes(value);
     if ("in" in c) return (c.in as unknown[]).includes(value);
@@ -136,6 +137,17 @@ describe("CORRECTION_WHERE · what counts as an operator correction", () => {
     expect(isCorrection(row({ decision: "dismissed", resultRef: "dismiss:timing" }))).toBe(false);
     expect(isCorrection(row({ decision: "dismissed", resultRef: "dismiss:alternative" }))).toBe(false);
     expect(isCorrection(row({ decision: "dismissed", resultRef: "dismiss:timing", outcomeUseful: false }))).toBe(true);
+  });
+
+  it("W2 tutor taps are a quiz, not a verdict on a recommendation: never corrections", () => {
+    // A wrong recall answer, a Skip, an old tutor:S dismissal, a Not yet: none is the operator pushing back.
+    expect(isCorrection(row({ sourceEngine: "tutor:recall", decision: "accepted", outcomeUseful: false }))).toBe(false);
+    expect(isCorrection(row({ sourceEngine: "tutor:recall", decision: "dismissed", resultRef: "dismiss:timing" }))).toBe(false);
+    expect(isCorrection(row({ sourceEngine: "tutor:recall", decision: "dismissed", resultRef: "tutor:S" }))).toBe(false);
+    expect(isCorrection(row({ sourceEngine: "tutor:decision", decision: "dismissed", resultRef: "tutor:N" }))).toBe(false);
+    // Positive control: the same shapes from a non-tutor engine still count.
+    expect(isCorrection(row({ sourceEngine: "nick-suggestions:stuck-task", decision: "dismissed" }))).toBe(true);
+    expect(isCorrection(row({ sourceEngine: "tutorial-engine", decision: "dismissed" }))).toBe(true);
   });
 
   it("accepted and undecided rows are not corrections", () => {
