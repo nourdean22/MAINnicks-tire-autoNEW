@@ -27,7 +27,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { reelJobs } from "../../drizzle/schema";
 import { beatGenerationRoute } from "../../shared/shotRouter";
-import { clipProvenance } from "../../shared/reelDisclosure";
+import { clipProvenance, EXTERNAL_CLIP_KEY_SEGMENT } from "../../shared/reelDisclosure";
 import { parseReelJobPayload } from "../../shared/reelJobPayload";
 import { queueStateForReelStatus } from "../../shared/reelQueue";
 import { REEL_OUTPUT_RULES } from "../../client/src/lib/facelessReelStudio";
@@ -171,7 +171,7 @@ export async function attachExternalClips(input: AttachInput, ctx: { attachedBy:
   for (let k = 0; k < bodies.length; k++) {
     const beatNumber = beats[generatedIdx[k]].beatNumber;
     // The `higgsfield-` segment is the disclosure marker (see the header): keep it.
-    const key = `reel-clips/higgsfield-external-${job.id}-b${beatNumber}-${stamp}-${Math.random().toString(36).slice(2, 8)}.mp4`;
+    const key = `reel-clips/${EXTERNAL_CLIP_KEY_SEGMENT}${job.id}-b${beatNumber}-${stamp}-${Math.random().toString(36).slice(2, 8)}.mp4`;
     try { rehostedUrls.push(await deps.putClip(key, bodies[k])); } catch (e) {
       return refuse("REHOST_FAILED", `Clip ${k + 1} re-host failed: ${errText(e)}`);
     }
