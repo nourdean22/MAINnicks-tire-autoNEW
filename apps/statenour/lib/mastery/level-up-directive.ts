@@ -47,6 +47,9 @@ export interface DirectiveStat {
   xpForNext: number;
   progressPct: number;
   rising7dXp: number;
+  /** The 7-day read failed (lib/mastery/character-sheet.ts): rising7dXp is a default, not a
+   *  measurement, so no tier may claim neglect or momentum from it (W4 fix round 2). */
+  rising7dUnknown?: boolean;
   goals?: { id: string; title: string }[];
 }
 
@@ -213,6 +216,8 @@ export function selectLevelUpDirective(
   const goals = (input.goals ?? []).filter((g) => g.status === "active");
   const goalById = new Map(goals.map((g) => [g.id, g]));
   const statByKey = new Map(stats.map((s) => [s.key, s]));
+  // W4 fix round 2: tiers 3, 5 and 6 and the neglect flag read the week; an unread week skips them.
+  const weekKnown = !stats.some((s) => s.rising7dUnknown);
 
   let stat: DirectiveStat | null = null;
   let tier: DirectiveTier = "closest";
@@ -265,7 +270,7 @@ export function selectLevelUpDirective(
   }
 
   // ③ NEGLECTED + STRATEGIC · goal-linked but zero XP this week.
-  if (!stat) {
+  if (!stat && weekKnown) {
     const s = stats
       .filter((x) => (x.goals?.length ?? 0) > 0 && x.rising7dXp === 0)
       .sort(
@@ -311,7 +316,7 @@ export function selectLevelUpDirective(
   }
 
   // ⑤ BODY NEGLECT · the whole Body branch took 0 XP this week.
-  if (!stat) {
+  if (!stat && weekKnown) {
     const bodyStats = stats.filter((s) => s.branch === "body");
     if (bodyStats.length > 0 && bodyStats.every((s) => s.rising7dXp === 0)) {
       stat = [...bodyStats].sort(byVerge)[0];
@@ -326,7 +331,7 @@ export function selectLevelUpDirective(
   }
 
   // ⑥ LEARNING MOMENTUM · the loop is already hot; compound it.
-  if (!stat) {
+  if (!stat && weekKnown) {
     const s = stats.find((x) => x.key === "learning" && x.rising7dXp > 0);
     if (s) {
       stat = s;
@@ -367,7 +372,7 @@ export function selectLevelUpDirective(
     reason,
     rep: rep!,
     goal: citedGoal ?? stat.goals?.[0] ?? null,
-    neglected: stat.rising7dXp === 0,
+    neglected: weekKnown && stat.rising7dXp === 0,
     milestone: (MILESTONE_LEVELS as readonly number[]).includes(nextLevel)
       ? { level: nextLevel, tier: tierForLevel(nextLevel).name }
       : null,
