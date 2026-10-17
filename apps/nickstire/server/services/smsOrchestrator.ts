@@ -918,9 +918,35 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
     shouldAutoSend = true;
     body = legacyBody;
     variantKey = "legacy";
-    
-    let sendResultJson: any = null;
+
+    // The kill switch skips templating and experiments, never the content
+    // guard every other mode runs: the recap body here carries the voice
+    // model's own summary (2026-10-17). Same outcome mapping as the main path.
+    let passthroughNeedsReview = false;
     if (body) {
+      const preflight = runNickgptPreflightGuard({
+        eventType: event.type,
+        candidateBody: body,
+        selectedVariantKey: variantKey,
+        provider: "shop",
+        sourceType: "legacy",
+      });
+      if (!preflight.allowed) {
+        shouldAutoSend = false;
+        passthroughNeedsReview = preflight.action === "force_human_review";
+        status = passthroughNeedsReview ? "drafted" : "blocked";
+        statusReason = preflight.reasonCode;
+        noSendReason = preflight.reasonCode;
+        log.warn(`Preflight ${preflight.action} on the legacy passthrough`, {
+          eventType: event.type,
+          reasonCode: preflight.reasonCode,
+          phoneLast4: phone10.slice(-4),
+        });
+      }
+    }
+
+    let sendResultJson: any = null;
+    if (body && shouldAutoSend) {
       const isVapi = event.type === "vapi_confirmation" || event.type === "vapi_forwarded_call_followup";
       const isReminder = event.type === "booking_reminder" || event.type === "review_request";
       const isTransactional = isVapi || (isReminder && event.type !== "booking_reminder" || (event.type === "booking_reminder" && event.reminderType !== "maintenance-reminder"));
@@ -963,7 +989,7 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
       source,
       variantKey,
       shouldAutoSend,
-      requiresHumanApproval: false,
+      requiresHumanApproval: passthroughNeedsReview,
       reason,
       customerContext: "{}",
       providerUsed: "shop",
@@ -980,7 +1006,7 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
           messageBody: body,
           variantKey,
           shouldAutoSend,
-          requiresHumanApproval: false,
+          requiresHumanApproval: passthroughNeedsReview,
           reason,
           customerContext: "{}",
           providerUsed: "shop" as const,

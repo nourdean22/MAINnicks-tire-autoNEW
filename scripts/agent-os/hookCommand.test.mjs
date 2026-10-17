@@ -105,3 +105,95 @@ test("Session Authority (2026-09-23): the configured lease-check.mjs BLOCKS on a
   assert.equal(r.code, 2, `expected a block via the configured command; got exit ${r.code}\n${r.out}`);
   assert.match(r.out, /hookCommand-test-fixture-foreign-session/);
 });
+
+test("loop watchdog (2026-10-16): the configured stuck-watch hooks DENY the 5th identical call, via their exact command strings", async () => {
+  const post = nodeHooks.find((h) => h.event === "PostToolUse" && h.command.includes("stuck-watch.mjs"));
+  const pre = nodeHooks.find((h) => h.event === "PreToolUse" && h.command.includes("stuck-watch.mjs"));
+  assert.ok(post && pre, "stuck-watch.mjs must be configured as both a PreToolUse and a PostToolUse hook");
+  const { mkdtempSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  process.env.STUCK_WATCH_DIR = mkdtempSync(join(tmpdir(), "stuck-hookcmd-"));
+  const call = { session_id: `hookcmd-${process.pid}`, cwd: ROOT, tool_name: "Bash", tool_input: { command: "pnpm test" } };
+  for (let i = 0; i < 4; i++) runHook(post.command, JSON.stringify({ ...call, tool_input: { ...call.tool_input, description: `try ${i}` }, tool_response: { stdout: "1 failed" } }));
+  const r = runHook(pre.command, JSON.stringify(call));
+  delete process.env.STUCK_WATCH_DIR;
+  assert.equal(r.code, 2, `expected a deny (exit 2), got ${r.code}\n${r.out}`);
+  assert.match(r.out, /stuck-watch\] DENIED/);
+});
+
+test("operator asks (2026-10-17): UserPromptSubmit and PreCompact refresh, SessionStart compact|resume recalls, via the exact command strings", async () => {
+  const find = (event) => nodeHooks.find((h) => h.event === event && h.command.includes("operator-asks.mjs"));
+  const [submit, compact, start] = ["UserPromptSubmit", "PreCompact", "SessionStart"].map(find);
+  assert.ok(submit && compact && start, "operator-asks.mjs must be configured on UserPromptSubmit, PreCompact and SessionStart");
+  assert.match(submit.command, /--refresh/);
+  assert.match(compact.command, /--refresh/);
+  assert.match(start.command, /--recall/);
+  const groups = settings.hooks.SessionStart.filter((g) => (g.hooks ?? []).some((h) => h.command?.includes("operator-asks.mjs")));
+  const fires = (source) => groups.some((g) => new RegExp(`^(?:${g.matcher || ".*"})$`).test(source));
+  for (const source of ["compact", "resume"]) assert.ok(fires(source), `the recall must fire on SessionStart source "${source}"`);
+  for (const source of ["startup", "clear"]) assert.ok(!fires(source), `the recall must not fire on SessionStart source "${source}"`);
+
+  const { appendFileSync, mkdtempSync, writeFileSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const dir = mkdtempSync(join(tmpdir(), "asks-hookcmd-"));
+  const transcript = join(dir, "t.jsonl");
+  const line = (e) => `${JSON.stringify(e)}\n`;
+  writeFileSync(transcript, line({ type: "user", origin: { kind: "human" }, timestamp: "2026-10-17T10:00:00.000Z", message: { role: "user", content: "typed ask one" } }));
+  process.env.OPERATOR_ASKS_DIR = join(dir, "asks");
+  try {
+    const base = { session_id: `asks-${process.pid}`, transcript_path: transcript, cwd: ROOT };
+    const s = runHook(submit.command, JSON.stringify({ ...base, hook_event_name: "UserPromptSubmit", prompt: "typed ask one" }));
+    assert.equal(s.code, 0, s.out);
+    assert.equal(s.out.trim(), "", "the refresh must print nothing: UserPromptSubmit output enters the model's context");
+    appendFileSync(transcript, line({ type: "attachment", timestamp: "2026-10-17T10:05:00.000Z", attachment: { type: "queued_command", prompt: "mid-turn ask two", origin: { kind: "human" } } }));
+    assert.equal(runHook(compact.command, JSON.stringify({ ...base, hook_event_name: "PreCompact", trigger: "auto" })).code, 0);
+    appendFileSync(transcript, line({ type: "user", origin: { kind: "human" }, timestamp: "2026-10-17T10:09:00.000Z", message: { role: "user", content: "typed ask three" } }));
+    const r = runHook(start.command, JSON.stringify({ ...base, hook_event_name: "SessionStart", source: "compact" }));
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /Operator asks this session \(verbatim, oldest first; 3 total; full list: /);
+    assert.match(r.out, /typed ask one[\s\S]*mid-turn ask two[\s\S]*typed ask three/);
+  } finally {
+    delete process.env.OPERATOR_ASKS_DIR;
+  }
+});
+
+test("skills check (2026-10-17): the configured Stop string blocks a tool turn with no Skill call ONCE, then lets it stop", async () => {
+  const hook = nodeHooks.find((h) => h.event === "Stop" && h.command.includes("skills-check.mjs"));
+  assert.ok(hook, "skills-check.mjs must be configured as a Stop hook");
+  const { mkdtempSync, writeFileSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const dir = mkdtempSync(join(tmpdir(), "skills-hookcmd-"));
+  const transcript = join(dir, "t.jsonl");
+  const entries = [
+    { type: "user", origin: { kind: "human" }, promptId: "p1", message: { role: "user", content: "fix it" } },
+    { type: "assistant", message: { role: "assistant", content: [{ type: "tool_use", id: "t1", name: "Bash", input: { command: "pnpm test" } }] } },
+    { type: "user", toolUseResult: {}, message: { role: "user", content: [{ type: "tool_result", tool_use_id: "t1", content: "ok" }] } },
+  ];
+  writeFileSync(transcript, entries.map((e) => JSON.stringify(e)).join("\n") + "\n");
+  process.env.SKILLS_CHECK_DIR = join(dir, "state");
+  try {
+    const payload = JSON.stringify({ session_id: `skills-${process.pid}`, transcript_path: transcript, stop_hook_active: false, hook_event_name: "Stop" });
+    const first = runHook(hook.command, payload);
+    assert.equal(first.code, 2, `expected a block (exit 2), got ${first.code}\n${first.out}`);
+    assert.match(first.out, /\[skills-check\][\s\S]*using-superpowers/, "the block must be the hook's own, naming the skills");
+    const second = runHook(hook.command, payload);
+    assert.equal(second.code, 0, `the second stop must go through\n${second.out}`);
+  } finally {
+    delete process.env.SKILLS_CHECK_DIR;
+  }
+});
+
+test("loop watchdog: the configured PostToolUseFailure string records failed calls (error payload), so 5 identical failures are denied", async () => {
+  const fail = nodeHooks.find((h) => h.event === "PostToolUseFailure" && h.command.includes("stuck-watch.mjs"));
+  const pre = nodeHooks.find((h) => h.event === "PreToolUse" && h.command.includes("stuck-watch.mjs"));
+  assert.ok(fail, "stuck-watch.mjs must be configured as a PostToolUseFailure hook: a non-zero Bash exit never fires PostToolUse");
+  const { mkdtempSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  process.env.STUCK_WATCH_DIR = mkdtempSync(join(tmpdir(), "stuck-hookfail-"));
+  const call = { session_id: `hookfail-${process.pid}`, cwd: ROOT, tool_name: "Bash", tool_input: { command: "pnpm test" } };
+  for (let i = 0; i < 4; i++) runHook(fail.command, JSON.stringify({ ...call, tool_input: { ...call.tool_input, description: `try ${i}` }, hook_event_name: "PostToolUseFailure", error: "Exit code 1: 1 failed" }));
+  const r = runHook(pre.command, JSON.stringify(call));
+  delete process.env.STUCK_WATCH_DIR;
+  assert.equal(r.code, 2, `expected a deny (exit 2), got ${r.code}\n${r.out}`);
+  assert.match(r.out, /stuck-watch\] DENIED/);
+});

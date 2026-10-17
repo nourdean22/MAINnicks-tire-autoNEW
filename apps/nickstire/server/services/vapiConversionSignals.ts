@@ -20,7 +20,8 @@ export interface CallStateLike {
  * Did the call's tool-state trail show the AI complete a conversion action?
  *
  * A write/capture tool (bookSlot · tireInquiry · checkTireStock · escalate)
- * records state `tool_called`; sendConfirmationSms records `confirmed`. Either
+ * records state `tool_called`; sendConfirmationSms records `confirmed` when the
+ * text went out (`recap_unsent`, which does not count, when it did not). Either
  * means the agent moved the caller forward — the signal behind both
  * vapi_call_logs.convertedToLead and the eval's hard_conversion outcome.
  */

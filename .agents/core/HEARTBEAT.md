@@ -23,6 +23,7 @@ merges, deploys, DB scripts, CI reruns, customer messages, secret or skill chang
 | 7 | Repo graph | modified time of `graphify-out/graph.json` (missing = SKIPPED, see TOOLS.md) | under 48 h | no |
 | 8 | Errors | Sentry MCP `search_issues`, unresolved, last 12 h, limit 10 (the manager loads the Sentry read tools) | no new high-volume issue | no |
 | 9 | AI traces | Langfuse, only if keys are already in the shell; last 12 h, small sample | no error spike; traces still arriving | no |
+| 10 | Observability | `GET https://nickstire.org/api/system/observability-status` with `Authorization: Bearer $ADMIN_API_KEY`, only if the key is already in the shell (404 until #3094 deploys = SKIPPED) | every probe reports a real state; an `UNKNOWN` probe is a finding, never fine | no |
 
 Before any `gh` call clear the dummy token: `[Environment]::SetEnvironmentVariable('GITHUB_TOKEN', $null, 'Process')`.
 Classify each failure: TIMEOUT, AUTH (401/403), MALFORMED (bad JSON), STALE, DOWN. A required check that cannot run

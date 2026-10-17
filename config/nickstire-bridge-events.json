@@ -32,7 +32,7 @@
       "busTypes": ["booking_completed"],
       "input": { "id": 9002, "name": "Test Customer", "service": "Tire rotation" },
       "data": { "bookingId": 9002, "customer": "Test Customer", "service": "Tire rotation", "invoiceNumber": null, "totalAmount": null },
-      "statenour": { "webhookAlert": ["JOB COMPLETE", "Test Customer", "Tire rotation"], "coachEvent": null, "pipeline": "booking" }
+      "statenour": { "webhookAlert": null, "coachEvent": null, "pipeline": "booking" }
     },
     {
       "type": "nickstire:lead",
@@ -40,7 +40,7 @@
       "busTypes": ["lead_captured"],
       "input": { "id": 9003, "name": "Test Customer", "phone": "2165550101", "source": "web", "urgencyScore": 3, "interest": "Wheel alignment" },
       "data": { "leadId": 9003, "customer": "Test Customer", "phone": "2165550101", "source": "web", "urgencyScore": 3, "interest": "Wheel alignment" },
-      "statenour": { "webhookAlert": ["NEW LEAD", "Test Customer", "2165550101", "Wheel alignment"], "coachEvent": null, "pipeline": "lead" }
+      "statenour": { "webhookAlert": null, "coachEvent": null, "pipeline": "lead" }
     },
     {
       "type": "nickstire:tire_order",
@@ -56,7 +56,7 @@
       "busTypes": ["invoice_created"],
       "input": { "invoiceNumber": "INV-TEST-2", "customerName": "Test Customer", "totalAmount": 389.99, "source": "booking" },
       "data": { "invoiceNumber": "INV-TEST-2", "customer": "Test Customer", "totalAmount": 389.99, "source": "booking" },
-      "statenour": { "webhookAlert": ["JOB COMPLETE", "$390", "Test Customer"], "coachEvent": null, "pipeline": "invoice" }
+      "statenour": { "webhookAlert": null, "coachEvent": null, "pipeline": "invoice" }
     },
     {
       "type": "nickstire:estimate",
@@ -72,7 +72,7 @@
       "busTypes": ["callback_requested"],
       "input": { "name": "Test Customer", "phone": "2165550102", "reason": "Question about quote" },
       "data": { "customer": "Test Customer", "phone": "2165550102", "reason": "Question about quote" },
-      "statenour": { "webhookAlert": ["CALLBACK REQUEST", "Test Customer", "2165550102", "Question about quote"], "coachEvent": ["Test Customer", "2165550102"], "pipeline": "lead" }
+      "statenour": { "webhookAlert": null, "coachEvent": ["Test Customer", "2165550102"], "pipeline": "lead" }
     },
     {
       "type": "nickstire:review",
