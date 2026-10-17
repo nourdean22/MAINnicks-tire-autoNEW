@@ -1625,6 +1625,8 @@ async function cmdAsk(args: string, chatId: string): Promise<void> {
 
 // ── Individual commands ───────────────────────────────────
 
+const LEADS_URGENT_LIMIT = 20;
+
 async function cmdStatus(chatId: string): Promise<void> {
   const { prisma } = await import("@/lib/prisma");
   const { today } = await import("@/lib/utils/datetime");
@@ -1651,7 +1653,8 @@ async function cmdStatus(chatId: string): Promise<void> {
         const { queryNick, readBridge } = await import("@/lib/nickstire/query");
         const read = readBridge<{ count?: unknown }>(await queryNick("leads_urgent", {}, 5_000));
         if (read.status !== "ok" || typeof read.data?.count !== "number") return UNKNOWN;
-        return read.data.count;
+        // nickstire's leads_urgent is LIMIT 20 (server/routes/nour-os-query.ts), so 20 means "at least 20".
+        return read.data.count >= LEADS_URGENT_LIMIT ? `${LEADS_URGENT_LIMIT}+` : read.data.count;
       })()),
       orUnknown(prisma.commitment.count({ where: { status: { in: ["active", "in_progress"] }, deletedAt: null } })),
       orUnknown(prisma.reflection.count({ where: { date: today(), deletedAt: null } })),

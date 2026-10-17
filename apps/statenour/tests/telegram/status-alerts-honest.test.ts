@@ -100,6 +100,13 @@ describe("/status prints unknown for a failed read, never 0", () => {
     expect(reply()).toContain("Urgent leads: 3");
   });
 
+  // #3097 review P3-3: nickstire's leads_urgent query is LIMIT 20, so 20 means "at least 20".
+  it("a count at the query's limit prints 20+", async () => {
+    h.queryNick.mockResolvedValueOnce({ data: { count: 20 }, query: "leads_urgent", timestamp: "t" });
+    await say("/status");
+    expect(reply()).toContain("Urgent leads: 20+");
+  });
+
   it("a dead nickstire bridge reads leads unknown", async () => {
     h.queryNick.mockResolvedValueOnce({ error: "No sync key configured." });
     await say("/status");
