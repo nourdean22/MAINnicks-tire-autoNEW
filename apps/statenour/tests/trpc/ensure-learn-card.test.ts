@@ -52,11 +52,14 @@ describe("brain.ensureLearnCard", () => {
     expect(JSON.parse(call.data.content).summary).toBe("Newest.");
   });
 
-  it("a legacy row is reported and left alone", async () => {
+  it("FU5: a legacy row is upgraded to an FSRS card in place, not left alone", async () => {
     const legacy = JSON.stringify({ topic: "Opportunity cost", summary: "s", streak: 1 });
     mockPrisma.brainMemory.findUnique.mockResolvedValue({ id: "m1", deletedAt: null, content: legacy });
-    expect(await operator().brain.ensureLearnCard({ topic: "Opportunity cost", summary: "x" })).toEqual({ status: "legacy" });
-    expect(mockPrisma.brainMemory.updateMany).not.toHaveBeenCalled();
+    expect(await operator().brain.ensureLearnCard({ topic: "Opportunity cost", summary: "x" })).toEqual({ status: "reset" });
+    expect(mockPrisma.brainMemory.updateMany).toHaveBeenCalledTimes(1);
+    const card = JSON.parse(mockPrisma.brainMemory.updateMany.mock.calls[0][0].data.content);
+    expect(card.fsrs.reps).toBe(0);
+    expect(typeof card.legacy_upgraded_at).toBe("string");
   });
 
   it("a lost swap returns lost", async () => {
@@ -85,8 +88,8 @@ describe("brain.ensureLearnCard", () => {
   it("accepts the limits: topic 500, summary 20000, empty summary", async () => {
     mockPrisma.brainMemory.findUnique.mockResolvedValue({ id: "m1", deletedAt: null, content: JSON.stringify({ streak: 1 }) });
     const c = operator();
-    expect(await c.brain.ensureLearnCard({ topic: "t".repeat(500), summary: "s".repeat(20_000) })).toEqual({ status: "legacy" });
-    expect(await c.brain.ensureLearnCard({ topic: "t", summary: "" })).toEqual({ status: "legacy" });
+    expect(await c.brain.ensureLearnCard({ topic: "t".repeat(500), summary: "s".repeat(20_000) })).toEqual({ status: "reset" });
+    expect(await c.brain.ensureLearnCard({ topic: "t", summary: "" })).toEqual({ status: "reset" });
   });
 
   it("is operator-only: no session is UNAUTHORIZED and nothing is read", async () => {

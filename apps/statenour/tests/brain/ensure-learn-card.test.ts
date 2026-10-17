@@ -27,7 +27,7 @@ vi.mock("@/lib/services/telegram", () => ({ sendTelegram: vi.fn(), sendTelegramW
 vi.mock("@/lib/utils/error-log", () => ({ logError: vi.fn() }));
 
 import { ensureLearnCard } from "@/lib/brain/tutor-pack";
-import { learnReviewRow, nextReview, Rating, type FsrsState } from "@/lib/brain/fsrs-schedule";
+import { learnReviewRow, nextReview, Rating, reviewCompletion, type FsrsState } from "@/lib/brain/fsrs-schedule";
 
 const DAY = 86_400_000;
 const T0 = new Date("2026-08-01T12:00:00.000Z");
@@ -80,6 +80,7 @@ describe("ensureLearnCard", () => {
     expect(next.completed).toBe(false);
     expect(next.summary).toBe("The newest explanation.");
     expect(next.topic).toBe(TOPIC);
+    expect(next.legacy_upgraded_at).toBeUndefined();
     expect(h.remember).not.toHaveBeenCalled();
   });
 
@@ -137,12 +138,55 @@ describe("ensureLearnCard", () => {
     expect(h.prisma.brainMemory.updateMany).toHaveBeenCalledTimes(1);
   });
 
-  it("a legacy row without fsrs is untouched and no second row is written", async () => {
-    const content = JSON.stringify({ topic: TOPIC, summary: "s", reviewAt: NOW.toISOString(), interval: 3, completed: false, streak: 2 });
-    h.prisma.brainMemory.findUnique.mockResolvedValue({ id: "m1", deletedAt: null, content });
-    expect(await ensureLearnCard(TOPIC, "New explanation.", NOW)).toEqual({ status: "legacy" });
-    expect(h.prisma.brainMemory.updateMany).not.toHaveBeenCalled();
+  const legacyContent = () => JSON.stringify({ topic: TOPIC, summary: "s", reviewAt: NOW.toISOString(), interval: 3, completed: false, streak: 2 });
+
+  it("FU5: a legacy row without fsrs is upgraded in place to a new FSRS card, with one legacy_upgraded_at marker and no second row", async () => {
+    const content = legacyContent();
+    h.prisma.brainMemory.findUnique.mockResolvedValue({ id: "m1", deletedAt: null, supersededById: null, content });
+    expect(await ensureLearnCard(TOPIC, "New explanation.", NOW)).toEqual({ status: "reset" });
+    expect(h.prisma.brainMemory.updateMany).toHaveBeenCalledTimes(1);
+    const call = h.prisma.brainMemory.updateMany.mock.calls[0][0];
+    // same row, swap pinned to the legacy content read, live rows only
+    expect(call.where).toEqual({ id: "m1", category: "spaced_review", key: KEY, content, deletedAt: null, supersededById: null });
+    expect(Object.keys(call.data).sort()).toEqual(["content", "expiresAt", "lastSeen"]);
+    // the new card is the Learn tab's own, plus the marker
+    expect(written()).toEqual({ ...JSON.parse(learnReviewRow(TOPIC, "New explanation.", NOW).content), legacy_upgraded_at: NOW.toISOString() });
+    expect(written().fsrs.reps).toBe(0);
+    expect(written().streak).toBeUndefined();
+    // and the Learn tab's Got it now grades it instead of forgetting it
+    expect(reviewCompletion(call.data.content)).toBe("grade");
     expect(h.remember).not.toHaveBeenCalled();
+    expect(h.info).toHaveBeenCalledWith("spaced_review_fsrs_reset", { key: KEY, reason: expect.stringMatching(/legacy/) });
+  });
+
+  it("FU5 control: a lost upgrade swap returns lost and writes nothing else", async () => {
+    h.prisma.brainMemory.findUnique.mockResolvedValue({ id: "m1", deletedAt: null, supersededById: null, content: legacyContent() });
+    h.prisma.brainMemory.updateMany.mockResolvedValue({ count: 0 });
+    expect(await ensureLearnCard(TOPIC, "x", NOW)).toEqual({ status: "lost" });
+    expect(h.prisma.brainMemory.updateMany).toHaveBeenCalledTimes(1);
+    expect(h.remember).not.toHaveBeenCalled();
+  });
+
+  it("FU5 control: a row that already has FSRS state is never upgraded: same topic and summary rewrites it byte-identical, with no marker", async () => {
+    const { content } = matureState();
+    h.prisma.brainMemory.findUnique.mockResolvedValue({ id: "m1", deletedAt: null, supersededById: null, content });
+    expect(await ensureLearnCard(TOPIC, "Old explanation.", NOW)).toEqual({ status: "kept" });
+    const call = h.prisma.brainMemory.updateMany.mock.calls[0][0];
+    expect(call.data.content).toBe(content);
+    expect(call.data.content).not.toContain("legacy_upgraded_at");
+    expect(h.info).not.toHaveBeenCalled();
+  });
+
+  it("FU5 control: a soft-deleted legacy row is not touched by the upgrade: the tombstone path runs, with no marker", async () => {
+    const content = legacyContent();
+    const deletedAt = new Date("2026-10-01T00:00:00.000Z");
+    h.prisma.brainMemory.findUnique.mockResolvedValue({ id: "m1", deletedAt, supersededById: null, content });
+    expect(await ensureLearnCard(TOPIC, "Again.", NOW)).toEqual({ status: "created" });
+    const call = h.prisma.brainMemory.updateMany.mock.calls[0][0];
+    expect(call.where).toEqual({ id: "m1", category: "spaced_review", key: KEY, content, deletedAt, supersededById: null });
+    expect(call.data.content).toBe(learnReviewRow(TOPIC, "Again.", NOW).content);
+    expect(call.data.content).not.toContain("legacy_upgraded_at");
+    expect(h.info).not.toHaveBeenCalled();
   });
 
   it("P2-2: a live row whose fsrs state cannot be scheduled resets to a new card, pinned to the content read, with one info line", async () => {
