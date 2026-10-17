@@ -46,7 +46,7 @@ export function pickVoiceProvider(env: NodeJS.ProcessEnv = process.env): VoicePr
  * bare <speak> wrapper when there are no sentence boundaries. Pure + testable.
  * Deliberately conservative — the deeper Neural2-J pitch/rate stays in audioConfig.
  */
-export function buildReelSsml(script: string): string {
+export function buildReelSsml(script: string, opts: { marks?: boolean } = {}): string {
   const esc = (s: string) =>
     s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
   const sentences = (script ?? "")
@@ -54,11 +54,18 @@ export function buildReelSsml(script: string): string {
     .map((s) => s.trim())
     .filter(Boolean);
   if (sentences.length === 0) return `<speak>${esc((script ?? "").trim())}</speak>`;
+  // marks: a <mark name="w{i}"/> before each whitespace word (i counts across sentences,
+  // matching reelWords), so Google returns one timepoint per word. Nothing spoken changes.
+  let w = 0;
+  const body = (s: string) => (opts.marks ? s.split(/\s+/).map((word) => `<mark name="w${w++}"/>${esc(word)}`).join(" ") : esc(s));
   const parts = sentences.map((s, i) =>
-    i === 0 ? `<emphasis level="strong">${esc(s)}</emphasis>` : esc(s),
+    i === 0 ? `<emphasis level="strong">${body(s)}</emphasis>` : body(s),
   );
   return `<speak>${parts.join('<break time="350ms"/> ')}</speak>`;
 }
+
+/** The words the SSML marks count: whitespace tokens of the trimmed script. */
+const reelWords = (script: string): string[] => (script ?? "").trim().split(/\s+/).filter(Boolean);
 
 /** An env number inside Google's accepted range, else the default: one typo must not fail every narrated reel. */
 const envNumber = (name: string, raw: string | undefined, fallback: number, min: number, max: number): number => {
@@ -75,38 +82,106 @@ const envNumber = (name: string, raw: string | undefined, fallback: number, min:
  * REEL_GOOGLE_SPEAKING_RATE (0.97), REEL_GOOGLE_PITCH (-1.5). Chirp 3 HD voices take SSML
  * and speaking_rate but document no pitch control, so pitch is left out for them.
  */
-export function googleTtsRequest(script: string, env: NodeJS.ProcessEnv = process.env): { url: string; body: Record<string, unknown> } {
+export function googleTtsRequest(
+  script: string,
+  env: NodeJS.ProcessEnv = process.env,
+  opts: { timed?: boolean } = {},
+): { url: string; body: Record<string, unknown> } {
+  // timed (default): v1beta1 + SSML marks + enableTimePointing, for word-timed captions.
+  // timed:false is the pre-2026-10-17 v1 request, kept as the fallback when v1beta1 refuses it.
+  const timed = opts.timed !== false;
   const name = (env.REEL_GOOGLE_VOICE ?? "").trim() || "en-US-Neural2-J";
   // Ranges: speaking_rate 0.25-2.0 (Chirp 3 HD page), pitch -20.0-20.0 (AudioConfig).
   const speakingRate = envNumber("REEL_GOOGLE_SPEAKING_RATE", env.REEL_GOOGLE_SPEAKING_RATE, 0.97, 0.25, 2.0);
   const audioConfig: Record<string, unknown> = { audioEncoding: "LINEAR16", speakingRate };
   if (!/chirp/i.test(name)) audioConfig.pitch = envNumber("REEL_GOOGLE_PITCH", env.REEL_GOOGLE_PITCH, -1.5, -20, 20);
-  return {
-    url: "https://texttospeech.googleapis.com/v1/text:synthesize",
-    body: {
-      input: { ssml: buildReelSsml(script) },
-      voice: { languageCode: name.split("-").slice(0, 2).join("-"), name },
-      audioConfig,
-    },
+  const body: Record<string, unknown> = {
+    input: { ssml: buildReelSsml(script, { marks: timed }) },
+    voice: { languageCode: name.split("-").slice(0, 2).join("-"), name },
+    audioConfig,
   };
+  if (timed) body.enableTimePointing = ["SSML_MARK"];
+  return { url: `https://texttospeech.googleapis.com/${timed ? "v1beta1" : "v1"}/text:synthesize`, body };
+}
+
+export interface GoogleTimepoint {
+  markName?: string;
+  timeSeconds?: number;
+}
+
+/** Seconds of audio in a LINEAR16 WAV (RIFF header, byte rate at offset 28); null when it is not one. */
+export function wavDurationSec(buf: Buffer): number | null {
+  if (buf.length < 44 || buf.toString("ascii", 0, 4) !== "RIFF" || buf.toString("ascii", 8, 12) !== "WAVE") return null;
+  const byteRate = buf.readUInt32LE(28);
+  return byteRate > 0 ? (buf.length - 44) / byteRate : null;
+}
+
+/**
+ * Google SSML-mark timepoints -> the ElevenLabs-shaped VoiceAlignment generateAssSubtitles reads.
+ * Each word's characters span its mark to the next word's mark (the last word to the audio end).
+ * Anything short of one finite, ordered timepoint per word is undefined: beat captions, as before.
+ */
+export function alignmentFromTimepoints(
+  script: string,
+  timepoints: GoogleTimepoint[] | undefined,
+  audioEndSec: number | null,
+): VoiceAlignment | undefined {
+  const words = reelWords(script);
+  if (!timepoints?.length || words.length === 0) return undefined;
+  const at = new Map(timepoints.map((t) => [t.markName, t.timeSeconds]));
+  const starts = words.map((_, i) => at.get(`w${i}`));
+  if (starts.some((t, i) => typeof t !== "number" || !Number.isFinite(t) || (i > 0 && t < (starts[i - 1] as number)))) return undefined;
+  const st = starts as number[];
+  const lastEnd = audioEndSec !== null && audioEndSec > st[st.length - 1] ? audioEndSec : st[st.length - 1] + 0.5;
+  const out: VoiceAlignment = { characters: [], characterStartTimesSeconds: [], characterEndTimesSeconds: [] };
+  words.forEach((word, i) => {
+    const end = i + 1 < st.length ? st[i + 1] : lastEnd;
+    if (i > 0) {
+      out.characters.push(" ");
+      out.characterStartTimesSeconds.push(st[i]);
+      out.characterEndTimesSeconds.push(st[i]);
+    }
+    for (const ch of word) {
+      out.characters.push(ch);
+      out.characterStartTimesSeconds.push(st[i]);
+      out.characterEndTimesSeconds.push(end);
+    }
+  });
+  return out;
 }
 
 /** One Google TTS render. Exported for scripts/reel-voice-candidates.ts, which renders the same script in several voices. */
 export async function googleVoice(script: string, env: NodeJS.ProcessEnv = process.env): Promise<Buffer> {
+  return (await googleVoiceTimed(script, env)).buf;
+}
+
+/**
+ * One Google TTS render with word timing when the voice honours SSML marks. A 400 on the
+ * timed v1beta1 request (a voice that rejects marks) resends today's plain v1 request once.
+ */
+export async function googleVoiceTimed(script: string, env: NodeJS.ProcessEnv = process.env): Promise<{ buf: Buffer; alignment?: VoiceAlignment }> {
   const email = env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
   const key = (env.GOOGLE_SERVICE_ACCOUNT_KEY || "").replace(/\\n/g, "\n").replace(/^"|"$/g, "");
   const { google } = await import("googleapis");
   const jwt = new google.auth.JWT({ email, key, scopes: ["https://www.googleapis.com/auth/cloud-platform"] });
   const { token } = await jwt.getAccessToken();
-  const { url, body } = googleTtsRequest(script, env);
-  const r = await fetch(url, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  const post = (timed: boolean) => {
+    const { url, body } = googleTtsRequest(script, env, { timed });
+    return fetch(url, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  };
+  let r = await post(true);
+  if (r.status === 400) {
+    log.info("google TTS refused the timed request - resending without marks (beat captions)", { err: (await r.text()).slice(0, 200) });
+    r = await post(false);
+  }
   if (!r.ok) throw new Error(`google TTS HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
-  const j = (await r.json()) as { audioContent: string };
-  return Buffer.from(j.audioContent, "base64");
+  const j = (await r.json()) as { audioContent: string; timepoints?: GoogleTimepoint[] };
+  const buf = Buffer.from(j.audioContent, "base64");
+  return { buf, alignment: alignmentFromTimepoints(script, j.timepoints, wavDurationSec(buf)) };
 }
 
 export interface VoiceAlignment {
@@ -180,7 +255,8 @@ export async function generateVoiceover(script: string | undefined | null): Prom
   try {
     if (provider === "google") {
       try {
-        return { buf: await googleVoice(text), ext: "wav", provider };
+        const { buf, alignment } = await googleVoiceTimed(text);
+        return { buf, ext: "wav", provider, alignment };
       } catch (err) {
         // Runtime fallback (previously selection-time only): a Google failure
         // with ElevenLabs configured should degrade to the other provider, not
@@ -229,7 +305,7 @@ export function formatAssTime(seconds: number): string {
  * 35% that Instagram's UI covers: measured with Anton through libass, the box
  * spanned 69.5-74.2% of the height. At 720 it spans 58.0-62.8%, 43 px clear,
  * level with the drawtext beat captions (reelAssembly CAPTION_BEAT_Y_FRAC).
- * This path runs when the voiceover carries word timing (ElevenLabs).
+ * This path runs when the voiceover carries word timing (ElevenLabs, or Google SSML marks).
  */
 const ASS_CAPTION_MARGIN_V = 720;
 
