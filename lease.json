@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "statenour/brain-fu3-fu4-parts-readers",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "11dd3c15-6c98-4bc9-9fa1-c404986839c6",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\new-session-bbf695",
   "claimedBy": "2026-10-17-brain-fu3-fu4-parts-readers",
   "claimedAt": "2026-10-17T19:27:08.818Z",
   "expiresAt": "2026-10-18T07:27:08.818Z",
-  "releasedAt": null,
+  "releasedAt": "2026-10-17T20:01:03.698Z",
   "releaseReason": null,
-  "priorLeaseSha": null
+  "priorLeaseSha": "9b7240f06257b34c9cd0988c2f8b28384c1ce9b8",
+  "releasedBy": "11dd3c15-6c98-4bc9-9fa1-c404986839c6",
+  "foreignReleaseReason": null
 }
