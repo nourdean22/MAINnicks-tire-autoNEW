@@ -45,6 +45,12 @@ export interface MemoryInspectorSidebarProps {
    */
   recallProvenance?: "OK" | "ZERO" | "ERROR" | "UNMEASURED";
   recallProvenanceReason?: string;
+  /**
+   * W3b (UI v3): at xl the island docks this beside the conversation as a column of its own, on the
+   * raised surface so the evidence reads as a separate plane from the reading canvas. Below xl it
+   * stays the fixed overlay it was.
+   */
+  docked?: boolean;
 }
 
 export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
@@ -56,6 +62,7 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
   reply,
   recallProvenance,
   recallProvenanceReason,
+  docked = false,
 }) => {
   if (!open) return null;
   // Absolute time, not "Ns ago": render stays pure (no Date.now() during
@@ -66,16 +73,23 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
     : "not yet fetched: open state, not evidence";
 
   return (
-    <div className="fixed inset-y-0 right-0 z-50 w-80 md:w-96 bg-overlay border-l border-edge-default shadow-l1 flex flex-col animate-fadeSlideLeft">
-      <div className="flex justify-between items-center p-4 border-b border-edge-subtle">
+    <div
+      className={
+        docked
+          ? "relative flex h-full w-96 shrink-0 flex-col border-l border-edge-default bg-surface-raised"
+          : "fixed inset-y-0 right-0 z-50 w-80 md:w-96 bg-overlay border-l border-edge-default shadow-l1 flex flex-col animate-fadeSlideLeft"
+      }
+    >
+      <div className="flex justify-between items-center py-1 pl-4 pr-1 border-b border-edge-subtle">
         <div className="flex items-center space-x-2">
           <Brain className="w-4 h-4 text-fg-tertiary" />
           <span className="text-[13px] font-semibold text-fg">
             Context &amp; Evidence
           </span>
         </div>
-        <button onClick={onClose} className="text-fg-secondary hover:text-fg bg-transparent border-none cursor-pointer">
-          <X className="w-4 h-4" />
+        {/* 44px: the floor every control keeps (it was a bare 16px icon). */}
+        <button type="button" onClick={onClose} aria-label="Close context and memory" className="flex h-11 w-11 items-center justify-center rounded-control text-fg-secondary transition-colors duration-[var(--motion-state)] hover:bg-surface hover:text-fg">
+          <X className="w-4 h-4" aria-hidden />
         </button>
       </div>
 

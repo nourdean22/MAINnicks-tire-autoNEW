@@ -24,7 +24,8 @@ describe("responsive navigation shell contract", () => {
 
     expect(drawer).toContain('onClick={onNew} className="flex min-h-11');
     expect(drawer).toContain('onClick={onClose} aria-label="Close history" className="flex h-11 w-11');
-    expect(drawer).toContain('onClick={onShowActions} className="flex min-h-11');
+    // PR #3090: disabled while a conversation opens; the 44px floor rides the same element.
+    expect(drawer).toContain('onClick={onShowActions} disabled={actionsDisabled} className="disabled:opacity-50 flex min-h-11');
     expect(drawer).toContain('placeholder="Search conversations" className="h-11');
     expect(drawer).toContain('className={`min-h-11 rounded-control sm:min-h-8');
     expect(drawer).toContain('className="mt-2 min-h-11 w-full');
