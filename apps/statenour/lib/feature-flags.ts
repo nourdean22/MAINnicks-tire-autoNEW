@@ -197,7 +197,7 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     onValue: "true",
     defaultOn: true,
     defaultBehavior:
-      "LIVE: the novelty multiplier is applied. Kill-switch NICK_NOVELTY_RECALL=0 restores byte-for-byte pre-2026-08-16 ranking. NOTE: enabled on operator instruction WITHOUT a prior eval win — `pnpm eval:recall` has never been run against a real (non-synthetic) corpus, so this is an accepted-risk default, not a measured one.",
+      "LIVE: the novelty multiplier is applied. Kill-switch NICK_NOVELTY_RECALL=0 restores byte-for-byte pre-2026-08-16 ranking. NOTE: enabled on operator instruction WITHOUT a prior eval win. No NICK_NOVELTY_RECALL=0 vs 1 comparison is recorded anywhere (the 2026-09-08 plan, docs/research/2026-09-08-statenour-brain-intelligence-upgrade-plan.md Q3, lists that run as still to do). The 2026-08-27 real-corpus baseline (docs/RETRIEVAL-BASELINE-2026-08-27.md, 28 cases) measured the retrieval lanes, not this flag. So this is an accepted-risk default, not a measured one.",
     ownerDoc: "lib/brain/contextual-recall.ts",
   },
   {

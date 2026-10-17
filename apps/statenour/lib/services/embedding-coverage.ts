@@ -13,7 +13,73 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import { isPgvectorAvailable } from "@/lib/db/pgvector";
+import { embeddingSpaceSql, isPgvectorAvailable } from "@/lib/db/pgvector";
+import { TELEMETRY_CATEGORY_LIST } from "@/lib/brain/embedding-policy";
+import type { PersonalGap } from "@/lib/services/personal-gap";
+
+/**
+ * The embed-backfill never embeds a row below this confidence
+ * (app/api/cron/embed-backfill/route.ts, `bm.confidence >= 0.2`; pinned by
+ * tests/services/embedding-coverage-personal-gap.test.ts). Counting those rows
+ * as "missing" would be a permanent false backlog.
+ */
+const EMBED_MIN_CONFIDENCE = 0.2;
+
+/**
+ * "Searchable memories without a vector" (brain W5, 2026-10-17). Type and wording:
+ * ./personal-gap.ts (pure, client-safe).
+ *
+ * Counts live brain_memories that the embedding policy says SHOULD be embedded
+ * (not in TELEMETRY_CATEGORY_LIST, so no edges, shadows or event logs) and that
+ * have NO brain_memory vector in the space dense recall reads (embedding_vec_1536
+ * in the active model's space, the same predicate memory-recall.ts uses). A raw
+ * "rows with no vector" count is dominated by telemetry and says nothing about
+ * whether Nour's own memories can be found. A failed read is `unknown`, never 0.
+ */
+export async function buildPersonalGap(): Promise<PersonalGap> {
+  try {
+    if (!(await isPgvectorAvailable())) {
+      return { state: "unknown", reason: "pgvector extension is off, so vectors cannot be counted" };
+    }
+    const rows = await prisma.$queryRawUnsafe<Array<{ category: string; eligible: unknown; missing: unknown }>>(
+      `SELECT category, COUNT(*)::int AS eligible,
+              SUM(CASE WHEN has_vec THEN 0 ELSE 1 END)::int AS missing
+         FROM (
+           SELECT bm.category::text AS category,
+                  EXISTS (
+                    SELECT 1 FROM vector_embeddings ve
+                     WHERE ve."sourceType" = 'brain_memory'
+                       AND ve."sourceId" = bm.id
+                       AND ve.embedding_vec_1536 IS NOT NULL
+                       AND ${embeddingSpaceSql("ve.model")}
+                  ) AS has_vec
+             FROM brain_memories bm
+            WHERE bm.deleted_at IS NULL
+              AND bm.confidence >= ${EMBED_MIN_CONFIDENCE}
+              AND NOT (bm.category = ANY($1::text[]))
+         ) t
+        GROUP BY category`,
+      TELEMETRY_CATEGORY_LIST,
+    );
+    let eligible = 0;
+    let missing = 0;
+    const perCategory: Array<{ category: string; missing: number }> = [];
+    for (const r of rows) {
+      const e = Number(r.eligible);
+      const m = Number(r.missing);
+      if (!Number.isFinite(e) || !Number.isFinite(m) || r.missing === null || r.eligible === null) {
+        return { state: "unknown", reason: "gauge query returned a malformed row" };
+      }
+      eligible += e;
+      missing += m;
+      if (m > 0) perCategory.push({ category: String(r.category), missing: m });
+    }
+    perCategory.sort((a, b) => b.missing - a.missing || a.category.localeCompare(b.category));
+    return { state: "ok", eligible, missing, byCategoryTop5: perCategory.slice(0, 5) };
+  } catch (err) {
+    return { state: "unknown", reason: err instanceof Error ? err.message : "gauge query failed" };
+  }
+}
 
 interface SourceTypeRow {
   sourceType: string;
@@ -96,6 +162,7 @@ export async function buildEmbeddingCoverage() {
   }
 
   const backfillRemaining = Math.max(totalRows - totalWithVec, 0);
+  const personalGap = await buildPersonalGap();
 
   // Recent dedup runs — last 10. Telemetry from v8.12 includes the
   // pgvector / JS row split so we can show how often the SQL path
@@ -182,6 +249,7 @@ export async function buildEmbeddingCoverage() {
           : Math.round((totalWithVec / totalRows) * 1000) / 10,
     },
     perSource,
+    personalGap,
     recentDedupRuns,
     recentBackfillRuns,
     generatedAt: new Date().toISOString(),

@@ -36,11 +36,16 @@ const h = vi.hoisted(() => {
       vectorEmbedding: { groupBy: fn() },
       systemMetric: { findMany: fn() },
       $queryRaw: fn(),
+      $queryRawUnsafe: fn(),
     },
   };
 });
 
 vi.mock("@/lib/prisma", () => ({ prisma: h.prisma }));
+vi.mock("@/lib/db/pgvector", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/db/pgvector")>()),
+  isPgvectorAvailable: () => Promise.resolve(true),
+}));
 
 import { buildHealthReport } from "@/lib/services/system-health";
 
@@ -206,5 +211,20 @@ describe("buildHealthReport · data-source probes", () => {
 
     const r = await buildHealthReport({ range: "7d" });
     expect(r.operational.dataSources).toBeNull();
+  });
+});
+
+describe("buildHealthReport · searchable memories without a vector (brain W5)", () => {
+  it("carries the gauge on the report the /system/health page renders", async () => {
+    h.prisma.$queryRawUnsafe.mockResolvedValue([{ category: "health", eligible: 5, missing: 2 }]);
+    const r = await buildHealthReport({ range: "7d" });
+    expect(r.personalGap).toMatchObject({ state: "ok", eligible: 5, missing: 2 });
+  });
+
+  it("a failed gauge read is unknown on the report, never a clean 0", async () => {
+    h.prisma.$queryRawUnsafe.mockRejectedValue(new Error("db down"));
+    const r = await buildHealthReport({ range: "7d" });
+    expect(r.personalGap.state).toBe("unknown");
+    expect(r.personalGap).not.toHaveProperty("missing");
   });
 });

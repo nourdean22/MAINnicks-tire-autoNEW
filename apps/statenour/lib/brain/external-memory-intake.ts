@@ -21,10 +21,11 @@
  * never WHERE (the inbox commit path reads `memoryTarget` back and writes
  * the exact category/key/source/metadata it would have had).
  *
- * Callers: app/api/cron/ingest-gmail (inbound mail). The other ingestion
- * crons (drive / calendar / reviews) still write directly — named in the
- * audit, not yet routed. Sent mail and Apple Notes are operator-authored and
- * stay direct: quarantining the operator's own words would be theatre.
+ * Callers (all five route through here, checked 2026-10-17):
+ * app/api/cron/ingest-gmail (inbound mail), lib/integrations/gmail-sync.ts,
+ * lib/brain/drive-ingest.ts, lib/integrations/google-reviews.ts and
+ * app/api/cron/ingest-calendar. Sent mail is operator-authored and stays
+ * direct: quarantining the operator's own words would be theatre.
  */
 import { GuardianApprovalPendingError, withGuardian } from "@/lib/tools/guardian";
 import { admitMemory } from "@/lib/brain/memory-admission";
