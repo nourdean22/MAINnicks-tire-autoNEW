@@ -30,6 +30,14 @@
  * vs lot, same shell) above 0.30 and above every slide. 0.30 is the real-render
  * floor for "a different composition", measured 0.368 / 0.384 on 2026-10-16; it is
  * deliberately distinct from the 0.35 gate, which asks for more than a page swap.
+ *
+ * The different-page control compares the two FROZEN renders (overview-<vp>.png vs
+ * lot-<vp>.png), not the live pages. Each wave moves the live pages onto one shared
+ * row grammar, so live Today and live Lot converge by design (W3 measured 0.267 at
+ * 1440 with Lot's counters under its board) and the control would start failing
+ * for the redesign it exists to measure. The frozen pair is the fixed reference the
+ * instrument is calibrated on. In capture mode the baselines are being rewritten,
+ * so the control uses the live pages, which at capture time are the frozen ones.
  */
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -123,15 +131,25 @@ test.describe("admin v1 six-feet gate", () => {
     const lot = PAGES.find((p) => p.key === "lot")!;
     const a = await render(page, "overview", overview.url);
     const b = await render(page, "overview", overview.url);
-    const other = await render(page, "lot", lot.url);
 
     const identical = (await visualDistance(a, b, size)).ratio;
     const shifted = await Promise.all(SHIFTS[vp].map(async ([dx, dy]) => (await visualDistance(a, await slide(a, size.width, dx, dy), size)).ratio));
-    const recomposed = (await visualDistance(a, other, size)).ratio;
+    // The different-page pair: frozen in compare mode, live in capture mode (see the header).
+    let pair: [Buffer, Buffer];
+    if (CAPTURE) {
+      pair = [a, await render(page, "lot", lot.url)];
+    } else {
+      const frozen = ["overview", "lot"].map((k) => path.join(BASELINE_DIR, `${k}-${vp}.png`));
+      for (const f of frozen) {
+        if (!existsSync(f)) throw new Error(`no baseline at ${path.relative(process.cwd(), f)}: the different-page control needs both frozen renders. Capture first: ${CAPTURE_COMMAND}`);
+      }
+      pair = [readFileSync(frozen[0]), readFileSync(frozen[1])];
+    }
+    const recomposed = (await visualDistance(pair[0], pair[1], size)).ratio;
     console.log(
       `[admin-v1-gate] controls ${vp}: identical=${identical.toFixed(3)} ` +
         SHIFTS[vp].map(([dx, dy], i) => `shift${dx}x${dy}=${shifted[i].toFixed(3)}`).join(" ") +
-        ` recomposed(overview vs lot)=${recomposed.toFixed(3)} floor=${RECOMPOSED_FLOOR} gate=${MIN_DISTANCE}`,
+        ` recomposed(${CAPTURE ? "live" : "frozen"} overview vs lot)=${recomposed.toFixed(3)} floor=${RECOMPOSED_FLOOR} gate=${MIN_DISTANCE}`,
     );
     expect(identical, "the same page rendered twice is (nearly) identical").toBeLessThan(MAX_RERENDER);
     for (const s of shifted) expect(s, "a slid render is not a redesign").toBeLessThan(MIN_DISTANCE);
