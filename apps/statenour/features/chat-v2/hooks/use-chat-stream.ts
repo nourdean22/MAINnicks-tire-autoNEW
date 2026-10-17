@@ -135,11 +135,18 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
     detachedSendWentRef.current = false;
     applyPageContext(readPageContext());
   }, [applyPageContext]);
+  // The anchors the latest USER turn went out with (undefined values included: a detached turn sent
+  // none). A replay of that turn sends these per call (PR #3090), so a detach tapped after the send
+  // changes only the NEXT user send, never what a Retry of the sent turn carries. Null: no turn sent
+  // here yet (a conversation opened from history), and a replay uses the body as it stands.
+  const sentAnchorsRef = useRef<Record<string, unknown> | null>(null);
   // Before a USER send: the first send after a detach goes out clean; the one after re-attaches first.
   const settlePageContextForSend = useCallback(() => {
-    if (!pageContextDetachedRef.current) return;
-    if (detachedSendWentRef.current) reattachPageContext();
-    else detachedSendWentRef.current = true;
+    if (pageContextDetachedRef.current) {
+      if (detachedSendWentRef.current) reattachPageContext();
+      else detachedSendWentRef.current = true;
+    }
+    sentAnchorsRef.current = Object.fromEntries(PAGE_ANCHOR_KEYS.map((key) => [key, bodyRef.current[key]]));
   }, [reattachPageContext]);
   useEffect(() => {
     applyPageContext(readPageContext());
@@ -496,7 +503,11 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
         traceAtSendRef.current = lastTraceIdRef.current;
         replaySnapshotRef.current = { conversation: conversationKeyOf(privateModeRef.current), messages: messagesRef.current };
         turnRefusedRef.current = false;
-        return chat.regenerate(options);
+        // PR #3090: the replay carries the page context its turn was sent with, per call (the transport
+        // spreads options.body over the shared body), whatever the chip says now.
+        const sent = sentAnchorsRef.current;
+        const latestTurn = !options?.messageId || options.messageId === messagesRef.current[messagesRef.current.length - 1]?.id;
+        return chat.regenerate(sent && latestTurn ? { ...options, body: { ...(options?.body as object | undefined), ...sent } } : options);
       };
       // A stream error is not the end of the turn: ai@6 keeps going after an error
       // part, so a tool-call plus finish(tool-calls) after it still runs the tool on
@@ -737,6 +748,7 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
     setStopped(null);
     setHold(null);
     reattachPageContext();
+    sentAnchorsRef.current = null;
     clearError();
     replaySnapshotRef.current = null;
     if (requestInFlight) return;

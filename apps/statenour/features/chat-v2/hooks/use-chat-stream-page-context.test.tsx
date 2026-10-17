@@ -78,8 +78,9 @@ beforeEach(() => {
     setMessages: vi.fn(),
     stop: vi.fn(),
     resumeStream: vi.fn(),
-    sendMessage: vi.fn(() => { bodies.push({ via: "send", body: { ...transport().transportBodyRef.current } }); }),
-    regenerate: vi.fn(() => { bodies.push({ via: "replay", body: { ...transport().transportBodyRef.current } }); }),
+    // The transport sends { ...bodyRef, ...options.body } (the ai HttpChatTransport merge), so a per-call body counts.
+    sendMessage: vi.fn((_m?: unknown, opts?: { body?: object }) => { bodies.push({ via: "send", body: { ...transport().transportBodyRef.current, ...opts?.body } }); }),
+    regenerate: vi.fn((opts?: { body?: object }) => { bodies.push({ via: "replay", body: { ...transport().transportBodyRef.current, ...opts?.body } }); }),
     clearError: vi.fn(() => {
       h.chat.error = undefined;
       h.chat.status = "ready";
@@ -141,6 +142,21 @@ async function holdStillChecking() {
   expect(ctl.hold, "M4: the second tap must hold with RETRY_STILL_CHECKING").toBe(RETRY_STILL_CHECKING);
 }
 const flush = async () => { for (let i = 0; i < 10; i++) await Promise.resolve(); };
+
+describe("a replay carries the page context its own turn was sent with (PR #3090, 4299648913)", () => {
+  it("attached turn sent, detach clicked while it streams: Retry of that turn still carries its anchors", async () => {
+    await act(async () => { await ctl.sendText("with the page"); });
+    expect(anchors(bodies.at(-1)!.body)).toEqual(ATTACHED);
+    act(() => ctl.detachPageContext()); // the chip's x, tapped while the turn is out
+    render();
+    await act(async () => { await ctl.regenerate(); });
+    expect(bodies.at(-1)?.via).toBe("replay");
+    expect(anchors(bodies.at(-1)!.body), "the replay must use the anchors its turn was sent with").toEqual(ATTACHED);
+    // the detach still covers the NEXT user send
+    await act(async () => { await ctl.sendText("next, without the page"); });
+    expect(anchors(bodies.at(-1)!.body), "the detach applies to the next user send").toEqual(CLEAN);
+  });
+});
 
 describe("the Retry hold is set by a second tap and cleared by what moves on (M3, M4)", () => {
   it("a second tap while the saved turn is being read holds with RETRY_STILL_CHECKING (M4)", async () => {
