@@ -126,6 +126,7 @@ const MODULES: Record<string, ModuleRule> = {
   "@shared/smsOptOutKeywords": { cls: "pure" },
   "../lib/logger": { cls: "pure" }, // stdout/stderr only
   "../lib/smsNotSentLog": { cls: "pure" }, // builds log fields
+  "../lib/smsQueueReplay": { cls: "pure" }, // MISSED_CALL_RECOVERY_VARIANT_KEY, a string constant (C5.5 round 2)
   "../lib/phone": { cls: "pure" },
   "../lib/dbErrors": { cls: "pure" },
   "drizzle-orm": { cls: "pure" },
