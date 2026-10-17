@@ -1,7 +1,8 @@
 name: Adoption gates
 
-# ast-grep + dependency-cruiser (blocking) and knip (advisory), adopted via
-# docs/UPSTREAMS.md rows dated 2026-08-27. The blocking job is install-free:
+# ast-grep + dependency-cruiser + curdate (blocking), adopted via
+# docs/UPSTREAMS.md rows dated 2026-08-27. The two knip gates (blocking since 2026-08-27, despite the old
+# "advisory" job label) now run as steps of `node` in test.yml (2026-10-16 CI diet). This job is install-free:
 # every tool runs through version-pinned `pnpm dlx`, so nothing here touches
 # pnpm-lock.yaml or a junctioned worktree.
 #
@@ -13,23 +14,35 @@ name: Adoption gates
 # NOTE: this repo has no branch protection, so a red run does not
 # mechanically block `gh pr merge`. Red means stop, by convention.
 
+# 2026-10-16 · CI diet.
+#  - paths-ignore: a diff that only touches markdown or the root docs/ tree cannot change what these gates
+#    scan (apps/statenour app/components/features/hooks/lib, apps/nickstire client + server SQL, knip's
+#    graph, config/adoption-gates), so it skips them instead of billing ~5 minutes. Any code file in the
+#    same diff runs them. workflowCostGuards.test.mjs asserts no scanned directory is ever ignored.
+#  - the curdate gate was its own 16-second job, billed as a full minute. It needs no install, same as
+#    static-gates, so its steps live here now, unchanged. `!cancelled()` keeps both verdicts visible when
+#    the first half is red, as the separate jobs did.
+#  - PR only: the PR head already ran these gates on the merge result, and a push to main re-ran the same
+#    scan for ~5.4 billed minutes a merge. No push trigger means no main run to cancel; PR pushes
+#    supersede each other. `node` in test.yml stays on main as the safety net.
 on:
   pull_request:
     branches: [main]
-  push:
-    branches: [main]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: adoption-gates-${{ github.ref }}
+  group: adoption-gates-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
   static-gates:
-    name: ast-grep + dependency-cruiser (blocking)
+    name: ast-grep + dependency-cruiser + curdate (blocking)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -81,104 +94,14 @@ jobs:
       - name: gate - layer boundaries + deprecated-card ban
         run: pnpm --package=dependency-cruiser@18.2.0 --package=typescript@5 dlx depcruise --config config/adoption-gates/.dependency-cruiser.cjs apps/statenour/app apps/statenour/components apps/statenour/features apps/statenour/lib
 
-  knip-advisory:
-    name: knip reachability census (advisory)
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
-        with:
-          node-version: 24
-          cache: pnpm
-
-      - name: install (statenour dependency graph only)
-        run: pnpm install --frozen-lockfile --filter "@statenour/web..."
-
-      - name: canary - knip must fail on a planted unused file
-        run: |
-          echo "export const knipCanary = 1" > apps/statenour/lib/__knip_canary__.ts
-          if pnpm dlx knip@6.32.3 --workspace apps/statenour --include files > /dev/null 2>&1; then
-            rm apps/statenour/lib/__knip_canary__.ts
-            echo "::error::knip canary - a planted unused file scanned clean; the census is blind"
-            exit 1
-          fi
-          rm apps/statenour/lib/__knip_canary__.ts
-          echo "canary OK: knip still sees unreachable files"
-
-      - name: knip reachability gate - zero unused files (blocking since 2026-08-27)
-        run: |
-          echo "## knip reachability gate - apps/statenour (blocking)" >> "$GITHUB_STEP_SUMMARY"
-          # GH Actions bash runs with pipefail, so knip's exit survives the tee.
-          pnpm dlx knip@6.32.3 --workspace apps/statenour --reporter markdown | tee -a "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "_Blocking since the 2026-08-27 wire-or-delete wave took the census 341 -> 0 (172 scripts declared as entries, 134 dead files deleted, 24 dynamic-referenced keeps in knip.json ignore with receipts). A new finding = a genuinely unreachable new file: wire it or delete it, never grow the ignore list without a path-reference receipt._" >> "$GITHUB_STEP_SUMMARY"
-
-  knip-orphan-gate:
-    name: knip orphan gate (no new unconsumed exports/files/scripts)
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
-        with:
-          node-version: 24
-          cache: pnpm
-
-      - name: install (nickstire dependency graph only)
-        run: pnpm install --frozen-lockfile --filter "nicks-tire-auto..."
-
-      # The gate sets its own dummy DATABASE_URL (knip loads drizzle.config.ts as
-      # a config file; nothing connects).
-
-      - name: canary - the gate must FAIL on a planted orphan
-        run: |
-          cd apps/nickstire
-          cp shared/reelScore.ts shared/reelScore.ts.bak
-          printf '\nexport function __orphanCanary__() { return 1; }\n' >> shared/reelScore.ts
-          if node scripts/knip-orphan-gate.mjs > /dev/null 2>&1; then
-            mv shared/reelScore.ts.bak shared/reelScore.ts
-            echo "::error::knip-orphan-gate canary - a planted unconsumed export scanned clean; the gate is blind"
-            exit 1
-          fi
-          mv shared/reelScore.ts.bak shared/reelScore.ts
-          echo "canary ok - planted orphan was caught"
-
-      - name: canary - the gate must PASS on a clean tree
-        run: |
-          cd apps/nickstire
-          node scripts/knip-orphan-gate.mjs > /dev/null || {
-            echo "::error::knip-orphan-gate reports failure on an unmodified tree - the gate is stuck red"
-            exit 1
-          }
-          echo "canary ok - clean tree passes"
-
-      - name: gate - no NEW unconsumed exports, files, or scripts
-        run: cd apps/nickstire && node scripts/knip-orphan-gate.mjs
-
-  curdate-gate:
-    name: curdate gate (no new bare CURDATE() in server SQL)
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
-        with:
-          node-version: 24
-
+      # ─── curdate gate (was its own job, `curdate gate (no new bare CURDATE() in server SQL)`) ───
       # No install: the gate is node stdlib only.
 
       # Two planted sites: the bare CURDATE() and one widened spelling, DATE(NOW()).
       # A nonzero exit alone proves nothing (a crash or a bad flag exits nonzero
       # too), so stderr must name the rule AND list each planted site.
       - name: canary - the gate must FAIL on a planted CURDATE()
+        if: ${{ !cancelled() }}
         run: |
           cd apps/nickstire
           cp server/services/shopSales.ts server/services/shopSales.ts.bak
@@ -211,6 +134,7 @@ jobs:
           echo "canary ok - both planted spellings were caught and the rule was named"
 
       - name: canary - the gate must PASS on a clean tree
+        if: ${{ !cancelled() }}
         run: |
           cd apps/nickstire
           node scripts/lint-curdate.mjs > "$RUNNER_TEMP/curdate-clean.out" || {
@@ -226,4 +150,5 @@ jobs:
           echo "canary ok - clean tree passes"
 
       - name: gate - no NEW bare CURDATE()
+        if: ${{ !cancelled() }}
         run: cd apps/nickstire && node scripts/lint-curdate.mjs
