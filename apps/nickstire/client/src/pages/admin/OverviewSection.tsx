@@ -4,41 +4,38 @@ import SalesCard from "./SalesCard";
 import PromisesPanel from "./PromisesPanel";
 import InspectionCapturePanel from "./InspectionCapturePanel";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
-import MessageCustomerLink, { buildMessageCustomerHref } from "@/components/admin/MessageCustomerLink";
+import { buildMessageCustomerHref } from "@/components/admin/MessageCustomerLink";
 import { getAdminActionableCounts } from "@/lib/adminActionableCounts";
 import { buildAdminSignals } from "@/lib/adminSignals";
 import { getBusinessDateKey, isBusinessDate } from "@/lib/businessDate";
 import { classifyIntegrationFreshness } from "@/lib/integrationFreshness";
+import { gatewayState } from "@/lib/gatewayState";
 import { trpc } from "@/lib/trpc";
 import { isCallbackDuplicateLead } from "@shared/leadSource";
-import {
-  AlertTriangle,
-  CalendarClock,
-  CheckCircle2,
-  Clock,
-  History,
-  Loader2,
-  MessageSquare,
-  Phone,
-  Plug,
-  RefreshCw,
-  ShieldCheck,
-  Users,
-  Wrench,
-} from "lucide-react";
-import { useMemo, useState } from "react";
+import { exceptionFeed } from "@shared/adminSignal";
+import { AlertTriangle, History, Loader2, Plug, RefreshCw } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { navigateToAdminSection, sectionsForRole } from "./shared";
 import type { AdminRole } from "@shared/adminPermissions";
 import { navigateToAdminUrl } from "./shared/navigation";
 import ArrivalLoadStrip from "./today/ArrivalLoadStrip";
+import ChecksRail from "./today/ChecksRail";
 import ExceptionFeed from "./today/ExceptionFeed";
 import { MorningBrief } from "./today/MorningBrief";
 import { getQueueActionDefinition } from "./today/queueActions";
+import { QueueRow } from "./today/QueueRow";
 import type { ActionItem, BookingItem, CallbackItem, LeadItem, WorkOrderItem } from "./today/types";
 
 const ACTIVE_LEAD_STATUSES = new Set(["new", "contacted"]);
-const ACTIVE_WORK_ORDER_STATUSES = new Set(["new", "scheduled", "in_progress", "waiting_parts", "quality_check"]);
+/**
+ * Finished work orders. Source: TERMINAL_STATUSES in server/services/workOrderService.ts (not exported), the
+ * same four that workOrders.list leaves out unless includeTerminal is set. Every other status is live work,
+ * draft and on_hold included, because the server returns them; a free-text status the client does not know
+ * yet therefore shows on the board instead of vanishing (the old five-name allow-list hid most of the lifecycle).
+ */
+const TERMINAL_WORK_ORDER_STATUSES = new Set(["picked_up", "invoiced", "closed", "cancelled"]);
+const isLiveWorkOrder = (wo: { status?: string | null }) => !TERMINAL_WORK_ORDER_STATUSES.has(wo.status ?? "");
 
 /**
  * Page size for the work-order read that feeds the action queue.
@@ -48,7 +45,11 @@ const ACTIVE_WORK_ORDER_STATUSES = new Set(["new", "scheduled", "in_progress", "
  * that into a visible "30+" rather than a precise-looking lie.
  */
 const WORK_ORDER_QUEUE_LIMIT = 30;
+/** Same page size as PromisesPanel's PANEL_LIMIT: the rail shares that query's cache entry, so the two must match. */
+const PROMISES_PAGE_LIMIT = 50;
 const UNKNOWN = "—";
+/** The board is finite: past this many rows it offers one "Show N more" row. */
+const BOARD_ROW_CAP = 12;
 
 /**
  * Signals the action queue below already renders, hidden from the exception
@@ -104,6 +105,15 @@ interface OwedTextItem {
 export default function OverviewSection() {
   const utils = trpc.useUtils();
   const [filter, setFilter] = useState<"all" | ActionItem["type"]>("all");
+  const [showAll, setShowAll] = useState(false);
+  /**
+   * Rows an action took off the queue, by id, with the detail line they had then. A row stays hidden
+   * only while the data still shows that same item; an id that leaves the data is forgotten, and an
+   * id that returns with a different detail (a customer texting again) shows at once.
+   */
+  const [doneRows, setDoneRows] = useState<ReadonlyMap<string, string>>(() => new Map());
+  // The polite live region's text: "Done: <name>" when a row leaves the board.
+  const [announcement, setAnnouncement] = useState("");
   const { data: security } = trpc.adminSecurity.status.useQuery();
   const canViewHistory = security?.permissions.includes("reports.view") ?? false;
   // Same derivation as the shell (Admin.tsx): the role decides where a work order can open.
@@ -115,6 +125,7 @@ export default function OverviewSection() {
     isError,
     error,
     refetch: refetchBundle,
+    dataUpdatedAt: bundleCheckedAt,
   } = trpc.adminDashboard.overviewMediumBundle.useQuery(undefined, {
     refetchInterval: 30_000,
     staleTime: 25_000,
@@ -161,6 +172,12 @@ export default function OverviewSection() {
       refetchInterval: 60_000,
       refetchIntervalInBackground: false,
     });
+  // Same key and options as MorningBrief's read, so this observer shares its cache: the Checks rail
+  // counts a down gateway as an open item now that the brief's gateway line lives inside it.
+  const { data: smsGw, isError: smsGwError } = trpc.sms.gatewayHealth.useQuery(undefined, { staleTime: 60_000 });
+  // Same key and options as PromisesPanel's read (limit 50, staleTime 60 s, retry 1), so the rail's
+  // overdue count comes from the panel's own cache entry, not a second fetch.
+  const { data: openPromises, isError: promisesFailed } = trpc.promises.listOpen.useQuery({ limit: PROMISES_PAGE_LIMIT }, { staleTime: 60_000, retry: 1 });
   const { data: recentActions } = trpc.adminSecurity.recentActions.useQuery(
     { limit: 8 },
     { enabled: canViewHistory, refetchInterval: 60_000, refetchIntervalInBackground: false },
@@ -236,7 +253,7 @@ export default function OverviewSection() {
   );
   const todayKey = getBusinessDateKey();
 
-  const queue = useMemo<ActionItem[]>(() => {
+  const allItems = useMemo<ActionItem[]>(() => {
     const items: ActionItem[] = [];
     for (const booking of bookings) {
       if (booking.status !== "new") continue;
@@ -283,7 +300,7 @@ export default function OverviewSection() {
       });
     }
     for (const workOrder of currentWorkOrders) {
-      if (!ACTIVE_WORK_ORDER_STATUSES.has(workOrder.status ?? "")) continue;
+      if (!isLiveWorkOrder(workOrder)) continue;
       const overdue = workOrder.promisedAt ? new Date(workOrder.promisedAt).getTime() < Date.now() : false;
       items.push({
         id: `workOrder-${workOrder.id}`,
@@ -317,8 +334,26 @@ export default function OverviewSection() {
     }
     return items.sort((a, b) => b.urgency - a.urgency || new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
   }, [bookings, callbacks, callbackServed, currentWorkOrders, leads, owedTexts]);
+  const queue = useMemo(() => allItems.filter((item) => doneRows.get(item.id) !== item.detail), [allItems, doneRows]);
+  // Forget done rows whose id is no longer in the data, so the same id coming back later is shown.
+  useEffect(() => {
+    setDoneRows((prev) => {
+      const present = new Set(allItems.map((item) => item.id));
+      const next = new Map([...prev].filter(([id]) => present.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [allItems, doneRows]);
+  /**
+   * Both reads the queue is built from have answered. The bundle can answer while the separate
+   * work-order read is still in flight; until it lands an empty board is not "done", it is loading.
+   * `data !== undefined` alone covers a pending, paused or disabled read: TanStack Query v5 derives
+   * isLoading as isPending && isFetching (query-core queryObserver.ts, `const isLoading`), and a
+   * query that is pending has no data, so a separate isLoading check could never veto anything.
+   */
+  const queueAnswered = bundle !== undefined && workOrders !== undefined;
 
   const filteredQueue = filter === "all" ? queue : queue.filter((item) => item.type === filter);
+  const boardRows = showAll ? filteredQueue : filteredQueue.slice(0, BOARD_ROW_CAP);
   const todaysBookings = bookings.filter(
     (booking) => booking.preferredDate === todayKey || isBusinessDate(booking.createdAt, todayKey),
   );
@@ -381,23 +416,29 @@ export default function OverviewSection() {
     return null;
   }
 
-  async function performPrimary(item: ActionItem) {
+  /**
+   * Both actions resolve true only when the write moved the item to a state the queue above excludes
+   * (booking confirmed or cancelled, callback completed, lead closed, text closed), so QueueRow can
+   * take the row off the board at once. A contacted lead is still an active lead and stays; opening a
+   * thread, a callback or a work order changes nothing on the board.
+   */
+  async function performPrimary(item: ActionItem): Promise<boolean> {
     const definition = getQueueActionDefinition(item.type);
     if (item.type === "text") {
       openTextThread(item);
-      return;
+      return false;
     }
     if (item.type === "workOrder") {
       const target = openWorkOrder(item);
       if (target) await logReceipt(item, "admin.work_order_opened", { status: item.status, target });
-      return;
+      return false;
     }
     const confirmed = await confirmDialog({
       title: definition.primaryConfirmTitle,
       message: definition.primaryConfirmMessage(item.name),
       confirmLabel: definition.primaryLabel,
     });
-    if (!confirmed) return;
+    if (!confirmed) return false;
     if (item.type === "booking") {
       await bookingUpdate.mutateAsync({ id: item.entityId, status: "confirmed" });
       await logReceipt(item, "admin.booking_confirmed", { from: item.status, to: "confirmed" });
@@ -409,9 +450,10 @@ export default function OverviewSection() {
       await logReceipt(item, "admin.callback_completed", { from: item.status, to: "completed" });
     }
     await utils.adminDashboard.overviewMediumBundle.invalidate();
+    return item.type !== "lead";
   }
 
-  async function performSecondary(item: ActionItem) {
+  async function performSecondary(item: ActionItem): Promise<boolean> {
     const definition = getQueueActionDefinition(item.type);
     if (item.type === "text") {
       const confirmed = await confirmDialog({
@@ -419,21 +461,21 @@ export default function OverviewSection() {
         message: definition.secondaryConfirmMessage(item.name),
         confirmLabel: definition.secondaryLabel,
       });
-      if (!confirmed) return;
+      if (!confirmed) return false;
       const { closed } = await markNoReplyNeeded.mutateAsync({ conversationId: item.entityId });
       await logReceipt(item, "admin.text_no_reply_needed", { closed });
       await utils.adminDashboard.overviewMediumBundle.invalidate();
-      return;
+      return Boolean(closed);
     }
     if (item.type === "callback") {
       navigateToAdminSection("callTrackingView");
       await logReceipt(item, "admin.callback_opened", { status: item.status });
-      return;
+      return false;
     }
     if (item.type === "workOrder") {
       const target = openWorkOrder(item);
       if (target) await logReceipt(item, "admin.work_order_opened", { status: item.status, target });
-      return;
+      return false;
     }
     const confirmed = await confirmDialog({
       title: definition.secondaryConfirmTitle,
@@ -441,7 +483,7 @@ export default function OverviewSection() {
       confirmLabel: definition.secondaryLabel,
       tone: definition.secondaryDestructive ? "danger" : "default",
     });
-    if (!confirmed) return;
+    if (!confirmed) return false;
     if (item.type === "booking") {
       await bookingUpdate.mutateAsync({ id: item.entityId, status: "cancelled" });
       await logReceipt(item, "admin.booking_cancelled", { from: item.status, to: "cancelled" });
@@ -450,7 +492,15 @@ export default function OverviewSection() {
       await logReceipt(item, "admin.lead_closed", { from: item.status, to: "closed" });
     }
     await utils.adminDashboard.overviewMediumBundle.invalidate();
+    return true;
   }
+
+  /** A row's action never rejects: a failure keeps the row and says why. */
+  const guarded = (run: (item: ActionItem) => Promise<boolean>, item: ActionItem) => () =>
+    run(item).catch((actionError: unknown) => {
+      toast.error(actionError instanceof Error ? actionError.message : "Action failed");
+      return false;
+    });
 
   const mutationPending = bookingUpdate.isPending || leadUpdate.isPending || callbackUpdate.isPending || markNoReplyNeeded.isPending || recordAction.isPending;
 
@@ -472,50 +522,52 @@ export default function OverviewSection() {
     [leads],
   );
 
+  /**
+   * The Checks rail's summary. It folds every monitoring panel away on a phone, so it must say how
+   * many of them need a look: the exceptions the feed would list (an unknown reading counts), an
+   * integration that is not fresh, and an SMS gateway that is down or unreadable. With nothing open
+   * it only says "nothing open" when every feed source actually reported.
+   */
+  const feedHidden = new Set<string>([...QUEUE_COVERED_SIGNAL_IDS, ...DUPLICATE_ALIAS_SIGNAL_IDS]);
+  const feedSignals = signals.filter((s) => !feedHidden.has(s.id));
+  const gateway = gatewayState(smsGw, smsGwError);
+  // Promises count only when overdue; a failed promise read is "promises unknown", never zero.
+  const overduePromises = promisesFailed || !openPromises ? null : openPromises.filter((p) => new Date(p.dueAt).getTime() < Date.now()).length;
+  // The read is ordered most overdue first and capped, so a page that is ALL overdue means more may exist
+  // past it: the count is a lower bound ("50+"), the same convention PromisesPanel uses for a full page.
+  const promisesAtLeast = overduePromises !== null && overduePromises >= PROMISES_PAGE_LIMIT;
+  const exceptionCount = exceptionFeed(feedSignals).length;
+  const freshnessOpen = integration.state !== "fresh";
+  const gatewayOpen = gateway === "offline" || gateway === "unknown" || gateway === "not_configured";
+  const openChecks = (overduePromises ?? 0) + exceptionCount + (freshnessOpen ? 1 : 0) + (gatewayOpen ? 1 : 0);
+  const openParts = [
+    overduePromises ? `${overduePromises}${promisesAtLeast ? "+" : ""} overdue promise${overduePromises === 1 ? "" : "s"}` : null,
+    exceptionCount ? `${exceptionCount} exception${exceptionCount === 1 ? "" : "s"}` : null,
+    freshnessOpen ? "freshness" : null,
+    gatewayOpen ? "gateway" : null,
+  ].filter(Boolean);
+  // A gateway still being read ("checking") is neither open nor clear, so it blocks the all-clear line.
+  const allMeasured =
+    overduePromises !== null && gateway !== "checking" && feedSignals.length > 0 && feedSignals.every((s) => s.reading.state === "counted");
+  const checksStatus = [
+    openChecks > 0 ? `${openChecks}${promisesAtLeast ? "+" : ""} open: ${openParts.join(", ")}` : allMeasured ? "nothing open in promises, exceptions, freshness, gateway" : "not all measured",
+    promisesFailed ? "promises unknown" : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
   if (isLoading) {
     return <div className="min-h-[50vh] flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
   }
 
   return (
-    <div className="space-y-5" aria-label="Today operator command center">
+    <div className="space-y-6" aria-label="Today operator command center">
       <DegradedDataBanner stats={stats} unavailable={isError} unavailableMessage={error?.message} onRetry={() => void refetchBundle()} />
 
-      {/* The overnight header. It reads from the SAME `queue` and
-          `urgentLeadCount` the cards below render, so the brief cannot
-          disagree with the page it introduces — the failure mode that made
-          `countActionableLeads` a shared function rather than two SQL
-          predicates. It self-suppresses when there is no real signal. */}
-      <MorningBrief priorityQueueLength={queue.length} urgentLeads={urgentLeadCount} queueTrustworthy={queueTrustworthy} />
-
-      {/* SALES LEADS THE PAGE (2026-09-07).
-          Measured on the live admin the same day: this home carried NO revenue
-          figure anywhere. The page opened with a 227-item decision queue and the
-          four summary counts sat SEVENTH, below an "Automation Lift" panel last
-          measured 2026-06-07 with three of its four metrics at 0.0%.
-          The owner's first question is what the shop sold, so it is answered
-          first. Deliberately NOT "Total Sales" — see SalesCard's header. */}
-      <SalesCard />
-
-      {/* Arrival load (NT-008) — the walk-in shop's planning signal: who said
-          they're coming today (expected_arrivals' FIRST client consumer) +
-          tomorrow's preferred-date bookings from the same bundle this page
-          already fetched. Self-suppresses when empty AND healthy. */}
-      <ArrivalLoadStrip bookings={bookings} bookingsTrustworthy={!unavailable.includes("bookings")} />
-
-      {/* The owner Decision Inbox was RETIRED from this page on 2026-09-07 by
-          operator decision: a queue that leads the day manufactures obligations
-          on a healthy day. The service is unchanged — `opportunityQueue.list`
-          is now mounted as the staff-facing Follow-ups tab under Sales Pipeline,
-          and the operational rails (declinedWorkRecovery, missedCallRecovery,
-          staleLeadFollowup) were always where real follow-ups live. Do NOT
-          re-mount a decision queue here under another name. */}
-
-      {/* 2026-09-07 · READING ORDER. The numbers now come before the panels.
-          These three (promises, automation lift, DVI capture) used to sit
-          between Arrival load and the summary counts, which put an A/B-lift
-          panel last measured 2026-06-07 — three of its four metrics at 0.0% —
-          above the four figures describing today. They are monitoring, not
-          answers, so they follow the counts they were burying. */}
+      {/* The verdict: one line from the brief, read from the SAME `queue` and `urgentLeadCount` the
+          board and strip below render, so it cannot disagree with them. Its calls and gateway line
+          lives in the Checks rail. */}
+      <MorningBrief part="verdict" priorityQueueLength={queue.length} urgentLeads={urgentLeadCount} queueTrustworthy={queueTrustworthy} />
 
       {/* A slice can fail while the request succeeds. Without this the operator
           sees a clean board built on reads that never happened. */}
@@ -528,7 +580,88 @@ export default function OverviewSection() {
         </div>
       )}
 
-      <section className="grid grid-cols-2 lg:grid-cols-4 gap-3" aria-label="Today summary">
+      {/* THE BOARD (admin UI v1 W2). The queue is the page, not a card: ruled rows the crew acts on
+          in place, finite, ending in one line when nothing is left. The owner Decision Inbox was
+          retired from this page on 2026-09-07 by operator decision; do NOT re-mount a decision queue
+          here under another name. */}
+      <section aria-labelledby="queue-title">
+        <h2 id="queue-title" className="text-[15px] font-semibold">Priority action queue</h2>
+        {/* Six chips do not fit 390 px, so the strip scrolls; the right-edge fade says there is more. */}
+        <div
+          className="mt-2 -mx-1 px-1 flex gap-1.5 overflow-x-auto"
+          style={{ maskImage: "linear-gradient(to right, black calc(100% - 24px), transparent)", WebkitMaskImage: "linear-gradient(to right, black calc(100% - 24px), transparent)" }}
+          role="group"
+          aria-label="Filter queue"
+        >
+          {(["all", "booking", "lead", "callback", "workOrder", "text"] as const).map((value) => (
+            <button key={value} type="button" onClick={() => setFilter(value)} aria-pressed={filter === value} className={`min-h-12 px-3.5 shrink-0 rounded-md text-[13px] ${filter === value ? "bg-secondary text-foreground font-semibold border border-border/60" : "text-muted-foreground"}`}>
+              {value === "all" ? "All" : value === "workOrder" ? "Work orders" : `${value.charAt(0).toUpperCase()}${value.slice(1)}s`}
+            </button>
+          ))}
+        </div>
+
+        {filteredQueue.length === 0 ? (
+          /*
+           * An empty queue is only an all-clear if every source that feeds it was actually read
+           * (queueTrustworthy covers the bundle, its slices and the separate work-order query). The
+           * unreadable state is the W0 contract; its text stays as it is.
+           */
+          !queueTrustworthy ? (
+            <div className="py-8 text-center text-amber-600" role="status">
+              <AlertTriangle className="w-7 h-7 mx-auto mb-2" />
+              <p className="text-sm font-medium">Queue unreadable: this is UNKNOWN, not clear</p>
+              <p className="text-xs mt-1 text-amber-600/80">
+                At least one source failed. Work may be waiting that this list could not load.
+              </p>
+            </div>
+          ) : !queueAnswered ? (
+            <p className="py-8 text-center text-[13px] text-muted-foreground" role="status">Loading the queue</p>
+          ) : filter === "all" ? (
+            <div className="py-10 text-center" role="status">
+              <p className="text-[17px] font-medium">Done for today. Nothing needs you.</p>
+              {bundleCheckedAt ? (
+                <p className="mt-1 text-[13px] text-muted-foreground">
+                  Checked {new Date(bundleCheckedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+                </p>
+              ) : null}
+            </div>
+          ) : (
+            <p className="py-8 text-center text-[13px] text-muted-foreground" role="status">No pending actions in this view</p>
+          )
+        ) : (
+          <div className="mt-1 divide-y divide-border border-y border-border">
+            {boardRows.map((item) => {
+              const definition = getQueueActionDefinition(item.type);
+              return (
+                <QueueRow
+                  key={item.id}
+                  item={item}
+                  typeLabel={requestLabel(item)}
+                  primaryLabel={definition.primaryLabel}
+                  shortLabel={definition.shortLabel}
+                  secondaryLabel={definition.secondaryLabel !== definition.primaryLabel ? definition.secondaryLabel : undefined}
+                  body={`Hi ${item.name.split(" ")[0]}, it's Nick's Tire following up on your ${requestLabel(item)}.`}
+                  disabled={mutationPending}
+                  onPrimary={guarded(performPrimary, item)}
+                  onSecondary={guarded(performSecondary, item)}
+                  onGone={() => {
+                    setDoneRows((prev) => new Map(prev).set(item.id, item.detail));
+                    setAnnouncement(`Done: ${item.name}`);
+                  }}
+                />
+              );
+            })}
+            {filteredQueue.length > boardRows.length && (
+              <button type="button" onClick={() => setShowAll(true)} className="w-full min-h-12 text-[14px] font-medium text-foreground/85">
+                Show {filteredQueue.length - boardRows.length} more
+              </button>
+            )}
+          </div>
+        )}
+        <p className="sr-only" aria-live="polite">{announcement}</p>
+      </section>
+
+      <section className="grid grid-cols-4 gap-2" aria-label="Today summary">
         <SummaryCard
           label="Needs action"
           value={queueTrustworthy ? (queueSaturated ? `${queue.length}+` : queue.length) : UNKNOWN}
@@ -538,172 +671,112 @@ export default function OverviewSection() {
               : queueSaturated
                 ? "At least this many: work-order list is capped"
                 : queue.length
-                  ? "Open queue items"
-                  : "All clear"
+                  ? undefined
+                  : queueAnswered
+                    ? "All clear"
+                    : "Loading"
           }
           alert={queue.length > 0 || !queueTrustworthy}
           priority={queueTrustworthy && queue.length > 0}
         />
-        <SummaryCard label="Bookings today" value={bookingsKnown ? todaysBookings.length : UNKNOWN} detail={bookingsKnown ? `Cleveland date · ${todayKey}` : "Unable to determine"} />
-        <SummaryCard label="Urgent leads" value={leadsKnown ? urgentLeadCount : UNKNOWN} detail={leadsKnown ? "Included once" : "Unable to determine"} />
+        <SummaryCard label="Bookings today" value={bookingsKnown ? todaysBookings.length : UNKNOWN} detail={bookingsKnown ? undefined : "Unable to determine"} />
+        <SummaryCard label="Urgent leads" value={leadsKnown ? urgentLeadCount : UNKNOWN} detail={leadsKnown ? undefined : "Unable to determine"} />
         {/*
-          Fed by the SAME query as the "Needs action" card. It used to render a
-          neutral "0" while that card, on the identical failure, correctly read
-          "— / Unable to determine" — two cards side by side disagreeing about
+          Fed by the SAME query as the "Needs action" number. It used to render a
+          neutral "0" while that number, on the identical failure, correctly read
+          "unknown / Unable to determine": two cells side by side disagreeing about
           whether the shop floor had been read at all.
         */}
         <SummaryCard
           label="Active work orders"
-          value={workOrdersFailed ? UNKNOWN : currentWorkOrders.filter((wo) => ACTIVE_WORK_ORDER_STATUSES.has(wo.status ?? "")).length}
-          detail={workOrdersFailed ? "Unable to determine" : "Shop floor"}
+          value={workOrdersFailed ? UNKNOWN : currentWorkOrders.filter(isLiveWorkOrder).length}
+          detail={workOrdersFailed ? "Unable to determine" : undefined}
           alert={workOrdersFailed}
         />
       </section>
 
-      {/* Promise Ledger (0102) — log promises the moment they're made;
-          the sweep escalates overdue ones into the queue read on the
-          Opportunities tab. */}
-      <PromisesPanel />
+      {/* SALES (2026-09-07): what the shop billed, unchanged, now below the work. */}
+      <SalesCard />
 
-      {/* DVI capture (drop-off intake) — the inspection loop's inlet:
-          findings + photos → publish → hand the customer the link. */}
-      <InspectionCapturePanel />
+      {/* Arrival load (NT-008): who said they're coming today plus tomorrow's preferred-date bookings,
+          from the same bundle. Self-suppresses when empty AND healthy. */}
+      <ArrivalLoadStrip bookings={bookings} bookingsTrustworthy={!unavailable.includes("bookings")} />
 
-      {/* Automation lift (2026-07-29) — first admin consumer of the
-          closedLoop A/B lift math (it previously reached the operator
-          only via Telegram digest): winning / flat / hurting with the
-          wave receipts underneath. Sits below the day's own numbers: it is a
-          slow-moving measurement, not something the operator acts on today. */}
-      <ClosedLoopLiftPanel />
+      {/* CHECKS: everything that monitors rather than asks for work, under one rail. */}
+      <ChecksRail status={checksStatus} alert={openChecks > 0 || promisesFailed}>
+        <MorningBrief part="signals" priorityQueueLength={queue.length} urgentLeads={urgentLeadCount} queueTrustworthy={queueTrustworthy} />
 
-      {/*
-        Cross-domain exceptions: publishing holds, tire orders and membership
-        warnings, plus anything the system could not read. The action queue
-        below covers bookings / leads / callbacks / work orders and knows
-        nothing about the rest, so these had no surface on Today at all.
-      */}
-      <ExceptionFeed signals={signals} hideIds={[...QUEUE_COVERED_SIGNAL_IDS, ...DUPLICATE_ALIAS_SIGNAL_IDS]} />
+        {/* Promise Ledger (0102): log promises the moment they're made; the sweep escalates overdue
+            ones into the queue read on the Opportunities tab. */}
+        <PromisesPanel />
 
-      <section className="rounded-lg border border-border/40 bg-card p-4" aria-labelledby="freshness-title">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h2 id="freshness-title" className="text-sm font-semibold flex items-center gap-2"><Plug className="w-4 h-4 text-primary" />Integration freshness</h2>
-            <p className={`mt-1 text-xs ${integration.state === "fresh" ? "text-emerald-400" : integration.state === "stale" || integration.state === "unknown" ? "text-amber-400" : "text-red-400"}`}>
-              ALG / ShopDriver · {integration.label}
-              {/* Keep the last-success timestamp on a FAILING card. It is the
-                  most useful number there — it says how long the outage has
-                  been running — but it must never be the only thing shown,
-                  which is what made a live failure read as freshly synced. */}
-              {freshness?.lastSuccessfulAt ? ` · last success ${new Date(freshness.lastSuccessfulAt).toLocaleString()}` : ""}
-            </p>
-            <p className="mt-1 text-[10px] text-muted-foreground">Source: {freshness?.source ?? "unknown"} · checked {freshness?.generatedAt ? new Date(freshness.generatedAt).toLocaleTimeString() : "—"}</p>
-          </div>
-          <button type="button" onClick={() => refetchFreshness()} className="inline-flex items-center justify-center min-h-12 min-w-12 rounded-md border border-border/40 text-muted-foreground hover:text-foreground" aria-label="Refresh integration freshness">
-            <RefreshCw className={`w-4 h-4 ${freshnessFetching ? "animate-spin" : ""}`} />
-          </button>
-        </div>
-      </section>
+        {/* DVI capture (drop-off intake): findings + photos, publish, hand the customer the link. */}
+        <InspectionCapturePanel />
 
-      <section className="rounded-lg border border-primary/20 bg-card p-4" aria-labelledby="queue-title">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-          <div>
-            <h2 id="queue-title" className="text-sm font-semibold flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-primary" />Priority action queue</h2>
-            <p className="text-xs text-muted-foreground mt-1">Every completed action returns a durable ACT reference.</p>
-          </div>
-          <div className="flex flex-wrap gap-1" role="group" aria-label="Filter queue">
-            {(["all", "booking", "lead", "callback", "workOrder", "text"] as const).map((value) => (
-              <button key={value} type="button" onClick={() => setFilter(value)} aria-pressed={filter === value} className={`min-h-12 px-3 rounded text-xs ${filter === value ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"}`}>
-                {value === "all" ? "All" : value === "workOrder" ? "Work orders" : `${value.charAt(0).toUpperCase()}${value.slice(1)}s`}
-              </button>
-            ))}
-          </div>
-        </div>
+        {/* Automation lift (2026-07-29): the closedLoop A/B lift math, a slow-moving measurement. */}
+        <ClosedLoopLiftPanel />
 
-        {filteredQueue.length === 0 ? (
-          /*
-           * An empty queue is only an all-clear if every source that feeds it
-           * was actually read.
-           *
-           * This branch used to test `filteredQueue.length === 0` and nothing
-           * else — not queueTrustworthy, not workOrdersFailed, not the bundle's
-           * unavailable slices. So on a work-order failure the operator got a
-           * large emerald check reading "No pending actions in this view" on
-           * the SAME render where the card above said "— / Unable to
-           * determine", and no banner on the page covers that query. With the
-           * type filter selected it was worse still: a green check asserting
-           * work orders specifically were clear, sourced from a query that had
-           * failed.
-           */
-          !queueTrustworthy ? (
-            <div className="py-10 text-center text-amber-600" role="status">
-              <AlertTriangle className="w-7 h-7 mx-auto mb-2" />
-              <p className="text-sm font-medium">Queue unreadable: this is UNKNOWN, not clear</p>
-              <p className="text-xs mt-1 text-amber-600/80">
-                At least one source failed. Work may be waiting that this list could not load.
+        {/*
+          Cross-domain exceptions: publishing holds, tire orders and membership
+          warnings, plus anything the system could not read. The board covers
+          bookings / leads / callbacks / work orders / texts and knows nothing about
+          the rest, so these had no surface on Today at all.
+        */}
+        <ExceptionFeed signals={signals} hideIds={[...QUEUE_COVERED_SIGNAL_IDS, ...DUPLICATE_ALIAS_SIGNAL_IDS]} />
+
+        <section className="rounded-lg border border-border/40 bg-card p-4" aria-labelledby="freshness-title">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 id="freshness-title" className="text-sm font-semibold flex items-center gap-2"><Plug className="w-4 h-4 text-primary" />Integration freshness</h2>
+              <p className={`mt-1 text-xs ${integration.state === "fresh" ? "text-emerald-400" : integration.state === "stale" || integration.state === "unknown" ? "text-amber-400" : "text-red-400"}`}>
+                ALG / ShopDriver · {integration.label}
+                {/* Keep the last-success timestamp on a FAILING card. It is the
+                    most useful number there (it says how long the outage has
+                    been running) but it must never be the only thing shown,
+                    which is what made a live failure read as freshly synced. */}
+                {freshness?.lastSuccessfulAt ? ` · last success ${new Date(freshness.lastSuccessfulAt).toLocaleString()}` : ""}
               </p>
+              <p className="mt-1 text-[10px] text-muted-foreground">Source: {freshness?.source ?? "unknown"} · checked {freshness?.generatedAt ? new Date(freshness.generatedAt).toLocaleTimeString() : "—"}</p>
             </div>
-          ) : (
-            <div className="py-10 text-center text-emerald-400"><CheckCircle2 className="w-7 h-7 mx-auto mb-2" /><p className="text-sm font-medium">No pending actions in this view</p></div>
-          )
-        ) : (
-          <div className="space-y-2">
-            {filteredQueue.map((item) => {
-              const definition = getQueueActionDefinition(item.type);
-              const Icon = item.type === "booking" ? CalendarClock : item.type === "lead" ? Users : item.type === "callback" ? Phone : item.type === "text" ? MessageSquare : Wrench;
-              return (
-                <article key={item.id} className="rounded-md border border-border/30 bg-background/50 p-3 flex flex-col lg:flex-row lg:items-center gap-3">
-                  <div className="flex items-start gap-3 flex-1 min-w-0">
-                    <Icon className="w-4 h-4 text-primary mt-1 shrink-0" />
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-medium truncate">{item.name}</h3><span className="text-[9px] rounded bg-muted px-1.5 py-0.5">{requestLabel(item)}</span>{item.urgency >= 4 && <span className="text-[9px] rounded bg-red-500/10 text-red-400 px-1.5 py-0.5">Urgent</span>}</div>
-                      <p className="text-xs text-muted-foreground mt-1 truncate">{item.detail}</p>
-                      <p className="text-[10px] text-muted-foreground/70 mt-1 flex items-center gap-1"><Clock className="w-3 h-3" />{new Date(item.createdAt).toLocaleString()}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {item.phone && <a href={`tel:${item.phone}`} className="inline-flex items-center justify-center min-h-12 min-w-12 rounded border border-border/40" aria-label={`Call ${item.name}`}><Phone className="w-4 h-4" /></a>}
-                    {item.phone && <MessageCustomerLink phone={item.phone} body={`Hi ${item.name.split(" ")[0]}, it's Nick's Tire following up on your ${requestLabel(item)}.`} className="inline-flex items-center justify-center min-h-12 min-w-12 rounded border border-border/40" title="Message customer" ariaLabel={`Message ${item.name}`}><MessageSquare className="w-4 h-4" /></MessageCustomerLink>}
-                    <button type="button" disabled={mutationPending} onClick={() => performPrimary(item).catch((actionError) => toast.error(actionError instanceof Error ? actionError.message : "Action failed"))} className="min-h-12 px-3 rounded bg-primary text-primary-foreground text-xs font-semibold disabled:opacity-50">{definition.primaryLabel}</button>
-                    {definition.secondaryLabel !== definition.primaryLabel && <button type="button" disabled={mutationPending} onClick={() => performSecondary(item).catch((actionError) => toast.error(actionError instanceof Error ? actionError.message : "Action failed"))} className="min-h-12 px-3 rounded border border-border/50 text-xs font-medium disabled:opacity-50">{definition.secondaryLabel}</button>}
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        )}
-      </section>
-
-      {canViewHistory && (
-        <section className="rounded-lg border border-border/40 bg-card p-4" aria-labelledby="history-title">
-          <h2 id="history-title" className="text-sm font-semibold flex items-center gap-2"><History className="w-4 h-4 text-primary" />Recent action receipts</h2>
-          <div className="mt-3 space-y-2">
-            {(recentActions ?? []).length === 0 ? <p className="text-xs text-muted-foreground">No recorded admin actions yet.</p> : (recentActions ?? []).map((entry: any) => (
-              <div key={entry.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 rounded border border-border/20 bg-background/40 px-3 py-2">
-                <div><p className="text-xs font-medium">{entry.action}</p><p className="text-[10px] text-muted-foreground">{entry.actor} · {entry.entityId || "—"}</p></div>
-                <div className="text-[10px] font-mono text-muted-foreground">{entry.changes?.reference || "ACT"} · {new Date(entry.createdAt).toLocaleString()}</div>
-              </div>
-            ))}
+            <button type="button" onClick={() => refetchFreshness()} className="inline-flex items-center justify-center min-h-12 min-w-12 rounded-md border border-border/40 text-muted-foreground hover:text-foreground" aria-label="Refresh integration freshness">
+              <RefreshCw className={`w-4 h-4 ${freshnessFetching ? "animate-spin" : ""}`} />
+            </button>
           </div>
         </section>
-      )}
+
+        {canViewHistory && (
+          <section className="rounded-lg border border-border/40 bg-card p-4" aria-labelledby="history-title">
+            <h2 id="history-title" className="text-sm font-semibold flex items-center gap-2"><History className="w-4 h-4 text-primary" />Recent action receipts</h2>
+            <div className="mt-3 space-y-2">
+              {(recentActions ?? []).length === 0 ? <p className="text-xs text-muted-foreground">No recorded admin actions yet.</p> : (recentActions ?? []).map((entry: any) => (
+                <div key={entry.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 rounded border border-border/20 bg-background/40 px-3 py-2">
+                  <div><p className="text-xs font-medium">{entry.action}</p><p className="text-[10px] text-muted-foreground">{entry.actor} · {entry.entityId || "—"}</p></div>
+                  <div className="text-[10px] font-mono text-muted-foreground">{entry.changes?.reference || "ACT"} · {new Date(entry.createdAt).toLocaleString()}</div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+      </ChecksRail>
     </div>
   );
 }
 
 /**
- * `value` accepts a string so this card can say "—" for UNKNOWN.
+ * One number of the summary strip. `value` accepts a string so it can say "—" for UNKNOWN.
  *
  * It was `number`, which meant the component structurally could not express
- * "we could not read this" — the only options were a count or a zero, and zero
- * is a claim. The type was enforcing the defect.
+ * "we could not read this": the only options were a count or a zero, and zero
+ * is a claim. The type was enforcing the defect. `detail` only renders when it
+ * says something the number cannot (unknown, capped, all clear).
  */
-function SummaryCard({ label, value, detail, alert = false, priority = false }: { label: string; value: number | string; detail: string; alert?: boolean; priority?: boolean }) {
+function SummaryCard({ label, value, detail, alert = false, priority = false }: { label: string; value: number | string; detail?: string; alert?: boolean; priority?: boolean }) {
   // `priority` is the owner-priority gold (index.css --owner-priority): work is waiting and the count is real.
   return (
-    <div className={`rounded-lg border bg-card p-4 ${priority ? "border-[var(--owner-priority)]" : "border-border/40"}`}>
-      <div className={`text-2xl font-bold tabular-nums ${priority ? "text-[var(--owner-priority)]" : alert ? "text-red-400" : "text-foreground"}`}>{value}</div>
-      <div className="text-[10px] text-muted-foreground mt-1">{label}</div>
-      <div className="text-[10px] text-muted-foreground/70 mt-1">{detail}</div>
+    <div className="min-w-0">
+      <div className={`text-2xl font-bold tabular-nums leading-none ${priority ? "text-[var(--owner-priority)]" : alert ? "text-red-400" : "text-foreground"}`}>{value}</div>
+      <div className="mt-1.5 text-[12px] leading-tight text-muted-foreground">{label}</div>
+      {detail && <div className="mt-1 text-[12px] leading-tight text-muted-foreground">{detail}</div>}
     </div>
   );
 }

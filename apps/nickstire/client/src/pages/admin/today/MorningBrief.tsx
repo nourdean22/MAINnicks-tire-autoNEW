@@ -42,6 +42,11 @@ interface MorningBriefProps {
    * production caller (OverviewSection) always passes it.
    */
   queueTrustworthy?: boolean;
+  /**
+   * Admin UI v1 W2: Today shows only the "Now:" verdict on top ("verdict") and moves the calls and
+   * gateway line into its Checks rail ("signals"). Omitted, the brief renders everything.
+   */
+  part?: "verdict" | "signals";
 }
 
 /** Time-of-day greeting */
@@ -53,14 +58,14 @@ function greeting(): string {
   return "Good evening";
 }
 
-export function MorningBrief({ priorityQueueLength, urgentLeads, queueTrustworthy = true }: MorningBriefProps) {
+export function MorningBrief({ priorityQueueLength, urgentLeads, queueTrustworthy = true, part }: MorningBriefProps) {
   // Existing queries that already render elsewhere · cheap to reuse
   const { data: dashStats } = trpc.adminDashboard.stats.useQuery(undefined, { staleTime: 60_000 });
   const { data: smsGw, isError: smsGwError } = trpc.sms.gatewayHealth.useQuery(undefined, { staleTime: 60_000 });
   const { data: callsData } = trpc.vapi.recentCalls.useQuery({ limit: 30 }, { staleTime: 120_000 });
 
-  const lines = useMemo<{ icon: React.ReactNode; text: string; tone: "good" | "warn" | "info" }[]>(() => {
-    const out: { icon: React.ReactNode; text: string; tone: "good" | "warn" | "info" }[] = [];
+  const lines = useMemo<{ icon: React.ReactNode; text: string; tone: "good" | "warn" | "info"; now?: true }[]>(() => {
+    const out: { icon: React.ReactNode; text: string; tone: "good" | "warn" | "info"; now?: true }[] = [];
     const gw = gatewayState(smsGw, smsGwError);
 
     // Line 1 · THIS WEEK'S CLOSE
@@ -124,49 +129,49 @@ export function MorningBrief({ priorityQueueLength, urgentLeads, queueTrustworth
         icon: <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />,
         text: "Now: queue unknown · a source read failed",
         tone: "warn",
+        now: true,
       });
     } else if (priorityBits.length > 0) {
       out.push({
         icon: <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />,
         text: `Now: ${priorityBits.join(" · ")}`,
         tone: "warn",
+        now: true,
       });
     } else {
       out.push({
         icon: <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />,
         text: "Now: all clear · no pending actions",
         tone: "good",
+        now: true,
       });
     }
 
     return out;
   }, [dashStats, smsGw, smsGwError, callsData, priorityQueueLength, urgentLeads, queueTrustworthy]);
 
+  const shown = part === "verdict" ? lines.filter((l) => l.now) : part === "signals" ? lines.filter((l) => !l.now) : lines;
+  if (part === "signals" && shown.length === 0) return null;
+  const textTone = (tone: "good" | "warn" | "info") =>
+    tone === "good" ? "text-foreground/85" : tone === "warn" ? "text-amber-300" : "text-foreground/50";
+
   return (
-    <div className="bg-card border border-border/40 p-4 space-y-2.5">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="eyebrow">
-            {greeting()} · daily brief
+    <div className={part ? "space-y-1.5" : "bg-card border border-border/40 p-4 space-y-2.5"}>
+      {part !== "signals" && (
+        <div className="flex items-center justify-between">
+          <span className="eyebrow">{part === "verdict" ? greeting() : `${greeting()} · daily brief`}</span>
+          <span className="text-[12px] text-muted-foreground">
+            {new Date().toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
           </span>
         </div>
-        <span className="text-[10px] tracking-wider text-foreground/30">
-          {new Date().toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
-        </span>
-      </div>
+      )}
       <div className="space-y-1.5">
-        {lines.map((line, i) => (
+        {shown.map((line, i) => (
           <div key={i} className="flex items-center gap-2.5">
             <span className="shrink-0">{line.icon}</span>
-            <span
-              className={`text-[12.5px] leading-tight ${
-                line.tone === "good"
-                  ? "text-foreground/85"
-                  : line.tone === "warn"
-                    ? "text-amber-300"
-                    : "text-foreground/50"
-              }`}
-            >
+            {/* On the board the verdict is plain text: gold belongs to the Needs action number, and
+                amber is kept for the one verdict that is a warning, the unknown queue. */}
+            <span className={`${part === "verdict" ? `text-[17px] font-medium ${queueTrustworthy ? "text-foreground" : "text-amber-300"}` : `text-[12.5px] ${textTone(line.tone)}`} leading-tight`}>
               {line.text}
             </span>
           </div>
