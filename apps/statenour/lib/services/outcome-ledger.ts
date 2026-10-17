@@ -72,6 +72,9 @@ export const NON_CORRECTION_DISMISS_REFS = ["dismiss:timing", "dismiss:alternati
  */
 export const CORRECTION_WHERE: Prisma.IntelligenceOutcomeWhereInput = {
   kind: { not: "prediction" },
+  // 2026-10-16: Daily Tutor taps (sourceEngine tutor:*) are a quiz answer or a
+  // "not now", never pushback on a recommendation. source_engine is NOT NULL.
+  NOT: { sourceEngine: { startsWith: "tutor:" } },
   OR: [
     { decision: "dismissed", OR: [{ resultRef: null }, { resultRef: { notIn: NON_CORRECTION_DISMISS_REFS } }] },
     { outcomeUseful: false },
