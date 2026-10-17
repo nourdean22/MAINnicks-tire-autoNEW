@@ -5496,6 +5496,39 @@
       "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "internal"
+    },
+    {
+      "capabilityId": "send-pause-switches",
+      "name": "DB-backed runtime pause for every env-armed customer-facing send lane (voice, tire-order confirmations, declined recovery, weather SMS, missed-call recovery), one reader with a declared fail class, plus a paused / live / UNKNOWN status read",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "Worktree branch worktree-agent-a62700fbd9d5f9a43 (job 2026-10-17-c55-send-pause-switches, not merged): server/services/sendPause.ts (sendPause, shouldHold, sendPauseHoldReason, envArmed, readSendSwitchesStatus); holds at placeVapiOutboundCall and before the claim in voiceRecovery / confirmationCalls / followupCadence, and on the existing skip path in customerMessageTemplates, declinedWorkRecovery, weatherIntelligence, missedCallRecovery; five send_pause_<lane> keys in FLAG_DEFINITIONS + INVERTED_FLAGS + CUSTOMER_FACING_FLAGS with lane-true resume copy; instagramAdmin.sendSwitchesStatus contract v1; scripts/probe-live-send-flags.mjs compares each flag exactly as the code does.",
+        "tests": [
+          "server/sendPause.test.ts (21): shouldHold 4 cases + fail-class table, reader throw / no db -> readable:false, envArmed exact comparisons, status paused:null on unreadable. Red first 21 failed (module missing).",
+          "server/services/vapi.sendPause.test.ts (4): paused and unreadable -> zero fetch calls; control dials. Red first 2 failed / 2 passed.",
+          "server/cron/jobs/voiceLanes.sendPause.test.ts (9), declinedWorkRecovery.sendPause.test.ts (3), customer-message-templates (+2), missedCallRecovery (+3), weatherIntelligence.nws (+2): held -> existing skip outcome with send_pause:<lane>, controls send. Red first 6f/3p and 9f/33p.",
+          "server/sendPauseCoverage.test.ts (15): every env send flag has a gate before its provider call; planted defects (gate removed, moved after the send, loose comparison) go red.",
+          "shared/flagPolicy.test.ts (+11), server/__tests__/probeLiveSendFlags.test.ts (5)."
+        ],
+        "liveRuns": [],
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Not merged or deployed. Live proof owed: flip one send_pause_<lane> ON in the admin Feature Flags panel, see sendSwitchesStatus report paused:true and the lane's next cron_log row read 'Skipped · send_pause:<lane>', then flip it OFF and see the next run proceed. The client card for sendSwitchesStatus is a separate client-lane job.",
+          "source": "job 2026-10-17-c55-send-pause-switches"
+        }
+      ],
+      "deferredScope": [
+        "client card for instagramAdmin.sendSwitchesStatus (client lane, contract v1)",
+        "a pause held at placeVapiOutboundCall itself (not at a cron gate) reads to the caller as a config dial failure; only a race between a cron's start and its dial reaches it"
+      ],
+      "lastVerifiedAt": "2026-10-17",
+      "verificationExpiresAt": "2026-11-16",
+      "codeState": "in_progress",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
     }
   ],
   "axes": {
