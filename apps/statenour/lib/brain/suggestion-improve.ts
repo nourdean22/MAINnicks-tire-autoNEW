@@ -21,7 +21,11 @@
  * aggregator. Hypotheses surface on /brain/wisdom · the operator
  * decides whether to retune.
  *
- * Run: via the brain-feedback-loop cron, alongside runImproveAgent.
+ * Run: weekly, by the `suggestion-improve-weekly` Inngest function
+ * (lib/inngest/functions/suggestion-improve.ts). Its sibling improve-agent is
+ * NOT scheduled: the /brain insights panel
+ * (components/brain/brain-insights-panel.tsx) computes it on view through
+ * GET /api/brain/improve-agent. There is no brain-feedback-loop cron.
  */
 
 import { suggestionLoopStats } from "@/lib/brain/suggestion-loop";

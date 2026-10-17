@@ -20,7 +20,7 @@ vi.mock("@/lib/ai/traced-aichat", () => ({
 // slop at 61+ (zero cliche/antiNour hits), so prose fixtures can't
 // reliably trip the <60 gate.
 const mockCritique = vi.fn();
-vi.mock("@/lib/ai/output-critic", () => ({
+vi.mock("@/lib/ai/chat/output-guardian", () => ({
   critiqueContent: (...a: unknown[]) => mockCritique(...a),
 }));
 

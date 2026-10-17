@@ -8,7 +8,7 @@
  * Merges 4 thought-capture tables into a single chronologically-
  * sorted stream:
  *   · BrainDump      (chat Flow Mode · Telegram · /journal capture)
- *   · Reflection     (reflection-engine cron outputs)
+ *   · Reflection     (rows in the Reflection table)
  *   · SituationLog   (War Room Situation Room incidents)
  *   · DecisionReplay (reviewed past decisions)
  *

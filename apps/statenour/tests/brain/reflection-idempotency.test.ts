@@ -1,14 +1,15 @@
 /**
  * v10 Track B.3 · Reflection idempotency contract.
  *
- * v9.1.24 wired runDailyReflection + runWeeklyReflection through
- * idempotentCreate using the {date, scope, category} recipe. If the
- * cron fires twice on the same date (restart, retry, flap), the
+ * v9.1.24 wired the daily/weekly reflection writers (the old
+ * lib/brain/reflection-engine.ts, deleted 2026-10-16) through
+ * idempotentCreate using the {date, scope, category} recipe. If a
+ * writer fires twice on the same date (restart, retry, flap), the
  * second run should NOT create duplicate Reflection rows.
  *
- * The full reflection-engine flow is heavy (Venice call + DB).
- * Instead we test the recipe + idempotentCreate semantics directly,
- * which is the contract the wire-up depends on.
+ * A full writer flow is heavy (model call + DB). Instead we test the
+ * recipe + idempotentCreate semantics directly, which is the contract
+ * any Reflection writer depends on.
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";

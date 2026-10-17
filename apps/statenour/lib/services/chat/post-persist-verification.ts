@@ -19,7 +19,7 @@ import type { ProviderName } from "@/lib/ai/provider";
 import type { TraceStartInput, TraceFinishInput } from "@/lib/ai/agent-trace";
 import type { TurnSignal } from "@/lib/ai/turn-intelligence";
 import type { ContextBlocksFired } from "./brain-context";
-import type { critiqueOutput, ContentCriticScore } from "@/lib/ai/output-critic";
+import type { critiqueOutput, ContentCriticScore } from "@/lib/ai/chat/output-guardian";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 interface ChatLogger {

@@ -1,5 +1,18 @@
 # Reconciliation · statenour-os
 
+> ## 2026-10-17 · Brain W4 · dead code out, headers honest (branch `statenour/brain-w4-wisdom`) · 1 statenour PR, nothing user-visible
+>
+> Not live until merged; nothing a user sees changes. Every claim below is from unit tests, an import scan and code reading.
+>
+> - **Deleted.** `lib/brain/reflection-engine.ts` (no production caller; production's 83 reflections in 90 days are all `scope=triggered`, written by `lib/services/reflection.ts`) and the three `export *` shims `lib/ai/output-critic.ts`, `hallucination-guard.ts`, `fact-check.ts`; 11 importers now import `lib/ai/chat/output-guardian` directly.
+> - **Pinned.** `tests/repo/deleted-brain-w4-modules.test.ts` scans every import form (alias, `lib/`-relative, dynamic, `vi.mock`), resolves from `__dirname`, asserts it read more than 100 files, and its positive control fails on each planted shape.
+> - **Headers corrected.** Teaching moments surface on the /brain Discover feed, not in the prompt; `vnext/effort-policy.ts` is partly live (`canaryDeepForce`, `claude5EffortForAttempt`) and partly caller-less (`routeCapability`); improve-agent runs on view from the /brain insights panel (no cron, and no `brain-feedback-loop` exists); stale engine references in journal-feed, reflection, reply-gate, self-consistency and quality-bench-core.
+>
+> **Flagged · NOT fixed**
+> - A weekly improve-agent writer was built and reverted: nothing reads persisted `improvement_hypothesis` rows, and the panel already computes the same hypotheses on every view.
+> - `knip.json:32` still lists the deleted `lib/brain/reflection-engine.ts` (root config; knip is advisory).
+> - `lib/services/chat/persist-assistant-turn.ts` still imports `sanitizeResponse` from the `output-sanitizer` shim; `cliche-detector.ts` and `output-sanitizer.ts` remain one-line shims.
+
 > ## 2026-10-16 · Brain W2 · the Daily Tutor, one tap a day (branch `statenour/brain-w2-tutor`) · 1 statenour PR
 >
 > Not live until merged and `/api/version` serves the squash SHA; the first send is the next morning slot after deploy. Every claim below is from unit tests and code reading.
