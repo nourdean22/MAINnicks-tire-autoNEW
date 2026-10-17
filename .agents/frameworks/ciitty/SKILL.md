@@ -89,7 +89,7 @@ NOURCITY/
 ### Dependency Management (This Stack)
 - **Package manager:** `pnpm` with workspaces (NOT yarn, NOT npm, NOT Lerna)
 - **Build orchestration:** Turborepo (`turbo run build --affected`) with remote caching
-- **Install rule:** `pnpm install --frozen-lockfile --filter "<app>..."` — the `...` suffix is mandatory; bare `--filter` skips workspace deps
+- **Install rule:** a full, unfiltered `pnpm install --frozen-lockfile` in the primary checkout, when no sibling session is mid-run; never a filtered install, `add` or `remove` there (2026-10-17: a filtered add pruned the shared store for every worktree; rule `shared-deps-mutation`). New deps: the scratchpad-clone recipe in `.claude/skills/harness-worktree-setup/SKILL.md` section 3
 - **Lockfile rule:** If `package.json` changes (deps added/moved/removed), always regenerate `pnpm-lock.yaml` locally and commit it. Railway uses frozen lockfile mode in CI — a stale lockfile = failed build.
 - **Dependency updates:** Use Dependabot/Renovate PRs reviewed by the operator. Never bulk-upgrade without testing both apps.
 

@@ -1878,10 +1878,10 @@
       "operationalState": "live_verified",
       "codeState": "merged",
       "exposure": "production",
-      "lastVerifiedAt": "2026-10-07",
+      "lastVerifiedAt": "2026-10-17",
       "evidence": {
         "codeCommit": "ad38f7878 (#2330): shared/webExperiments.ts (one primary variable, contract-bound), shared/experimentKernel.ts (two-sample mSPRT always-valid p, chi-square SRM, guardrail refusal, min 50 exposed sessions per arm), client/src/hooks/useWebExperimentArm.ts (deterministic assignment, exposure logged once), server/cron/jobs/webExperimentResolve.ts (re-derives every arm server-side from the session id, drops mismatches, >5% rejected = invalid_design, PROPOSE-ONLY over Telegram + the evidence ledger). f41664165: the H4 claim now rests on its verdict event by index (sourceEventIndexes) and the ledger caps the bridge key at H4 as CRON.",
-        "liveRuns": "2026-10-07 RE-VERIFIED from production runtime evidence (Railway deploy logs, service MAINnicks-tire-auto, module cron:web-experiment-resolve): the resolver evaluated home-hero-subline-2026-09 every day 2026-09-30..10-06 at ~13:31 UTC, latest 2026-10-06T13:32:07Z status keep_running, visitors 3659 accepted 3659 rejected 0, control 1802 exposures vs variant 1857, contractHash 657350d2c1e4b905; GET https://nickstire.org/api/trpc/experiments.active -> {active:[home-hero-subline-2026-09]} on 2026-10-07. Daily new visitors fell 157, 74, 107, 46, 13, 10 (2026-10-01..10-06); traced the same day: NOT a human-traffic drop. Railway HTTP logs 2026-10-01 20:34-23:59 UTC show 203 non-Sentry GET / from only 21 IPs, the top IPs (4.155.134.61, 20.106.183.55, 128.203.189.244, 20.168.93.88, 172.212.171.146: Microsoft Azure ranges) at exactly 21 loads each with spoofed UAs (iPhone OS 16_0 paired with Safari Version/26.6, an impossible combo; X11 Linux Chrome), and they fired /api/analytics/conversion (>=501 POSTs from 92 IPs that day vs 40 on 10-06). The fleet stopped ~10-04, so the exposure counts above are bot-dominated (see blocker). 2026-09-15: flag web_experiment_home_hero_subline_2026_09 flipped ON via /api/admin/flags/toggle and re-read true; GET https://nickstire.org/api/trpc/experiments.active -> {active:['home-hero-subline-2026-09']}. Read-only DB probe under railway run at 14:02 UTC: 20 experiment_exposure rows / 12 distinct sessions since 13:42 UTC, control 6 : variant 6 (eventData.element = experimentId, eventData.props.armId -- exactly the resolver's read path). A Browser-pane visit rendered the control subline and produced a control exposure row (positive control).",
+        "liveRuns": "2026-10-07 RE-VERIFIED from production runtime evidence (Railway deploy logs, service MAINnicks-tire-auto, module cron:web-experiment-resolve): the resolver evaluated home-hero-subline-2026-09 every day 2026-09-30..10-06 at ~13:31 UTC, latest 2026-10-06T13:32:07Z status keep_running, visitors 3659 accepted 3659 rejected 0, control 1802 exposures vs variant 1857, contractHash 657350d2c1e4b905; GET https://nickstire.org/api/trpc/experiments.active -> {active:[home-hero-subline-2026-09]} on 2026-10-07. Daily new visitors fell 157, 74, 107, 46, 13, 10 (2026-10-01..10-06); traced the same day: NOT a human-traffic drop. Railway HTTP logs 2026-10-01 20:34-23:59 UTC show 203 non-Sentry GET / from only 21 IPs, the top IPs (4.155.134.61, 20.106.183.55, 128.203.189.244, 20.168.93.88, 172.212.171.146: Microsoft Azure ranges) at exactly 21 loads each with spoofed UAs (iPhone OS 16_0 paired with Safari Version/26.6, an impossible combo; X11 Linux Chrome), and they fired /api/analytics/conversion (>=501 POSTs from 92 IPs that day vs 40 on 10-06). The fleet stopped ~10-04, so the exposure counts above are bot-dominated (see blocker). 2026-09-15: flag web_experiment_home_hero_subline_2026_09 flipped ON via /api/admin/flags/toggle and re-read true; GET https://nickstire.org/api/trpc/experiments.active -> {active:['home-hero-subline-2026-09']}. Read-only DB probe under railway run at 14:02 UTC: 20 experiment_exposure rows / 12 distinct sessions since 13:42 UTC, control 6 : variant 6 (eventData.element = experimentId, eventData.props.armId -- exactly the resolver's read path). A Browser-pane visit rendered the control subline and produced a control exposure row (positive control). 2026-10-17 RE-VERIFIED from manager SELECT-only production reads of cron_log: web-experiment-resolve ran once a day and completed on every recorded day 2026-10-10 through 2026-10-17 (8 of 8), detail \"1 armed · home-hero-subline-2026-09: keep_running\". UNKNOWN: no cron_log rows exist for 2026-10-08 and 2026-10-09 (no run recorded; not read as completed). This shows the resolver ran and kept running; it does not show that exposure counts are human-dominated, so the P2 blocker stands.",
         "limits": "The resolver never writes a flag or copy; a verdict is a Telegram proposal + a ledger claim. No winner before 50 exposed sessions per arm. CALIBRATED 2026-09-15 on this kernel (shared/experimentKernelCalibration.ts; re-run any time with `pnpm calibrate:kernel`, 2,000 seeded runs, ~100 exposed sessions/day): A/A any-peek false positives 1.3% over 30 daily reads and 2.2% over 90 (alpha 5%; a naive peeked z-test measures 26.1% / 34.1%); power at base 5% is 30.5% for +2pp, 67.8% for +3pp, 98.7% for +5pp with 0 wrong-arm declarations; a 60/40 randomiser is refused as invalid_design in 100% of runs. The SRM alarm is also peeked daily; under the original per-look p<0.001 it falsely refused a BALANCED split in 1.45% of 30-day runs. Fixed the same day from the harness's own sweep (floor x alpha, 2,000 seeded runs each): DEFAULT_SRM_ALPHA is now 1e-4, false refusal 0.05%, a 60/40 randomiser still refused in 100% of runs, a mild 55/45 in 95.1% (was 98.4%); the old alpha is kept as a CONTROL in the test so the defect stays reproducible. An H4 claim from this cron therefore rests on a rule whose validity is measured, not cited; the GrowthBook cross-check named in docs/UPSTREAMS.md was RUN 2026-09-15 (scripts/proof/growthbook-crosscheck.py over `pnpm calibrate:kernel -- --stream <scenario> 500`; gbstats 0.8.0 SequentialTwoSidedTTest, absolute difference, alpha 0.05, tuning 5000, same daily counts, same stopping-rule shape): A/A false positives 0.8% vs 0.8% on the SAME 4 of 500 runs, +3pp power 66.8% vs 66.6% (99.8% per-run agreement), +5pp 98.4% vs 98.6% (99.8%), wrong arm 0% for both, median declaration day equal; on a 60/40 randomiser the kernel refuses 100% of runs while gbstats (no design gate) would declare 1% -- reported in its own bucket, not compared. The exported streams carry the kernel's REAL per-day verdict (every gate), the script self-tests (agree / disagree / refused fixtures + a mutation guard, scripts/proof/test_growthbook_crosscheck.py) and refuses any gbstats but 0.8.0. The kernel's H4 stands on an external engine's agreement, not on its own citation.",
         "productionMeasurement": "Daily resolver cron registered (CRON-INVENTORY.md web-experiment-resolve); no verdict yet (n < 50 per arm on 2026-09-15).",
         "tests": [
@@ -1892,7 +1892,7 @@
         ],
         "deploymentId": "railway MAINnicks-tire-auto main auto-deploy of dd61b8a1d (#2334), health deploy.commit == sha verified by the proof workflow run 34983700370"
       },
-      "verificationExpiresAt": "2026-10-28",
+      "verificationExpiresAt": "2026-11-07",
       "blockers": [
         {
           "severity": "P2",
@@ -2451,18 +2451,20 @@
       "codeState": "merged",
       "operationalState": "live_verified",
       "exposure": "production",
-      "lastVerifiedAt": "2026-09-23",
-      "verificationExpiresAt": "2026-10-23",
+      "lastVerifiedAt": "2026-10-17",
+      "verificationExpiresAt": "2026-11-16",
       "evidence": {
         "codeCommit": "Merged #2557 (7d9f4de) + #2561 (df92eca: the P0 fix - #2557 as shipped failed EVERY submission ~01:19-01:36Z, because drizzle's insert named the 0129 columns before 0129 existed and the fallback retried through db.insert(); the fallback is now a raw 13-column INSERT) + this PR (claude/funny-gates-asubwi, audit fixes from three independent reviews): owner text goes FIRST; a confidential text carries no name or number (it leaves from the store phone staff can read); a confidential owner email goes to CEO_EMAIL alone with no push; no applicant name in any subject (notifyOwner logs titles); emails send escaped HTML; the greeting is one sanitized word; table-counted brakes (no second owner text for the same phone within 24h, owner alerts stop at 20/day, applicant emails at 30/day and one per address/day); ownerAlertedAt stamped when EITHER owner lane lands; server/sms.ts replays a queued text to an internal line as internal and exempts it from the drain's quiet-hour hold (lib/smsQueueReplay.ts) - before, a restart while the store phone was offline dead-lettered the owner alert. All three lanes are ON; each stops only when its switch is set: CANDIDATE_OWNER_ALERT=off / CANDIDATE_OWNER_SMS=off / CANDIDATE_ACK_EMAIL=off.",
         "deploymentId": "c7a6b823-03ee-447e-b30e-74c6886efd44 (79983f9, serving at 01:57Z) and 83464ff5-c7fa-4170-82ad-8b38cf3f512c (df92eca, serving at 01:37Z) - both before this PR; the post-merge deploy gets its own live run.",
         "liveRuns": [
           "2026-09-23 01:37:05Z candidate #1 (test, pre-0129 fallback insert): saved; owner text delivered to the operator mobile from the store line.",
-          "2026-09-23 01:57:43Z candidate #2 (test, confidential, post-0129 full insert, phoneE164 set): saved; owner text delivered; the confidential email was addressed to the CEO inbox only - and, like every email, not delivered (Resend domain unverified)."
+          "2026-09-23 01:57:43Z candidate #2 (test, confidential, post-0129 full insert, phoneE164 set): saved; owner text delivered; the confidential email was addressed to the CEO inbox only - and, like every email, not delivered (Resend domain unverified).",
+          "2026-10-17 RE-VERIFIED from manager SELECT-only production reads: three real /careers submissions since the 2026-09-23 proof, all source careers, each with ownerAlertedAt 3 s after createdAt: candidate 30001 (created 2026-09-28 14:14:41Z, status declined), 60001 (2026-10-06 02:01:09Z, no_show) and 60002 (2026-10-06 02:09:09Z, no_show); the operator worked all three. server/services/candidateIntake.ts:260-316 stamps ownerAlertedAt only when the owner SMS returned success && !queued or the owner email sent; the email lane has not delivered since the cut-over (first blocker), so each stamp is an owner text accepted by the shop gateway. LIMIT: success includes the gateway uncertain outcome (server/lib/smsOutcome.ts), so this proves accepted-for-sending within 3 s, not handset delivery."
         ],
         "databaseAssertions": [
           "Read-only probe 2026-09-23 02:18Z (Railway function, SELECT only): candidates holds exactly ids 1 and 2, both the tests above; created 2026-09-09 22:22Z (TiDB DDL job 1060), so no real application has been saved since the table went live.",
-          "TiDB INFORMATION_SCHEMA.DDL_JOBS: the 01:54Z run-migrations call executed exactly 11 jobs (1089-1099, the 0129 columns and indexes) and nothing else; shop_settings.tireMarkup still reads value 100 / updatedAt 2026-06-18, so the list's force-sync UPDATE changed nothing (now removed from the list)."
+          "TiDB INFORMATION_SCHEMA.DDL_JOBS: the 01:54Z run-migrations call executed exactly 11 jobs (1089-1099, the 0129 columns and indexes) and nothing else; shop_settings.tireMarkup still reads value 100 / updatedAt 2026-06-18, so the list's force-sync UPDATE changed nothing (now removed from the list).",
+          "Read-only production probe 2026-10-17 (manager SELECT only): candidates holds real rows 30001, 60001, 60002 (source careers, statuses declined / no_show / no_show) in addition to the two 2026-09-23 test rows; ownerAlertedAt - createdAt = 3 s on each of the three."
         ],
         "tests": [
           "server/candidateIntake.test.ts 31 passed (13 red against the pre-audit service): order, confidential text anonymity, follow_up/no push, replyTo, subjects, HTML, greeting, brakes, stamping, GSM-7.",
@@ -2483,7 +2485,7 @@
         },
         {
           "severity": "P2",
-          "description": "FOLLOW-UP CLOCK (2026-10-03, branch nickstire/recruiting-follow-up-clock) is unit-verified only. candidates.updateStatus now writes nextFollowUpAt as a function of the new status (talent_network 60d, not_now 90d, no_show 2d, contact_attempted 1d, offer 2d; every other status clears it; accepted/started/hired/declined/withdrew can never carry one) via DATE_ADD(NOW(), INTERVAL N DAY), and candidates.followUpsDue + the admin panel badge read it against the same NOW(). Nothing sends. PROMOTION: one production status change to talent_network whose row reads nextFollowUpAt ~60 days after the change, and a due row appearing in the panel. Also open: the last production read (2026-09-23) found 0 real applications; current counts are unmeasured."
+          "description": "FOLLOW-UP CLOCK (2026-10-03, branch nickstire/recruiting-follow-up-clock) is unit-verified only. candidates.updateStatus now writes nextFollowUpAt as a function of the new status (talent_network 60d, not_now 90d, no_show 2d, contact_attempted 1d, offer 2d; every other status clears it; accepted/started/hired/declined/withdrew can never carry one) via DATE_ADD(NOW(), INTERVAL N DAY), and candidates.followUpsDue + the admin panel badge read it against the same NOW(). Nothing sends. PROMOTION: one production status change to talent_network whose row reads nextFollowUpAt ~60 days after the change, and a due row appearing in the panel. Also open: the last production read (2026-09-23) found 0 real applications; current counts are unmeasured. UPDATE 2026-10-17: counts now measured by the manager read above (3 real applications: 30001, 60001, 60002; none reached talent_network, so the promotion proof is still owed)."
         }
       ],
       "deferredScope": [
@@ -5340,6 +5342,93 @@
       "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "internal"
+    },
+    {
+      "capabilityId": "reel-lane-self-heal",
+      "name": "The autonomous reel lane self-heals: a repaired reel auto-posts after a clean re-QA, a pre-repair approval never covers the repaired video, and parked reels retire automatically so they cannot fill the drain window",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "Branch nickstire/reel-f5-f6 on main 5d6872a77 (server lane, cherry-picked). F5: server/services/reelAutoApproval.ts repairedReelRefusal (G1 the rendered-QA verdict's evaluatedAt postdates the newest payload.mp4History replacedAt and evaluateReelPublishGate(runIfMissing:false) reads proceed; G3 repair attempts <= policy limits.maxRepairAttemptsPerAsset, fallback 2) re-approves only the repair-void codes (video_changed / asset_bytes_changed / asset_digest_unverifiable) when the repair postdates the approval, through recordReelApproval bound to the current caption sha and mp4; caption changes stay a human's call; server/services/reelApproval.ts repairVoidsApproval voids a pre-repair approval at every publish door (cron, content.ts, adminRoutes.ts). F6: server/cron/jobs/dailyReelPost.ts retireParkedReels keeps the newest 10 human-parked reels and retires the rest and any parked over 7 days (status failed, reason 'retired automatically: ...' in error, the Archive button's shape; CAS on status assembled AND the payload it judged; hourly, the throttle stamped before the scan; skipped when getActivePolicy returns the DEFAULT_AUTONOMY_POLICY object; budget holds never retire); server/services/qualityGate.ts provider-health breaker excludes retirements; server/services/reelRecoverability.ts OPERATOR_CLOSED_MARKERS includes the retirement prefix so retired reels leave the admin attention list. Why: operator decisions 2026-10-13 (budget refusals HOLD, repaired reels AUTO-POST after a clean re-QA, parked reels RETIRE automatically).",
+        "tests": [
+          "server/reelRepairAutoPost.test.ts (new, 14): clean re-QA after the repair -> approved by policy; stale verdict (evaluatedAt <= replacedAt) -> no; approval for the old mp4 only -> voided; repair count over cap -> no; caption change -> human. Red first 8 failed / 6 passed; mutant drop G1: 2 failed.",
+          "server/reelParkedRetire.test.ts (new, 15): parked past 7 days -> retired with reason; beyond the newest 10 -> retired; budget hold -> never; transient gates -> never; DEFAULT policy object -> skipped (a value-equal clone still runs); CAS on the judged payload; a throwing pass is throttled; 30 parked + 1 clean -> clean reached. Red first 12 failed / 1 passed; mutants drop the cap, drop the identity check, drop the payload CAS, no throttle stamp: each red.",
+          "server/reelRetiredNotAttention.test.ts (new, 3) and server/reelBreakerRetiredExclusion.test.ts (new): the real attention predicate and the real breaker WHERE clause rendered with drizzle's MySQL dialect over sample rows; mutants drop the marker, flip not(like) to like, remove the exclusion: each red.",
+          "Manager run on the combined tree: 9 files, 127 passed (reelRepairAutoPost, reelParkedRetire, reelRetiredNotAttention, reelBreakerRetiredExclusion, reelApprovalGate, reelNeedsRegenSurfaces, qualityGate, reelTwiceDaily, reelDrainHeadOfLine); lane: pnpm run check exit 0 on every commit. Pre-PR Opus review lens: FIX FIRST on 1 P2 + 3 P3, all fixed."
+        ],
+        "liveRuns": [],
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Not observed in production yet. Live proof: a real repair that re-assembles, re-QAs clean and posts on the next drain pulse with no tap; cron_log or logs showing 'retired parked reels' and the drain then reaching a clean reel",
+          "source": "job 2026-10-17-reel-f5-f6"
+        }
+      ],
+      "deferredScope": [
+        "an mp4History entry without a readable replacedAt voids every approval (no writer produces one today)",
+        "renderedQaAttempts is not reset by a repair, so a repaired reel whose QA budget is spent waits on 'unavailable' after a critic outage",
+        "a retired reel's Queue inventory draft is left as it is",
+        "blocked rows that are not parked (budget holds, expired approvals, stale) can still occupy the 25-row drain window"
+      ],
+      "lastVerifiedAt": "2026-10-17",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
+    },
+    {
+      "capabilityId": "reel-batch-schedule",
+      "name": "A batch of hand-rendered reels can be pre-scheduled: each reel-canary start reserves its own post day, and auto-approval reaches the oldest assembled reels the drain posts first",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "Branch nickstire/reel-batch-schedule on main ab1a44c86 (server lane, cherry-picked). (a) server/routes/adminRoutes.ts reel-canary start accepts publicationIntendedAt (an ISO string with a time, parseable, not in the past, at most 90 days ahead; otherwise 400 with a reason) and passes it to enqueueReelJob the way the cron does; the response echoes reservationWindow. server/services/reelPipeline.ts enqueueReelJob returns reservationWindow only when the governor returned a reservation; no spend-path change. Feed cap, spacing and REPEAT_* still apply per target day. (b) server/services/reelApproval.ts listReelPublishQueue(limit, {oldestFirst}) reads id ASC (the drain's order) when asked, newest-first by default (the admin Queue is unchanged); server/services/reelAutoApproval.ts reads the oldest 25 and the newest 25, de-duplicated, then runs the same approvable codes, repair-void rule, vetoes and holds as before. Why: Nour's standing job 2026-10-17 (~60 generated reels made in Chrome and pre-scheduled twice a day).",
+        "tests": [
+          "server/reelCanaryScheduleAhead.test.ts (new, 9): the real route over HTTP with the real requestReservation on a day-aware fake DB: 3 days ahead reserves that day; 3 starts on 3 days succeed; a third same-day start is refused with RESERVATION_FEED_CAP; past, malformed and bare-date values give 400; absent keeps the call unchanged. Red first 7 failed / 1 passed; mutant pass-through removed 3 failed.",
+          "server/reelPublishRejectGuard.test.ts (+1): 30 assembled unapproved reels, the real listReelPublishQueue over in-memory SQL: auto-approval approves the oldest ones the drain reads first. Red first 1 failed / 35 passed; mutants drop the oldest pass and ignore oldestFirst: both red.",
+          "Manager run on the combined tree: 8 files, 110 passed (reelCanaryScheduleAhead, reelPublishRejectGuard, reelAutoApproval, reelRepairAutoPost, reelEnqueueReservesIntendedDay, reelPublishDoors, contentGovernor, reelParkedRetire); spend trajectory: reelSelfHostedSpendTrajectory, reelEnqueueReservesIntendedDay, reelBriefStructureTrajectory 3 files, 15 passed.",
+          "Manager prod probe (SELECT only, 2026-10-17): 1 assembled unposted reel exists (2070013, no approval), already inside the newest-25 window, so (b) changes nothing for today's rows."
+        ],
+        "liveRuns": [],
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Not observed in production yet. Live proof: a dated reel-canary start writes a content_reservations row on that day; the next hourly auto-approval pass approves the oldest approval-less assembled reels and the drain posts them in its two daily slots",
+          "source": "job 2026-10-17-reel-batch-schedule"
+        }
+      ],
+      "deferredScope": [
+        "the drain posts FIFO by id and ignores publicationIntendedAt; the reserved day and the posted day can differ (posts stay capped at 2 a day by the publish door)",
+        "batch topics and campaign keywords must differ (REPEAT_TOPIC 7 days, REPEAT_CTA 72 h on the generated keyword)",
+        "rows 26-35 of a 60-reel batch wait outside the auto-approval window until earlier ones post"
+      ],
+      "lastVerifiedAt": "2026-10-17",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
+    },
+    {
+      "capabilityId": "today-queue-feedback",
+      "name": "Today queue rows can be marked Keep or Less, the verdicts are stored, and the owner sees how many are marked (unknown when unreadable, never zero)",
+      "owner": "operator",
+      "codeState": "merged",
+      "operationalState": "integration_verified",
+      "exposure": "operator_only",
+      "lastVerifiedAt": "2026-10-17",
+      "verificationExpiresAt": null,
+      "evidence": {
+        "codeCommit": "Admin UI v1 W6 prerequisite (2026-10-17, branch nickstire/admin-ui-v1-w6-prep). Writes: every Today queue row (client/src/pages/admin/today/QueueRow.tsx, OverviewSection.tsx markVerdict) records a verdict through the existing adminSecurity.recordAction as action admin.queue_feedback with changes {verdict: keep|less, itemType, source: today}; recordAdminAction (server/services/adminAudit.ts) stores it in audit_log with entity_type admin_action; no new table, no migration. Reads: adminSecurity.queueFeedbackSummary (server/routers/adminSecurity.ts -> adminAudit.getQueueFeedbackSummary) sums keep and less per itemType in SQL (JSON_EXTRACT on changes, NULL or JSON null itemType bucketed as unknown) with the first verdict time as since, and answers readable:false on a missing database or a throwing query. It maps to the security.manage permission (every adminSecurity path except the recordAction override), so the Checks rail line is queried and shown only to the owner; every Today role can record. Purpose: the W6 Stream (apps/nickstire/docs/design/admin-ui-v1/PLAN.md) waits for two weeks of these verdicts.",
+        "tests": "server/__tests__/queueFeedbackSummary.test.ts (15): readable zero vs unreadable (null db, throwing db, throwing query), exact CASE mappings, the action and entity filters, the since minimum independent of row order, the null itemType bucket, and a writer-to-reader test pinning the recordAdminAction row shape to the JSON paths the SQL reads; client/src/__tests__/admin-w6prep-keep-less.test.tsx (14): exact recordAction payload, the row stays and the job is untouched, a failed write marks nothing, Keep/Less disabled while a write is pending, the rail line for readable, none yet, unreadable, error, paused, pending and stale-after-failed-refetch, owner-only (front desk and manager see no line, query disabled), the New York date label, not an open check; tests/e2e/admin-v1-fixtures.spec.ts renders Today with the read answered (6 passed); silent-instrument lens 25 of 30 mutants, the 5 survivors pinned except a max-h class that needs a real layout.",
+        "liveRuns": "NOT YET: no production read of queueFeedbackSummary has been made; the SQL has never run against TiDB."
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Not exercised in production. Proof needed: after deploy, mark one Today row Less as the owner, then the Checks rail reads Keep/Less: 1 marked since today, and a SELECT-only count of audit_log rows with action admin.queue_feedback returns 1."
+        }
+      ],
+      "deferredScope": []
     },
     {
       "capabilityId": "nickstire-tidb-independent-backup",

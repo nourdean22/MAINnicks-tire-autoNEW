@@ -77,7 +77,10 @@ rather than `cd`-ing toward wherever the `.env` lives.
 hook matches on COMMAND TEXT, not cwd, so no install runs anywhere in a
 session anchored to a worktree. (It also fires on a plain `cat >> file`
 heredoc whose *document body* merely mentions the command — write those
-with the Edit tool instead.)
+with the Edit tool instead.) Since 2026-10-17 rule `shared-deps-mutation`
+also denies, in ANY cwd, `add`/`remove`/`update`/`prune` and a filtered
+install; Desktop Commander process calls are exempt from both install
+rules, so the scratchpad-clone install below runs through Desktop Commander.
 
 **Global (`-g`) installs** never touch repo `node_modules` but still match
 the rule via command text, and the harness PINS the session shell cwd to
@@ -127,7 +130,7 @@ Witnessed on #1843 (two new deps, ~25 minutes to find this path).
 | Trap | Why |
 |---|---|
 | `git push` at the default 2-minute tool timeout | The lefthook pre-push `build:affected` gate alone can take 2-5 min when an app is affected (103s witnessed on PR #1355; the push died at exit 143 and left ambiguous remote state). Always give push commands an explicit >=5-minute timeout |
-| `pnpm install --filter <app>` in the **primary** checkout | Prunes the shared junctioned `node_modules` every worktree points at. Use `--filter "<app>..."` **with** the `...` suffix, or phantom import failures follow |
+| `pnpm install --filter <app>` in the **primary** checkout | Prunes the shared junctioned `node_modules` every worktree points at, WITH or without the `...` suffix (2026-10-17: a filtered `pnpm add` pruned vite and broke every worktree). Denied by rule `shared-deps-mutation` in any cwd. Only a full, unfiltered `pnpm install --frozen-lockfile`, run when no sibling session is mid-run; check with `node scripts/agent-os/deps-check.mjs` |
 | `git worktree remove` on its own | Junctions point OUT of the tree; a recursive delete runs over links into the primary. Use `scripts/worktree-teardown.ps1 -targetDir <path>` |
 | Bash `cd` persisting | It resets to `C:\` between calls — prefix each command, and re-anchor by pattern after your own edits shift line numbers |
 | Pre-push `IO error: provided value is too long when setting link name` | Windows symlink noise, non-fatal; the build still passes |
@@ -150,8 +153,9 @@ instead:
 
 1. Create the worktree OUTSIDE `.worktrees/`: a plain `git worktree add`, not
    the harness's `.claude/worktrees/*` path.
-2. Install with the `...` filter suffix — `pnpm install --filter "@<app>/..."`
-   — a few minutes, since this is a real install, not a junction.
+2. Install in that worktree with a full, unfiltered `pnpm install --frozen-lockfile`
+   — a few minutes, since this is a real install, not a junction. (A filtered
+   install is denied by rule `shared-deps-mutation` in any cwd since 2026-10-17.)
 3. `pnpm exec tsc -p tsconfig.json` inside every workspace-internal package
    the app depends on, before the app's own typecheck. Witnessed:
    `typecheck:raw` failed on three unbuilt packages (`@nour/ai-capabilities`,

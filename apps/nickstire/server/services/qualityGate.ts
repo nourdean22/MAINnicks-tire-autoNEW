@@ -271,7 +271,7 @@ export async function evaluateReelPublishGate(
   // budget on a call that will fail too — pause for an operator instead.
   let providerHealthy = true;
   try {
-    const { sql, inArray } = await import("drizzle-orm");
+    const { sql, inArray, or, isNull, not, like } = await import("drizzle-orm");
     const since = new Date(Date.now() - 60 * 60 * 1000);
     const [row] = await d
       .select({ n: sql<number>`count(*)` })
@@ -282,7 +282,13 @@ export async function evaluateReelPublishGate(
       // counting only "failed" left this exact circuit breaker blind to the
       // outage it exists to catch, so it kept reading providerHealthy=true
       // and kept authorizing paid repair spend against a dead provider.
-      .where(and(inArray(reelJobs.status, ["failed", "needs_regen"]), gte(reelJobs.updatedAt, since)));
+      .where(and(
+        inArray(reelJobs.status, ["failed", "needs_regen"]),
+        gte(reelJobs.updatedAt, since),
+        // F6 retirements (dailyReelPost retireParkedReels) are bookkeeping, not provider failures;
+        // one pass can retire 20 rows. isNull is load-bearing: NOT LIKE alone drops NULL errors.
+        or(isNull(reelJobs.error), not(like(reelJobs.error, "retired automatically%"))),
+      ));
     // Three failed jobs inside an hour is a provider problem, not bad luck — the
     // pipeline posts at most twice a day, so this is never normal volume.
     providerHealthy = Number(row?.n ?? 0) < 3;

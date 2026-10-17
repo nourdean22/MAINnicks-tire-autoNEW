@@ -20,7 +20,7 @@ This directory holds the **lazy-load utility** + **one example module** (languag
 ## Activation order
 
 1. **Read `docs/runbooks/transformers-js-activation.md`** · bundle size + UX tradeoffs
-2. **Install** `pnpm --filter @nickstire/nickstire add @xenova/transformers` (only if you're activating · adds ~250KB to client lazy-bundle, not main)
+2. **Install** `@xenova/transformers` (only if you're activating · adds ~250KB to client lazy-bundle, not main) · new or changed deps go through the scratchpad-clone recipe in `.claude/skills/harness-worktree-setup/SKILL.md` section 3, then a full unfiltered `pnpm install --frozen-lockfile` in the primary checkout when no sibling session is mid-run (a filtered add pruned the shared store on 2026-10-17)
 3. **Wire** the example module in a single surface · validate UX is sub-100ms
 4. **Roll out** to other surfaces as needed
 

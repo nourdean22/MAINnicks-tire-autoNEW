@@ -137,7 +137,91 @@ export async function reelApprovalProblem(args: {
     videoUrl: args.videoUrl,
     assetSha256,
   };
-  return approvalProblem(candidate, approval);
+  const problem = approvalProblem(candidate, approval);
+  if (problem || !approval) return problem;
+  return repairVoidsApproval(args.jobId, await loadJobPayload(args.jobId), approval.approvedAt);
+}
+
+/** The job's raw payload JSON; undefined when it could not be read (callers fail closed). */
+async function loadJobPayload(jobId: number): Promise<string | null | undefined> {
+  try {
+    const { getDb } = await import("../db");
+    const d = await getDb();
+    if (!d) return undefined;
+    const { reelJobs } = await import("../../drizzle/schema");
+    const { eq } = await import("drizzle-orm");
+    const [row] = await d.select({ payload: reelJobs.payload }).from(reelJobs).where(eq(reelJobs.id, jobId)).limit(1);
+    return row ? (row.payload ?? null) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function toMs(v: unknown): number {
+  return v instanceof Date ? v.getTime() : Date.parse(String(v ?? ""));
+}
+
+/**
+ * F5 · G2. An approval recorded BEFORE a repair replaced the rendered master does
+ * not cover the repaired one. The URL and digest checks miss this: the master's key
+ * is deterministic (reels/reel-<id>.mp4), a URL-only approval has no digest, and the
+ * digest lookup is by URL, so it can return the OLD master's digest when the new one
+ * was not registered. selectiveRepair stamps payload.mp4History[].replacedAt when it
+ * accepts a repair, and no approval can be written while mp4Url is null, so
+ * "approvedAt < replacedAt" is exactly "approved a render that is gone".
+ * Anything unreadable voids the approval: "could not check" is not "unchanged".
+ */
+function repairVoidsApproval(jobId: number, payloadJson: string | null | undefined, approvedAt: unknown): ApprovalProblem | null {
+  const voided: ApprovalProblem = {
+    code: APPROVAL_BLOCK.videoChanged,
+    reason: `reel job ${jobId} was re-rendered by a repair after it was approved. Re-approve the repaired video.`,
+  };
+  if (payloadJson === undefined) return voided;
+  let history: unknown;
+  try {
+    history = (JSON.parse(payloadJson ?? "{}") as { mp4History?: unknown }).mp4History;
+  } catch {
+    return voided;
+  }
+  if (history === undefined || history === null) return null;
+  if (!Array.isArray(history)) return voided;
+  if (history.length === 0) return null;
+  const approved = toMs(approvedAt);
+  if (!Number.isFinite(approved)) return voided;
+  const repairedAfter = history.some((h) => {
+    const at = toMs((h as { replacedAt?: unknown } | null)?.replacedAt);
+    return !Number.isFinite(at) || at > approved;
+  });
+  return repairedAfter ? voided : null;
+}
+
+/** What auto-approval needs to judge a repaired reel (F5). Null when it was never repaired. */
+interface ReelRepairState {
+  /** payload.repairQueue length: logical repairs spent on this asset (the gate's own count). */
+  attempts: number;
+  /** Latest payload.mp4History[].replacedAt: when the last repair retired the previous render. */
+  lastReplacedAt: string | null;
+  /** payload.renderedQa.evaluatedAt: when the current verdict was computed. */
+  verdictEvaluatedAt: string | null;
+}
+
+function repairStateOf(payloadJson: string | null): ReelRepairState | null {
+  let p: { repairQueue?: unknown; mp4History?: unknown; renderedQa?: { evaluatedAt?: unknown } };
+  try {
+    p = JSON.parse(payloadJson ?? "{}");
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(p.mp4History) || p.mp4History.length === 0) return null;
+  const times = p.mp4History.map((h) => toMs((h as { replacedAt?: unknown } | null)?.replacedAt));
+  // An entry with no readable time leaves the last repair time unknown, which G1 reads as stale.
+  const last = times.every(Number.isFinite) ? Math.max(...times) : NaN;
+  const evaluated = toMs(p.renderedQa?.evaluatedAt);
+  return {
+    attempts: Array.isArray(p.repairQueue) ? p.repairQueue.length : 0,
+    lastReplacedAt: Number.isFinite(last) ? new Date(last).toISOString() : null,
+    verdictEvaluatedAt: Number.isFinite(evaluated) ? new Date(evaluated).toISOString() : null,
+  };
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -452,6 +536,8 @@ export interface ReelPublishQueueEntry extends ReelPublishSubject {
   } | null;
   /** Null when this job may publish; otherwise exactly why the cron holds it. */
   approvalProblem: ApprovalProblem | null;
+  /** Set when a repair re-rendered this reel; read by auto-approval's F5 guards. */
+  repair: ReelRepairState | null;
   approvedBy: string | null;
   approvedAt: Date | string | null;
   expiresAt: Date | string | null;
@@ -479,8 +565,11 @@ export interface ReelPublishQueueEntry extends ReelPublishSubject {
  * `no_approval_recorded`, which is the truth, and the caller surfaces the
  * unreadable-table case separately so "nothing is approved" can never be
  * confused with "the table does not exist".
+ *
+ * Newest first for the Queue screen. `oldestFirst` reads in the drain's own
+ * order (id ASC, dailyReelPost) so auto-approval can reach the reels posted next.
  */
-export async function listReelPublishQueue(limit = 25): Promise<{
+export async function listReelPublishQueue(limit = 25, opts: { oldestFirst?: boolean } = {}): Promise<{
   entries: ReelPublishQueueEntry[];
   approvalsTableReadable: boolean;
 }> {
@@ -489,7 +578,7 @@ export async function listReelPublishQueue(limit = 25): Promise<{
   if (!d) return { entries: [], approvalsTableReadable: false };
 
   const { reelJobs } = await import("../../drizzle/schema");
-  const { eq, and, isNotNull, ne, desc } = await import("drizzle-orm");
+  const { eq, and, isNotNull, ne, desc, asc } = await import("drizzle-orm");
   const { auditPublishBlock } = await import("@shared/reelClaimAudit");
   const { parseReelJobPayload } = await import("@shared/reelJobPayload");
 
@@ -497,7 +586,7 @@ export async function listReelPublishQueue(limit = 25): Promise<{
     .select()
     .from(reelJobs)
     .where(and(eq(reelJobs.status, "assembled"), isNotNull(reelJobs.mp4Url), ne(reelJobs.mp4Url, "")))
-    .orderBy(desc(reelJobs.createdAt), desc(reelJobs.id))
+    .orderBy(...(opts.oldestFirst ? [asc(reelJobs.id)] : [desc(reelJobs.createdAt), desc(reelJobs.id)]))
     .limit(limit);
 
   // Probed once rather than per row: whether the table exists is a property of
@@ -574,7 +663,8 @@ export async function listReelPublishQueue(limit = 25): Promise<{
               assetSha256: approval?.assetSha256 ? await loadAssetDigest(videoUrl) : null,
             },
             approval,
-          ),
+          ) ?? (approval ? repairVoidsApproval(row.id, row.payload ?? null, approval.approvedAt) : null),
+      repair: repairStateOf(row.payload ?? null),
       approvedBy: approval?.approvedBy ?? null,
       approvedAt: approval?.approvedAt ?? null,
       expiresAt: approval?.expiresAt ?? null,

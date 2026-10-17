@@ -498,6 +498,28 @@ describe("auto-approval respects a human revocation and the inventory row", () =
   });
 });
 
+// ─── 2026-10-17 batch schedule: auto-approval reaches the drain's next picks ──
+// The drain posts approved assembled jobs id ASC; auto-approval read only the
+// NEWEST 25, so a 30-reel batch left the 5 oldest (the next to post) unapproved.
+describe("auto-approval reaches the reels the drain posts first", () => {
+  it("30 assembled unapproved reels: the oldest five are approved, and the newest still are", async () => {
+    const ids = Array.from({ length: 30 }, (_, i) => JOB + 100 + i);
+    ids.forEach((id, i) => seedReel({ jobId: id, briefId: `inv-batch-${i}`, invStatus: "review_ready" }));
+    // createdAt rises with id, as it does in production.
+    for (const r of mem.tables[getTableConfig(reelJobs).name]) {
+      const k = ids.indexOf(Number(r[reelJobs.id.name]));
+      if (k >= 0) r[reelJobs.createdAt.name] = ts(-60 * 24 * 10 + k);
+    }
+    const { autoApproveAssembledReels } = await import("./services/reelAutoApproval");
+
+    const out = await autoApproveAssembledReels();
+
+    expect(out.approved).toEqual(expect.arrayContaining(ids.slice(0, 5)));
+    expect(out.approved).toEqual(expect.arrayContaining(ids.slice(-5)));
+    expect(new Set(out.approved).size).toBe(out.approved.length); // each job approved once
+  });
+});
+
 // ─── DEFECT 2 + 3: the Queue / Trial door ───────────────────────────────────
 describe("publishPost (Queue / Trial) claims the reel job and owns the AI flag", () => {
   const publish = async (over: Record<string, unknown> = {}) =>

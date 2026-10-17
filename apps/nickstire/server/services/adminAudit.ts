@@ -1,7 +1,8 @@
 import { randomUUID } from "crypto";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { auditLog } from "../../drizzle/schema";
 import { db } from "../lib/db-helper";
+import { createLogger } from "../lib/logger";
 
 export async function recordAdminAction(input: {
   actor: string;
@@ -47,6 +48,72 @@ export async function getRecentAdminActions(limit = 50) {
     .where(eq(auditLog.entityType, "admin_action"))
     .orderBy(desc(auditLog.createdAt))
     .limit(Math.min(Math.max(limit, 1), 200));
+}
+
+export type QueueFeedbackSummary =
+  | {
+      readable: true;
+      total: number;
+      since: string | null;
+      byType: Array<{ itemType: string; keep: number; less: number }>;
+    }
+  | { readable: false; reason: string };
+
+const log = createLogger("admin-audit");
+
+/**
+ * The Keep/Less verdicts the Today board records through adminSecurity.recordAction
+ * (action `admin.queue_feedback`, changes `{ verdict, itemType, source }`), summed per item type.
+ *
+ * A dead database or a failed query is `readable: false`, never zeros: W6's two-week clock must not
+ * start (or read "nothing marked") because a read failed. A genuinely empty table is a real zero.
+ *
+ * Counted in SQL, not by fetching rows. `since` is UNIX_TIMESTAMP(MIN(created_at)) turned into an ISO
+ * string here, so the driver's DATETIME parsing (shifted on ET) never touches it. The WHERE rides
+ * idx_audit_entity (entity_type prefix); `action` and the JSON verdict are filtered after that range
+ * read, which is correct without a new index. Only pre-0110 columns are named.
+ */
+export async function getQueueFeedbackSummary(): Promise<QueueFeedbackSummary> {
+  try {
+    const database = await db();
+    if (!database) return { readable: false, reason: "database unavailable" };
+    const result = await database.execute(sql`
+      SELECT COALESCE(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(changes, '$.itemType')), 'null'), 'unknown') AS itemType,
+             SUM(CASE WHEN JSON_UNQUOTE(JSON_EXTRACT(changes, '$.verdict')) = 'keep' THEN 1 ELSE 0 END) AS keepN,
+             SUM(CASE WHEN JSON_UNQUOTE(JSON_EXTRACT(changes, '$.verdict')) = 'less' THEN 1 ELSE 0 END) AS lessN,
+             UNIX_TIMESTAMP(MIN(created_at)) AS firstAt
+      FROM audit_log
+      WHERE entity_type = 'admin_action'
+        AND action = 'admin.queue_feedback'
+        AND JSON_UNQUOTE(JSON_EXTRACT(changes, '$.verdict')) IN ('keep', 'less')
+      GROUP BY itemType
+      ORDER BY itemType
+    `);
+    const list = Array.isArray(result) ? result[0] : result;
+    const rows = Array.isArray(list) ? (list as Array<Record<string, unknown>>) : [];
+    const byType: Array<{ itemType: string; keep: number; less: number }> = [];
+    let total = 0;
+    let firstEpoch: number | null = null;
+    for (const row of rows) {
+      const keep = Number(row.keepN);
+      const less = Number(row.lessN);
+      if (!Number.isFinite(keep) || !Number.isFinite(less) || keep + less <= 0) continue;
+      byType.push({ itemType: String(row.itemType ?? "unknown"), keep, less });
+      total += keep + less;
+      const epoch = Number(row.firstAt);
+      if (Number.isFinite(epoch) && (firstEpoch === null || epoch < firstEpoch)) firstEpoch = epoch;
+    }
+    return {
+      readable: true,
+      total,
+      since: firstEpoch === null ? null : new Date(firstEpoch * 1000).toISOString(),
+      byType,
+    };
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    log.warn("queue feedback summary unreadable", { error: reason });
+    return { readable: false, reason };
+  }
 }
 
 export async function reportAdminClientError(input: {
