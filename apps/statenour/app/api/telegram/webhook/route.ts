@@ -24,6 +24,7 @@ import {
   answerCallbackQuery,
   editTelegramMessage,
   sendTelegram,
+  sendTelegramForId,
 } from "@/lib/services/telegram";
 import { confirmJournalLink, type JournalSilo } from "@/lib/brain/journal-brain";
 import { escapeHtml } from "@/lib/utils/escape-html";
@@ -986,11 +987,11 @@ async function handleCommand(text: string, chatId: string, forwarded = false): P
         // the bot "call Mike about the alignment" did NOTHING, while the
         // tested pure intent router (lib/ultron/omni-capture-router, same
         // one the web omni-capture UI uses) sat unused on this surface.
-        // Route it and reply with a one-line receipt naming the intent.
+        // Route it. 2026-10-17 · no separate "routed as" receipt any more: it was
+        // an extra message per text, and the command's own reply says what happened.
         const { routeCapture } = await import("@/lib/ultron/omni-capture-router");
         const intent = routeCapture(trimmed);
         if (!intent.text.trim()) return;
-        await sendTelegram(`→ routed as <b>${intent.kind}</b>`, chatId);
         switch (intent.kind) {
           case "task":
             return await cmdTask(intent.text, chatId);
@@ -2262,6 +2263,28 @@ async function handlePhoto(
   }
 }
 
+/**
+ * One message per interaction (Telegram job lane 2, 2026-10-17): the first call
+ * sends, every later call edits that message in place. A failed edit sends
+ * nothing more (logged), so a placeholder can go stale but never doubles up.
+ */
+function progressMessage(chatId: string): (text: string) => Promise<void> {
+  let sent: { ok: boolean; messageId?: number } = { ok: false };
+  return async (text) => {
+    if (!sent.ok) {
+      sent = await sendTelegramForId(text, chatId);
+      return;
+    }
+    if (sent.messageId === undefined) {
+      log.warn("progress_edit_skipped", { reason: "no message id" });
+      return;
+    }
+    if (!(await editTelegramMessage(sent.messageId, text, chatId))) {
+      log.warn("progress_edit_failed", { messageId: sent.messageId });
+    }
+  };
+}
+
 async function handleVoice(
   voice: { file_id: string; duration: number },
   chatId: string,
@@ -2270,8 +2293,10 @@ async function handleVoice(
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
   if (!botToken) return;
 
+  // 2026-10-17 · one message per voice note: the placeholder is edited in place.
+  const reply = progressMessage(chatId);
   try {
-    await sendTelegram(`🎙️ Transcribing ${voice.duration}s voice note...`, chatId);
+    await reply(`🎙️ Transcribing ${voice.duration}s voice note...`);
 
     // Get file from Telegram
     const fileRes = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${voice.file_id}`);
@@ -2279,7 +2304,7 @@ async function handleVoice(
     const filePath = fileData.result?.file_path;
 
     if (!filePath) {
-      await sendTelegram("Couldn't process the voice note.", chatId);
+      await reply("Couldn't process the voice note.");
       return;
     }
 
@@ -2309,12 +2334,13 @@ async function handleVoice(
     }
 
     if (!transcript) {
-      await sendTelegram("Transcription failed. Try again or type your message.", chatId);
+      await reply("Transcription failed. Try again or type your message.");
       return;
     }
 
     // Process the transcription as a command or message
-    await sendTelegram(`📝 <b>Transcribed:</b> "${escapeHtml(transcript)}"`, chatId);
+    const heard = `📝 <b>Transcribed:</b> "${escapeHtml(transcript)}"`;
+    await reply(heard);
 
     // If it starts with a slash command, route it (never a forwarded note's)
     if (!forwarded && transcript.trim().startsWith("/")) {
@@ -2330,13 +2356,12 @@ async function handleVoice(
         commitmentsFound?: number;
         entryType?: string;
       };
-      await sendTelegram(
-        `🧠 <b>Ingested</b> · Type: <b>${escapeHtml(result.entryType || "raw")}</b> · Tasks: ${result.tasksCreated ?? 0} · Insights: ${result.insightsStored ?? 0} · Commitments: ${result.commitmentsFound ?? 0}`,
-        chatId
+      await reply(
+        `${heard}\n\n🧠 <b>Ingested</b> · Type: <b>${escapeHtml(result.entryType || "raw")}</b> · Tasks: ${result.tasksCreated ?? 0} · Insights: ${result.insightsStored ?? 0} · Commitments: ${result.commitmentsFound ?? 0}`,
       );
     }
   } catch (err) {
-    await sendTelegram(`Voice processing failed: ${await safeErrorText(err)}`, chatId);
+    await reply(`Voice processing failed: ${await safeErrorText(err)}`);
   }
 }
 
@@ -2345,6 +2370,8 @@ async function handleUrl(
   fullText: string,
   chatId: string
 ): Promise<void> {
+  // 2026-10-17 · one message per link: the placeholder is edited in place.
+  const reply = progressMessage(chatId);
   try {
     // SSRF defense — this path is owner-gated (only the operator's Telegram
     // reaches it), but a pasted link can still point at a private or metadata
@@ -2358,7 +2385,7 @@ async function handleUrl(
     // of re-derived.
     const { fetchPublicUrl } = await import("@/lib/utils/url-safety");
 
-    await sendTelegram(`🔗 Analyzing: ${escapeHtml(url.slice(0, 60))}...`, chatId);
+    await reply(`🔗 Analyzing: ${escapeHtml(url.slice(0, 60))}...`);
 
     const fetched = await fetchPublicUrl(url, {
       headers: { "User-Agent": "NOUR-OS/1.0" },
@@ -2370,18 +2397,16 @@ async function handleUrl(
       // or a hop-cap would tell the operator his link was dangerous when the
       // site was merely misbehaving — a small lie, but this app's whole
       // premise is not telling him things that are not so.
-      await sendTelegram(
+      await reply(
         fetched.code === "url_blocked"
           ? `Refused to fetch that URL: ${escapeHtml(fetched.reason)}`
-          : `Couldn't follow that URL: ${escapeHtml(fetched.reason)}`,
-        chatId,
-      );
+          : `Couldn't follow that URL: ${escapeHtml(fetched.reason)}`);
       return;
     }
 
     const res = fetched.response;
     if (!res.ok) {
-      await sendTelegram(`Couldn't fetch URL (${res.status}). It may be behind auth.`, chatId);
+      await reply(`Couldn't fetch URL (${res.status}). It may be behind auth.`);
       return;
     }
 
@@ -2418,11 +2443,11 @@ If it's news/article, extract the key insight.`,
     );
 
     if (isAiSentinel(result)) {
-      await sendTelegram("AI providers unavailable - nothing analyzed or saved.", chatId);
+      await reply("AI providers unavailable - nothing analyzed or saved.");
       return;
     }
 
-    await sendTelegram(`🔗 <b>Link Analysis</b>\n\n${escapeHtml(result.content.slice(0, 3500))}`, chatId);
+    await reply(`🔗 <b>Link Analysis</b>\n\n${escapeHtml(result.content.slice(0, 3500))}`);
 
     // Store as brain memory
     const { brainMemory } = await import("@/lib/brain/memory-manager");
@@ -2433,7 +2458,7 @@ If it's news/article, extract the key insight.`,
       "telegram-url"
     );
   } catch (err) {
-    await sendTelegram(`URL analysis failed: ${await safeErrorText(err)}`, chatId);
+    await reply(`URL analysis failed: ${await safeErrorText(err)}`);
   }
 }
 

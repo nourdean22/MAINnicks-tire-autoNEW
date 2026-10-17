@@ -56,7 +56,7 @@ const h = vi.hoisted(() => {
 vi.mock("@/lib/prisma", () => ({ prisma: h.prisma }));
 vi.mock("@/lib/services/telegram", () => ({
   sendTelegram: h.sendTelegram,
-  sendTelegramForId: vi.fn(async () => 1),
+  sendTelegramForId: vi.fn(async () => ({ ok: true, messageId: 1 })),
   answerCallbackQuery: vi.fn(async () => true),
   editTelegramMessage: vi.fn(async () => true),
 }));
