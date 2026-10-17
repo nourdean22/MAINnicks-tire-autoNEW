@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-17T20:52:57.879Z",
-  "count": 790,
+  "generatedAt": "2026-10-17T23:22:10.517Z",
+  "count": 791,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -621,6 +621,7 @@
     "query.lot.conversations",
     "query.lot.health",
     "query.lot.now",
+    "query.lot.officeDigest",
     "query.lot.visits",
     "query.loyalty.rewards",
     "query.loyalty.summary",

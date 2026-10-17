@@ -27,10 +27,10 @@ import { stripFence } from "./conversationFacts";
 
 const log = createLogger("services:officeDigest");
 
-export const CURRENT_HOUR_REFRESH_MS = 10 * 60_000;
-export const FAILED_RETRY_MS = 5 * 60_000;
+const CURRENT_HOUR_REFRESH_MS = 10 * 60_000;
+const FAILED_RETRY_MS = 5 * 60_000;
 /** A busy Ollama queue fails the hour fast instead of holding the admin read open. */
-export const SLOT_WAIT_MS = 20_000;
+const SLOT_WAIT_MS = 20_000;
 const MEMO_KEEP_MS = 13 * 3_600_000;
 
 export type DigestEpisode = { episodeId: string; gist: string | null; facts: Array<{ kind: string; value: string }> };
