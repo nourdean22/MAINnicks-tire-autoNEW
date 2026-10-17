@@ -439,7 +439,9 @@ export const customerNotifications = mysqlTable("customer_notifications", {
   notificationType: mysqlEnum("notificationType", ["booking_confirmed", "booking_inprogress", "booking_completed", "follow_up", "review_request", "maintenance_reminder", "special_offer", "status_update"]).notNull(),
   subject: varchar("subject", { length: 255 }),
   message: text("message").notNull(),
-  status: mysqlEnum("status", ["pending", "sent", "failed"]).default("pending").notNull(),
+  // 'skipped' appended by 0146: followUps.cancel had written it since wave-115 while the
+  // column rejected it (STRICT_TRANS_TABLES, "Data truncated for column 'status'").
+  status: mysqlEnum("status", ["pending", "sent", "failed", "skipped"]).default("pending").notNull(),
   sentAt: timestamp("sentAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, (table) => [

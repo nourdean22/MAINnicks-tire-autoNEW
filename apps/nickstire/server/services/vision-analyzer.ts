@@ -28,6 +28,7 @@
  */
 
 import { createLogger } from "../lib/logger";
+import { traceChat } from "../lib/langfuse-ingest";
 import { withTimeout } from "@nour/utils";
 
 const log = createLogger("vision-analyzer");
@@ -182,13 +183,25 @@ export async function analyzePhoto(opts: AnalyzePhotoOptions): Promise<AnalyzePh
   const provider = opts.provider ?? configured.provider;
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
-  if (provider === "hf") {
-    return analyzeViaHf({ photoUrl: opts.photoUrl, prompt, model: opts.model, timeoutMs });
-  }
-  if (provider === "gemini" || provider === "ollama") {
-    return analyzeViaOpenAiCompatible({ provider, photoUrl: opts.photoUrl, prompt, model: opts.model, timeoutMs });
-  }
-  return analyzeViaReplicate({ photoUrl: opts.photoUrl, prompt, model: opts.model, timeoutMs });
+  // One trace per provider round-trip for all four backends (the photo itself is never sent to Langfuse).
+  const t0 = Date.now();
+  const result =
+    provider === "hf"
+      ? await analyzeViaHf({ photoUrl: opts.photoUrl, prompt, model: opts.model, timeoutMs })
+      : provider === "gemini" || provider === "ollama"
+        ? await analyzeViaOpenAiCompatible({ provider, photoUrl: opts.photoUrl, prompt, model: opts.model, timeoutMs })
+        : await analyzeViaReplicate({ photoUrl: opts.photoUrl, prompt, model: opts.model, timeoutMs });
+  traceChat({
+    name: `vision:${provider}`,
+    site: "services/vision-analyzer.ts",
+    model: result.ok ? result.modelName : opts.model ?? provider,
+    messages: prompt,
+    outputText: result.ok ? result.description : null,
+    startedAt: t0,
+    ok: result.ok,
+    error: result.ok ? null : result.error,
+  });
+  return result;
 }
 
 // ─── Replicate backend ────────────────────────────────────────
@@ -534,14 +547,32 @@ export type DescribeImagesResult =
   | { ok: true; text: string; provider: "gemini" | "ollama"; model: string; latencyMs: number }
   | { ok: false; error: string; reason: "no_provider" | "http_error" | "timeout" | "parse_error" };
 
-export async function describeImagesOpenAiCompatible(args: {
+export async function describeImagesOpenAiCompatible(args: DescribeImagesArgs): Promise<DescribeImagesResult> {
+  const t0 = Date.now();
+  const result = await describeImagesUntraced(args);
+  traceChat({
+    name: `vision-bytes:${args.provider}`,
+    site: "services/vision-analyzer.ts",
+    model: result.ok ? result.model : args.model ?? args.provider,
+    messages: args.prompt,
+    outputText: result.ok ? result.text : null,
+    startedAt: t0,
+    ok: result.ok,
+    error: result.ok ? null : result.error,
+  });
+  return result;
+}
+
+type DescribeImagesArgs = {
   provider: "gemini" | "ollama";
   images: VisionImage[];
   prompt: string;
   model?: string;
   timeoutMs?: number;
   maxTokens?: number;
-}): Promise<DescribeImagesResult> {
+};
+
+async function describeImagesUntraced(args: DescribeImagesArgs): Promise<DescribeImagesResult> {
   const keyVar = PROVIDER_KEY_VAR[args.provider];
   const apiKey = process.env[keyVar];
   if (!apiKey) return { ok: false, error: `${keyVar} not set`, reason: "no_provider" };

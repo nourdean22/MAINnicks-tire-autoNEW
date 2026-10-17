@@ -29,6 +29,7 @@
  */
 
 import { createLogger } from "../lib/logger";
+import { traceChat } from "../lib/langfuse-ingest";
 import { withTimeout } from "@nour/utils";
 
 const log = createLogger("voice-clone");
@@ -104,7 +105,26 @@ async function isVoiceCloneEnabled(): Promise<boolean> {
  * Defaults · provider Replicate, sample URL from XTTS_VOICE_SAMPLE_URL
  * env var, language en.
  */
+/** Traced entry point: one Langfuse generation per synthesis attempt (gated-off calls made none). */
 export async function cloneVoice(opts: CloneVoiceOptions): Promise<CloneVoiceResponse> {
+  const t0 = Date.now();
+  const r = await cloneVoiceUntraced(opts);
+  if (r.ok || (r.reason !== "disabled" && r.reason !== "parse_error" && r.reason !== "no_sample")) {
+    traceChat({
+      name: "voice-clone:xtts",
+      site: "services/voice-clone.ts",
+      model: r.ok ? r.source : "xtts",
+      messages: opts.text ?? "",
+      outputText: r.ok ? "[audio]" : null,
+      startedAt: t0,
+      ok: r.ok,
+      error: r.ok ? null : r.error,
+    });
+  }
+  return r;
+}
+
+async function cloneVoiceUntraced(opts: CloneVoiceOptions): Promise<CloneVoiceResponse> {
   const text = opts.text?.trim();
   if (!text) {
     return { ok: false, error: "empty_text", reason: "parse_error" };
