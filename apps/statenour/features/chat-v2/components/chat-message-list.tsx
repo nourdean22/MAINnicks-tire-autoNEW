@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { TypedToolCards } from "./typed-tool-cards";
-import { Fragment, useState, useCallback } from "react";
+import { Fragment, useState, useCallback, useEffect } from "react";
 import type { UIMessage } from "ai";
 import { AlertTriangle, CheckCircle2, ChevronRight, Copy, ExternalLink, MoreHorizontal, Pencil, RotateCcw, ShieldCheck, Volume2, VolumeX } from "lucide-react";
 import { ChatMediaPart, type ChatFilePart } from "./chat-media-part";
@@ -194,11 +194,41 @@ function isRefusedAssistantTurn(message: UIMessage): boolean {
   return message.role === "assistant" && (message as { streamingState?: string }).streamingState === "refused";
 }
 
+/** The latest Undo deadline among a turn's tool outputs (ms), or null: no undo offered (PR #3090, 4299648934). */
+function latestUndoDeadline(message: UIMessage): number | null {
+  let until: number | null = null;
+  for (const part of message.parts ?? []) {
+    const out = (part as { output?: { undoToken?: unknown; undoExpiresAt?: unknown } }).output;
+    if (!part.type.startsWith("tool-") || !out?.undoToken || typeof out.undoExpiresAt !== "string") continue;
+    const at = Date.parse(out.undoExpiresAt);
+    if (Number.isFinite(at) && (until === null || at > until)) until = at;
+  }
+  return until;
+}
+const nowMs = () => Date.now();
+
+/**
+ * True until the turn's latest Undo deadline passes, so the disclosure that holds the Undo chip stays
+ * open while the chip can still be used. A deadline that arrives mid-stream is picked up; one already
+ * past at mount (a reopened conversation) never holds it open.
+ */
+function useUndoHoldsOpen(message: UIMessage): boolean {
+  const deadline = latestUndoDeadline(message);
+  const [expired, setExpired] = useState<number | null>(() => (deadline !== null && deadline <= nowMs() ? deadline : null));
+  useEffect(() => {
+    if (deadline === null || deadline === expired) return;
+    const timer = setTimeout(() => setExpired(deadline), Math.max(0, deadline - Date.now()));
+    return () => clearTimeout(timer);
+  }, [deadline, expired]);
+  return deadline !== null && deadline !== expired;
+}
+
 /**
  * The turn's receipt line. W3b (B1): it is the only chrome a finished turn carries. The tool cards
  * (`children`) sit behind it in a native disclosure whose summary names what ran ("Memories found,
  * 1 match"); the disclosure is open while the latest reply is still streaming so the running cards
- * stay in view, and folds when it settles. No cards, no disclosure: the line as before.
+ * stay in view, and folds when it settles, unless a card's Undo is still live (it folds when that
+ * expires). No cards, no disclosure: the line as before.
  */
 function ToolReceiptSummary({ message, traceId, children, openByDefault = false }: { message: UIMessage; traceId?: string | null; children?: React.ReactNode; openByDefault?: boolean }) {
   const toolParts = (message.parts ?? []).filter((part) => part.type.startsWith("tool-")) as Array<{
@@ -206,6 +236,7 @@ function ToolReceiptSummary({ message, traceId, children, openByDefault = false 
     state?: string;
     output?: unknown;
   }>;
+  const undoHoldsOpen = useUndoHoldsOpen(message);
   if (toolParts.length === 0 && !traceId) return null;
   const named = [...new Set(toolParts.map((part) => toolReceiptLabel(part.type.replace("tool-", ""), part.state, part.output)).filter((label): label is string => Boolean(label)))];
 
@@ -245,7 +276,7 @@ function ToolReceiptSummary({ message, traceId, children, openByDefault = false 
   return (
     <div className="mt-3 flex flex-wrap items-center gap-2 font-mono text-[11px] text-fg-tertiary">
       {children && counts.total > 0 ? (
-        <details className="group min-w-0 flex-1" open={openByDefault || undefined}>
+        <details className="group min-w-0 flex-1" open={openByDefault || undoHoldsOpen || undefined}>
           {/* 44px: the summary is a tap target at 390. */}
           <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-control [&::-webkit-details-marker]:hidden">
             {glyph}
