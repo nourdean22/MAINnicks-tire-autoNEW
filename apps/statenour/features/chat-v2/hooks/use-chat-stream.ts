@@ -13,6 +13,7 @@ import {
   type PageContextPayload,
 } from "@/components/chat/page-context-bridge";
 import type { ChatRuntimeController } from "../types/chat-runtime-controller";
+import { PAGE_ANCHOR_KEYS, pageContextForTurn } from "../lib/page-context-anchors";
 import type { ContextBlocks } from "@/components/chat/context-block-badges";
 import { looksLikeImageGenerationRequest } from "@/lib/ai/chat/handlers/patterns";
 import { bindPersistedMessage, stopTurn as requestStop, type StoppedTurn } from "../lib/turn-lifecycle";
@@ -36,6 +37,8 @@ const SAVED_TURN_READ_TIMEOUT_MS = 12_000;
 /** What the saved-turn check decided: replay, say nothing (the operator moved on), or hold with this message. */
 type SavedTurnCheck = { kind: "go"; rows: readonly SavedRow[] | null } | { kind: "stale" } | { kind: "hold"; message: string };
 
+const RETRY_REFUSED_PRIVATE = "That turn was private. Turn Private Lab back on to retry it.";
+const RETRY_REFUSED_SIDE_EFFECT = "That reply may have run an action, so it can't be replayed. Send a new message instead.";
 /** Which conversation a send belongs to: the active one, or "private" in Private Lab. */
 const conversationKeyOf = (privateMode: boolean) => (privateMode ? "private" : useChatUiStore.getState().activeConversationId);
 
@@ -43,19 +46,6 @@ const conversationKeyOf = (privateMode: boolean) => (privateMode ? "private" : u
 const isTailCutOf = (now: readonly ChatUIMessage[], before: readonly ChatUIMessage[]) =>
   now.length < before.length && now.every((m, i) => m.id === before[i].id);
 
-const PAGE_ANCHOR_KEYS = [
-  "lastTaskId",
-  "lastGoalId",
-  "lastJournalEntryId",
-  "lastDecisionId",
-  "lastPinId",
-  "lastReflectionId",
-  "lastMissionId",
-  // 2026-08-12 · the source page's route — the server has consumed
-  // body.contextRoute (route hint + TOOL_BIAS) since Wave 30, but no
-  // text-chat client ever sent it. The bridge now stores it per page.
-  "contextRoute",
-] as const;
 
 export type UseChatStreamOptions = {
   /**
@@ -98,6 +88,9 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
   const turnRefusedRef = useRef(false);
   const [liveContextBlocks, setLiveContextBlocks] = useState<ContextBlocks | null>(null);
   const [lastTraceId, setLastTraceId] = useState<string | null>(null);
+  // W3b: the words of the current Retry hold (a RETRY_* constant), kept for the error card after the
+  // toast has gone. Set where the hold toasts fire; cleared by a replay that went, a new send, or resetTurn.
+  const [hold, setHold] = useState<string | null>(null);
   const lastPersonaHeaderRef = useRef(null);
 
   useEffect(() => {
@@ -118,18 +111,47 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
     else delete bodyRef.current.actionPermission;
   }, [privateMode, posture, depth, actionPermission]);
 
-  useEffect(() => {
-    const apply = (ctx: PageContextPayload | null) => {
-      for (const key of PAGE_ANCHOR_KEYS) delete bodyRef.current[key];
-      if (!ctx) return;
-      for (const key of PAGE_ANCHOR_KEYS) {
-        const value = ctx[key];
-        if (value) bodyRef.current[key] = value;
-      }
-    };
-    apply(readPageContext());
-    return onPageContextChanged(apply);
+  // W3b: the page-context chip. The anchors still ride every request by default; the chip's x
+  // detaches them for this turn: the detached USER send goes out clean, its replays (Retry, the auto
+  // retry) stay clean, and the next user send or resetTurn re-attaches whatever the bridge holds
+  // (round 2, lens A: a re-attach on settle let Retry resend the anchors).
+  const [pageContext, setPageContext] = useState<{ route: string } | null>(null);
+  const pageContextDetachedRef = useRef(false);
+  const detachedSendWentRef = useRef(false);
+  const applyPageContext = useCallback((ctx: PageContextPayload | null) => {
+    for (const key of PAGE_ANCHOR_KEYS) delete bodyRef.current[key];
+    const turn = pageContextForTurn(ctx, pageContextDetachedRef.current);
+    Object.assign(bodyRef.current, turn.anchors);
+    setPageContext(turn.chip);
   }, []);
+  const detachPageContext = useCallback(() => {
+    pageContextDetachedRef.current = true;
+    detachedSendWentRef.current = false;
+    applyPageContext(readPageContext());
+  }, [applyPageContext]);
+  const reattachPageContext = useCallback(() => {
+    if (!pageContextDetachedRef.current) return;
+    pageContextDetachedRef.current = false;
+    detachedSendWentRef.current = false;
+    applyPageContext(readPageContext());
+  }, [applyPageContext]);
+  // The anchors the latest USER turn went out with (undefined values included: a detached turn sent
+  // none). A replay of that turn sends these per call (PR #3090), so a detach tapped after the send
+  // changes only the NEXT user send, never what a Retry of the sent turn carries. Null: no turn sent
+  // here yet (a conversation opened from history), and a replay uses the body as it stands.
+  const sentAnchorsRef = useRef<Record<string, unknown> | null>(null);
+  // Before a USER send: the first send after a detach goes out clean; the one after re-attaches first.
+  const settlePageContextForSend = useCallback(() => {
+    if (pageContextDetachedRef.current) {
+      if (detachedSendWentRef.current) reattachPageContext();
+      else detachedSendWentRef.current = true;
+    }
+    sentAnchorsRef.current = Object.fromEntries(PAGE_ANCHOR_KEYS.map((key) => [key, bodyRef.current[key]]));
+  }, [reattachPageContext]);
+  useEffect(() => {
+    applyPageContext(readPageContext());
+    return onPageContextChanged(applyPageContext);
+  }, [applyPageContext]);
 
   // 2026-08-28 · WP2 review fix · automatic re-resume.
   //
@@ -415,12 +437,19 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
       unconfirmedMessage: string = RETRY_HELD_UNCONFIRMED,
     ): Promise<void> => {
       // An earlier check may hold the flag for up to the read timeout: say so, a silent tap reads as a dead button.
-      if (checkingSavedTurnRef.current) return void toast.error(RETRY_STILL_CHECKING);
+      if (checkingSavedTurnRef.current) {
+        setHold(RETRY_STILL_CHECKING);
+        return void toast.error(RETRY_STILL_CHECKING);
+      }
       checkingSavedTurnRef.current = true;
       try {
         const check = await checkSavedTurn(judge, unconfirmedMessage);
-        if (check.kind === "hold") return void toast.error(check.message);
+        if (check.kind === "hold") {
+          setHold(check.message);
+          return void toast.error(check.message);
+        }
         if (check.kind === "go") {
+          setHold(null);
           // Acknowledge what this replay was approved on BEFORE it posts, so the same rows cannot approve the next one.
           for (const trace of latestTurnTraces(check.rows)) acknowledgedTracesRef.current.add(trace);
           await replay();
@@ -437,14 +466,17 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
   // the auto-retry land here, so the refusals happen before anything changes.
   const safeRegenerate = useCallback(
     (options?: Parameters<typeof chat.regenerate>[0]): Promise<void> => {
+      // Round 3 (A5): every refusal said here also lands in the hold line, so it outlives the toast.
       if (sentPrivateRef.current && !privateModeRef.current) {
-        toast.error("That turn was private. Turn Private Lab back on to retry it.");
+        setHold(RETRY_REFUSED_PRIVATE);
+        toast.error(RETRY_REFUSED_PRIVATE);
         return Promise.resolve();
       }
       // R3-15: the server owns this turn and nothing has reattached yet, so a
       // regenerate would run it a second time. Retry reattaches instead.
       if (killedErrorRef.current) {
         setHeldError(null);
+        setHold(null);
         resumingRef.current = true;
         void chat.resumeStream();
         return Promise.resolve();
@@ -454,10 +486,12 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
         ? messages.find((m) => m.id === options.messageId)
         : messages[messages.length - 1];
       if (target?.role === "assistant" && turnHasSideEffect(target)) {
-        toast.error("That reply may have run an action, so it can't be replayed. Send a new message instead.");
+        setHold(RETRY_REFUSED_SIDE_EFFECT);
+        toast.error(RETRY_REFUSED_SIDE_EFFECT);
         return Promise.resolve();
       }
       const replay = () => {
+        setHold(null); // a "still checking" hold left by a check that came back stale ends with the replay
         resumingRef.current = false;
         cancelPartialResume();
         setStopped(null);
@@ -469,7 +503,11 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
         traceAtSendRef.current = lastTraceIdRef.current;
         replaySnapshotRef.current = { conversation: conversationKeyOf(privateModeRef.current), messages: messagesRef.current };
         turnRefusedRef.current = false;
-        return chat.regenerate(options);
+        // PR #3090: the replay carries the page context its turn was sent with, per call (the transport
+        // spreads options.body over the shared body), whatever the chip says now.
+        const sent = sentAnchorsRef.current;
+        const latestTurn = !options?.messageId || options.messageId === messagesRef.current[messagesRef.current.length - 1]?.id;
+        return chat.regenerate(sent && latestTurn ? { ...options, body: { ...(options?.body as object | undefined), ...sent } } : options);
       };
       // A stream error is not the end of the turn: ai@6 keeps going after an error
       // part, so a tool-call plus finish(tool-calls) after it still runs the tool on
@@ -708,6 +746,9 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
     clearStall();
     retryCountRef.current = 0;
     setStopped(null);
+    setHold(null);
+    reattachPageContext();
+    sentAnchorsRef.current = null;
     clearError();
     replaySnapshotRef.current = null;
     if (requestInFlight) return;
@@ -717,7 +758,7 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
     setLastTraceId(null);
     replayOutstandingRef.current = null;
     acknowledgedTracesRef.current.clear();
-  }, [cancelPartialResume, clearStall, clearError, requestInFlight]);
+  }, [cancelPartialResume, clearStall, clearError, requestInFlight, reattachPageContext]);
 
   return {
     messages: chat.messages,
@@ -734,6 +775,7 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
       cancelPartialResume();
       clearStall();
       setStopped(null);
+      setHold(null);
       // 2026-08-12 · OPTIONAL TURBO: per-MESSAGE body override (race-free —
       // the option rides this exact send, not the shared bodyRef), consumed
       // and reset in the same tick so it can never stick to a second turn.
@@ -746,6 +788,7 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
       // A new turn gets a fresh partial-resume budget; the cap exists to
       // bound ONE turn's reattachments, not the session's.
       resumeAttemptsRef.current = 0;
+      settlePageContextForSend();
       return chat.sendMessage({ text }, turboOpts);
     },
     append: ((...args: Parameters<typeof chat.sendMessage>) => {
@@ -758,6 +801,8 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
       cancelPartialResume();
       clearStall();
       setStopped(null);
+      setHold(null);
+      settlePageContextForSend();
       return chat.sendMessage(...args);
     }) as typeof chat.sendMessage,
     stop: () => {
@@ -766,10 +811,13 @@ export function useChatStream(options?: UseChatStreamOptions): ChatRuntimeContro
     },
     stopTurn,
     stopped,
+    hold,
     regenerate: safeRegenerate,
     resetTurn,
     setMessages: chat.setMessages,
     liveContextBlocks,
     lastTraceId,
+    pageContext,
+    detachPageContext,
   };
 }

@@ -30,7 +30,8 @@ export type ChatUiState = {
   pending: PendingSend[];
   diagnosticReport: string | null;
   isVoiceDocked: boolean;
-  memoryInspectorOpen: boolean;
+  /** W3b: null until the operator chooses; the island then reads the viewport (docked open at xl). */
+  memoryInspectorOpen: boolean | null;
   historyDrawerOpen: boolean;
   recalledHits: MemoryHit[];
   contradictions: ContradictionLog[];
@@ -91,7 +92,7 @@ export const useChatUiStore = create<ChatUiState>((set) => ({
   pending: [],
   diagnosticReport: null,
   isVoiceDocked: false,
-  memoryInspectorOpen: false,
+  memoryInspectorOpen: null,
   historyDrawerOpen: false,
   recalledHits: [],
   contradictions: [],

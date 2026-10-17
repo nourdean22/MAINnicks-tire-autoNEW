@@ -326,10 +326,10 @@ body {
    The source sweep took the `uppercase` utility off every element outside the five eyebrow roles.
    A class built at runtime, or added later, that still names it reads sentence case here. Unlayered,
    so it beats Tailwind's layered `.uppercase` without !important; the roles stay out by :not().
-   The chat shell (data-chat-shell on the root of app/(mastery)/chat/page.tsx) is outside the net:
-   features/chat-v2 keeps its seven uppercase sites until Wave 3 reworks it.
+   W3b reworded the seven chat-v2 uppercase sites, so the chat shell is inside the net too (the
+   data-chat-shell attribute stays on the chat page root: the six-feet render locates the island by it).
    Pinned by tests/repo/ui-v3-grammar.test.ts. */
-[class*="uppercase"]:not(.eyebrow):not(.vt-eyebrow):not(.section-label):not(.text-eyebrow):not(.vt-verdict):not([data-chat-shell] *) {
+[class*="uppercase"]:not(.eyebrow):not(.vt-eyebrow):not(.section-label):not(.text-eyebrow):not(.vt-verdict) {
   text-transform: none;
 }
 
