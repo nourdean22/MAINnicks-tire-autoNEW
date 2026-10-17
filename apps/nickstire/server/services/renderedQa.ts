@@ -481,18 +481,22 @@ export function visualWorldAnchored(brief: EvaluateRenderedReelInput["brief"]): 
   return Boolean(brief.visualWorld?.lockedInvariants || brief.visualWorld?.heroFrameUrl);
 }
 
-/** True only when the job's clips provably never received the shop photograph as
- *  a start frame: payload.externalClips (written solely by attachExternalClips)
- *  AND every generated beat's clip in use is a re-hosted external key (a later
- *  regeneration replaces clips but leaves that record behind), and no pipeline
- *  repair has re-rendered a beat since (selectiveRepair feeds the hero still to
- *  its renders). A job the pipeline may have image-conditioned, or one with no
- *  record at all, is false and keeps the shop world. */
+/** True only when the attach attested that the job's clips were generated with
+ *  no start photograph: payload.externalClips (written solely by
+ *  attachExternalClips) carries startFrame exactly "none" (the operator's
+ *  attestation; nothing here can verify it from the files), AND every generated
+ *  beat's clip in use is a re-hosted external key (a later regeneration
+ *  replaces clips but leaves that record behind), and no pipeline repair has
+ *  re-rendered a beat since (selectiveRepair feeds the hero still to its
+ *  renders). "shop_still", a missing or unknown startFrame (records attached
+ *  before the field existed), a job the pipeline may have image-conditioned, or
+ *  no record at all is false and keeps the shop world. */
 export function clipsWereTextOnly(
   brief: Pick<EvaluateRenderedReelInput["brief"], "externalClips" | "repairQueue" | "repairs" | "clipUrls" | "storyboardBeats">,
 ): boolean {
   const ext = brief.externalClips;
   if (!ext || typeof ext !== "object" || Array.isArray(ext)) return false;
+  if ((ext as { startFrame?: unknown }).startFrame !== "none") return false;
   const noneRecorded = (v: unknown) => v === undefined || v === null || (Array.isArray(v) && v.length === 0);
   if (!noneRecorded(brief.repairQueue) || !noneRecorded(brief.repairs)) return false;
   const beats = brief.storyboardBeats;
@@ -631,7 +635,7 @@ export interface EvaluateRenderedReelInput {
      * mechanical block (nothing on such a master can be regenerated per beat).
      */
     externalMaster?: { textSurfaces?: string[] | null } | null;
-    /** Written by attachExternalClips (clips rendered outside the pipeline, never sent a start frame). With no repair record it makes the job text-only: see clipsWereTextOnly. */
+    /** Written by attachExternalClips (clips rendered outside the pipeline; startFrame is the operator's attestation, "none" or "shop_still"). Attested "none" with no repair record makes the job text-only: see clipsWereTextOnly. */
     externalClips?: unknown;
     /** Pipeline repair records (selectiveRepair): a repaired beat may have been rendered from the hero still. */
     repairQueue?: unknown;
@@ -951,9 +955,9 @@ export async function evaluateRenderedReel(input: EvaluateRenderedReelInput): Pr
     // An approved world (locked invariants or a hero still) is the anchor that
     // lets continuity findings block (2026-10-12). Without one they do not.
     const visualAnchored = visualWorldAnchored(input.brief);
-    // The reference world is the one the clips were prompted with. A text-only job
-    // (see clipsWereTextOnly) was never shown the shop photograph, so demanding it
-    // blocked every beat of job 2100002; it is judged on its lens world instead.
+    // The reference world is the one the clips were prompted with. A job attested
+    // text-only (see clipsWereTextOnly) was not given the shop photograph, so demanding
+    // it blocked every beat of job 2100002; it is judged on its lens world instead.
     // The anchor above is unchanged, so ENVIRONMENT_DRIFT still blocks a jump.
     const lensWorld = visualAnchored && clipsWereTextOnly(input.brief) ? await lensWorldBlock(input.brief.motionLens) : null;
     const worldBlock = lensWorld

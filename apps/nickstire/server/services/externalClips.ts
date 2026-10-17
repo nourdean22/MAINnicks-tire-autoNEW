@@ -42,7 +42,11 @@ const MAX_CLIP_BYTES = 60 * 1024 * 1024;
 // One clip of that size over a slow CDN hop; the web app's download links are not streamed.
 const CLIP_TIMEOUT_MS = 60_000;
 
-type AttachInput = { jobId: number; clipUrls: string[]; source: "higgsfield-web"; model?: string; note?: string };
+/** What the operator attests each clip was generated from: "none" = text-to-video with no start
+ *  photograph, "shop_still" = image-to-video from the shop still. Required, no default: only an
+ *  explicit "none" lets rendered QA judge the reel on its lens world (renderedQa.clipsWereTextOnly). */
+const START_FRAMES = ["none", "shop_still"] as const;
+type AttachInput = { jobId: number; clipUrls: string[]; source: "higgsfield-web"; startFrame: (typeof START_FRAMES)[number]; model?: string; note?: string };
 type AttachResult = { ok: true; jobId: number; clipCount: number; rehostedUrls: string[] } | { ok: false; refusal: string };
 type JobRow = { id: number; status: string; payload: string; clipUrlsJson: string | null };
 
@@ -112,6 +116,15 @@ export async function attachExternalClips(input: AttachInput, ctx: { attachedBy:
     log.info("external clips attach refused", { jobId: input.jobId, code, refusal });
     return { ok: false, refusal };
   };
+
+  // The router's zod enum is the first gate; this one covers a direct caller of this export.
+  const startFrame: unknown = (input as { startFrame?: unknown }).startFrame;
+  if (startFrame === undefined || startFrame === null) {
+    return refuse("START_FRAME_MISSING", `No start frame given: say whether the clips used the shop still ("shop_still") or no start photograph ("none").`);
+  }
+  if (!(START_FRAMES as readonly unknown[]).includes(startFrame)) {
+    return refuse("START_FRAME_INVALID", `Start frame ${JSON.stringify(startFrame).slice(0, 40)} is not one of ${START_FRAMES.join(", ")}.`);
+  }
 
   if (!deps.database) return refuse("DB_UNAVAILABLE", "Database unavailable: the job cannot be read.");
   const rows: JobRow[] = await deps.database
@@ -186,7 +199,7 @@ export async function attachExternalClips(input: AttachInput, ctx: { attachedBy:
   const merged = {
     ...payload,
     externalClips: {
-      source: input.source, model: input.model ?? null, note: input.note ?? null, attachedBy: ctx.attachedBy, attachedAt,
+      source: input.source, startFrame: input.startFrame, model: input.model ?? null, note: input.note ?? null, attachedBy: ctx.attachedBy, attachedAt,
       originalUrls: input.clipUrls,
       disclosure: "re-hosted keys carry a higgsfield- segment so shouldDiscloseAi reads them as generative under any REEL_VIDEO_PROVIDER pin",
     },
@@ -208,7 +221,7 @@ export async function attachExternalClips(input: AttachInput, ctx: { attachedBy:
     return refuse("CAS_LOST", `Reel job ${job.id} changed under us (status, brief or clips moved); nothing attached. Re-read the job and retry.`);
   }
 
-  await deps.audit({ actionType: "attach_external_clips", decision: "OK", reasoningCodes: ["ATTACHED"], context: { jobId: job.id, fromStatus: job.status, source: input.source, model: input.model ?? null, clipCount: rehostedUrls.length, rehostedUrls } }).catch(() => {});
+  await deps.audit({ actionType: "attach_external_clips", decision: "OK", reasoningCodes: ["ATTACHED"], context: { jobId: job.id, fromStatus: job.status, source: input.source, startFrame: input.startFrame, model: input.model ?? null, clipCount: rehostedUrls.length, rehostedUrls } }).catch(() => {});
   log.info("external clips attached", { jobId: job.id, clipCount: rehostedUrls.length, source: input.source, model: input.model ?? null });
   return { ok: true, jobId: job.id, clipCount: rehostedUrls.length, rehostedUrls };
 }

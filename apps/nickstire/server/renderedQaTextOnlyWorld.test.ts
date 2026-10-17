@@ -1,10 +1,12 @@
 /**
  * Rendered QA judges a reel's environment against the world its clips were
  * actually prompted with (job 2100002, 2026-10-17). A job whose clips were
- * attached from outside the pipeline (payload.externalClips) never received the
- * shop photograph as a start frame, so "the opening frame of every shot IS this
- * photo" cannot be true of it; the critic gets the lens world instead. Anything
- * the pipeline may have image-conditioned keeps the shop world.
+ * attached from outside the pipeline (payload.externalClips) with the attach
+ * attesting startFrame "none" was not given the shop photograph as a start
+ * frame, so "the opening frame of every shot IS this photo" cannot be true of
+ * it; the critic gets the lens world instead. An attach attesting "shop_still",
+ * a record with no attestation, and anything the pipeline may have
+ * image-conditioned keep the shop world.
  *
  * The critic is a fake behind the invokeLLM seam: it behaves like the live one
  * did (drift on every frame when the prompt demands the shop photo and the
@@ -22,7 +24,7 @@ afterEach(() => {
 
 const SHOP_INVARIANTS = "Real place: Nick's Tire & Auto. The opening frame of every shot IS this photo; keep the storefront, signage and lot.";
 const SHOP_WORLD = { style: "real_shop_still", heroFrameUrl: "https://cdn.example/shop.jpg", framePrompt: "", lockedInvariants: SHOP_INVARIANTS };
-const EXTERNAL = { source: "higgsfield-web", model: null, note: null, attachedBy: "operator", attachedAt: "2026-10-17T12:00:00.000Z", originalUrls: [] };
+const EXTERNAL = { source: "higgsfield-web", startFrame: "none", model: null, note: null, attachedBy: "operator", attachedAt: "2026-10-17T12:00:00.000Z", originalUrls: [] };
 const EXT_CLIPS = [
   "https://cdn.example/reel-clips/higgsfield-external-2100002-b1-1760000000000-abc123.mp4",
   "https://cdn.example/reel-clips/higgsfield-external-2100002-b2-1760000000000-def456.mp4",
@@ -102,6 +104,32 @@ describe("rendered QA world follows the clips' conditioning", () => {
       const v = await evaluateRenderedReel({ frames, brief: { ...baseBrief, clipUrls: EXT_CLIPS, externalClips } });
       expect(v.decision).toBe("repair");
     }
+    expect(seen.every((s) => /IS this photo/.test(s.system))).toBe(true);
+  });
+
+  it("CONTROL the attach attested the shop still as start frame: shop world, drift still blocks", async () => {
+    const { evaluateRenderedReel, frames, seen } = await load(worldSensitiveCritic);
+    const v = await evaluateRenderedReel({ frames, brief: { ...baseBrief, clipUrls: EXT_CLIPS, externalClips: { ...EXTERNAL, startFrame: "shop_still" } } });
+    expect(seen[0].system).toContain("IS this photo");
+    expect(seen[0].system).not.toMatch(/LENS WORLD/);
+    expect(v.decision).toBe("repair");
+  });
+
+  it("CONTROL an unattested record (no startFrame, from before the field existed) keeps the shop world", async () => {
+    const { evaluateRenderedReel, frames, seen } = await load(worldSensitiveCritic);
+    const { startFrame: _dropped, ...legacy } = EXTERNAL;
+    const v = await evaluateRenderedReel({ frames, brief: { ...baseBrief, clipUrls: EXT_CLIPS, externalClips: legacy } });
+    expect(seen[0].system).toContain("IS this photo");
+    expect(v.decision).toBe("repair");
+  });
+
+  it("CONTROL an invalid startFrame value keeps the shop world (only the exact string none attests text-only)", async () => {
+    const { evaluateRenderedReel, frames, seen } = await load(worldSensitiveCritic);
+    for (const startFrame of ["None", "NONE", " none", "text_only", "", null, true, 0, ["none"], { none: true }]) {
+      const v = await evaluateRenderedReel({ frames, brief: { ...baseBrief, clipUrls: EXT_CLIPS, externalClips: { ...EXTERNAL, startFrame } } });
+      expect(v.decision).toBe("repair");
+    }
+    expect(seen).toHaveLength(10);
     expect(seen.every((s) => /IS this photo/.test(s.system))).toBe(true);
   });
 
