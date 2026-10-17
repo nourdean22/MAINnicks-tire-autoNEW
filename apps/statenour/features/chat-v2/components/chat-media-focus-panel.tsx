@@ -41,7 +41,7 @@ export function ChatMediaFocusPanel() {
 
   return (
     <aside
-      aria-label={`Media focus — ${item.title}`}
+      aria-label={`Media focus: ${item.title}`}
       className="fixed inset-y-0 right-0 z-50 hidden w-80 flex-col border-l border-edge-default overflow-hidden bg-overlay shadow-l1 md:flex md:w-96"
     >
       <header className="flex items-center gap-2 border-b border-edge px-3 py-2">

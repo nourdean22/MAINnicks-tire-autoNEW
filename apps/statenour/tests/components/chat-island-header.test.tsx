@@ -95,11 +95,54 @@ describe("chat-island header", () => {
     expect(mount(<ChatIsland />)).not.toContain("Auto-read replies");
   });
 
-  it("drops the dead posture and depth strip, keeps the PRIVATE marker", () => {
+  it("drops the dead posture and depth strip, keeps the Private marker (sentence case since W3b)", () => {
     h.tts = tts({});
     const plain = mount(<ChatIsland />);
     expect(plain).not.toMatch(/auto posture|auto depth/);
+    expect(plain).not.toContain("Private");
     useChatUiStore.setState({ privateMode: true });
-    expect(mount(<ChatIsland />)).toContain("PRIVATE");
+    const marked = mount(<ChatIsland />);
+    expect(marked).toContain("Private");
+    expect(marked).not.toContain("PRIVATE");
+  });
+});
+
+// W3b: one header line. The title is "Nick" in sentence case; below md only History and More are
+// visible and the other controls sit inside More; at md and up all of them stay in the header.
+describe("chat-island header, W3b composition", () => {
+  it("titles the page Nick in sentence case", () => {
+    h.tts = tts({});
+    const markup = mount(<ChatIsland />);
+    expect(markup).toMatch(/<h1[^>]*>Nick<\/h1>/);
+    expect(markup).not.toMatch(/>NICK</);
+  });
+
+  it("hides auto-read, context and voice below md and shows a More control there; History stays", () => {
+    h.tts = tts({});
+    const markup = mount(<ChatIsland />);
+    const button = (label: string) => markup.match(new RegExp(`<button[^>]*aria-label="${label}[^"]*"[^>]*>`))?.[0] ?? "";
+    expect(button("Auto-read replies")).toContain("max-md:hidden");
+    expect(button("Context and memory")).toContain("max-md:hidden");
+    expect(button("Open voice")).toContain("max-md:hidden");
+    expect(button("Conversation history")).not.toContain("max-md:hidden");
+    expect(button("More chat controls")).toContain("md:hidden");
+    expect(button("More chat controls")).not.toContain("max-md:hidden");
+  });
+
+  it("More opens an in-DOM sheet holding the three controls (no native menu)", () => {
+    h.tts = tts({});
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    act(() => root.render(<ChatIsland />));
+    const more = container.querySelector('button[aria-label="More chat controls"]') as HTMLButtonElement;
+    expect(more).not.toBeNull();
+    act(() => more.click());
+    const text = document.body.textContent ?? "";
+    expect(text).toContain("Auto-read replies");
+    expect(text).toContain("Context and memory");
+    expect(text).toContain("Voice");
+    act(() => root.unmount());
+    container.remove();
   });
 });

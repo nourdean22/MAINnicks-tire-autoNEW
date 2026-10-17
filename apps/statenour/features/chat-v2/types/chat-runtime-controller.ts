@@ -15,6 +15,8 @@ export type ChatRuntimeController = {
   stopTurn: () => void;
   /** The turn the operator stopped, until the next send (09-F29). */
   stopped: StoppedTurn | null;
+  /** The words of the current Retry hold (a RETRY_* constant from lib/saved-turn.ts), or null (W3b). */
+  hold: string | null;
   regenerate: (options?: { messageId?: string } & any) => Promise<void>;
   /**
    * The operator opened another conversation or a new chat: drop the old turn's error, held
@@ -24,4 +26,8 @@ export type ChatRuntimeController = {
   setMessages: (messages: UIMessage[] | ((messages: UIMessage[]) => UIMessage[])) => void;
   liveContextBlocks: ContextBlocks | null;
   lastTraceId: string | null;
+  /** The source page's route attached to the next turn (W3b chip), or null when nothing is attached or it was detached. */
+  pageContext: { route: string } | null;
+  /** Leave the page-context anchors out of the next send; writes nothing on the server. */
+  detachPageContext: () => void;
 };
