@@ -421,6 +421,28 @@ export async function checkOperationalSafety(): Promise<CheckResult<OperationalM
 
 // ─── 4. Data Safety ─────────────────────────────────
 
+/**
+ * The nightly slot is 03:30-06:00 ET, so a healthy backup is at most ~26h old
+ * when the next night's slot closes. Past 27h a night was missed or failed.
+ */
+const TIDB_BACKUP_STALE_MINUTES = 27 * 60;
+
+function tidbBackupFreshnessAlert(ageMinutes: number | null, readError: string | null): Alert | null {
+  if (readError) {
+    return { severity: "warning", message: `TiDB backup freshness UNKNOWN: could not read cron_log (${readError.slice(0, 120)})` };
+  }
+  if (ageMinutes === null || !Number.isFinite(ageMinutes)) {
+    return { severity: "critical", message: "TiDB backup is enabled but has never completed: there is no independent copy of the database" };
+  }
+  if (ageMinutes > TIDB_BACKUP_STALE_MINUTES) {
+    return {
+      severity: "critical",
+      message: `No completed TiDB backup in ${Math.round(ageMinutes / 60)}h: last night's backup failed or did not run (TiDB keeps only 1 day of its own)`,
+    };
+  }
+  return null;
+}
+
 export async function checkDataSafety(): Promise<CheckResult<DataMetrics>> {
   const alerts: Alert[] = [];
   const metrics: DataMetrics = {
@@ -474,6 +496,29 @@ export async function checkDataSafety(): Promise<CheckResult<DataMetrics>> {
         severity: "warning",
         message: `Last backup was ${metrics.lastBackupAge}h ago — should be daily`,
       });
+    }
+
+    // Independent TiDB backup (services/tidbBackup.ts). Unlike db-backup above,
+    // which is a counts-only digest, this is the real copy, and TiDB's own free
+    // tier keeps one day. Only COMPLETED runs count, so a failed night and a
+    // night that never ran read the same. Age is computed in SQL (TIMESTAMP
+    // column vs NOW(), same session zone) to avoid the driver's ET shift.
+    if (process.env.TIDB_BACKUP_ENABLED === "true") {
+      let ageMinutes: number | null = null;
+      let readError: string | null = null;
+      try {
+        const [rows] = await db.execute(sql`
+          SELECT TIMESTAMPDIFF(MINUTE, MAX(completed_at), NOW()) AS age_min
+          FROM cron_log
+          WHERE job_name = 'tidb-backup' AND status = 'completed'
+        `);
+        const raw = (rows as unknown as Record<string, unknown>[])?.[0]?.age_min;
+        ageMinutes = raw === null || raw === undefined ? null : Number(raw);
+      } catch (e) {
+        readError = e instanceof Error ? e.message : String(e);
+      }
+      const alert = tidbBackupFreshnessAlert(ageMinutes, readError);
+      if (alert) alerts.push(alert);
     }
 
     // Orphaned invoices (no matching customer)

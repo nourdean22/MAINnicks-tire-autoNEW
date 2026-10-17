@@ -93,6 +93,21 @@ function normalizeKey(relKey: string): string {
   return key;
 }
 
+/**
+ * Keys under backups/ hold full database exports (services/tidbBackup.ts). The
+ * /generated/* proxy streams whatever key it is handed, so a guessable
+ * backups/tidb/<date>/customers.jsonl.gz would otherwise be public. Checked on
+ * the NORMALIZED key so every spelling the route can produce lands here.
+ */
+function isPrivateKey(key: string): boolean {
+  return key.startsWith("backups/");
+}
+
+/** The bucket client and name for private (never URL-addressed) objects. No local-disk fallback. */
+export async function getPrivateBucket(): Promise<{ s3: Awaited<ReturnType<typeof getS3Client>>; bucket: string }> {
+  return { s3: await getS3Client(), bucket: getBucket() };
+}
+
 /** Is durable object storage (S3) configured? Local disk on Railway is
  *  ephemeral — a deploy/restart wipes it, and prod already lost clips this
  *  way. */
@@ -291,6 +306,7 @@ export async function storageGetStream(
   const bucket = process.env.S3_BUCKET;
   if (!bucket) return null;
   const key = normalizeKey(relKey);
+  if (isPrivateKey(key)) return null;
   try {
     const { GetObjectCommand } = await import("@aws-sdk/client-s3");
     const s3 = await getS3Client();
@@ -315,6 +331,7 @@ export async function storageGetStream(
 export async function storageGet(relKey: string): Promise<{ key: string; url: string }> {
   const bucket = process.env.S3_BUCKET;
   const key = normalizeKey(relKey);
+  if (isPrivateKey(key)) throw new Error(`storage: ${key} is private (backups/); no URL is issued for it`);
 
   if (!bucket) {
     // Full key, matching what storagePut's local branch actually writes and

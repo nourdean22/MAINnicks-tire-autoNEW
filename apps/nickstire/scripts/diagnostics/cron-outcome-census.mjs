@@ -41,7 +41,7 @@ const src = readFileSync(new URL("../../server/cron/scheduler.ts", import.meta.u
 const tierOf = new Map();
 const disabled = new Set(); // `enabled: false` jobs skip inside runTier WITHOUT a cron_log row — invisible unless read from source
 {
-  const tiers = new Set(["heartbeat", "pulse", "hourly", "daily", "briefings"]);
+  const tiers = new Set(["heartbeat", "pulse", "hourly", "daily", "briefings", "nightly"]);
   let current = null;
   let lastJob = null;
   for (const line of src.split("\n")) {

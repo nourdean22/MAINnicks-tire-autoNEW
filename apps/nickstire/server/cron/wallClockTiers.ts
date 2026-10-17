@@ -43,6 +43,9 @@
  * deploy that kills a pass mid-way loses the rest of that slot for the day —
  * the same P2 posture tierStartup.ts documents, and for the same reason: a
  * reclaim would re-run the jobs that did complete, including sends.
+ * The ONE exception is the nightly slot (retryAfterMs): it holds only the
+ * idempotent TiDB backup, so a pass that did not finish the night may be
+ * re-claimed once its claim is older than the job budget.
  */
 import type { StartupClaim, StartupExecutor } from "./tierStartup";
 import { claimStartupPass } from "./tierStartup";
@@ -56,6 +59,13 @@ export interface WallClockSlot {
   startMin: number;
   /** ET minute of day after which a slot that never ran is abandoned for the day (exclusive). */
   endMin: number;
+  /**
+   * NIGHTLY ONLY. Lets a later container re-claim the slot inside its window once
+   * the last claim is older than this, while `isSlotComplete` says the night is not
+   * done. Safe only for an idempotent pass (the backup no-ops when its manifest is
+   * present). Never set it on a tier that sends: a repeat would re-send.
+   */
+  retryAfterMs?: number;
 }
 
 /**
@@ -72,6 +82,10 @@ export interface WallClockSlot {
  */
 const WALL_CLOCK_SLOTS: Readonly<Record<string, readonly WallClockSlot[]>> = {
   daily: [{ key: "daily", startMin: 9 * 60 + 30, endMin: 24 * 60 }],
+  // nightly · the TiDB backup (services/tidbBackup.ts): after the shop's day,
+  // before its next, when writes are fewest. Opens after 03:00, clear of both DST hours.
+  // retryAfterMs = the job's 30-minute budget: a pass older than that has ended or timed out.
+  nightly: [{ key: "nightly", startMin: 3 * 60 + 30, endMin: 6 * 60, retryAfterMs: 30 * 60_000 }],
   briefings: [
     { key: "briefings-am", startMin: 7 * 60, endMin: 12 * 60 },
     { key: "briefings-pm", startMin: 19 * 60, endMin: 22 * 60 },
@@ -150,6 +164,8 @@ export interface WallClockRunnerDeps {
   isDraining?: () => boolean;
   log: { info: (msg: string) => void; warn: (msg: string, meta?: unknown) => void };
   claim?: (d: StartupExecutor, key: string, allowanceMs: number, isDraining?: () => boolean) => Promise<StartupClaim>;
+  /** Asked only for a slot with `retryAfterMs`: is that tier's work for this ET day done? A throw counts as not done. */
+  isSlotComplete?: (tierName: string, dayKey: string) => Promise<boolean>;
 }
 
 /**
@@ -171,13 +187,32 @@ export function createWallClockRunner(deps: WallClockRunnerDeps) {
     // day's slot would be spent on a pass that never happened.
     if (deps.isTierRunning(tierName)) return "tier-running";
 
+    // A retryable slot (nightly only) can be re-claimed once the last stamp is
+    // older than retryAfterMs; every other slot is claimable only by a stamp from
+    // before its opening, i.e. once per ET day, stamped at the start of the pass.
+    const retryAfterMs = open.slot.retryAfterMs;
+    const allowanceMs = retryAfterMs === undefined
+      ? open.sinceOpenMs + SLOT_CLAIM_MARGIN_MS
+      : Math.min(open.sinceOpenMs + SLOT_CLAIM_MARGIN_MS, retryAfterMs);
+    const settles = async (): Promise<boolean> => {
+      if (retryAfterMs === undefined || !deps.isSlotComplete) return true;
+      try {
+        return await deps.isSlotComplete(tierName, open.dayKey);
+      } catch (err) {
+        deps.log.warn(`${tierName} wall-clock slot ${open.slot.key}: completion check failed — will retry the slot`, {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        return false;
+      }
+    };
+
     let result: StartupClaim;
     try {
       const d = await deps.getDb();
       if (!d) return "no-db";
       // isDraining is re-checked inside the claim, after its queries: a SIGTERM
       // that lands mid-claim gets the slot handed back, not spent (F5).
-      result = await claim(d, slotClaimKey(open.slot), open.sinceOpenMs + SLOT_CLAIM_MARGIN_MS, isDraining);
+      result = await claim(d, slotClaimKey(open.slot), allowanceMs, isDraining);
     } catch (err) {
       deps.log.warn(`${tierName} wall-clock slot ${open.slot.key}: claim failed — not running, retrying next check`, {
         error: err instanceof Error ? err.message : String(err),
@@ -189,8 +224,8 @@ export function createWallClockRunner(deps: WallClockRunnerDeps) {
       deps.log.info(`${tierName} wall-clock slot ${open.slot.key} ${open.dayKey}: shutting down — slot left for the next container`);
       return "draining";
     }
-    settled.add(memo);
     if (!result.claimed) {
+      if (await settles()) settled.add(memo);
       deps.log.info(`${tierName} wall-clock slot ${open.slot.key} ${open.dayKey}: already claimed — not running`);
       return "lost";
     }
@@ -198,6 +233,7 @@ export function createWallClockRunner(deps: WallClockRunnerDeps) {
       `${tierName} wall-clock slot ${open.slot.key} ${open.dayKey}: claimed ${Math.round(open.sinceOpenMs / 60000)} min after opening — FIRING`,
     );
     await deps.runTier(tierName);
+    if (await settles()) settled.add(memo);
     return "fired";
   }
 

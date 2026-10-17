@@ -11,7 +11,8 @@
  * TIER 3 (2 hr):   Hourly — lead follow-up, intelligence, reviews
  * TIER 4 (daily, 09:30 ET): Daily — segmentation, retention, reports, cleanup
  * TIER 5 (07:00 + 19:00 ET): Briefings — morning brief, daily report
- *   (tiers 4-5 run on the ET wall clock, claimed per slot per day — wallClockTiers.ts)
+ * TIER 6 (nightly, 03:30 ET): Nightly — independent TiDB backup (flag-gated)
+ *   (tiers 4-6 run on the ET wall clock, claimed per slot per day — wallClockTiers.ts)
  *
  * Each tier runs its jobs SEQUENTIALLY within the tier to avoid
  * DB connection stampedes. Jobs still have individual timeout + skip
@@ -3204,6 +3205,31 @@ function buildTiers(): void {
     running: false,
     lastRun: null,
   });
+
+  // ═══ TIER 6: NIGHTLY (03:30 ET slot, claimed per ET night — wallClockTiers.ts) ═══
+  // intervalMs is the nominal cadence consumers read (getJobCadences); no timer uses it.
+  tiers.push({
+    name: "nightly",
+    intervalMs: 24 * 60 * 60 * 1000,
+    jobs: [
+      {
+        // Independent TiDB backup to the private bucket (free TiDB tier keeps 1 day,
+        // no PITR, no restore of a deleted instance). OFF until TIDB_BACKUP_ENABLED is
+        // exactly "true"; the operator arms it after the first manual run proves the
+        // RU cost. Fails (cron_log `failed`, table named) unless every file and the
+        // manifest are confirmed in the bucket; safetyMonitor alerts on a missed night.
+        name: "tidb-backup",
+        requiresFlag: "TIDB_BACKUP_ENABLED",
+        timeoutMs: 30 * 60 * 1000,
+        handler: async () => {
+          const { runTidbBackupJob } = await import("../services/tidbBackupJob");
+          return runTidbBackupJob();
+        },
+      },
+    ],
+    running: false,
+    lastRun: null,
+  });
 }
 
 let stopWallClockLoop: (() => void) | undefined;
@@ -3330,6 +3356,13 @@ export function startTieredScheduler(): void {
     },
     isTierRunning: (tierName) => tiers.find((t) => t.name === tierName)?.running === true,
     log,
+    // Asked only for a slot with retryAfterMs (nightly): the night is done once its
+    // backup manifest is in the bucket, or the backup is switched off.
+    isSlotComplete: async (tierName, dayKey) => {
+      if (tierName !== "nightly") return true;
+      const { isNightlyBackupComplete } = await import("../services/tidbBackupJob");
+      return isNightlyBackupComplete(dayKey);
+    },
   });
   stopWallClockLoop = startWallClockLoop(wallClockRunner, wallClockTierNames, {
     // after the staggered boot passes of the interval tiers

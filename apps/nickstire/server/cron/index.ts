@@ -490,6 +490,15 @@ export function registerAllJobs(): void {
     // lock and the next pulse could steal it and generate the same reel twice.
   }, true, 14 * 60 * 1000);
 
+  // Manual-run lookup for the nightly TiDB backup (scripts/tidb-backup-run-once.mts):
+  // runJobByName gives it the cron lock and a cron_log row, so the operator's first
+  // manual run counts as a completed backup. Direct import, not runTierJobHandlerUnlocked:
+  // a script process never builds the tiers. Budget identical to the tier's.
+  registerJob("tidb-backup", 24 * 60 * 60 * 1000, async () => {
+    const { runTidbBackupJob } = await import("../services/tidbBackupJob");
+    return runTidbBackupJob();
+  }, true, 30 * 60 * 1000);
+
   registerJob("higgsfield-session-keepalive", 15 * 60 * 1000, async () => {
     // UNLOCKED on purpose: runJobByName already holds this job's cron lock.
     // Calling runTierJobByName here would re-acquire it, get "held-by-other",
