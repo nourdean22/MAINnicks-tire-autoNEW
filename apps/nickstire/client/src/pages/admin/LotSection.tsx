@@ -1157,7 +1157,8 @@ function FloorRow({ v, fetchedAt, now, onMarked }: { v: VisitRow; fetchedAt: num
         ? "bg-amber-400/70"
         : "bg-emerald-400/60";
 
-  const car = v.plateText ?? "Plate not read";
+  // `||`, not `??`: an empty string is no plate either.
+  const car = v.plateText || "Plate not read";
   const dot =
     dwell !== null && dwell >= URGENT_MINUTES
       ? "bg-red-400"
@@ -1203,7 +1204,7 @@ function FloorRow({ v, fetchedAt, now, onMarked }: { v: VisitRow; fetchedAt: num
           type="button"
           onClick={() => setMore((m) => !m)}
           aria-expanded={more}
-          aria-label={`More about ${v.plateText ?? "the car with no plate read"}`}
+          aria-label={`More about ${v.plateText || "the car with no plate read"}`}
           className="inline-flex items-center justify-center min-h-12 min-w-12 shrink-0 rounded-md text-muted-foreground hover:text-foreground"
         >
           <MoreHorizontal className="w-4 h-4" />
@@ -2018,6 +2019,11 @@ export default function LotSection() {
                   <span className="text-amber-400">
                     Not being watched: the sign camera is {signStateLabel}. Vehicles may be on the
                     property with nothing here to show them.
+                  </span>
+                ) : healthAnswer === "unknown" ? (
+                  // Nobody knows whether the sign camera is watching, so an empty board proves nothing.
+                  <span className="text-amber-400">
+                    Nothing on the board, but camera health is unknown, so the lot may not be empty.
                   </span>
                 ) : n?.ok === true && n.neverIngested ? (
                   "The cameras have not delivered a visit yet."

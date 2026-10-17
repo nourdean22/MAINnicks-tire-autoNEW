@@ -10,7 +10,7 @@
  * input, because lot.visits is read twice (the floor board asks for open visits only).
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import React from "react";
 
 type Q = { data: unknown; isPending: boolean; isError: boolean; error: unknown; refetch: () => void; dataUpdatedAt: number };
@@ -171,10 +171,8 @@ describe("Lot Checks rail", () => {
   it("counts a sign camera that is not watching as not healthy", () => {
     setLot({ sign: "CAMERA_OFFLINE" });
     render(<LotSection />);
-    const summary = screen.getByText("Checks").closest("summary")!;
-    expect(summary.textContent).toMatch(/\d+ not healthy/);
-    const healthy = summary.textContent!.match(/(\d+) not healthy/)![1];
-    expect(Number(healthy)).toBeGreaterThanOrEqual(1);
+    // Exactly once: the red chip, not the chip plus the not-watching term.
+    expect(screen.getByText("Checks").closest("summary")!.textContent).toBe("Checks1 not healthy");
   });
 
   it("says unknown, not healthy, when camera health could not be read", () => {
@@ -288,6 +286,147 @@ describe("a row never loses its warning to truncation", () => {
     const more = row.querySelector("[data-row-more]")!;
     expect(more.textContent).toContain("needs staff confirm");
     expect(more.textContent).toContain("On lot");
+  });
+});
+
+// ── Review round 2: pin the mutants that survived round 1 ──
+
+const statusSpan = () => screen.getByText("Checks").nextElementSibling as HTMLElement;
+const notOk = (reason: string) => ({ data: { ok: false, reason } });
+
+describe("an ok:false answer is unknown (M4)", () => {
+  const cases: Array<[string, () => void]> = [
+    ["camera health", () => h.queries.set("lot.health", notOk("health table missing"))],
+    ["the floor board", () => h.queries.set("lot.visits", (input) => ((input as { openOnly?: boolean }).openOnly ? notOk("visits down") : { data: { ok: true, rows: ON_LOT } }))],
+    ["the counters", () => h.queries.set("lot.now", notOk("now down"))],
+    ["hourly activity", () => h.queries.set("lot.activity", notOk("activity down"))],
+  ];
+  for (const [name, breakIt] of cases) {
+    it(`${name}`, () => {
+      setLot();
+      breakIt();
+      render(<LotSection />);
+      expect(summaryText()).toBe("Checks1 unknown");
+    });
+  }
+});
+
+describe("event freshness nobody measured is unknown (M21)", () => {
+  it("counts a null staleSeconds on an answered counter read", () => {
+    setLot();
+    const now = h.queries.get("lot.now") as { data: Record<string, unknown> };
+    now.data = { ...now.data, staleSeconds: null };
+    render(<LotSection />);
+    expect(summaryText()).toBe("Checks1 unknown");
+  });
+});
+
+describe("paused reads at their call sites are unknown, not loading (M3b/c/d)", () => {
+  it("floor board: the on-lot chip says unavailable and the summary counts it", () => {
+    setLot({ floor: PAUSED });
+    render(<LotSection />);
+    expect(screen.getByText("unavailable")).toBeTruthy();
+    expect(summaryText()).toBe("Checks1 unknown");
+  });
+
+  it("camera health: the chips say unknown, the panel says offline", () => {
+    setLot();
+    h.queries.set("lot.health", PAUSED);
+    render(<LotSection />);
+    expect(screen.getByText("Camera health unavailable")).toBeTruthy();
+    expect(screen.queryByText("loading")).toBeNull();
+    expect(summaryText()).toBe("Checks1 unknown");
+  });
+
+  it("hourly activity: the panel says offline, the summary counts it", () => {
+    setLot();
+    h.queries.set("lot.activity", PAUSED);
+    render(<LotSection />);
+    expect(screen.getByText("hourly activity unavailable")).toBeTruthy();
+    expect(summaryText()).toBe("Checks1 unknown");
+  });
+});
+
+describe("the summary's words and alert (M17/M18/M19)", () => {
+  it("counts a sign camera dark on its battery once, though its chip is grey", () => {
+    setLot({ sign: "EXPECTED_SOLAR_OFFLINE" });
+    render(<LotSection />);
+    expect(summaryText()).toBe("Checks1 not healthy");
+  });
+
+  it("raises the alert for unknown and for not healthy, and not for all healthy", () => {
+    setLot();
+    render(<LotSection />);
+    expect(statusSpan().className).toContain("text-muted-foreground");
+    cleanup();
+    setLot();
+    h.queries.set("lot.activity", { data: undefined, isError: true, error: { message: "x" } });
+    render(<LotSection />);
+    expect(statusSpan().className).toContain("text-amber-300");
+    cleanup();
+    setLot({ sign: "CAMERA_OFFLINE" });
+    render(<LotSection />);
+    expect(statusSpan().className).toContain("text-amber-300");
+  });
+
+  it("says loading while a read is still in flight, never all healthy", () => {
+    setLot();
+    h.queries.set("lot.health", { data: undefined, isPending: true, fetchStatus: "fetching" } as Partial<Q>);
+    render(<LotSection />);
+    expect(summaryText()).toBe("Checksloading");
+  });
+});
+
+describe("row detail order and controls (M7b, M12a/b)", () => {
+  it("keeps confirm first, then the unobserved arrival, then the stage", () => {
+    setLot({ floor: { data: { ok: true, rows: [visit("v-8", "FIX 1008", 0, { customerMatch: "CONFUSABLE_UNIQUE", onPropertyMinutes: null, sinceFirstSeenMinutes: 20 })] } } });
+    render(<LotSection />);
+    const line = within(screen.getByRole("list", { name: "Vehicles on the lot" })).getByRole("listitem").querySelector("p")!.textContent!;
+    expect(line.indexOf("needs staff confirm")).toBe(0);
+    expect(line.indexOf("arrival not observed")).toBeGreaterThan(0);
+    expect(line.indexOf("On lot")).toBeGreaterThan(line.indexOf("arrival not observed"));
+  });
+
+  it("gives every row's Quote and More buttons a 48 px target", () => {
+    setLot();
+    render(<LotSection />);
+    const rows = within(screen.getByRole("list", { name: "Vehicles on the lot" })).getAllByRole("listitem");
+    for (const row of rows) {
+      expect(within(row).getByRole("button", { name: "Quote a walk-in" }).className).toContain("min-h-12");
+      expect(within(row).getByRole("button", { name: /More about/ }).className).toContain("min-h-12");
+    }
+  });
+});
+
+describe("Lot's rail remembers its own choice (M14b)", () => {
+  it("stores the toggle under nicks-admin-lot-checks and leaves Today's key alone", () => {
+    setLot();
+    render(<LotSection />);
+    const details = screen.getByText("Checks").closest("details")!;
+    details.open = true;
+    fireEvent(details, new Event("toggle"));
+    expect(window.localStorage.getItem("nicks-admin-lot-checks")).toBe("open");
+    expect(window.localStorage.getItem("nicks-admin-today-checks")).toBeNull();
+  });
+});
+
+describe("round 2 behaviour", () => {
+  it("an empty board under unknown camera health does not claim an empty lot (P3-8)", () => {
+    setLot({ floor: { data: { ok: true, marksAvailable: false, rows: [] } } });
+    h.queries.set("lot.health", { data: undefined, isError: true, error: { message: "x" } });
+    const now = h.queries.get("lot.now") as { data: { counts: Record<string, number> } };
+    now.data.counts = { ...now.data.counts, onProperty: 0 };
+    render(<LotSection />);
+    expect(screen.getByText("Nothing on the board, but camera health is unknown, so the lot may not be empty.")).toBeTruthy();
+    expect(screen.queryByText("Nothing on the lot right now.")).toBeNull();
+  });
+
+  it("an empty-string plate reads Plate not read (P3-7)", () => {
+    setLot({ floor: { data: { ok: true, rows: [visit("v-0", "", 15)] } } });
+    render(<LotSection />);
+    const row = within(screen.getByRole("list", { name: "Vehicles on the lot" })).getByRole("listitem");
+    expect(row.querySelector("h3")!.textContent).toBe("Plate not read");
+    expect(within(row).getByRole("button", { name: "More about the car with no plate read" })).toBeTruthy();
   });
 });
 

@@ -66,6 +66,13 @@ describe("Approve confirm", () => {
     expect(h.approve).not.toHaveBeenCalled();
   });
 
+  it("a confirmed approval runs approve with the proposal id", async () => {
+    h.confirm.mockResolvedValueOnce(true);
+    render(<ApprovalsSection />);
+    fireEvent.click(screen.getByRole("button", { name: "Approve & execute" }));
+    await waitFor(() => expect(h.approve).toHaveBeenCalledWith({ id: "p-1" }));
+  });
+
   it("Reject stays the destructive control", () => {
     render(<ApprovalsSection />);
     fireEvent.click(screen.getByRole("button", { name: "Reject" }));
