@@ -10,11 +10,11 @@
  * read) and a memory that COMPOUNDS (each cycle elevates signal-to-
  * noise).
  *
- * Distinct from `lib/brain/reflection-engine.ts` — that one is the
- * Layer-4 daily/weekly cross-table engine (scores + habits + dumps +
- * business signals → `Reflection` table). This one is the CoALA
- * per-category synthesis (BrainMemory category X → BrainMemory category
- * `reflection`). Different layer, different output table, no collision.
+ * Distinct from the `Reflection` table (the old Layer-4 daily/weekly
+ * cross-table engine, lib/brain/reflection-engine.ts, deleted 2026-10-16,
+ * wrote it). This one is the CoALA per-category synthesis (BrainMemory
+ * category X → BrainMemory category `reflection`). Different layer,
+ * different output table, no collision.
  *
  * Locked design choices (per task brief):
  *   1. No schema migration · `derivedFrom` / `reflectionWindow` /
@@ -179,8 +179,7 @@ export async function reflectOnCategory(
 
   // 1. Pull source memories in the window.
   // Direct prisma rather than brainMemory.recall — the manager API
-  // doesn't expose a createdAt filter and the reflection-engine
-  // uses the same direct pattern.
+  // doesn't expose a createdAt filter.
   const sourceRows = await prisma.brainMemory.findMany({
     where: {
       category,

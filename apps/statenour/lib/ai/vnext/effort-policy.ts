@@ -1,13 +1,23 @@
 /**
- * NICK VNEXT · capability/effort router — SHADOW (2026-08-11).
+ * NICK VNEXT · capability/effort router (2026-08-11) — PARTLY LIVE (checked 2026-10-16).
  *
  * Routes by CAPABILITY NEED instead of provider order: the question is
  * no longer "which provider do I try first?" but "what level of
  * intelligence / effort / trust-boundary does this task require?".
- * Pure function, wired to NO live path yet — the incumbent
- * TASK_ROUTING_PREFERENCES chain keeps serving production until this
- * router wins its eval (additive-migration rule: delete a legacy layer
- * only after it loses an A/B).
+ *
+ * `routeCapability` (the band router) is a pure function still wired to NO
+ * production path: only tests/ai/vnext/effort-policy.test.ts calls it, and the
+ * incumbent TASK_ROUTING_PREFERENCES chain keeps serving production until it
+ * wins its eval (additive-migration rule: delete a legacy layer only after it
+ * loses an A/B).
+ *
+ * LIVE from this file in the chat path (app/api/ai/chat/):
+ *   · `canaryDeepForce` (route.ts) and `claude5EffortForAttempt`
+ *     (build-stream-config.ts), behind NICK_CANARY_DEEP_ANTHROPIC=1 (default OFF).
+ *   · `CLAUDE5_MODELS` and the `ClaudeEffort` / `Claude5ModelId` types, which
+ *     lib/ai/vnext/escalation.ts imports; route.ts resolves that escalation on
+ *     every turn (on unless NICK_ESCALATION_DISABLED=1; only an explicit depth
+ *     marker in the operator's message can reach a metered frontier model).
  *
  * Model facts (verified against the installed @ai-sdk/anthropic ^3.0.64,
  * which exposes effort low|medium|high|xhigh|max + taskBudget):

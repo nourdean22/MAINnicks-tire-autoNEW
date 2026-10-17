@@ -236,12 +236,14 @@ export async function deriveJournalSilos(input: DeriveInput): Promise<DeriveResu
           // a novel category could, by falling through every switch.
           scope: "triggered",
           category: "reflection",
-          // SANITIZED, because this text REACHES A PROMPT. reflection-engine.ts
-          // builds prompt lines straight from `r.insight` (:278, :492), and
-          // journal-ingest.ts already sanitizes every other operator string it
-          // stores for later prompt use (:434, :512). Storing raw here would have
-          // been a role-flip surface in a repo that has a dedicated sanitizer for
-          // exactly this.
+          // SANITIZED, because this text REACHES A PROMPT: lib/ai/prompt/v2/renderer.ts
+          // renders `Reflection.insight` into the system prompt, and
+          // lib/services/reflection.ts (the reflection writer now that
+          // lib/brain/reflection-engine.ts is gone) builds its synthesis prompt
+          // from stored text. journal-ingest.ts already sanitizes every other
+          // operator string it stores for later prompt use. Storing raw here would
+          // have been a role-flip surface in a repo that has a dedicated sanitizer
+          // for exactly this.
           insight: sanitizeForPrompt(text, 4000),
           evidence: `derived from brain_dump ${input.brainDumpId} · captured via /dump`,
           confidence: 0.7,

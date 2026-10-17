@@ -26,7 +26,7 @@ import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
 import { isAiSentinel } from "@/lib/ai/provider";
 import { AiUnavailableError } from "@/lib/ai/structured";
 import { buildNourVoicePrompt } from "@/lib/ai/nour-voice-profile";
-import { critiqueContent } from "@/lib/ai/output-critic";
+import { critiqueContent } from "@/lib/ai/chat/output-guardian";
 import { logger as rootLogger } from "@/lib/logger";
 
 const log = rootLogger.withSurface("ai/ghostwriter");

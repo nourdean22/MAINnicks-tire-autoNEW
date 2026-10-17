@@ -239,7 +239,7 @@ export async function runDeferredBackgroundWork(ctx: DeferredBackgroundCtx) {
         withErrorCapture(
           "chat:post-process",
           async () => {
-            const { checkClaims } = await import("@/lib/ai/hallucination-guard");
+            const { checkClaims } = await import("@/lib/ai/chat/output-guardian");
             const flagged = await checkClaims(cleanedText);
             const offCount = flagged.filter((f) => f.verdict === "off" || f.verdict === "way_off").length;
             if (offCount > 0) {
