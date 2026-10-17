@@ -112,14 +112,14 @@ export function useTts({
             // this exists to prevent. Deduped by toast id so a long reply
             // does not toast per sentence.
             if (name === "web-speech") {
-              toast.warning("Neural voice unavailable — using the device voice", {
+              toast.warning("Neural voice unavailable: using the device voice", {
                 id: "tts-fallback",
                 duration: 4000,
               });
             }
           },
           onError: () => {
-            toast.error("Read-aloud failed — every speech engine errored", { id: "tts-error" });
+            toast.error("Read-aloud failed: every speech engine errored", { id: "tts-error" });
           },
         },
       );

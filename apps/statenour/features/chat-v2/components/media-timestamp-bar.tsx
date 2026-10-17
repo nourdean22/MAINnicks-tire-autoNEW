@@ -46,8 +46,8 @@ export function MediaTimestampBar({ text }: { text: string }) {
 
   return (
     <div className="mt-2 flex flex-wrap items-center gap-1.5">
-      <span className="inline-flex items-center gap-1 font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-fg-tertiary">
-        <Crosshair size={10} /> mentioned
+      <span className="inline-flex items-center gap-1 font-mono text-[11px] font-medium tracking-[0.12em] text-fg-tertiary">
+        <Crosshair size={10} /> Mentioned
       </span>
       {refs.map((ref) => {
         const label =

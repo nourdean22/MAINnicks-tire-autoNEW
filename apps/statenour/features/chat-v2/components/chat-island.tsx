@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown, Brain, History, Mic, MicOff, Volume2, VolumeX } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { ArrowDown, Brain, History, Mic, MicOff, MoreHorizontal, Volume2, VolumeX, X } from "lucide-react";
 import { isNearBottom, nextFollow } from "../lib/scroll-position";
 import { scrollBehavior } from "@/lib/ui/scroll-behavior";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useChatUiStore } from "../stores/chat-ui-store";
 import { useChatStream } from "../hooks/use-chat-stream";
 import { resolveIslandHeight } from "../lib/island-height";
@@ -22,6 +22,24 @@ import { useConversations } from "@/hooks/use-conversations";
 import type { SavedRow } from "../lib/saved-turn";
 import { useChatDeepLinkPrefill } from "../hooks/use-chat-deep-link-prefill";
 import { useTts } from "../hooks/use-tts";
+import { toast } from "sonner";
+
+// W3b (B1): at xl the Context and Evidence inspector docks beside the conversation. Module scope,
+// like the composer's coarse-pointer query: useSyncExternalStore re-subscribes when the subscribe
+// function changes. The server (and a jsdom without matchMedia) reads "not xl"; the client takes over.
+// A1b: the composer's line while a conversation opens (use-conversations isLoadingConvo).
+export const COMPOSER_OPENING_REASON = "Opening that conversation. Send once it is on screen.";
+const XL_QUERY = "(min-width: 1280px)";
+function subscribeXl(onChange: () => void): () => void {
+  const query = window.matchMedia?.(XL_QUERY);
+  query?.addEventListener?.("change", onChange);
+  return () => query?.removeEventListener?.("change", onChange);
+}
+const readXl = () => window.matchMedia?.(XL_QUERY).matches ?? false;
+const serverXl = () => false;
+function useXl(): boolean {
+  return useSyncExternalStore(subscribeXl, readXl, serverXl);
+}
 
 function useScrollToBottom<T extends HTMLElement>() {
   const containerRef = useRef<T>(null);
@@ -121,6 +139,9 @@ export function ChatIsland() {
   const toggleVoiceDock = useChatUiStore((state) => state.toggleVoiceDock);
   const memoryInspectorOpen = useChatUiStore((state) => state.memoryInspectorOpen);
   const setMemoryInspectorOpen = useChatUiStore((state) => state.setMemoryInspectorOpen);
+  // W3b (B1): docked open by default at xl until the operator chooses; an explicit choice wins at any width.
+  const xl = useXl();
+  const inspectorOpen = memoryInspectorOpen ?? xl;
   const historyDrawerOpen = useChatUiStore((state) => state.historyDrawerOpen);
   const privateMode = useChatUiStore((state) => state.privateMode);
   const activeConversationId = useChatUiStore((state) => state.activeConversationId);
@@ -131,6 +152,11 @@ export function ChatIsland() {
   const contradictions = useChatUiStore((state) => state.contradictions);
   const setMemoryData = useChatUiStore((state) => state.setMemoryData);
   const [memoryFetchedAt, setMemoryFetchedAt] = useState<Date | null>(null);
+  // W3b: below md the header shows History and More; auto-read, context and voice live in this sheet.
+  const [moreOpen, setMoreOpen] = useState(false);
+  // W3b: one polite region for the chip's detach (the x unmounts under the finger).
+  const [chipAnnouncement, setChipAnnouncement] = useState("");
+  const moreButtonRef = useRef<HTMLButtonElement>(null);
 
   // Retry after a stream error reads the conversation as saved before it replays a
   // turn. useConversations owns the tRPC client but is created after this hook, so
@@ -145,13 +171,22 @@ export function ChatIsland() {
   // deep-links (orphaned in the chat-v2 migration; 13 callers were
   // landing on an empty composer). Prefill only — never auto-send.
   useChatDeepLinkPrefill();
+  // W3b: a failed delete, rename, archive or Load older is said once, on the same sonner
+  // channel the Retry holds use; it used to reach the console only.
   const conversations = useConversations({
     setMessages: chat.setMessages,
-    onError: (message) => console.error("useConversations error:", message),
+    onError: (message) => toast.error(message),
   });
   useEffect(() => {
     readSavedTurnRef.current = conversations.readSavedTurn;
   }, [conversations.readSavedTurn]);
+  // /new (the composer), a delete and a successful open all move the store; a failure never does, so
+  // any store move means the failed-open card is about a conversation that is no longer the one
+  // in question (round 2, lenses A and B).
+  const { clearLoadFailure } = conversations;
+  useEffect(() => {
+    clearLoadFailure?.();
+  }, [activeConversationId, clearLoadFailure]);
   // Every path here that empties or switches the conversation (pick one, New, delete the active one)
   // goes through this: the old turn's error, trace refs and outstanding replay are reset BEFORE the
   // active conversation moves, so none of it stays attached to the next chat. resetTurn leaves a turn
@@ -159,6 +194,17 @@ export function ChatIsland() {
   const moveToConversation = (id: string | null) => {
     chat.resetTurn();
     setActiveConversationId(id);
+  };
+  // Opening a conversation from History: the turn is reset first, the rows are read, and the
+  // store moves only once THIS read landed (loadConvo answers false for a failed or superseded
+  // read). The store used to move before the read, so a failed open left the next send posting
+  // into a conversation the operator never saw. The active conversation stays where it was and
+  // the list shows a Retry line (W3b, empty-vs-error).
+  const openConversation = (id: string) => {
+    chat.resetTurn();
+    void conversations.loadConvo(id).then((ok) => {
+      if (ok) setActiveConversationId(id);
+    });
   };
   const { containerRef, endRef, isAtBottom, scrollToBottom } = useScrollToBottom<HTMLDivElement>();
   const islandRef = useRef<HTMLDivElement>(null);
@@ -266,7 +312,7 @@ export function ChatIsland() {
   }, [chat.messages]);
 
   useEffect(() => {
-    if (!memoryInspectorOpen || !lastUserText) return;
+    if (!inspectorOpen || !lastUserText) return;
     const controller = new AbortController();
     void (async () => {
       try {
@@ -291,23 +337,22 @@ export function ChatIsland() {
       }
     })();
     return () => controller.abort();
-  }, [contradictions, lastUserText, memoryInspectorOpen, setMemoryData]);
+  }, [contradictions, lastUserText, inspectorOpen, setMemoryData]);
 
   return (
     <div ref={islandRef} className="relative flex h-full w-full flex-col overflow-hidden bg-void text-fg">
-      {/* flex-wrap: four 44px controls plus a long capability label ("tool
-          health unknown") pass 390px, so the controls drop to their own line
-          instead of running under the label. */}
-      <header className="z-10 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-edge-subtle bg-canvas px-3 py-2 sm:px-4">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2.5">
-            <h1 className="font-mono text-[13px] font-semibold tracking-[0.08em] text-fg">NICK</h1>
-            <ChatCapabilityIndicator />
-          </div>
+      {/* W3b: one line. Nick, the capability dot and its word, Private when it is on; History and
+          More on the right below md (auto-read, context and voice sit in the More sheet there),
+          all of them at md and up. The five controls keep the 44px box the mobile-a11y pin counts;
+          the three that leave the phone line are hidden by max-md:hidden, never made smaller. */}
+      <header className="z-10 flex items-center justify-between gap-3 border-b border-edge-subtle bg-canvas px-3 py-1 sm:px-4">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <h1 className="text-[15px] font-semibold tracking-[-0.01em] text-fg">Nick</h1>
+          <ChatCapabilityIndicator />
           {/* 09-F22: the posture/depth strip read selectors the composer lost
-              on 2026-08-28, so it always said the same thing. PRIVATE is the
+              on 2026-08-28, so it always said the same thing. Private is the
               one mode left to show. */}
-          {privateMode && <p className="mt-0.5 font-mono text-[11px] text-accent">PRIVATE</p>}
+          {privateMode && <p className="font-mono text-[11px] text-accent">Private</p>}
         </div>
         <div className="ml-auto flex items-center gap-0.5">
           {/* 09-F23: one global preference, so one control (it was a button
@@ -318,23 +363,62 @@ export function ChatIsland() {
               aria-label={tts.enabled ? "Auto-read replies is on (tap to turn off)" : "Auto-read replies is off (tap to turn on)"}
               aria-pressed={tts.enabled}
               onClick={tts.toggle}
-              className={`flex h-11 w-11 items-center justify-center rounded-control transition-colors duration-[var(--motion-state)] ${tts.enabled ? "bg-surface-interactive text-fg" : "text-fg-tertiary hover:bg-surface hover:text-fg"}`}
+              className={`flex h-11 w-11 items-center justify-center rounded-control max-md:hidden transition-colors duration-[var(--motion-state)] ${tts.enabled ? "bg-surface-interactive text-fg" : "text-fg-tertiary hover:bg-surface hover:text-fg"}`}
             >
               {tts.enabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
             </button>
           )}
-          <button onClick={() => setMemoryInspectorOpen(!memoryInspectorOpen)} aria-label="Context and memory" aria-pressed={memoryInspectorOpen} className={`flex h-11 w-11 items-center justify-center rounded-control transition-colors duration-[var(--motion-state)] ${memoryInspectorOpen ? "bg-surface-interactive text-fg" : "text-fg-tertiary hover:bg-surface hover:text-fg"}`}>
+          <button onClick={() => setMemoryInspectorOpen(!inspectorOpen)} aria-label="Context and memory" aria-pressed={inspectorOpen} className={`flex h-11 w-11 items-center justify-center rounded-control max-md:hidden transition-colors duration-[var(--motion-state)] ${inspectorOpen ? "bg-surface-interactive text-fg" : "text-fg-tertiary hover:bg-surface hover:text-fg"}`}>
             <Brain size={16} /><span className="sr-only">Context</span>
           </button>
           <button ref={historyButtonRef} onClick={() => setHistoryDrawerOpen(!historyDrawerOpen)} aria-label="Conversation history" aria-pressed={historyDrawerOpen} className={`flex h-11 w-11 items-center justify-center rounded-control transition-colors duration-[var(--motion-state)] ${historyDrawerOpen ? "bg-surface-interactive text-fg" : "text-fg-tertiary hover:bg-surface hover:text-fg"}`}>
             <History size={16} /><span className="sr-only">History</span>
           </button>
-          <button onClick={toggleVoiceDock} aria-label={isVoiceDocked ? "Close voice" : "Open voice"} aria-pressed={isVoiceDocked} className={`flex h-11 w-11 items-center justify-center rounded-control transition-colors duration-[var(--motion-state)] ${isVoiceDocked ? "bg-rose-500/15 text-rose-300" : "text-fg-tertiary hover:bg-surface hover:text-fg"}`}>
+          <button onClick={toggleVoiceDock} aria-label={isVoiceDocked ? "Close voice" : "Open voice"} aria-pressed={isVoiceDocked} className={`flex h-11 w-11 items-center justify-center rounded-control max-md:hidden transition-colors duration-[var(--motion-state)] ${isVoiceDocked ? "bg-rose-500/15 text-rose-300" : "text-fg-tertiary hover:bg-surface hover:text-fg"}`}>
             {isVoiceDocked ? <MicOff size={16} /> : <Mic size={16} />}<span className="sr-only">Voice</span>
+          </button>
+          <button ref={moreButtonRef} type="button" onClick={() => setMoreOpen(true)} aria-label="More chat controls" aria-expanded={moreOpen} aria-haspopup="dialog" className="flex h-11 w-11 items-center justify-center rounded-control md:hidden text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:bg-surface hover:text-fg">
+            <MoreHorizontal size={16} />
           </button>
         </div>
       </header>
 
+      {/* The More sheet (below md): the same three controls as rows, in the DOM (window.* menus do
+          not exist in the installed iOS PWA). Each row acts and closes the sheet; focus returns to More. */}
+      <Dialog open={moreOpen} onOpenChange={(open) => { if (!open) setMoreOpen(false); }}>
+        <DialogContent
+          unstyled
+          showCloseButton={false}
+          finalFocus={moreButtonRef}
+          overlayClassName="z-[58] bg-canvas/60"
+          className="fixed inset-x-0 bottom-0 z-[59] rounded-t-float border-t border-edge-default bg-overlay p-2 pb-[calc(env(safe-area-inset-bottom,0px)+0.5rem)] shadow-l1 outline-none"
+        >
+          <DialogTitle className="px-3 py-2 text-[13px] font-medium text-fg-secondary">More chat controls</DialogTitle>
+          {tts.supported && (
+            <button type="button" aria-pressed={tts.enabled} onClick={() => { tts.toggle(); setMoreOpen(false); }} className="flex min-h-11 w-full items-center gap-3 rounded-control px-3 text-left text-[15px] text-fg hover:bg-surface">
+              {tts.enabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
+              Auto-read replies
+              <span className="ml-auto text-[13px] text-fg-tertiary">{tts.enabled ? "On" : "Off"}</span>
+            </button>
+          )}
+          <button type="button" aria-pressed={inspectorOpen} onClick={() => { setMemoryInspectorOpen(!inspectorOpen); setMoreOpen(false); }} className="flex min-h-11 w-full items-center gap-3 rounded-control px-3 text-left text-[15px] text-fg hover:bg-surface">
+            <Brain size={16} />
+            Context and memory
+          </button>
+          <button type="button" aria-pressed={isVoiceDocked} onClick={() => { toggleVoiceDock(); setMoreOpen(false); }} className="flex min-h-11 w-full items-center gap-3 rounded-control px-3 text-left text-[15px] text-fg hover:bg-surface">
+            {isVoiceDocked ? <MicOff size={16} /> : <Mic size={16} />}
+            Voice
+            <span className="ml-auto text-[13px] text-fg-tertiary">{isVoiceDocked ? "Open" : "Closed"}</span>
+          </button>
+        </DialogContent>
+      </Dialog>
+
+      {/* W3b (B1): one row below the header. The conversation column (list, media dock, composer)
+          keeps its own width so the reading column and the composer stay centred together; at xl the
+          Context and Evidence inspector is docked beside it (below xl it is the fixed overlay and this
+          row has one child). min-h-0 lets the column's scroller shrink inside the flex row. */}
+      <div className="flex min-h-0 flex-1">
+      <div className="flex min-w-0 flex-1 flex-col">
       {/* `relative` anchors the jump-to-latest button only — plain
           relative creates no containing block for `position: fixed`
           descendants (the voice overlay's `fixed inset-0` still anchors
@@ -346,11 +430,14 @@ export function ChatIsland() {
             messages={chat.messages}
             isLoading={chat.isStreaming}
             isLoadingConvo={conversations.isLoadingConvo}
+            loadFailedId={conversations.loadFailedId}
+            onRetryLoad={(id) => openConversation(id)}
             error={chat.error}
+            hold={chat.hold}
             liveContextBlocks={chat.liveContextBlocks}
             lastTraceId={chat.lastTraceId}
-            onRetry={() => void chat.regenerate()}
-            onCommand={(prompt) => chat.sendText(prompt)}
+            onRetry={() => { if (!conversations.isLoadingConvo) void chat.regenerate(); }}
+            onCommand={(prompt) => { if (!conversations.isLoadingConvo) chat.sendText(prompt); }}
             tts={tts}
             stopped={chat.stopped}
             conversationId={privateMode ? null : activeConversationId}
@@ -392,16 +479,38 @@ export function ChatIsland() {
       <ChatMediaDock />
 
       <div className="relative z-10 bg-canvas px-3 pb-3 pt-2 sm:px-4">
-        <ChatComposer chat={chat} />
+        {/* W3b: page context was attached silently and always (PageContextBridge, use-chat-stream.ts).
+            The chip says what rides the next turn; its x leaves the anchors out of that send. */}
+        {chat.pageContext && (
+          <div className="mx-auto mb-1 flex max-w-4xl items-center gap-1 text-[12px] text-fg-secondary">
+            <span className="min-w-0 truncate">Page context: {chat.pageContext.route} attached</span>
+            <button
+              type="button"
+              onClick={() => {
+                chat.detachPageContext();
+                setChipAnnouncement("Page context detached for this turn");
+                islandRef.current?.querySelector("textarea")?.focus();
+              }}
+              aria-label="Detach page context for this turn"
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-control text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:bg-surface hover:text-fg"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        )}
+        <ChatComposer chat={chat} disabledReason={conversations.isLoadingConvo ? COMPOSER_OPENING_REASON : undefined} />
+        <div role="status" aria-live="polite" className="sr-only">{chipAnnouncement}</div>
+      </div>
       </div>
 
-      {/* BDN-315 · desktop focus panel. Overlays like the memory
-          inspector rather than re-laying-out the chat column — the plan
-          explicitly warns against forcing a permanent multi-column
-          dashboard. Renders null unless the operator opts in. */}
-      <ChatMediaFocusPanel />
+      {/* W3b (B1): docked at xl (the evidence beside the answer, on its own raised surface, closable
+          from the header's Context button); the opt-in overlay below xl, as before. */}
+      <MemoryInspectorSidebar open={inspectorOpen} docked={xl} onClose={() => setMemoryInspectorOpen(false)} hits={recalledHits} contradictions={contradictions} fetchedAt={memoryFetchedAt} reply={replyQuality} recallProvenance={recallProvenance} recallProvenanceReason={recallProvenanceReason} />
+      </div>
 
-      <MemoryInspectorSidebar open={memoryInspectorOpen} onClose={() => setMemoryInspectorOpen(false)} hits={recalledHits} contradictions={contradictions} fetchedAt={memoryFetchedAt} reply={replyQuality} recallProvenance={recallProvenance} recallProvenanceReason={recallProvenanceReason} />
+      {/* BDN-315 · desktop focus panel. Overlays rather than re-laying-out the chat column.
+          Renders null unless the operator opts in. */}
+      <ChatMediaFocusPanel />
 
       {/* 09-F4: a modal dialog (pattern: nick-side-pane.tsx): focus moves in
           and is trapped, Escape and a scrim tap close it, and focus returns
@@ -427,10 +536,11 @@ export function ChatIsland() {
             pinnedIds={conversations.pinnedIds}
             hasMore={conversations.hasMoreConvos}
             loadingMore={conversations.loadingMore}
+            listState={conversations.listState}
+            onRetryList={conversations.reloadConvos}
             onLoadMore={conversations.loadMoreConvos}
             onSelect={(id) => {
-              moveToConversation(id);
-              void conversations.loadConvo(id);
+              openConversation(id);
               setHistoryDrawerOpen(false);
             }}
             onDelete={(id, event) => {
@@ -447,7 +557,10 @@ export function ChatIsland() {
               conversations.newChat();
               setHistoryDrawerOpen(false);
             }}
+            // PR #3090: every send entry point waits for an opening conversation (the composer says why).
+            actionsDisabled={conversations.isLoadingConvo}
             onShowActions={() => {
+              if (conversations.isLoadingConvo) return;
               setHistoryDrawerOpen(false);
               chat.sendText("/receipts");
             }}
