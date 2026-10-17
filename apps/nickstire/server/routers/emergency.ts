@@ -155,7 +155,8 @@ export const emergencyRouter = router({
 
         const nextOpenTime = getNextOpenTime();
 
-        // Unified event bus — CRITICAL priority (→ NOUR OS + Telegram + learning)
+        // Unified event bus — CRITICAL priority (→ NOUR OS + learning). nickstire sends no Telegram
+        // for this event: statenour's bridge route alerts on it and retries an undelivered alert.
         import("../services/eventBus").then(({ emit }) =>
           emit.emergencyRequest({
             id: emergencyId,
@@ -192,19 +193,6 @@ export const emergencyRouter = router({
             errorDetails: err,
           });
         });
-
-        // IMMEDIATE Telegram alert (backup for SMS)
-        import("../services/telegram").then(({ sendTelegram }) =>
-          sendTelegram(
-            `🚨 EMERGENCY REQUEST\n\n` +
-            `Customer: ${name}\n` +
-            `Phone: ${phone}\n` +
-            `Vehicle: ${vehicle || "N/A"}\n` +
-            `Problem: ${problem || "N/A"}\n` +
-            `Urgency: ${input.urgency}\n\n` +
-            `⚡ CALL THEM BACK ASAP`
-          )
-        ).catch((e) => { log.warn("[routers/emergency] fire-and-forget failed:", e); });
 
         // IMMEDIATE SMS to owner about the emergency request
         // Wave-108: NOT via shop gateway — STORE_OWNER_PHONE may equal

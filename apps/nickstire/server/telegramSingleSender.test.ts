@@ -18,6 +18,10 @@ const h = vi.hoisted(() => ({
   selectRows: [] as unknown[],
   accept: true,
   flags: {} as Record<string, boolean>,
+  // Every emit.emergencyRequest call (the bridge emit statenour alerts and retries on), and
+  // whether the stub also runs the bus's real telegram destination for it (pins router and bus apart).
+  emergencyEmits: [] as Array<Record<string, unknown>>,
+  runEmergencyBus: true,
 }));
 
 vi.mock("./services/featureFlags", async (importOriginal) => ({
@@ -59,6 +63,10 @@ vi.mock("./services/eventBus", async (importOriginal) => {
       callbackRequested: (d: Record<string, unknown>) => runTelegramDestination("callback_requested", d),
       bookingCreated: (d: Record<string, unknown>) => runTelegramDestination("booking_created", d),
       bookingCompleted: (d: Record<string, unknown>) => runTelegramDestination("booking_completed", d),
+      emergencyRequest: (d: Record<string, unknown>) => {
+        h.emergencyEmits.push(d);
+        return h.runEmergencyBus ? runTelegramDestination("emergency_request", d) : undefined;
+      },
     },
   };
 });
@@ -116,6 +124,7 @@ vi.mock("./services/activityLedger", async (importOriginal) => ({
 
 import { leadRouter } from "./routers/lead";
 import { callbackRouter } from "./routers/callback";
+import { emergencyRouter } from "./routers/emergency";
 import { createChatLead } from "./routers/chat";
 import { autoCreateLeadFromBooking } from "./services/workOrderAutomation";
 import { emit } from "./services/eventBus";
@@ -164,6 +173,8 @@ describe("one Telegram message per lead, callback, chat lead and booking", () =>
     h.selectRows = [];
     h.accept = true;
     h.flags = {};
+    h.emergencyEmits.length = 0;
+    h.runEmergencyBus = true;
   });
 
   const submitLead = () =>
@@ -236,5 +247,63 @@ describe("one Telegram message per lead, callback, chat lead and booking", () =>
     await settle();
     expect(h.sends).toHaveLength(1);
     expect(h.sends[0].text).toContain("NEW BOOKING");
+  });
+});
+
+// Nour, 2026-10-17: "drop nickstire". An emergency request reaches Telegram through statenour's
+// bridge route only (its copy is the one with retry); nickstire sends none of its own. The bridge
+// emit itself stays: statenour needs it to alert and to retry an undelivered emergency.
+describe("an emergency request sends no Telegram from nickstire and still emits to the bridge once", () => {
+  const submitEmergency = () =>
+    emergencyRouter.createCaller(PUBLIC_CTX).submit({
+      name: "Ann Test",
+      phone: "2165550142",
+      vehicle: "2015 Civic",
+      problem: "Flat tire on I-90",
+      urgency: "emergency",
+    });
+
+  beforeEach(() => {
+    h.sends.length = 0;
+    h.fakeDb = fakeDb;
+    h.getDb = fakeDb;
+    h.accept = true;
+    h.flags = {};
+    h.emergencyEmits.length = 0;
+    h.runEmergencyBus = true;
+    h.selectRows = [{ id: 77 }]; // the emergency_requests row the router reads back after its insert
+  });
+
+  it("emergency.submit sends zero Telegram messages with the router and the bus both running", async () => {
+    await submitEmergency();
+    await settle();
+    expect(h.sends.map((s) => s.text)).toEqual([]);
+    // the bridge emit statenour alerts and retries on is untouched: once, carrying the persisted row id
+    expect(h.emergencyEmits).toHaveLength(1);
+    expect(h.emergencyEmits[0]).toMatchObject({
+      id: 77,
+      name: "Ann Test",
+      phone: expect.any(String),
+      problem: "Flat tire on I-90",
+      urgency: "emergency",
+    });
+    // positive control: this counter is live, the bus still alerts on a booking and it counts once
+    await emit.bookingCreated({ id: 9, name: "Ann Test", phone: "2165550142", service: "Brakes" });
+    await settle();
+    expect(h.sends.map((s) => s.text)).toEqual([expect.stringContaining("NEW BOOKING")]);
+  });
+
+  it("the router sends no Telegram of its own (bus off)", async () => {
+    h.runEmergencyBus = false;
+    await submitEmergency();
+    await settle();
+    expect(h.sends.map((s) => s.text)).toEqual([]);
+    expect(h.emergencyEmits).toHaveLength(1);
+  });
+
+  it("the bus's telegram destination does not alert on an emergency_request (router bypassed)", async () => {
+    await emit.emergencyRequest({ id: 77, name: "Ann Test", phone: "2165550142", problem: "Flat tire on I-90", urgency: "emergency" });
+    await settle();
+    expect(h.sends.map((s) => s.text)).toEqual([]);
   });
 });
