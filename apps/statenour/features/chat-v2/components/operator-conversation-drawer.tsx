@@ -11,6 +11,8 @@ export function OperatorConversationDrawer({
   pinnedIds,
   hasMore,
   loadingMore,
+  listState,
+  onRetryList,
   onLoadMore,
   onSelect,
   onDelete,
@@ -19,6 +21,7 @@ export function OperatorConversationDrawer({
   onArchive,
   onNew,
   onShowActions,
+  actionsDisabled = false,
   onClose,
 }: {
   convos: Convo[];
@@ -26,6 +29,9 @@ export function OperatorConversationDrawer({
   pinnedIds: Set<string>;
   hasMore: boolean;
   loadingMore: boolean;
+  /** The list read (hooks/use-conversations.ts): a failed read is never shown as an empty list. */
+  listState: "loading" | "error" | "ok";
+  onRetryList: () => void;
   onLoadMore: () => void;
   onSelect: (id: string) => void;
   onDelete: (id: string, event?: React.MouseEvent) => void;
@@ -34,6 +40,8 @@ export function OperatorConversationDrawer({
   onArchive: (id: string) => void;
   onNew: () => void;
   onShowActions: () => void;
+  /** PR #3090: true while a conversation opens; "/receipts" would land in a thread not yet on screen. */
+  actionsDisabled?: boolean;
   onClose: () => void;
 }) {
   const [query, setQuery] = useState("");
@@ -69,7 +77,7 @@ export function OperatorConversationDrawer({
       </div>
 
       <div className="space-y-2 border-b border-edge p-3">
-        <button onClick={onShowActions} className="flex min-h-11 w-full items-center gap-2 rounded-control border border-edge-default bg-content px-3 text-left text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg">
+        <button type="button" onClick={onShowActions} disabled={actionsDisabled} className="disabled:opacity-50 flex min-h-11 w-full items-center gap-2 rounded-control border border-edge-default bg-content px-3 text-left text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg">
           <History size={14} /> Verified recent actions
         </button>
         <div className="relative">
@@ -86,7 +94,17 @@ export function OperatorConversationDrawer({
       </div>
 
       <div className="flex-1 overflow-y-auto p-2">
-        {visible.length === 0 && <p className="p-5 text-center text-xs text-fg-tertiary">No conversations in this view.</p>}
+        {/* One always-mounted status region for the read (announced); Retry stays mounted while the
+            re-read is in flight. A background reload (after a new conversation) keeps the rows; the
+            loading line is for an empty drawer. */}
+        <div role="status" aria-live="polite" className={listState === "ok" || (listState === "loading" && convos.length > 0) ? "sr-only" : "flex min-h-11 flex-wrap items-center justify-center gap-2 p-5 text-center text-[13px] text-fg-secondary"}>
+          {listState === "error" && "History unavailable: the list could not be read."}
+          {listState === "loading" && convos.length === 0 && "Loading history…"}
+          {listState !== "ok" && (
+            <button type="button" onClick={onRetryList} disabled={listState === "loading"} className="min-h-11 rounded-control px-2 font-medium text-fg underline disabled:opacity-50">Retry</button>
+          )}
+        </div>
+        {listState === "ok" && visible.length === 0 && <p className="p-5 text-center text-xs text-fg-tertiary">No conversations in this view.</p>}
         {visible.map((conversation) => (
           <div key={conversation.id} className={`group mb-1 rounded-control border p-2 transition ${activeId === conversation.id ? "border-accent/40 bg-accent-soft" : "border-transparent hover:border-edge-default hover:bg-raised"}`}>
             <button onClick={() => onSelect(conversation.id)} className="w-full text-left">
@@ -117,7 +135,7 @@ export function OperatorConversationDrawer({
                   const messageCount = conversation._count.messages;
                   const ok = await confirmDialog({
                     title: "Delete this conversation?",
-                    body: `“${conversation.title || "Untitled conversation"}” and its ${messageCount} message${messageCount === 1 ? "" : "s"} are removed. This cannot be undone — archive instead if you only want it out of the way.`,
+                    body: `“${conversation.title || "Untitled conversation"}” and its ${messageCount} message${messageCount === 1 ? "" : "s"} are removed. This cannot be undone. Archive instead if you only want it out of the way.`,
                     confirmLabel: "Delete",
                     cancelLabel: "Keep",
                     tone: "danger",
