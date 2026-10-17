@@ -464,6 +464,26 @@ async function handleCallback(callback: {
       return;
     }
 
+    // Daily Tutor one-tap answer (brain W2, 2026-10-16). callback_data: tut:<ledgerId>:<choice>
+    // The grader owns the claim (ledger decision swap) and the three replies; this only relays.
+    if (action === "tut") {
+      const choice = (callback.data ?? "").split(":")[2] ?? "";
+      let reply = "Could not record - try again.";
+      try {
+        const { handleTutorAnswer } = await import("@/lib/brain/tutor-pack");
+        reply = (await handleTutorAnswer(param ?? "", choice)).reply;
+      } catch (err) {
+        void import("@/lib/utils/error-log").then(({ logError }) =>
+          logError("api.telegram.webhook", err, { fn: "tutorAnswer", ledgerId: param }, "warn"),
+        );
+      }
+      await answerCallbackQuery(callback.id, reply);
+      await (prisma as any).actionReceipt
+        .update({ where: { id: receipt.id }, data: { status: "SUCCESS" } })
+        .catch(() => {});
+      return;
+    }
+
     // Journal Brain · confirm/reject a proposed goal link from the phone.
     // callback_data: jlink:c|r:<silo>:<id>
     if (action === "jlink") {

@@ -1,5 +1,22 @@
 # Reconciliation · statenour-os
 
+> ## 2026-10-16 · Brain W2 · the Daily Tutor, one tap a day (branch `statenour/brain-w2-tutor`) · 1 statenour PR
+>
+> Not live until merged and `/api/version` serves the squash SHA; the first send is the next morning slot after deploy. Every claim below is from unit tests and code reading.
+>
+> - **Daily Tutor (`lib/brain/tutor-pack.ts`, slot `tutor` in `lib/brain/proactive-pushes.ts`).** One Telegram message per ET day after the morning push: an overdue decision review (Worked / Mixed / Didn't / Not yet / Skip) or, if none, a three-option recall question from Nour's own `wisdom` rows (A / B / C / Skip). A right answer schedules the next ask at 1, 3, 7, then 30 days; a wrong one asks again tomorrow. One claim per ET day; no ledger row means nothing is sent; the live result carries ids only, never the message text.
+> - **Taps (`app/api/telegram/webhook/route.ts`, one `tut:` branch behind the owner gate).** Every grade write is a compare-and-swap: the ledger decision claim, the outcome on `outcomeAt: null`, the replay on its previous review date, the spaced row on its previous content. A redelivered tap writes nothing; a tap whose grade failed after the claim resumes on the next tap. A card Nour cleared in the Learn tab stays cleared.
+> - **Spaced reviews survive (`lib/brain/hard-delete-guard.ts`).** `spaced_review` joins the never-hard-delete list. `remember()` gives every new row a 24 h expiry and the nightly cleanup deleted it, which is why production held 0 spaced-review rows ever, Learn tab included.
+> - **Ledger truth (`lib/services/outcome-ledger.ts`).** `CORRECTION_WHERE` excludes `tutor:*` rows, so a Skip or a wrong answer never counts as a correction.
+> - **Census (`data/memory-admission-baseline.json`).** `lib/brain/tutor-pack.ts` is declared: its direct writes are schedule-field compare-and-swaps on a row created through `remember()`.
+>
+> **Kill criterion (Nour's go).** After 14 days, ledger rows with `source_engine LIKE 'tutor:%'`: answered = decided minus `result_ref = 'dismiss:timing'`. Under 30% answered, or under 50% useful among answered recall items, and the send is removed.
+>
+> **Flagged · NOT fixed**
+> - The send hour follows the morning slot's router (ET hours 6 to 11, first tick with content), so it may arrive at 06:00 ET, not 08:00.
+> - Wisdom rows are not filtered by provenance; the question says "you distilled" for every wisdom row.
+> - A resumed decision tap can write a second `decision_replay_outcome` memory (markReplayed upserts the replay itself).
+
 > ## 2026-10-16 · Brain W1 · the retrieval arbiter, finished behind its OFF flag (branch `statenour/brain-w1-arbiter`) · 1 statenour PR, nothing user-visible
 >
 > Not live until merged, and even then inert: `NICK_RECALL_ARBITER` stays default OFF and has no prod override (read-only prod probe, 2026-10-16 19:52Z). With the flag off the prompt is byte-identical to before; the only persisted change is `arbiter: false` on each turn's context receipt. Every claim below is from unit tests and code reading.
