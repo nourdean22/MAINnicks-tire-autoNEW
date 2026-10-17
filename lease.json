@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "nickstire/office-hourly-digest",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "f76f8faa-5990-4b01-b83f-d13619eda65e",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\shop-ip-camera-access-857719",
+  "claimedBy": "2026-10-17-office-detail-hourly-digest",
+  "claimedAt": "2026-10-17T22:36:21.839Z",
+  "expiresAt": "2026-10-18T10:36:21.839Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
