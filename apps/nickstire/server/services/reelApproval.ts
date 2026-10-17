@@ -565,8 +565,11 @@ export interface ReelPublishQueueEntry extends ReelPublishSubject {
  * `no_approval_recorded`, which is the truth, and the caller surfaces the
  * unreadable-table case separately so "nothing is approved" can never be
  * confused with "the table does not exist".
+ *
+ * Newest first for the Queue screen. `oldestFirst` reads in the drain's own
+ * order (id ASC, dailyReelPost) so auto-approval can reach the reels posted next.
  */
-export async function listReelPublishQueue(limit = 25): Promise<{
+export async function listReelPublishQueue(limit = 25, opts: { oldestFirst?: boolean } = {}): Promise<{
   entries: ReelPublishQueueEntry[];
   approvalsTableReadable: boolean;
 }> {
@@ -575,7 +578,7 @@ export async function listReelPublishQueue(limit = 25): Promise<{
   if (!d) return { entries: [], approvalsTableReadable: false };
 
   const { reelJobs } = await import("../../drizzle/schema");
-  const { eq, and, isNotNull, ne, desc } = await import("drizzle-orm");
+  const { eq, and, isNotNull, ne, desc, asc } = await import("drizzle-orm");
   const { auditPublishBlock } = await import("@shared/reelClaimAudit");
   const { parseReelJobPayload } = await import("@shared/reelJobPayload");
 
@@ -583,7 +586,7 @@ export async function listReelPublishQueue(limit = 25): Promise<{
     .select()
     .from(reelJobs)
     .where(and(eq(reelJobs.status, "assembled"), isNotNull(reelJobs.mp4Url), ne(reelJobs.mp4Url, "")))
-    .orderBy(desc(reelJobs.createdAt), desc(reelJobs.id))
+    .orderBy(...(opts.oldestFirst ? [asc(reelJobs.id)] : [desc(reelJobs.createdAt), desc(reelJobs.id)]))
     .limit(limit);
 
   // Probed once rather than per row: whether the table exists is a property of
