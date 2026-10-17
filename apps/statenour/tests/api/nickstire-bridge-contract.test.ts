@@ -78,12 +78,17 @@ beforeEach(() => {
 
 const cases = fixture.events.map(e => [e.type, e] as const);
 
+// Telegram job lane 2: nickstire's own event bus sends these to Telegram, so statenour
+// records them and sends nothing. The shared fixture still lists the old alert text
+// (config/ is outside this lane); this set overrides it until the fixture is updated.
+const TELEGRAM_COPY_REMOVED = new Set(["nickstire:lead", "nickstire:callback", "nickstire:booking:complete", "nickstire:invoice"]);
+
 describe("webhooks/nickstire renders the fields the bridge actually sends", () => {
   it.each(cases)("%s", async (_t, entry) => {
     const res = await post(webhookPOST, "/api/webhooks/nickstire", entry.type, entry.data);
     expect(res.status).toBe(200);
     const texts = sendTelegram.mock.calls.map(c => String(c[0]));
-    if (entry.statenour.webhookAlert === null) {
+    if (entry.statenour.webhookAlert === null || TELEGRAM_COPY_REMOVED.has(entry.type)) {
       expect(texts).toEqual([]);
       return;
     }
@@ -98,46 +103,28 @@ describe("webhooks/nickstire renders the fields the bridge actually sends", () =
     expect(sendTelegram.mock.calls.map(c => String(c[0])).join("\n")).not.toContain("JOB COMPLETE");
   });
 
-  it("a completed booking with no amount says no amount, not $0", async () => {
-    await post(webhookPOST, "/api/webhooks/nickstire", "nickstire:booking:complete", {
-      bookingId: 1, customer: "Test Customer", service: "Oil change", invoiceNumber: null, totalAmount: null,
-    });
-    const text = String(sendTelegram.mock.calls[0]?.[0]);
-    expect(text).toContain("JOB COMPLETE");
-    expect(text).toContain("Test Customer");
-    expect(text).not.toContain("$0");
-  });
-
   // Telegram parses these as HTML: an unescaped `<` or `&` in customer text is a 400
   // "can't parse entities" and the alert is dropped (reported as telegram_alert_failed).
   it("customer-written text is HTML-escaped in every alert", async () => {
     await post(webhookPOST, "/api/webhooks/nickstire", "nickstire:review", {
       rating: 5, reviewText: "Fast and fair <3", customerName: "Test <Reviewer> & Co",
     });
-    await post(webhookPOST, "/api/webhooks/nickstire", "nickstire:lead", {
-      leadId: 1, customer: "Test <b>Customer", phone: "2165550100", interest: "brakes & rotors",
-    });
     await post(webhookPOST, "/api/webhooks/nickstire", "nickstire:emergency", {
       name: "Test Customer", phone: "2165550104", description: "stuck at I-90 <exit 177>",
     });
-    const [review, lead, emergency] = sendTelegram.mock.calls.map(c => String(c[0]));
+    const [review, emergency] = sendTelegram.mock.calls.map(c => String(c[0]));
     expect(review).toContain("Fast and fair &lt;3");
     expect(review).toContain("Test &lt;Reviewer&gt; &amp; Co");
-    expect(lead).toContain("NEW LEAD — Test &lt;b&gt;Customer</b>");
-    expect(lead).toContain("brakes &amp; rotors");
     expect(emergency).toContain("stuck at I-90 &lt;exit 177&gt;");
     // The alert's own markup survives: only data is escaped.
-    for (const t of [review, lead, emergency]) expect(t).toMatch(/<b>.*<\/b>/);
+    for (const t of [review, emergency]) expect(t).toMatch(/<b>.*<\/b>/);
   });
 
   it("legacy field names still render (additive fallbacks, PROTECTED-CORE rule 8)", async () => {
-    await post(webhookPOST, "/api/webhooks/nickstire", "nickstire:lead", { name: "Legacy Name", phone: "2165550000" });
-    await post(webhookPOST, "/api/webhooks/nickstire", "nickstire:invoice", { customerName: "Legacy Name", totalCents: 12300 });
     await post(webhookPOST, "/api/webhooks/nickstire", "nickstire:review", { rating: 5, customerName: "Legacy Name", text: "legacy text" });
     const texts = sendTelegram.mock.calls.map(c => String(c[0]));
     expect(texts[0]).toContain("Legacy Name");
-    expect(texts[1]).toContain("$123");
-    expect(texts[2]).toContain("legacy text");
+    expect(texts[0]).toContain("legacy text");
   });
 });
 
