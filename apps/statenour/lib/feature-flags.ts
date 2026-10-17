@@ -660,6 +660,16 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     defaultBehavior: "Template narration only; no LLM synthesis call.",
     ownerDoc: "lib/ultron/narrator.ts",
   },
+  {
+    key: "CHAT_CONTENT_FEEDBACK_WRITES",
+    readOnly: true,
+    exactCase: true,
+    description: "Starts chat content-feedback memory writes: after a reaction to a caption, reel or headline reply, runDeferredBackgroundWork writes a content_feedback memory row, which then feeds the content-mode prompt. Reads process.env in lib/services/chat/deferred-background-work.ts, which accepts exactly true.",
+    status: "experimental",
+    onValue: "true",
+    defaultBehavior: "Off: chat writes no content_feedback rows until the operator decides.",
+    ownerDoc: "lib/services/chat/deferred-background-work.ts",
+  },
   // ── Operational / routing flags ────────────────────────────────
   // These are read via raw `process.env.X` across the code; registered
   // here (Phase Q.2 coexistence pattern · call sites untouched) so the
