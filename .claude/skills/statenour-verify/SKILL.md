@@ -389,7 +389,7 @@ change. Triage before fixing:
   failed. Read the cancellation cause, then **rerun**; root `AGENTS.md`
   is explicit: "If CI is cancelled by a sibling's merge, rerun; don't
   debug." Never treat a cancelled run as green evidence.
-- **`completion-authority` evaluates review threads at run time.**
+- **The completion-authority steps of the agent-policy job evaluate review threads at run time.**
   Resolving threads afterwards leaves a STALE red. Re-run it; do not
   re-litigate the threads. It compiles four sub-gates — know the one-line
   fix for each: rewrite the per-diff evidence entry (never reuse a prior

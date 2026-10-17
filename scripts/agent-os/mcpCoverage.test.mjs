@@ -41,6 +41,7 @@ import { fileURLToPath } from "node:url";
 // Namespace import on purpose: before the fix this module has no adaptToolCall, and a named import
 // would fail the whole file at link time instead of failing the individual canaries.
 import * as engine from "./policy.mjs";
+import { renderLedger } from "./ledger-check.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..", "..");
@@ -787,7 +788,7 @@ test("docs truth: the live check is runnable from a worktree session, the lease 
   const why = policy.rules.find((r) => r.id === "destructive-sql").why;
   assert.match(why, /the listed DROP kinds/);
   assert.doesNotMatch(why, /other DROP kinds|every DROP kind/, "the rule lists its DROP kinds; DOMAIN, AGGREGATE and the rest pass");
-  const ledger = readFileSync(join(ROOT, "docs", "agent-os", "MANAGER-LEDGER.md"), "utf8").split("\n").find((l) => l.startsWith("| 2026-10-15-guard-sql-lease-infra |")) ?? "";
+  const ledger = renderLedger(ROOT).split("\n").find((l) => l.startsWith("| 2026-10-15-guard-sql-lease-infra |")) ?? "";
   assert.ok(ledger, "the ledger row for this job is missing");
   assert.doesNotMatch(ledger, /every DROP kind/, "the ledger row must say the listed DROP kinds");
   // The guard row is a record whose Status and Next move with the job (the infra live check rewrites its Next); a pin on that text failed the every-PR job on the next ledger edit
@@ -804,7 +805,7 @@ test("docs truth: the live check is runnable from a worktree session, the lease 
 // A literal pipe inside a ledger cell (even inside backticks) is a column delimiter to a table parser: the 2026-10-15 guard row held `|` in its Job cell, read as 9 cells
 // with Status = "platform". Every row is 8 cells with a Status from the header's list; the old row fails this, the other 27 passed it when this was written.
 test("ledger: every row is eight cells and its Status is one of the header's words", () => {
-  const text = readFileSync(join(ROOT, "docs", "agent-os", "MANAGER-LEDGER.md"), "utf8");
+  const text = renderLedger(ROOT);
   const allowed = new Set(text.match(/^Status: (.+)$/m)?.[1].split(" | ") ?? []);
   assert.ok(allowed.size >= 5 && allowed.has("MERGED"), "the ledger's Status line was not found");
   const rows = text.split("\n").filter((l) => l.startsWith("| ") && !l.startsWith("| Job id") && !l.startsWith("|---"));

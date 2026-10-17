@@ -77,8 +77,8 @@ ERRORS & DRIFT
 SKILL DISCOVERY
 ━━━━━━━━━━━━━━━━━━━━━━━
 
-A large skill library is installed (929 dirs in `~/.claude/skills` measured 2026-08-27; the fire
-audit's fuller universe was 1,307 names) and almost none of it ever fires. The numbers live in ONE
+A large skill library is installed (the fire
+audit's universe was 1,307 names) and almost none of it ever fires. The numbers live in ONE
 place — `.claude/skills/skill-fire-audit/SKILL.md`, re-run via its `fire_audit.py` for current
 values; its 2026-08-03 baseline: 46 of 1,307 names ever fired = 3.5%, project cohort 64%. (This
 paragraph used to carry its own copies — "~930", "62%" — which had already drifted from the source.
@@ -90,7 +90,7 @@ skill to satisfy this section.
 
 Before every non-trivial task:
 1. Name the task in one sentence.
-2. Identify which skills apply — by reasoning, or via the skill-recall layer where the project provides one.
+2. Identify which skills apply — by reasoning and by the skill-recall hook (UserPromptSubmit, #3074), which prints `[skill-recall] invoke: <name> (<matched words>)` lines.
 3. State out loud which skills you're applying and why — e.g. "Applying ux-audit + mobile-design per skill recall." Don't leave it implicit.
 4. If a less-common skill would meaningfully change the approach, invoke it explicitly.
 
@@ -121,7 +121,7 @@ Reasoning lenses — invoke the one whose trigger matches:
   local copy (520w); the plugin copy (1,297w) is its maintained successor. Do not "simplify" the name.
 
 The full curated skill reference lives at `~/.claude/session-skills.md` — consult it when choosing
-skills. **Machine-local, not in the repo** (22 KB, last touched 2026-05-05): it is a convenience
+skills. **Machine-local, not in the repo** (on NattyNour, 2026-10-16: 32 entries, 4.6 KB, last touched 2026-10-08): it is a convenience
 index, not a source of truth. If it is missing or stale, fall back to the skill list this session
 was given and to `.claude/skills/` in this repo.
 

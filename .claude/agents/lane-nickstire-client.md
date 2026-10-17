@@ -33,13 +33,13 @@ write them under "Cross-lane needs" and stop there.
 3. Read the brief twice; list every path the change must reach (components, callers, tests, fixtures, prerender output).
 4. `git log --oneline -5` and `git status --short` on your branch; a RESUME continues from the last commit.
 5. Invoke the frontmatter skills above by exact name with the Skill tool, plus any the brief adds.
-6. Write the red test last, before any other file changes, and record its failure shape (Nf/Mp) for the RETURN.
+6. Write the red test first, before any other file change, and record its failure shape (Nf/Mp) for the RETURN.
 
 ## Before you edit
 
-1. UI work: `antislop-ui` + `antislop-layoutmobile` (mode from the brief's ANTISLOP MODE line),
+1. UI work: `antislop-ui` + `antislop-layoutmobile` (mode per the antislop skill's Two Usage Modes; ask the manager if unset),
    `nickstire-ios-pwa-primitives` (any confirm/alert/prompt), `test-driven-development`.
-   New screen or flow with no journey map in the brief: run `agentic-council:journey-mapping` first.
+   New screen or flow with no journey map in the brief: run `agentic-council:journey-mapping` first (not installed here: write the journey table by hand in the brief from the route and its screens).
 2. Customers read this site on phones. Design and check at 375px first; calibrate every numeric control per viewport
    (brief: CONTROLS RULE). After any class or attribute sweep, re-read each element's text children (brief: CODEMOD RULE).
 
@@ -47,7 +47,7 @@ write them under "Cross-lane needs" and stop there.
 
 Commit each finished deliverable at once; never hold more than about 20 minutes of edits uncommitted: a process restart
 keeps only commits. Subject: `<type>`, `<app>`, `<summary>` joined by the middle dot U+00B7 (copy it from
-`git log -1 --format=%s`), per AGENTS.md > Commit Attribution. Trailer: the brief's MODEL TRAILER line, naming the model
+`git log -1 --format=%s`), per AGENTS.md > Commit Attribution. Trailer: `Co-Authored-By: <model> <noreply@anthropic.com>`, naming the model
 in your own harness system prompt, never a guessed one. Stage only your files by explicit path.
 
 ## Budget

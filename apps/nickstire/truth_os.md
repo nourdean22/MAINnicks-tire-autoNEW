@@ -671,7 +671,7 @@ instead of copying an old pin from prose.
 ## 2026-08-10 — the capability ledger can now say "we do not currently know"
 
 `docs/operations/capability-ledger.json` is the record of what is actually done, and
-CI enforces it (`.github/workflows/completion-authority.yml`). It gained an expiry
+CI enforces it (the completion-authority steps of the agent-policy job, `.github/workflows/agent-policy.yml`). It gained an expiry
 axis it had always had code for and never used: `verificationExpiresAt` was
 implemented, TESTED, and set by **0 of 48 capabilities** — the test built its own
 synthetic record, so it stayed green while nothing real ever reached the path.
@@ -694,7 +694,7 @@ by `node apps/nickstire/scripts/check-capability-ledger.mjs`, never by the file
 
 **CLOSED 2026-08-11, corrected here 2026-08-15 — `reel-pipeline-assembly` was
 re-verified and now expires 2026-09-10.** This paragraph previously read "expires
-2026-08-16" and warned that `completion-authority` CI would go red on that date;
+2026-08-16" and warned that the completion-authority steps of the agent-policy job would go red on that date;
 that deadline had already been retired and the warning was left standing. It is
 still the only `exposure: production` capability, so it is still the only one whose
 staleness can fail a build — just not this week. `node
