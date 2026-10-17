@@ -18,7 +18,7 @@
  * exits 2 — mixing the two silently drops the denial.
  */
 import { readFileSync } from "node:fs";
-import { adaptToolCall, evaluate, formatDenial, loadPolicy } from "./policy.mjs";
+import { adaptToolCall, agentDispatchCall, evaluate, formatDenial, loadPolicy } from "./policy.mjs";
 
 const ALLOW = 0;
 const BLOCK = 2;
@@ -46,7 +46,9 @@ async function main() {
   const adapted = adaptToolCall(toolName, input, cwd, policy, (line) => process.stderr.write(`${line}\n`));
   // NotebookEdit calls its path field notebook_path, not file_path (wiring review 2026-08-04).
   const rawPath = input.file_path ?? input.notebook_path;
-  const calls = adapted ?? [
+  // Agent / Task (lane dispatches) are judged as one summary line (policy.mjs > agentDispatchCall).
+  const dispatch = agentDispatchCall(toolName, input, cwd);
+  const calls = adapted ?? (dispatch ? [dispatch] : null) ?? [
     {
       toolName,
       command: typeof input.command === "string" ? input.command : "",

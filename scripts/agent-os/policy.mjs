@@ -124,6 +124,24 @@ export function evaluate({ toolName, command = "", filePath = "", cwd = "", skip
   return { denied: false };
 }
 
+// -- Lane dispatches (2026-10-16, job session-workflow-upgrade H) ---------------------------------
+// An Agent (or legacy Task) call carries structured fields, not a command. It is summarised into one judged line
+// that the `lane-dispatch-brief` rule matches, so the rule keeps the engine's shape (pattern + deny/allow examples):
+//   lane-dispatch type=<lane> model=<value|-> brief=<yes|no> model-effort-line=<yes|no>
+// A brief FILE is a path-like token ending in brief.md (C:\...\x-brief.md, .agents/core/templates/subagent-brief.md);
+// the word "brief" in prose is not one. Non-lane agents get a line no rule matches.
+const BRIEF_FILE = /[\w.~:\\/-]*brief\.md\b/i;
+export function agentDispatchCall(toolName, input, cwd) {
+  if (toolName !== "Agent" && toolName !== "Task") return null;
+  const type = String(input?.subagent_type ?? "").trim().replace(/\s+/g, "_");
+  const prompt = String(input?.prompt ?? "");
+  const model = String(input?.model ?? "").trim().replace(/\s+/g, "_");
+  const command = /^lane-/i.test(type)
+    ? `lane-dispatch type=${type} model=${model || "-"} brief=${BRIEF_FILE.test(prompt) ? "yes" : "no"} model-effort-line=${/MODEL\s*\/\s*EFFORT/.test(prompt) ? "yes" : "no"}`
+    : `agent type=${type || "-"}`;
+  return { toolName: "Agent", command, filePath: "", cwd };
+}
+
 // -- MCP and native command-runner adapters (2026-10-15, job guard-mcp-coverage) -----------------
 // Every rule carries a `tools` allowlist, so the same forbidden command delivered through a tool
 // that runs commands or writes files but is not Bash/PowerShell/Write/Edit/NotebookEdit was never
