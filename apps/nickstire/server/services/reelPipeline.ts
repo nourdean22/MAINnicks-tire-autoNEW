@@ -13,6 +13,7 @@
  * gated publish (publishToSocial / REEL_PUBLISH_ENABLED) are later stages.
  */
 import type { ClipProbe } from "../../shared/clipDrift";
+import { startImageForBeat } from "../../shared/reelStartFrame";
 import type { ShotSource } from "../../shared/shotRouter";
 import type { CaptionStyle, PresenceProfile, ShotLineage } from "../../shared/reelSourceProfile";
 import { createLogger } from "../lib/logger";
@@ -766,7 +767,7 @@ export async function enqueueReelJob(
 
   try {
     const { buildHiggsfieldReelPromptPack } = await import("../../client/src/lib/facelessReelStudio");
-    const promptPack = buildHiggsfieldReelPromptPack(brief as any);
+    const promptPack = buildHiggsfieldReelPromptPack(brief as any, { imageConditioning: process.env.REEL_IMAGE_CONDITIONING === "true" });
     brief.promptPack = promptPack;
     brief.higgsfieldPromptPack = promptPack;
   } catch (e) {
@@ -1346,12 +1347,12 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
         // One renderer for this lane AND the repair lane (renderHiggsfieldBeat):
         // persist the handle on submit, resume a persisted handle instead of
         // resubmitting, record the paid op before clearing it. Image
-        // conditioning (REEL_IMAGE_CONDITIONING): EVERY beat anchors on the SAME
-        // approved Visual World hero frame — a real generated IMAGE — so all
-        // beats share one visual DNA. generateReelClipVideo ignores the start
-        // image unless the flag is on AND the URL looks like an image.
-        const hero = brief.visualWorld?.heroFrameUrl;
-        const startImageUrl = hero && /\.(jpe?g|png|webp)([?#]|$)/i.test(hero) ? hero : undefined;
+        // conditioning (REEL_IMAGE_CONDITIONING): a generated hero anchors every
+        // beat; a real shop photo only the beats shot where it was taken
+        // (shared/reelStartFrame.ts; 2100001's underbody beats morphed out of the
+        // storefront). generateReelClipVideo ignores the start image unless the
+        // flag is on AND the URL looks like an image.
+        const startImageUrl = startImageForBeat(beat, brief.visualWorld);
         finalClipUrl = await renderHiggsfieldBeat({
           beat,
           prompt,
@@ -1378,12 +1379,11 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
         // submit, job id after, a local window that RESUMES instead of
         // resubmitting, per-profile hard ceilings).
         const { renderSelfHostedBeat } = await import("./videoForgeClient");
-        const hero = brief.visualWorld?.heroFrameUrl;
         // Same gate as the Higgsfield lane: condition on the operator-approved
-        // hero frame only when REEL_IMAGE_CONDITIONING is on. The bake-off
-        // decides whether it becomes the default.
+        // hero frame only when REEL_IMAGE_CONDITIONING is on, and only for a
+        // beat shot where the photo was taken (shared/reelStartFrame.ts).
         const startImageUrl =
-          process.env.REEL_IMAGE_CONDITIONING === "true" && hero && /\.(jpe?g|png|webp)([?#]|$)/i.test(hero) ? hero : undefined;
+          process.env.REEL_IMAGE_CONDITIONING === "true" ? startImageForBeat(beat, brief.visualWorld) : undefined;
         const persist = async () => {
           await d.update(reelJobs).set({ payload: JSON.stringify(brief), updatedAt: new Date() }).where(eq(reelJobs.id, job.id));
         };

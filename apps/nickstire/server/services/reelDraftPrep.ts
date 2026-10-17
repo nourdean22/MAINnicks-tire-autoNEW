@@ -155,7 +155,7 @@ export async function prepareCleanReelBrief(
       // the shop still, so a shop-anchored brief never takes one.
       anchorBriefToShop(brief);
       if (brief.heroAssetId !== SHOP_ANCHOR_ASSET_ID) await attachAutonomousVisualWorld(brief);
-      brief.higgsfieldPromptPack = buildHiggsfieldReelPromptPack(brief);
+      brief.higgsfieldPromptPack = buildHiggsfieldReelPromptPack(brief, { imageConditioning: process.env.REEL_IMAGE_CONDITIONING === "true" });
       // Stamp the pattern onto the brief so it reaches reel_jobs.payload. This
       // is the cohort key the schema was shaped for ("pattern x trial results")
       // and never got — without it, no later pass can ask which captured
