@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "nickstire/admin-ui-v1-w4",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "03ea674c-77bd-40aa-9a8a-51c0b1956d0a",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\wonderful-euler-00bf80",
   "claimedBy": "2026-10-17-nick-admin-ui-v1-w4",
   "claimedAt": "2026-10-17T04:43:08.475Z",
   "expiresAt": "2026-10-17T16:43:08.475Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": null
+  "releasedAt": "2026-10-17T06:58:16.101Z",
+  "releaseReason": "merged as ea5340e35 via #3106",
+  "priorLeaseSha": "914a3af2043fcd71eeb4c1f27984ce22bbb2680c",
+  "releasedBy": "03ea674c-77bd-40aa-9a8a-51c0b1956d0a",
+  "foreignReleaseReason": null
 }
