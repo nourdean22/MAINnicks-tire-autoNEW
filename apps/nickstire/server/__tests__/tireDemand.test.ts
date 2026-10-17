@@ -111,7 +111,9 @@ describe("toolCallStateMetadata", () => {
 
   it("the webhook's tool-calls branch builds its state metadata with it", () => {
     const src = readFileSync(resolve(__dirname, "../routes/webhooks/vapi.ts"), "utf8");
-    expect(src).toContain("metadata: toolCallStateMetadata(c.function?.name, c.id, c.function?.arguments)");
+    // Since 2026-10-17 the metadata object also carries a recap's reason, so the
+    // call is spread into it; the pin is that spread opening the metadata object.
+    expect(src).toMatch(/metadata: \{\s*\.\.\.toolCallStateMetadata\(c\.function\?\.name, c\.id, c\.function\?\.arguments\),/);
   });
 });
 

@@ -174,7 +174,8 @@ function cooldownStatuses(): string[] {
 // Import orchestrator and helpers
 import { orchestrateSms, loadCustomerContext, humanizeCopy } from "../services/smsOrchestrator";
 import { notSentLogFields } from "../lib/smsNotSentLog";
-import { getTemplateVariant } from "../services/smsMessageCatalog";
+import { getTemplateVariant, TEMPLATE_VARIANTS } from "../services/smsMessageCatalog";
+import { runNickgptPreflightGuard } from "../services/nickgptPreflightGuard";
 import { generateDailySmsReport, generateWeeklySmsReport, getSmsVariantPerformance, trackDraftFeedback } from "../services/smsLearningEngine";
 
 describe("SMS Operating System & Orchestrator Golden Tests", () => {
@@ -588,6 +589,66 @@ describe("SMS Operating System & Orchestrator Golden Tests", () => {
 
     const inserted = mockDb.values.mock.calls.map((a: unknown[]) => a[0] as Record<string, unknown>);
     expect(inserted.some((v) => v.idempotencyKey === "idemp_vapi_confirmation_+12165550013_call_call_vapi_legacy")).toBe(true);
+  });
+
+  // 2026-10-17 (job vapi-followups). The kill switch's passthrough sent the
+  // model-written recap without the preflight guard every other mode runs, so
+  // the summary 13a' holds as a draft went straight to the caller.
+  describe("Global kill switch -> the preflight guard still runs before the legacy send", () => {
+    const recap = (summary: string, vapiCallId: string) => ({
+      type: "vapi_confirmation" as const,
+      phone: "2165550013",
+      summary,
+      vapiCallId,
+    });
+    const insertedRows = () => mockDb.values.mock.calls.map((a: unknown[]) => a[0] as Record<string, unknown>);
+
+    it("a recap the guard sends to review is not sent, and the row says why", async () => {
+      mockRolloutGlobalMode = "legacy_passthrough";
+      const event = recap("See https://goo.gl/maps/abc123 for directions", "call_vapi_legacy_review");
+
+      const res = await orchestrateSms(event);
+
+      expect(mockSendSms).not.toHaveBeenCalled();
+      expect(res).toMatchObject({ status: "drafted", statusReason: "hallucinated_url", noSendReason: "hallucinated_url", shouldAutoSend: false, requiresHumanApproval: true });
+      expect(notSentLogFields(event, res)?.reason).toBe("hallucinated_url");
+      expect(insertedRows().find((r) => r.idempotencyKey === "idemp_vapi_confirmation_+12165550013_call_call_vapi_legacy_review"))
+        .toMatchObject({ status: "drafted", statusReason: "hallucinated_url", noSendReason: "hallucinated_url", requiresHumanApproval: true });
+    });
+
+    it("a recap the guard blocks is not sent, and the row says why", async () => {
+      mockRolloutGlobalMode = "legacy_passthrough";
+
+      const res = await orchestrateSms(recap("Brakes done, guaranteed for life", "call_vapi_legacy_block"));
+
+      expect(mockSendSms).not.toHaveBeenCalled();
+      expect(res).toMatchObject({ status: "blocked", statusReason: "prohibited_absolute_promise", noSendReason: "prohibited_absolute_promise", shouldAutoSend: false });
+      expect(insertedRows().find((r) => r.idempotencyKey === "idemp_vapi_confirmation_+12165550013_call_call_vapi_legacy_block"))
+        .toMatchObject({ status: "blocked", noSendReason: "prohibited_absolute_promise" });
+    });
+
+    it("positive control: a clean recap still goes out through the passthrough", async () => {
+      mockRolloutGlobalMode = "legacy_passthrough";
+
+      const res = await orchestrateSms(recap("Appointment booked for alignment", "call_vapi_legacy_clean"));
+
+      expect(mockSendSms).toHaveBeenCalledTimes(1);
+      expect(res).toMatchObject({ status: "sent", variantKey: "legacy", shouldAutoSend: true });
+    });
+
+    // The passthrough also carries every templated event. Each template's first
+    // variant (what the passthrough sends) must pass the guard, or turning the
+    // kill switch on would start holding reminders the shop meant to send.
+    it("every template's first variant passes the guard (the kill switch holds nothing new)", () => {
+      const held = Object.keys(TEMPLATE_VARIANTS).flatMap((key) => {
+        const [eventType, reminderType] = key.split(":");
+        const body = humanizeCopy(getTemplateVariant(eventType, { name: "John", service: "Tires", reminderType, nextOpen: "8:00 AM Monday" }, 0).body);
+        const r = runNickgptPreflightGuard({ eventType, candidateBody: body, sourceType: "legacy" });
+        return r.allowed ? [] : [`${key}: ${r.reasonCode}`];
+      });
+      expect(Object.keys(TEMPLATE_VARIANTS).length).toBeGreaterThan(5);
+      expect(held).toEqual([]);
+    });
   });
 
   // 14. Abandoned form -> cooldown 7 days
