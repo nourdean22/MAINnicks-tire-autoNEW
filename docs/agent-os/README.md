@@ -85,9 +85,36 @@ github-client canaries 403'd every PR whenever another workflow had spent the bu
   `stop-check.mjs` judges stays clean. **SessionStart** with matcher `compact` runs the same script with `--recall`
   and prints the newest note (capped at 4,000 chars); other SessionStart sources print nothing. Mechanism taken from
   affaan-m/ECC ("persist everything else"); neither mode can block. Canary: `precompactHandoff.test.mjs`.
+- **Operator asks** (`operator-asks.mjs`, 2026-10-17). A compaction summary is written from the model's memory and drops
+  Nour's own words, above all a message typed while a turn runs: the transcript stores that as a `queued_command`
+  attachment, not a user message. What it records: every operator message verbatim with its timestamp, typed prompts
+  (origin, else `turnOrigin`, human; not meta, sidechain, tool result, compaction summary, or text that opens with a
+  machine tag once `<system-reminder>` blocks are removed; a slash command as `/name args`) and `queued_command`
+  attachments whose `origin.kind` is `human`. Where: `%LOCALAPPDATA%/nourcity/asks/<session_id>.md`
+  (`OPERATOR_ASKS_DIR` overrides), one line per message, `- <timestamp> <typed|mid-turn> "<JSON string>"`, deduped on
+  the text, append-only; a `<session_id>.state.json` beside it holds the byte offset already read. When:
+  UserPromptSubmit and PreCompact run `--refresh` (silent); SessionStart with matcher `compact|resume` runs `--recall`,
+  which refreshes and prints "Operator asks this session (verbatim, oldest first; N total; full list: <path>)": every
+  ask within 24 h of the newest one (anchored on the asks, so a session resumed days later still shows its last day),
+  each cut at 240 chars, under 6 KB, plus a count of the rest. How to read it: open the full-list path. **Privacy:** the
+  file is machine-local and never enters git; nothing calls the network. Fails open (exit 0, a stderr note). Measured
+  2026-10-17 on the manager's 43 MB transcript: first full scan 412 ms of script time, each later refresh 6-8 ms
+  (wall about 520 ms, node start-up on a machine short of RAM). Across 288 local transcripts: 659 asks, 117 mid-turn,
+  no machine text. Canaries: `operatorAsks.test.mjs` (15/15 mutants killed) and `hookCommand.test.mjs`.
 - **Stop** (`stop-check.mjs`) blocks ending a turn with uncommitted work while ON `main` —
   one precise invariant, nothing else. A Stop hook that blocks routine turns trains the
   operator to disable it; widen only behind a canary.
+- **Stop** (`skills-check.mjs`, 2026-10-17; Nour: "i dont have to ask why u arent using skills"). The reminders above
+  only print; this one acts at the end of the turn. It reads the transcript from the end back to the turn's prompt
+  (the last user entry that is not a tool result, meta, compaction summary, sidechain or task notification). If the
+  turn ran a tool other than Skill (`mcp__ccd_turn__*` bookkeeping excluded) and no Skill call happened since the prompt,
+  or, after a compaction, no always-on skill since it, the stop is blocked (exit 2) with a stderr line naming the
+  always-on set plus the skills `skill-recall` printed for this prompt. Once per prompt (state:
+  `%LOCALAPPDATA%/nourcity/skills-check/<session>.json`); `stop_hook_active` always passes; a skill loaded by a typed
+  `/command` counts; conversation turns are silent; it fails open and never blocks when it cannot record the one-shot.
+  This widens Stop on purpose, behind its canary (`skillsCheck.test.mjs`, 13/13 mutants killed, and
+  `hookCommand.test.mjs`). Cost: 5-9 ms of script time on 36-45 MB transcripts; a compaction search over a whole
+  16 MB file took 96-151 ms; past 24 MB it stops and allows.
 - **UserPromptSubmit** (`skills-first-reminder.mjs`) prints one line on every prompt: invoke the skills the recall
   lines name before any work. It is advice, not enforcement: it has no path to exit 2, so it never blocks a prompt,
   and it cannot make the model comply. `skillsFirstReminder.test.mjs` runs the configured command verbatim and
