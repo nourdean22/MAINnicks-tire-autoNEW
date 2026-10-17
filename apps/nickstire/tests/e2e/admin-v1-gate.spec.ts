@@ -12,7 +12,7 @@
  *
  * ADMIN_V1_GATED format: a comma list of page:viewport, pages overview | lot |
  * approvals, viewports 390 | 1440, e.g. "overview:390,lot:390". Default
- * "overview:390" (PLAN section 3: Today at 390 is W2's gate; W3 adds lot:390).
+ * "overview:390,lot:390" (PLAN section 3: Today at 390 is W2's gate; Lot at 390 is W3's).
  * Every other render is still measured and its distance printed.
  *
  * A missing baseline in compare mode FAILS with the capture command: an unmeasured
@@ -47,7 +47,7 @@ const RECOMPOSED_FLOOR = 0.3;
 const CAPTURE_COMMAND = "ADMIN_V1_GATE=1 ADMIN_V1_CAPTURE=1 node node_modules/@playwright/test/cli.js test tests/e2e/admin-v1-gate.spec.ts (or the nickstire-proof.yml capture dispatch)";
 /** page:viewport pairs whose distance is gated; the rest are printed only. */
 const GATED = new Set(
-  (process.env.ADMIN_V1_GATED ?? "overview:390")
+  (process.env.ADMIN_V1_GATED ?? "overview:390,lot:390")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean),
