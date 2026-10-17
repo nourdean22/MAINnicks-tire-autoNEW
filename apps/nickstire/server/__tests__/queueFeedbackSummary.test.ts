@@ -30,6 +30,14 @@ function fakeDb(rows: Row[]) {
   return execute;
 }
 
+/** The SQL text the service sent, whitespace collapsed (drizzle keeps literal text in StringChunks). */
+async function sqlOf(): Promise<string> {
+  const execute = fakeDb([]);
+  await getQueueFeedbackSummary();
+  const chunks = (execute.mock.calls[0]?.[0] as { queryChunks: Array<{ value?: string[] }> }).queryChunks;
+  return chunks.map((c) => (c.value ? c.value.join("") : "")).join(" ").replace(/\s+/g, " ");
+}
+
 beforeEach(() => {
   dbMock.mockReset();
 });
@@ -87,12 +95,42 @@ describe("getQueueFeedbackSummary", () => {
   });
 
   it("the SQL filters to the feedback action and to the two verdicts, so a junk verdict cannot count", async () => {
-    const execute = fakeDb([]);
-    await getQueueFeedbackSummary();
-    const text = JSON.stringify(execute.mock.calls[0]?.[0]?.queryChunks ?? execute.mock.calls[0]);
+    const text = await sqlOf();
     expect(text).toContain("admin.queue_feedback");
     expect(text).toContain("admin_action");
     expect(text).toMatch(/IN \('keep', ?'less'\)/);
+  });
+
+  it("the SQL maps verdict 'keep' to keepN and 'less' to lessN, exactly (a swap would invert every count)", async () => {
+    const text = await sqlOf();
+    expect(text).toContain(
+      "SUM(CASE WHEN JSON_UNQUOTE(JSON_EXTRACT(changes, '$.verdict')) = 'keep' THEN 1 ELSE 0 END) AS keepN",
+    );
+    expect(text).toContain(
+      "SUM(CASE WHEN JSON_UNQUOTE(JSON_EXTRACT(changes, '$.verdict')) = 'less' THEN 1 ELSE 0 END) AS lessN",
+    );
+  });
+
+  it("the SQL maps SQL NULL and the JSON null string 'null' itemType to 'unknown'", async () => {
+    // JSON_UNQUOTE of a JSON null yields the 4-character string "null", which COALESCE alone keeps.
+    const text = await sqlOf();
+    expect(text).toContain("COALESCE(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(changes, '$.itemType')), 'null'), 'unknown') AS itemType");
+  });
+
+  it("a row whose itemType is null buckets as 'unknown' and merges nothing into a 'null' type", async () => {
+    fakeDb([{ itemType: "unknown", keepN: "1", lessN: "1", firstAt: "1760000000" }]);
+    const out = await getQueueFeedbackSummary();
+    expect(out).toMatchObject({ readable: true, total: 2, byType: [{ itemType: "unknown", keep: 1, less: 1 }] });
+  });
+
+  it("since is the EARLIEST first verdict wherever it sits in the result", async () => {
+    fakeDb([
+      { itemType: "booking", keepN: "1", lessN: "0", firstAt: "1760000500" },
+      { itemType: "callback", keepN: "1", lessN: "0", firstAt: "1760000300" },
+      { itemType: "lead", keepN: "0", lessN: "1", firstAt: "1760000100" },
+    ]);
+    const out = await getQueueFeedbackSummary();
+    expect(out).toMatchObject({ readable: true, total: 3, since: new Date(1760000100 * 1000).toISOString() });
   });
 
   it("a row with a junk verdict that the SQL let through still never inflates the total", async () => {
@@ -100,6 +138,42 @@ describe("getQueueFeedbackSummary", () => {
     fakeDb([{ itemType: "text", keepN: "x", lessN: null, firstAt: "oops" }]);
     const out = await getQueueFeedbackSummary();
     expect(out).toEqual({ readable: true, total: 0, since: null, byType: [] });
+  });
+});
+
+describe("writer to reader: the row recordAction stores is the row the SQL reads", () => {
+  it("recordAdminAction, called as adminSecurity.recordAction calls it, stores verdict and itemType at the JSON paths the SQL reads", async () => {
+    const values = vi.fn().mockResolvedValue(undefined);
+    dbMock.mockResolvedValue({ insert: vi.fn(() => ({ values })) });
+    const { recordAdminAction } = await import("../services/adminAudit");
+    // The client payload { action, entityType: "booking", entityId: 7, changes: { verdict, itemType, source } }
+    // goes through the router as: entityType forced to "admin_action", entityType kept as sourceEntityType.
+    await recordAdminAction({
+      actor: "owner@example.test",
+      action: "admin.queue_feedback",
+      entityType: "admin_action",
+      entityId: 7,
+      changes: { sourceEntityType: "booking", verdict: "less", itemType: "booking", source: "today" },
+    });
+    const row = values.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(row.entityType).toBe("admin_action");
+    expect(row.action).toBe("admin.queue_feedback");
+    const changes = row.changes as Record<string, unknown>;
+    // '$.verdict' and '$.itemType' are top-level keys of the stored JSON object.
+    expect(changes.verdict).toBe("less");
+    expect(changes.itemType).toBe("booking");
+    // ...and those are exactly the paths and columns the read uses.
+    const text = await sqlOf();
+    expect(text).toContain("JSON_EXTRACT(changes, '$.verdict')");
+    expect(text).toContain("JSON_EXTRACT(changes, '$.itemType')");
+    expect(text).toContain("entity_type = 'admin_action'");
+    expect(text).toContain("action = 'admin.queue_feedback'");
+  });
+
+  it("the router's recordAction really maps the payload that way (the shape above is not invented)", async () => {
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync(new URL("../routers/adminSecurity.ts", import.meta.url), "utf8");
+    expect(src).toMatch(/entityType: "admin_action",\s*entityId: input\.entityId,\s*changes: \{ sourceEntityType: input\.entityType \?\? null, \.\.\.\(input\.changes \?\? \{\}\) \}/);
   });
 });
 

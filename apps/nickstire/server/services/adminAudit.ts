@@ -78,7 +78,7 @@ export async function getQueueFeedbackSummary(): Promise<QueueFeedbackSummary> {
     const database = await db();
     if (!database) return { readable: false, reason: "database unavailable" };
     const result = await database.execute(sql`
-      SELECT COALESCE(JSON_UNQUOTE(JSON_EXTRACT(changes, '$.itemType')), 'unknown') AS itemType,
+      SELECT COALESCE(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(changes, '$.itemType')), 'null'), 'unknown') AS itemType,
              SUM(CASE WHEN JSON_UNQUOTE(JSON_EXTRACT(changes, '$.verdict')) = 'keep' THEN 1 ELSE 0 END) AS keepN,
              SUM(CASE WHEN JSON_UNQUOTE(JSON_EXTRACT(changes, '$.verdict')) = 'less' THEN 1 ELSE 0 END) AS lessN,
              UNIX_TIMESTAMP(MIN(created_at)) AS firstAt
