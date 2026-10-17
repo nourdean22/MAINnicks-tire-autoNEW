@@ -16,7 +16,7 @@ import path from "path";
 import { createLogger } from "../lib/logger";
 import { askProblem, askLeakageProblem, renderAskText, resolveReelAsk, type ReelAsk } from "@shared/reelAsk";
 import { ReelAssemblyRefusedError } from "./reelContentRefusal";
-import { clipVerifyConfig, verifyClipsBeforeAssembly, type ClipVerdict } from "./clipVerify";
+import { clipVerifyConfig, pickSiblingBeats, verifyClipsBeforeAssembly, type ClipVerdict } from "./clipVerify";
 import { declaredTextSurfaces, undeclaredTextProblem } from "@shared/reelTextSurfaces";
 import { REEL_OUTPUT_RULES } from "../../client/src/lib/facelessReelStudio";
 import { parseCaptionStyle, type CaptionStyle } from "../../shared/reelSourceProfile";
@@ -1206,7 +1206,7 @@ export async function assembleReel(
     // runs. Flag-gated, default OFF; an unavailable critic never refuses.
     const beatVisual = new Map((brief.storyboardBeats ?? []).map((b) => [b.beatNumber, b.visual ?? b.onScreenText ?? ""]));
     const clipVerdicts = await verifyClipsBeforeAssembly(
-      segs.map((s, i) => ({ beatNumber: s.beatNumber, path: clipPaths[i], visual: beatVisual.get(s.beatNumber) ?? "", durationSec: clipProbes.find((p) => p.beatNumber === s.beatNumber)?.durationSec ?? null, workDir })),
+      segs.map((s, i) => ({ beatNumber: s.beatNumber, path: clipPaths[i], visual: beatVisual.get(s.beatNumber) ?? "", siblings: pickSiblingBeats(segs.map((x) => ({ beatNumber: x.beatNumber, visual: beatVisual.get(x.beatNumber) ?? "" })), s.beatNumber), durationSec: clipProbes.find((p) => p.beatNumber === s.beatNumber)?.durationSec ?? null, workDir })),
       clipVerifyConfig(),
       undefined,
       // Prior vision verdicts (an earlier attempt of this job) are reused, and
