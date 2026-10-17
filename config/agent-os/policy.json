@@ -760,6 +760,27 @@
         "mcp__plugin_small-business_gmail__create_draft",
         "git status"
       ]
+    },
+    {
+      "id": "lane-dispatch-brief",
+      "tools": ["Agent"],
+      "pattern": "^lane-dispatch type=\\S+ (?:model=- |.*\\bbrief=no\\b|.*\\bmodel-effort-line=no\\b)",
+      "why": "Nour, 2026-10-16: sibling sessions dispatched lanes from prose briefs with the model unspecified, so lanes ran on the wrong tier and nobody could audit what they were told. A lane dispatch (Agent subagent_type lane-*) is judged as one summary line built by policy.mjs > agentDispatchCall.",
+      "fix": "A prose prompt (the word brief, no file) and a URL do not count: write the brief to a file from .agents/core/templates/subagent-brief.md (v3), name that file path (ending brief.md) in the prompt with its MODEL / EFFORT line, and set the Agent tool's model (and effort) from that line, per the template's routing table.",
+      "denyExamples": [
+        "lane-dispatch type=lane-platform model=- brief=C:/x/workflow-upgrade-AB-brief.md model-effort-line=yes",
+        "lane-dispatch type=lane-platform model=opus brief=no model-effort-line=yes",
+        "lane-dispatch type=lane-statenour model=sonnet brief=C:/tmp/x-brief.md model-effort-line=no",
+        "lane-dispatch type=Lane-Worker model=- brief=no model-effort-line=no"
+      ],
+      "allowExamples": [
+        "lane-dispatch type=lane-platform model=opus brief=C:/x/workflow-upgrade-AB-brief.md model-effort-line=yes",
+        "lane-dispatch type=lane-platform model=opus brief=brief-3100.md model-effort-line=yes",
+        "lane-dispatch type=lane-statenour model=sonnet brief=lane-brief-v2.md model-effort-line=yes",
+        "lane-dispatch type=lane-research model=haiku brief=./briefs/research-brief.v3.md model-effort-line=yes",
+        "agent type=Explore",
+        "agent type=-"
+      ]
     }
   ]
 }

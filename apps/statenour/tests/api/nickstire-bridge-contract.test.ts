@@ -78,17 +78,12 @@ beforeEach(() => {
 
 const cases = fixture.events.map(e => [e.type, e] as const);
 
-// Telegram job lane 2: nickstire's own event bus sends these to Telegram, so statenour
-// records them and sends nothing. The shared fixture still lists the old alert text
-// (config/ is outside this lane); this set overrides it until the fixture is updated.
-const TELEGRAM_COPY_REMOVED = new Set(["nickstire:lead", "nickstire:callback", "nickstire:booking:complete", "nickstire:invoice"]);
-
 describe("webhooks/nickstire renders the fields the bridge actually sends", () => {
   it.each(cases)("%s", async (_t, entry) => {
     const res = await post(webhookPOST, "/api/webhooks/nickstire", entry.type, entry.data);
     expect(res.status).toBe(200);
     const texts = sendTelegram.mock.calls.map(c => String(c[0]));
-    if (entry.statenour.webhookAlert === null || TELEGRAM_COPY_REMOVED.has(entry.type)) {
+    if (entry.statenour.webhookAlert === null) {
       expect(texts).toEqual([]);
       return;
     }

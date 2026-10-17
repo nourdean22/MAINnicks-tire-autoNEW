@@ -3,7 +3,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { mergeWithPriorOverrides, renderLedgerMarkdown } from "./branch-sweep.mjs";
 import { CLASSIFICATIONS } from "./classify-branch.mjs";
 import { resolveToken } from "./github-client.mjs";
@@ -78,7 +78,8 @@ test("renderLedgerMarkdown: a pipe character in a reason does not break the tabl
 
 test("LIVE, report-only: the full sweep pipeline runs end-to-end against real GitHub data, writes nothing", { skip: !sweepGate.run ? sweepGate.reason : !resolveToken() ? "no GitHub token" : false }, () => {
   const env = { ...process.env, NODE_USE_ENV_PROXY: "1", NODE_NO_WARNINGS: "1" };
-  const out = execSync(`${process.execPath} branch-sweep.mjs --report-only`, {
+  // execFileSync, not a shell string: an unquoted execPath breaks on "C:\Program Files\nodejs" (2026-10-16).
+  const out = execFileSync(process.execPath, ["branch-sweep.mjs", "--report-only"], {
     cwd: import.meta.dirname,
     encoding: "utf8",
     env,
