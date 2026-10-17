@@ -108,7 +108,9 @@ export default function SettingsSection() {
   const { data: algStatus, isLoading: algLoading, refetch: refetchAlg } = trpc.autoLabor.status.useQuery(undefined, { staleTime: 30_000 });
 
   // Invoice + customer counts
-  const { data: invoiceStats, isError: statsError } = trpc.adminDashboard.stats.useQuery(undefined, { staleTime: 60_000 });
+  const { data: invoiceStats, isError: statsError, fetchStatus: statsFetchStatus } = trpc.adminDashboard.stats.useQuery(undefined, { staleTime: 60_000 });
+  // A paused query (offline PWA) has no data, no error and is not loading: it never ran, so it is unknown.
+  const statsNote = statsError ? "Unable to determine" : statsFetchStatus === "paused" ? "Offline, not checked" : "Loading";
 
   // Sync mutations · 2026-05-23 · added onSuccess invalidation so the
   // invoice/customer count cards on this same page refresh immediately
@@ -238,7 +240,7 @@ export default function SettingsSection() {
       {activeTab === "shopdriver" && (
       <div className="space-y-6">
       <div>
-        <h3 className="font-bold text-xl text-foreground tracking-wider">SHOPDRIVER COMMAND CENTER</h3>
+        <h3 className="font-bold text-xl text-foreground">ShopDriver command center</h3>
         <p className="text-foreground/50 text-[12px] mt-1">
           ALG is the source of truth. Closed jobs = completed work. No website booking = walk-in. Estimates = declined work.
         </p>
@@ -290,14 +292,14 @@ export default function SettingsSection() {
           label="Customers"
           value={invoiceStats?.shopFloor?.totalCustomers ?? "?"}
           icon={<Users className="w-4 h-4" />}
-          trendLabel={invoiceStats ? `${invoiceStats.shopFloor?.vipCustomers ?? 0} VIP (3+ visits)` : statsError ? "Unable to determine" : "Loading"}
+          trendLabel={invoiceStats ? `${invoiceStats.shopFloor?.vipCustomers ?? 0} VIP (3+ visits)` : statsNote}
         />
         <StatCard
           label="Website leads"
           value={invoiceStats?.leads?.total ?? "?"}
           icon={<TrendingUp className="w-4 h-4" />}
           color={Number(invoiceStats?.leads?.urgent || 0) > 0 ? "text-red-400" : "text-foreground"}
-          trendLabel={invoiceStats ? `${invoiceStats.leads?.urgent ?? 0} urgent • rest = walk-ins` : statsError ? "Unable to determine" : "Loading"}
+          trendLabel={invoiceStats ? `${invoiceStats.leads?.urgent ?? 0} urgent • rest = walk-ins` : statsNote}
         />
       </div>
 
@@ -355,7 +357,7 @@ export default function SettingsSection() {
           <div className="flex items-center gap-2 mb-1">
             {syncResult.data?.success !== false ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <XCircle className="w-4 h-4 text-red-400" />}
             <span className="font-bold text-xs tracking-wide">
-              {syncResult.type.toUpperCase()} SYNC {syncResult.data?.success !== false ? "COMPLETE" : "FAILED"}
+              {syncResult.type.charAt(0).toUpperCase() + syncResult.type.slice(1)} sync {syncResult.data?.success !== false ? "complete" : "failed"}
             </span>
           </div>
           <p className="text-foreground/60 text-xs">

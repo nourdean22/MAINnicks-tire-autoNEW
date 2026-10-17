@@ -40,7 +40,7 @@ export function ErrorState({ message = "Something went wrong", onRetry }: {
       <AlertTriangle className="w-6 h-6 text-red-400/50 mb-3" />
       <p className="text-[12px] text-red-400/70">{message}</p>
       {onRetry && (
-        <button onClick={onRetry} className="mt-3 px-3 py-1.5 text-[11px] font-medium text-primary bg-primary/10 rounded hover:bg-primary/20 transition-colors">
+        <button onClick={onRetry} className="mt-3 inline-flex min-h-12 items-center px-3 py-1.5 text-[11px] font-medium text-primary bg-primary/10 rounded hover:bg-primary/20 transition-colors">
           Try Again
         </button>
       )}

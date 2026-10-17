@@ -61,7 +61,7 @@ export function InstagramAdmin() {
   const health = trpc.instagramAdmin.getPipelineHealth.useQuery(undefined, { refetchInterval: 120_000 });
   const meta = health.data?.meta;
   const metaChip = !meta
-    ? health.isError
+    ? health.isError || health.fetchStatus === "paused"
       ? { className: "border-amber-500/40 text-amber-400", label: "Meta unknown" }
       : null
     : !meta.connected

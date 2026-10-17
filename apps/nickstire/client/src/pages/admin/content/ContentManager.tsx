@@ -123,16 +123,19 @@ export function ContentManager() {
     return <ErrorState message="Couldn't load content data" onRetry={() => { refetchArticles(); refetchNotifs(); refetchLog(); }} />;
   }
 
+  // After the loading gate, a missing list is unknown (a paused query has no data and no error), never 0.
   const logUnknown = logError || !genLog;
+  const articlesUnknown = !articles;
+  const unknownNote = "Unable to determine";
 
   return (
     <div className="space-y-8">
       {/* Content Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Total Articles" value={articles?.length ?? 0} icon={<FileText className="w-4 h-4" />} color="text-foreground" />
-        <StatCard label="Published" value={articles?.filter((a: Article) => a.status === "published").length ?? 0} icon={<CheckCircle2 className="w-4 h-4" />} color="text-emerald-400" />
-        <StatCard label="Drafts" value={articles?.filter((a: Article) => a.status === "draft").length ?? 0} icon={<Newspaper className="w-4 h-4" />} color="text-amber-400" />
-        <StatCard label="AI Generations" value={logUnknown ? "?" : genLog.length} trendLabel={logUnknown ? "Unable to determine" : undefined} icon={<Sparkles className="w-4 h-4" />} color="text-primary" />
+        <StatCard label="Total Articles" value={articlesUnknown ? "?" : articles.length} trendLabel={articlesUnknown ? unknownNote : undefined} icon={<FileText className="w-4 h-4" />} color="text-foreground" />
+        <StatCard label="Published" value={articlesUnknown ? "?" : articles.filter((a: Article) => a.status === "published").length} trendLabel={articlesUnknown ? unknownNote : undefined} icon={<CheckCircle2 className="w-4 h-4" />} color="text-emerald-400" />
+        <StatCard label="Drafts" value={articlesUnknown ? "?" : articles.filter((a: Article) => a.status === "draft").length} trendLabel={articlesUnknown ? unknownNote : undefined} icon={<Newspaper className="w-4 h-4" />} color="text-amber-400" />
+        <StatCard label="AI Generations" value={logUnknown ? "?" : genLog.length} trendLabel={logUnknown ? unknownNote : undefined} icon={<Sparkles className="w-4 h-4" />} color="text-primary" />
       </div>
 
       {/* Sub-tab Navigation */}
