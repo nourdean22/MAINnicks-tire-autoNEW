@@ -37,7 +37,10 @@
  * 1440 with Lot's counters under its board) and the control would start failing
  * for the redesign it exists to measure. The frozen pair is the fixed reference the
  * instrument is calibrated on. In capture mode the baselines are being rewritten,
- * so the control uses the live pages, which at capture time are the frozen ones.
+ * so the control compares the live pair instead. That is only sound where the
+ * capture is real: CI captures at the workflow's `ref` commit, so the live pair
+ * there IS the pair being frozen. A local capture is for looking only, is never
+ * committed, and its control number says nothing about the committed baselines.
  */
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
