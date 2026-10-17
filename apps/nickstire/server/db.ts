@@ -1252,12 +1252,34 @@ export async function getPendingNotifications() {
     .orderBy(desc(customerNotifications.createdAt));
 }
 
+/** Rows a mysql2 UPDATE changed ([ResultSetHeader, fields] or a bare header). */
+function affectedRows(result: unknown): number {
+  const header = (Array.isArray(result) ? result[0] : result) as { affectedRows?: number } | undefined;
+  return header?.affectedRows ?? 0;
+}
+
+/**
+ * The text went out, so the row says 'sent' whatever it said before: a row must
+ * never read 'skipped' when the customer got the message (2026-10-17). A send
+ * that lands after the operator's Cancel overwrites 'skipped' and logs
+ * followup.cancel_lost_race so the race is visible. Steps are ordered so that
+ * overwrite is detected: pending first, then skipped, then any other state.
+ */
 export async function markNotificationSent(id: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.update(customerNotifications).set({ status: "sent", sentAt: new Date() })
-    .where(eq(customerNotifications.id, id));
-  return { success: true };
+  const sent = { status: "sent" as const, sentAt: new Date() };
+  const fromPending = await db.update(customerNotifications).set(sent)
+    .where(and(eq(customerNotifications.id, id), eq(customerNotifications.status, "pending")));
+  if (affectedRows(fromPending) > 0) return { success: true, changed: true, cancelLostRace: false };
+  const fromSkipped = await db.update(customerNotifications).set(sent)
+    .where(and(eq(customerNotifications.id, id), eq(customerNotifications.status, "skipped")));
+  if (affectedRows(fromSkipped) > 0) {
+    log.warn("followup.cancel_lost_race", { notificationId: id });
+    return { success: true, changed: true, cancelLostRace: true };
+  }
+  const any = await db.update(customerNotifications).set(sent).where(eq(customerNotifications.id, id));
+  return { success: true, changed: affectedRows(any) > 0, cancelLostRace: false };
 }
 
 /**
@@ -1268,9 +1290,9 @@ export async function markNotificationSent(id: number) {
 export async function markNotificationFailed(id: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.update(customerNotifications).set({ status: "failed" })
-    .where(eq(customerNotifications.id, id));
-  return { success: true };
+  const result = await db.update(customerNotifications).set({ status: "failed" })
+    .where(and(eq(customerNotifications.id, id), eq(customerNotifications.status, "pending")));
+  return { success: true, changed: affectedRows(result) > 0 };
 }
 
 export async function getBookingServiceBreakdown() {

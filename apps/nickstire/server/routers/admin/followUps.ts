@@ -4,10 +4,13 @@
 import { adminProcedure, router } from "../../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { eq, ne, desc } from "drizzle-orm";
+import { and, eq, ne, desc } from "drizzle-orm";
 import { customerNotifications } from "../../../drizzle/schema";
 
-import { db } from "../../lib/db-helper";
+// dbTyped, not db(): db() returns an untyped (any) instance, which is how `status: "skipped"`
+// compiled for a year against an ENUM that did not have it (0146). The typed instance makes
+// .set() a compile error the next time a writer and the schema disagree.
+import { dbTyped } from "../../lib/db-helper";
 
 
 
@@ -17,7 +20,7 @@ export const followUpsRouter = router({
     return runFollowUps();
   }),
   pending: adminProcedure.query(async () => {
-    const d = await db();
+    const d = await dbTyped();
     if (!d) return [];
     return d.select().from(customerNotifications)
       .where(eq(customerNotifications.status, "pending"))
@@ -25,7 +28,7 @@ export const followUpsRouter = router({
       .limit(50);
   }),
   recent: adminProcedure.query(async () => {
-    const d = await db();
+    const d = await dbTyped();
     if (!d) return [];
     // Exclude status='pending' — those rows are already shown in the
     // `pending` query above. Without this filter, when total rows < 50
@@ -42,22 +45,31 @@ export const followUpsRouter = router({
   cancel: adminProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
-      const d = await db();
+      const d = await dbTyped();
       if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       const [existing] = await d.select().from(customerNotifications)
         .where(eq(customerNotifications.id, input.id)).limit(1);
       if (!existing) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Follow-up not found" });
       }
-      if (existing.status !== "pending") {
-        throw new TRPCError({
+      const notPending = (status: string) =>
+        new TRPCError({
           code: "PRECONDITION_FAILED",
-          message: `Can only cancel pending follow-ups (this one is "${existing.status}")`,
+          message: `Can only cancel pending follow-ups (this one is "${status}")`,
         });
-      }
-      await d.update(customerNotifications)
+      if (existing.status !== "pending") throw notPending(existing.status);
+      // Compare-and-swap: a send that lands between the read above and this write
+      // must win, never be overwritten to 'skipped' (followUpCancelRace.test.ts).
+      const result = await d.update(customerNotifications)
         .set({ status: "skipped" })
-        .where(eq(customerNotifications.id, input.id));
+        .where(and(eq(customerNotifications.id, input.id), eq(customerNotifications.status, "pending")));
+      const header = (Array.isArray(result) ? result[0] : result) as { affectedRows?: number } | undefined;
+      if ((header?.affectedRows ?? 0) === 0) {
+        const [current] = await d.select().from(customerNotifications)
+          .where(eq(customerNotifications.id, input.id)).limit(1);
+        if (!current) throw new TRPCError({ code: "NOT_FOUND", message: "Follow-up not found" });
+        throw notPending(current.status);
+      }
       return { ok: true as const, id: input.id };
     }),
   /**
@@ -73,7 +85,7 @@ export const followUpsRouter = router({
   retry: adminProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
-      const d = await db();
+      const d = await dbTyped();
       if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       const [existing] = await d.select().from(customerNotifications)
         .where(eq(customerNotifications.id, input.id)).limit(1);

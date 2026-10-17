@@ -89,11 +89,12 @@ export async function healthHandler(_req: Request, res: Response): Promise<void>
     status: process.env.META_CAPI_ACCESS_TOKEN ? "configured" : "not_configured",
   };
 
-  // Sentry check (configured?) — sentry.ts is a silent no-op without a DSN
-  // (audit O-2); surface it here.
-  checks.sentry = {
-    status: process.env.SENTRY_DSN ? "configured" : "not_configured",
-  };
+  // Sentry: PRESENCE only, named honestly. This used to say "configured" from the
+  // DSN alone, which reads as green and proves nothing (the 2026-09-02 placeholder-
+  // DSN incident: keys set, zero events). This route is public, so the event ids
+  // and counters stay behind auth: HEALTHY / DEGRADED / UNKNOWN with receipts is
+  // GET /api/system/observability-status (Bearer ADMIN_API_KEY).
+  checks.sentry = { status: process.env.SENTRY_DSN ? "dsn_set" : "dsn_unset" };
 
   // AI Gateway check
   try {
