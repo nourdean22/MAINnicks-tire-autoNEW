@@ -113,7 +113,9 @@ moment this repository is on a paying GitHub plan — the rulesets API 403s on a
 private repo at the Free tier today (`scripts/night-shift/README.md`), which no
 session can change. Once upgraded:
 
-1. Verify the two `context` strings in the JSON against the **live** check-run
+1. Verify the `context` string in the JSON (one since the 2026-10-16 CI diet folded Completion
+   Authority into the Agent policy job; `workflowCostGuards.test.mjs` fails if it stops matching a
+   real "Workflow / job" name) against the **live** check-run
    names on a recent commit (`gh api repos/<owner>/<repo>/commits/<sha>/status`)
    — do not trust the names as written without that check, since a workflow or
    job rename would silently break the match.

@@ -2119,7 +2119,7 @@ export const contentAdminRouter = router({
       // Reconstruct prompt pack server-side to enforce server-side prompts and safety checks
       try {
         const { buildHiggsfieldReelPromptPack } = await import("../../client/src/lib/facelessReelStudio");
-        const promptPack = buildHiggsfieldReelPromptPack(brief as any);
+        const promptPack = buildHiggsfieldReelPromptPack(brief as any, { imageConditioning: process.env.REEL_IMAGE_CONDITIONING === "true" });
         (brief as any).promptPack = promptPack;
         (brief as any).higgsfieldPromptPack = promptPack;
       } catch (e: any) {
@@ -2460,7 +2460,7 @@ export const contentAdminRouter = router({
       const { buildHiggsfieldReelPromptPack } = await import("../../client/src/lib/facelessReelStudio");
       const { scoreReelBriefWithMemory } = await import("../services/reelQualityScore");
       const brief = input.brief as unknown as ReelBrief;
-      const promptPack = buildHiggsfieldReelPromptPack(brief);
+      const promptPack = buildHiggsfieldReelPromptPack(brief, { imageConditioning: process.env.REEL_IMAGE_CONDITIONING === "true" });
       brief.promptPack = promptPack;
       brief.higgsfieldPromptPack = promptPack;
       const qualityScore = await scoreReelBriefWithMemory(brief);

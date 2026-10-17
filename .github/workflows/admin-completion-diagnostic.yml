@@ -1,9 +1,13 @@
 name: Admin completion diagnostic
 
+# 2026-10-16 · CI diet. This ran a full workspace install plus the nickstire typecheck on EVERY PR push
+# (~2 billed minutes, 30 of 30 PR runs in the last 12 hours) and could not fail on a code defect: the
+# capture step ends in `exit 0` by design and the only failing path is "no log file was written". The real
+# typecheck gate is `check` in test.yml's turbo sweep. No code reads the uploaded artifact (the only
+# mentions are dated merge receipts in docs). So it is now on demand: Actions, "Admin completion
+# diagnostic", Run workflow; the old wave-4 branch push trigger is kept as it was.
 on:
-  pull_request:
-    branches:
-      - main
+  workflow_dispatch:
   push:
     branches:
       - agent/nickstire-admin-completion-wave-4
