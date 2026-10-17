@@ -120,6 +120,19 @@ github-client canaries 403'd every PR whenever another workflow had spent the bu
   What the docs settle (code.claude.com/docs/en/hooks, read 2026-10-16): UserPromptSubmit stdout is added to context;
   the hook fires on typed prompts, scheduled tasks, a background subagent reporting back, and cross-session messages.
   A subagent's own brief is not in that list, so lane agents get recall through the brief template instead.
+- **Session workflow (2026-10-16, job session-workflow-upgrade PR 1).** All machine-local state lives in
+  `%LOCALAPPDATA%/nourcity/`, outside the repo. Tested, not live until merged: hooks load from the primary checkout.
+  - `heavy.mjs run -- <cmd>`: one machine-wide lease for heavy runs (20 min expiry, dead-pid takeover); waits while the
+    `chrome` slot is held (`take`/`release --slot chrome`, 30 min) or free RAM is under 1500 MB. lefthook's
+    agent-os-verify, both typechecks and build:affected go through it. `heavy.mjs status` shows the holders.
+  - `board.mjs` (UserPromptSubmit `hook`): at most 3 lines of what changed since this session last looked (main moved,
+    a PR went red, the heavy holder), from `board/board.json`; a cache over 60 s starts a detached refresh (one
+    `gh pr list`); over 10 min old it prints STALE. `node scripts/agent-os/board.mjs` prints the whole board.
+  - `stuck-watch.mjs` (PostToolUse `--post`, PreToolUse `--pre`, every tool): the same call with the same result on an
+    unchanged tree nudges on the 3rd and 4th repeat and is denied on the 5th. Durations and timestamps are ignored;
+    polling tools are exempt; it fails open. Cost: about 100 ms per call, plus a `git status` only on a repeat.
+  - `lane-dispatch-brief` (policy.json, `Agent|Task` routed to pretool.mjs): a `lane-*` dispatch needs `model`, a brief
+    file path ending `brief.md` and a `MODEL / EFFORT` line. Not checked: `effort`, and `start_session` prompts.
 - **Failure posture is asymmetric on purpose:** a matched rule fails CLOSED; a bug in the hook
   itself fails OPEN with a stderr warning. Bricking every tool call is worse than missing one
   check, and Claude Code fails open on hook crash/timeout anyway — pretending otherwise is theatre.
