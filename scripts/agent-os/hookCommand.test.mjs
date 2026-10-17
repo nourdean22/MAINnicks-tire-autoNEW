@@ -114,7 +114,7 @@ test("loop watchdog (2026-10-16): the configured stuck-watch hooks DENY the 5th 
   const { tmpdir } = await import("node:os");
   process.env.STUCK_WATCH_DIR = mkdtempSync(join(tmpdir(), "stuck-hookcmd-"));
   const call = { session_id: `hookcmd-${process.pid}`, cwd: ROOT, tool_name: "Bash", tool_input: { command: "pnpm test" } };
-  for (let i = 0; i < 4; i++) runHook(post.command, JSON.stringify({ ...call, tool_response: { stdout: "1 failed" } }));
+  for (let i = 0; i < 4; i++) runHook(post.command, JSON.stringify({ ...call, tool_input: { ...call.tool_input, description: `try ${i}` }, tool_response: { stdout: "1 failed" } }));
   const r = runHook(pre.command, JSON.stringify(call));
   delete process.env.STUCK_WATCH_DIR;
   assert.equal(r.code, 2, `expected a deny (exit 2), got ${r.code}\n${r.out}`);
@@ -129,7 +129,7 @@ test("loop watchdog: the configured PostToolUseFailure string records failed cal
   const { tmpdir } = await import("node:os");
   process.env.STUCK_WATCH_DIR = mkdtempSync(join(tmpdir(), "stuck-hookfail-"));
   const call = { session_id: `hookfail-${process.pid}`, cwd: ROOT, tool_name: "Bash", tool_input: { command: "pnpm test" } };
-  for (let i = 0; i < 4; i++) runHook(fail.command, JSON.stringify({ ...call, hook_event_name: "PostToolUseFailure", error: "Exit code 1: 1 failed" }));
+  for (let i = 0; i < 4; i++) runHook(fail.command, JSON.stringify({ ...call, tool_input: { ...call.tool_input, description: `try ${i}` }, hook_event_name: "PostToolUseFailure", error: "Exit code 1: 1 failed" }));
   const r = runHook(pre.command, JSON.stringify(call));
   delete process.env.STUCK_WATCH_DIR;
   assert.equal(r.code, 2, `expected a deny (exit 2), got ${r.code}\n${r.out}`);

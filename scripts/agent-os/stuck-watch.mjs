@@ -4,7 +4,8 @@
  * conversation/stuck_detector.py). Lanes looped on one failing action (identical command, identical
  * failure) until their tool budget ran out.
  *
- *   PostToolUse  node stuck-watch.mjs --post   records (tool + input, result) per agent; when the same pair
+ *   PostToolUse  node stuck-watch.mjs --post   records (tool + input, result) per agent, the input without its prose
+ *                                              (`description`, `action_summary`) and `timeout`; when the same pair
  *                                              repeats on an unchanged tree, the 3rd and 4th time nudge (exit 2:
  *                                              stderr reaches the model, the tool has already run)
  *   PostToolUseFailure  (same --post)          a failed call (non-zero Bash exit) fires this event, not PostToolUse;
@@ -61,7 +62,10 @@ function main(mode) {
   try {
     last = JSON.parse(readFileSync(file, "utf8"));
   } catch {}
-  const key = hash([tool, payload.tool_input]);
+  // The key is what the call DOES. The model rewrites its prose (`description`, a browser tool's `action_summary`) and
+  // `timeout` on every retry, so hashing them scored 5 identical failing commands as streak 1 each (live, 2026-10-17).
+  const { description, action_summary, timeout, ...meaningful } = payload.tool_input ?? {};
+  const key = hash([tool, meaningful]);
 
   if (mode === "--pre") {
     if (last.key !== key || last.streak < DENY_AT - 1 || isPolling(tool, payload.tool_input) || treeState(cwd) !== last.tree) return 0;

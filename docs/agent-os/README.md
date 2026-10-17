@@ -137,7 +137,9 @@ github-client canaries 403'd every PR whenever another workflow had spent the bu
     `agent_id`, else `session_id`, so parallel lanes do not reset each other. Durations and timestamps are ignored;
     Monitor-style tools are exempt; read-only polling (Read, Grep, Glob, an unchained `gh` or `curl`) is nudged, never
     denied; it fails open. A call denied before it runs fires neither post event, so it is not counted. Cost: about
-    100 ms per call, plus a `git status` only on a repeat.
+    100 ms per call, plus a `git status` only on a repeat. The call's identity is its input minus `description`,
+    `action_summary` and `timeout` (2026-10-17): the model rewrites those on every retry, and while they were hashed,
+    5 identical failing commands scored a streak of 1 each in a live session.
   - `lane-dispatch-brief` (policy.json, `Agent|Task` routed to pretool.mjs): a `lane-*` dispatch needs `model`, a brief
     file (a token whose basename contains `brief` and ends `.md`; not a URL, not the word in prose) and a
     `MODEL / EFFORT` line. Not checked: `effort`, and `start_session` prompts.
