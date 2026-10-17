@@ -61,6 +61,27 @@ describe("ChatMessageList with a failed open", () => {
     expect(markup).toContain("hi");
   });
 
+  // PR #3090 review 4299648926: with a long transcript kept, a card at the top of the log is scrolled
+  // out of view; the log is bottom-anchored and follows the bottom, so the card is its last visible
+  // element, next to the composer, and still a status region.
+  it("with a long transcript, the card is the log's last visible element (after the newest turn)", () => {
+    const messages = Array.from({ length: 12 }, (_, i) => ({
+      id: `m${i}`,
+      role: i % 2 ? "assistant" : "user",
+      parts: [{ type: "text", text: `turn ${i}` }],
+    })) as unknown as UIMessage[];
+    const markup = renderToStaticMarkup(
+      <ChatMessageList messages={messages} isLoading={false} error={undefined} loadFailedId="c9" onRetryLoad={() => {}} />,
+    );
+    const card = markup.indexOf("Couldn&#x27;t open that conversation");
+    expect(card).toBeGreaterThan(markup.indexOf("turn 11"));
+    // nothing visible follows it inside the log: only the sr-only completion announcer
+    const after = markup.slice(card).replace(/<div role="status" aria-live="polite" class="sr-only">[^<]*<\/div>/, "");
+    expect(after).not.toMatch(/turn \d+/);
+    const cardOpen = markup.lastIndexOf("<div", card);
+    expect(markup.slice(cardOpen, card)).toContain('role="status"');
+  });
+
   it("CONTROL: with no failed open the starters render", () => {
     const markup = renderToStaticMarkup(<ChatMessageList messages={[]} isLoading={false} error={undefined} loadFailedId={null} />);
     expect(markup).toContain("Run my command brief");

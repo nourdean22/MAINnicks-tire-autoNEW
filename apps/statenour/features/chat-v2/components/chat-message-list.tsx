@@ -432,7 +432,7 @@ export function ChatMessageList({
   const stoppedHere = stopped && !isLoading && messages.some((m) => m.id === stopped.messageId) ? stopped : null;
 
   // The failed-open card (W3b): the transcript on screen was put back by use-conversations, so it
-  // also renders above a restored transcript. Announced; Retry stays mounted while the re-read runs.
+  // also renders below a restored transcript. Announced; Retry stays mounted while the re-read runs.
   const loadFailedCard = loadFailedId ? (
     <div role="status" aria-live="polite" className="flex flex-col items-center gap-3 text-center text-[15px] text-fg">
       <p>Couldn&apos;t open that conversation. Nothing was changed.</p>
@@ -501,7 +501,6 @@ export function ChatMessageList({
       // conversation sits next to the input instead of leaving the viewport's lower half empty.
       className="mx-auto flex min-h-full w-full max-w-3xl flex-col justify-end gap-7 px-4 py-5 pb-12 sm:px-6"
     >
-      {loadFailedCard}
       {diagnosticReport && (
         <section className="rounded-surface border border-edge-subtle bg-content p-4">
           <div className="mb-3 flex items-center gap-2 text-fg-secondary">
@@ -700,6 +699,9 @@ export function ChatMessageList({
       )}
       {/* Round 3 (A5): a refusal (side-effecting or private turn) holds with no stream error. */}
       {!error && hold && <p role="status" aria-live="polite" className="mx-auto px-1 text-center text-[13px] leading-snug text-fg-secondary">{hold}</p>}
+      {/* PR #3090: the failed-open card is the log's last element, next to the composer: the log is
+          bottom-anchored and follows the bottom, so with a long transcript kept it stays in view. */}
+      {loadFailedCard}
 
       {/* 2026-08-08 · always-mounted completion announcer — polite regions
           must pre-exist to announce (people-scoring-panel is the in-repo
