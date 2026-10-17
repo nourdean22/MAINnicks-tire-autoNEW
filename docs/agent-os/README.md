@@ -120,6 +120,29 @@ github-client canaries 403'd every PR whenever another workflow had spent the bu
   What the docs settle (code.claude.com/docs/en/hooks, read 2026-10-16): UserPromptSubmit stdout is added to context;
   the hook fires on typed prompts, scheduled tasks, a background subagent reporting back, and cross-session messages.
   A subagent's own brief is not in that list, so lane agents get recall through the brief template instead.
+- **Session workflow (2026-10-16, job session-workflow-upgrade PR 1).** All machine-local state lives in
+  `%LOCALAPPDATA%/nourcity/`, outside the repo. Tested, not live until merged: hooks load from the primary checkout.
+  - `heavy.mjs run -- <cmd>`: one machine-wide lease for heavy runs (20 min expiry, dead-pid takeover); waits while the
+    `chrome` slot is held (`take`/`release --slot chrome`, 30 min) or free RAM is under 1500 MB. lefthook's
+    agent-os-verify, both typechecks and build:affected go through it with `--max-wait 90s`: a hook waits at most
+    90 s, then warns and runs unleased (a commit is killed by its caller long before 35 min). A plain `heavy run`
+    waits up to 35 min, then exits 3. Its own errors (an unwritable lock dir) fail open: it runs unleased. A signal
+    kills the child before the lease is released. `heavy.mjs status` shows the holders.
+  - `board.mjs` (UserPromptSubmit `hook`): at most 3 lines of what changed since this session last looked (main moved,
+    a PR went red, the heavy holder), from `board/board.json`; a cache over 60 s starts a detached refresh (one
+    `gh pr list`); over 10 min old it prints STALE; a failing `gh` prints `PR list unavailable: <error>` once per error. `node scripts/agent-os/board.mjs` prints the whole board.
+  - `stuck-watch.mjs` (PostToolUse and PostToolUseFailure `--post`, PreToolUse `--pre`, every tool, matcher `""`): the
+    same call with the same result on an unchanged tree nudges on the 3rd and 4th repeat and is denied on the 5th. A
+    failed call (non-zero Bash exit) fires PostToolUseFailure, and its `error` is the result. State is keyed on
+    `agent_id`, else `session_id`, so parallel lanes do not reset each other. Durations and timestamps are ignored;
+    Monitor-style tools are exempt; read-only polling (Read, Grep, Glob, an unchained `gh` or `curl`) is nudged, never
+    denied; it fails open. A call denied before it runs fires neither post event, so it is not counted. Cost: about
+    100 ms per call, plus a `git status` only on a repeat.
+  - `lane-dispatch-brief` (policy.json, `Agent|Task` routed to pretool.mjs): a `lane-*` dispatch needs `model`, a brief
+    file (a token whose basename contains `brief` and ends `.md`; not a URL, not the word in prose) and a
+    `MODEL / EFFORT` line. Not checked: `effort`, and `start_session` prompts.
+  - Limits, not built: no heartbeat while a long heavy run holds the lease (only the 20 min expiry ends a hung one);
+    a headless `claude -p --agent <lane>` dispatch never passes through the Agent tool, so the lane rule cannot see it.
 - **Failure posture is asymmetric on purpose:** a matched rule fails CLOSED; a bug in the hook
   itself fails OPEN with a stderr warning. Bricking every tool call is worse than missing one
   check, and Claude Code fails open on hook crash/timeout anyway — pretending otherwise is theatre.

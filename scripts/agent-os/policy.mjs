@@ -124,6 +124,32 @@ export function evaluate({ toolName, command = "", filePath = "", cwd = "", skip
   return { denied: false };
 }
 
+// -- Lane dispatches (2026-10-16, job session-workflow-upgrade H) ---------------------------------
+// An Agent (or legacy Task) call carries structured fields, not a command. It is summarised into one judged line
+// that the `lane-dispatch-brief` rule matches, so the rule keeps the engine's shape (pattern + deny/allow examples):
+//   lane-dispatch type=<lane> model=<value|-> brief=<the brief file token|no> model-effort-line=<yes|no>
+// A brief FILE is a whitespace-free token whose basename contains "brief" and ends .md (brief-3100.md,
+// lane-brief-v2.md, C:\...\x-brief.md); the word "brief" in prose and a URL (https://.../brief.md) are not.
+// Non-lane agents get a line no rule matches.
+function briefFile(prompt) {
+  for (const raw of prompt.split(/[\s"'`<>()[\]{},;]+/)) {
+    const tok = raw.replace(/[.:!?]+$/, "");
+    if (/^[a-z][a-z0-9+.-]*:\/\//i.test(tok)) continue; // a URL, not a file
+    if (/brief[\w.-]*\.md$/i.test(tok.split(/[\\/]/).pop() ?? "")) return tok;
+  }
+  return null;
+}
+export function agentDispatchCall(toolName, input, cwd) {
+  if (toolName !== "Agent" && toolName !== "Task") return null;
+  const type = String(input?.subagent_type ?? "").trim().replace(/\s+/g, "_");
+  const prompt = String(input?.prompt ?? "");
+  const model = String(input?.model ?? "").trim().replace(/\s+/g, "_");
+  const command = /^lane-/i.test(type)
+    ? `lane-dispatch type=${type} model=${model || "-"} brief=${briefFile(prompt) ?? "no"} model-effort-line=${/MODEL\s*\/\s*EFFORT/.test(prompt) ? "yes" : "no"}`
+    : `agent type=${type || "-"}`;
+  return { toolName: "Agent", command, filePath: "", cwd };
+}
+
 // -- MCP and native command-runner adapters (2026-10-15, job guard-mcp-coverage) -----------------
 // Every rule carries a `tools` allowlist, so the same forbidden command delivered through a tool
 // that runs commands or writes files but is not Bash/PowerShell/Write/Edit/NotebookEdit was never
