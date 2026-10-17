@@ -121,6 +121,42 @@ test("loop watchdog (2026-10-16): the configured stuck-watch hooks DENY the 5th 
   assert.match(r.out, /stuck-watch\] DENIED/);
 });
 
+test("operator asks (2026-10-17): UserPromptSubmit and PreCompact refresh, SessionStart compact|resume recalls, via the exact command strings", async () => {
+  const find = (event) => nodeHooks.find((h) => h.event === event && h.command.includes("operator-asks.mjs"));
+  const [submit, compact, start] = ["UserPromptSubmit", "PreCompact", "SessionStart"].map(find);
+  assert.ok(submit && compact && start, "operator-asks.mjs must be configured on UserPromptSubmit, PreCompact and SessionStart");
+  assert.match(submit.command, /--refresh/);
+  assert.match(compact.command, /--refresh/);
+  assert.match(start.command, /--recall/);
+  const groups = settings.hooks.SessionStart.filter((g) => (g.hooks ?? []).some((h) => h.command?.includes("operator-asks.mjs")));
+  const fires = (source) => groups.some((g) => new RegExp(`^(?:${g.matcher || ".*"})$`).test(source));
+  for (const source of ["compact", "resume"]) assert.ok(fires(source), `the recall must fire on SessionStart source "${source}"`);
+  for (const source of ["startup", "clear"]) assert.ok(!fires(source), `the recall must not fire on SessionStart source "${source}"`);
+
+  const { appendFileSync, mkdtempSync, writeFileSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const dir = mkdtempSync(join(tmpdir(), "asks-hookcmd-"));
+  const transcript = join(dir, "t.jsonl");
+  const line = (e) => `${JSON.stringify(e)}\n`;
+  writeFileSync(transcript, line({ type: "user", origin: { kind: "human" }, timestamp: "2026-10-17T10:00:00.000Z", message: { role: "user", content: "typed ask one" } }));
+  process.env.OPERATOR_ASKS_DIR = join(dir, "asks");
+  try {
+    const base = { session_id: `asks-${process.pid}`, transcript_path: transcript, cwd: ROOT };
+    const s = runHook(submit.command, JSON.stringify({ ...base, hook_event_name: "UserPromptSubmit", prompt: "typed ask one" }));
+    assert.equal(s.code, 0, s.out);
+    assert.equal(s.out.trim(), "", "the refresh must print nothing: UserPromptSubmit output enters the model's context");
+    appendFileSync(transcript, line({ type: "attachment", timestamp: "2026-10-17T10:05:00.000Z", attachment: { type: "queued_command", prompt: "mid-turn ask two", origin: { kind: "human" } } }));
+    assert.equal(runHook(compact.command, JSON.stringify({ ...base, hook_event_name: "PreCompact", trigger: "auto" })).code, 0);
+    appendFileSync(transcript, line({ type: "user", origin: { kind: "human" }, timestamp: "2026-10-17T10:09:00.000Z", message: { role: "user", content: "typed ask three" } }));
+    const r = runHook(start.command, JSON.stringify({ ...base, hook_event_name: "SessionStart", source: "compact" }));
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /Operator asks this session \(verbatim, oldest first; 3 total; full list: /);
+    assert.match(r.out, /typed ask one[\s\S]*mid-turn ask two[\s\S]*typed ask three/);
+  } finally {
+    delete process.env.OPERATOR_ASKS_DIR;
+  }
+});
+
 test("loop watchdog: the configured PostToolUseFailure string records failed calls (error payload), so 5 identical failures are denied", async () => {
   const fail = nodeHooks.find((h) => h.event === "PostToolUseFailure" && h.command.includes("stuck-watch.mjs"));
   const pre = nodeHooks.find((h) => h.event === "PreToolUse" && h.command.includes("stuck-watch.mjs"));
