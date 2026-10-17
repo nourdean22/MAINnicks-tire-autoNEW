@@ -23,7 +23,7 @@ import {
 // wave-181.x Phase 1 cleanup · removed imports: Upload, AlertTriangle,
 // Clock — used only by deleted EstimateEndpointDiagnosticPanel +
 // Import History panel.
-import { PageHeader, SectionInsightStrip, TabBar, Panel, StatCard } from "./shared";
+import { PageHeader, SectionInsightStrip, TabBar, Panel, StatCard, ErrorState } from "./shared";
 import DegradedDataBanner from "@/components/admin/DegradedDataBanner";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
 // wave-181.x decomposition · the 5 inlined sibling panels + the cron
@@ -105,10 +105,12 @@ export default function SettingsSection() {
   const [syncResult, setSyncResult] = useState<{ type: string; data: SyncPayload } | null>(null);
 
   // ALG connection status
-  const { data: algStatus, isLoading: algLoading } = trpc.autoLabor.status.useQuery(undefined, { staleTime: 30_000 });
+  const { data: algStatus, isLoading: algLoading, refetch: refetchAlg } = trpc.autoLabor.status.useQuery(undefined, { staleTime: 30_000 });
 
   // Invoice + customer counts
-  const { data: invoiceStats } = trpc.adminDashboard.stats.useQuery(undefined, { staleTime: 60_000 });
+  const { data: invoiceStats, isError: statsError, fetchStatus: statsFetchStatus } = trpc.adminDashboard.stats.useQuery(undefined, { staleTime: 60_000 });
+  // A paused query (offline PWA) has no data, no error and is not loading: it never ran, so it is unknown.
+  const statsNote = statsError ? "Unable to determine" : statsFetchStatus === "paused" ? "Offline, not checked" : "Loading";
 
   // Sync mutations · 2026-05-23 · added onSuccess invalidation so the
   // invoice/customer count cards on this same page refresh immediately
@@ -238,53 +240,66 @@ export default function SettingsSection() {
       {activeTab === "shopdriver" && (
       <div className="space-y-6">
       <div>
-        <h3 className="font-bold text-xl text-foreground tracking-wider">SHOPDRIVER COMMAND CENTER</h3>
+        <h3 className="font-bold text-xl text-foreground">ShopDriver command center</h3>
         <p className="text-foreground/50 text-[12px] mt-1">
           ALG is the source of truth. Closed jobs = completed work. No website booking = walk-in. Estimates = declined work.
         </p>
       </div>
 
-      {/* Connection Status Banner */}
+      {/* Connection Status Banner. No status read means unknown, never "offline" or zero counts. */}
+      {!algStatus ? (
+        algLoading ? (
+          <div className="p-4 border border-border/30 text-foreground/50 text-[12px]">Checking the ALG connection...</div>
+        ) : (
+          <div className="border border-amber-500/20 bg-amber-500/5">
+            <ErrorState
+              message="ALG status couldn't load. The connection and lookup counts are unknown, not zero."
+              onRetry={() => void refetchAlg()}
+            />
+          </div>
+        )
+      ) : (
       <div className={`flex items-center gap-3 p-4 border ${
         connected ? "bg-emerald-500/5 border-emerald-500/20" : "bg-red-500/5 border-red-500/20"
       }`}>
         {connected ? <Wifi className="w-5 h-5 text-emerald-400" /> : <WifiOff className="w-5 h-5 text-red-400" />}
         <div className="flex-1">
           <span className={`font-bold text-sm ${connected ? "text-emerald-400" : "text-red-400"}`}>
-            {connected ? "ALG CONNECTED" : "ALG OFFLINE: Using Built-in Labor Guide"}
+            {connected ? "ALG connected" : "ALG offline: using the built-in labor guide"}
           </span>
           <p className="text-foreground/50 text-[11px] mt-0.5">
             {connected
-              ? `Authenticated as ${algStatus?.accountId || "?"} • Last check: ${algStatus?.lastAuthCheck || "just now"}`
-              : algStatus?.error || "No credentials configured"
+              ? `Authenticated as ${algStatus.accountId || "?"} • Last check: ${algStatus.lastAuthCheck || "just now"}`
+              : algStatus.error || "No credentials configured"
             }
           </p>
         </div>
         <div className="text-right">
           <span className="font-mono text-[10px] text-foreground/30">
-            {algStatus?.fallbackCategories || 0} categories • {algStatus?.fallbackJobs || 0} jobs
+            {algStatus.fallbackCategories || 0} categories • {algStatus.fallbackJobs || 0} jobs
           </span>
           <br />
           <span className="font-mono text-[10px] text-foreground/30">
-            {algStatus?.totalLookups || 0} lookups total
+            {algStatus.totalLookups || 0} lookups total
           </span>
         </div>
       </div>
+      )}
 
-      {/* Stats Row */}
+      {/* Stats Row. A failed or missing read shows "?" and says so, never 0. */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <StatCard
-          label="CUSTOMERS"
-          value={invoiceStats?.shopFloor?.totalCustomers ?? "—"}
+          label="Customers"
+          value={invoiceStats?.shopFloor?.totalCustomers ?? "?"}
           icon={<Users className="w-4 h-4" />}
-          trendLabel={`${invoiceStats?.shopFloor?.vipCustomers ?? 0} VIP (3+ visits)`}
+          trendLabel={invoiceStats ? `${invoiceStats.shopFloor?.vipCustomers ?? 0} VIP (3+ visits)` : statsNote}
         />
         <StatCard
-          label="WEBSITE LEADS"
-          value={invoiceStats?.leads?.total ?? "—"}
+          label="Website leads"
+          value={invoiceStats?.leads?.total ?? "?"}
           icon={<TrendingUp className="w-4 h-4" />}
           color={Number(invoiceStats?.leads?.urgent || 0) > 0 ? "text-red-400" : "text-foreground"}
-          trendLabel={`${invoiceStats?.leads?.urgent ?? 0} urgent • rest = walk-ins`}
+          trendLabel={invoiceStats ? `${invoiceStats.leads?.urgent ?? 0} urgent • rest = walk-ins` : statsNote}
         />
       </div>
 
@@ -342,7 +357,7 @@ export default function SettingsSection() {
           <div className="flex items-center gap-2 mb-1">
             {syncResult.data?.success !== false ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <XCircle className="w-4 h-4 text-red-400" />}
             <span className="font-bold text-xs tracking-wide">
-              {syncResult.type.toUpperCase()} SYNC {syncResult.data?.success !== false ? "COMPLETE" : "FAILED"}
+              {syncResult.type.charAt(0).toUpperCase() + syncResult.type.slice(1)} sync {syncResult.data?.success !== false ? "complete" : "failed"}
             </span>
           </div>
           <p className="text-foreground/60 text-xs">

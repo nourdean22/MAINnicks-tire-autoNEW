@@ -19,7 +19,7 @@ import {
   Swords, Copy, Check, Loader2, AlertTriangle, CheckCircle2,
   RefreshCw, Lock, Instagram, Activity,
 } from "lucide-react";
-import { Section, Panel } from "./shared";
+import { Section, Panel, ErrorState } from "./shared";
 import { navigateToAdminSection } from "./shared/navigation";
 import { TabBar } from "./shared/table";
 import { trpc } from "@/lib/trpc";
@@ -51,9 +51,11 @@ function InstagramMoved() {
   );
 }
 
+// Review Replies leads: it is the one tab with a daily backlog (drafts waiting, approved but not
+// marked posted). The rest are weekly checklists and read-outs. Tab ids and ?growthTab= are unchanged.
 const GROWTH_TABS: { id: GrowthTab; label: string; icon: React.ReactNode }[] = [
-  { id: "local", label: "Local Growth", icon: <MapPin className="w-3.5 h-3.5" /> },
   { id: "reviews", label: "Review Replies", icon: <Star className="w-3.5 h-3.5" /> },
+  { id: "local", label: "Local Growth", icon: <MapPin className="w-3.5 h-3.5" /> },
   { id: "qa", label: "GBP Q&A", icon: <MessageCircleQuestion className="w-3.5 h-3.5" /> },
   { id: "photos", label: "Photo Queue", icon: <Camera className="w-3.5 h-3.5" /> },
   { id: "entity", label: "Entity / Brand", icon: <Building2 className="w-3.5 h-3.5" /> },
@@ -113,10 +115,10 @@ export default function GrowthSection() {
   // /admin/reel-studio topbar redirects — land on the right inner tab
   // instead of always defaulting to "local".
   const [tab, setTab] = useState<GrowthTab>(() => {
-    if (typeof window === "undefined") return "local";
+    if (typeof window === "undefined") return "reviews";
     const raw = new URLSearchParams(window.location.search).get("growthTab");
     const match = GROWTH_TABS.find((t) => t.id === raw);
-    return match ? match.id : "local";
+    return match ? match.id : "reviews";
   });
 
   return (
@@ -240,7 +242,7 @@ function LocalGrowthTab() {
 /* ── Social Pipeline Health ──────────────────────────────────── */
 
 function SocialPipelineHealth() {
-  const { data, isLoading } = trpc.socialPipeline.status.useQuery(undefined, {
+  const { data, isLoading, isError, refetch } = trpc.socialPipeline.status.useQuery(undefined, {
     refetchInterval: 60_000,
   });
 
@@ -250,7 +252,15 @@ function SocialPipelineHealth() {
     </Panel>
   );
 
-  if (!data) return null;
+  // A failed read must not remove the kill-switch panel: no panel reads as "all off".
+  if (isError || !data) return (
+    <Panel title="Social Pipeline Health" icon={<Activity className="w-4 h-4" />}>
+      <ErrorState
+        message="Social pipeline status couldn't load. The kill-switch states are unknown, not off."
+        onRetry={() => void refetch()}
+      />
+    </Panel>
+  );
 
   const { readiness, envGates, dbFlags } = data;
 
@@ -329,8 +339,8 @@ interface ReplyRow {
 function ReviewRepliesTab() {
   const [filter, setFilter] = useState<ReplyFilter>("draft");
   const utils = trpc.useUtils();
-  const { data: stats } = trpc.reviewReplies.stats.useQuery();
-  const { data: replies, isLoading } = trpc.reviewReplies.list.useQuery(
+  const { data: stats, isError: statsError, fetchStatus: statsFetchStatus } = trpc.reviewReplies.stats.useQuery();
+  const { data: replies, isLoading, isError: repliesError, refetch: refetchReplies } = trpc.reviewReplies.list.useQuery(
     filter === "all" ? { limit: 100 } : { status: filter, limit: 100 },
   );
   const invalidate = () => {
@@ -439,9 +449,18 @@ function ReviewRepliesTab() {
         </p>
       )}
 
+      {(statsError || (!stats && statsFetchStatus === "paused")) && (
+        <p className="text-[11px] text-amber-400 leading-relaxed flex items-start gap-1">
+          <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />
+          {statsError ? "Reply counts couldn't load. The backlog is unknown, not zero." : "Reply counts not checked (offline). The backlog is unknown, not zero."}
+        </p>
+      )}
+
       {isLoading ? (
         <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
-      ) : !replies?.length ? (
+      ) : repliesError || !replies ? (
+        <ErrorState message="Review replies couldn't load. The list is unknown, not empty." onRetry={() => void refetchReplies()} />
+      ) : !replies.length ? (
         <p className="text-xs text-muted-foreground py-6 text-center">
           No {filter === "all" ? "" : filter + " "}replies yet. Tap "Fetch new reviews" to pull
           the latest Google reviews and generate drafts (the daily monitor also adds them).

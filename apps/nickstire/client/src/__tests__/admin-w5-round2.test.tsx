@@ -1,0 +1,165 @@
+/**
+ * Admin UI v1 Wave 5, review round 2 (silent-instrument lens). Each block kills a named surviving mutant:
+ *   - a paused read (data undefined, isError false, fetchStatus "paused") is unknown in Ops Hub, Voice live
+ *     calls and the Growth reply counts, not "no line", "quiet hours" or "no banner";
+ *   - Settings says "Checking the ALG connection..." while the status read is in flight, never "ALG offline";
+ *   - an estimate line type renders sentence case at runtime;
+ *   - a phone with no digits gets no tel: or sms: link.
+ */
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import React from "react";
+
+type Q = { data: unknown; isLoading: boolean; isError: boolean; error: unknown; refetch: () => void; isFetching: boolean; fetchStatus?: string };
+const h = vi.hoisted(() => ({ queries: new Map<string, Partial<Q>>(), Null: () => null }));
+
+vi.mock("@/lib/trpc", () => {
+  const query = (path: string) => () => ({
+    data: undefined,
+    isLoading: false,
+    isError: false,
+    error: null,
+    refetch: () => {},
+    isFetching: false,
+    ...h.queries.get(path),
+  });
+  const node = (path: string): any =>
+    new Proxy(function noop() {}, {
+      get(_t, key) {
+        if (typeof key === "symbol" || key === "then") return undefined;
+        if (key === "useQuery" || key === "useSuspenseQuery" || key === "useInfiniteQuery") return query(path);
+        if (key === "useMutation") return () => ({ mutate: () => {}, mutateAsync: async () => ({}), isPending: false });
+        return node(path ? `${path}.${String(key)}` : String(key));
+      },
+      apply() {
+        return undefined;
+      },
+    });
+  return { trpc: new Proxy({}, { get: (_t, key) => (key === "useUtils" || key === "useContext" ? () => node("utils") : node(String(key))) }) };
+});
+vi.mock("sonner", () => ({
+  toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn(), message: vi.fn() }),
+  Toaster: () => null,
+}));
+vi.mock("@/components/admin/ConfirmDialog", () => ({ confirmDialog: vi.fn(async () => true), default: () => null }));
+vi.mock("@/_core/hooks/useAuth", () => ({ useAuth: () => ({ user: { role: "admin" }, loading: false }) }));
+vi.mock("@/pages/admin/settings/AlgProbeBudgetPanel", () => ({ default: h.Null }));
+vi.mock("@/pages/admin/settings/FeatureFlagsPanel", () => ({ default: h.Null }));
+vi.mock("@/pages/admin/settings/DeclinedRecoveryPanel", () => ({ default: h.Null }));
+vi.mock("@/pages/admin/shared/SectionInsightStrip", () => ({ default: h.Null, SectionInsightStrip: h.Null }));
+
+import SettingsSection from "@/pages/admin/SettingsSection";
+import IntegrationsSection from "@/pages/admin/settings/IntegrationsSection";
+import OpsHubSection from "@/pages/admin/OpsHubSection";
+import GrowthSection from "@/pages/admin/GrowthSection";
+import { LiveCallsCard } from "@/pages/admin/voice/LiveCallsCard";
+import { CustomerIntelligence } from "@/pages/admin/intelligence/CustomerIntelligence";
+
+const PAUSED: Partial<Q> = { data: undefined, isError: false, isLoading: false, fetchStatus: "paused" };
+const FETCHING: Partial<Q> = { data: undefined, isError: false, isLoading: true, fetchStatus: "fetching" };
+const ok = (data: unknown): Partial<Q> => ({ data, isError: false });
+
+beforeEach(() => {
+  h.queries.clear();
+  window.history.replaceState({}, "", "/admin");
+});
+afterEach(() => h.queries.clear());
+
+describe("Ops Hub live checks", () => {
+  it("a paused health read says the live check did not run, on both annotated cards", () => {
+    h.queries.set("payments.health", PAUSED);
+    render(<OpsHubSection />);
+    expect(screen.getAllByText("Offline, live check not run. This deploy's state is unknown.")).toHaveLength(2);
+    expect(screen.queryByText(/Live check couldn't load/)).toBeNull();
+  });
+
+  it("positive control: a read still in flight shows no live line at all", () => {
+    h.queries.set("payments.health", FETCHING);
+    render(<OpsHubSection />);
+    expect(screen.queryByText(/Offline, live check not run/)).toBeNull();
+    expect(screen.queryByText(/Live check couldn't load/)).toBeNull();
+  });
+});
+
+describe("Voice live calls", () => {
+  it("a paused read is unknown, not quiet hours", () => {
+    h.queries.set("vapi.activeCallStates", PAUSED);
+    const { container } = render(<LiveCallsCard onSelectCall={() => {}} />);
+    expect(container.textContent).toContain("Live calls not checked (offline). Calls in flight are unknown, not zero.");
+  });
+
+  it("positive controls: a real zero and an in-flight read both stay quiet", () => {
+    h.queries.set("vapi.activeCallStates", ok({ count: 0, windowMinutes: 10, byState: {}, states: [] }));
+    const zero = render(<LiveCallsCard onSelectCall={() => {}} />);
+    expect(zero.container.textContent).toBe("");
+    zero.unmount();
+    h.queries.set("vapi.activeCallStates", FETCHING);
+    const loading = render(<LiveCallsCard onSelectCall={() => {}} />);
+    expect(loading.container.textContent).toBe("");
+  });
+});
+
+describe("Growth reply counts", () => {
+  const mount = (stats: Partial<Q>) => {
+    window.history.replaceState({}, "", "/admin?growthTab=reviews");
+    h.queries.set("reviewReplies.list", ok([]));
+    h.queries.set("reviewReplies.stats", stats);
+    return render(<GrowthSection />);
+  };
+
+  it("paused reply counts say the backlog is unknown, not absent", () => {
+    mount(PAUSED);
+    expect(screen.getByText("Reply counts not checked (offline). The backlog is unknown, not zero.")).toBeTruthy();
+  });
+
+  it("positive controls: in-flight and good counts show no unknown line", () => {
+    const a = mount(FETCHING);
+    expect(a.container.textContent).not.toMatch(/Reply counts/);
+    a.unmount();
+    mount(ok({ draft: 0, approved: 0, skipped: 0, posted: 0, oldestApprovedAt: null }));
+    expect(screen.queryByText(/Reply counts/)).toBeNull();
+  });
+});
+
+describe("Settings ALG status while loading", () => {
+  it("says it is checking, and neither 'ALG offline' nor the failure block", () => {
+    window.history.replaceState({}, "", "/admin?settingsTab=shopdriver");
+    h.queries.set("autoLabor.status", FETCHING);
+    h.queries.set("adminDashboard.stats", ok({ shopFloor: { totalCustomers: 5, vipCustomers: 1 }, leads: { total: 2, urgent: 0 } }));
+    render(<SettingsSection />);
+    expect(screen.getByText("Checking the ALG connection...")).toBeTruthy();
+    expect(screen.queryByText(/ALG offline/i)).toBeNull();
+    expect(screen.queryByText(/ALG status couldn't load/)).toBeNull();
+  });
+});
+
+describe("Estimate line type", () => {
+  it("renders sentence case at runtime: 'Labor', never 'LABOR'", () => {
+    render(<IntegrationsSection />);
+    fireEvent.click(screen.getByRole("button", { name: "Quick estimate" }));
+    const input = screen.getByText("Description").parentElement!.querySelector("input") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "Brake job" } });
+    fireEvent.click(screen.getByRole("button", { name: /Add to estimate/ }));
+    expect(screen.getByText("Brake job")).toBeTruthy();
+    expect(screen.getByText("Labor • Qty 1")).toBeTruthy();
+    expect(screen.queryByText(/LABOR/)).toBeNull();
+  });
+});
+
+describe("CustomerIntelligence phone with no digits", () => {
+  it("hides both links for 'N/A' and keeps them for a real number", () => {
+    h.queries.set(
+      "intelligence.nextBestActions",
+      ok({
+        actions: [
+          { type: "vip_winback", message: "Pat Example has not visited in 200 days", urgency: 4, phone: "216-555-0100" },
+          { type: "vip_winback", message: "Lee Example has not visited in 300 days", urgency: 3, phone: "N/A" },
+        ],
+      }),
+    );
+    h.queries.set("intelligence.masterReport", ok({}));
+    render(<CustomerIntelligence />);
+    const hrefs = screen.getAllByRole("link").map((a) => a.getAttribute("href"));
+    expect(hrefs).toEqual(["tel:2165550100", "sms:2165550100"]);
+  });
+});
