@@ -14,8 +14,12 @@
  *     blank value is absent, never a zero floor).
  *   - One vision call per clip, through the same `invokeLLM` lane as the
  *     rendered critic, with a two-field schema ({ score, reason }).
- *   - Contrastive (2026-10-17, deep scout #5): when the brief has other beats,
- *     the judge sees a first/mid/last contact sheet and must PICK which of up
+ *   - Contrastive (2026-10-17, deep scout #5), FLAG-GATED, default OFF
+ *     (REEL_CLIP_VERIFY_CONTRAST="true" arms it; off is byte-for-byte the
+ *     single-frame score-only check). Near-duplicate sibling beats (job
+ *     2100002: two macro shots of the same end-link bushing) can make a fair
+ *     sibling pick park a good reel, so it stays off until measured. When
+ *     armed and the brief has other beats, the judge sees a first/mid/last contact sheet and must PICK which of up
  *     to three shuffled descriptions (its beat plus two siblings) it shows, and
  *     say whether the subject changes across the tiles. A sibling pick or a
  *     subject change refuses with the same ClipMismatchRefusal; the verdict
@@ -59,6 +63,8 @@ export interface ClipVerifyConfig {
   enabled: boolean;
   /** 0..1; a clip scoring below this refuses assembly. */
   min: number;
+  /** REEL_CLIP_VERIFY_CONTRAST="true": contact sheet + contrastive pick. Off (default): the single-frame score-only check, siblings ignored. */
+  contrast?: boolean;
 }
 
 export function clipVerifyConfig(env: NodeJS.ProcessEnv = process.env): ClipVerifyConfig {
@@ -67,7 +73,7 @@ export function clipVerifyConfig(env: NodeJS.ProcessEnv = process.env): ClipVeri
   const rawStr = (env.REEL_CLIP_VERIFY_MIN ?? "").trim();
   const raw = rawStr === "" ? Number.NaN : Number(rawStr);
   const min = Number.isFinite(raw) && raw >= 0 && raw <= 1 ? raw : CLIP_VERIFY_DEFAULT_MIN;
-  return { enabled: env.REEL_CLIP_VERIFY_ENABLED === "true", min };
+  return { enabled: env.REEL_CLIP_VERIFY_ENABLED === "true", min, contrast: env.REEL_CLIP_VERIFY_CONTRAST === "true" };
 }
 
 export interface ClipVerdict {
@@ -196,7 +202,8 @@ export async function verifyClipsBeforeAssembly(
       verdict = reused;
     } else {
       try {
-        const cands = contrastCandidates(clip, opts.rng ?? Math.random);
+        // Contrast off: the judge gets exactly today's clip (siblings ride along unused), so today's request.
+        const cands = cfg.contrast === true ? contrastCandidates(clip, opts.rng ?? Math.random) : null;
         verdict = judgeClipVerdict(await judge(cands ? { ...clip, candidates: cands.texts } : clip), clip.beatNumber, cands?.beats);
       } catch (e) {
         verdict = { beatNumber: clip.beatNumber, score: null, reason: `critic unavailable: ${e instanceof Error ? e.message : String(e)}`.slice(0, 400), critic: "unavailable", evaluatedAt: new Date().toISOString() };
@@ -314,7 +321,7 @@ const CLIP_CONTRAST_SCHEMA = {
  * sheet, the shuffled descriptions by index, and the planned one NOT named, so the pick is a real
  * test. Without (one-beat brief): today's single-frame, planned-visual, {score, reason} request.
  */
-export function clipJudgeRequest(clip: ClipToVerify, imageB64: string) {
+function clipJudgeRequest(clip: ClipToVerify, imageB64: string) {
   const image = { type: "image_url" as const, image_url: { url: `data:image/jpeg;base64,${imageB64}` } };
   if (!clip.candidates?.length) {
     return {
@@ -373,7 +380,7 @@ async function extractMidFrame(clip: ClipToVerify, dir: string): Promise<string>
  * to 360 px wide and stacked side by side into ONE jpeg. Pure. Drift happens across time, which
  * one midpoint frame cannot see (rendered QA failed 0/4 on ENVIRONMENT_DRIFT, 2026-10-16).
  */
-export function contactSheetArgs(clip: ClipToVerify, file: string): string[] {
+function contactSheetArgs(clip: ClipToVerify, file: string): string[] {
   const dur = clip.durationSec && clip.durationSec > 0 ? clip.durationSec : 4;
   const times = [Math.min(0.1, dur / 4), dur / 2, Math.max(0.1, dur - 0.15)];
   return [
@@ -390,7 +397,7 @@ export function contactSheetArgs(clip: ClipToVerify, file: string): string[] {
 }
 
 /** The clip's contact sheet as a JPEG in `dir`; throws when ffmpeg produced nothing (never a blank judged as a match). */
-export async function extractContactSheet(clip: ClipToVerify, dir: string): Promise<string> {
+async function extractContactSheet(clip: ClipToVerify, dir: string): Promise<string> {
   const file = path.join(dir, `verify-beat${clip.beatNumber}-sheet.jpg`);
   await runFfmpeg(contactSheetArgs(clip, file));
   const st = await fs.promises.stat(file).catch(() => null);

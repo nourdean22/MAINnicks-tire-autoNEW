@@ -23,9 +23,9 @@ const quiet = { log: () => {} };
 
 describe("clipVerifyConfig", () => {
   it("is OFF unless REEL_CLIP_VERIFY_ENABLED is exactly \"true\"; the floor defaults to 0.6 and only accepts 0..1", () => {
-    expect(clipVerifyConfig({})).toEqual({ enabled: false, min: 0.6 });
+    expect(clipVerifyConfig({})).toEqual({ enabled: false, min: 0.6, contrast: false });
     expect(clipVerifyConfig({ REEL_CLIP_VERIFY_ENABLED: "1" }).enabled).toBe(false);
-    expect(clipVerifyConfig({ REEL_CLIP_VERIFY_ENABLED: "true", REEL_CLIP_VERIFY_MIN: "0.8" })).toEqual({ enabled: true, min: 0.8 });
+    expect(clipVerifyConfig({ REEL_CLIP_VERIFY_ENABLED: "true", REEL_CLIP_VERIFY_MIN: "0.8" })).toEqual({ enabled: true, min: 0.8, contrast: false });
     expect(clipVerifyConfig({ REEL_CLIP_VERIFY_MIN: "1.7" }).min).toBe(0.6);
     expect(clipVerifyConfig({ REEL_CLIP_VERIFY_MIN: "abc" }).min).toBe(0.6);
   });

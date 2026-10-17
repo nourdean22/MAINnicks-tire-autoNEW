@@ -6,28 +6,30 @@
  * descriptions (the clip's own beat plus up to two sibling beats of the same
  * brief) the sheet shows, and say whether the subject stays the same across the
  * tiles. A sibling pick or a subject change refuses with the existing
- * ClipMismatchRefusal; a one-beat brief keeps today's score-only check. The judge
- * is injected: no model and no ffmpeg (the one real-ffmpeg case skips without it).
+ * ClipMismatchRefusal; a one-beat brief keeps today's score-only check.
+ *
+ * FLAG-GATED (review of job 2100002, whose beats 1 and 3 are two macro shots of
+ * the same end-link bushing): REEL_CLIP_VERIFY_CONTRAST="true" arms it; off is
+ * today's single-frame, planned-visual, {score, reason} request, siblings ignored.
+ * The judge is either injected or the real one with ffmpeg (spawn) and the model
+ * (invokeLLM) mocked, so the request it builds is asserted, not assumed.
  */
-import { spawnSync } from "node:child_process";
+import { EventEmitter } from "node:events";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
-import {
-  ClipMismatchRefusal,
-  clipJudgeRequest,
-  contactSheetArgs,
-  extractContactSheet,
-  pickSiblingBeats,
-  verifyClipsBeforeAssembly,
-  type ClipToVerify,
-  type ClipVerdict,
-} from "./services/clipVerify";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const { spawnMock, llmMock } = vi.hoisted(() => ({ spawnMock: vi.fn(), llmMock: vi.fn() }));
+vi.mock("child_process", async (orig) => ({ ...(await orig<typeof import("child_process")>()), spawn: spawnMock }));
+vi.mock("./_core/llm", async (orig) => ({ ...(await orig<Record<string, unknown>>()), invokeLLM: llmMock }));
+
+import { ClipMismatchRefusal, clipVerifyConfig, pickSiblingBeats, verifyClipsBeforeAssembly, type ClipToVerify, type ClipVerdict } from "./services/clipVerify";
 import { assemblyFailureOutcome } from "./services/reelPipeline";
 
 const quiet = { log: () => {} };
-const on = { enabled: true, min: 0.6 };
+const on = { enabled: true, min: 0.6, contrast: true };
+const off = { enabled: true, min: 0.6, contrast: false };
 const B1 = "grey sedan on the lift in bay 2";
 const B2 = "tech torquing a lug nut on the front wheel";
 const B3 = "customer handed keys at the counter";
@@ -141,46 +143,92 @@ describe("pickSiblingBeats", () => {
   });
 });
 
-describe("the judge's input", () => {
-  it("contactSheetArgs tiles the first, middle and last frame side by side into one image", () => {
-    const args = contactSheetArgs({ beatNumber: 2, path: "/c/b2.mp4", visual: B2, durationSec: 6 }, "/w/sheet.jpg");
-    const ss = args.flatMap((a, i) => (a === "-ss" ? [Number(args[i + 1])] : []));
-    expect(ss).toHaveLength(3);
-    expect(ss[0]).toBeLessThan(0.5);
-    expect(ss[1]).toBe(3);
-    expect(ss[2]).toBeGreaterThan(5.5);
-    expect(ss[2]).toBeLessThan(6);
-    expect(args.filter((a) => a === "/c/b2.mp4")).toHaveLength(3);
-    expect(args.join(" ")).toContain("hstack=inputs=3");
-    expect(args.slice(-4)).toEqual(["-q:v", "3", "-y", "/w/sheet.jpg"]);
+/** Today's system prompt, verbatim from before the contrastive commit (381dda826^). */
+const TODAY_SYSTEM = "You check ONE frame of a generated automotive reel clip against the shot it was supposed to show. Judge only what is visible. Score 1 when the subject and setting in the plan are clearly on screen, 0 when the frame shows a different subject, a different setting, or has morphed into something else. Reply with JSON only.";
+
+describe("the REAL judge (ffmpeg spawn and invokeLLM mocked): what it extracts and what it asks", () => {
+  let dir = "";
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), "cv-"));
+    spawnMock.mockReset();
+    llmMock.mockReset();
+    // A fake ffmpeg: writes a byte to the output path (the last arg) and exits 0.
+    spawnMock.mockImplementation((_bin: string, args: string[]) => {
+      const c = Object.assign(new EventEmitter(), { stderr: new EventEmitter(), kill: () => {} });
+      setImmediate(() => {
+        fs.writeFileSync(args[args.length - 1], "jpg");
+        c.emit("close", 0);
+      });
+      return c;
+    });
+  });
+  const reply = (r: Record<string, unknown>) => ({ choices: [{ message: { content: JSON.stringify(r) } }] });
+  const withDir = (c: ClipToVerify): ClipToVerify => ({ ...c, workDir: dir });
+
+  it("REEL_CLIP_VERIFY_CONTRAST parses like REEL_CLIP_VERIFY_ENABLED: exactly \"true\" arms it", () => {
+    expect(clipVerifyConfig({}).contrast).toBe(false);
+    expect(clipVerifyConfig({ REEL_CLIP_VERIFY_CONTRAST: "1" }).contrast).toBe(false);
+    expect(clipVerifyConfig({ REEL_CLIP_VERIFY_CONTRAST: "TRUE" }).contrast).toBe(false);
+    expect(clipVerifyConfig({ REEL_CLIP_VERIFY_CONTRAST: "true" }).contrast).toBe(true);
   });
 
-  it("the contrastive prompt lists the candidates by index and never says which is planned", () => {
-    const req = clipJudgeRequest({ ...beat2, candidates: [B3, B2, B1] }, "AAAA");
+  it("FLAG OFF: siblings passed, yet today's request: one midpoint frame, planned visual named, CLIP_VERDICT_SCHEMA", async () => {
+    llmMock.mockResolvedValue(reply({ score: 0.9, reason: "ok" }));
+    await verifyClipsBeforeAssembly([withDir(beat2)], off, undefined, quiet);
+    expect(spawnMock).toHaveBeenCalledTimes(1);
+    const args = spawnMock.mock.calls[0][1] as string[];
+    expect(args.slice(0, -1)).toEqual(["-v", "error", "-ss", "2.50", "-i", "/tmp/b2.mp4", "-frames:v", "1", "-q:v", "3", "-y"]);
+    const req = llmMock.mock.calls[0][0];
+    expect(req.messages[0]).toEqual({ role: "system", content: TODAY_SYSTEM });
+    expect(req.messages[1].content[0]).toEqual({ type: "text", text: `Planned visual for beat 2: ${B2}` });
+    expect(req.outputSchema).toEqual({
+      name: "clip_verdict",
+      schema: {
+        type: "object",
+        properties: {
+          score: { type: "number", description: "0..1: how well the frame shows the planned visual (1 = clearly this subject in this setting, 0 = a different subject or setting)" },
+          reason: { type: "string", description: "one sentence naming what matched or what drifted" },
+        },
+        required: ["score", "reason"],
+        additionalProperties: false,
+      },
+    });
+    expect(req).toMatchObject({ maxTokens: 2048, reasoningEffort: "low", timeoutMs: 60_000 });
+  });
+
+  it("FLAG OFF: a sibling-pick, subject-change reply cannot refuse; only the score decides", async () => {
+    llmMock.mockResolvedValue(reply({ score: 0.9, reason: "looks like beat 3", pick: 0, subjectChanges: true }));
+    const v = await verifyClipsBeforeAssembly([withDir(beat2)], off, undefined, quiet);
+    expect(v[0]).toMatchObject({ critic: "vision", score: 0.9 });
+    expect(v[0].pick).toBeUndefined();
+    expect(v[0].subjectChanges).toBeUndefined();
+    // the same with an injected judge: it is handed no candidates
+    const judge = vi.fn(async () => ({ score: 0.9, reason: "x", pick: 0, subjectChanges: true }));
+    await expect(verifyClipsBeforeAssembly([beat2], off, judge, quiet)).resolves.toHaveLength(1);
+    expect((judge.mock.calls[0] as unknown[])[0]).not.toHaveProperty("candidates");
+    // and the score floor still refuses with today's message
+    llmMock.mockResolvedValue(reply({ score: 0.3, reason: "storefront", pick: 1, subjectChanges: false }));
+    const err = await verifyClipsBeforeAssembly([withDir(beat2)], off, undefined, quiet).catch((e) => e);
+    expect(err.message).toBe("CLIP_MISMATCH beat 2 scored 0.30 below 0.60: storefront");
+  });
+
+  it("FLAG ON: a first/mid/last contact sheet, candidates by index, the planned one not named, the four-field schema", async () => {
+    llmMock.mockImplementation(async (req: { messages: Array<{ content: unknown }> }) => {
+      const text = (req.messages[1].content as Array<{ text?: string }>)[0].text!;
+      const idx = text.split("\n").slice(1).findIndex((l) => l.endsWith(B2));
+      return reply({ score: 0.9, reason: "ok", pick: idx, subjectChanges: false });
+    });
+    const v = await verifyClipsBeforeAssembly([withDir({ ...beat2, durationSec: 6 })], on, undefined, { ...quiet, rng: seq(0.9, 0.1) });
+    expect(v[0]).toMatchObject({ pick: 2, subjectChanges: false, critic: "vision" });
+    const args = spawnMock.mock.calls[0][1] as string[];
+    const ss = args.flatMap((a, i) => (a === "-ss" ? [Number(args[i + 1])] : []));
+    expect(ss).toEqual([0.1, 3, 5.85]);
+    expect(args.join(" ")).toContain("hstack=inputs=3");
+    const req = llmMock.mock.calls[0][0];
     const text = JSON.stringify(req.messages);
-    expect(text).toContain(`0: ${B3}`);
-    expect(text).toContain(`1: ${B2}`);
-    expect(text).toContain(`2: ${B1}`);
+    for (const b of [B1, B2, B3]) expect(text).toMatch(new RegExp(`[0-2]: ${b}`));
     expect(text).not.toMatch(/Planned visual/i);
     expect(req.outputSchema.schema.required).toEqual(["score", "reason", "pick", "subjectChanges"]);
-  });
-
-  it("without candidates the request is today's: planned visual named, {score, reason} schema", () => {
-    const req = clipJudgeRequest({ beatNumber: 1, path: "/tmp/b1.mp4", visual: B1 }, "AAAA");
-    expect(JSON.stringify(req.messages)).toContain(`Planned visual for beat 1: ${B1}`);
-    expect(req.outputSchema.schema.required).toEqual(["score", "reason"]);
-  });
-
-  const ffmpeg = spawnSync(process.env.FFMPEG_PATH || "ffmpeg", ["-version"], { shell: process.platform === "win32" }).status === 0;
-  const sample = path.join(__dirname, "..", "data", "generated", "clip-30008-1.mp4");
-  it.skipIf(!ffmpeg || !fs.existsSync(sample))("REAL ffmpeg: the contact sheet is one image three tiles wide (skips: needs ffmpeg on PATH and the sample clip)", async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sheet-"));
-    try {
-      const file = await extractContactSheet({ beatNumber: 1, path: sample, visual: B1, durationSec: 4 }, dir);
-      expect(fs.statSync(file).size).toBeGreaterThan(0);
-    } finally {
-      fs.rmSync(dir, { recursive: true, force: true });
-    }
   });
 });
 
