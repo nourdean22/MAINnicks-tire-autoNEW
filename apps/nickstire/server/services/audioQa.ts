@@ -218,16 +218,34 @@ export interface LoudnormMeasured {
 }
 
 /**
+ * The range af_loudnorm accepts for each second-pass option (measured_I, measured_TP,
+ * measured_LRA, measured_thresh, offset). A measured value outside it is finite yet
+ * makes ffmpeg reject the option, so the render would throw on every retry.
+ */
+const LOUDNORM_MEASURED_RANGE = {
+  input_i: [-99, 0],
+  input_tp: [-99, 99],
+  input_lra: [0, 99],
+  input_thresh: [-99, 0],
+  target_offset: [-99, 99],
+} as const;
+
+/**
  * Parse the LAST loudnorm JSON block in ffmpeg's stderr. Null (single pass) when it
- * is missing, malformed, or any value is non-finite (a silent track measures -inf).
+ * is missing, malformed, or any value is non-finite (a silent track measures -inf)
+ * or outside the range the second pass accepts.
  */
 function parseLoudnormMeasure(stderr: string): LoudnormMeasured | null {
   const blocks = stderr.match(/\{[^{}]*"input_i"[^{}]*\}/g);
   if (!blocks) return null;
   try {
     const j = JSON.parse(blocks[blocks.length - 1]) as Record<string, unknown>;
-    const keys = ["input_i", "input_tp", "input_lra", "input_thresh", "target_offset"] as const;
-    if (!keys.every((k) => typeof j[k] === "string" && Number.isFinite(Number(j[k])))) return null;
+    const keys = Object.keys(LOUDNORM_MEASURED_RANGE) as Array<keyof typeof LOUDNORM_MEASURED_RANGE>;
+    const inRange = (k: (typeof keys)[number]) => {
+      const n = typeof j[k] === "string" ? Number(j[k]) : Number.NaN;
+      return Number.isFinite(n) && n >= LOUDNORM_MEASURED_RANGE[k][0] && n <= LOUDNORM_MEASURED_RANGE[k][1];
+    };
+    if (!keys.every(inRange)) return null;
     return Object.fromEntries(keys.map((k) => [k, j[k]])) as unknown as LoudnormMeasured;
   } catch {
     return null;

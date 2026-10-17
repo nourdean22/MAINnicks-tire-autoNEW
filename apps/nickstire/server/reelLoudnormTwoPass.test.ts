@@ -74,6 +74,19 @@ describe("measureMixLoudness parses the first pass", () => {
     }
   });
 
+  it("a value outside ffmpeg's option range (input_i -110 is finite, but measured_I takes -99..0) is null: single pass, not a render that throws on every retry", async () => {
+    const out = (from: string, to: string) => measureMixLoudness(measureIn(), recorder(RECORDED.replace(from, to)).run);
+    const m = await out('"-19.84"', '"-110.00"');
+    expect(m).toBeNull();
+    expect(loudnormFilter(m)).toBe(SINGLE);
+    for (const [from, to] of [['"-3.12"', '"99.50"'], ['"6.40"', '"-0.10"'], ['"-30.02"', '"0.50"'], ['"0.21"', '"-100.00"']]) {
+      expect(await out(from, to), `${from} -> ${to}`).toBeNull();
+    }
+    // positive control: the range edges themselves are legal
+    const edges = await measureMixLoudness(measureIn(), recorder(RECORDED.replace('"-19.84"', '"-99.00"').replace('"6.40"', '"0.00"').replace('"-3.12"', '"99.00"')).run);
+    expect(edges).toMatchObject({ input_i: "-99.00", input_lra: "0.00", input_tp: "99.00" });
+  });
+
   it("a throwing runner is null, never a failed render", async () => {
     expect(await measureMixLoudness(measureIn(), async () => { throw new Error("ffmpeg exited 1"); })).toBeNull();
   });

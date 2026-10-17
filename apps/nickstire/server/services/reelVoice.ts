@@ -173,15 +173,23 @@ async function googleVoiceTimed(script: string, env: NodeJS.ProcessEnv = process
       body: JSON.stringify(body),
     });
   };
+  let timed = true;
   let r = await post(true);
   if (r.status === 400) {
     log.info("google TTS refused the timed request - resending without marks (beat captions)", { err: (await r.text()).slice(0, 200) });
+    timed = false;
     r = await post(false);
   }
   if (!r.ok) throw new Error(`google TTS HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
   const j = (await r.json()) as { audioContent: string; timepoints?: GoogleTimepoint[] };
   const buf = Buffer.from(j.audioContent, "base64");
-  return { buf, alignment: alignmentFromTimepoints(script, j.timepoints, wavDurationSec(buf)) };
+  const alignment = alignmentFromTimepoints(script, j.timepoints, wavDurationSec(buf));
+  if (timed && !alignment) {
+    // Marks ignored, missing or out of order after a 200: the reel gets beat captions. Logged so a voice that never times shows up.
+    const voice = (googleTtsRequest(script, env).body.voice as { name: string }).name;
+    log.info("google TTS returned no usable word timepoints - beat captions", { voice, words: reelWords(script).length, timepoints: j.timepoints?.length ?? 0 });
+  }
+  return { buf, alignment };
 }
 
 export interface VoiceAlignment {
