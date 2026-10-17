@@ -409,7 +409,11 @@ const matcherMatches = (matcher, name) => (matcher === undefined || matcher === 
 const preGroups = (s) => s.hooks?.PreToolUse ?? [];
 const groupsFor = (s, name) => preGroups(s).filter((g) => matcherMatches(g.matcher, name));
 const commandsOf = (g) => (g.hooks ?? []).filter((h) => h.type === "command").map((h) => h.command);
-const hooksFor = (s, name) => groupsFor(s, name).flatMap((g) => commandsOf(g).map((c) => c.match(/([\w-]+)\.mjs/)?.[1]));
+// stuck-watch.mjs (2026-10-16 loop watchdog) observes EVERY tool by design (matcher ""); it judges repeats, not names,
+// so it is left out here. This pins the GUARD routing: pretool exactly once, never lease-check. Its own canaries:
+// stuck-watch.test.mjs and hookCommand.test.mjs.
+const hooksFor = (s, name) =>
+  groupsFor(s, name).flatMap((g) => commandsOf(g).map((c) => c.match(/([\w-]+)\.mjs/)?.[1])).filter((h) => h !== "stuck-watch");
 
 /** Every way the registration of the infra tools is wrong, as readable lines. [] means right. */
 function infraRoutingProblems(s) {

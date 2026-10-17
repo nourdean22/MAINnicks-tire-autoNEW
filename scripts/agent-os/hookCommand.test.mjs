@@ -105,3 +105,18 @@ test("Session Authority (2026-09-23): the configured lease-check.mjs BLOCKS on a
   assert.equal(r.code, 2, `expected a block via the configured command; got exit ${r.code}\n${r.out}`);
   assert.match(r.out, /hookCommand-test-fixture-foreign-session/);
 });
+
+test("loop watchdog (2026-10-16): the configured stuck-watch hooks DENY the 5th identical call, via their exact command strings", async () => {
+  const post = nodeHooks.find((h) => h.event === "PostToolUse" && h.command.includes("stuck-watch.mjs"));
+  const pre = nodeHooks.find((h) => h.event === "PreToolUse" && h.command.includes("stuck-watch.mjs"));
+  assert.ok(post && pre, "stuck-watch.mjs must be configured as both a PreToolUse and a PostToolUse hook");
+  const { mkdtempSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  process.env.STUCK_WATCH_DIR = mkdtempSync(join(tmpdir(), "stuck-hookcmd-"));
+  const call = { session_id: `hookcmd-${process.pid}`, cwd: ROOT, tool_name: "Bash", tool_input: { command: "pnpm test" } };
+  for (let i = 0; i < 4; i++) runHook(post.command, JSON.stringify({ ...call, tool_response: { stdout: "1 failed" } }));
+  const r = runHook(pre.command, JSON.stringify(call));
+  delete process.env.STUCK_WATCH_DIR;
+  assert.equal(r.code, 2, `expected a deny (exit 2), got ${r.code}\n${r.out}`);
+  assert.match(r.out, /stuck-watch\] DENIED/);
+});

@@ -565,7 +565,10 @@ test("registration: nothing else is routed, and native tools keep their original
 });
 
 // What runs for a tool name, in settings order: "pretool" judges the command or path, "lease-check" is the Session Authority tripwire.
-const hooksFor = (s, toolName) => groupsFor(s, toolName).flatMap((g) => commandsOf(g).map((c) => c.match(/([\w-]+)\.mjs/)?.[1]));
+// stuck-watch.mjs (2026-10-16 loop watchdog) observes every tool (matcher "") and judges repeats, not names; this pins
+// the guard routing only. Its own canaries: stuck-watch.test.mjs and hookCommand.test.mjs.
+const hooksFor = (s, toolName) =>
+  groupsFor(s, toolName).flatMap((g) => commandsOf(g).map((c) => c.match(/([\w-]+)\.mjs/)?.[1])).filter((h) => h !== "stuck-watch");
 const LEASE_TOOLS = [...new Set([...COMMAND_SHAPES.map((s) => s.name), ...FILE_SHAPES.map((s) => s.name)])]; // runners and writers, never SQL
 const runsLease = (g) => commandsOf(g).some((c) => /scripts\/agent-os\/lease-check\.mjs/.test(c));
 const leaseGroups = (s) => preGroups(s).filter((g) => runsLease(g) && g.matcher !== NATIVE_MATCHER);
