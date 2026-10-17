@@ -31,7 +31,8 @@ import { getOrCreateBreaker } from "./lib/circuit-breaker";
 import { isGatewayOnline } from "./lib/gateway-device";
 import { affectedRowCount } from "./lib/db-affected";
 import { describeDbError, isUnknownColumnError } from "./lib/dbErrors";
-import { isInternalLineDestination, queuedReplayIntent } from "./lib/smsQueueReplay";
+import { isInternalLineDestination, queuedReplayIntent, queuedSendPauseLane } from "./lib/smsQueueReplay";
+import type { SendPauseLane } from "./services/sendPause";
 
 import { BUSINESS } from "@shared/business";
 const log = createLogger("sms");
@@ -613,6 +614,8 @@ interface DelayedMessage {
    * rehydrate does NOT re-send this message (a customer double-text).
    */
   dbId?: number;
+  /** The stored row's variantKey (rehydrated rows only; in-memory rows carry opts). Maps the row to its send_pause lane. */
+  variantKey?: string | null;
 }
 
 const delayedQueue: DelayedMessage[] = [];
@@ -740,6 +743,23 @@ async function processDelayedQueue(): Promise<void> {
   // held, so the hold reason stays the quiet-hours one rather than "cleared".
   noteDrainHold(withinSendingHours ? null : "outside sending hours (8AM-8PM ET)", delayedQueue.length);
 
+  // C5.5 round 2 · a text queued BEFORE a lane's send_pause is held by it: a
+  // confirmation "queued for the 8 AM window" must not go out at 8 AM if the
+  // operator paused confirmations at 7. Held rows stay queued (never dropped,
+  // never stamped sent). shouldHold decides via sendPauseHoldReason, so an
+  // unreadable switch follows the lane's fail class. Read BEFORE the partition
+  // below, which must stay free of awaits (see "atomically").
+  const laneOf = (m: DelayedMessage) => queuedSendPauseLane(m.opts?.messageClass, m.opts?.variantKey ?? m.variantKey);
+  const laneHold = new Map<SendPauseLane, string | null>();
+  for (const msg of delayedQueue) {
+    const lane = laneOf(msg);
+    if (lane && !laneHold.has(lane)) {
+      const { sendPauseHoldReason } = await import("./services/sendPause");
+      laneHold.set(lane, await sendPauseHoldReason(lane));
+    }
+  }
+  let laneHeld = 0;
+
   const now = Date.now();
   // Drain ready messages atomically to prevent race with concurrent queueForLater
   const stillPending: DelayedMessage[] = [];
@@ -755,13 +775,23 @@ async function processDelayedQueue(): Promise<void> {
     } else if (!withinSendingHours && !isInternalLineDestination(msg.to)) {
       stillPending.push(msg);
     } else if (now >= msg.scheduledFor.getTime()) {
-      ready.push(msg);
+      const lane = laneOf(msg);
+      if (lane && laneHold.get(lane)) {
+        stillPending.push(msg);
+        laneHeld++;
+      } else {
+        ready.push(msg);
+      }
     } else {
       stillPending.push(msg);
     }
   }
   delayedQueue.length = 0;
   delayedQueue.push(...stillPending);
+  if (laneHeld > 0) {
+    const reasons = [...laneHold.values()].filter((r): r is string => r !== null);
+    log.info(`[sms queue] holding ${laneHeld} due message(s) — ${reasons.join(", ")}`);
+  }
 
   for (const msg of ready) {
     // Send with force flag to skip timing check
@@ -967,6 +997,7 @@ export async function rehydrateQueuedFromDb(limit = 100): Promise<number> {
         id: smsMessages.id,
         body: smsMessages.body,
         phone: smsConversations.phone,
+        variantKey: smsMessages.variantKey,
       })
         .from(smsMessages)
         .innerJoin(smsConversations, eq(smsMessages.conversationId, smsConversations.id))
@@ -1028,6 +1059,7 @@ export async function rehydrateQueuedFromDb(limit = 100): Promise<number> {
           body: msg.body,
           scheduledFor: replay ? new Date() : getNextSendWindow(),
           dbId: msg.id,
+          variantKey: msg.variantKey,
           ...(replay ? { opts: replay } : {}),
         });
         rehydrated++;

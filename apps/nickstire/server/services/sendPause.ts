@@ -6,8 +6,12 @@
  * a `send_pause_<lane>` row in feature_flags (inverted: TRUE = paused), toggled
  * through the existing audited featureFlags.toggle.
  *
- * Modelled on smsControl.getSmsPauseState: a 5 s cache so a pause lands in
- * seconds, and a failed read is `readable: false`, never a guess. What an
+ * Modelled on smsControl.getSmsPauseState: a 5 s cache per process, and a
+ * failed read is `readable: false`, never a guess. Each lane checks at three
+ * points (round 2, 2026-10-17): its start gate, again before every claim or
+ * send inside its loop, and the delayed SMS queue drain for texts queued
+ * before the pause (confirmations, declined recovery). So a pause set at any
+ * moment stops the NEXT send within the 5 s cache window. What an
  * unreadable switch means is the lane's fail class:
  *   - closed: an unattended lane (cron dials or texts with no customer asking)
  *     HOLDS when it cannot read its switch.

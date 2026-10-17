@@ -19,6 +19,7 @@
  * exactly as before.
  */
 import { internalLineFor } from "../services/nonCustomerFilter";
+import type { SendPauseLane } from "../services/sendPause";
 
 /** True when the destination is one of the shop's own lines — never a customer. */
 export function isInternalLineDestination(to: string): boolean {
@@ -31,4 +32,18 @@ export function isInternalLineDestination(to: string): boolean {
  */
 export function queuedReplayIntent(to: string): { messageClass: "internal" } | null {
   return isInternalLineDestination(to) ? { messageClass: "internal" } : null;
+}
+
+/**
+ * The send_pause lane a queued text belongs to, or null (no lane check: the
+ * drain's behaviour before C5.5 round 2). A text queued before a pause must be
+ * held by it, so the drain asks shouldHold for this lane before replaying.
+ * In-memory rows carry their send options; a rehydrated row has only its stored
+ * variantKey, which is why the confirm:* / declined_* keys are matched too.
+ */
+export function queuedSendPauseLane(messageClass: string | undefined, variantKey: string | null | undefined): SendPauseLane | null {
+  if (messageClass === "customer_confirmation" || variantKey?.startsWith("confirm:")) return "customer_confirmations";
+  // declinedRecoverySequence.variantKey(): declined_<n>d_<profile>
+  if (variantKey && /^declined_\d+d_P\d$/.test(variantKey)) return "declined_recovery";
+  return null;
 }
