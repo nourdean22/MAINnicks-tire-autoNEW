@@ -59,19 +59,19 @@
       "toolPattern": "^mcp__.+__start_process$",
       "as": "Bash",
       "commandFields": ["command"],
-      "exceptRules": ["install-in-junctioned-worktree"],
+      "exceptRules": ["install-in-junctioned-worktree", "shared-deps-mutation"],
       "exampleTools": [
         "mcp__plugin_desktop-commander_desktop-commander__start_process",
         "mcp__c23af5b4-e7d0-40b0-b6c6-346adaf3336c__start_process"
       ],
-      "why": "Desktop Commander start_process: runs `command` in a shell on this machine, in Desktop Commander's OWN cwd, not the Claude session cwd. install-in-junctioned-worktree is keyed to the cwd a PROCESS runs in (it protects a worktree's junctioned node_modules), so it is exempt here: the sanctioned global-install path in .claude/skills/harness-worktree-setup/SKILL.md runs through this tool from a worktree session. Every other rule, the session-scoped night-shift rules included, still judges the call. It is registered twice (plugin name and connector UUID) and the middle segment is not stable, so the tool-name suffix is matched."
+      "why": "Desktop Commander start_process: runs `command` in a shell on this machine, in Desktop Commander's OWN cwd, not the Claude session cwd. install-in-junctioned-worktree is keyed to the cwd a PROCESS runs in (it protects a worktree's junctioned node_modules), so it is exempt here: the sanctioned global-install path in .claude/skills/harness-worktree-setup/SKILL.md runs through this tool from a worktree session. shared-deps-mutation is exempt for the same reason (2026-10-17): the scratchpad-clone recipe in that SKILL.md section 3 installs a new dependency in an isolated clone through this tool; the residual (this tool pointed at the primary checkout) is documented in docs/agent-os/README.md. Every other rule, the session-scoped night-shift rules included, still judges the call. It is registered twice (plugin name and connector UUID) and the middle segment is not stable, so the tool-name suffix is matched."
     },
     {
       "id": "process-input",
       "toolPattern": "^mcp__.+__interact_with_process$",
       "as": "Bash",
       "commandFields": ["input"],
-      "exceptRules": ["install-in-junctioned-worktree"],
+      "exceptRules": ["install-in-junctioned-worktree", "shared-deps-mutation"],
       "clientHint": "psql",
       "exampleTools": [
         "mcp__plugin_desktop-commander_desktop-commander__interact_with_process",
@@ -554,7 +554,7 @@
     {
       "id": "shared-deps-mutation",
       "tools": ["Bash", "PowerShell"],
-      "pattern": "(?<!\\b(?:echo|Write-Host|Write-Output|printf|grep|rg|Select-String|findstr)\\b[^;|&\\n(`]*)\\b(?:[pP][nN][pP][mM]|[nN][pP][mM]|[yY][aA][rR][nN])(?:\\.(?:cmd|exe|ps1))?(?![^;|&\\n#]*\\s(?:-g|--global)(?=[\\s;|&)]|$))(?:(?:\\s+-{1,2}[\\w-]+(?:=[^\\s;|&]*)?(?:\\s+(?!-)[^\\s;|&]+)?)*\\s+(?:add|remove|rm|uninstall|un|uni|update|up|upgrade|prune)|(?=[^;|&\\n]*?\\s(?:--filter(?:-prod)?|-F)(?=[=\\s]|$))(?:\\s+-{1,2}[\\w-]+(?:=[^\\s;|&]*)?(?:\\s+(?!-)[^\\s;|&]+)?)*\\s+(?:install|i))(?=[\\s;|&)\"'`]|$)",
+      "pattern": "(?=[pPnNyY])(?<!\\b(?:echo|Write-Host|Write-Output|printf|grep|rg|Select-String|findstr)\\b[^;|&\\n(`]{0,200})\\b(?:[pP][nN][pP][mM]|[nN][pP][mM]|[yY][aA][rR][nN])(?:\\.(?:cmd|exe|ps1))?(?![^;|&\\n#]{0,1000}?\\s(?:-g|--global)(?=[\\s;|&)]|$))(?:(?:\\s+-{1,2}\\w[\\w-]*(?:=[^\\s;|&]*)?(?:\\s+(?!-)[^\\s;|&]+)?){0,12}\\s+(?:add|remove|rm|uninstall|un|uni|update|up|upgrade|prune)|(?=[^;|&\\n]{0,1000}?\\s(?:--filter(?:-prod)?|-F)(?=[=\\s]|$))(?:\\s+-{1,2}\\w[\\w-]*(?:=[^\\s;|&]*)?(?:\\s+(?!-)[^\\s;|&]+)?){0,12}\\s+(?:install|i))(?=[\\s;|&)\"'`]|$)",
       "why": "2026-10-17: a session in the PRIMARY checkout ran `pnpm --filter @statenour/web add ts-fsrs`; pnpm pruned vite from the shared node_modules and every junctioned worktree's nickstire tsc and vitest broke at once. Every worktree points at the primary's node_modules, so a package-changing (add/remove/update/prune) or FILTERED install there rewrites what all sessions run on. Applies in every cwd (no cwd condition): in a worktree install-in-junctioned-worktree is checked first and keeps its verdicts, and this rule also catches the filter-before-verb shape (`pnpm -F x install`) that rule never matched. Allowed: the full unfiltered `pnpm install [--frozen-lockfile]`, scripts and exec, global (-g) installs, and a command that is only echoed or quoted in a commit message.",
       "fix": "New or changed deps: use the scratchpad-clone recipe in .claude/skills/harness-worktree-setup/SKILL.md section 3 (install in an isolated clone, copy the lockfile back). Then a full, unfiltered pnpm install --frozen-lockfile in the primary, run by the operator or a primary-checkout session when no sibling session is mid-run. Check the result with node scripts/agent-os/deps-check.mjs.",
       "denyExamples": [

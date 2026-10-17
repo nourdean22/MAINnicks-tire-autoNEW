@@ -72,12 +72,24 @@ test("everyday and full-install commands are ALLOWED in the primary checkout", (
   }
 });
 
-test("the MCP runner adapters route the incident to the same rule (Terminal MCP, Monitor, Desktop Commander)", () => {
+test("the MCP runner adapters that run in the session's shell route the incident to the same rule (Terminal MCP, Monitor)", () => {
   const incident = DENY[0];
   denied(run("mcp__terminal__run_in_terminal", { command: incident }), RULE, "Terminal MCP");
   denied(run("Monitor", { command: incident, description: "d", timeout_ms: 1000 }), RULE, "Monitor");
-  // Desktop Commander is exempt from the worktree rule only (it runs in its OWN cwd); this rule is cwd-free, so it still applies
-  denied(run("mcp__plugin_desktop-commander_desktop-commander__start_process", { command: incident, timeout_ms: 5000 }), RULE, "Desktop Commander start_process");
+});
+
+test("Desktop Commander's process rows are exempt (they run in DC's OWN cwd): the scratchpad-clone recipe installs there", () => {
+  // .claude/skills/harness-worktree-setup/SKILL.md section 3: the new dependency is installed in an isolated clone, and the
+  // only runner that can do that from a worktree session is Desktop Commander. A cwd-free rule that judged it would close the
+  // sanctioned path this rule's own denial points to. Residual, documented in docs/agent-os/README.md: DC pointed at the primary.
+  const DC = "mcp__plugin_desktop-commander_desktop-commander__";
+  allowed(run(`${DC}start_process`, { command: "pnpm add ts-fsrs", timeout_ms: 5000 }, WORKTREE), "DC start_process in a scratchpad clone");
+  allowed(run(`${DC}interact_with_process`, { pid: 4242, input: "pnpm add ts-fsrs", timeout_ms: 8000 }, WORKTREE), "DC interact_with_process");
+  // the exemption is exactly these two rules, so every other rule still judges DC
+  denied(run(`${DC}start_process`, { command: "git push origin main", timeout_ms: 5000 }, WORKTREE), "push-to-main", "DC still judged by other rules");
+  const rows = loadPolicy().mcpAdapters.filter((a) => a.id === "process-start" || a.id === "process-input");
+  assert.equal(rows.length, 2);
+  for (const r of rows) assert.deepEqual(r.exceptRules, ["install-in-junctioned-worktree", RULE], `${r.id}.exceptRules`);
 });
 
 test("a filter BEFORE the verb is no longer a worktree bypass either (the old rule needed the verb right after pnpm)", () => {
@@ -99,6 +111,31 @@ test("CANARY: with the rule removed, the incident command is allowed (the tests 
   assert.equal(evaluate(call, policy).rule?.id, RULE, "the unbroken policy attributes the incident to the rule");
   policy.rules = policy.rules.filter((r) => r.id !== RULE);
   assert.equal(evaluate(call, policy).denied, false, "without the rule, nothing else denies the incident in the primary");
+});
+
+test("LINEAR: adversarial long inputs return fast (the first draft split `--x` two ways and took 68 ms at 22 options, x4 per 2 more)", () => {
+  const rule = loadPolicy().rules.find((r) => r.id === RULE);
+  const re = new RegExp(rule.pattern, rule.flags ?? "");
+  const cases = [
+    ["pnpm ", "--x ", 40], // the ambiguity axis: 40 options was hours with `-{1,2}[\w-]+`
+    ["pnpm ", "-F x ", 40],
+    ["pnpm ", "pnpm --x ", 30000],
+    ["echo ", "pnpm ", 30000], // the mention lookbehind at every position
+    ["", "psql ", 30000],
+    ["pnpm install ", "a ", 30000], // the filter lookahead from every tool word
+  ];
+  for (const [prefix, unit, n] of cases) {
+    const text = prefix + unit.repeat(n);
+    const t0 = performance.now();
+    re.test(text);
+    const ms = performance.now() - t0;
+    assert.ok(ms < 1000, `${JSON.stringify(unit)} x ${n}: ${ms.toFixed(0)} ms (must stay linear)`);
+  }
+  // and through the REAL hook, under the 2 s line the class sweep in mcpCoverage.test.mjs uses
+  const t0 = Date.now();
+  const r = run("Bash", { command: `pnpm ${"--x ".repeat(40)}` });
+  assert.equal(r.code, 0);
+  assert.ok(Date.now() - t0 < 2000, `real hook took ${Date.now() - t0} ms`);
 });
 
 test("the worktree rule's fix text never recommends a filtered command again", () => {

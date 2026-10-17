@@ -843,7 +843,7 @@ test("review-fix table: each optional field sits on exactly the intended row", (
   only("skipWhenTrue", "file-edit", ["dryRun"]);
   only("expandDirectory", "file-move", { from: "source", to: "destination" });
   for (const id of ["process-start", "process-input"]) {
-    assert.deepEqual(rows[id]?.exceptRules, ["install-in-junctioned-worktree"], `${id} runs in Desktop Commander's own cwd: exempt from the worktree-install rule only`);
+    assert.deepEqual(rows[id]?.exceptRules, ["install-in-junctioned-worktree", "shared-deps-mutation"], `${id} runs in Desktop Commander's own cwd: exempt from the two install rules only (the scratchpad-clone recipe installs through it)`);
   }
   // onlyRules and rawText: the four SQL text rows and no other (SQL is not a shell command; the typed-text row stays a full-rule shell row)
   for (const id of SQL_ROW_IDS) {
@@ -957,8 +957,8 @@ test("evaluate() honours skipRules for exactly the listed rule ids", () => {
 test("exceptRules rides on the judged calls of the rows that declare it, and on no others", () => {
   assert.equal(typeof engine.adaptToolCall, "function", "policy.mjs must export adaptToolCall()");
   for (const p of [DC_PLUGIN, DC_CONNECTOR]) {
-    assert.deepEqual(engine.adaptToolCall(`${p}start_process`, { command: "x" }, NORMAL, policy)[0].skipRules, ["install-in-junctioned-worktree"]);
-    assert.deepEqual(engine.adaptToolCall(`${p}interact_with_process`, { input: "x" }, NORMAL, policy)[0].skipRules, ["install-in-junctioned-worktree"]);
+    assert.deepEqual(engine.adaptToolCall(`${p}start_process`, { command: "x" }, NORMAL, policy)[0].skipRules, ["install-in-junctioned-worktree", "shared-deps-mutation"]);
+    assert.deepEqual(engine.adaptToolCall(`${p}interact_with_process`, { input: "x" }, NORMAL, policy)[0].skipRules, ["install-in-junctioned-worktree", "shared-deps-mutation"]);
   }
   for (const name of [TERMINAL, "Monitor", `${DC_PLUGIN}write_file`, `${FS}edit_file`, `${DC_PLUGIN}move_file`]) {
     const calls = engine.adaptToolCall(name, { command: "x", path: "x", source: "x", destination: "y" }, NORMAL, policy);
