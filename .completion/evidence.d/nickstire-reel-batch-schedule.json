@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "ref": "docs/operations/capability-ledger.json: new entry reel-batch-schedule (unit_verified, merged, internal) for adminRoutes.ts reel-canary publicationIntendedAt, reelPipeline.ts reservationWindow echo, reelApproval.ts oldestFirst and reelAutoApproval.ts oldest+newest read, with a P2 live-proof blocker; REALITY-LEDGER.md re-rendered"
+    },
+    "render-spend-trajectory": {
+      "ref": "reelPipeline.ts change is confined to enqueueReelJob's return value (reservationWindow, set only when requestReservation returned a reservation); the reservation request, budget boundary and generation path are unchanged. Trajectory tests on this tree: reelSelfHostedSpendTrajectory.test.ts, reelEnqueueReservesIntendedDay.test.ts, reelBriefStructureTrajectory.test.ts 3 files, 15 passed (manager run 2026-10-17)."
+    }
+  }
+}

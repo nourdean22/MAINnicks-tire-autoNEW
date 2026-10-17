@@ -5373,6 +5373,38 @@
       "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "internal"
+    },
+    {
+      "capabilityId": "reel-batch-schedule",
+      "name": "A batch of hand-rendered reels can be pre-scheduled: each reel-canary start reserves its own post day, and auto-approval reaches the oldest assembled reels the drain posts first",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "Branch nickstire/reel-batch-schedule on main ab1a44c86 (server lane, cherry-picked). (a) server/routes/adminRoutes.ts reel-canary start accepts publicationIntendedAt (an ISO string with a time, parseable, not in the past, at most 90 days ahead; otherwise 400 with a reason) and passes it to enqueueReelJob the way the cron does; the response echoes reservationWindow. server/services/reelPipeline.ts enqueueReelJob returns reservationWindow only when the governor returned a reservation; no spend-path change. Feed cap, spacing and REPEAT_* still apply per target day. (b) server/services/reelApproval.ts listReelPublishQueue(limit, {oldestFirst}) reads id ASC (the drain's order) when asked, newest-first by default (the admin Queue is unchanged); server/services/reelAutoApproval.ts reads the oldest 25 and the newest 25, de-duplicated, then runs the same approvable codes, repair-void rule, vetoes and holds as before. Why: Nour's standing job 2026-10-17 (~60 generated reels made in Chrome and pre-scheduled twice a day).",
+        "tests": [
+          "server/reelCanaryScheduleAhead.test.ts (new, 9): the real route over HTTP with the real requestReservation on a day-aware fake DB: 3 days ahead reserves that day; 3 starts on 3 days succeed; a third same-day start is refused with RESERVATION_FEED_CAP; past, malformed and bare-date values give 400; absent keeps the call unchanged. Red first 7 failed / 1 passed; mutant pass-through removed 3 failed.",
+          "server/reelPublishRejectGuard.test.ts (+1): 30 assembled unapproved reels, the real listReelPublishQueue over in-memory SQL: auto-approval approves the oldest ones the drain reads first. Red first 1 failed / 35 passed; mutants drop the oldest pass and ignore oldestFirst: both red.",
+          "Manager run on the combined tree: 8 files, 110 passed (reelCanaryScheduleAhead, reelPublishRejectGuard, reelAutoApproval, reelRepairAutoPost, reelEnqueueReservesIntendedDay, reelPublishDoors, contentGovernor, reelParkedRetire); spend trajectory: reelSelfHostedSpendTrajectory, reelEnqueueReservesIntendedDay, reelBriefStructureTrajectory 3 files, 15 passed.",
+          "Manager prod probe (SELECT only, 2026-10-17): 1 assembled unposted reel exists (2070013, no approval), already inside the newest-25 window, so (b) changes nothing for today's rows."
+        ],
+        "liveRuns": [],
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Not observed in production yet. Live proof: a dated reel-canary start writes a content_reservations row on that day; the next hourly auto-approval pass approves the oldest approval-less assembled reels and the drain posts them in its two daily slots",
+          "source": "job 2026-10-17-reel-batch-schedule"
+        }
+      ],
+      "deferredScope": [
+        "the drain posts FIFO by id and ignores publicationIntendedAt; the reserved day and the posted day can differ (posts stay capped at 2 a day by the publish door)",
+        "batch topics and campaign keywords must differ (REPEAT_TOPIC 7 days, REPEAT_CTA 72 h on the generated keyword)",
+        "rows 26-35 of a 60-reel batch wait outside the auto-approval window until earlier ones post"
+      ],
+      "lastVerifiedAt": "2026-10-17",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
     }
   ],
   "axes": {
