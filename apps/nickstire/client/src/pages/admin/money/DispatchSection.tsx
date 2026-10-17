@@ -11,9 +11,10 @@
  */
 import { useState } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
-import { Loader2, User, Play, CheckCircle2, XCircle, Clock, Wrench, Shield, ChevronRight } from "lucide-react";
+import { readStatus } from "@/lib/queryState";
+import { Loader2, User, Play, CheckCircle2, XCircle, Clock, Wrench, Shield } from "lucide-react";
 import { toast } from "sonner";
-import { PageHeader, ErrorState } from "../shared";
+import { PageHeader, ErrorState, TabBar } from "../shared";
 
 type Tab = "queue" | "qc" | "techs";
 
@@ -61,22 +62,8 @@ export default function DispatchSection() {
       {/* Metrics Strip */}
       <MetricsStrip load={load} />
 
-      {/* Tab bar */}
-      <div className="flex gap-1 border-b border-border/40">
-        {TABS.map(t => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-              tab === t.id
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      {/* Tab bar: the shared 48 px strip, scrolls instead of wrapping on a phone */}
+      <TabBar tabs={TABS} activeTab={tab} onChange={setTab} />
 
       {tab === "queue" && <ReadyQueue />}
       {tab === "qc" && <QcReview />}
@@ -161,13 +148,45 @@ function MetricsStrip({ load: loadQuery }: { load: DispatchLoadQuery }) {
   );
 }
 
+// ─── Row (phones and desktop: admin UI v1 W4, Today's row grammar) ──────
+function DispatchRow({ wo, verb, selected, onVerb }: { wo: WorkOrderListItem; verb: string; selected: boolean; onVerb: () => void }) {
+  const vehicle = [wo.vehicleYear, wo.vehicleMake, wo.vehicleModel].filter(Boolean).join(" ");
+  const who = wo.customerName || wo.orderNumber;
+  const promise = wo.promisedAt ? new Date(wo.promisedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : null;
+  return (
+    <li className={`py-3 flex items-center gap-3 ${selected ? "bg-primary/5" : ""}`}>
+      <div className="min-w-0 flex-1">
+        <p className="text-[16px] leading-snug font-semibold truncate">{vehicle || wo.orderNumber}</p>
+        <p className="text-[13px] text-muted-foreground truncate">
+          {who}
+          {wo.assignedTech ? ` · ${wo.assignedTech}` : ""}
+          {promise ? ` · promised ${promise}` : ""}
+          {wo.serviceDescription ? ` · ${wo.serviceDescription}` : ""}
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={onVerb}
+        aria-label={`${verb} ${who}`}
+        aria-pressed={selected}
+        className="min-h-12 px-4 shrink-0 rounded-md bg-secondary text-foreground text-[14px] font-semibold border border-border/60"
+      >
+        {verb}
+      </button>
+    </li>
+  );
+}
+
 // ─── Ready Queue ────────────────────────────────────
 function ReadyQueue() {
-  const { data: workOrders, isLoading, isError, refetch } = trpc.workOrders.list.useQuery({ status: "ready_for_bay" }, { refetchInterval: 10000, refetchIntervalInBackground: false });
+  const readyQuery = trpc.workOrders.list.useQuery({ status: "ready_for_bay" }, { refetchInterval: 10000, refetchIntervalInBackground: false });
+  const { data: workOrders, isLoading, isError, refetch } = readyQuery;
   const [selectedWo, setSelectedWo] = useState<string | null>(null);
 
   if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin" /></div>;
   if (isError) return <ErrorState message="Couldn't load ready-queue" onRetry={() => refetch()} />;
+  // Paused (offline PWA): nothing was read, so never "No jobs waiting".
+  if (readStatus(readyQuery).state === "unavailable") return <ErrorState message="Ready queue not checked (offline). Unknown, not empty." onRetry={() => refetch()} />;
 
   const orders = workOrders || [];
 
@@ -183,36 +202,13 @@ function ReadyQueue() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       {/* Queue list */}
-      <div className="space-y-2">
-        <h3 className="text-sm font-medium text-muted-foreground mb-2">Ready for Bay ({orders.length})</h3>
-        {orders.map((wo: WorkOrderListItem) => (
-          <button
-            key={wo.id}
-            onClick={() => setSelectedWo(wo.id)}
-            className={`w-full text-left border rounded-lg p-3 transition-colors ${
-              selectedWo === wo.id
-                ? "border-primary bg-primary/5"
-                : "border-border/40 bg-card hover:border-border"
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="font-medium text-sm">{wo.orderNumber}</span>
-                <span className="text-xs text-muted-foreground ml-2">
-                  {[wo.vehicleYear, wo.vehicleMake, wo.vehicleModel].filter(Boolean).join(" ")}
-                </span>
-              </div>
-              <ChevronRight className="w-4 h-4 text-muted-foreground" />
-            </div>
-            <div className="text-xs text-muted-foreground mt-1 truncate">{wo.serviceDescription}</div>
-            {wo.promisedAt && (
-              <div className="flex items-center gap-1 mt-1 text-[10px] text-amber-400">
-                <Clock className="w-3 h-3" />
-                <span>Promise: {new Date(wo.promisedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
-              </div>
-            )}
-          </button>
-        ))}
+      <div>
+        <h3 className="text-[13px] font-semibold text-foreground/70 border-b border-border/40 pb-1">Ready for a bay <span className="text-foreground/50 tabular-nums">{orders.length}</span></h3>
+        <ul aria-label="Ready for a bay" className="divide-y divide-border/30">
+          {orders.map((wo: WorkOrderListItem) => (
+            <DispatchRow key={wo.id} wo={wo} verb="Assign" selected={selectedWo === wo.id} onVerb={() => setSelectedWo(wo.id)} />
+          ))}
+        </ul>
       </div>
 
       {/* Assignment panel */}
@@ -296,10 +292,14 @@ function AssignmentPanel({ workOrderId }: { workOrderId: string }) {
 
 // ─── QC Review ──────────────────────────────────────
 function QcReview() {
-  const { data: workOrders, isLoading } = trpc.workOrders.list.useQuery({ status: "qc_review" }, { refetchInterval: 10000, refetchIntervalInBackground: false });
+  const qcQuery = trpc.workOrders.list.useQuery({ status: "qc_review" }, { refetchInterval: 10000, refetchIntervalInBackground: false });
+  const { data: workOrders, isLoading, isError, refetch } = qcQuery;
   const [selectedWo, setSelectedWo] = useState<string | null>(null);
 
   if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin" /></div>;
+  // A failed or paused read checked nothing: never "No jobs pending QC review".
+  if (isError) return <ErrorState message="QC review couldn't load. Unknown, not empty." onRetry={() => refetch()} />;
+  if (readStatus(qcQuery).state === "unavailable") return <ErrorState message="QC review not checked (offline). Unknown, not empty." onRetry={() => refetch()} />;
 
   const orders = workOrders || [];
 
@@ -314,23 +314,13 @@ function QcReview() {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      <div className="space-y-2">
-        <h3 className="text-sm font-medium text-muted-foreground mb-2">Awaiting QC ({orders.length})</h3>
-        {orders.map((wo: WorkOrderListItem) => (
-          <button
-            key={wo.id}
-            onClick={() => setSelectedWo(wo.id)}
-            className={`w-full text-left border rounded-lg p-3 transition-colors ${
-              selectedWo === wo.id ? "border-purple-400 bg-purple-500/5" : "border-border/40 bg-card hover:border-border"
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <span className="font-medium text-sm">{wo.orderNumber}</span>
-              <span className="text-xs text-muted-foreground">{wo.assignedTech || "—"}</span>
-            </div>
-            <div className="text-xs text-muted-foreground mt-1 truncate">{wo.serviceDescription}</div>
-          </button>
-        ))}
+      <div>
+        <h3 className="text-[13px] font-semibold text-foreground/70 border-b border-border/40 pb-1">Awaiting QC <span className="text-foreground/50 tabular-nums">{orders.length}</span></h3>
+        <ul aria-label="Awaiting QC" className="divide-y divide-border/30">
+          {orders.map((wo: WorkOrderListItem) => (
+            <DispatchRow key={wo.id} wo={wo} verb="Check" selected={selectedWo === wo.id} onVerb={() => setSelectedWo(wo.id)} />
+          ))}
+        </ul>
       </div>
       {selectedWo && <QcChecklistPanel workOrderId={selectedWo} />}
     </div>
