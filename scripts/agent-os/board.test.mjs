@@ -94,6 +94,25 @@ test("a failed gh read keeps the last PR list and marks it, never an empty 'no P
   assert.ok(board.prsError, "the failed read must be recorded");
 });
 
+test("a persistent gh failure is printed once ('PR list unavailable'), even though each refresh bumps the time", () => {
+  const fx = fixture();
+  run(fx, ["refresh"]);
+  prompt(fx);
+  writeFileSync(fx.gh, "{not json");
+  run(fx, ["refresh"]);
+  assert.match(prompt(fx).out, /PR list unavailable: /);
+  run(fx, ["refresh"]);
+  assert.equal(prompt(fx).out, "", "the same error must not repeat on every prompt");
+});
+
+test("an unreadable origin/main does not print the first-look summary on every prompt", () => {
+  const fx = fixture();
+  fx.env.BOARD_MAIN_REF = "no-such-ref";
+  run(fx, ["refresh"]);
+  assert.match(prompt(fx).out, /open PRs/);
+  assert.equal(prompt(fx).out, "");
+});
+
 test("the hook answers in under 1 s (kill criterion) and fails open on garbage input", () => {
   const fx = fixture();
   run(fx, ["refresh"]);

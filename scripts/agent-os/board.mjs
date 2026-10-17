@@ -102,6 +102,8 @@ export function refresh() {
 export function delta(board, seen, heavy, now = Date.now()) {
   const lines = [];
   if (now - board.updatedMs > STALE_AFTER_MS) lines.push(`[board] STALE: last refresh ${Math.round((now - board.updatedMs) / 60_000)} min ago${board.prsError ? ` (${board.prsError})` : ""}. Run node scripts/agent-os/board.mjs`);
+  // refresh bumps updatedMs even when gh fails, so STALE alone would never show a persistent gh failure.
+  if (board.prsError && board.prsError !== seen.prsError) lines.push(`[board] PR list unavailable: ${board.prsError.slice(0, 120)}`);
   const tip = board.main?.[0]?.sha;
   if (seen.mainTip && tip && tip !== seen.mainTip) {
     const idx = board.main.findIndex((c) => c.sha === seen.mainTip);
@@ -130,11 +132,13 @@ function hook() {
   const seen = readJson(seenFile, {});
   const heavy = slot("heavy");
   const lines = delta(board, seen, heavy);
-  if (!seen.mainTip) lines.push(`[board] ${board.prs.length} open PRs, heavy lease ${heavy ? `held by ${heavy.session}` : "free"}; full board: node scripts/agent-os/board.mjs`);
+  if (!seen.looked) lines.push(`[board] ${board.prs.length} open PRs, heavy lease ${heavy ? `held by ${heavy.session}` : "free"}; full board: node scripts/agent-os/board.mjs`);
   write(seenFile, {
     mainTip: board.main?.[0]?.sha ?? seen.mainTip,
     prChecks: Object.fromEntries((board.prs ?? []).map((p) => [p.number, p.checks])),
     heavyToken: heavy?.token ?? null,
+    prsError: board.prsError ?? null,
+    looked: true, // not mainTip: an unreadable origin/main would otherwise print the summary on every prompt
   });
   if (lines.length) process.stdout.write(`${lines.join("\n")}\n`);
 }

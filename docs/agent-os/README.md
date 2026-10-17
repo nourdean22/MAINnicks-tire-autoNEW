@@ -130,7 +130,7 @@ github-client canaries 403'd every PR whenever another workflow had spent the bu
     kills the child before the lease is released. `heavy.mjs status` shows the holders.
   - `board.mjs` (UserPromptSubmit `hook`): at most 3 lines of what changed since this session last looked (main moved,
     a PR went red, the heavy holder), from `board/board.json`; a cache over 60 s starts a detached refresh (one
-    `gh pr list`); over 10 min old it prints STALE. `node scripts/agent-os/board.mjs` prints the whole board.
+    `gh pr list`); over 10 min old it prints STALE; a failing `gh` prints `PR list unavailable: <error>` once per error. `node scripts/agent-os/board.mjs` prints the whole board.
   - `stuck-watch.mjs` (PostToolUse and PostToolUseFailure `--post`, PreToolUse `--pre`, every tool, matcher `""`): the
     same call with the same result on an unchanged tree nudges on the 3rd and 4th repeat and is denied on the 5th. A
     failed call (non-zero Bash exit) fires PostToolUseFailure, and its `error` is the result. State is keyed on
