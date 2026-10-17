@@ -5528,7 +5528,7 @@
       "verificationExpiresAt": "2026-11-16",
       "codeState": "in_progress",
       "operationalState": "unit_verified",
-      "exposure": "internal"
+      "exposure": "disabled"
     }
   ],
   "axes": {

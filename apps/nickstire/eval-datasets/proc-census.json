@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-17T14:56:19.960Z",
-  "count": 789,
+  "generatedAt": "2026-10-17T20:52:57.879Z",
+  "count": 790,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -581,6 +581,7 @@
     "query.instagramAdmin.reelPipelineHealth",
     "query.instagramAdmin.reelPublishQueue",
     "query.instagramAdmin.reelRecoveryLedger",
+    "query.instagramAdmin.sendSwitchesStatus",
     "query.instagramStudio.board",
     "query.instagramStudio.diagnostics",
     "query.instagramStudio.list",
