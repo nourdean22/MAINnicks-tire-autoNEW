@@ -1,23 +1,17 @@
 /**
- * Perplexity AI — Research engine with citations.
- * Free tier: limited queries/day via API.
- * Used for: competitor research, market analysis, customer question answering.
+ * Perplexity web intelligence adapter.
  *
- * v10.0.358 · upgraded with /search-specialist options:
- *   · allowedDomains / blockedDomains · target authoritative sources
- *   · recency filter · last day/week/month/year
- *   · explicit citation return · so Nick can cite in chat replies
- *   · model tier · sonar (cheap) / sonar-pro (deeper) / sonar-reasoning
- *   · wrapped with tool-use-guardian (v10.0.357) · auto-retry transient
- *     failures, classify on persistent fail
+ * Current architecture:
+ *   · Search API for retrieval-first verified web search
+ *   · Agent API for synthesized answers with web-search citations
+ *   · domain + recency filters
+ *   · Guardian retries / bounded timeouts
+ *
+ * Sonar Chat Completions support ended in September 2026, so the public
+ * StateNour helper names remain stable while the transport uses current APIs.
  */
 
 import { withGuardian } from "@/lib/tools/guardian";
-
-interface PerplexityMessage {
-  role: "system" | "user" | "assistant";
-  content: string;
-}
 
 export interface PerplexityCitation {
   url: string;
@@ -51,72 +45,183 @@ function getApiKey(): string {
   return key;
 }
 
-async function _askPerplexity(
-  question: string,
-  opts: PerplexityOptions = {},
-): Promise<PerplexityResponse> {
-  const messages: PerplexityMessage[] = [];
+export interface PerplexitySearchResponse extends PerplexityResponse {
+  results: Array<{ url: string; title?: string; snippet?: string; date?: string }>;
+}
 
-  if (opts.systemPrompt) {
-    messages.push({ role: "system", content: opts.systemPrompt });
-  }
-  messages.push({ role: "user", content: question });
-
-  // Domain filter · Perplexity supports up to 10 domains, prefix "-" to block
-  const domainFilter: string[] = [];
+async function _searchPerplexity(
+  query: string,
+  opts: Pick<PerplexityOptions, "allowedDomains" | "blockedDomains" | "recency"> = {},
+): Promise<PerplexitySearchResponse> {
+  const body: Record<string, unknown> = { query, max_results: 10 };
   if (opts.allowedDomains?.length) {
-    domainFilter.push(...opts.allowedDomains.slice(0, 10));
+    body.search_domain_filter = opts.allowedDomains.slice(0, 20);
+  } else if (opts.blockedDomains?.length) {
+    body.search_domain_filter = opts.blockedDomains.slice(0, 20).map((d) => `-${d}`);
   }
-  if (opts.blockedDomains?.length) {
-    domainFilter.push(...opts.blockedDomains.slice(0, 10).map((d) => `-${d}`));
-  }
-
-  const body: Record<string, unknown> = {
-    model: opts.tier ?? "sonar",
-    messages,
-    max_tokens: opts.maxTokens ?? 1024,
-    return_citations: true,
-  };
-  if (domainFilter.length > 0) body.search_domain_filter = domainFilter;
   if (opts.recency) body.search_recency_filter = opts.recency;
 
-  const res = await fetch("https://api.perplexity.ai/chat/completions", {
+  const res = await fetch("https://api.perplexity.ai/search", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${getApiKey()}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
-    // wave-181.90 follow-up · 30s · perplexity's online search can be slow
-    // when it pulls many sources · give it more room than exa/tavily.
+    signal: AbortSignal.timeout(20_000),
+  });
+
+  if (!res.ok) {
+    const err = await res.text().catch(() => "<body unreadable>");
+    const error: Error & { status?: number } = new Error(
+      `Perplexity Search API error ${res.status}: ${err.slice(0, 300)}`,
+    );
+    error.status = res.status;
+    throw error;
+  }
+
+  const data = (await res.json()) as Record<string, unknown>;
+  const rawResults: unknown[] = Array.isArray(data.results) ? data.results : [];
+  const results = rawResults
+    .filter((item: unknown): item is Record<string, unknown> =>
+      Boolean(item) && typeof item === "object",
+    )
+    .map((item) => ({
+      url: typeof item.url === "string" ? item.url : "",
+      title: typeof item.title === "string" ? item.title : undefined,
+      snippet: typeof item.snippet === "string" ? item.snippet : undefined,
+      date: typeof item.date === "string" ? item.date : undefined,
+    }))
+    .filter((item) => Boolean(item.url));
+
+  return {
+    content: results
+      .slice(0, 8)
+      .map((item, index) =>
+        `[${index + 1}] ${item.title ?? item.url}\n${item.snippet ?? ""}`.trim(),
+      )
+      .join("\n\n"),
+    citations: results.map((item) => ({ url: item.url, title: item.title })),
+    model: "perplexity-search",
+    results,
+  };
+}
+
+export const searchPerplexity = withGuardian("perplexity-search-api", _searchPerplexity, {
+  timeoutMs: 20_000,
+  maxRetries: 2,
+  reliabilityOnly: true,
+});
+
+async function _askPerplexity(
+  question: string,
+  opts: PerplexityOptions = {},
+): Promise<PerplexityResponse> {
+  // Sonar Chat Completions support ended 2026-09-27. Keep the public
+  // StateNour option names stable, but map them onto Agent API presets.
+  const preset =
+    opts.tier === "sonar-reasoning"
+      ? "low"
+      : "fast";
+
+  const filters: Record<string, unknown> = {};
+  if (opts.allowedDomains?.length) {
+    filters.search_domain_filter = opts.allowedDomains.slice(0, 20);
+  } else if (opts.blockedDomains?.length) {
+    filters.search_domain_filter = opts.blockedDomains
+      .slice(0, 20)
+      .map((d) => `-${d}`);
+  }
+  if (opts.recency) filters.search_recency_filter = opts.recency;
+
+  const webSearchTool: Record<string, unknown> = { type: "web_search" };
+  if (Object.keys(filters).length > 0) webSearchTool.filters = filters;
+
+  const body: Record<string, unknown> = {
+    preset,
+    input: question,
+    max_output_tokens: opts.maxTokens ?? 1024,
+    tools: [webSearchTool],
+  };
+  if (opts.systemPrompt) body.instructions = opts.systemPrompt;
+
+  const res = await fetch("https://api.perplexity.ai/v1/agent", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${getApiKey()}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
     signal: AbortSignal.timeout(30_000),
   });
 
   if (!res.ok) {
-    // v10.0.529.3 M7 fix · distinguish body-decode failure (transport
-    // issue) from upstream non-2xx with empty body. Same shape as
-    // tavily.ts + exa.ts.
     const err = await res.text().catch((e) =>
       e instanceof Error
         ? `<body decode failed: ${e.message.slice(0, 100)}>`
         : "<body unreadable>",
     );
     const error: Error & { status?: number } = new Error(
-      `Perplexity API error ${res.status}: ${err.slice(0, 300)}`,
+      `Perplexity Agent API error ${res.status}: ${err.slice(0, 300)}`,
     );
     error.status = res.status;
     throw error;
   }
 
-  const data = await res.json();
-  const choice = data.choices?.[0];
+  const data = (await res.json()) as Record<string, unknown>;
+  const responseStatus = typeof data.status === "string" ? data.status : undefined;
+  if (responseStatus === "failed" || responseStatus === "cancelled") {
+    const upstreamError =
+      data.error && typeof data.error === "object"
+        ? (data.error as Record<string, unknown>)
+        : undefined;
+    const message =
+      typeof upstreamError?.message === "string"
+        ? upstreamError.message
+        : `Perplexity Agent API run ${responseStatus}`;
+    const error: Error & { status?: string } = new Error(
+      `Perplexity Agent API ${responseStatus}: ${message.slice(0, 300)}`,
+    );
+    error.status = responseStatus;
+    throw error;
+  }
+
+  const output: unknown[] = Array.isArray(data.output) ? data.output : [];
+  const content = output
+    .filter((item: unknown): item is Record<string, unknown> =>
+      Boolean(item) && typeof item === "object" && (item as Record<string, unknown>).type === "message",
+    )
+    .flatMap((item) => Array.isArray(item.content) ? item.content : [])
+    .filter((part: unknown): part is Record<string, unknown> =>
+      Boolean(part) && typeof part === "object" && (part as Record<string, unknown>).type === "output_text",
+    )
+    .map((part) => typeof part.text === "string" ? part.text : "")
+    .filter(Boolean)
+    .join("\n");
+
+  const citations: PerplexityCitation[] = [];
+  const seen = new Set<string>();
+  for (const item of output) {
+    if (!item || typeof item !== "object") continue;
+    const record = item as Record<string, unknown>;
+    if (record.type !== "search_results" || !Array.isArray(record.results)) continue;
+    for (const result of record.results) {
+      if (!result || typeof result !== "object") continue;
+      const hit = result as Record<string, unknown>;
+      const url = typeof hit.url === "string" ? hit.url : "";
+      if (!url || seen.has(url)) continue;
+      seen.add(url);
+      citations.push({
+        url,
+        title: typeof hit.title === "string" ? hit.title : undefined,
+      });
+    }
+  }
 
   return {
-    content: choice?.message?.content || "",
-    citations: (data.citations || []).map((c: unknown) =>
-      typeof c === "string" ? { url: c } : (c as PerplexityCitation),
-    ),
-    model: data.model || (opts.tier ?? "sonar"),
+    content,
+    citations,
+    model: typeof data.model === "string" ? data.model : `perplexity-agent:${preset}`,
   };
 }
 

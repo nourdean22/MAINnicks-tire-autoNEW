@@ -163,24 +163,63 @@ export async function handleArsenalPreTaskFanout(params: ActionParams, type: str
 }
 
 export async function handleArsenalWebSearch(params: ActionParams, type: string): Promise<ActionResult> {
-  // v10.0.358 · web search via Perplexity with structured options
-  // and citations · per /search-specialist principles. Guardian-
-  // wrapped at the perplexity helper level for auto-retry.
-  const { smartWebSearch } = await import("@/lib/integrations/perplexity");
-  const result = await smartWebSearch({
-    query: String(params.query || ""),
-    recency: (params.recency as "day" | "week" | "month" | "year" | undefined) ?? undefined,
-    allowedDomains: Array.isArray(params.allowedDomains) ? (params.allowedDomains as string[]) : undefined,
-    blockedDomains: Array.isArray(params.blockedDomains) ? (params.blockedDomains as string[]) : undefined,
-    tier: (params.tier as "sonar" | "sonar-pro" | "sonar-reasoning" | undefined) ?? undefined,
+  // Perplexity is the preferred fresh-web specialist, but it is never a
+  // single point of failure. Auth, quota, timeout, or provider migration
+  // failures fall through to the existing verified multi-source quorum.
+  const query = String(params.query || "");
+  const recency =
+    (params.recency as "day" | "week" | "month" | "year" | undefined) ?? undefined;
+  const allowedDomains = Array.isArray(params.allowedDomains)
+    ? (params.allowedDomains as string[])
+    : undefined;
+  const blockedDomains = Array.isArray(params.blockedDomains)
+    ? (params.blockedDomains as string[])
+    : undefined;
+  const tier =
+    (params.tier as "sonar" | "sonar-pro" | "sonar-reasoning" | undefined) ?? undefined;
+
+  try {
+    const { smartWebSearch } = await import("@/lib/integrations/perplexity");
+    const result = await smartWebSearch({
+      query,
+      recency,
+      allowedDomains,
+      blockedDomains,
+      tier,
+    });
+    if (result?.content?.trim()) {
+      return {
+        action: type,
+        success: true,
+        result: {
+          content: result.content.slice(0, 2000),
+          citations: result.citations.slice(0, 8).map((c) => c.url),
+          model: result.model,
+          provider: "perplexity",
+        },
+      };
+    }
+  } catch {
+    // The verified quorum below already logs per-source failures and keeps
+    // unrelated providers alive. Do not duplicate provider error text here.
+  }
+
+  const { multiSourceSearch } = await import("@/lib/ai/multi-search");
+  const fallback = await multiSourceSearch(query, {
+    recency,
+    domains: { allow: allowedDomains, block: blockedDomains },
   });
+  const content = fallback.consensus ?? fallback.sources[0]?.content ?? "";
   return {
     action: type,
-    success: !!result,
+    success: Boolean(content),
     result: {
-      content: result?.content?.slice(0, 2000) ?? "",
-      citations: (result?.citations ?? []).slice(0, 8).map((c) => c.url),
-      model: result?.model,
+      content: content.slice(0, 2000),
+      citations: fallback.citations.slice(0, 8).map((c) => c.url),
+      model: fallback.sources.map((source) => source.model).join(",") || "multi-source",
+      provider: "verified-multi-source",
+      confidence: fallback.confidence,
+      disagreement: fallback.disagreement,
     },
   };
 }
