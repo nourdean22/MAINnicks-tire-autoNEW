@@ -25,8 +25,8 @@
  * has THAT car been sitting there?"** `FloorRow` renders one row per vehicle still
  * on the property, ordered longest-first, because the longest wait is the one about
  * to become a complaint. Since admin UI v1 W3 the board is the page's first object;
- * the counters follow it and every evidence panel sits under the Checks rail. Every duration is computed in SQL (lot.ts `minutesBetween`):
- * subtracting driver-parsed TiDB datetimes in JS is wrong by the UTC offset, and it
+ * the counters follow it and every evidence panel sits under the Checks rail.
+ * Every duration is computed in SQL (lot.ts `minutesBetween`): subtracting driver-parsed TiDB datetimes in JS is wrong by the UTC offset, and it
  * would be wrong in exactly the number an operator acts on.
  *
  * Between polls the OPEN durations tick client-side from `dataUpdatedAt`. That is
