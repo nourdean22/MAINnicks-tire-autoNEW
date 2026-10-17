@@ -346,7 +346,11 @@ export function ReflectComposer() {
         {!structured && (
           <button
             type="button"
-            onClick={() => setStructured(true)}
+            onClick={() => {
+              // Text already in the one field is driscoll's What: open on driscoll so it stays in view.
+              if ((fields[ONE_FIELD_KEY] ?? "").trim()) setTemplateKey(ONE_FIELD_TEMPLATE);
+              setStructured(true);
+            }}
             className="ml-auto inline-flex min-h-[44px] items-center text-[13px] text-fg-tertiary transition-colors hover:text-fg"
           >
             Use a template

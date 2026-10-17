@@ -127,7 +127,7 @@ function StatsContent() {
   // bring that section into view, since it is no longer at the top of a tab of its own.
   const requestedTab = searchParams.get("tab");
   useEffect(() => {
-    if (!requestedTab || !(requestedTab in STATS_TAB_ALIASES)) return;
+    if (!requestedTab || !Object.hasOwn(STATS_TAB_ALIASES, requestedTab)) return;
     const frame = requestAnimationFrame(() => {
       document.getElementById(requestedTab)?.scrollIntoView({ block: "start", behavior: scrollBehavior() });
     });

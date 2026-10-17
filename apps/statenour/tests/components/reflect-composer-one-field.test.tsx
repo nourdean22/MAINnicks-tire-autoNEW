@@ -98,6 +98,15 @@ describe("Journal reflect composer: one field", () => {
     expect(h.mutateAsync.mock.calls[0][0].fields).toMatchObject({ now_what: "call Sam" });
   });
 
+  it("carries text typed in the one field into the What box when a template opens, even if the last template was SOAP", async () => {
+    localStorage.setItem("ultron:reflect:last-template", "soap");
+    const el = await mount();
+    await act(async () => type(el.querySelector("textarea")!, "half a thought"));
+    await act(async () => button(el, /use a template/i)!.click());
+    const values = [...el.querySelectorAll("textarea")].map((t) => t.value);
+    expect(values, "the typed text vanished from view").toContain("half a thought");
+  });
+
   it("reopens structured when a saved draft filled more than the one field, so nothing is hidden", async () => {
     localStorage.setItem("ultron:reflect:draft", JSON.stringify({ fields: { what: "a", so_what: "b" }, templateKey: "driscoll" }));
     const el = await mount();

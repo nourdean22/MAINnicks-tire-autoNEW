@@ -36,6 +36,6 @@ export function resolveStatsTab(
   const first = tabs[0]?.id ?? "mastery";
   if (!requested) return first;
   if (tabs.some((t) => t.id === requested)) return requested;
-  const alias = STATS_TAB_ALIASES[requested];
+  const alias = Object.hasOwn(STATS_TAB_ALIASES, requested) ? STATS_TAB_ALIASES[requested] : undefined;
   return alias && tabs.some((t) => t.id === alias) ? alias : first;
 }
