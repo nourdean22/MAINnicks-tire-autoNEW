@@ -15,6 +15,8 @@
  * mock — it is covered by source assertion only, not pretended here.
  */
 import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
+// C5.5: the voice_outbound pause is pinned in voiceLanes.sendPause.test.ts; open here so the rethrow path is reached.
+vi.mock("../../services/sendPause", () => ({ sendPauseHoldReason: async () => null }));
 
 describe("cron rethrow contract · 2026-09-01 audit F-9", () => {
   beforeEach(() => { vi.resetModules(); });

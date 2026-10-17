@@ -13,6 +13,18 @@ const h = vi.hoisted(() => ({
   evidenceCalls: [] as string[],
   sent: [] as string[],
   dbThrows: false,
+  hold: null as string | null,
+  holdLanes: [] as string[],
+  flipAfterFirstSend: false,
+  claims: 0,
+}));
+
+// The real reader is pinned in sendPause.test.ts; this file's db mock has no getDb.
+vi.mock("../services/sendPause", () => ({
+  sendPauseHoldReason: async (lane: string) => {
+    h.holdLanes.push(lane);
+    return h.hold;
+  },
 }));
 
 vi.mock("../db", () => ({
@@ -30,7 +42,7 @@ vi.mock("../db", () => ({
         }),
       }),
     }),
-    execute: async () => [{ affectedRows: 1 }], // the at-most-once claim
+    execute: async () => (h.claims++, [{ affectedRows: 1 }]), // the at-most-once claim
   }),
 }));
 vi.mock("../services/featureFlags", () => ({ isEnabled: async () => true }));
@@ -43,6 +55,7 @@ vi.mock("../services/vapiActionExtraction", () => ({
 vi.mock("../services/smsOrchestrator", () => ({
   orchestrateSms: async (input: { vapiCallId: string }) => {
     h.sent.push(input.vapiCallId);
+    if (h.flipAfterFirstSend) h.hold = "send_pause:missed_call_recovery";
     return { status: "sent" };
   },
 }));
@@ -123,6 +136,10 @@ describe("processMissedCallRecovery · tool-reaching callers", () => {
     h.evidenceCalls = [];
     h.sent = [];
     h.dbThrows = false;
+    h.hold = null;
+    h.holdLanes = [];
+    h.flipAfterFirstSend = false;
+    h.claims = 0;
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -151,6 +168,46 @@ describe("processMissedCallRecovery · tool-reaching callers", () => {
     expect(out).toMatchObject({ shadow: false, candidates: 2, recordsProcessed: 2 });
     // the evidence read runs for tool-reaching calls only
     expect(h.evidenceCalls.sort()).toEqual(["tool-arrival", "tool-callbackrow", "tool-nothing", "tool-readfail"]);
+  });
+
+  it.each(["send_pause:missed_call_recovery", "send_pause_unreadable:missed_call_recovery"])(
+    "C5.5: armed but held (%s) -> shadow outcome with the reason, nothing read, claimed or sent",
+    async (reason) => {
+      h.hold = reason;
+      h.dbThrows = true; // the call-log read must not even be reached
+      h.callRows = [call("plain", 0)];
+      const out = await processMissedCallRecovery();
+      expect(h.holdLanes).toEqual(["missed_call_recovery"]);
+      expect(out).toEqual({ recordsProcessed: 0, shadow: true, candidates: 0, details: `Skipped · ${reason}` });
+      expect(h.sent).toEqual([]);
+    },
+  );
+
+  it("C5.5 control: not held -> the same armed run sends", async () => {
+    h.callRows = [call("plain", 0)];
+    const out = await processMissedCallRecovery();
+    // start gate + one per-item check (round 2), always this lane
+    expect(new Set(h.holdLanes)).toEqual(new Set(["missed_call_recovery"]));
+    expect(h.sent).toEqual(["plain"]);
+    expect(out).toMatchObject({ shadow: false, recordsProcessed: 1 });
+  });
+
+  it("C5.5 round 2: pause set mid-run -> the next caller is neither claimed nor texted; Skipped with the count", async () => {
+    h.callRows = [call("a", 0), call("bb", 0), call("ccc", 0)];
+    h.flipAfterFirstSend = true;
+    const out = await processMissedCallRecovery();
+    expect(h.sent).toHaveLength(1);
+    expect(h.claims, "a held caller is not stamped recoverySmsAt").toBe(1);
+    expect(out.recordsProcessed).toBe(1);
+    expect(out.details).toMatch(/^Skipped · send_pause:missed_call_recovery/);
+    expect(out.details).toContain("not_attempted=2");
+  });
+
+  it("C5.5 round 2 control: never paused -> all three callers texted", async () => {
+    h.callRows = [call("a", 0), call("bb", 0), call("ccc", 0)];
+    const out = await processMissedCallRecovery();
+    expect(h.sent).toHaveLength(3);
+    expect(out.details ?? "").not.toMatch(/send_pause/);
   });
 
   it("a failed run THROWS (cron_log records failed), never a completed 'shadow' zero", async () => {

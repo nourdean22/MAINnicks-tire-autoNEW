@@ -1891,6 +1891,9 @@ export interface VapiPlaceCallParams {
    *  Must name the business and give the callback number. IGNORED on a sales
    *  lane — see placeVapiOutboundCall. */
   voicemailMessage?: string;
+  /** C5.5 · "operator" only from the manual follow-up door: an unreadable pause switch then
+   *  fails open (a person is present). An explicit send_pause_voice_outbound still holds. */
+  actor?: "operator" | "automated";
 }
 
 /**
@@ -2020,6 +2023,12 @@ export interface VapiPlaceCallResult {
 }
 
 export async function placeVapiOutboundCall(params: VapiPlaceCallParams): Promise<VapiPlaceCallResult> {
+  // C5.5 · runtime pause for every outbound voice lane, before the number lookup
+  // and POST /call. Fails CLOSED (an unreadable switch holds). The crons also
+  // gate before claiming a lead; this is the chokepoint for every other door.
+  const { sendPauseHoldReason } = await import("./sendPause");
+  const held = await sendPauseHoldReason("voice_outbound", params.actor ?? "automated");
+  if (held) return { success: false, error: held, errorKind: "config" };
   if (!process.env.VAPI_API_KEY) {
     return { success: false, error: "VAPI_API_KEY not configured", errorKind: "config" };
   }

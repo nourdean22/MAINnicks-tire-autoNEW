@@ -38,6 +38,10 @@ export async function runConfirmationCalls(): Promise<RunResult> {
   if (process.env.FEATURE_CONFIRMATION_CALLS !== "1") {
     return { recordsProcessed: 0, details: "Skipped · FEATURE_CONFIRMATION_CALLS != '1'" };
   }
+  // C5.5 runtime pause, before any lookup or claim (placeVapiOutboundCall holds too).
+  const { sendPauseHoldReason } = await import("../../services/sendPause");
+  const held = await sendPauseHoldReason("voice_outbound");
+  if (held) return { recordsProcessed: 0, details: `Skipped · ${held}` };
   // wave-145 · resolve the outbound number (env override → else auto-lookup
   // the shop's VAPI line). Was a bare VAPI_PHONE_NUMBER_ID check that skipped
   // forever because the var was never set.
@@ -174,8 +178,11 @@ export async function runConfirmationCalls(): Promise<RunResult> {
   let placed = 0;
   let skipped = 0;
   let failed = 0;
+  // C5.5 round 2: a pause set mid-run stops the loop; held bookings are not marked failed.
+  let heldMidRun: string | null = null;
+  let notAttempted = 0;
 
-  for (const b of candidates) {
+  for (const [i, b] of candidates.entries()) {
     if (placed >= maxCalls) {
       log.info(`[confirmation-calls] hit per-run cap ${maxCalls}, stopping early`);
       break;
@@ -204,6 +211,14 @@ export async function runConfirmationCalls(): Promise<RunResult> {
       .join(" ")
       .toLowerCase() || undefined;
     const firstName = b.name.split(" ")[0] || b.name;
+
+    // Re-read the pause before every claim (5 s cache: one DB read per 5 s, not per booking).
+    const midRunHold = await sendPauseHoldReason("voice_outbound");
+    if (midRunHold) {
+      heldMidRun = midRunHold;
+      notAttempted = candidates.length - i;
+      break;
+    }
 
     // At-most-once claim · INSERT before placing call (same wave-181.59 pattern)
     let attemptId: number | null = null;
@@ -249,6 +264,13 @@ export async function runConfirmationCalls(): Promise<RunResult> {
         .where(eq(confirmationCalls.id, attemptId));
       placed++;
       log.info(`[confirmation-calls] placed VAPI call ${call.callId} for booking ${b.id}`);
+    } else if (call.error?.startsWith("send_pause")) {
+      // The pause landed between the check above and the dial: nobody was called.
+      // Remove the pending attempt so it reads as never called, and stop.
+      if (attemptId !== null) await d.delete(confirmationCalls).where(eq(confirmationCalls.id, attemptId));
+      heldMidRun = call.error;
+      notAttempted = candidates.length - i;
+      break;
     } else {
       if (attemptId !== null) {
         await d
@@ -264,8 +286,10 @@ export async function runConfirmationCalls(): Promise<RunResult> {
     await new Promise((r) => setTimeout(r, 1000));
   }
 
-  return {
-    recordsProcessed: placed,
-    details: `placed=${placed} skipped=${skipped} failed=${failed} (target date: ${tomorrowStr})`,
-  };
+  const summary = `placed=${placed} skipped=${skipped} failed=${failed} (target date: ${tomorrowStr})`;
+  if (heldMidRun) {
+    log.info(`[confirmation-calls] held mid-run: ${heldMidRun}`, { placed, notAttempted });
+    return { recordsProcessed: placed, details: `Skipped · ${heldMidRun} · not_attempted=${notAttempted} · ${summary}` };
+  }
+  return { recordsProcessed: placed, details: summary };
 }

@@ -10,8 +10,15 @@ let mockOrder: any = null;
 let mockExistingSms: any[] = [];
 let mockExistingEmail: any[] = [];
 let currentTableName = "";
+// C5.5 send_pause_customer_confirmations row, read by the real sendPause reader via execute.
+let pauseMode: "off" | "paused" | "throw" = "off";
 
 const mockDb: any = {
+  execute: vi.fn().mockImplementation(async (q: unknown) => {
+    if (pauseMode === "throw") throw new Error("connection refused");
+    const isPauseRead = JSON.stringify(q).includes("send_pause_customer_confirmations");
+    return [isPauseRead && pauseMode === "paused" ? [{ v: 1 }] : []];
+  }),
   select: vi.fn().mockImplementation(() => {
     const builder = {
       from: vi.fn().mockImplementation((table) => {
@@ -80,8 +87,11 @@ const ORDER: OrderMessageInput = {
 const ORIG_ENABLE_CUSTOMER_CONFIRMATIONS = process.env.ENABLE_CUSTOMER_CONFIRMATIONS;
 
 describe("customer message templates", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
+    pauseMode = "off";
+    const { _resetSendPauseCacheForTest } = await import("./services/sendPause");
+    _resetSendPauseCacheForTest();
     mockOrder = null;
     mockExistingSms = [];
     mockExistingEmail = [];
@@ -192,6 +202,31 @@ describe("customer message templates", () => {
       expect(loggedActionParams.length).toBe(2);
       expect(loggedActionParams[0].action).toBe("customer.sms_sent");
       expect(loggedActionParams[1].action).toBe("customer.email_sent");
+    });
+
+    const armedOrder = () => {
+      mockOrder = {
+        customerName: "Jane Doe", orderNumber: "TO-123", quantity: 4, tireBrand: "NEXEN", tireModel: "N'Priz",
+        tireSize: "215/60R16", totalAmount: 54400, customerPhone: "2168620005", customerEmail: "jane@example.com",
+      };
+      process.env.ENABLE_CUSTOMER_CONFIRMATIONS = "true";
+    };
+
+    it("C5.5: armed but send_pause_customer_confirmations is ON -> the dry-run outcome, nothing sent", async () => {
+      armedOrder();
+      pauseMode = "paused";
+      const res = await sendCustomerMessage("TO-123", "requestReceived");
+      expect(res).toEqual({ smsSent: false, emailSent: false, dryRun: true });
+      expect(sentSmsParams).toBeNull();
+      expect(sentEmailParams).toBeNull();
+      expect(loggedActionParams.length).toBe(0);
+    });
+
+    it("C5.5: an unreadable pause switch fails OPEN for this 1:1 lane -> sends as today", async () => {
+      armedOrder();
+      pauseMode = "throw";
+      const res = await sendCustomerMessage("TO-123", "requestReceived");
+      expect(res).toEqual({ smsSent: true, emailSent: true, dryRun: false });
     });
 
     it("skips sending SMS/Email if already sent (idempotency)", async () => {

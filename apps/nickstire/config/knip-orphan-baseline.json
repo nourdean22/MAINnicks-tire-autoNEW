@@ -6350,6 +6350,31 @@
       "file": "apps/nickstire/server/follow-ups.ts",
       "symbol": "reportFollowUpsToOwner",
       "reason": "Telegram alert diet (job 2026-10-16-telegram-alerts): the production caller is runFollowUps in the same file; the export exists only so server/followUpOwnerReport.test.ts can prove the run report reaches the owner once. A test-only export, not a missing consumer."
+    },
+    {
+      "file": "apps/nickstire/server/services/sendPause.ts",
+      "symbol": "SEND_PAUSE_LANES",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT (C5.5 send pauses, job 2026-10-17-c55-send-pause-switches). The lane table (key, fail class, exact env comparison). Read in-module by sendPauseHoldReason and readSendSwitchesStatus (runtime consumers: the eight send chokepoints and instagramAdmin.sendSwitchesStatus); exported so sendPause.test.ts, sendPauseCoverage.test.ts, flagPolicy.test.ts and probeLiveSendFlags.test.ts pin the same table instead of a re-typed copy."
+    },
+    {
+      "file": "apps/nickstire/server/services/sendPause.ts",
+      "symbol": "sendPause",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT (C5.5 send pauses, job 2026-10-17-c55-send-pause-switches). The raw reader; its runtime callers are sendPauseHoldReason and readSendSwitchesStatus in the same module. Exported so sendPause.test.ts pins that a failed read is readable:false, never a confident 'not paused'."
+    },
+    {
+      "file": "apps/nickstire/server/services/sendPause.ts",
+      "symbol": "shouldHold",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT (C5.5 send pauses, job 2026-10-17-c55-send-pause-switches). The pure hold decision (paused, or unreadable on a fail-closed lane); called in-module by sendPauseHoldReason on every gated send. Exported so sendPause.test.ts pins the four cases and the voice fail-closed class directly."
+    },
+    {
+      "file": "apps/nickstire/server/services/sendPause.ts",
+      "symbol": "envArmed",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT (C5.5 send pauses, job 2026-10-17-c55-send-pause-switches). Exact env comparison per lane; called in-module by readSendSwitchesStatus for the status card's envArmed. Exported so sendPause.test.ts pins ENABLE_CUSTOMER_CONFIRMATIONS === \"true\" vs the \"1\" lanes."
+    },
+    {
+      "file": "apps/nickstire/server/services/sendPause.ts",
+      "symbol": "_resetSendPauseCacheForTest",
+      "reason": "test seam: the 5 s pause cache is module state and the serial suite shares one process, so the lane tests reset it between cases. No production caller by design (same as smsControl._resetPauseCacheForTest)."
     }
   ]
 }

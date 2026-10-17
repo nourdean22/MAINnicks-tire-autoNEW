@@ -33,6 +33,21 @@ Four of these — the voice and cadence flags — had **never appeared in any
 canonical doc** before 2026-08-16. They were not stale; they were absent. Nobody
 reading this file would have known Nick was placing outbound calls.
 
+**Runtime pauses for these lanes (C5.5, 2026-10-17).** Each env send lane also reads a
+`feature_flags` row through `server/services/sendPause.ts` (5 s cache), so a lane can be
+stopped from the admin Feature Flags panel without a redeploy. TRUE = paused. A held send is
+skipped, not queued. No value is asserted here: read `instagramAdmin.sendSwitchesStatus`.
+
+| pause key | holds | unreadable switch |
+|---|---|---|
+| `send_pause_voice_outbound` | every outbound AI voice call (`FEATURE_VOICE_RECOVERY`, `FEATURE_CONFIRMATION_CALLS`, `FEATURE_FOLLOWUP_CADENCE`, manual follow-up call) | HOLD (fail closed); the manual follow-up call SENDS (operator present) |
+| `send_pause_customer_confirmations` | tire-order confirmation texts and emails (`ENABLE_CUSTOMER_CONFIRMATIONS`) | SEND (fail open, 1:1) |
+| `send_pause_declined_recovery` | declined-estimate texts (`FEATURE_DECLINED_RECOVERY`), cron and run-now | HOLD (fail closed) |
+| `send_pause_weather_sms` | weather texts (`WEATHER_SMS_SEND`) | HOLD (fail closed) |
+| `send_pause_missed_call_recovery` | missed-caller texts (`MISSED_CALL_RECOVERY_SEND`) | HOLD (fail closed) |
+
+Reel publish, autopost and the comment responder keep their own switches (`publishingKillSwitch`, `*_paused`).
+
 **Regenerate, never retype:** `node scripts/probe-live-send-flags.mjs`. A flag
 value written into a doc is a cache with no invalidation — on 2026-08-15 this
 file asserted `FEATURE_DECLINED_RECOVERY=0` on the authority of

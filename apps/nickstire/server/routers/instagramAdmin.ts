@@ -1202,6 +1202,13 @@ Keep it under 200 characters.`;
     readAutopostLaneStatus(await dbTyped()),
   ),
 
+  /** Contract sendSwitchesStatus v1 (C5.5): per send lane, paused / live / UNKNOWN (paused null),
+   *  its fail class and whether its env flag is armed. Toggling stays on featureFlags.toggle. */
+  sendSwitchesStatus: adminProcedure.query(async () => {
+    const { readSendSwitchesStatus } = await import("../services/sendPause");
+    return readSendSwitchesStatus();
+  }),
+
   /** Start one manual image autopost slot run in the background and return at
    *  once (a run outlasts the gateway timeout). Refused while another manual
    *  run is in flight. The outcome is the ig_autopost_log row (source "admin")

@@ -5,6 +5,7 @@ import {
   requiresConfirmation,
   confirmationCopy,
   INVERTED_FLAGS,
+  CUSTOMER_FACING_FLAGS,
 } from "./flagPolicy";
 import { FLAG_DEFINITIONS } from "../server/services/featureFlags";
 
@@ -156,5 +157,37 @@ describe("flagPolicy · reel_comment_responder_paused (public comment replies pa
     );
     expect(copy.message).not.toMatch(/customer messages|queued while/i);
     expect(copy.cancelLabel).toBe("Stay paused");
+  });
+});
+
+describe("flagPolicy · send_pause_<lane> (C5.5 runtime send pauses)", () => {
+  const KEYS = [
+    "send_pause_voice_outbound",
+    "send_pause_customer_confirmations",
+    "send_pause_declined_recovery",
+    "send_pause_weather_sms",
+    "send_pause_missed_call_recovery",
+  ];
+
+  it.each(KEYS)("%s is a defined, inverted, customer-facing off-switch that confirms the resume only", (key) => {
+    const defined = new Set(FLAG_DEFINITIONS.map((f) => f.key as string));
+    expect(defined.has(key)).toBe(true);
+    expect(INVERTED_FLAGS.has(key)).toBe(true);
+    expect(CUSTOMER_FACING_FLAGS.has(key)).toBe(true);
+    expect(requiresConfirmation(key, false)).toBe(true);
+    expect(requiresConfirmation(key, true)).toBe(false);
+  });
+
+  it.each(KEYS)("%s resume copy names its own lane and says nothing was queued", (key) => {
+    const copy = confirmationCopy(key, false);
+    expect(copy.title).toContain(`(${key} OFF)`);
+    expect(copy.title).not.toMatch(/^Resume automated sending\?/);
+    expect(copy.message).not.toMatch(/queued while it was paused may begin sending/i);
+    expect(copy.cancelLabel).toBe("Stay paused");
+  });
+
+  it("the registry and the reader name the same five keys", async () => {
+    const { SEND_PAUSE_LANES } = await import("../server/services/sendPause");
+    expect(Object.values(SEND_PAUSE_LANES).map((d) => d.key).sort()).toEqual([...KEYS].sort());
   });
 });

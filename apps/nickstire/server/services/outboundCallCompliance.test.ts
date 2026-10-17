@@ -20,6 +20,8 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+// C5.5: the voice_outbound pause is pinned in vapi.sendPause.test.ts; here it is open so the dial runs.
+vi.mock("./sendPause", () => ({ sendPauseHoldReason: async () => null }));
 import { BUSINESS } from "@shared/business";
 import {
   CALLBACK_NUMBER,

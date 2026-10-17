@@ -195,6 +195,14 @@ export async function sendCustomerMessage(
     });
     return { smsSent: false, emailSent: false, dryRun: true };
   }
+  // C5.5 runtime pause (send_pause_customer_confirmations). Fails OPEN: this answers
+  // the customer's own order action, so an unreadable switch still sends.
+  const { sendPauseHoldReason } = await import("./sendPause");
+  const held = await sendPauseHoldReason("customer_confirmations");
+  if (held) {
+    log.info(`[DRY-RUN] Customer confirmation for ${orderNumber} (${templateKey}) held: ${held}`);
+    return { smsSent: false, emailSent: false, dryRun: true };
+  }
 
   let smsSent = false;
   let emailSent = false;

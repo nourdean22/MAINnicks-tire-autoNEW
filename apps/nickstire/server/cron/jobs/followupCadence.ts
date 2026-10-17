@@ -72,6 +72,10 @@ function getClevelandHour(): number {
 export async function runFollowupCadence(): Promise<RunResult> {
   if (!process.env.VAPI_API_KEY) return { recordsProcessed: 0, details: "Skipped · VAPI_API_KEY missing" };
   if (process.env.FEATURE_FOLLOWUP_CADENCE !== "1") return { recordsProcessed: 0, details: "Skipped · FEATURE_FOLLOWUP_CADENCE != '1' (off by default)" };
+  // C5.5 runtime pause, before any lookup or claim (placeVapiOutboundCall holds too).
+  const { sendPauseHoldReason } = await import("../../services/sendPause");
+  const held = await sendPauseHoldReason("voice_outbound");
+  if (held) return { recordsProcessed: 0, details: `Skipped · ${held}` };
   // Routed through the shared chokepoint rather than reading the env directly:
   // a pin naming a RETIRED assistant returns null here, so this rail skips
   // instead of placing real outbound calls with a retired assistant. Skipping
@@ -209,8 +213,11 @@ export async function runFollowupCadence(): Promise<RunResult> {
   const { placeVapiOutboundCall, buildFollowUpCallContent } = await import("../../services/vapi");
   let placed = 0, skipped = 0, failed = 0;
   const preview: string[] = [];
+  // C5.5 round 2: a pause set mid-run stops the loop (skip-and-stop; the touch is not burned).
+  let heldMidRun: string | null = null;
+  let notAttempted = 0;
 
-  for (const b of candidates) {
+  for (const [i, b] of candidates.entries()) {
     if (firedToday + placed >= dailyCap) {
       log.info(`[followup-cadence] hit daily cap ${dailyCap}, stopping early`);
       break;
@@ -232,6 +239,14 @@ export async function runFollowupCadence(): Promise<RunResult> {
       fired.get(b.id)!.add(touch);
       placed++;
       continue;
+    }
+
+    // Re-read the pause before every claim (5 s cache: one DB read per 5 s, not per booking).
+    const midRunHold = await sendPauseHoldReason("voice_outbound");
+    if (midRunHold) {
+      heldMidRun = midRunHold;
+      notAttempted = candidates.length - i;
+      break;
     }
 
     // At-most-once claim · INSERT before the call. The voice_followups
@@ -266,6 +281,17 @@ export async function runFollowupCadence(): Promise<RunResult> {
         .where(and(eq(voiceFollowups.bookingId, b.id), eq(voiceFollowups.touch, touch)));
       placed++;
       log.info(`[followup-cadence] placed ${touch} call ${call.callId} for booking ${b.id}`);
+    } else if (call.error?.startsWith("send_pause")) {
+      // The pause landed between the check above and the dial: nobody was called.
+      // DELETE the claim row rather than insert-after-dial: the insert-before-dial
+      // is what stops two overlapping runs double-dialling a touch (UNIQUE), and
+      // removing the row leaves this touch un-fired, uncounted in firedToday and
+      // due again next run. A row left "failed" would burn it for good.
+      await d.delete(voiceFollowups)
+        .where(and(eq(voiceFollowups.bookingId, b.id), eq(voiceFollowups.touch, touch)));
+      heldMidRun = call.error;
+      notAttempted = candidates.length - i;
+      break;
     } else {
       // Claimed-then-failed is TERMINAL (the UNIQUE blocks a retry) — better to
       // miss one touch than risk a double-dial. Other touches still fire.
@@ -286,5 +312,10 @@ export async function runFollowupCadence(): Promise<RunResult> {
     };
   }
 
-  return { recordsProcessed: placed, details: `placed=${placed} skipped=${skipped} failed=${failed} cap=${dailyCap}` };
+  const summary = `placed=${placed} skipped=${skipped} failed=${failed} cap=${dailyCap}`;
+  if (heldMidRun) {
+    log.info(`[followup-cadence] held mid-run: ${heldMidRun}`, { placed, notAttempted });
+    return { recordsProcessed: placed, details: `Skipped · ${heldMidRun} · not_attempted=${notAttempted} · ${summary}` };
+  }
+  return { recordsProcessed: placed, details: summary };
 }

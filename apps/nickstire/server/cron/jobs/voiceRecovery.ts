@@ -53,6 +53,10 @@ export async function runVoiceRecovery(): Promise<RunResult> {
   if (process.env.FEATURE_VOICE_RECOVERY !== "1") {
     return { recordsProcessed: 0, details: "Skipped · FEATURE_VOICE_RECOVERY != '1'" };
   }
+  // C5.5 runtime pause, before any lookup or claim (placeVapiOutboundCall holds too).
+  const { sendPauseHoldReason } = await import("../../services/sendPause");
+  const held = await sendPauseHoldReason("voice_outbound");
+  if (held) return { recordsProcessed: 0, details: `Skipped · ${held}` };
   // Same chokepoint as followupCadence: a pin naming a RETIRED assistant
   // returns null, so this rail skips instead of claiming leads for dials the
   // provider will refuse. placeVapiOutboundCall reads the same env, but only
@@ -209,8 +213,11 @@ export async function runVoiceRecovery(): Promise<RunResult> {
   let failed = 0;
   let skipped = 0;
   let lastError = "";
+  // C5.5 round 2: a pause set mid-run stops the loop (skip-and-stop, never a failed run).
+  let heldMidRun: string | null = null;
+  let notAttempted = 0;
 
-  for (const est of candidates) {
+  for (const [i, est] of candidates.entries()) {
     if (placed >= maxCalls) break;
     if (!est.customerPhone) { skipped++; continue; }
     const normalized = est.customerPhone.replace(/\D/g, "").slice(-10);
@@ -220,6 +227,14 @@ export async function runVoiceRecovery(): Promise<RunResult> {
     const e164 = digits.length === 10 ? `+1${digits}` :
       digits.length === 11 && digits.startsWith("1") ? `+${digits}` :
       est.customerPhone.startsWith("+") ? est.customerPhone : `+1${digits.slice(-10)}`;
+
+    // Re-read the pause before every claim (5 s cache: one DB read per 5 s, not per lead).
+    const midRunHold = await sendPauseHoldReason("voice_outbound");
+    if (midRunHold) {
+      heldMidRun = midRunHold;
+      notAttempted = candidates.length - i;
+      break;
+    }
 
     // At-most-once claim
     const claimResult = await d
@@ -264,6 +279,17 @@ export async function runVoiceRecovery(): Promise<RunResult> {
       log.info(`[voice-recovery] placed VAPI call ${call.callId} for est ${est.id} (${dollars})`);
     } else {
       const reason = (call.error ?? "unknown").slice(0, 300);
+      if (call.error?.startsWith("send_pause")) {
+        // The pause landed between the check above and the dial. Nobody was
+        // called: release the claim (the lead stays eligible) and stop, no throw.
+        await d
+          .update(algEstimates)
+          .set({ voiceRecoveryAttemptedAt: null, voiceRecoveryOutcome: null })
+          .where(eq(algEstimates.id, est.id));
+        heldMidRun = call.error;
+        notAttempted = candidates.length - i;
+        break;
+      }
       if (call.errorKind === "customer") {
         // Our own precondition rejected THIS number (not E.164-shapeable).
         // The lead is unreachable by this lane: record it, move to the next.
@@ -299,8 +325,10 @@ export async function runVoiceRecovery(): Promise<RunResult> {
     await new Promise((r) => setTimeout(r, 1500));
   }
 
-  return {
-    recordsProcessed: placed,
-    details: `placed=${placed} skipped=${skipped} failed=${failed}${lastError ? ` · last error: ${lastError}` : ""}`,
-  };
+  const summary = `placed=${placed} skipped=${skipped} failed=${failed}${lastError ? ` · last error: ${lastError}` : ""}`;
+  if (heldMidRun) {
+    log.info(`[voice-recovery] held mid-run: ${heldMidRun}`, { placed, notAttempted });
+    return { recordsProcessed: placed, details: `Skipped · ${heldMidRun} · not_attempted=${notAttempted} · ${summary}` };
+  }
+  return { recordsProcessed: placed, details: summary };
 }

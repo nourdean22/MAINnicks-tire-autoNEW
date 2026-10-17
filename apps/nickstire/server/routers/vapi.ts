@@ -1356,6 +1356,7 @@ export const vapiRouter = router({
       const call = await placeVapiOutboundCall({
         customerNumber: e164,
         lane: "followup_manual",
+        actor: "operator", // C5.5: an unreadable pause switch fails open here; an explicit pause still holds
         customerName: firstName,
         openerBody: content.openerBody,
         systemPrompt: content.systemPrompt,
@@ -1367,6 +1368,13 @@ export const vapiRouter = router({
           errorKind: call.errorKind,
           error: (call.error ?? "unknown").slice(0, 300),
         });
+        // C5.5: a send pause is not a dial failure; the operator gets plain words, the code stays in the log above.
+        if (call.error?.startsWith("send_pause_unreadable")) {
+          return { success: false, error: "Outbound calls are held: the pause switch could not be read. Try again in a minute." };
+        }
+        if (call.error?.startsWith("send_pause")) {
+          return { success: false, error: "Outbound calls are paused in Settings." };
+        }
         return { success: false, error: call.error ?? "VAPI call failed" };
       }
       log.info("Follow-up call queued", { callId: call.callId, name: firstName, phone: e164.slice(-4) });

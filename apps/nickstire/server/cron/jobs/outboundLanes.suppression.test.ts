@@ -28,6 +28,8 @@
  * SYNTHETIC INPUTS ONLY — no network, no DB, no real phone number.
  */
 import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
+// C5.5: the voice_outbound pause is pinned in vapi.sendPause.test.ts; here it is open so the dial runs.
+vi.mock("../../services/sendPause", () => ({ sendPauseHoldReason: async () => null }));
 import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 
