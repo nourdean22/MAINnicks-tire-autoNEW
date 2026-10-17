@@ -1260,13 +1260,21 @@ function buildTiers(): void {
             const { forecastRevenue } = await import("../services/intelligenceEngines");
             const forecast = await forecastRevenue();
             const todayRevenue = forecast.today?.soFar || 0;
-            const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+            // The shop's month, not the server clock's: at 23:30 ET on the last day a UTC server is already
+            // in next month, and the claim below is keyed on the ET date.
+            const { getBusinessDateKey } = await import("../lib/timezoneAssert");
+            const [etYear, etMonth] = getBusinessDateKey().split("-").map(Number);
+            const daysInMonth = new Date(Date.UTC(etYear, etMonth, 0)).getUTCDate();
             const dailyTarget = BUSINESS.revenueTarget.monthly / daysInMonth;
 
-            // Alert if a single big job came in (>$1000)
+            // Alert if a single big job came in (>$1000). Once per ET day per band of the
+            // daily target (2x, 3x, ...): this used to re-send the same line every 15 minutes.
             if (todayRevenue > 1000 && todayRevenue > dailyTarget * 2) {
-              const { sendTelegram } = await import("../services/telegram");
-              await sendTelegram(`💰 Big day building: $${Math.round(todayRevenue)} so far today (${Math.round((todayRevenue/dailyTarget)*100)}% of daily target)`);
+              const { sendOncePerState } = await import("../services/alertClaim");
+              const { sendTelegramResult } = await import("../services/telegram");
+              await sendOncePerState(`revenue-pulse:over-target-${Math.floor(todayRevenue / dailyTarget)}x`, () =>
+                sendTelegramResult(`💰 Big day building: $${Math.round(todayRevenue)} so far today (${Math.round((todayRevenue/dailyTarget)*100)}% of daily target)`, "digest"),
+              );
             }
             return { recordsProcessed: 1, details: `Today: $${Math.round(todayRevenue)}` };
           } catch (e) { log.warn("[cron/scheduler] operation failed:", e); throw e; /* audit F-9: a swallowed error was recorded as completed */ }
@@ -1813,10 +1821,15 @@ function buildTiers(): void {
             const risk = await getPromiseRiskSummary();
             const atRiskJobs = (risk.jobs || []).filter((r) => r.risk === "at_risk" || r.risk === "likely_late" || r.risk === "overdue");
             if (atRiskJobs.length > 0) {
-              const { sendTelegram } = await import("../services/telegram");
-              await sendTelegram(
-                `⏰ PROMISE RISK: ${atRiskJobs.length} work orders at risk!\n\n` +
-                atRiskJobs.slice(0, 3).map((r) => `WO#${r.orderNumber || r.workOrderId}: ${r.customerName || "?"} — ${r.risk}`).join("\n")
+              // Once per ET day per SET of at-risk orders: a new order at risk is a new state.
+              const { sendOncePerState, stateFingerprint } = await import("../services/alertClaim");
+              const { sendTelegramResult } = await import("../services/telegram");
+              const state = stateFingerprint(atRiskJobs.map((r) => `${r.orderNumber || r.workOrderId}:${r.risk}`));
+              await sendOncePerState(`promise-risk:${state}`, () =>
+                sendTelegramResult(
+                  `⏰ PROMISE RISK: ${atRiskJobs.length} work orders at risk!\n\n` +
+                  atRiskJobs.slice(0, 3).map((r) => `WO#${r.orderNumber || r.workOrderId}: ${r.customerName || "?"} — ${r.risk}`).join("\n"), "digest"
+                ),
               );
             }
             return { recordsProcessed: atRiskJobs.length, details: `${atRiskJobs.length} at-risk WOs` };
@@ -1833,22 +1846,28 @@ function buildTiers(): void {
             const d = await getDb();
             if (!d) return { details: "No DB" };
             const [rows] = await d.execute(rawSql`
-              SELECT customerName, totalAmount, invoiceDate, DATEDIFF(NOW(), invoiceDate) as daysOld
+              SELECT id, customerName, totalAmount, invoiceDate, DATEDIFF(NOW(), invoiceDate) as daysOld
               FROM invoices WHERE paymentStatus = 'pending'
               AND invoiceDate < DATE_SUB(NOW(), INTERVAL 3 DAY)
               ORDER BY totalAmount DESC LIMIT 5
             `);
             const stale = rows as Record<string, unknown>[];
+            // Once per ET day per LIST of invoices (by id: two invoices can share a name and an amount;
+            // daysOld is left out of the fingerprint because it ticks daily).
             if (stale.length > 0) {
-              const { sendTelegram } = await import("../services/telegram");
+              const { sendOncePerState, stateFingerprint } = await import("../services/alertClaim");
+              const { sendTelegramResult } = await import("../services/telegram");
+              const staleState = stateFingerprint(stale.map((e) => String(e.id ?? `${e.customerName}:${e.totalAmount}`)));
               const totalPotential = stale.reduce((s: number, e) => s + Number(e.totalAmount || 0), 0);
-              await sendTelegram(
-                `💰 STALE ESTIMATES — ${stale.length} pending 3+ days ($${Math.round(totalPotential/100)})\n\n` +
-                stale.map((e) => `${e.customerName} — $${Math.round(Number(e.totalAmount)/100)} (${e.daysOld}d old)`).join("\n") +
-                `\n\nFollow up NOW — every day = lost conversion probability.`
+              await sendOncePerState(`stale-estimate:${staleState}`, () =>
+                sendTelegramResult(
+                  `💰 STALE ESTIMATES — ${stale.length} pending 3+ days ($${Math.round(totalPotential/100)})\n\n` +
+                  stale.map((e) => `${e.customerName} — $${Math.round(Number(e.totalAmount)/100)} (${e.daysOld}d old)`).join("\n") +
+                  `\n\nFollow up NOW — every day = lost conversion probability.`, "digest"
+                ),
               );
             }
-            return { recordsProcessed: stale.length, details: `${stale.length} stale estimates alerted` };
+            return { recordsProcessed: stale.length, details: `${stale.length} stale estimates found` };
           } catch (e) { log.warn("[cron/scheduler] operation failed:", e); throw e; /* audit F-9: a swallowed error was recorded as completed */ }
         },
       },

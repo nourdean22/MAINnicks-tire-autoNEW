@@ -44,6 +44,7 @@ export const PUBLIC_PREFIXES = [
   // endpoint, whitelist THAT path explicitly and state which auth it runs.
   "/api/actions/",    // GPT Custom Actions bridge (own Bearer auth). forensic-audit LOW · trailing slash so it no longer also exempts the unrelated /api/actions-brain route.
   "/api/mcp",         // MCP bridge (own Bearer auth)
+  "/api/agent-bridge/", // phone notes for coding sessions (own Bearer auth: assertBridgeAuth, lib/agent-bridge/phone-notes.ts)
   // forensic-audit HIGH · header-token-authenticated server-to-server
   // surfaces. Each route runs its OWN auth (requireSyncAuth / x-sync-key), but they carry no NextAuth cookie, so the session
   // middleware 401'd them before that auth could run — breaking the Windows

@@ -15,6 +15,8 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { isHardFailure, tallyCronWindow } from "@/lib/services/cron-control";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { buildPersonalGap } from "@/lib/services/embedding-coverage";
+import type { PersonalGap } from "@/lib/services/personal-gap";
 
 export type HealthRange = "24h" | "7d" | "30d";
 
@@ -70,6 +72,8 @@ export interface HealthReport {
     triggerContextLogs: number;
   };
   vectorIndex: Array<{ sourceType: string; count: number }>;
+  /** Own memories (non-telemetry) with no vector in the active search space. unknown = read failed, never 0. */
+  personalGap: PersonalGap;
   lens: {
     totalFires: number;
     fallbackRate: number;
@@ -243,7 +247,8 @@ export async function buildHealthReport(args: { range: HealthRange }): Promise<H
   const freshnessP = Promise.all([
     prisma.brainDump.findFirst({ where: { deletedAt: null }, orderBy: { createdAt: "desc" }, select: { createdAt: true } }),
     prisma.reflection.findFirst({ where: { deletedAt: null }, orderBy: { createdAt: "desc" }, select: { createdAt: true } }),
-    prisma.captureInboxItem.findFirst({ orderBy: { createdAt: "desc" }, select: { createdAt: true } }),
+    // Phone notes for the coding sessions (lib/agent-bridge/phone-notes.ts) are not captures.
+    prisma.captureInboxItem.findFirst({ where: { kind: { not: "agent_bridge_note" } }, orderBy: { createdAt: "desc" }, select: { createdAt: true } }),
     prisma.brainMemory.findUnique({
       where: { category_key: { category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT, key: "current" } },
       select: { updatedAt: true },
@@ -394,6 +399,7 @@ export async function buildHealthReport(args: { range: HealthRange }): Promise<H
     [lastBrainDump, lastReflection, lastCapture, lastIdentityRefresh],
     [lawLogs, triggerLogs],
     vectorCoverage,
+    personalGap,
     lens,
     voice,
     [latestEval, probeRows],
@@ -409,6 +415,7 @@ export async function buildHealthReport(args: { range: HealthRange }): Promise<H
     freshnessP,
     lawFeedbackP,
     vectorCoverageP,
+    buildPersonalGap(),
     lensP,
     voiceP,
     evalAndProbesP,
@@ -554,6 +561,7 @@ export async function buildHealthReport(args: { range: HealthRange }): Promise<H
       sourceType: v.sourceType,
       count: v._count._all,
     })),
+    personalGap,
     lens,
     voice,
     previous: {

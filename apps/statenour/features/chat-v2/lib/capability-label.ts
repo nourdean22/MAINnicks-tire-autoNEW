@@ -49,6 +49,15 @@ export interface CapabilityBadge {
   checking: boolean;
 }
 
+/**
+ * W3b: the words the header shows next to the dot: the badge label in sentence case, so the
+ * visible text is always inside the accessible name (label-in-name) and a down count is kept.
+ * "Ready" alone is hidden below md; every other state shows at every width.
+ */
+export function capabilityWord(label: string): string {
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
 export function capabilityBadge(input: CapabilityInputs): CapabilityBadge {
   const { connection, providerTone, providerErrored, toolSummary, toolsErrored } = input;
 

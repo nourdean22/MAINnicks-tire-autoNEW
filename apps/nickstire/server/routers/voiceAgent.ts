@@ -95,6 +95,11 @@ function spokenWeeklyHours(): string {
     .join(", ");
 }
 
+/** The address, phone and hours as Nick reads them aloud when a recap text is not confirmed. */
+export function spokenShopDirections(): string {
+  return `17625 Euclid Avenue, Cleveland, 4 4 1 1 2. Phone is 2 1 6 8 6 2 0 0 0 5. We're first-come, first-served ${spokenWeeklyHours()}.`;
+}
+
 const DAYS_FROM_SUNDAY = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"] as const;
 
 /**
@@ -650,7 +655,7 @@ export const voiceAgentRouter = router({
           // for the morning window, or timed out while the gateway may still
           // deliver it. This opening is true in all of them.
           verbalRecap: degraded
-            ? `Just in case the text doesn't come through, here it is out loud: 17625 Euclid Avenue, Cleveland, 4 4 1 1 2. Phone is 2 1 6 8 6 2 0 0 0 5. We're first-come, first-served ${spokenWeeklyHours()}.`
+            ? `Just in case the text doesn't come through, here it is out loud: ${spokenShopDirections()}`
             : undefined,
         };
       } catch (err) {

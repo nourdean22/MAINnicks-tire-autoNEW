@@ -197,7 +197,7 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     onValue: "true",
     defaultOn: true,
     defaultBehavior:
-      "LIVE: the novelty multiplier is applied. Kill-switch NICK_NOVELTY_RECALL=0 restores byte-for-byte pre-2026-08-16 ranking. NOTE: enabled on operator instruction WITHOUT a prior eval win — `pnpm eval:recall` has never been run against a real (non-synthetic) corpus, so this is an accepted-risk default, not a measured one.",
+      "LIVE: the novelty multiplier is applied. Kill-switch NICK_NOVELTY_RECALL=0 restores byte-for-byte pre-2026-08-16 ranking. NOTE: enabled on operator instruction WITHOUT a prior eval win. No NICK_NOVELTY_RECALL=0 vs 1 comparison is recorded anywhere (the 2026-09-08 plan, docs/research/2026-09-08-statenour-brain-intelligence-upgrade-plan.md Q3, lists that run as still to do). The 2026-08-27 real-corpus baseline (docs/RETRIEVAL-BASELINE-2026-08-27.md, 28 cases) measured the retrieval lanes, not this flag. So this is an accepted-risk default, not a measured one.",
     ownerDoc: "lib/brain/contextual-recall.ts",
   },
   {
@@ -218,7 +218,7 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
   {
     key: "NICK_RECALL_ARBITER",
     description:
-      "Brain plan Wave 2 (2026-09-08): one evidence pack across the two chat recall lanes (memory-recall hybrid + contextual pipeline) — union by id, content-identity dedupe, RRF k=60, one rerank, MMR redundancy penalty — rendered as a single block instead of two overlapping ones. Off until the frozen 28-case corpus shows no regression (plan section 6.4). Set NICK_RECALL_ARBITER=1 to enable.",
+      "Brain plan Wave 2 (2026-09-08): one evidence pack across the two chat recall lanes (memory-recall hybrid + contextual pipeline) — union by id, content-identity dedupe, RRF k=60, one rerank, MMR redundancy penalty — rendered as a single block instead of two overlapping ones. Off until the frozen 121-case corpus (manifest data/recall-corpus.manifest.json) or a 7-day prod judge-split (scripts/arbiter-judge-split.ts) shows no regression (plan section 6.4). Set NICK_RECALL_ARBITER=1 to enable.",
     status: "experimental",
     onValue: "true",
     defaultOn: false,

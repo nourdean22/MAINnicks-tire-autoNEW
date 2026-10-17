@@ -253,7 +253,7 @@ export async function runFeedbackCycle(): Promise<{ recordsProcessed?: number; d
       const { sendTelegram } = await import("./telegram");
       await sendTelegram(
         `🧠 NICK AI — Proactive (from memory)\n\n` +
-        memAlerts.join("\n\n")
+        memAlerts.join("\n\n"), "digest"
       );
       processed += memAlerts.length;
     }
@@ -272,13 +272,13 @@ export async function runFeedbackCycle(): Promise<{ recordsProcessed?: number; d
     if (pacing < 0.5 && pulse.today.revenue > 0 && expectedByNow > 100) {
       const { sendTelegram } = await import("./telegram");
       await sendTelegram(
-        `📉 Revenue pacing: $${pulse.today.revenue} today vs $${Math.round(expectedByNow)} expected by now (${Math.round(pacing * 100)}% of pace). Avg daily: $${revenue.avgDailyRevenue}.`
+        `📉 Revenue pacing: $${pulse.today.revenue} today vs $${Math.round(expectedByNow)} expected by now (${Math.round(pacing * 100)}% of pace). Avg daily: $${revenue.avgDailyRevenue}.`, "digest"
       );
       processed++;
     } else if (pacing > 1.5 && pulse.today.revenue > 200) {
       const { sendTelegram } = await import("./telegram");
       await sendTelegram(
-        `🔥 Revenue pacing: $${pulse.today.revenue} today — ${Math.round(pacing * 100)}% of expected! Ahead of daily average ($${revenue.avgDailyRevenue}).`
+        `🔥 Revenue pacing: $${pulse.today.revenue} today — ${Math.round(pacing * 100)}% of expected! Ahead of daily average ($${revenue.avgDailyRevenue}).`, "digest"
       );
       processed++;
     }

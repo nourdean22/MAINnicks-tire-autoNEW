@@ -159,7 +159,9 @@ export default function ApprovalsSection() {
       message: `${describeAction(actionType)} This runs immediately after approval.`,
       confirmLabel: "Approve & execute",
       cancelLabel: "Cancel",
-      tone: "danger",
+      // Approving is the job this page exists for, not a destructive act (admin UI v1 W3): the
+      // primary tone. Reject keeps the destructive styling.
+      tone: "default",
     });
     if (!ok) return;
     approve.mutate({ id });

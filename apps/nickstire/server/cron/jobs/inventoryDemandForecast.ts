@@ -156,7 +156,7 @@ export async function processInventoryDemandForecast(): Promise<ProcessResult> {
   lines.push("Signal only — unmatched ≠ stockout-caused loss. Before ordering: was the size actually out? what was quoted vs. competitors? did the customer say why they passed?");
 
   try {
-    await sendTelegram(lines.join("\n"));
+    await sendTelegram(lines.join("\n"), "digest");
   } catch (e) {
     log.warn("[inventory-demand-forecast] telegram failed", { error: e instanceof Error ? e.message : String(e) });
   }

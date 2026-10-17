@@ -14,7 +14,10 @@ const read = (p: string) => readFileSync(resolve(process.cwd(), `client/src/page
 
 describe("the primary tab grid fits its container", () => {
   it("TabsList override carries h-auto — base tabs.tsx fixes h-9, and a multi-row/odd-fit grid without it paints panel content over the lower tabs", () => {
-    expect(read("instagram/InstagramAdmin.tsx")).toMatch(/TabsList className="grid h-auto w-full grid-cols-/);
+    const src = read("instagram/InstagramAdmin.tsx");
+    expect(src).toMatch(/TabsList className="flex h-auto w-full[^"]*overflow-x-auto/);
+    // A hybrid "flex ... overflow-x-auto ... grid-cols-5" would still match above and still collide on a phone.
+    expect(src).not.toMatch(/TabsList className="[^"]*grid-cols-5/);
   });
 });
 

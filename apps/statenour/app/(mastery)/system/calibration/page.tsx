@@ -32,6 +32,7 @@ import {
   JudgeCalibrationPanel,
   TriageAdoptionStrip,
 } from "@/components/system/judge-calibration-panel";
+import { JudgeCalibrationMetrics, reactionCounts } from "@/components/system/judge-calibration-panel-metrics";
 
 type Mood = "energized" | "neutral" | "depleted" | "scattered";
 
@@ -389,7 +390,7 @@ export default function CalibrationPage() {
           </h2>
         </div>
         <p className="mt-1 text-xs text-fg-tertiary">
-          Measures agreement % between LLM judge verdicts (did V2 beat V1?) and your manual thumbs-up/down on chat replies.
+          Compares LLM judge verdicts (did V2 beat V1?) with your thumbs-up/down on chat replies. The verdict reads kappa, which discounts the agreement a judge would get by always picking the same side.
         </p>
 
         {isJudgeLoading ? (
@@ -426,6 +427,14 @@ export default function CalibrationPage() {
                 </div>
               </div>
             </div>
+
+            <JudgeCalibrationMetrics
+              kappa={judgeData.kappa}
+              falsePassRate={judgeData.falsePassRate}
+              falseFailRate={judgeData.falseFailRate}
+              {...reactionCounts(judgeData.matrix)}
+              preliminary={judgeData.verdict === "preliminary"}
+            />
 
             {judgeData.totalScored > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

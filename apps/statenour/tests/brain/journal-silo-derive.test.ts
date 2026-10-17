@@ -136,9 +136,9 @@ describe("the derived row is shaped like the composer path, not like a new thing
 });
 
 describe("text that reaches a prompt goes through the sanitizer", () => {
-  // reflection-engine.ts builds prompt lines straight from `r.insight` (:278,
-  // :492), and journal-ingest.ts sanitizes every other operator string it stores
-  // for later prompt use (:434, :512). Storing raw here was a role-flip surface.
+  // lib/ai/prompt/v2/renderer.ts renders `Reflection.insight` into the prompt, and
+  // journal-ingest.ts sanitizes every other operator string it stores for later
+  // prompt use. Storing raw here was a role-flip surface.
   //
   // ⚠ ASSERT THE REAL CONTRACT. sanitizeForPrompt NEUTRALIZES, it does not
   // delete — its own docs say the rewrite "prevents the heading from parsing

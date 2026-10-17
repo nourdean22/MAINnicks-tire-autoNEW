@@ -13,7 +13,7 @@ vi.mock("@/lib/ai/traced-aichat", () => ({
 }));
 vi.mock("@/lib/ai/nour-voice-profile", () => ({ buildNourVoicePrompt: () => "VOICE" }));
 const critique = vi.fn();
-vi.mock("@/lib/ai/output-critic", () => ({ critiqueContent: (t: string) => critique(t) }));
+vi.mock("@/lib/ai/chat/output-guardian", () => ({ critiqueContent: (t: string) => critique(t) }));
 vi.mock("@/lib/brain/persona-drift-detector", () => ({ getPersonaAnchorPrompt: async () => "" }));
 vi.mock("@/lib/ai/content-feedback", () => ({
   recallRecentContentFeedback: async () => [],

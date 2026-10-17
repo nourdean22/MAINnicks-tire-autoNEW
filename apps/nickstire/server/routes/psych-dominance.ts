@@ -13,6 +13,7 @@
 import type { Express, Request, Response } from "express";
 
 import { createLogger } from "../lib/logger";
+import { rethrowTraced, traceChat } from "../lib/langfuse-ingest";
 import { statenourAuth } from "../middleware/statenourAuth";
 
 const log = createLogger("routes:psych-dominance");
@@ -41,6 +42,7 @@ async function callPsychDominance(
 
   const userPrompt = `Thought/Situation: "${input}"\n\nContext (mood/goals): "${context}"`;
 
+  const t0 = Date.now();
   const response = await fetch(url, {
     method: "POST",
     headers: {
@@ -64,16 +66,18 @@ async function callPsychDominance(
       temperature: 0.7,
     }),
     signal: AbortSignal.timeout(30_000),
-  });
+  }).catch(rethrowTraced({ name: "strategist:psych-dominance", site: "routes/psych-dominance.ts", model: "gpt-4o-mini", messages: userPrompt, startedAt: t0 }));
 
   if (!response.ok) {
     const errorText = await response.text();
+    traceChat({ name: "strategist:psych-dominance", site: "routes/psych-dominance.ts", model: "gpt-4o-mini", messages: userPrompt, startedAt: t0, ok: false, error: `HTTP ${response.status}` });
     throw new Error(
       `OpenAI API error: ${response.status} ${response.statusText} – ${errorText}`
     );
   }
 
   const data = (await response.json()) as OpenAIResponse;
+  traceChat({ name: "strategist:psych-dominance", site: "routes/psych-dominance.ts", model: "gpt-4o-mini", messages: userPrompt, response: data, startedAt: t0, ok: true });
   return data.choices?.[0]?.message?.content?.trim() ?? "";
 }
 

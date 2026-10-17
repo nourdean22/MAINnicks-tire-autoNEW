@@ -49,7 +49,7 @@ function greeting(): string {
 }
 
 export function CustomersBrief({ onLapsedAction }: CustomersBriefProps) {
-  const { data: stats, isLoading, isError } = trpc.customers.stats.useQuery(undefined, {
+  const { data: stats, isLoading, isError, fetchStatus } = trpc.customers.stats.useQuery(undefined, {
     staleTime: 60_000,
   });
 
@@ -69,6 +69,15 @@ export function CustomersBrief({ onLapsedAction }: CustomersBriefProps) {
     return (
       <div className="bg-card border border-border/40 p-4">
         <div className="text-[12.5px] text-amber-300">{"Customer stats couldn't load, state unknown"}</div>
+      </div>
+    );
+  }
+
+  // A paused (offline PWA) read never ran: say so instead of vanishing.
+  if (!stats && fetchStatus === "paused") {
+    return (
+      <div className="bg-card border border-border/40 p-4">
+        <div className="text-[12.5px] text-amber-300">Customer stats not checked (offline)</div>
       </div>
     );
   }

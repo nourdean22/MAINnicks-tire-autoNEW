@@ -11,7 +11,6 @@ import { eq, desc, and, sql } from "drizzle-orm";
 import { chatSessions, leads, conversationMemory, customers } from "../../drizzle/schema";
 import type { InsertConversationMemory } from "../../drizzle/schema";
 import { sanitizeText } from "../sanitize";
-import { alertNewLead } from "../services/telegram";
 import { BUSINESS } from "@shared/business";
 
 import { db } from "../lib/db-helper";
@@ -49,7 +48,7 @@ function extractPhoneFromMessages(messages: Array<{ role: string; content: strin
 /**
  * Auto-create a lead from chat data. Fire-and-forget — never blocks the chat response.
  */
-async function createChatLead(
+export async function createChatLead(
   d: NonNullable<Awaited<ReturnType<typeof db>>>,
   sessionId: number,
   info: { vehicle?: string; problem?: string },
@@ -100,13 +99,7 @@ async function createChatLead(
     ).catch((e) => { log.warn("[routers/chat] fire-and-forget failed:", e); });
   }
 
-  // Telegram alert
-  alertNewLead({
-    name,
-    phone: phone || undefined,
-    service: scoring.recommendedService,
-    source: "ai-chat",
-  }).catch((e) => { log.warn("[routers/chat] fire-and-forget failed:", e); });
+  // The Telegram alert comes from the event bus emit above: one sender per lead.
 }
 
 /**

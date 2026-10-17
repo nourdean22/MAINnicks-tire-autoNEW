@@ -26,6 +26,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import { join } from "path";
+import { sliceBlock } from "./testUtils/sourceBlock";
 
 const APP_ROOT = process.cwd();
 const REPO_ROOT = join(APP_ROOT, "..", "..");
@@ -138,7 +139,7 @@ describe("CI honesty · the notify summary cannot claim success over a red gate"
     // survived in the loop body that reads it. A check satisfied by the
     // reference to a value it never confirms is wired is not a check.
     const notify = workflow.slice(workflow.indexOf("Notify Slack"));
-    for (const job of ["node", "security", "railway-smoke"]) {
+    for (const job of ["node", "railway-smoke"]) {
       expect(notify, `Slack status must bind needs.${job}.result`).toContain(
         `needs.${job}.result`,
       );
@@ -147,8 +148,20 @@ describe("CI honesty · the notify summary cannot claim success over a red gate"
     expect(notify, "status should be derived by loop, not a single if").toMatch(/for job in/);
   });
 
-  it("the step summary reports the security job", () => {
-    const summary = workflow.slice(workflow.indexOf("Generate Summary"));
-    expect(summary).toContain("needs.security.result");
+  it("the dependency gate is an early step of node, so needs.node.result carries it", () => {
+    // 2026-10-16 CI diet: the `security` job was folded into `node`. The summary and the Slack loop read
+    // needs.node.result, so the audit must stay a node step that runs even when an earlier step is red, ahead of
+    // the sweep (a hung validator behind it would starve it), with a step timeout, and the blocking one must not
+    // become continue-on-error. A binding to the deleted job would invalidate the file.
+    // sliceBlock, not indexOf: a missing anchor throws here instead of widening the slice to the end of the file.
+    const node = sliceBlock(workflow, "\n  node:\n", "\n  railway-smoke:\n", { label: "test.yml" });
+    const critical = sliceBlock(node, "- name: Dependency audit (critical severity", "\n\n", { label: "test.yml node" });
+    expect(critical, "the blocking audit step must be in the node job").toContain("node scripts/audit-advisories.mjs --audit-level=critical");
+    expect(critical).toContain("!cancelled()");
+    expect(critical).toContain("timeout-minutes:");
+    expect(critical).not.toContain("continue-on-error");
+    const beforeSweep = sliceBlock(node, "- name: Install workspace deps", "- name: Verify affected", { label: "test.yml node" });
+    expect(beforeSweep, "the audit must run before the turbo sweep").toContain("- name: Dependency audit (critical severity");
+    expect(workflow).not.toContain("needs.security");
   });
 });

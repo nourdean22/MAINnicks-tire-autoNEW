@@ -71,6 +71,14 @@ export const FLAG_DEFINITIONS = [
   { key: "daily_wins_digest", description: "End-of-day wins summary to Telegram" },
   { key: "master_intelligence_report", description: "Master intelligence report in morning brief" },
   { key: "safety_monitor_telegram", description: "Safety monitor Telegram alerts for non-critical items" },
+  // TELEGRAM CLASSES (2026-10-16). Every nickstire Telegram send has a class (services/telegram.ts).
+  // The three mutes are PAUSE flags with the same inverted polarity as sms_global_pause: an absent row or an
+  // unreadable flag table reads false = "not muted", so a database blip can never silence an incident.
+  // Receipts are the opposite on purpose: an ENABLE flag, OFF by default, so receipts are held until you ask.
+  { key: "telegram_incident_muted", description: "OFF-SWITCH (inverted). Set TRUE to MUTE Telegram incident alerts (outages, failures, a customer waiting). Default FALSE (alerts send). Unreadable = not muted." },
+  { key: "telegram_digest_muted", description: "OFF-SWITCH (inverted). Set TRUE to MUTE Telegram digests (morning brief, daily summary, weekly reports, once-per-state business alerts). Default FALSE (they send)." },
+  { key: "telegram_approval_muted", description: "OFF-SWITCH (inverted). Set TRUE to MUTE Telegram approval requests (drafts waiting for your yes). Default FALSE (they send). Muting one means the draft waits in the admin queue unseen." },
+  { key: "telegram_receipt", description: "Send Telegram receipts (job completed, payment, no-show, VIP, campaign sent). OFF by default: receipts are held and counted in the daily summary line. Turn ON to get each one." },
 
   // ─── NICKGPT (fine-tuned SMS drafter) ─────────────
   // Wave AE · routes SMS draft requests through Ollama-hosted fine-tuned

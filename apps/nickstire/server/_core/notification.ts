@@ -83,6 +83,7 @@ export async function notifyOwner(
     }
   }
 
-  // Fallback: just log (notifications still visible in Railway logs)
-  return true;
+  // Fallback: the line above is only a log. Not a delivery, so report false and let the
+  // caller use another rail (Telegram) instead of believing the owner was told.
+  return false;
 }

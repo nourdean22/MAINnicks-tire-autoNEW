@@ -24,6 +24,7 @@ import {
   answerCallbackQuery,
   editTelegramMessage,
   sendTelegram,
+  sendTelegramForId,
 } from "@/lib/services/telegram";
 import { confirmJournalLink, type JournalSilo } from "@/lib/brain/journal-brain";
 import { escapeHtml } from "@/lib/utils/escape-html";
@@ -179,23 +180,14 @@ export async function POST(req: NextRequest) {
 
   if (callback?.data) {
     if (callback.from?.id !== expectedOwnerId) return NextResponse.json({ ok: true });
-    await handleCallback(callback);
+    const claim = await claimUpdate(body.update_id);
+    if (!claim) return NextResponse.json({ ok: true });
+    await settleAfter(claim, () => handleCallback(callback));
     return NextResponse.json({ ok: true });
   }
 
   // ── Handle message (text, photos, voice, etc.) ──
-  const message = body.message as {
-    text?: string;
-    photo?: { file_id: string; width: number; height: number }[];
-    voice?: { file_id: string; duration: number };
-    caption?: string;
-    entities?: { type: string; url?: string; offset: number; length: number }[];
-    chat: { id: number };
-    from?: { id: number };
-    forward_origin?: unknown;
-    forward_from?: unknown;
-    forward_date?: number;
-  } | undefined;
+  const message = body.message as TelegramMessage | undefined;
 
   if (!message) return NextResponse.json({ ok: true });
 
@@ -213,16 +205,36 @@ export async function POST(req: NextRequest) {
   // the owner issued, even when its first token is "/qa".
   const forwarded = Boolean(message.forward_origin || message.forward_from || message.forward_date);
 
+  const claim = await claimUpdate(body.update_id);
+  if (!claim) return NextResponse.json({ ok: true });
+  await settleAfter(claim, () => dispatchMessage(message, chatId, forwarded));
+  return NextResponse.json({ ok: true });
+}
+
+type TelegramMessage = {
+  text?: string;
+  photo?: { file_id: string; width: number; height: number }[];
+  voice?: { file_id: string; duration: number };
+  caption?: string;
+  entities?: { type: string; url?: string; offset: number; length: number }[];
+  chat: { id: number };
+  from?: { id: number };
+  forward_origin?: unknown;
+  forward_from?: unknown;
+  forward_date?: number;
+};
+
+async function dispatchMessage(message: TelegramMessage, chatId: string, forwarded: boolean): Promise<void> {
   // Photo input — analyze image
   if (message.photo && message.photo.length > 0) {
     await handlePhoto(message.photo, message.caption, chatId);
-    return NextResponse.json({ ok: true });
+    return;
   }
 
   // Voice note input — transcribe and act
   if (message.voice) {
     await handleVoice(message.voice, chatId, forwarded);
-    return NextResponse.json({ ok: true });
+    return;
   }
 
   // Text with URLs — analyze links
@@ -232,7 +244,7 @@ export async function POST(req: NextRequest) {
       .map((e) => message.text!.substring(e.offset, e.offset + e.length));
     if (urls.length > 0) {
       await handleUrl(urls[0], message.text, chatId);
-      return NextResponse.json({ ok: true });
+      return;
     }
   }
 
@@ -240,8 +252,59 @@ export async function POST(req: NextRequest) {
   if (message.text) {
     await handleCommand(message.text, chatId, forwarded);
   }
+}
 
-  return NextResponse.json({ ok: true });
+// -- Update claim (Telegram job lane 2, 2026-10-17) ----------
+//
+// Telegram redelivers an update when the webhook answers non-200 or too slowly,
+// and /task and /dump acted on every copy. Each update_id is claimed in
+// action_attempts (beginAttempt: create, compare-and-swap reclaim) before
+// anything acts; a copy that finds the claim answers 200 and does nothing. The
+// command handlers catch their own errors and reply "failed", so a failed command
+// settles as handled and its redelivery is NOT retried: Nour resends it
+// (tests/telegram/update-id-idempotent.test.ts pins this). Only an error that
+// escapes a handler settles FAILED. A claim store that cannot be reached fails OPEN (acts):
+// losing Nour's command is worse than acting on it twice. Telegram keeps an
+// undelivered update for 24 h, so the hold is 48 h.
+const UPDATE_CLAIM_WINDOW_MS = 48 * 3_600_000;
+type UpdateClaim = { settle: (ok: boolean) => Promise<void> };
+
+async function claimUpdate(updateId: unknown): Promise<UpdateClaim | null> {
+  const unclaimed: UpdateClaim = { settle: async () => {} };
+  if (typeof updateId !== "number" || !Number.isSafeInteger(updateId)) return unclaimed;
+  try {
+    const { beginAttempt, settleAttempt } = await import("@/lib/services/action-attempts");
+    const claim = await beginAttempt({
+      operationKey: `telegram_update:${updateId}`,
+      tool: "telegram_update",
+      argumentsHash: String(updateId),
+      effectClass: "write",
+      windowMs: UPDATE_CLAIM_WINDOW_MS,
+    });
+    if (claim.kind === "duplicate") {
+      log.info("telegram_update_redelivered", { updateId, state: claim.state });
+      return null;
+    }
+    return {
+      settle: (ok) =>
+        settleAttempt(claim.attemptId, { disposition: ok ? "success" : "known_failure", reason: ok ? "handled" : "handler threw" })
+          .then(() => undefined)
+          .catch((err: unknown) => log.warn("telegram_update_settle_failed", { updateId, error: String(err).slice(0, 120) })),
+    };
+  } catch (err) {
+    log.warn("telegram_update_claim_unavailable", { updateId, error: err instanceof Error ? err.message.slice(0, 120) : String(err) });
+    return unclaimed;
+  }
+}
+
+async function settleAfter(claim: UpdateClaim, run: () => Promise<void>): Promise<void> {
+  try {
+    await run();
+  } catch (err) {
+    await claim.settle(false);
+    throw err;
+  }
+  await claim.settle(true);
 }
 
 // -- Receipt claim (SN-04, 2026-10-10) ----------------------
@@ -395,6 +458,35 @@ async function handleCallback(callback: {
           await answerCallbackQuery(callback.id, "Could not record - try again.");
         }
       }
+      await (prisma as any).actionReceipt
+        .update({ where: { id: receipt.id }, data: { status: "SUCCESS" } })
+        .catch(() => {});
+      return;
+    }
+
+    // Daily Tutor one-tap answer (brain W2, 2026-10-16). callback_data: tut:<ledgerId>:<choice>
+    // The grader owns the claim (ledger decision swap) and the three replies; this only relays.
+    // Scout 9: "I have it" / "Show options" return a read-only next step, sent to the tapping chat.
+    if (action === "tut") {
+      const choice = (callback.data ?? "").split(":")[2] ?? "";
+      // K and H record nothing, so a failure on them is a failed send, not a failed record.
+      // The callback is answered after the send on purpose: Telegram takes one answer per callback, and a failed send must be said in it.
+      let reply = choice === "K" || choice === "H" ? "Could not send - try again." : "Could not record - try again.";
+      try {
+        const { handleTutorAnswer } = await import("@/lib/brain/tutor-pack");
+        const res = await handleTutorAnswer(param ?? "", choice);
+        reply = res.reply;
+        if (res.next) {
+          const { sendTelegramWithButtons } = await import("@/lib/services/telegram");
+          const sent = await sendTelegramWithButtons(res.next.text, res.next.buttons, chatId || undefined);
+          if (!sent.ok) reply = "Could not send - try again.";
+        }
+      } catch (err) {
+        void import("@/lib/utils/error-log").then(({ logError }) =>
+          logError("api.telegram.webhook", err, { fn: "tutorAnswer", ledgerId: param }, "warn"),
+        );
+      }
+      await answerCallbackQuery(callback.id, reply);
       await (prisma as any).actionReceipt
         .update({ where: { id: receipt.id }, data: { status: "SUCCESS" } })
         .catch(() => {});
@@ -828,6 +920,9 @@ async function handleCommand(text: string, chatId: string, forwarded = false): P
       // 2026-09-16 · the phone-side ledger writer.
       case "/log":
         return await cmdLog(args.join(" "), chatId);
+      // 2026-10-17 · the session bridge: a note for the coding sessions.
+      case "/note":
+        return await cmdNote(trimmed.slice(cmd.length).trim(), chatId);
       case "/ask":
       case "/nick":
         return await cmdAsk(args.join(" "), chatId);
@@ -900,6 +995,7 @@ async function handleCommand(text: string, chatId: string, forwarded = false): P
             `/mit [text] — Set today's MIT\n` +
             `/commit [text] — Create commitment\n` +
             `/log [name] [+n|-n] [note] — Log a relationship deposit/withdrawal\n` +
+            `/note [text] — Leave a note a coding session reads when it next starts\n` +
             `/ask [question] — Ask Nick anything\n\n` +
             `\n<b>COUNCIL (AG-13)</b>\n` +
             `/board [strategic|invest|product|operator|full|team] [q] — Convene an advisor board\n` +
@@ -926,11 +1022,11 @@ async function handleCommand(text: string, chatId: string, forwarded = false): P
         // the bot "call Mike about the alignment" did NOTHING, while the
         // tested pure intent router (lib/ultron/omni-capture-router, same
         // one the web omni-capture UI uses) sat unused on this surface.
-        // Route it and reply with a one-line receipt naming the intent.
+        // Route it. 2026-10-17 · no separate "routed as" receipt any more: it was
+        // an extra message per text, and the command's own reply says what happened.
         const { routeCapture } = await import("@/lib/ultron/omni-capture-router");
         const intent = routeCapture(trimmed);
         if (!intent.text.trim()) return;
-        await sendTelegram(`→ routed as <b>${intent.kind}</b>`, chatId);
         switch (intent.kind) {
           case "task":
             return await cmdTask(intent.text, chatId);
@@ -1025,6 +1121,43 @@ async function cmdTask(args: string, chatId: string): Promise<void> {
   } catch (err) {
     await sendTelegram(`⚠️ Task failed: ${await safeErrorText(err)}`, chatId);
   }
+}
+
+/**
+ * /note — the session bridge (Telegram job lane 2, 2026-10-17). Stores the text
+ * for the coding sessions (lib/agent-bridge/phone-notes.ts); a session reads it
+ * when it starts. /task stays Nour's own task inbox and does not bridge: a task
+ * is his to-do, a note is a request to an agent.
+ */
+async function cmdNote(text: string, chatId: string): Promise<void> {
+  if (!text) {
+    await sendTelegram(`Usage: /note [text]\n\nLeaves a note for the coding sessions.`, chatId);
+    return;
+  }
+  const { prisma } = await import("@/lib/prisma");
+  const { randomUUID } = await import("node:crypto");
+  const { PHONE_NOTE_KIND, PHONE_NOTE_UNREAD, PHONE_NOTE_MAX_CHARS } = await import("@/lib/agent-bridge/phone-notes");
+  const body = text.slice(0, PHONE_NOTE_MAX_CHARS);
+  try {
+    await prisma.captureInboxItem.create({
+      data: {
+        itemKey: `${PHONE_NOTE_KIND}:${randomUUID()}`,
+        source: "telegram",
+        kind: PHONE_NOTE_KIND,
+        title: body.slice(0, 120),
+        summary: body,
+        status: PHONE_NOTE_UNREAD,
+        capturedAt: new Date(),
+      },
+    });
+  } catch (err) {
+    await sendTelegram(`⚠️ Note not saved: ${await safeErrorText(err)}`, chatId);
+    return;
+  }
+  await sendTelegram(
+    `📝 <b>Note saved for the coding sessions.</b>\nA coding session reads it the next time one starts. Nothing answers when no session runs.`,
+    chatId,
+  );
 }
 
 async function cmdMit(args: string, chatId: string): Promise<void> {
@@ -1521,35 +1654,46 @@ async function cmdAsk(args: string, chatId: string): Promise<void> {
 
 // ── Individual commands ───────────────────────────────────
 
+const LEADS_URGENT_LIMIT = 20;
+
 async function cmdStatus(chatId: string): Promise<void> {
   const { prisma } = await import("@/lib/prisma");
   const { today } = await import("@/lib/utils/datetime");
 
   // Apr 17 sweep: OpenLoop + DailyScore retired. Status now reports
   // the live Task queue + reflections.
+  // 2026-10-17 · a failed read prints "unknown", never 0 (each count used to
+  // `.catch(() => 0)`), and leads come from nickstire's leads_urgent query
+  // (they were hard-coded 0).
+  const UNKNOWN = "unknown" as const;
+  const orUnknown = <T,>(p: Promise<T>): Promise<T | typeof UNKNOWN> => p.catch(() => UNKNOWN);
   const [inbox, ready, doing, alerts, leads, commitments, reflectedToday] =
     await Promise.all([
       // deletedAt:null — /status is read on the operator's phone. Pre-fix it
       // reported an inbox of 52 when every INBOX row was soft-deleted (0).
-      prisma.task.count({ where: { status: "INBOX", deletedAt: null } }).catch(() => 0),
-      prisma.task.count({ where: { status: "READY", deletedAt: null } }).catch(() => 0),
-      prisma.task.count({ where: { status: "DOING", deletedAt: null } }).catch(() => 0),
-      (async () => {
+      orUnknown(prisma.task.count({ where: { status: "INBOX", deletedAt: null } })),
+      orUnknown(prisma.task.count({ where: { status: "READY", deletedAt: null } })),
+      orUnknown(prisma.task.count({ where: { status: "DOING", deletedAt: null } })),
+      orUnknown((async () => {
         const { getUnresolvedAlerts } = await import("@/lib/mastery/drift-engine");
-        return (await getUnresolvedAlerts().catch(() => [])).length;
-      })(),
-      Promise.resolve(0).catch(() => 0),
-      prisma.commitment
-        .count({ where: { status: { in: ["active", "in_progress"] }, deletedAt: null } })
-        .catch(() => 0),
-      prisma.reflection.count({ where: { date: today(), deletedAt: null } }).catch(() => 0),
+        return (await getUnresolvedAlerts()).length;
+      })()),
+      orUnknown((async () => {
+        const { queryNick, readBridge } = await import("@/lib/nickstire/query");
+        const read = readBridge<{ count?: unknown }>(await queryNick("leads_urgent", {}, 5_000));
+        if (read.status !== "ok" || typeof read.data?.count !== "number") return UNKNOWN;
+        // nickstire's leads_urgent is LIMIT 20 (server/routes/nour-os-query.ts), so 20 means "at least 20".
+        return read.data.count >= LEADS_URGENT_LIMIT ? `${LEADS_URGENT_LIMIT}+` : read.data.count;
+      })()),
+      orUnknown(prisma.commitment.count({ where: { status: { in: ["active", "in_progress"] }, deletedAt: null } })),
+      orUnknown(prisma.reflection.count({ where: { date: today(), deletedAt: null } })),
     ]);
 
   await sendTelegram(
     `📊 <b>NOUR OS Status</b> — ${now()}\n\n` +
       `📥 Inbox: ${inbox} · ▶︎ Ready: ${ready} · 🔥 Doing: ${doing}\n` +
       `⚠️ Drift alerts: ${alerts}\n` +
-      `📱 New leads: ${leads}\n` +
+      `📱 Urgent leads: ${leads}\n` +
       `✅ Commitments: ${commitments}\n` +
       `📝 Reflections today: ${reflectedToday}`,
     chatId
@@ -1940,15 +2084,31 @@ async function cmdAlerts(chatId: string): Promise<void> {
     "brain_bus_alert",
   ];
 
-  const alerts = await prisma.brainMemory.findMany({
-    where: {
-      category: { in: ALERT_CATS },
-      deletedAt: null,
-    },
-    orderBy: { createdAt: "desc" },
-    take: 5,
-    select: { category: true, content: true, createdAt: true },
-  });
+  // 2026-10-17 · the reply promised "the last 30 days" while the query had no
+  // date filter, and the /brain mute (alert_mute rows) was ignored here. Both are
+  // applied now, and a failed read is reported as unknown, never as all-clear.
+  let alerts: { category: string; content: string; createdAt: Date }[];
+  try {
+    const muteRows = await prisma.brainMemory.findMany({
+      where: { category: "alert_mute", deletedAt: null, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] },
+      select: { key: true },
+    });
+    const muted = new Set(muteRows.map((m) => m.key));
+    alerts = await prisma.brainMemory.findMany({
+      where: {
+        category: { in: ALERT_CATS.filter((c) => !muted.has(c)) },
+        createdAt: { gte: new Date(Date.now() - 30 * 86_400_000) },
+        deletedAt: null,
+      },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+      select: { category: true, content: true, createdAt: true },
+    });
+  } catch (err) {
+    log.warn("alerts_read_failed", { error: err instanceof Error ? err.message.slice(0, 120) : String(err) });
+    await sendTelegram("⚠️ Alerts unknown: the read failed. Not an all-clear.", chatId);
+    return;
+  }
 
   if (alerts.length === 0) {
     await sendTelegram("✅ No active alerts in the last 30 days.", chatId);
@@ -2178,6 +2338,28 @@ async function handlePhoto(
   }
 }
 
+/**
+ * One message per interaction (Telegram job lane 2, 2026-10-17): the first call
+ * sends, every later call edits that message in place. A failed edit sends
+ * nothing more (logged), so a placeholder can go stale but never doubles up.
+ */
+function progressMessage(chatId: string): (text: string) => Promise<void> {
+  let sent: { ok: boolean; messageId?: number } = { ok: false };
+  return async (text) => {
+    if (!sent.ok) {
+      sent = await sendTelegramForId(text, chatId);
+      return;
+    }
+    if (sent.messageId === undefined) {
+      log.warn("progress_edit_skipped", { reason: "no message id" });
+      return;
+    }
+    if (!(await editTelegramMessage(sent.messageId, text, chatId))) {
+      log.warn("progress_edit_failed", { messageId: sent.messageId });
+    }
+  };
+}
+
 async function handleVoice(
   voice: { file_id: string; duration: number },
   chatId: string,
@@ -2186,8 +2368,10 @@ async function handleVoice(
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
   if (!botToken) return;
 
+  // 2026-10-17 · one message per voice note: the placeholder is edited in place.
+  const reply = progressMessage(chatId);
   try {
-    await sendTelegram(`🎙️ Transcribing ${voice.duration}s voice note...`, chatId);
+    await reply(`🎙️ Transcribing ${voice.duration}s voice note...`);
 
     // Get file from Telegram
     const fileRes = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${voice.file_id}`);
@@ -2195,7 +2379,7 @@ async function handleVoice(
     const filePath = fileData.result?.file_path;
 
     if (!filePath) {
-      await sendTelegram("Couldn't process the voice note.", chatId);
+      await reply("Couldn't process the voice note.");
       return;
     }
 
@@ -2225,12 +2409,13 @@ async function handleVoice(
     }
 
     if (!transcript) {
-      await sendTelegram("Transcription failed. Try again or type your message.", chatId);
+      await reply("Transcription failed. Try again or type your message.");
       return;
     }
 
     // Process the transcription as a command or message
-    await sendTelegram(`📝 <b>Transcribed:</b> "${escapeHtml(transcript)}"`, chatId);
+    const heard = `📝 <b>Transcribed:</b> "${escapeHtml(transcript)}"`;
+    await reply(heard);
 
     // If it starts with a slash command, route it (never a forwarded note's)
     if (!forwarded && transcript.trim().startsWith("/")) {
@@ -2246,13 +2431,12 @@ async function handleVoice(
         commitmentsFound?: number;
         entryType?: string;
       };
-      await sendTelegram(
-        `🧠 <b>Ingested</b> · Type: <b>${escapeHtml(result.entryType || "raw")}</b> · Tasks: ${result.tasksCreated ?? 0} · Insights: ${result.insightsStored ?? 0} · Commitments: ${result.commitmentsFound ?? 0}`,
-        chatId
+      await reply(
+        `${heard}\n\n🧠 <b>Ingested</b> · Type: <b>${escapeHtml(result.entryType || "raw")}</b> · Tasks: ${result.tasksCreated ?? 0} · Insights: ${result.insightsStored ?? 0} · Commitments: ${result.commitmentsFound ?? 0}`,
       );
     }
   } catch (err) {
-    await sendTelegram(`Voice processing failed: ${await safeErrorText(err)}`, chatId);
+    await reply(`Voice processing failed: ${await safeErrorText(err)}`);
   }
 }
 
@@ -2261,6 +2445,8 @@ async function handleUrl(
   fullText: string,
   chatId: string
 ): Promise<void> {
+  // 2026-10-17 · one message per link: the placeholder is edited in place.
+  const reply = progressMessage(chatId);
   try {
     // SSRF defense — this path is owner-gated (only the operator's Telegram
     // reaches it), but a pasted link can still point at a private or metadata
@@ -2274,7 +2460,7 @@ async function handleUrl(
     // of re-derived.
     const { fetchPublicUrl } = await import("@/lib/utils/url-safety");
 
-    await sendTelegram(`🔗 Analyzing: ${escapeHtml(url.slice(0, 60))}...`, chatId);
+    await reply(`🔗 Analyzing: ${escapeHtml(url.slice(0, 60))}...`);
 
     const fetched = await fetchPublicUrl(url, {
       headers: { "User-Agent": "NOUR-OS/1.0" },
@@ -2286,18 +2472,16 @@ async function handleUrl(
       // or a hop-cap would tell the operator his link was dangerous when the
       // site was merely misbehaving — a small lie, but this app's whole
       // premise is not telling him things that are not so.
-      await sendTelegram(
+      await reply(
         fetched.code === "url_blocked"
           ? `Refused to fetch that URL: ${escapeHtml(fetched.reason)}`
-          : `Couldn't follow that URL: ${escapeHtml(fetched.reason)}`,
-        chatId,
-      );
+          : `Couldn't follow that URL: ${escapeHtml(fetched.reason)}`);
       return;
     }
 
     const res = fetched.response;
     if (!res.ok) {
-      await sendTelegram(`Couldn't fetch URL (${res.status}). It may be behind auth.`, chatId);
+      await reply(`Couldn't fetch URL (${res.status}). It may be behind auth.`);
       return;
     }
 
@@ -2334,11 +2518,11 @@ If it's news/article, extract the key insight.`,
     );
 
     if (isAiSentinel(result)) {
-      await sendTelegram("AI providers unavailable - nothing analyzed or saved.", chatId);
+      await reply("AI providers unavailable - nothing analyzed or saved.");
       return;
     }
 
-    await sendTelegram(`🔗 <b>Link Analysis</b>\n\n${escapeHtml(result.content.slice(0, 3500))}`, chatId);
+    await reply(`🔗 <b>Link Analysis</b>\n\n${escapeHtml(result.content.slice(0, 3500))}`);
 
     // Store as brain memory
     const { brainMemory } = await import("@/lib/brain/memory-manager");
@@ -2349,7 +2533,7 @@ If it's news/article, extract the key insight.`,
       "telegram-url"
     );
   } catch (err) {
-    await sendTelegram(`URL analysis failed: ${await safeErrorText(err)}`, chatId);
+    await reply(`URL analysis failed: ${await safeErrorText(err)}`);
   }
 }
 

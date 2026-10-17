@@ -1,5 +1,125 @@
 # Reconciliation · statenour-os
 
+> ## 2026-10-17 · Daily Tutor asks for free recall first (branch `statenour/scout9-free-recall`) · 1 statenour PR
+>
+> Not live until merged and deployed; the first live proof is a `tutor:R:unaided`, `tutor:X:unaided` or `tutor:<letter>:hint` ledger row. Unit tests only, no Telegram round trip.
+>
+> - **Two steps (`lib/brain/tutor-pack.ts`).** The recall message asks Nour to recall the principle, with "I have it", "Show options" and "Skip". "I have it" reveals the principle with "Got it" / "Missed it"; "Show options" shows the three choices. Those two taps only read.
+> - **Grades.** Every grading tap keeps the ledger-claim compare-and-swap, so a double tap writes once. `resultRef` carries the mode (`:unaided` or `:hint`), with no schema change. A correct answer after the hint is logged useful but rescheduled for tomorrow, so the schedule follows real recall.
+> - **Webhook (`app/api/telegram/webhook/route.ts`, `tut` branch).** It sends the next step to the tapping chat. The owner gate runs before every callback, unchanged.
+>
+> **Flagged · NOT fixed**
+> - A "I have it" tap on a row whose claim landed but whose outcome write failed answers "Already recorded."; the next grading tap still finishes the grade.
+> - One more tap than W2 for each recall item: watch the W2 kill criterion (answered under 30%).
+
+> ## 2026-10-17 · Judge calibration reads kappa (branch `statenour/scout7-judge-kappa`) · 1 statenour PR, read-side report
+>
+> Not live until merged and deployed. Unit and render tests only; no production read.
+>
+> - **Report (`lib/services/judge-calibration.ts`).** Adds Cohen's kappa (the existing `cohensKappa`), the false-pass rate (judge picked V2, Nour gave a thumbs-down) and the false-fail rate. Each is null when it cannot be computed, never 0.
+> - **Verdict.** It reads kappa: 0.6 or more well-calibrated, 0.4 to under 0.6 moderate, under 0.4 miscalibrated. Under 30 scored, or reactions that are all one class, it stays preliminary. A judge that always picks V2 used to score "well-calibrated" on raw agreement when most reactions were thumbs-up; it now reads kappa near 0.
+> - **Page (`app/(mastery)/system/calibration`).** The LLM Judge Calibration card shows kappa and the two rates; a null reads "unknown".
+>
+> **Flagged · NOT fixed**
+> - **Needs Nour:** `docs/CALIBRATION_TODO.md` carried a claim he confirmed on 2026-06-11 ("n >= 30, agreement >= 70%"). Its text now states the kappa rule, so its `confirmed-by` is PENDING until he re-confirms it; `document-sha256` was not recomputed (nothing reads it).
+> - ADR 0019's cutover gate now reads the kappa bands; a doc comment in `lib/trpc/routers/system/prompts.ts` still says "agreement".
+> ## 2026-10-17 · Arbiter judge-split gets error bars and a verdict (branch `statenour/scout1-judge-split-ci`) · 1 statenour PR, read-only script
+>
+> The script only reads production; nothing a user sees changes. One read-only production run on 2026-10-17 checked it end to end.
+>
+> - **Intervals.** Each arm prints a cluster-robust 95% CI over conversations (the inspect_ai `_clustered_stderr` estimator), and the difference true minus false prints its own CI and a verdict: better, worse, cannot tell, or "cannot tell (n too small)" under 5 conversations or 20 turns. Under 2 clusters the CI is n/a, never 0.
+> - **Control arm.** No turn ever carried `arbiterAssigned=false`: the receipt field shipped after the last pre-flip turn. A turn with no field, created before the audited flip at 2026-10-17T04:49:22Z, now counts as control (the flag had no override then). Production: 95 judged turns in 19 conversations, mean 8.12, CI [7.86, 8.38]; 0 turns since the flip.
+> - **Window.** `--since YYYY-MM-DD` pins the start. The 2026-10-23 read is `railway run -s statenour-web -- pnpm exec tsx scripts/arbiter-judge-split.ts --since 2026-10-02`; a rolling `--days` window would drain the control arm.
+> - **Rule (printed).** worse: switch the flag off; better or cannot tell: keep it on and re-read in a week. A before/after split, not randomized: a difference can be time, not the arbiter.
+>
+> **Flagged · NOT fixed**
+> - The difference CI treats the arms as independent; a conversation that spans the flip makes it slightly too narrow (the code comment says so).
+
+> ## 2026-10-17 · Brain W5 · a vector-gap gauge and a decay dry run (branch `statenour/brain-w5-reliability`) · 1 statenour PR
+>
+> Not live until merged and deployed. The two counts below are from read-only production probes on 2026-10-17; everything else is from unit tests and code reading.
+>
+> - **Gauge (`lib/services/personal-gap.ts`, `buildPersonalGap` in `lib/services/embedding-coverage.ts`).** Live `brain_memories` outside the telemetry list with confidence >= 0.2 and no `brain_memory` vector in the active space, shown on /system/health as "searchable memories without a vector". Above 1% it warns; a failed read, or no eligible rows, renders unknown, never 0. Production: 18 missing of 17,721 eligible. The 2026-09-08 "19% unembedded" figure counted telemetry rows that are never embedded.
+> - **Decay dry run (`lib/brain/memory-decay.ts`, `app/api/cron/data-cleanup/route.ts`).** `buildDecayWhere` is now the one WHERE for both `runMemoryDecay` and `countMemoryDecayCandidates` (SELECT count only). The nightly cleanup writes `decayWouldAffect` and the top 5 categories to its audit row; a failed count writes null plus `decayDryRunError` and does not change the cron's status. Decay is never applied. Production: 26,718 rows would be touched.
+> - **Headers corrected.** `external-memory-intake.ts` (all four external doors call the intake), the `NICK_NOVELTY_RECALL` description, and `runMemoryDecay`'s "runs nightly" claim.
+>
+> **Decision owed (Nour).** After a week of nightly counts, read the audit rows' `decayByCategoryTop5`: applying decay is a production write and needs Nour's go.
+>
+> **Flagged · NOT fixed**
+> - The eligible set is "not telemetry", so bulk imports (`archive_document`, mail, drive) count as searchable memories; the label says searchable, not own.
+> - `semantic_edge` and `archive_document` are not exempt from decay; the category breakdown will show whether they dominate the 26,718.
+
+> ## 2026-10-17 · Brain W4 · dead code out, headers honest (branch `statenour/brain-w4-wisdom`) · 1 statenour PR, nothing user-visible
+>
+> Not live until merged; nothing a user sees changes. Every claim below is from unit tests, an import scan and code reading.
+>
+> - **Deleted.** `lib/brain/reflection-engine.ts` (no production caller; production's 83 reflections in 90 days are all `scope=triggered`, written by `lib/services/reflection.ts`) and the three `export *` shims `lib/ai/output-critic.ts`, `hallucination-guard.ts`, `fact-check.ts`; 11 importers now import `lib/ai/chat/output-guardian` directly.
+> - **Pinned.** `tests/repo/deleted-brain-w4-modules.test.ts` scans every import form (alias, `lib/`-relative, dynamic, `vi.mock`), resolves from `__dirname`, asserts it read more than 100 files, and its positive control fails on each planted shape.
+> - **Headers corrected.** Teaching moments surface on the /brain Discover feed, not in the prompt; `vnext/effort-policy.ts` is partly live (`canaryDeepForce`, `claude5EffortForAttempt`) and partly caller-less (`routeCapability`); improve-agent runs on view from the /brain insights panel (no cron, and no `brain-feedback-loop` exists); stale engine references in journal-feed, reflection, reply-gate, self-consistency and quality-bench-core.
+>
+> **Flagged · NOT fixed**
+> - A weekly improve-agent writer was built and reverted: nothing reads persisted `improvement_hypothesis` rows, and the panel already computes the same hypotheses on every view.
+> - `knip.json:32` still lists the deleted `lib/brain/reflection-engine.ts` (root config; knip is advisory).
+> - `lib/services/chat/persist-assistant-turn.ts` still imports `sanitizeResponse` from the `output-sanitizer` shim; `cliche-detector.ts` and `output-sanitizer.ts` remain one-line shims.
+
+> ## 2026-10-16 · Brain W2 · the Daily Tutor, one tap a day (branch `statenour/brain-w2-tutor`) · 1 statenour PR
+>
+> Not live until merged and `/api/version` serves the squash SHA; the first send is the next morning slot after deploy. Every claim below is from unit tests and code reading.
+>
+> - **Daily Tutor (`lib/brain/tutor-pack.ts`, slot `tutor` in `lib/brain/proactive-pushes.ts`).** One Telegram message per ET day after the morning push: an overdue decision review (Worked / Mixed / Didn't / Not yet / Skip) or, if none, a three-option recall question from Nour's own `wisdom` rows (A / B / C / Skip). A right answer schedules the next ask at 1, 3, 7, then 30 days; a wrong one asks again tomorrow. One claim per ET day; no ledger row means nothing is sent; the live result carries ids only, never the message text.
+> - **Taps (`app/api/telegram/webhook/route.ts`, one `tut:` branch behind the owner gate).** Every grade write is a compare-and-swap: the ledger decision claim, the outcome on `outcomeAt: null`, the replay on its previous review date, the spaced row on its previous content. A redelivered tap writes nothing; a tap whose grade failed after the claim resumes on the next tap. A card Nour cleared in the Learn tab stays cleared.
+> - **Spaced reviews survive (`lib/brain/hard-delete-guard.ts`).** `spaced_review` joins the never-hard-delete list. `remember()` gives every new row a 24 h expiry and the nightly cleanup deleted it, which is why production held 0 spaced-review rows ever, Learn tab included.
+> - **Ledger truth (`lib/services/outcome-ledger.ts`).** `CORRECTION_WHERE` excludes `tutor:*` rows, so a Skip or a wrong answer never counts as a correction.
+> - **Census (`data/memory-admission-baseline.json`).** `lib/brain/tutor-pack.ts` is declared: its direct writes are schedule-field compare-and-swaps on a row created through `remember()`.
+>
+> **Kill criterion (Nour's go).** After 14 days, ledger rows with `source_engine LIKE 'tutor:%'`: answered = decided minus `result_ref = 'dismiss:timing'`. Under 30% answered, or under 50% useful among answered recall items, and the send is removed.
+>
+> **Flagged · NOT fixed**
+> - The send hour follows the morning slot's router (ET hours 6 to 11, first tick with content), so it may arrive at 06:00 ET, not 08:00.
+> - Wisdom rows are not filtered by provenance; the question says "you distilled" for every wisdom row.
+> - A resumed decision tap can write a second `decision_replay_outcome` memory (markReplayed upserts the replay itself).
+
+> ## 2026-10-16 · Brain W1 · the retrieval arbiter, finished behind its OFF flag (branch `statenour/brain-w1-arbiter`) · 1 statenour PR, nothing user-visible
+>
+> Not live until merged, and even then inert: `NICK_RECALL_ARBITER` stays default OFF and has no prod override (read-only prod probe, 2026-10-16 19:52Z). With the flag off the prompt is byte-identical to before; the only persisted change is `arbiter: false` on each turn's context receipt. Every claim below is from unit tests and code reading.
+>
+> - **Evidence pack (`lib/brain/evidence-pack.ts`).** A validity filter over both lanes' candidates (as-of aware, the lanes' own `isVisibleAsOf` rule), reporting `droppedValidity: null` (UNMEASURED) when no candidate carries a validity column instead of a clean 0; ONE bounded rerank (1.5 s, window min(limit x 2, 24), only above the contextual lane's 5-item bar, query capped at 500 chars) with a `rerankReason`; every item rendered through the lanes' per-row trust rule, so third-party rows stay inside the untrusted-memory wrapper.
+> - **Producers (`lib/brain/memory-recall.ts`, `lib/brain/contextual-recall.ts`).** `RecallHit` and `RankedRecallRow` now carry `validUntil` / `supersededById` / `expiresAt` from rows the lanes already select (the SQL filters stay); `RECALL_ADDENDUM_HEADINGS` exported and used at its five push sites.
+> - **Prompt (`lib/services/chat/brain-context.ts`).** With the flag on, the pack is added beside a reduced Context Memories block that keeps the graph / cross-source / related sections (and the injection annotation) instead of deleting them; the pack reranks on the referent-aware recall text.
+> - **Receipt (`lib/ai/context-budget.ts`).** `ContextReceipt.arbiterAssigned` records the flag state for every turn (the experiment's assignment); `arbiter` is true only when a pack actually reached the prompt; `rerankBackend` rides with it.
+> - **Instruments.** `scripts/recall-eval.ts` gains lanes `memory-recall` and `arbiter` (the arbiter lane mirrors production's pool sizes per `--mode standard|deep` from `RECALL_MODE_LIMITS`; INVALID when either recall lane did not really run; every eval lane runs read-only); `scripts/arbiter-judge-split.ts` is SELECT-only (pinned by a source scan with a positive control) and splits `reply_judgment` composites by the flag assignment (`arbiterAssigned`: true / false / unknown for pre-W1 turns) and reports the pack-rendered rate inside the assigned group.
+>
+> **Promotion is Nour's.** Settings > Intelligence flags > `NICK_RECALL_ARBITER` > On (audited flip). After 7 days, from `apps/statenour`: `railway run -s statenour-web -- pnpm exec tsx scripts/arbiter-judge-split.ts --days 14`; keep it on only if the assigned=true mean composite is not below the assigned=false / unknown buckets.
+>
+> **Flagged · NOT fixed**
+> - The frozen 121-case recall corpus and the sealed holdout were lost in a PC reset; `pnpm eval:recall` runs synthetic-only until a SELECT-only regeneration (a separate wave) exists.
+> - `tests/ai/chat/private-brain-context.test.ts` fails in the full `tests/brain` + `tests/ai` run (identity-snapshot score events from another file's state) and passes alone, both on this branch and on 18136ef0b: test-order pollution, not this diff.
+> - The reduced Context Memories block still carries the lane's heading "(N for: ...)" while its list moved into the pack.
+
+> ## 2026-10-16 · UI v3 Wave 3b · Chat, the six-feet composition (branch `statenour/ui-v3-w3b`) · 1 statenour PR
+>
+> Not live until merged. Every claim below is from unit tests and code reading; the two distance readings (chat at 390 and 1440 against `chat-phone.png` / `chat-desktop.png`, captured from main 7dc82474c and carried in this PR because a baseline identical to the render measures 0.000) come only from this PR's e2e run.
+>
+> - **Header (`chat-island.tsx`, `chat-capability-indicator.tsx`, `lib/capability-label.ts`).** One line: "Nick", a 10 px dot with one word at md-up (`capabilityWord`: Ready / Checking / Unknown / Degraded / Offline) while the full badge label stays in the link's accessible name (`${label} (capability health)`) and a visually hidden span; the dot's shape carries the state next to its colour (filled measured, a ring for unknown, the spinner only while a read is in flight); still a Link to /system/health. "Private" in sentence case. Below md the header shows History and More; auto-read, context and voice sit in an in-DOM More sheet (Dialog; focus returns to More); at md and up all four stay. The five controls keep the 44 px box (`max-md:hidden` on the three that leave the phone line; mobile-a11y's count 4 to 5). `settleChat` waits on the link named "ready (capability health)".
+> - **Empty state and the page-context chip (`chat-message-list.tsx`, `lib/page-context-anchors.ts`, `use-chat-stream.ts`).** The NICK eyebrow and the description are gone; the headline carries `vt-verdict`; the four starters keep their words. Page context was attached silently and always; the chip above the composer says "Page context: <route> attached" and its x leaves the anchors out of the next send (nothing written on the server; the send after re-attaches). The per-reply speaker label reads "Nick".
+> - **Hold card.** `useChatStream` exposes `hold` (set where the two hold toasts fire, cleared by a replay that went, a new send, resetTurn); the error card renders it under Retry. The 38 toast assertions are untouched; one glue case added.
+> - **Honest History reads (`hooks/use-conversations.ts`, `operator-conversation-drawer.tsx`).** The list read carries loading / error / ok ("History unavailable: Retry", "Loading history", and "No conversations in this view." only for a measured empty list); `loadConvo` answers whether THIS request's rows landed, the island moves the active conversation only then (resetTurn still first), and a failed open renders a Retry line instead of the starters; delete / rename / archive / Load older failures toast.
+> - **Grammar.** The net at base.css:332 covers the chat shell (the `data-chat-shell` attribute stays as the render's island locator); seven uppercase sites reworded with their text children re-read, nine em dashes, `d.urgency` through a word map; ratchet uppercase 12 to 5, emDash 284 to 275.
+> - **Desktop.** Read, not changed: `--bottom-chrome-h` is published from the measured chrome and the tab row is `xl:hidden`, so the xl reservation is the ticker's measured height (about 32 px in the baseline) plus the safe area, not the inferred 96 px; `tests/components/bottom-tab-bar-xl-reservation.test.tsx` pins it (two mutants red).
+> - **Round 3, the loaded conversation (B1; `chat-message-list.tsx`, `chat-island.tsx`, `memory-inspector-sidebar.tsx`, `tool-result-registry.tsx`).** The gate photographs the conversation opened from History, not the empty state. The log is bottom-anchored; each turn opens with a rule; the operator's turn is a 15 px secondary-tone line (no fill, no right alignment); Nick's reply is the page's text at 20 px with no per-reply eyebrow (sr-only "Nick:" stays); the tool cards sit behind a 44 px receipt line in a native `<details>` ("Tool calls: 1 returned data · Memories found, 1 match"). At xl the Context and Evidence inspector is docked open beside the conversation by default (`docked`, a w-96 column on surface-raised; an explicit close wins). Simulated distance (image-space model on the frozen baselines, the spec's own massGrid/gridDistance): positive controls self 0.000 / 0.000 and the round-2 tree 0.072 / 0.028 (lens A reproduced); recomposed 0.373 at 390 and 0.394 at 1440. The model saturates under 0.40 at 390 (about 48 % of the phone grid's mass is background and the fixed frame). The PR's e2e run is the verdict.
+> - **Round 3, instruments (A4).** `use-chat-stream-page-context.test.tsx` reads the request body at each send and replay; the four mutants that survived round 2 each fail it (re-attach removed 1 failed; detach flag 1 failed; `setHold(null)` removed 3 failed; `setHold(RETRY_STILL_CHECKING)` removed 4 failed). Pins added for the drawer with rows present, the capability dot's classes per state, `urgencyWord`, and the xl reservation on the island and composer wrappers.
+> - **Round 3, the composer while a conversation opens (A1b).** While `isLoadingConvo` the field and Send are disabled, `sendOrQueue` returns early (voice and slash sends too), and a status line above the field reads "Opening that conversation. Send once it is on screen." (`COMPOSER_OPENING_REASON`, passed by the island).
+> - **Round 3, holds (A5).** The private-turn and side-effecting-turn refusals now set the hold as well as the toast, and with no stream error the hold renders as its own status line (it lived only inside the error card, so those holds would have been invisible). The direct replay and the killed-turn reattach clear a "still checking" hold left by a check that came back stale.
+> - **PR #3090 fix round (the e2e run on 81e072ea5 measured chat/phone 0.280, desktop 0.413).** Round 3's 0.373 came from an image-space model painted onto the baseline, not a render. Calibration with the spec's own `visualDistance`: self 0.000; CI's own phone render (run 38970894302, all three attempts) 0.2799; a local render of the same composition through the gate's path (fixtures, `openChatHistory`, `settleChat`, hermetic `next dev`, Windows fonts) 0.298 phone / 0.423 desktop, so local reads 0.018 / 0.010 high. Nick's reply now sits on a column-bleed reading plane (surface-interactive, no radius, no border; the operator's turn keeps its rule on the ground): local 0.423 / 0.487, calibrated about 0.404 / 0.477 (the same fill painted into CI's own PNG reads 0.403). Codex fixes in the same round: an empty successful tool output says "found nothing" in the disclosure summary; every send entry point (drawer "Verified recent actions", starters, Retry) waits while a conversation opens; a replay carries the page context its own turn was sent with; the failed-open card is the log's last element, next to the composer; the receipt disclosure stays open while a card's Undo is live.
+>
+> **Flagged · NOT fixed**
+> - The pin toggle writes localStorage only; a refused write still flips in memory and is not toasted (no server write exists to fail).
+> - The side-effect refusal is now the named `RETRY_REFUSED_SIDE_EFFECT` in `use-chat-stream.ts`, and still differs from RETRY_HELD_RAN by one word ("may have" / "may already have"); the A5 test pins the current words.
+> - `use-chat-deep-link-prefill.ts:50` (`consumeChatDeepLink`) moves `activeConversationId` from `?cid=` with no load and no resetTurn, so the composer and the transcript can name different conversations until something loads. Adjacent to A1b; not fixed here.
+> - The chat-states e2e win32 baselines stay stale (W3a flag).
+> - The phone margin is thin: calibrated about 0.404 against the 0.35 floor, with the next measured lever a brighter plane (0.452 local with the hover token, not taken: a hover surface on a static plane misreads the token). The PR's e2e run is the verdict. A real iPhone keyboard pass is not done.
+> - Home's `brief-state-line.tsx:99` carries the same dead utility sizes on a `.vt-verdict` heading (the unlayered role wins); out of this lane's scope, noted for W4.
+
 > ## 2026-10-16 · UI v3 Wave 3a · the Chat six-feet instrument (branch `statenour/ui-v3-w3a`) · 1 statenour PR, nothing user-visible
 >
 > Not live until merged. Every claim below is from unit tests, a local Playwright run against a hermetic `next dev --webpack` (dummy env, no database) and code reading; CI has not run this PR yet.
@@ -46,6 +166,25 @@
 > - `app/api/relationships/watchlist/route.ts:45-50` answers `{items: []}` with 200 on error and People reads it as empty (W4).
 > - `features/chat-v2` keeps 7 `uppercase` sites and 9 em dashes (W3).
 > - W1b was verified in jsdom and by typecheck only: no browser or phone render of the 390 px More-sheet row (36 px pin visual beside a truncating label) or of `replaceState` inside a real Next runtime.
+
+> ## 2026-10-16 · Telegram lane 2 · the bot gets quieter and honest, and a phone-to-session note bridge (branch `statenour/telegram-bot-bridge`) · 6 statenour commits, 1 PR
+>
+> Not live until merged and deployed. Every claim below is from unit tests against mocked transports and stores; nothing was sent to Telegram and no database was touched.
+>
+> - **Bridge Telegram copies cut (`app/api/webhooks/nickstire/route.ts`).** Lead, callback, booking-complete and invoice are recorded (audit row) without statenour's own Telegram copy. Lead and callback were duplicates; job-complete and invoice-created were statenour's only Telegram path and are now cut by design (nickstire classes booking-complete as a receipt, held unless telegram_receipt is on; invoice_created is not sent). Emergency and review keep their alert.
+> - **Inngest failure alerts grouped (`lib/inngest/on-failure.ts`).** One alert per function per 6 h window, claimed in `action_attempts` (beginAttempt); repeats are counted on the claim row and reported on the next alert; non-critical failures wait out 22:00-07:00 ET; a database outage pages at night; a store error fails open.
+> - **One message per voice note or link (`app/api/telegram/webhook/route.ts`, `lib/services/telegram.ts`).** `sendTelegramForId` + an edit-in-place progress message replace "Transcribing...", "Transcribed" and "Analyzing..." as separate messages; a failed edit sends nothing more. The "routed as" receipt is gone.
+> - **Honest `/status` and `/alerts`.** A failed read prints "unknown", urgent leads come from nickstire's `leads_urgent`, `/alerts` keeps its 30-day window and honours `alert_mute`.
+> - **Idempotent inbound.** Each authorized `update_id` is claimed in `action_attempts` before dispatch; a redelivered `/task` or `/dump` acts once. A failed command is not retried on redelivery (the handlers catch their own errors and settle as handled); Nour resends it.
+> - **Session bridge.** `/note <text>` stores a `CaptureInboxItem` (kind `agent_bridge_note`, status `bridge_unread`; no new table). `GET /api/agent-bridge/notes?since=<id>` and `POST /api/agent-bridge/notes/ack` accept only the dedicated notes token (`AGENT_BRIDGE_ENABLED` + `AGENT_BRIDGE_TOKEN_NOTES`; read, tasks and legacy tokens get 403, unset slot 503) and write the bridge audit trail. The three CaptureInboxItem readers that read every row (both mastery backfills, system-health capture freshness) exclude the note kind. The consumer hook (a platform lane) is not built yet.
+>
+> **Flagged · NOT fixed**
+> - `config/nickstire-bridge-events.json` still lists `webhookAlert` text for the four removed types; `tests/api/nickstire-bridge-contract.test.ts` overrides it with `TELEGRAM_COPY_REMOVED` until a platform lane sets them to null.
+> - statenour's emergency alert still duplicates nickstire's `emergency_request` Telegram destination; kept because the undelivered-emergency 500 retry contract lives here.
+> - A non-critical Inngest failure that happens only overnight is not paged in the morning; it stays in `cron_job_log` as `failed`.
+> - `scripts/check-sensitive-get-auth.ts` recognises the notes route through the helper name `requireBridgeAuth`, which `lib/bridge-auth.ts` also uses for a different guard; adding `assertBridgeAuth` to the checker would remove the name overlap.
+> - Prod values of `AGENT_BRIDGE_ENABLED` and `AGENT_BRIDGE_TOKEN_NOTES` were not checked; until Nour sets the notes token the routes answer 503.
+> - The Inngest in-process fallback window is per process: a restart or a second replica during a database outage can send once more.
 
 > ## 2026-10-10 · Audit-fix wave 1 (PR #2981, merged as b5bb183eb) · BDNICK audit findings in auth, approvals, chat safety, crons and failed reads · 1 statenour PR with staged commits
 >

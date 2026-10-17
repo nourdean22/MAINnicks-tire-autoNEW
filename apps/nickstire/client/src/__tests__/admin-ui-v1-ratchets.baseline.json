@@ -1,12 +1,12 @@
 {
   "totals": {
     "uppercase": 4,
-    "emDash": 166,
+    "emDash": 163,
     "emoji": 0,
-    "transitionAll": 74,
+    "transitionAll": 70,
     "slowDuration": 7,
-    "smallInput": 168,
-    "offPalette": 171
+    "smallInput": 164,
+    "offPalette": 156
   },
   "files": {
     "client/src/components/admin/ActivityPulse.tsx": {
@@ -68,12 +68,6 @@
       "emDash": 5,
       "smallInput": 1
     },
-    "client/src/pages/admin/MembershipsSection.tsx": {
-      "smallInput": 2
-    },
-    "client/src/pages/admin/OpsHubSection.tsx": {
-      "offPalette": 6
-    },
     "client/src/pages/admin/OverviewSection.tsx": {
       "emDash": 3
     },
@@ -82,9 +76,6 @@
     },
     "client/src/pages/admin/PromptEvalsPanel.tsx": {
       "emDash": 1
-    },
-    "client/src/pages/admin/SettingsSection.tsx": {
-      "emDash": 2
     },
     "client/src/pages/admin/SpecialsSection.tsx": {
       "smallInput": 9
@@ -141,7 +132,7 @@
     "client/src/pages/admin/customers/CustomersList.tsx": {
       "emDash": 7,
       "transitionAll": 1,
-      "smallInput": 4
+      "smallInput": 3
     },
     "client/src/pages/admin/customers/FollowUpButton.tsx": {
       "smallInput": 1
@@ -197,9 +188,6 @@
       "emDash": 1,
       "offPalette": 4
     },
-    "client/src/pages/admin/intelligence/CustomerIntelligence.tsx": {
-      "offPalette": 2
-    },
     "client/src/pages/admin/intelligence/IntelligenceHQSection.tsx": {
       "transitionAll": 3,
       "offPalette": 2
@@ -209,9 +197,6 @@
     },
     "client/src/pages/admin/intelligence/LlmSpendPanel.tsx": {
       "offPalette": 4
-    },
-    "client/src/pages/admin/intelligence/MarketIntelligence.tsx": {
-      "offPalette": 5
     },
     "client/src/pages/admin/leads/CandidatesPanel.tsx": {
       "smallInput": 2,
@@ -230,8 +215,8 @@
       "emDash": 5
     },
     "client/src/pages/admin/money/DispatchSection.tsx": {
-      "emDash": 4,
-      "offPalette": 6
+      "emDash": 3,
+      "offPalette": 4
     },
     "client/src/pages/admin/money/FinancingAttribution.tsx": {
       "emDash": 1
@@ -252,8 +237,8 @@
     },
     "client/src/pages/admin/money/WorkOrdersSection.tsx": {
       "emDash": 7,
-      "transitionAll": 3,
-      "smallInput": 3,
+      "transitionAll": 2,
+      "smallInput": 2,
       "offPalette": 1
     },
     "client/src/pages/admin/outreach/CampaignsSection.tsx": {
@@ -272,7 +257,7 @@
       "emDash": 3
     },
     "client/src/pages/admin/outreach/SmsOrchestratorSection.tsx": {
-      "transitionAll": 10,
+      "transitionAll": 7,
       "smallInput": 4,
       "offPalette": 3
     },

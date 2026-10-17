@@ -28,6 +28,7 @@
  */
 
 import { createLogger } from "../lib/logger";
+import { traceChat } from "../lib/langfuse-ingest";
 import { withTimeout } from "@nour/utils";
 
 const log = createLogger("classifiers");
@@ -92,7 +93,29 @@ interface HfClassificationResponse extends Array<{ label: string; score: number 
  * customer-facing flow (better to let a borderline message through
  * than to block a legit customer).
  */
+/** Traced entry point: one Langfuse generation per HF round-trip (a disabled or empty call made none). */
 export async function screenPromptInjection(
+  text: string,
+  opts: { threshold?: number; model?: string; timeoutMs?: number } = {},
+): Promise<InjectionScreenResponse> {
+  const t0 = Date.now();
+  const r = await screenPromptInjectionUntraced(text, opts);
+  if ((r.ok && r.latencyMs > 0) || (!r.ok && r.reason !== "disabled")) {
+    traceChat({
+      name: "classifier:prompt-injection",
+      site: "services/classifiers.ts",
+      model: opts.model ?? process.env.CLASSIFIER_PI_MODEL ?? DEFAULT_PI_MODEL,
+      messages: text,
+      outputText: r.ok ? `isInjection=${r.isInjection} score=${r.score}` : null,
+      startedAt: t0,
+      ok: r.ok,
+      error: r.ok ? null : r.error,
+    });
+  }
+  return r;
+}
+
+async function screenPromptInjectionUntraced(
   text: string,
   opts: { threshold?: number; model?: string; timeoutMs?: number } = {},
 ): Promise<InjectionScreenResponse> {
@@ -298,7 +321,29 @@ function getLocalHeuristicFallback(
   };
 }
 
+/** Traced entry point: one Langfuse generation per HF round-trip (a disabled or empty call made none). */
 export async function classifyIntent(
+  text: string,
+  opts: { labels?: readonly string[]; model?: string; timeoutMs?: number; multiLabel?: boolean } = {},
+): Promise<IntentResponse> {
+  const t0 = Date.now();
+  const r = await classifyIntentUntraced(text, opts);
+  if (r.ok || (r.reason !== "disabled" && r.error !== "empty_input")) {
+    traceChat({
+      name: "classifier:sms-intent",
+      site: "services/classifiers.ts",
+      model: opts.model ?? process.env.CLASSIFIER_INTENT_MODEL ?? DEFAULT_INTENT_MODEL,
+      messages: text,
+      outputText: r.ok ? JSON.stringify(r).slice(0, 300) : null,
+      startedAt: t0,
+      ok: r.ok,
+      error: r.ok ? null : r.error,
+    });
+  }
+  return r;
+}
+
+async function classifyIntentUntraced(
   text: string,
   opts: { labels?: readonly string[]; model?: string; timeoutMs?: number; multiLabel?: boolean } = {},
 ): Promise<IntentResponse> {

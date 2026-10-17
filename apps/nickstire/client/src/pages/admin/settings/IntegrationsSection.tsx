@@ -21,7 +21,7 @@ import {
   ThermometerSun, Cog, CircleDot, ArrowRight, RefreshCw, XCircle,
   Activity, Wifi, WifiOff, Plug
 } from "lucide-react";
-import { PageHeader, ErrorState } from "../shared";
+import { PageHeader, ErrorState, TabBar } from "../shared";
 
 // ─── TYPES ──────────────────────────────────────────────
 type Tab = "tires" | "labor" | "estimate";
@@ -100,10 +100,10 @@ function VendorHealthStrip() {
       >
         <StatusIcon className={`w-4 h-4 ${statusColor}`} />
         <span className="text-xs font-semibold tracking-wide flex-1">
-          VENDOR HEALTH · {connectedCount}/{health.checks.length} CONNECTED
+          Vendor health · {connectedCount}/{health.checks.length} connected
         </span>
         <span className={`text-[10px] font-mono ${statusColor}`}>
-          {health.overallStatus.replace(/_/g, " ").toUpperCase()}
+          {health.overallStatus.replace(/_/g, " ").replace(/^./, (c: string) => c.toUpperCase())}
         </span>
         <ChevronRight className={`w-3.5 h-3.5 text-foreground/30 transition-transform ${expanded ? "rotate-90" : ""}`} />
       </button>
@@ -139,7 +139,7 @@ function VendorHealthStrip() {
               className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-semibold text-primary hover:bg-primary/10 transition-colors"
             >
               <RefreshCw className={`w-3 h-3 ${refreshMut.isPending ? "animate-spin" : ""}`} />
-              RE-CHECK ALL
+              Re-check all
             </button>
           </div>
         </div>
@@ -152,9 +152,9 @@ function VendorHealthStrip() {
 export default function IntegrationsSection() {
   const [tab, setTab] = useState<Tab>("tires");
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
-    { id: "tires", label: "TIRE SEARCH", icon: <Truck className="w-4 h-4" /> },
-    { id: "labor", label: "LABOR GUIDE", icon: <Wrench className="w-4 h-4" /> },
-    { id: "estimate", label: "QUICK ESTIMATE", icon: <Calculator className="w-4 h-4" /> },
+    { id: "tires", label: "Tire search", icon: <Truck className="w-4 h-4" /> },
+    { id: "labor", label: "Labor guide", icon: <Wrench className="w-4 h-4" /> },
+    { id: "estimate", label: "Quick estimate", icon: <Calculator className="w-4 h-4" /> },
   ];
 
   return (
@@ -167,23 +167,8 @@ export default function IntegrationsSection() {
       {/* Vendor Health Strip */}
       <VendorHealthStrip />
 
-      {/* Tab Bar */}
-      <div className="flex gap-1 bg-card border border-border/30 p-1">
-        {tabs.map(t => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 font-bold text-xs tracking-wide transition-colors ${
-              tab === t.id
-                ? "bg-primary text-primary-foreground"
-                : "text-foreground/50 hover:text-foreground hover:bg-foreground/5"
-            }`}
-          >
-            {t.icon}
-            <span className="hidden sm:inline">{t.label}</span>
-          </button>
-        ))}
-      </div>
+      {/* Tab Bar: the shared scrolling strip, labels always visible */}
+      <TabBar tabs={tabs} activeTab={tab} onChange={setTab} variant="pill" />
 
       {tab === "tires" && <TireSearchTab />}
       {tab === "labor" && <LaborGuideTab />}
@@ -212,7 +197,7 @@ function TireSearchTab() {
     { enabled: sizeQuery.length >= 5 }
   );
 
-  // 2026-05-23 · was bare. Operator clicked CALCULATE PRICING, network
+  // 2026-05-23 · was bare. Operator clicked Calculate pricing, network
   // error swallowed silently, result panel just never appeared.
   const calcMargin = trpc.gatewayTire.calculateMargin.useMutation({
     onError: (err) => toast.error(`Calculation failed: ${err.message}`),
@@ -244,7 +229,7 @@ function TireSearchTab() {
         <div className="flex items-center gap-3">
           <div className={`w-2.5 h-2.5 rounded-full ${gatewayStatus?.connected ? "bg-emerald-400" : "bg-amber-400"}`} />
           <div>
-            <span className="font-bold text-sm tracking-wider text-foreground">GATEWAY TIRE</span>
+            <span className="font-bold text-sm tracking-wider text-foreground">Gateway Tire</span>
             <span className="text-foreground/40 text-xs ml-2">Dunlap & Kyle B2B Portal</span>
           </div>
         </div>
@@ -254,7 +239,7 @@ function TireSearchTab() {
           rel="noopener noreferrer"
           className="flex items-center gap-2 text-primary hover:text-primary/80 font-bold text-xs tracking-wider"
         >
-          OPEN PORTAL <ExternalLink className="w-3.5 h-3.5" />
+          Open portal <ExternalLink className="w-3.5 h-3.5" />
         </a>
       </div>
 
@@ -262,7 +247,7 @@ function TireSearchTab() {
         {/* Left: Tire Search */}
         <div className="space-y-4">
           <div className="bg-card border border-border/30 p-5">
-            <h3 className="font-bold text-sm tracking-wider text-foreground mb-4">SEARCH TIRES</h3>
+            <h3 className="font-bold text-sm tracking-wider text-foreground mb-4">Search tires</h3>
             <div className="flex gap-2 mb-4">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/30" />
@@ -279,7 +264,7 @@ function TireSearchTab() {
             {/* Popular Sizes */}
             {popularData && (
               <div>
-                <span className="font-mono text-[10px] text-foreground/40 tracking-wide">POPULAR SIZES</span>
+                <span className="font-mono text-[10px] text-foreground/40 tracking-wide">Popular sizes</span>
                 <div className="flex flex-wrap gap-1.5 mt-2">
                   {popularData.sizes.slice(0, 10).map(s => (
                     <button
@@ -320,7 +305,7 @@ function TireSearchTab() {
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-2 mt-3 text-primary hover:text-primary/80 font-bold text-xs tracking-wider"
                     >
-                      SEARCH ON GATEWAY TIRE <ExternalLink className="w-3.5 h-3.5" />
+                      Search on Gateway Tire <ExternalLink className="w-3.5 h-3.5" />
                     </a>
                   </div>
                 </div>
@@ -350,8 +335,8 @@ function TireSearchTab() {
                       <span className="font-mono text-primary font-bold">${tire.costPrice.toFixed(2)}</span>
                     </div>
                     <div className="flex gap-4 mt-1 text-foreground/40 text-[10px]">
-                      <span>LOCAL: {tire.localInventory}</span>
-                      <span>REGIONAL: {tire.regionalInventory}</span>
+                      <span>Local: {tire.localInventory}</span>
+                      <span>Regional: {tire.regionalInventory}</span>
                     </div>
                   </div>
                 ))}
@@ -365,12 +350,12 @@ function TireSearchTab() {
           <div className="bg-card border border-border/30 p-5">
             <h3 className="font-bold text-sm tracking-wider text-foreground mb-4">
               <Calculator className="w-4 h-4 inline mr-2" />
-              TIRE MARGIN CALCULATOR
+              Tire margin calculator
             </h3>
 
             <div className="grid grid-cols-2 gap-3 mb-4">
               <div>
-                <label className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">WHOLESALE COST ($)</label>
+                <label className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">Wholesale cost ($)</label>
                 <input
                   type="number"
                   step="0.01"
@@ -381,7 +366,7 @@ function TireSearchTab() {
                 />
               </div>
               <div>
-                <label className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">QUANTITY</label>
+                <label className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">Quantity</label>
                 <div className="flex gap-1">
                   {[1, 2, 4].map(q => (
                     <button
@@ -399,7 +384,7 @@ function TireSearchTab() {
                 </div>
               </div>
               <div>
-                <label className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">MARKUP %</label>
+                <label className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">Markup %</label>
                 <input
                   type="number"
                   value={customMarkup}
@@ -423,7 +408,7 @@ function TireSearchTab() {
 
             {/* Service Add-ons */}
             <div className="mb-4">
-              <span className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-2">INCLUDE SERVICES</span>
+              <span className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-2">Include services</span>
               <div className="grid grid-cols-2 gap-2">
                 {[
                   { label: "Mounting ($20/ea)", checked: includeMount, set: setIncludeMount },
@@ -450,7 +435,7 @@ function TireSearchTab() {
               className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground px-4 py-3 font-bold text-sm tracking-wide hover:bg-primary/90 transition-colors disabled:opacity-50"
             >
               {calcMargin.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Calculator className="w-4 h-4" />}
-              CALCULATE PRICING
+              Calculate pricing
             </button>
 
             {/* Results */}
@@ -458,7 +443,7 @@ function TireSearchTab() {
               <div className="mt-4 space-y-3">
                 <div className="bg-background border border-primary/30 p-4">
                   <div className="flex justify-between items-center mb-3">
-                    <span className="font-mono text-[10px] text-foreground/40 tracking-wider">CUSTOMER PRICE PER TIRE</span>
+                    <span className="font-mono text-[10px] text-foreground/40 tracking-wider">Customer price per tire</span>
                     <span className="font-bold text-2xl text-primary">${calcMargin.data.perTire.total.toFixed(2)}</span>
                   </div>
                   <div className="space-y-1 text-xs">
@@ -476,7 +461,7 @@ function TireSearchTab() {
                 <div className="bg-background border border-emerald-500/30 p-4">
                   <div className="flex justify-between items-center mb-3">
                     <span className="font-mono text-[10px] text-foreground/40 tracking-wider">
-                      TOTAL ({calcMargin.data.summary.quantity} TIRES)
+                      Total ({calcMargin.data.summary.quantity} tires)
                     </span>
                     <span className="font-bold text-2xl text-emerald-400">
                       ${calcMargin.data.summary.totalRevenue.toFixed(2)}
@@ -484,15 +469,15 @@ function TireSearchTab() {
                   </div>
                   <div className="grid grid-cols-3 gap-3 text-center">
                     <div>
-                      <span className="font-mono text-[10px] text-foreground/30 block">YOUR COST</span>
+                      <span className="font-mono text-[10px] text-foreground/30 block">Your cost</span>
                       <span className="text-[13px] text-foreground/60">${calcMargin.data.summary.totalCost.toFixed(2)}</span>
                     </div>
                     <div>
-                      <span className="font-mono text-[10px] text-foreground/30 block">PROFIT</span>
+                      <span className="font-mono text-[10px] text-foreground/30 block">Profit</span>
                       <span className="text-[13px] text-emerald-400">${calcMargin.data.summary.totalProfit.toFixed(2)}</span>
                     </div>
                     <div>
-                      <span className="font-mono text-[10px] text-foreground/30 block">MARGIN</span>
+                      <span className="font-mono text-[10px] text-foreground/30 block">Margin</span>
                       <span className="text-[13px] text-primary">{((calcMargin.data.summary.totalProfit / calcMargin.data.summary.totalRevenue) * 100).toFixed(1)}%</span>
                     </div>
                   </div>
@@ -505,7 +490,7 @@ function TireSearchTab() {
           <div className="bg-card border border-border/30 p-4">
             <div className="flex items-center justify-between">
               <div>
-                <span className="font-bold text-xs tracking-wider text-foreground">DEFAULT MARKUP</span>
+                <span className="font-bold text-xs tracking-wider text-foreground">Default markup</span>
                 <p className="font-mono text-[10px] text-foreground/40 mt-0.5">Applied when no custom markup is entered</p>
               </div>
               <div className="flex items-center gap-2">
@@ -523,7 +508,7 @@ function TireSearchTab() {
                   }}
                   className="px-3 py-1.5 bg-foreground/10 text-foreground/60 hover:text-foreground font-bold text-[10px] tracking-wider transition-colors"
                 >
-                  SAVE
+                  Save
                 </button>
               </div>
             </div>
@@ -576,7 +561,7 @@ function LaborGuideTab() {
         <div className="flex items-center gap-3">
           <div className={`w-2.5 h-2.5 rounded-full ${laborStatus?.connected ? "bg-emerald-400" : "bg-amber-400"}`} />
           <div>
-            <span className="font-bold text-sm tracking-wider text-foreground">AUTO LABOR GUIDE</span>
+            <span className="font-bold text-sm tracking-wider text-foreground">Auto Labor Guide</span>
             <span className="text-foreground/40 text-xs ml-2">ShopDriver Elite</span>
           </div>
         </div>
@@ -586,7 +571,7 @@ function LaborGuideTab() {
           rel="noopener noreferrer"
           className="flex items-center gap-2 text-primary hover:text-primary/80 font-bold text-xs tracking-wider"
         >
-          OPEN PORTAL <ExternalLink className="w-3.5 h-3.5" />
+          Open portal <ExternalLink className="w-3.5 h-3.5" />
         </a>
       </div>
 
@@ -608,7 +593,7 @@ function LaborGuideTab() {
           {/* Categories */}
           <div className="bg-card border border-border/30">
             <div className="p-3 border-b border-border/30">
-              <span className="font-mono text-[10px] text-foreground/40 tracking-wide">CATEGORIES</span>
+              <span className="font-mono text-[10px] text-foreground/40 tracking-wide">Categories</span>
             </div>
             <div className="divide-y divide-border/20">
               {categories?.map(cat => (
@@ -635,9 +620,9 @@ function LaborGuideTab() {
         <div className="space-y-2">
           <div className="flex items-center justify-between mb-2">
             <span className="font-bold text-sm tracking-wider text-foreground">
-              {searchQuery.length >= 2 ? `RESULTS FOR "${searchQuery.toUpperCase()}"` : selectedCategory ? categoryJobs?.category?.toUpperCase() || "JOBS" : "SELECT A CATEGORY"}
+              {searchQuery.length >= 2 ? `Results for "${searchQuery}"` : selectedCategory ? categoryJobs?.category || "Jobs" : "Select a category"}
             </span>
-            <span className="font-mono text-[10px] text-foreground/30">{displayJobs.length} JOBS</span>
+            <span className="font-mono text-[10px] text-foreground/30">{displayJobs.length} jobs</span>
           </div>
 
           {displayJobs.length === 0 && (
@@ -670,7 +655,7 @@ function LaborGuideTab() {
                 </div>
               </div>
               <div className="flex items-center gap-4 text-foreground/40 text-[10px]">
-                <span>RANGE: {job.minHours}–{job.maxHours}h</span>
+                <span>Range: {job.minHours}–{job.maxHours}h</span>
                 {"categoryName" in job && <span className="text-foreground/30">{(job as typeof job & { categoryName?: string }).categoryName}</span>}
               </div>
               {job.notes && (
@@ -685,19 +670,19 @@ function LaborGuideTab() {
           <div className="bg-card border border-border/30 p-5">
             <h3 className="font-bold text-sm tracking-wider text-foreground mb-4">
               <DollarSign className="w-4 h-4 inline mr-2" />
-              LABOR CALCULATOR
+              Labor calculator
             </h3>
 
             {calcJob ? (
               <div className="space-y-4">
                 <div className="bg-background border border-border/30 p-3">
-                  <span className="font-mono text-[10px] text-foreground/40 tracking-wider block mb-1">SELECTED JOB</span>
+                  <span className="font-mono text-[10px] text-foreground/40 tracking-wider block mb-1">Selected job</span>
                   <span className="font-bold text-sm text-foreground">{calcJob.name}</span>
                 </div>
 
                 {/* Difficulty */}
                 <div>
-                  <span className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-2">DIFFICULTY</span>
+                  <span className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-2">Difficulty</span>
                   <div className="flex gap-1">
                     {(["standard", "moderate", "difficult"] as const).map(d => (
                       <button
@@ -727,7 +712,7 @@ function LaborGuideTab() {
                 {calculateLabor.data && (
                   <div className="bg-background border border-primary/30 p-4">
                     <div className="flex justify-between items-center mb-3">
-                      <span className="font-mono text-[10px] text-foreground/40 tracking-wider">LABOR COST</span>
+                      <span className="font-mono text-[10px] text-foreground/40 tracking-wider">Labor cost</span>
                       <span className="font-bold text-2xl text-primary">
                         ${calculateLabor.data.laborCost.toFixed(2)}
                       </span>
@@ -820,7 +805,7 @@ function QuickEstimateTab() {
         {/* Left: Add Line Items */}
         <div className="lg:col-span-2 space-y-4">
           <div className="bg-card border border-border/30 p-5">
-            <h3 className="font-bold text-sm tracking-wider text-foreground mb-4">ADD LINE ITEM</h3>
+            <h3 className="font-bold text-sm tracking-wider text-foreground mb-4">Add line item</h3>
 
             <div className="flex gap-1 mb-4">
               {(["labor", "tire", "part"] as const).map(t => (
@@ -841,7 +826,7 @@ function QuickEstimateTab() {
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
               <div className="col-span-2">
-                <label className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">DESCRIPTION</label>
+                <label className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">Description</label>
                 <input
                   type="text"
                   value={addName}
@@ -852,7 +837,7 @@ function QuickEstimateTab() {
               </div>
               {addType === "labor" && (
                 <div>
-                  <label className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">HOURS</label>
+                  <label className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">Hours</label>
                   <input
                     type="number"
                     step="0.1"
@@ -873,7 +858,7 @@ function QuickEstimateTab() {
                 />
               </div>
               <div>
-                <label className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">UNIT PRICE ($)</label>
+                <label className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">Unit price ($)</label>
                 <input
                   type="number"
                   step="0.01"
@@ -890,7 +875,7 @@ function QuickEstimateTab() {
               className="flex items-center gap-2 bg-foreground/10 text-foreground/60 hover:text-foreground px-4 py-2 font-bold text-xs tracking-wide transition-colors"
             >
               <Plus className="w-4 h-4" />
-              ADD TO ESTIMATE
+              Add to estimate
             </button>
           </div>
 
@@ -898,7 +883,7 @@ function QuickEstimateTab() {
           {lines.length > 0 && (
             <div className="bg-card border border-border/30">
               <div className="p-4 border-b border-border/30">
-                <span className="font-bold text-sm tracking-wider text-foreground">ESTIMATE LINES</span>
+                <span className="font-bold text-sm tracking-wider text-foreground">Estimate lines</span>
               </div>
               <div className="divide-y divide-border/20">
                 {lines.map(line => (
@@ -911,7 +896,7 @@ function QuickEstimateTab() {
                     <div className="flex-1 min-w-0">
                       <span className="font-bold text-xs tracking-wider text-foreground block truncate">{line.name}</span>
                       <span className="font-mono text-[10px] text-foreground/40">
-                        {line.type.toUpperCase()} {line.hours ? `• ${line.hours}h` : ""} • QTY {line.quantity}
+                        {line.type.charAt(0).toUpperCase() + line.type.slice(1)} {line.hours ? `• ${line.hours}h` : ""} • Qty {line.quantity}
                       </span>
                     </div>
                     <span className="text-[13px] text-foreground">${line.total.toFixed(2)}</span>
@@ -928,7 +913,7 @@ function QuickEstimateTab() {
         {/* Right: Estimate Summary */}
         <div className="space-y-4">
           <div className="bg-card border border-border/30 p-5 sticky top-20">
-            <h3 className="font-bold text-sm tracking-wider text-foreground mb-4">ESTIMATE SUMMARY</h3>
+            <h3 className="font-bold text-sm tracking-wider text-foreground mb-4">Estimate summary</h3>
 
             {lines.length === 0 ? (
               <div className="text-center py-8">
@@ -957,7 +942,7 @@ function QuickEstimateTab() {
                 )}
                 <div className="border-t border-border/30 pt-3">
                   <div className="flex justify-between">
-                    <span className="font-bold text-sm tracking-wider text-foreground">TOTAL</span>
+                    <span className="font-bold text-sm tracking-wider text-foreground">Total</span>
                     <span className="font-bold text-2xl text-primary">${totals.total.toFixed(2)}</span>
                   </div>
                 </div>
@@ -971,7 +956,7 @@ function QuickEstimateTab() {
                     }}
                     className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 font-bold text-xs tracking-wide hover:bg-primary/90 transition-colors"
                   >
-                    COPY ESTIMATE
+                    Copy estimate
                   </button>
                   <button
                     onClick={async () => {
@@ -988,7 +973,7 @@ function QuickEstimateTab() {
                     }}
                     className="w-full flex items-center justify-center gap-2 bg-foreground/10 text-foreground/50 hover:text-foreground px-4 py-2 font-bold text-xs tracking-wide transition-colors"
                   >
-                    CLEAR ALL
+                    Clear all
                   </button>
                 </div>
               </div>

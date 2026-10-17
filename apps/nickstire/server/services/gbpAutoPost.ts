@@ -172,7 +172,7 @@ export async function generateAndNotifyGBPPost(opts?: { dryRun?: boolean; requir
       `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
       `🔗 CTA: ${post.callToAction}\n` +
       `🔗 URL: ${post.ctaUrl}\n` +
-      `📸 Image: ${post.imageHint}`,
+      `📸 Image: ${post.imageHint}`, "approval",
     );
 
     let extras = "";
@@ -181,7 +181,7 @@ export async function generateAndNotifyGBPPost(opts?: { dryRun?: boolean; requir
     if (dom <= 7) {
       const recap = await buildMonthlyRecap();
       if (recap) {
-        await sendTelegram(recap);
+        await sendTelegram(recap, "digest");
         extras += " + monthly recap";
       }
     }
@@ -190,7 +190,7 @@ export async function generateAndNotifyGBPPost(opts?: { dryRun?: boolean; requir
     // a structured nudge, photos go stale fast.
     if (dom >= 8 && dom <= 14) {
       const photoNudge = buildPhotoNudge();
-      await sendTelegram(photoNudge);
+      await sendTelegram(photoNudge, "digest");
       extras += " + photo nudge";
     }
 

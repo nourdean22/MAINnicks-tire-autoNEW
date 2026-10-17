@@ -34,17 +34,15 @@ import {
   critiqueOutput,
   critiqueContent,
   formatCriticSummary,
-  type ContentCriticScore,
-} from "@/lib/ai/output-critic";
-import { parseCitations } from "@/lib/ai/memory-citations";
-import { runReplyGate, runReplyGateWithContract, formatGateSummary } from "@/lib/ai/reply-gate";
-import { shapeCeiling } from "@/lib/ai/chat/output-guardian";
-import type { ResponseContract } from "@/lib/ai/response-contract";
-import {
+  shapeCeiling,
   factCheck,
   countUnverified,
   formatFactCheckSummary,
-} from "@/lib/ai/fact-check";
+  type ContentCriticScore,
+} from "@/lib/ai/chat/output-guardian";
+import { parseCitations } from "@/lib/ai/memory-citations";
+import { runReplyGate, runReplyGateWithContract, formatGateSummary } from "@/lib/ai/reply-gate";
+import type { ResponseContract } from "@/lib/ai/response-contract";
 import { checkKnownTruth, formatTruthSummary } from "@/lib/ai/known-truth-guard";
 import { withErrorCapture } from "@/lib/errors/record-error";
 import { trackGeneration } from "@/lib/ai/track";

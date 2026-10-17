@@ -31,7 +31,7 @@ import {
   Phone,
   Send
 } from "lucide-react";
-import { PageHeader, formatDate, LoadingState, EmptyState, ErrorState } from "../shared";
+import { PageHeader, formatDate, LoadingState, EmptyState, ErrorState, TabBar } from "../shared";
 import AutonomyCensusPanel from "./AutonomyCensusPanel";
 import SmsOpsStrip from "./SmsOpsStrip";
 
@@ -207,27 +207,16 @@ export default function SmsOrchestratorSection() {
         </div>
       </div>
 
-      {/* Tabs Menu */}
-      <div className="border-b border-border/30 flex gap-6 text-sm">
-        <button
-          onClick={() => setActiveTab("logs")}
-          className={`pb-3 font-semibold border-b-2 transition-all ${activeTab === "logs" ? "border-primary text-primary" : "border-transparent text-foreground/50 hover:text-foreground"}`}
-        >
-          Decision Control & Logs
-        </button>
-        <button
-          onClick={() => setActiveTab("performance")}
-          className={`pb-3 font-semibold border-b-2 transition-all ${activeTab === "performance" ? "border-primary text-primary" : "border-transparent text-foreground/50 hover:text-foreground"}`}
-        >
-          Performance & Revenue
-        </button>
-        <button
-          onClick={() => setActiveTab("learning")}
-          className={`pb-3 font-semibold border-b-2 transition-all ${activeTab === "learning" ? "border-primary text-primary" : "border-transparent text-foreground/50 hover:text-foreground"}`}
-        >
-          Self-Learning & NickGPT
-        </button>
-      </div>
+      {/* Tabs Menu: the shared scrolling strip */}
+      <TabBar<"logs" | "performance" | "learning">
+        tabs={[
+          { id: "logs", label: "Decision Control & Logs" },
+          { id: "performance", label: "Performance & Revenue" },
+          { id: "learning", label: "Self-Learning & NickGPT" },
+        ]}
+        activeTab={activeTab}
+        onChange={setActiveTab}
+      />
 
       {/* --- Decision Audit Logs Tab --- */}
       {activeTab === "logs" && (

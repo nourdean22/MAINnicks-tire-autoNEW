@@ -29,17 +29,16 @@ const SmsOrchestratorSection = lazy(() => import("./outreach/SmsOrchestratorSect
 // overhead. Aliases `reengage`/`reengagement` still resolve to this hub.
 type OutreachTab = "sms" | "campaigns" | "followups" | "reviews" | "winback" | "performance" | "orchestrator";
 
-// Wave-129 — SMS (1-on-1 texting) is the most-used customer-touch surface,
-// so it leads. Campaigns/Follow-ups/etc. are scheduled/bulk tooling — they
-// belong to the right of the primary action.
+// Admin UI v1 W5 · daily jobs first: Messages, Follow-Ups, Reviews, Win-Back. Campaigns (bulk),
+// Performance (read-out) and Orchestrator (tooling) follow. Tab ids and ?outreachTab= are unchanged.
 // wave-181.51 — Performance tab appended at the end. It's the analytics
 // surface, not a sending surface, so it belongs after the action tabs.
 const TABS: { id: OutreachTab; label: string; icon: React.ReactNode }[] = [
   { id: "sms", label: "Messages", icon: <Send className="w-3.5 h-3.5" /> },
-  { id: "campaigns", label: "Campaigns", icon: <MessageSquare className="w-3.5 h-3.5" /> },
   { id: "followups", label: "Follow-Ups", icon: <Timer className="w-3.5 h-3.5" /> },
   { id: "reviews", label: "Reviews", icon: <Star className="w-3.5 h-3.5" /> },
   { id: "winback", label: "Win-Back", icon: <RotateCcw className="w-3.5 h-3.5" /> },
+  { id: "campaigns", label: "Campaigns", icon: <MessageSquare className="w-3.5 h-3.5" /> },
   { id: "performance", label: "Performance", icon: <BarChart3 className="w-3.5 h-3.5" /> },
   { id: "orchestrator", label: "Orchestrator", icon: <Cpu className="w-3.5 h-3.5" /> },
 ];

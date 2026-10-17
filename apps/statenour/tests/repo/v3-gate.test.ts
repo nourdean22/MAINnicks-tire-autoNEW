@@ -938,8 +938,8 @@ describe("pending baselines: a missing PNG skips, a present one is always judged
     expect(baselineSkipReason({ label: "x", baselineExists: false, pending: true })).not.toBeNull();
   });
 
-  it("only chat is pending today, and it has no baseline PNG yet (the flag leaves in the commit that adds them)", () => {
-    expect(V3_PAGES.filter((p) => p.baselinePending).map((p) => p.key)).toEqual(["chat"]);
+  it("no page is pending today (chat's baselines were captured from main 7dc82474c, run 38908095706); a pending page must not have its PNGs", () => {
+    expect(V3_PAGES.filter((p) => p.baselinePending).map((p) => p.key)).toEqual([]);
     for (const p of V3_PAGES.filter((x) => x.baselinePending)) {
       for (const v of V3_VIEWPORTS) {
         const png = `${p.key}-${v.key}.png`;
@@ -1186,8 +1186,8 @@ function workflowProblems(wf: Workflow): string[] {
   const input = wf.on.workflow_dispatch?.inputs?.capture_v3_baselines;
   if (!input || input.type !== "boolean" || input.default !== false) problems.push("workflow_dispatch input capture_v3_baselines is not a boolean defaulting to false");
   if (!wf.on.pull_request?.paths?.includes("apps/statenour/**")) problems.push("pull_request path filter lost apps/statenour/**");
-  if (!wf.on.push?.paths?.includes("apps/statenour/**")) problems.push("push path filter lost apps/statenour/**");
-  if (JSON.stringify(wf.on.push?.branches) !== '["main"]') problems.push("push is no longer limited to main");
+  if (!wf.on.pull_request?.paths?.includes("!apps/statenour/docs/**")) problems.push("pull_request path filter no longer skips docs-only diffs");
+  if (wf.on.push !== undefined) problems.push("e2e is back on push to main (CI diet: the PR run is the verdict; node covers main)");
 
   if (smoke.if !== RUN_GUARD) problems.push("smoke step guard changed");
   if (smoke.run !== SMOKE_RUN) problems.push("smoke step command changed");
@@ -1260,6 +1260,12 @@ describe(".github/workflows/e2e-statenour.yml capture path", () => {
       },
       "the dispatch trigger removed": (w) => {
         delete w.on.workflow_dispatch;
+      },
+      "the push trigger re-added": (w) => {
+        w.on.push = { branches: ["main"], paths: ["apps/statenour/**"] };
+      },
+      "the docs-only skip removed": (w) => {
+        w.on.pull_request!.paths = w.on.pull_request!.paths!.filter((p) => !p.startsWith("!"));
       },
       "the capture step unguarded": (w) => {
         delete named(w, "Capture v3 baselines").if;
