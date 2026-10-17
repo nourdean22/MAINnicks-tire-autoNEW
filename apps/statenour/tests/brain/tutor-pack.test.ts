@@ -61,9 +61,9 @@ import {
   renderTutorMessage,
   handleTutorAnswer,
   fireTutorPush,
-  spacedReviewStep,
   type TutorItem,
 } from "@/lib/brain/tutor-pack";
+import { nextReview, Rating } from "@/lib/brain/fsrs-schedule";
 import { fireSlotForCurrentHour } from "@/lib/brain/proactive-pushes";
 
 const NOW = new Date("2026-10-16T08:05:00-04:00"); // 8am ET, the morning hour
@@ -251,10 +251,10 @@ describe("handleTutorAnswer: malformed input writes nothing", () => {
 });
 
 describe("handleTutorAnswer: recall grading", () => {
-  it("recalled unaided (R) -> accepted + useful true + a spaced_review row due in 1 day", async () => {
+  it("recalled unaided (R) -> accepted + useful true + a spaced_review row with a new FSRS card graded Good (3 days)", async () => {
     h.prisma.intelligenceOutcome.findUnique.mockResolvedValue(ledgerRow());
     const r = await handleTutorAnswer("led_1", "R");
-    expect(r.reply).toBe("Right. Next ask in 1 day.");
+    expect(r.reply).toBe("Right. Next ask in 3 days.");
     expect(h.recordDecision).toHaveBeenCalledWith(expect.objectContaining({ id: "led_1", decision: "accepted" }));
     expect(h.recordOutcomeResult).toHaveBeenCalledWith(expect.objectContaining({ id: "led_1", useful: true }));
     // No row yet: created through remember(), never prisma.brainMemory.create.
@@ -264,12 +264,15 @@ describe("handleTutorAnswer: recall grading", () => {
     expect(key).toBe("tutor_w1");
     const parsed = JSON.parse(content);
     // The Learn tab (components/actions/mode-learn.tsx) reads these exact fields.
-    expect(parsed).toMatchObject({ topic: expect.any(String), summary: expect.any(String), interval: 1, completed: false, streak: 1, memoryId: "w1" });
+    expect(parsed).toMatchObject({ topic: expect.any(String), summary: expect.any(String), interval: 3, completed: false, memoryId: "w1" });
     expect(typeof parsed.reviewAt).toBe("string");
+    // The due picker reads reviewAt; it is the FSRS due date, not a second clock.
+    expect(parsed.fsrs).toMatchObject({ due: parsed.reviewAt, scheduled_days: 3, reps: 1, lapses: 0 });
+    expect("streak" in parsed).toBe(false);
     expect(h.prisma.brainMemory.create).not.toHaveBeenCalled();
   });
 
-  it("wrong -> useful false, the correct text in the reply, streak reset, due tomorrow", async () => {
+  it("wrong -> useful false, the correct text in the reply, a legacy streak row starts as a new card graded Again, due tomorrow", async () => {
     h.prisma.intelligenceOutcome.findUnique.mockResolvedValue(ledgerRow());
     const prev = JSON.stringify({ topic: "physics", summary: WISDOM[0].content, reviewAt: NOW.toISOString(), interval: 7, completed: false, streak: 3, memoryId: "w1" });
     h.prisma.brainMemory.findUnique.mockResolvedValue({ id: "sr_1", content: prev });
@@ -277,20 +280,12 @@ describe("handleTutorAnswer: recall grading", () => {
     expect(r.reply).toBe(`Not this one. It was: ${WISDOM[0].content}. Again tomorrow.`);
     expect(h.recordOutcomeResult).toHaveBeenCalledWith(expect.objectContaining({ id: "led_1", useful: false }));
     const call = h.prisma.brainMemory.updateMany.mock.calls[0][0];
-    // Compare-and-swap: the WHERE carries the previous streak+due (the whole prior content).
+    // Compare-and-swap: the WHERE carries the whole prior content (schedule + FSRS state).
     expect(call.where).toMatchObject({ category: "spaced_review", key: "tutor_w1", content: prev });
-    expect(JSON.parse(call.data.content)).toMatchObject({ streak: 0, interval: 1, completed: false });
+    expect(JSON.parse(call.data.content)).toMatchObject({ interval: 1, completed: false, fsrs: { scheduled_days: 1, reps: 1 } });
     expect(h.remember).not.toHaveBeenCalled();
   });
 
-  it("the spaced ladder by streak is 1 -> 3 -> 7 -> 30 and a miss resets to 1", () => {
-    expect(spacedReviewStep(0, true)).toEqual({ streak: 1, days: 1 });
-    expect(spacedReviewStep(1, true)).toEqual({ streak: 2, days: 3 });
-    expect(spacedReviewStep(2, true)).toEqual({ streak: 3, days: 7 });
-    expect(spacedReviewStep(3, true)).toEqual({ streak: 4, days: 30 });
-    expect(spacedReviewStep(9, true)).toEqual({ streak: 10, days: 30 });
-    expect(spacedReviewStep(3, false)).toEqual({ streak: 0, days: 1 });
-  });
 
   it("skip -> dismissed, no grade, no spaced row", async () => {
     h.prisma.intelligenceOutcome.findUnique.mockResolvedValue(ledgerRow());
@@ -400,7 +395,7 @@ describe("handleTutorAnswer: a redelivered tap is a no-op", () => {
       outcomeAt = NOW;
       return "recorded";
     });
-    expect((await handleTutorAnswer("led_1", "R")).reply).toBe("Right. Next ask in 1 day.");
+    expect((await handleTutorAnswer("led_1", "R")).reply).toBe("Right. Next ask in 3 days.");
     expect((await handleTutorAnswer("led_1", "R")).reply).toBe("Already recorded.");
     expect(h.recordOutcomeResult).toHaveBeenCalledTimes(1);
     expect(h.remember).toHaveBeenCalledTimes(1);
@@ -549,7 +544,7 @@ describe("review round 1 (2026-10-16)", () => {
     h.recordOutcomeResult.mockResolvedValueOnce("failed");
     expect((await handleTutorAnswer("led_1", "R")).reply).toBe("Could not record - try again.");
     h.prisma.intelligenceOutcome.findUnique.mockResolvedValueOnce(ledgerRow({ decision: "accepted", resultRef: "tutor:R:unaided" }));
-    expect((await handleTutorAnswer("led_1", "R")).reply).toBe("Right. Next ask in 1 day.");
+    expect((await handleTutorAnswer("led_1", "R")).reply).toBe("Right. Next ask in 3 days.");
     expect(h.recordDecision).toHaveBeenCalledTimes(1);
     expect(h.recordOutcomeResult).toHaveBeenCalledTimes(2);
     expect(h.remember).toHaveBeenCalledTimes(1);
@@ -705,7 +700,7 @@ describe("review round 1 (2026-10-16)", () => {
     await handleTutorAnswer("led_1", "R");
     const call = h.prisma.brainMemory.updateMany.mock.calls[0][0];
     const next = JSON.parse(call.data.content);
-    expect(next).toMatchObject({ topic: "my edited topic", summary: "my edited summary", memoryId: "w1", streak: 3, interval: 7, completed: false });
+    expect(next).toMatchObject({ topic: "my edited topic", summary: "my edited summary", memoryId: "w1", interval: 3, completed: false });
     expect(next.summary).not.toBe(WISDOM[0].content);
   });
 
@@ -755,14 +750,14 @@ describe("scout 9: free recall first, options only as a hint", () => {
     noWrites();
   });
 
-  it("(c) R grades correct, unaided, and schedules as correct (streak climbs)", async () => {
+  it("(c) R grades correct, unaided, and schedules as FSRS Good", async () => {
     h.prisma.intelligenceOutcome.findUnique.mockResolvedValue(ledgerRow());
     h.prisma.brainMemory.findUnique.mockResolvedValue({ id: "sr_1", content: prevStreak3(), deletedAt: null });
     const r = await handleTutorAnswer("led_1", "R");
     expect(h.recordDecision).toHaveBeenCalledWith({ id: "led_1", decision: "accepted", resultRef: "tutor:R:unaided" });
     expect(h.recordOutcomeResult).toHaveBeenCalledWith({ id: "led_1", useful: true, resultRef: "tutor:R:unaided" });
-    expect(scheduled()).toMatchObject({ streak: 4, interval: 30 });
-    expect(r.reply).toBe("Right. Next ask in 30 days.");
+    expect(scheduled()).toMatchObject({ interval: 3, fsrs: { scheduled_days: 3 } });
+    expect(r.reply).toBe("Right. Next ask in 3 days.");
     expect(r.next).toBeUndefined();
   });
 
@@ -772,7 +767,7 @@ describe("scout 9: free recall first, options only as a hint", () => {
     const r = await handleTutorAnswer("led_1", "X");
     expect(h.recordDecision).toHaveBeenCalledWith({ id: "led_1", decision: "accepted", resultRef: "tutor:X:unaided" });
     expect(h.recordOutcomeResult).toHaveBeenCalledWith({ id: "led_1", useful: false, resultRef: "tutor:X:unaided" });
-    expect(scheduled()).toMatchObject({ streak: 0, interval: 1 });
+    expect(scheduled()).toMatchObject({ interval: 1, fsrs: { scheduled_days: 1 } });
     expect(r.reply).toBe("Logged. Again tomorrow.");
   });
 
@@ -791,7 +786,7 @@ describe("scout 9: free recall first, options only as a hint", () => {
     const r = await handleTutorAnswer("led_1", "B");
     expect(h.recordDecision).toHaveBeenCalledWith({ id: "led_1", decision: "accepted", resultRef: "tutor:B:hint" });
     expect(h.recordOutcomeResult).toHaveBeenCalledWith({ id: "led_1", useful: true, resultRef: "tutor:B:hint" });
-    expect(scheduled()).toMatchObject({ streak: 0, interval: 1 });
+    expect(scheduled()).toMatchObject({ interval: 1, fsrs: { scheduled_days: 1 } });
     expect(r.reply).toBe("Right, with the options. Again tomorrow.");
   });
 
@@ -811,7 +806,7 @@ describe("scout 9: free recall first, options only as a hint", () => {
       outcomeAt = NOW;
       return "recorded";
     });
-    expect((await handleTutorAnswer("led_1", "R")).reply).toBe("Right. Next ask in 1 day.");
+    expect((await handleTutorAnswer("led_1", "R")).reply).toBe("Right. Next ask in 3 days.");
     expect((await handleTutorAnswer("led_1", "R")).reply).toBe("Already recorded.");
     expect(h.recordDecision).toHaveBeenCalledTimes(1);
     expect(h.recordOutcomeResult).toHaveBeenCalledTimes(1);
@@ -886,5 +881,99 @@ describe("scout 9: free recall first, options only as a hint", () => {
     ];
     expect(all).toHaveLength(8);
     for (const b of all) expect(Buffer.byteLength(b.callback_data ?? "")).toBeLessThanOrEqual(64);
+  });
+});
+
+/**
+ * Deep scout v2 item 4 (2026-10-17): the tutor schedules with FSRS (ts-fsrs) instead
+ * of the 1/3/7/30 streak ladder. The card state rides in the row's content JSON under
+ * `fsrs`, so the same compare-and-swap that guards reviewAt guards it too.
+ */
+describe("scout 4: FSRS schedules the tutor's spaced reviews", () => {
+  // A mature review card: four Goods from 90 days before NOW.
+  const mature = () => {
+    let s = nextReview(null, Rating.Good, new Date(NOW.getTime() - 90 * DAY));
+    for (let k = 0; k < 3; k++) s = nextReview(s.state, Rating.Good, s.due);
+    return s.state;
+  };
+  const rowWith = (fsrs: unknown, extra: Record<string, unknown> = {}) => {
+    const content = JSON.stringify({ topic: "physics", summary: WISDOM[0].content, reviewAt: NOW.toISOString(), interval: 9, completed: false, memoryId: "w1", fsrs, ...extra });
+    return { id: "sr_1", deletedAt: null, content };
+  };
+  const written = () => JSON.parse(h.prisma.brainMemory.updateMany.mock.calls[0][0].data.content);
+  const inDays = (iso: string) => Math.round((new Date(iso).getTime() - NOW.getTime()) / DAY);
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(NOW);
+  });
+
+  it("(d) a stored card is graded from its own state through the compare-and-swap, content fields untouched", async () => {
+    const state = mature();
+    const prev = rowWith(state);
+    h.prisma.intelligenceOutcome.findUnique.mockResolvedValue(ledgerRow());
+    h.prisma.brainMemory.findUnique.mockResolvedValue(prev);
+    await handleTutorAnswer("led_1", "R");
+    const call = h.prisma.brainMemory.updateMany.mock.calls[0][0];
+    expect(call.where).toEqual({ id: "sr_1", category: "spaced_review", key: "tutor_w1", content: prev.content, deletedAt: null });
+    expect(Object.keys(call.data).sort()).toEqual(["content", "expiresAt", "lastSeen"]);
+    const expected = nextReview(state, Rating.Good, NOW);
+    const next = written();
+    expect(next.fsrs).toEqual(expected.state);
+    expect(next.reviewAt).toBe(expected.due.toISOString());
+    expect(next.interval).toBe(expected.state.scheduled_days);
+    expect(next).toMatchObject({ topic: "physics", summary: WISDOM[0].content, memoryId: "w1", completed: false });
+    expect(h.remember).not.toHaveBeenCalled();
+  });
+
+  it("(d) a lost swap writes nothing else and the reply says the schedule failed", async () => {
+    h.prisma.intelligenceOutcome.findUnique.mockResolvedValue(ledgerRow());
+    h.prisma.brainMemory.findUnique.mockResolvedValue(rowWith(mature()));
+    h.prisma.brainMemory.updateMany.mockResolvedValue({ count: 0 });
+    expect((await handleTutorAnswer("led_1", "R")).reply).toBe("Logged, schedule failed.");
+    expect(h.prisma.brainMemory.updateMany).toHaveBeenCalledTimes(1);
+    expect(h.remember).not.toHaveBeenCalled();
+  });
+
+  it("(d) a card cleared in Learn stays cleared even with FSRS state on it", async () => {
+    h.prisma.intelligenceOutcome.findUnique.mockResolvedValue(ledgerRow());
+    h.prisma.brainMemory.findUnique.mockResolvedValue({ ...rowWith(mature()), deletedAt: new Date("2026-10-10T00:00:00Z") });
+    expect((await handleTutorAnswer("led_1", "R")).reply).toBe("Logged. That card was cleared in Learn, so no new date.");
+    expect(h.prisma.brainMemory.updateMany).not.toHaveBeenCalled();
+    expect(h.remember).not.toHaveBeenCalled();
+  });
+
+  it("(e) a legacy row with only a streak is graded as a new card (the streak is not carried forward)", async () => {
+    h.prisma.intelligenceOutcome.findUnique.mockResolvedValue(ledgerRow());
+    h.prisma.brainMemory.findUnique.mockResolvedValue(rowWith(undefined, { streak: 9 }));
+    await handleTutorAnswer("led_1", "R");
+    const next = written();
+    expect(next.fsrs).toEqual(nextReview(null, Rating.Good, NOW).state);
+    expect("streak" in next).toBe(false);
+  });
+
+  it("(c) a hinted correct answer on a mature card is FSRS Again: a lapse, not a Good", async () => {
+    const state = mature();
+    h.prisma.intelligenceOutcome.findUnique.mockResolvedValue(ledgerRow());
+    h.prisma.brainMemory.findUnique.mockResolvedValue(rowWith(state));
+    await handleTutorAnswer("led_1", "B");
+    expect(written().fsrs).toEqual(nextReview(state, Rating.Again, NOW).state);
+    expect(written().fsrs.lapses).toBe(state.lapses + 1);
+  });
+
+  it("(g) the reply's day count is the FSRS due delta, on a Good and on a miss of a mature card", async () => {
+    h.prisma.intelligenceOutcome.findUnique.mockResolvedValue(ledgerRow());
+    h.prisma.brainMemory.findUnique.mockResolvedValue(rowWith(mature()));
+    const good = await handleTutorAnswer("led_1", "R");
+    const goodDays = inDays(written().reviewAt);
+    expect(goodDays).toBeGreaterThan(30);
+    expect(good.reply).toBe(`Right. Next ask in ${goodDays} days.`);
+
+    h.prisma.brainMemory.updateMany.mockClear();
+    const miss = await handleTutorAnswer("led_1", "X");
+    const missDays = inDays(written().reviewAt);
+    // A lapse on a mature card is not "tomorrow": the reply must not claim it is.
+    expect(missDays).toBeGreaterThan(1);
+    expect(miss.reply).toBe(`Logged. Again in ${missDays} days.`);
   });
 });

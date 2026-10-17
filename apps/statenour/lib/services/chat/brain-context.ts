@@ -40,6 +40,7 @@ import type { PrefetchResult } from "@/lib/ai/predictive-prefetch";
 import type { ChatMode } from "@/lib/ai/chat-mode";
 import { detectExecuteFinalized } from "@/lib/ai/response-contract";
 import { buildRecallFailureNotice } from "@/lib/ai/chat/recall-failure-notice";
+import { extractText, type ChatHistoryMessage } from "@/lib/ai/chat/extract-text";
 import { TRUTH_GROUNDING_UNAVAILABLE } from "@/lib/ai/chat/truth-grounding";
 import { TASK_QUEUE_UNAVAILABLE } from "@/lib/brain/task-context";
 
@@ -74,7 +75,8 @@ export interface BuildBrainContextInput {
   /** Pre-computed user embedding from the prefetch step. Empty array = skip rerank. */
   userEmbedding: number[];
   forceRecall: boolean;
-  messages: Array<{ role: string; content: string }>;
+  /** v6 UIMessages (`parts`) from the route, or legacy `{ role, content }`. */
+  messages: ReadonlyArray<ChatHistoryMessage>;
   /** Undefined on a Private Lab turn (see privateMode). */
   convId?: string;
   /**
@@ -249,9 +251,9 @@ export async function buildBrainContext(
   // could come from, and that bound is correct -- a pronoun refers to the
   // turn just spoken, not to turn 50. Taking 5 leaves up to 4 once the
   // current turn is dropped, preserving the original window.
-  const __priorTurns = (messages as Array<{ content?: unknown }>)
+  const __priorTurns = messages
     .slice(-5)
-    .map((m) => (typeof m?.content === "string" ? m.content : ""))
+    .map((m) => extractText(m))
     .filter(Boolean);
   if (__priorTurns[__priorTurns.length - 1] === userContent) __priorTurns.pop();
   const queryPlan = planQuery(userContent, { recentTurns: __priorTurns.slice(-4) });
@@ -575,7 +577,7 @@ export async function buildBrainContext(
     // SERIALLY after the parallel batch — the single biggest unbounded
     // stream-open delay in the module. Bounded to the same 3s.
     const anticipatoryBlock = anticipatoryRecallMod && contextMemories
-      ? await withTimeout(anticipatoryRecallMod.anticipateMemories(messages as never, contextMemories), 3000, null)
+      ? await withTimeout(anticipatoryRecallMod.anticipateMemories(messages, contextMemories), 3000, null)
       : null;
     
     // The lens block still renders on a private turn; only its metric row is skipped.

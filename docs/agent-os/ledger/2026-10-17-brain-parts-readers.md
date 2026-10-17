@@ -1,0 +1,7 @@
+| Job id | Date | Job | Lanes | Status | PR / SHA | Next action or blocker | Lesson |
+|---|---|---|---|---|---|---|---|
+| 2026-10-17-brain-parts-readers | 2026-10-17 | Brain follow-up from W3: the follow-up referent lookup and anticipatory recall in buildBrainContext now read v6 parts history through one extractText (moved to lib/ai/chat/extract-text.ts); buildBrainContext's messages typed as the union of both shapes | statenour, manager | MERGED | this PR (statenour/brain-parts-readers) | recorded, not fixed: the route.ts {role, content} cast; two content-only post-turn readers in deferred-background-work.ts (fixing them starts new memory writes) | a reader typed for the legacy shape compiles and passes legacy-only tests while it is blind on the live client: type the input as the real union |
+
+| Job id | After the PR opened (Codex, human) | Manager catches before it opened | Red-first (new tests red on unfixed code / new tests) | Mutation (killed / tried) | Cycle time (first dispatch to merge) | Rework pushes | Source |
+|---|---|---|---|---|---|---|---|
+| 2026-10-17-brain-parts-readers | UNKNOWN until the PR closes | manager: 0 (diff read, no defect found); no lens run (small, mechanical, one shared extractor) | 5 failed / 3 passed on unfixed code | 2 / 2 (each reader reverted to .content) | dispatch 2026-10-17 to merge: UNKNOWN at row time (paused once for machine RAM) | 0 at row time | lane RETURN, manager diff read, PR body |
