@@ -1226,6 +1226,8 @@ Keep it under 200 characters.`;
       jobId: z.number().int().positive(),
       clipUrls: z.array(z.string().min(1).max(2000)).min(1).max(12),
       source: z.literal("higgsfield-web"),
+      // Required, no default: only an attested "none" lets rendered QA use the lens world.
+      startFrame: z.enum(["none", "shop_still"]),
       model: z.string().max(64).optional(),
       note: z.string().max(500).optional(),
     }))

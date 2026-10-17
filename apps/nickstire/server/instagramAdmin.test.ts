@@ -292,7 +292,7 @@ describe("instagramAdmin router", () => {
   });
 
   describe("attachExternalClips (admin)", () => {
-    const input = { jobId: 2100001, clipUrls: ["https://cdn.example.com/1.mp4"], source: "higgsfield-web" as const };
+    const input = { jobId: 2100001, clipUrls: ["https://cdn.example.com/1.mp4"], source: "higgsfield-web" as const, startFrame: "none" as const };
 
     it("exists on the real router and refuses a non-admin caller", async () => {
       expect(appRouter._def.procedures["instagramAdmin.attachExternalClips"]).toBeDefined();
@@ -304,6 +304,19 @@ describe("instagramAdmin router", () => {
       const caller = appRouter.createCaller(ctx("admin"));
       await expect(
         caller.instagramAdmin.attachExternalClips({ ...input, source: "local-file" as never }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+
+    it("requires startFrame: an omitted one is rejected at input validation, no default", async () => {
+      const caller = appRouter.createCaller(ctx("admin"));
+      const { startFrame: _drop, ...bare } = input;
+      await expect(caller.instagramAdmin.attachExternalClips(bare as never)).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+
+    it.each(["None", "text_only", "", null])("rejects startFrame %j at input validation", async (startFrame) => {
+      const caller = appRouter.createCaller(ctx("admin"));
+      await expect(
+        caller.instagramAdmin.attachExternalClips({ ...input, startFrame: startFrame as never }),
       ).rejects.toMatchObject({ code: "BAD_REQUEST" });
     });
   });

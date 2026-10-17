@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { MySqlDialect } from "drizzle-orm/mysql-core";
 import { attachExternalClips } from "./externalClips";
 import { shouldDiscloseAi } from "../../shared/reelDisclosure";
+import { parseReelJobPayload } from "../../shared/reelJobPayload";
+import { clipsWereTextOnly } from "./renderedQa";
 
 // Fixtures only: a fake drizzle-shaped db, fake fetch/probe/storage. Nothing
 // here reaches a real database, a vendor CDN or S3.
@@ -58,7 +60,7 @@ function harness(opts: { row?: ReturnType<typeof job> | null; affectedRows?: num
 }
 
 const input = (clipUrls: string[], over: Record<string, unknown> = {}) => ({
-  jobId: 2100001, clipUrls, source: "higgsfield-web" as const, model: "wan-3.0", note: "unlimited plan", ...over,
+  jobId: 2100001, clipUrls, source: "higgsfield-web" as const, startFrame: "none" as const, model: "wan-3.0", note: "unlimited plan", ...over,
 });
 const ctx = { attachedBy: "admin:7" };
 
@@ -88,7 +90,7 @@ describe("attachExternalClips: success", () => {
     expect(payload.heroAssetId).toBe("ma_9d6743c4");
     expect(payload.storyboardBeats).toHaveLength(6);
     expect(payload.externalClips).toMatchObject({
-      source: "higgsfield-web", model: "wan-3.0", note: "unlimited plan", attachedBy: "admin:7",
+      source: "higgsfield-web", startFrame: "none", model: "wan-3.0", note: "unlimited plan", attachedBy: "admin:7",
       attachedAt: "2026-10-16T15:00:00.000Z", originalUrls: urls(6),
     });
     // The CAS: the WHERE names every field the decision read.
@@ -99,6 +101,21 @@ describe("attachExternalClips: success", () => {
     expect(q.sql).toContain("`reel_jobs`.`clipUrlsJson` is null");
     expect(q.params).toContain("needs_regen");
     expect(h.audit).toHaveBeenCalledWith(expect.objectContaining({ actionType: "attach_external_clips", decision: "OK" }));
+  });
+
+  it("the stored attestation reaches the rendered-QA reader: none is text-only, shop_still is the shop world", async () => {
+    const worldFor = async (startFrame: "none" | "shop_still") => {
+      const h = harness();
+      const r = await attachExternalClips(input(urls(6), { startFrame }), ctx, h.deps);
+      expect(r.ok).toBe(true);
+      const { set } = h.updates[0];
+      // the same read runRenderedQaOnJob does: parsed payload + parsed clipUrlsJson
+      const payload = parseReelJobPayload(String(set.payload));
+      expect((payload as { externalClips?: { startFrame?: unknown } }).externalClips?.startFrame).toBe(startFrame);
+      return clipsWereTextOnly({ ...payload, clipUrls: JSON.parse(String(set.clipUrlsJson)) } as never);
+    };
+    expect(await worldFor("none")).toBe(true);
+    expect(await worldFor("shop_still")).toBe(false);
   });
 
   it("attaches to a queued job too", async () => {
@@ -211,6 +228,34 @@ describe("attachExternalClips: refusals (never a throw, never a write)", () => {
     const beats = [beat(1), beat(2, { source: "deterministic", cardLines: ["$89"] }), beat(3)];
     const h = harness({ row: job({ beats }) });
     await refused(h, await attachExternalClips(input(urls(2)), ctx, h.deps), /beat 2 .*no resolved clip/);
+  });
+
+  it.each([["omitted", undefined], ["null", null]])("refuses a start frame that is %s (START_FRAME_MISSING), before any read or download", async (_label, startFrame) => {
+    const h = harness();
+    const { startFrame: _drop, ...bare } = input(urls(6));
+    const call = startFrame === undefined ? bare : { ...bare, startFrame };
+    await refused(h, await attachExternalClips(call as never, ctx, h.deps), /start frame/);
+    expect(h.audit).toHaveBeenCalledWith(expect.objectContaining({ reasoningCodes: ["START_FRAME_MISSING"] }));
+    expect(h.fetchClip).not.toHaveBeenCalled();
+    expect(h.putClip).not.toHaveBeenCalled();
+  });
+
+  it("a direct caller with no clipUrls and no startFrame gets a refusal, not a thrown TypeError", async () => {
+    const h = harness();
+    const r = await attachExternalClips({ jobId: 2100001, source: "higgsfield-web" } as never, ctx, h.deps);
+    expect(r).toMatchObject({ ok: false });
+    expect(h.audit).toHaveBeenCalledWith(expect.objectContaining({ reasoningCodes: ["START_FRAME_MISSING"], context: expect.objectContaining({ clipCount: null }) }));
+    expect(h.updates).toHaveLength(0);
+    expect(h.fetchClip).not.toHaveBeenCalled();
+  });
+
+  // one-element tuples: it.each spreads a bare array case into its arguments
+  it.each([["None"], ["text_only"], [""], ["shop"], [0], [true], [["none"]]])("refuses start frame %j (START_FRAME_INVALID) and writes nothing", async (startFrame: unknown) => {
+    const h = harness();
+    await refused(h, await attachExternalClips(input(urls(6), { startFrame }) as never, ctx, h.deps), /start frame/);
+    expect(h.audit).toHaveBeenCalledWith(expect.objectContaining({ reasoningCodes: ["START_FRAME_INVALID"] }));
+    expect(h.fetchClip).not.toHaveBeenCalled();
+    expect(h.putClip).not.toHaveBeenCalled();
   });
 
   it("refuses a 61 MB body through the real bounded fetch", async () => {

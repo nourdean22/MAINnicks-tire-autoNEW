@@ -25,7 +25,8 @@ import { spawn } from "child_process";
 import { NOIR_PALETTE, BRAND_BIBLE_VERSION } from "../../shared/brandBible";
 import { parseReelJobPayload, renderedQaRunsSoFar } from "../../shared/reelJobPayload";
 import { beatAllowsHands, parseCaptionStyle, parsePresenceProfile, parseShotLineage } from "../../shared/reelSourceProfile";
-import { declaredBeatSource, parseShotSource } from "../../shared/shotRouter";
+import { beatGenerationRoute, declaredBeatSource, parseShotSource } from "../../shared/shotRouter";
+import { isExternalClipUrl } from "../../shared/reelDisclosure";
 import { promises as fs } from "fs";
 import path from "path";
 import os from "os";
@@ -480,6 +481,51 @@ export function visualWorldAnchored(brief: EvaluateRenderedReelInput["brief"]): 
   return Boolean(brief.visualWorld?.lockedInvariants || brief.visualWorld?.heroFrameUrl);
 }
 
+/** True only when the attach attested that the job's clips were generated with
+ *  no start photograph: payload.externalClips (written solely by
+ *  attachExternalClips) carries startFrame exactly "none" (the operator's
+ *  attestation; nothing here can verify it from the files), AND every generated
+ *  beat's clip in use is a re-hosted external key (a later regeneration
+ *  replaces clips but leaves that record behind), and no pipeline repair has
+ *  re-rendered a beat since (selectiveRepair feeds the hero still to its
+ *  renders). "shop_still", a missing or unknown startFrame (records attached
+ *  before the field existed), a job the pipeline may have image-conditioned, or
+ *  no record at all is false and keeps the shop world. */
+export function clipsWereTextOnly(
+  brief: Pick<EvaluateRenderedReelInput["brief"], "externalClips" | "repairQueue" | "repairs" | "clipUrls" | "storyboardBeats">,
+): boolean {
+  const ext = brief.externalClips;
+  if (!ext || typeof ext !== "object" || Array.isArray(ext)) return false;
+  if ((ext as { startFrame?: unknown }).startFrame !== "none") return false;
+  const noneRecorded = (v: unknown) => v === undefined || v === null || (Array.isArray(v) && v.length === 0);
+  if (!noneRecorded(brief.repairQueue) || !noneRecorded(brief.repairs)) return false;
+  const beats = brief.storyboardBeats;
+  const urls = brief.clipUrls;
+  if (!Array.isArray(beats) || !Array.isArray(urls)) return false;
+  let generated = 0;
+  for (let i = 0; i < beats.length; i++) {
+    if (beatGenerationRoute(beats[i] as never) !== "generate") continue;
+    generated++;
+    if (!isExternalClipUrl(urls[i])) return false;
+  }
+  return generated > 0;
+}
+
+/** The world a text-only job's clips were actually prompted with: its lens
+ *  grammar. Null when the lens is unknown, which sends the caller back to the
+ *  shop world rather than judging against nothing. */
+async function lensWorldBlock(motionLens: string | undefined): Promise<string | null> {
+  if (!motionLens) return null;
+  try {
+    const { MOTION_LENSES } = await import("../../client/src/lib/facelessReelStudio");
+    const lens = Object.hasOwn(MOTION_LENSES, motionLens) ? (MOTION_LENSES as Record<string, { label: string; grammar: string }>)[motionLens] : undefined;
+    if (!lens?.grammar) return null;
+    return `LENS WORLD (every frame must stay in this world). These clips were generated from the lens grammar below with NO start photograph, so the shop photograph is not a required opening frame. Judge continuity inside this world: a location or background change between beats without a deliberate transition is still ENVIRONMENT_DRIFT.\nLens: ${lens.label}. ${lens.grammar}`;
+  } catch {
+    return null;
+  }
+}
+
 /** Clamp raw critic output to the registry: unknown codes are dropped WITH a
  *  warning (a critic may not invent vocabulary); severity comes from the
  *  registry, never the model; any block finding forces decision "repair".
@@ -589,6 +635,13 @@ export interface EvaluateRenderedReelInput {
      * mechanical block (nothing on such a master can be regenerated per beat).
      */
     externalMaster?: { textSurfaces?: string[] | null } | null;
+    /** Written by attachExternalClips (clips rendered outside the pipeline; startFrame is the operator's attestation, "none" or "shop_still"). Attested "none" with no repair record makes the job text-only: see clipsWereTextOnly. */
+    externalClips?: unknown;
+    /** Pipeline repair records (selectiveRepair): a repaired beat may have been rendered from the hero still. */
+    repairQueue?: unknown;
+    repairs?: unknown;
+    /** The clips in use (reel_jobs.clipUrlsJson, parsed by runRenderedQaOnJob), index-aligned with storyboardBeats. Not a payload field. */
+    clipUrls?: unknown;
   };
   /** Deterministic pre-flags from renderedPixelStats; shown to the critic as
    *  PIXEL_STATS and folded into the craft score. Optional so the operator
@@ -902,9 +955,15 @@ export async function evaluateRenderedReel(input: EvaluateRenderedReelInput): Pr
     // An approved world (locked invariants or a hero still) is the anchor that
     // lets continuity findings block (2026-10-12). Without one they do not.
     const visualAnchored = visualWorldAnchored(input.brief);
-    const worldBlock = input.brief.visualWorld?.lockedInvariants
-      ? `APPROVED VISUAL WORLD (every frame must match):\n${input.brief.visualWorld.lockedInvariants}`
-      : "No approved visual world — judge continuity against beat 1's establishing frame.";
+    // The reference world is the one the clips were prompted with. A job attested
+    // text-only (see clipsWereTextOnly) was not given the shop photograph, so demanding
+    // it blocked every beat of job 2100002; it is judged on its lens world instead.
+    // The anchor above is unchanged, so ENVIRONMENT_DRIFT still blocks a jump.
+    const lensWorld = visualAnchored && clipsWereTextOnly(input.brief) ? await lensWorldBlock(input.brief.motionLens) : null;
+    const worldBlock = lensWorld
+      ?? (input.brief.visualWorld?.lockedInvariants
+        ? `APPROVED VISUAL WORLD (every frame must match):\n${input.brief.visualWorld.lockedInvariants}`
+        : "No approved visual world — judge continuity against beat 1's establishing frame.");
     // The generator stopped painting every reel graphite+gold: LENS_PALETTES
     // gives each motion lens the world its own grammar asks for (xray_cutaway a
     // cool schematic field, tilt_shift_miniature bright daylight). Judging all
@@ -1099,7 +1158,8 @@ export async function runRenderedQaOnJob(jobId: number, opts: RunRenderedQaOptio
           .then((m) => m.computeRenderedPixelStats(frames))
           .catch((err: unknown): PixelStats => ({ skipped: true, reason: `pixel stats failed to load: ${err instanceof Error ? err.message.slice(0, 120) : String(err)}` }))
       : null;
-    let verdict = await evaluateRenderedReel({ frames, brief: payload, pixelStats });
+    const clipUrls: unknown = (() => { try { return job.clipUrlsJson ? JSON.parse(job.clipUrlsJson) : undefined; } catch { return undefined; } })();
+    let verdict = await evaluateRenderedReel({ frames, brief: { ...payload, clipUrls }, pixelStats });
     if (wantSpecialist) {
       try {
         const { escalateIfNeeded } = await import("./criticPanel");

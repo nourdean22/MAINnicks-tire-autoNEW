@@ -221,6 +221,19 @@ function isGenerativeClipUrl(url: string): boolean {
   );
 }
 
+/** Start of the file name of every clip re-hosted by attachExternalClips (clips rendered outside the pipeline). */
+export const EXTERNAL_CLIP_KEY_SEGMENT = "higgsfield-external-";
+
+/** True for a re-hosted external clip URL: the marker must open the FILE NAME, so a URL that merely contains it elsewhere does not count. Unparseable is false. */
+export function isExternalClipUrl(url: unknown): boolean {
+  if (typeof url !== "string") return false;
+  try {
+    return (new URL(url).pathname.split("/").pop() ?? "").startsWith(EXTERNAL_CLIP_KEY_SEGMENT);
+  } catch {
+    return false;
+  }
+}
+
 export type ClipProvenance = "generative" | "stock" | "unknown";
 
 /**

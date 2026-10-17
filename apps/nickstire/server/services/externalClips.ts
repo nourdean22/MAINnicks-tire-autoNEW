@@ -5,6 +5,7 @@
  * approval and publish drain take over unchanged.
  *
  * What it does, in order, all before any write:
+ *   0. startFrame ("none" | "shop_still", required) is the operator's attestation, stored on the record;
  *   1. the job exists and is `needs_regen` or `queued` (never assembled/posted);
  *   2. one clip per GENERATED beat (same rule as the enqueue reservation in
  *      reelPipeline.ts: beatGenerationRoute(b) === "generate"); a local beat
@@ -27,7 +28,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { reelJobs } from "../../drizzle/schema";
 import { beatGenerationRoute } from "../../shared/shotRouter";
-import { clipProvenance } from "../../shared/reelDisclosure";
+import { clipProvenance, EXTERNAL_CLIP_KEY_SEGMENT } from "../../shared/reelDisclosure";
 import { parseReelJobPayload } from "../../shared/reelJobPayload";
 import { queueStateForReelStatus } from "../../shared/reelQueue";
 import { REEL_OUTPUT_RULES } from "../../client/src/lib/facelessReelStudio";
@@ -42,7 +43,11 @@ const MAX_CLIP_BYTES = 60 * 1024 * 1024;
 // One clip of that size over a slow CDN hop; the web app's download links are not streamed.
 const CLIP_TIMEOUT_MS = 60_000;
 
-type AttachInput = { jobId: number; clipUrls: string[]; source: "higgsfield-web"; model?: string; note?: string };
+/** What the operator attests each clip was generated from: "none" = text-to-video with no start
+ *  photograph, "shop_still" = image-to-video from the shop still. Required, no default: only an
+ *  explicit "none" lets rendered QA judge the reel on its lens world (renderedQa.clipsWereTextOnly). */
+const START_FRAMES = ["none", "shop_still"] as const;
+type AttachInput = { jobId: number; clipUrls: string[]; source: "higgsfield-web"; startFrame: (typeof START_FRAMES)[number]; model?: string; note?: string };
 type AttachResult = { ok: true; jobId: number; clipCount: number; rehostedUrls: string[] } | { ok: false; refusal: string };
 type JobRow = { id: number; status: string; payload: string; clipUrlsJson: string | null };
 
@@ -108,10 +113,19 @@ const errText = (e: unknown) => (e instanceof Error ? e.message : String(e)).sli
 export async function attachExternalClips(input: AttachInput, ctx: { attachedBy: string }, overrides: Partial<Deps> = {}): Promise<AttachResult> {
   const deps = await resolveDeps(overrides);
   const refuse = async (code: string, refusal: string): Promise<AttachResult> => {
-    await deps.audit({ actionType: "attach_external_clips", decision: "REFUSED", reasoningCodes: [code], context: { jobId: input.jobId, source: input.source, model: input.model ?? null, clipCount: input.clipUrls.length, refusal } }).catch(() => {});
+    await deps.audit({ actionType: "attach_external_clips", decision: "REFUSED", reasoningCodes: [code], context: { jobId: input.jobId, source: input.source, model: input.model ?? null, clipCount: input.clipUrls?.length ?? null, refusal } }).catch(() => {});
     log.info("external clips attach refused", { jobId: input.jobId, code, refusal });
     return { ok: false, refusal };
   };
+
+  // The router's zod enum is the first gate; this one covers a direct caller of this export.
+  const startFrame: unknown = (input as { startFrame?: unknown }).startFrame;
+  if (startFrame === undefined || startFrame === null) {
+    return refuse("START_FRAME_MISSING", `No start frame given: say whether the clips used the shop still ("shop_still") or no start photograph ("none").`);
+  }
+  if (!(START_FRAMES as readonly unknown[]).includes(startFrame)) {
+    return refuse("START_FRAME_INVALID", `Start frame ${JSON.stringify(startFrame).slice(0, 40)} is not one of ${START_FRAMES.join(", ")}.`);
+  }
 
   if (!deps.database) return refuse("DB_UNAVAILABLE", "Database unavailable: the job cannot be read.");
   const rows: JobRow[] = await deps.database
@@ -171,7 +185,7 @@ export async function attachExternalClips(input: AttachInput, ctx: { attachedBy:
   for (let k = 0; k < bodies.length; k++) {
     const beatNumber = beats[generatedIdx[k]].beatNumber;
     // The `higgsfield-` segment is the disclosure marker (see the header): keep it.
-    const key = `reel-clips/higgsfield-external-${job.id}-b${beatNumber}-${stamp}-${Math.random().toString(36).slice(2, 8)}.mp4`;
+    const key = `reel-clips/${EXTERNAL_CLIP_KEY_SEGMENT}${job.id}-b${beatNumber}-${stamp}-${Math.random().toString(36).slice(2, 8)}.mp4`;
     try { rehostedUrls.push(await deps.putClip(key, bodies[k])); } catch (e) {
       return refuse("REHOST_FAILED", `Clip ${k + 1} re-host failed: ${errText(e)}`);
     }
@@ -186,7 +200,7 @@ export async function attachExternalClips(input: AttachInput, ctx: { attachedBy:
   const merged = {
     ...payload,
     externalClips: {
-      source: input.source, model: input.model ?? null, note: input.note ?? null, attachedBy: ctx.attachedBy, attachedAt,
+      source: input.source, startFrame: input.startFrame, model: input.model ?? null, note: input.note ?? null, attachedBy: ctx.attachedBy, attachedAt,
       originalUrls: input.clipUrls,
       disclosure: "re-hosted keys carry a higgsfield- segment so shouldDiscloseAi reads them as generative under any REEL_VIDEO_PROVIDER pin",
     },
@@ -208,7 +222,7 @@ export async function attachExternalClips(input: AttachInput, ctx: { attachedBy:
     return refuse("CAS_LOST", `Reel job ${job.id} changed under us (status, brief or clips moved); nothing attached. Re-read the job and retry.`);
   }
 
-  await deps.audit({ actionType: "attach_external_clips", decision: "OK", reasoningCodes: ["ATTACHED"], context: { jobId: job.id, fromStatus: job.status, source: input.source, model: input.model ?? null, clipCount: rehostedUrls.length, rehostedUrls } }).catch(() => {});
+  await deps.audit({ actionType: "attach_external_clips", decision: "OK", reasoningCodes: ["ATTACHED"], context: { jobId: job.id, fromStatus: job.status, source: input.source, startFrame: input.startFrame, model: input.model ?? null, clipCount: rehostedUrls.length, rehostedUrls } }).catch(() => {});
   log.info("external clips attached", { jobId: job.id, clipCount: rehostedUrls.length, source: input.source, model: input.model ?? null });
   return { ok: true, jobId: job.id, clipCount: rehostedUrls.length, rehostedUrls };
 }
