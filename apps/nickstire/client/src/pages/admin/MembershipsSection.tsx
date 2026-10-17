@@ -53,7 +53,8 @@ export default function MembershipsSection() {
   });
 
   // A failed or paused (offline) lookup checked nothing: it must never read as "not a member".
-  const lookupState = searchPhone ? readStatus(lookup).state : "idle";
+  const lookupRead = searchPhone ? readStatus(lookup) : null;
+  const lookupState = lookupRead?.state ?? "idle";
 
   const runSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -101,7 +102,11 @@ export default function MembershipsSection() {
 
       {lookupState === "unavailable" && !lookup.isFetching && (
         <div role="alert" className="border border-amber-500/40 bg-card p-6 text-center">
-          <p className="text-foreground/80 font-medium">Lookup failed. Not checked: this does not mean they are not a member.</p>
+          <p className="text-foreground/80 font-medium">
+            {lookupRead?.reason === "error"
+              ? "Lookup failed. Not checked: this does not mean they are not a member."
+              : "Offline, not checked: this does not mean they are not a member."}
+          </p>
           <button
             type="button"
             onClick={() => void lookup.refetch()}
