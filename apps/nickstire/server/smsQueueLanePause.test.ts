@@ -25,6 +25,9 @@ const h = vi.hoisted(() => ({
   pausedKeys: new Set<string>(),
   unreadable: false,
   sentMarks: 0,
+  stuckGroups: [] as Array<{ variantKey: string | null; n: number; oldestMin: number }>,
+  telegrams: [] as string[],
+  globalPaused: false,
 }));
 
 function chain(result: unknown): unknown {
@@ -60,13 +63,21 @@ vi.mock("./db", () => ({
         if (h.unreadable) throw new Error("connection refused");
         return [h.pausedKeys.has(key) ? [{ v: 1 }] : []];
       }
+      // checkStuckQueueAlert: queued rows older than the threshold, one row per variantKey
+      if (text.includes("TIMESTAMPDIFF")) return [h.stuckGroups, []];
       return [[], []];
     },
   }),
 }));
 
 vi.mock("./services/smsControl", () => ({
-  getSmsPauseState: async () => ({ readable: true, paused: false, reason: null }),
+  getSmsPauseState: async () => ({ readable: true, paused: h.globalPaused, reason: null }),
+}));
+vi.mock("./services/telegram", () => ({
+  sendTelegram: async (m: string) => {
+    h.telegrams.push(m);
+    return true;
+  },
 }));
 
 const TRANSPORT_ENV = [
@@ -84,6 +95,9 @@ beforeEach(() => {
   h.pausedKeys = new Set();
   h.unreadable = false;
   h.sentMarks = 0;
+  h.stuckGroups = [];
+  h.telegrams = [];
+  h.globalPaused = false;
   for (const k of TRANSPORT_ENV) {
     savedEnv[k] = process.env[k];
     delete process.env[k];
@@ -175,5 +189,95 @@ describe("queuedSendPauseLane (class -> lane)", () => {
     expect(queuedSendPauseLane(undefined, undefined)).toBeNull();
     expect(queuedSendPauseLane("customer_marketing", "weather_first_freeze")).toBeNull();
     expect(queuedSendPauseLane("internal", "declined_work")).toBeNull();
+  });
+});
+
+/**
+ * The silent-stall alert must not page "SMS queue STUCK" for rows held only by
+ * their lane's send pause: that is an operator-chosen hold, like the global
+ * pause it already excludes. Drives the real 60 s cycle with the gateway
+ * configured and reachable (fetch stubbed), so checkStuckQueueAlert runs.
+ */
+describe("stuck-queue alert · lane-held rows", () => {
+  const GATEWAY_ENV = ["SHOP_SMS_GATEWAY_USERNAME", "SHOP_SMS_GATEWAY_PASSWORD"];
+  async function oneCycle() {
+    for (const k of GATEWAY_ENV) process.env[k] = "canary";
+    vi.stubGlobal("fetch", async () => new Response(JSON.stringify([{ id: "dev1", lastSeen: new Date().toISOString() }]), { status: 200 }));
+    vi.useFakeTimers({ now: new Date("2026-10-14T14:00:00Z"), toFake: ["Date", "setInterval", "clearInterval"] });
+    const sms = await import("./sms");
+    sms.startDelayedQueueProcessor();
+    await vi.advanceTimersByTimeAsync(60_000);
+    await Promise.all(sms.delayedQueueCyclesInFlight());
+  }
+  afterEach(() => vi.unstubAllGlobals());
+  const pages = () => h.telegrams.filter((m) => m.includes("SMS queue STUCK"));
+
+  it("a 6-minute-old due confirmation with send_pause_customer_confirmations paused does NOT page", async () => {
+    h.pausedKeys.add("send_pause_customer_confirmations");
+    h.stuckGroups = [{ variantKey: CONFIRM, n: 1, oldestMin: 6 }];
+    await oneCycle();
+    expect(pages()).toEqual([]);
+  });
+
+  it("CONTROL: the same row with its lane live DOES page", async () => {
+    h.stuckGroups = [{ variantKey: CONFIRM, n: 1, oldestMin: 6 }];
+    await oneCycle();
+    expect(pages()).toHaveLength(1);
+    expect(pages()[0]).toContain("1 due message(s)");
+  });
+
+  it("a held lane does not hide a real stall in another row: only the unheld row is counted", async () => {
+    h.pausedKeys.add("send_pause_customer_confirmations");
+    h.stuckGroups = [{ variantKey: CONFIRM, n: 3, oldestMin: 40 }, { variantKey: null, n: 2, oldestMin: 7 }];
+    await oneCycle();
+    expect(pages()).toHaveLength(1);
+    expect(pages()[0]).toContain("2 due message(s)");
+    expect(pages()[0]).toContain("oldest 7m");
+  });
+
+  it("CONTROL: the global pause still suppresses the page (unchanged)", async () => {
+    h.globalPaused = true;
+    h.stuckGroups = [{ variantKey: CONFIRM, n: 1, oldestMin: 6 }];
+    await oneCycle();
+    expect(pages()).toEqual([]);
+  });
+});
+
+/** The per-drain "holding N" line is rate-limited: once per 10 minutes per lane, or when the count changes. */
+describe("delayed queue · held-count log rate limit", () => {
+  it("logs once, again on a count change, and again after 10 minutes", async () => {
+    const lines: string[] = [];
+    const spy = vi.spyOn(process.stdout, "write").mockImplementation((chunk: string | Uint8Array) => {
+      const s = String(chunk);
+      if (s.includes("[sms queue] holding")) lines.push(s);
+      return true;
+    });
+    try {
+      h.pausedKeys.add("send_pause_customer_confirmations");
+      h.pendingRows = [{ id: 81, body: "Your tires are ready.", phone: "2165550181", variantKey: CONFIRM }];
+      vi.useFakeTimers({ now: new Date("2026-10-14T14:00:00Z"), toFake: ["Date", "setInterval", "clearInterval"] });
+      const sms = await import("./sms");
+      expect(await sms.rehydrateQueuedFromDb()).toBe(1);
+      sms.startDelayedQueueProcessor();
+      const cycle = async () => {
+        await vi.advanceTimersByTimeAsync(60_000);
+        await Promise.all(sms.delayedQueueCyclesInFlight());
+      };
+      for (let i = 0; i < 4; i++) await cycle(); // minutes 1-4, same count
+      expect(lines, "one line for four identical drains").toHaveLength(1);
+
+      h.pendingRows = [{ id: 82, body: "Your tires are ready.", phone: "2165550182", variantKey: "confirm:tire_ready:NT-1002" }];
+      expect(await sms.rehydrateQueuedFromDb()).toBe(1);
+      await cycle(); // minute 5, count 1 -> 2
+      expect(lines, "a count change logs").toHaveLength(2);
+      expect(lines[1]).toContain("holding 2");
+
+      for (let i = 0; i < 9; i++) await cycle(); // minutes 6-14: 10 minutes after the last line at minute 5 is minute 15
+      expect(lines).toHaveLength(2);
+      await cycle(); // minute 15
+      expect(lines, "10 minutes later the line repeats").toHaveLength(3);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

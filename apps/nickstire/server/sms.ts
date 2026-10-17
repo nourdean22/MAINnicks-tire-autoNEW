@@ -697,6 +697,9 @@ function queueForLater(to: string, body: string, opts?: SendSmsOptions): void {
  * minutes. Logging every cycle would be 1440 lines/day of noise, so we log
  * only on TRANSITION: once when a hold begins, once when it clears.
  */
+/** Last "holding N" line per send_pause lane: repeated only when N changes or after 10 minutes. */
+const laneHoldLogged = new Map<SendPauseLane, { count: number; atMs: number }>();
+const LANE_HOLD_LOG_EVERY_MS = 10 * 60_000;
 let drainHoldReason: string | null = null;
 function noteDrainHold(reason: string | null, queued: number): void {
   if (reason === drainHoldReason) return;
@@ -758,7 +761,7 @@ async function processDelayedQueue(): Promise<void> {
       laneHold.set(lane, await sendPauseHoldReason(lane));
     }
   }
-  let laneHeld = 0;
+  const laneHeld = new Map<SendPauseLane, number>();
 
   const now = Date.now();
   // Drain ready messages atomically to prevent race with concurrent queueForLater
@@ -778,7 +781,7 @@ async function processDelayedQueue(): Promise<void> {
       const lane = laneOf(msg);
       if (lane && laneHold.get(lane)) {
         stillPending.push(msg);
-        laneHeld++;
+        laneHeld.set(lane, (laneHeld.get(lane) ?? 0) + 1);
       } else {
         ready.push(msg);
       }
@@ -788,9 +791,13 @@ async function processDelayedQueue(): Promise<void> {
   }
   delayedQueue.length = 0;
   delayedQueue.push(...stillPending);
-  if (laneHeld > 0) {
-    const reasons = [...laneHold.values()].filter((r): r is string => r !== null);
-    log.info(`[sms queue] holding ${laneHeld} due message(s) — ${reasons.join(", ")}`);
+  // One line per lane, repeated only when the count changes or every 10 minutes (a paused lane drains every 60 s).
+  for (const lane of laneHoldLogged.keys()) if (!laneHeld.has(lane)) laneHoldLogged.delete(lane);
+  for (const [lane, count] of laneHeld) {
+    const last = laneHoldLogged.get(lane);
+    if (last && last.count === count && now - last.atMs < LANE_HOLD_LOG_EVERY_MS) continue;
+    laneHoldLogged.set(lane, { count, atMs: now });
+    log.info(`[sms queue] holding ${count} due message(s) — ${laneHold.get(lane)}`);
   }
 
   for (const msg of ready) {
@@ -1154,15 +1161,29 @@ async function checkStuckQueueAlert(): Promise<void> {
     const { sql } = await import("drizzle-orm");
     const db = await getDb();
     if (!db) return;
+    // Grouped by variantKey so rows held by their lane's send_pause (C5.5 round 2)
+    // can be left out: like the global pause, that hold is the operator's choice.
     const [rows] = await db.execute(sql`
-      SELECT COUNT(*) AS n,
+      SELECT variantKey AS variantKey, COUNT(*) AS n,
              TIMESTAMPDIFF(MINUTE, MIN(createdAt), NOW()) AS oldestMin
       FROM sms_messages
       WHERE direction = 'outbound' AND status = 'queued'
         AND createdAt < DATE_SUB(NOW(), INTERVAL ${STUCK_QUEUE_THRESHOLD_MINUTES} MINUTE)
+      GROUP BY variantKey
     `);
-    const first = (Array.isArray(rows) ? rows[0] : undefined) as { n?: unknown; oldestMin?: unknown } | undefined;
-    const stuckCount = Number(first?.n ?? 0);
+    const groups = (Array.isArray(rows) ? rows : []) as Array<{ variantKey?: unknown; n?: unknown; oldestMin?: unknown }>;
+    let stuckCount = 0;
+    let oldestMin = 0;
+    for (const g of groups) {
+      const lane = queuedSendPauseLane(undefined, typeof g.variantKey === "string" ? g.variantKey : null);
+      // Same reader as the drain (5 s cache): the drain's read in this process, a fresh read in another.
+      if (lane) {
+        const { sendPauseHoldReason } = await import("./services/sendPause");
+        if (await sendPauseHoldReason(lane)) continue;
+      }
+      stuckCount += Number(g.n ?? 0);
+      oldestMin = Math.max(oldestMin, Number(g.oldestMin ?? 0));
+    }
     if (stuckCount === 0) {
       lastStuckAlertAt = 0; // condition cleared — next stall alerts immediately
       return;
@@ -1178,7 +1199,6 @@ async function checkStuckQueueAlert(): Promise<void> {
     });
     if (!fire) return;
     lastStuckAlertAt = Date.now();
-    const oldestMin = Number(first?.oldestMin ?? 0);
     log.error("[sms queue] STUCK — gateway healthy but due messages sit queued", { stuckCount, oldestMin });
     try {
       const { sendTelegram } = await import("./services/telegram");
