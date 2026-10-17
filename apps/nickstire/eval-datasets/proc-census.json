@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-16T11:26:11.059Z",
-  "count": 788,
+  "generatedAt": "2026-10-17T14:56:19.960Z",
+  "count": 789,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -386,6 +386,7 @@
     "query.adminDashboard.systemDiagnostics",
     "query.adminDashboard.todaysBrief",
     "query.adminSecurity.integrationFreshness",
+    "query.adminSecurity.queueFeedbackSummary",
     "query.adminSecurity.recentActions",
     "query.adminSecurity.status",
     "query.analytics.funnel",

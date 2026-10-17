@@ -5407,6 +5407,28 @@
       "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "internal"
+    },
+    {
+      "capabilityId": "today-queue-feedback",
+      "name": "Today queue rows can be marked Keep or Less, the verdicts are stored, and the owner sees how many are marked (unknown when unreadable, never zero)",
+      "owner": "operator",
+      "codeState": "merged",
+      "operationalState": "integration_verified",
+      "exposure": "operator_only",
+      "lastVerifiedAt": "2026-10-17",
+      "verificationExpiresAt": null,
+      "evidence": {
+        "codeCommit": "Admin UI v1 W6 prerequisite (2026-10-17, branch nickstire/admin-ui-v1-w6-prep). Writes: every Today queue row (client/src/pages/admin/today/QueueRow.tsx, OverviewSection.tsx markVerdict) records a verdict through the existing adminSecurity.recordAction as action admin.queue_feedback with changes {verdict: keep|less, itemType, source: today}; recordAdminAction (server/services/adminAudit.ts) stores it in audit_log with entity_type admin_action; no new table, no migration. Reads: adminSecurity.queueFeedbackSummary (server/routers/adminSecurity.ts -> adminAudit.getQueueFeedbackSummary) sums keep and less per itemType in SQL (JSON_EXTRACT on changes, NULL or JSON null itemType bucketed as unknown) with the first verdict time as since, and answers readable:false on a missing database or a throwing query. It maps to the security.manage permission (every adminSecurity path except the recordAction override), so the Checks rail line is queried and shown only to the owner; every Today role can record. Purpose: the W6 Stream (apps/nickstire/docs/design/admin-ui-v1/PLAN.md) waits for two weeks of these verdicts.",
+        "tests": "server/__tests__/queueFeedbackSummary.test.ts (15): readable zero vs unreadable (null db, throwing db, throwing query), exact CASE mappings, the action and entity filters, the since minimum independent of row order, the null itemType bucket, and a writer-to-reader test pinning the recordAdminAction row shape to the JSON paths the SQL reads; client/src/__tests__/admin-w6prep-keep-less.test.tsx (14): exact recordAction payload, the row stays and the job is untouched, a failed write marks nothing, Keep/Less disabled while a write is pending, the rail line for readable, none yet, unreadable, error, paused, pending and stale-after-failed-refetch, owner-only (front desk and manager see no line, query disabled), the New York date label, not an open check; tests/e2e/admin-v1-fixtures.spec.ts renders Today with the read answered (6 passed); silent-instrument lens 25 of 30 mutants, the 5 survivors pinned except a max-h class that needs a real layout.",
+        "liveRuns": "NOT YET: no production read of queueFeedbackSummary has been made; the SQL has never run against TiDB."
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Not exercised in production. Proof needed: after deploy, mark one Today row Less as the owner, then the Checks rail reads Keep/Less: 1 marked since today, and a SELECT-only count of audit_log rows with action admin.queue_feedback returns 1."
+        }
+      ],
+      "deferredScope": []
     }
   ],
   "axes": {

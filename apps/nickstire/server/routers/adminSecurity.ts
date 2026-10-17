@@ -7,7 +7,7 @@ import { adminIdentityProcedure, adminPermissionProcedure, adminProcedure, route
 import { AUTH_ATTEMPTING_OUTCOMES } from "../lib/adminActivity";
 import { db } from "../lib/db-helper";
 import { buildTotpUri, generateTotpSecret, verifyTotpCode } from "../lib/totp";
-import { getRecentAdminActions, recordAdminAction, reportAdminClientError } from "../services/adminAudit";
+import { getQueueFeedbackSummary, getRecentAdminActions, recordAdminAction, reportAdminClientError } from "../services/adminAudit";
 import {
   decryptMfaSecret,
   enableMfa,
@@ -143,6 +143,15 @@ export const adminSecurityRouter = router({
   recentActions: adminPermissionProcedure("reports.view")
     .input(z.object({ limit: z.number().int().min(1).max(200).default(50) }).optional())
     .query(({ input }) => getRecentAdminActions(input?.limit ?? 50)),
+
+  /**
+   * Keep/Less verdicts the Today board has recorded (queueFeedbackSummary v1). Plain adminProcedure on
+   * purpose, not dbAdminProcedure: a dead database answers `readable: false` in the body, the same
+   * convention as integrationFreshness, so the client can say "unreadable" instead of an error toast.
+   * Keep this declaration directly above integrationFreshness: fabricatedAdminReadScan attributes
+   * everything up to the next admin/db procedure key to the procedure above it.
+   */
+  queueFeedbackSummary: adminProcedure.query(() => getQueueFeedbackSummary()),
 
   /**
    * ROS-083 · this read used to look ONLY at `outcome = 'success'`, so a live
