@@ -107,7 +107,11 @@ export function requiresConfirmation(key: string, nextValue: boolean): boolean {
   return isInvertedFlag(key) ? nextValue === false : nextValue === true;
 }
 
-/** Resume copy for the C5.5 send pauses. Each lane skipped its sends while paused; nothing waits to go out. */
+/**
+ * Resume copy for the C5.5 send pauses. Each cron lane skips its NEW sends while paused, but a text that was
+ * already in the delayed SMS queue (quiet hours, gateway offline) is HELD there and goes out on resume
+ * (round 2). Calls are never queued. The card shows that count as sendSwitchesStatus.heldQueued.
+ */
 const SEND_PAUSE_RESUME_COPY: Record<string, { title: string; message: string; confirmLabel: string }> = {
   send_pause_voice_outbound: {
     title: "Resume outbound calls?",
@@ -120,28 +124,29 @@ const SEND_PAUSE_RESUME_COPY: Record<string, { title: string; message: string; c
     title: "Resume tire-order confirmations?",
     message:
       "Resuming lets order confirmation texts and emails go out again on the next order update. " +
-      "Confirmations skipped while paused are not sent later.",
+      "Confirmations skipped while paused are not resent, but confirmation texts already queued (gateway offline) " +
+      "and held by the pause go out when you resume.",
     confirmLabel: "Resume confirmations",
   },
   send_pause_declined_recovery: {
     title: "Resume declined-work follow-up texts?",
     message:
       "Resuming lets the declined-estimate follow-up texts send again on the next run, inside the per-run cap. " +
-      "Nothing was queued while paused.",
+      "Texts already queued for the morning window and held by the pause go out when you resume.",
     confirmLabel: "Resume texts",
   },
   send_pause_weather_sms: {
     title: "Resume weather texts?",
     message:
       "Resuming lets weather-triggered texts go to lapsed customers again the next time a trigger fires. " +
-      "Nothing was queued while paused.",
+      "Weather texts already queued and held by the pause go out when you resume.",
     confirmLabel: "Resume texts",
   },
   send_pause_missed_call_recovery: {
     title: "Resume missed-call follow-up texts?",
     message:
       "Resuming lets the cron text callers from the last 24 hours who were not helped, on its next run. " +
-      "Nothing was queued while paused.",
+      "Follow-up texts already queued and held by the pause go out when you resume.",
     confirmLabel: "Resume texts",
   },
 };

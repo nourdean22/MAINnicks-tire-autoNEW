@@ -235,8 +235,8 @@ async function sendWeatherSms(triggerId: string): Promise<{ sent: number; held: 
     let sent = 0;
     for (const [i, c] of targets.entries()) {
       if (!c.phone) continue;
-      // C5.5 round 2: re-read the pause before every send (5 s cache: one DB read per 5 s).
-      const midRunHold = await sendPauseHoldReason("weather_sms");
+      // C5.5 round 2: re-read the pause before every send (a fresh read: the start gate's cached answer may be stale).
+      const midRunHold = await sendPauseHoldReason("weather_sms", "automated", { fresh: true });
       if (midRunHold) {
         log.info(`Weather SMS for "${triggerId}" held mid-run (${midRunHold})`, { sent });
         return { sent, held: `${midRunHold} · not_attempted=${targets.length - i}` };

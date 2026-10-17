@@ -159,6 +159,21 @@ describe("delayed queue · send_pause lane hold", () => {
     expect(await drainTwice({ variantKey: "retention_d7_v1" })).toBe(0);
   });
 
+  it("round 2: a queued weather text with send_pause_weather_sms set stays queued", async () => {
+    h.pausedKeys.add("send_pause_weather_sms");
+    expect(await drainTwice({ variantKey: "weather_first_freeze" })).toBe(1);
+    expect(h.sentMarks).toBe(0);
+  });
+
+  it("round 2: a queued missed-call recovery text with send_pause_missed_call_recovery set stays queued", async () => {
+    h.pausedKeys.add("send_pause_missed_call_recovery");
+    expect(await drainTwice({ variantKey: "missed_call_recovery" })).toBe(1);
+  });
+
+  it("round 2 CONTROL: the same weather text with its lane live is drained", async () => {
+    expect(await drainTwice({ variantKey: "weather_first_freeze" })).toBe(0);
+  });
+
   it("declined queued + unreadable switch -> held (fail closed)", async () => {
     h.unreadable = true;
     expect(await drainTwice({ variantKey: DECLINED })).toBe(1);
@@ -185,9 +200,17 @@ describe("queuedSendPauseLane (class -> lane)", () => {
       expect(queuedSendPauseLane("customer_marketing", k), k).toBe("declined_recovery");
     }
   });
+  it("round 2: maps weather_* keys to weather_sms and the missed-call recovery key to missed_call_recovery", () => {
+    for (const k of ["weather_first_freeze", "weather_heavy_rain", "weather_salt_season_end"]) {
+      expect(queuedSendPauseLane("customer_marketing", k), k).toBe("weather_sms");
+    }
+    expect(queuedSendPauseLane("customer_followup", "missed_call_recovery")).toBe("missed_call_recovery");
+    // the webhook's own forwarded-call follow-up keeps its catalog key and is NOT the cron's lane
+    expect(queuedSendPauseLane("customer_followup", "vapi_forwarded_call_followup_v1")).toBeNull();
+  });
   it("leaves anything else unmapped", () => {
     expect(queuedSendPauseLane(undefined, undefined)).toBeNull();
-    expect(queuedSendPauseLane("customer_marketing", "weather_first_freeze")).toBeNull();
+    expect(queuedSendPauseLane("customer_marketing", "retention_d7_v1")).toBeNull();
     expect(queuedSendPauseLane("internal", "declined_work")).toBeNull();
   });
 });

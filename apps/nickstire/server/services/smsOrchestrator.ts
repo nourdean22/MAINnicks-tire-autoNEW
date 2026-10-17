@@ -29,6 +29,7 @@ import { nextOpeningLabel } from "@shared/shopState";
 import { SMS_OPT_IN_KEYWORDS } from "@shared/smsOptOutKeywords";
 import { createLogger } from "../lib/logger";
 import { notSentLogFields } from "../lib/smsNotSentLog";
+import { MISSED_CALL_RECOVERY_VARIANT_KEY } from "../lib/smsQueueReplay";
 import { normalizePhone } from "../lib/phone";
 import { describeDbError } from "../lib/dbErrors";
 import { eq, and, desc, gte, sql, like, or, inArray } from "drizzle-orm";
@@ -52,12 +53,19 @@ import { smsEffect, isSmsReplayActive, REPLAY_FAKE_SEND_SID } from "./smsReplayS
 
 const log = createLogger("sms-orchestrator");
 
+/** The variantKey a send persists: a missed-call recovery cron text carries its lane key, everything else its own. */
+function persistedVariantKey(event: SmsOrchestratorEvent, key: string): string {
+  return event.type === "vapi_forwarded_call_followup" && event.source === "missed_call_recovery" ? MISSED_CALL_RECOVERY_VARIANT_KEY : key;
+}
+
 export type SmsOrchestratorEvent = (
   | { type: "inbound_sms"; phone: string; body: string; conversationId: number }
   // mapLink is IGNORED (kept only so old callers still type-check): the recap
   // always carries VAPI_RECAP_LINK. See that constant.
   | { type: "vapi_confirmation"; phone: string; summary: string; mapLink?: string; vapiCallId?: string }
-  | { type: "vapi_forwarded_call_followup"; phone: string; vapiCallId?: string }
+  // source "missed_call_recovery": the cron, not the webhook. Its texts persist MISSED_CALL_RECOVERY_VARIANT_KEY
+  // so a queued one is held by send_pause_missed_call_recovery (C5.5 round 2).
+  | { type: "vapi_forwarded_call_followup"; phone: string; vapiCallId?: string; source?: "missed_call_recovery" }
   | { type: "after_hours_capture"; phone: string; name: string; captureType: "lead" | "booking" | "callback"; sourceId?: string }
   | { type: "stale_lead_followup"; phone: string; leadId: number }
   | { type: "abandoned_form_recovery"; phone: string; name: string; formType: string; sourceId?: string }
@@ -955,7 +963,7 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
         "sms.sendSms",
         () => sendSms(normalizedPhone, body, {
           via: "shop",
-          variantKey: "legacy",
+          variantKey: persistedVariantKey(event, "legacy"),
           skipPersist: false,
           sendNowOrDrop: event.type === "after_hours_capture",
         }),
@@ -1903,7 +1911,7 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
           // cooldown (not the daily cap) so a customer's rapid follow-up
           // question still gets answered.
           skipShortCooldown: event.type === "inbound_sms",
-          variantKey: finalVariantKey,
+          variantKey: persistedVariantKey(event, finalVariantKey),
           skipPersist: false,
           // audit 2026-09-29: "we're closed right now" is true only when it
           // is sent. Never park it for a sending window that can open after

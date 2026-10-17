@@ -469,8 +469,8 @@ export async function runDeclinedWorkRecovery(opts?: RecoveryOptions): Promise<R
       log.info(`[declined-recovery] hit per-run cap of ${MAX_SMS_PER_RUN} sends, stopping early`);
       break;
     }
-    // Re-read the pause before every estimate (5 s cache: one DB read per 5 s, not per text).
-    const midRunHold = await sendPauseHoldReason("declined_recovery");
+    // Re-read the pause before every estimate (a fresh read: the start gate's cached answer may be stale).
+    const midRunHold = await sendPauseHoldReason("declined_recovery", "automated", { fresh: true });
     if (midRunHold) {
       heldMidRun = midRunHold;
       notAttempted = ranked.length - i;

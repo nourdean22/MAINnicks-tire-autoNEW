@@ -226,8 +226,8 @@ export async function processMissedCallRecovery(): Promise<{ recordsProcessed: n
     let notAttempted = 0;
     const batch = eligible.slice(0, RUN_CAP);
     for (const [i, row] of batch.entries()) {
-      // Re-read the pause before every claim (5 s cache: one DB read per 5 s, not per caller).
-      const midRunHold = await sendPauseHoldReason("missed_call_recovery");
+      // Re-read the pause before every claim (a fresh read: the start gate's cached answer may be stale).
+      const midRunHold = await sendPauseHoldReason("missed_call_recovery", "automated", { fresh: true });
       if (midRunHold) {
         heldMidRun = midRunHold;
         notAttempted = batch.length - i;
@@ -249,6 +249,7 @@ export async function processMissedCallRecovery(): Promise<{ recordsProcessed: n
         type: "vapi_forwarded_call_followup",
         phone: row.phoneNumber!,
         vapiCallId: row.vapiCallId,
+        source: "missed_call_recovery", // durable variantKey: a queued text is held by this lane's pause
       });
       if (result.status === "sent" || result.status === "queued") processed++;
     }

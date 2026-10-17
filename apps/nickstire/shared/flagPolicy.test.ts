@@ -178,7 +178,21 @@ describe("flagPolicy · send_pause_<lane> (C5.5 runtime send pauses)", () => {
     expect(requiresConfirmation(key, true)).toBe(false);
   });
 
-  it.each(KEYS)("%s resume copy names its own lane and says nothing was queued", (key) => {
+  it.each(["send_pause_customer_confirmations", "send_pause_declined_recovery", "send_pause_weather_sms", "send_pause_missed_call_recovery"])(
+    "round 2: %s resume copy says texts the pause held in the queue go out on resume",
+    (key) => {
+      const { message } = confirmationCopy(key, false);
+      expect(message).toMatch(/queued/i);
+      expect(message).toMatch(/go out (when you resume|on resume)/i);
+      expect(message).not.toMatch(/Nothing was queued|not sent later/i);
+    },
+  );
+
+  it("round 2 CONTROL: outbound calls are never queued, so its copy still says so", () => {
+    expect(confirmationCopy("send_pause_voice_outbound", false).message).toMatch(/Nothing was queued/);
+  });
+
+  it.each(KEYS)("%s resume copy names its own lane", (key) => {
     const copy = confirmationCopy(key, false);
     expect(copy.title).toContain(`(${key} OFF)`);
     expect(copy.title).not.toMatch(/^Resume automated sending\?/);

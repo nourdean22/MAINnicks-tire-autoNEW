@@ -228,8 +228,8 @@ export async function runVoiceRecovery(): Promise<RunResult> {
       digits.length === 11 && digits.startsWith("1") ? `+${digits}` :
       est.customerPhone.startsWith("+") ? est.customerPhone : `+1${digits.slice(-10)}`;
 
-    // Re-read the pause before every claim (5 s cache: one DB read per 5 s, not per lead).
-    const midRunHold = await sendPauseHoldReason("voice_outbound");
+    // Re-read the pause before every claim (a fresh read: the start gate's cached answer may be stale).
+    const midRunHold = await sendPauseHoldReason("voice_outbound", "automated", { fresh: true });
     if (midRunHold) {
       heldMidRun = midRunHold;
       notAttempted = candidates.length - i;

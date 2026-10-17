@@ -17,6 +17,7 @@ const h = vi.hoisted(() => ({
   holdLanes: [] as string[],
   flipAfterFirstSend: false,
   claims: 0,
+  sources: [] as string[],
 }));
 
 // The real reader is pinned in sendPause.test.ts; this file's db mock has no getDb.
@@ -53,8 +54,9 @@ vi.mock("../services/vapiActionExtraction", () => ({
   },
 }));
 vi.mock("../services/smsOrchestrator", () => ({
-  orchestrateSms: async (input: { vapiCallId: string }) => {
+  orchestrateSms: async (input: { vapiCallId: string; source?: string }) => {
     h.sent.push(input.vapiCallId);
+    h.sources.push(input.source ?? "(none)");
     if (h.flipAfterFirstSend) h.hold = "send_pause:missed_call_recovery";
     return { status: "sent" };
   },
@@ -140,6 +142,7 @@ describe("processMissedCallRecovery · tool-reaching callers", () => {
     h.holdLanes = [];
     h.flipAfterFirstSend = false;
     h.claims = 0;
+    h.sources = [];
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -207,6 +210,8 @@ describe("processMissedCallRecovery · tool-reaching callers", () => {
     h.callRows = [call("a", 0), call("bb", 0), call("ccc", 0)];
     const out = await processMissedCallRecovery();
     expect(h.sent).toHaveLength(3);
+    // the durable key the delayed-queue drain maps back to this lane
+    expect(h.sources).toEqual(["missed_call_recovery", "missed_call_recovery", "missed_call_recovery"]);
     expect(out.details ?? "").not.toMatch(/send_pause/);
   });
 

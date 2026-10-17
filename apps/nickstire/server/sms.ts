@@ -711,6 +711,44 @@ function noteDrainHold(reason: string | null, queued: number): void {
   drainHoldReason = reason;
 }
 
+/** The send_pause lane of a queued text: in-memory rows carry their send options, rehydrated rows their stored variantKey. */
+function laneOf(m: DelayedMessage): SendPauseLane | null {
+  return queuedSendPauseLane(m.opts?.messageClass, m.opts?.variantKey ?? m.variantKey);
+}
+
+/**
+ * sendSwitchesStatus v1.1 heldQueued: queued texts per send_pause lane, which go
+ * out when the lane is resumed. The in-memory queue (rehydrated rows sit
+ * "sending" in the DB while held here) united by row id with the DB's queued
+ * rows (another process's, or not yet rehydrated). null = the DB could not be
+ * read: UNKNOWN, never 0.
+ */
+export async function countQueuedByLane(): Promise<Map<SendPauseLane, number> | null> {
+  const counts = new Map<SendPauseLane, number>();
+  const add = (lane: SendPauseLane | null) => { if (lane) counts.set(lane, (counts.get(lane) ?? 0) + 1); };
+  const inMemory = new Set<number>();
+  for (const m of delayedQueue) {
+    add(laneOf(m));
+    if (m.dbId != null) inMemory.add(m.dbId);
+  }
+  try {
+    const { getDb } = await import("./db");
+    const { smsMessages } = await import("../drizzle/schema");
+    const { and, eq } = await import("drizzle-orm");
+    const db = await getDb();
+    if (!db) return null;
+    const rows = await db.select({ id: smsMessages.id, variantKey: smsMessages.variantKey })
+      .from(smsMessages)
+      .where(and(eq(smsMessages.direction, "outbound"), eq(smsMessages.status, "queued")))
+      .limit(2000);
+    for (const r of rows) if (!inMemory.has(r.id)) add(queuedSendPauseLane(undefined, r.variantKey));
+  } catch (err) {
+    log.warn("queued-by-lane count failed", { error: describeDbError(err) });
+    return null;
+  }
+  return counts;
+}
+
 async function processDelayedQueue(): Promise<void> {
   if (delayedQueue.length === 0) return;
   // Quiet hours hold customer numbers only. A message to an internal line
@@ -752,13 +790,12 @@ async function processDelayedQueue(): Promise<void> {
   // never stamped sent). shouldHold decides via sendPauseHoldReason, so an
   // unreadable switch follows the lane's fail class. Read BEFORE the partition
   // below, which must stay free of awaits (see "atomically").
-  const laneOf = (m: DelayedMessage) => queuedSendPauseLane(m.opts?.messageClass, m.opts?.variantKey ?? m.variantKey);
   const laneHold = new Map<SendPauseLane, string | null>();
   for (const msg of delayedQueue) {
     const lane = laneOf(msg);
     if (lane && !laneHold.has(lane)) {
       const { sendPauseHoldReason } = await import("./services/sendPause");
-      laneHold.set(lane, await sendPauseHoldReason(lane));
+      laneHold.set(lane, await sendPauseHoldReason(lane, "automated", { fresh: true }));
     }
   }
   const laneHeld = new Map<SendPauseLane, number>();

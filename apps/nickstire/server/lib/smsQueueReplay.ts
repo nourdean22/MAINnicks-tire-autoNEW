@@ -34,6 +34,10 @@ export function queuedReplayIntent(to: string): { messageClass: "internal" } | n
   return isInternalLineDestination(to) ? { messageClass: "internal" } : null;
 }
 
+/** sms_messages.variantKey for a missed-call recovery cron text (set by the orchestrator for source
+ *  "missed_call_recovery"), so a queued one maps back to its send_pause lane. 20 chars, fits varchar(50). */
+export const MISSED_CALL_RECOVERY_VARIANT_KEY = "missed_call_recovery";
+
 /**
  * The send_pause lane a queued text belongs to, or null (no lane check: the
  * drain's behaviour before C5.5 round 2). A text queued before a pause must be
@@ -45,5 +49,8 @@ export function queuedSendPauseLane(messageClass: string | undefined, variantKey
   if (messageClass === "customer_confirmation" || variantKey?.startsWith("confirm:")) return "customer_confirmations";
   // declinedRecoverySequence.variantKey(): declined_<n>d_<profile>
   if (variantKey && /^declined_\d+d_P\d$/.test(variantKey)) return "declined_recovery";
+  // weatherIntelligence.sendWeatherSms: variantKey weather_<triggerId>
+  if (variantKey && /^weather_[a-z_]+$/.test(variantKey)) return "weather_sms";
+  if (variantKey === MISSED_CALL_RECOVERY_VARIANT_KEY) return "missed_call_recovery";
   return null;
 }
