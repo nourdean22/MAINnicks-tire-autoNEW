@@ -102,7 +102,7 @@ function postRecap(callId: string, customer: string | null): Promise<number> {
 
 /** The state hook is fire-and-forget after the 200; wait for its one write. */
 async function recordedState() {
-  await vi.waitFor(() => expect(h.states).toHaveLength(1));
+  await vi.waitFor(() => expect(h.states).toHaveLength(1), { timeout: 5000 });
   return h.states[0];
 }
 

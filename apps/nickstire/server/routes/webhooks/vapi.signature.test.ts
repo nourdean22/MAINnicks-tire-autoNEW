@@ -131,9 +131,11 @@ async function expectRefused(headers: Record<string, string | string[]>) {
 describe("positive controls: a request carrying the secret reaches the orchestrator", () => {
   it("x-vapi-secret with the secret -> 200 and one send", async () => {
     expect(await post({ "x-vapi-secret": SECRET })).toBe(200);
-    await settle();
     expect(h.sends).toBe(1);
-    expect(h.states).toBe(1);
+    // The state hook runs after the 200 (cold dynamic imports on first use):
+    // wait for it here, so the refusals' "0 states" is measured against a hook
+    // proven to fire.
+    await vi.waitFor(() => expect(h.states).toBe(1), { timeout: 5000 });
   });
 
   it("x-vapi-signature (Vapi's custom-credential mode) with the secret -> 200 and one send", async () => {
