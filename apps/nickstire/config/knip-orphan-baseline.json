@@ -337,11 +337,6 @@
       "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
     },
     {
-      "file": "apps/nickstire/client/src/components/admin/AdminAlertBar.tsx",
-      "symbol": null,
-      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
-    },
-    {
       "file": "apps/nickstire/client/src/components/conversion/DecoyPricingTable.tsx",
       "symbol": null,
       "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"

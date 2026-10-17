@@ -1,12 +1,12 @@
 {
   "totals": {
     "uppercase": 4,
-    "emDash": 166,
+    "emDash": 164,
     "emoji": 0,
-    "transitionAll": 74,
+    "transitionAll": 71,
     "slowDuration": 7,
     "smallInput": 168,
-    "offPalette": 171
+    "offPalette": 158
   },
   "files": {
     "client/src/components/admin/ActivityPulse.tsx": {
@@ -71,9 +71,6 @@
     "client/src/pages/admin/MembershipsSection.tsx": {
       "smallInput": 2
     },
-    "client/src/pages/admin/OpsHubSection.tsx": {
-      "offPalette": 6
-    },
     "client/src/pages/admin/OverviewSection.tsx": {
       "emDash": 3
     },
@@ -82,9 +79,6 @@
     },
     "client/src/pages/admin/PromptEvalsPanel.tsx": {
       "emDash": 1
-    },
-    "client/src/pages/admin/SettingsSection.tsx": {
-      "emDash": 2
     },
     "client/src/pages/admin/SpecialsSection.tsx": {
       "smallInput": 9
@@ -197,9 +191,6 @@
       "emDash": 1,
       "offPalette": 4
     },
-    "client/src/pages/admin/intelligence/CustomerIntelligence.tsx": {
-      "offPalette": 2
-    },
     "client/src/pages/admin/intelligence/IntelligenceHQSection.tsx": {
       "transitionAll": 3,
       "offPalette": 2
@@ -209,9 +200,6 @@
     },
     "client/src/pages/admin/intelligence/LlmSpendPanel.tsx": {
       "offPalette": 4
-    },
-    "client/src/pages/admin/intelligence/MarketIntelligence.tsx": {
-      "offPalette": 5
     },
     "client/src/pages/admin/leads/CandidatesPanel.tsx": {
       "smallInput": 2,
@@ -272,7 +260,7 @@
       "emDash": 3
     },
     "client/src/pages/admin/outreach/SmsOrchestratorSection.tsx": {
-      "transitionAll": 10,
+      "transitionAll": 7,
       "smallInput": 4,
       "offPalette": 3
     },

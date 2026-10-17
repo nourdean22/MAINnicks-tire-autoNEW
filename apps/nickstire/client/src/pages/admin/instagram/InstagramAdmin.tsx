@@ -61,7 +61,9 @@ export function InstagramAdmin() {
   const health = trpc.instagramAdmin.getPipelineHealth.useQuery(undefined, { refetchInterval: 120_000 });
   const meta = health.data?.meta;
   const metaChip = !meta
-    ? null
+    ? health.isError || health.fetchStatus === "paused"
+      ? { className: "border-amber-500/40 text-amber-400", label: "Meta unknown" }
+      : null
     : !meta.connected
       ? { className: "border-red-500/40 text-red-400", label: "Meta off" }
       : meta.live === true
@@ -123,8 +125,9 @@ export function InstagramAdmin() {
       </div>
 
       <Tabs value={isSecondary ? "" : activeView} onValueChange={(value) => navigate(value as IgView)} className="w-full">
-        {/* h-auto is load-bearing (see Wave 3): the base TabsList fixes h-9. */}
-        <TabsList className="grid h-auto w-full grid-cols-5 gap-1">
+        {/* h-auto is load-bearing (see Wave 3): the base TabsList fixes h-9. One scrolling strip,
+            not a fixed five-column grid: five labels do not fit a 375 px phone at 48 px. */}
+        <TabsList className="flex h-auto w-full justify-start gap-1 overflow-x-auto scroll-touch">
           {IG_PRIMARY_VIEWS.map((view) => (
             // onClick is BELT-AND-BRACES with Tabs' onValueChange, not a
             // duplicate. Verified in production 2026-08-01: clicking a trigger
@@ -144,7 +147,7 @@ export function InstagramAdmin() {
             <TabsTrigger
               key={view.key}
               value={view.key}
-              className="min-h-11"
+              className="min-h-12 shrink-0 px-4"
               onClick={() => navigate(view.key)}
             >
               {view.label}
