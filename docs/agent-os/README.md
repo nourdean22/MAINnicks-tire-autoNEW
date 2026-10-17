@@ -224,6 +224,47 @@ and vitest broke at once. Two layers now cover it:
    (2026-10-17, 7 runs; `node -e 0` was 103 ms). Run it by hand any time: `node scripts/agent-os/deps-check.mjs`.
    Canaries: `scripts/agent-os/depsCheck.test.mjs` and `sharedDepsRule.test.mjs`.
 
+### Worktree sweep: finished worktrees clean themselves up (2026-10-17)
+
+About 64 lane worktrees had piled up under `.claude/worktrees/`; each was torn down by hand after proving its HEAD was in
+a merged PR. That proof is now one command, added to `scripts/agent-os/repo-status.mjs` (the script that already reads
+every local worktree, its lease and its dirty state), and the remover is still `scripts/worktree-teardown.ps1`:
+
+    node scripts/agent-os/repo-status.mjs --sweep             # dry run: counts per class, then class + reason per worktree
+    node scripts/agent-os/repo-status.mjs --sweep --execute   # tears down LANDED only
+
+Every worktree under `.claude/worktrees/` and `.worktrees/` (never the primary checkout) gets one class. Only `agent-*`
+children of `.claude/worktrees/` and worktrees under any `.worktrees/` (nested ones inside a session worktree too) can
+ever be LANDED. Desktop session worktrees carry no harness lock and commit on PR branches in their own cwd, so an idle
+session whose PR merged looked LANDED to the first draft (manager review 2026-10-17); SESSION closes that.
+
+| Class | Means | Removed by `--execute` |
+|---|---|---|
+| LANDED | a MERGED PR whose head is HEAD or whose commit list holds HEAD (`gh pr view <n> --json state,commits,headRefOid`); clean tree | yes |
+| OPEN_PR | the branch has an open PR | no |
+| NO_PR | no open or merged PR (closed-only PRs are named in the reason) | no |
+| DIRTY | uncommitted or untracked files | no |
+| ACTIVE | the caller's own worktree, a harness lock (`locked claude agent ...`), any tracked or untracked file or the branch reflog modified in the last 2 h, or a live Session Authority lease (local marker or GitHub) | no |
+| DETACHED_UNKNOWN | detached HEAD: no branch to find a PR by | no |
+| SESSION | a direct child of `.claude/worktrees/` not named `agent-*`: a Claude Desktop session's own cwd (e.g. `musing-ramanujan-25e4e3`). Checked before any read; the app's archive removes it | no |
+| UNKNOWN | gh, the lease read or any local read failed, or a merged PR does not hold HEAD (work after the merge) | no |
+
+`git cherry` and ahead counts are never consulted: squash merges make both lie. With `--execute`, each LANDED worktree is
+re-classified immediately before its teardown, then removed through `worktree-teardown.ps1 -ForceDirtyRelease` (needed
+because the remote branch is gone after the merge), one at a time, run from the primary checkout. The known libuv crash in
+`agent-finish.mjs` gets one retry; any other failure keeps the worktree and says why. "Removed" means the worktree is no
+longer registered with git, read back after the teardown. Exit 1 only when a LANDED worktree could not be torn down.
+
+`merge-gate.mjs --merge` runs the same sweep, with `--execute`, for the worktree(s) holding the head it just merged, once
+the PR reads MERGED, and prints `SWEEP: removed ...` or `SWEEP: kept ...: <class> (<reason>)`. A sweep failure is logged
+and never changes the merge's exit code. A lane worktree that committed less than 2 h before the merge is ACTIVE and is
+kept; the next `--sweep --execute` removes it. A Desktop session worktree holding the merged head is kept as SESSION.
+Remaining risk: the SESSION rule is a naming convention. A session worktree named `agent-*`, or one placed directly
+under a `.worktrees/` folder, gets no SESSION protection. Only the lock, the 2 h window and the lease guard it there.
+
+Canaries: `scripts/agent-os/worktreeSweep.test.mjs` (real fixture repos: a bare origin, a primary, worktrees; fake `gh`,
+lease and clock; one arm runs the real teardown script) and the sweep arms of `mergeGate.test.mjs`.
+
 ## MCP and native-runner coverage (2026-10-15)
 
 **The gap this closes.** `pretool.mjs` used to be registered only for
