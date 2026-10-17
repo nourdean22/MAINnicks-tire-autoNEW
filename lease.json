@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "chore/manager-audit-tails",
-  "status": "active",
+  "status": "released",
   "sessionKind": "bridge",
   "sessionId": "d50e485f-1df3-402d-9d49-158f838053b1",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\fewer-permission-prompts-269694\\.worktrees\\manager-audit-tails",
   "claimedBy": "worktree-setup.ps1",
   "claimedAt": "2026-10-11T15:27:56.693Z",
   "expiresAt": "2026-10-12T03:27:56.693Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": null
+  "releasedAt": "2026-10-17T15:52:43.354Z",
+  "releaseReason": "operator confirmed via -ForceDirtyRelease in worktree-teardown.ps1",
+  "priorLeaseSha": "23cdef162f80198f5ae035ef83997e5d5d326846",
+  "releasedBy": "f8d930b8-3865-416c-802f-2947cc79c726",
+  "foreignReleaseReason": null
 }
