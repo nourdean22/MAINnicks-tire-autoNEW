@@ -5250,6 +5250,39 @@
       "codeState": "in_progress",
       "operationalState": "unit_verified",
       "exposure": "disabled"
+    },
+    {
+      "capabilityId": "reel-deep-scout-v2",
+      "name": "Reels get word-timed captions on the Google voice, a two-pass loudness normalisation on the final mix, and an opt-in contrastive pre-assembly clip check (first/mid/last contact sheet, forced pick among sibling beats)",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "Branch nickstire/reel-deep-scout on main c1a13642e (server lane, cherry-picked): (A) server/services/reelVoice.ts: Google request on v1beta1 with enableTimePointing SSML_MARK and one <mark> per word, timepoints converted into the existing VoiceAlignment so generateAssSubtitles is reused, a 400 resends today's v1 request once, empty or missing timepoints keep beat captions; (C) server/services/audioQa.ts now holds audioMixFilters and the loudnorm measure/apply helpers, reelAssembly.ts measures the final mix (after the music duck) then applies loudnorm with measured_* and linear=true, a failed or unparseable measure keeps the single-pass filter; (B) server/services/clipVerify.ts: with REEL_CLIP_VERIFY_CONTRAST=true the judge sees a first/mid/last contact sheet, picks one of up to three shuffled beat descriptions (its own plus two siblings) and reports subjectChanges, and a sibling pick or a subject change refuses with the existing ClipMismatchRefusal (parked, no retry burned); flag off (default) is today's single-frame, planned-visual, score-only check byte for byte. Why: deep scout v2 (docs/research/2026-10-17-deep-scout-v2.md items 2, 5, 10).",
+        "tests": [
+          "server/reelVoiceTimepoints.test.ts (new, 11): recorded-shape v1beta1 timepoints -> word alignment; empty/missing/partial/NaN timepoints -> no alignment and audio returned; request names v1beta1 + enableTimePointing; 400 -> one v1 resend. Red first 7 failed / 4 passed. Mutant drop enableTimePointing: 1 failed.",
+          "server/reelLoudnormTwoPass.test.ts (new, 11): measure JSON parsed through measureMixLoudness; second pass carries measured_* and linear=true; measure failure -> single-pass string; the measure graph equals the render's own audio chain. Red first 11 failed / 1 passed. Mutant render ignores the measurement: 1 failed (re-run after the move to audioQa.ts).",
+          "server/clipVerifyContrastive.test.ts (new): flag off -> one -ss midpoint extract, the pre-change system and user text and CLIP_VERDICT_SCHEMA exactly, a sibling-pick reply at 0.9 passes and at 0.3 refuses with the old message; flag on -> contact sheet at first/mid/last with hstack=inputs=3, planned description not named, four-field schema, sibling pick and subject change refuse, score at the floor passes. Mutants: refusal ignores the pick 1 failed; flag hard-coded on 2 failed.",
+          "Manager run on the combined tree: 11 files, 157 passed, 5 skipped (reelVoiceTimepoints, reelLoudnormTwoPass, clipVerifyContrastive, clipVerify, reelVoice, reelAssembly, audioQa, reelAudioIntegrity, reelAssemblyCuts, captionSafeZone, captionContrast); lane: lint:orphans exit 0 (0 new), pnpm run check exit 0."
+        ],
+        "liveRuns": [],
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Not observed in production yet. Live proof: (A) a Google-voiced reel whose timepoints come back non-empty with caption onsets within 100 ms of the word (Chirp 3 HD Charon may ignore marks, then beat captions stay); (C) audioQa LRA and true peak on 5 reels before and after with no 'loudnorm measure pass failed' log; (B) replay the stored clips of the 4 failed cron reels with REEL_CLIP_VERIFY_CONTRAST=true before an operator arms it",
+          "source": "job 2026-10-17-reel-deep-scout"
+        }
+      ],
+      "deferredScope": [
+        "REEL_CLIP_VERIFY_CONTRAST is not armed; arming it is an operator env change after the stored-clip replay",
+        "near-duplicate sibling beats can draw a fair sibling pick; only identical text is filtered today",
+        "ffmpeg freezedetect prefilter not added",
+        "the real ffmpeg contact sheet and two-pass loudnorm were not run on this machine (no ffmpeg on PATH)"
+      ],
+      "lastVerifiedAt": "2026-10-17",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
     }
   ],
   "axes": {
