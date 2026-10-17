@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "cron-fail-closed": {
+      "ref": "C5.5 follow-up (2026-10-17): the three voice crons and the declined, weather and missed-call crons re-check send_pause_<lane> FRESH before every claim or send (declinedWorkRecovery.freshPause.test.ts drives the real reader over a fake DB with the clock frozen: a pause flipped after item 1 holds item 2, red on the cached code, green after); a mid-run voice hold stays a skip-and-stop (voiceLanes.midRunPause.test.ts); an unreadable switch still holds every unattended lane (sendPause.test.ts); the per-item fresh call is pinned by the source scan in sendPauseCoverage.test.ts with planted-defect controls. Preflight at 25aa7ca18 all green including the repo-scan gates and the DoD compiler."
+    },
+    "capability-ledger-updated": {
+      "ref": "C5.5 follow-up 2026-10-17 (PR nickstire/c55-send-pause-followup): capability-ledger entry send-pause-switches (added in #3134, state in_progress / unit_verified / disabled) already covers the five send lanes this diff hardens; this diff changes HOW the gate reads (fresh per-item reads past the 5 s cache, delayed-queue lane mapping for weather and missed-call, heldQueued on the status read, cache invalidation on toggle) and adds no capability, so the entry's states stand; its contract note still says v1 and is bumped to v1.1 at the next ledger pass together with the live proof (toggle one lane, next cron tick logs Skipped · send_pause:<lane>). Evidence for this diff: declinedWorkRecovery.freshPause.test.ts, sendPauseToggleCache.test.ts, smsQueueLanePause.test.ts (19 files, 280 tests green; preflight all green at 25aa7ca18)."
+    }
+  }
+}

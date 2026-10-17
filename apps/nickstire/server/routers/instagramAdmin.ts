@@ -1202,8 +1202,9 @@ Keep it under 200 characters.`;
     readAutopostLaneStatus(await dbTyped()),
   ),
 
-  /** Contract sendSwitchesStatus v1 (C5.5): per send lane, paused / live / UNKNOWN (paused null),
-   *  its fail class and whether its env flag is armed. Toggling stays on featureFlags.toggle. */
+  /** Contract sendSwitchesStatus v1.1 (C5.5): per send lane, paused / live / UNKNOWN (paused null),
+   *  its fail class, whether its env flag is armed, and heldQueued (v1.1: queued texts that go out on
+   *  resume, null = unknown). Toggling stays on featureFlags.toggle. */
   sendSwitchesStatus: adminProcedure.query(async () => {
     const { readSendSwitchesStatus } = await import("../services/sendPause");
     return readSendSwitchesStatus();

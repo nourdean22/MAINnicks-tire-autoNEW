@@ -101,11 +101,36 @@ describe("send pause coverage", () => {
   });
 });
 
+/**
+ * Round 2 (Codex P1): every per-item check inside a send loop, and the delayed
+ * queue drain's lane read, must bypass the 5 s cache, or a pause set just after
+ * the start gate lets a fast loop finish on stale state. Start gates stay cached.
+ */
+const FRESH_SITES: Array<[file: string, lane: SendPauseLane]> = [
+  ["cron/jobs/voiceRecovery.ts", "voice_outbound"],
+  ["cron/jobs/followupCadence.ts", "voice_outbound"],
+  ["cron/jobs/confirmationCalls.ts", "voice_outbound"],
+  ["cron/jobs/declinedWorkRecovery.ts", "declined_recovery"],
+  ["services/weatherIntelligence.ts", "weather_sms"],
+  ["cron/jobs/missedCallRecovery.ts", "missed_call_recovery"],
+];
+const freshCall = (lane: string) => `sendPauseHoldReason("${lane}", "automated", { fresh: true })`;
+
+describe("send pause coverage · per-item checks read fresh", () => {
+  it.each(FRESH_SITES)("%s re-checks %s with a fresh read inside its loop", (file, lane) => {
+    expect(read(file)).toContain(freshCall(lane));
+  });
+
+  it("the delayed-queue drain reads each lane fresh", () => {
+    expect(read("sms.ts")).toMatch(/laneHold\.set\(lane, await sendPauseHoldReason\(lane, "automated", \{ fresh: true \}\)\)/);
+  });
+});
+
 describe("send pause coverage · planted defects are caught", () => {
   const g = GATES.find((x) => x.file === "services/weatherIntelligence.ts")!;
   const src = read(g.file);
   // /g: since round 2 the lane checks at its start gate AND before each send; removing one leaves it wired.
-  const gateLine = /^.*sendPauseHoldReason\("weather_sms"\).*$/gm;
+  const gateLine = /^.*sendPauseHoldReason\("weather_sms"[,)].*$/gm;
 
   it("CONTROL: the real file passes", () => {
     expect(gateProblems(src, g)).toEqual([]);

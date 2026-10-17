@@ -35,8 +35,10 @@ reading this file would have known Nick was placing outbound calls.
 
 **Runtime pauses for these lanes (C5.5, 2026-10-17).** Each env send lane also reads a
 `feature_flags` row through `server/services/sendPause.ts` (5 s cache), so a lane can be
-stopped from the admin Feature Flags panel without a redeploy. TRUE = paused. A held send is
-skipped, not queued. No value is asserted here: read `instagramAdmin.sendSwitchesStatus`.
+stopped from the admin Feature Flags panel without a redeploy. TRUE = paused. A lane checks at
+its start gate, again (fresh) before each send in its loop, and in the delayed SMS queue drain. A new
+send is skipped, not queued; a text already in the delayed queue is held there and goes out on
+resume (`sendSwitchesStatus.heldQueued` counts them). No value is asserted here: read `instagramAdmin.sendSwitchesStatus`.
 
 | pause key | holds | unreadable switch |
 |---|---|---|

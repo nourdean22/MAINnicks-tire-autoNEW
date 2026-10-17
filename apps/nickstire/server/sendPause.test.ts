@@ -132,6 +132,32 @@ describe("sendPause · the reader", () => {
     _resetSendPauseCacheForTest();
     expect((await sendPause("weather_sms")).paused).toBe(true);
   });
+
+  it("round 2: a fresh read bypasses the cache, with no clock advance, and refreshes it", async () => {
+    const { sendPause } = await import("./services/sendPause");
+    expect((await sendPause("weather_sms")).paused).toBe(false);
+    flagRows = { send_pause_weather_sms: 1 };
+    expect((await sendPause("weather_sms", { fresh: true })).paused).toBe(true);
+    // the fresh answer is now the cached one, so a start gate right after sees it too
+    const before = queries.length;
+    expect((await sendPause("weather_sms")).paused).toBe(true);
+    expect(queries.length).toBe(before);
+  });
+
+  it("CONTROL: two start-gate (cached) reads within 5 s are ONE db call", async () => {
+    const { sendPauseHoldReason } = await import("./services/sendPause");
+    await sendPauseHoldReason("declined_recovery");
+    await sendPauseHoldReason("declined_recovery");
+    expect(queries.filter((q) => q.includes("send_pause_declined_recovery"))).toHaveLength(1);
+  });
+
+  it("round 2: sendPauseHoldReason(lane, actor, { fresh: true }) sees a pause set inside the cache window", async () => {
+    const { sendPauseHoldReason } = await import("./services/sendPause");
+    expect(await sendPauseHoldReason("declined_recovery")).toBeNull();
+    flagRows = { send_pause_declined_recovery: 1 };
+    expect(await sendPauseHoldReason("declined_recovery")).toBeNull(); // cached: the start-gate shape
+    expect(await sendPauseHoldReason("declined_recovery", "automated", { fresh: true })).toBe("send_pause:declined_recovery");
+  });
 });
 
 describe("sendPauseHoldReason · what a chokepoint records", () => {
@@ -204,13 +230,28 @@ describe("readSendSwitchesStatus · contract sendSwitchesStatus v1", () => {
   it("readable rows -> real booleans, fail class and envArmed per lane", async () => {
     flagRows = { send_pause_voice_outbound: 1 };
     const { readSendSwitchesStatus } = await import("./services/sendPause");
-    const s = await readSendSwitchesStatus({ FEATURE_VOICE_RECOVERY: "1", ENABLE_CUSTOMER_CONFIRMATIONS: "1" });
+    const s = await readSendSwitchesStatus({ FEATURE_VOICE_RECOVERY: "1", ENABLE_CUSTOMER_CONFIRMATIONS: "1" }, async () => new Map());
     const by = Object.fromEntries(s.lanes.map((l) => [l.lane, l]));
-    expect(by.voice_outbound).toEqual({ lane: "voice_outbound", paused: true, readable: true, failClass: "closed", envArmed: true });
+    expect(by.voice_outbound).toEqual({ lane: "voice_outbound", paused: true, readable: true, failClass: "closed", envArmed: true, heldQueued: 0 });
     expect(by.customer_confirmations).toEqual({
-      lane: "customer_confirmations", paused: false, readable: true, failClass: "open", envArmed: false,
+      lane: "customer_confirmations", paused: false, readable: true, failClass: "open", envArmed: false, heldQueued: 0,
     });
     expect(by.weather_sms.paused).toBe(false);
+  });
+});
+
+describe("readSendSwitchesStatus · v1.1 heldQueued", () => {
+  it("counts queued texts per lane (they go out on resume); a lane with none reads 0", async () => {
+    const { readSendSwitchesStatus } = await import("./services/sendPause");
+    const s = await readSendSwitchesStatus({}, async () => new Map([["customer_confirmations", 2], ["weather_sms", 1]]));
+    const by = Object.fromEntries(s.lanes.map((l) => [l.lane, l.heldQueued]));
+    expect(by).toEqual({ voice_outbound: 0, customer_confirmations: 2, declined_recovery: 0, weather_sms: 1, missed_call_recovery: 0 });
+  });
+
+  it("an unreadable queue -> heldQueued null on every lane (UNKNOWN, never 0)", async () => {
+    const { readSendSwitchesStatus } = await import("./services/sendPause");
+    const s = await readSendSwitchesStatus({}, async () => null);
+    for (const l of s.lanes) expect(l.heldQueued).toBeNull();
   });
 });
 

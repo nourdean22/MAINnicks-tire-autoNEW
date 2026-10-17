@@ -8,10 +8,12 @@
  *
  * Modelled on smsControl.getSmsPauseState: a 5 s cache per process, and a
  * failed read is `readable: false`, never a guess. Each lane checks at three
- * points (round 2, 2026-10-17): its start gate, again before every claim or
- * send inside its loop, and the delayed SMS queue drain for texts queued
- * before the pause (confirmations, declined recovery). So a pause set at any
- * moment stops the NEXT send within the 5 s cache window. What an
+ * points (round 2, 2026-10-17): its start gate (cached), again before every
+ * claim or send inside its loop (a FRESH read, { fresh: true }), and the delayed
+ * SMS queue drain (fresh) for texts queued before the pause (confirmations,
+ * declined recovery, weather, missed-call recovery). So a pause stops the NEXT
+ * send of a running loop, and a run that starts within 5 s of the flip may read
+ * the cached state only at its start gate. What an
  * unreadable switch means is the lane's fail class:
  *   - closed: an unattended lane (cron dials or texts with no customer asking)
  *     HOLDS when it cannot read its switch.
@@ -71,10 +73,12 @@ export interface SendPauseState {
 const CACHE_MS = 5_000;
 const cache = new Map<SendPauseLane, { state: SendPauseState; expiresAt: number }>();
 
-export async function sendPause(lane: SendPauseLane): Promise<SendPauseState> {
+/** opts.fresh: skip the cache (and refresh it). For the per-item checks inside send loops: a cached answer
+ *  lets a fast loop finish on the state it read at its start gate (Codex P1, round 2). */
+export async function sendPause(lane: SendPauseLane, opts: { fresh?: boolean } = {}): Promise<SendPauseState> {
   const now = Date.now();
   const hit = cache.get(lane);
-  if (hit && hit.expiresAt > now) return hit.state;
+  if (!opts.fresh && hit && hit.expiresAt > now) return hit.state;
   let state: SendPauseState;
   try {
     const { getDb } = await import("../db");
@@ -111,8 +115,12 @@ export function shouldHold(lane: SendPauseLane, state: SendPauseState, actor: Se
  * The one call a chokepoint makes, before any spend or provider call.
  * null = send. Otherwise the reason the lane records on its existing skip path.
  */
-export async function sendPauseHoldReason(lane: SendPauseLane, actor: SendPauseActor = "automated"): Promise<string | null> {
-  const state = await sendPause(lane);
+export async function sendPauseHoldReason(
+  lane: SendPauseLane,
+  actor: SendPauseActor = "automated",
+  opts: { fresh?: boolean } = {},
+): Promise<string | null> {
+  const state = await sendPause(lane, opts);
   const hold = shouldHold(lane, state, actor);
   if (!state.readable) {
     log.warn(`send pause switch unreadable for ${lane} (${actor}); ${hold ? "holding (fail closed)" : "sending (fail open)"}`, { lane, actor });
@@ -127,8 +135,10 @@ export function envArmed(lane: SendPauseLane, env: Record<string, string | undef
 }
 
 /**
- * Contract sendSwitchesStatus v1 (client: the send switches card).
+ * Contract sendSwitchesStatus v1.1 (client: the send switches card). v1.1 adds heldQueued (additive).
  * paused is null when the switch could not be read: UNKNOWN, never false.
+ * heldQueued: texts in the delayed SMS queue mapped to this lane, which go out
+ * when the lane is resumed; null when the queue could not be read.
  */
 export interface SendSwitchesStatus {
   lanes: Array<{
@@ -137,26 +147,38 @@ export interface SendSwitchesStatus {
     readable: boolean;
     failClass: SendPauseFailClass;
     envArmed: boolean | null;
+    heldQueued: number | null;
   }>;
 }
 
 export async function readSendSwitchesStatus(
   env: Record<string, string | undefined> = process.env,
+  countQueued: () => Promise<Map<SendPauseLane, number> | null> = async () => (await import("../sms")).countQueuedByLane(),
 ): Promise<SendSwitchesStatus> {
   const out: SendSwitchesStatus["lanes"] = [];
+  const queued = await countQueued().catch(() => null);
   // Sequential on purpose: five one-row reads, and concurrent first-time dynamic
   // imports of a mocked ../db fail under vitest, which would read as UNKNOWN.
   for (const lane of Object.keys(SEND_PAUSE_LANES) as SendPauseLane[]) {
-    const s = await sendPause(lane);
+    // Fresh: the card refetches right after a toggle, and a cached answer would show the old chip
+    // (in this process for 5 s, and in any other process that cached it).
+    const s = await sendPause(lane, { fresh: true });
     out.push({
       lane,
       paused: s.readable ? s.paused : null,
       readable: s.readable,
       failClass: SEND_PAUSE_LANES[lane].failClass,
       envArmed: envArmed(lane, env),
+      heldQueued: queued ? (queued.get(lane) ?? 0) : null,
     });
   }
   return { lanes: out };
+}
+
+/** Drop one lane's cached state, so the next read in this process sees the DB. featureFlags.setFlag calls
+ *  it on every send_pause_<lane> write; other processes still see the flip within the 5 s cache window. */
+export function invalidateSendPause(lane: SendPauseLane): void {
+  cache.delete(lane);
 }
 
 /** Test hook: the 5 s cache would otherwise leak across serial test files. */

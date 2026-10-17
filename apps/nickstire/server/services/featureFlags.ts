@@ -149,7 +149,7 @@ export const FLAG_DEFINITIONS = [
   // Unlike the pauses above, an UNREADABLE switch is decided per lane: unattended lanes HOLD
   // (fail closed), the 1:1 confirmation lane SENDS (fail open). A held send is skipped, not queued.
   { key: "send_pause_voice_outbound", description: "OFF-SWITCH (inverted). Set TRUE to PAUSE every outbound AI voice call (voice recovery, confirmation calls, follow-up cadence, manual follow-up call) before any lookup or dial. Unreadable = HOLD (fail closed) for the crons; the operator's manual follow-up call fails OPEN on an unreadable switch (a person is present) but still honours TRUE. Default FALSE." },
-  { key: "send_pause_customer_confirmations", description: "OFF-SWITCH (inverted). Set TRUE to PAUSE tire-order confirmation texts and emails (ENABLE_CUSTOMER_CONFIRMATIONS lane); held ones are skipped, not sent later. Unreadable = SEND (fail open: it answers the customer's own order). Default FALSE." },
+  { key: "send_pause_customer_confirmations", description: "OFF-SWITCH (inverted). Set TRUE to PAUSE tire-order confirmation texts and emails (ENABLE_CUSTOMER_CONFIRMATIONS lane); skipped confirmations are not resent; texts already queued (gateway offline) are held and go out on resume. Unreadable = SEND (fail open: it answers the customer's own order). Default FALSE." },
   { key: "send_pause_declined_recovery", description: "OFF-SWITCH (inverted). Set TRUE to PAUSE declined-estimate recovery texts (cron, admin run-now and CLI) before any claim or send. Unreadable = HOLD (fail closed). Default FALSE." },
   { key: "send_pause_weather_sms", description: "OFF-SWITCH (inverted). Set TRUE to PAUSE weather-triggered texts to lapsed customers (WEATHER_SMS_SEND lane) before the audience query. Unreadable = HOLD (fail closed). Default FALSE." },
   { key: "send_pause_missed_call_recovery", description: "OFF-SWITCH (inverted). Set TRUE to PAUSE missed-caller follow-up texts (MISSED_CALL_RECOVERY_SEND lane) before any read or claim. Unreadable = HOLD (fail closed). Default FALSE." },
@@ -313,6 +313,12 @@ export async function setFlag(key: FlagKey, value: boolean): Promise<void> {
   }
 
   flagCache.set(key, value);
+  // C5.5: send_pause_<lane> is also cached 5 s in sendPause; drop it so this process reads the new value now.
+  if (key.startsWith("send_pause_")) {
+    const { invalidateSendPause, SEND_PAUSE_LANES } = await import("./sendPause");
+    const lane = key.slice("send_pause_".length);
+    if (lane in SEND_PAUSE_LANES) invalidateSendPause(lane as keyof typeof SEND_PAUSE_LANES);
+  }
   log.info(`Feature flag toggled: ${key} = ${value ? "ENABLED" : "DISABLED"}`);
 }
 

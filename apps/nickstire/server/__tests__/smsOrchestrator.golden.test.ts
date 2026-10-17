@@ -443,6 +443,20 @@ describe("SMS Operating System & Orchestrator Golden Tests", () => {
     expect(res2.reason).toBe("cooldown_active");
   });
 
+  // C5.5 round 2: the missed-call recovery cron's texts persist a durable key the delayed-queue drain maps to its lane.
+  it("missed-call recovery source -> sendSms carries variantKey missed_call_recovery; the webhook follow-up keeps its own key", async () => {
+    await orchestrateSms({ type: "vapi_forwarded_call_followup", phone: "2165550061", source: "missed_call_recovery" });
+    expect(mockSendSms).toHaveBeenLastCalledWith("+12165550061", expect.any(String), expect.objectContaining({ variantKey: "missed_call_recovery" }));
+    await orchestrateSms({ type: "vapi_forwarded_call_followup", phone: "2165550062" });
+    expect(mockSendSms).toHaveBeenLastCalledWith("+12165550062", expect.any(String), expect.objectContaining({ variantKey: "legacy_shadow" })); // this rig's default mode, untouched by the change
+  });
+
+  it("missed-call recovery source on the legacy passthrough also persists missed_call_recovery", async () => {
+    mockRolloutGlobalMode = "legacy_passthrough";
+    await orchestrateSms({ type: "vapi_forwarded_call_followup", phone: "2165550063", source: "missed_call_recovery", legacyMessageBody: "Legacy body" } as never);
+    expect(mockSendSms).toHaveBeenLastCalledWith("+12165550063", "Legacy body", expect.objectContaining({ variantKey: "missed_call_recovery" }));
+  });
+
   // 13. Vapi confirmation -> logs source call
   it("Vapi confirmation -> sends address recap and logs source call", async () => {
     const res = await orchestrateSms({

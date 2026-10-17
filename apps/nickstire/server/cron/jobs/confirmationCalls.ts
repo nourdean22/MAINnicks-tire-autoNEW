@@ -212,8 +212,8 @@ export async function runConfirmationCalls(): Promise<RunResult> {
       .toLowerCase() || undefined;
     const firstName = b.name.split(" ")[0] || b.name;
 
-    // Re-read the pause before every claim (5 s cache: one DB read per 5 s, not per booking).
-    const midRunHold = await sendPauseHoldReason("voice_outbound");
+    // Re-read the pause before every claim (a fresh read: the start gate's cached answer may be stale).
+    const midRunHold = await sendPauseHoldReason("voice_outbound", "automated", { fresh: true });
     if (midRunHold) {
       heldMidRun = midRunHold;
       notAttempted = candidates.length - i;
