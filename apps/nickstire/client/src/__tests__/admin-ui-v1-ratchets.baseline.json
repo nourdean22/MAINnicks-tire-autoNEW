@@ -1,12 +1,12 @@
 {
   "totals": {
     "uppercase": 4,
-    "emDash": 164,
+    "emDash": 163,
     "emoji": 0,
-    "transitionAll": 71,
+    "transitionAll": 70,
     "slowDuration": 7,
-    "smallInput": 168,
-    "offPalette": 158
+    "smallInput": 164,
+    "offPalette": 156
   },
   "files": {
     "client/src/components/admin/ActivityPulse.tsx": {
@@ -67,9 +67,6 @@
     "client/src/pages/admin/LotSection.tsx": {
       "emDash": 5,
       "smallInput": 1
-    },
-    "client/src/pages/admin/MembershipsSection.tsx": {
-      "smallInput": 2
     },
     "client/src/pages/admin/OverviewSection.tsx": {
       "emDash": 3
@@ -135,7 +132,7 @@
     "client/src/pages/admin/customers/CustomersList.tsx": {
       "emDash": 7,
       "transitionAll": 1,
-      "smallInput": 4
+      "smallInput": 3
     },
     "client/src/pages/admin/customers/FollowUpButton.tsx": {
       "smallInput": 1
@@ -218,8 +215,8 @@
       "emDash": 5
     },
     "client/src/pages/admin/money/DispatchSection.tsx": {
-      "emDash": 4,
-      "offPalette": 6
+      "emDash": 3,
+      "offPalette": 4
     },
     "client/src/pages/admin/money/FinancingAttribution.tsx": {
       "emDash": 1
@@ -240,8 +237,8 @@
     },
     "client/src/pages/admin/money/WorkOrdersSection.tsx": {
       "emDash": 7,
-      "transitionAll": 3,
-      "smallInput": 3,
+      "transitionAll": 2,
+      "smallInput": 2,
       "offPalette": 1
     },
     "client/src/pages/admin/outreach/CampaignsSection.tsx": {
