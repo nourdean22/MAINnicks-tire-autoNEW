@@ -27,6 +27,7 @@ BUDGET: <max tool calls or minutes; default 120 tool calls or 45 minutes>. STOP 
 MODEL TRAILER: Co-Authored-By: <the model named in your harness system prompt> <noreply@anthropic.com>. Never a model the brief author guessed.
 CHECKPOINTS: commit each finished deliverable at once; never more than ~20 minutes of edits uncommitted. A process restart keeps only commits.
 COST: read a file once; git diff -U0 and targeted Grep over whole-file reads; batch independent tool calls; at most one heavy process (tsc, eslint, vitest over many files) at a time; NODE_OPTIONS=--max-old-space-size=8192 only after a native OOM (exit 134).
+MACHINE RULE: wrap every heavy run (agent-os verify, a full node --test sweep, any app suite, build) in `node scripts/agent-os/heavy.mjs run -- <cmd>`: it waits for the machine-wide lease and for 1500 MB free RAM. `heavy.mjs status` shows who holds it.
 RESUME: if a RESUME message arrives, run git status and git log on your branch first and continue from the last commit; do not redo finished steps.
 ANTISLOP MODE: <during|after|n/a> (<session override|global preference>) for any UI, copy or mobile work.
 CODEMOD RULE: after any class or attribute sweep, re-read each element's rendered text children and fix what the removed class used to hide (case, spacing, separators).
