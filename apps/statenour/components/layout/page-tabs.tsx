@@ -34,7 +34,7 @@
  * tests/components/page-tabs-compact-lens.test.tsx.
  */
 
-import { Suspense, useCallback } from "react";
+import { Suspense, useCallback, useId } from "react";
 import type { ReactNode } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils/cn";
@@ -54,7 +54,7 @@ export interface PageLens {
   key: string;
   /** Display-type label on the lens bar. */
   label: string;
-  /** Tooltip on the lens tab (W4: no longer drawn as a line under the label). */
+  /** The lens tab's accessible description (aria-describedby) and tooltip; W4: no longer drawn as a line. */
   hint?: string;
   /** Tab keys grouped under this lens, in display order; the first is its landing tab. */
   tabs: string[];
@@ -189,6 +189,8 @@ function PageTabsInner({ tabs, param = "tab", defaultKey, lenses, className }: P
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const uid = useId();
+  const hintId = (lensKey: string) => `${uid}-lens-${lensKey}-hint`;
 
   const urlKey = searchParams.get(param);
   const activeKey =
@@ -229,6 +231,7 @@ function PageTabsInner({ tabs, param = "tab", defaultKey, lenses, className }: P
                 role="tab"
                 aria-selected={isActive}
                 title={l.hint}
+                aria-describedby={l.hint ? hintId(l.key) : undefined}
                 onClick={() => select(l.tabs[0])}
                 className={cn(
                   "inline-flex min-h-[44px] shrink-0 items-center border-b-2 text-[14px] font-medium transition-colors duration-[var(--motion-state)]",
@@ -240,6 +243,14 @@ function PageTabsInner({ tabs, param = "tab", defaultKey, lenses, className }: P
             );
           })}
         </div>
+        {/* Fix round 1: the hints are the tabs' descriptions for assistive tech; hidden, never drawn. */}
+        {lenses.map((l) =>
+          l.hint ? (
+            <span key={l.key} id={hintId(l.key)} hidden>
+              {l.hint}
+            </span>
+          ) : null,
+        )}
         <LensBody lens={activeLens} tabs={lensTabs} activeKey={activeKey ?? ""} onSelect={select}>
           {active?.render()}
         </LensBody>

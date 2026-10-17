@@ -162,6 +162,48 @@ describe("/stats page", () => {
     expect(el.querySelector('[data-state-block="empty"]')?.textContent).toMatch(/no stats recorded yet/i);
   });
 
+  it("fix round 1: an alias deep link clears the sticky tab bar and re-scrolls once after the tab's content loads", async () => {
+    const scrolled: string[] = [];
+    const proto = Element.prototype as unknown as { scrollIntoView?: () => void };
+    const original = proto.scrollIntoView;
+    proto.scrollIntoView = function (this: Element) {
+      scrolled.push(this.id);
+    };
+    let resize: (() => void) | null = null;
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      cb(0);
+      return 1;
+    });
+    vi.stubGlobal("cancelAnimationFrame", () => {});
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(private cb: () => void) {}
+        observe() {
+          resize = this.cb;
+          this.cb(); // browsers fire once when observation starts
+        }
+        disconnect() {
+          resize = null;
+        }
+      },
+    );
+    try {
+      const el = await mount("tab=calibration", { data: [stat("Focus", 7, 0)] });
+      const target = el.querySelector("section#calibration") as HTMLElement;
+      expect(target.className, "the section lands under the sticky tab bar").toMatch(/scroll-mt-\S+/);
+      expect(scrolled).toEqual(["calibration"]);
+      await act(async () => resize?.()); // the lazy content arrived and pushed the section down
+      expect(scrolled).toEqual(["calibration", "calibration"]);
+      await act(async () => resize?.()); // once only: a later resize is the operator's own scroll
+      expect(scrolled).toEqual(["calibration", "calibration"]);
+      expect((el.querySelector("section#learning") ?? null) === null).toBe(true);
+    } finally {
+      proto.scrollIntoView = original;
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("the lazy sections load behind words, not pulsing blocks", async () => {
     const el = await mount("tab=body", { data: [stat("Focus", 7, 0)] });
     expect(el.querySelectorAll(".animate-pulse").length, "a pulsing placeholder is still on the page").toBe(0);

@@ -41,7 +41,7 @@
  * there is covered too.
  */
 
-import { Suspense, useEffect } from "react";
+import { Suspense, useEffect, useRef } from "react";
 import { STATS_TABS, STATS_TAB_ALIASES, resolveStatsTab } from "@/lib/stats/resolve-tab";
 import { StatsStateBlock, StatsVerdict } from "@/components/stats/stats-verdict";
 import { scrollBehavior } from "@/lib/ui/scroll-behavior";
@@ -124,14 +124,40 @@ function StatsContent() {
   const activeTab = resolveStatsTab(searchParams.get("tab"));
 
   // A retired key (?tab=learning, ?tab=calibration) lands on the tab that holds its section;
-  // bring that section into view, since it is no longer at the top of a tab of its own.
+  // bring that section into view, since it is no longer at the top of a tab of its own. The
+  // sections carry scroll-mt-16 so they clear the sticky tab bar (fix round 1).
   const requestedTab = searchParams.get("tab");
+  const panelRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!requestedTab || !Object.hasOwn(STATS_TAB_ALIASES, requestedTab)) return;
-    const frame = requestAnimationFrame(() => {
+    const scroll = () =>
       document.getElementById(requestedTab)?.scrollIntoView({ block: "start", behavior: scrollBehavior() });
-    });
-    return () => cancelAnimationFrame(frame);
+    const frame = requestAnimationFrame(scroll);
+    // Fix round 1: the tab's lazy sections load after that first scroll and push the target down, so
+    // scroll once more the first time the panel changes size, then stop; a later resize, or one after
+    // 4 s, is no longer the deep link's to act on.
+    let observer: ResizeObserver | null = null;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const panel = panelRef.current;
+    if (panel && typeof ResizeObserver !== "undefined") {
+      let initial = true; // a ResizeObserver reports once when observation starts
+      observer = new ResizeObserver(() => {
+        if (initial) {
+          initial = false;
+          return;
+        }
+        scroll();
+        observer?.disconnect();
+        observer = null;
+      });
+      observer.observe(panel);
+      timer = setTimeout(() => observer?.disconnect(), 4000);
+    }
+    return () => {
+      cancelAnimationFrame(frame);
+      observer?.disconnect();
+      if (timer) clearTimeout(timer);
+    };
   }, [requestedTab]);
 
   const handleTabChange = (tabId: string) => {
@@ -174,7 +200,7 @@ function StatsContent() {
       </div>
 
       {/* Tab content wrapper with smooth transitions */}
-      <div className="mt-4">
+      <div ref={panelRef} className="mt-4">
         {activeTab === "mastery" && (
           <div className="space-y-6 animate-in fade-in duration-300">
             {/* ⓪ TODAY'S MOVE & IDENTITY ARC · responsive 2-column layout */}
@@ -208,7 +234,7 @@ function StatsContent() {
               <GoalBoard />
             </section>
             {/* ⑤ CALIBRATION · outcome tracking & prediction scoring (W4: folded under Goals) */}
-            <section id="calibration" className="space-y-3">
+            <section id="calibration" className="scroll-mt-16 space-y-3">
               <MasterySectionLabel label="Calibration · outcome benchmarking" />
               <CalibrationSection />
             </section>
@@ -228,7 +254,7 @@ function StatsContent() {
               <BodySection />
             </section>
             {/* ④ LEARNING · the active AI learning loop (W4: folded under Body and learning) */}
-            <section id="learning" className="space-y-3">
+            <section id="learning" className="scroll-mt-16 space-y-3">
               <MasterySectionLabel label="Learning · the active loop" />
               <LearningLoop />
             </section>

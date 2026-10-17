@@ -23,7 +23,7 @@
  * context. True circular practice.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { scrollBehavior } from "@/lib/ui/scroll-behavior";
@@ -123,6 +123,14 @@ export function ReflectComposer() {
   const [showPicker, setShowPicker] = useState(false);
   // W4: one field until Nour asks for a template (or a draft already used more than one box).
   const [structured, setStructured] = useState(false);
+  // Fix round 1: "Use a template" replaces itself, so focus must move to the first box, not fall to the page.
+  const focusFirstBoxRef = useRef(false);
+  const composerRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!structured || !focusFirstBoxRef.current) return;
+    focusFirstBoxRef.current = false;
+    composerRef.current?.querySelector<HTMLTextAreaElement>("textarea")?.focus();
+  }, [structured]);
   const [fields, setFields] = useState<Record<string, string>>({});
   const [mood, setMood] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
@@ -156,8 +164,12 @@ export function ReflectComposer() {
     let cleanupFocusListener: (() => void) | undefined;
     try {
       const savedTemplate = localStorage.getItem(LAST_TEMPLATE_KEY);
+      // Fix round 1: what the composer will show once hydrated, so a #reflect seed lands in a visible box.
+      let activeTemplate: Template = ONE_FIELD_TEMPLATE;
+      let restoredStructured = false;
       if (savedTemplate === "soap" || savedTemplate === "driscoll" || savedTemplate === "ssc" || savedTemplate === "aar") {
         setTemplateKey(savedTemplate);
+        activeTemplate = savedTemplate;
       }
       // v10.0.529.25 · hydrate the extract-intelligence preference.
       // "true" / "false" only · ignore other values so corrupted
@@ -169,10 +181,16 @@ export function ReflectComposer() {
         const parsed = JSON.parse(draft) as { fields?: Record<string, string>; mood?: string; templateKey?: Template };
         if (parsed.fields) {
           setFields(parsed.fields);
-          if (Object.entries(parsed.fields).some(([k, v]) => k !== ONE_FIELD_KEY && v.trim())) setStructured(true);
+          if (Object.entries(parsed.fields).some(([k, v]) => k !== ONE_FIELD_KEY && v.trim())) {
+            setStructured(true);
+            restoredStructured = true;
+          }
         }
         if (parsed.mood) setMood(parsed.mood);
-        if (parsed.templateKey) setTemplateKey(parsed.templateKey);
+        if (parsed.templateKey) {
+          setTemplateKey(parsed.templateKey);
+          activeTemplate = parsed.templateKey;
+        }
       }
 
       // UI wave (audit 2026-07-15) · listener for the focus event
@@ -212,8 +230,12 @@ export function ReflectComposer() {
         if (seedMatch) {
           try {
             const seed = decodeURIComponent(seedMatch[1]);
-            // W4: the seed lands in the one field the composer opens on (driscoll's What).
-            setFields((prev) => ({ ...prev, [ONE_FIELD_KEY]: prev[ONE_FIELD_KEY] || seed }));
+            // The seed lands in the box on screen: driscoll's What in one-field mode (W4), the active
+            // template's first box when a draft reopened structured (fix round 1).
+            const seedKey = restoredStructured
+              ? (TEMPLATES.find((t) => t.key === activeTemplate) ?? TEMPLATES[0]).fields[0].key
+              : ONE_FIELD_KEY;
+            setFields((prev) => ({ ...prev, [seedKey]: prev[seedKey] || seed }));
           } catch {}
         }
       }
@@ -330,7 +352,7 @@ export function ReflectComposer() {
 
   // ── Render ──────────────────────────────────────────
   return (
-    <section id="journal-reflect-composer" className="rounded-surface border border-edge-subtle bg-content p-3 space-y-3 scroll-mt-24">
+    <section ref={composerRef} id="journal-reflect-composer" className="rounded-surface border border-edge-subtle bg-content p-3 space-y-3 scroll-mt-24">
       {/* Header */}
       <div className="flex items-center gap-2">
         <Eye size={12} className="text-fg-tertiary" />
@@ -349,6 +371,7 @@ export function ReflectComposer() {
             onClick={() => {
               // Text already in the one field is driscoll's What: open on driscoll so it stays in view.
               if ((fields[ONE_FIELD_KEY] ?? "").trim()) setTemplateKey(ONE_FIELD_TEMPLATE);
+              focusFirstBoxRef.current = true;
               setStructured(true);
             }}
             className="ml-auto inline-flex min-h-[44px] items-center text-[13px] text-fg-tertiary transition-colors hover:text-fg"

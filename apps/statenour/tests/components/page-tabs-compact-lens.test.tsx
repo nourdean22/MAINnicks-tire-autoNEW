@@ -84,8 +84,23 @@ describe("PageTabs lenses: one compact row, filters inside the canvas", () => {
       expect(t.className).not.toMatch(/text-\[1[78]px\]/);
       expect(t.className).toContain("min-h-[44px]");
     }
-    expect(el.textContent, "the hint line is still rendered").not.toContain("what we believe");
-    expect(el.textContent).not.toContain("where everything is");
+    // Visible text only: the hint now lives in a `hidden` description node (fix round 1, below).
+    const visible = el.cloneNode(true) as HTMLElement;
+    visible.querySelectorAll("[hidden]").forEach((n) => n.remove());
+    expect(visible.textContent, "the hint line is still drawn").not.toContain("what we believe");
+    expect(visible.textContent).not.toContain("where everything is");
+  });
+
+  it("fix round 1: each lens hint is the tab's accessible description, not a mouse-only title", async () => {
+    const el = await mount("tab=memory");
+    const tabs = [...el.querySelectorAll('[role="tablist"][aria-label="Lenses"] [role="tab"]')] as HTMLElement[];
+    for (const [i, hint] of ["where everything is", "what we believe", "operator cognition"].entries()) {
+      const id = tabs[i].getAttribute("aria-describedby");
+      expect(id, `${tabs[i].textContent}: no accessible description`).toBeTruthy();
+      const desc = el.querySelector(`[id="${id}"]`) as HTMLElement;
+      expect(desc?.textContent).toBe(hint);
+      expect(desc.hidden, "the description is drawn on screen").toBe(true);
+    }
   });
 
   it("renders the lens's sub-sections as a filter row INSIDE the tabpanel, not as a second strip above it", async () => {

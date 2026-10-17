@@ -11,7 +11,7 @@ import { prisma } from "@/lib/prisma";
 import { toDateString } from "@/lib/utils/datetime";
 import { DOMAINS } from "./config";
 import { levelProgress, tierForLevel, xpForLevel } from "./leveling";
-import { xpEventTotals, xpEventTotalsSince } from "./credit";
+import { xpEventTotals, xpEventTotalsSinceOrNull } from "./credit";
 import { goalsByStat, type GoalForStats } from "./goal-stats";
 
 export interface StatLevel {
@@ -34,6 +34,9 @@ export interface StatLevel {
   progressPct: number;
   /** XP gained in the last 7 days — the "slope"/momentum this week. */
   rising7dXp: number;
+  /** Present (true) only when the 7-day read failed: rising7dXp is then 0 by default, NOT a
+   *  measured zero (W4 fix round 1; skill empty-vs-error). */
+  rising7dUnknown?: true;
   /** Active goals that level this stat (the reverse of the goal-card
    *  chips) — the Ambition Engine P1 character-sheet citation. */
   goals: { id: string; title: string }[];
@@ -68,8 +71,8 @@ export async function computeCharacterSheet(): Promise<StatLevel[]> {
         _sum: { delta: true },
         where: { date: { gte: sinceKey } },
       })
-      .catch(() => [] as DomainSum[]),
-    xpEventTotalsSince(since),
+      .catch(() => null),
+    xpEventTotalsSinceOrNull(since),
     // Ambition Engine P1 · active goals + their stat links, for the
     // character-sheet citation (which goals feed each stat). Best-effort —
     // a goals-query failure must never break the leveling board.
@@ -89,8 +92,10 @@ export async function computeCharacterSheet(): Promise<StatLevel[]> {
   const deltaByDomain = new Map(
     sums.map((s) => [s.domain, Math.max(0, s._sum.delta ?? 0)]),
   );
+  // Either half of the weekly window failing makes "rising this week" unknown, not zero.
+  const weekUnknown = weekSums === null || weekEvents === null;
   const weekByDomain = new Map(
-    weekSums.map((s) => [s.domain, Math.max(0, s._sum.delta ?? 0)]),
+    (weekSums ?? []).map((s) => [s.domain, Math.max(0, s._sum.delta ?? 0)]),
   );
 
   // Reverse map · which active goals level each stat (same resolver as the
@@ -112,7 +117,7 @@ export async function computeCharacterSheet(): Promise<StatLevel[]> {
     const tier = tierForLevel(p.level);
     const rising7dXp =
       Math.round(
-        ((weekByDomain.get(d.key) ?? 0) + (weekEvents.get(d.key) ?? 0)) * 10,
+        ((weekByDomain.get(d.key) ?? 0) + (weekEvents?.get(d.key) ?? 0)) * 10,
       ) / 10;
     return {
       key: d.key,
@@ -129,6 +134,7 @@ export async function computeCharacterSheet(): Promise<StatLevel[]> {
       xpForNext: p.xpForNext,
       progressPct: p.progressPct,
       rising7dXp,
+      ...(weekUnknown ? { rising7dUnknown: true as const } : {}),
       goals: goalCitations.get(d.key) ?? [],
     };
   }).sort((a, b) => b.level - a.level || b.xp - a.xp);

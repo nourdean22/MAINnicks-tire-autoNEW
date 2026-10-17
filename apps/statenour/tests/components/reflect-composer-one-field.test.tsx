@@ -14,6 +14,8 @@ import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+// jsdom has no scrollIntoView; a #reflect hash makes the composer scroll itself into view on a later frame.
+if (!Element.prototype.scrollIntoView) Element.prototype.scrollIntoView = function scrollIntoView() {};
 
 const h = vi.hoisted(() => ({ mutateAsync: vi.fn() }));
 vi.mock("@/lib/trpc/client", () => ({
@@ -105,6 +107,35 @@ describe("Journal reflect composer: one field", () => {
     await act(async () => button(el, /use a template/i)!.click());
     const values = [...el.querySelectorAll("textarea")].map((t) => t.value);
     expect(values, "the typed text vanished from view").toContain("half a thought");
+  });
+
+  it("fix round 1: a #reflect seed lands in the ACTIVE template's first box when a SOAP draft reopens structured, never in a hidden 'what'", async () => {
+    localStorage.setItem("ultron:reflect:draft", JSON.stringify({ fields: { objective: "b", assessment: "c" }, templateKey: "soap" }));
+    window.history.replaceState(null, "", "/journal#reflect&seed=hello%20there");
+    try {
+      const el = await mount();
+      await act(async () => {
+        await Promise.resolve();
+      });
+      const boxes = [...el.querySelectorAll("textarea")];
+      expect(boxes.length).toBe(4);
+      expect(boxes[0].value, "the seed is not in the first SOAP box").toBe("hello there");
+      await act(async () => button(el, /log reflection/i)!.click());
+      const sent = h.mutateAsync.mock.calls[0][0];
+      expect(sent.template).toBe("soap");
+      expect(Object.keys(sent.fields), "the seed was posted as a stray 'what' key").not.toContain("what");
+    } finally {
+      window.history.replaceState(null, "", "/");
+    }
+  });
+
+  it("fix round 1: focus moves to the first template box when 'Use a template' replaces itself", async () => {
+    const el = await mount();
+    const open = button(el, /use a template/i)!;
+    open.focus();
+    await act(async () => open.click());
+    const first = el.querySelector("textarea");
+    expect(document.activeElement, "focus fell to the page when the button unmounted").toBe(first);
   });
 
   it("reopens structured when a saved draft filled more than the one field, so nothing is hidden", async () => {

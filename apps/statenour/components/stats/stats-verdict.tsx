@@ -4,9 +4,11 @@
  * Stats verdict line and the page's one state block (UI v3 W4, 2026-10-17; PLAN W4 "Stats 3 tabs +
  * verdict line", audit item 5).
  *
- * The verdict is one sentence computed from the character sheet the page already reads
- * (`operator.characterSheet`, the same query key CharacterSheet and LevelUpDirectiveCard use, so
- * no extra request): the total level and this week's top riser, or that nothing moved. It never
+ * The verdict is one sentence computed from the character sheet (`operator.characterSheet`): the
+ * total level and this week's top riser, or that nothing moved, or that the week could not be read
+ * (`rising7dUnknown`, fix round 1). It sits above the tabs, so it reads the character sheet on
+ * EVERY tab; on Mastery it shares the query key with CharacterSheet and LevelUpDirectiveCard, which
+ * dedupes that one request, and on Goals and Body and learning it is an extra read. It never
  * invents a number: loading, a failed read and a real zero each render through StatsStateBlock in
  * words, the failure with a 44 px Retry. The lazy sections use the same block while their code
  * loads. Pinned by tests/components/stats-three-tabs-verdict.test.tsx.
@@ -20,14 +22,20 @@ export interface VerdictStat {
   shortLabel?: string;
   level: number;
   rising7dXp: number;
+  /** The weekly read failed (lib/mastery/character-sheet.ts): no weekly claim may be made. */
+  rising7dUnknown?: boolean;
 }
+
+/** A sub-1 gain keeps one decimal (+0.3 XP), so a real gain never prints as +0. */
+const formatXp = (xp: number) => (xp >= 1 ? String(Math.round(xp)) : xp.toFixed(1));
 
 export function statsVerdict(stats: VerdictStat[]): string {
   const total = stats.reduce((sum, s) => sum + s.level, 0);
   const riser = stats.reduce<VerdictStat | null>((best, s) => (s.rising7dXp > (best?.rising7dXp ?? 0) ? s : best), null);
   const head = `Total level ${total} across ${stats.length} ${stats.length === 1 ? "stat" : "stats"}.`;
+  if (stats.some((s) => s.rising7dUnknown)) return `${head} This week's XP couldn't be read.`;
   if (!riser) return `${head} Nothing gained XP this week.`;
-  return `${head} ${riser.shortLabel || riser.label} gained the most this week, +${Math.round(riser.rising7dXp)} XP.`;
+  return `${head} ${riser.shortLabel || riser.label} gained the most this week, +${formatXp(riser.rising7dXp)} XP.`;
 }
 
 export type StatsBlockState = "loading" | "error" | "empty";
