@@ -64,6 +64,24 @@
 > - `features/chat-v2` keeps 7 `uppercase` sites and 9 em dashes (W3).
 > - W1b was verified in jsdom and by typecheck only: no browser or phone render of the 390 px More-sheet row (36 px pin visual beside a truncating label) or of `replaceState` inside a real Next runtime.
 
+> ## 2026-10-16 · Telegram lane 2 · the bot gets quieter and honest, and a phone-to-session note bridge (branch `statenour/telegram-bot-bridge`) · 6 statenour commits, 1 PR
+>
+> Not live until merged and deployed. Every claim below is from unit tests against mocked transports and stores; nothing was sent to Telegram and no database was touched.
+>
+> - **Bridge duplicates gone (`app/api/webhooks/nickstire/route.ts`).** Lead, callback, booking-complete and invoice are recorded (audit row) without statenour's own Telegram copy; nickstire's event bus already sends them (#3089). Emergency and review keep their alert.
+> - **Inngest failure alerts grouped (`lib/inngest/on-failure.ts`).** One alert per function per 6 h window, claimed in `action_attempts` (beginAttempt); repeats are counted on the claim row and reported on the next alert; non-critical failures wait out 22:00-07:00 ET; a database outage pages at night; a store error fails open.
+> - **One message per voice note or link (`app/api/telegram/webhook/route.ts`, `lib/services/telegram.ts`).** `sendTelegramForId` + an edit-in-place progress message replace "Transcribing...", "Transcribed" and "Analyzing..." as separate messages; a failed edit sends nothing more. The "routed as" receipt is gone.
+> - **Honest `/status` and `/alerts`.** A failed read prints "unknown", urgent leads come from nickstire's `leads_urgent`, `/alerts` keeps its 30-day window and honours `alert_mute`.
+> - **Idempotent inbound.** Each authorized `update_id` is claimed in `action_attempts` before dispatch; a redelivered `/task` or `/dump` acts once; a handler that throws releases the claim.
+> - **Session bridge.** `/note <text>` stores a `CaptureInboxItem` (kind `agent_bridge_note`, status `bridge_unread`; no new table). `GET /api/agent-bridge/notes?since=<id>` and `POST /api/agent-bridge/notes/ack` use the Agent Bridge Bearer auth (`AGENT_BRIDGE_ENABLED` + `AGENT_BRIDGE_TOKEN_READ`). The consumer hook (a platform lane) is not built yet.
+>
+> **Flagged · NOT fixed**
+> - `config/nickstire-bridge-events.json` still lists `webhookAlert` text for the four removed types; `tests/api/nickstire-bridge-contract.test.ts` overrides it with `TELEGRAM_COPY_REMOVED` until a platform lane sets them to null.
+> - statenour's emergency alert still duplicates nickstire's `emergency_request` Telegram destination; kept because the undelivered-emergency 500 retry contract lives here.
+> - A non-critical Inngest failure that happens only overnight is not paged in the morning; it stays in `cron_job_log` as `failed`.
+> - `scripts/check-sensitive-get-auth.ts` recognises the notes route through the helper name `requireBridgeAuth`, which `lib/bridge-auth.ts` also uses for a different guard; adding `assertBridgeAuth` to the checker would remove the name overlap.
+> - Prod values of `AGENT_BRIDGE_ENABLED` and `AGENT_BRIDGE_TOKEN_READ` were not checked.
+
 > ## 2026-10-10 · Audit-fix wave 1 (PR #2981, merged as b5bb183eb) · BDNICK audit findings in auth, approvals, chat safety, crons and failed reads · 1 statenour PR with staged commits
 >
 > Not live. Branch `statenour/audit-backend-truth-safety`, 23 commits, one per task plus follow-ups; each commit message lists its audit ids and test receipts. Every runtime claim below is from tests and code reading, not production.
