@@ -24,6 +24,7 @@ type Gate = { file: string; lane: SendPauseLane; flag?: string; provider: RegExp
 
 const GATES: Gate[] = [
   { file: "services/vapi.ts", lane: "voice_outbound", provider: /vapiFetch\("\/call"/ },
+  // The manual follow-up door passes actor "operator" (fails open on an unreadable switch only).
   { file: "cron/jobs/voiceRecovery.ts", lane: "voice_outbound", flag: "FEATURE_VOICE_RECOVERY", provider: /placeVapiOutboundCall\(\{/ },
   { file: "cron/jobs/confirmationCalls.ts", lane: "voice_outbound", flag: "FEATURE_CONFIRMATION_CALLS", provider: /placeVapiOutboundCall\(\{/ },
   { file: "cron/jobs/followupCadence.ts", lane: "voice_outbound", flag: "FEATURE_FOLLOWUP_CADENCE", provider: /placeVapiOutboundCall\(\{/ },
@@ -42,7 +43,7 @@ function gateProblems(src: string, g: Gate): string[] {
     if (value === undefined) out.push(`${g.flag} is not in SEND_PAUSE_LANES.${g.lane}.envFlags`);
     else if (!new RegExp(`env\\.${g.flag}\\s*[!=]==\\s*"${value}"`).test(src)) out.push(`${g.file} does not compare ${g.flag} with exactly "${value}"`);
   }
-  const gate = src.search(new RegExp(`sendPauseHoldReason\\("${g.lane}"\\)`));
+  const gate = src.search(new RegExp(`sendPauseHoldReason\\("${g.lane}"[,)]`));
   const provider = src.search(g.provider);
   if (gate < 0) out.push(`${g.file} never calls sendPauseHoldReason("${g.lane}")`);
   if (provider < 0) out.push(`${g.file}: provider call ${g.provider} not found (pattern stale?)`);
@@ -83,6 +84,14 @@ describe("send pause coverage", () => {
     const known = new Set(Object.values(SEND_PAUSE_LANES).flatMap((d) => d.envFlags.map(([n]) => n as string)));
     expect([...found].filter((f) => !known.has(f)), "env send flag(s) with no send_pause lane").toEqual([]);
     expect(read("services/socialPublish.ts")).toMatch(/publishingKillSwitch/);
+  });
+
+  it("only the manual follow-up door passes actor operator; no cron does", () => {
+    expect(read("routers/vapi.ts")).toMatch(/lane: "followup_manual",\s*actor: "operator"/);
+    for (const f of ["cron/jobs/voiceRecovery.ts", "cron/jobs/confirmationCalls.ts", "cron/jobs/followupCadence.ts"]) {
+      expect(read(f), f).not.toMatch(/actor:\s*"operator"|sendPauseHoldReason\([^)]*"operator"/);
+    }
+    expect(read("services/vapi.ts")).toMatch(/sendPauseHoldReason\("voice_outbound", params\.actor \?\? "automated"\)/);
   });
 
   it("the status read has its admin procedure (assert the consumer of readSendSwitchesStatus)", () => {

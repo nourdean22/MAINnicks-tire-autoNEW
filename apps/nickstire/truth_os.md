@@ -40,7 +40,7 @@ skipped, not queued. No value is asserted here: read `instagramAdmin.sendSwitche
 
 | pause key | holds | unreadable switch |
 |---|---|---|
-| `send_pause_voice_outbound` | every outbound AI voice call (`FEATURE_VOICE_RECOVERY`, `FEATURE_CONFIRMATION_CALLS`, `FEATURE_FOLLOWUP_CADENCE`, manual follow-up call) | HOLD (fail closed) |
+| `send_pause_voice_outbound` | every outbound AI voice call (`FEATURE_VOICE_RECOVERY`, `FEATURE_CONFIRMATION_CALLS`, `FEATURE_FOLLOWUP_CADENCE`, manual follow-up call) | HOLD (fail closed); the manual follow-up call SENDS (operator present) |
 | `send_pause_customer_confirmations` | tire-order confirmation texts and emails (`ENABLE_CUSTOMER_CONFIRMATIONS`) | SEND (fail open, 1:1) |
 | `send_pause_declined_recovery` | declined-estimate texts (`FEATURE_DECLINED_RECOVERY`), cron and run-now | HOLD (fail closed) |
 | `send_pause_weather_sms` | weather texts (`WEATHER_SMS_SEND`) | HOLD (fail closed) |

@@ -1356,6 +1356,7 @@ export const vapiRouter = router({
       const call = await placeVapiOutboundCall({
         customerNumber: e164,
         lane: "followup_manual",
+        actor: "operator", // C5.5: an unreadable pause switch fails open here; an explicit pause still holds
         customerName: firstName,
         openerBody: content.openerBody,
         systemPrompt: content.systemPrompt,

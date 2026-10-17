@@ -23,6 +23,10 @@ const log = createLogger("send-pause");
 
 export type SendPauseFailClass = "closed" | "open";
 
+/** Who is sending. "operator" = a person pressed the button (the manual follow-up call): an UNREADABLE
+ *  switch then fails open, as autonomyControl lets operators proceed. An explicit pause still holds. */
+export type SendPauseActor = "operator" | "automated";
+
 /** envFlags: each [name, value] is armed only when process.env[name] === value, the comparison the lane's code makes. */
 export const SEND_PAUSE_LANES = {
   voice_outbound: {
@@ -92,9 +96,10 @@ export async function sendPause(lane: SendPauseLane): Promise<SendPauseState> {
   return state;
 }
 
-/** The whole decision, pure: hold when paused, or when unreadable on a fail-closed lane. */
-export function shouldHold(lane: SendPauseLane, state: SendPauseState): boolean {
+/** The whole decision, pure: hold when paused, or when unreadable on a fail-closed lane with no operator present. */
+export function shouldHold(lane: SendPauseLane, state: SendPauseState, actor: SendPauseActor = "automated"): boolean {
   if (state.readable) return state.paused;
+  if (actor === "operator") return false;
   return SEND_PAUSE_LANES[lane].failClass === "closed";
 }
 
@@ -102,11 +107,11 @@ export function shouldHold(lane: SendPauseLane, state: SendPauseState): boolean 
  * The one call a chokepoint makes, before any spend or provider call.
  * null = send. Otherwise the reason the lane records on its existing skip path.
  */
-export async function sendPauseHoldReason(lane: SendPauseLane): Promise<string | null> {
+export async function sendPauseHoldReason(lane: SendPauseLane, actor: SendPauseActor = "automated"): Promise<string | null> {
   const state = await sendPause(lane);
-  const hold = shouldHold(lane, state);
+  const hold = shouldHold(lane, state, actor);
   if (!state.readable) {
-    log.warn(`send pause switch unreadable for ${lane}; ${hold ? "holding (fail closed)" : "sending (fail open)"}`, { lane });
+    log.warn(`send pause switch unreadable for ${lane} (${actor}); ${hold ? "holding (fail closed)" : "sending (fail open)"}`, { lane, actor });
   }
   if (!hold) return null;
   return state.readable ? `send_pause:${lane}` : `send_pause_unreadable:${lane}`;

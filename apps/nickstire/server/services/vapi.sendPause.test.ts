@@ -47,11 +47,12 @@ describe("placeVapiOutboundCall · voice_outbound pause", () => {
     vi.unstubAllGlobals();
   });
 
-  const dial = async () => {
+  const dial = async (actor?: "operator") => {
     const { placeVapiOutboundCall } = await import("./vapi");
     return placeVapiOutboundCall({
       customerNumber: "+12165550142",
-      lane: "voice_recovery",
+      lane: actor ? "followup_manual" : "voice_recovery",
+      ...(actor ? { actor } : {}),
       customerName: "Pat",
       openerBody: "x",
       systemPrompt: "x",
@@ -82,5 +83,19 @@ describe("placeVapiOutboundCall · voice_outbound pause", () => {
     pausedValue = 0;
     const r = await dial();
     expect(r.success).toBe(true);
+  });
+
+  it("manual door (actor operator) + unreadable switch -> fail OPEN: the call is placed", async () => {
+    dbMode = "throw";
+    const r = await dial("operator");
+    expect(r).toEqual({ success: true, callId: "call_ok" });
+    expect(fetchCalls.filter((u) => u.includes("/call"))).toHaveLength(1);
+  });
+
+  it("CONTROL: manual door + paused=true -> still held, zero provider calls", async () => {
+    pausedValue = 1;
+    const r = await dial("operator");
+    expect(fetchCalls).toHaveLength(0);
+    expect(r).toEqual({ success: false, error: "send_pause:voice_outbound", errorKind: "config" });
   });
 });

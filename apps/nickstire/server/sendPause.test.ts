@@ -15,6 +15,14 @@ type DbMode = "throw" | "nodb" | "rows";
 let dbMode: DbMode = "rows";
 let flagRows: Record<string, unknown> = {};
 const queries: string[] = [];
+const warns: Array<{ msg: string; meta: unknown }> = [];
+
+vi.mock("./lib/logger", () => ({
+  createLogger: () => ({
+    info: () => {}, debug: () => {}, error: () => {},
+    warn: (msg: string, meta?: unknown) => { warns.push({ msg, meta }); },
+  }),
+}));
 
 vi.mock("./db", () => ({
   getDb: async () => {
@@ -35,6 +43,7 @@ beforeEach(async () => {
   dbMode = "rows";
   flagRows = {};
   queries.length = 0;
+  warns.length = 0;
   const { _resetSendPauseCacheForTest } = await import("./services/sendPause");
   _resetSendPauseCacheForTest();
 });
@@ -202,5 +211,38 @@ describe("readSendSwitchesStatus · contract sendSwitchesStatus v1", () => {
       lane: "customer_confirmations", paused: false, readable: true, failClass: "open", envArmed: false,
     });
     expect(by.weather_sms.paused).toBe(false);
+  });
+});
+
+describe("actor · an operator at the manual door (C5.5 follow-up)", () => {
+  it("operator + unreadable switch -> SEND (fail open: a person is present)", async () => {
+    const { shouldHold } = await import("./services/sendPause");
+    expect(shouldHold("voice_outbound", { paused: false, readable: false }, "operator")).toBe(false);
+  });
+
+  it("CONTROL: operator + explicit pause -> still HOLD", async () => {
+    const { shouldHold } = await import("./services/sendPause");
+    expect(shouldHold("voice_outbound", { paused: true, readable: true }, "operator")).toBe(true);
+  });
+
+  it("CONTROL: default actor is automated -> unreadable still HOLDS", async () => {
+    const { shouldHold } = await import("./services/sendPause");
+    expect(shouldHold("voice_outbound", { paused: false, readable: false })).toBe(true);
+    expect(shouldHold("voice_outbound", { paused: false, readable: false }, "automated")).toBe(true);
+  });
+
+  it("sendPauseHoldReason(lane, operator) on an unreadable switch -> null and one warn naming the lane", async () => {
+    dbMode = "throw";
+    const { sendPauseHoldReason } = await import("./services/sendPause");
+    expect(await sendPauseHoldReason("voice_outbound", "operator")).toBeNull();
+    expect(warns).toHaveLength(1);
+    expect(warns[0].msg).toContain("voice_outbound");
+    expect(warns[0].msg).toContain("operator");
+  });
+
+  it("CONTROL: sendPauseHoldReason(lane, operator) on a paused row -> send_pause:<lane>", async () => {
+    flagRows = { send_pause_voice_outbound: 1 };
+    const { sendPauseHoldReason } = await import("./services/sendPause");
+    expect(await sendPauseHoldReason("voice_outbound", "operator")).toBe("send_pause:voice_outbound");
   });
 });
