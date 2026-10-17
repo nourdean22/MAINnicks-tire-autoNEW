@@ -61,8 +61,8 @@ async function notifyOrLog(
  * POST /api/webhooks/nickstire — Real-time event receiver from nickstire.org
  *
  * Records every event in the audit trail. Telegram alerts only for review and
- * emergency: lead, callback, booking-complete and invoice are already sent to
- * Telegram by nickstire's event bus, so they are recorded here, not re-sent.
+ * emergency. Lead and callback are sent by nickstire's event bus; booking-complete
+ * and invoice are cut by design (receipt-class noise), not sent anywhere by default.
  *
  * v9.1.14 · Auth-hardened. Previous version had two HIGH-severity
  * bugs caught in code review:
@@ -112,8 +112,10 @@ export async function POST(req: Request) {
         case "nickstire:callback":
         case "nickstire:booking:complete":
         case "nickstire:invoice": {
-          // nickstire's own event bus already sends these to Telegram (#3089); a second
-          // copy from here buzzed Nour twice for one event. Recorded (audit row below), not sent.
+          // Recorded (audit row below), not sent. Lead and callback were duplicates of
+          // nickstire's event bus (#3089). Job-complete and invoice-created were statenour's
+          // only Telegram path and are cut by design: nickstire classes booking-complete as a
+          // receipt (held unless telegram_receipt is on) and does not send invoice_created.
           results.push({ type, action: "recorded", status: "ok" });
           break;
         }

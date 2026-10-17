@@ -511,7 +511,7 @@ undone if the agent miscalibrates.
 
 ## Telegram bot: quiet rules and the phone-to-session note bridge (2026-10-16)
 
-- **What sends.** Lead, callback, booking-complete and invoice alerts come from nickstire's event bus only; the statenour bridge records them without a Telegram copy. Emergency and review alerts still come from statenour.
+- **What sends.** Lead and callback alerts come from nickstire's event bus only (statenour's copy was a duplicate). Job-complete and invoice-created alerts are cut by design: statenour's copy was their only Telegram path, nickstire classes booking-complete as a receipt (held unless `telegram_receipt` is on) and does not send invoice_created. The statenour bridge still records all four. Emergency and review alerts still come from statenour.
 - **Inngest failures.** One alert per function per 6 h (claim key `inngest_failure_alert:<function id>` in `action_attempts`); the next alert says how many repeats were held. 22:00-07:00 ET holds non-critical failures; a database outage still pages. Overnight failures stay in `cron_job_log` (`status = failed`).
 - **Redelivery.** The webhook claims each `update_id` (`telegram_update:<id>`, 48 h hold) and acts once. A command that fails replies "failed" and counts as handled, and a command that crashed mid-run leaves its claim held: in both cases Telegram's redelivery is ignored, so send the command again.
 - **`/note <text>`.** Stores a note for the coding sessions (`CaptureInboxItem`, kind `agent_bridge_note`). Nothing answers it; a coding session reads it when one starts.

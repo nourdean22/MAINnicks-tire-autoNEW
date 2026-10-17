@@ -1,8 +1,12 @@
 /**
- * Telegram job, lane 2 (2026-10-17) - nickstire's own event bus already sends
- * lead, callback, booking and job-complete to Telegram (#3089), so statenour's
- * bridge copy buzzed Nour twice for one event. The bridge still records each
- * event (audit row); only the Telegram send is gone. Emergency and review keep
+ * Telegram job, lane 2 (2026-10-17) - statenour's bridge no longer sends its
+ * own Telegram copy of lead, callback, booking-complete or invoice. Honestly:
+ * lead and callback were duplicates; job-complete and invoice-created were
+ * statenour's only Telegram path and are now cut by design (nickstire classes
+ * booking-complete as a receipt, held unless telegram_receipt is on;
+ * invoice_created is not sent).
+ * Nour cut receipt-class noise (#3097 review P2-3). The bridge still records
+ * each event (audit row); only the Telegram send is gone. Emergency and review keep
  * their statenour alert (emergency carries the retry-on-undelivered contract).
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
