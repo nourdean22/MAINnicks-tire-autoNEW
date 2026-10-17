@@ -9,7 +9,8 @@
 > - **Page (`app/(mastery)/system/calibration`).** The LLM Judge Calibration card shows kappa and the two rates; a null reads "unknown".
 >
 > **Flagged · NOT fixed**
-> - `scripts/check-calibration.ts` and a doc comment in `lib/trpc/routers/system/prompts.ts` still say "agreement".
+> - **Needs Nour:** `docs/CALIBRATION_TODO.md` carried a claim he confirmed on 2026-06-11 ("n >= 30, agreement >= 70%"). Its text now states the kappa rule, so its `confirmed-by` is PENDING until he re-confirms it; `document-sha256` was not recomputed (nothing reads it).
+> - ADR 0019's cutover gate now reads the kappa bands; a doc comment in `lib/trpc/routers/system/prompts.ts` still says "agreement".
 
 > ## 2026-10-17 · Arbiter judge-split gets error bars and a verdict (branch `statenour/scout1-judge-split-ci`) · 1 statenour PR, read-only script
 >
