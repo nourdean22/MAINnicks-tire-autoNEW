@@ -255,26 +255,31 @@ export async function handleSendMedia(input: {
   urls?: string[];
   caption?: string;
 }) {
-  const { sendTelegramPhoto, sendTelegramVideo, sendTelegramDocument, sendTelegramMediaGroup } =
+  const { sendTelegramPhotoResult, sendTelegramVideoResult, sendTelegramDocumentResult, sendTelegramMediaGroupResult } =
     await import("../../services/telegram");
+  // A send held by a class mute was NOT sent: success is true only for a delivery.
+  const reply = (r: { status: "delivered" | "held" | "failed"; heldBy?: string }) =>
+    r.status === "delivered"
+      ? { success: true }
+      : r.status === "held"
+        ? { success: false, held: true, error: `held by ${r.heldBy}` }
+        : { success: false };
 
   if (input.type === "photo" && input.url) {
-    const ok = await sendTelegramPhoto(input.url, input.caption);
-    return { success: ok };
+    return reply(await sendTelegramPhotoResult(input.url, input.caption));
   }
   if (input.type === "video" && input.url) {
-    const ok = await sendTelegramVideo(input.url, input.caption);
-    return { success: ok };
+    return reply(await sendTelegramVideoResult(input.url, input.caption));
   }
   if (input.type === "document" && input.url) {
-    const ok = await sendTelegramDocument(input.url, input.caption);
-    return { success: ok };
+    return reply(await sendTelegramDocumentResult(input.url, input.caption));
   }
   if (input.type === "album" && input.urls?.length) {
-    const ok = await sendTelegramMediaGroup(
-      input.urls.map((u, i) => ({ type: "photo" as const, url: u, caption: i === 0 ? input.caption : undefined }))
+    return reply(
+      await sendTelegramMediaGroupResult(
+        input.urls.map((u, i) => ({ type: "photo" as const, url: u, caption: i === 0 ? input.caption : undefined })),
+      ),
     );
-    return { success: ok };
   }
   return { success: false, error: "Invalid media type or missing URL" };
 }

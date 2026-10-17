@@ -33,6 +33,7 @@ describe("CORRECTION_WHERE · one owner", () => {
   it("is the operator dismissed-or-not-useful predicate: no machine predictions, no timing/alternative dismissals", () => {
     expect(CORRECTION_WHERE).toEqual({
       kind: { not: "prediction" },
+      NOT: { sourceEngine: { startsWith: "tutor:" } },
       OR: [
         { decision: "dismissed", OR: [{ resultRef: null }, { resultRef: { notIn: ["dismiss:timing", "dismiss:alternative"] } }] },
         { outcomeUseful: false },

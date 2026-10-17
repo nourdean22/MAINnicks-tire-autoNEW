@@ -317,7 +317,7 @@ export async function processAgenticAuditor(): Promise<ProcessResult> {
       if (alerts > 0) {
         lines.push(``, `Alerts are agentic drift · price below floor, booking promised but not persisted, etc. Listen to the calls.`);
       }
-      await sendTelegram(lines.join("\n"));
+      await sendTelegram(lines.join("\n"), "digest");
     } catch (err) {
       log.warn("[agentic-auditor] telegram failed", { err: err instanceof Error ? err.message : String(err) });
     }

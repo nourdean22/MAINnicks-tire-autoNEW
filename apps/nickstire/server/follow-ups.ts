@@ -222,6 +222,25 @@ export interface FollowUpRunResult {
 }
 
 /**
+ * Tell the owner about a follow-up run ONCE: through notifyOwner (webhook), and only when that
+ * did not deliver (it returns false for a log-only fallback) through Telegram. It used to send
+ * the same text down both rails every run.
+ */
+export async function reportFollowUpsToOwner(title: string, content: string): Promise<void> {
+  const delivered = await notifyOwner({ title, content }).catch((e) => {
+    log.warn("[follow-ups] notifyOwner failed:", e);
+    return false;
+  });
+  if (delivered) return;
+  try {
+    const { sendTelegram } = await import("./services/telegram");
+    await sendTelegram(`📨 ${title}\n${content}`, "receipt");
+  } catch (e) {
+    log.warn("[follow-ups] telegram report failed:", e);
+  }
+}
+
+/**
  * Run all follow-up processes
  */
 export async function runFollowUps(): Promise<FollowUpRunResult> {
@@ -241,13 +260,7 @@ export async function runFollowUps(): Promise<FollowUpRunResult> {
         `24h Thank-You: ${thankYou.sent} sent, ${thankYou.queued} queued, ${thankYou.failed} failed, ${thankYou.skipped} skipped\n` +
         `7-Day Review Request: ${reviews.sent} sent, ${reviews.queued} queued, ${reviews.failed} failed, ${reviews.skipped} skipped\n\n` +
         `Review in the admin under Outreach → Follow-Ups.`;
-      // notifyOwner is email to CEO_EMAIL, which may be unset (it logs and
-      // skips). Telegram is the channel that demonstrably reaches the owner
-      // (weekly digest), so the report goes there too. Both fire-and-forget.
-      await notifyOwner({ title, content }).catch((e) => { log.warn("[follow-ups] fire-and-forget failed:", e); });
-      import("./services/telegram")
-        .then(({ sendTelegram }) => sendTelegram(`📨 ${title}\n${content}`))
-        .catch((e) => { log.warn("[follow-ups] telegram report failed:", e); });
+      await reportFollowUpsToOwner(title, content);
     }
 
     return { thankYou, reviews, sent, queued, failed, skipped, total: sent, skipReason };

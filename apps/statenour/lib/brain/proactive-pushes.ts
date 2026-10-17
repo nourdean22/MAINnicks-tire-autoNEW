@@ -104,7 +104,7 @@ import { logError } from "@/lib/utils/error-log";
 
 const log = rootLogger.withSurface("brain/proactive-pushes");
 
-export type PushSlot = "morning" | "afternoon" | "evening" | "approvals_nudge";
+export type PushSlot = "morning" | "afternoon" | "evening" | "approvals_nudge" | "tutor";
 
 export interface PushSource {
   id?: string;
@@ -131,6 +131,8 @@ export interface PushResult {
   fired: boolean;
   reason: string;
   text?: string;
+  /** Daily Tutor (W2): rides the morning hour after the morning push; its own claim. */
+  tutor?: PushResult | PushPreview;
 }
 
 export interface PushPreview {
@@ -152,6 +154,7 @@ export interface PushPreview {
   riskFlags: string[];
   nextSafeStep: string;
   sources: PushSource[];
+  tutor?: PushResult | PushPreview;
 }
 
 export interface PushSkip {
@@ -198,7 +201,7 @@ export async function releasePushSlot(key: string): Promise<void> {
 }
 
 /** Claim the slot, send, release on a failed send. The loser of the claim never sends. */
-async function sendClaimed(
+export async function sendClaimed(
   slot: PushSlot,
   dateKey: string,
   send: () => Promise<boolean>,
@@ -212,7 +215,7 @@ async function sendClaimed(
   return { fired: ok, reason: ok ? "sent" : "telegram_failed" };
 }
 
-async function alreadyPushed(slot: PushSlot, dateKey: string): Promise<boolean> {
+export async function alreadyPushed(slot: PushSlot, dateKey: string): Promise<boolean> {
   const row = await prisma.brainMemory.findUnique({
     where: { category_key: { category: BRAIN_CATEGORIES.PROACTIVE_PUSH_SENT, key: `${slot}_${dateKey}` } },
     select: { id: true },
@@ -630,7 +633,17 @@ export async function fireSlotForCurrentHour(options?: { dryRun?: boolean; now?:
   );
   if (etHour >= 6 && etHour <= 11) {
     log.info("slot_dispatch", { slot: "morning", etHour });
-    return fireMorningPush(options);
+    const morning = await fireMorningPush(options);
+    // Daily Tutor (W2, 2026-10-16): after the morning push, never before it.
+    // Independent claims: a morning already sent today does not block the tutor.
+    const tutor = await import("@/lib/brain/tutor-pack")
+      .then(({ fireTutorPush }) => fireTutorPush(options))
+      .catch((err) => {
+        logError("brain.proactive-pushes", err, { fn: "fireSlotForCurrentHour.tutor" });
+        return null;
+      });
+    log.info("slot_dispatch", { slot: "tutor", etHour, fired: tutor?.kind === "live" ? tutor.fired : null, reason: tutor?.reason });
+    return tutor ? { ...morning, tutor } : morning;
   }
   if (etHour >= 12 && etHour <= 17) {
     log.info("slot_dispatch", { slot: "afternoon", etHour });

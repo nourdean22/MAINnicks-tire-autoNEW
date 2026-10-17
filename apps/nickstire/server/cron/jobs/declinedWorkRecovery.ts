@@ -716,7 +716,7 @@ export async function runDeclinedWorkRecovery(opts?: RecoveryOptions): Promise<R
         `📬 DECLINED WORK RECOVERY: ${total} SMS sent ` +
           `(${sent3d} 3d · ${sent7d} 7d · ${sent14d} 14d · ${sent30d} 30d · ${sent45d} 45d). ` +
           `Pool: ${formatMoney(totalRecoverableCents)} from ${unmatched.length} quotes.` +
-          (perRowErrors > 0 ? ` ⚠️ ${perRowErrors} row errors — see server logs.` : ""),
+          (perRowErrors > 0 ? ` ⚠️ ${perRowErrors} row errors — see server logs.` : ""), "receipt",
       );
     } catch (e) {
       log.warn("[declined-recovery] telegram notify failed:", e);

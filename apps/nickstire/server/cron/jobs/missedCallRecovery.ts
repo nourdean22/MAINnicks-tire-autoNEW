@@ -201,7 +201,7 @@ export async function processMissedCallRecovery(): Promise<{ recordsProcessed: n
           // worse than no preview. Describe the shape, name the source.
           `\n\nThey'd receive the neutral follow-up for vapi_forwarded_call_followup ` +
           `(rotating variant, see smsMessageCatalog.ts) + STOP footer.\n` +
-          `Flip live: set MISSED_CALL_RECOVERY_SEND=1 on MAINnicks-tire-auto.`,
+          `Flip live: set MISSED_CALL_RECOVERY_SEND=1 on MAINnicks-tire-auto.`, "digest",
         );
       }
       log.info("Missed-call recovery SHADOW run", { candidates });
@@ -234,7 +234,7 @@ export async function processMissedCallRecovery(): Promise<{ recordsProcessed: n
     if (processed > 0) {
       log.info("Missed-call recovery sent", { processed, candidates });
       const { sendTelegram } = await import("../../services/telegram");
-      await sendTelegram(`📞 Missed-Call Recovery — sent ${processed} follow-up text(s) (of ${candidates} eligible).`);
+      await sendTelegram(`📞 Missed-Call Recovery — sent ${processed} follow-up text(s) (of ${candidates} eligible).`, "receipt");
     }
     return { recordsProcessed: processed, shadow: false, candidates };
   } catch (err) {

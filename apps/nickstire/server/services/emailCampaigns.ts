@@ -395,7 +395,7 @@ export async function autoSendEmailCampaigns(): Promise<{ recordsProcessed: numb
 
     if (sent > 0) {
       const { sendTelegram } = await import("./telegram");
-      await sendTelegram(`📧 EMAIL CAMPAIGN: ${sent}/${customers.length} ${templateKey} emails sent automatically.`);
+      await sendTelegram(`📧 EMAIL CAMPAIGN: ${sent}/${customers.length} ${templateKey} emails sent automatically.`, "receipt");
     }
 
     return {

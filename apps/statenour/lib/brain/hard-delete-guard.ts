@@ -90,6 +90,13 @@ export const NEVER_HARD_DELETE_CATEGORIES: readonly string[] = [
   "prediction_lesson",
   "learning_journal",
   "business_event",
+
+  // 2026-10-16 (W2 Daily Tutor review): the operator's own learning schedule
+  // (tutor + Learn tab). remember() stamps a 24h TTL on every new row, so the
+  // nightly sweep deleted each card the day after it was written and the
+  // 1/3/7/30 ladder could never climb (prod: 0 spaced_review rows ever).
+  // config/retention.ts already lists it under "NEVER in this list".
+  "spaced_review",
 ];
 
 /**

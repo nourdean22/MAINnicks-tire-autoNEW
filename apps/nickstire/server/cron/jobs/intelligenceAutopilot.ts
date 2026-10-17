@@ -291,7 +291,7 @@ export async function runIntelligenceAutopilot(): Promise<{ recordsProcessed: nu
         await sendTelegram(
           `🧠 INTELLIGENCE AUTOPILOT — ${now}${healthScore ? ` | Health: ${healthScore}/100` : ""}\n\n` +
           alerts.join("\n\n") +
-          `\n\n📊 ${actionsPerformed} records analyzed`
+          `\n\n📊 ${actionsPerformed} records analyzed`, "digest"
         );
       } catch (e: unknown) {
         log.warn("Telegram alert failed:", { error: (e as Error).message });
@@ -339,7 +339,7 @@ export async function runAlgAutoDiscovery(): Promise<{ recordsProcessed: number;
         await sendTelegram(
           `🔍 ALG DISCOVERY: ${live.length}/${total} endpoints responding\n\n` +
           live.slice(0, 5).map(([endpoint, r]) => `${endpoint}: HTTP ${r.status} ${r.isJson ? "(JSON)" : "(other)"} ${r.sampleSize}b`).join("\n") +
-          (withData.length > 0 ? `\n\n${withData.length} endpoints returning usable JSON data` : "")
+          (withData.length > 0 ? `\n\n${withData.length} endpoints returning usable JSON data` : ""), "digest"
         );
       } catch (e) { log.warn("[jobs/intelligenceAutopilot] operation failed:", e); }
     }
