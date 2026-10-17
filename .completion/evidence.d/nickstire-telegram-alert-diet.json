@@ -1,10 +1,10 @@
 {
   "evidence": {
     "cron-fail-closed": {
-      "ref": "Telegram alert diet, run on this tree 2026-10-16: apps/nickstire/server/__tests__/cronNoSwallowedFailure.test.ts 7 passed and server/cron/jobs/cronRethrow2026.test.ts 16 passed (the fail-closed contract for every cron the diet touches); server/telegramStateChangeAlerts.test.ts 13 passed drives revenue-pulse, promise-risk-check and stale-estimate-alert through runTierJobHandlerUnlocked (once per ET day per state, a changed state sends once, an unreadable claim table sends). The 19 cron files changed here only add a Telegram class argument to an existing send, so a thrown error still propagates as before."
+      "ref": "Telegram alert diet incl. the Codex fix round, run on the merged tree (main f1490c15c + this branch) 2026-10-17: apps/nickstire/server/__tests__/cronNoSwallowedFailure.test.ts 7 passed and server/cron/jobs/cronRethrow2026.test.ts 16 passed (the fail-closed contract for every cron the diet touches); server/telegramStateChangeAlerts.test.ts 25 passed drives revenue-pulse, promise-risk-check and stale-estimate-alert through runTierJobHandlerUnlocked: once per ET day per state, ET-month band at 23:30 ET, invoice-id fingerprint, claim released when the transport fails or throws (the job rethrows), claim kept when a mute holds the send, an unreadable claim table still sends. The 21 cron files changed here only add a Telegram class argument or the claim wrapper around an existing send, so a thrown error still propagates as before."
     },
     "capability-ledger-updated": {
-      "ref": "apps/nickstire/docs/operations/capability-ledger.json: telegram-delivery-classes (codeState merged, operationalState unit_verified, exposure internal, owner nickstire) records the one-sender-per-event, once-per-state, class-and-mute and honest-count changes with their unit tests and a P2 'not observed in production' blocker; REALITY-LEDGER.md rendered beside it."
+      "ref": "apps/nickstire/docs/operations/capability-ledger.json: telegram-delivery-classes (codeState merged, operationalState unit_verified, exposure internal, owner nickstire) records the one-sender-per-event, once-per-state, class-and-mute, held-vs-delivered result and honest-count changes with their unit tests and a P2 'not observed in production' blocker; REALITY-LEDGER.md rendered beside it."
     }
   }
 }
