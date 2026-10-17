@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "statenour/brain-fu6-xp-readers-v2",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "11dd3c15-6c98-4bc9-9fa1-c404986839c6",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\new-session-bbf695",
   "claimedBy": "2026-10-17-brain-fu6-xp-readers",
   "claimedAt": "2026-10-17T18:50:03.847Z",
   "expiresAt": "2026-10-18T06:50:03.847Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": null
+  "releasedAt": "2026-10-17T19:13:54.404Z",
+  "releaseReason": "PR #3128 merged; merge-gate deleted the remote branch",
+  "priorLeaseSha": "b0225af4345ae9e0f593c4b728595f8d8c92396f",
+  "releasedBy": "11dd3c15-6c98-4bc9-9fa1-c404986839c6",
+  "foreignReleaseReason": null
 }
