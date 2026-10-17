@@ -102,4 +102,17 @@ describe("a redelivered Telegram update acts once", () => {
     await deliver(9005, "/task still saved");
     expect(h.createTask).toHaveBeenCalledTimes(1);
   });
+
+  // #3097 review P3-2: command handlers swallow their own errors and reply
+  // "failed", so a failed command settles as handled. Its redelivery is not
+  // retried; Nour resends. Pinned so nobody documents a retry that never happens.
+  it("a command that fails inside its handler settles once and is not retried on redelivery", async () => {
+    h.createTask.mockRejectedValueOnce(new Error("db hiccup"));
+    await deliver(9006, "/task will fail");
+    await deliver(9006, "/task will fail");
+    expect(h.createTask).toHaveBeenCalledTimes(1);
+    const row = [...h.rows.values()].find((r) => r.operationKey === "telegram_update:9006")!;
+    expect(row.state).toBe("SUCCEEDED_UNVERIFIED");
+    expect(h.actionAttempt.update).toHaveBeenCalledTimes(1);
+  });
 });

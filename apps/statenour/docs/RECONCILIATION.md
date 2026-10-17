@@ -72,7 +72,7 @@
 > - **Inngest failure alerts grouped (`lib/inngest/on-failure.ts`).** One alert per function per 6 h window, claimed in `action_attempts` (beginAttempt); repeats are counted on the claim row and reported on the next alert; non-critical failures wait out 22:00-07:00 ET; a database outage pages at night; a store error fails open.
 > - **One message per voice note or link (`app/api/telegram/webhook/route.ts`, `lib/services/telegram.ts`).** `sendTelegramForId` + an edit-in-place progress message replace "Transcribing...", "Transcribed" and "Analyzing..." as separate messages; a failed edit sends nothing more. The "routed as" receipt is gone.
 > - **Honest `/status` and `/alerts`.** A failed read prints "unknown", urgent leads come from nickstire's `leads_urgent`, `/alerts` keeps its 30-day window and honours `alert_mute`.
-> - **Idempotent inbound.** Each authorized `update_id` is claimed in `action_attempts` before dispatch; a redelivered `/task` or `/dump` acts once; a handler that throws releases the claim.
+> - **Idempotent inbound.** Each authorized `update_id` is claimed in `action_attempts` before dispatch; a redelivered `/task` or `/dump` acts once. A failed command is not retried on redelivery (the handlers catch their own errors and settle as handled); Nour resends it.
 > - **Session bridge.** `/note <text>` stores a `CaptureInboxItem` (kind `agent_bridge_note`, status `bridge_unread`; no new table). `GET /api/agent-bridge/notes?since=<id>` and `POST /api/agent-bridge/notes/ack` use the Agent Bridge Bearer auth (`AGENT_BRIDGE_ENABLED` + `AGENT_BRIDGE_TOKEN_READ`). The consumer hook (a platform lane) is not built yet.
 >
 > **Flagged · NOT fixed**

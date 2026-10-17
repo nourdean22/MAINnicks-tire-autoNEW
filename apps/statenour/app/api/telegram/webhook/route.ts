@@ -259,9 +259,11 @@ async function dispatchMessage(message: TelegramMessage, chatId: string, forward
 // Telegram redelivers an update when the webhook answers non-200 or too slowly,
 // and /task and /dump acted on every copy. Each update_id is claimed in
 // action_attempts (beginAttempt: create, compare-and-swap reclaim) before
-// anything acts; a copy that finds the claim answers 200 and does nothing. A
-// handler that throws settles FAILED, which releases the claim so the
-// redelivery runs again. A claim store that cannot be reached fails OPEN (acts):
+// anything acts; a copy that finds the claim answers 200 and does nothing. The
+// command handlers catch their own errors and reply "failed", so a failed command
+// settles as handled and its redelivery is NOT retried: Nour resends it
+// (tests/telegram/update-id-idempotent.test.ts pins this). Only an error that
+// escapes a handler settles FAILED. A claim store that cannot be reached fails OPEN (acts):
 // losing Nour's command is worse than acting on it twice. Telegram keeps an
 // undelivered update for 24 h, so the hold is 48 h.
 const UPDATE_CLAIM_WINDOW_MS = 48 * 3_600_000;
