@@ -139,7 +139,10 @@ github-client canaries 403'd every PR whenever another workflow had spent the bu
     denied; it fails open. A call denied before it runs fires neither post event, so it is not counted. Cost: about
     100 ms per call, plus a `git status` only on a repeat.
   - `lane-dispatch-brief` (policy.json, `Agent|Task` routed to pretool.mjs): a `lane-*` dispatch needs `model`, a brief
-    file path ending `brief.md` and a `MODEL / EFFORT` line. Not checked: `effort`, and `start_session` prompts.
+    file (a token whose basename contains `brief` and ends `.md`; not a URL, not the word in prose) and a
+    `MODEL / EFFORT` line. Not checked: `effort`, and `start_session` prompts.
+  - Limits, not built: no heartbeat while a long heavy run holds the lease (only the 20 min expiry ends a hung one);
+    a headless `claude -p --agent <lane>` dispatch never passes through the Agent tool, so the lane rule cannot see it.
 - **Failure posture is asymmetric on purpose:** a matched rule fails CLOSED; a bug in the hook
   itself fails OPEN with a stderr warning. Bricking every tool call is worse than missing one
   check, and Claude Code fails open on hook crash/timeout anyway — pretending otherwise is theatre.

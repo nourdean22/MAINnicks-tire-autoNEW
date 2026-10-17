@@ -63,6 +63,15 @@ test("bypass shapes: the Task alias, a cased or padded lane name, a brief named 
   );
 });
 
+test("brief files are recognised by basename: brief-3100.md, lane-brief-v2.md, a Windows path; a URL and prose are not", () => {
+  const ok = (prompt) => judge("Agent", { subagent_type: "lane-platform", model: "opus", prompt: `${prompt}\nMODEL / EFFORT: opus / high` });
+  for (const p of ["Brief: C:\\Users\\x\\scratchpad\\brief-3100.md", "read lane-brief-v2.md first", "(see ./briefs/statenour-brief.v3.md)"]) {
+    assert.equal(ok(p).code, 0, `${p} must pass: ${ok(p).out}`);
+  }
+  denied(ok("brief at https://example.com/brief.md"), "a URL is not a brief file");
+  denied(ok("the brief is attached above"), "prose");
+});
+
 test("non-lane agents are not judged by this rule", () => {
   assert.equal(judge("Agent", { subagent_type: "Explore", prompt: "find the board hook" }).code, 0);
   assert.equal(judge("Agent", { prompt: "general purpose, no type" }).code, 0);
