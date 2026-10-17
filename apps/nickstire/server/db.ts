@@ -1252,12 +1252,23 @@ export async function getPendingNotifications() {
     .orderBy(desc(customerNotifications.createdAt));
 }
 
+/** Rows a mysql2 UPDATE changed ([ResultSetHeader, fields] or a bare header). */
+function affectedRows(result: unknown): number {
+  const header = (Array.isArray(result) ? result[0] : result) as { affectedRows?: number } | undefined;
+  return header?.affectedRows ?? 0;
+}
+
+/**
+ * Compare-and-swap (review P3-2, 2026-10-17): only a still-pending row moves, so a
+ * send that finishes after the operator tapped Cancel cannot overwrite 'skipped'.
+ * `changed: false` tells the caller the row was no longer pending.
+ */
 export async function markNotificationSent(id: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.update(customerNotifications).set({ status: "sent", sentAt: new Date() })
-    .where(eq(customerNotifications.id, id));
-  return { success: true };
+  const result = await db.update(customerNotifications).set({ status: "sent", sentAt: new Date() })
+    .where(and(eq(customerNotifications.id, id), eq(customerNotifications.status, "pending")));
+  return { success: true, changed: affectedRows(result) > 0 };
 }
 
 /**
@@ -1268,9 +1279,9 @@ export async function markNotificationSent(id: number) {
 export async function markNotificationFailed(id: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.update(customerNotifications).set({ status: "failed" })
-    .where(eq(customerNotifications.id, id));
-  return { success: true };
+  const result = await db.update(customerNotifications).set({ status: "failed" })
+    .where(and(eq(customerNotifications.id, id), eq(customerNotifications.status, "pending")));
+  return { success: true, changed: affectedRows(result) > 0 };
 }
 
 export async function getBookingServiceBreakdown() {

@@ -85,7 +85,15 @@ async function sendAndRecord(
   const outcome = smsOutcome(smsResult);
   if (outcome === "sent") {
     counts.sent++;
-    if (notification.id) await markNotificationSent(notification.id).catch((e) => log.warn("[follow-ups] fire-and-forget failed:", e));
+    if (notification.id) {
+      const id = notification.id;
+      await markNotificationSent(id)
+        .then((r) => {
+          // The CAS lost: the row left 'pending' (an operator Cancel) before the text went out.
+          if (r && !r.changed) log.warn("[follow-ups] text sent but the notification was no longer pending; row left as is", { notificationId: id });
+        })
+        .catch((e) => log.warn("[follow-ups] fire-and-forget failed:", e));
+    }
   } else if (outcome === "queued") {
     // Parked for the 8 AM window by the durable queue: it WILL go out, so the
     // claim is correct, but it has not been sent yet — leave the notification
