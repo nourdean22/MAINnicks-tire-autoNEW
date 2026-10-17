@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "nickstire/reel-qa-world",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "11dd3c15-6c98-4bc9-9fa1-c404986839c6",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\musing-ramanujan-25e4e3",
   "claimedBy": "2026-10-17-reel-qa-world",
   "claimedAt": "2026-10-17T17:06:50.848Z",
   "expiresAt": "2026-10-18T05:06:50.848Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": "2f6a3fe8ed44c87ec3131eb5a6dd1cbd0f1d768b"
+  "releasedAt": "2026-10-17T18:15:15.305Z",
+  "releaseReason": "PR #3127 merged as 42a5b0bb3; merge-gate deleted the remote branch, worktree clean",
+  "priorLeaseSha": "aec3a12d1e152b34144d14fde85cc2fbd2384cdc",
+  "releasedBy": "11dd3c15-6c98-4bc9-9fa1-c404986839c6",
+  "foreignReleaseReason": null
 }
