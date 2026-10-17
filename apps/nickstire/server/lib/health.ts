@@ -89,21 +89,12 @@ export async function healthHandler(_req: Request, res: Response): Promise<void>
     status: process.env.META_CAPI_ACCESS_TOKEN ? "configured" : "not_configured",
   };
 
-  // Sentry: PRESENCE plus receipts. This used to say "configured" from the DSN
-  // alone, which reads as green and proves nothing (the 2026-09-02 placeholder-
-  // DSN incident: keys set, zero events). `dsn_set` is the truthful name for
-  // what the env var proves; the counters say what actually left the process.
-  // HEALTHY / DEGRADED / UNKNOWN per instrument: GET /api/system/observability-status.
-  {
-    const { getSentryStatus } = await import("./sentry");
-    const sentryStatus = getSentryStatus();
-    checks.sentry = {
-      status: sentryStatus.dsnSet ? "dsn_set" : "dsn_unset",
-      last_event_id: sentryStatus.lastEventId,
-      events_sent_since_boot: sentryStatus.eventsAckedSinceBoot,
-      events_captured_since_boot: sentryStatus.eventsCapturedSinceBoot,
-    };
-  }
+  // Sentry: PRESENCE only, named honestly. This used to say "configured" from the
+  // DSN alone, which reads as green and proves nothing (the 2026-09-02 placeholder-
+  // DSN incident: keys set, zero events). This route is public, so the event ids
+  // and counters stay behind auth: HEALTHY / DEGRADED / UNKNOWN with receipts is
+  // GET /api/system/observability-status (Bearer ADMIN_API_KEY).
+  checks.sentry = { status: process.env.SENTRY_DSN ? "dsn_set" : "dsn_unset" };
 
   // AI Gateway check
   try {

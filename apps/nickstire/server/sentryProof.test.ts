@@ -56,7 +56,7 @@ function fakeClient(opts: { ackStatus?: number; flushOk?: boolean; throwOnCaptur
       },
       flush: async () => {
         // The real SDK emits afterSendEvent while draining; the fake does the same.
-        if (opts.ackStatus !== undefined) recordTransportResponse(opts.ackStatus);
+        if (opts.ackStatus !== undefined) recordTransportResponse(opts.ackStatus, "evt-123");
         return opts.flushOk ?? true;
       },
     },
@@ -159,8 +159,8 @@ describe("/api/health no longer calls a DSN 'configured'", () => {
       expect(sentry).toBeDefined();
       expect(sentry.status).toBe("dsn_set");
       expect(sentry.status).not.toBe("configured");
-      expect(sentry).toHaveProperty("events_sent_since_boot");
-      expect(sentry).toHaveProperty("last_event_id");
+      // Public route: presence only. Event ids and counters live behind auth (observability-status).
+      expect(sentry).toEqual({ status: "dsn_set" });
     } finally {
       if (saved === undefined) delete process.env.SENTRY_DSN;
       else process.env.SENTRY_DSN = saved;

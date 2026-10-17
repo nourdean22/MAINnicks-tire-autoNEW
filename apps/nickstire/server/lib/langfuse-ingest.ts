@@ -67,6 +67,8 @@ export interface TraceGenerationInput {
   /** Receptionist private mode and other do-not-record lanes: counted, never sent. */
   private?: boolean;
   metadata?: Record<string, string | number | boolean | null>;
+  /** Caller-chosen trace id (the probe uses it to confirm its own batch was accepted). */
+  traceId?: string;
 }
 
 export interface LangfuseIngestStatus {
@@ -134,7 +136,7 @@ export function traceGeneration(g: TraceGenerationInput): "queued" | "skipped_pr
       return "dropped";
     }
     const now = new Date().toISOString();
-    const traceId = randomUUID();
+    const traceId = g.traceId ?? randomUUID();
     const identity = resolveNickDeployIdentity(process.env);
     const usage = g.usage
       ? {
@@ -347,6 +349,8 @@ export interface FlushResult {
   error: string | null;
   /** false when nothing was queued or keys are unset. */
   attempted: boolean;
+  /** Trace ids in a batch Langfuse accepted whole (2xx, no per-event errors); empty otherwise. */
+  traceIds: string[];
 }
 
 /**
@@ -364,8 +368,8 @@ export function flushLangfuse(fetchImpl: typeof fetch = fetch): Promise<FlushRes
 
 async function doFlush(fetchImpl: typeof fetch): Promise<FlushResult> {
   const cfg = langfuseConfig();
-  if (!cfg.configured) return { ok: false, sent: 0, httpStatus: null, error: "keys unset", attempted: false };
-  if (state.queue.length === 0) return { ok: true, sent: 0, httpStatus: null, error: null, attempted: false };
+  if (!cfg.configured) return { ok: false, sent: 0, httpStatus: null, error: "keys unset", attempted: false, traceIds: [] };
+  if (state.queue.length === 0) return { ok: true, sent: 0, httpStatus: null, error: null, attempted: false, traceIds: [] };
   const batch = state.queue.splice(0, MAX_BATCH);
   const at = new Date().toISOString();
   try {
@@ -388,20 +392,27 @@ async function doFlush(fetchImpl: typeof fetch): Promise<FlushResult> {
       state.lastIngestOk = false;
       state.lastError = `HTTP ${res.status}: ${rejected} of ${batch.length} event(s) rejected`;
       log.warn("langfuse ingestion partly rejected", { status: res.status, rejected });
-      return { ok: false, sent: batch.length - rejected, httpStatus: res.status, error: state.lastError, attempted: true };
+      return { ok: false, sent: batch.length - rejected, httpStatus: res.status, error: state.lastError, attempted: true, traceIds: [] };
     }
     if (res.ok) {
       state.batchesSent += 1;
       state.lastIngestOk = true;
       state.lastError = null;
-      return { ok: true, sent: batch.length, httpStatus: res.status, error: null, attempted: true };
+      return {
+        ok: true,
+        sent: batch.length,
+        httpStatus: res.status,
+        error: null,
+        attempted: true,
+        traceIds: batch.filter((e) => e.type === "trace-create").map((e) => String(e.body.id)),
+      };
     }
     const text = await res.text().catch(() => "");
     state.batchesFailed += 1;
     state.lastIngestOk = false;
     state.lastError = `HTTP ${res.status}: ${text.slice(0, 200)}`;
     log.warn("langfuse ingestion rejected", { status: res.status, dropped: batch.length });
-    return { ok: false, sent: 0, httpStatus: res.status, error: state.lastError, attempted: true };
+    return { ok: false, sent: 0, httpStatus: res.status, error: state.lastError, attempted: true, traceIds: [] };
   } catch (err) {
     state.lastIngestAt = at;
     state.lastHttpStatus = null;
@@ -409,7 +420,7 @@ async function doFlush(fetchImpl: typeof fetch): Promise<FlushResult> {
     state.lastIngestOk = false;
     state.lastError = err instanceof Error ? err.message : String(err);
     log.warn("langfuse ingestion failed", { error: state.lastError, dropped: batch.length });
-    return { ok: false, sent: 0, httpStatus: null, error: state.lastError, attempted: true };
+    return { ok: false, sent: 0, httpStatus: null, error: state.lastError, attempted: true, traceIds: [] };
   }
 }
 

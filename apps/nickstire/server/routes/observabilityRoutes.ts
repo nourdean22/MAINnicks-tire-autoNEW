@@ -22,7 +22,7 @@
  */
 import type { Express, Request, RequestHandler, Response } from "express";
 import { randomUUID } from "node:crypto";
-import { captureMessage, flushSentry, getSentryStatus } from "../lib/sentry";
+import { captureMessage, flushSentry, getSentryStatus, transportAnswerFor } from "../lib/sentry";
 import { flushLangfuse, getLangfuseStatus, traceGeneration } from "../lib/langfuse-ingest";
 import { resolveObservabilityStatus } from "../lib/observabilityStatus";
 import { resolveNickDeployIdentity } from "../lib/deployIdentity";
@@ -41,7 +41,6 @@ async function probeSentry(probeId: string) {
     return { enabled: false, ok: false, eventId: null, flushed: false, acked: false, reason: `DSN set but Sentry did not initialize: ${status.initError ?? "unknown"}` };
   }
   const t0 = Date.now();
-  const ackedBefore = status.eventsAckedSinceBoot;
   const commit = resolveNickDeployIdentity(process.env).commitShort ?? "unknown";
   const eventId = captureMessage(`observability-probe ${probeId}`, {
     level: "info",
@@ -49,13 +48,15 @@ async function probeSentry(probeId: string) {
   });
   const flushed = await flushSentry(5000);
   const after = getSentryStatus();
-  const acked = after.eventsAckedSinceBoot > ackedBefore;
+  // THIS event's transport answer, not a counter delta another event could move.
+  const answer = eventId ? transportAnswerFor(eventId) : undefined;
+  const acked = typeof answer === "number" && answer >= 200 && answer < 300;
   const reason = !eventId
     ? (after.lastCaptureError ?? "captureMessage returned no event id")
     : !flushed
       ? "Sentry.flush() did not drain: the event may not have left the process"
       : !acked
-        ? `flushed but no 2xx from Sentry's transport (last status ${after.lastAckStatus ?? "none"})`
+        ? `flushed but Sentry's transport did not 2xx this event (answer ${answer === undefined ? "none" : String(answer)})`
         : null;
   return {
     enabled: true,
@@ -75,7 +76,9 @@ async function probeLangfuse(probeId: string) {
     return { enabled: false, ok: false, flushed: false, reason: "LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY unset: nothing was exported" };
   }
   const t0 = Date.now();
+  const traceId = randomUUID();
   const queued = traceGeneration({
+    traceId,
     name: "observability-probe",
     site: "routes/observabilityRoutes.ts",
     model: "probe",
@@ -91,10 +94,13 @@ async function probeLangfuse(probeId: string) {
   if (queued !== "queued") {
     return { enabled: true, ok: false, flushed: false, reason: `probe event not queued (${queued})` };
   }
+  // Confirm OUR batch: an in-flight timer flush answers for an older one, so flush
+  // until our trace id is in an accepted batch, a flush fails, or nothing is left.
   let flush = await flushLangfuse();
-  // A timer flush already in flight answers for an older batch; send ours too.
-  if (getLangfuseStatus().queued > 0) flush = await flushLangfuse();
-  const ok = flush.ok && flush.attempted;
+  for (let i = 0; i < 5 && flush.ok && !flush.traceIds.includes(traceId) && getLangfuseStatus().queued > 0; i++) {
+    flush = await flushLangfuse();
+  }
+  const ok = flush.ok && flush.traceIds.includes(traceId);
   return {
     enabled: true,
     ok,
@@ -102,26 +108,31 @@ async function probeLangfuse(probeId: string) {
     httpStatus: flush.httpStatus,
     sent: flush.sent,
     durationMs: Date.now() - t0,
-    ...(ok ? {} : { reason: flush.error ?? "ingestion was not attempted" }),
+    ...(ok ? {} : { reason: flush.error ?? "the probe's batch was not confirmed by Langfuse" }),
   };
 }
 
 async function observabilityProbeHandler(req: Request, res: Response): Promise<void> {
-  const body = (req.body ?? {}) as { targets?: unknown };
-  const requested = Array.isArray(body.targets)
-    ? body.targets.filter((t): t is Target => (ALL_TARGETS as unknown[]).includes(t))
-    : [];
-  const targets = new Set<Target>(requested.length > 0 ? requested : ALL_TARGETS);
   const probeId = randomUUID().slice(0, 10);
-  const identity = resolveNickDeployIdentity(process.env);
-  res.json({
-    probeId,
-    startedAt: new Date().toISOString(),
-    commit: identity.commitShort,
-    targets: [...targets],
-    ...(targets.has("sentry") ? { sentry: await probeSentry(probeId) } : {}),
-    ...(targets.has("langfuse") ? { langfuse: await probeLangfuse(probeId) } : {}),
-  });
+  try {
+    const body = (req.body ?? {}) as { targets?: unknown };
+    const requested = Array.isArray(body.targets)
+      ? body.targets.filter((t): t is Target => (ALL_TARGETS as unknown[]).includes(t))
+      : [];
+    const targets = new Set<Target>(requested.length > 0 ? requested : ALL_TARGETS);
+    const identity = resolveNickDeployIdentity(process.env);
+    res.json({
+      probeId,
+      startedAt: new Date().toISOString(),
+      commit: identity.commitShort,
+      targets: [...targets],
+      ...(targets.has("sentry") ? { sentry: await probeSentry(probeId) } : {}),
+      ...(targets.has("langfuse") ? { langfuse: await probeLangfuse(probeId) } : {}),
+    });
+  } catch (err) {
+    // An async throw would otherwise be an unhandled rejection with no response.
+    res.status(500).json({ probeId, ok: false, error: err instanceof Error ? err.message : String(err) });
+  }
 }
 
 function observabilityStatusHandler(_req: Request, res: Response): void {

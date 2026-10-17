@@ -109,6 +109,10 @@ describe("Sentry instrument state", () => {
     );
     expect(s.state).toBe("DEGRADED");
   });
+  it("an ack older than 12 h is UNKNOWN (stale proof), not HEALTHY", () => {
+    const old = new Date(NOW - LANGFUSE_FRESH_MS - 60_000).toISOString();
+    expect(resolveSentryInstrument(sentry({ eventsAckedSinceBoot: 4, lastAckAt: old }), BOOT).state).toBe("UNKNOWN");
+  });
   it("a flush that did not drain is DEGRADED", () => {
     expect(resolveSentryInstrument(sentry({ lastFlushOk: false, lastFlushAt: BOOT }), BOOT).state).toBe("DEGRADED");
   });
@@ -128,6 +132,10 @@ describe("Langfuse instrument state", () => {
   it("a 2xx ingestion older than 12 h is UNKNOWN (stale proof)", () => {
     const at = new Date(NOW - LANGFUSE_FRESH_MS - 1).toISOString();
     expect(resolveLangfuseInstrument(langfuse({ lastIngestOk: true, lastIngestAt: at }), NOW, BOOT).state).toBe("UNKNOWN");
+  });
+  it("dropped traces (queue overflow) are DEGRADED even after a 2xx", () => {
+    const at = new Date(NOW - 60_000).toISOString();
+    expect(resolveLangfuseInstrument(langfuse({ lastIngestOk: true, lastIngestAt: at, eventsDropped: 3 }), NOW, BOOT).state).toBe("DEGRADED");
   });
   it("a failed last ingestion is DEGRADED", () => {
     expect(
@@ -155,7 +163,7 @@ describe("planted positives move the state", () => {
       captureException: () => "e",
       captureMessage: () => "evt-1",
       flush: async () => {
-        recordTransportResponse(200);
+        recordTransportResponse(200, "evt-1");
         return true;
       },
     });
@@ -163,6 +171,39 @@ describe("planted positives move the state", () => {
     const r = await probeSentry();
     expect(r.ok).toBe(true);
     expect(resolveSentryInstrument(getSentryStatus(), BOOT).state).toBe("HEALTHY");
+  });
+
+  it("Sentry: another event's ack does not make the probe ok (it checks its own event id)", async () => {
+    process.env.SENTRY_DSN = "https://key@o0.ingest.sentry.io/0";
+    __setSentryClientForTests({
+      captureException: () => "e",
+      captureMessage: () => "evt-probe",
+      flush: async () => {
+        recordTransportResponse(200, "evt-someone-else");
+        return true;
+      },
+    });
+    const r = await probeSentry();
+    expect(r).toMatchObject({ ok: false, acked: false });
+  });
+
+  it("the probe handler answers 500 instead of an unhandled rejection", async () => {
+    const routes: Record<string, any[]> = {};
+    const app = {
+      get: (p: string, ...h: any[]) => (routes[`GET ${p}`] = h),
+      post: (p: string, ...h: any[]) => (routes[`POST ${p}`] = h),
+    };
+    registerObservabilityRoutes(app as any, (() => undefined) as any);
+    let status = 200;
+    let body: Record<string, any> = {};
+    const res = {
+      status: (c: number) => { status = c; return res; },
+      json: (b: Record<string, any>) => { body = b; return res; },
+    };
+    const req = { get body(): unknown { throw new Error("boom"); } };
+    await routes["POST /api/system/observability-probe"][1](req, res);
+    expect(status).toBe(500);
+    expect(body).toMatchObject({ ok: false, error: "boom" });
   });
 
   it("Langfuse: UNKNOWN before the probe, HEALTHY after a 2xx ingestion of it", async () => {

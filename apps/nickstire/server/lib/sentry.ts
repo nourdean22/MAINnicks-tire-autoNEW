@@ -134,7 +134,9 @@ export async function initSentry(): Promise<void> {
     });
 
     // Delivery receipts: the transport's own answer, not the locally issued event id.
-    Sentry.getClient?.()?.on?.("afterSendEvent", (_event, resp) => recordTransportResponse(resp?.statusCode));
+    Sentry.getClient?.()?.on?.("afterSendEvent", (event, resp) =>
+      recordTransportResponse(resp?.statusCode, (event as { event_id?: string } | undefined)?.event_id),
+    );
 
     sentryClient = {
       captureException: Sentry.captureException.bind(Sentry),
@@ -166,10 +168,23 @@ function recordCapture(run: () => string | undefined): string | null {
   }
 }
 
+/** Transport answers for the most recent event ids (bounded), so a probe checks ITS event, not a counter delta. */
+const ACK_LOG_MAX = 50;
+const ackLog = new Map<string, number | null>();
+
+/** The transport's answer for one event id: a status code, null (answered without one), or undefined (no answer yet). */
+export function transportAnswerFor(eventId: string): number | null | undefined {
+  return ackLog.get(eventId);
+}
+
 /** Record one transport response. 2xx counts as an ack; anything else is a capture error. Exported for tests. */
-export function recordTransportResponse(statusCode: number | undefined): void {
+export function recordTransportResponse(statusCode: number | undefined, eventId?: string): void {
   const at = new Date().toISOString();
   receipts.lastAckStatus = statusCode ?? null;
+  if (eventId) {
+    ackLog.set(eventId, statusCode ?? null);
+    if (ackLog.size > ACK_LOG_MAX) ackLog.delete(ackLog.keys().next().value as string);
+  }
   if (statusCode !== undefined && statusCode >= 200 && statusCode < 300) {
     receipts.eventsAckedSinceBoot += 1;
     receipts.lastAckAt = at;
@@ -228,6 +243,7 @@ export function getSentryStatus(): SentryStatus {
 /** Test seam: swap the client and forget every receipt. */
 export function __setSentryClientForTests(client: SentryLike | null): void {
   sentryClient = client;
+  ackLog.clear();
   receipts.release = null;
   receipts.initError = null;
   receipts.eventsCapturedSinceBoot = 0;

@@ -19,10 +19,10 @@ export interface InstrumentStatus {
   detail: string;
 }
 
-/** A Langfuse proof older than this is no longer a proof of the running process. */
-const LANGFUSE_FRESH_MS = 12 * 60 * 60 * 1000;
+/** A proof (Sentry ack, Langfuse 2xx) older than this no longer proves the running process. */
+const FRESH_MS = 12 * 60 * 60 * 1000;
 
-function resolveSentryInstrument(s: SentryStatus, bootAt: string): InstrumentStatus {
+function resolveSentryInstrument(s: SentryStatus, nowMs: number, bootAt: string): InstrumentStatus {
   if (!s.dsnSet) {
     return { state: "UNKNOWN", since: bootAt, detail: "SENTRY_DSN unset: nothing is captured (set it on the Railway service)" };
   }
@@ -37,6 +37,13 @@ function resolveSentryInstrument(s: SentryStatus, bootAt: string): InstrumentSta
   }
   if (s.lastFlushOk === false && (s.lastAckAt === null || (s.lastFlushAt ?? "") >= s.lastAckAt)) {
     return { state: "DEGRADED", since: s.lastFlushAt, detail: "last flush did not drain: the event may not have left the process" };
+  }
+  if (s.eventsAckedSinceBoot >= 1 && s.lastAckAt && nowMs - Date.parse(s.lastAckAt) > FRESH_MS) {
+    return {
+      state: "UNKNOWN",
+      since: s.lastAckAt,
+      detail: `last Sentry ack ${Math.round((nowMs - Date.parse(s.lastAckAt)) / 3_600_000)} h ago (over 12 h): no recent proof; POST /api/system/observability-probe`,
+    };
   }
   if (s.eventsAckedSinceBoot >= 1) {
     return {
@@ -59,6 +66,13 @@ function resolveLangfuseInstrument(s: LangfuseIngestStatus, nowMs: number, bootA
   if (!s.configured) {
     return { state: "UNKNOWN", since: bootAt, detail: "LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY unset: tracing is off" };
   }
+  if (s.eventsDropped > 0) {
+    return {
+      state: "DEGRADED",
+      since: s.lastIngestAt ?? bootAt,
+      detail: `${s.eventsDropped} trace(s) dropped since boot: the queue (200 events) overflowed, so traces are missing`,
+    };
+  }
   if (s.lastIngestOk === false) {
     return {
       state: "DEGRADED",
@@ -68,7 +82,7 @@ function resolveLangfuseInstrument(s: LangfuseIngestStatus, nowMs: number, bootA
   }
   if (s.lastIngestOk === true && s.lastIngestAt) {
     const ageMs = nowMs - Date.parse(s.lastIngestAt);
-    if (ageMs <= LANGFUSE_FRESH_MS) {
+    if (ageMs <= FRESH_MS) {
       return {
         state: "HEALTHY",
         since: s.lastIngestAt,
@@ -107,7 +121,7 @@ export function resolveObservabilityStatus(input: {
     generatedAt: new Date(input.nowMs).toISOString(),
     bootAt: input.bootAt,
     instruments: {
-      sentry: { ...resolveSentryInstrument(input.sentry, input.bootAt), receipts: input.sentry },
+      sentry: { ...resolveSentryInstrument(input.sentry, input.nowMs, input.bootAt), receipts: input.sentry },
       langfuse: { ...resolveLangfuseInstrument(input.langfuse, input.nowMs, input.bootAt), receipts: input.langfuse },
     },
   };
