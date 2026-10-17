@@ -5467,6 +5467,35 @@
         "The nightly run confirms each file by listing size; sha256 and row counts are re-checked by --verify-only, not by the nightly job."
       ],
       "lastVerifiedAt": "2026-10-17"
+    },
+    {
+      "capabilityId": "reel-qa-lens-world",
+      "name": "Rendered QA judges a text-only (hand-attached, no start frame) reel on the world its clips were prompted with (the motion lens grammar), not the shop still",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "Branch nickstire/reel-qa-world on main 6390cd570 (server lane): server/services/renderedQa.ts clipsWereTextOnly (payload.externalClips set, every generated clip URL carries the higgsfield-external segment via shared/reelDisclosure.ts isExternalClipUrl, no repair queue or history) and lensWorldBlock (MOTION_LENSES grammar; unknown lens falls back to the shop world); runRenderedQaOnJob passes job.clipUrlsJson; server/services/externalClips.ts uses the shared key-segment constant (key text unchanged). Continuity still blocks a location jump; every other check unchanged. Why: job 2100002 failed QA with ENVIRONMENT_DRIFT on every beat because its brief paired a real_shop_still world with an xray_cutaway lens while the clips were rendered text-only.",
+        "tests": [
+          "server/renderedQaTextOnlyWorld.test.ts (new, 12): text-only + studio lens -> lens world block, environment passes; image-conditioned drift -> still ENVIRONMENT_DRIFT; no record -> shop world (fail closed); stale externalClips with non-external clip URLs -> shop world; repair history -> shop world; text-only location jump -> still ENVIRONMENT_DRIFT. Red first 3 failed / 7 passed, then 1 failed / 11 passed for the stale-record control; mutants ignore conditioning, drop fail-closed, ignore repair records: each red.",
+          "Manager run on the combined tree: renderedQaTextOnlyWorld, renderedQa, renderedQaAnchorGate, metaAiDisclosureArrival 4 files, 61 passed, 4 skipped."
+        ],
+        "liveRuns": [],
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Not observed in production yet. Live proof: the next hand-attached batch reel (job 2100003 onward) passes rendered QA without an override, and the critic still blocks a real location jump",
+          "source": "job 2026-10-17-reel-qa-world"
+        }
+      ],
+      "deferredScope": [
+        "pipeline-rendered jobs with REEL_IMAGE_CONDITIONING off or non-exterior beats still get the shop-world demand (needs a per-beat conditioning record in the render lanes)",
+        "an external attach followed by a pipeline repair falls back to the shop world"
+      ],
+      "lastVerifiedAt": "2026-10-17",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
     }
   ],
   "axes": {
