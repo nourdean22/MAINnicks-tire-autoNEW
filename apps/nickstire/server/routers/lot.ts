@@ -78,7 +78,8 @@ import { deriveVisitMarkState, type VisitMarkRow } from "../lib/visitMarks";
 import { isDuplicateKeyError, isMissingTableError, logSafeErrorMessage } from "../lib/dbErrors";
 import { affectedRows, insertedId, writeResult } from "../lib/dbResult";
 import { createLogger } from "../lib/logger";
-import { jsonArray, transcriptCoverage } from "../lib/conversationQuality";
+import { jsonArray, storedFacts, transcriptCoverage } from "../lib/conversationQuality";
+import { officeHourDigest } from "../services/officeDigest";
 import { conversationEpisodeColumnReady, officeVisualColumnReady, storedVisual, __resetOfficeVisualCalibration } from "../services/officeVisual";
 
 const log = createLogger("routers:lot");
@@ -438,6 +439,7 @@ export const lotRouter = router({
             speakerCount: numOrNull(r.speakerCount),
             coverage: transcriptCoverage(r.transcript, r.durationSeconds),
             factCount: jsonArray(r.facts).length,
+            facts: storedFacts(r.facts).slice(0, 12),
             summary: r.summary == null ? null : String(r.summary),
             candidateVehicleVisitId: r.vehicleVisitId == null ? null : String(r.vehicleVisitId),
             candidateWorkOrderId: r.workOrderId == null ? null : String(r.workOrderId),
@@ -453,6 +455,84 @@ export const lotRouter = router({
           reason: err instanceof Error ? err.message : "conversation read failed",
         };
       }
+    }),
+
+  /**
+   * Hourly office digest (contract office-digest v1): the last N clock hours, newest first,
+   * including the current partial hour. Same privacy boundary as `conversations`: the digest
+   * is built from gists and validated fact kind/value pairs only (services/officeDigest.ts).
+   *
+   * Hours are bucketed in SQL as FLOOR(UNIX_TIMESTAMP(...) / 3600). America/New_York is always a
+   * whole-hour offset from UTC, so every ET clock hour is exactly one epoch hour, DST included
+   * (the repeated 1 AM on fall-back is two distinct epoch hours, as it should be).
+   *
+   * NO_ACTIVITY = no episodes. THIN = episodes but no gist and no fact (nothing honest to
+   * summarise, no LLM call). A failed read is { ok: false }, never an hours list of NO_ACTIVITY.
+   */
+  officeDigest: adminProcedure
+    .input(z.object({ hours: z.number().int().min(1).max(12).default(6) }).optional())
+    .query(async ({ input }) => {
+      const d = await dbTyped();
+      if (!d) return { ok: false as const, reason: "database unavailable" };
+
+      const hourCount = input?.hours ?? 6;
+      let nowHour: number;
+      let rows: Array<Record<string, unknown>>;
+      try {
+        const clock = numOrNull(rowsOf(await d.execute(sql`SELECT FLOOR(UNIX_TIMESTAMP() / 3600) AS nowHour`))[0]?.nowHour);
+        if (clock === null) return { ok: false as const, reason: "database clock read returned no row" };
+        nowHour = clock;
+        const gistReady = await conversationEpisodeColumnReady(d, "gist");
+        rows = rowsOf(await d.execute(sql`
+          SELECT episodeId, durationSeconds, facts,
+                 FLOOR(UNIX_TIMESTAMP(COALESCE(startedAt, createdAt)) / 3600) AS hourIdx
+                 ${gistReady ? sql`, gist` : sql``}
+            FROM conversation_episodes
+           WHERE source <> 'selftest'
+             AND UNIX_TIMESTAMP(COALESCE(startedAt, createdAt)) >= ${(nowHour - hourCount + 1) * 3600}
+             AND UNIX_TIMESTAMP(COALESCE(startedAt, createdAt)) < ${(nowHour + 1) * 3600}
+        `));
+      } catch (err) {
+        return { ok: false as const, reason: err instanceof Error ? err.message : "office digest read failed" };
+      }
+
+      const hours = await Promise.all(Array.from({ length: hourCount }, async (_, i) => {
+        const hourIdx = nowHour - i;
+        const hourStartMs = hourIdx * 3_600_000;
+        const isCurrent = i === 0;
+        const episodes = rows
+          .filter((r) => num(r.hourIdx) === hourIdx)
+          .map((r) => ({
+            episodeId: String(r.episodeId),
+            durationSeconds: num(r.durationSeconds),
+            gist: typeof r.gist === "string" && r.gist.trim() ? r.gist : null,
+            facts: storedFacts(r.facts).map((f) => ({ kind: f.kind, value: f.value })),
+          }));
+        const factCount = episodes.reduce((n, e) => n + e.facts.length, 0);
+        const hasInput = factCount > 0 || episodes.some((e) => e.gist !== null);
+        const status = episodes.length === 0 ? "NO_ACTIVITY" as const : hasInput ? null : "THIN" as const;
+        const llm = status === null
+          ? await officeHourDigest(hourStartMs, isCurrent, episodes.map(({ episodeId, gist, facts }) => ({ episodeId, gist, facts })))
+          : { status, digest: null, topics: [], error: null };
+        return {
+          hourStartMs,
+          hourEndMs: hourStartMs + 3_600_000,
+          isCurrent,
+          episodes: episodes.length,
+          talkSeconds: Math.round(episodes.reduce((s, e) => s + e.durationSeconds, 0)),
+          factCount,
+          status: llm.status,
+          digest: llm.digest,
+          topics: llm.topics,
+          error: llm.error,
+        };
+      }));
+
+      log.debug("office digest served", {
+        hours: hourCount,
+        statuses: hours.map((h) => h.status).join(","),
+      });
+      return { ok: true as const, generatedAtMs: Date.now(), hours };
     }),
 
   /**

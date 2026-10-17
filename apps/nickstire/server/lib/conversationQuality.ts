@@ -16,6 +16,29 @@ export function jsonArray(value: unknown): unknown[] {
   }
 }
 
+export type StoredFact = { kind: string; value: string; evidenceText: string; confidence: number | null };
+
+/**
+ * The stored `facts` JSON (ConversationFact[], services/conversationFacts.ts) as a read surface
+ * may show it: entries without a kind or value are skipped, evidenceText is cut to 240 chars, and
+ * a non-numeric confidence becomes null rather than a made-up number. `evidenceSegment` is dropped:
+ * it indexes a transcript this surface never returns.
+ */
+export function storedFacts(value: unknown): StoredFact[] {
+  return jsonArray(value).flatMap((raw) => {
+    if (!raw || typeof raw !== "object") return [];
+    const f = raw as Record<string, unknown>;
+    if (typeof f.kind !== "string" || !f.kind.trim() || typeof f.value !== "string" || !f.value.trim()) return [];
+    const confidence = typeof f.confidence === "number" && Number.isFinite(f.confidence) ? f.confidence : null;
+    return [{
+      kind: f.kind,
+      value: f.value,
+      evidenceText: typeof f.evidenceText === "string" ? f.evidenceText.slice(0, 240) : "",
+      confidence,
+    }];
+  });
+}
+
 type TimedSegment = { start?: unknown; end?: unknown };
 
 /**
