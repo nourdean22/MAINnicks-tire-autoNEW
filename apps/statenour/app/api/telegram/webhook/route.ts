@@ -1527,29 +1527,37 @@ async function cmdStatus(chatId: string): Promise<void> {
 
   // Apr 17 sweep: OpenLoop + DailyScore retired. Status now reports
   // the live Task queue + reflections.
+  // 2026-10-17 · a failed read prints "unknown", never 0 (each count used to
+  // `.catch(() => 0)`), and leads come from nickstire's leads_urgent query
+  // (they were hard-coded 0).
+  const UNKNOWN = "unknown" as const;
+  const orUnknown = <T,>(p: Promise<T>): Promise<T | typeof UNKNOWN> => p.catch(() => UNKNOWN);
   const [inbox, ready, doing, alerts, leads, commitments, reflectedToday] =
     await Promise.all([
       // deletedAt:null — /status is read on the operator's phone. Pre-fix it
       // reported an inbox of 52 when every INBOX row was soft-deleted (0).
-      prisma.task.count({ where: { status: "INBOX", deletedAt: null } }).catch(() => 0),
-      prisma.task.count({ where: { status: "READY", deletedAt: null } }).catch(() => 0),
-      prisma.task.count({ where: { status: "DOING", deletedAt: null } }).catch(() => 0),
-      (async () => {
+      orUnknown(prisma.task.count({ where: { status: "INBOX", deletedAt: null } })),
+      orUnknown(prisma.task.count({ where: { status: "READY", deletedAt: null } })),
+      orUnknown(prisma.task.count({ where: { status: "DOING", deletedAt: null } })),
+      orUnknown((async () => {
         const { getUnresolvedAlerts } = await import("@/lib/mastery/drift-engine");
-        return (await getUnresolvedAlerts().catch(() => [])).length;
-      })(),
-      Promise.resolve(0).catch(() => 0),
-      prisma.commitment
-        .count({ where: { status: { in: ["active", "in_progress"] }, deletedAt: null } })
-        .catch(() => 0),
-      prisma.reflection.count({ where: { date: today(), deletedAt: null } }).catch(() => 0),
+        return (await getUnresolvedAlerts()).length;
+      })()),
+      orUnknown((async () => {
+        const { queryNick, readBridge } = await import("@/lib/nickstire/query");
+        const read = readBridge<{ count?: unknown }>(await queryNick("leads_urgent", {}, 5_000));
+        if (read.status !== "ok" || typeof read.data?.count !== "number") return UNKNOWN;
+        return read.data.count;
+      })()),
+      orUnknown(prisma.commitment.count({ where: { status: { in: ["active", "in_progress"] }, deletedAt: null } })),
+      orUnknown(prisma.reflection.count({ where: { date: today(), deletedAt: null } })),
     ]);
 
   await sendTelegram(
     `📊 <b>NOUR OS Status</b> — ${now()}\n\n` +
       `📥 Inbox: ${inbox} · ▶︎ Ready: ${ready} · 🔥 Doing: ${doing}\n` +
       `⚠️ Drift alerts: ${alerts}\n` +
-      `📱 New leads: ${leads}\n` +
+      `📱 Urgent leads: ${leads}\n` +
       `✅ Commitments: ${commitments}\n` +
       `📝 Reflections today: ${reflectedToday}`,
     chatId
@@ -1940,15 +1948,31 @@ async function cmdAlerts(chatId: string): Promise<void> {
     "brain_bus_alert",
   ];
 
-  const alerts = await prisma.brainMemory.findMany({
-    where: {
-      category: { in: ALERT_CATS },
-      deletedAt: null,
-    },
-    orderBy: { createdAt: "desc" },
-    take: 5,
-    select: { category: true, content: true, createdAt: true },
-  });
+  // 2026-10-17 · the reply promised "the last 30 days" while the query had no
+  // date filter, and the /brain mute (alert_mute rows) was ignored here. Both are
+  // applied now, and a failed read is reported as unknown, never as all-clear.
+  let alerts: { category: string; content: string; createdAt: Date }[];
+  try {
+    const muteRows = await prisma.brainMemory.findMany({
+      where: { category: "alert_mute", deletedAt: null, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] },
+      select: { key: true },
+    });
+    const muted = new Set(muteRows.map((m) => m.key));
+    alerts = await prisma.brainMemory.findMany({
+      where: {
+        category: { in: ALERT_CATS.filter((c) => !muted.has(c)) },
+        createdAt: { gte: new Date(Date.now() - 30 * 86_400_000) },
+        deletedAt: null,
+      },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+      select: { category: true, content: true, createdAt: true },
+    });
+  } catch (err) {
+    log.warn("alerts_read_failed", { error: err instanceof Error ? err.message.slice(0, 120) : String(err) });
+    await sendTelegram("⚠️ Alerts unknown: the read failed. Not an all-clear.", chatId);
+    return;
+  }
 
   if (alerts.length === 0) {
     await sendTelegram("✅ No active alerts in the last 30 days.", chatId);
