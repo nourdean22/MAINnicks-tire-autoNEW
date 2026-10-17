@@ -23,7 +23,7 @@ import { fileURLToPath } from "node:url";
 import { isMainModule } from "./cli-common.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const CLIS = ["agent-start", "agent-finish", "lease-check", "repo-status", "repo-rescue", "branch-sweep", "check-source-citation", "merge-gate", "ledger-check"];
+const CLIS = ["agent-start", "agent-finish", "lease-check", "repo-status", "repo-rescue", "branch-sweep", "check-source-citation", "merge-gate", "ledger-check", "ledger-render", "ledger-migrate"];
 
 // ── helper, Windows simulated ────────────────────────────────────────────────
 

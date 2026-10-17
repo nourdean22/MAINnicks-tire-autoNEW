@@ -4,12 +4,12 @@ Rules from CLAUDE-OPERATING-PROFILE.md > SUBAGENT POLICY: inherit the stance, br
 The manager reads your diff and runs its own probes before anything ships, so report facts with labels, not intent.
 v2 (2026-10-15) added DESIGN, FIXTURES, PITFALLS, PATH EXCEPTIONS, SELF-AUDIT and labelled receipts
 (`.claude/skills/monorepo-manager/references/replay-2026-10-15.md`). v3 (2026-10-15, three lanes later) adds
-MODEL / EFFORT, MODEL TRAILER, CHECKPOINTS, COST, RESUME, ANTISLOP MODE, CODEMOD RULE, CONTROLS RULE and RETURN item 7:
+MODEL / EFFORT, RESUME, CODEMOD RULE, CONTROLS RULE and RETURN item 7 (budget, checkpoints, cost, trailer and antislop mode moved to the lane files, which the 10 briefs of 2026-10-09/16 never restated):
 two lanes lost 40 to 76 minutes of uncommitted edits to a process restart, one codemod left labels lowercase, one commit
 named the wrong model, and each lane cost 450k to 570k tokens. Fill every field. "none" is an answer only after you looked.
 
 ```
-LANE: <lane name>   JOB ID: <yyyy-mm-dd-short-slug>   BASE SHA: <origin/main sha>   CONTRACT: <version or none>
+LANE: <lane name>   JOB ID: <yyyy-mm-dd-short-slug>   BASE SHA: <origin/main sha; required for research lanes too>   CONTRACT: <version or none>
 MODEL / EFFORT: <haiku|sonnet|opus|fable> / <low|medium|high|xhigh|max>, reason: <one line; table below>
 GOAL: <one sentence: the outcome for this lane only>
 ACCEPTANCE: <the test or observable result that means done>
@@ -19,17 +19,12 @@ RULED OUT: <approaches already rejected and why, so the child does not rediscove
 DESIGN: <decisions already made, with the reason. Implement them; do not reopen them. Name anything left open for you to propose.>
 FIXTURES: <exact inputs, sample payloads, golden files and the REAL entry point (hook command, CLI, endpoint) to test through, as paths>
 PITFALLS: <traps this job or the repo's skills already name, each with what it looks like when it bites>
-YOU MAY EDIT: <exact paths or globs>. Anything else: report it back, do not touch.
 PATH EXCEPTIONS: <"none", or each extra file with why and the exact lines or values you may change there. Only the manager grants one, here. Without one, an out-of-path edit is rejected. List every out-of-lane file the lane must commit (census files, truth docs, .completion fragments, config baselines): a pre-commit hook can run app-wide checks, and a lane that cannot commit should leave the work uncommitted and say so.>
 YOU MAY NOT: push, merge, deploy, write to prod, send to customers, install packages, start subagents or other CLIs.
 DATA: test fixtures only; never a production DATABASE_URL or real API keys in your shell.
-BUDGET: <max tool calls or minutes; default 120 tool calls or 45 minutes>. STOP WHEN: acceptance passes, or you hit the budget, or you are blocked. At the budget, return PARTIAL; never continue silently.
-MODEL TRAILER: Co-Authored-By: <the model named in your harness system prompt> <noreply@anthropic.com>. Never a model the brief author guessed.
-CHECKPOINTS: commit each finished deliverable at once; never more than ~20 minutes of edits uncommitted. A process restart keeps only commits.
-COST: read a file once; git diff -U0 and targeted Grep over whole-file reads; batch independent tool calls; at most one heavy process (tsc, eslint, vitest over many files) at a time; NODE_OPTIONS=--max-old-space-size=8192 only after a native OOM (exit 134).
 MACHINE RULE: wrap every heavy run (agent-os verify, a full node --test sweep, any app suite, build) in `node scripts/agent-os/heavy.mjs run -- <cmd>`: it waits for the machine-wide lease and for 1500 MB free RAM. `heavy.mjs status` shows who holds it.
 RESUME: if a RESUME message arrives, run git status and git log on your branch first and continue from the last commit; do not redo finished steps.
-ANTISLOP MODE: <during|after|n/a> (<session override|global preference>) for any UI, copy or mobile work.
+LANE FILE GOVERNS: owned paths, budget, checkpoints, antislop mode, commit trailer and cost rules (the lane's .claude/agents file); state here only what differs.
 CODEMOD RULE: after any class or attribute sweep, re-read each element's rendered text children and fix what the removed class used to hide (case, spacing, separators).
 CONTROLS RULE: a numeric control (threshold, distance, cap) is calibrated per viewport or per input size, never copied from another.
 FIRST: if your cwd is under .claude/worktrees/ and tsc/vitest are "not recognized", run skill harness-worktree-setup.

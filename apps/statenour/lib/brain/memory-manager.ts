@@ -1,6 +1,6 @@
 import { isOperatorSource } from "./memory-commit-gateway";
 import { prisma } from "@/lib/prisma";
-import { daysAgo } from "@/lib/utils/datetime";
+import { buildDecayWhere } from "@/lib/brain/memory-decay";
 import { storeMemoryEmbedding } from "@/lib/brain/embedding-utils";
 import { logger as rootLogger } from "@/lib/logger";
 import { recordError } from "@/lib/errors/record-error";
@@ -876,10 +876,17 @@ export class BrainMemoryManager {
    * Decay confidence for memories not seen in 30+ days.
    * Returns count of decayed memories.
    *
-   * 2026-10-10 (audit 05-M5) · this had NO caller, so decay did not exist in
-   * effect. It is now run nightly through runMemoryDecay() (data-cleanup), and
-   * because a nightly -0.05 takes an untouched 1.0 row under the 0.3 recall
-   * floor in two weeks, it is guarded the way the hard-delete GC is:
+   * ⚠ NOT APPLIED (corrected 2026-10-17). This header used to say data-cleanup
+   * runs decay nightly; it never did. runMemoryDecay() has no caller outside
+   * tests, so nothing decays today. data-cleanup reports a nightly DRY-RUN count
+   * (countMemoryDecayCandidates in lib/brain/memory-decay.ts, `decayWouldAffect`
+   * in its result and audit payload) and changes nothing. Applying it waits for
+   * Nour's go after a week of counts.
+   *
+   * 2026-10-10 (audit 05-M5) · written for a nightly run, so a nightly -0.05
+   * takes an untouched 1.0 row under the 0.3 recall floor in two weeks. It is
+   * guarded the way the hard-delete GC is (the where-clause is shared with the
+   * dry-run count, see memory-decay.ts):
    *   · NEVER_HARD_DELETE_CATEGORIES + pinned_user never decay (the operator's
    *     own record and the compounding layer -- wisdom, insight, pattern, ...);
    *   · operator-authored rows (created_by 'user' or source 'manual') never
@@ -891,20 +898,12 @@ export class BrainMemoryManager {
    * recalled does not decay; that is intended.
    */
   async decay(): Promise<number> {
-    const { NEVER_HARD_DELETE_CATEGORIES } = await import("@/lib/brain/hard-delete-guard");
-    const exempt = [...NEVER_HARD_DELETE_CATEGORIES, "pinned_user"];
+    const { where, params } = await buildDecayWhere();
     return prisma.$executeRawUnsafe(
       `UPDATE brain_memories
           SET confidence = GREATEST(confidence - 0.05, 0.1)
-        WHERE last_seen < $1
-          AND confidence > 0.1
-          AND expires_at IS NULL
-          AND deleted_at IS NULL
-          AND category <> ALL($2::text[])
-          AND COALESCE(created_by, '') <> 'user'
-          AND COALESCE(source, '') <> 'manual'`,
-      daysAgo(30),
-      exempt,
+        WHERE ${where}`,
+      ...params,
     );
   }
 
@@ -970,8 +969,9 @@ export class BrainMemoryManager {
 export const brainMemory = new BrainMemoryManager();
 
 /**
- * Nightly entry point for memory decay (audit 05-M5). Called from
- * app/api/cron/data-cleanup; returns how many rows lost 0.05 confidence.
+ * Entry point that APPLIES memory decay (audit 05-M5); returns how many rows
+ * lost 0.05 confidence. NO production caller as of 2026-10-17: data-cleanup only
+ * reports countMemoryDecayCandidates() (memory-decay.ts) as a dry run.
  */
 export function runMemoryDecay(): Promise<number> {
   return brainMemory.decay();

@@ -102,12 +102,13 @@ describe("PR #3088 CX-6 · the split is by ASSIGNMENT (arbiterAssigned), not by 
   });
 
   it("a flag-on turn whose pack was empty stays in the TREATED bucket, and is counted as not rendered there", () => {
+    const judgedAt = new Date("2026-10-16T12:00:00Z");
     const split = splitJudgments([
-      { composite: 8, tokenUsage: r(true, true) },
-      { composite: 4, tokenUsage: r(true, false) }, // assigned, no recall: still treated
-      { composite: 6, tokenUsage: r(false, false) },
-      { composite: 7, tokenUsage: { contextReceipt: { arbiter: false } } }, // pre-fix receipt
-      { composite: 5, tokenUsage: undefined }, // message row gone
+      { composite: 8, tokenUsage: r(true, true), judgedAt },
+      { composite: 4, tokenUsage: r(true, false), judgedAt }, // assigned, no recall: still treated
+      { composite: 6, tokenUsage: r(false, false), judgedAt },
+      { composite: 7, tokenUsage: { contextReceipt: { arbiter: false } }, judgedAt }, // pre-fix receipt
+      { composite: 5, tokenUsage: undefined, judgedAt }, // message row gone
     ]);
     expect(split.buckets.true.sort()).toEqual([4, 8]);
     expect(split.buckets.false).toEqual([6]);

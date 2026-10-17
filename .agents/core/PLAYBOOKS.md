@@ -7,7 +7,7 @@ Multi-area job? Use the manager first: `.claude/skills/monorepo-manager/SKILL.md
 ## P1. Any non-trivial task (intake)
 
 1. Fill `templates/task-spec.md` in your head: outcome, scope, constraints, authority, unknowns, proof.
-2. Recover context: memory index, `apps/<app>/.remember/`, `docs/agent-os/MANAGER-LEDGER.md`, open PRs.
+2. Recover context: memory index, `apps/<app>/.remember/`, the manager ledger (`node scripts/agent-os/ledger-render.mjs --open --tail 5`), open PRs.
 3. Pasted plan or audit? `plan-gate`. New table, cron, flag, tool? `prior-art-grep`.
 4. Route: one area -> the matching playbook below. Several areas -> manager skill.
 Proof: a spec you could hand to a stranger.
@@ -22,7 +22,7 @@ Proof: the failing test now passes, and the original symptom is gone at the high
 
 ## P3. New feature or UI
 
-1. `agentic-council:journey-mapping` for a new screen or flow (skip it for a small change to an existing one).
+1. `agentic-council:journey-mapping` for a new screen or flow (skip it for a small change to an existing one); not installed here: write the journey table by hand in the brief from the route and its screens.
 2. `brainstorming` -> one design, smallest version that does the core job.
 3. `antislop` + `antislop-ui` + `antislop-layoutmobile`; dialogs -> `nickstire-ios-pwa-primitives`.
 4. `test-driven-development` while building. New writer (header, env, column) -> `assert-the-consumer`.
@@ -50,7 +50,7 @@ Proof: each claim links to a file:line, a query or a URL.
 
 ## P6. StateNour AI or prompt change
 
-1. `langfuse:langfuse`: pull the failing traces that motivated the change.
+1. `langfuse:langfuse`: pull the failing traces that motivated the change; not installed here: read `apps/statenour/docs/integrations/langfuse-observability.md` and use the probe route.
 2. Build or extend a dataset from them (Langfuse dataset or `lib/evals/`).
 3. Change the prompt or tool; keep the fabrication-defense stack intact (`apps/statenour/AGENTS.md` section 4).
 4. Run the eval before and after; report both scores. Then P4.
@@ -67,7 +67,7 @@ Proof: live endpoint or log line showing recovery.
 ## P8. End of a wave or session
 
 1. `statenour-wave-reconcile` (statenour) or update `apps/<app>/.remember/now.md`.
-2. If the manager ran the job: one row in `docs/agent-os/MANAGER-LEDGER.md` written as `MERGED` with PR cell `this PR` (never `pending`), plus one row in `docs/agent-os/MANAGER-METRICS.md`, both in the PR that merges.
+2. If the manager ran the job: add `docs/agent-os/ledger/<job-id>.md` holding the ledger row written as `MERGED` with PR cell `this PR` (never `pending`) and the metrics row under it, in the PR that merges.
 3. `session-observer`: propose skill fixes for anything that went wrong twice.
 4. Memory: run `LOOPS.md` > Memory loop.
 Proof: ledger row and handoff note committed in the same PR.

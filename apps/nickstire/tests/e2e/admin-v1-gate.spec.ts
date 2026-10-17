@@ -12,7 +12,7 @@
  *
  * ADMIN_V1_GATED format: a comma list of page:viewport, pages overview | lot |
  * approvals, viewports 390 | 1440, e.g. "overview:390,lot:390". Default
- * "overview:390" (PLAN section 3: Today at 390 is W2's gate; W3 adds lot:390).
+ * "overview:390,lot:390" (PLAN section 3: Today at 390 is W2's gate; Lot at 390 is W3's).
  * Every other render is still measured and its distance printed.
  *
  * A missing baseline in compare mode FAILS with the capture command: an unmeasured
@@ -30,6 +30,17 @@
  * vs lot, same shell) above 0.30 and above every slide. 0.30 is the real-render
  * floor for "a different composition", measured 0.368 / 0.384 on 2026-10-16; it is
  * deliberately distinct from the 0.35 gate, which asks for more than a page swap.
+ *
+ * The different-page control compares the two FROZEN renders (overview-<vp>.png vs
+ * lot-<vp>.png), not the live pages. Each wave moves the live pages onto one shared
+ * row grammar, so live Today and live Lot converge by design (W3 measured 0.267 at
+ * 1440 with Lot's counters under its board) and the control would start failing
+ * for the redesign it exists to measure. The frozen pair is the fixed reference the
+ * instrument is calibrated on. In capture mode the baselines are being rewritten,
+ * so the control compares the live pair instead. That is only sound where the
+ * capture is real: CI captures at the workflow's `ref` commit, so the live pair
+ * there IS the pair being frozen. A local capture is for looking only, is never
+ * committed, and its control number says nothing about the committed baselines.
  */
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -47,7 +58,7 @@ const RECOMPOSED_FLOOR = 0.3;
 const CAPTURE_COMMAND = "ADMIN_V1_GATE=1 ADMIN_V1_CAPTURE=1 node node_modules/@playwright/test/cli.js test tests/e2e/admin-v1-gate.spec.ts (or the nickstire-proof.yml capture dispatch)";
 /** page:viewport pairs whose distance is gated; the rest are printed only. */
 const GATED = new Set(
-  (process.env.ADMIN_V1_GATED ?? "overview:390")
+  (process.env.ADMIN_V1_GATED ?? "overview:390,lot:390")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean),
@@ -123,15 +134,25 @@ test.describe("admin v1 six-feet gate", () => {
     const lot = PAGES.find((p) => p.key === "lot")!;
     const a = await render(page, "overview", overview.url);
     const b = await render(page, "overview", overview.url);
-    const other = await render(page, "lot", lot.url);
 
     const identical = (await visualDistance(a, b, size)).ratio;
     const shifted = await Promise.all(SHIFTS[vp].map(async ([dx, dy]) => (await visualDistance(a, await slide(a, size.width, dx, dy), size)).ratio));
-    const recomposed = (await visualDistance(a, other, size)).ratio;
+    // The different-page pair: frozen in compare mode, live in capture mode (see the header).
+    let pair: [Buffer, Buffer];
+    if (CAPTURE) {
+      pair = [a, await render(page, "lot", lot.url)];
+    } else {
+      const frozen = ["overview", "lot"].map((k) => path.join(BASELINE_DIR, `${k}-${vp}.png`));
+      for (const f of frozen) {
+        if (!existsSync(f)) throw new Error(`no baseline at ${path.relative(process.cwd(), f)}: the different-page control needs both frozen renders. Capture first: ${CAPTURE_COMMAND}`);
+      }
+      pair = [readFileSync(frozen[0]), readFileSync(frozen[1])];
+    }
+    const recomposed = (await visualDistance(pair[0], pair[1], size)).ratio;
     console.log(
       `[admin-v1-gate] controls ${vp}: identical=${identical.toFixed(3)} ` +
         SHIFTS[vp].map(([dx, dy], i) => `shift${dx}x${dy}=${shifted[i].toFixed(3)}`).join(" ") +
-        ` recomposed(overview vs lot)=${recomposed.toFixed(3)} floor=${RECOMPOSED_FLOOR} gate=${MIN_DISTANCE}`,
+        ` recomposed(${CAPTURE ? "live" : "frozen"} overview vs lot)=${recomposed.toFixed(3)} floor=${RECOMPOSED_FLOOR} gate=${MIN_DISTANCE}`,
     );
     expect(identical, "the same page rendered twice is (nearly) identical").toBeLessThan(MAX_RERENDER);
     for (const s of shifted) expect(s, "a slid render is not a redesign").toBeLessThan(MIN_DISTANCE);

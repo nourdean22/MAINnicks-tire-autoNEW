@@ -228,9 +228,9 @@ export default function DatabaseHygienePanel() {
     <div className="bg-card border border-border/30 p-6 space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-4 border-b border-border/10 pb-4">
         <div className="space-y-1">
-          <h3 className="font-bold text-sm tracking-wide text-foreground flex items-center gap-2">
+          <h3 className="font-bold text-sm text-foreground flex items-center gap-2">
             <Database className="w-4 h-4 text-primary" />
-            DATABASE HYGIENE &amp; CLEANUP
+            Database hygiene and cleanup
           </h3>
           <p className="text-foreground/50 text-[11px]">
             Scan and prune fake leads, duplicates, and stale records. Ensures dashboard statistics reflect real shop operations.
@@ -255,11 +255,11 @@ export default function DatabaseHygienePanel() {
       ) : (
         <div className="space-y-4">
           {/* Summary Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="flex gap-3 overflow-x-auto scroll-touch sm:grid sm:grid-cols-3 sm:overflow-visible">
             <button
               type="button"
               onClick={() => setActiveTab("fake")}
-              className={`p-3 border text-left rounded transition-colors ${
+              className={`min-h-12 min-w-[10rem] shrink-0 sm:min-w-0 p-3 border text-left rounded transition-colors ${
                 activeTab === "fake"
                   ? "border-red-500/30 bg-red-500/5"
                   : "border-border/20 hover:border-border/40"
@@ -267,7 +267,7 @@ export default function DatabaseHygienePanel() {
             >
               <div className="flex items-center justify-between">
                 <span className="text-[10px] text-foreground/50 font-sans">Fake / test leads</span>
-                <ShieldAlert className={`w-3.5 h-3.5 ${fakeCount > 0 ? "text-red-400 animate-pulse" : "text-foreground/30"}`} />
+                <ShieldAlert className={`w-3.5 h-3.5 ${fakeCount > 0 ? "text-red-400" : "text-foreground/30"}`} />
               </div>
               <p className="font-bold text-xl text-foreground mt-1">{fakeCount}</p>
               <p className="text-[10px] text-foreground/40 mt-0.5">Placeholder name/phone</p>
@@ -276,7 +276,7 @@ export default function DatabaseHygienePanel() {
             <button
               type="button"
               onClick={() => setActiveTab("duplicates")}
-              className={`p-3 border text-left rounded transition-colors ${
+              className={`min-h-12 min-w-[10rem] shrink-0 sm:min-w-0 p-3 border text-left rounded transition-colors ${
                 activeTab === "duplicates"
                   ? "border-amber-500/30 bg-amber-500/5"
                   : "border-border/20 hover:border-border/40"
@@ -293,7 +293,7 @@ export default function DatabaseHygienePanel() {
             <button
               type="button"
               onClick={() => setActiveTab("stale")}
-              className={`p-3 border text-left rounded transition-colors ${
+              className={`min-h-12 min-w-[10rem] shrink-0 sm:min-w-0 p-3 border text-left rounded transition-colors ${
                 activeTab === "stale"
                   ? "border-primary/30 bg-primary/5"
                   : "border-border/20 hover:border-border/40"

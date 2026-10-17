@@ -47,6 +47,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 // Namespace import on purpose: against a tree that has no nameAsText the module still loads and the canaries fail one by one.
 import * as engine from "./policy.mjs";
+import { renderLedger } from "./ledger-check.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..", "..");
@@ -773,7 +774,7 @@ test("ledger: this job has ONE row with eight cells and no override mention; eve
     assert.match(c[7], /\b(?:Nour|manager|operator)\b/i, `${label} (${c[5]}) names an owner in Next`);
     assert.match(c[7], /\b\d{4}-\d\d-\d\d\b/, `${label} (${c[5]}) names a date in Next`);
   };
-  const text = readFileSync(join(ROOT, "docs", "agent-os", "MANAGER-LEDGER.md"), "utf8");
+  const text = renderLedger(ROOT); // the rows live one per job in docs/agent-os/ledger/; the view sorts them by job id, so no test here depends on where a row sits
   const rows = text.split("\n").filter((l) => l.startsWith("| ") && !l.startsWith("| Job id") && !l.startsWith("|---"));
   const mine = rows.filter((l) => l.startsWith("| 2026-10-15-infra-deny-by-name |"));
   assert.equal(mine.length, 1, "exactly one ledger row for this job");

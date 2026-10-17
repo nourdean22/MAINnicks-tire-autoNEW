@@ -5,6 +5,7 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { toast } from "sonner";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
+import { readStatus } from "@/lib/queryState";
 import { BUSINESS } from "@shared/business";
 import { PageHeader, ErrorState } from "../shared";
 import type { ShopFloorData } from "../today/types";
@@ -167,6 +168,106 @@ function formatPromiseTime(date: Date | string | null | undefined): { text: stri
   return { text: `${Math.floor(hrs / 24)}d ${overdue ? "over" : "left"}`, overdue };
 }
 
+/** The status moves offered from a status, forward steps first, then hold and cancel. */
+function nextStatusesFor(s: string): { status: string; label: string }[] {
+  const nextStatuses: { status: string; label: string }[] = [];
+  if (s === "approved") nextStatuses.push({ status: "parts_needed", label: "Parts Needed" }, { status: "ready_for_bay", label: "Ready for Bay" });
+  if (s === "parts_needed") nextStatuses.push({ status: "parts_ordered", label: "Parts Ordered" });
+  if (s === "parts_ordered" || s === "parts_partial") nextStatuses.push({ status: "parts_received", label: "All Parts In" });
+  if (s === "parts_received" || s === "ready_for_bay") nextStatuses.push({ status: "assigned", label: "Assign Tech" }, { status: "in_progress", label: "Start Work" });
+  if (s === "assigned") nextStatuses.push({ status: "in_progress", label: "Start Work" });
+  if (s === "in_progress") nextStatuses.push({ status: "qc_review", label: "QC Review" }, { status: "ready_for_pickup", label: "Ready for Pickup" });
+  if (s === "qc_review") nextStatuses.push({ status: "ready_for_pickup", label: "Ready for Pickup" });
+  if (s === "ready_for_pickup" || s === "customer_notified") nextStatuses.push({ status: "picked_up", label: "Picked Up" });
+  if (s === "picked_up") nextStatuses.push({ status: "invoiced", label: "Invoiced" });
+  if (s === "invoiced") nextStatuses.push({ status: "closed", label: "Close" });
+  // Always allow hold/cancel on active
+  if (!["picked_up", "invoiced", "closed", "cancelled"].includes(s)) {
+    nextStatuses.push({ status: "on_hold", label: "Put on Hold" }, { status: "cancelled", label: "Cancel" });
+  }
+  if (s === "on_hold") nextStatuses.push({ status: "approved", label: "Resume" });
+  return nextStatuses;
+}
+
+/** "Ready for Pickup" -> "Ready for pickup", keeping the QC initialism. */
+const sentenceCase = (t: string) => (t.charAt(0) + t.slice(1).toLowerCase()).replace(/\bqc\b/i, "QC");
+
+// ─── Work Order Row (phones, admin UI v1 W4: Today's row grammar) ──────
+// Two taps to move a job: "Move to" opens an in-DOM choice of the same options the drawer offers,
+// so a slip moves nothing. No window.confirm (suppressed in the iOS standalone PWA).
+function WORow({ wo, onOpen, onAdvance, advancing }: {
+  wo: WOListItem;
+  onOpen: () => void;
+  onAdvance: (status: string) => void;
+  advancing: boolean;
+}) {
+  const [choosing, setChoosing] = useState(false);
+  const promise = formatPromiseTime(wo.promisedAt);
+  const options = nextStatusesFor(wo.status);
+  const vehicle = [wo.vehicleYear, wo.vehicleMake, wo.vehicleModel].filter(Boolean).join(" ");
+  const who = wo.customerName || "No customer on file";
+  // Words, not a colour: the dot alone made blocked, emergency and overdue look the same.
+  const flags = [
+    wo.blockerType ? `Blocked: ${wo.blockerType.replace("waiting_", "").replace("_", " ")}` : null,
+    wo.priority === "emergency" ? "Emergency" : null,
+    promise.overdue ? "Overdue" : null,
+  ].filter(Boolean);
+  const urgent = flags.length > 0;
+  const moveLabel = `Move ${wo.orderNumber} to`;
+  return (
+    <li data-wo-id={String(wo.id)} className="py-3">
+      <div className="flex items-center gap-3">
+        {/* Tapping the row opens the drawer, which carries the full card: service, tech, bay, age, priority, blocker note. */}
+        <button type="button" onClick={onOpen} aria-label={`Open ${wo.orderNumber}`} className="flex items-start gap-3 flex-1 min-w-0 min-h-12 text-left">
+          <span aria-hidden className={`mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full ${urgent ? "bg-red-400" : "bg-muted-foreground/50"}`} />
+          <span className="min-w-0 flex-1">
+            <span className="block text-[16px] leading-snug font-semibold truncate">{vehicle || "Vehicle not on file"}</span>
+            <span className="block text-[13px] text-muted-foreground truncate">
+              {wo.orderNumber} · {who} · {sentenceCase(STATUS_LABELS[wo.status] || wo.status)}
+              {flags.length > 0 && <span className="text-red-400"> · {flags.join(" · ")}</span>}
+              {promise.text && !promise.overdue && <span> · promise {promise.text}</span>}
+            </span>
+          </span>
+        </button>
+        {options.length > 0 ? (
+          <button
+            type="button"
+            disabled={advancing}
+            onClick={() => setChoosing((v) => !v)}
+            aria-expanded={choosing}
+            aria-label={moveLabel}
+            className="min-h-12 px-4 shrink-0 whitespace-nowrap rounded-md bg-secondary text-foreground text-[14px] font-semibold border border-border/60 disabled:opacity-50"
+          >
+            Move to
+          </button>
+        ) : (
+          <button type="button" onClick={onOpen} aria-label={`Open ${wo.orderNumber}`} className="min-h-12 px-4 shrink-0 rounded-md border border-border/40 text-[14px] text-foreground/85">
+            Open
+          </button>
+        )}
+      </div>
+      {choosing && (
+        <div role="group" aria-label={moveLabel} className="mt-2 pl-[18px] flex flex-wrap gap-2">
+          {options.map((o) => (
+            <button
+              key={o.status}
+              type="button"
+              disabled={advancing}
+              onClick={() => { setChoosing(false); onAdvance(o.status); }}
+              className={`min-h-12 px-4 rounded-md border text-[14px] disabled:opacity-50 ${o.status === "cancelled" ? "border-red-500/40 text-red-400" : "border-border/60 text-foreground"}`}
+            >
+              {sentenceCase(STATUS_LABELS[o.status] || o.status)}
+            </button>
+          ))}
+          <button type="button" onClick={() => setChoosing(false)} className="min-h-12 px-4 rounded-md text-[14px] text-muted-foreground">
+            Cancel
+          </button>
+        </div>
+      )}
+    </li>
+  );
+}
+
 // ─── Work Order Card ─────────────────────────────────────
 function WOCard({ wo, onClick }: { wo: WOListItem; onClick: () => void }) {
   const promise = formatPromiseTime(wo.promisedAt);
@@ -176,7 +277,8 @@ function WOCard({ wo, onClick }: { wo: WOListItem; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className="stagger-in w-full text-left bg-card border border-border/40 rounded-lg p-3 hover:border-primary/30 hover:bg-card/80 transition-all group"
+      data-wo-id={String(wo.id)}
+      className="stagger-in w-full text-left bg-card border border-border/40 rounded-lg p-3 hover:border-primary/30 hover:bg-card/80 transition-colors group"
     >
       {/* Header: order number + priority */}
       <div className="flex items-center justify-between mb-1.5">
@@ -307,24 +409,7 @@ function WorkOrderDrawer({ id, onClose }: { id: string; onClose: () => void }) {
   const promise = formatPromiseTime(wo.promisedAt);
   const prio = PRIORITY_CONFIG[wo.priority] || PRIORITY_CONFIG.normal;
 
-  // Next status suggestions based on current
-  const nextStatuses: { status: string; label: string }[] = [];
-  const s = wo.status;
-  if (s === "approved") nextStatuses.push({ status: "parts_needed", label: "Parts Needed" }, { status: "ready_for_bay", label: "Ready for Bay" });
-  if (s === "parts_needed") nextStatuses.push({ status: "parts_ordered", label: "Parts Ordered" });
-  if (s === "parts_ordered" || s === "parts_partial") nextStatuses.push({ status: "parts_received", label: "All Parts In" });
-  if (s === "parts_received" || s === "ready_for_bay") nextStatuses.push({ status: "assigned", label: "Assign Tech" }, { status: "in_progress", label: "Start Work" });
-  if (s === "assigned") nextStatuses.push({ status: "in_progress", label: "Start Work" });
-  if (s === "in_progress") nextStatuses.push({ status: "qc_review", label: "QC Review" }, { status: "ready_for_pickup", label: "Ready for Pickup" });
-  if (s === "qc_review") nextStatuses.push({ status: "ready_for_pickup", label: "Ready for Pickup" });
-  if (s === "ready_for_pickup" || s === "customer_notified") nextStatuses.push({ status: "picked_up", label: "Picked Up" });
-  if (s === "picked_up") nextStatuses.push({ status: "invoiced", label: "Invoiced" });
-  if (s === "invoiced") nextStatuses.push({ status: "closed", label: "Close" });
-  // Always allow hold/cancel on active
-  if (!["picked_up", "invoiced", "closed", "cancelled"].includes(s)) {
-    nextStatuses.push({ status: "on_hold", label: "Put on Hold" }, { status: "cancelled", label: "Cancel" });
-  }
-  if (s === "on_hold") nextStatuses.push({ status: "approved", label: "Resume" });
+  const nextStatuses = nextStatusesFor(wo.status);
 
   return (
     <div className="fixed inset-0 z-[62] flex">
@@ -987,14 +1072,27 @@ function ShopPulseMood({ stats }: { stats: AdminDashboardStats | undefined }) {
 
 // ─── Main Section ────────────────────────────────────────
 export default function WorkOrdersSection() {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // ?wo=<id> (Today's "Open work order") opens that row once, then the param is dropped.
+  const [selectedId, setSelectedId] = useState<string | null>(() =>
+    typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("wo"),
+  );
+  const deepLinkedId = useRef(selectedId);
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("wo")) return;
+    url.searchParams.delete("wo");
+    window.history.replaceState({}, "", url.toString());
+  }, []);
   const [showTerminal, setShowTerminal] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [view, setView] = useState<"board" | "parts" | "blockers" | "pickup">("board");
-  const { data: workOrders, isLoading, isError, refetch } = trpc.workOrders.list.useQuery({
+  const listQuery = trpc.workOrders.list.useQuery({
     includeTerminal: showTerminal,
     limit: 200,
   }, { refetchInterval: 15000 });
+  const { data: workOrders, isLoading, isError, refetch } = listQuery;
+  // Paused (offline PWA) or never run: unknown, never "No jobs in this stage".
+  const listUnread = !isError && readStatus(listQuery).state === "unavailable";
   // wave-181.16 · single dashboard stats query, lifted to the section
   // root. Feeds both the DegradedDataBanner (_degraded marker if the
   // stats pipeline throws) and ShopPulseMood (shopFloor revenue/jobs).
@@ -1002,6 +1100,20 @@ export default function WorkOrdersSection() {
   // one hook instead of two.
   const { data: dashboardStats } = trpc.adminDashboard.stats.useQuery(undefined, { refetchInterval: 30000 });
   const utils = trpc.useUtils();
+  // The row verb uses the drawer's mutation path: same procedure, same refresh, same error toast.
+  const advanceStatus = trpc.workOrders.advanceStatus.useMutation({
+    onSuccess: () => { utils.workOrders.list.invalidate(); },
+    onError: (e) => toast.error(`Status update failed: ${e.message}`),
+  });
+
+  // Scroll the deep-linked row into view once the list has it (the visible copy: rows on phones, card on lg).
+  useEffect(() => {
+    const id = deepLinkedId.current;
+    if (!id || !workOrders) return;
+    const el = Array.from(document.querySelectorAll<HTMLElement>(`[data-wo-id="${CSS.escape(id)}"]`)).find((n) => n.offsetParent !== null);
+    el?.scrollIntoView?.({ block: "center" });
+    deepLinkedId.current = null;
+  }, [workOrders]);
 
   // Filter work orders by search query
   const filteredWorkOrders = useMemo(() => {
@@ -1108,11 +1220,12 @@ export default function WorkOrdersSection() {
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40" />
           <input
-            type="text"
+            type="search"
+            aria-label="Search work orders"
             placeholder="Search work orders by name, vehicle, tech, status..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            className="w-full bg-card border border-border/50 text-foreground pl-10 pr-4 py-2.5 text-[13px] rounded placeholder:text-foreground/30 focus:outline-none focus:border-primary/50"
+            className="w-full min-h-12 bg-card border border-border/50 text-foreground pl-10 pr-4 text-base rounded placeholder:text-foreground/40 focus:outline-none focus:border-primary/50"
           />
         </div>
       )}
@@ -1143,8 +1256,36 @@ export default function WorkOrdersSection() {
         </div>
       ) : isError ? (
         <ErrorState message="Couldn't load work orders" onRetry={() => refetch()} />
+      ) : listUnread ? (
+        <ErrorState message="Work orders not checked (offline). Unknown, not empty." onRetry={() => refetch()} />
       ) : (
-        <div className="flex gap-3 overflow-x-auto pb-4" style={{ minHeight: 400 }}>
+        <>
+        {/* Phones: ruled rows grouped under the kanban stages, one verb each (the next status). */}
+        <section aria-label="Work orders by stage" className="lg:hidden space-y-5">
+          {[...columns, ...(holdOrders.length ? [{ id: "hold", label: "Hold / Cancelled", orders: holdOrders }] : [])].map((col) => (
+            <div key={col.id}>
+              <h3 className="text-[13px] font-semibold text-foreground/70 border-b border-border/40 pb-1">
+                {col.label} <span className="text-foreground/50 tabular-nums">{col.orders.length}</span>
+              </h3>
+              {col.orders.length === 0 ? (
+                <p className="py-3 text-[13px] text-muted-foreground">None in this stage</p>
+              ) : (
+                <ul className="divide-y divide-border/30">
+                  {col.orders.map((wo: WOListItem) => (
+                    <WORow
+                      key={wo.id}
+                      wo={wo}
+                      onOpen={() => setSelectedId(String(wo.id))}
+                      onAdvance={(status) => advanceStatus.mutate({ id: String(wo.id), status })}
+                      advancing={advanceStatus.isPending}
+                    />
+                  ))}
+                </ul>
+              )}
+            </div>
+          ))}
+        </section>
+        <div className="hidden lg:flex gap-3 overflow-x-auto pb-4" style={{ minHeight: 400 }}>
           {columns.map(col => (
             <div key={col.id} className={`flex-1 min-w-[220px] max-w-[300px] border-t-2 ${col.color}`}>
               {/* Column header */}
@@ -1179,6 +1320,7 @@ export default function WorkOrdersSection() {
             </div>
           )}
         </div>
+        </>
       ))}
 
       {/* Detail drawer */}

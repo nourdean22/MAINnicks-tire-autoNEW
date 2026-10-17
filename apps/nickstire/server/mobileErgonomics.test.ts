@@ -170,15 +170,16 @@ describe("phone-reachable controls meet the 48px touch minimum", () => {
    * (shared/insight.tsx) and `AdminAlertBar`.
    *
    * Both were resized in this branch, and review then established that NEITHER
-   * COMPONENT IS RENDERED. `AdminAlertBar` has zero render sites; `InsightStrip`
-   * is barrel-exported from shared.tsx but never mounted — the admin sections all
-   * render `SectionInsightStrip`, a different component with no dismiss control.
+   * COMPONENT IS RENDERED. `AdminAlertBar` had zero render sites and was deleted in
+   * Admin UI v1 W5; `InsightStrip` is barrel-exported from shared.tsx but never
+   * mounted — the admin sections all render `SectionInsightStrip`, a different
+   * component with no dismiss control.
    *
-   * The size fixes are kept because they are correct and free if either is ever
-   * wired, but pinning them here would be a green assertion over code production
+   * The size fix on `InsightStrip` is kept because it is correct and free if it is
+   * ever wired, but pinning it here would be a green assertion over code production
    * cannot reach — the exact "test that cannot fail" this file exists to avoid,
    * and the exact last-mile problem the deletion commit in this branch is about.
-   * Both components are dead-code candidates; that is a separate decision.
+   * `InsightStrip` remains a dead-code candidate; that is a separate decision.
    *
    * What IS pinned below are the two controls that genuinely render.
    */

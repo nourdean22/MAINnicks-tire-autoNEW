@@ -37,7 +37,7 @@ const STATUS_META: Record<OpsStatus, { label: string; cls: string }> = {
   partial: { label: "PARTIAL", cls: "bg-amber-500/10 text-amber-400 border-amber-500/20" },
   preview_only: { label: "PREVIEW ONLY", cls: "bg-blue-500/10 text-blue-400 border-blue-500/20" },
   design_only: { label: "DESIGN ONLY", cls: "bg-blue-500/10 text-blue-400 border-blue-500/20" },
-  manual_owner: { label: "OWNER MANUAL", cls: "bg-purple-500/10 text-purple-400 border-purple-500/20" },
+  manual_owner: { label: "OWNER MANUAL", cls: "bg-primary/10 text-primary border-primary/20" },
   blocked_external: { label: "BLOCKED: EXTERNAL", cls: "bg-red-500/10 text-red-400 border-red-500/20" },
   requires_approval: { label: "NEEDS APPROVAL", cls: "bg-red-500/10 text-red-400 border-red-500/20" },
   not_started: { label: "NOT STARTED", cls: "bg-foreground/5 text-foreground/40 border-border/20" },
@@ -54,9 +54,16 @@ export default function OpsHubSection() {
 
   // Live read-only health (booleans only) — annotates the Stripe/Sheets
   // registry cards with what's actually true right now in this deploy.
-  const { data: health } = trpc.payments.health.useQuery(undefined, {
+  const { data: health, isError: healthError, fetchStatus: healthFetchStatus } = trpc.payments.health.useQuery(undefined, {
     refetchInterval: 5 * 60_000,
   });
+
+  // Unknown, never a missing line: a failed read, or a paused one (offline PWA: no data, no error, never ran).
+  const healthUnknown = healthError
+    ? "Live check couldn't load. This deploy's state is unknown."
+    : !health && healthFetchStatus === "paused"
+      ? "Offline, live check not run. This deploy's state is unknown."
+      : undefined;
 
   const categories = [...new Set(OPS_REGISTRY.map((i) => i.category))];
 
@@ -74,7 +81,7 @@ export default function OpsHubSection() {
             <Panel key={cat} title={cat} icon={<ShieldAlert className="w-4 h-4" />}>
               <div className="space-y-3 mt-2">
                 {OPS_REGISTRY.filter((i) => i.category === cat).map((item) => (
-                  <OpsCard key={item.id} item={item} health={health} />
+                  <OpsCard key={item.id} item={item} health={health} healthUnknown={healthUnknown} />
                 ))}
               </div>
             </Panel>
@@ -94,14 +101,9 @@ export default function OpsHubSection() {
               <div className="min-w-0">
                 <div className="text-xs font-semibold text-foreground">{r.title}</div>
                 <div className="text-[10px] text-muted-foreground">{r.category}{r.note ? ` · ${r.note}` : ""}</div>
-                <code className="text-[10px] text-foreground/40 break-all">{r.path}</code>
               </div>
             </div>
           ))}
-          <p className="text-[10px] text-foreground/30 leading-relaxed pt-1">
-            Reports live in the repo as markdown: open them in the repo/editor.
-            Paths are relative to the repository root unless prefixed otherwise.
-          </p>
         </div>
       )}
 
@@ -110,8 +112,9 @@ export default function OpsHubSection() {
   );
 }
 
-function OpsCard({ item, health }: {
+function OpsCard({ item, health, healthUnknown }: {
   item: OpsItem;
+  healthUnknown?: string;
   health?: { stripe: { fullyConfigured: boolean; halfConfigured: boolean }; sheetsConfigured: boolean };
 }) {
   const meta = STATUS_META[item.status];
@@ -119,9 +122,13 @@ function OpsCard({ item, health }: {
   // Live annotations for the two registry entries we can actually verify
   // from this deploy, read-only. Everything else renders registry truth.
   let liveNote: { ok: boolean; text: string } | null = null;
+  // A failed health read must not make the live line vanish: say the live state is unknown.
+  if (healthUnknown && (item.id === "stripe-config" || item.id === "sheets-tire-orders")) {
+    liveNote = { ok: false, text: healthUnknown };
+  }
   if (item.id === "stripe-config" && health) {
     liveNote = health.stripe.halfConfigured
-      ? { ok: false, text: "LIVE CHECK: half-configured RIGHT NOW, paid events are being dropped." }
+      ? { ok: false, text: "Live check: half-configured right now, paid events are being dropped." }
       : health.stripe.fullyConfigured
         ? { ok: true, text: "Live check: Stripe fully configured in this deploy." }
         : { ok: false, text: "Live check: Stripe not configured, Pay Now degrades to call-to-pay." };
@@ -139,7 +146,7 @@ function OpsCard({ item, health }: {
         <span className={`px-1.5 py-0.5 text-[9px] font-bold border rounded ${meta.cls}`}>{meta.label}</span>
         <span className={`px-1.5 py-0.5 text-[9px] font-bold border rounded ${RISK_CLS[item.risk]}`}>{item.risk} risk</span>
         {item.ownerRequired && (
-          <span className="px-1.5 py-0.5 text-[9px] font-bold border rounded bg-purple-500/10 text-purple-400 border-purple-500/20 inline-flex items-center gap-1">
+          <span className="px-1.5 py-0.5 text-[9px] font-bold border rounded bg-primary/10 text-primary border-primary/20 inline-flex items-center gap-1">
             <Lock className="w-2.5 h-2.5" /> OWNER
           </span>
         )}

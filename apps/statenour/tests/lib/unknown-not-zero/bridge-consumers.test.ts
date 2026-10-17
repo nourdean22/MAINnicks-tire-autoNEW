@@ -34,7 +34,6 @@ import { fetchShopSnapshot } from "@/lib/services/bridge";
 import { prefetchIntents, formatPrefetchContext } from "@/lib/ai/predictive-prefetch";
 import { processShopEvent } from "@/lib/brain/pipeline-controller";
 import { fetchShopPulse } from "@/lib/services/ultron-ticker";
-import { formatContext } from "@/lib/brain/reflection-engine";
 
 const FAILURES = {
   transport: { error: "fetch failed" },
@@ -181,44 +180,5 @@ describe("ultron ticker shop pulse", () => {
     });
     const labels = (await fetchShopPulse()).map((i) => i.label).join(" | ");
     expect(labels).not.toMatch(/unknown/i);
-  });
-});
-
-describe("reflection engine live shop block (08-F6a)", () => {
-  const ctx = (liveShopData: Record<string, unknown> | null) =>
-    formatContext({
-      scores: [], memories: [], facts: [], dumps: [], commitments: [], alerts: [], loops: [],
-      patterns: [], habits: [], quoteStats: [], recentReflections: [], liveShopData,
-    } as never);
-  const fine = {
-    leads_pipeline: { data: { pipeline: { new: 1 } } },
-    attention_needed: { data: { alerts: [{ level: "critical", message: "3 leads untouched >24h", count: 3 }] } },
-    bookings_status: { data: { statusBreakdown: { confirmed: 2 } } },
-  };
-
-  for (const [name, shape] of Object.entries(FAILURES)) {
-    it(`a failed revenue read (${name}) is unknown in the prompt, never $0`, () => {
-      const out = ctx({ ...fine, revenue_today: shape });
-      expect(out).toContain("Revenue today: unknown (bridge read failed)");
-      expect(out).not.toContain("$0");
-    });
-  }
-
-  it("drops the always-zero Local DB line and reads attention_needed's `message`", () => {
-    const out = ctx({ ...fine, revenue_today: { data: { totalDollars: 120, invoiceCount: 1 } } });
-    expect(out).not.toContain("Local DB");
-    expect(out).toContain("3 leads untouched >24h");
-    expect(out).not.toContain("undefined");
-  });
-
-  it("a failed side read says unknown instead of going silent", () => {
-    const out = ctx({ ...fine, revenue_today: { data: { totalDollars: 5, invoiceCount: 1 } }, attention_needed: FAILURES.transport });
-    expect(out).toMatch(/Attention alerts: unknown/);
-  });
-
-  it("CONTROL: a measured zero revenue still renders $0", () => {
-    const out = ctx({ ...fine, revenue_today: { data: { totalDollars: 0, invoiceCount: 0 } } });
-    expect(out).toContain("Revenue today: $0 (0 jobs)");
-    expect(out).not.toMatch(/unknown/);
   });
 });

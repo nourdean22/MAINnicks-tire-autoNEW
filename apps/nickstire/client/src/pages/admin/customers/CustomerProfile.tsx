@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
-import { formatDate, ErrorState } from "../shared";
+import { formatDate, ErrorState, TabBar } from "../shared";
 import MessageCustomerLink from "@/components/admin/MessageCustomerLink";
 import {
   Phone, Mail, MapPin, MessageSquare, Loader2,
@@ -117,6 +117,16 @@ export default function CustomerProfile({ customerId, onClose }: Props) {
     { phone: customer?.phone || "" },
     { enabled: !!customer?.phone }
   );
+
+  // Both reads are keyed by phone. With none on file they never run, and nothing offers a Retry: refetch()
+  // ignores `enabled` and would ask the server for phone "", which matches other blank-phone rows.
+  const noPhone = !!customer && !customer.phone;
+  // A paused (offline PWA) read has no data and no error, so it is unknown, never "none found".
+  const historyUnread = !noPhone && !historyFailed && !historyLoading && historyData === undefined;
+  const timelineUnread = !noPhone && !timelineFailed && !timelineLoading && timeline === undefined;
+  const historyCountUnknown = noPhone || historyFailed || historyUnread;
+  const historyUnreadMessage = "Service history not checked (offline). Unknown, not empty.";
+  const noPhoneHistory = <p className="text-[13px] text-foreground/60 py-6 text-center">No phone on file, history can&apos;t be looked up</p>;
 
   const { data: affinityData } = trpc.intelligence.serviceAffinity.useQuery(undefined, {
     staleTime: 5 * 60_000,
@@ -444,6 +454,10 @@ export default function CustomerProfile({ customerId, onClose }: Props) {
               </div>
             ) : timelineFailed ? (
               <ErrorState message="Interactions couldn't load. Unknown, not empty." onRetry={() => void refetchTimeline()} />
+            ) : noPhone ? (
+              <p className="text-[13px] text-foreground/60 py-4 text-center">No phone on file, interactions can&apos;t be looked up</p>
+            ) : timelineUnread ? (
+              <ErrorState message="Interactions not checked (offline). Unknown, not empty." onRetry={() => void refetchTimeline()} />
             ) : !timeline || timeline.length === 0 ? (
               <p className="text-xs text-foreground/35 py-4 italic text-center">No interactions recorded yet.</p>
             ) : (
@@ -490,32 +504,17 @@ export default function CustomerProfile({ customerId, onClose }: Props) {
         {/* Right column: Invoices, Declined Work, Backlog */}
         <div className="lg:col-span-7 space-y-6">
           <div className="bg-card border border-border/30">
-            {/* Tabs Header */}
-            <div className="flex border-b border-border/20 overflow-x-auto">
-              {[
-                // A failed history read has no counts: "?" rather than a confident 0.
-                { id: "history", label: "Service History", count: historyFailed ? "?" : historyData?.invoices?.length || 0 },
-                { id: "declined", label: "Declined Work", count: historyFailed ? "?" : historyData?.declinedEstimates?.length || 0 },
-                { id: "backlog", label: "Active Backlog", count: historyFailed ? "?" : historyData?.openWorkOrders?.length || 0 },
-              ].map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => setActiveTab(t.id as TabType)}
-                  className={`flex items-center gap-2 px-5 py-4 font-bold text-xs tracking-wider border-b-2 whitespace-nowrap transition-colors ${
-                    activeTab === t.id
-                      ? "text-primary border-primary bg-foreground/[0.01]"
-                      : "text-foreground/40 border-transparent hover:text-foreground/70"
-                  }`}
-                >
-                  {t.label}
-                  <span className={`px-1.5 py-0.5 text-[9px] font-mono font-bold rounded-full ${
-                    activeTab === t.id ? "bg-primary/20 text-primary" : "bg-foreground/5 text-foreground/45"
-                  }`}>
-                    {t.count}
-                  </span>
-                </button>
-              ))}
-            </div>
+            {/* One horizontally scrolling strip of 48 px tabs. A failed or unread history has no counts:
+                "?" rather than a confident 0. */}
+            <TabBar
+              tabs={[
+                { id: "history" as TabType, label: "Service History", badge: historyCountUnknown ? "?" : historyData?.invoices?.length || 0 },
+                { id: "declined" as TabType, label: "Declined Work", badge: historyCountUnknown ? "?" : historyData?.declinedEstimates?.length || 0 },
+                { id: "backlog" as TabType, label: "Active Backlog", badge: historyCountUnknown ? "?" : historyData?.openWorkOrders?.length || 0 },
+              ]}
+              activeTab={activeTab}
+              onChange={setActiveTab}
+            />
 
             {/* Tab Panels */}
             <div className="p-5">
@@ -530,6 +529,10 @@ export default function CustomerProfile({ customerId, onClose }: Props) {
                     <div className="overflow-x-auto">
                       {historyFailed ? (
                         <ErrorState message="Service history couldn't load. Unknown, not empty." onRetry={() => void refetchHistory()} />
+                      ) : noPhone ? (
+                        noPhoneHistory
+                      ) : historyUnread ? (
+                        <ErrorState message={historyUnreadMessage} onRetry={() => void refetchHistory()} />
                       ) : !historyData?.invoices || historyData.invoices.length === 0 ? (
                         <p className="text-xs text-foreground/40 italic py-6 text-center">No service history invoices found.</p>
                       ) : (
@@ -585,6 +588,10 @@ export default function CustomerProfile({ customerId, onClose }: Props) {
                     <div className="overflow-x-auto">
                       {historyFailed ? (
                         <ErrorState message="Service history couldn't load. Unknown, not empty." onRetry={() => void refetchHistory()} />
+                      ) : noPhone ? (
+                        noPhoneHistory
+                      ) : historyUnread ? (
+                        <ErrorState message={historyUnreadMessage} onRetry={() => void refetchHistory()} />
                       ) : !historyData?.declinedEstimates || historyData.declinedEstimates.length === 0 ? (
                         <p className="text-xs text-foreground/40 italic py-6 text-center">No declined estimates found.</p>
                       ) : (
@@ -639,6 +646,10 @@ export default function CustomerProfile({ customerId, onClose }: Props) {
                     <div className="overflow-x-auto">
                       {historyFailed ? (
                         <ErrorState message="Service history couldn't load. Unknown, not empty." onRetry={() => void refetchHistory()} />
+                      ) : noPhone ? (
+                        noPhoneHistory
+                      ) : historyUnread ? (
+                        <ErrorState message={historyUnreadMessage} onRetry={() => void refetchHistory()} />
                       ) : !historyData?.openWorkOrders || historyData.openWorkOrders.length === 0 ? (
                         <p className="text-xs text-foreground/40 italic py-6 text-center">No active work orders found.</p>
                       ) : (

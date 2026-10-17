@@ -206,6 +206,18 @@ export async function buildBrainContext(
       new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
     ]).catch(() => fallback);
 
+  // Brain W3 · Socratic decision mode (lib/brain/decision-forecast.ts): ask for
+  // the decision, alternatives, probability and review date, then store the
+  // answer. Started now so its DB read overlaps the blocks below; a Private Lab
+  // turn has no convId, so it neither asks nor writes.
+  const decisionTurnPromise = withTimeout<Awaited<ReturnType<typeof import("@/lib/brain/decision-forecast").runDecisionTurn>> | null | "timeout">(
+    import("@/lib/brain/decision-forecast")
+      .then((m) => m.runDecisionTurn({ convId, userContent, messages }))
+      .catch(() => null),
+    3000,
+    "timeout",
+  );
+
   let addendum = "";
   let contextBlocksFired: ContextBlocksFired = { ...EMPTY_FIRED };
   let finalContextMemories: string | null = null;
@@ -933,6 +945,19 @@ export async function buildBrainContext(
   if (recallStateNotice) {
     addendum += (addendum ? "\n\n" : "") + recallStateNotice;
     contextBlocksFired.recallState = true;
+  }
+
+  // Appended after the reranker, like the recall notice: a low cosine score
+  // must not drop the decision ask. The fired flags persist into
+  // ChatMessage.tokenUsage.contextBlocks, which is how the W3 kill criterion
+  // (decisionSkip vs decisionAsk) is measured.
+  const decisionTurn = await decisionTurnPromise;
+  if (decisionTurn === "timeout") {
+    contextBlocksFired.decisionTimeout = true;
+    log.info("decision_turn_timeout", { ms: 3000 });
+  } else if (decisionTurn) {
+    if (decisionTurn.block) addendum += (addendum ? "\n\n" : "") + decisionTurn.block;
+    Object.assign(contextBlocksFired, decisionTurn.fired);
   }
 
   // ── Deeper Context telemetry ──

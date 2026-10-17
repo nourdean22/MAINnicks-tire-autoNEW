@@ -18,10 +18,10 @@ merges, deploys, DB scripts, CI reruns, customer messages, secret or skill chang
 | 2 | statenour | `curl -sS --max-time 20 https://bdnick.info/api/system/heartbeat` | HTTP 200 AND `.data.status` is `ok` AND `.data.worker.status` is `fresh` (body is wrapped in `data`). 200 with `degraded` is DEGRADED; 503 is FAILED | yes |
 | 3 | Uptime monitor | `gh run list --workflow deploy-drift.yml --limit 3 --json conclusion,createdAt` | latest run under 2 h old and `success` | yes |
 | 4 | PRs | `gh pr list --state open --json number,title,updatedAt,isDraft,statusCheckRollup` | no red non-draft PR, none idle over 3 days | yes |
-| 5 | Branches, leases, jobs | `node scripts/agent-os/repo-status.mjs`; open rows in `docs/agent-os/MANAGER-LEDGER.md` | no stranded branch (pushed, no PR, not a draft on purpose), no job BLOCKED over 3 days | no |
+| 5 | Branches, leases, jobs | `node scripts/agent-os/repo-status.mjs`; `node scripts/agent-os/ledger-render.mjs --open` | no stranded branch (pushed, no PR, not a draft on purpose), no job BLOCKED over 3 days | no |
 | 6 | Memory index | `node scripts/agent-os/check-memory-index.mjs` | exit 0 | no |
 | 7 | Repo graph | modified time of `graphify-out/graph.json` (missing = SKIPPED, see TOOLS.md) | under 48 h | no |
-| 8 | Errors | Sentry MCP `search_issues`, unresolved, last 12 h, limit 10 | no new high-volume issue | no |
+| 8 | Errors | Sentry MCP `search_issues`, unresolved, last 12 h, limit 10 (the manager loads the Sentry read tools) | no new high-volume issue | no |
 | 9 | AI traces | Langfuse, only if keys are already in the shell; last 12 h, small sample | no error spike; traces still arriving | no |
 | 10 | Observability | `GET https://nickstire.org/api/system/observability-status` with `Authorization: Bearer $ADMIN_API_KEY`, only if the key is already in the shell (404 until #3094 deploys = SKIPPED) | every probe reports a real state; an `UNKNOWN` probe is a finding, never fine | no |
 

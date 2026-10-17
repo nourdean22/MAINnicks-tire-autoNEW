@@ -28,7 +28,7 @@ import { prisma } from "@/lib/prisma";
  *
  * Brier = (confidence - outcome)²
  *   confidence ∈ [0, 1]   (Nick's stated probability)
- *   outcome ∈ {0, 1}      (1 = confirmed, 0 = disproven)
+ *   outcome ∈ {0, 1}      (1 = confirmed, 0 = disproven); 0.5 = mixed (decision reviews)
  *
  * Properties:
  *   · 0 = perfect (Nick said 1.0 and it landed, or said 0.0 and it didn't)
@@ -38,7 +38,7 @@ import { prisma } from "@/lib/prisma";
  * Lower is better. The naive baseline (always predict 0.5) yields
  * brier = 0.25, so any honest forecaster should beat that average.
  */
-export function brierScore(confidence: number, outcome: 0 | 1): number {
+export function brierScore(confidence: number, outcome: 0 | 0.5 | 1): number {
   return (confidence - outcome) ** 2;
 }
 

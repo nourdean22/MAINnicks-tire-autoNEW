@@ -26,7 +26,7 @@ Two attempts at one item with no new evidence: change strategy or write it up as
 ## L4. Memory (end of every task that taught something)
 
 1. Is the lesson already in code, a test, AGENTS.md or a skill? Then skip it.
-2. Durable repo fact or handoff -> `apps/<app>/.remember/`. Job outcome -> `docs/agent-os/MANAGER-LEDGER.md`.
+2. Durable repo fact or handoff -> `apps/<app>/.remember/`. Job outcome -> `docs/agent-os/ledger/<job-id>.md` (one file per job).
 3. Machine or operator preference -> agent memory (`~/.claude/projects/.../memory/`, one fact per file, indexed).
 4. A lesson seen twice -> `session-observer` proposal (`docs/skill-proposals.md`).
 Stop when: the next agent would find the lesson without being told.

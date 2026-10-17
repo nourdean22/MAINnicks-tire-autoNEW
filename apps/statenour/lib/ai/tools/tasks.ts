@@ -25,6 +25,7 @@ import { creditTaskStats } from "@/lib/mastery/goal-stats";
 import { recordError } from "@/lib/errors/record-error";
 import { daysAgo, hourET, startOfDayET, toDateString, today, weekdayET } from "@/lib/utils/datetime";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { decisionBrier } from "@/lib/brain/decision-forecast";
 import { goalsTools } from "@/lib/ai/tools/goals";
 import { missionsTools } from "@/lib/ai/tools/missions";
 import { habitsTools } from "@/lib/ai/tools/habits";
@@ -989,7 +990,12 @@ const tasksCoreTools = {
           confidence: Math.min(0.95, 0.7 + Math.abs(outcomeScore) * 0.025),
         },
       });
-      return { reviewed: true, title: replay.title, outcomeScore, lessonStored: true };
+      // Brain W3 · score a Socratic forecast (decision-forecast.ts); null when the decision has no probability.
+      const decision = replay.decisionId
+        ? await prisma.masteryDecision.findUnique({ where: { id: replay.decisionId }, select: { predictedOutcome: true } }).catch((): null => null)
+        : null;
+      const brier = decisionBrier(decision?.predictedOutcome, outcomeScore);
+      return { reviewed: true, title: replay.title, outcomeScore, lessonStored: true, brier };
     },
   }),
 

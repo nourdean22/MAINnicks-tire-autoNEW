@@ -1,5 +1,81 @@
 # Reconciliation · statenour-os
 
+> ## 2026-10-17 · Brain W3 · Socratic decision mode (branch `statenour/brain-w3-socratic`) · 1 statenour PR, live chat behaviour behind a default-ON kill switch
+>
+> Not live until merged and deployed. Unit tests only; no live chat turn. The first live proof is a chat turn with `contextBlocks.decisionAsk`, then a DecisionReplay with `soc:` idempotency key.
+>
+> - **The ask.** On a turn with an explicit decision cue ("should I", "should we", "worth it", "decide between", "which should I") and no stored forecast in the conversation, Nick asks the decision, the alternatives, Nour's probability that it works and a review date, in one turn, before advising. "just answer" or "just tell me" skips it for the conversation; a finalized decision is never re-asked.
+> - **The store.** Nour's reply writes one forecast: a DecisionReplay plus the probability on the linked MasteryDecision (`predictedOutcome = "p=0.7"`), no schema change. If only one of the two parses, Nick says what is missing.
+> - **The score.** Every review path (tutor taps, the review tool, the replay form) goes through `markReplayed`, which now returns a Brier score: Worked 1, Mixed 0.5, Didn't 0. No probability means no score, never 0.
+> - **Kill switch and criterion.** `NICK_DECISION_MODE` (default ON) turns it off without a deploy. Nour skips it on more than half of decision turns in two weeks -> make it opt-in ("/decide").
+>
+> **Flagged · NOT fixed**
+> - The 30-day replay coach (`pickDueReplays`) asks at day 30 from creation, ignoring the stored review date.
+> - The replay-inbox path discards the Brier score; the review tool counts any positive outcomeScore as Worked.
+> - brain-context's other history readers (`__priorTurns`, the follow-up referent lookup) still read `content` only, so they see no history from the v6 client: the same bug W3's first build had.
+
+> ## 2026-10-17 · Daily Tutor asks for free recall first (branch `statenour/scout9-free-recall`) · 1 statenour PR
+>
+> Not live until merged and deployed; the first live proof is a `tutor:R:unaided`, `tutor:X:unaided` or `tutor:<letter>:hint` ledger row. Unit tests only, no Telegram round trip.
+>
+> - **Two steps (`lib/brain/tutor-pack.ts`).** The recall message asks Nour to recall the principle, with "I have it", "Show options" and "Skip". "I have it" reveals the principle with "Got it" / "Missed it"; "Show options" shows the three choices. Those two taps only read.
+> - **Grades.** Every grading tap keeps the ledger-claim compare-and-swap, so a double tap writes once. `resultRef` carries the mode (`:unaided` or `:hint`), with no schema change. A correct answer after the hint is logged useful but rescheduled for tomorrow, so the schedule follows real recall.
+> - **Webhook (`app/api/telegram/webhook/route.ts`, `tut` branch).** It sends the next step to the tapping chat. The owner gate runs before every callback, unchanged.
+>
+> **Flagged · NOT fixed**
+> - A "I have it" tap on a row whose claim landed but whose outcome write failed answers "Already recorded."; the next grading tap still finishes the grade.
+> - One more tap than W2 for each recall item: watch the W2 kill criterion (answered under 30%).
+
+> ## 2026-10-17 · Judge calibration reads kappa (branch `statenour/scout7-judge-kappa`) · 1 statenour PR, read-side report
+>
+> Not live until merged and deployed. Unit and render tests only; no production read.
+>
+> - **Report (`lib/services/judge-calibration.ts`).** Adds Cohen's kappa (the existing `cohensKappa`), the false-pass rate (judge picked V2, Nour gave a thumbs-down) and the false-fail rate. Each is null when it cannot be computed, never 0.
+> - **Verdict.** It reads kappa: 0.6 or more well-calibrated, 0.4 to under 0.6 moderate, under 0.4 miscalibrated. Under 30 scored, or reactions that are all one class, it stays preliminary. A judge that always picks V2 used to score "well-calibrated" on raw agreement when most reactions were thumbs-up; it now reads kappa near 0.
+> - **Page (`app/(mastery)/system/calibration`).** The LLM Judge Calibration card shows kappa and the two rates; a null reads "unknown".
+>
+> **Flagged · NOT fixed**
+> - **Needs Nour:** `docs/CALIBRATION_TODO.md` carried a claim he confirmed on 2026-06-11 ("n >= 30, agreement >= 70%"). Its text now states the kappa rule, so its `confirmed-by` is PENDING until he re-confirms it; `document-sha256` was not recomputed (nothing reads it).
+> - ADR 0019's cutover gate now reads the kappa bands; a doc comment in `lib/trpc/routers/system/prompts.ts` still says "agreement".
+> ## 2026-10-17 · Arbiter judge-split gets error bars and a verdict (branch `statenour/scout1-judge-split-ci`) · 1 statenour PR, read-only script
+>
+> The script only reads production; nothing a user sees changes. One read-only production run on 2026-10-17 checked it end to end.
+>
+> - **Intervals.** Each arm prints a cluster-robust 95% CI over conversations (the inspect_ai `_clustered_stderr` estimator), and the difference true minus false prints its own CI and a verdict: better, worse, cannot tell, or "cannot tell (n too small)" under 5 conversations or 20 turns. Under 2 clusters the CI is n/a, never 0.
+> - **Control arm.** No turn ever carried `arbiterAssigned=false`: the receipt field shipped after the last pre-flip turn. A turn with no field, created before the audited flip at 2026-10-17T04:49:22Z, now counts as control (the flag had no override then). Production: 95 judged turns in 19 conversations, mean 8.12, CI [7.86, 8.38]; 0 turns since the flip.
+> - **Window.** `--since YYYY-MM-DD` pins the start. The 2026-10-23 read is `railway run -s statenour-web -- pnpm exec tsx scripts/arbiter-judge-split.ts --since 2026-10-02`; a rolling `--days` window would drain the control arm.
+> - **Rule (printed).** worse: switch the flag off; better or cannot tell: keep it on and re-read in a week. A before/after split, not randomized: a difference can be time, not the arbiter.
+>
+> **Flagged · NOT fixed**
+> - The difference CI treats the arms as independent; a conversation that spans the flip makes it slightly too narrow (the code comment says so).
+
+> ## 2026-10-17 · Brain W5 · a vector-gap gauge and a decay dry run (branch `statenour/brain-w5-reliability`) · 1 statenour PR
+>
+> Not live until merged and deployed. The two counts below are from read-only production probes on 2026-10-17; everything else is from unit tests and code reading.
+>
+> - **Gauge (`lib/services/personal-gap.ts`, `buildPersonalGap` in `lib/services/embedding-coverage.ts`).** Live `brain_memories` outside the telemetry list with confidence >= 0.2 and no `brain_memory` vector in the active space, shown on /system/health as "searchable memories without a vector". Above 1% it warns; a failed read, or no eligible rows, renders unknown, never 0. Production: 18 missing of 17,721 eligible. The 2026-09-08 "19% unembedded" figure counted telemetry rows that are never embedded.
+> - **Decay dry run (`lib/brain/memory-decay.ts`, `app/api/cron/data-cleanup/route.ts`).** `buildDecayWhere` is now the one WHERE for both `runMemoryDecay` and `countMemoryDecayCandidates` (SELECT count only). The nightly cleanup writes `decayWouldAffect` and the top 5 categories to its audit row; a failed count writes null plus `decayDryRunError` and does not change the cron's status. Decay is never applied. Production: 26,718 rows would be touched.
+> - **Headers corrected.** `external-memory-intake.ts` (all four external doors call the intake), the `NICK_NOVELTY_RECALL` description, and `runMemoryDecay`'s "runs nightly" claim.
+>
+> **Decision owed (Nour).** After a week of nightly counts, read the audit rows' `decayByCategoryTop5`: applying decay is a production write and needs Nour's go.
+>
+> **Flagged · NOT fixed**
+> - The eligible set is "not telemetry", so bulk imports (`archive_document`, mail, drive) count as searchable memories; the label says searchable, not own.
+> - `semantic_edge` and `archive_document` are not exempt from decay; the category breakdown will show whether they dominate the 26,718.
+
+> ## 2026-10-17 · Brain W4 · dead code out, headers honest (branch `statenour/brain-w4-wisdom`) · 1 statenour PR, nothing user-visible
+>
+> Not live until merged; nothing a user sees changes. Every claim below is from unit tests, an import scan and code reading.
+>
+> - **Deleted.** `lib/brain/reflection-engine.ts` (no production caller; production's 83 reflections in 90 days are all `scope=triggered`, written by `lib/services/reflection.ts`) and the three `export *` shims `lib/ai/output-critic.ts`, `hallucination-guard.ts`, `fact-check.ts`; 11 importers now import `lib/ai/chat/output-guardian` directly.
+> - **Pinned.** `tests/repo/deleted-brain-w4-modules.test.ts` scans every import form (alias, `lib/`-relative, dynamic, `vi.mock`), resolves from `__dirname`, asserts it read more than 100 files, and its positive control fails on each planted shape.
+> - **Headers corrected.** Teaching moments surface on the /brain Discover feed, not in the prompt; `vnext/effort-policy.ts` is partly live (`canaryDeepForce`, `claude5EffortForAttempt`) and partly caller-less (`routeCapability`); improve-agent runs on view from the /brain insights panel (no cron, and no `brain-feedback-loop` exists); stale engine references in journal-feed, reflection, reply-gate, self-consistency and quality-bench-core.
+>
+> **Flagged · NOT fixed**
+> - A weekly improve-agent writer was built and reverted: nothing reads persisted `improvement_hypothesis` rows, and the panel already computes the same hypotheses on every view.
+> - `knip.json:32` still lists the deleted `lib/brain/reflection-engine.ts` (root config; knip is advisory).
+> - `lib/services/chat/persist-assistant-turn.ts` still imports `sanitizeResponse` from the `output-sanitizer` shim; `cliche-detector.ts` and `output-sanitizer.ts` remain one-line shims.
+
 > ## 2026-10-16 · Brain W2 · the Daily Tutor, one tap a day (branch `statenour/brain-w2-tutor`) · 1 statenour PR
 >
 > Not live until merged and `/api/version` serves the squash SHA; the first send is the next morning slot after deploy. Every claim below is from unit tests and code reading.

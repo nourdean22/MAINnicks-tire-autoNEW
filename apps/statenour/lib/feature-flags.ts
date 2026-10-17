@@ -197,7 +197,7 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     onValue: "true",
     defaultOn: true,
     defaultBehavior:
-      "LIVE: the novelty multiplier is applied. Kill-switch NICK_NOVELTY_RECALL=0 restores byte-for-byte pre-2026-08-16 ranking. NOTE: enabled on operator instruction WITHOUT a prior eval win — `pnpm eval:recall` has never been run against a real (non-synthetic) corpus, so this is an accepted-risk default, not a measured one.",
+      "LIVE: the novelty multiplier is applied. Kill-switch NICK_NOVELTY_RECALL=0 restores byte-for-byte pre-2026-08-16 ranking. NOTE: enabled on operator instruction WITHOUT a prior eval win. No NICK_NOVELTY_RECALL=0 vs 1 comparison is recorded anywhere (the 2026-09-08 plan, docs/research/2026-09-08-statenour-brain-intelligence-upgrade-plan.md Q3, lists that run as still to do). The 2026-08-27 real-corpus baseline (docs/RETRIEVAL-BASELINE-2026-08-27.md, 28 cases) measured the retrieval lanes, not this flag. So this is an accepted-risk default, not a measured one.",
     ownerDoc: "lib/brain/contextual-recall.ts",
   },
   {
@@ -214,6 +214,17 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     defaultBehavior:
       "LIVE: contested tiers are ranked together before the budget cut. Kill-switch NICK_TOOL_RANK_MERGED=0 restores arrival order (tier 4, then 5, then 6) without a deploy. Note the merged ranking ALSO self-disables whenever any contested candidate is unscored — no embedding and a cold cache both fall back to arrival order structurally, so =0 is a manual override of an already-conditional path. NOT prod-proven: re-run scripts/tool-reachability-census.ts after deploy; it withholds a verdict below 100 post-fix turns.",
     ownerDoc: "lib/ai/chat-mode.ts",
+  },
+  {
+    key: "NICK_DECISION_MODE",
+    description:
+      "Brain W3 Socratic decision mode (2026-10-17, lib/brain/decision-forecast.ts): on a decision turn with an explicit cue (should I, which one, worth it, go with...), Nick first asks for the decision, the alternatives, Nour's probability and a review date, stores the answer once as a DecisionReplay (probability in MasteryDecision.predictedOutcome), and the review scores it with Brier. \"just answer\" turns it off for the conversation. KILL CRITERION: if Nour overrides it (\"just answer\") on more than 50% of decision turns over 2 weeks, make it opt-in (\"/decide\"); measure decisionSkip vs decisionAsk in chat_messages.token_usage.contextBlocks. LIVE by default; set NICK_DECISION_MODE=0 to disable.",
+    status: "experimental",
+    onValue: "true",
+    defaultOn: true,
+    defaultBehavior:
+      "LIVE: decision turns get the ask, and answers with a probability and a review date are stored. Kill-switch NICK_DECISION_MODE=0 stops the ask and the store with no deploy; forecasts already stored still score at review.",
+    ownerDoc: "lib/brain/decision-forecast.ts",
   },
   {
     key: "NICK_RECALL_ARBITER",

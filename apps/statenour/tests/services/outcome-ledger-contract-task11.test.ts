@@ -150,6 +150,15 @@ describe("CORRECTION_WHERE · what counts as an operator correction", () => {
     expect(isCorrection(row({ sourceEngine: "tutorial-engine", decision: "dismissed" }))).toBe(true);
   });
 
+  it("scout 9 tutor refs (tutor:<code>:unaided|hint) are never corrections; the same ref on another engine still is", () => {
+    for (const resultRef of ["tutor:R:unaided", "tutor:X:unaided", "tutor:A:hint", "tutor:B:hint", "tutor:C:hint"]) {
+      expect(isCorrection(row({ sourceEngine: "tutor:recall", decision: "accepted", outcomeUseful: false, resultRef })), resultRef).toBe(false);
+      expect(isCorrection(row({ sourceEngine: "tutor:recall", decision: "dismissed", resultRef })), resultRef).toBe(false);
+      // Positive control: the exclusion is the engine, not the ref text.
+      expect(isCorrection(row({ sourceEngine: "nick-suggestions:stuck-task", decision: "accepted", outcomeUseful: false, resultRef })), resultRef).toBe(true);
+    }
+  });
+
   it("accepted and undecided rows are not corrections", () => {
     expect(isCorrection(row({ decision: "accepted" }))).toBe(false);
     expect(isCorrection(row({}))).toBe(false);

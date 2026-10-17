@@ -9,10 +9,10 @@
  * "reflections of reflections" — on top of raw episodic rows.
  *
  * Relationship to the existing layers:
- *   · lib/brain/reflection-engine.ts → daily/weekly cross-table engine
- *     → writes the `Reflection` table.
  *   · lib/services/reflection.ts → CoALA per-category synthesis
- *     → writes `reflection`-category BrainMemory rows.
+ *     → writes `reflection`-category BrainMemory rows. (The daily/weekly
+ *     cross-table lib/brain/reflection-engine.ts that wrote the `Reflection`
+ *     table was deleted 2026-10-16; it had no production caller.)
  *   · THIS file → reads BOTH of the above (the leaf reflections) and
  *     synthesizes one level UP → writes new `reflection`-category
  *     BrainMemory rows (source="reflection_trees") + MemoryEdge chains
