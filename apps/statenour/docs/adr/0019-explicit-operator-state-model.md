@@ -83,14 +83,22 @@ V2 reply) via `sourceMessageId`.
 | **judge picked v2** | agree (judge predicted V2 was good · operator confirmed) | disagree · false positive |
 | **judge picked v1** | disagree · false negative | agree (judge said V2 lost · operator confirmed) |
 
-Verdict bands: well-calibrated (≥70% agreement · n≥30), moderate
-(50-69%), miscalibrated (<50%), preliminary (n<30).
+Verdict bands read Cohen's kappa (agreement corrected for chance), not
+raw agreement, compared at the 2 places the dashboard prints: well-calibrated
+(kappa ≥0.6 · n≥30), moderate (0.4 to <0.6), miscalibrated (<0.4),
+preliminary (n<30, or the operator's reactions are all thumbs-up or all
+thumbs-down, where kappa is undefined and nothing is measured). Amended
+2026-10-17: the first bands used raw agreement, and a judge that always picked
+V2 scored well-calibrated whenever the operator liked most replies. The report
+also gives false-pass rate (share of thumbs-downs the judge passed) and
+false-fail rate (share of thumbs-ups the judge failed); both are unknown, never
+0, when the operator gave none of that reaction.
 
 The calibration metric is exposed on `/system/judge-eval` next to
 the existing V1→V2 verdict chip. The V2 cutover plan's Phase-1
 "safe" verdict is no longer sufficient on its own — the calibration
 verdict must ALSO read "well-calibrated" or "moderate" before
-canary expansion.
+canary expansion. A "preliminary" verdict does not satisfy this.
 
 ## Consequences
 
