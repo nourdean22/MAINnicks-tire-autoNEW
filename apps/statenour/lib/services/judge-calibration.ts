@@ -16,17 +16,35 @@
  * stores `sourceMessageId` in metadata · we can join back to the
  * source message + read the operator's reaction.
  *
- * The calibration metric: of the comparisons where the operator
- * reacted, how often did the LLM judge agree with the human?
+ * The calibration metric. Raw agreement is not enough: a judge that always
+ * picks v2 agrees with the operator exactly as often as the operator
+ * thumbs-ups v2, and says nothing. So the report leads with Cohen's kappa,
+ * agreement corrected for chance, and adds the two error rates (the
+ * false-pass / false-fail vocabulary of ChainForge's evalgen
+ * computeAlignmentStats). Positive class = "v2 is good".
  *
- *   AGREE        · judge picked v2 AND operator gave +1
- *   AGREE        · judge picked v1 AND operator gave −1
- *   DISAGREE     · judge picked v2 AND operator gave −1 (false positive)
- *   DISAGREE     · judge picked v1 AND operator gave +1 (false negative)
+ *   TP           · judge picked v2 AND operator gave +1
+ *   TN           · judge picked v1 AND operator gave −1
+ *   FP           · judge picked v2 AND operator gave −1 (false pass)
+ *   FN           · judge picked v1 AND operator gave +1 (false fail)
  *   EXCLUDED     · judge tied · OR operator didn't react · OR no source msg
  *
+ *   agreementPct  · (TP + TN) / scored · kept for context, not the verdict
+ *   kappa         · (po − pe) / (1 − pe) · null when nothing is scored or when
+ *                   judge and operator each used a single class (pe = 1) ·
+ *                   undefined is null, never 0
+ *   falsePassRate · FP / (FP + TN) · share of operator-rejected replies the
+ *                   judge passed · null when the operator rejected none
+ *   falseFailRate · FN / (FN + TP) · share of operator-liked replies the
+ *                   judge failed · null when the operator liked none
+ *
+ * Verdict (≥30 scored): kappa ≥0.6 well-calibrated · 0.4 to <0.6 moderate ·
+ * <0.4 miscalibrated. <30 scored stays preliminary, and so does operator data
+ * that is all one class (all thumbs-up or all thumbs-down): kappa is 0 or
+ * undefined there whatever the judge does, so nothing was measured.
+ *
  * Output is shaped so the dashboard can show:
- *   · headline · "judge calibration: 73% (n=22 over 30d)"
+ *   · headline · kappa + agreement, e.g. "kappa 0.53 · agreement 77% (n=65 over 30d)"
  *   · confusion matrix · 4 cells with counts
  *   · sample size warning · n<20 = "preliminary" tag
  *
@@ -37,14 +55,15 @@
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { logger as rootLogger } from "@/lib/logger";
 import type { Winner } from "@/lib/ai/judge-eval/comparator";
+import { cohensKappa, type LabeledComparison } from "@/lib/ai/judge-eval/calibration";
 
 const log = rootLogger.withSurface("services/judge-calibration");
 
 export type CalibrationVerdict =
-  | "well-calibrated" // ≥30 samples · agreement ≥70%
-  | "moderate" // ≥30 samples · agreement 50-69%
-  | "miscalibrated" // ≥30 samples · agreement <50%
-  | "preliminary"; // <30 samples · not enough signal
+  | "well-calibrated" // ≥30 samples · kappa ≥0.6
+  | "moderate" // ≥30 samples · kappa 0.4 to <0.6
+  | "miscalibrated" // ≥30 samples · kappa <0.4
+  | "preliminary"; // <30 samples, or operator reactions all one class · not enough signal
 
 export interface CalibrationCell {
   /** How the judge ruled. */
@@ -66,8 +85,14 @@ export interface JudgeCalibrationReport {
   ties: number;
   /** Window the report covers. */
   sinceDays: number;
-  /** Agreement % · 0-100 · -1 when totalScored = 0. */
+  /** Agreement % · 0-100 · -1 when totalScored = 0. Context only; the verdict reads kappa. */
   agreementPct: number;
+  /** Cohen's kappa (chance-corrected agreement) · null when undefined (nothing scored, or one class only). */
+  kappa: number | null;
+  /** FP / (FP + TN) · share of operator-rejected replies the judge passed · null on a zero denominator. */
+  falsePassRate: number | null;
+  /** FN / (FN + TP) · share of operator-liked replies the judge failed · null on a zero denominator. */
+  falseFailRate: number | null;
   /** 4-cell confusion matrix · empty when totalScored = 0. */
   matrix: CalibrationCell[];
   /** Operator-readable verdict. */
@@ -78,8 +103,8 @@ export interface JudgeCalibrationReport {
 
 /** Minimum sample size before we move off "preliminary". */
 const MIN_SAMPLE_FOR_VERDICT = 30;
-const WELL_CALIBRATED_PCT = 70;
-const MISCALIBRATED_PCT = 50;
+const KAPPA_WELL_CALIBRATED = 0.6;
+const KAPPA_MODERATE = 0.4;
 
 function emptyReport(sinceDays: number): JudgeCalibrationReport {
   return {
@@ -90,6 +115,9 @@ function emptyReport(sinceDays: number): JudgeCalibrationReport {
     ties: 0,
     sinceDays,
     agreementPct: -1,
+    kappa: null,
+    falsePassRate: null,
+    falseFailRate: null,
     matrix: [],
     verdict: "preliminary",
     verdictReason: "no comparison runs in window · ship a few judge-eval comparisons first",
@@ -99,6 +127,9 @@ function emptyReport(sinceDays: number): JudgeCalibrationReport {
 function deriveVerdict(
   totalScored: number,
   agreementPct: number,
+  kappa: number | null,
+  liked: number,
+  rejected: number,
 ): { verdict: CalibrationVerdict; reason: string } {
   if (totalScored < MIN_SAMPLE_FOR_VERDICT) {
     return {
@@ -106,21 +137,36 @@ function deriveVerdict(
       reason: `${totalScored} scored comparisons in window · need ≥${MIN_SAMPLE_FOR_VERDICT} for a confident verdict`,
     };
   }
-  if (agreementPct < MISCALIBRATED_PCT) {
+  // One-class reactions: kappa is 0 or undefined whatever the judge does, so nothing was measured.
+  if (rejected === 0 || liked === 0) {
+    const only = rejected === 0 ? "thumbs-up" : "thumbs-down";
     return {
-      verdict: "miscalibrated",
-      reason: `judge agrees with operator only ${agreementPct}% of the time · the LLM judge is not a reliable proxy here`,
+      verdict: "preliminary",
+      reason: `every one of the ${totalScored} reactions was a ${only}: kappa cannot check the judge until both appear (agreement ${agreementPct}%)`,
     };
   }
-  if (agreementPct < WELL_CALIBRATED_PCT) {
+  // Defensive: kappa is only null here if the guard above missed a case. Not a measurement, so not a verdict.
+  if (kappa === null) {
+    return {
+      verdict: "preliminary",
+      reason: `kappa could not be computed for ${totalScored} scored comparisons (agreement ${agreementPct}%)`,
+    };
+  }
+  if (kappa < KAPPA_MODERATE) {
+    return {
+      verdict: "miscalibrated",
+      reason: `kappa ${kappa.toFixed(2)}, agreement ${agreementPct}% · the judge adds little beyond chance agreement and is not a reliable proxy here`,
+    };
+  }
+  if (kappa < KAPPA_WELL_CALIBRATED) {
     return {
       verdict: "moderate",
-      reason: `judge-operator agreement ${agreementPct}% · usable but interpret verdicts with caution`,
+      reason: `kappa ${kappa.toFixed(2)}, agreement ${agreementPct}% · usable but interpret verdicts with caution`,
     };
   }
   return {
     verdict: "well-calibrated",
-    reason: `judge-operator agreement ${agreementPct}% over ${totalScored} samples · ground-truth confirms judge rulings`,
+    reason: `kappa ${kappa.toFixed(2)}, agreement ${agreementPct}% over ${totalScored} samples · ground-truth confirms judge rulings`,
   };
 }
 
@@ -147,6 +193,8 @@ export function computeCalibration(
   let agreeJ1HMinus1 = 0; // judge=v1 · human=-1
   let disagreeJ2HMinus1 = 0; // judge=v2 · human=-1 (false positive)
   let disagreeJ1H1 = 0; // judge=v1 · human=+1 (false negative)
+  // Positive class = "v2 is good": a thumbs-up maps to v2, a thumbs-down to v1.
+  const scored: LabeledComparison[] = [];
 
   for (const r of rows) {
     if (!r.sourceMessageId) {
@@ -161,6 +209,7 @@ export function computeCalibration(
       ties++;
       continue;
     }
+    scored.push({ judgeWinner: r.winner, operatorWinner: r.feedbackScore === 1 ? "v2" : "v1" });
     if (r.winner === "v2" && r.feedbackScore === 1) agreeJ2H1++;
     else if (r.winner === "v1" && r.feedbackScore === -1) agreeJ1HMinus1++;
     else if (r.winner === "v2" && r.feedbackScore === -1) disagreeJ2HMinus1++;
@@ -177,6 +226,13 @@ export function computeCalibration(
           (((agreeJ2H1 + agreeJ1HMinus1) / totalScored) * 100).toFixed(1),
         );
 
+  // cohensKappa returns null for n = 0 and for pe = 1 (one class on both sides).
+  const kappa = cohensKappa(scored);
+  const rejected = disagreeJ2HMinus1 + agreeJ1HMinus1; // operator thumbs-down
+  const liked = agreeJ2H1 + disagreeJ1H1; // operator thumbs-up
+  const falsePassRate = rejected === 0 ? null : disagreeJ2HMinus1 / rejected;
+  const falseFailRate = liked === 0 ? null : disagreeJ1H1 / liked;
+
   const matrix: CalibrationCell[] = [
     { judge: "v2", human: "thumbs_up", count: agreeJ2H1 },
     { judge: "v2", human: "thumbs_down", count: disagreeJ2HMinus1 },
@@ -184,7 +240,7 @@ export function computeCalibration(
     { judge: "v1", human: "thumbs_down", count: agreeJ1HMinus1 },
   ];
 
-  const { verdict, reason } = deriveVerdict(totalScored, agreementPct);
+  const { verdict, reason } = deriveVerdict(totalScored, agreementPct, kappa, liked, rejected);
 
   return {
     generatedAt: now.toISOString(),
@@ -194,6 +250,9 @@ export function computeCalibration(
     ties,
     sinceDays,
     agreementPct,
+    kappa,
+    falsePassRate,
+    falseFailRate,
     matrix,
     verdict,
     verdictReason: reason,

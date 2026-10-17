@@ -139,12 +139,21 @@ describe("computeCalibration · ground-truth feedback math", () => {
 });
 
 describe("computeCalibration · verdict bands", () => {
-  // Helper to mint N rows with K agreeing
+  // The verdict reads Cohen's kappa, not raw agreement (deep scout v2 item 7). These cases
+  // used to mint a judge that always said v2, so "60% agreement" was really "the operator
+  // liked 60% of v2": a worthless judge scored moderate or well-calibrated. Balanced fixtures
+  // now: half the reactions up, half down, the judge right on `agreeing` of `total`, so
+  // kappa = 2 * agreement - 1. Boundary cases live in judge-calibration-kappa.test.ts.
   function mintRows(total: number, agreeing: number) {
     const rows = [];
-    for (let i = 0; i < agreeing; i++) rows.push(row("v2", `m${i}`, 1));
-    for (let i = agreeing; i < total; i++)
-      rows.push(row("v2", `m${i}`, -1));
+    const half = total / 2;
+    const wrong = total - agreeing;
+    const wrongUp = Math.floor(wrong / 2); // thumbs-up the judge failed
+    const wrongDown = wrong - wrongUp; // thumbs-down the judge passed
+    for (let i = 0; i < half - wrongUp; i++) rows.push(row("v2", `u${i}`, 1));
+    for (let i = 0; i < wrongUp; i++) rows.push(row("v1", `wu${i}`, 1));
+    for (let i = 0; i < half - wrongDown; i++) rows.push(row("v1", `d${i}`, -1));
+    for (let i = 0; i < wrongDown; i++) rows.push(row("v2", `wd${i}`, -1));
     return rows;
   }
 
@@ -153,23 +162,23 @@ describe("computeCalibration · verdict bands", () => {
   }
 
   it("verdict = 'preliminary' when total < 30 even at 100% agreement", () => {
-    expect(verdictFor(29, 29)).toBe("preliminary");
+    expect(verdictFor(28, 28)).toBe("preliminary");
   });
 
-  it("verdict = 'miscalibrated' when agreement < 50% and n ≥ 30", () => {
-    expect(verdictFor(30, 14)).toBe("miscalibrated"); // ~47%
+  it("verdict = 'miscalibrated' when kappa < 0.4 and n ≥ 30", () => {
+    expect(verdictFor(30, 20)).toBe("miscalibrated"); // 67% agreement, kappa 0.33
   });
 
-  it("verdict = 'moderate' when agreement 50-69% and n ≥ 30", () => {
-    expect(verdictFor(30, 18)).toBe("moderate"); // 60%
+  it("verdict = 'moderate' when kappa 0.4-0.59 and n ≥ 30", () => {
+    expect(verdictFor(30, 22)).toBe("moderate"); // 73% agreement, kappa 0.47
   });
 
-  it("verdict = 'well-calibrated' when agreement ≥ 70% and n ≥ 30", () => {
-    expect(verdictFor(30, 24)).toBe("well-calibrated"); // 80%
+  it("verdict = 'well-calibrated' when kappa ≥ 0.6 and n ≥ 30", () => {
+    expect(verdictFor(30, 26)).toBe("well-calibrated"); // 87% agreement, kappa 0.73
   });
 
   it("verdict reason mentions the agreement %", () => {
-    const r = computeCalibration(mintRows(30, 24), 30, fixed);
+    const r = computeCalibration(mintRows(30, 26), 30, fixed);
     expect(r.verdictReason).toContain("%");
   });
 });
