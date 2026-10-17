@@ -1,5 +1,16 @@
 # Reconciliation · statenour-os
 
+> ## 2026-10-17 · Re-learning a topic keeps its FSRS card (branch `statenour/brain-fu1-relearn`) · 1 statenour PR
+>
+> Not live until merged and deployed. Unit tests only; no prod read or write.
+>
+> - **Fixed.** Learning a topic again in the Learn tab used to overwrite its card with a new one due tomorrow (the FSRS PR #3115 wrote cards through `recordMemory`'s upsert). `ensureLearnCard` (`lib/brain/tutor-pack.ts`, `brain.ensureLearnCard`) now keeps a live card's schedule and updates only its text.
+> - **Repairs.** A deleted or superseded card comes back as a new card; a card with an unschedulable state or unreadable content resets to new (one log line). Two first learns at once give one card.
+> - **Caps.** The mutation accepts topics up to 500 characters and summaries up to 20,000 and stores a 300-character summary, so a long teach reply still makes a card.
+>
+> **Flagged · NOT fixed**
+> - Topics that share their first 40 characters share one card (the key format is unchanged so existing cards keep working).
+
 > ## 2026-10-17 · FSRS schedules spaced reviews (branch `statenour/scout4-fsrs`) · 1 statenour PR
 >
 > Not live until merged and deployed. Unit tests only; no prod read or write.

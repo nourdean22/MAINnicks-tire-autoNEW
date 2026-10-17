@@ -1,0 +1,7 @@
+| Job id | Date | Job | Lanes | Status | PR / SHA | Next action or blocker | Lesson |
+|---|---|---|---|---|---|---|---|
+| 2026-10-17-brain-fu1-relearn | 2026-10-17 | Brain follow-up 1: re-learning a topic in the Learn tab keeps its FSRS card (ensureLearnCard, brain.ensureLearnCard); deleted, superseded and corrupt cards are repaired; long teach replies no longer rejected | statenour, research (1 lens), manager | MERGED | this PR (statenour/brain-fu1-relearn) | next: FU2 (pickDueReplays honours the stored review date) | moving a client-built, server-clipped payload to a server procedure moves the validation boundary: size the new .max() to the largest value the producer can emit, not to what the old server slice kept |
+
+| Job id | After the PR opened (Codex, human) | Manager catches before it opened | Red-first (new tests red on unfixed code / new tests) | Mutation (killed / tried) | Cycle time (first dispatch to merge) | Rework pushes | Source |
+|---|---|---|---|---|---|---|---|
+| 2026-10-17-brain-fu1-relearn | UNKNOWN until the PR closes | review lens: 5 (1 P1: router caps 300/2000 rejected normal teach replies and the client swallowed the error, so no card was made; P2: corrupt rows never repaired, P2002 race on first learn, superseded rows reported kept, revive decisions unstated) | round 1: 19 failed / 3 passed; round 2: tests written after the fixes (mutants used as the red evidence) | 11 / 11 | dispatch 2026-10-17 to merge: UNKNOWN at row time | 0 at row time | lane RETURNs (two rounds), one lens report, PR body |
