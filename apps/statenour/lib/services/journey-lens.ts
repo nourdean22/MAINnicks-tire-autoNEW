@@ -15,13 +15,15 @@
 import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { loadIdentityHistory } from "@/lib/brain/identity-snapshot";
-import { xpEventTotalsSince } from "@/lib/mastery/credit";
+import { xpEventTotalsSinceOrNull } from "@/lib/mastery/credit";
 
 export interface JourneySection<T> {
   enoughData: boolean;
   since: string;
   source: string;
   data: T;
+  /** Present (true) only when the read behind the section failed: not a quiet month. */
+  unknown?: true;
 }
 
 export interface IdentityDelta {
@@ -88,8 +90,8 @@ export async function buildJourneyLens(): Promise<JourneyLens> {
 
   const [history, since30, since60, antiPatterns, skills] = await Promise.all([
     loadIdentityHistory(90).catch(() => []),
-    xpEventTotalsSince(d30).catch(() => new Map<string, number>()),
-    xpEventTotalsSince(d60).catch(() => new Map<string, number>()),
+    xpEventTotalsSinceOrNull(d30).catch(() => null),
+    xpEventTotalsSinceOrNull(d60).catch(() => null),
     prisma.brainMemory.findMany({
       where: { category: BRAIN_CATEGORIES.ANTI_PATTERN, deletedAt: null },
       orderBy: { updatedAt: "desc" },
@@ -105,8 +107,9 @@ export async function buildJourneyLens(): Promise<JourneyLens> {
   ]);
 
   const { deltas, spanDays } = identityDeltas(history);
-  const current30 = sumMap(since30);
-  const prior30 = Math.max(0, sumMap(since60) - current30);
+  const xpUnknown = since30 === null || since60 === null;
+  const current30 = since30 ? sumMap(since30) : 0;
+  const prior30 = since30 && since60 ? Math.max(0, sumMap(since60) - current30) : 0;
 
   const enemies = antiPatterns
     .map((r) => ({
@@ -134,10 +137,11 @@ export async function buildJourneyLens(): Promise<JourneyLens> {
       data: deltas,
     },
     xp: {
-      enoughData: current30 > 0 || prior30 > 0,
+      enoughData: !xpUnknown && (current30 > 0 || prior30 > 0),
       since: "30d vs prior 30d",
       source: "mastery_xp_event totals",
-      data: { current30, prior30, growthPct: xpGrowthPct(current30, prior30) },
+      data: { current30, prior30, growthPct: xpUnknown ? null : xpGrowthPct(current30, prior30) },
+      ...(xpUnknown ? { unknown: true as const } : {}),
     },
     enemies: {
       enoughData: enemies.length > 0,
