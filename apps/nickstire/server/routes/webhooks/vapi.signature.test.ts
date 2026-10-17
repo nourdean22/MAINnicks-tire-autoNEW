@@ -33,6 +33,7 @@ vi.mock("../../services/voice-call-state", () => ({
     h.states++;
   }),
   classifyToolToState: () => "confirmed",
+  recapCallState: () => ({ state: "confirmed" }),
   getCallStateHistory: vi.fn(async () => []),
 }));
 vi.mock("../../services/voice-latency", () => ({ captureVoiceLatency: vi.fn(async () => {}) }));
