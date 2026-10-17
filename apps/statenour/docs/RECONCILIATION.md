@@ -1,5 +1,17 @@
 # Reconciliation · statenour-os
 
+> ## 2026-10-17 · Daily Tutor asks for free recall first (branch `statenour/scout9-free-recall`) · 1 statenour PR
+>
+> Not live until merged and deployed; the first live proof is a `tutor:R:unaided`, `tutor:X:unaided` or `tutor:<letter>:hint` ledger row. Unit tests only, no Telegram round trip.
+>
+> - **Two steps (`lib/brain/tutor-pack.ts`).** The recall message asks Nour to recall the principle, with "I have it", "Show options" and "Skip". "I have it" reveals the principle with "Got it" / "Missed it"; "Show options" shows the three choices. Those two taps only read.
+> - **Grades.** Every grading tap keeps the ledger-claim compare-and-swap, so a double tap writes once. `resultRef` carries the mode (`:unaided` or `:hint`), with no schema change. A correct answer after the hint is logged useful but rescheduled for tomorrow, so the schedule follows real recall.
+> - **Webhook (`app/api/telegram/webhook/route.ts`, `tut` branch).** It sends the next step to the tapping chat. The owner gate runs before every callback, unchanged.
+>
+> **Flagged · NOT fixed**
+> - A "I have it" tap on a row whose claim landed but whose outcome write failed answers "Already recorded."; the next grading tap still finishes the grade.
+> - One more tap than W2 for each recall item: watch the W2 kill criterion (answered under 30%).
+
 > ## 2026-10-17 · Arbiter judge-split gets error bars and a verdict (branch `statenour/scout1-judge-split-ci`) · 1 statenour PR, read-only script
 >
 > The script only reads production; nothing a user sees changes. One read-only production run on 2026-10-17 checked it end to end.
