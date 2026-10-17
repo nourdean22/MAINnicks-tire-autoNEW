@@ -277,6 +277,7 @@ const h = vi.hoisted(() => {
       answerCallbackQuery: vi.fn(async (..._a: unknown[]) => true),
       editTelegramMessage: vi.fn(async (..._a: unknown[]) => true),
       sendTelegram: vi.fn(async (..._a: unknown[]) => true),
+      sendTelegramForId: vi.fn(async (..._a: unknown[]) => ({ ok: true, messageId: 1 })),
       sendTelegramWithButtons: vi.fn(async (..._a: unknown[]) => ({ ok: true, messageId: 1 })),
       formatTelegramNotification: (t: string, b: string) => `${t}\n\n${b}`,
     },
@@ -363,7 +364,12 @@ function gate(): { promise: Promise<void>; release: () => void } {
   return { promise, release };
 }
 
-const sent = () => h.telegram.sendTelegram.mock.calls.map((c) => String(c[0]));
+// Voice and link replies are one message edited in place (sendTelegramForId, then editTelegramMessage).
+const sent = () => [
+  ...h.telegram.sendTelegram.mock.calls.map((c) => String(c[0])),
+  ...h.telegram.sendTelegramForId.mock.calls.map((c) => String(c[0])),
+  ...h.telegram.editTelegramMessage.mock.calls.map((c) => String(c[1])),
+];
 const sentText = () => sent().join("\n---\n");
 const toasts = () => h.telegram.answerCallbackQuery.mock.calls.map((c) => c[1]);
 const sends = () => h.callNickstire.mock.calls.length + h.queryNick.mock.calls.length;

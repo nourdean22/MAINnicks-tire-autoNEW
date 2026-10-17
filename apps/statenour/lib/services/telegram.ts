@@ -50,6 +50,38 @@ export async function sendTelegram(
 }
 
 /**
+ * Send and report Telegram's message_id, for a reply that is later edited in
+ * place (editTelegramMessage). `ok` is true only when Telegram accepted it;
+ * `messageId` is absent when it was sent but the id could not be read.
+ */
+export async function sendTelegramForId(
+  text: string,
+  chatId?: string,
+): Promise<{ ok: boolean; messageId?: number }> {
+  if (!BOT_TOKEN) return { ok: false };
+  const target = chatId ?? DEFAULT_CHAT_ID;
+  if (!target) return { ok: false };
+  try {
+    const { res, error } = await postTelegramText(BOT_TOKEN, "sendMessage", {
+      chat_id: target,
+      text,
+      parse_mode: "HTML",
+      disable_web_page_preview: true,
+    });
+    if (!res.ok) {
+      log.error("send_failed", { status: res.status, error: (error ?? "").slice(0, 200) });
+      return { ok: false };
+    }
+    const body = (await res.json().catch(() => null)) as { result?: { message_id?: unknown } } | null;
+    const id = body?.result?.message_id;
+    return typeof id === "number" ? { ok: true, messageId: id } : { ok: true };
+  } catch (error) {
+    log.error("send_error", { error: error instanceof Error ? error.message : String(error) });
+    return { ok: false };
+  }
+}
+
+/**
  * Format a structured notification for Telegram.
  * Uses HTML parse mode for rich formatting.
  */

@@ -243,7 +243,8 @@ export async function buildHealthReport(args: { range: HealthRange }): Promise<H
   const freshnessP = Promise.all([
     prisma.brainDump.findFirst({ where: { deletedAt: null }, orderBy: { createdAt: "desc" }, select: { createdAt: true } }),
     prisma.reflection.findFirst({ where: { deletedAt: null }, orderBy: { createdAt: "desc" }, select: { createdAt: true } }),
-    prisma.captureInboxItem.findFirst({ orderBy: { createdAt: "desc" }, select: { createdAt: true } }),
+    // Phone notes for the coding sessions (lib/agent-bridge/phone-notes.ts) are not captures.
+    prisma.captureInboxItem.findFirst({ where: { kind: { not: "agent_bridge_note" } }, orderBy: { createdAt: "desc" }, select: { createdAt: true } }),
     prisma.brainMemory.findUnique({
       where: { category_key: { category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT, key: "current" } },
       select: { updatedAt: true },
