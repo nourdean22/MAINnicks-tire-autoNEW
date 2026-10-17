@@ -204,12 +204,18 @@ and vitest broke at once. Two layers now cover it:
    `.claude/skills/harness-worktree-setup/SKILL.md` section 3, then a full unfiltered `pnpm install --frozen-lockfile` in
    the primary by the operator or a primary-checkout session when no sibling session is mid-run.
    Desktop Commander's `start_process` / `interact_with_process` rows are exempt (`exceptRules`), as they already were from
-   the worktree rule: DC runs in its own cwd, and it is the runner the scratchpad-clone recipe installs through. Residual:
-   DC pointed at the primary checkout can still run the incident command; the hook cannot see a process's cwd.
+   the worktree rule: DC runs in its own cwd, and it is the runner the scratchpad-clone recipe installs through.
+   **Recorded decision, not a hidden hole (fix round 1, 2026-10-17):** Desktop Commander pointed at the primary checkout
+   can still run a filtered or package-changing command, including the incident command, because the hook cannot see a
+   process's cwd. Kept because closing it would close the only working path for new deps; `deps-check.mjs` reports
+   the result at the next session start if it happens.
    Linear by construction: each option token has one parse, the option chain is capped at 12 and every scan is
    bounded (the first draft split `--x` two ways and went exponential; `sharedDepsRule.test.mjs` > LINEAR pins it).
-   Not covered (text-only judge): `Start-Process pnpm -ArgumentList ...`, `yarn workspace <x> add`, `npm install <pkg>`,
-   `pnpm dedupe`, and a heredoc body line (denied, a false positive: write the file with the Write tool).
+   Fix round 1 also denies `npm install <pkg>` / `npm i <pkg>` (a positional package; `npm install` alone and `npm ci`
+   stay allowed), `pnpm dedupe` / `npm dedupe`, and `yarn workspace <x> add|remove`.
+   Not covered (text-only judge): `Start-Process pnpm -ArgumentList ...`, and a heredoc body line (denied, a false
+   positive: write the file with the Write tool). AGENTS.md > Commands, the CIITTY skill and both `agent-os/*/tech-stack.md`
+   files now say the same thing; `sharedDepsRule.test.mjs` fails if any of them recommends `--filter "<app>..."` again.
 2. **`scripts/agent-os/deps-check.mjs`** (SessionStart, matcher `startup`): one line about the PRIMARY's tree (from a
    worktree it follows the `.git` file). For the root, `apps/*` and `packages/*`, every `dependencies` and
    `devDependencies` entry must resolve to `node_modules/<name>/package.json` in the workspace or an ancestor up to the

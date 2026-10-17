@@ -13,6 +13,7 @@
  */
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -144,6 +145,21 @@ test("LINEAR: adversarial long inputs return fast (the first draft split `--x` t
   const r = run("Bash", { command: `pnpm ${"--x ".repeat(40)}` });
   assert.equal(r.code, 0);
   assert.ok(Date.now() - t0 < 2000, `real hook took ${Date.now() - t0} ms`);
+});
+
+test("the docs agents follow never recommend a filtered install, and AGENTS.md's Enforcement map names the rule", () => {
+  // Codex, Cursor, Copilot and Gemini get no hook: for them these docs are the whole guard (fix round 1, 2026-10-17)
+  const ROOT = join(HERE, "..", "..");
+  const recommended = /--filter[ =]"[^"\n]*\.\.\."/; // the incident's advice: --filter "<app>..."
+  for (const f of ["AGENTS.md", ".agents/frameworks/ciitty/SKILL.md", "agent-os/product/tech-stack.md", "agent-os/standards/global/tech-stack.md", ".claude/skills/harness-worktree-setup/SKILL.md"]) {
+    const text = readFileSync(join(ROOT, f), "utf8");
+    const hit = text.split("\n").findIndex((l) => recommended.test(l));
+    assert.equal(hit, -1, `${f}:${hit + 1} still recommends a filtered install`);
+  }
+  const agents = readFileSync(join(ROOT, "AGENTS.md"), "utf8");
+  const row = agents.split("\n").find((l) => l.startsWith("| ") && l.includes("blocked at the tool call")) ?? "";
+  assert.match(row, /shared-deps-mutation/, "the Enforcement map row names the rule");
+  assert.match(agents, /full, unfiltered `pnpm install --frozen-lockfile`/, "AGENTS.md says what to run instead");
 });
 
 test("the worktree rule's fix text never recommends a filtered command again", () => {

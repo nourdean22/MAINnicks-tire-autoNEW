@@ -153,8 +153,9 @@ instead:
 
 1. Create the worktree OUTSIDE `.worktrees/`: a plain `git worktree add`, not
    the harness's `.claude/worktrees/*` path.
-2. Install with the `...` filter suffix — `pnpm install --filter "@<app>/..."`
-   — a few minutes, since this is a real install, not a junction.
+2. Install in that worktree with a full, unfiltered `pnpm install --frozen-lockfile`
+   — a few minutes, since this is a real install, not a junction. (A filtered
+   install is denied by rule `shared-deps-mutation` in any cwd since 2026-10-17.)
 3. `pnpm exec tsc -p tsconfig.json` inside every workspace-internal package
    the app depends on, before the app's own typecheck. Witnessed:
    `typecheck:raw` failed on three unbuilt packages (`@nour/ai-capabilities`,

@@ -30,8 +30,10 @@ generalize a pattern from one app to the other.**
 - **`apps/worker` has no database client by design.** A change that needs data there is a design
   error, not a missing dependency.
 - **`packages/**` changes hit BOTH web apps** — build the package before testing consumers.
-- **Dependency installs need the ellipsis**: `pnpm install --frozen-lockfile --filter "<app>..."`.
-  A bare `--filter` skips workspace deps and yields phantom import failures.
+- **Dependency installs are full and unfiltered**: `pnpm install --frozen-lockfile` in the primary checkout, when no
+  sibling session is mid-run. Never filter, add or remove there: every worktree's `node_modules` is a junction into it,
+  and a filtered add pruned vite for all of them on 2026-10-17 (rule `shared-deps-mutation`). New deps: the
+  scratchpad-clone recipe in `.claude/skills/harness-worktree-setup/SKILL.md` section 3.
 - **Tests are not symmetric.** nickstire must run serial (`--pool=forks
   --poolOptions.forks.singleFork=true`) on Windows; statenour needs `@statenour/lenses` built
   first; worker has no suite at all.
