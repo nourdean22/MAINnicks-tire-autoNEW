@@ -7,9 +7,20 @@
  * costs more than a tap has a base rate of zero here.
  *
  * Priority: an overdue decision review (DecisionReplay reviewAt <= now,
- * reviewed=false, oldest first) beats a 3-option retrieval question built
- * from a `wisdom` memory. Retrieval beats re-reading; a scored decision beats
+ * reviewed=false, oldest first) beats a retrieval question built from a
+ * `wisdom` memory. Retrieval beats re-reading; a scored decision beats
  * journaling (Harvard RCT 2025).
+ *
+ * Recall is free recall first (deep scout v2 item 9, 2026-10-17): multiple
+ * choice measures recognition, FSRS rates recall. Step 1 asks for the principle
+ * unaided: "I have it" (K) reveals it for a self-grade (R / X, unaided),
+ * "Show options" (H) sends the 3 options (A/B/C, hinted). K and H write nothing.
+ * resultRef carries the marker (`tutor:R:unaided`, `tutor:B:hint`). A hinted
+ * answer schedules as a miss; the ledger's `useful` stays "answered correctly".
+ * Limits: H then "I have it" can still record :unaided (H writes nothing by
+ * design and the grade is self-reported); "write nothing" means no ledger, memory
+ * or schedule write, since the webhook's ActionReceipt and update-claim rows are
+ * written for every callback.
  *
  * The tap lands in the outcome ledger (kind "suggestion", sourceEngine
  * "tutor:recall" | "tutor:decision"), so the 14-day kill criterion is readable
@@ -62,7 +73,9 @@ const RECALL_WINDOW_MS = 30 * DAY_MS;
 const SPACED_REVIEW_CATEGORY = "spaced_review";
 /** The spacing ladder 1/3/7/30 is copied from mode-learn.tsx on purpose: same consumer, same cadence. */
 const SPACED_LADDER = [1, 3, 7, 30];
-const RECALL_CHOICES = new Set(["A", "B", "C", "S"]);
+// K/H are read-only steps; R/X grade unaided; A/B/C grade hinted (also a pre-scout message's buttons).
+const RECALL_CHOICES = new Set(["A", "B", "C", "S", "K", "H", "R", "X"]);
+const UNAIDED = new Set(["R", "X"]);
 const DECISION_CHOICES = new Set(["W", "M", "D", "N", "S"]);
 const DECISION_LABELS: Record<string, { label: string; score: number }> = {
   W: { label: "Worked", score: 5 },
@@ -131,6 +144,12 @@ async function pickOverdueDecision(now: Date): Promise<TutorItem | null> {
   };
 }
 
+/** One derivation for the topic, so step 1 and the Show options message name the same one. */
+function topicOf(content: string): string {
+  const discipline = tagMungerDisciplines(content)[0];
+  return discipline === "uncategorized" ? "your work" : discipline.replace("-", " ");
+}
+
 async function pickRecall(now: Date): Promise<TutorItem | null> {
   const [asked, spaced, wisdom] = await Promise.all([
     prisma.intelligenceOutcome.findMany({
@@ -185,7 +204,7 @@ async function pickRecall(now: Date): Promise<TutorItem | null> {
   return {
     kind: "recall",
     memoryId: target.id,
-    topic: discipline === "uncategorized" ? "your work" : discipline.replace("-", " "),
+    topic: topicOf(target.content),
     options: options as [string, string, string],
     correct: "ABC"[pos] as "A" | "B" | "C",
   };
@@ -212,14 +231,33 @@ export async function composeTutorItem(now: Date = new Date()): Promise<TutorIte
   return (await composeWithStatus(now)).item;
 }
 
+const tutorButton = (ledgerId: string) => (text: string, choice: string): InlineButton => ({ text, callback_data: `tut:${ledgerId}:${choice}` });
+
+/** Step 2 of a recall item: K reveals the principle for a self-grade, H shows the 3 options. */
+function renderRecallStep(step: "K" | "H", ledgerId: string, options: string[], answer: string): TutorNext {
+  const btn = tutorButton(ledgerId);
+  if (step === "K") {
+    return {
+      text: `Daily Tutor. The principle:\n\n${escapeHtml(clip(answer, 120))}\n\nDid you have it?`,
+      buttons: [[btn("Got it", "R"), btn("Missed it", "X")]],
+    };
+  }
+  const lines = options.map((o, i) => `${"ABC"[i]}. ${escapeHtml(clip(o, 120))}`);
+  return {
+    text: `Daily Tutor. Which of these is the principle you distilled about ${escapeHtml(topicOf(answer))}?\n\n${lines.join("\n")}`,
+    buttons: [[btn("A", "A"), btn("B", "B"), btn("C", "C")]],
+  };
+}
+
+export type TutorNext = { text: string; buttons: InlineButton[][] };
+
 /** Nour's voice: direct, calm, no emojis, no exclamation marks. HTML parse mode, so escape. */
 export function renderTutorMessage(item: TutorItem, ledgerId: string): { text: string; buttons: InlineButton[][] } {
-  const btn = (text: string, choice: string): InlineButton => ({ text, callback_data: `tut:${ledgerId}:${choice}` });
+  const btn = tutorButton(ledgerId);
   if (item.kind === "recall") {
-    const lines = item.options.map((o, i) => `${"ABC"[i]}. ${escapeHtml(clip(o, 120))}`);
     return {
-      text: `Daily Tutor. Which of these is the principle you distilled about ${escapeHtml(item.topic)}?\n\n${lines.join("\n")}`,
-      buttons: [[btn("A", "A"), btn("B", "B"), btn("C", "C"), btn("Skip", "S")]],
+      text: `Daily Tutor. Recall the principle you distilled about ${escapeHtml(item.topic)}, then tap.`,
+      buttons: [[btn("I have it", "K"), btn("Show options", "H"), btn("Skip", "S")]],
     };
   }
   return {
@@ -267,7 +305,7 @@ export async function fireTutorPush(options?: { dryRun?: boolean; now?: Date }):
     const sources: PushSource[] = item
       ? [
           item.kind === "recall"
-            ? { id: item.memoryId, category: "system_context", title: "Wisdom recall", summary: `3-option retrieval on a wisdom row (${item.topic})`, confidence: "high", reason: "Not asked in 30 days, or its spaced review is due." }
+            ? { id: item.memoryId, category: "system_context", title: "Wisdom recall", summary: `Free recall on a wisdom row, 3 options on request (${item.topic})`, confidence: "high", reason: "Not asked in 30 days, or its spaced review is due." }
             : { id: item.replayId, category: "system_context", title: "Overdue decision review", summary: `${item.title} (${item.date})`, confidence: "high", reason: "DecisionReplay reviewAt passed and reviewed=false.", href: "/journal" },
         ]
       : readFailed
@@ -290,7 +328,7 @@ export async function fireTutorPush(options?: { dryRun?: boolean; now?: Date }):
       rateLimitBlocked: false,
       sourceFunction: "fireTutorPush",
       riskFlags,
-      nextSafeStep: "Verify the question reads as one tap.",
+      nextSafeStep: "Verify the question reads as one or two taps.",
       sources,
     };
   }
@@ -398,10 +436,13 @@ async function deferSpacedReview(memoryId: string, now: Date): Promise<void> {
  * updates `where: { id, decision: null }`, so a redelivered tap loses the swap.
  * An ACCEPTED row with no outcome means a write after the won claim failed: the
  * next tap resumes the grade with the choice the claim recorded (resultRef
- * `tutor:<choice>`), and recordOutcomeResult's own swap decides who finishes it.
+ * `tutor:<choice>`, plus `:unaided` / `:hint` on recall), and recordOutcomeResult's
+ * own swap decides who finishes it.
  * A dismissed row (Skip, Not yet) never gets an outcome, so it is final.
+ * K and H (recall step 2) are read-only: they return `next` for the webhook to
+ * send and write nothing, so a repeated K just re-sends the reveal.
  */
-export async function handleTutorAnswer(ledgerId: string, tapped: string): Promise<{ reply: string }> {
+export async function handleTutorAnswer(ledgerId: string, tapped: string): Promise<{ reply: string; next?: TutorNext }> {
   const malformed = { reply: "Malformed." };
   const again = { reply: "Could not record - try again." };
   const already = { reply: "Already recorded." };
@@ -419,9 +460,22 @@ export async function handleTutorAnswer(ledgerId: string, tapped: string): Promi
   const ev = (row.evidenceRefs ?? {}) as Record<string, unknown>;
   const now = new Date();
 
+  if (tapped === "K" || tapped === "H") {
+    // Accepted with no outcome is a stranded grade: any grade button resumes it with the recorded choice.
+    if (row.decision === "accepted" && !row.outcomeAt) return { reply: "Already answered - tap a grade button below to finish." };
+    if (row.decision) return already;
+    const options = Array.isArray(ev.options) ? (ev.options as string[]) : [];
+    const answer = /^[ABC]$/.test(String(ev.correct)) ? options["ABC".indexOf(String(ev.correct))] : undefined;
+    if (options.length !== 3 || typeof answer !== "string") return malformed;
+    return { reply: "", next: renderRecallStep(tapped, ledgerId, options, answer) };
+  }
+  // The unaided marker rides on resultRef (no schema change): tutor:R:unaided, tutor:B:hint. Decision refs stay tutor:<choice>.
+  const refOf = (c: string) => `tutor:${c}${kind === "recall" ? (UNAIDED.has(c) ? ":unaided" : ":hint") : ""}`;
+
   let choice = tapped;
   if (row.decision) {
-    const recorded = /^tutor:([A-Z])$/.exec(row.resultRef ?? "")?.[1];
+    // Pre-scout claims recorded tutor:<letter> with no marker; a letter is always a hinted answer.
+    const recorded = /^tutor:([A-Z])(?::(?:unaided|hint))?$/.exec(row.resultRef ?? "")?.[1];
     if (row.decision !== "accepted" || row.outcomeAt || !recorded || !choices.has(recorded)) return already;
     choice = recorded;
   } else {
@@ -430,7 +484,7 @@ export async function handleTutorAnswer(ledgerId: string, tapped: string): Promi
     const claimed = await recordDecision({
       id: ledgerId,
       decision: dismiss ? "dismissed" : "accepted",
-      resultRef: dismiss ? "dismiss:timing" : `tutor:${choice}`,
+      resultRef: dismiss ? "dismiss:timing" : refOf(choice),
     });
     if (!claimed) {
       const winner = await prisma.intelligenceOutcome.findUnique({ where: { id: ledgerId }, select: { decision: true } });
@@ -447,26 +501,29 @@ export async function handleTutorAnswer(ledgerId: string, tapped: string): Promi
   }
 
   if (kind === "recall") {
-    const correct = choice === ev.correct;
-    const outcome = await recordOutcomeResult({ id: ledgerId, useful: correct, resultRef: `tutor:${choice}` });
+    const unaided = UNAIDED.has(choice);
+    const correct = unaided ? choice === "R" : choice === ev.correct;
+    const outcome = await recordOutcomeResult({ id: ledgerId, useful: correct, resultRef: refOf(choice) });
     if (outcome === "failed") return again;
     if (outcome === "already") return already;
     const options = Array.isArray(ev.options) ? (ev.options as string[]) : [];
     const answer = options["ABC".indexOf(String(ev.correct))] ?? "";
     const memoryId = typeof ev.memoryId === "string" ? ev.memoryId : null;
+    // FSRS rates recall: an answer picked from the options schedules as a miss ("Again"),
+    // while the ledger's `useful` above keeps "answered correctly" for the W2 kill criterion.
+    const recalled = unaided && correct;
     const days = memoryId
-      ? await scheduleSpacedReview(memoryId, tagMungerDisciplines(answer)[0], answer, correct, now).catch((err) => {
+      ? await scheduleSpacedReview(memoryId, tagMungerDisciplines(answer)[0], answer, recalled, now).catch((err) => {
           logError("brain.tutor-pack", err, { fn: "handleTutorAnswer.spaced", ledgerId }, "warn");
           return null;
         })
       : null;
-    const miss = `Not this one. It was: ${clip(answer, 100)}.`;
-    if (days === "cleared") {
-      const note = "Logged. That card was cleared in Learn, so no new date.";
-      return { reply: correct ? note : `${miss} ${note}` };
-    }
-    if (days === null) return { reply: correct ? "Logged, schedule failed." : `${miss} Logged, schedule failed.` };
-    return { reply: correct ? `Right. Next ask in ${days} day${days === 1 ? "" : "s"}.` : `${miss} Again tomorrow.` };
+    // Only a wrong letter needs the answer: K already showed it before R or X.
+    const lead = (s: string) => (!unaided && !correct ? `Not this one. It was: ${clip(answer, 100)}. ${s}` : s);
+    if (days === "cleared") return { reply: lead("Logged. That card was cleared in Learn, so no new date.") };
+    if (days === null) return { reply: lead("Logged, schedule failed.") };
+    if (recalled) return { reply: `Right. Next ask in ${days} day${days === 1 ? "" : "s"}.` };
+    return { reply: lead(unaided ? "Logged. Again tomorrow." : correct ? "Right, with the options. Again tomorrow." : "Again tomorrow.") };
   }
 
   const replayId = typeof ev.replayId === "string" ? ev.replayId : null;
