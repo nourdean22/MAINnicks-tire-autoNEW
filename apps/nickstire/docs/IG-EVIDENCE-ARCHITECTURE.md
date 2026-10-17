@@ -145,8 +145,9 @@ Three numbers, each constrained by something measured:
 - **The timer is never cleared.** `fetch` settles at response *headers*; tRPC then reads the body
   with nothing watching. Clearing on settle left a stalled body unbounded.
 
-`splitLink` routes `UNBATCHED_SLOW_PROCEDURES` (currently `instagramAdmin.getPerformanceReport`)
-outside the batch. **Add any LLM-backed page-load query to that set** — `httpBatchLink` puts
+`splitLink` in `client/src/main.tsx` routes `UNBATCHED_SLOW_PROCEDURES`, defined in
+`client/src/lib/unbatchedProcedures.ts` (currently `instagramAdmin.getPerformanceReport` and
+`lot.officeDigest`), outside the batch. **Add any LLM-backed page-load query to that set** — `httpBatchLink` puts
 concurrent queries in one HTTP request, so the slowest decides when every other card's data arrives.
 The remaining Insights queries still share a batch *on purpose*: they are local table reads.
 
