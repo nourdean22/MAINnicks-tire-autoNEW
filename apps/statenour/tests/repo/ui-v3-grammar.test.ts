@@ -88,15 +88,14 @@ describe("uppercase safety net in base.css", () => {
   });
 });
 
-describe("the net stays out of the chat shell until Wave 3 (review round 2, item 1)", () => {
-  // The attribute is data-chat-shell, not data-ui-*: ui-v2-grammar pins that no `data-ui` gate exists
-  // (the retired v1 comparison lane used one). jsdom is not installed, so the selector is checked by
-  // text and the attribute by source; a browser check is in the PR body.
-  it("excludes descendants of [data-chat-shell] by selector", () => {
-    expect(netRule()!.selector).toContain(":not([data-chat-shell] *)");
+describe("the net covers the chat shell since W3b (W1a kept it out until Wave 3)", () => {
+  // W3b reworded the seven chat-v2 uppercase sites, so the chat shell no longer needs an exemption:
+  // a stray `uppercase` inside chat reads sentence case like everywhere else.
+  it("has no [data-chat-shell] exclusion in its selector", () => {
+    expect(netRule()!.selector).not.toContain("data-chat-shell");
   });
 
-  it("the chat page root carries data-chat-shell, so the seven chat-v2 uppercase sites keep their case", () => {
+  it("the chat page root still carries data-chat-shell: the six-feet render's settleChat locates the island by `[data-chat-shell] > div`", () => {
     const page = read("app/(mastery)/chat/page.tsx").replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
     const root = page.match(/return \(\s*<div([^>]*)>/);
     expect(root, "no root <div> after return (").not.toBeNull();

@@ -293,6 +293,22 @@ describe("auto-retry never turns a failed reattach into a resend", () => {
     expect(vi.mocked(h.chat.regenerate as () => void).mock.calls.length - manual).toBe(0);
     expect(vi.mocked(toast.error).mock.calls.at(-1)?.[0], "the hold says why").toBe(RETRY_HELD_NO_RECORD);
   });
+
+  // W3b: the toast is transient; the controller keeps the hold's words so the error card can show
+  // them until the operator moves on (a new send clears it).
+  it("the hold's words stay on the controller after the toast, and a new send clears them", async () => {
+    reconnect();
+    act(() => void ctl.regenerate());
+    h.chat.messages = [user, reply];
+    networkKill();
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+    render();
+    expect(ctl.hold).toBe(RETRY_HELD_NO_RECORD);
+
+    act(() => void ctl.sendText("another question"));
+    render();
+    expect(ctl.hold).toBeNull();
+  });
 });
 
 // R3-05 (04-F7 + 04-H4): every Retry path (error card, interrupted card, the
