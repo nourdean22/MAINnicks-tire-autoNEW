@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
+import { readStatus } from "@/lib/queryState";
 import { StatCard, useUrlFilter, FilterChips, openCustomerDrawer, ErrorState } from "../shared";
 import { CustomersBrief } from "./CustomersBrief";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
@@ -73,10 +74,13 @@ export function CustomersList({ onOpenCustomer }: { onOpenCustomer: (id: number)
   const [commercialOnly, setCommercialOnly] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
 
-  const { data: stats, isError: statsFailed } = trpc.customers.stats.useQuery(undefined, { refetchInterval: 30000 });
+  const statsQuery = trpc.customers.stats.useQuery(undefined, { refetchInterval: 30000 });
+  const { data: stats, isError: statsFailed } = statsQuery;
+  // A paused (offline PWA) stats read has no data and no error: show no number, never a 0.
+  const statsPaused = !statsFailed && statsQuery.fetchStatus === "paused";
   // A failed stats read is unknown, not zero: every tile shows a dash and says so.
-  const tile = (n: number | undefined) => (statsFailed ? UNKNOWN : n ?? 0);
-  const tileNote = statsFailed ? "Unable to determine" : undefined;
+  const tile = (n: number | undefined) => (statsFailed || statsPaused ? UNKNOWN : n ?? 0);
+  const tileNote = statsFailed || statsPaused ? "Unable to determine" : undefined;
   const { data: campaignStats } = trpc.customers.campaignStats.useQuery(undefined, { refetchInterval: 30000 });
 
   // wave-181.x SA v2 Wave 3 (Elon · single surface) · pull v2 service-
@@ -99,7 +103,7 @@ export function CustomersList({ onOpenCustomer }: { onOpenCustomer: (id: number)
     return map;
   }, [affinityData]);
 
-  const { data: listData, isLoading, isError: listFailed, refetch: refetchList } = trpc.customers.list.useQuery({
+  const listQuery = trpc.customers.list.useQuery({
     page,
     pageSize,
     search: debouncedSearch || undefined,
@@ -113,6 +117,9 @@ export function CustomersList({ onOpenCustomer }: { onOpenCustomer: (id: number)
     hasEmail: hasEmail || undefined,
     customerType: commercialOnly ? "commercial" : undefined,
   }, { refetchInterval: 30000 });
+  const { data: listData, isLoading, isError: listFailed, refetch: refetchList } = listQuery;
+  // Paused (offline) or never run: the list is unknown, never "No customers found".
+  const listUnread = !listFailed && readStatus(listQuery).state === "unavailable";
 
   const enrichMutation = trpc.customers.enrich.useMutation({
     onSuccess: (result) => {
@@ -166,6 +173,25 @@ export function CustomersList({ onOpenCustomer }: { onOpenCustomer: (id: number)
 
   return (
     <div className="space-y-6">
+      {/* Lookup first (admin UI v1 W4): the counter's job is "find this customer", so the one search field
+          leads, sticky under the topbar on phones. No autofocus: it would pop the keyboard on every visit. */}
+      <div className="sticky top-[calc(3.5rem+env(safe-area-inset-top,0px))] z-20 -mx-1 px-1 py-2 bg-background lg:static lg:p-0 lg:m-0">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40" aria-hidden />
+          <input
+            type="search"
+            inputMode="search"
+            enterKeyHint="search"
+            autoComplete="off"
+            aria-label="Search customers"
+            placeholder="Name, phone, email, city or vehicle"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full min-h-12 bg-card border border-border/40 rounded-md pl-10 pr-4 text-base text-foreground placeholder:text-foreground/40 focus:outline-none focus:border-primary/60"
+          />
+        </div>
+      </div>
+
       {/* wave-181.x Customers Phase 2 · CustomersBrief header.
           3-line auto-narrative of roster · LTV · top action (lapsed).
           Composes from the same trpc.customers.stats query the
@@ -217,7 +243,7 @@ export function CustomersList({ onOpenCustomer }: { onOpenCustomer: (id: number)
         />
         <StatCard
           label="Total Revenue"
-          value={statsFailed ? UNKNOWN : `$${Math.round((stats?.totalRevenue ?? 0) / 100).toLocaleString()}`}
+          value={statsFailed || statsPaused ? UNKNOWN : `$${Math.round((stats?.totalRevenue ?? 0) / 100).toLocaleString()}`}
           trendLabel={tileNote}
           icon={<DollarSign className="w-4 h-4" aria-hidden />}
           color="text-emerald-400"
@@ -351,16 +377,6 @@ export function CustomersList({ onOpenCustomer }: { onOpenCustomer: (id: number)
       {/* Filters */}
       <div className="space-y-3">
         <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/30" />
-            <input
-              type="text"
-              placeholder="Search name, phone, email, city, vehicle..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="w-full bg-card border border-border/30 pl-10 pr-4 py-2.5 text-sm text-foreground placeholder:text-foreground/30 focus:outline-none focus:border-primary/50"
-            />
-          </div>
           <div className="flex items-center gap-2">
             <Filter className="w-4 h-4 text-foreground/30" />
             {(["all", "recent", "lapsed", "new", "unknown"] as Segment[]).map(s => (
@@ -533,8 +549,49 @@ export function CustomersList({ onOpenCustomer }: { onOpenCustomer: (id: number)
         />
       </div>
 
+      {/* One state block for both layouts, so a failed, paused or empty read says so once. */}
+      {isLoading ? (
+        <div className="p-8 flex justify-center bg-card border border-border/30">
+          <Loader2 className="w-5 h-5 animate-spin text-primary" aria-label="Loading customers" />
+        </div>
+      ) : listFailed ? (
+        <ErrorState message="Customers couldn't load. The list is unknown, not empty." onRetry={() => void refetchList()} />
+      ) : listUnread ? (
+        <ErrorState message="Customer list not checked (offline). Unknown, not empty." onRetry={() => void refetchList()} />
+      ) : !listData?.customers.length ? (
+        <p className="p-8 text-center text-foreground/50 text-[14px] bg-card border border-border/30">No customers found</p>
+      ) : (
+      <>
+      {/* Phones: ruled rows, one verb (admin UI v1 W4, Today's row grammar). The table below stays for lg and up. */}
+      <ul aria-label="Customers" className="lg:hidden divide-y divide-border/30 border-y border-border/30">
+        {listData.customers.map((c: ListedCustomer) => {
+          const name = `${c.firstName} ${c.lastName || ""}`.trim() || c.phone || "Customer";
+          const daysAgo = c.daysSinceLastVisit ?? (c.lastVisitDate ? Math.floor((Date.now() - new Date(c.lastVisitDate).getTime()) / 86400000) : null);
+          return (
+            <li key={c.id} className="py-3 flex items-center gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-[16px] leading-snug font-semibold truncate">{name}</p>
+                <p className="text-[13px] text-muted-foreground truncate">
+                  {c.phone ? <a href={`tel:${c.phone}`} className="underline-offset-2 hover:underline">{c.phone}</a> : "No phone"}
+                  {" · "}
+                  {daysAgo === null ? "No visit on file" : daysAgo === 0 ? "Visited today" : `Last visit ${daysAgo} ${daysAgo === 1 ? "day" : "days"} ago`}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onOpenCustomer(c.id)}
+                aria-label={`Open ${name}`}
+                className="min-h-12 px-4 shrink-0 rounded-md bg-secondary text-foreground text-[14px] font-semibold border border-border/60"
+              >
+                Open
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+
       {/* Table */}
-      <div className="bg-card border border-border/30 overflow-x-auto">
+      <div className="hidden lg:block bg-card border border-border/30 overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border/20">
@@ -584,26 +641,8 @@ export function CustomersList({ onOpenCustomer }: { onOpenCustomer: (id: number)
             </tr>
           </thead>
           <tbody>
-            {isLoading ? (
-              <tr>
-                <td colSpan={10} className="p-8 text-center text-foreground/30">
-                  <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
-                </td>
-              </tr>
-            ) : listFailed ? (
-              <tr>
-                <td colSpan={10}>
-                  <ErrorState message="Customers couldn't load. The list is unknown, not empty." onRetry={() => void refetchList()} />
-                </td>
-              </tr>
-            ) : listData?.customers.length === 0 ? (
-              <tr>
-                <td colSpan={10} className="p-8 text-center text-foreground/30 text-[12px]">
-                  No customers found
-                </td>
-              </tr>
-            ) : (
-              listData?.customers.map((c: ListedCustomer) => {
+            {(
+              listData.customers.map((c: ListedCustomer) => {
                 const daysAgo = c.daysSinceLastVisit ?? (c.lastVisitDate ? Math.floor((Date.now() - new Date(c.lastVisitDate).getTime()) / 86400000) : null);
                 const isExpanded = expandedId === c.id;
                 return (
@@ -791,25 +830,29 @@ export function CustomersList({ onOpenCustomer }: { onOpenCustomer: (id: number)
           </tbody>
         </table>
       </div>
+      </>
+      )}
 
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
-          <span className="font-mono text-[10px] text-foreground/40 tracking-wider">
-            {listData?.total ?? 0} CUSTOMERS: PAGE {page} OF {totalPages}
+          <span className="text-[13px] text-foreground/60">
+            {listData?.total ?? 0} customers, page {page} of {totalPages}
           </span>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setPage(p => Math.max(1, p - 1))}
               disabled={page <= 1}
-              className="p-2 bg-card border border-border/30 text-foreground/50 hover:text-foreground disabled:opacity-30 transition-colors"
+              aria-label="Previous page"
+              className="inline-flex items-center justify-center min-h-12 min-w-12 bg-card border border-border/30 text-foreground/60 hover:text-foreground disabled:opacity-30 transition-colors"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
             <button
               onClick={() => setPage(p => Math.min(totalPages, p + 1))}
               disabled={page >= totalPages}
-              className="p-2 bg-card border border-border/30 text-foreground/50 hover:text-foreground disabled:opacity-30 transition-colors"
+              aria-label="Next page"
+              className="inline-flex items-center justify-center min-h-12 min-w-12 bg-card border border-border/30 text-foreground/60 hover:text-foreground disabled:opacity-30 transition-colors"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
