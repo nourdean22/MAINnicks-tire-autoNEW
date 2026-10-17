@@ -157,6 +157,32 @@ test("operator asks (2026-10-17): UserPromptSubmit and PreCompact refresh, Sessi
   }
 });
 
+test("skills check (2026-10-17): the configured Stop string blocks a tool turn with no Skill call ONCE, then lets it stop", async () => {
+  const hook = nodeHooks.find((h) => h.event === "Stop" && h.command.includes("skills-check.mjs"));
+  assert.ok(hook, "skills-check.mjs must be configured as a Stop hook");
+  const { mkdtempSync, writeFileSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const dir = mkdtempSync(join(tmpdir(), "skills-hookcmd-"));
+  const transcript = join(dir, "t.jsonl");
+  const entries = [
+    { type: "user", origin: { kind: "human" }, promptId: "p1", message: { role: "user", content: "fix it" } },
+    { type: "assistant", message: { role: "assistant", content: [{ type: "tool_use", id: "t1", name: "Bash", input: { command: "pnpm test" } }] } },
+    { type: "user", toolUseResult: {}, message: { role: "user", content: [{ type: "tool_result", tool_use_id: "t1", content: "ok" }] } },
+  ];
+  writeFileSync(transcript, entries.map((e) => JSON.stringify(e)).join("\n") + "\n");
+  process.env.SKILLS_CHECK_DIR = join(dir, "state");
+  try {
+    const payload = JSON.stringify({ session_id: `skills-${process.pid}`, transcript_path: transcript, stop_hook_active: false, hook_event_name: "Stop" });
+    const first = runHook(hook.command, payload);
+    assert.equal(first.code, 2, `expected a block (exit 2), got ${first.code}\n${first.out}`);
+    assert.match(first.out, /\[skills-check\][\s\S]*using-superpowers/, "the block must be the hook's own, naming the skills");
+    const second = runHook(hook.command, payload);
+    assert.equal(second.code, 0, `the second stop must go through\n${second.out}`);
+  } finally {
+    delete process.env.SKILLS_CHECK_DIR;
+  }
+});
+
 test("loop watchdog: the configured PostToolUseFailure string records failed calls (error payload), so 5 identical failures are denied", async () => {
   const fail = nodeHooks.find((h) => h.event === "PostToolUseFailure" && h.command.includes("stuck-watch.mjs"));
   const pre = nodeHooks.find((h) => h.event === "PreToolUse" && h.command.includes("stuck-watch.mjs"));
