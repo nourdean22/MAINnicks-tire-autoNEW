@@ -1267,8 +1267,14 @@ type ConversationQueryData =
   | { ok: true; conversations: ConversationRow[] }
   | { ok: false; reason: string };
 
-/** office-digest v1: one row per clock hour, newest first. */
-type DigestHour = Extract<RouterOutputs["lot"]["officeDigest"], { ok: true }>["hours"][number];
+/** office-digest v2: one row per clock hour, newest first. */
+type DigestHour = Extract<RouterOutputs["lot"]["officeDigest"], { ok: true }>["hours"][number] & {
+  /**
+   * shortcut: office-digest v2 adds computedAtMs (when the model wrote this hour's summary); the server
+   * lane is adding it now. Optional here until it is on the router, then drop this intersection.
+   */
+  computedAtMs?: number | null;
+};
 
 const DIGEST_HOURS = 6;
 const DIGEST_POLL_MS = 60_000;
@@ -1312,7 +1318,7 @@ function OfficeDigest() {
         <h3 className="text-[12px] font-semibold">Last 6 hours</h3>
         {answer === "answered" && data?.ok === true && (
           <span className="text-[11px] text-foreground/40 tabular-nums">
-            updated {stamp(new Date(data.generatedAtMs).toISOString())}
+            checked {stamp(new Date(data.generatedAtMs).toISOString())}
           </span>
         )}
       </div>
@@ -1335,7 +1341,7 @@ function OfficeDigest() {
         <div className="text-[13px] text-foreground/60">No hourly summaries yet.</div>
       ) : (
         <ol aria-label="Hourly summaries" className="divide-y divide-foreground/10">
-          {data.hours.map((h) => {
+          {data.hours.map((h: DigestHour) => {
             const { text, tone } = digestText(h);
             return (
               <li key={h.hourStartMs} className="py-2">
@@ -1351,10 +1357,24 @@ function OfficeDigest() {
                   )}
                 </div>
                 <p className={`mt-1 text-[13px] ${tone}`}>{text}</p>
+                {h.status === "FAILED" && h.error && (
+                  <p className="mt-0.5 text-[11px] text-foreground/50">{h.error}</p>
+                )}
+                {h.status === "DONE" && (h.digest || h.computedAtMs !== undefined) && (
+                  // A model wrote this from gists and facts; it is not a record of what was said.
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-foreground/45 tabular-nums">
+                    {h.digest && <span className="rounded border border-foreground/15 px-1.5 py-0.5">AI summary</span>}
+                    {typeof h.computedAtMs === "number" ? (
+                      <span>summary from {stamp(new Date(h.computedAtMs).toISOString())}</span>
+                    ) : h.computedAtMs === null ? (
+                      <span>summary time not recorded</span>
+                    ) : null}
+                  </div>
+                )}
                 {h.status === "DONE" && h.topics.length > 0 && (
                   <div className="mt-1.5 flex flex-wrap gap-1.5">
                     {h.topics.slice(0, DIGEST_TOPICS_SHOWN).map((t, i) => (
-                      <span key={`${i}-${t}`}className="rounded-full border border-foreground/15 px-2 py-0.5 text-[11px] text-foreground/70">
+                      <span key={`${i}-${t}`} className="rounded-full border border-foreground/15 px-2 py-0.5 text-[11px] text-foreground/70">
                         {t}
                       </span>
                     ))}
@@ -1377,30 +1397,40 @@ function factLabel(kind: string): string {
   return words ? words[0].toUpperCase() + words.slice(1) : "Fact";
 }
 
-/** A conversation's facts under its gist: the first three, then a toggle for the rest. */
-function FactList({ facts }: { facts: NonNullable<ConversationRow["facts"]> }) {
+/**
+ * A conversation's facts under its gist: the first three, then a toggle for the rest. The server sends
+ * at most 12 of `total`, so every count on screen says how many of how many, never "all" of a cut list.
+ */
+function FactList({ facts, total }: { facts: NonNullable<ConversationRow["facts"]>; total: number }) {
   const [all, setAll] = useState(false);
-  if (facts.length === 0) return null;
+  if (facts.length === 0 && total === 0) return null;
+  const capped = total > facts.length;
   const shown = all ? facts : facts.slice(0, FACTS_SHOWN);
+  const toggles = facts.length > FACTS_SHOWN;
   return (
     <div className="mt-1.5">
-      <ul aria-label="Facts heard" className="space-y-1">
-        {shown.map((f, i) => (
-          <li key={`${f.kind}-${i}`} className="text-[12px] text-foreground/80">
-            <span className="font-medium text-foreground/55">{factLabel(f.kind)}: </span>
-            {f.value}
-            {f.evidenceText && <q className="mt-0.5 block text-[11px] text-foreground/45">{f.evidenceText}</q>}
-          </li>
-        ))}
-      </ul>
-      {facts.length > FACTS_SHOWN && (
+      {facts.length > 0 && (
+        <ul aria-label="Facts heard" className="space-y-1">
+          {shown.map((f, i) => (
+            <li key={`${f.kind}-${i}`} className="text-[12px] text-foreground/80">
+              <span className="font-medium text-foreground/55">{factLabel(f.kind)}: </span>
+              {f.value}
+              {f.evidenceText && <q className="mt-0.5 block text-[11px] text-foreground/45">{f.evidenceText}</q>}
+            </li>
+          ))}
+        </ul>
+      )}
+      {capped && (all || !toggles) && (
+        <div className="mt-1 text-[11px] text-foreground/45">Showing {facts.length} of {total} facts</div>
+      )}
+      {toggles && (
         <button
           type="button"
           aria-expanded={all}
           className="min-h-12 rounded-md px-3 text-[12px] text-foreground/60 underline active:scale-95"
           onClick={() => setAll((v) => !v)}
         >
-          {all ? "Show fewer" : `Show all ${facts.length}`}
+          {all ? "Show fewer" : capped ? `Show ${facts.length} of ${total}` : `Show all ${facts.length}`}
         </button>
       )}
     </div>
@@ -1682,6 +1712,8 @@ function ConversationPanel({
                     : status === "SKIPPED"
                       ? "border-foreground/20 bg-foreground/5 text-foreground/60"
                       : "border-amber-500/30 bg-amber-500/10 text-amber-300";
+              // A stale factCount must never claim fewer facts than the row lists.
+              const factTotal = Math.max(row.factCount, row.facts?.length ?? 0);
               const coverage =
                 row.coverage === null
                   ? "coverage unknown"
@@ -1727,7 +1759,7 @@ function ConversationPanel({
                           {row.gist}
                         </div>
                       )}
-                      {row.facts && <FactList facts={row.facts} />}
+                      {row.facts && <FactList facts={row.facts} total={factTotal} />}
                       <div className={row.gist && !row.summary ? "mt-1 text-[11px] text-foreground/45" : "mt-1 text-[13px] text-foreground/85"}>
                         {summaryText}
                       </div>
@@ -1765,7 +1797,7 @@ function ConversationPanel({
                   <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-foreground/50 tabular-nums">
                     <span>{coverage}</span>
                     <span>
-                      {row.factCount} fact{row.factCount === 1 ? "" : "s"}
+                      {factTotal} fact{factTotal === 1 ? "" : "s"}
                     </span>
                     <span>{duration}</span>
                     {row.speakerCount !== null && (

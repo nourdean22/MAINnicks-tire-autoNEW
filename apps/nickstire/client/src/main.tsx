@@ -1,4 +1,5 @@
 import { trpc } from "@/lib/trpc";
+import { UNBATCHED_SLOW_PROCEDURES } from "@/lib/unbatchedProcedures";
 import { UNAUTHED_ERR_MSG } from '@shared/const';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { httpBatchLink, httpLink, splitLink, TRPCClientError } from "@trpc/client";
@@ -178,9 +179,7 @@ function boundedSignal(existing: AbortSignal | null | undefined): AbortSignal {
  * independently" — if one of the five is ever measured slow, it joins this set
  * rather than the batch being abandoned.
  */
-const UNBATCHED_SLOW_PROCEDURES = new Set<string>([
-  "instagramAdmin.getPerformanceReport",
-]);
+// The set itself: client/src/lib/unbatchedProcedures.ts.
 
 const httpOptions = {
   url: "/api/trpc",

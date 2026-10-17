@@ -60,6 +60,7 @@ vi.mock("@/lib/trpc", () => {
 });
 vi.mock("@/pages/admin/CommissioningPanel", () => ({ default: h.Null }));
 import LotSection from "@/pages/admin/LotSection";
+import { UNBATCHED_SLOW_PROCEDURES } from "@/lib/unbatchedProcedures";
 
 const HOUR = 3_600_000;
 // 2026-10-17 18:00 UTC is 2 PM in Cleveland (EDT) and 8 AM in Honolulu.
@@ -77,7 +78,7 @@ const DIGEST = {
   generatedAtMs: TWO_PM_ET + 20 * 60_000,
   hours: [
     hour(TWO_PM_ET, {
-      isCurrent: true, episodes: 3, talkSeconds: 720, factCount: 4, status: "DONE",
+      isCurrent: true, episodes: 3, talkSeconds: 720, factCount: 4, status: "DONE", computedAtMs: TWO_PM_ET + 40 * 60_000,
       digest: "Two tire quotes and one pickup question.",
       topics: ["tire quote", "pickup time", "alignment", "brakes", "price check", "warranty"],
     }),
@@ -191,6 +192,36 @@ describe("Last 6 hours digest", () => {
     });
   }
 
+  it("a DONE hour says when it was summarized, in shop time, and that a model wrote it", () => {
+    setOffice();
+    render(<LotSection />);
+    const [done, thin] = hourRows();
+    expect(done.textContent).toContain("summary from");
+    expect(done.textContent).toContain("2:40 PM");
+    expect(within(done).getByText("AI summary")).toBeTruthy();
+    expect(within(thin).queryByText("AI summary")).toBeNull();
+    expect(thin.textContent).not.toContain("summary from");
+  });
+
+  it("labels the panel stamp as the time the summary was checked, not written", () => {
+    setOffice();
+    render(<LotSection />);
+    expect(within(block()).getByText(/^checked /)).toBeTruthy();
+    expect(within(block()).queryByText(/^updated /)).toBeNull();
+  });
+
+  it("a FAILED hour with an error says what failed", () => {
+    setOffice();
+    render(<LotSection />);
+    const failed = hourRows()[3];
+    expect(failed.textContent).toContain("Summary failed");
+    expect(failed.textContent).toContain("model timeout");
+  });
+
+  it("is read on its own request, so a slow model never holds the batched Lot reads", () => {
+    expect(UNBATCHED_SLOW_PROCEDURES.has("lot.officeDigest")).toBe(true);
+  });
+
   it("says loading while the first read is in flight", () => {
     setOffice({ digest: { data: undefined, isPending: true, fetchStatus: "fetching" } });
     render(<LotSection />);
@@ -224,6 +255,30 @@ describe("conversation facts", () => {
     render(<LotSection />);
     expect(within(factList()).getAllByRole("listitem")).toHaveLength(2);
     expect(screen.queryByRole("button", { name: /Show all/ })).toBeNull();
+  });
+
+  const twelve = Array.from({ length: 12 }, (_, i) => fact("note", `value ${i}`, `said ${i}`));
+
+  it("when the server capped the list, the toggle and the note say 12 of N, never all", () => {
+    setOffice({ conversations: [convo("c-1", { factCount: 15, facts: twelve })] });
+    render(<LotSection />);
+    expect(screen.queryByRole("button", { name: /Show all/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Show 12 of 15" }));
+    expect(within(factList()).getAllByRole("listitem")).toHaveLength(12);
+    expect(screen.getByText("Showing 12 of 15 facts")).toBeTruthy();
+  });
+
+  it("a short capped list says how many it is showing", () => {
+    setOffice({ conversations: [convo("c-1", { factCount: 5, facts: FIVE_FACTS.slice(0, 2) })] });
+    render(<LotSection />);
+    expect(screen.getByText("Showing 2 of 5 facts")).toBeTruthy();
+  });
+
+  it("the row's fact count never claims fewer facts than it lists", () => {
+    setOffice({ conversations: [convo("c-1", { factCount: 3, facts: FIVE_FACTS })] });
+    render(<LotSection />);
+    expect(screen.getByText("5 facts")).toBeTruthy();
+    expect(screen.queryByText("3 facts")).toBeNull();
   });
 
   it("an older server without facts adds nothing to the row", () => {
