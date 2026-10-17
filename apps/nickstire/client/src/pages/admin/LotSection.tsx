@@ -127,6 +127,26 @@ function Unknown({ what, reason }: { what: string; reason?: string }) {
   );
 }
 
+const OFFLINE = "Offline, not checked";
+
+/**
+ * Did this read answer? A PAUSED read (react-query's offline state on the phone PWA: pending,
+ * fetchStatus "paused", no data) never asked, so it is unknown, never "Loading" forever and never
+ * empty. Not client/src/lib/queryState.ts's readStatus: that calls any fetch "loading", and these
+ * reads refetch every 15 s with their last answer on screen.
+ */
+type Answer = "answered" | "loading" | "unknown";
+function answerOf(q: { isError: boolean; isPending: boolean; fetchStatus?: string; data?: unknown }): Answer {
+  if (q.isError) return "unknown";
+  if (q.data === undefined || q.data === null) return q.isPending && q.fetchStatus !== "paused" ? "loading" : "unknown";
+  return (q.data as { ok?: unknown }).ok === false ? "unknown" : "answered";
+}
+
+/** The reason line for a read that is paused offline, or undefined. */
+function offlineReason(q: { fetchStatus?: string; data?: unknown }): string | undefined {
+  return q.fetchStatus === "paused" && q.data === undefined ? OFFLINE : undefined;
+}
+
 function Loading({ what }: { what: string }) {
   return <div className="text-[13px] text-foreground/50">Loading {what}…</div>;
 }
@@ -1085,6 +1105,22 @@ function LotCounter({ label, value, detail, alert = false }: { label: string; va
   );
 }
 
+type DetailPart = { text: string; tone?: string };
+
+/** A row's detail line: each part its own element (admin-v1-fixtures.spec.ts counts "on the property"). */
+function DetailParts({ parts }: { parts: DetailPart[] }) {
+  return (
+    <>
+      {parts.map((p, i) => (
+        <span key={p.text}>
+          {i > 0 && " · "}
+          <span className={p.tone}>{p.text}</span>
+        </span>
+      ))}
+    </>
+  );
+}
+
 /**
  * One car on the floor board (admin UI v1 W3), in Today's row grammar: the dot, the car over one
  * muted detail line, the time on the lot, and ONE verb ("Quote", the walk-in drawer). Everything the
@@ -1129,6 +1165,16 @@ function FloorRow({ v, fetchedAt, now, onMarked }: { v: VisitRow; fetchedAt: num
         ? "bg-amber-400"
         : "bg-muted-foreground/50";
 
+  // Ordered by importance, because a 375 px row truncates the end: a plate that needs a person to
+  // confirm it, then an arrival nobody saw (its clock is a guess), then where the car is.
+  const detail: DetailPart[] = [
+    ...(v.customerMatch === "CONFUSABLE_UNIQUE" ? [{ text: "needs staff confirm", tone: "text-amber-400/80" }] : []),
+    ...(!observed ? [{ text: "since first seen · arrival not observed", tone: "text-amber-400/80" }] : []),
+    { text: stage.label },
+    ...(v.customerMatch === "EXACT" ? [{ text: "customer matched", tone: "text-emerald-400/80" }] : []),
+    ...(observed ? [{ text: "on the property" }] : []),
+  ];
+
   return (
     <li className="py-3">
       <div className="flex items-center gap-3">
@@ -1141,18 +1187,7 @@ function FloorRow({ v, fetchedAt, now, onMarked }: { v: VisitRow; fetchedAt: num
             <span className={`text-[15px] tabular-nums shrink-0 ${dwellTone(dwell)}`}>{formatDuration(dwell)}</span>
           </div>
           <p className="text-[13px] text-muted-foreground truncate">
-            {/* Stage first: on a 375 px row the line truncates, and where the car is matters more.
-                An unobserved arrival is the exception: its clock is a guess, so that is said first. */}
-            {!observed && <span className="text-amber-400/80">since first seen · arrival not observed · </span>}
-            {stage.label}
-            {v.customerMatch === "EXACT" && <span className="text-emerald-400/80"> · customer matched</span>}
-            {v.customerMatch === "CONFUSABLE_UNIQUE" && <span className="text-amber-400/80"> · needs staff confirm</span>}
-            {observed && (
-              <>
-                {" · "}
-                <span>on the property</span>
-              </>
-            )}
+            <DetailParts parts={detail} />
           </p>
         </div>
         {/* A desk screen has room for the three clocks a phone keeps behind "More". */}
@@ -1176,7 +1211,8 @@ function FloorRow({ v, fetchedAt, now, onMarked }: { v: VisitRow; fetchedAt: num
         <button
           type="button"
           onClick={() => openWalkInQuote()}
-          aria-label={v.plateText ? `Quote ${v.plateText}` : "Quote the car with no plate read"}
+          // The drawer opens empty (WalkInCalculatorSection takes no vehicle), so the name promises no car.
+          aria-label="Quote a walk-in"
           className="min-h-12 px-4 shrink-0 whitespace-nowrap rounded-md bg-secondary text-foreground text-[14px] font-semibold border border-border/60"
         >
           Quote
@@ -1184,7 +1220,11 @@ function FloorRow({ v, fetchedAt, now, onMarked }: { v: VisitRow; fetchedAt: num
       </div>
 
       {more && (
-        <div className="mt-2 pl-[18px]">
+        <div data-row-more className="mt-2 pl-[18px]">
+          {/* The whole detail line, unclipped: whatever a 375 px row truncates is here. */}
+          <p className="mb-2 text-[13px] text-muted-foreground">
+            <DetailParts parts={detail} />
+          </p>
           <div className="h-1 rounded-full bg-foreground/10 overflow-hidden">
             <div className={`h-full ${barTone}`} style={{ width: `${pct}%` }} />
           </div>
@@ -1676,12 +1716,18 @@ export default function LotSection() {
   const tick = useTick(TICK_MS);
 
   const n = now.data;
-  const nowFailed = now.isError || (!now.isPending && !n) || n?.ok === false;
+  const nowAnswer = answerOf(now);
+  const healthAnswer = answerOf(health);
+  const floorAnswer = answerOf(onLotVisits);
+  const activityAnswer = answerOf(activity);
+  // isError, no data after the read settled, ok:false, or paused offline: all unknown.
+  const nowFailed = nowAnswer === "unknown";
+  const nowLoading = nowAnswer === "loading";
   const nowReason = now.isError
     ? (now.error?.message ?? "the request failed")
     : n?.ok === false
       ? n.reason
-      : undefined;
+      : offlineReason(now);
 
   // null freshness is UNKNOWN, not fresh. Only a real, recent number is "Live".
   const freshnessUnknown = n?.ok === true && n.staleSeconds === null && !n.neverIngested;
@@ -1715,7 +1761,7 @@ export default function LotSection() {
   const badge: { label: string; variant: "success" | "warning" | "danger" | "neutral" } =
     nowFailed
       ? { label: "Unavailable", variant: "danger" }
-      : now.isPending
+      : nowLoading
         ? { label: "Loading", variant: "neutral" }
         : n?.ok === true && n.neverIngested
           ? { label: "Awaiting first event", variant: "neutral" }
@@ -1737,7 +1783,7 @@ export default function LotSection() {
                   ? // Fresh visits from one camera do not make the fleet healthy: before
                     // 2026-10-02 this said "Live" while sign was CAMERA_OFFLINE.
                     { label: `Live · ${fleet.problems.length} camera issue${fleet.problems.length === 1 ? "" : "s"}`, variant: "warning" }
-                  : fleet.state === "UNKNOWN" && !health.isPending
+                  : fleet.state === "UNKNOWN" && healthAnswer !== "loading"
                     ? { label: "Live · camera health unknown", variant: "warning" }
                     : { label: "Live", variant: "success" };
 
@@ -1786,7 +1832,7 @@ export default function LotSection() {
   // the day's health events. The chip carries one cell per business hour so a blind 10 o'clock
   // is visible beside a watched afternoon instead of averaged into it.
   const watchedChip: { value: string; tone: ChipTone; detail: string | null } = !signLoaded
-    ? { value: health.isPending ? "loading" : "unknown", tone: "muted", detail: "camera health could not be read" }
+    ? { value: healthAnswer === "loading" ? "loading" : "unknown", tone: "muted", detail: "camera health could not be read" }
     : !coverage
       ? { value: "no business hours today", tone: "muted", detail: "coverage is measured over the shop's configured hours" }
       : coverage.pct === null
@@ -1815,7 +1861,7 @@ export default function LotSection() {
   const officeFresh = workerReportFresh(officeCamera);
   const officeCoverage = officeRuntime?.listeningCoverage60m ?? null;
   const officeChip: { value: string; tone: ChipTone; detail: string | null } = !officeCamera
-    ? { value: health.isPending ? "loading" : "unknown", tone: "muted", detail: "office camera health could not be read" }
+    ? { value: healthAnswer === "loading" ? "loading" : "unknown", tone: "muted", detail: "office camera health could not be read" }
     : !officeRuntime
       ? { value: "worker has not reported", tone: "warn", detail: "camera health alone is not capture health" }
       : !officeFresh
@@ -1845,7 +1891,7 @@ export default function LotSection() {
             : { value: "coverage unknown", tone: "muted", detail: "the worker has not reported a listening window yet" };
 
   const signChip: { value: string; tone: ChipTone; detail: string | null } = !signLoaded
-    ? { value: health.isPending ? "loading" : "unknown", tone: "muted", detail: health.isError ? health.error?.message ?? null : "camera health could not be read" }
+    ? { value: healthAnswer === "loading" ? "loading" : "unknown", tone: "muted", detail: health.isError ? health.error?.message ?? null : offlineReason(health) ?? "camera health could not be read" }
     : !signCamera
       ? { value: "no vehicle-truth camera registered", tone: "bad", detail: null }
       : signWatching
@@ -1892,20 +1938,29 @@ export default function LotSection() {
 
   const onLotChipTone: ChipTone = !floorBoardLoaded ? "muted" : notShown && notShown > 0 ? "warn" : "ok";
 
-  // THE CHECKS RAIL SUMMARY (W3): how many of the trust chips are not healthy. A sign camera that is
-  // not watching counts even when its chip is calm grey (dark on its battery at night). An unreadable
-  // health or counter read is said as unknown, never folded into "all healthy".
+  // THE CHECKS RAIL SUMMARY (W3): how many of the trust chips are not healthy, and how many inputs did
+  // not answer. A sign camera that is not watching counts as not healthy even when its chip is calm
+  // grey (dark on its battery at night). A failed, paused or ok:false read, a confidence that cannot
+  // judge and office coverage nobody reported each count as unknown. "all healthy" only when every
+  // input answered, nothing is still loading and nothing is wrong.
   const notHealthy =
     [signChip.tone, watchedChip.tone, confidenceChip.tone, onLotChipTone, officeChip.tone, eventChip.tone].filter(
       (t) => t === "warn" || t === "bad",
     ).length + (signLoaded && signCamera && !signWatching && signChip.tone === "muted" ? 1 : 0);
-  const healthUnknown = !health.isPending && !signLoaded;
-  const unknownParts = [healthUnknown ? "camera health unknown" : null, nowFailed ? "counters unknown" : null].filter(Boolean);
+  const unknownInputs = [
+    healthAnswer === "unknown", // camera health: sign, watched today, office mic
+    nowAnswer === "unknown", // the counters and the last camera event
+    floorAnswer === "unknown", // the floor board
+    activityAnswer === "unknown" || (activityAnswer === "answered" && confidence.level === "UNKNOWN"), // today's counts
+    healthAnswer === "answered" && officeChip.tone === "muted", // office listening coverage not reported
+    nowAnswer === "answered" && n?.ok === true && !n.neverIngested && n.staleSeconds === null, // event freshness
+  ].filter(Boolean).length;
+  const stillLoading = [nowAnswer, healthAnswer, floorAnswer, activityAnswer].includes("loading");
   const railStatus =
-    health.isPending && notHealthy === 0 && unknownParts.length === 0
-      ? "loading"
-      : [notHealthy > 0 ? `${notHealthy} not healthy` : null, ...unknownParts].filter(Boolean).join(", ") || "all healthy";
-  const railAlert = notHealthy > 0 || unknownParts.length > 0;
+    [notHealthy > 0 ? `${notHealthy} not healthy` : null, unknownInputs > 0 ? `${unknownInputs} unknown` : null, stillLoading ? "loading" : null]
+      .filter(Boolean)
+      .join(", ") || "all healthy";
+  const railAlert = notHealthy > 0 || unknownInputs > 0;
 
   return (
     <div className="space-y-5">
@@ -1927,30 +1982,16 @@ export default function LotSection() {
         </button>
       </div>
 
-      {nowFailed ? (
-        <Unknown what="Lot counters" reason={nowReason} />
-      ) : now.isPending ? (
-        <Loading what="lot state" />
-      ) : n?.ok === true && n.neverIngested ? (
-        <EmptyState
-          icon={<Camera className="w-5 h-5" />}
-          title={n.commissioningVisits > 0 ? "No production visits yet" : "No camera events yet"}
-          subtitle={
-            n.commissioningVisits > 0
-              ? `${n.commissioningVisits} commissioning ${n.commissioningVisits === 1 ? "visit is" : "visits are"} recorded and excluded from every counter. Use "Show commissioning runs" below to review them.`
-              : "The vision edge has not delivered a visit. Counters stay blank until real data arrives rather than showing zeros that look like an empty lot."
-          }
-        />
-      ) : n?.ok === true ? (
-        <>
-          {n.truncated && (
-            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-[13px] text-amber-300">
-              More open visits than this read returns. The counters below are a floor,
-              not a total.
-            </div>
-          )}
+      {n?.ok === true && n.truncated && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-[13px] text-amber-300">
+          More open visits than this read returns. The counters are a floor,
+          not a total.
+        </div>
+      )}
 
-          {/* On a desk screen the counters stand beside the board instead of under it, so both fit
+          {/* The board stands on its own read (lot.visits, open only): a failed or paused counter read
+              (lot.now) says unknown in the counters' place and never hides cars the board did load.
+              On a desk screen the counters stand beside the board instead of under it, so both fit
               the first screen and the board keeps the width its clocks need. */}
           <div className="space-y-5 lg:space-y-0 lg:grid lg:grid-cols-[minmax(0,1fr)_200px] lg:gap-10 lg:items-start">
           {/* THE FLOOR BOARD, the page's first object (admin UI v1 W3): who is on the lot, longest
@@ -1962,6 +2003,8 @@ export default function LotSection() {
             </p>
             {onLotVisits.isError ? (
               <Unknown what="Floor board" reason={onLotVisits.error?.message} />
+            ) : offlineReason(onLotVisits) ? (
+              <Unknown what="Floor board" reason={OFFLINE} />
             ) : onLotVisits.isPending ? (
               <Loading what="vehicles on the lot" />
             ) : !onLotVisits.data ? (
@@ -1976,10 +2019,12 @@ export default function LotSection() {
                     Not being watched: the sign camera is {signStateLabel}. Vehicles may be on the
                     property with nothing here to show them.
                   </span>
+                ) : n?.ok === true && n.neverIngested ? (
+                  "The cameras have not delivered a visit yet."
                 ) : (
                   "Nothing on the lot right now."
                 )}
-                {n.counts.onProperty > 0 && (
+                {n?.ok === true && n.counts.onProperty > 0 && (
                   <span className="text-amber-400">
                     {" "}
                     The On property counter says {n.counts.onProperty}, so open visits exist that this
@@ -1990,7 +2035,7 @@ export default function LotSection() {
             ) : (
               <>
                 {/* Marked share, with its denominator (audit N1). Unavailable is said, never zero. */}
-                {n.marks ? (
+                {n?.ok === true && n.marks ? (
                   <div className="mt-2 text-[12px] text-foreground/50">
                     {n.marks.available
                       ? `Marked ${n.marks.openMarked} of ${n.counts.onProperty} on the property` +
@@ -2000,7 +2045,8 @@ export default function LotSection() {
                         (n.marks.serviceDone > 0 ? ` · ${n.marks.serviceDone} marked done` : "") +
                         (n.marks.customerWaiting > 0 ? ` · ${n.marks.customerWaiting} marked waiting` : "") +
                         (n.marks.notAJob > 0 ? ` · ${n.marks.notAJob} not a job` : "")
-                      : "Marks need migration 0145 (vehicle_visit_marks) before the buttons appear."}
+                      : // The vehicle_visit_marks table (migration 0145) is not applied yet.
+                        "Marking cars is not set up yet."}
                   </div>
                 ) : null}
                 <ul aria-label="Vehicles on the lot" className="mt-1 divide-y divide-border border-y border-border">
@@ -2028,7 +2074,23 @@ export default function LotSection() {
             )}
           </section>
 
-          {/* THE COUNTERS, one strip like Today's (W3). Same four numbers and the same notes. */}
+          {/* THE COUNTERS, one strip like Today's (W3). Same four numbers and the same notes, and the
+              same honest states the page always had for lot.now. */}
+          {nowFailed ? (
+            <Unknown what="Lot counters" reason={nowReason} />
+          ) : nowLoading ? (
+            <Loading what="lot state" />
+          ) : n?.ok === true && n.neverIngested ? (
+            <EmptyState
+              icon={<Camera className="w-5 h-5" />}
+              title={n.commissioningVisits > 0 ? "No production visits yet" : "No camera events yet"}
+              subtitle={
+                n.commissioningVisits > 0
+                  ? `${n.commissioningVisits} commissioning ${n.commissioningVisits === 1 ? "visit is" : "visits are"} recorded and excluded from every counter. Use "Show commissioning runs" in Checks to review them.`
+                  : "The vision edge has not delivered a visit. Counters stay blank until real data arrives rather than showing zeros that look like an empty lot."
+              }
+            />
+          ) : n?.ok === true ? (
           <section aria-label="Lot counters" className="grid grid-cols-4 gap-2 lg:grid-cols-1 lg:gap-6 lg:pt-1">
             <LotCounter label="On property" value={n.counts.onProperty} />
             {/* NOT "Waiting". Jacking happens wherever it needs to, so this bucket holds
@@ -2051,9 +2113,8 @@ export default function LotSection() {
             <LotCounter label="In a bay" value={n.counts.inBays} detail="pulled in · bays 1 and 3" />
             <LotCounter label="Pulled out, still here" value={n.counts.postService} alert={n.counts.postService > 0} />
           </section>
+          ) : null}
           </div>
-        </>
-      ) : null}
 
       {/* CHECKS: every panel that shows what the numbers rest on, rather than who is on the lot,
           under one rail (W3). Nothing moved here was deleted; the summary counts what is not healthy. */}
@@ -2105,7 +2166,7 @@ export default function LotSection() {
               label="On the lot"
               value={
                 !floorBoardLoaded
-                  ? onLotVisits.isPending ? "loading" : "unavailable"
+                  ? floorAnswer === "loading" ? "loading" : "unavailable"
                   : onPropertyCount === null
                     ? `${onLot.length} shown`
                     : notShown && notShown > 0
@@ -2163,6 +2224,10 @@ export default function LotSection() {
             {activity.isError ? (
               <Panel title="When the lot is busy" icon={<Clock className="w-4 h-4" />}>
                 <Unknown what="hourly activity" reason={activity.error.message} />
+              </Panel>
+            ) : offlineReason(activity) ? (
+              <Panel title="When the lot is busy" icon={<Clock className="w-4 h-4" />}>
+                <Unknown what="hourly activity" reason={OFFLINE} />
               </Panel>
             ) : activity.isPending ? (
               <Panel title="When the lot is busy" icon={<Clock className="w-4 h-4" />}>
@@ -2277,6 +2342,8 @@ export default function LotSection() {
                subtitle="Producer heartbeats: infrastructure health, independent of whether any car has arrived">
           {health.isError ? (
             <Unknown what="Camera health" reason={health.error?.message} />
+          ) : offlineReason(health) ? (
+            <Unknown what="Camera health" reason={OFFLINE} />
           ) : health.isPending ? (
             <Loading what="camera health" />
           ) : !health.data ? (
@@ -2325,6 +2392,8 @@ export default function LotSection() {
                }>
           {visits.isError ? (
             <Unknown what="Visit list" reason={visits.error?.message} />
+          ) : offlineReason(visits) ? (
+            <Unknown what="Visit list" reason={OFFLINE} />
           ) : visits.isPending ? (
             <Loading what="visits" />
           ) : !visits.data ? (

@@ -17,7 +17,11 @@ type Q = { data: unknown; isPending: boolean; isError: boolean; error: unknown; 
 const h = vi.hoisted(() => ({
   queries: new Map<string, Partial<Q> | ((input: unknown) => Partial<Q>)>(),
   Null: () => null,
+  // lotDataConfidence is a pure helper with its own tests; pinning its verdict here isolates the
+  // rail summary's counting from the baseline arithmetic.
+  confidence: { level: "OK", headline: "14 arrivals so far", reasons: [] as string[] } as { level: string; headline: string; reasons: string[] },
 }));
+vi.mock("@shared/lotDataConfidence", () => ({ lotDataConfidence: () => h.confidence }));
 vi.mock("@/lib/trpc", () => {
   const query = (path: string) => (input: unknown) => {
     const set = h.queries.get(path);
@@ -93,15 +97,28 @@ function setLot({ sign = "HEALTHY", floor }: { sign?: string; floor?: Partial<Q>
   h.queries.set("lot.visits", (input) =>
     (input as { openOnly?: boolean }).openOnly && floor ? floor : { data: { ok: true, marksAvailable: false, rows: ON_LOT } },
   );
+  const office = {
+    ...camera("office", "conversation"),
+    conversation: { workerOk: true, state: "READY", workerAgeSeconds: 10, listeningCoverage60m: 0.9, capturesLast60m: 3, captureFailuresLast60m: 0, wakeTriggersLast60m: 2, transcribeBacklog: 0 },
+  };
   h.queries.set("lot.health", {
-    data: { ok: true, cameras: [camera("sign", "vehicle_truth", sign)], transitions: [], thresholds: { staleAfterSeconds: 60, offlineAfterSeconds: 120 }, windowColumnsStored: true, shopOpen: true, coverage: null },
+    data: { ok: true, cameras: [camera("sign", "vehicle_truth", sign), office], transitions: [], thresholds: { staleAfterSeconds: 60, offlineAfterSeconds: 120 }, windowColumnsStored: true, shopOpen: true, coverage: null },
   });
-  h.queries.set("lot.activity", { data: { ok: false, reason: "not in this test" } });
+  h.queries.set("lot.activity", {
+    data: {
+      ok: true,
+      // The admin-v1 fixture's shape: 24 hours and seven prior days (ActivityPanel indexes both).
+      hours: Array.from({ length: 24 }, (_, hour) => ({ hour, arrivals: hour >= 8 && hour <= 14 ? 2 : 0, passThroughs: 0, baselineArrivals: hour >= 8 && hour <= 17 ? 2 : 0 })),
+      totals: { arrivals: 14, passThroughs: 0, crossings: 14, passThroughShare: 0 },
+      history: { priorDaysWithData: 7, days: [1, 2, 3, 4, 5, 6, 7].map((dayOffset) => ({ dayOffset, arrivals: 18, passThroughs: 2 })) },
+    },
+  });
   h.queries.set("lot.conversations", { data: { ok: true, conversations: [] } });
 }
 
 afterEach(() => {
   h.queries.clear();
+  h.confidence = { level: "OK", headline: "14 arrivals so far", reasons: [] };
   window.localStorage.clear();
 });
 
@@ -137,11 +154,13 @@ describe("walk-in quote", () => {
     const opened = vi.fn();
     window.addEventListener("admin:open-walkin-quote", opened);
     render(<LotSection />);
-    const header = screen.getByRole("button", { name: "Quote a walk-in" });
+    // The drawer opens empty (the calculator takes no vehicle), so no button may promise a car.
+    const [header, ...rowVerbs] = screen.getAllByRole("button", { name: "Quote a walk-in" });
     expect(header.className).toContain("min-h-12");
+    expect(screen.queryAllByRole("button", { name: /^Quote FIX/ })).toHaveLength(0);
     fireEvent.click(header);
-    const rowVerbs = screen.getAllByRole("button", { name: /^Quote FIX|^Quote the car/ });
     expect(rowVerbs).toHaveLength(3);
+    expect(rowVerbs.every((b) => b.closest("li"))).toBe(true);
     fireEvent.click(rowVerbs[0]);
     expect(opened).toHaveBeenCalledTimes(2);
     window.removeEventListener("admin:open-walkin-quote", opened);
@@ -194,5 +213,99 @@ describe("honest board states survive the move", () => {
     setLot({ sign: "CAMERA_OFFLINE", floor: { data: { ok: true, marksAvailable: false, rows: [] } } });
     render(<LotSection />);
     expect(screen.getByText(/Not being watched: the sign camera is camera offline/)).toBeTruthy();
+  });
+});
+
+// ── Review round 1 ──
+
+const summaryText = () => screen.getByText("Checks").closest("summary")!.textContent ?? "";
+const PAUSED = { data: undefined, isPending: true, isError: false, fetchStatus: "paused" } as Partial<Q>;
+
+describe("Checks summary counts every input that did not answer", () => {
+  it("says all healthy only when every input answered (the positive control)", () => {
+    setLot();
+    render(<LotSection />);
+    expect(summaryText()).toMatch(/all healthy/);
+  });
+
+  const cases: Array<[string, () => void]> = [
+    ["a failed floor-board read", () => h.queries.set("lot.visits", (input) => ((input as { openOnly?: boolean }).openOnly ? { data: undefined, isError: true, error: { message: "x" } } : { data: { ok: true, rows: ON_LOT } }))],
+    ["a failed hourly-activity read", () => h.queries.set("lot.activity", { data: undefined, isError: true, error: { message: "x" } })],
+    ["a confidence that cannot judge", () => { h.confidence = { level: "UNKNOWN", headline: "cannot judge", reasons: [] }; }],
+    ["office coverage nobody reported", () => {
+      const health = h.queries.get("lot.health") as { data: { cameras: Array<{ camera: string; conversation: unknown }> } };
+      health.data.cameras = health.data.cameras.map((c) => (c.camera === "office" ? { ...c, conversation: { workerOk: true, state: "READY", workerAgeSeconds: 10 } } : c));
+    }],
+    ["a paused (offline) counter read", () => h.queries.set("lot.now", PAUSED)],
+    ["a failed camera-health read", () => h.queries.set("lot.health", { data: undefined, isError: true, error: { message: "x" } })],
+  ];
+  for (const [name, breakIt] of cases) {
+    it(`counts ${name} as unknown, never all healthy`, () => {
+      setLot();
+      breakIt();
+      render(<LotSection />);
+      expect(summaryText()).toMatch(/1 unknown/);
+      expect(summaryText()).not.toMatch(/all healthy/);
+    });
+  }
+});
+
+describe("the floor board stands on its own read", () => {
+  it("still lists the cars when the counter read fails, and only the counters say unknown", () => {
+    setLot();
+    h.queries.set("lot.now", { data: undefined, isError: true, error: { message: "counters down" } });
+    render(<LotSection />);
+    expect(within(screen.getByRole("list", { name: "Vehicles on the lot" })).getAllByRole("listitem")).toHaveLength(3);
+    expect(screen.getByText("Lot counters unavailable")).toBeTruthy();
+  });
+});
+
+describe("a paused (offline) read is unknown, not loading", () => {
+  it("counters", () => {
+    setLot();
+    h.queries.set("lot.now", PAUSED);
+    render(<LotSection />);
+    expect(screen.getByText("Lot counters unavailable")).toBeTruthy();
+    expect(screen.getAllByText("Offline, not checked").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Loading lot state/)).toBeNull();
+  });
+
+  it("floor board", () => {
+    setLot({ floor: PAUSED });
+    render(<LotSection />);
+    expect(screen.getByText("Floor board unavailable")).toBeTruthy();
+    expect(screen.queryByText(/Loading vehicles on the lot/)).toBeNull();
+  });
+});
+
+describe("a row never loses its warning to truncation", () => {
+  it("puts needs-staff-confirm first in the detail line and keeps it behind More", () => {
+    setLot({ floor: { data: { ok: true, rows: [visit("v-7", "FIX 1007", 12, { customerMatch: "CONFUSABLE_UNIQUE" })] } } });
+    render(<LotSection />);
+    const row = within(screen.getByRole("list", { name: "Vehicles on the lot" })).getByRole("listitem");
+    expect(row.querySelector("p")!.textContent!.startsWith("needs staff confirm")).toBe(true);
+    fireEvent.click(within(row).getByRole("button", { name: /More about/ }));
+    const more = row.querySelector("[data-row-more]")!;
+    expect(more.textContent).toContain("needs staff confirm");
+    expect(more.textContent).toContain("On lot");
+  });
+});
+
+describe("copy", () => {
+  it("points at Checks for the commissioning toggle", () => {
+    setLot();
+    const now = h.queries.get("lot.now") as { data: Record<string, unknown> };
+    now.data = { ...now.data, neverIngested: true, commissioningVisits: 2 };
+    render(<LotSection />);
+    expect(screen.getByText(/Use "Show commissioning runs" in Checks/)).toBeTruthy();
+  });
+
+  it("says marking is not set up, in plain words", () => {
+    setLot();
+    const now = h.queries.get("lot.now") as { data: Record<string, unknown> };
+    now.data = { ...now.data, marks: { available: false, openMarked: 0, customerWaiting: 0, serviceStarted: 0, serviceDone: 0, notAJob: 0, markedShare: null } };
+    render(<LotSection />);
+    expect(screen.getByText("Marking cars is not set up yet.")).toBeTruthy();
+    expect(screen.queryByText(/migration 0145/)).toBeNull();
   });
 });
