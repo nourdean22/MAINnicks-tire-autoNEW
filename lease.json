@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "chore/ci-diet-workflows",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "f8d930b8-3865-416c-802f-2947cc79c726",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire",
   "claimedBy": "2026-10-16-ci-diet PR 1 (manager: bdnick UI upgrade session)",
   "claimedAt": "2026-10-16T13:31:26.996Z",
   "expiresAt": "2026-10-17T01:31:26.996Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": null
+  "releasedAt": "2026-10-17T15:15:32.382Z",
+  "releaseReason": "operator confirmed via -ForceDirtyRelease in worktree-teardown.ps1",
+  "priorLeaseSha": "c4fee13258dece3c39c327c5598e325de45f3530",
+  "releasedBy": "57ddae97-2431-4bb5-9ff7-0735d7189921",
+  "foreignReleaseReason": null
 }
