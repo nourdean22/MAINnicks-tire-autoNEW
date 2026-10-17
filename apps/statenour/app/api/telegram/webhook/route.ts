@@ -179,23 +179,14 @@ export async function POST(req: NextRequest) {
 
   if (callback?.data) {
     if (callback.from?.id !== expectedOwnerId) return NextResponse.json({ ok: true });
-    await handleCallback(callback);
+    const claim = await claimUpdate(body.update_id);
+    if (!claim) return NextResponse.json({ ok: true });
+    await settleAfter(claim, () => handleCallback(callback));
     return NextResponse.json({ ok: true });
   }
 
   // ── Handle message (text, photos, voice, etc.) ──
-  const message = body.message as {
-    text?: string;
-    photo?: { file_id: string; width: number; height: number }[];
-    voice?: { file_id: string; duration: number };
-    caption?: string;
-    entities?: { type: string; url?: string; offset: number; length: number }[];
-    chat: { id: number };
-    from?: { id: number };
-    forward_origin?: unknown;
-    forward_from?: unknown;
-    forward_date?: number;
-  } | undefined;
+  const message = body.message as TelegramMessage | undefined;
 
   if (!message) return NextResponse.json({ ok: true });
 
@@ -213,16 +204,36 @@ export async function POST(req: NextRequest) {
   // the owner issued, even when its first token is "/qa".
   const forwarded = Boolean(message.forward_origin || message.forward_from || message.forward_date);
 
+  const claim = await claimUpdate(body.update_id);
+  if (!claim) return NextResponse.json({ ok: true });
+  await settleAfter(claim, () => dispatchMessage(message, chatId, forwarded));
+  return NextResponse.json({ ok: true });
+}
+
+type TelegramMessage = {
+  text?: string;
+  photo?: { file_id: string; width: number; height: number }[];
+  voice?: { file_id: string; duration: number };
+  caption?: string;
+  entities?: { type: string; url?: string; offset: number; length: number }[];
+  chat: { id: number };
+  from?: { id: number };
+  forward_origin?: unknown;
+  forward_from?: unknown;
+  forward_date?: number;
+};
+
+async function dispatchMessage(message: TelegramMessage, chatId: string, forwarded: boolean): Promise<void> {
   // Photo input — analyze image
   if (message.photo && message.photo.length > 0) {
     await handlePhoto(message.photo, message.caption, chatId);
-    return NextResponse.json({ ok: true });
+    return;
   }
 
   // Voice note input — transcribe and act
   if (message.voice) {
     await handleVoice(message.voice, chatId, forwarded);
-    return NextResponse.json({ ok: true });
+    return;
   }
 
   // Text with URLs — analyze links
@@ -232,7 +243,7 @@ export async function POST(req: NextRequest) {
       .map((e) => message.text!.substring(e.offset, e.offset + e.length));
     if (urls.length > 0) {
       await handleUrl(urls[0], message.text, chatId);
-      return NextResponse.json({ ok: true });
+      return;
     }
   }
 
@@ -240,8 +251,57 @@ export async function POST(req: NextRequest) {
   if (message.text) {
     await handleCommand(message.text, chatId, forwarded);
   }
+}
 
-  return NextResponse.json({ ok: true });
+// -- Update claim (Telegram job lane 2, 2026-10-17) ----------
+//
+// Telegram redelivers an update when the webhook answers non-200 or too slowly,
+// and /task and /dump acted on every copy. Each update_id is claimed in
+// action_attempts (beginAttempt: create, compare-and-swap reclaim) before
+// anything acts; a copy that finds the claim answers 200 and does nothing. A
+// handler that throws settles FAILED, which releases the claim so the
+// redelivery runs again. A claim store that cannot be reached fails OPEN (acts):
+// losing Nour's command is worse than acting on it twice. Telegram keeps an
+// undelivered update for 24 h, so the hold is 48 h.
+const UPDATE_CLAIM_WINDOW_MS = 48 * 3_600_000;
+type UpdateClaim = { settle: (ok: boolean) => Promise<void> };
+
+async function claimUpdate(updateId: unknown): Promise<UpdateClaim | null> {
+  const unclaimed: UpdateClaim = { settle: async () => {} };
+  if (typeof updateId !== "number" || !Number.isSafeInteger(updateId)) return unclaimed;
+  try {
+    const { beginAttempt, settleAttempt } = await import("@/lib/services/action-attempts");
+    const claim = await beginAttempt({
+      operationKey: `telegram_update:${updateId}`,
+      tool: "telegram_update",
+      argumentsHash: String(updateId),
+      effectClass: "write",
+      windowMs: UPDATE_CLAIM_WINDOW_MS,
+    });
+    if (claim.kind === "duplicate") {
+      log.info("telegram_update_redelivered", { updateId, state: claim.state });
+      return null;
+    }
+    return {
+      settle: (ok) =>
+        settleAttempt(claim.attemptId, { disposition: ok ? "success" : "known_failure", reason: ok ? "handled" : "handler threw" })
+          .then(() => undefined)
+          .catch((err: unknown) => log.warn("telegram_update_settle_failed", { updateId, error: String(err).slice(0, 120) })),
+    };
+  } catch (err) {
+    log.warn("telegram_update_claim_unavailable", { updateId, error: err instanceof Error ? err.message.slice(0, 120) : String(err) });
+    return unclaimed;
+  }
+}
+
+async function settleAfter(claim: UpdateClaim, run: () => Promise<void>): Promise<void> {
+  try {
+    await run();
+  } catch (err) {
+    await claim.settle(false);
+    throw err;
+  }
+  await claim.settle(true);
 }
 
 // -- Receipt claim (SN-04, 2026-10-10) ----------------------
