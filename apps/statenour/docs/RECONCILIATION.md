@@ -1,5 +1,19 @@
 # Reconciliation · statenour-os
 
+> ## 2026-10-17 · Brain W5 · a vector-gap gauge and a decay dry run (branch `statenour/brain-w5-reliability`) · 1 statenour PR
+>
+> Not live until merged and deployed. The two counts below are from read-only production probes on 2026-10-17; everything else is from unit tests and code reading.
+>
+> - **Gauge (`lib/services/personal-gap.ts`, `buildPersonalGap` in `lib/services/embedding-coverage.ts`).** Live `brain_memories` outside the telemetry list with confidence >= 0.2 and no `brain_memory` vector in the active space, shown on /system/health as "searchable memories without a vector". Above 1% it warns; a failed read, or no eligible rows, renders unknown, never 0. Production: 18 missing of 17,721 eligible. The 2026-09-08 "19% unembedded" figure counted telemetry rows that are never embedded.
+> - **Decay dry run (`lib/brain/memory-decay.ts`, `app/api/cron/data-cleanup/route.ts`).** `buildDecayWhere` is now the one WHERE for both `runMemoryDecay` and `countMemoryDecayCandidates` (SELECT count only). The nightly cleanup writes `decayWouldAffect` and the top 5 categories to its audit row; a failed count writes null plus `decayDryRunError` and does not change the cron's status. Decay is never applied. Production: 26,718 rows would be touched.
+> - **Headers corrected.** `external-memory-intake.ts` (all four external doors call the intake), the `NICK_NOVELTY_RECALL` description, and `runMemoryDecay`'s "runs nightly" claim.
+>
+> **Decision owed (Nour).** After a week of nightly counts, read the audit rows' `decayByCategoryTop5`: applying decay is a production write and needs Nour's go.
+>
+> **Flagged · NOT fixed**
+> - The eligible set is "not telemetry", so bulk imports (`archive_document`, mail, drive) count as searchable memories; the label says searchable, not own.
+> - `semantic_edge` and `archive_document` are not exempt from decay; the category breakdown will show whether they dominate the 26,718.
+
 > ## 2026-10-17 · Brain W4 · dead code out, headers honest (branch `statenour/brain-w4-wisdom`) · 1 statenour PR, nothing user-visible
 >
 > Not live until merged; nothing a user sees changes. Every claim below is from unit tests, an import scan and code reading.

@@ -8,6 +8,7 @@ import { logError } from "@/lib/utils/error-log";
 import { sendTelegram } from "@/lib/services/telegram";
 import { sweepEmbeddingShadow } from "@/lib/db/embedding-shadow";
 import { dropEmbeddingsForMemories } from "@/lib/brain/memory-tombstone";
+import { countMemoryDecayByCategoryTop5, countMemoryDecayCandidates } from "@/lib/brain/memory-decay";
 import {
   NEVER_HARD_DELETE_CATEGORIES,
   judgeSweep,
@@ -398,6 +399,39 @@ export const GET = cronHandler(async () => {
     return null;
   });
 
+  // ── Memory decay: DRY RUN only (2026-10-17) ──
+  // How many memories nightly decay would touch, SELECT count only. Decay itself
+  // (runMemoryDecay) is not called anywhere; applying it waits for Nour's go
+  // after a week of these counts, read from this payload and the audit row below.
+  // null = the count could not be read (unknown), never 0. A report-only figure
+  // does not file the run as failed.
+  const decayDryRun: { n: number | null; error: string | null } = await countMemoryDecayCandidates().then(
+    (n) => ({ n, error: null }),
+    (err: unknown) => {
+      logError("cron.data-cleanup", err, { fn: "decayDryRunCount" }, "warn");
+      return { n: null, error: err instanceof Error ? err.message : String(err) };
+    },
+  );
+  const decayWouldAffect = decayDryRun.n;
+  // The single total cannot show WHICH memories would lose confidence (edges and
+  // imports may be most of it), so the top categories ride along. Same where-clause.
+  const decayByCategory: {
+    top5: Array<{ category: string; count: number }> | null;
+    error: string | null;
+  } = await countMemoryDecayByCategoryTop5().then(
+    (top5) => ({ top5, error: null }),
+    (err: unknown) => {
+      logError("cron.data-cleanup", err, { fn: "decayDryRunByCategory" }, "warn");
+      return { top5: null, error: err instanceof Error ? err.message : String(err) };
+    },
+  );
+  const decayByCategoryTop5 = decayByCategory.top5;
+  // Both failures in one string: cron_job_logs keeps no response, so the audit
+  // row below is the only durable place this reason can live.
+  const decayDryRunError =
+    [decayDryRun.error, decayByCategory.error && `by category: ${decayByCategory.error}`].filter(Boolean).join(" | ") ||
+    null;
+
   const totalDeleted = Object.values(deletedByTable).reduce((a, b) => a + b, 0);
 
   // v10.0.34 — audit trail for the cleanup. Pre-fix this cron mass-
@@ -417,6 +451,9 @@ export const GET = cronHandler(async () => {
           totalDeleted,
           deletedByTable,
           brainMemoryReport,
+          decayWouldAffect,
+          decayByCategoryTop5,
+          decayDryRunError,
           ranAt: new Date().toISOString(),
         },
       },
@@ -476,6 +513,10 @@ export const GET = cronHandler(async () => {
     totalDeleted,
     brainMemoryReport,
     blockedSweeps,
+    // Dry run: what decay WOULD change. Not applied. null = unknown.
+    decayWouldAffect,
+    decayByCategoryTop5,
+    ...(decayDryRunError ? { decayDryRunError } : {}),
     // Surfaced, not swallowed: a reconciliation that runs but is never reported
     // is indistinguishable from one that never ran. `refused` means the cap
     // held — that is a real signal, not a footnote.
