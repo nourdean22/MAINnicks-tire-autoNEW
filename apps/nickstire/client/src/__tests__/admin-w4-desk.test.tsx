@@ -1,0 +1,318 @@
+/**
+ * Admin UI v1 Wave 4, the Desk pages (apps/nickstire/docs/design/admin-ui-v1/PLAN.md sections 3, 6 and 9):
+ * find a customer from the bar, trust every profile tab, read work orders and dispatch as rows, open one
+ * work order by link, and never read a failed member lookup as "not a member".
+ *
+ * Same tRPC proxy as admin-w0-honesty.test.tsx: every query returns { data: undefined } unless the test
+ * sets an override for its dotted path. A paused query (offline PWA) is modelled the way TanStack Query v5
+ * reports it: data undefined, isError false, isLoading false, fetchStatus "paused". The Rule from W5: a
+ * paused read is unknown, never empty or zero.
+ */
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import React from "react";
+
+type Q = { data: unknown; isLoading: boolean; isError: boolean; error: unknown; refetch: () => void; isFetching: boolean; fetchStatus: string; isPaused: boolean };
+
+const h = vi.hoisted(() => ({
+  queries: new Map<string, Partial<Q>>(),
+  calls: [] as Array<[string, unknown]>,
+  mutations: new Map<string, (opts: any) => unknown>(),
+  confirm: vi.fn(async () => true),
+  toastSuccess: vi.fn(),
+  toastError: vi.fn(),
+  user: { role: "admin" } as { role: string } | null,
+  Null: () => null,
+}));
+
+vi.mock("@/lib/trpc", () => {
+  const query = (path: string) => (input: unknown) => {
+    h.calls.push([path, input]);
+    return {
+      data: undefined,
+      isLoading: false,
+      isError: false,
+      error: null,
+      refetch: () => {},
+      isFetching: false,
+      fetchStatus: "idle",
+      isPaused: false,
+      ...h.queries.get(path),
+    };
+  };
+  const mutation = (path: string) => (opts: any) =>
+    h.mutations.get(path)?.(opts) ?? { mutate: () => {}, mutateAsync: async () => ({}), isPending: false, isSuccess: false, reset: () => {} };
+  const node = (path: string): any =>
+    new Proxy(function noop() {}, {
+      get(_t, key) {
+        if (typeof key === "symbol" || key === "then") return undefined;
+        if (key === "useQuery" || key === "useSuspenseQuery" || key === "useInfiniteQuery") return query(path);
+        if (key === "useMutation") return mutation(path);
+        return node(path ? `${path}.${String(key)}` : String(key));
+      },
+      apply() {
+        return undefined;
+      },
+    });
+  const root = new Proxy({}, {
+    get(_t, key) {
+      if (key === "useUtils" || key === "useContext") return () => node("utils");
+      return node(String(key));
+    },
+  });
+  return { trpc: root };
+});
+
+vi.mock("sonner", () => ({
+  toast: Object.assign(vi.fn(), { success: h.toastSuccess, error: h.toastError, info: vi.fn(), warning: vi.fn(), message: vi.fn() }),
+  Toaster: () => null,
+}));
+vi.mock("@/components/admin/ConfirmDialog", () => ({ confirmDialog: h.confirm, default: h.Null }));
+vi.mock("@/_core/hooks/useAuth", () => ({ useAuth: () => ({ user: h.user, loading: false }) }));
+vi.mock("@/pages/admin/money/TireRegistrationPanel", () => ({ default: h.Null }));
+vi.mock("@/pages/admin/money/NhtsaVehiclePanel", () => ({ default: h.Null }));
+vi.mock("@/pages/admin/SalesCard", () => ({ default: h.Null }));
+vi.mock("@/pages/admin/PromisesPanel", () => ({ default: h.Null }));
+vi.mock("@/pages/admin/InspectionCapturePanel", () => ({ default: h.Null }));
+vi.mock("@/pages/admin/ClosedLoopLiftPanel", () => ({ default: h.Null }));
+vi.mock("@/pages/admin/today/ArrivalLoadStrip", () => ({ default: h.Null }));
+vi.mock("@/pages/admin/today/ExceptionFeed", () => ({ default: h.Null }));
+
+import MembershipsSection from "@/pages/admin/MembershipsSection";
+import CustomerProfile from "@/pages/admin/customers/CustomerProfile";
+import { CustomersList } from "@/pages/admin/customers/CustomersList";
+import WorkOrdersSection from "@/pages/admin/money/WorkOrdersSection";
+import DispatchSection from "@/pages/admin/money/DispatchSection";
+import OverviewSection from "@/pages/admin/OverviewSection";
+
+const FAILED: Partial<Q> = { data: undefined, isError: true, error: new Error("read failed") };
+const PAUSED: Partial<Q> = { data: undefined, isError: false, isLoading: false, fetchStatus: "paused", isPaused: true };
+const ok = (data: unknown): Partial<Q> => ({ data, isError: false, fetchStatus: "idle" });
+const CUSTOMER = { id: 1, name: "Pat Example", phone: "2165550100", totalVisits: 1, totalSpent: 0 };
+const EMPTY_HISTORY = { invoices: [], declinedEstimates: [], openWorkOrders: [] };
+
+beforeEach(() => {
+  h.queries.clear();
+  h.calls.length = 0;
+  h.mutations.clear();
+  h.confirm.mockReset();
+  h.confirm.mockResolvedValue(true);
+  h.toastSuccess.mockReset();
+  h.toastError.mockReset();
+  h.user = { role: "admin" };
+  window.history.replaceState({}, "", "/admin");
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+/* ------------------------------ Nonstop Nick ------------------------------ */
+
+describe("Nonstop Nick counter lookup", () => {
+  function lookUp(phone = "2165550100") {
+    fireEvent.change(screen.getByRole("textbox", { name: "Member phone number" }), { target: { value: phone } });
+    fireEvent.click(screen.getByRole("button", { name: /look up/i }));
+  }
+
+  it("a failed lookup says it was not checked, offers Retry, and never says not a member", () => {
+    const refetch = vi.fn();
+    h.queries.set("memberships.lookupByPhone", { ...FAILED, refetch });
+    render(<MembershipsSection />);
+    lookUp();
+    expect(screen.getByText("Lookup failed. Not checked: this does not mean they are not a member.")).toBeTruthy();
+    expect(screen.queryByText(/No member found/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(refetch).toHaveBeenCalled();
+  });
+
+  it("a paused (offline) lookup is not checked either", () => {
+    h.queries.set("memberships.lookupByPhone", PAUSED);
+    render(<MembershipsSection />);
+    lookUp();
+    expect(screen.getByText("Lookup failed. Not checked: this does not mean they are not a member.")).toBeTruthy();
+    expect(screen.queryByText(/No member found/)).toBeNull();
+  });
+
+  it("positive control: a successful found:false still says no member, and nothing shows before a search", () => {
+    h.queries.set("memberships.lookupByPhone", ok({ found: false }));
+    render(<MembershipsSection />);
+    expect(screen.queryByText(/No member found/)).toBeNull();
+    lookUp();
+    expect(screen.getByText("No member found for that number.")).toBeTruthy();
+    expect(screen.queryByText(/Lookup failed/)).toBeNull();
+  });
+
+  it("the phone field is a 48 px, 16 px text control", () => {
+    render(<MembershipsSection />);
+    const cls = screen.getByRole("textbox", { name: "Member phone number" }).className;
+    expect(cls).toContain("min-h-12");
+    expect(cls).toContain("text-base");
+  });
+});
+
+/* ---------------------------- Customer profile ---------------------------- */
+
+describe("Customer profile tabs", () => {
+  it("a paused history read shows ? on every tab and never a none-found line", () => {
+    h.queries.set("customers.getById", ok(CUSTOMER));
+    h.queries.set("customers.timeline", ok([]));
+    h.queries.set("customers.history", PAUSED);
+    render(<CustomerProfile customerId={1} onClose={() => {}} />);
+    for (const chip of [/Service History/, /Declined Work/, /Active Backlog/]) {
+      const text = screen.getByRole("button", { name: chip }).textContent ?? "";
+      expect(text, String(chip)).not.toMatch(/\d/);
+      expect(text, String(chip)).toContain("?");
+    }
+    expect(screen.queryByText("No service history invoices found.")).toBeNull();
+    expect(screen.getByText(/Service history not checked/)).toBeTruthy();
+  });
+
+  it("a paused timeline read never says no interactions", () => {
+    h.queries.set("customers.getById", ok(CUSTOMER));
+    h.queries.set("customers.timeline", PAUSED);
+    h.queries.set("customers.history", ok(EMPTY_HISTORY));
+    render(<CustomerProfile customerId={1} onClose={() => {}} />);
+    expect(screen.queryByText("No interactions recorded yet.")).toBeNull();
+    expect(screen.getByText(/Interactions not checked/)).toBeTruthy();
+  });
+
+  it("the tabs are one horizontally scrolling strip of 48 px targets", () => {
+    h.queries.set("customers.getById", ok(CUSTOMER));
+    h.queries.set("customers.timeline", ok([]));
+    h.queries.set("customers.history", ok(EMPTY_HISTORY));
+    render(<CustomerProfile customerId={1} onClose={() => {}} />);
+    const tabs = [/Service History/, /Declined Work/, /Active Backlog/].map((n) => screen.getByRole("button", { name: n }));
+    const strip = tabs[0].parentElement as HTMLElement;
+    for (const t of tabs) {
+      expect(t.parentElement).toBe(strip);
+      expect(t.className).toContain("min-h-12");
+    }
+    expect(strip.className).toContain("overflow-x-auto");
+  });
+});
+
+/* ----------------------------- Customers list ----------------------------- */
+
+describe("Customers list lookup", () => {
+  const LISTED = {
+    id: 5, firstName: "Pat", lastName: "Example", phone: "2165550100", email: null, totalVisits: 2, totalSpent: 45000,
+    lastVisitDate: new Date(Date.now() - 3 * 86400000).toISOString(), daysSinceLastVisit: 3, isVip: false, churnRisk: "low",
+    declinedCount: 0, backlogCount: 0, customerType: "retail", notes: null,
+  };
+
+  it("the search field comes first, is type=search with 16 px text and 48 px height, and is not autofocused", () => {
+    h.queries.set("customers.list", ok({ customers: [], total: 0, page: 1, pageSize: 25 }));
+    h.queries.set("customers.stats", ok({ total: 4, withVisits: 3, vipCount: 1, totalRevenue: 120000, recent: 1, lapsed: 1, withEmail: 2, commercial: 0 }));
+    render(<CustomersList onOpenCustomer={() => {}} />);
+    const input = screen.getByRole("searchbox", { name: /search customers/i }) as HTMLInputElement;
+    expect(input.type).toBe("search");
+    expect(input.className).toContain("min-h-12");
+    expect(input.className).toContain("text-base");
+    expect(document.activeElement).not.toBe(input);
+    const firstTile = screen.getAllByText("Total Customers")[0];
+    expect(input.compareDocumentPosition(firstTile) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("each result row has one Open verb that opens the profile", () => {
+    const onOpen = vi.fn();
+    h.queries.set("customers.list", ok({ customers: [LISTED], total: 1, page: 1, pageSize: 25 }));
+    render(<CustomersList onOpenCustomer={onOpen} />);
+    const rows = screen.getByRole("list", { name: "Customers" });
+    expect(within(rows).getByText("Pat Example")).toBeTruthy();
+    fireEvent.click(within(rows).getByRole("button", { name: "Open Pat Example" }));
+    expect(onOpen).toHaveBeenCalledWith(5);
+  });
+
+  it("a paused list says not checked, never No customers found; paused stats show no number", () => {
+    h.queries.set("customers.list", PAUSED);
+    h.queries.set("customers.stats", PAUSED);
+    render(<CustomersList onOpenCustomer={() => {}} />);
+    expect(screen.queryByText("No customers found")).toBeNull();
+    expect(screen.getByText(/Customer list not checked/)).toBeTruthy();
+    const tile = screen.getAllByText("Total Customers")[0].parentElement?.parentElement as HTMLElement;
+    expect(tile.querySelector(".stat-value")?.textContent ?? "").not.toMatch(/\d/);
+  });
+});
+
+/* ------------------------------- Work orders ------------------------------ */
+
+const WOS = [
+  { id: 7, orderNumber: "WO-0007", status: "in_progress", priority: "normal", vehicleYear: "2015", vehicleMake: "Honda", vehicleModel: "Civic", customerName: "Pat Example", promisedAt: new Date(Date.now() + 2 * 3600000).toISOString(), createdAt: new Date().toISOString() },
+  { id: 8, orderNumber: "WO-0008", status: "approved", priority: "high", vehicleMake: "Ford", vehicleModel: "F-150", customerName: "Sam Driver", createdAt: new Date().toISOString() },
+];
+
+describe("Work orders as rows", () => {
+  it("rows are grouped under the kanban stages with vehicle, customer, status words and the next status as the verb", () => {
+    const mutate = vi.fn();
+    h.mutations.set("workOrders.advanceStatus", () => ({ mutate, isPending: false }));
+    h.queries.set("workOrders.list", ok(WOS));
+    render(<WorkOrdersSection />);
+    const rows = screen.getByRole("region", { name: "Work orders by stage" });
+    expect(within(rows).getByRole("heading", { name: /In Shop/ })).toBeTruthy();
+    expect(within(rows).getByRole("heading", { name: /Queue/ })).toBeTruthy();
+    expect(within(rows).getByText("2015 Honda Civic")).toBeTruthy();
+    expect(within(rows).getByText(/Pat Example/)).toBeTruthy();
+    expect(within(rows).getByText(/In progress/)).toBeTruthy();
+    fireEvent.click(within(rows).getByRole("button", { name: "QC review for Pat Example" }));
+    expect(mutate).toHaveBeenCalledWith({ id: "7", status: "qc_review" });
+  });
+
+  it("a paused list is unknown, never No jobs in this stage", () => {
+    h.queries.set("workOrders.list", PAUSED);
+    render(<WorkOrdersSection />);
+    expect(screen.queryByText("No jobs in this stage")).toBeNull();
+    expect(screen.getByText(/Work orders not checked/)).toBeTruthy();
+  });
+
+  it("?wo=<id> opens that work order and drops the param", async () => {
+    window.history.replaceState({}, "", "/admin?section=money&moneyTab=workOrders&wo=7");
+    h.queries.set("workOrders.list", ok(WOS));
+    h.queries.set("workOrders.getById", ok({ ...WOS[0], items: [], transitions: [] }));
+    render(<WorkOrdersSection />);
+    expect(await screen.findByRole("dialog", { name: "Work order WO-0007" })).toBeTruthy();
+    expect(h.calls).toContainEqual(["workOrders.getById", { id: "7" }]);
+    expect(new URL(window.location.href).searchParams.get("wo")).toBeNull();
+  });
+
+  it("Today's Open work order carries the row id for a role that may open Money", async () => {
+    h.queries.set("adminSecurity.status", ok({ adminRole: "owner", permissions: [] }));
+    h.queries.set("adminDashboard.overviewMediumBundle", ok({ stats: null, bookings: [], leads: [], callbacks: [], owedTexts: [], callbackServed: {}, unavailableSlices: [] }));
+    h.queries.set("workOrders.list", ok([{ id: 7, status: "in_progress", customerName: "Pat Example", customerId: 42, createdAt: new Date().toISOString() }]));
+    h.mutations.set("adminSecurity.recordAction", () => ({ mutateAsync: async () => ({ reference: "ACT-1" }), isPending: false }));
+    render(<OverviewSection />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Open work order" }));
+    });
+    expect(new URL(window.location.href).searchParams.get("wo")).toBe("7");
+  });
+});
+
+/* -------------------------------- Dispatch -------------------------------- */
+
+describe("Dispatch", () => {
+  it("a paused ready queue is not checked, never No jobs waiting", () => {
+    h.queries.set("workOrders.list", PAUSED);
+    render(<DispatchSection />);
+    expect(screen.queryByText("No jobs waiting for a bay")).toBeNull();
+    expect(screen.getByText(/Ready queue not checked/)).toBeTruthy();
+  });
+
+  it("a failed QC read shows an error with Retry, never No jobs pending QC review", () => {
+    h.queries.set("workOrders.list", FAILED);
+    render(<DispatchSection />);
+    fireEvent.click(screen.getByRole("button", { name: "QC Review" }));
+    expect(screen.queryByText("No jobs pending QC review")).toBeNull();
+    expect(screen.getByText(/QC review couldn't load/)).toBeTruthy();
+  });
+
+  it("ready-queue rows show vehicle, customer and one Assign verb", () => {
+    h.queries.set("workOrders.list", ok([{ ...WOS[1], status: "ready_for_bay" }]));
+    render(<DispatchSection />);
+    const rows = screen.getByRole("list", { name: "Ready for a bay" });
+    expect(within(rows).getByText("Ford F-150")).toBeTruthy();
+    expect(within(rows).getByText(/Sam Driver/)).toBeTruthy();
+    fireEvent.click(within(rows).getByRole("button", { name: "Assign Sam Driver" }));
+    expect(screen.getByText("Assign Work Order")).toBeTruthy();
+  });
+});

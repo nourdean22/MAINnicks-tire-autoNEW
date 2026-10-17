@@ -10,6 +10,7 @@
  */
 import { useState } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
+import { readStatus } from "@/lib/queryState";
 import { toast } from "sonner";
 
 type FoundLookup = Extract<RouterOutputs["memberships"]["lookupByPhone"], { found: true }>;
@@ -51,6 +52,9 @@ export default function MembershipsSection() {
     onError: () => toast.error("Couldn't bind the vehicle. Try again."),
   });
 
+  // A failed or paused (offline) lookup checked nothing: it must never read as "not a member".
+  const lookupState = searchPhone ? readStatus(lookup).state : "idle";
+
   const runSearch = (e: React.FormEvent) => {
     e.preventDefault();
     const digits = query.replace(/\D/g, "");
@@ -77,12 +81,12 @@ export default function MembershipsSection() {
           placeholder="Phone (or last 4 digits)"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className="flex-1 max-w-sm rounded-md border border-border bg-background px-4 py-2.5 text-foreground placeholder:text-foreground/40 focus:outline-none focus:border-primary"
+          className="flex-1 max-w-sm min-h-12 rounded-md border border-border bg-background px-4 py-2.5 text-base text-foreground placeholder:text-foreground/40 focus:outline-none focus:border-primary"
           aria-label="Member phone number"
         />
         <button
           type="submit"
-          className="inline-flex items-center gap-1.5 bg-primary text-primary-foreground px-5 py-2.5 rounded-md font-semibold hover:opacity-90 transition-opacity"
+          className="inline-flex items-center gap-1.5 min-h-12 bg-primary text-primary-foreground px-5 py-2.5 rounded-md font-semibold hover:opacity-90 transition-opacity"
         >
           <Search className="w-4 h-4" /> Look up
         </button>
@@ -95,7 +99,20 @@ export default function MembershipsSection() {
         </div>
       )}
 
-      {searchPhone && !lookup.isFetching && lookup.data && !lookup.data.found && (
+      {lookupState === "unavailable" && !lookup.isFetching && (
+        <div role="alert" className="border border-amber-500/40 bg-card p-6 text-center">
+          <p className="text-foreground/80 font-medium">Lookup failed. Not checked: this does not mean they are not a member.</p>
+          <button
+            type="button"
+            onClick={() => void lookup.refetch()}
+            className="mt-3 inline-flex items-center justify-center min-h-12 px-5 rounded-md border border-border text-foreground font-semibold"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      {searchPhone && lookupState !== "unavailable" && !lookup.isFetching && lookup.data && !lookup.data.found && (
         <div className="border border-border/40 bg-card p-6 text-center">
           <XCircle className="w-7 h-7 text-foreground/25 mx-auto mb-2" />
           <p className="text-foreground/70 font-medium">No member found for that number.</p>
@@ -103,7 +120,7 @@ export default function MembershipsSection() {
         </div>
       )}
 
-      {lookup.data?.found && lookup.data.members.map((m: MemberRow) => (
+      {searchPhone && lookupState !== "unavailable" && lookup.data?.found && lookup.data.members.map((m: MemberRow) => (
         <div key={m.id} className="border border-border/40 bg-card p-5">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -144,7 +161,7 @@ export default function MembershipsSection() {
                   placeholder="Plate"
                   value={plate}
                   onChange={(e) => setPlate(e.target.value)}
-                  className="rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:border-primary"
+                  className="min-h-12 rounded-md border border-border bg-background px-3 py-2 text-base focus:outline-none focus:border-primary"
                   aria-label="License plate"
                   autoCapitalize="characters"
                 />
@@ -153,7 +170,7 @@ export default function MembershipsSection() {
                   placeholder="Vehicle (e.g. silver Civic): optional"
                   value={desc}
                   onChange={(e) => setDesc(e.target.value)}
-                  className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:border-primary"
+                  className="flex-1 min-h-12 rounded-md border border-border bg-background px-3 py-2 text-base focus:outline-none focus:border-primary"
                   aria-label="Vehicle description"
                 />
                 <button
