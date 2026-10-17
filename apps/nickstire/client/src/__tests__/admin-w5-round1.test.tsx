@@ -147,13 +147,15 @@ describe("typed ALL-CAPS literals are sentence case", () => {
   const FILES = ["client/src/pages/admin/SettingsSection.tsx", "client/src/pages/admin/settings/IntegrationsSection.tsx"];
   // Acronyms and brand tokens that are real capitals.
   const ALLOWED = new Set(["TPMS", "TCPA"]);
+  // The "Copy estimate" clipboard text is output, not a label: byte-identical on purpose, exempted by name.
+  const CLIPBOARD_LITERAL = "\n\nTOTAL: $";
 
-  function capsLiterals(file: string): string[] {
-    const sf = ts.createSourceFile(file, readFileSync(join(process.cwd(), file), "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  /** Every JSX text and string/template piece in `source` that carries a word of 4+ capitals. */
+  function capsLiteralsIn(source: string, fileName: string): string[] {
+    const sf = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
     const hits: string[] = [];
     const check = (text: string) => {
-      // Clipboard text built with newlines is output, not UI labels: byte-identical on purpose.
-      if (text.includes("\n")) return;
+      if (text === CLIPBOARD_LITERAL) return;
       for (const w of text.match(/\b[A-Z]{4,}\b/g) ?? []) if (!ALLOWED.has(w)) hits.push(`${w} in ${JSON.stringify(text.trim().slice(0, 50))}`);
     };
     const visit = (n: ts.Node) => {
@@ -164,6 +166,7 @@ describe("typed ALL-CAPS literals are sentence case", () => {
     visit(sf);
     return hits;
   }
+  const capsLiterals = (file: string) => capsLiteralsIn(readFileSync(join(process.cwd(), file), "utf8"), file);
 
   for (const file of FILES) {
     it(`${file.split("/").pop()} has none`, () => {
@@ -171,15 +174,16 @@ describe("typed ALL-CAPS literals are sentence case", () => {
     });
   }
 
-  it("the scan itself sees a planted violation (positive control)", () => {
-    // Plant a literal in memory and run the same visitor over it.
-    const sf = ts.createSourceFile("x.tsx", 'export const A = () => <b>SHOPDRIVER COMMAND CENTER</b>;', ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-    let seen = 0;
-    const visit = (n: ts.Node) => {
-      if (ts.isJsxText(n) && /\b[A-Z]{4,}\b/.test(n.text)) seen++;
-      ts.forEachChild(n, visit);
-    };
-    visit(sf);
-    expect(seen).toBe(1);
+  it("positive control: the real scan catches single-line, multi-line JSX and multi-line template violations", () => {
+    expect(capsLiteralsIn("export const A = () => <b>GATEWAY TIRE</b>;", "a.tsx")).toHaveLength(2);
+    expect(capsLiteralsIn("export const A = () => (\n  <b>\n    GATEWAY TIRE\n  </b>\n);", "b.tsx")).toHaveLength(2);
+    expect(capsLiteralsIn("export const A = (n: number) => `SEARCH\nTIRES ${n}`;", "c.tsx")).toHaveLength(2);
+  });
+
+  it("positive control: acronyms and the named clipboard literal pass", () => {
+    expect(capsLiteralsIn("export const A = () => <b>TPMS and TCPA</b>;", "d.tsx")).toEqual([]);
+    expect(capsLiteralsIn("export const A = (t: number) => `\n\nTOTAL: $${t}`;", "e2.tsx")).toEqual([]);
+    // Any other multi-line literal with caps is NOT exempt.
+    expect(capsLiteralsIn("export const A = (t: number) => `\n\nGRAND TOTAL: $${t}`;", "f.tsx")).toHaveLength(2);
   });
 });

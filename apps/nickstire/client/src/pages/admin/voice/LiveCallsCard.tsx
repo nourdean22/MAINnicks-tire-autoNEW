@@ -13,7 +13,7 @@ import { VAPI_LINKS } from "./format";
 //   tool_called      amber   · agent is writing (booking, callback)
 //   confirmed        emerald · sendConfirmationSms fired · success
 export function LiveCallsCard({ onSelectCall }: { onSelectCall: (callId: string) => void }) {
-  const { data, isLoading, isError, refetch } = trpc.vapi.activeCallStates.useQuery(
+  const { data, isLoading, isError, fetchStatus, refetch } = trpc.vapi.activeCallStates.useQuery(
     { maxAgeMinutes: 10 },
     {
       // wave-181.x Voice Phase 1 · M4 fix · was 5_000 which is 12
@@ -32,10 +32,14 @@ export function LiveCallsCard({ onSelectCall }: { onSelectCall: (callId: string)
   // continuously · the card just doesn't paint zero-state.
   if (isLoading) return null;
   // A failed read is unknown, not "no calls in flight": the card stays and says so.
-  if (isError) {
+  // Error, or a paused query (offline PWA: no data, no error, never ran): both are unknown, not quiet hours.
+  const paused = !data && fetchStatus === "paused";
+  if (isError || paused) {
     return (
       <div id="voice-live-calls" role="alert" className="border border-amber-500/30 bg-amber-500/5 p-3 flex items-center justify-between gap-3">
-        <p className="text-[12px] text-amber-300">Live calls couldn't load. Calls in flight are unknown, not zero.</p>
+        <p className="text-[12px] text-amber-300">
+          {isError ? "Live calls couldn't load. Calls in flight are unknown, not zero." : "Live calls not checked (offline). Calls in flight are unknown, not zero."}
+        </p>
         <button type="button" onClick={() => void refetch()} className="min-h-12 shrink-0 px-3 text-[12px] font-medium text-primary hover:underline">
           Try again
         </button>

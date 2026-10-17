@@ -54,9 +54,16 @@ export default function OpsHubSection() {
 
   // Live read-only health (booleans only) — annotates the Stripe/Sheets
   // registry cards with what's actually true right now in this deploy.
-  const { data: health, isError: healthError } = trpc.payments.health.useQuery(undefined, {
+  const { data: health, isError: healthError, fetchStatus: healthFetchStatus } = trpc.payments.health.useQuery(undefined, {
     refetchInterval: 5 * 60_000,
   });
+
+  // Unknown, never a missing line: a failed read, or a paused one (offline PWA: no data, no error, never ran).
+  const healthUnknown = healthError
+    ? "Live check couldn't load. This deploy's state is unknown."
+    : !health && healthFetchStatus === "paused"
+      ? "Offline, live check not run. This deploy's state is unknown."
+      : undefined;
 
   const categories = [...new Set(OPS_REGISTRY.map((i) => i.category))];
 
@@ -74,7 +81,7 @@ export default function OpsHubSection() {
             <Panel key={cat} title={cat} icon={<ShieldAlert className="w-4 h-4" />}>
               <div className="space-y-3 mt-2">
                 {OPS_REGISTRY.filter((i) => i.category === cat).map((item) => (
-                  <OpsCard key={item.id} item={item} health={health} healthError={healthError} />
+                  <OpsCard key={item.id} item={item} health={health} healthUnknown={healthUnknown} />
                 ))}
               </div>
             </Panel>
@@ -105,9 +112,9 @@ export default function OpsHubSection() {
   );
 }
 
-function OpsCard({ item, health, healthError }: {
+function OpsCard({ item, health, healthUnknown }: {
   item: OpsItem;
-  healthError?: boolean;
+  healthUnknown?: string;
   health?: { stripe: { fullyConfigured: boolean; halfConfigured: boolean }; sheetsConfigured: boolean };
 }) {
   const meta = STATUS_META[item.status];
@@ -116,8 +123,8 @@ function OpsCard({ item, health, healthError }: {
   // from this deploy, read-only. Everything else renders registry truth.
   let liveNote: { ok: boolean; text: string } | null = null;
   // A failed health read must not make the live line vanish: say the live state is unknown.
-  if (healthError && (item.id === "stripe-config" || item.id === "sheets-tire-orders")) {
-    liveNote = { ok: false, text: "Live check couldn't load. This deploy's state is unknown." };
+  if (healthUnknown && (item.id === "stripe-config" || item.id === "sheets-tire-orders")) {
+    liveNote = { ok: false, text: healthUnknown };
   }
   if (item.id === "stripe-config" && health) {
     liveNote = health.stripe.halfConfigured

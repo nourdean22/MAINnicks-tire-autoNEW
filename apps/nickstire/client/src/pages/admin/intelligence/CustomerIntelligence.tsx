@@ -5,6 +5,9 @@ import { LoadingState } from "../shared";
 import { ProvenanceTag } from "../shared/ProvenanceTag";
 import { deriveCustomerSignals, type CustomerSignalCount } from "./customerSignals";
 
+/** Digits only; a phone like "N/A" has none and gets no tel: or sms: link. */
+const phoneDigits = (phone?: string | null) => (phone ?? "").replace(/\D/g, "");
+
 export function CustomerIntelligence() {
   const { data: nbaData, isLoading: nbaLoading, isError: nbaError } = trpc.intelligence.nextBestActions.useQuery(undefined, {
     refetchInterval: 60000,
@@ -90,18 +93,18 @@ export function CustomerIntelligence() {
                   {vip.phone && <span className="text-[10px] text-muted-foreground font-mono">{vip.phone}</span>}
                 </div>
               </div>
-              {vip.phone && (
+              {phoneDigits(vip.phone) && (
                 // Plain tel: and sms: links. The sms: link carries no body: this screen authors no customer text.
                 <div className="flex items-center gap-2 shrink-0">
                   <a
-                    href={`tel:${vip.phone.replace(/\D/g, "")}`}
+                    href={`tel:${phoneDigits(vip.phone)}`}
                     aria-label={`Call ${vip.phone}`}
                     className="inline-flex min-h-12 min-w-12 items-center justify-center bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 rounded-md transition-colors"
                   >
                     <PhoneCall className="w-4 h-4" />
                   </a>
                   <a
-                    href={`sms:${vip.phone.replace(/\D/g, "")}`}
+                    href={`sms:${phoneDigits(vip.phone)}`}
                     aria-label={`Text ${vip.phone}`}
                     className="inline-flex min-h-12 min-w-12 items-center justify-center bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 rounded-md transition-colors"
                   >

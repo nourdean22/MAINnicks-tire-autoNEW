@@ -896,7 +896,7 @@ function QuickEstimateTab() {
                     <div className="flex-1 min-w-0">
                       <span className="font-bold text-xs tracking-wider text-foreground block truncate">{line.name}</span>
                       <span className="font-mono text-[10px] text-foreground/40">
-                        {line.type.toUpperCase()} {line.hours ? `• ${line.hours}h` : ""} • QTY {line.quantity}
+                        {line.type.charAt(0).toUpperCase() + line.type.slice(1)} {line.hours ? `• ${line.hours}h` : ""} • Qty {line.quantity}
                       </span>
                     </div>
                     <span className="text-[13px] text-foreground">${line.total.toFixed(2)}</span>

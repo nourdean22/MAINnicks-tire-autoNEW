@@ -339,7 +339,7 @@ interface ReplyRow {
 function ReviewRepliesTab() {
   const [filter, setFilter] = useState<ReplyFilter>("draft");
   const utils = trpc.useUtils();
-  const { data: stats, isError: statsError } = trpc.reviewReplies.stats.useQuery();
+  const { data: stats, isError: statsError, fetchStatus: statsFetchStatus } = trpc.reviewReplies.stats.useQuery();
   const { data: replies, isLoading, isError: repliesError, refetch: refetchReplies } = trpc.reviewReplies.list.useQuery(
     filter === "all" ? { limit: 100 } : { status: filter, limit: 100 },
   );
@@ -449,9 +449,10 @@ function ReviewRepliesTab() {
         </p>
       )}
 
-      {statsError && (
+      {(statsError || (!stats && statsFetchStatus === "paused")) && (
         <p className="text-[11px] text-amber-400 leading-relaxed flex items-start gap-1">
-          <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />Reply counts couldn't load. The backlog is unknown, not zero.
+          <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />
+          {statsError ? "Reply counts couldn't load. The backlog is unknown, not zero." : "Reply counts not checked (offline). The backlog is unknown, not zero."}
         </p>
       )}
 
