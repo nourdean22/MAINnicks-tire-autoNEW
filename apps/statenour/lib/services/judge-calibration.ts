@@ -30,18 +30,19 @@
  *   EXCLUDED     · judge tied · OR operator didn't react · OR no source msg
  *
  *   agreementPct  · (TP + TN) / scored · kept for context, not the verdict
- *   kappa         · (po − pe) / (1 − pe) · null when nothing is scored or when
- *                   judge and operator each used a single class (pe = 1) ·
- *                   undefined is null, never 0
+ *   kappa         · (po − pe) / (1 − pe), 3 places · null when nothing is
+ *                   scored or when the operator's reactions are all one class
+ *                   (the formula gives 0 or undefined there whatever the judge
+ *                   does) · undefined is null, never 0
  *   falsePassRate · FP / (FP + TN) · share of operator-rejected replies the
  *                   judge passed · null when the operator rejected none
  *   falseFailRate · FN / (FN + TP) · share of operator-liked replies the
  *                   judge failed · null when the operator liked none
  *
  * Verdict (≥30 scored): kappa ≥0.6 well-calibrated · 0.4 to <0.6 moderate ·
- * <0.4 miscalibrated. <30 scored stays preliminary, and so does operator data
- * that is all one class (all thumbs-up or all thumbs-down): kappa is 0 or
- * undefined there whatever the judge does, so nothing was measured.
+ * <0.4 miscalibrated, compared at 2 places (the value the tile prints, see
+ * roundKappa). <30 scored stays preliminary, and so does operator data that is
+ * all one class (all thumbs-up or all thumbs-down): nothing was measured.
  *
  * Output is shaped so the dashboard can show:
  *   · headline · kappa + agreement, e.g. "kappa 0.53 · agreement 77% (n=65 over 30d)"
@@ -55,7 +56,7 @@
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { logger as rootLogger } from "@/lib/logger";
 import type { Winner } from "@/lib/ai/judge-eval/comparator";
-import { cohensKappa, type LabeledComparison } from "@/lib/ai/judge-eval/calibration";
+import { cohensKappa, roundKappa, type LabeledComparison } from "@/lib/ai/judge-eval/calibration";
 
 const log = rootLogger.withSurface("services/judge-calibration");
 
@@ -87,7 +88,7 @@ export interface JudgeCalibrationReport {
   sinceDays: number;
   /** Agreement % · 0-100 · -1 when totalScored = 0. Context only; the verdict reads kappa. */
   agreementPct: number;
-  /** Cohen's kappa (chance-corrected agreement) · null when undefined (nothing scored, or one class only). */
+  /** Cohen's kappa (chance-corrected agreement) · null when undefined (nothing scored, or operator reactions all one class). */
   kappa: number | null;
   /** FP / (FP + TN) · share of operator-rejected replies the judge passed · null on a zero denominator. */
   falsePassRate: number | null;
@@ -137,7 +138,7 @@ function deriveVerdict(
       reason: `${totalScored} scored comparisons in window · need ≥${MIN_SAMPLE_FOR_VERDICT} for a confident verdict`,
     };
   }
-  // One-class reactions: kappa is 0 or undefined whatever the judge does, so nothing was measured.
+  // One-class reactions: nothing was measured (kappa is null), so no verdict.
   if (rejected === 0 || liked === 0) {
     const only = rejected === 0 ? "thumbs-up" : "thumbs-down";
     return {
@@ -152,21 +153,30 @@ function deriveVerdict(
       reason: `kappa could not be computed for ${totalScored} scored comparisons (agreement ${agreementPct}%)`,
     };
   }
-  if (kappa < KAPPA_MODERATE) {
+  // Bands and text use the same 2-place value the tile prints (roundKappa), never the 3-place one.
+  const shown = roundKappa(kappa);
+  const k = shown.toFixed(2);
+  if (shown < 0) {
     return {
       verdict: "miscalibrated",
-      reason: `kappa ${kappa.toFixed(2)}, agreement ${agreementPct}% · the judge adds little beyond chance agreement and is not a reliable proxy here`,
+      reason: `kappa ${k}, agreement ${agreementPct}% · the judge does worse than chance and is not a reliable proxy here`,
     };
   }
-  if (kappa < KAPPA_WELL_CALIBRATED) {
+  if (shown < KAPPA_MODERATE) {
+    return {
+      verdict: "miscalibrated",
+      reason: `kappa ${k}, agreement ${agreementPct}% · the judge adds little beyond chance agreement and is not a reliable proxy here`,
+    };
+  }
+  if (shown < KAPPA_WELL_CALIBRATED) {
     return {
       verdict: "moderate",
-      reason: `kappa ${kappa.toFixed(2)}, agreement ${agreementPct}% · usable but interpret verdicts with caution`,
+      reason: `kappa ${k}, agreement ${agreementPct}% · usable but interpret verdicts with caution`,
     };
   }
   return {
     verdict: "well-calibrated",
-    reason: `kappa ${kappa.toFixed(2)}, agreement ${agreementPct}% over ${totalScored} samples · ground-truth confirms judge rulings`,
+    reason: `kappa ${k}, agreement ${agreementPct}% over ${totalScored} samples · ground-truth confirms judge rulings`,
   };
 }
 
@@ -226,10 +236,12 @@ export function computeCalibration(
           (((agreeJ2H1 + agreeJ1HMinus1) / totalScored) * 100).toFixed(1),
         );
 
-  // cohensKappa returns null for n = 0 and for pe = 1 (one class on both sides).
-  const kappa = cohensKappa(scored);
   const rejected = disagreeJ2HMinus1 + agreeJ1HMinus1; // operator thumbs-down
   const liked = agreeJ2H1 + disagreeJ1H1; // operator thumbs-up
+  // Kappa is undefined, not 0, unless both operator classes are present: with every reaction
+  // one class the formula returns 0 (mixed judge) or null (single-class judge) whatever the
+  // judge does. cohensKappa also returns null for n = 0.
+  const kappa = rejected === 0 || liked === 0 ? null : cohensKappa(scored);
   const falsePassRate = rejected === 0 ? null : disagreeJ2HMinus1 / rejected;
   const falseFailRate = liked === 0 ? null : disagreeJ1H1 / liked;
 

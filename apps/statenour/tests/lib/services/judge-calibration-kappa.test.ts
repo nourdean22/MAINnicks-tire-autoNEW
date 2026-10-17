@@ -124,6 +124,55 @@ describe("verdict bands read kappa (n >= 30)", () => {
   });
 });
 
+describe("bands compare the 2-place kappa that is shown", () => {
+  // cohensKappa rounds to 3 places, the tile and the reason print 2. A kappa that prints
+  // 0.60 must read well-calibrated; one that prints 0.40 must not read miscalibrated.
+  const at = (tp: number, fp: number, tn: number, fn: number) => computeCalibration(cells(tp, fp, tn, fn), 30, fixed);
+
+  it("kappa 0.597 prints 0.60 and reads well-calibrated", () => {
+    const r = at(8, 3, 20, 3);
+    expect(r.kappa).toBe(0.597);
+    expect(r.verdict).toBe("well-calibrated");
+    expect(r.verdictReason).toContain("kappa 0.60");
+  });
+
+  it("kappa 0.595 prints 0.59 and reads moderate", () => {
+    const r = at(6, 1, 19, 4);
+    expect(r.kappa).toBe(0.595);
+    expect(r.verdict).toBe("moderate");
+    expect(r.verdictReason).toContain("kappa 0.59");
+  });
+
+  it("kappa 0.395 and 0.397 print 0.40 and read moderate", () => {
+    const a = at(9, 4, 12, 5);
+    const b = at(8, 4, 14, 5);
+    expect([a.kappa, b.kappa]).toEqual([0.395, 0.397]);
+    expect([a.verdict, b.verdict]).toEqual(["moderate", "moderate"]);
+    expect(a.verdictReason).toContain("kappa 0.40");
+  });
+});
+
+describe("negative kappa reads worse than chance", () => {
+  // Judge right on 10 of 40 with both classes present: kappa -0.5.
+  const r = computeCalibration(cells(5, 15, 5, 15), 30, fixed);
+
+  it("kappa is negative and the verdict is miscalibrated", () => {
+    expect(r.kappa).toBe(-0.5);
+    expect(r.verdict).toBe("miscalibrated");
+  });
+
+  it("the reason says worse than chance, not 'adds little'", () => {
+    expect(r.verdictReason).toContain("worse than chance");
+    expect(r.verdictReason).not.toContain("adds little");
+  });
+
+  it("CONTROL: a small positive kappa still says it adds little beyond chance", () => {
+    const low = computeCalibration(cells(11, 9, 11, 9), 30, fixed); // kappa 0.1
+    expect(low.verdictReason).toContain("adds little beyond chance");
+    expect(low.verdictReason).not.toContain("worse than chance");
+  });
+});
+
 describe("(c) one-class data: kappa is undefined, never 0", () => {
   // Judge always v2, operator always thumbs-up: both raters used one answer.
   const r = computeCalibration(cells(40, 0, 0, 0), 30, fixed);
@@ -148,10 +197,10 @@ describe("(c) one-class data: kappa is undefined, never 0", () => {
 });
 
 describe("one-class operator reactions stay preliminary (n >= 30)", () => {
-  it("all thumbs-up + a mixed judge: kappa 0 is reported, the verdict is preliminary", () => {
+  it("all thumbs-up + a mixed judge: kappa is null (the formula says 0, but nothing was measured), the verdict is preliminary", () => {
     const r = computeCalibration(cells(20, 0, 0, 20), 30, fixed); // judge splits 20 v2 / 20 v1, operator all up
     expect(r.totalScored).toBe(40);
-    expect(r.kappa).toBe(0);
+    expect(r.kappa).toBeNull();
     expect(r.falsePassRate).toBeNull();
     expect(r.falseFailRate).toBe(0.5);
     expect(r.verdict).toBe("preliminary");
@@ -161,7 +210,7 @@ describe("one-class operator reactions stay preliminary (n >= 30)", () => {
 
   it("all thumbs-down is preliminary too, and the reason names thumbs-down", () => {
     const r = computeCalibration(cells(0, 20, 20, 0), 30, fixed);
-    expect(r.kappa).toBe(0);
+    expect(r.kappa).toBeNull();
     expect(r.falseFailRate).toBeNull();
     expect(r.verdict).toBe("preliminary");
     expect(r.verdictReason).toContain("thumbs-down");

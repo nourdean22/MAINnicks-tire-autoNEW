@@ -32,7 +32,7 @@ import {
   JudgeCalibrationPanel,
   TriageAdoptionStrip,
 } from "@/components/system/judge-calibration-panel";
-import { JudgeCalibrationMetrics } from "@/components/system/judge-calibration-panel-metrics";
+import { JudgeCalibrationMetrics, reactionCounts } from "@/components/system/judge-calibration-panel-metrics";
 
 type Mood = "energized" | "neutral" | "depleted" | "scattered";
 
@@ -432,6 +432,8 @@ export default function CalibrationPage() {
               kappa={judgeData.kappa}
               falsePassRate={judgeData.falsePassRate}
               falseFailRate={judgeData.falseFailRate}
+              {...reactionCounts(judgeData.matrix)}
+              preliminary={judgeData.verdict === "preliminary"}
             />
 
             {judgeData.totalScored > 0 ? (
