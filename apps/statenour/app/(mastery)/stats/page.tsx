@@ -28,14 +28,23 @@
  * tax first paint. Every other child self-fetches + self-hides on its own
  * loading/error, so the page stays light.
  *
+ * UI v3 W4 (2026-10-17): three tabs (Mastery; Goals, which now holds Calibration and the forecast
+ * duel; Body and learning), a verdict line above them (StatsVerdict), and one state block
+ * (StatsStateBlock) for loading, a failed read with Retry, and a real zero, also used while the lazy
+ * sections load instead of pulsing blocks. Retired keys ?tab=learning and ?tab=calibration land on
+ * the tab holding that section and scroll to it (lib/stats/resolve-tab.ts STATS_TAB_ALIASES).
+ * Pinned by tests/components/stats-three-tabs-verdict.test.tsx.
+ *
  * Suspense boundary: <MissionBreadcrumb> reads useMissionMode() →
  * useSearchParams(), which Next bails to client-side render at prerender
  * time unless wrapped. NickSidePane gets its own so any search-param child
  * there is covered too.
  */
 
-import { Suspense } from "react";
-import { STATS_TABS, resolveStatsTab } from "@/lib/stats/resolve-tab";
+import { Suspense, useEffect } from "react";
+import { STATS_TABS, STATS_TAB_ALIASES, resolveStatsTab } from "@/lib/stats/resolve-tab";
+import { StatsStateBlock, StatsVerdict } from "@/components/stats/stats-verdict";
+import { scrollBehavior } from "@/lib/ui/scroll-behavior";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { StandardPage } from "@/components/layout/standard-page";
@@ -59,14 +68,9 @@ import { MissionBreadcrumb } from "@/components/mastery/mission-breadcrumb";
 import { NickSidePane } from "@/components/mastery/nick-side-pane";
 import { JourneyPanel } from "@/components/stats/journey-panel";
 
-/** Below-the-fold section shimmer · holds layout while the lazy chunk loads. */
+/** While a lazy section's code loads: the state in words (W4), not a pulsing block. */
 function SectionFallback() {
-  return (
-    <div className="space-y-3" aria-hidden>
-      <div className="h-24 rounded-surface border border-edge-subtle bg-content animate-pulse" />
-      <div className="h-40 rounded-surface border border-edge-subtle bg-content animate-pulse" />
-    </div>
-  );
+  return <StatsStateBlock state="loading" message="Loading this section." />;
 }
 
 // Wave 2 · /body weight/health tracker, rehomed as a lazy section.
@@ -85,17 +89,17 @@ const LearningLoop = dynamic(
 
 const IdentityArcCard = dynamic(
   () => import("@/components/mastery/identity-arc-card").then((m) => m.IdentityArcCard),
-  { ssr: false, loading: () => <div className="h-[200px] rounded-surface border border-edge-subtle bg-content animate-pulse" /> },
+  { ssr: false, loading: () => <SectionFallback /> },
 );
 
 const RecurringEnemiesCard = dynamic(
   () => import("@/components/mastery/recurring-enemies-card").then((m) => m.RecurringEnemiesCard),
-  { ssr: false, loading: () => <div className="h-[210px] rounded-surface border border-edge-subtle bg-content animate-pulse" /> },
+  { ssr: false, loading: () => <SectionFallback /> },
 );
 
 const GraduatedSkillsCard = dynamic(
   () => import("@/components/mastery/graduated-skills-card").then((m) => m.GraduatedSkillsCard),
-  { ssr: false, loading: () => <div className="h-[210px] rounded-surface border border-edge-subtle bg-content animate-pulse" /> },
+  { ssr: false, loading: () => <SectionFallback /> },
 );
 
 const CalibrationSection = dynamic(
@@ -103,22 +107,9 @@ const CalibrationSection = dynamic(
   { ssr: false, loading: () => <SectionFallback /> },
 );
 
-/** Light shimmer matching the character-sheet hero + stat-grid shape, so the
- *  static prerender shell holds the layout until the client subtree hydrates. */
+/** The static prerender shell until the client subtree hydrates: the state in words (W4). */
 function StatsBodyFallback() {
-  return (
-    <div className="mt-6 space-y-3" aria-hidden>
-      <div className="h-16 rounded-surface border border-edge-subtle bg-content animate-pulse" />
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div
-            key={i}
-            className="h-10 rounded-control border border-edge-subtle bg-content animate-pulse"
-          />
-        ))}
-      </div>
-    </div>
-  );
+  return <StatsStateBlock state="loading" message="Reading your stats." />;
 }
 
 function StatsContent() {
@@ -132,6 +123,17 @@ function StatsContent() {
   // retired-routes gate can pin it.
   const activeTab = resolveStatsTab(searchParams.get("tab"));
 
+  // A retired key (?tab=learning, ?tab=calibration) lands on the tab that holds its section;
+  // bring that section into view, since it is no longer at the top of a tab of its own.
+  const requestedTab = searchParams.get("tab");
+  useEffect(() => {
+    if (!requestedTab || !(requestedTab in STATS_TAB_ALIASES)) return;
+    const frame = requestAnimationFrame(() => {
+      document.getElementById(requestedTab)?.scrollIntoView({ block: "start", behavior: scrollBehavior() });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [requestedTab]);
+
   const handleTabChange = (tabId: string) => {
     const params = new URLSearchParams(searchParams.toString());
     params.set("tab", tabId);
@@ -140,6 +142,9 @@ function StatsContent() {
 
   return (
     <div className="space-y-6">
+      {/* W4: the one sentence that says where Nour stands, above the tabs. */}
+      <StatsVerdict />
+
       {/* Tab bar · 2026-09-16 Visible Transformation: the glassmorphic pill
           bar (backdrop blur, white/[0.02] glass, a blue→indigo→purple accent
           that carried an anti-slop waiver) is replaced by the house underline
@@ -169,7 +174,7 @@ function StatsContent() {
       </div>
 
       {/* Tab content wrapper with smooth transitions */}
-      <div className="mt-4 transition-all duration-300">
+      <div className="mt-4">
         {activeTab === "mastery" && (
           <div className="space-y-6 animate-in fade-in duration-300">
             {/* ⓪ TODAY'S MOVE & IDENTITY ARC · responsive 2-column layout */}
@@ -202,6 +207,16 @@ function StatsContent() {
               <MasterySectionLabel label="Goals · what you're climbing toward" />
               <GoalBoard />
             </section>
+            {/* ⑤ CALIBRATION · outcome tracking & prediction scoring (W4: folded under Goals) */}
+            <section id="calibration" className="space-y-3">
+              <MasterySectionLabel label="Calibration · outcome benchmarking" />
+              <CalibrationSection />
+            </section>
+            {/* ⑥ FORECAST DUEL · you-vs-Nick Brier (#1393's missing consumer) */}
+            <section id="forecast-duel" className="space-y-3">
+              <MasterySectionLabel label="Forecast duel · odds on yourself" />
+              <ForecastDuel />
+            </section>
           </div>
         )}
 
@@ -212,30 +227,10 @@ function StatsContent() {
               <MasterySectionLabel label="Body · health = performance" />
               <BodySection />
             </section>
-          </div>
-        )}
-
-        {activeTab === "learning" && (
-          <div className="space-y-6 animate-in fade-in duration-300">
-            {/* ④ LEARNING · the active AI learning loop */}
+            {/* ④ LEARNING · the active AI learning loop (W4: folded under Body and learning) */}
             <section id="learning" className="space-y-3">
               <MasterySectionLabel label="Learning · the active loop" />
               <LearningLoop />
-            </section>
-          </div>
-        )}
-
-        {activeTab === "calibration" && (
-          <div className="space-y-6 animate-in fade-in duration-300">
-            {/* ⑤ CALIBRATION · outcome tracking & prediction scoring */}
-            <section id="calibration" className="space-y-3">
-              <MasterySectionLabel label="Calibration · outcome benchmarking" />
-              <CalibrationSection />
-            </section>
-            {/* ⑥ FORECAST DUEL · you-vs-Nick Brier (#1393's missing consumer) */}
-            <section id="forecast-duel" className="space-y-3">
-              <MasterySectionLabel label="Forecast duel · odds on yourself" />
-              <ForecastDuel />
             </section>
           </div>
         )}

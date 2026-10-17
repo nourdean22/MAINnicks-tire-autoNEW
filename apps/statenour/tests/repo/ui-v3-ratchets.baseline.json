@@ -4,7 +4,7 @@
     "uppercase": 5,
     "emDash": 269,
     "emoji": 33,
-    "transitionAll": 57,
+    "transitionAll": 56,
     "slowDuration": 8,
     "smallInput": 112
   },
@@ -48,9 +48,6 @@
     },
     "app/(mastery)/proof/page.tsx": {
       "emDash": 3
-    },
-    "app/(mastery)/stats/page.tsx": {
-      "transitionAll": 1
     },
     "app/(mastery)/system/actions/page.tsx": {
       "emoji": 1,
