@@ -39,8 +39,10 @@ function fixture() {
   git(primary, "add", "README.md", ".gitignore");
   git(primary, "commit", "-q", "-m", "init");
   git(primary, "push", "-q", "origin", "main");
-  const add = (name, { dir = ".claude/worktrees", dirty = false, detached = false } = {}) => {
-    const path = join(primary, dir, name);
+  // A direct child of .claude/worktrees is an agent worktree (agent-<name>) unless `folder` names it exactly, as a
+  // Claude Desktop session worktree is named (musing-ramanujan-25e4e3).
+  const add = (name, { dir = ".claude/worktrees", dirty = false, detached = false, folder } = {}) => {
+    const path = join(primary, dir, folder ?? (dir === ".claude/worktrees" ? `agent-${name}` : name));
     const branch = detached ? null : `lane/${name}`;
     if (detached) git(primary, "worktree", "add", "-q", "--detach", path);
     else git(primary, "worktree", "add", "-q", "-b", branch, path);
@@ -306,4 +308,34 @@ test("end to end through the REAL worktree-teardown.ps1: the LANDED worktree goe
   assert.equal(r.removed, true, `${r.reason}`);
   assert.ok(!isRegistered(f.primary, landed.path));
   assert.ok(isRegistered(f.primary, dirty.path) && existsSync(join(dirty.path, "scratch.txt")));
+});
+
+// Manager review 2026-10-17: Claude Desktop session worktrees (musing-ramanujan-25e4e3, wonderful-euler-00bf80) carry no
+// harness lock and commit on PR branches in their own cwd. Idle 2 h, clean, lease expired, PR merged: without this class
+// the sweep read a RUNNING session's working directory as LANDED and removed it.
+test("a Desktop session worktree is SESSION and never removed (CLI sweep and sweepAfterMerge); the identical agent- worktree and a nested .worktrees one are removed", async () => {
+  const f = fixture();
+  const session = f.add("session", { folder: "musing-xyz" });
+  const agent = f.add("twin"); // .claude/worktrees/agent-twin, same state as the session one
+  const nested = f.add("nested", { dir: ".claude/worktrees/musing-xyz/.worktrees" });
+  const prs = { [session.branch]: [merged(1, session)], [agent.branch]: [merged(2, agent)], [nested.branch]: [merged(3, nested)] };
+
+  const td = fakeTeardown(f.primary);
+  const sweep = await sweepWorktrees({ cwd: f.primary, execute: true, deps: deps({ gh: fakeGh(prs).gh, teardown: td.teardown }) });
+  assert.equal(resultOf(sweep, session).cls, C.SESSION);
+  assert.match(resultOf(sweep, session).reason, /Claude Desktop session worktree/);
+  assert.equal(resultOf(sweep, session).removed, false);
+  assert.ok(isRegistered(f.primary, session.path) && existsSync(session.path), "the session's cwd survives");
+  assert.deepEqual(td.calls.map(slash).sort(), [slash(agent.path), slash(nested.path)].sort());
+  assert.match(formatSweep(sweep), /\bSESSION 1\b/);
+
+  // merge-gate from the primary (self = the primary): the session holding the merged head is still kept.
+  const f2 = fixture();
+  const live = f2.add("live", { folder: "wonderful-xyz" });
+  const td2 = fakeTeardown(f2.primary);
+  const logs = [];
+  await sweepAfterMerge({ branch: live.branch, headSha: live.head }, { cwd: f2.primary, deps: deps({ gh: fakeGh({ [live.branch]: [merged(9, live)] }).gh, teardown: td2.teardown }), log: (m) => logs.push(m) });
+  assert.deepEqual(td2.calls, []);
+  assert.ok(isRegistered(f2.primary, live.path));
+  assert.ok(logs.some((l) => /SWEEP: kept .*wonderful-xyz: SESSION/.test(l)), JSON.stringify(logs));
 });

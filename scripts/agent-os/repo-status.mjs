@@ -61,6 +61,7 @@ export const WORKTREE_CLASSES = Object.freeze({
   DIRTY: "DIRTY",
   ACTIVE: "ACTIVE",
   DETACHED_UNKNOWN: "DETACHED_UNKNOWN",
+  SESSION: "SESSION",
   UNKNOWN: "UNKNOWN",
 });
 const K = WORKTREE_CLASSES;
@@ -116,12 +117,19 @@ function recentChange(path, git, since) {
 }
 
 /**
- * One worktree -> {cls, reason}. Only LANDED is ever removable, and LANDED needs ALL of: not the caller's worktree, not
- * locked, every local read succeeded, nothing modified in 2 h, no live lease (local marker or GitHub), a clean tree, a
+ * One worktree -> {cls, reason}. Only LANDED is ever removable, and LANDED needs ALL of: not a Desktop session
+ * worktree, not the caller's worktree, not locked, every local read succeeded, nothing modified in 2 h, no live lease (local marker or GitHub), a clean tree, a
  * branch, and a MERGED PR whose head is HEAD or whose commit list holds HEAD. Squash merges make cherry and ahead-counts
  * lie, so neither is consulted. Any failed read is UNKNOWN, never LANDED.
  */
-export async function classifyWorktree(wt, { git, gh, readLease: leaseOf, now, self }) {
+export async function classifyWorktree(wt, { git, gh, readLease: leaseOf, now, self, primary }) {
+  // Checked before any read. A Claude Desktop session's worktree (a direct child of .claude/worktrees not named agent-*,
+  // e.g. musing-ramanujan-25e4e3) has no harness lock and commits on PR branches in its own cwd, so an idle session whose
+  // PR merged would otherwise read LANDED and lose its working directory (manager review 2026-10-17). Agent worktrees
+  // and anything under a .worktrees/ (nested ones too) stay eligible.
+  if (!primary) return { cls: K.UNKNOWN, reason: "no primary checkout to place this worktree against" };
+  const desktop = norm(wt.path).slice(norm(primary).length + 1).match(/^\.claude\/worktrees\/([^/]+)$/);
+  if (desktop && !desktop[1].startsWith("agent-")) return { cls: K.SESSION, reason: "Claude Desktop session worktree; the app's archive removes it" };
   if (self && norm(wt.path) === self) return { cls: K.ACTIVE, reason: "the caller's own worktree" };
   if (wt.locked) return { cls: K.ACTIVE, reason: `locked${typeof wt.locked === "string" ? `: ${wt.locked}` : ""}` };
   let recent, marker, status;
@@ -193,7 +201,7 @@ export async function sweepWorktrees({ cwd, execute = false, deps = {}, only = (
   const primary = all[0]?.path; // git lists the main worktree first
   const P = norm(primary);
   const self = norm(d.git(["rev-parse", "--show-toplevel"], cwd));
-  const ctx = { git: d.git, gh: d.gh, readLease: d.readLease, now: d.now, self };
+  const ctx = { git: d.git, gh: d.gh, readLease: d.readLease, now: d.now, self, primary };
   const registered = (path) => list().some((w) => norm(w.path) === norm(path));
   const candidates = all.filter((w) => norm(w.path) !== P && SWEPT_DIRS.some((dir) => norm(w.path).startsWith(`${P}/${dir}`)) && only(w));
 
