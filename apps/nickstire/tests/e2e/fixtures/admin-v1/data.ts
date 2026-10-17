@@ -188,6 +188,7 @@ export const HANDLERS = {
     { reference: "ADM-3301", actor: "demo-owner", action: "lead.contacted", entityType: "admin_action", entityId: "7202", createdAt: at(c, 60) },
   ],
   "adminSecurity.integrationFreshness": (_i, c) => ({ readable: true, source: "alg_probe_log", connected: true, lastSuccessfulAt: at(c, 12), lastAttemptAt: at(c, 12), lastAttemptOutcome: "success", failuresSinceLastSuccess: 0, generatedAt: c }),
+  "adminSecurity.queueFeedbackSummary": (_i, c) => ({ readable: true, total: 14, since: iso(c, 60 * 24 * 7), byType: [{ itemType: "booking", keep: 5, less: 2 }, { itemType: "lead", keep: 4, less: 3 }] }),
   "adminDashboard.overviewMediumBundle": (_i, c) => ({
     stats: dashboardStats(),
     bookings: bookings(c),
