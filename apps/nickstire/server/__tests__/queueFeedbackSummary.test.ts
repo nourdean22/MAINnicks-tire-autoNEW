@@ -123,11 +123,12 @@ describe("getQueueFeedbackSummary", () => {
     expect(out).toMatchObject({ readable: true, total: 2, byType: [{ itemType: "unknown", keep: 1, less: 1 }] });
   });
 
-  it("since is the EARLIEST first verdict wherever it sits in the result", async () => {
+  it("since is the EARLIEST first verdict, not the first or the last row's (earliest sits in the middle)", async () => {
+    // first row 300, middle 100 (the minimum), last 500: first-wins, last-wins and max all give a wrong answer.
     fakeDb([
-      { itemType: "booking", keepN: "1", lessN: "0", firstAt: "1760000500" },
-      { itemType: "callback", keepN: "1", lessN: "0", firstAt: "1760000300" },
+      { itemType: "booking", keepN: "1", lessN: "0", firstAt: "1760000300" },
       { itemType: "lead", keepN: "0", lessN: "1", firstAt: "1760000100" },
+      { itemType: "text", keepN: "1", lessN: "0", firstAt: "1760000500" },
     ]);
     const out = await getQueueFeedbackSummary();
     expect(out).toMatchObject({ readable: true, total: 3, since: new Date(1760000100 * 1000).toISOString() });
