@@ -402,6 +402,8 @@ export interface FfmpegBuildOpts {
    * while its payload declared only five beats. See shared/reelTextSurfaces.ts.
    */
   askText?: string | null;
+  /** Loudnorm first-pass measurement (measureMixLoudness). Absent or null = single-pass loudnorm, as before. */
+  loudnorm?: LoudnormMeasured | null;
 }
 
 /**
@@ -416,7 +418,7 @@ export function buildFfmpegArgs(opts: FfmpegBuildOpts): string[] {
     throw new Error(`segment/clip count mismatch: ${segs.length} segs vs ${clipPaths.length} clips`);
   }
   const total = segmentsTotalSeconds(segs);
-  const videoTotal = Number((total + SAVE_FREEZE_SECONDS).toFixed(2));
+  const videoTotal = renderVideoTotal(segs);
   // The font is copied to the working directory so it's just 'font.ttf'.
   // No Windows drive letter colon escaping hell.
   const fontEsc = fontPath.replace(/\\/g, "/");
@@ -605,45 +607,9 @@ export function buildFfmpegArgs(opts: FfmpegBuildOpts): string[] {
 
   // 4. audio: VO loud over ducked music, degrading gracefully when either is absent
   const maps: string[] = ["-map", "[vout]"];
-  if (haveVo && haveMusic) {
-    // Phase 4.2: duck the music DYNAMICALLY under the VO via sidechaincompress
-    // (keyed off the VO) instead of a static volume — music breathes back in the
-    // gaps. Both sources resampled to a common rate first (sidechaincompress
-    // requires it).
-    //
-    // TWO length bugs lived here and produced the published dead-air defect
-    // (reel-30008: silent from VO-end 7.1s to 22.0s — measured, see
-    // docs/execution/creative-quality/QUALITY-BASELINE.json):
-    //  1. sidechaincompress ENDS ITS OUTPUT when the KEY input ends. A 7s VO
-    //     key truncated the ducked music to 7s, amix had nothing longer, and
-    //     apad filled the rest with digital silence — so "music carries
-    //     through" was never true. The key is now silence-padded to the full
-    //     timeline: silence key = zero compression = music actually breathes
-    //     back in after the VO.
-    //  2. a bed shorter than the reel died at bed-end the same way. Beds are
-    //     now looped (aloop) before trimming, so any bed covers any legal
-    //     reel length (duration gate allows up to 90s).
-    fc.push(
-      `[${voIdx}:a]aresample=48000,volume=1.15,asplit=2[vo_mix][vo_key]`,
-      `[vo_key]apad=whole_dur=${videoTotal}[vo_key_p]`,
-      `[${musIdx}:a]aloop=loop=-1:size=4000000,aresample=48000,volume=0.6,atrim=0:${videoTotal}[mus_raw]`,
-      `[mus_raw][vo_key_p]sidechaincompress=threshold=0.03:ratio=8:attack=20:release=400[mus_duck]`,
-      `[vo_mix][mus_duck]amix=inputs=2:duration=longest:normalize=0[am]`,
-      `[am]atrim=0:${videoTotal},asetpts=PTS-STARTPTS,apad=whole_dur=${videoTotal},loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000[aout]`,
-    );
-    maps.push("-map", "[aout]");
-  } else if (haveVo) {
-    // aresample FIRST so loudnorm computes the apad/duration on a known 48k rate.
-    // NOTE: this branch pads everything after the VO with silence — acceptable
-    // only for VO that spans (most of) the video. The dead-air render gate in
-    // assembleReel refuses the result otherwise.
-    fc.push(`[${voIdx}:a]aresample=48000,volume=1.15,atrim=0:${videoTotal},asetpts=PTS-STARTPTS,apad=whole_dur=${videoTotal},loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000[aout]`);
-    maps.push("-map", "[aout]");
-  } else if (haveMusic) {
-    // Loop the bed here too — a 60s bed under a 90s reel must not die at 60s.
-    fc.push(`[${musIdx}:a]aloop=loop=-1:size=4000000,aresample=48000,volume=0.5,atrim=0:${videoTotal},asetpts=PTS-STARTPTS,apad=whole_dur=${videoTotal},loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000[aout]`);
-    maps.push("-map", "[aout]");
-  }
+  const audio = audioMixFilters(haveVo ? voIdx : null, haveMusic ? musIdx : null, videoTotal, `${loudnormFilter(opts.loudnorm)},aresample=48000`);
+  fc.push(...audio);
+  if (audio.length) maps.push("-map", "[aout]");
   const hasAudio = maps.includes("[aout]");
 
   const filterStr = fc.join(";");
@@ -697,6 +663,128 @@ export function buildFfmpegArgs(opts: FfmpegBuildOpts): string[] {
     "-y",
     outPath,
   ];
+}
+
+/** Rendered length: the beats plus the SAVE freeze. One definition for the render and the loudnorm measure pass. */
+function renderVideoTotal(segs: ReelSegment[]): number {
+  return Number((segmentsTotalSeconds(segs) + SAVE_FREEZE_SECONDS).toFixed(2));
+}
+
+/** The single-pass target. Also the fallback whenever the measure pass gives nothing usable. */
+const LOUDNORM_SINGLE_PASS = "loudnorm=I=-14:TP=-1.5:LRA=11";
+
+/** The five values a loudnorm first pass prints that its second pass consumes, kept as ffmpeg printed them. */
+export interface LoudnormMeasured {
+  input_i: string;
+  input_tp: string;
+  input_lra: string;
+  input_thresh: string;
+  target_offset: string;
+}
+
+/**
+ * Parse the LAST loudnorm JSON block in ffmpeg's stderr. Null (single pass) when it
+ * is missing, malformed, or any value is non-finite (a silent track measures -inf).
+ */
+export function parseLoudnormMeasure(stderr: string): LoudnormMeasured | null {
+  const blocks = stderr.match(/\{[^{}]*"input_i"[^{}]*\}/g);
+  if (!blocks) return null;
+  try {
+    const j = JSON.parse(blocks[blocks.length - 1]) as Record<string, unknown>;
+    const keys = ["input_i", "input_tp", "input_lra", "input_thresh", "target_offset"] as const;
+    if (!keys.every((k) => typeof j[k] === "string" && Number.isFinite(Number(j[k])))) return null;
+    return Object.fromEntries(keys.map((k) => [k, j[k]])) as unknown as LoudnormMeasured;
+  } catch {
+    return null;
+  }
+}
+
+/** Second pass with the measured values (one linear gain) or, without them, today's single pass. Pure. */
+export function loudnormFilter(m: LoudnormMeasured | null | undefined): string {
+  if (!m) return LOUDNORM_SINGLE_PASS;
+  return `${LOUDNORM_SINGLE_PASS}:measured_I=${m.input_i}:measured_TP=${m.input_tp}:measured_LRA=${m.input_lra}:measured_thresh=${m.input_thresh}:offset=${m.target_offset}:linear=true`;
+}
+
+/**
+ * The audio half of the render graph, ending in [aout] after `norm` (the loudnorm step).
+ * Shared by the render and by the loudnorm measure pass so both see the same mix.
+ * Empty when there is no VO and no music.
+ */
+function audioMixFilters(voIdx: number | null, musIdx: number | null, videoTotal: number, norm: string): string[] {
+  if (voIdx !== null && musIdx !== null) {
+    // Phase 4.2: duck the music DYNAMICALLY under the VO via sidechaincompress
+    // (keyed off the VO) instead of a static volume — music breathes back in the
+    // gaps. Both sources resampled to a common rate first (sidechaincompress
+    // requires it).
+    //
+    // TWO length bugs lived here and produced the published dead-air defect
+    // (reel-30008: silent from VO-end 7.1s to 22.0s — measured, see
+    // docs/execution/creative-quality/QUALITY-BASELINE.json):
+    //  1. sidechaincompress ENDS ITS OUTPUT when the KEY input ends. A 7s VO
+    //     key truncated the ducked music to 7s, amix had nothing longer, and
+    //     apad filled the rest with digital silence — so "music carries
+    //     through" was never true. The key is now silence-padded to the full
+    //     timeline: silence key = zero compression = music actually breathes
+    //     back in after the VO.
+    //  2. a bed shorter than the reel died at bed-end the same way. Beds are
+    //     now looped (aloop) before trimming, so any bed covers any legal
+    //     reel length (duration gate allows up to 90s).
+    return [
+      `[${voIdx}:a]aresample=48000,volume=1.15,asplit=2[vo_mix][vo_key]`,
+      `[vo_key]apad=whole_dur=${videoTotal}[vo_key_p]`,
+      `[${musIdx}:a]aloop=loop=-1:size=4000000,aresample=48000,volume=0.6,atrim=0:${videoTotal}[mus_raw]`,
+      `[mus_raw][vo_key_p]sidechaincompress=threshold=0.03:ratio=8:attack=20:release=400[mus_duck]`,
+      `[vo_mix][mus_duck]amix=inputs=2:duration=longest:normalize=0[am]`,
+      `[am]atrim=0:${videoTotal},asetpts=PTS-STARTPTS,apad=whole_dur=${videoTotal},${norm}[aout]`,
+    ];
+  }
+  if (voIdx !== null) {
+    // aresample FIRST so loudnorm computes the apad/duration on a known 48k rate.
+    // NOTE: this branch pads everything after the VO with silence — acceptable
+    // only for VO that spans (most of) the video. The dead-air render gate in
+    // assembleReel refuses the result otherwise.
+    return [`[${voIdx}:a]aresample=48000,volume=1.15,atrim=0:${videoTotal},asetpts=PTS-STARTPTS,apad=whole_dur=${videoTotal},${norm}[aout]`];
+  }
+  if (musIdx !== null) {
+    // Loop the bed here too — a 60s bed under a 90s reel must not die at 60s.
+    return [`[${musIdx}:a]aloop=loop=-1:size=4000000,aresample=48000,volume=0.5,atrim=0:${videoTotal},asetpts=PTS-STARTPTS,apad=whole_dur=${videoTotal},${norm}[aout]`];
+  }
+  return [];
+}
+
+/**
+ * Loudnorm FIRST pass (deep scout 2026-10-17 #10): the render's own audio mix, re-indexed
+ * to audio-only inputs, measured with print_format=json into a null output. Null when the
+ * reel has no audio. Pure.
+ */
+export function buildLoudnormMeasureArgs(opts: Pick<FfmpegBuildOpts, "segs" | "voPath" | "musicPath">): string[] | null {
+  const inputs: string[] = [];
+  if (opts.voPath) inputs.push("-i", opts.voPath);
+  if (opts.musicPath) inputs.push("-i", opts.musicPath);
+  const fc = audioMixFilters(opts.voPath ? 0 : null, opts.musicPath ? (opts.voPath ? 1 : 0) : null, renderVideoTotal(opts.segs), `${LOUDNORM_SINGLE_PASS}:print_format=json`);
+  if (!fc.length) return null;
+  return [...inputs, "-filter_complex", fc.join(";"), "-map", "[aout]", "-f", "null", "-"];
+}
+
+/**
+ * Run the first pass and parse it. Any failure (ffmpeg error, timeout, no or bad JSON)
+ * is null, so the render falls back to today's single-pass filter; it never fails the job.
+ */
+export async function measureMixLoudness(
+  opts: Pick<FfmpegBuildOpts, "segs" | "voPath" | "musicPath">,
+  run: (args: string[], timeoutMs?: number, cwd?: string) => Promise<string> = runFfmpeg,
+  cwd?: string,
+): Promise<LoudnormMeasured | null> {
+  const args = buildLoudnormMeasureArgs(opts);
+  if (!args) return null;
+  try {
+    const m = parseLoudnormMeasure(await run(args, 2 * 60 * 1000, cwd));
+    if (!m) log.info("loudnorm measure pass gave no usable values - single-pass loudnorm");
+    return m;
+  } catch (e) {
+    log.info("loudnorm measure pass failed - single-pass loudnorm", { e: e instanceof Error ? e.message.slice(0, 200) : String(e) });
+    return null;
+  }
 }
 
 /**
@@ -1151,7 +1239,9 @@ export async function assembleReel(
     }
 
     const musicPath = pickMusicBed(brief);
-    const args = buildFfmpegArgs({ segs, clipPaths, voPath, assPath, musicPath, fontPath: "font.ttf", outPath, askText });
+    // Two-pass loudnorm: measure the exact mix first; a failed measure renders single-pass as before.
+    const loudnorm = await measureMixLoudness({ segs, voPath, musicPath }, runFfmpeg, workDir);
+    const args = buildFfmpegArgs({ segs, clipPaths, voPath, assPath, musicPath, fontPath: "font.ttf", outPath, askText, loudnorm });
 
     // The render must draw exactly what was declared - no more, no less. This
     // fires BEFORE ffmpeg runs, so an undeclared card costs a failed job rather
