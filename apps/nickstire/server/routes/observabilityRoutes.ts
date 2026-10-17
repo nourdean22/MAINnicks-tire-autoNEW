@@ -84,6 +84,8 @@ async function probeLangfuse(probeId: string) {
     output: `pong ${probeId}`,
     latencyMs: 0,
     ok: true,
+    // The one excerpt opt-in: synthetic ping/pong text, no customer data.
+    excerpt: true,
     metadata: { probeId, probe: true },
   });
   if (queued !== "queued") {

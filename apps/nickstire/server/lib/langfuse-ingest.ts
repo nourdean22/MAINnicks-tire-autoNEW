@@ -13,10 +13,14 @@
  *     grown without limit;
  *   - keys unset = tracing OFF: nothing is queued, status says configured:false
  *     and /api/system/observability-status reads UNKNOWN, never HEALTHY;
- *   - masking is done HERE, not at call sites: every input/output excerpt goes
- *     through redactCallerText (phones, names, addresses, emails, VINs) and is
- *     capped, and the prompt is sent only as a sha256. A call site cannot
- *     forget to mask because it never hands over raw text that is sent raw;
+ *   - NO free text by default (review P2-1, 2026-10-17): Langfuse is a third
+ *     party and the masker misses names in structured or unintroduced text
+ *     ("Customer name: Maria Lopez", "Lopez, Maria 44101"). A default trace
+ *     carries model, prompt sha256, input/output character counts, tokens,
+ *     latency and an error CLASS ("HTTP 503", "TimeoutError"), never a message.
+ *     `excerpt: true` opts one call in to masked, capped excerpts; only sites
+ *     whose text holds no customer data may set it (today: the observability
+ *     probe's synthetic ping/pong, nothing else);
  *   - a call marked `private: true` (receptionist private mode and any other
  *     do-not-record lane) is not traced; it is counted under skipped.private.
  *
@@ -49,13 +53,16 @@ export interface TraceGenerationInput {
   model: string;
   /** Prompt text (system + messages, any shape). Sent as sha256 + masked excerpt of the last user turn. */
   promptText: string;
-  /** The last user-authored text, masked before it leaves. */
+  /** The last user-authored text. Only its length leaves unless `excerpt` is true. */
   input?: string | null;
-  /** Model output text, masked before it leaves. */
+  /** Model output text. Only its length leaves unless `excerpt` is true. */
   output?: string | null;
+  /** Opt in to masked, capped input/output excerpts. Only for text with no customer data. */
+  excerpt?: boolean;
   usage?: { promptTokens?: number | null; completionTokens?: number | null; totalTokens?: number | null } | null;
   latencyMs: number;
   ok: boolean;
+  /** Error CLASS only (errorClass()), never a provider message: messages can echo the request. */
   error?: string | null;
   /** Receptionist private mode and other do-not-record lanes: counted, never sent. */
   private?: boolean;
@@ -139,6 +146,8 @@ export function traceGeneration(g: TraceGenerationInput): "queued" | "skipped_pr
     const metadata = {
       site: g.site,
       promptSha256: promptHash(g.promptText),
+      inputChars: g.input?.length ?? 0,
+      outputChars: g.output?.length ?? 0,
       commit: identity.commitShort ?? "unknown",
       ...(g.metadata ?? {}),
     };
@@ -153,8 +162,7 @@ export function traceGeneration(g: TraceGenerationInput): "queued" | "skipped_pr
         release: identity.commit ?? undefined,
         environment: process.env.RAILWAY_ENVIRONMENT_NAME || process.env.NODE_ENV || "development",
         tags: ["nickstire", g.ok ? "ok" : "error"],
-        input: maskExcerpt(g.input),
-        output: maskExcerpt(g.output),
+        ...(g.excerpt ? { input: maskExcerpt(g.input), output: maskExcerpt(g.output) } : {}),
         metadata,
       },
     });
@@ -169,12 +177,10 @@ export function traceGeneration(g: TraceGenerationInput): "queued" | "skipped_pr
         model: g.model,
         startTime: new Date(Date.now() - Math.max(0, g.latencyMs)).toISOString(),
         endTime: now,
-        input: maskExcerpt(g.input),
-        output: maskExcerpt(g.output),
+        ...(g.excerpt ? { input: maskExcerpt(g.input), output: maskExcerpt(g.output) } : {}),
         usage,
         level: g.ok ? "DEFAULT" : "ERROR",
-        // Provider errors can echo the request body: masked like any other text.
-        statusMessage: g.ok ? undefined : maskExcerpt(g.error ?? "error").slice(0, 300),
+        statusMessage: g.ok ? undefined : errorClass(g.error),
         metadata,
       },
     });
@@ -189,6 +195,23 @@ export function traceGeneration(g: TraceGenerationInput): "queued" | "skipped_pr
 }
 
 type Json = Record<string, any>;
+
+/**
+ * The class of a failure, never its message (a provider message can echo the
+ * request): "HTTP 503", "TimeoutError", "TypeError:ENOTFOUND", else "error".
+ */
+function errorClass(err: unknown): string {
+  if (err === undefined || err === null) return "error";
+  if (err instanceof Error) {
+    const http = /^HTTP \d{3}\b/.exec(err.message)?.[0];
+    if (http) return http;
+    const code = (err as { code?: unknown; cause?: { code?: unknown } }).code ?? (err as { cause?: { code?: unknown } }).cause?.code;
+    return typeof code === "string" && /^[A-Z_]{2,40}$/.test(code) ? `${err.name}:${code}` : err.name || "Error";
+  }
+  const s = String(err);
+  if (/^[A-Za-z]*Error(:[A-Z_]{2,40})?$/.test(s)) return s; // already a class
+  return /\bHTTP \d{3}\b/.exec(s)?.[0] ?? "error";
+}
 
 function partsText(content: unknown): string {
   if (typeof content === "string") return content;
@@ -252,8 +275,16 @@ export function traceChat(o: {
   ok: boolean;
   error?: unknown;
   private?: boolean;
+  /** Opt in to masked excerpts. Only for sites whose text holds no customer data. */
+  excerpt?: boolean;
 }): void {
   try {
+    if (o.private) {
+      state.skippedPrivate += 1;
+      return;
+    }
+    // Off = return before any work: a vision call's messages carry base64 images.
+    if (!langfuseConfig().configured) return;
     traceGeneration({
       name: o.name,
       site: o.site,
@@ -264,8 +295,8 @@ export function traceChat(o: {
       usage: responseUsage(o.response),
       latencyMs: Date.now() - o.startedAt,
       ok: o.ok,
-      error: o.error === undefined || o.error === null ? null : o.error instanceof Error ? o.error.message : String(o.error),
-      private: o.private,
+      error: o.ok ? null : errorClass(o.error),
+      excerpt: o.excerpt,
     });
   } catch {
     // Tracing must never reach the caller (JSON.stringify of a cyclic body, etc.).
