@@ -3,7 +3,7 @@
  * (replaces Manus Forge ImageService proxy)
  */
 import { storagePut } from "../storage";
-import { traceChat } from "../lib/langfuse-ingest";
+import { rethrowTraced, traceChat } from "../lib/langfuse-ingest";
 
 export type GenerateImageOptions = {
   prompt: string;
@@ -45,13 +45,13 @@ export async function generateImage(
         },
       }),
       signal: AbortSignal.timeout(60_000), // image gen can take 30-50s
-    });
+    }).catch(rethrowTraced({ name: "image:gemini", site: "_core/imageGeneration.ts", model, messages: options.prompt, startedAt: t0 }));
 
     if (!response.ok) {
       traceChat({ name: "image:gemini", site: "_core/imageGeneration.ts", model, messages: options.prompt, startedAt: t0, ok: false, error: `HTTP ${response.status}` });
     }
     if (response.ok) {
-      const data = (await response.json()) as any;
+      const data = (await response.json().catch(rethrowTraced({ name: "image:gemini", site: "_core/imageGeneration.ts", model, messages: options.prompt, startedAt: t0 }))) as any;
       traceChat({ name: "image:gemini", site: "_core/imageGeneration.ts", model, messages: options.prompt, outputText: "[image]", response: { usageMetadata: data.usageMetadata }, startedAt: t0, ok: true });
       const parts = data.candidates?.[0]?.content?.parts ?? [];
       let b64: string | undefined;
@@ -96,7 +96,7 @@ export async function generateImage(
       size: "1024x1024",
       response_format: "b64_json",
     }),
-  });
+  }).catch(rethrowTraced({ name: "image:openai", site: "_core/imageGeneration.ts", model: "dall-e-3", messages: options.prompt, startedAt: t0 }));
 
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
@@ -106,7 +106,7 @@ export async function generateImage(
     );
   }
 
-  const result = (await response.json()) as {
+  const result = (await response.json().catch(rethrowTraced({ name: "image:openai", site: "_core/imageGeneration.ts", model: "dall-e-3", messages: options.prompt, startedAt: t0 }))) as {
     data: Array<{ b64_json: string }>;
   };
 

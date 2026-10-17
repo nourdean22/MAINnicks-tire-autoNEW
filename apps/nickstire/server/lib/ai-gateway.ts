@@ -14,7 +14,7 @@
  */
 
 import { createLogger } from "./logger";
-import { traceChat } from "./langfuse-ingest";
+import { markTraced, traceChat, traceThrown } from "./langfuse-ingest";
 import { appendFile, stat, writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 
@@ -182,7 +182,7 @@ async function callOpenAI(model: string, messages: ChatMessage[], timeoutMs: num
     if (!res.ok) {
       const body = await res.text().catch(() => "");
       traceChat({ name: "gateway:openai", site: "lib/ai-gateway.ts", model: resolvedModel, messages, startedAt: start, ok: false, error: `HTTP ${res.status}: ${body}` });
-      throw new Error(`AI Gateway ${res.status}: ${body}`);
+      throw markTraced(new Error(`AI Gateway ${res.status}: ${body}`));
     }
 
     const data = await res.json();
@@ -199,6 +199,7 @@ async function callOpenAI(model: string, messages: ChatMessage[], timeoutMs: num
     };
   } catch (err) {
     clearTimeout(timeout);
+    traceThrown(err, { name: "gateway:openai", site: "lib/ai-gateway.ts", model: resolvedModel, messages, startedAt: start });
     throw err;
   }
 }

@@ -1,5 +1,5 @@
 import { createLogger } from "../lib/logger";
-import { traceChat } from "../lib/langfuse-ingest";
+import { rethrowTraced, traceChat } from "../lib/langfuse-ingest";
 const log = createLogger("_core:voiceTranscription");
 
 /**
@@ -164,7 +164,7 @@ export async function transcribeAudio(
       },
       body: formData,
       signal: AbortSignal.timeout(30_000),
-    });
+    }).catch(rethrowTraced({ name: "transcription:whisper", site: "_core/voiceTranscription.ts", model: "whisper-1", messages: "[audio]", startedAt: t0 }));
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => "");

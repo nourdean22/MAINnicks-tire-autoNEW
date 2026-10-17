@@ -13,7 +13,7 @@
 import type { Express, Request, Response } from "express";
 
 import { createLogger } from "../lib/logger";
-import { traceChat } from "../lib/langfuse-ingest";
+import { rethrowTraced, traceChat } from "../lib/langfuse-ingest";
 import { statenourAuth } from "../middleware/statenourAuth";
 
 const log = createLogger("routes:simulator");
@@ -61,7 +61,7 @@ async function simulateScenario(scenario: string): Promise<string> {
       temperature: 0.5,
     }),
     signal: AbortSignal.timeout(30_000),
-  });
+  }).catch(rethrowTraced({ name: "strategist:simulator", site: "routes/simulator.ts", model: "gpt-4o-mini", messages: scenario, startedAt: t0 }));
 
   if (!response.ok) {
     const errorText = await response.text();

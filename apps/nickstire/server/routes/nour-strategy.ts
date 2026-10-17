@@ -14,7 +14,7 @@
 import type { Express, Request, Response } from "express";
 
 import { createLogger } from "../lib/logger";
-import { traceChat } from "../lib/langfuse-ingest";
+import { rethrowTraced, traceChat } from "../lib/langfuse-ingest";
 import { statenourAuth } from "../middleware/statenourAuth";
 
 const log = createLogger("routes:nour-strategy");
@@ -88,7 +88,7 @@ Return JSON with exactly these fields:
       temperature: 0.3,
     }),
     signal: AbortSignal.timeout(30_000),
-  });
+  }).catch(rethrowTraced({ name: "strategist:revenue", site: "routes/nour-strategy.ts", model: "gpt-4o-mini", messages: prompt, startedAt: t0 }));
 
   if (!response.ok) {
     const errorText = await response.text();

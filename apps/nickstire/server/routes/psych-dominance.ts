@@ -13,7 +13,7 @@
 import type { Express, Request, Response } from "express";
 
 import { createLogger } from "../lib/logger";
-import { traceChat } from "../lib/langfuse-ingest";
+import { rethrowTraced, traceChat } from "../lib/langfuse-ingest";
 import { statenourAuth } from "../middleware/statenourAuth";
 
 const log = createLogger("routes:psych-dominance");
@@ -66,7 +66,7 @@ async function callPsychDominance(
       temperature: 0.7,
     }),
     signal: AbortSignal.timeout(30_000),
-  });
+  }).catch(rethrowTraced({ name: "strategist:psych-dominance", site: "routes/psych-dominance.ts", model: "gpt-4o-mini", messages: userPrompt, startedAt: t0 }));
 
   if (!response.ok) {
     const errorText = await response.text();

@@ -203,7 +203,7 @@ type Json = Record<string, any>;
 function errorClass(err: unknown): string {
   if (err === undefined || err === null) return "error";
   if (err instanceof Error) {
-    const http = /^HTTP \d{3}\b/.exec(err.message)?.[0];
+    const http = /\bHTTP \d{3}\b/.exec(err.message)?.[0];
     if (http) return http;
     const code = (err as { code?: unknown; cause?: { code?: unknown } }).code ?? (err as { cause?: { code?: unknown } }).cause?.code;
     return typeof code === "string" && /^[A-Z_]{2,40}$/.test(code) ? `${err.name}:${code}` : err.name || "Error";
@@ -264,7 +264,7 @@ function responseUsage(json: unknown): TraceGenerationInput["usage"] {
  * never calls this or traceGeneration). Pass the request messages and the parsed
  * response (or `outputText`); extraction, masking and hashing happen here.
  */
-export function traceChat(o: {
+export interface TraceChatInput {
   name: string;
   site: string;
   model: string | null | undefined;
@@ -277,7 +277,35 @@ export function traceChat(o: {
   private?: boolean;
   /** Opt in to masked excerpts. Only for sites whose text holds no customer data. */
   excerpt?: boolean;
-}): void {
+}
+
+const tracedErrors = new WeakSet<object>();
+
+/** Mark an error whose failure was already traced, so traceThrown() does not trace it twice. */
+export function markTraced<E extends object>(err: E): E {
+  tracedErrors.add(err);
+  return err;
+}
+
+/**
+ * Catch-all for one provider attempt: a throw (timeout, DNS, abort, bad JSON)
+ * is traced once as ok:false, then the caller rethrows. Errors already traced
+ * at a non-2xx branch (markTraced) are skipped.
+ */
+export function traceThrown(err: unknown, o: Omit<TraceChatInput, "ok" | "error" | "response" | "outputText">): void {
+  if (err !== null && typeof err === "object" && tracedErrors.has(err)) return;
+  traceChat({ ...o, ok: false, error: err });
+}
+
+/** For `.catch()` on a provider fetch or body read: trace the throw once, then rethrow it unchanged. */
+export function rethrowTraced(o: Omit<TraceChatInput, "ok" | "error" | "response" | "outputText">): (err: unknown) => never {
+  return (err: unknown): never => {
+    traceThrown(err, o);
+    throw err;
+  };
+}
+
+export function traceChat(o: TraceChatInput): void {
   try {
     if (o.private) {
       state.skippedPrivate += 1;

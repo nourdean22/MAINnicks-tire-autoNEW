@@ -19,7 +19,7 @@
  *   REEL_VEO_POLL_MAX_MS (360000).
  */
 import { createLogger } from "../lib/logger";
-import { traceChat } from "../lib/langfuse-ingest";
+import { rethrowTraced, traceChat } from "../lib/langfuse-ingest";
 
 const log = createLogger("services:veo-studio");
 
@@ -112,7 +112,7 @@ export async function submitVeoRequest(prompt: string): Promise<string> {
     headers: { ...auth, "Content-Type": "application/json" },
     body: JSON.stringify(buildVeoRequestBody(prompt)),
     signal: AbortSignal.timeout(30_000),
-  });
+  }).catch(rethrowTraced({ name: "reel:veo-submit", site: "services/veoStudio.ts", model: VEO_MODEL, messages: prompt, startedAt: t0 }));
   const submitData = (await submitRes.json().catch(() => null)) as VeoOperation | null;
   traceChat({
     name: "reel:veo-submit",
