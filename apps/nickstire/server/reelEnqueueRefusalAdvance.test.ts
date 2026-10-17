@@ -222,7 +222,8 @@ describe("a pack whose episode already has a job is stepped past, not re-picked"
   it("both dedupe returns say so; the fresh-insert return does not", () => {
     const body = enqueueBody();
     expect(body.match(/deduped: true/g)?.length).toBe(2);
-    expect(body).toMatch(/\n  return \{ jobId \};/);
+    // The fresh-insert return: jobId, plus the reservation window only when one was made; never deduped.
+    expect(body).toMatch(/\n  return \{ jobId, \.\.\.\(reservationWindow \? \{ reservationWindow \} : \{\}\) \};/);
   });
 
   it("the cron advances past the pack and does not claim an enqueue", () => {

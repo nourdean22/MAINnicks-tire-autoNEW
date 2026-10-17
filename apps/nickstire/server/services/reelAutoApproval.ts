@@ -84,7 +84,13 @@ export async function autoApproveAssembledReels(limit = 25): Promise<AutoApprova
     return { policy: "not_auto", considered: 0, approved: [], skipped: [] };
   }
   const { listReelPublishQueue, recordReelApproval, ReelApprovalWriteError } = await import("./reelApproval");
-  const { entries } = await listReelPublishQueue(limit);
+  // The drain posts the OLDEST approved reels first (id ASC), so read those too:
+  // newest-first alone left the head of a long batch unapproved. Same codes and
+  // vetoes below; this widens which rows are looked at, not what may be approved.
+  const oldest = await listReelPublishQueue(limit, { oldestFirst: true });
+  const newest = await listReelPublishQueue(limit);
+  const seen = new Set<number>();
+  const entries = [...oldest.entries, ...newest.entries].filter((e) => !seen.has(e.jobId) && !!seen.add(e.jobId));
   const out: AutoApprovalOutcome = { policy: "auto", considered: entries.length, approved: [], skipped: [] };
   const cap = Number(policy.limits?.maxRepairAttemptsPerAsset);
   // 2 is qualityGate's own fallback when the policy carries no cap.
