@@ -3222,7 +3222,7 @@ function buildTiers(): void {
         requiresFlag: "TIDB_BACKUP_ENABLED",
         timeoutMs: 30 * 60 * 1000,
         handler: async () => {
-          const { runTidbBackupJob } = await import("../services/tidbBackup");
+          const { runTidbBackupJob } = await import("../services/tidbBackupJob");
           return runTidbBackupJob();
         },
       },
@@ -3356,6 +3356,13 @@ export function startTieredScheduler(): void {
     },
     isTierRunning: (tierName) => tiers.find((t) => t.name === tierName)?.running === true,
     log,
+    // Asked only for a slot with retryAfterMs (nightly): the night is done once its
+    // backup manifest is in the bucket, or the backup is switched off.
+    isSlotComplete: async (tierName, dayKey) => {
+      if (tierName !== "nightly") return true;
+      const { isNightlyBackupComplete } = await import("../services/tidbBackupJob");
+      return isNightlyBackupComplete(dayKey);
+    },
   });
   stopWallClockLoop = startWallClockLoop(wallClockRunner, wallClockTierNames, {
     // after the staggered boot passes of the interval tiers

@@ -27,7 +27,7 @@ import { createLogger } from "../lib/logger";
 
 const log = createLogger("tidb-backup");
 
-export const BACKUP_PREFIX = "backups/tidb/";
+const BACKUP_PREFIX = "backups/tidb/";
 const JOB_VERSION = 1;
 const RETENTION = { daily: 14, weekly: 8 } as const;
 const DEFAULT_BATCH_SIZE = 1000;
@@ -62,6 +62,8 @@ export interface TableSpec {
   keyColumns: string[];
   /** No primary key: page on TiDB's hidden _tidb_rowid, read as a trailing value and never written. */
   hiddenRowId: boolean;
+  /** Columns left out of the file, each with the reason (recorded in the manifest). */
+  excludedColumns: Array<{ name: string; reason: string }>;
 }
 export interface BackupSource {
   database: string;
@@ -97,7 +99,7 @@ function daysBetween(fromDate: string, toDate: string): number {
 const quoteId = (name: string) => `\`${name.replace(/`/g, "``")}\``;
 
 /** One keyset page: named columns, strictly after the last key, ordered by key, LIMITed. */
-export function buildBatchQuery(table: string, spec: TableSpec, after: unknown[] | null, limit: number): { sql: string; values: unknown[] } {
+function buildBatchQuery(table: string, spec: TableSpec, after: unknown[] | null, limit: number): { sql: string; values: unknown[] } {
   const select = spec.columns.map((c) =>
     c.encoding === "hex"
       ? `HEX(${quoteId(c.name)}) AS ${quoteId(c.name)}`
@@ -129,7 +131,7 @@ type QueryConn = { query: (opts: unknown, values?: unknown[]) => Promise<[unknow
 const BINARY_TYPES = new Set(["binary", "varbinary", "tinyblob", "blob", "mediumblob", "longblob", "bit", "geometry", "point", "linestring", "polygon", "multipoint", "multilinestring", "multipolygon", "geometrycollection"]);
 
 /** The production source: one dedicated mysql2 connection created with `backupTypeCast`. */
-function createMysqlBackupSource(conn: QueryConn, database: string): BackupSource {
+export function createMysqlBackupSource(conn: QueryConn, database: string): BackupSource {
   const rows = async (sql: string, values: unknown[] = []) => (await conn.query({ sql, values }))[0] as Array<Record<string, string | null>>;
   return {
     database,
@@ -147,9 +149,22 @@ function createMysqlBackupSource(conn: QueryConn, database: string): BackupSourc
         "SELECT COLUMN_NAME AS name, LOWER(DATA_TYPE) AS sqlType, EXTRA AS extra FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? ORDER BY ORDINAL_POSITION",
         [table],
       );
-      const columns: ColumnSpec[] = cols
-        .filter((c) => !/GENERATED/i.test(String(c.extra ?? "")))
-        .map((c) => ({ name: String(c.name), sqlType: String(c.sqlType), encoding: BINARY_TYPES.has(String(c.sqlType)) ? "hex" : "text" }));
+      // Only TRUE generated columns are left out (the database recomputes them and
+      // rejects an insert into them). EXTRA says "VIRTUAL GENERATED" / "STORED
+      // GENERATED" for those on both MySQL 8 and TiDB; "DEFAULT_GENERATED" only marks
+      // an expression DEFAULT (now(), uuid()) and that value MUST be kept. Not
+      // GENERATION_EXPRESSION: MySQL 8 fills it for expression defaults too.
+      const columns: ColumnSpec[] = [];
+      const excludedColumns: TableSpec["excludedColumns"] = [];
+      for (const c of cols) {
+        const extra = String(c.extra ?? "");
+        const generated = /\b(VIRTUAL|STORED) GENERATED\b/i.exec(extra);
+        if (generated) {
+          excludedColumns.push({ name: String(c.name), reason: `${generated[0].toUpperCase()} column: the database recomputes it on restore` });
+          continue;
+        }
+        columns.push({ name: String(c.name), sqlType: String(c.sqlType), encoding: BINARY_TYPES.has(String(c.sqlType)) ? "hex" : "text" });
+      }
       const pk = await rows(
         "SELECT COLUMN_NAME AS name FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = 'PRIMARY' ORDER BY SEQ_IN_INDEX",
         [table],
@@ -157,7 +172,7 @@ function createMysqlBackupSource(conn: QueryConn, database: string): BackupSourc
       const keyColumns = pk.map((k) => String(k.name));
       const missing = keyColumns.filter((k) => !columns.some((c) => c.name === k));
       if (missing.length) throw new Error(`${table}: primary-key column(s) ${missing.join(", ")} are generated; not supported`);
-      return { ddl, columns, keyColumns, hiddenRowId: keyColumns.length === 0 };
+      return { ddl, columns, keyColumns, hiddenRowId: keyColumns.length === 0, excludedColumns };
     },
     async readBatch(table, spec, after, limit) {
       const q = buildBatchQuery(table, spec, after, limit);
@@ -221,20 +236,29 @@ function indexSets(listing: StoredObject[]): Map<string, SetInfo> {
 const isWeeklySet = (s: SetInfo) => Object.keys(WEEKLY_TABLES).some((t) => s.files.has(`${t}.jsonl.gz`));
 
 /**
- * Keys to delete: everything in a date set that is not one of the 14 newest
- * complete sets, the 8 newest complete weekly sets, today's set, or an
- * incomplete set newer than the newest complete one. Keys outside
- * backups/tidb/<YYYY-MM-DD>/ are never returned.
+ * Keys to delete, planned only after today's set is verified: everything in a
+ * date set that is not today's, one of the 14 newest complete sets, or one of the
+ * 8 newest complete weekly sets. An incomplete set (no manifest) from another day
+ * is never restorable, so it goes. Keys outside backups/tidb/<YYYY-MM-DD>/ are
+ * never returned.
  */
-export function planRetention(listing: StoredObject[], today: string): string[] {
+function planRetention(listing: StoredObject[], today: string): string[] {
   const sets = indexSets(listing);
   const complete = [...sets.keys()].filter((d) => sets.get(d)!.complete).sort().reverse();
   const keep = new Set<string>([today, ...complete.slice(0, RETENTION.daily)]);
   for (const d of complete.filter((x) => isWeeklySet(sets.get(x)!)).slice(0, RETENTION.weekly)) keep.add(d);
-  const newestComplete = complete[0] ?? "";
-  for (const [d, s] of sets) if (!s.complete && d > newestComplete) keep.add(d);
   return [...sets.entries()].filter(([d]) => !keep.has(d)).flatMap(([, s]) => s.keys).sort();
 }
+
+/** The object whose presence means the night's set is complete. */
+export function manifestKeyFor(date: string): string {
+  return `${BACKUP_PREFIX}${date}/manifest.json`;
+}
+
+/** Per-table attempts: one read plus two retries, so a transient error does not cost the night. */
+const TABLE_RETRY_DELAYS_MS = [10_000, 30_000];
+/** After this many tables in a row exhaust their retries the connection is gone: stop instead of sleeping through every remaining table past the budget. */
+const MAX_CONSECUTIVE_FAILED_TABLES = 3;
 
 async function dumpTable(source: BackupSource, table: string, spec: TableSpec, batchSize: number): Promise<{ body: Buffer; rows: number }> {
   const gzip = createGzip();
@@ -269,13 +293,16 @@ export async function runTidbBackup(deps: {
   store: BackupStore;
   now?: () => Date;
   batchSize?: number;
+  /** Test seam for the retry backoff. */
+  sleep?: (ms: number) => Promise<void>;
 }): Promise<BackupRunResult> {
   const now = deps.now ?? (() => new Date());
   const batchSize = deps.batchSize ?? DEFAULT_BATCH_SIZE;
+  const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   const startedAt = now();
   const date = etDateKey(startedAt);
   const setPrefix = `${BACKUP_PREFIX}${date}/`;
-  const manifestKey = `${setPrefix}manifest.json`;
+  const manifestKey = manifestKeyFor(date);
 
   const before = await deps.store.list(BACKUP_PREFIX);
   if (before.some((o) => o.key === manifestKey)) {
@@ -285,8 +312,9 @@ export async function runTidbBackup(deps: {
 
   const tables = await deps.source.listTables();
   const done: ManifestTable[] = [];
-  const skipped: Array<{ table: string; class: "weekly"; reason: string }> = [];
+  const skipped: Array<{ table: string; class: "weekly"; lastSet: string; reason: string }> = [];
   const failures: string[] = [];
+  let consecutiveFailed = 0;
 
   for (const table of tables) {
     const cls = Object.prototype.hasOwnProperty.call(WEEKLY_TABLES, table) ? "weekly" : "nightly";
@@ -297,18 +325,33 @@ export async function runTidbBackup(deps: {
         .sort()
         .pop();
       if (last && daysBetween(last, date) < WEEKLY_INTERVAL_DAYS) {
-        skipped.push({ table, class: "weekly", reason: `weekly table, last copied in set ${last} (${daysBetween(last, date)} days ago): ${WEEKLY_TABLES[table]}` });
+        skipped.push({ table, class: "weekly", lastSet: last, reason: `weekly table, last copied in set ${last} (${daysBetween(last, date)} days ago): ${WEEKLY_TABLES[table]}` });
         continue;
       }
     }
-    try {
-      const spec = await deps.source.describeTable(table);
-      const { body, rows } = await dumpTable(deps.source, table, spec, batchSize);
-      const key = `${setPrefix}${table}.jsonl.gz`;
-      await deps.store.put(key, body, "application/gzip");
-      done.push({ table, class: cls, key, rows, bytes: body.length, sha256: createHash("sha256").update(body).digest("hex"), ...spec });
-    } catch (err) {
-      failures.push(`${table}: ${(err instanceof Error ? err.message : String(err)).slice(0, 160)}`);
+    if (consecutiveFailed >= MAX_CONSECUTIVE_FAILED_TABLES) {
+      failures.push(`stopped after ${consecutiveFailed} consecutive failed tables (connection likely dead); ${table} and the rest not attempted`);
+      break;
+    }
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const spec = await deps.source.describeTable(table);
+        const { body, rows } = await dumpTable(deps.source, table, spec, batchSize);
+        const key = `${setPrefix}${table}.jsonl.gz`;
+        await deps.store.put(key, body, "application/gzip");
+        done.push({ table, class: cls, key, rows, bytes: body.length, sha256: createHash("sha256").update(body).digest("hex"), ...spec });
+        consecutiveFailed = 0;
+        break;
+      } catch (err) {
+        const message = (err instanceof Error ? err.message : String(err)).slice(0, 160);
+        if (attempt >= TABLE_RETRY_DELAYS_MS.length) {
+          failures.push(`${table}: ${message} (after ${attempt + 1} attempts)`);
+          consecutiveFailed++;
+          break;
+        }
+        log.warn("tidb backup: table read failed, retrying", { table, attempt: attempt + 1, error: message });
+        await sleep(TABLE_RETRY_DELAYS_MS[attempt]);
+      }
     }
   }
 
@@ -346,30 +389,23 @@ export async function runTidbBackup(deps: {
   const summary = `${date}: ${done.length} tables, ${rows} rows, ${(gzBytes / 1048576).toFixed(1)} MB gz, verified in bucket` +
     (skipped.length ? `; weekly not due: ${skipped.map((s) => s.table).join(", ")}` : "");
 
+  // The set is verified, so the night is a success whatever happens here. A
+  // retention error is a storage-growth warning, never a missed backup: failing
+  // the run would fire the missed-night CRITICAL for a night that is safe.
   const expired = planRetention(after, date);
+  let deleted = 0;
+  let retention = "";
   try {
-    for (const key of expired) await deps.store.remove(key);
+    for (const key of expired) {
+      await deps.store.remove(key);
+      deleted++;
+    }
+    retention = `retention deleted ${deleted} object(s)`;
   } catch (err) {
-    throw new Error(`tidb-backup ${summary}; retention FAILED after the set was verified: ${err instanceof Error ? err.message : String(err)}`.slice(0, 1900));
+    const message = (err instanceof Error ? err.message : String(err)).slice(0, 200);
+    log.warn("tidb backup: retention failed after a verified set", { date, deleted, planned: expired.length, error: message, errorId: "TIDB_BACKUP_RETENTION_FAILED" });
+    retention = `WARNING: retention failed after ${deleted}/${expired.length} deletes (${message}); old sets are kept, the backup itself is complete`;
   }
-  log.info("tidb backup complete", { date, tables: done.length, rows, gzBytes, skipped: skipped.length, deleted: expired.length });
-  return { recordsProcessed: rows, details: `${summary}; retention deleted ${expired.length} object(s)` };
-}
-
-/** The cron entry: a dedicated connection (UTC session, text values) and the private bucket. */
-export async function runTidbBackupJob(): Promise<BackupRunResult> {
-  const url = process.env.DATABASE_URL;
-  if (!url) throw new Error("tidb-backup: DATABASE_URL is not set");
-  const { getPrivateBucket } = await import("../storage");
-  const { s3, bucket } = await getPrivateBucket();
-  const mysql = (await import("mysql2/promise")).default;
-  const conn = await mysql.createConnection({ uri: url, typeCast: backupTypeCast as never, connectTimeout: 20_000 });
-  try {
-    await conn.query("SET time_zone = '+00:00'");
-    const [dbRows] = (await conn.query("SELECT DATABASE() AS db")) as unknown as [Array<{ db: string | null }>];
-    const database = String(dbRows[0]?.db ?? "");
-    return await runTidbBackup({ source: createMysqlBackupSource(conn as unknown as QueryConn, database), store: createS3BackupStore(s3, bucket) });
-  } finally {
-    await conn.end().catch(() => { /* connection already gone; the run's own result stands */ });
-  }
+  log.info("tidb backup complete", { date, tables: done.length, rows, gzBytes, skipped: skipped.length, deleted });
+  return { recordsProcessed: rows, details: `${summary}; ${retention}`.slice(0, 1900) };
 }

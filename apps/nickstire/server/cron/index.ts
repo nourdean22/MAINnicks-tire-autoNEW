@@ -495,7 +495,7 @@ export function registerAllJobs(): void {
   // manual run counts as a completed backup. Direct import, not runTierJobHandlerUnlocked:
   // a script process never builds the tiers. Budget identical to the tier's.
   registerJob("tidb-backup", 24 * 60 * 60 * 1000, async () => {
-    const { runTidbBackupJob } = await import("../services/tidbBackup");
+    const { runTidbBackupJob } = await import("../services/tidbBackupJob");
     return runTidbBackupJob();
   }, true, 30 * 60 * 1000);
 

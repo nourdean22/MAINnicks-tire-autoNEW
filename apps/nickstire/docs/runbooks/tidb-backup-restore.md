@@ -41,8 +41,16 @@ read 2026-10-17). This job is the copy that survives all three.
 - **Retention:** 14 newest complete sets + 8 newest weekly sets. Deletes only keys
   inside `backups/tidb/<date>/`; anything else in the bucket is never touched.
 - **Success = completion:** cron_log `completed` only after every file and the
-  manifest are confirmed in the bucket listing at their recorded sizes. Any failed
-  table fails the run with the table named and writes no manifest.
+  manifest are confirmed in the bucket listing at their recorded sizes. Each table
+  gets 2 retries (10s, 30s backoff); a table that still fails fails the run with the
+  table named and writes no manifest. A night without a manifest is re-claimed by a
+  later container in the same 03:30-06:00 window once the last claim is 30+ minutes
+  old (nightly tier only; the other wall-clock tiers send and stay once-per-day).
+  A retention (delete) error after a verified set is a WARNING in the run's details,
+  not a failed night.
+- **Columns:** only true generated columns (EXTRA `VIRTUAL GENERATED` / `STORED
+  GENERATED`) are left out, each listed with its reason in the manifest's
+  `excludedColumns`. `DEFAULT_GENERATED` columns (DEFAULT now(), uuid()) are kept.
 - **Alert:** the hourly `safety-check` sends a CRITICAL Telegram when the flag is on
   and no `tidb-backup` run completed in 27h (a failed night and a missed night look
   the same), or when it never completed.
@@ -83,8 +91,15 @@ console before arming, because exhausting the quota throttles the whole shop app
    It never drops, truncates or updates.
 4. Copy the needed rows forward into prod by primary key, per the decision tree below.
 
+A night that skipped the weekly tables does not hold them. Restoring or verifying
+that set ends **INCOMPLETE (exit 3)** and prints the exact command for the set that
+holds them (`--date <weekly set> --tables search_performance,...`). Exit codes:
+0 complete, 1 error, 2 refused, 3 incomplete.
+
 The target is REFUSED when its host equals or contains the production host in
-`DATABASE_URL` (and when `DATABASE_URL` is unknown). Known limit: TiDB Cloud Starter
+`DATABASE_URL` (and when `DATABASE_URL` is unknown). Hosts are compared after
+percent-decoding (as mysql2 dials them), and IP-literal hosts are refused: use
+`localhost` or a host name. Known limit: TiDB Cloud Starter
 clusters in one region share one gateway host, so a new cluster in the production
 region is refused too. Restore into another region, a local MySQL 8 or TiDB, or ask
 for a rule scoped by the username's cluster prefix.
