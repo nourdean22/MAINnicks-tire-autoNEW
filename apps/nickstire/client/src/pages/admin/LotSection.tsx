@@ -38,7 +38,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 
-import { trpc } from "@/lib/trpc";
+import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
 import { VISIT_MARK_BUTTONS, VISIT_MARK_LABELS, type VisitMark, type VisitMarkState } from "@shared/visitMarks";
 import { summarizeCameraFleet, WORKER_STALE_AFTER_SECONDS } from "@shared/cameraFleetHealth";
@@ -1268,35 +1268,7 @@ type ConversationQueryData =
   | { ok: false; reason: string };
 
 /** office-digest v1: one row per clock hour, newest first. */
-type DigestHour = {
-  hourStartMs: number;
-  hourEndMs: number;
-  isCurrent: boolean;
-  episodes: number;
-  talkSeconds: number;
-  factCount: number;
-  status: "DONE" | "NO_ACTIVITY" | "THIN" | "FAILED";
-  digest: string | null;
-  topics: string[];
-  error: string | null;
-};
-type OfficeDigestData = { ok: true; generatedAtMs: number; hours: DigestHour[] } | { ok: false; reason: string };
-type OfficeDigestQuery = {
-  data?: OfficeDigestData;
-  isError: boolean;
-  isPending: boolean;
-  fetchStatus?: string;
-  error?: { message: string } | null;
-  refetch: () => unknown;
-};
-/**
- * shortcut: lot.officeDigest is built by the server lane in parallel (contract office-digest v1), so
- * this tree's router type does not carry it yet; drop this cast once the procedure is on the router.
- * Against a server without it the read fails, which renders "Hourly summary unavailable".
- */
-type OfficeDigestRouter = {
-  officeDigest: { useQuery: (input: { hours: number }, opts: { refetchInterval: number }) => OfficeDigestQuery };
-};
+type DigestHour = Extract<RouterOutputs["lot"]["officeDigest"], { ok: true }>["hours"][number];
 
 const DIGEST_HOURS = 6;
 const DIGEST_POLL_MS = 60_000;
@@ -1329,10 +1301,7 @@ function digestText(h: DigestHour): { text: string; tone: string } {
 
 /** The "Last 6 hours" block at the top of Office intelligence. A read that did not answer is never a quiet hour. */
 function OfficeDigest() {
-  const q = (trpc.lot as unknown as OfficeDigestRouter).officeDigest.useQuery(
-    { hours: DIGEST_HOURS },
-    { refetchInterval: DIGEST_POLL_MS },
-  );
+  const q = trpc.lot.officeDigest.useQuery({ hours: DIGEST_HOURS }, { refetchInterval: DIGEST_POLL_MS });
   const answer = answerOf(q);
   const data = q.data;
   const reason = offlineReason(q) ?? (data && data.ok === false ? data.reason : q.error?.message);
