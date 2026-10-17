@@ -99,7 +99,7 @@ function maskPhone(p: string | null): string {
   return d.length >= 4 ? `***${d.slice(-4)}` : "***";
 }
 
-export async function processMissedCallRecovery(): Promise<{ recordsProcessed: number; shadow: boolean; candidates: number }> {
+export async function processMissedCallRecovery(): Promise<{ recordsProcessed: number; shadow: boolean; candidates: number; details?: string }> {
   try {
     // Business hours (ET) — never text outside them, and the orchestrator's
     // quiet-hours would skip anyway, but don't even build the run off-hours.
@@ -113,6 +113,15 @@ export async function processMissedCallRecovery(): Promise<{ recordsProcessed: n
     // audience and sends NOTHING (and does NOT claim, so a later live run
     // can still reach them).
     const live = process.env.MISSED_CALL_RECOVERY_SEND === "1";
+    if (live) {
+      // C5.5 runtime pause (send_pause_missed_call_recovery), fail closed, before any read or claim.
+      const { sendPauseHoldReason } = await import("../../services/sendPause");
+      const held = await sendPauseHoldReason("missed_call_recovery");
+      if (held) {
+        log.info("Missed-call recovery held", { reason: held });
+        return { recordsProcessed: 0, shadow: true, candidates: 0, details: held };
+      }
+    }
 
     const { getDbTyped } = await import("../../db");
     const db = await getDbTyped();

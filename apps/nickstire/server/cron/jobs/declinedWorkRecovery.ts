@@ -332,6 +332,15 @@ export async function runDeclinedWorkRecovery(opts?: RecoveryOptions): Promise<R
     };
   }
 
+  // C5.5 runtime pause (send_pause_declined_recovery), fail closed, before any claim or send.
+  // Covers the cron, the admin run-now button and the CLI: all three land here.
+  const { sendPauseHoldReason } = await import("../../services/sendPause");
+  const held = await sendPauseHoldReason("declined_recovery");
+  if (held) {
+    log.info(`[declined-recovery] held: ${held}`);
+    return { recordsProcessed: 0, details: `Skipped · ${held} (nothing sent)` };
+  }
+
   // LIVE send path — feature-flagged on
   const { sendSms } = await import("../../sms");
   // wave-181.110 · 5×3 sequence touch counters · maintain legacy 7d/30d

@@ -36,6 +36,8 @@
  * SYNTHETIC ONLY — fetch is stubbed, numbers are 555, env pins are canaries.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+// C5.5: the voice_outbound pause is pinned in vapi.sendPause.test.ts; here it is open so the dial runs.
+vi.mock("./sendPause", () => ({ sendPauseHoldReason: async () => null }));
 
 type Captured = { url: string; method: string; body: Record<string, unknown> } | null;
 type Overrides = { model?: Record<string, unknown>; variableValues?: Record<string, string> };

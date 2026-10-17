@@ -193,6 +193,13 @@ async function sendWeatherSms(triggerId: string): Promise<number> {
     log.info(`Weather SMS shadow for "${triggerId}": not sent (set WEATHER_SMS_SEND=1 to arm)`);
     return 0;
   }
+  // C5.5 runtime pause (send_pause_weather_sms), fail closed: same shadow outcome.
+  const { sendPauseHoldReason } = await import("./sendPause");
+  const held = await sendPauseHoldReason("weather_sms");
+  if (held) {
+    log.info(`Weather SMS shadow for "${triggerId}": not sent (${held})`);
+    return 0;
+  }
 
   try {
     const { getDb } = await import("../db");

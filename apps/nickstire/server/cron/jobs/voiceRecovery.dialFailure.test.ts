@@ -27,6 +27,8 @@
  * SYNTHETIC INPUTS ONLY — 555 numbers, a scripted provider, no network.
  */
 import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
+// C5.5: the voice_outbound pause is pinned in vapi.sendPause.test.ts; here it is open so the dial runs.
+vi.mock("../../services/sendPause", () => ({ sendPauseHoldReason: async () => null }));
 
 type EstRow = {
   id: number;

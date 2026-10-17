@@ -2020,6 +2020,12 @@ export interface VapiPlaceCallResult {
 }
 
 export async function placeVapiOutboundCall(params: VapiPlaceCallParams): Promise<VapiPlaceCallResult> {
+  // C5.5 · runtime pause for every outbound voice lane, before the number lookup
+  // and POST /call. Fails CLOSED (an unreadable switch holds). The crons also
+  // gate before claiming a lead; this is the chokepoint for every other door.
+  const { sendPauseHoldReason } = await import("./sendPause");
+  const held = await sendPauseHoldReason("voice_outbound");
+  if (held) return { success: false, error: held, errorKind: "config" };
   if (!process.env.VAPI_API_KEY) {
     return { success: false, error: "VAPI_API_KEY not configured", errorKind: "config" };
   }

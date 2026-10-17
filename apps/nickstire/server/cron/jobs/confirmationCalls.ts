@@ -38,6 +38,10 @@ export async function runConfirmationCalls(): Promise<RunResult> {
   if (process.env.FEATURE_CONFIRMATION_CALLS !== "1") {
     return { recordsProcessed: 0, details: "Skipped · FEATURE_CONFIRMATION_CALLS != '1'" };
   }
+  // C5.5 runtime pause, before any lookup or claim (placeVapiOutboundCall holds too).
+  const { sendPauseHoldReason } = await import("../../services/sendPause");
+  const held = await sendPauseHoldReason("voice_outbound");
+  if (held) return { recordsProcessed: 0, details: `Skipped · ${held}` };
   // wave-145 · resolve the outbound number (env override → else auto-lookup
   // the shop's VAPI line). Was a bare VAPI_PHONE_NUMBER_ID check that skipped
   // forever because the var was never set.

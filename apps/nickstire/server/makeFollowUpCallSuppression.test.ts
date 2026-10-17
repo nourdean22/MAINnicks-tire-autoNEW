@@ -25,6 +25,8 @@
  * regression that lets it through fails LOUDLY rather than silently dialling.
  */
 import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
+// C5.5: the voice_outbound pause is pinned in vapi.sendPause.test.ts; here it is open so the dial runs.
+vi.mock("./services/sendPause", () => ({ sendPauseHoldReason: async () => null }));
 
 const SUPPRESSED = "2165550177";
 const CLEAN = "2165550188";

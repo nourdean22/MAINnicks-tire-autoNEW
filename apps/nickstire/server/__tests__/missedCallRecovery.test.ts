@@ -13,6 +13,16 @@ const h = vi.hoisted(() => ({
   evidenceCalls: [] as string[],
   sent: [] as string[],
   dbThrows: false,
+  hold: null as string | null,
+  holdLanes: [] as string[],
+}));
+
+// The real reader is pinned in sendPause.test.ts; this file's db mock has no getDb.
+vi.mock("../services/sendPause", () => ({
+  sendPauseHoldReason: async (lane: string) => {
+    h.holdLanes.push(lane);
+    return h.hold;
+  },
 }));
 
 vi.mock("../db", () => ({
@@ -123,6 +133,8 @@ describe("processMissedCallRecovery · tool-reaching callers", () => {
     h.evidenceCalls = [];
     h.sent = [];
     h.dbThrows = false;
+    h.hold = null;
+    h.holdLanes = [];
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -151,6 +163,27 @@ describe("processMissedCallRecovery · tool-reaching callers", () => {
     expect(out).toMatchObject({ shadow: false, candidates: 2, recordsProcessed: 2 });
     // the evidence read runs for tool-reaching calls only
     expect(h.evidenceCalls.sort()).toEqual(["tool-arrival", "tool-callbackrow", "tool-nothing", "tool-readfail"]);
+  });
+
+  it.each(["send_pause:missed_call_recovery", "send_pause_unreadable:missed_call_recovery"])(
+    "C5.5: armed but held (%s) -> shadow outcome with the reason, nothing read, claimed or sent",
+    async (reason) => {
+      h.hold = reason;
+      h.dbThrows = true; // the call-log read must not even be reached
+      h.callRows = [call("plain", 0)];
+      const out = await processMissedCallRecovery();
+      expect(h.holdLanes).toEqual(["missed_call_recovery"]);
+      expect(out).toEqual({ recordsProcessed: 0, shadow: true, candidates: 0, details: reason });
+      expect(h.sent).toEqual([]);
+    },
+  );
+
+  it("C5.5 control: not held -> the same armed run sends", async () => {
+    h.callRows = [call("plain", 0)];
+    const out = await processMissedCallRecovery();
+    expect(h.holdLanes).toEqual(["missed_call_recovery"]);
+    expect(h.sent).toEqual(["plain"]);
+    expect(out).toMatchObject({ shadow: false, recordsProcessed: 1 });
   });
 
   it("a failed run THROWS (cron_log records failed), never a completed 'shadow' zero", async () => {

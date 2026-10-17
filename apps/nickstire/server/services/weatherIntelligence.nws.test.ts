@@ -11,14 +11,17 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { alertSystem, isEnabled, getDb, sendSms, logOutboundSms } = vi.hoisted(() => ({
+const { alertSystem, isEnabled, getDb, sendSms, logOutboundSms, sendPauseHoldReason } = vi.hoisted(() => ({
   alertSystem: vi.fn((_title: string, _detail: string) => Promise.resolve(true)),
   isEnabled: vi.fn(async (_key: string) => true),
   getDb: vi.fn<() => Promise<unknown>>(async () => null),
   sendSms: vi.fn(),
   logOutboundSms: vi.fn(async () => undefined),
+  // The real reader is pinned in sendPause.test.ts; here it would consume getDb's mockResolvedValueOnce.
+  sendPauseHoldReason: vi.fn(async (_lane: string): Promise<string | null> => null),
 }));
 
+vi.mock("./sendPause", () => ({ sendPauseHoldReason }));
 vi.mock("./telegram", () => ({ alertSystem }));
 vi.mock("./featureFlags", () => ({ isEnabled }));
 vi.mock("../db", () => ({ getDb }));
@@ -50,6 +53,8 @@ beforeEach(() => {
   getDb.mockClear();
   sendSms.mockReset();
   logOutboundSms.mockClear();
+  sendPauseHoldReason.mockReset();
+  sendPauseHoldReason.mockResolvedValue(null);
 });
 afterEach(() => {
   delete process.env.WEATHER_SMS_SEND;
@@ -168,6 +173,19 @@ describe("checkWeatherTriggers (cron handler)", () => {
 
     expect(logOutboundSms).toHaveBeenCalledTimes(1);
   });
+
+  it.each(["send_pause:weather_sms", "send_pause_unreadable:weather_sms"])(
+    "C5.5: armed but held (%s) -> shadow outcome: no audience query, no send",
+    async (reason) => {
+      freezeTonight();
+      process.env.WEATHER_SMS_SEND = "1";
+      sendPauseHoldReason.mockResolvedValue(reason);
+      await checkWeatherTriggers();
+      expect(sendPauseHoldReason).toHaveBeenCalledWith("weather_sms");
+      expect(getDb).not.toHaveBeenCalled();
+      expect(sendSms).not.toHaveBeenCalled();
+    },
+  );
 
   it("does not hand a days-ahead trigger to SMS even when armed", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });

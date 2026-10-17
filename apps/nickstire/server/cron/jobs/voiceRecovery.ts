@@ -53,6 +53,10 @@ export async function runVoiceRecovery(): Promise<RunResult> {
   if (process.env.FEATURE_VOICE_RECOVERY !== "1") {
     return { recordsProcessed: 0, details: "Skipped · FEATURE_VOICE_RECOVERY != '1'" };
   }
+  // C5.5 runtime pause, before any lookup or claim (placeVapiOutboundCall holds too).
+  const { sendPauseHoldReason } = await import("../../services/sendPause");
+  const held = await sendPauseHoldReason("voice_outbound");
+  if (held) return { recordsProcessed: 0, details: `Skipped · ${held}` };
   // Same chokepoint as followupCadence: a pin naming a RETIRED assistant
   // returns null, so this rail skips instead of claiming leads for dials the
   // provider will refuse. placeVapiOutboundCall reads the same env, but only
