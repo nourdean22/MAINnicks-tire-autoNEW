@@ -393,13 +393,15 @@ export default function OverviewSection() {
    * Work orders live on Money's default tab (Shop Pulse). Money is closed to front desk and tech,
    * whose queue still carries work orders, so they get the customer's Active Backlog instead.
    * Returns where it went, or null when no section this role can open shows the work order.
-   * Work orders have no deep link to a single row yet.
+   * For Money the link names the row (?wo=<id>); the customer fallback has no single-row link.
    */
   function openWorkOrder(item: ActionItem): "revenue" | "customers" | null {
     const allowed = sectionsForRole(adminRole);
     const url = new URL(window.location.href);
     if (allowed.includes("revenue")) {
+      // Money's default tab is the work orders board; ?wo= opens and scrolls to this one row.
       url.searchParams.delete("moneyTab");
+      url.searchParams.set("wo", String(item.entityId));
       window.history.replaceState({}, "", url.toString());
       navigateToAdminSection("revenue");
       return "revenue";
