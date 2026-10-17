@@ -138,6 +138,11 @@ class OfficeWakeConfig:
     visual_enabled: bool = False
     visual_interval_seconds: float = 30.0
     visual_max_frames: int = 6
+    # Where stills come from: "bridge" (/snapshot/<serial>, NicksMax) or "rtsp" (one ffmpeg grab
+    # from source_url per still; the shop PC has no bridge). OFFICE_VISUAL_SOURCE.
+    visual_source: str = "bridge"
+    # whisper-cli -t; None keeps whisper's default. OFFICE_WHISPER_THREADS.
+    whisper_threads: Optional[int] = None
     # Captured wakes allowed to wait for transcription (phase 2). Full -> the OLDEST is dropped
     # with a ledger receipt and a counted failure; OFFICE_TRANSCRIBE_BACKLOG_MAX.
     transcribe_backlog_max: int = 6
@@ -550,12 +555,21 @@ def capture_phase(
 
     # The sampler runs BESIDE the audio capture and never blocks it: a dead camera feed costs the
     # episode its frames, not its audio.
-    if frame_sampler is None and config.visual_enabled and config.bridge_url and config.office_serial:
-        frame_sampler = officeframes.FrameSampler(
-            officeframes.snapshot_url(config.bridge_url, config.office_serial),
-            interval_s=config.visual_interval_seconds,
-            max_frames=config.visual_max_frames,
-        )
+    if frame_sampler is None and config.visual_enabled:
+        if config.visual_source == "rtsp":
+            if config.source_url:
+                frame_sampler = officeframes.FrameSampler(
+                    config.source_url,
+                    interval_s=config.visual_interval_seconds,
+                    max_frames=config.visual_max_frames,
+                    fetch=officeframes.fetch_rtsp_frame,
+                )
+        elif config.bridge_url and config.office_serial:
+            frame_sampler = officeframes.FrameSampler(
+                officeframes.snapshot_url(config.bridge_url, config.office_serial),
+                interval_s=config.visual_interval_seconds,
+                max_frames=config.visual_max_frames,
+            )
     if frame_sampler is not None:
         try:
             frame_sampler.start()
@@ -627,12 +641,14 @@ def process_phase(
     stt_latencies: list[int] = []
     coverages: list[Optional[float]] = []
     errors: list[str] = []
+    stt_kwargs: dict[str, Any] = {"threads": config.whisper_threads} if config.whisper_threads else {}
     for segment in segments:
         try:
             transcript = transcribe_fn(
                 segment.path,
                 binary=config.transcriber,
                 model=config.model,
+                **stt_kwargs,
             )
         except Exception as exc:  # noqa: BLE001
             failed += 1
@@ -1608,6 +1624,10 @@ def config_from_args(args: argparse.Namespace) -> OfficeWakeConfig:
     ) or DEFAULT_EVENTS
     model_override_dir = whisper_override_dir(str(args.status or ""), str(args.out_dir))
     model, model_source = resolve_whisper_model(args.model, model_override_dir)
+    visual_source = str(args.visual_source or "bridge").strip().lower()
+    if visual_source not in {"bridge", "rtsp"}:
+        raise ValueError(f"OFFICE_VISUAL_SOURCE must be bridge or rtsp, got {args.visual_source!r}")
+    threads_raw = str(args.whisper_threads or "").strip()
     return OfficeWakeConfig(
         bridge_url=str(args.bridge_url or "").strip(),
         office_serial=str(args.office_serial or "").strip(),
@@ -1645,11 +1665,13 @@ def config_from_args(args: argparse.Namespace) -> OfficeWakeConfig:
         visual_enabled=bool(args.visual),
         visual_interval_seconds=max(5.0, float(args.visual_interval_seconds)),
         visual_max_frames=max(1, min(12, int(args.visual_max_frames))),
+        visual_source=visual_source,
+        whisper_threads=max(1, int(threads_raw)) if threads_raw else None,
         transcribe_backlog_max=max(1, int(args.transcribe_backlog_max)),
     )
 
 
-def main(argv: Optional[list[str]] = None) -> int:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Wake bounded office interaction capture from Eufy semantic events."
     )
@@ -1711,11 +1733,21 @@ def main(argv: Optional[list[str]] = None) -> int:
     )
     parser.add_argument("--visual-interval-seconds", type=float, default=float(os.environ.get("OFFICE_VISUAL_INTERVAL_SECONDS", "30")))
     parser.add_argument("--visual-max-frames", type=int, default=int(os.environ.get("OFFICE_VISUAL_MAX_FRAMES", "6")))
+    parser.add_argument(
+        "--visual-source",
+        default=os.environ.get("OFFICE_VISUAL_SOURCE", "bridge"),
+        help="bridge: Eufy bridge /snapshot (default); rtsp: one ffmpeg frame grab from --source-url",
+    )
+    parser.add_argument("--whisper-threads", default=os.environ.get("OFFICE_WHISPER_THREADS", ""), help="whisper-cli -t; empty keeps its default")
     parser.add_argument("--transcribe-backlog-max", type=int, default=int(os.environ.get("OFFICE_TRANSCRIBE_BACKLOG_MAX", "6")), help="captured wakes kept waiting for transcription before the oldest is dropped")
     parser.add_argument("--retention-hours", type=float, default=float(os.environ.get("OFFICE_RAW_AUDIO_RETENTION_HOURS", "6")))
     parser.add_argument("--retention-max-mb", type=float, default=float(os.environ.get("OFFICE_RAW_AUDIO_MAX_MB", "256")))
     parser.add_argument("--min-free-mb", type=float, default=float(os.environ.get("OFFICE_MIN_FREE_MB", "768")))
-    args = parser.parse_args(argv)
+    return parser
+
+
+def main(argv: Optional[list[str]] = None) -> int:
+    args = build_parser().parse_args(argv)
 
     try:
         config = config_from_args(args)
@@ -1743,6 +1775,9 @@ def main(argv: Optional[list[str]] = None) -> int:
             "retentionHours": config.retention_hours,
             "whisperModel": os.path.basename(config.model) if config.model else None,
             "whisperModelSource": config.model_source,
+            "whisperThreads": config.whisper_threads,
+            "visual": config.visual_enabled,
+            "visualSource": config.visual_source,
         },
     )
     daemon = OfficeWakeDaemon(config, ledger=ledger)

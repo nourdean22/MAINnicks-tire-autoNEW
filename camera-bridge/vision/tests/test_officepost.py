@@ -192,3 +192,20 @@ def test_the_transcriber_runs_with_NO_carried_context(monkeypatch):
     cmd = seen["cmd"]
     assert "-mc" in cmd and cmd[cmd.index("-mc") + 1] == "0"
     assert cmd[1:3] == ["-m", "m.bin"]
+
+
+def test_whisper_threads_are_passed_as_dash_t_only_when_set(monkeypatch):
+    """OFFICE_WHISPER_THREADS caps whisper-cli's CPU use on the shop PC (a staff machine that
+    crashed once under load). Unset must keep whisper's own default: no `-t` at all."""
+    seen = []
+
+    def run(cmd, *a, **k):
+        seen.append(cmd)
+        return _Proc(rc=2, stderr="stop here")
+
+    monkeypatch.setattr("vision.officepost.subprocess.run", run)
+    transcribe("x.wav", threads=2)
+    transcribe("x.wav")
+    capped, default = seen
+    assert capped[capped.index("-t") + 1] == "2"
+    assert "-t" not in default

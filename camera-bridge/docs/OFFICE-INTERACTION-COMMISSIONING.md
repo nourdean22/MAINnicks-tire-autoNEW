@@ -211,3 +211,34 @@ Proof rungs:
 1. Ledger `capture_finished` shows `frames_captured > 0`.
 2. The post reply shows `visualStatus: DONE`.
 3. Admin -> Lot -> Counter conversations shows a "Saw:" line.
+
+## Stills without a bridge: `OFFICE_VISUAL_SOURCE=rtsp` (2026-10-17, shop PC MECHANICS)
+
+The shop PC reads the camera's direct RTSP `/live0` and has no Eufy bridge, so the default
+`/snapshot/<serial>` path finds nothing and the lane runs with `OFFICE_VISUAL_ENABLED=0`.
+`OFFICE_VISUAL_SOURCE=rtsp` makes each still one ffmpeg grab from the capture URL
+(`OFFICE_AUDIO_SOURCE`) instead: video only (`-an`), one decoder thread, scaled to 640 px inside ffmpeg (no OpenCV needed),
+10 s timeout, below-normal priority. A failed grab is a missed frame; audio never waits on it.
+Unset or `bridge` keeps the NicksMax behaviour exactly.
+
+`OFFICE_WHISPER_THREADS=<n>` passes `-t <n>` to whisper-cli. Unset keeps whisper's default
+thread count.
+
+Enable on the shop PC (operator step, admin PowerShell, about 5 minutes):
+
+1. Copy `vision/officeframes.py`, `vision/officepost.py` and `vision/officewake.py` from this
+   commit into `C:\NOURCITY\camera-bridge\vision\`.
+2. Set the machine env:
+   `[Environment]::SetEnvironmentVariable("OFFICE_VISUAL_SOURCE", "rtsp", "Machine")`,
+   then the same for `OFFICE_VISUAL_ENABLED` = `1` and `OFFICE_WHISPER_THREADS` = `2`
+   (the Ryzen 5 7520U has 4 cores; 2 leaves half for the front desk).
+3. Restart: `Stop-ScheduledTask StateNour-OfficeIntelligence-ShopPC`, then `Start-ScheduledTask`
+   with the same name.
+4. Check the ledger: the `startup` row shows `visualSource: rtsp` and `whisperThreads: 2`; the next
+   `capture_finished` shows `frames_captured > 0`.
+5. Check prod: new `conversation_episodes` rows from `captureHost MECHANICS` still arrive with
+   transcripts, and Admin -> Lot -> Counter conversations shows a "Saw:" line on them.
+
+Not proven yet: whether the camera serves a second RTSP session (the still grab) while the audio
+capture holds one. If audio episodes stop or `frames_captured` stays 0, roll back with
+`OFFICE_VISUAL_ENABLED=0` and restart the task.

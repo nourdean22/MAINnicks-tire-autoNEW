@@ -88,7 +88,7 @@ def covered_seconds(segments: Sequence[dict], total: Optional[float] = None) -> 
 
 
 def transcribe(path: str, binary: str = "whisper-cli", model: Optional[str] = None,
-               timeout_s: float = 600.0) -> Transcript:
+               timeout_s: float = 600.0, threads: Optional[int] = None) -> Transcript:
     """Run the local transcriber over one wav and return its timed segments.
 
     The contract is the one thing that matters: a transcriber that did not run returns a
@@ -103,6 +103,9 @@ def transcribe(path: str, binary: str = "whisper-cli", model: Optional[str] = No
     cmd = [binary, "-f", path, "--output-json", "--no-prints", "-mc", "0"]
     if model:
         cmd[1:1] = ["-m", model]
+    if threads:
+        # OFFICE_WHISPER_THREADS: cap CPU on a shared machine; unset keeps whisper's default.
+        cmd += ["-t", str(int(threads))]
     engine_name = os.path.basename(binary) or binary
     model_name = os.path.basename(model) if model else None
     started = time.time()
