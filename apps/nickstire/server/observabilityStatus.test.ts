@@ -209,27 +209,31 @@ describe("planted positives move the state", () => {
   it("Langfuse: UNKNOWN before the probe, HEALTHY after a 2xx ingestion of it", async () => {
     process.env.LANGFUSE_PUBLIC_KEY = "pk-lf-test";
     process.env.LANGFUSE_SECRET_KEY = "sk-lf-test";
-    const sent: Array<{ url: string; body: { batch: Array<{ type: string; body: Record<string, any> }> }; auth: string }> = [];
+    const sent: Array<{ url: string; spans: Array<{ name: string; parentSpanId?: string; attributes: Array<{ key: string; value: { stringValue?: string } }> }>; headers: Record<string, string> }> = [];
     const fakeFetch = (async (url: string, init: RequestInit) => {
-      sent.push({ url, body: JSON.parse(String(init.body)), auth: String((init.headers as Record<string, string>).authorization) });
-      return new Response(JSON.stringify({ successes: [], errors: [] }), { status: 207 });
+      sent.push({ url, spans: JSON.parse(String(init.body)).resourceSpans[0].scopeSpans[0].spans, headers: init.headers as Record<string, string> });
+      return new Response("{}", { status: 200 });
     }) as unknown as typeof fetch;
     expect(resolveLangfuseInstrument(getLangfuseStatus(), Date.now(), BOOT).state).toBe("UNKNOWN");
     const r = await probeLangfuse(fakeFetch);
     expect(r.ok).toBe(true);
     expect(sent).toHaveLength(1);
-    expect(sent[0].url).toBe("https://us.cloud.langfuse.com/api/public/ingestion");
-    expect(sent[0].auth).toBe(`Basic ${Buffer.from("pk-lf-test:sk-lf-test").toString("base64")}`);
-    expect(sent[0].body.batch.map((e) => e.type)).toEqual(["trace-create", "generation-create"]);
-    expect(sent[0].body.batch[1].body.metadata.probeId).toBe(r.probeId);
+    expect(sent[0].url).toBe("https://us.cloud.langfuse.com/api/public/otel/v1/traces");
+    expect(sent[0].headers.authorization).toBe(`Basic ${Buffer.from("pk-lf-test:sk-lf-test").toString("base64")}`);
+    expect(sent[0].headers["x-langfuse-ingestion-version"]).toBe("4");
+    expect(sent.every((s) => !s.url.includes("ingestion"))).toBe(true);
+    expect(sent[0].spans.map((s) => s.name)).toEqual(["observability-probe", "observability-probe"]);
+    expect(sent[0].spans[1].parentSpanId).toBeDefined();
+    const probeIdAttr = sent[0].spans[1].attributes.find((a) => a.key === "langfuse.observation.metadata.probeId");
+    expect(probeIdAttr?.value.stringValue).toBe(r.probeId);
     expect(resolveLangfuseInstrument(getLangfuseStatus(), Date.now(), BOOT).state).toBe("HEALTHY");
   });
 
-  it("Langfuse: a 207 with per-event errors is DEGRADED, not HEALTHY", async () => {
+  it("Langfuse: a 200 whose OTLP partialSuccess rejects spans is DEGRADED, not HEALTHY", async () => {
     process.env.LANGFUSE_PUBLIC_KEY = "pk-lf-test";
     process.env.LANGFUSE_SECRET_KEY = "sk-lf-test";
     const fakeFetch = (async () =>
-      new Response(JSON.stringify({ successes: [], errors: [{ id: "x", status: 400 }] }), { status: 207 })) as unknown as typeof fetch;
+      new Response(JSON.stringify({ partialSuccess: { rejectedSpans: "2", errorMessage: "invalid span" } }), { status: 200 })) as unknown as typeof fetch;
     const r = await probeLangfuse(fakeFetch);
     expect(r.ok).toBe(false);
     expect(resolveLangfuseInstrument(getLangfuseStatus(), Date.now(), BOOT).state).toBe("DEGRADED");
@@ -287,7 +291,7 @@ describe("Langfuse payloads are masked and private calls are skipped", () => {
     expect(bodies[0]).not.toMatch(/555[-\s]?0142/);
     expect(bodies[0]).not.toContain("jo.smith@example.com");
     expect(bodies[0]).not.toContain("SYSTEM secret prompt text");
-    expect(bodies[0]).toMatch(/"promptSha256":"[0-9a-f]{64}"/);
+    expect(bodies[0]).toMatch(/"langfuse\.observation\.metadata\.promptSha256","value":\{"stringValue":"[0-9a-f]{64}"\}/);
   });
 
   it("a private call is counted and never queued", () => {
