@@ -119,7 +119,7 @@ export async function processMissedCallRecovery(): Promise<{ recordsProcessed: n
       const held = await sendPauseHoldReason("missed_call_recovery");
       if (held) {
         log.info("Missed-call recovery held", { reason: held });
-        return { recordsProcessed: 0, shadow: true, candidates: 0, details: held };
+        return { recordsProcessed: 0, shadow: true, candidates: 0, details: `Skipped · ${held}` };
       }
     }
 
@@ -219,8 +219,21 @@ export async function processMissedCallRecovery(): Promise<{ recordsProcessed: n
 
     // ─── LIVE: claim (durable at-most-once) then send via orchestrator ───
     const { orchestrateSms } = await import("../../services/smsOrchestrator");
+    const { sendPauseHoldReason } = await import("../../services/sendPause");
     let processed = 0;
-    for (const row of eligible.slice(0, RUN_CAP)) {
+    // C5.5 round 2: a pause set mid-run stops the loop before the next claim.
+    let heldMidRun: string | null = null;
+    let notAttempted = 0;
+    const batch = eligible.slice(0, RUN_CAP);
+    for (const [i, row] of batch.entries()) {
+      // Re-read the pause before every claim (5 s cache: one DB read per 5 s, not per caller).
+      const midRunHold = await sendPauseHoldReason("missed_call_recovery");
+      if (midRunHold) {
+        heldMidRun = midRunHold;
+        notAttempted = batch.length - i;
+        log.info("Missed-call recovery held mid-run", { reason: midRunHold, notAttempted });
+        break;
+      }
       // Claim BEFORE send: stamp metadata.recoverySmsAt only if still null.
       // A crash after the send leaves it stamped → no re-text next run.
       const claim = await db.execute(sql`
@@ -244,6 +257,9 @@ export async function processMissedCallRecovery(): Promise<{ recordsProcessed: n
       log.info("Missed-call recovery sent", { processed, candidates });
       const { sendTelegram } = await import("../../services/telegram");
       await sendTelegram(`📞 Missed-Call Recovery — sent ${processed} follow-up text(s) (of ${candidates} eligible).`, "receipt");
+    }
+    if (heldMidRun) {
+      return { recordsProcessed: processed, shadow: false, candidates, details: `Skipped · ${heldMidRun} · not_attempted=${notAttempted} · sent=${processed}` };
     }
     return { recordsProcessed: processed, shadow: false, candidates };
   } catch (err) {

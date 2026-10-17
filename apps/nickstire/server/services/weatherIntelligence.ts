@@ -178,27 +178,30 @@ const WEATHER_SMS_TEMPLATES: Record<string, string> = {
 /**
  * Send weather-triggered SMS to lapsed customers (60+ days since last visit).
  * Max 10 SMS per trigger event to keep costs controlled.
+ * `held` is the send_pause reason when a pause stopped the run (at the start or
+ * mid-loop), so checkWeatherTriggers can put it in cron_log details.
  */
-async function sendWeatherSms(triggerId: string): Promise<number> {
+async function sendWeatherSms(triggerId: string): Promise<{ sent: number; held: string | null }> {
+  const none = { sent: 0, held: null };
   const { isEnabled } = await import("./featureFlags");
-  if (!(await isEnabled("weather_triggered_sms"))) return 0;
+  if (!(await isEnabled("weather_triggered_sms"))) return none;
 
   const template = WEATHER_SMS_TEMPLATES[triggerId];
-  if (!template) return 0;
+  if (!template) return none;
   // SHADOW until armed. The trigger source changed on 2026-09-23 (OpenWeather
   // current conditions -> NWS forecast), so what fires a text changed too. The
   // flag was armed against the OLD meaning; the operator re-arms against the
   // new one with WEATHER_SMS_SEND=1. The flag stays the kill switch.
   if (process.env.WEATHER_SMS_SEND !== "1") {
     log.info(`Weather SMS shadow for "${triggerId}": not sent (set WEATHER_SMS_SEND=1 to arm)`);
-    return 0;
+    return none;
   }
   // C5.5 runtime pause (send_pause_weather_sms), fail closed: same shadow outcome.
   const { sendPauseHoldReason } = await import("./sendPause");
   const held = await sendPauseHoldReason("weather_sms");
   if (held) {
     log.info(`Weather SMS shadow for "${triggerId}": not sent (${held})`);
-    return 0;
+    return { sent: 0, held };
   }
 
   try {
@@ -209,7 +212,7 @@ async function sendWeatherSms(triggerId: string): Promise<number> {
     const { sql, and, isNotNull, eq, gte, like } = await import("drizzle-orm");
 
     const db = await getDb();
-    if (!db) return 0;
+    if (!db) return none;
 
     // Per-customer cooldown window for this weather trigger.
     const variantKey = `weather_${triggerId}`;
@@ -230,8 +233,14 @@ async function sendWeatherSms(triggerId: string): Promise<number> {
     ).limit(10);
 
     let sent = 0;
-    for (const c of targets) {
+    for (const [i, c] of targets.entries()) {
       if (!c.phone) continue;
+      // C5.5 round 2: re-read the pause before every send (5 s cache: one DB read per 5 s).
+      const midRunHold = await sendPauseHoldReason("weather_sms");
+      if (midRunHold) {
+        log.info(`Weather SMS for "${triggerId}" held mid-run (${midRunHold})`, { sent });
+        return { sent, held: `${midRunHold} · not_attempted=${targets.length - i}` };
+      }
 
       // Per-customer cooldown — skip anyone already texted for THIS
       // weather trigger in the last 30 days. Without it, sendWeatherSms
@@ -275,10 +284,10 @@ async function sendWeatherSms(triggerId: string): Promise<number> {
     if (sent > 0) {
       log.info(`Weather SMS: sent ${sent} messages for trigger "${triggerId}"`);
     }
-    return sent;
+    return { sent, held: null };
   } catch (err) {
     log.warn(`sendWeatherSms failed for "${triggerId}"`, { error: err instanceof Error ? err.message : String(err) });
-    return 0;
+    return none;
   }
 }
 
@@ -313,6 +322,7 @@ export function __resetWeatherAlertMemoryForTests(): void {
 export async function checkWeatherTriggers(): Promise<{ triggered: string[]; details: string }> {
   const { periods, alerts } = await readForecast();
   const { data, triggered, imminent, details } = evaluateForecast(periods, alerts);
+  const holds: string[] = [];
 
   for (const id of triggered) {
     const trigger = TRIGGERS.find((t) => t.id === id)!;
@@ -332,7 +342,8 @@ export async function checkWeatherTriggers(): Promise<{ triggered: string[]; det
 
     // A forecast days out drafts and alerts; only an imminent one may text.
     if (!imminent.includes(id)) continue;
-    const smsSent = await sendWeatherSms(trigger.id);
+    const { sent: smsSent, held } = await sendWeatherSms(trigger.id);
+    if (held) holds.push(`Skipped · ${held}`);
     if (smsSent > 0) {
       alertSystem(
         `Weather SMS: ${trigger.name}`,
@@ -341,5 +352,5 @@ export async function checkWeatherTriggers(): Promise<{ triggered: string[]; det
     }
   }
 
-  return { triggered, details: `${details}. ${triggered.length} triggers fired.` };
+  return { triggered, details: `${details}. ${triggered.length} triggers fired.${holds.length ? ` ${holds.join("; ")}` : ""}` };
 }

@@ -104,7 +104,8 @@ describe("send pause coverage", () => {
 describe("send pause coverage · planted defects are caught", () => {
   const g = GATES.find((x) => x.file === "services/weatherIntelligence.ts")!;
   const src = read(g.file);
-  const gateLine = /^.*sendPauseHoldReason\("weather_sms"\).*$/m;
+  // /g: since round 2 the lane checks at its start gate AND before each send; removing one leaves it wired.
+  const gateLine = /^.*sendPauseHoldReason\("weather_sms"\).*$/gm;
 
   it("CONTROL: the real file passes", () => {
     expect(gateProblems(src, g)).toEqual([]);

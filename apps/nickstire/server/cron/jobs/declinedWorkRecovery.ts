@@ -461,9 +461,20 @@ export async function runDeclinedWorkRecovery(opts?: RecoveryOptions): Promise<R
   const sentByTouch: Record<string, number> = { "3d": 0, "7d": 0, "14d": 0, "30d": 0, "45d": 0 };
   const totalSentSoFar = () => sentByTouch["3d"] + sentByTouch["7d"] + sentByTouch["14d"] + sentByTouch["30d"] + sentByTouch["45d"];
 
-  for (const { est, customer } of ranked) {
+  // C5.5 round 2: a pause set mid-run stops the loop before the next claim.
+  let heldMidRun: string | null = null;
+  let notAttempted = 0;
+  for (const [i, { est, customer }] of ranked.entries()) {
     if (totalSentSoFar() >= MAX_SMS_PER_RUN) {
       log.info(`[declined-recovery] hit per-run cap of ${MAX_SMS_PER_RUN} sends, stopping early`);
+      break;
+    }
+    // Re-read the pause before every estimate (5 s cache: one DB read per 5 s, not per text).
+    const midRunHold = await sendPauseHoldReason("declined_recovery");
+    if (midRunHold) {
+      heldMidRun = midRunHold;
+      notAttempted = ranked.length - i;
+      log.info(`[declined-recovery] held mid-run: ${midRunHold}`, { notAttempted });
       break;
     }
 
@@ -734,6 +745,6 @@ export async function runDeclinedWorkRecovery(opts?: RecoveryOptions): Promise<R
 
   return {
     recordsProcessed: total,
-    details: `Sent ${sent3d}/3d + ${sent7d}/7d + ${sent14d}/14d + ${sent30d}/30d + ${sent45d}/45d | skipped: ${skippedOptOut} opt-out, ${skippedNoPhone} no phone, ${skippedClosed} closed-signal, ${skippedHoldout} holdout | pool: ${formatMoney(totalRecoverableCents)}`,
+    details: `${heldMidRun ? `Skipped · ${heldMidRun} · not_attempted=${notAttempted} · ` : ""}Sent ${sent3d}/3d + ${sent7d}/7d + ${sent14d}/14d + ${sent30d}/30d + ${sent45d}/45d | skipped: ${skippedOptOut} opt-out, ${skippedNoPhone} no phone, ${skippedClosed} closed-signal, ${skippedHoldout} holdout | pool: ${formatMoney(totalRecoverableCents)}`,
   };
 }

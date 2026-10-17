@@ -187,6 +187,65 @@ describe("checkWeatherTriggers (cron handler)", () => {
     },
   );
 
+  it.each(["send_pause:weather_sms", "send_pause_unreadable:weather_sms"])(
+    "C5.5 round 2: a held run is readable in cron_log details as `Skipped · %s`",
+    async (reason) => {
+      freezeTonight();
+      process.env.WEATHER_SMS_SEND = "1";
+      sendPauseHoldReason.mockResolvedValue(reason);
+      const r = await checkWeatherTriggers();
+      expect(r.details).toContain(`Skipped · ${reason}`);
+    },
+  );
+
+  it("CONTROL: an unheld armed run carries no Skipped note", async () => {
+    freezeTonight();
+    process.env.WEATHER_SMS_SEND = "1";
+    const r = await checkWeatherTriggers();
+    expect(r.details).not.toContain("Skipped");
+  });
+
+  describe("C5.5 round 2: pause set mid-run", () => {
+    const threeTargets = () => {
+      const rows = (r: unknown[]) => ({ limit: async () => r });
+      getDb.mockResolvedValueOnce({
+        select: () => ({
+          from: () => ({
+            where: () => rows([
+              { id: 1, firstName: "Pat", phone: "2165550141" },
+              { id: 2, firstName: "Sam", phone: "2165550142" },
+              { id: 3, firstName: "Lee", phone: "2165550143" },
+            ]),
+            innerJoin: () => ({ where: () => rows([]) }), // no cooldown hit
+          }),
+        }),
+      });
+    };
+
+    it("CONTROL: never paused -> all three texted", async () => {
+      freezeTonight();
+      process.env.WEATHER_SMS_SEND = "1";
+      threeTargets();
+      sendSms.mockResolvedValue({ success: true, sid: "SM1" });
+      await checkWeatherTriggers();
+      expect(sendSms).toHaveBeenCalledTimes(3);
+    });
+
+    it("pause flips after text 1 -> texts 2-3 never sent, Skipped noted with the count", async () => {
+      freezeTonight();
+      process.env.WEATHER_SMS_SEND = "1";
+      threeTargets();
+      sendSms.mockImplementation(async () => {
+        sendPauseHoldReason.mockResolvedValue("send_pause:weather_sms");
+        return { success: true, sid: "SM1" };
+      });
+      const r = await checkWeatherTriggers();
+      expect(sendSms).toHaveBeenCalledTimes(1);
+      expect(r.details).toContain("Skipped · send_pause:weather_sms");
+      expect(r.details).toContain("not_attempted=2");
+    });
+  });
+
   it("does not hand a days-ahead trigger to SMS even when armed", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(OCT_NOW);
