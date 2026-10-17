@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "nickstire/c55-send-switches-card",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "11dd3c15-6c98-4bc9-9fa1-c404986839c6",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\new-session-bbf695",
   "claimedBy": "2026-10-17-c55-send-switches-card",
   "claimedAt": "2026-10-17T22:20:38.972Z",
   "expiresAt": "2026-10-18T10:20:38.972Z",
-  "releasedAt": null,
+  "releasedAt": "2026-10-17T23:55:06.424Z",
   "releaseReason": null,
-  "priorLeaseSha": null
+  "priorLeaseSha": "6ec937978444765d88cab915c0c93b896a13daa0",
+  "releasedBy": "11dd3c15-6c98-4bc9-9fa1-c404986839c6",
+  "foreignReleaseReason": null
 }
