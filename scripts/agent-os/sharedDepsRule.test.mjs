@@ -48,6 +48,12 @@ const DENY = [
   "pnpm prune",
   "npm uninstall x",
   "yarn add x",
+  // fix round 1: a positional package on npm install, dedupe, and yarn's workspace form
+  "npm install zod",
+  "npm i zod",
+  "pnpm dedupe",
+  "yarn workspace @statenour/web add zod",
+  "yarn workspace nicks-tire-auto remove vite",
 ];
 const ALLOW = [
   "pnpm install --frozen-lockfile",
@@ -58,6 +64,8 @@ const ALLOW = [
   "pnpm run build:affected",
   'git commit -m "fix the pnpm add guard"',
   'echo "never run pnpm --filter x add y in the primary"',
+  "npm install",
+  "npm ci",
 ];
 
 test("the incident and its siblings are DENIED in the primary checkout, through Bash and PowerShell, naming the rule", () => {

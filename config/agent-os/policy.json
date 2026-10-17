@@ -554,8 +554,8 @@
     {
       "id": "shared-deps-mutation",
       "tools": ["Bash", "PowerShell"],
-      "pattern": "(?=[pPnNyY])(?<!\\b(?:echo|Write-Host|Write-Output|printf|grep|rg|Select-String|findstr)\\b[^;|&\\n(`]{0,200})\\b(?:[pP][nN][pP][mM]|[nN][pP][mM]|[yY][aA][rR][nN])(?:\\.(?:cmd|exe|ps1))?(?![^;|&\\n#]{0,1000}?\\s(?:-g|--global)(?=[\\s;|&)]|$))(?:(?:\\s+-{1,2}\\w[\\w-]*(?:=[^\\s;|&]*)?(?:\\s+(?!-)[^\\s;|&]+)?){0,12}\\s+(?:add|remove|rm|uninstall|un|uni|update|up|upgrade|prune)|(?=[^;|&\\n]{0,1000}?\\s(?:--filter(?:-prod)?|-F)(?=[=\\s]|$))(?:\\s+-{1,2}\\w[\\w-]*(?:=[^\\s;|&]*)?(?:\\s+(?!-)[^\\s;|&]+)?){0,12}\\s+(?:install|i))(?=[\\s;|&)\"'`]|$)",
-      "why": "2026-10-17: a session in the PRIMARY checkout ran `pnpm --filter @statenour/web add ts-fsrs`; pnpm pruned vite from the shared node_modules and every junctioned worktree's nickstire tsc and vitest broke at once. Every worktree points at the primary's node_modules, so a package-changing (add/remove/update/prune) or FILTERED install there rewrites what all sessions run on. Applies in every cwd (no cwd condition): in a worktree install-in-junctioned-worktree is checked first and keeps its verdicts, and this rule also catches the filter-before-verb shape (`pnpm -F x install`) that rule never matched. Allowed: the full unfiltered `pnpm install [--frozen-lockfile]`, scripts and exec, global (-g) installs, and a command that is only echoed or quoted in a commit message.",
+      "pattern": "(?=[pPnNyY])(?<!\\b(?:echo|Write-Host|Write-Output|printf|grep|rg|Select-String|findstr)\\b[^;|&\\n(`]{0,200})\\b(?:[pP][nN][pP][mM]|[nN][pP][mM]|[yY][aA][rR][nN])(?:\\.(?:cmd|exe|ps1))?(?![^;|&\\n#]{0,1000}?\\s(?:-g|--global)(?=[\\s;|&)]|$))(?:(?:\\s+-{1,2}\\w[\\w-]*(?:=[^\\s;|&]*)?(?:\\s+(?!-)[^\\s;|&]+)?){0,12}\\s+(?:add|remove|rm|uninstall|un|uni|update|up|upgrade|prune|dedupe|workspace\\s+[^\\s;|&]+\\s+(?:add|remove))|(?<=\\b[nN][pP][mM](?:\\.(?:cmd|exe|ps1))?)(?:\\s+-{1,2}\\w[\\w-]*(?:=[^\\s;|&]*)?(?:\\s+(?!-)[^\\s;|&]+)?){0,12}\\s+(?:install|i)(?=[\\s;|&)\"'`]|$)(?=[^;|&\\n#]{0,1000}?\\s(?!-)(?!\\d*>)[^\\s;|&#])|(?=[^;|&\\n]{0,1000}?\\s(?:--filter(?:-prod)?|-F)(?=[=\\s]|$))(?:\\s+-{1,2}\\w[\\w-]*(?:=[^\\s;|&]*)?(?:\\s+(?!-)[^\\s;|&]+)?){0,12}\\s+(?:install|i))(?=[\\s;|&)\"'`]|$)",
+      "why": "2026-10-17: a session in the PRIMARY checkout ran `pnpm --filter @statenour/web add ts-fsrs`; pnpm pruned vite from the shared node_modules and every junctioned worktree's nickstire tsc and vitest broke at once. Every worktree points at the primary's node_modules, so a package-changing (add/remove/update/prune/dedupe, `yarn workspace <x> add|remove`, `npm install <pkg>` with a positional package) or FILTERED install there rewrites what all sessions run on. Applies in every cwd (no cwd condition): in a worktree install-in-junctioned-worktree is checked first and keeps its verdicts, and this rule also catches the filter-before-verb shape (`pnpm -F x install`) that rule never matched. Allowed: the full unfiltered `pnpm install [--frozen-lockfile]`, scripts and exec, global (-g) installs, and a command that is only echoed or quoted in a commit message.",
       "fix": "New or changed deps: use the scratchpad-clone recipe in .claude/skills/harness-worktree-setup/SKILL.md section 3 (install in an isolated clone, copy the lockfile back). Then a full, unfiltered pnpm install --frozen-lockfile in the primary, run by the operator or a primary-checkout session when no sibling session is mid-run. Check the result with node scripts/agent-os/deps-check.mjs.",
       "denyExamples": [
         "pnpm --filter @statenour/web add ts-fsrs",
@@ -588,7 +588,17 @@
         "env CI=1 pnpm add zod",
         "powershell -Command \"pnpm add zod\"",
         "grep x f && pnpm add zod",
-        "node scripts/agent-os/heavy.mjs run -- pnpm --filter x add y"
+        "node scripts/agent-os/heavy.mjs run -- pnpm --filter x add y",
+        "npm install zod",
+        "npm i zod",
+        "npm install --save-dev vitest",
+        "npm i @vitejs/plugin-react -D",
+        "npm.cmd install zod",
+        "pnpm dedupe",
+        "npm dedupe",
+        "yarn workspace @statenour/web add zod",
+        "yarn workspace nicks-tire-auto remove vite",
+        "npm --prefix apps/statenour install zod"
       ],
       "allowExamples": [
         "pnpm install --frozen-lockfile",
@@ -610,7 +620,19 @@
         "grep -rn \"pnpm --filter x add\" docs/ | head",
         "pnpm -F x i18n",
         "pnpm --filter nicks-tire-auto exec tsx scripts/update.ts",
-        "node scripts/agent-os/heavy.mjs run -- pnpm --filter nicks-tire-auto test"
+        "node scripts/agent-os/heavy.mjs run -- pnpm --filter nicks-tire-auto test",
+        "npm install",
+        "npm i",
+        "npm ci",
+        "npm install --no-audit",
+        "npm install 2>&1 | tail -3",
+        "npm run install",
+        "pnpm install --frozen-lockfile --prefer-offline",
+        "yarn workspace @statenour/web test",
+        "pnpm dedupe-check",
+        "npm install # note",
+        "npm i -g typescript",
+        "yarn workspace x run add"
       ]
     },
     {
