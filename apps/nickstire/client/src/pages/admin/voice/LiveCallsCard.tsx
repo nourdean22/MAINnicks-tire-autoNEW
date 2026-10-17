@@ -32,7 +32,7 @@ export function LiveCallsCard({ onSelectCall }: { onSelectCall: (callId: string)
   // continuously · the card just doesn't paint zero-state.
   if (isLoading) return null;
   // A failed read is unknown, not "no calls in flight": the card stays and says so.
-  if (isError || !data) {
+  if (isError) {
     return (
       <div id="voice-live-calls" role="alert" className="border border-amber-500/30 bg-amber-500/5 p-3 flex items-center justify-between gap-3">
         <p className="text-[12px] text-amber-300">Live calls couldn't load. Calls in flight are unknown, not zero.</p>
@@ -42,7 +42,7 @@ export function LiveCallsCard({ onSelectCall }: { onSelectCall: (callId: string)
       </div>
     );
   }
-  if (data.count === 0) return null;
+  if (!data || data.count === 0) return null;
 
   const stateOrder: Array<{
     key: "greeted" | "intent_captured" | "tool_called" | "confirmed";

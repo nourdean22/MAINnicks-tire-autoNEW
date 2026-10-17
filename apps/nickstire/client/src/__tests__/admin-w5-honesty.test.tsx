@@ -78,7 +78,7 @@ vi.mock("@/pages/admin/instagram/Pipeline", () => ({ Pipeline: h.Null }));
 import GrowthSection from "@/pages/admin/GrowthSection";
 import SettingsSection from "@/pages/admin/SettingsSection";
 import DeclinedRecoveryPanel from "@/pages/admin/settings/DeclinedRecoveryPanel";
-import { TopBookingPagesPanel, GscAuditPanel } from "@/pages/admin/TrafficFunnelSection";
+import TrafficFunnelSection from "@/pages/admin/TrafficFunnelSection";
 import { MarketIntelligence } from "@/pages/admin/intelligence/MarketIntelligence";
 import { ContentManager } from "@/pages/admin/content/ContentManager";
 import OpsHubSection from "@/pages/admin/OpsHubSection";
@@ -211,10 +211,20 @@ describe("Declined-work recovery panel", () => {
 });
 
 describe("Traffic to Revenue panels", () => {
+  /** The panels are private to the section, so mount the whole section with a good overview read. */
+  function renderFunnel() {
+    h.queries.set("trafficFunnel.overview", ok({
+      stages: [], alerts: [], topQueries: [], topPages: [],
+      branded: { branded: 0, brandedPct: 0, nonBranded: 0 },
+      generatedAt: new Date().toISOString(),
+    }));
+    return render(<TrafficFunnelSection />);
+  }
+
   it("failed top-booking-pages is unknown, not 'No bookings with page attribution'", () => {
     const refetch = vi.fn();
     h.queries.set("trafficFunnel.topBookingPages", { ...FAILED, refetch });
-    render(<TopBookingPagesPanel range="30d" />);
+    renderFunnel();
     expect(screen.queryByText(/No bookings with page attribution/)).toBeNull();
     const msg = screen.getByText("Booking pages couldn't load. Attribution is unknown, not empty.");
     fireEvent.click(within(msg.parentElement as HTMLElement).getByRole("button", { name: /try again/i }));
@@ -223,13 +233,13 @@ describe("Traffic to Revenue panels", () => {
 
   it("positive control: a real zero-attribution read still explains the gap", () => {
     h.queries.set("trafficFunnel.topBookingPages", ok({ pages: [], withAttribution: 0, totalBookings: 7 }));
-    render(<TopBookingPagesPanel range="30d" />);
+    renderFunnel();
     expect(screen.getByText(/No bookings with page attribution/)).toBeTruthy();
   });
 
   it("a failed GSC audit ends in the failure state, not a spinner that never stops", () => {
     h.queries.set("seoTools.weeklyAudit", FAILED);
-    render(<GscAuditPanel range="30d" />);
+    renderFunnel();
     fireEvent.click(screen.getByRole("button", { name: /Run Audit/ }));
     expect(screen.getByText("Search Console audit couldn't load. Unknown, not empty.")).toBeTruthy();
     expect(document.querySelector(".animate-spin")).toBeNull();

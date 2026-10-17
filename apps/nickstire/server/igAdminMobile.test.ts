@@ -14,7 +14,7 @@ const read = (p: string) => readFileSync(resolve(process.cwd(), `client/src/page
 
 describe("the primary tab grid fits its container", () => {
   it("TabsList override carries h-auto — base tabs.tsx fixes h-9, and a multi-row/odd-fit grid without it paints panel content over the lower tabs", () => {
-    expect(read("instagram/InstagramAdmin.tsx")).toMatch(/TabsList className="grid h-auto w-full grid-cols-/);
+    expect(read("instagram/InstagramAdmin.tsx")).toMatch(/TabsList className="flex h-auto w-full[^"]*overflow-x-auto/);
   });
 });
 

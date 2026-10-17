@@ -630,7 +630,7 @@ function CustomerEventsPanel({ range }: { range: Range }) {
  * "N of M bookings carry page attribution" whenever data renders, and the
  * empty state explains the gap instead of showing a hollow chart.
  */
-export function TopBookingPagesPanel({ range }: { range: Range }) {
+function TopBookingPagesPanel({ range }: { range: Range }) {
   const { data, isLoading, isError, refetch } = trpc.trafficFunnel.topBookingPages.useQuery(
     { range },
     { refetchInterval: 120_000 },
@@ -856,7 +856,7 @@ function SitemapSubmissionPanel() {
  *
  * Default-collapsed to avoid cluttering the funnel page; click to expand.
  */
-export function GscAuditPanel({ range }: { range: Range }) {
+function GscAuditPanel({ range }: { range: Range }) {
   const [expanded, setExpanded] = useState(false);
   const days = range === "7d" ? 7 : range === "30d" ? 30 : 90;
 
