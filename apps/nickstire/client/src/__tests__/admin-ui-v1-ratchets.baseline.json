@@ -3,7 +3,7 @@
     "uppercase": 4,
     "emDash": 164,
     "emoji": 0,
-    "transitionAll": 74,
+    "transitionAll": 71,
     "slowDuration": 7,
     "smallInput": 168,
     "offPalette": 158
@@ -260,7 +260,7 @@
       "emDash": 3
     },
     "client/src/pages/admin/outreach/SmsOrchestratorSection.tsx": {
-      "transitionAll": 10,
+      "transitionAll": 7,
       "smallInput": 4,
       "offPalette": 3
     },

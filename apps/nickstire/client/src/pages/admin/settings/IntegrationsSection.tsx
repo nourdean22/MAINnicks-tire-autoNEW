@@ -21,7 +21,7 @@ import {
   ThermometerSun, Cog, CircleDot, ArrowRight, RefreshCw, XCircle,
   Activity, Wifi, WifiOff, Plug
 } from "lucide-react";
-import { PageHeader, ErrorState } from "../shared";
+import { PageHeader, ErrorState, TabBar } from "../shared";
 
 // ─── TYPES ──────────────────────────────────────────────
 type Tab = "tires" | "labor" | "estimate";
@@ -152,9 +152,9 @@ function VendorHealthStrip() {
 export default function IntegrationsSection() {
   const [tab, setTab] = useState<Tab>("tires");
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
-    { id: "tires", label: "TIRE SEARCH", icon: <Truck className="w-4 h-4" /> },
-    { id: "labor", label: "LABOR GUIDE", icon: <Wrench className="w-4 h-4" /> },
-    { id: "estimate", label: "QUICK ESTIMATE", icon: <Calculator className="w-4 h-4" /> },
+    { id: "tires", label: "Tire search", icon: <Truck className="w-4 h-4" /> },
+    { id: "labor", label: "Labor guide", icon: <Wrench className="w-4 h-4" /> },
+    { id: "estimate", label: "Quick estimate", icon: <Calculator className="w-4 h-4" /> },
   ];
 
   return (
@@ -167,23 +167,8 @@ export default function IntegrationsSection() {
       {/* Vendor Health Strip */}
       <VendorHealthStrip />
 
-      {/* Tab Bar */}
-      <div className="flex gap-1 bg-card border border-border/30 p-1">
-        {tabs.map(t => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 font-bold text-xs tracking-wide transition-colors ${
-              tab === t.id
-                ? "bg-primary text-primary-foreground"
-                : "text-foreground/50 hover:text-foreground hover:bg-foreground/5"
-            }`}
-          >
-            {t.icon}
-            <span className="hidden sm:inline">{t.label}</span>
-          </button>
-        ))}
-      </div>
+      {/* Tab Bar: the shared scrolling strip, labels always visible */}
+      <TabBar tabs={tabs} activeTab={tab} onChange={setTab} variant="pill" />
 
       {tab === "tires" && <TireSearchTab />}
       {tab === "labor" && <LaborGuideTab />}
