@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "statenour/telegram-bot-bridge",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "f8d930b8-3865-416c-802f-2947cc79c726",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire",
   "claimedBy": "2026-10-17-telegram-bot-and-bridge (manager: bdnick ui upgrade session)",
   "claimedAt": "2026-10-17T01:42:29.921Z",
   "expiresAt": "2026-10-17T13:42:29.921Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": null
+  "releasedAt": "2026-10-17T15:08:21.534Z",
+  "releaseReason": "operator confirmed via -ForceDirtyRelease in worktree-teardown.ps1",
+  "priorLeaseSha": "c470254a8b5ed94e821b3dc2455b65d95fe515cf",
+  "releasedBy": "57ddae97-2431-4bb5-9ff7-0735d7189921",
+  "foreignReleaseReason": null
 }
