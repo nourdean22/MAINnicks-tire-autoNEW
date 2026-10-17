@@ -213,6 +213,24 @@ describe("the board", () => {
     expect(screen.getByText("Loading the queue")).toBeTruthy();
   });
 
+  it("a live work order outside the old five statuses is on the board and blocks the all-clear", () => {
+    h.queries.set("adminDashboard.overviewMediumBundle", ok(BUNDLE()));
+    // The real lifecycle (server workOrderService) has these live statuses; the old set only knew five.
+    for (const status of ["approved", "parts_ordered", "ready_for_pickup", "on_hold"]) {
+      h.queries.set("workOrders.list", ok([{ id: 7, status, customerName: "Dana Whitfield", createdAt: now() }]));
+      const { unmount } = render(<OverviewSection />);
+      expect(rows().some((r) => r.textContent?.includes("Dana Whitfield")), status).toBe(true);
+      expect(screen.queryByText(/Done for today/), status).toBeNull();
+      expect(within(screen.getByText("Active work orders").parentElement as HTMLElement).getByText("1"), status).toBeTruthy();
+      unmount();
+    }
+    // The control: a finished order is not on the board, so the all-clear is still reachable.
+    h.queries.set("workOrders.list", ok([{ id: 8, status: "picked_up", customerName: "Dana Whitfield", createdAt: now() }]));
+    render(<OverviewSection />);
+    expect(rows()).toHaveLength(0);
+    expect(screen.getByText("Done for today. Nothing needs you.")).toBeTruthy();
+  });
+
   it("an urgent item past position 12 is sorted into the first 12 rows", () => {
     const calm = Array.from({ length: 12 }, (_, i) => booking(i + 1, `Customer ${i + 1}`));
     const urgent = { ...booking(13, "Urgent Driver"), urgency: "emergency" };
@@ -481,6 +499,40 @@ describe("the Checks rail", () => {
     h.queries.set("proposals.counts", ok({ readable: true, count: 3 }));
     render(<OverviewSection />);
     expect(checksStatus()).toBe("1 open: 1 exception");
+  });
+
+  it("never says nothing open while the gateway has not answered; it says so once the gateway is up", () => {
+    measureEverything();
+    h.queries.set("promises.listOpen", ok([]));
+    // First read still in flight: no data, not an error. Everything else is measured and clear.
+    h.queries.set("sms.gatewayHealth", { data: undefined, isLoading: true, isError: false });
+    const first = render(<OverviewSection />);
+    expect(checksStatus()).not.toMatch(/nothing open/);
+    expect(checksStatus()).toBe("not all measured");
+    first.unmount();
+    // The control: the same fixture with the gateway answering reaches the all-clear line.
+    h.queries.set("sms.gatewayHealth", ok({ configured: true, readable: true, online: true }));
+    render(<OverviewSection />);
+    expect(checksStatus()).toBe("nothing open in promises, exceptions, freshness, gateway");
+  });
+
+  it("a full page of 50 overdue promises is a lower bound: 50+, while 49 stays exact", () => {
+    measureEverything();
+    const overdue = (n: number) =>
+      Array.from({ length: n }, (_, i) => ({ id: i + 1, customerName: `P${i}`, promise: "Call back", dueAt: new Date(Date.now() - (i + 1) * 3_600_000).toISOString() }));
+    h.queries.set("promises.listOpen", ok(overdue(49)));
+    const exact = render(<OverviewSection />);
+    expect(checksStatus()).toBe("49 open: 49 overdue promises");
+    exact.unmount();
+    // A full page that still holds a not-yet-due row is exact: the read is ordered most overdue first.
+    const later = { id: 99, customerName: "Sam", promise: "Quote", dueAt: new Date(Date.now() + 3_600_000).toISOString() };
+    h.queries.set("promises.listOpen", ok([...overdue(49), later]));
+    const notAllDue = render(<OverviewSection />);
+    expect(checksStatus()).toBe("49 open: 49 overdue promises");
+    notAllDue.unmount();
+    h.queries.set("promises.listOpen", ok(overdue(50)));
+    render(<OverviewSection />);
+    expect(checksStatus()).toBe("50+ open: 50+ overdue promises");
   });
 
   it("remembers the operator's choice across mounts", () => {

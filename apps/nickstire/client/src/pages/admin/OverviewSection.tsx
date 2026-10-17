@@ -28,7 +28,14 @@ import { QueueRow } from "./today/QueueRow";
 import type { ActionItem, BookingItem, CallbackItem, LeadItem, WorkOrderItem } from "./today/types";
 
 const ACTIVE_LEAD_STATUSES = new Set(["new", "contacted"]);
-const ACTIVE_WORK_ORDER_STATUSES = new Set(["new", "scheduled", "in_progress", "waiting_parts", "quality_check"]);
+/**
+ * Finished work orders. Source: TERMINAL_STATUSES in server/services/workOrderService.ts (not exported), the
+ * same four that workOrders.list leaves out unless includeTerminal is set. Every other status is live work,
+ * draft and on_hold included, because the server returns them; a free-text status the client does not know
+ * yet therefore shows on the board instead of vanishing (the old five-name allow-list hid most of the lifecycle).
+ */
+const TERMINAL_WORK_ORDER_STATUSES = new Set(["picked_up", "invoiced", "closed", "cancelled"]);
+const isLiveWorkOrder = (wo: { status?: string | null }) => !TERMINAL_WORK_ORDER_STATUSES.has(wo.status ?? "");
 
 /**
  * Page size for the work-order read that feeds the action queue.
@@ -38,6 +45,8 @@ const ACTIVE_WORK_ORDER_STATUSES = new Set(["new", "scheduled", "in_progress", "
  * that into a visible "30+" rather than a precise-looking lie.
  */
 const WORK_ORDER_QUEUE_LIMIT = 30;
+/** Same page size as PromisesPanel's PANEL_LIMIT: the rail shares that query's cache entry, so the two must match. */
+const PROMISES_PAGE_LIMIT = 50;
 const UNKNOWN = "—";
 /** The board is finite: past this many rows it offers one "Show N more" row. */
 const BOARD_ROW_CAP = 12;
@@ -168,7 +177,7 @@ export default function OverviewSection() {
   const { data: smsGw, isError: smsGwError } = trpc.sms.gatewayHealth.useQuery(undefined, { staleTime: 60_000 });
   // Same key and options as PromisesPanel's read (limit 50, staleTime 60 s, retry 1), so the rail's
   // overdue count comes from the panel's own cache entry, not a second fetch.
-  const { data: openPromises, isError: promisesFailed } = trpc.promises.listOpen.useQuery({ limit: 50 }, { staleTime: 60_000, retry: 1 });
+  const { data: openPromises, isError: promisesFailed } = trpc.promises.listOpen.useQuery({ limit: PROMISES_PAGE_LIMIT }, { staleTime: 60_000, retry: 1 });
   const { data: recentActions } = trpc.adminSecurity.recentActions.useQuery(
     { limit: 8 },
     { enabled: canViewHistory, refetchInterval: 60_000, refetchIntervalInBackground: false },
@@ -291,7 +300,7 @@ export default function OverviewSection() {
       });
     }
     for (const workOrder of currentWorkOrders) {
-      if (!ACTIVE_WORK_ORDER_STATUSES.has(workOrder.status ?? "")) continue;
+      if (!isLiveWorkOrder(workOrder)) continue;
       const overdue = workOrder.promisedAt ? new Date(workOrder.promisedAt).getTime() < Date.now() : false;
       items.push({
         id: `workOrder-${workOrder.id}`,
@@ -524,19 +533,24 @@ export default function OverviewSection() {
   const gateway = gatewayState(smsGw, smsGwError);
   // Promises count only when overdue; a failed promise read is "promises unknown", never zero.
   const overduePromises = promisesFailed || !openPromises ? null : openPromises.filter((p) => new Date(p.dueAt).getTime() < Date.now()).length;
+  // The read is ordered most overdue first and capped, so a page that is ALL overdue means more may exist
+  // past it: the count is a lower bound ("50+"), the same convention PromisesPanel uses for a full page.
+  const promisesAtLeast = overduePromises !== null && overduePromises >= PROMISES_PAGE_LIMIT;
   const exceptionCount = exceptionFeed(feedSignals).length;
   const freshnessOpen = integration.state !== "fresh";
   const gatewayOpen = gateway === "offline" || gateway === "unknown" || gateway === "not_configured";
   const openChecks = (overduePromises ?? 0) + exceptionCount + (freshnessOpen ? 1 : 0) + (gatewayOpen ? 1 : 0);
   const openParts = [
-    overduePromises ? `${overduePromises} overdue promise${overduePromises === 1 ? "" : "s"}` : null,
+    overduePromises ? `${overduePromises}${promisesAtLeast ? "+" : ""} overdue promise${overduePromises === 1 ? "" : "s"}` : null,
     exceptionCount ? `${exceptionCount} exception${exceptionCount === 1 ? "" : "s"}` : null,
     freshnessOpen ? "freshness" : null,
     gatewayOpen ? "gateway" : null,
   ].filter(Boolean);
-  const allMeasured = overduePromises !== null && feedSignals.length > 0 && feedSignals.every((s) => s.reading.state === "counted");
+  // A gateway still being read ("checking") is neither open nor clear, so it blocks the all-clear line.
+  const allMeasured =
+    overduePromises !== null && gateway !== "checking" && feedSignals.length > 0 && feedSignals.every((s) => s.reading.state === "counted");
   const checksStatus = [
-    openChecks > 0 ? `${openChecks} open: ${openParts.join(", ")}` : allMeasured ? "nothing open in promises, exceptions, freshness, gateway" : "not all measured",
+    openChecks > 0 ? `${openChecks}${promisesAtLeast ? "+" : ""} open: ${openParts.join(", ")}` : allMeasured ? "nothing open in promises, exceptions, freshness, gateway" : "not all measured",
     promisesFailed ? "promises unknown" : null,
   ]
     .filter(Boolean)
@@ -675,7 +689,7 @@ export default function OverviewSection() {
         */}
         <SummaryCard
           label="Active work orders"
-          value={workOrdersFailed ? UNKNOWN : currentWorkOrders.filter((wo) => ACTIVE_WORK_ORDER_STATUSES.has(wo.status ?? "")).length}
+          value={workOrdersFailed ? UNKNOWN : currentWorkOrders.filter(isLiveWorkOrder).length}
           detail={workOrdersFailed ? "Unable to determine" : undefined}
           alert={workOrdersFailed}
         />
