@@ -182,6 +182,14 @@ describe("honest board states survive the move", () => {
     expect(screen.queryByText("Nothing on the lot right now.")).toBeNull();
   });
 
+  it("a car whose arrival was never observed says so on its row, not a confident clock", () => {
+    setLot({ floor: { data: { ok: true, marksAvailable: false, rows: [visit("v-9", "FIX 1009", 0, { onPropertyMinutes: null, sinceFirstSeenMinutes: 40 })] } } });
+    render(<LotSection />);
+    const row = within(screen.getByRole("list", { name: "Vehicles on the lot" })).getByRole("listitem");
+    expect(row.textContent).toContain("since first seen · arrival not observed");
+    expect(row.textContent).not.toContain("on the property");
+  });
+
   it("an empty board under a camera that is not watching says the lot is not being watched", () => {
     setLot({ sign: "CAMERA_OFFLINE", floor: { data: { ok: true, marksAvailable: false, rows: [] } } });
     render(<LotSection />);

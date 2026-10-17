@@ -1137,15 +1137,22 @@ function FloorRow({ v, fetchedAt, now, onMarked }: { v: VisitRow; fetchedAt: num
           <div className="flex items-baseline gap-3">
             {/* Plate text appears ONLY for a CONFIRMED read: the router nulls the rest,
                 because a candidate string on screen becomes a fact in someone's head. */}
-            <h3 className={`text-[16px] leading-snug font-semibold truncate flex-1 min-w-0 ${v.plateText ? "font-mono" : "text-foreground/60"}`}>{car}</h3>
+            <h3 className={`text-[16px] leading-snug font-semibold truncate flex-1 min-w-0 ${v.plateText ? "" : "text-foreground/60"}`}>{car}</h3>
             <span className={`text-[15px] tabular-nums shrink-0 ${dwellTone(dwell)}`}>{formatDuration(dwell)}</span>
           </div>
           <p className="text-[13px] text-muted-foreground truncate">
-            <span>{observed ? "on the property" : "since first seen · arrival not observed"}</span>
-            {" · "}
+            {/* Stage first: on a 375 px row the line truncates, and where the car is matters more.
+                An unobserved arrival is the exception: its clock is a guess, so that is said first. */}
+            {!observed && <span className="text-amber-400/80">since first seen · arrival not observed · </span>}
             {stage.label}
             {v.customerMatch === "EXACT" && <span className="text-emerald-400/80"> · customer matched</span>}
             {v.customerMatch === "CONFUSABLE_UNIQUE" && <span className="text-amber-400/80"> · needs staff confirm</span>}
+            {observed && (
+              <>
+                {" · "}
+                <span>on the property</span>
+              </>
+            )}
           </p>
         </div>
         {/* A desk screen has room for the three clocks a phone keeps behind "More". */}
@@ -1907,16 +1914,18 @@ export default function LotSection() {
         subtitle="Live vehicle truth from the shop cameras"
         icon={<ParkingSquare className="w-5 h-5" />}
         badge={badge}
-        actions={
-          <button
-            type="button"
-            onClick={() => openWalkInQuote()}
-            className="min-h-12 px-4 whitespace-nowrap rounded-md bg-primary text-primary-foreground text-[14px] font-semibold"
-          >
-            Quote a walk-in
-          </button>
-        }
       />
+      {/* The header's action, on its own line: PageHeader's actions slot does not wrap, and at
+          375 px the title, subtitle and badge leave no room for a 48 px button beside them. */}
+      <div className="-mt-3 flex sm:justify-end">
+        <button
+          type="button"
+          onClick={() => openWalkInQuote()}
+          className="min-h-12 w-full sm:w-auto px-5 whitespace-nowrap rounded-md bg-primary text-primary-foreground text-[15px] font-semibold"
+        >
+          Quote a walk-in
+        </button>
+      </div>
 
       {nowFailed ? (
         <Unknown what="Lot counters" reason={nowReason} />
