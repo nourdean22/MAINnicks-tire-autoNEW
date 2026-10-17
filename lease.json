@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "statenour/langfuse-v2-repoint",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "11dd3c15-6c98-4bc9-9fa1-c404986839c6",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\new-session-bbf695",
   "claimedBy": "2026-10-17-langfuse-docs-repoint",
   "claimedAt": "2026-10-17T20:14:03.569Z",
   "expiresAt": "2026-10-18T08:14:03.569Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": null
+  "releasedAt": "2026-10-17T20:25:12.216Z",
+  "releaseReason": "PR #3132 merged; merge-gate deleted the remote branch",
+  "priorLeaseSha": "bb4c4683e5d0d8eda6027d8c9b3a6cf74f021d48",
+  "releasedBy": "11dd3c15-6c98-4bc9-9fa1-c404986839c6",
+  "foreignReleaseReason": null
 }
