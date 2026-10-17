@@ -102,6 +102,21 @@
 > - `knip.json:32` still lists the deleted `lib/brain/reflection-engine.ts` (root config; knip is advisory).
 > - `lib/services/chat/persist-assistant-turn.ts` still imports `sanitizeResponse` from the `output-sanitizer` shim; `cliche-detector.ts` and `output-sanitizer.ts` remain one-line shims.
 
+> ## 2026-10-17 · UI v3 Wave 4 · Mind: Brain, People, Journal, Stats (branch `statenour/ui-v3-w4`) · 1 statenour PR
+>
+> Not live until merged and deployed. jsdom tests only: no render at 390 or 1440 was taken on this branch, and the v3 six-feet gate does not measure these four pages yet (Flagged below). The gate for W4 is the ratchets.
+>
+> - **Brain (632fec7b3).** The lens bar is one row at content width (`w-fit`, scrolls, never wraps), 14 px labels at a 44 px target, the hint a tooltip only; a lens's sub-sections render as a filter row inside the tabpanel instead of a second strip above it. `?tab=` contract unchanged.
+> - **People (e5fca7cfb).** "Who needs you now" (the watchlist: broken promises, 90-day silences, imbalances, birthdays) renders right under the verdict as ruled rows with the reason in words. Its read used to swallow failures (`catch -> setWatchlist([])`, and an empty list rendered nothing); it now says reading, failed with a 44 px Retry, or "No one needs you right now." The W0 people-read Retry is untouched.
+> - **Journal (03b5b2bc1).** The reflect composer opens on one 16 px field that saves as the What of a driscoll reflection (no server contract change); "Use a template" opens the structured forms at 16 px; a draft that used more than one box reopens structured. Two warning-sign emoji and four em dashes reworded on the Journal surface.
+> - **Stats (45e296509).** Three tabs: Mastery; Goals (now with Calibration and the forecast duel); Body and learning. `?tab=learning` and `?tab=calibration` stay live through `STATS_TAB_ALIASES` and scroll to their section. A verdict sentence above the tabs from the character sheet ("Total level N across M stats. X gained the most this week, +K XP."). One `StatsStateBlock` says loading, failed (Retry) or a real zero in words, and replaces five pulsing placeholders.
+> - **Ratchets** (`UPDATE_RATCHET=1`, nothing raised): emDash 275 -> 269, emoji 35 -> 33, smallInput 113 -> 112, transitionAll 57 -> 56; the faded-text entry for the old watchlist chip row removed.
+>
+> **Flagged · NOT fixed**
+> - The v3 distance gate does not cover W4. Adding a page to `V3_PAGES` needs its two names in the baseline list of `.github/workflows/e2e-statenour.yml` (a platform-lane file; `tests/repo/v3-gate.test.ts` fails on drift), DEMO fixtures for each page's reads, and baselines captured in CI from pre-W4 main (651ded614).
+> - 86 em dash and emoji sites remain in the Brain and Stats component trees (`components/brain/*`, `components/home/home-brain-graph.tsx`, `components/stats/*`); many are pinned verbatim by tests and by the gate's `PAGE_ERRORS`.
+> - Under the Mastery tab a failed character-sheet read shows two Retry controls: the verdict's state block and CharacterSheet's own ErrorCard.
+
 > ## 2026-10-16 · Brain W2 · the Daily Tutor, one tap a day (branch `statenour/brain-w2-tutor`) · 1 statenour PR
 >
 > Not live until merged and `/api/version` serves the squash SHA; the first send is the next morning slot after deploy. Every claim below is from unit tests and code reading.
@@ -4689,7 +4704,7 @@
 
 > **2026-07-22 · Perplexica repair + closed-loop Experiment factory + fallback-model refresh.** ① **Perplexica** (#1017/#1018/#1019): canonical native-API path (removed the MCP-URL aliasing — `perplexica-mcp` is a separate Railway service), `PERPLEXICA_TIMEOUT_MS` 35s (was the generic 8s → always timed out in the quorum), `hasPerplexica()` single gate, `checkPerplexicaHealth()` provider+model verification, search-source telemetry, and the `GET /api/system/perplexica-diag` receipt (CRON_SECRET-gated). **Root cause proven from live SearXNG logs: every general engine (DuckDuckGo/Brave/Startpage/Google-CSE) is CAPTCHA/rate-limited on Railway's datacenter IP → 0 sources → silent Tavily fallback** — an infra reality, not a code bug (see RUNBOOK observability + poka-yoke ledger 2026-07-22). ② **Closed-loop Experiment factory** (#1020): `RegisteredSource.authScore` now LEARNS — accepting an opportunity spawns an `Experiment` (14-day horizon), a daily `experiment-measure` cron resolves it (held_up/failed/inconclusive) and nudges the attributed source's authScore via a bounded, reversible EWMA; `scoring.ts` folds that learned trust back into opportunity priority (`applyAuthTrust`, ±10% — the read-path teeth). Adversarial-review fixes: **column-first migration** (hot-table ADD COLUMNs applied to prod before the schema deploy) + **atomic claim** (running→measuring, prevents concurrent double-nudge). Migration verified live: `experiments` table + 3 cols + 2 FKs, pgvector untouched. ③ **Fallback-model refresh**: the anthropic fallback lane's `defaultModel` `claude-3-5-sonnet-latest` → `claude-sonnet-5` (4th/5th-hop only; prod primary is Ollama). Also flipped `NICK_VERIFIED_REGEN` on (activates the #1016 authority-regen; no DB override, env-driven, verified effective). Gates: typecheck 0 · eslint 0 · vitest (closed-loop math 7/7, perplexica 30/30) · check:crons clean · prisma validate.
 
-**Last verified:** 2026-10-16 (UI v3 waves W0 to W2, #3056, #3065, #3066, #3067 and branch statenour/ui-v3-w2; see top entry; prior stamp 2026-10-10, audit-fix wave 1)
+**Last verified:** 2026-10-17 (UI v3 waves W0 to W2, #3056, #3065, #3066, #3067 and branch statenour/ui-v3-w2; see top entry; prior stamp 2026-10-10, audit-fix wave 1)
 
 - **Execution Mode (`1255c273`)**: Added focused task execution panel on `/missions` utilizing a memoized selector to prioritize tasks in "DOING" status, then queued tasks, then tasks from the Top Mission Today, real user projects, and general tasks. Includes callbacks for resume, pause, complete, snooze, block, edit, and exit.
 - **Hidden High-Risk Warning & Filters (`e9afbec8` & `9816a0b6`)**: Implemented a warning banner when high-risk tasks are hidden by active search, loop-kind filters, domain filters, or focus mode.

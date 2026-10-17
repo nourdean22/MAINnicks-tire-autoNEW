@@ -47,6 +47,8 @@ interface StatLevel {
   xpForNext: number;
   progressPct: number;
   rising7dXp: number;
+  /** The 7-day read failed: rising7dXp is a default, not a measurement (W4 fix round 2). */
+  rising7dUnknown?: boolean;
   goals?: { id: string; title: string }[];
 }
 
@@ -214,10 +216,12 @@ export function CharacterSheet() {
     }
   }
 
+  // W4 fix round 2: an unread week names no idle stat and draws no gain; it says so once, below.
+  const weekUnknown = stats.some((s) => s.rising7dUnknown);
   // Find the highest-level stat that hasn't gained any XP this week (rising7dXp === 0)
-  const highestNeglected = [...stats]
-    .filter((s) => s.rising7dXp === 0)
-    .sort((a, b) => b.level - a.level)[0] ?? null;
+  const highestNeglected = weekUnknown
+    ? null
+    : ([...stats].filter((s) => s.rising7dXp === 0).sort((a, b) => b.level - a.level)[0] ?? null);
 
 
   return (
@@ -297,6 +301,12 @@ export function CharacterSheet() {
                 </span>
               </div>
             </div>
+          ) : null}
+
+          {weekUnknown ? (
+            <p className="pt-2 border-t border-edge-subtle font-mono text-[11px] text-fg-tertiary">
+              This week&apos;s XP couldn&apos;t be read.
+            </p>
           ) : null}
 
           {/* Neglected stat check */}
@@ -396,7 +406,7 @@ function StatCard({ stat }: { stat: StatLevel }) {
               style={{ width: `${pct}%`, backgroundColor: stat.color }}
             />
           </div>
-          {stat.rising7dXp > 0 ? (
+          {stat.rising7dXp > 0 && !stat.rising7dUnknown ? (
             <span
               className="shrink-0 text-[11px] font-semibold tabular-nums"
               style={{ color: stat.color }}
