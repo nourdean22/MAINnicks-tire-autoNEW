@@ -8,8 +8,10 @@
  *
  * Flow:
  *   1. pickDueReplays(limit)
- *      · MasteryDecisions whose createdAt + 30d ≤ now AND
- *        no corresponding DecisionReplay.reviewed=true row exists.
+ *      · own date first: an unreviewed DecisionReplay whose reviewAt ≤
+ *        now (Nour's forecast date), whatever the decision's age;
+ *      · then the 30-day pool: createdAt + 30d ≤ now AND no
+ *        DecisionReplay row at all (a future reviewAt blocks it).
  *      · DecisionReplay is the canonical queue (it already exists in
  *        schema.prisma · no new table, no MasteryDecision column).
  *   2. gatherOutcomeSignals(decision)
@@ -36,6 +38,7 @@
  * Idempotency contract:
  *   · pickDueReplays filters out decisions that already have a
  *     DecisionReplay row with reviewed=true · cron retries are safe.
+ *     (No production caller exists yet · only tests call it.)
  *   · markReplayed upserts via idempotencyKey = "decision_<id>_30d"
  *     so two writes don't double-create the queue row.
  *
@@ -62,7 +65,8 @@ const log = rootLogger.withSurface("services/decision-replay-coach");
 
 /** 30-day replay horizon. Hard-coded · the whole feature's framing. */
 const REPLAY_HORIZON_DAYS = 30;
-const REPLAY_HORIZON_MS = REPLAY_HORIZON_DAYS * 24 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const REPLAY_HORIZON_MS = REPLAY_HORIZON_DAYS * DAY_MS;
 
 /** Maximum wisdoms scanned per decision. Cheap; 1.5K covers the corpus. */
 const WISDOM_SCAN_LIMIT = 1500;
@@ -90,6 +94,8 @@ export interface DueDecision {
   predictedOutcome: string | null;
   createdAt: Date;
   ageDays: number;
+  /** Set when due because its own stored review date passed; absent for the 30-day pool. */
+  reviewAt?: Date;
 }
 
 export interface OutcomeSignals {
@@ -127,84 +133,117 @@ export interface ReplayPrompt {
 
 // ── 1. Pick due replays ──────────────────────────────────────────────
 
+const DECISION_SELECT = {
+  id: true,
+  title: true,
+  domain: true,
+  chosen: true,
+  reasoning: true,
+  predictedOutcome: true,
+  createdAt: true,
+} as const;
+
 /**
- * Returns MasteryDecisions due for replay · those whose age ≥ 30d AND
- * have no `DecisionReplay` row with reviewed=true.
+ * Returns MasteryDecisions due for replay, own-date rows first:
  *
- * Implementation note · we filter via "decisionId NOT IN (reviewed
- * replay ids)" rather than a left-join because Prisma's findMany has
- * no clean way to express NOT EXISTS without raw SQL · the candidate
- * pool is ≤ a few hundred per day so the in-memory filter is cheap.
+ *   (a) own date · an unreviewed DecisionReplay whose reviewAt has passed
+ *       (a Socratic forecast stores Nour's date; the journalDecision stub
+ *       stores createdAt + 30d). Due whatever the decision's age, oldest
+ *       reviewAt first, and carries `reviewAt` on the result.
+ *   (b) 30-day pool · no DecisionReplay row at all and age ≥ 30d, oldest
+ *       first. A decision whose unreviewed replay is dated in the future
+ *       (or snoozed by the tutor) is NOT in the pool, even past 30d, and
+ *       a reviewed decision is never due.
+ *
+ * Implementation note · Prisma's findMany has no clean NOT EXISTS without
+ * raw SQL, so pool candidates are over-fetched (4x) and the replay rows
+ * for them are read in one round trip and filtered in memory · the pool
+ * is ≤ a few hundred. A failed read logs which query and never widens
+ * the result: an unreadable replay lookup returns [] (it cannot tell a
+ * reviewed decision from an unreviewed one).
  */
 export async function pickDueReplays(
   limit: number = 5,
 ): Promise<DueDecision[]> {
-  const cutoff = new Date(Date.now() - REPLAY_HORIZON_MS);
+  const now = Date.now();
+  const over = Math.max(limit * 4, 20);
+  const failed =
+    (query: string) =>
+    (err: unknown): null => {
+      log.warn("pickDueReplays_query_failed", { query, err: String(err) });
+      return null;
+    };
 
-  // Pull MasteryDecisions older than 30d, excluding soft-deleted.
-  // We over-fetch by 4x the limit because some will be filtered out
-  // for already-replayed status; 4x covers the typical filter ratio
-  // without unbounded scans.
-  const candidates = await prisma.masteryDecision
-    .findMany({
-      // v10.0.529.106 wave-77 · migrated to activeOnly() helper.
-      where: activeOnly({
-        createdAt: { lte: cutoff },
-      }),
-      orderBy: { createdAt: "asc" }, // oldest first · longest-overdue go first
-      take: Math.max(limit * 4, 20),
-      select: {
-        id: true,
-        title: true,
-        domain: true,
-        chosen: true,
-        reasoning: true,
-        predictedOutcome: true,
-        createdAt: true,
-      },
-    })
-    .catch((err): never[] => {
-      log.warn("pickDueReplays_query_failed", { err: String(err) });
-      return [] as never[];
-    });
+  const [datedReplays, pool] = await Promise.all([
+    prisma.decisionReplay
+      .findMany({
+        // Same predicate as the tutor's overdue review (lib/brain/tutor-pack.ts).
+        where: { reviewed: false, reviewAt: { lte: new Date(now) }, decisionId: { not: null } },
+        orderBy: { reviewAt: "asc" }, // oldest own date first
+        select: { decisionId: true, reviewAt: true },
+        take: over,
+      })
+      .catch(failed("own_date_replays")),
+    prisma.masteryDecision
+      .findMany({
+        // v10.0.529.106 wave-77 · migrated to activeOnly() helper.
+        where: activeOnly({ createdAt: { lte: new Date(now - REPLAY_HORIZON_MS) } }),
+        orderBy: { createdAt: "asc" }, // oldest first · longest-overdue go first
+        take: over,
+        select: DECISION_SELECT,
+      })
+      .catch(failed("pool_decisions")),
+  ]);
 
-  if (candidates.length === 0) return [];
-
-  // Find which decisions are already reviewed. One round trip beats N
-  // per-candidate lookups.
-  const candidateIds = candidates.map((c) => c.id);
-  const reviewedRows = await prisma.decisionReplay
-    .findMany({
-      where: {
-        decisionId: { in: candidateIds },
-        reviewed: true,
-      },
-      select: { decisionId: true },
-    })
-    .catch((): { decisionId: number | null }[] => []);
-  const reviewedIds = new Set(
-    reviewedRows.map((r) => r.decisionId).filter((id): id is number => id != null),
-  );
-
-  const due: DueDecision[] = [];
-  for (const c of candidates) {
-    if (reviewedIds.has(c.id)) continue;
-    const ageDays = Math.floor(
-      (Date.now() - c.createdAt.getTime()) / (24 * 60 * 60 * 1000),
-    );
-    due.push({
-      id: c.id,
-      title: c.title,
-      domain: c.domain,
-      chosen: c.chosen,
-      reasoning: c.reasoning,
-      predictedOutcome: c.predictedOutcome,
-      createdAt: c.createdAt,
-      ageDays,
-    });
-    if (due.length >= limit) break;
+  // Rows arrive oldest reviewAt first; keep the first per decision so a
+  // second unreviewed row cannot list it twice.
+  const ownDate = new Map<number, Date>();
+  for (const r of datedReplays ?? []) {
+    if (r.decisionId != null && !ownDate.has(r.decisionId)) ownDate.set(r.decisionId, r.reviewAt);
   }
-  return due;
+  const ownDecisions =
+    ownDate.size > 0
+      ? await prisma.masteryDecision
+          .findMany({
+            where: activeOnly({ id: { in: [...ownDate.keys()] } }),
+            select: DECISION_SELECT,
+          })
+          .catch(failed("own_date_decisions"))
+      : [];
+
+  const ownById = new Map((ownDecisions ?? []).map((d) => [d.id, d]));
+  const poolRows = pool ?? [];
+  if (ownById.size === 0 && poolRows.length === 0) return [];
+
+  // Which of these decisions have any replay row, and which are reviewed.
+  const ids = [...new Set([...ownById.keys(), ...poolRows.map((d) => d.id)])];
+  const replayRows = await prisma.decisionReplay
+    .findMany({
+      where: { decisionId: { in: ids } },
+      select: { decisionId: true, reviewed: true },
+    })
+    .catch(failed("replay_status"));
+  if (!replayRows) return [];
+  const hasReplay = new Set<number>();
+  const reviewed = new Set<number>();
+  for (const r of replayRows) {
+    if (r.decisionId == null) continue;
+    hasReplay.add(r.decisionId);
+    if (r.reviewed) reviewed.add(r.decisionId);
+  }
+
+  const ageOf = (d: { createdAt: Date }) => Math.floor((now - d.createdAt.getTime()) / DAY_MS);
+  const due: DueDecision[] = [];
+  for (const [id, reviewAt] of ownDate) {
+    const d = ownById.get(id);
+    if (!d || reviewed.has(id)) continue;
+    due.push({ ...d, ageDays: ageOf(d), reviewAt });
+  }
+  for (const d of poolRows) {
+    if (hasReplay.has(d.id)) continue;
+    due.push({ ...d, ageDays: ageOf(d) });
+  }
+  return due.slice(0, limit);
 }
 
 // ── 2. Outcome signals ───────────────────────────────────────────────
@@ -446,9 +485,9 @@ export function composeReplayPrompt(
       : "no measurable signals in the 30d window";
 
   const lines: string[] = [];
-  lines.push(
-    `<b>Decision replay · ${decision.ageDays}d ago</b>`,
-  );
+  // An own-date decision may be 7 or 90 days old; "Nd ago" would misname why it is asked now.
+  const when = decision.reviewAt ? "review date reached" : `${decision.ageDays}d ago`;
+  lines.push(`<b>Decision replay · ${when}</b>`);
   lines.push(`You decided: ${escapeHtml(decisionShort)}`);
   lines.push(`What happened: ${escapeHtml(outcomeText)}`);
 

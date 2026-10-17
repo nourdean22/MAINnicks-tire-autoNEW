@@ -20,6 +20,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  logWarn: vi.fn(),
   masteryDecision: {
     findMany: vi.fn(),
     findUnique: vi.fn(),
@@ -56,7 +57,7 @@ vi.mock("@/lib/logger", () => ({
   logger: {
     withSurface: () => ({
       info: vi.fn(),
-      warn: vi.fn(),
+      warn: mocks.logWarn,
       error: vi.fn(),
     }),
   },
@@ -72,6 +73,7 @@ import {
 } from "@/lib/services/decision-replay-coach";
 
 beforeEach(() => {
+  mocks.logWarn.mockReset();
   mocks.masteryDecision.findMany.mockReset();
   mocks.masteryDecision.findUnique.mockReset();
   mocks.decisionReplay.findMany.mockReset();
@@ -101,31 +103,78 @@ function makeDueDecision(overrides: Partial<DueDecision> = {}): DueDecision {
   };
 }
 
+// ── pickDueReplays · a tiny in-memory Prisma fake ───────────────────
+//
+// Routes by the `where` the service sends, so the tests assert BEHAVIOUR
+// (which decisions come back), not the order of mocked calls. It knows only
+// the filters pickDueReplays uses; any other filter throws, so a query shape
+// the fake cannot answer fails loudly instead of returning a quiet lie.
+
+type SeedDecision = {
+  id: number;
+  title: string;
+  domain: string | null;
+  chosen: string | null;
+  reasoning: string | null;
+  predictedOutcome: string | null;
+  createdAt: Date;
+};
+type SeedReplay = { decisionId: number | null; reviewed: boolean; reviewAt: Date };
+type FakeArgs = { where: Record<string, any>; orderBy?: Record<string, string>; take?: number };
+
+const daysAgo = (n: number) => new Date(Date.now() - n * DAY_MS);
+const daysFromNow = (n: number) => new Date(Date.now() + n * DAY_MS);
+
+function decisionRow(id: number, createdAt: Date): SeedDecision {
+  return {
+    id,
+    title: `Decision ${id}`,
+    domain: "BUSINESS",
+    chosen: "X",
+    reasoning: "Y",
+    predictedOutcome: "p=0.6",
+    createdAt,
+  };
+}
+
+function seedStore(decisions: SeedDecision[], replays: SeedReplay[]) {
+  const decisionKeys = new Set(["createdAt", "id", "deletedAt"]);
+  mocks.masteryDecision.findMany.mockImplementation(async (args: FakeArgs) => {
+    const w = args.where;
+    for (const k of Object.keys(w)) if (!decisionKeys.has(k)) throw new Error(`fake: masteryDecision filter ${k}`);
+    let rows = decisions.filter(
+      (d) =>
+        (!w.createdAt?.lte || d.createdAt.getTime() <= w.createdAt.lte.getTime()) &&
+        (!w.id?.in || w.id.in.includes(d.id)),
+    );
+    if (args.orderBy?.createdAt === "asc") {
+      rows = [...rows].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+    }
+    return rows.slice(0, args.take ?? rows.length);
+  });
+  const replayKeys = new Set(["decisionId", "reviewed", "reviewAt"]);
+  mocks.decisionReplay.findMany.mockImplementation(async (args: FakeArgs) => {
+    const w = args.where;
+    for (const k of Object.keys(w)) if (!replayKeys.has(k)) throw new Error(`fake: decisionReplay filter ${k}`);
+    let rows = replays.filter(
+      (r) =>
+        (w.reviewed === undefined || r.reviewed === w.reviewed) &&
+        (!w.reviewAt?.lte || r.reviewAt.getTime() <= w.reviewAt.lte.getTime()) &&
+        (!w.decisionId?.in || (r.decisionId !== null && w.decisionId.in.includes(r.decisionId))) &&
+        (w.decisionId?.not !== null || r.decisionId !== null),
+    );
+    if (args.orderBy?.reviewAt === "asc") {
+      rows = [...rows].sort((a, b) => a.reviewAt.getTime() - b.reviewAt.getTime());
+    }
+    return rows.slice(0, args.take ?? rows.length);
+  });
+}
+
 // ── Test 1 · pickDueReplays returns decisions older than 30d ────────
 
 describe("pickDueReplays", () => {
   it("returns decisions older than 30d when no replay row marks them reviewed", async () => {
-    mocks.masteryDecision.findMany.mockResolvedValueOnce([
-      {
-        id: 1,
-        title: "Hire a second tech",
-        domain: "BUSINESS",
-        chosen: "Hire next quarter",
-        reasoning: "Bandwidth",
-        predictedOutcome: "Doubled throughput",
-        createdAt: new Date(Date.now() - 45 * DAY_MS),
-      },
-      {
-        id: 2,
-        title: "Switch CRM",
-        domain: "BUSINESS",
-        chosen: "Wait two more months",
-        reasoning: "Cost of switching",
-        predictedOutcome: "Avoid disruption",
-        createdAt: new Date(Date.now() - 31 * DAY_MS),
-      },
-    ]);
-    mocks.decisionReplay.findMany.mockResolvedValueOnce([]); // none reviewed
+    seedStore([decisionRow(1, daysAgo(45)), decisionRow(2, daysAgo(31))], []);
 
     const due = await pickDueReplays(5);
     expect(due).toHaveLength(2);
@@ -135,12 +184,8 @@ describe("pickDueReplays", () => {
   });
 
   it("returns empty when the candidate pool is empty", async () => {
-    mocks.masteryDecision.findMany.mockResolvedValueOnce([]);
-    const due = await pickDueReplays(5);
-    expect(due).toEqual([]);
-    // Skipping the reviewed-row lookup is fine · no harm done if it
-    // doesn't fire, but the code path may still call it depending on
-    // implementation. We only assert the result here.
+    seedStore([], []);
+    expect(await pickDueReplays(5)).toEqual([]);
   });
 });
 
@@ -148,31 +193,142 @@ describe("pickDueReplays", () => {
 
 describe("pickDueReplays · already-replayed skip", () => {
   it("skips MasteryDecisions whose corresponding DecisionReplay row is reviewed=true", async () => {
-    mocks.masteryDecision.findMany.mockResolvedValueOnce([
-      {
-        id: 10,
-        title: "Already-reviewed decision",
-        domain: "BUSINESS",
-        chosen: "X",
-        reasoning: "Y",
-        predictedOutcome: "Z",
-        createdAt: new Date(Date.now() - 40 * DAY_MS),
-      },
-      {
-        id: 11,
-        title: "Fresh-due decision",
-        domain: "BUSINESS",
-        chosen: "A",
-        reasoning: "B",
-        predictedOutcome: "C",
-        createdAt: new Date(Date.now() - 31 * DAY_MS),
-      },
-    ]);
-    mocks.decisionReplay.findMany.mockResolvedValueOnce([{ decisionId: 10 }]);
+    seedStore(
+      [decisionRow(10, daysAgo(40)), decisionRow(11, daysAgo(31))],
+      [{ decisionId: 10, reviewed: true, reviewAt: daysAgo(5) }],
+    );
 
     const due = await pickDueReplays(5);
     expect(due).toHaveLength(1);
     expect(due[0]!.id).toBe(11);
+  });
+});
+
+// ── Brain follow-up 2 · a stored review date decides when it is asked ─
+
+describe("pickDueReplays · own review date", () => {
+  it("asks a 10-day-old decision once its own reviewAt has passed", async () => {
+    const reviewAt = daysAgo(3);
+    seedStore([decisionRow(1, daysAgo(10))], [{ decisionId: 1, reviewed: false, reviewAt }]);
+
+    const due = await pickDueReplays(5);
+    expect(due.map((d) => d.id)).toEqual([1]);
+    expect(due[0]!.ageDays).toBe(10);
+    expect(due[0]!.reviewAt?.getTime()).toBe(reviewAt.getTime());
+  });
+
+  it("does NOT ask a 45-day-old decision whose reviewAt is still in the future", async () => {
+    seedStore(
+      [decisionRow(2, daysAgo(45))],
+      [{ decisionId: 2, reviewed: false, reviewAt: daysFromNow(30) }],
+    );
+
+    expect(await pickDueReplays(5)).toEqual([]);
+  });
+
+  it("still asks a 45-day-old decision with no replay row at all (30-day rule control)", async () => {
+    seedStore([decisionRow(3, daysAgo(45))], []);
+
+    const due = await pickDueReplays(5);
+    expect(due.map((d) => d.id)).toEqual([3]);
+    expect(due[0]!.reviewAt).toBeUndefined();
+  });
+
+  it("never asks a reviewed decision, even with a second unreviewed row past its date", async () => {
+    seedStore(
+      [decisionRow(4, daysAgo(10)), decisionRow(5, daysAgo(60))],
+      [
+        { decisionId: 4, reviewed: true, reviewAt: daysAgo(2) },
+        { decisionId: 4, reviewed: false, reviewAt: daysAgo(1) },
+        { decisionId: 5, reviewed: true, reviewAt: daysAgo(30) },
+      ],
+    );
+
+    expect(await pickDueReplays(5)).toEqual([]);
+  });
+
+  it("orders own-date rows first (oldest reviewAt first), then the 30-day pool oldest first", async () => {
+    seedStore(
+      [
+        decisionRow(20, daysAgo(200)), // 30-day pool, the oldest decision of all
+        decisionRow(21, daysAgo(90)), // 30-day pool
+        decisionRow(22, daysAgo(15)), // own date passed 2 days ago
+        decisionRow(23, daysAgo(20)), // own date passed 8 days ago
+      ],
+      [
+        { decisionId: 22, reviewed: false, reviewAt: daysAgo(2) },
+        { decisionId: 23, reviewed: false, reviewAt: daysAgo(8) },
+      ],
+    );
+
+    const due = await pickDueReplays(10);
+    expect(due.map((d) => d.id)).toEqual([23, 22, 20, 21]);
+  });
+
+  it("respects the limit and fills it with own-date rows before the 30-day pool", async () => {
+    seedStore(
+      [
+        decisionRow(30, daysAgo(80)),
+        decisionRow(31, daysAgo(12)),
+        decisionRow(32, daysAgo(11)),
+        decisionRow(33, daysAgo(10)),
+      ],
+      [
+        { decisionId: 31, reviewed: false, reviewAt: daysAgo(4) },
+        { decisionId: 32, reviewed: false, reviewAt: daysAgo(3) },
+        { decisionId: 33, reviewed: false, reviewAt: daysAgo(2) },
+      ],
+    );
+
+    const due = await pickDueReplays(2);
+    expect(due.map((d) => d.id)).toEqual([31, 32]);
+  });
+
+  it("skips an own-date row whose MasteryDecision is gone and moves to the next", async () => {
+    seedStore(
+      [decisionRow(41, daysAgo(10))],
+      [
+        { decisionId: 40, reviewed: false, reviewAt: daysAgo(9) }, // decision 40 was deleted
+        { decisionId: 41, reviewed: false, reviewAt: daysAgo(1) },
+      ],
+    );
+
+    expect((await pickDueReplays(5)).map((d) => d.id)).toEqual([41]);
+  });
+
+  it("returns a decision once, not twice, when it is both own-date due and past 30 days", async () => {
+    seedStore(
+      [decisionRow(50, daysAgo(45))],
+      [{ decisionId: 50, reviewed: false, reviewAt: daysAgo(10) }],
+    );
+
+    const due = await pickDueReplays(5);
+    expect(due.map((d) => d.id)).toEqual([50]);
+    expect(due[0]!.reviewAt).toBeInstanceOf(Date);
+  });
+});
+
+describe("pickDueReplays · failed reads", () => {
+  it("returns empty and names the pool query when the decision read fails", async () => {
+    mocks.masteryDecision.findMany.mockRejectedValue(new Error("db down"));
+    mocks.decisionReplay.findMany.mockResolvedValue([]);
+
+    expect(await pickDueReplays(5)).toEqual([]);
+    expect(mocks.logWarn).toHaveBeenCalledWith(
+      "pickDueReplays_query_failed",
+      expect.objectContaining({ query: "pool_decisions" }),
+    );
+  });
+
+  it("returns empty (never everything) and names the lookup when the replay-status read fails", async () => {
+    seedStore([decisionRow(60, daysAgo(45))], []);
+    mocks.decisionReplay.findMany.mockRejectedValue(new Error("db down"));
+
+    expect(await pickDueReplays(5)).toEqual([]);
+    expect(mocks.logWarn).toHaveBeenCalledWith(
+      "pickDueReplays_query_failed",
+      expect.objectContaining({ query: "replay_status" }),
+    );
   });
 });
 
@@ -352,5 +508,27 @@ describe("composeReplayPrompt", () => {
     expect(prompt.wisdomKey).toBeNull();
     // No outcome bullets → "no measurable signals" hint
     expect(prompt.text).toMatch(/no measurable signals/);
+  });
+
+  it("says 'review date reached' for an own-date decision and keeps 'Nd ago' for the 30-day pool", () => {
+    const signals = {
+      tasksCompleted: 0,
+      tasksAbandoned: 0,
+      driftAlertCount: 0,
+      topicalMemoryCount: 0,
+      commitmentStatusDelta: { broken: 0, completed: 0, stillActive: 0 },
+      bullets: [],
+    };
+    const own = composeReplayPrompt(
+      makeDueDecision({ ageDays: 10, reviewAt: new Date(Date.now() - DAY_MS) }),
+      signals,
+      null,
+    );
+    expect(own.text).toContain("review date reached");
+    expect(own.text).not.toContain("10d ago");
+
+    const pool = composeReplayPrompt(makeDueDecision({ ageDays: 45 }), signals, null);
+    expect(pool.text).toContain("45d ago");
+    expect(pool.text).not.toContain("review date reached");
   });
 });
