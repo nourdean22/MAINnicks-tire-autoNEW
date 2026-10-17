@@ -40,7 +40,8 @@ vi.mock("../../db", async (importOriginal) => ({
 
 import { smsGatewayWebhookRouter } from "./smsGateway";
 
-const SECRET = "gateway-canary-secret-0123456789";
+// Fake and low-entropy on purpose: the PR secret scan flags high-entropy literals.
+const SECRET = "fake-fake-fake-fake-fake-fake";
 
 let withRaw: { server: http.Server; port: number };
 let withoutRaw: { server: http.Server; port: number };

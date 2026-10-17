@@ -46,7 +46,8 @@ vi.mock("../../services/smsOrchestrator", () => ({
 
 import { vapiWebhookRouter } from "./vapi";
 
-const SECRET = "vapi-canary-secret-0123456789abcdef";
+// Fake and low-entropy on purpose: the PR secret scan flags high-entropy literals.
+const SECRET = "not-real-not-real-not-real";
 
 let server: http.Server;
 let port: number;
