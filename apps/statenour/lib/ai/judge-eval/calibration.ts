@@ -118,6 +118,15 @@ export function cohensKappa(rows: readonly LabeledComparison[]): number | null {
 }
 
 /**
+ * Kappa as shown to the operator: 2 places. Verdict bands compare THIS value, so a kappa
+ * that prints 0.60 never reads moderate (cohensKappa rounds to 3 places: 0.597 prints 0.60).
+ * `|| 0` folds -0 (from -0.001) into 0.
+ */
+export function roundKappa(kappa: number): number {
+  return Number(kappa.toFixed(2)) || 0;
+}
+
+/**
  * Measure position bias by comparing each pair judged in both orders.
  *
  * A verdict that changes when only the presentation order changed cannot

@@ -35,6 +35,7 @@ const h = vi.hoisted(() => {
       answerCallbackQuery: vi.fn(async (..._a: unknown[]) => true),
       editTelegramMessage: vi.fn(async (..._a: unknown[]) => true),
       sendTelegram: vi.fn(async (..._a: unknown[]) => true),
+      sendTelegramWithButtons: vi.fn(async (..._a: unknown[]) => ({ ok: true, messageId: 8 })),
     },
   };
 });
@@ -97,5 +98,40 @@ describe("tut callback", () => {
     await tap("tut:led_1");
     expect(h.handleTutorAnswer).toHaveBeenCalledWith("led_1", "");
     expect(answer()).toBe("Malformed.");
+  });
+
+  // Scout 9: I have it / Show options return a next step; the branch sends it to the tapping chat.
+  it("a grader next step is sent with its buttons to the chat the tap came from", async () => {
+    const next = { text: "Daily Tutor. The principle:", buttons: [[{ text: "Got it", callback_data: "tut:led_1:R" }]] };
+    h.handleTutorAnswer.mockResolvedValueOnce({ reply: "", next } as never);
+    await tap("tut:led_1:K");
+    expect(h.telegram.sendTelegramWithButtons).toHaveBeenCalledWith(next.text, next.buttons, "4242");
+    expect(answer()).toBe("");
+  });
+
+  it("a next step that fails to send is said", async () => {
+    h.handleTutorAnswer.mockResolvedValueOnce({ reply: "", next: { text: "t", buttons: [] } } as never);
+    h.telegram.sendTelegramWithButtons.mockResolvedValueOnce({ ok: false } as never);
+    await tap("tut:led_1:H");
+    expect(answer()).toBe("Could not send - try again.");
+  });
+
+  it("round 2: a thrown K or H says Could not send (nothing is recorded on those taps)", async () => {
+    for (const code of ["K", "H"]) {
+      h.handleTutorAnswer.mockRejectedValueOnce(new Error("db down"));
+      await tap(`tut:led_1:${code}`);
+      expect(answer(), code).toBe("Could not send - try again.");
+    }
+  });
+
+  it("round 2: a thrown grading tap still says Could not record", async () => {
+    h.handleTutorAnswer.mockRejectedValueOnce(new Error("db down"));
+    await tap("tut:led_1:R");
+    expect(answer()).toBe("Could not record - try again.");
+  });
+
+  it("a grading reply sends no new message", async () => {
+    await tap("tut:led_1:R");
+    expect(h.telegram.sendTelegramWithButtons).not.toHaveBeenCalled();
   });
 });

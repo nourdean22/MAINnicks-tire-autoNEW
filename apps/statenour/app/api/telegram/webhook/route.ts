@@ -466,12 +466,21 @@ async function handleCallback(callback: {
 
     // Daily Tutor one-tap answer (brain W2, 2026-10-16). callback_data: tut:<ledgerId>:<choice>
     // The grader owns the claim (ledger decision swap) and the three replies; this only relays.
+    // Scout 9: "I have it" / "Show options" return a read-only next step, sent to the tapping chat.
     if (action === "tut") {
       const choice = (callback.data ?? "").split(":")[2] ?? "";
-      let reply = "Could not record - try again.";
+      // K and H record nothing, so a failure on them is a failed send, not a failed record.
+      // The callback is answered after the send on purpose: Telegram takes one answer per callback, and a failed send must be said in it.
+      let reply = choice === "K" || choice === "H" ? "Could not send - try again." : "Could not record - try again.";
       try {
         const { handleTutorAnswer } = await import("@/lib/brain/tutor-pack");
-        reply = (await handleTutorAnswer(param ?? "", choice)).reply;
+        const res = await handleTutorAnswer(param ?? "", choice);
+        reply = res.reply;
+        if (res.next) {
+          const { sendTelegramWithButtons } = await import("@/lib/services/telegram");
+          const sent = await sendTelegramWithButtons(res.next.text, res.next.buttons, chatId || undefined);
+          if (!sent.ok) reply = "Could not send - try again.";
+        }
       } catch (err) {
         void import("@/lib/utils/error-log").then(({ logError }) =>
           logError("api.telegram.webhook", err, { fn: "tutorAnswer", ledgerId: param }, "warn"),

@@ -6,6 +6,9 @@ async function main() {
   console.log("---------------------------------------");
   console.log("Total Scored (n):", report.totalScored);
   console.log("Agreement %:", report.agreementPct);
+  console.log("Kappa:", report.kappa ?? "unknown");
+  console.log("False pass rate:", report.falsePassRate ?? "unknown");
+  console.log("False fail rate:", report.falseFailRate ?? "unknown");
   console.log("Verdict:", report.verdict);
   console.log("Verdict Reason:", report.verdictReason);
   console.log("Ties:", report.ties);
