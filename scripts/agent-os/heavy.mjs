@@ -7,6 +7,7 @@
  * coordination was hand-sent "MACHINE HOLD" chat messages. This turns that into a lock file every session obeys.
  *
  *   node scripts/agent-os/heavy.mjs run -- <cmd...>      wait for the lease, run, release (exit code passed through)
+ *   node scripts/agent-os/heavy.mjs run --max-wait 90s -- <cmd...>   hook form: after 90 s, warn and run unleased
  *   node scripts/agent-os/heavy.mjs run --slot chrome -- <cmd...>
  *   node scripts/agent-os/heavy.mjs take --slot chrome   hold the chrome slot (no pid: expires after 30 min)
  *   node scripts/agent-os/heavy.mjs release --slot chrome
@@ -17,7 +18,9 @@
  * anyone) while: the chrome slot is held, free RAM is under 1500 MB, or another heavy run holds the lease.
  * A lease is taken over when it is older than its expiry (heavy 20 min, chrome 30 min) or its pid is dead.
  * A command started under a held lease (HEAVY_LEASE_HELD in its env) runs nested calls directly.
- * Exit 3 = gave up waiting (HEAVY_MAX_WAIT_MS, default 35 min). Canary: heavy.test.mjs.
+ * Exit 3 = gave up waiting (HEAVY_MAX_WAIT_MS, default 35 min). Its own infrastructure errors (an unwritable lock dir)
+ * fail OPEN: `run` warns and runs the command unleased. A signal kills the child before the lease is released.
+ * Canary: heavy.test.mjs.
  */
 import { spawn } from "node:child_process";
 import { mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -62,15 +65,17 @@ export function readLock(slot) {
   } catch {
     return null;
   }
+  let rec = null;
   try {
-    return JSON.parse(text);
-  } catch {
-    let young = false;
-    try {
-      young = Date.now() - statSync(p).mtimeMs < 5000;
-    } catch {}
-    return young ? { token: null, corrupt: true, startedMs: Date.now() } : { token: null, corrupt: true, startedMs: 0 };
-  }
+    rec = JSON.parse(text);
+  } catch {}
+  // Anything but an object (unparseable, null, a number, an array) is corrupt: a mid-write lock for its first 5 s.
+  if (rec && typeof rec === "object" && !Array.isArray(rec)) return Object.defineProperty(rec, "raw", { value: text });
+  let young = false;
+  try {
+    young = Date.now() - statSync(p).mtimeMs < 5000;
+  } catch {}
+  return Object.defineProperty({ token: null, corrupt: true, startedMs: young ? Date.now() : 0 }, "raw", { value: text });
 }
 
 /** Why a record no longer holds its slot ("expired", "dead pid", "corrupt"), or null while it is live. */
@@ -92,8 +97,8 @@ function tryCreate(slot, rec) {
   }
 }
 
-/** Move a stale record aside, but only if it is still the record we judged (claim-before-act on the token). */
-function takeOver(slot, judged, mine) {
+/** Move a stale record aside, but only if it is still the record we judged (claim-before-act on its exact bytes). */
+export function takeOver(slot, judged, mine) {
   const aside = `${lockPath(slot)}.${mine}`;
   try {
     renameSync(lockPath(slot), aside);
@@ -102,9 +107,10 @@ function takeOver(slot, judged, mine) {
   }
   let moved = null;
   try {
-    moved = JSON.parse(readFileSync(aside, "utf8"));
+    moved = readFileSync(aside, "utf8");
   } catch {}
-  if (!judged.corrupt && moved?.token !== judged.token) {
+  // Compare bytes, corrupt or not: two waiters that both judged one corrupt file must not both take it over.
+  if (moved !== judged.raw) {
     // shortcut: a sibling replaced the lock between our read and our rename; put theirs back. A third racer in that
     // same millisecond window could still slip in; acceptable for a coordination lock, not a security boundary.
     try {
@@ -123,7 +129,7 @@ const describe = (rec) =>
  * Wait until `slot` is ours. Returns the record written, or null after MAX_WAIT_MS.
  * For the heavy slot it also waits on the chrome slot and on free RAM.
  */
-export async function acquire(slot, command, { pid = process.pid, log = (l) => process.stderr.write(`${l}\n`) } = {}) {
+export async function acquire(slot, command, { pid = process.pid, maxWaitMs = MAX_WAIT_MS, log = (l) => process.stderr.write(`${l}\n`) } = {}) {
   const token = randomBytes(8).toString("hex");
   const started = Date.now();
   let lastReason = "";
@@ -136,7 +142,7 @@ export async function acquire(slot, command, { pid = process.pid, log = (l) => p
       lastLog = now;
     }
   };
-  while (Date.now() - started < MAX_WAIT_MS) {
+  while (Date.now() - started < maxWaitMs) {
     let reason = null;
     if (slot === "heavy") {
       const chrome = readLock("chrome");
@@ -162,7 +168,7 @@ export async function acquire(slot, command, { pid = process.pid, log = (l) => p
     if (reason) say(reason);
     await new Promise((r) => setTimeout(r, POLL_MS));
   }
-  log(`[heavy] gave up after ${Math.round(MAX_WAIT_MS / 1000)} s: ${lastReason}`);
+  log(`[heavy] gave up after ${Math.round(maxWaitMs / 1000)} s: ${lastReason}`);
   return null;
 }
 
@@ -173,12 +179,12 @@ export function release(slot, token) {
 
 const quote = (a) => (/^[\w./:=@%+,\\-]+$/.test(a) ? a : `"${a.replace(/"/g, '\\"')}"`);
 
-function runChild(argv, env) {
+function runChild(argv, env, holder = {}) {
   return new Promise((resolve) => {
     const start = (useShell) => {
-      const child = useShell
+      const child = (holder.child = useShell
         ? spawn(argv.map(quote).join(" "), { stdio: "inherit", env, shell: true })
-        : spawn(argv[0], argv.slice(1), { stdio: "inherit", env });
+        : spawn(argv[0], argv.slice(1), { stdio: "inherit", env }));
       child.on("error", (err) => {
         // pnpm, npx and other .cmd shims need a shell on Windows; the error fires before anything ran.
         if (!useShell && (err.code === "ENOENT" || err.code === "EINVAL")) start(true);
@@ -188,6 +194,12 @@ function runChild(argv, env) {
     };
     start(false);
   });
+}
+
+function parseDuration(s) {
+  const m = /^(\d+)(ms|s|m)?$/.exec(String(s ?? ""));
+  if (!m) throw new Error(`--max-wait wants a duration like 90s or 2m, got ${s}`);
+  return Number(m[1]) * ({ ms: 1, s: 1000, m: 60_000 }[m[2] ?? "s"]);
 }
 
 function slotArg(args) {
@@ -223,14 +235,43 @@ async function main(args) {
     const dash = args.indexOf("--");
     const argv = dash >= 0 ? args.slice(dash + 1) : [];
     if (!argv.length) throw new Error("usage: heavy.mjs run [--slot chrome] -- <cmd...>");
-    const slot = slotArg(args.slice(0, dash));
+    const opts = args.slice(0, dash);
+    const slot = slotArg(opts);
     if (process.env.HEAVY_LEASE_HELD) return runChild(argv, process.env); // nested: our parent holds the lease
-    const rec = await acquire(slot, argv.join(" "));
-    if (!rec) return 3;
-    const free = () => release(slot, rec.token);
-    for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) process.on(sig, () => (free(), process.exit(130)));
+    // --max-wait <90s|2m>: the hook form. A git hook is killed by the caller long before 35 min, so after a short wait
+    // it WARNS and runs unleased instead of failing the commit. Without it: the long wait, then exit 3.
+    const mw = opts.indexOf("--max-wait");
+    const short = mw >= 0 ? parseDuration(opts[mw + 1]) : null;
+    let rec = null;
     try {
-      return await runChild(argv, { ...process.env, HEAVY_LEASE_HELD: rec.token });
+      rec = await acquire(slot, argv.join(" "), short ? { maxWaitMs: short } : {});
+    } catch (err) {
+      // Fail OPEN on our own infrastructure errors (unwritable lock dir, ENOTDIR): a broken lease must never block work.
+      process.stderr.write(`[heavy] lease unavailable (${err.message}): running unleased\n`);
+      return runChild(argv, process.env);
+    }
+    if (!rec && !short) return 3;
+    if (!rec) {
+      process.stderr.write("[heavy] WARNING: proceeding unleased after the --max-wait limit\n");
+      return runChild(argv, process.env);
+    }
+    const free = () => {
+      try {
+        release(slot, rec.token);
+      } catch {}
+    };
+    const holder = {};
+    for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) {
+      process.on(sig, () => {
+        try {
+          holder.child?.kill(sig); // the command must not outlive the lease
+        } catch {}
+        free();
+        process.exit(130);
+      });
+    }
+    try {
+      return await runChild(argv, { ...process.env, HEAVY_LEASE_HELD: rec.token }, holder);
     } finally {
       free();
     }

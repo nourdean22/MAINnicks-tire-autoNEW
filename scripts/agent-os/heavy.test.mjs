@@ -7,7 +7,7 @@
  */
 import { strict as assert } from "node:assert";
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
@@ -122,6 +122,77 @@ test("a nested run inside a held lease runs directly instead of deadlocking on i
     HEAVY_MAX_WAIT_MS: "2000",
   });
   assert.equal(r.code, 0, r.out);
+});
+
+test("fails OPEN on its own errors: a lock dir under a regular file (ENOTDIR) runs the child unleased with its exit code", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "heavy-"));
+  const file = join(dir, "plain-file");
+  writeFileSync(file, "x");
+  const r = await runAsync(join(file, "locks"), ["run", "--", process.execPath, "-e", "process.exit(7)"]);
+  assert.equal(r.code, 7, r.out);
+  assert.match(r.out, /running unleased/);
+});
+
+test("--max-wait (the lefthook form): a held lease or low RAM waits briefly, then WARNS and runs unleased", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "heavy-"));
+  plantLock(dir, { pid: process.pid, startedMs: Date.now() });
+  const marker = join(dir, "ran.txt");
+  const r = await runAsync(dir, ["run", "--max-wait", "1s", "--", process.execPath, "-e", stamp(marker, 0)], { HEAVY_MAX_WAIT_MS: "4000" });
+  assert.equal(r.code, 0, r.out);
+  assert.ok(existsSync(marker), "the command must run after the short wait");
+  assert.match(r.out, /proceeding unleased/);
+  const ram = mkdtempSync(join(tmpdir(), "heavy-"));
+  const r2 = await runAsync(ram, ["run", "--max-wait", "1s", "--", process.execPath, "-e", "0"], { HEAVY_FREE_MB: "300", HEAVY_MAX_WAIT_MS: "4000" });
+  assert.equal(r2.code, 0, r2.out);
+  assert.match(r2.out, /free RAM 300 MB[\s\S]*proceeding unleased/);
+});
+
+test("a lock file whose JSON is not an object (null) is corrupt: taken over once old, not waited on forever", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "heavy-"));
+  writeFileSync(lockFile(dir), "null");
+  const old = new Date(Date.now() - 60_000);
+  utimesSync(lockFile(dir), old, old);
+  const r = await runAsync(dir, ["run", "--", process.execPath, "-e", "0"], { HEAVY_MAX_WAIT_MS: "3000" });
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /took over .*corrupt/);
+});
+
+test("corrupt takeover re-checks what it moved: a sibling's fresh lock written after our read is put back, not deleted", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "heavy-"));
+  process.env.HEAVY_LOCK_DIR = dir;
+  try {
+    const { readLock, takeOver } = await import("./heavy.mjs");
+    writeFileSync(lockFile(dir), "{not json");
+    const old = new Date(Date.now() - 60_000);
+    utimesSync(lockFile(dir), old, old);
+    const judged = readLock("heavy");
+    assert.ok(judged.corrupt);
+    const sibling = JSON.stringify({ token: "sibling", pid: process.pid, session: "sib", command: "c", startedMs: Date.now() });
+    writeFileSync(lockFile(dir), sibling); // the sibling took it over between our read and our rename
+    assert.equal(takeOver("heavy", judged, "me"), false);
+    assert.equal(readFileSync(lockFile(dir), "utf8"), sibling, "the sibling's lock must survive");
+  } finally {
+    delete process.env.HEAVY_LOCK_DIR;
+  }
+});
+
+test("a signal to heavy kills the child before the lease is released", { skip: process.platform === "win32" ? "Windows has no catchable SIGTERM from process.kill; CI (Linux) runs this" : false }, async () => {
+  const dir = mkdtempSync(join(tmpdir(), "heavy-"));
+  const pidFile = join(dir, "child.pid");
+  const child = spawn(process.execPath, [HEAVY, "run", "--", process.execPath, "-e", `require('fs').writeFileSync(${JSON.stringify(pidFile)},String(process.pid));setTimeout(()=>{},30000)`], { env: env(dir) });
+  for (let i = 0; i < 50 && !existsSync(pidFile); i++) await new Promise((r) => setTimeout(r, 100));
+  const childPid = Number(readFileSync(pidFile, "utf8"));
+  child.kill("SIGTERM");
+  await new Promise((r) => child.on("close", r));
+  await new Promise((r) => setTimeout(r, 300));
+  let alive = true;
+  try {
+    process.kill(childPid, 0);
+  } catch {
+    alive = false;
+  }
+  assert.equal(alive, false, "the command must not outlive the lease");
+  assert.ok(!existsSync(lockFile(dir)));
 });
 
 test("the child's exit code is passed through", async () => {
