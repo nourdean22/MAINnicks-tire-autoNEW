@@ -495,3 +495,88 @@ def test_worker_records_triggers_and_capture_windows_for_the_counters(tmp_path):
         assert "conversationListeningCoverage60m" in state
 
     asyncio.run(scenario())
+
+
+# ---- stills without a bridge: OFFICE_VISUAL_SOURCE=rtsp (2026-10-17, shop PC MECHANICS) -------
+
+
+class _SamplerSpy:
+    made: list = []
+
+    def __init__(self, url, **kw):
+        self.url, self.kw = url, kw
+        _SamplerSpy.made.append(self)
+
+    def start(self):
+        return self
+
+    def stop(self, *, final_grab=True):
+        return []
+
+
+def _sampler_built_for(tmp_path, monkeypatch, **cfg):
+    from vision import officeframes
+    from vision.officewake import capture_phase
+
+    _SamplerSpy.made = []
+    monkeypatch.setattr(officeframes, "FrameSampler", _SamplerSpy)
+    cfg.setdefault("source_url", "rtsp://user:pw@192.168.0.167/live0")
+    capture_phase(
+        _live_cfg(tmp_path, visual_enabled=True, **cfg),
+        Trigger(MONDAY_10AM, "audioActivity", OFFICE),
+        capture_fn=lambda *a, **k: [],
+        clock=lambda: MONDAY_10AM,
+    )
+    return _SamplerSpy.made
+
+
+def test_rtsp_visual_source_samples_the_capture_url_with_ffmpeg(tmp_path, monkeypatch):
+    from vision import officeframes
+
+    made = _sampler_built_for(tmp_path, monkeypatch, visual_source="rtsp")
+    assert len(made) == 1
+    assert made[0].url == "rtsp://user:pw@192.168.0.167/live0"
+    assert made[0].kw["fetch"] is officeframes.fetch_rtsp_frame
+
+
+def test_default_visual_source_is_still_the_bridge_snapshot(tmp_path, monkeypatch):
+    # Positive control: NicksMax (bridge present, no OFFICE_VISUAL_SOURCE) must not change.
+    made = _sampler_built_for(tmp_path, monkeypatch)
+    assert len(made) == 1
+    assert made[0].url == f"http://127.0.0.1:3000/snapshot/{OFFICE}"
+    assert "fetch" not in made[0].kw
+
+
+def test_env_flags_reach_the_config(monkeypatch):
+    from vision.officewake import build_parser, config_from_args
+
+    monkeypatch.delenv("OFFICE_VISUAL_SOURCE", raising=False)
+    monkeypatch.delenv("OFFICE_WHISPER_THREADS", raising=False)
+    plain = config_from_args(build_parser().parse_args([]))
+    assert plain.visual_source == "bridge" and plain.whisper_threads is None
+
+    monkeypatch.setenv("OFFICE_VISUAL_SOURCE", "rtsp")
+    monkeypatch.setenv("OFFICE_WHISPER_THREADS", "2")
+    tuned = config_from_args(build_parser().parse_args([]))
+    assert tuned.visual_source == "rtsp" and tuned.whisper_threads == 2
+
+
+def test_whisper_threads_reach_the_transcriber(tmp_path):
+    seg = _segment(tmp_path, "a", MONDAY_10AM)
+    calls = []
+    for threads in (2, None):
+        run_capture_once(
+            _live_cfg(tmp_path, whisper_threads=threads),
+            Trigger(MONDAY_10AM, "personDetected", OFFICE),
+            capture_fn=lambda *a, **k: [seg],
+            transcribe_fn=lambda *a, **k: calls.append(k) or Transcript(segments=[], engine="fake"),
+            post_fn=lambda payload, endpoint, **k: {"posted": True, "status": 200},
+            clock=lambda: MONDAY_10AM,
+        )
+    assert calls[0]["threads"] == 2
+    assert "threads" not in calls[1]  # unset keeps the old call shape for any custom transcriber
+
+
+def test_rtsp_visual_source_without_a_capture_url_never_falls_back_to_the_bridge(tmp_path, monkeypatch):
+    made = _sampler_built_for(tmp_path, monkeypatch, visual_source="rtsp", source_url="")
+    assert made == []

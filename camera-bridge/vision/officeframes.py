@@ -3,8 +3,9 @@
 The office lane used to only LISTEN: a Eufy motion/person event woke a bounded audio capture, and
 nothing looked at the picture. With OFFICE_VISUAL_ENABLED=1 a FrameSampler runs beside the audio
 capture, pulling a still from the already-authenticated Eufy bridge (`/snapshot/<serial>`) every
-`interval_s` seconds, up to `max_frames`. Each episode then carries the frames that fall inside
-its own time span; the server sends them to a vision model and keeps ONLY the description
+`interval_s` seconds, up to `max_frames`. With OFFICE_VISUAL_SOURCE=rtsp (2026-10-17, the shop PC,
+which has no bridge) each still is one ffmpeg frame grab from the camera's own RTSP URL instead.
+Each episode then carries the frames that fall inside its own time span; the server sends them to a vision model and keeps ONLY the description
 (apps/nickstire/server/services/officeVisual.ts). Frames are never written to disk here.
 
 Failure is quiet by design: a frame that cannot be fetched or shrunk is skipped, and an episode
@@ -15,6 +16,7 @@ from __future__ import annotations
 
 import base64
 import os
+import subprocess
 import sys
 import threading
 import time
@@ -47,6 +49,32 @@ def fetch_frame(url: str, timeout_s: float = 8.0) -> Optional[bytes]:
             return data or None
     except Exception:  # noqa: BLE001 - a missed frame is skipped, never fatal
         return None
+
+
+#: Windows process priority for the grab; the shop PC is a staff machine (Kernel-Power 41, 2026-09-29).
+BELOW_NORMAL_PRIORITY_CLASS = 0x00004000
+_IS_WINDOWS = os.name == "nt"
+
+
+def fetch_rtsp_frame(url: str, timeout_s: float = 10.0, binary: Optional[str] = None) -> Optional[bytes]:
+    """One JPEG still straight from an RTSP stream: video only, one decoder thread, 640 wide."""
+    ff = binary or os.environ.get("FFMPEG_BIN") or "ffmpeg"
+    cmd = [
+        ff, "-hide_banner", "-loglevel", "error", "-nostdin", "-threads", "1",
+        "-rtsp_transport", "tcp", "-i", url,
+        "-an", "-frames:v", "1", "-vf", "scale=640:-2", "-q:v", "5",
+        "-f", "image2pipe", "-vcodec", "mjpeg", "pipe:1",
+    ]
+    kw: dict[str, Any] = {"capture_output": True, "timeout": timeout_s}
+    if _IS_WINDOWS:
+        kw["creationflags"] = BELOW_NORMAL_PRIORITY_CLASS
+    try:
+        proc = subprocess.run(cmd, **kw)
+    except Exception:  # noqa: BLE001 - timeout, missing ffmpeg: a missed frame, never fatal
+        return None
+    if proc.returncode != 0:
+        return None
+    return proc.stdout or None
 
 
 def downscale_jpeg(data: bytes, max_width: int = 640, quality: int = 70) -> Optional[bytes]:

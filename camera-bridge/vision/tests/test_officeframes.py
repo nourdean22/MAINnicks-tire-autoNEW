@@ -72,3 +72,58 @@ def test_downscale_with_opencv_shrinks_to_640_wide():
     assert out is not None
     decoded = cv2.imdecode(np.frombuffer(out, dtype=np.uint8), cv2.IMREAD_COLOR)
     assert decoded.shape[1] == 640 and decoded.shape[0] == 360
+
+
+# ---- RTSP stills (2026-10-17): the shop PC has no Eufy bridge, only the camera's /live0 ------
+
+
+class _Proc:
+    def __init__(self, rc=0, stdout=b"", stderr=b""):
+        self.returncode, self.stdout, self.stderr = rc, stdout, stderr
+
+
+def test_rtsp_grab_asks_ffmpeg_for_one_small_video_frame(monkeypatch):
+    seen = {}
+
+    def run(cmd, **kw):
+        seen["cmd"], seen["kw"] = cmd, kw
+        return _Proc(stdout=b"\xff\xd8jpeg")
+
+    monkeypatch.setattr("vision.officeframes.subprocess.run", run)
+    assert officeframes.fetch_rtsp_frame("rtsp://cam/live0", timeout_s=7.0, binary="ff") == b"\xff\xd8jpeg"
+    cmd, kw = seen["cmd"], seen["kw"]
+    assert cmd[0] == "ff"
+    assert cmd[cmd.index("-rtsp_transport") + 1] == "tcp"
+    assert cmd[cmd.index("-i") + 1] == "rtsp://cam/live0"
+    assert cmd[cmd.index("-frames:v") + 1] == "1"
+    assert "-an" in cmd  # never decode the audio the capture is already recording
+    assert "scale=640:-2" in cmd[cmd.index("-vf") + 1]  # shrink in ffmpeg: no OpenCV on the shop PC
+    assert cmd[-1] == "pipe:1"
+    assert kw["timeout"] == 7.0 and kw["capture_output"] is True
+
+
+def test_rtsp_grab_runs_below_normal_priority_on_windows(monkeypatch):
+    seen = {}
+    monkeypatch.setattr("vision.officeframes._IS_WINDOWS", True)
+    monkeypatch.setattr("vision.officeframes.subprocess.run", lambda cmd, **kw: seen.update(kw) or _Proc(stdout=b"j"))
+    officeframes.fetch_rtsp_frame("rtsp://cam/live0", binary="ff")
+    assert seen["creationflags"] == officeframes.BELOW_NORMAL_PRIORITY_CLASS
+
+
+def test_rtsp_grab_failures_are_a_missed_frame_never_a_crash(monkeypatch):
+    import subprocess
+
+    def timeout(cmd, **kw):
+        raise subprocess.TimeoutExpired(cmd, kw.get("timeout"))
+
+    def missing(cmd, **kw):
+        raise FileNotFoundError("ffmpeg")
+
+    for run in (
+        lambda cmd, **kw: _Proc(rc=1, stderr=b"401 Unauthorized"),
+        lambda cmd, **kw: _Proc(rc=0, stdout=b""),
+        timeout,
+        missing,
+    ):
+        monkeypatch.setattr("vision.officeframes.subprocess.run", run)
+        assert officeframes.fetch_rtsp_frame("rtsp://cam/live0", binary="ff") is None
