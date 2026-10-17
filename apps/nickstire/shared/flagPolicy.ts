@@ -39,6 +39,12 @@ export const INVERTED_FLAGS: ReadonlySet<string> = new Set([
   "vapi_forward_followup_paused",
   "ig_autopost_paused", // TRUE stops the scheduled Instagram image autopost
   "reel_comment_responder_paused", // TRUE stops public IG comment replies
+  // C5.5 runtime pauses for the env-armed send lanes (server/services/sendPause.ts)
+  "send_pause_voice_outbound",
+  "send_pause_customer_confirmations",
+  "send_pause_declined_recovery",
+  "send_pause_weather_sms",
+  "send_pause_missed_call_recovery",
 ]);
 
 /**
@@ -61,6 +67,11 @@ export const CUSTOMER_FACING_FLAGS: ReadonlySet<string> = new Set([
   "missed_call_recovery",
   "ig_autopost_paused",                // inverted: OFF resumes unattended IG/FB posting
   "reel_comment_responder_paused",     // inverted: OFF resumes unattended public IG replies
+  "send_pause_voice_outbound",         // inverted: OFF resumes AI voice calls to customers
+  "send_pause_customer_confirmations", // inverted: OFF resumes tire-order confirmation texts and emails
+  "send_pause_declined_recovery",      // inverted: OFF resumes declined-estimate texts
+  "send_pause_weather_sms",            // inverted: OFF resumes weather texts to lapsed customers
+  "send_pause_missed_call_recovery",   // inverted: OFF resumes missed-caller texts
   // Matched by the regex too, listed so the intent is recorded rather than
   // inferred from a pattern that may later be edited:
   "smart_sms_auto_reply",
@@ -96,6 +107,45 @@ export function requiresConfirmation(key: string, nextValue: boolean): boolean {
   return isInvertedFlag(key) ? nextValue === false : nextValue === true;
 }
 
+/** Resume copy for the C5.5 send pauses. Each lane skipped its sends while paused; nothing waits to go out. */
+const SEND_PAUSE_RESUME_COPY: Record<string, { title: string; message: string; confirmLabel: string }> = {
+  send_pause_voice_outbound: {
+    title: "Resume outbound calls?",
+    message:
+      "Resuming lets the recovery, confirmation and follow-up crons place AI voice calls to customers again on " +
+      "their next run, inside each lane's own hours and caps. Nothing was queued while paused.",
+    confirmLabel: "Resume calls",
+  },
+  send_pause_customer_confirmations: {
+    title: "Resume tire-order confirmations?",
+    message:
+      "Resuming lets order confirmation texts and emails go out again on the next order update. " +
+      "Confirmations skipped while paused are not sent later.",
+    confirmLabel: "Resume confirmations",
+  },
+  send_pause_declined_recovery: {
+    title: "Resume declined-work follow-up texts?",
+    message:
+      "Resuming lets the declined-estimate follow-up texts send again on the next run, inside the per-run cap. " +
+      "Nothing was queued while paused.",
+    confirmLabel: "Resume texts",
+  },
+  send_pause_weather_sms: {
+    title: "Resume weather texts?",
+    message:
+      "Resuming lets weather-triggered texts go to lapsed customers again the next time a trigger fires. " +
+      "Nothing was queued while paused.",
+    confirmLabel: "Resume texts",
+  },
+  send_pause_missed_call_recovery: {
+    title: "Resume missed-call follow-up texts?",
+    message:
+      "Resuming lets the cron text callers from the last 24 hours who were not helped, on its next run. " +
+      "Nothing was queued while paused.",
+    confirmLabel: "Resume texts",
+  },
+};
+
 /** Operator-facing copy for the confirmation, correct for the flag's polarity. */
 export function confirmationCopy(
   key: string,
@@ -120,6 +170,16 @@ export function confirmationCopy(
         "Resuming lets the responder post public replies to Instagram comments on recent reels, unattended, " +
         "on the next pulse (every 15 minutes). Nothing is queued.",
       confirmLabel: "Resume replies",
+      cancelLabel: "Stay paused",
+    };
+  }
+  const sendPause = SEND_PAUSE_RESUME_COPY[key];
+  if (sendPause) {
+    // A held send on these lanes is skipped, not queued, so resuming never releases a backlog.
+    return {
+      title: `${sendPause.title} (${key} OFF)`,
+      message: sendPause.message,
+      confirmLabel: sendPause.confirmLabel,
       cancelLabel: "Stay paused",
     };
   }

@@ -144,6 +144,15 @@ export const FLAG_DEFINITIONS = [
   // row or a failed read is false = "not paused". Read by runReelCommentResponder,
   // which both the cron and the Meta comment webhook call.
   { key: "reel_comment_responder_paused", description: "OFF-SWITCH (inverted). Set TRUE to PAUSE public Instagram comment replies from the reel comment responder (cron and webhook) before any Graph read; drafts are not made either. Default FALSE (lane runs)." },
+  // C5.5 SEND PAUSES (2026-10-17). Runtime off-switches for the env-armed send lanes, read by
+  // services/sendPause.ts on a 5 s cache (not isEnabled). Same inverted polarity: TRUE = paused.
+  // Unlike the pauses above, an UNREADABLE switch is decided per lane: unattended lanes HOLD
+  // (fail closed), the 1:1 confirmation lane SENDS (fail open). A held send is skipped, not queued.
+  { key: "send_pause_voice_outbound", description: "OFF-SWITCH (inverted). Set TRUE to PAUSE every outbound AI voice call (voice recovery, confirmation calls, follow-up cadence, manual follow-up call) before any lookup or dial. Unreadable = HOLD (fail closed). Default FALSE." },
+  { key: "send_pause_customer_confirmations", description: "OFF-SWITCH (inverted). Set TRUE to PAUSE tire-order confirmation texts and emails (ENABLE_CUSTOMER_CONFIRMATIONS lane); held ones are skipped, not sent later. Unreadable = SEND (fail open: it answers the customer's own order). Default FALSE." },
+  { key: "send_pause_declined_recovery", description: "OFF-SWITCH (inverted). Set TRUE to PAUSE declined-estimate recovery texts (cron, admin run-now and CLI) before any claim or send. Unreadable = HOLD (fail closed). Default FALSE." },
+  { key: "send_pause_weather_sms", description: "OFF-SWITCH (inverted). Set TRUE to PAUSE weather-triggered texts to lapsed customers (WEATHER_SMS_SEND lane) before the audience query. Unreadable = HOLD (fail closed). Default FALSE." },
+  { key: "send_pause_missed_call_recovery", description: "OFF-SWITCH (inverted). Set TRUE to PAUSE missed-caller follow-up texts (MISSED_CALL_RECOVERY_SEND lane) before any read or claim. Unreadable = HOLD (fail closed). Default FALSE." },
   { key: "missed_call_recovery", description: "Proactively text unconverted VAPI missed callers (last 24h) a 'sorry we missed you' follow-up. MASTER enable. Even ON, the cron runs in SHADOW (logs+Telegrams the audience, sends nothing) unless env MISSED_CALL_RECOVERY_SEND=1. Reuses the vapi_forwarded_call_followup type → full opt-out/quiet-hours/STOP-footer/caps compliance. TCPA: relationship follow-up to people who just called the business." },
   // ─── TRUST LADDER (approval queue) ────────────────
   // OFF by default ON PURPOSE, and that is also the deploy-order guard: the
