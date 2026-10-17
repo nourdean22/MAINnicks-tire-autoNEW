@@ -436,7 +436,11 @@ export async function enqueueReelJob(
   brief: ReelJobBrief,
   source: "admin" | "cron",
   episode: EpisodeDeclaration,
-): Promise<{ jobId: number; /** The episode already had a job; nothing new was created. */ deduped?: true }> {
+): Promise<{
+  jobId: number;
+  /** The episode already had a job; nothing new was created. */ deduped?: true;
+  /** Set only when the governor returned a reservation for this job. */ reservationWindow?: { start: string; end: string };
+}> {
   // RETIRED LENS (2026-10-12): a NEW brief may not carry a retired motion lens.
   // First line, before any DB or spend: a typed refusal the daily lane advances
   // past. Persisted jobs never reach here; they still parse and render because
@@ -731,6 +735,7 @@ export async function enqueueReelJob(
     );
   }
 
+  let reservationWindow: { start: string; end: string } | undefined;
   // Content governor: reserve the publishing slot BEFORE spending on
   // production — a reel that could never be scheduled (cap, spacing, repeat
   // topic/CTA) must die here, not after 6 provider clips. Reservation id
@@ -762,7 +767,10 @@ export async function enqueueReelJob(
       cta: brief.ctaType ?? brief.campaignKeyword,
       campaignId: (brief as { genomeId?: string | null }).genomeId ?? null,
     });
-    if (reservation) (brief as { contentReservationId?: string }).contentReservationId = reservation.reservationId;
+    if (reservation) {
+      (brief as { contentReservationId?: string }).contentReservationId = reservation.reservationId;
+      reservationWindow = { start: windowStart.toISOString(), end: new Date(windowStart.getTime() + 24 * 3600_000).toISOString() };
+    }
   }
 
   try {
@@ -962,7 +970,7 @@ export async function enqueueReelJob(
     });
   }
 
-  return { jobId };
+  return { jobId, ...(reservationWindow ? { reservationWindow } : {}) };
 }
 
 /**

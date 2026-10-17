@@ -40,8 +40,11 @@ the source of truth; this doc is the rationale.
 If dependencies or `pnpm-lock.yaml` change:
 
 ```bash
-pnpm install --frozen-lockfile --filter "<app>..."
+pnpm install --frozen-lockfile
 ```
 
-**Keep the `...` suffix** — a bare `--filter` skips workspace deps and produces
-phantom import failures.
+Full and unfiltered, in the primary checkout, when no sibling session is mid-run.
+Never a filtered install, `add` or `remove` there: every worktree's `node_modules`
+is a junction into it, and a filtered add pruned vite for all of them on
+2026-10-17 (rule `shared-deps-mutation`). New deps: the scratchpad-clone recipe in
+`.claude/skills/harness-worktree-setup/SKILL.md` section 3.
