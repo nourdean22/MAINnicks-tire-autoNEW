@@ -189,7 +189,7 @@ export default function OverviewSection() {
     { enabled: canViewHistory, refetchInterval: 60_000, refetchIntervalInBackground: false },
   );
 
-  const { data: feedback } = trpc.adminSecurity.queueFeedbackSummary.useQuery(undefined, {
+  const { data: feedback, isError: feedbackFailed } = trpc.adminSecurity.queueFeedbackSummary.useQuery(undefined, {
     enabled: canSeeFeedback,
     staleTime: 60_000,
     refetchIntervalInBackground: false,
@@ -592,6 +592,21 @@ export default function OverviewSection() {
     .filter(Boolean)
     .join(" · ");
 
+  // The Keep/Less count. A read that failed, has not answered, or reports itself unreadable is "not
+  // measured", never 0; only a readable store with no verdicts says "none yet". It is a measurement,
+  // not an open item, so it stays out of openChecks above.
+  const feedbackSince = feedback?.readable && feedback.since ? new Date(feedback.since) : null;
+  const feedbackSinceLabel =
+    feedbackSince && !Number.isNaN(feedbackSince.getTime())
+      ? feedbackSince.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/New_York" })
+      : null;
+  const feedbackLine =
+    feedbackFailed || !feedback?.readable || !Number.isFinite(feedback.total)
+      ? "not measured"
+      : feedback.total === 0
+        ? "none yet"
+        : `${feedback.total} marked${feedbackSinceLabel ? ` since ${feedbackSinceLabel}` : ""}`;
+
   if (isLoading) {
     return <div className="min-h-[50vh] flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
   }
@@ -795,6 +810,8 @@ export default function OverviewSection() {
             </div>
           </section>
         )}
+
+        {canSeeFeedback && <p className="text-[13px] text-muted-foreground">Keep/Less: {feedbackLine}</p>}
       </ChecksRail>
     </div>
   );

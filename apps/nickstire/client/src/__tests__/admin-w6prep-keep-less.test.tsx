@@ -243,3 +243,81 @@ describe("tapping a verdict", () => {
     expect(h.invalidated).not.toContain(`utils.${SUMMARY_PATH}`);
   });
 });
+
+describe("the Checks rail counts the stored verdicts", () => {
+  beforeEach(asOwner);
+
+  it("a readable total says how many are marked since which day", () => {
+    h.queries.set("adminDashboard.overviewMediumBundle", ok(BUNDLE()));
+    h.queries.set(SUMMARY_PATH, ok({ readable: true, total: 12, since: "2026-10-03T14:00:00.000Z", byType: [{ itemType: "booking", keep: 5, less: 7 }] }));
+    render(<OverviewSection />);
+    expect(feedbackLine().textContent).toBe("Keep/Less: 12 marked since Oct 3");
+    expect(feedbackLine().closest("details")).toBe(rail());
+  });
+
+  it("a real zero says none yet", () => {
+    h.queries.set("adminDashboard.overviewMediumBundle", ok(BUNDLE()));
+    h.queries.set(SUMMARY_PATH, ok({ readable: true, total: 0, since: null, byType: [] }));
+    render(<OverviewSection />);
+    expect(feedbackLine().textContent).toBe("Keep/Less: none yet");
+  });
+
+  it("an unreadable store, a failed read and a read that has not answered all say not measured, never 0", () => {
+    h.queries.set("adminDashboard.overviewMediumBundle", ok(BUNDLE()));
+    const cases: Array<[string, Partial<Q>]> = [
+      ["readable false", ok({ readable: false, reason: "table missing" })],
+      ["isError", { data: undefined, isError: true, error: new Error("read failed") }],
+      ["a refetch that failed after an earlier answer (stale data kept)", { data: { readable: true, total: 12, since: "2026-10-03T14:00:00.000Z", byType: [] }, isError: true }],
+      ["paused", { data: undefined, isLoading: false, isError: false }],
+      ["loading", { data: undefined, isLoading: true, isError: false }],
+    ];
+    for (const [label, query] of cases) {
+      h.queries.set(SUMMARY_PATH, query);
+      const view = render(<OverviewSection />);
+      expect(feedbackLine().textContent, label).toBe("Keep/Less: not measured");
+      view.unmount();
+    }
+  });
+
+  it("the front desk gets no line and no read: the summary is owner-only, and the query is not enabled", () => {
+    h.queries.set("adminDashboard.overviewMediumBundle", ok(BUNDLE()));
+    h.queries.set(SUMMARY_PATH, ok({ readable: true, total: 12, since: "2026-10-03T14:00:00.000Z", byType: [] }));
+    asFrontDesk();
+    const desk = render(<OverviewSection />);
+    expect(screen.queryByText(/Keep\/Less:/)).toBeNull();
+    expect(h.opts.get(SUMMARY_PATH)?.enabled).toBe(false);
+    desk.unmount();
+    // Permissions not loaded yet is not a grant either.
+    h.queries.set("adminSecurity.status", { data: undefined });
+    const unknown = render(<OverviewSection />);
+    expect(screen.queryByText(/Keep\/Less:/)).toBeNull();
+    expect(h.opts.get(SUMMARY_PATH)?.enabled).toBe(false);
+    unknown.unmount();
+    // The control: the owner, same fixture, sees the line and the read is enabled.
+    asOwner();
+    render(<OverviewSection />);
+    expect(feedbackLine().textContent).toBe("Keep/Less: 12 marked since Oct 3");
+    expect(h.opts.get(SUMMARY_PATH)?.enabled).toBe(true);
+  });
+
+  it("is not an open check: the open count and the status line do not move with it", async () => {
+    measureEverything();
+    const unread = render(<OverviewSection />);
+    const baseline = checksStatus();
+    expect(baseline, "the fixture reaches the all-clear line, so a leak into the count would show").toBe("nothing open in promises, exceptions, freshness, gateway");
+    unread.unmount();
+
+    h.queries.set(SUMMARY_PATH, ok({ readable: true, total: 40, since: "2026-10-03T14:00:00.000Z", byType: [] }));
+    const withVerdicts = render(<OverviewSection />);
+    expect(checksStatus()).toBe(baseline);
+    withVerdicts.unmount();
+
+    h.queries.set("adminDashboard.overviewMediumBundle", ok({ ...BUNDLE([booking(1, "Rosa Delgado")]), slices: {}, stats: { tires: { new: 0 }, memberships: { warning: 0 } } }));
+    render(<OverviewSection />);
+    const before = checksStatus();
+    const row = rowFor("Rosa Delgado");
+    more(row, "Rosa Delgado");
+    await act(async () => { fireEvent.click(within(row).getByRole("button", { name: "Less" })); });
+    expect(checksStatus()).toBe(before);
+  });
+});
