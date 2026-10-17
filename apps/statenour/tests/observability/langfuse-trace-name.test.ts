@@ -3,7 +3,8 @@
  *
  * WHY THIS EXISTS. `functionId` names the OBSERVATION
  * (`memory-consolidation:ai.generateText`), never the trace. Measured against
- * `GET /api/public/traces` on production 2026-09-17: **0 of 50 traces carried
+ * the legacy `GET /api/public/traces` (removed from Langfuse Cloud 2026-11-16)
+ * on production 2026-09-17: **0 of 50 traces carried
  * a name**, while `userId` landed 50/50, `tags` 47/50 and `metadata` on every
  * row. Three of four identity channels worked; one specific mapping claim —
  * written in two separate docstrings — was false.

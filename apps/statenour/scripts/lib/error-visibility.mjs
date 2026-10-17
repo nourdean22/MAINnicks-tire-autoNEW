@@ -67,7 +67,8 @@ export function countBy(rows, keyFn) {
  * What identifies a trace, given that its NAME may be absent?
  *
  * ⚠⚠ MEASURED 2026-09-17, and it refuted a claim in our own docstring.
- * `GET /api/public/traces` over production: **0 of 50 traces carried a name**
+ * Measured 2026-09-17 against the legacy `GET /api/public/traces` (removed from
+ * Langfuse Cloud 2026-11-16) over production: **0 of 50 traces carried a name**
  * (672 in the window), while `userId` landed 50/50, `tags` 47/50 and
  * `metadata.source` on every row. `langfuse.ts` claimed `functionId` was the
  * "Trace name" — it is not. Langfuse uses it as the OBSERVATION name prefix
