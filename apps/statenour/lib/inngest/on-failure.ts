@@ -24,11 +24,36 @@
  * See: docs/adr/0005-inngest-durable-workflows.md follow-up section
  */
 
+import { createHash } from "node:crypto";
 import type { FailureEventArgs } from "inngest";
 import { CRON_STATUS } from "./cron-lifecycle";
 import { logger as rootLogger } from "@/lib/logger";
+import { hourET } from "@/lib/utils/datetime";
 
 const log = rootLogger.withSurface("inngest/on-failure");
+
+/**
+ * 2026-10-17 · grouped alerts (Telegram job, lane 2). One alert per function per
+ * window, claimed in action_attempts (beginAttempt: create, then a compare-and-swap
+ * reclaim once the window has passed), so a function failing every 15 minutes
+ * buzzes once, not all night. Repeats inside the window are counted on the claim
+ * row (input_evidence_ids holds their run ids) and reported on the next alert.
+ * Non-critical failures wait out 22:00-07:00 ET without claiming, so the first
+ * failure after 07:00 pages; cron_job_log keeps the overnight `failed` rows.
+ */
+const ALERT_WINDOW_MS = 6 * 3_600_000;
+const QUIET_START_HOUR_ET = 22;
+const QUIET_END_HOUR_ET = 7;
+
+/** A database outage is a root incident: it pages at night (nickstire cron/observer rule). */
+export function isCriticalInngestFailure(message: string): boolean {
+  return /can't reach database|P1001|P1017|ECONNREFUSED|connection terminated unexpectedly/i.test(message);
+}
+
+function isAlertQuietHour(at: Date): boolean {
+  const hour = hourET(at);
+  return hour >= QUIET_START_HOUR_ET || hour < QUIET_END_HOUR_ET;
+}
 
 /**
  * Inngest's FailureEventArgs shape · `event.data` carries the
@@ -53,9 +78,60 @@ async function notifyTelegram(args: FailurePayload): Promise<void> {
     const errLine = errMsg.slice(0, 240);
     const runLine = runId ? `\nrun: <code>${escapeHtml(runId)}</code>` : "";
 
+    const now = new Date();
+    if (!isCriticalInngestFailure(errMsg) && isAlertQuietHour(now)) {
+      log.info("inngest_failure_quiet_deferred", { fn: functionId, runId });
+      return;
+    }
+
+    // Claim the window. A store that cannot be read or written fails OPEN (sends):
+    // a missed alert is worse than a repeated one.
+    const attempts = await import("@/lib/services/action-attempts");
+    const { prisma } = await import("@/lib/prisma");
+    let claim: Awaited<ReturnType<typeof attempts.beginAttempt>> | null = null;
+    try {
+      claim = await attempts.beginAttempt({
+        operationKey: `inngest_failure_alert:${functionId}`,
+        tool: "inngest_failure_alert",
+        argumentsHash: createHash("sha256").update(functionId).digest("hex"),
+        effectClass: "write",
+        windowMs: ALERT_WINDOW_MS,
+      });
+    } catch (err) {
+      log.warn("inngest_failure_dedupe_unavailable", { fn: functionId, error: err instanceof Error ? err.message.slice(0, 120) : String(err) });
+    }
+
+    if (claim?.kind === "duplicate") {
+      // Array push is one atomic UPDATE, so concurrent repeats are all counted.
+      await prisma.actionAttempt
+        .update({ where: { id: claim.attemptId }, data: { inputEvidenceIds: { push: String(runId ?? "unknown").slice(0, 120) } } })
+        .catch((err: unknown) => log.warn("inngest_failure_repeat_uncounted", { fn: functionId, error: String(err).slice(0, 120) }));
+      log.info("inngest_failure_held", { fn: functionId, runId, heldBy: claim.attemptId });
+      return;
+    }
+
+    let repeats = 0;
+    if (claim) {
+      try {
+        const row = await prisma.actionAttempt.findUnique({ where: { id: claim.attemptId }, select: { inputEvidenceIds: true } });
+        repeats = row?.inputEvidenceIds.length ?? 0;
+        // shortcut: a repeat pushed between this read and this reset is lost from the
+        // next count (a window of milliseconds); exact counting needs one SQL statement.
+        if (repeats > 0) {
+          await prisma.actionAttempt.updateMany({
+            where: { id: claim.attemptId, attemptNo: claim.attemptNo },
+            data: { inputEvidenceIds: { set: [] } },
+          });
+        }
+      } catch (err) {
+        log.warn("inngest_failure_repeat_count_unread", { fn: functionId, error: String(err).slice(0, 120) });
+      }
+    }
+
+    const repeatLine = repeats > 0 ? `\n${repeats} more failure${repeats === 1 ? "" : "s"} of this function since the last alert` : "";
     const message =
       `⚠️ <b>Inngest failure</b> · ${escapeHtml(functionId)}\n` +
-      `<code>${escapeHtml(errLine)}</code>${runLine}`;
+      `<code>${escapeHtml(errLine)}</code>${runLine}${repeatLine}`;
 
     // 2026-08-23 · the boolean was DISCARDED and this logged "notified"
     // unconditionally. sendTelegram returns false cleanly on four paths — no bot
@@ -65,6 +141,15 @@ async function notifyTelegram(args: FailurePayload): Promise<void> {
     // system that reports success when it delivered nothing is the blind
     // instrument its own alerts exist to prevent.
     const delivered = await sendTelegram(message, undefined, "HTML");
+    if (claim) {
+      // FAILED clears the hold, so an undelivered alert does not silence the window.
+      await attempts
+        .settleAttempt(claim.attemptId, {
+          disposition: delivered ? "success" : "known_failure",
+          reason: delivered ? "alert sent" : "sendTelegram returned false",
+        })
+        .catch((err: unknown) => log.warn("inngest_failure_settle_failed", { fn: functionId, error: String(err).slice(0, 120) }));
+    }
     if (delivered) {
       log.warn("inngest_failure_notified", {
         fn: functionId,
