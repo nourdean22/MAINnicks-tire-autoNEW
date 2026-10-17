@@ -16,8 +16,6 @@ vi.mock("googleapis", () => ({
 import {
   googleTtsRequest,
   buildReelSsml,
-  alignmentFromTimepoints,
-  wavDurationSec,
   generateVoiceover,
   generateAssSubtitles,
 } from "./services/reelVoice";
@@ -80,10 +78,26 @@ describe("googleTtsRequest asks for word timepoints", () => {
   });
 });
 
-describe("alignmentFromTimepoints", () => {
-  it("word boundaries match the marks; the last word ends at the audio end", () => {
+/** Google creds on, ElevenLabs off, and fetch answering every Google call with this v1beta1 body. */
+function googleReturns(body: Record<string, unknown>) {
+  vi.stubEnv("GOOGLE_SERVICE_ACCOUNT_EMAIL", "svc@x");
+  vi.stubEnv("GOOGLE_SERVICE_ACCOUNT_KEY", "k");
+  vi.stubEnv("ELEVENLABS_API_KEY", "");
+  vi.stubEnv("REEL_VO_OPTIONAL", "");
+  vi.stubEnv("REEL_VO_PROVIDER", "");
+  vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, status: 200, json: async () => body, text: async () => "" })));
+}
+
+describe("timepoints -> alignment, through generateVoiceover (the caption writer's input)", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it("word boundaries match the marks; the last word ends at the WAV's own end", async () => {
     // Binary-exact times: formatAssTime floors centiseconds, so 0.61 would print .60 (pre-existing, not this change).
-    const a = alignmentFromTimepoints(SCRIPT, TIMEPOINTS, 2.25);
+    googleReturns({ audioContent: wav(2.25).toString("base64"), timepoints: TIMEPOINTS });
+    const a = (await generateVoiceover(SCRIPT))?.alignment;
     expect(a).toBeDefined();
     const ass = generateAssSubtitles(a!);
     const times = [...ass.matchAll(/^Dialogue: 0,([^,]+),([^,]+),/gm)].map((m) => [m[1], m[2]]);
@@ -99,22 +113,32 @@ describe("alignmentFromTimepoints", () => {
     expect(ass).toContain("today.");
   });
 
-  it("empty, missing or partial timepoints are no alignment (beat captions), never a throw", () => {
-    expect(alignmentFromTimepoints(SCRIPT, [], 2)).toBeUndefined();
-    expect(alignmentFromTimepoints(SCRIPT, undefined, 2)).toBeUndefined();
-    expect(alignmentFromTimepoints(SCRIPT, TIMEPOINTS.slice(0, 5), 2)).toBeUndefined();
-    expect(alignmentFromTimepoints(SCRIPT, [{ markName: "w0", timeSeconds: Number.NaN }, ...TIMEPOINTS.slice(1)], 2)).toBeUndefined();
+  it("partial, unordered or non-finite timepoints are no alignment (beat captions), audio still returned, never a throw", async () => {
+    const bad = [
+      TIMEPOINTS.slice(0, 5),
+      [TIMEPOINTS[1], { markName: "w1", timeSeconds: 0.1 }, ...TIMEPOINTS.slice(2)].map((t, i) => ({ ...t, markName: `w${i}` })),
+      [{ markName: "w0", timeSeconds: null }, ...TIMEPOINTS.slice(1)],
+    ];
+    for (const timepoints of bad) {
+      googleReturns({ audioContent: wav(2.25).toString("base64"), timepoints });
+      const vo = await generateVoiceover(SCRIPT);
+      expect(vo?.alignment).toBeUndefined();
+      expect(vo?.buf.length).toBeGreaterThan(44);
+    }
   });
 
-  it("an unknown audio end still gives the last word a short, positive span", () => {
-    const a = alignmentFromTimepoints(SCRIPT, TIMEPOINTS, null)!;
+  it("audio that is not a WAV (no readable end) still gives the last word a short, positive span", async () => {
+    googleReturns({ audioContent: Buffer.from("not a wav").toString("base64"), timepoints: TIMEPOINTS });
+    const a = (await generateVoiceover(SCRIPT))!.alignment!;
     const last = a.characterEndTimesSeconds[a.characterEndTimesSeconds.length - 1];
     expect(last).toBeGreaterThan(2);
+    expect(last).toBeLessThanOrEqual(2.5);
   });
 
-  it("wavDurationSec reads the LINEAR16 header; non-WAV is null", () => {
-    expect(wavDurationSec(wav(1.5))).toBeCloseTo(1.5, 3);
-    expect(wavDurationSec(Buffer.from("not a wav"))).toBeNull();
+  it("the WAV header sets the last word's end: 3.5 s of audio ends it at 3.5 s, not at a guess", async () => {
+    googleReturns({ audioContent: wav(3.5).toString("base64"), timepoints: TIMEPOINTS });
+    const a = (await generateVoiceover(SCRIPT))!.alignment!;
+    expect(a.characterEndTimesSeconds[a.characterEndTimesSeconds.length - 1]).toBeCloseTo(3.5, 3);
   });
 });
 

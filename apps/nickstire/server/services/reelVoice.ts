@@ -110,7 +110,7 @@ export interface GoogleTimepoint {
 }
 
 /** Seconds of audio in a LINEAR16 WAV (RIFF header, byte rate at offset 28); null when it is not one. */
-export function wavDurationSec(buf: Buffer): number | null {
+function wavDurationSec(buf: Buffer): number | null {
   if (buf.length < 44 || buf.toString("ascii", 0, 4) !== "RIFF" || buf.toString("ascii", 8, 12) !== "WAVE") return null;
   const byteRate = buf.readUInt32LE(28);
   return byteRate > 0 ? (buf.length - 44) / byteRate : null;
@@ -121,7 +121,7 @@ export function wavDurationSec(buf: Buffer): number | null {
  * Each word's characters span its mark to the next word's mark (the last word to the audio end).
  * Anything short of one finite, ordered timepoint per word is undefined: beat captions, as before.
  */
-export function alignmentFromTimepoints(
+function alignmentFromTimepoints(
   script: string,
   timepoints: GoogleTimepoint[] | undefined,
   audioEndSec: number | null,
@@ -159,7 +159,7 @@ export async function googleVoice(script: string, env: NodeJS.ProcessEnv = proce
  * One Google TTS render with word timing when the voice honours SSML marks. A 400 on the
  * timed v1beta1 request (a voice that rejects marks) resends today's plain v1 request once.
  */
-export async function googleVoiceTimed(script: string, env: NodeJS.ProcessEnv = process.env): Promise<{ buf: Buffer; alignment?: VoiceAlignment }> {
+async function googleVoiceTimed(script: string, env: NodeJS.ProcessEnv = process.env): Promise<{ buf: Buffer; alignment?: VoiceAlignment }> {
   const email = env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
   const key = (env.GOOGLE_SERVICE_ACCOUNT_KEY || "").replace(/\\n/g, "\n").replace(/^"|"$/g, "");
   const { google } = await import("googleapis");
