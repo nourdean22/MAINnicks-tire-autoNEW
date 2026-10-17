@@ -17,6 +17,7 @@ type Q = { data: unknown; isLoading: boolean; isError: boolean; error: unknown; 
 const h = vi.hoisted(() => ({
   queries: new Map<string, Partial<Q>>(),
   calls: [] as Array<[string, unknown]>,
+  opts: new Map<string, any>(),
   mutations: new Map<string, (opts: any) => unknown>(),
   confirm: vi.fn(async () => true),
   toastSuccess: vi.fn(),
@@ -26,8 +27,9 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/trpc", () => {
-  const query = (path: string) => (input: unknown) => {
+  const query = (path: string) => (input: unknown, opts?: unknown) => {
     h.calls.push([path, input]);
+    h.opts.set(path, opts);
     return {
       data: undefined,
       isLoading: false,
@@ -81,6 +83,7 @@ vi.mock("@/pages/admin/today/ExceptionFeed", () => ({ default: h.Null }));
 import MembershipsSection from "@/pages/admin/MembershipsSection";
 import CustomerProfile from "@/pages/admin/customers/CustomerProfile";
 import { CustomersList } from "@/pages/admin/customers/CustomersList";
+import { CustomersBrief } from "@/pages/admin/customers/CustomersBrief";
 import WorkOrdersSection from "@/pages/admin/money/WorkOrdersSection";
 import DispatchSection from "@/pages/admin/money/DispatchSection";
 import OverviewSection from "@/pages/admin/OverviewSection";
@@ -94,6 +97,7 @@ const EMPTY_HISTORY = { invoices: [], declinedEstimates: [], openWorkOrders: [] 
 beforeEach(() => {
   h.queries.clear();
   h.calls.length = 0;
+  h.opts.clear();
   h.mutations.clear();
   h.confirm.mockReset();
   h.confirm.mockResolvedValue(true);
@@ -126,11 +130,12 @@ describe("Nonstop Nick counter lookup", () => {
     expect(refetch).toHaveBeenCalled();
   });
 
-  it("a paused (offline) lookup is not checked either", () => {
+  it("a paused (offline) lookup says offline, not checked, and never Lookup failed or not a member", () => {
     h.queries.set("memberships.lookupByPhone", PAUSED);
     render(<MembershipsSection />);
     lookUp();
-    expect(screen.getByText("Lookup failed. Not checked: this does not mean they are not a member.")).toBeTruthy();
+    expect(screen.getByText("Offline, not checked: this does not mean they are not a member.")).toBeTruthy();
+    expect(screen.queryByText(/Lookup failed/)).toBeNull();
     expect(screen.queryByText(/No member found/)).toBeNull();
   });
 
@@ -254,7 +259,18 @@ describe("Work orders as rows", () => {
     expect(within(rows).getByText("2015 Honda Civic")).toBeTruthy();
     expect(within(rows).getByText(/Pat Example/)).toBeTruthy();
     expect(within(rows).getByText(/In progress/)).toBeTruthy();
-    fireEvent.click(within(rows).getByRole("button", { name: "QC review for Pat Example" }));
+    // Round 1: no one-tap status change. "Move to" opens an in-DOM choice; nothing moves on the first tap.
+    fireEvent.click(within(rows).getByRole("button", { name: "Move WO-0007 to" }));
+    expect(mutate).not.toHaveBeenCalled();
+    const choice = within(rows).getByRole("group", { name: "Move WO-0007 to" });
+    const options = within(choice).getAllByRole("button").map((b) => b.textContent);
+    expect(options).toEqual(["QC review", "Ready for pickup", "On hold", "Cancelled", "Cancel"]);
+    for (const b of within(choice).getAllByRole("button")) expect(b.className).toContain("min-h-12");
+    fireEvent.click(within(choice).getByRole("button", { name: "Cancel" }));
+    expect(within(rows).queryByRole("group", { name: "Move WO-0007 to" })).toBeNull();
+    expect(mutate).not.toHaveBeenCalled();
+    fireEvent.click(within(rows).getByRole("button", { name: "Move WO-0007 to" }));
+    fireEvent.click(within(within(rows).getByRole("group", { name: "Move WO-0007 to" })).getByRole("button", { name: "QC review" }));
     expect(mutate).toHaveBeenCalledWith({ id: "7", status: "qc_review" });
   });
 
@@ -314,5 +330,98 @@ describe("Dispatch", () => {
     expect(within(rows).getByText(/Sam Driver/)).toBeTruthy();
     fireEvent.click(within(rows).getByRole("button", { name: "Assign Sam Driver" }));
     expect(screen.getByText("Assign Work Order")).toBeTruthy();
+  });
+});
+
+/* ------------------------------ Round 1 review ----------------------------- */
+
+describe("W4 round 1", () => {
+  it("no phone on file: profile history and timeline say so, offer no Retry, and never run the read", () => {
+    const refetchHistory = vi.fn();
+    const refetchTimeline = vi.fn();
+    h.queries.set("customers.getById", ok({ ...CUSTOMER, phone: null }));
+    h.queries.set("customers.timeline", { data: undefined, refetch: refetchTimeline });
+    h.queries.set("customers.history", { data: undefined, refetch: refetchHistory });
+    render(<CustomerProfile customerId={1} onClose={() => {}} />);
+    expect(screen.getByText("No phone on file, history can't be looked up")).toBeTruthy();
+    expect(screen.getByText("No phone on file, interactions can't be looked up")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /try again|retry/i })).toBeNull();
+    expect(h.opts.get("customers.history")?.enabled).toBe(false);
+    expect(h.opts.get("customers.timeline")?.enabled).toBe(false);
+    expect(refetchHistory).not.toHaveBeenCalled();
+    expect(refetchTimeline).not.toHaveBeenCalled();
+  });
+
+  const LAPSED = {
+    id: 5, firstName: "Pat", lastName: "Example", phone: "2165550100", email: null, totalVisits: 2, totalSpent: 45000,
+    lastVisitDate: new Date(Date.now() - 120 * 86400000).toISOString(), daysSinceLastVisit: 120, isVip: false, churnRisk: "medium",
+    declinedCount: 0, backlogCount: 0, customerType: "retail", notes: null,
+  };
+
+  it("a customer row keeps Call, Text and Win back reachable behind a 48 px overflow", () => {
+    h.queries.set("customers.list", ok({ customers: [LAPSED], total: 1, page: 1, pageSize: 25 }));
+    render(<CustomersList onOpenCustomer={() => {}} />);
+    const rows = screen.getByRole("list", { name: "Customers" });
+    const more = within(rows).getByRole("button", { name: "More actions for Pat Example" });
+    expect(more.className).toContain("min-h-12");
+    expect(within(rows).queryByRole("link", { name: "Call Pat Example" })).toBeNull();
+    fireEvent.click(more);
+    const call = within(rows).getByRole("link", { name: "Call Pat Example" });
+    expect(call.getAttribute("href")).toBe("tel:2165550100");
+    expect(call.className).toContain("min-h-12");
+    expect(within(rows).getByRole("link", { name: "Text Pat" })).toBeTruthy();
+    expect(within(rows).getByRole("button", { name: "Win back Pat" })).toBeTruthy();
+  });
+
+  it("below lg one 48 px select sorts the list with the table's options", () => {
+    h.queries.set("customers.list", ok({ customers: [LAPSED], total: 1, page: 1, pageSize: 25 }));
+    render(<CustomersList onOpenCustomer={() => {}} />);
+    const sort = screen.getByRole("combobox", { name: "Sort customers" }) as HTMLSelectElement;
+    expect(sort.className).toContain("min-h-12");
+    expect(Array.from(sort.options).map((o) => o.value)).toEqual(["totalSpent", "visits", "lastVisit", "name", "declined", "backlog"]);
+    fireEvent.change(sort, { target: { value: "visits" } });
+    const last = h.calls.filter(([p]) => p === "customers.list").pop()?.[1] as { sortBy?: string };
+    expect(last?.sortBy).toBe("visits");
+  });
+
+  it("work-order rows say blocked, emergency and overdue in words, with the order number", () => {
+    const now = Date.now();
+    h.queries.set("workOrders.list", ok([
+      { id: 11, orderNumber: "WO-0011", status: "in_progress", priority: "normal", blockerType: "waiting_parts", customerName: "Ann Blocked", createdAt: new Date().toISOString() },
+      { id: 12, orderNumber: "WO-0012", status: "approved", priority: "emergency", customerName: "Bo Urgent", createdAt: new Date().toISOString() },
+      { id: 13, orderNumber: "WO-0013", status: "assigned", priority: "normal", customerName: "Cy Late", promisedAt: new Date(now - 3600000).toISOString(), createdAt: new Date().toISOString() },
+    ]));
+    render(<WorkOrdersSection />);
+    const rows = screen.getByRole("region", { name: "Work orders by stage" });
+    expect(within(rows).getByText(/WO-0011/).textContent).toMatch(/Blocked: parts/);
+    expect(within(rows).getByText(/WO-0012/).textContent).toMatch(/Emergency/);
+    expect(within(rows).getByText(/WO-0013/).textContent).toMatch(/Overdue/);
+  });
+
+  it("CustomersBrief says not checked on a paused stats read; stale tiles keep their numbers when a refetch pauses", () => {
+    h.queries.set("customers.stats", PAUSED);
+    const { container, unmount } = render(<CustomersBrief onLapsedAction={() => {}} />);
+    expect(container.textContent).toMatch(/Customer stats not checked \(offline\)/);
+    unmount();
+    h.queries.set("customers.stats", { ...PAUSED, data: { total: 4, withVisits: 3, vipCount: 1, totalRevenue: 120000, recent: 1, lapsed: 1, withEmail: 2, commercial: 0 } });
+    h.queries.set("customers.list", ok({ customers: [], total: 0, page: 1, pageSize: 25 }));
+    render(<CustomersList onOpenCustomer={() => {}} />);
+    const tile = screen.getAllByText("Total Customers")[0].parentElement?.parentElement as HTMLElement;
+    expect(tile.querySelector(".stat-value")?.textContent ?? "").toMatch(/\d/);
+  });
+
+  it("Dispatch: Assign scrolls the assignment panel into view, and the row keeps the order number", () => {
+    const scroll = vi.fn();
+    Object.defineProperty(Element.prototype, "scrollIntoView", { configurable: true, writable: true, value: scroll });
+    try {
+      h.queries.set("workOrders.list", ok([{ ...WOS[1], status: "ready_for_bay" }]));
+      render(<DispatchSection />);
+      const rows = screen.getByRole("list", { name: "Ready for a bay" });
+      expect(within(rows).getByText(/WO-0008/)).toBeTruthy();
+      fireEvent.click(within(rows).getByRole("button", { name: "Assign Sam Driver" }));
+      expect(scroll).toHaveBeenCalled();
+    } finally {
+      Reflect.deleteProperty(Element.prototype, "scrollIntoView");
+    }
   });
 });

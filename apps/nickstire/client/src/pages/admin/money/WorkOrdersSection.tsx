@@ -193,44 +193,76 @@ function nextStatusesFor(s: string): { status: string; label: string }[] {
 const sentenceCase = (t: string) => (t.charAt(0) + t.slice(1).toLowerCase()).replace(/\bqc\b/i, "QC");
 
 // ─── Work Order Row (phones, admin UI v1 W4: Today's row grammar) ──────
+// Two taps to move a job: "Move to" opens an in-DOM choice of the same options the drawer offers,
+// so a slip moves nothing. No window.confirm (suppressed in the iOS standalone PWA).
 function WORow({ wo, onOpen, onAdvance, advancing }: {
   wo: WOListItem;
   onOpen: () => void;
   onAdvance: (status: string) => void;
   advancing: boolean;
 }) {
+  const [choosing, setChoosing] = useState(false);
   const promise = formatPromiseTime(wo.promisedAt);
-  // The forward step, never hold or cancel: those stay one tap deeper, in the drawer.
-  const next = nextStatusesFor(wo.status).find((n) => n.status !== "on_hold" && n.status !== "cancelled");
+  const options = nextStatusesFor(wo.status);
   const vehicle = [wo.vehicleYear, wo.vehicleMake, wo.vehicleModel].filter(Boolean).join(" ");
-  const who = wo.customerName || wo.orderNumber;
-  const urgent = Boolean(wo.blockerType) || promise.overdue || wo.priority === "emergency";
+  const who = wo.customerName || "No customer on file";
+  // Words, not a colour: the dot alone made blocked, emergency and overdue look the same.
+  const flags = [
+    wo.blockerType ? `Blocked: ${wo.blockerType.replace("waiting_", "").replace("_", " ")}` : null,
+    wo.priority === "emergency" ? "Emergency" : null,
+    promise.overdue ? "Overdue" : null,
+  ].filter(Boolean);
+  const urgent = flags.length > 0;
+  const moveLabel = `Move ${wo.orderNumber} to`;
   return (
-    <li data-wo-id={String(wo.id)} className="py-3 flex items-center gap-3">
-      <button type="button" onClick={onOpen} aria-label={`Open ${wo.orderNumber}`} className="flex items-start gap-3 flex-1 min-w-0 min-h-12 text-left">
-        <span aria-hidden className={`mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full ${urgent ? "bg-red-400" : "bg-muted-foreground/50"}`} />
-        <span className="min-w-0 flex-1">
-          <span className="block text-[16px] leading-snug font-semibold truncate">{vehicle || wo.orderNumber}</span>
-          <span className="block text-[13px] text-muted-foreground truncate">
-            {who} · {sentenceCase(STATUS_LABELS[wo.status] || wo.status)}
-            {promise.text && <span className={promise.overdue ? "text-red-400" : ""}> · {promise.overdue ? "promised, " : "promise "}{promise.text}</span>}
+    <li data-wo-id={String(wo.id)} className="py-3">
+      <div className="flex items-center gap-3">
+        {/* Tapping the row opens the drawer, which carries the full card: service, tech, bay, age, priority, blocker note. */}
+        <button type="button" onClick={onOpen} aria-label={`Open ${wo.orderNumber}`} className="flex items-start gap-3 flex-1 min-w-0 min-h-12 text-left">
+          <span aria-hidden className={`mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full ${urgent ? "bg-red-400" : "bg-muted-foreground/50"}`} />
+          <span className="min-w-0 flex-1">
+            <span className="block text-[16px] leading-snug font-semibold truncate">{vehicle || "Vehicle not on file"}</span>
+            <span className="block text-[13px] text-muted-foreground truncate">
+              {wo.orderNumber} · {who} · {sentenceCase(STATUS_LABELS[wo.status] || wo.status)}
+              {flags.length > 0 && <span className="text-red-400"> · {flags.join(" · ")}</span>}
+              {promise.text && !promise.overdue && <span> · promise {promise.text}</span>}
+            </span>
           </span>
-        </span>
-      </button>
-      {next ? (
-        <button
-          type="button"
-          disabled={advancing}
-          onClick={() => onAdvance(next.status)}
-          aria-label={`${sentenceCase(next.label)} for ${who}`}
-          className="min-h-12 px-4 shrink-0 whitespace-nowrap rounded-md bg-secondary text-foreground text-[14px] font-semibold border border-border/60 disabled:opacity-50"
-        >
-          {sentenceCase(next.label)}
         </button>
-      ) : (
-        <button type="button" onClick={onOpen} aria-label={`Open ${wo.orderNumber}`} className="min-h-12 px-4 shrink-0 rounded-md border border-border/40 text-[14px] text-foreground/85">
-          Open
-        </button>
+        {options.length > 0 ? (
+          <button
+            type="button"
+            disabled={advancing}
+            onClick={() => setChoosing((v) => !v)}
+            aria-expanded={choosing}
+            aria-label={moveLabel}
+            className="min-h-12 px-4 shrink-0 whitespace-nowrap rounded-md bg-secondary text-foreground text-[14px] font-semibold border border-border/60 disabled:opacity-50"
+          >
+            Move to
+          </button>
+        ) : (
+          <button type="button" onClick={onOpen} aria-label={`Open ${wo.orderNumber}`} className="min-h-12 px-4 shrink-0 rounded-md border border-border/40 text-[14px] text-foreground/85">
+            Open
+          </button>
+        )}
+      </div>
+      {choosing && (
+        <div role="group" aria-label={moveLabel} className="mt-2 pl-[18px] flex flex-wrap gap-2">
+          {options.map((o) => (
+            <button
+              key={o.status}
+              type="button"
+              disabled={advancing}
+              onClick={() => { setChoosing(false); onAdvance(o.status); }}
+              className={`min-h-12 px-4 rounded-md border text-[14px] disabled:opacity-50 ${o.status === "cancelled" ? "border-red-500/40 text-red-400" : "border-border/60 text-foreground"}`}
+            >
+              {sentenceCase(STATUS_LABELS[o.status] || o.status)}
+            </button>
+          ))}
+          <button type="button" onClick={() => setChoosing(false)} className="min-h-12 px-4 rounded-md text-[14px] text-muted-foreground">
+            Cancel
+          </button>
+        </div>
       )}
     </li>
   );
