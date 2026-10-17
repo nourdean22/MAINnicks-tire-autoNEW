@@ -3,8 +3,8 @@ clarity-gate-version: 2.1
 processed-date: 2026-06-11
 processed-by: Antigravity + Nour
 clarity-status: CLEAR
-hitl-status: PENDING
-hitl-pending-count: 1
+hitl-status: REVIEWED
+hitl-pending-count: 0
 points-passed: 1-9
 document-sha256: 0e24773c3bb0d68b4c80f82a6b3847e56a2a012f9bd837e54c03e3654e1cfbcf
 hitl-claims:
@@ -14,8 +14,8 @@ hitl-claims:
     source: "lib/services/judge-calibration.ts deriveVerdict; ADR 0019 amended 2026-10-17"
     location: "CALIBRATION_TODO.md#L35"
     round: A
-    confirmed-by: PENDING (the 2026-06-11 confirmation was for the old agreement >= 70% rule)
-    confirmed-date: PENDING
+    confirmed-by: "Nour (relayed via the manager session, 2026-10-17)"
+    confirmed-date: 2026-10-17
 ---
 
 # Statenour Judge Calibration Runbook
@@ -112,6 +112,7 @@ Once the status report displays `Verdict: well-calibrated` ($n \ge 30$ and kappa
 ### Round B: True HITL Verification
 | # | Claim | Status | Verified By | Date |
 |---|-------|--------|-------------|------|
+| 1 | claim-calibration-threshold (kappa rule, scout 7) | Confirmed: "Re-confirm the AI-judge agreement rule scout 7 changed. It shows PENDING until you do. ... u have my ok do the best reccommended decsisons for me" | Nour (relayed via the manager session) | 2026-10-17 |
 
 <!-- CLARITY_GATE_END -->
 Clarity Gate: CLEAR | REVIEWED

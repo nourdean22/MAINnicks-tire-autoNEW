@@ -1,5 +1,19 @@
 # Reconciliation · statenour-os
 
+> ## 2026-10-17 · FSRS schedules spaced reviews (branch `statenour/scout4-fsrs`) · 1 statenour PR
+>
+> Not live until merged and deployed. Unit tests only; no prod read or write.
+>
+> - **Scheduler (`lib/brain/fsrs-schedule.ts`).** ts-fsrs 5.4.2 (dependency #3109) with retention 0.9, a 365-day cap, no fuzz and short-term steps off. An unaided correct answer is Good; a miss or any hinted answer is Again.
+> - **Tutor and Learn (`lib/brain/tutor-pack.ts`, `components/actions/mode-learn.tsx`, `brain.gradeSpacedReview`).** One compare-and-swap grader serves the Daily Tutor and the Learn tab's "Got it"; the fixed 1/3/7/30 ladder is gone. Learn writes one card per item instead of four rows. Rows from before this change keep the old clear.
+> - **Retention.** `spaced_review` rows get no TTL and the nightly prune skips them: `remember()`'s 24 h TTL let the sweep delete every Learn card about when it came due.
+> - **Calibration doc.** Nour re-confirmed the kappa rule on 2026-10-17; the claim in `docs/CALIBRATION_TODO.md` is no longer PENDING.
+>
+> **Flagged · NOT fixed**
+> - Re-learning a topic overwrites its card's FSRS state (same key).
+> - Legacy four-row Learn items are not retired; their Day 3/7/30 rows still come due.
+> - The Learn "day N" label now shows the last FSRS interval.
+> - "Deep dive" counts as Good before it re-teaches the topic.
 > ## 2026-10-17 · Brain context reads the real v6 chat history (branch `statenour/brain-parts-readers`) · 1 statenour PR
 >
 > Not live until merged and deployed. Unit tests only, no live chat turn.

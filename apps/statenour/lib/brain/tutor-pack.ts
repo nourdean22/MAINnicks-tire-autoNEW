@@ -40,6 +40,8 @@ import { markReplayed } from "@/lib/services/decision-replay-coach";
 import type { InlineButton } from "@/lib/services/telegram";
 import { escapeHtml } from "@/lib/utils/escape-html";
 import { logError } from "@/lib/utils/error-log";
+import { fsrsStateProblem, nextReview, ratingFor, readFsrsState, type FsrsState, type ReviewRating } from "@/lib/brain/fsrs-schedule";
+import { logger as rootLogger } from "@/lib/logger";
 import { today } from "@/lib/utils/datetime";
 import {
   alreadyPushed,
@@ -48,6 +50,8 @@ import {
   type PushResult,
   type PushSource,
 } from "@/lib/brain/proactive-pushes";
+
+const log = rootLogger.withSurface("brain.tutor-pack");
 
 export type TutorItem =
   | {
@@ -71,8 +75,6 @@ const DAY_MS = 86_400_000;
 const RECALL_WINDOW_MS = 30 * DAY_MS;
 /** Same category and content fields as components/actions/mode-learn.tsx, which lists these rows as due cards. */
 const SPACED_REVIEW_CATEGORY = "spaced_review";
-/** The spacing ladder 1/3/7/30 is copied from mode-learn.tsx on purpose: same consumer, same cadence. */
-const SPACED_LADDER = [1, 3, 7, 30];
 // K/H are read-only steps; R/X grade unaided; A/B/C grade hinted (also a pre-scout message's buttons).
 const RECALL_CHOICES = new Set(["A", "B", "C", "S", "K", "H", "R", "X"]);
 const UNAIDED = new Set(["R", "X"]);
@@ -91,21 +93,15 @@ const clip = (raw: string, max: number) => {
 const hashOf = (s: string) => [...s].reduce((n, c) => n + c.charCodeAt(0), 0);
 const rotate = <T,>(xs: T[], by: number): T[] => (xs.length ? [...xs.slice(by % xs.length), ...xs.slice(0, by % xs.length)] : xs);
 
-/** Streak-driven next review: correct climbs the ladder, a miss resets to tomorrow. */
-export function spacedReviewStep(prevStreak: number, correct: boolean): { streak: number; days: number } {
-  if (!correct) return { streak: 0, days: 1 };
-  const streak = Math.max(0, prevStreak) + 1;
-  return { streak, days: SPACED_LADDER[Math.min(streak, SPACED_LADDER.length) - 1] };
-}
-
 type SpacedReview = {
   topic: string;
   summary: string;
   reviewAt: string;
   interval: number;
   completed: boolean;
-  streak: number;
   memoryId: string;
+  /** FSRS card state (lib/brain/fsrs-schedule.ts). Legacy rows carry a `streak` instead and start as a new card. */
+  fsrs: FsrsState;
 };
 
 function parseSpaced(content: string): Partial<SpacedReview> | null {
@@ -175,7 +171,7 @@ async function pickRecall(now: Date): Promise<TutorItem | null> {
     asked.map((r) => (r.evidenceRefs as { memoryId?: unknown } | null)?.memoryId).filter((v): v is string => typeof v === "string"),
   );
   // A due spaced_review row re-asks its wisdom even inside the 30-day window:
-  // that is how "Again tomorrow" and the 1/3/7/30 ladder come true.
+  // that is how the FSRS due dates come true.
   const due = spaced
     .map((r) => parseSpaced(r.content))
     .filter((p): p is Partial<SpacedReview> => !!p && !p.completed && typeof p.memoryId === "string" && typeof p.reviewAt === "string")
@@ -371,49 +367,83 @@ function readSpaced(key: string) {
   });
 }
 
+export type SpacedGradeResult =
+  | { status: "graded"; due: string; days: number }
+  | { status: "cleared" }
+  | { status: "missing" }
+  | { status: "lost" }
+  | { status: "unreadable" };
+
+/** Content fields a card is built from: they seed a new row, or fill a field the stored row lacks. */
+type SpacedSeed = { topic: string; summary: string; memoryId: string };
+
+/** The schedule one review writes, for a new tutor card and a graded row alike. */
+function scheduledFields(prevFsrs: unknown, rating: ReviewRating, now: Date) {
+  // A legacy row (streak, no fsrs) or an unreadable state starts as a new card.
+  const review = nextReview(readFsrsState(prevFsrs), rating, now);
+  return {
+    fields: { reviewAt: review.due.toISOString(), interval: review.state.scheduled_days, completed: false, fsrs: review.state },
+    days: Math.round((review.due.getTime() - now.getTime()) / DAY_MS),
+  };
+}
+
 /**
- * Compare-and-swap on the previous row (content = streak + due, and not soft-deleted),
- * never an update by id. On an existing row it writes schedule fields only: topic,
- * summary and memoryId stay as the row has them, and deletedAt is never in the data.
- * Returns "cleared" without writing when the card was removed in Learn. Throws when the
- * schedule was not written, so the reply never claims a "Next ask in N days" that does not exist.
+ * Grade one existing spaced_review row by key: the one writer of an existing row's
+ * schedule, shared by the Daily Tutor below and the Learn tab's "Got it"
+ * (brain.gradeSpacedReview). Compare-and-swap on the row's previous content with
+ * deletedAt: null, never an update by id. Schedule fields only (reviewAt, interval,
+ * completed, fsrs): topic, summary and memoryId stay as the row has them, and deletedAt
+ * is never in the data. A cleared (soft-deleted) card stays cleared. Only "graded"
+ * carries a date, because only then was it written.
+ */
+export async function gradeSpacedReview(key: string, rating: ReviewRating, now: Date, seed?: SpacedSeed): Promise<SpacedGradeResult> {
+  const existing = await readSpaced(key);
+  if (!existing) return { status: "missing" };
+  if (existing.deletedAt) return { status: "cleared" };
+  const prev = parseSpaced(existing.content);
+  if (!prev && !seed) return { status: "unreadable" };
+  const kept: Record<string, unknown> = { ...prev };
+  delete kept.streak; // the legacy ladder's streak: FSRS state replaces it
+  // A stored state that cannot be scheduled resets to a new card: say so once, never silently.
+  const problem = prev && "fsrs" in prev ? fsrsStateProblem(prev.fsrs) : null;
+  if (problem) log.info("spaced_review_fsrs_reset", { key, reason: problem });
+  const { fields, days } = scheduledFields(prev?.fsrs, rating, now);
+  const res = await prisma.brainMemory.updateMany({
+    where: { id: existing.id, category: SPACED_REVIEW_CATEGORY, key, content: existing.content, deletedAt: null },
+    data: { content: JSON.stringify({ ...seed, ...kept, ...fields }), lastSeen: now, expiresAt: null },
+  });
+  if (res.count !== 1) return { status: "lost" };
+  return { status: "graded", due: fields.reviewAt, days };
+}
+
+/**
+ * The tutor's schedule write: grade the existing row through gradeSpacedReview, or create
+ * a new card when there is none. Returns "cleared" without writing when the card was
+ * removed in Learn. Throws when the schedule was not written, so the reply never claims a
+ * "Next ask in N days" that does not exist. Otherwise returns the whole days to the FSRS
+ * due date, which the reply quotes.
  */
 async function scheduleSpacedReview(
   memoryId: string,
   topic: string,
   summary: string,
+  unaided: boolean,
   correct: boolean,
   now: Date,
 ): Promise<number | "cleared"> {
   const key = `tutor_${memoryId}`;
-  const existing = await readSpaced(key);
-  // A cleared card stays cleared: no write, no revive.
-  if (existing?.deletedAt) return "cleared";
-  const prev = existing ? parseSpaced(existing.content) : null;
-  const step = spacedReviewStep(typeof prev?.streak === "number" ? prev.streak : 0, correct);
-  const next: SpacedReview = {
-    // The caller's text only seeds a new row, or fills a field an unreadable row lacks.
-    topic: prev?.topic ?? topic,
-    summary: prev?.summary ?? clip(summary, 300),
-    reviewAt: new Date(now.getTime() + step.days * DAY_MS).toISOString(),
-    interval: step.days,
-    completed: false,
-    streak: step.streak,
-    memoryId: prev?.memoryId ?? memoryId,
-  };
-  if (!existing) {
-    await brainMemory.remember(SPACED_REVIEW_CATEGORY, key, JSON.stringify(next), "tutor", { memoryId });
-    // remember() stamps a 24h probation TTL on new rows; a schedule row must outlive it
-    // (spaced_review is also in NEVER_HARD_DELETE_CATEGORIES).
-    await prisma.brainMemory.updateMany({ where: { category: SPACED_REVIEW_CATEGORY, key }, data: { expiresAt: null } });
-    return step.days;
-  }
-  const res = await prisma.brainMemory.updateMany({
-    where: { id: existing.id, category: SPACED_REVIEW_CATEGORY, key, content: existing.content, deletedAt: null },
-    data: { content: JSON.stringify(next), lastSeen: now, expiresAt: null },
-  });
-  if (res.count !== 1) throw new Error("spaced_review swap lost");
-  return step.days;
+  const rating = ratingFor(unaided, correct);
+  const seed: SpacedSeed = { topic, summary: clip(summary, 300), memoryId };
+  const graded = await gradeSpacedReview(key, rating, now, seed);
+  if (graded.status === "cleared") return "cleared";
+  if (graded.status === "graded") return graded.days;
+  if (graded.status !== "missing") throw new Error(`spaced_review ${graded.status}`);
+  const { fields, days } = scheduledFields(undefined, rating, now);
+  await brainMemory.remember(SPACED_REVIEW_CATEGORY, key, JSON.stringify({ ...seed, ...fields }), "tutor", { memoryId });
+  // remember() gives spaced_review no TTL since 2026-10-17 (ONE_SHOT_RECORD_CATEGORIES +
+  // category-ttl); this clear predates that and stays as a harmless second guard.
+  await prisma.brainMemory.updateMany({ where: { category: SPACED_REVIEW_CATEGORY, key }, data: { expiresAt: null } });
+  return days;
 }
 
 /** Skip on a due card: push it one day (compare-and-swap), or it stays due and is re-asked forever. */
@@ -513,7 +543,7 @@ export async function handleTutorAnswer(ledgerId: string, tapped: string): Promi
     // while the ledger's `useful` above keeps "answered correctly" for the W2 kill criterion.
     const recalled = unaided && correct;
     const days = memoryId
-      ? await scheduleSpacedReview(memoryId, tagMungerDisciplines(answer)[0], answer, recalled, now).catch((err) => {
+      ? await scheduleSpacedReview(memoryId, tagMungerDisciplines(answer)[0], answer, unaided, correct, now).catch((err) => {
           logError("brain.tutor-pack", err, { fn: "handleTutorAnswer.spaced", ledgerId }, "warn");
           return null;
         })
@@ -523,7 +553,9 @@ export async function handleTutorAnswer(ledgerId: string, tapped: string): Promi
     if (days === "cleared") return { reply: lead("Logged. That card was cleared in Learn, so no new date.") };
     if (days === null) return { reply: lead("Logged, schedule failed.") };
     if (recalled) return { reply: `Right. Next ask in ${days} day${days === 1 ? "" : "s"}.` };
-    return { reply: lead(unaided ? "Logged. Again tomorrow." : correct ? "Right, with the options. Again tomorrow." : "Again tomorrow.") };
+    // A lapse on a mature card can be days out, not tomorrow: quote the FSRS date.
+    const nextAsk = days === 1 ? "Again tomorrow." : `Again in ${days} days.`;
+    return { reply: lead(unaided ? `Logged. ${nextAsk}` : correct ? `Right, with the options. ${nextAsk}` : nextAsk) };
   }
 
   const replayId = typeof ev.replayId === "string" ? ev.replayId : null;

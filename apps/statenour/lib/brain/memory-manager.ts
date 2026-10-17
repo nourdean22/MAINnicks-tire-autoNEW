@@ -48,6 +48,12 @@ const ONE_SHOT_RECORD_CATEGORIES: ReadonlySet<string> = new Set([
   // 2026-08-18 · GATE #4 · traj_<messageId> keys are one-shot by the
   // same construction as judge_<messageId>.
   "trajectory_judgment",
+  // 2026-10-17 · scout 4 · a spaced_review row is a review SCHEDULE (FSRS
+  // state + due date), not an observation a re-sighting corroborates. The
+  // Learn tab writes it through remember(), and the 24h probation let
+  // pruneNoise soft-delete each card about when it came due. category-ttl
+  // gives it no TTL (permanent until Nour clears it).
+  "spaced_review",
 ]);
 
 /**

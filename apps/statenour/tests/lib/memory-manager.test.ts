@@ -158,6 +158,17 @@ describe("BrainMemoryManager.remember", () => {
     expect(exp.getTime()).toBeLessThanOrEqual(after + ninetyDays + 50);
   });
 
+  it("spaced_review (a review schedule, FSRS) gets NO TTL: the Learn tab's write through remember() must outlive the nightly sweep", async () => {
+    // Scout 4 round 3 (2026-10-17): Learn writes its card via recordMemory -> remember(); the
+    // 24h probation made pruneNoise soft-delete each card about when it came due.
+    mocks.brainMemory.findUnique.mockResolvedValueOnce(null);
+    mocks.brainMemory.create.mockResolvedValueOnce({ id: "m-sr" });
+    await mm.remember("spaced_review", "review_Opportunity_cost", '{"topic":"t"}', "learn_mode");
+    const data = realCreateCalls()[0][0].data;
+    expect(data.category).toBe("spaced_review");
+    expect(data).toHaveProperty("expiresAt", null);
+  });
+
   it("rewrites a deprecated category to its canonical form before write", async () => {
     mocks.brainMemory.findUnique.mockResolvedValueOnce(null);
     mocks.brainMemory.create.mockResolvedValueOnce({ id: "m2" });
