@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "nickstire/reel-qa-world",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "72e6a5b1-c131-4290-9859-4519ea80536a",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\musing-ramanujan-25e4e3",
   "claimedBy": "2026-10-17-reel-qa-world",
   "claimedAt": "2026-10-17T15:59:39.498Z",
   "expiresAt": "2026-10-18T03:59:39.498Z",
-  "releasedAt": null,
+  "releasedAt": "2026-10-17T17:06:44.484Z",
   "releaseReason": null,
-  "priorLeaseSha": null
+  "priorLeaseSha": "e9a4f12180b1932da442dbf7a3d055102cce9b8d",
+  "releasedBy": "11dd3c15-6c98-4bc9-9fa1-c404986839c6",
+  "foreignReleaseReason": "takeover: old account hit its usage limit 2026-10-17"
 }
