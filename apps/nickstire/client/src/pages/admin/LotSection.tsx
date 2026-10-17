@@ -1950,8 +1950,11 @@ export default function LotSection() {
             </div>
           )}
 
+          {/* On a desk screen the counters stand beside the board instead of under it, so both fit
+              the first screen and the board keeps the width its clocks need. */}
+          <div className="space-y-5 lg:space-y-0 lg:grid lg:grid-cols-[minmax(0,1fr)_200px] lg:gap-10 lg:items-start">
           {/* THE FLOOR BOARD, the page's first object (admin UI v1 W3): who is on the lot, longest
-              first, as ruled rows the crew acts on. The counters below say how many. */}
+              first, as ruled rows the crew acts on. The counters say how many. */}
           <section aria-labelledby="lot-board-title">
             <h2 id="lot-board-title" className="text-[15px] font-semibold">On the lot right now</h2>
             <p className="text-[13px] text-muted-foreground">
@@ -2026,7 +2029,7 @@ export default function LotSection() {
           </section>
 
           {/* THE COUNTERS, one strip like Today's (W3). Same four numbers and the same notes. */}
-          <section aria-label="Lot counters" className="grid grid-cols-4 gap-2">
+          <section aria-label="Lot counters" className="grid grid-cols-4 gap-2 lg:grid-cols-1 lg:gap-6 lg:pt-1">
             <LotCounter label="On property" value={n.counts.onProperty} />
             {/* NOT "Waiting". Jacking happens wherever it needs to, so this bucket holds
                 cars that are queueing AND cars being worked on where they stand. The
@@ -2048,6 +2051,7 @@ export default function LotSection() {
             <LotCounter label="In a bay" value={n.counts.inBays} detail="pulled in · bays 1 and 3" />
             <LotCounter label="Pulled out, still here" value={n.counts.postService} alert={n.counts.postService > 0} />
           </section>
+          </div>
         </>
       ) : null}
 
