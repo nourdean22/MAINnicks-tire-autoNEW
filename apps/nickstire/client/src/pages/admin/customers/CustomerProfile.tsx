@@ -118,12 +118,15 @@ export default function CustomerProfile({ customerId, onClose }: Props) {
     { enabled: !!customer?.phone }
   );
 
-  // A paused (offline PWA) or never-run read has no data and no error, so it is unknown, never "none found".
-  // Also true with no phone on file: both reads are keyed by phone.
-  const historyUnread = !historyFailed && !historyLoading && historyData === undefined;
-  const timelineUnread = !timelineFailed && !timelineLoading && timeline === undefined;
-  const historyCountUnknown = historyFailed || historyUnread;
-  const historyUnreadMessage = "Service history not checked (offline, or no phone on file). Unknown, not empty.";
+  // Both reads are keyed by phone. With none on file they never run, and nothing offers a Retry: refetch()
+  // ignores `enabled` and would ask the server for phone "", which matches other blank-phone rows.
+  const noPhone = !!customer && !customer.phone;
+  // A paused (offline PWA) read has no data and no error, so it is unknown, never "none found".
+  const historyUnread = !noPhone && !historyFailed && !historyLoading && historyData === undefined;
+  const timelineUnread = !noPhone && !timelineFailed && !timelineLoading && timeline === undefined;
+  const historyCountUnknown = noPhone || historyFailed || historyUnread;
+  const historyUnreadMessage = "Service history not checked (offline). Unknown, not empty.";
+  const noPhoneHistory = <p className="text-[13px] text-foreground/60 py-6 text-center">No phone on file, history can&apos;t be looked up</p>;
 
   const { data: affinityData } = trpc.intelligence.serviceAffinity.useQuery(undefined, {
     staleTime: 5 * 60_000,
@@ -451,8 +454,10 @@ export default function CustomerProfile({ customerId, onClose }: Props) {
               </div>
             ) : timelineFailed ? (
               <ErrorState message="Interactions couldn't load. Unknown, not empty." onRetry={() => void refetchTimeline()} />
+            ) : noPhone ? (
+              <p className="text-[13px] text-foreground/60 py-4 text-center">No phone on file, interactions can&apos;t be looked up</p>
             ) : timelineUnread ? (
-              <ErrorState message="Interactions not checked (offline, or no phone on file). Unknown, not empty." onRetry={() => void refetchTimeline()} />
+              <ErrorState message="Interactions not checked (offline). Unknown, not empty." onRetry={() => void refetchTimeline()} />
             ) : !timeline || timeline.length === 0 ? (
               <p className="text-xs text-foreground/35 py-4 italic text-center">No interactions recorded yet.</p>
             ) : (
@@ -524,6 +529,8 @@ export default function CustomerProfile({ customerId, onClose }: Props) {
                     <div className="overflow-x-auto">
                       {historyFailed ? (
                         <ErrorState message="Service history couldn't load. Unknown, not empty." onRetry={() => void refetchHistory()} />
+                      ) : noPhone ? (
+                        noPhoneHistory
                       ) : historyUnread ? (
                         <ErrorState message={historyUnreadMessage} onRetry={() => void refetchHistory()} />
                       ) : !historyData?.invoices || historyData.invoices.length === 0 ? (
@@ -581,6 +588,8 @@ export default function CustomerProfile({ customerId, onClose }: Props) {
                     <div className="overflow-x-auto">
                       {historyFailed ? (
                         <ErrorState message="Service history couldn't load. Unknown, not empty." onRetry={() => void refetchHistory()} />
+                      ) : noPhone ? (
+                        noPhoneHistory
                       ) : historyUnread ? (
                         <ErrorState message={historyUnreadMessage} onRetry={() => void refetchHistory()} />
                       ) : !historyData?.declinedEstimates || historyData.declinedEstimates.length === 0 ? (
@@ -637,6 +646,8 @@ export default function CustomerProfile({ customerId, onClose }: Props) {
                     <div className="overflow-x-auto">
                       {historyFailed ? (
                         <ErrorState message="Service history couldn't load. Unknown, not empty." onRetry={() => void refetchHistory()} />
+                      ) : noPhone ? (
+                        noPhoneHistory
                       ) : historyUnread ? (
                         <ErrorState message={historyUnreadMessage} onRetry={() => void refetchHistory()} />
                       ) : !historyData?.openWorkOrders || historyData.openWorkOrders.length === 0 ? (
