@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "statenour/langfuse-v2-repoint",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "11dd3c15-6c98-4bc9-9fa1-c404986839c6",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\new-session-bbf695",
+  "claimedBy": "2026-10-17-langfuse-docs-repoint",
+  "claimedAt": "2026-10-17T20:14:03.569Z",
+  "expiresAt": "2026-10-18T08:14:03.569Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
