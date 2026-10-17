@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "statenour/brain-fu5-legacy-learn-rows",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "11dd3c15-6c98-4bc9-9fa1-c404986839c6",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\new-session-bbf695",
   "claimedBy": "2026-10-17-brain-fu5-legacy-learn-rows",
   "claimedAt": "2026-10-17T19:27:13.614Z",
   "expiresAt": "2026-10-18T07:27:13.614Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": null
+  "releasedAt": "2026-10-17T19:41:42.678Z",
+  "releaseReason": "PR #3131 merged as b8b100018",
+  "priorLeaseSha": "e8f1bb3c3f9981039a059666095a3762d16ab72c",
+  "releasedBy": "11dd3c15-6c98-4bc9-9fa1-c404986839c6",
+  "foreignReleaseReason": null
 }
