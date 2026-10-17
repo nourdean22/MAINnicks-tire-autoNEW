@@ -118,9 +118,11 @@ curl -sS -X POST https://bdnick.info/api/system/observability-probe \
 It returns a `probeId`. **Read it back carefully — the naive matcher gives a
 false negative.** Langfuse names the observation `<functionId>:<span name>`, so
 look for `observability-probe:ai.generateText`, not `observability-probe`. And
-`GET /api/public/v2/observations` returns a thin PROJECTION: `metadata`,
-`userId`, `tags`, `release`, `model` and `input` are absent there but present on
-`GET /api/public/traces/<traceId>`. Checking only the list endpoint is how a
+list endpoints are PROJECTIONS: on `GET /api/public/v2/observations` a field
+comes back only if its group is requested with `fields=` (default `core,basic`),
+so an unrequested field (`metadata`, `tags`, `release`, `model`, `input`) reads
+as absent. The legacy `GET /api/public/traces[/<id>]` detail route is removed
+from Langfuse Cloud on 2026-11-16. Reading with the default groups is how a
 WORKING pipeline gets reported dead — that happened on 2026-09-02. The Sentry
 side reads back by the returned `eventId`.
 

@@ -131,7 +131,8 @@ export interface LangfuseTelemetryInput {
    * `<functionId>:ai.generateText`. kebab-case verb-noun, stable across deploys.
    *
    * ⚠⚠ THIS IS NOT THE TRACE NAME, though this line said it was until
-   * 2026-09-17. Measured against `GET /api/public/traces` in production:
+   * 2026-09-17. Measured 2026-09-17 against the legacy `GET /api/public/traces`
+   * (removed from Langfuse Cloud 2026-11-16) in production:
    * **0 of 50 traces carried a name** (672 in the window) while `userId` landed
    * 50/50, `tags` 47/50 and `metadata` on every row. The three metadata-borne
    * channels below work; only this one was mis-documented.
@@ -204,7 +205,8 @@ export function langfuseTelemetry(input: LangfuseTelemetryInput): {
  *
  * ★★★ WHY THIS EXISTS. `functionId` names the OBSERVATION
  * (`memory-consolidation:ai.generateText`), never the trace. Measured against
- * `GET /api/public/traces`: 0 of 50 traces carried a name while `userId`,
+ * Measured 2026-09-17 against the legacy `GET /api/public/traces` (removed from
+ * Langfuse Cloud 2026-11-16): 0 of 50 traces carried a name while `userId`,
  * `tags` and `metadata` all landed. A trace name needs
  * `propagateAttributes`, which establishes an OTel context that every span
  * created inside the callback inherits — so the AI SDK's own spans pick it up

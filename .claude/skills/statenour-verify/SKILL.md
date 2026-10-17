@@ -450,11 +450,12 @@ return a clean, believable empty result:
 1. **The vendor's naming convention.** Langfuse stores an observation as
    `<functionId>:<span>` — searching `observability-probe` finds nothing while
    `observability-probe:ai.generateText` is sitting right there.
-2. **List endpoints are PROJECTIONS.** `GET /api/public/v2/observations` omits
-   `metadata`, `userId`, `tags`, `release`, `model` and `input` entirely; those
-   exist only on the DETAIL route, `GET /api/public/traces/<traceId>`. Querying
-   the list for a field the list does not carry returns "absent" for a field
-   that is present.
+2. **List endpoints are PROJECTIONS.** On `GET /api/public/v2/observations` a
+   field comes back only if its group is requested with `fields=` (default
+   `core,basic`), so an unrequested field reads as absent. The legacy
+   `GET /api/public/traces[/<id>]` detail route is removed from Langfuse Cloud
+   on 2026-11-16. Querying without the group returns "absent" for a field that
+   is present.
 
 Both fired in one run, and nearly recorded a WORKING pipeline as dead — in a
 session whose whole subject was a health badge that lied. **Prove the reader

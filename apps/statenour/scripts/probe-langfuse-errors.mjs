@@ -17,7 +17,8 @@
  * READ-ONLY against Langfuse; touches no database.
  * Usage: railway run -s statenour-web -- node apps/statenour/scripts/probe-langfuse-errors.mjs
  */
-import { assessTraceControl, assessSampleCoverage, countBy, traceIdentity } from "./lib/error-visibility.mjs";
+import { buildObservationsPath, collectPages, groupByTrace } from "./lib/langfuse-v2.mjs";
+import { assessTraceControl, countBy, traceIdentity } from "./lib/error-visibility.mjs";
 
 const PUB = process.env.LANGFUSE_PUBLIC_KEY;
 const SEC = process.env.LANGFUSE_SECRET_KEY;
@@ -47,7 +48,6 @@ const ENVIRONMENT = (
 )
   .trim()
   .toLowerCase();
-const ENV_Q = `&environment=${encodeURIComponent(ENVIRONMENT)}`;
 
 if (!PUB || !SEC) {
   console.error(
@@ -62,7 +62,15 @@ console.log(
 );
 
 const auth = "Basic " + Buffer.from(`${PUB}:${SEC}`).toString("base64");
+const until = new Date().toISOString();
 const since = new Date(Date.now() - DAYS * 86_400_000).toISOString();
+
+/** One v2 read, paged by meta.cursor. A non-2xx comes back as `failure`. */
+const readV2 = (extra, maxPages) =>
+  collectPages(
+    (cursor) => api(buildObservationsPath({ since, until, environment: ENVIRONMENT, cursor, ...extra })),
+    { maxPages },
+  );
 
 async function api(path) {
   const res = await fetch(`${BASE}/api/public${path}`, {
@@ -77,19 +85,23 @@ async function api(path) {
 
 async function main() {
   // ── CONTROL: is anything being traced at all? ───────────────────────
-  const traces = await api(`/traces?fromTimestamp=${encodeURIComponent(since)}&limit=100${ENV_Q}`);
-  if (!traces.ok) {
+  // v2 has no trace list and no totalItems: read observations with the trace
+  // groups the identity section needs, then group by traceId here.
+  const tr = await readV2({ limit: 1000, fields: ["core", "basic", "trace_context", "metadata"] }, 6);
+  if (tr.failure) {
     console.error(
-      `\nABORT — /traces returned ${traces.status}. Cannot distinguish "no errors" from\n` +
-        `        "no access". Body: ${traces.body}`,
+      `\nABORT — /v2/observations returned ${tr.failure.status}. Cannot distinguish "no errors" from\n` +
+        `        "no access". Body: ${tr.failure.body}`,
     );
     process.exit(2);
   }
-  const list = traces.json?.data ?? [];
-  const meta = traces.json?.meta ?? {};
-  const totalTraces = meta.totalItems ?? list.length;
+  const list = groupByTrace(tr.rows);
+  const totalTraces = list.length; // exact only when tr.complete
   const traceControl = assessTraceControl({ totalTraces });
-  console.log(`\ncontrol: ${totalTraces} trace(s) in the last ${DAYS}d · env=${ENVIRONMENT}`);
+  console.log(
+    `\ncontrol: ${totalTraces} trace(s) in the last ${DAYS}d · env=${ENVIRONMENT}` +
+      (tr.complete ? "" : ` · LOWER BOUND (read capped at ${tr.rows.length} observations, window not exhausted)`),
+  );
   if (!traceControl.trustZeroErrors) {
     console.log(
       "\nVERDICT: ZERO traces in the window. This says NOTHING about error rates —\n" +
@@ -113,19 +125,19 @@ async function main() {
   // deploys) named traces could sit entirely outside the page. Printing "NO
   // trace carries a name" from one page is a conclusion about PAGINATION, the
   // very rule this file's own header states and this section then broke.
-  const nameCoverage = assessSampleCoverage({ total: totalTraces, sampled: list.length });
+  const nameCoverage = { complete: tr.complete };
   const named = list.filter((t) => traceIdentity(t).named).length;
   const scope = nameCoverage.complete
     ? `all ${totalTraces} in window`
-    : `sample of ${list.length} of ${totalTraces}, ${nameCoverage.pct.toFixed(0)}%`;
+    : `first ${list.length} traces seen; window not exhausted`;
   console.log(`\n── trace identity (${scope}) ──`);
   console.log(`  named: ${named}/${list.length}`);
   if (named === 0 && list.length > 0) {
     console.log(
       (nameCoverage.complete
         ? "  ⚠ NO trace in the window carries a name.\n"
-        : `  ⚠ No trace IN THIS SAMPLE carries a name (${nameCoverage.pct.toFixed(0)}% of the\n` +
-          `    window; the rest were not fetched, so this is not a claim about them).\n`) +
+        : "  ⚠ No trace IN THIS SAMPLE carries a name (the window was not exhausted;\n" +
+          "    the rest were not fetched, so this is not a claim about them).\n") +
         "    `functionId` names the OBSERVATION, not the trace — naming traces\n" +
         "    needs propagateAttributes({ traceName }) from @langfuse/tracing,\n" +
         "    which is not installed. Identity below is the fallback, and it is\n" +
@@ -141,31 +153,16 @@ async function main() {
     // Several pages, because ONE page of 50 out of thousands is a sample of
     // whatever sorted first — and reporting "all errors are X" from it would
     // be a conclusion about pagination, not about production.
-    const rows = [];
-    let total = null;
-    for (let page = 1; page <= 6; page++) {
-      const obs = await api(
-        `/observations?fromStartTime=${encodeURIComponent(since)}&level=${level}&limit=100&page=${page}${ENV_Q}`,
-      );
-      if (!obs.ok) {
-        console.log(`\n⚠ /observations?level=${level} p${page} returned ${obs.status} — UNKNOWN, not zero.`);
-        break;
-      }
-      total ??= obs.json?.meta?.totalItems ?? null;
-      const batch = obs.json?.data ?? [];
-      rows.push(...batch);
-      if (batch.length < 100) break;
+    const read = await readV2({ limit: 100, level, fields: ["core", "basic", "model"] }, 6);
+    if (read.failure) {
+      console.log(`\n⚠ /v2/observations?level=${level} returned ${read.failure.status} — UNKNOWN, not zero.`);
+      if (read.rows.length === 0) continue; // nothing read: print no counts at all
     }
-    total ??= rows.length;
-    // A partial page must not masquerade as the whole population.
-    const cov = assessSampleCoverage({ total, sampled: rows.length });
-    const covNote = cov.complete
-      ? " · COMPLETE"
-      : cov.representative
-        ? " · partial but representative"
-        : " · ⚠ THIN SAMPLE, do not generalise";
+    const rows = read.rows;
+    // v2 reports no total: a cursor that ran out IS the total, a capped read is a lower bound.
+    const covNote = read.complete ? " · COMPLETE" : " · ⚠ NOT EXHAUSTED (lower bound), do not generalise";
     console.log(
-      `\n── ${level}: ${total} total · ${rows.length} sampled (${cov.pct.toFixed(0)}%)${covNote} ──`,
+      `\n── ${level}: ${read.complete ? rows.length : `>= ${rows.length}`} total · ${rows.length} sampled${covNote} ──`,
     );
     // WHICH SURFACE is failing decides whether this is contained or systemic.
     const bySurface = new Map();
