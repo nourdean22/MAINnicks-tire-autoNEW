@@ -13,7 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } fr
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import React from "react";
 
-type Lane = { lane: string; paused: boolean | null; readable: boolean; failClass: "closed" | "open"; envArmed: boolean | null };
+type Lane = { lane: string; paused: boolean | null; readable: boolean; failClass: "closed" | "open"; envArmed: boolean | null; heldQueued?: number | null };
 
 const h = vi.hoisted(() => ({
   status: undefined as { lanes: Lane[] } | undefined,
@@ -163,11 +163,21 @@ describe("Send switches card: three chip states, never two", () => {
     expect(within(row("missed_call_recovery")).getByText("env unknown")).toBeTruthy();
   });
 
-  it("a lane missing from the response is Unknown, not Live", () => {
-    h.status = { lanes: LANES.slice(0, 4).map((n) => lane(n)) };
+  it("a lane missing from the response is Unknown, not Live, and still says what a failed read does", () => {
+    h.status = { lanes: LANES.filter((n) => n !== "missed_call_recovery" && n !== "customer_confirmations").map((n) => lane(n)) };
     render(<Pipeline />);
     expect(within(row("missed_call_recovery")).getByText("Unknown")).toBeTruthy();
     expect(within(row("missed_call_recovery")).queryByText("Live")).toBeNull();
+    expect(within(row("missed_call_recovery")).getByText(CLOSED_NOTE)).toBeTruthy();
+    expect(within(row("customer_confirmations")).getByText(OPEN_NOTE)).toBeTruthy();
+  });
+
+  it("a failed query still says per row whether a failed read holds the lane (static fail class)", () => {
+    h.isError = true;
+    render(<Pipeline />);
+    for (const n of LANES) {
+      expect(within(row(n)).getByText(n === "customer_confirmations" ? OPEN_NOTE : CLOSED_NOTE)).toBeTruthy();
+    }
   });
 
   it("a failed read of the whole card is five Unknown rows with Retry, and never Live", () => {
@@ -233,6 +243,35 @@ describe("Pause and Resume", () => {
     expect(h.toggleMutate).toHaveBeenCalledTimes(1);
   });
 
+  const QUEUE_LINE = "Texts queued before or during the pause send on resume.";
+  const resumeMessage = async (over: Partial<Lane>) => {
+    h.status = all({ paused: true, ...over });
+    render(<Pipeline />);
+    fireEvent.click(resume("weather_sms"));
+    await waitFor(() => expect(h.confirmDialog).toHaveBeenCalledTimes(1));
+    return String(h.confirmDialog.mock.calls[0][0].message);
+  };
+
+  it("the Resume dialog always carries the plain queued-texts line, after the policy copy", async () => {
+    const msg = await resumeMessage({});
+    expect(msg).toContain(QUEUE_LINE);
+    expect(msg).toContain("Resuming lets weather-triggered texts go to lapsed customers again");
+    expect(msg).not.toMatch(/will send now|queued count unknown/);
+  });
+
+  it("the Resume dialog shows the held count when the status row carries one", async () => {
+    const msg = await resumeMessage({ heldQueued: 3 });
+    expect(msg).toContain(QUEUE_LINE);
+    expect(msg).toContain("3 queued texts will send now");
+  });
+
+  it("the Resume dialog says the queued count is unknown when heldQueued is null", async () => {
+    const msg = await resumeMessage({ heldQueued: null });
+    expect(msg).toContain(QUEUE_LINE);
+    expect(msg).toContain("queued count unknown");
+    expect(msg).not.toContain("will send now");
+  });
+
   it("a cancelled Resume changes nothing", async () => {
     h.status = MIXED;
     render(<Pipeline />);
@@ -247,6 +286,37 @@ describe("Pause and Resume", () => {
     render(<Pipeline />);
     fireEvent.click(pause("voice_outbound"));
     expect(h.refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("a toggle refetches at once and again after 6 s, and never flips the chip before a read says so", () => {
+    vi.useFakeTimers();
+    try {
+      h.status = all();
+      render(<Pipeline />);
+      fireEvent.click(pause("voice_outbound"));
+      expect(h.refetch).toHaveBeenCalledTimes(1);
+      expect(within(row("voice_outbound")).getByText("Live")).toBeTruthy();
+      vi.advanceTimersByTime(5999);
+      expect(h.refetch).toHaveBeenCalledTimes(1);
+      vi.advanceTimersByTime(1);
+      expect(h.refetch).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("the 6 s refetch is cancelled when the card unmounts", () => {
+    vi.useFakeTimers();
+    try {
+      h.status = all();
+      const view = render(<Pipeline />);
+      fireEvent.click(pause("voice_outbound"));
+      view.unmount();
+      vi.advanceTimersByTime(7000);
+      expect(h.refetch).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("a toggle error shows its text under that row and leaves the chip alone", () => {

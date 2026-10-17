@@ -10,7 +10,7 @@
  * window.confirm is suppressed in the iOS standalone PWA. A toggle error is shown under its row
  * and never moves the chip: only a refetched read does.
  */
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, Loader2, RefreshCw } from "lucide-react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
@@ -19,14 +19,20 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
-type LaneEntry = RouterOutputs["instagramAdmin"]["sendSwitchesStatus"]["lanes"][number];
+// heldQueued is the additive v1.1 field (texts held by the pause): number, null = unknown, absent = lane without a queue.
+type LaneEntry = RouterOutputs["instagramAdmin"]["sendSwitchesStatus"]["lanes"][number] & { heldQueued?: number | null };
 
+/** The server caches a switch for 5 s, so a read right after a toggle can still be the old value. */
+const REREAD_MS = 6000;
+
+// The five lanes are fixed, so their fail class is kept here too (server SEND_PAUSE_LANES): a failed
+// query or a lane missing from the response must still say whether a failed read holds that lane.
 const LANES = [
-  { lane: "voice_outbound", label: "Outbound calls" },
-  { lane: "customer_confirmations", label: "Order confirmations" },
-  { lane: "declined_recovery", label: "Declined-work follow-ups" },
-  { lane: "weather_sms", label: "Weather texts" },
-  { lane: "missed_call_recovery", label: "Missed-call texts" },
+  { lane: "voice_outbound", label: "Outbound calls", failClass: "closed" },
+  { lane: "customer_confirmations", label: "Order confirmations", failClass: "open" },
+  { lane: "declined_recovery", label: "Declined-work follow-ups", failClass: "closed" },
+  { lane: "weather_sms", label: "Weather texts", failClass: "closed" },
+  { lane: "missed_call_recovery", label: "Missed-call texts", failClass: "closed" },
 ] as const;
 
 const TONE = {
@@ -44,15 +50,24 @@ function chipState(e: LaneEntry | undefined): ChipState {
 
 const envLine = (e: LaneEntry | undefined) => (e?.envArmed === true ? "env armed" : e?.envArmed === false ? "env off" : "env unknown");
 
-function unknownNote(e: LaneEntry | undefined): string {
+function unknownNote(failClass: "closed" | "open"): string {
   const base = "This switch could not be read, state unknown.";
-  if (!e) return base;
-  return e.failClass === "closed"
+  return failClass === "closed"
     ? `${base} A failed read holds this lane's automatic sends until it reads.`
     : `${base} A failed read does not hold this lane, so confirmations keep sending.`;
 }
 
-function LaneRow({ lane, label, entry, onSettled }: { lane: string; label: string; entry: LaneEntry | undefined; onSettled: () => void }) {
+const QUEUE_LINE = "Texts queued before or during the pause send on resume.";
+
+function resumeNote(e: LaneEntry | undefined): string {
+  if (e?.heldQueued === undefined) return QUEUE_LINE;
+  if (e.heldQueued === null) return `${QUEUE_LINE} Check first: queued count unknown.`;
+  return `${QUEUE_LINE} ${e.heldQueued} queued ${e.heldQueued === 1 ? "text" : "texts"} will send now.`;
+}
+
+type RowProps = { lane: string; label: string; failClass: "closed" | "open"; entry: LaneEntry | undefined; onSettled: () => void };
+
+function LaneRow({ lane, label, failClass, entry, onSettled }: RowProps) {
   const flag = `send_pause_${lane}`;
   const [error, setError] = useState<string | null>(null);
   const toggle = trpc.featureFlags.toggle.useMutation({
@@ -66,7 +81,9 @@ function LaneRow({ lane, label, entry, onSettled }: { lane: string; label: strin
 
   const onClick = async () => {
     if (paused) {
-      const ok = await confirmDialog({ ...confirmationCopy(flag, false), tone: "danger" });
+      const copy = confirmationCopy(flag, false);
+      const message = `${copy.message} ${resumeNote(entry)}`;
+      const ok = await confirmDialog({ ...copy, message, tone: "danger" });
       if (!ok) return;
     }
     toggle.mutate({ key: flag, value: !paused });
@@ -79,7 +96,7 @@ function LaneRow({ lane, label, entry, onSettled }: { lane: string; label: strin
         <Badge variant="outline" className={TONE[state]}>{state}</Badge>
       </div>
       <p className="text-muted-foreground">{envLine(entry)}</p>
-      {state === "Unknown" && <p className="break-words text-muted-foreground">{unknownNote(entry)}</p>}
+      {state === "Unknown" && <p className="break-words text-muted-foreground">{unknownNote(entry?.failClass ?? failClass)}</p>}
       {error && <p role="alert" className="break-words rounded-md border border-border p-3">{error}</p>}
       <Button
         variant="outline"
@@ -96,6 +113,14 @@ function LaneRow({ lane, label, entry, onSettled }: { lane: string; label: strin
 
 export function SendSwitchesCard() {
   const q = trpc.instagramAdmin.sendSwitchesStatus.useQuery();
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  useEffect(() => () => timers.current.forEach(clearTimeout), []);
+
+  // Read again now, and once more after the server's cache window. The chip only ever follows a read.
+  const reread = () => {
+    q.refetch();
+    timers.current.push(setTimeout(() => q.refetch(), REREAD_MS));
+  };
 
   if (q.isLoading) {
     return (
@@ -130,7 +155,7 @@ export function SendSwitchesCard() {
       <CardContent className="space-y-2 text-base">
         <ul className="divide-y divide-border">
           {entries.map((e) => (
-            <LaneRow key={e.lane} lane={e.lane} label={e.label} entry={e.entry} onSettled={() => q.refetch()} />
+            <LaneRow key={e.lane} lane={e.lane} label={e.label} failClass={e.failClass} entry={e.entry} onSettled={reread} />
           ))}
         </ul>
         {anyUnknown && (
