@@ -59,6 +59,8 @@ const POLICIES: Record<string, CategoryTtlPolicy> = {
   brain_dump: { days: null, notes: "raw thoughts · pruned via dedup, not TTL" },
   meta_pattern: { days: null, notes: "patterns about patterns" },
   customer_stories: { days: null, notes: "anonymized invoice → content" },
+  // 2026-10-17 · scout 4 · review schedule rows (FSRS); cleared only by Nour in Learn.
+  spaced_review: { days: null, notes: "FSRS review schedule · Daily Tutor + Learn tab · cleared by the operator" },
 
   // ── LONG (180d) ──────────────────────────────────────────────
   nick_advice: { days: 180, notes: "Nick's responses · long-tail recall" },
