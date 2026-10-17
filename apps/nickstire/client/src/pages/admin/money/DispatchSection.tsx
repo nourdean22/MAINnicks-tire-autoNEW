@@ -9,7 +9,7 @@
  * bay row behind it; the audit's "never written" was wrong, correction #17.)
  * Techs, the ready queue and QC are real and stay.
  */
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { readStatus } from "@/lib/queryState";
 import { Loader2, User, Play, CheckCircle2, XCircle, Clock, Wrench, Shield } from "lucide-react";
@@ -151,14 +151,14 @@ function MetricsStrip({ load: loadQuery }: { load: DispatchLoadQuery }) {
 // ─── Row (phones and desktop: admin UI v1 W4, Today's row grammar) ──────
 function DispatchRow({ wo, verb, selected, onVerb }: { wo: WorkOrderListItem; verb: string; selected: boolean; onVerb: () => void }) {
   const vehicle = [wo.vehicleYear, wo.vehicleMake, wo.vehicleModel].filter(Boolean).join(" ");
-  const who = wo.customerName || wo.orderNumber;
+  const who = wo.customerName || "No customer on file";
   const promise = wo.promisedAt ? new Date(wo.promisedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : null;
   return (
     <li className={`py-3 flex items-center gap-3 ${selected ? "bg-primary/5" : ""}`}>
       <div className="min-w-0 flex-1">
-        <p className="text-[16px] leading-snug font-semibold truncate">{vehicle || wo.orderNumber}</p>
+        <p className="text-[16px] leading-snug font-semibold truncate">{vehicle || "Vehicle not on file"}</p>
         <p className="text-[13px] text-muted-foreground truncate">
-          {who}
+          {wo.orderNumber} · {who}
           {wo.assignedTech ? ` · ${wo.assignedTech}` : ""}
           {promise ? ` · promised ${promise}` : ""}
           {wo.serviceDescription ? ` · ${wo.serviceDescription}` : ""}
@@ -177,11 +177,21 @@ function DispatchRow({ wo, verb, selected, onVerb }: { wo: WorkOrderListItem; ve
   );
 }
 
+/** Brings the panel a row verb opened into view; below lg it renders under the whole list. */
+function useScrollPanelIntoView(selected: string | null) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (selected) ref.current?.scrollIntoView?.({ block: "start", behavior: "smooth" });
+  }, [selected]);
+  return ref;
+}
+
 // ─── Ready Queue ────────────────────────────────────
 function ReadyQueue() {
   const readyQuery = trpc.workOrders.list.useQuery({ status: "ready_for_bay" }, { refetchInterval: 10000, refetchIntervalInBackground: false });
   const { data: workOrders, isLoading, isError, refetch } = readyQuery;
   const [selectedWo, setSelectedWo] = useState<string | null>(null);
+  const panelRef = useScrollPanelIntoView(selectedWo);
 
   if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin" /></div>;
   if (isError) return <ErrorState message="Couldn't load ready-queue" onRetry={() => refetch()} />;
@@ -212,7 +222,7 @@ function ReadyQueue() {
       </div>
 
       {/* Assignment panel */}
-      {selectedWo && <AssignmentPanel workOrderId={selectedWo} />}
+      {selectedWo && <div ref={panelRef} className="scroll-mt-16"><AssignmentPanel workOrderId={selectedWo} /></div>}
     </div>
   );
 }
@@ -295,6 +305,7 @@ function QcReview() {
   const qcQuery = trpc.workOrders.list.useQuery({ status: "qc_review" }, { refetchInterval: 10000, refetchIntervalInBackground: false });
   const { data: workOrders, isLoading, isError, refetch } = qcQuery;
   const [selectedWo, setSelectedWo] = useState<string | null>(null);
+  const panelRef = useScrollPanelIntoView(selectedWo);
 
   if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin" /></div>;
   // A failed or paused read checked nothing: never "No jobs pending QC review".
@@ -322,7 +333,7 @@ function QcReview() {
           ))}
         </ul>
       </div>
-      {selectedWo && <QcChecklistPanel workOrderId={selectedWo} />}
+      {selectedWo && <div ref={panelRef} className="scroll-mt-16"><QcChecklistPanel workOrderId={selectedWo} /></div>}
     </div>
   );
 }
