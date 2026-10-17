@@ -216,6 +216,17 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     ownerDoc: "lib/ai/chat-mode.ts",
   },
   {
+    key: "NICK_DECISION_MODE",
+    description:
+      "Brain W3 Socratic decision mode (2026-10-17, lib/brain/decision-forecast.ts): on a decision turn with an explicit cue (should I, which one, worth it, go with...), Nick first asks for the decision, the alternatives, Nour's probability and a review date, stores the answer once as a DecisionReplay (probability in MasteryDecision.predictedOutcome), and the review scores it with Brier. \"just answer\" turns it off for the conversation. KILL CRITERION: if Nour overrides it (\"just answer\") on more than 50% of decision turns over 2 weeks, make it opt-in (\"/decide\"); measure decisionSkip vs decisionAsk in chat_messages.token_usage.contextBlocks. LIVE by default; set NICK_DECISION_MODE=0 to disable.",
+    status: "experimental",
+    onValue: "true",
+    defaultOn: true,
+    defaultBehavior:
+      "LIVE: decision turns get the ask, and answers with a probability and a review date are stored. Kill-switch NICK_DECISION_MODE=0 stops the ask and the store with no deploy; forecasts already stored still score at review.",
+    ownerDoc: "lib/brain/decision-forecast.ts",
+  },
+  {
     key: "NICK_RECALL_ARBITER",
     description:
       "Brain plan Wave 2 (2026-09-08): one evidence pack across the two chat recall lanes (memory-recall hybrid + contextual pipeline) — union by id, content-identity dedupe, RRF k=60, one rerank, MMR redundancy penalty — rendered as a single block instead of two overlapping ones. Off until the frozen 121-case corpus (manifest data/recall-corpus.manifest.json) or a 7-day prod judge-split (scripts/arbiter-judge-split.ts) shows no regression (plan section 6.4). Set NICK_RECALL_ARBITER=1 to enable.",
