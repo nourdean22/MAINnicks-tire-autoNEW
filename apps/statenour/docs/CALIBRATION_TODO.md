@@ -3,19 +3,19 @@ clarity-gate-version: 2.1
 processed-date: 2026-06-11
 processed-by: Antigravity + Nour
 clarity-status: CLEAR
-hitl-status: REVIEWED
-hitl-pending-count: 0
+hitl-status: PENDING
+hitl-pending-count: 1
 points-passed: 1-9
 document-sha256: 0e24773c3bb0d68b4c80f82a6b3847e56a2a012f9bd837e54c03e3654e1cfbcf
 hitl-claims:
   - id: claim-calibration-threshold
-    text: "To graduate from a preliminary verdict to a confident assessment, we require a minimum sample size of n >= 30 rated comparisons with an agreement rate of >= 70%."
-    value: "n >= 30, agreement >= 70%"
-    source: "Statenour calibration system specifications"
-    location: "CALIBRATION_TODO.md#L15"
+    text: "To graduate from a preliminary verdict to a confident assessment, we require a minimum sample size of n >= 30 rated comparisons with Cohen's kappa >= 0.4 (moderate) or >= 0.6 (well-calibrated)."
+    value: "n >= 30, kappa >= 0.4 / 0.6"
+    source: "lib/services/judge-calibration.ts deriveVerdict; ADR 0019 amended 2026-10-17"
+    location: "CALIBRATION_TODO.md#L35"
     round: A
-    confirmed-by: Nour
-    confirmed-date: 2026-06-11
+    confirmed-by: PENDING (the 2026-06-11 confirmation was for the old agreement >= 70% rule)
+    confirmed-date: PENDING
 ---
 
 # Statenour Judge Calibration Runbook
@@ -28,11 +28,14 @@ This guide explains how the Statenour V1 vs V2 prompt judge calibration works, w
 
 Statenour V2 prompt builders are evaluated by an LLM judge. The judge decides whether V2 outperforms V1 on a 5-axis rubric. However, to ensure the LLM judge does not share blind spots with the prompts, we calibrate the LLM judge against **human feedback** (the operator's thumbs-up or thumbs-down reactions).
 
-The calibration system calculates **agreement**:
+The calibration system calculates **agreement** and Cohen's **kappa** (agreement corrected for chance):
 - **Agree**: The judge picked V2 and the operator gave it a thumbs-up (+1), OR the judge picked V1 and the operator gave it a thumbs-down (-1).
 - **Disagree**: The judge picked V2 and the operator gave it a thumbs-down (-1), OR the judge picked V1 and the operator gave it a thumbs-up (+1).
+- **False pass rate**: the share of your thumbs-downs where the judge picked V2. **False fail rate**: the share of your thumbs-ups where the judge picked V1.
 
-To graduate from a `preliminary` verdict to a confident assessment, we require a minimum sample size of **$n \ge 30$ rated comparisons** with an agreement rate of **$\ge 70\%$**.
+Raw agreement is not the verdict: a judge that always picks V2 agrees with you as often as you thumbs-up V2. The verdict reads kappa, compared at the 2 places the dashboard prints.
+
+To graduate from a `preliminary` verdict to a confident assessment, we require a minimum sample size of **$n \ge 30$ rated comparisons** with **kappa $\ge 0.4$** (`moderate`) or **kappa $\ge 0.6$** (`well-calibrated`); below 0.4 is `miscalibrated`. The verdict also stays `preliminary` while all your reactions are thumbs-up, or all are thumbs-down: kappa and one of the two rates read `unknown` until both appear, so rate some replies both ways.
 
 ---
 
@@ -81,12 +84,15 @@ Checking judge calibration...
 ---------------------------------------
 Total Scored (n): 32
 Agreement %: 78.1
-Verdict: well-calibrated
-Verdict Reason: judge-operator agreement 78.1% over 32 samples · ground-truth confirms judge rulings
+Kappa: 0.552
+False pass rate: 0.2857142857142857
+False fail rate: 0.16666666666666666
+Verdict: moderate
+Verdict Reason: kappa 0.55, agreement 78.1% · usable but interpret verdicts with caution
 Ties: 4
 No operator reaction: 15
 No source message: 2
-Matrix: [{"judge":"v2","human":"thumbs_up","count":20}, ...]
+Matrix: [{"judge":"v2","human":"thumbs_up","count":15}, ...]
 ---------------------------------------
 ```
 
@@ -94,7 +100,7 @@ Matrix: [{"judge":"v2","human":"thumbs_up","count":20}, ...]
 
 ## 3. Graduation & Cutover Gate
 
-Once the status report displays `Verdict: well-calibrated` ($n \ge 30$ and agreement $\ge 70\%$), Criterion 4 is fully satisfied. The operator can then greenlight the next cutover phase (Phase 1: 10% canary) as detailed in `docs/v2-prompt-cutover-plan.md`.
+Once the status report displays `Verdict: well-calibrated` ($n \ge 30$ and kappa $\ge 0.6$), Criterion 4 is fully satisfied. The operator can then greenlight the next cutover phase (Phase 1: 10% canary) as detailed in `docs/v2-prompt-cutover-plan.md`.
 
 ---
 
