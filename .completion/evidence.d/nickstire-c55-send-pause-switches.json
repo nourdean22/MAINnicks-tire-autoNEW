@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "cron-fail-closed": {
+      "ref": "C5.5 send-pause switches (2026-10-17): the three voice crons (voiceRecovery, confirmationCalls, followupCadence) check send_pause_voice_outbound right after their env check and BEFORE any lead claim; a paused or unreadable switch lands on each cron's existing Skipped path with reason send_pause:voice_outbound (server/cron/jobs/voiceLanes.sendPause.test.ts, 9 tests: paused skips, unreadable fails CLOSED, control not-paused proceeds). declinedWorkRecovery gates before any claim (declinedWorkRecovery.sendPause.test.ts). cronRethrow2026.test.ts still rejects on a failed candidate query with the pause open (19 passed); cronNoSwallowedFailure unchanged. Manager probe of shouldHold against the real module: unattended lanes hold on paused or unreadable for all four states; the operator's manual follow-up door fails OPEN only on an unreadable switch (sendPauseCoverage.test.ts canary: only routers/vapi.ts passes actor operator)."
+    }
+  }
+}
