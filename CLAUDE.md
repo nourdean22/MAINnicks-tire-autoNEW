@@ -55,6 +55,6 @@ add Claude-only notes on top of it — and nickstire's also indexes that app's c
     skill). Both fail OPEN on their own bugs — hook silence is not a green.
   - `Stop` → `stop-check.mjs` (uncommitted changes on `main` blocks the turn; not a completion gate).
     `SessionStart` → `graphify-session-context.ps1`, `intelligence-context.mjs`, `check-memory-index.mjs`, `session-lease-status.mjs`.
-
+  - `skills-check.mjs` (Stop: tools ran, no Skill call, sent back once) · `operator-asks.mjs` (Nour's words, re-shown after compaction).
 <!-- REMOVED 2026-08-21: the "`memory` MCP" bullet; it was never registered (docs/agent-audit/AUDIT-2026-08-21.md).
      Cross-session memory: AGENTS.md > "Memory / handoff". Re-add only once `claude mcp add` registers it. -->

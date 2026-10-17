@@ -14,6 +14,17 @@
 > - Legacy four-row Learn items are not retired; their Day 3/7/30 rows still come due.
 > - The Learn "day N" label now shows the last FSRS interval.
 > - "Deep dive" counts as Good before it re-teaches the topic.
+> ## 2026-10-17 · Brain context reads the real v6 chat history (branch `statenour/brain-parts-readers`) · 1 statenour PR
+>
+> Not live until merged and deployed. Unit tests only, no live chat turn.
+>
+> - **Fixed.** Two readers inside `buildBrainContext` read the history as `{role, content}` while the chat route sends v6 `parts`, so on the live client they saw nothing: the follow-up referent lookup (`__priorTurns`, "what does 'that' refer to") and anticipatory recall. Both now read through one `extractText` (`lib/ai/chat/extract-text.ts`, re-exported by `gate.ts`).
+> - **Type.** `buildBrainContext`'s `messages` is typed as the union of both shapes, so a new `.content` read fails typecheck.
+> - **Behaviour.** Anticipatory recall now runs on live chat, where it was effectively off.
+>
+> **Flagged · NOT fixed**
+> - `app/api/ai/chat/route.ts` still casts the history to `{role, content}` (it compiles; the cast is wrong).
+> - Two post-turn readers in `lib/services/chat/deferred-background-work.ts` (content feedback, chat-pattern stats) are content-only; fixing them starts new memory writes, so they wait for their own decision.
 
 > ## 2026-10-17 · Brain W3 · Socratic decision mode (branch `statenour/brain-w3-socratic`) · 1 statenour PR, live chat behaviour behind a default-ON kill switch
 >

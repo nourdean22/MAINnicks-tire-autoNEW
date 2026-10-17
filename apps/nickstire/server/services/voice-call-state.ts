@@ -24,7 +24,11 @@
  *   tool_called      ← agent calls a WRITE tool — one that durably persists a
  *                       row (bookSlot, tireInquiry, scheduleCallback, escalate)
  *   confirmed        ← agent calls sendConfirmationSms (the success
- *                       acknowledgment to the customer)
+ *                       acknowledgment to the customer) AND its result
+ *                       says sent:true
+ *   recap_unsent     ← sendConfirmationSms whose text did not go out
+ *                       (refused: no caller ID; failed; held as a draft).
+ *                       metadata.reason carries the code. Not a conversion.
  *   ended            ← `end-of-call-report` webhook fires (metadata
  *                       carries the endedReason)
  *
@@ -49,6 +53,9 @@ export type CallState =
   // Vapi's `transfer-update` fired: the assistant started a hand-off. Recorded
   // from the webhook, not a tool, so it never counts toward trailReachedTool.
   | "transfer_attempted"
+  // sendConfirmationSms ran but the text did not go out (2026-10-17). Kept
+  // apart from `confirmed` so trailReachedTool never counts it as a conversion.
+  | "recap_unsent"
   | "ended";
 
 const STATE_STAGE_PREFIX = "state_";
@@ -94,6 +101,26 @@ export function classifyToolToState(toolName: string): CallState | null {
   if (WRITE_TOOLS.has(toolName)) return "tool_called";
   if (CONFIRM_TOOLS.has(toolName)) return "confirmed";
   return null;
+}
+
+/**
+ * The state a FINISHED recap call leaves the call in, read from the tool's
+ * result JSON. `confirmed` only when the result says sent:true (a gateway
+ * hand-off counts: it must not be re-sent); anything else, including an
+ * unreadable result, is `recap_unsent`. The reason is the result's error code
+ * when it is one ("no_caller_id"), else "not_sent": free text (an exception
+ * message) never reaches the metadata column.
+ */
+export function recapCallState(resultJson: string | undefined): { state: CallState; reason?: string } {
+  let r: { sent?: unknown; error?: unknown } = {};
+  try {
+    r = JSON.parse(resultJson ?? "") ?? {};
+  } catch {
+    /* unreadable = not shown to be sent */
+  }
+  if (r.sent === true) return { state: "confirmed" };
+  const code = typeof r.error === "string" && /^[a-z][a-z0-9_]{0,63}$/.test(r.error) ? r.error : "not_sent";
+  return { state: "recap_unsent", reason: code };
 }
 
 /**

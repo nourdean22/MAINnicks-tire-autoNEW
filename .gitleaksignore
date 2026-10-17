@@ -50,3 +50,8 @@ ed1879be1ef81ea0bb7537bb268c440e9c913683:apps/statenour/tests/telegram/webhook-f
 # escape test, used to prove model code cannot read process.env. Never a credential. The next
 # commit replaced it with a zero-entropy value. Pinned to that one commit/line.
 b5c9ab82ebaea69b029d001a0aa76b162d5807ef:apps/statenour/tests/ai/code-sandbox-escape.test.ts:generic-api-key:34
+
+# 2026-10-17 · #3111 (job 2026-10-17-vapi-followups): a test-only fixture secret for the Vapi
+# signature canary, declared as a single high-entropy string constant (never a credential).
+# The next commits replaced it with a low-entropy fake value. Pinned to that one commit/line.
+5ed51655bda891e0998e67e5a83945513e6feb0d:apps/nickstire/server/routes/webhooks/vapi.signature.test.ts:generic-api-key:48
