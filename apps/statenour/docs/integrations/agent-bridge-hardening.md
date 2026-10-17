@@ -27,6 +27,12 @@ inherit an ungated code-execution surface. Hardened before that client exists.
 - **`tasks`** — `read` plus writes to the operator's OWN data:
   `createTask`, `completeTask`, `pinMemory`, `triggerBrief`, `sendTelegram`.
 
+- **`notes`** (2026-10-16, Telegram lane 2) — Nour's phone notes only:
+  `GET /api/agent-bridge/notes` and `POST /api/agent-bridge/notes/ack`. Its
+  token (`AGENT_BRIDGE_TOKEN_NOTES`) is a separate slot outside the tool scopes:
+  it reaches no MCP or Actions tool, and the `read`, `tasks` and legacy tokens
+  get 403 on the notes routes. Unset slot = 503 (fail closed).
+
 **HARD_DENY** (never reachable on any scope, computed + explicit):
 `runPython`, `runDeviceCommand` (code/device execution), `sendOpportunitySms`,
 `stageCustomerAlert` (customer-facing), `triggerInstagramAutopost`,
@@ -50,6 +56,8 @@ Set in Railway → statenour-web (protected operation, never agent-initiated):
 - `AGENT_BRIDGE_TOKEN_READ` — hand to a read-only consumer.
 - `AGENT_BRIDGE_TOKEN_TASKS` — hand to a consumer that may write Nour's own data.
 - `AGENT_BRIDGE_SECRET_TOKEN` (legacy) — now **read-only**; prefer the scoped tokens.
+- `AGENT_BRIDGE_TOKEN_NOTES` — hand ONLY to the coding-session hook that reads
+  Nour's phone notes (`/note` on Telegram). Grants nothing else.
 
 With no token set the bridge answers a fail-closed misconfiguration and audits
 it. **Hand Dispatch the READ token first**; upgrade to TASKS only when it needs
@@ -64,6 +72,11 @@ stored), `createdAt`. A scope/HARD_DENY refusal is audited as `denied`, so a
 probe against a protected tool is detectable, not silent. The write is
 fault-tolerant (CIITTY: never crash the API on a missing table) — it degrades to
 the console line rather than failing a good call.
+
+The phone-notes routes write the same trail: protocol `notes`, toolName
+`phone_notes_read` / `phone_notes_ack`, one row per authenticated call; a refusal
+goes through `classifyBridgeFailure` + `auditBridgeRejection` (the console line,
+like /api/mcp: no row is written for an unauthenticated caller).
 
 ## Canaries
 

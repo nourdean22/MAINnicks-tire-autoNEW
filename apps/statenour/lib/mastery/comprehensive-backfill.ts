@@ -161,6 +161,8 @@ const AI_SOURCES: AiSource[] = [
     fetch: async (limit) =>
       (await prisma.captureInboxItem
         .findMany({
+          // Phone notes for the coding sessions (lib/agent-bridge/phone-notes.ts) are not captures.
+          where: { kind: { not: "agent_bridge_note" } },
           orderBy: { createdAt: "desc" },
           ...(limit ? { take: limit } : {}),
           select: { id: true, title: true, summary: true },
