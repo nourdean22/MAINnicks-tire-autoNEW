@@ -12,9 +12,9 @@ import { ChevronDown } from "lucide-react";
 
 const CHECKS_STORAGE_KEY = "nicks-admin-today-checks";
 
-function initialOpen(): boolean {
+function initialOpen(storageKey: string): boolean {
   try {
-    const saved = window.localStorage.getItem(CHECKS_STORAGE_KEY);
+    const saved = window.localStorage.getItem(storageKey);
     if (saved === "open" || saved === "closed") return saved === "open";
   } catch {
     // Storage blocked (private mode, PWA quirks): fall back to the viewport default.
@@ -22,8 +22,9 @@ function initialOpen(): boolean {
   return typeof window.matchMedia === "function" && window.matchMedia("(min-width: 1024px)").matches;
 }
 
-export default function ChecksRail({ status, alert, children }: { status: string; alert: boolean; children: ReactNode }) {
-  const [open, setOpen] = useState(initialOpen);
+/** `storageKey` lets another board (Lot, W3) reuse the rail without sharing Today's remembered choice. */
+export default function ChecksRail({ status, alert, children, storageKey = CHECKS_STORAGE_KEY }: { status: string; alert: boolean; children: ReactNode; storageKey?: string }) {
+  const [open, setOpen] = useState(() => initialOpen(storageKey));
   return (
     <details
       open={open}
@@ -33,7 +34,7 @@ export default function ChecksRail({ status, alert, children }: { status: string
         if (next === open) return;
         setOpen(next);
         try {
-          window.localStorage.setItem(CHECKS_STORAGE_KEY, next ? "open" : "closed");
+          window.localStorage.setItem(storageKey, next ? "open" : "closed");
         } catch {
           // Not remembered this time; the rail still works.
         }
