@@ -47,7 +47,10 @@ function fixture() {
     writeFileSync(join(path, `${name}.txt`), name);
     git(path, "add", `${name}.txt`);
     git(path, "commit", "-q", "-m", name);
-    if (dirty) writeFileSync(join(path, "scratch.txt"), "uncommitted");
+    if (dirty) {
+      writeFileSync(join(path, `${name}.txt`), `${name} edited`); // a tracked edit: porcelain's first line starts with a space
+      writeFileSync(join(path, "scratch.txt"), "uncommitted");
+    }
     return { name, path, branch, head: git(path, "rev-parse", "HEAD") };
   };
   return { root, primary, add };
@@ -142,7 +145,7 @@ test("dry run: every class is assigned with a reason, the primary is never liste
     [open, C.OPEN_PR, /#3/],
     [none, C.NO_PR, /no PR/],
     [closedOnly, C.NO_PR, /#4 CLOSED/],
-    [dirty, C.DIRTY, /scratch\.txt|uncommitted/],
+    [dirty, C.DIRTY, /2 uncommitted or untracked: dirty\.txt, scratch\.txt$/],
     [active, C.ACTIVE, /active\.txt/],
     [leased, C.ACTIVE, /lease.*s-1/],
     [locked, C.ACTIVE, /locked/],
@@ -194,6 +197,8 @@ test("canary pair: --execute removes the LANDED worktree and never a DIRTY, ACTI
   for (const wt of [dirty, active, open, ghDown]) {
     assert.ok(isRegistered(f.primary, wt.path) && existsSync(wt.path), `${wt.name} must survive`);
     assert.equal(resultOf(sweep, wt).removed, false, wt.name);
+    // Layer pinned on its own: a non-LANDED worktree never reaches the pre-teardown re-check (which would also keep it).
+    assert.doesNotMatch(resultOf(sweep, wt).reason, /re-check/, wt.name);
   }
   assert.match(formatSweep(sweep), /EXECUTE/);
 });

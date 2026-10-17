@@ -136,7 +136,8 @@ export async function classifyWorktree(wt, { git, gh, readLease: leaseOf, now, s
   if (recent) return { cls: K.ACTIVE, reason: `${recent.file} modified ${Math.max(0, Math.round((now() - recent.mtimeMs) / 60_000))} min ago` };
   if (marker && !isExpired(marker)) return { cls: K.ACTIVE, reason: `local lease marker: session ${marker.sessionId} until ${marker.expiresAt}` };
   if (status) {
-    const files = status.split("\n").map((l) => l.slice(3));
+    // Not slice(3): defaultGit trims, so a first line " M path" arrives as "M path".
+    const files = status.split("\n").map((l) => l.replace(/^\s*\S{1,2}\s+/, ""));
     return { cls: K.DIRTY, reason: `${files.length} uncommitted or untracked: ${files.slice(0, 3).join(", ")}${files.length > 3 ? ", ..." : ""}` };
   }
   if (wt.detached || !wt.branch) return { cls: K.DETACHED_UNKNOWN, reason: `detached HEAD ${short(wt.headSha)}: no branch to find a PR by` };
