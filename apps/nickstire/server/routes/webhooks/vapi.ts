@@ -1204,17 +1204,23 @@ router.post("/vapi", async (req: Request, res: Response) => {
           Promise.all([
             import("../../services/voice-call-state"),
             import("../../lib/tireDemand"),
-          ]).then(([{ classifyToolToState, recordCallState }, { toolCallStateMetadata }]) => {
-            for (const c of calls) {
-              const state = classifyToolToState(c.function?.name ?? "");
-              if (state) {
+          ]).then(([{ classifyToolToState, recapCallState, recordCallState }, { toolCallStateMetadata }]) => {
+            for (const [i, c] of calls.entries()) {
+              const named = classifyToolToState(c.function?.name ?? "");
+              if (named) {
+                // A recap is `confirmed` only if its result says the text went
+                // out; a refused or failed one must not count as a conversion.
+                const { state, reason } = named === "confirmed" ? recapCallState(results[i]?.result) : { state: named, reason: undefined };
                 void recordCallState({
                   callId,
                   assistantId,
                   state,
                   // A tireInquiry also records what the caller asked for (size,
                   // new/used; never name or phone) for Today's "Asked by phone".
-                  metadata: toolCallStateMetadata(c.function?.name, c.id, c.function?.arguments),
+                  metadata: {
+                    ...toolCallStateMetadata(c.function?.name, c.id, c.function?.arguments),
+                    ...(reason ? { reason } : {}),
+                  },
                 });
               }
             }

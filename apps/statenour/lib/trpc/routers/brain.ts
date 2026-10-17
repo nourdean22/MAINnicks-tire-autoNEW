@@ -1587,6 +1587,22 @@ export const brainRouter = router({
     .mutation(async ({ input }) => forgetMemoryByKey(input.key)),
 
   /**
+   * Learn tab "Got it" on an FSRS card (scout 4 round 2, 2026-10-17): grade the
+   * spaced_review row and keep it scheduled, instead of soft-deleting it. Same
+   * grader and compare-and-swap as the Daily Tutor; `lost` / `cleared` / `missing`
+   * / `unreadable` carry no date, because none was written.
+   */
+  gradeSpacedReview: operatorProcedure
+    .input(z.object({ key: z.string().min(1).max(200), rating: z.enum(["good", "again"]) }))
+    .mutation(async ({ input }) => {
+      const [{ gradeSpacedReview }, { Rating }] = await Promise.all([
+        import("@/lib/brain/tutor-pack"),
+        import("@/lib/brain/fsrs-schedule"),
+      ]);
+      return gradeSpacedReview(input.key, input.rating === "good" ? Rating.Good : Rating.Again, new Date());
+    }),
+
+  /**
    * 05-M12: owner-only. Forget ONE memory from /brain or the inspector:
    * soft-delete plus its embedding copy. A second call is `deleted: false`.
    */

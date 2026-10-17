@@ -201,7 +201,7 @@ export function JournalInsightsPreview() {
         ))}
         {activeInsights.length > 3 && (
           <p className="font-mono text-[11px] text-fg-tertiary">
-            +{activeInsights.length - 3} more entr{activeInsights.length - 3 === 1 ? "y" : "ies"} with takes — scroll the archive below.
+            +{activeInsights.length - 3} more entr{activeInsights.length - 3 === 1 ? "y" : "ies"} with takes. Scroll the archive below.
           </p>
         )}
       </div>

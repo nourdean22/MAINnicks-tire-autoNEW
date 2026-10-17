@@ -310,6 +310,8 @@ export async function promoteToWisdom(): Promise<{ promoted: number }> {
 
 // ─── 3. PRUNE: Garbage collect noise ─────────────────────
 
+const SCHEDULE_CATEGORY = "spaced_review";
+
 export async function pruneNoise(): Promise<{ pruned: number }> {
   // TTL expiry now SOFT-deletes. It hard-deleted until 2026-08-16, and that is
   // where the distilled content went: of 4,867 memories found surviving only as
@@ -329,8 +331,12 @@ export async function pruneNoise(): Promise<{ pruned: number }> {
   // The embedding is intentionally LEFT in place: the row still exists, so this
   // is not an orphan, and dropping the vector would force a re-embed if the
   // operator restores the memory from /brain/wisdom.
+  //
+  // spaced_review rows are review schedules (FSRS), never probationary: both sweeps
+  // skip them, so a stray expiresAt or a low confidence on one cannot clear a card.
+  // remember() already gives the category no TTL; this is the second guard (2026-10-17).
   const expired = await prisma.brainMemory.updateMany({
-    where: { expiresAt: { lt: new Date() }, deletedAt: null },
+    where: { expiresAt: { lt: new Date() }, deletedAt: null, category: { not: SCHEDULE_CATEGORY } },
     data: { deletedAt: new Date() },
   });
 
@@ -344,6 +350,7 @@ export async function pruneNoise(): Promise<{ pruned: number }> {
       confidence: { lt: 0.1 },
       lastSeen: { lt: daysAgo(14) },
       deletedAt: null,
+      category: { not: SCHEDULE_CATEGORY },
     },
     data: { deletedAt: new Date() },
   });

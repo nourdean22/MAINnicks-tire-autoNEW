@@ -515,7 +515,7 @@ function ImpactReceipt({
     const state =
       data.enrichedAt == null
         ? Date.parse(createdAt) < JOURNAL_BRAIN_EPOCH
-          ? "Legacy entry — not enriched"
+          ? "Legacy entry, not enriched"
           : "Analyzing…"
         : "No grounded link found · no action extracted";
     return (

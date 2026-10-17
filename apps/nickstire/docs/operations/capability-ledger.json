@@ -5252,6 +5252,62 @@
       "exposure": "disabled"
     },
     {
+      "capabilityId": "vapi-recap-unsent-state-20261017",
+      "name": "A voice recap text that did not go out records call state recap_unsent with its reason, never confirmed, and does not count as a conversion",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "Branch nickstire/vapi-followups (job 2026-10-17-vapi-followups, PR #3111): 3631a50ac (services/voice-call-state.ts new state recap_unsent and recapCallState(result): confirmed only when the tool result says sent:true, else recap_unsent with the result's error code or not_sent; routes/webhooks/vapi.ts state hook reads each recap's own result and adds metadata.reason; trailReachedTool unchanged, so recap_unsent is not a conversion), 454cdda9d (test waits for the post-200 state write).",
+        "tests": [
+          "server/routes/webhooks/vapi.recapState.test.ts (5): real route + real classifier; refused for no caller ID -> recap_unsent reason no_caller_id and trailReachedTool false; failed send -> recap_unsent with the orchestrator's code; drafted -> recap_unsent not_sent; controls: sent and sending -> confirmed, sent counts as a conversion. Red on unfixed code 3f/2p; mutants (classifier always confirmed, hook ignoring the result) 3f/2p each."
+        ],
+        "liveRuns": [],
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P3",
+          "description": "Not observed in production. Live proof: after deploy, a recap refused for a withheld caller ID writes a voice_latency_events row with stage state_recap_unsent and metadata.reason no_caller_id, and that call's vapi_call_logs.convertedToLead is 0 when no other capture tool ran.",
+          "source": "job 2026-10-17-vapi-followups"
+        }
+      ],
+      "deferredScope": [
+        "past state_confirmed rows written for refused or failed recaps, and the convertedToLead values derived from them, are not recomputed",
+        "the admin live-calls card shows recap_unsent as plain text outside its four-state strip (client lane)"
+      ],
+      "lastVerifiedAt": "2026-10-17",
+      "codeState": "in_progress",
+      "operationalState": "unit_verified",
+      "exposure": "disabled"
+    },
+    {
+      "capabilityId": "sms-passthrough-preflight-guard-20261017",
+      "name": "The SMS kill switch's legacy passthrough runs the same preflight content guard as every other path: review -> drafted, block -> blocked, nothing sent",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "Branch nickstire/vapi-followups (job 2026-10-17-vapi-followups, PR #3111): e25102f1e (services/smsOrchestrator.ts legacy_passthrough runs runNickgptPreflightGuard with sourceType legacy on the body it is about to send; force_human_review -> status drafted + requiresHumanApproval, block_send -> status blocked; statusReason and noSendReason carry the guard's code on the result and the persisted row; the send runs only while shouldAutoSend holds).",
+        "tests": [
+          "server/__tests__/smsOrchestrator.golden.test.ts (4 new): under the global kill switch a recap with an invented link is drafted (hallucinated_url) and not sent; one saying 'guaranteed' is blocked (prohibited_absolute_promise) and not sent; control: a clean recap still sends; control: every template's first variant (what the passthrough sends) passes the guard. Red on unfixed code 2f/2p; mutants (guard skipped, send ignoring the verdict) 2f each."
+        ],
+        "liveRuns": [],
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P3",
+          "description": "Not observed in production, and the passthrough only runs when app_secret_kv sets sms_orchestrator_global_mode (the global kill switch) or a per-event sms_orch_EVENTTYPE_mode row to legacy_passthrough, or when the database is unreachable. Live proof is the next held row in sms_orchestrations with variantKey legacy and status drafted or blocked.",
+          "source": "job 2026-10-17-vapi-followups"
+        }
+      ],
+      "deferredScope": [
+        "a held passthrough row keeps reason global_kill_switch_or_event_passthrough; the guard's code is in statusReason and noSendReason",
+        "the template control checks each template's first variant with sample values only"
+      ],
+      "lastVerifiedAt": "2026-10-17",
+      "codeState": "in_progress",
+      "operationalState": "unit_verified",
+      "exposure": "disabled"
+    },
+    {
       "capabilityId": "nickstire-tidb-independent-backup",
       "name": "Nightly independent TiDB backup with verified manifest (cron tidb-backup -> private bucket backups/tidb/<date>/)",
       "owner": "system",

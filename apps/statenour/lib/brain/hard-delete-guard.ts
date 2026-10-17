@@ -93,8 +93,9 @@ export const NEVER_HARD_DELETE_CATEGORIES: readonly string[] = [
 
   // 2026-10-16 (W2 Daily Tutor review): the operator's own learning schedule
   // (tutor + Learn tab). remember() stamps a 24h TTL on every new row, so the
-  // nightly sweep deleted each card the day after it was written and the
-  // 1/3/7/30 ladder could never climb (prod: 0 spaced_review rows ever).
+  // nightly sweep deleted each card the day after it was written, so no card
+  // ever reached a second review (prod: 0 spaced_review rows ever). The
+  // schedule is FSRS since 2026-10-17 (lib/brain/fsrs-schedule.ts).
   // config/retention.ts already lists it under "NEVER in this list".
   "spaced_review",
 ];

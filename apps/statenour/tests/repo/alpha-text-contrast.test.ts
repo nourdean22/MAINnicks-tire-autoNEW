@@ -217,7 +217,6 @@ const KNOWN_FADED: Record<string, number> = {
   "components/mastery/identity-arc-card.tsx -> text-white/40": 1,
   "components/power-atlas/LedgerTimeline.tsx -> text-rose-300/60": 1,
   "components/power-atlas/PowerPlaysModal.tsx -> text-amber-300/70": 1,
-  "components/relationships/relationships-watchlist.tsx -> text-[var(--text-tertiary)]/80": 1,
   "components/settings/ai-settings-panel.tsx -> text-red-300/60": 1,
   "components/stats/journey-panel.tsx -> text-fg-secondary/60": 1,
   "components/system/judge-calibration-panel.tsx -> text-fg-secondary/50": 1,

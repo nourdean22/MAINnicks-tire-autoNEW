@@ -1,10 +1,17 @@
 /**
- * Langfuse tracing for nickstire's AI calls, over the public ingestion API.
+ * Langfuse tracing for nickstire's AI calls, over OTLP/HTTP (JSON encoding).
  *
  * No Langfuse or OpenTelemetry package (the worktree is junctioned; nothing is
- * installed): one `fetch` to `POST {LANGFUSE_BASE_URL}/api/public/ingestion`
- * with basic auth public:secret and a batch of `trace-create` +
- * `generation-create` events, which is the whole wire contract.
+ * installed): one `fetch` to `POST {LANGFUSE_BASE_URL}/api/public/otel/v1/traces`
+ * with basic auth public:secret and the header `x-langfuse-ingestion-version: 4`.
+ * Each traced generation is two spans of one OTLP trace: a root span (the Langfuse
+ * trace) and a child span typed `generation`. Attribute names are the ones
+ * https://langfuse.com/integrations/native/opentelemetry documents (read 2026-10-17).
+ *
+ * Why not the legacy `POST /api/public/ingestion` this file used before: from
+ * 2026-11-16 Langfuse Cloud is v4-only and removes it for trace and observation
+ * events (https://langfuse.com/faq/all/deprecated-api-migration). Pinned by
+ * `langfuseOtlp.test.ts`, which fails if the old URL comes back.
  *
  * Contract with callers:
  *   - never throws into the caller, never blocks it: `traceGeneration()` queues
@@ -31,7 +38,7 @@
  *   LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_BASE_URL (default
  *   https://us.cloud.langfuse.com, the region statenour uses).
  */
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { createLogger } from "./logger";
 import { redactCallerText } from "../services/callerTextRedaction";
 import { resolveNickDeployIdentity } from "./deployIdentity";
@@ -67,7 +74,7 @@ export interface TraceGenerationInput {
   /** Receptionist private mode and other do-not-record lanes: counted, never sent. */
   private?: boolean;
   metadata?: Record<string, string | number | boolean | null>;
-  /** Caller-chosen trace id (the probe uses it to confirm its own batch was accepted). */
+  /** Caller-chosen trace id (the probe uses it to confirm its own batch was accepted); normalized to 32 hex. */
   traceId?: string;
 }
 
@@ -86,10 +93,45 @@ export interface LangfuseIngestStatus {
   lastError: string | null;
 }
 
-type IngestEvent = { id: string; type: "trace-create" | "generation-create"; timestamp: string; body: Record<string, unknown> };
+// OTLP/HTTP JSON (https://opentelemetry.io/docs/specs/otlp/, read 2026-10-17): lowerCamelCase keys,
+// trace/span ids as hex strings, int64 timestamps as decimal strings, enums as integers.
+type OtlpAttr = { key: string; value: { stringValue: string } | { arrayValue: { values: Array<{ stringValue: string }> } } };
+interface OtlpSpan {
+  traceId: string;
+  spanId: string;
+  parentSpanId?: string;
+  name: string;
+  kind: number;
+  startTimeUnixNano: string;
+  endTimeUnixNano: string;
+  attributes: OtlpAttr[];
+  status?: { code: number; message?: string };
+}
+
+const SPAN_KIND_INTERNAL = 1;
+const STATUS_CODE_ERROR = 2;
+
+const attr = (key: string, value: string): OtlpAttr => ({ key, value: { stringValue: value } });
+/** Flatten a metadata map to `<prefix><key>` string attributes (the documented type); null/undefined are dropped. */
+const metaAttrs = (prefix: string, meta: Record<string, unknown>): OtlpAttr[] =>
+  Object.entries(meta)
+    .filter(([, v]) => v !== null && v !== undefined)
+    .map(([k, v]) => attr(`${prefix}${k}`, String(v)));
+const nanos = (ms: number): string => `${Math.round(ms)}000000`;
+const newSpanId = (): string => randomBytes(8).toString("hex");
+
+/**
+ * A 32-hex OTLP trace id from whatever the caller chose: 32 hex as is, a dashed UUID
+ * undashed, anything else a stable sha256 prefix. Never throws; no id means a random one.
+ */
+function otlpTraceId(id: string | undefined): string {
+  if (!id) return randomBytes(16).toString("hex");
+  const hex = id.replace(/-/g, "").toLowerCase();
+  return /^[0-9a-f]{32}$/.test(hex) && !/^0{32}$/.test(hex) ? hex : createHash("sha256").update(id).digest("hex").slice(0, 32);
+}
 
 const state = {
-  queue: [] as IngestEvent[],
+  queue: [] as OtlpSpan[],
   timer: null as ReturnType<typeof setTimeout> | null,
   inflight: null as Promise<FlushResult> | null,
   batchesSent: 0,
@@ -135,16 +177,16 @@ export function traceGeneration(g: TraceGenerationInput): "queued" | "skipped_pr
       state.eventsDropped += 1;
       return "dropped";
     }
-    const now = new Date().toISOString();
-    const traceId = g.traceId ?? randomUUID();
+    const endMs = Date.now();
+    const startMs = endMs - (Number.isFinite(g.latencyMs) ? Math.max(0, g.latencyMs) : 0);
+    const traceId = otlpTraceId(g.traceId);
+    const rootId = newSpanId();
     const identity = resolveNickDeployIdentity(process.env);
-    const usage = g.usage
-      ? {
-          input: g.usage.promptTokens ?? undefined,
-          output: g.usage.completionTokens ?? undefined,
-          total: g.usage.totalTokens ?? undefined,
-        }
-      : undefined;
+    const usage = {
+      input: g.usage?.promptTokens ?? undefined,
+      output: g.usage?.completionTokens ?? undefined,
+      total: g.usage?.totalTokens ?? undefined,
+    };
     const metadata = {
       site: g.site,
       promptSha256: promptHash(g.promptText),
@@ -153,39 +195,50 @@ export function traceGeneration(g: TraceGenerationInput): "queued" | "skipped_pr
       commit: identity.commitShort ?? "unknown",
       ...(g.metadata ?? {}),
     };
-    state.queue.push({
-      id: randomUUID(),
-      type: "trace-create",
-      timestamp: now,
-      body: {
-        id: traceId,
-        name: g.name,
-        timestamp: now,
-        release: identity.commit ?? undefined,
-        environment: process.env.RAILWAY_ENVIRONMENT_NAME || process.env.NODE_ENV || "development",
-        tags: ["nickstire", g.ok ? "ok" : "error"],
-        ...(g.excerpt ? { input: maskExcerpt(g.input), output: maskExcerpt(g.output) } : {}),
-        metadata,
-      },
+    // Trace-level attributes ride on both spans: Langfuse filters need them on every span, not only the root.
+    const traceAttrs: OtlpAttr[] = [
+      attr("langfuse.trace.name", g.name),
+      { key: "langfuse.trace.tags", value: { arrayValue: { values: ["nickstire", g.ok ? "ok" : "error"].map((stringValue) => ({ stringValue })) } } },
+      attr("langfuse.environment", process.env.RAILWAY_ENVIRONMENT_NAME || process.env.NODE_ENV || "development"),
+      ...(identity.commit ? [attr("langfuse.release", identity.commit)] : []),
+    ];
+    const excerptAttrs: OtlpAttr[] = g.excerpt
+      ? [attr("langfuse.observation.input", maskExcerpt(g.input)), attr("langfuse.observation.output", maskExcerpt(g.output))]
+      : [];
+    const span = (s: Pick<OtlpSpan, "spanId" | "attributes"> & Partial<OtlpSpan>): OtlpSpan => ({
+      traceId,
+      name: g.name,
+      kind: SPAN_KIND_INTERNAL,
+      startTimeUnixNano: nanos(startMs),
+      endTimeUnixNano: nanos(endMs),
+      ...s,
     });
-    state.queue.push({
-      id: randomUUID(),
-      type: "generation-create",
-      timestamp: now,
-      body: {
-        id: randomUUID(),
-        traceId,
-        name: g.name,
-        model: g.model,
-        startTime: new Date(Date.now() - Math.max(0, g.latencyMs)).toISOString(),
-        endTime: now,
-        ...(g.excerpt ? { input: maskExcerpt(g.input), output: maskExcerpt(g.output) } : {}),
-        usage,
-        level: g.ok ? "DEFAULT" : "ERROR",
-        statusMessage: g.ok ? undefined : errorClass(g.error),
-        metadata,
-      },
-    });
+    state.queue.push(
+      span({
+        spanId: rootId,
+        attributes: [
+          attr("langfuse.observation.type", "span"),
+          ...traceAttrs,
+          ...metaAttrs("langfuse.trace.metadata.", metadata),
+          ...excerptAttrs,
+        ],
+      }),
+      span({
+        spanId: newSpanId(),
+        parentSpanId: rootId,
+        attributes: [
+          attr("langfuse.observation.type", "generation"),
+          ...traceAttrs,
+          attr("langfuse.observation.model.name", g.model),
+          ...(Object.values(usage).some((v) => v !== undefined) ? [attr("langfuse.observation.usage_details", JSON.stringify(usage))] : []),
+          attr("langfuse.observation.level", g.ok ? "DEFAULT" : "ERROR"),
+          ...(g.ok ? [] : [attr("langfuse.observation.status_message", errorClass(g.error))]),
+          ...metaAttrs("langfuse.observation.metadata.", metadata),
+          ...excerptAttrs,
+        ],
+        ...(g.ok ? {} : { status: { code: STATUS_CODE_ERROR, message: errorClass(g.error) } }),
+      }),
+    );
     state.eventsTraced += 1;
     scheduleFlush();
     return "queued";
@@ -349,12 +402,12 @@ export interface FlushResult {
   error: string | null;
   /** false when nothing was queued or keys are unset. */
   attempted: boolean;
-  /** Trace ids in a batch Langfuse accepted whole (2xx, no per-event errors); empty otherwise. */
+  /** Trace ids (32 hex) in a batch Langfuse accepted whole (2xx, no rejected spans); empty otherwise. */
   traceIds: string[];
 }
 
 /**
- * Send up to MAX_BATCH queued events now. Used by the timer, the probe and
+ * Send up to MAX_BATCH queued spans now. Used by the timer, the probe and
  * shutdown. Concurrent callers share one in-flight request.
  */
 export function flushLangfuse(fetchImpl: typeof fetch = fetch): Promise<FlushResult> {
@@ -373,26 +426,35 @@ async function doFlush(fetchImpl: typeof fetch): Promise<FlushResult> {
   const batch = state.queue.splice(0, MAX_BATCH);
   const at = new Date().toISOString();
   try {
-    const res = await fetchImpl(`${cfg.baseUrl}/api/public/ingestion`, {
+    const res = await fetchImpl(`${cfg.baseUrl}/api/public/otel/v1/traces`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
         authorization: `Basic ${Buffer.from(`${cfg.publicKey}:${cfg.secretKey}`).toString("base64")}`,
+        // Real-time on the v4 data model; without it OTel data can lag up to 10 minutes (Langfuse OTel docs).
+        "x-langfuse-ingestion-version": "4",
       },
-      body: JSON.stringify({ batch }),
+      body: JSON.stringify({
+        resourceSpans: [
+          {
+            resource: { attributes: [attr("service.name", "nickstire")] },
+            scopeSpans: [{ scope: { name: "nickstire.langfuse", version: "1" }, spans: batch }],
+          },
+        ],
+      }),
       signal: AbortSignal.timeout(10_000),
     });
     state.lastIngestAt = at;
     state.lastHttpStatus = res.status;
-    // Langfuse answers 207 with per-event `errors` when it rejects events inside
-    // an accepted batch: a 2xx alone is not an ack of every event.
-    const rejected = res.ok ? await rejectedEvents(res) : 0;
-    if (res.ok && rejected > 0) {
+    // OTLP answers 200 with partialSuccess.rejectedSpans > 0 when it rejects spans inside
+    // an accepted request: a 2xx alone is not an ack of every span.
+    const rejected = res.ok ? await rejectedSpans(res) : { count: 0, message: "" };
+    if (res.ok && rejected.count > 0) {
       state.batchesFailed += 1;
       state.lastIngestOk = false;
-      state.lastError = `HTTP ${res.status}: ${rejected} of ${batch.length} event(s) rejected`;
-      log.warn("langfuse ingestion partly rejected", { status: res.status, rejected });
-      return { ok: false, sent: batch.length - rejected, httpStatus: res.status, error: state.lastError, attempted: true, traceIds: [] };
+      state.lastError = `HTTP ${res.status}: ${rejected.count} of ${batch.length} span(s) rejected${rejected.message ? `: ${rejected.message}` : ""}`;
+      log.warn("langfuse otlp export partly rejected", { status: res.status, rejected: rejected.count });
+      return { ok: false, sent: batch.length - rejected.count, httpStatus: res.status, error: state.lastError, attempted: true, traceIds: [] };
     }
     if (res.ok) {
       state.batchesSent += 1;
@@ -404,14 +466,14 @@ async function doFlush(fetchImpl: typeof fetch): Promise<FlushResult> {
         httpStatus: res.status,
         error: null,
         attempted: true,
-        traceIds: batch.filter((e) => e.type === "trace-create").map((e) => String(e.body.id)),
+        traceIds: batch.filter((s) => s.parentSpanId === undefined).map((s) => s.traceId),
       };
     }
     const text = await res.text().catch(() => "");
     state.batchesFailed += 1;
     state.lastIngestOk = false;
     state.lastError = `HTTP ${res.status}: ${text.slice(0, 200)}`;
-    log.warn("langfuse ingestion rejected", { status: res.status, dropped: batch.length });
+    log.warn("langfuse otlp export rejected", { status: res.status, dropped: batch.length });
     return { ok: false, sent: 0, httpStatus: res.status, error: state.lastError, attempted: true, traceIds: [] };
   } catch (err) {
     state.lastIngestAt = at;
@@ -419,17 +481,22 @@ async function doFlush(fetchImpl: typeof fetch): Promise<FlushResult> {
     state.batchesFailed += 1;
     state.lastIngestOk = false;
     state.lastError = err instanceof Error ? err.message : String(err);
-    log.warn("langfuse ingestion failed", { error: state.lastError, dropped: batch.length });
+    log.warn("langfuse otlp export failed", { error: state.lastError, dropped: batch.length });
     return { ok: false, sent: 0, httpStatus: null, error: state.lastError, attempted: true, traceIds: [] };
   }
 }
 
-async function rejectedEvents(res: Response): Promise<number> {
+/** OTLP ExportTraceServiceResponse.partialSuccess: rejectedSpans is an int64 (JSON string or number); 0 with a message is only a warning. */
+async function rejectedSpans(res: Response): Promise<{ count: number; message: string }> {
   try {
-    const body = (await res.json()) as { errors?: unknown };
-    return Array.isArray(body?.errors) ? body.errors.length : 0;
+    const ps = ((await res.json()) as { partialSuccess?: { rejectedSpans?: number | string; errorMessage?: unknown } })?.partialSuccess;
+    const count = Number(ps?.rejectedSpans ?? 0);
+    return {
+      count: Number.isFinite(count) && count > 0 ? count : 0,
+      message: typeof ps?.errorMessage === "string" ? ps.errorMessage.slice(0, 200) : "",
+    };
   } catch {
-    return 0; // an empty or non-JSON 2xx body carries no per-event verdict
+    return { count: 0, message: "" }; // an empty or non-JSON 2xx body carries no per-span verdict
   }
 }
 

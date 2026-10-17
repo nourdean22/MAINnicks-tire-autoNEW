@@ -117,7 +117,7 @@ export function ThreadRail({
     return (
       <section className="mb-8">
         <div className="flex items-center gap-2 rounded-control border border-rose-500/30 bg-rose-500/10 px-2 py-2 text-[11px] text-rose-300">
-          <span className="flex-1">⚠ couldn&apos;t load threads · {error.message.slice(0, 80)}</span>
+          <span className="flex-1">Couldn&apos;t load threads · {error.message.slice(0, 80)}</span>
           <button
             type="button"
             onClick={() => void reload()}
@@ -306,7 +306,7 @@ function ThreadCard({
                  (≥2 joins this week AND more than the prior week). */
               <span
                 className="text-[11px] font-mono text-emerald-300/90 border border-emerald-500/30 rounded-micro px-1.5 py-0.5 bg-emerald-500/[0.06]"
-                title={`${thread.joins7d} entries this week vs ${thread.joinsPrior7d} last week — this arc is compounding`}
+                title={`${thread.joins7d} entries this week vs ${thread.joinsPrior7d} last week: this arc is compounding`}
               >
                 strengthening · {thread.joins7d}/wk
               </span>

@@ -58,6 +58,41 @@ describe("pruneNoise · TTL expiry", () => {
     expect(arg.data?.deletedAt, "soft-delete must stamp deletedAt").toBeInstanceOf(Date);
   });
 
+  // Scout 4 round 3 (2026-10-17): a spaced_review row is a review schedule, not a probationary
+  // observation. A stray expiresAt on one (any writer) must not soft-delete it; the TTL sweep
+  // still prunes every other category (the positive control).
+  it("an expired-looking spaced_review row survives the sweep; an expired insight is still pruned", async () => {
+    const past = new Date(Date.now() - 3_600_000);
+    const rows = [
+      { id: "sr", category: "spaced_review", expiresAt: past, deletedAt: null as Date | null, confidence: 0.05, lastSeen: new Date(0) },
+      { id: "in", category: "insight", expiresAt: past, deletedAt: null as Date | null, confidence: 0.5, lastSeen: new Date() },
+    ];
+    // Evaluates the operators pruneNoise's where clauses use, against the rows above.
+    const matches = (row: Record<string, unknown>, where: Record<string, unknown>): boolean =>
+      Object.entries(where).every(([field, cond]) => {
+        const v = row[field];
+        if (cond === null || cond instanceof Date || typeof cond !== "object") return v === cond;
+        const c = cond as Record<string, unknown>;
+        const unknownOp = Object.keys(c).find((k) => !["lt", "not", "notIn", "in"].includes(k));
+        if (unknownOp) throw new Error(`evaluator does not model "${unknownOp}" on ${field}`);
+        if ("lt" in c && !(v != null && (v as number) < (c.lt as number))) return false;
+        if ("not" in c && v === c.not) return false;
+        if ("notIn" in c && (c.notIn as unknown[]).includes(v)) return false;
+        if ("in" in c && !(c.in as unknown[]).includes(v)) return false;
+        return true;
+      });
+    updateMany.mockImplementation((async (arg: { where: Record<string, unknown>; data: Record<string, unknown> }) => {
+      const hit = rows.filter((r) => matches(r, arg.where));
+      for (const r of hit) Object.assign(r, arg.data);
+      return { count: hit.length };
+    }) as never);
+    const { pruneNoise } = await import("@/lib/brain/memory-consolidation");
+    await pruneNoise();
+    expect(rows.find((r) => r.id === "sr")?.deletedAt).toBeNull();
+    expect(rows.find((r) => r.id === "in")?.deletedAt).toBeInstanceOf(Date);
+    updateMany.mockImplementation(async () => ({ count: 3 }));
+  });
+
   it("never routes expiry through a destructive delete", async () => {
     const { pruneNoise } = await import("@/lib/brain/memory-consolidation");
     await pruneNoise();

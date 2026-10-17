@@ -119,6 +119,11 @@ async function sumStatXpSql(since?: Date): Promise<Map<string, number> | null> {
 
 /** JS fallback — the original findMany + sum. Matches sumStatXpSql exactly. */
 async function sumStatXpJs(since?: Date): Promise<Map<string, number>> {
+  return (await sumStatXpJsOrNull(since)) ?? new Map<string, number>();
+}
+
+/** The same scan, but a failed read is null instead of an empty map (W4 fix round 1). */
+async function sumStatXpJsOrNull(since?: Date): Promise<Map<string, number> | null> {
   const rows = await prisma.brainMemory
     .findMany({
       where: since
@@ -126,7 +131,8 @@ async function sumStatXpJs(since?: Date): Promise<Map<string, number>> {
         : { category: MASTERY_XP_CATEGORY },
       select: { metadata: true },
     })
-    .catch((): { metadata: unknown }[] => []);
+    .catch(() => null);
+  if (rows === null) return null;
   const totals = new Map<string, number>();
   for (const r of rows) {
     const m = (r.metadata ?? {}) as { stat?: string; xp?: number };
@@ -148,6 +154,14 @@ export async function xpEventTotalsSince(
   since: Date,
 ): Promise<Map<string, number>> {
   return (await sumStatXpSql(since)) ?? (await sumStatXpJs(since));
+}
+
+/**
+ * xpEventTotalsSince for a caller that must tell a failed read from a real zero: null when both
+ * the SQL sum and the JS scan failed (the character sheet's "rising this week", W4 fix round 1).
+ */
+export async function xpEventTotalsSinceOrNull(since: Date): Promise<Map<string, number> | null> {
+  return (await sumStatXpSql(since)) ?? (await sumStatXpJsOrNull(since));
 }
 
 /**

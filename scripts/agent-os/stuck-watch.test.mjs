@@ -61,6 +61,30 @@ test("5 identical calls with identical results on an unchanged tree: nudge on th
   assert.match(calls[4].pre.err, /change approach/);
 });
 
+test("the key ignores model-written prose: 5 identical commands with 5 different descriptions are denied at the 5th (live bug 2026-10-17)", () => {
+  // Live: 5 identical failing `node -e "process.exit(3)"` calls scored streak 1 each, because the
+  // model writes a fresh `description` (and sometimes `timeout`) on every call and both were hashed.
+  const fx = fixture();
+  const input = (i) => ({ command: "node -e \"process.exit(3)\"", description: `Run the probe, try ${i}`, timeout: 1000 * (i + 1) });
+  const calls = [0, 1, 2, 3, 4].map((i) => call(fx, { input: input(i), error: "Exit code 3" }));
+  assert.equal(calls[2].post.code, 2, "the 3rd repeat must nudge despite a new description");
+  assert.equal(calls[4].pre.code, 2, "the 5th identical command must be denied despite a new description");
+  // Browser tools carry the same kind of prose in `action_summary`.
+  const br = fixture();
+  const click = (i) => ({ action: "left_click", coordinate: [10, 20], action_summary: `Clicks Save, attempt ${i}` });
+  for (let i = 0; i < 4; i++) call(br, { tool: "mcp__Claude_Browser__computer", input: click(i), response: { ok: false } });
+  assert.equal(call(br, { tool: "mcp__Claude_Browser__computer", input: click(9), response: { ok: false } }).pre.code, 2);
+});
+
+test("control: 5 different commands with the same description are not a loop", () => {
+  const fx = fixture();
+  const calls = [0, 1, 2, 3, 4].map((i) => call(fx, { input: { command: `node probe-${i}.mjs`, description: "Run the probe" }, error: "Exit code 3" }));
+  assert.ok(calls.every((c) => c.pre.code === 0 && c.post.code === 0), "different commands must never nudge or deny");
+  const bg = fixture(); // run_in_background changes what the call does, so it stays in the key
+  for (let i = 0; i < 4; i++) call(bg, { input: { command: "pnpm test" } });
+  assert.equal(call(bg, { input: { command: "pnpm test", run_in_background: true } }).pre.code, 0);
+});
+
 test("positive control: a different call in between resets the streak", () => {
   const fx = fixture();
   for (let i = 0; i < 4; i++) call(fx);

@@ -34,6 +34,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc/client";
+import { learnReviewRow, reviewCompletion } from "@/lib/brain/fsrs-schedule";
 import { isSubmitEnter } from "@/features/chat-v2/lib/submit-enter";
 import {
   BookOpen,
@@ -158,6 +159,8 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
   const researchMut = trpc.ai.research.useMutation();
   const recordMemoryMut = trpc.brain.recordMemory.useMutation();
   const forgetMemoryMut = trpc.brain.forgetMemoryByKey.useMutation();
+  const gradeSpacedReviewMut = trpc.brain.gradeSpacedReview.useMutation();
+  const utils = trpc.useUtils();
   useEffect(() => {
     setHistory(loadHistory());
   }, []);
@@ -246,33 +249,22 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
     [recordMemoryMut],
   );
 
-  // ── Spaced repetition: schedule review reminders ──
-  // When Nour learns something, schedule reviews at Day 1, 3, 7, 30.
-  // Uses BrainMemory with category "spaced_review" and a future
-  // timestamp so we can query for due reviews.
-  // actions-surface slice · spaced-review scheduling via
-  // trpc.brain.recordMemory (replaces the per-interval POST
-  // /api/brain/memories). Each interval is upserted by its `key`.
+  // ── Spaced repetition: schedule a review reminder ──
+  // When Nour learns something, write ONE spaced_review row: a new FSRS
+  // card due tomorrow (lib/brain/fsrs-schedule.ts). FSRS replaced the
+  // four pre-made Day 1/3/7/30 rows; older items keep theirs.
+  // Upserted by its `key` via trpc.brain.recordMemory.
   const scheduleSpacedReview = useCallback(
     async (topic: string, mvuSummary: string) => {
-      const intervals = [1, 3, 7, 30]; // days
-      for (const days of intervals) {
-        const reviewDate = new Date(Date.now() + days * 86_400_000);
-        try {
-          await recordMemoryMut.mutateAsync({
-            category: "spaced_review",
-            key: `review_${topic.slice(0, 40).replace(/\s+/g, "_")}_d${days}`,
-            content: JSON.stringify({
-              topic,
-              summary: mvuSummary.slice(0, 300),
-              reviewAt: reviewDate.toISOString(),
-              interval: days,
-              completed: false,
-            }),
-            source: "learn_mode",
-          });
-        } catch {}
-      }
+      const row = learnReviewRow(topic, mvuSummary, new Date());
+      try {
+        await recordMemoryMut.mutateAsync({
+          category: "spaced_review",
+          key: row.key,
+          content: row.content,
+          source: "learn_mode",
+        });
+      } catch {}
     },
     [recordMemoryMut],
   );
@@ -345,19 +337,36 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
     return due;
   }, [reviewMemoriesQuery.data, dismissedReviewKeys]);
 
-  // Mark a spaced review as completed · hide it locally + soft-delete
-  // the row. Replaces the legacy `DELETE /api/brain/memories?key=…`
-  // call, which had no route handler (it always 404'd · the row was
-  // never actually removed). `brain.forgetMemoryByKey` does the real
-  // lookup-by-key soft-delete.
+  // Mark a spaced review as completed · hide it locally, then either
+  // grade it or retire it. An FSRS card is graded Good
+  // (`brain.gradeSpacedReview`) and stays scheduled further out; a legacy
+  // Day 1/3/7/30 row (no fsrs state) is soft-deleted by key as before
+  // (`brain.forgetMemoryByKey`), since its later days are their own rows.
   const completeReview = useCallback(
     async (key: string) => {
       setDismissedReviewKeys((prev) => new Set(prev).add(key));
+      const row = reviewMemoriesQuery.data?.memories?.find((m) => m.key === key);
+      if (row && reviewCompletion(row.content) === "grade") {
+        const res = await gradeSpacedReviewMut.mutateAsync({ key, rating: "good" }).catch(() => null);
+        await utils.brain.memories.invalidate().catch(() => {});
+        // Not rescheduled (a lost swap, an unreadable row, or the call failed): un-hide it, it is still due.
+        if (!res || res.status === "lost" || res.status === "unreadable") {
+          setDismissedReviewKeys((prev) => {
+            const next = new Set(prev);
+            next.delete(key);
+            return next;
+          });
+          toast.error("Could not reschedule this card. It is still due.");
+        }
+        return;
+      }
       try {
         await forgetMemoryMut.mutateAsync({ key });
-      } catch {}
+      } catch {
+        toast.error("Could not save this review.");
+      }
     },
-    [forgetMemoryMut],
+    [reviewMemoriesQuery.data, gradeSpacedReviewMut, forgetMemoryMut, utils],
   );
 
   const [focusReviewMode, setFocusReviewMode] = useState(false);

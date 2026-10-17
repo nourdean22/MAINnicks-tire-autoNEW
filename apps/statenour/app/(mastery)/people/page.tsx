@@ -44,6 +44,7 @@ import { TodaysPicks } from "@/components/relationships/todays-picks";
 import {
   RelationshipsWatchlist,
   type WatchlistItem,
+  type WatchlistReadState,
 } from "@/components/relationships/relationships-watchlist";
 import { ContextualGreeneSidebar } from "@/components/relationships/contextual-greene-sidebar";
 import { PersonEditDrawer } from "@/components/relationships/person-edit-drawer";
@@ -115,7 +116,7 @@ function trustTone(score: number): { bg: string; text: string } {
 }
 
 function relativeTime(daysSince: number | null): string {
-  if (daysSince === null) return "—";
+  if (daysSince === null) return "not logged";
   if (daysSince === 0) return "today";
   if (daysSince === 1) return "1d ago";
   if (daysSince < 30) return `${daysSince}d ago`;
@@ -183,6 +184,9 @@ function RelationshipsPageInner() {
   // logged outreach immediately drops out of "today's picks".
   const [picksRefetchKey, setPicksRefetchKey] = useState(0);
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
+  // W4: the read state travels with the list, so a failed read is never drawn as "no one needs you".
+  const [watchlistState, setWatchlistState] = useState<WatchlistReadState>("loading");
+  const [watchlistTry, setWatchlistTry] = useState(0);
   const telemetry = useMissionSurfaceTelemetry("relationships");
 
   // Wave AB.b · person CRUD drawer · `null` = create mode, string = edit mode.
@@ -234,15 +238,22 @@ function RelationshipsPageInner() {
         const data = await rawFetch<{ items: WatchlistItem[] }>("/api/relationships/watchlist", {
           credentials: "include",
         });
-        if (!cancelled) setWatchlist(data.items ?? []);
+        if (!cancelled) {
+          setWatchlist(data.items ?? []);
+          setWatchlistState("ok");
+        }
       } catch {
-        if (!cancelled) setWatchlist([]);
+        if (!cancelled) setWatchlistState("error");
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [picksRefetchKey]);
+  }, [picksRefetchKey, watchlistTry]);
+  const retryWatchlist = useCallback(() => {
+    setWatchlistState("loading");
+    setWatchlistTry((n) => n + 1);
+  }, []);
 
   const { data, loading, error, reload } = usePollingFetch<PeopleResponse>(
     `/api/people?sort=${sortKey}&limit=100`,
@@ -337,7 +348,7 @@ function RelationshipsPageInner() {
     <StandardPage
       eyebrow="Brain · people"
       title="People"
-      description="Your Power Atlas — tap a name to open their dossier, ledger, and open promises."
+      description="Your Power Atlas: tap a name to open their dossier, ledger, and open promises."
       rhythm="comfortable"
       width="2xl"
       loading={loading && !data}
@@ -406,6 +417,17 @@ function RelationshipsPageInner() {
         </section>
       )}
 
+      {/* W4 (2026-10-17): who needs you now comes first, right under the verdict; the rest follows. */}
+      <RelationshipsWatchlist
+        items={watchlist}
+        state={watchlistState}
+        onRetry={retryWatchlist}
+        onSelect={(personId) => {
+          telemetry.event("watchlistOpen", { personId });
+          revealPerson(personId);
+        }}
+      />
+
       {/* 2026-09-16 · what moved while you were away (ChangeSet, third consumer). */}
       <PeopleChangeLine />
       <NicksRelationshipsBrief activePeopleCount={data?.totals.total ?? 0} />
@@ -415,13 +437,6 @@ function RelationshipsPageInner() {
        *  the watchlist below the fold. Operator: "it doesnt have to be
        *  the first thing i see". Watchlist now leads · picks follows in
        *  a one-line collapsed eyebrow (TodaysPicks rewritten BC). */}
-      <RelationshipsWatchlist
-        items={watchlist}
-        onSelect={(personId) => {
-          telemetry.event("watchlistOpen", { personId });
-          revealPerson(personId);
-        }}
-      />
       <TodaysPicks
         refetchKey={picksRefetchKey}
         onLogged={() => {
