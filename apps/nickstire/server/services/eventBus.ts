@@ -331,7 +331,7 @@ async function ensureInitialized(): Promise<void> {
   registerDestination({
     name: "telegram",
     enabled: true,
-    handles: ["emergency_request", "payment_received", "tire_order_placed", "lead_captured", "callback_requested", "booking_completed", "booking_created"],
+    handles: ["payment_received", "tire_order_placed", "lead_captured", "callback_requested", "booking_completed", "booking_created"],
     softFail: true,
     handler: async (event) => {
       const { sendTelegram } = await import("./telegram");
@@ -357,13 +357,8 @@ async function ensureInitialized(): Promise<void> {
         });
       };
 
-      if (event.type === "emergency_request") {
-        await sendTelegram(
-          `🚨 EMERGENCY: ${event.data.name} (${event.data.phone})\n` +
-          `Problem: ${event.data.problem || "N/A"}\n` +
-          `⚡ CALL BACK ASAP`
-        );
-      }
+      // emergency_request: no branch on purpose. Its Telegram alert is statenour's bridge route, which
+      // retries an undelivered one (Nour, 2026-10-17); a second copy from here would buzz twice.
       if (event.type === "payment_received") {
         await sendTelegram(
           `💳 PAYMENT: $${event.data.amount} from ${event.data.customerName}\n` +
