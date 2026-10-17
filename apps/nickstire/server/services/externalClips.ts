@@ -113,7 +113,7 @@ const errText = (e: unknown) => (e instanceof Error ? e.message : String(e)).sli
 export async function attachExternalClips(input: AttachInput, ctx: { attachedBy: string }, overrides: Partial<Deps> = {}): Promise<AttachResult> {
   const deps = await resolveDeps(overrides);
   const refuse = async (code: string, refusal: string): Promise<AttachResult> => {
-    await deps.audit({ actionType: "attach_external_clips", decision: "REFUSED", reasoningCodes: [code], context: { jobId: input.jobId, source: input.source, model: input.model ?? null, clipCount: input.clipUrls.length, refusal } }).catch(() => {});
+    await deps.audit({ actionType: "attach_external_clips", decision: "REFUSED", reasoningCodes: [code], context: { jobId: input.jobId, source: input.source, model: input.model ?? null, clipCount: input.clipUrls?.length ?? null, refusal } }).catch(() => {});
     log.info("external clips attach refused", { jobId: input.jobId, code, refusal });
     return { ok: false, refusal };
   };

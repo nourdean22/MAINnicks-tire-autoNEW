@@ -240,6 +240,15 @@ describe("attachExternalClips: refusals (never a throw, never a write)", () => {
     expect(h.putClip).not.toHaveBeenCalled();
   });
 
+  it("a direct caller with no clipUrls and no startFrame gets a refusal, not a thrown TypeError", async () => {
+    const h = harness();
+    const r = await attachExternalClips({ jobId: 2100001, source: "higgsfield-web" } as never, ctx, h.deps);
+    expect(r).toMatchObject({ ok: false });
+    expect(h.audit).toHaveBeenCalledWith(expect.objectContaining({ reasoningCodes: ["START_FRAME_MISSING"], context: expect.objectContaining({ clipCount: null }) }));
+    expect(h.updates).toHaveLength(0);
+    expect(h.fetchClip).not.toHaveBeenCalled();
+  });
+
   // one-element tuples: it.each spreads a bare array case into its arguments
   it.each([["None"], ["text_only"], [""], ["shop"], [0], [true], [["none"]]])("refuses start frame %j (START_FRAME_INVALID) and writes nothing", async (startFrame: unknown) => {
     const h = harness();
