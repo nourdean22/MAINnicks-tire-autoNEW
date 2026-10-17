@@ -187,6 +187,37 @@ github-client canaries 403'd every PR whenever another workflow had spent the bu
   PR where the diff is reviewable. That includes `infra-mutation-tool` ("Infra tools: deny by name" below): an override for it
   was built first and removed after review, and a canary asserts that an `AGENT_OS_INFRA_OVERRIDE` in the environment changes nothing.
 
+### Shared deps: one store, one install (2026-10-17)
+
+Every worktree's `node_modules` is a junction into the primary checkout's. On 2026-10-17 a session in the primary ran
+`pnpm --filter @statenour/web add ts-fsrs`; pnpm pruned vite from the shared store and every worktree's nickstire tsc
+and vitest broke at once. Two layers now cover it:
+
+1. **Rule `shared-deps-mutation`** (policy.json, Bash, PowerShell, the Terminal MCP and Monitor, any cwd): denies
+   `pnpm|npm|yarn` add, remove/rm/uninstall, update/up/upgrade, prune, and any install carrying `--filter`/`-F`, the
+   filter before or after the verb. Allows the full unfiltered `pnpm install [--frozen-lockfile]`, scripts, exec,
+   global (`-g`) installs, and a mention (echo, grep, a commit message). No cwd condition: in a worktree
+   `install-in-junctioned-worktree` is checked first and keeps its verdicts, and this rule also catches the
+   filter-before-verb shape that rule never matched. A "while any linked worktree exists" condition was skipped: on this
+   machine one always exists, and it would need a git or fs probe on every tool call.
+   The sanctioned path for new or changed deps: the scratchpad-clone recipe in
+   `.claude/skills/harness-worktree-setup/SKILL.md` section 3, then a full unfiltered `pnpm install --frozen-lockfile` in
+   the primary by the operator or a primary-checkout session when no sibling session is mid-run.
+   Desktop Commander's `start_process` / `interact_with_process` rows are exempt (`exceptRules`), as they already were from
+   the worktree rule: DC runs in its own cwd, and it is the runner the scratchpad-clone recipe installs through. Residual:
+   DC pointed at the primary checkout can still run the incident command; the hook cannot see a process's cwd.
+   Linear by construction: each option token has one parse, the option chain is capped at 12 and every scan is
+   bounded (the first draft split `--x` two ways and went exponential; `sharedDepsRule.test.mjs` > LINEAR pins it).
+   Not covered (text-only judge): `Start-Process pnpm -ArgumentList ...`, `yarn workspace <x> add`, `npm install <pkg>`,
+   `pnpm dedupe`, and a heredoc body line (denied, a false positive: write the file with the Write tool).
+2. **`scripts/agent-os/deps-check.mjs`** (SessionStart, matcher `startup`): one line about the PRIMARY's tree (from a
+   worktree it follows the `.git` file). For the root, `apps/*` and `packages/*`, every `dependencies` and
+   `devDependencies` entry must resolve to `node_modules/<name>/package.json` in the workspace or an ancestor up to the
+   repo root. `[deps] OK (N workspaces, M deps)` · `[deps] FAILED: <ws> missing <pkgs>; <fix>` · `[deps] UNKNOWN: <why>`
+   (a read error, no package.json, no node_modules at all). Never OK on an error; exit 0 always. Median 198 ms
+   (2026-10-17, 7 runs; `node -e 0` was 103 ms). Run it by hand any time: `node scripts/agent-os/deps-check.mjs`.
+   Canaries: `scripts/agent-os/depsCheck.test.mjs` and `sharedDepsRule.test.mjs`.
+
 ## MCP and native-runner coverage (2026-10-15)
 
 **The gap this closes.** `pretool.mjs` used to be registered only for
