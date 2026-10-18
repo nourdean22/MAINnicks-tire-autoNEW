@@ -169,6 +169,7 @@ function validateTemplate() {
     "GATEWAY_TIRE_USERNAME",
     "GATEWAY_TIRE_PASSWORD",
     "GATEWAY_TIRE_SHIP_TO",
+    "GATEWAY_ORDERING_ENABLED",
   ].filter(key => !rawExample.includes(key));
 
   if (missingOptional.length > 0) {

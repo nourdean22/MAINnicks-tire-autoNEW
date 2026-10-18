@@ -76,6 +76,8 @@ export type AuditAction =
   // 2026-09-01 · audit F-19: a tire order's status changes carried no actor,
   // no time and no history — "ordered" was a human claim with no receipt.
   | "tireorder.status_changed"
+  // 2026-10-18 · gatewayOrder.submit placed the D&K supplier order for a tire order
+  | "tireorder.supplier_ordered"
   | "invoice.refunded"
   | "invoice.refund_failed"
   // 2026-06-12 · nonstop nick membership overrides

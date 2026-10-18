@@ -49,6 +49,7 @@ import {
   portalRouter,
   gatewayTireRouter,
   fitmentRouter,
+  gatewayOrderRouter,
   autoLaborRouter,
   campaignsRouter,
   callTrackingRouter,
@@ -189,6 +190,8 @@ export const appRouter = router({
   gatewayTire: gatewayTireRouter,
   /** 2026-10-18 · public vehicle tire finder (D&K quicksearch via the Gateway Tire login). */
   fitment: fitmentRouter,
+  /** 2026-10-18 · admin D&K supplier order for a paid tire order; writes need GATEWAY_ORDERING_ENABLED=true. */
+  gatewayOrder: gatewayOrderRouter,
   autoLabor: autoLaborRouter,
   emergency: emergencyRouter,
   messengerBot: messengerBotRouter,

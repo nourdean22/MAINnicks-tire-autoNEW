@@ -1,0 +1,59 @@
+{
+  "_comment": "Shapes from the b2b.dktire.com portal bundle (2026-10-18): quicksearch item keys from gatewayTire.publicSearch's mapping; cart keys from the portal's cart render and Place Order handler. Values are invented.",
+  "searchHit": {
+    "dk_part_number": "LS388-2155516",
+    "make": "LANDSAIL",
+    "minor_name": "LAND - LS388",
+    "display_name": "LANDSAIL LS388 215/55R16 97V XL",
+    "invent_size": "215/55R16",
+    "on_hand": 12,
+    "pricing_data": [
+      { "_id": "pd-1", "site_id": 7001, "site_name": "Seville, OH", "selling_price": 61.25, "cost_price": 122.5, "quantity": 12, "fet": 0, "fet_src": 0, "tire_tax": 1.0, "num": 0 }
+    ]
+  },
+  "searchOther": {
+    "dk_part_number": "PR-2155516",
+    "make": "PIRELLI",
+    "minor_name": "PIRE - P7 ALL SEASON",
+    "display_name": "PIRELLI P7 ALL SEASON 215/55R16",
+    "invent_size": "215/55R16",
+    "on_hand": 4,
+    "pricing_data": [
+      { "_id": "pd-2", "site_id": 7001, "selling_price": 98.4, "cost_price": 196.8, "quantity": 4, "fet": 0, "fet_src": 0, "tire_tax": 1.0, "num": 0 }
+    ]
+  },
+  "searchTwin": {
+    "dk_part_number": "LS388-2155516-B",
+    "make": "LANDSAIL",
+    "minor_name": "LAND - LS388",
+    "display_name": "LANDSAIL LS388 215/55R16 94V",
+    "invent_size": "215/55R16",
+    "on_hand": 2,
+    "pricing_data": [
+      { "_id": "pd-3", "site_id": 7001, "selling_price": 59.0, "cost_price": 118.0, "quantity": 2, "fet": 0, "fet_src": 0, "tire_tax": 1.0, "num": 0 }
+    ]
+  },
+  "foreignCart": [
+    {
+      "ship_to": "SHIP-TO-UUID",
+      "ship_to_number": "70-001887",
+      "site_level_prepay": false,
+      "customer_level_prepay": false,
+      "tax_percent": 0,
+      "items": [
+        {
+          "ship_from": "7001",
+          "customer_po_number": "",
+          "customer_po_prefix": "",
+          "delivery_mode": false,
+          "items": [
+            { "_id": "cart-staff-1", "dk_part_number": "MICH-2256517", "display_name": "MICHELIN DEFENDER 225/65R17", "num": 2, "quantity": 30, "selling_price": 140.0, "site_id": 7001, "customer_id": "C-1887" }
+          ]
+        }
+      ]
+    }
+  ],
+  "submitOk": { "status": "Success", "statusMessage": "Order Created Successfully", "data": { "order_number": "SO-7001-448812" } },
+  "submitOkNoRef": { "status": "Success", "statusMessage": "Order Created Successfully", "data": { "lines": 1, "accepted": true } },
+  "badRequest": { "detail": "Invalid ship_to value" }
+}

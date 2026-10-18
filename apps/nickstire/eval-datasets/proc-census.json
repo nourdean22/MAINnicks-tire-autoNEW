@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-18T13:03:46.765Z",
-  "count": 797,
+  "generatedAt": "2026-10-18T14:57:10.219Z",
+  "count": 800,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -142,6 +142,9 @@
     "mutation.garage.addVehicle",
     "mutation.garage.deleteVehicle",
     "mutation.garage.updateVehicle",
+    "mutation.gatewayOrder.clearOurLines",
+    "mutation.gatewayOrder.prepare",
+    "mutation.gatewayOrder.submit",
     "mutation.gatewayTire.calculateMargin",
     "mutation.gatewayTire.cancelOrder",
     "mutation.gatewayTire.confirmCheckout",
