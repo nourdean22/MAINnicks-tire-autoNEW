@@ -263,11 +263,13 @@ export const gatewayOrderRouter = router({
       const submittedAt = new Date().toISOString();
       const note = `D&K order placed ${submittedAt} by ${actor} PO ${po}`;
       try {
-        await d.update(tireOrders).set({
+        const written = affectedRowCount(await d.update(tireOrders).set({
           gatewayOrderRef,
           status: "ordered",
           adminNotes: order.adminNotes ? `${order.adminNotes}\n${note}` : note,
-        }).where(whereOurClaim);
+        }).where(whereOurClaim));
+        // 0 rows: someone edited the ref while D&K was answering. The order IS placed; say so.
+        if (written !== 1) log.error(`D&K order ${gatewayOrderRef} placed for ${order.orderNumber} but the claim was changed meanwhile; row not updated`);
       } catch (err) {
         // The order IS placed. Keep the claim (never released after a placed order) and say so loudly.
         log.error(`D&K order ${gatewayOrderRef} placed for ${order.orderNumber} but the row update failed`, { error: err instanceof Error ? err.message : String(err) });
