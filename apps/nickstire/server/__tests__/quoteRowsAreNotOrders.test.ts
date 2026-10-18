@@ -75,20 +75,20 @@ describe("order queries carry the ORDER_ROWS filter (source pin)", () => {
 
   it("placeOrder's durable dedupe skips quote rows", () => {
     const dedupe = block(/L2: durable DB check/, /if \(recent\)/);
-    expect(dedupe).toMatch(/ORDER_ROWS/);
+    expect(dedupe).toMatch(/ORDER_ROWS\(\)/);
   });
 
   it("publicStats: all three aggregates skip quote rows", () => {
     const b = block(/publicStats: publicProcedure/, /\n  \w+: (admin|public)Procedure/);
-    expect(b.match(/ORDER_ROWS/g)?.length ?? 0).toBe(3);
+    expect(b.match(/ORDER_ROWS\(\)/g)?.length ?? 0).toBe(3);
   });
 
   it("orderStats (the Tire Revenue tile) skips quote rows", () => {
     const b = block(/orderStats: adminProcedure/, /\n  \w+: (admin|public)Procedure/);
-    expect(b).toMatch(/\.from\(tireOrders\)\s*\.where\(ORDER_ROWS\)/);
+    expect(b).toMatch(/\.from\(tireOrders\)\s*\.where\(ORDER_ROWS\(\)\)/);
   });
 
   it("ORDER_ROWS is the NOT LIKE on the quote prefix", () => {
-    expect(src).toMatch(/const ORDER_ROWS = sql`\$\{tireOrders\.orderNumber\} NOT LIKE \$\{`\$\{QUOTE_NUMBER_PREFIX\}%`\}`/);
+    expect(src).toMatch(/const ORDER_ROWS = \(\) => sql`\$\{tireOrders\.orderNumber\} NOT LIKE \$\{`\$\{QUOTE_NUMBER_PREFIX\}%`\}`/);
   });
 });

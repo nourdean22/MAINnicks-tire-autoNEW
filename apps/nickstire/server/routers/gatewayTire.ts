@@ -144,8 +144,9 @@ function setCachedSearch(key: string, results: any, source: "live" | "catalog") 
 // check inside placeOrder — the map dies on every redeploy and never
 // existed on a second instance, so it CANNOT be the only guard.
 /** Real orders only: a quote-by-text row (TQ-, routers/tireQuote.ts) is a lead and must never be
- *  counted as an order, dedupe against one, or reach checkout. */
-const ORDER_ROWS = sql`${tireOrders.orderNumber} NOT LIKE ${`${QUOTE_NUMBER_PREFIX}%`}`;
+ *  counted as an order, dedupe against one, or reach checkout. A function, not a constant: tests that
+ *  mock the schema import this router, and the column must not be read at module load. */
+const ORDER_ROWS = () => sql`${tireOrders.orderNumber} NOT LIKE ${`${QUOTE_NUMBER_PREFIX}%`}`;
 
 // Pure helpers (getIdempotencyKey, generateOrderNumber, price guards)
 // live in ../lib/tire-order-guards so they're unit-testable.
@@ -514,7 +515,7 @@ export const gatewayTireRouter = router({
             sql`${tireOrders.status} <> 'cancelled'`,
             // A quote texted minutes earlier is not this order: without this the customer's real
             // "Request these" came back as a duplicate of the quote, with no invoice and no booking.
-            ORDER_ROWS,
+            ORDER_ROWS(),
           ))
           .orderBy(desc(tireOrders.createdAt))
           .limit(1);
@@ -1104,13 +1105,13 @@ export const gatewayTireRouter = router({
       const [orderCount, installCount, sizeRow] = await Promise.all([
         d.select({ c: sql<number>`count(*)` })
           .from(tireOrders)
-          .where(sql`${tireOrders.createdAt} >= ${sevenDaysAgo} AND ${ORDER_ROWS}`),
+          .where(sql`${tireOrders.createdAt} >= ${sevenDaysAgo} AND ${ORDER_ROWS()}`),
         d.select({ c: sql<number>`count(*)` })
           .from(tireOrders)
-          .where(sql`${tireOrders.status} IN ('installed', 'completed') AND ${tireOrders.createdAt} >= ${sevenDaysAgo} AND ${ORDER_ROWS}`),
+          .where(sql`${tireOrders.status} IN ('installed', 'completed') AND ${tireOrders.createdAt} >= ${sevenDaysAgo} AND ${ORDER_ROWS()}`),
         d.select({ size: tireOrders.tireSize, c: sql<number>`count(*)` })
           .from(tireOrders)
-          .where(sql`${tireOrders.createdAt} >= ${sevenDaysAgo} AND ${ORDER_ROWS}`)
+          .where(sql`${tireOrders.createdAt} >= ${sevenDaysAgo} AND ${ORDER_ROWS()}`)
           .groupBy(tireOrders.tireSize)
           .orderBy(sql`count(*) desc`)
           .limit(1),
@@ -1427,7 +1428,7 @@ export const gatewayTireRouter = router({
       revenue: sql<number>`sum(${tireOrders.totalAmount})`,
     })
       .from(tireOrders)
-      .where(ORDER_ROWS)
+      .where(ORDER_ROWS())
       .groupBy(tireOrders.status);
 
     const result: Record<string, number> = {};
