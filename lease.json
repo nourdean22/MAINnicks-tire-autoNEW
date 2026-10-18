@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "statenour/camofox-live-fixes",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "11dd3c15-6c98-4bc9-9fa1-c404986839c6",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\new-session-bbf695",
   "claimedBy": "2026-10-18-camofox-live-fixes",
   "claimedAt": "2026-10-18T19:45:09.589Z",
   "expiresAt": "2026-10-19T07:45:09.589Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": null
+  "releasedAt": "2026-10-18T20:14:32.709Z",
+  "releaseReason": "PR 3151 merged as 743248111 and the gate deleted the remote branch; this worktree never held that branch, nothing local is being abandoned",
+  "priorLeaseSha": "a49048e7c05df774aee3c8acf473250080f6ebed",
+  "releasedBy": "11dd3c15-6c98-4bc9-9fa1-c404986839c6",
+  "foreignReleaseReason": null
 }
