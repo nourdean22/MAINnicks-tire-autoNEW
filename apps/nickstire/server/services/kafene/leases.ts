@@ -31,7 +31,7 @@ export async function findOrderByNumber(d: DB, orderNumber: string): Promise<Ord
 }
 
 export async function latestLease(d: DB, orderNumber: string): Promise<KafeneLease | null> {
-  const [row] = await d.select().from(kafeneLeases).where(eq(kafeneLeases.orderNumber, orderNumber)).orderBy(desc(kafeneLeases.id)).limit(1);
+  const [row] = await d.select().from(kafeneLeases).where(eq(kafeneLeases.orderNumber, orderNumber)).orderBy(desc(kafeneLeases.createdAt), desc(kafeneLeases.id)).limit(1); // TiDB ids are not time-ordered
   return row ?? null;
 }
 
