@@ -94,6 +94,22 @@ describe("callback-escalation leaves an unworked callback in the queue", () => {
     expect(res.recordsProcessed).toBe(2);
   });
 
+  it("a missed-call-recovery row (the caller never asked for a callback) is alerted but never texted 'your callback'", async () => {
+    const MISSED = { ...STALE, id: 9, sourcePage: "missed-call-recovery" };
+    execute.mockResolvedValueOnce([[STALE, MISSED], []])
+      .mockResolvedValueOnce([{ affectedRows: 1 }])
+      .mockResolvedValueOnce([{ affectedRows: 1 }]);
+    isEnabled.mockResolvedValue(true);
+    sendSms.mockResolvedValue({ success: true });
+    const res = await escalateStaleCallbacks();
+    expect(sendSms).toHaveBeenCalledTimes(1); // the form-requested row only (control)
+    expect(sendTelegram).toHaveBeenCalledTimes(1);
+    expect(String(sendTelegram.mock.calls[0]![0])).toMatch(/2 callback\(s\)/);
+    expect(res.recordsProcessed).toBe(2);
+    const [select] = issued();
+    expect(select!.sql).toMatch(/sourcePage/);
+  });
+
   it("a failed read fails the run loudly instead of reporting 'completed'", async () => {
     execute.mockRejectedValueOnce(new Error("ER_LOCK_WAIT_TIMEOUT"));
     await expect(escalateStaleCallbacks()).rejects.toThrow(/ER_LOCK_WAIT_TIMEOUT/);
