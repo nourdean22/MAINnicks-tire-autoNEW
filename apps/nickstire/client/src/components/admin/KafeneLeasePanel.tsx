@@ -11,6 +11,8 @@ import { hasAdminPermission, type AdminRole } from "@shared/adminPermissions";
 
 const STATUS_LABEL: Record<string, string> = {
   started: "Started, not finished by the customer",
+  // Customer tapped the Kafene apply link (no SDK checkout, so no uid yet).
+  applied: "Application started on the website; look it up in merchant.kafene.com by phone",
   approved: "Approved, not signed yet",
   signed: "Signed, waiting for installation",
   activating: "Activation in progress",

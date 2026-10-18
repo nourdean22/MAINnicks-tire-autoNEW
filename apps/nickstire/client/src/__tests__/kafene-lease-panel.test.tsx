@@ -134,7 +134,14 @@ describe("KafeneLeasePanel", () => {
     expect(h.activate).not.toHaveBeenCalled();
   });
 
-  it.each(["started", "approved", "activating", "activated", "cancelled"])("activate is disabled when the lease is %s", async (status) => {
+  it("an 'applied' lease (started on the website) says where to look it up and cannot be activated", async () => {
+    h.status = { data: { ok: true, lease: lease({ status: "applied", uid: null }) }, isLoading: false, isError: false };
+    await renderPanel();
+    expect(panel().getByText("Application started on the website; look it up in merchant.kafene.com by phone")).toBeTruthy();
+    expect(activateButton()!.disabled).toBe(true);
+  });
+
+  it.each(["started", "applied", "approved", "activating", "activated", "cancelled"])("activate is disabled when the lease is %s", async (status) => {
     h.status = { data: { ok: true, lease: lease({ status }) }, isLoading: false, isError: false };
     await renderPanel();
     const btn = activateButton();
