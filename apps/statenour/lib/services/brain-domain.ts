@@ -22,6 +22,8 @@
 import { prisma } from "@/lib/prisma";
 import { hourET } from "@/lib/utils/datetime";
 import { logger } from "@/lib/logger";
+import { ALERT_CATEGORIES } from "@/lib/brain/alert-lanes";
+import { getAlertSuppression, isAlertSuppressed } from "@/lib/brain/alert-suppression";
 import {
   KNOWN_BRAIN_CATEGORIES,
   DEPRECATED_CATEGORY_MAP,
@@ -73,20 +75,8 @@ import {
 
 // ──────────────── active-alerts ────────────────
 
-/**
- * The 7 BrainMemory alert categories the active-alerts surface
- * aggregates. Lifted verbatim from
- * `app/api/brain/active-alerts/route.ts`.
- */
-const ALERT_CATEGORIES = [
-  "correlation_alert",
-  "decision_quality_drift",
-  "schema_drift_alert",
-  "storage_quota_alert",
-  "creation_spike_alert",
-  "update_spike_alert",
-  "brain_bus_alert",
-] as const;
+// The 7 BrainMemory alert categories now live in ONE list (lib/brain/alert-lanes.ts), shared with
+// Telegram /alerts and Nick's command-center state (W5b, 2026-10-18); imported at the top.
 
 /** One alert row · `metadata` projected to `unknown` (TS2589 firewall). */
 export interface BrainAlertRow {
@@ -114,20 +104,12 @@ export async function buildActiveAlerts(args: {
   sinceDays: number;
 }): Promise<ActiveAlertsView> {
   const since = new Date(Date.now() - args.sinceDays * 86_400_000);
-  // W3 alert lifecycle: category mutes are expiring brainMemory rows
-  // (category alert_mute, key = muted category, expiresAt = mute end).
-  // Server-side so mutes hold across devices; expiry is natural TTL.
-  const muteRows = await prisma.brainMemory.findMany({
-    where: {
-      category: "alert_mute",
-      deletedAt: null,
-      OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
-    },
-    select: { key: true },
-  });
-  const muted = new Set(muteRows.map((m) => m.key));
-  const activeCategories = ALERT_CATEGORIES.filter((c) => !muted.has(c));
-  const rows = await prisma.brainMemory.findMany({
+  // W3 mutes and W5b dismissals: expiring brainMemory rows read by the one shared reader
+  // (lib/brain/alert-suppression.ts), so this feed, Telegram /alerts and Nick agree.
+  // A failed suppression read throws: the page shows its error state, never a guess.
+  const suppression = await getAlertSuppression();
+  const activeCategories = ALERT_CATEGORIES.filter((c) => !suppression.mutedCategories.has(c));
+  const fetched = await prisma.brainMemory.findMany({
     where: {
       category: { in: [...activeCategories] },
       createdAt: { gte: since },
@@ -144,6 +126,9 @@ export async function buildActiveAlerts(args: {
       metadata: true,
     },
   });
+  // shortcut: dismissed rows are dropped after the take, so a window full of dismissed rows can
+  // show fewer than `limit` per category; move the filter into SQL if that is ever seen.
+  const rows = fetched.filter((r) => !isAlertSuppressed(r, suppression));
 
   const grouped: Record<string, BrainAlertRow[]> = {};
   for (const cat of ALERT_CATEGORIES) grouped[cat] = [];

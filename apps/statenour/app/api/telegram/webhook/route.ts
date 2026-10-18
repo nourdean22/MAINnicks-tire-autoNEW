@@ -2073,37 +2073,29 @@ async function cmdStats(chatId: string): Promise<void> {
  */
 async function cmdAlerts(chatId: string): Promise<void> {
   const { prisma } = await import("@/lib/prisma");
-
-  const ALERT_CATS = [
-    "correlation_alert",
-    "decision_quality_drift",
-    "schema_drift_alert",
-    "storage_quota_alert",
-    "creation_spike_alert",
-    "update_spike_alert",
-    "brain_bus_alert",
-  ];
+  const { ALERT_CATEGORIES } = await import("@/lib/brain/alert-lanes");
+  const { getAlertSuppression, isAlertSuppressed } = await import("@/lib/brain/alert-suppression");
 
   // 2026-10-17 · the reply promised "the last 30 days" while the query had no
   // date filter, and the /brain mute (alert_mute rows) was ignored here. Both are
   // applied now, and a failed read is reported as unknown, never as all-clear.
+  // W5b (2026-10-18): mutes AND dismissals come from the one shared reader, so a
+  // dismissal on /system/alerts holds here too.
   let alerts: { category: string; content: string; createdAt: Date }[];
   try {
-    const muteRows = await prisma.brainMemory.findMany({
-      where: { category: "alert_mute", deletedAt: null, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] },
-      select: { key: true },
-    });
-    const muted = new Set(muteRows.map((m) => m.key));
-    alerts = await prisma.brainMemory.findMany({
+    const suppression = await getAlertSuppression();
+    const rows = await prisma.brainMemory.findMany({
       where: {
-        category: { in: ALERT_CATS.filter((c) => !muted.has(c)) },
+        category: { in: ALERT_CATEGORIES.filter((c) => !suppression.mutedCategories.has(c)) },
         createdAt: { gte: new Date(Date.now() - 30 * 86_400_000) },
         deletedAt: null,
       },
       orderBy: { createdAt: "desc" },
-      take: 5,
-      select: { category: true, content: true, createdAt: true },
+      // Read past the five it lists so dismissed rows do not crowd out live ones.
+      take: 50,
+      select: { category: true, key: true, content: true, createdAt: true },
     });
+    alerts = rows.filter((r) => !isAlertSuppressed(r, suppression)).slice(0, 5);
   } catch (err) {
     log.warn("alerts_read_failed", { error: err instanceof Error ? err.message.slice(0, 120) : String(err) });
     await sendTelegram("⚠️ Alerts unknown: the read failed. Not an all-clear.", chatId);

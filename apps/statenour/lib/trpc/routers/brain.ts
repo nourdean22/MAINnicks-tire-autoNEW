@@ -63,6 +63,13 @@ import { brainMemory } from "@/lib/brain/memory-manager";
 import { getMemoryOfTheDay } from "@/lib/services/memory-of-the-day";
 import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import {
+  ALERT_CATEGORIES,
+  ALERT_DISMISS_DAYS,
+  ALERT_DISMISS_REASONS,
+  alertDismissKey,
+  alertSignal,
+} from "@/lib/brain/alert-lanes";
 // 2026-05-24 · Wave V · feature-mining wire-up · calibrationSummary
 // procedure surfaces the existing summarizeCalibration helper to /brain.
 // Pre-Wave-V the math has been built + tested + the brierScore column
@@ -520,6 +527,44 @@ export const brainRouter = router({
         },
       });
       return { ok: true as const, until: new Date(Date.now() + input.days * 86_400_000).toISOString() };
+    }),
+
+  /**
+   * UI v3 W5b · dismiss with a reason = a SUPPRESSION, never a delete: an expiring alert_dismiss
+   * row keyed by the alert's signal identity (lib/brain/alert-lanes.ts alertDismissKey), honoured
+   * by the shared reader in every consumer (lib/brain/alert-suppression.ts). The key comes from the
+   * row the server reads by id, so a dismissal can only cover the alert that was tapped (or its
+   * recurring signal). Upsert on (category, key) makes a repeat tap idempotent.
+   */
+  dismissAlert: operatorProcedure
+    .input(z.object({ id: z.string().min(1), reason: z.enum(ALERT_DISMISS_REASONS) }))
+    .mutation(async ({ input }) => {
+      const { prisma } = await import("@/lib/prisma");
+      const row = await prisma.brainMemory.findFirst({
+        where: { id: input.id, deletedAt: null },
+        select: { category: true, key: true },
+      });
+      if (!row || !(ALERT_CATEGORIES as readonly string[]).includes(row.category)) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "No live alert with that id." });
+      }
+      const key = alertDismissKey(row.category, row.key);
+      const { scope } = alertSignal(row.category, row.key);
+      const expiresAt = new Date(Date.now() + ALERT_DISMISS_DAYS * 86_400_000);
+      // brain-memory-direct-write: suppression marker for the alerts feed, not a semantic memory
+      await prisma.brainMemory.upsert({
+        where: { category_key: { category: "alert_dismiss", key } },
+        create: {
+          category: "alert_dismiss",
+          key,
+          content: input.reason,
+          confidence: 1,
+          source: "alert-lifecycle",
+          metadata: { alertCategory: row.category, scope },
+          expiresAt,
+        },
+        update: { content: input.reason, expiresAt, deletedAt: null },
+      });
+      return { ok: true as const, scope, until: expiresAt.toISOString() };
     }),
 
   /**

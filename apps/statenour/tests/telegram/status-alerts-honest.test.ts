@@ -19,15 +19,22 @@ const h = vi.hoisted(() => {
     countFails: false,
     alertsFail: false,
     mutes: [] as { key: string }[],
-    alerts: [] as { category: string; content: string; createdAt: Date }[],
+    dismissals: [] as { category: string; key: string }[],
+    alerts: [] as { category: string; key?: string; content: string; createdAt: Date }[],
   };
   const count = vi.fn(async () => { if (state.countFails) throw new Error("db down"); return 2; });
   const brainMemory = {
-    findMany: vi.fn(async (a: { where: { category: unknown; createdAt?: { gte: Date } } }) => {
+    findMany: vi.fn(async (a: { where: { category: unknown; createdAt?: { gte: Date } }; take?: number }) => {
       if (state.alertsFail) throw new Error("db down");
       if (a.where.category === "alert_mute") return state.mutes;
       const cats = (a.where.category as { in: string[] }).in;
-      return state.alerts.filter((r) => cats.includes(r.category) && (!a.where.createdAt || r.createdAt >= a.where.createdAt.gte));
+      // W5b: the shared suppression reader asks for mutes and dismissals in one read.
+      if (cats.includes("alert_mute") || cats.includes("alert_dismiss")) {
+        return [...state.mutes.map((m) => ({ category: "alert_mute", key: m.key })), ...state.dismissals];
+      }
+      return state.alerts
+        .filter((r) => cats.includes(r.category) && (!a.where.createdAt || r.createdAt >= a.where.createdAt.gte))
+        .slice(0, a.take ?? Infinity);
     }),
   };
   const handlers: Record<string, Record<string, unknown>> = {
@@ -75,7 +82,7 @@ const reply = () => h.sendTelegram.mock.calls.map((c) => String(c[0])).join("\n"
 afterAll(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 beforeEach(() => {
   vi.clearAllMocks();
-  Object.assign(h.state, { countFails: false, alertsFail: false, mutes: [], alerts: [] });
+  Object.assign(h.state, { countFails: false, alertsFail: false, mutes: [], dismissals: [], alerts: [] });
   h.getUnresolvedAlerts.mockResolvedValue([{ id: "d1" }]);
   h.queryNick.mockResolvedValue({ data: { count: 3 }, query: "leads_urgent", timestamp: "t" });
 });
@@ -140,6 +147,34 @@ describe("/alerts keeps its 30-day window and the mutes", () => {
     await say("/alerts");
     expect(reply()).not.toContain("No active alerts");
     expect(reply()).toContain("unknown");
+  });
+
+  // UI v3 W5b, consumer 2: a dismissal made on /system/alerts holds in Telegram too.
+  it("a dismissed alert is not shown; an undismissed one in the same category is", async () => {
+    const { alertDismissKey } = await import("@/lib/brain/alert-lanes");
+    h.state.alerts = [
+      { category: "brain_bus_alert", key: "dead-event:one", content: "dismissed bus event", createdAt: new Date() },
+      { category: "brain_bus_alert", key: "dead-event:two", content: "live bus event", createdAt: new Date() },
+    ];
+    h.state.dismissals = [{ category: "alert_dismiss", key: alertDismissKey("brain_bus_alert", "dead-event:one") }];
+    await say("/alerts");
+    expect(reply()).not.toContain("dismissed bus event");
+    expect(reply()).toContain("live bus event");
+  });
+
+  it("dismissed rows do not crowd out the five it lists", async () => {
+    const { alertDismissKey } = await import("@/lib/brain/alert-lanes");
+    const t = Date.now();
+    h.state.alerts = Array.from({ length: 7 }, (_, i) => ({
+      category: "brain_bus_alert",
+      key: `dead-event:${i}`,
+      content: `bus event ${i}`,
+      createdAt: new Date(t - i * 1000),
+    }));
+    h.state.dismissals = [0, 1, 2].map((i) => ({ category: "alert_dismiss", key: alertDismissKey("brain_bus_alert", `dead-event:${i}`) }));
+    await say("/alerts");
+    for (const i of [3, 4, 5, 6]) expect(reply()).toContain(`bus event ${i}`);
+    expect(reply()).not.toContain("bus event 0");
   });
 
   it("CONTROL - a recent unmuted alert is shown", async () => {
