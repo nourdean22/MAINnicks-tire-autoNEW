@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "docs/upstreams-verdicts-20261018",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "11dd3c15-6c98-4bc9-9fa1-c404986839c6",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\new-session-bbf695",
   "claimedBy": "2026-10-18-upstreams-verdicts",
   "claimedAt": "2026-10-18T00:18:51.481Z",
   "expiresAt": "2026-10-18T12:18:51.481Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": null
+  "releasedAt": "2026-10-18T00:21:34.562Z",
+  "releaseReason": "PR #3138 merged; merge-gate deleted the remote branch",
+  "priorLeaseSha": "96247d6e29ef7258a3bff6f923fff9dfc3b78456",
+  "releasedBy": "11dd3c15-6c98-4bc9-9fa1-c404986839c6",
+  "foreignReleaseReason": null
 }
