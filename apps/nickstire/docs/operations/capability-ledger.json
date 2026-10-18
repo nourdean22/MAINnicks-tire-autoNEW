@@ -5643,6 +5643,39 @@
         "tests": "server/routers/kafene.test.ts 46 (applyStarted red-first 9f/36p, mutations 6/6); client/src/__tests__/kafene-checkout.test.tsx, kafene-sdk-loader.test.ts, kafene-lease-panel.test.tsx (red-first 1f/19p), order-modal-payment-programs.test.tsx (red-first 2f/26p, mutations 5/5); manager run on the combined tip 5e2906ef9: 13 files passed, tsc exit 0",
         "liveProbe": "Keyed path never run: Kafene issues Merchant ID / Store ID / API key to e-commerce stores only (merchant.kafene.com/integrations gated, FACT 2026-10-18). Keyless applyStarted: unit tests only until the first real click after deploy; migration 0148 is an operator step. Live 2026-10-18 after deploy 8b189e8b7 (read-only): kafene.config {enabled:false}; kafene.applyStarted on a non-existent order -> {ok:false, reason:\"not_found\"} (no write); the first real click is still owed."
       }
+    },
+    {
+      "capabilityId": "tires-text-me-quote",
+      "name": "A /tires top-pick quote leaves the page as one customer text and comes back as a tire_orders lead the shop calls on",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "Branch nickstire/tires-text-me-quote (aa2c6e0ac + 56add56cc, 2026-10-18, not merged): client/src/components/tires/TextQuoteButton.tsx on each top-pick card in pages/TireFinderV2.tsx (48 px inline tel field, consent line, no dialog globals); server/routers/tireQuote.ts tireQuote.text (public, blockBatchedLimits + formLimiter in _core/index.ts) writes a tire_orders row named 'Quote by text' (status received, no invoice, no booking, nothing marked paid), awaits ONE text through customerMessageTemplates.sendCustomerMessage(orderNumber, 'quoteTexted') and Telegrams staff (receipt class, phone last four only); new template quoteTexted carries tire, qty, installed set total, size or vehicle, a /tires?size= link, 'Payment Programs available' and the shop phone, as a customer_confirmation (opt-out refused, not held for quiet hours, dry-run under ENABLE_CUSTOMER_CONFIRMATIONS, held by send_pause_customer_confirmations); sendCustomerMessage now returns smsOutcome so the card tells the customer when no text went out; a refused or uncertain send is never retried; five-minute dedupe on phone + tire + qty; $50 price floor; brand/model/size/vehicle refuse markup and links.",
+        "tests": [
+          "server/__tests__/tireQuote.test.ts (15): row shape and no invoice, one text with class customer_confirmation and variant confirm:quoteTexted:<order>, body carries the $ total and the /tires?size= link, Telegram masks the phone, opted-out refused once and not retried, uncertain reported and not retried, queued reported, dedupe, price floor, bad phone, markup refused, +1 normalised, no vehicle, flag unset stores and tells not_sent, order-number collision retried, DB down, no full phone in logs. Red first: module missing.",
+          "server/customer-message-templates.test.ts (+6): quoteTexted copy (tire, qty, total, size, vehicle, link, Payment Programs, phone, no 'financ', no em dash, <= 320 chars), size-only link, outcome + vehicle hand-off, refused once, queued. Red first 3 + 4 failed.",
+          "client/src/__tests__/tire-finder-v2.test.tsx (+6): 48 px field + consent line + no window.prompt/alert/confirm, bad phone inline error, payload (pick, tire, qty, price, no vehicle), vehicle from a vehicle search, not_sent copy with tel link, failed request keeps the form.",
+          "Registries: trpc-auth-tier allowlist and formLimiterCoverage PUBLIC_WRITE_FORMS carry tireQuote.text (both red first); eval-datasets/proc-census.json regenerated (808 -> 809).",
+          "Mutation receipts (break, run, restore): 'Financing' in the template -> 1 red; router retries a refused send -> 2; Telegram carries the full phone -> 1; dedupe removed -> 1; price floor removed -> 1; limiter registration swapped for apiLimiter -> 1; client window.prompt -> 6; phone validation removed -> 1; field under 48 px -> 1; not_sent shown as Sent -> 1; vehicle dropped -> 4."
+        ]
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Not merged or deployed. Merging arms the text (ENABLE_CUSTOMER_CONFIRMATIONS is true in production; the house pattern has no per-template switch). Live proof owed: one real tap on nickstire.org/tires, the text arriving on the operator's phone with the link reopening the same result, the 'Quote by text' row in Admin > Tire Orders > New Requests, and the staff Telegram.",
+          "source": "task 2026-10-18 tires-text-me-quote (competitor teardown gap #5, quote does not travel)"
+        }
+      ],
+      "deferredScope": [
+        "a per-template kill switch (QUOTE_TEXT_ENABLED) if the operator wants the lane dark after merge",
+        "the vehicle in the return URL (link is size-only; the vehicle is in the text body)",
+        "supplier-feed price re-derivation like placeOrder (the $50 floor is the only guard; a quote is a text and a call-back, not a charge)",
+        "a quote row left received 2+ days appears in the existing STALE TIRE ORDERS digest with order wording"
+      ],
+      "lastVerifiedAt": "2026-10-18",
+      "verificationExpiresAt": null,
+      "codeState": "in_progress",
+      "operationalState": "unit_verified",
+      "exposure": "disabled"
     }
   ],
   "axes": {
