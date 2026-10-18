@@ -15,6 +15,7 @@ import { trpc } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { trackAcimaClick } from "@/lib/acima";
+import { FINANCING_PROVIDERS } from "@shared/financing";
 
 function priceBreakdown(subtotalCents: number) {
   const tax = Math.round(subtotalCents * 0.08);
@@ -280,25 +281,21 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
                         </p>
                         
                         <div className="border-t border-border/20 pt-3">
-                          <p className="text-[10px] text-muted-foreground mb-2 text-center font-medium">Or apply for Snap/Acima payment programs:</p>
-                          <div className="flex gap-2">
-                            <a
-                              href="https://getsnap.snapfinance.com/lease/en-US/consumer/apply?ep=store-locator&merchantId=490295617&externalMerchantId=77661"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex-1 text-center bg-[#FF6B00] text-white py-2 rounded-md text-xs font-medium hover:bg-[#FF6B00]/90 transition-colors"
-                            >
-                              Snap Finance
-                            </a>
-                            <a
-                              href="https://acima.us/1TjEOYtr6C"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={() => trackAcimaClick("tire_order_modal")}
-                              className="flex-1 text-center bg-blue-600 text-white py-2 rounded-md text-xs font-medium hover:bg-blue-600/90 transition-colors"
-                            >
-                              Acima
-                            </a>
+                          <p className="text-[10px] text-muted-foreground mb-2 text-center font-medium">Or apply through one of our Payment Programs:</p>
+                          {/* From the canonical provider list (Kafene first), so this block can never go stale. */}
+                          <div className="grid grid-cols-2 gap-2">
+                            {FINANCING_PROVIDERS.map((p) => (
+                              <a
+                                key={p.id}
+                                href={p.applyUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={p.id === "acima" ? () => trackAcimaClick("tire_order_modal") : undefined}
+                                className="flex min-h-12 items-center justify-center rounded-md border border-border/50 px-2 text-center text-xs font-medium text-foreground hover:border-primary hover:text-primary transition-colors"
+                              >
+                                {p.shortName}
+                              </a>
+                            ))}
                           </div>
                         </div>
                       </>

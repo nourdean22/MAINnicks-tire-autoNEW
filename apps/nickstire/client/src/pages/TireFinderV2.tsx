@@ -144,13 +144,14 @@ export default function TireFinderV2() {
   const tires: Tire[] = query.data?.tires ?? [];
   const topPicks = pickTopTires(tires);
 
-  const submit = (value = input) => {
+  /** Runs the size search; false when the size was rejected and nothing changed. */
+  const submit = (value = input): boolean => {
     const clean = value.trim();
     if (normalize(clean).length < 7) {
       // wave-d · was a silent bare return: the button looked live but the
       // DOM was byte-identical after the click — "appears broken".
       setSizeError("That size looks incomplete — use the full code from your sidewall, like 215/60R16.");
-      return;
+      return false;
     }
     setSizeError("");
     setInput(clean);
@@ -160,16 +161,18 @@ export default function TireFinderV2() {
     window.history.replaceState({}, "", `${window.location.pathname}?${p}`);
     trackEvent("tire_search_submitted", { size: clean, source: "tires_v2" });
     setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+    return true;
   };
   const searchBySize = (value?: string) => {
+    // A rejected size changes nothing: the vehicle results stay on screen, so keep their vehicle.
+    if (!submit(value)) return;
     setSearchVehicle(null);
-    // A size-only search is not for the picked vehicle: drop it from the URL (submit keeps ?size and
+    // A size-only search is not for the picked vehicle: drop it from the URL (submit kept ?size and
     // ?tab), or a reload or shared link would rebuild it and prefill the order form.
     const p = new URLSearchParams(window.location.search);
     ["year", "make", "model", "trim"].forEach((k) => p.delete(k));
     const qs = p.toString();
     window.history.replaceState({}, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`);
-    submit(value);
   };
 
   return (
