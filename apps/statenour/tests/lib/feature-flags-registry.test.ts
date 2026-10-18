@@ -28,6 +28,7 @@ import { isEscalationEnabled } from "@/lib/ai/vnext/escalation";
 import { areFollowUpsEnabled } from "@/lib/agent/follow-up";
 import { getActiveRerankBackend } from "@/lib/brain/rerank";
 import { isReplicateFluxEnabled } from "@/lib/ai/replicate-flux";
+import { isCamofoxEgressAttested } from "@/lib/integrations/camofox";
 
 const KEY = "NICK_MUTATION_LOCK";
 const GATEWAY_KEYS = ["NICK_MEMORY_GATEWAY_PHASE1", "NICK_MEMORY_GATEWAY_PHASE2"] as const;
@@ -170,6 +171,9 @@ describe("readOnly mirrors agree with the runtime predicates they mirror", () =>
       vi.stubEnv("REPLICATE_API_KEY", "test");
       return isReplicateFluxEnabled();
     }, [[undefined, false], ["true", true], ["TRUE", false], ["1", false]]],
+    // Exact and untrimmed: only the literal "attested" turns the camofox fallback on.
+    ["CAMOFOX_EGRESS_PROXY", isCamofoxEgressAttested,
+      [[undefined, false], ["attested", true], ["ATTESTED", false], [" attested ", false], ["true", false], ["1", false]]],
   ];
 
   const INVERTED = new Set(["NICK_ESCALATION_DISABLED"]);

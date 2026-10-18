@@ -44,7 +44,7 @@ vi.mock("@/lib/prisma", () => ({
 vi.mock("@/lib/intelligence/extraction", () => ({ extractClaimsFromText: async () => [] }));
 vi.mock("@/lib/intelligence/grounding", () => ({ groundClaim: async () => ({}) }));
 vi.mock("@/lib/intelligence/promote", () => ({ promoteIntelligenceClaims: async () => ({ promoted: 0, examined: 0 }) }));
-vi.mock("@/lib/integrations/firecrawl", () => ({ scrapeUrl: async () => ({}), isFirecrawlConfigured: () => false }));
+vi.mock("@/lib/integrations/firecrawl", () => ({ scrapeUrl: async () => ({}), isFirecrawlConfigured: () => false, isScrapeConfigured: () => false }));
 vi.mock("@/lib/intelligence/connectors/nhtsa", () => ({ fetchNHTSARecalls: async () => [] }));
 vi.mock("@/lib/intelligence/connectors/sec", () => ({
   fetchCompetitorAndSECData: async () => ({ filings: [], prices: [] }),
