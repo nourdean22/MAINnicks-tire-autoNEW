@@ -48,7 +48,8 @@ const PINS: Array<[file: string, line: string]> = [
 const lines = (file: string) => read(file).split("\n").map((l) => l.trim());
 
 const OUTBOUND_COUNT = 5;
-const CHROME_COUNT = 32;
+// 33 since 2026-10-18: GatewayOrderPanel's "Place this order with D&K?" confirm (operator text, not customer copy).
+const CHROME_COUNT = 33;
 
 /** Every walk-in preset as the printed or copied quote shows it (OIL_PRICE from shared/pricing). */
 const WALK_IN_DESCRIPTIONS = [
