@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "nickstire/missed-call-callback-row",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "11dd3c15-6c98-4bc9-9fa1-c404986839c6",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\new-session-bbf695",
   "claimedBy": "2026-10-18-c33-missed-call-callback-row",
   "claimedAt": "2026-10-18T10:14:36.263Z",
   "expiresAt": "2026-10-18T22:14:36.263Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": null
+  "releasedAt": "2026-10-18T11:49:47.243Z",
+  "releaseReason": "merged as #3141 c58ec61cf + follow-up #3143 e4d6339de",
+  "priorLeaseSha": "80e6bab1436788089e87320ba0f0e97741347d48",
+  "releasedBy": "11dd3c15-6c98-4bc9-9fa1-c404986839c6",
+  "foreignReleaseReason": null
 }
