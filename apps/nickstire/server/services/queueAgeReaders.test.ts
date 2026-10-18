@@ -19,6 +19,9 @@ vi.mock("../db", () => ({ getDb: async () => (dbAvailable ? { execute } : null) 
 const suppression = vi.fn();
 vi.mock("../sms", () => ({ loadSuppressionIndex: () => suppression() }));
 
+const sendPause = vi.fn();
+vi.mock("./sendPause", () => ({ sendPause: (...args: unknown[]) => sendPause(...args) }));
+
 import { QUEUE_AGE_READERS } from "./queueAgeReaders";
 
 const MIN = 60_000;
@@ -45,6 +48,8 @@ beforeEach(() => {
   delete process.env.FOLLOWUP_CADENCE_DRY_RUN;
   process.env.REEL_GENERATION_ENABLED = "true";
   suppression.mockResolvedValue({ ok: true, phones: new Set<string>(), stale: false });
+  sendPause.mockReset();
+  sendPause.mockResolvedValue({ paused: false, readable: true });
 });
 
 afterEach(() => {
@@ -108,6 +113,30 @@ describe("followup-cadence reader", () => {
   it("skipped in dry run: the job writes no voice_followups rows, so every touch would age forever", async () => {
     process.env.FOLLOWUP_CADENCE_DRY_RUN = "1";
     expect((await read()).skipped).toMatch(/DRY_RUN/);
+  });
+
+  it("skipped (not stuck) when send_pause_voice_outbound is readable and paused: the job holds at that gate", async () => {
+    sendPause.mockResolvedValueOnce({ paused: true, readable: true });
+    const r = await read();
+    expect(r).toMatchObject({ oldestDueAtMs: null, readFailed: false });
+    expect(r.skipped).toBe("send_pause_voice_outbound paused");
+    expect(sendPause).toHaveBeenCalledWith("voice_outbound", { fresh: true });
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it("an unreadable pause switch is readFailed (unknown), never judged and never skipped", async () => {
+    sendPause.mockResolvedValueOnce({ paused: false, readable: false });
+    const r = await read();
+    expect(r.readFailed).toBe(true);
+    expect(r.skipped).toBeUndefined();
+    expect(r.error).toMatch(/send_pause_voice_outbound unreadable/);
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it("live (readable, not paused): the queue is judged", async () => {
+    execute.mockResolvedValueOnce([[{ phone: "216-555-0199", ageMinutes: 45 }]]); // pii-allow: fictional 555-01xx
+    expect(await read()).toEqual({ oldestDueAtMs: NOW - 45 * MIN, readFailed: false });
+    expect(sendPause).toHaveBeenCalledWith("voice_outbound", { fresh: true });
   });
 
   it("due = completed booking in the 7..65 day window whose first un-fired touch is past due", async () => {

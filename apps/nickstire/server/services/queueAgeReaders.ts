@@ -71,6 +71,12 @@ async function readFollowupCadence(nowMs: number): Promise<QueueAgeRead> {
     return { oldestDueAtMs: null, readFailed: false, skipped: "FOLLOWUP_CADENCE_DRY_RUN=1 writes no touch rows" };
   }
   try {
+    // runFollowupCadence holds at sendPauseHoldReason("voice_outbound") (C5.5): a paused lane drains
+    // nothing by design (skipped); an unreadable switch is a lane that fails closed, so unknown.
+    const { sendPause } = await import("./sendPause");
+    const pause = await sendPause("voice_outbound", { fresh: true });
+    if (!pause.readable) return failed("send_pause_voice_outbound unreadable");
+    if (pause.paused) return { oldestDueAtMs: null, readFailed: false, skipped: "send_pause_voice_outbound paused" };
     const { loadSuppressionIndex } = await import("../sms");
     const suppression = await loadSuppressionIndex();
     if (!suppression.ok) return failed(`suppression index unreadable: ${suppression.reason}`);

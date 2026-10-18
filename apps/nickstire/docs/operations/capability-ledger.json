@@ -2948,7 +2948,7 @@
           "server/cron/alertPolicy.test.ts pins grouping, quiet-time boundaries, DB-root threshold/classification, resolved formatting, and incident-diff behavior.",
           "Existing cronObserverSuppression.test.ts still pins persisted suppression and positive-control re-alert semantics.",
           "PR #2794 exact head 79dbea91630f860f0a84bbd68b075df4a7697eea passed Turbo affected verify, StateNour E2E, Completion Authority, Adoption Gates, Agent Policy, Secret Scanning, and Admin Diagnostic before squash merge.",
-          "Queue-age pass (C5.2, branch nickstire/queue-age-observer, 2026-10-18): server/services/queueAge.test.ts, server/services/queueAgeReaders.test.ts and server/cron/observer.queueAge.test.ts, 34 passed, red-first; mutants killed 3/3 (readFailed classified in-spec, boundary > to >=, dedupe key shared across loops). Pins stuck pages through the grouped Telegram path with per-loop queue_age:<loop> dedupe, a failed read as unknown in details (never in-spec), and unknown/skipped never resolving an active alert."
+          "Queue-age pass (C5.2, branch nickstire/queue-age-observer, 2026-10-18): server/services/queueAge.test.ts, server/services/queueAgeReaders.test.ts and server/cron/observer.queueAge.test.ts, 37 passed, red-first (incl. the follow-up reader honouring send_pause_voice_outbound: paused skipped, unreadable unknown); mutants killed 3/3 (readFailed classified in-spec, boundary > to >=, dedupe key shared across loops). Pins stuck pages through the grouped Telegram path with per-loop queue_age:<loop> dedupe, a failed read as unknown in details (never in-spec), and unknown/skipped never resolving an active alert."
         ],
         "liveRuns": []
       },
