@@ -30,6 +30,7 @@ type Order = {
 
 const h = vi.hoisted(() => ({
   order: null as null | Record<string, unknown>,
+  leases: [] as Array<Record<string, unknown>>,
   updates: [] as Array<{ sql: string; params: unknown[]; set: Record<string, unknown>; applied: boolean }>,
   logLines: [] as string[],
   audits: [] as Array<Record<string, unknown>>,
@@ -74,18 +75,43 @@ vi.mock("../lib/db-helper", async () => {
     }
     return ok;
   };
+  const tableOf = (t: unknown): string => {
+    const sym = Object.getOwnPropertySymbols(t as object).find((s) => s.description === "drizzle:Name");
+    return (t as Record<symbol, string>)[sym as symbol];
+  };
+  /** A SET value written in SQL (appendAdminNote) is evaluated: CONCAT_WS(sep, NULLIF(col, ''), line). */
+  const resolveSet = (set: Record<string, unknown>, row: Record<string, unknown>): Record<string, unknown> => {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(set)) {
+      if (v && typeof v === "object" && "queryChunks" in (v as object)) {
+        const q = d.sqlToQuery(v as never);
+        if (!/concat_ws/i.test(q.sql)) throw new Error(`fake db cannot evaluate SET ${k} = ${q.sql}`);
+        out[k] = [row[k] || null, q.params[q.params.length - 1]].filter((x) => x).join("\n");
+      } else out[k] = v;
+    }
+    return out;
+  };
   const db = {
     select: () => ({
-      from: () => ({
-        where: () => ({ limit: async () => (h.order ? [{ ...h.order }] : []) }),
-      }),
+      from: (t: unknown) => {
+        const leases = tableOf(t) === "kafene_leases";
+        const q = {
+          where: () => q,
+          orderBy: () => q,
+          limit: async () => {
+            if (leases) return h.leases.length ? [{ ...h.leases[h.leases.length - 1] }] : [];
+            return h.order ? [{ ...h.order }] : [];
+          },
+        };
+        return q;
+      },
     }),
     update: () => ({
       set: (set: Record<string, unknown>) => ({
         where: async (cond: unknown) => {
           const { sql, params } = d.sqlToQuery(cond as never);
           const applied = !!h.order && matches(sql, params, h.order);
-          if (applied) Object.assign(h.order!, set);
+          if (applied) Object.assign(h.order!, resolveSet(set, h.order!));
           h.updates.push({ sql, params, set, applied });
           return [{ affectedRows: applied ? 1 : 0 }];
         },
@@ -203,6 +229,7 @@ beforeEach(async () => {
   nextLineId = 1;
   h.order = paidOrder();
   h.updates.length = 0;
+  h.leases = [];
   h.logLines.length = 0;
   h.audits.length = 0;
   h.telegrams.length = 0;
@@ -509,5 +536,90 @@ describe("secrets", () => {
     const all = h.logLines.join("\n");
     expect(all).not.toContain(TOKEN);
     expect(all).not.toContain(PASS);
+  });
+});
+
+// Wave 5 review-lens fixes (2026-10-18).
+describe("review fixes", () => {
+  async function prepared(): Promise<string> {
+    const res = await caller().prepare({ orderId: 41 });
+    expect(res.ok).toBe(true);
+    return (res as { cartToken: string }).cartToken;
+  }
+  const tokenOfCart = () => svc.cartTokenFor(svc.splitCart(JSON.parse(JSON.stringify(dk.cart)), PO).ours);
+
+  it("(3) a doubled cart (two prepares raced) is cart_mismatch even when the token matches; nothing sent", async () => {
+    await prepared();
+    const line = dk.cart[0].items[0].items[0];
+    dk.cart[0].items[0].items.push({ ...line, _id: "cart-2" });
+    const res = await caller().submit({ orderId: 41, cartToken: tokenOfCart() });
+    expect(res).toMatchObject({ ok: false, reason: "cart_mismatch" });
+    expect(callsTo("/order/on-submit-order")).toHaveLength(0);
+    expect(h.updates).toHaveLength(0);
+  });
+
+  it("(3) two parts that add up to the order's quantity are cart_mismatch too", async () => {
+    await prepared();
+    const line = dk.cart[0].items[0].items[0];
+    line.num = 2;
+    dk.cart[0].items[0].items.push({ ...line, _id: "cart-2", dk_part_number: "LS388-2155516-B", num: 2 });
+    expect(await caller().submit({ orderId: 41, cartToken: tokenOfCart() })).toMatchObject({ ok: false, reason: "cart_mismatch" });
+  });
+
+  it("(4) no D&K login at send time: refused plainly, no claim, no incident, nothing sent", async () => {
+    const token = await prepared();
+    const { invalidateGatewaySession } = await import("../services/gatewayClient");
+    // logins now fail (the 15 s backoff case): only reads already done had a token
+    vi.stubGlobal("fetch", vi.fn(async (input: string | URL) => {
+      const url = new URL(String(input));
+      dk.calls.push({ method: "POST", path: url.pathname, query: {}, body: null });
+      return url.pathname === "/token" ? json({ detail: "locked" }, 401) : json({}, 500);
+    }));
+    invalidateGatewaySession();
+    const res = await caller().submit({ orderId: 41, cartToken: token });
+    expect(res).toMatchObject({ ok: false });
+    expect(callsTo("/order/on-submit-order")).toHaveLength(0);
+    expect(order().gatewayOrderRef).toBeNull();
+    expect(h.telegrams.join("\n")).not.toMatch(/UNCLEAR/);
+  });
+
+  it("(4) submitOrder with no token is rejected (nothing reached D&K), never uncertain", async () => {
+    delete process.env.GATEWAY_TIRE_PASSWORD;
+    const out = await svc.submitOrder([]);
+    expect(out).toMatchObject({ kind: "rejected" });
+    expect(callsTo("/order/on-submit-order")).toHaveLength(0);
+  });
+
+  it("(5) the parked-order message no longer offers to clear the ref", async () => {
+    h.order = paidOrder({ gatewayOrderRef: "uncertain:abc" });
+    const res = await caller().prepare({ orderId: 41 });
+    expect(res).toMatchObject({ ok: false, reason: "already_ordered" });
+    expect((res as { detail: string }).detail).not.toMatch(/clear it/);
+  });
+
+  it("(6) the order note is appended in SQL: a note staff wrote while D&K answered is kept", async () => {
+    h.order = paidOrder({ adminNotes: "first note" });
+    const token = await prepared();
+    dk.submitResponse = () => { h.order!.adminNotes = "first note\nstaff: called the customer"; return json(fx.submitOk); };
+    expect(await caller().submit({ orderId: 41, cartToken: token })).toMatchObject({ ok: true });
+    expect(order().adminNotes).toMatch(/^first note\nstaff: called the customer\nD&K order placed /);
+  });
+
+  it("(9) an unpaid order with a signed Kafene lease can be prepared and ordered; the claim pins its payment state", async () => {
+    h.order = paidOrder({ paymentStatus: "unpaid" });
+    h.leases = [{ orderNumber: "TO-20261018-007", status: "signed", uid: "app_1" }];
+    const token = await prepared();
+    expect(await caller().submit({ orderId: 41, cartToken: token })).toMatchObject({ ok: true });
+    const claim = h.updates.find((u) => typeof u.set.gatewayOrderRef === "string" && (u.set.gatewayOrderRef as string).startsWith("pending:"));
+    expect(claim!.params).toContain("unpaid");
+  });
+
+  it("(9) control: unpaid with no lease, or with only a started / cancelled lease, is still not_paid", async () => {
+    h.order = paidOrder({ paymentStatus: "unpaid" });
+    expect(await caller().prepare({ orderId: 41 })).toMatchObject({ ok: false, reason: "not_paid" });
+    for (const status of ["started", "approved", "applied", "cancelled"]) {
+      h.leases = [{ orderNumber: "TO-20261018-007", status }];
+      expect(await caller().prepare({ orderId: 41 }), status).toMatchObject({ ok: false, reason: "not_paid" });
+    }
   });
 });

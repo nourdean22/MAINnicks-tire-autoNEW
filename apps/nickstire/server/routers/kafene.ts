@@ -30,8 +30,11 @@ import { createLogger } from "../lib/logger";
 import { getBusinessDateKey } from "../lib/timezoneAssert";
 import { activateLease, cancelLease, kafeneEnv, maxApprovalCents } from "../services/kafene/partnerApi";
 import {
+  COMMITTED_STATUSES,
   OPEN_STATUSES,
   appendOrderNote,
+  hasCommittedLease,
+  parkActivation,
   attachUid,
   claimActivation,
   finishActivation,
@@ -95,12 +98,100 @@ function splitName(name: string): { first_name: string; last_name: string } {
   return i === -1 ? { first_name: t, last_name: "" } : { first_name: t.slice(0, i), last_name: t.slice(i + 1).trim() };
 }
 
+type DB = NonNullable<Awaited<ReturnType<typeof dbTyped>>>;
+type Ids = { orderNumber: string; phone: string; uid: string };
+const lastFour = (phone: string) => phone.replace(/\D/g, "").slice(-4);
+
+/** attach: the uid Kafene's SDK gave on approval -> this order's started lease (compare-and-swap). */
+async function attachLease(d: DB, input: Ids) {
+  const order = await findOrder(d, input.orderNumber, input.phone);
+  if (!order) return { ok: false as const, reason: "not_found" as const };
+  const owner = await leaseByUid(d, input.uid);
+  if (owner) {
+    // A retried attach of the same uid is fine; the uid on anyone else's lease is not.
+    return owner.orderNumber === order.orderNumber ? { ok: true as const } : { ok: false as const, reason: "conflict" as const };
+  }
+  const lease = await latestLease(d, order.orderNumber);
+  if (!lease || !(OPEN_STATUSES as readonly string[]).includes(lease.status)) return { ok: false as const, reason: "not_found" as const };
+  if (lease.status !== "started" || lease.uid !== null) return { ok: false as const, reason: "conflict" as const };
+  if (await attachUid(d, lease, input.uid)) return { ok: true as const };
+  const now = await leaseByUid(d, input.uid);
+  return now?.orderNumber === order.orderNumber ? { ok: true as const } : { ok: false as const, reason: "conflict" as const };
+}
+
+/** markSigned: approved -> signed once, then the shop hand-off. Never on a paid order. */
+async function signAndHandOff(d: DB, input: Ids) {
+  const order = await findOrder(d, input.orderNumber, input.phone);
+  if (!order) return { ok: false as const, reason: "not_found" as const };
+  // Paid by card meanwhile (a Stripe session completed): never record a lease on top of it.
+  if (order.paymentStatus === "paid") return { ok: false as const, reason: "already_paid" as const };
+  const lease = await leaseByUid(d, input.uid);
+  if (!lease || lease.orderNumber !== order.orderNumber) return { ok: false as const, reason: "unknown_uid" as const };
+  if ((COMMITTED_STATUSES as readonly string[]).includes(lease.status)) {
+    return { ok: true as const, status: "signed" as const }; // already recorded; no second hand-off
+  }
+  if (!(await signLease(d, order.orderNumber, input.uid))) {
+    const now = await leaseByUid(d, input.uid);
+    return now && (COMMITTED_STATUSES as readonly string[]).includes(now.status)
+      ? { ok: true as const, status: "signed" as const }
+      : { ok: false as const, reason: "unknown_uid" as const };
+  }
+
+  // Only the call that flipped approved -> signed hands off, so a repeated callback sends nothing.
+  // paymentStatus stays as it is: tire_orders knows only unpaid/paid/refunded, and nothing is
+  // collected until the lease is activated.
+  const at = new Date().toISOString();
+  try {
+    await appendOrderNote(d, order.id, `Kafene lease signed ${at} uid ${input.uid}`);
+  } catch (err) {
+    log.error(`Kafene lease ${input.uid} signed for ${order.orderNumber} but the order note failed`, { error: err instanceof Error ? err.name : "unknown" });
+  }
+  const leaseAmount = lease.merchandiseCents / 100;
+  try {
+    const { notifyTireOrderKafeneSigned } = await import("../email-notify");
+    const res = await notifyTireOrderKafeneSigned({
+      orderNumber: order.orderNumber,
+      uid: input.uid,
+      customerName: order.customerName,
+      customerPhone: order.customerPhone,
+      customerEmail: order.customerEmail || undefined,
+      vehicleInfo: order.vehicleInfo || undefined,
+      tireBrand: order.tireBrand,
+      tireModel: order.tireModel,
+      tireSize: order.tireSize,
+      quantity: order.quantity,
+      leaseAmount,
+      customerNotes: order.customerNotes || undefined,
+    });
+    if (!res?.emailSent) log.error(`Kafene lease signed for ${order.orderNumber} but the shop hand-off email did NOT send — fulfil it manually`);
+  } catch (err) {
+    log.error(`Kafene lease signed for ${order.orderNumber} but the shop hand-off email threw — fulfil it manually`, { error: err instanceof Error ? err.name : "unknown" });
+  }
+  await alert(
+    `Kafene lease signed — ${order.orderNumber}\n${order.quantity}x ${order.tireBrand} ${order.tireModel} (${order.tireSize})\n` +
+    `${order.customerName} · phone ends in ${lastFour(order.customerPhone)}\n$${leaseAmount.toFixed(2)} leased, NOT collected yet: activate at install.\n` +
+    `Confirm application ${input.uid} in the Kafene portal, then order the tires.`,
+  );
+  return { ok: true as const, status: "signed" as const };
+}
+
+/**
+ * Kafene's text for a refused activate that means "this lease is already active". The Partner API
+ * error body is not documented (the plugin only checks the HTTP code), so this reads the message:
+ * it must say "already" and "activ", and must not say "not active" / "inactive".
+ */
+function saysAlreadyActive(message: string | undefined): boolean {
+  if (!message) return false;
+  return /\balready\b/i.test(message) && /activ/i.test(message) && !/\b(not|in)\s*activ|\binactiv/i.test(message);
+}
+
 export const kafeneRouter = router({
   config: publicProcedure.query(async () => {
     const env = kafeneEnv();
     if (!env) return { enabled: false, apiKey: null, storeId: null, environment: null, maxApprovalCents: null };
     // Kafene's browser SDK is initialised with the API key and Store ID by design; they are served
     // only while Kafene is enabled and are never stored anywhere but env.
+    // Same key Kafene's plugin ships to the browser; a server-only key does not exist (plugin source, 2026-10-18).
     return { enabled: true, apiKey: env.apiKey, storeId: env.storeId, environment: env.environment, maxApprovalCents: await maxApprovalCents(env) };
   }),
 
@@ -124,10 +215,9 @@ export const kafeneRouter = router({
       const limit = await maxApprovalCents(env);
       if (limit !== null && merchandiseCents > limit) return { ok: false as const, reason: "over_limit" as const };
 
+      // ANY signed-or-later lease, not only the latest row: a later "applied" row must not hide it.
+      if (await hasCommittedLease(d, order.orderNumber)) return { ok: false as const, reason: "already_signed" as const };
       const lease = await latestLease(d, order.orderNumber);
-      if (lease && (lease.status === "signed" || lease.status === "activating" || lease.status === "activated")) {
-        return { ok: false as const, reason: "already_signed" as const };
-      }
       if (lease && lease.status === "started") await refreshStartedLease(d, lease.id, merchandiseCents);
       else await insertLease(d, order.orderNumber, merchandiseCents);
 
@@ -168,6 +258,8 @@ export const kafeneRouter = router({
     let tableReady = true;
     let lease: Awaited<ReturnType<typeof latestLease>> = null;
     try {
+      // Already leased (any signed-or-later row): nothing to tell the shop, no new row.
+      if (await hasCommittedLease(d, order.orderNumber)) return { ok: true as const };
       lease = await latestLease(d, order.orderNumber);
     } catch (err) {
       if (!isMissingTableError(err)) return { ok: false as const, reason: "upstream_error" as const };
@@ -191,7 +283,7 @@ export const kafeneRouter = router({
       }
     }
     try {
-      await appendOrderNote(d, order, `Kafene application started from the website ${new Date(now).toISOString()}`);
+      await appendOrderNote(d, order.id, `Kafene application started from the website ${new Date(now).toISOString()}`);
     } catch (err) {
       log.warn("kafene.applyStarted order note failed", { error: err instanceof Error ? err.name : "unknown" });
     }
@@ -207,76 +299,26 @@ export const kafeneRouter = router({
   attach: publicProcedure.input(z.object({ ...ids, uid })).mutation(async ({ input }) => {
     if (!kafeneEnv()) return disabled;
     const d = await dbTyped();
-    if (!d) return { ok: false as const, reason: "not_found" as const };
-    const order = await findOrder(d, input.orderNumber, input.phone);
-    if (!order) return { ok: false as const, reason: "not_found" as const };
-    const owner = await leaseByUid(d, input.uid);
-    if (owner) {
-      // A retried attach of the same uid is fine; the uid on anyone else's lease is not.
-      return owner.orderNumber === order.orderNumber ? { ok: true as const } : { ok: false as const, reason: "conflict" as const };
+    // A database we cannot read is unknown, never "no such order" (empty-vs-error).
+    if (!d) return { ok: false as const, reason: "upstream_error" as const };
+    try {
+      return await attachLease(d, input);
+    } catch (err) {
+      log.warn("kafene.attach failed", { error: err instanceof Error ? err.name : "unknown" });
+      return { ok: false as const, reason: "upstream_error" as const };
     }
-    const lease = await latestLease(d, order.orderNumber);
-    if (!lease || !(OPEN_STATUSES as readonly string[]).includes(lease.status)) return { ok: false as const, reason: "not_found" as const };
-    if (lease.status !== "started" || lease.uid !== null) return { ok: false as const, reason: "conflict" as const };
-    if (await attachUid(d, lease, input.uid)) return { ok: true as const };
-    const now = await leaseByUid(d, input.uid);
-    return now?.orderNumber === order.orderNumber ? { ok: true as const } : { ok: false as const, reason: "conflict" as const };
   }),
 
   markSigned: publicProcedure.input(z.object({ ...ids, uid })).mutation(async ({ input }) => {
     if (!kafeneEnv()) return disabled;
     const d = await dbTyped();
-    if (!d) return { ok: false as const, reason: "not_found" as const };
-    const order = await findOrder(d, input.orderNumber, input.phone);
-    if (!order) return { ok: false as const, reason: "not_found" as const };
-    const lease = await leaseByUid(d, input.uid);
-    if (!lease || lease.orderNumber !== order.orderNumber) return { ok: false as const, reason: "unknown_uid" as const };
-    if (lease.status === "signed" || lease.status === "activating" || lease.status === "activated") {
-      return { ok: true as const, status: "signed" as const }; // already recorded; no second hand-off
-    }
-    if (!(await signLease(d, order.orderNumber, input.uid))) {
-      const now = await leaseByUid(d, input.uid);
-      return now && now.status !== "approved" && ["signed", "activating", "activated"].includes(now.status)
-        ? { ok: true as const, status: "signed" as const }
-        : { ok: false as const, reason: "unknown_uid" as const };
-    }
-
-    // Only the call that flipped approved -> signed hands off, so a repeated callback sends nothing.
-    // paymentStatus stays as it is: tire_orders knows only unpaid/paid/refunded, and nothing is
-    // collected until the lease is activated.
-    const at = new Date().toISOString();
+    if (!d) return { ok: false as const, reason: "upstream_error" as const };
     try {
-      await appendOrderNote(d, order, `Kafene lease signed ${at} uid ${input.uid}`);
+      return await signAndHandOff(d, input);
     } catch (err) {
-      log.error(`Kafene lease ${input.uid} signed for ${order.orderNumber} but the order note failed`, { error: err instanceof Error ? err.name : "unknown" });
+      log.warn("kafene.markSigned failed", { error: err instanceof Error ? err.name : "unknown" });
+      return { ok: false as const, reason: "upstream_error" as const };
     }
-    const leaseAmount = lease.merchandiseCents / 100;
-    try {
-      const { notifyTireOrderKafeneSigned } = await import("../email-notify");
-      const res = await notifyTireOrderKafeneSigned({
-        orderNumber: order.orderNumber,
-        uid: input.uid,
-        customerName: order.customerName,
-        customerPhone: order.customerPhone,
-        customerEmail: order.customerEmail || undefined,
-        vehicleInfo: order.vehicleInfo || undefined,
-        tireBrand: order.tireBrand,
-        tireModel: order.tireModel,
-        tireSize: order.tireSize,
-        quantity: order.quantity,
-        leaseAmount,
-        customerNotes: order.customerNotes || undefined,
-      });
-      if (!res?.emailSent) log.error(`Kafene lease signed for ${order.orderNumber} but the shop hand-off email did NOT send — fulfil it manually`);
-    } catch (err) {
-      log.error(`Kafene lease signed for ${order.orderNumber} but the shop hand-off email threw — fulfil it manually`, { error: err instanceof Error ? err.name : "unknown" });
-    }
-    await alert(
-      `Kafene lease signed — ${order.orderNumber}\n${order.quantity}x ${order.tireBrand} ${order.tireModel} (${order.tireSize})\n` +
-      `${order.customerName} · ${order.customerPhone}\n$${leaseAmount.toFixed(2)} leased, NOT collected yet: activate at install.\n` +
-      `Confirm application ${input.uid} in the Kafene portal, then order the tires.`,
-    );
-    return { ok: true as const, status: "signed" as const };
   }),
 
   activate: adminProcedure.input(z.object({ orderNumber: ids.orderNumber })).mutation(async ({ input, ctx }) => {
@@ -284,27 +326,39 @@ export const kafeneRouter = router({
     if (!env) return disabled;
     const d = await dbTyped();
     if (!d) throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Database unavailable; the lease could not be read." });
+    const order = await findOrderByNumber(d, input.orderNumber);
+    // Paid by card after the lease was signed: activating would fund the same tires twice.
+    if (order?.paymentStatus === "paid") return { ok: false as const, reason: "already_paid" as const };
     const lease = await latestLease(d, input.orderNumber);
-    if (!lease || lease.status !== "signed" || !lease.uid) return { ok: false as const, reason: "not_signed" as const };
+    if (!lease || (lease.status !== "signed" && lease.status !== "activate_unclear") || !lease.uid) {
+      return { ok: false as const, reason: "not_signed" as const };
+    }
     const by = ctx.user?.email ?? ctx.user?.name ?? "admin";
-    // CLAIM BEFORE ACT: signed -> activating. The loser of a double tap never calls Kafene.
-    if (!(await claimActivation(d, lease.id, by))) return { ok: false as const, reason: "not_signed" as const };
+    // CLAIM BEFORE ACT: signed | activate_unclear -> activating. The loser of a double tap never calls Kafene.
+    if (!(await claimActivation(d, lease.id, lease.status, by))) return { ok: false as const, reason: "not_signed" as const };
 
     const deliveryDate = getBusinessDateKey();
     const r = await activateLease(env, lease.uid, deliveryDate);
-    if (!r.ok) {
-      const lastError = r.status === null ? "Kafene activate: no answer" : `Kafene activate HTTP ${r.status}`;
+    if (!r.ok && !saysAlreadyActive(r.message)) {
+      if (r.status === null || r.status >= 500) {
+        // No answer or a server error: Kafene may have activated it. Park it; never silently back to signed.
+        const lastError = r.status === null ? "Kafene activate: no answer" : `Kafene activate HTTP ${r.status}`;
+        await parkActivation(d, lease.id, lastError);
+        await alert(`Kafene activation unclear for ${input.orderNumber}: check merchant.kafene.com before activating again. (${lastError})`);
+        return { ok: false as const, reason: "upstream_error" as const, detail: `${lastError}. Kafene may have activated it: check merchant.kafene.com.` };
+      }
+      const lastError = `Kafene activate HTTP ${r.status}`;
       await releaseActivation(d, lease.id, lastError);
       return { ok: false as const, reason: "upstream_error" as const, detail: lastError };
     }
+    // Success, or a retry that Kafene refuses because the lease is already active: both mean activated.
     if (!(await finishActivation(d, lease.id, deliveryDate))) {
       log.error(`Kafene lease ${lease.uid} ACTIVATED at Kafene for ${input.orderNumber} but the row was not updated`);
     }
-    const order = await findOrderByNumber(d, input.orderNumber);
     const at = new Date().toISOString();
     if (order) {
       try {
-        await appendOrderNote(d, order, `Kafene lease activated ${at} by ${by} uid ${lease.uid} delivery ${deliveryDate}`);
+        await appendOrderNote(d, order.id, `Kafene lease activated ${at} by ${by} uid ${lease.uid} delivery ${deliveryDate}`);
       } catch (err) {
         log.error(`Kafene lease activated for ${input.orderNumber} but the order note failed`, { error: err instanceof Error ? err.name : "unknown" });
       }
@@ -312,7 +366,6 @@ export const kafeneRouter = router({
     await alert(`Kafene lease activated, funding in about 2 business days — ${input.orderNumber}\n$${(lease.merchandiseCents / 100).toFixed(2)} · application ${lease.uid}`);
     return { ok: true as const, status: "activated" as const, activatedAt: at, activationDate: deliveryDate };
   }),
-
   cancel: adminProcedure.input(z.object({ orderNumber: ids.orderNumber, reason: z.string().trim().min(1).max(200) })).mutation(async ({ input }) => {
     const env = kafeneEnv();
     if (!env) return disabled;

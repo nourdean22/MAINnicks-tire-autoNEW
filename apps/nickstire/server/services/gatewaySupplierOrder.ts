@@ -17,7 +17,7 @@
  */
 import { createHash } from "node:crypto";
 import { createLogger } from "../lib/logger";
-import { gatewayFetch, invalidateGatewaySession } from "./gatewayClient";
+import { gatewayFetch, getGatewayToken, invalidateGatewaySession } from "./gatewayClient";
 
 const log = createLogger("services:gatewaySupplierOrder");
 
@@ -221,6 +221,9 @@ export async function readCutoff(shipTo: string, siteId: string | null): Promise
  * unreadable 2xx may have placed the order and is "uncertain".
  */
 export async function submitOrder(cart: CartShipTo[]): Promise<SubmitOutcome> {
+  // gatewayFetch also answers null when there is no token, and then NOTHING reached D&K: that is a
+  // plain "no", never "uncertain" (which parks the order and raises an incident).
+  if (!(await getGatewayToken())) return { kind: "rejected", detail: "D&K login is unavailable right now; nothing was sent" };
   const res = await call("POST", "/order/on-submit-order", { ax_order: cart });
   if (!res) return { kind: "uncertain", detail: "D&K did not answer (timeout or network error)" };
   if (res.status >= 500) {

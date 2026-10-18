@@ -7,7 +7,8 @@
 --
 -- status is VARCHAR(24), never ENUM: TiDB runs STRICT_TRANS_TABLES and an out-of-enum write is
 -- rejected and lost (nickstire-tidb-ddl). Values: started, approved, signed, activating,
--- activated, cancelled, declined, error, and applied (a keyless website application click). uid is Kafene's application id, unique across leases.
+-- activated, cancelled, declined, error, applied (a keyless website application click) and
+-- activate_unclear (an activate with no answer or a 5xx: Kafene may have activated it). uid is Kafene's application id, unique across leases.
 -- No column is added to tire_orders. The keyed checkout touches this table only when the KAFENE_*
 -- env vars are all set; kafene.applyStarted and the admin status read work without them and
 -- treat a missing table as not installed (the shop is still told), so prod is safe before this runs.

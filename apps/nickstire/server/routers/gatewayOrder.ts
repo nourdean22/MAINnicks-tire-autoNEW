@@ -22,10 +22,12 @@ import { and, eq, inArray, isNull, or } from "drizzle-orm";
 import { z } from "zod";
 import { tireOrders } from "../../drizzle/schema";
 import { adminProcedure, router } from "../_core/trpc";
+import { appendAdminNote } from "../lib/adminNotes";
 import { affectedRowCount } from "../lib/db-affected";
 import { dbTyped } from "../lib/db-helper";
 import { createLogger } from "../lib/logger";
 import { getGatewayToken, pickWholesaleCost, searchTiresBySize } from "../services/gatewayClient";
+import { latestLease } from "../services/kafene/leases";
 import {
   addToCart,
   buildAddToCartBody,
@@ -61,13 +63,32 @@ async function loadOrder(orderId: number): Promise<Order> {
   return order;
 }
 
+const KAFENE_FUNDED_STATUSES = ["signed", "activating", "activated", "activate_unclear"] as const;
+
+/**
+ * True when the order is paid through a Kafene lease the customer signed: Kafene funds the shop after
+ * install, so the order is never "paid", and the tires must still be ordered before install.
+ * A missing kafene_leases table (0148 not applied) or a failed read is "no lease", never a pass.
+ */
+async function kafeneFunded(order: Order): Promise<boolean> {
+  if (order.paymentStatus === "paid") return false;
+  const d = await dbTyped();
+  if (!d) return false;
+  try {
+    const lease = await latestLease(d, order.orderNumber);
+    return !!lease && (KAFENE_FUNDED_STATUSES as readonly string[]).includes(lease.status);
+  } catch {
+    return false;
+  }
+}
+
 /** Why this order cannot be sent to D&K, or null when it can. */
-function blocker(order: Order): Fail<"not_paid" | "already_ordered" | "claimed"> | null {
-  if (order.paymentStatus !== "paid") return { ok: false, reason: "not_paid" };
+function blocker(order: Order, leased = false): Fail<"not_paid" | "already_ordered" | "claimed"> | null {
+  if (order.paymentStatus !== "paid" && !leased) return { ok: false, reason: "not_paid" };
   const ref = order.gatewayOrderRef ?? "";
   if (ref.startsWith("pending:")) return { ok: false, reason: "claimed", detail: "Another submit for this order is in progress." };
   if (ref.startsWith("uncertain:")) {
-    return { ok: false, reason: "already_ordered", detail: "The last D&K submit had no clear answer. Check the D&K portal, then enter the D&K ref (or clear it) in the order." };
+    return { ok: false, reason: "already_ordered", detail: "The last D&K submit had no clear answer. Check the D&K portal, then enter the D&K ref in the order." };
   }
   if (ref !== "") return { ok: false, reason: "already_ordered", detail: `D&K ref ${ref}` };
   if (!(OPEN_STATUSES as readonly string[]).includes(order.status)) return { ok: false, reason: "already_ordered", detail: `Order is ${order.status}` };
@@ -121,7 +142,7 @@ export const gatewayOrderRouter = router({
     .input(z.object({ orderId: z.number().int().positive(), partNumber: z.string().trim().min(1).max(64).optional() }))
     .mutation(async ({ input }) => {
       const order = await loadOrder(input.orderId);
-      const blocked = blocker(order);
+      const blocked = blocker(order, await kafeneFunded(order));
       if (blocked) return blocked;
       const shipTo = await configured();
       if (!shipTo) return { ok: false as const, reason: "unconfigured" as const };
@@ -200,7 +221,8 @@ export const gatewayOrderRouter = router({
     .mutation(async ({ input, ctx }) => {
       if (!orderingEnabled()) return { ok: false as const, reason: "disabled" as const };
       const order = await loadOrder(input.orderId);
-      const blocked = blocker(order);
+      const leased = await kafeneFunded(order);
+      const blocked = blocker(order, leased);
       if (blocked) return blocked;
       const shipTo = await configured();
       if (!shipTo) return { ok: false as const, reason: "unconfigured" as const };
@@ -218,8 +240,19 @@ export const gatewayOrderRouter = router({
       if (top?.site_level_prepay === true && top?.customer_level_prepay === true) {
         return { ok: false as const, reason: "upstream_error" as const, detail: "D&K wants a payment card for this order. Place it in the D&K portal." };
       }
+      // Exactly this order: one part, as many tires as the customer bought. Two prepares racing (no
+      // claim on prepare) can each add the tires; the token would match the doubled cart.
+      const parts = new Set(ours.map((l) => l.partNumber));
+      const qty = ours.reduce((n, l) => n + l.quantity, 0);
+      if (parts.size !== 1 || qty !== order.quantity) {
+        return { ok: false as const, reason: "cart_mismatch" as const, detail: `The D&K cart holds ${qty} tire(s) in ${parts.size} part(s) for this order; it should be ${order.quantity} of one part. Clear our lines and prepare again.` };
+      }
       const short = ours.find((l) => l.available !== null && l.available < l.quantity);
       if (short) return { ok: false as const, reason: "upstream_error" as const, detail: `D&K has ${short.available} of ${short.quantity} ${short.partNumber}: backorder. Decide in the D&K portal.` };
+
+      // No D&K login right now (e.g. the 15 s backoff after a failed one): nothing could be sent, so say
+      // so before any claim; parking the order as "uncertain" would raise an incident for nothing.
+      if (!(await getGatewayToken())) return { ok: false as const, reason: "upstream_error" as const, detail: "D&K login is unavailable right now; nothing was sent. Try again in a minute." };
 
       // CLAIM BEFORE ACT: one compare-and-swap on the exact fields the decision read.
       const d = await dbTyped();
@@ -228,12 +261,13 @@ export const gatewayOrderRouter = router({
       const claimed = affectedRowCount(await d.update(tireOrders).set({ gatewayOrderRef: claim }).where(and(
         eq(tireOrders.id, order.id),
         or(isNull(tireOrders.gatewayOrderRef), eq(tireOrders.gatewayOrderRef, "")),
-        eq(tireOrders.paymentStatus, "paid"),
+        // the payment state the blocker read: "paid", or the unpaid state of a Kafene-leased order
+        eq(tireOrders.paymentStatus, leased ? order.paymentStatus : "paid"),
         inArray(tireOrders.status, [...OPEN_STATUSES]),
       )));
       if (claimed !== 1) {
         const now = await loadOrder(order.id);
-        return blocker(now) ?? { ok: false as const, reason: "claimed" as const };
+        return blocker(now, await kafeneFunded(now)) ?? { ok: false as const, reason: "claimed" as const };
       }
 
       const whereOurClaim = and(eq(tireOrders.id, order.id), eq(tireOrders.gatewayOrderRef, claim));
@@ -266,7 +300,7 @@ export const gatewayOrderRouter = router({
         const written = affectedRowCount(await d.update(tireOrders).set({
           gatewayOrderRef,
           status: "ordered",
-          adminNotes: order.adminNotes ? `${order.adminNotes}\n${note}` : note,
+          adminNotes: appendAdminNote(note), // appended in SQL: a note staff added meanwhile is kept
         }).where(whereOurClaim));
         // 0 rows: someone edited the ref while D&K was answering. The order IS placed; say so.
         if (written !== 1) log.error(`D&K order ${gatewayOrderRef} placed for ${order.orderNumber} but the claim was changed meanwhile; row not updated`);

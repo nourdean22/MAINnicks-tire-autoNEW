@@ -19,7 +19,8 @@ const LIMIT_TTL_MS = 60 * 60_000;
 const LIMIT_FAILURE_TTL_MS = 60_000; // config is public: a Kafene outage must not become a call per page view
 
 export interface KafeneEnv { merchantId: string; storeId: string; apiKey: string; environment: "sandbox" | "production" }
-export type KafeneCall = { ok: true; body: unknown } | { ok: false; status: number | null };
+/** `message`: the error text Kafene sent with a non-2xx (message / detail / error), for the caller to read; never logged. */
+export type KafeneCall = { ok: true; body: unknown } | { ok: false; status: number | null; message?: string };
 
 /** The env, or null when any of the three ids is missing or blank (Kafene is then off). */
 export function kafeneEnv(): KafeneEnv | null {
@@ -102,7 +103,13 @@ async function call(env: KafeneEnv, method: "GET" | "POST", path: string, body?:
     }
     if (!res.ok) {
       log.warn(`${path} -> ${res.status}`);
-      return { ok: false, status: res.status };
+      let message: string | undefined;
+      try {
+        const b = (await res.json()) as Record<string, unknown> | null;
+        const m = [b?.message, b?.detail, b?.error].find((v) => typeof v === "string" && v !== "");
+        message = typeof m === "string" ? m.slice(0, 300) : undefined;
+      } catch { /* no JSON body */ }
+      return { ok: false, status: res.status, message };
     }
     try {
       return { ok: true, body: await res.json() };

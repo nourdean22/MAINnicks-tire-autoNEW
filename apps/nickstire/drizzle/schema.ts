@@ -5315,7 +5315,8 @@ export type NhtsaMfrWarrantyProduct = typeof nhtsaMfrWarrantyProducts.$inferSele
  * tire order: started (customer opened checkout) -> approved (Kafene gave the uid) -> signed
  * (customer finished) -> activating -> activated (an admin activated it at install; Kafene funds
  * about 2 business days later), or cancelled / declined / error; "applied" is a keyless website
- * application click (kafene.applyStarted, no KAFENE_* env needed). status is VARCHAR, never ENUM
+ * application click (kafene.applyStarted, no KAFENE_* env needed); "activate_unclear" is an activate that got
+ * no answer or a 5xx (Kafene may have activated it). status is VARCHAR, never ENUM
  * (nickstire-tidb-ddl: an out-of-enum write is rejected and lost). The keyed checkout uses this table
  * only when KAFENE_MERCHANT_ID, KAFENE_STORE_ID and KAFENE_API_KEY are all set; applyStarted and the admin
  * status read work without them and survive the table being absent.

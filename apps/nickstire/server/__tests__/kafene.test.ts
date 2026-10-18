@@ -73,9 +73,16 @@ vi.mock("../lib/db-helper", async () => {
     }
     return ok;
   };
-  const toSet = (set: Row): Row => {
+  /** A SET value written in SQL (appendAdminNote) is evaluated: CONCAT_WS(sep, NULLIF(col, ''), line). */
+  const toSet = (set: Row, row: Row): Row => {
     const out: Row = {};
-    for (const [k, v] of Object.entries(set)) out[k] = v && typeof v === "object" && !(v instanceof Date) ? "<sql>" : v;
+    for (const [k, v] of Object.entries(set)) {
+      if (v && typeof v === "object" && "queryChunks" in (v as object)) {
+        const q = d.sqlToQuery(v as never);
+        if (!/concat_ws/i.test(q.sql)) throw new Error(`fake db cannot evaluate SET ${k} = ${q.sql}`);
+        out[k] = [row[k] || null, q.params[q.params.length - 1]].filter((x) => x).join("\n");
+      } else out[k] = v;
+    }
     return out;
   };
   const db = {
@@ -117,7 +124,7 @@ vi.mock("../lib/db-helper", async () => {
           const table = tableOf(t);
           const { sql, params } = d.sqlToQuery(cond as never);
           const hit = h.tables[table].filter((r) => matches(sql, params, r));
-          for (const r of hit) Object.assign(r, toSet(set));
+          for (const r of hit) Object.assign(r, toSet(set, r));
           h.writes.push({ table, kind: "update", sql, params, set, affected: hit.length });
           return [{ affectedRows: hit.length }];
         },
@@ -444,16 +451,41 @@ describe("admin activate", () => {
     expect(h.telegrams.join("\n")).toMatch(/Kafene lease activated, funding in about 2 business days/);
   });
 
-  it("a 500 from Kafene puts the lease back to signed with the error; never activated", async () => {
+  it("a 500 from Kafene parks the lease as activate_unclear with an alert; never activated, never back to signed", async () => {
     await signed();
     kf.activate = () => json({ message: "temporary" }, 500);
     const res = await admin().activate({ orderNumber: IDS.orderNumber });
     expect(res).toMatchObject({ ok: false, reason: "upstream_error" });
-    expect(leases()[0]).toMatchObject({ status: "signed", lastError: "Kafene activate HTTP 500" });
-    // the admin can try again later; it works then
+    expect(leases()[0]).toMatchObject({ status: "activate_unclear", lastError: "Kafene activate HTTP 500" });
+    expect(h.telegrams.join("\n")).toMatch(/Kafene activation unclear for TO-20261018-011: check merchant\.kafene\.com/);
+    // the admin checked the portal and tries again; it works then
     kf.activate = () => json({ data: { status: "activated" } });
     expect(await admin().activate({ orderNumber: IDS.orderNumber })).toMatchObject({ ok: true });
+    expect(leases()[0].status).toBe("activated");
     expect(callsTo("/activate")).toHaveLength(2);
+  });
+
+  it("no answer at all is activate_unclear too", async () => {
+    await signed();
+    kf.activate = () => { throw new TypeError("fetch failed"); };
+    await admin().activate({ orderNumber: IDS.orderNumber });
+    expect(leases()[0]).toMatchObject({ status: "activate_unclear", lastError: "Kafene activate: no answer" });
+  });
+
+  it("a retry that Kafene refuses because the lease is already active records activated", async () => {
+    await signed();
+    kf.activate = () => json({ message: "temporary" }, 503);
+    await admin().activate({ orderNumber: IDS.orderNumber });
+    kf.activate = () => json({ message: "Application is already activated" }, 409);
+    expect(await admin().activate({ orderNumber: IDS.orderNumber })).toMatchObject({ ok: true, status: "activated" });
+    expect(leases()[0].status).toBe("activated");
+  });
+
+  it("a definite 4xx refusal (not 'already active') goes back to signed; 'not active' is not 'already active'", async () => {
+    await signed();
+    kf.activate = () => json({ message: "Application is not active yet; already submitted" }, 422);
+    expect(await admin().activate({ orderNumber: IDS.orderNumber })).toMatchObject({ ok: false, reason: "upstream_error" });
+    expect(leases()[0]).toMatchObject({ status: "signed", lastError: "Kafene activate HTTP 422" });
   });
 
   it("two concurrent activates make ONE Kafene activate call", async () => {
@@ -629,5 +661,74 @@ describe("applyStarted (works with no Kafene keys)", () => {
     noKeys();
     await pub().applyStarted(IDS);
     expect(await admin().status({ orderNumber: IDS.orderNumber })).toMatchObject({ ok: true, lease: { status: "applied", uid: null } });
+  });
+});
+// Wave 5 review-lens fixes (2026-10-18).
+describe("review fixes", () => {
+  async function activated() {
+    await pub().start(IDS);
+    await pub().attach({ ...IDS, uid: "app_123" });
+    await pub().markSigned({ ...IDS, uid: "app_123" });
+    await admin().activate({ orderNumber: IDS.orderNumber });
+    expect(leases()[0].status).toBe("activated");
+    h.telegrams.length = 0;
+  }
+
+  it("(1) an activated lease: applyStarted adds no row and tells nobody; start answers already_signed", async () => {
+    await activated();
+    expect(await pub().applyStarted(IDS)).toEqual({ ok: true });
+    expect(leases()).toHaveLength(1);
+    expect(h.telegrams).toEqual([]);
+    expect(await pub().start(IDS)).toEqual({ ok: false, reason: "already_signed" });
+    expect(leases()).toHaveLength(1);
+  });
+
+  it("(1) a signed lease hidden behind a later row still blocks start", async () => {
+    await pub().start(IDS);
+    await pub().attach({ ...IDS, uid: "app_123" });
+    await pub().markSigned({ ...IDS, uid: "app_123" });
+    h.tables.kafene_leases.push({ id: 99, orderNumber: IDS.orderNumber, status: "applied", uid: null, merchandiseCents: 63000, createdAt: new Date(Date.now() + 1000) });
+    expect(await pub().start(IDS)).toEqual({ ok: false, reason: "already_signed" });
+  });
+
+  it("(7) a card-paid order: markSigned and activate answer already_paid and change nothing", async () => {
+    await pub().start(IDS);
+    await pub().attach({ ...IDS, uid: "app_123" });
+    order().paymentStatus = "paid";
+    expect(await pub().markSigned({ ...IDS, uid: "app_123" })).toEqual({ ok: false, reason: "already_paid" });
+    expect(leases()[0].status).toBe("approved");
+    expect(h.emails).toEqual([]);
+    order().paymentStatus = "unpaid";
+    await pub().markSigned({ ...IDS, uid: "app_123" });
+    order().paymentStatus = "paid";
+    expect(await admin().activate({ orderNumber: IDS.orderNumber })).toEqual({ ok: false, reason: "already_paid" });
+    expect(callsTo("/activate")).toHaveLength(0);
+    expect(leases()[0].status).toBe("signed");
+  });
+
+  it("(8) the markSigned Telegram shows only the last 4 digits of the phone", async () => {
+    await pub().start(IDS);
+    await pub().attach({ ...IDS, uid: "app_123" });
+    await pub().markSigned({ ...IDS, uid: "app_123" });
+    const t = h.telegrams.join("\n");
+    expect(t).toMatch(/phone ends in 0100/);
+    expect(t).not.toContain("2165550100");
+  });
+
+  it("(10) attach and markSigned on an unreachable database are upstream_error, never not_found", async () => {
+    await pub().start(IDS);
+    h.dbDown = true;
+    expect(await pub().attach({ ...IDS, uid: "app_123" })).toEqual({ ok: false, reason: "upstream_error" });
+    expect(await pub().markSigned({ ...IDS, uid: "app_123" })).toEqual({ ok: false, reason: "upstream_error" });
+  });
+
+  it("(6) order notes are appended in SQL, so a note staff wrote meanwhile is kept", async () => {
+    order().adminNotes = "staff: customer prefers mornings";
+    await pub().start(IDS);
+    await pub().attach({ ...IDS, uid: "app_123" });
+    await pub().markSigned({ ...IDS, uid: "app_123" });
+    const noteWrite = h.writes.find((w) => w.table === "tire_orders" && w.kind === "update");
+    expect(noteWrite!.set!.adminNotes).toHaveProperty("queryChunks");
+    expect(String(order().adminNotes)).toMatch(/^staff: customer prefers mornings\nKafene lease signed /);
   });
 });
