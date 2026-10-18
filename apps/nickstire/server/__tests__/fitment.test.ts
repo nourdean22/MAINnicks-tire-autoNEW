@@ -214,7 +214,8 @@ describe("happy path through the router", () => {
     expect(await caller().sizes({ year: 2018, make: "Toyota", model: "Tacoma", trim: "SR5 4WD" })).toEqual({
       ok: true,
       sizes: [
-        { size: "245/75R16", label: "LT245/75R16", rimDiameter: 16, rearSize: null, searchable: true },
+        // LT construction: the size search cannot filter by service class, so a call-us row (Codex round 4)
+        { size: "245/75R16", label: "LT245/75R16", rimDiameter: 16, rearSize: null, searchable: false },
         { size: "265/70R17", label: "P265/70R17", rimDiameter: 17, rearSize: null, searchable: true },
         { size: "31X10.50R15", label: "31X10.50R15", rimDiameter: 15, rearSize: null, searchable: false },
       ],
@@ -481,6 +482,26 @@ describe("decimal rims (Codex on #3148)", () => {
         { size: "295/75R22.5", label: "295/75R22.5", rimDiameter: 22.5, rearSize: null, searchable: false },
         { size: "225/70R19.5", label: "225/70R19.5", rimDiameter: 19.5, rearSize: null, searchable: false },
         { size: "245/75R16", label: "245/75R16", rimDiameter: 16, rearSize: null, searchable: true },
+      ],
+    });
+  });
+});
+
+describe("service-class prefixes (Codex round 4 on #3148)", () => {
+  it("LT and ST sizes keep the metric size and raw label but are not searchable; P-metric stays searchable", async () => {
+    vi.stubGlobal("fetch", dkFetch(() => json([
+      { value: "LT265/70R17", label: "LT265/70R17" },
+      { value: "ST225/75R15", label: "ST225/75R15" },
+      { value: "P215/55R16", label: "P215/55R16" },
+      { value: "215/60R16", label: "215/60R16" },
+    ])));
+    expect(await caller().sizes({ year: 2018, make: "Ford", model: "F-250", trim: "XL" })).toEqual({
+      ok: true,
+      sizes: [
+        { size: "265/70R17", label: "LT265/70R17", rimDiameter: 17, rearSize: null, searchable: false },
+        { size: "225/75R15", label: "ST225/75R15", rimDiameter: 15, rearSize: null, searchable: false },
+        { size: "215/55R16", label: "P215/55R16", rimDiameter: 16, rearSize: null, searchable: true },
+        { size: "215/60R16", label: "215/60R16", rimDiameter: 16, rearSize: null, searchable: true },
       ],
     });
   });

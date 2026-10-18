@@ -193,10 +193,11 @@ function pairs(data: unknown[]): { value: string; label: string }[] | null {
  * "WWW/AARDD" for metric sizes, so the chosen size feeds gatewayTire.publicSearch as is:
  * that normaliser strips only "/", "R" and spaces, so "LT245/75R16" or "225/40ZR18" would come
  * out malformed. Anything else (flotation "31X10.50R15") is not searchable there: null.
+ * `prefix` is the service class before the width ("LT", "ST", "P"), or "" when there is none.
  */
-function metricSize(label: string): string | null {
-  const m = /^(?:P|LT)?\s*(\d{3})\s*\/\s*(\d{2,3})\s*Z?R\s*(\d{2}(?:\.\d)?)/.exec(label);
-  return m ? `${m[1]}/${m[2]}R${m[3]}` : null;
+function metricSize(label: string): { size: string; prefix: string } | null {
+  const m = /^([A-Z]{1,3})?\s*(\d{3})\s*\/\s*(\d{2,3})\s*Z?R\s*(\d{2}(?:\.\d)?)/.exec(label);
+  return m ? { size: `${m[2]}/${m[3]}R${m[4]}`, prefix: m[1] ?? "" } : null;
 }
 
 // ── Public reads (fitment v1) ───────────────────────────────────────
@@ -249,13 +250,18 @@ export function getSizes(
       if (typeof raw !== "string" || raw.trim() === "") continue;
       const label = raw.trim().toUpperCase();
       const metric = metricSize(label);
-      const size = metric ?? label;
-      if (seen.has(size)) continue;
-      seen.add(size);
+      const size = metric?.size ?? label;
+      // Not searchable, so the client shows a call-us row: a decimal rim (22.5) because the size
+      // search drops the dot (R225); an LT/ST (any non-P) service class because the search cannot
+      // filter by construction or load range and would offer passenger tires for a truck size.
+      // shortcut: LT/ST sizes are call-us only; filter publicSearch results by D&K's LT/load-range field to make them searchable again.
+      const searchable = metric !== null && !metric.size.includes(".") && (metric.prefix === "" || metric.prefix === "P");
+      const key = `${size}|${searchable}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
       const rim = /R(\d{2}(?:\.\d)?)/.exec(size);
       // D&K returns no stock flag and no rear size; neither is invented here.
-      // A decimal rim (22.5, 19.5) is shown but not searchable: the size search drops the dot (R225).
-      sizes.push({ size, label, rimDiameter: rim ? Number(rim[1]) : null, rearSize: null, searchable: metric !== null && !metric.includes(".") });
+      sizes.push({ size, label, rimDiameter: rim ? Number(rim[1]) : null, rearSize: null, searchable });
     }
     return data.length > 0 && sizes.length === 0 ? null : { sizes };
   });
