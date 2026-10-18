@@ -20,20 +20,55 @@ import { spawnSync } from "node:child_process";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { blockers, busyChecks, holdWhileBusy, mergeGate } from "./merge-gate.mjs";
+// Namespace import: a missing export reads as undefined in its own tests instead of failing the whole file at link time.
+import * as gate from "./merge-gate.mjs";
 
 const GATE = fileURLToPath(new URL("./merge-gate.mjs", import.meta.url));
 const SHA = "a".repeat(40);
 const FIELDS = "state,isDraft,mergeStateStatus,headRefOid,headRefName,isCrossRepository,statusCheckRollup";
+// The read the first draft used. Real gh answers it with comments(first: 100) only (Codex P2 on #3144), so the fake
+// truncates the same way: a gate that goes back to it loses a marker posted after 100 comments, and goes red here.
+const CODEX_FIELDS = "comments,commits,createdAt";
+const PUSH_FIELDS = "commits,createdAt";
+const THREADS_QUERY = "query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewThreads(first:100){pageInfo{hasNextPage} nodes{isResolved path comments(first:1){nodes{author{login} url}}}}}}}";
+const threadsArgv = (n) => ["api", "graphql", "-F", "owner={owner}", "-F", "name={repo}", "-F", `number=${n}`, "-f", `query=${THREADS_QUERY}`];
+const THREADS = threadsArgv(3100);
+const COMMENTS_QUERY = "query($owner:String!,$name:String!,$number:Int!,$before:String){repository(owner:$owner,name:$name){pullRequest(number:$number){comments(last:50,before:$before){pageInfo{hasPreviousPage startCursor} nodes{author{login} body}}}}}";
+const commentsArgv = (n, before) => ["api", "graphql", "-F", "owner={owner}", "-F", "name={repo}", "-F", `number=${n}`, ...(before === undefined ? [] : ["-f", `before=${before}`]), "-f", `query=${COMMENTS_QUERY}`];
+const COMMENTS = commentsArgv(3100).join(" ");
+const human = (i) => ({ author: { login: "nourdean22" }, body: `comment ${i}`, createdAt: "2026-10-18T10:00:00Z" });
+const humans = (n) => Array.from({ length: n }, (_, i) => human(i));
 const LIST = ["pr", "list", "--state", "open", "--limit", "200", "--json", "number,statusCheckRollup"];
 const MERGE = ["pr", "merge", "3100", "--squash", "--match-head-commit", SHA];
 const REPO = ["repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"];
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
-const run = (name, conclusion = "SUCCESS", status = "COMPLETED") => ({ __typename: "CheckRun", name, status, conclusion });
-const view = (over = {}) => ({ state: "OPEN", isDraft: false, mergeStateStatus: "CLEAN", headRefOid: SHA, headRefName: "chore/some-branch", isCrossRepository: false, statusCheckRollup: [run("node"), run("security"), run("railway-smoke", "SKIPPED")], mergeCommit: { oid: "b".repeat(40) }, ...over });
+// Codex fixtures (job 2026-10-18-merge-gate-codex-wait). Shapes read from #3141 on 2026-10-18 with read-only gh: the
+// summary comment's author.login is "chatgpt-codex-connector" (GraphQL drops the "[bot]" suffix REST shows), and the
+// marker JSON below is #3141's real text with the head sha swapped for SHA.
+const CODEX = "chatgpt-codex-connector";
+const T0 = Date.parse("2026-10-18T10:31:43Z"); // the fixture PR's createdAt
+const MIN = 60_000;
+const SEC = `"security_review":{"commit_sha":null,"has_any_findings":null,"has_unresolved_findings":null,"status":null}`;
+const STATE = {
+  running: `{"code_review":{"commit_sha":"${SHA}","has_any_findings":null,"has_unresolved_findings":null,"status":"running"},${SEC}}`,
+  findings: `{"code_review":{"commit_sha":"${SHA}","has_any_findings":true,"has_unresolved_findings":true,"status":"completed"},${SEC}}`,
+  clean: `{"code_review":{"commit_sha":"${SHA}","has_any_findings":false,"has_unresolved_findings":false,"status":"completed"},${SEC}}`,
+  stale: `{"code_review":{"commit_sha":"${"d".repeat(40)}","has_any_findings":false,"has_unresolved_findings":false,"status":"completed"},${SEC}}`,
+};
+const codexComment = (state, login = CODEX) => ({ author: { login }, body: `### Codex Review\n\nSummary.\n\n<!-- codex-review-state:v1 ${state} -->`, createdAt: "2026-10-18T10:31:59Z" });
+const thread = (isResolved, login = CODEX, n = 1) => ({ isResolved, path: "apps/x.ts", comments: { nodes: [{ author: { login }, url: `https://github.com/o/r/pull/3100#discussion_r${n}` }] } });
 
-/** A gh with the real contract. `prs` is keyed by PR number; `fail` names calls that throw (list, view, after, merge, repo, delete). */
-function fakeGh({ prs = { 3100: view() }, others = [], afterMerge = { state: "MERGED" }, fail = {} } = {}) {
+// startedAt defaults to the fixture PR's open time: CI starts on the push, and the Codex wait is timed from it.
+const run = (name, conclusion = "SUCCESS", status = "COMPLETED", startedAt = "2026-10-18T10:31:43Z") => ({ __typename: "CheckRun", name, status, conclusion, startedAt });
+const view = (over = {}) => ({ state: "OPEN", isDraft: false, mergeStateStatus: "CLEAN", headRefOid: SHA, headRefName: "chore/some-branch", isCrossRepository: false, statusCheckRollup: [run("node"), run("security"), run("railway-smoke", "SKIPPED")], mergeCommit: { oid: "b".repeat(40) }, comments: [codexComment(STATE.clean)], commits: [{ oid: "e".repeat(40), committedDate: "2026-10-18T09:00:00Z" }, { oid: SHA, committedDate: "2026-10-18T10:30:21Z" }], createdAt: "2026-10-18T10:31:43Z", ...over });
+
+/**
+ * A gh with the real contract. `prs` is keyed by PR number; `fail` names calls that throw (list, view, codex, push,
+ * comments, comments2 = the second comments page, threads, after, merge, repo, delete). Comments page like GitHub's
+ * comments(last: 50, before: cursor), newest page first; `endless` makes hasPreviousPage always true (a broken API).
+ */
+function fakeGh({ prs = { 3100: view() }, others = [], afterMerge = { state: "MERGED" }, threads = [], hasNextPage = false, endless = false, fail = {} } = {}) {
   const calls = [];
   const pick = (obj, keys) => Object.fromEntries(keys.split(",").filter((k) => obj[k] !== undefined).map((k) => [k, obj[k]]));
   const boom = (what) => {
@@ -47,11 +82,25 @@ function fakeGh({ prs = { 3100: view() }, others = [], afterMerge = { state: "ME
       const pr = prs[n];
       if (!pr) throw new Error(`no pull request #${n}`);
       if (args[4] === FIELDS) return fail.view ? boom("view") : JSON.stringify(pick(pr, FIELDS));
+      if (args[4] === CODEX_FIELDS) return fail.codex ? boom("codex view") : JSON.stringify({ ...pick(pr, CODEX_FIELDS), comments: (pr.comments ?? []).slice(0, 100) });
+      if (args[4] === PUSH_FIELDS) return fail.push ? boom("push view") : JSON.stringify(pick(pr, PUSH_FIELDS));
       if (args[4] === "state,mergeCommit") return fail.after ? boom("view after") : JSON.stringify(pick({ ...pr, ...afterMerge }, "state,mergeCommit"));
     }
     if (args[0] === "pr" && args[1] === "merge") {
       if (!same(args, MERGE)) throw new Error(`unexpected merge argv: ${args.join(" ")}`);
       return fail.merge ? boom("merge") : "";
+    }
+    if (args[0] === "api" && args[1] === "graphql") {
+      const n = Number(String(args[7]).replace("number=", ""));
+      if (prs[n] && same(args, threadsArgv(n))) return fail.threads ? boom("threads") : JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { pageInfo: { hasNextPage }, nodes: threads } } } } });
+      const before = args[9]?.startsWith("before=") ? args[9].slice("before=".length) : undefined;
+      if (!prs[n] || !same(args, commentsArgv(n, before))) throw new Error(`unexpected graphql argv: ${args.join(" ")}`);
+      if (fail.comments || (fail.comments2 && before !== undefined)) return boom("comments");
+      const all = prs[n].comments ?? [];
+      const end = before === undefined ? all.length : Number(before);
+      const start = Math.max(0, end - 50);
+      const nodes = all.slice(start, end).map((c) => ({ author: c.author, body: c.body }));
+      return JSON.stringify({ data: { repository: { pullRequest: { comments: { pageInfo: { hasPreviousPage: endless || start > 0, startCursor: String(endless ? Math.max(start, 1) : start) }, nodes } } } } });
     }
     if (same(args, REPO)) return fail.repo ? boom("repo view") : "o/r\n";
     if (args[0] === "api" && args[1] === "-X" && args[2] === "DELETE" && args.length === 4) return fail.delete ? boom("delete") : "";
@@ -71,14 +120,14 @@ const logsOf = async (g, over) => {
 test("control: a clean PR merges pinned to the verified head, then reads MERGED, then the branch is deleted; every call is the exact argv", async () => {
   const g = fakeGh();
   assert.equal(await mergeGate(opts(g)), 0);
-  assert.deepEqual(g.calls, [LIST.join(" "), ["pr", "view", "3100", "--json", FIELDS].join(" "), MERGE.join(" "), "pr view 3100 --json state,mergeCommit", REPO.join(" "), "api -X DELETE repos/o/r/git/refs/heads/chore/some-branch"]);
+  assert.deepEqual(g.calls, [LIST.join(" "), ["pr", "view", "3100", "--json", FIELDS].join(" "), `pr view 3100 --json ${PUSH_FIELDS}`, COMMENTS, THREADS.join(" "), MERGE.join(" "), "pr view 3100 --json state,mergeCommit", REPO.join(" "), "api -X DELETE repos/o/r/git/refs/heads/chore/some-branch"]);
 });
 
-test("without --merge it judges only: READY, and no list, no merge, no delete", async () => {
+test("without --merge it judges only: READY (Codex included), and no list, no merge, no delete", async () => {
   const g = fakeGh();
   const { code, logs } = await logsOf(g, { merge: false });
   assert.equal(code, 0);
-  assert.deepEqual(g.calls, [["pr", "view", "3100", "--json", FIELDS].join(" ")]);
+  assert.deepEqual(g.calls, [["pr", "view", "3100", "--json", FIELDS].join(" "), `pr view 3100 --json ${PUSH_FIELDS}`, COMMENTS, THREADS.join(" ")]);
   assert.match(logs[0], /^READY: #3100/);
 });
 
@@ -286,4 +335,262 @@ test("no sweep when the PR does not read MERGED, when blocked, or without --merg
     await logsOf(over.g, { sweep: async () => called++, ...(over.merge === false ? { merge: false } : {}) });
     assert.equal(called, 0);
   }
+});
+
+// Codex wait (job 2026-10-18-merge-gate-codex-wait): #3134 (2026-10-17 22:00Z) and #3141 (2026-10-18 10:43:58Z) both
+// merged the moment CI went green, about 3 minutes before Codex posted P1 findings.
+const ac = (over = {}) => gate.assessCodex({ comments: [codexComment(STATE.clean)], threads: [], headSha: SHA, headPushedAtMs: T0, nowMs: T0 + MIN, waitMinutes: 25, ...over });
+const NONE = { soft: [], hard: [], warn: [] };
+const NEVER = `Codex never reported on ${SHA}; merging without its review`;
+
+test("assessCodex control (c): a completed, clean marker for the head with no unresolved Codex thread proceeds", () => {
+  assert.deepEqual(ac(), NONE);
+  assert.deepEqual(ac({ threads: [thread(true)] }), NONE, "a RESOLVED Codex thread does not block");
+});
+
+test("assessCodex (a): a running marker for the head is soft until 2 x the wait from the push (a stall), then a WARN and it proceeds", () => {
+  for (const [nowMs, waitMinutes] of [[T0 + MIN, 25], [T0 + 49 * MIN, 25], [T0 + 9 * MIN, 5]]) {
+    const r = ac({ comments: [codexComment(STATE.running)], nowMs, waitMinutes });
+    assert.deepEqual(r.hard, []);
+    assert.equal(r.soft.length, 1, `${(nowMs - T0) / MIN} min`);
+    assert.match(r.soft[0], new RegExp(`Codex review is still running on ${SHA}`));
+    assert.deepEqual(r.warn, []);
+  }
+  assert.deepEqual(ac({ comments: [codexComment(STATE.running)], nowMs: T0 + 50 * MIN }), { soft: [], hard: [], warn: [`Codex review still running on ${SHA} after 50 min; merging without its result`] });
+  assert.deepEqual(ac({ comments: [codexComment(STATE.running)], nowMs: T0 + 10 * MIN, waitMinutes: 5 }).warn, [`Codex review still running on ${SHA} after 10 min; merging without its result`]);
+  // The stall timeout never lifts a finding: an unresolved Codex thread stays hard past it.
+  assert.equal(ac({ comments: [codexComment(STATE.running)], threads: [thread(false)], nowMs: T0 + 120 * MIN }).hard.length, 1);
+});
+
+test("assessCodex: judge-only (merging false) says 'would merge' in both fail-open WARN lines", () => {
+  assert.deepEqual(ac({ comments: [], nowMs: T0 + 25 * MIN, merging: false }).warn, [`Codex never reported on ${SHA}; would merge without its review`]);
+  assert.deepEqual(ac({ comments: [codexComment(STATE.running)], nowMs: T0 + 50 * MIN, merging: false }).warn, [`Codex review still running on ${SHA} after 50 min; would merge without its result`]);
+});
+
+test("assessCodex (b): unresolved findings in the marker, or any unresolved Codex thread, is hard whatever the marker says", () => {
+  assert.match(ac({ comments: [codexComment(STATE.findings)] }).hard.join("\n"), new RegExp(`Codex reported unresolved findings on ${SHA}`));
+  for (const comments of [[codexComment(STATE.clean)], [codexComment(STATE.running)], [codexComment(STATE.stale)], []]) {
+    const r = ac({ comments, threads: [thread(true, CODEX, 1), thread(false, CODEX, 2)], nowMs: T0 + 60 * MIN });
+    assert.equal(r.hard.length, 1, JSON.stringify(r));
+    assert.match(r.hard[0], /1 unresolved Codex review thread.*discussion_r2/);
+    assert.doesNotMatch(r.hard[0], /discussion_r1/);
+  }
+  assert.equal(ac({ threads: [thread(false, `${CODEX}[bot]`)] }).hard.length, 1, "the REST-style [bot] login counts as Codex too");
+  assert.deepEqual(ac({ threads: [thread(false, "nourdean22")] }), NONE, "a human's open thread is not this gate's business");
+});
+
+test("assessCodex (d): no marker is soft until the wait has passed since the push, then a WARN and it proceeds", () => {
+  const within = ac({ comments: [], nowMs: T0 + 24 * MIN });
+  assert.deepEqual(within.hard, []);
+  assert.match(within.soft.join("\n"), new RegExp(`no Codex review on ${SHA} yet`));
+  assert.deepEqual(ac({ comments: [], nowMs: T0 + 25 * MIN }), { soft: [], hard: [], warn: [NEVER] });
+  assert.deepEqual(ac({ comments: [], nowMs: T0 + 10 * MIN, waitMinutes: 5 }).warn, [NEVER], "the wait is the caller's");
+});
+
+test("assessCodex (e): a marker for an OLDER sha is no marker for this head", () => {
+  assert.match(ac({ comments: [codexComment(STATE.stale)], nowMs: T0 + 24 * MIN }).soft.join("\n"), /no Codex review on a{40} yet/);
+  assert.deepEqual(ac({ comments: [codexComment(STATE.stale)], nowMs: T0 + 25 * MIN }), { soft: [], hard: [], warn: [NEVER] });
+  // An old running review must not hold the new head either; only the head's own state counts.
+  assert.deepEqual(ac({ comments: [codexComment(STATE.running.replace(SHA, "d".repeat(40)))], nowMs: T0 + 25 * MIN }).soft, []);
+});
+
+test("assessCodex fails CLOSED on a malformed marker (soft, like running), even past the wait", () => {
+  const asIs = (body) => ({ author: { login: CODEX }, body });
+  for (const [bad, comment] of [
+    ...["{not json", `{"code_review":null}`, `{"code_review":"completed"}`, `[]`, ""].map((s) => [s, codexComment(s)]),
+    ["a v2 marker", asIs(`<!-- codex-review-state:v2 ${STATE.clean} -->`)],
+    ["no version", asIs(`<!-- codex-review-state: ${STATE.clean} -->`)],
+  ]) {
+    const r = ac({ comments: [comment], nowMs: T0 + 60 * MIN });
+    assert.equal(r.soft.length, 1, bad);
+    assert.match(r.soft[0], /could not be read/, bad);
+    assert.deepEqual(r.warn, [], bad);
+  }
+  const unsure = ac({ comments: [codexComment(STATE.clean.replace('"has_unresolved_findings":false', '"has_unresolved_findings":null'))] });
+  assert.equal(unsure.soft.length, 1, "completed with has_unresolved_findings null is not a clean bill");
+});
+
+test("assessCodex reads the marker only from Codex's own comment: a quoted marker from anyone else is ignored", () => {
+  const r = ac({ comments: [codexComment(STATE.clean, "nourdean22")], nowMs: T0 + MIN });
+  assert.match(r.soft.join("\n"), /no Codex review on a{40} yet/);
+  assert.deepEqual(ac({ comments: [codexComment(STATE.clean, `${CODEX}[bot]`)] }), NONE);
+});
+
+test("assessCodex takes the NEWEST marker for the head: a later running state outranks an earlier completed one", () => {
+  assert.equal(ac({ comments: [codexComment(STATE.clean), codexComment(STATE.running)] }).soft.length, 1);
+  assert.deepEqual(ac({ comments: [codexComment(STATE.running), codexComment(STATE.clean)] }), NONE);
+});
+
+test("assessCodex: a status other than running or completed is reported-with-no-findings plus a WARN naming it", () => {
+  const r = ac({ comments: [codexComment(STATE.clean.replace('"completed"', '"skipped"'))] });
+  assert.deepEqual(r.soft, []);
+  assert.deepEqual(r.hard, []);
+  assert.equal(r.warn.length, 1);
+  assert.match(r.warn[0], /status "skipped"/);
+});
+
+test("assessCodex never times out on an unknown push time", () => {
+  assert.equal(ac({ comments: [], headPushedAtMs: NaN, nowMs: T0 + 600 * MIN }).soft.length, 1);
+});
+
+const noMarker = (over = {}) => view({ comments: [], ...over });
+test("mergeGate: a running Codex review is NOT READY YET (exit 7) and makes no merge call", async () => {
+  const g = fakeGh({ prs: { 3100: view({ comments: [codexComment(STATE.running)] }) } });
+  const { code, logs } = await logsOf(g);
+  assert.equal(code, 7);
+  assert.deepEqual(mergeCalls(g), []);
+  assert.ok(logs.some((l) => /^NOT READY YET: Codex review is still running/.test(l)), JSON.stringify(logs));
+});
+
+test("mergeGate: Codex findings or an unresolved Codex thread is BLOCKED (exit 2) and makes no merge call", async () => {
+  for (const g of [fakeGh({ prs: { 3100: view({ comments: [codexComment(STATE.findings)] }) } }), fakeGh({ threads: [thread(false)] })]) {
+    const { code, logs } = await logsOf(g);
+    assert.equal(code, 2);
+    assert.deepEqual(mergeCalls(g), []);
+    assert.ok(logs.some((l) => /^BLOCKED: .*Codex/.test(l)), JSON.stringify(logs));
+  }
+});
+
+test("mergeGate: more review threads than one page is BLOCKED, not assumed clean", async () => {
+  const g = fakeGh({ hasNextPage: true });
+  const { code, logs } = await logsOf(g);
+  assert.equal(code, 2);
+  assert.deepEqual(mergeCalls(g), []);
+  assert.ok(logs.some((l) => /^BLOCKED: .*more than 100 review threads/.test(l)), JSON.stringify(logs));
+});
+
+test("mergeGate (d): no marker waits --codex-wait-minutes from the LATEST of PR open, head commit and first CI start, then merges with the WARN", async () => {
+  const late = noMarker({ statusCheckRollup: [{ ...run("node"), startedAt: new Date(T0 + 10 * MIN).toISOString() }] });
+  assert.equal(await mergeGate(opts(fakeGh({ prs: { 3100: late } }), { now: () => T0 + 30 * MIN })), 7, "CI started at T0+10, so 20 min have passed, not 30");
+  assert.equal(await mergeGate(opts(fakeGh({ prs: { 3100: noMarker() } }), { now: () => T0 + 24 * MIN })), 7);
+  const g = fakeGh({ prs: { 3100: noMarker() } });
+  const { code, logs } = await logsOf(g, { now: () => T0 + 25 * MIN });
+  assert.equal(code, 0);
+  assert.equal(mergeCalls(g).length, 1);
+  assert.ok(logs.includes(`WARN: ${NEVER}`), JSON.stringify(logs));
+  assert.ok(logs.indexOf(`WARN: ${NEVER}`) < logs.findIndex((l) => l.startsWith("MERGED:")), "the WARN is printed before the merge");
+  assert.equal(await mergeGate(opts(fakeGh({ prs: { 3100: noMarker() } }), { now: () => T0 + 6 * MIN, codexWait: 5 })), 0, "the flag sets the wait");
+});
+
+test("mergeGate: a running review holds at 49 min and merges at 50 with the stall WARN; judge-only says 'would merge'", async () => {
+  const running = () => fakeGh({ prs: { 3100: view({ comments: [codexComment(STATE.running)] }) } });
+  assert.equal(await mergeGate(opts(running(), { now: () => T0 + 49 * MIN })), 7);
+  const g = running();
+  const { code, logs } = await logsOf(g, { now: () => T0 + 50 * MIN });
+  assert.equal(code, 0);
+  assert.equal(mergeCalls(g).length, 1);
+  assert.ok(logs.includes(`WARN: Codex review still running on ${SHA} after 50 min; merging without its result`), JSON.stringify(logs));
+  const judge = await logsOf(fakeGh({ prs: { 3100: noMarker() } }), { now: () => T0 + 25 * MIN, merge: false });
+  assert.equal(judge.code, 0);
+  assert.ok(judge.logs.includes(`WARN: Codex never reported on ${SHA}; would merge without its review`), JSON.stringify(judge.logs));
+});
+
+test("canary (f): with the Codex check stubbed out, a running review MERGES; with the real check it does not", async () => {
+  const running = () => fakeGh({ prs: { 3100: view({ comments: [codexComment(STATE.running)] }) } });
+  const off = running();
+  assert.equal(await mergeGate(opts(off, { codexCheck: () => NONE })), 0, "the failure shape this job fixes: merged while Codex was still running");
+  assert.equal(mergeCalls(off).length, 1);
+  const on = running();
+  assert.equal(await mergeGate(opts(on)), 7);
+  assert.deepEqual(mergeCalls(on), []);
+});
+
+test("mergeGate: a gh failure reading the Codex comment or the review threads exits 5 and makes no merge call", async () => {
+  for (const call of ["push", "comments", "comments2", "threads"]) {
+    // comments2 needs a second page: the head's marker sits behind 60 newer comments.
+    const prs = call === "comments2" ? { 3100: view({ comments: [codexComment(STATE.clean), ...humans(60)] }) } : undefined;
+    const g = fakeGh({ fail: { [call]: true }, ...(prs ? { prs } : {}) });
+    const { code, logs } = await logsOf(g);
+    assert.equal(code, 5, call);
+    assert.deepEqual(mergeCalls(g), [], call);
+    assert.ok(logs.some((l) => /ERROR before any merge call, nothing was merged/.test(l)), JSON.stringify(logs));
+  }
+});
+
+test("an invalid codex wait is refused before any gh call, in the function and in the CLI", async () => {
+  for (const codexWait of [NaN, -1, Infinity]) {
+    const g = fakeGh();
+    await assert.rejects(() => mergeGate(opts(g, { codexWait })), /--codex-wait-minutes must be a finite number/);
+    assert.deepEqual(g.calls, []);
+  }
+  for (const bad of ["--merge", "", " ", "-1", "abc"]) {
+    const r = spawnSync(process.execPath, [GATE, "1", "--sha", SHA, "--codex-wait-minutes", bad], { encoding: "utf8" });
+    assert.equal(r.status, 64, `${JSON.stringify(bad)}: ${r.stdout}${r.stderr}`);
+    assert.match(r.stderr, /--codex-wait-minutes/);
+  }
+});
+
+// Codex P2 on #3144: `gh pr view --json comments` returns only the first 100 comments, so on a busy PR the marker was
+// invisible and the gate failed open after the wait. The marker is read newest-first through GraphQL instead.
+const commentPages = (g) => g.calls.filter((c) => c.includes("comments(last:50")).length;
+test("a Codex marker posted after 100 other comments is still read (running holds, exit 7), on the newest page", async () => {
+  const g = fakeGh({ prs: { 3100: view({ comments: [...humans(120), codexComment(STATE.running)] }) } });
+  const { code, logs } = await logsOf(g, { now: () => T0 + 30 * MIN });
+  assert.equal(code, 7, JSON.stringify(logs));
+  assert.deepEqual(mergeCalls(g), []);
+  assert.ok(logs.some((l) => /Codex review is still running/.test(l)), JSON.stringify(logs));
+  assert.equal(commentPages(g), 1, "the newest page held it: no further pages");
+});
+
+test("an OLD marker behind 140 newer comments is found by paging backwards (3 pages), and its findings block", async () => {
+  const g = fakeGh({ prs: { 3100: view({ comments: [...humans(5), codexComment(STATE.findings), ...humans(140)] }) } });
+  const { code, logs } = await logsOf(g, { now: () => T0 + 30 * MIN });
+  assert.equal(code, 2, JSON.stringify(logs));
+  assert.equal(commentPages(g), 3);
+  assert.ok(g.calls.includes(commentsArgv(3100, "96").join(" ")) && g.calls.includes(commentsArgv(3100, "46").join(" ")), "it pages with the before cursors it was given");
+});
+
+test("150 comments and no marker reads every page and is plain 'no marker' (soft, then the WARN), not a crash", async () => {
+  const pr = () => ({ 3100: view({ comments: humans(150) }) });
+  const g = fakeGh({ prs: pr() });
+  const within = await logsOf(g, { now: () => T0 + 24 * MIN });
+  assert.equal(within.code, 7);
+  assert.ok(within.logs.some((l) => /no Codex review on a{40} yet/.test(l)), JSON.stringify(within.logs));
+  assert.equal(commentPages(g), 3);
+  const after = await logsOf(fakeGh({ prs: pr() }), { now: () => T0 + 25 * MIN });
+  assert.equal(after.code, 0);
+  assert.ok(after.logs.includes(`WARN: ${NEVER}`), JSON.stringify(after.logs));
+});
+
+// Live finding on #3142 (2026-10-18 11:32Z): the WARN fired 17 min after the push. The wait is timed from the head's
+// first CI start (CI starts on the push); the commit's committedDate can predate the push and is only a WARNed fallback.
+const NOW = T0 + 60 * MIN;
+const at = (ms) => new Date(ms).toISOString();
+test("push time is the EARLIEST CI start on the head: committed 40 min ago, CI started 5 min ago, no marker -> NOT READY, not the WARN", async () => {
+  const pr = noMarker({ createdAt: at(NOW - 50 * MIN), commits: [{ oid: SHA, committedDate: at(NOW - 40 * MIN) }], statusCheckRollup: [run("node", "SUCCESS", "COMPLETED", at(NOW - 4 * MIN)), run("security", "SUCCESS", "COMPLETED", at(NOW - 5 * MIN))] });
+  const g = fakeGh({ prs: { 3100: pr } });
+  const { code, logs } = await logsOf(g, { now: () => NOW });
+  assert.equal(code, 7, JSON.stringify(logs));
+  assert.deepEqual(mergeCalls(g), []);
+  assert.ok(logs.some((l) => /no Codex review on a{40} yet \(5 of 25 min/.test(l)), JSON.stringify(logs));
+  assert.ok(!logs.some((l) => /never reported/.test(l)), JSON.stringify(logs));
+});
+
+test("a branch pushed (and CI run) before the PR opened waits from the OPEN: Codex starts on open", async () => {
+  const pr = noMarker({ createdAt: at(NOW - 5 * MIN), commits: [{ oid: SHA, committedDate: at(NOW - 40 * MIN) }], statusCheckRollup: [run("node", "SUCCESS", "COMPLETED", at(NOW - 30 * MIN))] });
+  const { code, logs } = await logsOf(fakeGh({ prs: { 3100: pr } }), { now: () => NOW });
+  assert.equal(code, 7, JSON.stringify(logs));
+  assert.ok(logs.some((l) => /\(5 of 25 min/.test(l)), JSON.stringify(logs));
+});
+
+test("a zero-time startedAt (a check GitHub has not started) is no CI start; with no real start the wait falls back to committedDate and WARNs it", async () => {
+  const zero = { ...run("node"), startedAt: "0001-01-01T00:00:00Z" };
+  const status = { __typename: "StatusContext", context: "ci/legacy", state: "SUCCESS" };
+  const pr = noMarker({ createdAt: at(NOW - 50 * MIN), commits: [{ oid: SHA, committedDate: at(NOW - 10 * MIN) }], statusCheckRollup: [zero, status] });
+  const { code, logs } = await logsOf(fakeGh({ prs: { 3100: pr } }), { now: () => NOW });
+  assert.equal(code, 7, JSON.stringify(logs));
+  assert.ok(logs.some((l) => /no Codex review on a{40} yet \(10 of 25 min/.test(l)), JSON.stringify(logs));
+  assert.ok(logs.some((l) => /^WARN: no CI start time on a{40}: timing the Codex wait from the head commit's committedDate/.test(l)), JSON.stringify(logs));
+  // With a real CI start present there is no fallback WARN.
+  const ok = await logsOf(fakeGh({ prs: { 3100: noMarker() } }), { now: () => T0 + MIN });
+  assert.ok(!ok.logs.some((l) => /no CI start time/.test(l)), JSON.stringify(ok.logs));
+});
+
+test("a comment list that never ends is BLOCKED at the page cap, never an endless loop or a fail-open", async () => {
+  const g = fakeGh({ prs: { 3100: view({ comments: humans(3) }) }, endless: true });
+  const { code, logs } = await logsOf(g, { now: () => T0 + 600 * MIN });
+  assert.equal(code, 2, JSON.stringify(logs));
+  assert.deepEqual(mergeCalls(g), []);
+  assert.ok(logs.some((l) => /^BLOCKED: .*comments/.test(l)), JSON.stringify(logs));
+  assert.ok(commentPages(g) <= 40, `${commentPages(g)} pages`);
 });

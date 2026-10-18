@@ -262,6 +262,19 @@ kept; the next `--sweep --execute` removes it. A Desktop session worktree holdin
 Remaining risk: the SESSION rule is a naming convention. A session worktree named `agent-*`, or one placed directly
 under a `.worktrees/` folder, gets no SESSION protection. Only the lock, the 2 h window and the lease guard it there.
 
+**Codex wait (2026-10-18).** #3134 and #3141 merged on green CI about 3 minutes before Codex posted P1 findings, and the
+agent-policy CI gate runs too early to see them. `merge-gate.mjs` now also reads Codex's `codex-review-state:v1` marker
+for the head SHA and the PR's review threads (`assessCodex`): `running` or no marker yet is NOT READY (exit 7), unresolved
+findings or any unresolved `chatgpt-codex-connector` thread is BLOCKED (exit 2), and a marker that does not parse holds
+like `running`. A marker for an older SHA counts as none, and Codex did not re-review the fix push on #3139. Two
+fail-opens, both timed from the head's first CI start (or PR open if later; the commit's committedDate only as a WARNed
+fallback, since it can predate the push, #3142): no marker after `--codex-wait-minutes`
+(default 25) logs `WARN: Codex never reported on <sha>; merging without its review`, and still `running` at twice that
+(default 50, a stall: Codex finishes in 3 to 9 min) logs `WARN: Codex review still running on <sha> after <n> min; merging
+without its result`. Findings and unresolved Codex threads never time out. Without `--merge` the WARN says `would merge`.
+Comments are read newest page first through GraphQL, stopping at the marker that decides the head: `gh pr view --json
+comments` returns only the first 100, which hid a later marker (Codex P2 on #3144). Past 2,000 comments it is BLOCKED.
+
 Canaries: `scripts/agent-os/worktreeSweep.test.mjs` (real fixture repos: a bare origin, a primary, worktrees; fake `gh`,
 lease and clock; one arm runs the real teardown script) and the sweep arms of `mergeGate.test.mjs`.
 
