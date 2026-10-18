@@ -42,6 +42,8 @@ export interface FirecrawlResult {
   charCount: number;
   /** Which provider served the page (camofox is the self-hosted fallback) */
   provider?: "firecrawl" | "camofox";
+  /** Requested options the serving provider could not apply (camofox: includeTags / excludeTags) */
+  ignoredOptions?: string[];
 }
 
 export interface FirecrawlOptions {

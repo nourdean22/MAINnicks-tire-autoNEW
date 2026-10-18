@@ -1280,6 +1280,8 @@ export const systemTools = {
           charCount: result.charCount,
           // Which service read the page (camofox = the self-hosted fallback).
           provider: result.provider,
+          // e.g. ["excludeTags"]: the page text came back unfiltered.
+          ignoredOptions: result.ignoredOptions,
           content: fenceContent(
             "scrapeWebPage",
             "external_web",

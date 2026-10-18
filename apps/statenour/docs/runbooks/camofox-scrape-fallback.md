@@ -67,6 +67,29 @@ camofox). The private-network limit below applies to this variant.
 Unset `CAMOFOX_URL` on statenour-web and redeploy. Behaviour returns to Firecrawl-only. The camofox project can then
 be removed.
 
+## Hardening (open decision for Nour)
+
+**Residual risk, both variants: DNS rebinding.** statenour checks the URL (`assertPublicUrl`) before asking
+camofox, but the remote browser resolves the hostname again itself. A hostile name can answer a public address to
+statenour's check and a private one (loopback, `10.x`, `169.254.169.254`) to the browser a moment later. The
+landed-URL re-check runs after the page has loaded, so it cannot undo a request the browser already made; it only
+keeps the response out of the returned text when the final URL is private. A page's own scripts can do the same with
+sub-requests at any time. Nothing inside statenour's process can close this, because the connection is made by
+camofox, not by statenour.
+
+What a rebinding page can reach depends on placement:
+- **Default (own project):** no private-network neighbours. It can reach the camofox container's own loopback, where
+  every route except `/health` needs `CAMOFOX_ACCESS_KEY`, and whatever the host network allows (NOT CHECKED for Railway
+  link-local or metadata addresses).
+- **Alternative (same project):** everything on statenour's private network as well (statenour-web, the worker and any
+  other internal service).
+
+**The stronger control that closes it:** send all browser traffic through an egress proxy that refuses private,
+loopback and link-local destinations at connect time. camofox supports an upstream proxy through `PROXY_HOST`,
+`PROXY_PORT` (and `PROXY_USERNAME` / `PROXY_PASSWORD`), per its README at 39c8209 (lines 352-355). The proxy must do its
+own resolution and deny those ranges itself. The cost is one more service or vendor and some added latency. The
+code stays as it is until Nour picks accept-or-harden.
+
 ## Known limits
 
 - **Alternative variant only: private-network reach.** In the same project, the browser sits on statenour's private

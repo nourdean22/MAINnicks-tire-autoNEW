@@ -47,6 +47,7 @@ const ALLOWED_PATTERNS = CAMOFOX_ALLOWED_ENDPOINTS.map(([method, path]) => ({
 export const CAMOFOX_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_LENGTH = 12_000;
 const CLOSE_TIMEOUT_MS = 5_000;
+const MAX_WAIT_FOR_MS = 5_000;
 // camofox caps a snapshot at 80_000 chars (lib/snapshot.js MAX_SNAPSHOT_CHARS);
 // 2 MB leaves room for JSON escaping and still bounds an untrusted body.
 const MAX_RESPONSE_BYTES = 2_000_000;
@@ -129,9 +130,17 @@ async function camofoxRequest(
   return data;
 }
 
-/** The aria-snapshot YAML minus element refs (`[e12]`), which are browser plumbing, not page text. */
+/**
+ * The aria-snapshot text minus element refs, which are browser plumbing and renumber
+ * between snapshots (a hash of them would flag every page as changed). Two shapes:
+ * `- button "Submit" [e1]:` (emitted, server.js:3694 and the SERP path 2231-2307 @39c8209)
+ * and `[button e1] Submit` (documented, README line 528).
+ */
 function snapshotToText(snapshot: string): string {
-  return snapshot.replace(/ \[e\d+\]/g, "").trim();
+  return snapshot
+    .replace(/\[[a-z]+ e\d+\][ \t]*/gi, "")
+    .replace(/[ \t]*\[e\d+\]/g, "")
+    .trim();
 }
 
 async function assertLandedPublic(requested: string, landed: unknown): Promise<void> {
@@ -163,6 +172,10 @@ export async function scrapeWithCamofox(url: string, opts: FirecrawlOptions = {}
     if (!tabId) throw new Error("camofox create tab returned no tabId");
     await assertLandedPublic(url, tab.url);
 
+    // Firecrawl's waitFor, bounded so it stays inside the 30 s budget.
+    const waitMs = Math.min(Math.max(opts.waitFor ?? 0, 0), MAX_WAIT_FOR_MS);
+    if (waitMs > 0) await new Promise((resolve) => setTimeout(resolve, waitMs));
+
     const snap = await camofoxRequest("GET", `/tabs/${encodeURIComponent(tabId)}/snapshot`, signal, {
       query: { userId: CAMOFOX_USER_ID, format: "text" },
     });
@@ -172,7 +185,10 @@ export async function scrapeWithCamofox(url: string, opts: FirecrawlOptions = {}
     if (typeof snap?.snapshot !== "string") throw new Error("camofox snapshot reply had no snapshot text");
     const text = snapshotToText(snap.snapshot);
     const maxLen = opts.maxLength ?? DEFAULT_MAX_LENGTH;
+    // The snapshot cannot be filtered by CSS selector: say so instead of dropping the request.
+    const ignoredOptions = (["includeTags", "excludeTags"] as const).filter((k) => (opts[k]?.length ?? 0) > 0);
     return {
+      ...(ignoredOptions.length > 0 ? { ignoredOptions } : {}),
       markdown: text.length > maxLen ? text.slice(0, maxLen) + "\n\n...[truncated]" : text,
       // The snapshot carries no <title>; null is honest, a guessed heading is not.
       title: null,
@@ -182,6 +198,8 @@ export async function scrapeWithCamofox(url: string, opts: FirecrawlOptions = {}
       provider: "camofox",
     };
   } finally {
+    // userId as a query parameter is the server's contract: server.js:5770-5773 @39c8209 reads
+    // `req.query.userId || req.body?.userId`; sessionKey is listItemId's alias (server.js:494).
     await camofoxRequest("DELETE", `/tabs/group/${sessionKey}`, AbortSignal.timeout(CLOSE_TIMEOUT_MS), {
       query: { userId: CAMOFOX_USER_ID },
     }).catch((err) => {

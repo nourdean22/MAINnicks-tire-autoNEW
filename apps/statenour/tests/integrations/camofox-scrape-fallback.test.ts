@@ -54,6 +54,7 @@ const CAMOFOX_KEY = "cfx-test-key-not-real";
 
 type Call = { method: string; url: string; auth: string | null; body: string | null; signal: unknown };
 let calls: Call[] = [];
+let closeOk = 0;
 let createResponse: () => Response | Promise<Response>;
 let snapshotResponse: () => Response | Promise<Response>;
 
@@ -73,7 +74,18 @@ async function fakeFetch(input: unknown, init?: RequestInit): Promise<Response> 
   });
   if (method === "POST" && u.pathname === "/tabs") return createResponse();
   if (method === "GET" && /^\/tabs\/[^/]+\/snapshot$/.test(u.pathname)) return snapshotResponse();
-  if (method === "DELETE" && /^\/tabs\/group\/[^/]+$/.test(u.pathname)) return json({ ok: true, closed: 1 });
+  if (method === "DELETE" && /^\/tabs\/group\/[^/]+$/.test(u.pathname)) {
+    // The real contract (server.js:5770-5773 @39c8209): userId from the query OR the body, 400 when neither.
+    let bodyUserId: unknown;
+    try {
+      bodyUserId = typeof init?.body === "string" ? JSON.parse(init.body)?.userId : undefined;
+    } catch {
+      bodyUserId = undefined;
+    }
+    if (!u.searchParams.get("userId") && !bodyUserId) return json({ error: "userId required (query or body)" }, 400);
+    closeOk++;
+    return json({ ok: true, closed: 1 });
+  }
   return json({ error: "not found" }, 404);
 }
 
@@ -95,6 +107,7 @@ beforeEach(async () => {
   vi.clearAllMocks();
   fc.impl = async () => ({ markdown: "firecrawl text", metadata: { title: "FC title", sourceURL: "https://pub-a.test/" } });
   calls = [];
+  closeOk = 0;
   dns.answers.clear();
   for (const h of ["pub-a.test", "pub-b.test", "pub-c.test", "pub-d.test", "pub-e.test", "pub-f.test", "pub-g.test", "pub-h.test"]) {
     dns.answers.set(h, [{ address: "93.184.216.34", family: 4 }]);
@@ -343,6 +356,14 @@ describe("(f)(g) camofox adapter: read-only, always closes its tab", () => {
     }
     // The scraped URL travels in the create body only, never as a request target.
     expect(JSON.parse(calls[0]!.body!).url).toBe("https://pub-g.test/");
+    // The close was ACCEPTED by a fake that enforces the real userId contract.
+    expect(closeOk).toBe(1);
+  });
+
+  it("positive control · the fake close endpoint refuses a request with no userId", async () => {
+    const res = await fakeFetch(`${CAMOFOX_URL}/tabs/group/scrape-x`, { method: "DELETE" });
+    expect(res.status).toBe(400);
+    expect(closeOk).toBe(0);
   });
 
   it("(g) truncates to maxLength with the Firecrawl suffix", async () => {
@@ -352,6 +373,88 @@ describe("(f)(g) camofox adapter: read-only, always closes its tab", () => {
     expect(r.markdown.endsWith("\n\n...[truncated]")).toBe(true);
     expect(r.markdown.length).toBe(100 + "\n\n...[truncated]".length);
     expect(r.charCount).toBeGreaterThan(500);
+  });
+});
+
+describe("snapshot refs are stripped in both shapes", () => {
+  // Emitted at 39c8209: `- button "Submit" [e1]:` (server.js:3694, and the SERP path at
+  // 2231-2307). Documented in the README (line 528): `[button e1] Submit  [link e2] Learn more`.
+  const SERVER_SHAPE = (a: number, b: number) =>
+    `- heading "Deals" [level=1]\n- button "Submit" [e${a}]:\n  - link "Learn more" [e${b}]\n- paragraph: 20% off`;
+  const README_SHAPE = (a: number, b: number) => `[button e${a}] Submit  [link e${b}] Learn more`;
+
+  it("server shape: inline `[eN]` after the name is removed, page text kept", async () => {
+    snapshotResponse = () => json({ url: "https://pub-g.test/", snapshot: SERVER_SHAPE(1, 2) });
+    const { scrapeWithCamofox } = await import("@/lib/integrations/camofox");
+    const r = await scrapeWithCamofox("https://pub-g.test/");
+    expect(r.markdown).not.toMatch(/\be\d+\]/);
+    expect(r.markdown).toContain('button "Submit":');
+    expect(r.markdown).toContain("[level=1]"); // not a ref; kept
+    expect(r.markdown).toContain("20% off");
+  });
+
+  it("README shape: a leading `[role eN]` tag is removed, the label kept", async () => {
+    snapshotResponse = () => json({ url: "https://pub-g.test/", snapshot: README_SHAPE(1, 2) });
+    const { scrapeWithCamofox } = await import("@/lib/integrations/camofox");
+    const r = await scrapeWithCamofox("https://pub-g.test/");
+    expect(r.markdown).not.toMatch(/\be\d+\]/);
+    expect(r.markdown).toContain("Submit");
+    expect(r.markdown).toContain("Learn more");
+  });
+
+  it.each([
+    ["server", SERVER_SHAPE],
+    ["README", README_SHAPE],
+  ] as const)("%s shape: renumbered refs give identical markdown (change detection stays quiet)", async (_n, shape) => {
+    const { scrapeWithCamofox } = await import("@/lib/integrations/camofox");
+    snapshotResponse = () => json({ url: "https://pub-g.test/", snapshot: shape(1, 2) });
+    const first = (await scrapeWithCamofox("https://pub-g.test/")).markdown;
+    snapshotResponse = () => json({ url: "https://pub-g.test/", snapshot: shape(17, 42) });
+    const second = (await scrapeWithCamofox("https://pub-g.test/")).markdown;
+    expect(second).toBe(first);
+  });
+});
+
+describe("requested options: waitFor honoured, filters reported as not applied", () => {
+  it("waitFor delays the snapshot read by that many ms", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const { scrapeWithCamofox } = await import("@/lib/integrations/camofox");
+    const p = scrapeWithCamofox("https://pub-g.test/", { waitFor: 3000 });
+    await vi.advanceTimersByTimeAsync(2999);
+    expect(calls.some((c) => c.method === "GET")).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    await p;
+    expect(calls.some((c) => c.method === "GET")).toBe(true);
+  });
+
+  it("waitFor is capped at 5000 ms inside the 30 s budget", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const { scrapeWithCamofox } = await import("@/lib/integrations/camofox");
+    const p = scrapeWithCamofox("https://pub-g.test/", { waitFor: 15_000 });
+    await vi.advanceTimersByTimeAsync(4999);
+    expect(calls.some((c) => c.method === "GET")).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    await p;
+    expect(calls.some((c) => c.method === "GET")).toBe(true);
+  });
+
+  it("includeTags / excludeTags are listed in ignoredOptions, not silently dropped", async () => {
+    const { scrapeWithCamofox } = await import("@/lib/integrations/camofox");
+    const r = await scrapeWithCamofox("https://pub-g.test/", { excludeTags: ["nav"], includeTags: ["main"] });
+    expect(r.ignoredOptions).toEqual(["includeTags", "excludeTags"]);
+    const plain = await scrapeWithCamofox("https://pub-g.test/", { excludeTags: [] });
+    expect(plain.ignoredOptions).toBeUndefined();
+  });
+
+  it("scrapeWebPage surfaces ignoredOptions next to provider", async () => {
+    vi.stubEnv("FIRECRAWL_API_KEY", "");
+    await loadSink();
+    const { systemTools } = await import("@/lib/ai/tools/system");
+    const out = (await (systemTools.scrapeWebPage as unknown as {
+      execute: (a: unknown, o: unknown) => Promise<Record<string, unknown>>;
+    }).execute({ url: "https://pub-a.test/", excludeTags: ["footer"] }, { toolCallId: "t2", messages: [] })) as Record<string, unknown>;
+    expect(out.provider).toBe("camofox");
+    expect(out.ignoredOptions).toEqual(["excludeTags"]);
   });
 });
 
