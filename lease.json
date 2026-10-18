@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "docs/upstreams-verdicts-20261018",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "11dd3c15-6c98-4bc9-9fa1-c404986839c6",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\new-session-bbf695",
+  "claimedBy": "2026-10-18-upstreams-verdicts",
+  "claimedAt": "2026-10-18T00:18:51.481Z",
+  "expiresAt": "2026-10-18T12:18:51.481Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
