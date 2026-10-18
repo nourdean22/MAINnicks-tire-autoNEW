@@ -25,6 +25,9 @@
 
 import { withGuardian } from "@/lib/tools/guardian";
 import { isCamofoxConfigured, scrapeWithCamofox } from "@/lib/integrations/camofox";
+import { logger } from "@/lib/logger";
+
+const log = logger.withSurface("integrations/firecrawl");
 
 export interface FirecrawlResult {
   /** Clean markdown content of the page */
@@ -122,7 +125,10 @@ async function _scrapeUrl(
     }
   }
   try {
-    return await scrapeWithCamofox(url, opts);
+    const page = await scrapeWithCamofox(url, opts);
+    // The guardian records this sink as "firecrawl-scrape" either way; this line says who served it.
+    log.info("scrape_served_by_camofox", { firecrawlCause: firecrawlCause.slice(0, 160) });
+    return page;
   } catch (err) {
     if (err instanceof UnsafeScrapeUrlError) throw err;
     throw new Error(`Scrape failed on both providers · firecrawl: ${firecrawlCause} · camofox: ${errorMessage(err)}`);

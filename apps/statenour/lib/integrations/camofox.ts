@@ -158,7 +158,9 @@ export async function scrapeWithCamofox(url: string, opts: FirecrawlOptions = {}
     });
     await assertLandedPublic(url, snap?.url);
 
-    const text = snapshotToText(typeof snap?.snapshot === "string" ? snap.snapshot : "");
+    // A 200 without a snapshot string is a malformed reply, not an empty page.
+    if (typeof snap?.snapshot !== "string") throw new Error("camofox snapshot reply had no snapshot text");
+    const text = snapshotToText(snap.snapshot);
     const maxLen = opts.maxLength ?? DEFAULT_MAX_LENGTH;
     return {
       markdown: text.length > maxLen ? text.slice(0, maxLen) + "\n\n...[truncated]" : text,

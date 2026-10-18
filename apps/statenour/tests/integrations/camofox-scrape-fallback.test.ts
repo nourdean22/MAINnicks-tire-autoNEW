@@ -301,6 +301,13 @@ describe("(f)(g) camofox adapter: read-only, always closes its tab", () => {
     expect(closeCalls()).toHaveLength(1);
   });
 
+  it("(f) a 200 reply with no snapshot text is an error, not an empty page", async () => {
+    snapshotResponse = () => json({ url: "https://pub-f.test/" });
+    const { scrapeWithCamofox } = await import("@/lib/integrations/camofox");
+    await expect(scrapeWithCamofox("https://pub-f.test/")).rejects.toThrow(/no snapshot text/);
+    expect(closeCalls()).toHaveLength(1);
+  });
+
   it("(f) an HTTP error page is not returned as content", async () => {
     createResponse = () => json({ tabId: "tab-2", url: "https://pub-f.test/", httpStatus: 404, navigationOk: false });
     const { scrapeWithCamofox } = await import("@/lib/integrations/camofox");
