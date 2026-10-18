@@ -154,8 +154,6 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolMetadata>> = {
   // (Apr 28, documented in catalog.ts) and their registry entries made
   // /system/tools list 4 tools that no longer exist. Phantom entries are
   // now a FAILING test (tests/ai/tool-families-drift.test.ts), not a warn.
-  createQuickQuote: { family: "business-write", description: "Create a quote for a lead" },
-  triageStaleLead: { family: "business-write", description: "Move stale lead -> next action" },
 
   // ── Brain · search ──
   // v10.0.74 · searchBrainDumps retired (canonical: searchReflections,
@@ -303,7 +301,6 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolMetadata>> = {
   sendOpportunitySms: { family: "integration-arsenal", description: "STAGE an opportunity SMS for Nour's Telegram Approve tap - never sends directly; the tap calls nickstire's bounded gated send." },
   getFleetTruth: { family: "integration-arsenal", description: "Cross-app operational fleet truth: statenour capability artifacts + nickstire health/schema-guard/self-healing. Read-only." },
   fetchVideoTranscript: { family: "integration-arsenal", description: "English transcript + metadata of an allowlisted YouTube video via the policy-guarded yt-dlp lane. Fenced untrusted content." },
-  searchBuildYourOwnX: { family: "integration-arsenal", description: "Search the Build Your Own X tutorial catalog (450+ curated step-by-step guides for re-creating canonical te..." },
   searchDocuments: { family: "integration-arsenal", description: "Search across documents the operator has uploaded (PDFs, Word docs, spreadsheets, text files). Returns the..." },
   searchWebVerified: { family: "integration-arsenal", description: "Cross-verified web search across multiple sources (Perplexity + Tavily + Exa + Google Grounding + Perplexic..." },
 

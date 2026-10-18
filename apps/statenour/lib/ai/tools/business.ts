@@ -2,7 +2,7 @@
  * Business signal tools — business_read / business_write / live_shop.
  *
  * Includes: getShopSnapshot · findCustomer · getRevenueStats ·
- * compareLiveRevenue · createQuickQuote · getGscSummary · pricing
+ * compareLiveRevenue · getGscSummary · pricing
  * advisory · location feasibility · attribution.
  *
  * v10.0.529.106 · Wave 82 · extracted from monolithic lib/ai/tools.ts.
@@ -54,42 +54,6 @@ export const businessTools = {
   // NOTE: logDecisionForReplay tool deleted Apr 15 — same rationale
   // as logDecision. The NL interceptor in /api/ai/chat writes to
   // masteryDecision + auto-schedules a review date based on stakes.
-
-  createQuickQuote: tool({
-    description: "Quote creation belongs on nickstire admin (laborOperations, tires, and quotes tables all live there). Returns a clear redirect message; the quoteCalc surface on nickstire.org/admin is the canonical path.",
-    inputSchema: z.object({
-      customerName: z.string().optional(),
-      customerPhone: z.string().optional(),
-      vehicleYear: z.number(),
-      vehicleMake: z.string(),
-      vehicleModel: z.string(),
-      services: z.array(z.string()).describe("Labor operation names to include"),
-      tireSize: z.string().optional().describe("Tire size like 225/65R17"),
-      tireQty: z.number().default(4),
-    }),
-    execute: async ({ vehicleYear, vehicleMake, vehicleModel, services, tireSize, tireQty }) => {
-      // v10.0.54 · Wave A · Pre-fix this tool was 5 dead Promise.resolve
-      // placeholders (laborOps, tires, countToday, quote) and crashed
-      // on `quote.quoteNumber` access (TypeError: null.quoteNumber).
-      // The labor_operations, tires, and quotes tables all moved to
-      // nickstire (TiDB on Railway). No bridge mutation exposed yet,
-      // so creating a quote from autonicks would be silent data loss
-      // even if the reads worked. Returning a structured redirect
-      // is the honest path — Nick relays it, Nour clicks through.
-      const summary = `${vehicleYear} ${vehicleMake} ${vehicleModel}` +
-        (services.length > 0 ? ` · ${services.join(", ")}` : "") +
-        (tireSize ? ` · tires ${tireSize} x${tireQty}` : "");
-      return {
-        created: false,
-        redirect: true,
-        message:
-          "Quote creation lives on nickstire admin (labor + tire pricing tables + quote sequence are all there). Open nickstire.org/admin/quotes/new and pre-fill these details.",
-        prefill: { vehicleYear, vehicleMake, vehicleModel, services, tireSize, tireQty },
-        summary,
-        adminUrl: "https://nickstire.org/admin/quotes/new",
-      };
-    },
-  }),
 
   // ── CONTENT CREATION (Apr 17: post generation moved to nickstire
   //    admin; autonicks keeps only image generation which is
@@ -500,65 +464,6 @@ export const businessTools = {
   // ═══════════════════════════════════════════════════════════
   // FILE ACCESS — Read files from Google Drive, local storage
   // ═══════════════════════════════════════════════════════════
-
-  triageStaleLead: tool({
-    description: "Triage a stale lead requires nickstire admin access (the lead table lives there). Returns a structured redirect — Nick relays the message and the admin URL.",
-    inputSchema: z.object({
-      leadId: z.string().describe("The lead id from the nickstire admin"),
-      outcome: z.enum(["dead", "recovered", "followup", "booked"]).describe("What's the triage decision"),
-      reason: z.string().min(1).max(500).describe("Why this outcome (for the learning loop)"),
-    }),
-    execute: async ({ leadId, outcome, reason }) => {
-      // v10.0.54 · Wave A · Pre-fix this tool was a dead `Promise.resolve(null)`
-      // then accessed `.id` / `.fullName` → TypeError every call. The
-      // lead table lives on nickstire (TiDB on Railway). No bridge
-      // mutation exposed yet, so we surface a structured redirect
-      // honest-failure instead of silent crash. Nour clicks through
-      // to the admin page and triages there; the reason gets logged
-      // to BrainMemory locally so the learning loop still captures
-      // the *intent* even when the persistence happens elsewhere.
-      const statusMap: Record<string, string> = {
-        dead: "LOST",
-        recovered: "CONTACTED",
-        followup: "CONTACTED",
-        booked: "BOOKED",
-      };
-      const targetStatus = statusMap[outcome] ?? "CONTACTED";
-
-      // Local memory: capture the triage intent so the decision-pattern
-      // learning loop sees it even though the actual lead state lives
-      // on nickstire.
-      await prisma.brainMemory
-        .upsert({
-          where: {
-            category_key: {
-              category: "lead_triage_intent",
-              key: `${leadId}_${new Date().toISOString().slice(0, 10)}`,
-            },
-          },
-          create: {
-            category: "lead_triage_intent",
-            key: `${leadId}_${new Date().toISOString().slice(0, 10)}`,
-            content: `Lead ${leadId} triaged as ${outcome} (${targetStatus}). Reason: ${reason}`,
-            confidence: 0.7,
-            source: "nick:triageStaleLead",
-          },
-          update: {
-            content: `Lead ${leadId} triaged as ${outcome} (${targetStatus}). Reason: ${reason}`,
-          },
-        })
-        .catch(() => undefined);
-
-      return {
-        leadId,
-        intent: outcome,
-        targetStatus,
-        message:
-          `Triage intent logged locally. To persist the lead status, open nickstire admin and apply ${targetStatus} on lead ${leadId}.`,
-        adminUrl: `https://nickstire.org/admin/leads/${encodeURIComponent(leadId)}`,
-      };
-    },
-  }),
 
   /**
    * Mark a commitment broken with a reason. Different from

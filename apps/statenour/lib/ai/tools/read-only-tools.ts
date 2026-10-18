@@ -82,7 +82,7 @@ export const READ_ONLY_TOOLS: ReadonlySet<string> = new Set([
   "searchDocuments", "searchWebVerified", "last30days", "arsenalFindLeads", "arsenalResearch",
   "arsenalWebSearch", "arsenalPreTaskFanout", "arsenalMultiAgent",
   "arsenalNotebookLM", "arsenalGmailInbox", "arsenalGmailReadThread", "getCronStatus",
-  "searchBuildYourOwnX", "scrapeWebPage", "fetchVideoTranscript",
+  "scrapeWebPage", "fetchVideoTranscript",
   // brain
   "findRelatedConversations", "suggestSkills", "getSkillProtocol", "surfaceAntiPatterns",
   "analyzeFitness", "analyzeGoals", "analyzeMentalHealth", "analyzeSleep", "analyzeTrends",

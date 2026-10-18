@@ -8,12 +8,8 @@ import {
   NotebookPen,
   Activity,
   Pin,
-  Send,
   Target,
-  Image as ImageIcon,
   Users,
-  Link2,
-  GraduationCap,
   FlaskConical,
 } from "lucide-react";
 
@@ -66,11 +62,6 @@ export const NAV: NavEntry[] = [
   { href: "/pins",  label: "Pinned Memory", icon: Pin, section: "capture", flatRow: true },
 
   // ── EXECUTE ──
-  { href: "/content", label: "Content", icon: Send, section: "execute",
-    tabs: [{ key: "drafts", label: "Drafts" }, { key: "assistant", label: "AI Assistant" }, { key: "history", label: "History" }, { key: "publish", label: "Publish" }, { key: "outreach", label: "Outreach" }] },
-  { href: "/learn",          label: "Learn",          icon: GraduationCap,  section: "execute", flatRow: true },
-  { href: "/photo-improver", label: "Photo Improver", icon: ImageIcon,      section: "execute", flatRow: true },
-  { href: "/links",          label: "Short Links",    icon: Link2,          section: "execute", flatRow: true },
 
   // ── REFLECT ──
   // 2026-09-07 (program §5.11) · the More-sheet listed 4 of Brain's 9 tabs.

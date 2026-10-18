@@ -29,7 +29,7 @@ const receipts = [
   toReceipt({ toolName: "createTask", ok: true, entityType: "task", entityId: "t1", label: "Call Mike", metadata: { note: "private" } }, { now: NOW }),
   toReceipt({ toolName: "searchMemories", ok: true }, { now: NOW }),
   toReceipt({ toolName: "notInTheCatalog", partial: true }, { now: NOW }),
-  toReceipt({ toolName: "createQuickQuote", ok: false, error: "provider said no" }, { now: NOW }),
+  toReceipt({ toolName: "stageCustomerAlert", ok: false, error: "provider said no" }, { now: NOW }),
 ];
 
 describe("toolReceiptRows", () => {

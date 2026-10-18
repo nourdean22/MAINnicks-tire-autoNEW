@@ -814,7 +814,7 @@ function buildHorizon(i: {
     });
     claim(weekTask.title);
   } else if (weekGoal) {
-    slots.push({ scope: "week", label: weekGoal.title, href: "/goals", source: "week goal" });
+    slots.push({ scope: "week", label: weekGoal.title, href: "/stats?tab=goals", source: "week goal" });
     claim(weekGoal.title);
   }
 
@@ -824,7 +824,7 @@ function buildHorizon(i: {
     slots.push({
       scope: "later",
       label: later.title,
-      href: "/goals",
+      href: "/stats?tab=goals",
       source: (later.horizon ?? "later").toLowerCase(),
     });
   }

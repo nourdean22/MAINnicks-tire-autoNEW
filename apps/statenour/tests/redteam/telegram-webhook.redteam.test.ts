@@ -1268,7 +1268,6 @@ describe("6 - HTML in replies (parse_mode HTML)", () => {
     ["/memory (no hits)", `/memory ${OWNER_TEXT}`, "No memories found"],
     ["/search (no hits)", `/search ${OWNER_TEXT}`, "No matches"],
     ["/imagine", `/imagine ${OWNER_TEXT}`, "Generating"],
-    ["/approve <campaignId>", `/approve ${OWNER_TEXT}`, "Approved"],
   ];
   for (const [name, command, marker] of echoes) {
     it(`${name} echoes the operator's text escaped (was: raw)`, async () => {

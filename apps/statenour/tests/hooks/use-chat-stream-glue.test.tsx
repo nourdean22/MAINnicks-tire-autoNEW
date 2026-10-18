@@ -333,7 +333,7 @@ describe("Retry never re-runs a turn that ran a side-effecting tool", () => {
     id: "db-2",
     role: "assistant",
     parts: [{ type: "text", text: "Sent the quote." }],
-    tokenUsage: { toolReceipts: [sideEffecting ? storedReceipt("createQuickQuote", true) : storedReceipt("searchMemories", false)] },
+    tokenUsage: { toolReceipts: [sideEffecting ? storedReceipt("stageCustomerAlert", true) : storedReceipt("searchMemories", false)] },
   });
 
   it("refuses a reloaded turn whose receipts show a side effect, and says why", () => {
@@ -368,7 +368,7 @@ describe("Retry never re-runs a turn that ran a side-effecting tool", () => {
   });
 
   it("refuses a live turn with a side-effecting tool part", () => {
-    h.chat.messages = [user, { id: "live-1", role: "assistant", parts: [{ type: "tool-createQuickQuote" }, { type: "text", text: "Sent." }] }];
+    h.chat.messages = [user, { id: "live-1", role: "assistant", parts: [{ type: "tool-stageCustomerAlert" }, { type: "text", text: "Sent." }] }];
     h.chat.status = "ready";
     render();
     act(() => void ctl.regenerate());

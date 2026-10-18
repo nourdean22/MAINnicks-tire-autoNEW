@@ -141,7 +141,7 @@ describe("the Retry gate's question is default-deny: would a replay repeat anyth
 // nothing. classifyToolEffect keeps its narrow meaning (flag, *_write category,
 // action-block mutation) and so do the receipts built on it.
 describe("the Done-guard keeps its narrow classifier", () => {
-  it.each(["createTask", "completeTask", "createQuickQuote", "task.create"])("%s is a write", (name) => {
+  it.each(["createTask", "completeTask", "stageCustomerAlert", "task.create"])("%s is a write", (name) => {
     expect(classifyToolEffect(name)).toBe("write");
     expect(isSideEffecting(name)).toBe(true);
   });
@@ -225,11 +225,11 @@ describe("a tool nobody has reviewed counts as a write", () => {
     vi.resetModules();
     vi.doMock("@/lib/ai/tools/read-only-tools", async (importOriginal) => {
       const real = await importOriginal<typeof import("@/lib/ai/tools/read-only-tools")>();
-      return { ...real, REPLAY_SAFE_COMPUTE_TOOLS: new Set([...real.REPLAY_SAFE_COMPUTE_TOOLS, "createQuickQuote", "createTask", "notInTheCatalog"]) };
+      return { ...real, REPLAY_SAFE_COMPUTE_TOOLS: new Set([...real.REPLAY_SAFE_COMPUTE_TOOLS, "stageCustomerAlert", "createTask", "notInTheCatalog"]) };
     });
     const registry = await import("@/lib/ai/capability-registry");
 
-    expect(registry.isReplaySafeTool("createQuickQuote"), "flagged").toBe(false);
+    expect(registry.isReplaySafeTool("stageCustomerAlert"), "flagged").toBe(false);
     expect(registry.isReplaySafeTool("createTask"), "write category").toBe(false);
     expect(registry.isReplaySafeTool("notInTheCatalog"), "uncatalogued").toBe(false);
     // control: the genuine compute tools in the same graph are still replay-safe

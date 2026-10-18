@@ -2,16 +2,13 @@
   "_about": "UI v3 ratchet baseline (tests/repo/ui-v3-ratchets.test.ts). Keys are app-root-relative POSIX paths; a file or counter that is absent is 0. A count may fall and never rise. It does not tighten by itself: each wave PR that removes violations runs UPDATE_RATCHET=1 pnpm exec vitest run tests/repo/ui-v3-ratchets.test.ts and commits the lowered numbers. That mode refuses to raise any number and refuses a missing, corrupt or non-object file. A deleted file's entry is dropped when it runs; a moved or renamed file is re-keyed by hand, its numbers moving with it and the totals unchanged. To ADD a legitimate number run UPDATE_RATCHET=init in the PR that adds it, give the reason in the PR body, and expect it to be reviewed like any raise. Both modes are refused when CI is set. Do not hand-edit a number up.",
   "totals": {
     "uppercase": 5,
-    "emDash": 269,
-    "emoji": 33,
-    "transitionAll": 56,
+    "emDash": 248,
+    "emoji": 29,
+    "transitionAll": 52,
     "slowDuration": 8,
-    "smallInput": 112
+    "smallInput": 90
   },
   "files": {
-    "app/(mastery)/content/page.tsx": {
-      "emDash": 1
-    },
     "app/(mastery)/decisions/[id]/page.tsx": {
       "smallInput": 2
     },
@@ -21,23 +18,11 @@
     "app/(mastery)/journal/_components/notebooklm-context-zone.tsx": {
       "smallInput": 1
     },
-    "app/(mastery)/learn/page.tsx": {
-      "smallInput": 1
-    },
-    "app/(mastery)/links/page.tsx": {
-      "emDash": 2,
-      "emoji": 1,
-      "smallInput": 5
-    },
     "app/(mastery)/missions/hooks/use-mission-actions.ts": {
       "emDash": 6
     },
     "app/(mastery)/missions/page.tsx": {
       "emDash": 4
-    },
-    "app/(mastery)/photo-improver/page.tsx": {
-      "emDash": 2,
-      "smallInput": 1
     },
     "app/(mastery)/pins/page.tsx": {
       "emDash": 2,
@@ -213,24 +198,6 @@
     },
     "components/command-palette.tsx": {
       "emDash": 1
-    },
-    "components/content/assistant-tab.tsx": {
-      "emDash": 1,
-      "smallInput": 1
-    },
-    "components/content/drafts-tab.tsx": {
-      "transitionAll": 2
-    },
-    "components/content/history-tab.tsx": {
-      "smallInput": 1
-    },
-    "components/content/outreach-tab.tsx": {
-      "emDash": 2,
-      "smallInput": 5
-    },
-    "components/content/publish-tab.tsx": {
-      "emDash": 2,
-      "smallInput": 4
     },
     "components/goals/execution-coach-sandbox.tsx": {
       "transitionAll": 14,

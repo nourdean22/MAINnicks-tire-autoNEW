@@ -184,6 +184,8 @@ describe("pruned routes (2026-10-18) · gone, redirected, and linked from nowher
     for (const d of SCAN_DIRS) {
       for (const file of walk(join(APP_ROOT, d))) {
         scanned++;
+        // Telegram bot commands (/goals, /content) share spelling with the retired pages; they are chat verbs, not links.
+        if (file.endsWith(join("app", "api", "telegram", "webhook", "route.ts"))) continue;
         const text = readFileSync(file, "utf8");
         for (const { route } of PRUNED) {
           if (referencesRoute(text, route)) hits.push(`${file.slice(APP_ROOT.length + 1).replace(/\\/g, "/")} → ${route}`);

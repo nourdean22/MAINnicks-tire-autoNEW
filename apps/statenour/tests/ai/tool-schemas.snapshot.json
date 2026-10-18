@@ -1183,52 +1183,6 @@
     }
   },
   {
-    "name": "createQuickQuote",
-    "description": "Quote creation belongs on nickstire admin (laborOperations, tires, and quotes tables all live there). Returns a clear redirect message; the quoteCalc surface on nickstire.org/admin is the canonical path.",
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "customerName": {
-          "type": "string"
-        },
-        "customerPhone": {
-          "type": "string"
-        },
-        "services": {
-          "description": "Labor operation names to include",
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "tireQty": {
-          "default": 4,
-          "type": "number"
-        },
-        "tireSize": {
-          "description": "Tire size like 225/65R17",
-          "type": "string"
-        },
-        "vehicleMake": {
-          "type": "string"
-        },
-        "vehicleModel": {
-          "type": "string"
-        },
-        "vehicleYear": {
-          "type": "number"
-        }
-      },
-      "required": [
-        "vehicleYear",
-        "vehicleMake",
-        "vehicleModel",
-        "services"
-      ],
-      "type": "object"
-    }
-  },
-  {
     "name": "createTask",
     "description": "Create a new task. Use when Nour needs to do something specific. Set `loopKind` to DAILY for habits, PROMISE for commitments to someone (set `promiseTo`), ONCE for one-shot work. Link to a goal via `goalId` so completing it auto-lifts the goal. Example: {\"title\":\"Call Meineke about the lift quote\",\"loopKind\":\"ONCE\",\"priority\":30}",
     "inputSchema": {
@@ -3446,34 +3400,6 @@
     }
   },
   {
-    "name": "searchBuildYourOwnX",
-    "description": "Search the Build Your Own X tutorial catalog (450+ curated step-by-step guides for re-creating canonical technologies from scratch — programming languages, databases, blockchains, web servers, neural networks, etc). Use when Nour asks 'how do I build a X', 'show me tutorials for Y', 'where do I learn Z'. Returns a list of {title, language, url, category}. Browse the full catalog at /learn.",
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "language": {
-          "description": "Filter by programming language (case-insensitive substring). e.g. 'python', 'rust', 'go'.",
-          "maxLength": 20,
-          "minLength": 1,
-          "type": "string"
-        },
-        "limit": {
-          "default": 8,
-          "maximum": 20,
-          "minimum": 1,
-          "type": "number"
-        },
-        "topic": {
-          "description": "Topic / category / title keywords. e.g. 'database', 'lisp', 'neural network', 'docker'.",
-          "maxLength": 80,
-          "minLength": 2,
-          "type": "string"
-        }
-      },
-      "type": "object"
-    }
-  },
-  {
     "name": "searchColdMemory",
     "description": "Semantic search across Nour's cold memory corpus — archived Google Drive docs, old brain memories, and ingested knowledge. Unlike searchMemories (keyword), this is meaning-based: 'my pipeline is drying up' correctly finds getRevenueAging-style memories without needing the literal word. USE THIS when Nour asks about something you don't see in the hot system prompt, when he references an old document, or when the question requires reaching back into historical knowledge. Returns top matches with similarity scores and Drive view URLs when available.",
     "inputSchema": {
@@ -4236,41 +4162,6 @@
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {},
-      "type": "object"
-    }
-  },
-  {
-    "name": "triageStaleLead",
-    "description": "Triage a stale lead requires nickstire admin access (the lead table lives there). Returns a structured redirect — Nick relays the message and the admin URL.",
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "leadId": {
-          "description": "The lead id from the nickstire admin",
-          "type": "string"
-        },
-        "outcome": {
-          "description": "What's the triage decision",
-          "enum": [
-            "dead",
-            "recovered",
-            "followup",
-            "booked"
-          ],
-          "type": "string"
-        },
-        "reason": {
-          "description": "Why this outcome (for the learning loop)",
-          "maxLength": 500,
-          "minLength": 1,
-          "type": "string"
-        }
-      },
-      "required": [
-        "leadId",
-        "outcome",
-        "reason"
-      ],
       "type": "object"
     }
   },
