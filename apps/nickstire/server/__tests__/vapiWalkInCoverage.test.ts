@@ -186,6 +186,60 @@ describe("invitation wording: refusals and look-alikes are not invitations", () 
   });
 });
 
+describe("measured on archived calls: lookups are not invitations, the street word and close-only hours count", () => {
+  const say = (line: string) => lines(GREETING, "User: hi", `AI: ${line}`);
+  const invited = (line: string) => detectWalkInCoverage(say(line)).walkInInvited;
+  const street = BUSINESS.address.street.split(" ")[1]; // the word the agent says, taken from the facts
+  const closeAt = spoken(weekday[1]);
+
+  it("a lookup phrased with pull up, come up or come down is not an invitation", () => {
+    expect(invited("Let me pull up your information.")).toBe(false);
+    expect(invited("I can pull up the inventory.")).toBe(false);
+    expect(invited("Let me come up with a quote for you.")).toBe(false);
+    expect(invited("I will come down the list with you.")).toBe(false);
+  });
+
+  it("swing by, head over, come on by and a real walk-in term stay invitations", () => {
+    expect(invited("Swing by anytime.")).toBe(true);
+    expect(invited("Just head over.")).toBe(true);
+    expect(invited("Come on by.")).toBe(true);
+    expect(invited("Pull up your info and walk-ins are welcome.")).toBe(true);
+  });
+
+  it("the street spoken without a house number counts as the address", () => {
+    const t = say(`We are on ${street}, open ${weekdayHours}.`);
+    expect(detectWalkInCoverage(t).addressAndHoursGiven).toBe(true);
+    // the same street word is not the address of another shop
+    expect(detectWalkInCoverage(t, null, OTHER_SHOP).addressAndHoursGiven).toBe(false);
+  });
+
+  it("a close-only phrase counts as hours: 'open till', 'we close at', 'closes at'", () => {
+    for (const phrase of [`We're open till ${closeAt}.`, `We close at ${closeAt}.`, "The shop closes at six.", `Open until ${closeAt} today.`]) {
+      expect(detectWalkInCoverage(say(`We are on ${street}. ${phrase}`)).addressAndHoursGiven).toBe(true);
+    }
+  });
+
+  it("close-only hours follow the facts: another shop's closing time is not the real one, and the reverse", () => {
+    const fiveOther = say("We are on Sample. We're open till five.");
+    expect(detectWalkInCoverage(fiveOther, null, OTHER_SHOP).addressAndHoursGiven).toBe(true);
+    expect(detectWalkInCoverage(fiveOther).addressAndHoursGiven).toBe(false);
+    const realOnly = say(`We are on ${street}. We close at ${closeAt}.`);
+    expect(detectWalkInCoverage(realOnly, null, OTHER_SHOP).addressAndHoursGiven).toBe(false);
+  });
+
+  it("a time that is not a closing or opening time, or a count of days or hours, is not hours", () => {
+    const hoursOf = (line: string) => detectWalkInCoverage(say(`We are on ${street}. ${line}`)).addressAndHoursGiven;
+    expect(hoursOf("We are open six days a week.")).toBe(false);
+    expect(hoursOf("We close at seven.")).toBe(false);
+    expect(hoursOf("It will be done in about six hours.")).toBe(false);
+  });
+
+  it("the street alone, or the hours alone, is still not both", () => {
+    expect(detectWalkInCoverage(say(`Come by, we are on ${street}.`)).addressAndHoursGiven).toBe(false);
+    expect(detectWalkInCoverage(say(`Come by, we close at ${closeAt}.`)).addressAndHoursGiven).toBe(false);
+  });
+});
+
 describe("input resolution: the transcript and messages are found wherever VAPI put them", () => {
   const SPOKEN = FULL_INVITE; // prefix transcript with a full invitation
   const MEASURED = { walkInInvited: true, addressAndHoursGiven: true };

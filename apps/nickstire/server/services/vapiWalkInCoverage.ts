@@ -23,10 +23,11 @@
  * STORAGE: a short key=value suffix on `vapi_call_logs.eval_reasoning` (already a
  * ` · `-joined key=value string). No column, no migration.
  *
- * shortcut: the address is matched as the house number in digits plus the street
- * name in one assistant turn, and hours as an open-to-close pair; a number the
- * transcriber spelled out ("seventeen thousand ...") reads as not given, upgrade
- * if real transcripts show it.
+ * WHAT COUNTS (measured on 600 archived calls, 2026-10-18: the agent never says the house
+ * number, says the street name in about one call in six, and states hours in about one in
+ * ten, often as a close-only phrase): "address given" is the street NAME spoken in an
+ * assistant turn after the opening line; "hours given" is an open-to-close pair OR a cue word
+ * (open, close, till, until ...) followed by one of the shop's open or close times.
  */
 import { BUSINESS } from "@shared/business";
 import { extractAssistantTurns, extractAssistantTurnsFromMessages } from "./voiceClaimGuard";
@@ -74,11 +75,32 @@ function hoursPatterns(hours: WalkInFacts["hours"]): RegExp[] {
   return out;
 }
 
-/** House number (digits) and street name from a "<number> <street name> <suffix>" line. */
-function addressPatterns(street: string): RegExp[] {
-  const m = street.trim().match(/^(\d+)\s+(\S+)/);
-  if (!m) return [];
-  return [new RegExp(`\\b${escapeRe(m[1])}\\b`), new RegExp(`\\b${escapeRe(m[2])}\\b`, "i")];
+/** Cue words that put a time in the hours class: "open till six", "we close at six". */
+const HOURS_CUE = String.raw`\b(?:open|opens|close|closes|closed|closing|till|til|until)\b`;
+
+/**
+ * Close-only (or open-only) hours: a cue word, a few filler words, then ONE of the distinct open or
+ * close times in the structured hours. A count ("six days", "six hours") is not a time of day.
+ */
+function cuedTimePattern(hours: WalkInFacts["hours"]): RegExp | null {
+  const times = new Set<string>();
+  for (const pair of Object.values(hours.structured)) {
+    for (const t of pair.split("-")) if (/^\d{1,2}:\d{2}$/.test(t)) times.add(t);
+  }
+  if (times.size === 0) return null;
+  const filler = String.raw`(?:(?:at|by|from|is|are|around|about|today|daily)\s+){0,3}`;
+  const notACount = String.raw`(?!\s*(?:days?|hours?|weeks?|minutes?|months?|years?)\b)`;
+  return new RegExp(`${HOURS_CUE}\\s+${filler}(?:${[...times].map(timePattern).join("|")})${notACount}`, "i");
+}
+
+/**
+ * The street name the agent actually says: the word after the optional house number
+ * ("<number> <street name> <suffix>"). The agent does not speak the number.
+ * shortcut: first word only, so a street written "10 N Main St" would match on "N"; upgrade if the facts ever look like that.
+ */
+function streetPattern(street: string): RegExp | null {
+  const m = street.trim().match(/^(?:\d+\s+)?([A-Za-z][\w'-]*)/);
+  return m ? new RegExp(`\\b${escapeRe(m[1])}\\b`, "i") : null;
 }
 
 /**
@@ -89,7 +111,9 @@ function addressPatterns(street: string): RegExp[] {
 const INVITE = new RegExp(
   [
     String.raw`\bwalk[\s-]?ins?\b`,
-    String.raw`\b(?:come|swing|stop|drop|pop|head|pull)\s+(?:on\s+)?(?:by|over|up|down)\b`,
+    // "pull up", "come up" and "come down" are deliberately absent: "let me pull up your info" is a lookup.
+    String.raw`\b(?:come|swing|stop|drop|pop)\s+(?:on\s+)?(?:by|over)\b`,
+    String.raw`\bhead\s+over\b`,
     String.raw`\b(?:stop|drop|pop)\s+in\b`,
     String.raw`\bcome\s+on\s+in\b`,
     String.raw`\bfirst[\s-]come\b`,
@@ -130,10 +154,10 @@ function detectWalkInCoverage(
   const evidence = turns.slice(1);
   if (evidence.length === 0) return UNMEASURED_WALK_IN;
 
-  const addr = addressPatterns(facts.address.street);
-  const hours = hoursPatterns(facts.hours);
-  const gaveAddress = addr.length > 0 && evidence.some((t) => addr.every((re) => re.test(t)));
-  const gaveHours = hours.length > 0 && evidence.some((t) => hours.some((re) => re.test(t)));
+  const street = streetPattern(facts.address.street);
+  const hours = [...hoursPatterns(facts.hours), cuedTimePattern(facts.hours)].filter((re): re is RegExp => re !== null);
+  const gaveAddress = street !== null && evidence.some((t) => street.test(t));
+  const gaveHours = evidence.some((t) => hours.some((re) => re.test(t)));
 
   return {
     walkInInvited: evidence.some(invites),

@@ -27,8 +27,8 @@ Two fields, each `true`, `false` or UNMEASURED. They are written as a suffix on 
 
 | Field | `true` when | `false` when | UNMEASURED when |
 |---|---|---|---|
-| `walk_in` | an assistant turn after the opening line invites the caller in (walk-ins, come by, stop in, first come first served, no appointment) | the agent spoke past the opening line and did not | the transcript has no speaker labels, the agent said nothing past its opening line, or the call has no quality score (not a customer conversation, or a technical failure) |
-| `addr_hours` | assistant turns after the opening line state the street address and an open-to-close hours pair | the agent spoke past the opening line and gave one or neither | same as above |
+| `walk_in` | an assistant turn after the opening line invites the caller in (walk-ins, come by, swing by, stop in, head over, first come first served, no appointment needed). "Pull up", "come up" and "come down" are not invitations: "let me pull up your info" is a lookup | the agent spoke past the opening line and did not | the transcript has no speaker labels, the agent said nothing past its opening line, or the call has no quality score (not a customer conversation, or a technical failure) |
+| `addr_hours` | assistant turns after the opening line name the street (the street name from the business facts; the house number is optional) AND state hours: an open-to-close pair, or a cue word (open, close, till, until) followed by one of the shop's open or close times, so a close-only phrase such as "we close at six" counts | the agent spoke past the opening line and gave one or neither | same as above |
 
 - The address and hours the check looks for come from `shared/business.ts` at run time. The rubric holds no
   copy of them; change the business facts and the criteria move with them.
@@ -39,12 +39,15 @@ Two fields, each `true`, `false` or UNMEASURED. They are written as a suffix on 
 - The check records what was said. It does not judge accuracy. Nothing compares stated hours with the business
   hours today: the Compliance dimension is a target design and the voice claim guard does not check hours, so a
   wrong hours claim gives no signal. That check is a separate job.
-- Shortcut: the address is matched by its digits plus the street name, so a house number the transcriber
-  spelled out reads as not given.
+- Shortcut: the street is matched by the first word of the street name in the business facts, so a spelled-out
+  or missing house number no longer matters, and a street written with a leading direction letter would match
+  on that letter.
 - Accuracy: the check is regex-based and approximate. A negation ("we do not take walk-ins") is caught only
-  where it governs a walk-in term: a negator within two words of the term, with no comma between. Unusual phrasing such as "just show up" or "bring it in" is missed.
-  A spelled-out house number reads as not given. It has not been calibrated against real transcripts, so read
-  it as a signal, not a verdict.
+  where it governs a walk-in term: a negator within two words of the term, with no comma between. Unusual
+  phrasing such as "just show up" or "bring it in" is missed. A time followed by a count word ("six days",
+  "six hours") is not read as hours. Read it as a signal, not a verdict.
+- Measured on 600 recent archived calls (2026-10-18): the agent invited the caller in about three calls in ten;
+  the house number was never spoken; the street name in about one call in six; hours in about one call in ten.
 
 ## Purpose
 
