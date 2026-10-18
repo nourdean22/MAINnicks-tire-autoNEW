@@ -133,6 +133,33 @@ describe("assistant speech only, and the opening line is not evidence", () => {
   });
 });
 
+describe("invitation wording: refusals and look-alikes are not invitations", () => {
+  const invited = (line: string) => detectWalkInCoverage(lines(GREETING, "User: hi", `AI: ${line}`)).walkInInvited;
+
+  it("(a) a refusal naming walk-ins is not an invitation", () => {
+    expect(invited("Sorry, we do not take walk-ins.")).toBe(false);
+    expect(invited("We can't do walk-ins today.")).toBe(false);
+  });
+
+  it("(b) a bare 'come in' for a booked visit is not an invitation", () => {
+    expect(invited("Sure, come in tomorrow at 3 PM for your appointment.")).toBe(false);
+  });
+
+  it("(c) 'no appointment' as a lookup result is not an invitation", () => {
+    expect(invited("I see no appointment on file for you.")).toBe(false);
+  });
+
+  it("still counts 'no appointment needed', 'without an appointment' and 'come on in'", () => {
+    expect(invited("No appointment needed, we work in order of arrival.")).toBe(true);
+    expect(invited("You can be seen without an appointment.")).toBe(true);
+    expect(invited("Come on in whenever you like.")).toBe(true);
+  });
+
+  it("a negation in one sentence does not cancel an invitation in the next", () => {
+    expect(invited("We do not take walk-ins on holidays. Walk in any day otherwise.")).toBe(true);
+  });
+});
+
 describe("T2 the suffix round-trips through eval_reasoning", () => {
   const values: Measured[] = [true, false, null];
   for (const walkInInvited of values) {

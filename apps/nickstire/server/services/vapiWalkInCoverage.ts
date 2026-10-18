@@ -80,9 +80,30 @@ function addressPatterns(street: string): RegExp[] {
   return [new RegExp(`\\b${escapeRe(m[1])}\\b`), new RegExp(`\\b${escapeRe(m[2])}\\b`, "i")];
 }
 
-/** Generic invitation phrasing. The facts being invited TO live in business.ts, not here. */
-const INVITE =
-  /\bwalk[\s-]?ins?\b|\b(?:come|swing|stop|drop|pop|head|pull)\s+(?:on\s+)?(?:by|in|over|up|down)\b|\bfirst[\s-]come\b|\bno appointment\b/i;
+/**
+ * Generic invitation phrasing. The facts being invited TO live in business.ts, not here.
+ * A bare "come in" is deliberately absent (it also fits "come in at 3 for your appointment"),
+ * and "no appointment" counts only as "needed/necessary/required" or "without an appointment".
+ */
+const INVITE = new RegExp(
+  [
+    String.raw`\bwalk[\s-]?ins?\b`,
+    String.raw`\b(?:come|swing|stop|drop|pop|head|pull)\s+(?:on\s+)?(?:by|over|up|down)\b`,
+    String.raw`\b(?:stop|drop|pop)\s+in\b`,
+    String.raw`\bcome\s+on\s+in\b`,
+    String.raw`\bfirst[\s-]come\b`,
+    String.raw`\bno appointment (?:is )?(?:needed|necessary|required)\b`,
+    String.raw`\bwithout an appointment\b`,
+  ].join("|"),
+  "i",
+);
+
+/** A sentence holding one of these is not an invitation ("we do not take walk-ins"). */
+const NEGATION = /\b(?:not|never|cannot|no longer|no walk)\b|n['’]t\b/i;
+
+/** shortcut: a negation is caught only inside its own sentence; upgrade if real calls split one across sentences. */
+const invites = (turn: string): boolean =>
+  turn.split(/(?<=[.!?])\s+/).some((s) => INVITE.test(s) && !NEGATION.test(s));
 
 export function detectWalkInCoverage(transcript: unknown, facts: WalkInFacts = BUSINESS): WalkInCoverage {
   const { turns, unparsed } = extractAssistantTurns(transcript);
@@ -97,7 +118,7 @@ export function detectWalkInCoverage(transcript: unknown, facts: WalkInFacts = B
   const gaveHours = hours.length > 0 && evidence.some((t) => hours.some((re) => re.test(t)));
 
   return {
-    walkInInvited: evidence.some((t) => INVITE.test(t)),
+    walkInInvited: evidence.some(invites),
     addressAndHoursGiven: gaveAddress && gaveHours,
   };
 }
