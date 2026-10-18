@@ -19,6 +19,7 @@ import { FINANCING_PROVIDERS } from "@shared/financing";
 
 // The server's own input type, so the accepted provider ids follow the procedure's enum.
 type TrackedProvider = RouterInputs["financing"]["trackApplication"]["provider"];
+import KafeneCheckout from "@/components/order/KafeneCheckout";
 
 function priceBreakdown(subtotalCents: number) {
   const tax = Math.round(subtotalCents * 0.08);
@@ -61,6 +62,9 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
   const [shippingAddress, setShippingAddress] = useState("");
   const [orderResult, setOrderResult] = useState<{ orderNumber: string; invoiceNumber?: string; totalAmount: number } | null>(null);
   const [paymentSubmitted] = useState(false);
+  // Kafene's SDK draws its own overlay; while it is open this modal steps aside.
+  const [kafeneOpen, setKafeneOpen] = useState(false);
+  const [kafeneSigned, setKafeneSigned] = useState(false);
 
   useEffect(() => {
     if (prefilledVehicle) {
@@ -179,10 +183,12 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
   // Direct browser audit found it. Registered globally on `window` so
   // it works whether or not focus is inside the modal form.
   useEffect(() => {
+    // An Escape inside Kafene's overlay must not unmount the checkout mid-lease.
+    if (kafeneOpen) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [onClose, kafeneOpen]);
 
   // Body scroll lock while the modal is mounted — on iOS the inner
   // overflow-y-auto otherwise chains to the page, so scrolling the form
@@ -199,7 +205,7 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
   const formPanelRef = useRef<HTMLDivElement | null>(null);
   const successPanelRef = useRef<HTMLDivElement | null>(null);
   useFocusTrap(formPanelRef, !orderResult);
-  useFocusTrap(successPanelRef, !!orderResult);
+  useFocusTrap(successPanelRef, !!orderResult && !kafeneOpen);
 
   const tirePrice = tire ? tire.shopPrice : 0;
   const tirePriceCents = tire ? tire.pricePerTireCents : 0;
@@ -215,8 +221,11 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
       // z-[10001]: above SiteMobileCTA (z-[9999]) and ScrollProgressBar
       // (z-[10000]) — at z-50 the opaque CTA bar floated lit and tappable
       // on top of the dimmed backdrop and clipped the modal bottom.
-      <div className="fixed inset-0 z-[10001] flex items-center justify-center p-4">
-        <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
+      <div
+        className={`fixed inset-0 z-[10001] flex items-center justify-center p-4 ${kafeneOpen ? "invisible" : ""}`}
+        aria-hidden={kafeneOpen || undefined}
+      >
+        <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={kafeneOpen ? undefined : onClose} aria-hidden="true" />
         <motion.div
           ref={successPanelRef}
           role="dialog"
@@ -284,6 +293,8 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
                   <div className="mt-3 bg-primary/5 border border-primary/20 rounded-lg p-4 space-y-3">
                     {tire && tire.shopPrice > 0 ? (
                       <>
+                        {!kafeneSigned && (
+                        <>
                         <button
                           onClick={() => checkoutMutation.mutate({ orderNumber: orderResult.orderNumber, phone })}
                           disabled={checkoutMutation.isPending}
@@ -298,7 +309,17 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
                         <p className="text-[9px] text-muted-foreground text-center">
                           Secure card payment via Stripe. Cards carry a 2% surcharge.
                         </p>
-                        
+                        </>
+                        )}
+
+                        <KafeneCheckout
+                          orderNumber={orderResult.orderNumber}
+                          phone={phone}
+                          onOpenChange={setKafeneOpen}
+                          onSigned={() => setKafeneSigned(true)}
+                        />
+
+                        {!kafeneSigned && (
                         <div className="border-t border-border/20 pt-3">
                           <p className="text-[10px] text-muted-foreground mb-2 text-center font-medium">Or apply through one of our Payment Programs:</p>
                           {/* From the canonical provider list (Kafene first), so this block can never go stale. */}
@@ -317,6 +338,7 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
                             ))}
                           </div>
                         </div>
+                        )}
                       </>
                     ) : (
                       <p className="text-xs text-amber-500/90 font-medium text-center py-2">
