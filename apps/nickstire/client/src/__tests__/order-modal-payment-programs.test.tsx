@@ -8,7 +8,7 @@ import { render, screen, cleanup, fireEvent, act } from "@testing-library/react"
 import React from "react";
 import { FINANCING_PROVIDERS } from "@shared/financing";
 
-const h = vi.hoisted(() => ({ trackApplication: vi.fn() }));
+const h = vi.hoisted(() => ({ trackApplication: vi.fn(), applyStarted: vi.fn() }));
 
 vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }) }));
 
@@ -38,6 +38,7 @@ vi.mock("@/lib/trpc", () => {
       mutate: (...a: any[]) => {
         if (key === "gatewayTire.placeOrder") opts?.onSuccess?.({ success: true, orderNumber: "TO-1", invoiceNumber: "INV-1", totalAmount: 0 });
         if (key === "financing.trackApplication") return h.trackApplication(...a);
+        if (key === "kafene.applyStarted") return h.applyStarted(...a);
       },
       mutateAsync: vi.fn(),
       isPending: false,
@@ -114,6 +115,48 @@ describe("OrderModal payment step · Payment Programs", () => {
     } finally {
       window.removeEventListener("error", onError);
       h.trackApplication.mockReset();
+      debug.mockRestore();
+    }
+    expect(reported).toEqual([]);
+    expect(opened).toBe(true);
+  });
+
+  const kafeneUrl = () => FINANCING_PROVIDERS.find((p) => p.id === "kafene")!.applyUrl;
+
+  it("the Kafene link also fires kafene.applyStarted with the order number and phone, fire-and-forget", async () => {
+    h.applyStarted.mockReset();
+    const debug = vi.spyOn(console, "debug").mockImplementation(() => {});
+    await reachPaymentStep();
+    const kafene = providerLinks().find((a) => a.getAttribute("href") === kafeneUrl())!;
+    expect(fireEvent.click(kafene)).toBe(true); // the link still opens
+    expect(h.applyStarted).toHaveBeenCalledTimes(1);
+    const [vars, opts] = h.applyStarted.mock.calls[0];
+    expect(vars).toEqual({ orderNumber: "TO-1", phone: "(216) 555-9999" });
+    expect(opts?.onError).toBeTypeOf("function");
+    expect(() => opts.onError(new Error("rate limited"))).not.toThrow();
+    debug.mockRestore();
+  });
+
+  it("the other four provider links never call applyStarted", async () => {
+    h.applyStarted.mockReset();
+    await reachPaymentStep();
+    providerLinks().filter((a) => a.getAttribute("href") !== kafeneUrl()).forEach((a) => fireEvent.click(a));
+    expect(h.applyStarted).not.toHaveBeenCalled();
+  });
+
+  it("an applyStarted call that throws on the spot never blocks the Kafene link", async () => {
+    h.applyStarted.mockReset().mockImplementation(() => { throw new Error("client not ready"); });
+    const debug = vi.spyOn(console, "debug").mockImplementation(() => {});
+    await reachPaymentStep();
+    const reported: unknown[] = [];
+    const onError = (e: ErrorEvent) => { reported.push(e.error); e.preventDefault(); };
+    window.addEventListener("error", onError);
+    let opened = false;
+    try {
+      opened = fireEvent.click(providerLinks().find((a) => a.getAttribute("href") === kafeneUrl())!);
+    } finally {
+      window.removeEventListener("error", onError);
+      h.applyStarted.mockReset();
       debug.mockRestore();
     }
     expect(reported).toEqual([]);

@@ -153,6 +153,9 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
   // Payment Program apply clicks land in financing_clicks, the same record /financing and /tires
   // write. Fire-and-forget: a rejected or throwing call must never block or delay the link.
   const trackApplication = trpc.financing.trackApplication.useMutation();
+  // Kafene website applications carry no order id, so tell the server which order this click is
+  // for (kafene.applyStarted). Silent on every answer: the customer only sees Kafene's page.
+  const applyStarted = trpc.kafene.applyStarted.useMutation();
   const trackProviderClick = (providerId: string) => {
     if (providerId === "acima") trackAcimaClick("tire_order_modal");
     const quiet = (err: unknown) => console.debug("[order] apply tracking not recorded", providerId, err);
@@ -163,6 +166,13 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
       );
     } catch (err) {
       quiet(err);
+    }
+    if (providerId === "kafene" && orderResult) {
+      try {
+        applyStarted.mutate({ orderNumber: orderResult.orderNumber, phone }, { onError: quiet });
+      } catch (err) {
+        quiet(err);
+      }
     }
   };
 

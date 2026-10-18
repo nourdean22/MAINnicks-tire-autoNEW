@@ -54,7 +54,17 @@ export default function KafeneLeasePanel({ order }: { order: { orderNumber: stri
   const [reason, setReason] = useState("");
 
   if (!canView || config.data?.enabled !== true) return null;
-  if (status.data && !status.data.ok) return null; // the server says Kafene is disabled
+  // Before migration 0148 the server has no lease table: say so calmly, nothing to retry or act on.
+  if (status.data && !status.data.ok) {
+    if (status.data.reason !== "not_installed") return null;
+    const id = `kafene-lease-${order.orderNumber}`;
+    return (
+      <section aria-labelledby={id} className="mb-4 space-y-1 rounded-lg border border-border/40 bg-card/40 p-4">
+        <h3 id={id} className="text-sm font-bold text-foreground">Kafene lease</h3>
+        <p className="text-xs text-muted-foreground">Kafene lease records are not installed yet (migration 0148).</p>
+      </section>
+    );
+  }
 
   const runActivate = async () => {
     const ok = await confirmDialog({ title: "Activate this Kafene lease?", message: ACTIVATE_TEXT, confirmLabel: "Activate lease" });

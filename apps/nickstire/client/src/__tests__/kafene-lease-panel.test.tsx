@@ -94,6 +94,15 @@ describe("KafeneLeasePanel", () => {
     expect(region()).toBeNull();
   });
 
+  it("not_installed is one calm line: no error styling, no retry, no buttons", async () => {
+    h.status = { data: { ok: false, reason: "not_installed" }, isLoading: false, isError: false };
+    await renderPanel();
+    expect(panel().getByText("Kafene lease records are not installed yet (migration 0148).")).toBeTruthy();
+    expect(panel().queryByRole("alert")).toBeNull();
+    expect(panel().queryAllByRole("button")).toHaveLength(0);
+    expect(panel().queryByText("No Kafene lease on this order.")).toBeNull();
+  });
+
   it("a thrown status read is unknown with a Retry, never 'no lease'", async () => {
     h.status = { data: undefined, isLoading: false, isError: true };
     await renderPanel();
