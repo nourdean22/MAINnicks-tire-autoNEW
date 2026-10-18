@@ -186,6 +186,38 @@ describe("invitation wording: refusals and look-alikes are not invitations", () 
   });
 });
 
+describe("a refusal that comes AFTER the walk-in term is still a refusal", () => {
+  const invited = (line: string) => detectWalkInCoverage(lines(GREETING, "User: hi", `AI: ${line}`)).walkInInvited;
+
+  it("1. 'Walk-ins are not accepted today.'", () => {
+    expect(invited("Walk-ins are not accepted today.")).toBe(false);
+  });
+
+  it("2. \"Walk-ins aren't available.\"", () => {
+    expect(invited("Walk-ins aren't available.")).toBe(false);
+  });
+
+  it("3. 'Walk-in service is unavailable.'", () => {
+    expect(invited("Walk-in service is unavailable.")).toBe(false);
+  });
+
+  it("4. 'Walk-in service is not available on Sundays.'", () => {
+    expect(invited("Walk-in service is not available on Sundays.")).toBe(false);
+  });
+
+  it("controls: welcome, a negator with no refusal word, a negator in the next clause, available without a negator", () => {
+    expect(invited("Walk-ins are welcome.")).toBe(true);
+    expect(invited("Walk-ins are not a problem.")).toBe(true);
+    expect(invited("Walk-ins are always welcome, we're not busy.")).toBe(true);
+    expect(invited("Walk-ins are available any day.")).toBe(true);
+    expect(invited("We do not take walk-ins on Sunday. Walk-ins are welcome the rest of the week.")).toBe(true);
+  });
+
+  it("control: 'closed' later in the same clause as a welcome is not a refusal of walk-ins", () => {
+    expect(invited("Walk-ins welcome till we're closed.")).toBe(true);
+  });
+});
+
 describe("measured on archived calls: lookups are not invitations, the street word and close-only hours count", () => {
   const say = (line: string) => lines(GREETING, "User: hi", `AI: ${line}`);
   const invited = (line: string) => detectWalkInCoverage(say(line)).walkInInvited;

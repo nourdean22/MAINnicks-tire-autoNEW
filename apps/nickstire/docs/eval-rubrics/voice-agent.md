@@ -42,8 +42,10 @@ Two fields, each `true`, `false` or UNMEASURED. They are written as a suffix on 
 - Shortcut: the street is matched by the first word of the street name in the business facts, so a spelled-out
   or missing house number no longer matters, and a street written with a leading direction letter would match
   on that letter.
-- Accuracy: the check is regex-based and approximate. A negation ("we do not take walk-ins") is caught only
-  where it governs a walk-in term: a negator within two words of the term, with no comma between. Unusual
+- Accuracy: the check is regex-based and approximate. A negation is caught where it governs a walk-in term,
+  before it ("we do not take walk-ins": a negator within two words, no comma between) or after it with a
+  refusal word ("walk-ins are not accepted", "walk-ins aren't available", "walk-in service is unavailable").
+  "Walk-ins are not a problem" and "walk-ins are available any day" stay invitations. Unusual
   phrasing such as "just show up" or "bring it in" is missed. A time followed by a count word ("six days",
   "six hours") is not read as hours. Read it as a signal, not a verdict.
 - Measured on 600 recent archived calls (2026-10-18): the agent invited the caller in about three calls in ten;

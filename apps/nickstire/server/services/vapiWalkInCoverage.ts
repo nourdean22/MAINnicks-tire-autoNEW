@@ -131,10 +131,25 @@ const INVITE = new RegExp(
 const NEGATED_WALK_IN = /(?:\b(?:no|not|never|cannot|no longer)|n['’]t)\s+(?:[a-z'’]+\s+){0,2}walk[\s-]?ins?\b/gi;
 
 /**
- * Strip negated walk-in phrases, then look for an invitation in what is left.
- * shortcut: the negator must sit within two words of the term; a longer gap reads as an invitation.
+ * A refusal that comes AFTER the term ("walk-ins are not accepted", "walk-ins aren't available",
+ * "walk-in service is unavailable"): the term, up to three plain words (a comma, semicolon or full stop
+ * ends the run; "welcome" never sits in the run, so "walk-ins welcome till we're closed" survives), then
+ * EITHER a negator plus a refusal word OR a refusal adjective alone. "Walk-ins are not a problem" has a
+ * negator but no refusal word, so it is still an invitation.
  */
-const invites = (turn: string): boolean => INVITE.test(turn.replace(NEGATED_WALK_IN, " "));
+const REFUSED_WALK_IN = new RegExp(
+  String.raw`walk[\s-]?ins?\b(?:\s+(?!welcome)[a-z'’]+){0,3}?\s+(?:` +
+    String.raw`(?:not|never|no\s+longer|[a-z]*n['’]t)\s+(?:accepted|allowed|taken|possible|offered|available|open)` +
+    String.raw`|unavailable|closed|suspended|paused|cancelled|canceled)\b`,
+  "gi",
+);
+
+/**
+ * Strip negated walk-in phrases (before or after the term), then look for an invitation in what is left.
+ * shortcut: the negator must sit within two words before the term, or the refusal within three words after it.
+ */
+const invites = (turn: string): boolean =>
+  INVITE.test(turn.replace(NEGATED_WALK_IN, " ").replace(REFUSED_WALK_IN, " "));
 
 /**
  * Role-tagged messages win when present (no speaker-label guessing); otherwise the
