@@ -1303,14 +1303,16 @@ async def audio_fallback_worker(
         )
         daemon.runtime.update(
             conversationFallbackOk=True,
-            # A probe that read audio off the camera is a real media-path read.
-            lastMediaProofAt=_iso_utc(now),
             conversationFallbackState="ACTIVE" if active else "QUIET",
             conversationFallbackLastError=None,
             conversationFallbackLastProbeAt=_iso_utc(now),
             conversationFallbackMeanDb=mean_db,
             conversationFallbackMaxDb=max_db,
         )
+        if mean_db is not None or max_db is not None:
+            # Measured audio off the camera is a real media-path read. ffmpeg exiting 0 with no
+            # levels (empty stream) is not.
+            daemon.runtime.update(lastMediaProofAt=_iso_utc(now))
         if active:
             daemon.ledger.note(
                 "audio_fallback_wake",
@@ -1457,10 +1459,14 @@ def build_shop_pc_heartbeat(
     for key in CONVERSATION_HEARTBEAT_FIELDS:
         if state.get(key) is not None:
             payload[key] = state[key]
-    probe_at = _parse_iso(state.get("conversationFallbackLastProbeAt"))
-    probe_ok = state.get("conversationFallbackOk")
-    if probe_at is not None and probe_ok is not None and now - probe_at <= MEDIA_PROOF_MAX_AGE_SECONDS:
-        payload["mediaPlaneOk"] = bool(probe_ok)
+    def fresh(key: str) -> bool:
+        at = _parse_iso(state.get(key))
+        return at is not None and now - at <= MEDIA_PROOF_MAX_AGE_SECONDS
+
+    if state.get("conversationFallbackOk") is False and fresh("conversationFallbackLastProbeAt"):
+        payload["mediaPlaneOk"] = False
+    elif fresh("lastMediaProofAt"):
+        payload["mediaPlaneOk"] = True
     if state.get("lastMediaProofAt"):
         payload["lastMediaProofAt"] = state["lastMediaProofAt"]
     return payload
@@ -1478,7 +1484,8 @@ async def camera_heartbeat_worker(
     (shop PC) beats p2 (NicksMax's Eufy agent) while fresh, and NicksMax takes over by itself
     once this producer has been silent 90 s. 30 s keeps the row inside the 60 s stale threshold.
     """
-    if not daemon.config.camera_heartbeat_url:
+    if not daemon.config.camera_heartbeat_url or daemon.config.dry_run:
+        # A dry run posts nothing, and a second p1 instance would take the row from the live one.
         return
     if post_fn is None:
         from .officepost import post_episode as post_fn  # same POST + x-sync-key, any JSON body
@@ -1492,15 +1499,26 @@ async def camera_heartbeat_worker(
                 daemon.runtime.state, producer_instance_id=producer_id, seq=seq, now=daemon.clock()
             )
             result = await asyncio.to_thread(post_fn, payload, daemon.config.camera_heartbeat_url, timeout=10.0)
-            error = None if result.get("posted") else str(result.get("error") or result.get("status"))[:300]
+            reply = result.get("reply") if isinstance(result.get("reply"), dict) else {}
+            if not result.get("posted"):
+                error = str(result.get("error") or result.get("status"))[:300]
+            elif reply.get("accepted") is not True or reply.get("authoritative") is False:
+                # The route answers 200 to a producer it refused; the row did not change.
+                error = f"not accepted (owner {reply.get('authorityProducer')})"[:300]
+            else:
+                error = None
         except Exception as exc:  # noqa: BLE001
             error = f"{type(exc).__name__}: {exc}"[:300]
-        # One ledger row per change of outcome, not one per tick.
+        # One ledger row per change of outcome, not one per tick. A failing ledger must not end
+        # the loop: nothing watches this task, and a dead one silently ages the row offline.
         if error != last_outcome:
-            if error is None:
-                daemon.ledger.note("camera_heartbeat_ok", {"producerInstanceId": producer_id})
-            else:
-                daemon.ledger.note("camera_heartbeat_error", {"error": error})
+            try:
+                if error is None:
+                    daemon.ledger.note("camera_heartbeat_ok", {"producerInstanceId": producer_id})
+                else:
+                    daemon.ledger.note("camera_heartbeat_error", {"error": error})
+            except Exception:  # noqa: BLE001
+                pass
             last_outcome = error
         await asyncio.sleep(max(0.01, float(interval_seconds)))
 

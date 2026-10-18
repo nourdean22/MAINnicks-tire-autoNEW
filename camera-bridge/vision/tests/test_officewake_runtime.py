@@ -592,6 +592,9 @@ def _iso(at: float) -> str:
     return datetime.fromtimestamp(at, tz=ZoneInfo("UTC")).isoformat()
 
 
+ACCEPTED = {"posted": True, "status": 200, "reply": {"accepted": True, "authoritative": True}}
+
+
 def _run_heartbeats(daemon, post_fn, *, until):
     from vision.officewake import camera_heartbeat_worker
 
@@ -624,7 +627,7 @@ def test_shop_pc_heartbeat_carries_the_conversation_receipt_as_the_p1_office_pro
 
     _run_heartbeats(
         daemon,
-        lambda payload, endpoint, **kw: sent.append((payload, endpoint)) or {"posted": True, "status": 200},
+        lambda payload, endpoint, **kw: sent.append((payload, endpoint)) or ACCEPTED,
         until=lambda: len(sent) >= 2,
     )
 
@@ -676,7 +679,7 @@ def test_shop_pc_heartbeat_outlives_a_failing_post_and_notes_it_once(tmp_path):
             raise OSError("network down")
         if calls["n"] <= 3:
             return {"posted": False, "status": 401, "error": "Unauthorized"}
-        return {"posted": True, "status": 200}
+        return ACCEPTED
 
     _run_heartbeats(daemon, post, until=lambda: calls["n"] >= 5)
 
@@ -702,8 +705,13 @@ def test_media_plane_comes_only_from_a_fresh_rtsp_probe():
     assert failed["mediaPlaneOk"] is False  # a measured RTSP failure stays false
 
     # Off hours (no probes) or a stuck probe loop: unknown, never a stale "ok".
-    old = beat({"conversationFallbackOk": True, "conversationFallbackLastProbeAt": _iso(MONDAY_10AM - 600)})
+    old = beat({"conversationFallbackOk": True, "conversationFallbackLastProbeAt": _iso(MONDAY_10AM - 600),
+                "lastMediaProofAt": _iso(MONDAY_10AM - 600)})
     assert "mediaPlaneOk" not in old
+    # A fresh probe that measured nothing (ffmpeg exit 0, no levels) is not proof either.
+    unmeasured = beat({"conversationFallbackOk": True, "conversationFallbackLastProbeAt": _iso(MONDAY_10AM - 20),
+                       "lastMediaProofAt": _iso(MONDAY_10AM - 600)})
+    assert "mediaPlaneOk" not in unmeasured
     assert "mediaPlaneOk" not in beat({})
 
 
@@ -739,3 +747,82 @@ def test_camera_heartbeat_url_reaches_the_config(monkeypatch):
     monkeypatch.setenv("OFFICE_CAMERA_HEARTBEAT_URL", "https://nickstire.org/api/camera/heartbeat")
     assert (config_from_args(build_parser().parse_args([])).camera_heartbeat_url
             == "https://nickstire.org/api/camera/heartbeat")
+
+
+def test_a_probe_that_measured_no_levels_is_not_media_proof(tmp_path):
+    from vision.officewake import audio_fallback_worker
+
+    daemon = OfficeWakeDaemon(_live_cfg(tmp_path, audio_fallback_enabled=True),
+                              ledger=MemoryLedger(), clock=lambda: MONDAY_10AM)
+
+    async def scenario():
+        task = asyncio.create_task(audio_fallback_worker(daemon, probe_fn=lambda *a, **k: (None, None)))
+        try:
+            for _ in range(100):
+                if "conversationFallbackLastProbeAt" in daemon.runtime.state:
+                    break
+                await asyncio.sleep(0.01)
+        finally:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+    asyncio.run(scenario())
+    assert "conversationFallbackLastProbeAt" in daemon.runtime.state  # the probe did run
+    assert "lastMediaProofAt" not in daemon.runtime.state
+
+
+def test_dry_run_never_posts_a_camera_heartbeat(tmp_path):
+    from vision.officewake import camera_heartbeat_worker
+
+    cfg = _live_cfg(tmp_path, dry_run=True, camera_heartbeat_url="https://nickstire.org/api/camera/heartbeat")
+    daemon = OfficeWakeDaemon(cfg, ledger=MemoryLedger(), clock=lambda: MONDAY_10AM)
+    sent = []
+
+    async def scenario():
+        await asyncio.wait_for(
+            camera_heartbeat_worker(daemon, post_fn=lambda *a, **k: sent.append(a), interval_seconds=0.01),
+            timeout=1.0,
+        )
+
+    asyncio.run(scenario())
+    assert sent == []
+
+
+def test_a_refused_heartbeat_is_an_error_not_ok(tmp_path):
+    cfg = _live_cfg(tmp_path, camera_heartbeat_url="https://nickstire.org/api/camera/heartbeat")
+    ledger = MemoryLedger()
+    daemon = OfficeWakeDaemon(cfg, ledger=ledger, clock=lambda: MONDAY_10AM)
+    calls = {"n": 0}
+
+    def post(payload, endpoint, **kw):
+        calls["n"] += 1
+        # What the route returns to a producer that does not own the row: HTTP 200, row unchanged.
+        return {"posted": True, "status": 200, "reply": {
+            "accepted": False, "authoritative": False, "authorityProducer": "p1-shop-office-other"}}
+
+    _run_heartbeats(daemon, post, until=lambda: calls["n"] >= 2)
+
+    rows = [(kind, payload) for kind, payload in ledger.rows if kind.startswith("camera_heartbeat")]
+    assert [kind for kind, _ in rows] == ["camera_heartbeat_error"]
+    assert "p1-shop-office-other" in rows[0][1]["error"]
+
+
+def test_a_failing_ledger_does_not_end_the_heartbeat(tmp_path):
+    cfg = _live_cfg(tmp_path, camera_heartbeat_url="https://nickstire.org/api/camera/heartbeat")
+
+    class BrokenLedger(MemoryLedger):
+        def note(self, kind, payload):
+            raise OSError("disk full")
+
+    daemon = OfficeWakeDaemon(cfg, ledger=BrokenLedger(), clock=lambda: MONDAY_10AM)
+    calls = {"n": 0}
+
+    def post(payload, endpoint, **kw):
+        calls["n"] += 1
+        return ACCEPTED if calls["n"] % 2 else {"posted": False, "status": 500, "error": "boom"}
+
+    _run_heartbeats(daemon, post, until=lambda: calls["n"] >= 4)
+    assert calls["n"] >= 4, "a ledger write error ended the heartbeat loop"

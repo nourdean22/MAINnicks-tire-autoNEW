@@ -253,10 +253,11 @@ MECHANICS posted episodes fine.
 
 `OFFICE_CAMERA_HEARTBEAT_URL` makes officewake post that heartbeat itself, every 30 s, from the
 same process (no new task, no new install). It sends the conversation receipt (the same 22 keys
-the Eufy agent forwards) and the RTSP media path: `mediaPlaneOk` from the latest audio-level
-probe if it is under 120 s old, `lastMediaProofAt` from the last probe that read audio. Auth,
-events, PTZ control and home are not sent: nothing on the shop PC measures them, so they stay
-unknown. Unset keeps today's behaviour exactly (NicksMax).
+the Eufy agent forwards) and the RTSP media path: `mediaPlaneOk` true when an audio-level probe
+measured levels in the last 120 s, false when the latest probe (under 120 s old) failed, omitted
+otherwise; `lastMediaProofAt` is the last probe that measured levels. Auth, events, PTZ control
+and home are not sent: nothing on the shop PC measures them, so they stay unknown. Unset keeps
+today's behaviour exactly (NicksMax). `--dry-run` never posts a heartbeat.
 
 Which producer wins (decided by the server, `cameraProducerAuthority`, no new rule):
 
@@ -275,7 +276,9 @@ Enable on the shop PC (operator step, admin PowerShell, about 3 minutes):
 3. Restart: `Stop-ScheduledTask StateNour-OfficeIntelligence-ShopPC`, then `Start-ScheduledTask`
    with the same name.
 4. Check the ledger: the `startup` row shows `cameraHeartbeat: true`, followed by one
-   `camera_heartbeat_ok` row. A `camera_heartbeat_error` row names the cause (401 = key).
+   `camera_heartbeat_ok` row, written only when the server reports the heartbeat accepted.
+   A `camera_heartbeat_error` row names the cause (401 = key; `not accepted (owner ...)` =
+   another producer owns the row).
 5. Check Admin -> Lot: the office camera tile leaves "producer offline" within a minute and the
    Conversation intelligence tile shows `MECHANICS`.
 
