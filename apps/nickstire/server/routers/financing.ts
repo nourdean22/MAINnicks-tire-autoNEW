@@ -21,7 +21,8 @@ export const financingRouter = router({
   trackApplication: publicProcedure
     .input(
       z.object({
-        provider: z.enum(["acima", "snap", "koalafi", "american-first"]),
+        // Append new providers LAST; financing_clicks.provider is a MySQL ENUM (drizzle/0147).
+        provider: z.enum(["acima", "snap", "koalafi", "american-first", "kafene"]),
         customerName: z.string().max(200).optional(),
         customerPhone: z.string().max(20).optional(),
         customerEmail: z.string().max(254).optional(),
@@ -122,7 +123,9 @@ export const financingRouter = router({
             });
           }
         } catch (persistErr) {
-          log.warn("[financing] click DB persist failed (non-blocking)", { error: persistErr instanceof Error ? persistErr.message : String(persistErr) });
+          // Includes a STRICT_TRANS_TABLES rejection of a provider the live ENUM lacks
+          // (e.g. 'kafene' before 0147 is applied): the customer still gets the apply link.
+          log.warn("[financing] click DB persist failed (non-blocking)", { provider: input.provider, error: persistErr instanceof Error ? persistErr.message : String(persistErr) });
         }
 
         // No leadCaptured emit here: a bare provider-link click has no name or
@@ -167,7 +170,7 @@ export const financingRouter = router({
   logApplication: adminProcedure
     .input(
       z.object({
-        provider: z.enum(["acima", "snap", "koalafi", "american-first"]),
+        provider: z.enum(["acima", "snap", "koalafi", "american-first", "kafene"]),
         customerName: z.string().min(1),
         customerPhone: z.string().min(1),
         customerEmail: z.string().optional(),

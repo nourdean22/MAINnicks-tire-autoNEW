@@ -1895,7 +1895,8 @@ export const leadDeliveryEvents = mysqlTable("lead_delivery_events", {
  */
 export const financingClicks = mysqlTable("financing_clicks", {
   id: int("id").autoincrement().primaryKey(),
-  provider: mysqlEnum("provider", ["acima", "snap", "koalafi", "american-first"]).notNull(),
+  // 'kafene' appended by 0147 (append-only: never reorder an ENUM).
+  provider: mysqlEnum("provider", ["acima", "snap", "koalafi", "american-first", "kafene"]).notNull(),
   sourcePage: varchar("sourcePage", { length: 500 }),
   customerName: varchar("customerName", { length: 200 }),
   customerPhone: varchar("customerPhone", { length: 20 }),

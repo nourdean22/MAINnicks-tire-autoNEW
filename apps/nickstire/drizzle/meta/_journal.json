@@ -1121,6 +1121,13 @@
       "when": 1792195200000,
       "tag": "0146_customer_notifications_skipped",
       "breakpoints": true
+    },
+    {
+      "idx": 160,
+      "version": "5",
+      "when": 1792281600000,
+      "tag": "0147_financing_clicks_kafene",
+      "breakpoints": true
     }
   ]
 }

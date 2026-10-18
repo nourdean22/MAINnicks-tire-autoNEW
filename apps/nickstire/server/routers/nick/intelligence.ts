@@ -645,6 +645,9 @@ export async function handleRunMigrations() {
       // 'skipped' into an ENUM without it (Sentry NICKSTIRE-D). APPENDS the member; re-asserts on
       // every run and must equal schema.ts (migrationListGuards.test.ts pins that).
       `ALTER TABLE customer_notifications MODIFY COLUMN status ENUM('pending','sent','failed','skipped') NOT NULL DEFAULT 'pending'`,
+      // 2026-10-18 · drizzle/0147_financing_clicks_kafene.sql. Kafene clicks were rejected by an
+      // ENUM without it. APPENDS the member; re-asserts on every run and must equal schema.ts.
+      `ALTER TABLE financing_clicks MODIFY COLUMN provider ENUM('acima','snap','koalafi','american-first','kafene') NOT NULL`,
       // 2026-07-21 · nickgpt_training_examples.edit_categories_json — training-loop edit taxonomy (matches drizzle/0095 + schema.ts)
       `ALTER TABLE nickgpt_training_examples ADD COLUMN IF NOT EXISTS edit_categories_json TEXT NULL`,
       `CREATE TABLE IF NOT EXISTS chat_analytics (id int AUTO_INCREMENT PRIMARY KEY, sessionId int, hourOfDay int NOT NULL, dayOfWeek int NOT NULL, month int NOT NULL, messageCount int NOT NULL DEFAULT 0, converted int NOT NULL DEFAULT 0, leadScore int, duration int, createdAt timestamp NOT NULL DEFAULT (now()))`,
