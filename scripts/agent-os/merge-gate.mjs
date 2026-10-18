@@ -137,7 +137,7 @@ export async function holdWhileBusy({ list, self, minutes, sleep, now, everyMs =
 const VIEW_FIELDS = "state,isDraft,mergeStateStatus,headRefOid,headRefName,isCrossRepository,statusCheckRollup";
 const THREADS_QUERY = "query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewThreads(first:100){pageInfo{hasNextPage} nodes{isResolved path comments(first:1){nodes{author{login} url}}}}}}}";
 // Calibrated 2026-10-18: Codex posted its review 3 to 9 minutes after PR open on #3139 and #3141; 25 leaves room for a slow run.
-export const CODEX_WAIT_MINUTES = 25;
+const CODEX_WAIT_MINUTES = 25;
 
 /**
  * When the head reached GitHub, for the Codex wait: the LATEST of PR open, the head commit's committedDate (it can predate
@@ -232,7 +232,7 @@ if (isMainModule(import.meta.url)) {
   const pr = Number(process.argv[2]);
   const sha = arg("--sha");
   if (!Number.isInteger(pr) || !/^[0-9a-f]{40}$/.test(sha ?? "")) {
-    console.error("usage: node scripts/agent-os/merge-gate.mjs <pr number> --sha <full 40-char head sha> [--wait-minutes 30] [--merge]");
+    console.error("usage: node scripts/agent-os/merge-gate.mjs <pr number> --sha <full 40-char head sha> [--wait-minutes 30] [--codex-wait-minutes 25] [--merge]");
     process.exit(64);
   }
   const wait = Number(arg("--wait-minutes") ?? 30);
@@ -240,8 +240,10 @@ if (isMainModule(import.meta.url)) {
     console.error("--wait-minutes needs a number of minutes, 0 or more (a following flag is not a value). usage: node scripts/agent-os/merge-gate.mjs <pr> --sha <sha> [--wait-minutes 30] [--merge]");
     process.exit(64);
   }
-  const codexWait = Number(arg("--codex-wait-minutes") ?? CODEX_WAIT_MINUTES);
-  if (!Number.isFinite(codexWait) || codexWait < 0) {
+  // Digits only: Number("") and Number(" ") are 0, which would skip the Codex wait without anyone typing a 0.
+  const rawCodexWait = arg("--codex-wait-minutes");
+  const codexWait = rawCodexWait === undefined ? CODEX_WAIT_MINUTES : /^\d+(\.\d+)?$/.test(rawCodexWait) ? Number(rawCodexWait) : NaN;
+  if (!Number.isFinite(codexWait)) {
     console.error("--codex-wait-minutes needs a number of minutes, 0 or more (a following flag is not a value)");
     process.exit(64);
   }

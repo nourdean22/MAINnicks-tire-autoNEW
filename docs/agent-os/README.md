@@ -262,6 +262,14 @@ kept; the next `--sweep --execute` removes it. A Desktop session worktree holdin
 Remaining risk: the SESSION rule is a naming convention. A session worktree named `agent-*`, or one placed directly
 under a `.worktrees/` folder, gets no SESSION protection. Only the lock, the 2 h window and the lease guard it there.
 
+**Codex wait (2026-10-18).** #3134 and #3141 merged on green CI about 3 minutes before Codex posted P1 findings, and the
+agent-policy CI gate runs too early to see them. `merge-gate.mjs` now also reads Codex's `codex-review-state:v1` marker
+for the head SHA and the PR's review threads (`assessCodex`): `running` or no marker yet is NOT READY (exit 7), unresolved
+findings or any unresolved `chatgpt-codex-connector` thread is BLOCKED (exit 2), and a marker that does not parse holds
+like `running`. A marker for an older SHA counts as none, and Codex did not re-review the fix push on #3139. The one
+fail-open: no marker `--codex-wait-minutes` (default 25) after the latest of PR open, head commit and first CI start, then
+it merges and logs `WARN: Codex never reported on <sha>; merging without its review`. A `running` marker never times out.
+
 Canaries: `scripts/agent-os/worktreeSweep.test.mjs` (real fixture repos: a bare origin, a primary, worktrees; fake `gh`,
 lease and clock; one arm runs the real teardown script) and the sweep arms of `mergeGate.test.mjs`.
 

@@ -468,7 +468,9 @@ test("an invalid codex wait is refused before any gh call, in the function and i
     await assert.rejects(() => mergeGate(opts(g, { codexWait })), /--codex-wait-minutes must be a finite number/);
     assert.deepEqual(g.calls, []);
   }
-  const r = spawnSync(process.execPath, [GATE, "1", "--sha", SHA, "--codex-wait-minutes", "--merge"], { encoding: "utf8" });
-  assert.equal(r.status, 64, r.stdout + r.stderr);
-  assert.match(r.stderr, /--codex-wait-minutes/);
+  for (const bad of ["--merge", "", " ", "-1", "abc"]) {
+    const r = spawnSync(process.execPath, [GATE, "1", "--sha", SHA, "--codex-wait-minutes", bad], { encoding: "utf8" });
+    assert.equal(r.status, 64, `${JSON.stringify(bad)}: ${r.stdout}${r.stderr}`);
+    assert.match(r.stderr, /--codex-wait-minutes/);
+  }
 });
