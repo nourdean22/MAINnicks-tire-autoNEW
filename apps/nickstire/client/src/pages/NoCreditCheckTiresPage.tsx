@@ -31,11 +31,11 @@ const CONFIG: ServicePageConfig = {
   // Title and description mirror shared/routes.ts so the prerendered head and
   // the live SPA agree. The search phrase stays, as a question this page answers.
   title: "No Credit Check Tires Cleveland? Straight Answers | Nick's",
-  description: "Searching for no credit check tires? Straight answer: all 4 payment providers review applications, but some don't need established credit. Walk in 7 days.",
+  description: "Searching for no credit check tires? Straight answer: all 5 payment providers review applications, but some don't need established credit. Walk in 7 days.",
   eyebrow: "TIRE PAYMENT OPTIONS · CLEVELAND",
   h1: "SEARCHING FOR NO CREDIT CHECK TIRES?\nHERE'S THE STRAIGHT ANSWER.",
   sub: `Every payment provider we work with reviews your application. Koalafi says it checks credit, and American First Finance says credit may be checked. What some of them don't need is established credit. The provider decides approval and terms, and you see the total cost before you sign. Used tires ${USED.priceDisplay} (${USED.fineprint}; ${USED.typicalBand}). New ${BUSINESS.newTires.priceDisplay}.`,
-  startingPrice: "4 payment providers · each decides approval",
+  startingPrice: "5 payment providers · each decides approval",
   pricingTitle: "WHAT A SET OF TIRES COSTS AT NICK'S",
   pricingSub: "Out-the-door pricing: mount, balance, valve stems, TPMS reset and alignment check included. A payment program can spread the cost; its agreement shows the total before you sign.",
   tiers: [
@@ -61,8 +61,8 @@ const CONFIG: ServicePageConfig = {
       use: "Brakes squealing on the way over? We check them free and put both jobs on one written estimate before any work, so you apply for the right amount.",
     },
   ],
-  includedTitle: "HOW THE FOUR PAYMENT PROGRAMS WORK",
-  includedSub: "Four independent providers. Each runs its own application and sets its own terms.",
+  includedTitle: "HOW THE FIVE PAYMENT PROGRAMS WORK",
+  includedSub: "Five independent providers. Each runs its own application and sets its own terms.",
   // Straight from shared/financing.ts, so this list cannot drift from /financing.
   included: [
     ...FINANCING_PROVIDERS.map((p) => `${p.name} (${p.typeLabel}): ${p.creditCheck}`),
@@ -90,7 +90,7 @@ const CONFIG: ServicePageConfig = {
     },
     {
       q: "How is this different from your /financing page?",
-      a: "Same four providers. /financing compares them side by side with each one's disclosure. This page answers the 'no credit check tires' search directly.",
+      a: "Same five providers. /financing compares them side by side with each one's disclosure. This page answers the 'no credit check tires' search directly.",
     },
     {
       q: "What if no provider approves me?",
@@ -115,7 +115,7 @@ const CONFIG: ServicePageConfig = {
     items: [
       {
         tone: "info",
-        symptom: "I want to compare all four providers.",
+        symptom: "I want to compare all five providers.",
         consequence: "The products differ: lease-to-own, installment and loan options cost different amounts over the term.",
         relief: "Our /financing page lays out each provider's product type, published maximum and disclosure side by side.",
         ctaLabel: "Compare the providers",

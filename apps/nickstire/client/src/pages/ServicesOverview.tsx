@@ -71,7 +71,7 @@ const QUICK_PATHS = [
   {
     href: "/financing",
     title: "PAYMENT OPTIONS",
-    detail: "4 providers",
+    detail: "5 providers",
   },
 ] as const;
 

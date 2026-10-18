@@ -48,7 +48,7 @@ const INTENT_PATTERNS: Record<VapiIntent, RegExp> = {
   general_repair: /\b(repair|fix|mechanic|service|shop)\b/i,
   pricing_question: /\b(prices?|pricing|costs?|charges?|quotes?|estimate|much.?is|how.?much)\b/i,
   hours_location: /\b(hours|close|open|location|address|directions|where|euclid|street|map|open.?tomorrow|what.?time)\b/i,
-  financing: /\b(financ|snap|acima|easy.?pay|payment.?plan)\b/i,
+  financing: /\b(financ|kafene|snap|acima|american.?first|easy.?pay|payment.?plan)\b/i,
 };
 
 export interface ClassificationInput {

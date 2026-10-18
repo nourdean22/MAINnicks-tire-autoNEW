@@ -18,14 +18,18 @@ import PageLayout from "@/components/PageLayout";
 import { Breadcrumbs, SEOHead, trackEvent, trackPhoneClick } from "@/components/SEO";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import FadeIn from "@/components/FadeIn";
-import { trpc } from "@/lib/trpc";
+import { trpc, type RouterInputs } from "@/lib/trpc";
 import { getUtmData } from "@/lib/utm";
+import { KAFENE_BANNER_ALT } from "@/lib/kafene";
 import { BUSINESS } from "@shared/business";
 import {
   FINANCING_FAQ,
   FINANCING_PROVIDERS,
   type FinancingProvider,
 } from "@shared/financing";
+
+// The server's own input type, so the accepted ids follow the procedure's enum.
+type TrackedProvider = RouterInputs["financing"]["trackApplication"]["provider"];
 
 function ProviderCard({
   provider,
@@ -50,6 +54,19 @@ function ProviderCard({
         {provider.typeLabel}
       </p>
       <p className="mt-4 text-sm leading-relaxed text-white/70">{provider.description}</p>
+
+      {provider.id === "kafene" && (
+        <a
+          href={provider.applyUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={() => onApply(provider.id)}
+          className="mt-5 block w-fit max-w-full"
+        >
+          <img src="/kafene/kafene-300x250.png" width={300} height={250} loading="lazy" alt={KAFENE_BANNER_ALT} className="h-auto max-w-full rounded-lg" />
+          <span className="sr-only"> (opens in a new tab)</span>
+        </a>
+      )}
 
       <dl className="mt-5 space-y-3 rounded-xl border border-white/8 bg-black/15 p-4 text-sm">
         <div>
@@ -131,11 +148,21 @@ export default function Financing() {
     (providerId: string) => {
       if (!FINANCING_PROVIDERS.some((provider) => provider.id === providerId)) return;
       trackEvent("financing_apply_click", { provider: providerId, source: "provider-card" });
-      trackMutation.mutate({
-        provider: providerId as "acima" | "snap" | "koalafi" | "american-first",
-        sourcePage: "/financing",
-        ...getUtmData(),
-      });
+      // Fire-and-forget: the server may reject a provider id (e.g. "kafene" before its
+      // migration lands); a tracking failure must never block or delay the apply link.
+      const quiet = (err: unknown) => console.debug("[financing] apply tracking not recorded", providerId, err);
+      try {
+        trackMutation.mutate(
+          {
+            provider: providerId as TrackedProvider,
+            sourcePage: "/financing",
+            ...getUtmData(),
+          },
+          { onError: quiet },
+        );
+      } catch (err) {
+        quiet(err);
+      }
     },
     [trackMutation],
   );
@@ -156,7 +183,7 @@ export default function Financing() {
             <div>
               <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-[#FDB913]/30 bg-[#FDB913]/8 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-[#FDB913]">
                 <CreditCard className="h-3.5 w-3.5" aria-hidden="true" />
-                Four third-party payment providers
+                Five third-party payment providers
               </div>
               <h1 className="font-heading text-5xl font-bold uppercase leading-[1.02] tracking-tight text-white lg:text-7xl">
                 Fix the car.

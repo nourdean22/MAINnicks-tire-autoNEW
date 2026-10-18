@@ -121,7 +121,7 @@ export const CITIES: CityData[] = [
     metaTitle: "Parma Heights Auto Repair · Open Sundays | Nick's",
     metaDescription: "Parma Heights drivers cross town for an honest mechanic. 4.9★ 1,710+ reviews. Free Uber drop-off + pick-up. Brakes, tires, check-engine light. Walk-ins 7 days.",
     heroHeadline: "PARMA HEIGHTS\nAUTO REPAIR — WORTH THE DRIVE",
-    heroSubline: "Parma Heights drivers fed up with overpriced local shops are crossing town to Nick's Tire & Auto for honest answers, written quotes before any wrench moves, and payment programs from four providers. 25 minutes up I-480 — and we Uber you home and back so you don't lose a day sitting around. Free check. Written quote. You don't pay until you say yes.",
+    heroSubline: "Parma Heights drivers fed up with overpriced local shops are crossing town to Nick's Tire & Auto for honest answers, written quotes before any wrench moves, and payment programs from five providers. 25 minutes up I-480 — and we Uber you home and back so you don't lose a day sitting around. Free check. Written quote. You don't pay until you say yes.",
     distance: "16 miles",
     driveTime: "25 minutes",
     neighborhoods: ["Pleasant Lake", "Stumph Road", "York Road", "Pearl Road", "Snow Road"],
@@ -131,7 +131,7 @@ export const CITIES: CityData[] = [
       "New & used tires installed FREE with our install package",
       "Check engine light — free scan, real-English explanation",
       "Wheel alignment to fix the damage Pearl Rd & York Rd potholes did over winter",
-      "Payment programs from four providers — each decides approval",
+      "Payment programs from five providers — each decides approval",
       "Free Uber drop-off and pick-up from anywhere in Parma Heights"
     ],
     testimonial: {
@@ -404,7 +404,7 @@ export const CITIES: CityData[] = [
     distance: "0 miles",
     driveTime: "You're here",
     neighborhoods: ["Downtown Cleveland", "East Side", "West Side", "Collinwood", "Nottingham", "Five Points", "University Circle", "Tremont", "Ohio City", "Slavic Village", "Glenville", "Hough"],
-    localContent: "Nick's Tire & Auto is at 17625 Euclid Avenue in the heart of Cleveland's East Side — yes, the shop is literally on Euclid Ave. Since 2018 the formula has been boring on purpose: honest answers, transparent pricing, solid work, no upsells. We show you the problem on a lift, explain your options in real English, and let you decide. Free check. Written quote. You don't pay until you say yes. That approach earned us a 4.9★ rating across 1,710+ Google reviews. Tires, brakes, check-engine light, emissions, transmission, or that strange noise that started this morning. Walk-ins welcome 7 days a week, payment programs through Acima, Koalafi, Snap Finance, and American First Finance.",
+    localContent: "Nick's Tire & Auto is at 17625 Euclid Avenue in the heart of Cleveland's East Side — yes, the shop is literally on Euclid Ave. Since 2018 the formula has been boring on purpose: honest answers, transparent pricing, solid work, no upsells. We show you the problem on a lift, explain your options in real English, and let you decide. Free check. Written quote. You don't pay until you say yes. That approach earned us a 4.9★ rating across 1,710+ Google reviews. Tires, brakes, check-engine light, emissions, transmission, or that strange noise that started this morning. Walk-ins welcome 7 days a week, payment programs through Kafene, Acima, Koalafi, Snap Finance, and American First Finance.",
     serviceHighlights: [
       "Cleveland's largest new & used tire selection with free install package",
       "Brake repair — pads, rotors, calipers, ABS on a lift you can see",
@@ -412,7 +412,7 @@ export const CITIES: CityData[] = [
       "Ohio E-Check failure diagnosis and emissions repair",
       "Oil changes faster than your barista finishes your name",
       "Transmission, suspension, electrical, exhaust, and the weird rattle that started yesterday",
-      "Auto-repair payment programs from four providers",
+      "Auto-repair payment programs from five providers",
       "Walk-ins welcome 7 days a week, including Sunday 9 AM–4 PM"
     ],
     testimonial: {

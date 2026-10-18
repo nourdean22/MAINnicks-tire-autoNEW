@@ -863,7 +863,7 @@ export const KILL_RULES: readonly KillRule[] = Object.freeze([
       /\bno[- ](?:hard[- ]|traditional[- ])?credit[- ]checks?\b|\bwithout (?:a )?(?:hard |traditional )?credit checks?\b|\bzero[- ]credit[- ]checks?\b|\bcredit[- ]check[- ]free\b|\bwe (?:don['’]t|do not|never|won['’]t) (?:(?:check|run|pull) (?:your |a |any |hard )*credit(?: checks?)?|do (?:a |any )?(?:hard )?credit checks?)\b(?! cards?\b)/i,
     label: "no credit check",
     why:
-      "False for at least two of the four providers: Koalafi says 'we check your credit', and American First Finance says 'credit may be checked'. Acima and Snap pull consumer-report data too. What the providers actually say is that established credit is not required (shared/financing.ts).",
+      "False for at least two of the providers: Koalafi says 'we check your credit', and American First Finance says 'credit may be checked'. Acima and Snap pull consumer-report data too. What the providers actually say is that established credit is not required (shared/financing.ts).",
     fix: "Name the providers and say the provider decides approval; PAYMENT_PROGRAMS_* in shared/financing.ts has the approved lines",
     reason: "claim",
     severity: "block",

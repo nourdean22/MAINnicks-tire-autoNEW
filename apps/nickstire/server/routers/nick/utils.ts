@@ -270,7 +270,7 @@ export const FINANCING_OPTIONS = [
     termMonths: [6, 12, 18, 24],
     approvalType: "Credit check through alternative bureaus (Koalafi says no FICO impact)",
     earlyBuyoutDiscount: "Early purchase options; terms in the agreement",
-    note: "Highest published cap of the four. Good for major repairs.",
+    note: "Highest published cap listed here. Good for major repairs.",
   },
 ];
 

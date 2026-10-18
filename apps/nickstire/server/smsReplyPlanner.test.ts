@@ -161,3 +161,22 @@ describe("the prompt block and the wiring", () => {
     expect(s).toMatch(/plan_violation:/);
   });
 });
+
+// Codex round 2 on #3148: the SMS financing answer listed four providers and the ask pattern
+// did not know Kafene. Customer copy: the whole sentence is pinned, byte for byte.
+describe("financing playbook names Kafene first", () => {
+  it("the payment-programs fact is exactly the five-provider sentence", () => {
+    expect(planFor("do you do financing?").knownFacts).toEqual([
+      "Payment programs are available through Kafene, Acima, Snap Finance, Koalafi and American First Finance. Some don't require established credit; each provider decides approval and terms.",
+      "The shop can help the customer apply and explain options before they agree.",
+    ]);
+  });
+
+  it("a committed customer asking about Kafene by name gets an answer, not the stop-selling block", () => {
+    const committed = { hasActiveBooking: true, hasActiveEstimate: false, hasActiveLead: false };
+    const draft = "Yes, we take Kafene. Payment programs are available; each provider decides approval.";
+    expect(planViolations(planFor("on my way, can I use kafene?", emptyCtx, committed), draft)).not.toContain("pitch_after_commitment:unprompted_financing");
+    // control: the same customer naming Acima was already answered
+    expect(planViolations(planFor("on my way, can I use acima?", emptyCtx, committed), draft)).not.toContain("pitch_after_commitment:unprompted_financing");
+  });
+});

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "wouter";
 import { toast } from "sonner";
 import { Search, Phone, Check, Loader2, ShieldCheck, Star, AlertTriangle, ChevronDown } from "lucide-react";
@@ -7,10 +7,17 @@ import { Breadcrumbs, SEOHead, trackEvent, trackPhoneClick } from "@/components/
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import FAQPageSchema, { TIRE_BUYING_FAQ, TIRE_REPAIR_FAQ } from "@/components/FAQPageSchema";
 import { trpc } from "@/lib/trpc";
+import { getUtmData } from "@/lib/utm";
 import type { RouterOutputs } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
 import { ACIMA_COMPACT_DISCLOSURE } from "@/lib/acima";
 import { OrderModal } from "@/components/order/TireOrderModal";
+import { pickTopTires, setTotalLabel } from "@/lib/tirePicks";
+import VehicleSizePicker, { vehicleFromUrl, type SavedVehicle } from "@/components/tires/VehicleSizePicker";
+import { FINANCING_PROVIDERS } from "@shared/financing";
+import { KAFENE_BANNER_ALT } from "@/lib/kafene";
+
+const KAFENE = FINANCING_PROVIDERS.find((p) => p.id === "kafene");
 
 // Real inferred shape from the tRPC procedure — no `any` on the money path.
 type Tire = RouterOutputs["gatewayTire"]["publicSearch"]["tires"][number];
@@ -43,7 +50,43 @@ export default function TireFinderV2() {
   const [sizeError, setSizeError] = useState("");
   const [qty, setQty] = useState(4);
   const [selected, setSelected] = useState<Tire | null>(null);
+  // The vehicle behind the current search, so the order form does not ask for it again.
+  // Set only by a By vehicle search (or a reload of one); a By size search carries none.
+  const [searchVehicle, setSearchVehicle] = useState<SavedVehicle | null>(() => (params.get("size") ? vehicleFromUrl() : null));
+  // Stable identity: OrderModal re-applies this prop in an effect, so a fresh object on every
+  // page render would overwrite whatever the customer corrected in the form.
+  const prefilledVehicle = useMemo(
+    () => (searchVehicle
+      ? { year: String(searchVehicle.year), make: searchVehicle.make, model: searchVehicle.model, option: searchVehicle.trim, speeds: "" }
+      : null),
+    [searchVehicle],
+  );
   const resultsRef = useRef<HTMLDivElement>(null);
+
+  // Search tabs. Read from the URL in the initializer so a ?size= deep link
+  // never paints the vehicle tab first.
+  const [tab, setTab] = useState<"vehicle" | "size">(() =>
+    params.get("size") || params.get("tab") === "size" ? "size" : "vehicle",
+  );
+  const fitmentStatus = trpc.fitment.status.useQuery(undefined, { staleTime: 5 * 60 * 1000 });
+
+  // Kafene apply clicks also land in financing_clicks, the same record /financing writes.
+  // Fire-and-forget: a rejected or throwing call must never block or delay the link.
+  const trackApplication = trpc.financing.trackApplication.useMutation();
+  const trackKafeneClick = () => {
+    trackEvent("payment_programs_clicked", { provider: "kafene" });
+    const quiet = (err: unknown) => console.debug("[tires] Kafene apply tracking not recorded", err);
+    try {
+      trackApplication.mutate({ provider: "kafene", sourcePage: "/tires", ...getUtmData() }, { onError: quiet });
+    } catch (err) {
+      quiet(err);
+    }
+  };
+  const [fitmentOff, setFitmentOff] = useState(false);
+  const disableFitment = useCallback(() => setFitmentOff(true), []);
+  // Unknown is not available: a failed status read hides the vehicle tab.
+  const vehicleOn = !fitmentOff && (fitmentStatus.isLoading || fitmentStatus.data?.available === true);
+  const activeTab = vehicleOn ? tab : "size";
 
   // Stripe Checkout return (wave-d · CONFIRMED high-friction gap): the
   // success/cancel URLs point at /tires?order=X&paid=1|0, but the handler
@@ -99,14 +142,16 @@ export default function TireFinderV2() {
     { enabled: normalize(size).length >= 7 },
   );
   const tires: Tire[] = query.data?.tires ?? [];
+  const topPicks = pickTopTires(tires);
 
-  const submit = (value = input) => {
+  /** Runs the size search; false when the size was rejected and nothing changed. */
+  const submit = (value = input): boolean => {
     const clean = value.trim();
     if (normalize(clean).length < 7) {
       // wave-d · was a silent bare return: the button looked live but the
       // DOM was byte-identical after the click — "appears broken".
       setSizeError("That size looks incomplete — use the full code from your sidewall, like 215/60R16.");
-      return;
+      return false;
     }
     setSizeError("");
     setInput(clean);
@@ -116,6 +161,18 @@ export default function TireFinderV2() {
     window.history.replaceState({}, "", `${window.location.pathname}?${p}`);
     trackEvent("tire_search_submitted", { size: clean, source: "tires_v2" });
     setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+    return true;
+  };
+  const searchBySize = (value?: string) => {
+    // A rejected size changes nothing: the vehicle results stay on screen, so keep their vehicle.
+    if (!submit(value)) return;
+    setSearchVehicle(null);
+    // A size-only search is not for the picked vehicle: drop it from the URL (submit kept ?size and
+    // ?tab), or a reload or shared link would rebuild it and prefill the order form.
+    const p = new URLSearchParams(window.location.search);
+    ["year", "make", "model", "trim"].forEach((k) => p.delete(k));
+    const qs = p.toString();
+    window.history.replaceState({}, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`);
   };
 
   return (
@@ -139,17 +196,55 @@ export default function TireFinderV2() {
               Enter the size from your tire sidewall. We show practical choices, estimated installed pricing, and a no-card-required request.
             </p>
             <div className="mx-auto mt-8 max-w-3xl rounded-2xl border border-primary/30 bg-card p-3 shadow-2xl">
+              {vehicleOn && (
+                <div role="tablist" aria-label="Search tires" className="mb-3 grid grid-cols-2 gap-1 rounded-xl bg-muted p-1">
+                  {(["vehicle", "size"] as const).map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      role="tab"
+                      id={`tires-tab-${t}`}
+                      aria-selected={activeTab === t}
+                      aria-controls="tires-tabpanel"
+                      onClick={() => setTab(t)}
+                      className={`min-h-12 rounded-lg text-sm font-bold ${activeTab === t ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}
+                    >
+                      {t === "vehicle" ? "By vehicle" : "By size"}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div
+                id="tires-tabpanel"
+                role={vehicleOn ? "tabpanel" : undefined}
+                aria-labelledby={vehicleOn ? `tires-tab-${activeTab}` : undefined}
+                aria-busy={activeTab === "vehicle" && fitmentStatus.isLoading ? true : undefined}
+              >
+              {activeTab === "vehicle" ? (
+                fitmentStatus.isLoading ? (
+                  <div className="grid grid-cols-2 gap-2 p-1 sm:grid-cols-4">
+                    {[0, 1, 2, 3].map((i) => <div key={i} className="h-12 animate-pulse rounded-lg bg-muted" />)}
+                  </div>
+                ) : (
+                  <VehicleSizePicker
+                    onPickSize={(s, vehicle) => { setSearchVehicle(vehicle); submit(s); }}
+                    onUnconfigured={disableFitment}
+                    onVehicleCleared={() => setSearchVehicle(null)}
+                  />
+                )
+              ) : (
+              <>
               <div className="flex gap-2">
                 <Search className="ml-3 mt-3.5 h-5 w-5 text-muted-foreground" />
                 <input
                   aria-label="Search tire size"
                   value={input}
                   onChange={(e) => { setInput(e.target.value); if (sizeError) setSizeError(""); }}
-                  onKeyDown={(e) => e.key === "Enter" && submit()}
+                  onKeyDown={(e) => e.key === "Enter" && searchBySize()}
                   placeholder="Enter tire size — e.g. 215/60R16"
                   className="min-w-0 flex-1 bg-transparent px-2 py-3 text-lg outline-none"
                 />
-                <button onClick={() => submit()} className="rounded-xl bg-primary px-5 font-bold text-primary-foreground">Search tires</button>
+                <button onClick={() => searchBySize()} className="rounded-xl bg-primary px-5 font-bold text-primary-foreground">Search tires</button>
               </div>
               {sizeError && (
                 <p role="alert" className="mt-2 text-left text-sm font-medium text-amber-400">
@@ -158,8 +253,11 @@ export default function TireFinderV2() {
               )}
               <div className="mt-3 flex flex-wrap justify-center gap-2">
                 {POPULAR.map((s) => (
-                  <button key={s} onClick={() => submit(s)} className="rounded-full border border-border/50 px-3 py-1 text-xs text-muted-foreground hover:border-primary hover:text-primary">{s}</button>
+                  <button key={s} onClick={() => searchBySize(s)} className="rounded-full border border-border/50 px-3 py-1 text-xs text-muted-foreground hover:border-primary hover:text-primary">{s}</button>
                 ))}
+              </div>
+              </>
+              )}
               </div>
             </div>
             <div className="mt-5 flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-muted-foreground">
@@ -212,8 +310,85 @@ export default function TireFinderV2() {
                 </div>
               )}
 
+              {topPicks.length > 0 && (
+                <section aria-labelledby="top-picks-heading" className="mb-8">
+                  <h3 id="top-picks-heading" className="text-lg font-bold">Top picks</h3>
+                  <div className={`mt-3 grid gap-3 ${topPicks.length === 3 ? "sm:grid-cols-3" : topPicks.length === 2 ? "sm:grid-cols-2" : ""}`}>
+                    {topPicks.map((p) => (
+                      <article key={p.kind} className="flex flex-col rounded-2xl border border-border/50 bg-card p-4">
+                        <p className="text-sm font-semibold text-primary">{p.label}</p>
+                        <p className="text-xs text-muted-foreground">{p.basis}</p>
+                        <h4 className="mt-2 text-lg font-bold leading-tight">{p.tire.brand} {p.tire.model}</h4>
+                        <p className="mt-3 text-2xl font-black">${p.tire.shopPrice.toFixed(2)}<span className="text-sm font-normal text-muted-foreground"> / tire</span></p>
+                        <div className="flex flex-wrap items-center gap-x-3">
+                          <p className="text-sm font-semibold text-primary">{setTotalLabel(p.tire.shopPrice, qty)}</p>
+                          {KAFENE && (
+                            <a
+                              href={KAFENE.applyUrl}
+                              target="_blank"
+                              rel="noopener"
+                              onClick={trackKafeneClick}
+                              className="inline-flex min-h-12 items-center text-sm font-semibold text-primary underline underline-offset-4"
+                            >
+                              Apply with Kafene{" "}<span className="sr-only">(opens in a new tab)</span>
+                            </a>
+                          )}
+                          <Link
+                            href="/financing"
+                            onClick={() => trackEvent("payment_programs_clicked", { provider: "more" })}
+                            className="inline-flex min-h-12 items-center text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
+                          >
+                            More payment programs
+                          </Link>
+                        </div>
+                        <div className="mt-auto flex flex-col gap-2 pt-3">
+                          <button
+                            onClick={() => {
+                              setSelected(p.tire);
+                              trackEvent("top_pick_selected", { pick: p.kind, size: p.tire.size });
+                            }}
+                            className="min-h-12 rounded-xl bg-primary px-5 font-bold text-primary-foreground"
+                          >
+                            Request these
+                          </button>
+                          {/* Call only: shared/business.ts documents no SMS-capable number, so no "Text this quote". */}
+                          <a
+                            href={BUSINESS.phone.href}
+                            onClick={() => {
+                              trackPhoneClick("tires-v2-top-pick");
+                              trackEvent("quote_call_clicked", { pick: p.kind, size: p.tire.size });
+                            }}
+                            className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-border px-5 font-semibold"
+                          >
+                            <Phone className="h-4 w-4" aria-hidden="true" />Call about these tires
+                          </a>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </section>
+              )}
+              {topPicks.length > 0 && KAFENE && (
+                <a
+                  href={KAFENE.applyUrl}
+                  target="_blank"
+                  rel="noopener"
+                  onClick={trackKafeneClick}
+                  className="mx-auto mb-8 block w-fit max-w-full"
+                >
+                  <picture>
+                    <source media="(min-width: 768px)" srcSet="/kafene/kafene-728x90.png" width={728} height={90} />
+                    <img src="/kafene/kafene-320x50.png" width={320} height={50} loading="lazy" alt={KAFENE_BANNER_ALT} className="h-auto max-w-full" />
+                  </picture>
+                  <span className="sr-only"> (opens in a new tab)</span>
+                </a>
+              )}
+              {topPicks.length > 0 && (
+                <p className="mb-3 text-sm font-semibold text-muted-foreground">All options, lowest price first</p>
+              )}
+
               {tires.length > 0 ? (
-                <div className="grid gap-4 md:grid-cols-2">
+                <div role="region" aria-label="All tire options" className="grid gap-4 md:grid-cols-2">
                   {tires.slice(0, 8).map((t, i) => (
                     <article key={t.id} className="rounded-2xl border border-border/50 bg-card p-5">
                       <div className="flex items-start justify-between gap-3">
@@ -243,7 +418,7 @@ export default function TireFinderV2() {
                       <div className="mt-5 flex items-end justify-between">
                         <div>
                           <p className="text-3xl font-black">${t.shopPrice.toFixed(2)}<span className="text-sm font-normal text-muted-foreground"> / tire</span></p>
-                          <p className="text-sm font-semibold text-primary">${(t.shopPrice * qty).toFixed(2)} for {qty}</p>
+                          <p className="text-sm font-semibold text-primary">{setTotalLabel(t.shopPrice, qty)}</p>
                         </div>
                         <button
                           onClick={() => {
@@ -405,7 +580,15 @@ export default function TireFinderV2() {
           </div>
         </section>
       </main>
-      {selected && <OrderModal tire={selected} quantity={qty} packageValue={packageValue} onClose={() => setSelected(null)} />}
+      {selected && (
+        <OrderModal
+          tire={selected}
+          quantity={qty}
+          packageValue={packageValue}
+          onClose={() => setSelected(null)}
+          prefilledVehicle={prefilledVehicle}
+        />
+      )}
     </PageLayout>
   );
 }

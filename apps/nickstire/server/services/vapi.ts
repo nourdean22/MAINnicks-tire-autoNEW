@@ -1006,7 +1006,8 @@ const TRANSCRIBER_KEYWORDS = [
   "alignment", "balance",
   "TPMS",
   "F150", "Silverado", "Camry", "Accord", "Civic", "RAV4", "CRV", "Escape",
-  "Acima", "Snap", "Koalafi",
+  // Payment programs (shared/financing.ts). One word per keyword, so "American First" is two.
+  "Kafene", "Acima", "Snap", "Koalafi", "American", "First",
   "Euclid", "Cleveland",
 ];
 

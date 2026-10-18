@@ -401,7 +401,7 @@ const RULES: Rule[] = [
     // when I pick it up"): "payments on" needs a service after it, and "split"
     // needs a payment split up, into or over something.
     test: (b) =>
-      /\b(financ\w*|payment (plans?|programs?|options?)|(lease|rent)[- ]to[- ]own|snap|acima|koalafi|no credit|credit check)\b/i.test(b) ||
+      /\b(financ\w*|payment (plans?|programs?|options?)|(lease|rent)[- ]to[- ]own|kafene|snap|acima|koalafi|no credit|credit check)\b/i.test(b) ||
       FINANCING_EVERYDAY_RE.test(b),
   },
   {

@@ -136,7 +136,7 @@ export const CHAT_TOOLS: Tool[] = [
     type: "function",
     function: {
       name: "check_financing",
-      description: "Explain the shop's payment programs (Acima lease-to-own, Snap Finance, Koalafi, American First Finance). Use when the customer asks about payment programs, payment plans, financing, lease-to-own, 'can I pay monthly', or affordability. The provider decides approval: never say the customer is approved or pre-qualified.",
+      description: "Explain the shop's payment programs (Kafene lease-to-own, Acima lease-to-own, Snap Finance, Koalafi, American First Finance). Use when the customer asks about payment programs, payment plans, financing, lease-to-own, 'can I pay monthly', or affordability. The provider decides approval: never say the customer is approved or pre-qualified.",
       parameters: {
         type: "object",
         properties: {
@@ -408,7 +408,7 @@ async function executeGetCurrentSpecials(): Promise<string> {
     // Always-on offers
     const alwaysOn = [
       { title: "Free Inspection", description: "Drop in anytime — we'll inspect your vehicle for free and give you an honest quote.", discount: "Free" },
-      { title: "Payment Programs", description: PAYMENT_PROGRAMS_CHAT_LINE, discount: "4 providers" },
+      { title: "Payment Programs", description: PAYMENT_PROGRAMS_CHAT_LINE, discount: "5 providers" },
       { title: "Free Battery Test", description: "Stop by and we'll test your battery in 5 minutes, no appointment needed.", discount: "Free" },
     ];
 
@@ -422,7 +422,7 @@ async function executeGetCurrentSpecials(): Promise<string> {
       activeSpecials: [],
       alwaysAvailable: [
         { title: "Free Inspection", discount: "Free" },
-        { title: "Payment Programs", discount: "4 providers" },
+        { title: "Payment Programs", discount: "5 providers" },
       ],
     });
   }
@@ -549,7 +549,7 @@ async function executeCheckFinancing(estimatedTotal: number): Promise<string> {
   // model relayed "you're eligible" to every customer, and claimed
   // "in-house financing" when the real providers are third parties
   // (BUSINESS.financing.providers). The tool now tells the truth: the
-  // PROGRAM exists (four third-party providers), payment figures come only
+  // PROGRAM exists (five third-party providers), payment figures come only
   // from the provider, and eligibility is decided by the provider at
   // application time — never by this chatbot.
   // 2026-10-01: the "illustrative" 6- and 12-month figures were the estimate
