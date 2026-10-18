@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "chore/private-tag-memory",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "a7b885c2-eac8-456c-82e7-7cec9b78bc13",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire",
+  "claimedBy": "2026-10-18-private-tag-memory",
+  "claimedAt": "2026-10-18T18:24:22.104Z",
+  "expiresAt": "2026-10-19T06:24:22.104Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
