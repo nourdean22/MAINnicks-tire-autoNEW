@@ -317,14 +317,14 @@ describe("(f)(g) camofox adapter: read-only, always closes its tab", () => {
 
   it("(g) the allowlist is exactly create-tab, snapshot, close-group", async () => {
     const { CAMOFOX_ALLOWED_ENDPOINTS } = await import("@/lib/integrations/camofox");
-    expect(CAMOFOX_ALLOWED_ENDPOINTS.map((e) => `${e.method} ${e.path}`)).toEqual([
+    expect(CAMOFOX_ALLOWED_ENDPOINTS.map(([method, path]) => `${method} ${path}`)).toEqual([
       "POST /tabs",
       "GET /tabs/{tabId}/snapshot",
       "DELETE /tabs/group/{sessionKey}",
     ]);
-    for (const e of CAMOFOX_ALLOWED_ENDPOINTS) {
+    for (const [, path] of CAMOFOX_ALLOWED_ENDPOINTS) {
       // Segment match: "{sessionKey}" is a placeholder, "/sessions/" is the cookie/trace family.
-      expect(e.path).not.toMatch(/\/(sessions|cookies?|login|auth|act|upload|downloads?|evaluate|click|type|press|select|traces?)(\/|$)/i);
+      expect(path).not.toMatch(/\/(sessions|cookies?|login|auth|act|upload|downloads?|evaluate|click|type|press|select|traces?)(\/|$)/i);
     }
   });
 

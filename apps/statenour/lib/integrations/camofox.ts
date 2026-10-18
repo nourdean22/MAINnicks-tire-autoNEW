@@ -25,17 +25,21 @@ import { logger } from "@/lib/logger";
 
 const log = logger.withSurface("integrations/camofox");
 
-/** Every method + path this adapter may call. A test pins this list exactly. */
+/**
+ * Every [method, vendor path] this adapter may call. A test pins this list exactly.
+ * Positional tuples, like browserbase.ts's bbFetch("/v1/...") calls: these are
+ * camofox API paths, not app routes (tests/repo/internal-route-targets.test.ts).
+ */
 export const CAMOFOX_ALLOWED_ENDPOINTS = [
-  { method: "POST", path: "/tabs" },
-  { method: "GET", path: "/tabs/{tabId}/snapshot" },
-  { method: "DELETE", path: "/tabs/group/{sessionKey}" },
+  ["POST", "/tabs"],
+  ["GET", "/tabs/{tabId}/snapshot"],
+  ["DELETE", "/tabs/group/{sessionKey}"],
 ] as const;
 
 // Enforcement is derived from the list above, so the pinned list IS the gate.
-const ALLOWED_PATTERNS = CAMOFOX_ALLOWED_ENDPOINTS.map((e) => ({
-  method: e.method as string,
-  re: new RegExp(`^${e.path.replace(/\{[^}]+\}/g, "[A-Za-z0-9_-]+")}$`),
+const ALLOWED_PATTERNS = CAMOFOX_ALLOWED_ENDPOINTS.map(([method, path]) => ({
+  method: method as string,
+  re: new RegExp(`^${path.replace(/\{[^}]+\}/g, "[A-Za-z0-9_-]+")}$`),
 }));
 
 // Copied from the existing Firecrawl values (guardian timeoutMs 30_000 and
