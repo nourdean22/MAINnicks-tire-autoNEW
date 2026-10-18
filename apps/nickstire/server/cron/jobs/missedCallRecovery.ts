@@ -22,6 +22,9 @@
  *   - Conservative eligibility: real conversations only (>=15s), recent
  *     (last 24h, older than 45min so the shop's own callback goes first),
  *     nothing captured, opt-outs excluded, hard daily/run cap.
+ *   - A caller it will NOT text (SMS opt-out in either mode, or a shadow-run
+ *     candidate up to RUN_CAP) gets one callback_requests row instead, so the
+ *     shop owns the call-back (C3.3, 2026-10-18). Cap-skips get no row.
  *   - "Reached a tool" (convertedToLead=1) callers are included ONLY when a
  *     successful read proves the call captured nothing (operator decision
  *     2026-10-02, reversing the 2026-09-23 skip: ~101 calls/week reached a
@@ -99,7 +102,71 @@ function maskPhone(p: string | null): string {
   return d.length >= 4 ? `***${d.slice(-4)}` : "***";
 }
 
-export async function processMissedCallRecovery(): Promise<{ recordsProcessed: number; shadow: boolean; candidates: number; details?: string }> {
+/** callback_requests.sourcePage for rows this cron writes; escalateStaleCallbacks skips its customer text for them. */
+export const MISSED_CALL_CALLBACK_SOURCE = "missed-call-recovery";
+
+type ClaimDb = { execute(q: unknown): Promise<unknown> };
+
+/**
+ * C3.3: a caller this cron will NOT text (opted out of SMS, or the lane is in
+ * shadow) gets one callback_requests row so the shop owns the phone follow-up.
+ * At most once per call: a CAS on metadata.recoveryCallbackAt (a separate key
+ * from recoverySmsAt, so a shadow row never blocks a later live text). The
+ * context carries `callId=<id>`, the rule loadCallCaptureEvidence matches, so a
+ * tool-reaching caller with this row reads as captured and is not texted later.
+ * Never throws: a callback write must not kill the text lane.
+ */
+async function requestCallbackForMissedCall(
+  db: ClaimDb,
+  row: MissedCallRow,
+  reason: "opt_out" | "shadow",
+): Promise<"written" | "duplicate" | "failed"> {
+  const { sql } = await import("drizzle-orm");
+  const stamp = new Date().toISOString();
+  let claimed = false;
+  try {
+    const claim = await db.execute(sql`
+      UPDATE vapi_call_logs
+      SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.recoveryCallbackAt', ${stamp})
+      WHERE id = ${row.id}
+        AND (metadata IS NULL OR JSON_EXTRACT(metadata, '$.recoveryCallbackAt') IS NULL)
+    `);
+    const affected = (claim as Array<{ affectedRows?: number }>)[0]?.affectedRows ?? 0;
+    if (affected !== 1) return "duplicate";
+    claimed = true;
+    const why = reason === "opt_out" ? "customer opted out of SMS" : "recovery texts are in shadow mode";
+    const { createCallbackRequest } = await import("../../db");
+    await createCallbackRequest({
+      name: "Missed call (name unknown)",
+      phone: row.phoneNumber!,
+      context: `Missed VAPI call callId=${row.vapiCallId}, ${row.durationSeconds}s. No recovery text sent (${why}). Please call back.`,
+      sourcePage: MISSED_CALL_CALLBACK_SOURCE,
+      status: "new",
+    });
+    return "written";
+  } catch (err) {
+    log.warn("Missed-call callback row failed", {
+      callId: row.vapiCallId,
+      phone: maskPhone(row.phoneNumber),
+      error: err instanceof Error ? err.message : String(err),
+    });
+    // Release only OUR stamp so the next run can retry; a lost callback is worse than a duplicate one.
+    if (claimed) {
+      await db.execute(sql`
+        UPDATE vapi_call_logs
+        SET metadata = JSON_REMOVE(metadata, '$.recoveryCallbackAt')
+        WHERE id = ${row.id}
+          AND JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.recoveryCallbackAt')) = ${stamp}
+      `).catch((e: unknown) => log.warn("Missed-call callback claim release failed", {
+        callId: row.vapiCallId,
+        error: e instanceof Error ? e.message : String(e),
+      }));
+    }
+    return "failed";
+  }
+}
+
+export async function processMissedCallRecovery(): Promise<{ recordsProcessed: number; shadow: boolean; candidates: number; callbackRows?: number; details?: string }> {
   try {
     // Business hours (ET) — never text outside them, and the orchestrator's
     // quiet-hours would skip anyway, but don't even build the run off-hours.
@@ -168,6 +235,8 @@ export async function processMissedCallRecovery(): Promise<{ recordsProcessed: n
     );
 
     const eligible: MissedCallRow[] = [];
+    let callbackRows = 0; // callers handed to the shop's callback queue this run
+    let optOutCallbacks = 0;
     for (const r of rows) {
       const meta = (r.metadata ?? null) as Record<string, unknown> | null;
       const row: MissedCallRow = {
@@ -189,15 +258,27 @@ export async function processMissedCallRecovery(): Promise<{ recordsProcessed: n
       }
       if (!isMissedCallEligible(row, now)) continue;
       const np = normalizePhone(row.phoneNumber);
-      if (np && optOuts.has(np)) continue;
+      if (np && optOuts.has(np)) {
+        // Never texted, in either mode: the shop owns the follow-up by phone.
+        if ((await requestCallbackForMissedCall(db, row, "opt_out")) === "written") {
+          callbackRows++;
+          optOutCallbacks++;
+        }
+        continue;
+      }
       eligible.push(row);
     }
 
     const candidates = eligible.length;
 
-    // ─── SHADOW: report the audience, send nothing, claim nothing ───
+    // ─── SHADOW: report the audience, send nothing, claim no text ───
     if (!live) {
-      if (candidates > 0) {
+      // The callers a live run would text (same RUN_CAP) go to the shop's callback queue
+      // instead; past the cap nobody gets a row, the next run reaches them.
+      for (const row of eligible.slice(0, RUN_CAP)) {
+        if ((await requestCallbackForMissedCall(db, row, "shadow")) === "written") callbackRows++;
+      }
+      if (candidates > 0 || callbackRows > 0) {
         const { sendTelegram } = await import("../../services/telegram");
         const sample = eligible.slice(0, 10).map(e => `• ${maskPhone(e.phoneNumber)} (${e.durationSeconds}s call)`).join("\n");
         await sendTelegram(
@@ -210,11 +291,12 @@ export async function processMissedCallRecovery(): Promise<{ recordsProcessed: n
           // worse than no preview. Describe the shape, name the source.
           `\n\nThey'd receive the neutral follow-up for vapi_forwarded_call_followup ` +
           `(rotating variant, see smsMessageCatalog.ts) + STOP footer.\n` +
+          `${callbackRows} callback rows written for the shop (Admin > Calls > Missed / Pending)\n` +
           `Flip live: set MISSED_CALL_RECOVERY_SEND=1 on MAINnicks-tire-auto.`, "digest",
         );
       }
-      log.info("Missed-call recovery SHADOW run", { candidates });
-      return { recordsProcessed: 0, shadow: true, candidates };
+      log.info("Missed-call recovery SHADOW run", { candidates, callbackRows });
+      return { recordsProcessed: 0, shadow: true, candidates, callbackRows };
     }
 
     // ─── LIVE: claim (durable at-most-once) then send via orchestrator ───
@@ -254,15 +336,19 @@ export async function processMissedCallRecovery(): Promise<{ recordsProcessed: n
       if (result.status === "sent" || result.status === "queued") processed++;
     }
 
-    if (processed > 0) {
-      log.info("Missed-call recovery sent", { processed, candidates });
+    if (processed > 0 || optOutCallbacks > 0) {
+      log.info("Missed-call recovery sent", { processed, candidates, optOutCallbacks });
       const { sendTelegram } = await import("../../services/telegram");
-      await sendTelegram(`📞 Missed-Call Recovery — sent ${processed} follow-up text(s) (of ${candidates} eligible).`, "receipt");
+      await sendTelegram(
+        `📞 Missed-Call Recovery — sent ${processed} follow-up text(s) (of ${candidates} eligible).` +
+        (optOutCallbacks > 0 ? `\n${optOutCallbacks} opt-out callers routed to callbacks` : ""),
+        "receipt",
+      );
     }
     if (heldMidRun) {
-      return { recordsProcessed: processed, shadow: false, candidates, details: `Skipped · ${heldMidRun} · not_attempted=${notAttempted} · sent=${processed}` };
+      return { recordsProcessed: processed, shadow: false, candidates, callbackRows, details: `Skipped · ${heldMidRun} · not_attempted=${notAttempted} · sent=${processed}` };
     }
-    return { recordsProcessed: processed, shadow: false, candidates };
+    return { recordsProcessed: processed, shadow: false, candidates, callbackRows };
   } catch (err) {
     // Re-throw (2026-10-02): this used to return { recordsProcessed: 0, shadow: true }, so a
     // broken run on a LIVE customer-texting lane was filed in cron_log as a completed shadow

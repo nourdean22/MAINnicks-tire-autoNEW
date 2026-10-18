@@ -18,6 +18,7 @@
 import { createLogger } from "../../lib/logger";
 
 import { BUSINESS } from "@shared/business";
+import { MISSED_CALL_CALLBACK_SOURCE } from "./missedCallRecovery";
 const log = createLogger("cron:crud-automation");
 
 /** Shape for raw SQL result rows from d.execute() */
@@ -212,7 +213,7 @@ export async function escalateStaleCallbacks(): Promise<{ recordsProcessed: numb
   const unmarked = sql`(notes IS NULL OR LOCATE(${ESCALATED_MARK}, notes) = 0)`;
   // A read failure throws to the runner (recorded as failed), never a soft "completed".
   const [rows] = await d.execute(sql`
-    SELECT id, name, phone, context FROM callback_requests
+    SELECT id, name, phone, context, sourcePage FROM callback_requests
     WHERE status = 'new'
       AND createdAt < DATE_SUB(NOW(), INTERVAL 4 HOUR)
       AND createdAt > DATE_SUB(NOW(), INTERVAL 3 DAY)
@@ -245,7 +246,9 @@ export async function escalateStaleCallbacks(): Promise<{ recordsProcessed: numb
   let smsSent = 0;
   if (await isEnabled("sms_appointment_reminders")) {
     const { smsWillReachCustomer } = await import("../../lib/smsOutcome");
-    for (const cb of claimed.filter((c) => c.phone)) {
+    // A missed-call-recovery row is one the caller never asked for (opted out of SMS, or the
+    // lane is in shadow): "your callback's still in our queue" would be false. Alert only.
+    for (const cb of claimed.filter((c) => c.phone && c.sourcePage !== MISSED_CALL_CALLBACK_SOURCE)) {
       try {
         const res = await sendSms(String(cb.phone), `Your callback's still in our queue at Nick's Tire & Auto — we'll reach out shortly. Need us sooner? (216) 862-0005.`, { via: "shop" });
         // 2026-09-01 (audit F-3): count only texts that will reach the customer.
