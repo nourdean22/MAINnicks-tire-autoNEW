@@ -20,6 +20,8 @@ import test, { after } from "node:test";
 import { fileURLToPath } from "node:url";
 import { checkSkill, claudeCommand, descriptionHash, heldOut, mine, originId, parseFrontmatter, parseInvocation, redact, score, skillCalls } from "../../.claude/skills/skill-forge/scripts/forge.mjs";
 
+import { isVendoredSkill } from "./vendoredSkill.mjs";
+
 const REPO = fileURLToPath(new URL("../..", import.meta.url));
 const FORGE = join(REPO, ".claude", "skills", "skill-forge", "scripts", "forge.mjs");
 const base = mkdtempSync(join(tmpdir(), "forge-"));
@@ -702,27 +704,78 @@ test("forge.mjs launched through a junction still runs (a raw argv comparison ma
   }
 });
 
-test("every skill in the library has name equal to its directory and a description (57 of 57 on 2026-10-15)", () => {
-  const root = join(REPO, ".claude", "skills");
+/** Name equal to the folder plus a description; a vendored upstream copy (see vendoredSkill.mjs) may keep its upstream name. */
+function libraryProblems(skillsRoot, repoRoot) {
   const bad = [];
   let n = 0;
-  for (const d of readdirSync(root)) {
-    const f = join(root, d, "SKILL.md");
+  for (const d of readdirSync(skillsRoot)) {
+    const f = join(skillsRoot, d, "SKILL.md");
     if (!existsSync(f)) continue;
     n++;
     const fm = parseFrontmatter(readFileSync(f, "utf8"));
-    if (fm?.name !== d || !fm.description) bad.push(`${d}: name=${fm?.name} description=${fm?.description ? "ok" : "missing"}`);
+    const nameOk = fm?.name === d || isVendoredSkill(join(skillsRoot, d), repoRoot);
+    if (!nameOk || !fm?.description) bad.push(`${d}: name=${fm?.name} description=${fm?.description ? "ok" : "missing"}`);
   }
+  return { n, bad };
+}
+
+test("every skill in the library has name equal to its directory and a description (57 of 57 on 2026-10-15)", () => {
+  const { n, bad } = libraryProblems(join(REPO, ".claude", "skills"), REPO);
   assert.ok(n >= 57, `only ${n} skills read`);
   assert.deepEqual(bad, []);
 });
 
+test("the name gate still fires on a repo skill, and bends only for a vendored copy the register names", () => {
+  const sha = "fedcba9876543210fedcba9876543210fedcba98";
+  const root = mkdtempSync(join(tmpdir(), "lib-"));
+  try {
+    mkdirSync(join(root, "docs"), { recursive: true });
+    writeFileSync(join(root, "docs", "UPSTREAMS.md"), `| up | cap | ADOPTED | \`${sha}\` |\n`);
+    const add = (dir, name, source, desc = "d") => {
+      mkdirSync(join(root, ".claude", "skills", dir), { recursive: true });
+      writeFileSync(join(root, ".claude", "skills", dir, "SKILL.md"), `---\nname: ${name}\n${desc ? `description: ${desc}\n` : ""}---\nbody\n`);
+      if (source) writeFileSync(join(root, ".claude", "skills", dir, "SOURCE.md"), source);
+    };
+    add("ok", "ok", null);
+    add("renamed", "other", null);
+    add("vend", "upstream-name", `Pinned: ${sha}\n`);
+    add("vend-unregistered", "upstream-name", `Pinned: ${"1".repeat(40)}\n`);
+    add("vend-nodesc", "upstream-name", `Pinned: ${sha}\n`, "");
+    const { bad } = libraryProblems(join(root, ".claude", "skills"), root);
+    assert.deepEqual(bad.map((b) => b.split(":")[0]).sort(), ["renamed", "vend-nodesc", "vend-unregistered"]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+/** The CLAUDE.md count sentence: total, then repo-specific + always-on (+ vendored when any skill is vendored). */
+function skillCountProblems(text, dirs, vendoredDirs) {
+  const m = /`\.claude\/skills\/`, (\d+): (\d+) repo-specific \+ (\d+) always-on stance files(?: \+ (\d+) vendored)?/.exec(text);
+  if (!m) return ["the skill count sentence in CLAUDE.md was not found: update this test with the sentence, do not delete it"];
+  const [total, repo, stance, vendored] = [m[1], m[2], m[3], m[4] ?? 0].map(Number);
+  const problems = [];
+  if (total !== dirs) problems.push(`CLAUDE.md says ${total} skills, the directory holds ${dirs}`);
+  if (repo + stance + vendored !== total) problems.push("the parts must sum to the total");
+  if (vendored !== vendoredDirs) problems.push(`CLAUDE.md says ${vendored} vendored, the directory holds ${vendoredDirs}`);
+  return problems;
+}
+
 test("CLAUDE.md states the skill count and it matches the directories (a count in prose is a cache with no invalidation)", () => {
-  const m = /`\.claude\/skills\/`, (\d+): (\d+) repo-specific \+ (\d+) always-on/.exec(readFileSync(join(REPO, "CLAUDE.md"), "utf8"));
-  assert.ok(m, "the skill count sentence in CLAUDE.md was not found: update this test with the sentence, do not delete it");
-  const dirs = readdirSync(join(REPO, ".claude", "skills")).filter((d) => existsSync(join(REPO, ".claude", "skills", d, "SKILL.md"))).length;
-  assert.equal(Number(m[1]), dirs, `CLAUDE.md says ${m[1]} skills, the directory holds ${dirs}`);
-  assert.equal(Number(m[2]) + Number(m[3]), Number(m[1]), "the two parts must sum to the total");
+  const root = join(REPO, ".claude", "skills");
+  const dirs = readdirSync(root).filter((d) => existsSync(join(root, d, "SKILL.md")));
+  const vendored = dirs.filter((d) => isVendoredSkill(join(root, d), REPO)).length;
+  assert.deepEqual(skillCountProblems(readFileSync(join(REPO, "CLAUDE.md"), "utf8"), dirs.length, vendored), []);
+});
+
+test("the count gate catches a stale total, a bad sum and a hidden vendored count", () => {
+  const s = (a, b, c, v) => `- **Skills** (\`.claude/skills/\`, ${a}: ${b} repo-specific + ${c} always-on stance files${v === undefined ? "" : ` + ${v} vendored`}; invoke`;
+  assert.deepEqual(skillCountProblems(s(80, 40, 19, 21), 80, 21), []);
+  assert.deepEqual(skillCountProblems(s(59, 40, 19), 59, 0), []);
+  assert.match(skillCountProblems(s(80, 40, 19, 21), 81, 21)[0], /directory holds 81/);
+  assert.match(skillCountProblems(s(80, 40, 19, 20), 80, 21).join("|"), /sum to the total/);
+  assert.match(skillCountProblems(s(80, 40, 19, 21), 80, 20).join("|"), /holds 20/);
+  assert.match(skillCountProblems(s(80, 61, 19), 80, 21).join("|"), /holds 21/);
+  assert.match(skillCountProblems("no sentence here", 80, 21)[0], /not found/);
 });
 
 test("the real skill-forge passes its own gates", () => {
