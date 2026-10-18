@@ -128,12 +128,17 @@ describe("the reel's blocking inputs are visible to the operator approving them"
 
 describe("one slow procedure no longer gates a whole screen", () => {
   const main = read("client/src/main.tsx");
+  const unbatched = read("client/src/lib/unbatchedProcedures.ts");
   const learn = read(`${IG}/Learn.tsx`);
 
   it("the LLM-backed report is routed OUT of the request batch", () => {
     // httpBatchLink puts concurrent queries in ONE request, so the slowest
-    // decides when every other card's data arrives.
-    expect(main).toContain("instagramAdmin.getPerformanceReport");
+    // decides when every other card's data arrives. The set of unbatched
+    // procedures lives in its own module; main.tsx must import it AND route on it.
+    expect(unbatched).toContain('"instagramAdmin.getPerformanceReport"');
+    expect(unbatched).toContain('"lot.officeDigest"');
+    expect(main).toContain('import { UNBATCHED_SLOW_PROCEDURES } from "@/lib/unbatchedProcedures";');
+    expect(main).toContain("condition: (op) => UNBATCHED_SLOW_PROCEDURES.has(op.path)");
     expect(main).toContain("splitLink({");
     expect(main).toContain("true: httpLink(httpOptions)");
     expect(main).toContain("false: httpBatchLink(httpOptions)");
