@@ -155,6 +155,28 @@ describe("invitation wording: refusals and look-alikes are not invitations", () 
     expect(invited("Come on in whenever you like.")).toBe(true);
   });
 
+  it("more refusals stay false", () => {
+    expect(invited("Sorry, no walk-ins today.")).toBe(false);
+    expect(invited("We're not doing walk-ins right now.")).toBe(false);
+    expect(invited("We don't accept any walk-ins.")).toBe(false);
+  });
+
+  it("1. a negation elsewhere in the sentence does not cancel 'just walk in'", () => {
+    expect(invited("You don't need an appointment, just walk in.")).toBe(true);
+  });
+
+  it("2. a negated appointment does not cancel 'walk-ins are welcome'", () => {
+    expect(invited("We don't take appointments, but walk-ins are welcome.")).toBe(true);
+  });
+
+  it("3. a negated slot does not cancel 'first come, first served'", () => {
+    expect(invited("We can't hold a slot, it is first come, first served.")).toBe(true);
+  });
+
+  it("a refusal and an invitation in the same sentence: the refusal is stripped, the invitation stays", () => {
+    expect(invited("Sorry, we can't do walk-ins today, but come by tomorrow.")).toBe(true);
+  });
+
   it("a negation in one sentence does not cancel an invitation in the next", () => {
     expect(invited("We do not take walk-ins on holidays. Walk in any day otherwise.")).toBe(true);
   });

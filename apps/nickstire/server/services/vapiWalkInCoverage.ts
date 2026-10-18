@@ -98,12 +98,18 @@ const INVITE = new RegExp(
   "i",
 );
 
-/** A sentence holding one of these is not an invitation ("we do not take walk-ins"). */
-const NEGATION = /\b(?:not|never|cannot|no longer|no walk)\b|n['’]t\b/i;
+/**
+ * A negation that governs a walk-in term ("do not take walk-ins", "no walk-ins", "can't do walk-ins"):
+ * a negator, at most two words with no punctuation between, then the term. A comma ends the run, so
+ * "we don't take appointments, but walk-ins are welcome" is not a refusal of walk-ins.
+ */
+const NEGATED_WALK_IN = /(?:\b(?:no|not|never|cannot|no longer)|n['’]t)\s+(?:[a-z'’]+\s+){0,2}walk[\s-]?ins?\b/gi;
 
-/** shortcut: a negation is caught only inside its own sentence; upgrade if real calls split one across sentences. */
-const invites = (turn: string): boolean =>
-  turn.split(/(?<=[.!?])\s+/).some((s) => INVITE.test(s) && !NEGATION.test(s));
+/**
+ * Strip negated walk-in phrases, then look for an invitation in what is left.
+ * shortcut: the negator must sit within two words of the term; a longer gap reads as an invitation.
+ */
+const invites = (turn: string): boolean => INVITE.test(turn.replace(NEGATED_WALK_IN, " "));
 
 export function detectWalkInCoverage(transcript: unknown, facts: WalkInFacts = BUSINESS): WalkInCoverage {
   const { turns, unparsed } = extractAssistantTurns(transcript);

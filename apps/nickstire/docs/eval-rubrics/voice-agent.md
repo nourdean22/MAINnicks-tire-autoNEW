@@ -41,7 +41,7 @@ Two fields, each `true`, `false` or UNMEASURED. They are written as a suffix on 
 - Shortcut: the address is matched by its digits plus the street name, so a house number the transcriber
   spelled out reads as not given.
 - Accuracy: the check is regex-based and approximate. A negation ("we do not take walk-ins") is caught only
-  inside the one sentence that holds it. Unusual phrasing such as "just show up" or "bring it in" is missed.
+  where it governs a walk-in term: a negator within two words of the term, with no comma between. Unusual phrasing such as "just show up" or "bring it in" is missed.
   A spelled-out house number reads as not given. It has not been calibrated against real transcripts, so read
   it as a signal, not a verdict.
 
