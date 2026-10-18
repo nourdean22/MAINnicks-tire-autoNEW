@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "nickstire/kafene-portal-client",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "9dcc8dd1-629a-4a72-9616-d033570d2fee",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\shop-ip-camera-access-857719",
   "claimedBy": "2026-10-18-kafene-portal-client",
   "claimedAt": "2026-10-18T21:04:40.418Z",
   "expiresAt": "2026-10-19T09:04:40.418Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": null
+  "releasedAt": "2026-10-18T22:40:18.110Z",
+  "releaseReason": "no commits were ever made; superseded by nickstire/kafene-portal-deep-link (PR #3155), Nour chose the deep link",
+  "priorLeaseSha": "a9b5003a820fb12f367f90994de77d8746ecf4ae",
+  "releasedBy": "9dcc8dd1-629a-4a72-9616-d033570d2fee",
+  "foreignReleaseReason": null
 }
