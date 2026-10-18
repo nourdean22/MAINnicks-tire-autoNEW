@@ -12,7 +12,7 @@ const { analyzePhoto, generateImage } = vi.hoisted(() => ({ analyzePhoto: vi.fn(
 vi.mock("./vision-analyzer", () => ({ analyzePhoto }));
 vi.mock("../_core/imageGeneration", () => ({ generateImage }));
 
-import { analyzePhotoForShop, renderBrandedScene, photoAnalysisSchema } from "./photoImprover";
+import { analyzePhotoForShop, renderBrandedScene } from "./photoImprover";
 
 const PHOTO = "https://cdn.example.test/ig-evidence/1-2-front.jpg";
 
@@ -171,9 +171,9 @@ describe("analyzePhotoForShop", () => {
     expect(await analyzePhotoForShop({ photoUrl: PHOTO })).toMatchObject({ ok: false, reason: "unreadable" });
   });
 
-  it("the exported schema is the same gate (a client or test can validate with it)", () => {
-    expect(photoAnalysisSchema.safeParse(SCORECARD).success).toBe(true);
-    expect(photoAnalysisSchema.safeParse({ ...SCORECARD, subject: "" }).success).toBe(false);
+  it("a blank subject is unreadable, not an empty label", async () => {
+    analyzePhoto.mockResolvedValueOnce(visionSays(JSON.stringify({ ...SCORECARD, subject: "   " })));
+    expect(await analyzePhotoForShop({ photoUrl: PHOTO })).toMatchObject({ ok: false, reason: "unreadable" });
   });
 });
 

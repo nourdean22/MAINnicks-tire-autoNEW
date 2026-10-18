@@ -18,6 +18,7 @@ import {
   generateInstagramStudioDraft,
   renderInstagramStudioAssets,
 } from "../services/instagramStudio";
+import { BRANDED_PROMPT_MAX, BRANDED_PROMPT_MIN, analyzePhotoForShop, renderBrandedScene } from "../services/photoImprover";
 import { captionClaimBlockers, publishToSocial } from "../services/socialPublish";
 import { IG_CAPTION_MAX } from "./instagramAdmin";
 import type { AutonomyPolicy } from "../../client/src/lib/autonomyPolicy";
@@ -384,6 +385,26 @@ export const instagramStudioRouter = router({
 
       return { url, assetId };
     }),
+
+  /**
+   * Photo Improver, leg 1: score a shop photo. `photoUrl` is the durable URL
+   * uploadEvidencePhoto returned (no second upload path). The scorecard is ONE vision
+   * model's opinion; every ok result names the model. A vision outage, an unusable reply or
+   * a refused URL comes back as { ok: false, reason } with no analysis, never a default score.
+   */
+  checkPhoto: adminProcedure
+    .input(z.object({ photoUrl: z.string().url().max(2048) }))
+    .mutation(({ input }) => analyzePhotoForShop({ photoUrl: input.photoUrl })),
+
+  /**
+   * Photo Improver, leg 2: draw a NEW image in Nick's style from a prompt (usually the
+   * scorecard's rebrandPrompt). Text-to-image: it does not edit the uploaded photo, so UI copy
+   * must not call it "your photo, improved". Preview only; spends image credit, one call per
+   * tap, no retry. Nothing here posts or publishes.
+   */
+  brandedPhoto: adminProcedure
+    .input(z.object({ prompt: z.string().min(BRANDED_PROMPT_MIN).max(BRANDED_PROMPT_MAX) }))
+    .mutation(({ input }) => renderBrandedScene({ prompt: input.prompt })),
 
   generate: adminProcedure
     .input(z.object({

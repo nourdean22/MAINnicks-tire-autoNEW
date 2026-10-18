@@ -83,8 +83,9 @@ const short = z
 /**
  * What the vision model must return. Anything missing or off-list fails the parse (the caller
  * reports "unreadable"); scores are clamped to 0..100, and the lists a model can pad are capped.
+ * Not exported: the client gets this shape as PhotoAnalysis (and through the tRPC output type).
  */
-export const photoAnalysisSchema = z.object({
+const photoAnalysisSchema = z.object({
   scores: z.object({
     lighting: score,
     framing: score,
