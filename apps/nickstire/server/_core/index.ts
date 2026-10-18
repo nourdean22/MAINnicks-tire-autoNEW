@@ -348,6 +348,8 @@ async function startServer() {
   // attach / markSigned write lease rows and send the shop hand-off: same per-IP form budget.
   app.use(withBatchRegex("kafene.attach"), formLimiter);
   app.use(withBatchRegex("kafene.markSigned"), formLimiter);
+  // "Text me this quote" (/tires top picks): writes a tire_orders row and sends one customer text per call.
+  app.use(withBatchRegex("tireQuote.text"), blockBatchedLimits, formLimiter);
 
   // v1.7 audit follow-up · defense-in-depth on the 4 statenour-gated
   // AI endpoints. v1.7 added statenourAuth middleware (closing the

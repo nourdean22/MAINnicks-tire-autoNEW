@@ -14,6 +14,7 @@ import { ACIMA_COMPACT_DISCLOSURE } from "@/lib/acima";
 import { OrderModal } from "@/components/order/TireOrderModal";
 import { pickTopTires, setTotalLabel } from "@/lib/tirePicks";
 import VehicleSizePicker, { vehicleFromUrl, type SavedVehicle } from "@/components/tires/VehicleSizePicker";
+import TextQuoteButton from "@/components/tires/TextQuoteButton";
 import { FINANCING_PROVIDERS } from "@shared/financing";
 import { KAFENE_BANNER_ALT } from "@/lib/kafene";
 
@@ -351,7 +352,6 @@ export default function TireFinderV2() {
                           >
                             Request these
                           </button>
-                          {/* Call only: shared/business.ts documents no SMS-capable number, so no "Text this quote". */}
                           <a
                             href={BUSINESS.phone.href}
                             onClick={() => {
@@ -362,6 +362,18 @@ export default function TireFinderV2() {
                           >
                             <Phone className="h-4 w-4" aria-hidden="true" />Call about these tires
                           </a>
+                          {/* The quote leaves the page as one text and comes back as a tire_orders lead the
+                              shop calls on. Not for catalog fallbacks: those are estimates, not quotes. Keyed by
+                              tire, qty and vehicle so a change after "Sent" offers the new set total again. */}
+                          {query.data.source !== "catalog" && (
+                            <TextQuoteButton
+                              key={`${p.tire.id}|${qty}|${searchVehicle?.label ?? ""}`}
+                              tire={p.tire}
+                              quantity={qty}
+                              pick={p.kind}
+                              vehicle={searchVehicle}
+                            />
+                          )}
                         </div>
                       </article>
                     ))}

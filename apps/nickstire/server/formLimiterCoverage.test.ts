@@ -51,6 +51,8 @@ const PUBLIC_WRITE_FORMS: readonly string[] = [
   "booking.create",
   "waitlist.join",
   "fleet.submit",
+  // 2026-10-18 · "Text me this quote" on /tires: writes a tire_orders row and sends one customer text.
+  "tireQuote.text",
 ];
 
 describe("formLimiter registry covers every public write form", () => {

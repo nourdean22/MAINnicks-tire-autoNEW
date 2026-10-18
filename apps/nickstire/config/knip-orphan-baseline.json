@@ -6380,6 +6380,11 @@
       "file": "apps/nickstire/server/services/sendPause.ts",
       "symbol": "_resetSendPauseCacheForTest",
       "reason": "test seam: the 5 s pause cache is module state and the serial suite shares one process, so the lane tests reset it between cases. No production caller by design (same as smsControl._resetPauseCacheForTest)."
+    },
+    {
+      "file": "apps/nickstire/server/routers/tireQuote.ts",
+      "symbol": "_resetQuoteClaimsForTest",
+      "reason": "test seam: the five-minute quote claim map is module state and the serial suite shares one process, so tireQuote.test.ts clears it between cases. No production caller by design (same as sendPause._resetSendPauseCacheForTest)."
     }
   ]
 }

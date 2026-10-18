@@ -112,7 +112,7 @@ describe("customer message templates", () => {
     }
   });
 
-  it("renders all five templates with order facts", () => {
+  it("renders every template with order facts", () => {
     for (const [key, build] of Object.entries(TEMPLATE_BUILDERS)) {
       const msg = build(ORDER);
       expect(msg.sms.length, `${key} sms`).toBeGreaterThan(20);
@@ -145,6 +145,37 @@ describe("customer message templates", () => {
   it("manual-lookup template promises no charge and no order yet", () => {
     const msg = TEMPLATE_BUILDERS.manualLookupReceived(ORDER);
     expect(msg.email.body).toContain("nothing is ordered or charged yet");
+  });
+
+  // 2026-10-18 · "Text me this quote" on the /tires top-pick cards (quoteTexted).
+  describe("quoteTexted (the /tires quote-by-text)", () => {
+    it("carries the tire, qty, installed set total, size, vehicle, a /tires link that reopens the result, Payment Programs and the shop phone", () => {
+      const sms = TEMPLATE_BUILDERS.quoteTexted({ ...ORDER, vehicleInfo: "2019 Honda Civic LX" }).sms;
+      expect(sms).toContain("Nick's Tire & Auto");
+      expect(sms).toContain("4x NEXEN N'Priz AH5");
+      expect(sms).toContain("215/60R16");
+      expect(sms).toContain("2019 Honda Civic LX");
+      expect(sms).toContain("$544.00 installed");
+      expect(sms).toContain("https://nickstire.org/tires?size=215/60R16");
+      expect(sms).toContain("Payment Programs");
+      expect(sms).toContain("(216) 862-0005");
+      expect(sms).not.toMatch(/financ/i);
+      expect(sms).not.toContain("—");
+      expect(sms.length).toBeLessThanOrEqual(320);
+    });
+
+    it("without a vehicle the text names the size only", () => {
+      const sms = TEMPLATE_BUILDERS.quoteTexted({ ...ORDER, vehicleInfo: null }).sms;
+      expect(sms).not.toMatch(/for your/);
+      expect(sms).toContain("215/60R16");
+    });
+
+    it("the return link carries the size with spaces stripped, or no size when it is not size-shaped", () => {
+      expect(TEMPLATE_BUILDERS.quoteTexted({ ...ORDER, tireSize: "215/60 r16 " }).sms).toContain("https://nickstire.org/tires?size=215/60R16 ");
+      const odd = TEMPLATE_BUILDERS.quoteTexted({ ...ORDER, tireSize: "custom size, call" }).sms;
+      expect(odd).toContain("https://nickstire.org/tires ");
+      expect(odd).not.toContain("?size=");
+    });
   });
 
   describe("sendCustomerMessage execution", () => {
@@ -216,7 +247,8 @@ describe("customer message templates", () => {
       armedOrder();
       pauseMode = "paused";
       const res = await sendCustomerMessage("TO-123", "requestReceived");
-      expect(res).toEqual({ smsSent: false, emailSent: false, dryRun: true });
+      expect(res).toMatchObject({ smsSent: false, emailSent: false, dryRun: true });
+      expect(res.smsOutcome).toBeUndefined();
       expect(sentSmsParams).toBeNull();
       expect(sentEmailParams).toBeNull();
       expect(loggedActionParams.length).toBe(0);
@@ -226,7 +258,36 @@ describe("customer message templates", () => {
       armedOrder();
       pauseMode = "throw";
       const res = await sendCustomerMessage("TO-123", "requestReceived");
-      expect(res).toEqual({ smsSent: true, emailSent: true, dryRun: false });
+      expect(res).toMatchObject({ smsSent: true, emailSent: true, dryRun: false, smsOutcome: "sent" });
+    });
+
+    it("reports the SMS outcome and hands the order's vehicle to the template", async () => {
+      armedOrder();
+      mockOrder.vehicleInfo = "2019 Honda Civic LX";
+      mockOrder.customerEmail = null;
+      const res = await sendCustomerMessage("TO-123", "quoteTexted");
+      expect(res).toMatchObject({ smsSent: true, emailSent: false, dryRun: false, smsOutcome: "sent" });
+      expect(sentSmsParams.body).toContain("2019 Honda Civic LX");
+      expect(sentSmsParams.opts.messageClass).toBe("customer_confirmation");
+      expect(sentSmsParams.opts.variantKey).toBe("confirm:quoteTexted:TO-123");
+    });
+
+    it("a refused send (opted out) is a failed outcome, reported once, never retried", async () => {
+      armedOrder();
+      const { sendSms } = await import("./sms");
+      (sendSms as unknown as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => ({ success: false, error: "Customer opted out of SMS" }));
+      const res = await sendCustomerMessage("TO-123", "quoteTexted");
+      expect(res).toMatchObject({ smsSent: false, smsOutcome: "failed" });
+      expect(sendSms).toHaveBeenCalledTimes(1);
+      expect(loggedActionParams.filter((a) => a.action === "customer.sms_sent")).toHaveLength(0);
+    });
+
+    it("a queued send (quiet hours) is reported as queued, not sent", async () => {
+      armedOrder();
+      const { sendSms } = await import("./sms");
+      (sendSms as unknown as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => ({ success: true, queued: true }));
+      const res = await sendCustomerMessage("TO-123", "quoteTexted");
+      expect(res).toMatchObject({ smsSent: false, smsOutcome: "queued" });
     });
 
     it("skips sending SMS/Email if already sent (idempotency)", async () => {

@@ -105,6 +105,10 @@ const PUBLIC_ALLOWLIST: readonly string[] = [
   "gatewayTire.publicPriceRanges",
   "gatewayTire.publicSearch",
   "gatewayTire.publicStats",
+  // 2026-10-18 · "Text me this quote" on the /tires top-pick cards: stores the quote as a
+  // tire_orders row and sends ONE customer text through customerMessageTemplates; behind
+  // blockBatchedLimits + formLimiter in _core/index.ts (see formLimiterCoverage.test.ts).
+  "tireQuote.text",
   // 2026-10-18 · vehicle tire finder: year > make > model > submodel -> OE sizes from D&K's
   // b2b quicksearch API (shop's Gateway Tire login). Vehicle catalogue data only, no PII,
   // no prices; bounded by the apiLimiter and an in-memory cache (services/fitment/dkFitment.ts).

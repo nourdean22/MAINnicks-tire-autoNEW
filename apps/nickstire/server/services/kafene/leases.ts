@@ -13,6 +13,7 @@ import { kafeneLeases, tireOrders, type KafeneLease } from "../../../drizzle/sch
 import { affectedRowCount } from "../../lib/db-affected";
 import { appendAdminNote } from "../../lib/adminNotes";
 import { dbTyped } from "../../lib/db-helper";
+import { isQuoteNumber } from "../../lib/tire-order-guards";
 
 type Order = typeof tireOrders.$inferSelect;
 type LeaseStatus = "signed" | "activate_unclear";
@@ -24,6 +25,7 @@ export const COMMITTED_STATUSES = ["signed", "activating", "activated", "activat
 
 /** The order, matched on number AND phone like gatewayTire.createCheckout. */
 export async function findOrder(d: DB, orderNumber: string, phone: string): Promise<Order | null> {
+  if (isQuoteNumber(orderNumber)) return null; // a quote-by-text row is never leasable
   const [order] = await d.select().from(tireOrders)
     .where(and(eq(tireOrders.orderNumber, orderNumber), eq(tireOrders.customerPhone, phone)))
     .limit(1);
@@ -31,6 +33,7 @@ export async function findOrder(d: DB, orderNumber: string, phone: string): Prom
 }
 
 export async function findOrderByNumber(d: DB, orderNumber: string): Promise<Order | null> {
+  if (isQuoteNumber(orderNumber)) return null;
   const [order] = await d.select().from(tireOrders).where(eq(tireOrders.orderNumber, orderNumber)).limit(1);
   return order ?? null;
 }
