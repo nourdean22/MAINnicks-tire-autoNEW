@@ -11,6 +11,7 @@ import type { RouterOutputs } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
 import { ACIMA_COMPACT_DISCLOSURE } from "@/lib/acima";
 import { OrderModal } from "@/components/order/TireOrderModal";
+import { pickTopTires, setTotalLabel } from "@/lib/tirePicks";
 
 // Real inferred shape from the tRPC procedure — no `any` on the money path.
 type Tire = RouterOutputs["gatewayTire"]["publicSearch"]["tires"][number];
@@ -99,6 +100,7 @@ export default function TireFinderV2() {
     { enabled: normalize(size).length >= 7 },
   );
   const tires: Tire[] = query.data?.tires ?? [];
+  const topPicks = pickTopTires(tires);
 
   const submit = (value = input) => {
     const clean = value.trim();
@@ -212,8 +214,57 @@ export default function TireFinderV2() {
                 </div>
               )}
 
+              {topPicks.length > 0 && (
+                <section aria-labelledby="top-picks-heading" className="mb-8">
+                  <h3 id="top-picks-heading" className="text-lg font-bold">Top picks</h3>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                    {topPicks.map((p) => (
+                      <article key={p.kind} className="flex flex-col rounded-2xl border border-border/50 bg-card p-4">
+                        <p className="text-sm font-semibold text-primary">{p.label}</p>
+                        <p className="text-xs text-muted-foreground">{p.basis}</p>
+                        <h4 className="mt-2 text-lg font-bold leading-tight">{p.tire.brand} {p.tire.model}</h4>
+                        <p className="mt-3 text-2xl font-black">${p.tire.shopPrice.toFixed(2)}<span className="text-sm font-normal text-muted-foreground"> / tire</span></p>
+                        <div className="flex flex-wrap items-center gap-x-3">
+                          <p className="text-sm font-semibold text-primary">{setTotalLabel(p.tire.shopPrice, qty)}</p>
+                          <Link
+                            href="/financing"
+                            onClick={() => trackEvent("payment_programs_clicked", { pick: p.kind, size: p.tire.size })}
+                            className="inline-flex min-h-12 items-center text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
+                          >
+                            Payment Programs
+                          </Link>
+                        </div>
+                        <div className="mt-auto flex flex-col gap-2 pt-3">
+                          <button
+                            onClick={() => {
+                              setSelected(p.tire);
+                              trackEvent("top_pick_selected", { pick: p.kind, size: p.tire.size });
+                            }}
+                            className="min-h-12 rounded-xl bg-primary px-5 font-bold text-primary-foreground"
+                          >
+                            Request these
+                          </button>
+                          {/* Call only: shared/business.ts documents no SMS-capable number, so no "Text this quote". */}
+                          <a
+                            href={BUSINESS.phone.href}
+                            onClick={() => {
+                              trackPhoneClick("tires-v2-top-pick");
+                              trackEvent("quote_call_clicked", { pick: p.kind, size: p.tire.size });
+                            }}
+                            className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-border px-5 font-semibold"
+                          >
+                            <Phone className="h-4 w-4" aria-hidden="true" />Call about these tires
+                          </a>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                  <p className="mt-6 text-sm font-semibold text-muted-foreground">All options, lowest price first</p>
+                </section>
+              )}
+
               {tires.length > 0 ? (
-                <div className="grid gap-4 md:grid-cols-2">
+                <div role="region" aria-label="All tire options" className="grid gap-4 md:grid-cols-2">
                   {tires.slice(0, 8).map((t, i) => (
                     <article key={t.id} className="rounded-2xl border border-border/50 bg-card p-5">
                       <div className="flex items-start justify-between gap-3">
@@ -243,7 +294,7 @@ export default function TireFinderV2() {
                       <div className="mt-5 flex items-end justify-between">
                         <div>
                           <p className="text-3xl font-black">${t.shopPrice.toFixed(2)}<span className="text-sm font-normal text-muted-foreground"> / tire</span></p>
-                          <p className="text-sm font-semibold text-primary">${(t.shopPrice * qty).toFixed(2)} for {qty}</p>
+                          <p className="text-sm font-semibold text-primary">{setTotalLabel(t.shopPrice, qty)}</p>
                         </div>
                         <button
                           onClick={() => {
