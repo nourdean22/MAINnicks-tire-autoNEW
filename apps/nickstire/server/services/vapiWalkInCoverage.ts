@@ -29,7 +29,8 @@
  * if real transcripts show it.
  */
 import { BUSINESS } from "@shared/business";
-import { extractAssistantTurns } from "./voiceClaimGuard";
+import { extractAssistantTurns, extractAssistantTurnsFromMessages } from "./voiceClaimGuard";
+import { resolveTranscriptAndMessages } from "./vapiCallArchive";
 
 /** `null` is UNMEASURED. */
 export type Measured = boolean | null;
@@ -111,8 +112,19 @@ const NEGATED_WALK_IN = /(?:\b(?:no|not|never|cannot|no longer)|n['’]t)\s+(?:[
  */
 const invites = (turn: string): boolean => INVITE.test(turn.replace(NEGATED_WALK_IN, " "));
 
-export function detectWalkInCoverage(transcript: unknown, facts: WalkInFacts = BUSINESS): WalkInCoverage {
-  const { turns, unparsed } = extractAssistantTurns(transcript);
+/**
+ * Role-tagged messages win when present (no speaker-label guessing); otherwise the
+ * prefixed transcript. Neither usable gives UNMEASURED.
+ */
+function detectWalkInCoverage(
+  transcript: unknown,
+  messages: unknown = null,
+  facts: WalkInFacts = BUSINESS,
+): WalkInCoverage {
+  const { turns, unparsed } =
+    Array.isArray(messages) && messages.length > 0
+      ? extractAssistantTurnsFromMessages(messages)
+      : extractAssistantTurns(transcript);
   if (unparsed) return UNMEASURED_WALK_IN;
   // Past the opening line there must be something to read, or nothing was measured.
   const evidence = turns.slice(1);
@@ -127,6 +139,12 @@ export function detectWalkInCoverage(transcript: unknown, facts: WalkInFacts = B
     walkInInvited: evidence.some(invites),
     addressAndHoursGiven: gaveAddress && gaveHours,
   };
+}
+
+/** The cron's entry point: find the transcript and messages in a VAPI call detail the way the archive does. */
+export function detectWalkInForDetail(detail: unknown, facts: WalkInFacts = BUSINESS): WalkInCoverage {
+  const { transcript, messages } = resolveTranscriptAndMessages(detail);
+  return detectWalkInCoverage(transcript, messages, facts);
 }
 
 const token = (v: Measured): string => (v === null ? "unmeasured" : String(v));

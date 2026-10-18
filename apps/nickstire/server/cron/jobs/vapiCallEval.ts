@@ -9,7 +9,7 @@ import { extractCustomerTurns } from "../../services/customerTurns";
 import { extractDemand } from "@shared/callDemandExtraction";
 import { disposeCall } from "@shared/callTaxonomy";
 import { trailReachedTool } from "../../services/vapiConversionSignals";
-import { UNMEASURED_WALK_IN, appendWalkInSuffix, detectWalkInCoverage } from "../../services/vapiWalkInCoverage";
+import { UNMEASURED_WALK_IN, appendWalkInSuffix, detectWalkInForDetail } from "../../services/vapiWalkInCoverage";
 import { getBusinessDateKey } from "../../lib/timezoneAssert";
 import {
   buildVapiMeasurementRecord,
@@ -342,7 +342,7 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
       // Walk-in coverage rides on eval_reasoning as a suffix and does NOT move the
       // score. A call with no score (not a customer conversation, or a technical
       // failure) is UNMEASURED rather than a miss.
-      const walkIn = result.score == null ? UNMEASURED_WALK_IN : detectWalkInCoverage(detail.transcript);
+      const walkIn = result.score == null ? UNMEASURED_WALK_IN : detectWalkInForDetail(detail);
 
       await db.update(vapiCallLogs).set({
         evalScore: result.score,

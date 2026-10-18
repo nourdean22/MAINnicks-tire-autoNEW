@@ -36,8 +36,9 @@ Two fields, each `true`, `false` or UNMEASURED. They are written as a suffix on 
   address, so counting it would mark every call as "gave the address".
 - A row written before v1.1, or a field that is missing or malformed, reads back as UNMEASURED. It is never
   read as `false`.
-- The check records what was said. It does not judge accuracy. A wrong hours claim is the Compliance dimension
-  and the voice claim guard, not this field.
+- The check records what was said. It does not judge accuracy. Nothing compares stated hours with the business
+  hours today: the Compliance dimension is a target design and the voice claim guard does not check hours, so a
+  wrong hours claim gives no signal. That check is a separate job.
 - Shortcut: the address is matched by its digits plus the street name, so a house number the transcriber
   spelled out reads as not given.
 - Accuracy: the check is regex-based and approximate. A negation ("we do not take walk-ins") is caught only

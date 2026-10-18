@@ -4,11 +4,15 @@ import { BUSINESS } from "@shared/business";
 import {
   UNMEASURED_WALK_IN,
   appendWalkInSuffix,
-  detectWalkInCoverage,
+  detectWalkInForDetail,
   parseWalkInSuffix,
   type Measured,
   type WalkInFacts,
 } from "../services/vapiWalkInCoverage";
+
+/** The cron's entry point, fed a transcript/messages pair the way a VAPI call detail carries them. */
+const detectWalkInCoverage = (transcript: unknown, messages: unknown = null, facts?: WalkInFacts) =>
+  detectWalkInForDetail({ transcript, messages }, facts);
 
 /** Invented transcripts only. No real caller words, numbers or names. */
 const lines = (...l: string[]) => l.join("\n");
@@ -44,7 +48,7 @@ describe("T1 criteria are built from business.ts facts at runtime", () => {
   });
 
   it("does not hard-code the shop: the real address and hours fail against a different shop's facts", () => {
-    expect(detectWalkInCoverage(FULL_INVITE, OTHER_SHOP)).toEqual({ walkInInvited: true, addressAndHoursGiven: false });
+    expect(detectWalkInCoverage(FULL_INVITE, null, OTHER_SHOP)).toEqual({ walkInInvited: true, addressAndHoursGiven: false });
   });
 
   it("follows the facts it is handed: a different shop's address and hours pass against that shop", () => {
@@ -53,7 +57,7 @@ describe("T1 criteria are built from business.ts facts at runtime", () => {
       "User: Are you open?",
       "AI: Come by any time. We are at 100 Sample Road, open 9 AM to 5 PM most days.",
     );
-    expect(detectWalkInCoverage(t, OTHER_SHOP)).toEqual({ walkInInvited: true, addressAndHoursGiven: true });
+    expect(detectWalkInCoverage(t, null, OTHER_SHOP)).toEqual({ walkInInvited: true, addressAndHoursGiven: true });
     // and the real shop's facts reject that same speech
     expect(detectWalkInCoverage(t).addressAndHoursGiven).toBe(false);
   });
@@ -123,8 +127,8 @@ describe("assistant speech only, and the opening line is not evidence", () => {
     for (const t of hostile) expect(() => detectWalkInCoverage(t)).not.toThrow();
     const noFacts: WalkInFacts = { address: { street: "Main" }, hours: { structured: { monday: "", sunday: "closed", friday: "xx:yy-zz:ww" } } };
     const t = lines(GREETING, "User: hi", "AI: Walk in any time, we are on Main, open 8 to 6.");
-    expect(() => detectWalkInCoverage(t, noFacts)).not.toThrow();
-    expect(detectWalkInCoverage(t, noFacts)).toEqual({ walkInInvited: true, addressAndHoursGiven: false });
+    expect(() => detectWalkInCoverage(t, null, noFacts)).not.toThrow();
+    expect(detectWalkInCoverage(t, null, noFacts)).toEqual({ walkInInvited: true, addressAndHoursGiven: false });
   });
 
   it("scores an answered call with no invitation as a measured miss", () => {
@@ -179,6 +183,51 @@ describe("invitation wording: refusals and look-alikes are not invitations", () 
 
   it("a negation in one sentence does not cancel an invitation in the next", () => {
     expect(invited("We do not take walk-ins on holidays. Walk in any day otherwise.")).toBe(true);
+  });
+});
+
+describe("input resolution: the transcript and messages are found wherever VAPI put them", () => {
+  const SPOKEN = FULL_INVITE; // prefix transcript with a full invitation
+  const MEASURED = { walkInInvited: true, addressAndHoursGiven: true };
+  const botMessages = (role: string) => [
+    { role: "user", message: "Where are you?" },
+    { role, message: "Opening line." },
+    { role, message: `Walk in any day. We are at ${BUSINESS.address.street}, open ${weekdayHours}.` },
+  ];
+
+  it("(1) a transcript only under artifact.transcript reads measured", () => {
+    expect(detectWalkInForDetail({ artifact: { transcript: SPOKEN } })).toEqual(MEASURED);
+  });
+
+  it("(2) only role-tagged artifact.messages (bot and assistant) reads measured", () => {
+    expect(detectWalkInForDetail({ artifact: { messages: botMessages("bot") } })).toEqual(MEASURED);
+    expect(detectWalkInForDetail({ artifact: { messages: botMessages("assistant") } })).toEqual(MEASURED);
+    expect(detectWalkInForDetail({ messages: botMessages("bot") })).toEqual(MEASURED);
+  });
+
+  it("(3) messages and a disagreeing prefix transcript: messages win", () => {
+    const silentTranscript = lines(GREETING, "User: hi", "AI: Anything else I can help with?");
+    expect(detectWalkInForDetail({ transcript: silentTranscript, messages: botMessages("bot") })).toEqual(MEASURED);
+    const talkingTranscript = SPOKEN;
+    const quietMessages = [{ role: "bot", message: "Opening." }, { role: "bot", message: "Brakes, yes we do." }];
+    expect(detectWalkInForDetail({ transcript: talkingTranscript, messages: quietMessages })).toEqual({
+      walkInInvited: false,
+      addressAndHoursGiven: false,
+    });
+  });
+
+  it("(4) neither a transcript nor messages: UNMEASURED", () => {
+    expect(detectWalkInForDetail({})).toEqual(UNMEASURED_WALK_IN);
+    expect(detectWalkInForDetail({ transcript: "  ", messages: [], artifact: { transcript: "", messages: [] } })).toEqual(
+      UNMEASURED_WALK_IN,
+    );
+  });
+
+  it("(5) a null or malformed detail: UNMEASURED and no throw", () => {
+    for (const d of [null, undefined, 7, "x", [], { artifact: null }, { artifact: "x", messages: "x" }, { messages: [null, 3] }]) {
+      expect(() => detectWalkInForDetail(d)).not.toThrow();
+      expect(detectWalkInForDetail(d)).toEqual(UNMEASURED_WALK_IN);
+    }
   });
 });
 
@@ -241,7 +290,7 @@ describe("consumer end: the cron writes the suffix and the measured gate is the 
   });
 
   it("a call with no quality score (not a customer conversation, or a tech failure) stays UNMEASURED", () => {
-    expect(cron).toContain("result.score == null ? UNMEASURED_WALK_IN : detectWalkInCoverage(detail.transcript)");
+    expect(cron).toContain("result.score == null ? UNMEASURED_WALK_IN : detectWalkInForDetail(detail)");
   });
 
   it("the admin call list returns the parsed fields next to evalReasoning, so the reader has a caller", () => {
