@@ -7,6 +7,7 @@ import { Breadcrumbs, SEOHead, trackEvent, trackPhoneClick } from "@/components/
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import FAQPageSchema, { TIRE_BUYING_FAQ, TIRE_REPAIR_FAQ } from "@/components/FAQPageSchema";
 import { trpc } from "@/lib/trpc";
+import { getUtmData } from "@/lib/utm";
 import type { RouterOutputs } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
 import { ACIMA_COMPACT_DISCLOSURE } from "@/lib/acima";
@@ -57,6 +58,19 @@ export default function TireFinderV2() {
     params.get("size") || params.get("tab") === "size" ? "size" : "vehicle",
   );
   const fitmentStatus = trpc.fitment.status.useQuery(undefined, { staleTime: 5 * 60 * 1000 });
+
+  // Kafene apply clicks also land in financing_clicks, the same record /financing writes.
+  // Fire-and-forget: a rejected or throwing call must never block or delay the link.
+  const trackApplication = trpc.financing.trackApplication.useMutation();
+  const trackKafeneClick = () => {
+    trackEvent("payment_programs_clicked", { provider: "kafene" });
+    const quiet = (err: unknown) => console.debug("[tires] Kafene apply tracking not recorded", err);
+    try {
+      trackApplication.mutate({ provider: "kafene", sourcePage: "/tires", ...getUtmData() }, { onError: quiet });
+    } catch (err) {
+      quiet(err);
+    }
+  };
   const [fitmentOff, setFitmentOff] = useState(false);
   const disableFitment = useCallback(() => setFitmentOff(true), []);
   // Unknown is not available: a failed status read hides the vehicle tab.
@@ -285,7 +299,7 @@ export default function TireFinderV2() {
                               href={KAFENE.applyUrl}
                               target="_blank"
                               rel="noopener"
-                              onClick={() => trackEvent("payment_programs_clicked", { provider: "kafene" })}
+                              onClick={trackKafeneClick}
                               className="inline-flex min-h-12 items-center text-sm font-semibold text-primary underline underline-offset-4"
                             >
                               Apply with Kafene{" "}<span className="sr-only">(opens in a new tab)</span>
@@ -331,7 +345,7 @@ export default function TireFinderV2() {
                   href={KAFENE.applyUrl}
                   target="_blank"
                   rel="noopener"
-                  onClick={() => trackEvent("payment_programs_clicked", { provider: "kafene" })}
+                  onClick={trackKafeneClick}
                   className="mx-auto mb-8 block w-fit max-w-full"
                 >
                   <picture>
