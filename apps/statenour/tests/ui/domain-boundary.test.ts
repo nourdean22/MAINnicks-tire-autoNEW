@@ -62,6 +62,8 @@ const SHOP_IDENTITY = /nick['’]?s\s+tire|nickstire\.org/i;
  * Adding a NEW key here should require the same argument these did.
  */
 const KNOWN: Record<string, string> = {
+  "app/(mastery)/photo-improver/page.tsx":
+    "LEAK · shop photo pipeline producing a Nick's Tire branded re-render. Belongs in the shop admin. Moving it is a two-deploy change; pending operator decision.",
   "components/stats/calibration-section.tsx":
     "LEGITIMATE · labels cross-domain business metrics feeding Nour's personal calibration. The rule explicitly permits shop DATA entering StateNour when personal judgement is required.",
 };

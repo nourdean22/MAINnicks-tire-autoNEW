@@ -62,6 +62,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   { cmd: "/plan", label: "Plan My Day (Today/Saturday/Week)", prompt: "", navigate: "/plan" },
   { cmd: "/pins", label: "Pinned Memory Manager", prompt: "", navigate: "/pins" },
   { cmd: "/saturday", label: "Plan my Saturday (with full context)", prompt: "Plan my Saturday based on my open tasks, calendar, and recent commitments. Cluster work, build in rest, intertwine with the actions/HQ/tasks pages." },
+  { cmd: "/improve", label: "Photo Improver (analyze + rebrand)", prompt: "", navigate: "/photo-improver" },
 
   { cmd: "/today", label: "Today: done/open + top stat + one warning", prompt: "/today" },
   { cmd: "/rescue", label: "Task Rescue (misfiled/stale/low-confidence)", prompt: "/rescue" },

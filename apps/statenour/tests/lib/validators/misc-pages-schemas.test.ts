@@ -65,6 +65,45 @@ describe("operator.revenueStats · FinancialPage payload", () => {
   });
 });
 
+// ──────────────── operator.improvePhoto ────────────────
+//
+// PhotoImproverPage.run() fires improvePhoto.mutateAsync({
+// imageBase64?, imageUrl?, mode }) — mode is one of the 3 mode pills.
+
+describe("operator.improvePhoto · PhotoImproverPage payloads", () => {
+  const improvePhotoInput = z.object({
+    imageBase64: z.string().max(15_000_000).optional(),
+    imageUrl: z.string().max(2000).optional(),
+    mode: z.enum(["analyze", "rebrand", "both"]).optional(),
+  });
+
+  it("accepts a base64-upload payload for every mode pill", () => {
+    for (const mode of ["analyze", "rebrand", "both"] as const) {
+      expect(() =>
+        improvePhotoInput.parse({ imageBase64: "iVBORw0KGgo=", mode }),
+      ).not.toThrow();
+    }
+  });
+
+  it("accepts a URL-source payload", () => {
+    expect(() =>
+      improvePhotoInput.parse({
+        imageUrl: "/api/images/abc",
+        mode: "both",
+      }),
+    ).not.toThrow();
+  });
+
+  it("rejects an unknown mode value", () => {
+    expect(() =>
+      improvePhotoInput.parse({
+        imageUrl: "/api/images/abc",
+        mode: "enhance" as unknown as "both",
+      }),
+    ).toThrow();
+  });
+});
+
 // ──────────────── operator.decisionDetail ────────────────
 //
 // DecisionDetailPage's decisionDetail query sends { id } where id is

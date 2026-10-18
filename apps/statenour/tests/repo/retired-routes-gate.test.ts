@@ -111,7 +111,6 @@ export const PRUNED: ReadonlyArray<{ route: string; to: string; page?: false }> 
   { route: "/content", to: "/" },
   { route: "/learn", to: "/" },
   { route: "/links", to: "/" },
-  { route: "/photo-improver", to: "/" },
   { route: "/goals", to: "/stats?tab=goals" },
   { route: "/scoreboard", to: "/stats" },
   { route: "/api/short", to: "/", page: false },

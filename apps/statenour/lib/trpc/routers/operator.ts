@@ -109,6 +109,7 @@ import {
 // adds `createDecision` — the decision-log WRITE the OmniCapture
 // `/decide` branch fires — also called by the legacy POST handler.
 import { listDecisions, createDecision } from "@/lib/services/decisions";
+import { improvePhoto, MissingImageError } from "@/lib/services/photo-improver";
 // straggler-pages REST→tRPC slice (2026-05-22) · the two shared
 // services the migrated /knowledge + /voice page surfaces delegate to.
 // Each is also called by the matching legacy REST route — drift
@@ -825,6 +826,41 @@ export const operatorRouter = router({
     )
     .query(async ({ input }) => getRevenueStats(input?.period ?? "month")),
 
+
+  // ──────────────── Misc pages · /photo-improver (2026-05-22) ────────────────
+
+  /**
+   * misc-pages slice (2026-05-22) · owner-only · the storefront photo
+   * improver — vision-model scorecard + improvements + a Nick's-Tire
+   * branded re-render. Replaces POST /api/images/improve · delegates
+   * to `photo-improver.improvePhoto` the REST route also calls · drift
+   * impossible.
+   *
+   * Modeled as a `.mutation()` · genuine work (LLM vision call +
+   * optional image generation + fire-and-forget `trackGeneration`
+   * telemetry). `imageBase64` is a large bound (a data-URL payload);
+   * `mode` is a strict enum. The `MissingImageError` (neither base64
+   * nor url) maps to BAD_REQUEST · the same 400 the REST route
+   * returned.
+   */
+  improvePhoto: operatorProcedure
+    .input(
+      z.object({
+        imageBase64: z.string().max(15_000_000).optional(),
+        imageUrl: z.string().max(2000).optional(),
+        mode: z.enum(["analyze", "rebrand", "both"]).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        return await improvePhoto(input);
+      } catch (err) {
+        if (err instanceof MissingImageError) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: err.message });
+        }
+        throw err;
+      }
+    }),
 
   listPublishQueue: operatorProcedure
     .input(

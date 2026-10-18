@@ -11,6 +11,7 @@ import {
   Target,
   Users,
   FlaskConical,
+  Image as ImageIcon,
 } from "lucide-react";
 
 // ════════════════════════════════════════════════════════════════════
@@ -60,6 +61,7 @@ export const NAV: NavEntry[] = [
 
   // ── CAPTURE ──
   { href: "/pins",  label: "Pinned Memory", icon: Pin, section: "capture", flatRow: true },
+  { href: "/photo-improver", label: "Photo Improver", icon: ImageIcon,      section: "execute", flatRow: true },
 
   // ── EXECUTE ──
 

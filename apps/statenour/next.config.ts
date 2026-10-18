@@ -360,7 +360,6 @@ const nextConfig: NextConfig = {
     { source: "/intelligence/brief", destination: "/", permanent: false },
     { source: "/learn", destination: "/", permanent: false },
     { source: "/links", destination: "/", permanent: false },
-    { source: "/photo-improver", destination: "/", permanent: false },
     { source: "/goals", destination: "/stats?tab=goals", permanent: false },
     { source: "/scoreboard", destination: "/stats", permanent: false },
     { source: "/api/short/:path*", destination: "/", permanent: false },

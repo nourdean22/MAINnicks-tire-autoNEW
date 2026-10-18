@@ -54,6 +54,7 @@ const PAGES = [
   { path: "/missions", title: /Missions/i },
   { path: "/pins", title: /pinned memory|Pins/i },
   { path: "/stats", title: /Stats/i },
+  { path: "/photo-improver", title: /photo improver/i },
   { path: "/brain?tab=wisdom", title: /Brain/i },
   { path: "/system/cockpit-observability", title: /cockpit observability|Observability/i },
   { path: "/system/health", title: /os health|Health/i },
