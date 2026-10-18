@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "nickstire/tire-finder-vehicle-picker",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "9dcc8dd1-629a-4a72-9616-d033570d2fee",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire",
+  "claimedBy": "2026-10-18-tire-finder-vehicle-picker",
+  "claimedAt": "2026-10-18T12:55:00.590Z",
+  "expiresAt": "2026-10-19T00:55:00.590Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
