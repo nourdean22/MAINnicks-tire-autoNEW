@@ -90,6 +90,7 @@ vi.mock("@/lib/intelligence/connectors/performance", () => ({
 // Firecrawl is the other outbound path (non-macro domains scrape source.url).
 vi.mock("@/lib/integrations/firecrawl", () => ({
   isFirecrawlConfigured: vi.fn().mockReturnValue(false),
+  isScrapeConfigured: vi.fn().mockReturnValue(false),
   scrapeUrl: vi.fn().mockResolvedValue({ markdown: "", metadata: {} }),
 }));
 

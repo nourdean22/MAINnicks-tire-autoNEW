@@ -1239,11 +1239,11 @@ export const systemTools = {
     }),
     execute: async ({ url, waitFor, excludeTags }) => {
       try {
-        const { isFirecrawlConfigured, scrapeUrl } = await import(
+        const { isScrapeConfigured, scrapeUrl } = await import(
           "@/lib/integrations/firecrawl"
         );
 
-        if (!isFirecrawlConfigured()) {
+        if (!isScrapeConfigured()) {
           return {
             ok: false,
             code: "missing_api_key",
@@ -1278,6 +1278,10 @@ export const systemTools = {
           description: result.description,
           sourceUrl: result.sourceUrl,
           charCount: result.charCount,
+          // Which service read the page (camofox = the self-hosted fallback).
+          provider: result.provider,
+          // e.g. ["excludeTags"]: the page text came back unfiltered.
+          ignoredOptions: result.ignoredOptions,
           content: fenceContent(
             "scrapeWebPage",
             "external_web",

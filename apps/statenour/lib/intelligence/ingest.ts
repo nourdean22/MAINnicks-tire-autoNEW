@@ -11,7 +11,7 @@ import { fetchListedDeals } from "./connectors/dealscouting";
 import { fetchBioPerformanceMetrics } from "./connectors/performance";
 import { extractClaimsFromText } from "./extraction";
 import { groundClaim } from "./grounding";
-import { scrapeUrl, isFirecrawlConfigured } from "@/lib/integrations/firecrawl";
+import { scrapeUrl, isScrapeConfigured } from "@/lib/integrations/firecrawl";
 import { logger as rootLogger } from "@/lib/logger";
 
 const log = rootLogger.withSurface("intelligence/ingest");
@@ -207,7 +207,7 @@ ${data.insights.length > 0 ? data.insights.map(i => `### ${i.title} (${i.topic})
 - **Summary:** ${i.summary}
 - **Actionable Protocol:** ${i.actionableProtocol}`).join("\n\n") : "- No verified insights available."}
 `;
-    } else if (source.url.startsWith("http") && isFirecrawlConfigured()) {
+    } else if (source.url.startsWith("http") && isScrapeConfigured()) {
       try {
         const scraped = await scrapeUrl(source.url);
         rawContent = `# Scraped Source: ${scraped.title || source.name}

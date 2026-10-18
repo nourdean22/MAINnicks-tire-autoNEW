@@ -11,6 +11,11 @@
  * Tavily / Exa — Firecrawl is an additive web-reading capability, not
  * a hard dependency.
  *
+ * Fallback (2026-10-18): when CAMOFOX_URL + CAMOFOX_API_KEY are set, a
+ * self-hosted camofox-browser serves the page if Firecrawl has no key, is out
+ * of credits (30-min in-process cooldown) or fails. See ./camofox.ts and
+ * docs/runbooks/camofox-scrape-fallback.md. Unset, nothing changes.
+ *
  * API: https://docs.firecrawl.dev
  * Package: @mendable/firecrawl-js
  *
@@ -19,6 +24,10 @@
  */
 
 import { withGuardian } from "@/lib/tools/guardian";
+import { isCamofoxConfigured, scrapeWithCamofox } from "@/lib/integrations/camofox";
+import { logger } from "@/lib/logger";
+
+const log = logger.withSurface("integrations/firecrawl");
 
 export interface FirecrawlResult {
   /** Clean markdown content of the page */
@@ -31,6 +40,10 @@ export interface FirecrawlResult {
   sourceUrl: string;
   /** Number of characters in the markdown */
   charCount: number;
+  /** Which provider served the page (camofox is the self-hosted fallback) */
+  provider?: "firecrawl" | "camofox";
+  /** Requested options the serving provider could not apply (camofox: includeTags / excludeTags) */
+  ignoredOptions?: string[];
 }
 
 export interface FirecrawlOptions {
@@ -86,12 +99,69 @@ async function _scrapeUrl(
   //
   // Callers that already assert stay correct: the check is idempotent and
   // costs one cached DNS lookup.
+  //
+  // The gate covers BOTH providers: nothing below it runs for a refused URL,
+  // and a refusal never falls back.
   const { assertPublicUrl } = await import("@/lib/utils/url-safety");
   const safety = await assertPublicUrl(url);
   if (!safety.safe) {
     throw new UnsafeScrapeUrlError(url, safety.reason ?? "failed_url_safety_check");
   }
 
+  // camofox unconfigured: exactly the pre-fallback path (same calls, same errors).
+  if (!isCamofoxConfigured()) return scrapeWithFirecrawl(url, opts);
+
+  // 2026-10-18 · Firecrawl ran out of credits; camofox (self-hosted, free) serves
+  // the page when Firecrawl has no key, is inside its credit cooldown, or fails.
+  let firecrawlCause: string;
+  if (!isFirecrawlConfigured()) {
+    firecrawlCause = "FIRECRAWL_API_KEY not configured";
+  } else if (Date.now() < firecrawlCreditsBlockedUntil) {
+    firecrawlCause = `skipped: credits exhausted, retry after ${new Date(firecrawlCreditsBlockedUntil).toISOString()}`;
+  } else {
+    try {
+      return await scrapeWithFirecrawl(url, opts);
+    } catch (err) {
+      if (isCreditsExhausted(err)) firecrawlCreditsBlockedUntil = Date.now() + FIRECRAWL_CREDIT_COOLDOWN_MS;
+      firecrawlCause = errorMessage(err);
+    }
+  }
+  try {
+    const page = await scrapeWithCamofox(url, opts);
+    // The guardian records this sink as "firecrawl-scrape" either way; this line says who served it.
+    log.info("scrape_served_by_camofox", { firecrawlCause: firecrawlCause.slice(0, 160) });
+    return page;
+  } catch (err) {
+    if (err instanceof UnsafeScrapeUrlError) throw err;
+    throw new Error(`Scrape failed on both providers · firecrawl: ${firecrawlCause} · camofox: ${errorMessage(err)}`);
+  }
+}
+
+// A dead plan costs one failed Firecrawl call per cooldown, not one per scrape.
+// In-process only: a restart pays one more failed call, which is free (402).
+const FIRECRAWL_CREDIT_COOLDOWN_MS = 30 * 60_000;
+let firecrawlCreditsBlockedUntil = 0;
+
+/** Test-only · closes the credit breaker. */
+export function __resetScrapeCreditBreaker(): void {
+  firecrawlCreditsBlockedUntil = 0;
+}
+
+/** HTTP 402 from either SDK error shape (FirecrawlError.statusCode, SdkError.status), or the vendor's wording. */
+function isCreditsExhausted(err: unknown): boolean {
+  const e = err as { status?: number; statusCode?: number; message?: string };
+  if (e?.status === 402 || e?.statusCode === 402) return true;
+  return /insufficient credits|payment required/i.test(String(e?.message ?? ""));
+}
+
+function errorMessage(err: unknown): string {
+  return String((err as { message?: string })?.message ?? err).slice(0, 300);
+}
+
+async function scrapeWithFirecrawl(
+  url: string,
+  opts: FirecrawlOptions,
+): Promise<FirecrawlResult> {
   // Dynamic import to avoid loading the SDK when FIRECRAWL_API_KEY is missing
   const FirecrawlApp = (await import("@mendable/firecrawl-js")).default;
 
@@ -130,6 +200,7 @@ async function _scrapeUrl(
     description: metadata.description ?? null,
     sourceUrl: metadata.sourceURL ?? url,
     charCount: markdown.length,
+    provider: "firecrawl",
   };
 }
 
@@ -137,6 +208,10 @@ async function _scrapeUrl(
  * Guardian-wrapped exterior — 30s timeout, 2 retries.
  * Slightly longer timeout than Tavily/Perplexity because Firecrawl
  * renders JS-heavy pages which can take 10-15s.
+ *
+ * shortcut: the 30s budget covers Firecrawl AND the camofox fallback in sequence,
+ * so a Firecrawl failure that is slow (not the fast 402) leaves camofox less
+ * time; raise timeoutMs if slow vendor errors show up in guardian_call_failed.
  */
 export const scrapeUrl = withGuardian("firecrawl-scrape", _scrapeUrl, {
   timeoutMs: 30_000,
@@ -147,4 +222,9 @@ export const scrapeUrl = withGuardian("firecrawl-scrape", _scrapeUrl, {
 /** Quick check if Firecrawl is configured */
 export function isFirecrawlConfigured(): boolean {
   return !!process.env.FIRECRAWL_API_KEY;
+}
+
+/** True when scrapeUrl has at least one provider (Firecrawl or camofox). Callers gate on this. */
+export function isScrapeConfigured(): boolean {
+  return isFirecrawlConfigured() || isCamofoxConfigured();
 }

@@ -11,7 +11,7 @@ import path from "path";
 import crypto from "crypto";
 import { prisma } from "../lib/prisma";
 import { getObsidianEngineConfig } from "../lib/obsidian/engine-config";
-import { scrapeUrl, isFirecrawlConfigured } from "../lib/integrations/firecrawl";
+import { scrapeUrl, isScrapeConfigured } from "../lib/integrations/firecrawl";
 import { ResearchDomain, ResearchSource, ResearchSourceType, ResearchPack } from "../lib/research/types";
 
 // Parse CLI Args
@@ -282,7 +282,7 @@ async function main() {
       }
 
       console.log(`[Source] Scraping URL via Firecrawl: ${src}`);
-      if (!isFirecrawlConfigured()) {
+      if (!isScrapeConfigured()) {
         console.warn("  ⚠️ WARNING: FIRECRAWL_API_KEY is not set. Web scraping failed (missing key).");
         sources.push({
           id: `web_${Math.random().toString(36).substr(2, 9)}`,

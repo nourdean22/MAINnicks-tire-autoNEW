@@ -670,6 +670,16 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     defaultBehavior: "Off: chat writes no content_feedback rows until the operator decides.",
     ownerDoc: "lib/services/chat/deferred-background-work.ts",
   },
+  {
+    key: "CAMOFOX_EGRESS_PROXY",
+    readOnly: true,
+    exactCase: true,
+    description: "Operator attestation that the camofox-browser scrape fallback runs behind the runbook's Smokescreen egress proxy. An attestation, not proof: statenour cannot see that network. With CAMOFOX_URL and CAMOFOX_API_KEY also set, scrapeUrl falls back to camofox when Firecrawl cannot serve. Reads process.env in lib/integrations/camofox.ts (isCamofoxEgressAttested), which accepts exactly attested.",
+    status: "experimental",
+    onValue: "attested",
+    defaultBehavior: "Off: camofox is treated as unconfigured and scrapeUrl is Firecrawl-only; camofox_not_attested is logged once if the URL and key are set.",
+    ownerDoc: "docs/runbooks/camofox-scrape-fallback.md",
+  },
   // ── Operational / routing flags ────────────────────────────────
   // These are read via raw `process.env.X` across the code; registered
   // here (Phase Q.2 coexistence pattern · call sites untouched) so the
