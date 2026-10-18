@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "statenour/scrape-camofox-fallback",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "11dd3c15-6c98-4bc9-9fa1-c404986839c6",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\new-session-bbf695",
   "claimedBy": "2026-10-18-scrape-camofox-fallback",
   "claimedAt": "2026-10-18T15:15:31.582Z",
   "expiresAt": "2026-10-19T03:15:31.582Z",
-  "releasedAt": null,
+  "releasedAt": "2026-10-18T18:44:21.555Z",
   "releaseReason": null,
-  "priorLeaseSha": null
+  "priorLeaseSha": "4edd6e864d7ed191149c191674e5f2a8bfe3121c",
+  "releasedBy": "11dd3c15-6c98-4bc9-9fa1-c404986839c6",
+  "foreignReleaseReason": null
 }
