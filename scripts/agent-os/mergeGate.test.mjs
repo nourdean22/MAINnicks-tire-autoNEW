@@ -59,7 +59,8 @@ const STATE = {
 const codexComment = (state, login = CODEX) => ({ author: { login }, body: `### Codex Review\n\nSummary.\n\n<!-- codex-review-state:v1 ${state} -->`, createdAt: "2026-10-18T10:31:59Z" });
 const thread = (isResolved, login = CODEX, n = 1) => ({ isResolved, path: "apps/x.ts", comments: { nodes: [{ author: { login }, url: `https://github.com/o/r/pull/3100#discussion_r${n}` }] } });
 
-const run = (name, conclusion = "SUCCESS", status = "COMPLETED") => ({ __typename: "CheckRun", name, status, conclusion });
+// startedAt defaults to the fixture PR's open time: CI starts on the push, and the Codex wait is timed from it.
+const run = (name, conclusion = "SUCCESS", status = "COMPLETED", startedAt = "2026-10-18T10:31:43Z") => ({ __typename: "CheckRun", name, status, conclusion, startedAt });
 const view = (over = {}) => ({ state: "OPEN", isDraft: false, mergeStateStatus: "CLEAN", headRefOid: SHA, headRefName: "chore/some-branch", isCrossRepository: false, statusCheckRollup: [run("node"), run("security"), run("railway-smoke", "SKIPPED")], mergeCommit: { oid: "b".repeat(40) }, comments: [codexComment(STATE.clean)], commits: [{ oid: "e".repeat(40), committedDate: "2026-10-18T09:00:00Z" }, { oid: SHA, committedDate: "2026-10-18T10:30:21Z" }], createdAt: "2026-10-18T10:31:43Z", ...over });
 
 /**
@@ -549,6 +550,40 @@ test("150 comments and no marker reads every page and is plain 'no marker' (soft
   const after = await logsOf(fakeGh({ prs: pr() }), { now: () => T0 + 25 * MIN });
   assert.equal(after.code, 0);
   assert.ok(after.logs.includes(`WARN: ${NEVER}`), JSON.stringify(after.logs));
+});
+
+// Live finding on #3142 (2026-10-18 11:32Z): the WARN fired 17 min after the push. The wait is timed from the head's
+// first CI start (CI starts on the push); the commit's committedDate can predate the push and is only a WARNed fallback.
+const NOW = T0 + 60 * MIN;
+const at = (ms) => new Date(ms).toISOString();
+test("push time is the EARLIEST CI start on the head: committed 40 min ago, CI started 5 min ago, no marker -> NOT READY, not the WARN", async () => {
+  const pr = noMarker({ createdAt: at(NOW - 50 * MIN), commits: [{ oid: SHA, committedDate: at(NOW - 40 * MIN) }], statusCheckRollup: [run("node", "SUCCESS", "COMPLETED", at(NOW - 4 * MIN)), run("security", "SUCCESS", "COMPLETED", at(NOW - 5 * MIN))] });
+  const g = fakeGh({ prs: { 3100: pr } });
+  const { code, logs } = await logsOf(g, { now: () => NOW });
+  assert.equal(code, 7, JSON.stringify(logs));
+  assert.deepEqual(mergeCalls(g), []);
+  assert.ok(logs.some((l) => /no Codex review on a{40} yet \(5 of 25 min/.test(l)), JSON.stringify(logs));
+  assert.ok(!logs.some((l) => /never reported/.test(l)), JSON.stringify(logs));
+});
+
+test("a branch pushed (and CI run) before the PR opened waits from the OPEN: Codex starts on open", async () => {
+  const pr = noMarker({ createdAt: at(NOW - 5 * MIN), commits: [{ oid: SHA, committedDate: at(NOW - 40 * MIN) }], statusCheckRollup: [run("node", "SUCCESS", "COMPLETED", at(NOW - 30 * MIN))] });
+  const { code, logs } = await logsOf(fakeGh({ prs: { 3100: pr } }), { now: () => NOW });
+  assert.equal(code, 7, JSON.stringify(logs));
+  assert.ok(logs.some((l) => /\(5 of 25 min/.test(l)), JSON.stringify(logs));
+});
+
+test("a zero-time startedAt (a check GitHub has not started) is no CI start; with no real start the wait falls back to committedDate and WARNs it", async () => {
+  const zero = { ...run("node"), startedAt: "0001-01-01T00:00:00Z" };
+  const status = { __typename: "StatusContext", context: "ci/legacy", state: "SUCCESS" };
+  const pr = noMarker({ createdAt: at(NOW - 50 * MIN), commits: [{ oid: SHA, committedDate: at(NOW - 10 * MIN) }], statusCheckRollup: [zero, status] });
+  const { code, logs } = await logsOf(fakeGh({ prs: { 3100: pr } }), { now: () => NOW });
+  assert.equal(code, 7, JSON.stringify(logs));
+  assert.ok(logs.some((l) => /no Codex review on a{40} yet \(10 of 25 min/.test(l)), JSON.stringify(logs));
+  assert.ok(logs.some((l) => /^WARN: no CI start time on a{40}: timing the Codex wait from the head commit's committedDate/.test(l)), JSON.stringify(logs));
+  // With a real CI start present there is no fallback WARN.
+  const ok = await logsOf(fakeGh({ prs: { 3100: noMarker() } }), { now: () => T0 + MIN });
+  assert.ok(!ok.logs.some((l) => /no CI start time/.test(l)), JSON.stringify(ok.logs));
 });
 
 test("a comment list that never ends is BLOCKED at the page cap, never an endless loop or a fail-open", async () => {

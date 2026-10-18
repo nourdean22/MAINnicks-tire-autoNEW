@@ -172,14 +172,18 @@ const readComments = (json, pr, headSha) => {
 };
 
 /**
- * When the head reached GitHub, for the Codex wait: the LATEST of PR open, the head commit's committedDate (it can predate
- * the push by hours) and the first CI start on the head. Later means a longer wait, the fail-closed side.
+ * When the head reached GitHub, for the Codex wait: the EARLIEST CI start on the head (CI starts on the push), or PR open
+ * if that is later (Codex starts on open). Only with no CI start does it fall back to the head commit's committedDate,
+ * which can predate the push (#3142, 2026-10-18), and it says so in `warn`. A zero-time startedAt (0001-01-01, a check
+ * not yet started) is no start. Returns { ms, warn }.
  */
-const pushedAtMs = (view, codexView) => {
+const pushedAt = (view, codexView) => {
+  const starts = (view.statusCheckRollup ?? []).map((c) => Date.parse(c.startedAt)).filter((t) => Number.isFinite(t) && t > Date.UTC(2000, 0, 1));
+  const opened = Date.parse(codexView.createdAt);
+  const latest = (...ts) => (ts.some(Number.isFinite) ? Math.max(...ts.filter(Number.isFinite)) : NaN);
+  if (starts.length) return { ms: latest(Math.min(...starts), opened), warn: [] };
   const head = (codexView.commits ?? []).find((c) => c.oid === view.headRefOid);
-  const firstCi = Math.min(...(view.statusCheckRollup ?? []).map((c) => Date.parse(c.startedAt)).filter(Number.isFinite));
-  const times = [Date.parse(codexView.createdAt), Date.parse(head?.committedDate), firstCi].filter(Number.isFinite);
-  return times.length ? Math.max(...times) : NaN;
+  return { ms: latest(Date.parse(head?.committedDate), opened), warn: [`no CI start time on ${view.headRefOid}: timing the Codex wait from the head commit's committedDate, which can predate the push`] };
 };
 
 /**
@@ -203,7 +207,9 @@ export async function mergeGate({ gh, pr, sha, wait, merge, sleep, now, log, swe
     const codexView = json(["pr", "view", String(pr), "--json", "commits,createdAt"]);
     const { comments, complete } = readComments(json, pr, sha);
     const threads = json(["api", "graphql", "-F", "owner={owner}", "-F", "name={repo}", "-F", `number=${pr}`, "-f", `query=${THREADS_QUERY}`]).data.repository.pullRequest.reviewThreads;
-    codex = codexCheck({ comments, threads: threads.nodes, headSha: sha, headPushedAtMs: pushedAtMs(before, codexView), nowMs: now(), waitMinutes: codexWait, merging: Boolean(merge) });
+    const pushed = pushedAt(before, codexView);
+    codex = codexCheck({ comments, threads: threads.nodes, headSha: sha, headPushedAtMs: pushed.ms, nowMs: now(), waitMinutes: codexWait, merging: Boolean(merge) });
+    codex = { ...codex, warn: [...pushed.warn, ...codex.warn] };
     const extra = [];
     if (!complete) extra.push(`more than ${COMMENT_PAGES * 50} comments and no Codex marker for the head among them: this gate cannot prove Codex never reported; check by hand`);
     if (threads.pageInfo?.hasNextPage) extra.push("more than 100 review threads: this gate reads one page, so it cannot prove none is an open Codex finding; check by hand");

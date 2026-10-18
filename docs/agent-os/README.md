@@ -267,7 +267,8 @@ agent-policy CI gate runs too early to see them. `merge-gate.mjs` now also reads
 for the head SHA and the PR's review threads (`assessCodex`): `running` or no marker yet is NOT READY (exit 7), unresolved
 findings or any unresolved `chatgpt-codex-connector` thread is BLOCKED (exit 2), and a marker that does not parse holds
 like `running`. A marker for an older SHA counts as none, and Codex did not re-review the fix push on #3139. Two
-fail-opens, both timed from the latest of PR open, head commit and first CI start: no marker after `--codex-wait-minutes`
+fail-opens, both timed from the head's first CI start (or PR open if later; the commit's committedDate only as a WARNed
+fallback, since it can predate the push, #3142): no marker after `--codex-wait-minutes`
 (default 25) logs `WARN: Codex never reported on <sha>; merging without its review`, and still `running` at twice that
 (default 50, a stall: Codex finishes in 3 to 9 min) logs `WARN: Codex review still running on <sha> after <n> min; merging
 without its result`. Findings and unresolved Codex threads never time out. Without `--merge` the WARN says `would merge`.
