@@ -58,7 +58,7 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
     "OE-spec parts — OEM or name-brand aftermarket",
     "12-month parts / 90-day labor warranty",
     "Walk-ins welcome 7 days a week — most repairs same or next day",
-    "Payment programs: Snap Finance, Acima, Koalafi, American First Finance",
+    "Payment programs: Kafene, Snap Finance, Acima, Koalafi, American First Finance",
     "Free multi-point check with every oil change",
     "30+ years of experience on domestic, Asian, and European vehicles",
   ],

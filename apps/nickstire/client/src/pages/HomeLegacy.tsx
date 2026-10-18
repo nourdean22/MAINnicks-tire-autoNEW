@@ -913,7 +913,7 @@ function TriageGrid() {
               Pick your symptom — we'll fix it today.
             </h2>
             <p className="mt-3 text-foreground/50 text-sm sm:text-base max-w-2xl mx-auto">
-              Honest answer before any work. Free check in under an hour. Most fixes done today — first-come, first-served. Payment programs from four providers if you need them.
+              Honest answer before any work. Free check in under an hour. Most fixes done today — first-come, first-served. Payment programs from five providers if you need them.
             </p>
           </div>
         </FadeIn>
@@ -1096,7 +1096,7 @@ function LossOpportunitySection() {
               Every day your car gets sicker.
             </h2>
             <p className="mt-3 text-foreground/50 text-sm sm:text-base">
-              Don't have the cash today? Payment programs from four providers, each with its own application; the provider decides approval. The longer you wait, the louder your car gets.
+              Don't have the cash today? Payment programs from five providers, each with its own application; the provider decides approval. The longer you wait, the louder your car gets.
             </p>
           </div>
         </FadeIn>
@@ -1126,10 +1126,10 @@ function LossOpportunitySection() {
               Can't afford NOT to fix it
             </div>
             <h3 className="font-bold text-2xl text-foreground mb-3">
-              Four payment programs · the provider decides approval
+              Five payment programs · the provider decides approval
             </h3>
             <p className="text-sm text-foreground/60 max-w-xl mx-auto mb-5">
-              Acima · Snap · Koalafi · American First. Some don't require established credit. See each provider's terms before you sign.
+              Kafene · Acima · Snap · Koalafi · American First. Some don't require established credit. See each provider's terms before you sign.
             </p>
             <Link
               href="/financing"

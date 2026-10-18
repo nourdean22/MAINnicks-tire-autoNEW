@@ -110,7 +110,7 @@ export default function LocalBusinessSchema({
         closes: sunClose,
       },
     ],
-    paymentAccepted: "Cash, Visa, Mastercard, Discover, American Express, Debit Cards, Acima, Snap Finance, Koalafi, American First Finance",
+    paymentAccepted: "Cash, Visa, Mastercard, Discover, American Express, Debit Cards, Kafene, Acima, Snap Finance, Koalafi, American First Finance",
     currenciesAccepted: "USD",
     // Self-serving aggregateRating on your OWN LocalBusiness is ineligible for
     // star rich results (Google policy), and emitting it on pages with NO
@@ -147,7 +147,7 @@ export default function LocalBusinessSchema({
       name: area,
     })),
     description:
-      `Cleveland's Euclid Ave new and used tire shop and full-service auto repair. Buy tires online with free install package — mount, balance, valve stems, alignment check. Brake, check-engine, Ohio E-Check, alignment, AC, transmission, electrical, exhaust. ${reviewRating} stars across ${reviewCountDisplay} reviews. Walk-ins 7 days, payment programs from four providers.`,
+      `Cleveland's Euclid Ave new and used tire shop and full-service auto repair. Buy tires online with free install package — mount, balance, valve stems, alignment check. Brake, check-engine, Ohio E-Check, alignment, AC, transmission, electrical, exhaust. ${reviewRating} stars across ${reviewCountDisplay} reviews. Walk-ins 7 days, payment programs from five providers.`,
     knowsAbout: [
       "New tire sales and installation",
       "Used tire sales and installation",
