@@ -150,6 +150,12 @@ test("<private>...</private> never reaches the asks file or the recall block; a 
     typed(5, "does the `<private>` tag work in asks?"), // a mention, not a tag
     typed(6, "quote `<private>` then hide <private>gate code 1987</private> ok"), // a mention does not switch the rule off
     typed(7, "stray ` here\n<private>pin 7788</private>\nand ` there"), // backticks on two lines are not a quote
+    // (inputs below do not open with the tag: a message that starts with an HTML-like tag is skipped as machine text)
+    typed(8, "see <private>acct <private>pin 3141</private> ssn 2718</private> tail"), // nested: the outer close ends it
+    typed(9, 'sent <private reason="x">code 5150</private> ok, <privateX> stays'), // attributes count; another tag name does not
+    queued(10, "pin is 4455</private> thanks"), // a stray close redacts back to the start of the message
+    typed(11, "a <private>pin 6061</private> b 9911</private> c"), // ...or back to the previous redaction
+    typed(12, "x <private>card <private>pin 8080</private> exp 1229"), // nested, outer never closed: runs to the end
   ]);
   assert.equal(run(fx, "--refresh").code, 0);
   assert.deepEqual(recorded(fx).map((a) => a.text), [
@@ -160,12 +166,17 @@ test("<private>...</private> never reaches the asks file or the recall block; a 
     "does the `<private>` tag work in asks?",
     "quote `<private>` then hide [private: redacted] ok",
     "stray ` here\n[private: redacted]\nand ` there",
+    "see [private: redacted] tail",
+    "sent [private: redacted] ok, <privateX> stays",
+    "[private: redacted] thanks",
+    "a [private: redacted] c",
+    "x [private: redacted]",
   ]);
   const file = readFileSync(join(fx.dir, `${fx.session}.md`), "utf8");
   const recall = run(fx, "--recall", { source: "compact" }).out;
   assert.match(recall, /pay with \[private: redacted\] today/, "the recall block reads the redacted line");
   assert.match(recall, /does the `<private>` tag work in asks\?/);
-  for (const secret of ["4421", "216 555 0100", "or email me", "$640", "1987", "7788"]) {
+  for (const secret of ["4421", "216 555 0100", "or email me", "$640", "1987", "7788", "2718", "5150", "4455", "6061", "9911", "1229", "</private>"]) {
     assert.ok(!file.includes(secret), `asks file holds "${secret}"`);
     assert.ok(!recall.includes(secret), `recall block holds "${secret}"`);
   }

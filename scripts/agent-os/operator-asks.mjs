@@ -46,10 +46,34 @@ const textOf = (content) =>
 
 // A single-line backtick span is a mention and is kept whole, so a quoted `<private>` never opens a redaction.
 // shortcut: a secret the operator wraps in backticks AND the tag is kept; drop the code-span arm if that ever happens.
-const PRIVATE = /(`[^`\n]*`)|<private\s*>[\s\S]*?(?:<\/private\s*>|$)/gi;
+const PRIVATE_TOKEN = /(`[^`\n]*`)|(<private(?:\s[^>]*)?>)|<\/private\s*>/gi;
+const REDACTED = "[private: redacted]";
 
-/** `<private>...</private>` (any case; an unclosed tag runs to the end) -> `[private: redacted]`, so it is never stored. */
-export const redactPrivate = (text) => text.replace(PRIVATE, (m, code) => code ?? "[private: redacted]");
+/**
+ * `<private>...</private>` -> `[private: redacted]`, so it is never stored. Any case, attributes allowed, nested tags
+ * end at the outer close, an unclosed tag runs to the end, and a stray close redacts back to the previous redaction
+ * (or the start): every malformed shape errs toward hiding more.
+ */
+export function redactPrivate(text) {
+  let out = "";
+  let depth = 0;
+  let at = 0;
+  let mark = -1; // out.length just after the last REDACTED, -1 before the first
+  for (const m of text.matchAll(PRIVATE_TOKEN)) {
+    const before = text.slice(at, m.index);
+    at = m.index + m[0].length;
+    if (depth > 0) {
+      if (m[2]) depth++;
+      else if (!m[1] && --depth === 0) mark = (out += REDACTED).length;
+      continue; // a code span inside a redaction is redacted with it
+    }
+    out += before;
+    if (m[1]) out += m[0];
+    else if (m[2]) depth = 1;
+    else mark = (out = mark < 0 ? REDACTED : out.slice(0, mark)).length; // stray close
+  }
+  return depth > 0 ? out + REDACTED : out + text.slice(at);
+}
 
 function spoken(text) {
   if (!text || MACHINE.test(text)) return null;
