@@ -168,6 +168,39 @@ def interaction_heartbeat_keys(module=None):
     return set(payload)
 
 
+def shop_pc_heartbeat_keys():
+    """Keys emitted by the REAL shop-PC office producer (vision/officewake.py, 2026-10-18).
+
+    The third producer of a camera_runtime row: the office lane on MECHANICS posts the office
+    heartbeat itself because no Eufy agent runs there. Fed every receipt key the worker can
+    write, so a forwarded key the shop does not store fails `INVENTS_no_field` below.
+    """
+    from vision.officewake import build_shop_pc_heartbeat
+
+    at = "2026-10-18T14:00:00+00:00"
+    state = {
+        "conversationWorkerOk": True, "conversationWorkerState": "READY",
+        "conversationWorkerHeartbeatAt": at, "conversationAudioSource": "office-rtsp",
+        "conversationCaptureHost": "MECHANICS", "conversationSttEngine": "whisper-cli.exe",
+        "conversationWhisperModel": "ggml-base.en.bin", "conversationWhisperModelSource": "env",
+        "conversationQueueDepth": 0, "conversationLastTrigger": "audioActivity",
+        "lastConversationEventAt": at, "lastConversationCaptureAt": at,
+        "lastConversationSttAt": at, "lastConversationPostAt": at, "lastConversationSummaryAt": at,
+        "lastConversationCoverage": 0.9, "conversationFailuresToday": 0,
+        "conversationLastError": "fixture-only prior error",
+        "conversationListeningCoverage60m": 0.4, "conversationCaptureSecondsLast60m": 600,
+        "conversationCapturesLast60m": 5, "conversationCaptureFailuresLast60m": 0,
+        "conversationWakeTriggersLast60m": 7, "conversationTranscribeBacklog": 0,
+        "conversationStatusWriteFailures": 0, "lastConversationFramesCaptured": 3,
+        "lastConversationFramesPosted": 2, "conversationFallbackOk": True,
+        "conversationFallbackState": "QUIET", "conversationFallbackLastError": None,
+        "conversationFallbackLastProbeAt": at, "conversationFallbackMeanDb": -60.0,
+        "conversationFallbackMaxDb": -45.0, "lastMediaProofAt": at,
+    }
+    now = datetime(2026, 10, 18, 14, 0, 10, tzinfo=timezone.utc).timestamp()
+    return set(build_shop_pc_heartbeat(state, producer_instance_id="p1-shop-office-x", seq=1, now=now))
+
+
 class HeartbeatContractTest(unittest.TestCase):
 
     def setUp(self):
@@ -176,9 +209,10 @@ class HeartbeatContractTest(unittest.TestCase):
         self.columns = route_heartbeat_columns()
         self.body = producer_heartbeat_keys()
         self.interaction = interaction_heartbeat_keys()
+        self.shop_pc = shop_pc_heartbeat_keys()
 
     def test_EVERY_stored_column_has_a_producer(self):
-        authored = set(self.body) | set(self.interaction)
+        authored = set(self.body) | set(self.interaction) | self.shop_pc
         orphans = sorted(c for c in self.columns
                          if c not in authored and c not in NOT_SENT_BY_DESIGN)
         self.assertEqual(
@@ -195,7 +229,7 @@ class HeartbeatContractTest(unittest.TestCase):
         self.assertEqual(gone, [], f"{gone} are exempted but are not stored columns any more")
         wired = sorted(
             c for c in NOT_SENT_BY_DESIGN
-            if c in self.body or c in self.interaction
+            if c in self.body or c in self.interaction or c in self.shop_pc
         )
         self.assertEqual(
             wired, [],
@@ -207,7 +241,7 @@ class HeartbeatContractTest(unittest.TestCase):
         the producer pays to compute and send something nobody will ever read -- and it
         looks, from the producer side, exactly like a field that works."""
         ignored = sorted(
-            k for k in (set(self.body) | set(self.interaction))
+            k for k in (set(self.body) | set(self.interaction) | self.shop_pc)
             if k not in self.columns
         )
         self.assertEqual(
@@ -230,6 +264,16 @@ class HeartbeatContractTest(unittest.TestCase):
             expected.issubset(self.interaction),
             f"real StateNour heartbeat builder omitted {sorted(expected - self.interaction)}",
         )
+
+    def test_the_shop_pc_producer_fills_EVERY_conversation_column(self):
+        """With NicksMax gone the shop PC is the only writer of the office row, so a
+        conversation column it does not forward is a card that goes blank on the move."""
+        conversation = {c for c in self.columns if "onversation" in c}
+        self.assertGreater(len(conversation), 15, f"only parsed {sorted(conversation)}")
+        self.assertEqual(sorted(conversation - self.shop_pc), [])
+        for base in ("camera", "producerInstanceId", "heartbeatSeq", "observedAtEdge", "mode",
+                     "mediaPlaneOk", "lastMediaProofAt"):
+            self.assertIn(base, self.shop_pc)
 
     def test_interaction_gate_detects_a_mutated_producer_that_drops_one_field(self):
         module = load_eufy_agent_module()
