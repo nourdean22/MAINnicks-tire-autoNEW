@@ -78,10 +78,10 @@ const OK = {
   "fitment.models": { ok: true, models: [{ slug: "Civic", name: "Civic" }, { slug: "CR-V", name: "CR-V" }] },
   "fitment.trims": { ok: true, trims: [{ slug: "LX", label: "LX" }, { slug: "Type R", label: "Type R" }] },
   "fitment.sizes": { ok: true, sizes: [
-    { size: "215/50R17", rimDiameter: 17, rearSize: null },
-    { size: "215/55R16", rimDiameter: 16, rearSize: null },
-    { size: "215/55R17", rimDiameter: 17, rearSize: null },
-    { size: "235/40R18", rimDiameter: 18, rearSize: null },
+    { size: "215/50R17", label: "215/50R17", rimDiameter: 17, rearSize: null, searchable: true },
+    { size: "215/55R16", label: "215/55R16", rimDiameter: 16, rearSize: null, searchable: true },
+    { size: "215/55R17", label: "215/55R17", rimDiameter: 17, rearSize: null, searchable: true },
+    { size: "235/40R18", label: "235/40R18", rimDiameter: 18, rearSize: null, searchable: true },
   ] },
 };
 
@@ -193,6 +193,56 @@ describe("TireFinderV2 · By vehicle tab", () => {
     expect(screen.queryByText(/No makes found/)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(h.refetch).toHaveBeenCalled();
+  });
+
+  it("rate_limited is handled exactly like upstream_error: the message and a Retry", async () => {
+    h.responses["fitment.makes"] = { ok: false, reason: "rate_limited" };
+    await renderPage();
+    pick("Year", "2018");
+    expect(screen.getByText("We couldn't load vehicle data right now. Search by size below or call (216) 862-0005.")).toBeTruthy();
+    expect(screen.queryByText(/No makes found/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(h.refetch).toHaveBeenCalled();
+  });
+
+  it("rate_limited at the size step also shows the message and Retry", async () => {
+    h.responses["fitment.sizes"] = { ok: false, reason: "rate_limited" };
+    await renderPage();
+    await pickVehicle();
+    expect(screen.getByText("We couldn't load vehicle data right now. Search by size below or call (216) 862-0005.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeTruthy();
+  });
+
+  it("the size button shows the label (LT kept); a non-searchable size is a call row, not a search button", async () => {
+    h.responses["fitment.sizes"] = { ok: true, sizes: [
+      { size: "245/75R16", label: "LT245/75R16", rimDiameter: 16, rearSize: null, searchable: true },
+      { size: "31X10.50R15", label: "31X10.50R15", rimDiameter: 15, rearSize: null, searchable: false },
+    ] };
+    await renderPage();
+    await pickVehicle();
+    const group = screen.getByRole("group", { name: "Factory sizes for your 2018 Honda Civic LX" });
+    const lt = within(group).getByRole("button", { name: /LT245\/75R16/ });
+    expect(within(group).getAllByRole("button")).toHaveLength(1);
+    const call = screen.getByRole("link", { name: "31X10.50R15: call us for this size" });
+    expect(call.getAttribute("href")).toBe("tel:+12168620005");
+    expect(call.className).toContain("min-h-12");
+    fireEvent.click(lt);
+    expect(new URLSearchParams(window.location.search).get("size")).toBe("245/75R16");
+  });
+
+  it("Change also drops the vehicle from the URL, keeping ?size, so a tab switch does not bring it back", async () => {
+    window.history.pushState({}, "", "/tires?size=215/55R16&year=2018&make=Honda&model=Civic&trim=LX");
+    await renderPage();
+    fireEvent.click(screen.getByRole("tab", { name: "By vehicle" }));
+    expect(screen.getByText("Your 2018 Honda Civic LX")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Change" }));
+    const q = new URLSearchParams(window.location.search);
+    expect(q.get("size")).toBe("215/55R16");
+    expect(["year", "make", "model", "trim"].filter((k) => q.has(k))).toEqual([]);
+    fireEvent.click(screen.getByRole("tab", { name: "By size" }));
+    fireEvent.click(screen.getByRole("tab", { name: "By vehicle" }));
+    expect(screen.queryByText("Your 2018 Honda Civic LX")).toBeNull();
+    expect(screen.getByLabelText("Year")).toBeTruthy();
   });
 
   it("not_found at the size step says so and offers the call", async () => {

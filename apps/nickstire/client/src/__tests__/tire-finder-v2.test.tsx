@@ -19,6 +19,7 @@ const h = vi.hoisted(() => ({
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
   toastPlain: vi.fn(),
+  trackApplication: vi.fn(),
 }));
 
 vi.mock("sonner", () => {
@@ -58,7 +59,9 @@ vi.mock("@/lib/trpc", () => {
             },
             isPending: false,
           }
-        : { mutate: vi.fn(), isPending: false },
+        : key === "financing.trackApplication"
+          ? { mutate: (...a: unknown[]) => h.trackApplication(...a), isPending: false }
+          : { mutate: vi.fn(), isPending: false },
   });
   const trpc = new Proxy({}, {
     get: (_t, ns) => ns === "useUtils" || ns === "useContext"
@@ -368,6 +371,44 @@ describe("TireFinderV2 (the shipped /tires funnel)", () => {
       expect(link.getAttribute("target")).toBe("_blank");
       // Directly under the picks region, before the full list.
       expect(picks()!.nextElementSibling).toBe(link);
+    });
+
+    it.each([
+      ["the top-pick link", () => within(picks()!).getAllByRole("link", { name: "Apply with Kafene (opens in a new tab)" })[0]],
+      ["the banner", () => screen.getByAltText(/^Kafene:/).closest("a")!],
+    ])("a Kafene click on %s records the apply via financing.trackApplication, fire-and-forget", async (_where, target) => {
+      h.trackApplication.mockReset();
+      const debug = vi.spyOn(console, "debug").mockImplementation(() => {});
+      h.search = results(SIX);
+      await renderV2();
+      expect(fireEvent.click(target())).toBe(true); // the link still opens
+      expect(h.trackApplication).toHaveBeenCalledTimes(1);
+      const [vars, opts] = h.trackApplication.mock.calls[0] as [Record<string, unknown>, { onError?: (e: unknown) => void } | undefined];
+      expect(vars).toMatchObject({ provider: "kafene", sourcePage: "/tires" });
+      expect(opts?.onError).toBeTypeOf("function");
+      expect(() => opts!.onError!(new Error("BAD_REQUEST"))).not.toThrow();
+      expect(debug).toHaveBeenCalled();
+      debug.mockRestore();
+    });
+
+    it("a trackApplication call that throws on the spot never blocks the Kafene link", async () => {
+      h.trackApplication.mockReset().mockImplementation(() => { throw new Error("client not ready"); });
+      const debug = vi.spyOn(console, "debug").mockImplementation(() => {});
+      h.search = results(SIX);
+      await renderV2();
+      const reported: unknown[] = [];
+      const onError = (e: ErrorEvent) => { reported.push(e.error); e.preventDefault(); };
+      window.addEventListener("error", onError);
+      let opened = false;
+      try {
+        opened = fireEvent.click(screen.getByAltText(/^Kafene:/).closest("a")!);
+      } finally {
+        window.removeEventListener("error", onError);
+        h.trackApplication.mockReset();
+        debug.mockRestore();
+      }
+      expect(reported).toEqual([]);
+      expect(opened).toBe(true);
     });
 
     it("no Kafene banner when there are no results", async () => {

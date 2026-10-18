@@ -41,7 +41,10 @@ function initialVehicle(): SavedVehicle | null {
   return readSaved();
 }
 
-type Reason = "unconfigured" | "upstream_error" | "not_found";
+type Reason = "unconfigured" | "upstream_error" | "rate_limited" | "not_found";
+
+/** A failed read: shown as an error with Retry, never as an empty list. */
+const failedRead = (reason: Reason) => reason === "upstream_error" || reason === "rate_limited";
 type Level<T> = { isLoading: boolean; isError: boolean; data?: ({ ok: true } & T) | { ok: false; reason: Reason }; refetch: () => unknown };
 
 const UPSTREAM_TEXT = `We couldn't load vehicle data right now. Search by size below or call ${BUSINESS.phone.display}.`;
@@ -72,7 +75,7 @@ function LevelSelect<T>({
   value: string;
   onChange: (v: string) => void;
 }) {
-  const failed = query.isError || (query.data?.ok === false && query.data.reason === "upstream_error");
+  const failed = query.isError || (query.data?.ok === false && failedRead(query.data.reason));
   const empty = !waiting && items !== null && items.length === 0;
   const usable = !waiting && !query.isLoading && items !== null && items.length > 0;
   return (
@@ -124,7 +127,7 @@ export default function VehicleSizePicker({
   const makeItems = listOf(makes as Level<{ makes: { slug: string; name: string }[] }>, (d) => d.makes.map((m) => ({ value: m.slug, text: m.name })));
   const modelItems = listOf(models as Level<{ models: { slug: string; name: string }[] }>, (d) => d.models.map((m) => ({ value: m.slug, text: m.name })));
   const trimItems = listOf(trims as Level<{ trims: { slug: string; label: string }[] }>, (d) => d.trims.map((t) => ({ value: t.slug, text: t.label })));
-  const sizeData = sizes.data as Level<{ sizes: { size: string; rimDiameter: number | null }[] }>["data"];
+  const sizeData = sizes.data as Level<{ sizes: { size: string; label: string; rimDiameter: number | null; searchable: boolean }[] }>["data"];
 
   const name = (items: { value: string; text: string }[] | null, v: string) => items?.find((o) => o.value === v)?.text ?? v;
   const label = remembered
@@ -149,6 +152,11 @@ export default function VehicleSizePicker({
 
   const change = () => {
     writeSaved(null);
+    // Drop the vehicle from the URL too (keeping ?size and ?tab), or a remount restores it.
+    const p = new URLSearchParams(window.location.search);
+    ["year", "make", "model", "trim"].forEach((k) => p.delete(k));
+    const qs = p.toString();
+    window.history.replaceState({}, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`);
     setRemembered(null);
     setYear(null);
     setMake("");
@@ -185,7 +193,7 @@ export default function VehicleSizePicker({
       {complete && (
         <div className="mt-4 text-left">
           {sizes.isLoading && <p className="text-sm text-muted-foreground">Loading...</p>}
-          {(sizes.isError || (sizeData?.ok === false && sizeData.reason === "upstream_error")) && <LevelError onRetry={sizes.refetch} />}
+          {(sizes.isError || (sizeData?.ok === false && failedRead(sizeData.reason))) && <LevelError onRetry={sizes.refetch} />}
           {sizeData?.ok === false && sizeData.reason === "not_found" && (
             <p className="text-sm text-muted-foreground">No sizes found for that trim. Try another trim or call us.</p>
           )}
@@ -194,17 +202,28 @@ export default function VehicleSizePicker({
             <>
               <h2 id="vehicle-sizes-heading" className="text-base font-bold text-foreground">{heading}</h2>
               <div role="group" aria-labelledby="vehicle-sizes-heading" className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                {sizeData.sizes.map((s) => (
-                  <button
-                    key={s.size}
-                    type="button"
-                    onClick={() => choose(s.size)}
-                    className="flex min-h-12 flex-col items-center justify-center rounded-lg border border-primary/40 px-3 py-2 font-bold text-foreground hover:border-primary"
-                  >
-                    {s.size}
-                    {s.rimDiameter !== null && <span className="text-xs font-normal text-muted-foreground">{s.rimDiameter} in</span>}
-                  </button>
-                ))}
+                {sizeData.sizes.map((s) =>
+                  s.searchable ? (
+                    <button
+                      key={s.size}
+                      type="button"
+                      onClick={() => choose(s.size)}
+                      className="flex min-h-12 flex-col items-center justify-center rounded-lg border border-primary/40 px-3 py-2 font-bold text-foreground hover:border-primary"
+                    >
+                      {s.label}
+                      {s.rimDiameter !== null && <span className="text-xs font-normal text-muted-foreground">{s.rimDiameter} in</span>}
+                    </button>
+                  ) : (
+                    // The size search cannot look this one up (e.g. flotation sizes), so it is a call, not a search.
+                    <a
+                      key={s.size}
+                      href={BUSINESS.phone.href}
+                      className="col-span-2 flex min-h-12 items-center rounded-lg border border-border px-3 py-2 text-sm text-foreground sm:col-span-4"
+                    >
+                      {s.label}: call us for this size
+                    </a>
+                  ),
+                )}
               </div>
             </>
           )}
