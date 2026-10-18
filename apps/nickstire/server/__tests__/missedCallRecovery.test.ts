@@ -93,7 +93,11 @@ vi.mock("../db", () => ({
     return { success: true, id: 500 + h.callbackRows.length };
   },
 }));
-vi.mock("../sms", () => ({ loadSuppressionIndex: async () => h.index }));
+// Partial on purpose: override one export, keep the real module (AGENTS.md: shared serial process).
+vi.mock("../sms", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../sms")>()),
+  loadSuppressionIndex: async () => h.index,
+}));
 vi.mock("../services/featureFlags", () => ({ isEnabled: async () => true }));
 vi.mock("../services/vapiActionExtraction", () => ({
   loadCallCaptureEvidence: async (callId: string) => {
@@ -358,6 +362,29 @@ describe("processMissedCallRecovery · tool-reaching callers", () => {
     expect(h.callbackRows).toEqual([]);
     expect(h.callbackClaims).toEqual([]);
     expect(out).toMatchObject({ shadow: true, candidates: 2, callbackRows: 0 });
+  });
+
+  it("the ../sms mock overrides loadSuppressionIndex only: every other export stays real for a file sharing this process", async () => {
+    const sms = await import("../sms");
+    expect(typeof sms.carrierBlockedPhones).toBe("function");
+    expect(typeof sms.sendSms).toBe("function");
+    expect(typeof sms.markPhoneFullyOptedOut).toBe("function");
+    expect(await sms.loadSuppressionIndex()).toBe(h.index); // and the override is the one in use
+  });
+
+  it("(a'''') a STALE index (refresh failed after an earlier load) writes no rows: it can miss a newer opt-out", async () => {
+    for (const mode of ["live", "shadow"] as const) {
+      if (mode === "shadow") delete process.env.MISSED_CALL_RECOVERY_SEND;
+      h.callbackRows = []; h.callbackClaims = []; h.sent = [];
+      h.index = { ok: true, phones: new Set(), carrierBlocked: new Set(), voiceOnly: new Set(), stale: true };
+      const blocked = call("blk", 0);
+      h.callRows = [blocked, ...numbered(2)];
+      idx().carrierBlocked.add(p10(blocked.phoneNumber));
+      const out = await processMissedCallRecovery();
+      expect(h.callbackRows, mode).toEqual([]);
+      expect(h.callbackClaims, mode).toEqual([]);
+      expect(out, mode).toMatchObject({ callbackRows: 0 });
+    }
   });
 
   it("(b)+(c) SHADOW: one row per candidate up to RUN_CAP (15), cap-skips get none, nothing is texted", async () => {

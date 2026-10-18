@@ -276,11 +276,12 @@ export async function processMissedCallRecovery(): Promise<{ recordsProcessed: n
     // Who the shop may still CALL. sms.ts:312-319: every suppression source except a spoken
     // VOICE marker means "stop everything", and voice-only numbers are in `phones` too, so a
     // number in `phones` gets no text and no callback. `carrierBlocked` (sms.ts:53-56) is a
-    // block, not a STOP: the one SMS-only scope. An unreadable index is never "callable".
+    // block, not a STOP: the one SMS-only scope. An unreadable index is never "callable", and
+    // neither is a stale one (sms.ts:186-188, a failed refresh): it can miss a newer opt-out.
     const { loadSuppressionIndex } = await import("../../sms");
     const index = await loadSuppressionIndex().catch(() => ({ ok: false as const, reason: "suppression index load threw" }));
     const callbackScope = (np: string): "open" | "sms_only" | "none" => {
-      if (!index.ok) return "none";
+      if (!index.ok || index.stale) return "none";
       const p10 = np.replace(/\D/g, "").slice(-10);
       if (index.phones.has(p10)) return "none";
       return index.carrierBlocked.has(p10) ? "sms_only" : "open";
