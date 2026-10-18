@@ -37,6 +37,8 @@ import { trpc } from "@/lib/trpc/client";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { isSubmitEnter } from "@/features/chat-v2/lib/submit-enter";
+import { decodeCockpitSseResponse } from "@/lib/chat/decode-cockpit-sse";
+import { messageMayHaveWritten } from "@/lib/ai/chat/message-side-effect";
 import {
   readBriefStamp,
   shouldFireBrief,
@@ -76,6 +78,9 @@ export function parseSlash(input: string): { command: SlashCommand | null; text:
 
 const WAKE_MESSAGE = "Wake up. Give me the morning brief.";
 
+// UI copy timer, not a gate: the measured slow turns ran 8-13 s before the first byte, so 20 s is past those.
+const SLOW_AFTER_MS = 20_000;
+
 const getMessageText = (m: unknown): string => {
   const msg = m as { content?: unknown; parts?: Array<{ type?: string; text?: string }> };
   if (typeof msg.content === "string" && msg.content) return msg.content;
@@ -106,15 +111,50 @@ export function NickCommandLine() {
         // ephemeral = transcript not kept, tools on. NOT privateMode: Private
         // Lab strips write tools, and /task and /capture exist to write.
         body: { ephemeral: true },
+        // The route answers in the cockpit SSE format; a bare transport throws on its first
+        // named frame and the reply never shows (2026-10-18). Same decoder as the main chat.
+        fetch: async (input, init) => {
+          const res = await fetch(input, init);
+          return res.headers.get("content-type")?.includes("text/event-stream") && res.body
+            ? decodeCockpitSseResponse(res, { isResume: false })
+            : res;
+        },
       }),
     [],
   );
 
-  const { messages, sendMessage, status } = useChat({
+  const { messages, sendMessage, setMessages, status } = useChat({
     id: "nick-command-line",
     transport,
   });
   const isLoading = status === "streaming" || status === "submitted";
+
+  // Working and failed states (R-27). "Answered" means assistant text arrived for this turn.
+  const last = messages[messages.length - 1];
+  const answered = last?.role === "assistant" && getMessageText(last) !== "";
+  const waiting = isLoading && !answered;
+  const failed = !isLoading && messages.length > 0 && (status === "error" || !answered);
+  // A re-send replays the whole turn, tools included: offer it only when nothing may have written.
+  const mayHaveRun = failed && last?.role === "assistant" && messageMayHaveWritten(last);
+
+  const lastUserIndex = messages.map((m) => m.role).lastIndexOf("user");
+  const waitingFor = waiting && lastUserIndex !== -1 ? messages[lastUserIndex].id : null;
+  const [slowFor, setSlowFor] = useState<string | null>(null);
+  useEffect(() => {
+    if (!waitingFor) return;
+    const t = setTimeout(() => setSlowFor(waitingFor), SLOW_AFTER_MS);
+    return () => clearTimeout(t);
+  }, [waitingFor]);
+  const slow = waitingFor !== null && slowFor === waitingFor;
+
+  const retry = useCallback(() => {
+    if (lastUserIndex === -1) return;
+    const text = getMessageText(messages[lastUserIndex]);
+    // Drop the failed turn and send its text as a NEW message: a fresh id, so no client
+    // re-posts an ephemeral message id (the turn guard does not cover ephemeral turns).
+    setMessages(messages.slice(0, lastUserIndex));
+    sendMessage({ text });
+  }, [lastUserIndex, messages, setMessages, sendMessage]);
 
   // Morning-brief chip: SSR-false first paint, stamp read deferred to an
   // effect (the 2026-07-26 hydration lesson, verbatim from CognitivePartner).
@@ -263,6 +303,32 @@ export function NickCommandLine() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Always mounted: a live region must exist before its text changes. empty:my-0 keeps
+          the idle box's spacing as it was. */}
+      <div role="status" aria-live="polite" className="text-sm empty:my-0">
+        {waiting ? (
+          <p className="flex min-h-11 items-center gap-2 text-fg-secondary">
+            <Loader2 size={14} aria-hidden className="shrink-0 motion-safe:animate-spin" />
+            {slow ? "Still working. This one is slow." : "Nick is working..."}
+          </p>
+        ) : failed ? (
+          <p className="py-2 leading-relaxed text-fg">
+            {mayHaveRun
+              ? "Nick did not finish. Something may already have run, so check before you send it again."
+              : "Nick did not answer. Your message is still above. Try again."}
+          </p>
+        ) : null}
+      </div>
+      {failed && !mayHaveRun && (
+        <button
+          type="button"
+          onClick={retry}
+          className="inline-flex min-h-[44px] items-center rounded-control border border-edge-default bg-surface px-4 text-[13px] font-medium text-fg transition-colors duration-[var(--motion-state)] hover:border-edge-strong"
+        >
+          Try again
+        </button>
       )}
 
       <form
