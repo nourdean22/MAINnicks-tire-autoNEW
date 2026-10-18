@@ -5564,6 +5564,33 @@
       "codeState": "merged",
       "operationalState": "deployed",
       "exposure": "internal"
+    },
+    {
+      "capabilityId": "tire-finder-vehicle-fitment",
+      "name": "/tires finds factory tire sizes from year, make, model and trim through D&K fitment, with top-pick cards and Kafene first among the Payment Programs",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "Branch nickstire/tire-finder-vehicle-picker (job 2026-10-18-tire-finder-vehicle-picker). server/services/fitment/dkFitment.ts + server/routers/fitment.ts: six public reads (status, years, makes, models, trims, sizes) over D&K b2b quicksearch through the existing Gateway Tire login; unconfigured when no login, upstream_error never rendered as an empty list, failed-login memory 60 s, in-memory cache only. client/src/components/tires/VehicleSizePicker.tsx + pages/TireFinderV2.tsx: By vehicle tab (default) and By size tab, size tap feeds the existing publicSearch; top picks from client/src/lib/tirePicks.ts; Kafene (shared/financing.ts first) with banners client/public/kafene/*. financing click enum + migration 0147 for kafene.",
+        "tests": "server/__tests__/fitment.test.ts 19 (red-first 18f/1p), server/__tests__/financingKafeneClick.test.ts 9, shared/financingProviders.test.ts, client/src/__tests__/tire-finder-vehicle.test.tsx 14, tire-finder-v2.test.tsx 25, tire-picks.test.ts, financing-kafene-banner.test.tsx, storage-blocked.test.tsx; manager run on the combined tip 10 files 95 passed; mutations 25/25 killed across both lanes",
+        "liveProbe": "Manager read-only probe 2026-10-18 with the shop login: D&K quicksearch 2018 Honda Civic LX -> 215/50R17, 215/55R16, 215/55R17, 235/40R18 (HTTP 200). Production fitment.status not yet read."
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Live proof owed: after deploy, fitment.status on nickstire.org returns available:true and the By vehicle tab resolves a 2018 Honda Civic LX to 215/55R16; migration 0147 applied by the operator (admin Run Migrations) so Kafene clicks are recorded",
+          "source": "job 2026-10-18-tire-finder-vehicle-picker"
+        }
+      ],
+      "deferredScope": [
+        "license-plate lookup (paid plate-to-VIN API)",
+        "order status sync from D&K (wave 3)",
+        "admin one-tap D&K supplier order (wave 2, flag GATEWAY_ORDERING_ENABLED)",
+        "Kafene checkout modal (needs Merchant ID, Store ID, API key)"
+      ],
+      "lastVerifiedAt": "2026-10-18",
+      "codeState": "in_progress",
+      "operationalState": "unit_verified",
+      "exposure": "disabled"
     }
   ],
   "axes": {
