@@ -22,9 +22,10 @@
  *   - Conservative eligibility: real conversations only (>=15s), recent
  *     (last 24h, older than 45min so the shop's own callback goes first),
  *     nothing captured, opt-outs excluded, hard daily/run cap.
- *   - A caller it will NOT text (SMS opt-out in either mode, or a shadow-run
- *     candidate up to RUN_CAP) gets one callback_requests row instead, so the
- *     shop owns the call-back (C3.3, 2026-10-18). Cap-skips get no row.
+ *   - A caller it will NOT text but the shop may still call (carrier-blocked in
+ *     either mode, or a shadow-run candidate up to RUN_CAP) gets one
+ *     callback_requests row instead (C3.3, 2026-10-18). A full or voice opt-out
+ *     gets neither a text nor a row; cap-skips get no row.
  *   - "Reached a tool" (convertedToLead=1) callers are included ONLY when a
  *     successful read proves the call captured nothing (operator decision
  *     2026-10-02, reversing the 2026-09-23 skip: ~101 calls/week reached a
@@ -34,6 +35,7 @@
  */
 import { createLogger } from "../../lib/logger";
 import { BUSINESS } from "@shared/business";
+import { describeDbError } from "../../lib/dbErrors";
 
 const log = createLogger("cron:missed-call-recovery");
 
@@ -58,6 +60,9 @@ export interface MissedCallRow {
    * expected arrival. Undefined (not read, or the read failed) never qualifies.
    */
   capturedNothing?: boolean;
+  /** metadata.recoveryCallbackAt / recoveryCallbackRowId: the callback-lane claim (C3.3). */
+  callbackClaimedAt?: string | null;
+  callbackRowId?: number | null;
 }
 
 /**
@@ -107,48 +112,82 @@ export const MISSED_CALL_CALLBACK_SOURCE = "missed-call-recovery";
 
 type ClaimDb = { execute(q: unknown): Promise<unknown> };
 
+/** A recoveryCallbackAt stamp this old with no recoveryCallbackRowId is an orphaned claim (insert and release both failed). */
+const CALLBACK_RECLAIM_AFTER_MS = 60 * 60 * 1000;
+
 /**
- * C3.3: a caller this cron will NOT text (opted out of SMS, or the lane is in
- * shadow) gets one callback_requests row so the shop owns the phone follow-up.
- * At most once per call: a CAS on metadata.recoveryCallbackAt (a separate key
- * from recoverySmsAt, so a shadow row never blocks a later live text). The
- * context carries `callId=<id>`, the rule loadCallCaptureEvidence matches, so a
- * tool-reaching caller with this row reads as captured and is not texted later.
- * Never throws: a callback write must not kill the text lane.
+ * Callback-lane state from the call's metadata, as read: "held" (a row exists,
+ * or another run claimed it under an hour ago), "orphaned" (reclaimable), "open".
+ */
+function callbackClaimState(row: MissedCallRow, nowMs: number): "open" | "orphaned" | "held" {
+  if (row.callbackRowId != null) return "held";
+  if (!row.callbackClaimedAt) return "open";
+  const t = Date.parse(row.callbackClaimedAt);
+  return Number.isFinite(t) && nowMs - t >= CALLBACK_RECLAIM_AFTER_MS ? "orphaned" : "held";
+}
+
+/**
+ * C3.3: a caller this cron will NOT text, whom the shop may still call (SMS-only
+ * suppression, or the lane is in shadow), gets one callback_requests row so the
+ * shop owns the phone follow-up. At most once per call: a CAS on
+ * metadata.recoveryCallbackAt (a separate key from recoverySmsAt, so a shadow
+ * row never blocks a later live text), then recoveryCallbackRowId once the row
+ * exists. The context carries `callId=<id>`, the rule loadCallCaptureEvidence
+ * matches, so a tool-reaching caller with this row reads as captured and is not
+ * texted later. Never throws: a callback write must not kill the text lane.
  */
 async function requestCallbackForMissedCall(
   db: ClaimDb,
   row: MissedCallRow,
-  reason: "opt_out" | "shadow",
+  reason: "carrier_block" | "shadow",
+  nowMs: number,
 ): Promise<"written" | "duplicate" | "failed"> {
+  const state = callbackClaimState(row, nowMs);
+  if (state === "held") return "duplicate";
   const { sql } = await import("drizzle-orm");
   const stamp = new Date().toISOString();
   let claimed = false;
   try {
+    // Pinned to what the decision read: a NULL key, or the exact orphaned stamp with still no row id.
+    const pinned = state === "open"
+      ? sql`(metadata IS NULL OR JSON_EXTRACT(metadata, '$.recoveryCallbackAt') IS NULL)`
+      : sql`JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.recoveryCallbackAt')) = ${row.callbackClaimedAt}
+          AND JSON_EXTRACT(metadata, '$.recoveryCallbackRowId') IS NULL`;
     const claim = await db.execute(sql`
       UPDATE vapi_call_logs
       SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.recoveryCallbackAt', ${stamp})
       WHERE id = ${row.id}
-        AND (metadata IS NULL OR JSON_EXTRACT(metadata, '$.recoveryCallbackAt') IS NULL)
+        AND ${pinned}
     `);
     const affected = (claim as Array<{ affectedRows?: number }>)[0]?.affectedRows ?? 0;
     if (affected !== 1) return "duplicate";
     claimed = true;
-    const why = reason === "opt_out" ? "customer opted out of SMS" : "recovery texts are in shadow mode";
+    const why = reason === "carrier_block" ? "the carrier blocks texts to this number" : "recovery texts are in shadow mode";
     const { createCallbackRequest } = await import("../../db");
-    await createCallbackRequest({
+    const created = await createCallbackRequest({
       name: "Missed call (name unknown)",
       phone: row.phoneNumber!,
       context: `Missed VAPI call callId=${row.vapiCallId}, ${row.durationSeconds}s. No recovery text sent (${why}). Please call back.`,
       sourcePage: MISSED_CALL_CALLBACK_SOURCE,
       status: "new",
     });
+    claimed = false; // the row exists: from here a failure must never release the claim
+    await db.execute(sql`
+      UPDATE vapi_call_logs
+      SET metadata = JSON_SET(metadata, '$.recoveryCallbackRowId', ${created.id})
+      WHERE id = ${row.id}
+        AND JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.recoveryCallbackAt')) = ${stamp}
+    `).catch((e: unknown) => log.warn("Missed-call callback row id not recorded", {
+      callId: row.vapiCallId,
+      error: describeDbError(e),
+    }));
     return "written";
   } catch (err) {
+    // describeDbError, never err.message: drizzle's message carries the bound params (phone, context).
     log.warn("Missed-call callback row failed", {
       callId: row.vapiCallId,
       phone: maskPhone(row.phoneNumber),
-      error: err instanceof Error ? err.message : String(err),
+      error: describeDbError(err),
     });
     // Release only OUR stamp so the next run can retry; a lost callback is worse than a duplicate one.
     if (claimed) {
@@ -159,7 +198,7 @@ async function requestCallbackForMissedCall(
           AND JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.recoveryCallbackAt')) = ${stamp}
       `).catch((e: unknown) => log.warn("Missed-call callback claim release failed", {
         callId: row.vapiCallId,
-        error: e instanceof Error ? e.message : String(e),
+        error: describeDbError(e),
       }));
     }
     return "failed";
@@ -234,9 +273,23 @@ export async function processMissedCallRecovery(): Promise<{ recordsProcessed: n
         .filter((p: string | null): p is string => p !== null),
     );
 
+    // Who the shop may still CALL. sms.ts:312-319: every suppression source except a spoken
+    // VOICE marker means "stop everything", and voice-only numbers are in `phones` too, so a
+    // number in `phones` gets no text and no callback. `carrierBlocked` (sms.ts:53-56) is a
+    // block, not a STOP: the one SMS-only scope. An unreadable index is never "callable", and
+    // neither is a stale one (sms.ts:186-188, a failed refresh): it can miss a newer opt-out.
+    const { loadSuppressionIndex } = await import("../../sms");
+    const index = await loadSuppressionIndex().catch(() => ({ ok: false as const, reason: "suppression index load threw" }));
+    const callbackScope = (np: string): "open" | "sms_only" | "none" => {
+      if (!index.ok || index.stale) return "none";
+      const p10 = np.replace(/\D/g, "").slice(-10);
+      if (index.phones.has(p10)) return "none";
+      return index.carrierBlocked.has(p10) ? "sms_only" : "open";
+    };
+
     const eligible: MissedCallRow[] = [];
     let callbackRows = 0; // callers handed to the shop's callback queue this run
-    let optOutCallbacks = 0;
+    let blockedCallbacks = 0;
     for (const r of rows) {
       const meta = (r.metadata ?? null) as Record<string, unknown> | null;
       const row: MissedCallRow = {
@@ -249,6 +302,8 @@ export async function processMissedCallRecovery(): Promise<{ recordsProcessed: n
         callbackId: r.callbackId,
         recoveryAlreadyStamped: !!(meta && meta.recoverySmsAt),
         createdAtMs: new Date(r.createdAt as unknown as string | number | Date).getTime(),
+        callbackClaimedAt: typeof meta?.recoveryCallbackAt === "string" ? meta.recoveryCallbackAt : null,
+        callbackRowId: meta?.recoveryCallbackRowId != null ? Number(meta.recoveryCallbackRowId) : null,
       };
       // A tool-reaching call needs proof it captured nothing (one bounded read
       // per such call; ~15/day). Every other rule runs first, so the read only
@@ -258,11 +313,13 @@ export async function processMissedCallRecovery(): Promise<{ recordsProcessed: n
       }
       if (!isMissedCallEligible(row, now)) continue;
       const np = normalizePhone(row.phoneNumber);
-      if (np && optOuts.has(np)) {
-        // Never texted, in either mode: the shop owns the follow-up by phone.
-        if ((await requestCallbackForMissedCall(db, row, "opt_out")) === "written") {
+      if (np && optOuts.has(np)) continue; // customers.smsOptOut: a full opt-out (no text, no callback)
+      // np null ("anonymous", a placeholder): the text lane is unchanged, but no callback row is ever written for it.
+      if (np && callbackScope(np) === "sms_only") {
+        // The transport would refuse the text (sms.ts:2420); the shop can still call.
+        if ((await requestCallbackForMissedCall(db, row, "carrier_block", now)) === "written") {
           callbackRows++;
-          optOutCallbacks++;
+          blockedCallbacks++;
         }
         continue;
       }
@@ -274,9 +331,15 @@ export async function processMissedCallRecovery(): Promise<{ recordsProcessed: n
     // ─── SHADOW: report the audience, send nothing, claim no text ───
     if (!live) {
       // The callers a live run would text (same RUN_CAP) go to the shop's callback queue
-      // instead; past the cap nobody gets a row, the next run reaches them.
-      for (const row of eligible.slice(0, RUN_CAP)) {
-        if ((await requestCallbackForMissedCall(db, row, "shadow")) === "written") callbackRows++;
+      // instead. Callers that already have a row (or a live claim) and callers the index
+      // suppresses are left out BEFORE the cap, so older callers are not starved by the
+      // same newest 15 every run; past the cap nobody gets a row, the next run reaches them.
+      const pool = eligible.filter((row) => {
+        const np = normalizePhone(row.phoneNumber);
+        return np !== null && callbackScope(np) === "open" && callbackClaimState(row, now) !== "held";
+      });
+      for (const row of pool.slice(0, RUN_CAP)) {
+        if ((await requestCallbackForMissedCall(db, row, "shadow", now)) === "written") callbackRows++;
       }
       if (candidates > 0 || callbackRows > 0) {
         const { sendTelegram } = await import("../../services/telegram");
@@ -336,12 +399,12 @@ export async function processMissedCallRecovery(): Promise<{ recordsProcessed: n
       if (result.status === "sent" || result.status === "queued") processed++;
     }
 
-    if (processed > 0 || optOutCallbacks > 0) {
-      log.info("Missed-call recovery sent", { processed, candidates, optOutCallbacks });
+    if (processed > 0 || blockedCallbacks > 0) {
+      log.info("Missed-call recovery sent", { processed, candidates, blockedCallbacks });
       const { sendTelegram } = await import("../../services/telegram");
       await sendTelegram(
         `📞 Missed-Call Recovery — sent ${processed} follow-up text(s) (of ${candidates} eligible).` +
-        (optOutCallbacks > 0 ? `\n${optOutCallbacks} opt-out callers routed to callbacks` : ""),
+        (blockedCallbacks > 0 ? `\n${blockedCallbacks} carrier-blocked callers routed to callbacks` : ""),
         "receipt",
       );
     }

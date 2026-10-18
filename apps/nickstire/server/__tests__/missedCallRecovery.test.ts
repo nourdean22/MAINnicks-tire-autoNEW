@@ -21,10 +21,13 @@ const h = vi.hoisted(() => ({
   claims: 0, // recoverySmsAt claims only
   sources: [] as string[],
   // callback lane (C3.3)
-  callbackClaims: [] as Array<{ sql: string; params: unknown[] }>,
+  callbackClaims: [] as Array<{ sql: string; params: unknown[] }>, // claim / reclaim swaps only
+  callbackWrites: [] as Array<{ kind: "rowId" | "release"; sql: string; params: unknown[] }>,
   callbackClaimAffected: [] as number[], // queued affectedRows for $.recoveryCallbackAt claims; default 1
+  releaseThrows: false,
   callbackRows: [] as Array<Record<string, unknown>>,
-  callbackInsertThrowsFor: new Set<string>(), // phone numbers whose insert rejects
+  callbackInsertThrowsFor: new Map<string, Error>(), // phone -> the error its insert rejects with
+  index: null as null | Record<string, unknown>, // sms.ts loadSuppressionIndex() answer
   warns: [] as Array<{ msg: string; ctx: unknown }>,
   telegrams: [] as string[],
 }));
@@ -66,6 +69,15 @@ vi.mock("../db", () => ({
     // the at-most-once claims: $.recoverySmsAt (text lane) or $.recoveryCallbackAt (callback lane)
     execute: async (q: unknown) => {
       const rendered = dialect.sqlToQuery(q as never);
+      if (/JSON_REMOVE\(metadata, '\$\.recoveryCallbackAt'\)/.test(rendered.sql)) {
+        h.callbackWrites.push({ kind: "release", ...rendered });
+        if (h.releaseThrows) throw new Error("ER_LOCK_WAIT_TIMEOUT");
+        return [{ affectedRows: 1 }];
+      }
+      if (rendered.sql.includes("'$.recoveryCallbackRowId', ?")) {
+        h.callbackWrites.push({ kind: "rowId", ...rendered });
+        return [{ affectedRows: 1 }];
+      }
       if (rendered.sql.includes("$.recoveryCallbackAt")) {
         h.callbackClaims.push(rendered);
         return [{ affectedRows: h.callbackClaimAffected.shift() ?? 1 }];
@@ -75,10 +87,16 @@ vi.mock("../db", () => ({
     },
   }),
   createCallbackRequest: async (data: Record<string, unknown>) => {
-    if (h.callbackInsertThrowsFor.has(String(data.phone))) throw new Error("ER_LOCK_WAIT_TIMEOUT");
+    const err = h.callbackInsertThrowsFor.get(String(data.phone));
+    if (err) throw err;
     h.callbackRows.push(data);
-    return { success: true, id: h.callbackRows.length };
+    return { success: true, id: 500 + h.callbackRows.length };
   },
+}));
+// Partial on purpose: override one export, keep the real module (AGENTS.md: shared serial process).
+vi.mock("../sms", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../sms")>()),
+  loadSuppressionIndex: async () => h.index,
 }));
 vi.mock("../services/featureFlags", () => ({ isEnabled: async () => true }));
 vi.mock("../services/vapiActionExtraction", () => ({
@@ -179,9 +197,12 @@ describe("processMissedCallRecovery · tool-reaching callers", () => {
     h.sources = [];
     h.optOutPhones = [];
     h.callbackClaims = [];
+    h.callbackWrites = [];
     h.callbackClaimAffected = [];
+    h.releaseThrows = false;
     h.callbackRows = [];
-    h.callbackInsertThrowsFor = new Set();
+    h.callbackInsertThrowsFor = new Map();
+    h.index = { ok: true, phones: new Set(), carrierBlocked: new Set(), voiceOnly: new Set(), stale: false };
     h.warns = [];
     h.telegrams = [];
   });
@@ -267,33 +288,103 @@ describe("processMissedCallRecovery · tool-reaching callers", () => {
   // decide "a callback request cites this call", so a later run treats it as captured.
   const citesCall = (context: unknown, callId: string) =>
     typeof context === "string" && context.includes(`callId=${callId}`);
-  const numbered = (n: number) => Array.from({ length: n }, (_, i) => ({
-    id: 100 + i, vapiCallId: `call-${i}`, phoneNumber: `2165550${100 + i}`, durationSeconds: 40,
-    convertedToLead: 0, leadId: null, callbackId: null, metadata: null,
-    createdAt: new Date(NOW.getTime() - 90 * MIN),
-  }));
+  const numbered = (n: number, meta: (i: number) => Record<string, unknown> | null = () => null) =>
+    Array.from({ length: n }, (_, i) => ({
+      id: 100 + i, vapiCallId: `call-${i}`, phoneNumber: `2165550${100 + i}`, durationSeconds: 40,
+      convertedToLead: 0, leadId: null, callbackId: null, metadata: meta(i),
+      createdAt: new Date(NOW.getTime() - 90 * MIN),
+    }));
+  const cited = () => h.callbackRows.map((r) => String(r.context).match(/callId=([\w-]+)/)?.[1]);
+  const idx = () => h.index as { phones: Set<string>; carrierBlocked: Set<string>; voiceOnly: Set<string> };
+  const p10 = (p: string) => p.replace(/\D/g, "").slice(-10);
+  const ago = (min: number) => new Date(NOW.getTime() - min * MIN).toISOString();
 
-  it("(a) LIVE opt-out caller: exactly one callback row citing the call, no text; the plain caller is texted", async () => {
-    const opt = call("opt", 0);
-    h.callRows = [opt, call("plain", 0)];
-    h.optOutPhones = [opt.phoneNumber];
+  it("(a) LIVE carrier-blocked caller (SMS-only suppression): one callback row citing the call, no text", async () => {
+    const blocked = call("blk", 0);
+    h.callRows = [blocked, call("plain", 0)];
+    idx().carrierBlocked.add(p10(blocked.phoneNumber));
     const out = await processMissedCallRecovery();
 
     expect(h.sent).toEqual(["plain"]);
     expect(h.callbackRows).toHaveLength(1);
     const row = h.callbackRows[0]!;
-    expect(row).toMatchObject({ phone: opt.phoneNumber, sourcePage: "missed-call-recovery", status: "new" });
-    expect(citesCall(row.context, "opt")).toBe(true);
+    expect(row).toMatchObject({ phone: blocked.phoneNumber, sourcePage: "missed-call-recovery", status: "new" });
+    expect(citesCall(row.context, "blk")).toBe(true);
     expect(String(row.context)).toMatch(/40s/);
-    expect(String(row.context)).toMatch(/opted out of SMS/);
-    expect(String(row.name).length).toBeLessThanOrEqual(255);
+    expect(String(row.context)).toMatch(/carrier blocks texts/);
     expect(out).toMatchObject({ shadow: false, recordsProcessed: 1, callbackRows: 1 });
-    expect(h.telegrams.join("\n")).toMatch(/1 opt-out callers? routed to callbacks/);
-    // CAS: the claim is conditional on the callback key still being NULL, pinned to this row
+    expect(h.telegrams.join("\n")).toMatch(/1 carrier-blocked callers? routed to callbacks/);
+    // CAS: conditional on the callback key still being NULL, pinned to this row
     expect(h.callbackClaims).toHaveLength(1);
     expect(h.callbackClaims[0]!.sql).toMatch(/WHERE id = \?/);
     expect(h.callbackClaims[0]!.sql).toMatch(/JSON_EXTRACT\(metadata, '\$\.recoveryCallbackAt'\) IS NULL/);
-    expect(h.callbackClaims[0]!.params).toContain(opt.id);
+    expect(h.callbackClaims[0]!.params).toContain(blocked.id);
+    // the won claim is completed with the inserted id, pinned to our own stamp
+    const rowId = h.callbackWrites.find((w) => w.kind === "rowId");
+    expect(rowId, "recoveryCallbackRowId written after the insert").toBeDefined();
+    expect(rowId!.params).toContain(501);
+    expect(rowId!.sql).toMatch(/JSON_UNQUOTE\(JSON_EXTRACT\(metadata, '\$\.recoveryCallbackAt'\)\) = \?/);
+  });
+
+  it("(a') opt-out callers are FULL contact suppression (sms.ts index): no row, no text, in either mode", async () => {
+    for (const mode of ["live", "shadow"] as const) {
+      if (mode === "shadow") delete process.env.MISSED_CALL_RECOVERY_SEND;
+      h.callbackRows = []; h.callbackClaims = []; h.sent = [];
+      const opt = call("opt", 0);
+      h.callRows = [opt];
+      h.optOutPhones = [opt.phoneNumber]; // customers.smsOptOut = 1
+      idx().phones.add(p10(opt.phoneNumber)); // ... which the index reads as stop-everything
+      const out = await processMissedCallRecovery();
+      expect(h.sent, mode).toEqual([]);
+      expect(h.callbackRows, mode).toEqual([]);
+      expect(h.callbackClaims, mode).toEqual([]);
+      expect(out, mode).toMatchObject({ callbackRows: 0 });
+    }
+  });
+
+  it("(a'') SHADOW: a candidate the index suppresses (text STOP, or spoken voice opt-out) gets no row; an open one does", async () => {
+    delete process.env.MISSED_CALL_RECOVERY_SEND;
+    const [stop, voice, open] = numbered(3);
+    h.callRows = [stop!, voice!, open!];
+    idx().phones.add(p10(stop!.phoneNumber)); // sms_preferences STOP, no customers row
+    idx().phones.add(p10(voice!.phoneNumber)); // spoken "stop calling me"
+    idx().voiceOnly.add(p10(voice!.phoneNumber));
+    const out = await processMissedCallRecovery();
+    expect(cited()).toEqual(["call-2"]);
+    expect(out).toMatchObject({ shadow: true, callbackRows: 1 });
+  });
+
+  it("(a''') an unreadable suppression index writes no rows (unknown scope is never 'callable')", async () => {
+    delete process.env.MISSED_CALL_RECOVERY_SEND;
+    h.index = { ok: false, reason: "database unavailable" };
+    h.callRows = numbered(2);
+    const out = await processMissedCallRecovery();
+    expect(h.callbackRows).toEqual([]);
+    expect(h.callbackClaims).toEqual([]);
+    expect(out).toMatchObject({ shadow: true, candidates: 2, callbackRows: 0 });
+  });
+
+  it("the ../sms mock overrides loadSuppressionIndex only: every other export stays real for a file sharing this process", async () => {
+    const sms = await import("../sms");
+    expect(typeof sms.carrierBlockedPhones).toBe("function");
+    expect(typeof sms.sendSms).toBe("function");
+    expect(typeof sms.markPhoneFullyOptedOut).toBe("function");
+    expect(await sms.loadSuppressionIndex()).toBe(h.index); // and the override is the one in use
+  });
+
+  it("(a'''') a STALE index (refresh failed after an earlier load) writes no rows: it can miss a newer opt-out", async () => {
+    for (const mode of ["live", "shadow"] as const) {
+      if (mode === "shadow") delete process.env.MISSED_CALL_RECOVERY_SEND;
+      h.callbackRows = []; h.callbackClaims = []; h.sent = [];
+      h.index = { ok: true, phones: new Set(), carrierBlocked: new Set(), voiceOnly: new Set(), stale: true };
+      const blocked = call("blk", 0);
+      h.callRows = [blocked, ...numbered(2)];
+      idx().carrierBlocked.add(p10(blocked.phoneNumber));
+      const out = await processMissedCallRecovery();
+      expect(h.callbackRows, mode).toEqual([]);
+      expect(h.callbackClaims, mode).toEqual([]);
+      expect(out, mode).toMatchObject({ callbackRows: 0 });
+    }
   });
 
   it("(b)+(c) SHADOW: one row per candidate up to RUN_CAP (15), cap-skips get none, nothing is texted", async () => {
@@ -304,18 +395,17 @@ describe("processMissedCallRecovery · tool-reaching callers", () => {
     expect(h.sent).toEqual([]);
     expect(h.claims, "shadow never stamps recoverySmsAt").toBe(0);
     expect(h.callbackRows).toHaveLength(15);
-    const cited = h.callbackRows.map((r) => String(r.context).match(/callId=(call-\d+)/)?.[1]);
-    expect(cited).toEqual(Array.from({ length: 15 }, (_, i) => `call-${i}`));
+    expect(cited()).toEqual(Array.from({ length: 15 }, (_, i) => `call-${i}`));
     // (c) the two callers past the cap: no claim, no row (the next run retries them)
-    expect(cited).not.toContain("call-15");
-    expect(cited).not.toContain("call-16");
+    expect(cited()).not.toContain("call-15");
+    expect(cited()).not.toContain("call-16");
     expect(h.callbackClaims).toHaveLength(15);
     for (const r of h.callbackRows) expect(String(r.context)).toMatch(/shadow mode/);
     expect(out).toMatchObject({ shadow: true, recordsProcessed: 0, candidates: 17, callbackRows: 15 });
     expect(h.telegrams.join("\n")).toContain("15 callback rows written for the shop (Admin > Calls > Missed / Pending)");
   });
 
-  it("(c) LIVE: candidates past RUN_CAP get no callback row (they are not opted out; the next run texts them)", async () => {
+  it("(c) LIVE: candidates past RUN_CAP get no callback row (they are not suppressed; the next run texts them)", async () => {
     h.callRows = numbered(17);
     const out = await processMissedCallRecovery();
     expect(h.sent).toHaveLength(15);
@@ -324,21 +414,19 @@ describe("processMissedCallRecovery · tool-reaching callers", () => {
     expect(out).toMatchObject({ callbackRows: 0 });
   });
 
-  it("SHADOW opt-out caller also gets a row (both modes), worded as an opt-out", async () => {
+  it("(f) SHADOW no starvation: 20 eligible, the newest 15 already have a row -> the 5 older callers get rows", async () => {
     delete process.env.MISSED_CALL_RECOVERY_SEND;
-    const opt = call("opt", 0);
-    h.callRows = [opt];
-    h.optOutPhones = [opt.phoneNumber];
+    h.callRows = numbered(20, (i) => (i < 15 ? { recoveryCallbackAt: ago(10), recoveryCallbackRowId: 900 + i } : null));
     const out = await processMissedCallRecovery();
-    expect(h.callbackRows).toHaveLength(1);
-    expect(String(h.callbackRows[0]!.context)).toMatch(/opted out of SMS/);
-    expect(out).toMatchObject({ shadow: true, candidates: 0, callbackRows: 1 });
+    expect(cited()).toEqual(["call-15", "call-16", "call-17", "call-18", "call-19"]);
+    expect(h.callbackClaims, "handled rows are not even re-claimed").toHaveLength(5);
+    expect(out).toMatchObject({ candidates: 20, callbackRows: 5 });
   });
 
   it("(d) a second run for the same call writes no second row (CAS claim returned 0)", async () => {
-    const opt = call("opt", 0);
-    h.callRows = [opt];
-    h.optOutPhones = [opt.phoneNumber];
+    const blocked = call("blk", 0);
+    h.callRows = [blocked];
+    idx().carrierBlocked.add(p10(blocked.phoneNumber));
     h.callbackClaimAffected = [1, 0]; // run 1 wins the claim; run 2 finds it stamped
     const first = await processMissedCallRecovery();
     const second = await processMissedCallRecovery();
@@ -348,26 +436,64 @@ describe("processMissedCallRecovery · tool-reaching callers", () => {
     expect(second).toMatchObject({ callbackRows: 0 });
   });
 
-  it("(e) a failing callback insert is logged with the call id and the run continues", async () => {
-    const opt = call("opt", 0);
-    const opt2 = call("opt2", 0);
-    h.callRows = [opt, opt2, call("plain", 0)];
-    h.optOutPhones = [opt.phoneNumber, opt2.phoneNumber];
-    h.callbackInsertThrowsFor = new Set([opt.phoneNumber]);
+  it("(g) orphaned claim: a stale stamp with no row id is reclaimed on the OLD stamp; fresh or completed stamps are not", async () => {
+    delete process.env.MISSED_CALL_RECOVERY_SEND;
+    const stale = ago(90);
+    h.callRows = numbered(3, (i) => [
+      { recoveryCallbackAt: stale }, // insert + release both failed on an earlier run
+      { recoveryCallbackAt: ago(10) }, // another run is mid-insert
+      { recoveryCallbackAt: stale, recoveryCallbackRowId: 77 }, // done
+    ][i]!);
+    const out = await processMissedCallRecovery();
+    expect(cited()).toEqual(["call-0"]);
+    expect(h.callbackClaims).toHaveLength(1);
+    const reclaim = h.callbackClaims[0]!;
+    expect(reclaim.sql).toMatch(/JSON_UNQUOTE\(JSON_EXTRACT\(metadata, '\$\.recoveryCallbackAt'\)\) = \?/);
+    expect(reclaim.sql).toMatch(/JSON_EXTRACT\(metadata, '\$\.recoveryCallbackRowId'\) IS NULL/);
+    expect(reclaim.sql).not.toMatch(/'\$\.recoveryCallbackAt'\) IS NULL/);
+    expect(reclaim.params).toContain(stale);
+    expect(reclaim.params).toContain(100);
+    expect(out).toMatchObject({ callbackRows: 1 });
+  });
+
+  it("(h) an unusable caller id ('anonymous', short placeholder) gets no claim, no row and does not consume the cap", async () => {
+    delete process.env.MISSED_CALL_RECOVERY_SEND;
+    const anon = { ...call("anon", 0), id: 1, vapiCallId: "anon", phoneNumber: "anonymous" };
+    const short = { ...call("short", 0), id: 2, vapiCallId: "short", phoneNumber: "1234" };
+    h.callRows = [anon, short, ...numbered(15)];
+    const out = await processMissedCallRecovery();
+    expect(cited()).toEqual(Array.from({ length: 15 }, (_, i) => `call-${i}`));
+    expect(h.callbackClaims.some((q) => q.params.includes(1) || q.params.includes(2))).toBe(false);
+    expect(out).toMatchObject({ candidates: 17, callbackRows: 15 }); // still candidates for the text lane
+  });
+
+  it("(e) a failing callback insert logs the call id (never the driver message) and the run continues", async () => {
+    const { DrizzleQueryError } = await import("drizzle-orm");
+    const a = call("blk", 0);
+    const b = call("blk2", 0);
+    h.callRows = [a, b, call("plain", 0)];
+    idx().carrierBlocked.add(p10(a.phoneNumber));
+    idx().carrierBlocked.add(p10(b.phoneNumber));
+    // drizzle's real wrapper: its message is the SQL plus the bound params (a phone here)
+    const cause = Object.assign(new Error("Lock wait timeout"), { code: "ER_LOCK_WAIT_TIMEOUT", errno: 1205 });
+    h.callbackInsertThrowsFor = new Map([[a.phoneNumber, new DrizzleQueryError("insert into `callback_requests` values (?, ?)", ["Missed call", "2165550199"], cause)]]);
+    h.releaseThrows = true; // and the release fails too: the stamp is orphaned (see g)
     const out = await processMissedCallRecovery();
 
     expect(h.sent, "the text lane still runs").toEqual(["plain"]);
-    expect(h.callbackRows).toHaveLength(1);
-    expect(citesCall(h.callbackRows[0]!.context, "opt2")).toBe(true);
-    const warn = h.warns.find((w) => /callback/i.test(w.msg));
-    expect(warn, "insert failure is logged").toBeDefined();
-    expect(JSON.stringify(warn!.ctx)).toContain('"opt"');
-    expect(JSON.stringify(warn!.ctx)).not.toContain(opt.phoneNumber); // no raw phone in logs
+    expect(cited()).toEqual(["blk2"]);
+    const warns = h.warns.filter((w) => /callback/i.test(w.msg));
+    expect(warns.length, "insert failure and release failure are both logged").toBe(2);
+    expect(JSON.stringify(warns[0]!.ctx)).toContain('"blk"');
+    expect(JSON.stringify(warns[0]!.ctx)).toContain("ER_LOCK_WAIT_TIMEOUT");
+    const logged = JSON.stringify(h.warns);
+    expect(logged).not.toContain("2165550199"); // the param inside the driver message
+    expect(logged).not.toContain(a.phoneNumber); // no raw phone in logs
     // the won claim is released (pinned to its own stamp) so the next run can retry the row
-    const release = h.callbackClaims.find((q) => /JSON_REMOVE/.test(q.sql));
+    const release = h.callbackWrites.find((w) => w.kind === "release");
     expect(release, "claim released after a failed insert").toBeDefined();
     expect(release!.sql).toMatch(/WHERE id = \?\s+AND JSON_UNQUOTE\(JSON_EXTRACT\(metadata, '\$\.recoveryCallbackAt'\)\) = \?/);
-    expect(release!.params).toContain(opt.id);
+    expect(release!.params).toContain(a.id);
     expect(out).toMatchObject({ shadow: false, recordsProcessed: 1, callbackRows: 1 });
   });
 });
