@@ -226,12 +226,21 @@ export default function TireFinderV2() {
                         <p className="mt-3 text-2xl font-black">${p.tire.shopPrice.toFixed(2)}<span className="text-sm font-normal text-muted-foreground"> / tire</span></p>
                         <div className="flex flex-wrap items-center gap-x-3">
                           <p className="text-sm font-semibold text-primary">{setTotalLabel(p.tire.shopPrice, qty)}</p>
+                          {/* Hard-coded until shared/financing.ts carries Kafene; the server lane owns the canonical record. */}
+                          <a
+                            href="https://gokafene.com/nKVEWWv"
+                            target="_blank"
+                            rel="noopener"
+                            onClick={() => trackEvent("payment_programs_clicked", { provider: "kafene" })}
+                            className="inline-flex min-h-12 items-center text-sm font-semibold text-primary underline underline-offset-4"
+                          >
+                            Apply with Kafene
+                          </a>
                           <Link
                             href="/financing"
-                            onClick={() => trackEvent("payment_programs_clicked", { pick: p.kind, size: p.tire.size })}
                             className="inline-flex min-h-12 items-center text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
                           >
-                            Payment Programs
+                            More payment programs
                           </Link>
                         </div>
                         <div className="mt-auto flex flex-col gap-2 pt-3">

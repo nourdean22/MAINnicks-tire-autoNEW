@@ -315,18 +315,27 @@ describe("TireFinderV2 (the shipped /tires funnel)", () => {
       expect(h.trackEvent).toHaveBeenCalledWith("top_pick_selected", { pick: "value", size: "215/60R16" });
     });
 
-    it("each card has a call link to the shop phone and a Payment Programs link next to the total", async () => {
+    it("each card has a call link to the shop phone", async () => {
       h.search = results(SIX);
       await renderV2();
       const call = card("Premium").getByRole("link", { name: "Call about these tires" });
       expect(call.getAttribute("href")).toBe("tel:+12168620005");
       fireEvent.click(call);
       expect(h.trackEvent).toHaveBeenCalledWith("quote_call_clicked", { pick: "premium", size: "215/60R16" });
+    });
 
-      const pay = card("Premium").getByRole("link", { name: "Payment Programs" });
-      expect(pay.getAttribute("href")).toBe("/financing");
-      fireEvent.click(pay);
-      expect(h.trackEvent).toHaveBeenCalledWith("payment_programs_clicked", { pick: "premium", size: "215/60R16" });
+    it("next to each total: Apply with Kafene (new tab) and More payment programs (/financing)", async () => {
+      h.search = results(SIX);
+      await renderV2();
+      const kafene = card("Premium").getByRole("link", { name: "Apply with Kafene" });
+      expect(kafene.getAttribute("href")).toBe("https://gokafene.com/nKVEWWv");
+      expect(kafene.getAttribute("target")).toBe("_blank");
+      expect(kafene.getAttribute("rel")).toContain("noopener");
+      fireEvent.click(kafene);
+      expect(h.trackEvent).toHaveBeenCalledWith("payment_programs_clicked", { provider: "kafene" });
+
+      const more = card("Premium").getByRole("link", { name: "More payment programs" });
+      expect(more.getAttribute("href")).toBe("/financing");
       // Brand rule: the customer never reads the word "financing".
       expect(picks()!.textContent).not.toMatch(/financ/i);
     });
