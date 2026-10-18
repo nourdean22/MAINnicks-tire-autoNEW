@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "nickstire/kafene-portal-deep-link",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "9dcc8dd1-629a-4a72-9616-d033570d2fee",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\shop-ip-camera-access-857719",
   "claimedBy": "kafene portal deep link button (Nour: deep link only)",
   "claimedAt": "2026-10-18T21:17:14.300Z",
   "expiresAt": "2026-10-19T09:17:14.300Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": null
+  "releasedAt": "2026-10-18T22:41:19.300Z",
+  "releaseReason": "squash-merged as PR #3155 (d6d042365); the remote branch was deleted by merge-gate, so the local commits only look unpushed",
+  "priorLeaseSha": "2911080585f7d6ff84eff2f4141e496af08406ed",
+  "releasedBy": "9dcc8dd1-629a-4a72-9616-d033570d2fee",
+  "foreignReleaseReason": null
 }
