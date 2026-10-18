@@ -77,10 +77,11 @@ const MARKER = /<!--\s*codex-review-state:(\S*)([\s\S]*?)-->/g;
  * The Codex review's verdict on `headSha` (job 2026-10-18-merge-gate-codex-wait: #3134 and #3141 merged on green CI ~3
  * minutes before Codex posted P1 findings). `comments` is `gh pr view --json comments`; Codex edits one summary comment
  * carrying a `codex-review-state:v1` JSON marker. `threads` are the PR's reviewThreads nodes. Returns soft (not yet),
- * hard (blocked) and warn (log only). Fail-closed: a malformed marker reads as running; the only fail-open is "no marker
- * for this head" after `waitMinutes` from `headPushedAtMs`, and it says so in a warn line.
+ * hard (blocked) and warn (log only). Fail-closed: a malformed marker holds like running. The two fail-opens, each with a
+ * warn line: no marker for this head `waitMinutes` after `headPushedAtMs`, or still running at 2 x `waitMinutes` (a
+ * stall). Findings and unresolved Codex threads never time out. `merging` false (judge-only) words the warn "would merge".
  */
-export function assessCodex({ comments, threads, headSha, headPushedAtMs, nowMs, waitMinutes }) {
+export function assessCodex({ comments, threads, headSha, headPushedAtMs, nowMs, waitMinutes, merging = true }) {
   const soft = [];
   const hard = [];
   const warn = [];
@@ -103,11 +104,16 @@ export function assessCodex({ comments, threads, headSha, headPushedAtMs, nowMs,
       break;
     }
   }
+  const waited = (nowMs - headPushedAtMs) / 60_000;
+  const verb = merging ? "merging" : "would merge";
   if (!review) {
-    const waited = (nowMs - headPushedAtMs) / 60_000;
-    if (waited >= waitMinutes) warn.push(`Codex never reported on ${headSha}; merging without its review`);
+    if (waited >= waitMinutes) warn.push(`Codex never reported on ${headSha}; ${verb} without its review`);
     else soft.push(`no Codex review on ${headSha} yet (${Number.isFinite(waited) ? Math.floor(waited) : "?"} of ${waitMinutes} min waited since the push)`);
-  } else if (review.status === "running") soft.push(`Codex review is still running on ${headSha}: wait for its findings`);
+  } else if (review.status === "running") {
+    // Manager decision 2026-10-18: Codex finishes in 3 to 9 min here, so 2 x the wait means it stalled; a stalled reviewer must not hold forever.
+    if (waited >= 2 * waitMinutes) warn.push(`Codex review still running on ${headSha} after ${Math.floor(waited)} min; ${verb} without its result`);
+    else soft.push(`Codex review is still running on ${headSha}: wait for its findings`);
+  }
   else if (review.status !== "completed") warn.push(`Codex review on ${headSha} reported status ${JSON.stringify(review.status)}, not completed: no findings to read`);
   else if (review.has_unresolved_findings === true) hard.push(`Codex reported unresolved findings on ${headSha}: fix them and resolve the threads`);
   else if (review.has_unresolved_findings !== false) soft.push(`Codex review on ${headSha} is completed but has_unresolved_findings is ${JSON.stringify(review.has_unresolved_findings)}: treating it as still running`);
@@ -170,7 +176,7 @@ export async function mergeGate({ gh, pr, sha, wait, merge, sleep, now, log, swe
     before = json(["pr", "view", String(pr), "--json", VIEW_FIELDS]);
     const codexView = json(["pr", "view", String(pr), "--json", "comments,commits,createdAt"]);
     const threads = json(["api", "graphql", "-F", "owner={owner}", "-F", "name={repo}", "-F", `number=${pr}`, "-f", `query=${THREADS_QUERY}`]).data.repository.pullRequest.reviewThreads;
-    codex = codexCheck({ comments: codexView.comments, threads: threads.nodes, headSha: sha, headPushedAtMs: pushedAtMs(before, codexView), nowMs: now(), waitMinutes: codexWait });
+    codex = codexCheck({ comments: codexView.comments, threads: threads.nodes, headSha: sha, headPushedAtMs: pushedAtMs(before, codexView), nowMs: now(), waitMinutes: codexWait, merging: Boolean(merge) });
     if (threads.pageInfo?.hasNextPage) codex = { ...codex, hard: [...codex.hard, "more than 100 review threads: this gate reads one page, so it cannot prove none is an open Codex finding; check by hand"] };
   } catch (e) {
     log(`ERROR before any merge call, nothing was merged: ${firstLine(e)}`);

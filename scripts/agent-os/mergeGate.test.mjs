@@ -327,14 +327,23 @@ test("assessCodex control (c): a completed, clean marker for the head with no un
   assert.deepEqual(ac({ threads: [thread(true)] }), NONE, "a RESOLVED Codex thread does not block");
 });
 
-test("assessCodex (a): a running marker for the head is soft, and stays soft past the wait (only a missing marker times out)", () => {
-  for (const nowMs of [T0 + MIN, T0 + 60 * MIN]) {
-    const r = ac({ comments: [codexComment(STATE.running)], nowMs });
+test("assessCodex (a): a running marker for the head is soft until 2 x the wait from the push (a stall), then a WARN and it proceeds", () => {
+  for (const [nowMs, waitMinutes] of [[T0 + MIN, 25], [T0 + 49 * MIN, 25], [T0 + 9 * MIN, 5]]) {
+    const r = ac({ comments: [codexComment(STATE.running)], nowMs, waitMinutes });
     assert.deepEqual(r.hard, []);
-    assert.equal(r.soft.length, 1);
+    assert.equal(r.soft.length, 1, `${(nowMs - T0) / MIN} min`);
     assert.match(r.soft[0], new RegExp(`Codex review is still running on ${SHA}`));
     assert.deepEqual(r.warn, []);
   }
+  assert.deepEqual(ac({ comments: [codexComment(STATE.running)], nowMs: T0 + 50 * MIN }), { soft: [], hard: [], warn: [`Codex review still running on ${SHA} after 50 min; merging without its result`] });
+  assert.deepEqual(ac({ comments: [codexComment(STATE.running)], nowMs: T0 + 10 * MIN, waitMinutes: 5 }).warn, [`Codex review still running on ${SHA} after 10 min; merging without its result`]);
+  // The stall timeout never lifts a finding: an unresolved Codex thread stays hard past it.
+  assert.equal(ac({ comments: [codexComment(STATE.running)], threads: [thread(false)], nowMs: T0 + 120 * MIN }).hard.length, 1);
+});
+
+test("assessCodex: judge-only (merging false) says 'would merge' in both fail-open WARN lines", () => {
+  assert.deepEqual(ac({ comments: [], nowMs: T0 + 25 * MIN, merging: false }).warn, [`Codex never reported on ${SHA}; would merge without its review`]);
+  assert.deepEqual(ac({ comments: [codexComment(STATE.running)], nowMs: T0 + 50 * MIN, merging: false }).warn, [`Codex review still running on ${SHA} after 50 min; would merge without its result`]);
 });
 
 test("assessCodex (b): unresolved findings in the marker, or any unresolved Codex thread, is hard whatever the marker says", () => {
@@ -440,6 +449,19 @@ test("mergeGate (d): no marker waits --codex-wait-minutes from the LATEST of PR 
   assert.ok(logs.includes(`WARN: ${NEVER}`), JSON.stringify(logs));
   assert.ok(logs.indexOf(`WARN: ${NEVER}`) < logs.findIndex((l) => l.startsWith("MERGED:")), "the WARN is printed before the merge");
   assert.equal(await mergeGate(opts(fakeGh({ prs: { 3100: noMarker() } }), { now: () => T0 + 6 * MIN, codexWait: 5 })), 0, "the flag sets the wait");
+});
+
+test("mergeGate: a running review holds at 49 min and merges at 50 with the stall WARN; judge-only says 'would merge'", async () => {
+  const running = () => fakeGh({ prs: { 3100: view({ comments: [codexComment(STATE.running)] }) } });
+  assert.equal(await mergeGate(opts(running(), { now: () => T0 + 49 * MIN })), 7);
+  const g = running();
+  const { code, logs } = await logsOf(g, { now: () => T0 + 50 * MIN });
+  assert.equal(code, 0);
+  assert.equal(mergeCalls(g).length, 1);
+  assert.ok(logs.includes(`WARN: Codex review still running on ${SHA} after 50 min; merging without its result`), JSON.stringify(logs));
+  const judge = await logsOf(fakeGh({ prs: { 3100: noMarker() } }), { now: () => T0 + 25 * MIN, merge: false });
+  assert.equal(judge.code, 0);
+  assert.ok(judge.logs.includes(`WARN: Codex never reported on ${SHA}; would merge without its review`), JSON.stringify(judge.logs));
 });
 
 test("canary (f): with the Codex check stubbed out, a running review MERGES; with the real check it does not", async () => {
