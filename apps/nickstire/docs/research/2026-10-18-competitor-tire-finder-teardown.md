@@ -16,9 +16,9 @@ their size gets "Call the shop" from us (FACT, live page today). That is the big
 
 | # | Gap | Who does it | What we would build | Effort | Cost |
 |---|---|---|---|---|---|
-| 1 | No vehicle picker | Discount Tire, Tire Rack, Firestone, Belle Tire, Walmart (seen) | Year > make > model > body type ("4 Dr Sedan", Belle Tire style, not trim codes like "LX-P") > OE size list > existing size results. Keep size search beside it. Keep "staff confirms fitment". Remember the vehicle on return visits. | 2-3 days (client + one server proxy route) | Wheel-Size Basic $450/yr, 5,000 hits/day (FACT, developer.wheel-size.com). Free sandbox 300 hits/day to build and test first. One search uses about 4-5 hits (CLAIM). |
+| 1 | No vehicle picker | Discount Tire, Tire Rack, Firestone, Belle Tire, Walmart (seen) | Year > make > model > body type ("4 Dr Sedan", Belle Tire style, not trim codes like "LX-P") > OE size list > existing size results. Keep size search beside it. Keep "staff confirms fitment". Remember the vehicle on return visits. | 2-3 days (client + one server proxy route) | BUILT (#3148, live 2026-10-18) on D&K's own b2b quicksearch through the Gateway Tire login we already pay for: $0, no new vendor. Wheel-Size Basic ($450/yr, 5,000 hits/day, FACT developer.wheel-size.com) was the plan until a live probe showed D&K answers for our account. |
 | 2 | Results are one flat list | Discount Tire | Three cards on top: "Factory match", "Our pick", "Lowest price", each with the installed price for 4. Full list below. | 1 day (client) | none |
-| 3 | No year/make/model pages for Google | Belle Tire (`/tire-finder/2018/honda/civic` is a real page titled "Find Tires For Your 2018 Honda Civic"), Walmart (pages per make) | Prerendered vehicle pages, same pattern as our 40+ `/tires/<size>` pages. | 2 days + prerender | Needs written OK from Wheel-Size that cached make/model lists may back public SEO pages (CLAIM that their terms allow it; their terms page did not load for us). |
+| 3 | No year/make/model pages for Google | Belle Tire (`/tire-finder/2018/honda/civic` is a real page titled "Find Tires For Your 2018 Honda Civic"), Walmart (pages per make) | Prerendered vehicle pages, same pattern as our 40+ `/tires/<size>` pages. | 2 days + prerender | Not built. With D&K as the data source the open question moved: whether D&K's b2b terms allow cached make/model lists on public SEO pages (UNKNOWN; ask the Gateway rep before building). |
 | 4 | Not in any online installer network | Tire Rack (10,000+ installers), SimpleTire, Priority Tire | Operator decision, no code. SimpleTire pays the shop $15-$24 per tire within 48 h (FACT, simpletire.com/installer-signup). Catch: "commit to in-taking the customer within 15 min of appointment time" (FACT) conflicts with first-come-first-served. Tire Rack Recommended Installer: phone 800-428-8355 x4195, requires their Price Pledge (CLAIM). | 0 code; 1 call each | $0 to join SimpleTire (CLAIM) |
 | 5 | Quote does not travel | Discount Tire, Mavis, Firestone | "Text me this quote" and "Call about these tires" buttons that carry tire, qty, total and vehicle into the existing lead flow; payment programs and a price-match request shown next to the total, not only on /financing. Copy must say "Payment Programs", never "financing" (app brand rule). | 1-2 days | none (any customer SMS send stays operator-approved) |
 
@@ -107,9 +107,22 @@ customer-side return hook; application link reads only its own JWT `t`).
 | American First Finance | americanfirstfinance.com/app/?dealer=25207&loc=1&src=UA&usetextpin=Y | dealer, loc, src, usetextpin, lang (sp), amount, currency, reference, return_url, oid, otype, osource, utm_content, cp_cust, cp_ftrack, clearapp, theme, statusCallbackUrl | amount + reference are copied into the application payload (tag the application with the set total and order number; display to the applicant INFERRED); return_url is host-allow-listed to americanfirstfinance.com, so no return to nickstire.org; statusCallbackUrl forwarded in the payload only, use UNKNOWN | partner API v2 (apiary), contract unverified |
 | Acima | apply.acima.com/?app_id=lo&location_guid=loca-436877bd-...&utm_medium=merchant&utm_source=web | every query parameter is forwarded into the app's routes; app_id=lp routes to lease prequal | nothing beyond the location link; no phone, email or name prefill found | e-commerce REST API + sandbox by inquiry |
 
-Next step this suggests (not built here): the order modal's Koalafi link carries `phone=`, and the American First link
-carries `amount=` and `reference=<order number>`; both are one-line URL builders in `shared/financing.ts`. Operator note from
-the Koalafi screen: the dealer name there is still "Moes Tire and Auto Euclid"; rename it in the Koalafi dealer portal.
+Built in #3152: `providerApplyUrl()` in `shared/financing.ts`; the order modal's Koalafi link carries `phone=` and the
+American First link `amount=` and `reference=<order number>`. Operator note from the Koalafi screen: the dealer name there is
+still "Moes Tire and Auto Euclid"; rename it in the Koalafi dealer portal.
+
+### Kafene merchant portal, read from its public bundle (merchant.kafene.com, 2026-10-18, FACT)
+
+- Backend `https://ingress.kafene.com/v1/`; bearer from `POST auth/login`, which can answer `request_otp_verification` and then
+  needs `merchants/request-otp` + `merchants/verify-otp` (one-time code to the merchant phone on file).
+- Portal operations seen: `applications/verify-phone-number` (Open Approval Lookup), `merchants/send-sms` (Text Application),
+  `applications/all/merchant` (list with status counts), `applications/set-app-to-create-invoice`, `get-pricing-tiers`,
+  `calculate-estimate`, `get-contract`, `cancel-application`, `add-lease-length`, `merchants/stores|employees|permissions`.
+- `merchant.kafene.com/integrations`: "Only e-commerce stores are eligible to manage integrations"; no Add button. Keys come
+  from the rep (support chat 2026-10-18: eligibility goes to the sales rep). The customer application page reads only its own
+  JWT (`t`) and an internal `redirect`; no merchant return URL and no prefill parameters.
+- Not built: a server-side portal client. It would need the OTP phone's inbound SMS readable by our server; which phone is on
+  file is UNKNOWN (shop line vs Nour's cell). If it is the shop line, approval lookup and text-to-apply could run from /admin.
 
 REA (`rea-agents` 6.5.0, `analyze-web-bundle` through a headless Chrome) on the competitor tabs: Discount Tire exposed 107
 GraphQL operation names and 38 routes (getFitment, getVehicleDetails, getSeoMake/Model/TrimDesc, storeByIp,

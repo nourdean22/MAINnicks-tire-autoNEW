@@ -99,7 +99,7 @@ function LevelSelect<T>({
 /** Items for an ok result, [] for not_found (nothing there), null otherwise (loading, error, waiting). */
 function listOf<T, I>(q: Level<T>, pickList: (d: T) => I[]): I[] | null {
   if (!q.data) return null;
-  if (q.data.ok) return pickList(q.data as unknown as T);
+  if (q.data.ok) return pickList(q.data);
   return q.data.reason === "not_found" ? [] : null;
 }
 
