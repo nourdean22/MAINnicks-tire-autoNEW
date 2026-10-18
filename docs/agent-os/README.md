@@ -271,6 +271,8 @@ fail-opens, both timed from the latest of PR open, head commit and first CI star
 (default 25) logs `WARN: Codex never reported on <sha>; merging without its review`, and still `running` at twice that
 (default 50, a stall: Codex finishes in 3 to 9 min) logs `WARN: Codex review still running on <sha> after <n> min; merging
 without its result`. Findings and unresolved Codex threads never time out. Without `--merge` the WARN says `would merge`.
+Comments are read newest page first through GraphQL, stopping at the marker that decides the head: `gh pr view --json
+comments` returns only the first 100, which hid a later marker (Codex P2 on #3144). Past 2,000 comments it is BLOCKED.
 
 Canaries: `scripts/agent-os/worktreeSweep.test.mjs` (real fixture repos: a bare origin, a primary, worktrees; fake `gh`,
 lease and clock; one arm runs the real teardown script) and the sweep arms of `mergeGate.test.mjs`.

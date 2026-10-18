@@ -26,10 +26,18 @@ import * as gate from "./merge-gate.mjs";
 const GATE = fileURLToPath(new URL("./merge-gate.mjs", import.meta.url));
 const SHA = "a".repeat(40);
 const FIELDS = "state,isDraft,mergeStateStatus,headRefOid,headRefName,isCrossRepository,statusCheckRollup";
+// The read the first draft used. Real gh answers it with comments(first: 100) only (Codex P2 on #3144), so the fake
+// truncates the same way: a gate that goes back to it loses a marker posted after 100 comments, and goes red here.
 const CODEX_FIELDS = "comments,commits,createdAt";
+const PUSH_FIELDS = "commits,createdAt";
 const THREADS_QUERY = "query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewThreads(first:100){pageInfo{hasNextPage} nodes{isResolved path comments(first:1){nodes{author{login} url}}}}}}}";
 const threadsArgv = (n) => ["api", "graphql", "-F", "owner={owner}", "-F", "name={repo}", "-F", `number=${n}`, "-f", `query=${THREADS_QUERY}`];
 const THREADS = threadsArgv(3100);
+const COMMENTS_QUERY = "query($owner:String!,$name:String!,$number:Int!,$before:String){repository(owner:$owner,name:$name){pullRequest(number:$number){comments(last:50,before:$before){pageInfo{hasPreviousPage startCursor} nodes{author{login} body}}}}}";
+const commentsArgv = (n, before) => ["api", "graphql", "-F", "owner={owner}", "-F", "name={repo}", "-F", `number=${n}`, ...(before === undefined ? [] : ["-f", `before=${before}`]), "-f", `query=${COMMENTS_QUERY}`];
+const COMMENTS = commentsArgv(3100).join(" ");
+const human = (i) => ({ author: { login: "nourdean22" }, body: `comment ${i}`, createdAt: "2026-10-18T10:00:00Z" });
+const humans = (n) => Array.from({ length: n }, (_, i) => human(i));
 const LIST = ["pr", "list", "--state", "open", "--limit", "200", "--json", "number,statusCheckRollup"];
 const MERGE = ["pr", "merge", "3100", "--squash", "--match-head-commit", SHA];
 const REPO = ["repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"];
@@ -54,8 +62,12 @@ const thread = (isResolved, login = CODEX, n = 1) => ({ isResolved, path: "apps/
 const run = (name, conclusion = "SUCCESS", status = "COMPLETED") => ({ __typename: "CheckRun", name, status, conclusion });
 const view = (over = {}) => ({ state: "OPEN", isDraft: false, mergeStateStatus: "CLEAN", headRefOid: SHA, headRefName: "chore/some-branch", isCrossRepository: false, statusCheckRollup: [run("node"), run("security"), run("railway-smoke", "SKIPPED")], mergeCommit: { oid: "b".repeat(40) }, comments: [codexComment(STATE.clean)], commits: [{ oid: "e".repeat(40), committedDate: "2026-10-18T09:00:00Z" }, { oid: SHA, committedDate: "2026-10-18T10:30:21Z" }], createdAt: "2026-10-18T10:31:43Z", ...over });
 
-/** A gh with the real contract. `prs` is keyed by PR number; `fail` names calls that throw (list, view, codex, threads, after, merge, repo, delete). */
-function fakeGh({ prs = { 3100: view() }, others = [], afterMerge = { state: "MERGED" }, threads = [], hasNextPage = false, fail = {} } = {}) {
+/**
+ * A gh with the real contract. `prs` is keyed by PR number; `fail` names calls that throw (list, view, codex, push,
+ * comments, comments2 = the second comments page, threads, after, merge, repo, delete). Comments page like GitHub's
+ * comments(last: 50, before: cursor), newest page first; `endless` makes hasPreviousPage always true (a broken API).
+ */
+function fakeGh({ prs = { 3100: view() }, others = [], afterMerge = { state: "MERGED" }, threads = [], hasNextPage = false, endless = false, fail = {} } = {}) {
   const calls = [];
   const pick = (obj, keys) => Object.fromEntries(keys.split(",").filter((k) => obj[k] !== undefined).map((k) => [k, obj[k]]));
   const boom = (what) => {
@@ -69,7 +81,8 @@ function fakeGh({ prs = { 3100: view() }, others = [], afterMerge = { state: "ME
       const pr = prs[n];
       if (!pr) throw new Error(`no pull request #${n}`);
       if (args[4] === FIELDS) return fail.view ? boom("view") : JSON.stringify(pick(pr, FIELDS));
-      if (args[4] === CODEX_FIELDS) return fail.codex ? boom("codex view") : JSON.stringify(pick(pr, CODEX_FIELDS));
+      if (args[4] === CODEX_FIELDS) return fail.codex ? boom("codex view") : JSON.stringify({ ...pick(pr, CODEX_FIELDS), comments: (pr.comments ?? []).slice(0, 100) });
+      if (args[4] === PUSH_FIELDS) return fail.push ? boom("push view") : JSON.stringify(pick(pr, PUSH_FIELDS));
       if (args[4] === "state,mergeCommit") return fail.after ? boom("view after") : JSON.stringify(pick({ ...pr, ...afterMerge }, "state,mergeCommit"));
     }
     if (args[0] === "pr" && args[1] === "merge") {
@@ -78,8 +91,15 @@ function fakeGh({ prs = { 3100: view() }, others = [], afterMerge = { state: "ME
     }
     if (args[0] === "api" && args[1] === "graphql") {
       const n = Number(String(args[7]).replace("number=", ""));
-      if (!prs[n] || !same(args, threadsArgv(n))) throw new Error(`unexpected graphql argv: ${args.join(" ")}`);
-      return fail.threads ? boom("threads") : JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { pageInfo: { hasNextPage }, nodes: threads } } } } });
+      if (prs[n] && same(args, threadsArgv(n))) return fail.threads ? boom("threads") : JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { pageInfo: { hasNextPage }, nodes: threads } } } } });
+      const before = args[9]?.startsWith("before=") ? args[9].slice("before=".length) : undefined;
+      if (!prs[n] || !same(args, commentsArgv(n, before))) throw new Error(`unexpected graphql argv: ${args.join(" ")}`);
+      if (fail.comments || (fail.comments2 && before !== undefined)) return boom("comments");
+      const all = prs[n].comments ?? [];
+      const end = before === undefined ? all.length : Number(before);
+      const start = Math.max(0, end - 50);
+      const nodes = all.slice(start, end).map((c) => ({ author: c.author, body: c.body }));
+      return JSON.stringify({ data: { repository: { pullRequest: { comments: { pageInfo: { hasPreviousPage: endless || start > 0, startCursor: String(endless ? Math.max(start, 1) : start) }, nodes } } } } });
     }
     if (same(args, REPO)) return fail.repo ? boom("repo view") : "o/r\n";
     if (args[0] === "api" && args[1] === "-X" && args[2] === "DELETE" && args.length === 4) return fail.delete ? boom("delete") : "";
@@ -99,14 +119,14 @@ const logsOf = async (g, over) => {
 test("control: a clean PR merges pinned to the verified head, then reads MERGED, then the branch is deleted; every call is the exact argv", async () => {
   const g = fakeGh();
   assert.equal(await mergeGate(opts(g)), 0);
-  assert.deepEqual(g.calls, [LIST.join(" "), ["pr", "view", "3100", "--json", FIELDS].join(" "), `pr view 3100 --json ${CODEX_FIELDS}`, THREADS.join(" "), MERGE.join(" "), "pr view 3100 --json state,mergeCommit", REPO.join(" "), "api -X DELETE repos/o/r/git/refs/heads/chore/some-branch"]);
+  assert.deepEqual(g.calls, [LIST.join(" "), ["pr", "view", "3100", "--json", FIELDS].join(" "), `pr view 3100 --json ${PUSH_FIELDS}`, COMMENTS, THREADS.join(" "), MERGE.join(" "), "pr view 3100 --json state,mergeCommit", REPO.join(" "), "api -X DELETE repos/o/r/git/refs/heads/chore/some-branch"]);
 });
 
 test("without --merge it judges only: READY (Codex included), and no list, no merge, no delete", async () => {
   const g = fakeGh();
   const { code, logs } = await logsOf(g, { merge: false });
   assert.equal(code, 0);
-  assert.deepEqual(g.calls, [["pr", "view", "3100", "--json", FIELDS].join(" "), `pr view 3100 --json ${CODEX_FIELDS}`, THREADS.join(" ")]);
+  assert.deepEqual(g.calls, [["pr", "view", "3100", "--json", FIELDS].join(" "), `pr view 3100 --json ${PUSH_FIELDS}`, COMMENTS, THREADS.join(" ")]);
   assert.match(logs[0], /^READY: #3100/);
 });
 
@@ -475,8 +495,10 @@ test("canary (f): with the Codex check stubbed out, a running review MERGES; wit
 });
 
 test("mergeGate: a gh failure reading the Codex comment or the review threads exits 5 and makes no merge call", async () => {
-  for (const call of ["codex", "threads"]) {
-    const g = fakeGh({ fail: { [call]: true } });
+  for (const call of ["push", "comments", "comments2", "threads"]) {
+    // comments2 needs a second page: the head's marker sits behind 60 newer comments.
+    const prs = call === "comments2" ? { 3100: view({ comments: [codexComment(STATE.clean), ...humans(60)] }) } : undefined;
+    const g = fakeGh({ fail: { [call]: true }, ...(prs ? { prs } : {}) });
     const { code, logs } = await logsOf(g);
     assert.equal(code, 5, call);
     assert.deepEqual(mergeCalls(g), [], call);
@@ -495,4 +517,45 @@ test("an invalid codex wait is refused before any gh call, in the function and i
     assert.equal(r.status, 64, `${JSON.stringify(bad)}: ${r.stdout}${r.stderr}`);
     assert.match(r.stderr, /--codex-wait-minutes/);
   }
+});
+
+// Codex P2 on #3144: `gh pr view --json comments` returns only the first 100 comments, so on a busy PR the marker was
+// invisible and the gate failed open after the wait. The marker is read newest-first through GraphQL instead.
+const commentPages = (g) => g.calls.filter((c) => c.includes("comments(last:50")).length;
+test("a Codex marker posted after 100 other comments is still read (running holds, exit 7), on the newest page", async () => {
+  const g = fakeGh({ prs: { 3100: view({ comments: [...humans(120), codexComment(STATE.running)] }) } });
+  const { code, logs } = await logsOf(g, { now: () => T0 + 30 * MIN });
+  assert.equal(code, 7, JSON.stringify(logs));
+  assert.deepEqual(mergeCalls(g), []);
+  assert.ok(logs.some((l) => /Codex review is still running/.test(l)), JSON.stringify(logs));
+  assert.equal(commentPages(g), 1, "the newest page held it: no further pages");
+});
+
+test("an OLD marker behind 140 newer comments is found by paging backwards (3 pages), and its findings block", async () => {
+  const g = fakeGh({ prs: { 3100: view({ comments: [...humans(5), codexComment(STATE.findings), ...humans(140)] }) } });
+  const { code, logs } = await logsOf(g, { now: () => T0 + 30 * MIN });
+  assert.equal(code, 2, JSON.stringify(logs));
+  assert.equal(commentPages(g), 3);
+  assert.ok(g.calls.includes(commentsArgv(3100, "96").join(" ")) && g.calls.includes(commentsArgv(3100, "46").join(" ")), "it pages with the before cursors it was given");
+});
+
+test("150 comments and no marker reads every page and is plain 'no marker' (soft, then the WARN), not a crash", async () => {
+  const pr = () => ({ 3100: view({ comments: humans(150) }) });
+  const g = fakeGh({ prs: pr() });
+  const within = await logsOf(g, { now: () => T0 + 24 * MIN });
+  assert.equal(within.code, 7);
+  assert.ok(within.logs.some((l) => /no Codex review on a{40} yet/.test(l)), JSON.stringify(within.logs));
+  assert.equal(commentPages(g), 3);
+  const after = await logsOf(fakeGh({ prs: pr() }), { now: () => T0 + 25 * MIN });
+  assert.equal(after.code, 0);
+  assert.ok(after.logs.includes(`WARN: ${NEVER}`), JSON.stringify(after.logs));
+});
+
+test("a comment list that never ends is BLOCKED at the page cap, never an endless loop or a fail-open", async () => {
+  const g = fakeGh({ prs: { 3100: view({ comments: humans(3) }) }, endless: true });
+  const { code, logs } = await logsOf(g, { now: () => T0 + 600 * MIN });
+  assert.equal(code, 2, JSON.stringify(logs));
+  assert.deepEqual(mergeCalls(g), []);
+  assert.ok(logs.some((l) => /^BLOCKED: .*comments/.test(l)), JSON.stringify(logs));
+  assert.ok(commentPages(g) <= 40, `${commentPages(g)} pages`);
 });

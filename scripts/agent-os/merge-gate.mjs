@@ -74,8 +74,25 @@ const isCodex = (login) => String(login ?? "").replace(/\[bot\]$/, "") === "chat
 const MARKER = /<!--\s*codex-review-state:(\S*)([\s\S]*?)-->/g;
 
 /**
+ * The newest Codex marker that decides `headSha`: `{ review }` for the head's own, `{ malformed: version }` for one that
+ * does not parse (it could be the head's, so it holds), or null. Markers for an older sha are skipped. `comments` oldest first.
+ */
+function headMarker(comments, headSha) {
+  const markers = (comments ?? []).filter((c) => isCodex(c.author?.login)).flatMap((c) => [...String(c.body ?? "").matchAll(MARKER)]);
+  for (const [, version, text] of markers.reverse()) {
+    let cr;
+    try {
+      if (version === "v1") cr = JSON.parse(text).code_review;
+    } catch {}
+    if (!cr || typeof cr !== "object") return { malformed: version };
+    if (cr.commit_sha === headSha) return { review: cr };
+  }
+  return null;
+}
+
+/**
  * The Codex review's verdict on `headSha` (job 2026-10-18-merge-gate-codex-wait: #3134 and #3141 merged on green CI ~3
- * minutes before Codex posted P1 findings). `comments` is `gh pr view --json comments`; Codex edits one summary comment
+ * minutes before Codex posted P1 findings). `comments` (oldest first) come from readComments; Codex edits one summary comment
  * carrying a `codex-review-state:v1` JSON marker. `threads` are the PR's reviewThreads nodes. Returns soft (not yet),
  * hard (blocked) and warn (log only). Fail-closed: a malformed marker holds like running. The two fail-opens, each with a
  * warn line: no marker for this head `waitMinutes` after `headPushedAtMs`, or still running at 2 x `waitMinutes` (a
@@ -87,23 +104,12 @@ export function assessCodex({ comments, threads, headSha, headPushedAtMs, nowMs,
   const warn = [];
   const open = (threads ?? []).filter((t) => !t.isResolved && isCodex(t.comments?.nodes?.[0]?.author?.login));
   if (open.length) hard.push(`${open.length} unresolved Codex review thread(s): fix them and resolve the threads (${open.map((t) => t.comments.nodes[0].url ?? t.path).join(", ")})`);
-  // Newest first; an older sha is no marker for this head. A marker that does not parse could be the head's, so it holds.
-  const markers = (comments ?? []).filter((c) => isCodex(c.author?.login)).flatMap((c) => [...String(c.body ?? "").matchAll(MARKER)]);
-  let review;
-  for (const [, version, text] of markers.reverse()) {
-    let cr;
-    try {
-      if (version === "v1") cr = JSON.parse(text).code_review;
-    } catch {}
-    if (!cr || typeof cr !== "object") {
-      soft.push(`the Codex review-state marker (${version || "no version"}) could not be read: treating it as still running`);
-      return { soft, hard, warn };
-    }
-    if (cr.commit_sha === headSha) {
-      review = cr;
-      break;
-    }
+  const found = headMarker(comments, headSha);
+  if (found && "malformed" in found) {
+    soft.push(`the Codex review-state marker (${found.malformed || "no version"}) could not be read: treating it as still running`);
+    return { soft, hard, warn };
   }
+  const review = found?.review;
   const waited = (nowMs - headPushedAtMs) / 60_000;
   const verb = merging ? "merging" : "would merge";
   if (!review) {
@@ -142,8 +148,28 @@ export async function holdWhileBusy({ list, self, minutes, sleep, now, everyMs =
 
 const VIEW_FIELDS = "state,isDraft,mergeStateStatus,headRefOid,headRefName,isCrossRepository,statusCheckRollup";
 const THREADS_QUERY = "query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewThreads(first:100){pageInfo{hasNextPage} nodes{isResolved path comments(first:1){nodes{author{login} url}}}}}}}";
+const COMMENTS_QUERY = "query($owner:String!,$name:String!,$number:Int!,$before:String){repository(owner:$owner,name:$name){pullRequest(number:$number){comments(last:50,before:$before){pageInfo{hasPreviousPage startCursor} nodes{author{login} body}}}}}";
+const COMMENT_PAGES = 40; // 2,000 comments; past that the gate refuses rather than guess
 // Calibrated 2026-10-18: Codex posted its review 3 to 9 minutes after PR open on #3139 and #3141; 25 leaves room for a slow run.
 const CODEX_WAIT_MINUTES = 25;
+
+/**
+ * The PR's top-level comments, oldest first, read NEWEST page first and only as far back as needed: it stops at the
+ * marker that decides the head, or when the comments run out. `gh pr view --json comments` returns only the first 100
+ * (Codex P2 on #3144), which hid a marker posted after 100 comments and failed open. `complete` is false at the page cap.
+ */
+const readComments = (json, pr, headSha) => {
+  let comments = [];
+  let before;
+  for (let page = 0; page < COMMENT_PAGES; page++) {
+    const args = ["api", "graphql", "-F", "owner={owner}", "-F", "name={repo}", "-F", `number=${pr}`, ...(before === undefined ? [] : ["-f", `before=${before}`]), "-f", `query=${COMMENTS_QUERY}`];
+    const { pageInfo, nodes } = json(args).data.repository.pullRequest.comments;
+    comments = [...nodes, ...comments];
+    if (headMarker(comments, headSha) || !pageInfo.hasPreviousPage) return { comments, complete: true };
+    before = pageInfo.startCursor;
+  }
+  return { comments, complete: false };
+};
 
 /**
  * When the head reached GitHub, for the Codex wait: the LATEST of PR open, the head commit's committedDate (it can predate
@@ -174,10 +200,14 @@ export async function mergeGate({ gh, pr, sha, wait, merge, sleep, now, log, swe
       return 3;
     }
     before = json(["pr", "view", String(pr), "--json", VIEW_FIELDS]);
-    const codexView = json(["pr", "view", String(pr), "--json", "comments,commits,createdAt"]);
+    const codexView = json(["pr", "view", String(pr), "--json", "commits,createdAt"]);
+    const { comments, complete } = readComments(json, pr, sha);
     const threads = json(["api", "graphql", "-F", "owner={owner}", "-F", "name={repo}", "-F", `number=${pr}`, "-f", `query=${THREADS_QUERY}`]).data.repository.pullRequest.reviewThreads;
-    codex = codexCheck({ comments: codexView.comments, threads: threads.nodes, headSha: sha, headPushedAtMs: pushedAtMs(before, codexView), nowMs: now(), waitMinutes: codexWait, merging: Boolean(merge) });
-    if (threads.pageInfo?.hasNextPage) codex = { ...codex, hard: [...codex.hard, "more than 100 review threads: this gate reads one page, so it cannot prove none is an open Codex finding; check by hand"] };
+    codex = codexCheck({ comments, threads: threads.nodes, headSha: sha, headPushedAtMs: pushedAtMs(before, codexView), nowMs: now(), waitMinutes: codexWait, merging: Boolean(merge) });
+    const extra = [];
+    if (!complete) extra.push(`more than ${COMMENT_PAGES * 50} comments and no Codex marker for the head among them: this gate cannot prove Codex never reported; check by hand`);
+    if (threads.pageInfo?.hasNextPage) extra.push("more than 100 review threads: this gate reads one page, so it cannot prove none is an open Codex finding; check by hand");
+    if (extra.length) codex = { ...codex, hard: [...codex.hard, ...extra] };
   } catch (e) {
     log(`ERROR before any merge call, nothing was merged: ${firstLine(e)}`);
     return 5;
