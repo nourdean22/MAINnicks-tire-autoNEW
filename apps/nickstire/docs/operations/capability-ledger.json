@@ -5572,7 +5572,10 @@
       "evidence": {
         "codeCommit": "Branch nickstire/tire-finder-vehicle-picker (job 2026-10-18-tire-finder-vehicle-picker). server/services/fitment/dkFitment.ts + server/routers/fitment.ts: six public reads (status, years, makes, models, trims, sizes) over D&K b2b quicksearch through the existing Gateway Tire login; unconfigured when no login, upstream_error never rendered as an empty list, failed-login memory 60 s, in-memory cache only. client/src/components/tires/VehicleSizePicker.tsx + pages/TireFinderV2.tsx: By vehicle tab (default) and By size tab, size tap feeds the existing publicSearch; top picks from client/src/lib/tirePicks.ts; Kafene (shared/financing.ts first) with banners client/public/kafene/*. financing click enum + migration 0147 for kafene.",
         "tests": "server/__tests__/fitment.test.ts 19 (red-first 18f/1p), server/__tests__/financingKafeneClick.test.ts 9, shared/financingProviders.test.ts, client/src/__tests__/tire-finder-vehicle.test.tsx 14, tire-finder-v2.test.tsx 25, tire-picks.test.ts, financing-kafene-banner.test.tsx, storage-blocked.test.tsx; manager run on the combined tip 10 files 95 passed; mutations 25/25 killed across both lanes",
-        "liveProbe": "Manager read-only probe 2026-10-18 with the shop login: D&K quicksearch 2018 Honda Civic LX -> 215/50R17, 215/55R16, 215/55R17, 235/40R18 (HTTP 200). Production 2026-10-18 after PR #3148 (deploy 0b8cb5bae): /api/trpc/fitment.status {available:true}; fitment.years 2027..; fitment.sizes {year:2018,make:Honda,model:Civic,trim:LX} -> the same four sizes, all searchable; /tires screenshot in the built-in browser shows the By vehicle tab (manager)."
+        "liveProbe": "Manager read-only probe 2026-10-18 with the shop login: D&K quicksearch 2018 Honda Civic LX -> 215/50R17, 215/55R16, 215/55R17, 235/40R18 (HTTP 200). Production 2026-10-18 after PR #3148 (deploy 0b8cb5bae): /api/trpc/fitment.status {available:true}; fitment.years 2027..; fitment.sizes {year:2018,make:Honda,model:Civic,trim:LX} -> the same four sizes, all searchable; /tires screenshot in the built-in browser shows the By vehicle tab (manager).",
+        "deploymentId": "Railway main deploy of PR #3148 squash 0b8cb5bae7a838bb932d5a7b38517ac5f8758c03 (/api/health deploy.commit read 2026-10-18 19:2xZ)",
+        "liveRuns": "2026-10-18 after deploy 0b8cb5bae: GET https://nickstire.org/api/trpc/fitment.status -> {available:true}; fitment.years -> ok, 2027..1997; fitment.sizes {year:2018,make:Honda,model:Civic,trim:LX} -> ok, 215/50R17, 215/55R16, 215/55R17, 235/40R18 all searchable (manager curl, HTTP 200 each)",
+        "screenshots": "2026-10-18 built-in browser, https://nickstire.org/tires desktop: hero with the By vehicle / By size tabs and the Year, Make, Model, Trim selects (manager screenshot in the session transcript; no file committed)"
       },
       "blockers": [
         {
@@ -5588,7 +5591,8 @@
       "lastVerifiedAt": "2026-10-18",
       "codeState": "merged",
       "operationalState": "visually_verified",
-      "exposure": "production"
+      "exposure": "production",
+      "verificationExpiresAt": "2026-11-18"
     },
     {
       "capabilityId": "tire-order-dk-supplier-order",
