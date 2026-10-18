@@ -1,8 +1,45 @@
-# Voice Agent Evaluation Rubric · v1.0 (2026-05-26)
+# Voice Agent Evaluation Rubric · v1.1 (2026-10-18)
 
 **Used by:** `apps/nickstire/server/cron/jobs/vapiCallEval.ts` (daily eval cron)
 **Skill port:** PORT 10 · agent-evaluation + llm-evaluation framework
 **Storage:** `vapi_call_logs.eval_score / eval_outcome / eval_reasoning / eval_at`
+
+## Changelog
+
+- **v1.1 (2026-10-18)** · Conversion progression now credits a walk-in invitation that carries the shop's
+  address and hours, because the shop is first come, first served with walk-ins and no held slots, so booking
+  is not the only next step the shop can honour. The 20/15/10/5/0 ladder is copied from v1.0, not re-tuned.
+  Two measured fields are added (below). The "How the cron uses this" section is corrected: the cron does not
+  call an LLM with this rubric.
+- **v1.0 (2026-05-26)** · five dimensions, 20 points each. Text kept below under "Conversion progression, v1.0".
+
+## Implementation status (read this before trusting a table)
+
+The five-dimension tables below are the **target design**. The daily cron does not score them. It runs the
+deterministic classifier (`services/vapiCallClassifier.ts`) and the additive `vapi-quality-v1` scorer
+(`services/vapiMeasurement.ts`), and writes `eval_score` from those. What v1.1 adds in code is the walk-in
+measurement only: `services/vapiWalkInCoverage.ts`, which does not change `eval_score`.
+
+### Walk-in measurement (implemented)
+
+Two fields, each `true`, `false` or UNMEASURED. They are written as a suffix on `eval_reasoning`:
+` · walk_in=<true|false|unmeasured> · addr_hours=<true|false|unmeasured>`.
+
+| Field | `true` when | `false` when | UNMEASURED when |
+|---|---|---|---|
+| `walk_in` | an assistant turn after the opening line invites the caller in (walk-ins, come by, stop in, first come first served, no appointment) | the agent spoke past the opening line and did not | the transcript has no speaker labels, the agent said nothing past its opening line, or the call has no quality score (not a customer conversation, or a technical failure) |
+| `addr_hours` | assistant turns after the opening line state the street address and an open-to-close hours pair | the agent spoke past the opening line and gave one or neither | same as above |
+
+- The address and hours the check looks for come from `shared/business.ts` at run time. The rubric holds no
+  copy of them; change the business facts and the criteria move with them.
+- Only assistant speech counts, and the opening line is skipped: the greeting names the shop and can name its
+  address, so counting it would mark every call as "gave the address".
+- A row written before v1.1, or a field that is missing or malformed, reads back as UNMEASURED. It is never
+  read as `false`.
+- The check records what was said. It does not judge accuracy. A wrong hours claim is the Compliance dimension
+  and the voice claim guard, not this field.
+- Shortcut: the address is matched by its digits plus the street name, so a house number the transcriber
+  spelled out reads as not given.
 
 ## Purpose
 
@@ -55,9 +92,25 @@ multi-dimensional rubric. Three benefits:
 | 5 | Multiple brand-voice violations ("trusted", "experts", "quality") |
 | 0 | Sounded corporate / chatbot · clear archetype invasion (Hero/Sage/Ruler tone) |
 
-### 4. Conversion progression (0-20)
+### 4. Conversion progression (0-20) · v1.1
 
-> Did the agent move the caller toward a desired action?
+> Did the agent move the caller toward a next step the shop can honour? Booking is not required: the shop is
+> first come, first served, walk-ins welcome every day, no held slots.
+
+| Score | Criteria |
+|---|---|
+| 20 | Booked a slot OR captured a callback request OR sent confirmation SMS OR gave an explicit walk-in invitation WITH the shop's address and hours |
+| 15 | Offered next step + caller agreed but no booking yet (e.g. "I'll think about it, call me back") · OR invited the caller to walk in but gave only one of address or hours |
+| 10 | Offered next step but caller deferred / declined (a declined walk-in invitation counts here) |
+| 5 | Provided info but didn't suggest a next step (address or hours given with no invitation to come in counts here) |
+| 0 | Caller hung up frustrated · OR agent escalated to human without trying |
+
+The 20/15/10/5/0 ladder is copied from v1.0. Only the walk-in clauses are new; no band was re-tuned. A walk-in
+invitation must not promise a wait time, a held slot or a service time (see Compliance below). The address and
+hours are read from `shared/business.ts`, never copied into a prompt or this table.
+
+<details>
+<summary>Conversion progression, v1.0 (2026-05-26), kept for history</summary>
 
 | Score | Criteria |
 |---|---|
@@ -66,6 +119,8 @@ multi-dimensional rubric. Three benefits:
 | 10 | Offered next step but caller deferred / declined |
 | 5 | Provided info but didn't suggest a next step |
 | 0 | Caller hung up frustrated · OR agent escalated to human without trying |
+
+</details>
 
 ### 5. Compliance + safety (0-20)
 
@@ -108,10 +163,11 @@ race condition?").
 
 ## How the cron uses this
 
-`vapiCallEval.ts` daily cron loads each unevaluated call's transcript,
-passes this rubric + transcript to the LLM, requests structured JSON
-output of the 5 dimensions + a 1-paragraph `eval_reasoning`. Total is
-computed server-side from the dimensions (don't trust the LLM's math).
+Corrected in v1.1. v1.0 said the cron passed this rubric and the transcript to an LLM and computed the total
+from five returned dimensions. The code does not do that. `vapiCallEval.ts` loads each unevaluated call, runs the
+deterministic `classifyCall` and `scoreVapiQuality` (`vapi-quality-v1`), and writes `eval_score`,
+`eval_outcome` and `eval_reasoning` from them, then appends the walk-in suffix described above. Scoring by
+the five dimensions remains a design target, not behaviour.
 
 ## Future extensions
 
