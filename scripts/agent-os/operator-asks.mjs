@@ -21,6 +21,7 @@
  * `- <timestamp> <typed|mid-turn> "<text as a JSON string>"`, deduped on the text, append-only. A sidecar
  * <session_id>.state.json holds the transcript byte offset already read, so a refresh reads only new bytes.
  * PRIVACY: the operator's words stay machine-local. Nothing here writes inside the repo or calls the network.
+ * Text he wraps in <private>...</private> is stored and recalled as `[private: redacted]` (redactPrivate, AGENTS.md).
  * FAILURE POSTURE: like every agent-os hook, a bug here fails OPEN: exit 0, a note on stderr, nothing blocks.
  * Canaries: operatorAsks.test.mjs (extraction, refresh, recall, caps, speed) and hookCommand.test.mjs (wiring).
  */
@@ -43,6 +44,37 @@ const textOf = (content) =>
     .replace(REMINDER, "")
     .trim();
 
+// A single-line backtick span is a mention and is kept whole, so a quoted `<private>` never opens a redaction.
+// shortcut: a secret the operator wraps in backticks AND the tag is kept; drop the code-span arm if that ever happens.
+const PRIVATE_TOKEN = /(`[^`\n]*`)|(<private(?:\s[^>]*)?>)|<\/private\s*>/gi;
+const REDACTED = "[private: redacted]";
+
+/**
+ * `<private>...</private>` -> `[private: redacted]`, so it is never stored. Any case, attributes allowed, nested tags
+ * end at the outer close, an unclosed tag runs to the end, and a stray close redacts back to the previous redaction
+ * (or the start): every malformed shape errs toward hiding more.
+ */
+export function redactPrivate(text) {
+  let out = "";
+  let depth = 0;
+  let at = 0;
+  let mark = -1; // out.length just after the last REDACTED, -1 before the first
+  for (const m of text.matchAll(PRIVATE_TOKEN)) {
+    const before = text.slice(at, m.index);
+    at = m.index + m[0].length;
+    if (depth > 0) {
+      if (m[2]) depth++;
+      else if (!m[1] && --depth === 0) mark = (out += REDACTED).length;
+      continue; // a code span inside a redaction is redacted with it
+    }
+    out += before;
+    if (m[1]) out += m[0];
+    else if (m[2]) depth = 1;
+    else mark = (out = mark < 0 ? REDACTED : out.slice(0, mark)).length; // stray close
+  }
+  return depth > 0 ? out + REDACTED : out + text.slice(at);
+}
+
 function spoken(text) {
   if (!text || MACHINE.test(text)) return null;
   const name = text.match(/<command-name>([\s\S]*?)<\/command-name>/)?.[1]?.trim();
@@ -57,7 +89,7 @@ export function operatorAsk(e) {
     const a = e.attachment;
     if (a?.type !== "queued_command" || a.origin?.kind !== "human") return null;
     const text = spoken(textOf(a.prompt));
-    return text && { ts: a.timestamp ?? e.timestamp ?? "", kind: "mid-turn", text };
+    return text && { ts: a.timestamp ?? e.timestamp ?? "", kind: "mid-turn", text: redactPrivate(text) };
   }
   if (e?.type !== "user" || e.isMeta || e.isCompactSummary || e.isSidechain || e.toolUseResult !== undefined) return null;
   // An entry with no `origin` may still carry `turnOrigin`: "sdk" opens a session another session started (its brief is
@@ -65,7 +97,7 @@ export function operatorAsk(e) {
   const who = e.origin?.kind ?? e.turnOrigin;
   if (who !== undefined && who !== "human") return null;
   const text = spoken(textOf(e.message?.content));
-  return text && { ts: e.timestamp ?? "", kind: "typed", text };
+  return text && { ts: e.timestamp ?? "", kind: "typed", text: redactPrivate(text) };
 }
 
 /** Bytes from `offset` to the last complete line. A half-written last line is left for the next read. */
