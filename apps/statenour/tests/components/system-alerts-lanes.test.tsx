@@ -151,6 +151,9 @@ describe("/system/alerts: loading, a failed read and a real empty each say which
     render();
     expect(text()).toContain("Couldn't load alerts: state unknown, not an empty list.");
     expect(text()).not.toContain("No alerts in the last");
+    // self-review: the header counters and category chips printed 0 on a failed read
+    expect(text()).toContain("Count unknown");
+    expect(text()).not.toMatch(/0\s*Visible|0\s*Total|Correlation·0/);
     const retry = button(/^Retry$/);
     expect(retry).toBeTruthy();
     act(() => retry!.click());

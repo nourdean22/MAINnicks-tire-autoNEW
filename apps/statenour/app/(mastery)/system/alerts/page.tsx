@@ -296,6 +296,10 @@ export default function AlertsInspectorPage() {
       <Panel className="mt-4">
         {/* Controls row */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          {/* W5b self-review: no answer yet (or a failed read) has no count; never print 0. */}
+          {!payload || readFailed ? (
+            <span className="text-[13px] text-fg-tertiary">{readFailed ? "Count unknown" : "Counting"}</span>
+          ) : (
           <div className="flex items-center gap-3">
             <div className="flex items-baseline gap-1.5">
               <AnimatedCounter
@@ -317,6 +321,7 @@ export default function AlertsInspectorPage() {
               </span>
             </div>
           </div>
+          )}
           <FreshnessChip
             lastFetchedAt={lastFetchedAt}
             source="api/brain/active-alerts"
@@ -369,7 +374,7 @@ export default function AlertsInspectorPage() {
           </span>
           {ALL_CATS.map((cat) => {
             const meta = CATEGORY_META[cat];
-            const count = payload?.counts[cat] ?? 0;
+            const count = payload && !readFailed ? (payload.counts[cat] ?? 0) : null;
             const active = activeCategories.has(cat);
             return (
               <button
@@ -386,8 +391,12 @@ export default function AlertsInspectorPage() {
                 }
               >
                 <span>{meta.label}</span>
-                <span className="opacity-70">·</span>
-                <AnimatedCounter value={count} />
+                {count !== null && (
+                  <>
+                    <span className="opacity-70">·</span>
+                    <AnimatedCounter value={count} />
+                  </>
+                )}
               </button>
             );
           })}
