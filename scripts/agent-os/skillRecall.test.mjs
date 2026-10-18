@@ -12,6 +12,8 @@ import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { isVendoredSkill } from "./vendoredSkill.mjs";
+
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..", "..");
 const SCRIPT = join(HERE, "skill-recall.mjs");
@@ -179,10 +181,11 @@ function controlProblems(script = SCRIPT, home = HOME_SMALL) {
   return problems;
 }
 
-/** Every repo skill carries a non-empty ASCII `triggers:` frontmatter line (inline list, or a YAML block list). */
+/** Every repo skill carries a non-empty ASCII `triggers:` frontmatter line (inline list, or a YAML block list); a vendored upstream copy (vendoredSkill.mjs) is kept byte-identical, so it is exempt. */
 export function triggerProblems(skills) {
   const problems = [];
-  for (const { rel, text } of skills) {
+  for (const { rel, text, vendored } of skills) {
+    if (vendored) continue;
     const fm = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text)?.[1];
     if (!fm) { problems.push(`${rel}: no frontmatter`); continue; }
     const m = /^triggers:[ \t]*(.*)$((?:\r?\n[ \t]+-[ \t]*\S.*)*)/m.exec(fm);
@@ -198,7 +201,7 @@ function repoSkills() {
   const out = [];
   for (const e of readdirSync(join(ROOT, ".claude", "skills"), { withFileTypes: true })) {
     const file = join(ROOT, ".claude", "skills", e.name, "SKILL.md");
-    if (e.isDirectory() && existsSync(file)) out.push({ rel: `.claude/skills/${e.name}`, text: readFileSync(file, "utf8") });
+    if (e.isDirectory() && existsSync(file)) out.push({ rel: `.claude/skills/${e.name}`, text: readFileSync(file, "utf8"), vendored: isVendoredSkill(join(ROOT, ".claude", "skills", e.name), ROOT) });
   }
   return out;
 }
@@ -211,6 +214,8 @@ test("every repo SKILL.md has a non-empty triggers: line, and a planted removal 
   const mutant = { rel: victim.rel, text: victim.text.replace(/^triggers:.*\r?\n/m, "") };
   assert.notEqual(mutant.text, victim.text);
   assert.deepEqual(triggerProblems([mutant]), [`${victim.rel}: no triggers: line`]);
+  assert.deepEqual(triggerProblems([{ ...mutant, vendored: true }]), [], "a vendored copy without triggers: is exempt");
+  assert.ok(skills.filter((s) => s.vendored).length >= 21, "the vendored set was not detected");
   const thin = { rel: victim.rel, text: victim.text.replace(/^triggers:.*$/m, "triggers: one, two") };
   assert.match(triggerProblems([thin])[0], /want at least 3/);
 });

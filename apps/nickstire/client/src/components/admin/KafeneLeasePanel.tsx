@@ -1,8 +1,37 @@
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
 import { hasAdminPermission, type AdminRole } from "@shared/adminPermissions";
+
+const PORTAL_URL = "https://merchant.kafene.com/";
+const BUTTON = "inline-flex min-h-12 items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold disabled:opacity-50";
+
+/**
+ * No Kafene keys and no portal client (Kafene's Cloudflare refuses VPN and datacenter egress, Nour
+ * 2026-10-18: deep link only), so the counter opens the merchant portal itself with the customer's
+ * phone already on the clipboard for its lookup. Clipboard refusals still open the portal.
+ */
+function PortalButton({ phone, className }: { phone: string | null | undefined; className: string }) {
+  const digits = (phone ?? "").replace(/\D/g, "");
+  const open = async () => {
+    if (digits) {
+      try {
+        await navigator.clipboard?.writeText(digits);
+        toast.success(`Phone copied: ${digits}. Paste it into Kafene's lookup.`);
+      } catch {
+        toast.message(`Kafene lookup phone: ${digits}`);
+      }
+    }
+    window.open(PORTAL_URL, "_blank", "noopener,noreferrer");
+  };
+  return (
+    <button type="button" onClick={() => void open()} className={`${className} border border-border text-foreground`}>
+      Open Kafene portal (copies phone)
+    </button>
+  );
+}
 
 // The Kafene lease on one tire order (server/routers/kafene.ts admin status / activate / cancel).
 // Activating tells Kafene the tires are installed and starts their funding to the shop, so it is
@@ -37,7 +66,7 @@ type Outcome = { text: string; detail?: string; retry?: "activate" | "cancel" } 
 
 const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
-export default function KafeneLeasePanel({ order }: { order: { orderNumber: string } }) {
+export default function KafeneLeasePanel({ order }: { order: { orderNumber: string; customerPhone?: string | null } }) {
   const security = trpc.adminSecurity.status.useQuery();
   const role = security.data?.adminRole as AdminRole | undefined;
   const canView = !!role && hasAdminPermission(role, "money.view");
@@ -63,9 +92,10 @@ export default function KafeneLeasePanel({ order }: { order: { orderNumber: stri
     if (status.data.reason !== "not_installed") return null;
     const id = `kafene-lease-${order.orderNumber}`;
     return (
-      <section aria-labelledby={id} className="mb-4 space-y-1 rounded-lg border border-border/40 bg-card/40 p-4">
+      <section aria-labelledby={id} className="mb-4 space-y-2 rounded-lg border border-border/40 bg-card/40 p-4">
         <h3 id={id} className="text-sm font-bold text-foreground">Kafene lease</h3>
         <p className="text-xs text-muted-foreground">Kafene lease records are not installed yet (migration 0148).</p>
+        <PortalButton phone={order.customerPhone} className={BUTTON} />
       </section>
     );
   }
@@ -121,12 +151,13 @@ export default function KafeneLeasePanel({ order }: { order: { orderNumber: stri
   };
 
   const headingId = `kafene-lease-${order.orderNumber}`;
-  const button = "inline-flex min-h-12 items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold disabled:opacity-50";
+  const button = BUTTON;
   const lease = status.data?.ok ? status.data.lease : null;
 
   return (
     <section aria-labelledby={headingId} className="mb-4 space-y-2 rounded-lg border border-border/40 bg-card/40 p-4">
       <h3 id={headingId} className="text-sm font-bold text-foreground">Kafene lease</h3>
+      <PortalButton phone={order.customerPhone} className={button} />
 
       {status.isLoading && <p className="text-xs text-muted-foreground">Loading...</p>}
 
