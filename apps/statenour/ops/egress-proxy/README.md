@@ -14,8 +14,13 @@ connections itself.
   Identification"), and with no ACL it never asks who the client is. Access is limited by placement: private
   networking only, no public domain, inside the camofox project. Leave camofox's `PROXY_USERNAME` /
   `PROXY_PASSWORD` unset.
-- **Deploy:** a Railway service from this repo with Root Directory `apps/statenour/ops/egress-proxy`. Steps:
-  `apps/statenour/docs/runbooks/camofox-scrape-fallback.md`. Nothing in the repo runs it.
+- **Deploy:** a Railway service built from this `Dockerfile` (on 2026-10-18 it was uploaded with `railway up` from a
+  `git archive` export of this directory). Steps: `apps/statenour/docs/runbooks/camofox-scrape-fallback.md`.
+  Nothing in the repo runs it.
+- **Listening:** port 4750 on every interface (dual stack is INFERRED from Go's empty-address default; camofox reached
+  it over IPv4 on 2026-10-18, IPv6 was never observed). Do not add `--listen-ip=::`: Smokescreen v0.1.0 builds the address as
+  ":::4750" and crash-loops. `tests/integrations/egress-proxy-dockerfile.test.ts` pins the arguments.
 - **Upgrade:** change `SMOKESCREEN_COMMIT` and the base image digests in one reviewed PR after reading the diff.
 
-NOT CHECKED: the image build and live proxy behaviour (no Docker on the authoring machine).
+FACT (observed 2026-10-18): the image builds on Railway and the proxy refuses the private-target classes listed in the
+runbook, step 4. NOT CHECKED: any class of target nobody probed.
