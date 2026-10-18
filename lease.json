@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "statenour/prune-bdnick-w1",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "31cd0942-42dc-47b2-91fd-b8e3be5cb913",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\epic-germain-4e0fc9",
+  "claimedBy": "2026-10-18-bdnick-prune",
+  "claimedAt": "2026-10-18T21:35:29.519Z",
+  "expiresAt": "2026-10-19T09:35:29.519Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
