@@ -39,7 +39,7 @@ const lastFour = (phone: string) => phone.slice(-4);
 /** Echoed into the customer's text, so markup and links are refused outright. */
 const plainText = (max: number) => z.string().trim().min(1).max(max).refine((v) => !/[<>]|https?:|www\./i.test(v), "plain text only");
 
-export type QuoteSmsState = "sent" | "queued" | "uncertain" | "not_sent" | "duplicate";
+type QuoteSmsState = "sent" | "queued" | "uncertain" | "not_sent" | "duplicate";
 
 export const tireQuoteRouter = router({
   text: publicProcedure

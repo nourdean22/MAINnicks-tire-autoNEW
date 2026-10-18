@@ -81,7 +81,7 @@ export default function TextQuoteButton({ tire, quantity, pick, vehicle }: Props
         quantity,
         pricePerTireCents: tire.pricePerTireCents,
         pick,
-        vehicle: vehicle ? { year: vehicle.year, make: vehicle.make, model: vehicle.model, trim: vehicle.trim } : undefined,
+        vehicle: vehicle ? { year: vehicle.year, make: vehicle.make, model: vehicle.model, trim: vehicle.trim || undefined } : undefined,
         ...getUtmData(),
       },
       {
