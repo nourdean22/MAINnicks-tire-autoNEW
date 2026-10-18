@@ -62,9 +62,6 @@
     "app/(mastery)/system/camera/page.tsx": {
       "smallInput": 3
     },
-    "app/(mastery)/system/chat-states/page.tsx": {
-      "emoji": 3
-    },
     "app/(mastery)/system/crons/page.tsx": {
       "emDash": 3
     },

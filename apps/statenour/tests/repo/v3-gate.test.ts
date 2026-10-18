@@ -737,47 +737,6 @@ describe("disallowedUnstubbed (the v3 gate's unstubbed-read rule)", () => {
   });
 });
 
-// ── chat-states.spec.ts waits only for copy the live source renders (W3a) ────
-
-describe("chat-states.spec.ts: every literal it waits for exists in live source", () => {
-  const CHAT_STATES_SPEC = path.join(E2E_DIR, "chat-states.spec.ts");
-
-  /** The string literals a spec waits on: getByText("..."), openPanel(page, "button", "proof"), a heading's name. */
-  function waitedLiterals(spec: string): string[] {
-    const q = String.raw`"((?:[^"\\]|\\.)*)"`;
-    const out: string[] = [];
-    for (const m of spec.matchAll(new RegExp(String.raw`getByText\(\s*${q}\s*,?\s*\)`, "g"))) out.push(m[1]);
-    for (const m of spec.matchAll(new RegExp(String.raw`openPanel\(page,\s*${q},\s*${q}\s*\)`, "g"))) out.push(m[1], m[2]);
-    for (const m of spec.matchAll(new RegExp(String.raw`getByRole\("heading",\s*\{\s*name:\s*${q}`, "g"))) out.push(m[1]);
-    return out;
-  }
-
-  /** Literals no rendered source contains. JSX entities are decoded the way the DOM shows them. */
-  function unsourced(literals: string[], sources: string[]): string[] {
-    const joined = sources.join("\n").replace(/&apos;/g, "'").replace(/&amp;/g, "&");
-    return literals.filter((l) => !joined.includes(l));
-  }
-
-  const sources = ["app/(mastery)/system/chat-states/page.tsx", "components/chat/memory-inspector-sidebar.tsx"].map((f) => read(path.join(APP_DIR, f)));
-
-  it("the spec's own waits are all found in the page and the evidence panel it renders", () => {
-    const literals = waitedLiterals(read(CHAT_STATES_SPEC));
-    expect(literals.length, "the extractor saw too few waits: it proves nothing").toBeGreaterThanOrEqual(6);
-    expect(unsourced(literals, sources)).toEqual([]);
-  });
-
-  it("positive control: the em-dash forms W1a reworded are reported, the colon forms are not", () => {
-    const stale = [
-      'await expect(page.getByText("Completion message — receipts sample")).toBeVisible();',
-      'await openPanel(page, "Open — fresh recall", "Context & Evidence");',
-      'await expect(\n        page.getByText("not yet fetched — open state, not evidence"),\n      ).toBeVisible();',
-    ].join("\n");
-    expect(unsourced(waitedLiterals(stale), sources)).toEqual(["Completion message — receipts sample", "not yet fetched — open state, not evidence", "Open — fresh recall"]);
-    const live = stale.replaceAll(" — ", ": ");
-    expect(unsourced(waitedLiterals(live), sources)).toEqual([]);
-  });
-});
-
 // ── Chat fixtures (UI v3 W3a): the instrument for the Chat six-feet gate ─────
 
 describe("chat fixtures (W3a)", () => {

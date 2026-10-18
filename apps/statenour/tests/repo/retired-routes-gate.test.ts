@@ -15,7 +15,7 @@
  * three days later.
  */
 import { describe, expect, it, vi } from "vitest";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 // 2026-09-07 · next.config wraps itself in withSentryConfig. This gate is
@@ -89,5 +89,108 @@ describe("retired routes gate · every route-carrying registry points at a page 
       .filter(([, href]) => !isExternal(href) && !pageExists(href))
       .map(([domain, href]) => `${domain} → ${href}`);
     expect(dead, "lane-check targets that 404").toEqual([]);
+  });
+});
+
+/**
+ * 2026-10-18 · bdnick prune (job 2026-10-18-bdnick-prune). Pages cut because prod
+ * page_visit audit events (90 days) and a code-level reference check showed no
+ * live use. Each keeps a redirect so old Telegram, push, email and bookmark links
+ * never 404. `route` is a page path (or an API prefix); `to` is the exact redirect
+ * destination, query string included.
+ */
+export const PRUNED: ReadonlyArray<{ route: string; to: string; page?: false }> = [
+  { route: "/system/chat-states", to: "/system" },
+  { route: "/system/schema-history", to: "/system" },
+  { route: "/system/tools", to: "/system/actions" },
+  { route: "/system/proactive-preview", to: "/system" },
+  { route: "/system/alerts", to: "/brain?tab=memory" },
+  { route: "/system/camera", to: "https://nickstire.org/admin" },
+  { route: "/intelligence/ledger", to: "/" },
+  { route: "/intelligence/brief", to: "/" },
+  { route: "/content", to: "/" },
+  { route: "/learn", to: "/" },
+  { route: "/links", to: "/" },
+  { route: "/photo-improver", to: "/" },
+  { route: "/goals", to: "/stats?tab=goals" },
+  { route: "/scoreboard", to: "/stats" },
+  { route: "/api/short", to: "/", page: false },
+];
+
+/**
+ * True when `text` carries `route` as a whole path (not `/api/goals`, not
+ * `/learning`, not `https://x/learn`), outside comments. Exported shape is
+ * private to this file; the positive control below pins it.
+ */
+function referencesRoute(text: string, route: string): boolean {
+  const esc = route.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
+  const re = new RegExp(`(?<![\\w/.:-])${esc}(?![\\w-])`);
+  return text.split(/\r?\n/).some((line) => {
+    const t = line.trim();
+    if (t.startsWith("//") || t.startsWith("*") || t.startsWith("/*") || t.startsWith("{/*")) return false;
+    return re.test(line.replace(/\s\/\/.*$/, ""));
+  });
+}
+
+const SCAN_DIRS = ["app", "components", "lib", "hooks", "features", "config"];
+function* walk(dir: string): Generator<string> {
+  for (const name of readdirSync(dir)) {
+    if (name === "node_modules" || name === ".next") continue;
+    const full = join(dir, name);
+    if (statSync(full).isDirectory()) yield* walk(full);
+    else if (/\.(ts|tsx|mts|json)$/.test(name)) yield full;
+  }
+}
+
+describe("pruned routes (2026-10-18) · gone, redirected, and linked from nowhere", () => {
+  it("each pruned route has no page file and exactly one redirect to its stated destination", async () => {
+    const redirects = await nextConfig.redirects!();
+    const problems: string[] = [];
+    for (const { route, to, page } of PRUNED) {
+      if (page !== false && pageExists(route)) problems.push(`${route}: page.tsx still exists`);
+      const source = page === false ? `${route}/:path*` : route;
+      const hits = redirects.filter((r) => r.source === source);
+      if (hits.length !== 1) problems.push(`${route}: expected 1 redirect from ${source}, found ${hits.length}`);
+      else if (hits[0].destination !== to) problems.push(`${route}: redirects to ${hits[0].destination}, expected ${to}`);
+      else if (hits[0].permanent !== false) problems.push(`${route}: redirect must be non-permanent`);
+    }
+    expect(problems).toEqual([]);
+  });
+
+  it("no redirect lands on a pruned page (a hop through a dead route would 404 or loop)", async () => {
+    const redirects = await nextConfig.redirects!();
+    const dead = new Set(PRUNED.filter((p) => p.page !== false).map((p) => p.route));
+    const stale = redirects
+      .filter((r) => dead.has(r.destination.replace(/[?#].*$/, "")))
+      .map((r) => `${r.source} → ${r.destination}`);
+    expect(stale).toEqual([]);
+  });
+
+  it("referencesRoute matches a real link and ignores look-alikes (positive control)", () => {
+    expect(referencesRoute(`<Link href="/learn">`, "/learn")).toBe(true);
+    expect(referencesRoute(`href: "/goals?x=1"`, "/goals")).toBe(true);
+    expect(referencesRoute(`fetch("/api/short")`, "/api/short")).toBe(true);
+    expect(referencesRoute(`fetch("/api/short/abc")`, "/api/short")).toBe(true);
+    expect(referencesRoute(`fetch("/api/goals")`, "/goals")).toBe(false);
+    expect(referencesRoute(`href="/learning"`, "/learn")).toBe(false);
+    expect(referencesRoute(`href="https://example.com/learn"`, "/learn")).toBe(false);
+    expect(referencesRoute(`// see /learn for history`, "/learn")).toBe(false);
+    expect(referencesRoute(`const x = 1; // was /learn`, "/learn")).toBe(false);
+  });
+
+  it("no source file links to a pruned route (control: the scan sees real files and a planted hit)", () => {
+    const hits: string[] = [];
+    let scanned = 0;
+    for (const d of SCAN_DIRS) {
+      for (const file of walk(join(APP_ROOT, d))) {
+        scanned++;
+        const text = readFileSync(file, "utf8");
+        for (const { route } of PRUNED) {
+          if (referencesRoute(text, route)) hits.push(`${file.slice(APP_ROOT.length + 1).replace(/\\/g, "/")} → ${route}`);
+        }
+      }
+    }
+    expect(scanned, "the scan walked real source").toBeGreaterThan(500);
+    expect(hits).toEqual([]);
   });
 });

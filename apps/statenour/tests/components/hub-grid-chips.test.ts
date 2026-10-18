@@ -47,16 +47,6 @@ describe("hub chips honour measured flags", () => {
     ).toEqual({ label: "unmeasured", severity: "unknown" });
   });
 
-  it("Arrival Intel: an unread fleet is unmeasured, never 'no devices'", () => {
-    expect(
-      chip("/system/camera", payload({ devices: { online: 0, offline: 0, total: 0, measured: false } })),
-    ).toEqual({ label: "unmeasured", severity: "unknown" });
-    // A genuinely-read empty fleet keeps its honest label.
-    expect(
-      chip("/system/camera", payload({ devices: { online: 0, offline: 0, total: 0, measured: true } })),
-    ).toEqual({ label: "no devices", severity: "unknown" });
-  });
-
   it("Cron Deck and Errors go unknown on their own unmeasured section", () => {
     expect(
       chip(
@@ -120,7 +110,7 @@ describe("hub chips honour measured flags", () => {
   });
 
   it("null payload still renders the em-dash unknown on every live chip", () => {
-    for (const href of ["/system/health", "/system/camera", "/system/crons", "/system/ai-cost"]) {
+    for (const href of ["/system/health", "/system/crons", "/system/ai-cost"]) {
       expect(chip(href, null).severity).toBe("unknown");
     }
   });
