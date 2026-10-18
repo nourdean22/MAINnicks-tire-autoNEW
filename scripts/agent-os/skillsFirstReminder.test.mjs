@@ -40,6 +40,7 @@ function assertReminds(r) {
   assert.match(r.out, /before any work/i, "the reminder must say when: before any work");
   assert.match(r.out, /invoke[\s\S]*\[skill-recall\]/, "the reminder must point at the [skill-recall] lines");
   assert.match(r.out, /\.claude\/skills\/.*account and plugin skills/i, "the reminder must still name the repo, account and plugin sources");
+  assert.match(r.out, /\[tool-recall\][\s\S]*skills AND the tools/, "the reminder must name the tools too (2026-10-18)");
   assert.equal(r.out.trim().split(/\r?\n/).length, 1, "the reminder is one line; the matches come from skill-recall.mjs");
 }
 
