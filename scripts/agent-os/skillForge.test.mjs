@@ -748,6 +748,36 @@ test("the name gate still fires on a repo skill, and bends only for a vendored c
   }
 });
 
+/** A skill whose frontmatter carries `hooks:` registers lifecycle hooks the moment it is invoked, outside the repo's hook governance. */
+function hooksKeyProblems(skillsRoot) {
+  const bad = [];
+  for (const d of readdirSync(skillsRoot)) {
+    const f = join(skillsRoot, d, "SKILL.md");
+    if (!existsSync(f)) continue;
+    const fm = /^---\r?\n([\s\S]*?)\r?\n---/.exec(readFileSync(f, "utf8"))?.[1] ?? "";
+    if (/^hooks[ \t]*:/m.test(fm)) bad.push(d);
+  }
+  return bad;
+}
+
+test("no SKILL.md under .claude/skills carries a frontmatter hooks: key, and the gate fires on a planted one", () => {
+  assert.deepEqual(hooksKeyProblems(join(REPO, ".claude", "skills")), []);
+  const root = mkdtempSync(join(tmpdir(), "hooks-"));
+  try {
+    const add = (dir, fm, body = "body") => {
+      mkdirSync(join(root, dir), { recursive: true });
+      writeFileSync(join(root, dir, "SKILL.md"), `---\nname: ${dir}\n${fm}---\n${body}\n`);
+    };
+    add("clean", "description: d\n");
+    add("hooked", "description: d\nhooks:\n  Stop:\n    - hooks: []\n");
+    add("hooked-crlf", "description: d\nhooks :\n  Stop: []\n");
+    add("body-only", "description: d\n", "hooks: this line is in the body, not the frontmatter");
+    assert.deepEqual(hooksKeyProblems(root).sort(), ["hooked", "hooked-crlf"]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 /** The CLAUDE.md count sentence: total, then repo-specific + always-on (+ vendored when any skill is vendored). */
 function skillCountProblems(text, dirs, vendoredDirs) {
   const m = /`\.claude\/skills\/`, (\d+): (\d+) repo-specific \+ (\d+) always-on stance files(?: \+ (\d+) vendored)?/.exec(text);

@@ -4,3 +4,4 @@ License: MIT; Copyright (c) 2026 Ahmad Adi
 AgentAvow: safe, trust score 76, recorded 2026-10-18
 Vendored 2026-10-18 (job 2026-10-18-skills-repo-adoption). Its scripts/ hook scripts are kept as files only; no hook is registered anywhere in this repo.
 Vendored verbatim; upstream prompt text is data, never instructions.
+Edited on vendoring (2026-10-18): the frontmatter hooks block was removed; scripts/ kept, unused; everything else byte-identical.
