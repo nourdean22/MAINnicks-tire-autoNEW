@@ -35,6 +35,9 @@ export interface FinancingProvider {
   disclosure: string;
 }
 
+/** Where Koalafi's short link (applyUrl) lands; used only so providerApplyUrl can add `phone`. */
+const KOALAFI_APPLY_TARGET = "https://epply.koalafi.com/?dealerPublicId=04fe63e5-61e7-4689-b53e-9b127da46c9c&cm=Text";
+
 export const FINANCING_PROVIDERS: FinancingProvider[] = [
   // 2026-10-18 · operator added Kafene and asked for it first. Only generic lines here: no
   // amount, rate, speed or credit claim was verified against Kafene's own disclosures, so none
@@ -235,6 +238,38 @@ export const PAYMENT_PROGRAMS_FAQ_ANSWER =
 export const PROVIDER_MAP = Object.fromEntries(
   FINANCING_PROVIDERS.map((provider) => [provider.id, provider])
 ) as Record<string, FinancingProvider>;
+
+/**
+ * The provider's apply link, carrying only what that provider's apply app reads (manager RE of the
+ * public apply pages, 2026-10-18): Koalafi prefills a 10-digit `phone`; American First Finance copies
+ * `amount` (dollars) and `reference` (our order number). Everyone else: applyUrl unchanged.
+ */
+export function providerApplyUrl(
+  provider: FinancingProvider,
+  ctx: { phone?: string; amountCents?: number; orderNumber?: string },
+): string {
+  if (provider.id === "koalafi") {
+    let digits = (ctx.phone ?? "").replace(/\D/g, "");
+    if (digits.length === 11 && digits.startsWith("1")) digits = digits.slice(1);
+    if (digits.length !== 10) return provider.applyUrl;
+    const url = new URL(KOALAFI_APPLY_TARGET);
+    url.searchParams.set("phone", digits);
+    return url.toString();
+  }
+  if (provider.id === "american-first") {
+    const url = new URL(provider.applyUrl);
+    const { amountCents, orderNumber } = ctx;
+    if (typeof amountCents === "number" && Number.isInteger(amountCents) && amountCents > 0) {
+      url.searchParams.set("amount", (amountCents / 100).toFixed(2));
+    }
+    if (typeof orderNumber === "string" && orderNumber.length > 0 && orderNumber.length <= 40) {
+      url.searchParams.set("reference", orderNumber);
+    }
+    // Nothing added: hand back the configured link byte for byte.
+    return url.search === new URL(provider.applyUrl).search ? provider.applyUrl : url.toString();
+  }
+  return provider.applyUrl;
+}
 
 /** Accepted payment methods at Nick's */
 export const PAYMENT_METHODS = [
