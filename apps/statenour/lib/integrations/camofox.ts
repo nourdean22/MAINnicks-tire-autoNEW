@@ -54,14 +54,36 @@ const MAX_RESPONSE_BYTES = 2_000_000;
 // One fixed browser identity for scrapes; each call gets its own tab group.
 const CAMOFOX_USER_ID = "statenour-scrape";
 
-/** Both the service URL and its bearer key must be set. */
+let warnedNotAttested = false;
+
+/** Test-only · re-arms the once-per-process camofox_not_attested warning. */
+export function __resetCamofoxAttestationWarning(): void {
+  warnedNotAttested = false;
+}
+
+/**
+ * The service URL, its bearer key AND `CAMOFOX_EGRESS_PROXY=attested` must be set.
+ *
+ * The attestation is the operator saying the runbook's egress proxy (apps/statenour/ops/egress-proxy)
+ * sits in front of the browser. It is an ATTESTATION, NOT PROOF: nothing here can see the camofox
+ * service's network. It exists so the fallback fails closed: without it camofox is off and
+ * scrapeUrl is the Firecrawl-only path, because a browser without that proxy can be steered to
+ * private addresses by DNS rebinding (runbook "Residual risk").
+ */
 export function isCamofoxConfigured(): boolean {
-  return !!process.env.CAMOFOX_URL && !!process.env.CAMOFOX_API_KEY;
+  if (!process.env.CAMOFOX_URL || !process.env.CAMOFOX_API_KEY) return false;
+  if (process.env.CAMOFOX_EGRESS_PROXY === "attested") return true;
+  if (!warnedNotAttested) {
+    warnedNotAttested = true;
+    log.warn("camofox_not_attested", { hint: "set CAMOFOX_EGRESS_PROXY=attested once the egress proxy is in place" });
+  }
+  return false;
 }
 
 function baseUrl(): URL {
   const raw = process.env.CAMOFOX_URL;
   if (!raw || !process.env.CAMOFOX_API_KEY) throw new Error("CAMOFOX_URL / CAMOFOX_API_KEY not configured");
+  if (process.env.CAMOFOX_EGRESS_PROXY !== "attested") throw new Error("camofox egress proxy not attested (CAMOFOX_EGRESS_PROXY)");
   const u = new URL(raw);
   if (u.protocol !== "http:" && u.protocol !== "https:") throw new Error("CAMOFOX_URL must be http(s)");
   // The bearer key rides every request: plain http only inside Railway's private network or this machine.

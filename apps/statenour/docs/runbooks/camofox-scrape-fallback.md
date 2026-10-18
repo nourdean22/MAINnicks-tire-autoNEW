@@ -4,101 +4,98 @@
 `lib/integrations/firecrawl.ts` asks a self-hosted camofox-browser service instead. It is read-only: the adapter
 (`lib/integrations/camofox.ts`) can only create a tab with a URL, read its snapshot and close its tab group. The SSRF
 gate runs before either provider. After a credits error, Firecrawl is skipped for 30 minutes per process.
-**Off until `CAMOFOX_URL` and `CAMOFOX_API_KEY` are both set on statenour-web.** With either unset, nothing changes.
-`CAMOFOX_URL` must be `https://` unless its host is `*.railway.internal` or localhost (the adapter refuses otherwise,
-so the key never crosses the internet in clear text).
 
-Nour does these steps; no agent touches Railway. About 20 minutes.
+**Off until three variables are set on statenour-web:** `CAMOFOX_URL`, `CAMOFOX_API_KEY` and
+`CAMOFOX_EGRESS_PROXY=attested`. The third is your statement that the egress proxy below is in place. It is an
+attestation, not proof: statenour cannot see the camofox network. With any of the three missing, nothing changes, and
+a `camofox_not_attested` warning is logged once per process when the URL and key are set without it.
+`CAMOFOX_URL` must be `https://` unless its host is `*.railway.internal` or localhost.
+
+**One supported topology.** A NEW Railway project with two services: `egress-proxy` (Stripe's Smokescreen, private
+only) and `camofox-browser` (public https domain, every browser request sent through the proxy). The proxy resolves
+each hostname itself and refuses private, loopback, link-local and CGNAT addresses, which is what stops a page from
+being steered at internal hosts by DNS rebinding. **Extra cost:** one more small always-on Railway service.
+
+Nour does these steps; no agent touches Railway. About 30 minutes.
 
 ## 1 · Pin the source (supply chain: never track upstream main)
 
 1. Fork `jo-inc/camofox-browser` to `nourdean22/camofox-browser`.
 2. In the fork, create branch `pinned-39c8209` at commit `39c82094013480b373df6600d44c7f036f58356e` (v1.18.1, MIT).
-3. Upgrading later means moving that branch on purpose after reading the diff. Nothing else moves it.
+3. The proxy is built from this repo: `apps/statenour/ops/egress-proxy/Dockerfile` pins Smokescreen v0.1.0 (commit
+   `609eb8931420453daf5893509be0b25b21bd9edb`) and both base images by digest.
+4. Upgrading either one means changing the pin on purpose after reading the diff. Nothing else moves them.
 
-## 2 · Create the service in its OWN Railway project (default)
+## 2 · Create the project and its two services
 
-Why its own project: each Railway project is a separate private network. A page the browser renders runs its own
-scripts, and in a separate project those scripts cannot reach statenour-web, the worker or any other internal service.
-
-1. New Railway project, for example `camofox`. In it, a new service from GitHub repo `nourdean22/camofox-browser`,
-   branch `pinned-39c8209`. The repo's `railway.toml` builds `Dockerfile.ci` and maps `PORT` to `CAMOFOX_PORT`.
-2. Name the service `camofox-browser`.
-3. Variables on **camofox-browser**:
-   - `CAMOFOX_ACCESS_KEY=<generate: 32+ random chars>`. This key gates every route. Per `lib/auth.js` at 39c8209 the
-     only routes served without it are `/health`, cookie import (only when `CAMOFOX_API_KEY` is set) and `/stop`
-     (only when `CAMOFOX_ADMIN_KEY` is set). Leave `CAMOFOX_API_KEY` and `CAMOFOX_ADMIN_KEY` UNSET on this service,
-     so `/health` is the only open route.
-   - `CAMOFOX_CRASH_REPORT_ENABLED=false` (turns off its crash telemetry to GitHub).
-   - `NODE_ENV=production`
-4. Settings, Networking: **Generate Domain** (a public `*.up.railway.app` domain, served over https). Without the key
-   it answers nothing but `/health`.
-5. Turn on App Sleeping (Serverless) if the plan offers it. The first scrape after a sleep may be slow; if it runs
-   past the 30 s budget, the scrape fails and the caller skips that page (no fabricated content).
+1. New Railway project, for example `camofox`. Its private network is separate from statenour's.
+2. **Service `egress-proxy`:**
+   - From GitHub repo `nourdean22/MAINnicks-tire-autoNEW`, branch `main`, Root Directory
+     `apps/statenour/ops/egress-proxy` (Railway builds the `Dockerfile` there).
+   - **No public domain.** Private networking only. It listens on port 4750 on `::`.
+   - No variables needed. Smokescreen has no password auth (clients identify by mTLS only), so placement is the
+     access control: only services in this project can reach it.
+3. **Service `camofox-browser`:**
+   - From GitHub repo `nourdean22/camofox-browser`, branch `pinned-39c8209`. Its `railway.toml` builds
+     `Dockerfile.ci` and maps `PORT` to `CAMOFOX_PORT`.
+   - Variables:
+     - `CAMOFOX_ACCESS_KEY=<generate: 32+ random chars>`. It gates every route except `/health`, as long as
+       `CAMOFOX_API_KEY` and `CAMOFOX_ADMIN_KEY` stay UNSET on this service (per `lib/auth.js` at 39c8209).
+     - `PROXY_HOST=egress-proxy.railway.internal`
+     - `PROXY_PORT=4750`
+     - Leave `PROXY_USERNAME` / `PROXY_PASSWORD` unset (Smokescreen does not check them). `PROXY_PROTOCOL` defaults to
+       `http` (`lib/config.js:84-85`), which is right: https pages go through CONNECT, plain http through the same filter.
+     - `CAMOFOX_CRASH_REPORT_ENABLED=false`
+     - `NODE_ENV=production`
+   - Settings, Networking: **Generate Domain** (a public `*.up.railway.app` domain, served over https).
+4. If the project was created on an older Railway environment, private networking is IPv6-only; the proxy already
+   listens on `::`.
 
 ## 3 · Point statenour-web at it
 
-Variables on **statenour-web** (statenour project):
+Variables on **statenour-web** (statenour project), set only after step 4 passes:
 
-- `CAMOFOX_URL=https://<the camofox-browser domain from step 2.4>`
-- `CAMOFOX_API_KEY=<the same value as CAMOFOX_ACCESS_KEY above>` (statenour sends it as `Authorization: Bearer`).
+- `CAMOFOX_URL=https://<the camofox-browser domain>`
+- `CAMOFOX_API_KEY=<the same value as CAMOFOX_ACCESS_KEY>` (sent as `Authorization: Bearer`).
+- `CAMOFOX_EGRESS_PROXY=attested`
 
 Redeploy statenour-web so it reads them.
 
-## Alternative, weaker isolation: same project, private network
+## 4 · Verify the proxy from outside the app (before step 3)
 
-Use this only if a public domain is not wanted. Create the service inside the statenour project instead of step 2.1,
-set `PORT=9377` plus the step 2.3 variables, and do NOT generate a domain. Then on statenour-web:
-`CAMOFOX_URL=http://camofox-browser.railway.internal:9377` (plain http is allowed only for `*.railway.internal`).
-On an older Railway environment, private networking is IPv6-only and the server must listen on `::` (NOT CHECKED for
-camofox). The private-network limit below applies to this variant.
+Run these with curl and the key, `K=<CAMOFOX_ACCESS_KEY>`, `D=https://<domain>`. Each test opens one tab; close it after.
 
-## 4 · Verify (2 minutes)
-
-1. In chat, ask Nick to read a plain public page, for example "read https://example.com".
-2. The `scrapeWebPage` result carries `provider: "camofox"` while Firecrawl has no credits (`"firecrawl"` once they are back).
-3. Railway logs for statenour-web: a `scrape_served_by_camofox` line per fallback scrape (it names the Firecrawl
-   cause), and no `camofox_tab_close_failed` lines. A `guardian_call_failed` line naming
-   `Scrape failed on both providers` means camofox also failed; its text names both causes.
-4. Default variant: `curl https://<domain>/tabs` without the key must be refused, and `/health` answers.
+1. **The key is required:** `curl -s -o /dev/null -w "%{http_code}\n" $D/tabs` gives 403, and `curl $D/health` answers.
+2. **A private target is refused by the proxy:** pick a hostname whose DNS answers a private address (for example a
+   name you control pointed at `10.0.0.1`, or a public `*.nip.io` style name for `127.0.0.1`), then
+   `curl -s -H "Authorization: Bearer $K" -H "content-type: application/json" -d '{"userId":"verify","sessionKey":"v1","url":"http://<that-name>/"}' $D/tabs`.
+   Expected: navigation fails (an error, or `navigationOk:false`), and the egress-proxy logs show a denial for that
+   address. A page that loads means the proxy is NOT in the path: stop and do not set the attestation.
+3. **A public page works:** the same call with `"url":"https://example.com/"`, then
+   `curl -s -H "Authorization: Bearer $K" "$D/tabs/<tabId>/snapshot?userId=verify"`. Expected: text containing
+   "Example Domain", and an allowed CONNECT in the egress-proxy logs.
+4. Close the test tabs: `curl -s -X DELETE -H "Authorization: Bearer $K" "$D/tabs/group/v1?userId=verify"`.
+5. After step 3: ask Nick to "read https://example.com". While Firecrawl has no credits the `scrapeWebPage` result
+   carries `provider: "camofox"`, and statenour-web logs show `scrape_served_by_camofox`. Asking it to read the
+   private-resolving name from step 2 must fail.
 
 ## Rollback
 
-Unset `CAMOFOX_URL` on statenour-web and redeploy. Behaviour returns to Firecrawl-only. The camofox project can then
-be removed.
+Remove `CAMOFOX_EGRESS_PROXY` (or `CAMOFOX_URL`) on statenour-web and redeploy. Behaviour returns to Firecrawl-only.
+The camofox project can then be deleted.
 
-## Hardening (open decision for Nour)
+## Residual risk (what the proxy does not settle)
 
-**Residual risk, both variants: DNS rebinding.** statenour checks the URL (`assertPublicUrl`) before asking
-camofox, but the remote browser resolves the hostname again itself. A hostile name can answer a public address to
-statenour's check and a private one (loopback, `10.x`, `169.254.169.254`) to the browser a moment later. The
-landed-URL re-check runs after the page has loaded, so it cannot undo a request the browser already made; it only
-keeps the response out of the returned text when the final URL is private. A page's own scripts can do the same with
-sub-requests at any time. Nothing inside statenour's process can close this, because the connection is made by
-camofox, not by statenour.
-
-What a rebinding page can reach depends on placement:
-- **Default (own project):** no private-network neighbours. It can reach the camofox container's own loopback, where
-  every route except `/health` needs `CAMOFOX_ACCESS_KEY`, and whatever the host network allows (NOT CHECKED for Railway
-  link-local or metadata addresses).
-- **Alternative (same project):** everything on statenour's private network as well (statenour-web, the worker and any
-  other internal service).
-
-**The stronger control that closes it:** send all browser traffic through an egress proxy that refuses private,
-loopback and link-local destinations at connect time. camofox supports an upstream proxy through `PROXY_HOST`,
-`PROXY_PORT` (and `PROXY_USERNAME` / `PROXY_PASSWORD`), per its README at 39c8209 (lines 352-355). The proxy must do its
-own resolution and deny those ranges itself. The cost is one more service or vendor and some added latency. The
-code stays as it is until Nour picks accept-or-harden.
-
-## Known limits
-
-- **Alternative variant only: private-network reach.** In the same project, the browser sits on statenour's private
-  network. A public page that redirects to an internal host is refused (the final URL is re-checked), but a page's own
-  scripts could still request internal addresses while it renders, and their responses could appear in the snapshot.
-  The default (own project) variant does not have this reach.
-- **Default variant: an internet-facing endpoint.** Its safety rests on `CAMOFOX_ACCESS_KEY`; rotate it on both
-  services together if it leaks.
-- No page `<title>` comes back from camofox (`title: null`); the page text does.
-- The breaker is in-process: each restart pays one more failed Firecrawl call (a 402 is not billed).
+- **The proxy is only as good as Smokescreen's own resolution and address checks.** It resolves every name and
+  classifies the address at dial time (smokescreen.go:302-331 and the dial path, v0.1.0). A bug there is a bug here.
+  NOT CHECKED live (no Docker on the authoring machine; step 4 is the first live test).
+- **camofox's own loopback.** CLAIM (Firefox default, not verified for Camoufox): the browser does not send
+  `localhost` / `127.0.0.1` through a proxy, so a page could still reach the camofox container's own port. Every route
+  there except `/health` needs `CAMOFOX_ACCESS_KEY`, which the page does not have. NOT CHECKED.
+- **Cloud metadata.** Link-local `169.254.0.0/16` is denied by the proxy, but whether Railway exposes any metadata
+  service, and on which address, is NOT CHECKED.
+- No page `<title>` comes back from camofox (`title: null`); the page text does. `includeTags` / `excludeTags`
+  cannot be applied and are reported in `ignoredOptions`.
+- The credit breaker is in-process: each restart pays one more failed Firecrawl call (a 402 is not billed).
 - Not used: camofox's cookie, login, act, click, type, upload, download and evaluate endpoints. Adding any of them is
   a separate decision (UPSTREAMS Camoufox row).

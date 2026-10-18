@@ -120,6 +120,9 @@ beforeEach(async () => {
   vi.stubEnv("FIRECRAWL_API_KEY", "fc-test-key");
   vi.stubEnv("CAMOFOX_URL", CAMOFOX_URL);
   vi.stubEnv("CAMOFOX_API_KEY", CAMOFOX_KEY);
+  vi.stubEnv("CAMOFOX_EGRESS_PROXY", "attested");
+  const cx = (await import("@/lib/integrations/camofox")) as unknown as { __resetCamofoxAttestationWarning?: () => void };
+  cx.__resetCamofoxAttestationWarning?.();
   const { __resetGuardianBreakers } = await import("@/lib/tools/guardian");
   __resetGuardianBreakers();
 });
@@ -373,6 +376,61 @@ describe("(f)(g) camofox adapter: read-only, always closes its tab", () => {
     expect(r.markdown.endsWith("\n\n...[truncated]")).toBe(true);
     expect(r.markdown.length).toBe(100 + "\n\n...[truncated]".length);
     expect(r.charCount).toBeGreaterThan(500);
+  });
+});
+
+describe("egress-proxy attestation: camofox stays off until the operator attests the proxy", () => {
+  const attestationWarnings = (spy: { mock: { calls: unknown[][] } }) =>
+    spy.mock.calls.filter((args) => args.some((a) => String(a).includes("camofox_not_attested"))).length;
+
+  it("URL + key but no attestation -> not configured, Firecrawl-only path, warned once", async () => {
+    vi.stubEnv("CAMOFOX_EGRESS_PROXY", "");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    fc.impl = async () => {
+      throw CREDITS_ERROR();
+    };
+    const { scrapeUrl } = await loadSink();
+    const { isCamofoxConfigured } = await import("@/lib/integrations/camofox");
+    expect(isCamofoxConfigured()).toBe(false);
+    const e1 = await scrapeUrl("https://pub-a.test/").catch((e) => e);
+    await scrapeUrl("https://pub-a.test/").catch(() => null);
+    expect(e1.lastError.message).toMatch(/Insufficient credits/); // today's error, no fallback
+    expect(e1.lastError.message).not.toMatch(/camofox/i);
+    expect(fc.spy).toHaveBeenCalledTimes(2); // no breaker either: the old path exactly
+    expect(calls).toHaveLength(0);
+    expect(attestationWarnings(warn)).toBe(1);
+    warn.mockRestore();
+  });
+
+  it("a wrong attestation value -> not configured; with no Firecrawl key, today's error", async () => {
+    vi.stubEnv("CAMOFOX_EGRESS_PROXY", "yes");
+    vi.stubEnv("FIRECRAWL_API_KEY", "");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const { scrapeUrl, isScrapeConfigured } = await loadSink();
+    expect(isScrapeConfigured()).toBe(false);
+    const err = await scrapeUrl("https://pub-a.test/").catch((e) => e);
+    expect(err.lastError.message).toBe("FIRECRAWL_API_KEY not configured");
+    expect(calls).toHaveLength(0);
+    expect(attestationWarnings(warn)).toBe(1);
+    warn.mockRestore();
+  });
+
+  it("no CAMOFOX_URL at all -> no warning (nothing was half-configured)", async () => {
+    vi.stubEnv("CAMOFOX_URL", "");
+    vi.stubEnv("CAMOFOX_EGRESS_PROXY", "");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const { isScrapeConfigured } = await loadSink();
+    isScrapeConfigured();
+    expect(attestationWarnings(warn)).toBe(0);
+    warn.mockRestore();
+  });
+
+  it("positive control · attested -> the fallback serves the page", async () => {
+    vi.stubEnv("FIRECRAWL_API_KEY", "");
+    const { scrapeUrl } = await loadSink();
+    const { isCamofoxConfigured } = await import("@/lib/integrations/camofox");
+    expect(isCamofoxConfigured()).toBe(true);
+    expect((await scrapeUrl("https://pub-a.test/")).provider).toBe("camofox");
   });
 });
 
