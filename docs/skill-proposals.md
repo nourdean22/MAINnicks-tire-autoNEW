@@ -2370,18 +2370,18 @@ measurement. Every proposal below cites the moment in this wave that produced it
 - **Cost:** about 15 minutes and one false red reported to Nour.
 - **Proposed edit:** say the preflight runs from Git Bash directly (not through heavy.mjs on Windows), and that it is the step that catches proc-census, orphan-gate and fail-open-slice reds a lane's own test files miss.
 - **Confidence:** medium (once, clear)
-- **Status:** proposed
+- **Status:** applied (this PR, approved by Nour 2026-10-18)
 
 ### P2 · monorepo-manager (step 5 and step 11)
 - **Trigger (witnessed):** (a) a lane dispatch was blocked by rule lane-dispatch-brief because the brief file was named brief-server.md (must end in brief.md); (b) a server lane branch could not show the client-derived operator-walkthrough DoD requirement; only the integration tip could.
 - **Cost:** one blocked dispatch round; one extra lane round-trip.
 - **Proposed edit:** step 5: "name the brief <lane>-brief.md"; step 11: "run the DoD compiler and the app preflight on the integration tip, never only on a lane branch".
 - **Confidence:** medium (once each, clear)
-- **Status:** proposed
+- **Status:** applied (this PR, approved by Nour 2026-10-18)
 
 ### P3 · NEW check in an existing review lens (adversarial-review or nickstire-verify)
 - **Trigger (witnessed):** PR 3137's first cut added an LLM-backed tRPC read (lot.officeDigest) to the Lot page inside the request batch and with an unbounded LLM slot wait; the research review caught that one slow digest would freeze every batched Lot panel.
 - **Cost:** a review round before the PR opened.
 - **Proposed edit:** a review item: "a new tRPC read that calls invokeLLM must be in client/src/lib/unbatchedProcedures.ts and pass a bounded slotWaitMs".
 - **Confidence:** medium (once, clear; the same lesson is recorded on the instagramAdmin report)
-- **Status:** proposed
+- **Status:** applied (this PR, approved by Nour 2026-10-18)
