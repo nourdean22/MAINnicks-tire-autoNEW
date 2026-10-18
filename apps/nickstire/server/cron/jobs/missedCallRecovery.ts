@@ -291,7 +291,7 @@ export async function processMissedCallRecovery(): Promise<{ recordsProcessed: n
           // worse than no preview. Describe the shape, name the source.
           `\n\nThey'd receive the neutral follow-up for vapi_forwarded_call_followup ` +
           `(rotating variant, see smsMessageCatalog.ts) + STOP footer.\n` +
-          `${callbackRows} callback rows written for the shop (Today > callbacks)\n` +
+          `${callbackRows} callback rows written for the shop (Admin > Calls > Missed / Pending)\n` +
           `Flip live: set MISSED_CALL_RECOVERY_SEND=1 on MAINnicks-tire-auto.`, "digest",
         );
       }
