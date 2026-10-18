@@ -1,6 +1,7 @@
 ---
 name: prompt-gallery
 description: "Use when the request produces a prompt, system prompt, reel script or clip prompt, ad copy, caption or email draft, or says 'find a prompt for X': look in the Claude AI Directory prompt gallery for a closer starting point before writing from scratch. Not for merges, status checks, migrations, debugging or other code-only work, which get only the one-line gallery note."
+triggers: prompt gallery, find a prompt, write a prompt, system prompt, reel prompt, clip prompt, ad copy, caption, email draft, claudeai directory
 ---
 
 # prompt-gallery
