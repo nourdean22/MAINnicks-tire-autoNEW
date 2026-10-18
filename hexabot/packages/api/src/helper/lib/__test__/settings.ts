@@ -1,0 +1,17 @@
+/*
+ * Hexabot — Fair Core License (FCL-1.0-ALv2)
+ * Copyright (c) 2025 Hexastack.
+ * Full terms: see LICENSE.md.
+ */
+
+import { HelperSetting } from '@/helper/types';
+
+export const TEST_HELPER_NAME = 'test';
+
+export default [
+  {
+    group: TEST_HELPER_NAME,
+    label: 'test',
+    value: 'test',
+  },
+] as const satisfies HelperSetting<typeof TEST_HELPER_NAME>[];

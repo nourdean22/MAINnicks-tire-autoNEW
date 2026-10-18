@@ -1,0 +1,16 @@
+version: "3.8"
+
+services:
+  api:
+    pull_policy: never
+    build:
+      context: ../
+      dockerfile: ./packages/api/Dockerfile
+      target: production
+
+  hexabot-frontend:
+    pull_policy: never
+    build:
+      context: ../
+      dockerfile: ./packages/frontend/Dockerfile
+      target: production

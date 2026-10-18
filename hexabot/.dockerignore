@@ -1,0 +1,7 @@
+.git
+**/.env
+**/.turbo
+**/coverage
+**/node_modules
+**/uploads
+**/*.tsbuildinfo

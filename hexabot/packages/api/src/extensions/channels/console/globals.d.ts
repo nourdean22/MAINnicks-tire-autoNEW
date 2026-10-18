@@ -1,0 +1,31 @@
+/*
+ * Hexabot — Fair Core License (FCL-1.0-ALv2)
+ * Copyright (c) 2025 Hexastack.
+ * Full terms: see LICENSE.md.
+ */
+
+import type { z } from 'zod';
+
+import {
+  CONSOLE_CHANNEL_NAME,
+  CONSOLE_CHANNEL_SOURCE_SETTINGS_SCHEMA,
+} from './settings.schema';
+
+declare global {
+  interface SubscriberChannelDict {
+    [CONSOLE_CHANNEL_NAME]: {
+      isSocket: boolean;
+      ipAddress: string;
+      agent: string;
+    };
+  }
+}
+
+declare module '@nestjs/event-emitter' {
+  interface IHookExtensionsOperationMap {
+    [CONSOLE_CHANNEL_NAME]: TDefinition<
+      object,
+      z.infer<typeof CONSOLE_CHANNEL_SOURCE_SETTINGS_SCHEMA>
+    >;
+  }
+}

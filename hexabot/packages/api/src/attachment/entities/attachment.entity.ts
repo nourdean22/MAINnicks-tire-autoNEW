@@ -1,0 +1,117 @@
+/*
+ * Hexabot — Fair Core License (FCL-1.0-ALv2)
+ * Copyright (c) 2025 Hexastack.
+ * Full terms: see LICENSE.md.
+ */
+
+import {
+  attachmentSchema,
+  attachmentFullSchema,
+  FileType,
+} from '@hexabot-ai/types';
+import {
+  Column,
+  Entity,
+  Index,
+  JoinColumn,
+  ManyToOne,
+  RelationId,
+} from 'typeorm';
+
+import { AuditLabel } from '@/audit/decorators/audit-label.decorator';
+import { ChannelName } from '@/channel/types';
+import { config } from '@/config';
+import { BaseOrmEntity } from '@/database';
+import { EnumColumn } from '@/database/decorators/enum-column.decorator';
+import { JsonColumn } from '@/database/decorators/json-column.decorator';
+import { UserProfileOrmEntity } from '@/user/entities/user-profile.entity';
+import { AsRelation } from '@/utils';
+import { buildURL } from '@/utils/helpers/URL';
+
+import { AttachmentDto } from '../dto/attachment.dto';
+import {
+  AttachmentAccess,
+  AttachmentCreatedByRef,
+  AttachmentResourceRef,
+} from '../types';
+
+@Entity({ name: 'attachments' })
+@Index('idx_attachment_resource_ref', ['resourceRef'])
+export class AttachmentOrmEntity extends BaseOrmEntity<AttachmentDto> {
+  plainCls = attachmentSchema;
+
+  fullCls = attachmentFullSchema;
+
+  @AuditLabel()
+  @Column()
+  name!: string;
+
+  @Column()
+  type!: string;
+
+  @Column({ type: 'integer' })
+  size!: number;
+
+  @Column({ unique: true })
+  location!: string;
+
+  @JsonColumn({ nullable: true })
+  channel?: Partial<Record<ChannelName, any>>;
+
+  @ManyToOne(() => UserProfileOrmEntity, {
+    nullable: true,
+    onDelete: 'SET NULL',
+  })
+  @JoinColumn({ name: 'created_by_id' })
+  @AsRelation()
+  createdBy?: UserProfileOrmEntity<any> | null;
+
+  @RelationId((attachment: AttachmentOrmEntity) => attachment.createdBy)
+  private readonly createdById?: string;
+
+  @EnumColumn({
+    name: 'created_by_ref',
+    enum: AttachmentCreatedByRef,
+    nullable: true,
+  })
+  createdByRef?: AttachmentCreatedByRef;
+
+  @EnumColumn({
+    name: 'resource_ref',
+    enum: AttachmentResourceRef,
+  })
+  resourceRef!: AttachmentResourceRef;
+
+  @EnumColumn({ enum: AttachmentAccess })
+  access!: AttachmentAccess;
+
+  get url(): string {
+    if (!this.id || !this.name) {
+      return '';
+    }
+
+    return AttachmentOrmEntity.getAttachmentUrl(this.id, this.name);
+  }
+
+  static getAttachmentUrl(
+    attachmentId: string,
+    attachmentName: string = '',
+  ): string {
+    return buildURL(
+      config.apiBaseUrl,
+      `/attachment/download/${attachmentId}/${attachmentName}`,
+    );
+  }
+
+  static getTypeByMime(mimeType: string): FileType {
+    if (mimeType.startsWith(FileType.image)) {
+      return FileType.image;
+    } else if (mimeType.startsWith(FileType.audio)) {
+      return FileType.audio;
+    } else if (mimeType.startsWith(FileType.video)) {
+      return FileType.video;
+    } else {
+      return FileType.file;
+    }
+  }
+}

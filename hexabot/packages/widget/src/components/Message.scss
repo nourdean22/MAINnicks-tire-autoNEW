@@ -1,0 +1,129 @@
+.hb-message {
+  margin: 0 0.625rem 0.375rem;
+  display: flex;
+
+  &.hb-message--new {
+    animation: hb-message-enter 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  &:first-child {
+    margin-top: 50%;
+  }
+
+  &.sent {
+    flex-direction: row-reverse;
+
+    .hb-message--content {
+      justify-content: flex-end;
+
+      .hb-message--avatar {
+        display: none;
+      }
+
+      .hb-message--wrapper {
+        align-items: flex-end;
+
+        .hb-message--text {
+          color: var(--hb-color-text-on-primary);
+          background-color: var(--hb-color-surface-message-sent);
+          border-radius: 1rem 0.25rem 1rem 1rem;
+          overflow-wrap: break-word;
+          --hb-message-link-hover-color: var(
+            --hb-color-interactive-button-primary-hover
+          );
+        }
+
+        .hb-message--meta {
+          flex-direction: row-reverse;
+        }
+      }
+    }
+  }
+
+  .hb-message--content {
+    display: flex;
+    flex-direction: row;
+    position: relative;
+    max-width: calc(100% - 2.5rem);
+    width: 100%;
+
+    &.no-avatar {
+      max-width: 100%;
+    }
+
+    .hb-message--avatar {
+      width: 28px;
+      height: 28px;
+      min-width: 28px;
+      flex-shrink: 0;
+      background-position: 0 0;
+      background-size: cover;
+      border-radius: 50%;
+      margin: 0.125rem 0.625rem 0 0;
+    }
+
+    .hb-message--wrapper {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      word-break: break-word;
+      width: 100%;
+      max-width: 270px;
+
+      .hb-message--text {
+        padding: 0.625rem 0.875rem;
+        border-radius: 0.25rem 1rem 1rem 1rem;
+        font-weight: 400;
+        font-size: 0.9375rem;
+        line-height: 1.5;
+        position: relative;
+        -webkit-font-smoothing: antialiased;
+        color: var(--hb-color-text-primary);
+        background-color: var(--hb-color-surface-message-received);
+        --hb-message-link-hover-color: var(
+          --hb-color-interactive-button-secondary-hover
+        );
+      }
+
+      .hb-message--meta {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        font-size: 0.6875rem;
+        margin-top: 0.25rem;
+        padding: 0 0.25rem;
+        width: 100%;
+        height: 18px;
+        box-sizing: border-box;
+
+        .hb-message--time {
+          color: var(--hb-color-text-muted);
+        }
+      }
+    }
+  }
+}
+
+@keyframes hb-message-enter {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hb-message.hb-message--new {
+    animation: none;
+  }
+}
+
+@media (max-width: 450px) {
+  .hb-message {
+    max-width: 85%;
+  }
+}

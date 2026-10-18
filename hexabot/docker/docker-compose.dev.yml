@@ -1,0 +1,48 @@
+version: "3.8"
+
+services:
+  api:
+    image: hexastack/hexabot-api:dev
+    build:
+      context: ../
+      dockerfile: ./packages/api/Dockerfile
+      target: development
+    pull_policy: build
+    ports:
+      - 3000:3000
+      - 9229:9229 # vscode debug port
+    volumes:
+      - ../packages/api/src:/app/packages/api/src
+      - ../packages/api/migrations:/app/packages/api/migrations
+      #- ../packages/api/node_modules:/app/packages/api/node_modules
+
+  postgres:
+    ports:
+      - ${DB_PORT:-5432}:5432
+
+  pgadmin:
+    container_name: pgadmin
+    image: dpage/pgadmin4:8.9
+    restart: always
+    depends_on:
+      - postgres
+    ports:
+      - 9000:80
+    networks:
+      - db-network
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+
+  hexabot-frontend:
+    container_name: frontend
+    image: hexastack/hexabot-ui:dev
+    build:
+      context: ../
+      dockerfile: ./packages/frontend/Dockerfile
+      target: development
+    pull_policy: build
+    volumes:
+      - ../packages/frontend/src:/app/packages/frontend/src
+      - ../packages/frontend/public:/app/packages/frontend/public

@@ -1,0 +1,218 @@
+[
+  {
+    "query": "Draft the prompt for the next reel clip so the subject leads and the motion style follows it",
+    "should_trigger": true,
+    "heldOut": false,
+    "origin": "tx:397c2c7e"
+  },
+  {
+    "query": "Give me a short follow-up prompt I can paste into a new session to check the results",
+    "should_trigger": true,
+    "heldOut": false,
+    "origin": "tx:623bb2be"
+  },
+  {
+    "query": "Look at our explainer and motion prompts and give me five hook ideas that fit the shop",
+    "should_trigger": true,
+    "heldOut": false,
+    "origin": "tx:287c3b7a"
+  },
+  {
+    "query": "Find me a prompt for writing a customer support reply to an angry tire customer",
+    "should_trigger": true,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "Write the system prompt for the receptionist voice agent",
+    "should_trigger": true,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "Write ad copy for our Google Ads brake special",
+    "should_trigger": true,
+    "heldOut": true,
+    "origin": "written"
+  },
+  {
+    "query": "Draft a review-request email to send after a completed repair",
+    "should_trigger": true,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "Is there a ready-made prompt for summarizing meeting notes into action items",
+    "should_trigger": true,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "Merge the two green PRs in order and sync main into the second branch",
+    "should_trigger": false,
+    "heldOut": true,
+    "origin": "tx:a0af8929"
+  },
+  {
+    "query": "Remove the AI label and the illustrated-not-filmed caption ending completely",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "tx:ade64a48"
+  },
+  {
+    "query": "Run a read-only audit of a third-party tool: its hooks, install script and license terms",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "tx:4b504755"
+  },
+  {
+    "query": "Add a nullable column to the customers table and write the migration",
+    "should_trigger": false,
+    "heldOut": true,
+    "origin": "written"
+  },
+  {
+    "query": "Why is the typecheck failing in apps/worker after the last merge",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "Check whether the nightly backup ran and report the last row in cron_log",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "Teardown the finished worktree and delete its merged branch",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "Write a prompt that turns raw call transcripts into a short follow-up text for the customer",
+    "should_trigger": true,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "I need a caption and hook for the winter tire reel, what prompt should I start from",
+    "should_trigger": true,
+    "heldOut": true,
+    "origin": "written"
+  },
+  {
+    "query": "Draft the system prompt for the SMS reply agent that answers tire price questions",
+    "should_trigger": true,
+    "heldOut": true,
+    "origin": "written"
+  },
+  {
+    "query": "Write a Facebook ad for our oil change special in the shop's voice",
+    "should_trigger": true,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "Can you find a prompt template for rewriting my Google Business Profile description",
+    "should_trigger": true,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "Create a prompt that makes the model rewrite shop copy for clarity without losing the voice",
+    "should_trigger": true,
+    "heldOut": true,
+    "origin": "written"
+  },
+  {
+    "query": "Write a cold email to fleet managers offering tire service contracts",
+    "should_trigger": true,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "Give me a prompt for generating five reel script angles about brake noise",
+    "should_trigger": true,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "Write the instructions prompt for the research lane agent",
+    "should_trigger": true,
+    "heldOut": true,
+    "origin": "written"
+  },
+  {
+    "query": "What is a good prompt for summarizing a long audit report into an executive summary",
+    "should_trigger": true,
+    "heldOut": true,
+    "origin": "written"
+  },
+  {
+    "query": "Run the unit tests for the SMS service and tell me which ones fail",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "Bump the pinned turbo version in the Dockerfile and prove the prune still works",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "Revert the migration that added the loyalty column and confirm the table is back to normal",
+    "should_trigger": false,
+    "heldOut": true,
+    "origin": "written"
+  },
+  {
+    "query": "List every open worktree and which ones are safe to remove",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "written"
+  },
+  {
+    "query": "Fix the null pointer in the invoice total calculation",
+    "should_trigger": false,
+    "heldOut": true,
+    "origin": "written"
+  },
+  {
+    "query": "Make the reel captions quieter and then do the third item on the list",
+    "should_trigger": true,
+    "heldOut": false,
+    "origin": "tx:3a553b1d"
+  },
+  {
+    "query": "Are you actually running the skill hooks on everything we do",
+    "should_trigger": false,
+    "heldOut": true,
+    "origin": "tx:0fa7233b"
+  },
+  {
+    "query": "Spin up a research session on the newest and hottest repos we could use to upgrade our setup",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "tx:fb9b9c5e"
+  },
+  {
+    "query": "I see it on Telegram, here is what the proof page says about the last run",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "tx:dd581902"
+  },
+  {
+    "query": "Something is wrong with the skills list, it only shows about ten, and install the find-skills repo from GitHub",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "tx:7aa38b04"
+  },
+  {
+    "query": "Read the app's AGENTS file first, then fix the defect I observed in the reel pipeline on a new branch",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "tx:d72fcc47"
+  }
+]
