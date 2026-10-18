@@ -43,6 +43,14 @@ import {
   type LoopFinding,
   type ObservedRun,
 } from "../services/loopShapeContract";
+import {
+  classifyQueueAge,
+  formatQueueAgeAlertGroup,
+  QUEUE_AGE_DECLARATIONS,
+  type QueueAgeDeclaration,
+  type QueueAgeRead,
+} from "../services/queueAge";
+import { QUEUE_AGE_READERS } from "../services/queueAgeReaders";
 
 const log = createLogger("cron:observer");
 
@@ -192,6 +200,8 @@ async function writeAlertActive(key: string, active: boolean): Promise<void> {
  * operator 4× a day about the same dormancy. Once a day is the useful cadence.
  */
 const SHAPE_ALERT_SUPPRESS_MS = 24 * 60 * 60 * 1000;
+/** A stuck queue persists by nature like a shape verdict: page once a day, per loop. */
+const QUEUE_AGE_ALERT_SUPPRESS_MS = SHAPE_ALERT_SUPPRESS_MS;
 /**
  * Rows examined per loop for shape classification. Must exceed the largest
  * dormantAfterRuns in LOOP_CONTRACTS (14) plus the head run, or a long dormancy
@@ -516,8 +526,52 @@ export async function runCronFailureObserver(): Promise<{ recordsProcessed: numb
     }
   }
 
+  // QUEUE-AGE PASS (C5.2): "job ran" is not "work completed". For each declared
+  // loop, is the oldest due-but-unprocessed row older than its cadence explains?
+  // A failed read is `unknown`: written into details and logged, never in-spec,
+  // and it never resolves an earlier page (nor does `skipped`).
+  const queueStuck: Array<{ declaration: QueueAgeDeclaration; ageMinutes: number }> = [];
+  const queueFrozen: string[] = [];
+  let queueSummary = "queue-age: inhibited by database dependency incident";
+  if (!dbRoot) {
+    const tokens: string[] = [];
+    for (const decl of QUEUE_AGE_DECLARATIONS) {
+      let read: QueueAgeRead;
+      try {
+        const reader = QUEUE_AGE_READERS[decl.loop];
+        read = reader
+          ? await reader(now)
+          : { oldestDueAtMs: null, readFailed: true, error: "no reader declared" };
+      } catch (readErr) {
+        read = { oldestDueAtMs: null, readFailed: true, error: readErr instanceof Error ? readErr.message : String(readErr) };
+      }
+      const { verdict, ageMinutes } = classifyQueueAge({ ...read, nowMs: now }, decl);
+      if (verdict === "stuck" && ageMinutes !== null) {
+        queueStuck.push({ declaration: decl, ageMinutes });
+        tokens.push(`${decl.loop}=stuck(${Math.round(ageMinutes)}m>${decl.maxAgeMinutes}m)`);
+      } else if (verdict === "unknown") {
+        queueFrozen.push(`queue_age:${decl.loop}`);
+        const why = (read.error ?? "no detail").replace(/\s+/g, " ").slice(0, 120);
+        tokens.push(`${decl.loop}=unknown(read_failed ${why})`);
+        log.warn(`[cron-observer] queue-age read for ${decl.loop} failed; verdict unknown, not in-spec`, { err: why });
+      } else if (verdict === "skipped") {
+        queueFrozen.push(`queue_age:${decl.loop}`);
+        tokens.push(`${decl.loop}=skipped(${read.skipped})`);
+      } else {
+        tokens.push(ageMinutes === null ? `${decl.loop}=${verdict}` : `${decl.loop}=${verdict}(${Math.round(ageMinutes)}m)`);
+      }
+    }
+    queueSummary = `queue-age: ${tokens.join(", ")}`;
+  }
+
   const shapeKeys = shapeFindings.map((f) => `shape:${f.loop}:${f.verdict}`);
-  const currentActive = new Set<string>([...failureKeys, ...shapeKeys]);
+  const queueKeys = queueStuck.map((q) => `queue_age:${q.declaration.loop}`);
+  const currentActive = new Set<string>([
+    ...failureKeys,
+    ...shapeKeys,
+    ...queueKeys,
+    ...queueFrozen.filter((k) => previouslyAlerted.has(k)),
+  ]);
   if (dbRoot) currentActive.add(rootKey);
 
   if (dbRoot) {
@@ -544,7 +598,7 @@ export async function runCronFailureObserver(): Promise<{ recordsProcessed: numb
     // do not clear previously-active incidents; a still-broken incident will
     // page after quiet hours, while a prior alert that recovered will get its
     // resolved notice once the operator is back in the normal window.
-    quietDeferred = failing.length + shapeFindings.length;
+    quietDeferred = failing.length + shapeFindings.length + queueStuck.length;
   } else {
     const dueFailures: JobFailureSnapshot[] = [];
     const dueFailureKeys: string[] = [];
@@ -572,19 +626,33 @@ export async function runCronFailureObserver(): Promise<{ recordsProcessed: numb
       }
     }
 
-    if (dueFailures.length || dueShapes.length) {
+    const dueQueues: typeof queueStuck = [];
+    const dueQueueKeys: string[] = [];
+    for (const q of queueStuck) {
+      const key = `queue_age:${q.declaration.loop}`;
+      const last = await readLastAlertAt(key);
+      if (shouldAlertNow(last, now, QUEUE_AGE_ALERT_SUPPRESS_MS)) {
+        dueQueues.push(q);
+        dueQueueKeys.push(key);
+      } else {
+        alertsSkipped++;
+      }
+    }
+
+    if (dueFailures.length || dueShapes.length || dueQueues.length) {
       const parts: string[] = [];
       if (dueFailures.length) parts.push(formatFailureAlertGroup(dueFailures, LOOKBACK_HOURS));
       if (dueShapes.length) parts.push(formatShapeAlertGroup(dueShapes));
+      if (dueQueues.length) parts.push(formatQueueAgeAlertGroup(dueQueues));
       const ok = await sendTelegramMessage(parts.join("\n\n").slice(0, 3900), "critical");
       if (ok) {
-        for (const key of [...dueFailureKeys, ...dueShapeKeys]) {
+        for (const key of [...dueFailureKeys, ...dueShapeKeys, ...dueQueueKeys]) {
           await writeLastAlertAt(key, now);
           await writeAlertActive(key, true);
         }
         alertsSent++;
         log.warn(
-          `[cron-observer] grouped alert sent: failures=${dueFailures.length} shapes=${dueShapes.length}`,
+          `[cron-observer] grouped alert sent: failures=${dueFailures.length} shapes=${dueShapes.length} queues=${dueQueues.length}`,
         );
       } else {
         log.error("[cron-observer] failed to send grouped Telegram alert");
@@ -620,7 +688,7 @@ export async function runCronFailureObserver(): Promise<{ recordsProcessed: numb
     details:
       `scanned: ${failing.length} failing jobs; telegram messages sent: ${alertsSent}; ` +
       `suppressed (recent): ${alertsSkipped}; quiet-deferred: ${quietDeferred}; ` +
-      `resolved: ${resolvedSent}; root-db: ${dbRoot ? "yes" : "no"}; ${shapeSummary}`,
+      `resolved: ${resolvedSent}; root-db: ${dbRoot ? "yes" : "no"}; ${shapeSummary}; ${queueSummary}`,
   };
 }
 
