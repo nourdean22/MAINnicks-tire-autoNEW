@@ -117,6 +117,34 @@ detailed in `docs/CURRENT-TRUTH.md`:
   retail only, wholesale never leaves the server. Live sections self-suppress
   when the feed is cold (canon floors render, never an empty table).
 
+## 2026-10-18 - Tire finder by vehicle, Kafene first, order completion (#3148 live, #3152 merged)
+
+- **/tires finds sizes by vehicle** (`fitment` router, `server/services/fitment/dkFitment.ts`): year > make > model > trim >
+  factory sizes from D&K's own b2b quicksearch through the Gateway Tire login. No new vendor. LIVE: deploy `0b8cb5bae`,
+  `fitment.status {available:true}`, 2018 Honda Civic LX -> 215/50R17, 215/55R16, 215/55R17, 235/40R18. When the Gateway login
+  is down the tab hides and size search stays. Per-IP limits (20/min, 120/15 min), single flight, 30 s negative cache.
+- **Top picks** above the results (lowest, best value, premium) with Call, Request, Apply with Kafene and More payment programs.
+- **Payment Programs are five, Kafene first** (`shared/financing.ts`, `shared/business.ts`): Kafene, Acima, Snap, Koalafi,
+  American First. Copy, SMS planner, voice classifiers, chat tools, GBP and ad copy all say five. `financing_clicks.provider`
+  gains `kafene` by **migration 0147 (operator step, admin Run Migrations)**; until applied a Kafene click opens the application
+  and the click row is dropped with a warn. The Vapi keyword list gained Kafene: **Push Latest Config** is an operator step.
+- **Order completion (#3152, squash `8b189e8b7`; live when Railway deploys it):**
+  - Admin one-tap supplier order at D&K (`gatewayOrder.prepare/submit/clearOurLines`, `services/gatewaySupplierOrder.ts`):
+    cart from the order lines, PO `online order <order number>`, CAS claim so two taps place one order, unclear submits park as
+    `uncertain:<uuid>`, doubled carts refused (`cart_mismatch`). **Behind `GATEWAY_ORDERING_ENABLED` (off) and `money.manage`.**
+    A Kafene-leased order (never "paid") counts as paid for this once its lease is signed.
+  - Kafene keyless bridge, ON at deploy: Apply with Kafene in the order modal calls `kafene.applyStarted` (order note, one
+    Telegram to staff with the phone masked, once per order per day, 5 calls/IP/hour); admin lease panel shows "Application
+    started on the website". **Migration 0148 (`kafene_leases`) is an operator step**; before it, the Telegram still goes and
+    the panel says the records are not installed.
+  - Kafene keyed path, DORMANT: checkout SDK, `start/attach/markSigned`, admin activate (after install) and cancel through the
+    Partner API; every call answers `disabled` until `KAFENE_MERCHANT_ID`, `KAFENE_STORE_ID`, `KAFENE_API_KEY` exist. Kafene
+    issues those to e-commerce stores only; the rep must enable the store. Kafene's own plugin ships the same key to the browser
+    SDK and the Partner API (one key by their design).
+  - Order-modal links carry what each provider accepts (`providerApplyUrl`): Koalafi `phone=` (verified prefill), American
+    First `amount=` + `reference=`; Kafene, Snap, Acima unchanged.
+- Research: `docs/research/2026-10-18-competitor-tire-finder-teardown.md` (9 chains, provider apply pages, Kafene portal).
+
 ## 2026-10-16 - Observability is proven by planted positives, not by env presence (branch nickstire/observability-proof, NOT yet merged)
 
 - `GET /api/system/observability-status` (Bearer `ADMIN_API_KEY`) answers HEALTHY / DEGRADED / UNKNOWN per instrument (Sentry, Langfuse) from in-process counters (`server/lib/observabilityStatus.ts`); keys unset, zero acks or a proof older than 12 h read UNKNOWN, never HEALTHY. Counters reset on every deploy.

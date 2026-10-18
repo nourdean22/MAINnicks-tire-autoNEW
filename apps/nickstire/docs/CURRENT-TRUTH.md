@@ -7,6 +7,14 @@
 
 Live code and production evidence override this document when they disagree. Update this file in the same change that alters a listed contract.
 
+## Tire finder by vehicle + Kafene first (2026-10-18, PR #3148) -- MERGED (main `0b8cb5bae`), LIVE (`/api/health` deploy.commit `0b8cb5bae`; `fitment.status {available:true}`; 2018 Civic LX -> four sizes; /tires screenshot shows the By vehicle tab)
+
+- Public `fitment.*` reads over D&K b2b quicksearch through the Gateway Tire login (Wheel-Size dropped, $0). Top-pick cards. Kafene is the first of five Payment Programs with its banners under `client/public/kafene/`. Operator steps owed: migration 0147 (admin Run Migrations + `record-migrations.mjs --only 0147`), Vapi Push Latest Config (Kafene keyword).
+
+## Order completion: admin one-tap D&K order, Kafene lease, provider prefill (2026-10-18, PR #3152) -- MERGED (main `8b189e8b7`, 20:37Z); Railway deploy pending at the time of writing
+
+- `gatewayOrder` behind `GATEWAY_ORDERING_ENABLED` (off) + `money.manage`; `kafene.applyStarted` live on deploy (keyless); `kafene.start/attach/markSigned/activate/cancel` dormant until `KAFENE_*` env; `providerApplyUrl` (Koalafi phone, AFF amount + reference). Operator steps owed: migration 0148 (admin Run Migrations + record), `GATEWAY_ORDERING_ENABLED=true` when the one-tap order is wanted, `KAFENE_*` when Kafene enables integrations, rename the dealer in Koalafi's portal. Live proof owed: deploy commit `8b189e8b7` on `/api/health`, then one real Apply with Kafene click (Telegram + admin row).
+
 ## Payment reminders retired (2026-10-15)
 
 Payment is taken on a separate register, so an unpaid invoice row is not a signal to text anyone. Production read 2026-10-15: 3,091 of 3,099 invoices paid, the 8 others manual rows, and exactly one reminder ever sent (a 30-day touch, 2026-08-25).

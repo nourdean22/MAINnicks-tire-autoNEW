@@ -45,8 +45,11 @@ step() {
 
 MB="$(git merge-base HEAD "$BASE" 2>/dev/null)" || { echo "preflight: cannot resolve base '$BASE'"; exit 2; }
 # Committed and uncommitted changes since the base, plus new files not yet added (a new test file counts).
-mapfile -t CHANGED < <({ git diff --name-only --diff-filter=d "$MB" -- . | sed 's#^apps/nickstire/##'; git ls-files --others --exclude-standard -- .; } | grep -E '\.(ts|tsx|mts)$' | sort -u || true)
-echo "preflight: base $(git rev-parse --short "$MB"), ${#CHANGED[@]} changed ts files under apps/nickstire"
+changed_files() { { git diff --name-only --diff-filter=d "$MB" -- . | sed 's#^apps/nickstire/##'; git ls-files --others --exclude-standard -- .; } | sort -u; }
+mapfile -t CHANGED < <(changed_files | grep -E '\.(ts|tsx|mts)$' || true)
+# Data and script files a test may READ (ledger json, docs, sql, mjs): never in vitest's import graph, see text_scan_tests.
+mapfile -t CHANGED_DATA < <(changed_files | grep -vE '\.(ts|tsx|mts)$' | grep -E '\.(json|md|sql|mjs|cjs|js)$' || true)
+echo "preflight: base $(git rev-parse --short "$MB"), ${#CHANGED[@]} changed ts files, ${#CHANGED_DATA[@]} changed data/script files under apps/nickstire"
 
 VITEST="node node_modules/vitest/vitest.mjs"
 
@@ -69,22 +72,17 @@ step "repo-scan gate tests" $VITEST run \
 # not cause and CI's full run decides; it is reported as a note, not a red.
 # Witnessed 2026-10-10: candidatesSilentLoss timed out in every shared run, before
 # and after the change under test, and passed 11/11 alone in 6 s.
-# Tests that READ a changed source file as text (readFileSync + sliceBlock) are
-# not in vitest's import graph, so `related` never runs them. #2978 merged with
-# cronLockHandback.test.ts red on main that way. Add every test naming a changed
-# file as "dir/base.ts" or "dir", "base.ts".
-text_scan_tests() {
-  local f dir base
-  for f in "${CHANGED[@]}"; do
-    case "$f" in *.test.ts|*.test.tsx) continue;; esac
-    dir="$(basename "$(dirname "$f")")"; base="$(basename "$f")"
-    grep -rlF -e "$dir/$base" -e "\"$dir\", \"$base\"" server client/src --include='*.test.ts' --include='*.test.tsx' 2>/dev/null
-  done | sort -u
-}
+# Tests that READ a changed file as text (readFileSync + a path literal) are not in
+# vitest's import graph, so `related` never runs them. #2978 merged with
+# cronLockHandback.test.ts red on main that way; #3152 (2026-10-18) pushed a green
+# preflight and failed CI on completionAuthority.test.ts, which reads
+# capability-ledger.json. scripts/preflight-text-scan.mjs (tested by
+# server/__tests__/preflight-text-scan.test.ts) names every test that mentions a
+# changed source OR data file as "dir/base" or "dir", "base".
+mapfile -t SCANS < <(node scripts/preflight-text-scan.mjs "${CHANGED[@]}" "${CHANGED_DATA[@]}" 2>/dev/null || true)
 related_tests() {
   local log; log="$(mktemp)"
-  local scans; mapfile -t scans < <(text_scan_tests)
-  if $VITEST related --run --retry 1 "${CHANGED[@]}" "${scans[@]}" >"$log" 2>&1; then rm -f "$log"; return 0; fi
+  if $VITEST related --run --retry 1 "${CHANGED[@]}" "${SCANS[@]}" >"$log" 2>&1; then rm -f "$log"; return 0; fi
   local failed
   mapfile -t failed < <(sed 's/\x1b\[[0-9;]*m//g' "$log" | grep -oE '^ FAIL  [^ ]+[.]test[.]tsx?' | awk '{print $2}' | sort -u)
   if [ "${#failed[@]}" -gt 0 ] && $VITEST run "${failed[@]}" >/dev/null 2>&1; then
@@ -93,8 +91,8 @@ related_tests() {
   fi
   cat "$log"; rm -f "$log"; return 1
 }
-if [ "${#CHANGED[@]}" -gt 0 ]; then
-  step "vitest related (changed files)" related_tests
+if [ "${#CHANGED[@]}" -gt 0 ] || [ "${#SCANS[@]}" -gt 0 ]; then
+  step "vitest related (changed files${SCANS:+ + ${#SCANS[@]} text-scan tests})" related_tests
 fi
 step "capability ledger"  node scripts/check-capability-ledger.mjs
 step "DoD compiler"       bash -c "cd '$ROOT' && node apps/nickstire/scripts/dod-compiler.mjs --base '$MB' --enforce"

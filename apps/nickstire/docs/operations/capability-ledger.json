@@ -5610,13 +5610,13 @@
         "automatic ordering (rejected: supplier orders stay a one-tap admin action)"
       ],
       "lastVerifiedAt": "2026-10-18",
-      "codeState": "in_progress",
+      "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "disabled",
       "evidence": {
-        "codeCommit": "Branch nickstire/order-completion-dk-kafene (job 2026-10-18-dk-supplier-order). server/services/gatewaySupplierOrder.ts + server/routers/gatewayOrder.ts: admin mutations prepare / submit / clearOurLines behind GATEWAY_ORDERING_ENABLED and money.manage; audit action tireorder.supplier_ordered (server/services/auditTrail.ts); shared/adminPermissions.ts. client/src/components/admin/GatewayOrderPanel.tsx on the Tire Orders card (prepare then submit behind the in-DOM confirm).",
+        "codeCommit": "PR #3152, squash 8b189e8b7 (branch nickstire/order-completion-dk-kafene) (job 2026-10-18-dk-supplier-order). server/services/gatewaySupplierOrder.ts + server/routers/gatewayOrder.ts: admin mutations prepare / submit / clearOurLines behind GATEWAY_ORDERING_ENABLED and money.manage; audit action tireorder.supplier_ordered (server/services/auditTrail.ts); shared/adminPermissions.ts. client/src/components/admin/GatewayOrderPanel.tsx on the Tire Orders card (prepare then submit behind the in-DOM confirm).",
         "tests": "server/__tests__/gatewayOrder.test.ts 29 (lane red-first); client/src/__tests__/gateway-order-panel.test.tsx; admin-customer-copy-pins.test.ts counts the new confirm (32 -> 33); manager run on the combined tip 5e2906ef9: 13 files passed, tsc exit 0",
-        "liveProbe": "Not run against D&K: the flag is off and a supplier order is a protected operation. Manager read-only probe 2026-10-18 proved the account has cart_write + order_write and that cart endpoints need ship_from and exact submodel values."
+        "liveProbe": "Not run against D&K: the flag is off and a supplier order is a protected operation. Manager read-only probe 2026-10-18 proved the account has cart_write + order_write and that cart endpoints need ship_from and exact submodel values. Live 2026-10-18 after deploy 8b189e8b7: gatewayOrder.prepare without an admin session -> FORBIDDEN (the money.manage gate holds)."
       }
     },
     {
@@ -5635,13 +5635,13 @@
         "server-side merchant-portal client (needs the OTP phone's inbound SMS; not built)"
       ],
       "lastVerifiedAt": "2026-10-18",
-      "codeState": "in_progress",
+      "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "disabled",
       "evidence": {
-        "codeCommit": "Branch nickstire/order-completion-dk-kafene (job 2026-10-18-kafene-checkout). server/services/kafene/partnerApi.ts + leases.ts, server/routers/kafene.ts (public config/start/attach/markSigned/applyStarted; admin activate/cancel/status), drizzle/0148_kafene_leases.sql (hand-applied), email-notify notifyTireOrderKafeneSigned. client/src/lib/kafeneSdk.ts, components/order/KafeneCheckout.tsx, components/admin/KafeneLeasePanel.tsx, TireOrderModal Kafene link calls applyStarted.",
+        "codeCommit": "PR #3152, squash 8b189e8b7 (branch nickstire/order-completion-dk-kafene) (job 2026-10-18-kafene-checkout). server/services/kafene/partnerApi.ts + leases.ts, server/routers/kafene.ts (public config/start/attach/markSigned/applyStarted; admin activate/cancel/status), drizzle/0148_kafene_leases.sql (hand-applied), email-notify notifyTireOrderKafeneSigned. client/src/lib/kafeneSdk.ts, components/order/KafeneCheckout.tsx, components/admin/KafeneLeasePanel.tsx, TireOrderModal Kafene link calls applyStarted.",
         "tests": "server/routers/kafene.test.ts 46 (applyStarted red-first 9f/36p, mutations 6/6); client/src/__tests__/kafene-checkout.test.tsx, kafene-sdk-loader.test.ts, kafene-lease-panel.test.tsx (red-first 1f/19p), order-modal-payment-programs.test.tsx (red-first 2f/26p, mutations 5/5); manager run on the combined tip 5e2906ef9: 13 files passed, tsc exit 0",
-        "liveProbe": "Keyed path never run: Kafene issues Merchant ID / Store ID / API key to e-commerce stores only (merchant.kafene.com/integrations gated, FACT 2026-10-18). Keyless applyStarted: unit tests only until the first real click after deploy; migration 0148 is an operator step."
+        "liveProbe": "Keyed path never run: Kafene issues Merchant ID / Store ID / API key to e-commerce stores only (merchant.kafene.com/integrations gated, FACT 2026-10-18). Keyless applyStarted: unit tests only until the first real click after deploy; migration 0148 is an operator step. Live 2026-10-18 after deploy 8b189e8b7 (read-only): kafene.config {enabled:false}; kafene.applyStarted on a non-existent order -> {ok:false, reason:\"not_found\"} (no write); the first real click is still owed."
       }
     }
   ],
