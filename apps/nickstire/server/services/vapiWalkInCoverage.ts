@@ -57,7 +57,8 @@ function timePattern(hhmm: string): string {
   const h12 = h % 12 || 12;
   const hour = `(?:${h12}|${HOUR_WORDS[h12 % 12]})`;
   const minutes = m ? `:${String(m).padStart(2, "0")}` : "(?::00)?";
-  return `(?<![\\d:])${hour}${minutes}(?:\\s*[ap]\\.?m\\.?)?`;
+  // Not glued to a letter, digit or colon on the left, nor to a digit or ":digit" on the right.
+  return `(?<![\\w:])${hour}${minutes}(?!\\d|:\\d)(?:\\s*[ap]\\.?m\\.?)?`;
 }
 
 /** Every distinct open-to-close pair in the structured hours, as one regex each. */
@@ -104,7 +105,7 @@ export function detectWalkInCoverage(transcript: unknown, facts: WalkInFacts = B
 const token = (v: Measured): string => (v === null ? "unmeasured" : String(v));
 
 /** ` · walk_in=true · addr_hours=unmeasured`. Always written, so a new row is told apart from an old one. */
-export function formatWalkInSuffix(c: WalkInCoverage): string {
+function formatWalkInSuffix(c: WalkInCoverage): string {
   return ` · walk_in=${token(c.walkInInvited)} · addr_hours=${token(c.addressAndHoursGiven)}`;
 }
 

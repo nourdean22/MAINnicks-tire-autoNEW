@@ -5,7 +5,6 @@ import {
   UNMEASURED_WALK_IN,
   appendWalkInSuffix,
   detectWalkInCoverage,
-  formatWalkInSuffix,
   parseWalkInSuffix,
   type Measured,
   type WalkInFacts,
@@ -73,6 +72,14 @@ describe("T1 criteria are built from business.ts facts at runtime", () => {
     expect(detectWalkInCoverage(hoursOnly)).toEqual({ walkInInvited: true, addressAndHoursGiven: false });
   });
 
+  it("does not read a different time as the shop's hours (8 to 6:30, 8:30 to 6, a word ending in 'eight')", () => {
+    const say = (hours: string) =>
+      lines(GREETING, "User: hi", `AI: Come by, ${BUSINESS.address.street}. ${hours}`);
+    expect(detectWalkInCoverage(say("We run 8 AM to 6:30 PM.")).addressAndHoursGiven).toBe(false);
+    expect(detectWalkInCoverage(say("We run 8:30 AM to 6 PM.")).addressAndHoursGiven).toBe(false);
+    expect(detectWalkInCoverage(say("It is a weight to six cars a day.")).addressAndHoursGiven).toBe(false);
+  });
+
   it("accepts spoken-out hours and a Sunday-only pair", () => {
     const t = lines(GREETING, "User: hi", `AI: Stop in, ${BUSINESS.address.street}. We run eight to six on weekdays.`);
     expect(detectWalkInCoverage(t).addressAndHoursGiven).toBe(true);
@@ -111,6 +118,15 @@ describe("assistant speech only, and the opening line is not evidence", () => {
     expect(detectWalkInCoverage({ not: "a string" })).toEqual(UNMEASURED_WALK_IN);
   });
 
+  it("never throws, on any transcript or on facts with no usable address or hours (a throw would leave the call unscored and retried)", () => {
+    const hostile: unknown[] = [undefined, 0, 42, [], [1, 2], "AI:", "AI: ", "\n\n", "AI: (((", "x".repeat(200_000), Symbol.iterator.toString()];
+    for (const t of hostile) expect(() => detectWalkInCoverage(t)).not.toThrow();
+    const noFacts: WalkInFacts = { address: { street: "Main" }, hours: { structured: { monday: "", sunday: "closed", friday: "xx:yy-zz:ww" } } };
+    const t = lines(GREETING, "User: hi", "AI: Walk in any time, we are on Main, open 8 to 6.");
+    expect(() => detectWalkInCoverage(t, noFacts)).not.toThrow();
+    expect(detectWalkInCoverage(t, noFacts)).toEqual({ walkInInvited: true, addressAndHoursGiven: false });
+  });
+
   it("scores an answered call with no invitation as a measured miss", () => {
     const t = lines(GREETING, "User: Do you fix brakes?", "AI: Yes, we do brakes. Anything else?");
     expect(detectWalkInCoverage(t)).toEqual({ walkInInvited: false, addressAndHoursGiven: false });
@@ -131,10 +147,10 @@ describe("T2 the suffix round-trips through eval_reasoning", () => {
   }
 
   it("writes the two fields as plain key=value tokens an operator can read", () => {
-    expect(formatWalkInSuffix({ walkInInvited: true, addressAndHoursGiven: false })).toBe(
+    expect(appendWalkInSuffix("", { walkInInvited: true, addressAndHoursGiven: false })).toBe(
       " · walk_in=true · addr_hours=false",
     );
-    expect(formatWalkInSuffix(UNMEASURED_WALK_IN)).toBe(" · walk_in=unmeasured · addr_hours=unmeasured");
+    expect(appendWalkInSuffix("", UNMEASURED_WALK_IN)).toBe(" · walk_in=unmeasured · addr_hours=unmeasured");
   });
 });
 
@@ -177,6 +193,11 @@ describe("consumer end: the cron writes the suffix and the measured gate is the 
 
   it("a call with no quality score (not a customer conversation, or a tech failure) stays UNMEASURED", () => {
     expect(cron).toContain("result.score == null ? UNMEASURED_WALK_IN : detectWalkInCoverage(detail.transcript)");
+  });
+
+  it("the admin call list returns the parsed fields next to evalReasoning, so the reader has a caller", () => {
+    const router = readFileSync(new URL("../routers/vapi.ts", import.meta.url), "utf8");
+    expect(router).toContain("walkIn: parseWalkInSuffix(r.evalReasoning)");
   });
 
   it("the quality score itself is not touched by the new fields", () => {
