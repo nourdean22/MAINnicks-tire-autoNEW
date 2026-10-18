@@ -4,7 +4,7 @@
 // `kafenejs-init` event fires. Unlike the plugin, this rejects instead of waiting forever.
 
 const SDK_BASE = "https://sdk.kafene.com/";
-export const KAFENE_SCRIPT_SRC = `${SDK_BASE}plugin/js/kafene.js`;
+const KAFENE_SCRIPT_SRC = `${SDK_BASE}plugin/js/kafene.js`;
 const KAFENE_CSS_HREF = `${SDK_BASE}plugin/css/kafene.css`;
 
 export type KafeneItem = {
