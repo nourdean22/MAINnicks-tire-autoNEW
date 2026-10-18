@@ -2,7 +2,7 @@
 /**
  * Merge protocol as one command (2026-10-15): the manager skill's step 13.
  *
- *   node scripts/agent-os/merge-gate.mjs <pr> --sha <head sha you verified> [--wait-minutes 30] [--merge]
+ *   node scripts/agent-os/merge-gate.mjs <pr> --sha <head sha you verified> [--wait-minutes 30] [--codex-wait-minutes 25] [--merge]
  *
  * Without --merge it only judges and prints READY or the blockers. With --merge it:
  *   1. holds (ONE bounded wait, no model turns) while another open PR has a node or e2e check in flight: a merge
@@ -10,6 +10,8 @@
  *   2. re-reads the PR and refuses unless it is open, not a draft, CLEAN, at exactly the SHA you verified, with every
  *      check finished and each one SUCCESS, SKIPPED or NEUTRAL (an allow-list: a conclusion GitHub adds next year blocks
  *      until someone reads it), in this same process as the merge, so nothing can change in between;
+ *      and the Codex review (assessCodex) has completed on that SHA with no unresolved finding and no unresolved Codex
+ *      thread; with no Codex marker for the SHA it waits --codex-wait-minutes from the push, then merges with a WARN line;
  *   3. merges with --match-head-commit, so GitHub itself refuses if the head moved after step 2;
  *   4. re-reads the PR and deletes the branch through the API ONLY once it reads MERGED. Deleting the head branch of an
  *      unmerged PR closes it (happened on #2948), and `--delete-branch` can fail locally after the remote merge succeeded.
@@ -19,12 +21,12 @@
  *
  * Exit codes:
  *   0 ready (without --merge) or merged
- *   2 blocked: something is wrong (failed check, draft, behind, wrong head, not open)
+ *   2 blocked: something is wrong (failed check, draft, behind, wrong head, not open, unresolved Codex finding or thread)
  *   3 held past the wait: another PR's node or e2e run is still in flight; nothing was merged
  *   4 the merge call returned but the PR does not read MERGED; the branch is kept
  *   5 a gh call failed BEFORE the merge call; nothing was merged, safe to re-run
  *   6 a gh call failed AT or AFTER the merge call; the merge may have happened (the message says which): read the PR before any retry
- *   7 not ready YET (CI has not started, a check is still running, GitHub is still computing); re-run in a minute
+ *   7 not ready YET (CI has not started, a check is still running, GitHub is still computing, Codex has not reported); re-run in a minute
  *  64 bad usage
  */
 import { execFileSync } from "node:child_process";
@@ -67,6 +69,51 @@ export const blockers = (view, expectedSha) => {
   return [...hard, ...soft];
 };
 
+const isCodex = (login) => String(login ?? "").replace(/\[bot\]$/, "") === "chatgpt-codex-connector";
+// Loose on purpose: truncated JSON or a new version must still be SEEN as a marker, so it holds instead of reading as absent.
+const MARKER = /<!--\s*codex-review-state:(\S*)([\s\S]*?)-->/g;
+
+/**
+ * The Codex review's verdict on `headSha` (job 2026-10-18-merge-gate-codex-wait: #3134 and #3141 merged on green CI ~3
+ * minutes before Codex posted P1 findings). `comments` is `gh pr view --json comments`; Codex edits one summary comment
+ * carrying a `codex-review-state:v1` JSON marker. `threads` are the PR's reviewThreads nodes. Returns soft (not yet),
+ * hard (blocked) and warn (log only). Fail-closed: a malformed marker reads as running; the only fail-open is "no marker
+ * for this head" after `waitMinutes` from `headPushedAtMs`, and it says so in a warn line.
+ */
+export function assessCodex({ comments, threads, headSha, headPushedAtMs, nowMs, waitMinutes }) {
+  const soft = [];
+  const hard = [];
+  const warn = [];
+  const open = (threads ?? []).filter((t) => !t.isResolved && isCodex(t.comments?.nodes?.[0]?.author?.login));
+  if (open.length) hard.push(`${open.length} unresolved Codex review thread(s): fix them and resolve the threads (${open.map((t) => t.comments.nodes[0].url ?? t.path).join(", ")})`);
+  // Newest first; an older sha is no marker for this head. A marker that does not parse could be the head's, so it holds.
+  const markers = (comments ?? []).filter((c) => isCodex(c.author?.login)).flatMap((c) => [...String(c.body ?? "").matchAll(MARKER)]);
+  let review;
+  for (const [, version, text] of markers.reverse()) {
+    let cr;
+    try {
+      if (version === "v1") cr = JSON.parse(text).code_review;
+    } catch {}
+    if (!cr || typeof cr !== "object") {
+      soft.push(`the Codex review-state marker (${version || "no version"}) could not be read: treating it as still running`);
+      return { soft, hard, warn };
+    }
+    if (cr.commit_sha === headSha) {
+      review = cr;
+      break;
+    }
+  }
+  if (!review) {
+    const waited = (nowMs - headPushedAtMs) / 60_000;
+    if (waited >= waitMinutes) warn.push(`Codex never reported on ${headSha}; merging without its review`);
+    else soft.push(`no Codex review on ${headSha} yet (${Number.isFinite(waited) ? Math.floor(waited) : "?"} of ${waitMinutes} min waited since the push)`);
+  } else if (review.status === "running") soft.push(`Codex review is still running on ${headSha}: wait for its findings`);
+  else if (review.status !== "completed") warn.push(`Codex review on ${headSha} reported status ${JSON.stringify(review.status)}, not completed: no findings to read`);
+  else if (review.has_unresolved_findings === true) hard.push(`Codex reported unresolved findings on ${headSha}: fix them and resolve the threads`);
+  else if (review.has_unresolved_findings !== false) soft.push(`Codex review on ${headSha} is completed but has_unresolved_findings is ${JSON.stringify(review.has_unresolved_findings)}: treating it as still running`);
+  return { soft, hard, warn };
+}
+
 /** node or e2e checks in flight on open PRs other than `self`. `prs` is `gh pr list --state open --json number,statusCheckRollup`. */
 export function busyChecks(prs, self) {
   const busy = [];
@@ -88,13 +135,32 @@ export async function holdWhileBusy({ list, self, minutes, sleep, now, everyMs =
 }
 
 const VIEW_FIELDS = "state,isDraft,mergeStateStatus,headRefOid,headRefName,isCrossRepository,statusCheckRollup";
+const THREADS_QUERY = "query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewThreads(first:100){pageInfo{hasNextPage} nodes{isResolved path comments(first:1){nodes{author{login} url}}}}}}}";
+// Calibrated 2026-10-18: Codex posted its review 3 to 9 minutes after PR open on #3139 and #3141; 25 leaves room for a slow run.
+export const CODEX_WAIT_MINUTES = 25;
 
-/** The whole protocol. `gh(args)` returns stdout; injected so the order of calls can be proven. */
-export async function mergeGate({ gh, pr, sha, wait, merge, sleep, now, log, sweep }) {
+/**
+ * When the head reached GitHub, for the Codex wait: the LATEST of PR open, the head commit's committedDate (it can predate
+ * the push by hours) and the first CI start on the head. Later means a longer wait, the fail-closed side.
+ */
+const pushedAtMs = (view, codexView) => {
+  const head = (codexView.commits ?? []).find((c) => c.oid === view.headRefOid);
+  const firstCi = Math.min(...(view.statusCheckRollup ?? []).map((c) => Date.parse(c.startedAt)).filter(Number.isFinite));
+  const times = [Date.parse(codexView.createdAt), Date.parse(head?.committedDate), firstCi].filter(Number.isFinite);
+  return times.length ? Math.max(...times) : NaN;
+};
+
+/**
+ * The whole protocol. `gh(args)` returns stdout; injected so the order of calls can be proven. `codexCheck` exists only so
+ * the canary can switch the Codex wait off and prove the tests see the difference; the CLI never passes it.
+ */
+export async function mergeGate({ gh, pr, sha, wait, merge, sleep, now, log, sweep, codexWait = CODEX_WAIT_MINUTES, codexCheck = assessCodex }) {
   // A NaN deadline never arrives, which would turn the bounded wait into an endless poll.
   if (!Number.isFinite(wait) || wait < 0) throw new Error("--wait-minutes must be a finite number of minutes, 0 or more");
+  if (!Number.isFinite(codexWait) || codexWait < 0) throw new Error("--codex-wait-minutes must be a finite number of minutes, 0 or more");
   const json = (args) => JSON.parse(gh(args));
   let before;
+  let codex;
   try {
     const busy = merge ? await holdWhileBusy({ list: () => json(["pr", "list", "--state", "open", "--limit", "200", "--json", "number,statusCheckRollup"]), self: pr, minutes: wait, sleep, now }) : [];
     if (busy.length) {
@@ -102,13 +168,20 @@ export async function mergeGate({ gh, pr, sha, wait, merge, sleep, now, log, swe
       return 3;
     }
     before = json(["pr", "view", String(pr), "--json", VIEW_FIELDS]);
+    const codexView = json(["pr", "view", String(pr), "--json", "comments,commits,createdAt"]);
+    const threads = json(["api", "graphql", "-F", "owner={owner}", "-F", "name={repo}", "-F", `number=${pr}`, "-f", `query=${THREADS_QUERY}`]).data.repository.pullRequest.reviewThreads;
+    codex = codexCheck({ comments: codexView.comments, threads: threads.nodes, headSha: sha, headPushedAtMs: pushedAtMs(before, codexView), nowMs: now(), waitMinutes: codexWait });
+    if (threads.pageInfo?.hasNextPage) codex = { ...codex, hard: [...codex.hard, "more than 100 review threads: this gate reads one page, so it cannot prove none is an open Codex finding; check by hand"] };
   } catch (e) {
     log(`ERROR before any merge call, nothing was merged: ${firstLine(e)}`);
     return 5;
   }
   const { hard, soft } = assess(before, sha);
+  hard.push(...codex.hard);
+  soft.push(...codex.soft);
   hard.forEach((w) => log(`BLOCKED: ${w}`));
   soft.forEach((w) => log(`NOT READY YET: ${w}`));
+  codex.warn.forEach((w) => log(`WARN: ${w}`));
   if (hard.length) return 2;
   if (soft.length) return 7;
   if (!merge) {
@@ -167,7 +240,13 @@ if (isMainModule(import.meta.url)) {
     console.error("--wait-minutes needs a number of minutes, 0 or more (a following flag is not a value). usage: node scripts/agent-os/merge-gate.mjs <pr> --sha <sha> [--wait-minutes 30] [--merge]");
     process.exit(64);
   }
+  const codexWait = Number(arg("--codex-wait-minutes") ?? CODEX_WAIT_MINUTES);
+  if (!Number.isFinite(codexWait) || codexWait < 0) {
+    console.error("--codex-wait-minutes needs a number of minutes, 0 or more (a following flag is not a value)");
+    process.exit(64);
+  }
   const code = await mergeGate({
+    codexWait,
     gh: (args) => execFileSync("gh", args, { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] }),
     pr,
     sha,
