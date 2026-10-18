@@ -224,6 +224,14 @@ export const CRONS: CronDef[] = [
     description: "Industry-intel RSS feeder → BrainMemory(industry_intel) for recallIndustryIntel (system prompt + /intel + plan-day). Revived 2026-05-31 (was deleted in Wave AE).",
   },
   {
+    name: "intelligence-ingest",
+    schedule: "15 10 * * *",
+    mode: "active",
+    category: "review",
+    inngest: true,
+    description: "Daily source ingestion, claim verification, opportunity scoring and persona-drift scan, Inngest-native. No brief is composed or pushed (the brief was stopped 2026-10-18); a total ingestion outage throws so onInngestFailure pages.",
+  },
+  {
     name: "customer-preferences-recompute",
     schedule: "0 11 * * *",
     mode: "active",

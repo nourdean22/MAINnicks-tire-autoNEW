@@ -212,7 +212,7 @@ async function sendBriefPush(brief: ComposedBrief): Promise<{
       kind: "daily_brief",
       sourceEngine: "morning-brief",
       summary: brief.text,
-      // Pre-send guess; sendStandaloneIfUnconsumed corrects it once delivery
+      // Pre-send guess; deliverMorningBrief corrects it once delivery
       // is known (web-push, or telegram-fallback when no device was reached).
       shownSurface: "web-push",
     });
@@ -247,87 +247,29 @@ async function sendBriefPush(brief: ComposedBrief): Promise<{
 }
 
 /**
- * 2026-08-21 · combine hand-off. Two separate 10:00/10:15 pushes for
- * what is conceptually ONE morning briefing was a fair complaint — this
- * hands morning's FULL brief to intelligence-brief (10:15 UTC) to fold
- * into ONE push instead of sending its own. Deliberately does NOT
- * couple morning's delivery reliability to the other function's health:
- * `sendStandaloneIfUnconsumed` below is a durable backstop that fires
- * this brief solo if nothing ever picks the hand-off up.
+ * Deliver the composed brief: web push first, Telegram when no device took it.
+ * Runs straight after compose. (Until 2026-10-18 this waited 35 minutes for the
+ * daily intelligence brief to fold it into one push; that brief was stopped, so
+ * the wait and the hand-off row are gone.)
  *
- * Hands off the RAW text, not `pushBodyFromBrief`'s 200-char teaser —
- * the whole point of combining is a landing page (/intelligence/brief)
- * where the operator can actually read both briefs. Truncation for the
- * push notification body itself is intelligence-brief's job at send
- * time, same as it already does for its own text.
- *
- * Returns {sent:1} rather than a real push result — the content WILL
- * reach the device, either combined or via the backstop. Nothing ledgers
- * or falls back on this synthetic value (census E12); the backstop does
- * both on the real one.
+ * The ledger row is written by sendBriefPush with a pre-send guess; the real
+ * surface is set here, where delivery is known.
  */
-export async function handOffForCombine(brief: ComposedBrief): Promise<{
-  sent: number;
-  failed: number;
+export async function deliverMorningBrief(brief: ComposedBrief): Promise<{
+  status: "sent" | "telegram_fallback";
+  push: { sent: number; failed: number };
 }> {
-  const { prisma } = await import("@/lib/prisma");
-  const content = brief.text;
-  await prisma.brainMemory.upsert({
-    where: {
-      category_key: { category: "pending_morning_highlight", key: brief.date },
-    },
-    create: {
-      category: "pending_morning_highlight",
-      key: brief.date,
-      content,
-      confidence: 1.0,
-      source: "inngest/morning-brief",
-    },
-    update: { content },
-  });
-  return { sent: 1, failed: 0 };
-}
-
-/**
- * Backstop · runs ~35min after hand-off, well past intelligence-brief's
- * 10:15 UTC slot. If the pending row is STILL there, the combine never
- * happened (the other function didn't run, or ran and found nothing) —
- * deliver morning's brief standalone rather than lose it silently. Row
- * is deleted either way it's found, so a step re-execution can't
- * double-send.
- */
-export async function sendStandaloneIfUnconsumed(brief: ComposedBrief): Promise<{
-  status: "combined" | "standalone_sent" | "standalone_failed";
-  push?: { sent: number; failed: number };
-}> {
-  const { prisma } = await import("@/lib/prisma");
-  const pending = await prisma.brainMemory.findUnique({
-    where: {
-      category_key: { category: "pending_morning_highlight", key: brief.date },
-    },
-    select: { id: true },
-  });
-  if (!pending) return { status: "combined" };
-
   const push = await sendBriefPush(brief);
-  await prisma.brainMemory.delete({ where: { id: pending.id } }).catch(() => null);
-  // 2026-10-02 · census E2 + E12: this is the ONLY morning-brief ledger
-  // writer. The hand-off used to ledger a second row for the same morning
-  // (the combined push ledgers its own in intelligence-brief), so one brief
-  // made two rows; now a morning is one row — the combined push's, or this
-  // one when the combine never happened. sendBriefPush wrote the row with a
-  // pre-send guess; the real surface is written here, where it is known.
   if (push.ledgerId) {
     const { setShownSurface } = await import("@/lib/services/outcome-ledger");
     await setShownSurface(push.ledgerId, push.sent > 0 ? "web-push" : "telegram-fallback");
   }
   if (push.sent === 0) {
     await briefTelegramFallback(brief, push, push.ledgerId);
-    return { status: "standalone_failed", push: { sent: push.sent, failed: push.failed } };
+    return { status: "telegram_fallback", push: { sent: push.sent, failed: push.failed } };
   }
-  return { status: "standalone_sent", push: { sent: push.sent, failed: push.failed } };
+  return { status: "sent", push: { sent: push.sent, failed: push.failed } };
 }
-
 /**
  * Step 3 · generate a Cartesia-TTS audio file for the brief and
  * cache it at the operator-facing endpoint. Graceful: skipped if
@@ -499,9 +441,6 @@ async function pinScoreboard(briefDate: string): Promise<{
   }
 }
 
-/** How long the backstop waits past intelligence-brief's 10:15 UTC slot. */
-const COMBINE_WINDOW_MS = 35 * 60_000;
-
 /**
  * The Inngest orchestrator · four sequential checkpoints, each
  * separately retried. Cron trigger at 10:00 UTC daily.
@@ -516,43 +455,26 @@ export const operatorMorningBrief = inngest.createFunction(
   },
   async ({ step }) => {
     const brief = await step.run("compose", composeBrief);
-    const push = await step.run("hand-off-for-combine", () => handOffForCombine(brief));
-    // 2026-10-02 · census E12: the "outcome-ledger" and "telegram-fallback"
-    // steps that stood here are gone. The first ledgered a second row for a
-    // morning the combined push already ledgers (one brief, two rows, two
-    // hashes); the second was keyed on handOffForCombine's synthetic
-    // {sent:1} and could never fire. Delivery, its ledger row and its
-    // Telegram fallback all live in sendStandaloneIfUnconsumed below, keyed
-    // on the real push result.
+    // Push right after composing; ledger, rating buttons and the Telegram fallback
+    // live in deliverMorningBrief.
+    const delivery = await step.run("deliver-push", () => deliverMorningBrief(brief));
     const audio = await step.run("voice-file", () => generateBriefAudio(brief));
     // Phase A.3 · pin scoreboard picks for /scoreboard "as of 6am"
     const pinned = await step.run("pin-scoreboard", () =>
       pinScoreboard(brief.date),
     );
 
-    // 2026-08-21 · combine-push backstop (see handOffForCombine). Sleeps
-    // past intelligence-brief's 10:15 UTC slot, then fires standalone
-    // only if nothing consumed the hand-off — a scheduling failure on
-    // the OTHER function must never silently cost the operator their
-    // morning brief.
-    await step.sleep("wait-for-combine-window", COMBINE_WINDOW_MS);
-    const backstop = await step.run("combine-backstop", () =>
-      sendStandaloneIfUnconsumed(brief),
-    );
-
     return {
       date: brief.date,
       sectionCount: brief.sectionCount,
-      pushSent: push.sent,
-      pushFailed: push.failed,
+      pushSent: delivery.push.sent,
+      pushFailed: delivery.push.failed,
+      delivery: delivery.status,
       audioStatus: audio.status,
       audioBytes: audio.bytes ?? null,
       audioReason: audio.reason ?? null,
       scoreboardPinned: pinned.status,
       scoreboardNumberCount: pinned.numberCount ?? null,
-      combineBackstop: backstop.status,
-      // The sleep above, declared so the cron row records work time (cron-lifecycle deriveWaitedMs).
-      waitedMs: COMBINE_WINDOW_MS,
     };
   },
 );
