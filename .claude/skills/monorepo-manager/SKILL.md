@@ -65,6 +65,7 @@ workflow fan-outs and background suites count toward both (four concurrent suite
    decision and a first line of REPLY NEEDED or NO REPLY NEEDED; never ask twice ([references/sessions-and-plans.md](references/sessions-and-plans.md)).
    Set the Agent tool's `model` and `effort` from the brief's MODEL / EFFORT line (routing table in the template); a lane never picks its own.
    Run `node scripts/agent-os/skill-recall.mjs --file <brief>` and put its matches in SKILLS TO INVOKE FIRST.
+   Name the brief file so it ends in `brief.md` (for example `<lane>-brief.md`); rule `lane-dispatch-brief` refuses any other name.
 6. **Check every return.** Read the real diff in the lane's worktree; reject edits outside owned paths (from the lane
    worktree: `node <your checkout>/scripts/agent-os/check-lane-paths.mjs --lane <lane> --base <base SHA>`, exit 1 = reject;
    exit 2 = not checked, an error or an EMPTY diff from a lane that owns paths, never a pass); re-run its verify command or one
@@ -92,6 +93,7 @@ workflow fan-outs and background suites count toward both (four concurrent suite
     gates ON THE COMBINED TREE; lane greens do not prove the merge works. Prefer one push. A job that adds
     a skill also runs `skill-forge`'s `check <dir> --git`, and one that rewrites a skill's description `check <dir> --existing --git`,
     on the branch before the squash erases the commit order (a wording change inside a skill's body is exempt: edit it directly).
+    Run the DoD compiler and the app preflight on the integration tip, never only on a lane branch (a lane branch cannot see requirements derived from client code).
     Protected operations stop here with the exact one-liner for Nour.
 12. **Consumer check.** Anything that enforces: prove the real consumer applies it, in a FRESH session (`assert-the-consumer`).
     Hooks and permission rules load from the PRIMARY checkout's settings, not a worktree's: test them after the primary has the change

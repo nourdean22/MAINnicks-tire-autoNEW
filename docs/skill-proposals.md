@@ -2362,3 +2362,27 @@ measurement. Every proposal below cites the moment in this wave that produced it
 - **Proposed edit:** "Per-file reads are wrapped; skipped files are counted and printed; on Windows retry with the extended-length prefix." (Being applied in the skill-recall PR.)
 - **Confidence:** high.
 - **Status:** proposed (fix in flight)
+
+## 2026-10-18 · office camera lane on the shop PC + admin digest (session-observer)
+
+### P1 · nickstire-verify (or monorepo-manager step 11)
+- **Trigger (witnessed):** `node scripts/agent-os/heavy.mjs run -- bash apps/nickstire/scripts/preflight.sh` waited 10 min on a sibling's chrome slot, then failed with "'bash' is not recognized" (heavy spawns through cmd). Running `bash apps/nickstire/scripts/preflight.sh` directly in Git Bash worked and caught 3 real reds before the push (proc census, knip orphans, fail-open slice).
+- **Cost:** about 15 minutes and one false red reported to Nour.
+- **Proposed edit:** say the preflight runs from Git Bash directly (not through heavy.mjs on Windows), and that it is the step that catches proc-census, orphan-gate and fail-open-slice reds a lane's own test files miss.
+- **Confidence:** medium (once, clear)
+- **Status:** applied (this PR, approved by Nour 2026-10-18)
+- **Correction (Codex review of PR 3145, 2026-10-18):** the diagnosis above was wrong. `heavy.mjs` is not the problem: the "'bash' is not recognized" failure came from invoking it from PowerShell, where `bash` is not on PATH. The applied rule is: run `node scripts/agent-os/heavy.mjs run -- bash apps/nickstire/scripts/preflight.sh` from Git Bash (lease kept) and expect to wait on the heavy lease or the chrome slot.
+
+### P2 · monorepo-manager (step 5 and step 11)
+- **Trigger (witnessed):** (a) a lane dispatch was blocked by rule lane-dispatch-brief because the brief file was named brief-server.md (must end in brief.md); (b) a server lane branch could not show the client-derived operator-walkthrough DoD requirement; only the integration tip could.
+- **Cost:** one blocked dispatch round; one extra lane round-trip.
+- **Proposed edit:** step 5: "name the brief <lane>-brief.md"; step 11: "run the DoD compiler and the app preflight on the integration tip, never only on a lane branch".
+- **Confidence:** medium (once each, clear)
+- **Status:** applied (this PR, approved by Nour 2026-10-18)
+
+### P3 · NEW check in an existing review lens (adversarial-review or nickstire-verify)
+- **Trigger (witnessed):** PR 3137's first cut added an LLM-backed tRPC read (lot.officeDigest) to the Lot page inside the request batch and with an unbounded LLM slot wait; the research review caught that one slow digest would freeze every batched Lot panel.
+- **Cost:** a review round before the PR opened.
+- **Proposed edit:** a review item: "a new tRPC read that calls invokeLLM must be in client/src/lib/unbatchedProcedures.ts and pass a bounded slotWaitMs".
+- **Confidence:** medium (once, clear; the same lesson is recorded on the instagramAdmin report)
+- **Status:** applied (this PR, approved by Nour 2026-10-18)

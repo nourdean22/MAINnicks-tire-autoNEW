@@ -8,6 +8,9 @@
 > nickstire (`/api/camera/visits`, `/api/camera/heartbeat`) and StateNour (`/api/devices/{id}/events`).
 > The office counter lane (`vision/officewake.py`, Eufy `/record` audio -> local whisper -> text only;
 > stills to a cloud vision model) is a second producer on the same box: `docs/SHOP-PC-RUNBOOK.md` section 8.
+> **Update 2026-10-18:** since 2026-10-17 the office lane runs on the shop front-desk PC MECHANICS over the
+> camera's direct RTSP, not on NicksMax (PRs #3133, #3137, #3140). Details: `docs/OFFICE-INTERACTION-COMMISSIONING.md`
+> ("Stills without a bridge", "Office camera heartbeat from the shop PC").
 > Host receipts: `docs/operations/NICKSMAX-CAMERA-HOST-2026-09-28.md`. The Frigate + MQTT + PoE design
 > below is the ADR-0017 plan and the Docker lab lane; `visitd` (state machine, ledger, outbox, cloud
 > client) is shared by both and is what the sections on delivery, metrics and troubleshooting describe.
