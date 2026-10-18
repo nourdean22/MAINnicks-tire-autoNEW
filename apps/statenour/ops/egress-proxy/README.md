@@ -17,7 +17,8 @@ connections itself.
 - **Deploy:** a Railway service built from this `Dockerfile` (on 2026-10-18 it was uploaded with `railway up` from a
   `git archive` export of this directory). Steps: `apps/statenour/docs/runbooks/camofox-scrape-fallback.md`.
   Nothing in the repo runs it.
-- **Listening:** port 4750 on every interface. Do not add `--listen-ip=::`: Smokescreen v0.1.0 builds the address as
+- **Listening:** port 4750 on every interface (dual stack is INFERRED from Go's empty-address default; camofox reached
+  it over IPv4 on 2026-10-18, IPv6 was never observed). Do not add `--listen-ip=::`: Smokescreen v0.1.0 builds the address as
   ":::4750" and crash-loops. `tests/integrations/egress-proxy-dockerfile.test.ts` pins the arguments.
 - **Upgrade:** change `SMOKESCREEN_COMMIT` and the base image digests in one reviewed PR after reading the diff.
 

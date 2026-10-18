@@ -46,7 +46,8 @@ it. They differ from the first draft of this runbook, which assumed a fork and G
 1. New Railway project, for example `camofox`. Its private network is separate from statenour's.
 2. **Service `egress-proxy`:**
    - Deploy the proxy export from step 1 with `railway up`, run inside the export directory.
-   - **No public domain.** Private networking only. It listens on port 4750 on every interface (dual stack).
+   - **No public domain.** Private networking only. It listens on port 4750 on every interface (INFERRED
+     from Go's empty-address default; camofox reached it over IPv4 on 2026-10-18 and IPv6 was never observed).
      The Dockerfile passes no `--listen-ip` on purpose: `--listen-ip=::` crash-loops Smokescreen v0.1.0, which builds
      the address as ":::4750" (`tests/integrations/egress-proxy-dockerfile.test.ts` pins this).
    - No variables needed. Smokescreen has no password auth (clients identify by mTLS only), so placement is the

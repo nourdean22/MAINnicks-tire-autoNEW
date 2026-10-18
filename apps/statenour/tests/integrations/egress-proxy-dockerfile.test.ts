@@ -95,6 +95,8 @@ function audit(text: string): string[] {
       problems.push("deny-range-set");
     }
   }
+  // The file has no CMD by design: Docker appends CMD args to an exec-form ENTRYPOINT.
+  if (ins.some((i) => /^CMD(\s|$)/i.test(i))) problems.push("cmd-present");
   if (!ins.some((i) => /^EXPOSE\s+4750$/i.test(i))) problems.push("expose-port");
 
   const froms = ins.filter((i) => /^FROM\s/i.test(i));
@@ -162,6 +164,21 @@ describe("egress-proxy Dockerfile: each pin fires on a mutated copy", () => {
     ["split into two arguments", /"--listen-port=4750"/, '"--listen-ip", "::1", "--listen-port=4750"'],
   ])("re-adding a listen-ip with a colon (%s) is caught", (_label, from, to) => {
     expect(audit(mutate(REAL, from, to))).toContain("listen-ip-colon");
+  });
+
+  // With an exec-form ENTRYPOINT, Docker appends CMD args to it, so a CMD brings the crash back
+  // while the ENTRYPOINT array itself still reads clean.
+  it.each([
+    ['CMD ["--listen-ip=::"]'],
+    ['CMD ["--listen-ip", "::1"]'],
+    ['CMD ["--listen-ip=[::]"]'],
+    ["CMD --listen-ip=::"],
+  ])("a CMD instruction (%s) is caught", (cmd) => {
+    expect(audit(`${REAL}\n${cmd}\n`)).toContain("cmd-present");
+  });
+
+  it("a comment that mentions CMD is not a CMD instruction", () => {
+    expect(audit(`# no CMD here, by design\n${REAL}`)).toEqual([]);
   });
 
   it("a plain IPv4 listen-ip is not the crash and is not flagged", () => {
