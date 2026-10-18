@@ -148,9 +148,11 @@ detailed in `docs/CURRENT-TRUTH.md`:
   data and script files (`scripts/preflight-text-scan.mjs`), so a capability-ledger edit runs `completionAuthority.test.ts`
   before the push (#3152 had missed it: one billed CI run). Admin order card: "Open Kafene portal (copies phone)", LIVE-VERIFIED
   in Chrome 22:12Z (toast + new tab to merchant.kafene.com). The Kafene merchant-portal client was REJECTED by Nour after the
-  viability read (Kafene's Cloudflare refuses VPN and datacenter egress; device trust is a FingerprintJS cookie); the portal
+  viability read (Kafene's Cloudflare refused this laptop's VPN exit, FACT; Railway's datacenter egress would most likely be
+  refused too, STRONG INFERENCE, never probed from a datacenter host; device trust is a FingerprintJS cookie); the portal
   wire contract sits in the teardown report for a future portal-login client, not for the Partner API keys. **Quote by text
-  (#3157, LIVE 23:25Z):** each /tires top-pick card has "Text me this quote"; the quote is stored as a `TQ-` tire_orders lead
+  (#3157, LIVE 23:25Z):** each /tires top-pick card on live supplier-backed results has "Text me this quote" (not on the
+  curated-catalog fallback, `TireFinderV2.tsx` renders it only when `source !== "catalog"`); the quote is stored as a `TQ-` tire_orders lead
   and sent as one `quoteTexted` customer text with a staff Telegram. Live test 23:28Z to the owner's cell: the lead saved
   (`TQ-20261018-993`) and the page said "Saved. We could not text this number": the existing internal-line guard refused the
   automated send to the operator's own mobile, by design; delivery to a customer number is still unproven. Test order

@@ -9,7 +9,7 @@ Live code and production evidence override this document when they disagree. Upd
 
 ## Text me this quote on /tires top picks (2026-10-18, PR #3157) -- MERGED (main `ff063da8e`), LIVE (`/api/health` deploy.commit `ff063da8e` 23:25Z); live test to the owner's cell saved lead `TQ-20261018-993` and was refused by the internal-line guard ("could not text this number"), so delivery to a real customer number is still unproven; the test lead was cancelled from /admin
 
-## Kafene merchant-portal wire contract (2026-10-18, PR #3159, docs) -- MERGED (main `cd3bd65cb`); the portal client itself was rejected by Nour (Cloudflare blocks VPN and datacenter egress)
+## Kafene merchant-portal wire contract (2026-10-18, PR #3159, docs) -- MERGED (main `cd3bd65cb`); the portal client itself was rejected by Nour (Cloudflare refused the laptop's VPN exit, FACT; a datacenter block for Railway is STRONG INFERENCE, not probed)
 
 ## Admin order card: Open Kafene portal (copies phone) (2026-10-18, PR #3155) -- MERGED (main `d6d042365`), LIVE-VERIFIED in Chrome 22:12Z (toast + new tab to merchant.kafene.com)
 
