@@ -35,7 +35,7 @@ describe("compileBrandTruth", () => {
     expect(bt.hours.display).toBe(BUSINESS.hours.display);
     expect(bt.reviews.countDisplay).toBe(BUSINESS.reviews.countDisplay);
     expect(bt.paymentPrograms.providers).toEqual(BUSINESS.financing.providers);
-    expect(bt.paymentPrograms.providers).toHaveLength(4);
+    expect(bt.paymentPrograms.providers).toHaveLength(5); // Kafene added first 2026-10-18
     expect(bt.paymentPrograms.adSafeSentence).not.toMatch(/financing/i);
   });
 

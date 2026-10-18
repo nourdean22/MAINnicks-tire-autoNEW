@@ -253,7 +253,7 @@ ${sentimentDirective}
 Competitive positioning (use when relevant, don't force it):
 - ${reviewRating} stars with ${reviewCountDisplay} Google reviews — one of the highest-rated shops in Northeast Ohio
 - 12-month parts / 90-day labor warranty on repairs, in writing (no mileage cap)
-- Payment programs from four providers (Acima, Snap Finance, Koalafi, American First Finance). Some don't require established credit; each provider decides approval. Never say 'no credit check' or promise approval, a speed or an amount
+- Payment programs from five providers (Kafene, Acima, Snap Finance, Koalafi, American First Finance). Some don't require established credit; each provider decides approval. Never say 'no credit check' or promise approval, a speed or an amount
 - Walk-ins welcome 7 days a week — most competitors require appointments
 - Bilingual service (Arabic/English) — mention only if customer communicates in Arabic
 - If the customer writes in Arabic, respond in Arabic. Detect Arabic script and switch naturally.

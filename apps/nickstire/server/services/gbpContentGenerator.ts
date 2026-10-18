@@ -343,7 +343,7 @@ const MATH_ARGUMENTS = [
     // shared/echeck.ts carries what Ohio publishes.
     later: { amount: "No registration renewal", thing: "until the car passes or qualifies for a waiver or extension" },
     explanation: "Many failures trace back to the exhaust. A free readiness check tells you where you stand before you go back for the state test.",
-    paymentProgram: "Payment programs from four providers",
+    paymentProgram: "Payment programs from five providers",
     imageHint: "a state-issued failed E-Check report on the counter next to a scan tool",
   },
   {
