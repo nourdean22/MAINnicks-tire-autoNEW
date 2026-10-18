@@ -140,7 +140,7 @@ async function cached<T extends object>(
   params: Params,
   ttlMs: number,
   notFoundOk: boolean,
-  map: (data: unknown[]) => T,
+  map: (data: unknown[]) => T | null,
 ): Promise<FitmentResult<T>> {
   if (!(await token())) return { ok: false, reason: "unconfigured" };
 
@@ -157,7 +157,16 @@ async function cached<T extends object>(
       remember(cacheKey, fetched, NEGATIVE_TTL_MS);
       return fetched;
     }
-    const value: FitmentResult<T> = { ok: true, ...map(fetched.data) };
+    const mapped = map(fetched.data);
+    if (mapped === null) {
+      // D&K sent rows but none we can use (missing fields, wrong types, values outside VALUE_RE):
+      // that is a broken answer, not "D&K has none" (an empty array stays ok with []).
+      log.warn(`${path} -> ${fetched.data.length} rows, none usable`);
+      const failed = { ok: false as const, reason: "upstream_error" as const };
+      remember(cacheKey, failed, NEGATIVE_TTL_MS);
+      return failed;
+    }
+    const value: FitmentResult<T> = { ok: true, ...mapped };
     remember(cacheKey, value, ttlMs);
     return value;
   })().finally(() => inFlight.delete(cacheKey));
@@ -165,15 +174,19 @@ async function cached<T extends object>(
   return work;
 }
 
-/** D&K's { value, label } items, trimmed, keeping only values the router would accept back. */
-function pairs(data: unknown[]): { value: string; label: string }[] {
-  return data
+/**
+ * D&K's { value, label } items, trimmed, keeping only values the router would accept back.
+ * null when D&K sent rows and none survive: the caller reports that as upstream_error.
+ */
+function pairs(data: unknown[]): { value: string; label: string }[] | null {
+  const kept = data
     .filter((d): d is Record<string, unknown> => typeof d === "object" && d !== null)
     .map((d) => ({
       value: typeof d.value === "string" ? d.value.trim() : "",
       label: typeof d.label === "string" ? d.label.trim() : "",
     }))
     .filter((p) => VALUE_RE.test(p.value) && p.label !== "");
+  return data.length > 0 && kept.length === 0 ? null : kept;
 }
 
 /**
@@ -190,29 +203,35 @@ function metricSize(label: string): string | null {
 
 /** Model years D&K knows, newest first. */
 export function getYears(): Promise<FitmentResult<{ years: number[] }>> {
-  return cached("/quicksearch/list-all-year", {}, LIST_TTL_MS, false, (data) => ({
-    years: Array.from(new Set(pairs(data).map((p) => Number(p.value))))
-      .filter((y) => Number.isInteger(y) && y >= MIN_YEAR && y <= MAX_YEAR)
-      .sort((a, b) => b - a),
-  }));
+  return cached("/quicksearch/list-all-year", {}, LIST_TTL_MS, false, (data) => {
+    const p = pairs(data);
+    return p && {
+      years: Array.from(new Set(p.map((x) => Number(x.value))))
+        .filter((y) => Number.isInteger(y) && y >= MIN_YEAR && y <= MAX_YEAR)
+        .sort((a, b) => b - a),
+    };
+  });
 }
 
 export function getMakes(year: number): Promise<FitmentResult<{ makes: FitmentOption[] }>> {
-  return cached("/quicksearch/get-make-by-year", { year }, LIST_TTL_MS, false, (data) => ({
-    makes: pairs(data).map((p) => ({ slug: p.value, name: p.label })),
-  }));
+  return cached("/quicksearch/get-make-by-year", { year }, LIST_TTL_MS, false, (data) => {
+    const p = pairs(data);
+    return p && { makes: p.map((x) => ({ slug: x.value, name: x.label })) };
+  });
 }
 
 export function getModels(year: number, make: string): Promise<FitmentResult<{ models: FitmentOption[] }>> {
-  return cached("/quicksearch/get-model-by-year-make", { year, make }, LIST_TTL_MS, false, (data) => ({
-    models: pairs(data).map((p) => ({ slug: p.value, name: p.label })),
-  }));
+  return cached("/quicksearch/get-model-by-year-make", { year, make }, LIST_TTL_MS, false, (data) => {
+    const p = pairs(data);
+    return p && { models: p.map((x) => ({ slug: x.value, name: x.label })) };
+  });
 }
 
 export function getTrims(year: number, make: string, model: string): Promise<FitmentResult<{ trims: FitmentTrim[] }>> {
-  return cached("/quicksearch/get-sub-model-by-year-make", { year, make, model }, LIST_TTL_MS, true, (data) => ({
-    trims: pairs(data).map((p) => ({ slug: p.value, label: p.label })),
-  }));
+  return cached("/quicksearch/get-sub-model-by-year-make", { year, make, model }, LIST_TTL_MS, true, (data) => {
+    const p = pairs(data);
+    return p && { trims: p.map((x) => ({ slug: x.value, label: x.label })) };
+  });
 }
 
 export function getSizes(
@@ -235,8 +254,9 @@ export function getSizes(
       seen.add(size);
       const rim = /R(\d{2}(?:\.\d)?)/.exec(size);
       // D&K returns no stock flag and no rear size; neither is invented here.
-      sizes.push({ size, label, rimDiameter: rim ? Number(rim[1]) : null, rearSize: null, searchable: metric !== null });
+      // A decimal rim (22.5, 19.5) is shown but not searchable: the size search drops the dot (R225).
+      sizes.push({ size, label, rimDiameter: rim ? Number(rim[1]) : null, rearSize: null, searchable: metric !== null && !metric.includes(".") });
     }
-    return { sizes };
+    return data.length > 0 && sizes.length === 0 ? null : { sizes };
   });
 }

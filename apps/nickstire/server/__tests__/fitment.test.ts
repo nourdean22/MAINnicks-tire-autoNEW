@@ -33,7 +33,7 @@ const dk = JSON.parse(readFileSync(new URL("./fixtures/fitment/dk.json", import.
 const USER = "shop-user-7c1";
 const PASS = "shop-pass-9e4";
 const TOKEN = "jwt-token-3b8d";
-const ENV_KEYS = ["GATEWAY_TIRE_USERNAME", "GATEWAY_TIRE_PASSWORD"] as const;
+const ENV_KEYS = ["GATEWAY_TIRE_USERNAME", "GATEWAY_TIRE_PASSWORD", "GATEWAY_TIRE_SHIP_TO"] as const;
 const savedEnv: Record<string, string | undefined> = {};
 
 const caller = () => fitmentRouter.createCaller({} as TrpcContext);
@@ -417,6 +417,72 @@ describe("a late 401 for an old token", () => {
     expect(await slow).toEqual({ ok: false, reason: "upstream_error" });
     expect((await caller().trims(VEHICLE)).ok).toBe(true); // still token-2
     expect(tokenCalls(fetchMock)).toHaveLength(2);
+  });
+});
+
+describe("a late 401 on a tire SEARCH (Codex on #3148)", () => {
+  it("does not wipe the fresh token a fitment read already logged in with", async () => {
+    process.env.GATEWAY_TIRE_SHIP_TO = "SHIP-TO-UUID";
+    const { searchTiresBySize } = await import("../services/gatewayClient");
+    let issued = 0;
+    let releaseLate!: () => void;
+    const late = new Promise<void>((r) => { releaseLate = r; });
+    const fetchMock = vi.fn(async (input: string | URL, init?: RequestInit) => {
+      const url = new URL(String(input));
+      if (url.pathname === "/token") return json({ access_token: `${TOKEN}-${++issued}` });
+      const auth = (init?.headers as Record<string, string> | undefined)?.Authorization;
+      if (auth === `Bearer ${TOKEN}-1`) {
+        if (url.pathname === "/quicksearch/cache") await late; // the search's 401 arrives late
+        return json({ detail: "expired" }, 401);
+      }
+      return fixtureData(url);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const search = searchTiresBySize("215/55R16"); // holds token-1
+    await new Promise((r) => setTimeout(r, 20));
+    expect(await caller().makes({ year: 2018 })).toEqual({ ok: false, reason: "upstream_error" }); // 401 now, drops token-1
+    expect((await caller().models({ year: 2018, make: "Honda" })).ok).toBe(true); // logs in: token-2
+    releaseLate();
+    expect(await search).toBeNull();
+    expect((await caller().trims(VEHICLE)).ok).toBe(true); // still token-2
+    expect(tokenCalls(fetchMock)).toHaveLength(2);
+  });
+});
+
+describe("a nonempty D&K list with nothing usable is unknown, not empty (Codex on #3148)", () => {
+  it("makes whose every entry is malformed or outside the value shape -> upstream_error, logged with the count", async () => {
+    vi.stubGlobal("fetch", dkFetch(() => json([{ value: "Bad<Make>", label: "Bad" }, { value: 7, label: "x" }, { nope: true }])));
+    expect(await caller().makes({ year: 2018 })).toEqual({ ok: false, reason: "upstream_error" });
+    expect(logLines.some((l) => l.startsWith("warn") && /get-make-by-year.*3 rows, none usable/.test(l))).toBe(true);
+  });
+
+  it("the same for years, models, trims and sizes", async () => {
+    vi.stubGlobal("fetch", dkFetch(() => json([{ label: "no value" }])));
+    expect(await caller().years()).toEqual({ ok: false, reason: "upstream_error" });
+    expect(await caller().models({ year: 2018, make: "Honda" })).toEqual({ ok: false, reason: "upstream_error" });
+    expect(await caller().trims(VEHICLE)).toEqual({ ok: false, reason: "upstream_error" });
+    expect(await caller().sizes({ ...VEHICLE, trim: "LX" })).toEqual({ ok: false, reason: "upstream_error" });
+  });
+
+  it("control: an EMPTY D&K list is still ok with an empty list; one usable entry is kept", async () => {
+    vi.stubGlobal("fetch", dkFetch(() => json([])));
+    expect(await caller().makes({ year: 2018 })).toEqual({ ok: true, makes: [] });
+    vi.stubGlobal("fetch", dkFetch(() => json([{ value: "Bad<Make>", label: "Bad" }, { value: "Honda", label: "Honda" }])));
+    expect(await caller().makes({ year: 2019 })).toEqual({ ok: true, makes: [{ slug: "Honda", name: "Honda" }] });
+  });
+});
+
+describe("decimal rims (Codex on #3148)", () => {
+  it("295/75R22.5 is shown with its rim but not searchable (the size search would read it as R225)", async () => {
+    vi.stubGlobal("fetch", dkFetch(() => json([{ value: "295/75R22.5", label: "295/75R22.5" }, { value: "225/70R19.5", label: "225/70R19.5" }, { value: "245/75R16", label: "245/75R16" }])));
+    expect(await caller().sizes({ year: 2018, make: "Ford", model: "F-650", trim: "Base" })).toEqual({
+      ok: true,
+      sizes: [
+        { size: "295/75R22.5", label: "295/75R22.5", rimDiameter: 22.5, rearSize: null, searchable: false },
+        { size: "225/70R19.5", label: "225/70R19.5", rimDiameter: 19.5, rearSize: null, searchable: false },
+        { size: "245/75R16", label: "245/75R16", rimDiameter: 16, rearSize: null, searchable: true },
+      ],
+    });
   });
 });
 

@@ -175,6 +175,7 @@ export async function searchTiresBySize(rawSize: string): Promise<Record<string,
     ? `${sizeClean.slice(0, 3)}/${sizeClean.slice(3, 5)}R${sizeClean.slice(5)}`
     : rawSize;
 
+  const used = await getGatewayToken(); // the token gatewayFetch will send (cached session)
   const res = await gatewayFetch("/quicksearch/cache", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -201,7 +202,8 @@ export async function searchTiresBySize(rawSize: string): Promise<Record<string,
     log.warn(`[gatewayClient] /quicksearch/cache returned HTTP ${res.status} for ${sizeFormatted}`);
     // Re-auth on 401 in case the JWT was silently revoked; next call retries.
     if (res.status === 401) {
-      session = null;
+      // Only the refused token: a fitment read may have logged in again while this search waited.
+      invalidateGatewaySession(used ?? undefined);
       lastFailure = { at: new Date().toISOString(), reason: "Search 401 — token expired/revoked, retry on next call" };
     }
     return null;

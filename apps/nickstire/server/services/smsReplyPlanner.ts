@@ -123,7 +123,7 @@ const LOCATION_GIVEN_RE =
 // pay-later brand. NOT a bare "payment" or "monthly": a match lifts the
 // stop-selling guard, so "omw, payment will be cash" or "my monthly oil change"
 // must leave it in place.
-const FINANCING_ASK_RE = /\b(financ\w*|payment (plans?|programs?|options?)|(lease|rent)[- ]to[- ]own|installments?|(do|make|doing|making|set up) (monthly |weekly )?payments|monthly payments?|pay(ing)? (it |this |that )?(off )?(over time|monthly|weekly|in (installments|parts|pieces))|split (it|the (payment|bill|cost)) (up|into|over)|spread (the )?(cost|bill|payments?) out|spread out (the )?(cost|bill|payments?)|snap|acima|koalafi|afterpay|klarna|affirm|no credit|bad credit|credit check|lay ?away)\b/i;
+const FINANCING_ASK_RE = /\b(financ\w*|payment (plans?|programs?|options?)|(lease|rent)[- ]to[- ]own|installments?|(do|make|doing|making|set up) (monthly |weekly )?payments|monthly payments?|pay(ing)? (it |this |that )?(off )?(over time|monthly|weekly|in (installments|parts|pieces))|split (it|the (payment|bill|cost)) (up|into|over)|spread (the )?(cost|bill|payments?) out|spread out (the )?(cost|bill|payments?)|kafene|snap|acima|koalafi|afterpay|klarna|affirm|no credit|bad credit|credit check|lay ?away)\b/i;
 
 // ─── Shared prohibited-claim library (affirmative-claim shaped so honest
 //     "we'll check what's in stock" copy never trips them) ──────────────
@@ -440,7 +440,7 @@ const PLAYBOOKS: Partial<Record<SmsIntent, SmsPlaybook>> = {
       // shared/financing.ts: Koalafi and American First Finance both say they
       // check credit, so "no credit check" was false (smsFactCompiler already
       // kept it out of compiled facts).
-      "Payment programs are available through Acima, Snap Finance, Koalafi and American First Finance. Some don't require established credit; each provider decides approval and terms.",
+      "Payment programs are available through Kafene, Acima, Snap Finance, Koalafi and American First Finance. Some don't require established credit; each provider decides approval and terms.",
       "The shop can help the customer apply and explain options before they agree.",
     ],
     missingInformation: () => [],

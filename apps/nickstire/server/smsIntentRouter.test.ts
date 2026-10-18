@@ -186,3 +186,16 @@ describe("the preserved happy paths still answer deterministically", () => {
     expect(d.catalogEvent).toBeNull();
   });
 });
+
+// Codex round 2 on #3148: "Do you take Kafene?" routed as general.
+describe("Kafene is a financing question", () => {
+  it.each(["Do you take Kafene?", "can i pay with kafene", "KAFENE lease ok?"])("%j routes to financing", (body) => {
+    const d = routeInboundSms(body, noCtx);
+    expect([d.primary, ...d.secondary]).toContain("financing");
+  });
+
+  it("control: a message without any payment word still does not", () => {
+    const d = routeInboundSms("Do you take walk-ins?", noCtx);
+    expect([d.primary, ...d.secondary]).not.toContain("financing");
+  });
+});

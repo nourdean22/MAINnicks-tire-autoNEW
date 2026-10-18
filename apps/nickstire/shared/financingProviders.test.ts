@@ -74,8 +74,16 @@ describe("hand-written provider copy agrees with the roster", () => {
     "server/services/chatTools.ts",
     "server/services/gbpContentGenerator.ts",
     "server/routers/voiceAgent.ts",
+    // Codex round 2 on #3148: the customer SMS planner still listed four names.
+    ...readdirSync(join(APP, "server/services"))
+      .filter((n) => /^sms.*\.ts$/.test(n) && !/\.test\./.test(n))
+      .map((n) => `server/services/${n}`),
   ];
   const isComment = (l: string) => /^\s*(\/\/|\*|\/\*)/.test(l);
+
+  it("the roster scan covers the customer SMS files", () => {
+    expect(LIST_FILES).toEqual(expect.arrayContaining(["server/services/smsReplyPlanner.ts", "server/services/smsIntentRouter.ts"]));
+  });
   const read = (rel: string) => readFileSync(join(APP, rel), "utf8");
   function sourceFiles(dir: string, out: string[] = []): string[] {
     for (const e of readdirSync(join(APP, dir), { withFileTypes: true })) {
