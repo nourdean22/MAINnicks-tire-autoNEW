@@ -22,7 +22,7 @@ not from `.env`:
 | `FEATURE_VOICE_RECOVERY` | `1` | VOICE · outbound recovery calls |
 | `FEATURE_CONFIRMATION_CALLS` | `1` | VOICE · outbound confirmation calls |
 | `FEATURE_FOLLOWUP_CADENCE` | `1` | SMS · multi-touch follow-up cadence |
-| `ENABLE_CUSTOMER_CONFIRMATIONS` | `true` | SMS · booking confirmations |
+| `ENABLE_CUSTOMER_CONFIRMATIONS` | `true` | SMS · booking confirmations, and since 2026-10-18 the one "Text me this quote" text from a /tires top-pick card (`quoteTexted` template, `tireQuote.text`): same flag, same pause key, customer_confirmation class, so it is not held for quiet hours |
 | `REEL_PUBLISH_ENABLED` | `true` | PUBLISH · reels to Instagram, and since #2865 the same door gates reel VIDEO to the Facebook Page |
 | `REEL_FB_CROSSPOST_ENABLED` | `true` *(set 2026-10-01 17:19Z, operator instruction)* | PUBLISH · the nightly reel cron also hands the reel to the Facebook Page as a video reel. Instagram stays the authority; FB failure only logs. Inert until #2865 is the running container. **An AI-generated reel stays off the Page** (2026-10-01 fix): Facebook's Reels API has no AI-disclosure field, so `publishToSocial` skips it and logs why; Instagram still gets it, without `is_ai_generated` since 2026-10-11 (operator removed the self-disclosure: `META_AI_SELF_DISCLOSURE=false` in `shared/reelDisclosure.ts`; Rule 1 real-evidence block unchanged). An ambiguous FB finish parks the job like a live one, and the reconcile pass hands an attempt that went to Facebook to the operator instead of releasing it. |
 | `REEL_AUTOPOST_ENABLED` | `true` | PUBLISH · unattended posting |
@@ -43,7 +43,7 @@ resume (`sendSwitchesStatus.heldQueued` counts them). No value is asserted here:
 | pause key | holds | unreadable switch |
 |---|---|---|
 | `send_pause_voice_outbound` | every outbound AI voice call (`FEATURE_VOICE_RECOVERY`, `FEATURE_CONFIRMATION_CALLS`, `FEATURE_FOLLOWUP_CADENCE`, manual follow-up call) | HOLD (fail closed); the manual follow-up call SENDS (operator present) |
-| `send_pause_customer_confirmations` | tire-order confirmation texts and emails (`ENABLE_CUSTOMER_CONFIRMATIONS`) | SEND (fail open, 1:1) |
+| `send_pause_customer_confirmations` | tire-order confirmation texts and emails, and the /tires quote-by-text (`ENABLE_CUSTOMER_CONFIRMATIONS`) | SEND (fail open, 1:1) |
 | `send_pause_declined_recovery` | declined-estimate texts (`FEATURE_DECLINED_RECOVERY`), cron and run-now | HOLD (fail closed) |
 | `send_pause_weather_sms` | weather texts (`WEATHER_SMS_SEND`) | HOLD (fail closed) |
 | `send_pause_missed_call_recovery` | missed-caller texts (`MISSED_CALL_RECOVERY_SEND`) | HOLD (fail closed) |

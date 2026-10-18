@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-18T19:06:35.805Z",
-  "count": 808,
+  "generatedAt": "2026-10-18T21:21:55.471Z",
+  "count": 809,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -348,6 +348,7 @@
     "mutation.technicians.create",
     "mutation.technicians.delete",
     "mutation.technicians.update",
+    "mutation.tireQuote.text",
     "mutation.vapi.createAssistant",
     "mutation.vapi.deleteTransferPreset",
     "mutation.vapi.makeFollowUpCall",

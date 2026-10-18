@@ -17,6 +17,9 @@
  *   reservation.
  */
 
+import { BUSINESS } from "@shared/business";
+import type { NonExperimentSmsOutcome } from "../lib/smsOutcome";
+
 export interface OrderMessageInput {
   customerName: string;
   orderNumber: string;
@@ -26,6 +29,8 @@ export interface OrderMessageInput {
   tireSize: string;
   /** dollars */
   totalAmount?: number;
+  /** "2019 Honda Civic LX" when the customer searched by vehicle; null or absent for a size search. */
+  vehicleInfo?: string | null;
 }
 
 export interface MessagePreview {
@@ -37,6 +42,13 @@ export interface MessagePreview {
 const SHOP = "Nick's Tire & Auto";
 const PHONE = "(216) 862-0005";
 const ADDRESS = "17625 Euclid Ave, Cleveland";
+const SITE = BUSINESS.urls.website;
+
+/** /tires reopens on the same result from ?size=; only a size-shaped value ever goes into the link. */
+function tiresLink(size: string): string {
+  const clean = size.trim().toUpperCase().replace(/\s+/g, "");
+  return /^[0-9A-Z/.-]{5,16}$/.test(clean) ? `${SITE}/tires?size=${clean}` : `${SITE}/tires`;
+}
 
 function tireLine(o: OrderMessageInput): string {
   return `${o.quantity}x ${o.tireBrand} ${o.tireModel} (${o.tireSize})`;
@@ -131,12 +143,46 @@ export function manualLookupReceived(o: OrderMessageInput): MessagePreview {
   };
 }
 
+/**
+ * 6. "Text me this quote" from a /tires top-pick card (2026-10-18). The customer asked for this
+ * text a moment ago, so it is a customer_confirmation like the five above: same opt-out, pause and
+ * dry-run rules, not deferred to the 8 AM window. The set total already includes installation.
+ * No email: the quote form asks for a phone only.
+ */
+export function quoteTexted(o: OrderMessageInput): MessagePreview {
+  const total = o.totalAmount != null ? `$${o.totalAmount.toFixed(2)} installed` : "price on request";
+  const vehicle = o.vehicleInfo ? ` for your ${o.vehicleInfo}` : "";
+  return {
+    sms:
+      `${SHOP}: your tire quote. ${tireLine(o)}${vehicle}: ${total}. ` +
+      `See it again: ${tiresLink(o.tireSize)} ` +
+      `Payment Programs available. Ready to book or have a question? Call ${PHONE}.`,
+    email: {
+      subject: `Your tire quote (${o.orderNumber})`,
+      body:
+        `Hi ${o.customerName},
+
+` +
+        `Your quote: ${tireLine(o)}${vehicle}, ${total}.
+` +
+        `See it again: ${tiresLink(o.tireSize)}
+
+` +
+        `Payment Programs are available. Staff confirms fitment and availability before anything is ordered.
+
+` +
+        `${SHOP} · ${ADDRESS} · ${PHONE}`,
+    },
+  };
+}
+
 export const TEMPLATE_BUILDERS = {
   requestReceived,
   availabilityConfirmed,
   paymentReceived,
   orderReady,
   manualLookupReceived,
+  quoteTexted,
 } as const;
 
 export type TemplateKey = keyof typeof TEMPLATE_BUILDERS;
@@ -151,7 +197,13 @@ export type TemplateKey = keyof typeof TEMPLATE_BUILDERS;
 export async function sendCustomerMessage(
   orderNumber: string,
   templateKey: TemplateKey
-): Promise<{ smsSent: boolean; emailSent: boolean; dryRun: boolean }> {
+): Promise<{
+  smsSent: boolean;
+  emailSent: boolean;
+  dryRun: boolean;
+  /** The SMS gateway's answer when a send was attempted (or "sent" when an earlier call already sent it); absent on dry-run / pause / no order. */
+  smsOutcome?: NonExperimentSmsOutcome;
+}> {
   const isEnabled = process.env.ENABLE_CUSTOMER_CONFIRMATIONS === "true";
   const { createLogger } = await import("../lib/logger");
   const log = createLogger("customer-confirmations");
@@ -181,6 +233,7 @@ export async function sendCustomerMessage(
     tireModel: order.tireModel,
     tireSize: order.tireSize,
     totalAmount: (order.totalAmount || 0) / 100, // convert cents to dollars
+    vehicleInfo: order.vehicleInfo,
   };
   const build = TEMPLATE_BUILDERS[templateKey];
   const preview = build(input);
@@ -206,6 +259,7 @@ export async function sendCustomerMessage(
 
   let smsSent = false;
   let emailSent = false;
+  let smsOutcome: NonExperimentSmsOutcome | undefined;
 
   // 4. SMS Delivery Path
   const smsVariantKey = `confirm:${templateKey}:${orderNumber}`;
@@ -218,6 +272,7 @@ export async function sendCustomerMessage(
 
   if (existingSms) {
     log.info(`SMS confirmation already sent for order ${orderNumber} (${templateKey})`);
+    smsOutcome = "sent";
   } else {
     try {
       const { sendSms } = await import("../sms");
@@ -228,8 +283,9 @@ export async function sendCustomerMessage(
       // 2026-09-01 (audit F-3): `smsSent` used to be `success`, which is also
       // true for a confirmation parked until 8 AM. The receipt now names the
       // outcome; a queued confirmation is audited as queued.
-      const { smsOutcome } = await import("../lib/smsOutcome");
-      const outcome = smsOutcome(smsResult);
+      const { nonExperimentSmsOutcome } = await import("../lib/smsOutcome");
+      const outcome = nonExperimentSmsOutcome(smsResult);
+      smsOutcome = outcome;
       smsSent = outcome === "sent";
       if (outcome === "sent" || outcome === "queued") {
         const { logAdminAction } = await import("./auditTrail");
@@ -241,6 +297,7 @@ export async function sendCustomerMessage(
         });
       }
     } catch (e) {
+      smsOutcome = "failed";
       log.error(`Failed to send confirmation SMS for order ${order.orderNumber}:`, e);
     }
   }
@@ -284,5 +341,5 @@ export async function sendCustomerMessage(
     }
   }
 
-  return { smsSent, emailSent, dryRun: false };
+  return { smsSent, emailSent, dryRun: false, smsOutcome };
 }

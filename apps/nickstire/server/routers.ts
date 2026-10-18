@@ -51,6 +51,7 @@ import {
   fitmentRouter,
   gatewayOrderRouter,
   kafeneRouter,
+  tireQuoteRouter,
   autoLaborRouter,
   campaignsRouter,
   callTrackingRouter,
@@ -195,6 +196,8 @@ export const appRouter = router({
   gatewayOrder: gatewayOrderRouter,
   /** 2026-10-18 · Kafene lease checkout (public) + activate/cancel (admin); off until KAFENE_* env is set. */
   kafene: kafeneRouter,
+  /** 2026-10-18 · "Text me this quote" on the /tires top-pick cards (public; one customer text per quote). */
+  tireQuote: tireQuoteRouter,
   autoLabor: autoLaborRouter,
   emergency: emergencyRouter,
   messengerBot: messengerBotRouter,

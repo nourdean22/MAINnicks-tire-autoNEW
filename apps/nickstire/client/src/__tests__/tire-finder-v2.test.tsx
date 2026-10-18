@@ -20,6 +20,8 @@ const h = vi.hoisted(() => ({
   toastError: vi.fn(),
   toastPlain: vi.fn(),
   trackApplication: vi.fn(),
+  quoteMutate: vi.fn(),
+  quoteResult: { ok: true, orderNumber: "TO-20261018-001", sms: "sent" } as unknown,
 }));
 
 vi.mock("sonner", () => {
@@ -61,7 +63,16 @@ vi.mock("@/lib/trpc", () => {
           }
         : key === "financing.trackApplication"
           ? { mutate: (...a: unknown[]) => h.trackApplication(...a), isPending: false }
-          : { mutate: vi.fn(), isPending: false },
+          : key === "tireQuote.text"
+            ? {
+                mutate: (vars: unknown, opts?: { onSuccess?: (r: unknown) => void; onError?: (e: unknown) => void }) => {
+                  h.quoteMutate(vars);
+                  if (h.quoteResult instanceof Error) opts?.onError?.(h.quoteResult);
+                  else opts?.onSuccess?.(h.quoteResult);
+                },
+                isPending: false,
+              }
+            : { mutate: vi.fn(), isPending: false },
   });
   const trpc = new Proxy({}, {
     get: (_t, ns) => ns === "useUtils" || ns === "useContext"
@@ -138,6 +149,8 @@ describe("TireFinderV2 (the shipped /tires funnel)", () => {
     h.toastError.mockClear();
     h.toastPlain.mockClear();
     h.confirmResult = { ok: true };
+    h.quoteMutate.mockClear();
+    h.quoteResult = { ok: true, orderNumber: "TO-20261018-001", sms: "sent" };
     h.search = { data: undefined, isLoading: false, isError: false };
     window.history.pushState({}, "", "/tires");
   });
@@ -355,6 +368,99 @@ describe("TireFinderV2 (the shipped /tires funnel)", () => {
       expect(h.trackEvent).toHaveBeenCalledWith("payment_programs_clicked", { provider: "more" });
       // Brand rule: the customer never reads the word "financing".
       expect(picks()!.textContent).not.toMatch(/financ/i);
+    });
+
+    // 2026-10-18 · "Text me this quote": the quote leaves the page as one text and comes back
+    // as a tire_orders row the shop calls on. No dialog globals (iOS PWA suppresses them).
+    describe("Text me this quote", () => {
+      const openQuote = async (label = "Best value") => {
+        await act(async () => { fireEvent.click(card(label).getByRole("button", { name: "Text me this quote" })); });
+        return card(label);
+      };
+      const typeAndSend = async (c: ReturnType<typeof card>, phone: string) => {
+        fireEvent.change(c.getByLabelText("Mobile number"), { target: { value: phone } });
+        await act(async () => { fireEvent.click(c.getByRole("button", { name: "Send" })); });
+      };
+
+      it("opens a 48px inline phone field with the consent line, never a dialog", async () => {
+        const prompt = vi.spyOn(window, "prompt").mockImplementation(() => null);
+        const alert = vi.spyOn(window, "alert").mockImplementation(() => undefined);
+        const confirm = vi.spyOn(window, "confirm").mockImplementation(() => false);
+        try {
+          h.search = results(SIX);
+          await renderV2();
+          expect(screen.getAllByRole("button", { name: "Text me this quote" })).toHaveLength(3);
+          const c = await openQuote();
+          const field = c.getByLabelText("Mobile number") as HTMLInputElement;
+          expect(field.type).toBe("tel");
+          expect(field.className).toContain("min-h-12");
+          expect(c.getByRole("button", { name: "Send" }).className).toContain("min-h-12");
+          expect(c.getByText(/Reply STOP to opt out/)).toBeTruthy();
+          expect(document.activeElement).toBe(field);
+          expect(prompt).not.toHaveBeenCalled();
+          expect(alert).not.toHaveBeenCalled();
+          expect(confirm).not.toHaveBeenCalled();
+          expect(picks()!.textContent).not.toMatch(/financ/i);
+        } finally {
+          prompt.mockRestore(); alert.mockRestore(); confirm.mockRestore();
+        }
+      });
+
+      it("a phone that is not ten digits shows an inline error and sends nothing", async () => {
+        h.search = results(SIX);
+        await renderV2();
+        const c = await openQuote();
+        await typeAndSend(c, "555-0123");
+        expect(c.getByRole("alert").textContent).toBe("Enter a 10-digit mobile number.");
+        expect(h.quoteMutate).not.toHaveBeenCalled();
+      });
+
+      it("a valid phone sends the pick, tire, qty and price, then shows the sent state", async () => {
+        h.search = results(SIX);
+        await renderV2();
+        fireEvent.click(screen.getByRole("button", { name: "2 tires" }));
+        const c = await openQuote("Premium");
+        await typeAndSend(c, "(216) 555-0123");
+        expect(h.quoteMutate).toHaveBeenCalledTimes(1);
+        expect(h.quoteMutate.mock.calls[0][0]).toMatchObject({
+          phone: "2165550123", tireBrand: "Michelin", tireModel: "Defender", tireSize: "215/60R16",
+          quantity: 2, pricePerTireCents: 10000, pick: "premium",
+        });
+        expect(h.quoteMutate.mock.calls[0][0].vehicle).toBeUndefined();
+        expect(c.getByRole("status").textContent).toBe("Sent. We will text you this quote in a minute.");
+        expect(c.queryByLabelText("Mobile number")).toBeNull();
+        expect(h.trackEvent).toHaveBeenCalledWith("quote_text_requested", { pick: "premium", size: "215/60R16" });
+      });
+
+      it("a vehicle search sends the picked vehicle with the quote", async () => {
+        window.history.pushState({}, "", "/tires?size=215/60R16&year=2019&make=Honda&model=Civic&trim=LX");
+        h.search = results(SIX);
+        await renderV2();
+        const c = await openQuote();
+        await typeAndSend(c, "2165550123");
+        expect(h.quoteMutate.mock.calls[0][0].vehicle).toEqual({ year: 2019, make: "Honda", model: "Civic", trim: "LX" });
+      });
+
+      it("when the text could not go out, the card says so and gives the shop phone", async () => {
+        h.quoteResult = { ok: true, orderNumber: "TO-20261018-001", sms: "not_sent" };
+        h.search = results(SIX);
+        await renderV2();
+        const c = await openQuote();
+        await typeAndSend(c, "2165550123");
+        expect(c.getByRole("status").textContent).toMatch(/could not text this number/);
+        expect(c.getByRole("status").textContent).not.toMatch(/^Sent/);
+        expect(within(c.getByRole("status")).getByRole("link", { name: /\(216\) 862-0005/ }).getAttribute("href")).toBe("tel:+12168620005");
+      });
+
+      it("a failed request keeps the form and shows the call-us error", async () => {
+        h.quoteResult = new Error("429");
+        h.search = results(SIX);
+        await renderV2();
+        const c = await openQuote();
+        await typeAndSend(c, "2165550123");
+        expect(c.getByRole("alert").textContent).toMatch(/Could not send\. Call \(216\) 862-0005/);
+        expect(c.getByLabelText("Mobile number")).toBeTruthy();
+      });
     });
 
     it("a Kafene banner sits directly under the top picks: 320x50 on phones, 728x90 from md up", async () => {
