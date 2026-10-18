@@ -191,6 +191,9 @@ export const FLAG_DEFINITIONS = [
   // ADR-0021 phase 2a (Q-50). Reads a public NHTSA file and writes two public-data tables;
   // sends nothing. Stays OFF until the measured parse keeps the event loop under 250 ms max delay.
   { key: "nhtsa_warranty_ingest", description: "Daily (09:30 ET tier) download of NHTSA's manufacturer-communications file; keeps only warranty-extension rows in nhtsa_mfr_warranty_comms/_products (migration 0138). Sunday = every chunk. Sends nothing; nothing displays the rows until phase 2b. OFF = no download, no write." },
+  // Retention for the derived revenue_reconciliation_candidates table (JOB 2026-10-18-recon-candidates-retention).
+  // The nightly cleanup always logs the superseded-row count; this flag only opens the delete path.
+  { key: "revenue_recon_retention", description: "Nightly cleanup deletes SUPERSEDED rows of revenue_reconciliation_candidates (a row with a newer sibling for the same call; the newest row per call is never deleted), up to 200 calls or 60 s per run. Derived data, readers see only the newest row. Sends nothing. OFF = the cleanup only logs the counts. Enable after reading the nightly count in cron_log." },
 ] as const;
 
 export type FlagKey = (typeof FLAG_DEFINITIONS)[number]["key"];
