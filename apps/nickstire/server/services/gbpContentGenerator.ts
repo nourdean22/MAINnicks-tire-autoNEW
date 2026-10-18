@@ -333,7 +333,7 @@ const MATH_ARGUMENTS = [
     today: { amount: `$${BRAKE_PRICE.padsMax}`, thing: "brake pads on one axle" },
     later: { amount: `$${BRAKE_PRICE.caliperAndRotorReplacementEstimate}`, thing: "caliper and rotor replacement if worn to the metal" },
     explanation: "Cleveland salt eats brake hardware faster than dry-state cars. Catching it early IS the maintenance.",
-    paymentProgram: "Payment Programs: Acima · Snap Finance · Koalafi · American First Finance · the provider decides approval",
+    paymentProgram: "Payment Programs: Kafene · Acima · Snap Finance · Koalafi · American First Finance · the provider decides approval",
     imageHint: `side-by-side: worn pad ($${BRAKE_PRICE.padsMax}) and chewed-up rotor ($${BRAKE_PRICE.caliperAndRotorReplacementEstimate}) with prices overlaid in brand yellow`,
   },
   {

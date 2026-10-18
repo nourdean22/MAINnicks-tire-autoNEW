@@ -997,7 +997,7 @@ export const voiceAgentRouter = router({
       },
       walkInsWelcome: true,
       financingAvailable: true,
-      financingProviders: ["Acima", "Snap Finance", "Koalafi", "American First"],
+      financingProviders: ["Kafene", "Acima", "Snap Finance", "Koalafi", "American First"],
       emergencyAfterHours: "Leave a voicemail or text — Nick checks after-hours messages.",
       languagesSpoken: ["English", "Arabic"],
     };

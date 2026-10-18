@@ -211,7 +211,7 @@ ${segmentDirective}`;
   if (ctx.priceSensitivity === "price_sensitive") {
     priceSensitivityBlock = `\n--- PRICE SENSITIVITY DETECTED ---
 This customer has expressed interest in pricing. Adapt your approach:
-- Mention payment programs early: "We also take payment programs if that helps: Acima, Snap Finance, Koalafi and American First Finance. Some don't need established credit, and the provider decides approval."
+- Mention payment programs early: "We also take payment programs if that helps: Kafene, Acima, Snap Finance, Koalafi and American First Finance. Some don't need established credit, and the provider decides approval."
 - Use contrast pricing: "The dealer would charge $800+ for this — we typically do it for around $400-500."
 - Emphasize free inspections: "We'll look at it for free and give you an honest estimate before any work."
 - Lead with value, not just price: "We check it free and put the quote in writing — you don't pay until you say yes."
@@ -303,7 +303,7 @@ Services offered:
 - Emissions & E-Check: Ohio E-Check repair, oxygen sensors, EVAP, catalytic converters
 - Oil Change: conventional and synthetic
 - General Repair: suspension, steering, exhaust, cooling, belts, hoses, alignment, battery, exhaust
-- Payment Programs: Acima, Snap Finance, Koalafi, American First Finance — some don't require established credit; the provider decides approval
+- Payment Programs: Kafene, Acima, Snap Finance, Koalafi, American First Finance — some don't require established credit; the provider decides approval
 
 Areas served: Cleveland, Euclid, East Cleveland, South Euclid, Richmond Heights, Parma, Lakewood, Cleveland Heights, Shaker Heights, Northeast Ohio.
 ${memoryBlock}${businessIntelBlock}${customerContextBlock}${priceSensitivityBlock}${returningVisitorBlock}
