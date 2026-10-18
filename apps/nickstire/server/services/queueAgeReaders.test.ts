@@ -26,7 +26,13 @@ const NOW = Date.UTC(2026, 9, 18, 16, 0, 0);
 const dialect = new MySqlDialect();
 const sqlText = (call: number) => dialect.sqlToQuery(execute.mock.calls[call][0] as SQL).sql.replace(/\s+/g, " ");
 
-const ENV_KEYS = ["FEATURE_FOLLOWUP_CADENCE", "FOLLOWUP_CADENCE_DRY_RUN", "VAPI_API_KEY", "REEL_GENERATION_ENABLED"] as const;
+const ENV_KEYS = [
+  "FEATURE_FOLLOWUP_CADENCE",
+  "FOLLOWUP_CADENCE_DRY_RUN",
+  "VAPI_API_KEY",
+  "REEL_GENERATION_ENABLED",
+  "REEL_AUTOPOST_ENABLED",
+] as const;
 const savedEnv: Record<string, string | undefined> = {};
 
 beforeEach(() => {
@@ -160,10 +166,19 @@ describe("reel readers", () => {
     expect(q).toContain("TIMESTAMPDIFF(MINUTE, publication_scheduled_at, NOW())");
   });
 
-  it("both reel checks are skipped when REEL_GENERATION_ENABLED is not exactly 'true'", async () => {
+  it("both reel checks are skipped when neither reel lane is on ('true' exactly)", async () => {
     process.env.REEL_GENERATION_ENABLED = "1";
+    delete process.env.REEL_AUTOPOST_ENABLED;
     expect((await QUEUE_AGE_READERS["reel-pipeline"](NOW)).skipped).toMatch(/REEL_GENERATION_ENABLED/);
-    expect((await QUEUE_AGE_READERS["reel-pipeline:publish"](NOW)).skipped).toMatch(/REEL_GENERATION_ENABLED/);
+    expect((await QUEUE_AGE_READERS["reel-pipeline:publish"](NOW)).skipped).toMatch(/REEL_AUTOPOST_ENABLED/);
     expect(execute).not.toHaveBeenCalled();
+  });
+
+  it("publish is still judged with generation off when the autopost lane can claim publishes", async () => {
+    process.env.REEL_GENERATION_ENABLED = "false";
+    process.env.REEL_AUTOPOST_ENABLED = "true";
+    execute.mockResolvedValueOnce([[{ ageMinutes: 200 }]]);
+    expect((await QUEUE_AGE_READERS["reel-pipeline:publish"](NOW)).oldestDueAtMs).toBe(NOW - 200 * MIN);
+    expect((await QUEUE_AGE_READERS["reel-pipeline"](NOW)).skipped).toMatch(/REEL_GENERATION_ENABLED/);
   });
 });

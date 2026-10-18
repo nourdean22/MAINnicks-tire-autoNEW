@@ -4,4 +4,4 @@
 
 | Job id | After the PR opened (Codex, human) | Manager catches before it opened | Red-first (new tests red on unfixed code / new tests) | Mutation (killed / tried) | Cycle time (first dispatch to merge) | Rework pushes | Source |
 |---|---|---|---|---|---|---|---|
-| 2026-10-18-c52-queue-age-observer | UNKNOWN until the PR opens | UNKNOWN at row time | 33 / 33 (3 files red: queueAge and queueAgeReaders at import, observer 7f/0p on missing queue-age details) | 3 / 3 (readFailed classified in-spec, boundary > to >=, dedupe key shared across loops) | dispatch 2026-10-18 ~10:15Z to merge: UNKNOWN at row time | 0 at row time | lane RETURN in the session; tsc --noEmit exit 0; 11 files 161 passed |
+| 2026-10-18-c52-queue-age-observer | UNKNOWN until the PR opens | UNKNOWN at row time | 34 / 34 (3 files red: queueAge and queueAgeReaders at import, observer 7f/0p on missing queue-age details; review fix red 2f/13p) | 3 / 3 (readFailed classified in-spec, boundary > to >=, dedupe key shared across loops) | dispatch 2026-10-18 ~10:15Z to merge: UNKNOWN at row time | 0 at row time | lane RETURN in the session; tsc --noEmit exit 0; 11 files 162 passed |

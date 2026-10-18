@@ -133,10 +133,19 @@ async function readReelPipeline(nowMs: number): Promise<QueueAgeRead> {
  * status 'publishing' with it, and clears it on every revert to 'assembled'),
  * so it means "publish STARTED". A stamped row still in publishing or
  * publish_ambiguous is a publish that has not resolved to posted.
+ *
+ * Claims are made by daily-reel-post (REEL_AUTOPOST_ENABLED) and resolved by
+ * reel-pipeline (recovery + reconcile lane), so this is skipped only when BOTH
+ * lanes are off: a claim nothing will ever resolve is exactly a stuck publish.
  */
 async function readReelPublish(nowMs: number): Promise<QueueAgeRead> {
-  const off = reelOff();
-  if (off) return off;
+  if (process.env.REEL_AUTOPOST_ENABLED !== "true" && reelOff()) {
+    return {
+      oldestDueAtMs: null,
+      readFailed: false,
+      skipped: "REEL_AUTOPOST_ENABLED and REEL_GENERATION_ENABLED both != 'true'",
+    };
+  }
   return oldestByAggregate(
     sql`SELECT MAX(TIMESTAMPDIFF(MINUTE, publication_scheduled_at, NOW())) AS ageMinutes
           FROM reel_jobs
