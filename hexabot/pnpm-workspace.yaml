@@ -1,0 +1,65 @@
+packages:
+  - "packages/agentic"
+  - "packages/api"
+  - "packages/types"
+  - "packages/frontend"
+  - "packages/graph"
+  - "packages/cli"
+  - "packages/widget"
+
+nodeLinker: hoisted
+autoInstallPeers: true
+strictPeerDependencies: false
+ignoreWorkspaceRootCheck: true
+
+allowBuilds:
+  "@compodoc/compodoc": true
+  "@nestjs/core": true
+  "@parcel/watcher": true
+  "@scarf/scarf": true
+  "@swc/core": true
+  better-sqlite3: true
+  esbuild: true
+  protobufjs: true
+  tree-sitter: true
+  unrs-resolver: true
+
+overrides:
+  "@babel/core": "7.29.7"
+  "@opentelemetry/core": "2.8.0"
+  "ajv@8": "8.20.0"
+  "brace-expansion": ">=5.0.9"
+  "dompurify": "3.4.13"
+  "engine.io": "6.6.9"
+  "fast-uri": "^3.1.5"
+  "glob": "13.0.6"
+  "@hono/node-server": ">=2.0.5"
+  "hono": ">=4.12.34"
+  "immutable": ">=5.1.8"
+  "ip-address": "10.3.1"
+  "js-yaml": "4.3.1"
+  "jsonata": "^2.2.0"
+  "lodash": "4.18.1"
+  "lodash-es": "4.18.1"
+  "minimatch": "10.2.5"
+  "nanoid": "3.3.18"
+  "nestjs-auditlog>@opentelemetry/auto-instrumentations-node": "0.75.0"
+  "nestjs-auditlog>@opentelemetry/sdk-node": "0.217.0"
+  "@opentelemetry/propagator-jaeger": ">=2.9.0"
+  "openai>zod": "^3.23.8"
+  "picomatch": "4.0.4"
+  "protobufjs": "7.6.5"
+  # Keep a single React copy across the workspace (hoisted linker + externalized
+  # react in the widget build both break if a transitive dep pulls its own copy).
+  "react": "19.2.7"
+  "react-dom": "19.2.7"
+  "@types/react": "19.2.18"
+  "@types/react-dom": "19.2.4"
+  "shell-quote": ">=1.8.5"
+  "svgo@>=4.0.0 <4.0.2": ">=4.0.2"
+  "uuid": "11.1.1"
+  "ws": "8.21.0"
+  "multer": "2.2.0"
+  "undici": "7.29.0"
+  "postcss": "8.5.23"
+  "socket.io-parser": "4.2.7"

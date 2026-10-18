@@ -1,0 +1,47 @@
+/*
+ * Hexabot — Fair Core License (FCL-1.0-ALv2)
+ * Copyright (c) 2025 Hexastack.
+ * Full terms: see LICENSE.md.
+ */
+
+import { Controller, Get, Query } from '@nestjs/common';
+import { FindManyOptions } from 'typeorm';
+
+import { BaseOrmController } from '@/utils/generics/base-orm.controller';
+import { PopulatePipe } from '@/utils/pipes/populate.pipe';
+import { TypeOrmSearchFilterPipe } from '@/utils/pipes/typeorm-search-filter.pipe';
+
+import { ModelOrmEntity } from '../entities/model.entity';
+import { ModelService } from '../services/model.service';
+
+@Controller('model')
+export class ModelController extends BaseOrmController<ModelOrmEntity> {
+  constructor(protected readonly modelService: ModelService) {
+    super(modelService);
+  }
+
+  /**
+   * Handles GET requests to retrieve `Model` entities.
+   *
+   * Allows querying `Model` entities with optional population of related fields,
+   * such as 'permissions', based on the request parameters.
+   *
+   * @param populate - An array of fields to populate in the returned `Model` entities.
+   * @param options - Combined filters, pagination, and sorting for the query.
+   *
+   * @returns The found `Model` entities, optionally populated with related data.
+   */
+  @Get()
+  async findModels(
+    @Query(PopulatePipe)
+    populate: string[],
+    @Query(
+      new TypeOrmSearchFilterPipe<ModelOrmEntity>({
+        allowedFields: ['name', 'identity'],
+      }),
+    )
+    options: FindManyOptions<ModelOrmEntity> = {},
+  ) {
+    return await this.find(options, populate);
+  }
+}

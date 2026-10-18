@@ -1,0 +1,10 @@
+.env
+.DS_Store
+certbot
+docker/**/data
+node_modules/
+/docker/**/db_data
+.idea/
+.turbo
+*.sqlite
+.claude

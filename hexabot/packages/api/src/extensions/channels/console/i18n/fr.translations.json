@@ -1,0 +1,19 @@
+{
+  "console": {
+    "Admin Chat Console": "Testeur Live Chat",
+    "Allowed domains": "Domaines autorisés",
+    "Comma-separated list of allowed CORS origins.": "Liste séparée par des virgules des origines CORS autorisées.",
+    "Disable input": "Désactiver la saisie",
+    "Disable the user input field in the chat widget.": "Désactiver le champ de saisie utilisateur dans le widget de chat.",
+    "Persistent menu": "Menu persistant",
+    "Keep the menu visible in the chat interface.": "Garder le menu visible dans l'interface de chat.",
+    "Show emoji": "Afficher les emojis",
+    "Enable emoji picker in the chat interface.": "Activer le sélecteur d'emojis dans l'interface de chat.",
+    "Show file upload": "Afficher l'envoi de fichier",
+    "Enable file upload action in the chat interface.": "Activer l'envoi de fichiers dans l'interface de chat.",
+    "Show location": "Afficher la localisation",
+    "Enable location sharing action in the chat interface.": "Activer le partage de localisation dans l'interface de chat.",
+    "Allowed upload types": "Types de téléversement autorisés",
+    "Comma-separated MIME types accepted by the upload input.": "Types MIME acceptés par le champ d'envoi, séparés par des virgules."
+  }
+}

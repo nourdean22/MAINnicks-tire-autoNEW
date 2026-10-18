@@ -1,0 +1,69 @@
+{
+  "name": "@hexabot-ai/graph",
+  "private": true,
+  "version": "3.0.0-alpha.3",
+  "description": "Internal graph components and utilities for Hexabot visual workflows.",
+  "author": "Hexastack",
+  "license": "FCL-1.0-ALv2",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./workflow.css": "./src/workflow/styles/index.css"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && pnpm run copy:styles",
+    "copy:styles": "mkdir -p dist/workflow/styles && cp src/workflow/styles/*.css dist/workflow/styles/",
+    "dev": "pnpm run copy:styles && tsc -p tsconfig.build.json --watch",
+    "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
+    "lint": "eslint \"src/**/*.{ts,tsx}\"",
+    "lint:fix": "eslint \"src/**/*.{ts,tsx}\" --fix",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "format": "pnpm run lint:fix",
+    "clean": "rimraf dist coverage *.tsbuildinfo"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": "eslint --fix --config eslint.config-staged.cjs"
+  },
+  "peerDependencies": {
+    "@xyflow/react": "^12.10.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "dependencies": {
+    "@hexabot-ai/agentic": "workspace:*",
+    "chroma-js": "^3.2.0",
+    "elkjs": "^0.11.0",
+    "lucide-react": "^1.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.1.0",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@typescript-eslint/eslint-plugin": "^8.46.0",
+    "@typescript-eslint/parser": "^8.46.0",
+    "@xyflow/react": "^12.10.0",
+    "eslint": "^9.37.0",
+    "eslint-import-resolver-typescript": "^4.4.4",
+    "eslint-plugin-header": "^3.1.1",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.0.0",
+    "jsdom": "^28.0.0",
+    "lint-staged": "^15.3.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.8.3",
+    "vitest": "^4.1.8"
+  },
+  "engines": {
+    "node": "^24.17.0"
+  }
+}

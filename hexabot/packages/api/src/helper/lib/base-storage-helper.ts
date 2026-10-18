@@ -1,0 +1,66 @@
+/*
+ * Hexabot — Fair Core License (FCL-1.0-ALv2)
+ * Copyright (c) 2025 Hexastack.
+ * Full terms: see LICENSE.md.
+ */
+
+import { Readable, Stream } from 'stream';
+
+import type { Attachment } from '@hexabot-ai/types';
+import { StreamableFile } from '@nestjs/common';
+
+import {
+  AttachmentCreateDto,
+  AttachmentMetadataDto,
+} from '@/attachment/dto/attachment.dto';
+
+import { HelperName, HelperType } from '../types';
+
+import BaseHelper from './base-helper';
+
+export abstract class BaseStorageHelper<
+  N extends HelperName = HelperName,
+> extends BaseHelper<N> {
+  protected readonly type: HelperType = HelperType.STORAGE;
+
+  constructor(name: N) {
+    super(name);
+  }
+
+  /**
+   * Uploads files to the server. If a storage helper is configured it uploads files accordingly.
+   * Otherwise, uploads files to the local directory.
+   *
+   * @param file - The file
+   * @param metadata - The attachment metadata informations.
+   * @returns A promise that resolves to an array of uploaded attachments.
+   */
+  abstract store(
+    _file: Buffer | Stream | Readable | Express.Multer.File,
+    _metadata: AttachmentMetadataDto,
+  ): Promise<AttachmentCreateDto>;
+
+  /**
+   * Downloads an attachment identified by the provided parameters.
+   *
+   * @param attachment - The attachment to download.
+   * @returns A promise that resolves to a StreamableFile representing the downloaded attachment.
+   */
+  abstract download(attachment: Attachment): Promise<StreamableFile>;
+
+  /**
+   * Downloads an attachment identified by the provided parameters as a Buffer.
+   *
+   * @param attachment - The attachment to download.
+   * @returns A promise that resolves to a Buffer representing the attachment file.
+   */
+  abstract readAsBuffer(attachment: Attachment): Promise<Buffer | undefined>;
+
+  /**
+   * Returns an attachment identified by the provided parameters as a Stream.
+   *
+   * @param attachment - The attachment to download.
+   * @returns A promise that resolves to a Stream representing the attachment file.
+   */
+  abstract readAsStream(attachment: Attachment): Promise<Stream | undefined>;
+}
