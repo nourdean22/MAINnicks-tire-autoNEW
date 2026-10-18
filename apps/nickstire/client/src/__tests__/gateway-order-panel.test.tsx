@@ -11,6 +11,7 @@ import React from "react";
 
 const h = vi.hoisted(() => ({
   security: { data: { adminRole: "owner" } as any, isLoading: false, isError: false },
+  kafeneStatus: { data: undefined as any, isLoading: false, isError: false },
   orders: [] as any[],
   prepare: vi.fn(),
   submit: vi.fn(),
@@ -42,6 +43,7 @@ vi.mock("@/lib/trpc", () => {
   const proc = (key: string) => ({
     useQuery: () => {
       if (key === "adminSecurity.status") return h.security;
+      if (key === "kafene.status") return h.kafeneStatus;
       if (key === "gatewayTire.listOrders") return { data: { orders: h.orders }, isLoading: false, isError: false, refetch: vi.fn() };
       if (key === "gatewayTire.orderStats") return { data: {}, isError: false, refetch: vi.fn() };
       return { data: undefined, isLoading: false, isError: false, refetch: vi.fn() };
@@ -94,6 +96,7 @@ async function prepare() {
 describe("GatewayOrderPanel", () => {
   beforeEach(() => {
     h.security = { data: { adminRole: "owner" }, isLoading: false, isError: false };
+    h.kafeneStatus = { data: undefined, isLoading: false, isError: false };
     h.prepare.mockReset().mockResolvedValue(PREPARED);
     h.submit.mockReset().mockResolvedValue({ ok: true, gatewayOrderRef: "DK-778899", submittedAt: "2026-10-18T15:00:00Z" });
     h.clearOurLines.mockReset().mockResolvedValue({ ok: true, removed: 1 });
@@ -230,6 +233,33 @@ describe("GatewayOrderPanel", () => {
     await prepare();
     expect(panel().getByText("The D&K cart has other items in it. Clear it in the portal, then prepare again.")).toBeTruthy();
     expect(panel().getByRole("button", { name: "Retry" })).toBeTruthy();
+  });
+
+  const leased = (status: string) => ({ data: { ok: true, lease: { status, uid: "app_1", orderNumber: PAID.orderNumber } }, isLoading: false, isError: false });
+
+  it.each(["signed", "activating", "activated"])("an unpaid order with a Kafene lease %s gets the D&K panel", async (status) => {
+    h.kafeneStatus = leased(status);
+    await renderPanel({ ...PAID, paymentStatus: "pending" });
+    expect(prepareButton()).toBeTruthy();
+  });
+
+  it.each([
+    ["no lease", { data: { ok: true, lease: null }, isLoading: false, isError: false }],
+    ["a lease only applied", leased("applied")],
+    ["a failed lease read", { data: undefined, isLoading: false, isError: true }],
+    ["lease records not installed", { data: { ok: false, reason: "not_installed" }, isLoading: false, isError: false }],
+  ])("an unpaid order with %s stays hidden", async (_label, status) => {
+    h.kafeneStatus = status as any;
+    await renderPanel({ ...PAID, paymentStatus: "pending" });
+    expect(prepareButton()).toBeNull();
+  });
+
+  it("submit cart_mismatch -> one line next to the clear button, no retry", async () => {
+    h.submit.mockResolvedValue({ ok: false, reason: "cart_mismatch" });
+    await prepareAndConfirm();
+    expect(panel().getByText("The D&K cart does not match this order. Clear our lines and prepare again.")).toBeTruthy();
+    expect(panel().getByRole("button", { name: "Remove my lines from the D&K cart" })).toBeTruthy();
+    expect(panel().queryByRole("button", { name: "Retry" })).toBeNull();
   });
 
   it("submit disabled -> the switched-off sentence", async () => {

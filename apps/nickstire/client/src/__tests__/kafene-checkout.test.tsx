@@ -178,6 +178,26 @@ describe("OrderModal · Pay with Kafene lease", () => {
     expect(h.attach).toHaveBeenCalledWith({ orderNumber: ORDER, phone: PHONE, uid: "lease-uid-1" });
   });
 
+  it("attach answering upstream_error takes the network-error path: one retry", async () => {
+    const k = stubKafene();
+    h.attach.mockReset().mockResolvedValueOnce({ ok: false, reason: "upstream_error" }).mockResolvedValue({ ok: true });
+    await placeOrder();
+    await openKafene();
+    await k.emit("approved", { uid: "lease-uid-1" });
+    expect(h.attach).toHaveBeenCalledTimes(2);
+  });
+
+  it("markSigned answering upstream_error is the unrecorded path (call us), never a missing lease or a card offer", async () => {
+    const k = stubKafene();
+    h.markSigned.mockReset().mockResolvedValue({ ok: false, reason: "upstream_error" });
+    await placeOrder();
+    await openKafene();
+    await k.emit("approved", { uid: "lease-uid-1" });
+    await k.finish("completed");
+    expect(screen.getByText(/Call us at \(216\) 862-0005 with this order number/)).toBeTruthy();
+    expect(cardButton()).toBeNull();
+  });
+
   it("attach retries once on a network error, never on a business answer", async () => {
     const k = stubKafene();
     h.attach.mockReset().mockRejectedValueOnce(new Error("fetch failed")).mockResolvedValue({ ok: true });

@@ -15,6 +15,7 @@ const STATUS_LABEL: Record<string, string> = {
   applied: "Application started on the website; look it up in merchant.kafene.com by phone",
   approved: "Approved, not signed yet",
   signed: "Signed, waiting for installation",
+  activate_unclear: "Activation unclear: check this lease in merchant.kafene.com before retrying.",
   activating: "Activation in progress",
   activated: "Activated",
   cancelled: "Cancelled",
@@ -43,7 +44,10 @@ export default function KafeneLeasePanel({ order }: { order: { orderNumber: stri
   const canAct = !!role && hasAdminPermission(role, "money.manage");
 
   const config = trpc.kafene.config.useQuery(undefined, { staleTime: 5 * 60_000, retry: false });
-  const status = trpc.kafene.status.useQuery({ orderNumber: order.orderNumber }, { enabled: canView && config.data?.enabled === true });
+  // The status read needs no Kafene keys (a keyless website "applied" row, or not_installed), so it
+  // runs on canView alone; only Activate and Cancel need the keys.
+  const status = trpc.kafene.status.useQuery({ orderNumber: order.orderNumber }, { enabled: canView });
+  const keysOn = config.data?.enabled === true;
   const activate = trpc.kafene.activate.useMutation();
   const cancel = trpc.kafene.cancel.useMutation();
 
@@ -53,7 +57,7 @@ export default function KafeneLeasePanel({ order }: { order: { orderNumber: stri
   const [cancelOpen, setCancelOpen] = useState(false);
   const [reason, setReason] = useState("");
 
-  if (!canView || config.data?.enabled !== true) return null;
+  if (!canView) return null;
   // Before migration 0148 the server has no lease table: say so calmly, nothing to retry or act on.
   if (status.data && !status.data.ok) {
     if (status.data.reason !== "not_installed") return null;
@@ -67,7 +71,12 @@ export default function KafeneLeasePanel({ order }: { order: { orderNumber: stri
   }
 
   const runActivate = async () => {
-    const ok = await confirmDialog({ title: "Activate this Kafene lease?", message: ACTIVATE_TEXT, confirmLabel: "Activate lease" });
+    // After an unclear activate Kafene may already have activated it: warn before a second call.
+    const unclear = status.data?.ok && status.data.lease?.status === "activate_unclear";
+    const message = unclear
+      ? "Only retry if merchant.kafene.com shows the lease is NOT active. Retrying an active lease can double-activate it."
+      : ACTIVATE_TEXT;
+    const ok = await confirmDialog({ title: "Activate this Kafene lease?", message, confirmLabel: "Activate lease" });
     if (!ok) return;
     setBusy("activate");
     setOutcome(null);
@@ -159,12 +168,12 @@ export default function KafeneLeasePanel({ order }: { order: { orderNumber: stri
             </div>
           )}
 
-          {canAct && (
+          {canAct && keysOn && (
             <div className="flex flex-wrap items-center gap-2 pt-1">
               <button
                 type="button"
                 onClick={() => void runActivate()}
-                disabled={lease.status !== "signed" || busy !== null}
+                disabled={(lease.status !== "signed" && lease.status !== "activate_unclear") || busy !== null}
                 className={`${button} bg-primary text-primary-foreground`}
               >
                 {busy === "activate" && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
@@ -178,7 +187,7 @@ export default function KafeneLeasePanel({ order }: { order: { orderNumber: stri
             </div>
           )}
 
-          {canAct && cancelOpen && (
+          {canAct && keysOn && cancelOpen && (
             <div className="space-y-2 pt-1">
               <label htmlFor={`${headingId}-reason`} className="block text-sm text-foreground">Reason for cancelling</label>
               <input

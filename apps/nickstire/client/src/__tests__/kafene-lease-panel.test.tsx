@@ -85,13 +85,41 @@ describe("KafeneLeasePanel", () => {
   afterEach(cleanup);
 
   it.each([
-    ["config disabled", () => { h.config = { data: { enabled: false }, isLoading: false, isError: false }; }],
     ["status disabled", () => { h.status = { data: { ok: false, reason: "disabled" }, isLoading: false, isError: false }; }],
     ["a role without money.view", () => { h.security = { data: { adminRole: "front_desk" }, isLoading: false, isError: false }; }],
   ])("hidden entirely when %s", async (_label, arrange) => {
     arrange();
     await renderPanel();
     expect(region()).toBeNull();
+  });
+
+  it("without Kafene keys (config off) a keyless 'applied' row still shows, with no Activate or Cancel", async () => {
+    h.config = { data: { enabled: false }, isLoading: false, isError: false };
+    h.status = { data: { ok: true, lease: lease({ status: "applied", uid: null }) }, isLoading: false, isError: false };
+    await renderPanel();
+    expect(panel().getByText("Application started on the website; look it up in merchant.kafene.com by phone")).toBeTruthy();
+    expect(activateButton()).toBeNull();
+    expect(panel().queryByRole("button", { name: "Cancel lease" })).toBeNull();
+  });
+
+  it("without Kafene keys the not_installed line is still reachable", async () => {
+    h.config = { data: { enabled: false }, isLoading: false, isError: false };
+    h.status = { data: { ok: false, reason: "not_installed" }, isLoading: false, isError: false };
+    await renderPanel();
+    expect(panel().getByText("Kafene lease records are not installed yet (migration 0148).")).toBeTruthy();
+  });
+
+  it("activate_unclear says to check merchant.kafene.com, and Activate asks with the double-activation warning", async () => {
+    h.status = { data: { ok: true, lease: lease({ status: "activate_unclear" }) }, isLoading: false, isError: false };
+    await renderPanel();
+    expect(panel().getByText("Activation unclear: check this lease in merchant.kafene.com before retrying.")).toBeTruthy();
+    expect(activateButton()!.disabled).toBe(false);
+    await act(async () => { fireEvent.click(activateButton()!); });
+    expect(screen.getByRole("alertdialog").textContent).toContain(
+      "Only retry if merchant.kafene.com shows the lease is NOT active. Retrying an active lease can double-activate it.",
+    );
+    await act(async () => { fireEvent.keyDown(window, { key: "Escape" }); });
+    expect(h.activate).not.toHaveBeenCalled();
   });
 
   it("not_installed is one calm line: no error styling, no retry, no buttons", async () => {

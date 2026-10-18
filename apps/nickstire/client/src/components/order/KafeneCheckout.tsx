@@ -102,7 +102,11 @@ export default function KafeneCheckout({
     let attached: Promise<unknown> = Promise.resolve();
     const attachOnce = async (input: Ids & { uid: string }) => {
       try {
-        return await withTimeout(attach.mutateAsync(input), STEP_TIMEOUT_MS);
+        const r = await withTimeout(attach.mutateAsync(input), STEP_TIMEOUT_MS);
+        // An upstream_error answer is a failed call, not a verdict: same path as a throw (one retry).
+        // The cast: the server's union gains "upstream_error" in this PR; drop it once integrated.
+        if (!r.ok && (r.reason as string) === "upstream_error") throw new Error("upstream_error");
+        return r;
       } catch {
         return withTimeout(attach.mutateAsync(input), STEP_TIMEOUT_MS).catch(() => null);
       }

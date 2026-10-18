@@ -25,8 +25,10 @@ const MESSAGES: Record<string, string> = {
   unconfigured: "D&K login is not set up on the server.",
   upstream_error: "D&K did not answer. Try again in a minute.",
   claimed: "Someone already placed this order; refreshing",
+  cart_mismatch: "The D&K cart does not match this order. Clear our lines and prepare again.",
 };
 const RETRYABLE = new Set(["upstream_error", "cart_not_empty"]);
+const LEASE_PAID_STATUSES = ["signed", "activating", "activated"];
 
 const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
@@ -51,7 +53,16 @@ export default function GatewayOrderPanel({ order }: { order: PanelOrder }) {
   // Unknown role (loading or a failed read) is not permission.
   const role = security.data?.adminRole as AdminRole | undefined;
   const allowed = !!role && hasAdminPermission(role, "money.manage");
-  const eligible = order.paymentStatus === "paid" && !order.gatewayOrderRef && OPEN_STATUSES.includes(order.status);
+  const open = !order.gatewayOrderRef && OPEN_STATUSES.includes(order.status);
+  // A Kafene-leased order is never marked paid; its signed lease is the payment. Read only when it
+  // matters. A failed read or not_installed is "no lease", never a lease.
+  const leaseRead = trpc.kafene.status.useQuery(
+    { orderNumber: order.orderNumber },
+    { enabled: allowed && open && order.paymentStatus !== "paid" },
+  );
+  const leaseStatus = leaseRead.data?.ok ? leaseRead.data.lease?.status : undefined;
+  const leased = !!leaseStatus && LEASE_PAID_STATUSES.includes(leaseStatus);
+  const eligible = open && (order.paymentStatus === "paid" || leased);
   if (!allowed || (!eligible && view.kind !== "ordered")) return null;
 
   const refresh = () => {
@@ -151,6 +162,11 @@ export default function GatewayOrderPanel({ order }: { order: PanelOrder }) {
               {RETRYABLE.has(view.reason) && (
                 <button type="button" onClick={() => void prepare()} disabled={busy !== null} className={`${primary} border border-border text-foreground`}>
                   Retry
+                </button>
+              )}
+              {view.reason === "cart_mismatch" && (
+                <button type="button" onClick={() => void clear()} disabled={busy !== null} className="min-h-12 text-sm text-muted-foreground underline underline-offset-4">
+                  Remove my lines from the D&amp;K cart
                 </button>
               )}
             </div>
