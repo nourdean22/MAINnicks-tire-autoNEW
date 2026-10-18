@@ -105,9 +105,9 @@ const PUBLIC_ALLOWLIST: readonly string[] = [
   "gatewayTire.publicPriceRanges",
   "gatewayTire.publicSearch",
   "gatewayTire.publicStats",
-  // 2026-10-18 · vehicle tire finder: year > make > model > trim -> OE sizes from the
-  // Wheel-Size API. Vehicle catalogue data only, no PII; paid per call, so bounded by the
-  // apiLimiter, an in-memory cache and a per-shop-day cap (services/fitment/wheelSize.ts).
+  // 2026-10-18 · vehicle tire finder: year > make > model > submodel -> OE sizes from D&K's
+  // b2b quicksearch API (shop's Gateway Tire login). Vehicle catalogue data only, no PII,
+  // no prices; bounded by the apiLimiter and an in-memory cache (services/fitment/dkFitment.ts).
   "fitment.makes",
   "fitment.models",
   "fitment.sizes",

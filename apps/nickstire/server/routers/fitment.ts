@@ -1,34 +1,35 @@
 /**
- * fitment v1 · public vehicle tire finder: year > make > model > trim -> OE tire sizes.
+ * fitment v1 · public vehicle tire finder: year > make > model > trim (D&K submodel) -> OE sizes.
  *
  * Every read returns { ok: true, ... } or { ok: false, reason }, where reason is
- * "unconfigured" | "daily_cap" | "upstream_error" | "not_found". An upstream failure is
- * never an empty list; a 200 with no items is. The chosen size feeds
- * gatewayTire.publicSearch on the client; this router does not search stock.
+ * "unconfigured" | "upstream_error" | "not_found". An upstream failure is never an empty
+ * list; a 200 with no items is. The chosen size feeds gatewayTire.publicSearch on the
+ * client; this router does not search stock. Provider: D&K's b2b quicksearch API through
+ * the shop's Gateway Tire login (services/fitment/dkFitment.ts).
  *
- * Public and paid per call: protected by the app-wide /api/trpc apiLimiter (the same
- * limiter gatewayTire.publicSearch rides on), the in-memory cache and the daily cap
- * in services/fitment/wheelSize.ts.
+ * Public: protected by the app-wide /api/trpc apiLimiter (the same limiter
+ * gatewayTire.publicSearch rides on) and the in-memory cache.
  */
 import { z } from "zod";
 import { publicProcedure, router } from "../_core/trpc";
 import {
   MAX_YEAR,
   MIN_YEAR,
-  SLUG_RE,
+  VALUE_RE,
   getMakes,
   getModels,
   getSizes,
   getTrims,
   getYears,
-  isFitmentConfigured,
-} from "../services/fitment/wheelSize";
+  isFitmentAvailable,
+} from "../services/fitment/dkFitment";
 
 const year = z.number().int().min(MIN_YEAR).max(MAX_YEAR);
-const slug = z.string().regex(SLUG_RE);
+/** A D&K make/model/submodel value as the list endpoints return it ("Alfa Romeo", "CR-V"). */
+const value = z.string().trim().regex(VALUE_RE);
 
 export const fitmentRouter = router({
-  status: publicProcedure.query(() => ({ available: isFitmentConfigured() })),
+  status: publicProcedure.query(async () => ({ available: await isFitmentAvailable() })),
 
   years: publicProcedure.query(() => getYears()),
 
@@ -37,14 +38,14 @@ export const fitmentRouter = router({
     .query(({ input }) => getMakes(input.year)),
 
   models: publicProcedure
-    .input(z.object({ year, make: slug }))
+    .input(z.object({ year, make: value }))
     .query(({ input }) => getModels(input.year, input.make)),
 
   trims: publicProcedure
-    .input(z.object({ year, make: slug, model: slug }))
+    .input(z.object({ year, make: value, model: value }))
     .query(({ input }) => getTrims(input.year, input.make, input.model)),
 
   sizes: publicProcedure
-    .input(z.object({ year, make: slug, model: slug, trim: slug }))
+    .input(z.object({ year, make: value, model: value, trim: value }))
     .query(({ input }) => getSizes(input.year, input.make, input.model, input.trim)),
 });

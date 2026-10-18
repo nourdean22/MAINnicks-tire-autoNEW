@@ -187,7 +187,7 @@ export const appRouter = router({
   export: exportRouter,
   campaigns: campaignsRouter,
   gatewayTire: gatewayTireRouter,
-  /** 2026-10-18 · public vehicle tire finder (Wheel-Size API); off until WHEEL_SIZE_API_KEY is set. */
+  /** 2026-10-18 · public vehicle tire finder (D&K quicksearch via the Gateway Tire login). */
   fitment: fitmentRouter,
   autoLabor: autoLaborRouter,
   emergency: emergencyRouter,
