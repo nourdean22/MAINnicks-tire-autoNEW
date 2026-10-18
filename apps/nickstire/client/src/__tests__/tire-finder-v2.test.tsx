@@ -86,6 +86,17 @@ vi.mock("@/components/order/TireOrderModal", () => ({
     }, "modal"),
 }));
 
+// The Kafene CTA must read its URL from shared/financing; a sentinel URL here
+// fails any hard-coded copy of the real link.
+const KAFENE_TEST_URL = "https://kafene.test/apply-from-shared";
+vi.mock("@shared/financing", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@shared/financing")>();
+  return {
+    ...actual,
+    FINANCING_PROVIDERS: actual.FINANCING_PROVIDERS.map((p) => (p.id === "kafene" ? { ...p, applyUrl: KAFENE_TEST_URL } : p)),
+  };
+});
+
 const tire = (over: Partial<any>) => ({
   id: "t", name: "T", brand: "Brand", model: "Model", size: "215/60R16",
   category: "budget", shopPrice: 100, pricePerTireCents: 10000, warranty: "",
@@ -327,17 +338,42 @@ describe("TireFinderV2 (the shipped /tires funnel)", () => {
     it("next to each total: Apply with Kafene (new tab) and More payment programs (/financing)", async () => {
       h.search = results(SIX);
       await renderV2();
-      const kafene = card("Premium").getByRole("link", { name: "Apply with Kafene" });
-      expect(kafene.getAttribute("href")).toBe("https://gokafene.com/nKVEWWv");
+      const kafene = card("Premium").getByRole("link", { name: "Apply with Kafene (opens in a new tab)" });
+      expect(kafene.getAttribute("href")).toBe(KAFENE_TEST_URL); // from shared/financing, not hard-coded
       expect(kafene.getAttribute("target")).toBe("_blank");
       expect(kafene.getAttribute("rel")).toContain("noopener");
+      expect(kafene.className).toContain("min-h-12");
       fireEvent.click(kafene);
       expect(h.trackEvent).toHaveBeenCalledWith("payment_programs_clicked", { provider: "kafene" });
 
       const more = card("Premium").getByRole("link", { name: "More payment programs" });
       expect(more.getAttribute("href")).toBe("/financing");
+      fireEvent.click(more);
+      expect(h.trackEvent).toHaveBeenCalledWith("payment_programs_clicked", { provider: "more" });
       // Brand rule: the customer never reads the word "financing".
       expect(picks()!.textContent).not.toMatch(/financ/i);
+    });
+
+    it("a Kafene banner sits directly under the top picks: 320x50 on phones, 728x90 from md up", async () => {
+      h.search = results(SIX);
+      await renderV2();
+      const img = screen.getByAltText("Kafene: get up to $5,000 today, low lease payments and no credit needed. Apply now.") as HTMLImageElement;
+      expect(img.getAttribute("src")).toBe("/kafene/kafene-320x50.png");
+      expect([img.getAttribute("width"), img.getAttribute("height"), img.getAttribute("loading")]).toEqual(["320", "50", "lazy"]);
+      const source = img.closest("picture")!.querySelector("source")!;
+      expect(source.getAttribute("srcset")).toBe("/kafene/kafene-728x90.png");
+      expect(source.getAttribute("media")).toBe("(min-width: 768px)");
+      const link = img.closest("a")!;
+      expect(link.getAttribute("href")).toBe(KAFENE_TEST_URL);
+      expect(link.getAttribute("target")).toBe("_blank");
+      // Directly under the picks region, before the full list.
+      expect(picks()!.nextElementSibling).toBe(link);
+    });
+
+    it("no Kafene banner when there are no results", async () => {
+      h.search = { data: { sizeFormatted: "999/99R99", source: "catalog", tires: [] }, isLoading: false, isError: false };
+      await renderV2();
+      expect(screen.queryByAltText(/^Kafene:/)).toBeNull();
     });
 
     it("no text-this-quote link: shared/business.ts documents no SMS-capable number", async () => {

@@ -20,6 +20,7 @@ import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import FadeIn from "@/components/FadeIn";
 import { trpc } from "@/lib/trpc";
 import { getUtmData } from "@/lib/utm";
+import { KAFENE_BANNER_ALT } from "@/lib/kafene";
 import { BUSINESS } from "@shared/business";
 import {
   FINANCING_FAQ,
@@ -50,6 +51,19 @@ function ProviderCard({
         {provider.typeLabel}
       </p>
       <p className="mt-4 text-sm leading-relaxed text-white/70">{provider.description}</p>
+
+      {provider.id === "kafene" && (
+        <a
+          href={provider.applyUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={() => onApply(provider.id)}
+          className="mt-5 block w-fit max-w-full"
+        >
+          <img src="/kafene/kafene-300x250.png" width={300} height={250} loading="lazy" alt={KAFENE_BANNER_ALT} className="h-auto max-w-full rounded-lg" />
+          <span className="sr-only"> (opens in a new tab)</span>
+        </a>
+      )}
 
       <dl className="mt-5 space-y-3 rounded-xl border border-white/8 bg-black/15 p-4 text-sm">
         <div>

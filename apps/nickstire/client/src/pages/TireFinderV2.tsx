@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "wouter";
 import { toast } from "sonner";
 import { Search, Phone, Check, Loader2, ShieldCheck, Star, AlertTriangle, ChevronDown } from "lucide-react";
@@ -12,6 +12,11 @@ import { BUSINESS } from "@shared/business";
 import { ACIMA_COMPACT_DISCLOSURE } from "@/lib/acima";
 import { OrderModal } from "@/components/order/TireOrderModal";
 import { pickTopTires, setTotalLabel } from "@/lib/tirePicks";
+import VehicleSizePicker from "@/components/tires/VehicleSizePicker";
+import { FINANCING_PROVIDERS } from "@shared/financing";
+import { KAFENE_BANNER_ALT } from "@/lib/kafene";
+
+const KAFENE = FINANCING_PROVIDERS.find((p) => p.id === "kafene");
 
 // Real inferred shape from the tRPC procedure — no `any` on the money path.
 type Tire = RouterOutputs["gatewayTire"]["publicSearch"]["tires"][number];
@@ -45,6 +50,18 @@ export default function TireFinderV2() {
   const [qty, setQty] = useState(4);
   const [selected, setSelected] = useState<Tire | null>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
+
+  // Search tabs. Read from the URL in the initializer so a ?size= deep link
+  // never paints the vehicle tab first.
+  const [tab, setTab] = useState<"vehicle" | "size">(() =>
+    params.get("size") || params.get("tab") === "size" ? "size" : "vehicle",
+  );
+  const fitmentStatus = trpc.fitment.status.useQuery(undefined, { staleTime: 5 * 60 * 1000 });
+  const [fitmentOff, setFitmentOff] = useState(false);
+  const disableFitment = useCallback(() => setFitmentOff(true), []);
+  // Unknown is not available: a failed status read hides the vehicle tab.
+  const vehicleOn = !fitmentOff && (fitmentStatus.isLoading || fitmentStatus.data?.available === true);
+  const activeTab = vehicleOn ? tab : "size";
 
   // Stripe Checkout return (wave-d · CONFIRMED high-friction gap): the
   // success/cancel URLs point at /tires?order=X&paid=1|0, but the handler
@@ -141,6 +158,40 @@ export default function TireFinderV2() {
               Enter the size from your tire sidewall. We show practical choices, estimated installed pricing, and a no-card-required request.
             </p>
             <div className="mx-auto mt-8 max-w-3xl rounded-2xl border border-primary/30 bg-card p-3 shadow-2xl">
+              {vehicleOn && (
+                <div role="tablist" aria-label="Search tires" className="mb-3 grid grid-cols-2 gap-1 rounded-xl bg-muted p-1">
+                  {(["vehicle", "size"] as const).map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      role="tab"
+                      id={`tires-tab-${t}`}
+                      aria-selected={activeTab === t}
+                      aria-controls="tires-tabpanel"
+                      onClick={() => setTab(t)}
+                      className={`min-h-12 rounded-lg text-sm font-bold ${activeTab === t ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}
+                    >
+                      {t === "vehicle" ? "By vehicle" : "By size"}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div
+                id="tires-tabpanel"
+                role={vehicleOn ? "tabpanel" : undefined}
+                aria-labelledby={vehicleOn ? `tires-tab-${activeTab}` : undefined}
+                aria-busy={activeTab === "vehicle" && fitmentStatus.isLoading ? true : undefined}
+              >
+              {activeTab === "vehicle" ? (
+                fitmentStatus.isLoading ? (
+                  <div className="grid grid-cols-2 gap-2 p-1 sm:grid-cols-4">
+                    {[0, 1, 2, 3].map((i) => <div key={i} className="h-12 animate-pulse rounded-lg bg-muted" />)}
+                  </div>
+                ) : (
+                  <VehicleSizePicker onPickSize={(s) => submit(s)} onUnconfigured={disableFitment} />
+                )
+              ) : (
+              <>
               <div className="flex gap-2">
                 <Search className="ml-3 mt-3.5 h-5 w-5 text-muted-foreground" />
                 <input
@@ -162,6 +213,9 @@ export default function TireFinderV2() {
                 {POPULAR.map((s) => (
                   <button key={s} onClick={() => submit(s)} className="rounded-full border border-border/50 px-3 py-1 text-xs text-muted-foreground hover:border-primary hover:text-primary">{s}</button>
                 ))}
+              </div>
+              </>
+              )}
               </div>
             </div>
             <div className="mt-5 flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-muted-foreground">
@@ -226,18 +280,20 @@ export default function TireFinderV2() {
                         <p className="mt-3 text-2xl font-black">${p.tire.shopPrice.toFixed(2)}<span className="text-sm font-normal text-muted-foreground"> / tire</span></p>
                         <div className="flex flex-wrap items-center gap-x-3">
                           <p className="text-sm font-semibold text-primary">{setTotalLabel(p.tire.shopPrice, qty)}</p>
-                          {/* Hard-coded until shared/financing.ts carries Kafene; the server lane owns the canonical record. */}
-                          <a
-                            href="https://gokafene.com/nKVEWWv"
-                            target="_blank"
-                            rel="noopener"
-                            onClick={() => trackEvent("payment_programs_clicked", { provider: "kafene" })}
-                            className="inline-flex min-h-12 items-center text-sm font-semibold text-primary underline underline-offset-4"
-                          >
-                            Apply with Kafene
-                          </a>
+                          {KAFENE && (
+                            <a
+                              href={KAFENE.applyUrl}
+                              target="_blank"
+                              rel="noopener"
+                              onClick={() => trackEvent("payment_programs_clicked", { provider: "kafene" })}
+                              className="inline-flex min-h-12 items-center text-sm font-semibold text-primary underline underline-offset-4"
+                            >
+                              Apply with Kafene{" "}<span className="sr-only">(opens in a new tab)</span>
+                            </a>
+                          )}
                           <Link
                             href="/financing"
+                            onClick={() => trackEvent("payment_programs_clicked", { provider: "more" })}
                             className="inline-flex min-h-12 items-center text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
                           >
                             More payment programs
@@ -269,6 +325,21 @@ export default function TireFinderV2() {
                     ))}
                   </div>
                 </section>
+              )}
+              {topPicks.length > 0 && KAFENE && (
+                <a
+                  href={KAFENE.applyUrl}
+                  target="_blank"
+                  rel="noopener"
+                  onClick={() => trackEvent("payment_programs_clicked", { provider: "kafene" })}
+                  className="mx-auto mb-8 block w-fit max-w-full"
+                >
+                  <picture>
+                    <source media="(min-width: 768px)" srcSet="/kafene/kafene-728x90.png" width={728} height={90} />
+                    <img src="/kafene/kafene-320x50.png" width={320} height={50} loading="lazy" alt={KAFENE_BANNER_ALT} className="h-auto max-w-full" />
+                  </picture>
+                  <span className="sr-only"> (opens in a new tab)</span>
+                </a>
               )}
               {topPicks.length > 0 && (
                 <p className="mb-3 text-sm font-semibold text-muted-foreground">All options, lowest price first</p>
