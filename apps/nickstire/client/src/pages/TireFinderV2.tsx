@@ -13,7 +13,7 @@ import { BUSINESS } from "@shared/business";
 import { ACIMA_COMPACT_DISCLOSURE } from "@/lib/acima";
 import { OrderModal } from "@/components/order/TireOrderModal";
 import { pickTopTires, setTotalLabel } from "@/lib/tirePicks";
-import VehicleSizePicker from "@/components/tires/VehicleSizePicker";
+import VehicleSizePicker, { vehicleFromUrl, type SavedVehicle } from "@/components/tires/VehicleSizePicker";
 import { FINANCING_PROVIDERS } from "@shared/financing";
 import { KAFENE_BANNER_ALT } from "@/lib/kafene";
 
@@ -50,6 +50,17 @@ export default function TireFinderV2() {
   const [sizeError, setSizeError] = useState("");
   const [qty, setQty] = useState(4);
   const [selected, setSelected] = useState<Tire | null>(null);
+  // The vehicle behind the current search, so the order form does not ask for it again.
+  // Set only by a By vehicle search (or a reload of one); a By size search carries none.
+  const [searchVehicle, setSearchVehicle] = useState<SavedVehicle | null>(() => (params.get("size") ? vehicleFromUrl() : null));
+  // Stable identity: OrderModal re-applies this prop in an effect, so a fresh object on every
+  // page render would overwrite whatever the customer corrected in the form.
+  const prefilledVehicle = useMemo(
+    () => (searchVehicle
+      ? { year: String(searchVehicle.year), make: searchVehicle.make, model: searchVehicle.model, option: searchVehicle.trim, speeds: "" }
+      : null),
+    [searchVehicle],
+  );
   const resultsRef = useRef<HTMLDivElement>(null);
 
   // Search tabs. Read from the URL in the initializer so a ?size= deep link
@@ -150,6 +161,10 @@ export default function TireFinderV2() {
     trackEvent("tire_search_submitted", { size: clean, source: "tires_v2" });
     setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
   };
+  const searchBySize = (value?: string) => {
+    setSearchVehicle(null);
+    submit(value);
+  };
 
   return (
     <PageLayout showChat={true}>
@@ -202,7 +217,11 @@ export default function TireFinderV2() {
                     {[0, 1, 2, 3].map((i) => <div key={i} className="h-12 animate-pulse rounded-lg bg-muted" />)}
                   </div>
                 ) : (
-                  <VehicleSizePicker onPickSize={(s) => submit(s)} onUnconfigured={disableFitment} />
+                  <VehicleSizePicker
+                    onPickSize={(s, vehicle) => { setSearchVehicle(vehicle); submit(s); }}
+                    onUnconfigured={disableFitment}
+                    onVehicleCleared={() => setSearchVehicle(null)}
+                  />
                 )
               ) : (
               <>
@@ -212,11 +231,11 @@ export default function TireFinderV2() {
                   aria-label="Search tire size"
                   value={input}
                   onChange={(e) => { setInput(e.target.value); if (sizeError) setSizeError(""); }}
-                  onKeyDown={(e) => e.key === "Enter" && submit()}
+                  onKeyDown={(e) => e.key === "Enter" && searchBySize()}
                   placeholder="Enter tire size — e.g. 215/60R16"
                   className="min-w-0 flex-1 bg-transparent px-2 py-3 text-lg outline-none"
                 />
-                <button onClick={() => submit()} className="rounded-xl bg-primary px-5 font-bold text-primary-foreground">Search tires</button>
+                <button onClick={() => searchBySize()} className="rounded-xl bg-primary px-5 font-bold text-primary-foreground">Search tires</button>
               </div>
               {sizeError && (
                 <p role="alert" className="mt-2 text-left text-sm font-medium text-amber-400">
@@ -225,7 +244,7 @@ export default function TireFinderV2() {
               )}
               <div className="mt-3 flex flex-wrap justify-center gap-2">
                 {POPULAR.map((s) => (
-                  <button key={s} onClick={() => submit(s)} className="rounded-full border border-border/50 px-3 py-1 text-xs text-muted-foreground hover:border-primary hover:text-primary">{s}</button>
+                  <button key={s} onClick={() => searchBySize(s)} className="rounded-full border border-border/50 px-3 py-1 text-xs text-muted-foreground hover:border-primary hover:text-primary">{s}</button>
                 ))}
               </div>
               </>
@@ -552,7 +571,15 @@ export default function TireFinderV2() {
           </div>
         </section>
       </main>
-      {selected && <OrderModal tire={selected} quantity={qty} packageValue={packageValue} onClose={() => setSelected(null)} />}
+      {selected && (
+        <OrderModal
+          tire={selected}
+          quantity={qty}
+          packageValue={packageValue}
+          onClose={() => setSelected(null)}
+          prefilledVehicle={prefilledVehicle}
+        />
+      )}
     </PageLayout>
   );
 }

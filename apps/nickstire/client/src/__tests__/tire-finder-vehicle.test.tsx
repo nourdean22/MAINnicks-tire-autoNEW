@@ -15,6 +15,8 @@ const h = vi.hoisted(() => ({
   responses: {} as Record<string, any>,
   loading: new Set<string>(),
   calls: [] as Array<{ key: string; input: any; enabled: boolean }>,
+  modalProps: null as any,
+  search: { data: undefined, isLoading: false, isError: false } as any,
 }));
 
 vi.mock("sonner", () => {
@@ -50,6 +52,7 @@ vi.mock("@/lib/trpc", () => {
         return { data: h.loading.has(key) ? undefined : h.responses[key], isLoading: h.loading.has(key), isError: false, refetch: h.refetch };
       }
       if (key === "gatewayTire.getPackage") return { data: { packageValuePerSet: 266 }, isLoading: false };
+      if (key === "gatewayTire.publicSearch") return h.search;
       return { data: undefined, isLoading: false, isError: false };
     },
     useMutation: () => ({ mutate: vi.fn(), isPending: false }),
@@ -69,7 +72,10 @@ vi.mock("@/components/SEO", () => ({
   trackPhoneClick: vi.fn(),
 }));
 
-vi.mock("@/components/order/TireOrderModal", () => ({ OrderModal: () => null }));
+// Records what TireFinderV2 hands the order modal (the prefilled vehicle under test).
+vi.mock("@/components/order/TireOrderModal", () => ({
+  OrderModal: (props: any) => { h.modalProps = props; return null; },
+}));
 
 const YEARS = Array.from({ length: 2027 - 1980 + 1 }, (_, i) => 2027 - i);
 const OK = {
@@ -108,6 +114,8 @@ describe("TireFinderV2 · By vehicle tab", () => {
     h.responses = { ...OK };
     h.loading = new Set();
     h.calls = [];
+    h.modalProps = null;
+    h.search = { data: undefined, isLoading: false, isError: false };
     try { window.localStorage.clear(); } catch { /* jsdom always has it */ }
     window.history.pushState({}, "", "/tires");
   });
@@ -293,5 +301,69 @@ describe("TireFinderV2 · By vehicle tab", () => {
     await pickVehicle();
     fireEvent.click(screen.getByRole("button", { name: /215\/55R16/ }));
     expect(new URLSearchParams(window.location.search).get("size")).toBe("215/55R16");
+  });
+
+  describe("the order modal gets the vehicle the customer picked (Codex P2 on PR 3148)", () => {
+    const RESULTS = {
+      data: { sizeFormatted: "215/55R16", source: "live", tires: [
+        { id: "t1", name: "T", brand: "Falken", model: "Sincera", size: "215/55R16", category: "budget", shopPrice: 90,
+          pricePerTireCents: 9000, warranty: "", features: [], speedRating: "", loadIndex: "", inStock: true, estimatedDelivery: "" },
+      ] },
+      isLoading: false,
+      isError: false,
+    };
+    const CIVIC = { year: "2018", make: "Honda", model: "Civic", option: "LX", speeds: "" };
+    const request = () => fireEvent.click(within(screen.getByRole("region", { name: "All tire options" })).getByRole("button", { name: "Request these" }));
+
+    it("a By vehicle search prefills year, make, model and trim in the order modal", async () => {
+      h.search = RESULTS;
+      await renderPage();
+      await pickVehicle();
+      fireEvent.click(screen.getByRole("button", { name: /215\/55R16/ }));
+      request();
+      expect(h.modalProps.prefilledVehicle).toEqual(CIVIC);
+    });
+
+    it("a page re-render hands the modal the same vehicle object, so the customer's edits survive", async () => {
+      h.search = RESULTS;
+      await renderPage();
+      await pickVehicle();
+      fireEvent.click(screen.getByRole("button", { name: /215\/55R16/ }));
+      request();
+      const first = h.modalProps.prefilledVehicle;
+      fireEvent.click(screen.getByRole("button", { name: "2 tires" })); // re-renders the page
+      expect(h.modalProps.quantity).toBe(2);
+      expect(h.modalProps.prefilledVehicle).toBe(first);
+    });
+
+    it("a By size search passes no vehicle, even after a vehicle search", async () => {
+      h.search = RESULTS;
+      await renderPage();
+      await pickVehicle();
+      fireEvent.click(screen.getByRole("button", { name: /215\/55R16/ }));
+      fireEvent.click(screen.getByRole("tab", { name: "By size" }));
+      fireEvent.change(screen.getByLabelText("Search tire size"), { target: { value: "215/55R16" } });
+      fireEvent.click(screen.getByRole("button", { name: "Search tires" }));
+      request();
+      expect(h.modalProps.prefilledVehicle ?? null).toBeNull();
+    });
+
+    it("a reloaded vehicle search (?size plus the vehicle params) still prefills", async () => {
+      h.search = RESULTS;
+      window.history.pushState({}, "", "/tires?size=215/55R16&year=2018&make=Honda&model=Civic&trim=LX");
+      await renderPage();
+      request();
+      expect(h.modalProps.prefilledVehicle).toEqual(CIVIC);
+    });
+
+    it("Change clears the vehicle the modal would get", async () => {
+      h.search = RESULTS;
+      window.history.pushState({}, "", "/tires?size=215/55R16&year=2018&make=Honda&model=Civic&trim=LX");
+      await renderPage();
+      fireEvent.click(screen.getByRole("tab", { name: "By vehicle" }));
+      fireEvent.click(screen.getByRole("button", { name: "Change" }));
+      request();
+      expect(h.modalProps.prefilledVehicle ?? null).toBeNull();
+    });
   });
 });

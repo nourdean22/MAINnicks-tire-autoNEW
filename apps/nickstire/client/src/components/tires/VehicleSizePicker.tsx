@@ -30,15 +30,20 @@ function writeSaved(v: SavedVehicle | null) {
   }
 }
 
-/** Vehicle from ?year&make&model&trim (a reloaded result page), else the remembered one. */
-function initialVehicle(): SavedVehicle | null {
+/** Vehicle from ?year&make&model&trim (a reloaded vehicle search), or null. */
+export function vehicleFromUrl(): SavedVehicle | null {
   const p = new URLSearchParams(window.location.search);
   const year = Number(p.get("year"));
   const [make, model, trim] = [p.get("make"), p.get("model"), p.get("trim")];
   if (Number.isInteger(year) && year > 0 && make && model && trim) {
     return { year, make, model, trim, label: `${year} ${make} ${model} ${trim}` };
   }
-  return readSaved();
+  return null;
+}
+
+/** Vehicle from the URL, else the remembered one. */
+function initialVehicle(): SavedVehicle | null {
+  return vehicleFromUrl() ?? readSaved();
 }
 
 type Reason = "unconfigured" | "upstream_error" | "rate_limited" | "not_found";
@@ -101,9 +106,12 @@ function listOf<T, I>(q: Level<T>, pickList: (d: T) => I[]): I[] | null {
 export default function VehicleSizePicker({
   onPickSize,
   onUnconfigured,
+  onVehicleCleared,
 }: {
-  onPickSize: (size: string) => void;
+  /** The tapped size and the vehicle it belongs to (the order modal prefills from it). */
+  onPickSize: (size: string, vehicle: SavedVehicle) => void;
   onUnconfigured: () => void;
+  onVehicleCleared: () => void;
 }) {
   const [remembered, setRemembered] = useState<SavedVehicle | null>(() => initialVehicle());
   const [year, setYear] = useState<number | null>(remembered?.year ?? null);
@@ -147,7 +155,7 @@ export default function VehicleSizePicker({
     p.set("model", model);
     p.set("trim", trim);
     window.history.replaceState({}, "", `${window.location.pathname}?${p}`);
-    onPickSize(size);
+    onPickSize(size, vehicle);
   };
 
   const change = () => {
@@ -157,6 +165,7 @@ export default function VehicleSizePicker({
     ["year", "make", "model", "trim"].forEach((k) => p.delete(k));
     const qs = p.toString();
     window.history.replaceState({}, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`);
+    onVehicleCleared();
     setRemembered(null);
     setYear(null);
     setMake("");
