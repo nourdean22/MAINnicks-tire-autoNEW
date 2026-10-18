@@ -33,6 +33,7 @@ import { trpc } from "@/lib/trpc/client";
 // live in the alert inspector — this list had no verbs at all).
 import { Eye } from "lucide-react";
 import { useInspector } from "@/hooks/use-inspector";
+import { alertLane } from "@/lib/brain/alert-lanes";
 
 interface Alert {
   id: string;
@@ -170,6 +171,36 @@ export default function AlertsInspectorPage() {
   }, [payload]);
 
   const totalVisible = flattened.length;
+  // W5b: one exhaustive category -> lane map (lib/brain/alert-lanes.ts); sort order holds inside each lane.
+  const priority = flattened.filter((a) => alertLane(a.category) === "priority");
+  const other = flattened.filter((a) => alertLane(a.category) === "other");
+  const [otherOpen, setOtherOpen] = useState(false);
+
+  function renderRow(alert: Alert) {
+    const meta = CATEGORY_META[alert.category];
+    return (
+      <li
+        key={alert.id}
+        data-entity={`alert:${alert.id}`}
+        data-entity-label={alert.content.slice(0, 80)}
+        className="py-2 data-[entity-focused=true]:ring-1 data-[entity-focused=true]:ring-edge-strong data-[entity-selected=true]:bg-accent-soft"
+      >
+        <div className="flex flex-wrap items-center gap-x-2 font-mono text-[12px] text-fg-secondary">
+          <span>{meta?.label ?? alert.category}</span>
+          <span className="text-fg-tertiary">{relTime(alert.createdAt)}</span>
+          <button
+            type="button"
+            onClick={() => openInspector({ kind: "alert", id: alert.id })}
+            aria-label="inspect alert"
+            className="ml-auto inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-control text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg"
+          >
+            <Eye size={14} strokeWidth={2} />
+          </button>
+        </div>
+        <p className="text-[14px] leading-snug text-fg">{alert.content}</p>
+      </li>
+    );
+  }
 
   function toggleCategory(cat: string): void {
     setActiveCategories((prev) => {
@@ -338,39 +369,38 @@ export default function AlertsInspectorPage() {
         )}
 
         {totalVisible > 0 && (
-          <ul className="space-y-2 stagger-in" data-selection-scope="system-alerts">
-            {flattened.map((alert) => {
-              const meta = CATEGORY_META[alert.category];
-              return (
-                <li
-                  key={alert.id}
-                  data-entity={`alert:${alert.id}`}
-                  data-entity-label={alert.content.slice(0, 80)}
-                  className={
-                    "rounded-surface border p-3 data-[entity-focused=true]:ring-1 data-[entity-focused=true]:ring-edge-strong data-[entity-selected=true]:bg-accent-soft " +
-                    (meta?.tint ?? "")
-                  }
+          <div className="space-y-5" data-selection-scope="system-alerts">
+            <section aria-labelledby="alerts-priority-heading" className="space-y-2">
+              <h2 id="alerts-priority-heading" className="text-[13px] font-medium text-fg-secondary">
+                Priority
+                <span className="ml-2 font-mono text-[12px] tabular-nums text-fg-tertiary">{priority.length}</span>
+              </h2>
+              {priority.length === 0 ? (
+                <p className="text-[14px] text-fg-tertiary">No priority alerts in this view.</p>
+              ) : (
+                <ul className="divide-y divide-edge border-y border-edge">{priority.map(renderRow)}</ul>
+              )}
+            </section>
+            {other.length > 0 && (
+              <section aria-label="Other alerts" className="space-y-2">
+                <button
+                  type="button"
+                  aria-expanded={otherOpen}
+                  aria-controls="alerts-other-list"
+                  onClick={() => setOtherOpen((v) => !v)}
+                  className="inline-flex min-h-[44px] items-center gap-2 text-[14px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:text-fg"
                 >
-                  <div className="mb-1.5 flex flex-wrap items-center gap-2 font-mono text-[11px] text-fg-secondary">
-                    <span>
-                      {meta?.label ?? alert.category}
-                    </span>
-                    <span className="opacity-60">·</span>
-                    <span className="opacity-80">{relTime(alert.createdAt)}</span>
-                    <button
-                      type="button"
-                      onClick={() => openInspector({ kind: "alert", id: alert.id })}
-                      aria-label="inspect alert"
-                      className="ml-auto inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-control opacity-70 transition-opacity hover:opacity-100 md:min-h-[28px] md:min-w-[28px]"
-                    >
-                      <Eye size={13} strokeWidth={2} />
-                    </button>
-                  </div>
-                  <p className="text-[12px] leading-snug">{alert.content}</p>
-                </li>
-              );
-            })}
-          </ul>
+                  Other, {other.length}
+                  <span className="font-mono text-[12px] text-fg-tertiary">{otherOpen ? "shown" : "hidden"}</span>
+                </button>
+                {otherOpen && (
+                  <ul id="alerts-other-list" className="divide-y divide-edge border-y border-edge">
+                    {other.map(renderRow)}
+                  </ul>
+                )}
+              </section>
+            )}
+          </div>
         )}
       </Panel>
     </StandardPage>
