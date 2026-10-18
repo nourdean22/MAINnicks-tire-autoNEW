@@ -198,10 +198,10 @@ describe("happy path through the router", () => {
     expect(res).toEqual({
       ok: true,
       sizes: [
-        { size: "215/50R17", rimDiameter: 17, rearSize: null },
-        { size: "215/55R16", rimDiameter: 16, rearSize: null },
-        { size: "215/55R17", rimDiameter: 17, rearSize: null },
-        { size: "235/40R18", rimDiameter: 18, rearSize: null },
+        { size: "215/50R17", label: "215/50R17", rimDiameter: 17, rearSize: null, searchable: true },
+        { size: "215/55R16", label: "215/55R16", rimDiameter: 16, rearSize: null, searchable: true },
+        { size: "215/55R17", label: "215/55R17", rimDiameter: 17, rearSize: null, searchable: true },
+        { size: "235/40R18", label: "235/40R18", rimDiameter: 18, rearSize: null, searchable: true },
       ],
     });
     const url = new URL(String(dataCalls(fetchMock)[0][0]));
@@ -209,14 +209,14 @@ describe("happy path through the router", () => {
     expect(Object.fromEntries(url.searchParams)).toEqual({ year: "2018", make: "Honda", model: "Civic", submodel: "LX" });
   });
 
-  it("sizes: P and LT prefixes folded so the size feeds publicSearch, duplicates dropped, non-metric passes through", async () => {
+  it("sizes: metric sizes searchable in WWW/AARDD form with the raw label kept; a flotation size is shown, not searchable", async () => {
     vi.stubGlobal("fetch", dkFetch());
     expect(await caller().sizes({ year: 2018, make: "Toyota", model: "Tacoma", trim: "SR5 4WD" })).toEqual({
       ok: true,
       sizes: [
-        { size: "245/75R16", rimDiameter: 16, rearSize: null },
-        { size: "265/70R17", rimDiameter: 17, rearSize: null },
-        { size: "31X10.50R15", rimDiameter: 15, rearSize: null },
+        { size: "245/75R16", label: "LT245/75R16", rimDiameter: 16, rearSize: null, searchable: true },
+        { size: "265/70R17", label: "P265/70R17", rimDiameter: 17, rearSize: null, searchable: true },
+        { size: "31X10.50R15", label: "31X10.50R15", rimDiameter: 15, rearSize: null, searchable: false },
       ],
     });
   });
@@ -242,12 +242,22 @@ describe("unknown is not empty", () => {
     expect(await caller().makes({ year: 2018 })).toEqual({ ok: false, reason: "upstream_error" });
   });
 
-  it("an unknown submodel (D&K answers 400) is not_found", async () => {
-    vi.stubGlobal("fetch", dkFetch());
+  it("an unknown submodel (D&K answers 400) is not_found; a stale model on trims is not_found too", async () => {
+    vi.stubGlobal("fetch", dkFetch((url) => url.pathname.includes("get-sub-model") ? json({ detail: "Invalid model value" }, 400) : fixtureData(url)));
     expect(await caller().sizes({ ...VEHICLE, trim: "Hovercraft" })).toEqual({ ok: false, reason: "not_found" });
+    expect(await caller().trims(VEHICLE)).toEqual({ ok: false, reason: "not_found" });
   });
 
-  it("a 401 drops the cached session so the next read logs in again", async () => {
+  it("a 4xx on years, makes or models is a contract break: upstream_error (the client offers retry), never not_found", async () => {
+    vi.stubGlobal("fetch", dkFetch(() => json({ detail: "Invalid year value" }, 400)));
+    expect(await caller().years()).toEqual({ ok: false, reason: "upstream_error" });
+    expect(await caller().makes({ year: 2018 })).toEqual({ ok: false, reason: "upstream_error" });
+    expect(await caller().models({ year: 2018, make: "Honda" })).toEqual({ ok: false, reason: "upstream_error" });
+    expect(logLines.filter((l) => l.startsWith("warn") && / -> 400/.test(l))).toHaveLength(3);
+  });
+
+  it("a 401 drops the cached session so the next read (after the 30 s negative cache) logs in again", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
     let first = true;
     const fetchMock = dkFetch((url) => {
       if (first) { first = false; return json({ detail: "expired" }, 401); }
@@ -255,11 +265,13 @@ describe("unknown is not empty", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
     expect(await caller().years()).toEqual({ ok: false, reason: "upstream_error" });
+    vi.setSystemTime(Date.now() + 31_000);
     expect((await caller().years()).ok).toBe(true);
     expect(tokenCalls(fetchMock)).toHaveLength(2);
   });
 
-  it("a thrown fetch is upstream_error and does not poison the cache", async () => {
+  it("a thrown fetch is upstream_error and does not poison the cache past the 30 s negative cache", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
     let first = true;
     const fetchMock = dkFetch((url) => {
       if (first) { first = false; throw new TypeError("fetch failed"); }
@@ -267,6 +279,7 @@ describe("unknown is not empty", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
     expect(await caller().years()).toEqual({ ok: false, reason: "upstream_error" });
+    vi.setSystemTime(Date.now() + 31_000);
     expect(await caller().years()).toEqual({ ok: true, years: [2019, 2018, 2017] });
     expect(dataCalls(fetchMock)).toHaveLength(2);
   });
@@ -299,12 +312,147 @@ describe("cache", () => {
     expect(dataCalls(fetchMock)).toHaveLength(2);
   });
 
-  it("failures are not cached", async () => {
+  it("a failure is remembered for 30 s per key (no re-hit of D&K), then retried", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
     const fetchMock = dkFetch(() => json({}, 503));
     vi.stubGlobal("fetch", fetchMock);
-    await caller().makes({ year: 2018 });
+    expect(await caller().makes({ year: 2018 })).toEqual({ ok: false, reason: "upstream_error" });
+    expect(await caller().makes({ year: 2018 })).toEqual({ ok: false, reason: "upstream_error" });
+    expect(dataCalls(fetchMock)).toHaveLength(1);
+    vi.setSystemTime(Date.now() + 31_000);
     await caller().makes({ year: 2018 });
     expect(dataCalls(fetchMock)).toHaveLength(2);
+  });
+
+  it("a not_found is remembered for 30 s too", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const fetchMock = dkFetch();
+    vi.stubGlobal("fetch", fetchMock);
+    expect(await caller().sizes({ ...VEHICLE, trim: "Hovercraft" })).toEqual({ ok: false, reason: "not_found" });
+    expect(await caller().sizes({ ...VEHICLE, trim: "Hovercraft" })).toEqual({ ok: false, reason: "not_found" });
+    expect(dataCalls(fetchMock)).toHaveLength(1);
+    vi.setSystemTime(Date.now() + 31_000);
+    await caller().sizes({ ...VEHICLE, trim: "Hovercraft" });
+    expect(dataCalls(fetchMock)).toHaveLength(2);
+  });
+
+  it("N identical concurrent reads make ONE D&K call (single flight)", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    const fetchMock = dkFetch(async (url) => { await gate; return fixtureData(url); });
+    vi.stubGlobal("fetch", fetchMock);
+    const pending = Array.from({ length: 8 }, () => caller().sizes({ ...VEHICLE, trim: "LX" }));
+    await new Promise((r) => setTimeout(r, 20));
+    release();
+    const results = await Promise.all(pending);
+    expect(results.every((r) => r.ok)).toBe(true);
+    expect(dataCalls(fetchMock)).toHaveLength(1);
+  });
+});
+
+describe("D&K login: no token storm", () => {
+  it("two concurrent token refreshes make ONE /token call", async () => {
+    const { getGatewayToken } = await import("../services/gatewayClient");
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    const fetchMock = vi.fn(async () => { await gate; return json({ access_token: TOKEN }); });
+    vi.stubGlobal("fetch", fetchMock);
+    const both = Promise.all([getGatewayToken(), getGatewayToken(), getGatewayToken()]);
+    await new Promise((r) => setTimeout(r, 20));
+    release();
+    expect(await both).toEqual([TOKEN, TOKEN, TOKEN]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("after a failed /token, logins pause 15 s instead of retrying on every call", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const { getGatewayToken } = await import("../services/gatewayClient");
+    const fetchMock = vi.fn(async () => json({ detail: "bad creds" }, 401));
+    vi.stubGlobal("fetch", fetchMock);
+    expect(await getGatewayToken()).toBeNull();
+    expect(await getGatewayToken()).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    vi.setSystemTime(Date.now() + 16_000);
+    expect(await getGatewayToken()).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("concurrent 401s on one expired token cause one re-login, not one per read", async () => {
+    let issued = 0;
+    // Each login mints a DIFFERENT token, as D&K does; D&K rejects only the first (expired) one.
+    const fetchMock = vi.fn(async (input: string | URL, init?: RequestInit) => {
+      const url = new URL(String(input));
+      if (url.pathname === "/token") return json({ access_token: `${TOKEN}-${++issued}` });
+      const auth = (init?.headers as Record<string, string> | undefined)?.Authorization;
+      return auth === `Bearer ${TOKEN}-1` ? json({ detail: "expired" }, 401) : fixtureData(url);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await Promise.all([caller().years(), caller().makes({ year: 2018 }), caller().models({ year: 2018, make: "Honda" })]);
+    await Promise.all([caller().trims(VEHICLE), caller().sizes({ ...VEHICLE, trim: "LX" }), caller().sizes({ ...VEHICLE, trim: "Si" })]);
+    expect(tokenCalls(fetchMock).length).toBeLessThanOrEqual(2);
+  });
+});
+
+describe("a late 401 for an old token", () => {
+  it("does not throw away the fresh token another read already logged in with", async () => {
+    let issued = 0;
+    let releaseLate!: () => void;
+    const late = new Promise<void>((r) => { releaseLate = r; });
+    const fetchMock = vi.fn(async (input: string | URL, init?: RequestInit) => {
+      const url = new URL(String(input));
+      if (url.pathname === "/token") return json({ access_token: `${TOKEN}-${++issued}` });
+      const auth = (init?.headers as Record<string, string> | undefined)?.Authorization;
+      if (auth === `Bearer ${TOKEN}-1`) {
+        if (url.pathname.includes("list-all-year")) await late; // this 401 arrives late
+        return json({ detail: "expired" }, 401);
+      }
+      return fixtureData(url);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const slow = caller().years(); // holds token-1; its 401 is delayed
+    await new Promise((r) => setTimeout(r, 20));
+    expect(await caller().makes({ year: 2018 })).toEqual({ ok: false, reason: "upstream_error" }); // 401 now, drops token-1
+    expect((await caller().models({ year: 2018, make: "Honda" })).ok).toBe(true); // logs in: token-2
+    releaseLate();
+    expect(await slow).toEqual({ ok: false, reason: "upstream_error" });
+    expect((await caller().trims(VEHICLE)).ok).toBe(true); // still token-2
+    expect(tokenCalls(fetchMock)).toHaveLength(2);
+  });
+});
+
+describe("per-call rate limit (a batched HTTP request is N calls, not one)", () => {
+  const ipCaller = (ip: string) =>
+    fitmentRouter.createCaller({ req: { ip, headers: {} } } as unknown as TrpcContext);
+
+  it("the 21st call in a minute from one IP is rate_limited with no D&K call; another IP is not", async () => {
+    const fetchMock = dkFetch();
+    vi.stubGlobal("fetch", fetchMock);
+    const results = [];
+    for (let i = 0; i < 20; i++) results.push(await ipCaller("203.0.113.9").makes({ year: 1990 + i }));
+    expect(results.every((r) => r.ok)).toBe(true);
+    const before = dataCalls(fetchMock).length;
+    expect(await ipCaller("203.0.113.9").makes({ year: 2015 })).toEqual({ ok: false, reason: "rate_limited" });
+    expect(dataCalls(fetchMock).length).toBe(before);
+    expect((await ipCaller("198.51.100.7").makes({ year: 2015 })).ok).toBe(true);
+  });
+
+  it("the minute window slides; the 15-minute budget (120) still holds", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.stubGlobal("fetch", dkFetch());
+    const c = ipCaller("203.0.113.10");
+    let limited = 0;
+    for (let minute = 0; minute < 7; minute++) {
+      for (let i = 0; i < 20; i++) if (!(await c.years()).ok) limited++;
+      vi.setSystemTime(Date.now() + 61_000);
+    }
+    // 7 minutes x 20 = 140 calls inside 15 minutes: the first 120 pass, the last 20 do not.
+    expect(limited).toBe(20);
+  });
+
+  it("status is not limited: the page calls it on every mount", async () => {
+    vi.stubGlobal("fetch", dkFetch());
+    const c = ipCaller("203.0.113.11");
+    for (let i = 0; i < 25; i++) expect(await c.status()).toEqual({ available: true });
   });
 });
 

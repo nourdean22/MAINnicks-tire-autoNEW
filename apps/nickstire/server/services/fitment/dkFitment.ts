@@ -20,20 +20,51 @@ const LOGIN_FAILURE_TTL_MS = 60_000;
 const LIST_TTL_MS = 24 * 60 * 60 * 1000;
 const SIZES_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const MAX_CACHE_ENTRIES = 2_000;
+const NEGATIVE_TTL_MS = 30_000;
 /** D&K values carry spaces and punctuation ("Alfa Romeo", "CR-V", "Type R"); anything else is refused. */
 export const VALUE_RE = /^[A-Za-z0-9 .&'/+-]{1,40}$/;
 /** The makes input range; years outside it are not offered. */
 export const MIN_YEAR = 1980;
 export const MAX_YEAR = 2030;
 
-type FitmentFailure = "unconfigured" | "upstream_error" | "not_found";
+type FitmentFailure = "unconfigured" | "upstream_error" | "not_found" | "rate_limited";
 type FitmentResult<T> = ({ ok: true } & T) | { ok: false; reason: FitmentFailure };
 interface FitmentOption { slug: string; name: string }
 interface FitmentTrim { slug: string; label: string }
-interface FitmentSize { size: string; rimDiameter: number | null; rearSize: null }
+/** size: WWW/AARDD when metric (feeds publicSearch), else the raw size; label: the raw size as D&K wrote it. */
+interface FitmentSize { size: string; label: string; rimDiameter: number | null; rearSize: null; searchable: boolean }
 
 const cache = new Map<string, { expiresAt: number; value: unknown }>();
+/** One D&K call per cache key at a time: N identical in-flight reads share it. */
+const inFlight = new Map<string, Promise<unknown>>();
 let loginFailedUntil = 0;
+
+// ── Per-call rate limit ─────────────────────────────────────────────
+// The app-wide apiLimiter counts HTTP requests, and one batched request
+// (/api/trpc/fitment.sizes,fitment.sizes,...?batch=1) carries N calls, so the
+// fitment reads are limited per CALL here, per client IP.
+const LIMITS = [
+  { windowMs: 60_000, max: 20 },
+  { windowMs: 15 * 60_000, max: 120 },
+] as const;
+const MAX_TRACKED_IPS = 5_000;
+const callsByIp = new Map<string, number[]>();
+
+/** Count one fitment call for this IP; false when it is over either window. */
+export function takeFitmentCall(ip: string): boolean {
+  const now = Date.now();
+  const longest = LIMITS[LIMITS.length - 1].windowMs;
+  const recent = (callsByIp.get(ip) ?? []).filter((t) => now - t < longest);
+  if (LIMITS.some((l) => recent.filter((t) => now - t < l.windowMs).length >= l.max)) {
+    callsByIp.set(ip, recent);
+    return false;
+  }
+  recent.push(now);
+  callsByIp.delete(ip); // re-insert so the oldest-active IP is evicted first
+  callsByIp.set(ip, recent);
+  if (callsByIp.size > MAX_TRACKED_IPS) callsByIp.delete(callsByIp.keys().next().value as string);
+  return true;
+}
 
 /** The bearer token, or null. A null is remembered for 60 s; a token is cached by gatewayClient. */
 async function token(): Promise<string | null> {
@@ -50,12 +81,17 @@ export async function isFitmentAvailable(): Promise<boolean> {
 type Params = Record<string, string | number>;
 type Fetched = { ok: true; data: unknown[] } | { ok: false; reason: FitmentFailure };
 
-/** GET a quicksearch path and return its array body. Never throws; every failure is a reason. */
-async function getArray(path: string, params: Params): Promise<Fetched> {
+/**
+ * GET a quicksearch path and return its array body. Never throws; every failure is a reason.
+ * `notFoundOk`: only the reads whose input can be stale (trims, sizes) may answer not_found;
+ * a 4xx on years/makes/models is D&K breaking the contract, so it is upstream_error.
+ */
+async function getArray(path: string, params: Params, notFoundOk: boolean): Promise<Fetched> {
   const query = new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
+    const used = await getGatewayToken(); // the token gatewayFetch will send (cached session)
     const res = await gatewayFetch(query ? `${path}?${query}` : path, {
       signal: controller.signal,
       headers: { Timezone: BUSINESS.timezone },
@@ -63,12 +99,12 @@ async function getArray(path: string, params: Params): Promise<Fetched> {
     // null = the request threw (timeout, network) or the session vanished since token(); gatewayClient logged it.
     if (!res) return { ok: false, reason: "upstream_error" };
     // D&K answers 400 {"detail":"Invalid submodel value"} for a value it does not know.
-    if (res.status === 400 || res.status === 404) {
+    if (notFoundOk && (res.status === 400 || res.status === 404)) {
       log.info(`${path} -> ${res.status}`);
       return { ok: false, reason: "not_found" };
     }
     if (!res.ok) {
-      if (res.status === 401) invalidateGatewaySession();
+      if (res.status === 401) invalidateGatewaySession(used ?? undefined);
       log.warn(`${path} -> ${res.status}`);
       return { ok: false, reason: "upstream_error" };
     }
@@ -86,14 +122,24 @@ async function getArray(path: string, params: Params): Promise<Fetched> {
   }
 }
 
+function remember(cacheKey: string, value: unknown, ttlMs: number): void {
+  if (cache.size >= MAX_CACHE_ENTRIES) {
+    const oldest = cache.keys().next().value;
+    if (oldest !== undefined) cache.delete(oldest);
+  }
+  cache.set(cacheKey, { expiresAt: Date.now() + ttlMs, value });
+}
+
 /**
- * Login check, cache, fetch, map, cache: the one path every read takes.
- * Only ok results are cached, and only after mapping, so a failure or a throw cannot stick.
+ * Login check, cache, single flight, fetch, map, cache: the one path every read takes.
+ * An ok result is cached for its TTL; not_found and upstream_error for 30 s, so a repeated bad
+ * input or a D&K outage does not re-hit D&K on every call.
  */
 async function cached<T extends object>(
   path: string,
   params: Params,
   ttlMs: number,
+  notFoundOk: boolean,
   map: (data: unknown[]) => T,
 ): Promise<FitmentResult<T>> {
   if (!(await token())) return { ok: false, reason: "unconfigured" };
@@ -103,16 +149,20 @@ async function cached<T extends object>(
   if (hit && hit.expiresAt > Date.now()) return hit.value as FitmentResult<T>;
   if (hit) cache.delete(cacheKey);
 
-  const fetched = await getArray(path, params);
-  if (!fetched.ok) return fetched;
-  const value: FitmentResult<T> = { ok: true, ...map(fetched.data) };
-
-  if (cache.size >= MAX_CACHE_ENTRIES) {
-    const oldest = cache.keys().next().value;
-    if (oldest !== undefined) cache.delete(oldest);
-  }
-  cache.set(cacheKey, { expiresAt: Date.now() + ttlMs, value });
-  return value;
+  const running = inFlight.get(cacheKey);
+  if (running) return running as Promise<FitmentResult<T>>;
+  const work = (async (): Promise<FitmentResult<T>> => {
+    const fetched = await getArray(path, params, notFoundOk);
+    if (!fetched.ok) {
+      remember(cacheKey, fetched, NEGATIVE_TTL_MS);
+      return fetched;
+    }
+    const value: FitmentResult<T> = { ok: true, ...map(fetched.data) };
+    remember(cacheKey, value, ttlMs);
+    return value;
+  })().finally(() => inFlight.delete(cacheKey));
+  inFlight.set(cacheKey, work);
+  return work;
 }
 
 /** D&K's { value, label } items, trimmed, keeping only values the router would accept back. */
@@ -129,19 +179,18 @@ function pairs(data: unknown[]): { value: string; label: string }[] {
 /**
  * "WWW/AARDD" for metric sizes, so the chosen size feeds gatewayTire.publicSearch as is:
  * that normaliser strips only "/", "R" and spaces, so "LT245/75R16" or "225/40ZR18" would come
- * out malformed. Anything else (flotation "31X10.50R15") is returned uppercased, unchanged.
+ * out malformed. Anything else (flotation "31X10.50R15") is not searchable there: null.
  */
-function normalizeTireSize(raw: string): string {
-  const s = raw.trim().toUpperCase();
-  const m = /^(?:P|LT)?\s*(\d{3})\s*\/\s*(\d{2,3})\s*Z?R\s*(\d{2}(?:\.\d)?)/.exec(s);
-  return m ? `${m[1]}/${m[2]}R${m[3]}` : s;
+function metricSize(label: string): string | null {
+  const m = /^(?:P|LT)?\s*(\d{3})\s*\/\s*(\d{2,3})\s*Z?R\s*(\d{2}(?:\.\d)?)/.exec(label);
+  return m ? `${m[1]}/${m[2]}R${m[3]}` : null;
 }
 
 // ── Public reads (fitment v1) ───────────────────────────────────────
 
 /** Model years D&K knows, newest first. */
 export function getYears(): Promise<FitmentResult<{ years: number[] }>> {
-  return cached("/quicksearch/list-all-year", {}, LIST_TTL_MS, (data) => ({
+  return cached("/quicksearch/list-all-year", {}, LIST_TTL_MS, false, (data) => ({
     years: Array.from(new Set(pairs(data).map((p) => Number(p.value))))
       .filter((y) => Number.isInteger(y) && y >= MIN_YEAR && y <= MAX_YEAR)
       .sort((a, b) => b - a),
@@ -149,19 +198,19 @@ export function getYears(): Promise<FitmentResult<{ years: number[] }>> {
 }
 
 export function getMakes(year: number): Promise<FitmentResult<{ makes: FitmentOption[] }>> {
-  return cached("/quicksearch/get-make-by-year", { year }, LIST_TTL_MS, (data) => ({
+  return cached("/quicksearch/get-make-by-year", { year }, LIST_TTL_MS, false, (data) => ({
     makes: pairs(data).map((p) => ({ slug: p.value, name: p.label })),
   }));
 }
 
 export function getModels(year: number, make: string): Promise<FitmentResult<{ models: FitmentOption[] }>> {
-  return cached("/quicksearch/get-model-by-year-make", { year, make }, LIST_TTL_MS, (data) => ({
+  return cached("/quicksearch/get-model-by-year-make", { year, make }, LIST_TTL_MS, false, (data) => ({
     models: pairs(data).map((p) => ({ slug: p.value, name: p.label })),
   }));
 }
 
 export function getTrims(year: number, make: string, model: string): Promise<FitmentResult<{ trims: FitmentTrim[] }>> {
-  return cached("/quicksearch/get-sub-model-by-year-make", { year, make, model }, LIST_TTL_MS, (data) => ({
+  return cached("/quicksearch/get-sub-model-by-year-make", { year, make, model }, LIST_TTL_MS, true, (data) => ({
     trims: pairs(data).map((p) => ({ slug: p.value, label: p.label })),
   }));
 }
@@ -173,18 +222,20 @@ export function getSizes(
   submodel: string,
 ): Promise<FitmentResult<{ sizes: FitmentSize[] }>> {
   const path = "/quicksearch/get-tire-size-by-year-make-model-submodel";
-  return cached(path, { year, make, model, submodel }, SIZES_TTL_MS, (data) => {
+  return cached(path, { year, make, model, submodel }, SIZES_TTL_MS, true, (data) => {
     const seen = new Set<string>();
     const sizes: FitmentSize[] = [];
     for (const item of data) {
       const raw = typeof item === "object" && item !== null ? (item as Record<string, unknown>).value : undefined;
       if (typeof raw !== "string" || raw.trim() === "") continue;
-      const size = normalizeTireSize(raw);
+      const label = raw.trim().toUpperCase();
+      const metric = metricSize(label);
+      const size = metric ?? label;
       if (seen.has(size)) continue;
       seen.add(size);
       const rim = /R(\d{2}(?:\.\d)?)/.exec(size);
       // D&K returns no stock flag and no rear size; neither is invented here.
-      sizes.push({ size, rimDiameter: rim ? Number(rim[1]) : null, rearSize: null });
+      sizes.push({ size, label, rimDiameter: rim ? Number(rim[1]) : null, rearSize: null, searchable: metric !== null });
     }
     return { sizes };
   });
