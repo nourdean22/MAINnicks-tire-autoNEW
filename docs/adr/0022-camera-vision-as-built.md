@@ -40,3 +40,16 @@ Whether to buy PoE cameras, whether to move off the Windows box, and whether to 
 - `apps/nickstire/server/lib/cameraHealth.test.ts` (plausibility canary), `cameraHealthAlerts.test.ts` (per-episode paging), `shared/lotDataConfidence.test.ts`.
 - `apps/statenour/tests/services/vehicle-detection.test.ts` (row before page, unique eventId, weekend visit) and `tests/api/apply-pending-migration.test.ts` (the pending index is registered statement for statement).
 - Live proof still owed: a signed-in Admin > Lot walkthrough, the 0144 and 20261007120000 applies, and the first business day of the canary on the deployed code.
+
+## Update 2026-10-18: office lane on the shop PC
+
+Decision 6 and decision 7 name NicksMax as the office host. Since 2026-10-17 that is no longer true; the text above stays as the record of what ran from 2026-09-29 to 2026-10-09.
+
+- **What moved.** The office (inside camera) lane now runs on the shop front-desk PC MECHANICS (Chrome Remote Desktop name NICKSEUCLIDLPC) as scheduled task `StateNour-OfficeIntelligence-ShopPC` (SYSTEM, priority 7). It was installed with `camera-bridge/scripts/install-office-capture.ps1 -SourceKind rtsp`. Code lives at `C:\NOURCITY\camera-bridge` (`office*.py` only), tools at `C:\NOURCITY\tools`.
+- **Why.** On 2026-10-17 the inside Eufy T8410 (192.168.0.167, `T8410P5225154105`) was reset onto a new Eufy account. That cut off NicksMax's account-based Eufy bridge. NicksMax has been offline in Chrome Remote Desktop since 2026-10-16, and its office lane last posted on 2026-10-09.
+- **How it runs.** There is no Eufy bridge. The lane reads the camera's direct RTSP `/live0`, the audio-energy fallback wakes it every 30 s, and the decoder is whisper `base.en`.
+- **PRs.** #3133 (`cff5aa814`): `OFFICE_VISUAL_SOURCE=rtsp` stills and `OFFICE_WHISPER_THREADS`; the shop PC runs rtsp, visual on, 2 threads (first capture: `frames_captured` 5; production visual status DONE). #3137 (`353f9355e`): Admin > Lot > Checks > Office intelligence shows facts per conversation (the verbatim quote is owner-only, by role check) and a "Last 6 hours" digest (`lot.officeDigest`, ET hours, in-process memo, a model reading gists and facts only); live on nickstire.org since 2026-10-18 01:39Z. #3140 (`6bc7e1350`): `officewake` posts the office camera heartbeat when `OFFICE_CAMERA_HEARTBEAT_URL` is set; installed on the shop PC 2026-10-18 10:50Z.
+- **Producer authority.** The `camera_runtime.office` producer is now `p1-shop-office-*` (`camera-bridge.officewake`, host MECHANICS). If the shop PC stops, NicksMax takes the row back after 90 s of silence (`cameraProducerAuthority`). The shop PC's worker state reads `BRIDGE_RETRY` because it has no Eufy bridge; that is cosmetic.
+- **Rollback.** Run `Disable-ScheduledTask StateNour-OfficeIntelligence-ShopPC` in an admin shell. Clear `OFFICE_CAMERA_HEARTBEAT_URL` to hand the heartbeat back.
+
+Runbook: [`camera-bridge/docs/OFFICE-INTERACTION-COMMISSIONING.md`](../../camera-bridge/docs/OFFICE-INTERACTION-COMMISSIONING.md), sections "Stills without a bridge" and "Office camera heartbeat from the shop PC".

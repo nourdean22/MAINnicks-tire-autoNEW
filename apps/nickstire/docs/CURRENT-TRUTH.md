@@ -411,6 +411,8 @@ The canonical production Office device is **NICKS EUCLID** (`T8410P5225154105`, 
 
 ## NicksMax Office Intelligence runtime (2026-09-28/29) - LIVE PRODUCTION LOOP VERIFIED
 
+**Host changed 2026-10-17: see "Update 2026-10-18" at the end of this section. The NicksMax statements below are the 2026-09-28/29 record, not the current host.**
+
 This extends the commissioned NICKS EUCLID Office lane; it does not create a second camera authority. PR #2759 deployed the production ingest/Admin surface and #2786 added the fail-closed local audio fallback plus durable FFmpeg handling. On 2026-09-29 the operator explicitly cleared the recording-policy gate and enabled capture on NicksMax.
 
 - **Headless audio source is live-proven:** the reviewed Eufy bridge exposes `http://127.0.0.1:3000/record/T8410P5225154105`; Chrome/Eufy web UI and the Windows microphone are not production dependencies.
@@ -424,6 +426,15 @@ This extends the commissioned NICKS EUCLID Office lane; it does not create a sec
 - **Admin read path:** `trpc.lot.conversations` reads the same `conversation_episodes` table, hides self-tests by default, recomputes coverage, returns `summary` + `factCount`, and Admin renders them under **Lot -> Office intelligence -> Counter conversations**. Raw audio/full transcripts are intentionally not shown there.
 - **Resource controls:** raw episode audio remains local with 6-hour age retention, 256 MB quota, and a 768 MB disk floor. Fallback probe audio is not retained.
 - **Evidence boundary:** the full automatic path is now proven: local wake -> bounded capture -> segmentation -> local Whisper -> evidence/coverage handling -> production episode posts -> summary/fact storage. No new code change was required after #2786.
+
+**Update 2026-10-18: the office lane runs on the shop PC MECHANICS.**
+
+- **Host (2026-10-17).** The inside Eufy T8410 (192.168.0.167, `T8410P5225154105`) was reset onto a new Eufy account, which cut off NicksMax's account-based Eufy bridge. NicksMax has been offline in Chrome Remote Desktop since 2026-10-16, and its office lane last posted 2026-10-09. The lane now runs on the front-desk PC MECHANICS (Chrome Remote Desktop name NICKSEUCLIDLPC) as scheduled task `StateNour-OfficeIntelligence-ShopPC` (SYSTEM, priority 7), installed with `camera-bridge/scripts/install-office-capture.ps1 -SourceKind rtsp`. Code is at `C:\NOURCITY\camera-bridge` (`office*.py` only), tools at `C:\NOURCITY\tools`.
+- **Source (#3133, `cff5aa814`).** Direct RTSP `/live0`, no Eufy bridge. `OFFICE_VISUAL_SOURCE=rtsp` stills and `OFFICE_WHISPER_THREADS` are set on the shop PC to rtsp, visual on, 2 threads; the audio-energy fallback wakes every 30 s; whisper `base.en`. Live: `frames_captured` 5 on the first capture, production visual status DONE.
+- **Admin (#3137, `353f9355e`; live on nickstire.org since 2026-10-18 01:39Z).** Admin > Lot > Checks > Office intelligence shows facts per conversation (the verbatim quote is owner-only, by role check) and a "Last 6 hours" digest (`lot.officeDigest`, ET hours, in-process memo, a model reading gists and facts only).
+- **Heartbeat (#3140, `6bc7e1350`; installed on the shop PC 2026-10-18 10:50Z).** `officewake` posts the office camera heartbeat when `OFFICE_CAMERA_HEARTBEAT_URL` is set. The `camera_runtime.office` producer is now `p1-shop-office-*` (`camera-bridge.officewake`, host MECHANICS). If the shop PC stops, NicksMax takes the row back after 90 s of silence (`cameraProducerAuthority`). The shop PC's worker state reads `BRIDGE_RETRY` because it has no Eufy bridge (cosmetic).
+- **Rollback.** `Disable-ScheduledTask StateNour-OfficeIntelligence-ShopPC` in an admin shell; clear `OFFICE_CAMERA_HEARTBEAT_URL` to hand the heartbeat back.
+- Runbook: [`../../../camera-bridge/docs/OFFICE-INTERACTION-COMMISSIONING.md`](../../../camera-bridge/docs/OFFICE-INTERACTION-COMMISSIONING.md).
 ## Connection hardening closeout (2026-09-27/28)
 
 **Final merge receipt:** #2721 squash-merged as `1ab0063f523e0761d5e9e2c4f02ed12d8966b41d` after affected CI, authenticated StateNour E2E, Completion Authority, Adoption, Agent Policy, Admin, Secret Scanning, and security all passed. Its four earlier review findings were fixed and resolved. #2721 changed documentation/memory only; it does **not** claim a newer Nick production deployment than #2720.
@@ -434,7 +445,7 @@ Durable receipt: [`../../../docs/00-current-truth/connection-hardening-2026-09-2
 - TiDB/database/schema/self-healing are healthy and no longer the incident blocker.
 - Tailscale shop connectivity works; initial DERP fallback followed by a direct peer path is normal NAT traversal, not an outage.
 - Camera-health detection, durable claim/retry behavior, and persisted sign degradation/recovery state transitions are proven. Provider-accepted **real production degradation plus recovery owner delivery is not yet proven** and remains open.
-- Office is commissioned and emits `PRODUCTION` heartbeats from NicksMax against NICKS EUCLID (`T8410P5225154105`). Media is live-proven; the current state is `UNVERIFIED_CAPABILITIES` because fresh semantic-event, control/PTZ and calibrated-home receipts remain unknown. The old Moes camera (`T8410P522517180B`) is legacy and is not the production target.
+- (As of 2026-09-27; the office host moved to the shop PC MECHANICS on 2026-10-17, see the Office Intelligence runtime section.) Office is commissioned and emits `PRODUCTION` heartbeats from NicksMax against NICKS EUCLID (`T8410P5225154105`). Media is live-proven; the current state is `UNVERIFIED_CAPABILITIES` because fresh semantic-event, control/PTZ and calibrated-home receipts remain unknown. The old Moes camera (`T8410P522517180B`) is legacy and is not the production target.
 - NicksMax camera authority is now live on the direct Session-0 RTSP/OpenVINO path with the V380 GUI absent and locked-screen heartbeats proven. The earlier camera-session reboot guard is superseded; only the post-cutover cold-boot persistence receipt and separate consumer ESU enrollment remain open (2026-10-07: Session-0 startup after a boot was observed on Oct 2 and Oct 3, but the login-free Railway heartbeat receipt is still unrecorded).
 - Resend domain verification is failed until the required records are added at the authoritative Global Domain Group DNS provider.
 
