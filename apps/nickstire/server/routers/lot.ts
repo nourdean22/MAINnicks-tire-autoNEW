@@ -80,7 +80,7 @@ import { affectedRows, insertedId, writeResult } from "../lib/dbResult";
 import { createLogger } from "../lib/logger";
 import { jsonArray, storedFacts, transcriptCoverage } from "../lib/conversationQuality";
 import { officeHourDigest } from "../services/officeDigest";
-import { conversationEpisodeColumnReady, officeVisualColumnReady, storedVisual, __resetOfficeVisualCalibration } from "../services/officeVisual";
+import { conversationEpisodeColumnPresent, officeVisualColumnPresent, officeVisualColumnReady, storedVisual, __resetOfficeVisualCalibration } from "../services/officeVisual";
 
 const log = createLogger("routers:lot");
 
@@ -378,9 +378,13 @@ export const lotRouter = router({
    * Privacy/truth boundary:
    * - raw audio is never returned here
    * - full transcripts are never returned here
-   * - fact quotes ARE returned: each fact's evidenceText (at most 240 chars, at most 12 facts per
-   *   conversation) reaches this owner-only admin by operator decision 2026-10-17 ("Keep the short
-   *   verbatim quote under each fact in admin. Admin is owner-only.")
+   * - fact quotes go to the OWNER ROLE ONLY: each fact's evidenceText (at most 240 chars, at most
+   *   12 facts per conversation) is returned when ctx.adminSecurity.adminRole is "owner", by
+   *   operator decision 2026-10-17 ("Keep the short verbatim quote under each fact in admin. Admin
+   *   is owner-only."). lot.* is settings.manage, which a manager also holds, so every other role
+   *   gets the fact with evidenceText "" (the field stays, the quote does not). The middleware's
+   *   read fail-open (role unreadable -> owner) needs the same database this read then queries, so
+   *   it ends in ok:false here rather than in quotes.
    * - candidate visit/work-order links stay explicitly confidence-scored
    * - self-test rows are hidden by default so commissioning does not look like customers
    *
@@ -393,18 +397,20 @@ export const lotRouter = router({
       limit: z.number().int().min(1).max(100).default(25),
       includeSelftest: z.boolean().default(false),
     }).optional())
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const d = await dbTyped();
       if (!d) return { ok: false as const, reason: "database unavailable" };
 
       const limit = input?.limit ?? 25;
       const includeSelftest = input?.includeSelftest ?? false;
+      const quotes = ctx.adminSecurity.adminRole === "owner";
       try {
         const where = includeSelftest ? sql`1 = 1` : sql`source <> 'selftest'`;
-        // `visual` (migration 0140) is selected only once the column exists, so this read keeps
-        // working on a database where the migration has not been applied yet.
-        const visualReady = await officeVisualColumnReady(d);
-        const gistReady = await conversationEpisodeColumnReady(d, "gist");
+        // `visual` (migration 0140) and `gist` (0141) are selected only once the column exists, so
+        // this read keeps working before a migration is applied. STRICT probes: a probe that fails
+        // throws into the catch below (ok:false), never "column missing" rows without gist/visual.
+        const visualReady = await officeVisualColumnPresent(d);
+        const gistReady = await conversationEpisodeColumnPresent(d, "gist");
         const rows = rowsOf(await d.execute(sql`
           SELECT episodeId, source, cameraSerial, captureHost, triggerType,
                  ROUND(UNIX_TIMESTAMP(triggeredAt) * 1000) AS triggeredAtMs,
@@ -442,7 +448,7 @@ export const lotRouter = router({
             speakerCount: numOrNull(r.speakerCount),
             coverage: transcriptCoverage(r.transcript, r.durationSeconds),
             factCount: jsonArray(r.facts).length,
-            facts: storedFacts(r.facts).slice(0, 12),
+            facts: storedFacts(r.facts).slice(0, 12).map((f) => (quotes ? f : { ...f, evidenceText: "" })),
             summary: r.summary == null ? null : String(r.summary),
             candidateVehicleVisitId: r.vehicleVisitId == null ? null : String(r.vehicleVisitId),
             candidateWorkOrderId: r.workOrderId == null ? null : String(r.workOrderId),
@@ -461,7 +467,7 @@ export const lotRouter = router({
     }),
 
   /**
-   * Hourly office digest (contract office-digest v2): the last N clock hours, newest first,
+   * Hourly office digest (contract office-digest v3): the last N clock hours, newest first,
    * including the current partial hour. Same privacy boundary as `conversations`: the digest
    * is built from gists and validated fact kind/value pairs only (services/officeDigest.ts).
    *
@@ -472,7 +478,9 @@ export const lotRouter = router({
    * NO_ACTIVITY = no episodes. THIN = episodes but no gist and no fact (nothing honest to
    * summarise, no LLM call). FAILED without an LLM call = no gist or fact and at least one
    * transcriptStatus FAILED capture. computedAtMs is when the digest's LLM call finished, null when
-   * none ran. A failed read is { ok: false }, never an hours list of NO_ACTIVITY.
+   * none ran. talkSeconds is null when any episode in the hour has a NULL duration (v3). A failed
+   * read, including a failed gist-column probe, is { ok: false }, never an hours list of
+   * NO_ACTIVITY or THIN. At most 2 hours generate at once (services/officeDigest.ts).
    */
   officeDigest: adminProcedure
     .input(z.object({ hours: z.number().int().min(1).max(12).default(6) }).optional())
@@ -487,7 +495,8 @@ export const lotRouter = router({
         const clock = numOrNull(rowsOf(await d.execute(sql`SELECT FLOOR(UNIX_TIMESTAMP() / 3600) AS nowHour`))[0]?.nowHour);
         if (clock === null) return { ok: false as const, reason: "database clock read returned no row" };
         nowHour = clock;
-        const gistReady = await conversationEpisodeColumnReady(d, "gist");
+        // Strict: a failed probe is ok:false, not a missing gist column that turns real hours THIN.
+        const gistReady = await conversationEpisodeColumnPresent(d, "gist");
         rows = rowsOf(await d.execute(sql`
           SELECT episodeId, durationSeconds, facts, transcriptStatus,
                  FLOOR(UNIX_TIMESTAMP(COALESCE(startedAt, createdAt)) / 3600) AS hourIdx
@@ -509,7 +518,7 @@ export const lotRouter = router({
           .filter((r) => num(r.hourIdx) === hourIdx)
           .map((r) => ({
             episodeId: String(r.episodeId),
-            durationSeconds: num(r.durationSeconds),
+            durationSeconds: numOrNull(r.durationSeconds),
             gist: typeof r.gist === "string" && r.gist.trim() ? r.gist : null,
             facts: storedFacts(r.facts).map((f) => ({ kind: f.kind, value: f.value })),
             transcriptFailed: r.transcriptStatus === "FAILED",
@@ -533,7 +542,10 @@ export const lotRouter = router({
           hourEndMs: hourStartMs + 3_600_000,
           isCurrent,
           episodes: episodes.length,
-          talkSeconds: Math.round(episodes.reduce((s, e) => s + e.durationSeconds, 0)),
+          // NULL duration = unknown talk time; one unknown makes the hour's total unknown, not lower.
+          talkSeconds: episodes.some((e) => e.durationSeconds === null)
+            ? null
+            : Math.round(episodes.reduce((s, e) => s + (e.durationSeconds ?? 0), 0)),
           factCount,
           status: llm.status,
           digest: llm.digest,

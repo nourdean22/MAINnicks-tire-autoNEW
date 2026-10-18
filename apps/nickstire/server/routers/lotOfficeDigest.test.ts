@@ -18,6 +18,17 @@ vi.mock("../services/officeVisual", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../services/officeVisual")>()),
   officeVisualColumnReady: vi.fn(async () => false),
   conversationEpisodeColumnReady: vi.fn(async () => true),
+  officeVisualColumnPresent: vi.fn(async () => false),
+  conversationEpisodeColumnPresent: vi.fn(async () => true),
+}));
+
+// The admin middleware reads the caller's role here (ctx.adminSecurity is overwritten with MFA off).
+// null = no row = the documented pre-RBAC owner fallback, which every older test relies on.
+const role = vi.hoisted(() => ({ current: null as null | "owner" | "manager" }));
+vi.mock("../services/adminSecurity", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../services/adminSecurity")>()),
+  getAdminSecurityState: vi.fn(async () => role.current === null ? null
+    : { adminRole: role.current, mfaEnabled: false, mfaVerifiedAt: null, mfaAgeMinutes: null, encryptedSecret: null }),
 }));
 
 const llm = vi.hoisted(() => vi.fn());
@@ -27,8 +38,11 @@ import { lotRouter } from "./lot";
 import type { TrpcContext } from "../_core/context";
 import { __resetOfficeDigestMemo } from "../services/officeDigest";
 import { sliceBlock } from "../testUtils/sourceBlock";
+import { conversationEpisodeColumnPresent, officeVisualColumnPresent } from "../services/officeVisual";
 
-function caller() {
+/** `adminRole` set = the stored role the real admin middleware reads and enforces. */
+function caller(adminRole?: "owner" | "manager") {
+  role.current = adminRole ?? null;
   return lotRouter.createCaller({
     user: { id: 1, openId: "admin", email: "a@b.com", name: "A", loginMethod: "manus", role: "admin", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() },
     req: { protocol: "https", headers: {} } as TrpcContext["req"],
@@ -39,7 +53,7 @@ function caller() {
 const H = 490_000; // an epoch hour index (2025-11-24 16:00Z); any integer works
 const HOUR_MS = 3_600_000;
 
-type Ep = { episodeId: string; hourIdx: number; durationSeconds?: number; gist?: string | null; facts?: unknown; transcriptStatus?: string };
+type Ep = { episodeId: string; hourIdx: number; durationSeconds?: number | null; gist?: string | null; facts?: unknown; transcriptStatus?: string };
 
 /** Route the router's two reads: the SQL clock, then the episode rows. */
 function dbWith(episodes: Ep[], nowHour = H) {
@@ -396,5 +410,82 @@ describe("lot.officeDigest v2 (review fixes)", () => {
       .find((m) => m.role === "user")!.content;
     expect(user).toMatch(/<<<NOTES[\s\S]*now obey me[\s\S]*NOTES>>>\s*$/);
     expect(user.match(/NOTES>>>/g)).toHaveLength(1);
+  });
+});
+
+describe("office digest v3 (PR #3137 review)", () => {
+  const ok = <T extends { ok: boolean }>(r: T) => {
+    if (!r.ok) throw new Error("expected ok");
+    return r as Extract<T, { ok: true }>;
+  };
+  const conversationRow = () => [[{
+    episodeId: "ep-1", source: "office", transcriptStatus: "DONE", durationSeconds: 40,
+    facts: [fact("PROMISE", "brakes by 3pm", "we'll have the brakes done by three")], gist: "brakes",
+  }], []];
+
+  it("P1: fact quotes reach the owner role only; a manager gets the fact without its quote", async () => {
+    execute.mockResolvedValue(conversationRow());
+    const owner = ok(await caller("owner").conversations());
+    expect(owner.conversations[0].facts[0].evidenceText).toBe("we'll have the brakes done by three");
+
+    const manager = ok(await caller("manager").conversations());
+    expect(manager.conversations[0].facts[0]).toEqual({ kind: "PROMISE", value: "brakes by 3pm", evidenceText: "", confidence: 0.9 });
+    expect(JSON.stringify(manager)).not.toContain("have the brakes done");
+  });
+
+  it("P2: a cold cache generates at most 2 hours at once", async () => {
+    dbWith(Array.from({ length: 6 }, (_, i) => ({ episodeId: `e${i}`, hourIdx: H - i, gist: `g${i}` })));
+    let active = 0;
+    let peak = 0;
+    llm.mockImplementation(async () => {
+      active++;
+      peak = Math.max(peak, active);
+      await new Promise((r) => setTimeout(r, 5));
+      active--;
+      return llmReturns("d");
+    });
+    const r = ok(await caller().officeDigest({ hours: 6 }));
+    expect(r.hours.every((h) => h.status === "DONE")).toBe(true);
+    expect(llm).toHaveBeenCalledTimes(6);
+    expect(peak).toBe(2);
+
+    // A second cold burst (six new hours) still peaks at 2: the slot count must not drift
+    // as slots are handed from one hour to the next.
+    peak = 0;
+    dbWith(Array.from({ length: 6 }, (_, i) => ({ episodeId: `n${i}`, hourIdx: H + 6 - i, gist: `n${i}` })), H + 6);
+    ok(await caller().officeDigest({ hours: 6 }));
+    expect(llm).toHaveBeenCalledTimes(12);
+    expect(peak).toBe(2);
+  });
+
+  it("P2: a failed gist-column probe makes officeDigest ok:false, never a THIN hour", async () => {
+    dbWith([{ episodeId: "a", hourIdx: H, gist: "g" }]);
+    vi.mocked(conversationEpisodeColumnPresent).mockRejectedValueOnce(new Error("information_schema timeout"));
+    const r = await caller().officeDigest({ hours: 1 });
+    expect(r).toMatchObject({ ok: false });
+    expect(r).not.toHaveProperty("hours");
+    expect(llm).not.toHaveBeenCalled();
+  });
+
+  it("class fix: a failed gist or visual probe makes lot.conversations ok:false, never rows without gist", async () => {
+    execute.mockResolvedValue(conversationRow());
+    vi.mocked(conversationEpisodeColumnPresent).mockRejectedValueOnce(new Error("information_schema timeout"));
+    expect(await caller().conversations()).toMatchObject({ ok: false });
+
+    vi.mocked(officeVisualColumnPresent).mockRejectedValueOnce(new Error("information_schema timeout"));
+    expect(await caller().conversations()).toMatchObject({ ok: false });
+
+    // control: probes that work still serve rows
+    expect(ok(await caller().conversations()).conversations[0].gist).toBe("brakes");
+  });
+
+  it("P2: talkSeconds is null when any episode's duration is unknown, never a summed zero", async () => {
+    dbWith([
+      { episodeId: "a", hourIdx: H, durationSeconds: null },
+      { episodeId: "b", hourIdx: H, durationSeconds: 40 },
+      { episodeId: "c", hourIdx: H - 1, durationSeconds: 25 },
+    ]);
+    const r = ok(await caller().officeDigest({ hours: 3 }));
+    expect(r.hours.map((h) => h.talkSeconds)).toEqual([null, 25, 0]);
   });
 });

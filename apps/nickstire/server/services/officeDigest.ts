@@ -54,8 +54,32 @@ type Entry = {
 };
 const memo = new Map<number, Entry>();
 
+/**
+ * At most 2 hours generate at once. The Ollama scheduler gives background work 2 slots and each
+ * call waits SLOT_WAIT_MS for one, so a cold 6-12 hour read firing every hour at once queued most
+ * of them past that wait and failed itself. A freed slot passes straight to the next waiter, so a
+ * new caller can never slip in between and make a third.
+ */
+const MAX_CONCURRENT_HOURS = 2;
+let running = 0;
+const waiting: Array<() => void> = [];
+
+async function withHourSlot<T>(fn: () => Promise<T>): Promise<T> {
+  if (running < MAX_CONCURRENT_HOURS) running++;
+  else await new Promise<void>((resolve) => waiting.push(resolve));
+  try {
+    return await fn();
+  } finally {
+    const next = waiting.shift();
+    if (next) next();
+    else running--;
+  }
+}
+
 export function __resetOfficeDigestMemo(): void {
   memo.clear();
+  running = 0;
+  waiting.length = 0;
 }
 
 const OPEN = "<<<NOTES";
@@ -165,7 +189,7 @@ export function officeHourDigest(hourStartMs: number, isCurrent: boolean, episod
   }
 
   const entry = { key, startedAtMs: now, result: null, good: prev?.good ?? null } as Entry;
-  entry.promise = generate(hourStartMs, episodes)
+  entry.promise = withHourSlot(() => generate(hourStartMs, episodes))
     .catch(() => failed("digest call failed"))
     .then((r) => {
       entry.result = r;
