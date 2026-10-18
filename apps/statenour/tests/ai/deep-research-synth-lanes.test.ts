@@ -31,7 +31,7 @@ vi.mock("@/lib/ai/multi-search", () => ({
     citations: [{ url: "https://example.com/wan" }],
   }),
 }));
-vi.mock("@/lib/integrations/firecrawl", () => ({ isFirecrawlConfigured: () => false }));
+vi.mock("@/lib/integrations/firecrawl", () => ({ isFirecrawlConfigured: () => false, isScrapeConfigured: () => false }));
 const remember = vi.fn().mockResolvedValue(undefined);
 vi.mock("@/lib/brain/memory-manager", () => ({ brainMemory: { remember } }));
 vi.mock("@/lib/ai/personas/scorer", () => ({ recordPersonaUsage: vi.fn().mockResolvedValue(undefined) }));

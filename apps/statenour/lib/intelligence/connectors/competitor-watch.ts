@@ -30,8 +30,8 @@ const WATCH_TARGETS: ReadonlyArray<{ competitor: string; url: string }> = [
 ];
 
 export async function fetchCompetitorPages(): Promise<CompetitorPageSnapshot[]> {
-  const { isFirecrawlConfigured, scrapeUrl } = await import("@/lib/integrations/firecrawl");
-  if (!isFirecrawlConfigured()) {
+  const { isScrapeConfigured, scrapeUrl } = await import("@/lib/integrations/firecrawl");
+  if (!isScrapeConfigured()) {
     log.info("FIRECRAWL_API_KEY not configured; emitting no competitor snapshots rather than mock promos.");
     return [];
   }

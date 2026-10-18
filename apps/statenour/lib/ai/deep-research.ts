@@ -330,8 +330,8 @@ export async function runDeepResearch(args: {
   // scrape failing → skip silently; the search rounds still stand.
   const pageRounds: typeof roundResults = [];
   try {
-    const { isFirecrawlConfigured, scrapeUrl } = await import("@/lib/integrations/firecrawl");
-    if (isFirecrawlConfigured() && successful.length > 0) {
+    const { isScrapeConfigured, scrapeUrl } = await import("@/lib/integrations/firecrawl");
+    if (isScrapeConfigured() && successful.length > 0) {
       const seenHosts = new Set<string>();
       const targets: string[] = [];
       for (const url of successful.flatMap((r) => r.citations)) {

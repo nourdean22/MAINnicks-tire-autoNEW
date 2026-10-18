@@ -74,8 +74,8 @@ export interface ChangeDetectionResult {
 export async function runChangeDetection(
   pages: ReadonlyArray<WatchedPage> = WATCHED_PAGES,
 ): Promise<ChangeDetectionResult> {
-  const { isFirecrawlConfigured, scrapeUrl } = await import("@/lib/integrations/firecrawl");
-  if (!isFirecrawlConfigured()) {
+  const { isScrapeConfigured, scrapeUrl } = await import("@/lib/integrations/firecrawl");
+  if (!isScrapeConfigured()) {
     log.info("FIRECRAWL_API_KEY not configured; change-detection skipped (no mock).");
     return { checked: 0, changes: [], unchanged: 0, failed: 0, skipped: true };
   }
