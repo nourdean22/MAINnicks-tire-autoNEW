@@ -14,7 +14,7 @@
  * endpoints are unreachable from here.
  *
  * camofox's own URL check is scheme-only (server.js validateUrl @39c8209) and
- * the service sits on Railway's private network, so the final URL it reports is
+ * the service may sit on a private network, so the final URL it reports is
  * re-checked with assertPublicUrl: a public page that redirects to an internal
  * host is refused, not returned.
  */
@@ -59,6 +59,12 @@ function baseUrl(): URL {
   if (!raw || !process.env.CAMOFOX_API_KEY) throw new Error("CAMOFOX_URL / CAMOFOX_API_KEY not configured");
   const u = new URL(raw);
   if (u.protocol !== "http:" && u.protocol !== "https:") throw new Error("CAMOFOX_URL must be http(s)");
+  // The bearer key rides every request: plain http only inside Railway's private network or this machine.
+  const host = u.hostname.toLowerCase();
+  const privateHop = host.endsWith(".railway.internal") || host === "localhost" || host === "127.0.0.1" || host === "[::1]";
+  if (u.protocol === "http:" && !privateHop) {
+    throw new Error("CAMOFOX_URL must use https unless the host is *.railway.internal or localhost");
+  }
   return u;
 }
 

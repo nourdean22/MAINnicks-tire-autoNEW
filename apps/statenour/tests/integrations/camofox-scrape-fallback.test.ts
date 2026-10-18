@@ -49,7 +49,7 @@ vi.mock("@mendable/firecrawl-js", () => ({
 }));
 
 // ── camofox fake server (via fetch) ────────────────────────────────────────
-const CAMOFOX_URL = "http://camofox.internal.test:9377";
+const CAMOFOX_URL = "http://camofox-browser.railway.internal:9377";
 const CAMOFOX_KEY = "cfx-test-key-not-real";
 
 type Call = { method: string; url: string; auth: string | null; body: string | null; signal: unknown };
@@ -352,6 +352,33 @@ describe("(f)(g) camofox adapter: read-only, always closes its tab", () => {
     expect(r.markdown.endsWith("\n\n...[truncated]")).toBe(true);
     expect(r.markdown.length).toBe(100 + "\n\n...[truncated]".length);
     expect(r.charCount).toBeGreaterThan(500);
+  });
+});
+
+describe("CAMOFOX_URL transport: the bearer key never crosses the internet in clear text", () => {
+  it.each([
+    "http://camofox.example.com",
+    "http://camofox-browser.up.railway.app",
+    "http://93.184.216.34:9377",
+    "http://railway.internal.evil.test",
+  ])("refuses plain http to %s before any request is sent", async (u) => {
+    vi.stubEnv("CAMOFOX_URL", u);
+    const { scrapeWithCamofox } = await import("@/lib/integrations/camofox");
+    await expect(scrapeWithCamofox("https://pub-g.test/")).rejects.toThrow(/https/i);
+    expect(calls).toHaveLength(0);
+  });
+
+  it.each([
+    "https://camofox-browser.up.railway.app",
+    "http://camofox-browser.railway.internal:9377",
+    "http://localhost:9377",
+    "http://127.0.0.1:9377",
+  ])("positive control · %s is allowed", async (u) => {
+    vi.stubEnv("CAMOFOX_URL", u);
+    const { scrapeWithCamofox } = await import("@/lib/integrations/camofox");
+    const r = await scrapeWithCamofox("https://pub-g.test/");
+    expect(r.provider).toBe("camofox");
+    expect(new URL(calls[0]!.url).origin).toBe(new URL(u).origin);
   });
 });
 
