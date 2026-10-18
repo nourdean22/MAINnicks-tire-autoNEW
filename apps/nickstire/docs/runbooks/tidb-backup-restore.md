@@ -38,6 +38,9 @@ read 2026-10-17). This job is the copy that survives all three.
   last set holding them is 7+ days old): `search_performance` (GSC mirror, re-fetchable
   for 16 months) and `revenue_reconciliation_candidates` (re-derived every 2h from
   nightly tables). The manifest's `skipped` list names them with the reason.
+  `revenue_reconciliation_candidates` shrinks once the `revenue_recon_retention` flag is ON: the nightly
+  `cleanup` job then deletes its superseded rows (never the newest row per call), so the weekly copy gets
+  smaller (counts every night in cron_log, `cleanup` details, "recon candidates: ...").
 - **Retention:** 14 newest complete sets + 8 newest weekly sets. Deletes only keys
   inside `backups/tidb/<date>/`; anything else in the bucket is never touched.
 - **Success = completion:** cron_log `completed` only after every file and the

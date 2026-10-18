@@ -47,9 +47,11 @@ function fakeTable(initial: Row[]) {
       return [[...byCall].map(([call_id, g]) => ({ call_id, n: String(g.n), latest: g.latest })), []];
     }
     if (/^DELETE/i.test(text)) {
-      const [callId, bound] = stmt.params as [number, number];
+      // The fake reads the statement TEXT, so a DELETE that loses its bound (or widens it to <=) deletes the newest row here too.
+      const [callId, bound] = stmt.params as [number, number | undefined];
+      const op = text.match(/ AND UNIX_TIMESTAMP\(created_at\) (<=?) \?$/)?.[1] ?? null;
       const before = rows.length;
-      rows = rows.filter((r) => !(r.callId === callId && r.createdAt < bound));
+      rows = rows.filter((r) => !(r.callId === callId && (op === null || (op === "<" ? r.createdAt < bound! : r.createdAt <= bound!))));
       return [{ affectedRows: before - rows.length }, undefined];
     }
     throw new Error(`unexpected statement: ${text}`);
