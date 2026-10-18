@@ -190,8 +190,8 @@ loads nothing while still passing a substring check. Registry + design notes:
 
 - Agent `MEMORY.md` in `~/.claude/projects/` is machine-local + sibling-edited: re-read first. Durable handoff: `apps/<app>/.remember/`.
 - statenour's own "brain" (BrainMemory + pgvector recall) is a PRODUCT feature, separate from agent memory; do not conflate.
+- Text Nour wraps in `<private>...</private>` is read and acted on, never stored: memory, `.remember/`, asks files, ledger, PRs, commits.
 <!-- Do NOT delete this section without checking who points at it (deleted once 2026-08-21; docs/agent-audit/AUDIT-2026-08-21.md). -->
-
 ## Operating frameworks
 
 - [`.agents/core/CORE.md`](.agents/core/CORE.md) — voice, identity, Nour, playbooks, manager. Persona + §11: `AGENT-OPERATING-PROFILE.md`.
