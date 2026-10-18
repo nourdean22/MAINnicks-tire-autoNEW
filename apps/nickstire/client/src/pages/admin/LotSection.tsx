@@ -38,7 +38,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 
-import { trpc } from "@/lib/trpc";
+import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
 import { VISIT_MARK_BUTTONS, VISIT_MARK_LABELS, type VisitMark, type VisitMarkState } from "@shared/visitMarks";
 import { summarizeCameraFleet, WORKER_STALE_AFTER_SECONDS } from "@shared/cameraFleetHealth";
@@ -216,6 +216,8 @@ type ConversationRow = {
   linkConfidence: number | null;
   /** One sentence on what the conversation was about (migration 0141). Absent on older servers. */
   gist?: string | null;
+  /** Evidence-backed facts, max 12 (office-digest v1). Absent on older servers: not available, not zero. */
+  facts?: Array<{ kind: string; value: string; evidenceText: string; confidence: number | null }>;
   /** What the office camera saw (migration 0140). Absent on older servers, null when no frames were sent. */
   visual?: {
     status: "DONE" | "FAILED";
@@ -1265,6 +1267,176 @@ type ConversationQueryData =
   | { ok: true; conversations: ConversationRow[] }
   | { ok: false; reason: string };
 
+/** office-digest v3: one row per clock hour, newest first. */
+type RouterDigestHour = Extract<RouterOutputs["lot"]["officeDigest"], { ok: true }>["hours"][number];
+/**
+ * shortcut: office-digest v3 makes talkSeconds number | null (null = duration unknown); the server lane is
+ * changing it now. Widened here until the router carries it, then use RouterDigestHour directly.
+ */
+type DigestHour = Omit<RouterDigestHour, "talkSeconds"> & { talkSeconds: number | null };
+
+const DIGEST_HOURS = 6;
+const DIGEST_POLL_MS = 60_000;
+const DIGEST_TOPICS_SHOWN = 5;
+
+/** "2 PM" in shop time, whatever the phone's timezone. */
+function shopHour(ms: number): string {
+  return new Date(ms).toLocaleTimeString("en-US", { hour: "numeric", timeZone: "America/New_York" });
+}
+
+function talkLabel(seconds: number | null): string {
+  if (seconds === null) return "talk time unknown";
+  // A 40 s hour rounds to "0 min", which reads as silence.
+  return seconds > 0 && seconds < 60 ? "under 1 min talk" : `${Math.round(seconds / 60)} min talk`;
+}
+
+function digestText(h: DigestHour): { text: string; tone: string } {
+  switch (h.status) {
+    case "DONE":
+      return { text: h.digest ?? "No summary text was saved for this hour.", tone: "text-foreground/85" };
+    case "NO_ACTIVITY":
+      return { text: "No conversations", tone: "text-foreground/50" };
+    case "THIN":
+      return { text: "Too little clear audio to summarize", tone: "text-foreground/50" };
+    case "FAILED":
+      return { text: "Summary failed, retrying", tone: "text-amber-300" };
+    default:
+      return { text: "Summary status unknown", tone: "text-amber-300" };
+  }
+}
+
+/** The "Last 6 hours" block at the top of Office intelligence. A read that did not answer is never a quiet hour. */
+function OfficeDigest() {
+  const q = trpc.lot.officeDigest.useQuery({ hours: DIGEST_HOURS }, { refetchInterval: DIGEST_POLL_MS });
+  const answer = answerOf(q);
+  const data = q.data;
+  const reason = offlineReason(q) ?? (data && data.ok === false ? data.reason : q.error?.message);
+
+  return (
+    <section aria-label="Last 6 hours" className="mb-4 border-b border-foreground/10 pb-3">
+      <div className="mb-1 flex items-baseline justify-between gap-3">
+        <h3 className="text-[12px] font-semibold">Last 6 hours</h3>
+        {answer === "answered" && data?.ok === true && (
+          <span className="text-[11px] text-foreground/40 tabular-nums">
+            checked {stamp(new Date(data.generatedAtMs).toISOString())}
+          </span>
+        )}
+      </div>
+      {answer === "loading" ? (
+        <Loading what="hourly summary" />
+      ) : answer === "unknown" || data?.ok !== true ? (
+        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3">
+          <div className="text-[13px] font-semibold text-red-400">Hourly summary unavailable</div>
+          {reason && <div className="mt-0.5 text-[12px] text-foreground/70">{reason}</div>}
+          <div className="mt-0.5 text-[12px] text-foreground/50">This is not a quiet shop. The summary could not be read.</div>
+          <button
+            type="button"
+            className="mt-2 min-h-12 min-w-12 rounded-md border border-foreground/20 px-4 text-[13px] active:scale-95"
+            onClick={() => { void q.refetch(); }}
+          >
+            Retry
+          </button>
+        </div>
+      ) : data.hours.length === 0 ? (
+        <div className="text-[13px] text-foreground/60">No hourly summaries yet.</div>
+      ) : (
+        <ol aria-label="Hourly summaries" className="divide-y divide-foreground/10">
+          {data.hours.map((h: DigestHour) => {
+            const { text, tone } = digestText(h);
+            return (
+              <li key={h.hourStartMs} className="py-2">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+                  <span className="text-[13px] font-medium tabular-nums">
+                    {shopHour(h.hourStartMs)} to {shopHour(h.hourEndMs)}
+                    {h.isCurrent && <span className="font-normal text-foreground/50">, so far</span>}
+                  </span>
+                  {h.status !== "NO_ACTIVITY" && (
+                    <span className="text-[11px] text-foreground/50 tabular-nums">
+                      {h.episodes} conversation{h.episodes === 1 ? "" : "s"} · {talkLabel(h.talkSeconds)}
+                    </span>
+                  )}
+                </div>
+                <p className={`mt-1 text-[13px] ${tone}`}>{text}</p>
+                {h.status === "FAILED" && h.error && (
+                  <p className="mt-0.5 text-[11px] text-foreground/50">{h.error}</p>
+                )}
+                {h.status === "DONE" && (h.digest || h.computedAtMs !== undefined) && (
+                  // A model wrote this from gists and facts; it is not a record of what was said.
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-foreground/45 tabular-nums">
+                    {h.digest && <span className="rounded border border-foreground/15 px-1.5 py-0.5">AI summary</span>}
+                    {typeof h.computedAtMs === "number" ? (
+                      <span>summary from {stamp(new Date(h.computedAtMs).toISOString())}</span>
+                    ) : h.computedAtMs === null ? (
+                      <span>summary time not recorded</span>
+                    ) : null}
+                  </div>
+                )}
+                {h.status === "DONE" && h.topics.length > 0 && (
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {h.topics.slice(0, DIGEST_TOPICS_SHOWN).map((t, i) => (
+                      <span key={`${i}-${t}`} className="rounded-full border border-foreground/15 px-2 py-0.5 text-[11px] text-foreground/70">
+                        {t}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ol>
+      )}
+    </section>
+  );
+}
+
+const FACTS_SHOWN = 3;
+
+/** "TIRE_SIZE" or "vehicle_make" as a sentence-case label. */
+function factLabel(kind: string): string {
+  const words = kind.replace(/[_-]+/g, " ").trim().toLowerCase();
+  return words ? words[0].toUpperCase() + words.slice(1) : "Fact";
+}
+
+/**
+ * A conversation's facts under its gist: the first three, then a toggle for the rest. The server sends
+ * at most 12 of `total`, so every count on screen says how many of how many, never "all" of a cut list.
+ */
+function FactList({ facts, total }: { facts: NonNullable<ConversationRow["facts"]>; total: number }) {
+  const [all, setAll] = useState(false);
+  if (facts.length === 0 && total === 0) return null;
+  const capped = total > facts.length;
+  const shown = all ? facts : facts.slice(0, FACTS_SHOWN);
+  const toggles = facts.length > FACTS_SHOWN;
+  return (
+    <div className="mt-1.5">
+      {facts.length > 0 && (
+        <ul aria-label="Facts heard" className="space-y-1">
+          {shown.map((f, i) => (
+            <li key={`${f.kind}-${i}`} className="text-[12px] text-foreground/80">
+              <span className="font-medium text-foreground/55">{factLabel(f.kind)}: </span>
+              {f.value}
+              {f.evidenceText && <q className="mt-0.5 block text-[11px] text-foreground/45">{f.evidenceText}</q>}
+            </li>
+          ))}
+        </ul>
+      )}
+      {capped && (all || !toggles) && (
+        <div className="mt-1 text-[11px] text-foreground/45">Showing {facts.length} of {total} facts</div>
+      )}
+      {toggles && (
+        <button
+          type="button"
+          aria-expanded={all}
+          className="min-h-12 rounded-md px-3 text-[12px] text-foreground/60 underline active:scale-95"
+          onClick={() => setAll((v) => !v)}
+        >
+          {all ? "Show fewer" : capped ? `Show ${facts.length} of ${total}` : `Show all ${facts.length}`}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function ConversationPanel({
   query,
   officeCamera,
@@ -1305,6 +1477,7 @@ function ConversationPanel({
       icon={<MessageSquare className="w-4 h-4" />}
       subtitle="NICKS EUCLID camera health, counter capture/STT health, and evidence-backed summaries in one truth surface"
     >
+      <OfficeDigest />
       <div className="grid gap-3 lg:grid-cols-2">
         <div className="rounded-lg border border-foreground/10 p-3">
           <div className="flex items-start justify-between gap-3">
@@ -1539,6 +1712,8 @@ function ConversationPanel({
                     : status === "SKIPPED"
                       ? "border-foreground/20 bg-foreground/5 text-foreground/60"
                       : "border-amber-500/30 bg-amber-500/10 text-amber-300";
+              // A stale factCount must never claim fewer facts than the row lists.
+              const factTotal = Math.max(row.factCount, row.facts?.length ?? 0);
               const coverage =
                 row.coverage === null
                   ? "coverage unknown"
@@ -1584,6 +1759,7 @@ function ConversationPanel({
                           {row.gist}
                         </div>
                       )}
+                      {row.facts && <FactList facts={row.facts} total={factTotal} />}
                       <div className={row.gist && !row.summary ? "mt-1 text-[11px] text-foreground/45" : "mt-1 text-[13px] text-foreground/85"}>
                         {summaryText}
                       </div>
@@ -1621,7 +1797,7 @@ function ConversationPanel({
                   <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-foreground/50 tabular-nums">
                     <span>{coverage}</span>
                     <span>
-                      {row.factCount} fact{row.factCount === 1 ? "" : "s"}
+                      {factTotal} fact{factTotal === 1 ? "" : "s"}
                     </span>
                     <span>{duration}</span>
                     {row.speakerCount !== null && (

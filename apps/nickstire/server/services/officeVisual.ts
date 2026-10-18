@@ -196,14 +196,38 @@ export async function analyzeOfficeFrames(
   return { ...failed(frames.length, errors.join(" | ")), prompted: true };
 }
 
-const readyCache = new Map<string, { ok: boolean; at: number }>();
+/** `failed`: the entry records a probe that threw, not a confirmed answer. */
+const readyCache = new Map<string, { ok: boolean; at: number; failed?: boolean }>();
 const READY_TTL_MS = 10 * 60 * 1000;
 
 /**
- * Does `conversation_episodes.<column>` exist yet? Hand-applied migrations (0140 visual, 0141
- * gist) mean the code ships first. A positive answer is cached (a column does not un-apply); a
+ * STRICT: does `conversation_episodes.<column>` exist? true / false only when the
+ * information_schema probe ANSWERED; a probe that fails THROWS. For readers that render: a failed
+ * probe must surface as an error, not as "column missing" (rows silently without gist or visual).
+ * Shares the lenient reader's cache but never serves a cached failure as a confirmed "missing".
+ */
+export async function conversationEpisodeColumnPresent(
+  d: { execute: (q: SQL) => Promise<unknown> },
+  column: "visual" | "gist",
+  now = Date.now(),
+): Promise<boolean> {
+  const cached = readyCache.get(column);
+  if (cached && !cached.failed && (cached.ok || now - cached.at < READY_TTL_MS)) return cached.ok;
+  const [row] = readRows(await d.execute(sql`
+    SELECT COUNT(*) AS n FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'conversation_episodes' AND COLUMN_NAME = ${column}
+  `));
+  const ok = Number(row?.n) === 1;
+  readyCache.set(column, { ok, at: now });
+  return ok;
+}
+
+/**
+ * LENIENT: does `conversation_episodes.<column>` exist yet? Hand-applied migrations (0140 visual,
+ * 0141 gist) mean the code ships first. A positive answer is cached (a column does not un-apply); a
  * negative answer is re-checked after the TTL so applying the migration takes effect without a
- * deploy. A failed check reads as NOT ready: the safe direction for every writer and reader.
+ * deploy. A failed check reads as NOT ready: the safe direction for a WRITER. A reader that renders
+ * uses conversationEpisodeColumnPresent instead.
  */
 export async function conversationEpisodeColumnReady(
   d: { execute: (q: SQL) => Promise<unknown> },
@@ -212,18 +236,13 @@ export async function conversationEpisodeColumnReady(
 ): Promise<boolean> {
   const cached = readyCache.get(column);
   if (cached && (cached.ok || now - cached.at < READY_TTL_MS)) return cached.ok;
-  let ok = false;
   try {
-    const [row] = readRows(await d.execute(sql`
-      SELECT COUNT(*) AS n FROM information_schema.COLUMNS
-       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'conversation_episodes' AND COLUMN_NAME = ${column}
-    `));
-    ok = Number(row?.n) === 1;
+    return await conversationEpisodeColumnPresent(d, column, now);
   } catch (err) {
     log.warn("conversation_episodes column readiness check failed", { column, error: err instanceof Error ? err.message : String(err) });
+    readyCache.set(column, { ok: false, at: now, failed: true });
+    return false;
   }
-  readyCache.set(column, { ok, at: now });
-  return ok;
 }
 
 /** Has 0140 been applied? */
@@ -232,6 +251,14 @@ export function officeVisualColumnReady(
   now = Date.now(),
 ): Promise<boolean> {
   return conversationEpisodeColumnReady(d, "visual", now);
+}
+
+/** Has 0140 been applied? Strict: throws when the probe fails (see conversationEpisodeColumnPresent). */
+export function officeVisualColumnPresent(
+  d: { execute: (q: SQL) => Promise<unknown> },
+  now = Date.now(),
+): Promise<boolean> {
+  return conversationEpisodeColumnPresent(d, "visual", now);
 }
 
 /** Test seam: forget every cached readiness answer. */

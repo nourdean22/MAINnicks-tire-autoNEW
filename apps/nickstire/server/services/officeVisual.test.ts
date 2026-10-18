@@ -7,7 +7,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   parseVisualReply, analyzeOfficeFrames, officeVisualColumnReady, storedVisual,
   __resetOfficeVisualReadyCache, OFFICE_VISUAL_MAX_FRAMES,
-  buildPrompt, calibrationNote, conversationEpisodeColumnReady, loadVisualCalibrationDetailed, __resetOfficeVisualCalibration, type OfficeVisual,
+  buildPrompt, calibrationNote, conversationEpisodeColumnReady, conversationEpisodeColumnPresent, loadVisualCalibrationDetailed, __resetOfficeVisualCalibration, type OfficeVisual,
 } from "./officeVisual";
 
 const META = { frameCount: 2, provider: "ollama", model: "m", latencyMs: 9 };
@@ -191,6 +191,28 @@ describe("conversationEpisodeColumnReady (0140 visual, 0141 gist)", () => {
     await conversationEpisodeColumnReady({ execute }, "visual", 1_000);
     await conversationEpisodeColumnReady({ execute }, "gist", 1_000);
     expect(execute).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("conversationEpisodeColumnPresent (strict: a failed probe is not 'missing')", () => {
+  beforeEach(() => __resetOfficeVisualReadyCache());
+
+  it("throws on a failed probe instead of answering false; answers true/false when the probe works", async () => {
+    const broken = { execute: vi.fn().mockRejectedValue(new Error("db down")) };
+    await expect(conversationEpisodeColumnPresent(broken, "gist", 0)).rejects.toThrow("db down");
+    const no = { execute: vi.fn().mockResolvedValue([[{ n: 0 }]]) };
+    expect(await conversationEpisodeColumnPresent(no, "gist", 0)).toBe(false);
+    __resetOfficeVisualReadyCache();
+    const yes = { execute: vi.fn().mockResolvedValue([[{ n: 1 }]]) };
+    expect(await conversationEpisodeColumnPresent(yes, "visual", 0)).toBe(true);
+  });
+
+  it("never serves a failure the lenient reader cached as a confirmed 'missing'", async () => {
+    const broken = { execute: vi.fn().mockRejectedValue(new Error("db down")) };
+    expect(await conversationEpisodeColumnReady(broken, "gist", 0)).toBe(false); // lenient, unchanged
+    await expect(conversationEpisodeColumnPresent(broken, "gist", 1_000)).rejects.toThrow("db down");
+    const yes = { execute: vi.fn().mockResolvedValue([[{ n: 1 }]]) };
+    expect(await conversationEpisodeColumnPresent(yes, "gist", 2_000)).toBe(true);
   });
 });
 

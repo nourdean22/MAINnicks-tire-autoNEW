@@ -198,7 +198,7 @@ function isTranscriberLoop(segments: TranscriptSegment[]): boolean {
 
 /** Models wrap JSON in ```json fences often enough that not handling it is a self-inflicted
  *  extraction failure. Returns the body unchanged when there is no fence. */
-function stripFence(text: string): string {
+export function stripFence(text: string): string {
   const m = text.trim().match(/^```(?:json)?\s*([\s\S]*?)\s*```$/);
   return m ? m[1] : text;
 }
