@@ -84,12 +84,6 @@
     "origin": "written"
   },
   {
-    "query": "Rotate nothing, just list which Railway services are currently deployed",
-    "should_trigger": false,
-    "heldOut": false,
-    "origin": "written"
-  },
-  {
     "query": "Teardown the finished worktree and delete its merged branch",
     "should_trigger": false,
     "heldOut": false,
@@ -168,21 +162,9 @@
     "origin": "written"
   },
   {
-    "query": "Show me the diff between the last two commits on this branch",
-    "should_trigger": false,
-    "heldOut": false,
-    "origin": "written"
-  },
-  {
     "query": "Revert the migration that added the loyalty column and confirm the table is back to normal",
     "should_trigger": false,
     "heldOut": true,
-    "origin": "written"
-  },
-  {
-    "query": "Check the PR status and tell me if CI is green",
-    "should_trigger": false,
-    "heldOut": false,
     "origin": "written"
   },
   {
@@ -198,21 +180,39 @@
     "origin": "written"
   },
   {
-    "query": "Rebase nothing; just fetch main and tell me how far behind this branch is",
-    "should_trigger": false,
+    "query": "Make the reel captions quieter and then do the third item on the list",
+    "should_trigger": true,
     "heldOut": false,
-    "origin": "written"
+    "origin": "tx:3a553b1d"
   },
   {
-    "query": "Count the rows in the reminders table for last week and report the number only",
-    "should_trigger": false,
-    "heldOut": false,
-    "origin": "written"
-  },
-  {
-    "query": "Restart nothing; read the Railway logs for the worker and quote the last error",
+    "query": "Are you actually running the skill hooks on everything we do",
     "should_trigger": false,
     "heldOut": true,
-    "origin": "written"
+    "origin": "tx:0fa7233b"
+  },
+  {
+    "query": "Spin up a research session on the newest and hottest repos we could use to upgrade our setup",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "tx:fb9b9c5e"
+  },
+  {
+    "query": "I see it on Telegram, here is what the proof page says about the last run",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "tx:dd581902"
+  },
+  {
+    "query": "Something is wrong with the skills list, it only shows about ten, and install the find-skills repo from GitHub",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "tx:7aa38b04"
+  },
+  {
+    "query": "Read the app's AGENTS file first, then fix the defect I observed in the reel pipeline on a new branch",
+    "should_trigger": false,
+    "heldOut": false,
+    "origin": "tx:d72fcc47"
   }
 ]
