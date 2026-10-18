@@ -135,6 +135,31 @@ getCompanyVehicleLookUpByLPOrVIN, cart and quote operations, `/quotes/:quoteToke
 `/bsro/services/`; Tire Rack's bundle gave nothing (1 script parsed). Useful mostly as a map of what a chain's finder
 does; the manual bundle reads above found the parameters REA did not.
 
+### Kafene merchant-portal wire contract (read from the public bundles 2026-10-18, FACT unless marked)
+
+For the day Kafene keys arrive or a client with a residential egress is built. Base `https://ingress.kafene.com/v1/`; the
+token goes in `Authorization: <token>` as stored; requests carry cookies (`withCredentials`), which is how the FingerprintJS
+Pro device cookies (`fp_visitor_id`, `fp_request_id` on `.kafene.com`, 30 days) reach the API. No refresh endpoint; the JWT
+`exp` is read client-side and a 403 `session_revoked` logs out. Learning mode (`production-learning-api.kafene.com`) is a
+sandbox reachable only from a logged-in prod session (`learning/handoff` then `learning/exchange`).
+
+| Call | Body | Reads |
+|---|---|---|
+| `POST auth/login` | `{ email, password }`; on error `type: "request_otp_verification"` (`details.recipient_last_four_digits`) the same call again with `login_token: "<6 digits>"`; resend = the first call again (30 s cooldown) | `data.login_data.{ user, token }`; nothing else marks the device trusted client-side (server-side, tied to the fingerprint cookies, INFERRED) |
+| `POST applications/transferable-app` | `{ phoneNumber: "<10 digits>" }` (the dashboard's approval lookup tile, Statsig gate `transfer_approval_tile`) | `{ id, userId, firstName, lastName, phoneNumber, email, language, remainingApprovalAmount, expiredAt, storeName }`; errors `transferable_application_not_found`, `_insufficient_remaining_approval` (under $300), `_no_active_approval` (`details[0]`), `_declined`, `_merchant_categories_mismatch` |
+| transfer chain | `POST applications/otp-sms { userId, phoneNumber, email, language }` (the CUSTOMER gets the code) -> `POST applications/otp-verify { token, userId, phoneNumber }` -> `POST applications/{appId}/transfer-remaining-approval { storeId, teamMemberId, merchantId, source: "merchant_dashboard", requestSource: "lookup" }` | the moved application |
+| `POST merchants/send-sms` (text to apply) | `{ phone_number, store_id, employee_id, language: "English" }`; `store_id` from `POST merchants/stores { merchant_id }` (`stores_data[]`, active), `employee_id` from `POST merchants/employees { store_id }` (`employees_data[]`), phone must reduce to 10 digits | success only |
+| `POST applications/all/merchant` | `{ page, query, application_status: string[] | null, funding_status: ["Funded"] | null, from, to, store_id | null, sales_persons }` | `data.applications_data.{ applications, current_page, item_count, page_count, status_counts }`; row fields include `id, first_name, last_name, phone_number, application_status, is_expired, expiration_date, approval_amount, remainingApprovalAmount, asset_price, store_id, updated_at, is_text_to_apply_app, lease_id, lease_signing_date, delivery_confirmation_date`; statuses Incomplete, Decision Pending, Enter Merchandise Details, Pre-Qualified, Approved, Funded, Denied, Expired |
+| `POST applications/{id}/add-item` (create invoice) | `{ item_id: [{ model_num, description, price, item_condition: "New", damage }], kafene_downpayment: 0, merchant_downpayment: 0, shipping_cost, asset_price, products_to_delete: [], loan: false, storeId }`; total at least $300 | then `POST applications/get-potential-pricing { application_id }` -> `pricing_data`, and `POST applications/add-lease-length { application_id, lease_length, hard_pull_needed: false, pricing_id, epo1_extension_days: 30 | null }` |
+| `POST lease/{lease_id}/activate` | `{ sales_person, delivery_date: "YYYY-MM-DD", mark_as_delivered?: true }` (needs `can_set_delivery_date`) | funding starts |
+| `POST applications/set-app-to-create-invoice` | `{ application_id }`: a rollback to the invoice step, not a lock | |
+| `PUT applications/cancel-application` | `{ application_id }` | |
+
+Deep links the portal honours: `/applications?search=<text>` pre-fills the list search (whether it matches a phone is
+NOT CHECKED); `/applications/<id>`; nothing opens the lookup tile with a phone. `applications/verify-phone-number` has no
+caller in the merchant chunks (the applicant form uses it). Still unknown: the token lifetime and whether device trust
+survives for a client without the fingerprint cookies (one real login would show both).
+
 ## Sources
 
 - Perplexity thread 1 (vendors, pricing): https://www.perplexity.ai/search/5538eeb0-3f75-44ad-9f50-074279f481d4
