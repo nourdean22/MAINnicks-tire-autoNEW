@@ -1,0 +1,59 @@
+{
+  "years": {
+    "data": [
+      { "slug": 2017, "name": 2017 },
+      { "slug": 2019, "name": 2019 },
+      { "slug": 2018, "name": 2018 },
+      { "slug": 1975, "name": 1975 },
+      { "slug": null, "name": 2031 }
+    ],
+    "meta": { "count": 5 }
+  },
+  "makes": {
+    "data": [
+      { "slug": "honda", "name": "Honda", "name_en": "Honda", "regions": ["usdm"] },
+      { "slug": "land-rover", "name": "Land Rover", "name_en": "Land Rover", "regions": ["usdm"] },
+      { "slug": "Bad Slug!", "name": "Unusable", "name_en": "Unusable", "regions": ["usdm"] }
+    ],
+    "meta": { "count": 3 }
+  },
+  "models": {
+    "data": [
+      { "slug": "civic", "name": "Civic", "name_en": "Civic", "regions": ["usdm"], "year_ranges": ["2016-2021"] },
+      { "slug": "cr-v", "name": "CR-V", "name_en": "CR-V", "regions": ["usdm"], "year_ranges": ["2017-2022"] }
+    ],
+    "meta": { "count": 2 }
+  },
+  "modifications": {
+    "data": [
+      {
+        "slug": "3f9c1a2b7d",
+        "name": "LX",
+        "trim": "LX",
+        "body": null,
+        "trim_body_types": ["4 Dr Sedan"],
+        "trim_levels": ["LX"],
+        "engine": { "fuel": "Petrol", "capacity": "2.0", "type": "I4", "code": "K20C2" }
+      },
+      {
+        "slug": "77aa01bc22",
+        "name": "LX",
+        "trim": "LX",
+        "body": null,
+        "trim_body_types": ["4 Dr Sedan"],
+        "trim_levels": ["LX"],
+        "engine": { "fuel": "Petrol", "capacity": "2.0", "type": "I4", "code": "K20C2" }
+      },
+      {
+        "slug": "9e8d7c6b5a",
+        "name": "Si",
+        "trim": "Si",
+        "body": null,
+        "trim_body_types": ["2 Dr Coupé"],
+        "trim_levels": ["Si"],
+        "engine": { "fuel": "Petrol", "capacity": "1.5", "type": "I4", "code": "L15B7" }
+      }
+    ],
+    "meta": { "count": 3 }
+  }
+}

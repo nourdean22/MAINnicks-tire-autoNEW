@@ -48,6 +48,7 @@ import {
   kpiRouter,
   portalRouter,
   gatewayTireRouter,
+  fitmentRouter,
   autoLaborRouter,
   campaignsRouter,
   callTrackingRouter,
@@ -186,6 +187,8 @@ export const appRouter = router({
   export: exportRouter,
   campaigns: campaignsRouter,
   gatewayTire: gatewayTireRouter,
+  /** 2026-10-18 · public vehicle tire finder (Wheel-Size API); off until WHEEL_SIZE_API_KEY is set. */
+  fitment: fitmentRouter,
   autoLabor: autoLaborRouter,
   emergency: emergencyRouter,
   messengerBot: messengerBotRouter,

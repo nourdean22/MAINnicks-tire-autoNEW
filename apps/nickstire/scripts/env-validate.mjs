@@ -169,11 +169,13 @@ function validateTemplate() {
     "GATEWAY_TIRE_USERNAME",
     "GATEWAY_TIRE_PASSWORD",
     "GATEWAY_TIRE_SHIP_TO",
+    "WHEEL_SIZE_API_KEY",
+    "WHEEL_SIZE_DAILY_CAP",
   ].filter(key => !rawExample.includes(key));
 
   if (missingOptional.length > 0) {
     console.error(
-      "[env:validate] Missing optional Stripe or Gateway Tire keys in .env.example:"
+      "[env:validate] Missing optional Stripe, Gateway Tire or Wheel-Size keys in .env.example:"
     );
     for (const key of missingOptional) console.error(`  - ${key}`);
     process.exit(1);
