@@ -53,7 +53,7 @@ vi.mock("@/lib/trpc", () => {
   return { trpc };
 });
 
-const ORDER = { orderNumber: "TO-20261018-077" };
+const ORDER = { orderNumber: "TO-20261018-077", customerPhone: "(216) 555-0100" };
 const lease = (over: Record<string, unknown> = {}) => ({
   id: 1, orderNumber: ORDER.orderNumber, uid: "app_7Hk2", status: "signed", merchandiseCents: 60000,
   activationDate: null, activatedAt: null, activatedBy: null, cancelledAt: null, lastError: null, ...over,
@@ -69,6 +69,8 @@ async function renderPanel() {
 const region = () => screen.queryByRole("region", { name: "Kafene lease" });
 const panel = () => within(region()!);
 const activateButton = () => panel().queryByRole("button", { name: "Activate lease (tires installed)" }) as HTMLButtonElement | null;
+// Every button except the read-only portal deep link, which money.view always gets.
+const actionButtons = () => panel().queryAllByRole("button").filter((b) => b.textContent !== "Open Kafene portal (copies phone)");
 const confirmYes = async (label: string) => {
   await act(async () => { fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: label })); });
 };
@@ -127,7 +129,7 @@ describe("KafeneLeasePanel", () => {
     await renderPanel();
     expect(panel().getByText("Kafene lease records are not installed yet (migration 0148).")).toBeTruthy();
     expect(panel().queryByRole("alert")).toBeNull();
-    expect(panel().queryAllByRole("button")).toHaveLength(0);
+    expect(actionButtons()).toHaveLength(0);
     expect(panel().queryByText("No Kafene lease on this order.")).toBeNull();
   });
 
@@ -211,7 +213,7 @@ describe("KafeneLeasePanel", () => {
     h.security = { data: { adminRole: "accountant" }, isLoading: false, isError: false };
     await renderPanel();
     expect(panel().getByText("Signed, waiting for installation")).toBeTruthy();
-    expect(panel().queryAllByRole("button")).toHaveLength(0);
+    expect(actionButtons()).toHaveLength(0);
   });
 
   it("cancel needs a typed reason, then the confirm, then sends the reason", async () => {
@@ -243,5 +245,48 @@ describe("KafeneLeasePanel", () => {
     await confirmYes("Cancel lease");
     expect(panel().getByText("The lease changed while cancelling; refreshing.")).toBeTruthy();
     expect(h.refetch).toHaveBeenCalled();
+  });
+
+  // Nour, 2026-10-18: no keys, no portal client (Kafene's Cloudflare blocks VPN and datacenter egress),
+  // so the counter opens merchant.kafene.com itself with the customer's phone already on the clipboard.
+  describe("Open Kafene portal (deep link, copies the phone)", () => {
+    const portalButton = () => panel().getByRole("button", { name: "Open Kafene portal (copies phone)" });
+    let writeText: ReturnType<typeof vi.fn>;
+    const openSpy = () => vi.spyOn(window, "open").mockReturnValue(null);
+    beforeEach(() => {
+      writeText = vi.fn().mockResolvedValue(undefined);
+      Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    });
+    afterEach(() => { vi.restoreAllMocks(); });
+
+    it("copies the phone as 10 digits and opens the portal in a new tab, with no native dialog", async () => {
+      const open = openSpy();
+      const promptSpy = vi.spyOn(window, "prompt");
+      const alertSpy = vi.spyOn(window, "alert");
+      await renderPanel();
+      await act(async () => { fireEvent.click(portalButton()); });
+      expect(writeText).toHaveBeenCalledWith("2165550100");
+      expect(open).toHaveBeenCalledWith("https://merchant.kafene.com/", "_blank", "noopener,noreferrer");
+      expect(promptSpy).not.toHaveBeenCalled();
+      expect(alertSpy).not.toHaveBeenCalled();
+    });
+
+    it("is there with no lease, and before migration 0148 (not_installed)", async () => {
+      h.status = { data: { ok: true, lease: null }, isLoading: false, isError: false };
+      await renderPanel();
+      expect(portalButton()).toBeTruthy();
+      cleanup();
+      h.status = { data: { ok: false, reason: "not_installed" }, isLoading: false, isError: false };
+      await renderPanel();
+      expect(portalButton()).toBeTruthy();
+    });
+
+    it("still opens the portal when the clipboard is unavailable", async () => {
+      Object.defineProperty(navigator, "clipboard", { value: undefined, configurable: true });
+      const open = openSpy();
+      await renderPanel();
+      await act(async () => { fireEvent.click(portalButton()); });
+      expect(open).toHaveBeenCalledWith("https://merchant.kafene.com/", "_blank", "noopener,noreferrer");
+    });
   });
 });

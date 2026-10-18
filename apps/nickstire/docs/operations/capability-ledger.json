@@ -5632,14 +5632,14 @@
       ],
       "deferredScope": [
         "Kafene webhooks (none documented for the current Partner API)",
-        "server-side merchant-portal client (needs the OTP phone's inbound SMS; not built)"
+        "server-side merchant-portal client: rejected 2026-10-18 (Kafene Cloudflare refuses VPN and datacenter egress, device trust is a browser fingerprint); the admin opens merchant.kafene.com with the phone on the clipboard instead"
       ],
       "lastVerifiedAt": "2026-10-18",
       "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "disabled",
       "evidence": {
-        "codeCommit": "PR #3152, squash 8b189e8b7 (branch nickstire/order-completion-dk-kafene) (job 2026-10-18-kafene-checkout). server/services/kafene/partnerApi.ts + leases.ts, server/routers/kafene.ts (public config/start/attach/markSigned/applyStarted; admin activate/cancel/status), drizzle/0148_kafene_leases.sql (hand-applied), email-notify notifyTireOrderKafeneSigned. client/src/lib/kafeneSdk.ts, components/order/KafeneCheckout.tsx, components/admin/KafeneLeasePanel.tsx, TireOrderModal Kafene link calls applyStarted.",
+        "codeCommit": "PR #3152, squash 8b189e8b7 (branch nickstire/order-completion-dk-kafene) (job 2026-10-18-kafene-checkout). server/services/kafene/partnerApi.ts + leases.ts, server/routers/kafene.ts (public config/start/attach/markSigned/applyStarted; admin activate/cancel/status), drizzle/0148_kafene_leases.sql (hand-applied), email-notify notifyTireOrderKafeneSigned. client/src/lib/kafeneSdk.ts, components/order/KafeneCheckout.tsx, components/admin/KafeneLeasePanel.tsx, TireOrderModal Kafene link calls applyStarted. Admin lease panel: Open Kafene portal (copies phone) deep link (branch nickstire/kafene-portal-deep-link).",
         "tests": "server/routers/kafene.test.ts 46 (applyStarted red-first 9f/36p, mutations 6/6); client/src/__tests__/kafene-checkout.test.tsx, kafene-sdk-loader.test.ts, kafene-lease-panel.test.tsx (red-first 1f/19p), order-modal-payment-programs.test.tsx (red-first 2f/26p, mutations 5/5); manager run on the combined tip 5e2906ef9: 13 files passed, tsc exit 0",
         "liveProbe": "Keyed path never run: Kafene issues Merchant ID / Store ID / API key to e-commerce stores only (merchant.kafene.com/integrations gated, FACT 2026-10-18). Keyless applyStarted: unit tests only until the first real click after deploy; migration 0148 is an operator step. Live 2026-10-18 after deploy 8b189e8b7 (read-only): kafene.config {enabled:false}; kafene.applyStarted on a non-existent order -> {ok:false, reason:\"not_found\"} (no write); the first real click is still owed."
       }
