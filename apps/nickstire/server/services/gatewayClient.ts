@@ -35,13 +35,34 @@ let lastFailure: GatewayFailure | null = null;
 
 export function getLastGatewayFailure(): GatewayFailure | null { return lastFailure; }
 
-/** Force-invalidate the cached session (test helper / 401 recovery). */
-export function invalidateGatewaySession(): void { session = null; }
+/**
+ * Force-invalidate the cached session (test helper / 401 recovery). Pass the token the 401
+ * came back for: the session is dropped only if it is still that token, so N concurrent 401s
+ * on one expired token cause one re-login, not N.
+ */
+export function invalidateGatewaySession(rejectedToken?: string): void {
+  if (rejectedToken === undefined || session?.token === rejectedToken) session = null;
+}
+
+/** In-flight login, shared so N concurrent callers make one /token call. */
+let loginInFlight: Promise<string | null> | null = null;
+/** After a failed /token, no new attempt before this time (public fitment reads must not storm D&K). */
+let loginBackoffUntil = 0;
+const LOGIN_BACKOFF_MS = 15_000;
 
 /** Mint or reuse the cached OAuth2 password-grant bearer token. */
 export async function getGatewayToken(): Promise<string | null> {
   if (session && Date.now() < session.expiresAt) return session.token;
+  if (loginInFlight) return loginInFlight;
+  if (Date.now() < loginBackoffUntil) return null;
+  loginInFlight = mintToken().then((t) => {
+    if (!t) loginBackoffUntil = Date.now() + LOGIN_BACKOFF_MS;
+    return t;
+  }).finally(() => { loginInFlight = null; });
+  return loginInFlight;
+}
 
+async function mintToken(): Promise<string | null> {
   const username = process.env.GATEWAY_TIRE_USERNAME;
   const password = process.env.GATEWAY_TIRE_PASSWORD;
   if (!username || !password) {
