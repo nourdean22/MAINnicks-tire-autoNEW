@@ -246,8 +246,8 @@ export async function escalateStaleCallbacks(): Promise<{ recordsProcessed: numb
   let smsSent = 0;
   if (await isEnabled("sms_appointment_reminders")) {
     const { smsWillReachCustomer } = await import("../../lib/smsOutcome");
-    // A missed-call-recovery row is one the caller never asked for (opted out of SMS, or the
-    // lane is in shadow): "your callback's still in our queue" would be false. Alert only.
+    // A missed-call-recovery row is one the caller never asked for (their carrier blocks our
+    // texts, or the lane is in shadow): "your callback's still in our queue" would be false. Alert only.
     for (const cb of claimed.filter((c) => c.phone && c.sourcePage !== MISSED_CALL_CALLBACK_SOURCE)) {
       try {
         const res = await sendSms(String(cb.phone), `Your callback's still in our queue at Nick's Tire & Auto — we'll reach out shortly. Need us sooner? (216) 862-0005.`, { via: "shop" });
