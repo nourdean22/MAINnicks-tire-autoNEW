@@ -19,9 +19,12 @@
  *
  * Fail OPEN by design: any error prints one "[skill-recall] off: <reason>" line and exits 0.
  * Exit 2 blocks the prompt in Claude Code; this file has no path to it. Canary: skillRecall.test.mjs.
+ *
+ * Exports (2026-10-18): FLOOR, STOP, tokens, stem, score and readInput, so tool-recall.mjs scores its registry with this
+ * exact scorer instead of a fork. main() runs only when this file is the entry point, so an import prints nothing.
  */
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -33,7 +36,7 @@ const NAME_BOOST = 3;
 const REPO_BOOST = 1.5;
 // Floor, measured 2026-10-16: the weakest positive control ("merge the three ledger rows and release the lease" ->
 // session-authority) scores well above it, nonsense scores nothing, and two generic body words land under it.
-const FLOOR = 7.5;
+export const FLOOR = 7.5;
 // The whole rule for both roots, review rounds 1 to 4 (2026-10-16): the floor, plus every entry needs a hit on a REAL
 // name token or at least MIN_HITS matched terms, because one generic word inside a trigger phrase ("home screen",
 // "expired row", "debt ledger") carries the name boost and printed a repo skill on its own. A higher bar for the user
@@ -52,7 +55,7 @@ const ALWAYS_ON = new Set([
 // A skill name is what the Skill tool accepts; anything else on disk is skipped so the output never prints junk.
 const NAME_OK = /^[a-z0-9][\w:.-]{0,63}$/i;
 const SKIP_DIRS = new Set([".git", "node_modules", ".trash", ".staging", "_archive"]);
-const STOP = new Set(("a an and are as at be been before but by can do does for from has have how i if in into is it its " +
+export const STOP = new Set(("a an and are as at be been before but by can do does for from has have how i if in into is it its " +
   "me my no not of on one or our so that the their them then there these they this to up us use used using was we " +
   "what when where which while who why will with would you your please make fix get set run any all some " +
   "just like want need help also over about after again should").split(" "));
@@ -130,12 +133,12 @@ function readSkill(dir, kind) {
   }
 }
 
-function tokens(text) {
+export function tokens(text) {
   return String(text).toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 1 && !STOP.has(w)).map(stem);
 }
 
 /** Light stemming: enough for migrate/migration/migrations and hook/hooks to meet, not a real stemmer. */
-function stem(w) {
+export function stem(w) {
   if (w.length <= 4) return w;
   return w.replace(/(ations?|ings?|ies|ied|ers?|es|ed|e|s)$/, (m) => (m === "ies" || m === "ied" ? "i" : m.startsWith("ation") ? "at" : ""));
 }
@@ -191,7 +194,7 @@ function queryTerms(prompt) {
   return [...q.slice(0, half), ...q.slice(-half)];
 }
 
-function score(index, prompt) {
+export function score(index, prompt) {
   // Keep the first prompt word behind each stem so the output reads "migration", not "migrat".
   const word = new Map();
   for (const w of String(prompt).toLowerCase().split(/[^a-z0-9]+/)) if (w && !word.has(stem(w))) word.set(stem(w), w);
@@ -238,7 +241,7 @@ function withoutTemplate(text, root) {
   return text.split(/\r?\n/).filter((l) => !boiler.has(l.trim())).join("\n");
 }
 
-function readInput(argv, root) {
+export function readInput(argv, root) {
   const at = (flag) => { const i = argv.indexOf(flag); return i >= 0 ? argv[i + 1] : undefined; };
   if (at("--text") !== undefined) return { prompt: at("--text"), json: argv.includes("--json") };
   if (at("--file") !== undefined) return { prompt: withoutTemplate(readFileSync(resolve(at("--file")), "utf8"), root), json: argv.includes("--json") };
@@ -281,9 +284,22 @@ function main() {
   process.stdout.write((lines.length ? lines : ["[skill-recall] none beyond the always-on set"]).join("\n") + "\n");
 }
 
-try {
-  main();
-} catch (err) {
-  process.stdout.write(`[skill-recall] off: ${String(err?.message || err).split(/\r?\n/)[0]}\n`);
+/** True when node was started on this file (directly, through a junction, or with a differently cased drive letter). */
+function isEntry() {
+  try {
+    const a = realpathSync(process.argv[1]);
+    const b = realpathSync(fileURLToPath(import.meta.url));
+    return process.platform === "win32" ? a.toLowerCase() === b.toLowerCase() : a === b;
+  } catch {
+    return false;
+  }
 }
-process.exitCode = 0;
+
+if (isEntry()) {
+  try {
+    main();
+  } catch (err) {
+    process.stdout.write(`[skill-recall] off: ${String(err?.message || err).split(/\r?\n/)[0]}\n`);
+  }
+  process.exitCode = 0;
+}

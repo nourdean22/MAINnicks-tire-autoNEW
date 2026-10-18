@@ -147,6 +147,15 @@ github-client canaries 403'd every PR whenever another workflow had spent the bu
   What the docs settle (code.claude.com/docs/en/hooks, read 2026-10-16): UserPromptSubmit stdout is added to context;
   the hook fires on typed prompts, scheduled tasks, a background subagent reporting back, and cross-session messages.
   A subagent's own brief is not in that list, so lane agents get recall through the brief template instead.
+- **UserPromptSubmit** (`tool-recall.mjs`, 2026-10-18, runs after skill-recall) scores the prompt against
+  `config/agent-os/tool-recall.json` (MCP servers, plugins, lane agents, CLIs) with skill-recall's own exported scorer
+  and floor, and prints at most four `[tool-recall] use: <name> (<kind>; <matched words>) <use>` lines, `[native: x]`
+  when a repo skill already does the job; no match prints nothing. Fails open: `[tool-recall] off: <reason>`, exit 0.
+  Canary `toolRecall.test.mjs` (real script, configured command verbatim, broken registry, no-floor mutant).
+- **SessionStart** (`session-surface.mjs`, 2026-10-18, every source) prints one `[surface]` line: user+project hook
+  events, MCP names (user, local, `.mcp.json`; claude.ai connectors are "not readable here"), enabled plugins, and
+  rtk/uv/gh/railway on PATH (looked up, never run). Each segment reads on its own; a failed read is `UNKNOWN (<reason>)`,
+  never 0 or none. Exit 0 always. Canary `sessionSurface.test.mjs` (fixture home, missing files, PATH controls, mutant).
 - **Session workflow (2026-10-16, job session-workflow-upgrade PR 1).** All machine-local state lives in
   `%LOCALAPPDATA%/nourcity/`, outside the repo. Tested, not live until merged: hooks load from the primary checkout.
   - `heavy.mjs run -- <cmd>`: one machine-wide lease for heavy runs (20 min expiry, dead-pid takeover); waits while the

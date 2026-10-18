@@ -25,6 +25,11 @@
             "type": "command",
             "command": "node \"${CLAUDE_PROJECT_DIR}/scripts/agent-os/session-lease-status.mjs\"",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/scripts/agent-os/session-surface.mjs\"",
+            "timeout": 10
           }
         ]
       },
@@ -71,6 +76,11 @@
           {
             "type": "command",
             "command": "node \"${CLAUDE_PROJECT_DIR}/scripts/agent-os/skill-recall.mjs\"",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/scripts/agent-os/tool-recall.mjs\"",
             "timeout": 10
           },
           {
