@@ -9,6 +9,7 @@ import { describe, it, expect } from "vitest";
 import {
   classifyCron,
   isFailureStatus,
+  tallyObserved,
   auditKillSwitch,
   bySeverity,
 } from "../../scripts/lib/cron-truth.mjs";
@@ -98,6 +99,37 @@ describe("isFailureStatus · partial is not a failure", () => {
     expect(isFailureStatus("failed")).toBe(true);
     // …and the naive form that would have got it wrong:
     expect("partial" !== "success").toBe(true);
+  });
+});
+
+describe("tallyObserved · a duplicate row is not a run and not a failure", () => {
+  // ── CANARY ──────────────────────────────────────────────────────────
+  // Measured 2026-10-18 (30d, prod cron_job_logs): mega-fanout-evening read
+  // "20/50 failed" and mega-fanout-morning "19/48". Every one of those 39 rows was
+  // status "duplicate" (cron-lifecycle.ts: the same run knocking twice, relabelled by the
+  // reconcile sweep); the runs themselves were 30/30 and 29/29 success.
+  const rows = (job: string, success: number, duplicate: number) => [
+    { jobName: job, status: "success", _count: { _all: success }, _max: { createdAt: new Date("2026-10-18T03:00:20Z") } },
+    { jobName: job, status: "duplicate", _count: { _all: duplicate }, _max: { createdAt: new Date("2026-09-22T03:01:24Z") } },
+  ];
+
+  it("CANARY — 30 success + 20 duplicate is 30 runs, 0 failures", () => {
+    const o = tallyObserved(rows("mega-fanout-evening", 30, 20)).get("mega-fanout-evening");
+    expect(o).toEqual({ total: 30, failures: 0, last: new Date("2026-10-18T03:00:20Z") });
+  });
+
+  it("a duplicate-only job was never observed running", () => {
+    expect(tallyObserved(rows("ghost", 0, 5).slice(1)).has("ghost")).toBe(false);
+  });
+
+  it("positive control — real failures still count, partial still does not", () => {
+    const g = [
+      { jobName: "j", status: "success", _count: { _all: 7 }, _max: { createdAt: new Date("2026-10-01T00:00:00Z") } },
+      { jobName: "j", status: "partial", _count: { _all: 2 }, _max: { createdAt: new Date("2026-10-02T00:00:00Z") } },
+      { jobName: "j", status: "failed", _count: { _all: 1 }, _max: { createdAt: new Date("2026-10-03T00:00:00Z") } },
+      { jobName: "j", status: "interrupted", _count: { _all: 1 }, _max: { createdAt: new Date("2026-10-04T00:00:00Z") } },
+    ];
+    expect(tallyObserved(g).get("j")).toEqual({ total: 11, failures: 2, last: new Date("2026-10-04T00:00:00Z") });
   });
 });
 
