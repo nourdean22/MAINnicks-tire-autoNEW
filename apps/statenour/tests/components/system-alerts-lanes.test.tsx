@@ -130,7 +130,7 @@ describe("/system/alerts: Priority first, Other behind a closed disclosure", () 
     expect(item.closest("ul")!.className).toContain("divide-y");
   });
 
-  it("CONTROL: with no Other alerts there is no Other disclosure", () => {
+  it("CONTROL (lanes): with no Other alerts there is no Other disclosure", () => {
     h.q = q({
       data: {
         ...PAYLOAD,
@@ -140,5 +140,41 @@ describe("/system/alerts: Priority first, Other behind a closed disclosure", () 
     render();
     expect(button(/^Other,/)).toBeUndefined();
     expect(text()).toContain("Sleep tracks revenue");
+  });
+});
+
+describe("/system/alerts: loading, a failed read and a real empty each say which they are", () => {
+  const EMPTY = { sinceDays: 30, counts: {}, alerts: {} };
+
+  it("a failed read says unknown, offers Retry, and never prints the empty text", () => {
+    h.q = q({ isError: true, error: { message: "db down" } });
+    render();
+    expect(text()).toContain("Couldn't load alerts: state unknown, not an empty list.");
+    expect(text()).not.toContain("No alerts in the last");
+    const retry = button(/^Retry$/);
+    expect(retry).toBeTruthy();
+    act(() => retry!.click());
+    expect(h.refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("a failed refetch over an old empty answer is still unknown (React Query keeps the stale data)", () => {
+    h.q = q({ data: EMPTY, isError: true, error: { message: "db down" } });
+    render();
+    expect(text()).toContain("state unknown");
+    expect(text()).not.toContain("No alerts in the last");
+  });
+
+  it("before the first read lands it says it is reading, and claims nothing", () => {
+    h.q = q({ isPending: true, isFetching: true });
+    render();
+    expect(text()).toContain("Reading alerts.");
+    expect(text()).not.toContain("No alerts in the last");
+  });
+
+  it("CONTROL (states): a successful empty read says so in words", () => {
+    h.q = q({ data: EMPTY });
+    render();
+    expect(text()).toContain("No alerts in the last 30 days.");
+    expect(text()).not.toContain("state unknown");
   });
 });

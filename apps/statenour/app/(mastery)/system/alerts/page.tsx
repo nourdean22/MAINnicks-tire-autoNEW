@@ -129,8 +129,7 @@ export default function AlertsInspectorPage() {
   });
   const payload: AlertsPayload | null =
     (alertsQuery.data as AlertsPayload | undefined) ?? null;
-  const loading = alertsQuery.isPending || alertsQuery.isFetching;
-  const error = alertsQuery.error ? alertsQuery.error.message : null;
+  const readFailed = alertsQuery.isError;
   const lastFetchedAt =
     alertsQuery.dataUpdatedAt > 0
       ? new Date(alertsQuery.dataUpdatedAt)
@@ -340,35 +339,45 @@ export default function AlertsInspectorPage() {
       </Panel>
 
       <Panel className="mt-4">
-        {error && (
-          <div className="rounded-control border border-rose-800 bg-rose-950/40 p-3 text-sm text-rose-200">
-            {error}
+        {/* W5b: one state block. A failed read (stale data kept by React Query included) is
+            unknown with a Retry, never "no alerts" (skill empty-vs-error). */}
+        {readFailed && (
+          <div role="alert" className="flex flex-wrap items-center gap-x-4 gap-y-1 border-y border-edge py-2">
+            <p className="text-[14px] text-fg-secondary">
+              Couldn&apos;t load alerts: state unknown, not an empty list.
+            </p>
+            <button
+              type="button"
+              onClick={load}
+              className="inline-flex min-h-[44px] items-center text-[14px] font-medium text-fg underline-offset-4 transition-colors duration-[var(--motion-state)] hover:underline"
+            >
+              Retry
+            </button>
           </div>
         )}
 
-        {loading && !payload && (
-          <p className="py-8 text-center text-xs text-fg-tertiary">
-            Loading alerts…
+        {!readFailed && !payload && (
+          <p role="status" className="py-6 text-[14px] text-fg-tertiary">
+            Reading alerts.
           </p>
         )}
 
-        {payload && totalVisible === 0 && (
-          <div className="py-8 text-center">
-              <p className="text-sm text-fg">
+        {!readFailed && payload && totalVisible === 0 && (
+          <div className="py-6">
+            <p className="text-[14px] text-fg">
               {totalAcrossAllCats === 0
-                ? "✓ No alerts in the last "
-                : "No alerts match the active filters in the last "}
-              {sinceDays}d.
+                ? `No alerts in the last ${sinceDays} days.`
+                : `No alerts match the active filters in the last ${sinceDays} days.`}
             </p>
             {totalAcrossAllCats > 0 && (
-              <p className="mt-1 text-[11px] text-fg-tertiary">
+              <p className="mt-1 text-[13px] text-fg-tertiary">
                 Toggle more categories above or expand the window to see them.
               </p>
             )}
           </div>
         )}
 
-        {totalVisible > 0 && (
+        {!readFailed && totalVisible > 0 && (
           <div className="space-y-5" data-selection-scope="system-alerts">
             <section aria-labelledby="alerts-priority-heading" className="space-y-2">
               <h2 id="alerts-priority-heading" className="text-[13px] font-medium text-fg-secondary">
