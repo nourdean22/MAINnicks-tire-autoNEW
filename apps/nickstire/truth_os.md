@@ -144,6 +144,18 @@ detailed in `docs/CURRENT-TRUTH.md`:
   - Order-modal links carry what each provider accepts (`providerApplyUrl`): Koalafi `phone=` (verified prefill), American
     First `amount=` + `reference=`; Kafene, Snap, Acima unchanged.
 - Research: `docs/research/2026-10-18-competitor-tire-finder-teardown.md` (9 chains, provider apply pages, Kafene portal).
+- **Same day, later (#3153 `7d326b8c6`, #3155 `d6d042365`, #3159 `cd3bd65cb`, #3157 `ff063da8e`):** preflight's text scan takes
+  data and script files (`scripts/preflight-text-scan.mjs`), so a capability-ledger edit runs `completionAuthority.test.ts`
+  before the push (#3152 had missed it: one billed CI run). Admin order card: "Open Kafene portal (copies phone)", LIVE-VERIFIED
+  in Chrome 22:12Z (toast + new tab to merchant.kafene.com). The Kafene merchant-portal client was REJECTED by Nour after the
+  viability read (Kafene's Cloudflare refuses VPN and datacenter egress; device trust is a FingerprintJS cookie); the portal
+  wire contract sits in the teardown report for a future portal-login client, not for the Partner API keys. **Quote by text
+  (#3157, LIVE 23:25Z):** each /tires top-pick card has "Text me this quote"; the quote is stored as a `TQ-` tire_orders lead
+  and sent as one `quoteTexted` customer text with a staff Telegram. Live test 23:28Z to the owner's cell: the lead saved
+  (`TQ-20261018-993`) and the page said "Saved. We could not text this number": the existing internal-line guard refused the
+  automated send to the operator's own mobile, by design; delivery to a customer number is still unproven. Test order
+  `TO-20261018-558` (no payment) showed the Koalafi link with `phone=` and the American First link with `amount=524.79`
+  (tires + tax, no card fee) and `reference=TO-20261018-558`; both test rows were cancelled from /admin.
 
 ## 2026-10-16 - Observability is proven by planted positives, not by env presence (branch nickstire/observability-proof, NOT yet merged)
 

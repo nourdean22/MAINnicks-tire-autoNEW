@@ -7,6 +7,16 @@
 
 Live code and production evidence override this document when they disagree. Update this file in the same change that alters a listed contract.
 
+## Text me this quote on /tires top picks (2026-10-18, PR #3157) -- MERGED (main `ff063da8e`), LIVE (`/api/health` deploy.commit `ff063da8e` 23:25Z); live test to the owner's cell saved lead `TQ-20261018-993` and was refused by the internal-line guard ("could not text this number"), so delivery to a real customer number is still unproven; the test lead was cancelled from /admin
+
+## Kafene merchant-portal wire contract (2026-10-18, PR #3159, docs) -- MERGED (main `cd3bd65cb`); the portal client itself was rejected by Nour (Cloudflare blocks VPN and datacenter egress)
+
+## Admin order card: Open Kafene portal (copies phone) (2026-10-18, PR #3155) -- MERGED (main `d6d042365`), LIVE-VERIFIED in Chrome 22:12Z (toast + new tab to merchant.kafene.com)
+
+## Preflight text scan covers data files + post-merge audit of #3148/#3152 (2026-10-18, PR #3153) -- MERGED (main `7d326b8c6`); the scan fired on its own diff ("+ 1 text-scan tests")
+
+## Order completion live test (2026-10-18, after #3152 + #3157): test order `TO-20261018-558` (no payment) showed the Koalafi link carrying `phone=` and the American First link carrying `amount=524.79` + `reference=TO-20261018-558` on the payment step; cancelled from /admin afterwards
+
 ## Tire finder by vehicle + Kafene first (2026-10-18, PR #3148) -- MERGED (main `0b8cb5bae`), LIVE (`/api/health` deploy.commit `0b8cb5bae`; `fitment.status {available:true}`; 2018 Civic LX -> four sizes; /tires screenshot shows the By vehicle tab)
 
 - Public `fitment.*` reads over D&K b2b quicksearch through the Gateway Tire login (Wheel-Size dropped, $0). Top-pick cards. Kafene is the first of five Payment Programs with its banners under `client/public/kafene/`. Operator steps owed: migration 0147 (admin Run Migrations + `record-migrations.mjs --only 0147`), Vapi Push Latest Config (Kafene keyword).
