@@ -8,6 +8,8 @@ import { render, screen, cleanup, fireEvent, act } from "@testing-library/react"
 import React from "react";
 import { FINANCING_PROVIDERS } from "@shared/financing";
 
+const h = vi.hoisted(() => ({ trackApplication: vi.fn() }));
+
 vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }) }));
 
 vi.mock("framer-motion", () => {
@@ -33,8 +35,9 @@ vi.mock("@/lib/trpc", () => {
   const proc = (key: string) => ({
     useQuery: () => ({ data: undefined, isLoading: false, isError: false }),
     useMutation: (opts?: any) => ({
-      mutate: () => {
+      mutate: (...a: any[]) => {
         if (key === "gatewayTire.placeOrder") opts?.onSuccess?.({ success: true, orderNumber: "TO-1", invoiceNumber: "INV-1", totalAmount: 0 });
+        if (key === "financing.trackApplication") return h.trackApplication(...a);
       },
       mutateAsync: vi.fn(),
       isPending: false,
@@ -75,6 +78,46 @@ describe("OrderModal payment step · Payment Programs", () => {
       expect(a.getAttribute("rel")).toContain("noopener");
       expect(a.className).toContain("min-h-12");
     }
+  });
+
+  const providerLinks = () => {
+    const urls = new Set(FINANCING_PROVIDERS.map((p) => p.applyUrl));
+    return screen.getAllByRole("link").filter((a) => urls.has(a.getAttribute("href") ?? ""));
+  };
+
+  it("every provider link records the apply in financing_clicks with its own id, fire-and-forget", async () => {
+    h.trackApplication.mockReset();
+    const debug = vi.spyOn(console, "debug").mockImplementation(() => {});
+    await reachPaymentStep();
+    const links = providerLinks();
+    links.forEach((a) => expect(fireEvent.click(a)).toBe(true)); // each link still opens
+    expect(h.trackApplication.mock.calls.map(([vars]) => vars.provider)).toEqual(FINANCING_PROVIDERS.map((p) => p.id));
+    for (const [vars, opts] of h.trackApplication.mock.calls) {
+      expect(vars.sourcePage).toBe(window.location.pathname);
+      expect(opts?.onError).toBeTypeOf("function");
+      expect(() => opts.onError(new Error("BAD_REQUEST"))).not.toThrow();
+    }
+    expect(debug).toHaveBeenCalled();
+    debug.mockRestore();
+  });
+
+  it("a tracking call that throws on the spot never blocks a provider link", async () => {
+    h.trackApplication.mockReset().mockImplementation(() => { throw new Error("client not ready"); });
+    const debug = vi.spyOn(console, "debug").mockImplementation(() => {});
+    await reachPaymentStep();
+    const reported: unknown[] = [];
+    const onError = (e: ErrorEvent) => { reported.push(e.error); e.preventDefault(); };
+    window.addEventListener("error", onError);
+    let opened = false;
+    try {
+      opened = fireEvent.click(providerLinks()[0]);
+    } finally {
+      window.removeEventListener("error", onError);
+      h.trackApplication.mockReset();
+      debug.mockRestore();
+    }
+    expect(reported).toEqual([]);
+    expect(opened).toBe(true);
   });
 
   it("keeps the Stripe card button and never says financing in the block", async () => {

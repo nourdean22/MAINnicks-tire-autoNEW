@@ -11,11 +11,14 @@ import { toast } from "sonner";
 import { trackEvent } from "@/components/SEO";
 import { getSessionId } from "@/lib/session";
 import { getUtmData } from "@/lib/utm";
-import { trpc } from "@/lib/trpc";
+import { trpc, type RouterInputs } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { trackAcimaClick } from "@/lib/acima";
 import { FINANCING_PROVIDERS } from "@shared/financing";
+
+// The server's own input type, so the accepted provider ids follow the procedure's enum.
+type TrackedProvider = RouterInputs["financing"]["trackApplication"]["provider"];
 
 function priceBreakdown(subtotalCents: number) {
   const tax = Math.round(subtotalCents * 0.08);
@@ -143,6 +146,22 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
   });
 
   // Online payment — opens Stripe's hosted checkout in this tab.
+  // Payment Program apply clicks land in financing_clicks, the same record /financing and /tires
+  // write. Fire-and-forget: a rejected or throwing call must never block or delay the link.
+  const trackApplication = trpc.financing.trackApplication.useMutation();
+  const trackProviderClick = (providerId: string) => {
+    if (providerId === "acima") trackAcimaClick("tire_order_modal");
+    const quiet = (err: unknown) => console.debug("[order] apply tracking not recorded", providerId, err);
+    try {
+      trackApplication.mutate(
+        { provider: providerId as TrackedProvider, sourcePage: window.location.pathname, ...getUtmData() },
+        { onError: quiet },
+      );
+    } catch (err) {
+      quiet(err);
+    }
+  };
+
   const checkoutMutation = trpc.gatewayTire.createCheckout.useMutation({
     onSuccess: (data) => {
       if ("url" in data && data.url) {
@@ -290,7 +309,7 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
                                 href={p.applyUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                onClick={p.id === "acima" ? () => trackAcimaClick("tire_order_modal") : undefined}
+                                onClick={() => trackProviderClick(p.id)}
                                 className="flex min-h-12 items-center justify-center rounded-md border border-border/50 px-2 text-center text-xs font-medium text-foreground hover:border-primary hover:text-primary transition-colors"
                               >
                                 {p.shortName}
