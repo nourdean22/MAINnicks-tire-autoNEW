@@ -228,6 +228,8 @@ describe("OrderModal · Pay with Kafene lease", () => {
     const k = stubKafene();
     await placeOrder();
     await openKafene();
+    // Approved first, then not signed: the uid exists, and markSigned must still not run.
+    await k.emit("approved", { uid: "lease-uid-1" });
     await k.finish(status);
     expect(screen.getByText(message)).toBeTruthy();
     expect(h.markSigned).not.toHaveBeenCalled();
