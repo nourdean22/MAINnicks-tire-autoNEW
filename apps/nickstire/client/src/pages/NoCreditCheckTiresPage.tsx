@@ -62,7 +62,7 @@ const CONFIG: ServicePageConfig = {
     },
   ],
   includedTitle: "HOW THE FIVE PAYMENT PROGRAMS WORK",
-  includedSub: "Four independent providers. Each runs its own application and sets its own terms.",
+  includedSub: "Five independent providers. Each runs its own application and sets its own terms.",
   // Straight from shared/financing.ts, so this list cannot drift from /financing.
   included: [
     ...FINANCING_PROVIDERS.map((p) => `${p.name} (${p.typeLabel}): ${p.creditCheck}`),

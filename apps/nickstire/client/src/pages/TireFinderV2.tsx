@@ -163,6 +163,12 @@ export default function TireFinderV2() {
   };
   const searchBySize = (value?: string) => {
     setSearchVehicle(null);
+    // A size-only search is not for the picked vehicle: drop it from the URL (submit keeps ?size and
+    // ?tab), or a reload or shared link would rebuild it and prefill the order form.
+    const p = new URLSearchParams(window.location.search);
+    ["year", "make", "model", "trim"].forEach((k) => p.delete(k));
+    const qs = p.toString();
+    window.history.replaceState({}, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`);
     submit(value);
   };
 

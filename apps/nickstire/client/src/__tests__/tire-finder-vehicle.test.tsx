@@ -348,6 +348,28 @@ describe("TireFinderV2 · By vehicle tab", () => {
       expect(h.modalProps.prefilledVehicle ?? null).toBeNull();
     });
 
+    it("a By size search drops the vehicle from the URL (keeping ?size and ?tab), so a reload prefills nothing", async () => {
+      h.search = RESULTS;
+      await renderPage();
+      await pickVehicle();
+      fireEvent.click(screen.getByRole("button", { name: /215\/55R16/ }));
+      window.history.replaceState({}, "", `${window.location.pathname}${window.location.search}&tab=size`);
+      fireEvent.click(screen.getByRole("tab", { name: "By size" }));
+      fireEvent.change(screen.getByLabelText("Search tire size"), { target: { value: "225/65R17" } });
+      fireEvent.click(screen.getByRole("button", { name: "Search tires" }));
+      const q = new URLSearchParams(window.location.search);
+      expect(q.get("size")).toBe("225/65R17");
+      expect(q.get("tab")).toBe("size");
+      expect(["year", "make", "model", "trim"].filter((k) => q.has(k))).toEqual([]);
+
+      // Reload the same URL: no stale vehicle reaches the order form.
+      cleanup();
+      h.modalProps = null;
+      await renderPage();
+      request();
+      expect(h.modalProps.prefilledVehicle ?? null).toBeNull();
+    });
+
     it("a reloaded vehicle search (?size plus the vehicle params) still prefills", async () => {
       h.search = RESULTS;
       window.history.pushState({}, "", "/tires?size=215/55R16&year=2018&make=Honda&model=Civic&trim=LX");
