@@ -81,6 +81,28 @@ describe("hand-written provider copy agrees with the roster", () => {
   ];
   const isComment = (l: string) => /^\s*(\/\/|\*|\/\*)/.test(l);
 
+  // Codex round 3 on #3148: the voice classifiers' provider patterns knew Acima but not Kafene.
+  // Any regex literal in the SMS, classifier and Vapi files that names Acima must name Kafene too.
+  const RECOGNITION_FILES = readdirSync(join(APP, "server/services"))
+    .filter((n) => /^(sms.*|.*[Cc]lassifier.*|vapi.*)\.ts$/.test(n) && !/\.test\./.test(n))
+    .map((n) => `server/services/${n}`);
+  const REGEX_NAMING_ACIMA = /\/[^/\n]*\bacima\b[^/\n]*\/[gimsuy]*/i;
+
+  it("recognition scan: covers the voice classifiers, and its pattern finds a regex that names Acima", () => {
+    expect(RECOGNITION_FILES).toEqual(expect.arrayContaining([
+      "server/services/vapiCallClassifier.ts", "server/services/voiceDemandClassifier.ts", "server/services/smsIntentRouter.ts",
+    ]));
+    expect(REGEX_NAMING_ACIMA.test("financing: /\\b(financ|snap|acima)\\b/i,")).toBe(true);
+    expect(REGEX_NAMING_ACIMA.test('"We got Acima payment plans"')).toBe(false);
+  });
+
+  for (const rel of RECOGNITION_FILES) {
+    it(`${rel}: every provider regex that knows Acima also knows Kafene`, () => {
+      const hits = read(rel).split("\n").filter((l) => !isComment(l) && REGEX_NAMING_ACIMA.test(l) && !/kafene/i.test(l));
+      expect(hits.map((l) => l.trim().slice(0, 120))).toEqual([]);
+    });
+  }
+
   it("the roster scan covers the customer SMS files", () => {
     expect(LIST_FILES).toEqual(expect.arrayContaining(["server/services/smsReplyPlanner.ts", "server/services/smsIntentRouter.ts"]));
   });

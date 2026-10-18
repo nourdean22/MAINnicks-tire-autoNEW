@@ -169,3 +169,14 @@ describe("extractCallSignals · Missed Revenue Queue enrichment", () => {
     });
   });
 });
+// Codex round 3 on #3148: the call classifier knew Snap and Acima but not Kafene or American
+// First, so "Do you take Kafene?" recorded no financing intent.
+describe("financing intent names every payment program", () => {
+  it.each(["do you take kafene", "Do you take Kafene?", "can I use American First?", "do you take snap"])("%j is financing", (text) => {
+    expect(detectIntents(text)).toContain("financing");
+  });
+
+  it("control: a call with no payment word is not financing", () => {
+    expect(detectIntents("do you take walk-ins")).not.toContain("financing");
+  });
+});

@@ -275,3 +275,14 @@ describe("precision bugs found by adjudicating the gold sample", () => {
     expect(["complaint", "human_requested"]).toContain(got);
   });
 });
+
+// Codex round 3 on #3148: the demand-shadow classifier marked "do you take kafene" unclear.
+describe("financing demand names every payment program", () => {
+  it.each(["do you take kafene", "Do you take Kafene?", "do you take american first", "can I do American-First"])("%j is financing", (s) => {
+    expect(intentOf(s)).toBe("financing");
+  });
+
+  it("control: Acima still classifies as financing", () => {
+    expect(intentOf("do you take acima")).toBe("financing");
+  });
+});
