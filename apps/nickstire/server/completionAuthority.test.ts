@@ -180,12 +180,21 @@ describe("the rendered ledger may not know what day it is", () => {
  *                                      operator turned all three lanes ON that
  *                                      day; the row carries two live runs and
  *                                      table-counted abuse brakes.
+ *   tire-finder-vehicle-fitment      — 2026-10-18: public tRPC fitment.*
+ *                                      (years/makes/models/trims/sizes) backs
+ *                                      the By vehicle tab on nickstire.org/tires
+ *                                      for every visitor; read-only toward D&K
+ *                                      through the shop login, per-IP rate
+ *                                      limits, no customer write; merged #3148,
+ *                                      live-verified and screenshot in the row
+ *                                      evidence.
  */
 const MAY_CLAIM_PRODUCTION = new Set([
   "reel-pipeline-assembly",
   "shopstate-lot-band",
   "web-experiment-home-hero-subline",
   "careers-candidate-intake",
+  "tire-finder-vehicle-fitment",
 ]);
 
 describe("the repo's own ledger", () => {

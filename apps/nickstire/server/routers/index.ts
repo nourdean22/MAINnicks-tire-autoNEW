@@ -36,6 +36,8 @@ export { shopdriverRouter } from "./shopdriver";
 export { jobAssignmentsRouter, invoicesRouter, kpiRouter, portalRouter } from "./advanced";
 export { gatewayTireRouter } from "./gatewayTire";
 export { fitmentRouter } from "./fitment";
+export { gatewayOrderRouter } from "./gatewayOrder";
+export { kafeneRouter } from "./kafene";
 export { autoLaborRouter } from "./autoLabor";
 export { campaignsRouter } from "./campaigns";
 export { costEstimatorRouter } from "./costEstimator";

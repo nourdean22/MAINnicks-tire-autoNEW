@@ -104,6 +104,11 @@ export function permissionForAdminProcedure(path: string, type: "query" | "mutat
   // (owner/manager) ahead of the prefix rule; the rest of gatewaytire.* stays
   // shop-floor.
   if (normalized === "gatewaytire.refundorder") return "money.manage";
+  // 2026-10-18 · gatewayOrder.* places a D&K supplier order: it spends the shop's money, so
+  // owner/manager like the refund above, never the shop-floor permission a tech holds.
+  if (normalized.startsWith("gatewayorder.")) return "money.manage";
+  // 2026-10-18 · kafene activate/cancel start or stop lease funding: money, owner/manager.
+  if (normalized.startsWith("kafene.")) return type === "mutation" ? "money.manage" : "money.view";
 
   // 2026-09-01 (audit F-13): the 1:1 customer thread is front-desk work. The
   // generic `sms*` rule below is marketing.manage, which front_desk does not

@@ -92,6 +92,31 @@ What to ask each provider (one message): "Provision our location for website-ori
 cart; confirm eligible tires, parts, installation and labor; give sandbox credentials; document prequalification vs
 final approval, agreement signing, signed decision webhooks, and the delivery/capture call that starts funding."
 
+## Provider apply pages: what each accepts without merchant keys (manager RE, 2026-10-18, FACT unless marked)
+
+Method: each provider's public apply bundle downloaded with curl and read for URL-parameter reads; Koalafi checked on
+screen in the built-in browser with a fake number (216-555-0100, nothing submitted). Kafene's merchant portal and
+application bundles were read the same way (no self-serve key path; integrations page gated to e-commerce stores; no
+customer-side return hook; application link reads only its own JWT `t`).
+
+| Provider | Our link today | URL parameters the apply app reads | Usable now | Keyed path (not in hand) |
+|---|---|---|---|---|
+| Kafene (featured) | gokafene.com/nKVEWWv (JWT for MER-2PD3F / STR-4ARMW) | t, token, userToken, redirect (internal), email_sent | none: hence `kafene.applyStarted` (order note + staff Telegram + admin lease row) | checkout SDK + Partner API, Merchant ID / Store ID / API key, e-commerce stores only |
+| Koalafi | s.koalafi.com/GWPaPM -> epply.koalafi.com/?dealerPublicId=04fe63e5-...&cm=Text | dealerPublicId, pdi, orderId, phone, cm, appFlowType, language (en, es), referrer, launchPage, reviewPage, deviceType, parentDomain, hybridToken, oobaToken, contractToken | `phone=` prefills the first screen (seen on screen); loading the page already creates a Koalafi order, so never open it from automation | Direct API GraphQL (public-dealer-id + private-api-key): apply, updateOrderItems, markOrderDelivered starts funding; webhook lease.changed |
+| Snap Finance | getsnap.snapfinance.com/lease/en-US/consumer/apply?ep=store-locator&merchantId=490295617&externalMerchantId=77661 | per entry point: merchantId, externalMerchantId, storeMerchantId, utm_*; ep=store-locator-prequal is the prequalification entry; uxId/paramId are Snap-issued | utm tags only; no phone, email or amount prefill | Platform API (client id + secret, JWT), sandbox from devsupport@snapfinance.com |
+| American First Finance | americanfirstfinance.com/app/?dealer=25207&loc=1&src=UA&usetextpin=Y | dealer, loc, src, usetextpin, lang (sp), amount, currency, reference, return_url, oid, otype, osource, utm_content, cp_cust, cp_ftrack, clearapp, theme, statusCallbackUrl | amount + reference are copied into the application payload (tag the application with the set total and order number; display to the applicant INFERRED); return_url is host-allow-listed to americanfirstfinance.com, so no return to nickstire.org; statusCallbackUrl forwarded in the payload only, use UNKNOWN | partner API v2 (apiary), contract unverified |
+| Acima | apply.acima.com/?app_id=lo&location_guid=loca-436877bd-...&utm_medium=merchant&utm_source=web | every query parameter is forwarded into the app's routes; app_id=lp routes to lease prequal | nothing beyond the location link; no phone, email or name prefill found | e-commerce REST API + sandbox by inquiry |
+
+Next step this suggests (not built here): the order modal's Koalafi link carries `phone=`, and the American First link
+carries `amount=` and `reference=<order number>`; both are one-line URL builders in `shared/financing.ts`. Operator note from
+the Koalafi screen: the dealer name there is still "Moes Tire and Auto Euclid"; rename it in the Koalafi dealer portal.
+
+REA (`rea-agents` 6.5.0, `analyze-web-bundle` through a headless Chrome) on the competitor tabs: Discount Tire exposed 107
+GraphQL operation names and 38 routes (getFitment, getVehicleDetails, getSeoMake/Model/TrimDesc, storeByIp,
+getCompanyVehicleLookUpByLPOrVIN, cart and quote operations, `/quotes/:quoteToken`); Firestone 12 endpoints under
+`/bsro/services/`; Tire Rack's bundle gave nothing (1 script parsed). Useful mostly as a map of what a chain's finder
+does; the manual bundle reads above found the parameters REA did not.
+
 ## Sources
 
 - Perplexity thread 1 (vendors, pricing): https://www.perplexity.ai/search/5538eeb0-3f75-44ad-9f50-074279f481d4

@@ -16,6 +16,8 @@ import {
   getQuoteConfidence, getRiskFlags, getNextAction, getFulfillmentTimeline
 } from "@shared/tireCommerce";
 import GatewayPill from "@/components/admin/GatewayPill";
+import GatewayOrderPanel from "@/components/admin/GatewayOrderPanel";
+import KafeneLeasePanel from "@/components/admin/KafeneLeasePanel";
 // 2026-06-10 cockpit consolidation · in-DOM confirm (window.confirm is
 // silently suppressed in the iOS PWA) for the cancel-with-refund guard
 // ported from the retired Money → Tire Orders tab.
@@ -479,6 +481,8 @@ export default function TireOrdersSection() {
                   {/* Expanded Detail Panel */}
                   {isExpanded && (
                     <div className="border-t border-border/20 p-5 bg-background/25">
+                      <KafeneLeasePanel order={order} />
+                      <GatewayOrderPanel order={order} />
                       <OrderFormEdit
                         order={order}
                         updateOrderMutation={updateOrderMutation}

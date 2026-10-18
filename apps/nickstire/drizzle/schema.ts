@@ -5309,3 +5309,36 @@ export const nhtsaMfrWarrantyProducts = mysqlTable("nhtsa_mfr_warranty_products"
 ]);
 
 export type NhtsaMfrWarrantyProduct = typeof nhtsaMfrWarrantyProducts.$inferSelect;
+
+/**
+ * Kafene lease checkout (migration 0148, hand-applied). One row per Kafene application for a
+ * tire order: started (customer opened checkout) -> approved (Kafene gave the uid) -> signed
+ * (customer finished) -> activating -> activated (an admin activated it at install; Kafene funds
+ * about 2 business days later), or cancelled / declined / error; "applied" is a keyless website
+ * application click (kafene.applyStarted, no KAFENE_* env needed); "activate_unclear" is an activate that got
+ * no answer or a 5xx (Kafene may have activated it). status is VARCHAR, never ENUM
+ * (nickstire-tidb-ddl: an out-of-enum write is rejected and lost). The keyed checkout uses this table
+ * only when KAFENE_MERCHANT_ID, KAFENE_STORE_ID and KAFENE_API_KEY are all set; applyStarted and the admin
+ * status read work without them and survive the table being absent.
+ */
+export const kafeneLeases = mysqlTable("kafene_leases", {
+  id: int("id").autoincrement().primaryKey(),
+  orderNumber: varchar("orderNumber", { length: 50 }).notNull(),
+  /** Kafene's application uid from the browser SDK's "approved" event. */
+  uid: varchar("uid", { length: 64 }).unique(),
+  status: varchar("status", { length: 24 }).default("started").notNull(),
+  /** What was sent to Kafene for this lease, in cents (Kafene items are dollars). */
+  merchandiseCents: int("merchandiseCents").notNull(),
+  /** delivery_date sent with the activate call, America/New_York calendar date. */
+  activationDate: date("activationDate", { mode: "string" }),
+  activatedAt: datetime("activatedAt"),
+  activatedBy: varchar("activatedBy", { length: 191 }),
+  cancelledAt: datetime("cancelledAt"),
+  lastError: varchar("lastError", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("idx_kafene_leases_order").on(table.orderNumber),
+]);
+
+export type KafeneLease = typeof kafeneLeases.$inferSelect;

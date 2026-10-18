@@ -341,6 +341,13 @@ async function startServer() {
   app.use(withBatchRegex("gatewayTire.placeOrder"), formLimiter);
   app.use(withBatchRegex("gatewayTire.createCheckout"), formLimiter);
   app.use(withBatchRegex("gatewayTire.confirmCheckout"), formLimiter);
+  // Kafene lease start writes a kafene_leases row per call (public; order number + phone).
+  app.use(withBatchRegex("kafene.start"), formLimiter);
+  // Keyless "Apply with Kafene" click: writes a row and sends a Telegram (also limited per call inside).
+  app.use(withBatchRegex("kafene.applyStarted"), formLimiter);
+  // attach / markSigned write lease rows and send the shop hand-off: same per-IP form budget.
+  app.use(withBatchRegex("kafene.attach"), formLimiter);
+  app.use(withBatchRegex("kafene.markSigned"), formLimiter);
 
   // v1.7 audit follow-up · defense-in-depth on the 4 statenour-gated
   // AI endpoints. v1.7 added statenourAuth middleware (closing the

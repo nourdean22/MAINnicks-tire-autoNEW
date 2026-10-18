@@ -1128,6 +1128,13 @@
       "when": 1792281600000,
       "tag": "0147_financing_clicks_kafene",
       "breakpoints": true
+    },
+    {
+      "idx": 161,
+      "version": "5",
+      "when": 1792281600001,
+      "tag": "0148_kafene_leases",
+      "breakpoints": true
     }
   ]
 }

@@ -169,6 +169,11 @@ function validateTemplate() {
     "GATEWAY_TIRE_USERNAME",
     "GATEWAY_TIRE_PASSWORD",
     "GATEWAY_TIRE_SHIP_TO",
+    "GATEWAY_ORDERING_ENABLED",
+    "KAFENE_MERCHANT_ID",
+    "KAFENE_STORE_ID",
+    "KAFENE_API_KEY",
+    "KAFENE_ENVIRONMENT",
   ].filter(key => !rawExample.includes(key));
 
   if (missingOptional.length > 0) {
