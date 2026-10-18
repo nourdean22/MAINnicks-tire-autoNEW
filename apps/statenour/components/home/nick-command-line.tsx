@@ -317,7 +317,9 @@ export function NickCommandLine() {
           <p className="py-2 leading-relaxed text-fg">
             {mayHaveRun
               ? "Nick did not finish. Something may already have run, so check before you send it again."
-              : "Nick did not answer. Your message is still above. Try again."}
+              : answered
+                ? "Nick stopped before finishing. Try again."
+                : "Nick did not answer. Try again."}
           </p>
         ) : null}
       </div>

@@ -32,7 +32,8 @@ import { NickCommandLine } from "@/components/home/nick-command-line";
 
 const WORKING = "Nick is working...";
 const SLOW = "Still working. This one is slow.";
-const NO_ANSWER = "Nick did not answer. Your message is still above. Try again.";
+const NO_ANSWER = "Nick did not answer. Try again.";
+const STOPPED = "Nick stopped before finishing. Try again.";
 
 /** The raw AI SDK UI-message stream bytes, made by the SDK's own producer. */
 function aiSdkBytes(chunks: UIMessageChunk[], opts: { throwAfter?: boolean } = {}): ReadableStream<Uint8Array> {
@@ -194,6 +195,23 @@ describe("NickCommandLine error state", () => {
     await send("/task call the supplier");
     await until(() => text().includes("Nick did not finish"), "the did-not-finish line");
     expect(button("Try again")).toBeUndefined();
+  });
+
+  it("T2e: a stream that broke after partial text says it stopped, not that Nick did not answer", async () => {
+    const chunks: UIMessageChunk[] = [
+      { type: "start" },
+      { type: "text-start", id: "t1" },
+      { type: "text-delta", id: "t1", delta: "Half a reply" },
+    ];
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(cockpitResponse(aiSdkBytes(chunks, { throwAfter: true }))));
+    mount();
+    await send("plan my day");
+    await until(() => text().includes("Nick stopped") || text().includes("Nick did not"), "a failure line");
+    const status = container.querySelector('[role="status"][aria-live="polite"]')?.textContent ?? "";
+    expect(text()).toContain("Half a reply");
+    expect(status).toBe(STOPPED);
+    expect(status).not.toContain("did not answer");
+    expect(button("Try again")).toBeDefined();
   });
 });
 
