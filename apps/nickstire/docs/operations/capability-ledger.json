@@ -5535,18 +5535,18 @@
       "name": "Admin > Lot office intelligence shows each counter conversation's validated facts and a digest of the last N ET clock hours built only from gists and facts",
       "owner": "operator",
       "evidence": {
-        "codeCommit": "Lands with the PR for branch nickstire/office-detail-hourly-digest (job 2026-10-17-office-detail-hourly-digest, contract office-digest v2). server/routers/lot.ts: lot.conversations rows gain facts (server/lib/conversationQuality.ts storedFacts: malformed entries skipped, max 12, evidenceText cut to 240 and kept for the owner-only admin by operator decision 2026-10-17, non-numeric confidence null; factCount unchanged); new adminProcedure lot.officeDigest (1-12 hours, default 6, newest first, SQL epoch-hour buckets over COALESCE(startedAt, createdAt), selftest excluded, NO_ACTIVITY / THIN / DONE / FAILED, an hour with no usable gist or fact and a transcriptStatus FAILED capture is FAILED, computedAtMs per hour, failed read is ok:false). server/services/officeDigest.ts: one invokeLLM per hour from gists and fact kind/value only, at temperature 0 with an output schema, slotWaitMs 20000 at default priority, notes in a delimited data block with newlines collapsed and delimiters stripped, fixed error strings; in-process memo keyed by hour plus a hash of the hour's episode ids and inputs (completed hour once, current hour at most every 10 min on change, FAILED retried at most every 5 min, shared in-flight promise) with stale-while-revalidate (the last DONE digest is served during a recompute and survives a FAILED one). No transcript field, no migration, no table, no cron. Client lane renders the Last 6 hours block and per-conversation facts.",
+        "codeCommit": "Merged as #3137 (353f9355e). Branch nickstire/office-detail-hourly-digest (job 2026-10-17-office-detail-hourly-digest, contract office-digest v2). server/routers/lot.ts: lot.conversations rows gain facts (server/lib/conversationQuality.ts storedFacts: malformed entries skipped, max 12, evidenceText cut to 240 and kept for the owner-only admin by operator decision 2026-10-17, non-numeric confidence null; factCount unchanged); new adminProcedure lot.officeDigest (1-12 hours, default 6, newest first, SQL epoch-hour buckets over COALESCE(startedAt, createdAt), selftest excluded, NO_ACTIVITY / THIN / DONE / FAILED, an hour with no usable gist or fact and a transcriptStatus FAILED capture is FAILED, computedAtMs per hour, failed read is ok:false). server/services/officeDigest.ts: one invokeLLM per hour from gists and fact kind/value only, at temperature 0 with an output schema, slotWaitMs 20000 at default priority, notes in a delimited data block with newlines collapsed and delimiters stripped, fixed error strings; in-process memo keyed by hour plus a hash of the hour's episode ids and inputs (completed hour once, current hour at most every 10 min on change, FAILED retried at most every 5 min, shared in-flight promise) with stale-while-revalidate (the last DONE digest is served during a recompute and survives a FAILED one). No transcript field, no migration, no table, no cron. Client lane renders the Last 6 hours block and per-conversation facts.",
         "tests": [
           "server/routers/lotOfficeDigest.test.ts (new, 23) through the tRPC router caller: facts cap/cut/malformed/null confidence; newest-first hours with NO_ACTIVITY, THIN and DONE; prompt carries gists and kind/value but never evidence text; selftest excluded; default 6 and max 12; LLM error and empty digest are FAILED with no customer text; DB failure is ok:false with no hours; memo windows, late gist as a change, shared in-flight call; v2: bounded slot wait at background priority, slot-wait timeout FAILED, computedAtMs, failed-transcription hour FAILED not THIN, failed captures still counted in a DONE hour, stale-while-revalidate during and after a recompute, a failed recompute keeps the DONE digest, delimited data block that a note cannot close. Red first 14 failed / 0 passed (v1) and 6 failed / 17 passed (v2); mutants v1 (9) and v2 (9) each red.",
           "Server lane runs: 11 related files 111 passed (v1); lotOfficeDigest, lotVisualReview, rawSqlTablesExist, conversationFacts, conversationQuality 63 passed (v2); pnpm run check exit 0."
         ],
         "liveRuns": [],
-        "deploymentId": null
+        "deploymentId": "railway main auto-deploy of #3137: nickstire /api/health deploy.commit 353f9355e18d6d8a194beafc5de2584cb6cfa897 observed 2026-10-18T01:39:08Z; owner walkthrough in Chrome 2026-10-18 ~06:10 ET rendered the Last 6 hours block (six rows No conversations, correct while closed) and facts with quotes"
       },
       "blockers": [
         {
           "severity": "P2",
-          "description": "Not observed in production yet. Live proof: the first lot.officeDigest read on prod after deploy returns ok:true with a DONE hour for an hour that has a gist or fact, and the operator sees the Last 6 hours block and a facts list on his phone",
+          "description": "A DONE hourly digest has not been observed in production yet (deployed and rendered 2026-10-18, but the shop was closed so all six hours read No conversations). Live proof: the first lot.officeDigest read on prod after deploy returns ok:true with a DONE hour for an hour that has a gist or fact, and the operator sees the Last 6 hours block and a facts list on his phone",
           "source": "job 2026-10-17-office-detail-hourly-digest"
         }
       ],
@@ -5554,9 +5554,10 @@
         "full transcripts and raw audio stay excluded from the admin read (privacy boundary in lot.ts); only fact quotes are returned",
         "digests are not persisted: a server restart recomputes each hour once on the next read"
       ],
-      "lastVerifiedAt": "2026-10-17",
+      "lastVerifiedAt": "2026-10-18",
+      "verificationExpiresAt": "2026-11-17",
       "codeState": "merged",
-      "operationalState": "unit_verified",
+      "operationalState": "deployed",
       "exposure": "internal"
     }
   ],

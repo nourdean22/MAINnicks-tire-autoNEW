@@ -396,7 +396,9 @@ NicksMax now owns the lightweight production `sign` camera-processing lane. This
 
 Durable local-node receipt: [`../../../docs/operations/NICKSMAX-WORKSTATION-2026-09-27.md`](../../../docs/operations/NICKSMAX-WORKSTATION-2026-09-27.md).
 
-## NicksMax Office Eufy production authority (2026-09-28) - LIVE VERIFIED
+## NicksMax Office Eufy production authority (2026-09-28) - HISTORICAL as of 2026-10-09 (was LIVE VERIFIED)
+
+**Historical. Applies to this section and the next ("NicksMax Office Intelligence runtime"): the office lane left NicksMax on 2026-10-17 (the Eufy account reset cut off NicksMax's bridge; its office lane last posted 2026-10-09) and now runs on the shop PC MECHANICS over direct RTSP. Read "Update 2026-10-18" at the end of the next section for the current host. The statements in both sections are the 2026-09-28/29 record.**
 
 The canonical production Office device is **NICKS EUCLID** (`T8410P5225154105`, T8410C). `Moes Euclid Office` (`T8410P522517180B`) is the old/legacy shared camera and must not be used as the production target.
 
@@ -409,9 +411,7 @@ The canonical production Office device is **NICKS EUCLID** (`T8410P5225154105`, 
 - **Current health truth:** media is no longer degraded. `UNVERIFIED_CAPABILITIES` remains until the current producer observes fresh semantic-event, control/PTZ and calibrated-home receipts.
 - **Legacy boundary:** old Moes P2P failures and any Moes home/calibration/PTZ evidence are camera-specific historical evidence and must not be transferred to NICKS EUCLID.
 
-## NicksMax Office Intelligence runtime (2026-09-28/29) - LIVE PRODUCTION LOOP VERIFIED
-
-**Host changed 2026-10-17: see "Update 2026-10-18" at the end of this section. The NicksMax statements below are the 2026-09-28/29 record, not the current host.**
+## NicksMax Office Intelligence runtime (2026-09-28/29) - HISTORICAL as of 2026-10-09 (was LIVE PRODUCTION LOOP VERIFIED)
 
 This extends the commissioned NICKS EUCLID Office lane; it does not create a second camera authority. PR #2759 deployed the production ingest/Admin surface and #2786 added the fail-closed local audio fallback plus durable FFmpeg handling. On 2026-09-29 the operator explicitly cleared the recording-policy gate and enabled capture on NicksMax.
 
@@ -430,9 +430,9 @@ This extends the commissioned NICKS EUCLID Office lane; it does not create a sec
 **Update 2026-10-18: the office lane runs on the shop PC MECHANICS.**
 
 - **Host (2026-10-17).** The inside Eufy T8410 (192.168.0.167, `T8410P5225154105`) was reset onto a new Eufy account, which cut off NicksMax's account-based Eufy bridge. NicksMax has been offline in Chrome Remote Desktop since 2026-10-16, and its office lane last posted 2026-10-09. The lane now runs on the front-desk PC MECHANICS (Chrome Remote Desktop name NICKSEUCLIDLPC) as scheduled task `StateNour-OfficeIntelligence-ShopPC` (SYSTEM, priority 7), installed with `camera-bridge/scripts/install-office-capture.ps1 -SourceKind rtsp`. Code is at `C:\NOURCITY\camera-bridge` (`office*.py` only), tools at `C:\NOURCITY\tools`.
-- **Source (#3133, `cff5aa814`).** Direct RTSP `/live0`, no Eufy bridge. `OFFICE_VISUAL_SOURCE=rtsp` stills and `OFFICE_WHISPER_THREADS` are set on the shop PC to rtsp, visual on, 2 threads; the audio-energy fallback wakes every 30 s; whisper `base.en`. Live: `frames_captured` 5 on the first capture, production visual status DONE.
-- **Admin (#3137, `353f9355e`; live on nickstire.org since 2026-10-18 01:39Z).** Admin > Lot > Checks > Office intelligence shows facts per conversation (the verbatim quote is owner-only, by role check) and a "Last 6 hours" digest (`lot.officeDigest`, ET hours, in-process memo, a model reading gists and facts only).
-- **Heartbeat (#3140, `6bc7e1350`; installed on the shop PC 2026-10-18 10:50Z).** `officewake` posts the office camera heartbeat when `OFFICE_CAMERA_HEARTBEAT_URL` is set. The `camera_runtime.office` producer is now `p1-shop-office-*` (`camera-bridge.officewake`, host MECHANICS). If the shop PC stops, NicksMax takes the row back after 90 s of silence (`cameraProducerAuthority`). The shop PC's worker state reads `BRIDGE_RETRY` because it has no Eufy bridge (cosmetic).
+- **Source (#3133, `cff5aa814`).** Direct RTSP `/live0`, no Eufy bridge. `OFFICE_VISUAL_SOURCE=rtsp` stills and `OFFICE_WHISPER_THREADS` are set on the shop PC to rtsp, visual on, 2 threads; the audio-energy fallback probes every 30 s (5 s probe) and offers a capture only when mean >= -50 dBFS and peak >= -34 dBFS, then holds a 180 s fallback cooldown (30 s is also the general capture cooldown; a capture runs 120 s at most); whisper `base.en`. Live: `frames_captured` 5 on the first capture, production visual status DONE.
+- **Admin (#3137, `353f9355e`; deployed to nickstire.org, `/api/health` `deploy.commit` `353f9355e18d6d8a194beafc5de2584cb6cfa897` observed 2026-10-18T01:39:08Z; the owner walkthrough in Chrome on 2026-10-18 about 06:10 ET rendered the Last 6 hours block, six rows of "No conversations" (correct while the shop was closed), and facts with quotes; live proof of a DONE hourly digest pending).** Admin > Lot > Checks > Office intelligence shows facts per conversation (the verbatim quote is owner-only, by role check) and a "Last 6 hours" digest (`lot.officeDigest`, ET hours, in-process memo, a model reading gists and facts only).
+- **Heartbeat (#3140, `6bc7e1350`; installed on the shop PC 2026-10-18 10:50Z).** `officewake` posts the office camera heartbeat when `OFFICE_CAMERA_HEARTBEAT_URL` is set. The `camera_runtime.office` producer is now `p1-shop-office-*` (`camera-bridge.officewake`, host MECHANICS). `cameraProducerAuthority` accepts another producer only after the current one is 90 s stale, and that takeover is conditional: NicksMax is offline and has lost Eufy account access, so if MECHANICS stops the row ages to producer-offline unless NicksMax is brought back with working camera access. The shop PC's worker state reads `BRIDGE_RETRY` because it has no Eufy bridge (cosmetic).
 - **Rollback.** `Disable-ScheduledTask StateNour-OfficeIntelligence-ShopPC` in an admin shell; clear `OFFICE_CAMERA_HEARTBEAT_URL` to hand the heartbeat back.
 - Runbook: [`../../../camera-bridge/docs/OFFICE-INTERACTION-COMMISSIONING.md`](../../../camera-bridge/docs/OFFICE-INTERACTION-COMMISSIONING.md).
 ## Connection hardening closeout (2026-09-27/28)

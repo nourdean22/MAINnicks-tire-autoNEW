@@ -14,9 +14,10 @@ multiple sessions.
 
 0. `bash scripts/preflight.sh` (`BASE=<GitHub main sha>` from a hook-free clone): the CI gates that
    turned PRs red, about 4 minutes. Every push bills a full CI run (2026-10-10: 14 PRs, 29 pushes).
-   Run it directly from Git Bash before the first push, never wrapped in `heavy.mjs` on Windows (heavy spawns through cmd, where
-   `bash` is not on PATH, and it also waits on the chrome slot); it catches the proc-census, knip orphan-gate and fail-open-slice
-   reds that a lane's own test files miss (witnessed 2026-10-18: 3 real reds).
+   Run it as `node scripts/agent-os/heavy.mjs run -- bash apps/nickstire/scripts/preflight.sh` FROM GIT BASH, so `bash` resolves
+   and the heavy lease is kept (from PowerShell `bash` is not on PATH and the run fails with "'bash' is not recognized"); expect
+   it to wait while another session holds the heavy lease or the chrome slot. It catches the proc-census, knip orphan-gate and
+   fail-open-slice reds that a lane's own test files miss (witnessed 2026-10-18: 3 real reds).
 1. `pnpm run check` — `tsc --noEmit`. Must be 0 errors.
 2. `pnpm test` — vitest. Must end `Test Files N passed (N)`, exit 0.
 3. `pnpm run build` — `vite build` + esbuild server + maybe-prerender.

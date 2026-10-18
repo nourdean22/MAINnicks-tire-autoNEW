@@ -2371,6 +2371,7 @@ measurement. Every proposal below cites the moment in this wave that produced it
 - **Proposed edit:** say the preflight runs from Git Bash directly (not through heavy.mjs on Windows), and that it is the step that catches proc-census, orphan-gate and fail-open-slice reds a lane's own test files miss.
 - **Confidence:** medium (once, clear)
 - **Status:** applied (this PR, approved by Nour 2026-10-18)
+- **Correction (Codex review of PR 3145, 2026-10-18):** the diagnosis above was wrong. `heavy.mjs` is not the problem: the "'bash' is not recognized" failure came from invoking it from PowerShell, where `bash` is not on PATH. The applied rule is: run `node scripts/agent-os/heavy.mjs run -- bash apps/nickstire/scripts/preflight.sh` from Git Bash (lease kept) and expect to wait on the heavy lease or the chrome slot.
 
 ### P2 · monorepo-manager (step 5 and step 11)
 - **Trigger (witnessed):** (a) a lane dispatch was blocked by rule lane-dispatch-brief because the brief file was named brief-server.md (must end in brief.md); (b) a server lane branch could not show the client-derived operator-walkthrough DoD requirement; only the integration tip could.
