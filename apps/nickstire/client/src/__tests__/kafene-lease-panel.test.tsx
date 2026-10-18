@@ -192,7 +192,7 @@ describe("KafeneLeasePanel", () => {
     await act(async () => { fireEvent.click(activateButton()!); });
     await confirmYes("Activate lease");
     expect(panel().getByText("Kafene activate HTTP 502")).toBeTruthy();
-    expect(panel().getByText("Kafene did not answer. The lease is still signed; try again.")).toBeTruthy();
+    expect(panel().getByText("Kafene did not answer. The lease is marked activation unclear: check merchant.kafene.com before retrying.")).toBeTruthy();
     await act(async () => { fireEvent.click(panel().getByRole("button", { name: "Retry" })); });
     expect(h.activate).toHaveBeenCalledTimes(1); // Retry asks again first
     await confirmYes("Activate lease");

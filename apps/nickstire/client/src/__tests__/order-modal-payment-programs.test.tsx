@@ -50,14 +50,14 @@ vi.mock("@/lib/trpc", () => {
   return { trpc };
 });
 
-async function reachPaymentStep() {
+async function reachPaymentStep(phone = "(216) 555-9999") {
   const { OrderModal } = await import("@/components/order/TireOrderModal");
   render(React.createElement(OrderModal, {
     tire: { name: "Defender", brand: "Michelin", model: "Defender", size: "215/60R16", shopPrice: 150, pricePerTireCents: 15000 },
     quantity: 4, packageValue: 266, onClose: vi.fn(),
   }));
   fireEvent.change(screen.getByPlaceholderText("John Smith"), { target: { value: "Nour Test" } });
-  fireEvent.change(screen.getByPlaceholderText("(216) 555-0000"), { target: { value: "(216) 555-9999" } });
+  fireEvent.change(screen.getByPlaceholderText("(216) 555-0000"), { target: { value: phone } });
   fireEvent.change(screen.getByPlaceholderText("2020"), { target: { value: "2018" } });
   fireEvent.change(screen.getByPlaceholderText("Honda"), { target: { value: "Honda" } });
   fireEvent.change(screen.getByPlaceholderText("Civic"), { target: { value: "Civic" } });
@@ -67,13 +67,19 @@ async function reachPaymentStep() {
 describe("OrderModal payment step · Payment Programs", () => {
   afterEach(cleanup);
 
+  // The provider links by their visible name (hrefs now vary by provider, phone and amount).
+  const providerLinks = () => {
+    const names = new Set(FINANCING_PROVIDERS.map((p) => p.shortName));
+    return screen.getAllByRole("link").filter((a) => a.getAttribute("target") === "_blank" && names.has((a.textContent ?? "").trim()));
+  };
+  const linkFor = (id: string) => providerLinks()[FINANCING_PROVIDERS.findIndex((p) => p.id === id)];
+  const provider = (id: string) => FINANCING_PROVIDERS.find((p) => p.id === id)!;
+
   it("lists every provider from FINANCING_PROVIDERS, Kafene first, as 48 px new-tab links", async () => {
     await reachPaymentStep();
-    const urls = new Set(FINANCING_PROVIDERS.map((p) => p.applyUrl));
-    const links = screen.getAllByRole("link").filter((a) => urls.has(a.getAttribute("href") ?? ""));
-    expect(links).toHaveLength(FINANCING_PROVIDERS.length);
-    expect(links[0].getAttribute("href")).toBe(FINANCING_PROVIDERS.find((p) => p.id === "kafene")!.applyUrl);
-    expect(links[0].textContent).toContain("Kafene");
+    const links = providerLinks();
+    expect(links.map((a) => a.textContent?.trim())).toEqual(FINANCING_PROVIDERS.map((p) => p.shortName));
+    expect(links[0].getAttribute("href")).toBe(provider("kafene").applyUrl);
     for (const a of links) {
       expect(a.getAttribute("target")).toBe("_blank");
       expect(a.getAttribute("rel")).toContain("noopener");
@@ -81,10 +87,30 @@ describe("OrderModal payment step · Payment Programs", () => {
     }
   });
 
-  const providerLinks = () => {
-    const urls = new Set(FINANCING_PROVIDERS.map((p) => p.applyUrl));
-    return screen.getAllByRole("link").filter((a) => urls.has(a.getAttribute("href") ?? ""));
-  };
+  it("the Koalafi link carries the customer's 10-digit phone (epply prefill)", async () => {
+    await reachPaymentStep("(216) 555-0100");
+    const href = linkFor("koalafi").getAttribute("href")!;
+    expect(href).toContain("epply.koalafi.com");
+    expect(href).toContain("phone=2165550100");
+  });
+
+  it("the American First link carries the lease amount (subtotal + tax, no card fee) and the order number", async () => {
+    await reachPaymentStep();
+    const href = new URL(linkFor("american-first").getAttribute("href")!);
+    // 4 x $150.00 = $600.00, 8% tax $48.00 -> $648.00 (the 2% card fee is card-only).
+    expect(href.searchParams.get("amount")).toBe("648.00");
+    expect(href.searchParams.get("reference")).toBe("TO-1");
+  });
+
+  it("Kafene, Snap and Acima keep their plain applyUrl", async () => {
+    await reachPaymentStep("(216) 555-0100");
+    for (const id of ["kafene", "snap", "acima"]) expect(linkFor(id).getAttribute("href")).toBe(provider(id).applyUrl);
+  });
+
+  it("a phone that is not 10 digits leaves Koalafi on its short link (the form refuses fewer than 10)", async () => {
+    await reachPaymentStep("216 555 0100 99");
+    expect(linkFor("koalafi").getAttribute("href")).toBe(provider("koalafi").applyUrl);
+  });
 
   it("every provider link records the apply in financing_clicks with its own id, fire-and-forget", async () => {
     h.trackApplication.mockReset();

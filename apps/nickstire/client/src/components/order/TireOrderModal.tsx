@@ -15,7 +15,7 @@ import { trpc, type RouterInputs } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { trackAcimaClick } from "@/lib/acima";
-import { FINANCING_PROVIDERS } from "@shared/financing";
+import { FINANCING_PROVIDERS, providerApplyUrl } from "@shared/financing";
 
 // The server's own input type, so the accepted provider ids follow the procedure's enum.
 type TrackedProvider = RouterInputs["financing"]["trackApplication"]["provider"];
@@ -224,6 +224,8 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
 
   const tireTotal = tirePrice * quantity;
   const bd = priceBreakdown(tirePriceCents * quantity);
+  // What a lease covers: tires plus tax. The 2% card fee is charged only on a card payment.
+  const leaseAmountCents = bd.subtotal + bd.tax;
 
   // Success state
   if (orderResult) {
@@ -337,7 +339,7 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
                             {FINANCING_PROVIDERS.map((p) => (
                               <a
                                 key={p.id}
-                                href={p.applyUrl}
+                                href={providerApplyUrl(p, { phone, amountCents: leaseAmountCents, orderNumber: orderResult?.orderNumber })}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 onClick={() => trackProviderClick(p.id)}

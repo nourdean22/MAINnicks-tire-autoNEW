@@ -27,7 +27,7 @@ const ACTIVATE_TEXT =
 const MESSAGES: Record<string, string> = {
   disabled: "Kafene is switched off on the server.",
   not_signed: "This lease is not signed, so it cannot be activated.",
-  activate_upstream: "Kafene did not answer. The lease is still signed; try again.",
+  activate_upstream: "Kafene did not answer. The lease is marked activation unclear: check merchant.kafene.com before retrying.",
   upstream_error: "Kafene did not answer. Try again in a minute.",
   not_found: "There is no open Kafene lease to cancel.",
   conflict: "The lease changed while cancelling; refreshing.",
