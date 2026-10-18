@@ -13,9 +13,10 @@
  *     grouped — uses sinceDays/limit query params)
  *   · /system/history?type=brainMemory&id= for the audit trail
  *
- * NOT a "clear" mechanic — alerts auto-collapse via per-hour idempotency
- * keys at the source crons. Adding a manual "dismiss" surface here
- * would compete with that and silently bias future runs.
+ * UI v3 W5b (2026-10-18): Priority and Other lanes (lib/brain/alert-lanes.ts), one state block
+ * with Retry, and row verbs. Dismiss is a SUPPRESSION, not a delete: an expiring alert_dismiss row
+ * the producers never read, so it cannot bias their idempotency keys; every listing honours it
+ * through lib/brain/alert-suppression.ts.
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -34,6 +35,12 @@ import { trpc } from "@/lib/trpc/client";
 import { Eye } from "lucide-react";
 import { useInspector } from "@/hooks/use-inspector";
 import { alertLane } from "@/lib/brain/alert-lanes";
+import { ALERT_MUTE_DAYS } from "@/components/inspector/panels/alert-inspector";
+import { AlertDismissSheet } from "@/components/alerts/alert-dismiss-sheet";
+import { toast } from "sonner";
+
+const ACTION_CLASS =
+  "inline-flex min-h-[44px] items-center px-2 text-[13px] text-fg-secondary transition-colors duration-[var(--motion-state)] hover:text-fg disabled:opacity-50";
 
 interface Alert {
   id: string;
@@ -175,6 +182,35 @@ export default function AlertsInspectorPage() {
   const other = flattened.filter((a) => alertLane(a.category) === "other");
   const [otherOpen, setOtherOpen] = useState(false);
 
+  // W5b row verbs: the inspector's Resolve (two taps, no native confirm) and Mute, plus Dismiss.
+  const utils = trpc.useUtils();
+  const refresh = () => void utils.brain.activeAlerts.invalidate();
+  const [armedId, setArmedId] = useState<string | null>(null);
+  const [dismissing, setDismissing] = useState<Alert | null>(null);
+  const resolve = trpc.brain.resolveAlert.useMutation({
+    onSuccess: (res) => {
+      refresh();
+      if (res.ok) toast.success("Alert resolved");
+      else toast.error("Nothing to resolve: it was already gone");
+    },
+    onError: () => toast.error("Could not resolve the alert"),
+  });
+  const mute = trpc.brain.muteAlertCategory.useMutation({
+    onSuccess: (res) => {
+      refresh();
+      toast.success(`Muted until ${new Date(res.until).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`);
+    },
+    onError: () => toast.error("Could not mute the category"),
+  });
+  const dismiss = trpc.brain.dismissAlert.useMutation({
+    onSuccess: () => {
+      setDismissing(null);
+      refresh();
+      toast.success("Alert dismissed");
+    },
+    onError: () => toast.error("Could not dismiss the alert"),
+  });
+
   function renderRow(alert: Alert) {
     const meta = CATEGORY_META[alert.category];
     return (
@@ -187,11 +223,40 @@ export default function AlertsInspectorPage() {
         <div className="flex flex-wrap items-center gap-x-2 font-mono text-[12px] text-fg-secondary">
           <span>{meta?.label ?? alert.category}</span>
           <span className="text-fg-tertiary">{relTime(alert.createdAt)}</span>
+          <span className="ml-auto flex flex-wrap items-center font-sans">
+            <button
+              type="button"
+              aria-pressed={armedId === alert.id}
+              disabled={resolve.isPending}
+              onClick={() => {
+                if (armedId !== alert.id) {
+                  setArmedId(alert.id);
+                  return;
+                }
+                setArmedId(null);
+                resolve.mutate({ id: alert.id });
+              }}
+              className={ACTION_CLASS}
+            >
+              {armedId === alert.id ? "Tap again to resolve" : "Resolve"}
+            </button>
+            <button
+              type="button"
+              disabled={mute.isPending}
+              onClick={() => mute.mutate({ category: alert.category, days: ALERT_MUTE_DAYS })}
+              className={ACTION_CLASS}
+            >
+              Mute {ALERT_MUTE_DAYS} days
+            </button>
+            <button type="button" onClick={() => setDismissing(alert)} className={ACTION_CLASS}>
+              Dismiss
+            </button>
+          </span>
           <button
             type="button"
             onClick={() => openInspector({ kind: "alert", id: alert.id })}
             aria-label="inspect alert"
-            className="ml-auto inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-control text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg"
+            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-control text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg"
           >
             <Eye size={14} strokeWidth={2} />
           </button>
@@ -412,6 +477,18 @@ export default function AlertsInspectorPage() {
           </div>
         )}
       </Panel>
+      {dismissing && (
+        <AlertDismissSheet
+          alert={{
+            category: dismissing.category,
+            key: dismissing.key,
+            label: CATEGORY_META[dismissing.category]?.label ?? dismissing.category,
+          }}
+          pending={dismiss.isPending}
+          onCancel={() => setDismissing(null)}
+          onConfirm={(reason) => dismiss.mutate({ id: dismissing.id, reason })}
+        />
+      )}
     </StandardPage>
   );
 }
