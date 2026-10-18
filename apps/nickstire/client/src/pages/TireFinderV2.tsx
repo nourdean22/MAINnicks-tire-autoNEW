@@ -217,7 +217,7 @@ export default function TireFinderV2() {
               {topPicks.length > 0 && (
                 <section aria-labelledby="top-picks-heading" className="mb-8">
                   <h3 id="top-picks-heading" className="text-lg font-bold">Top picks</h3>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                  <div className={`mt-3 grid gap-3 ${topPicks.length === 3 ? "sm:grid-cols-3" : topPicks.length === 2 ? "sm:grid-cols-2" : ""}`}>
                     {topPicks.map((p) => (
                       <article key={p.kind} className="flex flex-col rounded-2xl border border-border/50 bg-card p-4">
                         <p className="text-sm font-semibold text-primary">{p.label}</p>
@@ -259,8 +259,10 @@ export default function TireFinderV2() {
                       </article>
                     ))}
                   </div>
-                  <p className="mt-6 text-sm font-semibold text-muted-foreground">All options, lowest price first</p>
                 </section>
+              )}
+              {topPicks.length > 0 && (
+                <p className="mb-3 text-sm font-semibold text-muted-foreground">All options, lowest price first</p>
               )}
 
               {tires.length > 0 ? (
