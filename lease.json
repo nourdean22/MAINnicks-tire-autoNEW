@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "nickstire/tire-finder-vehicle-picker-2",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "9dcc8dd1-629a-4a72-9616-d033570d2fee",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire",
   "claimedBy": "2026-10-18-tire-finder-vehicle-picker",
   "claimedAt": "2026-10-18T16:51:43.502Z",
   "expiresAt": "2026-10-19T04:51:43.502Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": null
+  "releasedAt": "2026-10-18T22:41:48.976Z",
+  "releaseReason": "squash-merged as PR #3148 (0b8cb5bae); the remote branch was deleted by merge-gate, so the local commits only look unpushed",
+  "priorLeaseSha": "8bcd6cac3148cd4f37d15d2960f2e7a308c449a1",
+  "releasedBy": "9dcc8dd1-629a-4a72-9616-d033570d2fee",
+  "foreignReleaseReason": null
 }
