@@ -21,9 +21,12 @@ EXPOSE 4750
 # smokescreen.go:302-331): self connections, non-global-unicast and loopback, RFC 1918 + fc00::/7
 # (IsPrivate), CGNAT 100.64.0.0/10, IPv4-embedding IPv6. The --deny-range list repeats the ones
 # that matter here and adds 0.0.0.0/8, 192.0.0.0/24, 198.18.0.0/15 and 240.0.0.0/4, which Go's
-# IsGlobalUnicast does not exclude. Listens on :: so Railway's private network (IPv6) reaches it.
+# IsGlobalUnicast does not exclude. No --listen-ip: the default is every interface, dual stack, so
+# Railway's private network reaches it over IPv4 or IPv6. `--listen-ip=::` was tried live on
+# 2026-10-18 and crash-looped: Smokescreen v0.1.0 joins ip and port as "%s:%d" with no brackets,
+# so the address ":::4750" is rejected ("too many colons in address").
 ENTRYPOINT ["/smokescreen", \
-  "--listen-ip=::", "--listen-port=4750", "--timeout=10s", "--dns-timeout=5s", \
+  "--listen-port=4750", "--timeout=10s", "--dns-timeout=5s", \
   "--max-concurrent-connect-tunnels=64", \
   "--deny-range=0.0.0.0/8", "--deny-range=100.64.0.0/10", "--deny-range=169.254.0.0/16", \
   "--deny-range=192.0.0.0/24", "--deny-range=198.18.0.0/15", "--deny-range=240.0.0.0/4", \
