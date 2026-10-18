@@ -242,3 +242,50 @@ Enable on the shop PC (operator step, admin PowerShell, about 5 minutes):
 Not proven yet: whether the camera serves a second RTSP session (the still grab) while the audio
 capture holds one. If audio episodes stop or `frames_captured` stays 0, roll back with
 `OFFICE_VISUAL_ENABLED=0` and restart the task.
+
+## Office camera heartbeat from the shop PC: `OFFICE_CAMERA_HEARTBEAT_URL` (2026-10-18)
+
+Admin -> Lot reads the office tiles from one row, `camera_runtime.office`, filled by
+`POST /api/camera/heartbeat`. Until now only the Eufy agent on NicksMax wrote it (it folds this
+worker's status file into its own heartbeat). With the lane on MECHANICS and NicksMax offline,
+the row aged out: "producer offline" and a days-old NICKSMAX conversation receipt, while
+MECHANICS posted episodes fine.
+
+`OFFICE_CAMERA_HEARTBEAT_URL` makes officewake post that heartbeat itself, every 30 s, from the
+same process (no new task, no new install). It sends the conversation receipt (the same 22 keys
+the Eufy agent forwards) and the RTSP media path: `mediaPlaneOk` from the latest audio-level
+probe if it is under 120 s old, `lastMediaProofAt` from the last probe that read audio. Auth,
+events, PTZ control and home are not sent: nothing on the shop PC measures them, so they stay
+unknown. Unset keeps today's behaviour exactly (NicksMax).
+
+Which producer wins (decided by the server, `cameraProducerAuthority`, no new rule):
+
+- The shop PC posts as `p1-shop-office-<id>`; NicksMax's Eufy agent is `p2-nicksmax-<id>`.
+- While the shop PC is fresh, a NicksMax heartbeat gets `200 {"accepted": false}` and changes
+  nothing. They cannot fight over the row.
+- If the shop PC stops, NicksMax takes the row on its own once the shop PC is 90 s silent.
+- To hand the office back to NicksMax for good, clear `OFFICE_CAMERA_HEARTBEAT_URL` on the shop
+  PC and restart its task.
+
+Enable on the shop PC (operator step, admin PowerShell, about 3 minutes):
+
+1. Copy `vision/officewake.py` from this commit into `C:\NOURCITY\camera-bridge\vision\`.
+2. Set the machine env (the heartbeat reuses `CAMERA_INGEST_KEY`, already set for episodes):
+   `[Environment]::SetEnvironmentVariable("OFFICE_CAMERA_HEARTBEAT_URL", "https://nickstire.org/api/camera/heartbeat", "Machine")`
+3. Restart: `Stop-ScheduledTask StateNour-OfficeIntelligence-ShopPC`, then `Start-ScheduledTask`
+   with the same name.
+4. Check the ledger: the `startup` row shows `cameraHeartbeat: true`, followed by one
+   `camera_heartbeat_ok` row. A `camera_heartbeat_error` row names the cause (401 = key).
+5. Check Admin -> Lot: the office camera tile leaves "producer offline" within a minute and the
+   Conversation intelligence tile shows `MECHANICS`.
+
+What the tiles will say, and why it is the truth:
+
+- Office camera: "unverified capabilities", not "healthy". The office profile requires Eufy auth,
+  events, PTZ control and home proof, and the shop PC proves none of them. Expect ONE owner
+  alert for that state change (office is a commissioned, paging camera).
+- Conversation intelligence: whatever the worker reports. If `EUFY_BRIDGE_URL` points at a bridge
+  that does not exist, that is `bridge retry` between captures.
+
+Rollback: clear `OFFICE_CAMERA_HEARTBEAT_URL` and restart the task. The row then ages out to
+"producer offline" again, which is the state before this change.

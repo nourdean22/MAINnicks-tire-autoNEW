@@ -22,6 +22,7 @@ import json
 import os
 import shutil
 import time
+import uuid
 from collections import deque
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -152,6 +153,9 @@ class OfficeWakeConfig:
     # out_dir (the supervisor's disk floor prunes every file older than 6 h in there). Empty
     # means out_dir, which is only right when out_dir is not the audio directory (tests).
     model_override_dir: str = ""
+    # POST /api/camera/heartbeat for camera "office" from this process (shop PC, no Eufy agent).
+    # Empty = off: NicksMax keeps its Eufy agent as the office producer. OFFICE_CAMERA_HEARTBEAT_URL.
+    camera_heartbeat_url: str = ""
 
     def startup_blockers(self) -> list[str]:
         blockers: list[str] = []
@@ -202,9 +206,10 @@ def _iso_utc(at: float) -> str:
 class RuntimeReceipt:
     """Atomic current-state receipt consumed by the Eufy heartbeat producer.
 
-    This is deliberately a FILE, not another cloud writer. The Eufy agent remains the only
-    producer for camera_runtime.office, so a conversation worker restart can never race or
-    overwrite camera/media/control facets with a second producerInstanceId.
+    This is deliberately a FILE, not another cloud writer. On NicksMax the Eufy agent remains the
+    only producer for camera_runtime.office, so a conversation worker restart can never race or
+    overwrite camera/media/control facets with a second producerInstanceId. The shop PC has no
+    Eufy agent, so there `camera_heartbeat_worker` posts this state itself as the p1 producer.
 
     The writer never raises. On Windows, `os.replace` onto a file a reader currently holds open
     (the Eufy agent reads this one every heartbeat) fails with PermissionError for the
@@ -1298,6 +1303,8 @@ async def audio_fallback_worker(
         )
         daemon.runtime.update(
             conversationFallbackOk=True,
+            # A probe that read audio off the camera is a real media-path read.
+            lastMediaProofAt=_iso_utc(now),
             conversationFallbackState="ACTIVE" if active else "QUIET",
             conversationFallbackLastError=None,
             conversationFallbackLastProbeAt=_iso_utc(now),
@@ -1400,6 +1407,104 @@ async def runtime_status_worker(
         await asyncio.sleep(interval)
 
 
+#: Receipt keys the office heartbeat forwards: the same set the NicksMax Eufy agent folds in
+#: (load_office_conversation_runtime), every one a camera_runtime column.
+CONVERSATION_HEARTBEAT_FIELDS = (
+    "conversationWorkerOk", "conversationWorkerState", "conversationWorkerHeartbeatAt",
+    "conversationAudioSource", "conversationCaptureHost", "conversationSttEngine",
+    "conversationQueueDepth", "conversationLastTrigger", "lastConversationEventAt",
+    "lastConversationCaptureAt", "lastConversationSttAt", "lastConversationPostAt",
+    "lastConversationSummaryAt", "lastConversationCoverage", "conversationFailuresToday",
+    "conversationLastError", "conversationListeningCoverage60m",
+    "conversationCaptureSecondsLast60m", "conversationCapturesLast60m",
+    "conversationCaptureFailuresLast60m", "conversationWakeTriggersLast60m",
+    "conversationTranscribeBacklog",
+)
+#: A probe older than this says nothing about the media path now (probes run about every 15 s
+#: in open hours; none run off hours).
+MEDIA_PROOF_MAX_AGE_SECONDS = 120.0
+
+
+def _parse_iso(value: Any) -> Optional[float]:
+    try:
+        return datetime.fromisoformat(str(value)).timestamp() if value else None
+    except ValueError:
+        return None
+
+
+def build_shop_pc_heartbeat(
+    state: dict[str, Any],
+    *,
+    producer_instance_id: str,
+    seq: int,
+    now: float,
+) -> dict[str, Any]:
+    """One /api/camera/heartbeat body for camera "office" from the shop-PC lane.
+
+    Only what this host measures: the conversation receipt and the RTSP media path. No Eufy
+    session runs here, so auth, events, PTZ control and home stay omitted (unknown), never false.
+    """
+    payload: dict[str, Any] = {
+        "camera": "office",
+        "producerInstanceId": producer_instance_id,
+        "producerVersion": "camera-bridge.officewake",
+        "heartbeatSeq": seq,
+        "observedAtEdge": _iso_utc(now),
+        "mode": "PRODUCTION",
+        "sourceType": "rtsp_direct",
+        "detectorName": "office-audio-energy",
+    }
+    for key in CONVERSATION_HEARTBEAT_FIELDS:
+        if state.get(key) is not None:
+            payload[key] = state[key]
+    probe_at = _parse_iso(state.get("conversationFallbackLastProbeAt"))
+    probe_ok = state.get("conversationFallbackOk")
+    if probe_at is not None and probe_ok is not None and now - probe_at <= MEDIA_PROOF_MAX_AGE_SECONDS:
+        payload["mediaPlaneOk"] = bool(probe_ok)
+    if state.get("lastMediaProofAt"):
+        payload["lastMediaProofAt"] = state["lastMediaProofAt"]
+    return payload
+
+
+async def camera_heartbeat_worker(
+    daemon: OfficeWakeDaemon,
+    *,
+    post_fn: Optional[Callable[..., dict[str, Any]]] = None,
+    interval_seconds: float = 30.0,
+) -> None:
+    """Post the office camera heartbeat from this process (shop PC only; off when no URL).
+
+    The owner of camera_runtime.office is settled server-side by cameraProducerAuthority: p1
+    (shop PC) beats p2 (NicksMax's Eufy agent) while fresh, and NicksMax takes over by itself
+    once this producer has been silent 90 s. 30 s keeps the row inside the 60 s stale threshold.
+    """
+    if not daemon.config.camera_heartbeat_url:
+        return
+    if post_fn is None:
+        from .officepost import post_episode as post_fn  # same POST + x-sync-key, any JSON body
+    producer_id = f"p1-shop-office-{uuid.uuid4().hex[:16]}"
+    seq = 0
+    last_outcome: Optional[str] = "unset"
+    while True:
+        seq += 1
+        try:
+            payload = build_shop_pc_heartbeat(
+                daemon.runtime.state, producer_instance_id=producer_id, seq=seq, now=daemon.clock()
+            )
+            result = await asyncio.to_thread(post_fn, payload, daemon.config.camera_heartbeat_url, timeout=10.0)
+            error = None if result.get("posted") else str(result.get("error") or result.get("status"))[:300]
+        except Exception as exc:  # noqa: BLE001
+            error = f"{type(exc).__name__}: {exc}"[:300]
+        # One ledger row per change of outcome, not one per tick.
+        if error != last_outcome:
+            if error is None:
+                daemon.ledger.note("camera_heartbeat_ok", {"producerInstanceId": producer_id})
+            else:
+                daemon.ledger.note("camera_heartbeat_error", {"error": error})
+            last_outcome = error
+        await asyncio.sleep(max(0.01, float(interval_seconds)))
+
+
 async def listen_forever(
     daemon: OfficeWakeDaemon,
     *,
@@ -1417,7 +1522,8 @@ async def listen_forever(
     )
     status_task = asyncio.create_task(runtime_status_worker(daemon))
     fallback_task = asyncio.create_task(audio_fallback_worker(daemon))
-    background = (worker_task, transcribe_task, retention_task, status_task, fallback_task)
+    heartbeat_task = asyncio.create_task(camera_heartbeat_worker(daemon))
+    background = (worker_task, transcribe_task, retention_task, status_task, fallback_task, heartbeat_task)
     seen = 0
     delay = 2.0
     try:
@@ -1668,6 +1774,7 @@ def config_from_args(args: argparse.Namespace) -> OfficeWakeConfig:
         visual_source=visual_source,
         whisper_threads=max(1, int(threads_raw)) if threads_raw else None,
         transcribe_backlog_max=max(1, int(args.transcribe_backlog_max)),
+        camera_heartbeat_url=str(args.camera_heartbeat_url or "").strip(),
     )
 
 
@@ -1740,6 +1847,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--whisper-threads", default=os.environ.get("OFFICE_WHISPER_THREADS", ""), help="whisper-cli -t; empty keeps its default")
     parser.add_argument("--transcribe-backlog-max", type=int, default=int(os.environ.get("OFFICE_TRANSCRIBE_BACKLOG_MAX", "6")), help="captured wakes kept waiting for transcription before the oldest is dropped")
+    parser.add_argument(
+        "--camera-heartbeat-url",
+        default=os.environ.get("OFFICE_CAMERA_HEARTBEAT_URL", ""),
+        help="post the office camera heartbeat from this process (shop PC); empty = off",
+    )
     parser.add_argument("--retention-hours", type=float, default=float(os.environ.get("OFFICE_RAW_AUDIO_RETENTION_HOURS", "6")))
     parser.add_argument("--retention-max-mb", type=float, default=float(os.environ.get("OFFICE_RAW_AUDIO_MAX_MB", "256")))
     parser.add_argument("--min-free-mb", type=float, default=float(os.environ.get("OFFICE_MIN_FREE_MB", "768")))
@@ -1778,6 +1890,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             "whisperThreads": config.whisper_threads,
             "visual": config.visual_enabled,
             "visualSource": config.visual_source,
+            "cameraHeartbeat": bool(config.camera_heartbeat_url),
         },
     )
     daemon = OfficeWakeDaemon(config, ledger=ledger)

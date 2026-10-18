@@ -580,3 +580,162 @@ def test_whisper_threads_reach_the_transcriber(tmp_path):
 def test_rtsp_visual_source_without_a_capture_url_never_falls_back_to_the_bridge(tmp_path, monkeypatch):
     made = _sampler_built_for(tmp_path, monkeypatch, visual_source="rtsp", source_url="")
     assert made == []
+
+
+# ---- camera heartbeat from the shop PC (2026-10-18) ---------------------------------------------
+# NicksMax's Eufy agent was the only producer of camera_runtime.office. With the lane on the shop
+# PC (MECHANICS) and NicksMax offline, Admin showed "producer offline" and a NICKSMAX conversation
+# receipt from days ago while MECHANICS posted episodes fine.
+
+
+def _iso(at: float) -> str:
+    return datetime.fromtimestamp(at, tz=ZoneInfo("UTC")).isoformat()
+
+
+def _run_heartbeats(daemon, post_fn, *, until):
+    from vision.officewake import camera_heartbeat_worker
+
+    async def scenario():
+        task = asyncio.create_task(
+            camera_heartbeat_worker(daemon, post_fn=post_fn, interval_seconds=0.01)
+        )
+        try:
+            for _ in range(200):
+                if until():
+                    break
+                await asyncio.sleep(0.01)
+        finally:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+    asyncio.run(scenario())
+
+
+def test_shop_pc_heartbeat_carries_the_conversation_receipt_as_the_p1_office_producer(tmp_path):
+    cfg = _live_cfg(tmp_path, camera_heartbeat_url="https://nickstire.org/api/camera/heartbeat",
+                    capture_host="MECHANICS", source_name="office-rtsp")
+    daemon = OfficeWakeDaemon(cfg, ledger=MemoryLedger(), clock=lambda: MONDAY_10AM)
+    daemon.runtime.update(conversationWorkerState="READY", lastConversationPostAt=_iso(MONDAY_10AM - 60),
+                          conversationWhisperModel="ggml-base.en.bin")
+    sent = []
+
+    _run_heartbeats(
+        daemon,
+        lambda payload, endpoint, **kw: sent.append((payload, endpoint)) or {"posted": True, "status": 200},
+        until=lambda: len(sent) >= 2,
+    )
+
+    first, endpoint = sent[0]
+    assert endpoint == "https://nickstire.org/api/camera/heartbeat"
+    assert first["camera"] == "office"
+    # p1 = the shop PC in cameraProducerAuthority: it wins over NicksMax (p2-nicksmax-*) while
+    # fresh, and NicksMax takes the row back on its own once this producer is 90 s stale.
+    assert first["producerInstanceId"].startswith("p1-shop-office-")
+    assert first["conversationCaptureHost"] == "MECHANICS"
+    assert first["conversationAudioSource"] == "office-rtsp"
+    assert first["conversationWorkerState"] == "READY"
+    assert first["lastConversationPostAt"] == _iso(MONDAY_10AM - 60)
+    assert "conversationWhisperModel" not in first  # not a stored column; would be dropped
+    # This producer has no Eufy session: it must not claim auth, events, PTZ control or home.
+    for plane in ("authPlaneOk", "eventPlaneOk", "controlPlaneOk", "ptzHomeOk"):
+        assert plane not in first
+    second, _ = sent[1]
+    assert second["producerInstanceId"] == first["producerInstanceId"]
+    assert second["heartbeatSeq"] > first["heartbeatSeq"]
+
+
+def test_shop_pc_heartbeat_is_off_unless_its_url_is_configured(tmp_path):
+    from vision.officewake import camera_heartbeat_worker
+
+    daemon = OfficeWakeDaemon(_live_cfg(tmp_path), ledger=MemoryLedger(), clock=lambda: MONDAY_10AM)
+    sent = []
+
+    async def scenario():
+        # Returns at once: NicksMax keeps the Eufy agent as its only office producer.
+        await asyncio.wait_for(
+            camera_heartbeat_worker(daemon, post_fn=lambda *a, **k: sent.append(a), interval_seconds=0.01),
+            timeout=1.0,
+        )
+
+    asyncio.run(scenario())
+    assert sent == []
+
+
+def test_shop_pc_heartbeat_outlives_a_failing_post_and_notes_it_once(tmp_path):
+    cfg = _live_cfg(tmp_path, camera_heartbeat_url="https://nickstire.org/api/camera/heartbeat")
+    ledger = MemoryLedger()
+    daemon = OfficeWakeDaemon(cfg, ledger=ledger, clock=lambda: MONDAY_10AM)
+    calls = {"n": 0}
+
+    def post(payload, endpoint, **kw):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise OSError("network down")
+        if calls["n"] <= 3:
+            return {"posted": False, "status": 401, "error": "Unauthorized"}
+        return {"posted": True, "status": 200}
+
+    _run_heartbeats(daemon, post, until=lambda: calls["n"] >= 5)
+
+    assert calls["n"] >= 5, "the heartbeat loop died with its first exception"
+    kinds = [kind for kind, _ in ledger.rows if kind.startswith("camera_heartbeat")]
+    # One row per change of outcome, not one per 30 s tick.
+    assert kinds[:3] == ["camera_heartbeat_error", "camera_heartbeat_error", "camera_heartbeat_ok"]
+    assert len(kinds) == 3
+
+
+def test_media_plane_comes_only_from_a_fresh_rtsp_probe():
+    from vision.officewake import build_shop_pc_heartbeat
+
+    def beat(state):
+        return build_shop_pc_heartbeat(state, producer_instance_id="p1-shop-office-x", seq=1, now=MONDAY_10AM)
+
+    ok = beat({"conversationFallbackOk": True, "conversationFallbackLastProbeAt": _iso(MONDAY_10AM - 20),
+               "lastMediaProofAt": _iso(MONDAY_10AM - 20)})
+    assert ok["mediaPlaneOk"] is True and ok["lastMediaProofAt"] == _iso(MONDAY_10AM - 20)
+
+    failed = beat({"conversationFallbackOk": False, "conversationFallbackLastProbeAt": _iso(MONDAY_10AM - 20),
+                   "lastMediaProofAt": _iso(MONDAY_10AM - 900)})
+    assert failed["mediaPlaneOk"] is False  # a measured RTSP failure stays false
+
+    # Off hours (no probes) or a stuck probe loop: unknown, never a stale "ok".
+    old = beat({"conversationFallbackOk": True, "conversationFallbackLastProbeAt": _iso(MONDAY_10AM - 600)})
+    assert "mediaPlaneOk" not in old
+    assert "mediaPlaneOk" not in beat({})
+
+
+def test_a_successful_audio_probe_stamps_the_media_proof(tmp_path):
+    from vision.officewake import audio_fallback_worker
+
+    daemon = OfficeWakeDaemon(_live_cfg(tmp_path, audio_fallback_enabled=True),
+                              ledger=MemoryLedger(), clock=lambda: MONDAY_10AM)
+
+    async def scenario():
+        task = asyncio.create_task(audio_fallback_worker(daemon, probe_fn=lambda *a, **k: (-70.0, -60.0)))
+        try:
+            for _ in range(100):
+                if "lastMediaProofAt" in daemon.runtime.state:
+                    break
+                await asyncio.sleep(0.01)
+        finally:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+    asyncio.run(scenario())
+    assert daemon.runtime.state.get("lastMediaProofAt") == _iso(MONDAY_10AM)
+
+
+def test_camera_heartbeat_url_reaches_the_config(monkeypatch):
+    from vision.officewake import build_parser, config_from_args
+
+    monkeypatch.delenv("OFFICE_CAMERA_HEARTBEAT_URL", raising=False)
+    assert config_from_args(build_parser().parse_args([])).camera_heartbeat_url == ""
+    monkeypatch.setenv("OFFICE_CAMERA_HEARTBEAT_URL", "https://nickstire.org/api/camera/heartbeat")
+    assert (config_from_args(build_parser().parse_args([])).camera_heartbeat_url
+            == "https://nickstire.org/api/camera/heartbeat")
