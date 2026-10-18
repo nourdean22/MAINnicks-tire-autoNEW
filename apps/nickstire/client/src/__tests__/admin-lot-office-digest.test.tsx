@@ -7,14 +7,16 @@
  * TZ is set to Honolulu before anything loads: the hour labels must read in shop time
  * (America/New_York) whatever the phone's own timezone is.
  */
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import React from "react";
 
 type Q = { data: unknown; isPending: boolean; isError: boolean; error: unknown; fetchStatus: string; refetch: () => void };
 const h = vi.hoisted(() => {
+  const originalTZ = process.env.TZ;
   process.env.TZ = "Pacific/Honolulu";
   return {
+    originalTZ,
     queries: new Map<string, Partial<Q>>(),
     calls: new Map<string, { input: unknown; opts: unknown }>(),
     Null: () => null,
@@ -120,6 +122,12 @@ afterEach(() => {
   h.calls.clear();
 });
 
+// A serial run shares one process: leave TZ exactly as this file found it.
+afterAll(() => {
+  if (h.originalTZ === undefined) delete process.env.TZ;
+  else process.env.TZ = h.originalTZ;
+});
+
 describe("Last 6 hours digest", () => {
   it("asks for six hours and polls every minute", () => {
     setOffice();
@@ -222,6 +230,14 @@ describe("Last 6 hours digest", () => {
     expect(UNBATCHED_SLOW_PROCEDURES.has("lot.officeDigest")).toBe(true);
   });
 
+  it("an hour whose talk time is unknown says so, never 0 min", () => {
+    setOffice({ digest: { data: { ...DIGEST, hours: [hour(TWO_PM_ET, { episodes: 2, talkSeconds: null, status: "THIN" })] } } });
+    render(<LotSection />);
+    const row = hourRows()[0];
+    expect(row.textContent).toContain("2 conversations · talk time unknown");
+    expect(row.textContent).not.toContain("min talk");
+  });
+
   it("says loading while the first read is in flight", () => {
     setOffice({ digest: { data: undefined, isPending: true, fetchStatus: "fetching" } });
     render(<LotSection />);
@@ -279,6 +295,14 @@ describe("conversation facts", () => {
     render(<LotSection />);
     expect(screen.getByText("5 facts")).toBeTruthy();
     expect(screen.queryByText("3 facts")).toBeNull();
+  });
+
+  it("a fact sent without its quote (manager view) renders no empty quote", () => {
+    setOffice({ conversations: [convo("c-1", { factCount: 1, facts: [fact("TIRE_SIZE", "225/65R17", "")] })] });
+    render(<LotSection />);
+    const item = within(factList()).getByRole("listitem");
+    expect(item.textContent).toBe("Tire size: 225/65R17");
+    expect(item.querySelector("q")).toBeNull();
   });
 
   it("an older server without facts adds nothing to the row", () => {

@@ -1267,14 +1267,13 @@ type ConversationQueryData =
   | { ok: true; conversations: ConversationRow[] }
   | { ok: false; reason: string };
 
-/** office-digest v2: one row per clock hour, newest first. */
-type DigestHour = Extract<RouterOutputs["lot"]["officeDigest"], { ok: true }>["hours"][number] & {
-  /**
-   * shortcut: office-digest v2 adds computedAtMs (when the model wrote this hour's summary); the server
-   * lane is adding it now. Optional here until it is on the router, then drop this intersection.
-   */
-  computedAtMs?: number | null;
-};
+/** office-digest v3: one row per clock hour, newest first. */
+type RouterDigestHour = Extract<RouterOutputs["lot"]["officeDigest"], { ok: true }>["hours"][number];
+/**
+ * shortcut: office-digest v3 makes talkSeconds number | null (null = duration unknown); the server lane is
+ * changing it now. Widened here until the router carries it, then use RouterDigestHour directly.
+ */
+type DigestHour = Omit<RouterDigestHour, "talkSeconds"> & { talkSeconds: number | null };
 
 const DIGEST_HOURS = 6;
 const DIGEST_POLL_MS = 60_000;
@@ -1285,7 +1284,8 @@ function shopHour(ms: number): string {
   return new Date(ms).toLocaleTimeString("en-US", { hour: "numeric", timeZone: "America/New_York" });
 }
 
-function talkLabel(seconds: number): string {
+function talkLabel(seconds: number | null): string {
+  if (seconds === null) return "talk time unknown";
   // A 40 s hour rounds to "0 min", which reads as silence.
   return seconds > 0 && seconds < 60 ? "under 1 min talk" : `${Math.round(seconds / 60)} min talk`;
 }
