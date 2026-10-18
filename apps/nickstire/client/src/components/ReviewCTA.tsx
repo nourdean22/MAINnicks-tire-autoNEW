@@ -15,27 +15,36 @@ export default function ReviewCTA() {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    // Mark this visit
-    const hasVisitedBefore = localStorage.getItem(VISITED_KEY);
-    if (!hasVisitedBefore) {
-      localStorage.setItem(VISITED_KEY, Date.now().toString());
-      return; // First visit — don't show
-    }
-
-    // Check if dismissed within the last 30 days
-    const dismissedAt = localStorage.getItem(DISMISSED_KEY);
-    if (dismissedAt) {
-      const elapsed = Date.now() - parseInt(dismissedAt, 10);
-      if (elapsed < THIRTY_DAYS_MS) {
-        return; // Still within 30-day cooldown
+    // Storage can throw when the browser blocks site data; then this banner simply stays hidden.
+    try {
+      // Mark this visit
+      const hasVisitedBefore = localStorage.getItem(VISITED_KEY);
+      if (!hasVisitedBefore) {
+        localStorage.setItem(VISITED_KEY, Date.now().toString());
+        return; // First visit — don't show
       }
-    }
 
-    setVisible(true);
+      // Check if dismissed within the last 30 days
+      const dismissedAt = localStorage.getItem(DISMISSED_KEY);
+      if (dismissedAt) {
+        const elapsed = Date.now() - parseInt(dismissedAt, 10);
+        if (elapsed < THIRTY_DAYS_MS) {
+          return; // Still within 30-day cooldown
+        }
+      }
+
+      setVisible(true);
+    } catch {
+      // Not shown.
+    }
   }, []);
 
   function handleDismiss() {
-    localStorage.setItem(DISMISSED_KEY, Date.now().toString());
+    try {
+      localStorage.setItem(DISMISSED_KEY, Date.now().toString());
+    } catch {
+      // Hidden for this page view only.
+    }
     setVisible(false);
   }
 
