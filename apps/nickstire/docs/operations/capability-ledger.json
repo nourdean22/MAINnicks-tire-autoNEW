@@ -2947,7 +2947,8 @@
         "tests": [
           "server/cron/alertPolicy.test.ts pins grouping, quiet-time boundaries, DB-root threshold/classification, resolved formatting, and incident-diff behavior.",
           "Existing cronObserverSuppression.test.ts still pins persisted suppression and positive-control re-alert semantics.",
-          "PR #2794 exact head 79dbea91630f860f0a84bbd68b075df4a7697eea passed Turbo affected verify, StateNour E2E, Completion Authority, Adoption Gates, Agent Policy, Secret Scanning, and Admin Diagnostic before squash merge."
+          "PR #2794 exact head 79dbea91630f860f0a84bbd68b075df4a7697eea passed Turbo affected verify, StateNour E2E, Completion Authority, Adoption Gates, Agent Policy, Secret Scanning, and Admin Diagnostic before squash merge.",
+          "Queue-age pass (C5.2, branch nickstire/queue-age-observer, 2026-10-18): server/services/queueAge.test.ts, server/services/queueAgeReaders.test.ts and server/cron/observer.queueAge.test.ts, 37 passed, red-first (incl. the follow-up reader honouring send_pause_voice_outbound: paused skipped, unreadable unknown); mutants killed 3/3 (readFailed classified in-spec, boundary > to >=, dedupe key shared across loops). Pins stuck pages through the grouped Telegram path with per-loop queue_age:<loop> dedupe, a failed read as unknown in details (never in-spec), and unknown/skipped never resolving an active alert."
         ],
         "liveRuns": []
       },
@@ -2955,6 +2956,10 @@
         {
           "severity": "P3",
           "description": "A post-deploy observer run is still required before claiming production Telegram grouping, dependency inhibition, and recovery-notice behavior."
+        },
+        {
+          "severity": "P3",
+          "description": "Queue-age pass: the first live observer run may page on long-parked publish_ambiguous reels or on reminders that fail to send and are retried every tick. Verify the first page against prod rows before acting on it, and confirm the queue-age tokens appear in the cron-failure-observer cron_log details before any LIVE claim."
         }
       ],
       "deferredScope": [
