@@ -32,7 +32,7 @@ vi.mock("@/lib/trpc/client", () => ({
 }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: () => {}, replace: () => {} }),
-  usePathname: () => "/system/alerts",
+  usePathname: () => "/brain",
   useSearchParams: () => new URLSearchParams(""),
 }));
 vi.mock("sonner", () => ({ toast: { success: () => {}, error: () => {} } }));

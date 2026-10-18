@@ -605,7 +605,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     runningLabel: "Reading tool catalog + env probes…",
     icon: Wrench,
     color: "amber",
-    link: { href: "/system/tools", label: "Tools" },
+    link: { href: "/system/actions", label: "Actions" },
     subtitle: (out) => {
       const o = out as {
         totalTools?: number;

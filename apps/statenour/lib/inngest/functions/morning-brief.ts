@@ -173,7 +173,7 @@ async function briefTelegramFallback(
   const text =
     `🌅 Morning brief (${brief.date}) — delivered via Telegram because ${reason}. ` +
     `Re-enable push in Settings → Notifications.\n\n${pushBodyFromBrief(brief.text)}\n\n` +
-    `Full brief: https://bdnick.info/intelligence/brief`;
+    `Full brief: https://bdnick.info/`;
   // 2026-10-02 · this is the path the brief takes when push reaches no device,
   // and it was the one delivery of a ledgered brief with no way to rate it.
   // Same owner as every other rateable push: ratingTelegramButtons.
@@ -229,8 +229,8 @@ async function sendBriefPush(brief: ComposedBrief): Promise<{
     level: "high",
     // `chatSeed` below OVERRIDES this, so it is the no-seed fallback only. It
     // pointed at the retired /command route (which redirects home — a hop, not
-    // a break, but misleading). The brief's real page is this one.
-    url: "/intelligence/brief",
+    // a break, but misleading). There is no brief page; home is the landing surface.
+    url: "/",
     tag: `morning-brief-${brief.date}`,
     // Rating buttons, only when there is a row for them to land on. The service
     // worker routes an `oc_*` action to POST /api/outcomes/rate and

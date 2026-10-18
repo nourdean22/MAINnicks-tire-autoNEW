@@ -43,7 +43,6 @@ export { operatingRhythm } from "./operating-rhythm";
 export { automationEngineTick } from "./automation-engine";
 
 // Intelligence OS workflows
-export { intelligenceDailyBrief, intelligenceWeeklyBrief } from "./intelligence-brief";
 
 export { socialPublishQueue } from "./social-publish";
 

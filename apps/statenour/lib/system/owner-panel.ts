@@ -635,7 +635,7 @@ export function composeOwnerPanel(input: OwnerPanelInput): OwnerPanel {
           title: `capability ${c.name} ${c.status} · ${c.consecutiveFailures} consecutive ${c.consecutiveFailures === 1 ? "failure" : "failures"}`,
           detail: clip(lastError) ?? (lastCategory ? `last failure class: ${lastCategory}` : "no error text recorded"),
           since: parseIso(meta.firstFailureAt) ?? c.updatedAt,
-          href: "/system/tools",
+          href: "/system/actions",
           evidence: `integrations name=${c.name}`,
         }),
       );

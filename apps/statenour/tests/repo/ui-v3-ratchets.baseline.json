@@ -15,9 +15,6 @@
     "app/(mastery)/decisions/[id]/page.tsx": {
       "smallInput": 2
     },
-    "app/(mastery)/intelligence/brief/page.tsx": {
-      "emDash": 1
-    },
     "app/(mastery)/journal/_components/journal-feed-view.tsx": {
       "smallInput": 1
     },
@@ -59,9 +56,6 @@
     "app/(mastery)/system/calibration/page.tsx": {
       "emDash": 4
     },
-    "app/(mastery)/system/camera/page.tsx": {
-      "smallInput": 3
-    },
     "app/(mastery)/system/crons/page.tsx": {
       "emDash": 3
     },
@@ -70,13 +64,6 @@
     },
     "app/(mastery)/system/page.tsx": {
       "emoji": 1
-    },
-    "app/(mastery)/system/proactive-preview/page.tsx": {
-      "emDash": 1,
-      "smallInput": 1
-    },
-    "app/(mastery)/system/tools/page.tsx": {
-      "emDash": 5
     },
     "app/styles/base.css": {
       "uppercase": 4
@@ -285,9 +272,6 @@
     "components/inspector/panels/tool-inspector.tsx": {
       "emDash": 1
     },
-    "components/intelligence/OpportunityCard.tsx": {
-      "transitionAll": 2
-    },
     "components/journal/entry-row.tsx": {
       "smallInput": 2
     },
@@ -468,9 +452,6 @@
     "components/system/stale-data-panel.tsx": {
       "emDash": 4
     },
-    "components/system/tool-gap-panel.tsx": {
-      "emDash": 2
-    },
     "components/system/tool-usage-census-panel.tsx": {
       "emDash": 3
     },
@@ -521,9 +502,6 @@
     },
     "components/ultron/observability/observability-row.tsx": {
       "emDash": 1
-    },
-    "components/ultron/observability/voice-latency-tile.tsx": {
-      "emDash": 2
     },
     "components/ultron/preferences-card.tsx": {
       "emoji": 1

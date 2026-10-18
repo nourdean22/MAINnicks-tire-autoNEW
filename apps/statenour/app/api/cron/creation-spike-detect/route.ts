@@ -42,7 +42,7 @@ export const GET = cronHandler(async () => {
           } found across ${report.scannedTypes} entity types · ${report.alertsWritten} fresh alert${
             report.alertsWritten === 1 ? "" : "s"
           } written`,
-          deepLink: "/system/alerts",
+          deepLink: "/brain?tab=memory",
           surfaces: ["scoreboard"],
           extra: {
             date: dayKey,

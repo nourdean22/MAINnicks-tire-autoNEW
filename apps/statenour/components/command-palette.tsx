@@ -83,7 +83,6 @@ import {
   RocketIcon,
   HistoryIcon,
   BookmarkIcon,
-  FlaskConicalIcon,
 } from "lucide-react";
 import { apiFetch } from "@/lib/utils/api-fetch";
 // 2026-09-15 · UI workbench · the palette becomes the Intent Resolver: when an
@@ -349,12 +348,8 @@ export function CommandPalette() {
       { id: "sys-actions", label: "Autonomous Actions · audit", group: "System", icon: <BotIcon className="size-4" />, action: () => navigate("/system/actions"), keywords: ["action", "autonomous", "rule", "audit", "approval"] },
       { id: "sys-health", label: "Health · diagnostics", group: "System", icon: <StethoscopeIcon className="size-4" />, action: () => navigate("/system/health"), keywords: ["health", "diagnostics", "probe", "env", "vectors", "backlog", "push", "pull", "oauth", "pulse", "stale", "cron", "rescan", "diagnose", "all"] },
       { id: "sys-calibration", label: "State Calibration - hit rate by mood + judge agreement", group: "System", icon: <TrendingUpIcon className="size-4" />, action: () => navigate("/system/calibration"), keywords: ["calibration", "quality", "state", "mood", "hit rate", "suggestion", "judge", "eval", "operator state"] },
-      { id: "sys-alerts", label: "Alerts · cross-category inspector", group: "System", icon: <AlertTriangleIcon className="size-4" />, action: () => navigate("/system/alerts"), keywords: ["alert", "inspect", "category", "coach"] },
       { id: "sys-inbox", label: "Memory Inbox · quarantine review", group: "System", icon: <InboxIcon className="size-4" />, action: () => navigate("/system/inbox"), keywords: ["inbox", "quarantine", "memory", "contradiction", "review"] },
-      { id: "sys-tools", label: "Tools Registry · governance", group: "System", icon: <WrenchIcon className="size-4" />, action: () => navigate("/system/tools"), keywords: ["tool", "registry", "govern", "permission", "capability"] },
-      { id: "sys-proactive", label: "Proactive Preview · push dry-run", group: "System", icon: <BotIcon className="size-4" />, action: () => navigate("/system/proactive-preview"), keywords: ["proactive", "push", "preview", "dry run", "telemetry"] },
       { id: "sys-cockpit", label: "Cockpit Observability · traces", group: "System", icon: <ActivityIcon className="size-4" />, action: () => navigate("/system/cockpit-observability"), keywords: ["cockpit", "observability", "trace", "metric", "decay", "prompt version"] },
-      { id: "sys-ui-lab", label: "UI Lab · inspector + metric + evidence fixtures", group: "System", icon: <FlaskConicalIcon className="size-4" />, action: () => navigate("/system/ui-lab"), keywords: ["ui", "lab", "gallery", "inspector", "fixture", "metric", "evidence", "reality mode"] },
 
       // ═══ QUICK ACTIONS ═══
       // 2026-10-10 · audit 02-F12: "Start Flow Mode" opened chat with a `mode`

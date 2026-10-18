@@ -44,7 +44,7 @@ export const GET = cronHandler(async () => {
           body: `${report.newAlerts.length} new strong correlation${
             report.newAlerts.length === 1 ? "" : "s"
           } crossed |r|>0.7 vs prior snapshot · ${report.strongCount} strong of ${report.totalCorrelations} total`,
-          deepLink: "/system/alerts",
+          deepLink: "/brain?tab=memory",
           surfaces: ["brain"],
           extra: {
             snapshotKey: report.snapshotKey,

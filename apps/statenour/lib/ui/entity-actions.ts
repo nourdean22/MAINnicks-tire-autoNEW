@@ -68,15 +68,13 @@ export function homeRouteFor(ref: EntityRef): string {
     case "experiment":
       return "/proof";
     case "alert":
-      return "/system/alerts";
+      return "/brain?tab=memory";
     case "cron":
       return "/system/crons";
     case "tool":
-      return "/system/tools";
+      return "/system/actions";
     case "device":
       return "/system";
-    case "content":
-      return "/content?tab=drafts";
     default:
       return "/";
   }

@@ -8,7 +8,6 @@ import {
   sparkline7d,
   topConversationsByCost,
 } from "@/lib/services/cost-slo";
-import { getVoiceLatencyState } from "@/lib/services/voice-latency";
 import { OS_SNAPSHOT_METRIC_NAMES } from "@/lib/observability/os-snapshot";
 import { compareToWeekAgo } from "@/lib/observability/drift-detector";
 
@@ -80,11 +79,6 @@ export async function buildCostSloSnapshot() {
     topConversations: top,
     byProvider: providers,
   };
-}
-
-export async function buildVoiceLatencySnapshot(days: number = 7) {
-  const safeDays = Math.max(1, Math.min(90, days));
-  return await getVoiceLatencyState(safeDays);
 }
 
 export async function buildEvalResults(limitRaw?: number) {

@@ -105,7 +105,7 @@ export const PRUNED: ReadonlyArray<{ route: string; to: string; page?: false }> 
   { route: "/system/tools", to: "/system/actions" },
   { route: "/system/proactive-preview", to: "/system" },
   { route: "/system/alerts", to: "/brain?tab=memory" },
-  { route: "/system/camera", to: "https://nickstire.org/admin" },
+  { route: "/system/camera", to: "https://nickstire.org/admin?tab=lot" },
   { route: "/intelligence/ledger", to: "/" },
   { route: "/intelligence/brief", to: "/" },
   { route: "/content", to: "/" },

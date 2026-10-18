@@ -35,7 +35,7 @@ const WATCHED = {
   OR: [{ deviceType: "CAMERA" }, { deviceType: "BRIDGE" }, { platform: "V380" }, { platform: "FRIGATE" }],
 };
 
-const COCKPIT_URL = "https://bdnick.info/system/camera";
+const COCKPIT_URL = "https://nickstire.org/admin?tab=lot";
 
 type SentinelMeta = {
   offlineAt: string;

@@ -90,13 +90,11 @@ redirects the retired paths):
 | `/system/logs` | Unified log tail (`?view=errors` = fingerprint groups; absorbed `/system/errors`) |
 | `/system/ai-cost` | Cost + latency + error rate · trend bars · feature × model breakdown (absorbed `/system/costs`, `/system/performance`) |
 | `/system/actions` | Nick's autonomous-action audit + approvals (absorbed `/system/approvals`) |
-| `/system/alerts` | Cross-category brain-alert inspector |
 | `/system/calibration` | Eval / coverage / quality / operator-state lenses (absorbed the eval quadruplet) |
 | `/system/camera` | Arrival Intelligence — vehicle detection + plate recognition cockpit |
 | `/system/cockpit-observability` | Live metrics, execution traces, memory decay, prompt versions |
 | `/system/inbox` | Memory-quarantine review — claims + contradictions before they land |
 | `/system/proactive-preview` | Proactive-push dry-run preview |
-| `/system/schema-history` | Schema-change ledger |
 | `/system/tools` | Agent-tools registry |
 
 Navigation is the **bottom tab bar + More sheet**
