@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-18T16:53:54.706Z",
-  "count": 807,
+  "generatedAt": "2026-10-18T19:06:35.805Z",
+  "count": 808,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -219,6 +219,7 @@
     "mutation.jobAssignments.stopTimer",
     "mutation.jobAssignments.unassign",
     "mutation.kafene.activate",
+    "mutation.kafene.applyStarted",
     "mutation.kafene.attach",
     "mutation.kafene.cancel",
     "mutation.kafene.markSigned",

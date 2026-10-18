@@ -118,6 +118,9 @@ const PUBLIC_ALLOWLIST: readonly string[] = [
   // to take them) only while all three KAFENE_ env vars are set; start/attach/markSigned are
   // authorised by order number + phone inside the handler, like gatewayTire.createCheckout, and
   // never mark an order paid. kafene.start sits behind formLimiter in _core/index.ts.
+  // applyStarted: the keyless website "Apply with Kafene" click; tells the shop once per order
+  // per 24 h, order number + phone checked in the handler, rate-limited per call per IP.
+  "kafene.applyStarted",
   "kafene.attach",
   "kafene.config",
   "kafene.markSigned",

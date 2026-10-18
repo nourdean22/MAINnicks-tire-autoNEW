@@ -11,8 +11,9 @@
  *   cancel      cancels the application at Kafene
  *   status      the order's latest lease
  *
- * Off unless KAFENE_MERCHANT_ID, KAFENE_STORE_ID and KAFENE_API_KEY are all set: every procedure
- * then answers "disabled" before touching the network or the kafene_leases table (0148).
+ * The keyed checkout is off unless KAFENE_MERCHANT_ID, KAFENE_STORE_ID and KAFENE_API_KEY are all set:
+ * config/start/attach/markSigned/activate/cancel then answer "disabled" before touching the network or
+ * the kafene_leases table (0148). applyStarted (keyless website click) and status work without them.
  *
  * The browser's "signed" is the customer's report, not Kafene's: Kafene's own plugin trusts the
  * same callback, and no server-side status read is published. So the order is never marked paid
@@ -23,6 +24,8 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { adminProcedure, publicProcedure, router } from "../_core/trpc";
 import { dbTyped } from "../lib/db-helper";
+import { isMissingTableError } from "../lib/dbErrors";
+import { clientIp } from "../middleware/rateLimiters";
 import { createLogger } from "../lib/logger";
 import { getBusinessDateKey } from "../lib/timezoneAssert";
 import { activateLease, cancelLease, kafeneEnv, maxApprovalCents } from "../services/kafene/partnerApi";
@@ -59,6 +62,30 @@ async function alert(text: string): Promise<void> {
   } catch (e) {
     log.warn("kafene telegram failed", { error: e instanceof Error ? e.message : String(e) });
   }
+}
+
+// ── applyStarted: keyless "Apply with Kafene" click (no KAFENE_* env needed) ──
+const APPLY_DAY_MS = 24 * 60 * 60_000;
+const APPLY_WINDOW_MS = 60 * 60_000;
+const APPLY_MAX_PER_WINDOW = 5;
+const MAX_TRACKED = 5_000;
+/** Per-IP calls in the last hour. Per CALL, not per HTTP request: a batch carries several. */
+const applyCallsByIp = new Map<string, number[]>();
+/** Orders the shop was told about, so a repeat (or a race, or a missing table) stays quiet for 24 h. */
+const appliedNotified = new Map<string, number>();
+
+function takeApplyCall(ip: string): boolean {
+  const now = Date.now();
+  const recent = (applyCallsByIp.get(ip) ?? []).filter((t) => now - t < APPLY_WINDOW_MS);
+  if (recent.length >= APPLY_MAX_PER_WINDOW) {
+    applyCallsByIp.set(ip, recent);
+    return false;
+  }
+  recent.push(now);
+  applyCallsByIp.delete(ip);
+  applyCallsByIp.set(ip, recent);
+  if (applyCallsByIp.size > MAX_TRACKED) applyCallsByIp.delete(applyCallsByIp.keys().next().value as string);
+  return true;
 }
 
 /** "Pat Q Doe" -> first "Pat", last "Q Doe". */
@@ -122,6 +149,59 @@ export const kafeneRouter = router({
       log.warn("kafene.start failed", { error: err instanceof Error ? err.name : "unknown" });
       return { ok: false as const, reason: "upstream_error" as const };
     }
+  }),
+
+  /**
+   * The customer tapped "Apply with Kafene" on the website (Kafene's own application link, no SDK).
+   * Works with NO KAFENE_* env: it only tells the shop, once per order per 24 h, so staff can find
+   * the application in merchant.kafene.com by phone. Never "disabled", never marks anything paid.
+   */
+  applyStarted: publicProcedure.input(z.object(ids)).mutation(async ({ input, ctx }) => {
+    if (!takeApplyCall(ctx.req ? clientIp(ctx.req) : "unknown")) return { ok: false as const, reason: "rate_limited" as const };
+    const d = await dbTyped();
+    if (!d) return { ok: false as const, reason: "upstream_error" as const };
+    const order = await findOrder(d, input.orderNumber, input.phone);
+    if (!order) return { ok: false as const, reason: "not_found" as const };
+    if (order.paymentStatus === "paid") return { ok: false as const, reason: "already_paid" as const };
+    if (order.status === "cancelled") return { ok: false as const, reason: "cancelled" as const };
+
+    let tableReady = true;
+    let lease: Awaited<ReturnType<typeof latestLease>> = null;
+    try {
+      lease = await latestLease(d, order.orderNumber);
+    } catch (err) {
+      if (!isMissingTableError(err)) return { ok: false as const, reason: "upstream_error" as const };
+      tableReady = false; // 0148 not applied yet: still tell the shop, deduped in memory
+    }
+    const now = Date.now();
+    // An order already in the keyed checkout is tracked there.
+    if (lease && (OPEN_STATUSES as readonly string[]).includes(lease.status)) return { ok: true as const };
+    if (lease?.status === "applied" && now - new Date(lease.createdAt).getTime() < APPLY_DAY_MS) return { ok: true as const };
+    // Checked and set with no await in between, so two concurrent clicks send one Telegram.
+    const told = appliedNotified.get(order.orderNumber);
+    if (told !== undefined && now - told < APPLY_DAY_MS) return { ok: true as const };
+    appliedNotified.set(order.orderNumber, now);
+    if (appliedNotified.size > MAX_TRACKED) appliedNotified.delete(appliedNotified.keys().next().value as string);
+
+    if (tableReady) {
+      try {
+        await insertLease(d, order.orderNumber, order.totalAmount, "applied");
+      } catch (err) {
+        log.warn("kafene.applyStarted lease row failed", { error: err instanceof Error ? err.name : "unknown" });
+      }
+    }
+    try {
+      await appendOrderNote(d, order, `Kafene application started from the website ${new Date(now).toISOString()}`);
+    } catch (err) {
+      log.warn("kafene.applyStarted order note failed", { error: err instanceof Error ? err.name : "unknown" });
+    }
+    const last4 = order.customerPhone.replace(/\D/g, "").slice(-4);
+    await alert(
+      `Kafene: ${splitName(order.customerName).first_name} started an application for order ${order.orderNumber} ` +
+      `(${order.tireBrand} ${order.tireModel} ${order.tireSize} x${order.quantity}, $${(order.totalAmount / 100).toFixed(2)}). ` +
+      `Look it up in merchant.kafene.com by phone when they come in. Phone ends in ${last4}.`,
+    );
+    return { ok: true as const };
   }),
 
   attach: publicProcedure.input(z.object({ ...ids, uid })).mutation(async ({ input }) => {
@@ -252,13 +332,14 @@ export const kafeneRouter = router({
     return { ok: true as const, status: "cancelled" as const };
   }),
 
+  /** Works with no KAFENE_* env too: a keyless "applied" row must show in the admin. */
   status: adminProcedure.input(z.object({ orderNumber: ids.orderNumber })).query(async ({ input }) => {
-    if (!kafeneEnv()) return disabled;
     const d = await dbTyped();
     if (!d) throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Database unavailable; the lease is unknown, not absent." });
     try {
       return { ok: true as const, lease: await latestLease(d, input.orderNumber) };
-    } catch {
+    } catch (err) {
+      if (isMissingTableError(err)) return { ok: false as const, reason: "not_installed" as const };
       throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Database unavailable; the lease is unknown, not absent." });
     }
   }),

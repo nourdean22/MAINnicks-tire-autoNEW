@@ -5314,9 +5314,11 @@ export type NhtsaMfrWarrantyProduct = typeof nhtsaMfrWarrantyProducts.$inferSele
  * Kafene lease checkout (migration 0148, hand-applied). One row per Kafene application for a
  * tire order: started (customer opened checkout) -> approved (Kafene gave the uid) -> signed
  * (customer finished) -> activating -> activated (an admin activated it at install; Kafene funds
- * about 2 business days later), or cancelled / declined / error. status is VARCHAR, never ENUM
- * (nickstire-tidb-ddl: an out-of-enum write is rejected and lost). Nothing reads or writes this
- * table unless KAFENE_MERCHANT_ID, KAFENE_STORE_ID and KAFENE_API_KEY are all set.
+ * about 2 business days later), or cancelled / declined / error; "applied" is a keyless website
+ * application click (kafene.applyStarted, no KAFENE_* env needed). status is VARCHAR, never ENUM
+ * (nickstire-tidb-ddl: an out-of-enum write is rejected and lost). The keyed checkout uses this table
+ * only when KAFENE_MERCHANT_ID, KAFENE_STORE_ID and KAFENE_API_KEY are all set; applyStarted and the admin
+ * status read work without them and survive the table being absent.
  */
 export const kafeneLeases = mysqlTable("kafene_leases", {
   id: int("id").autoincrement().primaryKey(),

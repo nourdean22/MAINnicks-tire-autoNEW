@@ -25,6 +25,7 @@ const h = vi.hoisted(() => ({
   tables: { tire_orders: [] as Row[], kafene_leases: [] as Row[] } as Record<string, Row[]>,
   writes: [] as Array<{ table: string; kind: string; sql: string; params: unknown[]; set?: Row; affected: number }>,
   dbDown: false,
+  missingTable: false,
   logLines: [] as string[],
   telegrams: [] as string[],
   emails: [] as Row[],
@@ -88,6 +89,7 @@ vi.mock("../lib/db-helper", async () => {
           orderBy() { q.desc = true; return q; },
           async limit(n: number) {
             if (h.dbDown) throw new Error("ECONNREFUSED");
+            if (h.missingTable && table === "kafene_leases") throw Object.assign(new Error("Table 'nicks.kafene_leases' doesn't exist"), { code: "ER_NO_SUCH_TABLE", errno: 1146 });
             const { sql, params } = q.cond ? d.sqlToQuery(q.cond as never) : { sql: "", params: [] };
             let rows = h.tables[table].filter((r) => matches(sql, params, r));
             if (q.desc) rows = [...rows].sort((a, b) => (b.id as number) - (a.id as number));
@@ -101,7 +103,8 @@ vi.mock("../lib/db-helper", async () => {
       values: async (v: Row) => {
         if (h.dbDown) throw new Error("ECONNREFUSED");
         const table = tableOf(t);
-        const row = { id: h.nextId++, uid: null, activationDate: null, activatedAt: null, activatedBy: null, cancelledAt: null, lastError: null, ...v };
+        if (h.missingTable && table === "kafene_leases") throw Object.assign(new Error("Table 'nicks.kafene_leases' doesn't exist"), { code: "ER_NO_SUCH_TABLE", errno: 1146 });
+        const row = { id: h.nextId++, createdAt: new Date(), uid: null, activationDate: null, activatedAt: null, activatedBy: null, cancelledAt: null, lastError: null, ...v };
         h.tables[table].push(row);
         h.writes.push({ table, kind: "insert", sql: "", params: [], set: v, affected: 1 });
         return [{ insertId: row.id, affectedRows: 1 }];
@@ -202,6 +205,7 @@ beforeEach(async () => {
   h.tables = { tire_orders: [], kafene_leases: [] };
   h.writes = [];
   h.dbDown = false;
+  h.missingTable = false;
   h.logLines.length = 0;
   h.telegrams.length = 0;
   h.emails.length = 0;
@@ -231,7 +235,8 @@ describe("disabled: not all three KAFENE_ ids set", () => {
       expect(await pub().markSigned({ ...IDS, uid: "app_1" })).toEqual({ ok: false, reason: "disabled" });
       expect(await admin().activate({ orderNumber: IDS.orderNumber })).toEqual({ ok: false, reason: "disabled" });
       expect(await admin().cancel({ orderNumber: IDS.orderNumber, reason: "customer changed mind" })).toEqual({ ok: false, reason: "disabled" });
-      expect(await admin().status({ orderNumber: IDS.orderNumber })).toEqual({ ok: false, reason: "disabled" });
+      // status reads the table with or without keys (keyless "applied" rows must show); nothing here
+      expect(await admin().status({ orderNumber: IDS.orderNumber })).toEqual({ ok: true, lease: null });
       expect(kf.calls).toEqual([]);
       expect(h.writes).toEqual([]);
     });
@@ -532,5 +537,97 @@ describe("secrets", () => {
     const all = h.logLines.join("\n");
     expect(all).not.toContain(API_KEY);
     expect(all).not.toContain(TOKEN);
+  });
+});
+
+// Manager 2026-10-18: a website "Apply with Kafene" click must reach the shop even before any
+// KAFENE_* key exists. applyStarted records an "applied" lease and sends ONE Telegram per order
+// per 24 h; it never answers "disabled".
+describe("applyStarted (works with no Kafene keys)", () => {
+  const TELEGRAM = "Kafene: Pat started an application for order TO-20261018-011 (LANDSAIL LS388 215/55R16 x4, $630.00). Look it up in merchant.kafene.com by phone when they come in. Phone ends in 0100.";
+  const noKeys = () => { for (const k of ["KAFENE_MERCHANT_ID", "KAFENE_STORE_ID", "KAFENE_API_KEY"]) delete process.env[k]; };
+
+  it("with no keys: records an applied lease, notes the order and sends exactly the Telegram; no Kafene call", async () => {
+    noKeys();
+    expect(await pub().applyStarted(IDS)).toEqual({ ok: true });
+    expect(leases()).toHaveLength(1);
+    expect(leases()[0]).toMatchObject({ orderNumber: "TO-20261018-011", status: "applied", uid: null, merchandiseCents: 63000 });
+    expect(String(order().adminNotes)).toMatch(/^Kafene application started from the website \d{4}-\d\d-\d\dT\S+Z$/);
+    expect(h.telegrams).toEqual([TELEGRAM]);
+    expect(order().paymentStatus).toBe("unpaid");
+    expect(kf.calls).toEqual([]);
+  });
+
+  it("a second call within 24 h is ok with no second Telegram and no second row", async () => {
+    noKeys();
+    await pub().applyStarted(IDS);
+    expect(await pub().applyStarted(IDS)).toEqual({ ok: true });
+    expect(h.telegrams).toHaveLength(1);
+    expect(leases()).toHaveLength(1);
+  });
+
+  it("a server restart within 24 h does not repeat the Telegram (the applied row is the memory)", async () => {
+    noKeys();
+    await pub().applyStarted(IDS);
+    vi.resetModules();
+    ({ kafeneRouter } = await import("../routers/kafene"));
+    expect(await pub().applyStarted(IDS)).toEqual({ ok: true });
+    expect(h.telegrams).toHaveLength(1);
+    expect(leases()).toHaveLength(1);
+  });
+
+  it("after 24 h a new application is recorded and the shop told again", async () => {
+    noKeys();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    await pub().applyStarted(IDS);
+    vi.setSystemTime(Date.now() + 25 * 60 * 60_000);
+    await pub().applyStarted(IDS);
+    expect(h.telegrams).toHaveLength(2);
+    expect(leases()).toHaveLength(2);
+  });
+
+  it("works with the keys set too, and never answers disabled", async () => {
+    expect(await pub().applyStarted(IDS)).toEqual({ ok: true });
+    expect(h.telegrams).toHaveLength(1);
+  });
+
+  it("an order already in the keyed checkout (an open lease) is ok without a new row or Telegram", async () => {
+    await pub().start(IDS);
+    expect(await pub().applyStarted(IDS)).toEqual({ ok: true });
+    expect(leases()).toHaveLength(1);
+    expect(h.telegrams).toHaveLength(0);
+  });
+
+  it("refuses a wrong phone, a paid order and a cancelled order, telling nobody", async () => {
+    noKeys();
+    expect(await pub().applyStarted({ ...IDS, phone: "2165559999" })).toEqual({ ok: false, reason: "not_found" });
+    seedOrder({ paymentStatus: "paid" });
+    expect(await pub().applyStarted(IDS)).toEqual({ ok: false, reason: "already_paid" });
+    seedOrder({ status: "cancelled" });
+    expect(await pub().applyStarted(IDS)).toEqual({ ok: false, reason: "cancelled" });
+    expect(h.telegrams).toEqual([]);
+    expect(leases()).toEqual([]);
+  });
+
+  it("is limited per call per IP (a batched request is several calls): the 6th in an hour is rate_limited", async () => {
+    noKeys();
+    const results = [];
+    for (let i = 0; i < 6; i++) results.push(await pub().applyStarted(IDS));
+    expect(results.slice(0, 5).every((r) => r.ok)).toBe(true);
+    expect(results[5]).toEqual({ ok: false, reason: "rate_limited" });
+  });
+
+  it("before migration 0148 (no table) the shop still hears once; a repeat in 24 h stays quiet", async () => {
+    noKeys();
+    h.missingTable = true;
+    expect(await pub().applyStarted(IDS)).toEqual({ ok: true });
+    expect(await pub().applyStarted(IDS)).toEqual({ ok: true });
+    expect(h.telegrams).toEqual([TELEGRAM]);
+  });
+
+  it("admin status shows the applied row with no keys set", async () => {
+    noKeys();
+    await pub().applyStarted(IDS);
+    expect(await admin().status({ orderNumber: IDS.orderNumber })).toMatchObject({ ok: true, lease: { status: "applied", uid: null } });
   });
 });

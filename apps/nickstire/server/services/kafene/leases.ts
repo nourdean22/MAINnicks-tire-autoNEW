@@ -1,6 +1,6 @@
 /**
- * kafene_leases reads and writes (migration 0148). Callers check that Kafene is enabled first,
- * so nothing here runs against a database that has not had 0148 applied.
+ * kafene_leases reads and writes (migration 0148). Keyed-checkout callers check that Kafene is enabled
+ * first; applyStarted and the admin status read run without keys and handle a missing table themselves.
  *
  * Every transition that decides who acts is ONE compare-and-swap on the status the caller read
  * (claim-before-act): attach (started -> approved, uid still NULL), sign (approved -> signed),
@@ -40,8 +40,9 @@ export async function leaseByUid(d: DB, uid: string): Promise<KafeneLease | null
   return row ?? null;
 }
 
-export async function insertLease(d: DB, orderNumber: string, merchandiseCents: number): Promise<void> {
-  await d.insert(kafeneLeases).values({ orderNumber, merchandiseCents, status: "started" });
+/** status "started" for the keyed SDK checkout; "applied" for a keyless website application click. */
+export async function insertLease(d: DB, orderNumber: string, merchandiseCents: number, status: "started" | "applied" = "started"): Promise<void> {
+  await d.insert(kafeneLeases).values({ orderNumber, merchandiseCents, status });
 }
 
 export async function refreshStartedLease(d: DB, id: number, merchandiseCents: number): Promise<void> {
