@@ -139,6 +139,38 @@ test("mention is not structure: an operator message quoting the pre-filter's key
   assert.deepEqual(recorded(fx).map((a) => a.text), [quoting.message.content]);
 });
 
+test("<private>...</private> never reaches the asks file or the recall block; a backtick-quoted mention is kept", () => {
+  const typed = (h, content) => ({ ...entries.typed, timestamp: at(h), message: { role: "user", content } });
+  const queued = (h, prompt) => ({ ...entries.midTurn, timestamp: at(h), attachment: { ...entries.midTurn.attachment, prompt, timestamp: at(h) } });
+  const fx = fixture([
+    typed(1, "pay with <private>card ending 4421</private> today"),
+    queued(2, "same <private >card ending 4421</private > for the tires"), // a stray space inside the tag still counts
+    typed(3, "call me at <private>216 555 0100 after 5\nor email me"), // unclosed: redacted to the end of the message
+    queued(4, "price is <PRIVATE>$640</PRIVATE> cash"),
+    typed(5, "does the `<private>` tag work in asks?"), // a mention, not a tag
+    typed(6, "quote `<private>` then hide <private>gate code 1987</private> ok"), // a mention does not switch the rule off
+    typed(7, "stray ` here\n<private>pin 7788</private>\nand ` there"), // backticks on two lines are not a quote
+  ]);
+  assert.equal(run(fx, "--refresh").code, 0);
+  assert.deepEqual(recorded(fx).map((a) => a.text), [
+    "pay with [private: redacted] today",
+    "same [private: redacted] for the tires",
+    "call me at [private: redacted]",
+    "price is [private: redacted] cash",
+    "does the `<private>` tag work in asks?",
+    "quote `<private>` then hide [private: redacted] ok",
+    "stray ` here\n[private: redacted]\nand ` there",
+  ]);
+  const file = readFileSync(join(fx.dir, `${fx.session}.md`), "utf8");
+  const recall = run(fx, "--recall", { source: "compact" }).out;
+  assert.match(recall, /pay with \[private: redacted\] today/, "the recall block reads the redacted line");
+  assert.match(recall, /does the `<private>` tag work in asks\?/);
+  for (const secret of ["4421", "216 555 0100", "or email me", "$640", "1987", "7788"]) {
+    assert.ok(!file.includes(secret), `asks file holds "${secret}"`);
+    assert.ok(!recall.includes(secret), `recall block holds "${secret}"`);
+  }
+});
+
 test("--recall on compact and resume prints the block; startup and clear print nothing", () => {
   const fx = fixture();
   for (const source of ["compact", "resume"]) {
