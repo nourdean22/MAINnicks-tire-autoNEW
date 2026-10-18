@@ -123,6 +123,19 @@ export function generateOrderNumber(now: Date = new Date()): string {
 }
 
 /**
+ * A quote-by-text row ("Text me this quote" on /tires) lives in tire_orders so the shop
+ * sees it next to real requests, but it is a LEAD, never an order: its price came from the
+ * client. The TQ- prefix is the persisted mark; checkout, the Kafene lease lookups,
+ * placeOrder's dedupe and every order / revenue count filter on it (Codex review, PR #3157).
+ */
+export const QUOTE_NUMBER_PREFIX = "TQ-";
+export const isQuoteNumber = (orderNumber: string): boolean => orderNumber.startsWith(QUOTE_NUMBER_PREFIX);
+/** TQ-YYYYMMDD-NNN, same tail and same collision rule as generateOrderNumber. */
+export function generateQuoteNumber(now: Date = new Date()): string {
+  return QUOTE_NUMBER_PREFIX + generateOrderNumber(now).slice(3);
+}
+
+/**
  * MySQL unique-constraint violation. The only UNIQUE key on tire_orders
  * is orderNumber (id is auto-increment), so any duplicate-entry error on
  * insert is an order-number collision.

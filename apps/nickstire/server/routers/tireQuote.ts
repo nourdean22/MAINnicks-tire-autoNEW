@@ -8,21 +8,42 @@
  * sendSms underneath applies the opt-out and internal-line refusals. An uncertain gateway answer
  * is reported as uncertain and never retried. Staff get a Telegram with the phone's last four.
  *
+ * The row's number is TQ-..., the persisted mark that keeps a quote out of checkout, the Kafene
+ * lease lookups, placeOrder's dedupe and every order / revenue count (lib/tire-order-guards.ts).
+ *
  * Rate limit: blockBatchedLimits + formLimiter in _core/index.ts (10 per hour per IP), plus a
- * five-minute dedupe on phone + tire + qty so a double tap never sends twice.
+ * five-minute dedupe on phone + tire + qty so a double tap never sends twice: an in-memory claim
+ * taken before the first await (two concurrent requests on one replica) and a DB check (a retry
+ * after a redeploy).
  */
 import { z } from "zod";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { publicProcedure, router } from "../_core/trpc";
 import { db } from "../lib/db-helper";
 import { tireOrders } from "../../drizzle/schema";
-import { evaluateOrderPrice, generateOrderNumber, isDuplicateKeyError } from "../lib/tire-order-guards";
+import { evaluateOrderPrice, generateQuoteNumber, getIdempotencyKey, isDuplicateKeyError } from "../lib/tire-order-guards";
 import { createLogger } from "../lib/logger";
 
 const log = createLogger("routers:tireQuote");
 
 const DEDUPE_WINDOW_MS = 5 * 60 * 1000;
+const MAX_CLAIMS = 5_000;
 const PICK_LABEL = { lowest: "Lowest price", value: "Best value", premium: "Premium" } as const;
+
+type QuoteResult =
+  | { ok: true; orderNumber: string; sms: QuoteSmsState }
+  | { ok: false; reason: "price" | "upstream_error" };
+
+/** phone|brand|model|size|qty -> the request that owns this quote for five minutes (one replica). */
+const claims = new Map<string, { at: number; result: Promise<QuoteResult> }>();
+
+/** Tests share one module instance; the claim map must not carry a quote from one test into the next. */
+export function _resetQuoteClaimsForTest(): void { claims.clear(); }
+
+function pruneClaims(now: number) {
+  for (const [k, v] of claims) if (now - v.at > DEDUPE_WINDOW_MS) claims.delete(k);
+  while (claims.size > MAX_CLAIMS) claims.delete(claims.keys().next().value as string);
+}
 
 /** "(216) 555-0123" / "+1 216 555 0123" -> "2165550123"; anything else is rejected. */
 const usPhone = z.string().trim().transform((v, ctx) => {
@@ -40,6 +61,13 @@ const lastFour = (phone: string) => phone.slice(-4);
 const plainText = (max: number) => z.string().trim().min(1).max(max).refine((v) => !/[<>]|https?:|www\./i.test(v), "plain text only");
 
 type QuoteSmsState = "sent" | "queued" | "uncertain" | "not_sent" | "duplicate";
+
+type QuoteInput = {
+  phone: string; tireBrand: string; tireModel: string; tireSize: string; quantity: number; pricePerTireCents: number;
+  pick: keyof typeof PICK_LABEL; vehicle?: { year: number; make: string; model: string; trim?: string };
+  utmSource?: string | null; utmMedium?: string | null; utmCampaign?: string | null;
+  landingPage?: string | null; referrer?: string | null; sessionId?: string | null;
+};
 
 export const tireQuoteRouter = router({
   text: publicProcedure
@@ -64,15 +92,31 @@ export const tireQuoteRouter = router({
       referrer: z.string().max(500).nullish(),
       sessionId: z.string().max(64).nullish(),
     }))
-    .mutation(async ({ input }): Promise<
-      | { ok: true; orderNumber: string; sms: QuoteSmsState }
-      | { ok: false; reason: "price" | "upstream_error" }
-    > => {
+    .mutation(async ({ input }): Promise<QuoteResult> => {
       // shortcut: the $50 absolute floor only (placeOrder also re-derives the price from the
-      // supplier feed); a quote is a text and a call-back, not a charge. Upgrade if a quote row
-      // ever feeds a payment.
+      // supplier feed). The quoted figure can never be charged: createCheckout and the Kafene
+      // lookups refuse a TQ- number. Upgrade to re-derivation if a quote is ever shown as final.
       if (!evaluateOrderPrice(input.pricePerTireCents, null).ok) return { ok: false, reason: "price" };
 
+      // Claim the quote identity BEFORE the first await: a second request for the same quote
+      // waits for the first and reports it as the duplicate, so a race sends one text.
+      const key = getIdempotencyKey({ customerPhone: input.phone, tireBrand: input.tireBrand, tireModel: input.tireModel, tireSize: input.tireSize, quantity: input.quantity });
+      const now = Date.now();
+      pruneClaims(now);
+      const held = claims.get(key);
+      if (held) {
+        const first = await held.result;
+        return first.ok ? { ...first, sms: "duplicate" } : first;
+      }
+      const result = storeAndText(input);
+      claims.set(key, { at: now, result });
+      const settled = await result;
+      if (!settled.ok) claims.delete(key); // a failed attempt must not block the retry
+      return settled;
+    }),
+});
+
+async function storeAndText(input: QuoteInput): Promise<QuoteResult> {
       const d = await db();
       if (!d) return { ok: false, reason: "upstream_error" };
 
@@ -101,8 +145,8 @@ export const tireQuoteRouter = router({
         log.warn("quote dedupe check failed, continuing", { error: e instanceof Error ? e.message : String(e) });
       }
 
-      // TO-YYYYMMDD-NNN collides on a busy day: regenerate, like placeOrder.
-      let orderNumber = generateOrderNumber();
+      // TQ-YYYYMMDD-NNN collides on a busy day: regenerate, like placeOrder.
+      let orderNumber = generateQuoteNumber();
       try {
         for (let attempt = 1; ; attempt++) {
           try {
@@ -131,7 +175,7 @@ export const tireQuoteRouter = router({
             break;
           } catch (err) {
             if (isDuplicateKeyError(err) && attempt < 3) {
-              orderNumber = generateOrderNumber();
+              orderNumber = generateQuoteNumber();
               continue;
             }
             throw err;
@@ -152,6 +196,7 @@ export const tireQuoteRouter = router({
         log.error(`quote text for ${orderNumber} failed`, { error: e instanceof Error ? e.message : String(e) });
       }
 
+      // "incident": a customer is waiting for a call. A "receipt" is held unless telegram_receipt is on.
       try {
         const { sendTelegram } = await import("../services/telegram");
         await sendTelegram(
@@ -160,12 +205,11 @@ export const tireQuoteRouter = router({
           (vehicleInfo ? ` · ${vehicleInfo}` : "") + "\n" +
           `Phone ending ${lastFour(input.phone)} · text ${sms === "not_sent" ? "NOT sent (refused or off): call them" : sms}\n` +
           `Admin > Tire Orders > New Requests`,
-          "receipt",
+          "incident",
         );
       } catch (e) {
         log.warn("quote telegram failed", { error: e instanceof Error ? e.message : String(e) });
       }
 
       return { ok: true, orderNumber, sms };
-    }),
-});
+}

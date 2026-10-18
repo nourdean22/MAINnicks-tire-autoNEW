@@ -41,6 +41,8 @@ export default function TextQuoteButton({ tire, quantity, pick, vehicle }: Props
         <span>
           {sms === "not_sent" ? (
             <>Saved. We could not text this number. Call <CallShop /> and we will go over it.</>
+          ) : sms === "duplicate" ? (
+            <>We already have this quote for this number. If the text has not arrived, call <CallShop />.</>
           ) : sms === "uncertain" ? (
             <>We tried to text you. If nothing arrives in a few minutes, call <CallShop />.</>
           ) : (

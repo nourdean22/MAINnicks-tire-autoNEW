@@ -362,9 +362,18 @@ export default function TireFinderV2() {
                           >
                             <Phone className="h-4 w-4" aria-hidden="true" />Call about these tires
                           </a>
-                          {/* The quote leaves the page as one text (the shop's SMS line, not the voice number)
-                              and comes back as a tire_orders row the shop calls on. */}
-                          <TextQuoteButton tire={p.tire} quantity={qty} pick={p.kind} vehicle={searchVehicle} />
+                          {/* The quote leaves the page as one text and comes back as a tire_orders lead the
+                              shop calls on. Not for catalog fallbacks: those are estimates, not quotes. Keyed by
+                              tire, qty and vehicle so a change after "Sent" offers the new set total again. */}
+                          {query.data.source !== "catalog" && (
+                            <TextQuoteButton
+                              key={`${p.tire.id}|${qty}|${searchVehicle?.label ?? ""}`}
+                              tire={p.tire}
+                              quantity={qty}
+                              pick={p.kind}
+                              vehicle={searchVehicle}
+                            />
+                          )}
                         </div>
                       </article>
                     ))}

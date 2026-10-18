@@ -452,6 +452,37 @@ describe("TireFinderV2 (the shipped /tires funnel)", () => {
         expect(within(c.getByRole("status")).getByRole("link", { name: /\(216\) 862-0005/ }).getAttribute("href")).toBe("tel:+12168620005");
       });
 
+      it("a duplicate inside five minutes does not claim a text was sent", async () => {
+        h.quoteResult = { ok: true, orderNumber: "TQ-20261018-001", sms: "duplicate" };
+        h.search = results(SIX);
+        await renderV2();
+        const c = await openQuote();
+        await typeAndSend(c, "2165550123");
+        const status = c.getByRole("status").textContent ?? "";
+        expect(status).toMatch(/already have this quote/);
+        expect(status).not.toMatch(/^Sent/);
+        expect(within(c.getByRole("status")).getByRole("link", { name: /\(216\) 862-0005/ })).toBeTruthy();
+      });
+
+      it("changing the quantity after a send brings the button back for the new set total", async () => {
+        h.search = results(SIX);
+        await renderV2();
+        const c = await openQuote();
+        await typeAndSend(c, "2165550123");
+        expect(c.getByRole("status")).toBeTruthy();
+        fireEvent.click(screen.getByRole("button", { name: "2 tires" }));
+        expect(card("Best value").queryByRole("status")).toBeNull();
+        expect(card("Best value").getByRole("button", { name: "Text me this quote" })).toBeTruthy();
+      });
+
+      it("catalog estimates (Gateway unavailable) get no quote button: an estimate is not a quote", async () => {
+        h.search = { data: { sizeFormatted: "215/60R16", source: "catalog", tires: SIX }, isLoading: false, isError: false };
+        await renderV2();
+        expect(picks()).not.toBeNull();
+        expect(screen.queryByRole("button", { name: "Text me this quote" })).toBeNull();
+        expect(screen.getByText(/These are estimated options/)).toBeTruthy();
+      });
+
       it("a failed request keeps the form and shows the call-us error", async () => {
         h.quoteResult = new Error("429");
         h.search = results(SIX);

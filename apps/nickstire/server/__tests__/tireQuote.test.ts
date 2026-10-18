@@ -66,6 +66,9 @@ const h = vi.hoisted(() => {
         async limit(n: number) {
           const out: Row[] = [];
           for (const r of state.tables[table] ?? []) if (await matches(cond, r)) out.push(r);
+          // The rows were read; the answer still has to travel back. Yield a macrotask here so two
+          // concurrent callers both read before either writes, as they would against TiDB.
+          await new Promise((r) => setImmediate(r));
           return out.slice(0, n);
         },
       };
@@ -121,7 +124,7 @@ vi.mock("../services/auditTrail", () => ({
   logAdminAction: async (d: Row) => { h.audits.push(d); },
 }));
 
-import { tireQuoteRouter } from "../routers/tireQuote";
+import { _resetQuoteClaimsForTest, tireQuoteRouter } from "../routers/tireQuote";
 
 const ctx = () => ({ req: { ip: "203.0.113.5", headers: {} }, res: {} }) as unknown as TrpcContext;
 const caller = () => tireQuoteRouter.createCaller(ctx());
@@ -152,6 +155,7 @@ describe("tireQuote.text", () => {
     h.audits = [];
     h.logs = [];
     process.env.ENABLE_CUSTOMER_CONFIRMATIONS = "true";
+    _resetQuoteClaimsForTest();
     const { _resetSendPauseCacheForTest } = await import("../services/sendPause");
     _resetSendPauseCacheForTest();
   });
@@ -180,7 +184,8 @@ describe("tireQuote.text", () => {
       customerEmail: null,
     });
     expect(row.invoiceId).toBeUndefined(); // a quote is not a job: no invoice, no booking
-    expect(String(row.orderNumber)).toMatch(/^TO-\d{8}-\d{3}$/);
+    // TQ-, not TO-: the persisted mark that keeps a quote out of checkout, Kafene, order dedupe and the stats.
+    expect(String(row.orderNumber)).toMatch(/^TQ-\d{8}-\d{3}$/);
     expect(String(row.customerNotes)).toMatch(/quote by text/i);
     expect(res).toMatchObject({ orderNumber: row.orderNumber });
 
@@ -197,10 +202,11 @@ describe("tireQuote.text", () => {
     expect(text.body).not.toMatch(/financ/i);
   });
 
-  it("tells the shop on Telegram with the phone masked to its last four digits", async () => {
+  it("tells the shop on Telegram as an incident (a customer is waiting; receipts are held by default) with the phone masked to its last four digits", async () => {
     await caller().text(QUOTE);
     expect(h.telegrams).toHaveLength(1);
-    const { text } = h.telegrams[0];
+    const { text, cls } = h.telegrams[0];
+    expect(cls).toBe("incident");
     expect(text).toContain("0123");
     expect(text).not.toContain("2165550123");
     expect(text).not.toContain("555-0123");
@@ -243,6 +249,14 @@ describe("tireQuote.text", () => {
     const other = await caller().text({ ...QUOTE, tireModel: "CrossClimate 2" });
     expect(other).toMatchObject({ ok: true, sms: "sent" });
     expect(h.tables.tire_orders).toHaveLength(2);
+  });
+
+  it("two concurrent submissions of the same quote: one row, one text (the claim is taken before the first await)", async () => {
+    const [a, b] = await Promise.all([caller().text(QUOTE), caller().text({ ...QUOTE, phone: "216-555-0123" })]);
+    expect(h.tables.tire_orders).toHaveLength(1);
+    expect(h.sms).toHaveLength(1);
+    expect([a, b].filter((r) => r.ok && r.sms === "sent")).toHaveLength(1);
+    expect([a, b].filter((r) => r.ok && r.sms === "duplicate")).toHaveLength(1);
   });
 
   it("a price under the $50 floor stores nothing and texts nothing", async () => {
