@@ -89,6 +89,7 @@ function normalizePaymentType(raw) {
   if (lower.includes("afterpay")) return { method: "financing", isFinanced: true, financeProvider: "AFTERPAY" };
   if (lower.includes("acima")) return { method: "financing", isFinanced: true, financeProvider: "ACIMA" };
   if (lower.includes("koalafi")) return { method: "financing", isFinanced: true, financeProvider: "Koalafi" };
+  if (lower.includes("kafene")) return { method: "financing", isFinanced: true, financeProvider: "Kafene" };
   if (lower.includes("cash")) return { method: "cash", isFinanced: false, financeProvider: null };
   if (lower.includes("visa") || lower.includes("master") || lower.includes("card") || lower.includes("charge"))
     return { method: "card", isFinanced: false, financeProvider: null };

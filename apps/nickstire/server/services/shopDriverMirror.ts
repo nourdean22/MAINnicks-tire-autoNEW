@@ -1107,7 +1107,7 @@ function normalizePaymentMethod(raw?: string): "cash" | "card" | "check" | "fina
   if (lower.includes("cash")) return "cash";
   if (lower.includes("card") || lower.includes("credit") || lower.includes("debit") || lower.includes("visa") || lower.includes("master")) return "card";
   if (lower.includes("check") || lower.includes("cheque")) return "check";
-  if (lower.includes("financ") || lower.includes("acima") || lower.includes("snap") || lower.includes("koalafi")) return "financing";
+  if (lower.includes("financ") || lower.includes("acima") || lower.includes("snap") || lower.includes("koalafi") || lower.includes("kafene")) return "financing";
   return "other";
 }
 
