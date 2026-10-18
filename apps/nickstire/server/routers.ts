@@ -50,6 +50,7 @@ import {
   gatewayTireRouter,
   fitmentRouter,
   gatewayOrderRouter,
+  kafeneRouter,
   autoLaborRouter,
   campaignsRouter,
   callTrackingRouter,
@@ -192,6 +193,8 @@ export const appRouter = router({
   fitment: fitmentRouter,
   /** 2026-10-18 · admin D&K supplier order for a paid tire order; writes need GATEWAY_ORDERING_ENABLED=true. */
   gatewayOrder: gatewayOrderRouter,
+  /** 2026-10-18 · Kafene lease checkout (public) + activate/cancel (admin); off until KAFENE_* env is set. */
+  kafene: kafeneRouter,
   autoLabor: autoLaborRouter,
   emergency: emergencyRouter,
   messengerBot: messengerBotRouter,

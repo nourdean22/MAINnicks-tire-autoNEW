@@ -858,6 +858,72 @@ export function notifyTireOrderPaid(details: {
   });
 }
 
+/**
+ * Shop hand-off for a tire order the customer chose to lease through Kafene (kafene.markSigned).
+ * Sibling of notifyTireOrderPaid with the one difference that matters: NOTHING is collected yet.
+ * Kafene funds after staff ACTIVATE the lease in the admin at install. The "signed" signal comes
+ * from the customer's browser, so staff confirm the lease in the Kafene Merchant Portal first.
+ */
+export function notifyTireOrderKafeneSigned(details: {
+  orderNumber: string;
+  uid: string;
+  customerName: string;
+  customerPhone: string;
+  customerEmail?: string;
+  vehicleInfo?: string;
+  tireBrand: string;
+  tireModel: string;
+  tireSize: string;
+  quantity: number;
+  leaseAmount: number; // dollars sent to Kafene
+  customerNotes?: string;
+}) {
+  const gatewaySearch = `https://b2b.dktire.com/products?search=${encodeURIComponent(details.tireSize.replace(/[^0-9]/g, ""))}`;
+  return sendNotification({
+    category: "tire_order",
+    overrideTo: ["moeseuclid@gmail.com"],
+    bypassThrottle: true,
+    subject: `KAFENE LEASE SIGNED ${details.orderNumber} — $${details.leaseAmount.toFixed(2)} — action needed`,
+    body: [
+      `Kafene lease signed — $${details.leaseAmount.toFixed(2)} leased`,
+      `Order ${details.orderNumber} · Kafene application ${details.uid}`,
+      `Signed ${new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone })} · reported by the customer's Kafene checkout`,
+      ``,
+      `PAYMENT: NOT COLLECTED YET. Kafene pays the shop about 2 business days after you`,
+      `ACTIVATE the lease in the admin (tire order -> Kafene -> Activate) once the tires are installed.`,
+      ``,
+      `Before ordering tires: confirm application ${details.uid} shows as signed in the Kafene Merchant Portal.`,
+      ``,
+      `========================================`,
+      `STEP 1 — ENTER IN SHOPDRIVER (Auto Labor Guide)`,
+      `========================================`,
+      `  Customer : ${details.customerName}`,
+      `  Phone    : ${details.customerPhone}`,
+      details.customerEmail ? `  Email    : ${details.customerEmail}` : "",
+      `  Vehicle  : ${details.vehicleInfo || "(not given — confirm with customer)"}`,
+      `  Tires    : ${details.quantity}x ${details.tireBrand} ${details.tireModel} (${details.tireSize})`,
+      `  Payment  : Kafene lease ${details.uid} — activate at install`,
+      `  Ref      : ${details.orderNumber}`,
+      ``,
+      `========================================`,
+      `STEP 2 — ORDER THE TIRES FROM GATEWAY`,
+      `========================================`,
+      `  ${details.quantity}x ${details.tireBrand} ${details.tireModel}`,
+      `  Size    : ${details.tireSize}`,
+      `  Search  : ${gatewaySearch}`,
+      ``,
+      `========================================`,
+      `STEP 3 — INSTALL, THEN ACTIVATE THE LEASE`,
+      `========================================`,
+      `Call ${details.customerPhone} once the tires arrive. After the install, tap Activate on the order.`,
+      ``,
+      details.customerNotes ? `CUSTOMER NOTES: ${details.customerNotes}` : "",
+      ``,
+      `— Nick's Tire & Auto Website`,
+    ].filter(Boolean).join("\n"),
+  });
+}
+
 /* 2026-08-08 · notifyWeeklyReport + the `weekly_report` category were removed
  * with the weeklyReport router. Both had ZERO callers (only a test asserting the
  * export existed); weekly reporting is now the Monday Telegram push in
