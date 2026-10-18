@@ -19,9 +19,10 @@
  * Exit 0 always: any unexpected error prints one "[surface] off: <reason>" line. Canary: sessionSurface.test.mjs.
  */
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const TOOLS = ["rtk", "uv", "gh", "railway"];
 const MAX_NAMES = 6;
@@ -76,13 +77,21 @@ function projectEntry(claudeJson, projectDir) {
   return key ? claudeJson.projects[key] : undefined;
 }
 
+/** Map a finished lookup ({status, signal, error} from spawnSync) to ok | MISSING | UNKNOWN (with a reason). */
+export function classifyLookup(r) {
+  if (r.error) return { state: "UNKNOWN", reason: `lookup ${r.error.code || "spawn error"}` };
+  if (r.signal) return { state: "UNKNOWN", reason: `lookup killed by ${r.signal}` };
+  if (r.status === 0) return { state: "ok" };
+  // The lookup ran and found nothing: where.exe /q and bash exit 1, dash (Linux CI's /bin/sh) exits 127 (PR #3150).
+  if (r.status === 1 || r.status === 127) return { state: "MISSING" };
+  return { state: "UNKNOWN", reason: `lookup exit ${r.status}` };
+}
+
 function onPath(tool) {
   const r = WIN
     ? spawnSync(join(process.env.SystemRoot || "C:\\Windows", "System32", "where.exe"), ["/q", tool], { stdio: "ignore", timeout: 3000 })
     : spawnSync("/bin/sh", ["-c", 'command -v "$1"', "sh", tool], { stdio: "ignore", timeout: 3000 });
-  if (r.error) throw r.error;
-  if (r.status !== 0 && r.status !== 1) throw new Error(`lookup exit ${r.status}`);
-  return r.status === 0;
+  return classifyLookup(r);
 }
 
 function main() {
@@ -120,16 +129,30 @@ function main() {
 
   const path = "path: " + TOOLS.map((t) => {
     const r = attempt(() => onPath(t));
-    return `${t} ${r.err ? unknown(r) : r.value ? "ok" : "MISSING"}`;
+    if (r.err) return `${t} ${unknown(r)}`;
+    return `${t} ${r.value.state === "UNKNOWN" ? `UNKNOWN (${r.value.reason})` : r.value.state}`;
   }).join(", ");
 
   const line = `[surface] ${hooks} | ${mcp} | ${pluginSeg} | ${path}`;
   process.stdout.write((line.length > MAX_LINE ? line.slice(0, MAX_LINE - 3) + "..." : line) + "\n");
 }
 
-try {
-  main();
-} catch (err) {
-  process.stdout.write(`[surface] off: ${String(err?.message || err).split(/\r?\n/)[0]}\n`);
+/** True when node was started on this file, so the test can import classifyLookup without printing a line. */
+function isEntry() {
+  try {
+    const a = realpathSync(process.argv[1]);
+    const b = realpathSync(fileURLToPath(import.meta.url));
+    return WIN ? a.toLowerCase() === b.toLowerCase() : a === b;
+  } catch {
+    return false;
+  }
 }
-process.exitCode = 0;
+
+if (isEntry()) {
+  try {
+    main();
+  } catch (err) {
+    process.stdout.write(`[surface] off: ${String(err?.message || err).split(/\r?\n/)[0]}\n`);
+  }
+  process.exitCode = 0;
+}

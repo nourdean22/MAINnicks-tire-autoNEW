@@ -131,11 +131,32 @@ test("the CONFIGURED command runs verbatim through a shell and prints one [surfa
 
 test("MUTANT no-op lookup: a presence check that always succeeds is caught by the MISSING control", () => {
   const src = readFileSync(SCRIPT, "utf8");
-  const anchor = "return r.status === 0;";
+  const anchor = 'if (r.status === 0) return { state: "ok" };';
   assert.ok(src.includes(anchor), "mutation anchor not found");
   const file = join(SCRATCH, "noop-lookup.mjs");
-  writeFileSync(file, src.replace(anchor, "return true;"));
+  writeFileSync(file, src.replace(anchor, 'return { state: "ok" };'));
   const line = oneLine(run(fixture("mutant"), { pathEnv: pathDir("empty-m", false), script: file }));
   assert.doesNotMatch(line, /rtk MISSING/, "the mutant should claim rtk ok, proving the MISSING control can fail");
   rmSync(file);
+});
+
+// Linux CI (2026-10-18, PR #3150): /bin/sh on the runner is dash, whose `command -v <missing>` exits 127 (bash exits
+// 1, where.exe /q exits 1). A lookup that RAN and found nothing is MISSING on every platform; only a spawn error, a
+// signal (timeout) or another exit code is UNKNOWN. Pinned on the classifier because Windows cannot run dash.
+test("classifyLookup: 0 ok, 1 and 127 MISSING, any other exit, spawn error or signal UNKNOWN with a reason", async () => {
+  const { classifyLookup } = await import("./session-surface.mjs");
+  const enoent = Object.assign(new Error("spawn /bin/sh ENOENT"), { code: "ENOENT" });
+  const cases = [
+    [{ status: 0, signal: null }, "ok"],
+    [{ status: 1, signal: null }, "MISSING"],
+    [{ status: 127, signal: null }, "MISSING"],
+    [{ status: 2, signal: null }, "UNKNOWN"],
+    [{ status: null, signal: null, error: enoent }, "UNKNOWN"],
+    [{ status: null, signal: "SIGTERM" }, "UNKNOWN"],
+  ];
+  for (const [input, want] of cases) {
+    const got = classifyLookup(input);
+    assert.equal(got.state, want, `${JSON.stringify(input)} -> ${JSON.stringify(got)}`);
+    if (want === "UNKNOWN") assert.match(got.reason, /lookup (exit 2|ENOENT|killed by SIGTERM)/, "UNKNOWN must say which");
+  }
 });
