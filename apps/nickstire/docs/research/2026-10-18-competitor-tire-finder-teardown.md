@@ -121,8 +121,13 @@ still "Moes Tire and Auto Euclid"; rename it in the Koalafi dealer portal.
 - `merchant.kafene.com/integrations`: "Only e-commerce stores are eligible to manage integrations"; no Add button. Keys come
   from the rep (support chat 2026-10-18: eligibility goes to the sales rep). The customer application page reads only its own
   JWT (`t`) and an internal `redirect`; no merchant return URL and no prefill parameters.
-- Not built: a server-side portal client. It would need the OTP phone's inbound SMS readable by our server; which phone is on
-  file is UNKNOWN (shop line vs Nour's cell). If it is the shop line, approval lookup and text-to-apply could run from /admin.
+- Not built, decided 2026-10-18: a server-side portal client. Kafene's Cloudflare answers "VPNs are not allowed" to every
+  kafene.com host from a VPN or datacenter exit (FACT from this machine's WireGuard exit, AS212238 Datacamp; Railway's egress is
+  a datacenter too, STRONG INFERENCE), and device trust is a FingerprintJS Pro cookie (30 days) a server cannot carry, so a
+  server client would be blocked or OTP-challenged every login. The main bundle's store actions are mapped (token in
+  `Authorization`, JWT `exp` read client-side, no refresh; `applications/transferable-app { phoneNumber }` is the approval
+  lookup; `merchants/request-otp|verify-otp` gate the /team page, not login); the request bodies live in lazy route chunks that
+  the block kept unread. Nour chose the deep link: the admin order card's "Open Kafene portal (copies phone)" button.
 
 REA (`rea-agents` 6.5.0, `analyze-web-bundle` through a headless Chrome) on the competitor tabs: Discount Tire exposed 107
 GraphQL operation names and 38 routes (getFitment, getVehicleDetails, getSeoMake/Model/TrimDesc, storeByIp,
