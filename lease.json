@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "chore/merge-gate-codex-wait",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "11dd3c15-6c98-4bc9-9fa1-c404986839c6",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\new-session-bbf695",
   "claimedBy": "2026-10-18-merge-gate-codex-wait",
   "claimedAt": "2026-10-18T10:46:12.014Z",
   "expiresAt": "2026-10-18T22:46:12.014Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": null
+  "releasedAt": "2026-10-18T12:19:12.505Z",
+  "releaseReason": "merged as #3144 0f5e640d2",
+  "priorLeaseSha": "2b4d2c908905df3967197b58a6ceabd26301ef16",
+  "releasedBy": "11dd3c15-6c98-4bc9-9fa1-c404986839c6",
+  "foreignReleaseReason": null
 }
