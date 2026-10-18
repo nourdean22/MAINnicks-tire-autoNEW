@@ -45,7 +45,7 @@ type Phase =
   | { kind: "busy" }
   | { kind: "open" }
   | { kind: "signed"; recorded: boolean }
-  | { kind: "leased" } // a lease already exists for this order: offer nothing more
+  | { kind: "leased"; text: string } // a lease or a payment already exists for this order: offer nothing more
   | { kind: "message"; text: string };
 
 export default function KafeneCheckout({
@@ -82,7 +82,7 @@ export default function KafeneCheckout({
     if (!res.ok && res.reason === "already_signed") {
       // A lease is already on this order: offering the card (or Kafene) again invites a double payment.
       onOpenChange(false);
-      setPhase({ kind: "leased" });
+      setPhase({ kind: "leased", text: MESSAGES.alreadySigned });
       onSigned();
       return;
     }
@@ -104,8 +104,7 @@ export default function KafeneCheckout({
       try {
         const r = await withTimeout(attach.mutateAsync(input), STEP_TIMEOUT_MS);
         // An upstream_error answer is a failed call, not a verdict: same path as a throw (one retry).
-        // The cast: the server's union gains "upstream_error" in this PR; drop it once integrated.
-        if (!r.ok && (r.reason as string) === "upstream_error") throw new Error("upstream_error");
+        if (!r.ok && r.reason === "upstream_error") throw new Error("upstream_error");
         return r;
       } catch {
         return withTimeout(attach.mutateAsync(input), STEP_TIMEOUT_MS).catch(() => null);
@@ -143,17 +142,20 @@ export default function KafeneCheckout({
     if (outcome.status === "completed") {
       // The lease is signed with Kafene whatever our server says next, so never offer the card again.
       let recorded = false;
+      let alreadyPaid = false;
       const signedUid = uid as string | null;
       if (signedUid) {
         try {
           await withTimeout(attached, STEP_TIMEOUT_MS);
           const r = await withTimeout(markSigned.mutateAsync({ ...ids, uid: signedUid }), STEP_TIMEOUT_MS);
           recorded = r.ok;
+          alreadyPaid = !r.ok && r.reason === "already_paid";
         } catch {
           recorded = false;
         }
       }
-      setPhase({ kind: "signed", recorded });
+      // Card-paid before the lease was signed: say only that; the shop sorts the lease out.
+      setPhase(alreadyPaid ? { kind: "leased", text: MESSAGES.alreadyPaid } : { kind: "signed", recorded });
       onSigned();
       return;
     }
@@ -172,7 +174,7 @@ export default function KafeneCheckout({
   }
 
   if (phase.kind === "leased") {
-    return <p role="status" className="text-center text-sm font-medium text-amber-500">{MESSAGES.alreadySigned}</p>;
+    return <p role="status" className="text-center text-sm font-medium text-amber-500">{phase.text}</p>;
   }
 
   const working = phase.kind === "busy" || phase.kind === "open";

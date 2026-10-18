@@ -28,7 +28,8 @@ const MESSAGES: Record<string, string> = {
   cart_mismatch: "The D&K cart does not match this order. Clear our lines and prepare again.",
 };
 const RETRYABLE = new Set(["upstream_error", "cart_not_empty"]);
-const LEASE_PAID_STATUSES = ["signed", "activating", "activated"];
+// activate_unclear still has a signed lease behind it: the shop orders the tires, activation is sorted out separately.
+const LEASE_PAID_STATUSES = ["signed", "activating", "activated", "activate_unclear"];
 
 const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 

@@ -237,7 +237,7 @@ describe("GatewayOrderPanel", () => {
 
   const leased = (status: string) => ({ data: { ok: true, lease: { status, uid: "app_1", orderNumber: PAID.orderNumber } }, isLoading: false, isError: false });
 
-  it.each(["signed", "activating", "activated"])("an unpaid order with a Kafene lease %s gets the D&K panel", async (status) => {
+  it.each(["signed", "activating", "activated", "activate_unclear"])("an unpaid order with a Kafene lease %s gets the D&K panel", async (status) => {
     h.kafeneStatus = leased(status);
     await renderPanel({ ...PAID, paymentStatus: "pending" });
     expect(prepareButton()).toBeTruthy();

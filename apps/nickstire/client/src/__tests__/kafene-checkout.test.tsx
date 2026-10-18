@@ -178,6 +178,20 @@ describe("OrderModal · Pay with Kafene lease", () => {
     expect(h.attach).toHaveBeenCalledWith({ orderNumber: ORDER, phone: PHONE, uid: "lease-uid-1" });
   });
 
+  it("markSigned answering already_paid (card-paid first) says so, with no hand-off text and no card or Kafene button", async () => {
+    const k = stubKafene();
+    h.markSigned.mockReset().mockResolvedValue({ ok: false, reason: "already_paid" });
+    await placeOrder();
+    await openKafene();
+    await k.emit("approved", { uid: "lease-uid-1" });
+    await k.finish("completed");
+    expect(screen.getByText("This order is already paid.")).toBeTruthy();
+    expect(screen.queryByText("Lease signed. We'll text you when your tires are in. Nothing more to pay today.")).toBeNull();
+    expect(screen.queryByText(/with this order number so we can match your lease/)).toBeNull();
+    expect(cardButton()).toBeNull();
+    expect(kafeneButton()).toBeNull();
+  });
+
   it("attach answering upstream_error takes the network-error path: one retry", async () => {
     const k = stubKafene();
     h.attach.mockReset().mockResolvedValueOnce({ ok: false, reason: "upstream_error" }).mockResolvedValue({ ok: true });
