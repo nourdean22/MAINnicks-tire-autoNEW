@@ -218,7 +218,7 @@ const SERVICE_PAGES: RouteEntry[] = [
     // credit check" and "4 lenders approve when banks don't"; Koalafi and
     // American First Finance both say they check credit.
     title: "No Credit Check Tires Cleveland? Straight Answers | Nick's",
-    description: "Searching for no credit check tires? Straight answer: all 4 payment providers review applications, but some don't need established credit. Walk in 7 days.",
+    description: "Searching for no credit check tires? Straight answer: all 5 payment providers review applications, but some don't need established credit. Walk in 7 days.",
     group: "service",
     sitemap: true,
     prerender: true,

@@ -408,7 +408,7 @@ async function executeGetCurrentSpecials(): Promise<string> {
     // Always-on offers
     const alwaysOn = [
       { title: "Free Inspection", description: "Drop in anytime — we'll inspect your vehicle for free and give you an honest quote.", discount: "Free" },
-      { title: "Payment Programs", description: PAYMENT_PROGRAMS_CHAT_LINE, discount: "4 providers" },
+      { title: "Payment Programs", description: PAYMENT_PROGRAMS_CHAT_LINE, discount: "5 providers" },
       { title: "Free Battery Test", description: "Stop by and we'll test your battery in 5 minutes, no appointment needed.", discount: "Free" },
     ];
 
@@ -422,7 +422,7 @@ async function executeGetCurrentSpecials(): Promise<string> {
       activeSpecials: [],
       alwaysAvailable: [
         { title: "Free Inspection", discount: "Free" },
-        { title: "Payment Programs", discount: "4 providers" },
+        { title: "Payment Programs", discount: "5 providers" },
       ],
     });
   }

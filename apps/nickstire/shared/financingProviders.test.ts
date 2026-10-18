@@ -5,7 +5,7 @@
  * every other surface reads (BUSINESS.financing.providers), and that the counted copy agrees
  * with the roster, so adding or removing a provider cannot leave "four providers" behind.
  */
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { BUSINESS } from "./business";
@@ -57,33 +57,73 @@ describe("payment programs roster", () => {
   });
 });
 
-// Review of PR 1 (2026-10-18): copy outside shared/financing.ts still said "4 payment programs"
-// or listed four names. These are the server-lane files that hand-write the roster.
+// Review of PR 1 (2026-10-18) and Codex on PR #3148: copy outside shared/financing.ts still said
+// "4 providers", "four payment programs" or "none of the four", or listed the four names without
+// Kafene. Two scans: a stale COUNT anywhere in server/, shared/ and scripts/ (comments skipped),
+// and a roster LIST without Kafene in the files that hand-write the names.
 describe("hand-written provider copy agrees with the roster", () => {
-  const FILES = [
+  const APP = join(__dirname, "..");
+  const COUNT = /\b(four|4)\b(\s+(different|third-party|payment(-program)?))*\s+(providers?|payment programs?|programs?)\b|\bnone of the four\b|\bof the four (providers?|programs?|payment)/i;
+  const LIST = /(?<!Kafene[^.\n]{0,25})\bAcima( lease-to-own)?\s*[,·]\s*(Koalafi|Snap)/i;
+  const LIST_FILES = [
     "shared/blog.ts",
+    "shared/guides.ts",
+    "shared/cities.ts",
     "server/gemini.ts",
     "server/services/adStudio/adCopyGen.ts",
     "server/services/chatTools.ts",
     "server/services/gbpContentGenerator.ts",
     "server/routers/voiceAgent.ts",
   ];
-  // A stale count, or a list of names that starts at Acima without Kafene before it.
-  const STALE = /\b(four|4)( different)? (payment|third-party)|\bfour providers\b|(?<!Kafene[^.\n]{0,25})\bAcima( lease-to-own)?\s*[,·]\s*(Koalafi|Snap)/i;
-  const read = (rel: string) => readFileSync(join(__dirname, "..", rel), "utf8");
-
-  it("canary: the pattern catches each stale shape it exists for", () => {
-    for (const bad of ["accept four payment-program providers", "How the 4 payment programs work", "through Acima, Koalafi, Snap", "Acima · Snap Finance", "four different payment-program providers"]) {
-      expect(STALE.test(bad), bad).toBe(true);
+  const isComment = (l: string) => /^\s*(\/\/|\*|\/\*)/.test(l);
+  const read = (rel: string) => readFileSync(join(APP, rel), "utf8");
+  function sourceFiles(dir: string, out: string[] = []): string[] {
+    for (const e of readdirSync(join(APP, dir), { withFileTypes: true })) {
+      const rel = `${dir}/${e.name}`;
+      if (e.isDirectory()) {
+        if (e.name !== "node_modules" && e.name !== "__tests__" && e.name !== "fixtures") sourceFiles(rel, out);
+      } else if (/\.(ts|tsx|mjs|cjs|js)$/.test(e.name) && !/\.test\.|\.spec\./.test(e.name)) out.push(rel);
     }
-    for (const good of ["through Kafene, Acima, Koalafi", "Kafene · Acima · Snap", "five payment programs"]) {
-      expect(STALE.test(good), good).toBe(false);
+    return out;
+  }
+
+  it("canary: the patterns catch each stale shape they exist for, and pass the fixed wording", () => {
+    for (const bad of [
+      "accept four payment-program providers", "How the 4 payment programs work", "discount: \"4 providers\"",
+      "all 4 payment providers review applications", "None of the four can promise approval", "four different payment-program providers",
+      "Highest published cap of the four providers",
+    ]) expect(COUNT.test(bad), bad).toBe(true);
+    for (const bad of ["through Acima, Koalafi, Snap", "Acima · Snap Finance", "programs: Acima, Snap Finance, Koalafi and American First Finance"]) {
+      expect(LIST.test(bad), bad).toBe(true);
+    }
+    for (const good of ["five payment programs", "5 providers", "None of the five", "four columns", "of the four ordered elements", "Format 4: Third-party"]) {
+      expect(COUNT.test(good), good).toBe(false);
+    }
+    for (const good of ["through Kafene, Acima, Koalafi", "Kafene · Acima · Snap", "Kafene (lease-to-own), Acima, Snap"]) {
+      expect(LIST.test(good), good).toBe(false);
     }
   });
 
-  for (const rel of FILES) {
-    it(`${rel} has no four-provider count and no list missing Kafene`, () => {
-      const hits = read(rel).split("\n").filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l) && STALE.test(l));
+  it("the count scan reads the real tree (an empty walk would pass vacuously)", () => {
+    const files = [...sourceFiles("server"), ...sourceFiles("shared"), ...sourceFiles("scripts")];
+    expect(files.length).toBeGreaterThan(300);
+    expect(files).toContain("server/services/chatTools.ts");
+    expect(files).toContain("shared/guides.ts");
+  });
+
+  it("no non-comment line in server/, shared/ or scripts/ counts four providers", () => {
+    const hits: string[] = [];
+    for (const rel of [...sourceFiles("server"), ...sourceFiles("shared"), ...sourceFiles("scripts")]) {
+      read(rel).split("\n").forEach((l, i) => {
+        if (!isComment(l) && COUNT.test(l)) hits.push(`${rel}:${i + 1}: ${l.trim().slice(0, 120)}`);
+      });
+    }
+    expect(hits).toEqual([]);
+  });
+
+  for (const rel of LIST_FILES) {
+    it(`${rel} names no roster without Kafene`, () => {
+      const hits = read(rel).split("\n").filter((l) => !isComment(l) && LIST.test(l)).map((l) => l.trim().slice(0, 120));
       expect(hits).toEqual([]);
     });
   }
