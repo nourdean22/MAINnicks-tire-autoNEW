@@ -1,7 +1,7 @@
 ---
 name: prompt-gallery
-description: "Use when the request produces a prompt, system prompt, reel script or clip prompt, ad copy, caption or email draft, or says 'find a prompt for X': look in the Claude AI Directory prompt gallery for a closer starting point before writing from scratch. Not for merges, status checks, migrations, debugging or other code-only work, which get only the one-line gallery note."
-triggers: prompt gallery, find a prompt, write a prompt, system prompt, reel prompt, clip prompt, ad copy, caption, email draft, claudeai directory
+description: "Use when the request produces a prompt, system prompt, reel script or clip prompt, ad copy or email draft, or says 'find a prompt for X': look in the Claude Directory prompt gallery for a closer starting point before writing from scratch. Not for merges, status checks, migrations, debugging or other code-only work."
+triggers: prompt gallery, find a prompt, write a prompt, system prompt, reel prompt, clip prompt, ad copy, email draft, claudeai directory
 ---
 
 # prompt-gallery
@@ -10,9 +10,9 @@ Gallery: https://www.claudeai.directory/prompts (about 54 copy-ready prompts in 
 
 The sibling site claudedirectory.org (hooks, skills, MCP pages) showed "Deployment Paused" on 2026-10-18; use the URL above.
 
-## Operator rule (Nour, 2026-10-18: "checked whenever i ask for anything")
+## Scope
 
-On every request, name the task in two words and match it to a gallery category. Report one line: `gallery: used <entry>` or `gallery: nothing better for <task>`. A request with no prompt-shaped output (status check, merge, loop tick) gets the second line without opening the browser.
+The operator's every-request one-line gallery note (Nour, 2026-10-18) cannot live in this skill: it only loads for prompt-shaped work. It stays in the machine-local copy under ~/.claude/skills; moving it into an always-on hook is a separate decision.
 
 ## How to look
 
