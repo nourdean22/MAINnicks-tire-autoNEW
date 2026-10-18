@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "statenour/ask-nick-reply-fix",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "11dd3c15-6c98-4bc9-9fa1-c404986839c6",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\new-session-bbf695",
   "claimedBy": "2026-10-18-ask-nick-reply-fix",
   "claimedAt": "2026-10-18T20:51:21.603Z",
   "expiresAt": "2026-10-19T08:51:21.603Z",
-  "releasedAt": null,
+  "releasedAt": "2026-10-18T22:03:55.860Z",
   "releaseReason": null,
-  "priorLeaseSha": null
+  "priorLeaseSha": "da4720391a961eb3102a70e8ac930773588d9396",
+  "releasedBy": "11dd3c15-6c98-4bc9-9fa1-c404986839c6",
+  "foreignReleaseReason": null
 }
