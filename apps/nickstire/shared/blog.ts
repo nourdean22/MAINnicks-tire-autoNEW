@@ -328,7 +328,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "How Much Does E-Check Repair Cost?",
-        content: "E-Check repair costs vary widely depending on the problem. A loose gas cap is free to fix. An oxygen sensor replacement runs $150 to $400. Catalytic converter replacement costs $500 to $2,000 depending on the vehicle. EVAP system repairs range from $100 to $600. At Nick's Tire & Auto, we figure out the specific failure cause and give you a written estimate before any work. We also offer financing through Acima, Koalafi, Snap Finance, and American First Finance if the repair is more than expected."
+        content: "E-Check repair costs vary widely depending on the problem. A loose gas cap is free to fix. An oxygen sensor replacement runs $150 to $400. Catalytic converter replacement costs $500 to $2,000 depending on the vehicle. EVAP system repairs range from $100 to $600. At Nick's Tire & Auto, we figure out the specific failure cause and give you a written estimate before any work. We also offer payment programs through Kafene, Acima, Koalafi, Snap Finance, and American First Finance if the repair is more than expected."
       },
       {
         heading: "Pro Tips for Passing E-Check",
@@ -1300,7 +1300,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Transparent Pricing and Payment Programs",
-        content: "Every repair starts with a diagnosis and a written estimate before any wrench moves. You approve the price before we start. If we find additional issues during the repair, we call you to discuss before doing any extra work. No surprise prices, no add-ons you did not agree to. For larger repairs, payment programs are available through Acima, Koalafi, Snap Finance, and American First Finance. Some don't require established credit; each provider decides approval and terms."
+        content: "Every repair starts with a diagnosis and a written estimate before any wrench moves. You approve the price before we start. If we find additional issues during the repair, we call you to discuss before doing any extra work. No surprise prices, no add-ons you did not agree to. For larger repairs, payment programs are available through Kafene, Acima, Koalafi, Snap Finance, and American First Finance. Some don't require established credit; each provider decides approval and terms."
       },
       {
         heading: "Come See for Yourself",
@@ -1448,7 +1448,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Emergency Repairs on a Budget",
-        content: "We know emergency repairs are never planned expenses. That is why we accept four payment-program providers. Some do not require established credit, and each provider decides approval. Bad credit, no credit, limited credit: ask about the options. Your safety is not something that should wait because of money. Come to Nick's Tire & Auto — Cleveland's East Side emergency repair shop, open every day."
+        content: "We know emergency repairs are never planned expenses. That is why we accept five payment-program providers. Some do not require established credit, and each provider decides approval. Bad credit, no credit, limited credit: ask about the options. Your safety is not something that should wait because of money. Come to Nick's Tire & Auto — Cleveland's East Side emergency repair shop, open every day."
       }
     ],
     relatedServices: ["/tires", "/brakes", "/diagnostics", "/general-repair"],
@@ -1917,7 +1917,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     slug: "auto-repair-payment-programs-bad-credit-cleveland",
     title: "Car Repair Payment Programs for Bad Credit in Cleveland",
     metaTitle: "Auto Repair Payment Programs for Bad Credit | Nick's",
-    metaDescription: "Need car repairs but have bad credit? How the 4 payment programs at Nick's Tire & Auto work, which check credit, and what they cost. Cleveland, Euclid.",
+    metaDescription: "Need car repairs but have bad credit? How the 5 payment programs at Nick's Tire & Auto work, which check credit, and what they cost. Cleveland, Euclid.",
     category: "Cost Guide",
     publishDate: "2026-04-14",
     readTime: "5 min read",
@@ -1926,11 +1926,11 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     sections: [
       {
         heading: "Why Payment Programs Matter",
-        content: "We see it every week — a Cleveland driver comes in with a serious safety issue, gets the diagnosis, and then has to choose between fixing the car and paying rent. That is not a choice anyone should have to make. Driving on bad brakes, worn tires, or a misfiring engine is dangerous. That is why we accept four different payment-program providers. Bad credit, no credit, limited credit: some of these programs do not require established credit, and each provider decides on its own application. Your safety should not depend on whether you have $800 in your checking account right now."
+        content: "We see it every week — a Cleveland driver comes in with a serious safety issue, gets the diagnosis, and then has to choose between fixing the car and paying rent. That is not a choice anyone should have to make. Driving on bad brakes, worn tires, or a misfiring engine is dangerous. That is why we accept five different payment-program providers. Bad credit, no credit, limited credit: some of these programs do not require established credit, and each provider decides on its own application. Your safety should not depend on whether you have $800 in your checking account right now."
       },
       {
-        heading: "Our Four Payment Program Providers",
-        content: "We work with five providers, each with its own application and approval criteria. Acima is lease-to-own, not a loan: it says no credit history is required, but it obtains information from consumer reporting agencies. Snap Finance offers lease-to-own and installment products; Snap says applying does not affect your FICO score, though another consumer-report score may be affected. Koalafi offers the highest published maximum, up to $7,500 for qualifying applicants, and says it checks credit through alternative credit bureaus. American First Finance may offer a loan, an installment agreement or a lease, and says credit may be checked. Early purchase or payoff terms differ by provider and agreement. No provider approves everyone, and if one declines you can apply with another."
+        heading: "Our Five Payment Program Providers",
+        content: "We work with five providers, each with its own application and approval criteria. Kafene is a lease-to-own payment program; Kafene decides approval, the amount and the total cost. Acima is lease-to-own, not a loan: it says no credit history is required, but it obtains information from consumer reporting agencies. Snap Finance offers lease-to-own and installment products; Snap says applying does not affect your FICO score, though another consumer-report score may be affected. Koalafi offers the highest published maximum, up to $7,500 for qualifying applicants, and says it checks credit through alternative credit bureaus. American First Finance may offer a loan, an installment agreement or a lease, and says credit may be checked. Early purchase or payoff terms differ by provider and agreement. No provider approves everyone, and if one declines you can apply with another."
       },
       {
         heading: "How It Works",

@@ -72,7 +72,7 @@ BUSINESS FACTS (all owner-confirmed — use freely, accurately):
 - ${BUSINESS.name} — "${BUSINESS.tagline}". ${BUSINESS.founded.display}. ${BUSINESS.ase.display}. ${BUSINESS.languageDisplay}.
 - ${reviewRating} stars, ${reviewCountDisplay} Google reviews. ${BUSINESS.address.full}. ${BUSINESS.phone.display}.
 - Open 7 days, walk-ins welcome, NO appointment, first come first serve. Free quick checks.
-- Payment programs: Acima, Snap Finance, Koalafi, American First Finance. Some don't need established credit; the provider decides approval (never write 'no credit check'). New tires from $89 installed. Used from $25 installed on 12-inch rims (most sizes $40-80; the rim size and the band MUST travel with $25). Any tire, any brand. Under-20-minute installs. 12-month parts / 90-day labor warranty.
+- Payment programs: Kafene, Acima, Snap Finance, Koalafi, American First Finance. Some don't need established credit; the provider decides approval (never write 'no credit check'). New tires from $89 installed. Used from $25 installed on 12-inch rims (most sizes $40-80; the rim size and the band MUST travel with $25). Any tire, any brand. Under-20-minute installs. 12-month parts / 90-day labor warranty.
 
 ANGLE FOR THIS AD: ${AD_ANGLES[angle](reviews)}${topic ? `\nOPERATOR STEER: weave in this topic/season: ${topic}.` : ""}
 
@@ -138,7 +138,7 @@ export async function generateAdCopy(input: GenerateAdCopyInput): Promise<Genera
   const copy: AdCopy = {
     hookYellow: str(p.hookYellow), hookWhite: str(p.hookWhite), hookSub: str(p.hookSub),
     valueWhite: str(p.valueWhite), valueYellow: str(p.valueYellow),
-    valueTicks: [ticks[0] ?? "Drive home today", ticks[1] ?? "4 payment programs", ticks[2] ?? "Any tire, any brand"],
+    valueTicks: [ticks[0] ?? "Drive home today", ticks[1] ?? "5 payment programs", ticks[2] ?? "Any tire, any brand"],
     offerYellow: str(p.offerYellow) || "FREE", offerWhite: str(p.offerWhite) || "TIRE CHECK.",
     offerSub: str(p.offerSub), caption: str(p.caption),
   };
