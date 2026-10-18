@@ -726,7 +726,7 @@ async function startServer() {
 - [Ohio E-Check / emissions](${b}/emissions): Failed-emissions repair, O2 sensors, EVAP, catalytic converters. Free readiness check before the state test.
 - [Wheel alignment](${b}/alignment): Stops uneven tire wear and pulling. Most vehicles same-day.
 - [Auto repair (all services)](${b}/services): Brakes, tires, oil, diagnostics, alignment, emissions, suspension, batteries. All makes and models including European.
-- [Payment programs](${b}/financing): four providers compared side by side; each provider decides approval.
+- [Payment programs](${b}/financing): five providers compared side by side; each provider decides approval.
 
 ## Common questions
 - Why is my car shaking or vibrating when I brake? Usually a warped brake rotor: the surface is no longer flat, so the pad grabs unevenly and you feel it in the wheel or pedal. Common on Cleveland cars from stop-and-go traffic and winter heat cycles. The fix is resurfacing or replacing the rotor, most often as a pads + rotors job. Free check at 17625 Euclid Ave, written quote before any work.

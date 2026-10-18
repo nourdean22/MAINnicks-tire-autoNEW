@@ -414,7 +414,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "How to Avoid Overpaying for Brake Repair",
-        content: "1. Get a written estimate before any wrench moves. 2. Ask what is actually worn — not every brake job needs rotors. 3. Compare independent shop prices to dealerships. 4. Do not ignore brake noise — catching worn pads early prevents rotor damage and saves $200+. 5. Ask about payment programs — at Nick's Tire & Auto, payment programs are available through four providers; each decides approval, and some don't require established credit."
+        content: "1. Get a written estimate before any wrench moves. 2. Ask what is actually worn — not every brake job needs rotors. 3. Compare independent shop prices to dealerships. 4. Do not ignore brake noise — catching worn pads early prevents rotor damage and saves $200+. 5. Ask about payment programs — at Nick's Tire & Auto, payment programs are available through five providers; each decides approval, and some don't require established credit."
       }
     ],
     relatedServices: ["/brakes", "/financing"],
@@ -802,7 +802,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Used Tire Prices at Nick's",
-        content: "Used tires at Nick's Tire & Auto start at $25 on select 12-inch rims, and most sizes run $40-80 each, depending on size, brand, and remaining tread. That includes professional mounting, computer balancing, new valve stem, and TPMS sensor reset. Compare that to new tire prices of $89 to $250 each plus installation, and the savings are obvious. Payment programs from four providers are also available if you need a full set and money is tight; each decides approval."
+        content: "Used tires at Nick's Tire & Auto start at $25 on select 12-inch rims, and most sizes run $40-80 each, depending on size, brand, and remaining tread. That includes professional mounting, computer balancing, new valve stem, and TPMS sensor reset. Compare that to new tire prices of $89 to $250 each plus installation, and the savings are obvious. Payment programs from five providers are also available if you need a full set and money is tight; each decides approval."
       },
       {
         heading: "Find Us on the East Side",
@@ -1868,7 +1868,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Payment Programs Make Big Repairs Manageable",
-        content: "Sometimes a major repair hits at the worst possible time. That does not mean you have to drive an unsafe vehicle or drain your savings. Payment programs are available through four providers; some don't require established credit, and each provider decides approval. Getting your brakes fixed today and paying over 6 months is smarter than driving on dangerous brakes because you are waiting for payday. Your safety should not depend on your bank balance this week."
+        content: "Sometimes a major repair hits at the worst possible time. That does not mean you have to drive an unsafe vehicle or drain your savings. Payment programs are available through five providers; some don't require established credit, and each provider decides approval. Getting your brakes fixed today and paying over 6 months is smarter than driving on dangerous brakes because you are waiting for payday. Your safety should not depend on your bank balance this week."
       },
       {
         heading: "Save Smart at Nick's Tire & Auto",
@@ -1922,7 +1922,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     publishDate: "2026-04-14",
     readTime: "5 min read",
     heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp",
-    excerpt: "Bad credit should not mean unsafe brakes. Payment programs from four providers can help Cleveland drivers get repairs done now and pay over time; each provider decides approval.",
+    excerpt: "Bad credit should not mean unsafe brakes. Payment programs from five providers can help Cleveland drivers get repairs done now and pay over time; each provider decides approval.",
     sections: [
       {
         heading: "Why Payment Programs Matter",
@@ -1930,7 +1930,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Our Four Payment Program Providers",
-        content: "We work with four providers, each with its own application and approval criteria. Acima is lease-to-own, not a loan: it says no credit history is required, but it obtains information from consumer reporting agencies. Snap Finance offers lease-to-own and installment products; Snap says applying does not affect your FICO score, though another consumer-report score may be affected. Koalafi offers the highest published maximum, up to $7,500 for qualifying applicants, and says it checks credit through alternative credit bureaus. American First Finance may offer a loan, an installment agreement or a lease, and says credit may be checked. Early purchase or payoff terms differ by provider and agreement. No provider approves everyone, and if one declines you can apply with another."
+        content: "We work with five providers, each with its own application and approval criteria. Acima is lease-to-own, not a loan: it says no credit history is required, but it obtains information from consumer reporting agencies. Snap Finance offers lease-to-own and installment products; Snap says applying does not affect your FICO score, though another consumer-report score may be affected. Koalafi offers the highest published maximum, up to $7,500 for qualifying applicants, and says it checks credit through alternative credit bureaus. American First Finance may offer a loan, an installment agreement or a lease, and says credit may be checked. Early purchase or payoff terms differ by provider and agreement. No provider approves everyone, and if one declines you can apply with another."
       },
       {
         heading: "How It Works",

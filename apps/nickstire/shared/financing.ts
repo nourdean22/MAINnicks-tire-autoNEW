@@ -36,6 +36,38 @@ export interface FinancingProvider {
 }
 
 export const FINANCING_PROVIDERS: FinancingProvider[] = [
+  // 2026-10-18 · operator added Kafene and asked for it first. Only generic lines here: no
+  // amount, rate, speed or credit claim was verified against Kafene's own disclosures, so none
+  // is made. Add specifics only after reading the provider's published terms.
+  {
+    id: "kafene",
+    name: "Kafene",
+    shortName: "Kafene",
+    type: "lease_to_own",
+    typeLabel: "Lease-to-Own",
+    color: "#0F766E",
+    highlight: "Lease-to-own; terms set by Kafene",
+    maxAmount: "Amount determined by provider",
+    approvalTime: "Provider decision after application",
+    creditCheck: "Set by Kafene; read its application disclosure",
+    termRange: "Terms shown in your lease agreement",
+    features: [
+      "Apply online with Kafene",
+      "Kafene decides approval and the amount",
+      "Review the payment schedule and total cost before you sign",
+    ],
+    applyUrl: "https://gokafene.com/nKVEWWv",
+    description: "Kafene offers a lease-to-own payment program. The provider decides approval, the amount, the payment schedule and the total cost, and the agreement controls.",
+    howItWorks: [
+      "Complete Kafene's application",
+      "Review the amount and terms Kafene offers",
+      "Choose an eligible repair or tire purchase at Nick's",
+      "Read and sign the provider agreement before work begins",
+    ],
+    idealFor: "Customers comparing a lease-to-own option",
+    badge: "Lease-to-Own",
+    disclosure: "Kafene is a third-party lease-to-own provider. Not all applicants are approved. Kafene decides approval and terms; review the agreement for the total cost before signing.",
+  },
   {
     id: "acima",
     name: "Acima",
@@ -191,13 +223,13 @@ export const FINANCING_PROVIDERS: FinancingProvider[] = [
  * from coming back.
  */
 export const PAYMENT_PROGRAMS_SHORT =
-  "Payment programs through Acima, Snap Finance, Koalafi and American First Finance";
+  "Payment programs through Kafene, Acima, Snap Finance, Koalafi and American First Finance";
 
 export const PAYMENT_PROGRAMS_CREDIT_LINE =
   "Some don't require established credit. Each provider decides approval and terms.";
 
 export const PAYMENT_PROGRAMS_FAQ_ANSWER =
-  "We accept four third-party payment programs: Acima (lease-to-own, not a loan or credit), Snap Finance, Koalafi and American First Finance. Some don't require established credit, but every provider reviews your application, and the provider, not Nick's, decides approval, the amount, the initial payment and the total cost. Not every applicant is approved. Compare them side by side at nickstire.org/financing.";
+  "We accept five third-party payment programs: Kafene (lease-to-own), Acima (lease-to-own, not a loan or credit), Snap Finance, Koalafi and American First Finance. Some don't require established credit, but every provider reviews your application, and the provider, not Nick's, decides approval, the amount, the initial payment and the total cost. Not every applicant is approved. Compare them side by side at nickstire.org/financing.";
 
 /** Quick-access map by provider ID */
 export const PROVIDER_MAP = Object.fromEntries(
@@ -210,6 +242,7 @@ export const PAYMENT_METHODS = [
   "Visa / Mastercard / Discover / Amex",
   "Debit Cards",
   "Apple Pay / Google Pay",
+  "Kafene Lease-to-Own",
   "Acima Lease-to-Own",
   "Snap Finance",
   "Koalafi",
@@ -220,7 +253,7 @@ export const PAYMENT_METHODS = [
 export const FINANCING_FAQ = [
   {
     q: "Does Nick's approve the application?",
-    a: "No. Acima, Snap, Koalafi, and American First Finance are independent third-party providers. Each provider decides whether to approve an application and sets the product, amount, payment schedule, fees, and total cost.",
+    a: "No. Kafene, Acima, Snap, Koalafi, and American First Finance are independent third-party providers. Each provider decides whether to approve an application and sets the product, amount, payment schedule, fees, and total cost.",
   },
   {
     q: "Is every option a loan?",

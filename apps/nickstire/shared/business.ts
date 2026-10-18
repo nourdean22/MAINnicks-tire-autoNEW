@@ -182,10 +182,11 @@ export const BUSINESS = {
 
   // ─── FINANCING ─────────────────────────────────────
   financing: {
-    providers: ["Acima", "Snap", "Koalafi", "American First Finance"] as readonly string[],
+    // 2026-10-18 · Kafene added first (operator).
+    providers: ["Kafene", "Acima", "Snap", "Koalafi", "American First Finance"] as readonly string[],
     // 2026-10-01 · was "No-credit-check financing available". Koalafi and
     // American First Finance both say they check credit (shared/financing.ts).
-    display: "Payment programs from four providers; each decides approval",
+    display: "Payment programs from five providers; each decides approval",
     downPayment: "Acima: $10 start in select circumstances",
   },
 
@@ -265,7 +266,7 @@ export const BUSINESS = {
     meme: "Nick's got you rolling.",
     memeShort: "Keep it rolling.",
     memeCleveland: "We keep Cleveland rolling.",
-    hookAction: "Four payment programs; each provider decides approval.",
+    hookAction: "Five payment programs; each provider decides approval.",
     hookSince: "Since 2018.",
   },
 

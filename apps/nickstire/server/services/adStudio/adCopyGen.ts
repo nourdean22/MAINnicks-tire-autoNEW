@@ -25,7 +25,7 @@ const log = createLogger("services:adStudio:copy");
 export const AD_ANGLES: Record<"financing" | "free_check" | "trust", (reviews: ReviewCopy) => string> = {
   // 2026-10-01 · this angle used to ask for "no-credit-check". Koalafi and
   // American First Finance both say they check credit (shared/financing.ts).
-  financing: () => "PAYMENT-PROGRAM-LED: four payment programs (Acima, Snap Finance, Koalafi, American First Finance) + new tires from $89. Some don't need established credit; never promise approval, and never say 'no credit check'. Kill the price objection first; create urgency to act now.",
+  financing: () => "PAYMENT-PROGRAM-LED: five payment programs (Kafene, Acima, Snap Finance, Koalafi, American First Finance) + new tires from $89. Some don't need established credit; never promise approval, and never say 'no credit check'. Kill the price objection first; create urgency to act now.",
   free_check: () => "OFFER-LED: a free tire/safety check as the no-brainer hook that drives walk-ins. Low friction, safety-forward but calm (never scary).",
   trust: ({ rating, countDisplay }) => `TRUST-LED: ${rating} stars / ${countDisplay} reviews / since 2018 / ASE-certified / 7-days walk-in. Why Cleveland keeps coming back — social proof as the engine.`,
 };
