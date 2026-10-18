@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "docs/kafene-portal-contract",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "9dcc8dd1-629a-4a72-9616-d033570d2fee",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\shop-ip-camera-access-857719",
   "claimedBy": "docs: Kafene portal wire contract",
   "claimedAt": "2026-10-18T22:08:03.713Z",
   "expiresAt": "2026-10-19T10:08:03.713Z",
-  "releasedAt": null,
+  "releasedAt": "2026-10-18T22:38:26.498Z",
   "releaseReason": null,
-  "priorLeaseSha": null
+  "priorLeaseSha": "566f800c0b2310e0c7f90ed8ded4206226ec0992",
+  "releasedBy": "9dcc8dd1-629a-4a72-9616-d033570d2fee",
+  "foreignReleaseReason": null
 }
