@@ -30,7 +30,7 @@ export default function FinancingCTA({ variant = "banner", className = "" }: Fin
           <div className="flex-1">
             <h3 className="mb-1 text-sm font-bold text-foreground">Need another way to pay?</h3>
             <p className="mb-3 text-xs leading-relaxed text-foreground/60">
-              Nick's accepts four third-party payment providers. Products, approval, initial payment, and total cost vary by provider and applicant.
+              Nick's accepts five third-party payment providers. Products, approval, initial payment, and total cost vary by provider and applicant.
             </p>
             <a
               href="/financing"
@@ -55,7 +55,7 @@ export default function FinancingCTA({ variant = "banner", className = "" }: Fin
           <div>
             <p className="text-sm font-bold text-foreground">Payment Options Are Available</p>
             <p className="text-xs text-foreground/70">
-              Compare four third-party providers before you apply.
+              Compare five third-party providers before you apply.
             </p>
           </div>
         </div>

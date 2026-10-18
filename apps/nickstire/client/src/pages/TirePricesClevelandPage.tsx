@@ -60,7 +60,7 @@ const CONFIG: ServicePageConfig = {
     },
     {
       q: "Can I pay over time instead of all at once?",
-      a: "Yes — payment programs through Acima, Snap Finance, Koalafi, and American First Finance. Approval doesn't require perfect credit, but each provider decides. Ask at the counter or start from our payment programs page before you come in.",
+      a: "Yes — payment programs through Kafene, Acima, Snap Finance, Koalafi, and American First Finance. Approval doesn't require perfect credit, but each provider decides. Ask at the counter or start from our payment programs page before you come in.",
     },
     {
       q: "Is there a warranty on these tires?",

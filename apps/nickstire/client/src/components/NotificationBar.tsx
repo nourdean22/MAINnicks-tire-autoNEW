@@ -227,7 +227,7 @@ const getAllNotifications = (reviewRating: number, reviewCountDisplay: string): 
   {
     id: "acima-1",
     strategy: "loss_aversion",
-    text: "Unexpected repair? Ask about Acima lease-to-own and three other payment programs.",
+    text: "Unexpected repair? Ask about Acima lease-to-own and four other payment programs.",
     disclosure: ACIMA_COMPACT_DISCLOSURE,
     cta: "Learn More",
     ctaHref: "/financing?utm_source=notification_bar",

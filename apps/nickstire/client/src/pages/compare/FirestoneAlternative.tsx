@@ -36,7 +36,7 @@ export default function FirestoneAlternative() {
         },
         {
           question: "Does Nick's accept the Firestone credit card?",
-          answer: "No — Firestone's credit card is a Firestone-only program. Nick's accepts four third-party payment programs: Acima (lease-to-own), Snap Finance, Koalafi and American First Finance. Each provider decides approval and terms. No chain lock-in.",
+          answer: "No — Firestone's credit card is a Firestone-only program. Nick's accepts five third-party payment programs: Kafene (lease-to-own), Acima (lease-to-own), Snap Finance, Koalafi and American First Finance. Each provider decides approval and terms. No chain lock-in.",
         },
         {
           question: "Why do so many Firestone reviews mention surprise charges?",

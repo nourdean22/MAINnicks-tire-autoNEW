@@ -164,7 +164,7 @@ export default function BookingWizard(props: BookingWizardProps = {}) {
           </a>
 
           <p className="mt-6 text-[12px] text-foreground/60 leading-relaxed">
-            4 payment programs · we text when your car is
+            5 payment programs · we text when your car is
             ready. No appointment needed — never has been.
           </p>
         </div>

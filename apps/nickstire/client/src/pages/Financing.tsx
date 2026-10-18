@@ -170,7 +170,7 @@ export default function Financing() {
             <div>
               <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-[#FDB913]/30 bg-[#FDB913]/8 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-[#FDB913]">
                 <CreditCard className="h-3.5 w-3.5" aria-hidden="true" />
-                Four third-party payment providers
+                Five third-party payment providers
               </div>
               <h1 className="font-heading text-5xl font-bold uppercase leading-[1.02] tracking-tight text-white lg:text-7xl">
                 Fix the car.

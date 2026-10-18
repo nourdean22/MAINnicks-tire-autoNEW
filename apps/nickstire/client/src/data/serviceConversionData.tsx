@@ -167,7 +167,7 @@ const CONVERSION_DATA: Record<string, ConversionFields> = {
         <p className="text-foreground/70 mt-4 text-[15px] leading-relaxed">
           No price list here on purpose — a number on a website can&apos;t see
           your car, and every failure is different. Here&apos;s what we can
-          tell you: four payment providers each run their own application.
+          tell you: five payment providers each run their own application.
           Some don&apos;t require established credit, each one decides
           approval, and its agreement shows the total cost before you sign.
           Come talk to us before you write the car off.
@@ -176,7 +176,7 @@ const CONVERSION_DATA: Record<string, ConversionFields> = {
           {[
             "Free readiness scan before the state test — pull up, no drop-off needed",
             "Written estimate before any wrench moves — you don't pay until you say yes",
-            "Four payment providers, each with its own application and disclosure",
+            "Five payment providers, each with its own application and disclosure",
             "If the repair costs more than the car is worth, we tell you straight",
           ].map((item) => (
             <div key={item} className="flex items-start gap-3 bg-card/40 border border-border/20 rounded px-4 py-3">
