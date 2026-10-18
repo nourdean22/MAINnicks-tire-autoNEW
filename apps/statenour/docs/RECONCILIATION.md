@@ -1,5 +1,20 @@
 # Reconciliation · statenour-os
 
+> ## 2026-10-18 · UI v3 W5b: Alerts and Inbox lanes, dismiss with a reason (branch `statenour/ui-v3-w5b`) · 1 statenour PR
+>
+> Not live until merged and deployed. Unit and component tests only; no prod read or write.
+>
+> - **Lanes.** `/system/alerts`: Priority (storage quota, schema drift, brain bus, correlation) first as ruled rows, Other (decision drift, creation and update spikes) behind a closed "Other, N" button with `aria-expanded`. One exhaustive map, `lib/brain/alert-lanes.ts` (`satisfies Record<AlertCategory, lane>`). `/system/inbox`: `conflicting` first, the rest under the same disclosure; the detail opens on the first conflicting item; Reject, Overwrite and Coexist unchanged.
+> - **Read state.** Alerts says "Reading alerts.", "Couldn't load alerts: state unknown, not an empty list." with a 44 px Retry, or "No alerts in the last N days." A failed refetch over stale data used to print the error and the empty text together.
+> - **Row verbs.** Resolve (two taps), Mute 7 days, Dismiss with a reason (expected, fixed, noise) in an in-DOM sheet. `trpc.brain.dismissAlert` reads the row by id and upserts BrainMemory `alert_dismiss` (key from `alertDismissKey`, content = reason, `expiresAt` = now + 30 days). A suppression, never a delete.
+> - **One reader.** `lib/brain/alert-suppression.ts` `getAlertSuppression()` (mutes + dismissals) is used by `buildActiveAlerts`, Telegram `/alerts` (its inline mute query and category copy deleted) and `command-center-state.ts`, which had honoured neither mutes nor dismissals. The category list has one home.
+>
+> **Flagged · NOT fixed**
+> - `schema_drift_alert`, `storage_quota_alert` and `update_spike_alert` have no producer in the repo, so their dismissals cover the tapped row only, as do `decision_quality_drift` (one key per week) and `brain_bus_alert` (one key per dead event).
+> - `buildActiveAlerts` drops dismissed rows after its `take`, so a window full of dismissed rows can show fewer than `limit` per category.
+> - Telegram `/status` still counts every alert fired in 30 days, muted or dismissed (a history count, not the active list).
+> - The six-feet gate does not measure `/system/alerts` or `/system/inbox`.
+
 > ## 2026-10-17 · Decision replays follow their own review date (branch `statenour/brain-fu2-replay-date`) · 1 statenour PR, no live effect today
 >
 > Not live: `pickDueReplays` and `composeReplayPrompt` have no caller outside tests. Unit tests only.
@@ -4727,7 +4742,7 @@
 
 > **2026-07-22 · Perplexica repair + closed-loop Experiment factory + fallback-model refresh.** ① **Perplexica** (#1017/#1018/#1019): canonical native-API path (removed the MCP-URL aliasing — `perplexica-mcp` is a separate Railway service), `PERPLEXICA_TIMEOUT_MS` 35s (was the generic 8s → always timed out in the quorum), `hasPerplexica()` single gate, `checkPerplexicaHealth()` provider+model verification, search-source telemetry, and the `GET /api/system/perplexica-diag` receipt (CRON_SECRET-gated). **Root cause proven from live SearXNG logs: every general engine (DuckDuckGo/Brave/Startpage/Google-CSE) is CAPTCHA/rate-limited on Railway's datacenter IP → 0 sources → silent Tavily fallback** — an infra reality, not a code bug (see RUNBOOK observability + poka-yoke ledger 2026-07-22). ② **Closed-loop Experiment factory** (#1020): `RegisteredSource.authScore` now LEARNS — accepting an opportunity spawns an `Experiment` (14-day horizon), a daily `experiment-measure` cron resolves it (held_up/failed/inconclusive) and nudges the attributed source's authScore via a bounded, reversible EWMA; `scoring.ts` folds that learned trust back into opportunity priority (`applyAuthTrust`, ±10% — the read-path teeth). Adversarial-review fixes: **column-first migration** (hot-table ADD COLUMNs applied to prod before the schema deploy) + **atomic claim** (running→measuring, prevents concurrent double-nudge). Migration verified live: `experiments` table + 3 cols + 2 FKs, pgvector untouched. ③ **Fallback-model refresh**: the anthropic fallback lane's `defaultModel` `claude-3-5-sonnet-latest` → `claude-sonnet-5` (4th/5th-hop only; prod primary is Ollama). Also flipped `NICK_VERIFIED_REGEN` on (activates the #1016 authority-regen; no DB override, env-driven, verified effective). Gates: typecheck 0 · eslint 0 · vitest (closed-loop math 7/7, perplexica 30/30) · check:crons clean · prisma validate.
 
-**Last verified:** 2026-10-17 (UI v3 waves W0 to W2, #3056, #3065, #3066, #3067 and branch statenour/ui-v3-w2; see top entry; prior stamp 2026-10-10, audit-fix wave 1)
+**Last verified:** 2026-10-18 (UI v3 W5b on branch statenour/ui-v3-w5b; see top entry; prior stamp 2026-10-17, UI v3 waves W0 to W2, #3056, #3065, #3066, #3067 and branch statenour/ui-v3-w2)
 
 - **Execution Mode (`1255c273`)**: Added focused task execution panel on `/missions` utilizing a memoized selector to prioritize tasks in "DOING" status, then queued tasks, then tasks from the Top Mission Today, real user projects, and general tasks. Includes callbacks for resume, pause, complete, snooze, block, edit, and exit.
 - **Hidden High-Risk Warning & Filters (`e9afbec8` & `9816a0b6`)**: Implemented a warning banner when high-risk tasks are hidden by active search, loop-kind filters, domain filters, or focus mode.
