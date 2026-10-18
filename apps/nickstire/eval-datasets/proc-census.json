@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-17T23:22:10.517Z",
-  "count": 791,
+  "generatedAt": "2026-10-18T13:03:46.765Z",
+  "count": 797,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -525,6 +525,12 @@
     "query.featureFlags.list",
     "query.financing.providers",
     "query.financing.recentClicks",
+    "query.fitment.makes",
+    "query.fitment.models",
+    "query.fitment.sizes",
+    "query.fitment.status",
+    "query.fitment.trims",
+    "query.fitment.years",
     "query.followUps.pending",
     "query.followUps.recent",
     "query.gallery.list",

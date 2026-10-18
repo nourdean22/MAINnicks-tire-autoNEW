@@ -48,6 +48,7 @@ import {
   kpiRouter,
   portalRouter,
   gatewayTireRouter,
+  fitmentRouter,
   autoLaborRouter,
   campaignsRouter,
   callTrackingRouter,
@@ -186,6 +187,8 @@ export const appRouter = router({
   export: exportRouter,
   campaigns: campaignsRouter,
   gatewayTire: gatewayTireRouter,
+  /** 2026-10-18 · public vehicle tire finder (D&K quicksearch via the Gateway Tire login). */
+  fitment: fitmentRouter,
   autoLabor: autoLaborRouter,
   emergency: emergencyRouter,
   messengerBot: messengerBotRouter,
