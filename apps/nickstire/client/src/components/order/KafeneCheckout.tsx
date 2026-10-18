@@ -1,37 +1,19 @@
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { trackEvent } from "@/components/SEO";
-import { trpc } from "@/lib/trpc";
+import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
-import { loadKafeneSdk, type KafeneItem, type KafeneResult } from "@/lib/kafeneSdk";
+import { loadKafeneSdk, type KafeneResult } from "@/lib/kafeneSdk";
 
-// "Pay with Kafene lease" after a tire order is placed (contract kafene v1). Kafene's SDK opens
-// its own overlay; approval and signing are recorded on our server. Hidden unless the server
+// "Pay with Kafene lease" after a tire order is placed (server/routers/kafene.ts). Kafene's SDK
+// opens its own overlay; approval and signing are recorded on our server. Hidden unless the server
 // reports Kafene configured. apiKey/storeId come from kafene.config and live only in memory.
 
 type Ids = { orderNumber: string; phone: string };
-type KafeneConfig = {
-  enabled: boolean;
-  apiKey: string | null;
-  storeId: string | null;
-  environment: "sandbox" | "production" | null;
-  maxApprovalCents: number | null;
-};
-type StartResult =
-  | { ok: true; orderId: string; items: KafeneItem[]; shippingCost: number; customer: { billing: Record<string, unknown> } }
-  | { ok: false; reason: "disabled" | "not_found" | "already_paid" | "cancelled" | "over_limit" | "upstream_error" };
-type AttachResult = { ok: true } | { ok: false; reason: "disabled" | "not_found" | "conflict" };
-type SignResult = { ok: true; status: "signed" } | { ok: false; reason: "disabled" | "not_found" | "unknown_uid" };
-type KafeneApi = {
-  config: { useQuery: (input?: undefined, opts?: { staleTime?: number; retry?: boolean }) => { data?: KafeneConfig } };
-  start: { useMutation: () => { mutateAsync: (input: Ids) => Promise<StartResult> } };
-  attach: { useMutation: () => { mutateAsync: (input: Ids & { uid: string }) => Promise<AttachResult> } };
-  markSigned: { useMutation: () => { mutateAsync: (input: Ids & { uid: string }) => Promise<SignResult> } };
-};
+type StartResult = RouterOutputs["kafene"]["start"];
 
-// shortcut: kafene v1 is not in AppRouter until the server lane's router merges, so this types the
-// client against the v1 contract by hand. On integration, replace it with `trpc.kafene` so tsc checks it.
-const kafeneApi = (trpc as unknown as { kafene: KafeneApi }).kafene;
+// Kafene application ids as the server accepts them (server/routers/kafene.ts `uid`).
+const UID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 
 const STEP_TIMEOUT_MS = 20_000;
 // The customer is filling in Kafene's application inside their overlay; still bounded.
@@ -45,6 +27,7 @@ const MESSAGES = {
   error: "Kafene checkout couldn't finish. Try again or pay by card.",
   overLimit: "This order is above Kafene's limit for our shop. Pay by card or call us.",
   alreadyPaid: "This order is already paid.",
+  alreadySigned: "This order already has a Kafene lease. Call us if that is not right.",
 };
 
 function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
@@ -62,6 +45,7 @@ type Phase =
   | { kind: "busy" }
   | { kind: "open" }
   | { kind: "signed"; recorded: boolean }
+  | { kind: "leased" } // a lease already exists for this order: offer nothing more
   | { kind: "message"; text: string };
 
 export default function KafeneCheckout({
@@ -70,15 +54,15 @@ export default function KafeneCheckout({
   onOpenChange,
   onSigned,
 }: Ids & { onOpenChange: (open: boolean) => void; onSigned: () => void }) {
-  const config = kafeneApi.config.useQuery(undefined, { staleTime: 5 * 60_000, retry: false });
-  const start = kafeneApi.start.useMutation();
-  const attach = kafeneApi.attach.useMutation();
-  const markSigned = kafeneApi.markSigned.useMutation();
+  const config = trpc.kafene.config.useQuery(undefined, { staleTime: 5 * 60_000, retry: false });
+  const start = trpc.kafene.start.useMutation();
+  const attach = trpc.kafene.attach.useMutation();
+  const markSigned = trpc.kafene.markSigned.useMutation();
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
 
   const cfg = config.data;
   const usable = cfg?.enabled === true && !!cfg.apiKey && !!cfg.storeId;
-  if (!usable && phase.kind !== "signed") return null;
+  if (!usable && phase.kind !== "signed" && phase.kind !== "leased") return null;
 
   const begin = async () => {
     if (!cfg?.apiKey || !cfg.storeId) return;
@@ -94,6 +78,13 @@ export default function KafeneCheckout({
       res = await withTimeout(start.mutateAsync(ids), STEP_TIMEOUT_MS);
     } catch {
       return show(MESSAGES.error);
+    }
+    if (!res.ok && res.reason === "already_signed") {
+      // A lease is already on this order: offering the card (or Kafene) again invites a double payment.
+      onOpenChange(false);
+      setPhase({ kind: "leased" });
+      onSigned();
+      return;
     }
     if (!res.ok) {
       return show(res.reason === "over_limit" ? MESSAGES.overLimit : res.reason === "already_paid" ? MESSAGES.alreadyPaid : MESSAGES.error);
@@ -123,7 +114,8 @@ export default function KafeneCheckout({
         .init({ apiKey: cfg.apiKey, storeId: cfg.storeId, environment: cfg.environment ?? "sandbox" })
         .openCheckout({ orderId: res.orderId, items: res.items, shippingCost: res.shippingCost, customer: res.customer });
       flow.on("approved", (payload) => {
-        if (!payload?.uid || uid) return;
+        // The server only takes ids of this shape; anything else could never be attached.
+        if (!payload?.uid || uid || !UID_RE.test(payload.uid)) return;
         uid = payload.uid;
         attached = attachOnce({ ...ids, uid });
       });
@@ -173,6 +165,10 @@ export default function KafeneCheckout({
         {!phase.recorded && <p className="text-xs text-amber-500">{SIGNED_UNRECORDED}</p>}
       </div>
     );
+  }
+
+  if (phase.kind === "leased") {
+    return <p role="status" className="text-center text-sm font-medium text-amber-500">{MESSAGES.alreadySigned}</p>;
   }
 
   const working = phase.kind === "busy" || phase.kind === "open";

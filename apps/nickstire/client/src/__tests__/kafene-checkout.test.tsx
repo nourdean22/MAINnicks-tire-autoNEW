@@ -256,6 +256,17 @@ describe("OrderModal · Pay with Kafene lease", () => {
     expect(screen.getByText("This order is already paid.")).toBeTruthy();
   });
 
+  it("already_signed from start -> says a lease exists, and neither the card nor Kafene is offered again", async () => {
+    const k = stubKafene();
+    h.start.mockReset().mockResolvedValue({ ok: false, reason: "already_signed" });
+    await placeOrder();
+    await openKafene();
+    expect(screen.getByText("This order already has a Kafene lease. Call us if that is not right.")).toBeTruthy();
+    expect(k.openCheckout).not.toHaveBeenCalled();
+    expect(cardButton()).toBeNull();
+    expect(kafeneButton()).toBeNull();
+  });
+
   it("SDK script fails to load -> a message, never a blank", async () => {
     await placeOrder(); // no window.kafene: the loader inserts the script
     await openKafene();
