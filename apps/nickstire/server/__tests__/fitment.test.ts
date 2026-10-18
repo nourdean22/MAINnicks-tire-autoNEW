@@ -24,9 +24,9 @@ vi.mock("../lib/logger", () => ({
   },
 }));
 
-import { fitmentRouter } from "../routers/fitment";
-import { __resetFitmentForTest } from "../services/fitment/dkFitment";
-import { invalidateGatewaySession } from "../services/gatewayClient";
+// Module state (the cache, the remembered login failure, gatewayClient's session) is reset by
+// re-importing the router graph fresh for every test, so production code carries no test seam.
+let fitmentRouter: typeof import("../routers/fitment").fitmentRouter;
 
 const dk = JSON.parse(readFileSync(new URL("./fixtures/fitment/dk.json", import.meta.url), "utf8"));
 
@@ -78,12 +78,12 @@ const tokenCalls = (m: ReturnType<typeof vi.fn>) =>
 
 const VEHICLE = { year: 2018, make: "Honda", model: "Civic" };
 
-beforeEach(() => {
+beforeEach(async () => {
   for (const k of ENV_KEYS) savedEnv[k] = process.env[k];
   process.env.GATEWAY_TIRE_USERNAME = USER;
   process.env.GATEWAY_TIRE_PASSWORD = PASS;
-  invalidateGatewaySession();
-  __resetFitmentForTest();
+  vi.resetModules();
+  ({ fitmentRouter } = await import("../routers/fitment"));
   logLines.length = 0;
 });
 
@@ -94,8 +94,6 @@ afterEach(() => {
   }
   vi.unstubAllGlobals();
   vi.useRealTimers();
-  invalidateGatewaySession();
-  __resetFitmentForTest();
 });
 
 describe("unconfigured: no working D&K login means no data call", () => {
@@ -240,7 +238,6 @@ describe("unknown is not empty", () => {
   it("bad JSON or a non-array body is upstream_error", async () => {
     vi.stubGlobal("fetch", dkFetch(() => new Response("<html>maintenance</html>", { status: 200 })));
     expect(await caller().years()).toEqual({ ok: false, reason: "upstream_error" });
-    __resetFitmentForTest();
     vi.stubGlobal("fetch", dkFetch(() => json({ detail: "nope" })));
     expect(await caller().makes({ year: 2018 })).toEqual({ ok: false, reason: "upstream_error" });
   });

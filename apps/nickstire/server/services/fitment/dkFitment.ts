@@ -35,12 +35,6 @@ interface FitmentSize { size: string; rimDiameter: number | null; rearSize: null
 const cache = new Map<string, { expiresAt: number; value: unknown }>();
 let loginFailedUntil = 0;
 
-/** Test seam: drop the cache and the remembered login failure. */
-export function __resetFitmentForTest(): void {
-  cache.clear();
-  loginFailedUntil = 0;
-}
-
 /** The bearer token, or null. A null is remembered for 60 s; a token is cached by gatewayClient. */
 async function token(): Promise<string | null> {
   if (Date.now() < loginFailedUntil) return null;
