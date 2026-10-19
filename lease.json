@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "nickstire/admin-prune-w4",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "a2599f2f-7b2d-4c75-82f1-74a50c66e5ef",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\laughing-swirles-926ea3",
+  "claimedBy": "2026-10-19-admin-prune",
+  "claimedAt": "2026-10-19T19:39:42.183Z",
+  "expiresAt": "2026-10-20T07:39:42.183Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
