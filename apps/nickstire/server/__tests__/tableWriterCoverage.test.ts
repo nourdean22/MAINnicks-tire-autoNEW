@@ -34,6 +34,12 @@ const APP = join(__dirname, "..", "..");
  * tables never appeared (correction #15 in artifact 1).
  */
 const KNOWN_WRITERLESS: Record<string, string> = {
+  // admin-prune W2a (2026-10-19): the only writers were tRPC procedures with no caller in the repo
+  // and 0 HTTP calls in 14 days, deleted with them. Readers remain; no DDL in this job.
+  job_assignments: "W2a · writer was jobAssignments.assign (deleted, never called); 0 rows ever in prod (2026-10-19 SELECT).",
+  kpi_snapshots: "W2a · writer was the kpi-snapshot cron, retired with its only reader kpi.history.",
+  content_manufacturing_campaigns: "W2a · writers were contentAdmin.createCampaign/toggleCampaign (deleted, never called); content-reserve-replenish still reads existing rows.",
+  intelligence_decision_ledger: "W2a · writer was intelligence.logDecision (deleted, never called).",
   // audit findings
   customer_testimonials: "F-5 · created on demand and read by the evidence engine; no entry surface was ever built.",
   vehicles: "F-16 · zero readers and zero writers since the monorepo began; retired by 0117 (operator-gated).",
