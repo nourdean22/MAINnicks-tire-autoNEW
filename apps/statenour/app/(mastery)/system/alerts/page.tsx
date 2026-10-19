@@ -35,7 +35,7 @@ import { trpc } from "@/lib/trpc/client";
 import { Eye } from "lucide-react";
 import { useInspector } from "@/hooks/use-inspector";
 import { alertLane } from "@/lib/brain/alert-lanes";
-import { ALERT_MUTE_DAYS } from "@/components/inspector/panels/alert-inspector";
+import { ALERT_MUTE_DAYS, ALERT_RESOLVE_ARM_MS } from "@/components/inspector/panels/alert-inspector";
 import { AlertDismissSheet } from "@/components/alerts/alert-dismiss-sheet";
 import { toast } from "sonner";
 
@@ -186,6 +186,12 @@ export default function AlertsInspectorPage() {
   const utils = trpc.useUtils();
   const refresh = () => void utils.brain.activeAlerts.invalidate();
   const [armedId, setArmedId] = useState<string | null>(null);
+  // An armed Resolve expires like the inspector's; arming another row restarts the window for it.
+  useEffect(() => {
+    if (!armedId) return;
+    const t = window.setTimeout(() => setArmedId(null), ALERT_RESOLVE_ARM_MS);
+    return () => window.clearTimeout(t);
+  }, [armedId]);
   const [dismissing, setDismissing] = useState<Alert | null>(null);
   const resolve = trpc.brain.resolveAlert.useMutation({
     onSuccess: (res) => {

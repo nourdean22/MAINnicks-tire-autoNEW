@@ -68,8 +68,18 @@ export default function MemoryInboxPage() {
   const other = items.filter((item) => item.status !== "conflicting");
   const [otherOpen, setOtherOpen] = useState(false);
 
+  // An Other item is selectable only while Other is open; with no choice, only a Priority item
+  // opens by itself (a collapsed item's text and verbs never show behind a closed disclosure).
   const selectedItem =
-    items.find((item) => item.id === selectedItemId) ?? priority[0] ?? items[0] ?? null;
+    items.find(
+      (item) => item.id === selectedItemId && (item.status === "conflicting" || otherOpen),
+    ) ??
+    priority[0] ??
+    null;
+  const toggleOther = () => {
+    if (otherOpen && other.some((item) => item.id === selectedItemId)) setSelectedItemId(null);
+    setOtherOpen((v) => !v);
+  };
 
   const renderItem = (item: InboxItem) => {
     const active = selectedItem?.id === item.id;
@@ -194,7 +204,7 @@ export default function MemoryInboxPage() {
                   type="button"
                   aria-expanded={otherOpen}
                   aria-controls="inbox-other-list"
-                  onClick={() => setOtherOpen((v) => !v)}
+                  onClick={toggleOther}
                   className="inline-flex min-h-[44px] items-center gap-2 text-[14px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:text-fg"
                 >
                   Other, {other.length}

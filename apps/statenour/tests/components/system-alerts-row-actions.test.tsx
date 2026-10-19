@@ -99,6 +99,23 @@ describe("/system/alerts row actions", () => {
     expect(h.resolve).toHaveBeenCalledWith({ id: "b1" });
   });
 
+  // Codex P2 on #3161: the armed Resolve never expired, so a stray tap minutes later resolved.
+  it("an armed Resolve disarms after the inspector's window; a later tap re-arms, it does not resolve", () => {
+    vi.useFakeTimers();
+    try {
+      render();
+      act(() => btn(rowEl("b1"), /^Resolve$/)!.click());
+      expect(btn(rowEl("b1"), /^Tap again to resolve$/)).toBeTruthy();
+      act(() => vi.advanceTimersByTime(4100));
+      expect(btn(rowEl("b1"), /^Resolve$/)).toBeTruthy();
+      act(() => btn(rowEl("b1"), /^Resolve$/)!.click());
+      expect(h.resolve).not.toHaveBeenCalled();
+      expect(btn(rowEl("b1"), /^Tap again to resolve$/)).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("Mute mutes that row's category for 7 days", () => {
     render();
     act(() => btn(rowEl("b1"), /^Mute 7 days$/)!.click());

@@ -26,6 +26,8 @@ import { useInspector } from "@/hooks/use-inspector";
 import type { InspectorPanelProps } from "@/components/inspector/panels/memory-inspector";
 
 export const ALERT_MUTE_DAYS = 7;
+/** How long an armed two-tap Resolve waits for its second tap (inspector and /system/alerts). */
+export const ALERT_RESOLVE_ARM_MS = 4000;
 
 export function AlertInspector({ entity }: InspectorPanelProps) {
   const query = trpc.brain.memoryById.useQuery({ id: entity.id }, { staleTime: 30_000, retry: 1 });
@@ -94,7 +96,7 @@ export function AlertInspector({ entity }: InspectorPanelProps) {
           onClick={() => {
             if (!armed) {
               setArmed(true);
-              window.setTimeout(() => setArmed(false), 4000);
+              window.setTimeout(() => setArmed(false), ALERT_RESOLVE_ARM_MS);
               return;
             }
             setArmed(false);

@@ -40,6 +40,17 @@ const h = vi.hoisted(() => {
 });
 
 vi.mock("@/lib/prisma", () => ({ prisma: h.prisma }));
+// Codex P2 on #3161: a dismissal or mute must drop the cached views that list alerts
+// (command-center 15 s, dashboard brief 30 s, nudges 300 s), or they stay visible for minutes.
+const inv = vi.hoisted(() => ({ invalidate: vi.fn(), invalidateNudgeCache: vi.fn() }));
+vi.mock("@/lib/utils/cache", async (orig) => ({
+  ...(await orig<typeof import("@/lib/utils/cache")>()),
+  invalidate: inv.invalidate,
+}));
+vi.mock("@/lib/brain/cross-system-nudge", async (orig) => ({
+  ...(await orig<typeof import("@/lib/brain/cross-system-nudge")>()),
+  invalidateNudgeCache: inv.invalidateNudgeCache,
+}));
 
 import {
   ALERT_CATEGORIES,
@@ -130,6 +141,21 @@ describe("brain.dismissAlert", () => {
     const ttl = arg.create.expiresAt.getTime() - before;
     expect(ttl).toBeGreaterThanOrEqual(30 * DAY - 1000);
     expect(ttl).toBeLessThanOrEqual(30 * DAY + 5000);
+  });
+
+  it("dismissAlert and muteAlertCategory drop the command-center, dashboard and nudge caches", async () => {
+    h.state.byId = { category: "brain_bus_alert", key: "dead-event:e1" };
+    for (const run of [
+      () => caller.dismissAlert({ id: "b1", reason: "fixed" }),
+      () => caller.muteAlertCategory({ category: "brain_bus_alert", days: 7 }),
+    ]) {
+      inv.invalidate.mockClear();
+      inv.invalidateNudgeCache.mockClear();
+      await run();
+      expect(inv.invalidate).toHaveBeenCalledWith("ultron_command_center_state_v1");
+      expect(inv.invalidate).toHaveBeenCalledWith("dashboard_brief");
+      expect(inv.invalidateNudgeCache).toHaveBeenCalledTimes(1);
+    }
   });
 
   it("a reason outside the closed list is refused before any write", async () => {

@@ -105,6 +105,31 @@ describe("/system/inbox: conflicting first, the rest behind Other", () => {
     expect(h.mutateAsync).toHaveBeenCalledWith({ id: "i2", verdict: "coexist" });
   });
 
+  // Codex P2 on #3161: with only Other items the detail pane opened on a hidden item, showing its
+  // raw text and its Reject / Coexist verbs while Other was still collapsed.
+  it("only-Other inbox: no detail until Other is opened and an item tapped; collapsing clears it", () => {
+    h.q = q({ data: [ITEMS[0], ITEMS[2]] });
+    render();
+    expect(host.textContent).not.toContain("Memory Review");
+    expect(button(/^Reject$/)).toBeUndefined();
+    act(() => button(/^Other, 2/)!.click());
+    expect(host.textContent).not.toContain("Memory Review");
+    const pick = Array.from(list().querySelectorAll("button")).find((b) => /Pending note two/.test(b.textContent ?? ""))!;
+    act(() => pick.click());
+    expect(host.textContent).toContain("Memory Review");
+    expect(button(/^Reject$/)).toBeTruthy();
+    act(() => button(/^Other, 2/)!.click());
+    expect(host.textContent).not.toContain("Memory Review");
+    act(() => button(/^Other, 2/)!.click());
+    expect(host.textContent).not.toContain("Memory Review");
+  });
+
+  it("CONTROL: a Priority item still opens the detail by itself", () => {
+    render();
+    expect(host.textContent).toContain("Memory Review");
+    expect(button(/^Overwrite Conflicting$/)).toBeTruthy();
+  });
+
   it("CONTROL: with nothing conflicting, Priority says so and Other still lists the rest", () => {
     h.q = q({ data: [ITEMS[0], ITEMS[2]] });
     render();

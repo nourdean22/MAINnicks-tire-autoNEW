@@ -4,9 +4,15 @@
  * UI v3 W5b · the in-DOM sheet behind an alert row's Dismiss (an iOS home-screen PWA drops
  * window.prompt silently). A closed list of reasons; the sheet says what the dismissal covers,
  * from the same alertSignal() the server keys the alert_dismiss row with.
+ *
+ * Built on the Base UI Dialog primitive the way MoreSheet is (focus trap and restore, Escape,
+ * outside dismissal, scroll lock): the repo allows no new hand-rolled modal surfaces
+ * (tests/repo/modal-contract.test.ts). Overlay z-[70] and panel z-[71] sit above the
+ * BottomTabBar (z-[55]); pinned by tests/repo/alert-dismiss-sheet-layer.test.ts.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import {
   ALERT_DISMISS_DAYS,
   ALERT_DISMISS_REASONS,
@@ -41,33 +47,27 @@ export function AlertDismissSheet({
   onConfirm: (reason: AlertDismissReason) => void;
 }) {
   const [reason, setReason] = useState<AlertDismissReason | null>(null);
-  const firstRef = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    firstRef.current?.focus();
-  }, []);
 
   return (
-    <>
-      <div aria-hidden="true" className="fixed inset-0 z-40 bg-black/50" onClick={onCancel} />
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="alert-dismiss-title"
-        onKeyDown={(e) => {
-          if (e.key === "Escape") onCancel();
-        }}
-        className="fixed inset-x-0 bottom-0 z-50 mx-auto w-full max-w-lg space-y-3 border-t border-edge bg-canvas px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:bottom-6 sm:rounded-surface sm:border"
+    <Dialog
+      open
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) onCancel();
+      }}
+    >
+      <DialogContent
+        unstyled
+        showCloseButton={false}
+        overlayClassName="z-[70] bg-[var(--bg-void)]/70"
+        className="fixed inset-x-0 bottom-0 z-[71] mx-auto w-full max-w-lg space-y-3 border-t border-edge bg-canvas px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] outline-none sm:bottom-6 sm:rounded-surface sm:border"
       >
-        <h2 id="alert-dismiss-title" className="text-[16px] font-medium text-fg">
-          Dismiss {alert.label}
-        </h2>
+        <DialogTitle className="text-[16px] font-medium text-fg">Dismiss {alert.label}</DialogTitle>
         <p className="text-[14px] text-fg-secondary">{coverage(alert.category, alert.key)}</p>
         <fieldset className="space-y-1">
           <legend className="text-[13px] text-fg-tertiary">Reason</legend>
-          {ALERT_DISMISS_REASONS.map((r, i) => (
+          {ALERT_DISMISS_REASONS.map((r) => (
             <label key={r} className="flex min-h-[44px] cursor-pointer items-center gap-3 text-[16px] text-fg">
               <input
-                ref={i === 0 ? firstRef : undefined}
                 type="radio"
                 name="alert-dismiss-reason"
                 value={r}
@@ -96,7 +96,7 @@ export function AlertDismissSheet({
             Cancel
           </button>
         </div>
-      </div>
-    </>
+      </DialogContent>
+    </Dialog>
   );
 }

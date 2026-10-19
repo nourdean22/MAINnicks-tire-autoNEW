@@ -63,6 +63,7 @@ import { brainMemory } from "@/lib/brain/memory-manager";
 import { getMemoryOfTheDay } from "@/lib/services/memory-of-the-day";
 import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { invalidate } from "@/lib/utils/cache";
 import {
   ALERT_CATEGORIES,
   ALERT_DISMISS_DAYS,
@@ -202,6 +203,18 @@ import { BOARD_IDS } from "@/lib/ai/board/boards";
 
 /** identityDelta: a snapshot older than this is not "yesterday -> today". */
 export const IDENTITY_DELTA_MAX_AGE_MS = 48 * 60 * 60 * 1000;
+
+/**
+ * UI v3 W5b (Codex P2 on #3161): a mute or dismissal changes what three cached views list
+ * (command-center state 15 s, the dashboard brief 30 s, the nudges 300 s). Drop them so the
+ * change shows at once. Dynamic import: cross-system-nudge sits in this router's import graph.
+ */
+async function dropAlertListingCaches(): Promise<void> {
+  invalidate("dashboard_brief");
+  invalidate("ultron_command_center_state_v1");
+  const { invalidateNudgeCache } = await import("@/lib/brain/cross-system-nudge");
+  invalidateNudgeCache();
+}
 
 export const brainRouter = router({
   /**
@@ -526,6 +539,7 @@ export const brainRouter = router({
           deletedAt: null,
         },
       });
+      await dropAlertListingCaches();
       return { ok: true as const, until: new Date(Date.now() + input.days * 86_400_000).toISOString() };
     }),
 
@@ -564,6 +578,7 @@ export const brainRouter = router({
         },
         update: { content: input.reason, expiresAt, deletedAt: null },
       });
+      await dropAlertListingCaches();
       return { ok: true as const, scope, until: expiresAt.toISOString() };
     }),
 
