@@ -1723,16 +1723,6 @@ function buildTiers(): void {
       // Side note: the function it called (shopDriverSync.pullRecentTickets)
       // also has a broken auth URL — silent fail. shopDriverMirror.runFullMirror
       // is the working path, fired via algProbeBudget.requestAlgProbe.
-      {
-        name: "customer-segment-refresh",
-        businessHoursOnly: true,
-        handler: async () => {
-          try {
-            const { processCustomerSegmentation } = await import("./jobs/customerSegmentation");
-            return processCustomerSegmentation();
-          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); throw e; /* audit F-9: a swallowed error was recorded as completed */ }
-        },
-      },
       // Wave-100 update (2026-05-08): customer-metrics-refresh moved OFF
       // the cron tier per operator directive — it now fires from the
       // OAuth login callback instead. Reason: cron probes were triggering
@@ -2119,26 +2109,6 @@ function buildTiers(): void {
         },
       },
       {
-        // 2026-09-01 (audit F-4) · kpi_snapshots had NO writer for the life of
-        // the schema; kpi.history returned [] to every caller. One row per
-        // completed shop week, idempotent, once per shop day.
-        //
-        // 2026-09-22 · moved here from the daily tier. `oncePerShopDay` claims
-        // through claimOncePerShopDay(), which is gated to business hours, so
-        // on the 24h tier the job ran only when that tier's phase happened to
-        // land inside 07:00-20:59 ET: the boot-claim pass fired the daily tier
-        // at 04:29 ET on 09-22 and the job was skipped with no cron_log row,
-        // while self-healing reported it 48h stale. Same ROS-081 class as the
-        // digest above; here it gets ~7 chances a day and the claim keeps it
-        // exactly-once.
-        name: "kpi-snapshot",
-        oncePerShopDay: true,
-        handler: async () => {
-          const { processKpiSnapshot } = await import("./jobs/kpiSnapshot");
-          return processKpiSnapshot();
-        },
-      },
-      {
         // 2026-08-23 · WIRED. Same defect as campaign-resume: registered in
         // cron/index.ts, present in no tier, ZERO cron_log rows ever.
         //
@@ -2256,13 +2226,6 @@ function buildTiers(): void {
         handler: async () => {
           const { cleanupOldData } = await import("./jobs/cleanup");
           return cleanupOldData();
-        },
-      },
-      {
-        name: "customer-segmentation",
-        handler: async () => {
-          const { processCustomerSegmentation } = await import("./jobs/customerSegmentation");
-          return processCustomerSegmentation();
         },
       },
       // wave-181.111 · psychographic profile (10 segments) daily refresh.
@@ -2577,15 +2540,6 @@ function buildTiers(): void {
           }
 
           return { recordsProcessed: ledger.length, details: `${unrecovered.length} unrecovered ($${totalRecoverableValue}), ${safetyItems.length} safety` };
-        },
-      },
-      {
-        name: "staff-performance",
-        handler: async () => {
-          const { getTeamPerformance } = await import("../services/staffPerformance");
-          // AG-20 · persist tech metrics (see cron/index.ts twin).
-          const perf = await getTeamPerformance(true);
-          return { recordsProcessed: perf.techs?.length || 0, details: "Rollup complete (persisted)" };
         },
       },
       {

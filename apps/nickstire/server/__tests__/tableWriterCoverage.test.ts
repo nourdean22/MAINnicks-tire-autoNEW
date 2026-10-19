@@ -116,8 +116,6 @@ describe("every Drizzle table has a writer, or a reason it does not", () => {
     expect(findWriters(sources, "leads", "leads").length).toBeGreaterThan(0);
     // customer_metrics is written ONLY by raw SQL — the case the Drizzle-only scan missed.
     expect(findWriters(sources, "customerMetrics", "customer_metrics").length).toBeGreaterThan(0);
-    // kpi_snapshots gained its writer in the audit wave (kpiSnapshot job, raw INSERT).
-    expect(findWriters(sources, "kpiSnapshots", "kpi_snapshots").length).toBeGreaterThan(0);
   });
 
   it("no table outside KNOWN_WRITERLESS is read-only for the whole repo", () => {
