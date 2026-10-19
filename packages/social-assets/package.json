@@ -25,7 +25,7 @@
   "dependencies": {
     "@resvg/resvg-js": "^2.6.2",
     "react": "catalog:",
-    "satori": "^0.13.0"
+    "satori": "^0.62.0"
   },
   "devDependencies": {
     "@types/react": "catalog:",
