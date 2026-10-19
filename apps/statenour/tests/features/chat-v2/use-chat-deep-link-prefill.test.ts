@@ -47,7 +47,7 @@ describe("consumeChatDeepLink", () => {
     expect(useChatUiStore.getState().activeConversationId).toBe("conv_abc123");
   });
 
-  it("opens the history drawer via ?h=1 (nick-reasoner deep-link)", () => {
+  it("opens the history drawer via ?h=1 (chat history deep-link)", () => {
     consumeChatDeepLink("?h=1", slice());
     expect(useChatUiStore.getState().historyDrawerOpen).toBe(true);
   });

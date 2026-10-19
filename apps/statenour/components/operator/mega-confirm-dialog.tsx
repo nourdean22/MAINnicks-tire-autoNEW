@@ -167,7 +167,7 @@ export function megaConfirm(message: string): Promise<boolean> {
 
 /** Mount once at the layout root · listens for megaConfirm() calls
  *  and renders the dialog. Decoupled from the page that triggers
- *  it so the dialog isn't tied to React state in NickReasoner. */
+ *  it so the dialog isn't tied to React state in the page that triggers it. */
 export function MegaConfirmHost() {
   const [, setTick] = useState(0);
   useEffect(() => {

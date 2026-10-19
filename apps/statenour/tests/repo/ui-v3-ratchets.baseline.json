@@ -6,7 +6,7 @@
     "emoji": 23,
     "transitionAll": 48,
     "slowDuration": 7,
-    "smallInput": 78
+    "smallInput": 77
   },
   "files": {
     "app/(mastery)/decisions/[id]/page.tsx": {
@@ -289,9 +289,6 @@
     },
     "components/missions/task-edit-sheet.tsx": {
       "emDash": 5
-    },
-    "components/operator/nick-reasoner.tsx": {
-      "smallInput": 1
     },
     "components/power-atlas/DossierEditor.tsx": {
       "emDash": 1,

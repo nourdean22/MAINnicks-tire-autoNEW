@@ -58,7 +58,7 @@ export function consumeChatDeepLink(search: string, store: DeepLinkStoreSlice, p
     else if (!store.draft.trim()) store.setDraft(prompt.trim());
   }
 
-  // ?h=1 — nick-reasoner's "open chat history" deep-link.
+  // ?h=1 — the "open chat history" deep-link (kept for existing links; its first user, the Reason tab, is gone).
   if (params.get("h") === "1") store.setHistoryDrawerOpen(true);
 }
 

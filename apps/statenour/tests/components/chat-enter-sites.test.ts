@@ -7,9 +7,10 @@
  * Each must go through the shared isSubmitEnter(). features/chat-v2 itself is
  * pinned by tests/features/chat-v2/enter-sites-contract.test.ts.
  *
- * Reviewed and left alone (not a plain-Enter send to Nick): operator/
- * nick-reasoner.tsx and ultron/today/active-task-companion.tsx (Cmd/Ctrl+Enter
- * only), brain-dump-modal.tsx (Cmd/Ctrl+Enter capture). journal/thread-rail.tsx
+ * Reviewed and left alone (not a plain-Enter send to Nick): ultron/today/
+ * active-task-companion.tsx and brain-dump-modal.tsx (Cmd/Ctrl+Enter only;
+ * operator/nick-reasoner.tsx was the third until the Brain Reason tab was cut
+ * 2026-10-19 and the file deleted). journal/thread-rail.tsx
  * (thread name) and missions/mission-card.tsx (add task) are not sends to Nick
  * either, but R3-06 moved both onto isSubmitEnter() too.
  */
@@ -35,8 +36,15 @@ describe("chat Enter sites outside chat-v2", () => {
     expect(src).not.toMatch(/\.key\s*===\s*["']Enter["']/);
   });
 
+  // The control proves the scan can see a raw check at all. Its target is a live file that still has one
+  // (Cmd/Ctrl+Enter capture); the negative half proves the same scan is quiet on a file that lacks one, so
+  // a scan that matched everything (or nothing) cannot pass both.
   it("CONTROL: the scan sees a raw check where one exists", () => {
-    expect(code("components/operator/nick-reasoner.tsx")).toMatch(/\.key\s*===\s*["']Enter["']/);
+    expect(code("components/brain-dump-modal.tsx")).toMatch(/\.key\s*===\s*["']Enter["']/);
+  });
+
+  it("CONTROL: and the same scan finds none in a file that has none", () => {
+    expect(code(CHAT_SITES[0])).not.toMatch(/\.key\s*===\s*["']Enter["']/);
   });
 
   it("CONTROL: the shared rule refuses an IME confirm and still sends a plain Enter", () => {
