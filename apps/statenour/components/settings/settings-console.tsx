@@ -19,6 +19,7 @@
  *   DeployChip          -> /system header (moved)
  *   CronControlPanel    -> /system/crons already owns the kill switch + run-now (deleted; runbook links ported)
  *   SkillLibraryPanel   -> /brain self-model already mounts it (second mount removed)
+ *   IdentityPanel       -> stays HERE (Identity and Behavior); /brain links to it (UI v3 W5a)
  *
  * Three domains remain. The a11y contract (useId + role=region + labelled
  * heading, decorative icon hidden) is pinned by tests/components/mobile-a11y.test.tsx.
@@ -126,7 +127,7 @@ export function SettingsConsole() {
                   href={l.href}
                   className="flex min-h-[44px] items-center gap-2 text-xs text-fg-secondary hover:text-fg transition-colors duration-[var(--motion-state)] py-1 lg:min-h-0"
                 >
-                  {l.label} ↗
+                  {l.label}
                 </Link>
               </li>
             ))}

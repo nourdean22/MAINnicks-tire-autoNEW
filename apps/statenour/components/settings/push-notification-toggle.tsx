@@ -35,7 +35,7 @@ export function PushNotificationToggle() {
   const errorMessage: string | null = (() => {
     if (!lastError) return null;
     if (lastError === "vapid_public_key_missing")
-      return "Server isn't configured for push — VAPID_PUBLIC_KEY env var missing. Set it in Vercel env.";
+      return "Server isn't configured for push: VAPID_PUBLIC_KEY env var missing. Set it in Vercel env.";
     if (lastError === "permission_denied")
       return "Browser blocked notifications. Enable in browser settings → Site permissions → Notifications.";
     if (lastError === "permission_default")
@@ -78,14 +78,14 @@ export function PushNotificationToggle() {
       </div>
       <p className="text-[12px] text-fg-tertiary">
         {isSubscribed
-          ? "Enabled — you'll get the daily brief, task due-time reminders, finished deep research, coaching nudges, drift alerts, and camera alerts (vehicle arrivals, a silent camera bridge)."
+          ? "Enabled: you'll get the daily brief, task due-time reminders, finished deep research, coaching nudges, drift alerts, and camera alerts (vehicle arrivals, a silent camera bridge)."
           : permission === "denied"
             ? "Blocked by browser. Enable in browser settings → Site permissions → Notifications."
             : "Enable to receive alerts even when the browser is closed."}
       </p>
       {errorMessage && (
         <p role="alert" className="mt-2 rounded-control border border-rose-500/30 bg-rose-500/10 px-2 py-1.5 text-[12px] text-rose-300">
-          ⚠ {errorMessage}
+          Failed: {errorMessage}
         </p>
       )}
     </div>
