@@ -117,6 +117,16 @@ detailed in `docs/CURRENT-TRUTH.md`:
   retail only, wholesale never leaves the server. Live sections self-suppress
   when the feed is cold (canon floors render, never an empty table).
 
+## 2026-10-19 - Admin prune W2a: 168 uncalled tRPC procedures and 4 idle crons gone, admin SSE stream fixed (branch nickstire/admin-prune-w2, NOT yet merged)
+
+- **BUILT, not deployed:** 172 procedures with no caller in the repo and 0 HTTP calls in 14 days (Railway logs 2026-10-05..19) were cut and 4
+  restored as stop or contract doors (contentAdmin.startContentExperiment, stopContentExperiment, toggleCampaign; instagramAdmin.finalizeReelDraft).
+  Census 811 -> 643. 13 routers are gone. Admin URLs built by the server use /admin?tab=<id>, not /admin#<id>.
+- **Crons retired:** kpi-snapshot (its only reader was kpi.history), staff-performance (technicians has 0 rows), customer-segmentation and
+  customer-segment-refresh (documented no-ops). None sent anything. nhtsa-warranty-ingest, content-reserve-replenish and obligation-mirror stay.
+- **SSE fix:** GET /api/admin/events answered 0 x 2xx in 14 days: compression() gzipped text/event-stream and nothing flushed. It now sends
+  Cache-Control no-transform. Not yet observed live: a 200 on /api/admin/events in Railway HTTP logs after deploy.
+
 ## 2026-10-19 - Call score vapi-quality-v2: an agent walk-in invitation counts as the next step (job 2026-10-18-vapi-quality-v2)
 
 - **LIVE once this deploys:** `vapi-quality-v2` scores every call the daily `vapi-call-eval` job evaluates. An explicit walk-in

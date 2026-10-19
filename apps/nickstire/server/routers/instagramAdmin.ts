@@ -1161,7 +1161,7 @@ Keep it under 200 characters.`;
 
   /** Instagram image autopost lane: pause state, live/dry-run, today's slots,
    *  the last 20 runs and 7-day counts (contract AutopostLaneStatus v1). The
-   *  run-now door is nickActions.fireIgAutopostNow. */
+   *  run-now door is startAutopostRun below. */
   autopostLaneStatus: adminProcedure.query(async (): Promise<AutopostLaneStatus> =>
     readAutopostLaneStatus(await dbTyped()),
   ),
@@ -1178,8 +1178,7 @@ Keep it under 200 characters.`;
    *  once (a run outlasts the gateway timeout). Refused while another manual
    *  run is in flight. The outcome is the ig_autopost_log row (source "admin")
    *  that autopostLaneStatus shows; poll it while manualRun.inFlight is true.
-   *  nickActions.fireIgAutopostNow still awaits the run for the HTTP route and
-   *  the Nour-OS bridge. */
+   *  POST /api/admin/ig-autopost-fire still awaits the run (headless). */
   startAutopostRun: adminProcedure
     .input(z.object({ forceArchetype: z.enum(IG_ARCHETYPES).optional() }))
     .mutation(({ input }): StartAutopostRunResult => startManualAutopostRun(input.forceArchetype)),
