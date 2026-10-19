@@ -25,12 +25,14 @@ describe("derived rule policies", () => {
   it("covers every rule the engine dispatches — the list cannot be incomplete", () => {
     const rules = listRuleNames().map((r) => r.name).sort();
     const derived = derivedRulePolicies().map((p) => p.name).sort();
-    // A floor against a vacuous registry, not a pin: 19 since 2026-10-10, when
-    // `morning_brief_push` was retired in favour of the Inngest morning-brief pair.
+    // A floor against a vacuous registry, not a pin: 13 since 2026-10-19, when seven rules
+    // were retired (19 before; morning_brief_push went 2026-10-10, then commitment_checkin,
+    // commitment_escalation_day5, decision_review_due, overdue_commitment_escalation,
+    // drift_escalation and workout_reminder; nick_action_archive_mission was never in RULES).
     expect(
       rules.length,
-      "19 rules since morning_brief_push was retired (the Inngest morning-brief pair owns the brief)",
-    ).toBeGreaterThanOrEqual(19);
+      "13 rules since the 2026-10-19 prune (see RETIRED_RULE_NAMES in lib/brain/autonomous-engine.ts)",
+    ).toBeGreaterThanOrEqual(13);
     expect(derived).toEqual(rules);
     for (const p of derivedRulePolicies()) {
       expect(p.id).toBe(`autonomous-action.${p.name}`);
