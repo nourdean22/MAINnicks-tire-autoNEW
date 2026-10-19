@@ -16,6 +16,7 @@ const h = vi.hoisted(() => ({
   sendTelegramWithButtons: vi.fn(),
   recordShown: vi.fn(),
   setShownSurface: vi.fn(),
+  logError: vi.fn(),
 }));
 
 vi.mock("@/lib/inngest/client", () => ({
@@ -27,6 +28,7 @@ vi.mock("@/lib/services/telegram", () => ({
   sendTelegram: h.sendTelegram,
   sendTelegramWithButtons: h.sendTelegramWithButtons,
 }));
+vi.mock("@/lib/utils/error-log", () => ({ logError: h.logError }));
 vi.mock("@/lib/services/outcome-ledger", () => ({
   recordShown: h.recordShown,
   setShownSurface: h.setShownSurface,
@@ -79,6 +81,26 @@ describe("deliverMorningBrief", () => {
     expect(h.sendTelegramWithButtons).not.toHaveBeenCalled();
   });
 
+  it("push sent 0 AND Telegram rejects: undelivered, the ledger never says telegram-fallback or web-push", async () => {
+    h.recordShown.mockResolvedValue("led-11");
+    h.sendPush.mockResolvedValue({ sent: 0, failed: 0 });
+    h.sendTelegramWithButtons.mockResolvedValue({ ok: false });
+    const result = await deliverMorningBrief(BRIEF);
+    expect(result.status).toBe("undelivered");
+    expect(h.sendTelegramWithButtons).toHaveBeenCalledTimes(1);
+    expect(h.setShownSurface).not.toHaveBeenCalled();
+    expect(h.logError).toHaveBeenCalledTimes(1);
+  });
+
+  it("the shown surface is set only after the fallback is known to have landed", async () => {
+    h.recordShown.mockResolvedValue("led-12");
+    h.sendPush.mockResolvedValue({ sent: 0, failed: 1 });
+    h.sendTelegramWithButtons.mockResolvedValue({ ok: true, messageId: 2 });
+    const result = await deliverMorningBrief(BRIEF);
+    expect(result.status).toBe("telegram_fallback");
+    expect(h.setShownSurface).toHaveBeenCalledTimes(1);
+    expect(h.setShownSurface).toHaveBeenCalledWith("led-12", "telegram-fallback");
+  });
   it("the push no longer links to the retired /intelligence/brief page", async () => {
     await deliverMorningBrief(BRIEF);
     expect((h.sendPush.mock.calls[0][0] as { url: string }).url).toBe("/");
@@ -114,4 +136,19 @@ describe("operator-morning-brief · pushes straight after compose", () => {
     expect(out.pushSent).toBe(1);
     expect(out.delivery).toBe("sent");
   });
-});
+
+  it("an undelivered brief is declared partial with a reason, not a quiet success", async () => {
+    const CANNED: Record<string, unknown> = {
+      compose: BRIEF,
+      "deliver-push": { status: "undelivered", push: { sent: 0, failed: 0 } },
+      "voice-file": { status: "skipped" },
+      "pin-scoreboard": { status: "pinned", numberCount: 3 },
+    };
+    const step = { run: async (id: string) => CANNED[id], sleep: vi.fn() };
+    const out = await (
+      operatorMorningBrief as unknown as { handler: (ctx: unknown) => Promise<Record<string, unknown>> }
+    ).handler({ step });
+    expect(out.status).toBe("partial");
+    expect(String(out.degradedReason)).toMatch(/no device.*Telegram/i);
+    expect(out.delivery).toBe("undelivered");
+  });});

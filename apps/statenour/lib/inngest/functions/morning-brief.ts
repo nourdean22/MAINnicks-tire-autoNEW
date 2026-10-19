@@ -253,22 +253,36 @@ async function sendBriefPush(brief: ComposedBrief): Promise<{
  * the wait and the hand-off row are gone.)
  *
  * The ledger row is written by sendBriefPush with a pre-send guess; the real
- * surface is set here, where delivery is known.
+ * surface is set here, only once delivery is KNOWN: "web-push" when a device
+ * took it, "telegram-fallback" only when the fallback really sent. When both
+ * fail the surface is left alone (the brief reached nobody) and the status is
+ * "undelivered". It is returned, not thrown: the step is memoized and the
+ * function retries, so a throw would re-send; the orchestrator declares the run
+ * `partial` instead, which cron-lifecycle records and the Owner Panel reads.
  */
 export async function deliverMorningBrief(brief: ComposedBrief): Promise<{
-  status: "sent" | "telegram_fallback";
+  status: "sent" | "telegram_fallback" | "undelivered";
   push: { sent: number; failed: number };
 }> {
   const push = await sendBriefPush(brief);
-  if (push.ledgerId) {
-    const { setShownSurface } = await import("@/lib/services/outcome-ledger");
-    await setShownSurface(push.ledgerId, push.sent > 0 ? "web-push" : "telegram-fallback");
+  const counts = { sent: push.sent, failed: push.failed };
+  const { setShownSurface } = await import("@/lib/services/outcome-ledger");
+  if (push.sent > 0) {
+    if (push.ledgerId) await setShownSurface(push.ledgerId, "web-push");
+    return { status: "sent", push: counts };
   }
-  if (push.sent === 0) {
-    await briefTelegramFallback(brief, push, push.ledgerId);
-    return { status: "telegram_fallback", push: { sent: push.sent, failed: push.failed } };
+  const fallback = await briefTelegramFallback(brief, push, push.ledgerId);
+  if (fallback.status === "sent") {
+    if (push.ledgerId) await setShownSurface(push.ledgerId, "telegram-fallback");
+    return { status: "telegram_fallback", push: counts };
   }
-  return { status: "sent", push: { sent: push.sent, failed: push.failed } };
+  const { logError } = await import("@/lib/utils/error-log");
+  logError(
+    "inngest/morning-brief",
+    new Error("morning brief reached no device and the Telegram fallback failed"),
+    { date: brief.date, pushFailed: push.failed, ledgerId: push.ledgerId },
+  );
+  return { status: "undelivered", push: counts };
 }
 /**
  * Step 3 · generate a Cartesia-TTS audio file for the brief and
@@ -464,7 +478,12 @@ export const operatorMorningBrief = inngest.createFunction(
       pinScoreboard(brief.date),
     );
 
+    // cron-lifecycle settles a returned status: "partial" as a partial run (never a quiet success).
+    const undelivered = delivery.status === "undelivered";
     return {
+      ...(undelivered
+        ? { status: "partial" as const, degradedReason: "morning brief reached no device and the Telegram fallback failed" }
+        : {}),
       date: brief.date,
       sectionCount: brief.sectionCount,
       pushSent: delivery.push.sent,
