@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "statenour/worker-express5",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "11dd3c15-6c98-4bc9-9fa1-c404986839c6",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\new-session-bbf695",
+  "claimedBy": "2026-10-19-worker-express5",
+  "claimedAt": "2026-10-19T10:41:15.545Z",
+  "expiresAt": "2026-10-19T22:41:15.545Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
