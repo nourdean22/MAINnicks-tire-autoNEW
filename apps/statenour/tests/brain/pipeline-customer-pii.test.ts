@@ -71,3 +71,44 @@ describe("processShopEvent keeps customer identity out of stored memory", () => 
     expect(remember.mock.calls.map((c) => String(c[2])).some((c) => c.startsWith("REPEAT CUSTOMER"))).toBe(true);
   });
 });
+
+describe("review-round rules (2026-10-19)", () => {
+  it("synonym identity keys and non-identity free text never reach the stored event memory", async () => {
+    await processShopEvent({
+      type: "lead",
+      data: {
+        leadId: 5,
+        source: "web",
+        interest: "Wheel alignment",
+        customer_name: NAME,
+        fullName: NAME,
+        firstName: "Jane",
+        contactName: NAME,
+        address: "12 Main St, Euclid",
+        notes: `${NAME} wants a callback at ${PHONE}`,
+        memo: NAME,
+      },
+    });
+    const text = storedText();
+    for (const leak of [NAME, "Jane", "12 Main St", PHONE]) expect(text).not.toContain(leak);
+    const event = remember.mock.calls.map((c) => String(c[2])).find((c) => c.startsWith("Shop lead:"))!;
+    expect(event).toContain('"leadId":5');
+    expect(event).toContain("Wheel alignment");
+  });
+
+  it("a nickstire:review reaching the pipeline stores no reviewer name and no review text", async () => {
+    await processShopEvent({ type: "review", data: { rating: 2, customerName: NAME, reviewText: `Rude staff. Call me ${PHONE} or jane@example.test` } });
+    await processShopEvent({ type: "review", data: { rating: 5, customerName: NAME, reviewText: `Great work by Sam, text ${PHONE}` } });
+    const text = storedText();
+    for (const leak of [NAME, PHONE, "Rude", "Great work", "jane@example.test"]) expect(text).not.toContain(leak);
+    const contents = remember.mock.calls.map((c) => String(c[2]));
+    expect(contents).toContain("Low review (2/5) — NEEDS RESPONSE");
+    expect(contents).toContain("Positive review (5/5)");
+  });
+
+  it("free text kept in a stored sentence still has phones masked (service, interest, serviceMention)", async () => {
+    await processShopEvent({ type: "lead", data: { source: "web", interest: `Alignment, call ${PHONE}` } });
+    await processShopEvent({ type: "call", data: { durationSeconds: 5, endedReason: "hangup", serviceMention: `brakes, ask for ${PHONE}` } });
+    expect(storedText()).not.toContain(PHONE);
+  });
+});

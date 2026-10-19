@@ -58,10 +58,10 @@ describe("processShopEvent on real bridge payloads", () => {
     expect(remember.mock.calls.map(c => String(c[2]))).toContain("New lead from web — Wheel alignment");
   });
 
-  it("review: the stored insight carries the bridge's `reviewText`", async () => {
+  it("review: the stored insight keeps the rating, not the review text", async () => {
     await processShopEvent({ type: "review", data: fixtureData("nickstire:review") });
     const contents = remember.mock.calls.map(c => String(c[2]));
-    expect(contents.some(c => c.startsWith("Low review (2/5): Waited too long for a simple job"))).toBe(true);
+    expect(contents).toContain("Low review (2/5) — NEEDS RESPONSE");
   });
 });
 
