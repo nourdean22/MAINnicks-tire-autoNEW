@@ -22,7 +22,10 @@ export type AdminSection =
   | "campaigns" | "settings" | "revenue" | "callTrackingView"
   | "trafficFunnel" | "voiceReceptionist" | "memberships" | "tireOrders"
   | "opsHub" | "growth" | "intelligence" | "instagram" | "approvals"
-  | "opportunities" | "market" | "lot";
+  | "opportunities" | "market" | "lot" | "shopMedia";
+// 2026-10-18 · `shopMedia` added: the review gate for Nour's imported shop photos and
+// videos. Owner only: shopMedia.review is an unmapped mutation, which the server resolves
+// to security.manage (owner), so a manager would see a door that refuses every review.
 // 2026-09-09 · `lot` added. Camera visit truth (who is on the property, who is
 // waiting, which bays are occupied) is SHOP OPERATIONS, so it belongs in this
 // admin -- ADR-0017's product boundary puts owner-level summaries in StateNour
