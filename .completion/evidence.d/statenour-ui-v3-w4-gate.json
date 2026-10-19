@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "ui-v3-w4-gate": {
+      "ref": "statenour/ui-v3-w4-gate (job 2026-10-18-ui-v3-w4-gate, 2026-10-19). Commit 1 8aaf6d2c7 (instrument): apps/statenour/tests/e2e/fixtures/{brain,people,journal,stats}.ts with DEMO data for every read the four W4 pages make on load, wired in fixtures/index.ts (TRPC_FIXTURES, new REST_FIXTURES for GET /api/people and GET /api/relationships/watchlist, four DEMO anchors, four PAGE_ERRORS patterns, disallowedUnstubbed extended to journal.*, brain.*, systemBrain.*, system.journeyLens and GET /api/people|relationships); the four pages in V3_PAGES (Brain on ?tab=board); four entries in the spec's ANCHOR map; .github/workflows/e2e-statenour.yml completeness list at fourteen names. Red first: the W4 block in tests/repo/v3-gate.test.ts ran 10 failed / 2 passed before the fixtures were wired. tsc -p tsconfig.e2e.json exit 0; pre-commit statenour typecheck and eslint (0 errors) passed. Commit 2: eight baselines from CI capture run 39258236150 (651ded614 + 8aaf6d2c7, the pre-W4 render; 1440x900 and 390x844, PNG signatures checked, byte-identical to the artifact), baselinePending removed, PLAN.md W4 row, RECONCILIATION entry, ledger row. Threshold 0.35 and the distance math unchanged. The distances are measured by the first CI run on the PR."
+    }
+  }
+}

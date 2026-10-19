@@ -14,6 +14,21 @@
 > - Customer names and phones still arrive in `business_metrics_sync` until wave 3 (statenour strip) and wave 4 (nickstire redaction) land; old rows need a scrub with a backup table.
 > - /photo-improver stays until the admin Photo Check is live, then it is deleted (wave 5).
 > - Do not deploy between 10:00 and 10:40 UTC: an `operator-morning-brief` run in flight on the old code could lose that day's push.
+
+> ## 2026-10-19 · UI v3 W4 pages in the six-feet gate (branch `statenour/ui-v3-w4-gate`) · 1 statenour PR, 2 commits
+>
+> Test instrument only: no app code, no `lib`, no `app/api`, no schema, no prod read or write. The 0.35 threshold and the distance math are unchanged.
+>
+> - **Fixtures.** `tests/e2e/fixtures/{brain,people,journal,stats}.ts`: invented DEMO data for every read the four pages make on load, typed against the router outputs (People's two REST lists mirror the page's own interfaces). Each page's main surface carries content; side panels answer in their measured-empty shape, never an error.
+> - **Gate reach.** `disallowedUnstubbed` now fails an unanswered `journal.*`, `brain.*`, `systemBrain.*`, `system.journeyLens`, `GET /api/people` or `GET /api/relationships/*` read. `REST_FIXTURES` answers GETs by method and path. Each page has a DEMO anchor and an error pattern in the spec's anchor map.
+> - **Baselines.** Eight PNGs (4 pages x 390 and 1440) captured in CI run 39258236150 from 651ded614 (the commit before W4) plus instrument commit 8aaf6d2c7; `baselinePending` removed in the same commit. The workflow's completeness list names all fourteen files.
+> - **Brain tab.** Brain is measured on `?tab=board`: the default Map is a canvas with random start positions and no DOM text an anchor could check.
+>
+> **Flagged · NOT fixed**
+> - REST reads outside `/api/people` and `/api/relationships` (Journal's `/api/coach/events`) are printed, not gated.
+> - W4 changed Brain only in its lens bar, so Brain's distance may read under 0.35; that is a composition question for a separate job, never a lower threshold.
+> - The measured distances come from the first CI run on this PR and are recorded in its body, not here.
+
 > ## 2026-10-18 · UI v3 W5b: Alerts and Inbox lanes, dismiss with a reason (branch `statenour/ui-v3-w5b`) · 1 statenour PR
 >
 > Not live until merged and deployed. Unit and component tests only; no prod read or write.

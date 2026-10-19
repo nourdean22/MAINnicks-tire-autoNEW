@@ -950,7 +950,7 @@ describe("W4 Mind pages: fixtures for every read, anchors, error patterns, the g
     });
   }
 
-  it("every W4 page is in V3_PAGES, pending its pre-W4 baseline; Brain renders its Board tab", () => {
+  it("every W4 page is in V3_PAGES; Brain renders its Board tab", () => {
     for (const key of W4) {
       const p = V3_PAGES.find((x) => x.key === key);
       expect(p, `${key} is not in V3_PAGES`).toBeDefined();
@@ -1110,9 +1110,8 @@ describe("pending baselines: a missing PNG skips, a present one is always judged
     expect(baselineSkipReason({ label: "x", baselineExists: false, pending: true })).not.toBeNull();
   });
 
-  it("only the four W4 pages are pending (their PRE-W4 baselines come from 651ded614 + the instrument); a pending page must not have its PNGs", () => {
-    // chat's baselines were captured from main 7dc82474c, run 38908095706, and its flag removed in the same commit.
-    expect(V3_PAGES.filter((p) => p.baselinePending).map((p) => p.key)).toEqual(["brain", "people", "journal", "stats"]);
+  it("no page is pending today (chat: main 7dc82474c, run 38908095706; W4: 651ded614 + 8aaf6d2c7, run 39258236150); a pending page must not have its PNGs", () => {
+    expect(V3_PAGES.filter((p) => p.baselinePending).map((p) => p.key)).toEqual([]);
     for (const p of V3_PAGES.filter((x) => x.baselinePending)) {
       for (const v of V3_VIEWPORTS) {
         const png = `${p.key}-${v.key}.png`;
