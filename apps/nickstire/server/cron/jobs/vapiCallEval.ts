@@ -111,6 +111,17 @@ export function rowsFromExecute<T = Record<string, unknown>>(result: unknown): T
   return [];
 }
 
+/**
+ * The degraded-alert baseline compares only rows scored with the CURRENT quality version.
+ * `eval_reasoning` carries `quality_version=<version>` on every scored row, so a v1 row cannot
+ * set the bar for v2 scores (v2 credits agent walk-in invitations and runs about 4 points
+ * higher). Until 20 rows carry the new version the degraded test stays off by its count guard.
+ * shortcut: substring match; a future version named "vapi-quality-v2x" would match too, so name the next one v3.
+ */
+export function sameQualityVersionBaseline() {
+  return sql`${vapiCallLogs.evalReasoning} LIKE ${`%quality_version=${VAPI_QUALITY_VERSION}%`}`;
+}
+
 export async function processVapiCallEval(): Promise<ProcessResult> {
   const startedAt = Date.now();
   const { getDb } = await import("../../db");
@@ -273,6 +284,11 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
       else demandShadowClassified++;
       if (demandShadow.confidence < LOW_CONFIDENCE) demandShadowLowConfidence++;
 
+      // Computed ONCE, before the score: an explicit agent invitation fills the next-step credit
+      // in vapi-quality-v2, and the same value is written as the eval_reasoning suffix below.
+      // UNMEASURED (no readable assistant speech) gives no credit and no penalty.
+      const walkIn = detectWalkInForDetail(detail);
+
       const result = classifyCall({
         durationSeconds: row.durationSeconds ?? 0,
         endedReason: row.endedReason,
@@ -285,6 +301,7 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
         evalOutcome: detail.analysis?.structuredData?.outcome,
         successEvaluation: detail.analysis?.successEvaluation,
         reachedTool,
+        walkInCoverage: walkIn,
       });
 
       const facts = deriveVapiFacts({
@@ -339,16 +356,13 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
       const queueCandidate = disposition.queueEligible;
       const queueUrgency = disposition.priority;
 
-      // Walk-in coverage rides on eval_reasoning as a suffix and does NOT move the
-      // score. A call with no score (not a customer conversation, or a technical
-      // failure) is UNMEASURED rather than a miss.
+      // Walk-in coverage also rides on eval_reasoning as a suffix. A call with no score
+      // (not a customer conversation, or a technical failure) is UNMEASURED rather than a miss.
       // The gate is the score: a call the evaluator does not score is not a customer conversation, so its walk-in stays UNMEASURED.
-      const walkIn = result.score == null ? UNMEASURED_WALK_IN : detectWalkInForDetail(detail);
-
       await db.update(vapiCallLogs).set({
         evalScore: result.score,
         evalOutcome: result.outcome,
-        evalReasoning: appendWalkInSuffix(result.reasoning, walkIn),
+        evalReasoning: appendWalkInSuffix(result.reasoning, result.score == null ? UNMEASURED_WALK_IN : walkIn),
         evalAt: new Date(),
         metadata: {
           ...existingMetadata,
@@ -415,6 +429,7 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
       isNotNull(vapiCallLogs.evalScore),
       gte(vapiCallLogs.createdAt, baselineCutoff),
       sql`${vapiCallLogs.createdAt} < ${cutoff}`,
+      sameQualityVersionBaseline(),
     ));
     baselineAverage = baseline?.average == null ? null : Number(baseline.average);
     degraded = averageQuality != null && Number(baseline?.count ?? 0) >= 20 && baselineAverage != null && averageQuality <= baselineAverage - 15;

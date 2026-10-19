@@ -1,6 +1,7 @@
 export const VAPI_FACTS_VERSION = "vapi-facts-v1";
 export const VAPI_CLASSIFIER_VERSION = "vapi-outcome-v2";
-export const VAPI_QUALITY_VERSION = "vapi-quality-v1";
+/** v2 (2026-10-18): an explicit agent walk-in invitation counts as the useful next step. */
+export const VAPI_QUALITY_VERSION = "vapi-quality-v2";
 export const VAPI_METRIC_DEFINITION_VERSION = "revenue-ops-v1";
 
 export type EvidenceLevel = "observed" | "inferred" | "verified";
@@ -50,6 +51,11 @@ export interface VapiQualityInput {
   greeted?: boolean;
   intentIdentified?: boolean;
   usefulNextStep?: boolean;
+  /**
+   * The AGENT explicitly invited the caller to walk in (`vapiWalkInCoverage.ts`, assistant
+   * speech only). Only `true` counts; it fills the same next-step credit, never a second one.
+   */
+  agentWalkInInvitation?: boolean;
   escalationAppropriate?: boolean;
   successEvaluation?: string | null;
   sentiment?: string | null;
@@ -96,9 +102,9 @@ export function scoreVapiQuality(input: VapiQualityInput): VapiQualityResult {
     score += 20;
     evidence.push("intent_identified");
   }
-  if (input.usefulNextStep) {
+  if (input.usefulNextStep || input.agentWalkInInvitation === true) {
     score += 20;
-    evidence.push("useful_next_step");
+    evidence.push(input.usefulNextStep ? "useful_next_step" : "agent_walk_in_invitation");
   }
   if (input.escalationAppropriate) {
     score += 5;
@@ -131,6 +137,12 @@ export function scoreVapiQuality(input: VapiQualityInput): VapiQualityResult {
     version: VAPI_QUALITY_VERSION,
     evidence,
   };
+}
+
+/** The version label for an average over rows: the one version they share, "mixed", or null when empty. */
+export function qualityVersionLabel(versions: ReadonlySet<string>): string | null {
+  if (versions.size === 0) return null;
+  return versions.size === 1 ? [...versions][0]! : "mixed";
 }
 
 export interface VapiMeasurementRecord {

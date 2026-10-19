@@ -4,6 +4,7 @@ import { vapiCallLogs } from "../../drizzle/schema";
 import { adminProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { buildGscMeasurementReport } from "../services/gscMeasurement";
+import { qualityVersionLabel } from "../services/vapiMeasurement";
 
 const rangeSchema = z.object({
   sinceISO: z.string().datetime(),
@@ -63,6 +64,8 @@ export const revenueOpsRouter = router({
      */
     let oldestUnversionedAt: Date | null = null;
     const qualityScores: number[] = [];
+    /** Versions behind `qualityScores`: a window spanning the v1 to v2 change averages both. */
+    const qualityVersions = new Set<string>();
     let dataAsOf: Date | null = null;
 
     for (const row of rows) {
@@ -90,7 +93,10 @@ export const revenueOpsRouter = router({
       if (outcome === "tech_failure") technicalFailures++;
       if (outcome === "abandoned_before_connect") abandoned++;
       if (outcome === "spam_or_wrong_number") spam++;
-      if (typeof row.evalScore === "number") qualityScores.push(row.evalScore);
+      if (typeof row.evalScore === "number") {
+        qualityScores.push(row.evalScore);
+        qualityVersions.add(typeof measurement.qualityVersion === "string" ? measurement.qualityVersion : "unknown");
+      }
     }
 
     const versionedCalls = rows.length - legacyUnversioned;
@@ -137,7 +143,7 @@ export const revenueOpsRouter = router({
         abandonment: { numerator: abandoned, denominator: versionedCalls, percent: percent(abandoned, versionedCalls) },
       },
       quality: {
-        version: "vapi-quality-v1" as const,
+        version: qualityVersionLabel(qualityVersions),
         average: qualityScores.length ? Math.round(qualityScores.reduce((a, b) => a + b, 0) / qualityScores.length) : null,
         scoredCalls: qualityScores.length,
         unscoredVersionedCalls: Math.max(0, versionedCalls - qualityScores.length),

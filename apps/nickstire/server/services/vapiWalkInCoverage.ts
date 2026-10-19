@@ -4,7 +4,8 @@
  *
  * WHY: the shop is first come, first served with walk-ins and no held slots, so a
  * call that books nothing but sends the caller to the shop is a good outcome.
- * `vapi-quality-v1` cannot see it (it rewards a tool call or a lead row).
+ * `vapi-quality-v1` could not see it (it rewards a tool call or a lead row); since
+ * `vapi-quality-v2` (2026-10-18) `walkInInvited === true` fills the next-step credit.
  *
  * TWO MEASURED FIELDS, EACH TRI-STATE. `true` and `false` are observations from
  * assistant speech; `null` is UNMEASURED (could not tell who spoke, or the agent
