@@ -136,8 +136,9 @@ detailed in `docs/CURRENT-TRUTH.md`:
   reading of the docs; it gets built TDD against the sandbox the day the key exists.
 - Dealer portal: store 67848; the FRIENDLY NAME rename to "Nick's Tire & Auto" did not persist (Settings still reads
   "Moes Tire and Auto Euclid" after reload) and the page's "Reset Password" button sits beside "Copy Application Form
-  URL", so the rename stays Nour's own click; no reset email was sent (the "Reset Password email has been sent" text is a
-  hidden template on that page, and the inbox has no Koalafi mail).
+  URL", so the rename stays Nour's own click; a reset email most likely did not go out (STRONG INFERENCE: the "Reset Password
+  email has been sent" text is one of four hidden success templates on that page, and the Gmail account the connector
+  reads had no Koalafi mail; the shop's dealer-contact inbox was not checked).
 - #3162 (this flag-on, Vapi-pushed, migrations-owed note) MERGED 2026-10-19 01:01Z as `33bc4e121`.
 
 ## 2026-10-18 - Tire finder by vehicle, Kafene first, order completion (#3148 live, #3152 merged)
