@@ -15,6 +15,7 @@ import {
   buildVapiMeasurementRecord,
   deriveVapiFacts,
   hasVerifiedDemandCapture,
+  qualityVersionLikePattern,
   VAPI_CLASSIFIER_VERSION,
   VAPI_QUALITY_VERSION,
 } from "../../services/vapiMeasurement";
@@ -109,17 +110,6 @@ export function rowsFromExecute<T = Record<string, unknown>>(result: unknown): T
   // already a bare rows array
   if (Array.isArray(result)) return result as T[];
   return [];
-}
-
-/**
- * The degraded-alert baseline compares only rows scored with the CURRENT quality version.
- * `eval_reasoning` carries `quality_version=<version>` on every scored row, so a v1 row cannot
- * set the bar for v2 scores (v2 credits agent walk-in invitations and runs about 4 points
- * higher). Until 20 rows carry the new version the degraded test stays off by its count guard.
- * shortcut: substring match; a future version named "vapi-quality-v2x" would match too, so name the next one v3.
- */
-export function sameQualityVersionBaseline() {
-  return sql`${vapiCallLogs.evalReasoning} LIKE ${`%quality_version=${VAPI_QUALITY_VERSION}%`}`;
 }
 
 export async function processVapiCallEval(): Promise<ProcessResult> {
@@ -429,7 +419,10 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
       isNotNull(vapiCallLogs.evalScore),
       gte(vapiCallLogs.createdAt, baselineCutoff),
       sql`${vapiCallLogs.createdAt} < ${cutoff}`,
-      sameQualityVersionBaseline(),
+      // Same quality version only: a v1 row must not set the bar for v2 scores (v2 credits agent
+      // walk-in invitations and runs about 4 points higher). Until 20 calls older than the lookback
+      // carry the new version the degraded test stays off by its count guard. Parameterised.
+      sql`${vapiCallLogs.evalReasoning} LIKE ${qualityVersionLikePattern()}`,
     ));
     baselineAverage = baseline?.average == null ? null : Number(baseline.average);
     degraded = averageQuality != null && Number(baseline?.count ?? 0) >= 20 && baselineAverage != null && averageQuality <= baselineAverage - 15;

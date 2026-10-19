@@ -11,12 +11,13 @@
  * against v1 rows, and a v1 row cannot hide a real v2 drop.
  */
 import { readFileSync } from "node:fs";
+import { sql } from "drizzle-orm";
 import { MySqlDialect } from "drizzle-orm/mysql-core";
 import { describe, expect, it } from "vitest";
 import { disposeCall } from "@shared/callTaxonomy";
-import { sameQualityVersionBaseline } from "../cron/jobs/vapiCallEval";
+import { vapiCallLogs } from "../../drizzle/schema";
 import { classifyCall } from "../services/vapiCallClassifier";
-import { qualityVersionLabel, scoreVapiQuality, VAPI_QUALITY_VERSION } from "../services/vapiMeasurement";
+import { qualityVersionLabel, qualityVersionLikePattern, scoreVapiQuality, VAPI_QUALITY_VERSION } from "../services/vapiMeasurement";
 import { appendWalkInSuffix, UNMEASURED_WALK_IN, type WalkInCoverage } from "../services/vapiWalkInCoverage";
 
 const AI = "AI: Nick's Tire and Auto, this is Nick.";
@@ -221,7 +222,9 @@ const like = (value: string, pattern: string) =>
   new RegExp(`^${pattern.split("").map((c) => (c === "%" ? ".*" : c === "_" ? "." : c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))).join("")}$`, "s").test(value);
 
 describe("T8 the degraded baseline counts only rows of the same quality version", () => {
-  const render = () => new MySqlDialect().sqlToQuery(sameQualityVersionBaseline());
+  /** The exact expression the cron's baseline uses (its source text is pinned in the last test below). */
+  const BASELINE_LINE = "sql`${vapiCallLogs.evalReasoning} LIKE ${qualityVersionLikePattern()}`,";
+  const render = () => new MySqlDialect().sqlToQuery(sql`${vapiCallLogs.evalReasoning} LIKE ${qualityVersionLikePattern()}`);
 
   it("is a parameterised LIKE on eval_reasoning with the current version", () => {
     const rendered = render();
@@ -246,7 +249,7 @@ describe("T8 the degraded baseline counts only rows of the same quality version"
     const cron = readFileSync(new URL("../cron/jobs/vapiCallEval.ts", import.meta.url), "utf8");
     const block = cron.slice(cron.indexOf("avg(${vapiCallLogs.evalScore})"), cron.indexOf("baselineAverage = baseline"));
     expect(block).toContain("isNotNull(vapiCallLogs.evalScore)");
-    expect(block).toContain("sameQualityVersionBaseline()");
+    expect(block).toContain(BASELINE_LINE);
   });
 });
 

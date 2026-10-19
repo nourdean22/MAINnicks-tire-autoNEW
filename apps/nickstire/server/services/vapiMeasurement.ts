@@ -139,6 +139,15 @@ export function scoreVapiQuality(input: VapiQualityInput): VapiQualityResult {
   };
 }
 
+/**
+ * SQL LIKE pattern for rows scored with the current version: every scored `eval_reasoning`
+ * carries `quality_version=<version>`. Used by the degraded-alert baseline.
+ * shortcut: substring match; a future "vapi-quality-v2x" would match too, so name the next one v3.
+ */
+export function qualityVersionLikePattern(): string {
+  return `%quality_version=${VAPI_QUALITY_VERSION}%`;
+}
+
 /** The version label for an average over rows: the one version they share, "mixed", or null when empty. */
 export function qualityVersionLabel(versions: ReadonlySet<string>): string | null {
   if (versions.size === 0) return null;
