@@ -32,6 +32,7 @@ import type { ReelBrief } from "../../client/src/lib/facelessReelStudio";
 import { AUTONOMY_LIMIT_KEYS } from "../../client/src/lib/autonomyPolicy";
 import { dispatch } from "../services/eventBus";
 import { queueStateForReelStatus } from "@shared/reelQueue";
+import { SHOT_SOURCES } from "@shared/shotRouter";
 import { EXPERIMENT_PRESET_IDS, buildExperimentPreset } from "@shared/contentExperiments";
 
 const log = createLogger("routers:content");
@@ -2005,6 +2006,10 @@ export const contentAdminRouter = router({
           endSecond: z.number(),
           motion: z.string(),
           onScreenText: z.string(),
+          // The real-clip binding (shared/shotRouter.ts). zod strips unknown keys,
+          // so without these the picker's clip never reached resolveRealBeatAssets.
+          source: z.enum(SHOT_SOURCES).optional(),
+          realAssetId: z.string().max(64).optional(),
         })).min(1),
         hashtags: z.array(z.string()),
         selectedCaption: z.string().min(1),

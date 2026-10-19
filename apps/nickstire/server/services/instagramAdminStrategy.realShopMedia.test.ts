@@ -7,6 +7,8 @@
  * (null for unenriched), and that a DB rejection PROPAGATES — the picker and
  * realAssetFirst both rely on that to tell "error" from "empty".
  */
+import { MySqlDialect } from "drizzle-orm/mysql-core";
+import type { SQL } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import type { DB } from "../db";
 import { listReusableRealShopMedia } from "./instagramAdminStrategy";
@@ -65,5 +67,45 @@ describe("listReusableRealShopMedia", () => {
 
   it("EMPTY-VS-ERROR CANARY: a DB failure rejects — it is never an empty list", async () => {
     await expect(listReusableRealShopMedia(dbRejecting(new Error("ETIMEDOUT")))).rejects.toThrow("ETIMEDOUT");
+  });
+});
+
+/** Records the WHERE, the window size and any offset; limit() is awaitable AND chainable like drizzle's builder. */
+function dbCapturing(rows: typeof ROWS) {
+  const calls: { where?: unknown; limit?: number; offset?: number } = {};
+  const db = {
+    select: () => ({ from: () => ({ where: (w: unknown) => { calls.where = w; return { orderBy: () => ({ limit: (n: number) => {
+      calls.limit = n;
+      return Object.assign(Promise.resolve(rows), { offset: (o: number) => { calls.offset = o; return Promise.resolve(rows); } });
+    } }) }; } }) }),
+  } as unknown as DB;
+  return { db, calls };
+}
+const renderWhere = (w: unknown) => new MySqlDialect().sqlToQuery(w as SQL);
+
+describe("listReusableRealShopMedia — format + cursor (shop-media library, 2026-10-18)", () => {
+  it("DEFAULT PATH UNCHANGED: images only, newest 100, no offset", async () => {
+    const { db, calls } = dbCapturing(ROWS);
+    await listReusableRealShopMedia(db);
+    const q = renderWhere(calls.where);
+    expect(q.params).toContain("image/%");
+    expect(q.params).not.toContain("video/%");
+    expect(calls.limit).toBe(100);
+    expect(calls.offset).toBeUndefined();
+  });
+
+  it("format video reads video mime types instead of images", async () => {
+    const { db, calls } = dbCapturing(ROWS);
+    await listReusableRealShopMedia(db, { format: "video" });
+    const q = renderWhere(calls.where);
+    expect(q.params).toContain("video/%");
+    expect(q.params).not.toContain("image/%");
+  });
+
+  it("cursor offsets the same 100-row window", async () => {
+    const { db, calls } = dbCapturing(ROWS);
+    await listReusableRealShopMedia(db, { cursor: 100 });
+    expect(calls.limit).toBe(100);
+    expect(calls.offset).toBe(100);
   });
 });

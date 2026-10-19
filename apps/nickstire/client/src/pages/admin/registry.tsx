@@ -71,6 +71,7 @@ const IntelligenceHQSection = lazy(() => import("./intelligence/IntelligenceHQSe
 const TrafficFunnelSection = lazy(() => import("./TrafficFunnelSection"));
 const VoiceReceptionistSection = lazy(() => import("./VoiceReceptionistSection"));
 const LotSection = lazy(() => import("./LotSection"));
+const ShopMediaSection = lazy(() => import("./ShopMediaSection"));
 
 export const ADMIN_REGISTRY: RegistrySection[] = [
   {
@@ -286,6 +287,24 @@ export const ADMIN_REGISTRY: RegistrySection[] = [
     priority: 30,
     showInSidebar: true,
     allowedRoles: FULL_ACCESS,
+  },
+  {
+    // 2026-10-18 · review gate for the imported shop photo/video library. Imports land
+    // quarantined with reuse off; nothing reaches a post or a reel until approved here.
+    // OWNER ONLY, deliberately: shopMedia.review is not mapped in
+    // permissionForAdminProcedure, so the mutation fails closed to security.manage
+    // (owner). Granting manager here would show a door whose every review is FORBIDDEN,
+    // the trafficFunnel failure adminRegistryTruth.test.ts records.
+    id: "shopMedia",
+    label: "Shop media",
+    icon: <Images className="w-4 h-4" />,
+    component: ShopMediaSection,
+    aliases: ["shopmedia", "shop-media", "media", "photos", "videos", "library"],
+    keywords: ["photo", "video", "media", "library", "quarantine", "approve", "footage", "clip"],
+    group: "Reach",
+    priority: 35,
+    showInSidebar: true,
+    allowedRoles: ["owner"],
   },
   {
     id: "campaigns",

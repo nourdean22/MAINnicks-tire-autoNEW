@@ -18,7 +18,7 @@
 export type ShotSource = "real" | "deterministic" | "still_motion" | "ai_illustrative";
 export type ShotRoute = ShotSource | "reuse" | "delete" | "do_not_generate";
 
-const SHOT_SOURCES: readonly ShotSource[] = ["real", "deterministic", "still_motion", "ai_illustrative"];
+export const SHOT_SOURCES = ["real", "deterministic", "still_motion", "ai_illustrative"] as const satisfies readonly ShotSource[];
 
 /**
  * A `source` read from untrusted JSON (a committed pack brief): one of the four

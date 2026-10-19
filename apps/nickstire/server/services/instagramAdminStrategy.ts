@@ -529,6 +529,14 @@ export interface RealShopMediaFilters {
   season?: string;
   /** Rows whose enrichment has no quality are EXCLUDED when this is set — unknown is not "good enough". */
   minQuality?: number;
+  /** "image" (the default, unchanged) or "video" — the imported shop clips (2026-10-18). */
+  format?: "image" | "video";
+  /**
+   * Offset of the 100-row window: the next page is cursor + 100. A page is a
+   * window, not a result count — with a filter set, a short or empty page is
+   * not the end. Paged pickers with an exact nextCursor use shopMedia.list.
+   */
+  cursor?: number;
 }
 
 /**
@@ -543,7 +551,7 @@ export interface RealShopMediaFilters {
  */
 export async function listReusableRealShopMedia(database: DB, filters: RealShopMediaFilters = {}) {
   const { readEnrichment } = await import("./mediaEnrichment");
-  const rows = await database.select({
+  const window = database.select({
     id: mediaAssets.id,
     logicalKey: mediaAssets.logicalKey,
     runtimeUrl: mediaAssets.runtimeUrl,
@@ -558,11 +566,13 @@ export async function listReusableRealShopMedia(database: DB, filters: RealShopM
       eq(mediaAssets.rightsStatus, "real_shop"),
       eq(mediaAssets.isCurrent, 1),
       eq(mediaAssets.reuseAllowed, 1),
-      like(mediaAssets.mimeType, "image/%"),
+      like(mediaAssets.mimeType, filters.format === "video" ? "video/%" : "image/%"),
       inArray(mediaAssets.lifecycleState, ["available", "quality_review", "approval_ready", "approved", "published"]),
     ))
-    .orderBy(desc(mediaAssets.createdAt))
+    // id breaks createdAt ties (a bulk import lands many rows in one second) so offset pages never overlap.
+    .orderBy(desc(mediaAssets.createdAt), desc(mediaAssets.id))
     .limit(100);
+  const rows = await (filters.cursor ? window.offset(filters.cursor) : window);
   return rows.flatMap((row) => {
     // Create needs a directly fetchable image URL. A Drive *viewer page* is
     // useful archival metadata but is not a valid <img> source or generation

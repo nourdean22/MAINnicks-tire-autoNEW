@@ -94,6 +94,7 @@ import { revenueOpsRouter } from "./routers/revenueOps";
 import { revenueAttributionRouter } from "./routers/revenueAttribution";
 import { statenourMetricsRouter } from "./routers/statenourMetrics";
 import { instagramStudioRouter } from "./routers/instagramStudio";
+import { shopMediaRouter } from "./routers/shopMedia";
 import { closedLoopRouter } from "./routers/closedLoop";
 import { vehicleDataRouter } from "./routers/vehicleData";
 import { membershipsRouter } from "./routers/memberships";
@@ -122,6 +123,7 @@ export const appRouter = router({
   instagram: instagramRouter,
   instagramAdmin: instagramAdminRouter,
   instagramStudio: instagramStudioRouter,
+  shopMedia: shopMediaRouter,
   adStudio: adStudioRouter,
   search: searchRouter,
   diagnose: diagnoseRouter,
