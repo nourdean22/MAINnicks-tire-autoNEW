@@ -24,6 +24,7 @@
 import { z } from "zod";
 import { generateImage } from "../_core/imageGeneration";
 import { createLogger } from "../lib/logger";
+import { isOwnObjectUrl } from "../storage";
 import { analyzePhoto } from "./vision-analyzer";
 
 const log = createLogger("services:photoImprover");
@@ -130,9 +131,15 @@ export type BrandedPhotoResult =
   | { ok: true; imageUrl: string; model: string; durationMs: number }
   | { ok: false; reason: "image_unavailable"; message: string };
 
+// Where a photo to score may live: the score-only upload prefix, and the Studio's evidence prefix.
+// The vision layer fetches the URL from our server, so anything else (a metadata address, an
+// internal host, another site) is refused before it is handed over.
+const OWN_PHOTO_PREFIXES = ["photo-check/", "ig-evidence/"] as const;
+
 const MESSAGES = {
   vision_unavailable: "The photo check is not available right now. Try again in a minute.",
   unreadable: "The photo check came back in a form we could not read. Try again.",
+  wrong_scale: "The scores came back on the wrong scale, try again.",
   invalid_url: "That photo link could not be opened. Upload the photo again.",
   image_unavailable: "The picture could not be made right now. Try again in a minute.",
 } as const;
@@ -151,6 +158,10 @@ function jsonObjectIn(text: string): unknown {
 
 export async function analyzePhotoForShop(input: { photoUrl: string }): Promise<CheckPhotoResult> {
   const t0 = Date.now();
+  if (!isOwnObjectUrl(input.photoUrl, OWN_PHOTO_PREFIXES)) {
+    log.warn("photo check refused a URL outside our storage");
+    return { ok: false, reason: "invalid_url", message: MESSAGES.invalid_url };
+  }
   if (!process.env.GEMINI_API_KEY) {
     log.warn("photo check skipped: no GEMINI_API_KEY");
     return { ok: false, reason: "vision_unavailable", message: MESSAGES.vision_unavailable };
@@ -178,6 +189,13 @@ export async function analyzePhotoForShop(input: { photoUrl: string }): Promise<
     return { ok: false, reason: "unreadable", message: MESSAGES.unreadable };
   }
 
+  // A model that answers on a 0-1 or 0-10 scale would clamp to "1 of 100". Six scores that all
+  // sit at 10 or under are read as the wrong scale, not as a terrible photo: ask again.
+  if (Object.values(parsed.data.scores).every((n) => n <= 10)) {
+    log.warn("photo check scores look like the wrong scale", { model: reply.modelName });
+    return { ok: false, reason: "unreadable", message: MESSAGES.wrong_scale };
+  }
+
   const durationMs = Date.now() - t0;
   log.info("photo check done", { model: reply.modelName, durationMs });
   return { ok: true, analysis: parsed.data, model: reply.modelName, durationMs };
@@ -185,21 +203,20 @@ export async function analyzePhotoForShop(input: { photoUrl: string }): Promise<
 
 export async function renderBrandedScene(input: { prompt: string }): Promise<BrandedPhotoResult> {
   const t0 = Date.now();
-  // The id of the configured primary. generateImage may fall back to its OpenAI path inside this
-  // one call without telling us, so this names what was asked for, not proof of what answered.
-  const model = process.env.GEMINI_API_KEY ? process.env.GEMINI_IMAGE_MODEL || "gemini-3.1-flash-image" : "dall-e-3";
   try {
     // One call, no retry: each attempt spends image credit, and a second try is the operator's tap.
-    const { url } = await generateImage({ prompt: input.prompt });
+    const { url, provider, model: answeredBy } = await generateImage({ prompt: input.prompt });
     if (!url) {
-      log.warn("branded photo: generator returned no url", { model });
+      log.warn("branded photo: generator returned no url", { provider: provider ?? "unknown" });
       return { ok: false, reason: "image_unavailable", message: MESSAGES.image_unavailable };
     }
+    // Name what ANSWERED (generateImage can fall back to OpenAI inside one call), never what is configured.
+    const model = answeredBy ?? provider ?? "unknown";
     const durationMs = Date.now() - t0;
     log.info("branded photo done", { model, durationMs });
     return { ok: true, imageUrl: url, model, durationMs };
   } catch (err) {
-    log.warn("branded photo failed", { model, error: err instanceof Error ? err.message.slice(0, 200) : String(err) });
+    log.warn("branded photo failed", { error: err instanceof Error ? err.message.slice(0, 200) : String(err) });
     return { ok: false, reason: "image_unavailable", message: MESSAGES.image_unavailable };
   }
 }

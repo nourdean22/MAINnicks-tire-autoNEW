@@ -54,6 +54,40 @@ export function publicObjectUrl(key: string): string {
   return `${siteUrl}/generated/${normalizeKey(key)}`;
 }
 
+/**
+ * Is `raw` a public URL of OUR object storage under one of `keyPrefixes` (each like "photo-check/")?
+ *
+ * Compared as parsed URLs, never as strings: the origin must be exactly the one storagePut builds
+ * (SITE_URL's /generated/ proxy, or the CloudFront domain), https only, no userinfo, and the
+ * pathname (the parser has already resolved dot segments, encoded ones included) must sit under the
+ * prefix. A string prefix test passes `<our host>/generated/photo-check/../backups/x` and
+ * `https://<our host>@evil.example/`. Presigned S3 URLs (no proxy, no CDN) are not recognised:
+ * they carry the bucket's own host, expire in a day, and are not what production hands out.
+ */
+export function isOwnObjectUrl(raw: string, keyPrefixes: readonly string[]): boolean {
+  let u: URL;
+  try {
+    u = new URL(raw);
+  } catch {
+    return false;
+  }
+  if (u.protocol !== "https:" || u.username || u.password) return false;
+  const cdn = process.env.CLOUDFRONT_DOMAIN;
+  for (const prefix of keyPrefixes) {
+    const roots = [publicObjectUrl(prefix), ...(cdn ? [`https://${cdn}/${normalizeKey(prefix)}`] : [])];
+    for (const root of roots) {
+      let base: URL;
+      try {
+        base = new URL(root);
+      } catch {
+        continue;
+      }
+      if (u.origin === base.origin && u.pathname.startsWith(base.pathname)) return true;
+    }
+  }
+  return false;
+}
+
 function getBucket(): string {
   const bucket = process.env.S3_BUCKET;
   if (!bucket) {

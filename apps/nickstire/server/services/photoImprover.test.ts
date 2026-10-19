@@ -14,7 +14,8 @@ vi.mock("../_core/imageGeneration", () => ({ generateImage }));
 
 import { analyzePhotoForShop, renderBrandedScene } from "./photoImprover";
 
-const PHOTO = "https://cdn.example.test/ig-evidence/1-2-front.jpg";
+// A URL our own storage would hand back (SITE_URL is stubbed in beforeEach).
+const PHOTO = "https://shop.example.test/generated/photo-check/1-2-front.jpg";
 
 const SCORECARD = {
   scores: { lighting: 72, framing: 64, brandPresence: 40, cleanliness: 81, professionalPolish: 58, overall: 63 },
@@ -39,6 +40,8 @@ beforeEach(() => {
   analyzePhoto.mockReset();
   generateImage.mockReset();
   vi.stubEnv("GEMINI_API_KEY", "test-gemini-key");
+  vi.stubEnv("SITE_URL", "https://shop.example.test");
+  vi.stubEnv("CLOUDFRONT_DOMAIN", "");
 });
 
 afterEach(() => {
@@ -107,10 +110,71 @@ describe("analyzePhotoForShop", () => {
     expect(analyzePhoto).not.toHaveBeenCalled();
   });
 
-  it("a URL the vision layer refuses (private host, unreachable photo) is invalid_url", async () => {
-    analyzePhoto.mockResolvedValueOnce({ ok: false, error: "photoUrl is not a public HTTPS URL", reason: "invalid_url" });
-    const r = await analyzePhotoForShop({ photoUrl: "http://192.168.1.5/a.jpg" });
+  it("a photo the vision layer cannot fetch from our own storage is invalid_url", async () => {
+    analyzePhoto.mockResolvedValueOnce({ ok: false, error: "Photo URL fetch failed: 404", reason: "invalid_url" });
+    const r = await analyzePhotoForShop({ photoUrl: PHOTO });
     expect(r).toMatchObject({ ok: false, reason: "invalid_url" });
+  });
+
+  it("accepts both upload prefixes on our storage (photo-check and the evidence prefix)", async () => {
+    analyzePhoto.mockResolvedValue(visionSays(JSON.stringify(SCORECARD)));
+    expect(await analyzePhotoForShop({ photoUrl: "https://shop.example.test/generated/photo-check/a.jpg" })).toMatchObject({ ok: true });
+    expect(await analyzePhotoForShop({ photoUrl: "https://shop.example.test/generated/ig-evidence/a.jpg" })).toMatchObject({ ok: true });
+    expect(analyzePhoto).toHaveBeenCalledTimes(2);
+  });
+
+  it("accepts the CDN form of our storage URL when CLOUDFRONT_DOMAIN is set", async () => {
+    vi.stubEnv("CLOUDFRONT_DOMAIN", "cdn.shop.example.test");
+    analyzePhoto.mockResolvedValue(visionSays(JSON.stringify(SCORECARD)));
+    expect(await analyzePhotoForShop({ photoUrl: "https://cdn.shop.example.test/photo-check/a.jpg" })).toMatchObject({ ok: true });
+  });
+
+  it.each([
+    ["the cloud metadata address", "http://169.254.169.254/latest/meta-data/"],
+    ["a loopback IPv6 host", "https://[::1]/photo-check/x.jpg"],
+    ["a Railway internal host", "https://db.railway.internal/photo-check/x.jpg"],
+    ["another site with our path", "https://example.com/photo-check/x.jpg"],
+    ["our host over plain http", "http://shop.example.test/generated/photo-check/x.jpg"],
+    ["a non-http scheme", "file:///etc/passwd"],
+    ["a dot-dot walk out of the prefix", "https://shop.example.test/generated/photo-check/../backups/tidb/customers.jsonl.gz"],
+    ["an encoded dot-dot walk", "https://shop.example.test/generated/photo-check/%2e%2e/backups/x"],
+    ["another host with a dot-dot path", "https://evil.example/photo-check/.."],
+    ["our host as userinfo in front of another host", "https://shop.example.test@evil.example/photo-check/x.jpg"],
+    ["our host with credentials in front", "https://user:pw@shop.example.test/generated/photo-check/x.jpg"],
+    ["our host on another port", "https://shop.example.test:8443/generated/photo-check/x.jpg"],
+    ["our host with a sibling prefix", "https://shop.example.test/generated/photo-checkers/x.jpg"],
+    ["a different folder of our storage", "https://shop.example.test/generated/backups/x.jpg"],
+    ["a lookalike host", "https://shop.example.test.evil.example/generated/photo-check/x.jpg"],
+  ])("refuses %s as invalid_url, without calling the vision layer", async (_label, photoUrl) => {
+    const r = await analyzePhotoForShop({ photoUrl });
+    expect(r).toMatchObject({ ok: false, reason: "invalid_url" });
+    expect(r).not.toHaveProperty("analysis");
+    expect(analyzePhoto).not.toHaveBeenCalled();
+  });
+
+  it("an http SITE_URL (dev) still refuses an http photo: the scheme rule is its own check", async () => {
+    vi.stubEnv("SITE_URL", "http://shop.example.test");
+    const r = await analyzePhotoForShop({ photoUrl: "http://shop.example.test/generated/photo-check/x.jpg" });
+    expect(r).toMatchObject({ ok: false, reason: "invalid_url" });
+    expect(analyzePhoto).not.toHaveBeenCalled();
+  });
+
+  it("scores that all sit on a 0-10 or 0-1 scale are unreadable (wrong scale), not '1 of 100'", async () => {
+    const tenScale = { ...SCORECARD, scores: { lighting: 7, framing: 6, brandPresence: 4, cleanliness: 8, professionalPolish: 5, overall: 6 } };
+    analyzePhoto.mockResolvedValueOnce(visionSays(JSON.stringify(tenScale)));
+    const r = await analyzePhotoForShop({ photoUrl: PHOTO });
+    expect(r).toMatchObject({ ok: false, reason: "unreadable", message: expect.stringContaining("wrong scale") });
+    expect(r).not.toHaveProperty("analysis");
+
+    const unitScale = { ...SCORECARD, scores: { lighting: 0.7, framing: 0.6, brandPresence: 0.4, cleanliness: 0.8, professionalPolish: 0.5, overall: 0.6 } };
+    analyzePhoto.mockResolvedValueOnce(visionSays(JSON.stringify(unitScale)));
+    expect(await analyzePhotoForShop({ photoUrl: PHOTO })).toMatchObject({ ok: false, reason: "unreadable", message: expect.stringContaining("wrong scale") });
+  });
+
+  it("one score above 10 is enough to treat the set as a 0-100 answer (a real low score survives)", async () => {
+    const low = { ...SCORECARD, scores: { lighting: 7, framing: 6, brandPresence: 4, cleanliness: 11, professionalPolish: 5, overall: 6 } };
+    analyzePhoto.mockResolvedValueOnce(visionSays(JSON.stringify(low)));
+    expect(await analyzePhotoForShop({ photoUrl: PHOTO })).toMatchObject({ ok: true });
   });
 
   it.each([
@@ -189,6 +253,26 @@ describe("renderBrandedScene", () => {
     expect(r.durationMs).toBeGreaterThanOrEqual(0);
     expect(generateImage).toHaveBeenCalledTimes(1);
     expect(generateImage).toHaveBeenCalledWith({ prompt: PROMPT });
+  });
+
+  it("names the model that ANSWERED: gemini when gemini served, the OpenAI model when the fallback served", async () => {
+    generateImage.mockResolvedValueOnce({ url: "https://cdn.example.test/g.png", provider: "gemini", model: "gemini-test-image" });
+    expect(await renderBrandedScene({ prompt: PROMPT })).toMatchObject({ ok: true, model: "gemini-test-image" });
+    // The configured primary is gemini here; the report must not say so when openai answered.
+    vi.stubEnv("GEMINI_IMAGE_MODEL", "gemini-configured-primary");
+    generateImage.mockResolvedValueOnce({ url: "https://cdn.example.test/o.png", provider: "openai", model: "dall-e-3" });
+    const r = await renderBrandedScene({ prompt: PROMPT });
+    expect(r).toMatchObject({ ok: true, model: "dall-e-3" });
+    if (!r.ok) throw new Error("unreachable");
+    expect(r.model).not.toContain("gemini");
+  });
+
+  it("a generator that does not say who answered is reported as unknown, never as the configured model", async () => {
+    vi.stubEnv("GEMINI_IMAGE_MODEL", "gemini-configured-primary");
+    generateImage.mockResolvedValueOnce({ url: "https://cdn.example.test/u.png" });
+    expect(await renderBrandedScene({ prompt: PROMPT })).toMatchObject({ ok: true, model: "unknown" });
+    generateImage.mockResolvedValueOnce({ url: "https://cdn.example.test/p.png", provider: "openai" });
+    expect(await renderBrandedScene({ prompt: PROMPT })).toMatchObject({ ok: true, model: "openai" });
   });
 
   it("a generator that throws is image_unavailable, called once (no retry), and the provider's error text does not reach the caller", async () => {

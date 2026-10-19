@@ -28,7 +28,7 @@ function caller(role: Role) {
   } as TrpcContext);
 }
 
-const PHOTO = "https://cdn.example.test/ig-evidence/1-2-front.jpg";
+const PHOTO = "https://shop.example.test/generated/photo-check/1-2-front.jpg";
 const PROMPT = "Professional automotive photography of an independent Cleveland tire shop, gold #FDB913 accent.";
 const SCORECARD = {
   scores: { lighting: 72, framing: 64, brandPresence: 40, cleanliness: 81, professionalPolish: 58, overall: 63 },
@@ -44,6 +44,8 @@ beforeEach(() => {
   analyzePhoto.mockReset();
   generateImage.mockReset();
   vi.stubEnv("GEMINI_API_KEY", "test-gemini-key");
+  vi.stubEnv("SITE_URL", "https://shop.example.test");
+  vi.stubEnv("CLOUDFRONT_DOMAIN", "");
   // The admin gate reads its role row through the real db helper: no URL means "no handle", which
   // the middleware answers with the documented owner fallback instead of a connection attempt.
   vi.stubEnv("DATABASE_URL", "");
@@ -99,6 +101,12 @@ describe("instagramStudio.checkPhoto", () => {
     const r = await caller("admin").checkPhoto({ photoUrl: PHOTO });
     expect(r).toMatchObject({ ok: false, reason: "unreadable" });
     expect(r).not.toHaveProperty("analysis");
+  });
+
+  it("a URL that is not on our own storage is invalid_url through the real procedure, and nothing is fetched", async () => {
+    const r = await caller("admin").checkPhoto({ photoUrl: "http://169.254.169.254/latest/meta-data/" });
+    expect(r).toMatchObject({ ok: false, reason: "invalid_url" });
+    expect(analyzePhoto).not.toHaveBeenCalled();
   });
 
   it.each([["not a url", "not a url"], ["an over-long url", `https://cdn.example.test/${"a".repeat(2100)}`]])(
