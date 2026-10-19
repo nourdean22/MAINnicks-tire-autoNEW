@@ -3,7 +3,9 @@
  *
  * Consumer of instagramStudio.checkPhoto and instagramStudio.brandedPhoto, with
  * instagramStudio.uploadEvidencePhoto for the upload (the same mutation and limits the Studio
- * uses: 7.5 MB, JPEG / PNG / WebP / HEIC). Nothing here posts, schedules or publishes.
+ * uses: 7.5 MB, JPEG / PNG / WebP / HEIC), always with scoreOnly: true so the photo is NOT
+ * registered in the shop media library that the unattended autopost draws from.
+ * Nothing here posts, schedules or publishes.
  *
  * Honesty rules the copy depends on:
  *   - the scorecard is ONE vision model's opinion, so it is labelled that way;
@@ -31,12 +33,11 @@ const MIMES = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/hei
 const PROMPT_PREVIEW = 300;
 
 type CheckFailure = "vision_unavailable" | "unreadable" | "invalid_url" | "error";
-const CHECK_LINE: Record<CheckFailure | "offline", string> = {
+const CHECK_LINE: Record<CheckFailure, string> = {
   vision_unavailable: "Photo checking isn't available right now.",
   unreadable: "Couldn't read the result, try again.",
   invalid_url: "The photo link couldn't be opened. Choose the photo again.",
   error: "The request didn't finish. Check your connection and retry.",
-  offline: "You appear to be offline. Check your connection and retry.",
 };
 
 const BEST_FOR = { instagram: "Instagram", facebook: "Facebook", gbp: "Google Business Profile", billboard: "Billboard" } as const;
@@ -58,11 +59,11 @@ const readBase64 = (file: File) =>
 const btn = "h-auto min-h-12 w-full px-4 py-2 text-base sm:w-auto";
 
 export function PhotoCheckCard() {
-  // Upload and render fail fast offline: a paused render would sit under "Making the picture" with
-  // the card locked, then spend a credit whenever the network returned. The check keeps the default
-  // (it pauses, and the card says "offline" with a fresh Retry): it costs no image credit.
+  // All three fail fast offline. The default mode queues a paused request that fires whenever the
+  // network returns, behind a Retry the operator already tapped: a second vision call for the check,
+  // and a surprise image credit for the render. A failure plus Retry is the honest offline state.
   const upload = trpc.instagramStudio.uploadEvidencePhoto.useMutation({ networkMode: "always" });
-  const check = trpc.instagramStudio.checkPhoto.useMutation();
+  const check = trpc.instagramStudio.checkPhoto.useMutation({ networkMode: "always" });
   const brand = trpc.instagramStudio.brandedPhoto.useMutation({ networkMode: "always" });
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -85,9 +86,7 @@ export function PhotoCheckCard() {
   const [branded, setBranded] = useState<Branded | null>(null);
   const [brandFailure, setBrandFailure] = useState<"unavailable" | "error" | null>(null);
 
-  // An offline mutation waits for the network instead of failing: say so, and let Retry start fresh.
-  const offline = step === "checking" && check.isPaused;
-  const busy = (step !== "idle" && !offline) || rendering;
+  const busy = step !== "idle" || rendering;
 
   const runCheck = async (url: string) => {
     const seq = ++checkSeq.current;
@@ -129,7 +128,8 @@ export function PhotoCheckCard() {
     let url: string;
     try {
       const base64 = await readBase64(file);
-      ({ url } = await upload.mutateAsync({ base64, filename: file.name || "shop-photo.jpg", mimeType }));
+      // scoreOnly keeps the photo out of the shop media library that the unattended autopost draws from.
+      ({ url } = await upload.mutateAsync({ base64, filename: file.name || "shop-photo.jpg", mimeType, scoreOnly: true }));
     } catch {
       setUploadFailed(true);
       setStep("idle");
@@ -168,7 +168,7 @@ export function PhotoCheckCard() {
     }
   }, [confirming]);
 
-  const failureLine = offline ? CHECK_LINE.offline : checkFailure ? CHECK_LINE[checkFailure] : null;
+  const failureLine = checkFailure ? CHECK_LINE[checkFailure] : null;
   const a = card?.analysis;
   const prompt = a?.rebrandPrompt ?? "";
   const longPrompt = prompt.length > PROMPT_PREVIEW;
@@ -181,7 +181,7 @@ export function PhotoCheckCard() {
           <Camera className="h-4 w-4" /> Photo check
         </CardTitle>
         <CardDescription className="text-base">
-          Get a plain read on a shop photo. Nothing is posted.
+          Get a plain read on a shop photo.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4 text-base">
@@ -203,39 +203,41 @@ export function PhotoCheckCard() {
           <Button variant={card ? "outline" : "default"} className={btn} disabled={busy} onClick={() => inputRef.current?.click()}>
             Choose or take a photo
           </Button>
+          <p className="mt-2 text-muted-foreground">
+            The photo is uploaded for this check only. It is not added to your shop photo library or used in posts.
+          </p>
         </div>
-
-        {problem && <p role="alert" className="break-words rounded-md border border-amber-500/40 p-3">{problem}</p>}
-
-        {uploadFailed && (
-          <div role="alert" className="space-y-1 rounded-md border border-amber-500/40 p-3">
-            <p className="font-medium">Couldn't upload this photo</p>
-            <p className="text-muted-foreground">Nothing was checked. Choose the photo again.</p>
-          </div>
-        )}
 
         {photoUrl && (
           <img src={photoUrl} alt="Photo being checked" className="max-h-48 w-auto max-w-full rounded-md border object-contain" />
         )}
 
-        {step !== "idle" && !offline && (
-          <p role="status" className="flex items-center gap-2 text-muted-foreground">
-            <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
-            <span>{step === "uploading" ? "Uploading the photo..." : "Checking the photo..."}</span>
-          </p>
-        )}
+        {/* One polite live region for everything that changes: progress, a failure, a scorecard, a
+            render. Failures are announced here once; role="alert" on top would read them twice. It is
+            always in the DOM (empty:mt-0 keeps the idle card compact) so the first change is spoken. */}
+        <div role="status" aria-live="polite" className="space-y-4 empty:mt-0">
+          {problem && <p className="break-words rounded-md border border-amber-500/40 p-3">{problem}</p>}
 
-        {failureLine && photoUrl && (
-          <div role="alert" className="space-y-3 rounded-md border border-amber-500/40 p-3">
-            <div className="space-y-1">
+          {uploadFailed && (
+            <div className="space-y-1 rounded-md border border-amber-500/40 p-3">
+              <p className="font-medium">Couldn't upload this photo</p>
+              <p className="text-muted-foreground">Nothing was checked. Choose the photo again.</p>
+            </div>
+          )}
+
+          {step !== "idle" && (
+            <p className="flex items-center gap-2 text-muted-foreground">
+              <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+              <span>{step === "uploading" ? "Uploading the photo..." : "Checking the photo..."}</span>
+            </p>
+          )}
+
+          {failureLine && photoUrl && (
+            <div className="space-y-1 rounded-md border border-amber-500/40 p-3">
               <p className="font-medium">Couldn't check this photo</p>
               <p className="break-words text-muted-foreground">{failureLine}</p>
             </div>
-            <Button variant="outline" className={btn} onClick={() => void runCheck(photoUrl)}>
-              Retry
-            </Button>
-          </div>
-        )}
+          )}
 
         {card && a && (
           <section aria-label="Photo scorecard" className="space-y-4">
@@ -304,44 +306,58 @@ export function PhotoCheckCard() {
           </section>
         )}
 
+          {rendering && (
+            <p className="flex items-center gap-2 text-muted-foreground">
+              <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+              <span>Making the picture. This can take a minute.</span>
+            </p>
+          )}
+
+          {brandFailure && (
+            <div className="space-y-1 rounded-md border border-amber-500/40 p-3">
+              <p className="font-medium">Couldn't make the picture</p>
+              <p className="break-words text-muted-foreground">
+                {brandFailure === "unavailable"
+                  ? "The picture couldn't be made right now. Try again in a minute."
+                  : "The request didn't finish, so it may have used an image credit. Check before trying again."}
+              </p>
+            </div>
+          )}
+
+          {branded && (
+            <figure className="space-y-2">
+              <img src={branded.imageUrl} alt="Branded picture" className="h-auto max-w-full rounded-md border" />
+              <figcaption className="space-y-1 text-muted-foreground">
+                <p>Preview only. Nothing was posted.</p>
+                <p className="break-words">Model: {branded.model}</p>
+              </figcaption>
+              <a
+                href={branded.imageUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex min-h-12 items-center underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              >
+                Open full size
+              </a>
+            </figure>
+          )}
+        </div>
+
+        {failureLine && photoUrl && (
+          // Retry re-sends the same URL, so it only helps when the URL was fine.
+          checkFailure === "invalid_url" ? (
+            <Button variant="outline" className={btn} onClick={() => inputRef.current?.click()}>
+              Choose another photo
+            </Button>
+          ) : (
+            <Button variant="outline" className={btn} onClick={() => void runCheck(photoUrl)}>
+              Retry
+            </Button>
+          )
+        )}
+
         {card && a && (
           <div className="space-y-3 border-t pt-4">
-            {rendering && (
-              <p role="status" className="flex items-center gap-2 text-muted-foreground">
-                <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
-                <span>Making the picture. This can take a minute.</span>
-              </p>
-            )}
-
-            {brandFailure && (
-              <div role="alert" className="space-y-1 rounded-md border border-amber-500/40 p-3">
-                <p className="font-medium">Couldn't make the picture</p>
-                <p className="break-words text-muted-foreground">
-                  {brandFailure === "unavailable"
-                    ? "The picture couldn't be made right now. Try again in a minute."
-                    : "The request didn't finish, so it may have used an image credit. Check before trying again."}
-                </p>
-              </div>
-            )}
-
-            {branded && (
-              <figure className="space-y-2">
-                <img src={branded.imageUrl} alt="Branded picture" className="h-auto max-w-full rounded-md border" />
-                <figcaption className="space-y-1 text-muted-foreground">
-                  <p>Preview only. Nothing was posted.</p>
-                  <p className="break-words">Model: {branded.model}</p>
-                </figcaption>
-                <a
-                  href={branded.imageUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex min-h-12 items-center underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                >
-                  Open full size
-                </a>
-              </figure>
-            )}
-
             {confirming ? (
               <div ref={confirmRef} tabIndex={-1} role="group" aria-label="Confirm branded picture" className="space-y-3 rounded-md border p-3 focus:outline-none">
                 <p>Creates one new branded picture of a similar scene. It is not your photo edited. Uses image credit: normally one, a second if the first image service is down.</p>

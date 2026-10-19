@@ -13,21 +13,21 @@
  * mutateAsync / isPaused surface it gets from react-query.
  */
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, renderHook, screen, waitFor, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider, onlineManager, useMutation } from "@tanstack/react-query";
 import React from "react";
 
 const h = vi.hoisted(() => ({
   upload: vi.fn(),
   check: vi.fn(),
   brand: vi.fn(),
-  checkPaused: false,
   forbidden: vi.fn(),
   opts: {} as Record<string, unknown>,
 }));
 
 vi.mock("@/lib/trpc", async () => {
   const R = await import("react");
-  const fake = (name: string, fn: (input: unknown) => Promise<unknown>, paused: () => boolean) => (opts?: unknown) => {
+  const fake = (name: string, fn: (input: unknown) => Promise<unknown>) => (opts?: unknown) => {
     h.opts[name] = opts;
     const [isError, setIsError] = R.useState(false);
     return {
@@ -41,16 +41,16 @@ vi.mock("@/lib/trpc", async () => {
         }
       },
       isError,
-      isPaused: paused(),
+      isPaused: false,
       reset: () => setIsError(false),
     };
   };
   return {
     trpc: {
       instagramStudio: {
-        uploadEvidencePhoto: { useMutation: fake("upload", (i) => h.upload(i), () => false) },
-        checkPhoto: { useMutation: fake("check", (i) => h.check(i), () => h.checkPaused) },
-        brandedPhoto: { useMutation: fake("brand", (i) => h.brand(i), () => false) },
+        uploadEvidencePhoto: { useMutation: fake("upload", (i) => h.upload(i)) },
+        checkPhoto: { useMutation: fake("check", (i) => h.check(i)) },
+        brandedPhoto: { useMutation: fake("brand", (i) => h.brand(i)) },
         // A post or publish door the card must never reach.
         stage: { useMutation: () => ({ mutate: h.forbidden, mutateAsync: h.forbidden }) },
         render: { useMutation: () => ({ mutate: h.forbidden, mutateAsync: h.forbidden }) },
@@ -106,7 +106,6 @@ beforeEach(() => {
   h.check.mockReset().mockResolvedValue(CHECK_OK);
   h.brand.mockReset().mockResolvedValue(BRANDED_OK);
   h.forbidden.mockReset();
-  h.checkPaused = false;
   h.opts = {};
   natives = [vi.spyOn(window, "confirm"), vi.spyOn(window, "alert"), vi.spyOn(window, "prompt")];
 });
@@ -136,16 +135,18 @@ describe("Photo check card: picking a photo", () => {
   it("idle is compact: the title, one short line and the one button, with no scorecard shell or branded controls", () => {
     render(<PhotoCheckCard />);
     expect(screen.getByText("Photo check")).toBeTruthy();
-    expect(screen.getByText("Get a plain read on a shop photo. Nothing is posted.")).toBeTruthy();
+    expect(screen.getByText("Get a plain read on a shop photo.")).toBeTruthy();
+    // Privacy: the operator is told before choosing that the photo stays out of the library and posts.
+    expect(screen.getByText("The photo is uploaded for this check only. It is not added to your shop photo library or used in posts.")).toBeTruthy();
     expect(screen.getAllByRole("button")).toHaveLength(1);
     expect(screen.queryByRole("img")).toBeNull();
     expect(screen.queryByText(/Make a branded version/)).toBeNull();
   });
 
-  it("uploads with the evidence-photo shape, then checks the uploaded url", async () => {
+  it("uploads score-only, so the photo never joins the shop media library the autopost draws from, then checks the uploaded url", async () => {
     await checked();
     expect(h.upload).toHaveBeenCalledTimes(1);
-    expect(h.upload).toHaveBeenCalledWith({ base64: "YWJj", filename: "tire.jpg", mimeType: "image/jpeg" });
+    expect(h.upload).toHaveBeenCalledWith({ base64: "YWJj", filename: "tire.jpg", mimeType: "image/jpeg", scoreOnly: true });
     expect(h.check).toHaveBeenCalledTimes(1);
     expect(h.check).toHaveBeenCalledWith({ photoUrl: UPLOADED.url });
   });
@@ -153,9 +154,9 @@ describe("Photo check card: picking a photo", () => {
   it("refuses a photo over 7.5 MB and an unsupported type before any call", () => {
     render(<PhotoCheckCard />);
     choose(photo({ size: 8_000_000 }));
-    expect(screen.getByRole("alert").textContent).toMatch(/7\.5 ?MB/);
+    expect(screen.getByRole("status").textContent).toMatch(/7\.5 ?MB/);
     choose(photo({ name: "clip.gif", type: "image/gif" }));
-    expect(screen.getByRole("alert").textContent).toMatch(/JPEG, PNG, WebP or HEIC/);
+    expect(screen.getByRole("status").textContent).toMatch(/JPEG, PNG, WebP or HEIC/);
     expect(h.upload).not.toHaveBeenCalled();
     expect(h.check).not.toHaveBeenCalled();
   });
@@ -220,12 +221,11 @@ describe("Photo check card: a check that did not produce a scorecard", () => {
     ["vision unavailable", () => h.check.mockResolvedValue({ ok: false, reason: "vision_unavailable", message: "x" }), /Photo checking isn't available right now/],
     ["unreadable", () => h.check.mockResolvedValue({ ok: false, reason: "unreadable", message: "x" }), /Couldn't read the result, try again/],
     ["invalid url", () => h.check.mockResolvedValue({ ok: false, reason: "invalid_url", message: "x" }), /photo link couldn't be opened/],
-    ["a rejected request", () => h.check.mockRejectedValue(new Error("Failed to fetch")), /request didn't finish/],
-    ["an offline (paused) request", () => { h.checkPaused = true; h.check.mockReturnValue(new Promise(() => {})); }, /offline|connection/i],
+    ["a rejected request (offline fails fast, see the network mode test)", () => h.check.mockRejectedValue(new Error("Failed to fetch")), /request didn't finish/],
   ];
 
   for (const [name, arrange, line] of FAILS) {
-    it(`${name}: says it could not check, names the cause, shows no scores, offers a 48 px Retry`, async () => {
+    it(`${name}: says it could not check, names the cause, shows no scores, and offers a 48 px way forward`, async () => {
       arrange();
       render(<PhotoCheckCard />);
       choose();
@@ -234,9 +234,22 @@ describe("Photo check card: a check that did not produce a scorecard", () => {
       expect(screen.queryByRole("region", { name: "Photo scorecard" })).toBeNull();
       expect(screen.queryByText(/of 100/)).toBeNull();
       expect(screen.queryByText(/Best for/)).toBeNull();
-      expect(screen.getByRole("button", { name: "Retry" }).className).toMatch(/\bmin-h-12\b/);
+      // Retry re-sends the same URL, which only helps when the URL was fine: an invalid link needs another photo.
+      const next = name === "invalid url" ? "Choose another photo" : "Retry";
+      expect(screen.getByRole("button", { name: next }).className).toMatch(/\bmin-h-12\b/);
+      expect(screen.queryByRole("button", { name: name === "invalid url" ? "Retry" : "Choose another photo" })).toBeNull();
     });
   }
+
+  it("Choose another photo opens the file picker", async () => {
+    h.check.mockResolvedValue({ ok: false, reason: "invalid_url", message: "x" });
+    render(<PhotoCheckCard />);
+    choose();
+    const button = await screen.findByRole("button", { name: "Choose another photo" });
+    const pickerClick = vi.spyOn(screen.getByLabelText("Photo file") as HTMLInputElement, "click");
+    fireEvent.click(button);
+    expect(pickerClick).toHaveBeenCalledTimes(1);
+  });
 
   it("Retry checks the same uploaded photo again without uploading twice", async () => {
     h.check.mockResolvedValueOnce({ ok: false, reason: "unreadable", message: "x" });
@@ -383,11 +396,42 @@ describe("Photo check card: the branded version", () => {
 });
 
 describe("Photo check card: offline and focus", () => {
-  it("upload and render fail fast offline instead of waiting forever; the check keeps the default so a paused check shows the offline state", () => {
+  it("upload, check and render all pass networkMode always, so an offline tap fails fast instead of queueing a paused request that fires later", () => {
     render(<PhotoCheckCard />);
     expect(h.opts.upload).toEqual({ networkMode: "always" });
+    expect(h.opts.check).toEqual({ networkMode: "always" });
     expect(h.opts.brand).toEqual({ networkMode: "always" });
-    expect(h.opts.check).toBeUndefined();
+  });
+
+  it("positive control on the real react-query: offline, networkMode always runs the request (and fails), the default one pauses unsent", async () => {
+    const client = new QueryClient();
+    const wrapper = ({ children }: { children: React.ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    const ran = vi.fn().mockRejectedValue(new Error("offline"));
+    onlineManager.setOnline(false);
+    try {
+      const always = renderHook(() => useMutation({ mutationFn: ran, networkMode: "always" }), { wrapper });
+      await act(async () => { await always.result.current.mutateAsync(1).catch(() => {}); });
+      expect(ran).toHaveBeenCalledTimes(1);
+      expect(always.result.current.isPaused).toBe(false);
+
+      ran.mockClear();
+      const normal = renderHook(() => useMutation({ mutationFn: ran }), { wrapper });
+      act(() => { void normal.result.current.mutateAsync(1).catch(() => {}); });
+      await waitFor(() => expect(normal.result.current.isPaused).toBe(true));
+      expect(ran).not.toHaveBeenCalled();
+    } finally {
+      onlineManager.setOnline(true);
+      client.clear();
+    }
+  });
+
+  it("the card shows no offline or paused state of its own: an unreachable network is the same Couldn't check this photo with Retry", async () => {
+    h.check.mockRejectedValue(new TypeError("Failed to fetch"));
+    render(<PhotoCheckCard />);
+    choose();
+    await screen.findByText("Couldn't check this photo");
+    expect(screen.queryByText(/appear to be offline/)).toBeNull();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeTruthy();
   });
 
   it("opening the confirm moves focus into it, so a keyboard or screen reader user is not left on a removed button", async () => {
@@ -398,11 +442,59 @@ describe("Photo check card: offline and focus", () => {
 
   it("two identical issues from the model render twice without a duplicate-key warning", async () => {
     const err = vi.spyOn(console, "error").mockImplementation(() => {});
-    h.check.mockResolvedValue({ ...CHECK_OK, analysis: { ...ANALYSIS, issues: ["Glare", "Glare"] } });
+    try {
+      h.check.mockResolvedValue({ ...CHECK_OK, analysis: { ...ANALYSIS, issues: ["Glare", "Glare"] } });
+      await checked();
+      expect(within(scorecard()).getAllByText("Glare")).toHaveLength(2);
+      expect(err.mock.calls.flat().join(" ")).not.toMatch(/same key/);
+    } finally {
+      err.mockRestore();
+    }
+  });
+});
+
+describe("Photo check card: announcements", () => {
+  const region = () => screen.getByRole("status");
+
+  it("the result area is one polite live region, present before anything happens", () => {
+    render(<PhotoCheckCard />);
+    expect(region().getAttribute("aria-live")).toBe("polite");
+  });
+
+  it("a finished scorecard, a failure and a finished render land inside the live region; nothing uses role alert, so nothing is announced twice", async () => {
+    h.check.mockResolvedValueOnce({ ok: false, reason: "unreadable", message: "x" });
+    render(<PhotoCheckCard />);
+    choose();
+    await screen.findByText("Couldn't check this photo");
+    expect(within(region()).getByText("Couldn't check this photo")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await screen.findByRole("region", { name: "Photo scorecard" });
+    expect(region().contains(scorecard())).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Make a branded version" }));
+    fireEvent.click(within(screen.getByRole("group", { name: "Confirm branded picture" })).getByRole("button", { name: "Make the picture" }));
+    const img = await screen.findByRole("img", { name: "Branded picture" });
+    expect(region().contains(img)).toBe(true);
+    expect(document.querySelector("[role=alert]")).toBeNull();
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+  });
+
+  it("the progress line is announced from the same region", () => {
+    h.upload.mockReturnValue(new Promise(() => {}));
+    render(<PhotoCheckCard />);
+    choose();
+    expect(region().textContent).toMatch(/Uploading/);
+  });
+});
+
+describe("Photo check card: which model answered", () => {
+  it("shows the model the server says answered, and 'Model: unknown' when it could not say", async () => {
+    h.brand.mockResolvedValue({ ...BRANDED_OK, model: "unknown" });
     await checked();
-    expect(within(scorecard()).getAllByText("Glare")).toHaveLength(2);
-    expect(err.mock.calls.flat().join(" ")).not.toMatch(/same key/);
-    err.mockRestore();
+    fireEvent.click(screen.getByRole("button", { name: "Make a branded version" }));
+    fireEvent.click(within(screen.getByRole("group", { name: "Confirm branded picture" })).getByRole("button", { name: "Make the picture" }));
+    await screen.findByRole("img", { name: "Branded picture" });
+    expect(screen.getByText("Model: unknown")).toBeTruthy();
+    expect(screen.queryByText("Model: gemini-test-image")).toBeNull();
   });
 });
 
