@@ -65,7 +65,7 @@ export function IntelligenceFlagsPanel() {
         if (res?.runtimeApplied === false) {
           haptic.warn();
           setApplyNotice(
-            `${key}: saved, but NOT yet live — ${res.runtimeReason ?? "runtime cache did not reload"}. Other instances converge within ~30s.`,
+            `${key}: saved, but NOT yet live: ${res.runtimeReason ?? "runtime cache did not reload"}. Other instances converge within ~30s.`,
           );
         } else {
           haptic.success();
@@ -74,7 +74,7 @@ export function IntelligenceFlagsPanel() {
         refetch();
       } catch (err) {
         haptic.error();
-        setApplyNotice(`${key}: save failed — nothing changed.`);
+        setApplyNotice(`${key}: save failed, nothing changed.`);
         console.error("Failed to update feature flag override:", err);
       }
     },
@@ -108,7 +108,7 @@ export function IntelligenceFlagsPanel() {
       <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">
         Live-control Nick&apos;s reasoning engines, recall multipliers, and background autonomy levels.
         Overrides apply within ~30s. Flags marked ENV ONLY are read straight from the environment
-        at boot — change those in Railway, not here.
+        at boot. Change those in Railway, not here.
       </p>
 
       {applyNotice && (
@@ -128,7 +128,7 @@ export function IntelligenceFlagsPanel() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search flags (e.g. autonomy, recall)..."
-            className="w-full h-8 pl-8 pr-3 rounded-control border border-edge-default bg-content text-[13px] text-fg placeholder:text-fg-tertiary focus:border-accent outline-none"
+            className="w-full h-8 pl-8 pr-3 rounded-control border border-edge-default bg-content text-[16px] sm:text-[13px] text-fg placeholder:text-fg-tertiary focus:border-accent outline-none"
           />
         </div>
         {/* Status Filter */}

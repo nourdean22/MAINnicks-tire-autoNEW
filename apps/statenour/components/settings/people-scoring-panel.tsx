@@ -121,7 +121,7 @@ export function PeopleScoringPanel() {
                       d ? { ...d, [f.key]: Number.isFinite(v) ? v : 0 } : d,
                     );
                   }}
-                  className="w-20 shrink-0 rounded-control border border-edge-default bg-content px-2 py-1.5 text-right text-[13px] font-mono tabular-nums text-fg focus:border-accent focus:outline-none"
+                  className="w-20 shrink-0 rounded-control border border-edge-default bg-content px-2 py-1.5 text-right text-[16px] sm:text-[13px] font-mono tabular-nums text-fg focus:border-accent focus:outline-none"
                 />
               </label>
             ))}

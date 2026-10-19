@@ -6,8 +6,7 @@
  * Press ⌘K (Mac) / Ctrl+K (PC) from anywhere to open. Type to search
  * across:
  *   - Navigate (core pages + depth pages)
- *   - System Ops (live decks: crons, errors, ai-cost, power, ...)
- *   - Diagnostics (push/pull probes + fix-it surfaces)
+ *   - System (one row per /system hub tile, built from components/system/hub-cards.ts)
  *   - Quick Actions (talk to Nick, generate image, ...)
  *   - System probes (live counts from /api/brain/status, /api/health,
  *     /api/system/diagnostics — results surfaced via toast, not alert)
@@ -60,24 +59,18 @@ import RelationshipLogAction from "@/components/command-palette/relationship-log
 // 2026-06-18 · IA reorg Phase 3 · ⌘K navigation now derives from the single
 // NAV source of truth so the bar / MORE sheet / palette can never drift.
 import { NAV } from "@/components/layout/nav-items";
+// UI v3 W5a · the System group derives from the hub tiles (a hook-free module: this palette mounts
+// in the root layout, outside TRPCProvider).
+import { hubPaletteRows } from "@/components/system/hub-cards";
 import {
-  ActivityIcon,
   BrainIcon,
-  ClockIcon,
   HeartPulseIcon,
   ZapIcon,
   RefreshCwIcon,
-  AlertTriangleIcon,
-  BotIcon,
-  DollarSignIcon,
   WrenchIcon,
-  TrendingUpIcon,
   ImageIcon,
   SearchIcon,
   EyeIcon,
-  InboxIcon,
-  StethoscopeIcon,
-  DatabaseIcon,
   PlayIcon,
   KeyIcon,
   RocketIcon,
@@ -317,6 +310,20 @@ export function CommandPalette() {
     [navigate],
   );
 
+  // The System rows come from the hub list; tiles a Navigate row already reaches are skipped.
+  const hubRows = useMemo(
+    () =>
+      hubPaletteRows(
+        new Set(
+          NAV.flatMap((entry) => [
+            entry.href,
+            ...(entry.tabs ?? []).map((tab) => `${entry.href}?tab=${encodeURIComponent(tab.key)}`),
+          ]),
+        ),
+      ),
+    [],
+  );
+
   const actions: CommandAction[] = useMemo(
     () => [
       ...navCommands,
@@ -326,31 +333,22 @@ export function CommandPalette() {
       { id: "nav-brain-recall-preview", label: "Brain · Recall Preview", group: "Navigate", icon: <BrainIcon className="size-4" />, action: () => navigate("/brain?tab=memory#recall-preview"), keywords: ["recall", "memory", "prompt", "context", "retrieval"] },
       { id: "nav-brain-time-travel", label: "Brain · Time Travel", group: "Navigate", icon: <HistoryIcon className="size-4" />, action: () => navigate("/brain?tab=continuity#time-travel"), keywords: ["time travel", "history", "day", "snapshot", "memory"] },
 
-      // ═══ DIAGNOSTICS — push+pull probe hub (ENR3/ENR4) ═══
-      // 2026-10-10 · audit 10-U10: diag-hub and diag-crons were second doors to
-      // /system/health and /system/crons; their keywords moved to sys-health /
-      // sys-crons below. One destination, one entry.
-      { id: "diag-stale", label: "Stale Data · review + cleanup", group: "Diagnostics", icon: <DatabaseIcon className="size-4" />, action: () => navigate("/system#stale-data"), keywords: ["stale", "purge", "clean", "orphan", "dismissed"] },
-      // v10.0.304 · "Live Event Stream" entry removed · /system/events
-      // page deleted. /system/logs covers the same data with broader
-      // source list, just slower poll. Manual refresh = live enough.
-
-      // ═══ SYSTEM — the genuine, distinct /system/* surfaces. These live
-      // here (not in NAV) because /system owns them via its hub grid. Phase 3
-      // deleted the old "System Ops" deck's ~10 theatrical labels —
-      // Quality / Anti-patterns / Operator-State / Judge-eval / Lens-Stats →
-      // /system/calibration, and Devices / Power / API-Tokens → /system —
-      // that faked distinct pages. These are the real ones. ═══
-      { id: "sys-crons", label: "Crons · live deck", group: "System", icon: <ClockIcon className="size-4" />, action: () => navigate("/system/crons"), keywords: ["cron", "schedule", "job", "kill", "manual", "silent", "slow", "diagnose"] },
-      { id: "sys-errors", label: "Errors · fingerprints", group: "System", icon: <AlertTriangleIcon className="size-4" />, action: () => navigate("/system/logs?view=errors"), keywords: ["error", "log", "stack", "fingerprint"] },
-      { id: "sys-logs", label: "Logs · request + AI stream", group: "System", icon: <DatabaseIcon className="size-4" />, action: () => navigate("/system/logs"), keywords: ["log", "request", "stream", "api", "generation"] },
-      { id: "sys-ai-cost", label: "AI Cost · burn rate", group: "System", icon: <DollarSignIcon className="size-4" />, action: () => navigate("/system/ai-cost"), keywords: ["cost", "nick", "tokens", "budget", "burn"] },
-      { id: "sys-actions", label: "Autonomous Actions · audit", group: "System", icon: <BotIcon className="size-4" />, action: () => navigate("/system/actions"), keywords: ["action", "autonomous", "rule", "audit", "approval"] },
-      { id: "sys-health", label: "Health · diagnostics", group: "System", icon: <StethoscopeIcon className="size-4" />, action: () => navigate("/system/health"), keywords: ["health", "diagnostics", "probe", "env", "vectors", "backlog", "push", "pull", "oauth", "pulse", "stale", "cron", "rescan", "diagnose", "all"] },
-      { id: "sys-calibration", label: "State Calibration - hit rate by mood + judge agreement", group: "System", icon: <TrendingUpIcon className="size-4" />, action: () => navigate("/system/calibration"), keywords: ["calibration", "quality", "state", "mood", "hit rate", "suggestion", "judge", "eval", "operator state"] },
-      { id: "sys-alerts", label: "Alerts · cross-category inspector", group: "System", icon: <AlertTriangleIcon className="size-4" />, action: () => navigate("/system/alerts"), keywords: ["alert", "inspect", "category", "coach"] },
-      { id: "sys-inbox", label: "Memory Inbox · quarantine review", group: "System", icon: <InboxIcon className="size-4" />, action: () => navigate("/system/inbox"), keywords: ["inbox", "quarantine", "memory", "contradiction", "review"] },
-      { id: "sys-cockpit", label: "Cockpit Observability · traces", group: "System", icon: <ActivityIcon className="size-4" />, action: () => navigate("/system/cockpit-observability"), keywords: ["cockpit", "observability", "trace", "metric", "decay", "prompt version"] },
+      // ═══ SYSTEM, built from the hub list (UI v3 W5a, 2026-10-18). Every
+      // /system hub tile is one row here unless a Navigate row already reaches
+      // its href (one destination, one door; audit 10-U10). Ids and keywords
+      // ride on the tile in components/system/hub-cards.ts, so Recently Used
+      // and typed searches keep working and a new tile cannot miss the
+      // palette. Lab tiles say "Lab". Pinned by
+      // tests/components/command-palette-hub-rows.test.tsx. The v10.0.304
+      // "Live Event Stream" entry stays gone: /system/logs covers it. ═══
+      ...hubRows.map((r) => ({
+        id: r.id,
+        label: r.label,
+        group: "System",
+        icon: <r.icon className="size-4" />,
+        action: () => navigate(r.href),
+        keywords: r.keywords,
+      })),
 
       // ═══ QUICK ACTIONS ═══
       // 2026-10-10 · audit 02-F12: "Start Flow Mode" opened chat with a `mode`
@@ -504,7 +502,7 @@ export function CommandPalette() {
     ],
     // lint-baseline 2026-08-13 · `openExternal` was flagged as an
     // unnecessary dep (no longer referenced in the memo body).
-    [closePalette, navigate, probe, navCommands, navTabCommands],
+    [closePalette, navigate, probe, navCommands, navTabCommands, hubRows],
   );
 
   // Keyboard shortcuts:

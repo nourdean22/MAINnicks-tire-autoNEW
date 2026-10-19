@@ -66,7 +66,7 @@ export function Toggle({ value, onChange }: { value: boolean; onChange: (v: bool
       <span
         aria-hidden
         className={cn(
-          "absolute top-0.5 w-3.5 h-3.5 rounded-full transition-all",
+          "absolute top-0.5 w-3.5 h-3.5 rounded-full transition-[left,background-color]",
           value ? "left-4.5 bg-[var(--text-inverse)]" : "left-0.5 bg-fg-tertiary",
         )}
       />

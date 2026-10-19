@@ -2,11 +2,11 @@
   "_about": "UI v3 ratchet baseline (tests/repo/ui-v3-ratchets.test.ts). Keys are app-root-relative POSIX paths; a file or counter that is absent is 0. A count may fall and never rise. It does not tighten by itself: each wave PR that removes violations runs UPDATE_RATCHET=1 pnpm exec vitest run tests/repo/ui-v3-ratchets.test.ts and commits the lowered numbers. That mode refuses to raise any number and refuses a missing, corrupt or non-object file. A deleted file's entry is dropped when it runs; a moved or renamed file is re-keyed by hand, its numbers moving with it and the totals unchanged. To ADD a legitimate number run UPDATE_RATCHET=init in the PR that adds it, give the reason in the PR body, and expect it to be reviewed like any raise. Both modes are refused when CI is set. Do not hand-edit a number up.",
   "totals": {
     "uppercase": 5,
-    "emDash": 250,
-    "emoji": 29,
-    "transitionAll": 52,
+    "emDash": 236,
+    "emoji": 24,
+    "transitionAll": 50,
     "slowDuration": 8,
-    "smallInput": 91
+    "smallInput": 83
   },
   "files": {
     "app/(mastery)/decisions/[id]/page.tsx": {
@@ -336,45 +336,6 @@
     "components/power-atlas/PowerBalanceGauge.tsx": {
       "transitionAll": 1,
       "slowDuration": 1
-    },
-    "components/settings/ai-settings-panel.tsx": {
-      "emDash": 2,
-      "smallInput": 1
-    },
-    "components/settings/identity-panel.tsx": {
-      "transitionAll": 1,
-      "smallInput": 1
-    },
-    "components/settings/intelligence-flags-panel.tsx": {
-      "emDash": 3,
-      "smallInput": 1
-    },
-    "components/settings/journal-brain-panel.tsx": {
-      "emDash": 1,
-      "emoji": 1,
-      "smallInput": 1
-    },
-    "components/settings/operating-rhythm-toggle.tsx": {
-      "emDash": 3,
-      "emoji": 1
-    },
-    "components/settings/people-scoring-panel.tsx": {
-      "smallInput": 1
-    },
-    "components/settings/push-notification-toggle.tsx": {
-      "emDash": 2,
-      "emoji": 1
-    },
-    "components/settings/settings-console.tsx": {
-      "emoji": 1
-    },
-    "components/settings/settings-controls.tsx": {
-      "transitionAll": 1
-    },
-    "components/settings/skill-library-panel.tsx": {
-      "emDash": 3,
-      "emoji": 1,
-      "smallInput": 3
     },
     "components/stats/body-section.tsx": {
       "transitionAll": 1,

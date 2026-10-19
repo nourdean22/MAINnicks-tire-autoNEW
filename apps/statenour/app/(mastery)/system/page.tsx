@@ -6,8 +6,9 @@
  * Layout contract (Wave 52 · 2026-05-20 redesign):
  *   1. STATUS FIRST  — overall status + KPIs + ops telemetry. The
  *      answer to "is everything OK?" renders ABOVE the nav grid.
- *   2. NAVIGATION    — <SystemHubGrid />, the grouped card hub.
- *   3. DETAIL        — devices · brain · integrations.
+ *   2. NAVIGATION    — <SystemHubGrid />, the grouped card hub, directly
+ *      under the tower since UI v3 W5a (triage first).
+ *   3. DETAIL        — owner panel, ops row, Nick, census panels, digests.
  *
  * Pre-Wave-52 the page led with the 37-card grid and buried status
  * at section #4-5. Three debug-dump panels (raw Prisma row counts ·
@@ -311,6 +312,13 @@ export default function SystemPage() {
         </p>
       </section>
 
+      {/* ── NAVIGATION, triage first (UI v3 W5a, 2026-10-18) ──────────
+          The hub grid sits directly under the tower: its attention strip
+          lifts degraded subsurfaces, then the domain groups, then the Lab.
+          Everything below is detail and keeps its old order. Pinned by
+          tests/components/system-page-hub-first.test.tsx. */}
+      <SystemHubGrid />
+
       {/* Q-24 (2026-09-23) · what needs the owner: exceptions with age and
           evidence, decisions waiting, cost per outcome. Platform verdict above,
           owner verdict here; both list only exceptions. */}
@@ -347,9 +355,9 @@ export default function SystemPage() {
       />
 
       {/* Wiring integrity (BDN-101) + autonomy graduation (BDN-102),
-          2026-08-12. Placed ABOVE the hub grid deliberately: a severed
-          lane or a type that has earned auto-execute is a reading the
-          operator should get before navigating anywhere. */}
+          2026-08-12. Sat above the hub grid until W5a moved the grid
+          under the tower; a severed lane still surfaces in the tower's
+          exceptions and the hub's attention strip first. */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <WiringCensusPanel />
         <TrustLadderPanel />
@@ -373,12 +381,6 @@ export default function SystemPage() {
           alive, and both refuse to state a figure on a thin sample rather
           than render a confident one. Report-only; nothing promotes off it. */}
       <EvidenceGatePanel />
-
-      {/* ── NAVIGATION ───────────────────────────────────────────── */}
-      {/* System hub — live-chip cards grouped by domain. Degraded
-          subsurfaces lift into a "needs attention" strip at the top
-          of the grid. */}
-      <SystemHubGrid />
 
       {/* Consolidated from the retired /system/stale page. The scan and
           category-specific cleanup policies remained live; this is their

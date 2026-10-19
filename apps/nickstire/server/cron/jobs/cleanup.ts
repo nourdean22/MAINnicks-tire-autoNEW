@@ -166,6 +166,28 @@ export async function cleanupOldData(): Promise<{ recordsProcessed: number; deta
     log.warn("bridge_outbox completeness failed", { error: err instanceof Error ? err.message : String(err) });
   }
 
+  // revenue_reconciliation_candidates is re-derived every 2 h and only the newest row per call is ever
+  // read, so superseded copies pile up. Always report the counts (they land in cron_log via `details`);
+  // delete them only while the revenue_recon_retention flag is ON. Unavailable is UNKNOWN, never zero.
+  let reconSuffix = "recon candidates: unavailable";
+  try {
+    const { getDb } = await import("../../db");
+    const db = await getDb();
+    if (db) {
+      const { reconCandidatesRetention, reconRetentionDetails, readRetentionFlagFresh, toDrizzleSql } = await import(
+        "../../services/revenueReconciliationRetention"
+      );
+      // The delete path reads the flag row fresh and fails closed. It must NOT use featureFlags.isEnabled():
+      // that cache swallows a failed refresh and returns the last value, so a stale ON would keep deleting.
+      const query = (stmt: Parameters<typeof toDrizzleSql>[0]) => db.execute(toDrizzleSql(stmt));
+      const recon = await reconCandidatesRetention({ query, isEnabled: () => readRetentionFlagFresh(query) });
+      reconSuffix = reconRetentionDetails(recon);
+      if (recon.state === "measured") cleaned += recon.deleted ?? 0;
+    }
+  } catch (err) {
+    log.warn("recon candidates retention failed", { error: err instanceof Error ? err.message : String(err) });
+  }
+
   log.info("Cleanup completed", { cleaned });
-  return { recordsProcessed: cleaned, details: `Cleaned ${cleaned} stale entries` };
+  return { recordsProcessed: cleaned, details: `Cleaned ${cleaned} stale entries; ${reconSuffix}` };
 }

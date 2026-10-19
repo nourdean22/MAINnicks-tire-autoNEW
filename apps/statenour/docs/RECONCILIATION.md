@@ -14,6 +14,20 @@
 > - `buildActiveAlerts` drops dismissed rows after its `take`, so a window full of dismissed rows can show fewer than `limit` per category.
 > - Telegram `/status` still counts every alert fired in 30 days, muted or dismissed (a history count, not the active list).
 > - The six-feet gate does not measure `/system/alerts` or `/system/inbox`.
+> ## 2026-10-18 · UI v3 W5a: System hub triage first, Lab, palette from the hub list, Settings cleanup (branch `statenour/ui-v3-w5a`) · 1 statenour PR, 5 commits
+>
+> Not live until merged and deployed. UI and tests only: no `app/api`, no `lib` logic, no schema, no prod read or write. Inbox and Alerts lanes are W5b: see PR 3161.
+>
+> - **Triage first.** `/system` renders the hub grid (attention strip, groups, Lab) directly under the Control tower; the owner panel, ops row, Nick, census panels and digests follow in their old order. `#stale-data` unchanged.
+> - **Lab.** Chat States and UI Lab, whose page headers say they render real components against fixtures, fold into one closed button, "Lab, 2 tools", with `aria-expanded`, a closed/open word and their hrefs kept. Proactive Preview, State Calibration and Schema History read live data and stay in their groups (the audit had counted five fixtures).
+> - **Palette from the hub list.** The hub tiles moved to `components/system/hub-cards.ts` (no hooks, no tRPC: the palette mounts in the root layout). Each tile carries its palette id and keywords; `hubPaletteRows` builds the System group and skips a tile a Navigate row already reaches. New doors: Fleet Truth, Arrival Intel, Schema History, Chat States, Intelligence. Stale Data moved from Diagnostics to System with its id and keywords. Lab rows read "Lab · ...".
+> - **One IdentityPanel.** Settings, Identity and Behavior keeps it (census 2026-10-02, section 1); `/brain` Memory shows a ruled link to Settings instead of a second editor.
+> - **Settings sweep.** Ten settings files: em dashes and emoji reworded (a failure now says "Failed:" in words), inputs at 16 px on a phone with `sm:` keeping 13 px, two `transition-all` narrowed to the property that moves. Ratchets: emDash 269 to 255, emoji 33 to 28, transitionAll 56 to 54, smallInput 112 to 104 (a planted `transition-all` in `settings-controls.tsx` fails the ratchet).
+>
+> **Flagged · NOT fixed**
+> - The palette keeps two pre-existing second doors beside the NAV rows: "Talk to Nick" (/chat) and "View Recent Captures" (/).
+> - The System hub is not in the six-feet distance gate; no 390 or 1440 look on a device yet.
+> - `/system`'s Control tower exception rows still end in an arrow glyph after "Open" (the ratchet's one emoji for that page).
 
 > ## 2026-10-17 · Decision replays follow their own review date (branch `statenour/brain-fu2-replay-date`) · 1 statenour PR, no live effect today
 >
@@ -4742,7 +4756,7 @@
 
 > **2026-07-22 · Perplexica repair + closed-loop Experiment factory + fallback-model refresh.** ① **Perplexica** (#1017/#1018/#1019): canonical native-API path (removed the MCP-URL aliasing — `perplexica-mcp` is a separate Railway service), `PERPLEXICA_TIMEOUT_MS` 35s (was the generic 8s → always timed out in the quorum), `hasPerplexica()` single gate, `checkPerplexicaHealth()` provider+model verification, search-source telemetry, and the `GET /api/system/perplexica-diag` receipt (CRON_SECRET-gated). **Root cause proven from live SearXNG logs: every general engine (DuckDuckGo/Brave/Startpage/Google-CSE) is CAPTCHA/rate-limited on Railway's datacenter IP → 0 sources → silent Tavily fallback** — an infra reality, not a code bug (see RUNBOOK observability + poka-yoke ledger 2026-07-22). ② **Closed-loop Experiment factory** (#1020): `RegisteredSource.authScore` now LEARNS — accepting an opportunity spawns an `Experiment` (14-day horizon), a daily `experiment-measure` cron resolves it (held_up/failed/inconclusive) and nudges the attributed source's authScore via a bounded, reversible EWMA; `scoring.ts` folds that learned trust back into opportunity priority (`applyAuthTrust`, ±10% — the read-path teeth). Adversarial-review fixes: **column-first migration** (hot-table ADD COLUMNs applied to prod before the schema deploy) + **atomic claim** (running→measuring, prevents concurrent double-nudge). Migration verified live: `experiments` table + 3 cols + 2 FKs, pgvector untouched. ③ **Fallback-model refresh**: the anthropic fallback lane's `defaultModel` `claude-3-5-sonnet-latest` → `claude-sonnet-5` (4th/5th-hop only; prod primary is Ollama). Also flipped `NICK_VERIFIED_REGEN` on (activates the #1016 authority-regen; no DB override, env-driven, verified effective). Gates: typecheck 0 · eslint 0 · vitest (closed-loop math 7/7, perplexica 30/30) · check:crons clean · prisma validate.
 
-**Last verified:** 2026-10-18 (UI v3 W5b on branch statenour/ui-v3-w5b; see top entry; prior stamp 2026-10-17, UI v3 waves W0 to W2, #3056, #3065, #3066, #3067 and branch statenour/ui-v3-w2)
+**Last verified:** 2026-10-18 (UI v3 W5b on branch statenour/ui-v3-w5b and W5a on branch statenour/ui-v3-w5a; see the top entries; prior stamp 2026-10-17, UI v3 waves W0 to W2, #3056, #3065, #3066, #3067 and branch statenour/ui-v3-w2)
 
 - **Execution Mode (`1255c273`)**: Added focused task execution panel on `/missions` utilizing a memoized selector to prioritize tasks in "DOING" status, then queued tasks, then tasks from the Top Mission Today, real user projects, and general tasks. Includes callbacks for resume, pause, complete, snooze, block, edit, and exit.
 - **Hidden High-Risk Warning & Filters (`e9afbec8` & `9816a0b6`)**: Implemented a warning banner when high-risk tasks are hidden by active search, loop-kind filters, domain filters, or focus mode.

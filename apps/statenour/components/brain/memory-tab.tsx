@@ -26,13 +26,13 @@
  * when Nour clicks a contradiction chip, scrolling the row into view.
  */
 
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { MasterySectionLabel } from "@/components/mastery/mastery-section-label";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc/client";
 import { SkillLibraryPanel } from "@/components/settings/skill-library-panel";
-import { IdentityPanel } from "@/components/settings/identity-panel";
 import { MemoryOfDayCard } from "@/components/brain/memory-of-day-card";
 import { QualitativeIdentityPanel } from "@/components/brain/qualitative-identity-panel";
 import { CoachEventBanner } from "@/components/mastery/coach-event-banner";
@@ -213,7 +213,16 @@ export function MemoryTab() {
                 not machine health (docs/design/settings-census-2026-10-02.md). */}
             <MemoryOfDayCard />
             <SkillLibraryPanel />
-            <IdentityPanel />
+            {/* UI v3 W5a: IdentityPanel has one home, Settings > Identity and
+                Behavior (census 2026-10-02, section 1: a CONFIG block). This
+                ruled line replaces the second mount. */}
+            <Link
+              href="/settings"
+              className="flex min-h-[44px] items-center justify-between gap-3 border-y border-edge text-sm text-fg-secondary hover:text-fg"
+            >
+              <span>Identity axes and pins are edited in Settings, Identity and Behavior</span>
+              <span className="shrink-0 font-mono text-[11px] text-fg-tertiary">Open</span>
+            </Link>
             <QualitativeIdentityPanel />
             <BeliefsPanel />
           </div>
