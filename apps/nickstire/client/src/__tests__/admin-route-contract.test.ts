@@ -26,7 +26,7 @@ describe("admin route contract", () => {
     // 2026-10-19: Ad Studio was cut; /admin/ad-studio redirects to Instagram, and any
     // other /admin/<slug> path goes through the admin's slug resolver.
     expect(appSource).toContain('const AdminPathRedirect = lazy(() => import("./pages/admin/AdminPathRedirect"))');
-    expect(appSource).toContain('<Route path={"/admin/ad-studio"}>{() => <Redirect to="/admin?tab=instagram" />}</Route>');
+    expect(appSource).toContain('<Route path={"/admin/ad-studio"}>{() => <Redirect to="/admin?tab=instagram" replace />}</Route>');
     expect(appSource.indexOf('path={"/admin/*"}')).toBeGreaterThan(appSource.indexOf('path={"/admin/ad-studio"}'));
   });
 });

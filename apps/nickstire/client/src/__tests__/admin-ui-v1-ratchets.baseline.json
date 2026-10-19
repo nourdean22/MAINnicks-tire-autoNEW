@@ -6,7 +6,7 @@
     "transitionAll": 61,
     "slowDuration": 7,
     "smallInput": 107,
-    "offPalette": 133
+    "offPalette": 137
   },
   "files": {
     "client/src/components/admin/ActivityPulse.tsx": {
@@ -174,6 +174,9 @@
     },
     "client/src/pages/admin/leads/MarkContactedButton.tsx": {
       "smallInput": 1
+    },
+    "client/src/pages/admin/leads/TechnicianReferralsPanel.tsx": {
+      "offPalette": 4
     },
     "client/src/pages/admin/money/DeclinedEstimatesSection.tsx": {
       "emDash": 5
