@@ -10,6 +10,7 @@ import { evaluateQuality, ContentSourceRegistry, FormatRegistry, type SourceType
 import { buildDraftWorkspace, type DraftWorkspaceView } from "@/lib/facelessReelStudio";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import RealClipPicker from "./RealClipPicker";
 
 type Step = "source" | "format" | "draft";
 
@@ -731,6 +732,16 @@ export default function UnifiedStudio({ onNavigate, initialSource }: StudioProps
                                     </div>
                                   </div>
                                 </div>
+                                <RealClipPicker
+                                  beat={beat}
+                                  onChange={(patch) => {
+                                    setReelBrief((prev: any) => prev ? {
+                                      ...prev,
+                                      storyboardBeats: prev.storyboardBeats.map((b: any, i: number) => (i === idx ? { ...b, ...patch } : b)),
+                                    } : prev);
+                                    setScore(null);
+                                  }}
+                                />
                               </CardContent>
                             </Card>
                           ))}
