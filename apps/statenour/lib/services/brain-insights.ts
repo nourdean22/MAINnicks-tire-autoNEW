@@ -372,7 +372,7 @@ export async function buildBrainInsights(): Promise<BrainInsightsReport> {
         : recentCronFails === 0 && priorCronFails > 0
           ? "highlight"
           : "info",
-      link: "/system/health",
+      link: "/system",
     });
   }
 

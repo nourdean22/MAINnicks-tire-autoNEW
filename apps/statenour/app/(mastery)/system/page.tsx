@@ -637,7 +637,7 @@ export default function SystemPage() {
             · Nick brain panel · same memory counts surface on
               /brain · /brain/health · /system/coverage
             · Integrations · same status surfaces on the hub-grid
-              cards + /system/health
+              cards (the Diagnostics page was cut 2026-10-19)
           Wave 52 already deleted 3 sibling debug-dump cards for
           this same reason (per file header). This finishes the
           job. SystemHubGrid above is the page · attention-strip

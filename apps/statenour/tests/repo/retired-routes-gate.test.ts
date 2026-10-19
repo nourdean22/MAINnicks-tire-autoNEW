@@ -116,6 +116,13 @@ export const PRUNED: ReadonlyArray<{ route: string; to?: string; page?: false }>
   // and Proof (5 visits in 14 days).
   { route: "/pins", to: "/brain?tab=memory" },
   { route: "/proof", to: "/system" },
+  // 2026-10-19 · wave 2V cut 3: six System tiles and their pages (zero visits in 14 days). Errors was a view of Logs.
+  { route: "/system/health", to: "/system" },
+  { route: "/system/cockpit-observability", to: "/system" },
+  { route: "/system/ai-cost", to: "/system" },
+  { route: "/system/logs", to: "/system" },
+  { route: "/system/calibration", to: "/system" },
+  { route: "/system/fleet", to: "/system" },
   { route: "/api/short", to: "/", page: false },
   // Deleted API prefixes with no redirect (no page ever linked here for a person): nothing may request them.
   { route: "/api/content/history", page: false },

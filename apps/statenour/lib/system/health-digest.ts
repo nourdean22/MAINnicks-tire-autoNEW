@@ -195,7 +195,7 @@ export async function computeHealthDigest(): Promise<SystemHealthDigest> {
       pushFor("cron", {
         severity: "critical",
         headline: d.headline,
-        link: "/system/health",
+        link: "/system",
       });
     }
   }
@@ -238,7 +238,7 @@ export async function computeHealthDigest(): Promise<SystemHealthDigest> {
     pushFor("env", {
       severity: "warning",
       headline: `${env.total - env.ready} env groups not configured`,
-      link: "/system/health",
+      link: "/system",
     });
   }
 
@@ -246,7 +246,7 @@ export async function computeHealthDigest(): Promise<SystemHealthDigest> {
     pushFor("slow-routes", {
       severity: "warning",
       headline: `${slowRoutes} route${slowRoutes === 1 ? "" : "s"} slow (p95 > 2s, last 24h)`,
-      link: "/system/ai-cost",
+      link: "/system",
     });
   }
 
@@ -275,7 +275,7 @@ export async function computeHealthDigest(): Promise<SystemHealthDigest> {
     highlights.push({
       severity: "warning",
       headline: `${unnamedUnmeasured.length} probe${unnamedUnmeasured.length === 1 ? "" : "s"} unmeasured (${unnamedUnmeasured.join(", ")}) — treat as unknown, not clear`,
-      link: "/system/health",
+      link: "/system",
     });
   }
 
@@ -572,7 +572,7 @@ export function googleOauthHighlight(
       severity: "warning",
       headline: `Google OAuth status unknown — ${status.reason}`,
       // NOT the re-grant flow. There is nothing for the operator to re-grant.
-      link: "/system/health",
+      link: "/system",
     };
   }
   // Which account the worst state belongs to (all-accounts read, 08-F3): a
@@ -600,7 +600,7 @@ export function googleOauthHighlight(
     };
   }
   if (status.state === "stale") {
-    return { severity: "warning", headline: status.reason, link: "/system/health" };
+    return { severity: "warning", headline: status.reason, link: "/system" };
   }
   return null;
 }

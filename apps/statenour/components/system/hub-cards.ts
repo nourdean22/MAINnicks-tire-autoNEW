@@ -7,17 +7,12 @@
  */
 import {
   AlertCircle,
-  AlertTriangle,
   Archive,
   Bot,
   Brain,
   Clock,
-  DollarSign,
-  FileText,
   FlaskConical,
   Inbox,
-  Stethoscope,
-  Target,
 } from "lucide-react";
 
 export type Severity = "healthy" | "warning" | "critical" | "info" | "unknown";
@@ -93,45 +88,6 @@ export interface HubCard {
 // for what are already pure functions of the payload.
 export const CARDS: HubCard[] = [
   {
-    href: "/system/fleet",
-    paletteId: "sys-fleet",
-    keywords: ["fleet", "truth", "capability", "artifact", "probe", "both apps", "nickstire"],
-    title: "Fleet Truth",
-    icon: Stethoscope,
-    group: "health",
-    description:
-      "Cross-app capability artifacts: statenour probes + nickstire health, produced not just invoked",
-    // Static chip — this card links to the live view; claiming health
-    // here without probing would be the exact lie the page exists to end.
-    chip: () => ({ label: "both apps", severity: "unknown" }),
-  },
-  {
-    href: "/system/health",
-    paletteId: "sys-health",
-    keywords: ["health", "diagnostics", "probe", "env", "vectors", "backlog", "push", "pull", "oauth", "pulse", "stale", "cron", "rescan", "diagnose", "all"],
-    title: "Diagnostics",
-    icon: Stethoscope,
-    group: "health",
-    description:
-      "Unified probe hub: env · crons · errors · backlog · vectors · pulse",
-    featured: true,
-    // Live chip merged in from the former "OS Health" card. "healthy" is a
-    // claim about BOTH sources — if either scan did not run, the claim is
-    // not available (2026-08-04: the quota circuit fed this chip fabricated
-    // zeros and it printed "healthy" in green on a live page).
-    // The old `fatal24h > 0` half was a dead branch (no writer ever emits
-    // 'fatal'); degraded now keys on warning-level error volume instead.
-    chip: (d) => {
-      if (!d) return NOT_READ_CHIP;
-      if (d.errors.measured === false || d.crons.measured === false)
-        return UNMEASURED_CHIP;
-      const bad = d.errors.count24h > 20 || d.crons.silent > 2;
-      return bad
-        ? { label: "degraded", severity: "warning" }
-        : { label: "healthy", severity: "healthy" };
-    },
-  },
-  {
     href: "/system/crons",
     paletteId: "sys-crons",
     keywords: ["cron", "schedule", "job", "kill", "manual", "silent", "slow", "diagnose"],
@@ -147,31 +103,6 @@ export const CARDS: HubCard[] = [
       // A declared count is not a health verdict; silent jobs are the signal (09-F24).
       if (d.crons.silent > 0) return { label: `${d.crons.silent} silent`, severity: "warning" };
       return { label: `${d.crons.declared} jobs`, severity: "info" };
-    },
-  },
-  {
-    // v10.0.306 · /system/errors absorbed into /system/logs as a
-    // GROUPED view-mode tab. Fingerprint deck + per-row open-as-task
-    // still here, just one fewer page route.
-    href: "/system/logs?view=errors",
-    paletteId: "sys-errors",
-    keywords: ["error", "log", "stack", "fingerprint"],
-    title: "Errors",
-    icon: AlertTriangle,
-    group: "health",
-    description: "Fingerprinted error log with frequency + stack grouping",
-    // fatal24h counts level='error' (no writer ever emits 'fatal' — the old
-    // >0-critical branch could never fire). Thresholds from the live
-    // 2026-08-04 baseline (~12.6 errors/day): >=40/24h (~3x mean) critical,
-    // >20/24h warning. Bare >0 would flag most ordinary days.
-    chip: (d) => {
-      if (!d) return NOT_READ_CHIP;
-      if (d.errors.measured === false) return UNMEASURED_CHIP;
-      if (d.errors.fatal24h >= 40)
-        return { label: `${d.errors.fatal24h} errors 24h`, severity: "critical" };
-      if (d.errors.count24h > 20)
-        return { label: `${d.errors.count24h} errs 24h`, severity: "warning" };
-      return { label: `${d.errors.count24h} 24h`, severity: "healthy" };
     },
   },
   {
@@ -193,22 +124,6 @@ export const CARDS: HubCard[] = [
     group: "governance",
     description: "Nick's autonomous action audit: rules · approvals · history",
     chip: () => ({ label: "audit", severity: "info" }),
-  },
-  {
-    href: "/system/ai-cost",
-    paletteId: "sys-ai-cost",
-    keywords: ["cost", "nick", "tokens", "budget", "burn"],
-    title: "AI Cost",
-    icon: DollarSign,
-    group: "ai",
-    description: "Per-model + per-feature burn rate with daily budget",
-    chip: (d) => {
-      if (!d) return NOT_READ_CHIP;
-      // A fabricated "$0.00 7d" reads as a spend observation; it is not.
-      if (d.ai.measured === false) return UNMEASURED_CHIP;
-      const usd = (d.ai.costCents7d / 100).toFixed(2);
-      return { label: `$${usd} 7d`, severity: "info" };
-    },
   },
   {
     // /brain/categories was deleted in the brain consolidation (no
@@ -249,16 +164,6 @@ export const CARDS: HubCard[] = [
     },
   },
   {
-    href: "/system/logs",
-    paletteId: "sys-logs",
-    keywords: ["log", "request", "stream", "api", "generation"],
-    title: "Logs",
-    icon: FileText,
-    group: "data",
-    description: "Recent request log + AI generation stream",
-    chip: () => ({ label: "view", severity: "info" }),
-  },
-  {
     // 2026-09-15 · UI workbench. The inspector chrome, its four honest
     // non-content states, the metric grammar and the evidence mark against
     // fixtures. Split from Chat States because that page is pinned by
@@ -272,37 +177,6 @@ export const CARDS: HubCard[] = [
     description: "Inspector, metric + evidence primitives against fixtures, frozen clock, nothing mocked",
     chip: () => ({ label: "gallery", severity: "info" }),
     lab: true,
-  },
-  {
-    // v-truth · calibration is a LIVE page but the prune left it with no
-    // hub card (the quality/eval cards that redirected here were removed).
-    // Restore one honest, direct card so it stays reachable.
-    href: "/system/calibration",
-    paletteId: "sys-calibration",
-    keywords: ["calibration", "quality", "state", "mood", "hit rate", "suggestion", "judge", "eval", "operator state"],
-    title: "State Calibration",
-    icon: Target,
-    group: "ai",
-    // Prediction accuracy (Brier) lives on /stats?tab=calibration; this page is the mood x kind grid (10-X3).
-    description: "Suggestion hit rate by mood, LLM judge agreement",
-    chip: () => ({ label: "eval", severity: "info" }),
-  },
-  {
-    href: "/system/cockpit-observability",
-    paletteId: "sys-cockpit",
-    keywords: ["cockpit", "observability", "trace", "metric", "decay", "prompt version"],
-    title: "Cockpit Observability",
-    icon: Brain,
-    group: "ai",
-    description: "Live metrics, execution traces, memory decay, and prompt versions for Nick",
-    // 2026-07-25 honest-health: was a hardcoded `() => "observing"/healthy`
-    // that ignored the rollup — a fabricated status. Now shows the measured
-    // 24h AI-call count as telemetry ("info"), never an unearned "healthy".
-    chip: (d) => {
-      if (!d) return NOT_READ_CHIP;
-      if (d.ai.measured === false) return UNMEASURED_CHIP;
-      return { label: `${d.ai.calls24h} calls · 24h`, severity: "info" };
-    },
   },
   {
     // 2026-06-18 · IA reorg Phase 2 · surface the last orphaned system page.

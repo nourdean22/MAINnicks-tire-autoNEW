@@ -45,19 +45,15 @@ const PAGES = [
   { path: "/", title: /NOUR OS|Ultron|HQ/i },
   { path: "/chat", title: /Nick|Chat/i },
   { path: "/system", title: /system/i },
-  { path: "/system/ai-cost", title: /ai cost/i },
   // 2026-07-25 hermetic-CI: /intelligence/brief server-renders an
   // AI-GENERATED brief — with a dummy provider key the RSC stream never
   // completes and page.goto hangs (proven in e2e run 6). AI-dependent
   // surfaces are the operator-keyed extra; /missions covers the core
   // execution surface hermetically instead.
   { path: "/missions", title: /Missions/i },
-  { path: "/pins", title: /pinned memory|Pins/i },
   { path: "/stats", title: /Stats/i },
   { path: "/photo-improver", title: /photo improver/i },
   { path: "/brain?tab=health", title: /Brain/i },
-  { path: "/system/cockpit-observability", title: /cockpit observability|Observability/i },
-  { path: "/system/health", title: /os health|Health/i },
 ];
 
 for (const p of PAGES) {

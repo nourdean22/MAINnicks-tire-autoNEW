@@ -438,7 +438,7 @@ export const cronHeartbeat = inngest.createFunction(
       failing.length === 0
         ? ""
         : `Running but FAILING every run: ${failDetail}${failing.length > 8 ? " …" : ""}. These fire on schedule, so the silence check cannot see them. `;
-    const body = `${silentLine}${failingLine}Check /system/health.`;
+    const body = `${silentLine}${failingLine}Check /system.`;
 
     // Out-of-band alert on BOTH surfaces. recordCoachEvent never throws;
     // sendTelegram no-ops if BOT_TOKEN is unset. Wrapped in a step so a
@@ -452,7 +452,7 @@ export const cronHeartbeat = inngest.createFunction(
         priority: "P0",
         title,
         body,
-        deepLink: "/system/health",
+        deepLink: "/system",
         surfaces: ["scoreboard", "brain"],
         expiresAt: new Date(now + 25 * HOUR_MS).toISOString(),
       });

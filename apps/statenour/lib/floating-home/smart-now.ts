@@ -44,7 +44,7 @@ export function pickSmartNow(args: {
     const fatalErrors = pulse.errorsFatal6h ?? pulse.errorsFatal24h ?? 0;
     const criticalCronFails = pulse.cronFails1h ?? 0;
     if (fatalErrors > 0 || criticalCronFails > 0) {
-      const target = "/system/health";
+      const target = "/system";
       if (!pathname.startsWith(target)) {
         const issues = fatalErrors + criticalCronFails;
         return {
@@ -77,7 +77,7 @@ export function pickSmartNow(args: {
   if (pulse) {
     const errorRate = pulse.aiErrorRate1h ?? pulse.aiErrorRate ?? 0;
     if (errorRate > 30) {
-      const target = "/system/health";
+      const target = "/system";
       if (!pathname.startsWith(target)) {
         return {
           href: target,

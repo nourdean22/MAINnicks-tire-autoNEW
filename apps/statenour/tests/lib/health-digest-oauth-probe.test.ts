@@ -98,7 +98,7 @@ describe("googleOauthHighlight", () => {
       status({ state: "stale", reason: "ingest has not written rows in 9 days" }),
     );
     expect(stale!.severity).toBe("warning");
-    expect(stale!.link).toBe("/system/health");
+    expect(stale!.link).toBe("/system");
   });
 
   it("emits nothing when OAuth is healthy", () => {

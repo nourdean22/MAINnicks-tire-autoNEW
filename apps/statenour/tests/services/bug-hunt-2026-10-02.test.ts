@@ -95,6 +95,6 @@ describe("source pins for fixes that live in SQL text or prompts", () => {
     const nudge = read("lib/brain/cross-system-nudge.ts");
     expect(nudge).not.toContain("triage in /settings");
     expect(nudge.match(/link: "\/brain\?tab=memory"/g)?.length).toBe(2);
-    expect(read("features/chat-v2/components/chat-capability-indicator.tsx")).toContain('href="/system/health"');
+    expect(read("features/chat-v2/components/chat-capability-indicator.tsx")).toContain('href="/system"');
   });
 });

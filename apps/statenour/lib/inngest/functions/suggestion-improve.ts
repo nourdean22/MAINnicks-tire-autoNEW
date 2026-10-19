@@ -53,7 +53,7 @@ export const suggestionImproveWeekly = inngest.createFunction(
           priority: "P2",
           title: `${result.persisted} suggestion kind${result.persisted > 1 ? "s" : ""} flagged noisy`,
           body: `You are mostly dismissing: ${kindList}. Hypotheses persisted to brain memory — review the trigger thresholds in /api/nick/suggest.`,
-          deepLink: "/system/health",
+          deepLink: "/system",
           surfaces: ["scoreboard", "brain"],
           expiresAt: new Date(Date.now() + 8 * 24 * 3_600_000).toISOString(),
         });

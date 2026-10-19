@@ -46,11 +46,3 @@ describe("outcomeStats undecided vs lapsed vs rating-only", () => {
     expect(m.findMany.mock.calls[0][0].select).toMatchObject({ kind: true, shownAt: true });
   });
 });
-
-describe("the fleet delivery panel is the consumer", () => {
-  it("renders lapsed and rating-only beside undecided", () => {
-    const src = readFileSync(new URL("../../app/(mastery)/system/fleet/page.tsx", import.meta.url), "utf8");
-    expect(src).toContain("{delivery.data.stats.lapsed} lapsed");
-    expect(src).toContain("{delivery.data.stats.ratingOnly} rating-only");
-  });
-});

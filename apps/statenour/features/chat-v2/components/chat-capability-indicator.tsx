@@ -48,7 +48,7 @@ export function ChatCapabilityIndicator() {
 
   return (
     <Link
-      href="/system/health"
+      href="/system"
       title={label}
       aria-label={`${label} (capability health)`}
       className="inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-control px-1.5 text-[12px] text-fg-secondary transition-colors duration-[var(--motion-state)] hover:text-fg"

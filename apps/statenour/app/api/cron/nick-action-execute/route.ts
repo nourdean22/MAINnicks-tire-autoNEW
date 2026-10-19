@@ -65,7 +65,7 @@ export const GET = cronHandler(async () => {
     try {
       const { sendTelegram } = await import("@/lib/services/telegram");
       await sendTelegram(
-        `🚨 <b>Nick executor FAILED · ${today}</b>\n\n${msg}\n\n<i>Approved actions stay pending · /system/actions shows them · audit /system/logs for the stack.</i>`,
+        `🚨 <b>Nick executor FAILED · ${today}</b>\n\n${msg}\n\n<i>Approved actions stay pending · /system/actions shows them · audit the Railway logs for the stack.</i>`,
         undefined,
         "HTML",
       );

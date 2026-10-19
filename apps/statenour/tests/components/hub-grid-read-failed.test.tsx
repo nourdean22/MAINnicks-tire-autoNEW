@@ -36,7 +36,7 @@ beforeEach(() => {
 
 describe("hub grid · a failed rollup read is unknown, not a dash", () => {
   it("the subject is real: several cards read the rollup", () => {
-    expect(LIVE.length).toBeGreaterThanOrEqual(5);
+    expect(LIVE.length).toBeGreaterThanOrEqual(3);
   });
 
   it("a failed read prints the word unknown on every live card", () => {

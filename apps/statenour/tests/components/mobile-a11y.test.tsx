@@ -268,13 +268,12 @@ describe("A9 · coach-event dismiss is reachable on the iOS PWA", () => {
 });
 
 describe("A9 · ultron cards bind to a defined text token", () => {
-  it("system-health / hq-errors / deploy-chip no longer reference the undefined --text-muted", () => {
+  it("hq-errors / deploy-chip no longer reference the undefined --text-muted", () => {
     // --text-muted is defined nowhere in globals.css, so the arbitrary
     // value resolved to an invalid colour. All swapped to --text-tertiary.
     // hq-errors-card.tsx deleted 2026-10-02 (duplicate of the /system control
     // tower's errors line + /system/logs?view=errors).
     for (const f of [
-      "components/ultron/system-health-card.tsx",
       "components/ultron/deploy-chip.tsx",
     ]) {
       expect(readSource(f)).not.toContain("var(--text-muted)");
