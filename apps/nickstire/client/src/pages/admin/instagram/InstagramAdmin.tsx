@@ -21,6 +21,7 @@ import Strategy from "./Strategy";
 import AutonomyCommandCenter from "@/components/admin/AutonomyCommandCenter";
 import ActionCenter from "./ActionCenter";
 import { Pipeline } from "./Pipeline";
+import { PhotoCheckCard } from "./PhotoCheckCard";
 import ErrorBoundary from "@/components/ErrorBoundary";
 
 /**
@@ -190,7 +191,12 @@ export function InstagramAdmin() {
       >
       <div className="min-h-0 flex-1">
         {activeView === "today" && <Today onNavigate={navigate} />}
-        {activeView === "create" && <StudioV2 onNavigate={navigate} />}
+        {activeView === "create" && (
+          <div className="space-y-4">
+            <StudioV2 onNavigate={navigate} />
+            <PhotoCheckCard />
+          </div>
+        )}
         {activeView === "publish" && <QueueV2 />}
         {activeView === "community" && <Inbox onNavigate={(legacyTab) => navigate(legacyTab === "studio" ? "create" : "today")} />}
         {activeView === "insights" && <Learn onNavigate={navigate} />}
