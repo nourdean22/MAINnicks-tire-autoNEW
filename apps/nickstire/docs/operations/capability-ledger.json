@@ -5601,7 +5601,7 @@
       "blockers": [
         {
           "severity": "P2",
-          "description": "Flag GATEWAY_ORDERING_ENABLED is off; the first real D&K order from /admin on a paid order is Nour's call and the live proof (D&K order number on the order row + audit row)",
+          "description": "GATEWAY_ORDERING_ENABLED=true since 2026-10-19 00:20Z (Nour's order); the Order from D&K section now shows to money.manage admins on paid orders. The first real submit on a paid order is the live proof still owed (D&K order number on the row + audit row); no D&K order has been placed through it yet.",
           "source": "job 2026-10-18-dk-supplier-order"
         }
       ],
@@ -5609,14 +5609,14 @@
         "D&K order status sync back to the order row",
         "automatic ordering (rejected: supplier orders stay a one-tap admin action)"
       ],
-      "lastVerifiedAt": "2026-10-18",
+      "lastVerifiedAt": "2026-10-19",
       "codeState": "merged",
-      "operationalState": "unit_verified",
-      "exposure": "disabled",
+      "operationalState": "integration_verified",
+      "exposure": "operator_only",
       "evidence": {
         "codeCommit": "PR #3152, squash 8b189e8b7 (branch nickstire/order-completion-dk-kafene) (job 2026-10-18-dk-supplier-order). server/services/gatewaySupplierOrder.ts + server/routers/gatewayOrder.ts: admin mutations prepare / submit / clearOurLines behind GATEWAY_ORDERING_ENABLED and money.manage; audit action tireorder.supplier_ordered (server/services/auditTrail.ts); shared/adminPermissions.ts. client/src/components/admin/GatewayOrderPanel.tsx on the Tire Orders card (prepare then submit behind the in-DOM confirm).",
-        "tests": "server/__tests__/gatewayOrder.test.ts 29 (lane red-first); client/src/__tests__/gateway-order-panel.test.tsx; admin-customer-copy-pins.test.ts counts the new confirm (32 -> 33); manager run on the combined tip 5e2906ef9: 13 files passed, tsc exit 0",
-        "liveProbe": "Not run against D&K: the flag is off and a supplier order is a protected operation. Manager read-only probe 2026-10-18 proved the account has cart_write + order_write and that cart endpoints need ship_from and exact submodel values. Live 2026-10-18 after deploy 8b189e8b7: gatewayOrder.prepare without an admin session -> FORBIDDEN (the money.manage gate holds)."
+        "tests": "server/__tests__/gatewayOrder.test.ts 29 (lane red-first); client/src/__tests__/gateway-order-panel.test.tsx; admin-customer-copy-pins.test.ts counts the new confirm (32 -> 33); manager run on the combined tip 5e2906ef9: 13 files passed, tsc exit 0; integration: server/__tests__/gatewayOrder.test.ts drives the real gatewayClient + gatewaySupplierOrder against a stubbed D&K fetch (cart, PO, submit, CAS claim, cart_mismatch), client/src/__tests__/gateway-order-panel.test.tsx drives the panel against the router's answer shapes",
+        "liveProbe": "Flag GATEWAY_ORDERING_ENABLED is ON since 2026-10-19 00:20Z (set on Railway on the operator order; container redeployed, /api/health uptime reset). No real D&K order has been placed through the admin yet: the first submit on a paid order is the live proof. Historical, 2026-10-18 while the flag was off: manager read-only probe with the shop login proved the account has cart_write + order_write and that cart endpoints need ship_from and exact submodel values; deploy 8b189e8b7 read-only: gatewayOrder.prepare without an admin session -> FORBIDDEN (the money.manage gate holds)."
       }
     },
     {
