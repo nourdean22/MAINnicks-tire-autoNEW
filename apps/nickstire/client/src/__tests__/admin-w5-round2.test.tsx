@@ -49,7 +49,6 @@ vi.mock("@/pages/admin/settings/DeclinedRecoveryPanel", () => ({ default: h.Null
 vi.mock("@/pages/admin/shared/SectionInsightStrip", () => ({ default: h.Null, SectionInsightStrip: h.Null }));
 
 import SettingsSection from "@/pages/admin/SettingsSection";
-import IntegrationsSection from "@/pages/admin/settings/IntegrationsSection";
 import OpsHubSection from "@/pages/admin/OpsHubSection";
 import { LiveCallsCard } from "@/pages/admin/voice/LiveCallsCard";
 import { CustomerIntelligence } from "@/pages/admin/intelligence/CustomerIntelligence";
@@ -109,9 +108,6 @@ describe("Settings ALG status while loading", () => {
     expect(screen.queryByText(/ALG offline/i)).toBeNull();
     expect(screen.queryByText(/ALG status couldn't load/)).toBeNull();
   });
-});
-
-describe("Estimate line type", () => {
 });
 
 describe("CustomerIntelligence phone with no digits", () => {
