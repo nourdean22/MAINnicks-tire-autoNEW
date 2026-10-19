@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "nickstire/bdnick-pii-redaction",
+  "status": "active",
+  "sessionKind": "bridge",
+  "sessionId": "ee66da8a-fb60-434e-8ebe-990e50a73302",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.worktrees\\bdnick-pii",
+  "claimedBy": "worktree-setup.ps1",
+  "claimedAt": "2026-10-19T10:42:00.623Z",
+  "expiresAt": "2026-10-19T22:42:00.623Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
