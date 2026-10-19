@@ -28,14 +28,14 @@ export function stateFingerprint(parts: string[]): string {
  * True when this caller won the claim for (alertKey, today in ET) and should send.
  * `now` is injectable for the day-boundary tests.
  */
-async function claimAlertOnce(alertKey: string, now: Date = new Date()): Promise<boolean> {
+async function claimAlertOnce(alertKey: string, now: Date = new Date(), firedFor: string = getBusinessDateKey(now)): Promise<boolean> {
   try {
     const { getDb } = await import("../db");
     const db = await getDb();
     if (!db) return true;
     const [result] = await db.execute(sql`
       INSERT IGNORE INTO cron_alerts_fired (alert_key, fired_for, fired_at)
-      VALUES (${alertKey.slice(0, 100)}, ${getBusinessDateKey(now)}, NOW())
+      VALUES (${alertKey.slice(0, 100)}, ${firedFor}, NOW())
     `);
     return ((result as { affectedRows?: number })?.affectedRows ?? 0) === 1;
   } catch (err) {
@@ -45,13 +45,13 @@ async function claimAlertOnce(alertKey: string, now: Date = new Date()): Promise
 }
 
 /** Hands a claim back (the day's slot for this state) so a later tick may try again. */
-async function releaseAlertClaim(alertKey: string, now: Date = new Date()): Promise<void> {
+async function releaseAlertClaim(alertKey: string, now: Date = new Date(), firedFor: string = getBusinessDateKey(now)): Promise<void> {
   try {
     const { getDb } = await import("../db");
     const db = await getDb();
     if (!db) return;
     await db.execute(sql`
-      DELETE FROM cron_alerts_fired WHERE alert_key = ${alertKey.slice(0, 100)} AND fired_for = ${getBusinessDateKey(now)}
+      DELETE FROM cron_alerts_fired WHERE alert_key = ${alertKey.slice(0, 100)} AND fired_for = ${firedFor}
     `);
   } catch (err) {
     log.warn("alert claim release failed; the state stays claimed for today", { alertKey, error: err instanceof Error ? err.message : String(err) });
@@ -77,5 +77,29 @@ export async function sendOncePerState(
     throw err;
   }
   if (result.status === "failed") await releaseAlertClaim(alertKey, now);
+  return result;
+}
+
+/** fired_for is a DATE column; this fixed value makes a claim that no later day can repeat. */
+const EVER_FIRED_FOR = "1970-01-01";
+
+/**
+ * sendOncePerState without the day: once per STATE for good. For a daily job whose state
+ * persists for days (an unanswered urgent review), where a per-day claim re-sends the same
+ * state every morning. Same give-back on a failed send, so a failed delivery retries.
+ */
+export async function sendOncePerStateEver(
+  alertKey: string,
+  send: () => Promise<TelegramSendResult>,
+): Promise<TelegramSendResult | null> {
+  if (!(await claimAlertOnce(alertKey, new Date(), EVER_FIRED_FOR))) return null;
+  let result: TelegramSendResult;
+  try {
+    result = await send();
+  } catch (err) {
+    await releaseAlertClaim(alertKey, new Date(), EVER_FIRED_FOR);
+    throw err;
+  }
+  if (result.status === "failed") await releaseAlertClaim(alertKey, new Date(), EVER_FIRED_FOR);
   return result;
 }

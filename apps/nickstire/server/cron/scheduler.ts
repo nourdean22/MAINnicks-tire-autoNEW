@@ -2863,23 +2863,11 @@ function buildTiers(): void {
         requiresEnv: "GOOGLE_MAPS_API_KEY",
         handler: async () => {
           try {
-            const { runReviewPipeline, getUrgentReviews } = await import("../pipelines/gbp-reviews");
+            const { runReviewPipeline, getUrgentReviews, notifyUrgentReviews } = await import("../pipelines/gbp-reviews");
             const result = await runReviewPipeline();
             const urgent = await getUrgentReviews();
-            if (urgent.length > 0) {
-              // Once per urgent SET (2026-10-19): the same unanswered review was
-              // re-alerted every day; a new urgent review changes the fingerprint.
-              const { sendOncePerState, stateFingerprint } = await import("../services/alertClaim");
-              const { sendTelegramResult } = await import("../services/telegram");
-              const state = stateFingerprint(urgent.map((r: Record<string, unknown>) => String(r.id ?? r.reviewId ?? `${r.authorName}:${r.rating}`)));
-              await sendOncePerState(`urgent-reviews:${state}`, () =>
-                sendTelegramResult(
-                  `⭐ URGENT REVIEWS: ${urgent.length} need response!\n\n` +
-                  urgent.slice(0, 3).map((r: Record<string, unknown>) => `${r.rating}★ ${r.authorName || "Anonymous"}: "${(String(r.text || "")).slice(0, 80)}..."`).join("\n") +
-                  `\n\nReply on Google (Business Profile reviews).`, "incident",
-                ),
-              );
-            }
+            // Once per urgent SET for good (2026-10-19): see notifyUrgentReviews.
+            await notifyUrgentReviews(urgent);
             return { recordsProcessed: result.fetched || 0, details: `${result.fetched || 0} reviews synced, ${urgent.length} urgent` };
           } catch (e) {
             // Same swallow-into-success shape as gsc-pipeline above. A review

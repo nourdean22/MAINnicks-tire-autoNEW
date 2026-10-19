@@ -2417,7 +2417,7 @@ import {
   smsConversations, InsertSmsConversation, SmsConversation,
   smsMessages, InsertSmsMessage,
   repairGallery, InsertRepairGalleryItem,
-  technicians, InsertTechnician,
+  technicians,
   customers,
 } from "../drizzle/schema";
 
@@ -2781,27 +2781,6 @@ export async function getAllTechnicians() {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(technicians).orderBy(desc(technicians.createdAt)).limit(100);
-}
-
-export async function createTechnician(data: InsertTechnician) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  const result = await db.insert(technicians).values(data);
-  return { success: true, id: Number(result[0].insertId) };
-}
-
-export async function updateTechnician(id: number, data: Partial<InsertTechnician>) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  await db.update(technicians).set(data).where(eq(technicians.id, id));
-  return { success: true };
-}
-
-export async function deleteTechnician(id: number) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  await db.delete(technicians).where(eq(technicians.id, id));
-  return { success: true };
 }
 
 // ─── INVOICE HELPERS ─────────────────────────────────────────

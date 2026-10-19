@@ -1747,11 +1747,6 @@
       "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
     },
     {
-      "file": "apps/nickstire/server/lib/cwv-telemetry.ts",
-      "symbol": "resetCwvBuffer",
-      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
-    },
-    {
       "file": "apps/nickstire/client/src/lib/facelessReelStudio.ts",
       "symbol": "PUBLISH_ENABLED",
       "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"

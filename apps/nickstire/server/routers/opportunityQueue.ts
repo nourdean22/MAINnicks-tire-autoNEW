@@ -40,7 +40,7 @@ export const opportunityQueueRouter = router({
 
   /**
    * State transition with a mandatory receipt author. `won` is rejected
-   * here by the service — use recordOutcome with an invoice id.
+   * here by the service: only the invoice reconciler sets it, when a paid invoice matches.
    */
   transition: adminProcedure
     .input(

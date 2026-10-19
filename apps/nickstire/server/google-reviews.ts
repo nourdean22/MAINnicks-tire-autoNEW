@@ -5,8 +5,8 @@
  * Caches results for 1 hour to avoid excessive API calls.
  *
  * When the API key is not configured, falls back to DB-stored review stats
- * (editable from admin dashboard) instead of returning null. Those stats are
- * ADMIN-ENTERED only: the automatic copy of Google's rating/count into
+ * instead of returning null. No admin screen writes them any more (2026-10-19);
+ * they were ADMIN-ENTERED only: the automatic copy of Google's rating/count into
  * shop_settings (saveBackupStatsToDb, updatedBy "system_sync") was removed in
  * Q-48 because the Places terms do not allow storing it.
  */

@@ -144,6 +144,22 @@ export const garageRouter = router({
   }),
 });
 
+/**
+ * Staff heads-up for a public submission (2026-10-19). The admin screens that listed
+ * referrals and questions were retired, so without this a saved submission reached
+ * nobody. First name only, never a phone or email. Fail-soft: a Telegram outage
+ * never fails the customer's submit.
+ */
+async function notifyStaffOfSubmission(text: string): Promise<void> {
+  try {
+    const { sendTelegram } = await import("../services/telegram");
+    await sendTelegram(text, "digest");
+  } catch (err) {
+    log.warn("[public-submit] staff Telegram failed", { error: err instanceof Error ? err.message : String(err) });
+  }
+}
+const firstNameOf = (name: string) => (name.trim().split(/\s+/)[0] || "Someone").slice(0, 40);
+
 export const referralsRouter = router({
   submit: publicProcedure
     // 2026-09-10 · every bound here matches the `referrals` column width in
@@ -191,7 +207,7 @@ export const referralsRouter = router({
       // either way, and leaving it on the raw values keeps that logic exactly
       // as it was audited. Raw input reached the DB before this — every other
       // public write form in this app (lead, callback, candidates) sanitizes.
-      return createReferral({
+      const saved = await createReferral({
         referrerName: sanitizeText(input.referrerName),
         referrerPhone: sanitizePhone(input.referrerPhone),
         referrerEmail: input.referrerEmail ? sanitizeEmail(input.referrerEmail) : undefined,
@@ -199,6 +215,10 @@ export const referralsRouter = router({
         refereePhone: sanitizePhone(input.refereePhone),
         refereeEmail: input.refereeEmail ? sanitizeEmail(input.refereeEmail) : undefined,
       });
+      await notifyStaffOfSubmission(
+        `🤝 New referral: ${firstNameOf(sanitizeText(input.referrerName))} referred ${firstNameOf(sanitizeText(input.refereeName))}. Contact details are in the referrals table.`,
+      );
+      return saved;
     }),
 });
 
@@ -218,7 +238,11 @@ export const qaRouter = router({
       category: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
-      return createQuestion(input);
+      const saved = await createQuestion(input);
+      await notifyStaffOfSubmission(
+        `❓ New question from ${firstNameOf(input.questionerName)}: "${input.question.slice(0, 300)}"`,
+      );
+      return saved;
     }),
 });
 

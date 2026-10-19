@@ -313,7 +313,6 @@ async function startServer() {
   app.use(withBatchRegex("chat.message"), blockBatchedLimits, aiLimiter);
   app.use(withBatchRegex("chat.history"), blockBatchedLimits, aiLimiter);
   app.use(withBatchRegex("diagnose.analyze"), blockBatchedLimits, aiLimiter);
-  app.use(withBatchRegex("search.ai"), blockBatchedLimits, aiLimiter);
   app.use(withBatchRegex("memberships.startCheckout"), formLimiter);
   app.use(withBatchRegex("laborEstimate.generate"), aiLimiter);
   app.use(withBatchRegex("costEstimator.estimate"), aiLimiter);
@@ -396,8 +395,8 @@ async function startServer() {
   registerObservabilityRoutes(app, requireAdminApiKey);
 
   // ─── Public analytics + telemetry sinks ────────────────
-  // POST /api/analytics/conversion, /api/track-abandoned, /api/uber-code,
-  // /api/cwv — moved verbatim to ../routes/analyticsRoutes (each keeps
+  // POST /api/analytics/conversion, /api/track-abandoned, /api/uber-code
+  // — moved verbatim to ../routes/analyticsRoutes (each keeps
   // its own per-route express.json({ limit }) body parser). Registered
   // here, in the same position the handlers occupied (before tRPC).
   registerAnalyticsRoutes(app);

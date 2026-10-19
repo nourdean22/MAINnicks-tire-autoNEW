@@ -588,7 +588,7 @@ export async function transitionOpportunity(params: {
   if (!db) return { ok: false, error: "DB unavailable" };
 
   if (params.to === "won") {
-    return { ok: false, error: "won is only reachable via recordOutcome with a verified invoice id" };
+    return { ok: false, error: "won cannot be set by hand: it is set when a paid invoice matching this opportunity syncs" };
   }
 
   try {

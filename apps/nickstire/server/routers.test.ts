@@ -195,16 +195,6 @@ describe.skipIf(!HAS_DB)("qa.ask", () => {
   });
 });
 
-// ─── PRICING ──────────────────────────────────────────
-
-describe.skipIf(!HAS_DB)("pricing.allServices", () => {
-  it("returns a list of all services with pricing", async () => {
-    const caller = appRouter.createCaller(createPublicContext());
-    const result = await caller.pricing.allServices();
-    expect(Array.isArray(result)).toBe(true);
-    // May be empty if no pricing data seeded, but should not throw
-  });
-});
 
 describe.skipIf(!HAS_DB)("pricing.estimate", () => {
   it("returns a price estimate for a valid service", async () => {
@@ -422,22 +412,6 @@ describe.skipIf(!HAS_DB)("reviewRequests", () => {
       expect(result).toHaveProperty("scheduled");
       expect(result).toHaveProperty("skipped");
       expect(result).toHaveProperty("total");
-    });
-  });
-
-  // Public: trackClick
-  describe("reviewRequests.trackClick", () => {
-    it("handles invalid token gracefully", async () => {
-      const caller = appRouter.createCaller(createPublicContext());
-      const result = await caller.reviewRequests.trackClick({ token: "nonexistent-token" });
-      expect(result).toHaveProperty("redirectUrl");
-      expect(result.redirectUrl).toContain("google.com/local/writereview");
-    });
-
-    it("validates token length", async () => {
-      const caller = appRouter.createCaller(createPublicContext());
-      const longToken = "a".repeat(65);
-      await expect(caller.reviewRequests.trackClick({ token: longToken })).rejects.toThrow();
     });
   });
 
