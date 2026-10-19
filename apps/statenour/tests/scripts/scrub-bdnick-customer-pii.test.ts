@@ -301,6 +301,13 @@ describe("dry run through the real Prisma adapter · every write method throws",
   });
 });
 
+describe("the adapter refuses a read it cannot judge", () => {
+  it("a jsonb column that comes back as text throws instead of counting 0 to change", async () => {
+    const client = { $queryRawUnsafe: vi.fn(async () => [{ id: "a1", eventType: "business_metrics_sync", payload: '{"customerName":"Jane Roe"}' }]) };
+    await expect(prismaScrubDb(client).readBatch(bucket("audit_business_metrics_sync"), "", 500, false)).rejects.toThrow(/came back as text/);
+  });
+});
+
 describe("arguments and target check", () => {
   it("--execute needs --expect, --target and --prod-host", () => {
     expect(() => parseArgs(["--execute"])).toThrow(/--expect/);

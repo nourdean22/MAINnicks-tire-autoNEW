@@ -315,11 +315,18 @@ export function prismaScrubDb(client: unknown): ScrubDb {
   return {
     async readBatch(b, afterId, limit, onlyBackedUp) {
       const only = onlyBackedUp ? ` AND id IN (SELECT id FROM ${b.table.backup})` : "";
-      return db.$queryRawUnsafe<Row[]>(
+      const rows = await db.$queryRawUnsafe<Row[]>(
         `SELECT ${b.read.join(", ")} FROM ${b.table.name} WHERE (${b.where})${only} AND id > $1 ORDER BY id LIMIT $2`,
         afterId,
         limit,
       );
+      // A jsonb column read back as text would make every transform a no-op: a silent "0 to change".
+      for (const r of rows) {
+        for (const w of b.write) {
+          if (w.json && typeof r[w.col] === "string") throw new Error(`${b.name}: ${w.col} came back as text, not JSON (row ${r.id}); refusing to count`);
+        }
+      }
+      return rows;
     },
     async backupExists(t) {
       const rows = await db.$queryRawUnsafe<Array<{ n: bigint | number }>>(
@@ -391,7 +398,7 @@ export async function run(db: ScrubDb, opts: RunOptions): Promise<Summary> {
   const { log } = opts;
   const summary: Summary = { buckets: {}, totalToChange: 0, written: 0 };
   const abort = (why: string): Summary => {
-    log(`ABORTED before any write: ${why}`);
+    log(`ABORTED, no row updated: ${why}`);
     return { ...summary, aborted: why };
   };
   // A resume counts only rows that have a backup, which is all it will write.
@@ -431,16 +438,20 @@ export async function run(db: ScrubDb, opts: RunOptions): Promise<Summary> {
   // 3. Backups (or, on resume, the ones already there).
   if (!opts.resume) {
     for (const t of tables) if (await db.backupExists(t)) return abort(`backup table ${t.backupName} already exists (use --resume to continue a run)`);
+    const created: string[] = [];
+    // A later table failing leaves the earlier backups in place; the operator decides what to do with them.
+    const kept = () => (created.length ? `; backups already created and kept: ${created.join(", ")}` : "");
     for (const t of tables) {
       const where = BUCKETS.filter((b) => b.table === t).map((b) => `(${b.where})`).join(" OR ");
       let counts: { backedUp: number; inScope: number };
       try {
         counts = await db.createBackup(t, where);
       } catch (err) {
-        return abort(err instanceof Error ? err.message : String(err));
+        return abort(`${err instanceof Error ? err.message : String(err)}${kept()}`);
       }
       log(`backup ${t.backupName}: ${counts.backedUp} rows (scope ${counts.inScope})`);
-      if (counts.backedUp !== counts.inScope) return abort(`backup ${t.backupName} count ${counts.backedUp} != scope ${counts.inScope}`);
+      if (counts.backedUp !== counts.inScope) return abort(`backup ${t.backupName} count ${counts.backedUp} != scope ${counts.inScope}${kept()}`);
+      created.push(t.backupName);
     }
   }
 
