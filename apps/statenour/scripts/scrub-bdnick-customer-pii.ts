@@ -15,10 +15,11 @@
  *   - --execute needs --expect <n> (the dry run's "rows to change" total; a mismatch aborts before
  *     any write), --target <branch|prod> and --prod-host <production DB host>. Host check: a branch
  *     run refuses when DATABASE_URL's host equals --prod-host; a prod run refuses unless it equals it.
- *   - Before any update, one backup per table, inside a REPEATABLE READ transaction:
- *     CREATE TABLE "_bak_<table>_scrub_20261019" AS SELECT * FROM <table> WHERE <scope>, and the
- *     backup count must equal the scope count in the same snapshot or the transaction rolls back.
- *     An existing backup table is refused. Nothing is ever dropped or truncated.
+ *   - Before any update, one backup per table, all in ONE REPEATABLE READ transaction:
+ *     CREATE TABLE "_bak_<table>_scrub_20261019" AS SELECT * FROM <table> WHERE <scope>, and each
+ *     backup count must equal its scope count in that snapshot or every backup rolls back.
+ *     An existing backup table is refused. No table is dropped or truncated; the only rows deleted
+ *     are vector_embeddings rows the embed-backfill cron rebuilds (see vectorRow).
  *   - Updates touch only rows whose id is in the backup, only rows whose value changes, in batches
  *     of 500 by id, each as a compare-and-swap on the value read (a row changed meanwhile is skipped
  *     and counted). Raw SQL, so updatedAt is not bumped (an old coach event must not resurface).
@@ -56,6 +57,7 @@ export const TABLES = {
   audit: { name: '"AuditEvent"', ...bak("AuditEvent") },
   memories: { name: "brain_memories", ...bak("brain_memories") },
   bus: { name: "brain_bus_events", ...bak("brain_bus_events") },
+  vectors: { name: "vector_embeddings", ...bak("vector_embeddings") },
 } satisfies Record<string, TableSpec>;
 
 export interface Bucket {
@@ -68,6 +70,8 @@ export interface Bucket {
   write: Array<{ col: string; json: boolean }>;
   /** New values for the `write` columns. Pure. */
   transform(row: Row): Record<string, unknown>;
+  /** For a row that changes: delete it instead of rewriting it (vector rows the backfill rebuilds). */
+  deleteWhen?(row: Row): boolean;
 }
 
 // ---- transforms ------------------------------------------------------------------------------
@@ -201,6 +205,37 @@ function coachMemory(row: Row) {
   return { metadata: meta };
 }
 
+/** The same memory transforms, chosen by category and text alone (an orphan vector has no memory row). */
+function scrubMemoryText(category: string, key: string, content: string): string {
+  const row = { id: "", category, key, content };
+  if (category === "business_event" && content.startsWith("Shop ")) return String(shopMemory(row).content);
+  if (category === "anomaly" && content.startsWith("EMERGENCY: ")) return String(emergencyMemory(row).content);
+  if (category === "business_event" || category === "insight") return String(leadCallMemory(row).content);
+  return content;
+}
+
+/**
+ * vector_embeddings rows of brain memories hold `[category] key: content` (memory-manager.ts remember()
+ * and the embed-backfill cron both write that text) and a vector derived from it. The text is rescrubbed
+ * from its own shape, so a vector whose text holds no customer shape is left alone, an orphan is handled
+ * without its memory, and a run that crashed between the memory and the vector pass resumes correctly.
+ *
+ * Re-embed trigger: contentFingerprint is the tool_catalog cache key only. For brain_memory the
+ * embed-backfill cron re-embeds (a) live memories (deleted_at IS NULL, confidence >= 0.2) with NO vector
+ * row, and (b) rows whose vector text does not contain the memory's first 60 characters. Writing the
+ * scrubbed text would satisfy (b) and storeGenericEmbedding's identical-content gate, so the old vector
+ * would never be rebuilt. So a vector of a memory lane (a) covers is DELETED (the memory pass has already
+ * scrubbed the memory, so the rebuild reads clean text); any other vector (orphan, soft-deleted, low
+ * confidence: nothing would rebuild it) gets the scrubbed text and keeps its old vector.
+ */
+const VECTOR_TEXT = /^\[([^\]]+)\] ([^:]*): ([\s\S]*)$/;
+function vectorRow(row: Row) {
+  const m = VECTOR_TEXT.exec(String(row.content));
+  if (!m) return { content: row.content };
+  const next = scrubMemoryText(m[1], m[2], m[3]);
+  return { content: next === m[3] ? row.content : `[${m[1]}] ${m[2]}: ${next}` };
+}
+
 function busDrift(row: Row) {
   const p = row.payload;
   if (!isObj(p)) return { payload: p };
@@ -285,6 +320,31 @@ export const BUCKETS: Bucket[] = [
   },
 ];
 
+const MEMORY_SCOPE = BUCKETS.filter((b) => b.table === TABLES.memories)
+  .map((b) => `(${b.where})`)
+  .join(" OR ");
+
+// Last on purpose: the write pass scrubs the memories before it deletes their vectors, so the
+// backfill can never re-embed the old text. Bucket categories are none of TELEMETRY_CATEGORIES, so
+// the backfill's telemetry exclusion is left out of the eligibility test.
+BUCKETS.push({
+  name: "vectors_of_scrubbed_memories",
+  table: TABLES.vectors,
+  where:
+    `"sourceType" = 'brain_memory' AND ("sourceId" IN (SELECT id FROM brain_memories WHERE ${MEMORY_SCOPE}) ` +
+    `OR (NOT EXISTS (SELECT 1 FROM brain_memories bm WHERE bm.id = vector_embeddings."sourceId") ` +
+    `AND (content LIKE '[business_event] %' OR content LIKE '[insight] %' OR content LIKE '[anomaly] %')))`,
+  read: [
+    "id",
+    '"sourceId" AS "sourceId"',
+    "content",
+    `(SELECT bm.deleted_at IS NULL AND bm.confidence >= 0.2 FROM brain_memories bm WHERE bm.id = vector_embeddings."sourceId") AS "reembedEligible"`,
+  ],
+  write: [{ col: "content", json: false }],
+  transform: vectorRow,
+  deleteWhen: (row) => row.reembedEligible === true,
+});
+
 /** The write columns whose transformed value differs from the stored one. */
 export function changedColumns(bucket: Bucket, row: Row): string[] {
   const next = bucket.transform(row);
@@ -296,10 +356,13 @@ export function changedColumns(bucket: Bucket, row: Row): string[] {
 export interface ScrubDb {
   readBatch(bucket: Bucket, afterId: string, limit: number, onlyBackedUp: boolean): Promise<Row[]>;
   backupExists(table: TableSpec): Promise<boolean>;
-  /** Creates the backup and counts both sides in one snapshot; throws (rolling back) on a mismatch. */
-  createBackup(table: TableSpec, where: string): Promise<{ backedUp: number; inScope: number }>;
-  /** Compare-and-swap on the values read; false when the row changed meanwhile. */
-  writeRow(bucket: Bucket, row: Row, next: Record<string, unknown>): Promise<boolean>;
+  /**
+   * Creates every backup and counts both sides in ONE snapshot (one transaction); throws, rolling all of
+   * them back, on any mismatch. Returns counts by table name.
+   */
+  createBackups(specs: Array<{ table: TableSpec; where: string }>): Promise<Record<string, { backedUp: number; inScope: number }>>;
+  /** Compare-and-swap on the values read (update, or delete when `del`); false when the row changed meanwhile. */
+  writeRow(bucket: Bucket, row: Row, next: Record<string, unknown>, del: boolean): Promise<boolean>;
 }
 
 type RawClient = {
@@ -335,30 +398,36 @@ export function prismaScrubDb(client: unknown): ScrubDb {
       );
       return Number(rows[0]?.n ?? 0) > 0;
     },
-    async createBackup(t, where) {
+    async createBackups(specs) {
       return db.$transaction(
         async (tx) => {
-          await tx.$executeRawUnsafe(`CREATE TABLE ${t.backup} AS SELECT * FROM ${t.name} WHERE ${where}`);
-          const [b] = await tx.$queryRawUnsafe<Array<{ n: number }>>(`SELECT count(*)::int AS n FROM ${t.backup}`);
-          const [s] = await tx.$queryRawUnsafe<Array<{ n: number }>>(`SELECT count(*)::int AS n FROM ${t.name} WHERE ${where}`);
-          const counts = { backedUp: Number(b?.n ?? -1), inScope: Number(s?.n ?? -2) };
-          if (counts.backedUp !== counts.inScope) {
-            throw new Error(`backup ${t.backupName} holds ${counts.backedUp} rows but scope has ${counts.inScope}; rolled back`);
+          const counts: Record<string, { backedUp: number; inScope: number }> = {};
+          for (const { table: t, where } of specs) {
+            await tx.$executeRawUnsafe(`CREATE TABLE ${t.backup} AS SELECT * FROM ${t.name} WHERE ${where}`);
+            const [b] = await tx.$queryRawUnsafe<Array<{ n: number }>>(`SELECT count(*)::int AS n FROM ${t.backup}`);
+            const [s] = await tx.$queryRawUnsafe<Array<{ n: number }>>(`SELECT count(*)::int AS n FROM ${t.name} WHERE ${where}`);
+            counts[t.name] = { backedUp: Number(b?.n ?? -1), inScope: Number(s?.n ?? -2) };
+            if (counts[t.name].backedUp !== counts[t.name].inScope) {
+              throw new Error(`backup ${t.backupName} holds ${counts[t.name].backedUp} rows but scope has ${counts[t.name].inScope}; every backup rolled back`);
+            }
           }
           return counts;
         },
         { isolationLevel: "RepeatableRead", timeout: 600_000, maxWait: 30_000 },
       );
     },
-    async writeRow(b, row, next) {
+    async writeRow(b, row, next, del) {
       const params: unknown[] = [row.id];
-      const sets = b.write.map((w) => {
-        params.push(w.json ? jsonParam(next[w.col]) : next[w.col]);
-        return `${w.col} = $${params.length}${w.json ? "::jsonb" : ""}`;
-      });
       const guards = b.write.map((w) => {
         params.push(w.json ? jsonParam(row[w.col]) : row[w.col]);
         return `${w.col} IS NOT DISTINCT FROM $${params.length}${w.json ? "::jsonb" : ""}`;
+      });
+      if (del) {
+        return (await db.$executeRawUnsafe(`DELETE FROM ${b.table.name} WHERE id = $1 AND ${guards.join(" AND ")}`, ...params)) === 1;
+      }
+      const sets = b.write.map((w) => {
+        params.push(w.json ? jsonParam(next[w.col]) : next[w.col]);
+        return `${w.col} = $${params.length}${w.json ? "::jsonb" : ""}`;
       });
       const n = await db.$executeRawUnsafe(`UPDATE ${b.table.name} SET ${sets.join(", ")} WHERE id = $1 AND ${guards.join(" AND ")}`, ...params);
       return n === 1;
@@ -378,7 +447,7 @@ export interface RunOptions {
 }
 
 export interface Summary {
-  buckets: Record<string, { inScope: number; toChange: number; sampleIds: string[]; written: number; skippedChanged: number }>;
+  buckets: Record<string, { inScope: number; toChange: number; toDelete: number; sampleIds: string[]; written: number; deleted: number; skippedChanged: number }>;
   totalToChange: number;
   written: number;
   aborted?: string;
@@ -411,17 +480,19 @@ export async function run(db: ScrubDb, opts: RunOptions): Promise<Summary> {
 
   // 1. Count pass: reads only.
   for (const b of BUCKETS) {
-    const s = { inScope: 0, toChange: 0, sampleIds: [] as string[], written: 0, skippedChanged: 0 };
+    const s = { inScope: 0, toChange: 0, toDelete: 0, sampleIds: [] as string[], written: 0, deleted: 0, skippedChanged: 0 };
     for await (const r of rows(db, b, onlyBackedUp)) {
       s.inScope++;
       if (changedColumns(b, r).length > 0) {
         s.toChange++;
+        if (b.deleteWhen?.(r)) s.toDelete++;
         if (s.sampleIds.length < 5) s.sampleIds.push(r.id);
       }
     }
     summary.buckets[b.name] = s;
     summary.totalToChange += s.toChange;
-    log(`${b.name}: in scope ${s.inScope}, to change ${s.toChange}${s.sampleIds.length ? ` (e.g. ${s.sampleIds.join(", ")})` : ""}`);
+    const dels = b.deleteWhen ? ` (of which ${s.toDelete} deleted for the embed-backfill to rebuild)` : "";
+    log(`${b.name}: in scope ${s.inScope}, to change ${s.toChange}${dels}${s.sampleIds.length ? ` (e.g. ${s.sampleIds.join(", ")})` : ""}`);
   }
   log(`TOTAL rows to change: ${summary.totalToChange}`);
 
@@ -438,30 +509,31 @@ export async function run(db: ScrubDb, opts: RunOptions): Promise<Summary> {
   // 3. Backups (or, on resume, the ones already there).
   if (!opts.resume) {
     for (const t of tables) if (await db.backupExists(t)) return abort(`backup table ${t.backupName} already exists (use --resume to continue a run)`);
-    const created: string[] = [];
-    // A later table failing leaves the earlier backups in place; the operator decides what to do with them.
-    const kept = () => (created.length ? `; backups already created and kept: ${created.join(", ")}` : "");
-    for (const t of tables) {
-      const where = BUCKETS.filter((b) => b.table === t).map((b) => `(${b.where})`).join(" OR ");
-      let counts: { backedUp: number; inScope: number };
-      try {
-        counts = await db.createBackup(t, where);
-      } catch (err) {
-        return abort(`${err instanceof Error ? err.message : String(err)}${kept()}`);
-      }
-      log(`backup ${t.backupName}: ${counts.backedUp} rows (scope ${counts.inScope})`);
-      if (counts.backedUp !== counts.inScope) return abort(`backup ${t.backupName} count ${counts.backedUp} != scope ${counts.inScope}${kept()}`);
-      created.push(t.backupName);
+    const specs = tables.map((t) => ({ table: t, where: BUCKETS.filter((b) => b.table === t).map((b) => `(${b.where})`).join(" OR ") }));
+    let counts: Record<string, { backedUp: number; inScope: number }>;
+    try {
+      counts = await db.createBackups(specs);
+    } catch (err) {
+      return abort(err instanceof Error ? err.message : String(err));
+    }
+    for (const { table: t } of specs) {
+      const c = counts[t.name];
+      log(`backup ${t.backupName}: ${c?.backedUp} rows (scope ${c?.inScope})`);
+      if (!c || c.backedUp !== c.inScope) return abort(`backup ${t.backupName} count ${c?.backedUp} != scope ${c?.inScope}`);
     }
   }
 
-  // 4. Write pass: only backed-up rows, only changed values, compare-and-swap.
+  // 4. Write pass: only backed-up rows, only changed values, compare-and-swap. Bucket order matters:
+  // memories are scrubbed before their vectors are deleted.
   for (const b of BUCKETS) {
     const s = summary.buckets[b.name];
     for await (const r of rows(db, b, true)) {
       if (changedColumns(b, r).length === 0) continue;
-      if (await db.writeRow(b, r, b.transform(r))) s.written++;
-      else s.skippedChanged++;
+      const del = b.deleteWhen?.(r) ?? false;
+      if (await db.writeRow(b, r, b.transform(r), del)) {
+        s.written++;
+        if (del) s.deleted++;
+      } else s.skippedChanged++;
     }
     summary.written += s.written;
     log(`${b.name}: written ${s.written}, skipped (changed since read) ${s.skippedChanged}`);

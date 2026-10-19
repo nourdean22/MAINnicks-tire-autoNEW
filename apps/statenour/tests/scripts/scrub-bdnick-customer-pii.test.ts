@@ -165,6 +165,53 @@ describe("bucket transforms · no name, phone or email survives; counts and ids 
   });
 });
 
+describe("vector_embeddings of scrubbed memories · the copy the recall index keeps", () => {
+  const vb = () => bucket("vectors_of_scrubbed_memories");
+  const LEAD_OLD = "[insight] lead_source_website_2026-09-01: New lead from website: Jane Roe — brake job";
+
+  it("content follows the memory: a vector the backfill cannot rebuild gets the scrubbed memory text", () => {
+    // reembedEligible null = the memory is gone (orphan); false = soft-deleted or below the backfill's confidence floor.
+    for (const reembedEligible of [null, false]) {
+      const row = { id: "v1", sourceId: "i1", content: LEAD_OLD, reembedEligible };
+      expect(vb().deleteWhen?.(row)).toBe(false);
+      expect(vb().transform(row).content).toBe("[insight] lead_source_website_2026-09-01: New lead from website — brake job");
+    }
+    const shop = { id: "v2", sourceId: "gone", content: '[business_event] shop_lead_1: Shop lead: {"customerName":"Jane Roe","phone":"2165551234","service":"brakes"}', reembedEligible: null };
+    expect(vb().transform(shop).content).toBe('[business_event] shop_lead_1: Shop lead: {"service":"brakes"}');
+  });
+
+  it("the re-embed trigger is set: a vector of a live memory the backfill re-embeds is deleted, not rewritten", () => {
+    // Rewriting content to the new text would satisfy storeGenericEmbedding's identical-content gate and the
+    // stale lane's strpos check, so the PII-derived vector would never be rebuilt. A missing row is re-embedded.
+    const row = { id: "v3", sourceId: "i1", content: LEAD_OLD, reembedEligible: true };
+    expect(changedColumns(vb(), row)).toEqual(["content"]);
+    expect(vb().deleteWhen?.(row)).toBe(true);
+    const backfill = readFileSync(new URL("../../app/api/cron/embed-backfill/route.ts", import.meta.url), "utf8");
+    expect(backfill).toMatch(/WHERE bm\.deleted_at IS NULL\s+AND bm\.confidence >= 0\.2[\s\S]*?AND NOT EXISTS \(\s*SELECT 1 FROM vector_embeddings v\s+WHERE v\."sourceType" = 'brain_memory' AND v\."sourceId" = bm\.id/);
+    expect(backfill).toContain("storeGenericEmbedding(\"brain_memory\", m.id, `[${m.category}] ${m.key}: ${m.content}`)");
+    const writer = readFileSync(new URL("../../lib/brain/embedding-utils.ts", import.meta.url), "utf8");
+    expect(writer).toContain("if (existing && existing.content === content) {");
+    // Deleted only when the backfill's own missing-row lane will pick the memory up.
+    expect(vb().read.join(" ")).toContain("bm.deleted_at IS NULL AND bm.confidence >= 0.2");
+  });
+
+  it("vectors are written last, after their memories are scrubbed, so a rebuild never reads the old text", () => {
+    expect(BUCKETS[BUCKETS.length - 1].name).toBe("vectors_of_scrubbed_memories");
+  });
+
+  it("an embedding whose memory did not change is left alone", () => {
+    for (const content of [
+      "[insight] call_completed_9: Phone call ended. Duration: 5s. Reason: x. Mentioned: none.",
+      "[insight] lead_source_website_2026-09-01: New lead from website — brake job",
+      "[insight] booking_hour_9: Booking received at 9:00 — brakes",
+      "not the [category] key: shape at all",
+    ]) {
+      const row = { id: "v4", sourceId: "i9", content, reembedEligible: true };
+      expect(changedColumns(vb(), row), content).toEqual([]);
+    }
+  });
+});
+
 // ---- an in-memory database behind the ScrubDb interface -----------------------------------------
 
 function fixtures(): Record<string, Row[]> {
@@ -180,13 +227,18 @@ function fixtures(): Record<string, Row[]> {
     memories_lead_call: [{ id: "i1", category: "insight", key: "lead_source_website_2026-09-01", content: "New lead from website: Jane Roe — brakes", metadata: null }],
     memories_coach_events: [],
     bus_drift_customer_alerts: [{ id: "b1", payload: { ruleId: "callback_requested", message: "Callback: Jane Roe — 2165551234" } }],
+    vectors_of_scrubbed_memories: [
+      { id: "v1", sourceId: "i1", content: "[insight] lead_source_website_2026-09-01: New lead from website: Jane Roe — brakes", reembedEligible: true },
+      { id: "v2", sourceId: "gone", content: '[business_event] shop_lead_1: Shop lead: {"customerName":"Jane Roe","service":"brakes"}', reembedEligible: null },
+      { id: "v3", sourceId: "i2", content: "[insight] call_completed_9: Phone call ended. Duration: 5s. Reason: x. Mentioned: none.", reembedEligible: true },
+    ],
   };
 }
 
 function memoryDb(opts: { existingBackups?: string[]; backupShortBy?: number } = {}) {
   const data = fixtures();
   const backups = new Map<string, Set<string>>((opts.existingBackups ?? []).map((t) => [t, new Set()]));
-  const calls = { createBackup: 0, writeRow: 0 };
+  const calls = { createBackups: 0, writeRow: 0 };
   const tableOf = (b: Bucket) => b.table.name;
   const db: ScrubDb = {
     async readBatch(b, afterId, limit, onlyBackedUp) {
@@ -200,17 +252,27 @@ function memoryDb(opts: { existingBackups?: string[]; backupShortBy?: number } =
     async backupExists(t: TableSpec) {
       return backups.has(t.name);
     },
-    async createBackup(t: TableSpec) {
-      calls.createBackup++;
-      const rows = BUCKETS.filter((b) => b.table.name === t.name).flatMap((b) => data[b.name]);
-      backups.set(t.name, new Set(rows.map((r) => r.id)));
-      return { backedUp: rows.length - (opts.backupShortBy ?? 0), inScope: rows.length };
+    async createBackups(specs: Array<{ table: TableSpec; where: string }>) {
+      calls.createBackups++;
+      const counts: Record<string, { backedUp: number; inScope: number }> = {};
+      for (const [i, { table: t }] of specs.entries()) {
+        const rows = BUCKETS.filter((b) => b.table.name === t.name).flatMap((b) => data[b.name]);
+        counts[t.name] = { backedUp: rows.length - (i === 0 ? opts.backupShortBy ?? 0 : 0), inScope: rows.length };
+      }
+      if (Object.values(counts).some((c) => c.backedUp !== c.inScope)) throw new Error("backup count differs from scope; rolled back");
+      for (const { table: t } of specs) {
+        const rows = BUCKETS.filter((b) => b.table.name === t.name).flatMap((b) => data[b.name]);
+        backups.set(t.name, new Set(rows.map((r) => r.id)));
+      }
+      return counts;
     },
-    async writeRow(b, row, next) {
+    async writeRow(b, row, next, del) {
       calls.writeRow++;
-      const target = data[b.name].find((r) => r.id === row.id);
-      if (!target) return false;
-      Object.assign(target, structuredClone(next));
+      const list = data[b.name];
+      const i = list.findIndex((r) => r.id === row.id);
+      if (i < 0) return false;
+      if (del) list.splice(i, 1);
+      else Object.assign(list[i], structuredClone(next));
       return true;
     },
   };
@@ -223,48 +285,52 @@ describe("run · dry run, --expect, backup refusal, idempotence", () => {
   it("POSITIVE CONTROL: the dry run sees the PII rows (a zero here would make every test below vacuous)", async () => {
     const { db } = memoryDb();
     const s = await run(db, { execute: false, resume: false, ...quiet });
-    expect(s.totalToChange).toBe(5);
+    expect(s.totalToChange).toBe(7);
     expect(s.buckets.audit_business_metrics_sync).toMatchObject({ inScope: 2, toChange: 1 });
   });
 
   it("an --expect mismatch aborts before any backup or write", async () => {
     const { db, calls } = memoryDb();
-    const s = await run(db, { execute: true, expect: 4, resume: false, ...quiet });
+    const s = await run(db, { execute: true, expect: 6, resume: false, ...quiet });
     expect(s.aborted).toMatch(/expect/);
-    expect(calls).toEqual({ createBackup: 0, writeRow: 0 });
+    expect(calls).toEqual({ createBackups: 0, writeRow: 0 });
   });
 
   it("an existing backup table is refused before any backup or write", async () => {
     const { db, calls } = memoryDb({ existingBackups: [TABLES.memories.name] });
-    const s = await run(db, { execute: true, expect: 5, resume: false, ...quiet });
+    const s = await run(db, { execute: true, expect: 7, resume: false, ...quiet });
     expect(s.aborted).toMatch(/already exists/);
-    expect(calls).toEqual({ createBackup: 0, writeRow: 0 });
+    expect(calls).toEqual({ createBackups: 0, writeRow: 0 });
   });
 
   it("a backup count that differs from the scope count aborts before any write", async () => {
     const { db, calls } = memoryDb({ backupShortBy: 1 });
-    const s = await run(db, { execute: true, expect: 5, resume: false, ...quiet });
+    const s = await run(db, { execute: true, expect: 7, resume: false, ...quiet });
     expect(s.aborted).toMatch(/backup/);
     expect(calls.writeRow).toBe(0);
   });
 
   it("execute writes exactly the expected rows; a second run finds 0 to change and a --resume writes nothing", async () => {
     const { db, calls, data } = memoryDb();
-    const first = await run(db, { execute: true, expect: 5, resume: false, ...quiet });
+    const first = await run(db, { execute: true, expect: 7, resume: false, ...quiet });
     expect(first.aborted).toBeUndefined();
-    expect(first.written).toBe(5);
+    expect(first.written).toBe(7);
     expectNoPii(data);
+    // v1 (live memory) deleted for the backfill to re-embed, v2 (orphan) rewritten, v3 (unchanged) untouched.
+    expect(first.buckets.vectors_of_scrubbed_memories).toMatchObject({ toChange: 2, toDelete: 1, written: 2 });
+    expect(data.vectors_of_scrubbed_memories.map((r) => r.id)).toEqual(["v2", "v3"]);
+    expect(data.vectors_of_scrubbed_memories[1].content).toBe("[insight] call_completed_9: Phone call ended. Duration: 5s. Reason: x. Mentioned: none.");
     const again = await run(db, { execute: false, resume: false, ...quiet });
     expect(again.totalToChange).toBe(0);
     const resumed = await run(db, { execute: true, expect: 0, resume: true, ...quiet });
     expect(resumed.aborted).toBeUndefined();
     expect(resumed.written).toBe(0);
-    expect(calls.writeRow).toBe(5);
+    expect(calls.writeRow).toBe(7);
   });
 
   it("--resume without a backup table is refused", async () => {
     const { db, calls } = memoryDb();
-    const s = await run(db, { execute: true, expect: 5, resume: true, ...quiet });
+    const s = await run(db, { execute: true, expect: 7, resume: true, ...quiet });
     expect(s.aborted).toMatch(/no backup/);
     expect(calls.writeRow).toBe(0);
   });
@@ -278,7 +344,8 @@ describe("dry run through the real Prisma adapter · every write method throws",
     };
     const queryRawUnsafe = vi.fn(async (sql: string, ...params: unknown[]) => {
       if (!/^\s*SELECT\b/i.test(sql)) trap();
-      const b = BUCKETS.find((x) => sql.includes(x.where));
+      // Anchored on the whole SELECT prefix: the vector bucket's SQL embeds the memory predicates.
+      const b = BUCKETS.find((x) => sql.startsWith(`SELECT ${x.read.join(", ")} FROM ${x.table.name} WHERE (${x.where})`));
       if (!b) throw new Error(`unexpected read: ${sql}`);
       const after = String(params[0]);
       return data[b.name].filter((r) => r.id > after).slice(0, Number(params[1]));
@@ -295,7 +362,7 @@ describe("dry run through the real Prisma adapter · every write method throws",
     const s = await run(prismaScrubDb(client), { execute: false, resume: false, ...quiet });
     // Not merely "no write": the dry run must return on its own branch, not be rescued by the --expect gate.
     expect(s.aborted).toBeUndefined();
-    expect(s.totalToChange).toBe(5);
+    expect(s.totalToChange).toBe(7);
     expect(queryRawUnsafe).toHaveBeenCalled();
     for (const fn of [client.$executeRawUnsafe, client.$executeRaw, client.$transaction]) expect(fn).not.toHaveBeenCalled();
   });
@@ -305,6 +372,24 @@ describe("the adapter refuses a read it cannot judge", () => {
   it("a jsonb column that comes back as text throws instead of counting 0 to change", async () => {
     const client = { $queryRawUnsafe: vi.fn(async () => [{ id: "a1", eventType: "business_metrics_sync", payload: '{"customerName":"Jane Roe"}' }]) };
     await expect(prismaScrubDb(client).readBatch(bucket("audit_business_metrics_sync"), "", 500, false)).rejects.toThrow(/came back as text/);
+  });
+});
+
+describe("the adapter's writes are compare-and-swap on the value read", () => {
+  it("a vector rebuild is a guarded DELETE; a payload change is a guarded UPDATE that keeps updatedAt", async () => {
+    const exec = vi.fn(async () => 1);
+    const db = prismaScrubDb({ $executeRawUnsafe: exec });
+    const vrow = { id: "v1", sourceId: "i1", content: "[insight] k: old", reembedEligible: true };
+    expect(await db.writeRow(bucket("vectors_of_scrubbed_memories"), vrow, { content: "[insight] k: new" }, true)).toBe(true);
+    expect(exec).toHaveBeenLastCalledWith("DELETE FROM vector_embeddings WHERE id = $1 AND content IS NOT DISTINCT FROM $2", "v1", "[insight] k: old");
+    const arow = { id: "a1", eventType: "nickstire:lead", actor: "nickstire", detail: "d", payload: { a: 1 } };
+    await db.writeRow(bucket("audit_nickstire_events"), arow, { payload: { b: 2 }, detail: "d" }, false);
+    expect(exec).toHaveBeenLastCalledWith(
+      'UPDATE "AuditEvent" SET payload = $4::jsonb, detail = $5 WHERE id = $1 AND payload IS NOT DISTINCT FROM $2::jsonb AND detail IS NOT DISTINCT FROM $3',
+      "a1", '{"a":1}', "d", '{"b":2}', "d",
+    );
+    exec.mockResolvedValueOnce(0);
+    expect(await db.writeRow(bucket("vectors_of_scrubbed_memories"), vrow, {}, true)).toBe(false);
   });
 });
 
