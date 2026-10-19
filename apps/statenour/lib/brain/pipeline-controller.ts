@@ -65,11 +65,9 @@ export async function processShopEvent(event: ShopEvent): Promise<{ processed: b
   // Customer name and phone never reach BrainMemory (wave 3 group 7); `event.data` below is still
   // read for transient lookups, only what is stored is stripped.
   // The allowlist projection, not a denylist: synonym keys (customer_name, fullName, address, notes)
-  // and free text under unknown keys never get in.
+  // and free text under unknown keys never get in. Customer-typed sentences (reviewText, description,
+  // problem, symptom, reason) are not on the allowlist either, so the rating is what the brain keeps.
   const safeData = scrubBridgePayload(event.data) as Record<string, unknown>;
-  // Review text is the customer's own words about the shop, often with a name in it: the rating is
-  // what the brain keeps.
-  delete safeData.reviewText;
   const memContent = `Shop ${event.type}: ${JSON.stringify(safeData).slice(0, 300)}`;
   await brainMemory.remember("business_event", memKey, memContent, "bridge_pipeline");
   actions.push("memory.stored");

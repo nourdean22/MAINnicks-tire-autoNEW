@@ -30,11 +30,19 @@ describe("scrubBridgePayload · allowlist rules", () => {
   });
 
   it("kept free-text keys have phones and emails masked", () => {
-    const out = scrubBridgePayload({ reason: "Call (216) 555-0199 or jane@example.test", description: "216.555.0100", symptom: "grinding", problem: "+1 216 555 0111" }) as Record<string, string>;
-    expect(out.reason).toBe("Call [phone] or [email]");
-    expect(out.description).toBe("[phone]");
-    expect(out.problem).toBe("[phone]");
-    expect(out.symptom).toBe("grinding");
+    const out = scrubBridgePayload({ interest: "Call (216) 555-0199 or jane@example.test", service: "216.555.0100", vehicle: "grinding", tire: "+1 216 555 0111" }) as Record<string, string>;
+    expect(out.interest).toBe("Call [phone] or [email]");
+    expect(out.service).toBe("[phone]");
+    expect(out.tire).toBe("[phone]");
+    expect(out.vehicle).toBe("grinding");
+  });
+
+  // scrubText cannot see a name, so a customer-written or staff-written sentence is not stored at all.
+  it("reason, description, reviewText, symptom and problem are dropped at any depth, even with no phone in them", () => {
+    const sentence = "I'm Jane Roe, my brakes grind";
+    const out = scrubBridgePayload({ reason: sentence, description: sentence, reviewText: sentence, symptom: sentence, problem: sentence, rating: 2, nested: [{ reason: sentence, attempts: 1 }] });
+    expect(out).toEqual({ rating: 2, nested: [{ attempts: 1 }] });
+    expect(JSON.stringify(out)).not.toContain("Jane");
   });
 
   it("text and content are kept only when the caller says it is a social draft", () => {

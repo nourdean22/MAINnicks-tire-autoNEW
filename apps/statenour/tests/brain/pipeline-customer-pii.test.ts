@@ -106,6 +106,15 @@ describe("review-round rules (2026-10-19)", () => {
     expect(contents).toContain("Positive review (5/5)");
   });
 
+  it("a name inside description, problem, reason or symptom never reaches the stored event memory", async () => {
+    await processShopEvent({ type: "emergency", data: { description: `${NAME} is stuck on I-90`, problem: `${NAME}'s tire blew`, reason: `${NAME} called`, symptom: `${NAME} hears grinding`, urgency: "high" } });
+    const text = storedText();
+    expect(text).not.toContain(NAME);
+    // CONTROL: the non-sentence facts still land, so the emergency memory is not silently empty.
+    const emergency = remember.mock.calls.map((c) => String(c[2])).find((c) => c.startsWith("EMERGENCY:"))!;
+    expect(emergency).toContain('"urgency":"high"');
+  });
+
   it("free text kept in a stored sentence still has phones masked (service, interest, serviceMention)", async () => {
     await processShopEvent({ type: "lead", data: { source: "web", interest: `Alignment, call ${PHONE}` } });
     await processShopEvent({ type: "call", data: { durationSeconds: 5, endedReason: "hangup", serviceMention: `brakes, ask for ${PHONE}` } });

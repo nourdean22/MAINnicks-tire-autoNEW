@@ -83,13 +83,14 @@ const STORED_PAYLOAD: Record<string, Record<string, unknown>> = {
   "nickstire:lead": { leadId: 9003, source: "web", urgencyScore: 3, interest: "Wheel alignment" },
   "nickstire:tire_order": { orderNumber: "TO-TEST-1", tire: "4x TestBrand All Season", totalAmount: 612 },
   "nickstire:invoice": { invoiceNumber: "INV-TEST-2", totalAmount: 389.99, source: "booking" },
-  "nickstire:estimate": { kind: null, vehicle: "2012 Test Coupe", symptom: "grinding when braking", service: null, issueCount: 2, source: "ai_labor_estimate", estimateLow: 180, estimateHigh: 320, workOrderId: null, orderNumber: null },
-  "nickstire:callback": { reason: "Question about quote" },
-  "nickstire:review": { rating: 2, reviewText: "Waited too long for a simple job" },
+  // Sentence keys (reason, description, reviewText, symptom, problem) are customer-written and are not stored.
+  "nickstire:estimate": { kind: null, vehicle: "2012 Test Coupe", service: null, issueCount: 2, source: "ai_labor_estimate", estimateLow: 180, estimateHigh: 320, workOrderId: null, orderNumber: null },
+  "nickstire:callback": {},
+  "nickstire:review": { rating: 2 },
   "nickstire:revenue": { kind: "invoice_paid", invoiceNumber: "INV-TEST-3", totalAmount: 250, method: "card" },
   "nickstire:stage-change": { bookingId: 9004, stage: "in_progress", refCode: "TEST02" },
   "nickstire:campaign-result": { campaignId: 77, sent: 10, failed: 1, campaignType: "reminder" },
-  "nickstire:emergency": { description: "Flat tire on the highway", urgency: "high" },
+  "nickstire:emergency": { urgency: "high" },
   "nickstire:work_order:status": { workOrderId: "WO-TEST-1", orderNumber: "WO-1001", fromStatus: "approved", toStatus: "in_progress", service: "Oil change" },
 };
 const cases = fixture.events.map(e => [e.type, e] as const);

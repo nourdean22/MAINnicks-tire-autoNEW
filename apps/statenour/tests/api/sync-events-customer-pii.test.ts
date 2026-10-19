@@ -110,14 +110,31 @@ describe("sync/events audit rows carry no customer identity", () => {
   });
 
   it("phones and emails inside the kept free-text keys are masked", async () => {
-    await post("nickstire:callback", {
-      reason: `Call me back at (216) 555-0199 or ${EMAIL}`,
-      description: `Reach 216-555-0100`,
-      reviewText: `Fix it. Text ${PHONE}`,
+    await post("nickstire:lead", {
+      leadId: 4,
+      interest: `Alignment, call me back at (216) 555-0199 or ${EMAIL}`,
+      service: `Brakes, reach 216-555-0100`,
+      vehicle: `2015 Test Sedan, text ${PHONE}`,
     });
     const text = JSON.stringify(storedPayload());
     for (const leak of [PHONE, "555-0199", "555-0100", EMAIL]) expect(text).not.toContain(leak);
-    expect(String(storedPayload().reason)).toContain("Call me back at");
+    expect(String(storedPayload().interest)).toContain("Alignment, call me back at");
+  });
+
+  // Codex P1 on PR 3181: scrubText masks phones and emails only, so a name written inside a customer or
+  // staff sentence went straight into AuditEvent.payload. The five sentence keys are not stored at all.
+  it("a name inside a sentence key (reason, description, reviewText, symptom, problem) is never stored", async () => {
+    await post("nickstire:callback", {
+      reason: `I'm ${NAME}, please call me back about the quote`,
+      description: `${NAME}'s truck pulls left`,
+      reviewText: `Great job by Sam, ${NAME} recommends them`,
+      symptom: `${NAME} hears grinding when braking`,
+      problem: `${NAME} is stuck on I-90`,
+      urgency: "high",
+      nested: { reason: `${NAME} again`, attempts: 2 },
+    });
+    expect(JSON.stringify(storedPayload())).not.toContain(NAME);
+    expect(storedPayload()).toEqual({ urgency: "high", nested: { attempts: 2 } });
   });
 
   it("text and content are stored for a social draft only", async () => {
@@ -180,5 +197,19 @@ describe("GET /api/sync/events scrubs rows written before the fix", () => {
     const text = JSON.stringify(await res.json());
     for (const leak of [NAME, PHONE, EMAIL, SURPRISE]) expect(text).not.toContain(leak);
     expect(text).toContain("Tires");
+  });
+
+  it("returns an old row's sentence keys without the name written in them", async () => {
+    auditFindMany.mockResolvedValue([
+      {
+        eventType: "nickstire:review",
+        payload: { rating: 2, reviewText: `${NAME} waited an hour`, reason: `${NAME} asked`, urgency: "high" },
+        createdAt: new Date("2026-10-01T00:00:00Z"),
+      },
+    ]);
+    const res = await GET(new Request("http://test/api/sync/events", { headers: { authorization: "Bearer test" } }));
+    const body = await res.json();
+    expect(JSON.stringify(body)).not.toContain(NAME);
+    expect(JSON.stringify(body)).toContain("high");
   });
 });

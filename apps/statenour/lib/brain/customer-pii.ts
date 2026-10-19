@@ -92,11 +92,16 @@ export function stripSyncCustomerPii<T>(payload: T): T {
  */
 const IDENTITY_KEY = /(name|phone|mobile|email|contact|customer|caller|reviewer|address|owner|driver|person|who)/i;
 const ID_KEY = /^(id|[a-z][a-zA-Z]*Id|[a-z][a-z0-9]*_id|refCode|invoiceNumber|orderNumber|workOrderId)$/;
-/** String-valued facts a bridge event may carry. Anything else under an unknown key is dropped. */
+/**
+ * String-valued facts a bridge event may carry. Anything else under an unknown key is dropped.
+ * `reason`, `description`, `reviewText`, `symptom` and `problem` are NOT here: they are sentences a
+ * customer or staff member typed, and scrubText masks only phones and emails, so a name written in one
+ * would be stored. The pipeline reads them from the in-memory event.data, never from this projection.
+ */
 const SAFE_STRING_KEYS = new Set([
   "type", "timestamp", "source", "kind", "status", "service", "interest", "vehicle", "urgency", "stage",
-  "tire", "method", "reason", "description", "reviewText", "campaignType", "fromStatus", "toStatus",
-  "imageUrl", "scheduledFor", "publishedAt", "symptom", "problem", "state", "platform", "eventId",
+  "tire", "method", "campaignType", "fromStatus", "toStatus",
+  "imageUrl", "scheduledFor", "publishedAt", "state", "platform", "eventId",
 ]);
 /** Free text a social draft legitimately carries; every other event type drops these keys. */
 const DRAFT_TEXT_KEYS = new Set(["text", "content"]);
