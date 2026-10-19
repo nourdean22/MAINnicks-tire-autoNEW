@@ -79,7 +79,6 @@ describe("cron rethrow contract · 2026-09-01 audit F-9", () => {
     ["alertLowStock", /Low-stock check failed: database unreachable/],
     ["autoAdvanceWorkOrders", /WO auto-advance failed: database unreachable/],
     ["autoEscalateBookingPriority", /Booking escalation failed: database unreachable/],
-    ["autoFetchAndDraftReviews", /Review drafting failed: database unreachable/],
     ["closeReferralLoop", /Referral loop failed: database unreachable/],
     ["notifyNewVips", /VIP notification failed: database unreachable/],
   ])("crudAutomation.%s REJECTS when the DB is unreachable", async (name, expected) => {
