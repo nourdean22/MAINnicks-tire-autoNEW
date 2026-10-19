@@ -42,9 +42,13 @@ const LIST_DROP_IDENTITY = new Set(["topItems", "customerJourneys"]);
  */
 const SYNC_DROP_KEYS = new Set(["nickAI", "operatorPatterns", "recoveryNotes", "declineReason"]);
 
-/** The action plan names the first at-risk customer and the top spender; say how many instead. */
+/**
+ * The action plan names the first at-risk customer and the top spender; say how many instead.
+ * The generated AT-RISK line is filtered before it is pushed, so a stored plan that already holds it
+ * (GET /api/sync/business strips rows again on read) comes back with one copy, not two.
+ */
 function redactActionPlan(plan: string, atRiskCount: number): string {
-  const lines = plan.split("\n").filter((l) => !/^\s*•\s*(CALL NOW|PROTECT):/.test(l));
+  const lines = plan.split("\n").filter((l) => !/^\s*•\s*(CALL NOW|PROTECT|AT-RISK):/.test(l));
   if (atRiskCount > 0) {
     const noun = atRiskCount === 1 ? "customer" : "customers";
     lines.push(`• AT-RISK: ${atRiskCount} at-risk ${noun}, ${SEE_ADMIN_CUSTOMERS}.`);

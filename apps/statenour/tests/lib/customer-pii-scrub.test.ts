@@ -66,6 +66,7 @@ describe("scrubText", () => {
     );
     expect(scrubText("Order 1042, 3 tires at $612")).toBe("Order 1042, 3 tires at $612");
   });
+
 });
 
 describe("stripSyncCustomerPii · memories and patterns", () => {
@@ -85,6 +86,28 @@ describe("stripSyncCustomerPii · memories and patterns", () => {
     expect("nickAI" in out).toBe(false);
     expect("operatorPatterns" in out).toBe(false);
     expect(out.revenue).toEqual({ today: 100 });
+  });
+
+  // GET /api/sync/business re-strips stored rows on read; a row stored after the fix already holds the
+  // generated AT-RISK line, so a second strip used to append a second copy.
+  it("is idempotent: stripping a stored (already stripped) payload changes nothing", () => {
+    const withPlan = {
+      customerIntelligence: {
+        atRiskCustomers: [
+          { name: "Jane Roe", phone: "2165550199", daysSince: 321, lastVisit: "2025-12-01" },
+          { name: "Sam Doe", daysSince: 200, lastVisit: "2026-03-01" },
+        ],
+        topSpenders: [{ name: "Jane Roe", total: 4200, visits: 9 }],
+        actionPlan: "\nCUSTOMER ACTION PLAN:\n• CALL NOW: Jane Roe (2165550199) — 321d since last visit.\n• PROTECT: Sam Doe is your #1 spender.\n• MOMENTUM: 3 new customers this month.",
+      },
+    };
+    const once = stripSyncCustomerPii(withPlan);
+    const twice = stripSyncCustomerPii(once);
+    expect(twice).toEqual(once);
+    const plan = (twice as typeof withPlan).customerIntelligence.actionPlan;
+    expect(plan.match(/AT-RISK:/g)).toHaveLength(1);
+    expect(plan).toContain("MOMENTUM: 3 new customers this month.");
+    expect(stripSyncCustomerPii(twice)).toEqual(once);
   });
 
   it("drops recoveryNotes and declineReason from the decline lines, keeps the numbers", () => {
