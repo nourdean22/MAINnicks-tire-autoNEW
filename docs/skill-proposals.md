@@ -2467,3 +2467,19 @@ measurement. Every proposal below cites the moment in this wave that produced it
 - **Proposed edit:** step 9 (and the lane-research agent) gains: "for a vendor doc site, try `<site>/llms.txt` and `<site>/docs/<slug>.md` before saving HTML; the primary quote comes from the `.md` file. Send nothing to a vendor's live API until a sandbox credential exists: a probe without one proves nothing and may create vendor-side records." The docs-only verdict belongs with it: when the keyed client cannot be exercised, capture the contract and the build plan, do not ship a dormant client (it is tested only against your own reading of the docs).
 - **Confidence:** medium (once, clear; the Kafene job the day before hit the same shape from the portal side, P10)
 - **Status:** proposed
+
+## 2026-10-19 · Live code graph for every AI tool (session 72b1a5f8, job 2026-10-19-graph-live-mcp)
+
+### P12 · AGENTS.md Commands and lefthook.yml (heavy-run hooks fall through to an unleased run)
+- **Trigger (witnessed 2026-10-19 11:0x local):** four sibling commit hooks each waited the 90 s `--max-wait` on the heavy lease (`lefthook.yml:23,61`) and then ran `tsc --noEmit` anyway, about 3.6 GB each; free RAM fell to 8 MB, commit charge 41.1 of 45.4 GB, and `git` itself failed with "Out of memory, malloc failed" in an unrelated session, leaving a stale `index.lock` that blocked a later branch switch. The lease protected nothing once every waiter gave up at the same time.
+- **Cost:** one failed git command, one stale lock, about 15 minutes across two sessions; the same shape as the 2026-10-16 OOM (854 fsmonitor daemons), one cause up.
+- **Proposed edit:** the hook form of `heavy.mjs run --max-wait 90s` stops running unleased after the wait; it fails the hook with "heavy lease busy: retry the commit" (exit 1) so the commit is retried by the session, never run in parallel. AGENTS.md > Commands gains one clause: "a hook that cannot get the heavy lease fails the commit; retry, do not bypass". `heavy.test.mjs` gets the case: lease held, max-wait expired, exit 1 and no child spawned.
+- **Confidence:** high (two incidents, one mechanism, the fix is one branch in `heavy.mjs`)
+- **Status:** proposed
+
+### P13 · session-health and the plugin set (per-session plugin MCP servers)
+- **Trigger (witnessed 2026-10-19):** every Claude session on NATTYNOUR started its own copy of two plugin MCP servers: Desktop Commander (17 processes, 1,439 MB private across 5 sessions) and opencode-subagent (8 processes, 336 MB), plus, until this job, Serena (7 copies, about 400 MB each, with no language server configured). The opencode plugin cannot work at all: the `opencode` CLI it drives is not installed, and the server timed out connecting in this session.
+- **Cost:** about 2 GB of RAM per five sessions doing nothing, on a 16 GB laptop that hit 8 MB free the same day.
+- **Proposed edit:** (a) `session-health.mjs` gains one informational item: count of plugin MCP server processes per plugin name across the machine, printed when any plugin has more than 3 copies, with the plugin named; (b) Nour decides per plugin: disable `opencode-subagent-mcp` until the CLI is installed, and keep or drop Desktop Commander (the pretool guard covers it, so it is safe but not free). Not a code change to the plugins themselves: they are vendored.
+- **Confidence:** medium (measured once; the counts will differ by day)
+- **Status:** proposed
