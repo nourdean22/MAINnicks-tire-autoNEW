@@ -59,7 +59,6 @@ vi.mock("@/components/admin/ConfirmDialog", () => ({ confirmDialog: vi.fn(async 
 vi.mock("@/_core/hooks/useAuth", () => ({ useAuth: () => ({ user: { role: "admin" }, loading: false }) }));
 
 // Child panels that are not under test.
-vi.mock("@/pages/admin/settings/AlgProbeBudgetPanel", () => ({ default: h.Null }));
 vi.mock("@/pages/admin/settings/FeatureFlagsPanel", () => ({ default: h.Null }));
 vi.mock("@/pages/admin/shared/SectionInsightStrip", () => ({ default: h.Null, SectionInsightStrip: h.Null }));
 vi.mock("@/pages/admin/instagram/Today", () => ({ default: h.Null }));

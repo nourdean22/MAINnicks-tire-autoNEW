@@ -54,7 +54,6 @@ vi.mock("@/pages/admin/outreach/SmsOpsStrip", () => ({ default: h.Null }));
 vi.mock("@/pages/admin/settings/SettingsStatusTab", () => ({ default: h.Null }));
 vi.mock("@/pages/admin/settings/SiteHealthSection", () => ({ default: h.Null }));
 vi.mock("@/pages/admin/settings/ComplianceSection", () => ({ default: h.Null }));
-vi.mock("@/pages/admin/settings/AlgProbeBudgetPanel", () => ({ default: h.Null }));
 vi.mock("@/pages/admin/settings/FeatureFlagsPanel", () => ({ default: h.Null }));
 vi.mock("@/pages/admin/settings/DeclinedRecoveryPanel", () => ({ default: h.Null }));
 vi.mock("@/pages/admin/shared/SectionInsightStrip", () => ({ default: h.Null, SectionInsightStrip: h.Null }));

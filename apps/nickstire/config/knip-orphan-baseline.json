@@ -4093,11 +4093,6 @@
     },
     {
       "file": "apps/nickstire/client/src/pages/admin/shared.tsx",
-      "symbol": "TimestampLabel",
-      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
-    },
-    {
-      "file": "apps/nickstire/client/src/pages/admin/shared.tsx",
       "symbol": "InsightStrip",
       "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
     },
@@ -4657,11 +4652,6 @@
       "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
     },
     {
-      "file": "apps/nickstire/client/src/pages/admin/shared/cards.tsx",
-      "symbol": "TimestampLabel",
-      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
-    },
-    {
       "file": "apps/nickstire/client/src/pages/admin/shared/insight.tsx",
       "symbol": "InsightStrip",
       "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
@@ -4817,31 +4807,6 @@
       "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
     },
     {
-      "file": "apps/nickstire/client/src/components/admin/AdminSkeletons.tsx",
-      "symbol": "SkeletonStatCard",
-      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
-    },
-    {
-      "file": "apps/nickstire/client/src/components/admin/AdminSkeletons.tsx",
-      "symbol": "SkeletonRow",
-      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
-    },
-    {
-      "file": "apps/nickstire/client/src/components/admin/AdminSkeletons.tsx",
-      "symbol": "SkeletonChart",
-      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
-    },
-    {
-      "file": "apps/nickstire/client/src/components/admin/AdminSkeletons.tsx",
-      "symbol": "SkeletonOverview",
-      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
-    },
-    {
-      "file": "apps/nickstire/client/src/pages/admin/customers/CouponsSection.tsx",
-      "symbol": "getRedeemState",
-      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
-    },
-    {
       "file": "apps/nickstire/client/src/lib/gbpQaSeeds.ts",
       "symbol": "gbpQaByCategory",
       "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
@@ -4929,31 +4894,6 @@
     {
       "file": "apps/nickstire/shared/proof.ts",
       "symbol": "getProofConfig",
-      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
-    },
-    {
-      "file": "apps/nickstire/client/src/pages/admin/today/moneyRisks.ts",
-      "symbol": "SLA_BREACH_MS",
-      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
-    },
-    {
-      "file": "apps/nickstire/client/src/pages/admin/today/moneyRisks.ts",
-      "symbol": "CALLBACK_WAIT_MS",
-      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
-    },
-    {
-      "file": "apps/nickstire/client/src/pages/admin/today/moneyRisks.ts",
-      "symbol": "HIGH_AT_RISK_CENTS",
-      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
-    },
-    {
-      "file": "apps/nickstire/client/src/pages/admin/today/todayPulse.ts",
-      "symbol": "MIRROR_STALE_WARN_DAYS",
-      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
-    },
-    {
-      "file": "apps/nickstire/client/src/pages/admin/today/todayPulse.ts",
-      "symbol": "mirrorLagDays",
       "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
     },
     {

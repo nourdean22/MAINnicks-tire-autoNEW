@@ -51,18 +51,8 @@ vi.mock("@/lib/trpc", () => ({
 // Intelligence HQ's children are stubbed: the mount test is about the parent
 // rendering the Data freshness card, not about each card's own queries.
 vi.mock("@tanstack/react-query", () => ({ useQueryClient: () => ({ invalidateQueries: vi.fn() }) }));
-vi.mock("../pages/admin/today/DataFreshness", () => ({ DataFreshness: () => <div data-testid="data-freshness-card" /> }));
-vi.mock("../pages/admin/today/LaneHealthStrip", () => ({ LaneHealthStrip: () => <div data-testid="lane-health-card" /> }));
-vi.mock("../pages/admin/today/TopMoneyMoves", () => ({ TopMoneyMoves: () => null }));
-vi.mock("../pages/admin/today/TodaysMoneyRisks", () => ({ TodaysMoneyRisks: () => null }));
-vi.mock("../pages/admin/today/TodaysRealNumbers", () => ({ TodaysRealNumbers: () => null }));
-vi.mock("../pages/admin/today/NextBestActions", () => ({ NextBestActions: () => null }));
-vi.mock("../pages/admin/intelligence/AIHealthPanel", () => ({ AIHealthPanel: () => null }));
 vi.mock("../pages/admin/intelligence/LlmSpendPanel", () => ({ LlmSpendPanel: () => null }));
 vi.mock("../pages/admin/intelligence/CustomerIntelligence", () => ({ CustomerIntelligence: () => null }));
-vi.mock("../pages/admin/intelligence/LeadSLAMonitor", () => ({ LeadSLAMonitor: () => null }));
-vi.mock("../pages/admin/intelligence/MarketIntelligence", () => ({ MarketIntelligence: () => null }));
-vi.mock("../pages/admin/intelligence/ContentWarRoom", () => ({ ContentWarRoom: () => null }));
 
 import { gatewayState } from "../lib/gatewayState";
 import { MorningBrief } from "../pages/admin/today/MorningBrief";

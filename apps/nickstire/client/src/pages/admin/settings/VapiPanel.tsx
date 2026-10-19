@@ -38,15 +38,15 @@ export default function VapiPanel() {
     enabled: status?.connected ?? false,
   });
   // The receptionist prompt experiment (propose-only). Polls while a run is
-  // active on the server; a finished run shows its row summary here, lands in
-  // Telegram and on /proof, and never changes what callers hear.
+  // active on the server; a finished run shows its row summary here and in
+  // Telegram, and never changes what callers hear.
   const { data: evolution, isLoading: evolutionLoading, isError: evolutionError, error: evolutionErr } = trpc.vapi.promptEvolutionStatus.useQuery(undefined, {
     enabled: status?.connected ?? false,
     refetchInterval: (q) => (q.state.data?.active ? 30_000 : false),
   });
   const runEvolution = trpc.vapi.runPromptEvolutionNow.useMutation({
     onSuccess: (r) => {
-      if (r.status === "started") toast.success("Experiment started · result in up to 45 min (Telegram, /proof, and here)");
+      if (r.status === "started") toast.success("Experiment started · result in up to 45 min (Telegram and here)");
       else if (r.status === "running") toast.message(`Already running · started ${Math.round(r.elapsedMs / 60000)} min ago`);
       else toast.error(`Not started: ${r.reason}`);
       utils.vapi.promptEvolutionStatus.invalidate();
@@ -368,7 +368,7 @@ export default function VapiPanel() {
               onClick={async () => {
                 const ok = await confirmDialog({
                   title: "Run the receptionist prompt experiment now?",
-                  message: "Offline replay of real failed calls against the live prompt, up to 45 minutes. Proposes at most one candidate; nothing callers hear changes. Spends this week's sealed confirmation seeds. Result lands in Telegram, on /proof and here.",
+                  message: "Offline replay of real failed calls against the live prompt, up to 45 minutes. Proposes at most one candidate; nothing callers hear changes. Spends this week's sealed confirmation seeds. Result lands in Telegram and here.",
                   confirmLabel: "Run experiment",
                 });
                 if (ok) runEvolution.mutate();
