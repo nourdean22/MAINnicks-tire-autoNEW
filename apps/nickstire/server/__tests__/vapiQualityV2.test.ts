@@ -15,6 +15,7 @@ import { sql } from "drizzle-orm";
 import { MySqlDialect } from "drizzle-orm/mysql-core";
 import { describe, expect, it } from "vitest";
 import { disposeCall } from "@shared/callTaxonomy";
+import { sliceBlock } from "../testUtils/sourceBlock";
 import { vapiCallLogs } from "../../drizzle/schema";
 import { classifyCall } from "../services/vapiCallClassifier";
 import { qualityVersionLabel, qualityVersionLikePattern, scoreVapiQuality, VAPI_QUALITY_VERSION } from "../services/vapiMeasurement";
@@ -247,7 +248,7 @@ describe("T8 the degraded baseline counts only rows of the same quality version"
 
   it("the cron's baseline query uses it beside the score and window conditions", () => {
     const cron = readFileSync(new URL("../cron/jobs/vapiCallEval.ts", import.meta.url), "utf8");
-    const block = cron.slice(cron.indexOf("avg(${vapiCallLogs.evalScore})"), cron.indexOf("baselineAverage = baseline"));
+    const block = sliceBlock(cron, "avg(${vapiCallLogs.evalScore})", "baselineAverage = baseline", { label: "vapiCallEval.ts" });
     expect(block).toContain("isNotNull(vapiCallLogs.evalScore)");
     expect(block).toContain(BASELINE_LINE);
   });
@@ -258,7 +259,9 @@ describe("cron wiring: coverage computed once, before classifyCall, reused for t
 
   it("detectWalkInForDetail runs once and before classifyCall", () => {
     expect(cron.match(/detectWalkInForDetail\(/g)).toHaveLength(1);
-    expect(cron.indexOf("detectWalkInForDetail(detail)")).toBeLessThan(cron.indexOf("classifyCall({"));
+    const detect = cron.indexOf("detectWalkInForDetail(detail)");
+    expect(detect).toBeGreaterThan(-1); // a missing anchor (-1) would otherwise pass the order check
+    expect(detect).toBeLessThan(cron.indexOf("classifyCall({"));
   });
 
   it("classifyCall receives the coverage and the suffix uses the same value", () => {
