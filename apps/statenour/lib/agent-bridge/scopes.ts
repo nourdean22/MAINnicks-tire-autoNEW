@@ -49,8 +49,6 @@ export const PROTECTED_OPS_TOOLS: readonly string[] = [
   "sendOpportunitySms",
   "stageCustomerAlert",
   // social publishing
-  "triggerInstagramAutopost",
-  "setInstagramAutopostConfig",
   // code & device execution
   "runPython",
   "runDeviceCommand",

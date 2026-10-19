@@ -14,8 +14,7 @@
  *   3. The approved re-execution (guardianBypassStorage) runs the tool once.
  *   4. A retry does not queue a second approval; a DB failure still refuses.
  *   5. The argument check fails closed: a missing dryRun counts as live.
- *   6. The real nourTools.triggerInstagramAutopost is behind the gate: a live
- *      call in an owner turn sends nothing to the shop's IG control route.
+ *   (The chat tool itself was removed 2026-10-19; the gate's rules stay and are tested by name.)
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
@@ -125,27 +124,6 @@ describe("the nourTools boundary holds a live publish for the second key", () =>
     expect(run).toHaveBeenCalledTimes(1);
     expect(res).toEqual({ posted: true });
     expect(prismaMock.approvalRequest.create).not.toHaveBeenCalled();
-  });
-});
-
-describe("the real catalog tool is wired through the gate", () => {
-  it("nourTools.triggerInstagramAutopost live in an owner turn sends no request to the shop", async () => {
-    const fetchSpy = vi.fn();
-    vi.stubGlobal("fetch", fetchSpy);
-    const prevKey = process.env.NOUR_OS_IG_CONTROL_KEY;
-    process.env.NOUR_OS_IG_CONTROL_KEY = "ig-control-key";
-    try {
-      const { nourTools } = await import("@/lib/ai/tools");
-      const exec = (nourTools as unknown as Record<string, { execute: (a: unknown, o: unknown) => Promise<Result> }>)
-        .triggerInstagramAutopost.execute;
-      const res = await withTurnContext({}, () => exec({ dryRun: false }, {}));
-      expect(res.error).toBe("approval_required");
-      expect(fetchSpy).not.toHaveBeenCalled();
-    } finally {
-      vi.unstubAllGlobals();
-      if (prevKey === undefined) delete process.env.NOUR_OS_IG_CONTROL_KEY;
-      else process.env.NOUR_OS_IG_CONTROL_KEY = prevKey;
-    }
   });
 });
 

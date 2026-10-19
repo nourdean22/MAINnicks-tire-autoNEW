@@ -652,12 +652,6 @@ export async function pruneTools(
     addMatching(/scoreLocation/);
   }
 
-  // Instagram / Facebook autoposting & scheduling
-  // Covers spelling mistakes like "scheduale", "publis", "generat"
-  if (/\b(instagram|insta|ig|facebook|fb|post|posts|posting|autopost|autoposter|autoposting|publish|publis|publsih|generate|generat|pre-?generate|schedule|scheduale|schedul)\b/.test(text)) {
-    addMatching(/InstagramAutopost/i);
-  }
-
   // v10.0.530 · Tools / capabilities / help
   // Surfaces a rich, representative set of tools across all families when
   // the operator asks about capabilities or help.

@@ -96,7 +96,7 @@ export const READ_ONLY_TOOLS: ReadonlySet<string> = new Set([
   "getRevenueStats", "scoreLocation", "getTopDecisions",
   // live_shop
   "compareLiveRevenue", "findCustomer", "getAttentionAlerts", "getGscSummary", "getGscTopQueries",
-  "getInstagramAutopostStatus", "getMarketingAttribution", "getShopSnapshot", "queryNickstire",
+  "getMarketingAttribution", "getShopSnapshot", "queryNickstire",
   // content
   // files
   "getRepoMap", "githubListFiles", "githubListRepos", "githubReadFile",

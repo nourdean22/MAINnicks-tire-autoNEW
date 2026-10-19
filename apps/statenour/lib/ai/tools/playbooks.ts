@@ -77,7 +77,6 @@ export const PLAYBOOKS: readonly Playbook[] = [
     // generateImage is deliberately NOT here: it is catalogued sideEffecting (spend).
     // The operator asks for an image explicitly; a playbook never pre-attaches spend.
     tools: [
-      "getInstagramAutopostStatus",
       "getGscTopQueries",
       "getGscSummary",
       "getReviewStats",

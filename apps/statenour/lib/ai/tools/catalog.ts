@@ -187,7 +187,6 @@ export const TOOL_CATALOG: ToolMeta[] = [
   // wave-110 · GSC bridge — battle:false (strategic, not BATTLE-mode urgent)
   { name: "getGscSummary",                category: "live_shop",      battle: false, needsBridge: true, cost: "free" },
   { name: "getGscTopQueries",             category: "live_shop",      battle: false, needsBridge: true, cost: "free" },
-  { name: "getInstagramAutopostStatus",   category: "live_shop",      battle: true,  needsBridge: true, cost: "free" },
   // v10.0.500 · ADR-0011 Tier 3 · marketing attribution per source
   // (popup / chat / booking / callback / sms / etc.) with leads,
   // conversions, revenue. Closes the "what's working" category.
@@ -196,8 +195,6 @@ export const TOOL_CATALOG: ToolMeta[] = [
   // v10.0.79 · getShopBriefing retired — dailyPulse covers same surface plus personal layer.
   { name: "getShopSnapshot",              category: "live_shop",      battle: true, needsBridge: true, cost: "free" },
   { name: "queryNickstire",               category: "live_shop",      battle: true, needsBridge: true, cost: "free" },
-  { name: "setInstagramAutopostConfig",   category: "live_shop",      sideEffecting: true, needsBridge: true, cost: "free" },
-  { name: "triggerInstagramAutopost",     category: "live_shop",      sideEffecting: true, needsBridge: true, cost: "medium" },
 
   // ── content ──────────────────────────────────────────────────────
   { name: "generateImage",                category: "content",        sideEffecting: true, cost: "spendy" },

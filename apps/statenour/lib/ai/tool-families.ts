@@ -214,11 +214,8 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolMetadata>> = {
   // ── backfill 2026-07-11 · business-read ──
   getGscSummary: { family: "business-read", description: "Real Google Search Console totals for nickstire.org over a date range - clicks, impressions, CTR, average p..." },
   getGscTopQueries: { family: "business-read", description: "Top search queries driving organic traffic to nickstire.org from Google Search. Returns each query's clicks..." },
-  getInstagramAutopostStatus: { family: "business-read", description: "Get the current status of the Instagram/Facebook autopost system, including the active configuration and a..." },
   getMarketingAttribution: { family: "business-read", description: "Source-by-source attribution for Nick's Tire & Auto leads. Returns lead count + conversion count + conversi..." },
   scoreLocation: { family: "business-read", description: "Evaluate a candidate address for a second shop. Returns a 0-100 score, tier (A=ship - F=don't), strongest +..." },
-  setInstagramAutopostConfig: { family: "business-read", description: "Enable or disable the global Instagram/Facebook live autoposter configuration." },
-  triggerInstagramAutopost: { family: "business-read", description: "Run the Instagram Autopost pipeline immediately. Supports triggering dry-runs (evaluates but doesn't post)..." },
 
   // ── backfill 2026-07-11 · cognition ──
   analyzeCompetitiveIntel: { family: "cognition", description: "Analyze competitive landscape for Nick's Tire. Identifies competitor vulnerabilities (Chanakya-style), GSC..." },

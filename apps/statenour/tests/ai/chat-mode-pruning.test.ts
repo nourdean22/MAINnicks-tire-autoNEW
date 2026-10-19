@@ -208,17 +208,17 @@ describe("pruneTools keyword attachment families (v10.0.532 followups)", () => {
 
   it("caps at the budget and prioritizes core, action, and direct-intent tools deterministically when priority candidates exceed it", async () => {
     const allTools: Record<string, unknown> = {};
-    // Construct 60 priority candidates (which match InstagramAutopost keyword regex)
+    // Construct 60 priority candidates (which match the analyzeWeightTrend keyword regex)
     for (let i = 1; i <= 60; i++) {
-      allTools[`InstagramAutopost-${i}`] = { name: `InstagramAutopost-${i}` };
+      allTools[`analyzeWeightTrend-${i}`] = { name: `analyzeWeightTrend-${i}` };
     }
 
     // Add Core and Action tools
     allTools["searchMemories"] = { name: "searchMemories" };
     allTools["createTask"] = { name: "createTask" };
 
-    // We will query with "instagram" to trigger keyword-based match
-    const pruned = await pruneTools("deep", allTools, "please check my instagram posts", [0.1, 0.2]);
+    // We will query with "weight trend" to trigger keyword-based match
+    const pruned = await pruneTools("deep", allTools, "please check my weight trend", [0.1, 0.2]);
     const keys = Object.keys(pruned);
 
     // Assert cappings and deterministic ordering

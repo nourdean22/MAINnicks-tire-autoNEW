@@ -1363,15 +1363,6 @@
     }
   },
   {
-    "name": "getInstagramAutopostStatus",
-    "description": "Get the current status of the Instagram/Facebook autopost system, including the active configuration and a history of the 5 most recent posts (statuses, scores, captions, errors, and image URLs).",
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {},
-      "type": "object"
-    }
-  },
-  {
     "name": "getMarketingAttribution",
     "description": "Source-by-source attribution for Nick's Tire & Auto leads. Returns lead count + conversion count + conversion rate + revenue + avg ticket per source (popup / chat / booking / callback / sms / etc.) ranked by total dollars. Use whenever Nour asks 'what's working', 'which channel is converting', 'ROI per source', 'where are leads coming from', or 'what's our best marketing'. Defaults to last 30 days.",
     "inputSchema": {
@@ -2793,23 +2784,6 @@
     }
   },
   {
-    "name": "setInstagramAutopostConfig",
-    "description": "Enable or disable the global Instagram/Facebook live autoposter configuration.",
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "enabled": {
-          "description": "Set to true to allow scheduled live autoposting, or false to restrict to dry-runs only.",
-          "type": "boolean"
-        }
-      },
-      "required": [
-        "enabled"
-      ],
-      "type": "object"
-    }
-  },
-  {
     "name": "setMit",
     "description": "Lock today's Most Important Thing (MIT). Nour picks ONE commitment per day; this tool writes it. Example args: { text: 'Close the Smith estimate before EOD' }",
     "inputSchema": {
@@ -3106,34 +3080,6 @@
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {},
-      "type": "object"
-    }
-  },
-  {
-    "name": "triggerInstagramAutopost",
-    "description": "Run the Instagram Autopost pipeline immediately. Supports triggering dry-runs (evaluates but doesn't post) or live publishes. Optionally steer with a specific content archetype.",
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "dryRun": {
-          "default": true,
-          "description": "If true, only generates and evaluates. If false, posts live to Instagram/Facebook immediately.",
-          "type": "boolean"
-        },
-        "forceArchetype": {
-          "description": "Force a content archetype angle for the generated post.",
-          "enum": [
-            "educational",
-            "promo",
-            "behind_scenes",
-            "testimonial",
-            "meme",
-            "tips",
-            "showcase"
-          ],
-          "type": "string"
-        }
-      },
       "type": "object"
     }
   },
