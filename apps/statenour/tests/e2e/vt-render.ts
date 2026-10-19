@@ -38,21 +38,28 @@ export const VT_CONTEXT = { locale: "en-US", timezoneId: "America/New_York" } as
 export const IGNORED_PAGE_ERRORS = /hydration/i;
 
 /**
- * Wave 0b covered Home and Missions; W3a adds Chat; Brain, People and System come later.
+ * Wave 0b covered Home and Missions; W3a adds Chat; the W4 gate job (2026-10-19) adds Brain, People,
+ * Journal and Stats; System comes later.
  *
  * `baselinePending`: the page renders from fixtures on every run (anchor, error
  * states, unstubbed reads all gate), but its frozen baseline has not been
  * captured yet, so a MISSING PNG skips the distance comparison with a reason
- * instead of failing (baselineSkipReason in ./v3-gate.ts). No page is pending
- * today: Chat's pre-W3 baselines were captured from main 7dc82474c (run
- * 38908095706) and committed with the flag removed in the same commit;
- * tests/repo/v3-gate.test.ts fails if a flagged page already has its PNGs.
+ * instead of failing (baselineSkipReason in ./v3-gate.ts). Chat's pre-W3
+ * baselines were captured from main 7dc82474c (run 38908095706) and committed
+ * with the flag removed in the same commit; the four W4 pages are pending until
+ * theirs are; tests/repo/v3-gate.test.ts fails if a flagged page already has its PNGs.
  */
 export const V3_PAGES: { key: string; path: string; landmark: string; baselinePending?: boolean }[] = [
   { key: "home", path: "/", landmark: "main" },
   { key: "missions", path: "/missions", landmark: "main" },
   // ?h=1 opens the History drawer, the only way a conversation loads (openChatHistory above).
   { key: "chat", path: "/chat?h=1", landmark: "main" },
+  // W4 Mind (2026-10-19), pending until their PRE-W4 baselines (651ded614 + this instrument) are committed.
+  // Brain renders its Board tab: the default Map is a Math.random-seeded canvas (fixtures/brain.ts).
+  { key: "brain", path: "/brain?tab=board", landmark: "main", baselinePending: true },
+  { key: "people", path: "/people", landmark: "main", baselinePending: true },
+  { key: "journal", path: "/journal", landmark: "main", baselinePending: true },
+  { key: "stats", path: "/stats", landmark: "main", baselinePending: true },
 ];
 
 export const V3_VIEWPORTS = [

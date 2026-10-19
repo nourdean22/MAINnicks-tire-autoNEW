@@ -27,10 +27,14 @@
  */
 import type { Page } from "@playwright/test";
 
+import { BRAIN_BOARD_QUESTION, BRAIN_BOARD_RECENTS } from "./brain";
 import { CHAT_CONVERSATION, CHAT_LIST, CHAT_MIT, CHAT_PROVIDER_HEALTH, CHAT_REPLY, CHAT_TITLE, CHAT_TOOLS_HEALTH } from "./chat";
 import { HOME_BRIEF, HOME_REMEMBERS, HOME_WAITING } from "./home";
+import { JOURNAL_CONVERGENCE, JOURNAL_ENTRY_TITLE, JOURNAL_FEED, JOURNAL_GHOST_QUESTION, JOURNAL_INSIGHTS, JOURNAL_METACOGNITION, JOURNAL_SUGGESTIONS, JOURNAL_THREADS } from "./journal";
 import { ALPHA_TITLE, MISSIONS, MISSIONS_DECK, MISSION_TASKS, NEXT_MOVE_TITLE } from "./missions";
+import { PEOPLE_LIST, PEOPLE_NEGLECTED_NAME, PEOPLE_WATCHLIST } from "./people";
 import { SHELL_PULSE, SHELL_TICKER } from "./shell";
+import { STATS_ANTI_PATTERNS, STATS_BODY, STATS_GOALS, STATS_IDENTITY, STATS_JOURNEY, STATS_SHEET, STATS_SKILLS, STATS_TOP_RISER, STATS_XP_GROWTH } from "./stats";
 import { FIXED_TIME } from "./time";
 
 export { FIXED_TIME, NOW_ISO, NOW_MS } from "./time";
@@ -47,6 +51,11 @@ export const PAGE_ERRORS = {
   // Chat has no error panel: its failures are a pill that never reaches "ready" (the header's capability words
   // for unmeasured, unknown, degraded and offline), or a list that never left the empty / loading state.
   chat: /checking capabilities|AI health unknown|tool health unknown|chat offline|chat degraded|AI offline|fallback active|tools limited|Loading conversation|What are we solving/i,
+  // W4 Mind (2026-10-19): each page's load-failure copy (pre-W4 trees lack some of it; an absent alternative never matches).
+  brain: /recent consultations couldn.t load/i,
+  people: /People did not load|Refresh failed, showing the last list|Couldn.t load who needs you/i,
+  journal: /The journal couldn.t load|Refresh failed\. Showing the last loaded entries|partial feed, failed source|Couldn.t load threads/i,
+  stats: /Couldn.t read your stats|Failed to load character sheet|Failed to load Identity Arc|Journey lens couldn.t load|XP couldn.t be read/i,
 } as const;
 
 /**
@@ -65,11 +74,18 @@ export const UNSTUBBED_ALLOWLIST: ReadonlyArray<string | RegExp> = [
 /**
  * `GET operator.*` / `GET task.*` / `GET chat.*` entries of a FixtureReport that the gate does not allow, and the
  * two system reads the Chat header pill depends on (W3a). The rest of `system.*` is the shell's and stays printed.
+ * W4 (2026-10-19) adds the Mind pages' routers (`journal.*`, `brain.*`, `systemBrain.*`, `system.journeyLens`) and
+ * People's two REST lists (`GET /api/people…`, `GET /api/relationships/…`). No other page reads any of them
+ * unanswered (CI run 39235275218 printed every unstubbed read of Home, Missions and Chat: none of these).
  */
 export function disallowedUnstubbed(unstubbed: Iterable<string>): string[] {
   const out: string[] = [];
   for (const entry of unstubbed) {
-    const m = /^GET ((?:(?:operator|task|chat)\.[A-Za-z0-9_.]+)|system\.(?:providerHealth|toolsHealth))$/.exec(entry);
+    if (/^GET \/api\/(?:people|relationships)(?:\/|$)/.test(entry)) {
+      out.push(entry);
+      continue;
+    }
+    const m = /^GET ((?:(?:operator|task|chat|journal|brain|systemBrain)\.[A-Za-z0-9_.]+)|system\.(?:providerHealth|toolsHealth|journeyLens))$/.exec(entry);
     if (!m) continue;
     const procedure = m[1];
     const allowed = UNSTUBBED_ALLOWLIST.some((a) => (typeof a === "string" ? a === procedure : a.test(procedure)));
@@ -94,6 +110,23 @@ export const TRPC_FIXTURES: Record<string, unknown> = {
   "chat.list": CHAT_LIST,
   "chat.conversation": CHAT_CONVERSATION,
   "operator.mit": CHAT_MIT,
+  // W4 Mind (2026-10-19). Brain renders ?tab=board (fixtures/brain.ts).
+  "brain.recentBoardConsultations": BRAIN_BOARD_RECENTS,
+  "journal.feed": JOURNAL_FEED,
+  "journal.ghostCounterQuestion": JOURNAL_GHOST_QUESTION,
+  "journal.insightsPreview": JOURNAL_INSIGHTS,
+  "journal.metacognition": JOURNAL_METACOGNITION,
+  "journal.threads": JOURNAL_THREADS,
+  "journal.convergence": JOURNAL_CONVERGENCE,
+  "journal.suggestions": JOURNAL_SUGGESTIONS,
+  "operator.characterSheet": STATS_SHEET,
+  "task.goals": STATS_GOALS,
+  "operator.bodyTracking": STATS_BODY,
+  "operator.identityProjection": STATS_IDENTITY,
+  "operator.xpGrowthComparison": STATS_XP_GROWTH,
+  "systemBrain.antiPatterns": STATS_ANTI_PATTERNS,
+  "operator.skills": STATS_SKILLS,
+  "system.journeyLens": STATS_JOURNEY,
 };
 
 /**
@@ -112,6 +145,11 @@ export const DEMO = {
   missionTitle: ALPHA_TITLE,
   chatReply: CHAT_REPLY,
   chatTitle: CHAT_TITLE,
+  // W4 Mind (2026-10-19): read by the v3 spec's ANCHOR map.
+  brainBoardQuestion: BRAIN_BOARD_QUESTION,
+  peopleNeglected: PEOPLE_NEGLECTED_NAME,
+  journalEntry: JOURNAL_ENTRY_TITLE,
+  statsTopRiser: STATS_TOP_RISER,
 } as const;
 
 /**
@@ -123,6 +161,16 @@ export const DEMO = {
  * the 204 is the server's own.
  */
 export const REST_NO_CONTENT: ReadonlySet<string> = new Set(["GET /api/ai/chat/none/stream"]);
+
+/**
+ * REST reads answered with data (W4 gate, 2026-10-19): "METHOD /pathname" (no query string) to the
+ * body the route sends. GET only: a mutation is never stubbed. People reads both of its lists over
+ * REST (fixtures/people.ts).
+ */
+export const REST_FIXTURES: Record<string, unknown> = {
+  "GET /api/people": PEOPLE_LIST,
+  "GET /api/relationships/watchlist": PEOPLE_WATCHLIST,
+};
 
 export interface FixtureReport {
   /** "METHOD procedure" or "METHOD /path" for every data call the fixtures refused. */
@@ -160,6 +208,7 @@ export function answerApi(method: string, url: URL, report: FixtureReport): ApiA
   }
 
   if (REST_NO_CONTENT.has(`${method} ${pathname}`)) return { kind: "fulfill", status: 204, body: undefined };
+  if (Object.hasOwn(REST_FIXTURES, `${method} ${pathname}`)) return { kind: "fulfill", status: 200, body: REST_FIXTURES[`${method} ${pathname}`] };
 
   report.unstubbed.add(`${method} ${pathname}`);
   return { kind: "fulfill", status: 404, body: { error: "not stubbed by the v3 fixtures" } };

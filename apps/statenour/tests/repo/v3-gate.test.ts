@@ -29,6 +29,7 @@ import {
   NOW_ISO,
   NOW_MS,
   PAGE_ERRORS,
+  REST_FIXTURES,
   TRPC_FIXTURES,
   UNSTUBBED_ALLOWLIST,
   answerApi,
@@ -458,7 +459,7 @@ describe("installFixtures (the wiring, against a recording Page)", () => {
 const NONDETERMINISTIC = /Date\.now|new Date\(\s*\)|Math\.random|performance\.now|toLocale|Intl\.|randomUUID|process\.env/;
 
 describe("fixture data", () => {
-  const dataFiles = ["time.ts", "home.ts", "missions.ts", "shell.ts", "chat.ts"].map((f) => path.join(E2E_DIR, "fixtures", f));
+  const dataFiles = ["time.ts", "home.ts", "missions.ts", "shell.ts", "chat.ts", "brain.ts", "people.ts", "journal.ts", "stats.ts"].map((f) => path.join(E2E_DIR, "fixtures", f));
 
   it("positive control: the determinism scan flags a clock read, a random and a locale call", () => {
     for (const bad of ["Date.now()", "new Date()", "Math.random()", "x.toLocaleString()", "new Intl.DateTimeFormat()"]) {
@@ -630,9 +631,11 @@ describe("the smoke spec cannot pass on an empty-state page", () => {
     expect(unsourcedTextRegexes(planted, sources)).toEqual(["/deferred actions await your verdict/i"]);
   });
 
-  it("the DEMO strings are the fixtures' own, and the smoke spec reads every one of them", () => {
+  it("the DEMO strings are the fixtures' own, and a spec reads every one of them", () => {
     const smoke = read(SMOKE_SPEC);
-    for (const key of Object.keys(DEMO)) expect(smoke, `smoke spec never reads DEMO.${key}`).toContain(`DEMO.${key}`);
+    // W4 (2026-10-19): the four Mind anchors are read by the v3 gate's ANCHOR map only (the smoke covers Home, Missions, Chat).
+    const v3 = read(V3_SPEC);
+    for (const key of Object.keys(DEMO)) expect(smoke.includes(`DEMO.${key}`) || v3.includes(`anchorText: DEMO.${key},`), `no spec reads DEMO.${key}`).toBe(true);
     const deck = TRPC_FIXTURES["task.deck"] as { nextMove: { task: { title: string } } };
     expect(deck.nextMove.task.title).toBe(DEMO.missionsNextMove);
   });
@@ -648,6 +651,16 @@ describe("the smoke spec cannot pass on an empty-state page", () => {
       // Chat (W3a): the header pill's words and the list's empty and loading states.
       "features/chat-v2/lib/capability-label.ts",
       "features/chat-v2/components/chat-message-list.tsx",
+      // W4 Mind (2026-10-19): each page's load-failure copy.
+      "components/brain/board-tab.tsx",
+      "app/(mastery)/people/page.tsx",
+      "components/relationships/relationships-watchlist.tsx",
+      "app/(mastery)/journal/_components/journal-feed-view.tsx",
+      "components/journal/thread-rail.tsx",
+      "components/stats/stats-verdict.tsx",
+      "components/mastery/character-sheet.tsx",
+      "components/mastery/identity-arc-card.tsx",
+      "components/stats/journey-panel.tsx",
     ].map((f) => read(path.join(APP_DIR, f)).replace(/&apos;/g, "'"));
     for (const [name, re] of Object.entries(PAGE_ERRORS)) {
       for (const alt of re.source.split("|")) {
@@ -836,6 +849,206 @@ describe("chat fixtures (W3a)", () => {
   });
 });
 
+// ── W4 Mind pages (2026-10-19): Brain, People, Journal and Stats join the gate ──
+
+describe("W4 Mind pages: fixtures for every read, anchors, error patterns, the gate's reach", () => {
+  const W4 = ["brain", "people", "journal", "stats"] as const;
+  const fixtures = TRPC_FIXTURES as Record<string, unknown>;
+  const rest = REST_FIXTURES as Record<string, unknown>;
+
+  /**
+   * The files each page mounts on its rendered tab, and every read in them. Brain renders ?tab=board
+   * (fixtures/brain.ts says why not the Map canvas); Stats renders its default Mastery tab plus the
+   * Journey panel under it. Hooks the components call for data are listed with them.
+   */
+  const PAGE_FILES: Record<(typeof W4)[number], string[]> = {
+    brain: ["app/(mastery)/brain/page.tsx", "components/brain/board-tab.tsx", "components/layout/page-tabs.tsx"],
+    people: [
+      "app/(mastery)/people/page.tsx",
+      "components/relationships/relationships-watchlist.tsx",
+      "components/relationships/people-change-line.tsx",
+      "components/relationships/nicks-relationships-brief.tsx",
+      "components/relationships/todays-picks.tsx",
+    ],
+    journal: [
+      "app/(mastery)/journal/page.tsx",
+      "app/(mastery)/journal/_components/journal-feed-view.tsx",
+      "app/(mastery)/journal/_components/journal-insights-view.tsx",
+      "app/(mastery)/journal/_hooks/use-journal-feed.ts",
+      "components/journal/reflect-composer.tsx",
+      "components/journal/nicks-journal-brief.tsx",
+      "components/journal/journal-insights-preview.tsx",
+      "components/journal/metacognition-card.tsx",
+      "components/journal/journal-threads-strip.tsx",
+      "components/journal/thread-radar.tsx",
+      "components/journal/thread-rail.tsx",
+      "components/journal/thread-suggestions.tsx",
+      "components/mastery/mission-breadcrumb.tsx",
+      "hooks/mastery/use-mission-mode.ts",
+      "components/mastery/coach-event-banner.tsx",
+      "lib/hooks/use-coach-events.ts",
+    ],
+    stats: [
+      "app/(mastery)/stats/page.tsx",
+      "components/stats/stats-verdict.tsx",
+      "components/mastery/level-up-directive-card.tsx",
+      "components/mastery/identity-arc-card.tsx",
+      "components/mastery/recurring-enemies-card.tsx",
+      "components/mastery/graduated-skills-card.tsx",
+      "components/mastery/character-sheet.tsx",
+      "components/stats/journey-panel.tsx",
+    ],
+  };
+
+  /** Reads in those files that the render does not answer, and why that is safe. */
+  const NOT_STUBBED: Record<string, string> = {
+    "task.peopleChangesSince": "PeopleChangeLine fires it only once a last-visit cursor exists; a fresh browser has none (the gate fails if it ever fires)",
+    "task.personProfile": "the dossier query, enabled only when a person is selected (?inspect=person:<id>); the render selects none",
+    "journal.calibrationSamples": "MemoryCalibrationRitual mounts only after a tap on the composer's calibration control",
+    "journal.contradictionsForEntry": "an entry row fetches it only when expanded; the render expands none",
+    "journal.receipt": "same: enabled only on an expanded entry",
+    "task.goals#fetch": "the level-up card's imperative refetch, never on load",
+    "POST /api/ai/relationships-morning-brief": "a POST: mutations are never stubbed; the brief self-hides on the refusal, in every tree",
+    "POST /api/ai/relationships-pick-today": "a POST, same: Today's picks falls back to no picks",
+    "POST /api/ai/journal-brief": "a POST, same: the journal brief self-hides",
+    "/api/ai/draft-outreach": "fetched only when a pick is opened",
+    "/api/relationships/log-outreach": "a POST on a tap",
+    "/api/coach/events": "the coach banner's poll (use-coach-events.ts): a 404 hides the banner, as on /missions since W0b (CI run 39235275218 prints it there)",
+    "/api/coach/events/": "the banner's ack, a POST on a tap",
+  };
+
+  function readsOf(file: string): string[] {
+    const src = read(path.join(APP_DIR, file));
+    const out: string[] = [];
+    for (const m of src.matchAll(/trpc\.([a-zA-Z]+)\.([a-zA-Z]+)\.use(?:Suspense)?(?:Infinite)?Query\b/g)) out.push(`${m[1]}.${m[2]}`);
+    for (const m of src.matchAll(/utils\.([a-zA-Z]+)\.([a-zA-Z]+)\.fetch\(/g)) out.push(`${m[1]}.${m[2]}#fetch`);
+    for (const m of src.matchAll(/["'`](\/api\/[^"'`?$]+)/g)) {
+      const method = /method:\s*"POST"/.test(src.slice(m.index!, m.index! + 300)) ? "POST" : "GET";
+      out.push(`${method} ${m[1]}`);
+    }
+    return out;
+  }
+
+  function uncovered(page: (typeof W4)[number]): string[] {
+    const reads = new Set(PAGE_FILES[page].flatMap(readsOf));
+    return [...reads].filter((r) => {
+      if (r in fixtures || r in rest || r in NOT_STUBBED) return false;
+      return !(r.replace(/^(GET|POST) /, "") in NOT_STUBBED);
+    });
+  }
+
+  it("positive control: the scan sees the reads each page's content stands on", () => {
+    const seen = new Set(W4.flatMap((p) => PAGE_FILES[p].flatMap(readsOf)));
+    for (const r of ["brain.recentBoardConsultations", "GET /api/people", "GET /api/relationships/watchlist", "journal.feed", "operator.characterSheet", "system.journeyLens"]) {
+      expect(seen.has(r), `the scan never saw ${r}`).toBe(true);
+    }
+  });
+
+  for (const page of W4) {
+    it(`${page}: every read on load is stubbed, or listed here with the reason it is not`, () => {
+      expect(uncovered(page), `${page} reads data the fixtures do not answer`).toEqual([]);
+    });
+  }
+
+  it("every W4 page is in V3_PAGES, pending its pre-W4 baseline; Brain renders its Board tab", () => {
+    for (const key of W4) {
+      const p = V3_PAGES.find((x) => x.key === key);
+      expect(p, `${key} is not in V3_PAGES`).toBeDefined();
+      expect(p!.landmark).toBe("main");
+    }
+    expect(V3_PAGES.find((x) => x.key === "brain")!.path).toBe("/brain?tab=board");
+  });
+
+  it("each W4 anchor is the fixtures' own sentence, and is what the page's content prints", () => {
+    const demo = DEMO as Record<string, string | undefined>;
+    const board = fixtures["brain.recentBoardConsultations"] as { consultations: { question: string }[] } | undefined;
+    const people = rest["GET /api/people"] as { people: { name: string; isNeglected: boolean }[] } | undefined;
+    const feed = fixtures["journal.feed"] as { entries: { title: string }[] } | undefined;
+    const sheet = fixtures["operator.characterSheet"] as { label: string; rising7dXp: number }[] | undefined;
+    expect(board?.consultations[0]?.question).toBe(demo.brainBoardQuestion);
+    expect(people?.people.find((p) => p.name === demo.peopleNeglected)?.isNeglected).toBe(true);
+    expect(feed?.entries[0]?.title).toBe(demo.journalEntry);
+    // The top riser by rising7dXp, which the W4 verdict names and the sheet prints in both trees.
+    expect([...(sheet ?? [])].sort((a, b) => b.rising7dXp - a.rising7dXp)[0]?.label).toBe(demo.statsTopRiser);
+    for (const k of ["brainBoardQuestion", "peopleNeglected", "journalEntry", "statsTopRiser"]) expect(demo[k], `DEMO.${k}`).toMatch(/\bDemo\b/);
+  });
+
+  it("the loaded page has content on both sides of the comparison (pitfall from W3b: empty vs empty measures nothing)", () => {
+    expect((fixtures["brain.recentBoardConsultations"] as { consultations: unknown[] }).consultations.length).toBeGreaterThanOrEqual(3);
+    expect((rest["GET /api/people"] as { people: unknown[] }).people.length).toBeGreaterThanOrEqual(5);
+    expect((rest["GET /api/relationships/watchlist"] as { items: unknown[] }).items.length).toBeGreaterThanOrEqual(2);
+    expect((fixtures["journal.feed"] as { entries: unknown[] }).entries.length).toBeGreaterThanOrEqual(4);
+    expect((fixtures["operator.characterSheet"] as unknown[]).length).toBeGreaterThanOrEqual(6);
+  });
+
+  it("answerApi serves a REST fixture by method and pathname (query string ignored) and never a POST to it", () => {
+    const report = newReport();
+    const people = answerApi("GET", new URL(`${BASE}/api/people?sort=recent&limit=100`), report);
+    expect(people).toEqual({ kind: "fulfill", status: 200, body: rest["GET /api/people"] });
+    expect(answerApi("GET", new URL(`${BASE}/api/relationships/watchlist`), report)).toMatchObject({ kind: "fulfill", status: 200 });
+    expect(answerApi("POST", new URL(`${BASE}/api/people`), report)).toMatchObject({ kind: "fulfill", status: 404 });
+    expect(answerApi("GET", new URL(`${BASE}/api/people/demo-person-1`), report)).toMatchObject({ kind: "fulfill", status: 404 });
+    expect([...report.unstubbed].sort()).toEqual(["GET /api/people/demo-person-1", "POST /api/people"]);
+  });
+
+  it("the gate fails an unanswered W4 read (tRPC routers and the People REST lists) and still ignores the shell's", () => {
+    expect(
+      disallowedUnstubbed([
+        "GET journal.feed",
+        "GET brain.recentBoardConsultations",
+        "GET systemBrain.antiPatterns",
+        "GET system.journeyLens",
+        "GET /api/people",
+        "GET /api/relationships/watchlist",
+        // the shell's and other pages' unanswered reads, from CI run 39235275218: printed, never gated
+        "GET /api/command/data",
+        "GET /api/habits",
+        "GET /api/health",
+        "GET /api/coach/events",
+        "GET /api/brain/recall",
+        "GET system.sessionExpiry",
+        "POST brain.pageVisit",
+        "POST /api/people",
+      ]),
+    ).toEqual([
+      "GET /api/people",
+      "GET /api/relationships/watchlist",
+      "GET brain.recentBoardConsultations",
+      "GET journal.feed",
+      "GET system.journeyLens",
+      "GET systemBrain.antiPatterns",
+    ]);
+  });
+
+  it("positive control: a deliberately missing fixture fails the page's coverage, the complete set passes", () => {
+    const saved = fixtures["journal.feed"];
+    try {
+      delete fixtures["journal.feed"];
+      expect(uncovered("journal")).toEqual(["journal.feed"]);
+    } finally {
+      fixtures["journal.feed"] = saved;
+    }
+    expect(uncovered("journal")).toEqual([]);
+  });
+
+  it("REST fixtures reach the wire whole, are Demo-only and carry no contact details", () => {
+    const TEXT = /\b(?!Demo\b)[A-Z][a-z]+\s+(?!Demo\b)[A-Z][a-z]+\b/;
+    const flagged: string[] = [];
+    const walk = (v: unknown) => {
+      if (Array.isArray(v)) v.forEach(walk);
+      else if (v && typeof v === "object") Object.values(v).forEach(walk);
+      else if (typeof v === "string" && TEXT.test(v)) flagged.push(v);
+    };
+    walk(rest);
+    expect(flagged).toEqual([]);
+    const wire = JSON.stringify(rest);
+    expect(wire).not.toMatch(/@[a-z0-9-]+\.[a-z]{2,}/i);
+    expect(wire).not.toMatch(/\b\d{3}[-.\s)]\s?\d{3}[-.\s]\d{4}\b/);
+    for (const [k, v] of Object.entries(rest)) expect(JSON.parse(JSON.stringify(v)), k).toEqual(v);
+    for (const p of (rest["GET /api/people"] as { people: { name: string }[] }).people) expect(p.name).toMatch(/^Demo\b/);
+  });
+});
+
 // ── Pending baselines (W3a): a missing PNG skips only a page declared pending ─
 
 describe("pending baselines: a missing PNG skips, a present one is always judged", () => {
@@ -897,8 +1110,9 @@ describe("pending baselines: a missing PNG skips, a present one is always judged
     expect(baselineSkipReason({ label: "x", baselineExists: false, pending: true })).not.toBeNull();
   });
 
-  it("no page is pending today (chat's baselines were captured from main 7dc82474c, run 38908095706); a pending page must not have its PNGs", () => {
-    expect(V3_PAGES.filter((p) => p.baselinePending).map((p) => p.key)).toEqual([]);
+  it("only the four W4 pages are pending (their PRE-W4 baselines come from 651ded614 + the instrument); a pending page must not have its PNGs", () => {
+    // chat's baselines were captured from main 7dc82474c, run 38908095706, and its flag removed in the same commit.
+    expect(V3_PAGES.filter((p) => p.baselinePending).map((p) => p.key)).toEqual(["brain", "people", "journal", "stats"]);
     for (const p of V3_PAGES.filter((x) => x.baselinePending)) {
       for (const v of V3_VIEWPORTS) {
         const png = `${p.key}-${v.key}.png`;
@@ -931,6 +1145,10 @@ const SPEC_LINES = {
   homeAnchor: "home: { anchorText: DEMO.homeSummary, errorPattern: PAGE_ERRORS.home },",
   missionsAnchor: "missions: { anchorText: DEMO.missionsNextMove, errorPattern: PAGE_ERRORS.missions },",
   chatAnchor: "chat: { anchorText: DEMO.chatReply, errorPattern: PAGE_ERRORS.chat, open: (page) => openChatHistory(page, DEMO.chatTitle), settle: settleChat },",
+  brainAnchor: "brain: { anchorText: DEMO.brainBoardQuestion, errorPattern: PAGE_ERRORS.brain },",
+  peopleAnchor: "people: { anchorText: DEMO.peopleNeglected, errorPattern: PAGE_ERRORS.people },",
+  journalAnchor: "journal: { anchorText: DEMO.journalEntry, errorPattern: PAGE_ERRORS.journal },",
+  statsAnchor: "stats: { anchorText: DEMO.statsTopRiser, errorPattern: PAGE_ERRORS.stats },",
   render: "const current = await renderPage(page, p.path, p.landmark, ANCHOR[p.key]);",
   unstubbed: "expect(disallowedUnstubbed(unstubbed), `${p.key}/${vp.key} read page data the fixtures do not answer`).toEqual([]);",
   capture: "const capture = captureVerdict({ ink: await inkCoverage(current, vp) });",
@@ -1054,6 +1272,11 @@ describe("visible-transformation-v3.spec.ts consumes measureAndJudge", () => {
       "home anchor points at a string the empty page shows": spec.replace(SPEC_LINES.homeAnchor, 'home: { anchorText: "Now", errorPattern: PAGE_ERRORS.home },'),
       "chat anchor points at a string the empty page shows": spec.replace(SPEC_LINES.chatAnchor, 'chat: { anchorText: "What are we solving?", errorPattern: PAGE_ERRORS.chat, open: (page) => openChatHistory(page, DEMO.chatTitle), settle: settleChat },'),
       "chat anchor loses the conversation pick": spec.replace(SPEC_LINES.chatAnchor, "chat: { anchorText: DEMO.chatReply, errorPattern: PAGE_ERRORS.chat, settle: settleChat },"),
+      // W4: an anchor on copy every render shows (the tab label, the page title) would pass an error state.
+      "brain anchor points at the tab label": spec.replace(SPEC_LINES.brainAnchor, 'brain: { anchorText: "Board", errorPattern: PAGE_ERRORS.brain },'),
+      "people anchor points at the page title": spec.replace(SPEC_LINES.peopleAnchor, 'people: { anchorText: "People", errorPattern: PAGE_ERRORS.people },'),
+      "journal error pattern swapped for another page's": spec.replace(SPEC_LINES.journalAnchor, "journal: { anchorText: DEMO.journalEntry, errorPattern: PAGE_ERRORS.home },"),
+      "stats anchor removed": spec.replace(SPEC_LINES.statsAnchor, ""),
       "every page may skip on a missing baseline": spec.replace(SPEC_LINES.skipReason, "const skipReason = baselineSkipReason({ label: `${p.key}/${vp.key}`, baselineExists: baseline !== null, pending: true });"),
       "the skip is decided without the baseline read": spec.replace(SPEC_LINES.skipReason, "const skipReason = baselineSkipReason({ label: `${p.key}/${vp.key}`, baselineExists: false, pending: p.baselinePending === true });"),
       "the skip call removed": spec.replace(SPEC_LINES.skipCall, ""),
@@ -1239,7 +1462,13 @@ describe(".github/workflows/e2e-statenour.yml capture path", () => {
         named(w, "Check v3 baselines are complete").run = named(w, "Check v3 baselines are complete").run!.replace(" chat-desktop chat-phone", "");
       },
       "the completeness check names a file the spec never captures": (w) => {
-        named(w, "Check v3 baselines are complete").run = named(w, "Check v3 baselines are complete").run!.replace("chat-phone;", "chat-phone brain-phone;");
+        named(w, "Check v3 baselines are complete").run = named(w, "Check v3 baselines are complete").run!.replace("stats-phone;", "stats-phone system-phone;");
+      },
+      "the completeness check misses the W4 pages": (w) => {
+        named(w, "Check v3 baselines are complete").run = named(w, "Check v3 baselines are complete").run!.replace(" brain-desktop brain-phone people-desktop people-phone journal-desktop journal-phone stats-desktop stats-phone", "");
+      },
+      "the completeness check misses one W4 viewport": (w) => {
+        named(w, "Check v3 baselines are complete").run = named(w, "Check v3 baselines are complete").run!.replace(" journal-phone", "");
       },
       "the completeness check removed": (w) => {
         w.jobs.e2e.steps = steps(w).filter((s) => !s.name?.startsWith("Check v3 baselines are complete"));
@@ -1347,6 +1576,10 @@ describe("tsconfig.e2e.json typechecks the fixture lane", () => {
         "tests/e2e/fixtures/home.ts",
         "tests/e2e/fixtures/missions.ts",
         "tests/e2e/fixtures/chat.ts",
+        "tests/e2e/fixtures/brain.ts",
+        "tests/e2e/fixtures/people.ts",
+        "tests/e2e/fixtures/journal.ts",
+        "tests/e2e/fixtures/stats.ts",
         "tests/e2e/fixtures/index.ts",
         "tests/e2e/v3-gate.ts",
         "tests/e2e/visible-transformation-v3.spec.ts",

@@ -53,6 +53,11 @@ const ANCHOR: Record<string, RenderAnchor> = {
   missions: { anchorText: DEMO.missionsNextMove, errorPattern: PAGE_ERRORS.missions },
   // Chat loads no conversation by itself: open() picks the seeded one in the History drawer, settle() waits out the island.
   chat: { anchorText: DEMO.chatReply, errorPattern: PAGE_ERRORS.chat, open: (page) => openChatHistory(page, DEMO.chatTitle), settle: settleChat },
+  // W4 Mind (2026-10-19): each anchor is a fixture sentence the page's content prints (fixtures/{brain,people,journal,stats}.ts).
+  brain: { anchorText: DEMO.brainBoardQuestion, errorPattern: PAGE_ERRORS.brain },
+  people: { anchorText: DEMO.peopleNeglected, errorPattern: PAGE_ERRORS.people },
+  journal: { anchorText: DEMO.journalEntry, errorPattern: PAGE_ERRORS.journal },
+  stats: { anchorText: DEMO.statsTopRiser, errorPattern: PAGE_ERRORS.stats },
 };
 
 for (const vp of V3_VIEWPORTS) {
