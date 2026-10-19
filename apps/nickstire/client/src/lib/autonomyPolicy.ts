@@ -354,24 +354,3 @@ export function resolveBoundaryOutcome(decision: PolicyDecision, actor: Boundary
   return "proceed";
 }
 
-/** Structural validation for operator-submitted policy JSON (no zod here —
- *  this module stays dependency-free like the other pure studio libs).
- *  The SERVER validates with the strict zod schema in autonomyControl —
- *  this shape check is a client-side convenience only. */
-export function validateAutonomyPolicyShape(p: unknown): p is AutonomyPolicy {
-  if (typeof p !== "object" || p === null) return false;
-  const pol = p as AutonomyPolicy;
-  return (
-    typeof pol.version === "number" &&
-    OPERATING_MODE_ORDER.includes(pol.operatingMode) &&
-    typeof pol.formatPermissions === "object" && pol.formatPermissions !== null &&
-    (["reel", "carousel", "photo", "story", "organicOffer", "paidAd"] as const).every(
-      (k) => ["manual", "approval_required", "auto"].includes(pol.formatPermissions[k]),
-    ) &&
-    typeof pol.minimumScores === "object" && pol.minimumScores !== null &&
-    typeof pol.limits === "object" && pol.limits !== null &&
-    typeof pol.alwaysRequireApproval === "object" && pol.alwaysRequireApproval !== null &&
-    typeof pol.emergencyControls === "object" && pol.emergencyControls !== null &&
-    typeof pol.emergencyControls.globalKillSwitch === "boolean"
-  );
-}
