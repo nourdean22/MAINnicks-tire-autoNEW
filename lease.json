@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "statenour/ui-v3-w5b",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "11dd3c15-6c98-4bc9-9fa1-c404986839c6",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\new-session-bbf695",
   "claimedBy": "2026-10-18-bdnick-ui-v3-w5b",
   "claimedAt": "2026-10-18T22:21:01.551Z",
   "expiresAt": "2026-10-19T10:21:01.551Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": null
+  "releasedAt": "2026-10-19T01:34:28.897Z",
+  "releaseReason": "PR 3161 merged as 7fa1be72a; lane work landed",
+  "priorLeaseSha": "b2906a76fd81e6e97f3928bf5cd318aafcd64e0c",
+  "releasedBy": "11dd3c15-6c98-4bc9-9fa1-c404986839c6",
+  "foreignReleaseReason": null
 }
