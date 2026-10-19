@@ -55,7 +55,7 @@ describe("processShopEvent on real bridge payloads", () => {
     await processShopEvent({ type: "lead", data: fixtureData("nickstire:lead") });
     expect(connect).toHaveBeenCalledTimes(1);
     // The bridge carries the lead's interest, not `service`.
-    expect(remember.mock.calls.map(c => String(c[2]))).toContain("New lead from web: unknown — Wheel alignment");
+    expect(remember.mock.calls.map(c => String(c[2]))).toContain("New lead from web — Wheel alignment");
   });
 
   it("review: the stored insight carries the bridge's `reviewText`", async () => {

@@ -25,6 +25,7 @@ import { readNickRevenue } from "@/lib/nickstire/revenue";
 import { brainMemory } from "@/lib/brain/memory-manager";
 import { admitMemory } from "@/lib/brain/memory-admission";
 import { connect } from "@/lib/brain/relational-graph";
+import { stripEventPii } from "@/lib/brain/customer-pii";
 import { logger as rootLogger } from "@/lib/logger";
 import { recordError } from "@/lib/errors/record-error";
 import { logError } from "@/lib/utils/error-log";
@@ -61,7 +62,10 @@ export async function processShopEvent(event: ShopEvent): Promise<{ processed: b
 
   // 1. Store as brain memory
   const memKey = `shop_${event.type}_${Date.now()}`;
-  const memContent = `Shop ${event.type}: ${JSON.stringify(event.data).slice(0, 300)}`;
+  // Customer name and phone never reach BrainMemory (wave 3 group 7); `event.data` below is still
+  // read for transient lookups, only what is stored is stripped.
+  const safeData = stripEventPii(event.data);
+  const memContent = `Shop ${event.type}: ${JSON.stringify(safeData).slice(0, 300)}`;
   await brainMemory.remember("business_event", memKey, memContent, "bridge_pipeline");
   actions.push("memory.stored");
 
@@ -89,7 +93,7 @@ export async function processShopEvent(event: ShopEvent): Promise<{ processed: b
       await brainMemory.remember(
         "insight",
         `lead_source_${source}_${today()}`,
-        `New lead from ${source}: ${event.data.name || "unknown"} — ${event.data.service || event.data.interest || "inquiry"}`,
+        `New lead from ${source} — ${event.data.service || event.data.interest || "inquiry"}`,
         "pipeline_analysis"
       );
 
@@ -134,7 +138,7 @@ export async function processShopEvent(event: ShopEvent): Promise<{ processed: b
       await brainMemory.remember(
         "anomaly",
         `emergency_${Date.now()}`,
-        `EMERGENCY: ${JSON.stringify(event.data).slice(0, 200)}`,
+        `EMERGENCY: ${JSON.stringify(safeData).slice(0, 200)}`,
         "pipeline_analysis"
       );
       actions.push("alert.emergency");
@@ -143,11 +147,10 @@ export async function processShopEvent(event: ShopEvent): Promise<{ processed: b
 
     case "call": {
       const duration = Number(event.data.durationSeconds || 0);
-      const phone = String(event.data.phone || "unknown");
       await brainMemory.remember(
         "insight",
         `call_completed_${Date.now()}`,
-        `Phone call from ${phone} ended. Duration: ${duration}s. Reason: ${event.data.endedReason || "unknown"}. Mentioned: ${event.data.serviceMention || "none"}.`,
+        `Phone call ended. Duration: ${duration}s. Reason: ${event.data.endedReason || "unknown"}. Mentioned: ${event.data.serviceMention || "none"}.`,
         "pipeline_analysis"
       );
       actions.push("insight.call");
