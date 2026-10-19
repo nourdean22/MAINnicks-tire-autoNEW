@@ -2,7 +2,7 @@
  * Playwright config — E2E smoke tests for v7+ surfaces.
  *
  * Run: `pnpm exec playwright test`
- * Install browsers: `pnpm exec playwright install --with-deps`
+ * Install browsers (one time): `pnpm test:e2e:install` (chromium with its OS deps)
  */
 
 import { defineConfig, devices } from "@playwright/test";
