@@ -47,7 +47,7 @@ export const GET = cronHandler(async () => {
     const { sendTelegram } = await import("@/lib/services/telegram");
     await sendTelegram(
       `⚠️ OUTBOX: ${newDead} post-turn row(s) dead-lettered after ` +
-        `${OUTBOX_MAX_ATTEMPTS} attempts. Redrive with the system.outboxRedrive procedure.`,
+        `${OUTBOX_MAX_ATTEMPTS} attempts. Redrive it from /system.`,
     ).catch((e: unknown) =>
       log.warn("outbox_dead_alert_failed", {
         error: e instanceof Error ? e.message : String(e),

@@ -50,6 +50,7 @@ vi.mock("@/components/ui/freshness-chip", () => ({ FreshnessChip: none }));
 vi.mock("@/components/ultron/deploy-chip", () => ({ DeployChip: none }));
 vi.mock("@/components/system/agenda-desk", () => ({ AgendaDesk: none }));
 vi.mock("@/components/system/hub-grid", () => ({ SystemHubGrid: mark("hub") }));
+vi.mock("@/components/system/outbox-redrive-row", () => ({ OutboxRedriveRow: mark("outbox") }));
 vi.mock("@/components/system/owner-panel", () => ({ OwnerPanel: mark("owner") }));
 vi.mock("@/components/ultron/observability/observability-row", () => ({ ObservabilityRow: mark("observability") }));
 vi.mock("@/components/ai/page-nick", () => ({ PageNick: mark("nick") }));
@@ -70,7 +71,7 @@ const markAt = (name: string) => at(`data-mark="${name}"`);
 describe("/system · triage first", () => {
   it("the subject is real: the tower and every panel render once", () => {
     expect(at('id="tower-heading"')).toBeGreaterThan(-1);
-    for (const name of ["hub", "owner", "observability", "nick", "wiring", "trust", "home-decision", "obs-status", "tool-census", "evidence", "stale"]) {
+    for (const name of ["hub", "outbox", "owner", "observability", "nick", "wiring", "trust", "home-decision", "obs-status", "tool-census", "evidence", "stale"]) {
       expect(html.split(`data-mark="${name}"`).length - 1, name).toBe(1);
     }
   });
@@ -82,6 +83,11 @@ describe("/system · triage first", () => {
     for (const later of ["owner", "observability", "nick", "wiring", "obs-status", "tool-census", "evidence", "stale"]) {
       expect(markAt(later), later).toBeGreaterThan(hub);
     }
+  });
+
+  it("the outbox redrive row (the Fleet page's one action, kept) sits right under the hub and before the owner panel", () => {
+    expect(markAt("outbox")).toBeGreaterThan(markAt("hub"));
+    expect(markAt("outbox")).toBeLessThan(markAt("owner"));
   });
 
   it("the panels after the hub keep their old order", () => {

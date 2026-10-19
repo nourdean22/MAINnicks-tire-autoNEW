@@ -60,6 +60,8 @@ vi.mock("@/lib/trpc/client", () => {
     trpc: {
       system: {
         diagnostics: { useQuery: idle },
+        outboxHealth: { useQuery: idle },
+        outboxRedrive: { useMutation: () => ({ mutate: () => {}, isPending: false }) },
         healthSummary: { useQuery: idle },
         agendaItems: { useQuery: idle },
         changeDigest: { useQuery: () => stub.changeDigest },
