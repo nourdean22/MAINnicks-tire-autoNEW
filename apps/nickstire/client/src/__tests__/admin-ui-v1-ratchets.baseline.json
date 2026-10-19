@@ -6,7 +6,7 @@
     "transitionAll": 61,
     "slowDuration": 7,
     "smallInput": 107,
-    "offPalette": 136
+    "offPalette": 133
   },
   "files": {
     "client/src/components/admin/ActivityPulse.tsx": {
@@ -14,9 +14,6 @@
     },
     "client/src/components/admin/AutonomyCommandCenter.tsx": {
       "smallInput": 1
-    },
-    "client/src/components/admin/CampaignPlanViewer.tsx": {
-      "offPalette": 3
     },
     "client/src/components/admin/CommandSearch.tsx": {
       "offPalette": 5
