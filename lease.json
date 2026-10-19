@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "docs/koalafi-direct-api-contract",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "9dcc8dd1-629a-4a72-9616-d033570d2fee",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\shop-ip-camera-access-857719",
+  "claimedBy": "2026-10-19-koalafi-direct-api-contract (docs: Koalafi Direct API contract, portal findings)",
+  "claimedAt": "2026-10-19T01:03:40.353Z",
+  "expiresAt": "2026-10-19T13:03:40.353Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
