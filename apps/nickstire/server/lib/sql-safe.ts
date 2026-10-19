@@ -89,22 +89,3 @@ export async function safeCount(d: ExecutableDb, query: SQL): Promise<number> {
   }
   return 0;
 }
-
-/**
- * Execute a SQL aggregate that returns a single-row, multi-column result
- * (totals, sums, averages bundled together). Returns the first row typed,
- * or an empty object on error.
- *
- * @example
- * const totals = await safeAggregate<{ leads: number; revenue: number }>(
- *   d, sql`SELECT count(*) as leads, sum(amount) as revenue FROM ...`
- * );
- * console.log(totals.leads ?? 0);
- */
-export async function safeAggregate<T extends RawRow>(
-  d: ExecutableDb,
-  query: SQL,
-): Promise<Partial<T>> {
-  const rows = await safeRowQuery<T>(d, query);
-  return (rows[0] ?? {}) as Partial<T>;
-}

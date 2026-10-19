@@ -9,7 +9,7 @@
  * because "publish through the normal gates" pointed at an empty gate.
  * Same defect class as ROS-020/ROS-045: an unchecked affectedRows write.
  */
-import { and, asc, eq, gt, inArray, isNotNull, isNull, ne, or } from "drizzle-orm";
+import { and, eq, inArray, ne } from "drizzle-orm";
 import { reelJobs, socialContentInventory } from "../../drizzle/schema";
 import { affectedRowCount } from "../lib/db-affected";
 import { createLogger } from "../lib/logger";
@@ -252,89 +252,4 @@ export async function markReelInventoryPublishedByJobId(
     brief: parseStoredBrief(job.payload),
   });
   return true;
-}
-
-/**
- * Self-heal historical/future split-brain publication state.
- *
- * A live Reel is proven by BOTH a terminal live reel_jobs status and a durable
- * Instagram media id. We never promote from captions, filenames, or guesses.
- * This lets the recurring metrics loop repair old rows safely while the direct
- * publish path keeps new rows correct immediately.
- */
-export async function reconcilePublishedReelInventoryTruth(
-  d: DB,
-  batchSize = 250,
-): Promise<{ examined: number; repaired: number; created: number; failed: number }> {
-  const pageSize = Math.max(1, Math.min(500, batchSize));
-  let cursorId = 0;
-  let examined = 0;
-  let repaired = 0;
-  let created = 0;
-  let failed = 0;
-
-  // Select ONLY rows whose universal mirror is absent or still not published.
-  // Page oldest-first by durable reel_jobs.id so every run drains the entire
-  // historical backlog instead of rereading the same newest N rows forever.
-  for (;;) {
-    const mismatch = or(
-      isNull(socialContentInventory.id),
-      ne(socialContentInventory.status, "published"),
-      isNull(socialContentInventory.publishedAt),
-    );
-    const liveConfirmed = and(
-      inArray(reelJobs.status, ["posted", "published"]),
-      isNotNull(reelJobs.igPostId),
-      mismatch,
-    );
-    const page = await d
-      .select({
-        id: reelJobs.id,
-        briefId: reelJobs.briefId,
-        payload: reelJobs.payload,
-        mp4Url: reelJobs.mp4Url,
-        caption: reelJobs.caption,
-        publicationScheduledAt: reelJobs.publicationScheduledAt,
-        updatedAt: reelJobs.updatedAt,
-      })
-      .from(reelJobs)
-      .leftJoin(socialContentInventory, eq(socialContentInventory.id, reelJobs.briefId))
-      .where(cursorId > 0 ? and(liveConfirmed, gt(reelJobs.id, cursorId)) : liveConfirmed)
-      .orderBy(asc(reelJobs.id))
-      .limit(pageSize);
-
-    if (page.length === 0) break;
-
-    for (const job of page) {
-      examined += 1;
-      cursorId = Math.max(cursorId, job.id);
-      try {
-        const outcome = await markReelInventoryPublished(d, {
-          briefId: job.briefId,
-          publishedAt: job.publicationScheduledAt ?? job.updatedAt ?? new Date(),
-          mp4Url: job.mp4Url,
-          caption: job.caption,
-          brief: parseStoredBrief(job.payload),
-        });
-        // A rejected-but-live reel is not repaired; it stays visible (and logged) until a human acts.
-        if (outcome === "conflict_rejected") {
-          failed += 1;
-          continue;
-        }
-        repaired += 1;
-        if (outcome === "created") created += 1;
-      } catch (err) {
-        failed += 1;
-        log.warn("failed to self-heal one confirmed-live Reel inventory mirror", {
-          reelJobId: job.id,
-          briefId: job.briefId,
-          err: err instanceof Error ? err.message.slice(0, 240) : String(err).slice(0, 240),
-        });
-      }
-    }
-
-    if (page.length < pageSize) break;
-  }
-
-  return { examined, repaired, created, failed };
 }

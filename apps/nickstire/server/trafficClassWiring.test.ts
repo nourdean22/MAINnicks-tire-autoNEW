@@ -107,7 +107,7 @@ describe("readers exclude non-human traffic", () => {
   });
 
   it("the public live-visitor counter filters too", () => {
-    const live = sliceBlock(code("server/routers/conversion.ts"), "liveSessions: publicProcedure", "recentActivity: publicProcedure", { label: "conversion.ts" });
+    const live = sliceBlock(code("server/routers/conversion.ts"), "liveSessions: publicProcedure", "shopCapacity: publicProcedure", { label: "conversion.ts" });
     expect(live).toContain("excludeNonHumanTraffic()");
   });
 });

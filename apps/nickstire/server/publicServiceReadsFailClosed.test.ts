@@ -46,7 +46,6 @@ function publicCaller() {
 const CASES: Array<{ name: string; lie: string; call: (c: ReturnType<typeof publicCaller>) => Promise<unknown> }> = [
   { name: "coupons.active", lie: "no offers are running", call: (c) => c.coupons.active() },
   { name: "qa.published", lie: "nobody has asked anything", call: (c) => c.qa.published() },
-  { name: "pricing.allServices", lie: "we do not price anything", call: (c) => c.pricing.allServices() },
   {
     name: "pricing.estimate",
     lie: "this service has no price",
@@ -63,8 +62,6 @@ const CASES: Array<{ name: string; lie: string; call: (c: ReturnType<typeof publ
     call: (c) => c.inspection.recordView({ token: "a-real-token-from-a-real-customer" }),
   },
   { name: "loyalty.rewards", lie: "there are no rewards", call: (c) => c.loyalty.rewards() },
-  { name: "gallery.list", lie: "there is no work to show", call: (c) => c.gallery.list() },
-  { name: "technicians.list", lie: "the shop has no technicians", call: (c) => c.technicians.list() },
 ];
 
 describe("public reads fail CLOSED when the database is unreachable", () => {
@@ -80,7 +77,7 @@ describe("public reads fail CLOSED when the database is unreachable", () => {
   it("covers every public pair the ratchet listed — the subject check", () => {
     // If a tenth public pair appears, this file should grow with it. A count
     // here is cheap and makes the omission visible instead of silent.
-    expect(CASES).toHaveLength(9);
+    expect(CASES).toHaveLength(6); // 9 until admin-prune W2a deleted pricing.allServices, gallery.list, technicians.list (0 calls in 14 days)
   });
 });
 
@@ -97,6 +94,6 @@ describe("the guard does not fire when a handle exists", () => {
     // it returns its own empty value. Getting a resolved value at all is the
     // proof the guard let the call through.
     await expect(publicCaller().coupons.active()).resolves.toBeDefined();
-    await expect(publicCaller().technicians.list()).resolves.toBeDefined();
+    await expect(publicCaller().loyalty.rewards()).resolves.toBeDefined();
   });
 });

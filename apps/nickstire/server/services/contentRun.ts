@@ -368,28 +368,3 @@ export async function ensureContentRunForReelJob(args: {
     return null;
   }
 }
-
-/**
- * The operator-facing summary: what did I ask for, what did it decide, where is
- * it, and can I trust that it actually happened.
- */
-export async function getContentRun(runId: string) {
-  const { getDb } = await import("../db");
-  const d = await getDb();
-  if (!d) return null;
-  const { contentRuns } = await import("../../drizzle/schema");
-  const { eq } = await import("drizzle-orm");
-  const [row] = await d.select().from(contentRuns).where(eq(contentRuns.id, runId)).limit(1);
-  if (!row) return null;
-
-  let evidence: RunEvidence[] = [];
-  try { evidence = JSON.parse(row.evidenceJson ?? "[]"); } catch { /* an unreadable chain is still a run */ }
-
-  return {
-    ...row,
-    evidence,
-    // Stated once, here, so no screen has to re-derive it and get it wrong.
-    isProvenPublished: row.operationalState === OPERATIONAL_STATE.published,
-    needsOperator: row.stage === RUN_STAGE.held || row.stage === RUN_STAGE.awaiting_approval,
-  };
-}

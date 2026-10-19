@@ -6365,6 +6365,41 @@
       "file": "apps/statenour/package.json",
       "symbol": "bootstrap:repo:dry",
       "reason": "OPERATOR-TYPED DRY RUN, no automated invoker by design: the -DryRun form of scripts/bootstrap_repo.ps1 for a new machine; the live bootstrap:repo is the one scripts and docs name. Its only text mention was graphify-out/GRAPH_REPORT.md, a generated file untracked in #3180 (2026-10-19). Added 2026-10-19 (job 2026-10-19-graph-live-mcp)."
+    },
+    {
+      "file": "apps/nickstire/server/services/contentManufacturing.ts",
+      "symbol": "explodeTopic",
+      "reason": "admin-prune W2a (2026-10-19): the deleted contentAdmin procedures were its only outside importer. Still live INSIDE its file (content-reserve-replenish cron -> replenishReserve -> runManufacturingPipeline); exported only so its unit test can reach it. Unexport if those tests are rewritten through replenishReserve."
+    },
+    {
+      "file": "apps/nickstire/server/services/contentManufacturing.ts",
+      "symbol": "generateHookLibrary",
+      "reason": "admin-prune W2a (2026-10-19): the deleted contentAdmin procedures were its only outside importer. Still live INSIDE its file (content-reserve-replenish cron -> replenishReserve -> runManufacturingPipeline); exported only so its unit test can reach it. Unexport if those tests are rewritten through replenishReserve."
+    },
+    {
+      "file": "apps/nickstire/server/services/contentManufacturing.ts",
+      "symbol": "validateClaimSafety",
+      "reason": "admin-prune W2a (2026-10-19): the deleted contentAdmin procedures were its only outside importer. Still live INSIDE its file (content-reserve-replenish cron -> replenishReserve -> runManufacturingPipeline); exported only so its unit test can reach it. Unexport if those tests are rewritten through replenishReserve."
+    },
+    {
+      "file": "apps/nickstire/server/services/contentManufacturing.ts",
+      "symbol": "generateScoredDraft",
+      "reason": "admin-prune W2a (2026-10-19): the deleted contentAdmin procedures were its only outside importer. Still live INSIDE its file (content-reserve-replenish cron -> replenishReserve -> runManufacturingPipeline); exported only so its unit test can reach it. Unexport if those tests are rewritten through replenishReserve."
+    },
+    {
+      "file": "apps/nickstire/server/services/contentManufacturing.ts",
+      "symbol": "runManufacturingPipeline",
+      "reason": "admin-prune W2a (2026-10-19): the deleted contentAdmin procedures were its only outside importer. Still live INSIDE its file (content-reserve-replenish cron -> replenishReserve -> runManufacturingPipeline); exported only so its unit test can reach it. Unexport if those tests are rewritten through replenishReserve."
+    },
+    {
+      "file": "apps/nickstire/server/services/contentManufacturing.ts",
+      "symbol": "getReserveStatus",
+      "reason": "admin-prune W2a (2026-10-19): the deleted contentAdmin procedures were its only outside importer. Still live INSIDE its file (content-reserve-replenish cron -> replenishReserve -> runManufacturingPipeline); exported only so its unit test can reach it. Unexport if those tests are rewritten through replenishReserve."
+    },
+    {
+      "file": "apps/nickstire/server/content-generator.ts",
+      "symbol": "getCurrentSeason",
+      "reason": "admin-prune W2a (2026-10-19): content.currentSeason (0 calls in 14 days) was its only outside importer; still used inside content-generator.ts for seasonal generation, exported only for features.test.ts."
     }
   ]
 }

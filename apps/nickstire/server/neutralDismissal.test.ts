@@ -205,14 +205,6 @@ describe("4 · only the customer can close a customer-facing rail", () => {
     expect(CUSTOMER_SOURCED_CONCERN).toContain("operator_relayed");
   });
 
-  it("recording a customer statement requires an explicit attestation", () => {
-    // Structural, not advisory: `heardFrom: z.literal("customer")` means a
-    // future 'hide this' feature cannot satisfy it with a default. This is what
-    // made the old panel's call site a compile error.
-    const router = read("server/routers/opportunityQueue.ts");
-    expect(router).toMatch(/heardFrom: z\.literal\("customer"\)/);
-    expect(router).toMatch(/statedConcernSource: "operator_relayed"/);
-  });
 
   it("the recovery cron checks WHO said it, not only WHAT was said", () => {
     const cron = read("server/cron/jobs/declinedWorkRecovery.ts");

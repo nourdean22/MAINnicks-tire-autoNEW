@@ -664,53 +664,6 @@ export async function transitionOpportunity(params: {
 }
 
 /**
- * Snooze: push due_at without a state change (snooze is scheduling, not
- * a state — the roadmap vocabulary has no "snoozed"). Appends a receipt
- * so the audit trail shows who deferred it and until when.
- */
-export async function snoozeOpportunity(params: {
-  id: string;
-  untilISO: string;
-  by: string;
-}): Promise<{ ok: true } | { ok: false; error: string }> {
-  const { getDb } = await import("../db");
-  const { sql } = await import("drizzle-orm");
-  const db = await getDb();
-  if (!db) return { ok: false, error: "DB unavailable" };
-
-  try {
-    const rows = rowsFromExecute(
-      await db.execute(sql`SELECT * FROM revenue_opportunities WHERE id = ${params.id} LIMIT 1`),
-    );
-    if (rows.length === 0) return { ok: false, error: "not found" };
-    const current = mapRow(rows[0]);
-    if (TERMINAL_STATES.includes(current.state)) {
-      return { ok: false, error: `already terminal (${current.state})` };
-    }
-    const receipt = {
-      at: new Date().toISOString(),
-      by: params.by,
-      snoozedUntil: params.untilISO,
-    };
-    const receipts = [...current.receipts, receipt];
-    await db.execute(sql`
-      UPDATE revenue_opportunities
-      SET due_at = ${new Date(params.untilISO)},
-          receipts_json = ${JSON.stringify(receipts)},
-          updated_at = CURRENT_TIMESTAMP
-      WHERE id = ${params.id}
-    `);
-    return { ok: true };
-  } catch (err) {
-    if (isMissingTableError(err)) {
-      warnMissingOnce("snooze");
-      return { ok: false, error: "table not applied (migration 0099)" };
-    }
-    throw err;
-  }
-}
-
-/**
  * Pure outcome-match classifier (Strike-2, exported for tests).
  * Pre-fix, `won` verified only that SOME invoice with that id existed —
  * any invoice could be attached to any opportunity and counted as
@@ -762,7 +715,7 @@ export function classifyOutcomeMatch(input: {
  * between that invoice and THIS opportunity (classifyOutcomeMatch).
  * Roadmap: "measure recovery only from verified later outcomes."
  */
-export async function recordOutcome(params: {
+async function recordOutcome(params: {
   id: string;
   invoiceId: number;
   by: string;

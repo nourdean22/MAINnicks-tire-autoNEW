@@ -4,7 +4,7 @@
 import { TRPCError } from "@trpc/server";
 import { publicProcedure, adminProcedure, router, dbAdminProcedure } from "../_core/trpc";
 import { getDbTyped } from "../db";
-import { socialContentInventory } from "../../drizzle/schema";
+import { contentManufacturingCampaigns, socialContentInventory } from "../../drizzle/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { sendNotification } from "../email-notify";
 import {
@@ -31,6 +31,7 @@ import { AUTONOMY_LIMIT_KEYS } from "../../client/src/lib/autonomyPolicy";
 import { dispatch } from "../services/eventBus";
 import { queueStateForReelStatus } from "@shared/reelQueue";
 import { SHOT_SOURCES } from "@shared/shotRouter";
+import { EXPERIMENT_PRESET_IDS, buildExperimentPreset } from "@shared/contentExperiments";
 
 const log = createLogger("routers:content");
 
@@ -585,6 +586,84 @@ export const contentAdminRouter = router({
         });
         throw err;
       }
+    }),
+
+  /** Content experiment registry (0108) — operator start surface.
+   *
+   *  Assignment at enqueue and hook-arm resolution at generation have been
+   *  wired since 0108, and the daily content-experiment-resolve cron records
+   *  verdicts — but an experiment can only exist once STARTED, and starting
+   *  one is deliberately an operator action: it changes what the autonomous
+   *  reel lane generates (within already-authorized publishing). The preset
+   *  is the one interventional test the pipeline already understands
+   *  end-to-end: hook_style direct-vs-baseline, decided on shares_per_reach
+   *  at the 72h horizon. Idempotent — re-starting re-asserts the same arms. */
+  startContentExperiment: dbAdminProcedure
+    .input(z.object({ preset: z.enum(EXPERIMENT_PRESET_IDS) }))
+    .mutation(async ({ input }) => {
+      // The definitions live in shared/contentExperiments.ts
+      // (buildExperimentPreset) so this router and the generator read ONE
+      // table. Only a WIRED preset starts: an exposed one gives both arms the
+      // same content, so it would run an A/A test under a treatment's name and
+      // could conclude a false tie or winner (2026-10-08).
+      const def = buildExperimentPreset(input.preset);
+      if (def.wiring !== "wired") {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: `${def.preset} is not wired yet: nothing in generation applies its arm, so both arms would be the same content and the result would mean nothing. Wire the arm into generation first.`,
+        });
+      }
+      // A pack-variant experiment builds only approved variant PAIRS; with none
+      // approved every Reel would build the base pack and record nothing, so a
+      // start would run an empty experiment that looks live (2026-10-08).
+      if (def.primaryVariable === "pack_variant") {
+        const { eligibleVariantPacks } = await import("../services/approvedReelPackRotation");
+        const armIds = def.arms.map((a) => a.armId);
+        if (eligibleVariantPacks(def.experimentId, armIds).length === 0) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: `${def.preset} has no approved variant pairs the daily lane can build: approve a variant for every arm (${armIds.join(", ")}) of at least one rotation pack the lane has not reached yet, in APPROVED_PACK_VARIANTS, first.`,
+          });
+        }
+      }
+      const { startExperiment } = await import("../services/contentExperimentStore");
+      const ok = await startExperiment(def);
+      if (!ok) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "experiment registry unavailable (no DB)" });
+      return {
+        started: def.experimentId,
+        preset: def.preset,
+        arms: def.arms.map((a) => a.armId),
+        primaryMetric: def.primaryMetric,
+        metricNote: def.metricNote,
+        wiring: def.wiring,
+      };
+    }),
+
+  /** Stop a running content experiment (2026-10-08). The lever the wiring
+   *  gate assumed: the resolver now reports a running unwired experiment as
+   *  "not wired, not judged (stop it)", and until this existed nothing but SQL
+   *  could. A stopped experiment leaves assignment and judging at once. */
+  stopContentExperiment: dbAdminProcedure
+    .input(z.object({ experimentId: z.string().min(1).max(100), reason: z.string().min(1).max(500) }))
+    .mutation(async ({ input }) => {
+      const { stopExperiment } = await import("../services/contentExperimentStore");
+      const stopped = await stopExperiment(input.experimentId, input.reason);
+      if (!stopped) throw new TRPCError({ code: "NOT_FOUND", message: `no RUNNING experiment "${input.experimentId}" (unknown id, or already concluded/stopped)` });
+      return { stopped: input.experimentId };
+    }),
+
+  toggleCampaign: adminProcedure
+    .input(z.object({
+      id: z.string(),
+      isActive: z.boolean(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDbTyped();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB not available" });
+      await db.update(contentManufacturingCampaigns)
+        .set({ isActive: input.isActive })
+        .where(eq(contentManufacturingCampaigns.id, input.id));
+      return { success: true };
     }),
 
   /** Blind pairwise review (2026-10-08, services/pairwiseReview.ts): the next

@@ -87,49 +87,6 @@ async function getReviewStatsFromDb(): Promise<{ count: number; rating: number }
 }
 
 /**
- * Save review stats to the DB (used by admin mutation).
- */
-export async function saveReviewStatsToDb(stats: { count?: number; rating?: number }): Promise<void> {
-  const { getDb } = await import("./db");
-  const d = await getDb();
-  if (!d) throw new Error("Database not available");
-
-  if (stats.count !== undefined) {
-    const existing = await d.select().from(shopSettings).where(eq(shopSettings.key, "reviewCount")).limit(1);
-    if (existing.length > 0) {
-      await d.update(shopSettings).set({ value: String(stats.count), updatedBy: "admin" }).where(eq(shopSettings.key, "reviewCount"));
-    } else {
-      await d.insert(shopSettings).values({
-        key: "reviewCount",
-        value: String(stats.count),
-        label: "Google Review Count",
-        category: "general",
-        updatedBy: "admin",
-      });
-    }
-  }
-
-  if (stats.rating !== undefined) {
-    const existing = await d.select().from(shopSettings).where(eq(shopSettings.key, "reviewRating")).limit(1);
-    if (existing.length > 0) {
-      await d.update(shopSettings).set({ value: String(stats.rating), updatedBy: "admin" }).where(eq(shopSettings.key, "reviewRating"));
-    } else {
-      await d.insert(shopSettings).values({
-        key: "reviewRating",
-        value: String(stats.rating),
-        label: "Google Review Rating",
-        category: "general",
-        updatedBy: "admin",
-      });
-    }
-  }
-
-  // Bust the in-memory cache so next fetch picks up new values
-  cachedData = null;
-  cacheTimestamp = 0;
-}
-
-/**
  * Fetch live review data from Google Places API.
  * Primary: text search → get Place ID → fetch details.
  * Falls back to DB-stored stats (admin-editable) when API is unavailable.

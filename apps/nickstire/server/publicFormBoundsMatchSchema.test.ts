@@ -107,7 +107,7 @@ describe("public form zod bounds fit their columns (STRICT_TRANS_TABLES loses th
     read("./routers/services.ts"),
     "referralsRouter",
     "submit: publicProcedure",
-    "all: adminProcedure",
+    "export const qaRouter",
   );
 
   it("the extraction found real columns and real bounds — the canary", () => {

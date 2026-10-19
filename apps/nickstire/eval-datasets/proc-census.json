@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-19T12:20:59.606Z",
-  "count": 637,
+  "generatedAt": "2026-10-19T13:37:57.204Z",
+  "count": 641,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -62,6 +62,9 @@
     "mutation.contentAdmin.setAutonomyLimit",
     "mutation.contentAdmin.setAutonomyPaidRepair",
     "mutation.contentAdmin.stageCarouselToInventory",
+    "mutation.contentAdmin.startContentExperiment",
+    "mutation.contentAdmin.stopContentExperiment",
+    "mutation.contentAdmin.toggleCampaign",
     "mutation.contentAdmin.toggleNotification",
     "mutation.contentAdmin.updateArticleStatus",
     "mutation.contentAdmin.validateReelBrief",
@@ -135,6 +138,7 @@
     "mutation.instagramAdmin.clearActiveSlate",
     "mutation.instagramAdmin.createQualityOverride",
     "mutation.instagramAdmin.deleteReelPattern",
+    "mutation.instagramAdmin.finalizeReelDraft",
     "mutation.instagramAdmin.generateMedia",
     "mutation.instagramAdmin.generatePostDraft",
     "mutation.instagramAdmin.postReply",

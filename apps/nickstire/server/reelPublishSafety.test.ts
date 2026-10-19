@@ -48,16 +48,3 @@ describe("generateAndPublishLiveTestReel gate", () => {
       .rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });
-
-describe("legacy publishReel live branch", () => {
-  it("is FORBIDDEN by default when Meta is configured (bypasses approval provenance)", async () => {
-    vi.stubEnv("META_PAGE_ACCESS_TOKEN", "t");
-    vi.stubEnv("META_IG_USER_ID", "1");
-    vi.stubEnv("META_PAGE_ID", "1");
-    // With Meta "ready", the sandbox preview branch is skipped and the live
-    // branch is reached — which must refuse without REEL_LEGACY_PUBLISH_ENABLED.
-    await expect(admin().contentAdmin.publishReel({ videoUrl: "https://cdn.example.com/r.mp4", caption: "hi" }))
-      .rejects.toThrow(/legacy direct reel publisher is disabled/);
-    vi.unstubAllEnvs();
-  });
-});

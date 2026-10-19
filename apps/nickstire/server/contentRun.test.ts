@@ -29,7 +29,7 @@ vi.mock("./db", () => ({
 }));
 
 import {
-  createContentRun, advanceContentRun, getContentRun,
+  createContentRun, advanceContentRun,
   RUN_STAGE, IMPLEMENTATION_STATE, OPERATIONAL_STATE,
 } from "./services/contentRun";
 
@@ -156,23 +156,6 @@ describe("refusals and absences", () => {
     });
     // requestedFormat omitted = "choose for me"
     expect(inserts[0].requestedFormat).toBeNull();
-  });
-});
-
-describe("the operator summary states the truth once", () => {
-  it("isProvenPublished is false for an ATTEMPTED run", async () => {
-    row = { ...row, operationalState: OPERATIONAL_STATE.attempted };
-    expect((await getContentRun("run_1"))?.isProvenPublished).toBe(false);
-  });
-
-  it("isProvenPublished is true only for a published run", async () => {
-    row = { ...row, operationalState: OPERATIONAL_STATE.published };
-    expect((await getContentRun("run_1"))?.isProvenPublished).toBe(true);
-  });
-
-  it("flags a held run as needing the operator", async () => {
-    row = { ...row, stage: RUN_STAGE.held };
-    expect((await getContentRun("run_1"))?.needsOperator).toBe(true);
   });
 });
 

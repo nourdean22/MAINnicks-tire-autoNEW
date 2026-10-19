@@ -8,8 +8,6 @@
  */
 import {
   _clearVinDecodeCache,
-  decodeVinForLookup as decodeCanonicalVin,
-  normalizeVinForLookup,
 } from "./vinDecode";
 import { toNhtsaVehicleName } from "./nhtsaVehicleNames";
 
@@ -113,39 +111,6 @@ function lookupError(err: unknown, year: string, make: string, model: string): V
     };
   }
   return { ok: false, error: err instanceof Error ? err.message : String(err), source: SOURCE_LABEL };
-}
-
-/**
- * Compatibility adapter for the existing admin tRPC payload.
- * The network request and vPIC mapping are canonical in vinDecode.ts.
- */
-export async function decodeVin(vinRaw: string): Promise<VinDecodeResult | VehicleDataError> {
-  const vin = normalizeVinForLookup(vinRaw);
-  if (!vin) {
-    return { ok: false, error: "invalid VIN format", source: SOURCE_LABEL };
-  }
-
-  const decoded = await decodeCanonicalVin(vin);
-  if (!decoded) {
-    return { ok: false, error: "NHTSA decode unavailable", source: SOURCE_LABEL };
-  }
-
-  return {
-    ok: true,
-    source: SOURCE_LABEL,
-    fetchedAt: decoded.fetchedAt,
-    vin: decoded.vin,
-    year: decoded.year,
-    // Preserve the historical admin payload casing while the canonical
-    // enrichment path keeps title-cased make values for stored vehicles.
-    make: decoded.make?.toUpperCase() ?? null,
-    model: decoded.model,
-    trim: decoded.trim,
-    bodyClass: decoded.bodyClass,
-    driveType: decoded.driveType,
-    engineCylinders: decoded.engineCylinders,
-    fuelType: decoded.fuelType,
-  };
 }
 
 export interface RecallSummary {

@@ -539,18 +539,6 @@ export async function updateArticleStatus(id: number, status: "draft" | "publish
   return { success: true };
 }
 
-export async function updateArticleContent(id: number, updates: {
-  title?: string;
-  excerpt?: string;
-  metaDescription?: string;
-  sectionsJson?: string;
-}) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  await db.update(dynamicArticles).set(updates).where(eq(dynamicArticles.id, id));
-  return { success: true };
-}
-
 export async function getActiveNotifications() {
   const db = await getDb();
   if (!db) return [];

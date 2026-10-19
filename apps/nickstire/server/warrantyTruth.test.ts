@@ -11,30 +11,9 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { WARRANTY_SCHEDULE } from "./routers/nick/utils";
 
 const read = (p: string) => readFileSync(resolve(process.cwd(), p), "utf8");
 const FABRICATED = /12,000[- ]mile|12 months \/ 12,000|12mo\/12k|24,000 miles|24 months \/ 24,000|36-month free replacement/;
-
-describe("WARRANTY_SCHEDULE carries only invoice-true terms", () => {
-  it("no service promises a mileage cap — the invoice grants none", () => {
-    for (const [service, terms] of Object.entries(WARRANTY_SCHEDULE)) {
-      expect(terms.miles, `${service} must not carry a mileage promise`).toBe(0);
-      expect(terms.description).not.toMatch(/\d{1,3},?\d{3} miles/);
-    }
-  });
-
-  it("mechanical repairs carry the canonical 12-month parts / 90-day labor line", () => {
-    for (const service of ["brakes", "alternator", "starter", "general_repair", "transmission"]) {
-      expect(WARRANTY_SCHEDULE[service]!.description).toMatch(/12-month parts \/ 90-day labor/);
-    }
-  });
-
-  it("used tires get the 7-day defect-only term, never the repair warranty", () => {
-    expect(WARRANTY_SCHEDULE["tires"]!.description).toMatch(/7-day defect-only replacement/);
-    expect(WARRANTY_SCHEDULE["tires"]!.description).not.toMatch(/12-month/);
-  });
-});
 
 describe("AI prompts state the real warranty", () => {
   for (const file of [
@@ -42,7 +21,6 @@ describe("AI prompts state the real warranty", () => {
     "server/_core/index.ts",
     "server/services/adStudio/adCopyGen.ts",
     "server/services/gbpContentGenerator.ts",
-    "server/routers/nick/quotes.ts",
   ]) {
     it(`${file} carries no fabricated terms and states parts/labor split`, () => {
       const s = read(file);

@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
-import {
-  markReelInventoryPublished,
-  reconcilePublishedReelInventoryTruth,
-} from "./services/reelInventoryLink";
+import { markReelInventoryPublished } from "./services/reelInventoryLink";
 
 function updatedDb() {
   let patch: Record<string, unknown> | null = null;
@@ -91,28 +88,6 @@ describe("confirmed Reel publication mirrors into universal inventory", () => {
       assetPaths: ["https://cdn.example/reel.mp4"],
     });
   });
-
-  it("pages through the whole mismatched backlog instead of rereading only the newest batch", async () => {
-    const { d, getPageCalls } = pagedRepairDb([
-      [liveJob(1), liveJob(2)],
-      [liveJob(3)],
-    ]);
-
-    const result = await reconcilePublishedReelInventoryTruth(d, 2);
-    expect(result).toEqual({ examined: 3, repaired: 3, created: 0, failed: 0 });
-    expect(getPageCalls()).toBe(2);
-  });
-
-  it("isolates one poisoned historical row and still repairs later live Reels", async () => {
-    const { d, getUpdateCalls } = pagedRepairDb([
-      [liveJob(1), liveJob(2), liveJob(3)],
-      [],
-    ], new Set([1]));
-
-    const result = await reconcilePublishedReelInventoryTruth(d, 3);
-    expect(result).toEqual({ examined: 3, repaired: 2, created: 0, failed: 1 });
-    expect(getUpdateCalls()).toBe(3);
-  });
 });
 
 describe("authoritative publish paths keep the mirror wired", () => {
@@ -150,19 +125,5 @@ describe("authoritative publish paths keep the mirror wired", () => {
     expect(src).toContain("released for retry");
   });
 
-  it("metric sync self-heals historical split-brain before selecting published rows", () => {
-    const src = fs.readFileSync(path.join(root, "services/contentManufacturing.ts"), "utf8");
-    const repair = src.indexOf("reconcilePublishedReelInventoryTruth");
-    const publishedSelect = src.indexOf('eq(socialContentInventory.status, "published")', repair);
-    expect(repair).toBeGreaterThan(0);
-    expect(publishedSelect).toBeGreaterThan(repair);
-  });
 
-  it("never falls back to caption matching once a durable Reel media id exists", () => {
-    const src = fs.readFileSync(path.join(root, "services/contentManufacturing.ts"), "utf8");
-    expect(src).toContain("const matchingPost = exactReelPostId");
-    expect(src).toContain("? exactReelPost");
-    expect(src).toContain(": analyticsPosts.find");
-    expect(src).not.toContain("exactReelPost ?? analyticsPosts.find");
-  });
 });

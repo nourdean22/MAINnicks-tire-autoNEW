@@ -21,15 +21,11 @@ describe("content_run is the Campaign Package root", () => {
     expect(tournament).toContain("contentRunId");
     expect(tournament).toContain("campaign generation refused rather than escaping lineage");
 
-    const genome = sliceBlock(ROUTER, "generateCampaignGenome: dbAdminProcedure", "saveCarouselDraft:", { label: "content.generateCampaignGenome" });
-    expect(genome).toContain("createContentRun");
-    expect(genome).toContain("genomeId: saved?.id ?? null");
-    expect(genome).toContain("contentRunId");
   });
 
   it("both Genome Directors accept and return the same root", () => {
     const reel = sliceBlock(ROUTER, "draftReelFromGenome: adminProcedure", "draftCarouselFromGenome:", { label: "content.draftReelFromGenome" });
-    const carousel = sliceBlock(ROUTER, "draftCarouselFromGenome: adminProcedure", "generateCampaignGenome:", { label: "content.draftCarouselFromGenome" });
+    const carousel = sliceBlock(ROUTER, "draftCarouselFromGenome: adminProcedure", "saveCarouselDraft:", { label: "content.draftCarouselFromGenome" });
     for (const src of [reel, carousel]) {
       expect(src).toContain("contentRunId: z.string().max(64).optional()");
       expect(src).toContain("input.contentRunId ?? await createContentRun");

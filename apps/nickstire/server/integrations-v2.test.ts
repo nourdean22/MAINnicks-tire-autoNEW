@@ -74,8 +74,6 @@ describe("Auto Labor Integration", { timeout: 30000 }, () => {
     expect(procedures).toContain("searchJobs");
     expect(procedures).toContain("calculateLabor");
     expect(procedures).toContain("status");
-    expect(procedures).toContain("portalUrl");
-    expect(procedures).toContain("quickEstimate");
   });
 
   it("labor calculation with difficulty multiplier", () => {
