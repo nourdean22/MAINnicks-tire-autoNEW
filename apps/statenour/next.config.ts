@@ -362,6 +362,12 @@ const nextConfig: NextConfig = {
     { source: "/goals", destination: "/stats?tab=goals", permanent: false },
     { source: "/scoreboard", destination: "/stats", permanent: false },
     { source: "/api/short/:path*", destination: "/", permanent: false },
+
+    // 2026-10-19 · bdnick prune wave 2V (Nour chose these cuts himself). Pinned Memory is the
+    // pinned-context panel on Brain Memory now (same BrainMemory pins, same create/edit/unpin);
+    // Proof had 5 visits in 14 days. The URL fragment (#pin-<id>) rides through the redirect.
+    { source: "/pins", destination: "/brain?tab=memory", permanent: false },
+    { source: "/proof", destination: "/system", permanent: false },
   ],
 };
 

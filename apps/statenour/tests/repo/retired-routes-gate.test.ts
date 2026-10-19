@@ -112,6 +112,10 @@ export const PRUNED: ReadonlyArray<{ route: string; to?: string; page?: false }>
   { route: "/links", to: "/" },
   { route: "/goals", to: "/stats?tab=goals" },
   { route: "/scoreboard", to: "/stats" },
+  // 2026-10-19 · wave 2V, cut by Nour: Pinned Memory (the pinned-context panel in Brain Memory does the same job)
+  // and Proof (5 visits in 14 days).
+  { route: "/pins", to: "/brain?tab=memory" },
+  { route: "/proof", to: "/system" },
   { route: "/api/short", to: "/", page: false },
   // Deleted API prefixes with no redirect (no page ever linked here for a person): nothing may request them.
   { route: "/api/content/history", page: false },

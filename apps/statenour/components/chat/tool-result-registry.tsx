@@ -187,14 +187,12 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     runningLabel: "Pinning…",
     icon: Pin,
     color: "gold",
-    link: { href: "/pins", label: "Pins" },
-    // v10.0.529.91 · Wave 35 · /pins is the dedicated surface for
-    // pinned_user BrainMemory rows · /brain shows raw memory. The
-    // pin tool returns the BrainMemory.id which /pins page renders
-    // under that key.
+    link: { href: "/brain?tab=memory#pinned-context", label: "Pins" },
+    // 2026-10-19 · the /pins page is gone; the pinned-context panel on Brain Memory
+    // renders each pin under `pin-<BrainMemory.id>`, the id the pin tool returns.
     linkFn: (out) => {
       const o = out as { id?: string } | null;
-      return o?.id ? { href: `/pins#pin-${o.id}`, label: "View pin" } : null;
+      return o?.id ? { href: `/brain?tab=memory#pin-${o.id}`, label: "View pin" } : null;
     },
     subtitle: (out) => {
       const o = out as { content?: string } | null;

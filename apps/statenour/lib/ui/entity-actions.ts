@@ -41,7 +41,7 @@ function inspectQuery(ref: EntityRef): string {
 /**
  * The page that OWNS each kind. Hash anchors match the ids the pages render
  * (`task-<id>` in mission-task-row.tsx, `bd-<id>` in journal, `pin-<id>` in
- * pins); query-addressed kinds open through the inspector on their page.
+ * the Brain Memory pinned-context panel); query-addressed kinds open through the inspector on their page.
  */
 export function homeRouteFor(ref: EntityRef): string {
   const id = encodeURIComponent(ref.id);
@@ -63,10 +63,10 @@ export function homeRouteFor(ref: EntityRef): string {
     case "journal":
       return `/journal#bd-${id}`;
     case "pin":
-      return `/pins#pin-${id}`;
+      return `/brain?tab=memory#pin-${id}`;
     case "claim":
     case "experiment":
-      return "/proof";
+      return "/system";
     case "alert":
       return "/system/alerts";
     case "cron":

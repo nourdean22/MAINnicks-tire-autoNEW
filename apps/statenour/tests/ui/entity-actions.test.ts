@@ -29,8 +29,8 @@ describe("hrefs", () => {
     expect(homeRouteFor({ kind: "person", id: "p1" })).toBe("/people?inspect=person:p1");
     expect(homeRouteFor({ kind: "decision", id: "d1" })).toBe("/decisions/d1");
     expect(homeRouteFor({ kind: "journal", id: "j1" })).toBe("/journal#bd-j1");
-    expect(homeRouteFor({ kind: "pin", id: "p1" })).toBe("/pins#pin-p1");
-    expect(homeRouteFor({ kind: "claim", id: "c1" })).toBe("/proof");
+    expect(homeRouteFor({ kind: "pin", id: "p1" })).toBe("/brain?tab=memory#pin-p1");
+    expect(homeRouteFor({ kind: "claim", id: "c1" })).toBe("/system");
   });
 
   it("open is single-object only; ask-nick carries the wire ids in the prompt", () => {

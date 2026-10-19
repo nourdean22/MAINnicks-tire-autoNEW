@@ -7,10 +7,8 @@ import {
   Settings,
   NotebookPen,
   Activity,
-  Pin,
   Target,
   Users,
-  FlaskConical,
   Image as ImageIcon,
 } from "lucide-react";
 
@@ -60,7 +58,6 @@ export const NAV: NavEntry[] = [
     tabs: STATS_TABS.map((tab) => ({ key: tab.id, label: tab.label })) },
 
   // ── CAPTURE ──
-  { href: "/pins",  label: "Pinned Memory", icon: Pin, section: "capture", flatRow: true },
   { href: "/photo-improver", label: "Photo Improver", icon: ImageIcon,      section: "execute", flatRow: true },
 
   // ── EXECUTE ──
@@ -93,11 +90,6 @@ export const NAV: NavEntry[] = [
   // operator to a surface that no longer exists. The personal /money page
   // predeceased them (2026-07-29, WP-9 verdict).
   { href: "/system", label: "System", icon: Activity, section: "operate" },
-  // 2026-09-15 · /proof (the Reality Ledger's mission control, #2330) shipped
-  // with zero references from nav, hub, palette or links — a 132-line page
-  // nobody could reach. Its "ledger not migrated yet" banner is honest, so
-  // exposing it before the migration is applied is safe.
-  { href: "/proof", label: "Proof", icon: FlaskConical, section: "operate", flatRow: true },
 
   // ── FOOTER ──
   { href: "/settings", label: "Settings", icon: Settings, section: "operate", footer: true },

@@ -60,7 +60,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   { cmd: "/costs", label: "AI Cost & Health Dashboard", prompt: "", navigate: "/system/costs" },
   { cmd: "/promptview", label: "View Live System Prompt", prompt: "", navigate: "/system/prompt" },
   { cmd: "/plan", label: "Plan My Day (Today/Saturday/Week)", prompt: "", navigate: "/plan" },
-  { cmd: "/pins", label: "Pinned Memory Manager", prompt: "", navigate: "/pins" },
+  { cmd: "/pinned", label: "Pinned Memory (Brain)", prompt: "", navigate: "/brain?tab=memory#pinned-context" },
   { cmd: "/saturday", label: "Plan my Saturday (with full context)", prompt: "Plan my Saturday based on my open tasks, calendar, and recent commitments. Cluster work, build in rest, intertwine with the actions/HQ/tasks pages." },
   { cmd: "/improve", label: "Photo Improver (analyze + rebrand)", prompt: "", navigate: "/photo-improver" },
 

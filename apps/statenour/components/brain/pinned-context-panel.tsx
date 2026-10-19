@@ -530,8 +530,9 @@ export function PinnedContextPanel() {
             return (
               <li
                 key={pin.id}
+                id={`pin-${pin.id}`}
                 className={cn(
-                  "rounded-surface border p-2.5 transition-all ring-1",
+                  "scroll-mt-20 rounded-surface border p-2.5 transition-all ring-1",
                   stalenessClass(days),
                   editing && "ring-2 ring-accent",
                   // Staleness is static (SYSTEM.md §1.4): the amber / red edge and the

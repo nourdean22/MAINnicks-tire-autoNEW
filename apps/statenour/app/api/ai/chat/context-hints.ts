@@ -48,7 +48,6 @@ import { currentTurn } from "@/lib/agent/turn-context";
 export const TOOL_BIAS: Record<string, string> = {
   "/missions": "createTask · completeTask · snoozeTask · setTaskPriority · updateTask",
   "/journal": "logSituation · journalDecision · classifyThought · reviewDecisionReplay",
-  "/pins": "pinMemory · searchMemories",
   // /mastery + /plan + /life + /body all consolidated into /stats · merged tool bias.
   "/stats": "archiveGoal · getCommitments · getBodyData · createMissionPlan · setOKRs · setWeeklyTargets",
   // 2026-08-16 · syncKnowledge / searchColdMemory / searchSkills folded in
