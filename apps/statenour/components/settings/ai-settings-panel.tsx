@@ -224,7 +224,7 @@ export function AiSettingsPanel() {
         {configError ? (
           <div className="flex items-center gap-3">
             <p role="alert" className="text-[11px] text-rose-300/90">
-              AI config unreadable — the read failed. State unknown, not defaults.
+              AI config unreadable: the read failed. State unknown, not defaults.
             </p>
             <button
               type="button"
@@ -300,7 +300,7 @@ export function AiSettingsPanel() {
           <div className="flex items-center gap-2">
             <Sliders size={13} className="text-fg-tertiary" />
             <span className="text-[15px] font-semibold text-fg">
-              AI config — live
+              AI config, live
             </span>
           </div>
           <ConfirmHold
@@ -386,7 +386,7 @@ export function AiSettingsPanel() {
             onKeyDown={(e) => isSubmitEnter(e) && addDisabledTool()}
             aria-label="Tool name to add to blocklist"
             placeholder="e.g. generateImage"
-            className="flex-1 h-8 px-2 rounded-control border border-edge-default bg-content text-[13px] text-fg placeholder:text-fg-tertiary focus:border-accent outline-none font-mono"
+            className="flex-1 h-8 px-2 rounded-control border border-edge-default bg-content text-[16px] sm:text-[13px] text-fg placeholder:text-fg-tertiary focus:border-accent outline-none font-mono"
           />
           <button
             onClick={addDisabledTool}

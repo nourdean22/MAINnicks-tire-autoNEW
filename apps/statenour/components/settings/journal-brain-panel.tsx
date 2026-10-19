@@ -219,7 +219,7 @@ export function JournalBrainPanel() {
 
       {updateMutation.isError && (
         <p role="alert" className="mt-3 rounded-control border border-rose-500/30 bg-rose-500/10 px-2 py-1.5 text-[12px] text-rose-300">
-          ⚠ Server rejected the change — reverted to the last saved value.
+          Failed: the server rejected the change and kept the last saved value.
         </p>
       )}
     </GlassCard>
@@ -317,7 +317,7 @@ function NumberInput({
         onKeyDown={(e) => {
           if (e.key === "Enter") e.currentTarget.blur();
         }}
-        className="w-16 h-7 px-2 rounded-control border border-edge-default bg-content text-[13px] text-fg focus:border-accent outline-none font-mono tabular-nums text-right"
+        className="w-16 h-7 px-2 rounded-control border border-edge-default bg-content text-[16px] sm:text-[13px] text-fg focus:border-accent outline-none font-mono tabular-nums text-right"
       />
       {suffix && (
         <span className="text-[11px] text-fg-tertiary">{suffix}</span>
