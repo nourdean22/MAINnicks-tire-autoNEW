@@ -189,6 +189,23 @@ describe("invitation wording: refusals and look-alikes are not invitations", () 
 describe("auxiliary words between the negator and the refusal word", () => {
   const invited = (line: string) => detectWalkInCoverage(lines(GREETING, "User: hi", `AI: ${line}`)).walkInInvited;
 
+  it("1a. 'Walk-ins cannot be accepted today.'", () => {
+    expect(invited("Walk-ins cannot be accepted today.")).toBe(false);
+  });
+
+  it("2a. 'Walk-ins cannot be offered today.'", () => {
+    expect(invited("Walk-ins cannot be offered today.")).toBe(false);
+  });
+
+  it("3a. 'Walk-ins can not be accepted today.' (two words)", () => {
+    expect(invited("Walk-ins can not be accepted today.")).toBe(false);
+  });
+
+  it("controls: 'can be accepted' has no negator, and a 'cannot' in the next clause is not a refusal of walk-ins", () => {
+    expect(invited("Walk-ins can be accepted any day.")).toBe(true);
+    expect(invited("Walk-ins are welcome, we cannot wait to see you.")).toBe(true);
+  });
+
   it("1. \"Walk-ins won't be available today.\"", () => {
     expect(invited("Walk-ins won't be available today.")).toBe(false);
   });
