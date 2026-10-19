@@ -179,13 +179,6 @@ describe("Traffic to Revenue panels", () => {
     expect(screen.getByText(/No bookings with page attribution/)).toBeTruthy();
   });
 
-  it("a failed GSC audit ends in the failure state, not a spinner that never stops", () => {
-    h.queries.set("seoTools.weeklyAudit", FAILED);
-    renderFunnel();
-    fireEvent.click(screen.getByRole("button", { name: /Run Audit/ }));
-    expect(screen.getByText("Search Console audit couldn't load. Unknown, not empty.")).toBeTruthy();
-    expect(document.querySelector(".animate-spin")).toBeNull();
-  });
 });
 
 

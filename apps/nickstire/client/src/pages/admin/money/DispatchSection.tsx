@@ -16,9 +16,9 @@
 import { useEffect, useRef, useState } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { readStatus } from "@/lib/queryState";
-import { Loader2, User, Play, CheckCircle2, XCircle, Clock, Wrench, Shield } from "lucide-react";
+import { Loader2, Play, CheckCircle2, XCircle, Wrench } from "lucide-react";
 import { toast } from "sonner";
-import { PageHeader, ErrorState, TabBar } from "../shared";
+import { PageHeader, ErrorState } from "../shared";
 
 // Inferred from the tRPC AppRouter — replaces 14 `any` uses in this file
 // (admin audit §3 follow-up). When the dispatch router shape changes,

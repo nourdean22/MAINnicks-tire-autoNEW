@@ -34,7 +34,6 @@ const PINS: Array<[file: string, line: string]> = [
   // Outbound but not SMS: a testimonial copied for sharing, an article topic and two content seeds.
   ["client/src/pages/admin/outreach/ReviewRequestsSection.tsx",
     'const text = `"${quote.text}"\\n' + D + ' ${quote.author}${quote.badge ? ` (${quote.badge})` : ""}`;'],
-  ["client/src/pages/admin/content/AIIdeasEngine.tsx", 'topic: `Follow-up: "${title}" ' + D + " Part 2 / Deep Dive`,"],
   ["client/src/pages/admin/instagram/Inbox.tsx",
     'detail: `A customer asked on Instagram: "${comment.text.slice(0, 400)}" ' + D + " answer it usefully for everyone who has the same question.`,"],
   ["client/src/pages/admin/instagram/Strategy.tsx", 'detail: "CONTROLLED STRUCTURE PRIOR ' + D + ' correlation only, not causal: " + h.statement'],
@@ -49,7 +48,9 @@ const lines = (file: string) => read(file).split("\n").map((l) => l.trim());
 
 const OUTBOUND_COUNT = 5;
 // 33 since 2026-10-18: GatewayOrderPanel's "Place this order with D&K?" confirm (operator text, not customer copy).
-const CHROME_COUNT = 33;
+// 28 since 2026-10-19: admin prune W1 deleted five confirm dialogs with their surfaces
+// (Coupons, Loyalty, Technician referrals, QC review / Technicians, Inspection capture).
+const CHROME_COUNT = 28;
 
 /** Every walk-in preset as the printed or copied quote shows it (OIL_PRICE from shared/pricing). */
 const WALK_IN_DESCRIPTIONS = [

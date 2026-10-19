@@ -23,7 +23,6 @@ import {
   Clapperboard,
   Images,
   Loader2,
-  Megaphone,
   Menu,
   Shield,
   Sparkles,

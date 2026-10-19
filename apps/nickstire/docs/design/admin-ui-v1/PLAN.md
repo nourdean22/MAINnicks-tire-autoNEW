@@ -1,6 +1,9 @@
 # Admin UI v1 plan: Operator's Cockpit, finally the default
 
 **Status (2026-10-17, morning):** W0 (#3070), W0b (#3078), W1 (#3080), W2 the Today board (#3091, 75472edbf) and W5 Reach, Machine and System (#3098, 62de053a8) merged and live; six pre-W1 renders frozen under `tests/e2e/admin-v1-baselines`. Today at 390 measures 0.359 (gate 0.35). W3 the Lot board lands in the PR from `nickstire/admin-ui-v1-w3`: Lot at 390 measures 0.518. W4 (Customers and Money) is in review. W6 waits for its own condition (W2 live two weeks, Keep/Less stored). Nour authorized W3 to W6 without a per-wave go (2026-10-16).
+
+**Status (2026-10-19):** admin prune W1 (job 2026-10-19-admin-prune, branch `nickstire/admin-prune-w1`): the sidebar drops to 13 sections; Opportunities, Call Tracking, Market, Traffic, Growth, Nonstop Nick and Intelligence HQ become tabs or are cut; Keep/Less and Ad Studio are retired; one slug resolver serves the first URL, back/forward, the in-app event and `/admin/<slug>` paths.
+
 **Base:** origin/main `5cfad6b78`. **Owner:** the manager session "nick admin ui upgrade" (job id `2026-10-16-nick-admin-ui-v1`).
 **Genome:** OPERATOR'S COCKPIT ([`docs/design/SURFACE-DNA.md`](../../../../../docs/design/SURFACE-DNA.md) column 2, [`docs/ADMIN_PHILOSOPHY.md`](../../ADMIN_PHILOSOPHY.md)): dispatch board, rows and rails, graphite, gold only for owner priority, motion at or under 200 ms. Both docs have said this since 2026-05-07 and 2026-09-16; the live admin is still black and gold with a scan-line overlay.
 **Method:** copied from the bdnick plan ([`apps/statenour/docs/design/ui-v3/PLAN.md`](../../../../statenour/docs/design/ui-v3/PLAN.md)): read-only audit, honesty first, ratchet tests, one PR per wave, a six-feet gate. Mechanism copied, files not.
@@ -31,7 +34,7 @@
 | W3 Lot, Approvals, walk-in | Lot: "On the lot right now" first, evidence and counters below; Approvals: Approve is not a red confirm; walk-in quote as a bar action and a row verb | Distance gate on Lot; tap counts | W2 |
 | W4 Customers and Money | Lookup from the bar, profile with honest tabs, Dispatch and Work Orders rows, Nonstop Nick counter lookup with error state | Ratchets; iPhone check | W2 |
 | W5 Reach, Automation, Truth, System | Outreach 7+3 pills, Settings 5+3+3, Instagram 12 views: Priority/Other lanes and one scrolling strip each; dead Call/SMS buttons wired or deleted; Reports tab stops listing repo paths; global rules only elsewhere | Ratchets | W1 |
-| W6 the Stream (later) | One ranked self-clearing queue across sections, the 2026-06-01 plan, fed by W2's row grammar and Keep/Less feedback | Not scheduled | W2 live two weeks, Keep/Less stored |
+| W6 the Stream (later) | One ranked self-clearing queue across sections, the 2026-06-01 plan, fed by W2's row grammar and Keep/Less feedback | Dropped 2026-10-19 by Nour: Keep/Less got 0 marks in 30 days; Today stays the daily board | n/a |
 
 The W0 ratchets do not tighten by themselves: each wave PR that removes violations runs `UPDATE_RATCHET=1` and commits the lowered numbers; a legitimate new number uses `UPDATE_RATCHET=init` with the reason in the PR body. Same rules as the bdnick ratchet.
 

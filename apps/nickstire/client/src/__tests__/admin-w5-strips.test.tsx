@@ -184,19 +184,6 @@ describe("Instagram primary row", () => {
 });
 
 describe("Nested strips", () => {
-  it("Integrations: sentence-case labels, always visible, one scrolling strip", () => {
-    render(<IntegrationsSection />);
-    const { el, buttons } = strip("Tire search");
-    expect(names(buttons)).toEqual(["Tire search", "Labor guide", "Quick estimate"]);
-    expect(el.className).toMatch(/\boverflow-x-auto\b/);
-    for (const b of buttons) {
-      expect(b.className).toMatch(/\bmin-h-12\b/);
-      expect(b.querySelector(".hidden")).toBeNull();
-    }
-    expect(activeName(buttons)).toBe("Tire search");
-    fireEvent.click(screen.getByRole("button", { name: "Labor guide" }));
-    expect(activeName(strip("Labor guide").buttons)).toBe("Labor guide");
-  });
 
   it("SMS Orchestrator: three tabs in the shared scrolling strip, switching still works", () => {
     render(<SmsOrchestratorSection />);

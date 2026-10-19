@@ -317,13 +317,6 @@ describe("Dispatch", () => {
     expect(screen.getByText(/Ready queue not checked/)).toBeTruthy();
   });
 
-  it("a failed QC read shows an error with Retry, never No jobs pending QC review", () => {
-    h.queries.set("workOrders.list", FAILED);
-    render(<DispatchSection />);
-    fireEvent.click(screen.getByRole("button", { name: "QC Review" }));
-    expect(screen.queryByText("No jobs pending QC review")).toBeNull();
-    expect(screen.getByText(/QC review couldn't load/)).toBeTruthy();
-  });
 
   it("ready-queue rows show vehicle, customer and one Assign verb", () => {
     h.queries.set("workOrders.list", ok([{ ...WOS[1], status: "ready_for_bay" }]));
@@ -538,32 +531,7 @@ describe("W4 round 2", () => {
     }
   });
 
-  it("Dispatch: a paused QC queue says not checked; a failed Ready queue says couldn't load, not offline", () => {
-    h.queries.set("workOrders.list", PAUSED);
-    const { unmount } = render(<DispatchSection />);
-    fireEvent.click(screen.getByRole("button", { name: "QC Review" }));
-    expect(screen.queryByText("No jobs pending QC review")).toBeNull();
-    expect(screen.getByText(/QC review not checked/)).toBeTruthy();
-    unmount();
-    h.queries.set("workOrders.list", FAILED);
-    render(<DispatchSection />);
-    expect(screen.getByText(/Couldn't load ready-queue/)).toBeTruthy();
-    expect(screen.queryByText(/not checked/)).toBeNull();
-  });
 
-  it("Dispatch: Check scrolls the QC panel into view", () => {
-    const scroll = vi.fn();
-    Object.defineProperty(Element.prototype, "scrollIntoView", { configurable: true, writable: true, value: scroll });
-    try {
-      h.queries.set("workOrders.list", ok([{ ...WOS[1], status: "qc_review" }]));
-      render(<DispatchSection />);
-      fireEvent.click(screen.getByRole("button", { name: "QC Review" }));
-      fireEvent.click(within(screen.getByRole("list", { name: "Awaiting QC" })).getByRole("button", { name: "Check Sam Driver" }));
-      expect(scroll).toHaveBeenCalled();
-    } finally {
-      Reflect.deleteProperty(Element.prototype, "scrollIntoView");
-    }
-  });
 
   it("customer overflow: Text and the Win back wrapper are 48 px; no Win back when not lapsed; no More without a phone", () => {
     h.queries.set("customers.list", ok({ customers: [LAPSED2, RECENT, NOPHONE], total: 3, page: 1, pageSize: 25 }));

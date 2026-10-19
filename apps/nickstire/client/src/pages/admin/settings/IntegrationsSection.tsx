@@ -6,22 +6,21 @@
  * in 14 days, and both duplicated live tools: the Tires section's search
  * (gatewayTire) and the Sales Pipeline walk-in quote.
  */
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { toast } from "sonner";
-import { confirmDialog } from "@/components/admin/ConfirmDialog";
 
 // tRPC-inferred types — replaces `any` annotations on map/filter callbacks.
 type SyncHealth = RouterOutputs["adminDashboard"]["syncHealth"];
 type HealthCheck = SyncHealth["checks"][number];
 import {
-  Truck, Wrench, Calculator, ExternalLink, Search, Plus, Trash2,
-  ChevronRight, DollarSign, Clock, Package, Loader2, Settings2,
+  Wrench, Calculator, ExternalLink, Search,
+  ChevronRight, DollarSign, Clock, Loader2,
   CheckCircle2, AlertTriangle, Gauge, Zap, Shield, Droplets,
-  ThermometerSun, Cog, CircleDot, ArrowRight, RefreshCw, XCircle,
-  Activity, Wifi, WifiOff, Plug
+  ThermometerSun, Cog, CircleDot, RefreshCw, XCircle,
+  Wifi, WifiOff, Plug,
 } from "lucide-react";
-import { PageHeader, ErrorState, TabBar } from "../shared";
+import { PageHeader, ErrorState } from "../shared";
 
 // ─── TYPES ──────────────────────────────────────────────
 

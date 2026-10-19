@@ -1,5 +1,5 @@
 import React, { lazy, Suspense, useState, useEffect, useCallback } from "react";
-import { Brain, Clapperboard, ClipboardList, Disc, DollarSign, Images, Instagram, LayoutDashboard, Megaphone, ParkingSquare, PhoneCall, Send, Settings, Shield, Sparkles, TrendingUp, UserCheck } from "lucide-react";
+import { Clapperboard, ClipboardList, Disc, DollarSign, Images, Instagram, LayoutDashboard, Megaphone, ParkingSquare, PhoneCall, Send, Settings, Sparkles, TrendingUp, UserCheck } from "lucide-react";
 import type { AdminSection, NavGroup, RetiredAdminSection } from "./shared/types";
 import type { AdminNavigateDetail, AdminOpenCustomerDrawerDetail } from "./shared/navigation";
 import { ADMIN_ROLES, type AdminRole } from "@shared/adminPermissions";

@@ -112,16 +112,6 @@ describe("Settings ALG status while loading", () => {
 });
 
 describe("Estimate line type", () => {
-  it("renders sentence case at runtime: 'Labor', never 'LABOR'", () => {
-    render(<IntegrationsSection />);
-    fireEvent.click(screen.getByRole("button", { name: "Quick estimate" }));
-    const input = screen.getByText("Description").parentElement!.querySelector("input") as HTMLInputElement;
-    fireEvent.change(input, { target: { value: "Brake job" } });
-    fireEvent.click(screen.getByRole("button", { name: /Add to estimate/ }));
-    expect(screen.getByText("Brake job")).toBeTruthy();
-    expect(screen.getByText("Labor • Qty 1")).toBeTruthy();
-    expect(screen.queryByText(/LABOR/)).toBeNull();
-  });
 });
 
 describe("CustomerIntelligence phone with no digits", () => {
