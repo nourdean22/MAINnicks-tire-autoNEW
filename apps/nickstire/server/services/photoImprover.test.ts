@@ -2,15 +2,17 @@
  * photoImprover -- the two legs behind instagramStudio.checkPhoto / brandedPhoto.
  *
  * Fakes only: analyzePhoto and generateImage are the lower layers a live call would spend credit
- * on, so both are mocked whole (every export the service imports, no partial factory). The cases
- * that matter most are the unhappy ones: a vision outage and a reply that is not a scorecard must
- * each come back as a NAMED failure, never as a default number (empty-vs-error).
+ * on, so both are mocked whole (every export the service imports, no partial factory). Storage keeps
+ * its real URL and durability rules; only storageDelete is faked, so no test can reach a bucket.
+ * The cases that matter most are the unhappy ones: a vision outage and a reply that is not a
+ * scorecard must each come back as a NAMED failure, never as a default number (empty-vs-error).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { analyzePhoto, generateImage } = vi.hoisted(() => ({ analyzePhoto: vi.fn(), generateImage: vi.fn() }));
+const { analyzePhoto, generateImage, storageDelete } = vi.hoisted(() => ({ analyzePhoto: vi.fn(), generateImage: vi.fn(), storageDelete: vi.fn() }));
 vi.mock("./vision-analyzer", () => ({ analyzePhoto }));
 vi.mock("../_core/imageGeneration", () => ({ generateImage }));
+vi.mock("../storage", async (importOriginal) => ({ ...(await importOriginal<typeof import("../storage")>()), storageDelete }));
 
 import { analyzePhotoForShop, renderBrandedScene } from "./photoImprover";
 
@@ -39,9 +41,51 @@ function visionSays(text: string) {
 beforeEach(() => {
   analyzePhoto.mockReset();
   generateImage.mockReset();
+  storageDelete.mockReset().mockResolvedValue(undefined);
   vi.stubEnv("GEMINI_API_KEY", "test-gemini-key");
   vi.stubEnv("SITE_URL", "https://shop.example.test");
   vi.stubEnv("CLOUDFRONT_DOMAIN", "");
+  vi.stubEnv("S3_BUCKET", "test-bucket");
+  vi.stubEnv("REEL_ALLOW_EPHEMERAL_STORAGE", "");
+});
+
+describe("analyzePhotoForShop · the score-only photo is deleted after its check", () => {
+  const EVIDENCE = "https://shop.example.test/generated/ig-evidence/1-2-front.jpg";
+
+  it.each([
+    ["a scorecard", () => analyzePhoto.mockResolvedValueOnce(visionSays(JSON.stringify(SCORECARD))), true],
+    ["an unreadable reply", () => analyzePhoto.mockResolvedValueOnce(visionSays("no json here")), false],
+    ["a vision outage", () => analyzePhoto.mockRejectedValueOnce(new Error("timeout")), false],
+  ] as const)("after %s, photo-check/<key> is deleted once", async (_label, arrange, ok) => {
+    arrange();
+    const r = await analyzePhotoForShop({ photoUrl: PHOTO });
+    expect(r.ok).toBe(ok);
+    expect(storageDelete).toHaveBeenCalledTimes(1);
+    expect(storageDelete).toHaveBeenCalledWith("photo-check/1-2-front.jpg");
+  });
+
+  it("no Gemini key: nothing is scored and the photo is still deleted", async () => {
+    vi.stubEnv("GEMINI_API_KEY", "");
+    expect(await analyzePhotoForShop({ photoUrl: PHOTO })).toMatchObject({ ok: false, reason: "vision_unavailable" });
+    expect(storageDelete).toHaveBeenCalledWith("photo-check/1-2-front.jpg");
+  });
+
+  it("a Studio evidence photo (ig-evidence/) is scored and never deleted: it is the shop's library", async () => {
+    analyzePhoto.mockResolvedValueOnce(visionSays(JSON.stringify(SCORECARD)));
+    expect((await analyzePhotoForShop({ photoUrl: EVIDENCE })).ok).toBe(true);
+    expect(storageDelete).not.toHaveBeenCalled();
+  });
+
+  it("a refused URL deletes nothing (it is not ours to delete)", async () => {
+    await analyzePhotoForShop({ photoUrl: "https://evil.example/generated/photo-check/1-2-front.jpg" });
+    expect(storageDelete).not.toHaveBeenCalled();
+  });
+
+  it("a delete that fails leaves the scorecard as it was", async () => {
+    storageDelete.mockRejectedValueOnce(new Error("bucket down"));
+    analyzePhoto.mockResolvedValueOnce(visionSays(JSON.stringify(SCORECARD)));
+    expect(await analyzePhotoForShop({ photoUrl: PHOTO })).toMatchObject({ ok: true, analysis: SCORECARD });
+  });
 });
 
 afterEach(() => {
@@ -284,6 +328,17 @@ describe("renderBrandedScene", () => {
     if (r.ok) throw new Error("unreachable");
     expect(r.message).not.toContain("AIza");
     expect(r.message).not.toContain("429");
+  });
+
+  it("no durable storage: refused before the generator is called, so no credit is spent on a picture a restart would lose", async () => {
+    vi.stubEnv("S3_BUCKET", "");
+    expect(await renderBrandedScene({ prompt: PROMPT })).toMatchObject({ ok: false, reason: "image_unavailable" });
+    expect(generateImage).not.toHaveBeenCalled();
+    // Control: the operator's explicit ephemeral override still lets it run.
+    vi.stubEnv("REEL_ALLOW_EPHEMERAL_STORAGE", "true");
+    generateImage.mockResolvedValueOnce({ url: "https://cdn.example.test/generated/e.png" });
+    expect(await renderBrandedScene({ prompt: PROMPT })).toMatchObject({ ok: true });
+    expect(generateImage).toHaveBeenCalledTimes(1);
   });
 
   it("a generator that returns no URL is image_unavailable, not an ok with an empty picture", async () => {

@@ -17,6 +17,10 @@
  * A failed read is never a number: a vision outage, an unusable reply and a refused URL each come
  * back as a named failure with no `analysis` key (empty-vs-error).
  *
+ * A score-only upload (photo-check/) is deleted once its check returns, whatever the outcome: the
+ * prefix is publicly served by URL and the photo can show a customer's car or plate. A retry
+ * uploads again. ig-evidence/ photos are the Studio's library and are never deleted here.
+ *
  * shortcut: admin-only, one tap per render, no daily cap and no credit ledger. generateImage can
  * spend a second provider call inside one invocation (Gemini, then its OpenAI fallback), so one
  * tap is at most two provider calls. Add a cap if usage grows (it was 4 uses in 90 days).
@@ -24,7 +28,7 @@
 import { z } from "zod";
 import { generateImage } from "../_core/imageGeneration";
 import { createLogger } from "../lib/logger";
-import { isOwnObjectUrl } from "../storage";
+import { assertDurableStorageForGeneration, ownObjectKey, storageDelete } from "../storage";
 import { analyzePhoto } from "./vision-analyzer";
 
 const log = createLogger("services:photoImprover");
@@ -157,11 +161,25 @@ function jsonObjectIn(text: string): unknown {
 }
 
 export async function analyzePhotoForShop(input: { photoUrl: string }): Promise<CheckPhotoResult> {
-  const t0 = Date.now();
-  if (!isOwnObjectUrl(input.photoUrl, OWN_PHOTO_PREFIXES)) {
+  const key = ownObjectKey(input.photoUrl, OWN_PHOTO_PREFIXES);
+  if (!key) {
     log.warn("photo check refused a URL outside our storage");
     return { ok: false, reason: "invalid_url", message: MESSAGES.invalid_url };
   }
+  try {
+    return await scoreOwnPhoto(input.photoUrl);
+  } finally {
+    if (key.startsWith("photo-check/")) {
+      // The key is not logged: it carries the uploaded file's name, which can name the customer.
+      await storageDelete(key).catch((err) =>
+        log.warn("score-only photo was not deleted", { error: err instanceof Error ? err.message.slice(0, 200) : String(err) }),
+      );
+    }
+  }
+}
+
+async function scoreOwnPhoto(photoUrl: string): Promise<CheckPhotoResult> {
+  const t0 = Date.now();
   if (!process.env.GEMINI_API_KEY) {
     log.warn("photo check skipped: no GEMINI_API_KEY");
     return { ok: false, reason: "vision_unavailable", message: MESSAGES.vision_unavailable };
@@ -171,7 +189,7 @@ export async function analyzePhotoForShop(input: { photoUrl: string }): Promise<
   try {
     // internal + explicit provider: an operator-side read, not the customer MMS pipeline the
     // photo_assess_enabled flag gates (vision-analyzer AnalyzePhotoOptions.internal).
-    reply = await analyzePhoto({ photoUrl: input.photoUrl, prompt: ANALYZE_INSTRUCTION, provider: VISION_PROVIDER, internal: true });
+    reply = await analyzePhoto({ photoUrl, prompt: ANALYZE_INSTRUCTION, provider: VISION_PROVIDER, internal: true });
   } catch (err) {
     log.warn("photo check threw", { error: err instanceof Error ? err.message.slice(0, 200) : String(err) });
     return { ok: false, reason: "vision_unavailable", message: MESSAGES.vision_unavailable };
@@ -204,6 +222,8 @@ export async function analyzePhotoForShop(input: { photoUrl: string }): Promise<
 export async function renderBrandedScene(input: { prompt: string }): Promise<BrandedPhotoResult> {
   const t0 = Date.now();
   try {
+    // A paid render whose output would land on ephemeral disk is refused before any credit is spent.
+    assertDurableStorageForGeneration("branded photo");
     // One call, no retry: each attempt spends image credit, and a second try is the operator's tap.
     const { url, provider, model: answeredBy } = await generateImage({ prompt: input.prompt });
     if (!url) {

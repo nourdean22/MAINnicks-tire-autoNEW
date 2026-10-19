@@ -1,10 +1,11 @@
 /**
- * The Photo check card is reachable: the Instagram admin renders it in the Create (Studio) view and
- * nowhere else, next to the Studio itself, inside the admin shell that hosts ConfirmDialog.
+ * The Photo check card is reachable: the Instagram admin shows it in the Create (Studio) view and
+ * nowhere else, above the Studio itself, inside the admin shell that hosts ConfirmDialog. It stays
+ * mounted (hidden) on the other views so a render in flight is not lost on a tab switch.
  * Registration is not reachability (assert-the-consumer): this renders the real InstagramAdmin.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import React from "react";
 
 const h = vi.hoisted(() => ({ Null: () => null }));
@@ -49,10 +50,22 @@ describe("Photo check card mount", () => {
     expect(screen.getByRole("button", { name: "Choose or take a photo" })).toBeTruthy();
   });
 
-  it("positive control: the Today view does not render it", () => {
+  it("positive control: the Today view does not show it (it is mounted but hidden)", () => {
     window.history.replaceState({}, "", "/admin?igview=today");
     render(<InstagramAdmin />);
     expect(screen.getByText("Today view")).toBeTruthy();
-    expect(screen.queryByText("Photo check")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Choose or take a photo" })).toBeNull();
+    expect(screen.getByText("Photo check").closest("[hidden]")).not.toBeNull();
+  });
+
+  it("leaving Create mid-render does not unmount the card, so a paid picture still lands", () => {
+    window.history.replaceState({}, "", "/admin?igview=create");
+    render(<InstagramAdmin />);
+    const card = screen.getByText("Photo check");
+    fireEvent.click(screen.getByRole("tab", { name: "Today" }));
+    expect(screen.getByText("Today view")).toBeTruthy();
+    // Same node, still in the document: its state (an in-flight render, a scorecard) survives.
+    expect(card.isConnected).toBe(true);
+    expect(card.closest("[hidden]")).not.toBeNull();
   });
 });

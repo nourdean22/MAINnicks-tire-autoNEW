@@ -137,7 +137,7 @@ describe("Photo check card: picking a photo", () => {
     expect(screen.getByText("Photo check")).toBeTruthy();
     expect(screen.getByText("Get a plain read on a shop photo.")).toBeTruthy();
     // Privacy: the operator is told before choosing that the photo stays out of the library and posts.
-    expect(screen.getByText("The photo is uploaded for this check only. It is not added to your shop photo library or used in posts.")).toBeTruthy();
+    expect(screen.getByText("The photo is uploaded for this check only and deleted after it. It is not added to your shop photo library or used in posts.")).toBeTruthy();
     expect(screen.getAllByRole("button")).toHaveLength(1);
     expect(screen.queryByRole("img")).toBeNull();
     expect(screen.queryByText(/Make a branded version/)).toBeNull();
@@ -149,6 +149,13 @@ describe("Photo check card: picking a photo", () => {
     expect(h.upload).toHaveBeenCalledWith({ base64: "YWJj", filename: "tire.jpg", mimeType: "image/jpeg", scoreOnly: true });
     expect(h.check).toHaveBeenCalledTimes(1);
     expect(h.check).toHaveBeenCalledWith({ photoUrl: UPLOADED.url });
+  });
+
+  it("the preview is the local file, never the stored URL (the server deletes that copy after the check)", async () => {
+    await checked();
+    const img = screen.getByRole("img", { name: "Photo being checked" }) as HTMLImageElement;
+    expect(img.src).toMatch(/^data:image\/jpeg;base64,YWJj$/);
+    expect(img.src).not.toContain(UPLOADED.url);
   });
 
   it("refuses a photo over 7.5 MB and an unsupported type before any call", () => {
@@ -234,7 +241,7 @@ describe("Photo check card: a check that did not produce a scorecard", () => {
       expect(screen.queryByRole("region", { name: "Photo scorecard" })).toBeNull();
       expect(screen.queryByText(/of 100/)).toBeNull();
       expect(screen.queryByText(/Best for/)).toBeNull();
-      // Retry re-sends the same URL, which only helps when the URL was fine: an invalid link needs another photo.
+      // Retry uploads the same file again, which only helps when the link was fine: a refused link needs another photo.
       const next = name === "invalid url" ? "Choose another photo" : "Retry";
       expect(screen.getByRole("button", { name: next }).className).toMatch(/\bmin-h-12\b/);
       expect(screen.queryByRole("button", { name: name === "invalid url" ? "Retry" : "Choose another photo" })).toBeNull();
@@ -251,15 +258,15 @@ describe("Photo check card: a check that did not produce a scorecard", () => {
     expect(pickerClick).toHaveBeenCalledTimes(1);
   });
 
-  it("Retry checks the same uploaded photo again without uploading twice", async () => {
+  it("Retry uploads the same file again, because the server deleted the first copy after its check", async () => {
     h.check.mockResolvedValueOnce({ ok: false, reason: "unreadable", message: "x" });
     render(<PhotoCheckCard />);
     choose();
     fireEvent.click(await screen.findByRole("button", { name: "Retry" }));
     await screen.findByRole("region", { name: "Photo scorecard" });
-    expect(h.upload).toHaveBeenCalledTimes(1);
+    expect(h.upload).toHaveBeenCalledTimes(2);
+    expect(h.upload).toHaveBeenLastCalledWith({ base64: "YWJj", filename: "tire.jpg", mimeType: "image/jpeg", scoreOnly: true });
     expect(h.check).toHaveBeenCalledTimes(2);
-    expect(h.check).toHaveBeenLastCalledWith({ photoUrl: UPLOADED.url });
     expect(screen.queryByText("Couldn't check this photo")).toBeNull();
   });
 });
@@ -278,7 +285,8 @@ describe("Photo check card: the branded version", () => {
     await checked();
     first();
     const panel = confirmPanel();
-    expect(within(panel).getByText("Creates one new branded picture of a similar scene. It is not your photo edited. Uses image credit: normally one, a second if the first image service is down.")).toBeTruthy();
+    // "one or two": generateImage falls back to a second provider on an HTTP error, not on every failure.
+    expect(within(panel).getByText("Creates one new branded picture of a similar scene. It is not your photo edited. Uses one or two image credits.")).toBeTruthy();
     expect(panel.textContent).not.toMatch(/Uses one image credit/);
     expect(within(panel).getByText(PROMPT)).toBeTruthy();
     expect(within(panel).getByRole("button", { name: "Make the picture" }).className).toMatch(/\bmin-h-12\b/);
@@ -355,13 +363,14 @@ describe("Photo check card: the branded version", () => {
     expect(within(panel).queryByText(/END-OF-PROMPT/)).toBeNull();
   });
 
-  it("a render that comes back unavailable says so, shows no picture, and needs a fresh confirm to try again", async () => {
+  it("a render that comes back unavailable says it may still have used a credit (a timeout or a failed save can follow a charge), shows no picture, and needs a fresh confirm", async () => {
     h.brand.mockResolvedValue({ ok: false, reason: "image_unavailable", message: "x" });
     await checked();
     first();
     fireEvent.click(within(confirmPanel()).getByRole("button", { name: "Make the picture" }));
     await screen.findByText("Couldn't make the picture");
-    expect(screen.getByText(/couldn't be made right now/)).toBeTruthy();
+    expect(screen.getByText(/may still have used an image credit/)).toBeTruthy();
+    expect(screen.queryByText(/Try again in a minute/)).toBeNull();
     expect(screen.queryByRole("img", { name: "Branded picture" })).toBeNull();
     expect(screen.queryByRole("group", { name: "Confirm branded picture" })).toBeNull();
     first();
@@ -375,7 +384,7 @@ describe("Photo check card: the branded version", () => {
     first();
     fireEvent.click(within(confirmPanel()).getByRole("button", { name: "Make the picture" }));
     await screen.findByText("Couldn't make the picture");
-    expect(screen.getByText(/may have used an image credit/)).toBeTruthy();
+    expect(screen.getByText(/may still have used an image credit/)).toBeTruthy();
     expect(screen.queryByRole("img", { name: "Branded picture" })).toBeNull();
   });
 

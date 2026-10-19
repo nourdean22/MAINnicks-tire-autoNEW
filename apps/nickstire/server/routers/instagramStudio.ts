@@ -393,10 +393,11 @@ export const instagramStudioRouter = router({
     }),
 
   /**
-   * Photo Improver, leg 1: score a shop photo. `photoUrl` is the durable URL
-   * uploadEvidencePhoto returned (no second upload path). The scorecard is ONE vision
-   * model's opinion; every ok result names the model. A vision outage, an unusable reply or
-   * a refused URL comes back as { ok: false, reason } with no analysis, never a default score.
+   * Photo Improver, leg 1: score a shop photo. `photoUrl` is the URL uploadEvidencePhoto
+   * returned (no second upload path); a score-only (photo-check/) upload is deleted once the
+   * check returns, so a retry uploads again. The scorecard is ONE vision model's opinion; every
+   * ok result names the model. A vision outage, an unusable reply or a refused URL comes back as
+   * { ok: false, reason } with no analysis, never a default score.
    */
   checkPhoto: adminProcedure
     .input(z.object({ photoUrl: z.string().url().max(2048) }))

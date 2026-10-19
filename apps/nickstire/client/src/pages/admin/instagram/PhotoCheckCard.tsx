@@ -14,7 +14,11 @@
  *   - the branded picture is text-to-image: a new scene, not the uploaded photo edited. It spends
  *     an image credit per call and the server does not dedupe, so the call sits behind a second
  *     tap that shows the prompt, and a ref lock keeps a double tap to one call;
- *   - brandedPhoto.model names the configured model, not proof of which one answered.
+ *   - any render that did not come back with a picture may still have spent a credit, so every
+ *     render failure says so;
+ *   - brandedPhoto.model names the provider that answered, or "unknown".
+ * The server deletes a score-only photo once its check returns, so Retry uploads it again and the
+ * preview is the local file, never the stored URL.
  *
  * The confirm is in-card, not confirmDialog: it has to show an expandable prompt, and a native
  * confirm is suppressed in the iOS standalone PWA.
@@ -43,13 +47,12 @@ const CHECK_LINE: Record<CheckFailure, string> = {
 const BEST_FOR = { instagram: "Instagram", facebook: "Facebook", gbp: "Google Business Profile", billboard: "Billboard" } as const;
 const PRIORITY = { high: "High", medium: "Medium", low: "Low" } as const;
 
-const readBase64 = (file: File) =>
+const readDataUrl = (file: File) =>
   new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
       const dataUrl = String(reader.result ?? "");
-      const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
-      if (base64) resolve(base64);
+      if (dataUrl.slice(dataUrl.indexOf(",") + 1)) resolve(dataUrl);
       else reject(new Error("empty file"));
     };
     reader.onerror = () => reject(reader.error ?? new Error("read failed"));
@@ -76,7 +79,8 @@ export function PhotoCheckCard() {
   const [step, setStep] = useState<"idle" | "uploading" | "checking">("idle");
   const [problem, setProblem] = useState<string | null>(null);
   const [uploadFailed, setUploadFailed] = useState(false);
-  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [picked, setPicked] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
   const [card, setCard] = useState<Scorecard | null>(null);
   const [checkFailure, setCheckFailure] = useState<CheckFailure | null>(null);
 
@@ -84,7 +88,7 @@ export function PhotoCheckCard() {
   const [fullPrompt, setFullPrompt] = useState(false);
   const [rendering, setRendering] = useState(false);
   const [branded, setBranded] = useState<Branded | null>(null);
-  const [brandFailure, setBrandFailure] = useState<"unavailable" | "error" | null>(null);
+  const [brandFailed, setBrandFailed] = useState(false);
 
   const busy = step !== "idle" || rendering;
 
@@ -108,13 +112,14 @@ export function PhotoCheckCard() {
     checkSeq.current++;
     setProblem(null);
     setUploadFailed(false);
-    setPhotoUrl(null);
+    setPicked(null);
+    setPreview(null);
     setCard(null);
     setCheckFailure(null);
     setConfirming(false);
     setFullPrompt(false);
     setBranded(null);
-    setBrandFailure(null);
+    setBrandFailed(false);
     if (file.size > MAX_BYTES) {
       setProblem("Photo too large. The limit is 7.5 MB: take it at normal quality, not RAW.");
       return;
@@ -126,8 +131,10 @@ export function PhotoCheckCard() {
     }
     setStep("uploading");
     let url: string;
+    let dataUrl: string;
     try {
-      const base64 = await readBase64(file);
+      dataUrl = await readDataUrl(file);
+      const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
       // scoreOnly keeps the photo out of the shop media library that the unattended autopost draws from.
       ({ url } = await upload.mutateAsync({ base64, filename: file.name || "shop-photo.jpg", mimeType, scoreOnly: true }));
     } catch {
@@ -135,7 +142,8 @@ export function PhotoCheckCard() {
       setStep("idle");
       return;
     }
-    setPhotoUrl(url);
+    setPicked(file);
+    setPreview(dataUrl);
     await runCheck(url);
   };
 
@@ -145,13 +153,13 @@ export function PhotoCheckCard() {
     setConfirming(false);
     setRendering(true);
     setBranded(null);
-    setBrandFailure(null);
+    setBrandFailed(false);
     try {
       const result = await brand.mutateAsync({ prompt: card.analysis.rebrandPrompt });
       if (result.ok) setBranded(result);
-      else setBrandFailure("unavailable");
+      else setBrandFailed(true);
     } catch {
-      setBrandFailure("error");
+      setBrandFailed(true);
     } finally {
       renderLock.current = false;
       setRendering(false);
@@ -204,12 +212,12 @@ export function PhotoCheckCard() {
             Choose or take a photo
           </Button>
           <p className="mt-2 text-muted-foreground">
-            The photo is uploaded for this check only. It is not added to your shop photo library or used in posts.
+            The photo is uploaded for this check only and deleted after it. It is not added to your shop photo library or used in posts.
           </p>
         </div>
 
-        {photoUrl && (
-          <img src={photoUrl} alt="Photo being checked" className="max-h-48 w-auto max-w-full rounded-md border object-contain" />
+        {preview && (
+          <img src={preview} alt="Photo being checked" className="max-h-48 w-auto max-w-full rounded-md border object-contain" />
         )}
 
         {/* One polite live region for everything that changes: progress, a failure, a scorecard, a
@@ -232,7 +240,7 @@ export function PhotoCheckCard() {
             </p>
           )}
 
-          {failureLine && photoUrl && (
+          {failureLine && picked && (
             <div className="space-y-1 rounded-md border border-amber-500/40 p-3">
               <p className="font-medium">Couldn't check this photo</p>
               <p className="break-words text-muted-foreground">{failureLine}</p>
@@ -313,13 +321,13 @@ export function PhotoCheckCard() {
             </p>
           )}
 
-          {brandFailure && (
+          {brandFailed && (
             <div className="space-y-1 rounded-md border border-amber-500/40 p-3">
               <p className="font-medium">Couldn't make the picture</p>
+              {/* The server cannot always tell whether a provider charged before it failed (a timeout
+                  after the request was sent, a save that failed after the picture was made). */}
               <p className="break-words text-muted-foreground">
-                {brandFailure === "unavailable"
-                  ? "The picture couldn't be made right now. Try again in a minute."
-                  : "The request didn't finish, so it may have used an image credit. Check before trying again."}
+                No picture came back, but it may still have used an image credit. Check before trying again.
               </p>
             </div>
           )}
@@ -343,14 +351,14 @@ export function PhotoCheckCard() {
           )}
         </div>
 
-        {failureLine && photoUrl && (
-          // Retry re-sends the same URL, so it only helps when the URL was fine.
+        {failureLine && picked && (
+          // Retry uploads the same file again (the server deleted the first copy); a refused link needs another photo.
           checkFailure === "invalid_url" ? (
             <Button variant="outline" className={btn} onClick={() => inputRef.current?.click()}>
               Choose another photo
             </Button>
           ) : (
-            <Button variant="outline" className={btn} onClick={() => void runCheck(photoUrl)}>
+            <Button variant="outline" className={btn} onClick={() => void onPick(picked)}>
               Retry
             </Button>
           )
@@ -360,7 +368,7 @@ export function PhotoCheckCard() {
           <div className="space-y-3 border-t pt-4">
             {confirming ? (
               <div ref={confirmRef} tabIndex={-1} role="group" aria-label="Confirm branded picture" className="space-y-3 rounded-md border p-3 focus:outline-none">
-                <p>Creates one new branded picture of a similar scene. It is not your photo edited. Uses image credit: normally one, a second if the first image service is down.</p>
+                <p>Creates one new branded picture of a similar scene. It is not your photo edited. Uses one or two image credits.</p>
                 <div className="space-y-1">
                   <p className="text-muted-foreground">What will be drawn</p>
                   <p className="break-words">{shownPrompt}</p>

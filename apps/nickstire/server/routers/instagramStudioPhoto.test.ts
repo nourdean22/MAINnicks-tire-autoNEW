@@ -7,9 +7,11 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { analyzePhoto, generateImage } = vi.hoisted(() => ({ analyzePhoto: vi.fn(), generateImage: vi.fn() }));
+const { analyzePhoto, generateImage, storageDelete } = vi.hoisted(() => ({ analyzePhoto: vi.fn(), generateImage: vi.fn(), storageDelete: vi.fn() }));
 vi.mock("../services/vision-analyzer", async (importOriginal) => ({ ...(await importOriginal<typeof import("../services/vision-analyzer")>()), analyzePhoto }));
 vi.mock("../_core/imageGeneration", async (importOriginal) => ({ ...(await importOriginal<typeof import("../_core/imageGeneration")>()), generateImage }));
+// The check deletes its score-only photo afterwards: faked, so no test reaches a bucket.
+vi.mock("../storage", async (importOriginal) => ({ ...(await importOriginal<typeof import("../storage")>()), storageDelete }));
 
 import { instagramStudioRouter } from "./instagramStudio";
 import { appRouter } from "../routers";
@@ -43,9 +45,12 @@ const SCORECARD = {
 beforeEach(() => {
   analyzePhoto.mockReset();
   generateImage.mockReset();
+  storageDelete.mockReset().mockResolvedValue(undefined);
   vi.stubEnv("GEMINI_API_KEY", "test-gemini-key");
   vi.stubEnv("SITE_URL", "https://shop.example.test");
   vi.stubEnv("CLOUDFRONT_DOMAIN", "");
+  // A paid render needs durable storage (assertDurableStorageForGeneration); the bucket is a name only.
+  vi.stubEnv("S3_BUCKET", "test-bucket");
   // The admin gate reads its role row through the real db helper: no URL means "no handle", which
   // the middleware answers with the documented owner fallback instead of a connection attempt.
   vi.stubEnv("DATABASE_URL", "");
