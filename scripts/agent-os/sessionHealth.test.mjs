@@ -87,11 +87,11 @@ function home(label, ports, { codexSkip = [], claudeJson, userHook = "powershell
   return dir;
 }
 
-function config(label, ports, { hosts = [HOST], tasks = [] } = {}) {
+function config(label, ports, { hosts = [HOST], tasks = [], servers } = {}) {
   const file = join(SCRATCH, label, "local-services.json");
   writeFileSync(file, JSON.stringify({
     version: 1, hosts,
-    servers: [{ name: "graphify", port: ports[0], path: "/mcp", kind: "graphify" }, { name: "spare", port: ports[1], path: "/mcp", kind: "spare" }],
+    servers: servers ?? [{ name: "graphify", port: ports[0], path: "/mcp", kind: "graphify" }, { name: "spare", port: ports[1], path: "/mcp", kind: "spare" }],
     clients: ["claude", "codex", "vscode"], tasks,
   }));
   return file;
@@ -194,16 +194,64 @@ test("a failed read is UNKNOWN, never ok or MISSING, and the other items still r
   assert.doesNotMatch(line, /FIX FIRST/, "UNKNOWN is not a FAIL with a guessed fix");
 });
 
-test("no primary checkout (git cannot resolve it): graph reads UNKNOWN, servers still probed", async () => {
+test("no primary checkout (git cannot resolve it): graph reads UNKNOWN (git rev-parse ...), servers still probed", async () => {
   const f = await healthy("no-git");
   delete f.primaryDir;
   f.projectDir = join(SCRATCH, "no-git", "project");
   const line = oneLine(run(f));
-  // The project dir has no .git, but a temp dir can sit under an unrelated repo; only assert when git really failed.
-  if (!/graph UNKNOWN/.test(line)) assert.match(line, /graph (ok|STALE|MISSING)/);
+  assert.match(line, /graph UNKNOWN \(git rev-parse /);
   assert.match(line, /graphify up/);
 });
 
+test("--primary at a dir that is not a repo: the graph reads UNKNOWN, never ok, STALE or MISSING", async () => {
+  const f = await healthy("non-repo");
+  rmSync(join(f.primaryDir, ".git"));
+  assert.match(oneLine(run(f)), /graph UNKNOWN \(/);
+});
+
+test("an empty servers list is a FAIL, not a vacuous all-clear", async () => {
+  const f = await healthy("no-servers", { config: { servers: [] } });
+  const line = oneLine(run(f));
+  assert.match(line, /servers: none configured/);
+  assert.match(line, /FIX FIRST: \(1\) add the graphify entry to config\/agent-os\/local-services\.json/);
+});
+
+test("a user hook with -ExecutionPolicy Bypass AFTER -File is BLOCKED: PowerShell passes it to the script", async () => {
+  const f = await healthy("bypass-after-file", { home: { userHook: 'powershell -NoProfile -File "C:/x/h.ps1" -ExecutionPolicy Bypass' } });
+  assert.match(oneLine(run(f)), /hooks BLOCKED ~\/\.claude\/settings\.json/);
+});
+
+test("hookNeedsBypass: flagged only for a script run without a policy that lets it load, set BEFORE -File", async () => {
+  const { hookNeedsBypass } = await import("./session-health.mjs");
+  const cases = [
+    ['powershell -NoProfile -File "C:/x/h.ps1" -ExecutionPolicy Bypass', true],
+    ['powershell -NoProfile -File "C:/x/h.ps1"', true],
+    ['powershell -NoProfile -ExecutionPolicy Bypass -File "C:/x/h.ps1"', false],
+    ['powershell -NoProfile -ExecutionPolicy RemoteSigned -File "C:/x/h.ps1"', false],
+    ['powershell -ep Bypass -File C:/x/h.ps1', false],
+    ['powershell -NoProfile -Command "Write-Output see h.ps1"', false],
+    ['"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -NoProfile -File "C:\\x\\h.ps1"', true],
+    ['"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -ExecutionPolicy Bypass -File "C:\\x\\h.ps1"', false],
+    ['node "x/check.mjs" --script a.ps1', false],
+  ];
+  for (const [cmd, want] of cases) assert.equal(hookNeedsBypass(cmd), want, cmd);
+});
+
+test("taskFromCsv: the Task To Run must name the configured action, else WRONG ACTION with the register fix", async () => {
+  const { taskFromCsv, parseCsvLine } = await import("./session-health.mjs");
+  assert.deepEqual(parseCsvLine('"a -File ""C:\\x.ps1"" -Start","b",""'), ['a -File "C:\\x.ps1" -Start', "b", ""], "a doubled quote is one quote, not a field break");
+  const task = { name: "NOURCITY-Local-MCP", register: "scripts/register-local-mcp-task.ps1", action: "scripts/local-mcp-servers.ps1" };
+  // Rows shaped like the real `schtasks /query /tn <name> /fo CSV /v /nh` on NATTYNOUR (field 6 Last Result, 8 Task To Run).
+  const row = (run, last = "0") => `"NATTYNOUR","\\NOURCITY-Local-MCP","N/A","Running","Interactive only","10/19/2026 12:00:00 PM","${last}","NATTYNOUR\\nourd","${run}","N/A"`;
+  const interim = row('C:\\Users\\nourd\\AppData\\Local\\Microsoft\\WindowsApps\\pwsh.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""C:\\Users\\nourd\\AppData\\Local\\nourcity\\start-graphify-mcp.ps1""', "267009");
+  const repo = row('powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""C:\\Users\\nourd\\NattyNour\\nicks-tire\\scripts\\local-mcp-servers.ps1"" -Start');
+  const wrong = taskFromCsv(task, interim, "FIX");
+  assert.equal(wrong.text, "task NOURCITY-Local-MCP WRONG ACTION (start-graphify-mcp.ps1)");
+  assert.equal(wrong.fix, "FIX");
+  assert.deepEqual(taskFromCsv(task, repo, "FIX"), { text: "task NOURCITY-Local-MCP ok" });
+  assert.match(taskFromCsv(task, row("powershell -File x.ps1", ""), "FIX").text, /UNKNOWN \(no Last Result\)/, "an empty Last Result is not 0");
+  assert.match(taskFromCsv(task, repo.replace('"0"', '"1"'), "FIX").text, /FAILED 1/);
+});
 test("host gate: a host not in the config prints the not-expected line and nothing else", async () => {
   const f = await healthy("other-host", { config: { hosts: ["SOME-OTHER-HOST"] } });
   assert.equal(oneLine(run(f)), "[health] local services: not expected on this host");

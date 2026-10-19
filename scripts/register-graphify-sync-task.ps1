@@ -8,8 +8,8 @@
 #
 # What the task does: runs scripts/graphify-obsidian-sync.ps1, which refreshes
 # graphify-out/GRAPH_REPORT.md in this checkout and regenerates the Obsidian
-# vault digests. graphify-out/* is gitignored apart from GRAPH_REPORT.md, so the
-# rebuild lands in the WORKING copy only - never committed. The session hook
+# vault digests. All of graphify-out/ is gitignored (GRAPH_REPORT.md too, since
+# 2026-10-19), so the rebuild lands in the WORKING copy only - never committed. The session hook
 # reads that working copy directly (preferring the primary checkout over any
 # worktree), which is why no commit step is needed.
 #

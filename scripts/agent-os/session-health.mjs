@@ -10,12 +10,13 @@
  *   host     COMPUTERNAME / os.hostname() not in hosts -> "[health] local services: not expected on this host", exit 0
  *   graph    <primary>/graphify-out/graph.json present, build commit from GRAPH_REPORT.md, commits behind origin/main
  *            -> ok | STALE (> 50 behind, or the build commit is gone) | MISSING <file>
- *   servers  TCP connect 127.0.0.1:<port>, 300 ms -> up | DOWN
+ *   servers  TCP connect 127.0.0.1:<port>, 300 ms -> up | DOWN; an empty list -> "servers: none configured" (FAIL)
  *   clients  ~/.claude.json mcpServers, ~/.codex/config.toml [mcp_servers.*], %APPDATA%/Code/User/mcp.json servers:
  *            each must list every server at http://127.0.0.1:<port><path> -> ok | MISSING <names> | WRONG URL <names>
- *   hooks    a powershell/pwsh hook running a .ps1 without -ExecutionPolicy Bypass (user or project settings) -> BLOCKED <file>
+ *   hooks    a powershell/pwsh hook running -File <x>.ps1 with no Bypass/Unrestricted/RemoteSigned policy BEFORE -File
+ *            (user or project settings) -> BLOCKED <file>; see hookNeedsBypass
  *            (static: Windows PowerShell 5.1 here has every policy scope Undefined = Restricted)
- *   tasks    Windows only: schtasks /query per task -> ok | MISSING | FAILED <last result>
+ *   tasks    Windows only: schtasks /query per task -> ok | MISSING | WRONG ACTION (<script>) | FAILED <last result>
  *   tailnet  informational only, never a FAIL: is tailscale.exe present (docs/agent-os/TAILNET-MCP.md)
  * A failed read is UNKNOWN (<reason>), never ok, and carries no guessed fix. An absent client file (ENOENT) is a real
  * "nothing configured" and reads MISSING. Total budget 1.5 s; every probe has its own timeout.
@@ -186,9 +187,23 @@ function clientItem(client, read, expected) {
   return failItem(`${client} ${text}`, fixes.join("; "));
 }
 
-// Only a command that LAUNCHES powershell on a script counts (mention vs execution); Unrestricted also runs it.
-const PS_SCRIPT = /(?:^|[\s"'\\/])(?:powershell|pwsh)(?:\.exe)?["']?\s[^\n]*\.ps1\b/i;
-const BYPASS = /\s-(?:ExecutionPolicy|ep|ex|exec)\s+["']?(?:Bypass|Unrestricted)\b/i;
+const PS_EXE = /(?:^|[\s"'\\/&|;(])(?:powershell|pwsh)(?:\.exe)?["']?(?=\s)/i;
+const PS_FILE = /\s-(?:File|f)\s+("[^"]*"|'[^']*'|\S+)/i;
+const LOADS_LOCAL_SCRIPTS = /\s-(?:ExecutionPolicy|ep|ex|exec)\s+["']?(?:Bypass|Unrestricted|RemoteSigned)\b/i;
+
+/**
+ * True when a hook command runs a .ps1 through PowerShell with no execution policy that lets a local script load.
+ * Only a policy set BEFORE -File counts: everything after -File <script> is passed to the script as its arguments.
+ * A -Command that merely mentions a .ps1 is not a script run (mention vs execution). Shared with hookCommand.test.mjs.
+ */
+export function hookNeedsBypass(command) {
+  const exe = PS_EXE.exec(command);
+  if (!exe) return false;
+  const rest = command.slice(exe.index + exe[0].length);
+  const file = PS_FILE.exec(rest);
+  if (!file || !/\.ps1$/i.test(file[1].replace(/^["']|["']$/g, ""))) return false;
+  return !LOADS_LOCAL_SCRIPTS.test(rest.slice(0, file.index));
+}
 
 function hookCommands(settings) {
   const out = [];
@@ -204,7 +219,7 @@ function hooksItem(files) {
   for (const [label, file] of files) {
     const r = attempt(() => readJson(file, { missingOk: true }));
     if (r.err) unreadable.push(r.err);
-    else if (hookCommands(r.value).some((c) => PS_SCRIPT.test(c) && !BYPASS.test(c))) blocked.push(label);
+    else if (hookCommands(r.value).some(hookNeedsBypass)) blocked.push(label);
   }
   if (blocked.length) return failItem(`hooks BLOCKED ${blocked.join(",")}`, `add -ExecutionPolicy Bypass after "powershell -NoProfile" in the hook commands of ${blocked.join(", ")}`);
   if (unreadable.length) return unknownItem("hooks", unreadable.join("; "));
@@ -214,18 +229,51 @@ function hooksItem(files) {
 const NOT_RUN_YET = 267011; // SCHED_S_TASK_HAS_NOT_RUN
 const RUNNING = 267009; // SCHED_S_TASK_RUNNING
 
+/** One CSV row; a quote inside a field is doubled (""), as schtasks writes a quoted -File path. */
+export function parseCsvLine(line) {
+  const out = [];
+  let cur = "";
+  let quoted = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (quoted) {
+      if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++; }
+      else if (ch === '"') quoted = false;
+      else cur += ch;
+    } else if (ch === '"') quoted = true;
+    else if (ch === ",") { out.push(cur); cur = ""; }
+    else cur += ch;
+  }
+  out.push(cur);
+  return out;
+}
+
+/**
+ * Judge one `schtasks /query /tn <name> /fo CSV /v /nh` row. Columns read from the real header on NATTYNOUR
+ * (2026-10-19): 6 "Last Result", 8 "Task To Run"; CSV keeps that order on every UI language. A task is matched by its
+ * ACTION as well as its name: a same-named task running some other script must not read ok.
+ */
+export function taskFromCsv(task, line, fix) {
+  const label = `task ${task.name}`;
+  const fields = parseCsvLine(line);
+  if (!/^-?\d+$/.test(fields[6] ?? "")) return unknownItem(label, "no Last Result");
+  const run = fields[8] ?? "";
+  const want = task.action ? basename(task.action).toLowerCase() : null;
+  if (want && !run.toLowerCase().includes(want)) {
+    return failItem(`${label} WRONG ACTION (${run.match(/[^\\/"'\s]+\.ps1/i)?.[0] ?? "?"})`, fix);
+  }
+  const result = Number(fields[6]);
+  if (result === 0 || result === NOT_RUN_YET || result === RUNNING) return okItem(`${label} ok`);
+  return failItem(`${label} FAILED ${result}`, `${fix} (then check its log)`);
+}
+
 async function taskItem(task, root) {
   const label = `task ${task.name}`;
   const fix = `${PS} ${join(root, task.register ?? "")} -RepoRoot ${root}`;
-  // CSV keeps the column order on every UI language; field 7 is "Last Result".
   const r = await sh(join(process.env.SystemRoot || "C:\\Windows", "System32", "schtasks.exe"), ["/query", "/tn", task.name, "/fo", "CSV", "/v", "/nh"]);
   if (r.code === 1 && /cannot find|does not exist/i.test(r.err)) return failItem(`${label} MISSING`, fix);
   if (r.code !== 0) return unknownItem(label, `schtasks ${r.why || `exit ${r.code}`}`);
-  const fields = [...(r.out.split(/\r?\n/).find((l) => l.trim()) ?? "").matchAll(/"([^"]*)"/g)].map((m) => m[1]);
-  const result = Number(fields[6]);
-  if (!Number.isInteger(result)) return unknownItem(label, "no Last Result");
-  if (result === 0 || result === NOT_RUN_YET || result === RUNNING) return okItem(`${label} ok`);
-  return failItem(`${label} FAILED ${result}`, `${fix} (then check its log)`);
+  return taskFromCsv(task, r.out.split(/\r?\n/).find((l) => l.trim()) ?? "", fix);
 }
 
 function tailnetItem() {
@@ -267,6 +315,7 @@ async function main() {
   // Tasks start with the other probes: schtasks is the slowest child (cold start measured near 1 s).
   const tasks = WIN ? Promise.all((config.tasks ?? []).map((t) => within(taskItem(t, root), `task ${t.name}`))) : Promise.resolve([]);
   const items = await Promise.all(checks);
+  if (!expected.length) items.push(failItem("servers: none configured", "add the graphify entry to config/agent-os/local-services.json"));
   for (const c of config.clients) items.push(readers[c] ? clientItem(c, readers[c], expected) : unknownItem(c, "unknown client"));
   items.push(hooksItem([
     ["~/.claude/settings.json", join(home, ".claude", "settings.json")],

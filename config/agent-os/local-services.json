@@ -7,8 +7,8 @@
   ],
   "clients": ["claude", "codex", "vscode"],
   "tasks": [
-    { "name": "NOURCITY-Graphify-Sync", "register": "scripts/register-graphify-sync-task.ps1" },
-    { "name": "NOURCITY-Local-MCP", "register": "scripts/register-local-mcp-task.ps1" }
+    { "name": "NOURCITY-Graphify-Sync", "register": "scripts/register-graphify-sync-task.ps1", "action": "scripts/graphify-sync-launcher.ps1" },
+    { "name": "NOURCITY-Local-MCP", "register": "scripts/register-local-mcp-task.ps1", "action": "scripts/local-mcp-servers.ps1" }
   ],
   "machines": [
     { "name": "NATTYNOUR", "role": "operator laptop, agent host, serves the graphify MCP server", "reach": "local", "evidence": "hostname" },

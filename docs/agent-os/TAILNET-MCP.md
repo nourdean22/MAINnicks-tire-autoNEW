@@ -18,13 +18,18 @@ agent runs these steps; Nour does, after he says go.
    your Tailscale network"; for the public internet "use Tailscale Funnel instead". Funnel is never used here.
 3. **ACL: the port reaches only Nour's own devices.** Tailscale's Serve doc: "access control rules apply to Serve just
    like any other service". Restrict it to Nour's user, not tagged devices or shared nodes.
-4. **What a compromised tailnet node could read:** the structure of the MAIN checkout's code, not secrets.
+4. **What a compromised tailnet node could read from the graph:** the structure of the MAIN checkout's code, no `.env`.
    - graph.json, checked 2026-10-19 on NATTYNOUR: 126 MB, 86,001 nodes over 10,570 source files, **0 `.env` files**.
      graphify merges `.gitignore` into `.graphifyignore` (that file's header says so), and every `.env*` is gitignored
      (`git check-ignore`: `.gitignore:30` for `apps/nickstire/.env`, `apps/statenour/.gitignore:25` for `.env.local`).
      The 8 files with "secret" in their names are code about secrets (scanners, tests, a masker), not secret values.
    - Not covered: a secret someone hardcoded into tracked source. The staged-secret scan in `lefthook.yml` guards that,
      not this setup.
+4b. **GitHub data and local paths, through Nour's gh login.** `list_prs`, `get_pr_impact` and `triage_prs` run the
+   `gh` CLI with a caller-supplied repo (graphify 0.9.80 `prs.py` builds `gh ... --repo <repo>`, from `serve.py:2317`
+   on), and the worktree mapping runs `git worktree list`. So a caller could read PR data for ANY repo Nour's gh
+   account can see, plus this machine's worktree paths. Mitigation: the ACL in step 3 (Nour's own devices only), or
+   start the server from an account where gh is signed out and `GH_TOKEN` is unset.
 5. **No auth on the server itself.** Anything that reaches the port can query it, which is why step 3 is required.
 
 ## Setup on NATTYNOUR (Nour, once, after go)
@@ -38,7 +43,7 @@ validated Jul 30, 2026"):
 
 Steps:
 
-1. Install Tailscale and sign in (Nour; nothing in this repo does it).
+1. Sign in: `tailscale up` (Nour). Tailscale 1.104.1 was installed 2026-10-19 by winget; nothing in this repo installs it.
 2. `tailscale serve 8765`
 3. Add the ACL rule from threat-model step 3 in the admin console.
 4. `tailscale serve status`, then check from the other device that the URL it prints answers.
