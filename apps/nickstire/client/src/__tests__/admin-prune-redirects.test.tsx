@@ -170,7 +170,8 @@ describe("the sidebar after the prune", () => {
     const shape = getSidebarGroups("owner").map((g) => [g.label, g.items.map((i) => i.label)]);
     expect(shape).toEqual([
       ["Daily", ["Today", "Lot", "Approvals", "Customers", "Sales Pipeline", "Money", "Tires"]],
-      ["Reach", ["Website & Local", "Instagram", "Outreach"]],
+      // "Shop media" is main's owner-only review gate (#3177), not part of the prune.
+      ["Reach", ["Website & Local", "Instagram", "Shop media", "Outreach"]],
       ["Automation", ["Voice Receptionist"]],
       ["Truth", ["Reports"]],
       ["System", ["Settings / Safety"]],
