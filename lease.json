@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "statenour/prune-bdnick-w1",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "31cd0942-42dc-47b2-91fd-b8e3be5cb913",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\epic-germain-4e0fc9",
   "claimedBy": "2026-10-18-bdnick-prune wave 1 PR (manager epic-germain)",
   "claimedAt": "2026-10-19T10:10:09.134Z",
   "expiresAt": "2026-10-19T22:10:09.134Z",
-  "releasedAt": null,
+  "releasedAt": "2026-10-19T13:42:01.164Z",
   "releaseReason": null,
-  "priorLeaseSha": "7157a2e608a434dba91786adcf3b154b68335531"
+  "priorLeaseSha": "6a25ddda6a8fd7e5e1fd6643dda9d527a86ee6a3",
+  "releasedBy": "31cd0942-42dc-47b2-91fd-b8e3be5cb913",
+  "foreignReleaseReason": null
 }
