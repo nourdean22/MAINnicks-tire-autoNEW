@@ -52,10 +52,22 @@ describe("emergency.submit · Nour's Telegram", () => {
     await caller().submit({ name: "Ann Lee", phone: "216-555-0199", vehicle: "2012 Civic", problem: "Flat on I-90", urgency: "emergency" });
     await settle();
     expect(h.sendEmergencyTelegram).toHaveBeenCalledTimes(1);
-    expect(h.sendEmergencyTelegram).toHaveBeenCalledWith({ emergencyId: 12, name: "Ann Lee", phone: "216-555-0199", problem: "Flat on I-90" });
+    expect(h.sendEmergencyTelegram).toHaveBeenCalledWith(
+      { emergencyId: 12, name: "Ann Lee", phone: "216-555-0199", problem: "Flat on I-90" },
+      expect.any(Promise),
+    );
+    // The second argument is the owner SMS result the failure line reports.
+    await expect(h.sendEmergencyTelegram.mock.calls[0][1]).resolves.toBe("sent");
     // The bus event still goes out (bridge sync/events, scrubbed on the way out).
     expect(h.emergencyRequest).toHaveBeenCalledTimes(1);
   });
+
+  it("a failed owner SMS reaches the alert as \"failed\"", async () => {
+    h.sendSmsOrThrow.mockRejectedValue(new Error("twilio down"));
+    await caller().submit({ name: "Ann Lee", phone: "216-555-0199", problem: "Flat on I-90", urgency: "emergency" });
+    await settle();
+    await expect(h.sendEmergencyTelegram.mock.calls[0][1]).resolves.toBe("failed");
+  }, 15_000);
 
   it("an alert that fails does not fail the customer's request", async () => {
     h.sendEmergencyTelegram.mockResolvedValue(false);

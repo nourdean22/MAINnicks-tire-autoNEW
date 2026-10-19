@@ -8,6 +8,7 @@
  * bridge queue had (5 tries over about 75 s). The bridge no longer posts emergencies to that webhook,
  * so Nour is alerted once.
  */
+import { errorTelemetry } from "../lib/error-telemetry";
 import { createLogger } from "../lib/logger";
 import { withRetry } from "../retry";
 
@@ -32,8 +33,15 @@ export function emergencyTelegramText(e: EmergencyAlert): string {
   );
 }
 
-/** true once Telegram accepts the alert; false after every try failed (logged, never thrown). */
-export async function sendEmergencyTelegram(e: EmergencyAlert): Promise<boolean> {
+/**
+ * true once Telegram accepts the alert; false after every try failed (logged, never thrown).
+ * ownerSms settles with the route's own owner SMS result, so the failure line says whether Nour was
+ * reached another way.
+ */
+export async function sendEmergencyTelegram(
+  e: EmergencyAlert,
+  ownerSms: Promise<"sent" | "failed">,
+): Promise<boolean> {
   const { sendTelegram } = await import("./telegram");
   try {
     await withRetry(
@@ -44,11 +52,11 @@ export async function sendEmergencyTelegram(e: EmergencyAlert): Promise<boolean>
     );
     return true;
   } catch (err) {
-    // No name or phone in the log: the emergency id finds the row in the admin.
-    log.error("emergency Telegram undelivered after 5 tries", {
-      emergencyId: e.emergencyId,
-      error: err instanceof Error ? err.message : String(err),
-    });
+    // No name or phone in the line: the emergency id finds the row in the admin. errorTelemetry is the
+    // server's error path (admin error report, Sentry for a non-operational error).
+    const msg = `emergency Telegram undelivered after 5 tries; owner SMS status: ${await ownerSms}`;
+    log.error(msg, { emergencyId: e.emergencyId, error: err instanceof Error ? err.message : String(err) });
+    errorTelemetry.record(new Error(msg), { route: "emergency.submit", requestId: `emergency:${e.emergencyId}` });
     return false;
   }
 }
