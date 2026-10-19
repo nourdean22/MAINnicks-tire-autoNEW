@@ -66,7 +66,10 @@ const LEGACY_ROLE_SECTIONS: Record<AdminRole, readonly string[]> = {
   // and owner (ADMIN_PERMISSIONS) and manager (explicit list) both hold that permission.
   // So both roles can walk through the door the sidebar shows them -- not the
   // trafficFunnel failure below, where only the cosmetic gate moved.
-  owner: ["overview", "approvals", "intelligence", "customers", "leads", "opportunities", "market", "tireOrders", "growth", "instagram", "campaigns", "memberships", "voiceReceptionist", "opsHub", "settings", "revenue", "callTrackingView", "trafficFunnel", "content", "lot"],
+  // `shopMedia` added 2026-10-18 to OWNER ONLY, deliberately: shopMedia.review is not mapped in
+  // permissionForAdminProcedure, so the mutation fails closed to security.manage, which only the
+  // owner holds. Granting manager would repeat the trafficFunnel failure below.
+  owner: ["overview", "approvals", "intelligence", "customers", "leads", "opportunities", "market", "tireOrders", "growth", "instagram", "campaigns", "memberships", "voiceReceptionist", "opsHub", "settings", "revenue", "callTrackingView", "trafficFunnel", "content", "lot", "shopMedia"],
   manager: ["overview", "approvals", "intelligence", "customers", "leads", "opportunities", "market", "tireOrders", "growth", "instagram", "campaigns", "memberships", "voiceReceptionist", "opsHub", "settings", "revenue", "callTrackingView", "trafficFunnel", "content", "lot"],
   front_desk: ["overview", "customers", "leads", "opportunities", "tireOrders", "voiceReceptionist", "callTrackingView"],
   tech: ["overview", "customers", "tireOrders"],
@@ -83,9 +86,11 @@ describe("role access survived the move into the registry", () => {
     expect(sorted(sectionsForRole(role))).toEqual(sorted(LEGACY_ROLE_SECTIONS[role]));
   });
 
-  it("owner and manager still reach every section — they were duplicate arrays", () => {
-    expect(sorted(sectionsForRole("owner"))).toEqual(sorted(sectionsForRole("manager")));
+  it("owner reaches every section; manager reaches all but the owner-only ones", () => {
+    // OWNER_ONLY is the whole list of deliberate differences; anything else drifting apart fails here.
+    const OWNER_ONLY = ["shopMedia"];
     expect(sectionsForRole("owner")).toHaveLength(ADMIN_REGISTRY.length);
+    expect(sorted(sectionsForRole("manager"))).toEqual(sorted(sectionsForRole("owner").filter((id) => !OWNER_ONLY.includes(id))));
   });
 
   it("every section names at least one role — an unreachable section cannot run", () => {

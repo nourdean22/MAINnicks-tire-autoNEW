@@ -112,6 +112,13 @@ export function formatDuration(m: number | null | undefined): string {
   return `${Math.floor(m / 60)}h ${m % 60}m`;
 }
 
+/** Clip length in milliseconds → "0:12" / "1:05". Unknown stays null so a caller shows nothing, never "0:00". */
+export function formatClipLength(ms: number | null | undefined): string | null {
+  if (ms === null || ms === undefined || !Number.isFinite(ms) || ms < 0) return null;
+  const seconds = Math.round(ms / 1000);
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
 /**
  * Advance a server-computed duration by the wall-clock time since it was fetched, so
  * an OPEN interval keeps counting between polls instead of freezing at the last value.

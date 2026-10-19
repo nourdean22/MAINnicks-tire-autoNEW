@@ -71,6 +71,12 @@ export function permissionForAdminProcedure(path: string, type: "query" | "mutat
     return "settings.manage";
   }
 
+  // 2026-10-19 · shopMedia.* is Nour's camera-roll review gate: quarantined and
+  // rejected rows show customer faces and plates, and their storage URLs are
+  // world-readable. The query default (admin.view) handed them to viewer and
+  // tech. Owner-only, reads included.
+  if (normalized.startsWith("shopmedia.")) return "security.manage";
+
   if (normalized === "nickactions.cameras" || normalized === "nickactions.camerafeed") {
     return "settings.manage";
   }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   AlertTriangle, ArrowLeft, CheckCircle2, ChevronRight, Film, Image as ImageIcon,
   Layers3, Loader2, Megaphone, RefreshCw, Save, ShieldCheck, Sparkles, Wand2,
@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { trpc } from "@/lib/trpc";
+import { trpc, type RouterOutputs } from "@/lib/trpc";
 import {
   INSTAGRAM_FORMAT_LABELS,
   INSTAGRAM_OBJECTIVES,
@@ -26,6 +26,49 @@ import { SERVICE_FEED } from "../../../../shared/serviceFeed";
 import LegacyStudio from "./Studio";
 import CampaignPackageCard from "@/components/admin/CampaignPackageCard";
 import { consumeCreateHandoff, type IgView } from "./igViews";
+
+type RealShopFormat = "image" | "video";
+type RealShopAsset = RouterOutputs["instagramStudio"]["listRealShopMedia"][number];
+/** listRealShopMedia reads fixed 100-row windows: the next page is cursor + 100. */
+const REAL_SHOP_PAGE = 100;
+
+/**
+ * One further page of the real-shop library. shortcut: a page is filtered after the read, so a
+ * short page is not the end; Load more shows until a page comes back empty. Upgrade to
+ * shopMedia.list (exact nextCursor) if that ever reads wrong.
+ */
+function RealShopMorePage({ format, cursor, isLast, renderTile, onMore }: {
+  format: RealShopFormat;
+  cursor: number;
+  isLast: boolean;
+  renderTile: (asset: RealShopAsset) => ReactNode;
+  onMore: (cursor: number) => void;
+}) {
+  const page = trpc.instagramStudio.listRealShopMedia.useQuery(format === "video" ? { format, cursor } : { cursor }, { staleTime: 120_000 });
+  if (page.isError) {
+    return (
+      <p className="col-span-full text-xs text-amber-500">
+        Could not load more: unknown, not empty.{" "}
+        <button type="button" onClick={() => void page.refetch()} className="min-h-12 underline">Try again</button>
+      </p>
+    );
+  }
+  if (!page.data) return <p className="col-span-full text-xs text-muted-foreground">Loading more...</p>;
+  return (
+    <>
+      {page.data.map(renderTile)}
+      {isLast && page.data.length > 0 && <RealShopLoadMore onClick={() => onMore(cursor + REAL_SHOP_PAGE)} />}
+    </>
+  );
+}
+
+function RealShopLoadMore({ onClick }: { onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} className="col-span-full min-h-12 rounded-lg border border-border/70 text-xs font-medium">
+      Load more
+    </button>
+  );
+}
 
 /** Per-lane copy. Keyed by lane so adding a resolvable source is one entry. */
 const RECORD_LANE_LABELS = {
@@ -167,7 +210,37 @@ export default function StudioV2({ onNavigate }: { onNavigate?: (view: IgView) =
     enabled: draft === null,
     select: (rows) => rows.filter((row) => row.status === "draft").slice(0, 3),
   });
-  const realShopMedia = trpc.instagramStudio.listRealShopMedia.useQuery(undefined, { staleTime: 120_000 });
+  // Photos is the default and keeps the original no-argument call; Videos and Load more pass format/cursor.
+  const [realShopFormat, setRealShopFormat] = useState<RealShopFormat>("image");
+  const [realShopMoreCursors, setRealShopMoreCursors] = useState<number[]>([]);
+  const realShopMedia = trpc.instagramStudio.listRealShopMedia.useQuery(realShopFormat === "video" ? { format: "video" } : undefined, { staleTime: 120_000 });
+  // Photos are evidence for the static draft. Videos are not image inputs, so they open
+  // in a new tab instead of joining evidenceUrls; reels bind them per beat (RealClipPicker).
+  const renderRealShopTile = (asset: RealShopAsset) => {
+    const name = asset.originalFilename ?? asset.logicalKey;
+    if (realShopFormat === "video") {
+      return (
+        <a key={asset.id} href={asset.url} target="_blank" rel="noreferrer" aria-label={`Open video ${name}`} className="relative overflow-hidden rounded-lg border border-border/70">
+          <video src={`${asset.url}#t=0.1`} muted playsInline preload="metadata" aria-hidden="true" className="aspect-square h-full w-full object-cover" />
+          <Film className="absolute right-1 top-1 h-3.5 w-3.5 text-white" aria-hidden="true" />
+        </a>
+      );
+    }
+    const selected = evidenceUrls.includes(asset.url);
+    return (
+      <button
+        type="button"
+        key={asset.id}
+        title={name}
+        disabled={!selected && evidenceUrls.length >= 3}
+        onClick={() => setEvidenceUrls((current) => selected ? current.filter((u) => u !== asset.url) : [...current, asset.url])}
+        className={"relative overflow-hidden rounded-lg border " + (selected ? "border-primary ring-2 ring-primary/30" : "border-border/70")}
+      >
+        <img src={asset.url} alt={asset.originalFilename ?? "Reusable real shop media"} className="aspect-square h-full w-full object-cover" />
+        {selected && <span className="absolute right-1 top-1 rounded bg-primary px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground">USED</span>}
+      </button>
+    );
+  };
   const slateStrategy = trpc.instagramAdmin.getActiveSlate.useQuery(undefined, { staleTime: 120_000 });
   const slateSlugs = slateStrategy.data?.active.configured
     ? slateStrategy.data.active.slugs
@@ -621,30 +694,44 @@ export default function StudioV2({ onNavigate }: { onNavigate?: (view: IgView) =
                   </div>
                   <Badge variant="outline">{realShopMedia.data?.length ?? 0} available</Badge>
                 </div>
+                <div className="mb-2 flex w-fit overflow-hidden rounded-md border border-border/70">
+                  {([["image", "Photos"], ["video", "Videos"]] as const).map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      aria-pressed={realShopFormat === value}
+                      onClick={() => { setRealShopFormat(value); setRealShopMoreCursors([]); }}
+                      className={`min-h-12 px-4 text-xs ${realShopFormat === value ? "bg-secondary font-semibold text-foreground" : "text-muted-foreground"}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {realShopFormat === "video" && (
+                  <p className="mb-2 text-[11px] text-muted-foreground">Videos open in a new tab. To put one in a reel, use "Use real clip" on a beat in the reel studio.</p>
+                )}
                 {realShopMedia.isError ? (
                   <p className="text-xs text-amber-500">Library read failed: unknown, not empty.</p>
                 ) : realShopMedia.isLoading ? (
                   <p className="text-xs text-muted-foreground">Loading library…</p>
                 ) : (realShopMedia.data?.length ?? 0) === 0 ? (
-                  <p className="text-xs text-muted-foreground">No reusable real-shop assets are registered yet. Upload one above.</p>
+                  <p className="text-xs text-muted-foreground">
+                    {realShopFormat === "video" ? "No approved shop videos yet. Approve them in Shop media." : "No reusable real-shop assets are registered yet. Upload one above."}
+                  </p>
                 ) : (
                   <div className="grid max-h-52 grid-cols-4 gap-2 overflow-y-auto sm:grid-cols-6">
-                    {realShopMedia.data!.map((asset) => {
-                      const selected = evidenceUrls.includes(asset.url);
-                      return (
-                        <button
-                          type="button"
-                          key={asset.id}
-                          title={asset.originalFilename ?? asset.logicalKey}
-                          disabled={!selected && evidenceUrls.length >= 3}
-                          onClick={() => setEvidenceUrls((current) => selected ? current.filter((u) => u !== asset.url) : [...current, asset.url])}
-                          className={"relative overflow-hidden rounded-lg border " + (selected ? "border-primary ring-2 ring-primary/30" : "border-border/70")}
-                        >
-                          <img src={asset.url} alt={asset.originalFilename ?? "Reusable real shop media"} className="aspect-square h-full w-full object-cover" />
-                          {selected && <span className="absolute right-1 top-1 rounded bg-primary px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground">USED</span>}
-                        </button>
-                      );
-                    })}
+                    {realShopMedia.data!.map(renderRealShopTile)}
+                    {realShopMoreCursors.length === 0 && <RealShopLoadMore onClick={() => setRealShopMoreCursors([REAL_SHOP_PAGE])} />}
+                    {realShopMoreCursors.map((cursor, i) => (
+                      <RealShopMorePage
+                        key={`${realShopFormat}-${cursor}`}
+                        format={realShopFormat}
+                        cursor={cursor}
+                        isLast={i === realShopMoreCursors.length - 1}
+                        renderTile={renderRealShopTile}
+                        onMore={(next) => setRealShopMoreCursors((current) => [...current, next])}
+                      />
+                    ))}
                   </div>
                 )}
               </div>

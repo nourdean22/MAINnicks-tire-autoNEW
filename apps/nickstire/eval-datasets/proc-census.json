@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-19T00:46:49.034Z",
-  "count": 811,
+  "generatedAt": "2026-10-19T14:54:29.789Z",
+  "count": 814,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -313,6 +313,7 @@
     "mutation.shareCards.create",
     "mutation.shareCards.delete",
     "mutation.shareCards.trackShare",
+    "mutation.shopMedia.review",
     "mutation.shopdriver.forceSyncNow",
     "mutation.shopdriver.importCSV",
     "mutation.shopdriver.importInvoiceCSV",
@@ -715,6 +716,8 @@
     "query.serviceReviews.forService",
     "query.shareCards.get",
     "query.shareCards.list",
+    "query.shopMedia.list",
+    "query.shopMedia.stats",
     "query.shopStatus.getLineOfCars",
     "query.shopStatus.getState",
     "query.shopStatus.getStatus",
