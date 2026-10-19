@@ -2,13 +2,13 @@
   "$schema": "agent-os/lease-v1",
   "branch": "nickstire/shop-media-library",
   "status": "active",
-  "sessionKind": "unknown",
+  "sessionKind": "bridge",
   "sessionId": "c1ba4fa4-064b-4d4c-9ddc-5ec49e487dd7",
-  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire",
-  "claimedBy": "2026-10-18-shop-media-library",
-  "claimedAt": "2026-10-19T02:02:31.664Z",
-  "expiresAt": "2026-10-19T14:02:31.664Z",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.worktrees\\shop-media",
+  "claimedBy": "worktree-setup.ps1",
+  "claimedAt": "2026-10-19T10:17:38.560Z",
+  "expiresAt": "2026-10-19T22:17:38.560Z",
   "releasedAt": null,
   "releaseReason": null,
-  "priorLeaseSha": null
+  "priorLeaseSha": "2f26ec6577a816ac0f560e69ebde6431f41ae627"
 }
