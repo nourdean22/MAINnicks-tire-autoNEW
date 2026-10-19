@@ -67,6 +67,22 @@ describe("scrubText", () => {
     expect(scrubText("Order 1042, 3 tires at $612")).toBe("Order 1042, 3 tires at $612");
   });
 
+  // ID_KEY values go through scrubText, so a 13-digit epoch-ms id used to lose its last ten digits.
+  it("leaves a digit run longer than a phone number alone (epoch-ms ids)", () => {
+    expect(scrubText("evt_1760912345678")).toBe("evt_1760912345678");
+    expect(scrubBridgePayload({ eventId: "evt_1760912345678", leadId: "1760912345678" })).toEqual({
+      eventId: "evt_1760912345678",
+      leadId: "1760912345678",
+    });
+  });
+
+  it("CONTROL: phones in the usual shapes are still masked, inside a sentence too", () => {
+    expect(scrubText("call 216-555-0142")).toBe("call [phone]");
+    expect(scrubText("(216) 555 0142")).toBe("[phone]");
+    expect(scrubText("+1 216.555.0142")).toBe("[phone]");
+    expect(scrubText("2165550142")).toBe("[phone]");
+    expect(scrubText("ask 1-216-555-0142, then 216 555 0142.")).toBe("ask [phone], then [phone].");
+  });
 });
 
 describe("stripSyncCustomerPii · memories and patterns", () => {

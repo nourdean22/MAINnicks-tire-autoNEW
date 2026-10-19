@@ -9,7 +9,8 @@
 /** Shown wherever a named line used to be. */
 export const SEE_ADMIN_CUSTOMERS = "see Customers in the admin";
 
-const PHONE_RE = /(?:\+?1[\s.-]?)?(?:\(\d{3}\)|\d{3})[\s.-]?\d{3}[\s.-]?\d{4}\b/g;
+// (?<!\d): a phone never starts in the middle of a longer digit run (a 13-digit epoch-ms id such as evt_1760912345678).
+const PHONE_RE = /(?<!\d)(?:\+?1[\s.-]?)?(?:\(\d{3}\)|\d{3})[\s.-]?\d{3}[\s.-]?\d{4}\b/g;
 const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
 
 /** Free text with phone numbers and email addresses masked. Kept sentences go through this. */
