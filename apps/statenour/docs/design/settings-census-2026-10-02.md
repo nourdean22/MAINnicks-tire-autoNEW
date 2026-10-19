@@ -31,6 +31,7 @@ DIAG = read-only display. WRITE-ONLY = no runtime reader found. LOCAL = componen
 
 Notes: identity-panel.tsx:146-153 validates 0-100 client-side; the procedure re-validates (operator.ts:369-371).
 Second mount: `components/brain/memory-tab.tsx:212` renders the same `IdentityPanel` on /brain; the ADR should name one home.
+Resolved 2026-10-18 (UI v3 W5a): one home, Settings > Identity and Behavior; /brain Memory carries a one-line link to it instead of a second mount.
 
 ## 2. JournalBrainPanel (`components/settings/journal-brain-panel.tsx`) - KEEP
 
