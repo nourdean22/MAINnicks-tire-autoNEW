@@ -2,8 +2,8 @@
 /**
  * session-health: one SessionStart line naming every broken piece of the local code-intelligence setup, with its fix.
  *
- *   [health] graph ok (12 behind origin/main) | graphify up | serena DOWN | serena-ls typescript | claude ok |
- *   codex MISSING serena | vscode ok | hooks ok | task NOURCITY-Local-MCP MISSING | tailnet: not installed (...)
+ *   [health] graph ok (12 behind origin/main) | graphify DOWN | claude ok | codex MISSING graphify | vscode ok |
+ *   hooks ok | task NOURCITY-Local-MCP MISSING | tailnet: not installed (...)
  *   | FIX FIRST: (1) <command> (2) <command>
  *
  * Source of truth: config/agent-os/local-services.json (hosts, servers, clients, tasks). Checks, each on its own:
@@ -11,7 +11,6 @@
  *   graph    <primary>/graphify-out/graph.json present, build commit from GRAPH_REPORT.md, commits behind origin/main
  *            -> ok | STALE (> 50 behind, or the build commit is gone) | MISSING <file>
  *   servers  TCP connect 127.0.0.1:<port>, 300 ms -> up | DOWN
- *   serena-ls  <primary>/.serena/project.local.yml overrides project.yml; empty or absent language_servers -> NO LANGUAGE SERVER
  *   clients  ~/.claude.json mcpServers, ~/.codex/config.toml [mcp_servers.*], %APPDATA%/Code/User/mcp.json servers:
  *            each must list every server at http://127.0.0.1:<port><path> -> ok | MISSING <names> | WRONG URL <names>
  *   hooks    a powershell/pwsh hook running a .ps1 without -ExecutionPolicy Bypass (user or project settings) -> BLOCKED <file>
@@ -146,42 +145,6 @@ async function graphItem(primary, fix) {
   return n > STALE_AFTER ? failItem(`graph STALE (${n} behind origin/main)`, fix) : okItem(`graph ok (${n} behind origin/main)`);
 }
 
-/**
- * The value of a top-level YAML key holding a list of strings: undefined when the key is absent, [] for [] / null / ~.
- * Handles the flow form ([a, b]), a block list (- a) and a bare scalar; enough for Serena's project files.
- */
-export function readYamlKey(text, key) {
-  const lines = text.split(/\r?\n/);
-  const at = lines.findIndex((l) => l.startsWith(`${key}:`));
-  if (at < 0) return undefined;
-  const unquote = (s) => s.trim().replace(/^(['"])(.*)\1$/, "$2");
-  const value = lines[at].slice(key.length + 1).replace(/\s+#.*$/, "").trim();
-  if (value.startsWith("[")) return value.replace(/^\[|\]$/g, "").split(",").map(unquote).filter(Boolean);
-  if (value && value !== "null" && value !== "~") return [unquote(value)];
-  const list = [];
-  for (const l of lines.slice(at + 1)) {
-    const item = l.match(/^\s*-\s+(.+?)\s*(?:#.*)?$/);
-    if (item) list.push(unquote(item[1]));
-    else if (l.trim() && !l.trim().startsWith("#")) break;
-  }
-  return list;
-}
-
-function serenaItem(primary) {
-  if (primary.err) return unknownItem("serena-ls", primary.err);
-  const dir = join(primary.value, ".serena");
-  const ls = attempt(() => {
-    const local = readYamlKey(readText(join(dir, "project.local.yml"), { missingOk: true }) ?? "", "language_servers");
-    const base = readYamlKey(readText(join(dir, "project.yml"), { missingOk: true }) ?? "", "language_servers");
-    return local !== undefined ? local : base;
-  });
-  if (ls.err) return unknownItem("serena-ls", ls.err);
-  if (!ls.value?.length) {
-    return failItem("serena-ls NO LANGUAGE SERVER", `set language_servers: [typescript] in ${join(dir, "project.local.yml")}, then restart the serena server`);
-  }
-  return okItem(`serena-ls ${ls.value.join(",")}`);
-}
-
 /** [mcp_servers.<name>] url = "..." from a Codex config.toml; only the keys this check needs. */
 export function codexServers(text) {
   const found = {};
@@ -304,7 +267,6 @@ async function main() {
   // Tasks start with the other probes: schtasks is the slowest child (cold start measured near 1 s).
   const tasks = WIN ? Promise.all((config.tasks ?? []).map((t) => within(taskItem(t, root), `task ${t.name}`))) : Promise.resolve([]);
   const items = await Promise.all(checks);
-  if (config.servers.some((s) => s.kind === "serena")) items.push(serenaItem(primary));
   for (const c of config.clients) items.push(readers[c] ? clientItem(c, readers[c], expected) : unknownItem(c, "unknown client"));
   items.push(hooksItem([
     ["~/.claude/settings.json", join(home, ".claude", "settings.json")],

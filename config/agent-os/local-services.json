@@ -3,8 +3,7 @@
   "about": "Local code-intelligence services and the machine inventory. Read by scripts/local-mcp-servers.ps1, scripts/agent-os/session-health.mjs and scripts/graphify-session-context.ps1. Nothing else hardcodes a port.",
   "hosts": ["NATTYNOUR"],
   "servers": [
-    { "name": "graphify", "port": 8765, "path": "/mcp", "kind": "graphify" },
-    { "name": "serena", "port": 8766, "path": "/mcp", "kind": "serena" }
+    { "name": "graphify", "port": 8765, "path": "/mcp", "kind": "graphify" }
   ],
   "clients": ["claude", "codex", "vscode"],
   "tasks": [
@@ -12,7 +11,7 @@
     { "name": "NOURCITY-Local-MCP", "register": "scripts/register-local-mcp-task.ps1" }
   ],
   "machines": [
-    { "name": "NATTYNOUR", "role": "operator laptop, agent host, serves the MCP servers", "reach": "local", "evidence": "hostname" },
+    { "name": "NATTYNOUR", "role": "operator laptop, agent host, serves the graphify MCP server", "reach": "local", "evidence": "hostname" },
     { "name": "NicksMax", "role": "always-on camera and recovery edge; no heavy services", "reach": "Tailscale + SSH on the tailnet interface", "evidence": "docs/operations/NICKSMAX-WORKSTATION-2026-09-27.md:36-55" },
     { "name": "MECHANICS", "role": "shop front-desk PC, office intelligence lane", "reach": "Chrome Remote Desktop", "evidence": "agent memory office-lane-shop-pc.md (CLAIM)" },
     { "name": "iPhone", "role": "operator reads both PWAs", "reach": "internet", "evidence": ".agents/core/USER.md" }

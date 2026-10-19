@@ -1,6 +1,5 @@
 // Canary for session-health.mjs, the SessionStart hook that prints one [health] line for the local code-intelligence
-// setup in config/agent-os/local-services.json: graph freshness, the shared MCP servers, Serena's language server, the
-// three clients' MCP entries, PowerShell hooks that execution policy would block, and the scheduled tasks.
+// setup in config/agent-os/local-services.json: graph freshness, the shared MCP servers, the three clients' MCP entries, PowerShell hooks that execution policy would block, and the scheduled tasks.
 // Every FAIL carries its fix; a failed read is UNKNOWN, never ok (empty-vs-error). Controls run the REAL script
 // against fixtures (--home, --config, --primary) and real sockets; the wiring test runs the CONFIGURED command verbatim.
 import { test, after } from "node:test";
@@ -61,24 +60,21 @@ const REPO = (() => {
 
 const url = (port) => `http://127.0.0.1:${port}/mcp`;
 
-/** A primary checkout: the fixture repo's .git (via a worktree-free copy is not needed: the repo IS the primary). */
-function primary(label, { graph = true, report = REPO.tip, ls = "[typescript]" } = {}) {
+/** A primary checkout whose .git file points at the fixture repo, so git commands in it see the 55 commits. */
+function primary(label, { graph = true, report = REPO.tip } = {}) {
   const dir = join(SCRATCH, label, "primary");
   mkdirSync(join(dir, "graphify-out"), { recursive: true });
-  mkdirSync(join(dir, ".serena"), { recursive: true });
   // The graph check runs git in the primary; point it at the fixture repo's object store.
   writeFileSync(join(dir, ".git"), `gitdir: ${join(REPO.dir, ".git").replace(/\\/g, "/")}\n`);
   if (graph) writeFileSync(join(dir, "graphify-out", "graph.json"), "{}");
   if (report) writeFileSync(join(dir, "graphify-out", "GRAPH_REPORT.md"), `# Graph Report\n\n- Built from commit: \`${report.slice(0, 8)}\`\n`);
-  writeFileSync(join(dir, ".serena", "project.yml"), "project_name: x\nlanguage_servers: []\nread_only: false\n");
-  if (ls !== null) writeFileSync(join(dir, ".serena", "project.local.yml"), `language_servers: ${ls}\n`);
   return dir;
 }
 
 /** A home whose three clients list both servers at the given ports, and a user PowerShell hook carrying Bypass. */
 function home(label, ports, { codexSkip = [], claudeJson, userHook = "powershell -NoProfile -ExecutionPolicy Bypass -File x.ps1" } = {}) {
   const dir = join(SCRATCH, label, "home");
-  const names = ["graphify", "serena"];
+  const names = ["graphify", "spare"];
   mkdirSync(join(dir, ".claude"), { recursive: true });
   mkdirSync(join(dir, ".codex"), { recursive: true });
   mkdirSync(join(dir, "AppData", "Roaming", "Code", "User"), { recursive: true });
@@ -95,7 +91,7 @@ function config(label, ports, { hosts = [HOST], tasks = [] } = {}) {
   const file = join(SCRATCH, label, "local-services.json");
   writeFileSync(file, JSON.stringify({
     version: 1, hosts,
-    servers: [{ name: "graphify", port: ports[0], path: "/mcp", kind: "graphify" }, { name: "serena", port: ports[1], path: "/mcp", kind: "serena" }],
+    servers: [{ name: "graphify", port: ports[0], path: "/mcp", kind: "graphify" }, { name: "spare", port: ports[1], path: "/mcp", kind: "spare" }],
     clients: ["claude", "codex", "vscode"], tasks,
   }));
   return file;
@@ -139,8 +135,7 @@ test("healthy fixture: one line, every item ok, no FIX FIRST", async () => {
   const line = oneLine(run(await healthy("healthy")));
   assert.match(line, /graph ok \(0 behind origin\/main\)/);
   assert.match(line, /graphify up/);
-  assert.match(line, /serena up/);
-  assert.match(line, /serena-ls typescript/);
+  assert.match(line, /spare up/);
   assert.match(line, /claude ok/);
   assert.match(line, /codex ok/);
   assert.match(line, /vscode ok/);
@@ -153,26 +148,24 @@ test("broken fixture: each broken piece is its own FAIL, and FIX FIRST names a f
   const down = await closedPort();
   const f = await healthy("broken", {
     ports: [up, down],
-    home: { codexSkip: ["serena"], userHook: "powershell -NoProfile -File C:\\x\\hook.ps1" },
-    primary: { graph: false, ls: null },
+    home: { codexSkip: ["spare"], userHook: "powershell -NoProfile -File C:\\x\\hook.ps1" },
+    primary: { graph: false },
   });
   const r = run(f);
   const line = oneLine(r);
   assert.match(line, /graph MISSING graph\.json/);
   assert.match(line, /graphify up/);
-  assert.match(line, /serena DOWN/);
-  assert.match(line, /serena-ls NO LANGUAGE SERVER/);
-  assert.match(line, /codex MISSING serena/);
+  assert.match(line, /spare DOWN/);
+  assert.match(line, /codex MISSING spare/);
   assert.match(line, /claude ok/);
   assert.match(line, /hooks BLOCKED [^|]*settings\.json/);
   const fixes = line.split(" | FIX FIRST: ")[1];
   assert.ok(fixes, `no FIX FIRST segment:\n${line}`);
   assert.match(fixes, /graphify-sync-launcher\.ps1/, "graph fix");
   assert.match(fixes, /local-mcp-servers\.ps1 -Start/, "server fix");
-  assert.match(fixes, /language_servers: \[typescript\]/, "language server fix");
-  assert.match(fixes, new RegExp(`codex mcp add serena --url http://127\\.0\\.0\\.1:${down}/mcp`), "client fix");
+  assert.match(fixes, new RegExp(`codex mcp add spare --url http://127\\.0\\.0\\.1:${down}/mcp`), "client fix");
   assert.match(fixes, /-ExecutionPolicy Bypass/, "hook fix");
-  assert.equal((fixes.match(/\(\d+\)/g) ?? []).length, 5, `five FAILs, five numbered fixes:\n${fixes}`);
+  assert.equal((fixes.match(/\(\d+\)/g) ?? []).length, 4, `four FAILs, four numbered fixes:\n${fixes}`);
   assert.ok(r.ms < 4000, `took ${r.ms} ms; the probes must stay inside their budget`);
 });
 
@@ -185,11 +178,11 @@ test("STALE: a graph built more than 50 commits behind origin/main is a FAIL wit
 test("a wrong URL is not ok: a client entry pointing at another port reads WRONG URL", async () => {
   const ports = [await listen(), await listen()];
   const f = await healthy("wrong-url", { ports });
-  const mcp = { graphify: { type: "http", url: url(ports[0]) }, serena: { type: "http", url: "http://127.0.0.1:1/mcp" } };
+  const mcp = { graphify: { type: "http", url: url(ports[0]) }, spare: { type: "http", url: "http://127.0.0.1:1/mcp" } };
   writeFileSync(join(f.homeDir, ".claude.json"), JSON.stringify({ mcpServers: mcp }));
   const line = oneLine(run(f));
-  assert.match(line, /claude WRONG URL serena/);
-  assert.match(line, /FIX FIRST: [^|]*claude mcp remove --scope user serena/);
+  assert.match(line, /claude WRONG URL spare/);
+  assert.match(line, /FIX FIRST: [^|]*claude mcp remove --scope user spare/);
 });
 
 test("a failed read is UNKNOWN, never ok or MISSING, and the other items still render", async () => {
@@ -201,13 +194,13 @@ test("a failed read is UNKNOWN, never ok or MISSING, and the other items still r
   assert.doesNotMatch(line, /FIX FIRST/, "UNKNOWN is not a FAIL with a guessed fix");
 });
 
-test("no primary checkout (git cannot resolve it): graph and serena-ls read UNKNOWN, servers still probed", async () => {
+test("no primary checkout (git cannot resolve it): graph reads UNKNOWN, servers still probed", async () => {
   const f = await healthy("no-git");
   delete f.primaryDir;
   f.projectDir = join(SCRATCH, "no-git", "project");
   const line = oneLine(run(f));
   // The project dir has no .git, but a temp dir can sit under an unrelated repo; only assert when git really failed.
-  if (/graph UNKNOWN/.test(line)) assert.match(line, /serena-ls UNKNOWN/);
+  if (!/graph UNKNOWN/.test(line)) assert.match(line, /graph (ok|STALE|MISSING)/);
   assert.match(line, /graphify up/);
 });
 
@@ -267,15 +260,8 @@ function mutant(name, anchor, replacement) {
 test("MUTANT probe always up: the closed-port control catches it", async () => {
   const file = mutant("probe-up", 'socket.once("connect", () => done("up"));', 'done("up");');
   const f = await healthy("m-probe", { ports: [await listen(), await closedPort()] });
-  assert.match(oneLine(run(f)), /serena DOWN/, "real script reads DOWN");
-  assert.match(oneLine(run(f, { script: file })), /serena up/, "the mutant claims up, so the DOWN control can fail");
-});
-
-test("MUTANT local override ignored: the project.local.yml control catches it", async () => {
-  const file = mutant("no-local", "const local = readYamlKey(", "const local = null && readYamlKey(");
-  const f = await healthy("m-local");
-  assert.match(oneLine(run(f)), /serena-ls typescript/);
-  assert.match(oneLine(run(f, { script: file })), /serena-ls NO LANGUAGE SERVER/);
+  assert.match(oneLine(run(f)), /spare DOWN/, "real script reads DOWN");
+  assert.match(oneLine(run(f, { script: file })), /spare up/, "the mutant claims up, so the DOWN control can fail");
 });
 
 test("MUTANT a failed read rendered as ok: the bad-JSON control catches it", async () => {
