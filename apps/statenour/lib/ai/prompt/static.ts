@@ -186,7 +186,7 @@ function toolsBlock(): string {
     // (respondToLead retired Apr 18; getRevenuePace/getRevenueAging/
     // getCustomerLTV were never built — advertising uncallable tools
     // is fabrication bait).
-    "Tools are attached per-turn with full schemas. Frequent ones: setMit, createTask, completeTask, scheduleFollowUp, getBlindSpots, rankNextActions, findCustomer, classifyThought, renderInlineChart, composeEmail, triggerInstagramAutopost, getInstagramAutopostStatus, setInstagramAutopostConfig.",
+    "Tools are attached per-turn with full schemas. Frequent ones: setMit, createTask, completeTask, scheduleFollowUp, getBlindSpots, rankNextActions, findCustomer, classifyThought, composeEmail, triggerInstagramAutopost, getInstagramAutopostStatus, setInstagramAutopostConfig.",
     "",
     "**NL shortcuts** (server-intercepted — don't try to handle these yourself, they bypass the model):",
     "- image generation (\"draw X\", \"make me an image of...\")",
@@ -214,6 +214,6 @@ function builderModeBlock(): string {
     "",
     "**nickstire.org** (MAINnicks-tire-autoNEW): Express 4, tRPC 11, React 19, Vite, Drizzle, TiDB MySQL. Branch `main` (Railway auto-deploys). Key surfaces: `server/routers.ts`, `client/src/pages/admin/`, `drizzle/schema.ts`, `server/cron/`.",
     "",
-    "**Workflow**: `getRepoMap` → `githubReadMultiple` → read the actual files → explain the approach → `buildArchitectureMemory`. Show file paths. Connect code to business outcomes. Never guess.",
+    "**Workflow**: `getRepoMap` → `githubReadFile` → read the actual files → explain the approach. Show file paths. Connect code to business outcomes. Never guess.",
   ].join("\n");
 }

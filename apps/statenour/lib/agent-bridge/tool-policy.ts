@@ -29,8 +29,6 @@ export const CHATGPT_ACTIONS_V1_TOOLS: string[] = [
   "getRevenueStats",
   "getReviewStats",
   "getEstimateLeaks",
-  "compareCompetitors",
-  "pricingAdvisorySummary",
   // live shop (nickstire cross-ring bridge)
   "getShopSnapshot",
   "getMarketingAttribution",
@@ -45,14 +43,11 @@ export const CHATGPT_ACTIONS_V1_TOOLS: string[] = [
   "getTodaySchedule",
   "getWeeklyTargets",
   "rankNextActions",
-  "suggestMIT",
   "dailyPulse",
   // brain & strategy
   "searchMemories",
   "searchReflections",
   "getBlindSpots",
-  "getPendingRevenueMoves",
-  "decisionPreFlight",
   "analyzePowerDynamics",
   "getPowerBalanceSummary",
   // research & comms

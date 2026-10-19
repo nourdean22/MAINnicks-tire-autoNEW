@@ -253,9 +253,6 @@ export function analyzeToolSource(file: string, src: string): ToolAnalysis[] {
 const TOOL_ALLOWLIST: Record<string, string> = {
   "goals.ts:getWeeklyTargets": "WEEKLY_TARGET rows are numbers the operator set via setWeeklyTargets · app-authored ledger",
   "habits.ts:weeklyReview": "IDENTITY_SNAPSHOT (numeric axes) + coach_event rows the app writes · no stored free text from an ingestion category",
-  "habits.ts:analyzeWeek": "IDENTITY_SNAPSHOT (numeric axes) + coach_event rows the app writes · no stored free text from an ingestion category",
-  "tasks.ts:getDecisionsDueForReplay": "decision_replay_due rows hold decisions Nour journaled himself via journalDecision · operator-authored",
-  "tasks.ts:decisionPreFlight": "IDENTITY_SNAPSHOT numeric axes only",
   "tasks.ts:dailyPulse": "IDENTITY_SNAPSHOT numeric axes only",
   "tasks.ts:endOfDay": "IDENTITY_SNAPSHOT numeric axes only",
 };
@@ -270,7 +267,7 @@ describe("tool-result fencing gate · every TOOL that reads memory or chat rows 
   it("enumerates the tools (sanity · the splitter must find the real blocks)", () => {
     expect(toolAnalyses.length).toBeGreaterThanOrEqual(150);
     expect(subjects.length).toBeGreaterThanOrEqual(12);
-    for (const k of ["brain.ts:searchMemories", "brain.ts:searchColdMemory", "brain.ts:searchConversations", "brain.ts:getHabitRevenueCorrelation", "business.ts:findCustomer"]) {
+    for (const k of ["brain.ts:searchMemories", "brain.ts:searchColdMemory", "brain.ts:getHabitRevenueCorrelation", "business.ts:findCustomer"]) {
       expect(subjects.map(toolKey), `${k} must be a subject`).toContain(k);
     }
   });
@@ -300,7 +297,6 @@ describe("tool-result fencing gate · every TOOL that reads memory or chat rows 
     expect(bareAfter).toContain("searchColdMemory");
     // and ONLY that one changed — the other fenced tools in the same file still count as fenced
     expect(after.find((t) => t.tool === "searchMemories")?.fenced).toBe(true);
-    expect(after.find((t) => t.tool === "searchConversations")?.fenced).toBe(true);
   });
 });
 

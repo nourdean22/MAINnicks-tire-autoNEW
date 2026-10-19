@@ -216,14 +216,6 @@ export const CRONS: CronDef[] = [
     description: "Flags dormant journal threads — Inngest-native.",
   },
   {
-    name: "industry-pull",
-    schedule: "0 8 * * *",
-    mode: "active",
-    category: "brain",
-    inngest: true,
-    description: "Industry-intel RSS feeder → BrainMemory(industry_intel) for recallIndustryIntel (system prompt + /intel + plan-day). Revived 2026-05-31 (was deleted in Wave AE).",
-  },
-  {
     name: "intelligence-ingest",
     schedule: "15 10 * * *",
     mode: "active",
@@ -231,14 +223,6 @@ export const CRONS: CronDef[] = [
     inngest: true,
     addedAt: "2026-10-18",
     description: "Daily source ingestion with claim verification and promotion, plus the persona-drift scan, Inngest-native. Opportunity scoring and content drafting were dropped with the page that decided opportunities. No brief is composed or pushed (the brief was stopped 2026-10-18); a total ingestion outage throws so onInngestFailure pages.",
-  },
-  {
-    name: "customer-preferences-recompute",
-    schedule: "0 11 * * *",
-    mode: "active",
-    category: "brain",
-    inngest: true,
-    description: "Recomputes customer preferences profile based on recent activity — Inngest-native.",
   },
   {
     name: "diagnose-cron-failure",
@@ -255,14 +239,6 @@ export const CRONS: CronDef[] = [
     category: "signals",
     inngest: true,
     description: "CRM weekly follow-ups proposer — Inngest-native.",
-  },
-  {
-    name: "content-performance-weekly",
-    schedule: "0 12 * * 1",
-    mode: "active",
-    category: "review",
-    inngest: true,
-    description: "Analyzes weekly performance of social media content — Inngest-native.",
   },
   {
     name: "approval-sweeper",
@@ -414,15 +390,6 @@ export const CRONS: CronDef[] = [
     description: "Nightly via mega-evening fan-out · scans new chat messages for mission-relevance, writes ConversationMissionLink rows so Nick can answer 'what mission was this about?'",
     memory: 512,
     maxDuration: 60,
-  },
-  {
-    name: "revenue-decision",
-    schedule: null,
-    mode: "folded",
-    category: "brain",
-    foldedInto: "mega-evening",
-    description:
-      "FOLDED into mega-evening · turns nickstire business signals into 1-3 concrete operator moves, persisted as revenue_move BrainMemory rows and pushed to the operator's Telegram with /approve_N. ONE model call + ONE message per day, idempotent per ET date. Read-only across the statenour<->nickstire boundary: approval flips a status field on a statenour row, never writes to nickstire.",
   },
   {
     name: "consolidate",
@@ -690,20 +657,6 @@ export const CRONS: CronDef[] = [
     description: "Weekly (Sunday-ET) via mega-evening weekly fan-out · corpus odometer — counts intelligence_outcomes corrections + supplementary operator labels, upserts the rolling eval_run odometer row, flags the 200-correction fine-tune trigger.",
     memory: 256,
     maxDuration: 60,
-  },
-  {
-    name: "pricing-advisory",
-    schedule: "0 3 * * 1",
-    // 2026-07-09 · AG-19 · fires via the WEEKLY_JOBS Sunday-ET evening
-    // fan-out (same slot-shift precedent as relationship-weekly-synthesis);
-    // idempotent per run-date via BrainMemory upsert. Sweep: schedule now
-    // states the actual slot (Mon 03:00 UTC = Sunday 10/11pm ET) instead
-    // of the intended-standalone "0 23 * * 0".
-    mode: "active",
-    category: "review",
-    description: "Weekly (Sunday-ET) pricing advisory via mega-evening weekly fan-out · ALG win-rate outliers vs fleet median → competitor prices → drafted experiments · coach-event banner + chat tool read it.",
-    memory: 512,
-    maxDuration: 120,
   },
   {
     // 2026-07-09 · sweep · pre-Wave-AE "0 23" retired; fires 2×/day via

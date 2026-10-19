@@ -131,7 +131,6 @@ import { ServiceError } from "@/lib/utils/service-error";
 // called by the matching legacy REST route — drift structurally
 // impossible.
 import { getLatestEscalation } from "@/lib/services/escalations";
-import { getIndustryIntel } from "@/lib/services/industry-intel";
 import {
   trackSuggestionAction,
   recordSuggestionOutcome,
@@ -1363,21 +1362,6 @@ export const brainRouter = router({
    * firewall). Fail-soft · a DB error resolves to `{ escalation: null }`.
    */
   escalations: operatorProcedure.query(async () => getLatestEscalation()),
-
-  /**
-   * Cross-domain residuals slice · owner-only · the last-14d automotive
-   * industry-intel rollup (top 30). Replaces GET /api/intel · delegates
-   * to the shared `industry-intel.getIndustryIntel` service the REST
-   * route also calls · drift impossible. `recallIndustryIntel` already
-   * returns a flat scalar array · no Prisma Json reaches the AppRouter.
-   * `useAdaptivePlaceholder` reads `industry[0].title` for the quiet
-   * placeholder rotation.
-   *
-   * Routed to the `brain` domain · /api/intel is the brain-intel
-   * surface and `useAdaptivePlaceholder` already reads two other
-   * /api/brain/* endpoints in the same fan-out.
-   */
-  industryIntel: operatorProcedure.query(async () => getIndustryIntel()),
 
   /**
    * Cross-domain residuals slice · owner-only · capture a supervised-

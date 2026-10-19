@@ -123,7 +123,6 @@ const API_ENDPOINTS = [
   // 2026-07-25 empty-tolerance (the header's own rule): on an empty DB
   // /api/intel returns { ok, industry: [], generatedAt } and OMITS the
   // data-dependent keys (proven in e2e run 6) — pin the structural shape.
-  { method: "GET", path: "/api/intel", expectKeys: ["ok", "industry", "generatedAt"] },
   { method: "GET", path: "/api/brain/wisdom", expectKeys: ["total", "totalRecalls", "groupings"] },
   { method: "GET", path: "/api/trpc/observability.osSnapshot", expectKeys: ["result"] },
 ];

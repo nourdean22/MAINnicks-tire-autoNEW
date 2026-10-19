@@ -50,14 +50,6 @@ describe("revenue_range callers send New York days, both bounds inclusive", () =
     expect(rangeCall()).toEqual({ from: "2026-10-01", to: "2026-10-08" });
   });
 
-  it("getProjections: the 30 complete shop days before today, annualized as 30", async () => {
-    const out = (await run(goalsTools.getProjections, { domain: "business" })) as {
-      projections: Array<{ current: number; projected: number }>;
-    };
-    expect(rangeCall()).toEqual({ from: "2026-09-08", to: "2026-10-07" }); // 23 + 7 = 30 days
-    expect(out.projections[0]).toMatchObject({ current: 30_000, projected: 360_000 });
-  });
-
   it("weeklyReview: seven shop days including today", async () => {
     // Its other reads hit the mocked Prisma and fail; the bridge call is made first.
     await run(habitsTools.weeklyReview, {}).catch(() => undefined);

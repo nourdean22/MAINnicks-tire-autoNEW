@@ -99,38 +99,6 @@ export const systemTools = {
     },
   }),
 
-  queueExternalWorkerJob: tool({
-    description:
-      "Queue a bounded coding/reasoning job onto NOUR's existing durable local-worker queue. AUTO routes only across subscription-included or local-free lanes and never silently uses metered API billing. Read-only is the default. Workspace writes require an explicit allowWorkspaceWrite=true AND a separate local worker write-policy switch.",
-    inputSchema: z.object({
-      prompt: z.string().min(5).max(20_000),
-      capability: z
-        .enum([
-          "supervisor",
-          "deep_reasoner",
-          "coder",
-          "large_context",
-          "multimodal",
-          "cheap_local",
-          "embed",
-          "rerank",
-          "ocr",
-          "voice",
-        ])
-        .default("coder"),
-      mode: z.enum(["FREE", "AUTO", "MAX"]).default("AUTO"),
-      preferredLane: z.enum(EXTERNAL_WORKER_LANE_IDS).optional(),
-      workspaceKey: z
-        .string()
-        .regex(/^[a-z0-9][a-z0-9_-]*$/)
-        .default("repo"),
-      allowWorkspaceWrite: z.boolean().default(false),
-      idempotencyKey: z.string().min(1).max(160).optional(),
-    }),
-    execute: async (input) =>
-      queueExternalWorker({ ...input, requestedBy: "nick" }),
-  }),
-
   getExternalWorkerJob: tool({
     description:
       "Read one previously queued NOUR external-worker job, including durable queue status, bounded result payload, error state, and Reality Ledger phase receipts.",
@@ -874,25 +842,6 @@ export const systemTools = {
     },
   }),
 
-  githubCreatePR: tool({
-    description: "Create a pull request on a GitHub repo. Use after pushing changes to a branch.",
-    inputSchema: z.object({
-      repo: z.string().describe("Repo name"),
-      title: z.string().describe("PR title"),
-      body: z.string().describe("PR description"),
-      head: z.string().describe("Source branch with changes"),
-      base: z.string().optional().describe("Target branch (default: main)"),
-    }),
-    execute: async ({ repo, title, body, head, base }) => {
-      const { createPullRequest } = await import("@/lib/integrations/github");
-      try {
-        return await createPullRequest(repo, title, body, head, base);
-      } catch (e) {
-        return { error: e instanceof Error ? e.message : String(e) };
-      }
-    },
-  }),
-
   githubListRepos: tool({
     description: "List Nour's GitHub repos sorted by most recently updated.",
     inputSchema: z.object({}),
@@ -900,24 +849,6 @@ export const systemTools = {
       const { listRepos } = await import("@/lib/integrations/github");
       try {
         return await listRepos();
-      } catch (e) {
-        return { error: e instanceof Error ? e.message : String(e) };
-      }
-    },
-  }),
-
-  githubReadMultiple: tool({
-    description: "Read multiple files at once from a repo. Use to understand a full feature — read the route, the service, the component, and the types together. Much faster than reading one at a time.",
-    inputSchema: z.object({
-      repo: z.string().describe("Repo name"),
-      paths: z.array(z.string()).describe("Array of file paths to read"),
-      branch: z.string().optional(),
-    }),
-    execute: async ({ repo, paths, branch }) => {
-      const { readMultipleFiles } = await import("@/lib/integrations/github");
-      try {
-        const files = await readMultipleFiles(repo, paths, branch);
-        return { files: files.map(f => ({ path: f.path, lines: f.content.split("\n").length, preview: f.content.slice(0, 500), error: f.error })) };
       } catch (e) {
         return { error: e instanceof Error ? e.message : String(e) };
       }

@@ -78,7 +78,6 @@ vi.mock("@/lib/db/pgvector", () => ({
 vi.mock("@/lib/ai/provider", () => ({ getEmbedding: vi.fn(async () => new Array(8).fill(0.1)) }));
 vi.mock("@/lib/auth-guard", () => ({ requireSession: vi.fn(async () => ({ user: { id: "nour" } })) }));
 vi.mock("@/lib/rate-limit", () => ({ checkAiRateLimit: vi.fn(() => null) }));
-vi.mock("@/lib/automotive/industry-monitor", () => ({ recallIndustryIntel: vi.fn(async () => []) }));
 vi.mock("@/lib/ai/style-adapter", () => ({ applyOperatorStyle: vi.fn(async (s: string) => s) }));
 vi.mock("@/lib/ai/traced-aichat", () => ({
   tracedAiChat: vi.fn(async (_meta: unknown, messages: Array<{ role: string; content: string }>) => {

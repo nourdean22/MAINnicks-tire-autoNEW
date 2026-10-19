@@ -31,7 +31,7 @@ const REAL_SHAPE = [
   row("getHabitRevenueCorrelation", 235, "brain"),
   row("getCommitments", 229),
   row("arsenalNotebookLM", 47, "research"),
-  row("getProjections", 2),
+  row("getBodyData", 2),
   row("neverMeasured", null),
 ];
 
@@ -56,7 +56,7 @@ describe("pickNeverChosenCandidates", () => {
     expect(picked).toContain("getCommitments");
     // 47/467 = 10%, 2/467 = 0.4% — real but not worth an LLM pass.
     expect(picked).not.toContain("arsenalNotebookLM");
-    expect(picked).not.toContain("getProjections");
+    expect(picked).not.toContain("getBodyData");
   });
 
   it("treats a null surfacedCount as no evidence, not as zero-cost", () => {

@@ -110,9 +110,4 @@ describe("chat tools · status writers publish once", () => {
     expect(only()).toMatchObject({ commitmentId: 7, oldStatus: "active", newStatus: "completed", ...ROW });
   });
 
-  it("markCommitmentBroken", async () => {
-    await tool("markCommitmentBroken").execute({ commitmentId: 7, reason: "ran out of time" }, {});
-    expect(only()).toMatchObject({ commitmentId: 7, oldStatus: "active", newStatus: "broken" });
-  });
-
 });

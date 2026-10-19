@@ -116,13 +116,12 @@ describe("tool mutation status has exactly one source", () => {
     expect(view.families.reduce((s, f) => s + f.spendyCount, 0)).toBe(spendyRows);
   });
 
-  it("the two tools this audit found writing to the brain are classified as writers", () => {
-    // buildArchitectureMemory and learnCodingPreference both call
-    // brainMemory.remember() (lib/ai/tools/brain.ts) yet sat in category
-    // "files" with no mutating name prefix — the same three-tripwire miss as
-    // proposeCalendarEvent, surfaced only once the two registries were
-    // compared. Pinned here so a catalog edit cannot quietly undo it.
-    for (const name of ["buildArchitectureMemory", "learnCodingPreference", "proposeCalendarEvent"]) {
+  it("a tool found writing to the brain is classified as a writer", () => {
+    // proposeCalendarEvent sat in a read category with no mutating name prefix — the
+    // three-tripwire miss, surfaced only once the two registries were compared. (Two
+    // brain-writing tools pinned here with it were removed 2026-10-19.) Pinned so a
+    // catalog edit cannot quietly undo it.
+    for (const name of ["proposeCalendarEvent"]) {
       expect(classifyTool(name).readSafe, `${name} writes; read mode must strip it`).toBe(false);
     }
   });

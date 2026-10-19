@@ -21,7 +21,7 @@ describe("classifyWebhook", () => {
   });
 
   it("another route, another host, or no URL is not registered", () => {
-    expect(classifyWebhook("https://bdnick.info/api/telegram/revenue-decision-callback").state).toBe("elsewhere");
+    expect(classifyWebhook("https://bdnick.info/api/telegram/other-route").state).toBe("elsewhere");
     expect(classifyWebhook("https://nickstire.org/api/telegram/webhook").state).toBe("elsewhere");
     expect(classifyWebhook("").state).toBe("unregistered");
   });

@@ -365,7 +365,7 @@ describe("v10.0.531 families · no false positives", () => {
 // MIRRORS lib/ai/chat-mode.ts — pattern changes there land here first.
 const P532B = {
   competitiveTrigger: /\b(competitive (analysis|intel|intelligence)|competitors?|where are we weak|our (weakness|vulnerabilit)|market position|how do we (compare|stack up)|benchmark)\b/i,
-  competitiveTools: /analyzeCompetitiveIntel|compareCompetitors/i,
+  competitiveTools: /analyzeCompetitiveIntel/i,
   fitnessTrigger: /\b(fitness (analysis|progress|trend|report)|my fitness|analyze (my )?fitness|workout (progress|trend|analysis|history)|training progress|how('?s| is) my (fitness|training))\b/i,
 };
 
@@ -374,7 +374,6 @@ describe("2026-07-11 families · compareCompetitors + analyzeFitness reachable",
     expect(P532B.competitiveTrigger.test("benchmark us against the other shops")).toBe(true);
   });
   it("competitive family now matches BOTH tools", () => {
-    expect(P532B.competitiveTools.test("compareCompetitors")).toBe(true);
     expect(P532B.competitiveTools.test("analyzeCompetitiveIntel")).toBe(true);
   });
   it("fitness trigger fires on 'how's my fitness'", () => {
@@ -416,7 +415,6 @@ describe("2026-07-11 commitment-reconciliation family", () => {
 
   it("tool pattern reaches the commitment write tools", () => {
     expect(P_RECONCILE.tools.test("completeCommitment")).toBe(true);
-    expect(P_RECONCILE.tools.test("markCommitmentBroken")).toBe(true);
     expect(P_RECONCILE.tools.test("getCommitments")).toBe(true);
     expect(P_RECONCILE.tools.test("completeTask")).toBe(true);
   });

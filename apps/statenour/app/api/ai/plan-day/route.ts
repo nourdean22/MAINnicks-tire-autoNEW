@@ -10,7 +10,6 @@
  *   3. Recent brain memory (high-importance) — what's top of mind
  *   4. Current weather (existing weather integration) — outdoor work fit
  *   5. Recent commitments (DailyScore + Commitment) — what was promised
- *   6. Industry intel (BATCH 5) — automotive trends worth riffing on
  *
  * Body: { dayLabel?: "today" | "saturday" | "this-week" | iso-date, intent?: string }
  * Returns: {
@@ -29,7 +28,6 @@ import { tracedAiChat } from "@/lib/ai/traced-aichat";
 // operator-tuned style so block titles + framing inherit voice tells.
 import { applyOperatorStyle } from "@/lib/ai/style-adapter";
 import { prisma } from "@/lib/prisma";
-import { recallIndustryIntel } from "@/lib/automotive/industry-monitor";
 import { requireSession } from "@/lib/auth-guard";
 import { checkAiRateLimit } from "@/lib/rate-limit";
 import { sanitizeError } from "@/lib/utils/sanitize-error";
@@ -66,7 +64,7 @@ export async function POST(req: Request) {
   const t0 = Date.now();
   const startBoundary = dayBoundaryDate(dayLabel, "start");
   const endBoundary = dayBoundaryDate(dayLabel, "end");
-  const [tasks, calendarEvents, brainItems, industry] = await Promise.all([
+  const [tasks, calendarEvents, brainItems] = await Promise.all([
     prisma.task
       .findMany({
         where: { status: { in: ["INBOX", "READY", "DOING", "WAITING"] } },
@@ -103,7 +101,6 @@ export async function POST(req: Request) {
         select: { content: true, category: true, source: true },
       })
       .catch(() => [] as Array<{ content: string; category: string; source: string | null }>),
-    recallIndustryIntel({ limit: 5, daysBack: 7 }),
   ]);
 
   // ── Build the plan-input prompt ──
@@ -128,9 +125,6 @@ export async function POST(req: Request) {
     "",
     `High-priority brain context (${brainItems.length}):`,
     ...brainItems.slice(0, 8).map((b: { category: string; content: string }) => `  · [${b.category}] ${b.content.slice(0, 200)}`),
-    "",
-    `Strategic context — recent industry trends:`,
-    ...industry.slice(0, 3).map((i: { category: string; title: string }) => `  · [${i.category}] ${i.title.slice(0, 150)}`),
     "",
     "## OUTPUT FORMAT",
     "Return JSON exactly matching this shape (no extra fields, no comments):",
@@ -253,8 +247,7 @@ export async function POST(req: Request) {
       taskCount: tasks.length,
       eventCount: calendarEvents.length,
       brainCount: brainItems.length,
-      industryCount: industry.length,
-    },
+      },
     meta: {
       model: result.model,
       provider: result.provider,

@@ -82,7 +82,6 @@ const BASE_BUSINESS_SCORES: Record<string, number> = {
   findCustomer: 0.02,
   getEstimateLeaks: 0.02,
   getHabitRevenueCorrelation: 0.01,
-  getPendingRevenueMoves: 0.01,
   getRevenueStats: 0.01,
 };
 

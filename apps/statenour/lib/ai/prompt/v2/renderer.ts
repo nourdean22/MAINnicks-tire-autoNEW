@@ -653,7 +653,7 @@ function renderCommands(ctx: NickPrimeContext): string {
       );
     }
     lines.push(
-      `RECONCILE: when Nour says he did one of these (even in passing — "I worked out", "sent it", "done"), call completeCommitment with that #id in the SAME turn. Didn't/won't do it → markCommitmentBroken with the reason. Never leave a reported-done commitment active.`,
+      `RECONCILE: when Nour says he did one of these (even in passing — "I worked out", "sent it", "done"), call completeCommitment with that #id in the SAME turn. Didn't/won't do it → say so and let Nour decide. Never leave a reported-done commitment active.`,
     );
   }
 

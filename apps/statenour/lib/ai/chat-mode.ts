@@ -520,12 +520,12 @@ export async function pruneTools(
 
   // OKRs / MIT / weekly targets / goals · planning shape
   if (/\b(mit|main thing|top priority|okrs?|objectives?|key results?|weekly targets?|life goals?|set (a |my )?goal|north star|aim|targets?)\b/.test(text)) {
-    addMatching(/mit|okr|target|goal|weeklyTargets|setLifeGoal/i);
+    addMatching(/mit|okr|target|goal|weeklyTargets/i);
   }
 
   // Routines · weekly / EOD / morning briefings
   if (/\b(weekly review|week (summary|recap|review)|end of day|eod|morning brief|daily pulse|analyze (my |this )?week)\b/.test(text)) {
-    addMatching(/weeklyReview|analyzeWeek|endOfDay|dailyPulse|morningBrief/i);
+    addMatching(/weeklyReview|endOfDay|dailyPulse|morningBrief/i);
   }
 
   // Browser automation / scrape / page extraction
@@ -627,7 +627,7 @@ export async function pruneTools(
   // forms only ("other sessions", "my chats") so "gym session" doesn't
   // fire. MIRRORED in tests/ai/chat-mode-keyword-families.test.ts.
   if (/\b(last (time|week|month)|previously|earlier we|we discussed|we (talked|chatted) about|we chatted|chatted (about|today|yesterday)|what did i (say|discuss|mention)|pull up|prior conversation|that thread|the thread about|past chat|history of|continuing from|(other|past|previous|earlier|prior|all|my) (sessions?|convos?|conversations?|chats?|threads?)|in another (session|conversation|chat|thread))\b/.test(text)) {
-    addMatching(/findRelatedConversations|searchConversations/);
+    addMatching(/findRelatedConversations/);
   }
 
   // v10.0.524 · #4 Multi-source verified web search. Fact-check
@@ -667,7 +667,7 @@ export async function pruneTools(
       "getCommitments", "createCommitment",
       "getMissions", "createMissionPlan", "queueMissionExecution",
       "dailyPulse", "weeklyReview", "endOfDay",
-      "searchMemories", "searchColdMemory", "searchConversations",
+      "searchMemories", "searchColdMemory",
       "findCustomer", "queryNickstire", "compareLiveRevenue",
       "runPython", "searchWebVerified", "generateImage",
       "runDeviceCommand", "sendTelegram", "composeEmail",
@@ -688,13 +688,6 @@ export async function pruneTools(
   // confirmed each gap against the live regexes. MIRRORED in
   // tests/ai/chat-mode-keyword-families.test.ts.
   // ─────────────────────────────────────────────────────────────
-
-  // #1 · Inline chart / data-viz. "chart of", "pie chart", "visualize" hit
-  // the Python family (runPython/runCode) — WRONG tool. Attach the
-  // renderer too so the model can pick it for viz-shaped asks.
-  if (/\b(chart of|pie chart|bar chart|line chart|render (a |the )?chart|visuali[sz]e|visuali[sz]ation|graph (of|this|the)|plot (of|this|the) (data|tasks|metrics))\b/.test(text)) {
-    addMatching(/renderInlineChart/i);
-  }
 
   // #2 · Business escape-hatch. queryNickstire runs free-form shop queries
   // (revenue_today, leads_pipeline, callbacks_pending, work_orders_active).
@@ -724,19 +717,11 @@ export async function pruneTools(
     addMatching(/scrapeWebPage/i);
   }
 
-  // #6 · Decision pre-flight. Planning shape "should I", "risks before I
-  // decide". Deliberately separate from the brain family (which scopes
-  // "decision" to history/replay/journal).
-  if (/\b(should i|help me (think through|decide)|thinking through|before i decide|risks? before|pros and cons|weigh (this|the) (option|choice|decision)|i'?m considering|what if i)\b/.test(text)) {
-    addMatching(/decisionPreFlight/i);
-  }
-
   // #7 · Power dynamics / leverage / Greene tactics. analyzePowerDynamics,
   // getPowerBalanceSummary, getDarkPsychologyTactics, getContextualGreeneLaws
   // had no family. "power dynamics", "leverage over", "manipulation tactics".
-  // AG-31 · recommendNextMove joins the family + move-asking phrasings.
   if (/\b(power (dynamics?|balance|position)|leverage (over|across|with)|who (has|holds) power|relationship (leverage|strategy)|cognitive bias|manipulation (tactics?|techniques?)|psychology tactics?|dark psychology|next move|my move|how (do|should) i (respond|handle|counter|play))\b/.test(text)) {
-    addMatching(/analyzePowerDynamics|getPowerBalanceSummary|getDarkPsychologyTactics|getContextualGreeneLaws|recommendNextMove/i);
+    addMatching(/analyzePowerDynamics|getPowerBalanceSummary|getDarkPsychologyTactics|getContextualGreeneLaws/i);
   }
 
   // #8 · Recent-sentiment research + short-video generation. last30days
@@ -774,10 +759,7 @@ export async function pruneTools(
   // #11 · Competitive intelligence. "competitive analysis", "where are we
   // weak", "market position". No family covered competitive intent.
   if (/\b(competitive (analysis|intel|intelligence)|competitors?|where are we weak|our (weakness|vulnerabilit)|market position|how do we (compare|stack up)|benchmark)\b/.test(text)) {
-    // 2026-07-11 review · compareCompetitors (business.ts) is a DIFFERENT
-    // tool from analyzeCompetitiveIntel and had no family — unreachable on
-    // cold start. Same trigger, both tools.
-    addMatching(/analyzeCompetitiveIntel|compareCompetitors/i);
+    addMatching(/analyzeCompetitiveIntel/i);
   }
 
   // #12 · Customer SMS staging (approval-gated). stageCustomerAlert is NOT
@@ -829,10 +811,6 @@ export async function pruneTools(
   // Top Services: retired 2026-10-08 with the getTopServices tool. Its bridge query
   // (revenue_top_services) was never built, and invoice service descriptions have mostly
   // stopped arriving (1 of 30 in Aug 2026), so a ranked list would describe ~3% of tickets.
-  // Pricing Advisory
-  if (/\b(pricing advisory|price advice|pricing advice|pricing review|competitive pricing|pricing guide|what should we charge)\b/.test(text)) {
-    addMatching(/pricingAdvisorySummary/i);
-  }
   // Weight Trend
   if (/\b(weight trend|weight gain|weight loss|scale weight|my weight|body weight progress|weight stats)\b/.test(text)) {
     addMatching(/analyzeWeightTrend/i);

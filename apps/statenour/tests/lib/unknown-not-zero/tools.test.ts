@@ -103,31 +103,6 @@ describe("setMit / clearMit persist (03-F1)", () => {
   });
 });
 
-describe("suggestMIT", () => {
-  it("bridge down: says unknown, never 'All clear'", async () => {
-    h.fetchShopSnapshot.mockResolvedValue(null);
-    h.db.brainMemory.findUnique.mockResolvedValue({ updatedAt: new Date(), deletedAt: null });
-    const out = JSON.stringify(await run(tasksTools.suggestMIT));
-    expect(out).toContain("unknown");
-    expect(out).not.toMatch(FORBIDDEN);
-  });
-
-  it("leads count unknown (null) in a degraded snapshot: says unknown", async () => {
-    h.fetchShopSnapshot.mockResolvedValue({ leads: { urgentCount: null }, callbacks: { pendingCount: 0 } });
-    h.db.brainMemory.findUnique.mockResolvedValue({ updatedAt: new Date(), deletedAt: null });
-    const out = JSON.stringify(await run(tasksTools.suggestMIT));
-    expect(out).toContain("unknown");
-    expect(out).not.toMatch(FORBIDDEN);
-  });
-
-  it("CONTROL: a measured quiet shop still says All clear", async () => {
-    h.fetchShopSnapshot.mockResolvedValue({ leads: { urgentCount: 0 }, callbacks: { pendingCount: 0 } });
-    h.db.brainMemory.findUnique.mockResolvedValue({ updatedAt: new Date(), deletedAt: null });
-    const out = JSON.stringify(await run(tasksTools.suggestMIT));
-    expect(out).toContain("All clear");
-  });
-});
-
 describe("dailyPulse / endOfDay", () => {
   const batchOf = (v: unknown) => async (qs: Array<{ query: string }>) => Object.fromEntries(qs.map((q) => [q.query, v]));
 

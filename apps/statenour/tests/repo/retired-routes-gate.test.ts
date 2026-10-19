@@ -125,6 +125,16 @@ export const PRUNED: ReadonlyArray<{ route: string; to?: string; page?: false }>
   { route: "/api/intelligence/opportunities", page: false },
   { route: "/api/system/schema-history", page: false },
   { route: "/api/system/proactive-preview", page: false },
+  // 2026-10-18/19 wave 3: crons and surfaces whose output nothing read.
+  { route: "/api/cron/change-detection", page: false },
+  { route: "/api/cron/experiment-measure", page: false },
+  { route: "/api/cron/revenue-decision", page: false },
+  { route: "/api/cron/pricing-advisory", page: false },
+  { route: "/api/system/revenue-decisions", page: false },
+  { route: "/api/system/pricing-advisory", page: false },
+  { route: "/api/telegram/revenue-decision-callback", page: false },
+  { route: "/api/intel", page: false },
+  { route: "/api/customer-360", page: false },
 ];
 
 /**

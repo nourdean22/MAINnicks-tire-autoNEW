@@ -153,7 +153,6 @@ describe("pruneTools keyword attachment families (v10.0.532 followups)", () => {
   const tools = {
     getCameraIntelligence: { name: "getCameraIntelligence" },
     getReviewStats: { name: "getReviewStats" },
-    pricingAdvisorySummary: { name: "pricingAdvisorySummary" },
     analyzeWeightTrend: { name: "analyzeWeightTrend" },
     runSimulation: { name: "runSimulation" },
   };
@@ -163,8 +162,6 @@ describe("pruneTools keyword attachment families (v10.0.532 followups)", () => {
     ["getCameraIntelligence", "show me the security camera footage", "getCameraIntelligence"],
     ["getReviewStats", "how are our google reviews doing, show me stats", "getReviewStats"],
     // getTopServices: retired 2026-10-08 with its keyword family (lib/ai/chat-mode.ts).
-    ["pricingAdvisorySummary", "pricing advisory summary for this week", "pricingAdvisorySummary"],
-    ["pricingAdvisorySummary", "what competitive pricing advice do we have?", "pricingAdvisorySummary"],
     ["analyzeWeightTrend", "plot my weight trend", "analyzeWeightTrend"],
     ["analyzeWeightTrend", "body weight progress", "analyzeWeightTrend"],
     ["runSimulation", "run a simulation for this project", "runSimulation"],
@@ -173,7 +170,7 @@ describe("pruneTools keyword attachment families (v10.0.532 followups)", () => {
     expect(Object.keys(pruned)).toContain(expectedKey);
   });
 
-  it("survives pruning in deep mode under pressure of 60 filler tools for all 5 followup tools", async () => {
+  it("survives pruning in deep mode under pressure of 60 filler tools for all 4 followup tools", async () => {
     const allTools: Record<string, unknown> = {};
     for (let i = 1; i <= 60; i++) {
       allTools[`extraTool-${i}`] = { name: `extraTool-${i}` };
@@ -182,11 +179,10 @@ describe("pruneTools keyword attachment families (v10.0.532 followups)", () => {
     allTools["searchMemories"] = { name: "searchMemories" };
     allTools["createTask"] = { name: "createTask" };
 
-    // Add the 5 followup tools
+    // Add the 4 followup tools
     const followups = [
       "getCameraIntelligence",
       "getReviewStats",
-      "pricingAdvisorySummary",
       "analyzeWeightTrend",
       "runSimulation",
     ];
@@ -195,7 +191,7 @@ describe("pruneTools keyword attachment families (v10.0.532 followups)", () => {
     }
 
     // Trigger keyword matching by including the trigger words in the query
-    const query = "show me the camera feed, google reviews stats, pricing advisory, weight trend and run simulation";
+    const query = "show me the camera feed, google reviews stats, weight trend and run simulation";
     const pruned = await pruneTools("deep", allTools, query, [0.1, 0.2]);
     const keys = Object.keys(pruned);
 

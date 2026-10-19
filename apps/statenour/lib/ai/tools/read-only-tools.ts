@@ -7,7 +7,7 @@
  * calls. No listed tool creates a record a replay would duplicate. Idempotent
  * bookkeeping and measuring the call do not count: tool_telemetry rows,
  * systemMetric rows, a per-person cache row (getContextualGreeneLaws), POST used
- * as the transport of a read query. Six listed tools do a little more, and are
+ * as the transport of a read query. Five listed tools do a little more, and are
  * accepted by name in ACCEPTED_EXCEPTIONS below; the list is not widened past
  * them. arsenalDeepResearch is NOT listed: every fresh run inserts a BrainMemory
  * row (research_<timestamp>) plus an embedding and persona-usage rows, and its
@@ -63,16 +63,15 @@ export const ACCEPTED_EXCEPTIONS: Readonly<Record<string, string>> = {
   last30days: "With the topic 'setup' it installs software on the server and writes its config file there, once (idempotent, server-local, no outside effect).",
   scrapeWebPage: "A replay can issue the same GET to the page a second time.",
   getShopSnapshot: "Reaches nickstire's /api/bridge/shop-snapshot, which can send a Telegram state-transition alert.",
-  suggestMIT: "Reaches the same /api/bridge/shop-snapshot, which can send a Telegram state-transition alert.",
 };
 
 export const READ_ONLY_TOOLS: ReadonlySet<string> = new Set([
   // personal_read
   "getBodyData", "getHealthToday", "getSleepTrend", "getCameraIntelligence", "getCommitments",
-  "getAgendaItems", "getDecisionReplays", "getDecisionsDueForReplay", "getDriftAlerts",
+  "getAgendaItems", "getDriftAlerts",
   "getFinancialSnapshot", "getHabitStreaks", "getMasteryScores", "getMissions",
   "getExternalWorkerJob", "getExternalWorkerLanes", "getMissionDetail",
-  "getProjections", "getTasks", "getTodaySchedule",
+  "getTasks", "getTodaySchedule",
   // ai_analysis (invokeTool and queryData only dispatch tools this list already vouches for)
   "summarize", "getFleetTruth",
   "searchTools", "invokeTool", "queryData",
@@ -86,23 +85,22 @@ export const READ_ONLY_TOOLS: ReadonlySet<string> = new Set([
   "analyzeFitness", "analyzeGoals", "analyzeMentalHealth", "analyzeSleep", "analyzeTrends",
   "analyzeWeightTrend", "analyzeWorkHealth", "classifyThought", "getBlindSpots", "getBrainHealth",
   "getEmotionalState", "getHabitRevenueCorrelation", "getRecentReflections",
-  "searchColdMemory", "searchSkills", "searchConversations", "searchGreeneLaws", "searchMemories",
-  "searchReflections", "toolHealth", "checkAntiPattern", "getPendingRevenueMoves",
+  "searchColdMemory", "searchSkills", "searchGreeneLaws", "searchMemories",
+  "searchReflections", "toolHealth", "checkAntiPattern",
   "analyzeCompetitiveIntel", "analyzeComposure", "analyzePowerDynamics", "getContextualGreeneLaws",
-  "getDarkPsychologyTactics", "getPowerBalanceSummary", "recommendNextMove",
+  "getDarkPsychologyTactics", "getPowerBalanceSummary",
   // planning
-  "checkCommitments", "decisionPreFlight", "getWeeklyTargets", "rankNextActions", "suggestMIT",
+  "checkCommitments", "getWeeklyTargets", "rankNextActions",
   // business_read
-  "compareCompetitors", "getDashboardSummary", "getEstimateLeaks", "getReviewStats",
-  "getRevenueStats", "pricingAdvisorySummary", "scoreLocation", "getTopDecisions",
+  "getDashboardSummary", "getEstimateLeaks", "getReviewStats",
+  "getRevenueStats", "scoreLocation", "getTopDecisions",
   // live_shop
   "compareLiveRevenue", "findCustomer", "getAttentionAlerts", "getGscSummary", "getGscTopQueries",
   "getInstagramAutopostStatus", "getMarketingAttribution", "getShopSnapshot", "queryNickstire",
   // content
-  "renderInlineChart",
   // files
-  "getRepoMap", "githubListFiles", "githubListRepos", "githubReadFile", "githubReadMultiple",
+  "getRepoMap", "githubListFiles", "githubListRepos", "githubReadFile",
   "githubRecentCommits", "githubSearchCode",
   // routines (endOfDay and weeklyReview were once listed as mutating and write nothing)
-  "analyzeWeek", "dailyPulse", "endOfDay", "weeklyReview",
+  "dailyPulse", "endOfDay", "weeklyReview",
 ]);

@@ -65,42 +65,6 @@ export const contentTools = {
   // directly. Bad payloads degrade gracefully to a plain code block —
   // a hallucinated payload never breaks the message.
 
-  renderInlineChart: tool({
-    description:
-      "Render an inline chart in the chat reply. Use whenever Nour asks for a trend / distribution / comparison and the data fits a small (≤60 points) chart. Types: line (continuous over time), sparkline (compact line, no axes — for in-paragraph trend hints), bar (categorical comparison), pie (parts-of-whole, ≤8 slices). Returns markdown that includes a fenced ```chart code block — INCLUDE THE RETURNED MARKDOWN IN YOUR REPLY for it to render.",
-    inputSchema: z.object({
-      type: z.enum(["line", "bar", "sparkline", "pie"]),
-      data: z
-        .array(
-          z.object({
-            label: z.string().min(1).max(40).describe("X-axis label or slice name"),
-            value: z.number().describe("Y-axis value"),
-          }),
-        )
-        .min(1)
-        .max(60)
-        .describe("Data points. Pie: ≤8 slices is readable. Line/bar: ≤30 ideal."),
-      title: z.string().max(80).optional().describe("Optional chart title shown above"),
-      color: z
-        .enum(["gold", "emerald", "rose", "blue", "violet"])
-        .default("gold")
-        .describe("Accent color (pie chart auto-rotates a palette regardless)"),
-    }),
-    execute: async ({ type, data, title, color }) => {
-      const payload = JSON.stringify({ type, data, title, color });
-      // The fenced block IS the render trigger. Returning it as the
-      // tool output means Nick's reply markdown picks it up; the chat
-      // <pre> override (nick-message.tsx) parses + renders <InlineChart/>.
-      return {
-        markdown: `\n\`\`\`chart\n${payload}\n\`\`\`\n`,
-        // Plain summary for non-rendering contexts (search index,
-        // export to JSON, AgentTrace UI rendering when the chart isn't
-        // part of the visible reply).
-        summary: `${title ?? "chart"} · ${type} · ${data.length} point${data.length === 1 ? "" : "s"}`,
-      };
-    },
-  }),
-
   summarize: tool({
     description: "Quickly summarize text, emails, documents, or chat threads",
     inputSchema: z.object({

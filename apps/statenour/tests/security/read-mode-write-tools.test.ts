@@ -32,7 +32,6 @@ const CONFIRMED_WRITE_TOOLS: Array<{ name: string; writes: string }> = [
   { name: "proposeCalendarEvent", writes: "createEvent() → the operator's real Google Calendar, attendees included" },
   { name: "sendTelegram", writes: "outbound Telegram message" },
   { name: "sendOpportunitySms", writes: "customer-facing SMS (behind its own approval receipt)" },
-  { name: "githubCreatePR", writes: "opens a GitHub pull request" },
   { name: "runDeviceCommand", writes: "queues a command to a physical device" },
   { name: "browseAndDo", writes: "drives a headless browser against a live site" },
   { name: "clearMit", writes: "setMit('') soft-deletes today's MIT row (lib/services/mit)" },

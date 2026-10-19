@@ -52,11 +52,6 @@ export class KnowledgeRefreshError extends Error {
 
 const SUBSYSTEMS = [
   {
-    id: "industry",
-    path: "/api/cron/industry-pull",
-    description: "automotive RSS feeds",
-  },
-  {
     id: "stories",
     path: "/api/cron/alg-stories-pull",
     description: "ALG customer stories",

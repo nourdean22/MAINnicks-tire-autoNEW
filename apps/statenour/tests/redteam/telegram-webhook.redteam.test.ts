@@ -1,5 +1,6 @@
 /**
- * RED-TEAM: Telegram webhook + revenue-decision callback (live since #2981).
+ * RED-TEAM: Telegram webhook. (The revenue-decision callback route, covered here until
+ * 2026-10-19, was removed with its cron; only the webhook's own gates remain.)
  *
  * Surface:
  *   app/api/telegram/webhook/route.ts -- secret gate, owner gate, the
@@ -327,13 +328,10 @@ vi.mock("@/lib/ai/gemini-image", () => ({
 vi.mock("@/lib/services/bridge", () => ({ fetchShopSnapshot: vi.fn() }));
 
 import { POST as webhookPOST } from "@/app/api/telegram/webhook/route";
-import { POST as revenuePOST } from "@/app/api/telegram/revenue-decision-callback/route";
-import { etDateKey } from "@/lib/services/revenue-decision-channel";
 
 const SECRET = "redteam-secret-0123456789";
 const OWNER = 4242;
 const WEBHOOK_URL = "http://localhost/api/telegram/webhook";
-const REVENUE_URL = "http://localhost/api/telegram/revenue-decision-callback";
 
 // Untrusted markup a page, an ingested email or a model can carry. A link whose
 // text disagrees with its target, and a spoiler that hides text from the reader.
@@ -348,15 +346,13 @@ function request(url: string, body: unknown, headers?: HeadersInit | null, raw?:
 }
 const webhook = (body: unknown, headers?: HeadersInit | null, raw?: string) =>
   webhookPOST(request(WEBHOOK_URL, body, headers, raw));
-const revenue = (body: unknown, headers?: HeadersInit | null) => revenuePOST(request(REVENUE_URL, body, headers));
 
 let cq = 0;
 const tap = (data: string, from: unknown = { id: OWNER }) =>
   webhook({ callback_query: { id: `cq_${++cq}`, data, from, message: { message_id: 7, chat: { id: OWNER } } } });
 const say = (text: string, extra: Record<string, unknown> = {}) =>
   webhook({ message: { text, chat: { id: OWNER }, from: { id: OWNER }, ...extra } });
-const revenueSay = (text: string, from: unknown = { id: OWNER }, chat: unknown = { id: OWNER }) =>
-  revenue({ message: { text, chat, from } });
+
 
 function gate(): { promise: Promise<void>; release: () => void } {
   let release!: () => void;
@@ -434,13 +430,6 @@ function seedQa(id: string, day: string, queueIndex: number, ageMs = 0) {
     createdAt: new Date(Date.now() - ageMs),
   });
 }
-function seedMove(n = 1) {
-  const date = etDateKey();
-  const key = `move_${date}_${n}`;
-  h.moves.set(key, { id: `bm_${n}`, key, metadata: { status: "pending", date, moveIndex: n, what: "Call the fleet lead" } });
-  return key;
-}
-
 beforeAll(async () => {
   // Warm every dynamic import the handlers make, one at a time, before any
   // gated race starts (a gated race still runs two handlers concurrently).
@@ -571,17 +560,6 @@ describe("1 - secret token gate (both routes)", () => {
     expect(h.tse).toHaveBeenCalledTimes(1);
   });
 
-  it("revenue route: no header -> 401, wrong secret -> 401, nothing decided", async () => {
-    seedMove(1);
-    expect((await revenue({ message: { text: "/approve_1", chat: { id: OWNER }, from: { id: OWNER } } }, null)).status).toBe(401);
-    expect(
-      (await revenue({ message: { text: "/approve_1", chat: { id: OWNER }, from: { id: OWNER } } }, {
-        "x-telegram-bot-api-secret-token": "redteam-secret-0123456780",
-      })).status,
-    ).toBe(401);
-    expect(h.brainMemory.findUnique).not.toHaveBeenCalled();
-    expect(h.moveWrites).toEqual([]);
-  });
 });
 
 // =========================================================================
@@ -635,13 +613,6 @@ describe("2 - owner-only (from.id === TELEGRAM_OWNER_ID)", () => {
     expectInert();
   });
 
-  it("revenue route fails closed on an EMPTY TELEGRAM_OWNER_ID even for from.id 0 (the `|| NaN` guard)", async () => {
-    vi.stubEnv("TELEGRAM_OWNER_ID", "");
-    seedMove(1);
-    await revenueSay("/approve_1", { id: 0 });
-    expect(h.brainMemory.findUnique).not.toHaveBeenCalled();
-  });
-
   // FIXED 2026-10-10, was BYPASS (P3): webhook route.ts:169 is Number(process.env.TELEGRAM_OWNER_ID)
   // without the sibling route's `|| NaN`: an empty (set-but-blank) env coerces
   // to 0, so the owner gate passes any update whose from.id is 0.
@@ -669,20 +640,6 @@ describe("2 - owner-only (from.id === TELEGRAM_OWNER_ID)", () => {
     expect(sentText()).toContain("Nick Commands");
   });
 
-  it("POSITIVE CONTROL (deny): revenue route, a non-owner's /approve_all decides nothing", async () => {
-    seedMove(1);
-    await revenueSay("/approve_all", { id: 999 });
-    expect(h.brainMemory.findMany).not.toHaveBeenCalled();
-    expect(h.moveWrites).toEqual([]);
-    expect(h.telegram.sendTelegram).not.toHaveBeenCalled();
-  });
-
-  it("revenue route: the owner in a foreign chat is dropped when TELEGRAM_CHAT_ID is set", async () => {
-    vi.stubEnv("TELEGRAM_CHAT_ID", String(OWNER));
-    seedMove(1);
-    await revenueSay("/approve_1", { id: OWNER }, { id: -100555 });
-    expect(h.moveWrites).toEqual([]);
-  });
 });
 
 // =========================================================================
@@ -1281,159 +1238,20 @@ describe("6 - HTML in replies (parse_mode HTML)", () => {
 });
 
 // =========================================================================
-// 7. Revenue-decision callback (/approve_N through the real decideMove)
-// =========================================================================
-describe("7 - revenue-decision callback", () => {
-  it("POSITIVE CONTROL (allow): the owner's /approve_1 approves move 1 once", async () => {
-    seedMove(1);
-    await revenueSay("/approve_1");
-    expect(h.moveWrites).toEqual(["approved"]);
-    expect(sentText()).toContain("move 1 \u00b7 <b>approved</b>");
-  });
-
-  it("allow: case-insensitive verb and surrounding whitespace ('/APPROVE_1 ')", async () => {
-    seedMove(1);
-    await revenueSay("  /APPROVE_1 ");
-    expect(h.moveWrites).toEqual(["approved"]);
-  });
-
-  const ignored = [
-    ["a fullwidth digit", "/approve_\uff11"],
-    ["a group-style @bot suffix", "/approve_1@NickBot"],
-    ["a trailing argument", "/approve_all now"],
-    ["a mention mid-sentence", "please /approve_all later"],
-    ["two commands on two lines", "/approve_1\n/reject_1"],
-    ["a negative index", "/approve_-1"],
-  ] as const;
-  for (const [name, text] of ignored) {
-    it(`ignored, nothing decided: ${name}`, async () => {
-      seedMove(1);
-      const res = await revenueSay(text);
-      expect(res.status).toBe(200);
-      expect(h.moveWrites).toEqual([]);
-      expect(h.brainMemory.findMany).not.toHaveBeenCalled();
-    });
-  }
-
-  it("a replayed /approve_1 is a no-op: 'already approved', one write", async () => {
-    seedMove(1);
-    await revenueSay("/approve_1");
-    await revenueSay("/approve_1");
-    expect(h.moveWrites).toEqual(["approved"]);
-    expect(sentText()).toContain("move 1 was already approved");
-  });
-
-  // FIXED 2026-10-10, was BYPASS (P3): lib/services/revenue-decision-channel.ts:624-670 decideMove is
-  // check-then-act (findUnique -> unconditional update). Two decisions that
-  // read "pending" both write, both reply as fresh decisions, last write wins.
-  it("/approve_1 racing /reject_1: one decision lands, the other is told 'already' (was: both write)", async () => {
-    seedMove(1);
-    const g = gate();
-    h.gates.moveRead = g.promise;
-    const first = revenueSay("/approve_1");
-    await vi.waitFor(() => expect(h.brainMemory.findUnique).toHaveBeenCalledTimes(1));
-    await revenueSay("/reject_1");
-    g.release();
-    await first;
-    expect(h.moveWrites).toHaveLength(1);
-    expect(sentText()).toMatch(/was already (approved|rejected)/);
-  });
-
-  // FIXED 2026-10-10, was BYPASS (P3): revenue-decision-channel.ts:663-672 swallows the update error
-  // and returns { ok: true, status: decision }; the route then tells the
-  // operator "move 1 - approved" while the row still says pending.
-  it("a failed write is not reported as 'approved' (was: 'move 1 - approved')", async () => {
-    seedMove(1);
-    h.flags.failMoveUpdate = true;
-    await revenueSay("/approve_1");
-    expect(h.moves.get(`move_${etDateKey()}_1`)?.metadata.status).toBe("pending");
-    expect(sentText()).not.toContain("<b>approved</b>");
-    expect(sentText()).toContain("write_failed");
-  });
-
-  it("a failed READ is reported as read_failed, not as a missing move", async () => {
-    seedMove(1);
-    h.flags.failMoveRead = true;
-    await revenueSay("/approve_1");
-    expect(h.moveWrites).toEqual([]);
-    expect(sentText()).toContain("read_failed");
-    expect(sentText()).not.toContain("move_not_found");
-  });
-
-  it("the decision write is pinned to the status it read (compare-and-swap, not an update by key alone)", async () => {
-    seedMove(1);
-    await revenueSay("/approve_1");
-    expect(h.brainMemory.update.mock.calls[0]?.[0]).toMatchObject({
-      where: { metadata: { path: ["status"], equals: "pending" } },
-    });
-  });
-
-  // FIXED 2026-10-10 (S10), was OPEN: replyToOperator rendered every
-  // { ok: false } as "move N not found", so a failed read or write said
-  // "not found" -- not a false "approved", but not the truth either.
-  it("route wording: a failed write says 'not saved', never 'not found'", async () => {
-    seedMove(1);
-    h.flags.failMoveUpdate = true;
-    await revenueSay("/approve_1");
-    expect(sentText()).toContain("move 1 not saved");
-    expect(sentText()).not.toContain("not found");
-  });
-
-  it("route wording: a failed read says the move could not be read, never 'not found'", async () => {
-    seedMove(1);
-    h.flags.failMoveRead = true;
-    await revenueSay("/reject_1");
-    expect(sentText()).toContain("could not read move 1");
-    expect(sentText()).not.toContain("not found");
-  });
-
-  it("CONTROL: a move that does not exist still says 'not found', and nothing is written", async () => {
-    await revenueSay("/approve_7");
-    expect(h.moveWrites).toEqual([]);
-    expect(sentText()).toContain("move 7 not found");
-  });
-
-  // FIXED 2026-10-10 (S10), was OPEN: the revenue route dispatched a FORWARDED
-  // "/approve_1" as the owner's own command (the webhook treats forwards as
-  // content). Each forward marker alone must be enough: Bot API 7+ sends only
-  // forward_origin, older payloads sent forward_from / forward_date.
-  const forwards = [
-    ["forward_from + forward_date", "/approve_1", { forward_date: 1, forward_from: { id: 999 } }],
-    ["forward_origin only (Bot API 7+)", "/approve_1", { forward_origin: { type: "user", date: 1, sender_user: { id: 999 } } }],
-    ["forward_date only (hidden sender)", "/reject_1", { forward_date: 1 }],
-    ["forward_from only", "/approve_1", { forward_from: { id: 999 } }],
-    ["a forwarded bulk '/approve_all'", "/approve_all", { forward_origin: { type: "hidden_user", date: 1, sender_user_name: "x" } }],
-  ] as const;
-  for (const [name, text, fwd] of forwards) {
-    it(`a forwarded command decides nothing and lists nothing: ${name}`, async () => {
-      seedMove(1);
-      const res = await revenue({ message: { text, chat: { id: OWNER }, from: { id: OWNER }, ...fwd } });
-      expect(res.status).toBe(200);
-      expect(h.moveWrites).toEqual([]);
-      expect(h.brainMemory.findUnique).not.toHaveBeenCalled();
-      expect(h.brainMemory.findMany).not.toHaveBeenCalled();
-    });
-  }
-});
-
-// =========================================================================
 // 8. Secret env unset -> 503 (fresh module instances; runs last)
 // =========================================================================
 describe("8 - TELEGRAM_WEBHOOK_SECRET unset", () => {
-  it("both routes refuse every request with 503 ENV_MISSING, even one carrying an empty header", async () => {
+  it("the webhook refuses every request with 503 ENV_MISSING, even one carrying an empty header", async () => {
     vi.stubEnv("TELEGRAM_WEBHOOK_SECRET", "");
     vi.resetModules();
     const fresh = await import("@/app/api/telegram/webhook/route");
-    const freshRevenue = await import("@/app/api/telegram/revenue-decision-callback/route");
     seedStagedSms();
     const a = await fresh.POST(
       request(WEBHOOK_URL, { callback_query: { id: "c", data: "approve:rcpt_sms", from: { id: OWNER } } }, {
         "x-telegram-bot-api-secret-token": "",
       }),
     );
-    const b = await freshRevenue.POST(request(REVENUE_URL, { message: { text: "/approve_all", chat: { id: OWNER }, from: { id: OWNER } } }, null));
     expect(a.status).toBe(503);
-    expect(b.status).toBe(503);
     expect((await a.json()).code).toBe("ENV_MISSING");
     expect(h.callNickstire).not.toHaveBeenCalled();
     expect(h.receipts.get("rcpt_sms")?.status).toBe("PENDING");
