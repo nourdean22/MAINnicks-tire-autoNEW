@@ -36,7 +36,8 @@ function ClipPoster({ item, className }: { item: ShopMediaItem; className: strin
   return <video src={`${item.url}#t=0.1`} muted playsInline preload="metadata" aria-hidden="true" className={`${className} bg-muted object-cover`} />;
 }
 
-export default function RealClipPicker({ beat, onChange }: { beat: RealClipBeat; onChange: (patch: RealClipPatch) => void }) {
+// Props are optional because generic mounts (admin.test.tsx's render matrix) pass none; without a beat to bind there is nothing to show.
+export default function RealClipPicker({ beat, onChange }: { beat?: RealClipBeat; onChange?: (patch: RealClipPatch) => void }) {
   const [open, setOpen] = useState(false);
   const [chosen, setChosen] = useState<ShopMediaItem | null>(null);
   const clips = trpc.shopMedia.list.useInfiniteQuery(
@@ -44,6 +45,8 @@ export default function RealClipPicker({ beat, onChange }: { beat: RealClipBeat;
     { enabled: open, staleTime: 60_000, getNextPageParam: (last) => last.nextCursor ?? undefined },
   );
   const items = clips.data?.pages.flatMap((page) => page.items) ?? [];
+
+  if (!beat || !onChange) return null;
 
   const boundId = beat.realAssetId?.trim() || null;
   const bound = boundId ? (chosen?.assetId === boundId ? chosen : items.find((i) => i.assetId === boundId) ?? null) : null;

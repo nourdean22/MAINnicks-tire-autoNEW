@@ -38,7 +38,7 @@ const PEOPLE_OPTIONS: Array<{ value: string; label: string }> = [
 type Decision = "approve" | "reject";
 
 /** The server's skip reasons (shared/shopMedia.ts), in words a person can act on. */
-export function skipReasonInWords(reason: string): string {
+function skipReasonInWords(reason: string): string {
   const [code, detail] = reason.split(":");
   switch (code) {
     case "not_found": return "no longer in the library";
