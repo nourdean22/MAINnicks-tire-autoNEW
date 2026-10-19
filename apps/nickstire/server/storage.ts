@@ -54,6 +54,69 @@ export function publicObjectUrl(key: string): string {
   return `${siteUrl}/generated/${normalizeKey(key)}`;
 }
 
+/**
+ * The object key behind `raw` when it is a public URL of OUR object storage under one of
+ * `keyPrefixes` (each like "photo-check/"), else null.
+ *
+ * Compared as parsed URLs, never as strings: the origin must be exactly the one storagePut builds
+ * (SITE_URL's /generated/ proxy, or the CloudFront domain), https only, no userinfo, and the
+ * pathname (the parser has already resolved dot segments, encoded ones included) must sit under the
+ * prefix. A string prefix test passes `<our host>/generated/photo-check/../backups/x` and
+ * `https://<our host>@evil.example/`. The key must be plain (our uploads only ever write
+ * [A-Za-z0-9._-] and slashes), so a percent-encoded spelling is refused rather than decoded.
+ * Presigned S3 URLs (no proxy, no CDN) are not recognised: they carry the bucket's own host, expire
+ * in a day, and are not what production hands out (it serves the proxy, see servesPermanentUrls).
+ */
+export function ownObjectKey(raw: string, keyPrefixes: readonly string[]): string | null {
+  let u: URL;
+  try {
+    u = new URL(raw);
+  } catch {
+    return null;
+  }
+  if (u.protocol !== "https:" || u.username || u.password) return null;
+  const cdn = process.env.CLOUDFRONT_DOMAIN;
+  for (const store of [publicObjectUrl(""), ...(cdn ? [`https://${cdn}/`] : [])]) {
+    let root: URL;
+    try {
+      root = new URL(store);
+    } catch {
+      continue;
+    }
+    if (u.origin !== root.origin || !u.pathname.startsWith(root.pathname)) continue;
+    const key = u.pathname.slice(root.pathname.length);
+    if (!/^[\w./-]+$/.test(key) || key.split("/").some((seg) => seg === ".." || seg === ".")) return null;
+    if (keyPrefixes.some((prefix) => key.startsWith(prefix))) return key;
+  }
+  return null;
+}
+
+/**
+ * Remove one stored object: the S3 object when a bucket is configured, else the local
+ * data/generated file. A missing local file is not an error. Throws on any other failure; the
+ * caller decides whether that matters.
+ */
+export async function storageDelete(relKey: string): Promise<void> {
+  const key = normalizeKey(relKey);
+  const bucket = process.env.S3_BUCKET;
+  if (bucket) {
+    const { DeleteObjectCommand } = await import("@aws-sdk/client-s3");
+    const s3 = await getS3Client();
+    await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
+    return;
+  }
+  const path = await import("path");
+  const fs = await import("fs");
+  const genDir = path.join(process.cwd(), "data", "generated");
+  const localPath = path.resolve(genDir, key);
+  if (!localPath.startsWith(genDir + path.sep)) throw new Error(`storageDelete: key escapes the generated directory: ${key}`);
+  try {
+    await fs.promises.unlink(localPath);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+  }
+}
+
 function getBucket(): string {
   const bucket = process.env.S3_BUCKET;
   if (!bucket) {

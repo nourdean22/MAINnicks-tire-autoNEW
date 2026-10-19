@@ -59,10 +59,10 @@ describe("inngest-liveness · a throwing probe is never silent", () => {
   });
 
   it("BREAKS: a capability probe that throws alerts (unknown, not healthy)", async () => {
-    h.throwOn.add("briefingLog"); // the daily-brief probe
+    h.throwOn.add("registeredSource"); // the intelligence-ingest probe
     const out = await run();
     expect(out.ok).toBe(false);
-    expect(sent()).toMatch(/daily-brief: unknown/);
+    expect(sent()).toMatch(/intelligence-ingest: unknown/);
   });
 
   it("BREAKS: a heartbeat probe that throws alerts as UNKNOWN, not as 'scheduler DOWN'", async () => {

@@ -101,14 +101,14 @@ const regenerateButtons = (messages: ChatUIMessage[]) =>
   ).split('aria-label="Regenerate reply"').length - 1;
 
 const user: ChatUIMessage = { id: "u1", role: "user", parts: [{ type: "text", text: "text Brennen a quote" }] };
-// createQuickQuote is flagged sideEffecting in TOOL_CATALOG.
+// stageCustomerAlert is flagged sideEffecting in TOOL_CATALOG.
 const stalledToolTurn = (): ChatUIMessage[] => [
   user,
   {
     id: "live-1",
     role: "assistant",
     parts: [
-      { type: "tool-createQuickQuote", toolCallId: "t1", state: "output-available", input: {}, output: {} },
+      { type: "tool-stageCustomerAlert", toolCallId: "t1", state: "output-available", input: {}, output: {} },
       { type: "text", text: "Sent the" },
     ],
   } as ChatUIMessage,

@@ -21,6 +21,7 @@ import Strategy from "./Strategy";
 import AutonomyCommandCenter from "@/components/admin/AutonomyCommandCenter";
 import ActionCenter from "./ActionCenter";
 import { Pipeline } from "./Pipeline";
+import { PhotoCheckCard } from "./PhotoCheckCard";
 import ErrorBoundary from "@/components/ErrorBoundary";
 
 /**
@@ -175,6 +176,17 @@ export function InstagramAdmin() {
         switching tabs CLEARS a caught error instead of stranding the operator on
         the fallback until a full reload.
       */}
+      {/* Photo check stays mounted across views, hidden off Create: a branded render takes about a
+          minute and spends a credit, and unmounting mid-render would drop the picture it paid for.
+          Its own boundary, unkeyed, because the per-view one below remounts on every tab switch. */}
+      <div hidden={activeView !== "create"} className="mb-4">
+        <ErrorBoundary
+          fallback={<p className="p-4 text-sm text-muted-foreground">Photo check failed to render. Reload the page to use it.</p>}
+        >
+          <PhotoCheckCard />
+        </ErrorBoundary>
+      </div>
+
       <ErrorBoundary
         key={activeView}
         fallback={

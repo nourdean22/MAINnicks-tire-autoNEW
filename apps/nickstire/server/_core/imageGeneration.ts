@@ -16,6 +16,10 @@ export type GenerateImageOptions = {
 
 export type GenerateImageResponse = {
   url?: string;
+  /** Which backend actually answered: one call can start on Gemini and finish on the OpenAI fallback. */
+  provider?: "gemini" | "openai";
+  /** The model id that branch requested. */
+  model?: string;
 };
 
 export async function generateImage(
@@ -71,7 +75,7 @@ export async function generateImage(
           buffer,
           mimeType
         );
-        return { url: storageUrl };
+        return { url: storageUrl, provider: "gemini", model };
       }
     }
   }
@@ -120,5 +124,5 @@ export async function generateImage(
     "image/png"
   );
 
-  return { url };
+  return { url, provider: "openai", model: "dall-e-3" };
 }

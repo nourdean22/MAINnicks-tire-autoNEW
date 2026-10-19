@@ -11,12 +11,10 @@
  * Coverage matrix (4+ render tests required by the spec):
  *   1. CostSloTile  · loading skeleton (state.kind = "loading")
  *   2. CostSloTile  · happy state with sparkline data
- *   3. VoiceLatencyTile · red tier on P50 > 800ms
- *   4. VoiceLatencyTile · empty state · "no calls in window" hint
  *   5. EvalPassRateTile · error state surfaces the error text
  *   6. EvalPassRateTile · happy state with worst-category meta
  *   7. OsDriftTile · happy state shows row labels + deltas
- *   8. Pure helpers · formatUsd · latencyTier · passRateTier · signedDelta
+ *   8. Pure helpers · formatUsd · passRateTier · signedDelta
  *
  * Why not @testing-library/react? Adding it would mean adding jsdom +
  * testing-library — two new top-level deps for what these tests need
@@ -28,13 +26,11 @@ import { describe, it, expect } from "vitest";
 import { renderToString } from "react-dom/server";
 
 import { CostSloTile } from "@/components/ultron/observability/cost-slo-tile";
-import { VoiceLatencyTile } from "@/components/ultron/observability/voice-latency-tile";
 import { EvalPassRateTile } from "@/components/ultron/observability/eval-pass-rate-tile";
 import { OsDriftTile } from "@/components/ultron/observability/os-drift-tile";
 import {
   classifyEvals,
   formatUsd,
-  latencyTier,
   passRateTier,
   signedDelta,
 } from "@/hooks/use-observability";
@@ -78,42 +74,6 @@ describe("CostSloTile", () => {
     const norm = (s: string) => s.replace(/<!--\s*-->/g, "");
     expect(norm(html)).toMatch(/25% of cap/);
     expect(norm(html)).toMatch(/top conv/i);
-  });
-});
-
-describe("VoiceLatencyTile", () => {
-  it("renders red tier when P50 breaches the 800ms ceiling", () => {
-    const html = renderToString(
-      <VoiceLatencyTile
-        state={{
-          kind: "ready",
-          data: {
-            p50Ms: 950,
-            p95Ms: 1400,
-            recentMs: [810, 880, 920, 950],
-            breachStreak: 4,
-            redThresholdMs: 800,
-            amberThresholdMs: 500,
-          },
-        }}
-      />,
-    );
-    const norm = (s: string) => s.replace(/<!--\s*-->/g, "");
-    expect(html).toContain("950");
-    expect(html).toMatch(/broken/i); // tier text label
-    expect(norm(html)).toMatch(/p95 1400ms/);
-    // Streak ≥ 3 → "investigate" copy
-    expect(norm(html)).toMatch(/investigate/i);
-  });
-
-  it("renders empty state pointing at the shop admin", () => {
-    // 2026-10-02 · voice runs on nickstire; statenour's table has no writer,
-    // so "no calls" read as "no traffic" when the phone line was busy.
-    const html = renderToString(<VoiceLatencyTile state={{ kind: "empty" }} />);
-    expect(html).toMatch(/voice latency/i);
-    expect(html).toMatch(/measured in the shop admin/i);
-    expect(html).not.toMatch(/no calls/i);
-    expect(html).toMatch(/endpoint quiet/i);
   });
 });
 
@@ -298,22 +258,6 @@ describe("formatUsd", () => {
   it("falls back to em-dash on invalid input", () => {
     expect(formatUsd(NaN)).toBe("—");
     expect(formatUsd(-1)).toBe("—");
-  });
-});
-
-describe("latencyTier", () => {
-  it("green below amber threshold", () => {
-    expect(latencyTier(420, 500, 800)).toBe("green");
-  });
-  it("amber when between thresholds", () => {
-    expect(latencyTier(600, 500, 800)).toBe("amber");
-  });
-  it("red at or above red threshold", () => {
-    expect(latencyTier(800, 500, 800)).toBe("red");
-    expect(latencyTier(1200, 500, 800)).toBe("red");
-  });
-  it("green when latency is zero (no data yet)", () => {
-    expect(latencyTier(0, 500, 800)).toBe("green");
   });
 });
 

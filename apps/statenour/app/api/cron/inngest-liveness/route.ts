@@ -131,9 +131,9 @@ export const GET = cronHandler(async () => {
   const title = "Inngest scheduler appears DOWN";
   const body =
     `cron-heartbeat's proof-of-life row is ${ageLabel} (max ${Math.round(maxAgeH)}h). ` +
-    `The Inngest-scheduled fleet (briefs, pushes, sweeper, watchdog) is likely not firing. ` +
+    `The Inngest-scheduled fleet (ingestion, pushes, sweeper, watchdog) is likely not firing. ` +
     `Runbook: curl -X PUT https://bdnick.info/api/inngest (re-sync), then verify ` +
-    `briefing_log gains a row after the next 10:15 UTC. ` +
+    `a registered source's last_fetched advances after the next 10:15 UTC (intelligence-ingest). ` +
     `History: docs/audits/2026-07-28-cron-truth.md.`;
   const alerted = await sendTelegram(formatTelegramNotification(title, body, "high"));
   if (!alerted) {

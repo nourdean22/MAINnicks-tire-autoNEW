@@ -19,7 +19,7 @@ import { useState, useCallback } from "react";
 import { Panel } from "@/components/panel";
 import { StandardPage } from "@/components/layout/standard-page";
 import { cn } from "@/lib/utils/cn";
-import { Upload, Loader2, AlertCircle, Sparkles, Send, Image as ImageIcon, Wand2 } from "lucide-react";
+import { Upload, Loader2, AlertCircle, Sparkles, Image as ImageIcon, Wand2 } from "lucide-react";
 import Link from "next/link";
 
 // misc-pages slice (2026-05-22) · the analyze/rebrand run moved off
@@ -367,12 +367,6 @@ export default function PhotoImproverPage() {
             />
           </a>
           <div className="flex gap-1 flex-wrap mt-3">
-            <Link
-              href={`/content?tab=publish&imageUrl=${encodeURIComponent(data.rebrandedImageUrl ?? `/api/images/${data.rebrandedImageId}`)}`}
-              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
-            >
-              <Send className="h-3 w-3" /> publish
-            </Link>
             <Link
               href={`/chat?prompt=${encodeURIComponent(`Caption this image at ${data.rebrandedImageUrl ?? `/api/images/${data.rebrandedImageId}`} for Instagram. Use Nick's Tire voice + Cleveland tags + CTA.`)}`}
               className="inline-flex min-h-[44px] items-center gap-1.5 rounded-control border border-edge-default bg-content px-3 py-2 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"

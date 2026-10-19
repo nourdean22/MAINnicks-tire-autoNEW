@@ -7,4 +7,7 @@ export const UNBATCHED_SLOW_PROCEDURES = new Set<string>([
   "instagramAdmin.getPerformanceReport",
   // LLM-backed hourly digest, polled every minute on Lot: batched, it would hold every Lot read.
   "lot.officeDigest",
+  // Vision scorecard and image render for the Photo check card: tens of seconds each, own request.
+  "instagramStudio.checkPhoto",
+  "instagramStudio.brandedPhoto",
 ]);

@@ -33,7 +33,7 @@ vi.mock("@/lib/logger", () => ({
   logger: { withSurface: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }) },
 }));
 
-import { runHeartbeatSentinel, STALE_AFTER_MS, GET } from "@/app/api/cron/device-heartbeat-sentinel/route";
+import { runHeartbeatSentinel, alertLinkFor, STALE_AFTER_MS, GET } from "@/app/api/cron/device-heartbeat-sentinel/route";
 
 const NOW = new Date("2026-09-08T16:00:00Z");
 const SILENT = {
@@ -42,6 +42,7 @@ const SILENT = {
   platformDeviceId: "v380-shopsign",
   lastSeenAt: new Date(NOW.getTime() - STALE_AFTER_MS - 60_000),
   metadata: { source: "V380" },
+  location: "shop",
 };
 
 describe("device-heartbeat-sentinel", () => {
@@ -77,6 +78,16 @@ describe("device-heartbeat-sentinel", () => {
     expect(res.ok).toBe(true);
   });
 
+  it("links a shop device to the admin Lot and a home device to /system/health", async () => {
+    const home = { ...SILENT, id: "cmn-kitchen", name: "Kitchen Camera", platformDeviceId: "v380-kitchen", location: "home-kitchen" };
+    db.smartDevice.findMany.mockResolvedValueOnce([SILENT, home]).mockResolvedValueOnce([]);
+    await runHeartbeatSentinel(NOW);
+    const pushes = mockSendPush.mock.calls.map((c) => c[0] as { tag: string; url: string });
+    expect(pushes.find((p) => p.tag === "device-offline:v380-shopsign")?.url).toBe("https://nickstire.org/admin?tab=lot");
+    expect(pushes.find((p) => p.tag === "device-offline:v380-kitchen")?.url).toBe("https://bdnick.info/system/health");
+    expect(alertLinkFor("Office")).toBe("https://nickstire.org/admin?tab=lot");
+    expect(alertLinkFor(null)).toBe("https://bdnick.info/system/health");
+  });
   it("never-reported devices cannot be candidates: the stale query requires lastSeenAt < cutoff and status ONLINE", async () => {
     await runHeartbeatSentinel(NOW);
     const staleWhere = db.smartDevice.findMany.mock.calls[0][0].where;

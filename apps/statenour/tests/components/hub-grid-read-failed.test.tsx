@@ -53,7 +53,7 @@ describe("hub grid · a failed rollup read is unknown, not a dash", () => {
 
   it("static verb chips are untouched by a failed read", () => {
     stub.hub = { data: undefined, isError: true };
-    expect(render()).toContain(">browse</span>");
+    expect(render()).toContain(">audit</span>");
   });
 });
 

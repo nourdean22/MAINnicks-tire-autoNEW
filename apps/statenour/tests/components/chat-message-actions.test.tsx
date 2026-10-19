@@ -153,8 +153,8 @@ describe("ChatMessageList · visible per-message actions", () => {
         role: "assistant",
         parts: [
           { type: "text", text: "Sent." },
-          // createQuickQuote is flagged sideEffecting in TOOL_CATALOG.
-          { type: "tool-createQuickQuote", state: "output-available", output: {} },
+          // stageCustomerAlert is flagged sideEffecting in TOOL_CATALOG.
+          { type: "tool-stageCustomerAlert", state: "output-available", output: {} },
         ],
       },
     ] as unknown as UIMessage[];

@@ -1,9 +1,9 @@
 /**
  * Daily Executive Brief composer · AG-40 (2026-07-09)
  *
- * ONE compose function for the classic drift pair: the inngest daily
- * cron (lib/inngest/functions/intelligence-brief.ts) and the manual
- * owner route (app/api/intelligence/briefs/generate) each hand-rolled
+ * ONE compose function for what used to be a drift pair (the daily brief cron and
+ * the manual owner route, both since removed; 2026-10-18 the only caller left is the
+ * manual `triggerBrief` Nick tool). Each had hand-rolled
  * the compose step — and they had already drifted: the manual route
  * still carried the PRE-AG-02 prompt with no grounding rule and a
  * different section contract, so a manually-generated brief could
@@ -168,7 +168,7 @@ async function loadWeatherSignal(): Promise<WeatherSignal | null> {
  */
 export const REASON_ATTEMPT_MS = 100_000;
 export const FAST_ATTEMPT_MS = 25_000;
-/** Outer backstop in intelligence-brief.ts; must exceed both attempts + gather. */
+/** Outer backstop for a caller that wraps the compose in a timer (the triggerBrief tool); must exceed both attempts + gather. */
 export const COMPOSE_STEP_TIMEOUT_MS = 140_000;
 
 const BRIEF_TELEMETRY = {
@@ -340,7 +340,7 @@ ${claims.map((c) => `- [CLAIM] ${c.text} (Confidence: ${c.confidence})`).join("\
 
   // P1 FROM REVIEW: the queue must survive a generation failure. This used to
   // let generateText reject, which sent the whole call into the caller's catch
-  // in intelligence-brief.ts - and that fallback narrative has no queue counts.
+  // of whichever caller wraps this compose (the triggerBrief tool) - and that fallback narrative has no queue counts.
   // So a provider outage dropped the deterministic section, which is precisely
   // the thing that was supposed to be undroppable. Counting it first is
   // worthless if the return path can still discard it.

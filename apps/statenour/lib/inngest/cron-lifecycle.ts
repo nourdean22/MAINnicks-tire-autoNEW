@@ -558,7 +558,7 @@ async function warn(stage: string, meta: Record<string, unknown>, e: unknown): P
  * of a row is enabled. A killed event run returns the skip shape and its event
  * is NOT replayed.
  */
-export const KILLABLE_EVENT_FUNCTIONS = new Set<string>(["social-publish", "bulk-sms-approval", "nick-action-approved"]);
+export const KILLABLE_EVENT_FUNCTIONS = new Set<string>(["social-publish", "nick-action-approved"]);
 
 export const KILL_SWITCH_SKIP_REASON = "disabled via settings";
 export const KILL_SWITCH_TTL_MS = 30_000;

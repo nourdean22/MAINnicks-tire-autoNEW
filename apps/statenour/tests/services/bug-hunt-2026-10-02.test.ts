@@ -74,8 +74,7 @@ describe("source pins for fixes that live in SQL text or prompts", () => {
     const src = read("lib/brain/semantic-link.ts");
     expect(src).not.toContain("since7d.toISOString()");
   });
-  it("the combined brief and the proactive pushes ledger a DATED summary", () => {
-    expect(read("lib/inngest/functions/intelligence-brief.ts")).toContain("summary: `daily brief ${briefContent.date} · ");
+  it("the proactive pushes ledger a DATED summary", () => {
     expect(read("lib/brain/proactive-pushes.ts")).toMatch(/summary: `\$\{new Date\(\)\.toLocaleDateString\("en-CA"/);
   });
   it("diagnose-cron-failure leaves declared degradation to the owner panel", () => {

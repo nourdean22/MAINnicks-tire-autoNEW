@@ -72,11 +72,9 @@ export function homeRouteFor(ref: EntityRef): string {
     case "cron":
       return "/system/crons";
     case "tool":
-      return "/system/tools";
+      return "/system/actions";
     case "device":
       return "/system";
-    case "content":
-      return "/content?tab=drafts";
     default:
       return "/";
   }

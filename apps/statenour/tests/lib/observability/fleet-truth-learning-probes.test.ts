@@ -15,13 +15,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const intelligenceOutcomeFindFirst = vi.fn();
 const realityEventFindFirst = vi.fn();
+const registeredSourceFindFirst = vi.fn();
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     intelligenceOutcome: { findFirst: (a: unknown) => intelligenceOutcomeFindFirst(a) },
     realityEvent: { findFirst: (a: unknown) => realityEventFindFirst(a) },
     // The pre-existing probes read these; answer "fresh" so they stay out of the way.
-    briefingLog: { findFirst: async () => ({ createdAt: new Date() }) },
+    registeredSource: { findFirst: (a: unknown) => registeredSourceFindFirst(a) },
     cronJobLog: { findFirst: async () => ({ createdAt: new Date() }) },
   },
 }));
@@ -44,8 +45,10 @@ async function stateOf(capability: string) {
 beforeEach(() => {
   intelligenceOutcomeFindFirst.mockReset();
   realityEventFindFirst.mockReset();
+  registeredSourceFindFirst.mockReset();
   intelligenceOutcomeFindFirst.mockResolvedValue({ shownAt: hoursAgo(1) });
   realityEventFindFirst.mockResolvedValue({ createdAt: hoursAgo(1) });
+  registeredSourceFindFirst.mockResolvedValue({ lastFetched: hoursAgo(1) });
 });
 
 describe("intelligence-outcomes probe (outcome ledger)", () => {
@@ -115,5 +118,43 @@ describe("reality-events probe (reality ledger)", () => {
     expect((await stateOf("reality-events")).state).toBe("never_produced");
     realityEventFindFirst.mockRejectedValue(new Error("timeout"));
     expect((await stateOf("reality-events")).state).toBe("unknown");
+  });
+});
+
+describe("intelligence-ingest probe (replaced daily-brief, 2026-10-18)", () => {
+  it("is registered with a 26h window (liveness runs 2.75h after the ingest) and the brief probe is gone", () => {
+    expect(STATENOUR_ARTIFACT_PROBES.find((a) => a.capability === "intelligence-ingest")?.maxAgeH).toBe(26);
+    expect(STATENOUR_ARTIFACT_PROBES.some((a) => a.capability === "daily-brief")).toBe(false);
+  });
+
+  it("CONTROL: a source fetched an hour ago reads fresh", async () => {
+    expect((await stateOf("intelligence-ingest")).state).toBe("fresh");
+  });
+
+  it("CONTROL: 25h old (a normal day at liveness time) is still fresh", async () => {
+    registeredSourceFindFirst.mockResolvedValue({ lastFetched: hoursAgo(25) });
+    expect((await stateOf("intelligence-ingest")).state).toBe("fresh");
+  });
+
+  it("RED CASE: 27h old (one missed day at liveness time) reads STALE", async () => {
+    registeredSourceFindFirst.mockResolvedValue({ lastFetched: hoursAgo(27) });
+    expect((await stateOf("intelligence-ingest")).state).toBe("stale");
+  });
+
+  it("EMPTY is never healthy: no fetched source reads never_produced", async () => {
+    registeredSourceFindFirst.mockResolvedValue(null);
+    expect((await stateOf("intelligence-ingest")).state).toBe("never_produced");
+  });
+
+  it("a thrown read is UNKNOWN, never healthy", async () => {
+    registeredSourceFindFirst.mockRejectedValue(new Error("db down"));
+    expect((await stateOf("intelligence-ingest")).state).toBe("unknown");
+  });
+
+  it("reads the newest fetch of any source (ignores never-fetched rows)", async () => {
+    await stateOf("intelligence-ingest");
+    expect(registeredSourceFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { lastFetched: { not: null } }, orderBy: { lastFetched: "desc" } }),
+    );
   });
 });

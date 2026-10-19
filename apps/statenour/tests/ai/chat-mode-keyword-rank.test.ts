@@ -75,9 +75,9 @@ let SCORES: Record<string, number> = {};
  * the production defect could not express.
  */
 const FULL_BUSINESS_SCORES: Record<string, number> = {
-  triageStaleLead: 0.95,
-  stageCustomerAlert: 0.92,
-  queryNickstire: 0.9,
+  stageCustomerAlert: 0.95,
+  queryNickstire: 0.92,
+  getShopSnapshot: 0.9,
   // 2026-09-19 · was 0.05, which made it the FOURTH-highest score. That was
   // fine while the budget left exactly 3 tier-4 slots, and silently wrong the
   // moment the CORE demotion freed more: at 5 slots it survived on merit and
@@ -87,13 +87,11 @@ const FULL_BUSINESS_SCORES: Record<string, number> = {
   // time the guaranteed-tier list moves.
   arsenalFindLeads: 0.001,
   compareLiveRevenue: 0.04,
-  createQuickQuote: 0.03,
   findCustomer: 0.02,
   getEstimateLeaks: 0.02,
   getHabitRevenueCorrelation: 0.01,
   getPendingRevenueMoves: 0.01,
   getRevenueStats: 0.01,
-  getShopSnapshot: 0.01,
 };
 
 const EMBEDDING = [0.1, 0.2, 0.3];
@@ -226,7 +224,7 @@ describe("pruneTools · relevance survives the budget cliff", () => {
     process.env.NICK_TOOL_BUDGET = TIGHT_BUDGET;
     const names = await offered(PROMPT);
     expect(names).toContain("arsenalFindLeads"); // first alphabetically
-    expect(names).not.toContain("triageStaleLead"); // last alphabetically
+    expect(names).not.toContain("stageCustomerAlert"); // last alphabetically
   });
 
   it("THE FIX: a high-scoring late-alphabet tool survives; a low-scoring early one is cut", async () => {
@@ -239,7 +237,7 @@ describe("pruneTools · relevance survives the budget cliff", () => {
     const names = await offered(PROMPT, EMBEDDING);
 
     expect(names, "the three most relevant tools must survive truncation").toEqual(
-      expect.arrayContaining(["triageStaleLead", "stageCustomerAlert", "queryNickstire"]),
+      expect.arrayContaining(["stageCustomerAlert", "queryNickstire", "getShopSnapshot"]),
     );
     expect(names, "alphabetical-but-irrelevant tools must lose their slots").not.toContain(
       "arsenalFindLeads",
@@ -249,16 +247,16 @@ describe("pruneTools · relevance survives the budget cliff", () => {
   it("a COLD cache falls back to alphabetical rather than ranking on partial data", async () => {
     process.env.NICK_TOOL_BUDGET = TIGHT_BUDGET;
     cacheWarm = false;
-    SCORES = { triageStaleLead: 0.99 };
+    SCORES = { stageCustomerAlert: 0.99 };
     const names = await offered(PROMPT, EMBEDDING);
     expect(names).toContain("arsenalFindLeads");
-    expect(names).not.toContain("triageStaleLead");
+    expect(names).not.toContain("stageCustomerAlert");
   });
 
   it("MEMBERSHIP IS UNCHANGED when the budget does not truncate", async () => {
     // The guarantee that makes this a performance fix and not a capability
     // change: ranking may reorder, but it may never add or remove a tool.
-    SCORES = { triageStaleLead: 0.99, arsenalFindLeads: 0.01 };
+    SCORES = { stageCustomerAlert: 0.99, arsenalFindLeads: 0.01 };
     const ranked = await offered(PROMPT, EMBEDDING);
     const plain = await offered(PROMPT);
     expect([...ranked].sort()).toEqual([...plain].sort());
@@ -282,7 +280,7 @@ describe("pruneTools · relevance survives the budget cliff", () => {
     const turn = recordToolSelection.mock.calls[0][0];
     const byName = new Map(turn.decisions.map((d: { toolName: string }) => [d.toolName, d]));
 
-    const kept = byName.get("triageStaleLead") as { rank?: number; score?: number; verdict: string };
+    const kept = byName.get("stageCustomerAlert") as { rank?: number; score?: number; verdict: string };
     expect(kept.verdict).toBe("ALLOWED");
     expect(kept.rank).toBe(0);
     expect(kept.score).toBeCloseTo(0.95);

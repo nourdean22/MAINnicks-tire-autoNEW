@@ -5,6 +5,9 @@
  * four live hub tiles (Fleet Truth, Arrival Intel, Schema History, Chat States) had no palette door,
  * nor did Intelligence. Lab tiles get a row that says "Lab".
  *
+ * bdnick prune wave 1 (2026-10-18) then retired six of those tiles with their pages (Arrival Intel,
+ * Tools Registry, Schema History, Chat States, Intelligence, Proactive Preview): fourteen remain.
+ *
  * Two halves: the pure row builder (hubPaletteRows), and the palette itself rendered in jsdom and
  * opened by its event, so the consumer is asserted, not only the producer.
  */
@@ -40,8 +43,6 @@ const OLD_KEYWORDS: Record<string, string[]> = {
   "sys-calibration": ["calibration", "quality", "state", "mood", "hit rate", "suggestion", "judge", "eval", "operator state"],
   "sys-alerts": ["alert", "inspect", "category", "coach"],
   "sys-inbox": ["inbox", "quarantine", "memory", "contradiction", "review"],
-  "sys-tools": ["tool", "registry", "govern", "permission", "capability"],
-  "sys-proactive": ["proactive", "push", "preview", "dry run", "telemetry"],
   "sys-cockpit": ["cockpit", "observability", "trace", "metric", "decay", "prompt version"],
   "sys-ui-lab": ["ui", "lab", "gallery", "inspector", "fixture", "metric", "evidence", "reality mode"],
   "diag-stale": ["stale", "purge", "clean", "orphan", "dismissed"],
@@ -50,9 +51,9 @@ const OLD_KEYWORDS: Record<string, string[]> = {
 const rows = hubPaletteRows(navHrefs);
 
 describe("hubPaletteRows · the System group comes from the hub list", () => {
-  it("the subject is real: the hub has twenty tiles and most become rows", () => {
-    expect(CARDS.length).toBe(20);
-    expect(rows.length).toBeGreaterThanOrEqual(18);
+  it("the subject is real: the hub has fourteen tiles and most become rows", () => {
+    expect(CARDS.length).toBe(14);
+    expect(rows.length).toBeGreaterThanOrEqual(12);
   });
 
   it("every hub href has exactly one palette door (a System row or a Navigate row)", () => {
@@ -63,9 +64,27 @@ describe("hubPaletteRows · the System group comes from the hub list", () => {
   });
 
   it("the doors that were missing now exist", () => {
-    for (const href of ["/system/fleet", "/system/camera", "/system/schema-history", "/system/chat-states", "/intelligence/brief"]) {
+    for (const href of ["/system/fleet"]) {
       expect(rows.some((r) => r.href === href), href).toBe(true);
     }
+  });
+
+  it("retired surfaces have no tile and no door, and the builder would show one if it came back", () => {
+    const retired = [
+      "/system/camera",
+      "/system/tools",
+      "/system/schema-history",
+      "/system/chat-states",
+      "/intelligence/brief",
+      "/system/proactive-preview",
+    ];
+    for (const href of retired) {
+      expect(CARDS.some((c) => c.href === href), href).toBe(false);
+      expect(rows.some((r) => r.href === href), href).toBe(false);
+    }
+    // Positive control: a retired card fed back in surfaces as a row, so the absence above is real.
+    const planted = { ...CARDS[0], href: retired[0], paletteId: "sys-camera" };
+    expect(hubPaletteRows(new Set(), [planted]).map((r) => r.href)).toEqual([retired[0]]);
   });
 
   it("a Lab card's row says Lab, and only Lab cards' rows do", () => {
@@ -73,7 +92,7 @@ describe("hubPaletteRows · the System group comes from the hub list", () => {
       const card = CARDS.find((c) => c.href === r.href)!;
       expect(r.label.startsWith("Lab · "), r.href).toBe(Boolean(card.lab));
     }
-    expect(rows.filter((r) => r.lab).map((r) => r.href).sort()).toEqual(["/system/chat-states", "/system/ui-lab"]);
+    expect(rows.filter((r) => r.lab).map((r) => r.href).sort()).toEqual(["/system/ui-lab"]);
   });
 
   it("today's ids and keywords still match, so Recently Used and typed searches keep working", () => {
@@ -145,7 +164,7 @@ describe("command palette · renders the hub rows", () => {
   });
 
   it("a Lab row opens its page and says Lab", () => {
-    act(() => item("Lab · Chat States")!.click());
-    expect(h.push).toHaveBeenCalledWith("/system/chat-states");
+    act(() => item("Lab · UI Lab")!.click());
+    expect(h.push).toHaveBeenCalledWith("/system/ui-lab");
   });
 });

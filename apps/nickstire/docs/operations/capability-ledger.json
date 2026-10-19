@@ -5677,6 +5677,38 @@
       "codeState": "in_progress",
       "operationalState": "unit_verified",
       "exposure": "disabled"
+    },
+    {
+      "capabilityId": "admin-photo-check",
+      "name": "Photo Check in Nick's Admin (Instagram > Create, moved from bdnick.info's Photo Improver): an admin uploads a shop photo for scoring only (instagramStudio.uploadEvidencePhoto scoreOnly: stored under photo-check/, never registered as real-shop media, never enriched, so the autopost pool cannot pick it), instagramStudio.checkPhoto scores it with one Gemini vision call, and after a two-tap confirm instagramStudio.brandedPhoto draws a NEW text-to-image render in Nick's style; admin-only, preview only, nothing posts",
+      "owner": "operator",
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "First live check failed and is fixed here, not yet re-proven. 2026-10-19 12:48Z, deploy 7d3d43748, signed-in admin, the site's storefront-day.webp: upload ok, gemini-2.5-flash answered in 3.7 s with 1,656 chars, card said Couldn't read the result (log: photo check reply was not a scorecard). Reproduced locally with the same prompt and photo: the JSON was complete (so the 800-token budget held) but one improvement had type cleanliness, outside the old five-value enum; nothing shows type, so it is no longer required (the real reply is now a regression fixture). Proof still needed after this deploy: one real photo returns a scorecard with Model: gemini (score only, no image credit); the branded render waits for Nour's go because it spends a credit. Remaining strict values the card does render (priority, the four channel fits, best channel) can still turn an otherwise good reply into Couldn't read the result.",
+          "source": "job 2026-10-18-bdnick-prune-photo"
+        }
+      ],
+      "deferredScope": [
+        "Daily cap or credit ledger: admin-only, one tap per render, at most two provider calls per tap (Gemini, then the OpenAI fallback inside generateImage); shortcut recorded in services/photoImprover.ts, add a cap if usage grows (it was 4 uses in 90 days)",
+        "Server-side dedupe for brandedPhoto: the client lock makes a double tap one render; a second tab or a replayed request is not deduped on the server",
+        "A rendered picture is not persisted: it survives a tab switch inside the Instagram admin, not a page reload or leaving the admin",
+        "A score-only upload whose check request never reached the server (tab closed, connection dropped after the upload) is not deleted; no sweep of photo-check/ exists",
+        "The OpenAI fallback inside generateImage runs on a Gemini HTTP error or an empty reply, not on a transport failure (timeout, DNS, reset): the copy says one or two credits and the shared generator is unchanged",
+        "A second vision provider: Gemini only on purpose (no Gemini key reads as vision_unavailable, never a weaker model's score)",
+        "Editing the uploaded photo: brandedPhoto is text-to-image, so UI copy must not call it your photo improved",
+        "Deleting the statenour /photo-improver copy: wave 5 of job 2026-10-18-bdnick-prune, after this is live"
+      ],
+      "lastVerifiedAt": "2026-10-19",
+      "verificationExpiresAt": null,
+      "codeState": "merged",
+      "operationalState": "integration_verified",
+      "exposure": "operator_only",
+      "evidence": {
+        "codeCommit": "this PR, branch nickstire/admin-photo-check (job 2026-10-18-bdnick-prune-photo). Server: server/services/photoImprover.ts (analyzePhotoForShop, renderBrandedScene), server/routers/instagramStudio.ts (checkPhoto, brandedPhoto, uploadEvidencePhoto scoreOnly), server/storage.ts ownObjectKey (the photo URL must be our own storage under photo-check/ or ig-evidence/, plain keys only) and storageDelete (a photo-check/ upload is deleted once its check returns, whatever the outcome; ig-evidence/ never), server/_core/imageGeneration.ts (provider and model on GenerateImageResponse, so the screen names what answered), assertDurableStorageForGeneration before a paid render, and server/_core/bodyParsers.ts (the 12 MB photo-route parsers now run BEFORE the global 2 MB one: mounted after it they never ran, so every photo over about 1.5 MB got 413 on booking.uploadPhoto, the Studio upload and Photo Check). Client: client/src/pages/admin/instagram/PhotoCheckCard.tsx above the Studio form, mounted across all Instagram views and hidden off Create so a render in flight survives a tab switch; Retry uploads the file again; the preview is the local file; every render failure says it may still have used a credit; checkPhoto and brandedPhoto listed in client/src/lib/unbatchedProcedures.ts so a slow model never holds batched reads; every request uses networkMode always so an offline tap fails fast.",
+        "tests": "7 files, 123 passed (2026-10-19, fakes only, no live call): server/services/photoImprover.test.ts 54 (incl. the first live reply as a fixture: red on the old enum, green after), server/routers/instagramStudioPhoto.test.ts 16, server/routers/instagramStudioUpload.test.ts 5, server/_core/imageGeneration.provider.test.ts 3, server/_core/bodyParsers.test.ts 7 (real Express over a socket: 3 MB photo body 200 on both photo routes, 413 elsewhere, over 12 MB 413, rawBody kept; index.ts uses it once before tRPC), client/src/__tests__/photo-check-card.test.tsx 35, client/src/__tests__/photo-check-mount.test.tsx 3. Red-first on the first commits: service 1 file failed / 0 tests (module absent), router 15f/0p ('No procedure found'); mutations killed 8/8 service, 8/8 router, 23/23 on the review fixes, 4/4 on the Codex round (parser order reversed 3 failed, delete removed 4 failed, durable guard removed 1 failed, card unmounted off Create 2 failed). Parser defect proven before the fix by a standalone Express probe: global-first gives 413 entity.too.large for a 3 MB body, route-first 200. The upload test's enrichment wait was raised from 1 s to 10 s because the first case cold-loads the real enrichment module (1.47 s measured); positive control: enrichment call disabled gives 2f/3p.",
+        "liveProbe": "NOT RUN: owed after deploy. One real photo through Photo Check on nickstire.org/admin (expect a scorecard with Model: gemini, or a named failure); no branded render without Nour's go (it spends an image credit)."
+      }
     }
   ],
   "axes": {
