@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "chore/graph-live-mcp",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "72b1a5f8-963c-4d02-8c64-e866f9149b4e",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\fewer-permission-prompts-269694",
+  "claimedBy": "2026-10-19-graph-live-mcp: live graph + Serena MCP for all tools, session health check",
+  "claimedAt": "2026-10-19T13:52:37.789Z",
+  "expiresAt": "2026-10-20T01:52:37.789Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
