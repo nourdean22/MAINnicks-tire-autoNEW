@@ -2,11 +2,17 @@
  * System-health digest.
  *
  * Writes a compact health summary to
- * BrainMemory(category=BRAIN_CATEGORIES.SYSTEM_HEALTH_DIGEST) for the
- * SystemHealthCard. No cron runs it: the nightly health-digest cron was
- * deleted in f87fb7e62, and GET /api/ultron/health-digest recomputes and
- * persists whenever the stored row is over 4h old. That read-through is the
- * scheduler (audit 02-F5).
+ * BrainMemory(category=BRAIN_CATEGORIES.SYSTEM_HEALTH_DIGEST). Readers: Brain
+ * Health Time Travel (app/api/brain/time-travel/route.ts) and the Google
+ * OAuth-expiry highlight.
+ *
+ * Scheduler: /api/cron/health-digest (app/api/cron/health-digest/route.ts),
+ * folded into mega-evening, calls refreshHealthDigest() daily (wave 2V review,
+ * 2026-10-19). Before that the nightly cron had been deleted (f87fb7e62) and
+ * the 4h read-through in GET /api/ultron/health-digest was the only scheduler
+ * (audit 02-F5); its only caller was the SystemHealthCard on the
+ * /system/health page that Nour cut, so the rows would have stopped. That GET
+ * still recomputes when the stored row is over 4h old, as a fallback.
  *
  * Principle: silent degradation is the enemy. If Drive hasn't ingested
  * in 7 days, if 18 crons have drifted, if AI error rate is climbing —
@@ -521,7 +527,7 @@ export async function refreshHealthDigest(): Promise<SystemHealthDigest> {
   const fresh = await computeHealthDigest();
   // Persist is fire-and-forget — we return fresh either way.
   persistHealthDigest(fresh).catch(() => {
-    /* the next GET over 4h old recomputes and retries; there is no cron */
+    /* the next daily /api/cron/health-digest run (or a GET over 4h old) recomputes and retries */
   });
   return fresh;
 }
