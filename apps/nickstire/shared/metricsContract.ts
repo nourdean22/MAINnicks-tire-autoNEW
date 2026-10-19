@@ -396,7 +396,7 @@ export const CANONICAL_METRICS: readonly CanonicalMetric[] = Object.freeze([
 
 const BY_NAME = new Map(CANONICAL_METRICS.map((m) => [m.name.toLowerCase(), m]));
 
-export function getCanonicalMetric(name: string): CanonicalMetric | undefined {
+function getCanonicalMetric(name: string): CanonicalMetric | undefined {
   return BY_NAME.get(name.toLowerCase());
 }
 

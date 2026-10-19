@@ -16,7 +16,6 @@ import { describe, expect, it } from "vitest";
 import {
   CANONICAL_METRICS,
   buildEnvelope,
-  getCanonicalMetric,
   isRoiSafe,
   validateEnvelope,
   type MetricEnvelope,
@@ -46,7 +45,7 @@ function documentedMetricNames(): string[] {
 
 describe("metrics contract — document and registry parity", () => {
   it("every metric named in METRICS-CONTRACT.md is registered", () => {
-    const missing = documentedMetricNames().filter((n) => !getCanonicalMetric(n));
+    const missing = documentedMetricNames().filter((n) => !CANONICAL_METRICS.some((m) => m.name.toLowerCase() === n.toLowerCase()));
     expect(missing).toEqual([]);
   });
 
