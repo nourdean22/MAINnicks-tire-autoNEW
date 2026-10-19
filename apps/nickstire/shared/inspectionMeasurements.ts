@@ -63,7 +63,7 @@ interface MeasurementSpec {
   categories: readonly InspectionCategory[];
 }
 
-export const MEASUREMENT_SPECS: Record<MeasurementMetric, MeasurementSpec> = {
+const MEASUREMENT_SPECS: Record<MeasurementMetric, MeasurementSpec> = {
   tread_depth_32nds: { metric: "tread_depth_32nds", label: "Tread depth", unit: "/32\"", kind: "number", min: 0, max: 20, step: 1, positions: TIRE_POSITIONS, categories: ["tires"] },
   tire_pressure_psi: { metric: "tire_pressure_psi", label: "Tire pressure", unit: "psi", kind: "number", min: 0, max: 120, step: 1, positions: TIRE_POSITIONS, categories: ["tires"] },
   brake_pad_mm: { metric: "brake_pad_mm", label: "Pad thickness", unit: "mm", kind: "number", min: 0, max: 20, step: 0.5, positions: BRAKE_POSITIONS, categories: ["brakes"] },
@@ -74,10 +74,6 @@ export const MEASUREMENT_SPECS: Record<MeasurementMetric, MeasurementSpec> = {
 };
 
 const MEASUREMENT_METRICS = Object.keys(MEASUREMENT_SPECS) as MeasurementMetric[];
-
-export function metricsForCategory(category: string): MeasurementSpec[] {
-  return MEASUREMENT_METRICS.map((m) => MEASUREMENT_SPECS[m]).filter((s) => (s.categories as readonly string[]).includes(category));
-}
 
 /**
  * Shop guidance bands. `null` means the metric cannot be graded on its own
@@ -126,18 +122,6 @@ export function gradeMeasurement(m: InspectionMeasurement): Grade | null {
     default:
       return null;
   }
-}
-
-const GRADE_RANK: Record<Grade, number> = { green: 0, yellow: 1, red: 2 };
-
-/** Worst grade among the gradable measurements, or null when none can be graded. */
-export function suggestCondition(measurements: readonly InspectionMeasurement[]): Grade | null {
-  let worst: Grade | null = null;
-  for (const m of measurements) {
-    const g = gradeMeasurement(m);
-    if (g && (worst === null || GRADE_RANK[g] > GRADE_RANK[worst])) worst = g;
-  }
-  return worst;
 }
 
 /** "LF 4/32"" · "Pads front 3 mm" · "Rotor LF 22.1 mm (min 22)" · "Battery 12.1 V" · "Coolant: replace" */
@@ -191,8 +175,8 @@ const inspectionMeasurementSchema = z
     }
   });
 
-export const MAX_ITEM_MEASUREMENTS = 24;
-export const MAX_ITEM_PHOTOS = 8;
+const MAX_ITEM_MEASUREMENTS = 24;
+const MAX_ITEM_PHOTOS = 8;
 
 export const inspectionMeasurementsSchema = z.array(inspectionMeasurementSchema).max(MAX_ITEM_MEASUREMENTS);
 export const photoUrlListSchema = z.array(z.string().url().max(1000)).max(MAX_ITEM_PHOTOS);

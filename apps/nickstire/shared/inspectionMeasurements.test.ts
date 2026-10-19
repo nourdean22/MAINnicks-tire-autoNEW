@@ -8,11 +8,8 @@ import {
   formatMeasurement,
   gradeMeasurement,
   inspectionMeasurementsSchema,
-  metricsForCategory,
   normalizeMeasurements,
   normalizePhotoUrls,
-  suggestCondition,
-  MAX_ITEM_PHOTOS,
 } from "./inspectionMeasurements";
 
 /** The server validates arrays; one entry at a time reads better here. */
@@ -64,27 +61,6 @@ describe("gradeMeasurement · shop guidance bands", () => {
   });
 });
 
-describe("suggestCondition · worst gradable measurement wins", () => {
-  it("picks red over yellow over green and ignores ungradable entries", () => {
-    expect(
-      suggestCondition([
-        { metric: "tread_depth_32nds", value: 8, position: "LF" },
-        { metric: "tread_depth_32nds", value: 4, position: "RF" },
-        { metric: "tire_pressure_psi", value: 30, position: "RF" },
-      ]),
-    ).toBe("yellow");
-    expect(
-      suggestCondition([
-        { metric: "brake_pad_mm", value: 9, position: "front" },
-        { metric: "brake_pad_mm", value: 2, position: "rear" },
-      ]),
-    ).toBe("red");
-  });
-  it("returns null when nothing can be graded", () => {
-    expect(suggestCondition([])).toBeNull();
-    expect(suggestCondition([{ metric: "tire_pressure_psi", value: 32, position: "LF" }])).toBeNull();
-  });
-});
 
 describe("formatMeasurement · what the customer reads", () => {
   it("renders each metric in its own idiom", () => {
@@ -108,11 +84,6 @@ describe("inspectionMeasurementSchema · what the server accepts", () => {
     expect(inspectionMeasurementSchema.safeParse({ metric: "fluid_condition", value: "meh" }).success).toBe(false);
     expect(inspectionMeasurementSchema.safeParse({ metric: "wheel_bearing_noise", value: 1 }).success).toBe(false);
   });
-  it("offers the right metrics per category", () => {
-    expect(metricsForCategory("tires").map((s) => s.metric)).toEqual(["tread_depth_32nds", "tire_pressure_psi"]);
-    expect(metricsForCategory("brakes").map((s) => s.metric)).toEqual(["brake_pad_mm", "rotor_thickness_mm"]);
-    expect(metricsForCategory("body")).toEqual([]);
-  });
 });
 
 describe("tolerant decode of the JSON columns", () => {
@@ -128,6 +99,6 @@ describe("tolerant decode of the JSON columns", () => {
     expect(normalizePhotoUrls("https://x/a.jpg", null)).toEqual(["https://x/a.jpg"]);
     expect(normalizePhotoUrls("https://x/a.jpg", ["https://x/b.jpg", "https://x/c.jpg"])).toEqual(["https://x/b.jpg", "https://x/c.jpg"]);
     expect(normalizePhotoUrls(null, "[]")).toEqual([]);
-    expect(normalizePhotoUrls(null, Array.from({ length: 12 }, (_, i) => `https://x/${i}.jpg`))).toHaveLength(MAX_ITEM_PHOTOS);
+    expect(normalizePhotoUrls(null, Array.from({ length: 12 }, (_, i) => `https://x/${i}.jpg`))).toHaveLength(8); // MAX_ITEM_PHOTOS, module-private since 2026-10-19 admin prune W1
   });
 });

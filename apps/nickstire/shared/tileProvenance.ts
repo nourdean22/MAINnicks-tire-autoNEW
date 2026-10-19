@@ -22,7 +22,6 @@
 import {
   type EvidenceLevel,
   type MetricState,
-  getCanonicalMetric,
 } from "./metricsContract";
 
 export type TileProvenance = "MEASURED" | "ESTIMATE" | "UNMEASURED";
@@ -43,18 +42,4 @@ export function provenanceOf(evidence: EvidenceLevel, state: MetricState = "ok")
   if (state === "unavailable") return "UNMEASURED";
   if (state === "partial") return "ESTIMATE";
   return evidence === "observed" || evidence === "verified" ? "MEASURED" : "ESTIMATE";
-}
-
-/**
- * Provenance for a tile that shows a canonical metric. Throws on an unknown name,
- * like `buildEnvelope`: a tile inventing a metric name is how "tool engagement"
- * became "conversions" (ROS-003), so the typo must fail the test run, not
- * silently label the tile.
- */
-export function metricProvenance(canonicalName: string, state: MetricState = "ok"): TileProvenance {
-  const metric = getCanonicalMetric(canonicalName);
-  if (!metric) {
-    throw new Error(`[tile-provenance] "${canonicalName}" is not in CANONICAL_METRICS`);
-  }
-  return provenanceOf(metric.evidence, state);
 }

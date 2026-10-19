@@ -4,7 +4,7 @@
 import { describe, expect, it } from "vitest";
 
 import { CANONICAL_METRICS } from "./metricsContract";
-import { PROVENANCE_MEANING, metricProvenance, provenanceOf } from "./tileProvenance";
+import { PROVENANCE_MEANING, provenanceOf } from "./tileProvenance";
 
 describe("provenanceOf", () => {
   it("observed and verified are MEASURED", () => {
@@ -31,28 +31,3 @@ describe("provenanceOf", () => {
   });
 });
 
-describe("metricProvenance", () => {
-  it("reads the evidence level from the contract", () => {
-    expect(metricProvenance("Estimated recovery opportunity")).toBe("ESTIMATE"); // modeled
-    expect(metricProvenance("Abandoned calls")).toBe("ESTIMATE"); // inferred
-    expect(metricProvenance("Paid call conversions")).toBe("MEASURED"); // verified
-    expect(metricProvenance("Tool engagements")).toBe("MEASURED"); // observed
-  });
-
-  it("no modeled metric in the contract can ever be labelled MEASURED", () => {
-    const modeled = CANONICAL_METRICS.filter((m) => m.evidence === "modeled");
-    expect(modeled.length).toBeGreaterThan(0);
-    for (const m of modeled) expect(metricProvenance(m.name)).toBe("ESTIMATE");
-  });
-
-  it("labels every canonical metric with one of the three words", () => {
-    for (const m of CANONICAL_METRICS) {
-      expect(Object.keys(PROVENANCE_MEANING)).toContain(metricProvenance(m.name));
-    }
-  });
-
-  // An invented synonym must fail loudly, not silently pick a label (ROS-003).
-  it("throws on a name the contract does not carry", () => {
-    expect(() => metricProvenance("Conversions")).toThrow(/not in CANONICAL_METRICS/);
-  });
-});
