@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "nickstire/shop-media-library",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "c1ba4fa4-064b-4d4c-9ddc-5ec49e487dd7",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire",
+  "claimedBy": "2026-10-18-shop-media-library",
+  "claimedAt": "2026-10-19T02:02:31.664Z",
+  "expiresAt": "2026-10-19T14:02:31.664Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
