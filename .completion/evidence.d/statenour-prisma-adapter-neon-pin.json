@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "prisma-adapter-neon-pin": {
+      "ref": "statenour/prisma-adapter-neon-pin (job 2026-10-18-prisma-adapter-neon-pin, 2026-10-19). New apps/statenour/tests/repo/prisma-versions-aligned.test.ts reads apps/statenour/package.json, the pnpm catalog and the lockfile's apps/statenour importer plus every @prisma/adapter-neon package key, and fails when @prisma/adapter-neon, @prisma/client and prisma are not one major.minor, when the adapter spec is a range that can cross majors, when the lockfile specifier lags package.json, or when the catalog moves to another major. Red first on the unfixed tree: 1 failed / 11 passed (12 tests); the failure lists 5 problems (adapter 7.8.0 beside client 6.19.3 and prisma 6.19.3, package.json ^7.6.0, both catalog entries a different major, a 7.8.0 adapter key in the lockfile). The 11 passing tests are controls that plant drift in an in-memory copy of the real inputs (8 drifts, all reported red; an in-range caret stays green). One line added to docs/CURRENT-TRUTH.md. The adapter pin in package.json and the regenerated pnpm-lock.yaml are produced by pnpm in a scratch clone by the manager (the lane's install was blocked by rule install-in-junctioned-worktree while Desktop Commander was down); no behaviour change in lib/prisma.ts, the schema or any migration; nothing was run against a database."
+    },
+    "capability-ledger-updated": {
+      "deferred": "No capability-ledger row covers the Prisma adapter in this lane's owned paths. State after this PR: the runtime adapter is LIVE + UNPROVEN on 6.19.3 until the manager's SELECT-only smoke and the post-deploy /api/health read."
+    }
+  }
+}
