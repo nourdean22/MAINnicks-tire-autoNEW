@@ -162,6 +162,10 @@ export async function POST(
           data: { status: "COMPLETE" },
         }),
       ]);
+      // COMPLETE stops a running durable execution. Loud, never fatal: the close already committed.
+      void import("@/lib/missions/durable-execution")
+        .then(({ cancelMissionExecution }) => cancelMissionExecution(missionId))
+        .catch((err) => log.warn("durable_cancel_failed", { missionId, err: err instanceof Error ? err.message : String(err) }));
     } catch (err) {
       log.error("archive_failed", {
         err: err instanceof Error ? err.message : String(err),

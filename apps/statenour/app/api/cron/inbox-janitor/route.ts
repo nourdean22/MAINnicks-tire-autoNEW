@@ -96,6 +96,10 @@ export const GET = cronHandler(async () => {
         });
         return null;
       });
+    // PAUSED stops a running durable execution. Loud, never fatal: the archive already committed.
+    void import("@/lib/missions/durable-execution")
+      .then(({ cancelMissionExecution }) => cancelMissionExecution(inbox.id))
+      .catch((err) => log.warn("durable_cancel_failed", { missionId: inbox.id, error: sanitizeError(err) }));
     archived += 1;
     archivedIds.push(inbox.id);
   }

@@ -41,6 +41,9 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
+const cancelExec = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/missions/durable-execution", () => ({ cancelMissionExecution: cancelExec }));
+
 vi.mock("@/lib/auth-guard", () => ({
   requireSession: vi.fn(async () => ({ id: "operator-1" })),
   requireCronAuth: vi.fn(),
@@ -61,6 +64,7 @@ const ctx = { params: Promise.resolve({ id: "m1" }) };
 
 beforeEach(() => {
   vi.clearAllMocks();
+  cancelExec.mockReset().mockResolvedValue({ cancelRequested: true });
   mocks.mission.findUnique.mockResolvedValue({
     id: "m1",
     title: "Mission One",
@@ -141,5 +145,25 @@ describe("POST /api/missions/[id]/retro · retro upsert", () => {
     const res = await POST(makeRequest({ retroText: "", archive: false }), ctx);
     expect(res.status).toBe(200);
     expect(mocks.brainMemory.upsert).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /api/missions/[id]/retro · a closed mission stops its durable run", () => {
+  it("archive=true cancels the execution once, after the COMPLETE flip", async () => {
+    await POST(makeRequest({ retroText: "done", archive: true }), ctx);
+    await vi.waitFor(() => expect(cancelExec).toHaveBeenCalledTimes(1));
+    expect(cancelExec).toHaveBeenCalledWith("m1");
+  });
+
+  it("CONTROL: archive=false cancels nothing", async () => {
+    await POST(makeRequest({ retroText: "notes", archive: false }), ctx);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(cancelExec).not.toHaveBeenCalled();
+  });
+
+  it("a cancel that throws never fails the close", async () => {
+    cancelExec.mockRejectedValue(new Error("inngest 500"));
+    const res = await POST(makeRequest({ retroText: "done", archive: true }), ctx);
+    expect(res.status).toBe(200);
   });
 });

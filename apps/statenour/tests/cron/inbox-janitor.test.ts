@@ -26,6 +26,8 @@ const { mockPrisma } = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/prisma", () => ({ prisma: mockPrisma }));
+const cancelExec = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/missions/durable-execution", () => ({ cancelMissionExecution: cancelExec }));
 vi.mock("@/lib/logger", () => ({
   logger: {
     withSurface: () => ({
@@ -47,6 +49,7 @@ const ctx = { params: Promise.resolve({}) };
 
 beforeEach(() => {
   vi.clearAllMocks();
+  cancelExec.mockReset().mockResolvedValue({ cancelRequested: true });
 });
 
 describe("cron/inbox-janitor", () => {
@@ -91,6 +94,7 @@ describe("cron/inbox-janitor", () => {
     expect(updateCall.where.id).toBe("inb1");
     expect(updateCall.data.deletedAt).toBeInstanceOf(Date);
     expect(updateCall.data.status).toBe("PAUSED");
+    await vi.waitFor(() => expect(cancelExec).toHaveBeenCalledWith("inb1"));
   });
 
   it("does NOT archive an inbox that still has live tasks", async () => {
