@@ -32,6 +32,9 @@ const RECEIPT_ROUTE = "sync/events";
  */
 const LATEST_WINS_TYPES = new Set(["nickstire:social_draft:sync", "nickstire:mirror_synced", "nickstire:data_refreshed"]);
 
+/** Social-draft events carry a post body; every other event drops free-text content. */
+const isDraftEvent = (type: string) => type.includes("social_draft");
+
 function auditData(event: BridgeEvent) {
   return {
     actor: event.source ?? "nickstire",
@@ -39,7 +42,9 @@ function auditData(event: BridgeEvent) {
     detail: `Bridge event: ${event.type}`,
     // Customer names, phones and emails stay out of the stored row (wave 3 group 7b); the alert and the
     // brain pipeline below still read the full event.data.
-    payload: scrubBridgePayload(JSON.parse(JSON.stringify(event.data ?? event))) as object,
+    payload: scrubBridgePayload(JSON.parse(JSON.stringify(event.data ?? event)), {
+      keepText: isDraftEvent(event.type),
+    }) as object,
   };
 }
 
@@ -204,10 +209,10 @@ export const POST = apiHandler(
         // Create drift alert for negative reviews
         if (event.type === "nickstire:review" && (event.data?.rating as number) <= 3) {
           const today_ = today();
-          // Bridge fields first (config/nickstire-bridge-events.json); older names as fallbacks.
-          const author = event.data?.customerName ?? event.data?.author ?? "customer";
-          const text = event.data?.reviewText ?? event.data?.text ?? "";
-          const message = `${event.data?.rating}★ review from ${author}: ${String(text).substring(0, 120)}`;
+          // This text is STORED (BrainMemory.metadata via the coach event, BrainBusEvent.payload, and 140
+          // chars to Inngest), so it names no reviewer and quotes no review: the rating and a pointer only.
+          // The Telegram alert (webhooks/nickstire) may carry the name.
+          const message = `${event.data?.rating}★ review received: see Reviews in Nick's Admin`;
           const coachEvent = await recordCoachEvent({
             kind: "drift-recovery",
             subjectId: "negative_review",
@@ -232,7 +237,8 @@ export const POST = apiHandler(
         // Create drift alert for callback overdue
         if (event.type === "nickstire:callback") {
           const today_ = today();
-          const message = `Callback: ${event.data?.customer ?? event.data?.name ?? "Unknown"} — ${event.data?.phone ?? "no phone"}`;
+          // STORED text (coach event body, drift bus payload): no name, no phone.
+          const message = "Callback requested: see Customers in Nick's Admin";
           const coachEvent = await recordCoachEvent({
             kind: "drift-recovery",
             subjectId: "callback_requested",
@@ -314,7 +320,8 @@ export const GET = apiHandler(
       count: events.length,
       events: events.map((e) => ({
         type: e.eventType,
-        payload: e.payload,
+        // Rows written before the scrub may still hold names and phones until they are purged.
+        payload: scrubBridgePayload(e.payload, { keepText: isDraftEvent(e.eventType) }),
         at: e.createdAt,
       })),
     };

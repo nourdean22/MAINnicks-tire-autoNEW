@@ -132,3 +132,30 @@ describe("GET /api/sync/business hides names still sitting in rows written befor
     expect(text).toContain("321");
   });
 });
+
+describe("memories, operator patterns and decline notes are not stored either (review round)", () => {
+  it("a payload with a named nickAI memory, a named pattern topic and decline notes persists none of it", async () => {
+    await POST(
+      req({
+        source: "nickstire",
+        revenue: { today: 100 },
+        nickAI: { memories: [{ content: `Customer "${NAME}" completed full journey`, category: "vip" }], memoryCount: 1 },
+        operatorPatterns: [{ topic: `${NAME} always pays cash`, count: 3 }],
+        declinedWork: {
+          customerCount: 1,
+          topItems: [{ workOrderId: 7, lines: [{ description: "Rotors", total: 300, declineReason: `${NAME} said too pricey`, recoveryNotes: `left VM for ${NAME}` }] }],
+        },
+      }),
+    );
+    for (const row of stored()) {
+      const text = JSON.stringify(row.payload);
+      expect(text).not.toContain(NAME);
+      expect(text).not.toContain("nickAI");
+      expect(text).not.toContain("operatorPatterns");
+      expect(text).not.toContain("recoveryNotes");
+    }
+    const raw = stored().find((r) => r.eventType === "business_metrics_sync")!.payload as Record<string, any>;
+    expect(raw.revenue).toEqual({ today: 100 });
+    expect(raw.declinedWork.topItems[0].lines[0]).toEqual({ description: "Rotors", total: 300 });
+  });
+});

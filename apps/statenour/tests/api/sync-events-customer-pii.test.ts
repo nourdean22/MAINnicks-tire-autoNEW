@@ -1,19 +1,22 @@
 /**
- * POST /api/sync/events stores no customer identity (2026-10-19, wave 3 group 7b).
+ * POST /api/sync/events stores no customer identity (2026-10-19, wave 3 group 7b, review round).
  *
  * Every bridge event used to land in AuditEvent with `event.data` verbatim, so customer names, phones
- * and emails sat in the bdnick database for every booking, lead, callback, review and emergency.
- * The stored payload is now an allowlist projection: ids, counts, amounts, event facts. Alerts and the
- * brain pipeline still receive the full `event.data` in memory (they need the name to alert the owner).
- * Every assertion reads what prisma was asked to STORE.
+ * and emails sat in the bdnick database for every booking, lead, callback, review and emergency. The
+ * stored payload is now an allowlist projection: ids, counts, amounts, event facts. The coach event
+ * (BrainMemory.metadata.body) and the drift bus event (BrainBusEvent.payload, plus 140 chars to
+ * Inngest) are STORED text too, so they are built from scrubbed fields; only the Telegram alert
+ * (a different route) may carry a name and phone. Every assertion reads what was STORED.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { auditCreate, upsert, recordCoachEvent, processShopEvent } = vi.hoisted(() => ({
+const { auditCreate, auditFindMany, upsert, recordCoachEvent, processShopEvent, emitDriftFired } = vi.hoisted(() => ({
   auditCreate: vi.fn(),
+  auditFindMany: vi.fn(),
   upsert: vi.fn(),
   recordCoachEvent: vi.fn(),
   processShopEvent: vi.fn(),
+  emitDriftFired: vi.fn(),
 }));
 
 vi.mock("@/lib/auth-guard", () => ({
@@ -24,7 +27,7 @@ vi.mock("@/lib/auth-guard", () => ({
 }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
-    auditEvent: { create: auditCreate },
+    auditEvent: { create: auditCreate, findMany: auditFindMany },
     socialPublishQueue: { upsert, updateMany: vi.fn().mockResolvedValue({ count: 0 }) },
     apiRequestLog: { create: vi.fn().mockResolvedValue({}) },
     errorLog: { create: vi.fn().mockResolvedValue({}) },
@@ -33,10 +36,10 @@ vi.mock("@/lib/prisma", () => ({
   getQueryCount: vi.fn().mockReturnValue(0),
 }));
 vi.mock("@/lib/services/coach-events", () => ({ recordCoachEvent }));
-vi.mock("@/lib/db/brain-bus-emit", () => ({ emitDriftFired: vi.fn() }));
+vi.mock("@/lib/db/brain-bus-emit", () => ({ emitDriftFired }));
 vi.mock("@/lib/brain/pipeline-controller", () => ({ processShopEvent }));
 
-import { POST } from "@/app/api/sync/events/route";
+import { GET, POST } from "@/app/api/sync/events/route";
 
 const NAME = "Jane Roe";
 const PHONE = "2165550199";
@@ -56,8 +59,10 @@ const storedPayload = () => auditCreate.mock.calls[0][0].data.payload as Record<
 
 beforeEach(() => {
   auditCreate.mockReset().mockResolvedValue({});
+  auditFindMany.mockReset().mockResolvedValue([]);
   upsert.mockReset().mockResolvedValue({});
   recordCoachEvent.mockReset().mockResolvedValue({ eventId: "c1" });
+  emitDriftFired.mockReset().mockResolvedValue("bus1");
   processShopEvent.mockReset().mockResolvedValue({ processed: true, actions: [] });
 });
 
@@ -89,21 +94,91 @@ describe("sync/events audit rows carry no customer identity", () => {
     expect(storedPayload()).toEqual(data);
   });
 
-  it("an unknown free-text string under an unknown key is not stored (allowlist, not denylist)", async () => {
-    await post("nickstire:lead", { leadId: 1, whoCalled: SURPRISE, attempts: 3 });
+  it("a non-identity unknown key holding a name is not stored (allowlist, not denylist)", async () => {
+    // `memo` and `note` do not look like identity keys, so only the allowlist can catch them.
+    await post("nickstire:lead", { leadId: 1, memo: `${SURPRISE} asked twice`, note: `call ${PHONE}`, attempts: 3 });
     expect(JSON.stringify(storedPayload())).not.toContain(SURPRISE);
+    expect(JSON.stringify(storedPayload())).not.toContain(PHONE);
     expect(storedPayload()).toMatchObject({ leadId: 1, attempts: 3 });
   });
 
-  it("the alert and the brain pipeline still receive the full event data", async () => {
-    await post("nickstire:callback", { customer: NAME, phone: PHONE, reason: "Question about quote" });
-    expect(recordCoachEvent.mock.calls[0][0].body).toContain(NAME);
-    expect(processShopEvent.mock.calls[0][0].data).toMatchObject({ customer: NAME, phone: PHONE });
+  it("an array of strings is dropped; an id-shaped key (customerId) is kept", async () => {
+    await post("nickstire:lead", { leadId: 2, customerId: "cus_123", attendees: [NAME, SURPRISE], tags: [{ weight: 2 }] });
+    expect(JSON.stringify(storedPayload())).not.toContain(NAME);
+    expect(JSON.stringify(storedPayload())).not.toContain(SURPRISE);
+    expect(storedPayload()).toMatchObject({ leadId: 2, customerId: "cus_123" });
+  });
+
+  it("phones and emails inside the kept free-text keys are masked", async () => {
+    await post("nickstire:callback", {
+      reason: `Call me back at (216) 555-0199 or ${EMAIL}`,
+      description: `Reach 216-555-0100`,
+      reviewText: `Fix it. Text ${PHONE}`,
+    });
+    const text = JSON.stringify(storedPayload());
+    for (const leak of [PHONE, "555-0199", "555-0100", EMAIL]) expect(text).not.toContain(leak);
+    expect(String(storedPayload().reason)).toContain("Call me back at");
+  });
+
+  it("text and content are stored for a social draft only", async () => {
+    await post("nickstire:lead", { leadId: 3, text: "free text", content: "more free text" });
+    expect(storedPayload()).toEqual({ leadId: 3 });
+    auditCreate.mockClear();
+    await post("nickstire:social_draft:sync", { id: "d1", content: "Brake special this week", status: "pending", platforms: ["facebook"] });
+    expect(storedPayload()).toMatchObject({ id: "d1", content: "Brake special this week" });
   });
 
   it("syncSocialDraft still mirrors the draft into the queue, content intact", async () => {
     await post("nickstire:social_draft:sync", { id: "d1", content: "Brake special this week", status: "pending", platforms: ["facebook"] });
     expect(upsert).toHaveBeenCalledTimes(1);
     expect(upsert.mock.calls[0][0].create).toMatchObject({ id: "d1", content: "Brake special this week" });
+  });
+});
+
+describe("the STORED alert text (coach event, drift bus event) carries no customer identity", () => {
+  it("callback: body and bus message name no customer and no phone", async () => {
+    await post("nickstire:callback", { customer: NAME, phone: PHONE, reason: "Question about quote" });
+    expect(recordCoachEvent).toHaveBeenCalledTimes(1);
+    const body = String(recordCoachEvent.mock.calls[0][0].body);
+    const bus = JSON.stringify(emitDriftFired.mock.calls[0][0]);
+    for (const text of [body, bus]) {
+      expect(text).not.toContain(NAME);
+      expect(text).not.toContain(PHONE);
+    }
+    expect(body).toContain("Callback requested");
+  });
+
+  it("negative review: body and bus message name no reviewer and carry no review text", async () => {
+    await post("nickstire:review", { rating: 2, customerName: NAME, reviewText: `Rude. Call ${PHONE}` });
+    expect(recordCoachEvent).toHaveBeenCalledTimes(1);
+    const body = String(recordCoachEvent.mock.calls[0][0].body);
+    const bus = JSON.stringify(emitDriftFired.mock.calls[0][0]);
+    for (const text of [body, bus]) {
+      expect(text).not.toContain(NAME);
+      expect(text).not.toContain(PHONE);
+      expect(text).not.toContain("Rude");
+    }
+    expect(body).toContain("2★");
+  });
+
+  it("CONTROL: the brain pipeline still receives the full event data in memory (it scrubs what it stores)", async () => {
+    await post("nickstire:callback", { customer: NAME, phone: PHONE, reason: "Question about quote" });
+    expect(processShopEvent.mock.calls[0][0].data).toMatchObject({ customer: NAME, phone: PHONE });
+  });
+});
+
+describe("GET /api/sync/events scrubs rows written before the fix", () => {
+  it("returns an old raw payload without names, phones or emails", async () => {
+    auditFindMany.mockResolvedValue([
+      {
+        eventType: "nickstire:lead",
+        payload: { leadId: 9, customer: NAME, phone: PHONE, email: EMAIL, memo: SURPRISE, interest: "Tires" },
+        createdAt: new Date("2026-10-01T00:00:00Z"),
+      },
+    ]);
+    const res = await GET(new Request("http://test/api/sync/events", { headers: { authorization: "Bearer test" } }));
+    const text = JSON.stringify(await res.json());
+    for (const leak of [NAME, PHONE, EMAIL, SURPRISE]) expect(text).not.toContain(leak);
+    expect(text).toContain("Tires");
   });
 });

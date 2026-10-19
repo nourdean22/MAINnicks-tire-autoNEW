@@ -9,11 +9,16 @@
 /** Shown wherever a named line used to be. */
 export const SEE_ADMIN_CUSTOMERS = "see Customers in the admin";
 
-const PII_KEYS = new Set(["name", "phone", "customer", "customername", "customerphone", "email", "customeremail"]);
+const PHONE_RE = /(?:\+?1[\s.-]?)?(?:\(\d{3}\)|\d{3})[\s.-]?\d{3}[\s.-]?\d{4}\b/g;
+const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
 
-/** Bridge event data without the keys that identify the customer. Top level only: the bridge sends flat objects. */
-export function stripEventPii(data: Record<string, unknown>): Record<string, unknown> {
-  return Object.fromEntries(Object.entries(data).filter(([k]) => !PII_KEYS.has(k.toLowerCase())));
+/** Free text with phone numbers and email addresses masked. Kept sentences go through this. */
+export function scrubText(s: string): string {
+  return s.replace(EMAIL_RE, "[email]").replace(PHONE_RE, "[phone]");
+}
+
+function stripIdentityKeys(data: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(data).filter(([k]) => !(IDENTITY_KEY.test(k) && !ID_KEY.test(k))));
 }
 
 function pick(row: unknown, keep: readonly string[]): Record<string, unknown> {
@@ -31,6 +36,11 @@ const LIST_KEEP: Record<string, readonly string[]> = {
 };
 /** Lists whose rows are otherwise fine; only the identity keys go. */
 const LIST_DROP_IDENTITY = new Set(["topItems", "customerJourneys"]);
+/**
+ * Dropped at any depth: nickstire memories and operator patterns quote customers by name inside
+ * free text, and decline reasons / recovery notes are staff-written sentences about a person.
+ */
+const SYNC_DROP_KEYS = new Set(["nickAI", "operatorPatterns", "recoveryNotes", "declineReason"]);
 
 /** The action plan names the first at-risk customer and the top spender; say how many instead. */
 function redactActionPlan(plan: string, atRiskCount: number): string {
@@ -48,12 +58,13 @@ function walk(node: unknown): unknown {
   const out: Record<string, unknown> = {};
   const obj = node as Record<string, unknown>;
   for (const [key, value] of Object.entries(obj)) {
+    if (SYNC_DROP_KEYS.has(key)) continue;
     if (key in LIST_KEEP && Array.isArray(value)) {
       out[key] = value.map((row) => pick(row, LIST_KEEP[key]));
     } else if (LIST_DROP_IDENTITY.has(key) && Array.isArray(value)) {
       out[key] = value.map((row) =>
         row && typeof row === "object" && !Array.isArray(row)
-          ? stripEventPii(row as Record<string, unknown>)
+          ? (walk(stripIdentityKeys(row as Record<string, unknown>)) as Record<string, unknown>)
           : row,
       );
     } else if (key !== "actionPlan") {
@@ -84,9 +95,11 @@ const ID_KEY = /^(id|[a-z][a-zA-Z]*Id|[a-z][a-z0-9]*_id|refCode|invoiceNumber|or
 /** String-valued facts a bridge event may carry. Anything else under an unknown key is dropped. */
 const SAFE_STRING_KEYS = new Set([
   "type", "timestamp", "source", "kind", "status", "service", "interest", "vehicle", "urgency", "stage",
-  "tire", "method", "reason", "description", "reviewText", "text", "campaignType", "fromStatus", "toStatus",
-  "content", "imageUrl", "scheduledFor", "publishedAt", "symptom", "problem", "state", "platform", "eventId",
+  "tire", "method", "reason", "description", "reviewText", "campaignType", "fromStatus", "toStatus",
+  "imageUrl", "scheduledFor", "publishedAt", "symptom", "problem", "state", "platform", "eventId",
 ]);
+/** Free text a social draft legitimately carries; every other event type drops these keys. */
+const DRAFT_TEXT_KEYS = new Set(["text", "content"]);
 
 /**
  * The bridge event payload that is allowed into the audit log: ids, counts, amounts and the named
@@ -94,17 +107,17 @@ const SAFE_STRING_KEYS = new Set([
  * (the alert and the brain pipeline still get the full `event.data` in memory). The projection is
  * an allowlist for strings; numbers, booleans and null under a non-identity key are kept as counts.
  */
-export function scrubBridgePayload(value: unknown): unknown {
+export function scrubBridgePayload(value: unknown, opts: { keepText?: boolean } = {}): unknown {
   if (Array.isArray(value)) {
-    return value.map((v) => (v && typeof v === "object" ? scrubBridgePayload(v) : v)).filter((v) => typeof v !== "string");
+    return value.map((v) => (v && typeof v === "object" ? scrubBridgePayload(v, opts) : v)).filter((v) => typeof v !== "string");
   }
   if (!value || typeof value !== "object") return value;
   const out: Record<string, unknown> = {};
   for (const [key, v] of Object.entries(value as Record<string, unknown>)) {
     if (IDENTITY_KEY.test(key) && !ID_KEY.test(key)) continue;
-    if (v && typeof v === "object") out[key] = scrubBridgePayload(v);
+    if (v && typeof v === "object") out[key] = scrubBridgePayload(v, opts);
     else if (typeof v === "string") {
-      if (SAFE_STRING_KEYS.has(key) || ID_KEY.test(key)) out[key] = v;
+      if (SAFE_STRING_KEYS.has(key) || ID_KEY.test(key) || (opts.keepText && DRAFT_TEXT_KEYS.has(key))) out[key] = scrubText(v);
     } else out[key] = v;
   }
   return out;

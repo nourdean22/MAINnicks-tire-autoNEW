@@ -4,7 +4,7 @@
     "Each entry: `adapter` is the on* function, `input` is what the real emitter hands it (the event-bus",
     "payload for `busTypes`), `data` is the EXACT JSON the bridge POSTs as event.data. `statenour` is what",
     "the receivers must do with that data: `webhookAlert` = strings the Telegram alert from",
-    "/api/webhooks/nickstire must contain (null = no alert); `coachEvent` = strings the drift-alert body from",
+    "/api/webhooks/nickstire must contain (null = no alert); `coachEvent` = strings the STORED drift-alert body (no name, no phone: coach events and bus rows are stored) from",
     "/api/sync/events must contain (null = none); `pipeline` = the brain ShopEvent type (null = not piped).",
     "Tests bound to this file: apps/nickstire/server/bridgeEventContract.test.ts and",
     "apps/statenour/tests/api/nickstire-bridge-contract.test.ts. Rename a field on either side and one of",
@@ -72,7 +72,7 @@
       "busTypes": ["callback_requested"],
       "input": { "name": "Test Customer", "phone": "2165550102", "reason": "Question about quote" },
       "data": { "customer": "Test Customer", "phone": "2165550102", "reason": "Question about quote" },
-      "statenour": { "webhookAlert": null, "coachEvent": ["Test Customer", "2165550102"], "pipeline": "lead" }
+      "statenour": { "webhookAlert": null, "coachEvent": ["Callback requested"], "pipeline": "lead" }
     },
     {
       "type": "nickstire:review",
@@ -80,7 +80,7 @@
       "busTypes": ["review_detected"],
       "input": { "rating": 2, "reviewText": "Waited too long for a simple job", "customerName": "Test Reviewer" },
       "data": { "rating": 2, "reviewText": "Waited too long for a simple job", "customerName": "Test Reviewer" },
-      "statenour": { "webhookAlert": ["NEW REVIEW", "2/5", "Test Reviewer", "Waited too long for a simple job"], "coachEvent": ["Test Reviewer", "Waited too long for a simple job"], "pipeline": "review" }
+      "statenour": { "webhookAlert": ["NEW REVIEW", "2/5", "Test Reviewer", "Waited too long for a simple job"], "coachEvent": ["2★ review received"], "pipeline": "review" }
     },
     {
       "type": "nickstire:revenue",
