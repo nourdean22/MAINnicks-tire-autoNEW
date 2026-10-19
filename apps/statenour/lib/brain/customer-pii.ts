@@ -73,3 +73,39 @@ function walk(node: unknown): unknown {
 export function stripSyncCustomerPii<T>(payload: T): T {
   return walk(payload) as T;
 }
+
+/**
+ * Keys that name a person or a way to reach one. Matched on the whole key, lower-cased, so an id
+ * such as `customerId` (a pseudonymous row id) is kept by the id rule below while `customerName`,
+ * `phone`, `contact`, `callerPhone` and `reviewerEmail` go.
+ */
+const IDENTITY_KEY = /(name|phone|mobile|email|contact|customer|caller|reviewer|address|owner|driver|person|who)/i;
+const ID_KEY = /^(id|[a-z][a-zA-Z]*Id|[a-z][a-z0-9]*_id|refCode|invoiceNumber|orderNumber|workOrderId)$/;
+/** String-valued facts a bridge event may carry. Anything else under an unknown key is dropped. */
+const SAFE_STRING_KEYS = new Set([
+  "type", "timestamp", "source", "kind", "status", "service", "interest", "vehicle", "urgency", "stage",
+  "tire", "method", "reason", "description", "reviewText", "text", "campaignType", "fromStatus", "toStatus",
+  "content", "imageUrl", "scheduledFor", "publishedAt", "symptom", "problem", "state", "platform", "eventId",
+]);
+
+/**
+ * The bridge event payload that is allowed into the audit log: ids, counts, amounts and the named
+ * event facts above. Names, phones, emails and unknown free-text keys never reach a stored row
+ * (the alert and the brain pipeline still get the full `event.data` in memory). The projection is
+ * an allowlist for strings; numbers, booleans and null under a non-identity key are kept as counts.
+ */
+export function scrubBridgePayload(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((v) => (v && typeof v === "object" ? scrubBridgePayload(v) : v)).filter((v) => typeof v !== "string");
+  }
+  if (!value || typeof value !== "object") return value;
+  const out: Record<string, unknown> = {};
+  for (const [key, v] of Object.entries(value as Record<string, unknown>)) {
+    if (IDENTITY_KEY.test(key) && !ID_KEY.test(key)) continue;
+    if (v && typeof v === "object") out[key] = scrubBridgePayload(v);
+    else if (typeof v === "string") {
+      if (SAFE_STRING_KEYS.has(key) || ID_KEY.test(key)) out[key] = v;
+    } else out[key] = v;
+  }
+  return out;
+}

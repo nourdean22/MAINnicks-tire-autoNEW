@@ -48,6 +48,7 @@ vi.mock("@/lib/brain/pipeline-controller", () => ({ processShopEvent }));
 
 import { POST as webhookPOST } from "@/app/api/webhooks/nickstire/route";
 import { POST as syncPOST } from "@/app/api/sync/events/route";
+import { scrubBridgePayload } from "@/lib/brain/customer-pii";
 
 type Entry = {
   type: string;
@@ -128,10 +129,11 @@ describe("sync/events stores, alerts and pipes the fields the bridge actually se
     const res = await post(syncPOST, "/api/sync/events", entry.type, entry.data);
     expect(res.status).toBe(200);
 
-    // Every bridge event lands as an audit row carrying the payload verbatim.
+    // Every bridge event lands as an audit row carrying the payload minus customer identity.
     expect(auditCreate).toHaveBeenCalledTimes(1);
     expect(auditCreate.mock.calls[0][0].data.eventType).toBe(entry.type);
-    expect(auditCreate.mock.calls[0][0].data.payload).toEqual(entry.data);
+    expect(auditCreate.mock.calls[0][0].data.payload).toEqual(scrubBridgePayload(entry.data));
+    expect(JSON.stringify(auditCreate.mock.calls[0][0].data.payload)).not.toMatch(/Test Customer|Test Reviewer|21655501\d\d/);
 
     const bodies = recordCoachEvent.mock.calls.map(c => String(c[0].body));
     if (entry.statenour.coachEvent === null) {

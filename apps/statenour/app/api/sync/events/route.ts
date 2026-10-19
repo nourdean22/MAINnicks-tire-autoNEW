@@ -12,6 +12,7 @@ import {
   settleReceipt,
 } from "@/lib/services/bridge-receipts";
 import { ServiceError } from "@/lib/utils/service-error";
+import { scrubBridgePayload } from "@/lib/brain/customer-pii";
 
 type BridgeEvent = {
   type: string;
@@ -36,7 +37,9 @@ function auditData(event: BridgeEvent) {
     actor: event.source ?? "nickstire",
     eventType: event.type,
     detail: `Bridge event: ${event.type}`,
-    payload: JSON.parse(JSON.stringify(event.data ?? event)),
+    // Customer names, phones and emails stay out of the stored row (wave 3 group 7b); the alert and the
+    // brain pipeline below still read the full event.data.
+    payload: scrubBridgePayload(JSON.parse(JSON.stringify(event.data ?? event))) as object,
   };
 }
 
