@@ -18,6 +18,7 @@ import {
   generateInstagramStudioDraft,
   renderInstagramStudioAssets,
 } from "../services/instagramStudio";
+import { BRANDED_PROMPT_MAX, BRANDED_PROMPT_MIN, analyzePhotoForShop, renderBrandedScene } from "../services/photoImprover";
 import { captionClaimBlockers, publishToSocial } from "../services/socialPublish";
 import { IG_CAPTION_MAX } from "./instagramAdmin";
 import type { AutonomyPolicy } from "../../client/src/lib/autonomyPolicy";
@@ -303,6 +304,9 @@ export const instagramStudioRouter = router({
       base64: z.string().max(10_000_000, "File too large (max 7.5MB)"),
       filename: z.string().max(255),
       mimeType: z.enum(["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"]),
+      /** Photo Improver upload: store for scoring only. Not registered as reusable real-shop media
+       *  (the unattended autopost reads that pool) and not enriched; kept under photo-check/. */
+      scoreOnly: z.boolean().optional(),
     }))
     .mutation(async ({ input }) => {
       const { randomInt } = await import("crypto");
@@ -317,12 +321,15 @@ export const instagramStudioRouter = router({
       const safeFilename = input.filename.replace(/[^a-zA-Z0-9._-]/g, "_");
       const suffix = randomInt(100000, 999999).toString();
       const capturedAt = Date.now();
-      const key = `ig-evidence/${capturedAt}-${suffix}-${safeFilename}`;
+      const key = input.scoreOnly
+        ? `photo-check/${capturedAt}-${suffix}-${safeFilename}`
+        : `ig-evidence/${capturedAt}-${suffix}-${safeFilename}`;
       // Registry identity is deliberately independent of the human filename:
       // media_assets.logical_key is varchar(191), while accepted upload names
       // may be 255 chars. Keep the original name in metadata, not in the key.
       const registryKey = `ig-evidence/${capturedAt}-${suffix}-${randomUUID()}`;
       const { url } = await storagePut(key, buffer, mime);
+      if (input.scoreOnly) return { url, assetId: null };
 
       // Build the real-media memory while the bytes are in hand. This was a
       // BUILT-UNWIRED gap: evidence uploads already existed, and the canonical
@@ -384,6 +391,27 @@ export const instagramStudioRouter = router({
 
       return { url, assetId };
     }),
+
+  /**
+   * Photo Improver, leg 1: score a shop photo. `photoUrl` is the URL uploadEvidencePhoto
+   * returned (no second upload path); a score-only (photo-check/) upload is deleted once the
+   * check returns, so a retry uploads again. The scorecard is ONE vision model's opinion; every
+   * ok result names the model. A vision outage, an unusable reply or a refused URL comes back as
+   * { ok: false, reason } with no analysis, never a default score.
+   */
+  checkPhoto: adminProcedure
+    .input(z.object({ photoUrl: z.string().url().max(2048) }))
+    .mutation(({ input }) => analyzePhotoForShop({ photoUrl: input.photoUrl })),
+
+  /**
+   * Photo Improver, leg 2: draw a NEW image in Nick's style from a prompt (usually the
+   * scorecard's rebrandPrompt). Text-to-image: it does not edit the uploaded photo, so UI copy
+   * must not call it "your photo, improved". Preview only; spends image credit, one call per
+   * tap, no retry. Nothing here posts or publishes.
+   */
+  brandedPhoto: adminProcedure
+    .input(z.object({ prompt: z.string().min(BRANDED_PROMPT_MIN).max(BRANDED_PROMPT_MAX) }))
+    .mutation(({ input }) => renderBrandedScene({ prompt: input.prompt })),
 
   generate: adminProcedure
     .input(z.object({
