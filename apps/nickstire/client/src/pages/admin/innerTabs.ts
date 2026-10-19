@@ -19,7 +19,7 @@ interface InnerTabSpec {
   roles?: Partial<Record<string, readonly AdminRole[]>>;
 }
 
-export const INNER_TABS = {
+const INNER_TABS = {
   leads: { key: "leadsTab", values: ["pipeline", "followups"] },
   voiceReceptionist: { key: "voiceTab", values: ["performance", "queue", "calls"] },
   opsHub: {

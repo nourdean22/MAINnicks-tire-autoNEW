@@ -1,13 +1,8 @@
 /**
  * Shared admin metric/card primitives —
- * StatCard, KpiTile, UrgencyBadge, StatusDot, ActivityIcon, TimestampLabel.
+ * StatCard, KpiTile, UrgencyBadge, StatusDot.
  */
 import React from "react";
-import {
-  CalendarClock, Users, Phone, Wrench, Gauge,
-} from "lucide-react";
-import type { AdminSection } from "./types";
-import { navigateToAdminSection } from "./navigation";
 
 /**
  * renderStatValue: the StatCard value, shown at once. Wave-64 counted every
@@ -23,19 +18,15 @@ function renderStatValue(value: string | number): React.ReactNode {
   return m ? m[1] + Number(m[2].replace(/,/g, "")).toLocaleString() : value;
 }
 
-export function StatCard({ label, value, icon, color = "text-foreground", trend, trendLabel, onClick, targetSection, settingsTab, className }: {
+export function StatCard({ label, value, icon, color = "text-foreground", trend, trendLabel, onClick, className }: {
   label: string;
   value: string | number;
   icon: React.ReactNode;
   color?: string;
   trend?: "up" | "down" | "neutral";
   trendLabel?: string;
-  /** Optional generic click handler. Use this OR targetSection, not both. */
+  /** Optional click handler; the whole card becomes a button. */
   onClick?: () => void;
-  /** Optional shortcut: clicking the card jumps to this admin section. */
-  targetSection?: AdminSection;
-  /** Optional sub-tab for Settings section (health, integrations, etc.) */
-  settingsTab?: string;
   /** Optional Tailwind className override — useful for grid-span hierarchy */
   className?: string;
 }) {
@@ -60,7 +51,7 @@ export function StatCard({ label, value, icon, color = "text-foreground", trend,
     </>
   );
 
-  const handleClick = onClick || (targetSection ? () => navigateToAdminSection(targetSection, { settingsTab }) : undefined);
+  const handleClick = onClick;
 
   // When `handleClick` is set, the entire card is a clickable button. Cursor
   // pointer + a primary hover ring give clear affordance.
@@ -104,56 +95,6 @@ export function UrgencyBadge({ score }: { score: number }) {
   return (
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold tracking-wide border ${config.color}`}>
       {config.label}
-    </span>
-  );
-}
-
-export function ActivityIcon({ type }: { type: string }) {
-  switch (type) {
-    case "booking": return <CalendarClock className="w-3.5 h-3.5 text-blue-400" />;
-    case "lead": return <Users className="w-3.5 h-3.5 text-amber-400" />;
-    case "callback": return <Phone className="w-3.5 h-3.5 text-emerald-400" />;
-    case "workOrder": return <Wrench className="w-3.5 h-3.5 text-primary" />;
-    default: return <Gauge className="w-3.5 h-3.5 text-foreground/40" />;
-  }
-}
-
-/**
- * TimestampLabel — "Last refreshed: 3 min ago" tag. Use to make
- * data-freshness explicit at the top of any data-heavy panel.
- *
- * Auto-updates the relative time every 30s.
- */
-export function TimestampLabel({
-  date,
-  prefix = "Updated",
-  className = "",
-}: {
-  date: Date | string | null | undefined;
-  prefix?: string;
-  className?: string;
-}) {
-  const [, forceUpdate] = React.useState(0);
-  React.useEffect(() => {
-    const tick = setInterval(() => forceUpdate((n) => n + 1), 30_000);
-    return () => clearInterval(tick);
-  }, []);
-
-  if (!date) return null;
-  const d = typeof date === "string" ? new Date(date) : date;
-  if (Number.isNaN(d.getTime())) return null;
-
-  const diffSec = Math.floor((Date.now() - d.getTime()) / 1000);
-  let label: string;
-  if (diffSec < 30) label = "just now";
-  else if (diffSec < 60) label = `${diffSec}s ago`;
-  else if (diffSec < 3600) label = `${Math.floor(diffSec / 60)}m ago`;
-  else if (diffSec < 86400) label = `${Math.floor(diffSec / 3600)}h ago`;
-  else label = `${Math.floor(diffSec / 86400)}d ago`;
-
-  return (
-    <span className={`text-[10px] text-foreground/40 ${className}`}>
-      {prefix} {label}
     </span>
   );
 }

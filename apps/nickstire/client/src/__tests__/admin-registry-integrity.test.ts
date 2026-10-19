@@ -12,8 +12,8 @@
  * fail the build instead.
  */
 import { describe, it, expect } from "vitest";
-import { ADMIN_REGISTRY, COMPOUND_REDIRECTS, RETIRED_SECTIONS, resolveNavTarget } from "../pages/admin/registry";
-import { INNER_TABS, type InnerTabSection } from "../pages/admin/innerTabs";
+import { ADMIN_REGISTRY, COMPOUND_REDIRECTS, resolveNavTarget } from "../pages/admin/registry";
+import { innerTabsForRole, type InnerTabSection } from "../pages/admin/innerTabs";
 
 describe("ADMIN_REGISTRY — structural integrity", () => {
   it("has no duplicate section ids", () => {
@@ -62,34 +62,25 @@ describe("ADMIN_REGISTRY — structural integrity", () => {
   });
 
   // 2026-10-19 (admin prune W1): retired ids and aliases share one resolver with
-  // the live ones, so a collision would silently send a link to the wrong place.
-  it("no retired slug collides with a live id, live alias, compound key or another retired slug", () => {
-    const live = new Set<string>();
+  // the live ones, and the retired table is checked before the live aliases. A
+  // retired slug that collided with a live id or alias would hijack it.
+  it("every live id and alias still resolves to its own section through the one resolver", () => {
     for (const e of ADMIN_REGISTRY) {
-      live.add(e.id.toLowerCase());
-      for (const a of e.aliases ?? []) live.add(a.toLowerCase());
-    }
-    for (const k of Object.keys(COMPOUND_REDIRECTS)) live.add(k.toLowerCase());
-    const seen = new Set<string>();
-    const collisions: string[] = [];
-    for (const r of RETIRED_SECTIONS) {
-      for (const slug of [r.id.toLowerCase(), ...r.aliases]) {
-        if (slug !== slug.toLowerCase()) collisions.push(`"${slug}" is not lower-case`);
-        if (live.has(slug) || seen.has(slug)) collisions.push(`"${slug}" (retired ${r.id}) resolves twice`);
-        seen.add(slug);
+      for (const slug of [e.id, ...(e.aliases ?? [])]) {
+        if (slug.toLowerCase() in COMPOUND_REDIRECTS) continue; // compound keys land on the same section with a tab
+        expect(resolveNavTarget(slug), `"${slug}" on ${e.id}`).toEqual({ section: e.id });
       }
     }
-    expect(collisions).toEqual([]);
   });
 
-  it("every retired target is a live section and an inner tab value that exists", () => {
-    const validIds = new Set(ADMIN_REGISTRY.map((s) => s.id));
-    for (const r of RETIRED_SECTIONS) {
-      expect(validIds.has(r.to.section), r.id).toBe(true);
-      const spec = INNER_TABS[r.to.section as InnerTabSection];
-      expect(spec?.key, `${r.id} inner key`).toBe(r.to.innerKey);
-      expect(spec?.values, `${r.id} inner value`).toContain(r.to.innerValue);
-      expect(resolveNavTarget(r.id)).toEqual(r.to);
-    }
-  });
+  // The seven retired ids, as they stood. Every alias row is in admin-prune-redirects.test.tsx.
+  it.each(["opportunities", "callTrackingView", "market", "trafficFunnel", "growth", "memberships", "intelligence"])(
+    "retired %s lands on a live section and an inner tab the owner can open",
+    (id) => {
+      const t = resolveNavTarget(id);
+      expect(t, id).not.toBeNull();
+      expect(ADMIN_REGISTRY.some((s) => s.id === t!.section), id).toBe(true);
+      expect(innerTabsForRole(t!.section as InnerTabSection, "owner"), id).toContain(t!.innerValue);
+    },
+  );
 });

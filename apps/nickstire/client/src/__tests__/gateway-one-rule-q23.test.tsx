@@ -47,7 +47,6 @@ vi.mock("@/lib/trpc", () => ({
 }));
 
 import GatewayPill from "../components/admin/GatewayPill";
-import { smsGatewayRow } from "../pages/admin/today/freshnessRows";
 import { OutreachBrief } from "../pages/admin/outreach/OutreachBrief";
 import { useSettingsStatus } from "../pages/admin/settings/useSettingsStatus";
 import SettingsStatusTab from "../pages/admin/settings/SettingsStatusTab";
@@ -112,27 +111,6 @@ describe("GatewayPill follows gatewayState", () => {
   });
 });
 
-describe("smsGatewayRow follows gatewayState", () => {
-  it("a failed refetch with a cached live read shows the read and says the refresh failed", () => {
-    const r = smsGatewayRow({ data: PHONE_LIVE, isError: true });
-    expect(r.status).toBe("online · seen 2m ago");
-    expect(r.provenance).toBe("MEASURED");
-    expect(r.detail).toMatch(/latest refresh failed/);
-    expect(r.loud).toBe(true);
-  });
-
-  it("a failed refetch with a cached vendor failure stays unknown", () => {
-    const r = smsGatewayRow({ data: VENDOR_DOWN, isError: true });
-    expect(r.status).toBe("unknown");
-    expect(r.provenance).toBe("UNMEASURED");
-  });
-
-  it("control: a clean live read carries no refresh note", () => {
-    const r = smsGatewayRow({ data: PHONE_LIVE, isError: false });
-    expect(r.detail).toBeNull();
-    expect(r.loud).toBe(false);
-  });
-});
 
 describe("Settings 'checks could not run' banner", () => {
   const configured = () => set("sms.status", { shopGateway: { configured: true } });

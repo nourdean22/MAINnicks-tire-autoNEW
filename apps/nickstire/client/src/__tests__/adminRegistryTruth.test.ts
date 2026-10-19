@@ -30,7 +30,7 @@ import {
   ADMIN_NAV_GROUPS,
   ADMIN_REGISTRY,
   getSidebarGroups,
-  resolveSection,
+  resolveNavTarget,
   sectionsForRole,
 } from "../pages/admin/registry";
 import { SECTION_TITLES } from "../pages/admin/shared/constants";
@@ -169,13 +169,13 @@ describe("no section can become unreachable", () => {
   });
 
   it("every registry id resolves to itself", () => {
-    for (const s of ADMIN_REGISTRY) expect(resolveSection(s.id)).toBe(s.id);
+    for (const s of ADMIN_REGISTRY) expect(resolveNavTarget(s.id)?.section).toBe(s.id);
   });
 
   it("every alias resolves to its own section — no cross-section collisions", () => {
     for (const s of ADMIN_REGISTRY) {
       for (const alias of s.aliases ?? []) {
-        expect(resolveSection(alias), `alias "${alias}" on ${s.id}`).toBe(s.id);
+        expect(resolveNavTarget(alias)?.section, `alias "${alias}" on ${s.id}`).toBe(s.id);
       }
     }
   });

@@ -31,10 +31,13 @@ describe("market admin router", () => {
     expect(src).toMatch(/QUERY_HANDLERS\.master_report\(/);
     expect(read("server/routes/nour-os-query.ts")).toMatch(/export const QUERY_HANDLERS/);
   });
-  it("is mounted as `market` and registered as an admin section", () => {
+  it("is mounted as `market` and the admin still opens it: ?tab=market lands on Reports > Search", async () => {
     expect(read("server/routers.ts")).toMatch(/market: marketAdminRouter/);
-    expect(read("client/src/pages/admin/registry.tsx")).toMatch(/id: "market"/);
-    expect(read("client/src/pages/admin/shared/types.ts")).toMatch(/"market"/);
+    // 2026-10-19 (admin prune W1): Market is no longer a section; it is the Search
+    // tab of Reports. Assert the live resolution, not a string in a table.
+    const { resolveNavTarget } = await import("../../client/src/pages/admin/registry");
+    expect(resolveNavTarget("market")).toEqual({ section: "opsHub", innerKey: "reportsTab", innerValue: "search" });
+    expect(read("client/src/pages/admin/OpsHubSection.tsx")).toMatch(/import\("\.\/MarketSection"\)/);
   });
 });
 

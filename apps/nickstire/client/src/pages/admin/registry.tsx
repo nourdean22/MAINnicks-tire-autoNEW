@@ -349,7 +349,7 @@ export const COMPOUND_REDIRECTS: Record<string, { section: AdminSection; innerKe
  * sections. Every inner value must exist in innerTabs.ts (pinned by
  * admin-prune-redirects.test.tsx and admin-registry-integrity.test.ts).
  */
-export const RETIRED_SECTIONS: { id: RetiredAdminSection; was: string; aliases: string[]; to: NavTarget }[] = [
+const RETIRED_SECTIONS: { id: RetiredAdminSection; was: string; aliases: string[]; to: NavTarget }[] = [
   {
     id: "opportunities",
     was: "Opportunities",
@@ -394,7 +394,7 @@ export const RETIRED_SECTIONS: { id: RetiredAdminSection; was: string; aliases: 
   },
 ];
 
-export function resolveSection(raw: string): AdminSection | null {
+function resolveSection(raw: string): AdminSection | null {
   const slug = (raw || "").toLowerCase().trim();
   if (!slug) return null;
   for (const entry of ADMIN_REGISTRY) {
