@@ -21,6 +21,8 @@ vi.mock("../services/shopMediaLibrary", async (importOriginal) => ({
 }));
 
 import { shopMediaRouter } from "./shopMedia";
+// Static, at collect time: the full router graph is too slow to load inside a test timeout on a loaded machine.
+import { appRouter } from "../routers";
 import { permissionForAdminProcedure } from "../../shared/adminPermissions";
 import type { TrpcContext } from "../_core/context";
 
@@ -37,7 +39,6 @@ describe("shopMedia router", () => {
     h.security = { adminRole: "viewer", mfaEnabled: false, mfaVerifiedAt: null, mfaAgeMinutes: null, encryptedSecret: null };
     try {
       // Through the REAL app router: RBAC keys on the full path (shopMedia.list), which a sub-router caller never sees.
-      const { appRouter } = await import("../routers");
       const caller = appRouter.createCaller(ctx("admin")).shopMedia;
       await expect(caller.list({ state: "quarantined" })).rejects.toMatchObject({ code: "FORBIDDEN" });
       await expect(caller.stats()).rejects.toMatchObject({ code: "FORBIDDEN" });
