@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "worker-express5": {
+      "ref": "statenour/worker-express5 (job 2026-10-19-worker-express5, 2026-10-19). apps/worker/package.json: express ^4.21.2 -> ^5.2.1, @types/express ^4.17.21 -> ^5 (no install run, pnpm-lock.yaml untouched). New apps/worker/src/listen.ts (listenOrExit, import-free) takes the Express 5 app.listen callback error argument, logs it and exits 1 without the listening line; apps/worker/src/index.ts calls it. tests/repo/worker-listen-error.test.ts drives the real module with a fake app: red first 4 failed / 3 passed on a stub that kept today's behaviour (the 3 passes are the no-error and return-value controls),tests/repo/worker-express-aligned.test.ts red 1 failed / 7 passed on the Express 4 manifest; after, 15 passed / 0 failed. Mutants 6 / 6 killed on the real files: callback ignores the error argument (2 red), exit 0 (1 red), listening logged before the error check (2 red), error logged without exit (2 red), index.ts calls app.listen directly (1 red), index.ts passes a no-op exit (1 red). Consumer: apps/worker/src/index.ts imports ./listen.js and calls listenOrExit(app, port, ...), pinned by the test. MANAGER-OWNED and NOT CHECKED by this lane: the regenerated pnpm-lock.yaml, pnpm --filter @statenour/worker check and build on the real Express 5 types, and the boot smoke."
+    }
+  }
+}

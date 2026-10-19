@@ -20,8 +20,10 @@ Cross-cutting repo rules (branching, worktrees, Windows, verify gates): root
 
 ## What this service actually is
 
-An Express 4 + node-cron process on Railway's internal network. **Source files** (`ls src`):
-`src/index.ts`, `src/scheduler.ts`, `src/forward.ts`, `src/storage.ts`, `src/renderPlan.ts`. It does two things:
+An Express 5 + node-cron process on Railway's internal network (nickstire's server stays on Express 4 until its own job;
+`app.listen`'s callback now receives bind errors, so `src/listen.ts` exits 1 on one instead of logging "listening").
+**Source files** (`ls src`): `src/index.ts`, `src/listen.ts`, `src/scheduler.ts`, `src/forward.ts`, `src/storage.ts`,
+`src/renderPlan.ts`. It does two things:
 
 1. **Forwards the worker-owned cron ticks** (`HIGH_FREQ_JOBS` in `scheduler.ts`) to statenour-web. It holds no business logic for
    those jobs: each tick is an authenticated `GET ${STATENOUR_WEB_URL}/api/cron/<name>` with a
@@ -83,7 +85,7 @@ This section is canonical: if you change the env contract, change it here first,
   window follows. **Never point `healthcheckPath` at this endpoint.** Safe to alert on; nothing
   restarts on it.
 - **Graceful drain on SIGTERM/SIGINT** — `drainInFlight(30_000)` bounded, `35_000` hard exit
-  (`index.ts:170`, `:166`, handlers at `:177-178`). Keep it, or a deploy can kill a render mid-write.
+  (`index.ts:173`, `:169`, handlers at `:180-181`). Keep it, or a deploy can kill a render mid-write.
 - `STATENOUR_SYNC_KEY` must match across statenour-web, nickstire and worker — a drift shows up as
   bridge 401s.
 
