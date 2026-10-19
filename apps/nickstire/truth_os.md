@@ -140,6 +140,30 @@ detailed in `docs/CURRENT-TRUTH.md`:
   rows tie at a call's newest time. Production has no such ties today, so there it equals the removable count.
 - **Not yet observed:** a nightly `cron_log` row carrying the line; a real DELETE on the production table (none has run).
 
+## 2026-10-19 - Koalafi: the Direct API is mapped end to end; the private key is the only gate
+
+- **Live and complete without a key:** the order modal's and /tires' Koalafi link is the hosted apply page with `phone=`
+  prefilled (`providerApplyUrl`, #3152), every click lands in `financing_clicks` through `financing.trackApplication`
+  (plus the Sheet and the activity ledger), Koalafi is listed on /financing. Nothing keyless is missing.
+- **Everything deeper needs `private-api-key`** (embedded modal, cart sync, lease status reads, `markOrderDelivered` for
+  funding, webhooks). Koalafi issues it at onboarding; it is NOT in the dealer portal (Store Details read
+  2026-10-19, Integrations shows only the STORE PUBLIC ID we already use and STORIS point-of-sale credentials, FACT), and
+  no reverse-engineering produces a secret. Channel that is not a phone call: integrations_support@koalafi.com; a draft
+  request sits in the manager session's scratchpad for Nour to send or drop.
+- **Contract captured** (research report, "Koalafi Direct API, modal and webhook contract": 34 doc pages fetched as
+  Markdown, 25 read in full):
+  hosts, headers, every mutation and query with inputs, returns and error unions, the lease status lifecycle, the
+  Ed25519-signed `lease.changed` webhook, sandbox test data, the $300 to $10,000 and 20% non-leasable rules, and the
+  one-PR build plan (Modal integration so SSN, card and bank data stay in Koalafi's iframe; "signed" only from a server-side
+  `order` read, never the browser promise). **No dormant client was built, on purpose:** it could only be tested against our
+  reading of the docs; it gets built TDD against the sandbox the day the key exists.
+- Dealer portal: store 67848; the FRIENDLY NAME rename to "Nick's Tire & Auto" did not persist (Settings still reads
+  "Moes Tire and Auto Euclid" after reload) and the page's "Reset Password" button sits beside "Copy Application Form
+  URL", so the rename stays Nour's own click; a reset email most likely did not go out (STRONG INFERENCE: the "Reset Password
+  email has been sent" text is one of four hidden success templates on that page, and the Gmail account the connector
+  reads had no Koalafi mail; the shop's dealer-contact inbox was not checked).
+- #3162 (this flag-on, Vapi-pushed, migrations-owed note) MERGED 2026-10-19 01:01Z as `33bc4e121`.
+
 ## 2026-10-18 - Tire finder by vehicle, Kafene first, order completion (#3148 live, #3152 merged)
 
 - **/tires finds sizes by vehicle** (`fitment` router, `server/services/fitment/dkFitment.ts`): year > make > model > trim >
@@ -150,11 +174,17 @@ detailed in `docs/CURRENT-TRUTH.md`:
 - **Payment Programs are five, Kafene first** (`shared/financing.ts`, `shared/business.ts`): Kafene, Acima, Snap, Koalafi,
   American First. Copy, SMS planner, voice classifiers, chat tools, GBP and ad copy all say five. `financing_clicks.provider`
   gains `kafene` by **migration 0147 (operator step, admin Run Migrations)**; until applied a Kafene click opens the application
-  and the click row is dropped with a warn. The Vapi keyword list gained Kafene: **Push Latest Config** is an operator step.
+  and the click row is dropped with a warn. The Vapi keyword list gained Kafene: Push Latest Config was DONE from /admin on
+  2026-10-19 00:2xZ ("Assistant updated + Vapi read-back verified"). **Migrations 0147 and 0148 are STILL OWED** (the agent's
+  tap on Settings > System Health > "Apply built-in migrations" was refused by its permission classifier; one tap for Nour,
+  then, with the shell in `apps/nickstire` (the script resolves its paths from there):
+  `railway run -s MAINnicks-tire-auto -- node scripts/record-migrations.mjs --only 0147,0148 --execute`).
 - **Order completion (#3152, squash `8b189e8b7`; live when Railway deploys it):**
   - Admin one-tap supplier order at D&K (`gatewayOrder.prepare/submit/clearOurLines`, `services/gatewaySupplierOrder.ts`):
     cart from the order lines, PO `online order <order number>`, CAS claim so two taps place one order, unclear submits park as
-    `uncertain:<uuid>`, doubled carts refused (`cart_mismatch`). **Behind `GATEWAY_ORDERING_ENABLED` (off) and `money.manage`.**
+    `uncertain:<uuid>`, doubled carts refused (`cart_mismatch`). **Behind `GATEWAY_ORDERING_ENABLED` and `money.manage`;
+    the flag is ON since 2026-10-19 00:20Z (set on Railway by the agent on Nour's order; redeploy followed). No real D&K
+    order has gone through it yet: the first one is the live proof.**
     A Kafene-leased order (never "paid") counts as paid for this once its lease is signed.
   - Kafene keyless bridge, ON at deploy: Apply with Kafene in the order modal calls `kafene.applyStarted` (order note, one
     Telegram to staff with the phone masked, once per order per day, 5 calls/IP/hour); admin lease panel shows "Application
@@ -167,6 +197,20 @@ detailed in `docs/CURRENT-TRUTH.md`:
   - Order-modal links carry what each provider accepts (`providerApplyUrl`): Koalafi `phone=` (verified prefill), American
     First `amount=` + `reference=`; Kafene, Snap, Acima unchanged.
 - Research: `docs/research/2026-10-18-competitor-tire-finder-teardown.md` (9 chains, provider apply pages, Kafene portal).
+- **Same day, later (#3153 `7d326b8c6`, #3155 `d6d042365`, #3159 `cd3bd65cb`, #3157 `ff063da8e`):** preflight's text scan takes
+  data and script files (`scripts/preflight-text-scan.mjs`), so a capability-ledger edit runs `completionAuthority.test.ts`
+  before the push (#3152 had missed it: one billed CI run). Admin order card: "Open Kafene portal (copies phone)", LIVE-VERIFIED
+  in Chrome 22:12Z (toast + new tab to merchant.kafene.com). The Kafene merchant-portal client was REJECTED by Nour after the
+  viability read (Kafene's Cloudflare refused this laptop's VPN exit, FACT; Railway's datacenter egress would most likely be
+  refused too, STRONG INFERENCE, never probed from a datacenter host; device trust is a FingerprintJS cookie); the portal
+  wire contract sits in the teardown report for a future portal-login client, not for the Partner API keys. **Quote by text
+  (#3157, LIVE 23:25Z):** each /tires top-pick card on live supplier-backed results has "Text me this quote" (not on the
+  curated-catalog fallback, `TireFinderV2.tsx` renders it only when `source !== "catalog"`); the quote is stored as a `TQ-` tire_orders lead
+  and sent as one `quoteTexted` customer text with a staff Telegram. Live test 23:28Z to the owner's cell: the lead saved
+  (`TQ-20261018-993`) and the page said "Saved. We could not text this number": the existing internal-line guard refused the
+  automated send to the operator's own mobile, by design; delivery to a customer number is still unproven. Test order
+  `TO-20261018-558` (no payment) showed the Koalafi link with `phone=` and the American First link with `amount=524.79`
+  (tires + tax, no card fee) and `reference=TO-20261018-558`; both test rows were cancelled from /admin.
 
 ## 2026-10-16 - Observability is proven by planted positives, not by env presence (branch nickstire/observability-proof, NOT yet merged)
 

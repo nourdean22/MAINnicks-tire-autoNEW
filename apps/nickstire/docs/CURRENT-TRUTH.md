@@ -7,6 +7,20 @@
 
 Live code and production evidence override this document when they disagree. Update this file in the same change that alters a listed contract.
 
+## Koalafi contract mapped, key is the gate (2026-10-19, docs PR): the Direct API, modal SDK and `lease.changed` webhook are documented end to end in the research report from docs.koalafi.com (34 pages fetched as Markdown, 25 read in full; no live API calls); the keyless path is live and complete (hosted apply link with `phone=` prefill, every click recorded by `financing.trackApplication`); everything deeper needs the `private-api-key` Koalafi issues at onboarding, which is NOT in the dealer portal (Integrations shows only the public id already in our link and STORIS POS credentials, FACT) and cannot be derived; no dormant client was built on purpose (it could only be tested against our reading of the docs; one PR, TDD against the sandbox, when the key exists); the dealer-portal rename to "Nick's Tire & Auto" did not persist (Settings still reads "Moes Tire and Auto Euclid"), and a reset-password email most likely did not go out (the "sent" text is a hidden page template; the dealer-contact inbox was not checked); a request to integrations_support@koalafi.com is drafted for Nour, not sent
+
+## Operator steps run 2026-10-19 00:2xZ (Nour: "go do all that for me"): `GATEWAY_ORDERING_ENABLED=true` set on Railway (CLI, read back; redeploy 00:20Z), Vapi Push Latest Config done ("Assistant updated + Vapi read-back verified"). STILL OWED: migrations 0147 + 0148 (admin Settings > System Health > Apply built-in migrations; the agent's tap was refused by its classifier), the record step (run from `apps/nickstire`: `railway run -s MAINnicks-tire-auto -- node scripts/record-migrations.mjs --only 0147,0148 --execute`), the Koalafi dealer rename (needs Nour's dealer.koalafi.com login), a quote-text delivery proof to a non-internal phone
+
+## Text me this quote on /tires top picks (2026-10-18, PR #3157) -- MERGED (main `ff063da8e`), LIVE (`/api/health` deploy.commit `ff063da8e` 23:25Z); live test to the owner's cell saved lead `TQ-20261018-993` and was refused by the internal-line guard ("could not text this number"), so delivery to a real customer number is still unproven; the test lead was cancelled from /admin
+
+## Kafene merchant-portal wire contract (2026-10-18, PR #3159, docs) -- MERGED (main `cd3bd65cb`); the portal client itself was rejected by Nour (Cloudflare refused the laptop's VPN exit, FACT; a datacenter block for Railway is STRONG INFERENCE, not probed)
+
+## Admin order card: Open Kafene portal (copies phone) (2026-10-18, PR #3155) -- MERGED (main `d6d042365`), LIVE-VERIFIED in Chrome 22:12Z (toast + new tab to merchant.kafene.com)
+
+## Preflight text scan covers data files + post-merge audit of #3148/#3152 (2026-10-18, PR #3153) -- MERGED (main `7d326b8c6`); the scan fired on its own diff ("+ 1 text-scan tests")
+
+## Order completion live test (2026-10-18, after #3152 + #3157): test order `TO-20261018-558` (no payment) showed the Koalafi link carrying `phone=` and the American First link carrying `amount=524.79` + `reference=TO-20261018-558` on the payment step; cancelled from /admin afterwards
+
 ## Tire finder by vehicle + Kafene first (2026-10-18, PR #3148) -- MERGED (main `0b8cb5bae`), LIVE (`/api/health` deploy.commit `0b8cb5bae`; `fitment.status {available:true}`; 2018 Civic LX -> four sizes; /tires screenshot shows the By vehicle tab)
 
 - Public `fitment.*` reads over D&K b2b quicksearch through the Gateway Tire login (Wheel-Size dropped, $0). Top-pick cards. Kafene is the first of five Payment Programs with its banners under `client/public/kafene/`. Operator steps owed: migration 0147 (admin Run Migrations + `record-migrations.mjs --only 0147`), Vapi Push Latest Config (Kafene keyword).

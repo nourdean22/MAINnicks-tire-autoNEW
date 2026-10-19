@@ -2429,4 +2429,41 @@ measurement. Every proposal below cites the moment in this wave that produced it
 - **Cost:** about 10 minutes of waiting and one extra merge-gate run.
 - **Proposed edit:** "when the Codex bot has posted its usage-limit notice on the PR, there will be no marker for later SHAs that day; with Nour's go, run merge-gate with `--codex-wait-minutes 0` and keep the WARN line in the PR or ledger."
 - **Confidence:** medium (three PRs, one day)
+- **Status:** superseded by P7 (2026-10-18 evening: the quota recovered the same day and Codex reviewed #3157, #3159 and #3160 in full; a quota notice is not a day-long condition)
+
+### P7 · monorepo-manager references/review-and-merge.md (Codex quota resets mid-day)
+- **Trigger (witnessed 2026-10-18, session 9dcc8dd1):** Codex posted its usage-limit notice on #3152 and #3155 (merged on the fail-open with no findings), then its quota reset and it reviewed #3157 and #3159 in full the same evening: 8 findings on one, 4 on the other (one of them a false P1 that read the PR body instead of the commit).
+- **Cost:** the fail-open merges got no second look; #3157 waited one extra fix round.
+- **Proposed edit:** after a quota notice, the manager posts "@codex review" once more on the final head before running the gate when the PR is still open an hour later, and a quota-day fail-open merge gets the review lens (the read-only skeptic lane) as the substitute, recorded in the ledger row.
+- **Confidence:** medium (one day, four PRs)
+- **Status:** proposed
+
+### P8 · nickstire-verify (the exit code is the receipt)
+- **Trigger (witnessed 2026-10-18 twice in one session):** `node merge-gate.mjs ... ; echo EXIT=$?` after a `| tail -4` printed the exit of `tail`; `pnpm run check | tail -3` read as "tsc exit=0" while tsc had failed. The skill already names the trap for vitest; both bit again on other commands.
+- **Cost:** about 10 minutes and one stale "ready" status.
+- **Proposed edit:** generalise the trap to every gate: "never pipe a gate's output; redirect to a file, then read the file and the exit code separately" (`cmd > log 2>&1; echo $?`), and add merge-gate's own rule: it needs the FULL 40-character sha; a short sha prints usage and exits 64 (`merge-gate.mjs:276-278`; the "exit 0" the session read that day came from the `| tail` in front of `$?`, the same trap).
+- **Confidence:** high (recurring, two commands, one day)
+- **Status:** proposed
+
+### P9 · harness-worktree-setup or nickstire-verify (preflight blind spot for data-file readers)
+- **Trigger (witnessed 2026-10-18, #3152):** preflight said "all green" and CI failed on `completionAuthority.test.ts`, which reads `capability-ledger.json` at runtime: `vitest related` follows imports, never `readFileSync`. Fixed in #3153 (`scripts/preflight-text-scan.mjs` scans data files too).
+- **Cost:** one billed CI run and about 20 minutes.
+- **Proposed edit:** one line in the skill's preflight step: "a test that reads a data file is selected only by the text scan; after any `docs/operations/*.json` edit run `node scripts/preflight-text-scan.mjs <file>` and the tests it names".
+- **Confidence:** high (fixed and canaried in #3153)
+- **Status:** proposed
+
+### P10 · monorepo-manager (step 2, spec) for third-party portals
+- **Trigger (witnessed 2026-10-18, Kafene portal client):** briefs for a server-side portal client were written before anyone checked how the vendor's edge treats datacenter egress; Kafene's Cloudflare refused this laptop's VPN exit (FACT) and would most likely refuse Railway's datacenter egress (STRONG INFERENCE, never probed from a datacenter host), and its device trust is a browser fingerprint, which killed the design after the contract research.
+- **Cost:** two drafted briefs and about 40 minutes of research aimed at the wrong design.
+- **Proposed edit:** step 2 gains a line for any job that automates a vendor portal: "before the spec, read the portal's egress and device-trust rules from where the code will run (one `curl -sI` from a datacenter host and the login bundle's fingerprint calls); a VPN/datacenter block or fingerprint trust is a kill criterion to settle first".
+- **Confidence:** medium (once, clear)
+- **Status:** proposed
+
+## 2026-10-19 · Koalafi Direct API contract (session 9dcc8dd1, docs PR)
+
+### P11 · lane-research and monorepo-manager (step 9, primary source) for vendor doc sites
+- **Trigger (witnessed 2026-10-19, Koalafi):** the first pass saved the vendor's doc pages as HTML and a research lane stripped tags; 11 pages came back "missing" and the contract was PARTIAL. The same site answers `/docs/<slug>.md` (readme.io hosting) and `/llms.txt` with clean Markdown: 34 of 38 slugs in two curl loops, the complete contract in one sitting. Separately, the next idea, an introspection probe of the vendor's production GraphQL host with the store's public id, was stopped by the harness's safety classifier; with no sandbox credential it could not have proved anything, and the hosted apply page creates a vendor-side order on load.
+- **Cost:** one research lane run and about 30 minutes on the HTML path; one stopped turn.
+- **Proposed edit:** step 9 (and the lane-research agent) gains: "for a vendor doc site, try `<site>/llms.txt` and `<site>/docs/<slug>.md` before saving HTML; the primary quote comes from the `.md` file. Send nothing to a vendor's live API until a sandbox credential exists: a probe without one proves nothing and may create vendor-side records." The docs-only verdict belongs with it: when the keyed client cannot be exercised, capture the contract and the build plan, do not ship a dormant client (it is tested only against your own reading of the docs).
+- **Confidence:** medium (once, clear; the Kafene job the day before hit the same shape from the portal side, P10)
 - **Status:** proposed
