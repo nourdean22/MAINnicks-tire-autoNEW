@@ -33,7 +33,8 @@ const FIXTURES: Record<BusinessEvent, (n: number) => Fixture> = {
   // emit.bookingCreated (routers/booking.ts)
   booking_created: n => ({ data: { id: 7200 + n, name: `Booker ${n}`, phone: `216555030${n}`, service: "brakes", urgency: "normal", refCode: `REF${n}` }, mark: `REF${n}`, pii: [`Booker ${n}`, `216555030${n}`] }),
   // emit.bookingCompleted (routers/booking.ts)
-  booking_completed: n => ({ data: { id: 7300 + n, name: `Done ${n}`, service: "tires" }, mark: `"bookingId":${7300 + n}`, pii: [`Done ${n}`] }),
+  // routers/workOrders.ts sends the work-order note as `service`
+  booking_completed: n => ({ data: { id: 7300 + n, name: `Done ${n}`, service: `told Done ${n} it is ready` }, mark: `"bookingId":${7300 + n}`, pii: [`Done ${n}`, `told Done ${n} it is ready`] }),
   // emit.tireOrderPlaced (routers/gatewayTire.ts)
   tire_order_placed: n => ({ data: { orderNumber: `TO-${n}`, customerName: `Tire ${n}`, tireBrand: "B", tireModel: "M", quantity: 4, totalAmount: 400 + n }, mark: `TO-${n}`, pii: [`Tire ${n}`] }),
   // emit.invoiceCreated (routers/booking.ts)
@@ -45,7 +46,8 @@ const FIXTURES: Record<BusinessEvent, (n: number) => Fixture> = {
   // emit.paymentReceived
   payment_received: n => ({ data: { orderNumber: `PO-${n}`, amount: 300 + n, customerName: `Pay ${n}`, cardLast4: "4242" }, mark: `PO-${n}`, pii: [`Pay ${n}`, "4242"] }),
   // emit.estimateGenerated (routers/estimates.ts)
-  estimate_generated: n => ({ data: { vehicle: "2012 Civic", symptom: `grinding ${n}`, issueCount: 2, source: "ai_estimate_static" }, mark: null, pii: [`grinding ${n}`] }),
+  // routers/estimates.ts sends the repair description (the customer's complaint) as `service`
+  estimate_generated: n => ({ data: { vehicle: "2012 Civic", symptom: `grinding ${n}`, service: `customer says grinding ${n}`, issueCount: 2, source: "ai_estimate_static" }, mark: null, pii: [`grinding ${n}`, `customer says grinding ${n}`] }),
   // emit.emergencyRequest (routers/emergency.ts)
   emergency_request: n => ({ data: { name: `Stuck ${n}`, phone: `216555040${n}`, problem: `flat on I-90 ${n}`, urgency: "high" }, mark: null, pii: [`Stuck ${n}`, `216555040${n}`, `flat on I-90 ${n}`] }),
   // cron/jobs/crossSellOutreach.ts

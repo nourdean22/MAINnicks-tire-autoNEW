@@ -24,6 +24,7 @@
 import { createLogger } from "../lib/logger";
 import { affectedRowCount } from "../lib/db-affected";
 import { isMissingTableError } from "../lib/dbErrors";
+import { redactEventDataForStatenour } from "../lib/statenourOutbound";
 import { bridgeKey } from "./bridgeKeys";
 import type { BusinessEvent, EventPayload } from "./eventBus";
 
@@ -129,13 +130,14 @@ function outboxEntryFor(event: EventPayload): OutboxEntry {
     latestWins: entry.latestWins === true,
     // Dispatch time: the bus carries no separate business time today.
     occurredAt: Number.isNaN(t.getTime()) ? new Date() : t,
-    // The body statenour-sync sends today (payload parity, ADR §11 open item 1), plus the key.
+    // The body statenour-sync sends today (payload parity, ADR §11 open item 1), plus the key:
+    // redacted the same way, so a future drainer cannot post a customer's name or phone.
     payload: {
       type: `nickstire:${event.type}`,
       timestamp: event.timestamp,
       source: event.source || "nickstire",
       priority: event.priority,
-      data: event.data,
+      data: redactEventDataForStatenour(event.type, event.data),
       idempotencyKey: key,
     },
   };

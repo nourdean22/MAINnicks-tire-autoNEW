@@ -139,7 +139,7 @@ describe("bridge_outbox key derivation", () => {
   });
 
   it("stores the statenour-sync body plus the key, with the dispatch time as occurred_at", async () => {
-    const r = await keyFor("booking_created", { id: 9, name: "Ann", service: "brakes" });
+    const r = await keyFor("booking_created", { id: 9, name: "Ann", phone: PHONE, service: "brakes" });
     const [key, eventType, route, payload, occurredAt] = r.call!.params;
     expect([key, eventType, route]).toEqual(["v1:shop.booking.created:booking:9", "shop.booking.created", "sync/events"]);
     expect(JSON.parse(payload as string)).toEqual({
@@ -147,9 +147,11 @@ describe("bridge_outbox key derivation", () => {
       timestamp: "2026-09-29T20:00:00.000Z",
       source: "test",
       priority: "high",
-      data: { id: 9, name: "Ann", service: "brakes" },
+      // Redacted like the wire copy (wave 4): no name or phone, the row id and the booked service stay.
+      data: { id: 9, service: "brakes" },
       idempotencyKey: "v1:shop.booking.created:booking:9",
     });
+    expect(payload as string).not.toContain(PHONE);
     expect(occurredAt).toEqual(new Date("2026-09-29T20:00:00.000Z"));
   });
 });

@@ -21,7 +21,7 @@ const businessPayload = () => ({
     retentionRate: 33,
     topSpenders: [{ name: "Jane Roe", total: 900, visits: 6, email: "jane@example.test" }],
     atRiskCustomers: [{ name: "John Doe", phone: "2165550102", lastVisit: "2026-05-01", daysSince: 170 }],
-    servicePatterns: [{ service: "brakes", count: 9, revenue: 2400 }],
+    servicePatterns: [{ service: "Brakes for Jane Roe, call 2165550101", count: 9, revenue: 2400 }],
     dayOfWeekPattern: [1, 2, 3, 4, 5, 6, 7],
     peakHours: new Array(24).fill(0),
     actionPlan: "\nCUSTOMER ACTION PLAN:\n• CALL NOW: John Doe (2165550102) — 170d since last visit.",
@@ -38,10 +38,11 @@ const businessPayload = () => ({
     topItems: [{
       workOrderId: "wo-1", orderNumber: "WO-1001", customer: "Maria Stone", phone: "2165550103",
       vehicle: "2014 Ford F-150", value: 800, hasSafety: true,
-      lines: [{ description: "Front pads", total: 300, declineReason: "price", safetyRelated: true, outreachAt: null, recoveryMethod: null, recoveryNotes: "Left a voicemail for Maria" }],
+      lines: [{ description: "Front pads", total: 300, declineReason: "Sam Hill said next payday", safetyRelated: true, outreachAt: null, recoveryMethod: "texted John Doe", recoveryNotes: "Left a voicemail for Maria" }],
     }],
   },
   nickAI: { memories: [{ type: "pattern", content: "FULL CONVERSION: Customer \"Sam Hill\" completed full journey" }], memoryCount: 1 },
+  operatorPatterns: [{ topic: "call Maria Stone", count: 2, lastAsked: "2026-10-19T12:00:00.000Z" }],
 });
 
 describe("redactBusinessSyncForStatenour", () => {
@@ -57,7 +58,7 @@ describe("redactBusinessSyncForStatenour", () => {
       available: true, totalCustomers: 40, activeCustomers: 12, retentionRate: 33,
       topSpenders: [{ total: 900, visits: 6 }],
       atRiskCustomers: [{ lastVisit: "2026-05-01", daysSince: 170 }],
-      servicePatterns: [{ service: "brakes", count: 9, revenue: 2400 }],
+      servicePatterns: [{ count: 9, revenue: 2400 }],
       dayOfWeekPattern: [1, 2, 3, 4, 5, 6, 7],
       peakHours: new Array(24).fill(0),
     });
@@ -66,10 +67,11 @@ describe("redactBusinessSyncForStatenour", () => {
       measured: true, totalRecoverable: 800, customerCount: 1, safetyItemCount: 1,
       topItems: [{
         workOrderId: "wo-1", orderNumber: "WO-1001", vehicle: "2014 Ford F-150", value: 800, hasSafety: true,
-        lines: [{ description: "Front pads", total: 300, declineReason: "price", safetyRelated: true, outreachAt: null, recoveryMethod: null }],
+        lines: [{ description: "Front pads", total: 300, safetyRelated: true, outreachAt: null }],
       }],
     });
     expect(out.nickAI).toEqual({ memoryCount: 1 });
+    expect(out.operatorPatterns).toEqual([{ count: 2, lastAsked: "2026-10-19T12:00:00.000Z" }]);
   });
 
   it("never mutates the local payload: nickstire's own digests keep the names", () => {
@@ -99,7 +101,7 @@ describe("redactBusinessSyncForStatenour", () => {
       customerJourneys: { customer: "Maria Stone" },
       nickAI: "Sam Hill",
     });
-    expect(out).toEqual({ customerIntelligence: null, customerJourneys: [], declinedWork: null, nickAI: null });
+    expect(out).toEqual({ customerIntelligence: null, customerJourneys: [], declinedWork: null, nickAI: null, operatorPatterns: [] });
   });
 });
 
@@ -111,7 +113,10 @@ describe("redactEventDataForStatenour", () => {
     ["nickstire:emergency", { name: "John Doe", phone: "2165550102", description: "flat on I-90, I am John", urgency: "high" }, { urgency: "high" }],
     ["nickstire:review", { rating: 5, reviewText: "Sam Hill fixed it", customerName: "Sam Hill" }, { rating: 5 }],
     ["nickstire:revenue", { kind: "invoice_paid", invoiceNumber: "INV-1", customer: "Jane Roe", totalAmount: 200, method: "card" }, { kind: "invoice_paid", invoiceNumber: "INV-1", totalAmount: 200, method: "card" }],
-    ["nickstire:estimate", { kind: "repair", vehicle: "2012 Civic", symptom: "John says it grinds", service: "brakes", issueCount: 2, source: "ai_estimate_static" }, { kind: "repair", vehicle: "2012 Civic", service: "brakes", issueCount: 2, source: "ai_estimate_static" }],
+    ["nickstire:estimate", { kind: "repair", vehicle: "2012 Civic", symptom: "John says it grinds", service: "brakes", issueCount: 2, source: "ai_estimate_static" }, { kind: "repair", vehicle: "2012 Civic", issueCount: 2, source: "ai_estimate_static" }],
+    // `service` on these is free text: a work-order note, a work order's description, the customer's complaint.
+    ["nickstire:booking:complete", { bookingId: 9, customer: "Sam Hill", service: "Told Sam Hill it is ready", invoiceNumber: null, totalAmount: null }, { bookingId: 9, invoiceNumber: null, totalAmount: null }],
+    ["nickstire:work_order:status", { workOrderId: "wo-1", orderNumber: "WO-1", fromStatus: "open", toStatus: "in_progress", service: "John says it grinds when he brakes" }, { workOrderId: "wo-1", orderNumber: "WO-1", fromStatus: "open", toStatus: "in_progress" }],
     ["payment_received", { orderNumber: "PO-1", amount: 300, customerName: "Jane Roe", cardLast4: "1234" }, { orderNumber: "PO-1", amount: 300 }],
     ["campaign_sent", { type: "cross-sell-outreach-v2", customerId: 74, phone: "2165550103", service: "alignment", confidence: 0.8, reason: "Maria Stone is due", predictionId: "pred-1" }, { type: "cross-sell-outreach-v2", service: "alignment", confidence: 0.8, predictionId: "pred-1" }],
     ["stage_changed", { callbackId: 3, newStatus: "completed", notes: "Talked to Maria Stone" }, { callbackId: 3, newStatus: "completed" }],

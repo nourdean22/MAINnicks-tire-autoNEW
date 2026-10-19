@@ -48,7 +48,11 @@ const MEMORIES = [
 ];
 
 vi.mock("./services/featureFlags", () => ({ getAllFlags: async () => [] }));
-vi.mock("./services/nickMemory", () => ({ recall: async () => MEMORIES, getTopQuestions: () => [], remember: async () => undefined }));
+vi.mock("./services/nickMemory", () => ({
+  recall: async () => MEMORIES,
+  getTopQuestions: () => [{ topic: "call John Doe", count: 2, lastAsked: "2026-10-19T12:00:00.000Z" }],
+  remember: async () => undefined,
+}));
 vi.mock("./nour-os-bridge", () => ({ getEventAnalytics: () => ({}), getSyncStatus: () => ({}) }));
 vi.mock("./services/feedbackLoop", () => ({ detectAnomalies: () => [], getBriefEngagement: () => ({}) }));
 vi.mock("./services/eventBus", () => ({
@@ -58,7 +62,7 @@ vi.mock("./services/declinedWorkRecovery", () => ({
   getDeclinedWorkLedger: async () => [{
     workOrderId: "wo-1", orderNumber: "WO-1001", customerName: "Maria Stone", phone: "2165550103",
     vehicle: "2014 Ford F-150", totalDeclinedValue: 800, hasSafetyItems: true,
-    declinedItems: [{ description: "Front pads", total: 300, declineReason: "price", safetyRelated: true, outreachAt: null, recoveryMethod: null, recoveryNotes: NOTE, recovered: false }],
+    declinedItems: [{ description: "Front pads", total: 300, declineReason: "Sam Hill said next payday", safetyRelated: true, outreachAt: null, recoveryMethod: "texted John Doe", recoveryNotes: NOTE, recovered: false }],
   }],
 }));
 vi.mock("./services/declinedWorkSource", () => ({
@@ -73,7 +77,7 @@ const CI = {
   avgLifetimeValue: 500, avgTicket: 150, retentionRate: 33, avgVisitsPerCustomer: 2,
   topSpenders: [{ name: "Jane Roe", total: 900, visits: 6 }],
   atRiskCustomers: [{ name: "John Doe", phone: "2165550102", lastVisit: "2026-05-01", daysSince: 170 }],
-  servicePatterns: [{ service: "brakes", count: 9, revenue: 2400 }],
+  servicePatterns: [{ service: "Brakes, Jane Roe 2165550101", count: 9, revenue: 2400 }],
   dayOfWeekPattern: [1, 2, 3, 4, 5, 6, 7], peakHours: new Array(24).fill(0),
 };
 
