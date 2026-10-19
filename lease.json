@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "nickstire/photo-check-improvement-type",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "ee66da8a-fb60-434e-8ebe-990e50a73302",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\reels-batch-ops-1688b1",
   "claimedBy": "2026-10-18-bdnick-prune photo check fix",
   "claimedAt": "2026-10-19T12:57:58.933Z",
   "expiresAt": "2026-10-20T00:57:58.933Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": null
+  "releasedAt": "2026-10-19T13:46:09.359Z",
+  "releaseReason": "PR 3174 merged as a3158b898; the unpushed commits in this worktree belong to nickstire/bdnick-pii-redaction (wave 4, held for W3 LIVE), not to this branch",
+  "priorLeaseSha": "855ed5473ed9df0572e670f9a132b615200edbf3",
+  "releasedBy": "ee66da8a-fb60-434e-8ebe-990e50a73302",
+  "foreignReleaseReason": null
 }
