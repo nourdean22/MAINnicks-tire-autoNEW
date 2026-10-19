@@ -158,9 +158,9 @@ describe("the gate is wired at the END of the function, not inside the step", ()
     // re-executing the step's code". Throwing inside step 1 meant each of the
     // three attempts re-ran all seven connector fetches and re-spent the scrape
     // budget on the day things were already broken, and skipped the six
-    // downstream steps — no opportunity scoring, no drift scan.
+    // downstream step — no drift scan.
     const stepStart = src.indexOf('step.run("ingest-active-sources"');
-    const stepEnd = src.indexOf('step.run("synthesize-opportunities"');
+    const stepEnd = src.indexOf('step.run("scan-persona-drift"');
     const stepBody = src.slice(stepStart, stepEnd);
     expect(stepBody.length).toBeGreaterThan(0);
     expect(stepBody, "the gate must not throw inside the ingestion step").not.toMatch(/throw new Error/);
@@ -168,14 +168,13 @@ describe("the gate is wired at the END of the function, not inside the step", ()
   });
 
   it("the function is a slim ingest: no brief is composed, saved or pushed", () => {
-    for (const gone of ["compose-brief-text", "save-brief-log", "dispatch-push", "combine-morning-highlight"]) {
+    for (const gone of ["compose-brief-text", "save-brief-log", "dispatch-push", "combine-morning-highlight", "synthesize-opportunities"]) {
       expect(src, gone).not.toContain(`step.run("${gone}"`);
     }
   });
 
-  it("the throw comes after the opportunity and drift steps, so they still run", () => {
+  it("the throw comes after the drift step, so it still runs", () => {
     const at = src.indexOf("throw new Error(fatal)");
-    expect(at).toBeGreaterThan(src.indexOf('step.run("synthesize-opportunities"'));
     expect(at).toBeGreaterThan(src.indexOf('step.run("scan-persona-drift"'));
   });
 });

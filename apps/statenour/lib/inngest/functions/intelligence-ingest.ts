@@ -3,16 +3,18 @@
  *
  * The slim survivor of `intelligence-daily-brief`. The BRIEF (page, push, weekly
  * and daily brief crons) was stopped on the operator's decision; the pipeline
- * that fed it was not. This is the only scheduler of: source ingestion with claim
- * verification and promotion, claim -> opportunity scoring, the persona-drift
- * scan, and the fatal-ingestion gate that routes a dead pipeline to
- * onInngestFailure. No brief is composed, saved or pushed here.
+ * that fed it was not. This is the only scheduler of source ingestion with claim
+ * verification and promotion, the persona-drift scan, and the fatal-ingestion
+ * gate that routes a dead pipeline to onInngestFailure. No brief is composed,
+ * saved or pushed here. Opportunity scoring and content drafting were dropped
+ * with it: the page and route that decided opportunities are gone, so the only
+ * reader of opportunity_logs left is the manual triggerBrief tool.
  */
 import { getInngest } from "../client";
 import { onInngestFailure } from "../on-failure";
 import { runIngestion } from "@/lib/intelligence/ingest";
-import { processClaimsIntoOpportunities } from "@/lib/intelligence/scoring";
 import { logger as rootLogger } from "@/lib/logger";
+
 const log = rootLogger.withSurface("inngest/intelligence-ingest");
 const inngest = getInngest();
 
@@ -171,7 +173,7 @@ export function ingestionFailure(report: {
 export const intelligenceIngest = inngest.createFunction(
   {
     id: "intelligence-ingest",
-    name: "Intelligence OS · Ingestion + opportunity scoring",
+    name: "Intelligence OS · Ingestion + persona drift",
     retries: 2,
     triggers: [{ cron: "15 10 * * *" }],
     onFailure: onInngestFailure,
@@ -192,19 +194,7 @@ export const intelligenceIngest = inngest.createFunction(
       });
     });
 
-    // 2. Synthesize Claims into Opportunities & score them
-    const opportunityReport = await step.run("synthesize-opportunities", async () => {
-      const { processSearchOpportunities } = await import("@/lib/intelligence/search-opportunity");
-      const { processOpportunityContentDrafts } = await import("@/lib/intelligence/content-alpha");
-
-      const claimsCount = await processClaimsIntoOpportunities();
-      const searchCount = await processSearchOpportunities();
-      const draftsCount = await processOpportunityContentDrafts();
-
-      return { opportunitiesCreated: claimsCount + searchCount, draftsCreated: draftsCount };
-    });
-
-    // 3. AG-15 · persona-drift scan. The read surfaces (tRPC system.personaDrift,
+    // 2. AG-15 · persona-drift scan. The read surfaces (tRPC system.personaDrift,
     // /api/system/persona-drift, the ultron situation card) are live and this is
     // the only scheduled caller of scanRecentReplies. Best-effort: drift
     // observability never fails the run.
@@ -249,7 +239,6 @@ export const intelligenceIngest = inngest.createFunction(
     return {
       status: "completed" as const,
       ingested: ingestionReport,
-      opportunities: opportunityReport,
       personaDrift: driftReport,
     };
   },

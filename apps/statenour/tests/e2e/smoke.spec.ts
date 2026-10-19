@@ -124,8 +124,6 @@ const API_ENDPOINTS = [
   // /api/intel returns { ok, industry: [], generatedAt } and OMITS the
   // data-dependent keys (proven in e2e run 6) — pin the structural shape.
   { method: "GET", path: "/api/intel", expectKeys: ["ok", "industry", "generatedAt"] },
-  { method: "GET", path: "/api/content/history?days=30", expectKeys: ["count", "rows", "stats"] },
-  { method: "GET", path: "/api/social/recent-images", expectKeys: ["images"] },
   { method: "GET", path: "/api/brain/wisdom", expectKeys: ["total", "totalRecalls", "groupings"] },
   { method: "GET", path: "/api/trpc/observability.osSnapshot", expectKeys: ["result"] },
 ];

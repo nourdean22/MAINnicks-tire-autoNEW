@@ -45,7 +45,7 @@ critical tool is denied the day it lands — no edit here.
 The one gap in the four things an external agent needs (invoices, cron, brain,
 brief). `tasks`-scope only. Recomposes the daily brief from CURRENT ingested
 data and stores a `briefing_logs` row — it does **not** re-run ingestion (that
-heavier path stays the cron / `POST /api/intelligence/briefs/generate`), so it
+heavier path stays the `intelligence-ingest` cron), so it
 is fast and touches no external API. Self-scoped, no customer effect.
 
 ## Provisioning (operator — none done yet, dormant-but-visible)

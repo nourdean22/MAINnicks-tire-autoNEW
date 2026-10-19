@@ -74,11 +74,11 @@ auth-gated, wrapped in `NourStateProvider` + `AmbientAura` +
 | `/knowledge` | Knowledge base (Drive ingest lives here) |
 | `/brain` | Memory hub — Memory / Board / Wisdom / Reason tabs |
 | `/stats` | Stats + body log (absorbed `/body`, `/mastery`, `/plan`) |
-| `/business` · `/money` · `/market` · `/people` · `/content` | Tabbed domain surfaces (absorbed `/financial`, `/funnel`, `/crm`, `/seo`, `/radar`, …) |
+| `/business` · `/money` · `/market` · `/people` | Tabbed domain surfaces (absorbed `/financial`, `/funnel`, `/crm`, `/seo`, `/radar`, …) |
 | `/system` | **System Command Center** — see below |
 | `/settings` | App config, cron control, push notifications |
 
-**System ops deck** (the 13 live pages + hub — a 2026-06 mega-delete
+**System ops deck** (the live pages + hub — a 2026-06 mega-delete
 folded ~30 older `/system/*` subpages into these; `next.config.ts`
 redirects the retired paths):
 
@@ -91,11 +91,8 @@ redirects the retired paths):
 | `/system/ai-cost` | Cost + latency + error rate · trend bars · feature × model breakdown (absorbed `/system/costs`, `/system/performance`) |
 | `/system/actions` | Nick's autonomous-action audit + approvals (absorbed `/system/approvals`) |
 | `/system/calibration` | Eval / coverage / quality / operator-state lenses (absorbed the eval quadruplet) |
-| `/system/camera` | Arrival Intelligence — vehicle detection + plate recognition cockpit |
 | `/system/cockpit-observability` | Live metrics, execution traces, memory decay, prompt versions |
 | `/system/inbox` | Memory-quarantine review — claims + contradictions before they land |
-| `/system/proactive-preview` | Proactive-push dry-run preview |
-| `/system/tools` | Agent-tools registry |
 
 Navigation is the **bottom tab bar + More sheet**
 (`components/layout/bottom-tab-bar.tsx` · `more-sheet.tsx`). The old

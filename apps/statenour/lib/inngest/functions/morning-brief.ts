@@ -173,7 +173,7 @@ async function briefTelegramFallback(
   const text =
     `🌅 Morning brief (${brief.date}) — delivered via Telegram because ${reason}. ` +
     `Re-enable push in Settings → Notifications.\n\n${pushBodyFromBrief(brief.text)}\n\n` +
-    `Full brief: https://bdnick.info/`;
+    `There is no brief page. Ask Nick on the home screen for the full brief: https://bdnick.info/`;
   // 2026-10-02 · this is the path the brief takes when push reaches no device,
   // and it was the one delivery of a ledgered brief with no way to rate it.
   // Same owner as every other rateable push: ratingTelegramButtons.

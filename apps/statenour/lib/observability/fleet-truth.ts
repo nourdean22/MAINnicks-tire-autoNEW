@@ -33,15 +33,18 @@ interface ArtifactProbe {
 /** Spine-7 registry — the artifact IS the loop's own output table. */
 export const STATENOUR_ARTIFACT_PROBES: ArtifactProbe[] = [
   {
-    capability: "daily-brief",
+    // 2026-10-18 · was `daily-brief` (briefing_logs); the brief was stopped and its
+    // only scheduled writer went with it. The loop that remains is intelligence-ingest
+    // (cron 15 10 * * *), whose output is a source fetch: newest last_fetched, any source.
+    capability: "intelligence-ingest",
     maxAgeH: 30,
     probe: async () => {
-      const r = await prisma.briefingLog.findFirst({
-        where: { briefType: "daily" },
-        orderBy: { createdAt: "desc" },
-        select: { createdAt: true },
+      const r = await prisma.registeredSource.findFirst({
+        where: { lastFetched: { not: null } },
+        orderBy: { lastFetched: "desc" },
+        select: { lastFetched: true },
       });
-      return r?.createdAt ?? null;
+      return r?.lastFetched ?? null;
     },
   },
   {

@@ -229,7 +229,8 @@ export const CRONS: CronDef[] = [
     mode: "active",
     category: "review",
     inngest: true,
-    description: "Daily source ingestion, claim verification, opportunity scoring and persona-drift scan, Inngest-native. No brief is composed or pushed (the brief was stopped 2026-10-18); a total ingestion outage throws so onInngestFailure pages.",
+    addedAt: "2026-10-18",
+    description: "Daily source ingestion with claim verification and promotion, plus the persona-drift scan, Inngest-native. Opportunity scoring and content drafting were dropped with the page that decided opportunities. No brief is composed or pushed (the brief was stopped 2026-10-18); a total ingestion outage throws so onInngestFailure pages.",
   },
   {
     name: "customer-preferences-recompute",

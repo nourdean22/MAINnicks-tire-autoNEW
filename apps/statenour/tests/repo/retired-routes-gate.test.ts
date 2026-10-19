@@ -99,7 +99,7 @@ describe("retired routes gate · every route-carrying registry points at a page 
  * never 404. `route` is a page path (or an API prefix); `to` is the exact redirect
  * destination, query string included.
  */
-export const PRUNED: ReadonlyArray<{ route: string; to: string; page?: false }> = [
+export const PRUNED: ReadonlyArray<{ route: string; to?: string; page?: false }> = [
   { route: "/system/chat-states", to: "/system" },
   { route: "/system/schema-history", to: "/system" },
   { route: "/system/tools", to: "/system/actions" },
@@ -114,6 +114,18 @@ export const PRUNED: ReadonlyArray<{ route: string; to: string; page?: false }> 
   { route: "/goals", to: "/stats?tab=goals" },
   { route: "/scoreboard", to: "/stats" },
   { route: "/api/short", to: "/", page: false },
+  // Deleted API prefixes with no redirect (no page ever linked here for a person): nothing may request them.
+  { route: "/api/content/history", page: false },
+  { route: "/api/content/drafts", page: false },
+  { route: "/api/social/publish", page: false },
+  { route: "/api/social/schedule", page: false },
+  { route: "/api/social/recent-images", page: false },
+  { route: "/api/outreach", page: false },
+  { route: "/api/intelligence/briefs", page: false },
+  { route: "/api/intelligence/decisions", page: false },
+  { route: "/api/intelligence/opportunities", page: false },
+  { route: "/api/system/schema-history", page: false },
+  { route: "/api/system/proactive-preview", page: false },
 ];
 
 /**
@@ -132,6 +144,10 @@ function referencesRoute(text: string, route: string): boolean {
 }
 
 const SCAN_DIRS = ["app", "components", "lib", "hooks", "features", "config"];
+/** Tests are scanned for the deleted API prefixes only (page strings appear in nav fixtures on purpose). */
+const API_ROWS = PRUNED.filter((p) => p.page === false);
+/** Auth-policy probes that feed path STRINGS to the middleware classifier; they never request the route. */
+const TEST_SCAN_EXEMPT = [join("tests", "redteam", "route-auth.redteam.test.ts"), join("tests", "repo", "retired-routes-gate.test.ts")];
 function* walk(dir: string): Generator<string> {
   for (const name of readdirSync(dir)) {
     if (name === "node_modules" || name === ".next") continue;
@@ -147,6 +163,7 @@ describe("pruned routes (2026-10-18) · gone, redirected, and linked from nowher
     const problems: string[] = [];
     for (const { route, to, page } of PRUNED) {
       if (page !== false && pageExists(route)) problems.push(`${route}: page.tsx still exists`);
+      if (to === undefined) continue; // API prefix with no redirect: only the reference scan applies
       const source = page === false ? `${route}/:path*` : route;
       const hits = redirects.filter((r) => r.source === source);
       if (hits.length !== 1) problems.push(`${route}: expected 1 redirect from ${source}, found ${hits.length}`);
@@ -194,4 +211,25 @@ describe("pruned routes (2026-10-18) · gone, redirected, and linked from nowher
     expect(scanned, "the scan walked real source").toBeGreaterThan(500);
     expect(hits).toEqual([]);
   });
-});
+
+  it("every deleted API prefix is matched when requested from a test (positive control)", () => {
+    for (const { route } of API_ROWS) {
+      expect(referencesRoute(`await request.get("${route}?x=1")`, route), route).toBe(true);
+      expect(referencesRoute(`{ method: "GET", path: "${route}/abc" },`, route), route).toBe(true);
+    }
+  });
+
+  it("no test requests a deleted API route (the e2e smoke list kept two for a week)", () => {
+    const hits: string[] = [];
+    let scanned = 0;
+    for (const file of walk(join(APP_ROOT, "tests"))) {
+      if (TEST_SCAN_EXEMPT.some((x) => file.endsWith(x))) continue;
+      scanned++;
+      const text = readFileSync(file, "utf8");
+      for (const { route } of API_ROWS) {
+        if (referencesRoute(text, route)) hits.push(`${file.slice(APP_ROOT.length + 1).replace(/\\/g, "/")} → ${route}`);
+      }
+    }
+    expect(scanned, "the scan walked real tests").toBeGreaterThan(300);
+    expect(hits).toEqual([]);
+  });});

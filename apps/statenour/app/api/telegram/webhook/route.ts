@@ -996,7 +996,6 @@ async function handleCommand(text: string, chatId: string, forwarded = false): P
             `/draft [sms|social|email|longform] [brief] — Ghostwrite in your voice → approval queue\n` +
             `/research [question] — Queue deep research; cited report lands here in ~2 min\n` +
             `/remind [in 2h | at 3pm | tomorrow 9am] [text] — Telegram ping when due (hourly check)\n` +
-            `\n<b>OUTREACH (Wave-200)</b>\n` +
             `\n<b>NICK QUEUE (Wave AG · 2026-05-28)</b>\n` +
             `/qa 1 3 — approve today's queued moves #1 and #3\n` +
             `/qa all — approve every move in today's queue\n` +
