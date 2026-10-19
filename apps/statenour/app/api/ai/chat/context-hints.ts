@@ -50,7 +50,7 @@ export const TOOL_BIAS: Record<string, string> = {
   "/journal": "logSituation · journalDecision · classifyThought · reviewDecisionReplay",
   "/pins": "pinMemory · searchMemories",
   // /mastery + /plan + /life + /body all consolidated into /stats · merged tool bias.
-  "/stats": "archiveGoal · getCommitments · getBodyData · createMissionPlan · setOKRs · setWeeklyTargets · suggestMIT",
+  "/stats": "archiveGoal · getCommitments · getBodyData · createMissionPlan · setOKRs · setWeeklyTargets",
   // 2026-08-16 · syncKnowledge / searchColdMemory / searchSkills folded in
   // from the retired "/knowledge" key so the three tools keep a bias route.
   "/brain": "pinMemory · searchMemories · getBlindSpots · syncKnowledge · searchColdMemory · searchSkills",

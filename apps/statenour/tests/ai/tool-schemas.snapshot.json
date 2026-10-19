@@ -222,15 +222,6 @@
     }
   },
   {
-    "name": "analyzeWeek",
-    "description": "Analyze the past 7 days — identity-snapshot history, tasks completed, drift patterns, daily-loop habit streaks",
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {},
-      "type": "object"
-    }
-  },
-  {
     "name": "analyzeWeightTrend",
     "description": "Analyze Nour's weight + body-composition TREND from his OWN BodyTracking logs over a window. Returns weight trend + per-week rate, body-fat trend, waist trend, net change, and — if he has an active weight LifeGoal — the distance from his latest weight to the target. Reports direction WITHOUT judging it good/bad/healthy (whether up or down is 'progress' depends on his goal, not a moral prior). No BMR/TDEE/calorie math (statenour stores no height/age). Use when Nour asks about his weight, body-composition trend, or whether he's making progress on weight. Honest about thin data.",
     "inputSchema": {
@@ -533,82 +524,6 @@
     }
   },
   {
-    "name": "buildArchitectureMemory",
-    "description": "Scan a repo feature and store its architecture in brain memory. Use when learning about a part of the codebase for the first time — stores it so you remember next conversation.",
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "feature": {
-          "description": "Feature name (e.g., 'chat system', 'lead pipeline', 'morning autopilot')",
-          "type": "string"
-        },
-        "filePaths": {
-          "description": "Key files that make up this feature",
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "repo": {
-          "type": "string"
-        },
-        "summary": {
-          "description": "How this feature works in 2-3 sentences",
-          "type": "string"
-        }
-      },
-      "required": [
-        "repo",
-        "feature",
-        "filePaths",
-        "summary"
-      ],
-      "type": "object"
-    }
-  },
-  {
-    "name": "captureSkillFromSource",
-    "description": "Capture a protocol from an EXTERNAL source (a book, article, photographed page, video) as a CANDIDATE skill Nour can review and promote. Use when Nour shares source material and asks to turn it into a skill, protocol, or habit. Stores it as pending — it is explicitly UNPROVEN until actually used, so never describe it as an established skill.",
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "keywords": {
-          "items": {
-            "type": "string"
-          },
-          "maxItems": 12,
-          "type": "array"
-        },
-        "sourceLabel": {
-          "description": "Where it came from — book title + author, URL, or 'photo: <what it shows>'.",
-          "minLength": 2,
-          "type": "string"
-        },
-        "steps": {
-          "description": "Ordered, concrete steps. Each must be followable, not a summary.",
-          "items": {
-            "minLength": 2,
-            "type": "string"
-          },
-          "maxItems": 12,
-          "minItems": 1,
-          "type": "array"
-        },
-        "trigger": {
-          "description": "The situation this applies to.",
-          "minLength": 3,
-          "type": "string"
-        }
-      },
-      "required": [
-        "sourceLabel",
-        "trigger",
-        "steps"
-      ],
-      "type": "object"
-    }
-  },
-  {
     "name": "checkAntiPattern",
     "description": "Check the anti-pattern library for lessons that match the current intent. Call BEFORE any side-effecting tool (sendSMS, createPaymentLink, triggerFollowUp, createQuote, runDeviceCommand) if Nour's intent rhymes with a past failure. Returns zero-or-more matching lessons with severity and lesson text — surface them to Nour before acting. Zero cost per call (pure DB).",
     "inputSchema": {
@@ -677,15 +592,6 @@
   {
     "name": "clearMit",
     "description": "Clear today's MIT so Nour can pick a new one. Usually only called if Nour explicitly says the MIT is wrong.",
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {},
-      "type": "object"
-    }
-  },
-  {
-    "name": "compareCompetitors",
-    "description": "Compare Nick's Tire & Auto against local competitors on reviews and ratings",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {},
@@ -1037,38 +943,6 @@
     }
   },
   {
-    "name": "decisionPreFlight",
-    "description": "Run a decision pre-flight checklist before any high-stakes decision. Checks emotional state, recent patterns, time-of-day risk, and provides a go/wait/no-go recommendation. Use when Nour says 'should I', 'I'm thinking about', or faces a significant choice.",
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "decision": {
-          "description": "What decision is being considered",
-          "type": "string"
-        },
-        "reversible": {
-          "default": true,
-          "description": "Can this decision be undone?",
-          "type": "boolean"
-        },
-        "stakes": {
-          "default": "medium",
-          "enum": [
-            "low",
-            "medium",
-            "high",
-            "critical"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "decision"
-      ],
-      "type": "object"
-    }
-  },
-  {
     "name": "draftOpportunitySms",
     "description": "Get the deterministic, evidence-only SMS draft for a Nick's Tire Decision-Inbox opportunity (from getTopDecisions). READ-ONLY — never sends. Returns the draft text, best channel, risk label, and masked customer identity. Call-first opportunity types (callbacks, complaints, overdue promises) return no draft with the reason — recommend the CALL instead. ALWAYS show Nour the returned draft verbatim before any talk of sending.",
     "inputSchema": {
@@ -1340,42 +1214,6 @@
     }
   },
   {
-    "name": "getDecisionReplays",
-    "description": "Get decisions that are due for review. These are past decisions logged for 30/60/90 day replay to evaluate outcomes.",
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "includeFuture": {
-          "default": false,
-          "description": "Also show decisions not yet due",
-          "type": "boolean"
-        }
-      },
-      "type": "object"
-    }
-  },
-  {
-    "name": "getDecisionsDueForReplay",
-    "description": "List decisions whose 30-day automatic replay is due. Each item carries the pre-composed coaching prompt and (when matched) a wisdom citation. Use when the operator asks 'any decisions due for review' or wants to reflect on past choices.",
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "includeConsumed": {
-          "default": false,
-          "description": "Also show replays already surfaced in today's morning brief",
-          "type": "boolean"
-        },
-        "limit": {
-          "default": 5,
-          "maximum": 10,
-          "minimum": 1,
-          "type": "integer"
-        }
-      },
-      "type": "object"
-    }
-  },
-  {
     "name": "getDriftAlerts",
     "description": "Get unresolved drift alerts",
     "inputSchema": {
@@ -1588,47 +1426,11 @@
     }
   },
   {
-    "name": "getPendingRevenueMoves",
-    "description": "List revenue-moves drafted by the Revenue-Decision Channel that are still pending operator approval. Use when the operator asks 'what business moves are open', 'what's waiting on me', or wants to review today's drafted decisions before approving on Telegram.",
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "daysBack": {
-          "default": 7,
-          "description": "Lookback window in days. Default 7.",
-          "maximum": 30,
-          "minimum": 1,
-          "type": "number"
-        },
-        "includeDecided": {
-          "default": false,
-          "description": "If true, also include approved/rejected moves in the window. Default false (pending only).",
-          "type": "boolean"
-        }
-      },
-      "type": "object"
-    }
-  },
-  {
     "name": "getPowerBalanceSummary",
     "description": "Get power-balance scores for the top 5 people by interaction count. Returns each person's name, power balance (-1 to +1), and whether it's manually locked. Use when reasoning about relationship leverage across the network.",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {},
-      "type": "object"
-    }
-  },
-  {
-    "name": "getProjections",
-    "description": "Get current life-goal progress + business revenue projection. Goals come from the LifeGoal table; revenue projection comes from the nickstire bridge (revenue-trend extrapolation when available).",
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "domain": {
-          "description": "Filter by domain: business, energy, habits, finance",
-          "type": "string"
-        }
-      },
       "type": "object"
     }
   },
@@ -1803,42 +1605,6 @@
     }
   },
   {
-    "name": "githubCreatePR",
-    "description": "Create a pull request on a GitHub repo. Use after pushing changes to a branch.",
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "base": {
-          "description": "Target branch (default: main)",
-          "type": "string"
-        },
-        "body": {
-          "description": "PR description",
-          "type": "string"
-        },
-        "head": {
-          "description": "Source branch with changes",
-          "type": "string"
-        },
-        "repo": {
-          "description": "Repo name",
-          "type": "string"
-        },
-        "title": {
-          "description": "PR title",
-          "type": "string"
-        }
-      },
-      "required": [
-        "repo",
-        "title",
-        "body",
-        "head"
-      ],
-      "type": "object"
-    }
-  },
-  {
     "name": "githubListFiles",
     "description": "List files in a directory of a GitHub repo. Use to explore repo structure.",
     "inputSchema": {
@@ -1893,34 +1659,6 @@
       "required": [
         "repo",
         "path"
-      ],
-      "type": "object"
-    }
-  },
-  {
-    "name": "githubReadMultiple",
-    "description": "Read multiple files at once from a repo. Use to understand a full feature — read the route, the service, the component, and the types together. Much faster than reading one at a time.",
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "branch": {
-          "type": "string"
-        },
-        "paths": {
-          "description": "Array of file paths to read",
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "repo": {
-          "description": "Repo name",
-          "type": "string"
-        }
-      },
-      "required": [
-        "repo",
-        "paths"
       ],
       "type": "object"
     }
@@ -2107,55 +1845,6 @@
     }
   },
   {
-    "name": "learnCodingPreference",
-    "description": "Store a coding preference or pattern that Nour likes. Use when Nour says 'I prefer X' or 'always do Y' or 'never do Z' about code. These preferences guide future code generation.",
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "context": {
-          "description": "When/where this applies",
-          "type": "string"
-        },
-        "preference": {
-          "description": "The coding preference or pattern",
-          "type": "string"
-        }
-      },
-      "required": [
-        "preference",
-        "context"
-      ],
-      "type": "object"
-    }
-  },
-  {
-    "name": "logGoalProgress",
-    "description": "Log progress on a LifeGoal · bumps currentValue + recalculates progress % + appends a GoalEvent(kind=progress_logged). Auto-flips to 'achieved' when currentValue reaches targetValue. Use when Nour says 'logged 200lb bench' or 'hit $500 in sales today'.",
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "delta": {
-          "description": "How much to ADD to currentValue · positive · the increment, not the absolute total",
-          "type": "number"
-        },
-        "goalId": {
-          "type": "string"
-        },
-        "note": {
-          "description": "Short note on this progress · stored in GoalEvent.payload",
-          "type": "string"
-        },
-        "titleQuery": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "delta"
-      ],
-      "type": "object"
-    }
-  },
-  {
     "name": "logSituation",
     "description": "Log a real situation for strategic analysis — AI matches relevant Greene laws and provides tactical advice",
     "inputSchema": {
@@ -2180,30 +1869,6 @@
       "required": [
         "situation",
         "context"
-      ],
-      "type": "object"
-    }
-  },
-  {
-    "name": "markCommitmentBroken",
-    "description": "Mark a commitment as broken and record WHY. Use when Nour admits he didn't keep a commitment. The reason feeds the decision-pattern learning engine.",
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "commitmentId": {
-          "description": "The commitment id",
-          "type": "number"
-        },
-        "reason": {
-          "description": "Why did you break it — be honest",
-          "maxLength": 500,
-          "minLength": 1,
-          "type": "string"
-        }
-      },
-      "required": [
-        "commitmentId",
-        "reason"
       ],
       "type": "object"
     }
@@ -2273,15 +1938,6 @@
       "required": [
         "content"
       ],
-      "type": "object"
-    }
-  },
-  {
-    "name": "pricingAdvisorySummary",
-    "description": "Read the most recent weekly pricing-strategy advisory: which service categories have low ALG win rates, competitor pricing signal, and the 3 drafted price experiments per outlier. Cite the operator's wisdoms (Munger inversion, Buffett pricing power). Operator-approval only — this tool NEVER changes shop pricing. Use when asked 'what's the pricing advisory', 'where are we losing on price', 'pricing experiments to run', 'win rate by service'.",
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {},
       "type": "object"
     }
   },
@@ -2404,72 +2060,6 @@
     }
   },
   {
-    "name": "queueExternalWorkerJob",
-    "description": "Queue a bounded coding/reasoning job onto NOUR's existing durable local-worker queue. AUTO routes only across subscription-included or local-free lanes and never silently uses metered API billing. Read-only is the default. Workspace writes require an explicit allowWorkspaceWrite=true AND a separate local worker write-policy switch.",
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "allowWorkspaceWrite": {
-          "default": false,
-          "type": "boolean"
-        },
-        "capability": {
-          "default": "coder",
-          "enum": [
-            "supervisor",
-            "deep_reasoner",
-            "coder",
-            "large_context",
-            "multimodal",
-            "cheap_local",
-            "embed",
-            "rerank",
-            "ocr",
-            "voice"
-          ],
-          "type": "string"
-        },
-        "idempotencyKey": {
-          "maxLength": 160,
-          "minLength": 1,
-          "type": "string"
-        },
-        "mode": {
-          "default": "AUTO",
-          "enum": [
-            "FREE",
-            "AUTO",
-            "MAX"
-          ],
-          "type": "string"
-        },
-        "preferredLane": {
-          "enum": [
-            "codex",
-            "claude-code",
-            "antigravity",
-            "local-qwen"
-          ],
-          "type": "string"
-        },
-        "prompt": {
-          "maxLength": 20000,
-          "minLength": 5,
-          "type": "string"
-        },
-        "workspaceKey": {
-          "default": "repo",
-          "pattern": "^[a-z0-9][a-z0-9_-]*$",
-          "type": "string"
-        }
-      },
-      "required": [
-        "prompt"
-      ],
-      "type": "object"
-    }
-  },
-  {
     "name": "queueMissionExecution",
     "description": "Queue bounded durable background execution for an existing ACTIVE mission. V1 supports checkpoint and deep-research steps only; it survives chat closure/redeploys through Inngest, records progress to the Reality Ledger, and NEVER marks the mission complete automatically.",
     "inputSchema": {
@@ -2571,89 +2161,6 @@
           "type": "number"
         }
       },
-      "type": "object"
-    }
-  },
-  {
-    "name": "recommendNextMove",
-    "description": "Tactician: compose the single best concrete next move for a power/negotiation/rivalry situation — verbatim moves from the Greene corpus plus live person power-state when the other party is tracked. Use when the operator asks 'what's my move' / 'how do I play this' / 'how do I counter'.",
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "situation": {
-          "description": "The situation in the operator's words — include the other party's name if tracked",
-          "minLength": 12,
-          "type": "string"
-        }
-      },
-      "required": [
-        "situation"
-      ],
-      "type": "object"
-    }
-  },
-  {
-    "name": "renderInlineChart",
-    "description": "Render an inline chart in the chat reply. Use whenever Nour asks for a trend / distribution / comparison and the data fits a small (≤60 points) chart. Types: line (continuous over time), sparkline (compact line, no axes — for in-paragraph trend hints), bar (categorical comparison), pie (parts-of-whole, ≤8 slices). Returns markdown that includes a fenced ```chart code block — INCLUDE THE RETURNED MARKDOWN IN YOUR REPLY for it to render.",
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "color": {
-          "default": "gold",
-          "description": "Accent color (pie chart auto-rotates a palette regardless)",
-          "enum": [
-            "gold",
-            "emerald",
-            "rose",
-            "blue",
-            "violet"
-          ],
-          "type": "string"
-        },
-        "data": {
-          "description": "Data points. Pie: ≤8 slices is readable. Line/bar: ≤30 ideal.",
-          "items": {
-            "properties": {
-              "label": {
-                "description": "X-axis label or slice name",
-                "maxLength": 40,
-                "minLength": 1,
-                "type": "string"
-              },
-              "value": {
-                "description": "Y-axis value",
-                "type": "number"
-              }
-            },
-            "required": [
-              "label",
-              "value"
-            ],
-            "type": "object"
-          },
-          "maxItems": 60,
-          "minItems": 1,
-          "type": "array"
-        },
-        "title": {
-          "description": "Optional chart title shown above",
-          "maxLength": 80,
-          "type": "string"
-        },
-        "type": {
-          "enum": [
-            "line",
-            "bar",
-            "sparkline",
-            "pie"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "data"
-      ],
       "type": "object"
     }
   },
@@ -3010,39 +2517,6 @@
     }
   },
   {
-    "name": "searchConversations",
-    "description": "Search past chat conversations by keyword. Use to recall what was discussed, decisions made, or advice given.",
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "limit": {
-          "default": 10,
-          "maximum": 20,
-          "minimum": 1,
-          "type": "number"
-        },
-        "query": {
-          "description": "Keyword to search in message content",
-          "type": "string"
-        },
-        "role": {
-          "default": "any",
-          "description": "Filter by message role",
-          "enum": [
-            "user",
-            "assistant",
-            "any"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "query"
-      ],
-      "type": "object"
-    }
-  },
-  {
     "name": "searchDocuments",
     "description": "Search across documents the operator has uploaded (PDFs, Word docs, spreadsheets, text files). Returns the top matching chunks with their source filename and a similarity score. Use when the operator references 'that PDF', 'the spreadsheet', or asks a question that likely answers from an uploaded document.",
     "inputSchema": {
@@ -3336,51 +2810,6 @@
     }
   },
   {
-    "name": "setLifeGoal",
-    "description": "Set a life or business goal for Nour to track. Examples: revenue target, weight goal, savings goal, habit streak goal.",
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "deadline": {
-          "description": "ISO date string for deadline",
-          "type": "string"
-        },
-        "domain": {
-          "enum": [
-            "business",
-            "fitness",
-            "finance",
-            "personal",
-            "career"
-          ],
-          "type": "string"
-        },
-        "metric": {
-          "description": "The metric to track: revenue, weight, savings, streak",
-          "type": "string"
-        },
-        "targetValue": {
-          "type": "number"
-        },
-        "title": {
-          "description": "Human-readable goal title",
-          "type": "string"
-        },
-        "unit": {
-          "default": "",
-          "type": "string"
-        }
-      },
-      "required": [
-        "domain",
-        "title",
-        "metric",
-        "targetValue"
-      ],
-      "type": "object"
-    }
-  },
-  {
     "name": "setMit",
     "description": "Lock today's Most Important Thing (MIT). Nour picks ONE commitment per day; this tool writes it. Example args: { text: 'Close the Smith estimate before EOD' }",
     "inputSchema": {
@@ -3570,15 +2999,6 @@
     }
   },
   {
-    "name": "suggestMIT",
-    "description": "Suggest the Most Important Task right now based on all available data — critical tasks, urgent leads, daily score",
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {},
-      "type": "object"
-    }
-  },
-  {
     "name": "suggestSkills",
     "description": "Find the best Claude skills (from the indexed skill registry) for the operator's current task or question. Returns skill name + description + similarity score for top 3 matches. Use when the operator says 'which skill applies here', 'is there a skill for X', or when Nick wants to recommend a specialist lens before answering.",
     "inputSchema": {
@@ -3714,32 +3134,6 @@
           "type": "string"
         }
       },
-      "type": "object"
-    }
-  },
-  {
-    "name": "updateMasteryScore",
-    "description": "Update a mastery domain score with evidence",
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "domain": {
-          "type": "string"
-        },
-        "evidence": {
-          "type": "string"
-        },
-        "score": {
-          "maximum": 10,
-          "minimum": 0,
-          "type": "number"
-        }
-      },
-      "required": [
-        "domain",
-        "score",
-        "evidence"
-      ],
       "type": "object"
     }
   },

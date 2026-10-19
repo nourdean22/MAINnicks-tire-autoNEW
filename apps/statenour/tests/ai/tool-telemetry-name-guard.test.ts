@@ -38,7 +38,7 @@ describe("isRecordableToolName", () => {
       (n) => !isRecordableToolName(n),
     );
     expect(rejected, "the guard would drop real catalog tools").toEqual([]);
-    expect(TOOL_CATALOG.length).toBeGreaterThan(150); // the catalog was actually loaded
+    expect(TOOL_CATALOG.length).toBeGreaterThan(120); // the catalog was actually loaded
   });
 
   it("accepts the historical dotted keys already in the table", () => {

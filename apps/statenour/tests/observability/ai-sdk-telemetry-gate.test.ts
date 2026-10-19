@@ -135,9 +135,9 @@ describe("AI SDK telemetry gate · every model call is traced through langfuseTe
   });
 
   it("MUTATION CANARY: stripping one telemetry block in memory makes exactly that site go bare", () => {
-    // structured.ts keeps its telemetry block on ONE line, which the single-line strip below removes whole.
-    const instrumented = sites.find((s) => isInstrumented(s) && s.file.endsWith("lib/ai/structured.ts"));
-    expect(instrumented, "structured.ts is instrumented").toBeTruthy();
+    // image-prompt-synth.ts keeps every telemetry block on ONE line, which the single-line strip below removes whole.
+    const instrumented = sites.find((s) => isInstrumented(s) && s.file.endsWith("lib/ai/image-prompt-synth.ts"));
+    expect(instrumented, "image-prompt-synth.ts is instrumented").toBeTruthy();
     const source = readFileSync(join(APP_ROOT, instrumented!.file), "utf8");
     const mutated = source.replace(/^\s*experimental_telemetry:\s*langfuseTelemetry\([^\n]*\n/m, "");
     expect(mutated).not.toBe(source);

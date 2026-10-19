@@ -265,8 +265,8 @@ const subjects = toolAnalyses.filter((t) => t.reads && t.touchesContent);
 
 describe("tool-result fencing gate · every TOOL that reads memory or chat rows and touches content fences what it returns, or explains", () => {
   it("enumerates the tools (sanity · the splitter must find the real blocks)", () => {
-    expect(toolAnalyses.length).toBeGreaterThanOrEqual(150);
-    expect(subjects.length).toBeGreaterThanOrEqual(12);
+    expect(toolAnalyses.length).toBeGreaterThanOrEqual(125); // 136 after the 2026-10-19 tool prune; a floor, not a target
+    expect(subjects.length).toBeGreaterThanOrEqual(8); // 9 after the 2026-10-19 tool prune (was 12)
     for (const k of ["brain.ts:searchMemories", "brain.ts:searchColdMemory", "brain.ts:getHabitRevenueCorrelation", "business.ts:findCustomer"]) {
       expect(subjects.map(toolKey), `${k} must be a subject`).toContain(k);
     }

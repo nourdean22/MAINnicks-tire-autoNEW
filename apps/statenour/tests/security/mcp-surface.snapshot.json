@@ -11,17 +11,6 @@
     "inputSchemaSha256": "efddc7bd8bbcef73"
   },
   {
-    "name": "compare_competitors",
-    "camelName": "compareCompetitors",
-    "category": "business_read",
-    "riskClass": "low",
-    "riskDeclared": false,
-    "sideEffecting": false,
-    "requiredEnv": [],
-    "descriptionSha256": "3878e7eac9c2dd2f",
-    "inputSchemaSha256": "efddc7bd8bbcef73"
-  },
-  {
     "name": "compare_live_revenue",
     "camelName": "compareLiveRevenue",
     "category": "live_shop",
@@ -63,17 +52,6 @@
     "sideEffecting": false,
     "requiredEnv": [],
     "descriptionSha256": "b2ddc11209868606",
-    "inputSchemaSha256": "efddc7bd8bbcef73"
-  },
-  {
-    "name": "decision_pre_flight",
-    "camelName": "decisionPreFlight",
-    "category": "planning",
-    "riskClass": "low",
-    "riskDeclared": false,
-    "sideEffecting": false,
-    "requiredEnv": [],
-    "descriptionSha256": "f2a5b4b2daf1ff2d",
     "inputSchemaSha256": "efddc7bd8bbcef73"
   },
   {
@@ -209,17 +187,6 @@
     "inputSchemaSha256": "efddc7bd8bbcef73"
   },
   {
-    "name": "get_pending_revenue_moves",
-    "camelName": "getPendingRevenueMoves",
-    "category": "brain",
-    "riskClass": "low",
-    "riskDeclared": false,
-    "sideEffecting": false,
-    "requiredEnv": [],
-    "descriptionSha256": "5b27d6e1b6e96218",
-    "inputSchemaSha256": "efddc7bd8bbcef73"
-  },
-  {
     "name": "get_power_balance_summary",
     "camelName": "getPowerBalanceSummary",
     "category": "brain",
@@ -308,28 +275,6 @@
     "inputSchemaSha256": "efddc7bd8bbcef73"
   },
   {
-    "name": "pricing_advisory_summary",
-    "camelName": "pricingAdvisorySummary",
-    "category": "business_read",
-    "riskClass": "low",
-    "riskDeclared": false,
-    "sideEffecting": false,
-    "requiredEnv": [],
-    "descriptionSha256": "dd62570d71d79029",
-    "inputSchemaSha256": "efddc7bd8bbcef73"
-  },
-  {
-    "name": "queue_external_worker_job",
-    "camelName": "queueExternalWorkerJob",
-    "category": "personal_write",
-    "riskClass": "medium",
-    "riskDeclared": true,
-    "sideEffecting": true,
-    "requiredEnv": [],
-    "descriptionSha256": "f2749c822e165afb",
-    "inputSchemaSha256": "efddc7bd8bbcef73"
-  },
-  {
     "name": "rank_next_actions",
     "camelName": "rankNextActions",
     "category": "planning",
@@ -393,17 +338,6 @@
     "sideEffecting": true,
     "requiredEnv": [],
     "descriptionSha256": "8a8b934f322a5473",
-    "inputSchemaSha256": "efddc7bd8bbcef73"
-  },
-  {
-    "name": "suggest_m_i_t",
-    "camelName": "suggestMIT",
-    "category": "planning",
-    "riskClass": "low",
-    "riskDeclared": false,
-    "sideEffecting": false,
-    "requiredEnv": [],
-    "descriptionSha256": "a6c4cfb452917978",
     "inputSchemaSha256": "efddc7bd8bbcef73"
   },
   {
