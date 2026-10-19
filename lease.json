@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "statenour/prisma-adapter-neon-pin",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "11dd3c15-6c98-4bc9-9fa1-c404986839c6",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\new-session-bbf695",
+  "claimedBy": "2026-10-18-prisma-adapter-neon-pin",
+  "claimedAt": "2026-10-19T09:53:28.577Z",
+  "expiresAt": "2026-10-19T21:53:28.577Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
