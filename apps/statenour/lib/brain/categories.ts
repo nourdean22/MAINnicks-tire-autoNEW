@@ -781,6 +781,9 @@ export const RECALL_EXCLUDE_CATEGORIES: readonly string[] = [
   // rows (in `metadata`, which recall does not read), so the stakes went
   // up while the guard stayed accidental. Name it explicitly.
   "active_chat_stream",
+  // 2026-10-18 · alert control markers (lib/brain/alert-suppression.ts), not beliefs.
+  "alert_dismiss",
+  "alert_mute",
 ];
 
 /**
@@ -870,6 +873,9 @@ export const CONSOLIDATION_EXCLUDE_CATEGORIES: readonly string[] = [
   BRAIN_CATEGORIES.CRONS,
   "cron_control",
   BRAIN_CATEGORIES.PROACTIVE_PUSH_SENT,
+  // 2026-10-18 · alert control markers read by key, not beliefs: a merge would soft-delete a dismissal.
+  "alert_dismiss",
+  "alert_mute",
 ];
 
 /**

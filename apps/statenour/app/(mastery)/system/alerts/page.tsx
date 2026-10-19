@@ -13,9 +13,10 @@
  *     grouped — uses sinceDays/limit query params)
  *   · /system/history?type=brainMemory&id= for the audit trail
  *
- * NOT a "clear" mechanic — alerts auto-collapse via per-hour idempotency
- * keys at the source crons. Adding a manual "dismiss" surface here
- * would compete with that and silently bias future runs.
+ * UI v3 W5b (2026-10-18): Priority and Other lanes (lib/brain/alert-lanes.ts), one state block
+ * with Retry, and row verbs. Dismiss is a SUPPRESSION, not a delete: an expiring alert_dismiss row
+ * the producers never read, so it cannot bias their idempotency keys; every listing honours it
+ * through lib/brain/alert-suppression.ts.
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -33,6 +34,13 @@ import { trpc } from "@/lib/trpc/client";
 // live in the alert inspector — this list had no verbs at all).
 import { Eye } from "lucide-react";
 import { useInspector } from "@/hooks/use-inspector";
+import { alertLane } from "@/lib/brain/alert-lanes";
+import { ALERT_MUTE_DAYS, ALERT_RESOLVE_ARM_MS } from "@/components/inspector/panels/alert-inspector";
+import { AlertDismissSheet } from "@/components/alerts/alert-dismiss-sheet";
+import { toast } from "sonner";
+
+const ACTION_CLASS =
+  "inline-flex min-h-[44px] items-center px-2 text-[13px] text-fg-secondary transition-colors duration-[var(--motion-state)] hover:text-fg disabled:opacity-50";
 
 interface Alert {
   id: string;
@@ -128,8 +136,7 @@ export default function AlertsInspectorPage() {
   });
   const payload: AlertsPayload | null =
     (alertsQuery.data as AlertsPayload | undefined) ?? null;
-  const loading = alertsQuery.isPending || alertsQuery.isFetching;
-  const error = alertsQuery.error ? alertsQuery.error.message : null;
+  const readFailed = alertsQuery.isError;
   const lastFetchedAt =
     alertsQuery.dataUpdatedAt > 0
       ? new Date(alertsQuery.dataUpdatedAt)
@@ -170,6 +177,102 @@ export default function AlertsInspectorPage() {
   }, [payload]);
 
   const totalVisible = flattened.length;
+  // W5b: one exhaustive category -> lane map (lib/brain/alert-lanes.ts); sort order holds inside each lane.
+  const priority = flattened.filter((a) => alertLane(a.category) === "priority");
+  const other = flattened.filter((a) => alertLane(a.category) === "other");
+  const [otherOpen, setOtherOpen] = useState(false);
+
+  // W5b row verbs: the inspector's Resolve (two taps, no native confirm) and Mute, plus Dismiss.
+  const utils = trpc.useUtils();
+  const refresh = () => void utils.brain.activeAlerts.invalidate();
+  const [armedId, setArmedId] = useState<string | null>(null);
+  // An armed Resolve expires like the inspector's; arming another row restarts the window for it.
+  useEffect(() => {
+    if (!armedId) return;
+    const t = window.setTimeout(() => setArmedId(null), ALERT_RESOLVE_ARM_MS);
+    return () => window.clearTimeout(t);
+  }, [armedId]);
+  const [dismissing, setDismissing] = useState<Alert | null>(null);
+  const resolve = trpc.brain.resolveAlert.useMutation({
+    onSuccess: (res) => {
+      refresh();
+      if (res.ok) toast.success("Alert resolved");
+      else toast.error("Nothing to resolve: it was already gone");
+    },
+    onError: () => toast.error("Could not resolve the alert"),
+  });
+  const mute = trpc.brain.muteAlertCategory.useMutation({
+    onSuccess: (res) => {
+      refresh();
+      toast.success(`Muted until ${new Date(res.until).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`);
+    },
+    onError: () => toast.error("Could not mute the category"),
+  });
+  const dismiss = trpc.brain.dismissAlert.useMutation({
+    // Completion closes the sheet only if it is still the alert that was submitted: a later
+    // sheet for another alert is never closed by an earlier write finishing.
+    onSuccess: (_res, vars) => {
+      setDismissing((open) => (open && open.id === vars.id ? null : open));
+      refresh();
+      toast.success("Alert dismissed");
+    },
+    onError: () => toast.error("Could not dismiss the alert"),
+  });
+
+  function renderRow(alert: Alert) {
+    const meta = CATEGORY_META[alert.category];
+    return (
+      <li
+        key={alert.id}
+        data-entity={`alert:${alert.id}`}
+        data-entity-label={alert.content.slice(0, 80)}
+        className="py-2 data-[entity-focused=true]:ring-1 data-[entity-focused=true]:ring-edge-strong data-[entity-selected=true]:bg-accent-soft"
+      >
+        <div className="flex flex-wrap items-center gap-x-2 font-mono text-[12px] text-fg-secondary">
+          <span>{meta?.label ?? alert.category}</span>
+          <span className="text-fg-tertiary">{relTime(alert.createdAt)}</span>
+          <span className="ml-auto flex flex-wrap items-center font-sans">
+            <button
+              type="button"
+              aria-pressed={armedId === alert.id}
+              disabled={resolve.isPending}
+              onClick={() => {
+                if (armedId !== alert.id) {
+                  setArmedId(alert.id);
+                  return;
+                }
+                setArmedId(null);
+                resolve.mutate({ id: alert.id });
+              }}
+              className={ACTION_CLASS}
+            >
+              {armedId === alert.id ? "Tap again to resolve" : "Resolve"}
+            </button>
+            <button
+              type="button"
+              disabled={mute.isPending}
+              onClick={() => mute.mutate({ category: alert.category, days: ALERT_MUTE_DAYS })}
+              className={ACTION_CLASS}
+            >
+              Mute {ALERT_MUTE_DAYS} days
+            </button>
+            <button type="button" onClick={() => setDismissing(alert)} className={ACTION_CLASS}>
+              Dismiss
+            </button>
+          </span>
+          <button
+            type="button"
+            onClick={() => openInspector({ kind: "alert", id: alert.id })}
+            aria-label="inspect alert"
+            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-control text-fg-tertiary transition-colors duration-[var(--motion-state)] hover:text-fg"
+          >
+            <Eye size={14} strokeWidth={2} />
+          </button>
+        </div>
+        <p className="text-[14px] leading-snug text-fg">{alert.content}</p>
+      </li>
+    );
+  }
 
   function toggleCategory(cat: string): void {
     setActiveCategories((prev) => {
@@ -201,6 +304,10 @@ export default function AlertsInspectorPage() {
       <Panel className="mt-4">
         {/* Controls row */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          {/* W5b self-review: no answer yet (or a failed read) has no count; never print 0. */}
+          {!payload || readFailed ? (
+            <span className="text-[13px] text-fg-tertiary">{readFailed ? "Count unknown" : "Counting"}</span>
+          ) : (
           <div className="flex items-center gap-3">
             <div className="flex items-baseline gap-1.5">
               <AnimatedCounter
@@ -222,6 +329,7 @@ export default function AlertsInspectorPage() {
               </span>
             </div>
           </div>
+          )}
           <FreshnessChip
             lastFetchedAt={lastFetchedAt}
             source="api/brain/active-alerts"
@@ -274,7 +382,7 @@ export default function AlertsInspectorPage() {
           </span>
           {ALL_CATS.map((cat) => {
             const meta = CATEGORY_META[cat];
-            const count = payload?.counts[cat] ?? 0;
+            const count = payload && !readFailed ? (payload.counts[cat] ?? 0) : null;
             const active = activeCategories.has(cat);
             return (
               <button
@@ -291,8 +399,12 @@ export default function AlertsInspectorPage() {
                 }
               >
                 <span>{meta.label}</span>
-                <span className="opacity-70">·</span>
-                <AnimatedCounter value={count} />
+                {count !== null && (
+                  <>
+                    <span className="opacity-70">·</span>
+                    <AnimatedCounter value={count} />
+                  </>
+                )}
               </button>
             );
           })}
@@ -309,70 +421,93 @@ export default function AlertsInspectorPage() {
       </Panel>
 
       <Panel className="mt-4">
-        {error && (
-          <div className="rounded-control border border-rose-800 bg-rose-950/40 p-3 text-sm text-rose-200">
-            {error}
+        {/* W5b: one state block. A failed read (stale data kept by React Query included) is
+            unknown with a Retry, never "no alerts" (skill empty-vs-error). */}
+        {readFailed && (
+          <div role="alert" className="flex flex-wrap items-center gap-x-4 gap-y-1 border-y border-edge py-2">
+            <p className="text-[14px] text-fg-secondary">
+              Couldn&apos;t load alerts: state unknown, not an empty list.
+            </p>
+            <button
+              type="button"
+              onClick={load}
+              className="inline-flex min-h-[44px] items-center text-[14px] font-medium text-fg underline-offset-4 transition-colors duration-[var(--motion-state)] hover:underline"
+            >
+              Retry
+            </button>
           </div>
         )}
 
-        {loading && !payload && (
-          <p className="py-8 text-center text-xs text-fg-tertiary">
-            Loading alerts…
+        {!readFailed && !payload && (
+          <p role="status" className="py-6 text-[14px] text-fg-tertiary">
+            Reading alerts.
           </p>
         )}
 
-        {payload && totalVisible === 0 && (
-          <div className="py-8 text-center">
-              <p className="text-sm text-fg">
+        {!readFailed && payload && totalVisible === 0 && (
+          <div className="py-6">
+            <p className="text-[14px] text-fg">
               {totalAcrossAllCats === 0
-                ? "✓ No alerts in the last "
-                : "No alerts match the active filters in the last "}
-              {sinceDays}d.
+                ? `No alerts in the last ${sinceDays} days.`
+                : `No alerts match the active filters in the last ${sinceDays} days.`}
             </p>
             {totalAcrossAllCats > 0 && (
-              <p className="mt-1 text-[11px] text-fg-tertiary">
+              <p className="mt-1 text-[13px] text-fg-tertiary">
                 Toggle more categories above or expand the window to see them.
               </p>
             )}
           </div>
         )}
 
-        {totalVisible > 0 && (
-          <ul className="space-y-2 stagger-in" data-selection-scope="system-alerts">
-            {flattened.map((alert) => {
-              const meta = CATEGORY_META[alert.category];
-              return (
-                <li
-                  key={alert.id}
-                  data-entity={`alert:${alert.id}`}
-                  data-entity-label={alert.content.slice(0, 80)}
-                  className={
-                    "rounded-surface border p-3 data-[entity-focused=true]:ring-1 data-[entity-focused=true]:ring-edge-strong data-[entity-selected=true]:bg-accent-soft " +
-                    (meta?.tint ?? "")
-                  }
+        {!readFailed && totalVisible > 0 && (
+          <div className="space-y-5" data-selection-scope="system-alerts">
+            <section aria-labelledby="alerts-priority-heading" className="space-y-2">
+              <h2 id="alerts-priority-heading" className="text-[13px] font-medium text-fg-secondary">
+                Priority
+                <span className="ml-2 font-mono text-[12px] tabular-nums text-fg-tertiary">{priority.length}</span>
+              </h2>
+              {priority.length === 0 ? (
+                <p className="text-[14px] text-fg-tertiary">No priority alerts in this view.</p>
+              ) : (
+                <ul className="divide-y divide-edge border-y border-edge">{priority.map(renderRow)}</ul>
+              )}
+            </section>
+            {other.length > 0 && (
+              <section aria-label="Other alerts" className="space-y-2">
+                <button
+                  type="button"
+                  aria-expanded={otherOpen}
+                  aria-controls="alerts-other-list"
+                  onClick={() => setOtherOpen((v) => !v)}
+                  className="inline-flex min-h-[44px] items-center gap-2 text-[14px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:text-fg"
                 >
-                  <div className="mb-1.5 flex flex-wrap items-center gap-2 font-mono text-[11px] text-fg-secondary">
-                    <span>
-                      {meta?.label ?? alert.category}
-                    </span>
-                    <span className="opacity-60">·</span>
-                    <span className="opacity-80">{relTime(alert.createdAt)}</span>
-                    <button
-                      type="button"
-                      onClick={() => openInspector({ kind: "alert", id: alert.id })}
-                      aria-label="inspect alert"
-                      className="ml-auto inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-control opacity-70 transition-opacity hover:opacity-100 md:min-h-[28px] md:min-w-[28px]"
-                    >
-                      <Eye size={13} strokeWidth={2} />
-                    </button>
-                  </div>
-                  <p className="text-[12px] leading-snug">{alert.content}</p>
-                </li>
-              );
-            })}
-          </ul>
+                  Other, {other.length}
+                  <span className="font-mono text-[12px] text-fg-tertiary">{otherOpen ? "shown" : "hidden"}</span>
+                </button>
+                {otherOpen && (
+                  <ul id="alerts-other-list" className="divide-y divide-edge border-y border-edge">
+                    {other.map(renderRow)}
+                  </ul>
+                )}
+              </section>
+            )}
+          </div>
         )}
       </Panel>
+      {dismissing && (
+        <AlertDismissSheet
+          alert={{
+            category: dismissing.category,
+            key: dismissing.key,
+            label: CATEGORY_META[dismissing.category]?.label ?? dismissing.category,
+          }}
+          pending={dismiss.isPending}
+          onCancel={() => {
+            if (!dismiss.isPending) setDismissing(null);
+          }}
+          onConfirm={(reason) => dismiss.mutate({ id: dismissing.id, reason })}
+        />
+      )}
     </StandardPage>
   );
 }
