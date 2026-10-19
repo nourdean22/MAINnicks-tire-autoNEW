@@ -6410,6 +6410,21 @@
       "file": "apps/nickstire/server/services/revenueReconciliationRetention.ts",
       "symbol": "buildDeleteSupersededSql",
       "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Pure builder of the single-table per-call DELETE bounded by UNIX_TIMESTAMP(created_at) < that call's newest time; runtime consumer is the delete loop in reconCandidatesRetention in this module. revenueReconciliationRetention.test.ts pins the exact SQL text and params, and runs the statements against an in-memory table that reads the text so the newest row and ties survive (mutation-proven: dropping the bound and widening < to <= both turn it red). It takes the table name as a parameter and is exported so the SQL can be run on a TEMPORARY table against TiDB before the revenue_recon_retention flag is enabled. Tests are excluded from knip project globs by design, which is why a test-only importer reads as an orphan. Added 2026-10-19 (job 2026-10-18-recon-candidates-retention)."
+    },
+    {
+      "file": "apps/nickstire/package.json",
+      "symbol": "audit:prerender",
+      "reason": "OPERATOR-TYPED MAINTENANCE SCRIPT, no automated invoker by design: scripts/audit-prerender.mjs classifies routes and prerendered files into tiers from GSC search_performance rows and is run by hand before a prerender policy change. Its only text mention was graphify-out/GRAPH_REPORT.md, a generated file untracked in #3180 (2026-10-19), which the gate had been counting as an invoker. Added 2026-10-19 (job 2026-10-19-graph-live-mcp)."
+    },
+    {
+      "file": "apps/nickstire/package.json",
+      "symbol": "checkout:safe",
+      "reason": "OPERATOR-TYPED GUARD, no automated invoker by design: scripts/assert-safe-checkout.mjs refuses production-capable commands from an untrusted checkout and is typed by a human before such a run. Its only text mention was graphify-out/GRAPH_REPORT.md, a generated file untracked in #3180 (2026-10-19). Added 2026-10-19 (job 2026-10-19-graph-live-mcp)."
+    },
+    {
+      "file": "apps/statenour/package.json",
+      "symbol": "bootstrap:repo:dry",
+      "reason": "OPERATOR-TYPED DRY RUN, no automated invoker by design: the -DryRun form of scripts/bootstrap_repo.ps1 for a new machine; the live bootstrap:repo is the one scripts and docs name. Its only text mention was graphify-out/GRAPH_REPORT.md, a generated file untracked in #3180 (2026-10-19). Added 2026-10-19 (job 2026-10-19-graph-live-mcp)."
     }
   ]
 }
