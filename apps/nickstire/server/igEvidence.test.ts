@@ -55,10 +55,15 @@ describe("upload wiring pins", () => {
     expect(src).toContain('!u.includes("instagram-studio/")');
   });
 
-  it("_core mounts the 12mb body limit for the upload path — without it uploads die at the global parser cap", () => {
-    const src = readFileSync(resolve(process.cwd(), "server/_core/index.ts"), "utf8");
-    const line = src.split("\n").find((l) => l.includes('"/api/trpc/instagramStudio.uploadEvidencePhoto"'));
-    expect(line, "the per-procedure json mount is missing").toBeTruthy();
-    expect(line).toContain('limit: "12mb"');
+  // This used to check only that index.ts had the 12mb line. It stayed green while that line was
+  // mounted AFTER the global 2mb parser and never ran (every photo over ~1.5 MB got 413). The
+  // behaviour is pinned over a real socket in server/_core/bodyParsers.test.ts; this keeps the order.
+  it("_core mounts the 12mb body limit for the upload path BEFORE the global 2mb parser", () => {
+    const src = readFileSync(resolve(process.cwd(), "server/_core/bodyParsers.ts"), "utf8");
+    expect(src).toContain('"/api/trpc/instagramStudio.uploadEvidencePhoto"');
+    const routeParser = src.indexOf('express.json({ limit: "12mb" })');
+    const globalParser = src.indexOf('limit: "2mb"');
+    expect(routeParser, "the per-procedure json mount is missing").toBeGreaterThan(0);
+    expect(routeParser).toBeLessThan(globalParser);
   });
 });
