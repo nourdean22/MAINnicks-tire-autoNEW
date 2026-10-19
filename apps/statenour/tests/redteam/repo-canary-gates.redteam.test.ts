@@ -239,7 +239,7 @@ describe("deep-link-targets · the gate fires", () => {
   });
 
   it.each([
-    ["real page", "`bdnick.info/system/camera`"],
+    ["real page", "`bdnick.info/system/crons`"],
     ["dynamic page", "href: `/decisions/${dec.id}`"],
     ["query string on a real page", 'href: "/stats?tab=body"'],
     ["redirect source", '"https://bdnick.info/mastery"'],

@@ -13,8 +13,8 @@ export { megaFanoutMorning, megaFanoutEvening } from "./mega-fanout";
 // that was missing when the fan-out went ~70% dead for 2 days).
 export { cronHeartbeat } from "./cron-heartbeat";
 export { operatorMorningBrief } from "./morning-brief";
+export { intelligenceIngest } from "./intelligence-ingest";
 export { customerPreferencesRecompute } from "./customer-preferences";
-export { bulkSmsApproval } from "./bulk-sms-approval";
 export { goalPruner } from "./goal-pruner";
 export { goalDriftDetector } from "./goal-drift-detector";
 export {
@@ -43,7 +43,6 @@ export { operatingRhythm } from "./operating-rhythm";
 export { automationEngineTick } from "./automation-engine";
 
 // Intelligence OS workflows
-export { intelligenceDailyBrief, intelligenceWeeklyBrief } from "./intelligence-brief";
 
 export { socialPublishQueue } from "./social-publish";
 

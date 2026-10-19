@@ -183,7 +183,6 @@ describe("expectedJobs · derived from config/crons.ts", () => {
     expect(jobs.get("diagnose-cron-failure")?.maxAgeH).toBe(6);
     expect(jobs.get("goal-pruner")?.maxAgeH).toBe(26);
     expect(jobs.get("operating-rhythm")?.maxAgeH).toBe(26);
-    expect(jobs.get("intelligence-weekly-brief")?.maxAgeH).toBe(24 * 8);
     expect(jobs.get("inngest-liveness")?.maxAgeH).toBe(26);
   });
 

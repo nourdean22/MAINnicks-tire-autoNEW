@@ -46,7 +46,7 @@ describe("BDN-103 · surface-aware tool bias", () => {
     expect(resolveToolBiasKey("/journal")).toBe("/journal");
     expect(resolveToolBiasKey("/brain?tab=continuity")).toBe("/brain");
     expect(resolveToolBiasKey("/system/fleet")).toBe("/system");
-    expect(resolveToolBiasKey("/content")).toBe("/content");
+    expect(resolveToolBiasKey("/people")).toBe("/people");
   });
 
   it("falls back to Home's read-oriented bias only for genuinely unmapped routes", () => {

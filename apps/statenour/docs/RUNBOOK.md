@@ -51,7 +51,7 @@ something's wrong
              → /system/deployment-truth (build SHA + schema drift + env + cron health)
              → /system/repos (any sister repo dead? GitHub last-commit feed)
              → grep git log for the feature name
-             → check /system/schema-history for recent prisma db push
+             → query the SchemaChangeLedger table for recent prisma db push
 ```
 
 ---

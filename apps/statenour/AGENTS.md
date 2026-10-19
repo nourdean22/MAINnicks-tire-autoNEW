@@ -7,7 +7,7 @@
 > **Cross-cutting rules** (branching, protected operations, enforcement map, Windows): root
 > [`AGENTS.md`](../../AGENTS.md), already in context. This file adds only what is true of *this app*.
 
-**Last refreshed:** 2026-10-18 · UI v3 W5b (#3161) · see RECONCILIATION.
+**Last refreshed:** 2026-10-19 · bdnick prune wave 1 (branch statenour/prune-bdnick-w1) · see RECONCILIATION.
 **Header cap: one line.** Skill: `statenour-wave-reconcile`.
 
 <!--

@@ -11,15 +11,11 @@ import {
   Archive,
   Bot,
   Brain,
-  Camera,
   Clock,
   DollarSign,
   FileText,
   FlaskConical,
   Inbox,
-  MessageSquare,
-  Radio,
-  Search,
   Stethoscope,
   Target,
 } from "lucide-react";
@@ -136,35 +132,6 @@ export const CARDS: HubCard[] = [
     },
   },
   {
-    href: "/system/camera",
-    paletteId: "sys-camera",
-    keywords: ["camera", "arrival", "vehicle", "plate", "event", "lot"],
-    title: "Arrival Intel",
-    icon: Camera,
-    group: "health",
-    // Demoted 2026-10-08 (camera audit N4): no longer featured. The lot view is the Lot section
-    // of Nick's Admin; this is the raw event log the arrival alerts link to.
-    description:
-      "Raw vehicle-event log: arrival alerts and plate corrections (the lot view is Nick's Admin, Lot)",
-    // 2026-07-25 honest-health: was a hardcoded `() => "live"/healthy` that
-    // ignored the rollup entirely — a fabricated status. Now derived from
-    // the measured smartDevice fleet (the cameras this surface runs on).
-    // Guard is `online < total`, NOT `offline > 0`: SmartDevice.status also
-    // takes ERROR and UNKNOWN (the column default), which inflate `total`
-    // while counting as neither online nor offline — an all-UNKNOWN fleet
-    // must warn, never render "0 online" in green.
-    chip: (d) => {
-      if (!d) return NOT_READ_CHIP;
-      // Before the total===0 check: "no devices" off an UNREAD fleet is a
-      // claim about the shop's cameras made by a query that never ran.
-      if (d.devices.measured === false) return UNMEASURED_CHIP;
-      if (d.devices.total === 0) return { label: "no devices", severity: "unknown" };
-      return d.devices.online < d.devices.total
-        ? { label: `${d.devices.online}/${d.devices.total} online`, severity: "warning" }
-        : { label: `${d.devices.online} online`, severity: "healthy" };
-    },
-  },
-  {
     href: "/system/crons",
     paletteId: "sys-crons",
     keywords: ["cron", "schedule", "job", "kill", "manual", "silent", "slow", "diagnose"],
@@ -226,16 +193,6 @@ export const CARDS: HubCard[] = [
     group: "governance",
     description: "Nick's autonomous action audit: rules · approvals · history",
     chip: () => ({ label: "audit", severity: "info" }),
-  },
-  {
-    href: "/system/tools",
-    paletteId: "sys-tools",
-    keywords: ["tool", "registry", "govern", "permission", "capability"],
-    title: "Tools Registry",
-    icon: Search,
-    group: "governance",
-    description: "Inspect and govern agent tool access and permission policies",
-    chip: () => ({ label: "inspect", severity: "info" }),
   },
   {
     href: "/system/ai-cost",
@@ -302,33 +259,6 @@ export const CARDS: HubCard[] = [
     chip: () => ({ label: "view", severity: "info" }),
   },
   {
-    // 2026-07-28 blueprint: documented as canonical in ARCHITECTURE.md,
-    // README and DB-MIGRATION-POLICY — yet reachable only by typed URL
-    // since the Wave-AD card prune. Restored (same precedent as the
-    // Calibration card below).
-    href: "/system/schema-history",
-    paletteId: "sys-schema-history",
-    keywords: ["schema", "migration", "ledger", "ddl", "destructive", "approver"],
-    title: "Schema History",
-    icon: FileText,
-    group: "data",
-    description: "Schema-change ledger: every migration with method, destructive flag + approver",
-    chip: () => ({ label: "audit trail", severity: "info" }),
-  },
-  {
-    // 2026-07-28 · S5 gallery shipped nav-orphaned the same night it was
-    // built — the exact /system/inbox orphan class this grid fixed in June.
-    href: "/system/chat-states",
-    paletteId: "sys-chat-states",
-    keywords: ["chat", "states", "gallery", "fixture", "ui", "screenshot"],
-    title: "Chat States",
-    icon: MessageSquare,
-    group: "data",
-    description: "Real chat components against fixtures, eyeball after UI changes",
-    chip: () => ({ label: "gallery", severity: "info" }),
-    lab: true,
-  },
-  {
     // 2026-09-15 · UI workbench. The inspector chrome, its four honest
     // non-content states, the metric grammar and the evidence mark against
     // fixtures. Split from Chat States because that page is pinned by
@@ -344,19 +274,6 @@ export const CARDS: HubCard[] = [
     lab: true,
   },
   {
-    // 2026-07-28 blueprint: the daily 10:15 brief push was the ONLY path
-    // to /intelligence/brief — miss the push, lose the surface. The ledger
-    // (outcome tracking) hangs off the brief page.
-    href: "/intelligence/brief",
-    paletteId: "sys-intelligence",
-    keywords: ["intelligence", "brief", "executive", "opportunity", "ledger", "outcome"],
-    title: "Intelligence",
-    icon: Radio,
-    group: "ai",
-    description: "Daily executive brief + opportunity scoring + outcome ledger",
-    chip: () => ({ label: "briefs", severity: "info" }),
-  },
-  {
     // v-truth · calibration is a LIVE page but the prune left it with no
     // hub card (the quality/eval cards that redirected here were removed).
     // Restore one honest, direct card so it stays reachable.
@@ -369,16 +286,6 @@ export const CARDS: HubCard[] = [
     // Prediction accuracy (Brier) lives on /stats?tab=calibration; this page is the mood x kind grid (10-X3).
     description: "Suggestion hit rate by mood, LLM judge agreement",
     chip: () => ({ label: "eval", severity: "info" }),
-  },
-  {
-    href: "/system/proactive-preview",
-    paletteId: "sys-proactive",
-    keywords: ["proactive", "push", "preview", "dry run", "telemetry"],
-    title: "Proactive Preview",
-    icon: Bot,
-    group: "ai",
-    description: "Preview morning/afternoon/evening proactive pushes and risk telemetry",
-    chip: () => ({ label: "preview", severity: "info" }),
   },
   {
     href: "/system/cockpit-observability",

@@ -25,6 +25,7 @@
  */
 
 import express from "express";
+import { listenOrExit } from "./listen.js";
 import {
   startScheduler,
   stopScheduler,
@@ -141,10 +142,12 @@ app.get("/health/scheduler", (_req, res) => {
 // ── Bootstrap: scheduler + listen ──
 startScheduler();
 
-const server = app.listen(port, () => {
-  console.log(
-    `[worker] listening on :${port} · role=${SERVICE_ROLE} · scheduler started`,
-  );
+// Express 5 passes bind errors (EADDRINUSE) to this callback; listenOrExit exits 1 on one.
+const server = listenOrExit(app, port, {
+  role: SERVICE_ROLE,
+  log: (line) => console.log(line),
+  error: (line, cause) => console.error(line, cause),
+  exit: (code) => process.exit(code),
 });
 
 // ── Graceful shutdown (Railway sends SIGTERM on redeploys) ──

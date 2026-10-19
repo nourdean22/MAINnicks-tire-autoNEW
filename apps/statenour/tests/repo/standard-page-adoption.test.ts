@@ -10,7 +10,6 @@
  * - / delegates its entire surface to HomeConsole (the command surface).
  * - /chat is a fixed viewport application canvas whose safe-area/spine
  *   geometry deliberately escapes the normal feed/page shell.
- * - /goals and /scoreboard are compatibility redirect stubs.
  */
 import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
@@ -25,10 +24,6 @@ const EXCEPTIONS: Record<string, string> = {
     "Home delegates to HomeConsole, which owns the command-surface composition.",
   "app/(mastery)/chat/page.tsx":
     "Chat is a fixed viewport application canvas with explicit safe-area and desktop-spine geometry.",
-  "app/(mastery)/goals/page.tsx":
-    "Compatibility redirect stub to /stats?tab=goals.",
-  "app/(mastery)/scoreboard/page.tsx":
-    "Compatibility redirect stub to /stats.",
 };
 
 function walkPages(dir: string, out: string[] = []): string[] {
@@ -48,7 +43,7 @@ describe("mastery pages use the canonical StandardPage shell", () => {
   const pages = walkPages(MASTERY_ROOT).map(rel).sort();
 
   it("discovers the mastery route tree", () => {
-    expect(pages.length).toBeGreaterThanOrEqual(35);
+    expect(pages.length).toBeGreaterThanOrEqual(20);
   });
 
   it("keeps the exception list explicit and valid", () => {

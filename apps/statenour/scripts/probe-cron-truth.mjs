@@ -24,7 +24,7 @@ import { PrismaNeon } from "@prisma/adapter-neon";
 import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { classifyCron, auditKillSwitch, bySeverity, isFailureStatus } from "./lib/cron-truth.mjs";
+import { classifyCron, auditKillSwitch, bySeverity, tallyObserved } from "./lib/cron-truth.mjs";
 
 const APP = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const DAYS = Number(process.env.DAYS ?? 14);
@@ -116,14 +116,7 @@ const grouped = await prisma.cronJobLog.groupBy({
   _count: { _all: true },
   _max: { createdAt: true },
 });
-const observed = new Map();
-for (const r of grouped) {
-  const e = observed.get(r.jobName) ?? { total: 0, failures: 0, last: null };
-  e.total += r._count._all;
-  if (isFailureStatus(r.status)) e.failures += r._count._all;
-  if (!e.last || r._max.createdAt > e.last) e.last = r._max.createdAt;
-  observed.set(r.jobName, e);
-}
+const observed = tallyObserved(grouped);
 
 // ── kill switches ─────────────────────────────────────────────────────
 const switchRows = await prisma.brainMemory.findMany({

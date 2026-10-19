@@ -84,6 +84,7 @@ import { registerNourOsIgControlRoute } from "../routes/nour-os-ig-control";
 import { registerCameraVisitsRoute, registerCameraHeartbeatRoute } from "../routes/cameraVisitsRoutes";
 import { registerConversationEpisodeRoute } from "../routes/conversationRoutes";
 import { registerSecurityTxt } from "./securityTxt";
+import { registerBodyParsers } from "./bodyParsers";
 import { registerAnalyticsRoutes } from "../routes/analyticsRoutes";
 import { requireAdminApiKey, registerAdminRoutes } from "../routes/adminRoutes";
 import { registerMetaRoutes } from "../routes/metaRoutes";
@@ -150,17 +151,9 @@ async function startServer() {
   app.disable("x-powered-by");
   // Compression — gzip/deflate all responses (fixes Ahrefs "Not compressed" for all pages)
   app.use(compression({ threshold: 1024 }));
-  // Body parser — 2MB default, photo uploads handled separately.
-  // Wave-104: capture raw body bytes for webhooks that need HMAC over the
-  // exact bytes the sender signed (Capevace SMS Gateway). Stashed on
-  // req.rawBody. Adds negligible memory cost; webhook handlers opt in.
-  app.use(express.json({
-    limit: "2mb",
-    verify: (req: import("express").Request & { rawBody?: Buffer }, _res, buf: Buffer) => {
-      req.rawBody = buf;
-    },
-  }));
-  app.use(express.urlencoded({ limit: "2mb", extended: true }));
+  // Body parsers: the 12 MB photo routes first, then the 2 MB default with req.rawBody for signed
+  // webhooks. Order is the whole fix, see bodyParsers.ts.
+  registerBodyParsers(app);
   // /generated is the PERMANENT public identity of every generated asset — it is
   // what lives in reel_jobs.mp4Url and what Meta fetches at publish time. It used
   // to be served straight off data/generated on the container's EPHEMERAL disk, so
@@ -555,11 +548,8 @@ async function startServer() {
     contactPhoneHref: BUSINESS.phone.href,
   });
 
-  // Higher body limit for photo upload (base64 encoded images up to 7.5MB)
-  app.use("/api/trpc/booking.uploadPhoto", express.json({ limit: "12mb" }));
-  // Evidence-first Create (Wave B): shop photos ride the same base64-over-tRPC
-  // contract as booking.uploadPhoto, so they need the same body headroom.
-  app.use("/api/trpc/instagramStudio.uploadEvidencePhoto", express.json({ limit: "12mb" }));
+  // The photo upload routes' 12 MB parsers are registered with the default parser near the top
+  // (registerBodyParsers): mounted here, after it, they never ran.
 
   // tRPC API
   app.use(

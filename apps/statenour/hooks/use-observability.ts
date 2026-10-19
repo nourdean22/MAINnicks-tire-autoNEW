@@ -15,7 +15,6 @@
  *
  * Wave 2 endpoints (some not live yet · all four tiles tolerate 404/empty):
  *   · GET /api/system/cost-slo          → CostSloShape
- *   · GET /api/system/voice-latency     → VoiceLatencyShape
  *   · GET /api/system/eval-results      → EvalResultsShape  (live since v524)
  *   · GET /api/system/os-snapshot       → OsSnapshotShape
  *
@@ -48,21 +47,6 @@ export interface CostSloShape {
     label: string;
     usd: number;
   }>;
-}
-
-export interface VoiceLatencyShape {
-  /** P50 end-to-end latency in ms across the latest window (default last 24h). */
-  p50Ms?: number;
-  /** P95 — surfaced as tooltip context, not the headline. */
-  p95Ms?: number;
-  /** Latest N call latencies (oldest first) for sparkline. */
-  recentMs?: number[];
-  /** Consecutive calls breaching the 800ms hard ceiling. Resets on a clean call. */
-  breachStreak?: number;
-  /** Hard SLO red threshold in ms. Default 800 if the server omits. */
-  redThresholdMs?: number;
-  /** Soft SLO amber threshold in ms. Default 500 if the server omits. */
-  amberThresholdMs?: number;
 }
 
 export interface EvalResultsShape {
@@ -198,7 +182,6 @@ export function classifyEvals(
 
 interface UseObservabilityResult {
   cost: TileState<CostSloShape>;
-  voice: TileState<VoiceLatencyShape>;
   evals: TileState<EvalResultsShape>;
   osSnapshot: TileState<OsSnapshotShape>;
   reload: () => void;
@@ -210,10 +193,6 @@ interface UseObservabilityResult {
  */
 export function useObservability(): UseObservabilityResult {
   const costQuery = trpc.observability.costSlo.useQuery(undefined, {
-    refetchInterval: 60_000,
-  });
-
-  const voiceQuery = trpc.observability.voiceLatency.useQuery(undefined, {
     refetchInterval: 60_000,
   });
 
@@ -244,18 +223,6 @@ export function useObservability(): UseObservabilityResult {
       // consumers anywhere in the app. Reading it is the whole fix — an outage
       // now renders red instead of a green $0.00.
       (d) => d.readFailed === true,
-    ),
-    voice: classify(
-      voiceQuery,
-      (d) => (d.stages?.[0]?.p50 ?? 0) === 0 && (d.breach?.recentP50s?.length ?? 0) === 0,
-      (d) => ({
-        p50Ms: d.stages?.[0]?.p50,
-        p95Ms: d.stages?.[0]?.p95,
-        recentMs: d.breach?.recentP50s?.map((r: any) => r.p50) || [],
-        breachStreak: d.breach?.streak ?? 0,
-        redThresholdMs: d.target?.ms ?? 800,
-        amberThresholdMs: d.target ? d.target.ms * 0.75 : 500,
-      })
     ),
     evals: classifyEvals(evalsQuery),
     osSnapshot: classify(
@@ -291,7 +258,6 @@ export function useObservability(): UseObservabilityResult {
     ),
     reload: () => {
       costQuery.refetch();
-      voiceQuery.refetch();
       evalsQuery.refetch();
       osSnapshotQuery.refetch();
     },
@@ -307,19 +273,6 @@ export function formatUsd(usd: number): string {
   if (usd >= 1000) return `$${(usd / 1000).toFixed(1)}k`;
   if (usd >= 1) return `$${usd.toFixed(2)}`;
   return `$${usd.toFixed(3)}`;
-}
-
-/** Map a latency value (ms) to one of three tier bands. Used by tile color
- *  + the icon. Thresholds passed in so the server can tune live. */
-export function latencyTier(
-  ms: number,
-  amberMs: number,
-  redMs: number,
-): "green" | "amber" | "red" {
-  if (!Number.isFinite(ms) || ms <= 0) return "green";
-  if (ms >= redMs) return "red";
-  if (ms >= amberMs) return "amber";
-  return "green";
 }
 
 /** Map a pass-rate fraction (0-1) to tier band for color. */

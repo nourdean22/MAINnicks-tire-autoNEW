@@ -117,7 +117,6 @@ export function TodaysCompound() {
       key: "learn",
       label: "tutorials",
       value: `${data.learnCount}`,
-      href: "/learn",
     });
   }
   if (data.tasksOpen > 0) {

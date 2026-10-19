@@ -105,7 +105,11 @@ describe("the rest of the census joins (same slice)", () => {
     expect(brief).not.toContain('step.run("outcome-ledger"');
     expect(brief).not.toContain('step.run("telegram-fallback"');
     expect(brief).not.toMatch(/const surface = push\.sent > 0/);
-    expect(brief).toContain('setShownSurface(push.ledgerId, push.sent > 0 ? "web-push" : "telegram-fallback")');
+    // The real surface is written once delivery is known (Codex P2 on #3171): "web-push" when a device
+    // took it, "telegram-fallback" only after the fallback really sent, nothing when both failed.
+    expect(brief).toContain('setShownSurface(push.ledgerId, "web-push")');
+    expect(brief).toMatch(/fallback\.status === "sent"\)\s*\{\s*if \(push\.ledgerId\) await setShownSurface\(push\.ledgerId, "telegram-fallback"\)/);
+    expect(brief.match(/setShownSurface\(push\.ledgerId, "telegram-fallback"\)/g)?.length).toBe(1);
     expect(brief).toContain("briefTelegramFallback(brief, push, push.ledgerId)");
     expect(brief).toContain("ratingTelegramButtons(ledgerId)");
     // the only daily_brief writer in this file is sendBriefPush

@@ -514,49 +514,6 @@ export const systemTools = {
     },
   }),
 
-  // v10.0.515 · #10 Document Q&A · search ingested documents by
-  // semantic similarity. Operator uploads via /api/ai/chat/documents;
-  // Nick retrieves with this tool when a question references a known
-  // document or when a doc is freshly uploaded in the same turn.
-  searchBuildYourOwnX: tool({
-    description:
-      "Search the Build Your Own X tutorial catalog (450+ curated step-by-step guides for re-creating canonical technologies from scratch — programming languages, databases, blockchains, web servers, neural networks, etc). Use when Nour asks 'how do I build a X', 'show me tutorials for Y', 'where do I learn Z'. Returns a list of {title, language, url, category}. Browse the full catalog at /learn.",
-    inputSchema: z.object({
-      topic: z
-        .string()
-        .min(2)
-        .max(80)
-        .optional()
-        .describe(
-          "Topic / category / title keywords. e.g. 'database', 'lisp', 'neural network', 'docker'.",
-        ),
-      language: z
-        .string()
-        .min(1)
-        .max(20)
-        .optional()
-        .describe(
-          "Filter by programming language (case-insensitive substring). e.g. 'python', 'rust', 'go'.",
-        ),
-      limit: z.number().min(1).max(20).default(8),
-    }),
-    execute: async ({ topic, language, limit }) => {
-      const { searchTutorials } = await import("@/lib/learn/build-your-own-x");
-      const results = searchTutorials({ topic, language, limit });
-      return {
-        count: results.length,
-        results: results.map((t) => ({
-          title: t.title,
-          language: t.language,
-          url: t.url,
-          category: t.category,
-          videoOnly: t.videoOnly,
-        })),
-        browseAt: "https://bdnick.info/learn",
-      };
-    },
-  }),
-
   arsenalResearch: tool({
     description: "Use Grok (xAI) for real-time analysis and research. Powered by the Arsenal integration chain.",
     inputSchema: z.object({
@@ -1329,7 +1286,7 @@ export const systemTools = {
 
   getFleetTruth: tool({
     description:
-      "Read the cross-app operational fleet truth: statenour capability artifacts (daily brief, outbox drain, Inngest heartbeat — fresh/stale/never_produced/unknown with ages) plus nickstire's live health, database, schema-guard and self-healing verdicts. READ-ONLY. Use when the operator asks 'is everything running', 'system status', 'are the crons alive', or before claiming any scheduled capability works.",
+      "Read the cross-app operational fleet truth: statenour capability artifacts (source ingestion, outbox drain, Inngest heartbeat — fresh/stale/never_produced/unknown with ages) plus nickstire's live health, database, schema-guard and self-healing verdicts. READ-ONLY. Use when the operator asks 'is everything running', 'system status', 'are the crons alive', or before claiming any scheduled capability works.",
     inputSchema: z.object({}),
     execute: async () => {
       try {

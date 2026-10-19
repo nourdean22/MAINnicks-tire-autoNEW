@@ -932,7 +932,7 @@ describe("cron lifecycle · a degraded output settles partial, not success (2026
     const store = makeStore();
     const { CronLifecycleMiddleware } = await loadMiddleware(store.prisma);
     const mw = new CronLifecycleMiddleware({ client: {} as never });
-    const fn = cronFn("intelligence-daily-brief");
+    const fn = cronFn("operator-morning-brief");
     const ctx = { runId: "run-degraded" };
     await mw.onRunStart({ ctx, fn });
     await mw.onRunComplete({
@@ -950,7 +950,7 @@ describe("cron lifecycle · a degraded output settles partial, not success (2026
     const store = makeStore();
     const { CronLifecycleMiddleware } = await loadMiddleware(store.prisma);
     const mw = new CronLifecycleMiddleware({ client: {} as never });
-    const fn = cronFn("intelligence-daily-brief");
+    const fn = cronFn("operator-morning-brief");
     const ctx = { runId: "run-ok" };
     await mw.onRunStart({ ctx, fn });
     await mw.onRunComplete({ ctx, fn, output: { status: "completed", pushSent: 1 } });

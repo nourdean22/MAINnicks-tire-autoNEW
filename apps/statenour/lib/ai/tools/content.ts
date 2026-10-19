@@ -103,11 +103,6 @@ export const contentTools = {
     },
   }),
 
-  // searchBuildYourOwnX — v10.0.52 · Apr 30. Curated tutorial index
-  // from codecrafters-io/build-your-own-x bundled at lib/data/. Lets
-  // Nick answer "show me Python tutorials for building a database"
-  // with a real list, not a hallucinated one. Free + offline (no
-  // network call) since the markdown ships with the bundle.
   generateSQL: tool({
     description: "Convert a natural language question into a SQL query for the NOUR OS database",
     inputSchema: z.object({

@@ -14,7 +14,7 @@ Last verified 2026-05-21. Source of truth for subsystem boundaries; `docs/CURREN
 >   recovered by the every-15-min `brain-bus-drain` cron (worker; `brain-bus-backfill` was deleted 2026-05-28).
 > - `SchemaChangeLedger` table + `lib/db/schema-ledger.ts` — every
 >   `prisma db push` records reason + destructive flag + rollback plan
->   + approver. `/system/schema-history` renders the audit trail.
+>   + approver. The ledger is written; no page renders it (`/system/schema-history` was cut 2026-10-18).
 > - `AgentTrace` table + `lib/ai/agent-trace.ts` — standard trace
 >   contract for every AI call. `traceId` (root) + `parentId` (chain)
 >   + provider + model + duration + cost + error class. Operator
@@ -26,8 +26,7 @@ Last verified 2026-05-21. Source of truth for subsystem boundaries; `docs/CURREN
 >   chat-route streamText so a provider failure pre-first-token rotates
 >   to ollama → openai → anthropic in the SAME turn. Composes with
 >   v9.1.27 `markProviderFailed` 60s sticky window.
-> - **Operator surfaces:** `/system/repos` · `/system/schema-history`
->   · `/system/deployment-truth` (v10 E.1/E.2/E.4) plus `/system/command-
+> - **Operator surfaces:** `/system/repos` · `/system/deployment-truth` (v10 E.1/E.2/E.4) plus `/system/command-
 >   center` (v9.0+) form the new control layer above the v8.x
 >   observability deck.
 >

@@ -4,7 +4,8 @@
  * grid. Chat States and UI Lab render real components against fixtures (each page's own header
  * says so: "the REAL components rendered against fixtures", "primitives against fixtures"), so they
  * are tools for checking the UI, not readings of the system. Before W5a they sat in "Data & Logs"
- * beside live surfaces, two of the twenty tiles.
+ * beside live surfaces, two of the twenty tiles. The bdnick prune (wave 1, 2026-10-18) deleted the
+ * Chat States page and its tile; UI Lab stays, its page being the e2e fixture host, so the Lab holds one.
  *
  * Rendered with react-dom/client in jsdom (the bottom-tab-bar-pinned pattern) so the click wiring
  * is asserted, not only the markup.
@@ -28,7 +29,7 @@ vi.mock("next/link", () => ({
 
 import { CARDS, SystemHubGrid } from "@/components/system/hub-grid";
 
-const LAB_HREFS = ["/system/chat-states", "/system/ui-lab"];
+const LAB_HREFS = ["/system/ui-lab"];
 
 let container: HTMLDivElement;
 let root: Root;
@@ -60,7 +61,7 @@ describe("hub grid · the Lab disclosure", () => {
     expect(btn).not.toBeNull();
     expect(btn!.getAttribute("type")).toBe("button");
     expect(btn!.getAttribute("aria-expanded")).toBe("false");
-    expect(btn!.textContent).toContain("Lab, 2 tools");
+    expect(btn!.textContent).toContain("Lab, 1 tool");
     expect(btn!.textContent).toContain("closed");
   });
 
@@ -77,7 +78,7 @@ describe("hub grid · the Lab disclosure", () => {
 
   it("POSITIVE CONTROL: a live tile stays outside the Lab", () => {
     const panel = document.getElementById(labButton()!.getAttribute("aria-controls")!);
-    for (const href of ["/system/health", "/system/calibration", "/system/schema-history", "/system/proactive-preview"]) {
+    for (const href of ["/system/health", "/system/calibration", "/system/crons", "/system/logs"]) {
       expect(panel!.contains(link(href)), href).toBe(false);
     }
   });

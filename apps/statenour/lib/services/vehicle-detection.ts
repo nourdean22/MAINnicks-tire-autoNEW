@@ -132,7 +132,7 @@ export function isQuietHoursET(hour: number): boolean {
   return hour >= QUIET_HOURS.startHourET || hour < QUIET_HOURS.endHourET;
 }
 
-const COCKPIT_URL = "https://bdnick.info/system/camera";
+const COCKPIT_URL = "https://nickstire.org/admin?tab=lot";
 
 type PlateShape = { status?: string; text?: string; normalizedText?: string } | undefined;
 
@@ -231,7 +231,7 @@ export async function handleVehicleEvent(deviceId: string, payload: unknown): Pr
     );
   };
 
-  const buttons: InlineButton[][] = [[{ text: "📹 Open Camera Panel", url: COCKPIT_URL }]];
+  const buttons: InlineButton[][] = [[{ text: "📹 Open Lot", url: COCKPIT_URL }]];
 
   /**
    * Page the operator for a row that ALREADY EXISTS, then clear its pending marker. The row

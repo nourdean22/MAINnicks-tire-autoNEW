@@ -91,10 +91,10 @@ const click = (el: Element) => {
 describe("MoreSheet pin control", () => {
   it("every flat row has a Pin button; hubs and Settings do not", () => {
     const el = render();
-    for (const label of ["Stats", "Pinned Memory", "Learn", "Photo Improver", "Short Links", "People", "Proof"]) {
+    for (const label of ["Stats", "Pinned Memory", "People", "Proof"]) {
       expect(pinButton(el, label), label).not.toBeNull();
     }
-    for (const label of ["Brain", "Content", "System", "Settings"]) expect(pinButton(el, label), label).toBeNull();
+    for (const label of ["Brain", "System", "Settings"]) expect(pinButton(el, label), label).toBeNull();
   });
 
   it("the Pin button is type=button, 44 px hit area with a 36 px visual, focus ring, beside the link and not inside it", () => {

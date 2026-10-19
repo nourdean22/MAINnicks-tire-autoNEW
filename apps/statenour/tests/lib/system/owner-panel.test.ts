@@ -477,7 +477,7 @@ describe("capabilities · a degraded guarded capability is an exception; an unre
     expect(e.title).toBe("capability firecrawl-scrape degraded · 9 consecutive failures");
     expect(e.detail).toBe("Insufficient credits to perform this request.");
     expect(e.ageMin).toBe(600);
-    expect(e.href).toBe("/system/tools");
+    expect(e.href).toBe("/system/actions");
     expect(e.evidence).toBe("integrations name=firecrawl-scrape");
   });
 

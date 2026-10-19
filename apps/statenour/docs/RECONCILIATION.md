@@ -1,5 +1,19 @@
 # Reconciliation · statenour-os
 
+> ## 2026-10-19 · bdnick prune wave 1: dead pages, tools and the daily brief cut, every old link redirects (branch `statenour/prune-bdnick-w1`) · 1 statenour PR
+>
+> Not live until merged and deployed. Nour asked for it on 2026-10-18 ("get rid of the old pages, tools and features", "send work stuff to the admin"); his calls: cut all of /content including Publish, keep /people, stop the 10:15 intelligence brief, move Photo Improver to the admin. Evidence: 90 days of `page_visit` rows (prod SELECT, 2026-10-18).
+>
+> - **Pages cut, each redirected (18 rows in `next.config.ts`).** /learn, /links (+ `/api/short/*`), /goals and /scoreboard stubs, all of /content and its APIs, /intelligence/brief and /ledger, /system/chat-states, schema-history, tools, proactive-preview, and /system/camera (now `https://nickstire.org/admin?tab=lot`; the camera ingest and arrival alert stay).
+> - **Also cut.** The bulk-SMS approval function and `FEATURE_BULK_SMS_LIVE`, Telegram `/approve` and `/reject`, the voice-latency tile (no writer), Nick tools createQuickQuote, triageStaleLead, searchBuildYourOwnX, crons intelligence-daily-brief and intelligence-weekly-brief, six hub tiles (UI Lab stays in the Lab, its page is the e2e fixture host).
+> - **Hidden duties kept.** The daily brief cron was the only scheduler of source ingestion with claim verification, the persona-drift scan and the fatal-ingestion gate: new slim cron `intelligence-ingest` (10:15, retries 2). The fleet-truth probe reads `registeredSource.lastFetched` (26 h). `operator-morning-brief` pushes right after compose (no 35-minute wait for a brief that is gone). The sentinel's alert link is location-aware (shop and office cameras go to the admin Lot).
+> - **Gate.** `tests/repo/retired-routes-gate.test.ts` pins the redirects and scans `tests/` for 11 deleted API prefixes, with planted-string controls.
+>
+> **Flagged · NOT fixed**
+> - nickstire's `/api/bridge/bulk-sms-send` and `recent_customer_ids` handler are caller-less after this wave: removed in the nickstire wave 4 PR.
+> - Customer names and phones still arrive in `business_metrics_sync` until wave 3 (statenour strip) and wave 4 (nickstire redaction) land; old rows need a scrub with a backup table.
+> - /photo-improver stays until the admin Photo Check is live, then it is deleted (wave 5).
+> - Do not deploy between 10:00 and 10:40 UTC: an `operator-morning-brief` run in flight on the old code could lose that day's push.
 > ## 2026-10-18 · UI v3 W5b: Alerts and Inbox lanes, dismiss with a reason (branch `statenour/ui-v3-w5b`) · 1 statenour PR
 >
 > Not live until merged and deployed. Unit and component tests only; no prod read or write.
@@ -4756,7 +4770,7 @@
 
 > **2026-07-22 · Perplexica repair + closed-loop Experiment factory + fallback-model refresh.** ① **Perplexica** (#1017/#1018/#1019): canonical native-API path (removed the MCP-URL aliasing — `perplexica-mcp` is a separate Railway service), `PERPLEXICA_TIMEOUT_MS` 35s (was the generic 8s → always timed out in the quorum), `hasPerplexica()` single gate, `checkPerplexicaHealth()` provider+model verification, search-source telemetry, and the `GET /api/system/perplexica-diag` receipt (CRON_SECRET-gated). **Root cause proven from live SearXNG logs: every general engine (DuckDuckGo/Brave/Startpage/Google-CSE) is CAPTCHA/rate-limited on Railway's datacenter IP → 0 sources → silent Tavily fallback** — an infra reality, not a code bug (see RUNBOOK observability + poka-yoke ledger 2026-07-22). ② **Closed-loop Experiment factory** (#1020): `RegisteredSource.authScore` now LEARNS — accepting an opportunity spawns an `Experiment` (14-day horizon), a daily `experiment-measure` cron resolves it (held_up/failed/inconclusive) and nudges the attributed source's authScore via a bounded, reversible EWMA; `scoring.ts` folds that learned trust back into opportunity priority (`applyAuthTrust`, ±10% — the read-path teeth). Adversarial-review fixes: **column-first migration** (hot-table ADD COLUMNs applied to prod before the schema deploy) + **atomic claim** (running→measuring, prevents concurrent double-nudge). Migration verified live: `experiments` table + 3 cols + 2 FKs, pgvector untouched. ③ **Fallback-model refresh**: the anthropic fallback lane's `defaultModel` `claude-3-5-sonnet-latest` → `claude-sonnet-5` (4th/5th-hop only; prod primary is Ollama). Also flipped `NICK_VERIFIED_REGEN` on (activates the #1016 authority-regen; no DB override, env-driven, verified effective). Gates: typecheck 0 · eslint 0 · vitest (closed-loop math 7/7, perplexica 30/30) · check:crons clean · prisma validate.
 
-**Last verified:** 2026-10-18 (UI v3 W5b on branch statenour/ui-v3-w5b and W5a on branch statenour/ui-v3-w5a; see the top entries; prior stamp 2026-10-17, UI v3 waves W0 to W2, #3056, #3065, #3066, #3067 and branch statenour/ui-v3-w2)
+**Last verified:** 2026-10-19 (bdnick prune wave 1 on branch statenour/prune-bdnick-w1; prior stamp 2026-10-18, UI v3 W5b on branch statenour/ui-v3-w5b and W5a on branch statenour/ui-v3-w5a; see the top entries; prior stamp 2026-10-17, UI v3 waves W0 to W2, #3056, #3065, #3066, #3067 and branch statenour/ui-v3-w2)
 
 - **Execution Mode (`1255c273`)**: Added focused task execution panel on `/missions` utilizing a memoized selector to prioritize tasks in "DOING" status, then queued tasks, then tasks from the Top Mission Today, real user projects, and general tasks. Includes callbacks for resume, pause, complete, snooze, block, edit, and exit.
 - **Hidden High-Risk Warning & Filters (`e9afbec8` & `9816a0b6`)**: Implemented a warning banner when high-risk tasks are hidden by active search, loop-kind filters, domain filters, or focus mode.

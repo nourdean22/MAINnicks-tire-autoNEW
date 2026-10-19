@@ -10,7 +10,6 @@
     "app/api/cron/relationship-weekly-synthesis/route.ts",
     "app/api/cron/xp-decay/route.ts",
     "app/api/glitch-capture/route.ts",
-    "app/api/intelligence/decisions/log/route.ts",
     "app/api/missions/[id]/retro/route.ts",
     "app/api/realtime/tool-call/route.ts",
     "app/api/relationships/log-outreach/route.ts",

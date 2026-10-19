@@ -32,7 +32,6 @@ vi.mock("@/lib/services/cost-slo", () => ({
   sparkline7d: vi.fn(),
   topConversationsByCost: vi.fn(),
 }));
-vi.mock("@/lib/services/voice-latency", () => ({ getVoiceLatencyState: vi.fn() }));
 vi.mock("@/lib/observability/drift-detector", () => ({ compareToWeekAgo: vi.fn() }));
 
 import { buildCockpitStats } from "@/lib/services/system-observability";

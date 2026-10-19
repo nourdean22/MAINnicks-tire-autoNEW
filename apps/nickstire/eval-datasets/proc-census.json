@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-19T02:23:04.433Z",
-  "count": 812,
+  "generatedAt": "2026-10-19T14:54:29.789Z",
+  "count": 814,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -189,7 +189,9 @@
     "mutation.instagramAdmin.syncFeed",
     "mutation.instagramAdmin.updateMetaConfig",
     "mutation.instagramStudio.approve",
+    "mutation.instagramStudio.brandedPhoto",
     "mutation.instagramStudio.cancelSchedule",
+    "mutation.instagramStudio.checkPhoto",
     "mutation.instagramStudio.evaluate",
     "mutation.instagramStudio.generate",
     "mutation.instagramStudio.publish",
