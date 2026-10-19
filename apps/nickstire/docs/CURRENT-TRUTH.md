@@ -7,6 +7,8 @@
 
 Live code and production evidence override this document when they disagree. Update this file in the same change that alters a listed contract.
 
+## Operator steps run 2026-10-19 00:2xZ (Nour: "go do all that for me"): `GATEWAY_ORDERING_ENABLED=true` set on Railway (CLI, read back; redeploy 00:20Z), Vapi Push Latest Config done ("Assistant updated + Vapi read-back verified"). STILL OWED: migrations 0147 + 0148 (admin Settings > System Health > Apply built-in migrations; the agent's tap was refused by its classifier), the record step, the Koalafi dealer rename (needs Nour's dealer.koalafi.com login), a quote-text delivery proof to a non-internal phone
+
 ## Text me this quote on /tires top picks (2026-10-18, PR #3157) -- MERGED (main `ff063da8e`), LIVE (`/api/health` deploy.commit `ff063da8e` 23:25Z); live test to the owner's cell saved lead `TQ-20261018-993` and was refused by the internal-line guard ("could not text this number"), so delivery to a real customer number is still unproven; the test lead was cancelled from /admin
 
 ## Kafene merchant-portal wire contract (2026-10-18, PR #3159, docs) -- MERGED (main `cd3bd65cb`); the portal client itself was rejected by Nour (Cloudflare refused the laptop's VPN exit, FACT; a datacenter block for Railway is STRONG INFERENCE, not probed)

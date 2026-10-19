@@ -127,11 +127,16 @@ detailed in `docs/CURRENT-TRUTH.md`:
 - **Payment Programs are five, Kafene first** (`shared/financing.ts`, `shared/business.ts`): Kafene, Acima, Snap, Koalafi,
   American First. Copy, SMS planner, voice classifiers, chat tools, GBP and ad copy all say five. `financing_clicks.provider`
   gains `kafene` by **migration 0147 (operator step, admin Run Migrations)**; until applied a Kafene click opens the application
-  and the click row is dropped with a warn. The Vapi keyword list gained Kafene: **Push Latest Config** is an operator step.
+  and the click row is dropped with a warn. The Vapi keyword list gained Kafene: Push Latest Config was DONE from /admin on
+  2026-10-19 00:2xZ ("Assistant updated + Vapi read-back verified"). **Migrations 0147 and 0148 are STILL OWED** (the agent's
+  tap on Settings > System Health > "Apply built-in migrations" was refused by its permission classifier; one tap for Nour,
+  then `railway run -s MAINnicks-tire-auto -- node scripts/record-migrations.mjs --only 0147,0148 --execute`).
 - **Order completion (#3152, squash `8b189e8b7`; live when Railway deploys it):**
   - Admin one-tap supplier order at D&K (`gatewayOrder.prepare/submit/clearOurLines`, `services/gatewaySupplierOrder.ts`):
     cart from the order lines, PO `online order <order number>`, CAS claim so two taps place one order, unclear submits park as
-    `uncertain:<uuid>`, doubled carts refused (`cart_mismatch`). **Behind `GATEWAY_ORDERING_ENABLED` (off) and `money.manage`.**
+    `uncertain:<uuid>`, doubled carts refused (`cart_mismatch`). **Behind `GATEWAY_ORDERING_ENABLED` and `money.manage`;
+    the flag is ON since 2026-10-19 00:20Z (set on Railway by the agent on Nour's order; redeploy followed). No real D&K
+    order has gone through it yet: the first one is the live proof.**
     A Kafene-leased order (never "paid") counts as paid for this once its lease is signed.
   - Kafene keyless bridge, ON at deploy: Apply with Kafene in the order modal calls `kafene.applyStarted` (order note, one
     Telegram to staff with the phone masked, once per order per day, 5 calls/IP/hour); admin lease panel shows "Application
