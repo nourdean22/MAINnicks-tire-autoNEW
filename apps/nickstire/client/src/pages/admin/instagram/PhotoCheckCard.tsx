@@ -17,7 +17,7 @@
  * The confirm is in-card, not confirmDialog: it has to show an expandable prompt, and a native
  * confirm is suppressed in the iOS standalone PWA.
  */
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Camera, Loader2 } from "lucide-react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -58,11 +58,15 @@ const readBase64 = (file: File) =>
 const btn = "h-auto min-h-12 w-full px-4 py-2 text-base sm:w-auto";
 
 export function PhotoCheckCard() {
-  const upload = trpc.instagramStudio.uploadEvidencePhoto.useMutation();
+  // Upload and render fail fast offline: a paused render would sit under "Making the picture" with
+  // the card locked, then spend a credit whenever the network returned. The check keeps the default
+  // (it pauses, and the card says "offline" with a fresh Retry): it costs no image credit.
+  const upload = trpc.instagramStudio.uploadEvidencePhoto.useMutation({ networkMode: "always" });
   const check = trpc.instagramStudio.checkPhoto.useMutation();
-  const brand = trpc.instagramStudio.brandedPhoto.useMutation();
+  const brand = trpc.instagramStudio.brandedPhoto.useMutation({ networkMode: "always" });
 
   const inputRef = useRef<HTMLInputElement>(null);
+  const confirmRef = useRef<HTMLDivElement>(null);
   const checkSeq = useRef(0);
   const renderLock = useRef(false);
 
@@ -151,6 +155,11 @@ export function PhotoCheckCard() {
       setRendering(false);
     }
   };
+
+  // The button that opened the confirm is gone once it shows: keep keyboard and screen reader focus in the card.
+  useEffect(() => {
+    if (confirming) confirmRef.current?.focus();
+  }, [confirming]);
 
   const failureLine = offline ? CHECK_LINE.offline : checkFailure ? CHECK_LINE[checkFailure] : null;
   const a = card?.analysis;
@@ -263,8 +272,8 @@ export function PhotoCheckCard() {
                 <p className="text-muted-foreground">The model listed no issues.</p>
               ) : (
                 <ul className="list-disc space-y-1 pl-5">
-                  {a.issues.map((issue) => (
-                    <li key={issue} className="break-words">{issue}</li>
+                  {a.issues.map((issue, i) => (
+                    <li key={i} className="break-words">{issue}</li>
                   ))}
                 </ul>
               )}
@@ -274,8 +283,8 @@ export function PhotoCheckCard() {
               <div>
                 <p className="font-medium">What to change</p>
                 <ul className="space-y-2">
-                  {a.improvements.map((item) => (
-                    <li key={`${item.type}-${item.instruction}`} className="break-words">
+                  {a.improvements.map((item, i) => (
+                    <li key={i} className="break-words">
                       <span className="mr-2 font-medium">{PRIORITY[item.priority]}</span>
                       <span>{item.instruction}</span>
                     </li>
@@ -327,7 +336,7 @@ export function PhotoCheckCard() {
             )}
 
             {confirming ? (
-              <div role="group" aria-label="Confirm branded picture" className="space-y-3 rounded-md border p-3">
+              <div ref={confirmRef} tabIndex={-1} role="group" aria-label="Confirm branded picture" className="space-y-3 rounded-md border p-3 focus:outline-none">
                 <p>Creates one new branded picture of a similar scene. It is not your photo edited. Uses one image credit.</p>
                 <div className="space-y-1">
                   <p className="text-muted-foreground">What will be drawn</p>

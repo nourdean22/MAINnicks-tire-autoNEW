@@ -13,7 +13,7 @@
  * mutateAsync / isPaused surface it gets from react-query.
  */
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import React from "react";
 
 const h = vi.hoisted(() => ({
@@ -22,11 +22,13 @@ const h = vi.hoisted(() => ({
   brand: vi.fn(),
   checkPaused: false,
   forbidden: vi.fn(),
+  opts: {} as Record<string, unknown>,
 }));
 
 vi.mock("@/lib/trpc", async () => {
   const R = await import("react");
-  const fake = (fn: (input: unknown) => Promise<unknown>, paused: () => boolean) => () => {
+  const fake = (name: string, fn: (input: unknown) => Promise<unknown>, paused: () => boolean) => (opts?: unknown) => {
+    h.opts[name] = opts;
     const [isError, setIsError] = R.useState(false);
     return {
       mutateAsync: async (input: unknown) => {
@@ -46,9 +48,9 @@ vi.mock("@/lib/trpc", async () => {
   return {
     trpc: {
       instagramStudio: {
-        uploadEvidencePhoto: { useMutation: fake((i) => h.upload(i), () => false) },
-        checkPhoto: { useMutation: fake((i) => h.check(i), () => h.checkPaused) },
-        brandedPhoto: { useMutation: fake((i) => h.brand(i), () => false) },
+        uploadEvidencePhoto: { useMutation: fake("upload", (i) => h.upload(i), () => false) },
+        checkPhoto: { useMutation: fake("check", (i) => h.check(i), () => h.checkPaused) },
+        brandedPhoto: { useMutation: fake("brand", (i) => h.brand(i), () => false) },
         // A post or publish door the card must never reach.
         stage: { useMutation: () => ({ mutate: h.forbidden, mutateAsync: h.forbidden }) },
         render: { useMutation: () => ({ mutate: h.forbidden, mutateAsync: h.forbidden }) },
@@ -105,6 +107,7 @@ beforeEach(() => {
   h.brand.mockReset().mockResolvedValue(BRANDED_OK);
   h.forbidden.mockReset();
   h.checkPaused = false;
+  h.opts = {};
   natives = [vi.spyOn(window, "confirm"), vi.spyOn(window, "alert"), vi.spyOn(window, "prompt")];
 });
 afterEach(() => {
@@ -295,8 +298,11 @@ describe("Photo check card: the branded version", () => {
     await checked();
     first();
     const confirm = within(confirmPanel()).getByRole("button", { name: "Make the picture" });
-    fireEvent.click(confirm);
-    fireEvent.click(confirm);
+    // Both taps land before React re-renders (one act batch), so only the ref lock can stop the second.
+    act(() => {
+      fireEvent.click(confirm);
+      fireEvent.click(confirm);
+    });
     expect(h.brand).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("status").textContent).toMatch(/Making the picture/);
     expect(screen.queryByRole("button", { name: "Make a branded version" })).toBeNull();
@@ -356,6 +362,30 @@ describe("Photo check card: the branded version", () => {
     next.resolve(CHECK_OK);
     await screen.findByRole("region", { name: "Photo scorecard" });
     expect(screen.queryByRole("img", { name: "Branded picture" })).toBeNull();
+  });
+});
+
+describe("Photo check card: offline and focus", () => {
+  it("upload and render fail fast offline instead of waiting forever; the check keeps the default so a paused check shows the offline state", () => {
+    render(<PhotoCheckCard />);
+    expect(h.opts.upload).toEqual({ networkMode: "always" });
+    expect(h.opts.brand).toEqual({ networkMode: "always" });
+    expect(h.opts.check).toBeUndefined();
+  });
+
+  it("opening the confirm moves focus into it, so a keyboard or screen reader user is not left on a removed button", async () => {
+    await checked();
+    fireEvent.click(screen.getByRole("button", { name: "Make a branded version" }));
+    expect(document.activeElement).toBe(screen.getByRole("group", { name: "Confirm branded picture" }));
+  });
+
+  it("two identical issues from the model render twice without a duplicate-key warning", async () => {
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    h.check.mockResolvedValue({ ...CHECK_OK, analysis: { ...ANALYSIS, issues: ["Glare", "Glare"] } });
+    await checked();
+    expect(within(scorecard()).getAllByText("Glare")).toHaveLength(2);
+    expect(err.mock.calls.flat().join(" ")).not.toMatch(/same key/);
+    err.mockRestore();
   });
 });
 
