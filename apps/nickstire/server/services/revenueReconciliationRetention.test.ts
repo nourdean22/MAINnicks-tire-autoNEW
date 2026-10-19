@@ -118,6 +118,15 @@ describe("report (always runs, read only)", () => {
     }
   });
 
+  it("a newest-time that is not epoch seconds (milliseconds, far future) never reaches a DELETE", async () => {
+    for (const latest of [Date.now(), Date.now() * 1000, 99_999_999_999]) {
+      const query = vi.fn(async () => [[{ call_id: 1, n: "3", latest }], []]);
+      const r = await reconCandidatesRetention({ query, isEnabled: flag(true) });
+      expect(r).toEqual({ state: "unavailable" });
+      expect(query).toHaveBeenCalledTimes(1);
+    }
+  });
+
   it("an empty table is a measured zero, not unavailable", async () => {
     const t = fakeTable([]);
     const r = await reconCandidatesRetention({ query: t.query, isEnabled: flag(true) });

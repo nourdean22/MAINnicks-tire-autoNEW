@@ -119,7 +119,10 @@ function parseGroups(raw: unknown): Group[] | null {
     const n = Number(r.n);
     const latest = Number(r.latest);
     // A row that does not parse means the read is not what we think it is: UNKNOWN, never a smaller count.
-    if (!Number.isSafeInteger(callId) || !Number.isSafeInteger(n) || n < 1 || !Number.isSafeInteger(latest) || latest <= 0) return null;
+    // The newest time is also the DELETE bound, so one that is not epoch seconds (a unit slip would read far
+    // in the future) must not reach a DELETE: it could sit above the newest row. Allow a day of clock slack.
+    const plausibleEpochCeiling = Math.floor(Date.now() / 1000) + 86_400;
+    if (!Number.isSafeInteger(callId) || !Number.isSafeInteger(n) || n < 1 || !Number.isSafeInteger(latest) || latest <= 0 || latest > plausibleEpochCeiling) return null;
     groups.push({ callId, n, latest });
   }
   // A non-array result reads as no rows from readRows; an array result with zero groups is a real empty table.
