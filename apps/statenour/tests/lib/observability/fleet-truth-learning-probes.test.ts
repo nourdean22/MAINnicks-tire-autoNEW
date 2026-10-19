@@ -122,8 +122,8 @@ describe("reality-events probe (reality ledger)", () => {
 });
 
 describe("intelligence-ingest probe (replaced daily-brief, 2026-10-18)", () => {
-  it("is registered with a 30h window and the brief probe is gone", () => {
-    expect(STATENOUR_ARTIFACT_PROBES.find((a) => a.capability === "intelligence-ingest")?.maxAgeH).toBe(30);
+  it("is registered with a 26h window (liveness runs 2.75h after the ingest) and the brief probe is gone", () => {
+    expect(STATENOUR_ARTIFACT_PROBES.find((a) => a.capability === "intelligence-ingest")?.maxAgeH).toBe(26);
     expect(STATENOUR_ARTIFACT_PROBES.some((a) => a.capability === "daily-brief")).toBe(false);
   });
 
@@ -131,8 +131,13 @@ describe("intelligence-ingest probe (replaced daily-brief, 2026-10-18)", () => {
     expect((await stateOf("intelligence-ingest")).state).toBe("fresh");
   });
 
-  it("RED CASE: the newest last_fetched older than 30h reads STALE", async () => {
-    registeredSourceFindFirst.mockResolvedValue({ lastFetched: hoursAgo(31) });
+  it("CONTROL: 25h old (a normal day at liveness time) is still fresh", async () => {
+    registeredSourceFindFirst.mockResolvedValue({ lastFetched: hoursAgo(25) });
+    expect((await stateOf("intelligence-ingest")).state).toBe("fresh");
+  });
+
+  it("RED CASE: 27h old (one missed day at liveness time) reads STALE", async () => {
+    registeredSourceFindFirst.mockResolvedValue({ lastFetched: hoursAgo(27) });
     expect((await stateOf("intelligence-ingest")).state).toBe("stale");
   });
 

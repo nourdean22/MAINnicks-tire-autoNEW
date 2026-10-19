@@ -26,13 +26,12 @@ const inngest = getInngest();
  * all. So if all seven feeds failed - one expired credential is enough - the run
  * reported `sourcesIngested: 0` and Inngest marked it SUCCEEDED.
  *
- * WHAT THE BRIEF ACTUALLY DOES ON SUCH A DAY, corrected under review: it is NOT
- * "built on nothing". `composeDailyExecutiveBrief` has no date filter on any of
- * its queries - it selects pending opportunities scoring >= 75 and the five most
- * recent claims at confidence >= 0.8, whenever they were created. So a total feed
- * outage produces a brief built on the standing BACKLOG, wearing today's date,
- * with no staleness marker. That is worse than an empty brief, because stale
- * content dated today reads as fresh.
+ * WHAT A TOTAL OUTAGE MEANT (history, from when the daily brief existed): the
+ * composer `composeDailyExecutiveBrief` (now reached only by the manual
+ * `triggerBrief` Nick tool) has no date filter on any of its queries, so a feed
+ * outage leaves it reading the standing BACKLOG, wearing today's date, with no
+ * staleness marker. Stale content that reads as fresh is worse than visibly
+ * empty, which is why a total outage must page.
  *
  * WHY A THROW AND NOT A NEW ALERT. `onFailure: onInngestFailure` is already wired
  * on this function and already routes to Telegram once retries are exhausted.
@@ -44,10 +43,10 @@ const inngest = getInngest();
  * re-executes the function body but retrieves each completed step's result from
  * persisted state "without re-executing the step's code". Throwing inside step 1
  * meant every retry RE-RAN all seven connector fetches and re-spent the scrape
- * budget, on precisely the day things were already broken, and skipped the six
- * downstream steps - so no briefing_logs row, no push, no drift scan. Throwing at
- * the end means the brief still composes and ships once, the steps replay from
- * memoized state on each retry, and onFailure still fires after the third attempt.
+ * budget, on precisely the day things were already broken, and skipped the
+ * persona-drift scan. Throwing at the end means the drift scan still runs, the
+ * steps replay from memoized state on each retry, and onFailure still fires
+ * after the third attempt.
  *
  * A CORRECTION WORTH KEEPING. An earlier version of this comment argued the
  * `=== 0` condition made retries idempotent, reasoning that zero ingested implied

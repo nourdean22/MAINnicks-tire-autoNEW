@@ -576,9 +576,8 @@ const RULES: ActionRule[] = [
   }),
 
   // 2026-10-10 · `morning_brief_push` rule deleted (audit U4). The Inngest
-  // morning-brief pair (lib/inngest/functions/morning-brief.ts ->
-  // intelligence-brief.ts, plus its backstop) owns the morning brief; this was a
-  // third producer that, at the old 03:00 UTC dispatch, could never fire anyway.
+  // operator-morning-brief (lib/inngest/functions/morning-brief.ts) owns the
+  // morning brief and pushes it right after compose; this was a third producer that, at the old 03:00 UTC dispatch, could never fire anyway.
 
   // ── Overdue commitment escalation ──────────────────────────
   defineRule({

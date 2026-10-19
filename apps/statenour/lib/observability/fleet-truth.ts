@@ -36,8 +36,11 @@ export const STATENOUR_ARTIFACT_PROBES: ArtifactProbe[] = [
     // 2026-10-18 · was `daily-brief` (briefing_logs); the brief was stopped and its
     // only scheduled writer went with it. The loop that remains is intelligence-ingest
     // (cron 15 10 * * *), whose output is a source fetch: newest last_fetched, any source.
+    // 26 h, not 30: inngest-liveness runs 13:00 UTC, 2.75 h after the 10:15 UTC ingest, so one
+    // missed day reads ~26.75 h here and pages the same day, not the day after. Newest-across-sources
+    // is the measure (prod 2026-10-19: 4 of 7 sources fetch daily, the other 3 are days old).
     capability: "intelligence-ingest",
-    maxAgeH: 30,
+    maxAgeH: 26,
     probe: async () => {
       const r = await prisma.registeredSource.findFirst({
         where: { lastFetched: { not: null } },

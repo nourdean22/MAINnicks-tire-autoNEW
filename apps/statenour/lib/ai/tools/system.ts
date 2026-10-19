@@ -1286,7 +1286,7 @@ export const systemTools = {
 
   getFleetTruth: tool({
     description:
-      "Read the cross-app operational fleet truth: statenour capability artifacts (daily brief, outbox drain, Inngest heartbeat — fresh/stale/never_produced/unknown with ages) plus nickstire's live health, database, schema-guard and self-healing verdicts. READ-ONLY. Use when the operator asks 'is everything running', 'system status', 'are the crons alive', or before claiming any scheduled capability works.",
+      "Read the cross-app operational fleet truth: statenour capability artifacts (source ingestion, outbox drain, Inngest heartbeat — fresh/stale/never_produced/unknown with ages) plus nickstire's live health, database, schema-guard and self-healing verdicts. READ-ONLY. Use when the operator asks 'is everything running', 'system status', 'are the crons alive', or before claiming any scheduled capability works.",
     inputSchema: z.object({}),
     execute: async () => {
       try {

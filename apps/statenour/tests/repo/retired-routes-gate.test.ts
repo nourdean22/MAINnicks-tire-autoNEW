@@ -142,11 +142,15 @@ function referencesRoute(text: string, route: string): boolean {
   });
 }
 
+// Accepted gap (L1): the regex sees quoted path strings only. It does not catch absolute URLs
+// (https://bdnick.info/learn) or strings built from parts (`/${seg}`).
 const SCAN_DIRS = ["app", "components", "lib", "hooks", "features", "config"];
 /** Tests are scanned for the deleted API prefixes only (page strings appear in nav fixtures on purpose). */
 const API_ROWS = PRUNED.filter((p) => p.page === false);
 /** Auth-policy probes that feed path STRINGS to the middleware classifier; they never request the route. */
 const TEST_SCAN_EXEMPT = [join("tests", "redteam", "route-auth.redteam.test.ts"), join("tests", "repo", "retired-routes-gate.test.ts")];
+/** Telegram bot commands (/goals, /content) share spelling with the retired pages; they are chat verbs, not links. */
+const SOURCE_SCAN_EXEMPT = [join("app", "api", "telegram", "webhook", "route.ts")];
 function* walk(dir: string): Generator<string> {
   for (const name of readdirSync(dir)) {
     if (name === "node_modules" || name === ".next") continue;
@@ -154,6 +158,30 @@ function* walk(dir: string): Generator<string> {
     if (statSync(full).isDirectory()) yield* walk(full);
     else if (/\.(ts|tsx|mts|json)$/.test(name)) yield full;
   }
+}
+
+const rel = (file: string) => file.slice(APP_ROOT.length + 1).replace(/\\/g, "/");
+
+function readFiles(dirs: string[], exempt: string[]): Array<{ path: string; text: string }> {
+  const out: Array<{ path: string; text: string }> = [];
+  for (const d of dirs) {
+    for (const file of walk(join(APP_ROOT, d))) {
+      if (exempt.some((x) => file.endsWith(x))) continue;
+      out.push({ path: rel(file), text: readFileSync(file, "utf8") });
+    }
+  }
+  return out;
+}
+
+/** The scan itself, pure: every "path → route" where the file's text references the route. */
+function scanTexts(files: ReadonlyArray<{ path: string; text: string }>, rows: ReadonlyArray<{ route: string }>): string[] {
+  const hits: string[] = [];
+  for (const { path, text } of files) {
+    for (const { route } of rows) {
+      if (referencesRoute(text, route)) hits.push(`${path} → ${route}`);
+    }
+  }
+  return hits;
 }
 
 describe("pruned routes (2026-10-18) · gone, redirected, and linked from nowhere", () => {
@@ -193,42 +221,34 @@ describe("pruned routes (2026-10-18) · gone, redirected, and linked from nowher
     expect(referencesRoute(`const x = 1; // was /learn`, "/learn")).toBe(false);
   });
 
-  it("no source file links to a pruned route (control: the scan sees real files and a planted hit)", () => {
-    const hits: string[] = [];
-    let scanned = 0;
-    for (const d of SCAN_DIRS) {
-      for (const file of walk(join(APP_ROOT, d))) {
-        scanned++;
-        // Telegram bot commands (/goals, /content) share spelling with the retired pages; they are chat verbs, not links.
-        if (file.endsWith(join("app", "api", "telegram", "webhook", "route.ts"))) continue;
-        const text = readFileSync(file, "utf8");
-        for (const { route } of PRUNED) {
-          if (referencesRoute(text, route)) hits.push(`${file.slice(APP_ROOT.length + 1).replace(/\\/g, "/")} → ${route}`);
-        }
-      }
+  it("scanTexts reports ONE planted string per row type, and nothing for clean text (control)", () => {
+    expect(API_ROWS.length, "API_ROWS is empty: the test scan would pass vacuously").toBeGreaterThan(0);
+    expect(PRUNED.some((p) => p.page !== false), "no page rows").toBe(true);
+    const apiRow = API_ROWS[0];
+    const pageRow = PRUNED.find((p) => p.page !== false)!;
+    expect(scanTexts([{ path: "tests/x.spec.ts", text: `await request.get("${apiRow.route}?x=1");` }], API_ROWS)).toEqual([
+      `tests/x.spec.ts → ${apiRow.route}`,
+    ]);
+    expect(scanTexts([{ path: "components/y.tsx", text: `<Link href="${pageRow.route}">go</Link>` }], PRUNED)).toEqual([
+      `components/y.tsx → ${pageRow.route}`,
+    ]);
+    expect(scanTexts([{ path: "lib/z.ts", text: `// ${pageRow.route} is gone\nconst a = 1;` }], PRUNED)).toEqual([]);
+    // every row type is individually detectable, not just the first
+    for (const { route } of PRUNED) {
+      expect(scanTexts([{ path: "p.ts", text: `go("${route}")` }], PRUNED), route).toContain(`p.ts → ${route}`);
     }
-    expect(scanned, "the scan walked real source").toBeGreaterThan(500);
-    expect(hits).toEqual([]);
   });
 
-  it("every deleted API prefix is matched when requested from a test (positive control)", () => {
-    for (const { route } of API_ROWS) {
-      expect(referencesRoute(`await request.get("${route}?x=1")`, route), route).toBe(true);
-      expect(referencesRoute(`{ method: "GET", path: "${route}/abc" },`, route), route).toBe(true);
-    }
+  it("no source file links to a pruned route", () => {
+    const files = readFiles(SCAN_DIRS, SOURCE_SCAN_EXEMPT);
+    expect(files.length, "the scan walked real source").toBeGreaterThan(500);
+    expect(scanTexts(files, PRUNED)).toEqual([]);
   });
 
   it("no test requests a deleted API route (the e2e smoke list kept two for a week)", () => {
-    const hits: string[] = [];
-    let scanned = 0;
-    for (const file of walk(join(APP_ROOT, "tests"))) {
-      if (TEST_SCAN_EXEMPT.some((x) => file.endsWith(x))) continue;
-      scanned++;
-      const text = readFileSync(file, "utf8");
-      for (const { route } of API_ROWS) {
-        if (referencesRoute(text, route)) hits.push(`${file.slice(APP_ROOT.length + 1).replace(/\\/g, "/")} → ${route}`);
-      }
-    }
-    expect(scanned, "the scan walked real tests").toBeGreaterThan(300);
-    expect(hits).toEqual([]);
-  });});
+    const files = readFiles(["tests"], TEST_SCAN_EXEMPT);
+    expect(files.length, "the scan walked real tests").toBeGreaterThan(300);
+    expect(API_ROWS.length).toBeGreaterThan(0);
+    expect(scanTexts(files, API_ROWS)).toEqual([]);
+  });
+});
