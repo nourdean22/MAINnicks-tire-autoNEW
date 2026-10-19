@@ -42,8 +42,10 @@ describe("Photo check card mount", () => {
   it("the Create view shows the Studio and the Photo check card", () => {
     window.history.replaceState({}, "", "/admin?igview=create");
     render(<InstagramAdmin />);
-    expect(screen.getByText("Studio form")).toBeTruthy();
-    expect(screen.getByText("Photo check")).toBeTruthy();
+    const studio = screen.getByText("Studio form");
+    const card = screen.getByText("Photo check");
+    // The card comes first: a long Studio form would otherwise bury it on a phone.
+    expect(card.compareDocumentPosition(studio) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByRole("button", { name: "Choose or take a photo" })).toBeTruthy();
   });
 

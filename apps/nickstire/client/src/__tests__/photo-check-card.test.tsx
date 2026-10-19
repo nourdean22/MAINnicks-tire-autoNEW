@@ -133,6 +133,15 @@ describe("Photo check card: picking a photo", () => {
     expect(screen.queryByText(/of 100/)).toBeNull();
   });
 
+  it("idle is compact: the title, one short line and the one button, with no scorecard shell or branded controls", () => {
+    render(<PhotoCheckCard />);
+    expect(screen.getByText("Photo check")).toBeTruthy();
+    expect(screen.getByText("Get a plain read on a shop photo. Nothing is posted.")).toBeTruthy();
+    expect(screen.getAllByRole("button")).toHaveLength(1);
+    expect(screen.queryByRole("img")).toBeNull();
+    expect(screen.queryByText(/Make a branded version/)).toBeNull();
+  });
+
   it("uploads with the evidence-photo shape, then checks the uploaded url", async () => {
     await checked();
     expect(h.upload).toHaveBeenCalledTimes(1);
@@ -256,7 +265,8 @@ describe("Photo check card: the branded version", () => {
     await checked();
     first();
     const panel = confirmPanel();
-    expect(within(panel).getByText("Creates one new branded picture of a similar scene. It is not your photo edited. Uses one image credit.")).toBeTruthy();
+    expect(within(panel).getByText("Creates one new branded picture of a similar scene. It is not your photo edited. Uses image credit: normally one, a second if the first image service is down.")).toBeTruthy();
+    expect(panel.textContent).not.toMatch(/Uses one image credit/);
     expect(within(panel).getByText(PROMPT)).toBeTruthy();
     expect(within(panel).getByRole("button", { name: "Make the picture" }).className).toMatch(/\bmin-h-12\b/);
     expect(within(panel).getByRole("button", { name: "Cancel" }).className).toMatch(/\bmin-h-12\b/);
@@ -273,6 +283,13 @@ describe("Photo check card: the branded version", () => {
     fireEvent.click(within(confirmPanel()).getByRole("button", { name: "Make the picture" }));
     await screen.findByRole("img", { name: "Branded picture" });
     expect(h.brand).toHaveBeenCalledTimes(1);
+  });
+
+  it("Cancel returns focus to the Make a branded version button", async () => {
+    await checked();
+    first();
+    fireEvent.click(within(confirmPanel()).getByRole("button", { name: "Cancel" }));
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Make a branded version" }));
   });
 
   it("Confirm renders exactly once with the scorecard's prompt, then shows the picture, its model and a full-size link", async () => {

@@ -193,8 +193,8 @@ export function InstagramAdmin() {
         {activeView === "today" && <Today onNavigate={navigate} />}
         {activeView === "create" && (
           <div className="space-y-4">
-            <StudioV2 onNavigate={navigate} />
             <PhotoCheckCard />
+            <StudioV2 onNavigate={navigate} />
           </div>
         )}
         {activeView === "publish" && <QueueV2 />}

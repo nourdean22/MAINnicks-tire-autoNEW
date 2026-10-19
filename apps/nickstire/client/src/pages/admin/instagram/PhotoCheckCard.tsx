@@ -67,6 +67,8 @@ export function PhotoCheckCard() {
 
   const inputRef = useRef<HTMLInputElement>(null);
   const confirmRef = useRef<HTMLDivElement>(null);
+  const openRef = useRef<HTMLButtonElement>(null);
+  const cancelled = useRef(false);
   const checkSeq = useRef(0);
   const renderLock = useRef(false);
 
@@ -157,8 +159,13 @@ export function PhotoCheckCard() {
   };
 
   // The button that opened the confirm is gone once it shows: keep keyboard and screen reader focus in the card.
+  // After Cancel it goes back to the button that opened the confirm.
   useEffect(() => {
     if (confirming) confirmRef.current?.focus();
+    else if (cancelled.current) {
+      cancelled.current = false;
+      openRef.current?.focus();
+    }
   }, [confirming]);
 
   const failureLine = offline ? CHECK_LINE.offline : checkFailure ? CHECK_LINE[checkFailure] : null;
@@ -174,7 +181,7 @@ export function PhotoCheckCard() {
           <Camera className="h-4 w-4" /> Photo check
         </CardTitle>
         <CardDescription className="text-base">
-          Choose or take a shop photo and get a plain read on how it would work for marketing. Nothing is posted.
+          Get a plain read on a shop photo. Nothing is posted.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4 text-base">
@@ -337,7 +344,7 @@ export function PhotoCheckCard() {
 
             {confirming ? (
               <div ref={confirmRef} tabIndex={-1} role="group" aria-label="Confirm branded picture" className="space-y-3 rounded-md border p-3 focus:outline-none">
-                <p>Creates one new branded picture of a similar scene. It is not your photo edited. Uses one image credit.</p>
+                <p>Creates one new branded picture of a similar scene. It is not your photo edited. Uses image credit: normally one, a second if the first image service is down.</p>
                 <div className="space-y-1">
                   <p className="text-muted-foreground">What will be drawn</p>
                   <p className="break-words">{shownPrompt}</p>
@@ -349,12 +356,12 @@ export function PhotoCheckCard() {
                 </div>
                 <div className="flex flex-col gap-2 sm:flex-row">
                   <Button className={btn} onClick={() => void onMakePicture()}>Make the picture</Button>
-                  <Button variant="outline" className={btn} onClick={() => { setConfirming(false); setFullPrompt(false); }}>Cancel</Button>
+                  <Button variant="outline" className={btn} onClick={() => { cancelled.current = true; setConfirming(false); setFullPrompt(false); }}>Cancel</Button>
                 </div>
               </div>
             ) : (
               !rendering && (
-                <Button variant="outline" className={btn} disabled={busy} onClick={() => setConfirming(true)}>
+                <Button ref={openRef} variant="outline" className={btn} disabled={busy} onClick={() => setConfirming(true)}>
                   {branded ? "Make another version" : "Make a branded version"}
                 </Button>
               )
