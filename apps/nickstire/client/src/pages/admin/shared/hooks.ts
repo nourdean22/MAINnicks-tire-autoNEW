@@ -95,7 +95,13 @@ export function useUrlFilter<T extends string>(
     if (typeof window === "undefined") return;
     const sync = () => setLocalValue(readUrlValue());
     window.addEventListener("popstate", sync);
-    return () => window.removeEventListener("popstate", sync);
+    // registry.tsx fires this after a redirect writes an inner tab with
+    // replaceState (no popstate), e.g. the event bridge moving Voice to Calls.
+    window.addEventListener("admin:url-sync", sync);
+    return () => {
+      window.removeEventListener("popstate", sync);
+      window.removeEventListener("admin:url-sync", sync);
+    };
   }, [readUrlValue]);
 
   return [value, setValue, reset];

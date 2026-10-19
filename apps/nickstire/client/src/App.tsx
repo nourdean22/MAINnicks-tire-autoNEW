@@ -43,7 +43,7 @@ import Home from "./pages/Home";
 const GenericServicePage = lazy(() => import("./pages/GenericServicePage"));
 const Admin = lazy(() => import("./pages/Admin"));
 
-const AdminAdStudio = lazy(() => import("./pages/admin/AdStudio"));
+const AdminPathRedirect = lazy(() => import("./pages/admin/AdminPathRedirect"));
 const Blog = lazy(() => import("./pages/Blog"));
 const BlogPost = lazy(() => import("./pages/BlogPost"));
 const Contact = lazy(() => import("./pages/Contact"));
@@ -260,7 +260,12 @@ function Router() {
                 studio lives at growth → inner tab "instagram". */}
             <Route path={"/admin/ig-studio"}>{() => <Redirect to="/admin?tab=instagram" />}</Route>
             <Route path={"/admin/reel-studio"}>{() => <Redirect to="/admin?tab=instagram" />}</Route>
-            <Route path={"/admin/ad-studio"} component={AdminAdStudio} />
+            {/* 2026-10-19 · Ad Studio was cut (admin prune W1); old links land on Instagram. */}
+            <Route path={"/admin/ad-studio"}>{() => <Redirect to="/admin?tab=instagram" />}</Route>
+            {/* 2026-10-19 · any other /admin/<slug>[/<id>] (StateNour links /admin/leads,
+                /admin/callbacks, /admin/quotes/new, /admin/leads/<id>) goes through the
+                admin's one slug resolver instead of NotFound. */}
+            <Route path={"/admin/*"} component={AdminPathRedirect} />
             {/* City-specific landing pages for local SEO */}
             <Route path={"/cleveland-auto-repair"} component={CityPage} />
             <Route path={"/euclid-auto-repair"} component={CityPage} />

@@ -69,27 +69,13 @@ export const SECTION_TITLES: Record<AdminSection, string> = {
   shopMedia: "Shop media",
   approvals: "Approvals",
   leads: "Sales Pipeline",
-  opportunities: "Opportunities",
-  market: "Market",
   content: "Website & Local",
   customers: "Customers",
   campaigns: "Outreach",
   settings: "Settings / Safety",
   revenue: "Money",
-  callTrackingView: "Call Tracking",
   voiceReceptionist: "Voice Receptionist",
-  // The comment that stood here until 2026-08-03 said "intelligence label
-  // removed (section retired) · URL alias redirects ?tab=intelligence →
-  // overview". All three claims were false, and the line disproving them
-  // (`intelligence: "Intelligence HQ"`) is eight lines below. The section is
-  // live, visible in the sidebar, and reachable by owner, manager and viewer.
-  // adminRegistryTruth.test.ts now pins that, and pins this map against the
-  // registry labels so the two cannot drift apart again.
-  trafficFunnel: "Traffic → Revenue",
-  memberships: "Nonstop Nick",
   tireOrders: "Tires",
   opsHub: "Reports",
   instagram: "Instagram",
-  growth: "Marketing / Growth",
-  intelligence: "Intelligence HQ",
 };

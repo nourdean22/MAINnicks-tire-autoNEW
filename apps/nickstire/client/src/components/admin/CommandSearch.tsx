@@ -46,11 +46,9 @@ const SECTION_SHORTCUTS = ADMIN_REGISTRY.map(s => ({
             ? "Voice Receptionist (Nick)"
             : (s.id === "customers"
                 ? "Customer Database"
-                : (s.id === "memberships"
-                    ? "Nonstop Nick (member lookup)"
-                    : (s.id === "leads"
-                        ? "Leads / CRM"
-                        : s.label))))),
+                : (s.id === "leads"
+                    ? "Leads / CRM"
+                    : s.label)))),
   keywords: s.keywords ?? [],
   group: s.group ?? "Operations",
 }));
@@ -561,20 +559,8 @@ export function CommandSearch({ onNavigate, onSelectCustomer, allowedSections }:
         onNavigate("revenue");
       },
     },
-    {
-      id: "action-money-create-invoice",
-      section: "revenue",
-      label: "Money · Create invoice",
-      keywords: ["money", "invoice", "create", "new", "bill", "charge"],
-      icon: <FileText className="w-4 h-4 text-emerald-500" />,
-      group: "Action",
-      run: () => {
-        if (typeof window !== "undefined") {
-          window.history.replaceState({}, "", "/admin?tab=revenue&moneyTab=revenue&revTab=create");
-        }
-        onNavigate("revenue");
-      },
-    },
+    // 2026-10-19: "Money · Create invoice" removed. It sent moneyTab=revenue and
+    // revTab=create; neither exists, so it opened Shop Pulse and created nothing.
     {
       id: "action-money-top-declined",
       section: "revenue",

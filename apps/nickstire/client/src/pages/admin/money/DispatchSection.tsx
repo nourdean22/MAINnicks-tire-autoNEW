@@ -8,6 +8,10 @@
  * IS written — by the Work Orders quick-input, as a free-text label with no
  * bay row behind it; the audit's "never written" was wrong, correction #17.)
  * Techs, the ready queue and QC are real and stay.
+ *
+ * 2026-10-19 (admin prune W1): QC Review and Technicians tabs cut. The
+ * technicians, job_assignments and qc_checklists tables have 0 rows ever and
+ * neither tab was opened in 14 days. The ready queue stays.
  */
 import { useEffect, useRef, useState } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
@@ -15,8 +19,6 @@ import { readStatus } from "@/lib/queryState";
 import { Loader2, User, Play, CheckCircle2, XCircle, Clock, Wrench, Shield } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader, ErrorState, TabBar } from "../shared";
-
-type Tab = "queue" | "qc" | "techs";
 
 // Inferred from the tRPC AppRouter — replaces 14 `any` uses in this file
 // (admin audit §3 follow-up). When the dispatch router shape changes,
@@ -28,8 +30,6 @@ type DispatchRecommendation = NonNullable<RouterOutputs["dispatch"]["recommend"]
 type QcChecklistItem = NonNullable<RouterOutputs["dispatch"]["getQcChecklist"]>["items"][number];
 
 export default function DispatchSection() {
-  const [tab, setTab] = useState<Tab>("queue");
-
   // wave-admin-audit P3 — single dispatch.load query lifted to the section
   // root. Previously MetricsStrip polled at 30s while BayGrid/ReadyQueue/
   // TechManager polled the SAME query key at 10s — React-Query takes the
@@ -46,34 +46,18 @@ export default function DispatchSection() {
     refetchIntervalInBackground: false,
   });
 
-  const TABS: { id: Tab; label: string }[] = [
-    { id: "queue", label: "Ready Queue" },
-    { id: "qc", label: "QC Review" },
-    { id: "techs", label: "Technicians" },
-  ];
-
   return (
     <div className="space-y-4">
       <PageHeader
         title="Shop Floor"
-        subtitle="Ready queue · tech assignments · QC review. First-come, no bays or slots, by design."
+        subtitle="Ready queue and tech assignment. First-come, no bays or slots, by design."
         icon={<Wrench className="w-5 h-5" />}
       />
       {/* Metrics Strip */}
       <MetricsStrip load={load} />
 
-      {/* Tab bar: the shared 48 px strip, scrolls instead of wrapping on a phone */}
-      <TabBar tabs={TABS} activeTab={tab} onChange={setTab} />
+      <ReadyQueue />
 
-      {tab === "queue" && <ReadyQueue />}
-      {tab === "qc" && <QcReview />}
-      {tab === "techs" && (
-        <>
-          <TechManager load={load} />
-          <WeeklyHoursPanel />
-          <TeamPerformancePanel />
-        </>
-      )}
     </div>
   );
 }
@@ -259,7 +243,7 @@ function AssignmentPanel({ workOrderId }: { workOrderId: string }) {
         {isLoading ? (
           <Loader2 className="w-4 h-4 animate-spin" />
         ) : isError ? (
-          <span className="text-xs text-red-400">Couldn't score techs: assign from the Technicians tab.</span>
+          <span className="text-xs text-red-400">Couldn't score techs right now.</span>
         ) : (recs || []).length === 0 ? (
           <span className="text-xs text-muted-foreground">No tech recommendations yet: clock a tech in first.</span>
         ) : (
@@ -296,333 +280,6 @@ function AssignmentPanel({ workOrderId }: { workOrderId: string }) {
         {assignMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
         Assign & Dispatch
       </button>
-    </div>
-  );
-}
-
-// ─── QC Review ──────────────────────────────────────
-function QcReview() {
-  const qcQuery = trpc.workOrders.list.useQuery({ status: "qc_review" }, { refetchInterval: 10000, refetchIntervalInBackground: false });
-  const { data: workOrders, isLoading, isError, refetch } = qcQuery;
-  const [selectedWo, setSelectedWo] = useState<string | null>(null);
-  const panelRef = useScrollPanelIntoView(selectedWo);
-
-  if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin" /></div>;
-  // A failed or paused read checked nothing: never "No jobs pending QC review".
-  if (isError) return <ErrorState message="QC review couldn't load. Unknown, not empty." onRetry={() => refetch()} />;
-  if (readStatus(qcQuery).state === "unavailable") return <ErrorState message="QC review not checked (offline). Unknown, not empty." onRetry={() => refetch()} />;
-
-  const orders = workOrders || [];
-
-  if (orders.length === 0) {
-    return (
-      <div className="text-center py-12 text-muted-foreground">
-        <Shield className="w-8 h-8 mx-auto mb-2 opacity-40" />
-        <p>No jobs pending QC review</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      <div>
-        <h3 className="text-[13px] font-semibold text-foreground/70 border-b border-border/40 pb-1">Awaiting QC <span className="text-foreground/50 tabular-nums">{orders.length}</span></h3>
-        <ul aria-label="Awaiting QC" className="divide-y divide-border/30">
-          {orders.map((wo: WorkOrderListItem) => (
-            <DispatchRow key={wo.id} wo={wo} verb="Check" selected={selectedWo === wo.id} onVerb={() => setSelectedWo(wo.id)} />
-          ))}
-        </ul>
-      </div>
-      {selectedWo && <div ref={panelRef} className="scroll-mt-16"><QcChecklistPanel workOrderId={selectedWo} /></div>}
-    </div>
-  );
-}
-
-function QcChecklistPanel({ workOrderId }: { workOrderId: string }) {
-  const { data: checklist, isLoading } = trpc.dispatch.getQcChecklist.useQuery({ workOrderId });
-  const utils = trpc.useUtils();
-
-  // wave-152 — were silent on error. A failed QC pass/fail gave the
-  // operator zero feedback; they tapped the button + saw nothing happen.
-  // assignMut already had the toast pattern (v1.7 audit); these two
-  // were missed.
-  const passMut = trpc.dispatch.passQc.useMutation({
-    onSuccess: () => {
-      utils.dispatch.invalidate();
-      utils.workOrders.list.invalidate();
-      toast.success("QC passed");
-    },
-    onError: (e) => toast.error(`QC pass failed: ${e.message}`),
-  });
-
-  const failMut = trpc.dispatch.failQc.useMutation({
-    onSuccess: () => {
-      utils.dispatch.invalidate();
-      utils.workOrders.list.invalidate();
-      toast.info("Sent back for rework");
-    },
-    onError: (e) => toast.error(`QC fail failed: ${e.message}`),
-  });
-
-  if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="w-4 h-4 animate-spin" /></div>;
-
-  if (!checklist) {
-    return (
-      <div className="border border-border/40 p-4 bg-card text-center">
-        <p className="text-sm text-muted-foreground mb-3">No QC checklist yet</p>
-        <CreateQcButton workOrderId={workOrderId} />
-      </div>
-    );
-  }
-
-  const items = (checklist.items ?? []) as QcChecklistItem[];
-  const allRequiredPassed = items.filter(i => i.required).every(i => i.passed === true);
-  const roadTestOk = !checklist.roadTestRequired || checklist.roadTestCompleted;
-
-  return (
-    <div className="border border-border/40 p-4 bg-card space-y-3">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium">QC Checklist</h3>
-        <span className={`text-[10px] px-2 py-0.5 rounded-full ${
-          checklist.status === "passed" ? "bg-emerald-500/20 text-emerald-400" :
-          checklist.status === "failed" ? "bg-red-500/20 text-red-400" :
-          "bg-purple-500/20 text-purple-400"
-        }`}>
-          {checklist.status.toUpperCase()}
-        </span>
-      </div>
-
-      <div className="space-y-1 max-h-[400px] overflow-y-auto">
-        {items.map((item: QcChecklistItem) => (
-          <div key={item.id} className="flex items-center gap-2 text-sm py-1">
-            {item.passed === true ? (
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-            ) : item.passed === false ? (
-              <XCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
-            ) : (
-              <div className="w-4 h-4 rounded-full border border-border/60 flex-shrink-0" />
-            )}
-            <span className={item.required ? "" : "text-muted-foreground"}>{item.label}</span>
-            {item.required && <span className="text-[9px] text-red-400">REQ</span>}
-          </div>
-        ))}
-      </div>
-
-      {checklist.roadTestRequired && (
-        <div className={`flex items-center gap-2 text-sm p-2 rounded border ${
-          checklist.roadTestCompleted ? "border-emerald-500/30 bg-emerald-500/5" : "border-amber-500/30 bg-amber-500/5"
-        }`}>
-          <Wrench className="w-4 h-4" />
-          <span>Road Test: {checklist.roadTestCompleted ? "Complete" : "Required"}</span>
-        </div>
-      )}
-
-      {checklist.status === "pending" || checklist.status === "in_progress" ? (
-        <div className="flex gap-2 pt-2">
-          <button
-            onClick={() => passMut.mutate({ checklistId: checklist.id, reviewedBy: "admin" })}
-            disabled={!allRequiredPassed || !roadTestOk || passMut.isPending}
-            className="flex-1 py-2 bg-emerald-600 text-white rounded text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-1"
-          >
-            <CheckCircle2 className="w-4 h-4" /> Pass QC
-          </button>
-          <button
-            onClick={() => failMut.mutate({
-              checklistId: checklist.id,
-              failureReasons: items.filter((i: QcChecklistItem) => i.passed === false).map((i: QcChecklistItem) => i.label),
-              correctiveActions: "Rework needed",
-              reviewedBy: "admin",
-            })}
-            disabled={failMut.isPending}
-            className="flex-1 py-2 bg-red-600 text-white rounded text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-1"
-          >
-            <XCircle className="w-4 h-4" /> Fail QC
-          </button>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function CreateQcButton({ workOrderId }: { workOrderId: string }) {
-  const utils = trpc.useUtils();
-  const createMut = trpc.dispatch.createQcChecklist.useMutation({
-    onSuccess: () => utils.dispatch.getQcChecklist.invalidate(),
-    onError: (e) => toast.error(`QC checklist create failed: ${e.message}`),
-  });
-
-  return (
-    <button
-      onClick={() => createMut.mutate({ workOrderId })}
-      disabled={createMut.isPending}
-      className="px-4 py-2 bg-purple-600 text-white rounded text-sm"
-    >
-      {createMut.isPending ? "Creating..." : "Create QC Checklist"}
-    </button>
-  );
-}
-
-// ─── Team Performance (AG-20 · 2026-07-09) ──────────
-// dispatch.teamPerformance existed on the server with ZERO UI consumers
-// — the operator had no screen showing per-tech performance while
-// recommendTech silently scored techs on these very numbers.
-function TeamPerformancePanel() {
-  const { data, isLoading, isError, refetch } = trpc.dispatch.teamPerformance.useQuery(
-    undefined,
-    { staleTime: 60_000 },
-  );
-
-  if (isLoading) return <div className="flex justify-center py-6"><Loader2 className="w-5 h-5 animate-spin" /></div>;
-  if (isError) return <ErrorState message="Couldn't load team performance" onRetry={() => refetch()} />;
-
-  const techs = data?.techs || [];
-  if (techs.length === 0) return null;
-
-  // NB: `??` not `||` on every numeric — a real 0 (0 jobs, 0% QC) must
-  // render as 0, never fall through to a fake default (see the
-  // qcStats?.passRate regression guard in __tests__/admin.test.tsx).
-  return (
-    <div className="space-y-2 mt-6">
-      <h3 className="text-sm font-medium text-muted-foreground mb-2">30-Day Performance</h3>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-        {techs.map((t) => (
-          <div key={t.techId} className="border border-border/40 p-4 bg-card">
-            <div className="flex items-center justify-between mb-2">
-              <span className="font-medium">{t.name}</span>
-              <span className="text-[10px] text-muted-foreground">{t.role || "—"}</span>
-            </div>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
-              <div>Jobs: <span className="text-foreground">{t.metrics.jobsCompleted30d ?? 0}</span></div>
-              <div>Revenue: <span className="text-foreground">${Math.round(t.metrics.totalRevenue30d ?? 0).toLocaleString()}</span></div>
-              <div>QC pass: <span className="text-foreground">{Math.round((t.metrics.qcPassRate ?? 0) * 100)}%</span></div>
-              <div>Comebacks: <span className="text-foreground">{Math.round((t.metrics.comebackRate ?? 0) * 100)}%</span></div>
-            </div>
-          </div>
-        ))}
-      </div>
-      {data?.teamTotals && (
-        <div className="text-xs text-muted-foreground pt-1">
-          Team: {data.teamTotals.totalJobs ?? 0} jobs · ${Math.round(data.teamTotals.totalRevenue ?? 0).toLocaleString()} · avg QC {Math.round((data.teamTotals.avgQcPassRate ?? 0) * 100)}%
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Weekly Hours (AG-43) ────────────────────────────
-// Rolls up the time_clock_entries ledger (migration 0077). Renders
-// nothing until the migration is applied AND at least one shift is
-// recorded — the server returns [] in both cases by design.
-function WeeklyHoursPanel() {
-  const { data, isLoading } = trpc.dispatch.weeklyHours.useQuery(
-    undefined,
-    { staleTime: 60_000 },
-  );
-
-  if (isLoading) return null; // TechManager above already shows a spinner
-  const rows = data || [];
-  if (rows.length === 0) return null;
-
-  return (
-    <div className="space-y-2 mt-6">
-      <h3 className="text-sm font-medium text-muted-foreground mb-2">Hours · last 7 days</h3>
-      <div className="border border-border/40 bg-card overflow-x-auto">
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="text-muted-foreground border-b border-border/40">
-              <th className="text-left px-3 py-2 font-medium">Tech</th>
-              <th className="text-right px-3 py-2 font-medium">Hours</th>
-              <th className="text-right px-3 py-2 font-medium">Shifts</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.technicianId} className="border-b border-border/20 last:border-0">
-                <td className="px-3 py-2 text-foreground">{r.name}</td>
-                <td className="px-3 py-2 text-right text-foreground">
-                  {r.hours.toFixed(1)}
-                  {r.hasOpenShift && <span className="text-muted-foreground" title="Includes an open shift (counted to now, capped at 12h)"> +</span>}
-                </td>
-                <td className="px-3 py-2 text-right text-muted-foreground">{r.shifts}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-// ─── Tech Manager ───────────────────────────────────
-function TechManager({ load: loadQuery }: { load: DispatchLoadQuery }) {
-  // wave-admin-audit P3 — uses the lifted dispatch.load query. P4 — added
-  // the isError branch (was a silent empty tech list on a load failure).
-  const { data: load, isLoading, isError } = loadQuery;
-  const utils = trpc.useUtils();
-
-  // 2026-05-23 · added onError. Tech believes they're clocked in,
-  // network blip on shop-floor tablet meant DB never updated — payroll
-  // discrepancy with no signal. Now any failure surfaces to the tech.
-  const clockInMut = trpc.dispatch.clockIn.useMutation({
-    onSuccess: () => utils.dispatch.load.invalidate(),
-    onError: (e) => toast.error(`Clock in failed: ${e.message}`),
-  });
-  const clockOutMut = trpc.dispatch.clockOut.useMutation({
-    onSuccess: () => utils.dispatch.load.invalidate(),
-    onError: (e) => toast.error(`Clock out failed: ${e.message}`),
-  });
-
-  if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin" /></div>;
-  if (isError) return <ErrorState message="Couldn't load technicians" onRetry={() => loadQuery.refetch()} />;
-
-  const techs = load?.techs || [];
-
-  return (
-    <div className="space-y-2">
-      <h3 className="text-sm font-medium text-muted-foreground mb-2">Technicians ({techs.length})</h3>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-        {techs.map((tech: Tech) => (
-          <div key={tech.id} className="border border-border/40 p-4 bg-card">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <User className="w-4 h-4 text-muted-foreground" />
-                <span className="font-medium">{tech.name}</span>
-              </div>
-              <span className={`text-[10px] px-2 py-0.5 rounded-full ${
-                tech.clockedIn ? "bg-emerald-500/20 text-emerald-400" : "bg-foreground/10 text-muted-foreground"
-              }`}>
-                {tech.clockedIn ? "IN" : "OUT"}
-              </span>
-            </div>
-
-            <div className="text-xs text-muted-foreground space-y-0.5">
-              <div>Role: {tech.role || "—"}</div>
-              <div>Load: {tech.currentLoad} active job(s)</div>
-              <div>Skills: {tech.skills.length > 0 ? tech.skills.join(", ") : "—"}</div>
-            </div>
-
-            <div className="mt-3">
-              {tech.clockedIn ? (
-                <button
-                  onClick={() => clockOutMut.mutate({ techId: tech.id })}
-                  disabled={clockOutMut.isPending}
-                  className="w-full py-1.5 text-xs border border-red-500/30 text-red-400 rounded hover:bg-red-500/10"
-                >
-                  Clock Out
-                </button>
-              ) : (
-                <button
-                  onClick={() => clockInMut.mutate({ techId: tech.id })}
-                  disabled={clockInMut.isPending}
-                  className="w-full py-1.5 text-xs border border-emerald-500/30 text-emerald-400 rounded hover:bg-emerald-500/10"
-                >
-                  Clock In
-                </button>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }

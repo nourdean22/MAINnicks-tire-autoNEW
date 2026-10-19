@@ -93,7 +93,7 @@ export function useSettingsStatus() {
         // offline and never falls back to Twilio on that path.
         detail: "Customer texts from 216-862-0005 wait in the queue until the gateway checks back in (after-hours auto-replies are dropped instead). None go out meanwhile.",
         whyText: "The F25e device on Verizon hasn't checked in to the Capevace cloud relay in the last 30 minutes. Check battery + Wi-Fi/LTE + that the SMS Gateway app is open and Cloud Server toggle is ON.",
-        actionHref: "/admin?tab=outreach&outreachTab=sms",
+        actionHref: "/admin?tab=campaigns&outreachTab=sms",
         actionLabel: "Open SMS",
       });
     }

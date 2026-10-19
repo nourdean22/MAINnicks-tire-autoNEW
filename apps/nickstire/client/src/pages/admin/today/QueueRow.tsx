@@ -8,9 +8,8 @@
  * (opacity only, no transform: the crew taps these a hundred times a day) and then asks the board to
  * drop it. A failure or a cancelled confirm leaves the row exactly where it was.
  *
- * Every row's overflow also carries Keep and Less (W6 prep): the crew's verdict on whether the item
- * belongs on the board. A verdict is not an action on the job, so it never fades or removes the row;
- * the caller records it and passes the last stored one back as `verdict`.
+ * Keep and Less (W6 prep) sat in the overflow until 2026-10-19: 0 marks in 30 days, so Nour dropped
+ * W6 and the buttons went with it. Today stays the daily board.
  */
 import { useState } from "react";
 import { MessageSquare, MoreHorizontal, Phone } from "lucide-react";
@@ -18,8 +17,6 @@ import MessageCustomerLink from "@/components/admin/MessageCustomerLink";
 import type { ActionItem } from "./types";
 
 const FADE_MS = 150;
-
-export type QueueVerdict = "keep" | "less";
 
 interface QueueRowProps {
   item: ActionItem;
@@ -36,17 +33,13 @@ interface QueueRowProps {
   /** Resolves true when the item has left the queue. Never rejects: the caller toasts its own errors. */
   onPrimary: () => Promise<boolean>;
   onSecondary: () => Promise<boolean>;
-  /** Records a Keep/Less verdict. Never rejects: the caller toasts its own errors. */
-  onVerdict: (verdict: QueueVerdict) => Promise<void>;
-  /** The verdict marked this session, if any; marking again replaces it. */
-  verdict?: QueueVerdict;
   onGone: () => void;
 }
 
 const money = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`;
 
 // Named, not default: the admin render matrix (admin.test.tsx) mounts every default export with no props.
-export function QueueRow({ item, typeLabel, primaryLabel, shortLabel, secondaryLabel, body, disabled, onPrimary, onSecondary, onVerdict, verdict, onGone }: QueueRowProps) {
+export function QueueRow({ item, typeLabel, primaryLabel, shortLabel, secondaryLabel, body, disabled, onPrimary, onSecondary, onGone }: QueueRowProps) {
   const [leaving, setLeaving] = useState(false);
   const [more, setMore] = useState(false);
   const urgent = item.urgency >= 4;
@@ -56,11 +49,6 @@ export function QueueRow({ item, typeLabel, primaryLabel, shortLabel, secondaryL
       setLeaving(true);
       setTimeout(onGone, FADE_MS);
     }
-  }
-
-  async function mark(next: QueueVerdict) {
-    setMore(false);
-    await onVerdict(next);
   }
 
   return (
@@ -74,7 +62,6 @@ export function QueueRow({ item, typeLabel, primaryLabel, shortLabel, secondaryL
           </div>
           <p className="text-[13px] text-muted-foreground truncate">
             {urgent && <span className="text-red-400">Urgent </span>}
-            {verdict && <span className="text-foreground/80">{verdict === "keep" ? "Kept" : "Less"} · </span>}
             {typeLabel} · {item.detail}
           </p>
         </div>
@@ -90,27 +77,21 @@ export function QueueRow({ item, typeLabel, primaryLabel, shortLabel, secondaryL
             <MessageSquare className="w-4 h-4" />
           </MessageCustomerLink>
         )}
-        <button type="button" onClick={() => setMore((v) => !v)} aria-expanded={more} aria-label={`More actions for ${item.name}`} className="inline-flex items-center justify-center min-h-12 min-w-12 rounded-md text-muted-foreground hover:text-foreground">
+        {secondaryLabel && <button type="button" onClick={() => setMore((v) => !v)} aria-expanded={more} aria-label={`More actions for ${item.name}`} className="inline-flex items-center justify-center min-h-12 min-w-12 rounded-md text-muted-foreground hover:text-foreground">
           <MoreHorizontal className="w-4 h-4" />
-        </button>
+        </button>}
         <button type="button" disabled={disabled || leaving} onClick={() => void run(onPrimary)} aria-label={primaryLabel} className="min-h-12 px-4 ml-auto lg:ml-0 whitespace-nowrap rounded-md bg-secondary text-foreground text-[14px] font-semibold border border-border/60 disabled:opacity-50">
           <span className="lg:hidden">{shortLabel}</span>
           <span className="hidden lg:inline">{primaryLabel}</span>
         </button>
       </div>
-      {more && (
+      {more && secondaryLabel && (
         <div className="flex flex-wrap justify-end gap-2 lg:order-last">
-          {secondaryLabel && (
+          {(
             <button type="button" disabled={disabled || leaving} onClick={() => void run(onSecondary)} className="min-h-12 px-4 whitespace-nowrap rounded-md border border-border/40 text-[14px] text-foreground/85 disabled:opacity-50">
               {secondaryLabel}
             </button>
           )}
-          <button type="button" disabled={disabled || leaving} onClick={() => void mark("keep")} className="min-h-12 min-w-12 px-4 whitespace-nowrap rounded-md border border-border/40 text-[14px] text-foreground/85 disabled:opacity-50">
-            Keep
-          </button>
-          <button type="button" disabled={disabled || leaving} onClick={() => void mark("less")} className="min-h-12 min-w-12 px-4 whitespace-nowrap rounded-md border border-border/40 text-[14px] text-foreground/85 disabled:opacity-50">
-            Less
-          </button>
         </div>
       )}
     </article>

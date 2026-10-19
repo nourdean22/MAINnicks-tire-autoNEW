@@ -101,7 +101,6 @@ import { InstagramAdmin } from "@/pages/admin/instagram/InstagramAdmin";
 import VoiceReceptionistSection from "@/pages/admin/VoiceReceptionistSection";
 import CallTrackingSection from "@/pages/admin/CallTrackingSection";
 import WinBackSection from "@/pages/admin/outreach/WinBackSection";
-import AdStudio from "@/pages/admin/AdStudio";
 import DegradedDataBanner from "@/components/admin/DegradedDataBanner";
 import AdminSectionBoundary from "@/components/admin/AdminSectionBoundary";
 import { getQueueActionDefinition } from "@/pages/admin/today/queueActions";
@@ -476,65 +475,6 @@ describe("Win-back tiles", () => {
   });
 });
 
-describe("Ad Studio", () => {
-  const RESULT = { copy: { caption: "Caption text", hookYellow: "a", hookWhite: "b" }, issues: [] as string[], slideUrls: ["https://example.test/1.png"] };
-
-  function mountWithResult(post: Record<string, unknown> = {}) {
-    const postMutate = vi.fn();
-    const postReset = vi.fn();
-    h.mutations.set("adStudio.generate", (opts) => ({ mutate: () => opts?.onSuccess?.(RESULT), isPending: false }));
-    h.mutations.set("adStudio.post", () => ({ mutate: postMutate, isPending: false, isSuccess: false, reset: postReset, ...post }));
-    render(<AdStudio />);
-    fireEvent.click(screen.getByRole("button", { name: /Generate ad/ }));
-    // A new generation clears the previous post, or the new ad would open locked as "Posted".
-    expect(postReset).toHaveBeenCalledTimes(1);
-    return postMutate;
-  }
-
-  it("Post now asks first; a cancel posts nothing, a confirm posts once", async () => {
-    const postMutate = mountWithResult();
-    h.confirm.mockResolvedValueOnce(false);
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /Post now/ }));
-    });
-    expect(h.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: "Post this carousel to Instagram now?", confirmLabel: "Post now" }));
-    expect(postMutate).not.toHaveBeenCalled();
-    h.confirm.mockResolvedValueOnce(true);
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /Post now/ }));
-    });
-    expect(postMutate).toHaveBeenCalledTimes(1);
-  });
-
-  it("the standalone Ad Studio route mounts its own confirm host, or confirmDialog would never resolve", () => {
-    mountWithResult();
-    expect(screen.getByTestId("confirm-host")).toBeTruthy();
-  });
-
-  it("after a successful post the button locks and reads Posted", () => {
-    mountWithResult({ isSuccess: true });
-    const button = screen.getByRole("button", { name: /Posted/ }) as HTMLButtonElement;
-    expect(button.disabled).toBe(true);
-    expect(screen.queryByRole("button", { name: /Post now/ })).toBeNull();
-    // The same carousel cannot be scheduled after it went live.
-    expect((screen.getByRole("button", { name: /Schedule/ }) as HTMLButtonElement).disabled).toBe(true);
-  });
-
-  it("Copy caption toasts success only after the clipboard resolves, and an error when it rejects", async () => {
-    mountWithResult();
-    const writeText = vi.fn().mockRejectedValueOnce(new Error("denied")).mockResolvedValueOnce(undefined);
-    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /Copy/ }));
-    });
-    await waitFor(() => expect(h.toastError).toHaveBeenCalled());
-    expect(h.toastSuccess).not.toHaveBeenCalledWith("Caption copied");
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /Copy/ }));
-    });
-    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledWith("Caption copied"));
-  });
-});
 
 describe("failure copy", () => {
   it("DegradedDataBanner speaks plain words, names no internals, and retries when it can", () => {

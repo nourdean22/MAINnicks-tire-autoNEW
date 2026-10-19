@@ -69,14 +69,24 @@ const LEGACY_ROLE_SECTIONS: Record<AdminRole, readonly string[]> = {
   // `shopMedia` added 2026-10-18 to OWNER ONLY, deliberately: shopMedia.review is not mapped in
   // permissionForAdminProcedure, so the mutation fails closed to security.manage, which only the
   // owner holds. Granting manager would repeat the trafficFunnel failure below.
-  owner: ["overview", "approvals", "intelligence", "customers", "leads", "opportunities", "market", "tireOrders", "growth", "instagram", "campaigns", "memberships", "voiceReceptionist", "opsHub", "settings", "revenue", "callTrackingView", "trafficFunnel", "content", "lot", "shopMedia"],
-  manager: ["overview", "approvals", "intelligence", "customers", "leads", "opportunities", "market", "tireOrders", "growth", "instagram", "campaigns", "memberships", "voiceReceptionist", "opsHub", "settings", "revenue", "callTrackingView", "trafficFunnel", "content", "lot"],
-  front_desk: ["overview", "customers", "leads", "opportunities", "tireOrders", "voiceReceptionist", "callTrackingView"],
+  // 2026-10-19 (admin prune W1, a DELIBERATE edit per this pin's rule): seven
+  // sections retired into tabs of others (registry.tsx RETIRED_SECTIONS), so they
+  // leave every role's list. Each absorbed section's roles equalled its new home's,
+  // except two:
+  //  - memberships (owner, manager, accountant) -> Customers > Members. accountant
+  //    now reaches `customers`, and innerTabs.ts shows it the Members tab ONLY:
+  //    never the customer list or the call list (admin-prune-redirects.test.tsx).
+  //  - intelligence (owner, manager, viewer) -> Customers > Call list (owner and
+  //    manager only). viewer loses Intelligence HQ; its panels are gone.
+  owner: ["overview", "approvals", "customers", "leads", "tireOrders", "instagram", "campaigns", "voiceReceptionist", "opsHub", "settings", "revenue", "content", "lot", "shopMedia"],
+  manager: ["overview", "approvals", "customers", "leads", "tireOrders", "instagram", "campaigns", "voiceReceptionist", "opsHub", "settings", "revenue", "content", "lot"],
+  front_desk: ["overview", "customers", "leads", "tireOrders", "voiceReceptionist"],
   tech: ["overview", "customers", "tireOrders"],
   // trafficFunnel removed 2026-09-02: its procedures need marketing.manage /
   // customers.manage, which accountant does not hold (PR #2063 self-review).
-  accountant: ["overview", "revenue", "memberships", "opsHub"],
-  viewer: ["overview", "intelligence", "opsHub"],
+  // Reports > Traffic keeps that: innerTabs.ts hides it from accountant.
+  accountant: ["overview", "revenue", "customers", "opsHub"],
+  viewer: ["overview", "opsHub"],
 };
 
 const sorted = (xs: readonly string[]) => [...xs].sort();
@@ -182,8 +192,12 @@ describe("SECTION_TITLES parity — the labels must not drift again", () => {
     expect(sorted(Object.keys(SECTION_TITLES))).toEqual(sorted(ADMIN_REGISTRY.map((s) => s.id)));
   });
 
-  it("intelligence is present and live — a comment once claimed it was retired", () => {
-    expect(SECTION_TITLES.intelligence).toBe("Intelligence HQ");
-    expect(ADMIN_REGISTRY.find((s) => s.id === "intelligence")?.showInSidebar).toBe(true);
+  it("retired sections have no title and no registry entry (they are tabs now)", () => {
+    // 2026-10-19: intelligence was cut for real this time; its old comment-vs-code
+    // drift is why this checks both maps, not one.
+    for (const id of ["intelligence", "memberships", "growth", "market", "trafficFunnel", "opportunities", "callTrackingView"]) {
+      expect(Object.keys(SECTION_TITLES), id).not.toContain(id);
+      expect(ADMIN_REGISTRY.some((s) => s.id === id), id).toBe(false);
+    }
   });
 });

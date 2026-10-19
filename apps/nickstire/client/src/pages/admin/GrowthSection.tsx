@@ -1,4 +1,8 @@
 /**
+ * 2026-10-19 (admin prune W1): no longer a section. Its tabs render inside
+ * Website & Local (ContentSection, ?contentTab=local|qa|photos|entity|competitors);
+ * Review Replies was cut. The notes below describe the tabs.
+ *
  * GrowthSection — the operator surface for the GBP local-growth systems
  * (PR #50) and the social intelligence studios (PR #51).
  *
@@ -33,34 +37,6 @@ import {
   COMPETITORS, COMPETITOR_BASELINE_DATE, WEEKLY_CHECK_FIELDS, reviewVolumeGaps,
 } from "@/lib/competitorGbpMonitor";
 import { RANK_KEYWORDS } from "@/lib/localRankKeywords";
-
-type GrowthTab = "local" | "reviews" | "qa" | "photos" | "entity" | "competitors" | "instagram";
-
-/** One-time forward for the retired ?growthTab=instagram deep-link. */
-function InstagramMoved() {
-  useEffect(() => {
-    const timer = setTimeout(() => navigateToAdminSection("instagram"), 400);
-    return () => clearTimeout(timer);
-  }, []);
-  return (
-    <div className="text-center py-16 space-y-2">
-      <Instagram className="w-10 h-10 text-pink-400/50 mx-auto" />
-      <p className="text-sm font-medium">Instagram has its own section now</p>
-      <p className="text-xs text-muted-foreground">Taking you there…</p>
-    </div>
-  );
-}
-
-// Review Replies leads: it is the one tab with a daily backlog (drafts waiting, approved but not
-// marked posted). The rest are weekly checklists and read-outs. Tab ids and ?growthTab= are unchanged.
-const GROWTH_TABS: { id: GrowthTab; label: string; icon: React.ReactNode }[] = [
-  { id: "reviews", label: "Review Replies", icon: <Star className="w-3.5 h-3.5" /> },
-  { id: "local", label: "Local Growth", icon: <MapPin className="w-3.5 h-3.5" /> },
-  { id: "qa", label: "GBP Q&A", icon: <MessageCircleQuestion className="w-3.5 h-3.5" /> },
-  { id: "photos", label: "Photo Queue", icon: <Camera className="w-3.5 h-3.5" /> },
-  { id: "entity", label: "Entity / Brand", icon: <Building2 className="w-3.5 h-3.5" /> },
-  { id: "competitors", label: "Competitors", icon: <Swords className="w-3.5 h-3.5" /> },
-];
 
 type Mode = "read-only" | "copy-only" | "manual" | "db-only";
 const MODE_CLS: Record<Mode, string> = {
@@ -109,45 +85,9 @@ function Bool({ value, trueLabel, falseLabel, trueIsBad = false }: {
   );
 }
 
-export default function GrowthSection() {
-  // 2026-07-11 · honor ?growthTab= on mount (same convention as
-  // settingsTab/moneyTab) so deep-links — the /admin/ig-studio and
-  // /admin/reel-studio topbar redirects — land on the right inner tab
-  // instead of always defaulting to "local".
-  const [tab, setTab] = useState<GrowthTab>(() => {
-    if (typeof window === "undefined") return "reviews";
-    const raw = new URLSearchParams(window.location.search).get("growthTab");
-    const match = GROWTH_TABS.find((t) => t.id === raw);
-    return match ? match.id : "reviews";
-  });
-
-  return (
-    <Section
-      title="Growth"
-      subtitle="Local SEO + social systems. Nothing on this screen posts, sends, or edits anything outside this app: every external action is yours, labeled per card."
-      icon={<TrendingUp className="w-5 h-5 text-primary" />}
-    >
-      <TabBar tabs={GROWTH_TABS} activeTab={tab} onChange={setTab} variant="pill" size="compact" />
-      <div className="mt-4">
-        {tab === "local" && <LocalGrowthTab />}
-        {tab === "reviews" && <ReviewRepliesTab />}
-        {tab === "qa" && <GbpQaTab />}
-        {tab === "photos" && <PhotoQueueTab />}
-        {tab === "entity" && <EntityTab />}
-        {tab === "competitors" && <CompetitorsTab />}
-        {/* Instagram MOVED to its own top-level section (registry id "instagram").
-            Rendering it here as well would put one surface in two places — the
-            duplication disease this pass exists to remove. Anyone arriving via the
-            old ?growthTab=instagram deep-link is forwarded once to the real door. */}
-        {tab === "instagram" && <InstagramMoved />}
-      </div>
-    </Section>
-  );
-}
-
 /* ── Local Growth ─────────────────────────────────────────────── */
 
-function LocalGrowthTab() {
+export function LocalGrowthTab() {
   const { data: armed, isLoading: armedLoading } = trpc.localGrowth.automationArmedState.useQuery();
   const { data: health, isLoading: healthLoading } = trpc.localGrowth.reviewsHealth.useQuery();
 
@@ -602,7 +542,7 @@ function ReplyCard({ reply, onApprove, onSkip, onMarkPosted, onSaveDraft, busy }
 
 /* ── GBP Q&A ──────────────────────────────────────────────────── */
 
-function GbpQaTab() {
+export function GbpQaTab() {
   return (
     <div className="space-y-4">
       <div className="border border-purple-500/40 bg-purple-500/10 rounded p-3 text-xs text-purple-200 flex items-start gap-2">
@@ -638,7 +578,7 @@ function GbpQaTab() {
 
 /* ── Photo Queue ──────────────────────────────────────────────── */
 
-function PhotoQueueTab() {
+export function PhotoQueueTab() {
   // Deterministic week index (weeks since epoch) — same list all week,
   // rotates Monday-ish; the queue itself is a pure function of this number.
   const weekIndex = Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000));
@@ -683,7 +623,7 @@ function PhotoQueueTab() {
 
 /* ── Entity / Brand ───────────────────────────────────────────── */
 
-function EntityTab() {
+export function EntityTab() {
   return (
     <div className="space-y-4">
       <Panel title="Canonical identity (use EXACTLY this everywhere)" icon={<Building2 className="w-4 h-4" />}>
@@ -722,7 +662,7 @@ function EntityTab() {
 
 /* ── Competitors ──────────────────────────────────────────────── */
 
-function CompetitorsTab() {
+export function CompetitorsTab() {
   // Live Nick's review count (if reachable) powers the honest gap math.
   // When live data isn't reachable we say so — we never fake movement.
   const { data: health } = trpc.localGrowth.reviewsHealth.useQuery();

@@ -29,7 +29,7 @@ import { confirmDialog } from "@/components/admin/ConfirmDialog";
 // wave-181.x decomposition · the 5 inlined sibling panels + the cron
 // catalog were extracted into ./settings/* (pure verbatim move). This
 // file is now a lean tab host.
-import AlgProbeBudgetPanel from "./settings/AlgProbeBudgetPanel";
+import { LlmSpendPanel } from "./intelligence/LlmSpendPanel";
 import DeclinedRecoveryPanel from "./settings/DeclinedRecoveryPanel";
 import FeatureFlagsPanel from "./settings/FeatureFlagsPanel";
 import { AUTONOMOUS_OPERATIONS } from "./settings/cronJobs";
@@ -225,6 +225,10 @@ export default function SettingsSection() {
           <SiteHealthSection />
         </Suspense>
       )}
+      {/* LLM spend moved here 2026-10-19 when Intelligence HQ was cut. */}
+      {activeTab === "health" && (
+        <div className="mt-4"><LlmSpendPanel /></div>
+      )}
       {activeTab === "compliance" && (
         <Suspense fallback={<div className="flex items-center justify-center py-32"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>}>
           <ComplianceSection />
@@ -385,9 +389,6 @@ export default function SettingsSection() {
           When ShopDriver unblocks the API, we'll know via the
           existing daily probe in cron · admin can rebuild the
           surface then. Carrying dead code costs more than rebuild. */}
-
-      {/* 2026-05-05 — ALG PROBE BUDGET PANEL */}
-      <AlgProbeBudgetPanel />
 
       {/* 2026-05-05 — DECLINED RECOVERY STATUS */}
       <DeclinedRecoveryPanel />

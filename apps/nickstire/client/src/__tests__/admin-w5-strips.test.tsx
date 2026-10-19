@@ -72,7 +72,6 @@ vi.mock("@/pages/admin/instagram/ActionCenter", () => ({ default: h.Null }));
 vi.mock("@/pages/admin/instagram/Pipeline", () => ({ Pipeline: h.Null }));
 
 import OutreachHubSection from "@/pages/admin/OutreachHubSection";
-import GrowthSection from "@/pages/admin/GrowthSection";
 import SettingsSection from "@/pages/admin/SettingsSection";
 import IntegrationsSection from "@/pages/admin/settings/IntegrationsSection";
 import SmsOrchestratorSection from "@/pages/admin/outreach/SmsOrchestratorSection";
@@ -127,27 +126,6 @@ describe("Outreach strip", () => {
   });
 });
 
-describe("Growth strip", () => {
-  it("leads with the one tab that has a daily backlog and keeps every tab id", () => {
-    render(<GrowthSection />);
-    const { el, buttons } = strip("Review Replies");
-    expect(names(buttons)).toEqual(["Review Replies", "Local Growth", "GBP Q&A", "Photo Queue", "Entity / Brand", "Competitors"]);
-    expect(el.className).toMatch(/\boverflow-x-auto\b/);
-    expect(activeName(buttons)).toBe("Review Replies");
-  });
-
-  it("deep links still resolve: every ?growthTab= id", () => {
-    const expected: Record<string, string> = {
-      local: "Local Growth", reviews: "Review Replies", qa: "GBP Q&A", photos: "Photo Queue", entity: "Entity / Brand", competitors: "Competitors",
-    };
-    for (const [id, label] of Object.entries(expected)) {
-      window.history.replaceState({}, "", `/admin?growthTab=${id}`);
-      const { unmount } = render(<GrowthSection />);
-      expect(activeName(strip(label).buttons), id).toBe(label);
-      unmount();
-    }
-  });
-});
 
 describe("Settings strip", () => {
   it("Status first, then today's order, one scrolling strip with 48 px targets", () => {

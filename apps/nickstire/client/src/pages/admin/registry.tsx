@@ -1,6 +1,6 @@
 import React, { lazy, Suspense, useState, useEffect, useCallback } from "react";
 import { Brain, Clapperboard, ClipboardList, Disc, DollarSign, Images, Instagram, LayoutDashboard, Megaphone, ParkingSquare, PhoneCall, Send, Settings, Shield, Sparkles, TrendingUp, UserCheck } from "lucide-react";
-import type { AdminSection, NavGroup } from "./shared/types";
+import type { AdminSection, NavGroup, RetiredAdminSection } from "./shared/types";
 import type { AdminNavigateDetail, AdminOpenCustomerDrawerDetail } from "./shared/navigation";
 import { ADMIN_ROLES, type AdminRole } from "@shared/adminPermissions";
 import AdminSectionBoundary from "@/components/admin/AdminSectionBoundary";
@@ -52,23 +52,16 @@ const FULL_ACCESS: readonly AdminRole[] = ["owner", "manager"] as const;
 
 // Lazy-load sections relative to this file's position (client/src/pages/admin/)
 const OverviewSection = lazy(() => import("./OverviewSection"));
-const MarketSection = lazy(() => import("./MarketSection"));
 const ApprovalsSection = lazy(() => import("./ApprovalsSection"));
 const InstagramSection = lazy(() => import("./instagram/InstagramAdmin").then((m) => ({ default: m.InstagramAdmin })));
 const LeadsSection = lazy(() => import("./LeadsSection"));
-const OpportunitiesSection = lazy(() => import("./OpportunitiesSection"));
 const ContentSection = lazy(() => import("./ContentSection"));
 const CustomersSection = lazy(() => import("./CustomersSection"));
 const SettingsSection = lazy(() => import("./SettingsSection"));
 const RevenueSection = lazy(() => import("./RevenueSection"));
-const CallTrackingSection = lazy(() => import("./CallTrackingSection"));
 const CampaignsSection = lazy(() => import("./OutreachHubSection"));
-const MembershipsSection = lazy(() => import("./MembershipsSection"));
 const TireOrdersSection = lazy(() => import("./TireOrdersSection"));
 const OpsHubSection = lazy(() => import("./OpsHubSection"));
-const GrowthSection = lazy(() => import("./GrowthSection"));
-const IntelligenceHQSection = lazy(() => import("./intelligence/IntelligenceHQSection"));
-const TrafficFunnelSection = lazy(() => import("./TrafficFunnelSection"));
 const VoiceReceptionistSection = lazy(() => import("./VoiceReceptionistSection"));
 const LotSection = lazy(() => import("./LotSection"));
 const ShopMediaSection = lazy(() => import("./ShopMediaSection"));
@@ -124,28 +117,19 @@ export const ADMIN_REGISTRY: RegistrySection[] = [
     allowedRoles: FULL_ACCESS,
   },
   {
-    id: "intelligence",
-    label: "Intelligence HQ",
-    icon: <Brain className="w-4 h-4 text-purple-400" />,
-    component: IntelligenceHQSection,
-    aliases: ["intell", "intelligencehq"],
-    keywords: ["intelligence", "brain", "hq", "scoreboard"],
-    group: "Automation",
-    priority: 20,
-    showInSidebar: true,
-    allowedRoles: [...FULL_ACCESS, "viewer"],
-  },
-  {
     id: "customers",
     label: "Customers",
     icon: <UserCheck className="w-4 h-4" />,
     component: CustomersSection,
     aliases: ["referrals", "jobs", "loyalty", "warranty", "waitlist"],
-    keywords: ["customer", "client", "database", "lookup", "loyalty", "winback", "referral"],
+    keywords: ["customer", "client", "database", "lookup", "loyalty", "winback", "referral", "membership", "nonstop", "call list"],
     group: "Daily",
     priority: 20,
     showInSidebar: true,
-    allowedRoles: [...FULL_ACCESS, "front_desk", "tech"],
+    // accountant added 2026-10-19 with Nonstop Nick moving in as the Members tab
+    // (memberships admitted accountant). innerTabs.ts shows accountant ONLY that
+    // tab; the customer list and call list stay owner/manager/front_desk/tech.
+    allowedRoles: [...FULL_ACCESS, "front_desk", "tech", "accountant"],
   },
   {
     id: "leads",
@@ -156,36 +140,6 @@ export const ADMIN_REGISTRY: RegistrySection[] = [
     keywords: ["lead", "crm", "prospect", "new customer", "no-show", "risk"],
     group: "Daily",
     priority: 30,
-    showInSidebar: true,
-    allowedRoles: [...FULL_ACCESS, "front_desk"],
-  },
-  {
-    // 2026-09-07 · the retired Decision Inbox's data, as staff work rather than
-    // an owner obligation. Sits next to Sales Pipeline (priority 31) because it
-    // is the same job — following up with customers — and deliberately NOT in
-    // the owner's default home, which is `overview`.
-    //
-    // ROLES: same set as `leads`. This is front-desk work; it is intentionally
-    // NOT owner-only, and intentionally NOT widened to accountant/viewer, who
-    // have no reason to action a customer follow-up. Any change here must be
-    // diffed per role — see the trafficFunnel precedent in this file, where a
-    // cosmetic role grant let a role in that the procedure gate then refused.
-    id: "opportunities",
-    label: "Opportunities",
-    icon: <ClipboardList className="w-4 h-4" />,
-    component: OpportunitiesSection,
-    // NAMING: this is NOT called "Follow-ups". Outreach already owns that word —
-    // it has a Follow-Ups tab (notification follow-ups: thank-yous, review
-    // requests, booking confirmations) and the alias "followups". Two surfaces
-    // with one name is the duplication the 2026-09-01 thesis §8 warns against,
-    // so this section is named for its actual table, `revenue_opportunities`.
-    // "queue" is likewise absent — it belongs to `approvals`.
-    // The old-name aliases are kept so anyone who bookmarked or still says
-    // "decision inbox" lands on where the data went.
-    aliases: ["decisioninbox", "decisions", "openwork"],
-    keywords: ["follow up", "follow-up", "opportunity", "callback", "recovery", "worklist"],
-    group: "Daily",
-    priority: 31,
     showInSidebar: true,
     allowedRoles: [...FULL_ACCESS, "front_desk"],
   },
@@ -216,30 +170,6 @@ export const ADMIN_REGISTRY: RegistrySection[] = [
     priority: 40,
     showInSidebar: true,
     allowedRoles: [...FULL_ACCESS, "accountant"],
-  },
-  {
-    id: "market",
-    label: "Market",
-    icon: <TrendingUp className="w-4 h-4" />,
-    component: MarketSection,
-    aliases: ["gsc", "search-console", "searchconsole", "radar", "master-report"],
-    keywords: ["market", "search", "console", "queries", "pages", "report", "radar"],
-    group: "Reach",
-    priority: 45,
-    showInSidebar: true,
-    allowedRoles: FULL_ACCESS,
-  },
-  {
-    id: "growth",
-    label: "Marketing / Growth",
-    icon: <TrendingUp className="w-4 h-4" />,
-    component: GrowthSection,
-    aliases: ["gbp", "local", "localseo", "social"],
-    keywords: ["marketing", "growth", "seo", "local", "reviews", "replies"],
-    group: "Reach",
-    priority: 10,
-    showInSidebar: true,
-    allowedRoles: FULL_ACCESS,
   },
   {
     id: "content",
@@ -316,24 +246,14 @@ export const ADMIN_REGISTRY: RegistrySection[] = [
     label: "Outreach",
     icon: <Send className="w-4 h-4" />,
     component: CampaignsSection,
-    aliases: ["reengagement", "reengage", "autofollowup", "reviewrequests", "reviews", "winback", "sms", "followups"],
+    // "outreach" added 2026-10-19: the label is Outreach, and useSettingsStatus linked
+    // ?tab=outreach for months while it resolved nowhere.
+    aliases: ["reengagement", "reengage", "autofollowup", "reviewrequests", "reviews", "winback", "sms", "followups", "outreach"],
     keywords: ["campaign", "outreach", "sms", "email", "review", "follow-up", "re-engage", "winback", "dormant", "inactive"],
     group: "Reach",
     priority: 40,
     showInSidebar: true,
     allowedRoles: FULL_ACCESS,
-  },
-  {
-    id: "memberships",
-    label: "Nonstop Nick",
-    icon: <Shield className="w-4 h-4" />,
-    component: MembershipsSection,
-    aliases: ["membership", "member", "nonstop", "subscription"],
-    keywords: ["membership", "member", "nonstop", "nick", "subscription", "plan", "vehicle", "bind", "7.99", "9.99"],
-    group: "Daily",
-    priority: 45,
-    showInSidebar: true,
-    allowedRoles: [...FULL_ACCESS, "accountant"],
   },
   {
     id: "voiceReceptionist",
@@ -371,39 +291,6 @@ export const ADMIN_REGISTRY: RegistrySection[] = [
     showInSidebar: true,
     allowedRoles: FULL_ACCESS,
   },
-  // 2026-09-01 (audit, artifact 1 §2): these two were reachable ONLY by alias,
-  // Cmd+K or a typed URL — and the operator drives this admin from an iPhone
-  // PWA where Cmd+K does not exist. Same nav-orphan class fixed for `revenue`
-  // and `content` on 2026-07-25; these were the residue. Given doors.
-  {
-    id: "callTrackingView",
-    label: "Call Tracking",
-    icon: <PhoneCall className="w-4 h-4" />,
-    component: CallTrackingSection,
-    aliases: ["callbacks", "calls", "calltracking", "call-tracking"],
-    keywords: ["call", "phone", "tracking", "missed", "callback"],
-    group: "Automation",
-    priority: 30,
-    showInSidebar: true,
-    allowedRoles: [...FULL_ACCESS, "front_desk"],
-  },
-  {
-    id: "trafficFunnel",
-    label: "Traffic → Revenue",
-    icon: <TrendingUp className="w-4 h-4" />,
-    component: TrafficFunnelSection,
-    aliases: ["funnel", "traffic", "traffic-revenue"],
-    keywords: ["funnel", "traffic", "seo", "conversion", "clicks"],
-    group: "Truth",
-    priority: 20,
-    showInSidebar: true,
-    // accountant was listed here while the section was URL-only; its widgets
-    // call seoTools.* (marketing.manage) and customerEvents.* (customers.manage),
-    // neither of which accountant holds — 7 of 10 calls threw FORBIDDEN. Now
-    // that the section has a sidebar door, the role list matches the
-    // permissions the page actually needs (self-review on PR #2063).
-    allowedRoles: [...FULL_ACCESS],
-  },
 ];
 
 /**
@@ -436,6 +323,14 @@ export function getSidebarGroups(role: AdminRole): NavGroup[] {
   })).filter((g) => g.items.length > 0);
 }
 
+export interface NavTarget {
+  section: AdminSection;
+  innerKey?: string;
+  innerValue?: string;
+  /** A legacy inner-tab param whose value, when present, is carried over instead of innerValue. */
+  carryKey?: string;
+}
+
 export const COMPOUND_REDIRECTS: Record<string, { section: AdminSection; innerKey: string; innerValue: string }> = {
   declinedestimates: { section: "revenue", innerKey: "moneyTab", innerValue: "declined" },
   declined: { section: "revenue", innerKey: "moneyTab", innerValue: "declined" },
@@ -446,6 +341,58 @@ export const COMPOUND_REDIRECTS: Record<string, { section: AdminSection; innerKe
   financing: { section: "revenue", innerKey: "moneyTab", innerValue: "financing" },
   snap: { section: "revenue", innerKey: "moneyTab", innerValue: "financing" },
 };
+
+/**
+ * Sections retired 2026-10-19 (job 2026-10-19-admin-prune). Each one now lives
+ * as a tab of another section; its old id and every alias it owned land there.
+ * The crew opens this admin from home-screen PWAs, so these links outlive the
+ * sections. Every inner value must exist in innerTabs.ts (pinned by
+ * admin-prune-redirects.test.tsx and admin-registry-integrity.test.ts).
+ */
+export const RETIRED_SECTIONS: { id: RetiredAdminSection; was: string; aliases: string[]; to: NavTarget }[] = [
+  {
+    id: "opportunities",
+    was: "Opportunities",
+    aliases: ["decisioninbox", "decisions", "openwork"],
+    to: { section: "leads", innerKey: "leadsTab", innerValue: "followups" },
+  },
+  {
+    id: "callTrackingView",
+    was: "Call Tracking",
+    aliases: ["callbacks", "calls", "calltracking", "call-tracking"],
+    to: { section: "voiceReceptionist", innerKey: "voiceTab", innerValue: "calls" },
+  },
+  {
+    id: "market",
+    was: "Market",
+    aliases: ["gsc", "search-console", "searchconsole", "radar", "master-report"],
+    to: { section: "opsHub", innerKey: "reportsTab", innerValue: "search" },
+  },
+  {
+    id: "trafficFunnel",
+    was: "Traffic to Revenue",
+    aliases: ["funnel", "traffic", "traffic-revenue"],
+    to: { section: "opsHub", innerKey: "reportsTab", innerValue: "traffic" },
+  },
+  {
+    id: "growth",
+    was: "Marketing / Growth",
+    aliases: ["gbp", "local", "localseo", "social"],
+    to: { section: "content", innerKey: "contentTab", innerValue: "local", carryKey: "growthTab" },
+  },
+  {
+    id: "memberships",
+    was: "Nonstop Nick",
+    aliases: ["membership", "member", "nonstop", "subscription"],
+    to: { section: "customers", innerKey: "customersTab", innerValue: "members" },
+  },
+  {
+    id: "intelligence",
+    was: "Intelligence HQ",
+    aliases: ["intell", "intelligencehq"],
+    to: { section: "customers", innerKey: "customersTab", innerValue: "calls" },
+  },
+];
 
 export function resolveSection(raw: string): AdminSection | null {
   const slug = (raw || "").toLowerCase().trim();
@@ -459,44 +406,75 @@ export function resolveSection(raw: string): AdminSection | null {
   return null;
 }
 
+/**
+ * THE resolver: every way a slug arrives (first URL, back/forward, the
+ * admin:navigate-section event, the /admin/* path redirect in App.tsx) goes
+ * through here. Before 2026-10-19 only the first URL knew about compound
+ * redirects, so a link that worked on load broke on back/forward.
+ */
+export function resolveNavTarget(raw: string): NavTarget | null {
+  const slug = (raw || "").toLowerCase().trim();
+  if (!slug) return null;
+  if (slug in COMPOUND_REDIRECTS) return COMPOUND_REDIRECTS[slug];
+  for (const r of RETIRED_SECTIONS) {
+    if (r.id.toLowerCase() === slug || r.aliases.includes(slug)) return r.to;
+  }
+  const section = resolveSection(slug);
+  return section ? { section } : null;
+}
+
+/** The ?query a target lands on, built over `base` (carried params survive). */
+export function navTargetSearch(target: NavTarget, base: URLSearchParams): URLSearchParams {
+  const params = new URLSearchParams(base);
+  params.delete("section");
+  params.set("tab", target.section);
+  if (target.innerKey && target.innerValue) {
+    const carried = target.carryKey ? params.get(target.carryKey) : null;
+    params.set(target.innerKey, carried || target.innerValue);
+    if (target.carryKey) params.delete(target.carryKey);
+  }
+  return params;
+}
+
+/** Writes a target into the address bar (replaceState, no new history entry). */
+function writeNavTarget(target: NavTarget): void {
+  const url = new URL(window.location.href);
+  url.search = navTargetSearch(target, url.searchParams).toString();
+  window.history.replaceState(window.history.state, "", url.toString());
+  // A mounted section re-reads its inner tab on this (useUrlFilter): a
+  // replaceState fires no popstate, and a same-section move does not remount.
+  window.dispatchEvent(new Event("admin:url-sync"));
+}
+
 export interface InitialSectionResolution {
   section: AdminSection;
   /**
-   * The raw `?tab=` / `?section=` slug when it matched no id, alias or compound
-   * redirect — otherwise null. Note that NO slug at all resolves to `overview`
-   * with `unresolvedSlug: null`: landing on Today from a bare `/admin` is the
+   * The raw `?tab=` / `?section=` slug when it matched no id, alias or redirect,
+   * otherwise null. NO slug at all resolves to `overview` with
+   * `unresolvedSlug: null`: landing on Today from a bare `/admin` is the
    * correct outcome, not a failure, and must not raise a notice.
    */
   unresolvedSlug: string | null;
 }
 
+/** Resolves the current URL, rewriting it when the slug was an alias or a redirect. */
+function resolveCurrentUrl(): InitialSectionResolution {
+  const params = new URLSearchParams(window.location.search);
+  const raw = (params.get("tab") || params.get("section") || "").trim();
+  if (!raw) return { section: "overview", unresolvedSlug: null };
+  const target = resolveNavTarget(raw);
+  if (!target) return { section: "overview", unresolvedSlug: raw.toLowerCase() };
+  if (target.innerKey || raw !== target.section) writeNavTarget(target);
+  return { section: target.section, unresolvedSlug: null };
+}
+
 export function resolveInitialSection(): InitialSectionResolution {
   if (typeof window === "undefined") return { section: "overview", unresolvedSlug: null };
-  const params = new URLSearchParams(window.location.search);
-  const raw = (params.get("tab") || params.get("section") || "").toLowerCase().trim();
-  if (!raw) return { section: "overview", unresolvedSlug: null };
-
-  if (raw in COMPOUND_REDIRECTS) {
-    const r = COMPOUND_REDIRECTS[raw];
-    params.set("tab", r.section);
-    params.set(r.innerKey, r.innerValue);
-    const url = new URL(window.location.href);
-    url.search = params.toString();
-    window.history.replaceState({}, "", url.toString());
-    return { section: r.section, unresolvedSlug: null };
-  }
-
-  const resolved = resolveSection(raw);
-  if (!resolved) {
-    // The `admin:navigate-section` listener below has warned on an unknown slug
-    // since it was written; this URL path stayed silent and returned `overview`,
-    // so a mistyped, renamed or stale deep link was indistinguishable from the
-    // operator simply opening Today. That is the all-clear-on-failure shape this
-    // admin has been pulling out elsewhere — a bad link now says it is bad.
-    console.warn("[admin] unknown ?tab= slug, falling back to Today:", raw);
-    return { section: "overview", unresolvedSlug: raw };
-  }
-  return { section: resolved, unresolvedSlug: null };
+  const r = resolveCurrentUrl();
+  // A mistyped, renamed or stale deep link says it is bad instead of passing
+  // for the operator simply opening Today.
+  if (r.unresolvedSlug) console.warn("[admin] unknown ?tab= slug, falling back to Today:", r.unresolvedSlug);
+  return r;
 }
 
 function SectionSpinner() {
@@ -549,29 +527,22 @@ export function useAdminNavigation() {
     window.history.replaceState({}, "", url.toString());
   }, [section]);
 
-  // Sync state on browser back/forward history navigation
+  // Sync state on browser back/forward history navigation. Same resolver as
+  // the first load, so a retired slug or compound redirect in history lands
+  // on its tab too (it used to land only on first load).
   useEffect(() => {
     if (typeof window === "undefined") return;
     const handlePopState = () => {
-      const params = new URLSearchParams(window.location.search);
-      const raw = (params.get("tab") || params.get("section") || "").toLowerCase().trim();
-      // No slug is the legitimate "went back to bare /admin" case, not a failure.
-      if (!raw) {
-        setSection("overview");
-        return;
-      }
-      const resolved = resolveSection(raw);
-      if (!resolved) {
-        // Same honesty as the initial-load path: history can carry a slug that has
-        // since been renamed away, and landing on Today without saying so hides it.
-        // setSectionState/setUnresolvedSlug directly, because the setSection wrapper
-        // clears the very notice being raised here.
-        console.warn("[admin] unknown ?tab= slug on history navigation, falling back to Today:", raw);
+      const r = resolveCurrentUrl();
+      if (r.unresolvedSlug) {
+        // setSectionState/setUnresolvedSlug directly, because the setSection
+        // wrapper clears the very notice being raised here.
+        console.warn("[admin] unknown ?tab= slug on history navigation, falling back to Today:", r.unresolvedSlug);
         setSectionState("overview");
-        setUnresolvedSlug(raw);
+        setUnresolvedSlug(r.unresolvedSlug);
         return;
       }
-      setSection(resolved);
+      setSection(r.section);
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
@@ -587,12 +558,13 @@ export function useAdminNavigation() {
       // resolveSection() below is exactly that defensive resolution step.
       const detail = (e as CustomEvent<Partial<AdminNavigateDetail>>).detail;
       if (!detail?.section) return;
-      const resolved = resolveSection(detail.section);
-      if (!resolved) {
+      const target = resolveNavTarget(detail.section);
+      if (!target) {
         console.warn("[admin:navigate-section] unknown section slug:", detail.section);
         return;
       }
-      setSection(resolved);
+      if (target.innerKey) writeNavTarget(target);
+      setSection(target.section);
       if (typeof window !== "undefined") {
         window.scrollTo({ top: 0, behavior: "smooth" });
       }

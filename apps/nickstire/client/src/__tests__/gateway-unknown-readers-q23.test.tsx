@@ -69,7 +69,6 @@ import { MorningBrief } from "../pages/admin/today/MorningBrief";
 import { OutreachBrief } from "../pages/admin/outreach/OutreachBrief";
 import { useSettingsStatus } from "../pages/admin/settings/useSettingsStatus";
 import SettingsStatusTab from "../pages/admin/settings/SettingsStatusTab";
-import IntelligenceHQSection from "../pages/admin/intelligence/IntelligenceHQSection";
 
 const set = (key: string, data: unknown, isError = false) => {
   h.q[key] = { ...blank(), data, isError };
@@ -245,9 +244,3 @@ describe("SettingsStatusTab connection pill", () => {
   });
 });
 
-describe("Intelligence HQ", () => {
-  it("mounts the Data freshness card on the default Battlefield tab", () => {
-    render(<IntelligenceHQSection />);
-    expect(screen.getByTestId("data-freshness-card")).toBeTruthy();
-  });
-});

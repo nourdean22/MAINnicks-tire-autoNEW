@@ -12,7 +12,8 @@
  * fail the build instead.
  */
 import { describe, it, expect } from "vitest";
-import { ADMIN_REGISTRY, COMPOUND_REDIRECTS } from "../pages/admin/registry";
+import { ADMIN_REGISTRY, COMPOUND_REDIRECTS, RETIRED_SECTIONS, resolveNavTarget } from "../pages/admin/registry";
+import { INNER_TABS, type InnerTabSection } from "../pages/admin/innerTabs";
 
 describe("ADMIN_REGISTRY — structural integrity", () => {
   it("has no duplicate section ids", () => {
@@ -58,5 +59,37 @@ describe("ADMIN_REGISTRY — structural integrity", () => {
       .filter(([, target]) => !validIds.has(target.section))
       .map(([slug, target]) => `"${slug}" -> unknown section "${target.section}"`);
     expect(dangling).toEqual([]);
+  });
+
+  // 2026-10-19 (admin prune W1): retired ids and aliases share one resolver with
+  // the live ones, so a collision would silently send a link to the wrong place.
+  it("no retired slug collides with a live id, live alias, compound key or another retired slug", () => {
+    const live = new Set<string>();
+    for (const e of ADMIN_REGISTRY) {
+      live.add(e.id.toLowerCase());
+      for (const a of e.aliases ?? []) live.add(a.toLowerCase());
+    }
+    for (const k of Object.keys(COMPOUND_REDIRECTS)) live.add(k.toLowerCase());
+    const seen = new Set<string>();
+    const collisions: string[] = [];
+    for (const r of RETIRED_SECTIONS) {
+      for (const slug of [r.id.toLowerCase(), ...r.aliases]) {
+        if (slug !== slug.toLowerCase()) collisions.push(`"${slug}" is not lower-case`);
+        if (live.has(slug) || seen.has(slug)) collisions.push(`"${slug}" (retired ${r.id}) resolves twice`);
+        seen.add(slug);
+      }
+    }
+    expect(collisions).toEqual([]);
+  });
+
+  it("every retired target is a live section and an inner tab value that exists", () => {
+    const validIds = new Set(ADMIN_REGISTRY.map((s) => s.id));
+    for (const r of RETIRED_SECTIONS) {
+      expect(validIds.has(r.to.section), r.id).toBe(true);
+      const spec = INNER_TABS[r.to.section as InnerTabSection];
+      expect(spec?.key, `${r.id} inner key`).toBe(r.to.innerKey);
+      expect(spec?.values, `${r.id} inner value`).toContain(r.to.innerValue);
+      expect(resolveNavTarget(r.id)).toEqual(r.to);
+    }
   });
 });

@@ -27,6 +27,9 @@ import {
   SearchInput,
 } from "./shared";
 import { AttributionReviewCard } from "./voice/AttributionReviewCard";
+import CallTrackingSection from "./CallTrackingSection";
+import { useUrlFilter } from "./shared/hooks";
+import { resolveInnerTab } from "./innerTabs";
 import {
   PhoneCall,
   PhoneForwarded,
@@ -92,7 +95,11 @@ export default function VoiceReceptionistSection() {
   const [searchQuery, setSearchQuery] = useState("");
   const [reasonFilter, setReasonFilter] = useState<string | null>(null); // null = "all"
 
-  const [activeTab, setActiveTab] = useState<"performance" | "queue">("performance");
+  // 2026-10-19 (admin prune W1): a URL key, so ?tab=calls and the old Call
+  // Tracking links can select the Calls tab (Call Tracking folded in here).
+  const [activeTab, setActiveTab] = useUrlFilter<string>("voiceTab", "performance", {
+    validate: (v) => resolveInnerTab("voiceReceptionist", v, null),
+  });
   const [queueStatusFilter, setQueueStatusFilter] = useState<"pending" | "reviewed" | "converted" | "came_in" | "ignored">("pending");
 
   // Wave-91 — date range state.
@@ -427,9 +434,21 @@ export default function VoiceReceptionistSection() {
             </span>
           )}
         </button>
+        <button
+          onClick={() => setActiveTab("calls")}
+          className={`pb-2 text-sm font-semibold border-b-2 transition-colors ${
+            activeTab === "calls"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Calls
+        </button>
       </div>
 
-      {activeTab === "performance" ? (
+      {activeTab === "calls" ? (
+        <CallTrackingSection />
+      ) : activeTab === "performance" ? (
         <div className="space-y-6">
           {/* ─── KPI Tiles ──────────────────────────────────── */}
           {metricsError ? (

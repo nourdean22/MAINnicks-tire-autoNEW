@@ -51,7 +51,6 @@ vi.mock("@/pages/admin/shared/SectionInsightStrip", () => ({ default: h.Null, Se
 import SettingsSection from "@/pages/admin/SettingsSection";
 import IntegrationsSection from "@/pages/admin/settings/IntegrationsSection";
 import OpsHubSection from "@/pages/admin/OpsHubSection";
-import GrowthSection from "@/pages/admin/GrowthSection";
 import { LiveCallsCard } from "@/pages/admin/voice/LiveCallsCard";
 import { CustomerIntelligence } from "@/pages/admin/intelligence/CustomerIntelligence";
 
@@ -99,27 +98,6 @@ describe("Voice live calls", () => {
   });
 });
 
-describe("Growth reply counts", () => {
-  const mount = (stats: Partial<Q>) => {
-    window.history.replaceState({}, "", "/admin?growthTab=reviews");
-    h.queries.set("reviewReplies.list", ok([]));
-    h.queries.set("reviewReplies.stats", stats);
-    return render(<GrowthSection />);
-  };
-
-  it("paused reply counts say the backlog is unknown, not absent", () => {
-    mount(PAUSED);
-    expect(screen.getByText("Reply counts not checked (offline). The backlog is unknown, not zero.")).toBeTruthy();
-  });
-
-  it("positive controls: in-flight and good counts show no unknown line", () => {
-    const a = mount(FETCHING);
-    expect(a.container.textContent).not.toMatch(/Reply counts/);
-    a.unmount();
-    mount(ok({ draft: 0, approved: 0, skipped: 0, posted: 0, oldestApprovedAt: null }));
-    expect(screen.queryByText(/Reply counts/)).toBeNull();
-  });
-});
 
 describe("Settings ALG status while loading", () => {
   it("says it is checking, and neither 'ALG offline' nor the failure block", () => {

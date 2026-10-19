@@ -75,11 +75,9 @@ vi.mock("@/components/admin/AutonomyCommandCenter", () => ({ default: h.Null }))
 vi.mock("@/pages/admin/instagram/ActionCenter", () => ({ default: h.Null }));
 vi.mock("@/pages/admin/instagram/Pipeline", () => ({ Pipeline: h.Null }));
 
-import GrowthSection from "@/pages/admin/GrowthSection";
 import SettingsSection from "@/pages/admin/SettingsSection";
 import DeclinedRecoveryPanel from "@/pages/admin/settings/DeclinedRecoveryPanel";
 import TrafficFunnelSection from "@/pages/admin/TrafficFunnelSection";
-import { MarketIntelligence } from "@/pages/admin/intelligence/MarketIntelligence";
 import { ContentManager } from "@/pages/admin/content/ContentManager";
 import OpsHubSection from "@/pages/admin/OpsHubSection";
 import { LiveCallsCard } from "@/pages/admin/voice/LiveCallsCard";
@@ -97,62 +95,6 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("Growth", () => {
-  const PIPELINE = {
-    readiness: { igLivePosting: false, reelPipeline: true, reelPublish: false, reelAutopost: false, gbpPosting: false, smsPathOpen: false },
-    envGates: [{ key: "IG_LIVE_POSTING", armed: false }],
-    dbFlags: [{ key: "FEATURE_X", armed: true }],
-  };
-
-  it("a failed Social Pipeline Health read keeps the panel, says unknown, and Retry refetches", () => {
-    window.history.replaceState({}, "", "/admin?growthTab=local");
-    const refetch = vi.fn();
-    h.queries.set("socialPipeline.status", { ...FAILED, refetch });
-    render(<GrowthSection />);
-    const msg = screen.getByText("Social pipeline status couldn't load. The kill-switch states are unknown, not off.");
-    expect(screen.getByText("Social Pipeline Health")).toBeTruthy();
-    fireEvent.click(within(msg.parentElement as HTMLElement).getByRole("button", { name: /try again/i }));
-    expect(refetch).toHaveBeenCalled();
-    expect(screen.queryByText("IG Live Posting")).toBeNull();
-  });
-
-  it("positive control: a good read still lists the kill switches", () => {
-    window.history.replaceState({}, "", "/admin?growthTab=local");
-    h.queries.set("socialPipeline.status", ok(PIPELINE));
-    render(<GrowthSection />);
-    expect(screen.getByText("IG Live Posting")).toBeTruthy();
-    expect(screen.queryByText(/kill-switch states are unknown/)).toBeNull();
-  });
-
-  it("a failed review-replies list is unknown, not 'No draft replies yet'", () => {
-    window.history.replaceState({}, "", "/admin?growthTab=reviews");
-    const refetch = vi.fn();
-    h.queries.set("reviewReplies.list", { ...FAILED, refetch });
-    h.queries.set("reviewReplies.stats", ok({ draft: 0, approved: 0, skipped: 0, posted: 0, oldestApprovedAt: null }));
-    render(<GrowthSection />);
-    expect(screen.queryByText(/No draft replies yet/)).toBeNull();
-    const msg = screen.getByText("Review replies couldn't load. The list is unknown, not empty.");
-    fireEvent.click(within(msg.parentElement as HTMLElement).getByRole("button", { name: /try again/i }));
-    expect(refetch).toHaveBeenCalled();
-  });
-
-  it("failed reply counts say so instead of silently dropping the backlog banners", () => {
-    window.history.replaceState({}, "", "/admin?growthTab=reviews");
-    h.queries.set("reviewReplies.list", ok([]));
-    h.queries.set("reviewReplies.stats", FAILED);
-    render(<GrowthSection />);
-    expect(screen.getByText("Reply counts couldn't load. The backlog is unknown, not zero.")).toBeTruthy();
-  });
-
-  it("positive control: a clean empty list still says no replies yet", () => {
-    window.history.replaceState({}, "", "/admin?growthTab=reviews");
-    h.queries.set("reviewReplies.list", ok([]));
-    h.queries.set("reviewReplies.stats", ok({ draft: 0, approved: 0, skipped: 0, posted: 0, oldestApprovedAt: null }));
-    render(<GrowthSection />);
-    expect(screen.getByText(/No draft replies yet/)).toBeTruthy();
-    expect(screen.queryByText(/couldn't load/)).toBeNull();
-  });
-});
 
 describe("Settings (ShopDriver tab)", () => {
   beforeEach(() => window.history.replaceState({}, "", "/admin?settingsTab=shopdriver"));
@@ -246,49 +188,6 @@ describe("Traffic to Revenue panels", () => {
   });
 });
 
-describe("Intelligence and content", () => {
-  it("MarketIntelligence: a failed master report is unknown, not '+0%', 'N/A' and 'No significant gaps'", () => {
-    const refetch = vi.fn();
-    h.queries.set("intelligence.masterReport", { ...FAILED, refetch });
-    render(<MarketIntelligence />);
-    expect(screen.queryByText(/No significant service gaps/)).toBeNull();
-    expect(screen.queryByText("N/A")).toBeNull();
-    expect(screen.queryByText(/Not enough data/)).toBeNull();
-    const msg = screen.getByText("Market intelligence couldn't load. Review velocity, top channel and gaps are unknown, not zero.");
-    fireEvent.click(within(msg.parentElement as HTMLElement).getByRole("button", { name: /try again/i }));
-    expect(refetch).toHaveBeenCalled();
-  });
-
-  it("MarketIntelligence positive control: a real empty report still says no gaps", () => {
-    h.queries.set("intelligence.masterReport", ok({ marketing: {}, competitive: {} }));
-    render(<MarketIntelligence />);
-    expect(screen.getByText(/No significant service gaps/)).toBeTruthy();
-  });
-
-  it("ContentManager: a failed generation log is unknown in the tile and the log tab", () => {
-    h.queries.set("contentAdmin.allArticles", ok([]));
-    h.queries.set("contentAdmin.allNotifications", ok([]));
-    h.queries.set("contentAdmin.generationLog", FAILED);
-    render(<ContentManager />);
-    const tile = screen.getByText("AI Generations").parentElement?.parentElement as HTMLElement;
-    expect(tile.querySelector(".stat-value")?.textContent).not.toMatch(/\d/);
-    expect(within(tile).getByText("Unable to determine")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: /Generation Log/ }));
-    expect(screen.queryByText(/NO GENERATION HISTORY/i)).toBeNull();
-    expect(screen.getByText("Generation log couldn't load. Unknown, not empty.")).toBeTruthy();
-  });
-
-  it("ContentManager positive control: a real empty log still reads zero and no history", () => {
-    h.queries.set("contentAdmin.allArticles", ok([]));
-    h.queries.set("contentAdmin.allNotifications", ok([]));
-    h.queries.set("contentAdmin.generationLog", ok([]));
-    render(<ContentManager />);
-    const tile = screen.getByText("AI Generations").parentElement?.parentElement as HTMLElement;
-    expect(tile.querySelector(".stat-value")?.textContent).toBe("0");
-    fireEvent.click(screen.getByRole("button", { name: /Generation Log/ }));
-    expect(screen.getByText(/No generation history/i)).toBeTruthy();
-  });
-});
 
 describe("Ops Hub live checks", () => {
   it("a failed payments.health read says the live check is unknown on both annotated cards", () => {

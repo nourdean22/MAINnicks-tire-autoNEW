@@ -54,7 +54,6 @@ const TOPBAR_ACTIONS: TopbarAction[] = [
   { href: "/admin?tab=content", title: "AI Content", icon: <Sparkles className="w-4 h-4" />, mobileHidden: false, sectionTrigger: "content" },
   { href: "/admin/ig-studio", title: "IG Carousel Studio", icon: <Images className="w-4 h-4" />, mobileHidden: true },
   { href: "/admin/reel-studio", title: "Reel Studio", icon: <Clapperboard className="w-4 h-4" />, mobileHidden: true },
-  { href: "/admin/ad-studio", title: "Ad Studio", icon: <Megaphone className="w-4 h-4" />, mobileHidden: true },
 ];
 
 // ROLE_SECTIONS lived here until 2026-08-03. It was a Record<AdminRole, ...>
