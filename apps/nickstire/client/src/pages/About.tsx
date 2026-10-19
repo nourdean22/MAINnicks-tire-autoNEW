@@ -16,6 +16,7 @@ import { useReviewStats } from "@/hooks/useReviewStats";
 import { BUSINESS } from "@shared/business";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import ResponsivePhoto from "@/components/ResponsivePhoto";
+import { photoSrcSet } from "@/lib/photoSrcSet";
 import { CURATED_TESTIMONIALS } from "@shared/customer-testimonials";
 
 // wave-181.23 · /about social-proof wall.
@@ -39,6 +40,17 @@ const ABOUT_QUOTES = [
 const HERO_IMG = "/photos/nicks-tire-auto-shop-sign-cleveland-ohio.webp";
 const DIAG_IMG = "/photos/busy-shop-action-mechanics.webp";
 const WAITING_IMG = "/photos/nicks-tire-auto-customer-waiting-area-cleveland.webp";
+// Real crew photos (shop-media job, 2026-10-18) beside the "your neighbors" copy.
+const CREW_PHOTOS = [
+  {
+    src: "/photos/nicks-tire-auto-crew-euclid-ave.webp",
+    alt: "Seven members of the Nick's Tire & Auto crew in front of the service bays on Euclid Avenue",
+  },
+  {
+    src: "/photos/nicks-tire-auto-crew-member.webp",
+    alt: "A smiling member of the Nick's Tire & Auto crew in the shop",
+  },
+];
 
 export default function About() {
   const { rating, count: totalReviews, countDisplay: reviewCountDisplay } = useReviewStats();
@@ -89,6 +101,25 @@ export default function About() {
               <p className="text-foreground/70">
                 We're not a chain. We're not a dealership. We're your neighbors — and we treat your car like it belongs to one.
               </p>
+              <figure className="mt-8">
+                <div className="grid grid-cols-2 gap-3">
+                  {CREW_PHOTOS.map((p) => (
+                    <img
+                      key={p.src}
+                      src={p.src}
+                      srcSet={photoSrcSet(p.src)}
+                      sizes="(min-width: 768px) 240px, 50vw"
+                      alt={p.alt}
+                      width={1440}
+                      height={1920}
+                      loading="lazy"
+                      decoding="async"
+                      className="aspect-[3/4] w-full rounded-xl object-cover"
+                    />
+                  ))}
+                </div>
+                <figcaption className="mt-3 text-sm text-foreground/60">The crew you'll meet at the counter and in the bays</figcaption>
+              </figure>
             </div>
           </FadeIn>
           <FadeIn delay={0.15}>
@@ -150,7 +181,7 @@ export default function About() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
             <FadeIn>
               <div className="relative rounded-2xl overflow-hidden aspect-[4/3]">
-                <img loading="lazy" src={DIAG_IMG} alt="Auto diagnostics in progress at Nick's Tire & Auto Cleveland — engine bay testing" className="w-full h-full object-cover" style={{ objectPosition: "center 50%" }} />
+                <img loading="lazy" width={1122} height={1402} src={DIAG_IMG} alt="Auto diagnostics in progress at Nick's Tire & Auto Cleveland — engine bay testing" className="w-full h-full object-cover" style={{ objectPosition: "center 50%" }} />
                 <div className="absolute bottom-4 right-4 bg-primary px-4 py-3 rounded-xl">
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-2xl text-primary-foreground">{rating.toFixed(1)}</span>

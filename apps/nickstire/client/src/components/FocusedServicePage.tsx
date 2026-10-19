@@ -138,6 +138,11 @@ export interface ServicePageConfig {
   aeoAnswer?: string;
   /** Optional hero image URL override */
   heroImage?: string;
+  /** Alt text for heroImage. Omit → "<h1> at Nick's Tire & Auto Cleveland". */
+  heroAlt?: string;
+  /** Optional arrival photos rendered beside the address in the booking
+   *  section (e.g. <ArrivalPhotos />). Omit → page renders exactly as today. */
+  arrivalSlot?: React.ReactNode;
   /** Optional object-position override (e.g. "center 42%"). Defaults
    *  via pickObjectPosition() based on the heroImage filename. */
   heroObjectPosition?: string;
@@ -282,7 +287,7 @@ function Hero({ config }: { config: ServicePageConfig }) {
           loading="eager"
           fetchPriority="high"
           src={config.heroImage || HERO_IMAGE_DEFAULT}
-          alt={`${config.h1} at Nick's Tire & Auto Cleveland`}
+          alt={config.heroAlt ?? `${config.h1} at Nick's Tire & Auto Cleveland`}
           className="w-full h-full object-cover"
           objectPosition={config.heroObjectPosition || pickObjectPosition(config.heroImage)}
         />
@@ -617,6 +622,7 @@ function BookingSection({ config }: { config: ServicePageConfig }) {
           <p className="text-foreground/60 mt-2">
             {config.ctaSub || "Call, text, or just walk in — first come, first served, 7 days a week."}
           </p>
+          {config.arrivalSlot && <div className="mt-6 max-w-xl">{config.arrivalSlot}</div>}
         </FadeIn>
         <FadeIn delay={0.1}>
           <div className="mt-6 bg-card border border-border/30 rounded-lg p-6">
