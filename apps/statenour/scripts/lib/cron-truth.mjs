@@ -44,6 +44,26 @@ export function isFailureStatus(status) {
 }
 
 /**
+ * Fold `groupBy({ by: [jobName, status] })` rows into per-job `{ total, failures, last }`.
+ *
+ * `duplicate` (cron-lifecycle.ts CRON_STATUS.duplicate) is the same run knocking twice, relabelled
+ * by the reconcile sweep: neither a run nor a failure. Counted here, mega-fanout-evening read
+ * "20/50 failed" over 30d (2026-10-18) when its 30 runs were all `success`.
+ */
+export function tallyObserved(grouped) {
+  const observed = new Map();
+  for (const r of grouped) {
+    if (r.status === "duplicate") continue;
+    const e = observed.get(r.jobName) ?? { total: 0, failures: 0, last: null };
+    e.total += r._count._all;
+    if (isFailureStatus(r.status)) e.failures += r._count._all;
+    if (!e.last || r._max.createdAt > e.last) e.last = r._max.createdAt;
+    observed.set(r.jobName, e);
+  }
+  return observed;
+}
+
+/**
  * Classify one declared cron against what production shows.
  *
  * @param {{name: string, mode: string, inngest?: boolean, schedule?: string|null}} decl
