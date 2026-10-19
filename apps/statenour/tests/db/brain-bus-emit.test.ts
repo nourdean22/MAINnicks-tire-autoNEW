@@ -215,15 +215,15 @@ describe("emitAutonomousFired", () => {
 
   it("uses the engine's idempotencyKey directly as dedupeKey", async () => {
     await emitAutonomousFired({
-      ruleName: "drift_escalation",
+      ruleName: "daily_score_reminder",
       actionType: "send_telegram",
-      targetType: "drift",
+      targetType: "daily_score",
       targetId: null,
       result: "success",
-      idempotencyKey: "rule-drift-1234567",
+      idempotencyKey: "rule-daily-score-1234567",
     });
     const opts = publishMock.mock.calls[0][3];
-    expect(opts.dedupeKey).toBe("rule-drift-1234567");
+    expect(opts.dedupeKey).toBe("rule-daily-score-1234567");
   });
 
   it("topic and eventType encode the rule-level shape", async () => {

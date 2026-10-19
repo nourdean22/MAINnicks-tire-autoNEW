@@ -58,8 +58,6 @@ export async function executeNickAction(
 ): Promise<ExecutionResult> {
   try {
     switch (ctx.actionType) {
-      case "archive_mission":
-        return await execArchiveMission(ctx);
       case "nudge_task":
         return await execNudgeTask(ctx);
       case "commit_journal":
@@ -86,50 +84,6 @@ export async function executeNickAction(
       error: err instanceof Error ? err.message.slice(0, 200) : String(err),
     };
   }
-}
-
-// ── archive_mission ────────────────────────────────────────────────
-//
-// Mission state machine: ACTIVE → COMPLETE. Soft, reversible · the
-// operator can flip back via /missions if they decide otherwise.
-
-async function execArchiveMission(
-  ctx: ExecutionContext,
-): Promise<ExecutionResult> {
-  const m = await prisma.mission.findUnique({
-    where: { id: ctx.targetId },
-    select: { id: true, title: true, status: true, deletedAt: true },
-  });
-  if (!m) {
-    return {
-      ok: false,
-      summary: `mission ${ctx.targetId.slice(0, 8)} gone`,
-      error: "mission_not_found",
-    };
-  }
-  if (m.deletedAt) {
-    return {
-      ok: true,
-      summary: `${m.title.slice(0, 40)} already soft-deleted`,
-      meta: { idempotent: true },
-    };
-  }
-  if (m.status === "COMPLETE") {
-    return {
-      ok: true,
-      summary: `${m.title.slice(0, 40)} already COMPLETE`,
-      meta: { idempotent: true },
-    };
-  }
-  await prisma.mission.update({
-    where: { id: m.id },
-    data: { status: "COMPLETE", updatedBy: "nick" },
-  });
-  return {
-    ok: true,
-    summary: `archived mission · ${m.title.slice(0, 50)}`,
-    meta: { previousStatus: m.status },
-  };
 }
 
 // ── nudge_task ─────────────────────────────────────────────────────

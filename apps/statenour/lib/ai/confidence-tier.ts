@@ -51,8 +51,6 @@ import { getFlag } from "@/lib/feature-flags";
  *                   can undo from the normal UI; no destructive delete.
  *
  * Verified against `lib/ai/execute-actions.ts` (2026-06-03):
- *   · archive_mission — Mission ACTIVE→COMPLETE. Soft, internal,
- *     operator can flip back via /missions. Reversible. SAFE.
  *   · nudge_task      — Task DOING→READY + additive brain note.
  *     Internal, reversible status flip. SAFE.
  *   · reassign_task   — Task INBOX→WAITING + 7d snooze (auto-resurfaces).
@@ -68,7 +66,6 @@ import { getFlag } from "@/lib/feature-flags";
  *   · confirm_spend     — MONEY-class acknowledgement. Never auto.
  */
 export const SAFE_AUTO_ALLOWLIST = [
-  "archive_mission",
   "nudge_task",
   "reassign_task",
   "commit_journal",

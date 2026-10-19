@@ -1,5 +1,5 @@
 /**
- * Cooldown window and commitment-family suppression, against a stateful store.
+ * Cooldown window, against a stateful store.
  *
  * 1. WINDOW. The engine runs on an hourly tick. With a 24 h "row in the last
  *    24 h" cooldown, a once-a-day rule that reached its check a few seconds
@@ -7,14 +7,12 @@
  *    out of its ET window and missed a day. 20 h lets it fire in the same hour
  *    every day; it still cannot fire twice in one daily window.
  *
- * 2. FAMILY. The 6 h "one commitment-family message per commitment" check keyed
- *    on the `commitment_` NAME prefix, so overdue_commitment_escalation sat
- *    outside it and could fire on the same commitment as commitment_checkin in
- *    one run. It now keys on targetType "commitment".
+ * (2026-10-18: the commitment-family suppression and the three commitment rules it
+ * guarded were removed; nothing targets "commitment" now.)
  *
  * The fake AutonomousAction model below stores rows and evaluates the filters
  * the engine actually sends (equality, null, gte, startsWith, in), so the
- * cooldown and family reads see their own earlier writes.
+ * cooldown reads see their own earlier writes.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
@@ -39,7 +37,6 @@ function matches(row: Row, where: Record<string, unknown> | undefined): boolean 
 
 const s = vi.hoisted(() => ({
   rows: [] as Array<Record<string, unknown>>,
-  commitments: [] as Array<Record<string, unknown>>,
   /** Open task count: >= 8 makes task_overload_alert (no hour gate, no id) want to fire. */
   openTasks: 0,
   /** quotes_pending answer; null = bridge off. count >= 10 arms quote_conversion_insight (Sundays);
@@ -64,17 +61,20 @@ vi.mock("@/lib/prisma", () => ({
       }),
       groupBy: vi.fn(async () => []),
     },
-    commitment: { findMany: vi.fn(async () => s.commitments) },
+    commitment: { findMany: vi.fn(async () => []) },
+    // No chat message, completed task, Telegram ask or dump anywhere: the operator has
+    // not engaged today, so daily_score_reminder wants to fire inside 19-22 ET.
+    chatMessage: { findFirst: vi.fn(async () => null) },
+    agentTrace: { findFirst: vi.fn(async () => null) },
+    auditEvent: { findFirst: vi.fn(async () => null) },
     masteryDecision: { findMany: vi.fn(async () => []) },
     decisionReplay: { findMany: vi.fn(async () => []) },
     brainMemory: {
-      // Identity snapshot touched just now: daily_score / drift stay quiet.
       findUnique: vi.fn(async () => ({ updatedAt: new Date(), deletedAt: null })),
       findFirst: vi.fn(async () => ({ id: "snap" })),
       findMany: vi.fn(async () => []),
     },
     task: {
-      // No workout done today: workout_reminder wants to fire inside 15-17 ET.
       findFirst: vi.fn(async () => null),
       findMany: vi.fn(async () => []),
       count: vi.fn(async () => s.openTasks),
@@ -135,7 +135,6 @@ function firesPerEtDay(rule: string): Record<string, number> {
 beforeEach(() => {
   vi.useFakeTimers();
   s.rows.length = 0;
-  s.commitments.length = 0;
   s.openTasks = 0;
   s.quotes = null;
 });
@@ -144,19 +143,19 @@ afterEach(() => {
 });
 
 describe("cooldown window under an hourly tick", () => {
-  it("a rule that fired yesterday at 15:00:05 ET fires again today at 15:00:03 ET", async () => {
-    await tickAt("2026-10-07T19:00:05Z"); // Wed 15:00:05 EDT
-    expect(rowsFor("workout_reminder")).toHaveLength(1);
+  it("a rule that fired yesterday at 19:00:05 ET fires again today at 19:00:03 ET", async () => {
+    await tickAt("2026-10-07T23:00:05Z"); // Wed 19:00:05 EDT
+    expect(rowsFor("daily_score_reminder")).toHaveLength(1);
 
-    await tickAt("2026-10-08T19:00:03Z"); // Thu 15:00:03 EDT, two seconds "earlier"
-    expect(rowsFor("workout_reminder")).toHaveLength(2);
+    await tickAt("2026-10-08T23:00:03Z"); // Thu 19:00:03 EDT, two seconds "earlier"
+    expect(rowsFor("daily_score_reminder")).toHaveLength(2);
   });
 
   it("CONTROL: it does not fire twice within one day's window", async () => {
-    await tickAt("2026-10-08T19:00:03Z"); // Thu 15:00 EDT
-    await tickAt("2026-10-08T20:00:03Z"); // 16:00
-    await tickAt("2026-10-08T21:00:03Z"); // 17:00
-    expect(rowsFor("workout_reminder")).toHaveLength(1);
+    await tickAt("2026-10-08T23:00:03Z"); // Thu 19:00 EDT
+    await tickAt("2026-10-09T00:00:03Z"); // 20:00
+    await tickAt("2026-10-09T01:00:03Z"); // 21:00
+    expect(rowsFor("daily_score_reminder")).toHaveLength(1);
   });
 
   // 20 h alone let a rule whose window is longer than 20 h fire twice in one
@@ -218,7 +217,7 @@ describe("customer-facing rules keep business hours (08:00-20:00 ET), even under
 
   it("CONTROL: an hour-gated operator rule keeps its own hour", async () => {
     await tickHourly("2026-10-07T04:00:03Z", 24); // Wed 00:00 .. 23:00 EDT
-    expect(etHoursOf("workout_reminder")).toEqual([15]);
+    expect(etHoursOf("daily_score_reminder")).toEqual([19]);
   });
 
   it("CONTROL: the window is 08:00 inclusive to 20:00 exclusive, in ET, across DST", () => {
@@ -236,31 +235,5 @@ describe("customer-facing rules keep business hours (08:00-20:00 ET), even under
     expect(CUSTOMER_FACING_RULES).toContain("auto_followup_expired_quote");
     expect(CUSTOMER_FACING_RULES.filter((n) => !OUTWARD_RULES.includes(n)), "not in the pre-flight list").toEqual([]);
     expect(OUTWARD_RULES.filter((n) => !rules.includes(n)), "outward names with no rule").toEqual([]);
-  });
-});
-
-describe("commitment family · one message per commitment per 6 h", () => {
-  it("overdue_commitment_escalation and commitment_checkin cannot both fire for one commitment", async () => {
-    // 4 days old (check-in window) AND past its deadline (overdue).
-    s.commitments.push({
-      id: 7,
-      description: "call the supplier",
-      status: "active",
-      deadline: "2026-10-01",
-      createdAt: new Date("2026-10-06T07:00:00Z"),
-    });
-    await tickAt("2026-10-10T14:00:00Z"); // Sat 10:00 EDT
-    const family = s.rows.filter((r) => r.targetType === "commitment" && r.targetId === "7");
-    expect(family.map((r) => r.ruleName)).toHaveLength(1);
-  });
-
-  it("CONTROL: a different commitment is not suppressed by the first one's row", async () => {
-    s.commitments.push(
-      { id: 7, description: "a", status: "active", deadline: "2026-10-01", createdAt: new Date("2026-10-06T07:00:00Z") },
-      { id: 8, description: "b", status: "active", deadline: "2026-10-01", createdAt: new Date("2026-10-06T07:00:00Z") },
-    );
-    await tickAt("2026-10-10T14:00:00Z");
-    const targets = new Set(s.rows.filter((r) => r.targetType === "commitment").map((r) => r.targetId));
-    expect([...targets].sort()).toEqual(["7", "8"]);
   });
 });

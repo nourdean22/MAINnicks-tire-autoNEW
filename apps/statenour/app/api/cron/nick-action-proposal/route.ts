@@ -206,7 +206,6 @@ async function runProposerCore(today: string) {
 
 // ── Action-type → short label for Telegram readability ─────────────
 const LABELS: Record<string, string> = {
-  archive_mission: "Archive mission",
   nudge_task: "Nudge task",
   commit_journal: "Commit journal",
   send_sms_outreach: "Outreach",
