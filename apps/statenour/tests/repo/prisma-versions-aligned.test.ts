@@ -20,6 +20,8 @@ const read = (rel: string) => readFileSync(resolve(REPO_ROOT, rel), "utf8");
 
 const IMPORTER = "apps/statenour";
 const ADAPTER = "@prisma/adapter-neon";
+// Prisma 7 is a separate project: change this on purpose in that PR, so a coordinated 7.x bump cannot slip in as "aligned".
+const SUPPORTED_MAJOR = "6";
 
 interface Inputs {
   packageJson: string;
@@ -73,6 +75,9 @@ function problems(i: Inputs): string[] {
   if (new Set(Object.values(resolved)).size !== 1) {
     out.push(`resolved adapter-neon ${adapter.version}, client ${client.version}, prisma ${prisma.version} are not one major.minor`);
   }
+  if (major(client.version) !== SUPPORTED_MAJOR) {
+    out.push(`resolved client ${client.version} is not Prisma ${SUPPORTED_MAJOR}: this gate supports Prisma ${SUPPORTED_MAJOR} only, and Prisma 7 is a separate project`);
+  }
   if (majorMinor(declared) !== resolved.client) out.push(`package.json declares ${ADAPTER} ${declared}, but the client resolves ${client.version}`);
 
   for (const name of ["@prisma/client", "prisma"]) {
@@ -99,6 +104,15 @@ function withClient(i: Inputs, version: string): Inputs {
   return { ...i, lock: i.lock.replace(/(^ {6}'@prisma\/client':\n {8}specifier: [^\n]+\n {8}version: )[^(\n]+/m, `$1${version}`) };
 }
 
+function withPrisma(i: Inputs, version: string): Inputs {
+  return { ...i, lock: i.lock.replace(/(^ {6}prisma:\n {8}specifier: [^\n]+\n {8}version: )[^(\n]+/m, `$1${version}`) };
+}
+
+/** Seat the whole set at one known version, so a control never depends on the minor the repo holds today. */
+function reseat(i: Inputs, version: string): Inputs {
+  return withPrisma(withAdapter(withClient(i, version), version), version);
+}
+
 function withCatalog(i: Inputs, name: string, spec: string): Inputs {
   return { ...i, workspace: i.workspace.replace(new RegExp(`^( {2}"?${esc(name)}"?: *)"[^"]+"`, "m"), `$1"${spec}"`) };
 }
@@ -122,7 +136,7 @@ describe("@prisma/adapter-neon, @prisma/client and prisma share one major.minor"
   describe("CONTROL: planted drift in an in-memory copy of the real inputs is reported", () => {
     // Re-seat the real inputs on a known-good set first, so each mutant is judged from green whatever the
     // repo holds today. A mutation that changes nothing would fail this, instead of passing as "not red".
-    const base = withAdapter(withClient(real, "6.19.3"), "6.19.3");
+    const base = reseat(real, "6.19.3");
 
     it("the planted good set is green", () => {
       expect(importerDep(base.lock, ADAPTER)).toEqual({ specifier: "6.19.3", version: "6.19.3" });
@@ -168,6 +182,19 @@ describe("@prisma/adapter-neon, @prisma/client and prisma share one major.minor"
     it("a second adapter-neon version left in the lockfile is red", () => {
       const extra = `${base.lock}\n  '${ADAPTER}@7.8.0':\n    resolution: {integrity: sha512-x}\n`;
       expect(problems({ ...base, lock: extra }).join("\n")).toMatch(/also carries @prisma\/adapter-neon@7\.8\.0/);
+    });
+
+    it("a coordinated move of all three to 6.20.0 stays green, and the baseline re-seats from it", () => {
+      const moved = withPrisma(withClient(withAdapter(real, "6.20.0"), "6.20.0"), "6.20.0");
+      expect(problems(moved)).toEqual([]);
+      expect(problems(reseat(moved, "6.19.3"))).toEqual([]);
+    });
+
+    it("a coordinated move of adapter, client, prisma and both catalog entries to 7.x is red", () => {
+      let seven = withPrisma(withClient(withAdapter(base, "7.8.0"), "7.8.0"), "7.8.0");
+      seven = withCatalog(withCatalog(seven, "@prisma/client", "^7.0.0"), "prisma", "^7.0.0");
+      expect(importerDep(seven.lock, "prisma")?.version).toBe("7.8.0");
+      expect(problems(seven).join("\n")).toMatch(/supports Prisma 6 only/);
     });
 
     it("an unreadable lockfile is reported, never read as green", () => {
