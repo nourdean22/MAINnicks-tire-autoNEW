@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "nickstire/site-real-photos",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "c1ba4fa4-064b-4d4c-9ddc-5ec49e487dd7",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire",
   "claimedBy": "2026-10-18-shop-media-library W8",
   "claimedAt": "2026-10-19T12:08:59.627Z",
   "expiresAt": "2026-10-20T00:08:59.627Z",
-  "releasedAt": null,
+  "releasedAt": "2026-10-19T19:44:30.216Z",
   "releaseReason": null,
-  "priorLeaseSha": null
+  "priorLeaseSha": "c5056a3af5beff67e8196bdc411fa10c6f4b123b",
+  "releasedBy": "c1ba4fa4-064b-4d4c-9ddc-5ec49e487dd7",
+  "foreignReleaseReason": null
 }
