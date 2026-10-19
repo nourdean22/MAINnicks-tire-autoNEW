@@ -11,6 +11,7 @@ import { useReviewStats } from "@/hooks/useReviewStats";
 import { BUSINESS } from "@shared/business";
 import { BRAKE_PRICE } from "@shared/pricing";
 import { BRAKES_PHOTOS } from "@/components/PhotoRibbon";
+import { phoneSrcSet } from "@/lib/photoSrcSet";
 import { Disc, Activity, Wrench } from "lucide-react";
 import { Link } from "wouter";
 
@@ -24,12 +25,15 @@ import { Link } from "wouter";
 const PADS_FROM = `From $${BRAKE_PRICE.padsStarting}`;
 const PADS_ROTORS_FROM = `From $${BRAKE_PRICE.padsAndRotorsStarting.toFixed(2)}`;
 
+const HERO = "/photos/worn-brake-rotor-and-pads.webp";
+
 const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServicePageConfig => ({
   canonicalPath: "/brakes",
-  // 2026-05-06 wave-16 · pro photo pack: under-car brake repair action
-  // per PLACEMENT_GUIDE.md "Brakes page" row — brakes are safety-driven,
-  // the under-car scene reads serious + mechanical
-  heroImage: "/photos/undercar-brake-repair-action.webp",
+  // 2026-10-19 · real shop photo (shop-media job): the worn rotor and pads
+  // a customer is shown before any quote, replacing the photo-pack scene.
+  heroImage: HERO,
+  heroMobileSrcSet: phoneSrcSet(HERO),
+  heroAlt: "A worn brake rotor and pads taken off a car at Nick's Tire & Auto",
   title: "Brake Repair Euclid & Cleveland · Nick's Tire & Auto",
   description: "Brake repair in Euclid & Cleveland. Free inspections, pads & rotors, squeaking/grinding fixes. You don't pay until you say yes. Open 7 days. (216) 862-0005",
   eyebrow: "BRAKE REPAIR CLEVELAND · BRING YOUR EARS",

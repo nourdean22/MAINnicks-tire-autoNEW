@@ -16,6 +16,7 @@ import { Link } from "wouter";
 import { GBP_REVIEW_URL } from "@shared/const";
 import FadeIn from "@/components/FadeIn";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
+import ArrivalPhotos from "@/components/ArrivalPhotos";
 // Still used for the VISIBLE rating/count in the page copy. Live numbers are
 // fine to show a human; what was wrong was asserting them in JSON-LD on a page
 // with no reviews rendered (see the note below).
@@ -173,6 +174,7 @@ export default function Contact() {
                     <p className="text-foreground/75 text-sm leading-relaxed">
                       Located directly on <strong>Euclid Ave</strong>, we're just minutes off the <strong>I-90 exit (Exit 182C for East 185th St/Euclid Ave)</strong> or <strong>Route 2</strong>. Our shop is situated near the major intersection of <strong>Euclid Ave & London Rd</strong>. Look for our signature yellow sign and tire racks right by the road!
                     </p>
+                    <ArrivalPhotos className="mt-4" />
                   </div>
 
                   {/* Hours */}
