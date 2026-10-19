@@ -1,4 +1,5 @@
 import { scoreVapiQuality } from "./vapiMeasurement";
+import type { WalkInCoverage } from "./vapiWalkInCoverage";
 
 import {
   extractCustomerTurns,
@@ -72,6 +73,12 @@ export interface ClassificationInput {
    * transcript-formatting change can misattribute a speaker in this shape.
    */
   messages?: unknown;
+  /**
+   * What the AGENT did (assistant speech, from `vapiWalkInCoverage.ts`). Feeds the quality
+   * score only: `walkInInvited === true` fills the next-step credit. It never touches
+   * `outcome`, `inferredWalkIn` or queue membership. Absent or UNMEASURED gives no credit.
+   */
+  walkInCoverage?: WalkInCoverage;
 }
 
 /**
@@ -310,6 +317,7 @@ export function classifyCall(input: ClassificationInput): ClassificationResult {
     greeted: input.durationSeconds > 0,
     intentIdentified: intents.length > 0 || outcome === "resolved_info",
     usefulNextStep,
+    agentWalkInInvitation: input.walkInCoverage?.walkInInvited === true,
     escalationAppropriate: outcome === "human_handoff" || input.callbackId != null,
     successEvaluation: input.successEvaluation,
     sentiment: input.sentiment,

@@ -117,6 +117,22 @@ detailed in `docs/CURRENT-TRUTH.md`:
   retail only, wholesale never leaves the server. Live sections self-suppress
   when the feed is cold (canon floors render, never an empty table).
 
+## 2026-10-19 - Call score vapi-quality-v2: an agent walk-in invitation counts as the next step (job 2026-10-18-vapi-quality-v2)
+
+- **LIVE once this deploys:** `vapi-quality-v2` scores every call the daily `vapi-call-eval` job evaluates. An explicit walk-in
+  invitation by the agent (assistant speech only, from `server/services/vapiWalkInCoverage.ts`) fills the +20 next-step credit
+  once, when nothing else already earned it. `eval_reasoning` carries `quality_version=vapi-quality-v2` on rows scored after the
+  deploy. Historical rows are NOT re-scored and stay `vapi-quality-v1`.
+- **Degraded alert, BUILT + WIRED:** the baseline compares same-version rows only. It reads only calls older than the 5-day lookback
+  and needs at least 20 rows, so the degraded test is OFF for about 5 days after deploy. The other alert conditions are unchanged.
+- Scores run about 4 points higher (an estimate: the manager's calibration over 600 archived calls).
+- `revenueOps` `quality.version` now reports `vapi-quality-v1`, `vapi-quality-v2` or `mixed`. The classification backfill script
+  (`scripts/maintenance/backfill-vapi-classification.ts`) passes the walk-in coverage.
+- **Evidence:** the manager ran the baseline query read-only on TiDB on 2026-10-19. Without the version filter the 30-day window
+  (5 to 30 days old) holds 800 scored calls, average 77.3, all labelled v1; with the v2 filter the count is 0 and the average null;
+  the same query with the v1 pattern returns 800 / 77.3 (positive control).
+- **Not yet observed:** a scored row labelled v2, the first alert run on v2, the degraded test turning on.
+
 ## 2026-10-19 - revenue_reconciliation_candidates retention: the count is live after deploy, the delete is OFF (#3163)
 
 - **Why:** `revenue_reconciliation_candidates` is derived. The 2-hour reconciliation run re-inserts one row per call in its 21-day

@@ -411,11 +411,12 @@ describe("consumer end: the cron writes the suffix and the measured gate is the 
   const cron = readFileSync(new URL("../cron/jobs/vapiCallEval.ts", import.meta.url), "utf8");
 
   it("evalReasoning for an inbound call goes through appendWalkInSuffix", () => {
-    expect(cron).toContain("evalReasoning: appendWalkInSuffix(result.reasoning, walkIn)");
+    expect(cron).toContain("evalReasoning: appendWalkInSuffix(result.reasoning, result.score == null ? UNMEASURED_WALK_IN : walkIn)");
   });
 
   it("a call with no quality score (not a customer conversation, or a tech failure) stays UNMEASURED", () => {
-    expect(cron).toContain("result.score == null ? UNMEASURED_WALK_IN : detectWalkInForDetail(detail)");
+    expect(cron).toContain("result.score == null ? UNMEASURED_WALK_IN : walkIn");
+    expect(cron).toContain("const walkIn = detectWalkInForDetail(detail);");
   });
 
   it("the admin call list returns the parsed fields next to evalReasoning, so the reader has a caller", () => {
@@ -423,8 +424,9 @@ describe("consumer end: the cron writes the suffix and the measured gate is the 
     expect(router).toContain("walkIn: parseWalkInSuffix(r.evalReasoning)");
   });
 
-  it("the quality score itself is not touched by the new fields", () => {
+  it("vapi-quality-v2: the score moves only through classifyCall's walkInCoverage, never by a write-time patch", () => {
     expect(cron).toContain("evalScore: result.score,");
     expect(cron).not.toMatch(/evalScore:[^\n]*walkIn/);
+    expect(cron).toContain("walkInCoverage: walkIn,");
   });
 });

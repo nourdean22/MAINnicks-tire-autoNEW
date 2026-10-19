@@ -6,6 +6,11 @@
 
 ## Changelog
 
+- **Scorer `vapi-quality-v2` (2026-10-18)** · Nour approved walk-in credit in the call score. An explicit
+  walk-in invitation by the agent now fills the existing +20 next-step credit when nothing else already did;
+  it is never added twice. Address and hours stay measured fields and do not move the score. The daily
+  "degraded" alert compares only rows scored with the same version. No other weight changed, and outcomes,
+  dispositions and the recovery queue are unchanged. Rubric tables below are unchanged.
 - **v1.1 (2026-10-18)** · Conversion progression now credits a walk-in invitation that carries the shop's
   address and hours, because the shop is first come, first served with walk-ins and no held slots, so booking
   is not the only next step the shop can honour. The 20/15/10/5/0 ladder is copied from v1.0, not re-tuned.
@@ -16,9 +21,29 @@
 ## Implementation status (read this before trusting a table)
 
 The five-dimension tables below are the **target design**. The daily cron does not score them. It runs the
-deterministic classifier (`services/vapiCallClassifier.ts`) and the additive `vapi-quality-v1` scorer
+deterministic classifier (`services/vapiCallClassifier.ts`) and the additive `vapi-quality-v2` scorer
 (`services/vapiMeasurement.ts`), and writes `eval_score` from those. What v1.1 adds in code is the walk-in
-measurement only: `services/vapiWalkInCoverage.ts`, which does not change `eval_score`.
+measurement: `services/vapiWalkInCoverage.ts`.
+
+**Walk-in credit in the score (`vapi-quality-v2`, 2026-10-18).** The cron computes the walk-in fields once,
+before scoring. When the agent explicitly invited the caller in (`walk_in=true`), the scorer's one next-step
+credit (+20) applies if nothing else already earned it (a lead, callback or booking row, a tool call, a
+transfer, the caller's own walk-in or callback words, or an answered hours question). The evidence list then
+says `agent_walk_in_invitation`. `walk_in=false` and UNMEASURED give no credit and no penalty; `addr_hours`
+does not affect the score. The additive scorer has one next-step bucket, so the 15/10/5 bands and the
+"WITH the shop's address and hours" condition on the 20 band below stay target design: the agent almost never
+says the address or hours, and a credit that required them would never fire.
+
+- Calibration (2026-10-18, read-only, counts only, 600 archived calls): about three calls in ten carry an
+  agent invitation; about 130 of those had no other next step, so the average score of scored calls rises by
+  roughly 4 points. Nour accepted that move.
+- The daily "degraded" alert compares today's average only with rows whose `eval_reasoning` carries the same
+  `quality_version`. Historical rows are not re-scored, and the baseline only reads calls older than the
+  5-day evaluation window, so the degraded test stays off until 20 such calls carry `vapi-quality-v2` (about
+  the first five days after deploy at roughly 30 scored calls a day); the other alert conditions are unchanged.
+- The admin voice scorecard averages the window it is asked for; its `quality.version` reports the one version
+  behind that average, or `mixed` when the window spans the change.
+- Detector accuracy limits (below) are unchanged and now reach the score.
 
 **Limit.** The evaluator classifies from the provider's top-level transcript only. A call whose speech exists
 only in the artifact would read as abandoned, score null, and stay UNMEASURED for the walk-in fields. Measured
@@ -124,7 +149,8 @@ multi-dimensional rubric. Three benefits:
 
 The 20/15/10/5/0 ladder is copied from v1.0. Only the walk-in clauses are new; no band was re-tuned. A walk-in
 invitation must not promise a wait time, a held slot or a service time (see Compliance below). The address and
-hours are read from `shared/business.ts`, never copied into a prompt or this table.
+hours are read from `shared/business.ts`, never copied into a prompt or this table. In code, `vapi-quality-v2`
+follows the invitation alone (see Implementation status); these bands stay target design.
 
 <details>
 <summary>Conversion progression, v1.0 (2026-05-26), kept for history</summary>
@@ -182,9 +208,10 @@ race condition?").
 
 Corrected in v1.1. v1.0 said the cron passed this rubric and the transcript to an LLM and computed the total
 from five returned dimensions. The code does not do that. `vapiCallEval.ts` loads each unevaluated call, runs the
-deterministic `classifyCall` and `scoreVapiQuality` (`vapi-quality-v1`), and writes `eval_score`,
-`eval_outcome` and `eval_reasoning` from them, then appends the walk-in suffix described above. Scoring by
-the five dimensions remains a design target, not behaviour.
+walk-in detector once, then the deterministic `classifyCall` and `scoreVapiQuality` (`vapi-quality-v2`, with
+the walk-in invitation as an input), and writes `eval_score`, `eval_outcome` and `eval_reasoning` from them,
+then appends the walk-in suffix described above (the same value the score used). Scoring by the five
+dimensions remains a design target, not behaviour.
 
 ## Future extensions
 
