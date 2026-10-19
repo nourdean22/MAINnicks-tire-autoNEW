@@ -33,13 +33,13 @@
     },
     {
       "file": "server/routers/customers.ts",
-      "count": 3,
+      "count": 1,
       "effect": "staff-today",
       "reason": "Admin customer views. intelligence: 'at-risk whales' daysSince = DATEDIFF(NOW(), lastVisitDate) reads one day high between 8 PM ET (7 PM in winter) and midnight, and new-customers-this-month (createdAt >= DATE_FORMAT(CURDATE(), '%Y-%m-01')) counts from 8 PM ET on the previous month's last day and flips after 8 PM ET on a month's last day. campaignStats: the 6-8-day 'eligible for follow-up' count (DATEDIFF(CURDATE(), lastVisitDate)) shifts one day between 8 PM ET and midnight; the sender itself is not in this file."
     },
     {
       "file": "server/routers/intelligence.ts",
-      "count": 2,
+      "count": 1,
       "effect": "staff-today",
       "reason": "Admin intelligence. nextBestActions lists cold VIPs with daysSince = DATEDIFF(NOW(), lastVisitDate), one day high between 8 PM ET (7 PM in winter) and midnight. shopLoad's todayBookings counts bookings created since 8 PM ET the evening before, all day, and restarts at 0 after 8 PM ET."
     },
@@ -108,12 +108,6 @@
       "count": 8,
       "effect": "staff-today",
       "reason": "Owner Telegram safety check, every 2 h at all hours. Today's revenue and today's unusual transactions are UTC-day sums (invoiceDate >= CURDATE()): all day they include last evening after 8 PM ET (7 PM in winter), and a run between 8 PM ET and midnight sees about $0, so with safety_monitor_enabled on it warns 'Daily revenue at 0% of 30-day avg' (the noon guard does not stop it). The daily-average divisor DATEDIFF(NOW(), MIN(invoiceDate)) and the 30- and 90-day windows are UTC days, off by one day at most."
-    },
-    {
-      "file": "server/services/shopStatus.ts",
-      "count": 2,
-      "effect": "rolling-window",
-      "reason": "getLineOfCarsToday()'s 7-day booking average for the trend arrow: createdAt in [CURDATE() - 7, CURDATE()), the 7 UTC days ending at 8 PM ET (7 PM in winter) last night, a drift of hours on a 7-day average. Served by the public getLineOfCars endpoint, which no client calls today; its 'today' counts already use the ET date."
     },
     {
       "file": "server/services/weatherIntelligence.ts",
