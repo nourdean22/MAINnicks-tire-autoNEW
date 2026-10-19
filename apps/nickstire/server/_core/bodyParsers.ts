@@ -9,7 +9,7 @@
  */
 import express, { type Express, type Request } from "express";
 
-export const PHOTO_UPLOAD_ROUTES = [
+const PHOTO_UPLOAD_ROUTES = [
   "/api/trpc/booking.uploadPhoto",
   "/api/trpc/instagramStudio.uploadEvidencePhoto",
 ] as const;

@@ -8,7 +8,10 @@ import type { AddressInfo } from "node:net";
 import path from "node:path";
 import express from "express";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { PHOTO_UPLOAD_ROUTES, registerBodyParsers } from "./bodyParsers";
+import { registerBodyParsers } from "./bodyParsers";
+
+// The routes whose clients send base64 photos (booking photo, Studio and Photo Check upload).
+const PHOTO_UPLOAD_ROUTES = ["/api/trpc/booking.uploadPhoto", "/api/trpc/instagramStudio.uploadEvidencePhoto"] as const;
 
 let base = "";
 let server: ReturnType<ReturnType<typeof express>["listen"]>;
