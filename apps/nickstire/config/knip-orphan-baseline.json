@@ -6385,6 +6385,31 @@
       "file": "apps/nickstire/server/routers/tireQuote.ts",
       "symbol": "_resetQuoteClaimsForTest",
       "reason": "test seam: the five-minute quote claim map is module state and the serial suite shares one process, so tireQuote.test.ts clears it between cases. No production caller by design (same as sendPause._resetSendPauseCacheForTest)."
+    },
+    {
+      "file": "apps/nickstire/server/services/revenueReconciliationRetention.ts",
+      "symbol": "RECON_CANDIDATES_TABLE",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Default table name of the retention SQL builders; runtime consumer is reconCandidatesRetention in this module (it reaches the table through buildReportSql and buildDeleteSupersededSql). revenueReconciliationRetention.test.ts pins that the default is revenue_reconciliation_candidates. Exported so the real-engine check can compare it with the name it must refuse to run against; the builders take the table name as a parameter so the SQL can be run on a TEMPORARY table against TiDB before the revenue_recon_retention flag is enabled. Tests are excluded from knip project globs by design, which is why a test-only importer reads as an orphan. Added 2026-10-19 (job 2026-10-18-recon-candidates-retention)."
+    },
+    {
+      "file": "apps/nickstire/server/services/revenueReconciliationRetention.ts",
+      "symbol": "MAX_DELETE_STATEMENTS_PER_RUN",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Per-run cap of 200 single-call DELETE statements; runtime consumer is the delete loop in reconCandidatesRetention in this module. revenueReconciliationRetention.test.ts pins the value and drives 250 duplicate calls to prove exactly 200 DELETEs are issued, largest groups first (mutation-proven: removing the cap turns it red). Exported so the cap is asserted, not restated, in the test and in the real-engine check. Tests are excluded from knip project globs by design, which is why a test-only importer reads as an orphan. Added 2026-10-19 (job 2026-10-18-recon-candidates-retention)."
+    },
+    {
+      "file": "apps/nickstire/server/services/revenueReconciliationRetention.ts",
+      "symbol": "MAX_DELETE_MS_PER_RUN",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Per-run time cap of 60 seconds for the delete loop; runtime consumer is reconCandidatesRetention in this module. revenueReconciliationRetention.test.ts pins the value and drives an injected clock to prove the loop stops issuing DELETEs once the budget is spent (mutation-proven: removing the time check turns it red). Exported so the cap is asserted, not restated, in the test. Tests are excluded from knip project globs by design, which is why a test-only importer reads as an orphan. Added 2026-10-19 (job 2026-10-18-recon-candidates-retention)."
+    },
+    {
+      "file": "apps/nickstire/server/services/revenueReconciliationRetention.ts",
+      "symbol": "buildReportSql",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Pure builder of the one grouped read (call_id, COUNT, newest created_at as epoch seconds, no text column); runtime consumer is reconCandidatesRetention in this module. revenueReconciliationRetention.test.ts pins the exact SELECT list (no evidence_json, no star projection; mutation-proven by adding evidence_json) and the drizzle rendering of its text and params. It takes the table name as a parameter and is exported so the SQL can be run on a TEMPORARY table against TiDB before the revenue_recon_retention flag is enabled. Tests are excluded from knip project globs by design, which is why a test-only importer reads as an orphan. Added 2026-10-19 (job 2026-10-18-recon-candidates-retention)."
+    },
+    {
+      "file": "apps/nickstire/server/services/revenueReconciliationRetention.ts",
+      "symbol": "buildDeleteSupersededSql",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Pure builder of the single-table per-call DELETE bounded by UNIX_TIMESTAMP(created_at) < that call's newest time; runtime consumer is the delete loop in reconCandidatesRetention in this module. revenueReconciliationRetention.test.ts pins the exact SQL text and params, and runs the statements against an in-memory table that reads the text so the newest row and ties survive (mutation-proven: dropping the bound and widening < to <= both turn it red). It takes the table name as a parameter and is exported so the SQL can be run on a TEMPORARY table against TiDB before the revenue_recon_retention flag is enabled. Tests are excluded from knip project globs by design, which is why a test-only importer reads as an orphan. Added 2026-10-19 (job 2026-10-18-recon-candidates-retention)."
     }
   ]
 }
