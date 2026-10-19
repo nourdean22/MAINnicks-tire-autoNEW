@@ -63,19 +63,13 @@ export const NAV: NavEntry[] = [
   // ── EXECUTE ──
 
   // ── REFLECT ──
-  // 2026-09-07 (program §5.11) · the More-sheet listed 4 of Brain's 9 tabs.
-  // Order and labels mirror app/(mastery)/brain/page.tsx; pinned by
-  // tests/repo/brain-nav-tabs.test.ts so the two cannot drift apart again.
+  // 2026-10-19 (wave 2V) · Brain is three tabs. Order and labels mirror
+  // app/(mastery)/brain/page.tsx; pinned by tests/repo/brain-nav-tabs.test.ts
+  // so the two cannot drift apart.
   { href: "/brain", label: "Brain", icon: Brain, section: "reflect",
     tabs: [
-      { key: "graph", label: "Map" },
-      { key: "discover", label: "Discover" },
-      { key: "review", label: "Review" },
       { key: "memory", label: "Memory" },
-      { key: "wisdom", label: "Wisdom" },
-      { key: "board", label: "Board" },
-      { key: "reason", label: "Reason" },
-      { key: "continuity", label: "Changed" },
+      { key: "review", label: "Review" },
       { key: "health", label: "Health" },
     ] },
   { href: "/people", label: "People", icon: Users, section: "reflect", flatRow: true },

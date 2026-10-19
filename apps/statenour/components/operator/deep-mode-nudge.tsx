@@ -6,7 +6,7 @@
  * Non-invasive global hint. Watches the currently-focused textarea /
  * input on the page. When its value matches the reasoning classifier
  * at tier ≥ deep, surfaces a tiny floating chip near the input
- * that one-taps the operator into /reason pre-filled.
+ * that one-taps the operator into Chat pre-filled.
  *
  * Lives in the (mastery) layout so it monitors every page that
  * inherits the layout (chat, tasks, journal, etc). Self-hides when
@@ -131,18 +131,14 @@ export function DeepModeNudge() {
     <button
       type="button"
       onClick={() => {
-        // Handoff via sessionStorage keeps the typed text out of the URL (audit 02-F6).
-        try {
-          sessionStorage.setItem("reason:pending-q", verdict.text);
-          router.push("/brain?tab=reason&h=1");
-        } catch {
-          router.push(`/brain?tab=reason&q=${encodeURIComponent(verdict.text)}`);
-        }
+        // 2026-10-19 · the Reason tab is gone (wave 2V). Chat prefills ?q= and never auto-sends
+        // (features/chat-v2/hooks/use-chat-deep-link-prefill.ts), so the tap costs nothing until a send.
+        router.push(`/chat?q=${encodeURIComponent(verdict.text)}`);
       }}
       // Docked above the measured bottom chrome (bottom-4 sat under the z-[55] tab bar) and, on
       // md+, left of the NICK FAB lane, which shares this height (audit 09-F27).
       className="fixed bottom-[calc(var(--bottom-chrome-h)+0.5rem)] right-4 md:right-[calc(var(--nick-fab-lane,0px)_+_1rem)] xl:right-[calc(var(--nick-fab-lane,0px)_+_var(--inspector-lane,0px)_+_1rem)] z-50 inline-flex items-center gap-2 px-3 py-2 ui-material rounded-full border border-edge-default text-fg text-[13px] font-medium shadow-l1 transition-colors duration-[var(--motion-state)] hover:border-edge-strong"
-      title={`Classifier sees this as ${verdict.tier}-tier. Click to send to Nick's reasoning engine.`}
+      title={`Classifier sees this as ${verdict.tier}-tier. Click to open it in Chat.`}
     >
       <span
         aria-hidden

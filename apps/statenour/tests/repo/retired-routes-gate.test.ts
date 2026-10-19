@@ -266,3 +266,75 @@ describe("pruned routes (2026-10-18) · gone, redirected, and linked from nowher
     expect(scanTexts(files, API_ROWS)).toEqual([]);
   });
 });
+
+/**
+ * 2026-10-19 · wave 2V: Brain went from nine tabs to three (Memory, Review, Health), Nour's cut. Each retired
+ * `?tab=` key redirects to the tab that received its content (Wisdom -> Memory, Discover -> Review, Changed ->
+ * Health) or, for the three dropped surfaces (Map, Board, Reason), to Memory.
+ */
+export const BRAIN_TAB_REDIRECTS: ReadonlyArray<{ key: string; to: string }> = [
+  { key: "graph", to: "/brain?tab=memory" },
+  { key: "discover", to: "/brain?tab=review" },
+  { key: "wisdom", to: "/brain?tab=memory" },
+  { key: "board", to: "/brain?tab=memory" },
+  { key: "reason", to: "/brain?tab=memory" },
+  { key: "continuity", to: "/brain?tab=health" },
+];
+const LIVE_BRAIN_TABS = ["memory", "review", "health"];
+
+describe("Brain retired tabs (2026-10-19) · every old ?tab= key redirects, nothing links to one", () => {
+  it("each retired key has exactly one non-permanent has-query redirect from /brain to its new tab", async () => {
+    const redirects = await nextConfig.redirects!();
+    const problems: string[] = [];
+    for (const { key, to } of BRAIN_TAB_REDIRECTS) {
+      const hits = redirects.filter(
+        (r) => r.source === "/brain" && (r.has ?? []).some((h) => h.type === "query" && h.key === "tab" && h.value === key),
+      );
+      if (hits.length !== 1) problems.push(`tab=${key}: expected 1 redirect, found ${hits.length}`);
+      else if (hits[0].destination !== to) problems.push(`tab=${key}: goes to ${hits[0].destination}, expected ${to}`);
+      else if (hits[0].permanent !== false) problems.push(`tab=${key}: redirect must be non-permanent`);
+    }
+    expect(problems).toEqual([]);
+  });
+
+  it("no redirect rule lands on a retired Brain tab (the old /reason and /brain/board hops)", async () => {
+    const redirects = await nextConfig.redirects!();
+    const retired = new Set(BRAIN_TAB_REDIRECTS.map((b) => b.key));
+    const stale = redirects
+      .filter((r) => r.destination.startsWith("/brain"))
+      .filter((r) => retired.has(new URL(r.destination, "https://bdnick.info").searchParams.get("tab") ?? ""))
+      .map((r) => `${r.source} → ${r.destination}`);
+    expect(stale).toEqual([]);
+  });
+
+  it("the destination's own tab beats the incoming one (Next's own query merge, so a redirect cannot loop on the old key)", async () => {
+    const { prepareDestination } = await import("next/dist/shared/lib/router/utils/prepare-destination");
+    const out = prepareDestination({
+      appendParamsToQuery: true,
+      destination: "/brain?tab=memory",
+      params: {},
+      query: { tab: "wisdom", focus: "w1" },
+    });
+    expect(out.parsedDestination.query).toEqual({ tab: "memory", focus: "w1" });
+  });
+
+  it("Brain declares exactly the live tabs", () => {
+    const page = readFileSync(join(APP_ROOT, "app", "(mastery)", "brain", "page.tsx"), "utf8");
+    const start = page.indexOf("<PageTabs");
+    const keys = [...page.slice(start, page.indexOf("]}", start)).matchAll(/key:\s*"([a-z_-]+)"/g)].map((m) => m[1]);
+    expect(keys).toEqual(LIVE_BRAIN_TABS);
+  });
+
+  it("no source file links to a retired Brain tab (positive control: a planted link is flagged)", () => {
+    const re = new RegExp(`/brain\\?tab=(?:${BRAIN_TAB_REDIRECTS.map((b) => b.key).join("|")})\\b`);
+    const scan = (files: ReadonlyArray<{ path: string; text: string }>) =>
+      files
+        .filter((f) => f.text.split(/\r?\n/).some((l) => !/^\s*(\/\/|\*|\/\*|\{\/\*)/.test(l) && re.test(l)))
+        .map((f) => f.path);
+    expect(scan([{ path: "p.ts", text: 'router.push("/brain?tab=wisdom&focus=1");' }])).toEqual(["p.ts"]);
+    expect(scan([{ path: "q.ts", text: '// was /brain?tab=wisdom\nrouter.push("/brain?tab=memory&focus=1");' }])).toEqual([]);
+    const files = readFiles(SCAN_DIRS, SOURCE_SCAN_EXEMPT);
+    expect(files.length).toBeGreaterThan(500);
+    expect(scan(files)).toEqual([]);
+  });
+});

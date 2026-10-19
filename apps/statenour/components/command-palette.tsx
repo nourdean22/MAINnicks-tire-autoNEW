@@ -331,7 +331,7 @@ export function CommandPalette() {
       // High-value anchors that are deeper than a tab.
       { id: "nav-brain-anti-patterns", label: "Brain · Anti-patterns", group: "Navigate", icon: <BrainIcon className="size-4" />, action: () => navigate("/brain?tab=memory#anti-patterns"), keywords: ["anti-pattern", "lesson", "failure", "revisit"] },
       { id: "nav-brain-recall-preview", label: "Brain · Recall Preview", group: "Navigate", icon: <BrainIcon className="size-4" />, action: () => navigate("/brain?tab=memory#recall-preview"), keywords: ["recall", "memory", "prompt", "context", "retrieval"] },
-      { id: "nav-brain-time-travel", label: "Brain · Time Travel", group: "Navigate", icon: <HistoryIcon className="size-4" />, action: () => navigate("/brain?tab=continuity#time-travel"), keywords: ["time travel", "history", "day", "snapshot", "memory"] },
+      { id: "nav-brain-time-travel", label: "Brain · Time Travel", group: "Navigate", icon: <HistoryIcon className="size-4" />, action: () => navigate("/brain?tab=health#time-travel"), keywords: ["time travel", "history", "day", "snapshot", "memory"] },
 
       // ═══ SYSTEM, built from the hub list (UI v3 W5a, 2026-10-18). Every
       // /system hub tile is one row here unless a Navigate row already reaches

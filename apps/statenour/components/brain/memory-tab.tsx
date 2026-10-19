@@ -64,6 +64,7 @@ import { AntiPatternsPanel } from "@/components/brain/anti-patterns-panel";
 import { useIdleWarmup } from "@/hooks/use-idle-warmup";
 import { onDataChanged } from "@/lib/events/data-change";
 import { NickSuggestions } from "@/components/chat/nick-suggestions";
+import { WisdomTab } from "@/components/brain/wisdom-tab";
 
 export function MemoryTab() {
   const params = useSearchParams();
@@ -228,7 +229,14 @@ export function MemoryTab() {
           </div>
         </section>
 
-        {/* ZONE 5 · TELEMETRY · ops view into how tools + suggestions
+        {/* ZONE 5 · WISDOM · the former Wisdom tab (2026-10-19, wave 2V). It owns its own
+            ?focus= and ?evolution=1 handling, so /brain?tab=memory&focus=<key> still scrolls to a card. */}
+        <section className="space-y-3 pt-2">
+          <MasterySectionLabel label="Wisdom" />
+          <WisdomTab />
+        </section>
+
+        {/* ZONE 6 · TELEMETRY · ops view into how tools + suggestions
             are firing. Useful when debugging brain behavior · low
             priority for daily reflection. */}
         <section className="space-y-3 pt-2">

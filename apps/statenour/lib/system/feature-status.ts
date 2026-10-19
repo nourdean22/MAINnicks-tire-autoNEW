@@ -123,7 +123,7 @@ export const FEATURE_REGISTRY: FeatureMeta[] = [
   },
   {
     name: "Time-travel snapshot UI",
-    endpoint: "/brain?tab=continuity#time-travel (consumes /api/brain/time-travel)",
+    endpoint: "/brain?tab=health#time-travel (consumes /api/brain/time-travel)",
     status: "LIVE",
     notes: "2026-10-01 · folded into Brain → Changed. Pick a date to reconstruct the ET-day counts, memory categories, health frame, decisions, reflections, and brain dumps.",
   },

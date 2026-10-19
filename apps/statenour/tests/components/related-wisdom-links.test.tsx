@@ -132,12 +132,12 @@ describe("relatedEmptyMessage · an unembedded row is not an isolated row", () =
 describe("wisdomFocusHref · the deep link the header promises", () => {
   it("targets the wisdom tab's focus param", () => {
     expect(wisdomFocusHref("wisdom_greene_law_1")).toBe(
-      "/brain?tab=wisdom&focus=wisdom_greene_law_1",
+      "/brain?tab=memory&focus=wisdom_greene_law_1",
     );
   });
 
   it("encodes a key that would otherwise break the query string", () => {
-    expect(wisdomFocusHref("a&b=c d")).toBe("/brain?tab=wisdom&focus=a%26b%3Dc%20d");
+    expect(wisdomFocusHref("a&b=c d")).toBe("/brain?tab=memory&focus=a%26b%3Dc%20d");
   });
 });
 
@@ -148,7 +148,7 @@ describe("RelatedWisdomRow · rendered markup", () => {
     // An <a href> is keyboard-focusable and Enter-activatable by
     // construction — asserted on output, not on an onClick prop name.
     expect(html).toContain("<a");
-    expect(html).toContain('href="/brain?tab=wisdom&amp;focus=nick_advice_example"');
+    expect(html).toContain('href="/brain?tab=memory&amp;focus=nick_advice_example"');
   });
 
   it("declares a visible focus state", () => {

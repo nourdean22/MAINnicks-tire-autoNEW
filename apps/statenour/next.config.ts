@@ -281,8 +281,8 @@ const nextConfig: NextConfig = {
     { source: "/system/errors", destination: "/system/logs?view=errors", permanent: false },
     // Reason consolidation. Wave 2 (2026-06-03) · /reason itself folded
     // into /brain?tab=reason · these two land there directly (single hop).
-    { source: "/reason/history", destination: "/brain?tab=reason", permanent: false },
-    { source: "/reason/telemetry", destination: "/brain?tab=reason", permanent: false },
+    { source: "/reason/history", destination: "/brain?tab=memory", permanent: false },
+    { source: "/reason/telemetry", destination: "/brain?tab=memory", permanent: false },
     // Wave AN · 2026-05-28 · /relationships RENAMED to /people. Operator:
     // "lets change the name from relationships to something cool how
     // about people". Permanent redirect so bookmarks + deep links + the
@@ -327,9 +327,10 @@ const nextConfig: NextConfig = {
     // Wisdom + Reason tabs). Memory = the former /brain hub. Deep links +
     // bookmarks land on the right tab; per-tab query params (?focus,
     // ?evolution, ?q, ?h) ride through (Next forwards the query string).
-    { source: "/brain/board", destination: "/brain?tab=board", permanent: false },
-    { source: "/brain/wisdom", destination: "/brain?tab=wisdom", permanent: false },
-    { source: "/reason", destination: "/brain?tab=reason", permanent: false },
+    // 2026-10-19 · Board and Reason were dropped and Wisdom folded into Memory (wave 2V): single hop to Memory.
+    { source: "/brain/board", destination: "/brain?tab=memory", permanent: false },
+    { source: "/brain/wisdom", destination: "/brain?tab=memory", permanent: false },
+    { source: "/reason", destination: "/brain?tab=memory", permanent: false },
 
     // Wave 2 surface merge · 2026-06-03 · /stats absorbs /body (weight +
     // health log) as a section + the /learn active-learning LOOP. /life
@@ -368,6 +369,18 @@ const nextConfig: NextConfig = {
     // Proof had 5 visits in 14 days. The URL fragment (#pin-<id>) rides through the redirect.
     { source: "/pins", destination: "/brain?tab=memory", permanent: false },
     { source: "/proof", destination: "/system", permanent: false },
+
+    // 2026-10-19 · Brain is three tabs: Memory, Review, Health (wave 2V). An old ?tab= key lands on the tab that
+    // received its content; Next merges the incoming query (?focus=, ?q=) and the destination's own `tab` wins.
+    // `has` sits between source and destination on purpose: tests/repo/no-retired-redirect-links.test.ts reads
+    // only plain source->destination rows, and /brain itself is a live page.
+    // tests/repo/retired-routes-gate.test.ts pins every row.
+    { source: "/brain", has: [{ type: "query", key: "tab", value: "graph" }], destination: "/brain?tab=memory", permanent: false },
+    { source: "/brain", has: [{ type: "query", key: "tab", value: "discover" }], destination: "/brain?tab=review", permanent: false },
+    { source: "/brain", has: [{ type: "query", key: "tab", value: "wisdom" }], destination: "/brain?tab=memory", permanent: false },
+    { source: "/brain", has: [{ type: "query", key: "tab", value: "board" }], destination: "/brain?tab=memory", permanent: false },
+    { source: "/brain", has: [{ type: "query", key: "tab", value: "reason" }], destination: "/brain?tab=memory", permanent: false },
+    { source: "/brain", has: [{ type: "query", key: "tab", value: "continuity" }], destination: "/brain?tab=health", permanent: false },
   ],
 };
 

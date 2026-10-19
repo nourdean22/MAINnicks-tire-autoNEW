@@ -55,7 +55,7 @@ const PAGES = [
   { path: "/pins", title: /pinned memory|Pins/i },
   { path: "/stats", title: /Stats/i },
   { path: "/photo-improver", title: /photo improver/i },
-  { path: "/brain?tab=wisdom", title: /Brain/i },
+  { path: "/brain?tab=health", title: /Brain/i },
   { path: "/system/cockpit-observability", title: /cockpit observability|Observability/i },
   { path: "/system/health", title: /os health|Health/i },
 ];
@@ -229,7 +229,7 @@ test("brain wisdom: dashboard renders top-line stats", async ({ page }) => {
   // 2026-07-25 route repair: the standalone /brain/wisdom page was folded
   // into the tabbed /brain surface — go straight to the wisdom tab rather
   // than riding the redirect.
-  await page.goto("/brain?tab=wisdom");
+  await page.goto("/brain?tab=memory");
   // Not bounced to auth.
   expect(page.url()).not.toMatch(/\/(sign-in|auth)(\/|\?|$)/);
   // Wait for the page-title h1 to render.
