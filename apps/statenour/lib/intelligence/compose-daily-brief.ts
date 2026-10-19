@@ -47,7 +47,7 @@ You must format using these exact headings:
 # Daily Executive Brief V2 · [Date]
 
 ## 💼 CEO Brief (Highest ROI opportunity)
-From the input opportunities/claims only: the highest-ROI opportunity. Quantify impact only when the input carries numbers.
+From the input claims and drafts only: the highest-ROI opportunity. Quantify impact only when the input carries numbers.
 - *Recommended Action*: Action verb with clear instructions.
 
 DO NOT WRITE A THREAT LEVEL, SEVERITY, P-NUMBER OR INCIDENT DECLARATION anywhere in the brief. Never emit "Threat Level", "CRITICAL", "P1", "P0", "INCIDENT" or "Drift:". The threat level is COMPUTED from counted state and is prepended above your output before the operator sees it; a second one written here would contradict it. The grounding rule below forbids you inventing a number — this forbids you inventing a severity, which is the same failure in a word instead of a digit.
@@ -224,13 +224,9 @@ export async function generateBriefNarrative(prompt: string): Promise<string> {
 }
 
 export async function composeDailyExecutiveBrief(): Promise<{ date: string; text: string }> {
-  // High-scoring pending opportunities (score >= 75)
-  const opportunities = await prisma.opportunityLog.findMany({
-    where: { status: "pending", score: { gte: 75 } },
-    orderBy: { score: "desc" },
-    take: 5,
-  });
-
+  // 2026-10-19: the opportunity_logs read is gone. Its only writers (the claims scorer, the search
+  // opportunity engine) were removed, and 517 pending rows sat undecided since 2026-09-05. A manual
+  // brief no longer has an "Opportunities" section.
   // Recent pending content drafts
   const drafts = await prisma.socialPublishQueue.findMany({
     where: { status: "pending" },
@@ -250,9 +246,6 @@ export async function composeDailyExecutiveBrief(): Promise<{ date: string; text
   });
 
   const promptText = `Date: ${today}
-Opportunities:
-${opportunities.map((o) => `- [${o.domain.toUpperCase()}] ${o.title}: ${o.description} (Score: ${o.score})`).join("\n")}
-
 Drafts in Queue:
 ${drafts.map((d) => `- [DRAFT] Kind: ${d.kind} | Platforms: ${d.platforms.join(", ")} | Preview: "${d.content.slice(0, 100)}..."`).join("\n")}
 
