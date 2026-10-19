@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 
 import { CARDS } from "@/components/system/hub-grid";
+import { hubPaletteRows } from "@/components/system/hub-cards";
 
 type Payload = Parameters<(typeof CARDS)[number]["chip"]>[0];
 
@@ -161,11 +162,11 @@ describe("two calibrations, two names (10-X3 = 02-X1)", () => {
     expect(src).toContain('href="/stats?tab=calibration"');
   });
 
-  it("the palette entry drops the keywords that belong to the other page", () => {
-    const src = readFileSync("components/command-palette.tsx", "utf8");
-    const line = src.split("\n").find((l) => l.includes('id: "sys-calibration"')) ?? "";
-    expect(line).toContain("State Calibration");
-    expect(line).not.toMatch(/drift|coverage|"lens"|accuracy/i);
+  it("the palette row drops the keywords that belong to the other page", () => {
+    // UI v3 W5a: the palette row is built from the card (hubPaletteRows), so assert the row itself.
+    const row = hubPaletteRows(new Set()).find((r) => r.id === "sys-calibration");
+    expect(row?.label).toContain("State Calibration");
+    expect([row?.label, ...(row?.keywords ?? [])].join(" ")).not.toMatch(/drift|coverage|\blens\b|accuracy/i);
   });
 
   it("the health page no longer sends the strategic-lens card to /system/calibration", () => {
