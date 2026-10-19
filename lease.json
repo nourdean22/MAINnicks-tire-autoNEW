@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "statenour/ui-v3-w4-gate",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "11dd3c15-6c98-4bc9-9fa1-c404986839c6",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\new-session-bbf695",
   "claimedBy": "2026-10-18-ui-v3-w4-gate",
   "claimedAt": "2026-10-19T10:24:24.265Z",
   "expiresAt": "2026-10-19T22:24:24.265Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": null
+  "releasedAt": "2026-10-19T15:35:49.435Z",
+  "releaseReason": "W4 parked by Nour 2026-10-19; lane finished, commit b8b5eaebc kept local in lane worktree",
+  "priorLeaseSha": "df3d2b8bd4222edaa31f70a0f33954c3551cb563",
+  "releasedBy": "11dd3c15-6c98-4bc9-9fa1-c404986839c6",
+  "foreignReleaseReason": null
 }
