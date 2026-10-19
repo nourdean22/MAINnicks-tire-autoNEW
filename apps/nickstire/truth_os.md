@@ -117,6 +117,29 @@ detailed in `docs/CURRENT-TRUTH.md`:
   retail only, wholesale never leaves the server. Live sections self-suppress
   when the feed is cold (canon floors render, never an empty table).
 
+## 2026-10-19 - revenue_reconciliation_candidates retention: the count is live after deploy, the delete is OFF (#3163)
+
+- **Why:** `revenue_reconciliation_candidates` is derived. The 2-hour reconciliation run re-inserts one row per call in its 21-day
+  window, and both readers (`routers/revenueAttribution.ts`, `services/promptEvolution.ts`) keep only the newest row per `call_id`.
+  A row with a newer sibling for the same call is invisible to every reader; nothing ever removed them.
+- **Nightly count, LIVE once this deploys (counts only, no text column):** the `cleanup` job appends
+  `recon candidates: rows N, calls M, superseded S, deleted D (flag off|on|unreadable)` to its `details`, so `cron_log` carries it.
+  `unavailable` means the table or the read failed (UNKNOWN, never zero). Code: `server/services/revenueReconciliationRetention.ts`.
+- **Delete path, BUILT + WIRED, default OFF** behind the `revenue_recon_retention` feature flag (seeded OFF). When ON it runs one
+  single-table DELETE per call that has more than one row, bounded by `UNIX_TIMESTAMP(created_at) <` that call's newest time, so
+  the newest row per call (and any row tied with it) is never selected. Per run: at most 200 calls and about 60 s; the time budget
+  is checked between statements, so one slow DELETE can run past it and only the cleanup job's own outer timeout bounds that.
+  The rest waits for the next night. It reads the flag row **fresh and fails closed**: a failed read deletes nothing and shows
+  `(flag unreadable)`; it does not use the cached `isEnabled()`, which keeps its last value when a refresh fails.
+- **Rollout gate (all three, in order):** the first nightly count is read and looks right; a fresh nightly TiDB backup exists
+  (`tidbBackup.ts` copies this table weekly); the operator says go. Nobody turns the flag ON before that.
+- **Evidence so far:** the retention SQL was run on TEMPORARY tables on TiDB by the manager on 2026-10-19: 31 of 31 checks passed.
+  The real table, read-only at 2026-10-19 00:26Z: 352,083 rows, 3,626 distinct calls, 348,457 superseded, and 0 rows tied at a
+  call's newest time (every call has exactly one row at its newest time).
+- **What the figure means:** `superseded` is rows minus distinct calls, an upper bound on what one DELETE pass removes whenever
+  rows tie at a call's newest time. Production has no such ties today, so there it equals the removable count.
+- **Not yet observed:** a nightly `cron_log` row carrying the line; a real DELETE on the production table (none has run).
+
 ## 2026-10-18 - Tire finder by vehicle, Kafene first, order completion (#3148 live, #3152 merged)
 
 - **/tires finds sizes by vehicle** (`fitment` router, `server/services/fitment/dkFitment.ts`): year > make > model > trim >

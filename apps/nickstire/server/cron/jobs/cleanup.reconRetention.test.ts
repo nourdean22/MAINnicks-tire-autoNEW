@@ -43,30 +43,67 @@ const GROUPS = [
   { call_id: 2, n: "1", latest: 150 },
 ];
 
+// What the fresh feature_flags read answers: a row value, no row at all, or a rejection.
+type FlagRead = { row: number } | "missing" | "reject";
+let flagRead: FlagRead = { row: 0 };
+const flagReads = () => h.execute.mock.calls.map((c) => sqlText(c[0])).filter((t) => /FROM feature_flags/.test(t));
+
 beforeEach(() => {
   vi.clearAllMocks();
   h.dbAvailable = true;
+  flagRead = { row: 0 };
   h.execute.mockImplementation(async (q: unknown) => {
     const t = sqlText(q);
+    if (/FROM feature_flags/.test(t)) {
+      if (flagRead === "reject") throw new Error("Lost connection to MySQL server");
+      return [flagRead === "missing" ? [] : [{ value: flagRead.row }], []];
+    }
     if (/^SELECT .*revenue_reconciliation_candidates/.test(t)) return [GROUPS, []];
     if (/^DELETE FROM `revenue_reconciliation_candidates`/.test(t)) return [{ affectedRows: 2 }, []];
     return [{ affectedRows: 0 }, []];
   });
-  h.isEnabled.mockResolvedValue(false);
+  // The cached isEnabled (production swallows a failed refresh and returns the stale value) says ON in
+  // EVERY test here, as a trap: the retention delete must decide from the fresh row read, never from this.
+  h.isEnabled.mockResolvedValue(true);
 });
 
 describe("cleanupOldData · revenue_reconciliation_candidates retention", () => {
-  it("flag OFF: appends the counts to details, logs them, and issues no DELETE on the table", async () => {
+  it("flag row false: appends the counts to details, logs them, and issues no DELETE on the table", async () => {
     const out = await cleanupOldData();
     expect(out.details).toContain("recon candidates: rows 4, calls 2, superseded 2, deleted 0 (flag off)");
     expect(reconCalls().some((t) => /^DELETE/.test(t))).toBe(false);
-    expect(h.isEnabled).toHaveBeenCalledWith("revenue_recon_retention");
+    expect(flagReads()).toHaveLength(1);
     const logged = h.info.mock.calls.find((c) => c[0] === "recon candidates retention");
     expect(logged?.[1]).toMatchObject({ rows: 4, calls: 2, superseded: 2, deleted: 0, flag: "off" });
   });
 
-  it("flag ON: deletes the superseded rows of the duplicate call only, and counts them in recordsProcessed", async () => {
-    h.isEnabled.mockImplementation(async (key) => key === "revenue_recon_retention");
+  it("stale cached ON, fresh row false (the operator just turned it OFF): no DELETE", async () => {
+    flagRead = { row: 0 };
+    h.isEnabled.mockResolvedValue(true);
+    const out = await cleanupOldData();
+    expect(reconCalls().some((t) => /^DELETE/.test(t))).toBe(false);
+    expect(out.details).toContain("(flag off)");
+    expect(h.isEnabled).not.toHaveBeenCalledWith("revenue_recon_retention");
+  });
+
+  it("no feature_flags row at all reads OFF: no DELETE", async () => {
+    flagRead = "missing";
+    const out = await cleanupOldData();
+    expect(reconCalls().some((t) => /^DELETE/.test(t))).toBe(false);
+    expect(out.details).toContain("(flag off)");
+  });
+
+  it("the fresh flag read rejects: no DELETE, and details say 'flag unreadable', not a silent off", async () => {
+    flagRead = "reject";
+    const out = await cleanupOldData();
+    expect(reconCalls().some((t) => /^DELETE/.test(t))).toBe(false);
+    expect(out.details).toContain("recon candidates: rows 4, calls 2, superseded 2, deleted 0 (flag unreadable)");
+    expect(out.details).not.toContain("(flag off)");
+  });
+
+  it("flag row true: deletes the superseded rows of the duplicate call only, and counts them in recordsProcessed", async () => {
+    flagRead = { row: 1 };
+    h.isEnabled.mockResolvedValue(false); // the cached flag is irrelevant: the row decides
     const out = await cleanupOldData();
     const del = reconCalls().filter((t) => /^DELETE/.test(t));
     expect(del).toEqual(["DELETE FROM `revenue_reconciliation_candidates` WHERE call_id = ? AND UNIX_TIMESTAMP(created_at) < ?"]);

@@ -174,14 +174,13 @@ export async function cleanupOldData(): Promise<{ recordsProcessed: number; deta
     const { getDb } = await import("../../db");
     const db = await getDb();
     if (db) {
-      const { isEnabled } = await import("../../services/featureFlags");
-      const { reconCandidatesRetention, reconRetentionDetails, toDrizzleSql, RECON_RETENTION_FLAG } = await import(
+      const { reconCandidatesRetention, reconRetentionDetails, readRetentionFlagFresh, toDrizzleSql } = await import(
         "../../services/revenueReconciliationRetention"
       );
-      const recon = await reconCandidatesRetention({
-        query: (stmt) => db.execute(toDrizzleSql(stmt)),
-        isEnabled: () => isEnabled(RECON_RETENTION_FLAG),
-      });
+      // The delete path reads the flag row fresh and fails closed. It must NOT use featureFlags.isEnabled():
+      // that cache swallows a failed refresh and returns the last value, so a stale ON would keep deleting.
+      const query = (stmt: Parameters<typeof toDrizzleSql>[0]) => db.execute(toDrizzleSql(stmt));
+      const recon = await reconCandidatesRetention({ query, isEnabled: () => readRetentionFlagFresh(query) });
       reconSuffix = reconRetentionDetails(recon);
       if (recon.state === "measured") cleaned += recon.deleted ?? 0;
     }

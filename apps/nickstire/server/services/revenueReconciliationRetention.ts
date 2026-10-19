@@ -30,16 +30,17 @@ import { affectedRows, readRows } from "../lib/dbResult";
 const log = createLogger("service:recon-candidates-retention");
 
 export const RECON_CANDIDATES_TABLE = "revenue_reconciliation_candidates";
-export const RECON_RETENTION_FLAG = "revenue_recon_retention";
+const RECON_RETENTION_FLAG ="revenue_recon_retention";
 
 /**
  * Per-run delete bound. Starting values, not tuned against production.
  * 200 statements: each one is an index lookup on call_id removing at most one
  * window's worth of copies for a call (about 250 at 12 runs a day over 21 days),
  * so a run removes at most about 50k rows in small transactions, and the
- * 444k-row backlog clears in about nine nights. 60 s: a hard stop well inside
- * the nightly cron slot, so a slow engine delays the cleanup job by a minute at
- * most. Whatever is left is picked up by the next night's run.
+ * 444k-row backlog clears in about nine nights. 60 s: a budget checked BEFORE
+ * each statement, not a hard stop: one slow DELETE that starts inside the budget
+ * can run past it, and only the cleanup job's own outer timeout bounds that worst
+ * case. Whatever is left is picked up by the next night's run.
  */
 export const MAX_DELETE_STATEMENTS_PER_RUN = 200;
 export const MAX_DELETE_MS_PER_RUN = 60_000;
@@ -88,7 +89,7 @@ export function toDrizzleSql(stmt: SqlStatement): SQL {
 export interface ReconRetentionDeps {
   /** Runs one statement and returns the raw driver result. */
   query(stmt: SqlStatement): Promise<unknown>;
-  /** The DB flag. A throw reads as OFF. */
+  /** The DB flag, read fresh. A throw closes the delete path and reports the flag as unreadable. */
   isEnabled(): Promise<boolean>;
   now?(): number;
 }
@@ -103,7 +104,8 @@ export type ReconRetentionResult =
       superseded: number;
       /** Rows the DELETEs removed this run; null when the driver reported no count (unknown, not zero). */
       deleted: number | null;
-      flag: "on" | "off";
+      /** "unreadable" = the fresh flag read failed: nothing was deleted, and it is not a silent off. */
+      flag: "on" | "off" | "unreadable";
       /** More duplicate calls were left than the per-run bound allowed; the next run continues. */
       truncated: boolean;
       deleteFailed: boolean;
@@ -130,6 +132,24 @@ function parseGroups(raw: unknown): Group[] | null {
   return groups;
 }
 
+/**
+ * The delete path's flag read: the feature_flags row, fresh from the database, never the cached
+ * isEnabled(). That cache swallows a failed refresh and returns the last value it had, so after an
+ * operator turns the flag OFF a process whose refresh keeps failing would go on deleting. Here a
+ * missing row is OFF, a true value is ON, and ANY other outcome (a failed read, a result that is not
+ * a flag row) throws, which the caller reports as "flag unreadable" with no DELETE issued.
+ */
+export async function readRetentionFlagFresh(query: ReconRetentionDeps["query"]): Promise<boolean> {
+  const raw = await query({ text: "SELECT `value` FROM feature_flags WHERE `key` = ? LIMIT 1", params: [RECON_RETENTION_FLAG] });
+  if (!Array.isArray(raw) || !Array.isArray(raw[0])) throw new Error("feature flag read returned an unreadable result");
+  const rows = readRows(raw);
+  if (rows.length === 0) return false;
+  const v = rows[0].value;
+  if (v === true || v === 1 || v === "1") return true;
+  if (v === false || v === 0 || v === "0") return false;
+  throw new Error("feature flag row has an unreadable value");
+}
+
 export async function reconCandidatesRetention(deps: ReconRetentionDeps): Promise<ReconRetentionResult> {
   const now = deps.now ?? Date.now;
 
@@ -151,10 +171,13 @@ export async function reconCandidatesRetention(deps: ReconRetentionDeps): Promis
   const superseded = rows - calls;
 
   let enabled = false;
+  let flag: "on" | "off" | "unreadable" = "off";
   try {
     enabled = await deps.isEnabled();
+    flag = enabled ? "on" : "off";
   } catch {
-    enabled = false; // an unreadable flag is OFF: the delete path stays closed
+    enabled = false; // an unreadable flag closes the delete path, and says so
+    flag = "unreadable";
   }
 
   let deleted: number | null = 0;
@@ -187,7 +210,7 @@ export async function reconCandidatesRetention(deps: ReconRetentionDeps): Promis
     calls,
     superseded,
     deleted,
-    flag: enabled ? "on" : "off",
+    flag,
     truncated,
     deleteFailed,
   };

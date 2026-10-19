@@ -20,6 +20,7 @@ import {
   buildDeleteSupersededSql,
   buildReportSql,
   reconCandidatesRetention,
+  readRetentionFlagFresh,
   reconRetentionDetails,
   toDrizzleSql,
   type SqlStatement,
@@ -210,11 +211,12 @@ describe("delete (flag ON only)", () => {
     expect(r).toMatchObject({ state: "measured", deleted: 4, truncated: true });
   });
 
-  it("T5 a flag read that throws behaves as OFF: report only, no DELETE", async () => {
+  it("T5 a flag read that throws closes the delete path and reads 'unreadable', not a silent off", async () => {
     const t = fakeTable(FIXTURE);
     const r = await reconCandidatesRetention({ query: t.query, isEnabled: async () => { throw new Error("flag store down"); } });
-    expect(r).toMatchObject({ state: "measured", flag: "off", deleted: 0 });
+    expect(r).toMatchObject({ state: "measured", flag: "unreadable", deleted: 0 });
     expect(deletes(t.statements)).toHaveLength(0);
+    expect(reconRetentionDetails(r)).toBe("recon candidates: rows 6, calls 3, superseded 3, deleted 0 (flag unreadable)");
   });
 
   it("a failing DELETE stops the batch, keeps the count so far, and does not throw", async () => {
@@ -235,6 +237,32 @@ describe("delete (flag ON only)", () => {
     const r = await reconCandidatesRetention({ query, isEnabled: flag(true) });
     expect(r).toMatchObject({ state: "measured", deleted: null });
     expect(reconRetentionDetails(r)).toBe("recon candidates: rows 6, calls 3, superseded 3, deleted unknown (flag on)");
+  });
+});
+
+describe("fresh flag read (the delete path never trusts a cached flag)", () => {
+  const flagQuery = (result: unknown) => vi.fn(async (_s: SqlStatement) => result);
+
+  it("reads the feature_flags row for this flag by key, uncached, and nothing else", async () => {
+    const q = flagQuery([[{ value: 1 }], []]);
+    await readRetentionFlagFresh(q);
+    expect(q).toHaveBeenCalledTimes(1);
+    const stmt = q.mock.calls[0][0];
+    expect(norm(stmt.text)).toBe("SELECT `value` FROM feature_flags WHERE `key` = ? LIMIT 1");
+    expect(stmt.params).toEqual(["revenue_recon_retention"]);
+  });
+
+  it("row true is ON (tinyint 1, boolean true, '1'); row false is OFF; a missing row is OFF", async () => {
+    for (const v of [1, true, "1"]) expect(await readRetentionFlagFresh(flagQuery([[{ value: v }], []]))).toBe(true);
+    for (const v of [0, false, "0"]) expect(await readRetentionFlagFresh(flagQuery([[{ value: v }], []]))).toBe(false);
+    expect(await readRetentionFlagFresh(flagQuery([[], []]))).toBe(false);
+  });
+
+  it("a failed read propagates, and so does a result that is not a flag row (never a silent off)", async () => {
+    await expect(readRetentionFlagFresh(vi.fn(async () => { throw new Error("Lost connection"); }))).rejects.toThrow(/Lost connection/);
+    for (const bad of [undefined, "nope", [], [{ affectedRows: 1 }, []], [[{ value: null }], []], [[{ value: "maybe" }], []], [[{ other: 1 }], []]]) {
+      await expect(readRetentionFlagFresh(flagQuery(bad))).rejects.toThrow();
+    }
   });
 });
 
