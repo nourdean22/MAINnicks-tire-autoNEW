@@ -47,6 +47,12 @@ interface ResponsivePhotoProps {
    */
   disableMobile?: boolean;
   /**
+   * srcset for the mobile <source> (e.g. phoneSrcSet(src)). Setting it turns
+   * that source on and replaces the -mobile.webp guess, which /photos/ files
+   * with -small/-medium siblings do not have.
+   */
+  mobileSrcSet?: string;
+  /**
    * 2026-05-05 — wrap the <picture> in a `.photo-depth` span so the
    * 3D-depth CSS layer applies hover-zoom + radial vignette on the
    * photo container. Defaults to true for non-LCP photos; LCP photos
@@ -70,6 +76,7 @@ export default function ResponsivePhoto({
   fetchPriority,
   mobileBreakpoint = 768,
   disableMobile = true,
+  mobileSrcSet,
   withDepth,
   objectPosition,
 }: ResponsivePhotoProps) {
@@ -79,10 +86,10 @@ export default function ResponsivePhoto({
 
   const inner = (
     <picture>
-      {!disableMobile && (
+      {(mobileSrcSet || !disableMobile) && (
         <source
           media={`(max-width: ${mobileBreakpoint}px)`}
-          srcSet={mobileSrc}
+          srcSet={mobileSrcSet ?? mobileSrc}
           type="image/webp"
         />
       )}

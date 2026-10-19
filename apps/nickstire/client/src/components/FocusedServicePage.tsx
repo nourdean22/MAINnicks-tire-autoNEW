@@ -140,6 +140,9 @@ export interface ServicePageConfig {
   heroImage?: string;
   /** Alt text for heroImage. Omit → "<h1> at Nick's Tire & Auto Cleveland". */
   heroAlt?: string;
+  /** srcset phones (<=768px) use for heroImage, e.g. phoneSrcSet(heroImage).
+   *  Omit → phones download heroImage itself. */
+  heroMobileSrcSet?: string;
   /** Optional arrival photos rendered beside the address in the booking
    *  section (e.g. <ArrivalPhotos />). Omit → page renders exactly as today. */
   arrivalSlot?: React.ReactNode;
@@ -287,6 +290,7 @@ function Hero({ config }: { config: ServicePageConfig }) {
           loading="eager"
           fetchPriority="high"
           src={config.heroImage || HERO_IMAGE_DEFAULT}
+          mobileSrcSet={config.heroMobileSrcSet}
           alt={config.heroAlt ?? `${config.h1} at Nick's Tire & Auto Cleveland`}
           className="w-full h-full object-cover"
           objectPosition={config.heroObjectPosition || pickObjectPosition(config.heroImage)}

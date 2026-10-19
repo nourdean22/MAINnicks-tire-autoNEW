@@ -131,6 +131,23 @@ describe("real shop photos: Home hero and proof row", () => {
   });
 });
 
+describe("/brakes hero on phones", () => {
+  afterEach(cleanup);
+
+  // Without a phone <source>, every phone downloads the ~580 KB full file.
+  it("offers phones only the -small and -medium variants, never the full file", async () => {
+    const { container } = await renderPage(PAGES.find(([n]) => n === "BrakeRepairPage")![1]);
+    const hero = container.querySelector('img[fetchpriority="high"]')!;
+    expect(hero.getAttribute("src")).toBe("/photos/worn-brake-rotor-and-pads.webp");
+    const phone = hero.closest("picture")?.querySelector('source[media="(max-width: 768px)"]');
+    const candidates = (phone?.getAttribute("srcset") ?? "").split(",").map((c) => c.trim().split(/\s+/)[0]);
+    expect(candidates).toEqual([
+      "/photos/worn-brake-rotor-and-pads-small.webp",
+      "/photos/worn-brake-rotor-and-pads-medium.webp",
+    ]);
+  });
+});
+
 describe("every /photos/ reference resolves to a real file", () => {
   afterEach(cleanup);
 
