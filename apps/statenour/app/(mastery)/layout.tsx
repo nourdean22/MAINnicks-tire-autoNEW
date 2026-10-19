@@ -1,5 +1,6 @@
 import { BottomTabBar } from "@/components/layout/bottom-tab-bar";
 import { MoreSheet } from "@/components/layout/more-sheet";
+import { Suspense } from "react";
 import { PageTracker } from "@/components/brain/page-tracker";
 import { PageContextBridge } from "@/components/chat/page-context-bridge";
 import { SwipeNavigation } from "@/components/layout/swipe-navigation";
@@ -68,7 +69,9 @@ export default function MasteryLayout({
       >
         Skip to main content
       </a>
-      <PageTracker />
+      <Suspense fallback={null}>
+        <PageTracker />
+      </Suspense>
       {/* v10.0.529.91 · Wave 35 · invisible · watches usePathname +
           URL hash to extract the entity ID the operator is viewing ·
           writes localStorage + fires nour:page-context-changed event ·

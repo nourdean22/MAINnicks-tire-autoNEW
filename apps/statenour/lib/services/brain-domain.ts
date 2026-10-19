@@ -1133,6 +1133,12 @@ export interface PageVisitResult {
 export async function recordPageVisit(args: {
   page: string;
   referrer?: string | null;
+  /**
+   * The ?tab= value of the visit (/brain has 9 tabs, /stats 3). Stored in `payload`
+   * ONLY: GET /api/brain/page-visit and lib/brain/page-intelligence.ts group and
+   * compare by `detail`, which must stay the bare path.
+   */
+  tab?: string | null;
 }): Promise<PageVisitResult> {
   try {
     const hour = hourET();
@@ -1148,6 +1154,7 @@ export async function recordPageVisit(args: {
         payload: {
           page: args.page,
           referrer: args.referrer || null,
+          ...(args.tab ? { tab: args.tab } : {}),
           hour,
           dayOfWeek,
           timestamp: new Date().toISOString(),

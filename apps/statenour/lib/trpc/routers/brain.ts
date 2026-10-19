@@ -988,10 +988,11 @@ export const brainRouter = router({
       z.object({
         page: z.string().min(1).max(512),
         referrer: z.string().max(2048).nullable().optional(),
+        tab: z.string().max(64).nullable().optional(),
       }),
     )
     .mutation(async ({ input }) =>
-      recordPageVisit({ page: input.page, referrer: input.referrer }),
+      recordPageVisit({ page: input.page, referrer: input.referrer, tab: input.tab }),
     ),
 
   /**

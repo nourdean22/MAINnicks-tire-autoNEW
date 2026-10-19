@@ -10,7 +10,11 @@ vi.mock("react", async (importOriginal) => {
   const actual = await importOriginal<typeof import("react")>();
   return { ...actual, useEffect: (fn: () => void) => void fn() };
 });
-vi.mock("next/navigation", () => ({ usePathname: () => "/journal" }));
+const tabParam = vi.hoisted(() => ({ value: null as string | null }));
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/journal",
+  useSearchParams: () => ({ get: (k: string) => (k === "tab" ? tabParam.value : null) }),
+}));
 vi.mock("@/lib/trpc/client", () => ({ trpc: { brain: { pageVisit: { useMutation: () => ({ mutate }) } } } }));
 
 import { PageTracker } from "@/components/brain/page-tracker";
@@ -28,6 +32,7 @@ function stubStorage(value: string | null, throws = false) {
 
 beforeEach(() => {
   mutate.mockClear();
+  tabParam.value = null;
 });
 afterEach(() => vi.unstubAllGlobals());
 
@@ -43,6 +48,16 @@ describe("PageTracker opt-out", () => {
     PageTracker();
     expect(mutate).toHaveBeenCalledTimes(1);
     expect(mutate).toHaveBeenCalledWith(expect.objectContaining({ page: "/journal" }));
+  });
+
+  it("sends the ?tab= value with the visit, and none when there is no tab", () => {
+    stubStorage(null);
+    tabParam.value = "wisdom";
+    PageTracker();
+    expect(mutate).toHaveBeenLastCalledWith(expect.objectContaining({ page: "/journal", tab: "wisdom" }));
+    tabParam.value = null;
+    PageTracker();
+    expect("tab" in (mutate.mock.lastCall![0] as object)).toBe(false);
   });
 
   it("still records when storage throws (private mode), since no opt-out could be read", () => {
