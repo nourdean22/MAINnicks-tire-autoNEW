@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "nickstire/admin-photo-check",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "ee66da8a-fb60-434e-8ebe-990e50a73302",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\reels-batch-ops-1688b1",
   "claimedBy": "2026-10-18-bdnick-prune photo PR",
   "claimedAt": "2026-10-19T10:15:06.266Z",
   "expiresAt": "2026-10-19T22:15:06.266Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": "eb9a9dbbdd0412d59649b52dab4ad6ee152d9ca0"
+  "releasedAt": "2026-10-19T12:38:38.040Z",
+  "releaseReason": "PR 3170 merged as 7d3d43748; the leftover files are in the bdnick manager's lane worktree agent-a8cc1b4d42bc41df3, which this session does not own and leaves untouched",
+  "priorLeaseSha": "aee06813c8436e4579aa9857c42260b438188828",
+  "releasedBy": "ee66da8a-fb60-434e-8ebe-990e50a73302",
+  "foreignReleaseReason": null
 }
