@@ -56,14 +56,14 @@ describe("kill switch · one decision per run", () => {
     const mw = new CronLifecycleMiddleware({ client: {} as never });
     const next = vi.fn(async () => "ran");
     // request 1 of run r1: enabled → runs
-    expect(await mw.wrapFunctionHandler({ ctx: { runId: "r1" }, fn: cronFn("intelligence-daily-brief"), next })).toBe("ran");
+    expect(await mw.wrapFunctionHandler({ ctx: { runId: "r1" }, fn: cronFn("operator-morning-brief"), next })).toBe("ran");
     // operator kills it; cache expires
-    state["intelligence-daily-brief"] = false;
+    state["operator-morning-brief"] = false;
     __resetKillSwitchCache();
     // request 2 of the SAME run still runs (save/push/telegram steps complete)
-    expect(await mw.wrapFunctionHandler({ ctx: { runId: "r1" }, fn: cronFn("intelligence-daily-brief"), next })).toBe("ran");
+    expect(await mw.wrapFunctionHandler({ ctx: { runId: "r1" }, fn: cronFn("operator-morning-brief"), next })).toBe("ran");
     // the NEXT run is killed
-    const out = await mw.wrapFunctionHandler({ ctx: { runId: "r2" }, fn: cronFn("intelligence-daily-brief"), next });
+    const out = await mw.wrapFunctionHandler({ ctx: { runId: "r2" }, fn: cronFn("operator-morning-brief"), next });
     expect(out).toMatchObject({ skipped: true, reason: KILL_SWITCH_SKIP_REASON });
   });
 

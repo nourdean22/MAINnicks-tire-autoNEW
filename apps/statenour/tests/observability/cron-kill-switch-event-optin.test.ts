@@ -3,7 +3,7 @@
  * (audit 2026-10-10, 03-F15).
  *
  * `wrapFunctionHandler` gated cron-triggered functions only, so the 9 event
- * functions (social-publish, bulk-sms-approval, nick-action-approved, ...) had
+ * functions (social-publish, nick-action-approved, nick-action-approved, ...) had
  * no operator stop. The fix is an explicit list, EMPTY by default: nothing
  * changes until the operator names a function there, then flips its switch
  * (systemAutomation.setCronEnabled with the function id).
@@ -43,8 +43,8 @@ afterEach(() => {
 });
 
 describe("event-function kill switch · opt-in", () => {
-  it("the shipped list names the three side-effecting event functions", () => {
-    expect([...KILLABLE_EVENT_FUNCTIONS].sort()).toEqual(["bulk-sms-approval", "nick-action-approved", "social-publish"]);
+  it("the shipped list names the two side-effecting event functions", () => {
+    expect([...KILLABLE_EVENT_FUNCTIONS].sort()).toEqual(["nick-action-approved", "social-publish"]);
   });
 
   it("a shipped event function with its switch off does not run", async () => {
@@ -82,9 +82,9 @@ describe("event-function kill switch · opt-in", () => {
   it("listing one event function gates only that one", async () => {
     KILLABLE_EVENT_FUNCTIONS.clear();
     KILLABLE_EVENT_FUNCTIONS.add("social-publish");
-    state["bulk-sms-approval"] = false;
+    state["nick-action-approved"] = false;
     const next = vi.fn(async () => "ran");
-    expect(await mw().wrapFunctionHandler({ ctx: { runId: "e3" }, fn: eventFn("bulk-sms-approval"), next })).toBe("ran");
+    expect(await mw().wrapFunctionHandler({ ctx: { runId: "e3" }, fn: eventFn("nick-action-approved"), next })).toBe("ran");
     expect(isCronEnabled).not.toHaveBeenCalled();
   });
 

@@ -176,11 +176,11 @@ describe("flag board visibility · a switch nobody can see cannot be reviewed", 
     expect(envReadsIn(fixture)).toEqual(["FOO_LIVE"]);
   });
 
-  it("the four switches mirrored by lib/feature-flags.ts predicates have ONE reader", () => {
+  it("the three switches mirrored by lib/feature-flags.ts predicates have ONE reader", () => {
     // PREDICATES in feature-flags-registry.test.ts proves the predicate agrees with
     // the board; that only means something if the runtime calls the predicate.
     const reads = rawEnvSwitches();
-    for (const key of ["FEATURE_BULK_SMS_LIVE", "SEMANTIC_DEDUP_LIVE", "AGENT_BRIDGE_ENABLED", "NARRATOR_LLM_SYNTHESIS"]) {
+    for (const key of ["SEMANTIC_DEDUP_LIVE", "AGENT_BRIDGE_ENABLED", "NARRATOR_LLM_SYNTHESIS"]) {
       expect(reads.get(key), `${key} is read outside its predicate`).toEqual(["lib/feature-flags.ts"]);
     }
   });

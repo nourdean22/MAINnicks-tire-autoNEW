@@ -52,10 +52,6 @@ vi.mock("@/lib/services/cost-slo", () => ({
   topConversationsByCost: vi.fn(),
 }));
 
-vi.mock("@/lib/services/voice-latency", () => ({
-  getVoiceLatencyState: vi.fn(),
-}));
-
 vi.mock("@/lib/observability/drift-detector", () => ({
   compareToWeekAgo: vi.fn(),
 }));

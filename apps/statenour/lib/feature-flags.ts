@@ -614,15 +614,6 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
   // behaviour (one of them customer SMS) with no board row. readOnly: each runtime
   // reads raw env through its predicate (below, or imageSignatureRequired).
   {
-    key: "FEATURE_BULK_SMS_LIVE",
-    readOnly: true,
-    description: "Approved bulk SMS campaigns send for real. Off = the nickstire bridge is called with dryRun and no SMS leaves (nickstire also applies its own default-safe gate). Reads isBulkSmsLive() in lib/inngest/functions/bulk-sms-approval.ts.",
-    status: "experimental",
-    onValue: "1",
-    defaultBehavior: "Dry run: an approved campaign reports how many would receive it; no SMS is sent.",
-    ownerDoc: "lib/inngest/functions/bulk-sms-approval.ts",
-  },
-  {
     key: "SEMANTIC_DEDUP_LIVE",
     readOnly: true,
     description: "The consolidate cron soft-deletes near-duplicate memories (cosine >= 0.95, at most 100 per run). Off = dry run that only writes a semantic_dedup_dry_run audit event. Reads isSemanticDedupLive() in app/api/cron/consolidate/route.ts.",
@@ -934,10 +925,6 @@ function computeIsOn(spec: FeatureFlag, rawValue: string): boolean {
 // Runtime predicates for raw-env switches whose readers had none to export (one is
 // a route file, which may not export extra names). Each is the ONLY reader of its
 // var; its readOnly registry row mirrors it, pinned in feature-flags-registry.test.ts.
-export function isBulkSmsLive(): boolean {
-  return process.env.FEATURE_BULK_SMS_LIVE === "1";
-}
-
 export function isSemanticDedupLive(): boolean {
   return process.env.SEMANTIC_DEDUP_LIVE === "1";
 }

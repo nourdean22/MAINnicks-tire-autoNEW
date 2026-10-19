@@ -7,31 +7,10 @@
  * Stats also had manual Body deep-links that drifted from its query-tab router.
  */
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { NAV } from "@/components/layout/nav-items";
 import { STATS_TABS } from "@/lib/stats/resolve-tab";
 
-const ROOT = join(__dirname, "..", "..");
-const PAIR = /\{\s*key:\s*"([a-z_-]+)",\s*label:\s*"([^"]+)"/g;
-
-function pageTabPairs(path: string): Array<[string, string]> {
-  const source = readFileSync(join(ROOT, path), "utf8");
-  const anchor = source.indexOf("<PageTabs");
-  expect(anchor, `${path} has no <PageTabs>`).toBeGreaterThanOrEqual(0);
-  const slice = source.slice(anchor);
-  return [...slice.matchAll(PAIR)].map((match) => [match[1], match[2]]);
-}
-
 describe("hub tabs stay discoverable from the shared NAV registry", () => {
-  it("Content NAV tabs match the live Content page tabs", () => {
-    const content = NAV.find((entry) => entry.href === "/content");
-    expect(content?.tabs).toBeTruthy();
-    expect(content!.tabs!.map((tab) => [tab.key, tab.label])).toEqual(
-      pageTabPairs("app/(mastery)/content/page.tsx"),
-    );
-  });
-
   it("Stats NAV tabs come from the canonical STATS_TABS contract", () => {
     const stats = NAV.find((entry) => entry.href === "/stats");
     expect(stats?.tabs).toEqual(

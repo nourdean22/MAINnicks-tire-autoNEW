@@ -264,10 +264,6 @@ const nextConfig: NextConfig = {
     // Admin sprawl → /system hub.
     { source: "/system/policies", destination: "/system", permanent: false },
     { source: "/system/skills", destination: "/system", permanent: false },
-    // 2026-06-18 · IA reorg Phase 0 · /system/tools UN-SHADOWED. The live
-    // agent-tools registry page (trpc.system.getTools, linked from the System
-    // hub grid) was being bounced to /system by this redirect = dead surface.
-    // Now reachable; surfaced as a System-hub tile.
     { source: "/system/features", destination: "/system", permanent: false },
     { source: "/system/api-tokens", destination: "/system", permanent: false },
     { source: "/system/devices", destination: "/system", permanent: false },
@@ -282,10 +278,6 @@ const nextConfig: NextConfig = {
     { source: "/system/digest", destination: "/system", permanent: false },
     { source: "/system/coach-events", destination: "/system/alerts", permanent: false },
     { source: "/system/reviews", destination: "/system", permanent: false },
-    // 2026-06-18 · IA reorg Phase 0 · /system/proactive-preview UN-SHADOWED.
-    // The live proactive-push dry-run page (linked from the System hub grid)
-    // was being bounced to /system by this redirect = dead surface. Now
-    // reachable; surfaced as a System-hub tile.
     { source: "/system/errors", destination: "/system/logs?view=errors", permanent: false },
     // Reason consolidation. Wave 2 (2026-06-03) · /reason itself folded
     // into /brain?tab=reason · these two land there directly (single hop).
@@ -341,20 +333,35 @@ const nextConfig: NextConfig = {
 
     // Wave 2 surface merge · 2026-06-03 · /stats absorbs /body (weight +
     // health log) as a section + the /learn active-learning LOOP. /life
-    // (a pure 5-link hub) DELETED. /learn KEEPS its Build-Your-Own-X
-    // catalog (force-static dev reference) → NOT redirected.
+    // (a pure 5-link hub) DELETED. (/learn itself was retired 2026-10-18, below.)
     { source: "/body", destination: "/stats?tab=body", permanent: false },
     { source: "/life", destination: "/stats", permanent: false },
 
-    // Wave 2 surface merge · 2026-06-03 · /content/drafts + /content/history
-    // + /social + /outreach folded into the tabbed /content surface (Drafts +
-    // History + Publish + Outreach tabs). Deep links + bookmarks land on the
-    // right tab; the Publish ?caption/?imageUrl/?platforms bridge rides
-    // through (Next forwards the query string).
-    { source: "/content/drafts", destination: "/content?tab=drafts", permanent: false },
-    { source: "/content/history", destination: "/content?tab=history", permanent: false },
-    { source: "/social", destination: "/content?tab=publish", permanent: false },
-    { source: "/outreach", destination: "/content?tab=outreach", permanent: false },
+    // 2026-10-18 · /content cut whole (Nour: Buffer is unused). Old tab and
+    // bridge deep links land on home, not a 404.
+    { source: "/content", destination: "/", permanent: false },
+    { source: "/content/drafts", destination: "/", permanent: false },
+    { source: "/content/history", destination: "/", permanent: false },
+    { source: "/social", destination: "/", permanent: false },
+    { source: "/outreach", destination: "/", permanent: false },
+
+    // 2026-10-18 · bdnick prune (job 2026-10-18-bdnick-prune): pages with no
+    // use in 90 days of page_visit events or no remaining caller. Each keeps a
+    // redirect so old Telegram, push, email and bookmark links never 404.
+    // tests/repo/retired-routes-gate.test.ts pins every row.
+    { source: "/system/chat-states", destination: "/system", permanent: false },
+    { source: "/system/schema-history", destination: "/system", permanent: false },
+    { source: "/system/tools", destination: "/system/actions", permanent: false },
+    { source: "/system/proactive-preview", destination: "/system", permanent: false },
+    // The raw arrival log moved to the shop admin's Lot section (camera audit N4).
+    { source: "/system/camera", destination: "https://nickstire.org/admin?tab=lot", permanent: false },
+    { source: "/intelligence/ledger", destination: "/", permanent: false },
+    { source: "/intelligence/brief", destination: "/", permanent: false },
+    { source: "/learn", destination: "/", permanent: false },
+    { source: "/links", destination: "/", permanent: false },
+    { source: "/goals", destination: "/stats?tab=goals", permanent: false },
+    { source: "/scoreboard", destination: "/stats", permanent: false },
+    { source: "/api/short/:path*", destination: "/", permanent: false },
   ],
 };
 

@@ -15,7 +15,6 @@ import {
   getFlag,
   getAllFlags,
   isAgentBridgeEnabled,
-  isBulkSmsLive,
   isNarratorSynthesisOn,
   isSemanticDedupLive,
 } from "@/lib/feature-flags";
@@ -149,8 +148,6 @@ describe("readOnly mirrors agree with the runtime predicates they mirror", () =>
       // The padded case is the divergence trimRawValue exists to close.
       [[undefined, false], ["1", true], [" 1 ", true], ["0", false]]],
     // 03-F13: five live switches that were invisible on the board.
-    ["FEATURE_BULK_SMS_LIVE", isBulkSmsLive,
-      [[undefined, false], ["1", true], ["true", false], ["0", false]]],
     ["SEMANTIC_DEDUP_LIVE", isSemanticDedupLive,
       [[undefined, false], ["1", true], ["true", false], ["0", false]]],
     ["NARRATOR_LLM_SYNTHESIS", isNarratorSynthesisOn,

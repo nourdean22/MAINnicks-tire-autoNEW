@@ -1,7 +1,8 @@
 /**
- * A brief wearing today's date, built on last week's backlog, is not a good day.
+ * Zero ingestion is a failure, not a quiet day (moved from the daily-brief test
+ * 2026-10-18 when the brief was stopped and `intelligence-ingest` kept the pipeline).
  *
- * THE DEFECT, 2026-08-23. `intelligence-daily-brief`'s ingestion loop caught
+ * THE DEFECT, 2026-08-23. The ingestion loop caught
  * every per-source error, logged it, and returned normally. A source returning
  * `{ success: false }` was not logged at all. So if all seven feeds failed — one
  * expired credential is enough — the run reported `sourcesIngested: 0` and
@@ -25,7 +26,7 @@ import { describe, it, expect, vi } from "vitest";
 import {
   ingestAllSources,
   ingestionFailure,
-} from "@/lib/inngest/functions/intelligence-brief";
+} from "@/lib/inngest/functions/intelligence-ingest";
 
 type Res = { success: boolean; claimsCount: number; message: string };
 
@@ -157,24 +158,29 @@ describe("the gate is wired at the END of the function, not inside the step", ()
     // re-executing the step's code". Throwing inside step 1 meant each of the
     // three attempts re-ran all seven connector fetches and re-spent the scrape
     // budget on the day things were already broken, and skipped the six
-    // downstream steps — no briefing_logs row, no push, no drift scan.
+    // downstream step — no drift scan.
     const stepStart = src.indexOf('step.run("ingest-active-sources"');
-    const stepEnd = src.indexOf('step.run("synthesize-opportunities"');
+    const stepEnd = src.indexOf('step.run("scan-persona-drift"');
     const stepBody = src.slice(stepStart, stepEnd);
     expect(stepBody.length).toBeGreaterThan(0);
     expect(stepBody, "the gate must not throw inside the ingestion step").not.toMatch(/throw new Error/);
     expect(stepBody).toContain("ingestAllSources");
   });
 
-  it("the throw comes after dispatch-push, so the brief still ships", () => {
-    expect(src.indexOf("throw new Error(fatal)")).toBeGreaterThan(
-      src.indexOf('step.run("dispatch-push"'),
-    );
+  it("the function is a slim ingest: no brief is composed, saved or pushed", () => {
+    for (const gone of ["compose-brief-text", "save-brief-log", "dispatch-push", "combine-morning-highlight", "synthesize-opportunities"]) {
+      expect(src, gone).not.toContain(`step.run("${gone}"`);
+    }
+  });
+
+  it("the throw comes after the drift step, so it still runs", () => {
+    const at = src.indexOf("throw new Error(fatal)");
+    expect(at).toBeGreaterThan(src.indexOf('step.run("scan-persona-drift"'));
   });
 });
 
 function readSource(): string {
   const { readFileSync } = require("node:fs") as typeof import("node:fs");
   const { resolve } = require("node:path") as typeof import("node:path");
-  return readFileSync(resolve(process.cwd(), "lib/inngest/functions/intelligence-brief.ts"), "utf8");
+  return readFileSync(resolve(process.cwd(), "lib/inngest/functions/intelligence-ingest.ts"), "utf8");
 }

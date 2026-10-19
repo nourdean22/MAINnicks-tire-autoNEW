@@ -4,14 +4,13 @@
  * /system/ui-lab — the object grammar's primitives against fixtures
  * (2026-09-15, UI workbench slice 2).
  *
- * Sibling of /system/chat-states, split out on purpose: that page is
- * pinned by full-page screenshot baselines (tests/e2e/chat-states.spec.ts),
- * so every primitive added there would break the visual lane. This page
- * has no baselines yet; it is the place to eyeball the inspector chrome, its
- * four honest non-content states, the metric grammar and the evidence mark
- * after any change to them.
+ * TEST FIXTURE HOST, not a surface (2026-10-18): no hub card, no palette row, no
+ * nav link. The e2e specs selection-grammar, inspector-view-transition and
+ * phone-no-sideways-scroll and ui-lab-page.test drive this page by URL.
+ * The inspector chrome, its four honest non-content states, the metric
+ * grammar and the evidence mark render here against fixtures.
  *
- * Rules, same as chat-states: the REAL components, plain props, nothing
+ * Rules: the REAL components, plain props, nothing
  * mocked at module level. The clock is frozen (FIXTURE_NOW) so every age
  * and expiry reads the same tomorrow — a gallery that drifts is a gallery
  * nobody trusts.

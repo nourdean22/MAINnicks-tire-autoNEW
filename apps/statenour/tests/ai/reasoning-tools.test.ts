@@ -21,8 +21,6 @@ const FORBIDDEN_WRITE_TOOLS = [
   "createTask",
   "updateTask",
   "sendSMS",
-  "createQuickQuote",
-  "triageStaleLead",
   "archiveGoal",
   "completeGoal",
   "createGoal",

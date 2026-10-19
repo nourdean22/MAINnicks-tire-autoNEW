@@ -169,7 +169,6 @@ export const TOOL_CATALOG: ToolMeta[] = [
   { name: "setLifeGoal",                  category: "personal_write", cost: "free" },
   { name: "setTaskPriority",              category: "personal_write", cost: "free" },
   { name: "snoozeTask",                   category: "personal_write", cost: "free" },
-  { name: "triageStaleLead",              category: "personal_write", cost: "free" },
   { name: "updateCommitment",             category: "personal_write", cost: "free" },
   { name: "updateMasteryScore",           category: "personal_write", cost: "free" },
   { name: "updateTask",                   category: "personal_write", cost: "free" },
@@ -196,7 +195,6 @@ export const TOOL_CATALOG: ToolMeta[] = [
   // ── business_write ───────────────────────────────────────────────
   // v7 cleanup · Apr 28 · createPaymentLink + triggerFollowUp removed
   // (mutating Stripe / Twilio actions belong on nickstire.org/admin).
-  { name: "createQuickQuote",             category: "business_write", sideEffecting: true, cost: "cheap" },
 
   // ── live_shop (nickstire bridge) ─────────────────────────────────
   { name: "compareLiveRevenue",           category: "live_shop",      battle: true, needsBridge: true, cost: "free" },
@@ -359,11 +357,6 @@ export const TOOL_CATALOG: ToolMeta[] = [
   // a sink (2026-10-10 red-team) and not battle (fast read-only) safe.
   { name: "renderInlineChart",            category: "content",        battle: true, cost: "free"   },
   { name: "composeEmail",                 category: "comms",          sideEffecting: true, cost: "free" },
-
-  // ── learning resources (v10.0.52) ────────────────────────────────
-  // Bundled curated tutorial catalog (codecrafters-io/build-your-own-x).
-  // Pure local search — no network call. Browse UI at /learn.
-  { name: "searchBuildYourOwnX",          category: "research",       battle: true, cost: "free"   },
 
   // v10.0.526 · Arc C · F3 · pricing-strategy advisor read.
   // Cheap BrainMemory lookup; the analyzer runs once weekly in the

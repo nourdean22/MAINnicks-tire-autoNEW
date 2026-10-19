@@ -2,35 +2,21 @@
   "_about": "UI v3 ratchet baseline (tests/repo/ui-v3-ratchets.test.ts). Keys are app-root-relative POSIX paths; a file or counter that is absent is 0. A count may fall and never rise. It does not tighten by itself: each wave PR that removes violations runs UPDATE_RATCHET=1 pnpm exec vitest run tests/repo/ui-v3-ratchets.test.ts and commits the lowered numbers. That mode refuses to raise any number and refuses a missing, corrupt or non-object file. A deleted file's entry is dropped when it runs; a moved or renamed file is re-keyed by hand, its numbers moving with it and the totals unchanged. To ADD a legitimate number run UPDATE_RATCHET=init in the PR that adds it, give the reason in the PR body, and expect it to be reviewed like any raise. Both modes are refused when CI is set. Do not hand-edit a number up.",
   "totals": {
     "uppercase": 5,
-    "emDash": 255,
-    "emoji": 28,
-    "transitionAll": 54,
+    "emDash": 236,
+    "emoji": 24,
+    "transitionAll": 50,
     "slowDuration": 8,
-    "smallInput": 104
+    "smallInput": 83
   },
   "files": {
-    "app/(mastery)/content/page.tsx": {
-      "emDash": 1
-    },
     "app/(mastery)/decisions/[id]/page.tsx": {
       "smallInput": 2
-    },
-    "app/(mastery)/intelligence/brief/page.tsx": {
-      "emDash": 1
     },
     "app/(mastery)/journal/_components/journal-feed-view.tsx": {
       "smallInput": 1
     },
     "app/(mastery)/journal/_components/notebooklm-context-zone.tsx": {
       "smallInput": 1
-    },
-    "app/(mastery)/learn/page.tsx": {
-      "smallInput": 1
-    },
-    "app/(mastery)/links/page.tsx": {
-      "emDash": 2,
-      "emoji": 1,
-      "smallInput": 5
     },
     "app/(mastery)/missions/hooks/use-mission-actions.ts": {
       "emDash": 6
@@ -59,12 +45,6 @@
     "app/(mastery)/system/calibration/page.tsx": {
       "emDash": 4
     },
-    "app/(mastery)/system/camera/page.tsx": {
-      "smallInput": 3
-    },
-    "app/(mastery)/system/chat-states/page.tsx": {
-      "emoji": 3
-    },
     "app/(mastery)/system/crons/page.tsx": {
       "emDash": 3
     },
@@ -73,13 +53,6 @@
     },
     "app/(mastery)/system/page.tsx": {
       "emoji": 1
-    },
-    "app/(mastery)/system/proactive-preview/page.tsx": {
-      "emDash": 1,
-      "smallInput": 1
-    },
-    "app/(mastery)/system/tools/page.tsx": {
-      "emDash": 5
     },
     "app/styles/base.css": {
       "uppercase": 4
@@ -230,24 +203,6 @@
     "components/command-palette.tsx": {
       "emDash": 1
     },
-    "components/content/assistant-tab.tsx": {
-      "emDash": 1,
-      "smallInput": 1
-    },
-    "components/content/drafts-tab.tsx": {
-      "transitionAll": 2
-    },
-    "components/content/history-tab.tsx": {
-      "smallInput": 1
-    },
-    "components/content/outreach-tab.tsx": {
-      "emDash": 2,
-      "smallInput": 5
-    },
-    "components/content/publish-tab.tsx": {
-      "emDash": 2,
-      "smallInput": 4
-    },
     "components/goals/execution-coach-sandbox.tsx": {
       "transitionAll": 14,
       "slowDuration": 1,
@@ -287,9 +242,6 @@
     },
     "components/inspector/panels/tool-inspector.tsx": {
       "emDash": 1
-    },
-    "components/intelligence/OpportunityCard.tsx": {
-      "transitionAll": 2
     },
     "components/journal/entry-row.tsx": {
       "smallInput": 2
@@ -432,9 +384,6 @@
     "components/system/stale-data-panel.tsx": {
       "emDash": 4
     },
-    "components/system/tool-gap-panel.tsx": {
-      "emDash": 2
-    },
     "components/system/tool-usage-census-panel.tsx": {
       "emDash": 3
     },
@@ -485,9 +434,6 @@
     },
     "components/ultron/observability/observability-row.tsx": {
       "emDash": 1
-    },
-    "components/ultron/observability/voice-latency-tile.tsx": {
-      "emDash": 2
     },
     "components/ultron/preferences-card.tsx": {
       "emoji": 1

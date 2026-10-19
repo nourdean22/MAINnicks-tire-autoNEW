@@ -33,16 +33,15 @@
 
 import { useObservability } from "@/hooks/use-observability";
 import { CostSloTile } from "./cost-slo-tile";
-import { VoiceLatencyTile } from "./voice-latency-tile";
 import { EvalPassRateTile } from "./eval-pass-rate-tile";
 import { OsDriftTile } from "./os-drift-tile";
 
 export function ObservabilityRow() {
-  const { cost, voice, evals, osSnapshot } = useObservability();
+  const { cost, evals, osSnapshot } = useObservability();
 
   return (
     <section
-      aria-label="System observability — cost, voice latency, eval pass rate, OS drift"
+      aria-label="System observability — cost, eval pass rate, OS drift"
       className="space-y-2"
     >
       {/* Zone label — matches the mono eyebrow rhythm used by
@@ -54,7 +53,6 @@ export function ObservabilityRow() {
           tiles: single column on the phone, two columns from sm. */}
       <div className="grid grid-cols-1 gap-x-10 gap-y-4 pt-2 sm:grid-cols-2">
         <CostSloTile state={cost} />
-        <VoiceLatencyTile state={voice} />
         <EvalPassRateTile state={evals} />
         <OsDriftTile state={osSnapshot} />
       </div>

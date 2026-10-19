@@ -246,10 +246,10 @@ const SYSTEM_ANCHORS: BrainGraphNode[] = [
   { id: "business", type: "business", label: "BUSINESS", weight: 8, status: "active", href: "/stats", metadata: { source: "system_seed" } },
   { id: "nicks-tire", type: "business", label: "NICK'S TIRE", weight: 8, status: "active", href: "/stats", metadata: { source: "system_seed" } },
   { id: "discipline", type: "system", label: "DISCIPLINE", weight: 8, status: "active", href: "/brain", metadata: { source: "system_seed" } },
-  { id: "fitness", type: "system", label: "FITNESS", weight: 7, status: "active", href: "/goals", metadata: { source: "system_seed" } },
-  { id: "family-vision", type: "system", label: "FAMILY VISION", weight: 7, status: "active", href: "/goals", metadata: { source: "system_seed" } },
-  { id: "fertility", type: "system", label: "FERTILITY", weight: 6, status: "active", href: "/goals", metadata: { source: "system_seed" } },
-  { id: "content", type: "system", label: "CONTENT", weight: 6, status: "active", href: "/content", metadata: { source: "system_seed" } },
+  { id: "fitness", type: "system", label: "FITNESS", weight: 7, status: "active", href: "/stats?tab=goals", metadata: { source: "system_seed" } },
+  { id: "family-vision", type: "system", label: "FAMILY VISION", weight: 7, status: "active", href: "/stats?tab=goals", metadata: { source: "system_seed" } },
+  { id: "fertility", type: "system", label: "FERTILITY", weight: 6, status: "active", href: "/stats?tab=goals", metadata: { source: "system_seed" } },
+  { id: "content", type: "system", label: "CONTENT", weight: 6, status: "active", href: "/", metadata: { source: "system_seed" } },
 ];
 
 /** goal.domain / mission-domain → anchor id. Only REAL domain fields feed
@@ -576,7 +576,7 @@ export async function getBrainGraph(params: {
       label: g.title,
       weight: Math.min(10, Math.max(4, Math.floor(g.progress / 10))),
       status,
-      href: `/goals`,
+      href: `/stats?tab=goals`,
       ageDays: ageDaysOf(g.createdAt),
       isNew: ageDaysOf(g.createdAt) < 7,
       metadata: {

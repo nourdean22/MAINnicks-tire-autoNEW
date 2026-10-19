@@ -35,7 +35,18 @@ const WATCHED = {
   OR: [{ deviceType: "CAMERA" }, { deviceType: "BRIDGE" }, { platform: "V380" }, { platform: "FRIGATE" }],
 };
 
-const COCKPIT_URL = "https://bdnick.info/system/camera";
+const ADMIN_LOT_URL = "https://nickstire.org/admin?tab=lot";
+const HEALTH_URL = "https://bdnick.info/system/health";
+
+/**
+ * Where an alert for a silent device should open. Only shop and office cameras
+ * have a view in Nick's Admin (Lot); home cameras and other bridges go to the
+ * system health page.
+ */
+export function alertLinkFor(location: string | null | undefined): string {
+  const place = (location ?? "").trim().toLowerCase();
+  return place === "shop" || place === "office" ? ADMIN_LOT_URL : HEALTH_URL;
+}
 
 type SentinelMeta = {
   offlineAt: string;
@@ -59,7 +70,7 @@ function readSentinel(metadata: unknown): SentinelMeta | null {
   };
 }
 
-type WatchedDevice = { id: string; name: string; platformDeviceId: string; lastSeenAt: Date | null; metadata: unknown };
+type WatchedDevice = { id: string; name: string; platformDeviceId: string; lastSeenAt: Date | null; metadata: unknown; location: string | null };
 
 /**
  * Telegram + tagged push. `delivered` is true only when a channel accepted
@@ -69,7 +80,7 @@ type WatchedDevice = { id: string; name: string; platformDeviceId: string; lastS
 async function deliverOutageAlert(d: WatchedDevice, silentMinutes: number): Promise<boolean> {
   const body =
     `${d.name} (${d.platformDeviceId}) last heartbeat ${silentMinutes} min ago — marked OFFLINE. ` +
-    `Edge box: docker compose ps · visitd logs · Frigate 8971. Cockpit: ${COCKPIT_URL}`;
+    `Edge box: docker compose ps · visitd logs · Frigate 8971. Open: ${alertLinkFor(d.location)}`;
   const telegramOk = await sendTelegram(formatTelegramNotification("Camera bridge silent", body, "high"));
   if (!telegramOk) log.error("sentinel_alert_undelivered", { device: d.platformDeviceId, channel: "telegram" });
   let pushSent = 0;
@@ -79,7 +90,7 @@ async function deliverOutageAlert(d: WatchedDevice, silentMinutes: number): Prom
       body: `${d.name}: no heartbeat for ${silentMinutes} min`,
       level: "high",
       tag: `device-offline:${d.platformDeviceId}`,
-      url: COCKPIT_URL,
+      url: alertLinkFor(d.location),
       data: { deviceId: d.id, platformDeviceId: d.platformDeviceId, silentMinutes },
     });
     pushSent = res.sent;
@@ -96,7 +107,7 @@ export async function runHeartbeatSentinel(now: Date = new Date()) {
   //    has never reported cannot be selected here.
   const stale = await prisma.smartDevice.findMany({
     where: { status: "ONLINE", lastSeenAt: { lt: cutoff }, ...WATCHED },
-    select: { id: true, name: true, platformDeviceId: true, lastSeenAt: true, metadata: true },
+    select: { id: true, name: true, platformDeviceId: true, lastSeenAt: true, metadata: true, location: true },
   });
 
   const flipped: Array<{ id: string; platformDeviceId: string; silentMinutes: number; alerted: boolean }> = [];
@@ -143,7 +154,7 @@ export async function runHeartbeatSentinel(now: Date = new Date()) {
   //    is still set — clear it and say so quietly.
   const online = await prisma.smartDevice.findMany({
     where: { status: "ONLINE", lastSeenAt: { gte: cutoff }, ...WATCHED },
-    select: { id: true, name: true, platformDeviceId: true, lastSeenAt: true, metadata: true },
+    select: { id: true, name: true, platformDeviceId: true, lastSeenAt: true, metadata: true, location: true },
   });
   const recovered: Array<{ id: string; platformDeviceId: string; offlineAt: string }> = [];
   for (const d of online) {
@@ -158,7 +169,7 @@ export async function runHeartbeatSentinel(now: Date = new Date()) {
         body: `${d.name} resumed heartbeats (offline since ${flag.offlineAt})`,
         level: "low",
         tag: `device-online:${d.platformDeviceId}`,
-        url: COCKPIT_URL,
+        url: alertLinkFor(d.location),
       });
     } catch (err) {
       log.warn("sentinel_recovery_push_failed", { error: err instanceof Error ? err.message : String(err) });
@@ -173,7 +184,7 @@ export async function runHeartbeatSentinel(now: Date = new Date()) {
   //    bridge unannounced. Retried every tick, capped.
   const offline = await prisma.smartDevice.findMany({
     where: { status: "OFFLINE", ...WATCHED },
-    select: { id: true, name: true, platformDeviceId: true, lastSeenAt: true, metadata: true },
+    select: { id: true, name: true, platformDeviceId: true, lastSeenAt: true, metadata: true, location: true },
   });
   const retried: Array<{ id: string; platformDeviceId: string; alerted: boolean; attempts: number }> = [];
   for (const d of offline) {

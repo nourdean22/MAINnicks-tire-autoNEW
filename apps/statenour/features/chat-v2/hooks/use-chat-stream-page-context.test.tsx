@@ -199,7 +199,7 @@ describe("the Retry hold is set by a second tap and cleared by what moves on (M3
 // direct one, and the killed-turn reattach).
 describe("round 3 (A5): refusals mirror into the hold; a stale hold does not outlive a replay", () => {
   it("a side-effecting turn's refusal is held, not only toasted", async () => {
-    h.chat.messages = [user, { id: "a2", role: "assistant", parts: [{ type: "tool-createQuickQuote" }, { type: "text", text: "Sent." }] }];
+    h.chat.messages = [user, { id: "a2", role: "assistant", parts: [{ type: "tool-stageCustomerAlert" }, { type: "text", text: "Sent." }] }];
     render();
     await act(async () => { await ctl.regenerate(); });
     render();

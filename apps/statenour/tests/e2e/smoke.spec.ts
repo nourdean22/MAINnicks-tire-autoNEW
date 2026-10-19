@@ -52,10 +52,8 @@ const PAGES = [
   // surfaces are the operator-keyed extra; /missions covers the core
   // execution surface hermetically instead.
   { path: "/missions", title: /Missions/i },
-  { path: "/content?tab=history", title: /Content/i },
   { path: "/pins", title: /pinned memory|Pins/i },
   { path: "/stats", title: /Stats/i },
-  { path: "/content?tab=publish", title: /Content/i },
   { path: "/photo-improver", title: /photo improver/i },
   { path: "/brain?tab=wisdom", title: /Brain/i },
   { path: "/system/cockpit-observability", title: /cockpit observability|Observability/i },
@@ -126,8 +124,6 @@ const API_ENDPOINTS = [
   // /api/intel returns { ok, industry: [], generatedAt } and OMITS the
   // data-dependent keys (proven in e2e run 6) — pin the structural shape.
   { method: "GET", path: "/api/intel", expectKeys: ["ok", "industry", "generatedAt"] },
-  { method: "GET", path: "/api/content/history?days=30", expectKeys: ["count", "rows", "stats"] },
-  { method: "GET", path: "/api/social/recent-images", expectKeys: ["images"] },
   { method: "GET", path: "/api/brain/wisdom", expectKeys: ["total", "totalRecalls", "groupings"] },
   { method: "GET", path: "/api/trpc/observability.osSnapshot", expectKeys: ["result"] },
 ];

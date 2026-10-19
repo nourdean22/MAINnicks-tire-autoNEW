@@ -219,7 +219,7 @@ describe("routes the hardened gate flagged on 2026-10-10 now pass it", () => {
   ];
   // Open on purpose: pass by a marker that states why.
   const PUBLIC = [
-    "auth/[...nextauth]", "auth/expires", "actions/openapi", "mcp", "nour-os/query", "short/[code]",
+    "auth/[...nextauth]", "auth/expires", "actions/openapi", "mcp", "nour-os/query",
     "version", "inngest",
   ];
   it.each(OWNER)("owner-gated: app/api/%s", (name) => {

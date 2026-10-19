@@ -962,13 +962,6 @@ async function handleCommand(text: string, chatId: string, forwarded = false): P
       case "/ig":
       case "/instagram":
         return await cmdIg(args, chatId);
-      // 2026-05-17 · Wave-200 follow-up · bulk-SMS approval gate
-      // (see src/inngest/functions/bulk-sms-approval.ts). Operator
-      // approves/rejects pending campaigns straight from Telegram.
-      case "/approve":
-        return await cmdApprove(args.join(" "), chatId);
-      case "/reject":
-        return await cmdReject(args.join(" "), chatId);
       // 2026-05-28 · Wave AG · Nick Action Queue · daily approval.
       // Operator replies "/qa 1 3" / "/qa all" / "/qa none" to the
       // 8am morning batch · execute cron at 9am ships approved rows.
@@ -1003,9 +996,6 @@ async function handleCommand(text: string, chatId: string, forwarded = false): P
             `/draft [sms|social|email|longform] [brief] — Ghostwrite in your voice → approval queue\n` +
             `/research [question] — Queue deep research; cited report lands here in ~2 min\n` +
             `/remind [in 2h | at 3pm | tomorrow 9am] [text] — Telegram ping when due (hourly check)\n` +
-            `\n<b>OUTREACH (Wave-200)</b>\n` +
-            `/approve [campaignId] — Approve pending bulk-SMS\n` +
-            `/reject [campaignId] — Reject pending bulk-SMS\n` +
             `\n<b>NICK QUEUE (Wave AG · 2026-05-28)</b>\n` +
             `/qa 1 3 — approve today's queued moves #1 and #3\n` +
             `/qa all — approve every move in today's queue\n` +
@@ -1440,7 +1430,7 @@ async function cmdDraft(args: string[], chatId: string): Promise<void> {
         ? ` · voice ${ghost.score}/100${ghost.regenApplied ? " (revised)" : ""}`
         : "";
     await sendTelegram(
-      `✍️ <b>Draft</b>${scoreLine}\n\n${escapeHtml(ghost.text.slice(0, 3400))}\n\n<i>Queued as ${draft.key} — approve on /content.</i>`,
+      `✍️ <b>Draft</b>${scoreLine}\n\n${escapeHtml(ghost.text.slice(0, 3400))}\n\n<i>Queued as ${draft.key} — approve in Nick's Admin.</i>`,
       chatId
     );
   } catch (err) {
@@ -2572,65 +2562,6 @@ async function cmdImagine(prompt: string, chatId: string): Promise<void> {
   } catch (err) {
     await sendTelegram(`Image generation failed: ${await safeErrorText(err)}`, chatId);
   }
-}
-
-// ── Bulk-SMS approval (Wave-200 follow-up · 2026-05-17) ─────
-//
-// Emits `bulk-sms/approval-response` events that the
-// `bulk-sms-approval` Inngest function is waiting for via
-// step.waitForEvent. The Inngest function dispatches (or rejects)
-// based on the decision. Operator usage:
-//
-//   /approve <campaignId>      → approve & dispatch
-//   /reject  <campaignId>      → reject & audit
-//
-// Both commands return immediately · the actual SMS send happens
-// inside the Inngest function step (currently TEMPLATE only · no
-// actual SMS dispatch wired). Per
-// apps/statenour/src/inngest/functions/bulk-sms-approval.ts.
-
-async function emitApprovalResponse(
-  campaignId: string,
-  decision: "approve" | "reject",
-  chatId: string,
-): Promise<void> {
-  if (!campaignId) {
-    await sendTelegram(
-      `Usage: <code>/${decision} &lt;campaignId&gt;</code>`,
-      chatId,
-    );
-    return;
-  }
-  try {
-    const { getInngest } = await import("@/lib/inngest/client");
-    const inngest = getInngest();
-    await inngest.send({
-      name: "bulk-sms/approval-response",
-      data: { campaignId, decision },
-    });
-    await sendTelegram(
-      `✅ ${decision === "approve" ? "Approved" : "Rejected"} · ` +
-        `<code>${escapeHtml(campaignId)}</code> · Inngest will ${
-          decision === "approve" ? "dispatch" : "audit + exit"
-        } within seconds.`,
-      chatId,
-    );
-  } catch (err) {
-    await sendTelegram(
-      `⚠️ Failed to emit ${decision} for <code>${escapeHtml(campaignId)}</code>: ${
-        await safeErrorText(err)
-      }`,
-      chatId,
-    );
-  }
-}
-
-async function cmdApprove(args: string, chatId: string): Promise<void> {
-  await emitApprovalResponse(args.trim(), "approve", chatId);
-}
-
-async function cmdReject(args: string, chatId: string): Promise<void> {
-  await emitApprovalResponse(args.trim(), "reject", chatId);
 }
 
 // ── Nick Action Queue (Wave AG · 2026-05-28) ─────────────────

@@ -144,8 +144,6 @@ const KNOWN_FADED: Record<string, number> = {
   "app/(mastery)/decisions/[id]/page.tsx -> text-rose-300/70": 1,
   "app/(mastery)/people/page.tsx -> text-rose-300/70": 1,
   "app/(mastery)/system/actions/page.tsx -> text-rose-400/70": 1,
-  "app/(mastery)/system/camera/page.tsx -> text-red-400/70": 1,
-  "app/(mastery)/system/camera/page.tsx -> text-red-500/60": 1,
   "app/(mastery)/system/fleet/page.tsx -> text-fg-secondary/50": 1,
   "app/(mastery)/system/fleet/page.tsx -> text-fg-secondary/60": 4,
   "app/(mastery)/system/inbox/page.tsx -> text-amber-400/80": 1,

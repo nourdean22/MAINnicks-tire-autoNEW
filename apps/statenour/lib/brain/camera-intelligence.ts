@@ -111,7 +111,7 @@ export async function analyzeCameraData(): Promise<{
           `${shopMotion.length} motion events detected\n` +
           `Camera: ${shopMotion[0].device?.name ?? "Unknown"}\n` +
           `Time: ${new Date().toLocaleTimeString()}\n\n` +
-          `Check cameras at bdnick.info/system/camera`,
+          `Check cameras at nickstire.org/admin?tab=lot`,
       ).catch(() => {});
 
       // Persist alert as a brainMemory row (replaces the dead

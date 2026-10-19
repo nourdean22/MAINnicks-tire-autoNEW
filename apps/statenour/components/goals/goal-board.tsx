@@ -1265,7 +1265,7 @@ export function GoalBoard() {
                                 e.stopPropagation();
                                 const ok = await confirm({
                                   title: `Archive "${g.title}"?`,
-                                  body: `${v.reason}\n\nIt'll move to paused: you can revive it later from /goals.`,
+                                  body: `${v.reason}\n\nIt'll move to paused: you can revive it later from the Goals tab in Stats.`,
                                   confirmLabel: "Archive",
                                 });
                                 if (ok) {

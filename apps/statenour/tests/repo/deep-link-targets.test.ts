@@ -261,7 +261,7 @@ describe("deep links resolve to a page or a redirect", () => {
 
   it("NEGATIVE CONTROL: real pages, dynamic pages, redirects, API paths and comments pass", () => {
     const fine = [
-      '`bdnick.info/system/camera`',
+      '`bdnick.info/system/crons`',
       'href: `/decisions/${dec.id}`',
       'href: "/stats?tab=body"',
       '"https://bdnick.info/mastery"', // redirect -> /stats

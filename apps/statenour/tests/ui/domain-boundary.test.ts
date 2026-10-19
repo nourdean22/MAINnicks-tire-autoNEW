@@ -64,10 +64,6 @@ const SHOP_IDENTITY = /nick['’]?s\s+tire|nickstire\.org/i;
 const KNOWN: Record<string, string> = {
   "app/(mastery)/photo-improver/page.tsx":
     "LEAK · shop photo pipeline producing a Nick's Tire branded re-render. Belongs in the shop admin. Moving it is a two-deploy change; pending operator decision.",
-  "components/content/outreach-tab.tsx":
-    "LEAK · customer outreach templates written in the shop's voice. Shop customer contact belongs in the shop admin.",
-  "app/(mastery)/system/camera/page.tsx":
-    "BORDERLINE · shop branding on a camera surface. The camera SYSTEM is arguably shared infrastructure; the branding is not. Left as-is pending the camera-domain decision.",
   "components/stats/calibration-section.tsx":
     "LEGITIMATE · labels cross-domain business metrics feeding Nour's personal calibration. The rule explicitly permits shop DATA entering StateNour when personal judgement is required.",
 };

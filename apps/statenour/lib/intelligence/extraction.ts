@@ -65,11 +65,12 @@ JSON Schema:
       //
       // ⚠⚠ THE SOURCE IS THE PIPELINE, NOT "cron", AND THAT WAS A REVIEW CATCH.
       // The first version asserted `cron` because the observed 10:15-10:17
-      // traces match intelligenceDailyBrief (`cron: "15 10 * * *"`). That
+      // traces match the daily ingest cron (`cron: "15 10 * * *"`, now the
+      // intelligence-ingest function). That
       // confirmed a SUFFICIENT explanation, not an EXCLUSIVE one: runIngestion
-      // is also reached from /api/intelligence/briefs/generate and
-      // /api/intelligence/ingest, and the composer from the `triggerBrief`
-      // tool. Hard-coding `cron` would make a manual or agent-triggered run
+      // is also reached from /api/intelligence/ingest (and, until 2026-10-18,
+      // from the removed briefs/generate route), and the composer from the
+      // `triggerBrief` tool. Hard-coding `cron` would make a manual or agent-triggered run
       // indistinguishable from a scheduled one — a FALSE attribution baked into
       // the very change meant to restore attribution.
       //

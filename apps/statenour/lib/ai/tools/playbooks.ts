@@ -85,7 +85,7 @@ export const PLAYBOOKS: readonly Playbook[] = [
       "renderInlineChart",
     ],
     guidance:
-      "Playbook: publish. Draft only — publishing runs through /content and its approval gates; cite the search or review signal a hook rests on; Nick's Tire voice, Cleveland specifics, one CTA.",
+      "Playbook: publish. Draft only — publishing runs through Nick's Admin and its approval gates; cite the search or review signal a hook rests on; Nick's Tire voice, Cleveland specifics, one CTA.",
   },
 ];
 

@@ -31,7 +31,6 @@
  *   applyPowerSetting      ← app/api/system/power/route.ts (POST)
  *   buildPromptDiagnostics ← app/api/system/prompt/route.ts
  *   buildReposOverview     ← app/api/system/repos/route.ts
- *   buildSchemaHistory     ← app/api/system/schema-history/route.ts
  *   buildTireStockRequests ← app/api/system/tire-stock-requests/route.ts
  *   buildActorActivity     ← app/api/audit/entity/route.ts (actor-firehose)
  *   buildSystemLogs        ← app/api/system/logs/route.ts
@@ -83,11 +82,6 @@ import { detectContentIntentAsync } from "@/lib/ai/content-intent";
 import { getCacheStats } from "@/lib/ai/system-prompt-cache";
 import { getProviderStatus } from "@/lib/ai/provider";
 import { REPOS, type RepoEntry } from "@/config/repos";
-import {
-  listRecentSchemaChanges,
-  getSchemaLedgerStats,
-  type ChangeEnvironment,
-} from "@/lib/db/schema-ledger";
 import { getActorActivity, type AuditAction } from "@/lib/db/entity-audit";
 
 const log = rootLogger.withSurface("services/system-pages-b");
@@ -1022,80 +1016,6 @@ export async function buildReposOverview(): Promise<ReposOverviewView> {
     liveDataAvailable,
     repos,
     summary,
-  };
-}
-
-// ═══════════════════════ /system/schema-history ═══════════════════════
-
-interface LedgerEntryView {
-  id: string;
-  changeKey: string;
-  title: string;
-  reason: string;
-  changeType: string;
-  method: string;
-  environment: string;
-  destructive: boolean;
-  status: string;
-  appliedAt: string | null;
-  appliedBy: string | null;
-  approvedBy: string | null;
-  rollbackPlan: string | null;
-  sqlSummary: string | null;
-  prismaDiff: string | null;
-  createdAt: string;
-}
-
-export interface SchemaHistoryView {
-  generatedAt: string;
-  stats: {
-    totalChanges: number;
-    appliedLast24h: number;
-    appliedLast7d: number;
-    pendingPlanned: number;
-    failedLast24h: number;
-    destructiveLast30d: number;
-  };
-  entries: LedgerEntryView[];
-}
-
-/** SchemaChangeLedger operator feed · 6-axis summary + recent entries.
- *  Lifted verbatim from app/api/system/schema-history/route.ts. `limit`
- *  clamped 1-200 inside `listRecentSchemaChanges`. Every `Date` is
- *  projected to an ISO string here. */
-export async function buildSchemaHistory(opts: {
-  limit?: number;
-  environment?: ChangeEnvironment;
-}): Promise<SchemaHistoryView> {
-  const [stats, entries] = await Promise.all([
-    getSchemaLedgerStats(),
-    listRecentSchemaChanges({
-      limit: opts.limit,
-      environment: opts.environment,
-    }),
-  ]);
-
-  return {
-    generatedAt: new Date().toISOString(),
-    stats,
-    entries: entries.map((e) => ({
-      id: e.id,
-      changeKey: e.changeKey,
-      title: e.title,
-      reason: e.reason,
-      changeType: e.changeType,
-      method: e.method,
-      environment: e.environment,
-      destructive: e.destructive,
-      status: e.status,
-      appliedAt: e.appliedAt?.toISOString() ?? null,
-      appliedBy: e.appliedBy,
-      approvedBy: e.approvedBy,
-      rollbackPlan: e.rollbackPlan,
-      sqlSummary: e.sqlSummary,
-      prismaDiff: e.prismaDiff,
-      createdAt: e.createdAt.toISOString(),
-    })),
   };
 }
 

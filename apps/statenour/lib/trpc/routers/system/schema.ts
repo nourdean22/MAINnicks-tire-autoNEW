@@ -25,7 +25,6 @@ import { scanSystemGaps } from "@/lib/services/system-gaps";
 import { buildEmbeddingCoverage } from "@/lib/services/embedding-coverage";
 import { getEntityHistory } from "@/lib/db/entity-audit";
 import {
-  buildSchemaHistory,
   buildActorActivity,
   buildSystemLogs,
 } from "@/lib/services/system-pages-b";
@@ -215,32 +214,6 @@ export const schemaProcedures = {
       );
       return { count: entries.length, entries, mode: "entity" as const };
     }),
-
-  /**
-   * Phase B.7b · owner-only · the SchemaChangeLedger operator feed ·
-   * 6-axis summary + recent ledger entries with destructive flag +
-   * rollback plan. Replaces GET /api/system/schema-history ·
-   * delegates to the shared `system-pages-b.buildSchemaHistory`
-   * service (which projects every `Date` to an ISO string). The
-   * legacy `?limit` (clamped 1-200) / `?env` query params are
-   * mirrored as typed inputs · SchemaHistoryPage keys on the input so
-   * switching the env filter refetches.
-   */
-  schemaHistory: operatorProcedure
-    .input(
-      z
-        .object({
-          limit: z.number().int().min(1).max(200).optional(),
-          env: z.enum(["local", "preview", "production"]).optional(),
-        })
-        .optional(),
-    )
-    .query(async ({ input }) =>
-      buildSchemaHistory({
-        limit: input?.limit,
-        environment: input?.env,
-      }),
-    ),
 
   /**
    * Phase B.7b · owner-only · recent entity-audit activity by one

@@ -61,10 +61,8 @@ export const TOOL_BIAS: Record<string, string> = {
   // callable from any route; the bias was a hint, not a gate.
   "/decisions": "journalDecision · reviewDecisionReplay · getDecisionReplays",
   // ── 2026-08-12 · routes that existed in nav but never had a bias ──
-  "/content": "writeCreative · generateImage · getInstagramAutopostStatus · triggerInstagramAutopost · composeEmail",
   "/market": "getGscSummary · getGscTopQueries · analyzeCompetitiveIntel · compareCompetitors · analyzeTrends",
   "/people": "getPowerBalanceSummary · analyzePowerDynamics · getContextualGreeneLaws · scheduleFollowUp",
-  "/learn": "searchSkills · getSkillProtocol · suggestSkills · captureSkillFromSource",
   // Home is the decision surface — bias to reading state, never to
   // minting new work. Safe ONLY because resolveToolBiasKey matches the
   // LONGEST prefix; with the old `find(startsWith)` this key would have

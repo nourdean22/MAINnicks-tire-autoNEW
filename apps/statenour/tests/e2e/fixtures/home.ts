@@ -84,7 +84,7 @@ export const HOME_BRIEF: OperatorBrief = {
       { scope: "now", label: "Demo task: send the demo supplier quote", href: "/missions", source: "MIT" },
       { scope: "today", label: "Demo call with Demo Supplier A at 4:00 PM", href: "/missions", source: "calendar" },
       { scope: "week", label: "Demo mission Alpha: supplier quote", href: "/missions", source: "due date" },
-      { scope: "later", label: "Demo goal: finish the demo floor layout", href: "/goals", source: "goal horizon" },
+      { scope: "later", label: "Demo goal: finish the demo floor layout", href: "/stats?tab=goals", source: "goal horizon" },
     ],
     measured: true,
   },

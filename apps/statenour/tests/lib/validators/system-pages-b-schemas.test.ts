@@ -18,7 +18,6 @@
  *                                           · system.flushPromptCache (NEW, mutation)
  *   · system/repos/page.tsx               → system.reposOverview (NEW, read · no input)
  *                                           · system.repoBriefing (NEW, read · no input)
- *   · system/schema-history/page.tsx      → system.schemaHistory (NEW, read)
  *   · system/tire-stock-requests/page.tsx → system.tireStockRequests (NEW, read)
  *   · system/history/page.tsx             → system.actorActivity (NEW, read)
  *   · system/logs/page.tsx                → system.systemLogs (NEW, read)
@@ -325,47 +324,6 @@ describe("system.flushPromptCache · hot-flush payload", () => {
   it("accepts an omitted reason (the empty-body path)", () => {
     expect(() => flushPromptCacheInput.parse(undefined)).not.toThrow();
     expect(() => flushPromptCacheInput.parse({})).not.toThrow();
-  });
-});
-
-// ──────────────── system.schemaHistory ────────────────
-//
-// SchemaHistoryPage.schemaHistory query sends { limit: 100, env } where
-// env is one of production/preview/local OR undefined (the "all" pill).
-
-describe("system.schemaHistory · SchemaHistoryPage env payloads", () => {
-  const schemaHistoryInput = z
-    .object({
-      limit: z.number().int().min(1).max(200).optional(),
-      env: z.enum(["local", "preview", "production"]).optional(),
-    })
-    .optional();
-
-  it("accepts the all-env payload (no env key)", () => {
-    expect(() =>
-      schemaHistoryInput.parse({ limit: 100 }),
-    ).not.toThrow();
-  });
-
-  it("accepts every env-filter value", () => {
-    for (const env of ["local", "preview", "production"] as const) {
-      expect(() =>
-        schemaHistoryInput.parse({ limit: 100, env }),
-      ).not.toThrow();
-    }
-  });
-
-  it("rejects an unknown env value", () => {
-    expect(() =>
-      schemaHistoryInput.parse({
-        limit: 100,
-        env: "staging" as unknown as "local",
-      }),
-    ).toThrow();
-  });
-
-  it("rejects a limit above the 200 cap", () => {
-    expect(() => schemaHistoryInput.parse({ limit: 500 })).toThrow();
   });
 });
 
