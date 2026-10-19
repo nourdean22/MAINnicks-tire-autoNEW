@@ -252,16 +252,16 @@ function Router() {
             <Route path={"/about"} component={About} />
             {/* Admin dashboard */}
             <Route path={"/admin"} component={Admin} />
-            <Route path={"/admin/content"}>{() => <Redirect to="/admin?tab=content" />}</Route>
+            <Route path={"/admin/content"}>{() => <Redirect to="/admin?tab=content" replace />}</Route>
             {/* 2026-09-08 · Market moved here from StateNour /market; StateNour redirects to this URL. */}
-            <Route path={"/admin/market"}>{() => <Redirect to="/admin?tab=market" />}</Route>
+            <Route path={"/admin/market"}>{() => <Redirect to="/admin?tab=market" replace />}</Route>
             {/* 2026-07-11 · was ?tab=instagram — not a registry id OR alias,
                 so both studio buttons landed on Overview. The Instagram
                 studio lives at growth → inner tab "instagram". */}
-            <Route path={"/admin/ig-studio"}>{() => <Redirect to="/admin?tab=instagram" />}</Route>
-            <Route path={"/admin/reel-studio"}>{() => <Redirect to="/admin?tab=instagram" />}</Route>
+            <Route path={"/admin/ig-studio"}>{() => <Redirect to="/admin?tab=instagram" replace />}</Route>
+            <Route path={"/admin/reel-studio"}>{() => <Redirect to="/admin?tab=instagram" replace />}</Route>
             {/* 2026-10-19 · Ad Studio was cut (admin prune W1); old links land on Instagram. */}
-            <Route path={"/admin/ad-studio"}>{() => <Redirect to="/admin?tab=instagram" />}</Route>
+            <Route path={"/admin/ad-studio"}>{() => <Redirect to="/admin?tab=instagram" replace />}</Route>
             {/* 2026-10-19 · any other /admin/<slug>[/<id>] (StateNour links /admin/leads,
                 /admin/callbacks, /admin/quotes/new, /admin/leads/<id>) goes through the
                 admin's one slug resolver instead of NotFound. */}

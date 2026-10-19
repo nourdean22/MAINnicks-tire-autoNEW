@@ -8,8 +8,9 @@
  * slug is passed on as ?tab=<slug>, so the admin says the link is bad instead of
  * quietly opening Today.
  *
- * Known limits: Sales Pipeline has no per-lead view, so /admin/leads/<id> lands
- * on the list (the id rides along as ?id=). /admin/quotes/new lands on Sales
+ * The id rides along ONLY to Customers, where ?id= opens that customer. Sales
+ * Pipeline has no per-lead view, so /admin/leads/<id> lands on the list with no id:
+ * carrying it would later open customer <id> (review round 1). /admin/quotes/new lands on Sales
  * Pipeline, whose header holds the Walk-in quote button; nothing opens the quote
  * drawer from a URL today.
  */
@@ -23,7 +24,7 @@ function adminPathTarget(rest: string): string {
   const slug = PATH_SLUGS[first.toLowerCase()] ?? first;
   const target = resolveNavTarget(slug);
   const params = target ? navTargetSearch(target, new URLSearchParams()) : new URLSearchParams({ tab: slug });
-  if (target && /^\d+$/.test(second)) params.set("id", second);
+  if (target?.section === "customers" && /^\d+$/.test(second)) params.set("id", second);
   return `/admin?${params.toString()}`;
 }
 

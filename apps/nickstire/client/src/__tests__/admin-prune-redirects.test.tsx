@@ -14,15 +14,16 @@ import { act, renderHook } from "@testing-library/react";
 
 import * as registry from "../pages/admin/registry";
 import * as innerTabs from "../pages/admin/innerTabs";
+import { actionVisibleToRole, visibleSectionShortcuts } from "../components/admin/CommandSearch";
 
 const { useAdminNavigation, sectionsForRole, ADMIN_REGISTRY, getSidebarGroups } = registry;
 
 // [slug, section, innerKey, innerValue]
 const REDIRECTS: Array<[string, string, string | null, string | null]> = [
-  ["opportunities", "leads", "leadsTab", "followups"],
-  ["decisioninbox", "leads", "leadsTab", "followups"],
-  ["decisions", "leads", "leadsTab", "followups"],
-  ["openwork", "leads", "leadsTab", "followups"],
+  ["opportunities", "leads", "leadsTab", "opportunities"],
+  ["decisioninbox", "leads", "leadsTab", "opportunities"],
+  ["decisions", "leads", "leadsTab", "opportunities"],
+  ["openwork", "leads", "leadsTab", "opportunities"],
   ["callTrackingView", "voiceReceptionist", "voiceTab", "calls"],
   ["callbacks", "voiceReceptionist", "voiceTab", "calls"],
   ["calls", "voiceReceptionist", "voiceTab", "calls"],
@@ -174,5 +175,65 @@ describe("the sidebar after the prune", () => {
       ["Truth", ["Reports"]],
       ["System", ["Settings / Safety"]],
     ]);
+  });
+});
+
+// ── Review round 1 (2026-10-19) ──────────────────────────────────────────────
+describe("review round 1: redirects", () => {
+  it("a leftover ?id= never beats a redirect: Today with id=55, then the Nonstop Nick event, lands on Members with no id", () => {
+    window.history.replaceState(null, "", "/admin?tab=overview&id=55&profileTab=backlog");
+    const { result } = renderHook(() => useAdminNavigation());
+    act(() => {
+      window.dispatchEvent(new CustomEvent("admin:navigate-section", { detail: { section: "memberships" } }));
+    });
+    expect(result.current.section).toBe("customers");
+    expect(params().get("customersTab")).toBe("members");
+    expect(params().get("id")).toBeNull();
+    expect(params().get("profileTab")).toBeNull();
+  });
+
+  it("control: a plain customers link keeps its id (the drawer deep link)", () => {
+    window.history.replaceState(null, "", "/admin?tab=customers&id=55");
+    renderHook(() => useAdminNavigation());
+    expect(params().get("id")).toBe("55");
+  });
+
+  it("?tab=growth&growthTab=instagram goes to the Instagram section, as it did before the merge", () => {
+    window.history.replaceState(null, "", "/admin?tab=growth&growthTab=instagram");
+    const { result } = renderHook(() => useAdminNavigation());
+    expect(result.current.section).toBe("instagram");
+    expect(params().get("contentTab")).toBeNull();
+  });
+
+  it("the legacy leadsTab=followups still opens the Opportunities tab", () => {
+    expect(innerTabs.resolveInnerTab("leads", "followups", "owner")).toBe("opportunities");
+    expect(innerTabs.resolveInnerTab("leads", "opportunities", "owner")).toBe("opportunities");
+  });
+
+  it("a section the role cannot reach says so (role reason) instead of a silent Today", () => {
+    window.history.replaceState(null, "", "/admin?tab=intelligence");
+    const { result } = renderHook(() => useAdminNavigation());
+    act(() => result.current.denySection("overview"));
+    expect(result.current.section).toBe("overview");
+    expect(result.current.unresolvedSlug).toBe("intelligence");
+    expect(result.current.unresolvedReason).toBe("role");
+  });
+});
+
+describe("review round 1: the palette", () => {
+  const OWNER = sectionsForRole("owner");
+  const ACCOUNTANT = sectionsForRole("accountant");
+
+  it("an action that opens an inner tab is hidden from a role that cannot see that tab", () => {
+    const search = { section: "opsHub" as const, inner: { section: "opsHub" as const, tab: "search" } };
+    expect(actionVisibleToRole(search, OWNER, "owner")).toBe(true);
+    expect(actionVisibleToRole(search, ACCOUNTANT, "accountant")).toBe(false);
+  });
+
+  it("accountant gets no customer-list doors: no Customer Database shortcut, no lapsed/VIP actions", () => {
+    const list = { section: "customers" as const, inner: { section: "customers" as const, tab: "customers" } };
+    expect(actionVisibleToRole(list, ACCOUNTANT, "accountant")).toBe(false);
+    expect(visibleSectionShortcuts(ACCOUNTANT, "accountant").map((s) => s.id)).not.toContain("customers");
+    expect(visibleSectionShortcuts(OWNER, "owner").map((s) => s.id)).toContain("customers");
   });
 });

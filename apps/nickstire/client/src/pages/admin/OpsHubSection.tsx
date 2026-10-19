@@ -60,8 +60,11 @@ export default function OpsHubSection() {
   // Role decides which tabs show (innerTabs.ts): Search and Traffic were
   // owner/manager sections. A link to them for another role lands on Owner
   // Actions. Until the role loads, only the unrestricted tabs show.
-  const { data: security } = trpc.adminSecurity.status.useQuery();
+  const { data: security, isError: securityFailed, fetchStatus: securityFetchStatus, refetch: refetchSecurity } =
+    trpc.adminSecurity.status.useQuery();
   const role = (security?.adminRole ?? null) as AdminRole | null;
+  // A failed or paused (offline PWA) access read is unknown: say so, as Customers does.
+  const accessUnknown = !security && (securityFailed || securityFetchStatus === "paused");
   const [requested, setTab] = useUrlFilter<string>("reportsTab", "actions");
   const tab = resolveInnerTab("opsHub", requested, role) ?? "actions";
   const visibleTabs = HUB_TABS.filter((t) => innerTabsForRole("opsHub", role).includes(t.id));
@@ -87,6 +90,18 @@ export default function OpsHubSection() {
       subtitle="Reports, owner actions, and danger-zone truth. Read-only: nothing here sends, posts, refunds, or orders."
       icon={<Wrench className="w-5 h-5 text-primary" />}
     >
+      {accessUnknown && (
+        <div className="flex items-center gap-3 text-[13px] text-muted-foreground mb-3">
+          <span>Could not check your access.</span>
+          <button
+            type="button"
+            onClick={() => void refetchSecurity()}
+            className="min-h-12 min-w-12 px-4 rounded-md border border-border/40 text-foreground/85"
+          >
+            Retry
+          </button>
+        </div>
+      )}
       <TabBar tabs={visibleTabs} activeTab={tab} onChange={setTab} variant="pill" size="compact" />
 
       {tab === "actions" && (

@@ -20,7 +20,8 @@ interface InnerTabSpec {
 }
 
 const INNER_TABS = {
-  leads: { key: "leadsTab", values: ["pipeline", "followups"] },
+  // "opportunities", not "followups": Outreach owns that word (alias + tab).
+  leads: { key: "leadsTab", values: ["pipeline", "opportunities"] },
   voiceReceptionist: { key: "voiceTab", values: ["performance", "queue", "calls"] },
   opsHub: {
     key: "reportsTab",
@@ -47,6 +48,11 @@ const INNER_TABS = {
 
 export type InnerTabSection = keyof typeof INNER_TABS;
 
+/** Values an older link may still carry, mapped to the tab that replaced them. */
+const LEGACY_VALUES: Partial<Record<InnerTabSection, Record<string, string>>> = {
+  leads: { followups: "opportunities" },
+};
+
 /** Tabs this role may see, in order. A null role (not loaded yet) sees only unrestricted tabs. */
 export function innerTabsForRole(section: InnerTabSection, role: AdminRole | null): string[] {
   const spec: InnerTabSpec = INNER_TABS[section];
@@ -64,6 +70,7 @@ export function innerTabsForRole(section: InnerTabSection, role: AdminRole | nul
  */
 export function resolveInnerTab(section: InnerTabSection, raw: string | null, role: AdminRole | null): string | null {
   const visible = innerTabsForRole(section, role);
-  if (raw && visible.includes(raw)) return raw;
+  const value = (raw && LEGACY_VALUES[section]?.[raw]) || raw;
+  if (value && visible.includes(value)) return value;
   return visible[0] ?? null;
 }

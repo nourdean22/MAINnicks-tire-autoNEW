@@ -38,13 +38,16 @@ import {
 import { MarkContactedButton } from "./leads/MarkContactedButton";
 import { LostReasonButton } from "./leads/LostReasonButton";
 import OpportunitiesSection from "./OpportunitiesSection";
+import { LeadDeliveryLog } from "./leads/LeadDeliveryLog";
+import { TechnicianReferralsPanel } from "./leads/TechnicianReferralsPanel";
 import { TabBar } from "./shared/table";
 import { resolveInnerTab } from "./innerTabs";
 import { CandidatesPanel } from "./leads/CandidatesPanel";
 
 /**
  * Sales Pipeline. 2026-10-19 (admin prune W1): the Opportunities section folded in
- * as the Follow-ups tab (?leadsTab=followups; the old ?tab=opportunities links land
+ * as the Opportunities tab (?leadsTab=opportunities; ?leadsTab=followups is still read,
+ * and the old ?tab=opportunities links land
  * there through registry.tsx RETIRED_SECTIONS). Both tabs admit the same roles.
  */
 export default function LeadsSection() {
@@ -56,12 +59,12 @@ export default function LeadsSection() {
       <TabBar
         tabs={[
           { id: "pipeline", label: "Pipeline", icon: <Users className="w-3.5 h-3.5" /> },
-          { id: "followups", label: "Follow-ups", icon: <ClipboardList className="w-3.5 h-3.5" /> },
+          { id: "opportunities", label: "Opportunities", icon: <ClipboardList className="w-3.5 h-3.5" /> },
         ]}
         activeTab={tab}
         onChange={setTab}
       />
-      {tab === "followups" ? <OpportunitiesSection /> : <LeadsPipeline />}
+      {tab === "opportunities" ? <OpportunitiesSection /> : <LeadsPipeline />}
     </div>
   );
 }
@@ -281,6 +284,7 @@ function LeadsPipeline() {
       <SectionInsightStrip section="leads" />
 
       <CandidatesPanel />
+      <TechnicianReferralsPanel />
 
       {unknown && (
         <div className="border border-amber-500/40 bg-amber-500/10 p-4 text-[13px] text-amber-400">
@@ -687,6 +691,8 @@ function LeadsPipeline() {
                       <p className="text-[12px] text-foreground/30">
                         Received {new Date(lead.createdAt).toLocaleString()}
                       </p>
+
+                      <LeadDeliveryLog leadId={lead.id} />
 
                     </div>
 

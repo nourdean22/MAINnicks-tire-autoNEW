@@ -109,6 +109,17 @@ describe("Ops Hub Reports tab", () => {
     expect(container.textContent).not.toMatch(/relative to the repository root/i);
   });
 
+  it("a failed or paused access check says so with a 48 px Retry (review round 1)", () => {
+    const refetch = vi.fn();
+    h.queries.set("adminSecurity.status", { data: undefined, isError: true, refetch } as Partial<Q>);
+    render(<OpsHubSection />);
+    expect(screen.getByText("Could not check your access.")).toBeTruthy();
+    const retry = screen.getByRole("button", { name: "Retry" });
+    expect(retry.className).toMatch(/min-h-12/);
+    fireEvent.click(retry);
+    expect(refetch).toHaveBeenCalledTimes(1);
+  });
+
   it("positive control: the Owner Actions tab still renders its registry cards", () => {
     render(<OpsHubSection />);
     expect(screen.getAllByText("Next:", { exact: false }).length).toBeGreaterThan(0);

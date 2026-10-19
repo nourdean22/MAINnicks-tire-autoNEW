@@ -329,6 +329,8 @@ export interface NavTarget {
   innerValue?: string;
   /** A legacy inner-tab param whose value, when present, is carried over instead of innerValue. */
   carryKey?: string;
+  /** carryKey values that mean a different destination altogether (growthTab=instagram). */
+  carryTo?: Record<string, NavTarget>;
 }
 
 export const COMPOUND_REDIRECTS: Record<string, { section: AdminSection; innerKey: string; innerValue: string }> = {
@@ -354,7 +356,7 @@ const RETIRED_SECTIONS: { id: RetiredAdminSection; was: string; aliases: string[
     id: "opportunities",
     was: "Opportunities",
     aliases: ["decisioninbox", "decisions", "openwork"],
-    to: { section: "leads", innerKey: "leadsTab", innerValue: "followups" },
+    to: { section: "leads", innerKey: "leadsTab", innerValue: "opportunities" },
   },
   {
     id: "callTrackingView",
@@ -378,7 +380,14 @@ const RETIRED_SECTIONS: { id: RetiredAdminSection; was: string; aliases: string[
     id: "growth",
     was: "Marketing / Growth",
     aliases: ["gbp", "local", "localseo", "social"],
-    to: { section: "content", innerKey: "contentTab", innerValue: "local", carryKey: "growthTab" },
+    to: {
+      section: "content",
+      innerKey: "contentTab",
+      innerValue: "local",
+      carryKey: "growthTab",
+      // Growth forwarded ?growthTab=instagram to the Instagram section before the merge.
+      carryTo: { instagram: { section: "instagram" } },
+    },
   },
   {
     id: "memberships",
@@ -423,9 +432,21 @@ export function resolveNavTarget(raw: string): NavTarget | null {
   return section ? { section } : null;
 }
 
+/** A target refined by the legacy inner param the URL carries (growthTab=instagram -> Instagram). */
+function refineNavTarget(target: NavTarget, params: URLSearchParams): NavTarget {
+  const carried = target.carryKey ? params.get(target.carryKey) : null;
+  return (carried && target.carryTo?.[carried]) || target;
+}
+
 /** The ?query a target lands on, built over `base` (carried params survive). */
 export function navTargetSearch(target: NavTarget, base: URLSearchParams): URLSearchParams {
   const params = new URLSearchParams(base);
+  // A leftover customer id (and its profile tab) must never beat a redirect: it
+  // would open a customer over the tab the link asked for (review round 1).
+  if (target.innerKey || params.get("tab") !== target.section) {
+    params.delete("id");
+    params.delete("profileTab");
+  }
   params.delete("section");
   params.set("tab", target.section);
   if (target.innerKey && target.innerValue) {
@@ -462,8 +483,9 @@ function resolveCurrentUrl(): InitialSectionResolution {
   const params = new URLSearchParams(window.location.search);
   const raw = (params.get("tab") || params.get("section") || "").trim();
   if (!raw) return { section: "overview", unresolvedSlug: null };
-  const target = resolveNavTarget(raw);
-  if (!target) return { section: "overview", unresolvedSlug: raw.toLowerCase() };
+  const found = resolveNavTarget(raw);
+  if (!found) return { section: "overview", unresolvedSlug: raw.toLowerCase() };
+  const target = refineNavTarget(found, params);
   if (target.innerKey || raw !== target.section) writeNavTarget(target);
   return { section: target.section, unresolvedSlug: null };
 }
@@ -502,9 +524,17 @@ export function SectionContent({ section }: { section: AdminSection }) {
 }
 
 export function useAdminNavigation() {
+  // Read before resolution rewrites the URL: a role refusal names what was asked for.
+  const [initialRaw] = useState<string | null>(() =>
+    typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("tab"),
+  );
   const [initial] = useState(resolveInitialSection);
   const [section, setSectionState] = useState<AdminSection>(initial.section);
   const [unresolvedSlug, setUnresolvedSlug] = useState<string | null>(initial.unresolvedSlug);
+  // "unknown": no section matches the slug. "role": it matched one this role cannot open.
+  const [unresolvedReason, setUnresolvedReason] = useState<"unknown" | "role">("unknown");
+  // The slug the latest navigation asked for, so a role refusal can name it.
+  const requestedSlug = React.useRef<string | null>(initialRaw);
 
   /**
    * Every deliberate navigation answers the bad-link notice, so it cannot outlive
@@ -513,9 +543,20 @@ export function useAdminNavigation() {
    */
   const setSection = useCallback((next: AdminSection) => {
     setUnresolvedSlug(null);
+    setUnresolvedReason("unknown");
+    requestedSlug.current = next;
     setSectionState(next);
   }, []);
   const dismissUnresolvedSlug = useCallback(() => setUnresolvedSlug(null), []);
+  /**
+   * The shell found the current section outside the role's list (a viewer opening
+   * ?tab=intelligence). Land on `fallback` and say why, instead of a silent Today.
+   */
+  const denySection = useCallback((fallback: AdminSection) => {
+    setUnresolvedSlug(requestedSlug.current);
+    setUnresolvedReason("role");
+    setSectionState(fallback);
+  }, []);
 
   // Sync tab state to browser URL search params
   useEffect(() => {
@@ -533,6 +574,7 @@ export function useAdminNavigation() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const handlePopState = () => {
+      const raw = new URLSearchParams(window.location.search).get("tab");
       const r = resolveCurrentUrl();
       if (r.unresolvedSlug) {
         // setSectionState/setUnresolvedSlug directly, because the setSection
@@ -540,9 +582,11 @@ export function useAdminNavigation() {
         console.warn("[admin] unknown ?tab= slug on history navigation, falling back to Today:", r.unresolvedSlug);
         setSectionState("overview");
         setUnresolvedSlug(r.unresolvedSlug);
+        setUnresolvedReason("unknown");
         return;
       }
       setSection(r.section);
+      requestedSlug.current = raw;
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
@@ -558,13 +602,15 @@ export function useAdminNavigation() {
       // resolveSection() below is exactly that defensive resolution step.
       const detail = (e as CustomEvent<Partial<AdminNavigateDetail>>).detail;
       if (!detail?.section) return;
-      const target = resolveNavTarget(detail.section);
+      const found = resolveNavTarget(detail.section);
+      const target = found && refineNavTarget(found, new URLSearchParams(window.location.search));
       if (!target) {
         console.warn("[admin:navigate-section] unknown section slug:", detail.section);
         return;
       }
       if (target.innerKey) writeNavTarget(target);
       setSection(target.section);
+      requestedSlug.current = detail.section;
       if (typeof window !== "undefined") {
         window.scrollTo({ top: 0, behavior: "smooth" });
       }
@@ -599,5 +645,5 @@ export function useAdminNavigation() {
     return () => window.removeEventListener("admin:open-customer-drawer", handler);
   }, [setSection]);
 
-  return { section, setSection, unresolvedSlug, dismissUnresolvedSlug };
+  return { section, setSection, unresolvedSlug, unresolvedReason, dismissUnresolvedSlug, denySection };
 }

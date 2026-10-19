@@ -3,6 +3,8 @@ import { Link2Off, X } from "lucide-react";
 interface Props {
   /** The raw `?tab=` slug that resolved to nothing, or null when the link was fine. */
   slug: string | null;
+  /** "role": the slug matched a section this role cannot open. */
+  reason?: "unknown" | "role";
   onDismiss: () => void;
 }
 
@@ -23,7 +25,7 @@ interface Props {
  * Any deliberate navigation clears this via the `setSection` wrapper in
  * `useAdminNavigation`, so it cannot outlive the moment it describes.
  */
-export default function UnknownSectionNotice({ slug, onDismiss }: Props) {
+export default function UnknownSectionNotice({ slug, reason = "unknown", onDismiss }: Props) {
   if (!slug) return null;
 
   return (
@@ -33,13 +35,26 @@ export default function UnknownSectionNotice({ slug, onDismiss }: Props) {
     >
       <Link2Off className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" aria-hidden />
       <div className="flex-1 min-w-0">
-        <p className="font-semibold text-amber-200 text-sm">That link went nowhere</p>
-        <p className="text-amber-100/80 text-xs mt-1 leading-relaxed">
-          No admin section matches
-          <span className="mx-1 font-mono opacity-80 break-all">?tab={slug}</span>
-          so you are on Today instead. The link is probably stale or mistyped: search
-          for the section you wanted rather than trusting it again.
-        </p>
+        {reason === "role" ? (
+          <>
+            <p className="font-semibold text-amber-200 text-sm">That section is not available for your role</p>
+            <p className="text-amber-100/80 text-xs mt-1 leading-relaxed">
+              The link
+              <span className="mx-1 font-mono opacity-80 break-all">?tab={slug}</span>
+              opens a page your role cannot see, so you are on your first section instead.
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="font-semibold text-amber-200 text-sm">That link went nowhere</p>
+            <p className="text-amber-100/80 text-xs mt-1 leading-relaxed">
+              No admin section matches
+              <span className="mx-1 font-mono opacity-80 break-all">?tab={slug}</span>
+              so you are on Today instead. The link is probably stale or mistyped: search
+              for the section you wanted rather than trusting it again.
+            </p>
+          </>
+        )}
       </div>
       {/* 48x48 hit area (AGENTS.md "iOS PWA · Minimum 48x48px touch targets"),
           with the glyph left at 16px. The negative margins pull the box back into

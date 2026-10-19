@@ -6,13 +6,16 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { trpc } from "@/lib/trpc";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
-import { Search, Users, CalendarClock, Phone, X, LayoutDashboard, Zap, RefreshCw, Sparkles, AlertTriangle, DollarSign, Star, Crown, PhoneCall, FileText, Activity, Send, MessageSquare, RotateCcw, LayoutGrid, ClipboardList } from "lucide-react";
+import { Search, Users, CalendarClock, Phone, X, LayoutDashboard, Zap, RefreshCw, Sparkles, AlertTriangle, DollarSign, Star, Crown, PhoneCall, FileText, Activity, Send, MessageSquare, RotateCcw, LayoutGrid, ClipboardList, TrendingUp } from "lucide-react";
 // wave-181.x Customers Phase 4 · additional icons used by the new
 // Customers Cmd+K shortcuts (Users · Crown · AlertTriangle reused).
 import { toast } from "sonner";
 import { ADMIN_REGISTRY } from "@/pages/admin/registry";
 import { openDrilldown } from "./DrilldownDrawer";
 import type { AdminSection } from "@/pages/admin/shared";
+import { navigateToAdminSection } from "@/pages/admin/shared/navigation";
+import { innerTabsForRole, type InnerTabSection } from "@/pages/admin/innerTabs";
+import type { AdminRole } from "@shared/adminPermissions";
 
 interface Props {
   onNavigate: (section: AdminSection) => void;
@@ -24,6 +27,8 @@ interface Props {
    * 16 sections and selecting a forbidden one silently did nothing.
    */
   allowedSections: readonly AdminSection[];
+  /** The role, once known. Inner tabs (Reports > Search, Customers > list) are role-scoped too. */
+  role?: AdminRole | null;
 }
 
 function useDebounce(value: string, delay: number) {
@@ -58,8 +63,13 @@ const SECTION_SHORTCUTS = ADMIN_REGISTRY.map(s => ({
  * commandPaletteRoleTruth.test.ts — the pin is that the palette derives its
  * offering from the registry's role data, never from a second hand-kept list.
  */
-export function visibleSectionShortcuts(allowedSections: readonly AdminSection[]) {
-  return SECTION_SHORTCUTS.filter(s => allowedSections.includes(s.id));
+export function visibleSectionShortcuts(allowedSections: readonly AdminSection[], role?: AdminRole | null) {
+  return SECTION_SHORTCUTS.filter(s =>
+    allowedSections.includes(s.id) &&
+    // "Customer Database" is the customer list. An accountant reaches Customers for
+    // the Members tab only, so the list shortcut is not theirs (review round 1).
+    (s.id !== "customers" || role === undefined || innerTabsForRole("customers", role ?? null).includes("customers")),
+  );
 }
 
 /**
@@ -69,10 +79,13 @@ export function visibleSectionShortcuts(allowedSections: readonly AdminSection[]
  * `onNavigate` would silently refuse its target.
  */
 export function actionVisibleToRole(
-  action: { section?: AdminSection },
+  action: { section?: AdminSection; inner?: { section: InnerTabSection; tab: string } },
   allowedSections: readonly AdminSection[],
+  role?: AdminRole | null,
 ): boolean {
-  return action.section === undefined || allowedSections.includes(action.section);
+  if (action.section !== undefined && !allowedSections.includes(action.section)) return false;
+  // An action that opens an inner tab is hidden from a role that cannot see that tab.
+  return !action.inner || role === undefined || innerTabsForRole(action.inner.section, role ?? null).includes(action.inner.tab);
 }
 
 // 2026-05-06 — Quick Actions registry for ⌘K palette.
@@ -92,6 +105,8 @@ interface QuickAction {
    * silently does nothing). Leave unset only for pure drilldowns/mutations.
    */
   section?: AdminSection;
+  /** The inner tab run() opens, when it opens one: role-scoped like the section. */
+  inner?: { section: InnerTabSection; tab: string };
   /** Set at component runtime — closure over hooks/dispatchers */
   run: () => void | Promise<void>;
 }
@@ -104,7 +119,7 @@ export function openCommandSearch() {
   window.dispatchEvent(new CustomEvent(OPEN_COMMAND_SEARCH_EVENT));
 }
 
-export function CommandSearch({ onNavigate, onSelectCustomer, allowedSections }: Props) {
+export function CommandSearch({ onNavigate, onSelectCustomer, allowedSections, role }: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -145,7 +160,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer, allowedSections }:
   // Filter section shortcuts — role-scoped first, then by query. Offering a
   // section outside allowedSections would render a result whose selection
   // Admin.tsx silently refuses.
-  const roleSections = useMemo(() => visibleSectionShortcuts(allowedSections), [allowedSections]);
+  const roleSections = useMemo(() => visibleSectionShortcuts(allowedSections, role), [allowedSections, role]);
   const matchingSections = query.length >= 1
     ? roleSections.filter(s =>
         s.label.toLowerCase().includes(query.toLowerCase()) ||
@@ -156,6 +171,85 @@ export function CommandSearch({ onNavigate, onSelectCustomer, allowedSections }:
   // Quick Actions registry — built at runtime so closures capture
   // mutation hooks + onNavigate. Memoized to avoid re-running every keystroke.
   const quickActions = useMemo<QuickAction[]>(() => [
+    // 2026-10-19 (admin prune W1, review round 1): the seven retired sections' words
+    // still find their new home, with its inner tab.
+    {
+      id: "goto-market",
+      section: "opsHub",
+      inner: { section: "opsHub", tab: "search" },
+      label: "Reports · Search (was Market)",
+      keywords: ["market", "search console", "gsc", "queries"],
+      icon: <TrendingUp className="w-4 h-4 text-foreground/60" />,
+      group: "Action",
+      // The registry"s one resolver writes the inner tab and moves the section.
+      run: () => navigateToAdminSection("market"),
+    },
+    {
+      id: "goto-trafficFunnel",
+      section: "opsHub",
+      inner: { section: "opsHub", tab: "traffic" },
+      label: "Reports · Traffic (was Traffic to Revenue)",
+      keywords: ["traffic", "funnel"],
+      icon: <TrendingUp className="w-4 h-4 text-foreground/60" />,
+      group: "Action",
+      // The registry"s one resolver writes the inner tab and moves the section.
+      run: () => navigateToAdminSection("trafficFunnel"),
+    },
+    {
+      id: "goto-callTrackingView",
+      section: "voiceReceptionist",
+      inner: { section: "voiceReceptionist", tab: "calls" },
+      label: "Voice Receptionist · Calls (was Call Tracking)",
+      keywords: ["call tracking", "callback", "calls"],
+      icon: <PhoneCall className="w-4 h-4 text-foreground/60" />,
+      group: "Action",
+      // The registry"s one resolver writes the inner tab and moves the section.
+      run: () => navigateToAdminSection("callTrackingView"),
+    },
+    {
+      id: "goto-opportunities",
+      section: "leads",
+      inner: { section: "leads", tab: "opportunities" },
+      label: "Sales Pipeline · Opportunities",
+      keywords: ["opportunit", "follow up", "decision"],
+      icon: <ClipboardList className="w-4 h-4 text-foreground/60" />,
+      group: "Action",
+      // The registry"s one resolver writes the inner tab and moves the section.
+      run: () => navigateToAdminSection("opportunities"),
+    },
+    {
+      id: "goto-intelligence",
+      section: "customers",
+      inner: { section: "customers", tab: "calls" },
+      label: "Customers · Call list (was Intelligence HQ)",
+      keywords: ["intelligence", "call list"],
+      icon: <PhoneCall className="w-4 h-4 text-foreground/60" />,
+      group: "Action",
+      // The registry"s one resolver writes the inner tab and moves the section.
+      run: () => navigateToAdminSection("intelligence"),
+    },
+    {
+      id: "goto-growth",
+      section: "content",
+      inner: { section: "content", tab: "local" },
+      label: "Website & Local · Local Growth (was Growth)",
+      keywords: ["growth", "gbp", "local", "competitors"],
+      icon: <TrendingUp className="w-4 h-4 text-foreground/60" />,
+      group: "Action",
+      // The registry"s one resolver writes the inner tab and moves the section.
+      run: () => navigateToAdminSection("growth"),
+    },
+    {
+      id: "goto-memberships",
+      section: "customers",
+      inner: { section: "customers", tab: "members" },
+      label: "Customers · Members (Nonstop Nick)",
+      keywords: ["membership", "nonstop"],
+      icon: <Crown className="w-4 h-4 text-foreground/60" />,
+      group: "Action",
+      // The registry"s one resolver writes the inner tab and moves the section.
+      run: () => navigateToAdminSection("memberships"),
+    },
     {
       id: "drilldown-walkaways",
       label: "Show walk-aways",
@@ -370,6 +464,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer, allowedSections }:
     {
       id: "action-customers-lapsed",
       section: "customers",
+      inner: { section: "customers", tab: "customers" },
       label: "Customers · show lapsed cohort",
       keywords: ["customers", "lapsed", "dormant", "win-back", "churn", "at-risk"],
       icon: <Users className="w-4 h-4 text-amber-500" />,
@@ -384,6 +479,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer, allowedSections }:
     {
       id: "action-customers-vips",
       section: "customers",
+      inner: { section: "customers", tab: "customers" },
       label: "Customers · show VIPs (3+ visits)",
       keywords: ["customers", "vip", "loyalty", "best", "regulars", "3+", "visits"],
       icon: <Crown className="w-4 h-4 text-amber-500" />,
@@ -647,8 +743,8 @@ export function CommandSearch({ onNavigate, onSelectCustomer, allowedSections }:
   // navigates to a section this role cannot reach is a button that silently
   // does nothing (Admin.tsx gates onNavigate with the same allowedSections).
   const permittedActions = useMemo(
-    () => quickActions.filter(a => actionVisibleToRole(a, allowedSections)),
-    [quickActions, allowedSections],
+    () => quickActions.filter(a => actionVisibleToRole(a, allowedSections, role)),
+    [quickActions, allowedSections, role],
   );
 
   // Filter actions by query — or, on an empty query, browse the whole registry.

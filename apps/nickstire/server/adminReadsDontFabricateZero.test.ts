@@ -105,14 +105,13 @@ describe("admin reads distinguish 'cannot read' from 'nothing to read'", () => {
     expect(res.migrationPending).toBe(false);
   });
 
-  it("the candidates panel branches on available === false before its empty state", async () => {
+  it("both panels branch on available === false before their empty state", async () => {
     // The helper telling the truth only matters if the UI reads it. Both
     // panels derive rows as `data?.rows ?? []`, so without this branch the
     // honest available:false still renders as "none yet".
     const { readFileSync } = await import("node:fs");
     const path = await import("node:path");
-    // TechnicianReferralsPanel.tsx was cut 2026-10-19 (admin prune W1); CandidatesPanel remains.
-    for (const panel of ["CandidatesPanel.tsx"]) {
+    for (const panel of ["CandidatesPanel.tsx", "TechnicianReferralsPanel.tsx"]) {
       const src = readFileSync(
         path.resolve(__dirname, "../client/src/pages/admin/leads", panel),
         "utf8",

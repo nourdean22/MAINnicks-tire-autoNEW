@@ -105,7 +105,25 @@ describe("forfeited and disqualified stay distinct", () => {
     expect(ROUTER).toContain('status: "forfeited"');
   });
 
-  // 2026-10-19 admin prune W1: the client file this read was deleted with its surface (TechnicianReferralsPanel cut; the router guards above stay pinned).
+  it("the admin panel can actually reach it", () => {
+    // The mutation moved OUT of the panel and into ReferralReasonButton, which
+    // owns one per row - a single panel-level isPending disabled every row's
+    // button while any one row was writing. Both halves are asserted: the
+    // button component calls it, and the panel actually renders that component.
+    const btn = strip(readFileSync(resolve(APP, "client/src/pages/admin/leads/ReferralReasonButton.tsx"), "utf8"));
+    const panel = strip(
+      readFileSync(resolve(APP, "client/src/pages/admin/leads/TechnicianReferralsPanel.tsx"), "utf8"),
+    );
+    // A router action with no button is the same dead end in a new place.
+    expect(btn).toContain("trpc.technicianReferrals.markForfeited.useMutation");
+    expect(btn).toContain("trpc.technicianReferrals.disqualify.useMutation");
+    expect(btn).toContain("mutation.mutate(");
+    expect(panel, "a component nothing renders is the dead end one level down").toContain(
+      "<ReferralReasonButton",
+    );
+    expect(panel).toContain('action="forfeit"');
+    expect(panel).toContain('action="disqualify"');
+  });
 
   it("an EARNED bonus cannot be forfeited — the second way to lose $300", () => {
     // The transition table alone permits eligible -> forfeited, and that is
@@ -124,7 +142,20 @@ describe("forfeited and disqualified stay distinct", () => {
     expect(block, "forfeit must compare eligibleAt against now").toMatch(/eligibleAt.*getTime\(\)\s*<=\s*Date\.now\(\)/s);
   });
 
-  // 2026-10-19 admin prune W1: the client file this read was deleted with its surface (TechnicianReferralsPanel cut; the router guards above stay pinned).
+  it("the panel does not offer Forfeit once the clock is up", () => {
+    // The server refuses it; this keeps the button from inviting the attempt.
+    const panel = strip(
+      readFileSync(resolve(APP, "client/src/pages/admin/leads/TechnicianReferralsPanel.tsx"), "utf8"),
+    );
+    expect(panel).toMatch(/clockUp\s*=\s*r\.eligibleAt/);
+    // The panel computes it; the button receives it. Asserting only the
+    // computation would pass for a value nothing consumes.
+    expect(panel).toMatch(/disabled=\{clockUp\}/);
+    const btn = strip(readFileSync(resolve(APP, "client/src/pages/admin/leads/ReferralReasonButton.tsx"), "utf8"));
+    expect(btn, "the button must honour the disabled prop it is handed").toMatch(
+      /disabled=\{disabled \|\| mutation\.isPending\}/,
+    );
+  });
 
   it("forfeit does not reuse the disqualified status", () => {
     const block = sliceBlock(ROUTER, "markForfeited: adminProcedure", "\n});", {
@@ -214,7 +245,22 @@ describe("who moved the $300 can actually be asked", () => {
     expect(fn, "a bare [] cannot distinguish failure from emptiness").not.toMatch(/return\s*\[\]/);
   });
 
-  // 2026-10-19 admin prune W1: the client file this read was deleted with its surface (TechnicianReferralsPanel cut; the router guards above stay pinned).
+  it("the panel renders a read failure differently from no history", () => {
+    const panel = strip(
+      readFileSync(resolve(APP, "client/src/pages/admin/leads/TechnicianReferralsPanel.tsx"), "utf8"),
+    );
+    expect(panel).toContain("trpc.technicianReferrals.history.useQuery");
+    expect(panel).toContain('q.data?.available === false');
+    expect(panel, "the empty case must still exist - the positive control").toContain(
+      "No recorded actions yet",
+    );
+  });
 
-  // 2026-10-19 admin prune W1: the client file this read was deleted with its surface (TechnicianReferralsPanel cut; the router guards above stay pinned).
+  it("the history query is scoped to the row the operator opened", () => {
+    // Twenty referrals must not fire twenty audit reads on mount.
+    const panel = strip(
+      readFileSync(resolve(APP, "client/src/pages/admin/leads/TechnicianReferralsPanel.tsx"), "utf8"),
+    );
+    expect(panel).toMatch(/history\.useQuery\(\{ id \}, \{ enabled: show \}\)/);
+  });
 });

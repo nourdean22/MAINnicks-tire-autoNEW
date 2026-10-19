@@ -87,6 +87,7 @@ vi.mock("@/lib/trpc", () => {
 vi.mock("sonner", () => ({ toast: { success: () => {}, error: () => {} } }));
 
 import { CandidatesPanel } from "../pages/admin/leads/CandidatesPanel";
+import { TechnicianReferralsPanel } from "../pages/admin/leads/TechnicianReferralsPanel";
 
 const ok = (rows: unknown[]) => ({ available: true, migrationPending: false, rows });
 const down = () => ({ available: false, migrationPending: false, rows: [] });
@@ -139,6 +140,24 @@ describe("CandidatesPanel", () => {
   });
 });
 
+describe("TechnicianReferralsPanel", () => {
+  it("paints the outage state, NOT the empty state, when available is false", () => {
+    h.referrals = { data: down(), isLoading: false, isError: false, error: null };
+    render(<TechnicianReferralsPanel />);
+
+    expect(screen.getByText(/Database unavailable/i)).toBeTruthy();
+    // $300 per referral rides on this not reading as "nobody referred anyone".
+    expect(screen.queryByText(/No technician referrals recorded yet/i)).toBeNull();
+  });
+
+  it("still paints the empty state when the read genuinely succeeded and found nothing", () => {
+    h.referrals = { data: ok([]), isLoading: false, isError: false, error: null };
+    render(<TechnicianReferralsPanel />);
+
+    expect(screen.getByText(/No technician referrals recorded yet/i)).toBeTruthy();
+    expect(screen.queryByText(/Database unavailable/i)).toBeNull();
+  });
+});
 
 /**
  * The 48-hour careers promise, on screen. server/candidateSla.test.ts asserts
@@ -210,6 +229,76 @@ describe("CandidatesPanel · the SLA alarm actually paints", () => {
  * dropped `changes` on the floor - so the single most useful field in a
  * contested $300, the RECORDED REASON, was the one thing it did not show.
  */
+describe("TechnicianReferralsPanel - referral history shows the reason", () => {
+  const oneReferral = () =>
+    ok([
+      {
+        id: 7,
+        status: "disqualified",
+        referrerName: "Pat Lang",
+        referrerPhone: null,
+        candidateName: "Alex Kim",
+        candidatePhone: null,
+        positionTitle: null,
+        bonusAmountCents: 30000,
+        hiredAt: null,
+        eligibleAt: null,
+        paidAt: null,
+        createdAt: new Date("2026-08-01").toISOString(),
+        unlinked: false,
+      },
+    ]);
+
+  it("renders the recorded reason, not just the actor and timestamp", () => {
+    h.referrals = { data: oneReferral(), isLoading: false, isError: false, error: null };
+    h.history = {
+      data: {
+        available: true,
+        rows: [
+          {
+            id: "a1",
+            actor: "nick@nickstire.org",
+            action: "technician_referral.disqualified",
+            changes: { detail: { old: null, new: "Referral #7 disqualified: referrer was the applicant" } },
+            createdAt: new Date("2026-09-01T15:04:00Z").toISOString(),
+          },
+        ],
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+    };
+    render(<TechnicianReferralsPanel />);
+    fireEvent.click(screen.getByRole("button", { name: /history/i }));
+
+    expect(screen.getByText(/nick@nickstire\.org/)).toBeTruthy();
+    expect(screen.getByText(/referrer was the applicant/)).toBeTruthy();
+  });
+
+  it("a failed audit read is not an empty history", () => {
+    h.referrals = { data: oneReferral(), isLoading: false, isError: false, error: null };
+    h.history = { data: { available: false, rows: [] }, isLoading: false, isError: false, error: null };
+    render(<TechnicianReferralsPanel />);
+    fireEvent.click(screen.getByRole("button", { name: /history/i }));
+
+    // "Nobody touched this record" is the most exonerating thing an audit
+    // trail can say, so a read that did not run must never be able to say it.
+    expect(screen.getByText(/Couldn.t read the audit trail/i)).toBeTruthy();
+    expect(screen.queryByText(/No recorded actions yet/i)).toBeNull();
+  });
+
+  it("still says so when there genuinely is no history - the positive control", () => {
+    // Without this, a panel that rendered the failure banner unconditionally
+    // would satisfy the test above and be badly broken.
+    h.referrals = { data: oneReferral(), isLoading: false, isError: false, error: null };
+    h.history = { data: { available: true, rows: [] }, isLoading: false, isError: false, error: null };
+    render(<TechnicianReferralsPanel />);
+    fireEvent.click(screen.getByRole("button", { name: /history/i }));
+
+    expect(screen.getByText(/No recorded actions yet/i)).toBeTruthy();
+    expect(screen.queryByText(/Couldn.t read the audit trail/i)).toBeNull();
+  });
+});
 
 /**
  * The reason a $300 refusal records is CAPTURED, and no native primitive is used.
@@ -220,6 +309,79 @@ describe("CandidatesPanel · the SLA alarm actually paints", () => {
  * the audit row answered who and when and restated the question; the fix must
  * not trade that for a primitive that does nothing on the operator's phone.
  */
+describe("TechnicianReferralsPanel - refusal reasons are captured, not templated", () => {
+  const eligibleRow = () =>
+    ok([
+      {
+        id: 9,
+        status: "eligible",
+        referrerName: "Pat Lang",
+        referrerPhone: null,
+        candidateName: "Alex Kim",
+        candidatePhone: null,
+        positionTitle: null,
+        bonusAmountCents: 30000,
+        hiredAt: new Date("2026-07-01").toISOString(),
+        // Clock still running, so Forfeit is offered.
+        eligibleAt: new Date(Date.now() + 30 * 864e5).toISOString(),
+        paidAt: null,
+        createdAt: new Date("2026-07-01").toISOString(),
+        unlinked: false,
+      },
+    ]);
+
+  it("never calls window.prompt - it expands an in-DOM chip list", () => {
+    const promptSpy = vi.spyOn(window, "prompt");
+    h.referrals = { data: eligibleRow(), isLoading: false, isError: false, error: null };
+    render(<TechnicianReferralsPanel />);
+
+    fireEvent.click(screen.getByRole("button", { name: /disqualify/i }));
+
+    expect(promptSpy, "window.prompt is suppressed in iOS PWA standalone").not.toHaveBeenCalled();
+    expect(screen.getByText(/WHY IS THE CLAIM INVALID/i)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Self-referral$/ })).toBeTruthy();
+    promptSpy.mockRestore();
+  });
+
+  it("forfeit offers its OWN vocabulary, not the disqualify one", () => {
+    // The whole point of two terminal states is that they answer different
+    // questions. One shared reason list would collapse that back.
+    h.referrals = { data: eligibleRow(), isLoading: false, isError: false, error: null };
+    render(<TechnicianReferralsPanel />);
+
+    fireEvent.click(screen.getByRole("button", { name: /forfeit/i }));
+
+    expect(screen.getByText(/WHY IS NO BONUS OWED/i)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Quit before 90 days$/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Self-referral$/ })).toBeNull();
+  });
+
+  it("the chosen reason reaches the mutation, with the linkage fact kept", () => {
+    // The old canned string carried exactly two facts - whether the referral was
+    // linked to a candidate, and who it named. Keeping them means this strictly
+    // ADDS information rather than trading one thin record for another.
+    h.referrals = { data: eligibleRow(), isLoading: false, isError: false, error: null };
+    render(<TechnicianReferralsPanel />);
+
+    fireEvent.click(screen.getByRole("button", { name: /disqualify/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Self-referral$/ }));
+
+    expect(h.disqualifyCalls.length).toBe(1);
+    expect(h.disqualifyCalls[0].id).toBe(9);
+    expect(h.disqualifyCalls[0].reason).toContain("Self-referral");
+    expect(h.disqualifyCalls[0].reason).toContain("Alex Kim");
+  });
+
+  it("collapsed by default - the list is not open until asked", () => {
+    // The positive control. Without it, a component that rendered its chips
+    // unconditionally would satisfy every assertion above.
+    h.referrals = { data: eligibleRow(), isLoading: false, isError: false, error: null };
+    render(<TechnicianReferralsPanel />);
+
+    expect(screen.queryByText(/WHY IS THE CLAIM INVALID/i)).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Self-referral$/ })).toBeNull();
+  });
+});
 
 /**
  * Every control that COMMITS a $300 refusal is thumb-sized.
@@ -232,6 +394,55 @@ describe("CandidatesPanel · the SLA alarm actually paints", () => {
  * canned string merely said nothing. Nothing enforces the 48px rule, so this
  * does.
  */
+describe("TechnicianReferralsPanel - the reason chips are actually tappable", () => {
+  const eligibleRow = () =>
+    ok([
+      {
+        id: 11,
+        status: "eligible",
+        referrerName: "Pat Lang",
+        referrerPhone: null,
+        candidateName: "Alex Kim",
+        candidatePhone: null,
+        positionTitle: null,
+        bonusAmountCents: 30000,
+        hiredAt: new Date("2026-07-01").toISOString(),
+        eligibleAt: new Date(Date.now() + 30 * 864e5).toISOString(),
+        paidAt: null,
+        createdAt: new Date("2026-07-01").toISOString(),
+        unlinked: false,
+      },
+    ]);
+
+  it("every committing chip carries the 48px minimum, and so does cancel", () => {
+    h.referrals = { data: eligibleRow(), isLoading: false, isError: false, error: null };
+    render(<TechnicianReferralsPanel />);
+    fireEvent.click(screen.getByRole("button", { name: /disqualify/i }));
+
+    const chips = ["Self-referral", "Referrer not an employee", "Duplicate claim", "Other"];
+    for (const label of chips) {
+      const el = screen.getByRole("button", { name: new RegExp(`^${label}$`) });
+      expect(el.className, `${label} chip is below the 48px touch minimum`).toContain("min-h-[48px]");
+      expect(el.className, `${label} chip is below the 48px touch minimum`).toContain("min-w-[48px]");
+    }
+    // The thumb that misses cancel lands on a chip, and the chip commits.
+    const cancel = screen.getByRole("button", { name: /cancel/i });
+    expect(cancel.className).toContain("min-h-[48px]");
+    expect(cancel.className).toContain("min-w-[48px]");
+  });
+
+  it("the forfeit list is held to the same minimum", () => {
+    // Asserting only the disqualify list would leave the sibling free to drift -
+    // they are separate JSX branches sharing one className expression today, and
+    // nothing guarantees they stay shared.
+    h.referrals = { data: eligibleRow(), isLoading: false, isError: false, error: null };
+    render(<TechnicianReferralsPanel />);
+    fireEvent.click(screen.getByRole("button", { name: /forfeit/i }));
+
+    const el = screen.getByRole("button", { name: /^Quit before 90 days$/ });
+    expect(el.className).toContain("min-h-[48px]");
+  });
+});
 
 describe("CandidatesPanel · follow-ups due actually paint (nextFollowUpAt consumer)", () => {
   const due = (rows: unknown[]) => ({ available: true, reason: null, rows });

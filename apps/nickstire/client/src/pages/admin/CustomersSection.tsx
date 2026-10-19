@@ -125,7 +125,7 @@ export default function CustomersSection() {
       } else {
         setSelectedCustomerId(num);
       }
-      setRequested(raw && num !== null && !isNaN(num) && num > 0 ? "customers" : params.get("customersTab"));
+      setRequested(params.get("customersTab") ?? (raw && num !== null && !isNaN(num) && num > 0 ? "customers" : null));
     };
 
     // Run once on mount to validate/sync initial URL state

@@ -57,7 +57,8 @@ describe("healthy path reproduces the previous badge numbers", () => {
   it.each([
     ["leads", 3],
     ["tireOrders", 4],
-    ["memberships", 6],
+    // Nonstop Nick is Customers > Members since 2026-10-19 (admin prune W1).
+    ["customers", 6],
     ["instagram", 7],
   ])("%s badge is %i", (section, expected) => {
     expect(badgeFor(buildAdminSignals(inputs()), section)).toMatchObject({
@@ -78,7 +79,7 @@ describe("PARTIAL bundle failure — the case that rendered a clean queue", () =
     // over-reporting, and it would train the operator to ignore the "?".
     const all = buildAdminSignals(inputs({ slices: { ...ALL_OK, leads: DOWN() } }));
     expect(badgeFor(all, "tireOrders")).toMatchObject({ state: "counted", count: 4 });
-    expect(badgeFor(all, "memberships")).toMatchObject({ state: "counted", count: 6 });
+    expect(badgeFor(all, "customers")).toMatchObject({ state: "counted", count: 6 });
   });
 
   it("...and overview goes unknown, because one of its contributors did", () => {
@@ -86,10 +87,10 @@ describe("PARTIAL bundle failure — the case that rendered a clean queue", () =
     expect(badgeFor(all, "overview").state).toBe("unknown");
   });
 
-  it("a stats-only failure takes tireOrders and memberships, not leads", () => {
+  it("a stats-only failure takes tireOrders and customers (membership warnings), not leads", () => {
     const all = buildAdminSignals(inputs({ slices: { ...ALL_OK, stats: DOWN() } }));
     expect(badgeFor(all, "tireOrders").state).toBe("unknown");
-    expect(badgeFor(all, "memberships").state).toBe("unknown");
+    expect(badgeFor(all, "customers").state).toBe("unknown");
     expect(badgeFor(all, "leads")).toMatchObject({ state: "counted", count: 3 });
   });
 
@@ -118,7 +119,7 @@ describe("PER-COUNT failure hiding inside a fulfilled slice (PR #1316 review, P1
     const all = buildAdminSignals(
       inputs({ stats: { tires: { new: 0 }, memberships: { warning: 6 }, _unavailableCounts: ["tires.new"] } }),
     );
-    expect(badgeFor(all, "memberships")).toMatchObject({ state: "counted", count: 6 });
+    expect(badgeFor(all, "customers")).toMatchObject({ state: "counted", count: 6 });
   });
 
   it("both counts failing takes both badges, and leaves leads alone", () => {
@@ -128,7 +129,7 @@ describe("PER-COUNT failure hiding inside a fulfilled slice (PR #1316 review, P1
       }),
     );
     expect(badgeFor(all, "tireOrders").state).toBe("unknown");
-    expect(badgeFor(all, "memberships").state).toBe("unknown");
+    expect(badgeFor(all, "customers").state).toBe("unknown");
     expect(badgeFor(all, "leads")).toMatchObject({ state: "counted", count: 3 });
   });
 
@@ -137,7 +138,7 @@ describe("PER-COUNT failure hiding inside a fulfilled slice (PR #1316 review, P1
       inputs({ stats: { tires: { new: 4 }, memberships: { warning: 6 }, _unavailableCounts: [] } }),
     );
     expect(badgeFor(all, "tireOrders")).toMatchObject({ state: "counted", count: 4 });
-    expect(badgeFor(all, "memberships")).toMatchObject({ state: "counted", count: 6 });
+    expect(badgeFor(all, "customers")).toMatchObject({ state: "counted", count: 6 });
   });
 
   it("names the failed COUNT, not just the slice, so the '?' points somewhere", () => {
@@ -153,7 +154,7 @@ describe("PER-COUNT failure hiding inside a fulfilled slice (PR #1316 review, P1
 describe("whole-query failure and loading", () => {
   it("a failed bundle makes every bundle-derived badge unknown", () => {
     const all = buildAdminSignals(inputs({ bundleFailed: true }));
-    for (const s of ["overview", "leads", "tireOrders", "memberships"]) {
+    for (const s of ["overview", "leads", "tireOrders", "customers"]) {
       expect(badgeFor(all, s).state, s).toBe("unknown");
     }
   });
@@ -194,7 +195,6 @@ describe("unwired sections emit nothing at all", () => {
   // The switch this replaced returned 0 for each of these, which reads as
   // "no problems here" for a question the system never asked.
   it.each([
-    "customers",
     "revenue",
     "growth",
     "content",

@@ -210,7 +210,8 @@ export function buildAdminSignals(inputs: AdminSignalInputs): AdminSignal[] {
     // ── Nonstop Nick ───────────────────────────────────────────────────────
     bundleSignal(
       "membership-warnings",
-      "memberships",
+      // Nonstop Nick is the Customers > Members tab since 2026-10-19.
+      "customers",
       "membership warnings",
       "stats",
       inputs.stats?.memberships?.warning,
