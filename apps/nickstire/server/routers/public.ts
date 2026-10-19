@@ -5,7 +5,6 @@ import { publicProcedure, router } from "../_core/trpc";
 import { getWeather, getWeatherAlert } from "../weather";
 import { getGoogleReviews } from "../google-reviews";
 import { getInstagramPosts, getInstagramAccount } from "../instagram";
-import { keywordSearch, aiSearch } from "../search";
 import { runDiagnosis } from "../diagnose";
 import { generateLaborEstimate } from "../laborEstimate";
 import { z } from "zod";
@@ -76,19 +75,6 @@ export const instagramRouter = router({
       return getInstagramAccount();
     });
   }),
-});
-
-export const searchRouter = router({
-  instant: publicProcedure
-    .input(z.object({ query: z.string().min(1).max(200) }))
-    .query(async ({ input }) => {
-      return { results: await keywordSearch(sanitizeText(input.query)) };
-    }),
-  ai: publicProcedure
-    .input(z.object({ query: z.string().min(2).max(500) }))
-    .mutation(async ({ input }) => {
-      return aiSearch(sanitizeText(input.query));
-    }),
 });
 
 export const laborEstimateRouter = router({

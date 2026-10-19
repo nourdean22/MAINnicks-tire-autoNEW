@@ -11,11 +11,8 @@
  * Admin router — dashboard stats, analytics, weekly reports, follow-ups.
  */
 import { adminProcedure } from "../../../_core/trpc";
-import { TRPCError } from "@trpc/server";
-import { getDeliveryLog } from "../../../email-notify";
 import { getDashboardStats, getSiteHealth } from "../../../admin-stats";
 import { z } from "zod";
-import { saveReviewStatsToDb } from "../../../google-reviews";
 
 
 
@@ -72,13 +69,6 @@ export const healthProcedures = {
     pixelIdOverridden: Boolean(process.env.META_CAPI_PIXEL_ID),
   })),
 
-  /** Get recent notification delivery log */
-  notificationLog: adminProcedure
-    .input(z.object({ limit: z.number().default(50) }).optional())
-    .query(async ({ input }) => {
-      return getDeliveryLog(input?.limit ?? 50);
-    }),
-
   /** Unified sync health check — real API probes for every vendor */
   syncHealth: adminProcedure.query(async () => {
     const { getVendorHealthReport } = await import("../../../services/vendorHealth");
@@ -111,40 +101,6 @@ export const healthProcedures = {
     clearHealthCache();
     return getVendorHealthReport();
   }),
-
-  /** Update Google review stats (count/rating) from the admin dashboard */
-  updateReviewStats: adminProcedure
-    .input(z.object({
-      count: z.number().int().min(0).max(100000).optional(),
-      rating: z.number().min(1).max(5).optional(),
-    }))
-    .mutation(async ({ input }) => {
-      if (input.count === undefined && input.rating === undefined) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Provide at least count or rating" });
-      }
-      await saveReviewStatsToDb({ count: input.count, rating: input.rating });
-      return { success: true, count: input.count, rating: input.rating };
-    }),
-
-  /** Run smoke tests on all integrations */
-  smokeTest: adminProcedure.mutation(async () => {
-    const { runSmokeTests } = await import("../../../services/integrationLogger");
-    return runSmokeTests();
-  }),
-
-  /** Get integration event log */
-  integrationLog: adminProcedure
-    .input(z.object({
-      vendor: z.string().max(100).optional(),
-      limit: z.number().int().min(1).max(200).default(50),
-    }).optional())
-    .query(async ({ input }) => {
-      const { getRecentEvents, getEventSummary } = await import("../../../services/integrationLogger");
-      return {
-        events: getRecentEvents({ vendor: input?.vendor, limit: input?.limit }),
-        summary: getEventSummary(),
-      };
-    }),
 
   /**
    * Drilldown — clicking any KPI on the dashboard opens this.

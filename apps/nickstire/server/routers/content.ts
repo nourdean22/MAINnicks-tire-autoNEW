@@ -4,7 +4,7 @@
 import { TRPCError } from "@trpc/server";
 import { publicProcedure, adminProcedure, router, dbAdminProcedure } from "../_core/trpc";
 import { getDbTyped } from "../db";
-import { contentManufacturingCampaigns, socialContentInventory } from "../../drizzle/schema";
+import { socialContentInventory } from "../../drizzle/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { sendNotification } from "../email-notify";
 import {
@@ -14,14 +14,12 @@ import {
   getAllDynamicArticles,
   getDynamicArticleBySlug,
   updateArticleStatus,
-  updateArticleContent,
   getActiveNotifications,
   getAllNotifications,
   updateNotificationStatus,
   deleteNotification,
   getGenerationLog,
   runContentGeneration,
-  getCurrentSeason,
 } from "../content-generator";
 import { z } from "zod";
 import { GBP_ARCHETYPES } from "@shared/const";
@@ -33,7 +31,6 @@ import { AUTONOMY_LIMIT_KEYS } from "../../client/src/lib/autonomyPolicy";
 import { dispatch } from "../services/eventBus";
 import { queueStateForReelStatus } from "@shared/reelQueue";
 import { SHOT_SOURCES } from "@shared/shotRouter";
-import { EXPERIMENT_PRESET_IDS, buildExperimentPreset } from "@shared/contentExperiments";
 
 const log = createLogger("routers:content");
 
@@ -182,9 +179,6 @@ export const contentRouter = router({
     }
     return getActiveNotifications();
   }),
-  currentSeason: publicProcedure.query(() => {
-    return { season: getCurrentSeason() };
-  }),
 });
 
 export const contentAdminRouter = router({
@@ -199,22 +193,6 @@ export const contentAdminRouter = router({
     .mutation(async ({ input }) => {
       try {
         return updateArticleStatus(input.id, input.status);
-      } catch (err) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Operation failed" });
-      }
-    }),
-  updateArticleContent: adminProcedure
-    .input(z.object({
-      id: z.number(),
-      title: z.string().max(500).optional(),
-      excerpt: z.string().max(2000).optional(),
-      metaDescription: z.string().max(500).optional(),
-      sectionsJson: z.string().max(100000).optional(),
-    }))
-    .mutation(async ({ input }) => {
-      try {
-        const { id, ...updates } = input;
-        return updateArticleContent(id, updates);
       } catch (err) {
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Operation failed" });
       }
@@ -406,16 +384,6 @@ export const contentAdminRouter = router({
       return { urls };
     }),
 
-  /** Genome Wave 1 slice 2: role-diverse concept tournament with an
-   *  INDEPENDENT judge (replaces self-scored concept selection). Optionally
-   *  chains the judged winner into a campaign genome. */
-  listCampaignGenomes: dbAdminProcedure
-    .input(z.object({ limit: z.number().int().min(1).max(50).default(20) }).optional())
-    .query(async ({ input }) => {
-      const { listGenomes } = await import("../services/creativeMemory");
-      return listGenomes(input?.limit ?? 20);
-    }),
-
   /** Shadow planner (Stage 0 autonomy): DETERMINISTIC ranked campaign
    *  recommendations from real signals - observes and recommends ONLY.
    *  Structurally incapable of generating, reserving, or publishing. */
@@ -436,7 +404,7 @@ export const contentAdminRouter = router({
       const d = await getDb();
       if (d) {
         const { socialContentInventory, reelJobs } = await import("../../drizzle/schema");
-        const { desc, eq, and, gte, inArray, sql } = await import("drizzle-orm");
+        const { desc, and, gte, inArray } = await import("drizzle-orm");
 
         /**
          * Format fatigue: what did we actually publish, most recent first.
@@ -516,47 +484,6 @@ export const contentAdminRouter = router({
     const { collectCommandCenter } = await import("../services/commandCenter");
     return collectCommandCenter();
   }),
-
-  /** Autonomy control plane: active policy + recent audit tail for the
-   *  operator, plus policy versioning and one-tap kill switches. */
-  getAutonomyStatus: adminProcedure.query(async () => {
-    const { getActivePolicy } = await import("../services/autonomyControl");
-    const policy = await getActivePolicy();
-    let recentEvents: Array<{ occurredAt: Date; actionType: string; decision: string; reasoningCodes: string; policyVersion: number }> = [];
-    try {
-      const { getDb } = await import("../db");
-      const d = await getDb();
-      if (d) {
-        const { autonomyAuditEvents } = await import("../../drizzle/schema");
-        const { desc } = await import("drizzle-orm");
-        recentEvents = await d
-          .select({
-            occurredAt: autonomyAuditEvents.occurredAt,
-            actionType: autonomyAuditEvents.actionType,
-            decision: autonomyAuditEvents.decision,
-            reasoningCodes: autonomyAuditEvents.reasoningCodes,
-            policyVersion: autonomyAuditEvents.policyVersion,
-          })
-          .from(autonomyAuditEvents)
-          .orderBy(desc(autonomyAuditEvents.occurredAt))
-          .limit(25);
-      }
-    } catch { /* 0086 pending — status still returns the governing policy */ }
-    return { policy, recentEvents };
-  }),
-
-  publishAutonomyPolicy: adminProcedure
-    .input(z.object({ policy: z.unknown(), note: z.string().max(400).default("") }))
-    .mutation(async ({ input, ctx }) => {
-      const { publishPolicyVersion, PolicyValidationError } = await import("../services/autonomyControl");
-      const { validateAutonomyPolicyShape } = await import("../../client/src/lib/autonomyPolicy");
-      if (!validateAutonomyPolicyShape(input.policy)) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Policy failed shape validation" });
-      }
-      return publishPolicyVersion(input.policy, input.note, ctx.user?.email ?? "admin").catch((err: unknown) => {
-        throw err instanceof PolicyValidationError ? new TRPCError({ code: "BAD_REQUEST", message: err.message }) : err;
-      });
-    }),
 
   setAutonomyKillSwitch: adminProcedure
     .input(z.object({ scope: z.enum(["global", "generation", "publishing"]), on: z.boolean() }))
@@ -660,70 +587,6 @@ export const contentAdminRouter = router({
       }
     }),
 
-  /** Content experiment registry (0108) — operator start surface.
-   *
-   *  Assignment at enqueue and hook-arm resolution at generation have been
-   *  wired since 0108, and the daily content-experiment-resolve cron records
-   *  verdicts — but an experiment can only exist once STARTED, and starting
-   *  one is deliberately an operator action: it changes what the autonomous
-   *  reel lane generates (within already-authorized publishing). The preset
-   *  is the one interventional test the pipeline already understands
-   *  end-to-end: hook_style direct-vs-baseline, decided on shares_per_reach
-   *  at the 72h horizon. Idempotent — re-starting re-asserts the same arms. */
-  startContentExperiment: dbAdminProcedure
-    .input(z.object({ preset: z.enum(EXPERIMENT_PRESET_IDS) }))
-    .mutation(async ({ input }) => {
-      // The definitions live in shared/contentExperiments.ts
-      // (buildExperimentPreset) so this router and the generator read ONE
-      // table. Only a WIRED preset starts: an exposed one gives both arms the
-      // same content, so it would run an A/A test under a treatment's name and
-      // could conclude a false tie or winner (2026-10-08).
-      const def = buildExperimentPreset(input.preset);
-      if (def.wiring !== "wired") {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message: `${def.preset} is not wired yet: nothing in generation applies its arm, so both arms would be the same content and the result would mean nothing. Wire the arm into generation first.`,
-        });
-      }
-      // A pack-variant experiment builds only approved variant PAIRS; with none
-      // approved every Reel would build the base pack and record nothing, so a
-      // start would run an empty experiment that looks live (2026-10-08).
-      if (def.primaryVariable === "pack_variant") {
-        const { eligibleVariantPacks } = await import("../services/approvedReelPackRotation");
-        const armIds = def.arms.map((a) => a.armId);
-        if (eligibleVariantPacks(def.experimentId, armIds).length === 0) {
-          throw new TRPCError({
-            code: "PRECONDITION_FAILED",
-            message: `${def.preset} has no approved variant pairs the daily lane can build: approve a variant for every arm (${armIds.join(", ")}) of at least one rotation pack the lane has not reached yet, in APPROVED_PACK_VARIANTS, first.`,
-          });
-        }
-      }
-      const { startExperiment } = await import("../services/contentExperimentStore");
-      const ok = await startExperiment(def);
-      if (!ok) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "experiment registry unavailable (no DB)" });
-      return {
-        started: def.experimentId,
-        preset: def.preset,
-        arms: def.arms.map((a) => a.armId),
-        primaryMetric: def.primaryMetric,
-        metricNote: def.metricNote,
-        wiring: def.wiring,
-      };
-    }),
-
-  /** Stop a running content experiment (2026-10-08). The lever the wiring
-   *  gate assumed: the resolver now reports a running unwired experiment as
-   *  "not wired, not judged (stop it)", and until this existed nothing but SQL
-   *  could. A stopped experiment leaves assignment and judging at once. */
-  stopContentExperiment: dbAdminProcedure
-    .input(z.object({ experimentId: z.string().min(1).max(100), reason: z.string().min(1).max(500) }))
-    .mutation(async ({ input }) => {
-      const { stopExperiment } = await import("../services/contentExperimentStore");
-      const stopped = await stopExperiment(input.experimentId, input.reason);
-      if (!stopped) throw new TRPCError({ code: "NOT_FOUND", message: `no RUNNING experiment "${input.experimentId}" (unknown id, or already concluded/stopped)` });
-      return { stopped: input.experimentId };
-    }),
-
   /** Blind pairwise review (2026-10-08, services/pairwiseReview.ts): the next
    *  two judged photo posts the operator has not compared, with NO scores, and
    *  the running agreement between the operator's picks and the judge. Three
@@ -757,93 +620,6 @@ export const contentAdminRouter = router({
         throw new TRPCError({ code, message: err instanceof Error ? err.message : String(err) });
       }
     }),
-
-  /** Shadow-judge disagreement readout (2026-08-06) — the reader the shadow
-   *  lane (#1389) shipped without. Every autonomous post carries the
-   *  independent tournament judge's verdict in evalScoresJson.shadowJudge;
-   *  this surfaces self-eval vs judge so the gate-flip decision is made on
-   *  an accumulated readout, not vibes. Zero rows is reported as zero — a
-   *  quiet lane must be distinguishable from a missing reader. */
-  shadowJudgeReadout: adminProcedure.query(async () => {
-    const { getDb } = await import("../db");
-    const d = await getDb();
-    if (!d) return { total: 0, judged: 0, errors: 0, disagreements: [], rows: [] };
-    const { igAutopostLog } = await import("../../drizzle/schema");
-    const { desc, sql } = await import("drizzle-orm");
-    const raw = await d.select({
-      id: igAutopostLog.id,
-      slot: igAutopostLog.slot,
-      status: igAutopostLog.status,
-      conceptKey: igAutopostLog.conceptKey,
-      overallScore: igAutopostLog.overallScore,
-      evalScoresJson: igAutopostLog.evalScoresJson,
-      createdAt: igAutopostLog.createdAt,
-    }).from(igAutopostLog)
-      .where(sql`${igAutopostLog.evalScoresJson} LIKE '%shadowJudge%'`)
-      .orderBy(desc(igAutopostLog.createdAt))
-      .limit(200);
-    const rows = (raw as Array<{ id: number; slot: string; status: string; conceptKey: string; overallScore: number | null; evalScoresJson: string | null; createdAt: Date }>)
-      .map((r) => {
-        let shadow: { total?: number; rejected?: boolean; note?: string; error?: string } = {};
-        try {
-          shadow = (JSON.parse(r.evalScoresJson ?? "{}") as { shadowJudge?: typeof shadow }).shadowJudge ?? {};
-        } catch { shadow = { error: "unparseable evalScoresJson" }; }
-        return {
-          id: r.id, slot: r.slot, status: r.status, conceptKey: r.conceptKey,
-          selfOverall: r.overallScore, judgeTotal: shadow.total ?? null,
-          judgeRejected: shadow.rejected ?? null, judgeError: shadow.error ?? null,
-          note: shadow.note ?? null, createdAt: r.createdAt,
-        };
-      });
-    const judged = rows.filter((r) => r.judgeTotal != null);
-    const disagreements = judged.filter((r) => (r.selfOverall ?? 0) >= 70 && ((r.judgeTotal ?? 100) < 60 || r.judgeRejected === true));
-    return {
-      total: rows.length,
-      judged: judged.length,
-      errors: rows.filter((r) => r.judgeError != null).length,
-      disagreements,
-      rows: rows.slice(0, 50),
-    };
-  }),
-
-  /** Registry status: every experiment with assignment/published counts and
-   *  the persisted verdict (refusals included — a refusal is a result). */
-  contentExperimentStatus: adminProcedure.query(async () => {
-    const { getDb } = await import("../db");
-    const d = await getDb();
-    if (!d) return { experiments: [] };
-    const { contentExperiments, contentExperimentAssignments } = await import("../../drizzle/schema");
-    const { sql, desc } = await import("drizzle-orm");
-    const experiments = await d.select().from(contentExperiments)
-      .orderBy(desc(contentExperiments.startedAt)).limit(20);
-    const counts = await d.select({
-      experimentId: contentExperimentAssignments.experimentId,
-      assigned: sql<number>`count(*)`,
-      published: sql<number>`count(${contentExperimentAssignments.mediaId})`,
-    }).from(contentExperimentAssignments).groupBy(contentExperimentAssignments.experimentId);
-    const countMap = new Map(
-      (counts as Array<{ experimentId: string; assigned: unknown; published: unknown }>)
-        .map((c) => [c.experimentId, { assigned: Number(c.assigned), published: Number(c.published) }] as const),
-    );
-    return {
-      experiments: (experiments as Array<{
-        experimentId: string; primaryVariable: string; objective: string; primaryMetric: string;
-        status: string; startedAt: Date; concludedAt: Date | null;
-        verdictStatus: string | null; verdictNote: string | null;
-      }>).map((e) => ({
-        experimentId: e.experimentId,
-        primaryVariable: e.primaryVariable,
-        objective: e.objective,
-        primaryMetric: e.primaryMetric,
-        status: e.status,
-        startedAt: e.startedAt,
-        concludedAt: e.concludedAt,
-        verdictStatus: e.verdictStatus,
-        verdictNote: e.verdictNote,
-        counts: countMap.get(e.experimentId) ?? { assigned: 0, published: 0 },
-      })),
-    };
-  }),
 
   /** Reel Visual World: generate three 9:16 reference-frame candidates
    *  (safe / bold / experimental) for a brief's hero + motion lens. Uses
@@ -916,52 +692,6 @@ export const contentAdminRouter = router({
       const { orchestratePostQa } = await import("../services/postQaOrchestrator");
       const outcome = orchestratePostQa(verdict.findings);
       return { ...verdict, automation: outcome.verdict, repairPlan: outcome.repairPlan, publishGate: outcome.publishGate };
-    }),
-
-  /** M12: the operator-facing draft workspace for a reel job — the compiler's
-   *  own output made inspectable (Truth, Concepts, Execution intent-vs-scene,
-   *  Preflight verdict, exact compiled prompts). Read-only; derived from the
-   *  persisted brief so it can never drift from what will be generated. */
-  draftWorkspace: adminProcedure
-    .input(z.object({ jobId: z.number().int().positive() }))
-    .query(async ({ input }) => {
-      const { getDb } = await import("../db");
-      const d = await getDb();
-      if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB not available" });
-      const { reelJobs } = await import("../../drizzle/schema");
-      const { eq } = await import("drizzle-orm");
-      const [job] = await d.select().from(reelJobs).where(eq(reelJobs.id, input.jobId)).limit(1);
-      if (!job?.payload) throw new TRPCError({ code: "NOT_FOUND", message: "Reel job or its brief not found" });
-      const { buildDraftWorkspace } = await import("../../client/src/lib/facelessReelStudio");
-      return buildDraftWorkspace(JSON.parse(job.payload));
-    }),
-
-  /** Selective repair: regenerate EXACTLY one failing beat (from the QA
-   *  verdict's preserve/change instruction or an explicit one), replace only
-   *  that clip in a BACKGROUND worker (no provider call on the request
-   *  path), then the existing assembly worker re-assembles. Queuing
-   *  invalidates the stale mp4 immediately. Policy-gated, cap-enforced. */
-  repairReelBeat: adminProcedure
-    .input(z.object({
-      jobId: z.number().int().positive(),
-      beatNumber: z.number().int().min(1).max(12),
-      instruction: z.object({
-        code: z.string().max(64).optional(),
-        description: z.string().max(400).optional(),
-        preserve: z.array(z.string().max(200)).max(6).default([]),
-        change: z.array(z.string().max(200)).max(6).default([]),
-      }).optional(),
-    }))
-    .mutation(async ({ input }) => {
-      const { requestBeatRepair } = await import("../services/selectiveRepair");
-      try {
-        return await requestBeatRepair(input);
-      } catch (err) {
-        if (err instanceof Error && err.message.startsWith("Blocked by autonomy policy")) {
-          throw new TRPCError({ code: "FORBIDDEN", message: err.message });
-        }
-        throw new TRPCError({ code: "BAD_REQUEST", message: err instanceof Error ? err.message : "repair failed" });
-      }
     }),
 
   /** Genome Wave 2: Reel Director — one campaign genome -> a full
@@ -1048,65 +778,6 @@ export const contentAdminRouter = router({
           stage: RUN_STAGE.failed,
           failureReason: err instanceof Error ? err.message.slice(0, 1000) : String(err).slice(0, 1000),
           evidence: { at: new Date().toISOString(), what: "Carousel Director failed" },
-        });
-        throw err;
-      }
-    }),
-
-  /** Genome Wave 1: generate ONE claim-safe campaign genome + the seeds that
-   *  drive today's reel/carousel/photo flows from it. */
-  generateCampaignGenome: dbAdminProcedure
-    .input(z.object({
-      campaignAsk: z.string().min(8).max(600),
-      objective: z.string().max(32).optional(),
-      proofHandles: z.array(z.string().max(200)).max(8).optional(),
-    }))
-    .mutation(async ({ input, ctx }) => {
-      const { createContentRun, advanceContentRun, RUN_STAGE } = await import("../services/contentRun");
-      const contentRunId = await createContentRun({
-        requestedBy: ctx.user?.email ?? null,
-        requestSource: "operator",
-        requestedTopic: input.campaignAsk,
-        requestedFormat: null,
-      });
-      if (!contentRunId) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Could not create the canonical content run." });
-      await advanceContentRun(contentRunId, {
-        stage: RUN_STAGE.planning,
-        objective: input.objective ?? null,
-        evidence: { at: new Date().toISOString(), what: "direct campaign genome generation started" },
-      });
-      try {
-        const { generateCampaignGenome } = await import("../services/genomeGen");
-        const { genomeToReelSeed, genomeToCarouselSeed, genomeToPhotoSeed } = await import("../../client/src/lib/creativeGenome");
-        const { genome, attempts } = await generateCampaignGenome(input);
-        const { saveGenome } = await import("../services/creativeMemory");
-        const saved = await saveGenome({ genome, campaignAsk: input.campaignAsk, source: "direct" });
-        await advanceContentRun(contentRunId, {
-          stage: RUN_STAGE.planning,
-          objective: genome.objective,
-          thesis: genome.mechanicTruth,
-          evidence: {
-            at: new Date().toISOString(),
-            what: saved?.id ? `campaign genome persisted as ${saved.id}` : "campaign genome generated; persistence unavailable",
-            proof: saved?.id ?? null,
-          },
-        });
-        return {
-          genome,
-          genomeId: saved?.id ?? null,
-          contentRunId,
-          attempts,
-          seeds: {
-            reel: genomeToReelSeed(genome),
-            carousel: genomeToCarouselSeed(genome),
-            photo: genomeToPhotoSeed(genome),
-          },
-        };
-      } catch (err) {
-        await advanceContentRun(contentRunId, {
-          stage: RUN_STAGE.failed,
-          failureReason: err instanceof Error ? err.message.slice(0, 1000) : String(err).slice(0, 1000),
-          evidence: { at: new Date().toISOString(), what: "direct campaign genome generation failed" },
         });
         throw err;
       }
@@ -1399,597 +1070,6 @@ export const contentAdminRouter = router({
       });
       return { inventoryId, alreadyStaged: false };
     }),
-
-  logReel: adminProcedure
-    .input(z.object({
-      topic: z.string(),
-      verifiedFact: z.string(),
-      sources: z.string(),
-      driverConfusion: z.string(),
-      clevelandAngle: z.string(),
-      campaignKeyword: z.string(),
-      creativeTerritory: z.string(),
-      usefulAbsurdity: z.string(),
-      storyboardOutline: z.string(),
-      captionHook: z.string(),
-      instagramUrl: z.string(),
-      assetPaths: z.string(),
-      score: z.string(),
-      hashtags: z.string(),
-      avoidedRepeats: z.string(),
-      issues: z.string(),
-      insightsChecked: z.string(),
-      facebookCrossPostOff: z.string(),
-    }))
-    .mutation(async ({ input }) => {
-      try {
-        try {
-          const { getDb } = await import("../db");
-          const { socialDrafts } = await import("../../drizzle/schema");
-          const { eq, and } = await import("drizzle-orm");
-          const d = await getDb();
-          if (d) {
-            const existing = await d
-              .select()
-              .from(socialDrafts)
-              .where(and(eq(socialDrafts.contentType, "reel"), eq(socialDrafts.topic, input.topic)))
-              .limit(1);
-
-            if (existing.length > 0) {
-              const row = existing[0];
-              let brief: any = {};
-              try {
-                brief = JSON.parse(row.briefJson);
-              } catch (e) {
-                log.error("Failed to parse existing briefJson for logging", e);
-              }
-              brief.status = "posted";
-              brief.instagramUrl = input.instagramUrl;
-              brief.assetPaths = input.assetPaths;
-              brief.verifiedFact = input.verifiedFact;
-              brief.sources = input.sources;
-              brief.driverConfusion = input.driverConfusion;
-              brief.clevelandAngle = input.clevelandAngle;
-              brief.campaignKeyword = input.campaignKeyword;
-              brief.creativeTerritory = input.creativeTerritory;
-              brief.usefulAbsurdity = input.usefulAbsurdity;
-              brief.storyboardOutline = input.storyboardOutline;
-              brief.captionHook = input.captionHook;
-              brief.score = input.score;
-              brief.hashtags = input.hashtags;
-              brief.avoidedRepeats = input.avoidedRepeats;
-              brief.issues = input.issues;
-              brief.insightsChecked = input.insightsChecked;
-              brief.facebookCrossPostOff = input.facebookCrossPostOff;
-
-              await d
-                .update(socialDrafts)
-                .set({
-                  briefJson: JSON.stringify(brief),
-                })
-                .where(eq(socialDrafts.id, row.id));
-            } else {
-              const newId = `posted-reel-${Date.now()}`;
-              const brief = {
-                id: newId,
-                topic: input.topic,
-                status: "posted",
-                instagramUrl: input.instagramUrl,
-                assetPaths: input.assetPaths,
-                campaignKeyword: input.campaignKeyword,
-                creativeTerritory: input.creativeTerritory,
-                usefulAbsurdity: input.usefulAbsurdity,
-                storyboardOutline: input.storyboardOutline,
-                captionHook: input.captionHook,
-                score: input.score,
-                verifiedFact: input.verifiedFact,
-                sources: input.sources,
-                driverConfusion: input.driverConfusion,
-                clevelandAngle: input.clevelandAngle,
-                hashtags: input.hashtags,
-                avoidedRepeats: input.avoidedRepeats,
-                issues: input.issues,
-                insightsChecked: input.insightsChecked,
-                facebookCrossPostOff: input.facebookCrossPostOff,
-              };
-              await d.insert(socialDrafts).values({
-                id: newId,
-                contentType: "reel",
-                topic: input.topic,
-                briefJson: JSON.stringify(brief),
-              });
-            }
-          }
-        } catch (dbErr) {
-          log.error("Failed to log Reel in database", dbErr);
-        }
-
-        // Dual-write to Google Sheets
-        let sheetOk = false;
-        try {
-          const { syncReelLogToSheet } = await import("../sheets-sync");
-          sheetOk = await syncReelLogToSheet(input);
-        } catch (err) {
-          log.warn("syncReelLogToSheet failed", err);
-        }
-
-        // Sync with Statenour Command Center Queue
-        try {
-          await dispatch("social_draft:sync", {
-            id: input.topic ? `reel-${input.topic.toLowerCase().replace(/[^a-z0-9]/g, "-")}` : `posted-reel-${Date.now()}`,
-            content: input.captionHook || input.topic,
-            status: "published",
-            imageUrl: input.instagramUrl || null,
-            platforms: ["instagram"],
-            kind: "reel",
-            source: "nick",
-            sourceMetadata: {
-              topic: input.topic,
-              instagramUrl: input.instagramUrl,
-              assetPaths: input.assetPaths,
-              score: input.score,
-            },
-            publishedAt: new Date().toISOString(),
-          }, { source: "content_router" });
-        } catch (syncErr) {
-          log.warn("Failed to sync logged Reel to Statenour:", syncErr);
-        }
-
-        return { success: true, sheetSynced: sheetOk };
-      } catch (err) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Log Reel failed" });
-      }
-    }),
-  logCarousel: adminProcedure
-    .input(z.object({
-      topic: z.string(),
-      verifiedFact: z.string(),
-      sources: z.string(),
-      driverConfusion: z.string(),
-      clevelandAngle: z.string(),
-      campaignKeyword: z.string(),
-      creativeTerritory: z.string(),
-      usefulAbsurdity: z.string(),
-      storyboardOutline: z.string(),
-      captionHook: z.string(),
-      instagramUrl: z.string(),
-      assetPaths: z.string(),
-      score: z.string(),
-      hashtags: z.string(),
-      avoidedRepeats: z.string(),
-      issues: z.string(),
-      insightsChecked: z.string(),
-      facebookCrossPostOff: z.string(),
-    }))
-    .mutation(async ({ input }) => {
-      try {
-        try {
-          const { getDb } = await import("../db");
-          const { socialDrafts } = await import("../../drizzle/schema");
-          const { eq, and } = await import("drizzle-orm");
-          const d = await getDb();
-          if (d) {
-            const existing = await d
-              .select()
-              .from(socialDrafts)
-              .where(and(eq(socialDrafts.contentType, "carousel"), eq(socialDrafts.topic, input.topic)))
-              .limit(1);
-
-            if (existing.length > 0) {
-              const row = existing[0];
-              let brief: any = {};
-              try {
-                brief = JSON.parse(row.briefJson);
-              } catch (e) {
-                log.error("Failed to parse existing briefJson for logging", e);
-              }
-              brief.status = "posted";
-              brief.instagramUrl = input.instagramUrl;
-              brief.assetPaths = input.assetPaths;
-              brief.verifiedFact = input.verifiedFact;
-              brief.sources = input.sources;
-              brief.driverConfusion = input.driverConfusion;
-              brief.clevelandAngle = input.clevelandAngle;
-              brief.campaignKeyword = input.campaignKeyword;
-              brief.creativeTerritory = input.creativeTerritory;
-              brief.usefulAbsurdity = input.usefulAbsurdity;
-              brief.storyboardOutline = input.storyboardOutline;
-              brief.captionHook = input.captionHook;
-              brief.score = input.score;
-              brief.hashtags = input.hashtags;
-              brief.avoidedRepeats = input.avoidedRepeats;
-              brief.issues = input.issues;
-              brief.insightsChecked = input.insightsChecked;
-              brief.facebookCrossPostOff = input.facebookCrossPostOff;
-
-              await d
-                .update(socialDrafts)
-                .set({
-                  briefJson: JSON.stringify(brief),
-                })
-                .where(eq(socialDrafts.id, row.id));
-            } else {
-              const newId = `posted-carousel-${Date.now()}`;
-              const brief = {
-                id: newId,
-                topic: input.topic,
-                status: "posted",
-                instagramUrl: input.instagramUrl,
-                assetPaths: input.assetPaths,
-                campaignKeyword: input.campaignKeyword,
-                creativeTerritory: input.creativeTerritory,
-                usefulAbsurdity: input.usefulAbsurdity,
-                storyboardOutline: input.storyboardOutline,
-                captionHook: input.captionHook,
-                score: input.score,
-                verifiedFact: input.verifiedFact,
-                sources: input.sources,
-                driverConfusion: input.driverConfusion,
-                clevelandAngle: input.clevelandAngle,
-                hashtags: input.hashtags,
-                avoidedRepeats: input.avoidedRepeats,
-                issues: input.issues,
-                insightsChecked: input.insightsChecked,
-                facebookCrossPostOff: input.facebookCrossPostOff,
-              };
-              await d.insert(socialDrafts).values({
-                id: newId,
-                contentType: "carousel",
-                topic: input.topic,
-                briefJson: JSON.stringify(brief),
-              });
-            }
-          }
-        } catch (dbErr) {
-          log.error("Failed to log Carousel in database", dbErr);
-        }
-
-        // Dual-write to Google Sheets
-        let sheetOk = false;
-        try {
-          const { syncCarouselLogToSheet } = await import("../sheets-sync");
-          sheetOk = await syncCarouselLogToSheet(input);
-        } catch (err) {
-          log.warn("syncCarouselLogToSheet failed", err);
-        }
-
-        // Sync with Statenour Command Center Queue
-        try {
-          await dispatch("social_draft:sync", {
-            id: input.topic ? `carousel-${input.topic.toLowerCase().replace(/[^a-z0-9]/g, "-")}` : `posted-carousel-${Date.now()}`,
-            content: input.captionHook || input.topic,
-            status: "published",
-            imageUrl: input.instagramUrl || null,
-            platforms: ["instagram"],
-            kind: "post",
-            source: "nick",
-            sourceMetadata: {
-              topic: input.topic,
-              instagramUrl: input.instagramUrl,
-              assetPaths: input.assetPaths,
-              score: input.score,
-            },
-            publishedAt: new Date().toISOString(),
-          }, { source: "content_router" });
-        } catch (syncErr) {
-          log.warn("Failed to sync logged Carousel to Statenour:", syncErr);
-        }
-
-        return { success: true, sheetSynced: sheetOk };
-      } catch (err) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Log Carousel failed" });
-      }
-    }),
-  allReelLogs: adminProcedure.query(async () => {
-    try {
-      const dbLogs: any[] = [];
-      try {
-        const { getDb } = await import("../db");
-        const { socialDrafts } = await import("../../drizzle/schema");
-        const { eq } = await import("drizzle-orm");
-        const d = await getDb();
-        if (d) {
-          const rows = await d.select().from(socialDrafts).where(eq(socialDrafts.contentType, "reel"));
-          for (const r of rows) {
-            try {
-              const brief = JSON.parse(r.briefJson);
-              if (brief.status === "posted") {
-                dbLogs.push({
-                  timestamp: r.updatedAt.toLocaleString("en-US", { timeZone: "America/New_York" }),
-                  topic: r.topic,
-                  verifiedFact: brief.verifiedFact || "",
-                  sources: brief.sources || "",
-                  driverConfusion: brief.driverConfusion || "",
-                  clevelandAngle: brief.clevelandAngle || "",
-                  campaignKeyword: brief.campaignKeyword || "",
-                  creativeTerritory: brief.creativeTerritory || "",
-                  usefulAbsurdity: brief.usefulAbsurdity || "",
-                  storyboardOutline: brief.storyboardOutline || "",
-                  captionHook: brief.captionHook || "",
-                  instagramUrl: brief.instagramUrl || "",
-                  assetPaths: brief.assetPaths || "",
-                  score: brief.score || "",
-                  hashtags: brief.hashtags || "",
-                  avoidedRepeats: brief.avoidedRepeats || "",
-                  issues: brief.issues || "",
-                  insightsChecked: brief.insightsChecked || "",
-                  facebookCrossPostOff: brief.facebookCrossPostOff || "",
-                });
-              }
-            } catch (e) {
-              log.error("Failed to parse db Reel log briefJson", e);
-            }
-          }
-        }
-      } catch (dbErr) {
-        log.warn("Failed to fetch Reel logs from DB, continuing to sheet", dbErr);
-      }
-
-      let sheetLogs: any[] = [];
-      try {
-        const { fetchReelLogsFromSheet } = await import("../sheets-sync");
-        sheetLogs = await fetchReelLogsFromSheet();
-      } catch (sheetErr) {
-        log.warn("fetchReelLogsFromSheet failed", sheetErr);
-      }
-
-      const mergedMap = new Map<string, any>();
-      for (const l of sheetLogs) {
-        if (l.topic) {
-          mergedMap.set(l.topic, l);
-        }
-      }
-      for (const l of dbLogs) {
-        if (l.topic) {
-          mergedMap.set(l.topic, l);
-        }
-      }
-      return Array.from(mergedMap.values());
-    } catch (err) {
-      log.warn("allReelLogs failed", err);
-      return [];
-    }
-  }),
-  allCarouselLogs: adminProcedure.query(async () => {
-    try {
-      const dbLogs: any[] = [];
-      try {
-        const { getDb } = await import("../db");
-        const { socialDrafts } = await import("../../drizzle/schema");
-        const { eq } = await import("drizzle-orm");
-        const d = await getDb();
-        if (d) {
-          const rows = await d.select().from(socialDrafts).where(eq(socialDrafts.contentType, "carousel"));
-          for (const r of rows) {
-            try {
-              const brief = JSON.parse(r.briefJson);
-              if (brief.status === "posted") {
-                dbLogs.push({
-                  timestamp: r.updatedAt.toLocaleString("en-US", { timeZone: "America/New_York" }),
-                  topic: r.topic,
-                  verifiedFact: brief.verifiedFact || "",
-                  sources: brief.sources || "",
-                  driverConfusion: brief.driverConfusion || "",
-                  clevelandAngle: brief.clevelandAngle || "",
-                  campaignKeyword: brief.campaignKeyword || "",
-                  creativeTerritory: brief.creativeTerritory || "",
-                  usefulAbsurdity: brief.usefulAbsurdity || "",
-                  storyboardOutline: brief.storyboardOutline || "",
-                  captionHook: brief.captionHook || "",
-                  instagramUrl: brief.instagramUrl || "",
-                  assetPaths: brief.assetPaths || "",
-                  score: brief.score || "",
-                  hashtags: brief.hashtags || "",
-                  avoidedRepeats: brief.avoidedRepeats || "",
-                  issues: brief.issues || "",
-                  insightsChecked: brief.insightsChecked || "",
-                  facebookCrossPostOff: brief.facebookCrossPostOff || "",
-                });
-              }
-            } catch (e) {
-              log.error("Failed to parse db Carousel log briefJson", e);
-            }
-          }
-        }
-      } catch (dbErr) {
-        log.warn("Failed to fetch Carousel logs from DB, continuing to sheet", dbErr);
-      }
-
-      let sheetLogs: any[] = [];
-      try {
-        const { fetchCarouselLogsFromSheet } = await import("../sheets-sync");
-        sheetLogs = await fetchCarouselLogsFromSheet();
-      } catch (sheetErr) {
-        log.warn("fetchCarouselLogsFromSheet failed", sheetErr);
-      }
-
-      const mergedMap = new Map<string, any>();
-      for (const l of sheetLogs) {
-        if (l.topic) {
-          mergedMap.set(l.topic, l);
-        }
-      }
-      for (const l of dbLogs) {
-        if (l.topic) {
-          mergedMap.set(l.topic, l);
-        }
-      }
-      return Array.from(mergedMap.values());
-    } catch (err) {
-      log.warn("allCarouselLogs failed", err);
-      return [];
-    }
-  }),
-  publishCarousel: adminProcedure
-    .input(z.object({
-      // Meta's own carousel bound, which postInstagramCarousel already enforces
-      // at the Graph call ("Carousel needs 2-10 images"). Stating it at the
-      // boundary turns a round-trip failure into a validation error, and makes
-      // the publishToSocial routing below unambiguous (>=2 images = carousel).
-      imageUrls: z.array(z.string()).min(2).max(10),
-      caption: z.string(),
-    }))
-    .mutation(async ({ input }) => {
-      try {
-        const { getMetaSocialStatus } = await import("../services/metaSocial");
-        const status = await getMetaSocialStatus();
-        if (!status.configured || !status.instagramReady) {
-          const { sendTelegram } = await import("../services/telegram");
-          const mockPostId = `sandbox_carousel_${Date.now()}`;
-          const slideCount = input.imageUrls.length;
-          const charCount = input.caption.length;
-          const hashtags = input.caption.match(/#[a-zA-Z0-9_]+/g) || [];
-          const cleanCaption = input.caption.replace(/#[a-zA-Z0-9_]+/g, "").trim();
-
-          const msg = [
-            `🎨 <b>[SANDBOX INSTAGRAM CAROUSEL POST]</b>`,
-            `────────────────────────────────`,
-            `📱 <b>Placement:</b> Instagram Carousel Feed`,
-            `🔢 <b>Slide Count:</b> ${slideCount} panels`,
-            `📝 <b>Caption Length:</b> ${charCount} chars (${hashtags.length} hashtags)`,
-            `🛡️ <b>Status:</b> SIMULATED / SANDBOX MODE`,
-            // This used to say "flip the legacy_autopost_live feature flag ON
-            // and configure Meta API credentials". This procedure never reads
-            // that flag — credentials alone decide sandbox vs live — so the
-            // note pointed the operator at a switch that does nothing here and
-            // implied a second condition guarding the live path. There wasn't
-            // one. Now there is: publishToSocial's kill switch.
-            `💡 <i>Sandbox because Meta API credentials are not configured. Once they are, this posts LIVE — subject to the publishing kill switch and content governor.</i>`,
-            `────────────────────────────────`,
-            `📖 <b>CAPTION BODY:</b>`,
-            `"${cleanCaption}"`,
-            `\n🏷️ <b>HASHTAGS:</b>`,
-            hashtags.join(" ") || "None",
-            `────────────────────────────────`,
-            `🖼️ <b>SLIDES & ASSETS:</b>`,
-            ...input.imageUrls.map((url, i) => `  • Panel ${i + 1}: <a href="${url}">Slide Image Link ${i + 1}</a>`),
-            `────────────────────────────────`,
-            `✨ <i>This is a mock sandbox transmission. Content has been logged to database with ID: <code>${mockPostId}</code></i>`
-          ].join("\n");
-
-          await sendTelegram(msg);
-          return { success: true, postId: mockPostId, isSandbox: true };
-        }
-        // LIVE branch. This used to call postInstagramCarousel DIRECTLY, which
-        // walked straight past every gate the shared publish door enforces:
-        //   1. the autonomy kill switches (global / publishing / instagram)
-        //      plus the DENY audit record,
-        //   2. the content governor (daily caps + spacing against actually
-        //      published inventory),
-        //   3. claim-safety on the caption.
-        // Eight publish call sites gate on captionClaimBlockers; this was the
-        // one that did not. The control is three procedures below: publishReel
-        // had the identical shape and was routed through publishToSocial for
-        // exactly these reasons.
-        const { captionClaimBlockers, assertPermanentPublicMediaUrl, publishToSocial } =
-          await import("../services/socialPublish");
-        const blockers = captionClaimBlockers(input.caption);
-        if (blockers.length) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: `Caption blocked by claim-safety: ${blockers.map((b) => b.rule).join(", ")}`,
-          });
-        }
-        // A presigned URL publishes fine and then 404s when the signature
-        // expires, leaving a live post with dead panels.
-        for (const url of input.imageUrls) assertPermanentPublicMediaUrl(url);
-
-        const { results } = await publishToSocial({
-          platforms: ["instagram"],
-          caption: input.caption,
-          imageUrls: input.imageUrls,
-        });
-        const ig = results.find((r) => r.platform === "instagram");
-        // `ambiguous` means media_publish LEFT and no answer came back — the
-        // carousel MAY be live. Reporting that as a plain failure invites a
-        // retry, and the retry duplicates a live post. postInstagramCarousel
-        // has always been able to return this; the old code dropped the flag.
-        if (ig?.ambiguous) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "The publish call timed out AFTER it was sent — the carousel MAY BE LIVE. Check the Instagram account before retrying; retrying now can duplicate it.",
-          });
-        }
-        return { success: !!ig?.success, postId: ig?.postId, error: ig?.error, isSandbox: false };
-      } catch (err) {
-        // A deliberate refusal must not be relabelled a server fault. Without
-        // this, the claim-safety BAD_REQUEST above surfaces as a 500 and reads
-        // as "Meta is down, retry" instead of "this caption is not publishable".
-        if (err instanceof TRPCError) throw err;
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Carousel publishing failed" });
-      }
-    }),
-  publishReel: adminProcedure
-    .input(z.object({
-      videoUrl: z.string(),
-      caption: z.string(),
-    }))
-    .mutation(async ({ input }) => {
-      try {
-        const { getMetaSocialStatus } = await import("../services/metaSocial");
-        const status = await getMetaSocialStatus();
-        if (!status.configured || !status.instagramReady) {
-          const { sendTelegram } = await import("../services/telegram");
-          const mockPostId = `sandbox_reel_${Date.now()}`;
-          const charCount = input.caption.length;
-          const hashtags = input.caption.match(/#[a-zA-Z0-9_]+/g) || [];
-          const cleanCaption = input.caption.replace(/#[a-zA-Z0-9_]+/g, "").trim();
-
-          const msg = [
-            `🎬 <b>[SANDBOX INSTAGRAM REEL POST]</b>`,
-            `────────────────────────────────`,
-            `📱 <b>Placement:</b> Instagram Reels Feed`,
-            `📝 <b>Caption Length:</b> ${charCount} chars (${hashtags.length} hashtags)`,
-            `🛡️ <b>Status:</b> SIMULATED / SANDBOX MODE`,
-            // Also named legacy_autopost_live, which this procedure does not
-            // read either. The reel live path is gated on two REAL switches;
-            // name those instead so the operator can find them.
-            `💡 <i>Sandbox because Meta API credentials are not configured. The live path additionally requires REEL_LEGACY_PUBLISH_ENABLED=true and REEL_PUBLISH_ENABLED=true.</i>`,
-            `────────────────────────────────`,
-            `📖 <b>CAPTION BODY:</b>`,
-            `"${cleanCaption}"`,
-            `\n🏷️ <b>HASHTAGS:</b>`,
-            hashtags.join(" ") || "None",
-            `────────────────────────────────`,
-            `📹 <b>VIDEO ASSET:</b>`,
-            `  • Source URL: <a href="${input.videoUrl}">Watch Reel Video</a>`,
-            `────────────────────────────────`,
-            `✨ <i>This is a mock sandbox transmission. Content has been logged to database with ID: <code>${mockPostId}</code></i>`
-          ].join("\n");
-
-          await sendTelegram(msg);
-          return { success: true, postId: mockPostId, isSandbox: true };
-        }
-        // LIVE branch: this legacy path publishes a CLIENT-supplied videoUrl +
-        // caption with no inventory row, no approval record, and no media
-        // permanence check — it bypasses the provenance every reviewed path
-        // enforces. Disabled by default; the reviewed Studio → approve →
-        // publish path is the supported route. The sandbox preview above still
-        // works for previewing without Meta credentials.
-        if (process.env.REEL_LEGACY_PUBLISH_ENABLED !== "true") {
-          throw new TRPCError({
-            code: "FORBIDDEN",
-            message: "The legacy direct reel publisher is disabled (it bypasses approval provenance). Publish reels through Studio → approve → publish. Set REEL_LEGACY_PUBLISH_ENABLED=true only if you understand the bypass.",
-          });
-        }
-        // Route the LIVE post through the single gated choke point
-        // (REEL_PUBLISH_ENABLED + reel claim-safety) — never call
-        // postInstagramReel directly.
-        const { publishToSocial } = await import("../services/socialPublish");
-        const { results } = await publishToSocial({
-          platforms: ["instagram"],
-          caption: input.caption,
-          videoUrl: input.videoUrl,
-        });
-        const ig = results.find((r) => r.platform === "instagram");
-        return { success: !!ig?.success, postId: ig?.postId, error: ig?.error, isSandbox: false };
-      } catch (err) {
-        // Same wart as publishCarousel: this swallowed the FORBIDDEN raised by
-        // the legacy-publisher gate below and re-reported it as a 500.
-        if (err instanceof TRPCError) throw err;
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Reel publishing failed" });
-      }
-    }),
   // Enqueue a reel for BACKGROUND generation. Reel gen is minutes-long and dies
   // on a synchronous request (Railway gateway timeout), so this returns a jobId
   // immediately and the pulse cron (REEL_GENERATION_ENABLED-gated) processes it.
@@ -2279,142 +1359,6 @@ export const contentAdminRouter = router({
         totalScenes,
       };
     }),
-  generateCarouselImages: adminProcedure
-    .input(z.object({
-      briefId: z.string(),
-      prompts: z.array(z.string()),
-    }))
-    .mutation(async ({ input }) => {
-      let hgUrls: string[] = [];
-      let isFallback = false;
-      let fallbackWarning = "";
-
-      try {
-        const { generateCarouselSlideImage } = await import("../services/higgsfieldStudio");
-        log.info(`Generating ${input.prompts.length} Carousel images via Higgsfield in parallel...`);
-        hgUrls = await Promise.all(
-          input.prompts.map((prompt) => generateCarouselSlideImage({ prompt, aspectRatio: "3:4" }))
-        );
-      } catch (err) {
-        log.warn("Higgsfield Carousel image generation failed, trying Gemini/OpenRouter fallback...", {
-          err: err instanceof Error ? err.message : String(err)
-        });
-        isFallback = true;
-        fallbackWarning = `Higgsfield CLI error: ${err instanceof Error ? err.message : String(err)}. Fell back to Gemini/OpenRouter.`;
-      }
-
-      try {
-        const { storagePut } = await import("../storage");
-        let imageUrls: string[];
-
-        if (isFallback) {
-          const { generateImage } = await import("../_core/imageGeneration");
-          const pngUrls = await Promise.all(
-            input.prompts.map(async (prompt) => {
-              const res = await generateImage({ prompt });
-              if (!res.url) throw new Error("Fallback image generation returned no URL");
-              return res.url;
-            })
-          );
-
-          log.info("Persisting fallback Gemini/OpenRouter images to S3/storage...");
-          imageUrls = await Promise.all(
-            pngUrls.map(async (url, i) => {
-              const res = await fetch(url);
-              if (!res.ok) throw new Error(`Failed to download slide ${i + 1} from fallback provider`);
-              const buffer = Buffer.from(await res.arrayBuffer());
-              
-              const sharp = (await import("sharp")).default;
-              const jpegBuf = await sharp(buffer)
-                .flatten({ background: { r: 255, g: 255, b: 255 } })
-                .jpeg({ quality: 90 })
-                .toBuffer();
-
-              const key = `carousel-studio/${Date.now()}-${i}.jpg`;
-              const upload = await storagePut(key, jpegBuf, "image/jpeg");
-              return upload.url;
-            })
-          );
-        } else {
-          log.info("Downloading and persisting generated Carousel images to S3/storage...");
-          imageUrls = await Promise.all(
-            hgUrls.map(async (url, i) => {
-              const res = await fetch(url);
-              if (!res.ok) throw new Error(`Failed to download slide ${i + 1} from Higgsfield`);
-              const buffer = Buffer.from(await res.arrayBuffer());
-              const key = `carousel-studio/${Date.now()}-${i}.jpg`;
-              const upload = await storagePut(key, buffer, "image/jpeg");
-              return upload.url;
-            })
-          );
-        }
-
-        return { success: true, imageUrls, warning: fallbackWarning || undefined };
-      } catch (err) {
-        log.error("Carousel image generation failed completely", { err: err instanceof Error ? err.message : String(err) });
-        return {
-          success: false,
-          error: err instanceof Error ? err.message : "Carousel image generation failed",
-          imageUrls: []
-        };
-      }
-    }),
-  /** One-click: generate a ready-to-review CarouselBrief via the Studio's own
-   *  master prompt + the funded Gemini. Generation only — no posting. The
-   *  existing generateCarouselImages/save/publish procs handle the rest. */
-  generateCarouselBrief: adminProcedure
-    .input(z.object({
-      topic: z.string().max(300).optional(),
-      campaignKeyword: z.string().max(40).optional(),
-      territory: z.string().max(60).optional(),
-      seasonLocalAngle: z.string().max(300).optional(),
-      avoidTopics: z.array(z.string().max(200)).max(50).optional(),
-    }))
-    .mutation(async ({ input }) => {
-      try {
-        const { generateCarouselBriefAI } = await import("../services/carouselBriefGen");
-        const { brief } = await generateCarouselBriefAI(input);
-        return { success: true as const, brief };
-      } catch (err) {
-        log.error("generateCarouselBrief failed", { err: err instanceof Error ? err.message : String(err) });
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: err instanceof Error ? err.message : "Carousel brief generation failed",
-        });
-      }
-    }),
-  generateReelVideo: adminProcedure
-    .input(z.object({
-      briefId: z.string(),
-      prompts: z.array(z.string()),
-    }))
-    .mutation(async ({ input }) => {
-      try {
-        const { generateReelClipVideo, stitchVideos } = await import("../services/higgsfieldStudio");
-        const { storagePut } = await import("../storage");
-
-        log.info(`Generating ${input.prompts.length} Reel clips in parallel...`);
-        const hgUrls = await Promise.all(
-          input.prompts.map((prompt) => generateReelClipVideo(prompt))
-        );
-
-        log.info("Stitching clips into single MP4...");
-        const stitchedBuffer = await stitchVideos(hgUrls);
-
-        log.info("Uploading final stitched MP4 to storage...");
-        const key = `reels-studio/${Date.now()}-stitched.mp4`;
-        const upload = await storagePut(key, stitchedBuffer, "video/mp4");
-
-        return { success: true, videoUrl: upload.url };
-      } catch (err) {
-        log.error("Reel video generation failed", { err: err instanceof Error ? err.message : String(err) });
-        return {
-          success: false,
-          error: err instanceof Error ? err.message : "Reel video generation failed",
-          videoUrl: null
-        };
-      }
-    }),
   /** One-click: generate a ready-to-review ReelBrief via the Studio's master
    *  prompt + the funded Gemini. Generation only — no video render, no posting. */
   generateReelBrief: adminProcedure
@@ -2470,24 +1414,6 @@ export const contentAdminRouter = router({
       brief.higgsfieldPromptPack = promptPack;
       const qualityScore = await scoreReelBriefWithMemory(brief);
       return { qualityScore, passing: qualityScore.passing };
-    }),
-  probeVeoConnection: adminProcedure
-    .mutation(async () => {
-      const { probeVeoConnection } = await import("../services/veoStudio");
-      return await probeVeoConnection();
-    }),
-  getProprietaryEvidence: adminProcedure
-    .input(z.object({ topicKeyword: z.string().optional() }).optional())
-    .query(async ({ input }) => {
-      try {
-        const { getProprietaryEvidence } = await import("../services/evidenceEngine");
-        return await getProprietaryEvidence(input?.topicKeyword);
-      } catch (err) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: err instanceof Error ? err.message : "Failed to fetch proprietary evidence",
-        });
-      }
     }),
   runPromptEvals: adminProcedure.query(async () => {
     try {
@@ -2563,152 +1489,6 @@ export const contentAdminRouter = router({
         log.error("Failed to mutate Statenour social publish queue item:", err);
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Failed to mutate Statenour queue item: ${err.message}` });
       }
-    }),
-  listCampaigns: adminProcedure.query(async () => {
-    const db = await getDbTyped();
-    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB not available" });
-    return db.select().from(contentManufacturingCampaigns);
-  }),
-  createCampaign: adminProcedure
-    .input(z.object({
-      topic: z.string().min(2),
-      persona: z.string().min(2),
-      targetMonthlyVolume: z.number().default(30),
-    }))
-    .mutation(async ({ input }) => {
-      const db = await getDbTyped();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB not available" });
-      const id = `campaign_${Date.now()}`;
-      await db.insert(contentManufacturingCampaigns).values({
-        id,
-        topic: input.topic,
-        persona: input.persona,
-        targetMonthlyVolume: input.targetMonthlyVolume,
-        isActive: true,
-      });
-      return { success: true, id };
-    }),
-  toggleCampaign: adminProcedure
-    .input(z.object({
-      id: z.string(),
-      isActive: z.boolean(),
-    }))
-    .mutation(async ({ input }) => {
-      const db = await getDbTyped();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB not available" });
-      await db.update(contentManufacturingCampaigns)
-        .set({ isActive: input.isActive })
-        .where(eq(contentManufacturingCampaigns.id, input.id));
-      return { success: true };
-    }),
-  explodeCampaignTopic: adminProcedure
-    .input(z.object({ topic: z.string() }))
-    .mutation(async ({ input }) => {
-      const { explodeTopic } = await import("../services/contentManufacturing");
-      return explodeTopic(input.topic);
-    }),
-  previewHooks: adminProcedure
-    .input(z.object({
-      topic: z.string(),
-      angle: z.object({
-        angle: z.string(),
-        narrativeFranchise: z.string(),
-        entertainmentPillar: z.string(),
-        description: z.string(),
-      }),
-    }))
-    .mutation(async ({ input }) => {
-      const { generateHookLibrary } = await import("../services/contentManufacturing");
-      return generateHookLibrary(input.topic, input.angle);
-    }),
-  triggerDraftGeneration: adminProcedure
-    .input(z.object({
-      campaignId: z.string().optional(),
-      topic: z.string(),
-      angle: z.object({
-        angle: z.string(),
-        narrativeFranchise: z.string(),
-        entertainmentPillar: z.string(),
-        description: z.string(),
-      }),
-      hook: z.object({
-        hookText: z.string(),
-        hookCategory: z.string(),
-        scoreCuriosity: z.number(),
-        scoreEmotion: z.number(),
-        scoreLocalRelevance: z.number(),
-        scoreAuthority: z.number(),
-        scoreOverall: z.number().optional(),
-      }),
-      persona: z.string(),
-      contentType: z.enum(["reel", "carousel", "post", "story"]),
-    }))
-    .mutation(async ({ input }) => {
-      const { generateScoredDraft, validateClaimSafety } = await import("../services/contentManufacturing");
-      const db = await getDbTyped();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB not available" });
-      
-      const draft = await generateScoredDraft(
-        input.topic,
-        input.angle,
-        input.hook as any,
-        input.persona,
-        input.contentType,
-        "both"
-      );
-      
-      const validation = validateClaimSafety(draft);
-      if (!validation.safe) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: `Claim Safety Violation: ${validation.errors.join("; ")}`,
-        });
-      }
-      
-      const overallScore = Math.round(
-        draft.scoreCuriosity * 0.125 +
-        draft.scoreEmotion * 0.125 +
-        draft.scoreShareability * 0.125 +
-        draft.scoreCommentPotential * 0.125 +
-        draft.scoreSavePotential * 0.10 +
-        draft.scoreLocalRelevance * 0.15 +
-        draft.scoreRevenueRelevance * 0.10 +
-        draft.scoreAuthority * 0.15
-      );
-      
-      const id = `draft_${Date.now()}`;
-      await db.insert(socialContentInventory).values({
-        id,
-        campaignId: input.campaignId || null,
-        contentType: input.contentType,
-        platform: "both",
-        topic: input.topic,
-        seriesName: input.angle.narrativeFranchise,
-        episodeNumber: 1,
-        hookCategory: input.hook.hookCategory,
-        hookText: draft.hookText,
-        bodyText: draft.bodyText,
-        visualStyle: draft.visualStyle,
-        persona: draft.persona,
-        scoreCuriosity: draft.scoreCuriosity,
-        scoreEmotion: draft.scoreEmotion,
-        scoreShareability: draft.scoreShareability,
-        scoreCommentPotential: draft.scoreCommentPotential,
-        scoreSavePotential: draft.scoreSavePotential,
-        scoreLocalRelevance: draft.scoreLocalRelevance,
-        scoreRevenueRelevance: draft.scoreRevenueRelevance,
-        scoreAuthority: draft.scoreAuthority,
-        scoreHookStrength: draft.scoreHookStrength,
-        scoreOverall: overallScore,
-        gscQuerySeed: input.hook.hookText,
-        weatherTriggerCondition: draft.weatherTriggerCondition || null,
-        interactiveDmKeyword: draft.interactiveDmKeyword,
-        status: "pending",
-        briefJson: draft.briefJson,
-        assetPaths: [],
-      });
-      
-      return { success: true, id, draft, overallScore };
     }),
   generateAndPublishLiveTestReel: adminProcedure
     .input(z.object({
@@ -2970,47 +1750,6 @@ export const contentAdminRouter = router({
           criticScores: bestCriticScores,
         };
       }
-    }),
-  runFullPipeline: adminProcedure
-    .input(z.object({
-      campaignId: z.string(),
-      topic: z.string(),
-      persona: z.string(),
-    }))
-    .mutation(async ({ input }) => {
-      const { runManufacturingPipeline } = await import("../services/contentManufacturing");
-      return runManufacturingPipeline(input.campaignId, input.topic, input.persona);
-    }),
-  getReserveStatus: adminProcedure.query(async () => {
-    const { getReserveStatus } = await import("../services/contentManufacturing");
-    return getReserveStatus();
-  }),
-  replenishReserve: adminProcedure.mutation(async () => {
-    const { replenishReserve } = await import("../services/contentManufacturing");
-    return replenishReserve();
-  }),
-  syncSocialMetricsAndAttribution: adminProcedure.mutation(async () => {
-    const { syncSocialMetrics, attributeRevenueToSocial } = await import("../services/contentManufacturing");
-    const sync = await syncSocialMetrics();
-    const attrib = await attributeRevenueToSocial();
-    return { sync, attrib };
-  }),
-  listInventory: adminProcedure
-    .input(z.object({
-      status: z.string().optional(),
-      topic: z.string().optional(),
-    }).optional())
-    .query(async ({ input }) => {
-      const db = await getDbTyped();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB not available" });
-      let query = db.select().from(socialContentInventory);
-      const conditions = [];
-      if (input?.status) conditions.push(eq(socialContentInventory.status, input.status));
-      if (input?.topic) conditions.push(eq(socialContentInventory.topic, input.topic));
-      if (conditions.length > 0) {
-        return query.where(and(...conditions)).orderBy(desc(socialContentInventory.createdAt));
-      }
-      return query.orderBy(desc(socialContentInventory.createdAt));
     }),
   /**
    * The door for a finished mp4 — MoneyPrinter output, a hand-edited cut,
@@ -3698,15 +2437,6 @@ export const contentAdminRouter = router({
 
       return { ok: true, supersededJobId: input.jobId, newJobId };
     }),
-  /** What happened to one request, start to finish — the run's own story. */
-  getContentRun: dbAdminProcedure
-    .input(z.object({ runId: z.string().min(1).max(64) }))
-    .query(async ({ input }) => {
-      const { getContentRun } = await import("../services/contentRun");
-      const run = await getContentRun(input.runId);
-      if (!run) throw new TRPCError({ code: "NOT_FOUND", message: "No such content run." });
-      return run;
-    }),
 
   /** Recent runs — the operator's own history of what they asked for. */
   recentContentRuns: adminProcedure
@@ -3801,7 +2531,7 @@ export const contentAdminRouter = router({
     const d = await getDb();
     if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
     const { socialContentInventory, reelJobs } = await import("../../drizzle/schema");
-    const { eq, inArray, sql } = await import("drizzle-orm");
+    const { eq, inArray } = await import("drizzle-orm");
 
     const rows = await d
       .select({

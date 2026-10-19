@@ -9,15 +9,12 @@ import {
   chatRouter,
   contentRouter,
   contentAdminRouter,
-  contentStudioRouter,
   adminDashboardRouter,
   adminSecurityRouter,
-  analyticsRouter,
   followUpsRouter,
   weatherRouter,
   reviewsRouter,
   instagramRouter,
-  searchRouter,
   diagnoseRouter,
   laborEstimateRouter,
   activityRouter,
@@ -37,15 +34,11 @@ import {
   reviewRepliesRouter,
   localGrowthRouter,
   shareCardsRouter,
-  galleryRouter,
   lotRouter,
-  techniciansRouter,
   customersRouter,
   winbackRouter,
   shopdriverRouter,
-  jobAssignmentsRouter,
   invoicesRouter,
-  kpiRouter,
   portalRouter,
   gatewayTireRouter,
   fitmentRouter,
@@ -57,18 +50,14 @@ import {
   callTrackingRouter,
   customerEventsRouter,
   marketAdminRouter,
-  exportRouter,
   costEstimatorRouter,
   emergencyRouter,
-  messengerBotRouter,
   financingRouter,
   nourOsBridgeRouter,
   workOrdersRouter,
   dispatchRouter,
   controlCenterRouter,
   estimatesRouter,
-  segmentsRouter,
-  serviceMatcherRouter,
   shopStatusRouter,
   specialsRouter,
   nickActionsRouter,
@@ -88,7 +77,6 @@ import {
   metaAdsArchitectRouter,
 } from "./routers/index";
 import { voiceAgentRouter } from "./routers/voiceAgent";
-import { creativeOsRouter } from "./routers/creativeOs";
 import { vapiRouter } from "./routers/vapi";
 import { revenueOpsRouter } from "./routers/revenueOps";
 import { revenueAttributionRouter } from "./routers/revenueAttribution";
@@ -102,7 +90,6 @@ import { adStudioRouter } from "./routers/adStudio";
 import { opportunityQueueRouter } from "./routers/opportunityQueue";
 import { promisesRouter } from "./routers/promises";
 import { proposalsRouter } from "./routers/proposals";
-import { quoteGuardRouter } from "./routers/quoteGuard";
 import { smsOpsRouter } from "./routers/smsOps";
 import { technicianReferralsRouter } from "./routers/technicianReferrals";
 import { candidatesRouter } from "./routers/candidates";
@@ -125,7 +112,6 @@ export const appRouter = router({
   instagramStudio: instagramStudioRouter,
   shopMedia: shopMediaRouter,
   adStudio: adStudioRouter,
-  search: searchRouter,
   diagnose: diagnoseRouter,
   laborEstimate: laborEstimateRouter,
   activity: activityRouter,
@@ -137,7 +123,6 @@ export const appRouter = router({
   opportunityQueue: opportunityQueueRouter,
   promises: promisesRouter,
   proposals: proposalsRouter,
-  quoteGuard: quoteGuardRouter,
   smsOps: smsOpsRouter,
   statenourMetrics: statenourMetricsRouter,
   /** 2026-09-08 · Search Console + master report, moved here from StateNour /market. */
@@ -162,8 +147,6 @@ export const appRouter = router({
   adminDashboard: adminDashboardRouter,
   adminSecurity: adminSecurityRouter,
   contentAdmin: contentAdminRouter,
-  contentStudio: contentStudioRouter,
-  analytics: analyticsRouter,
   customerNotifications: customerNotificationsRouter,
   followUps: followUpsRouter,
   sms: smsRouter,
@@ -175,21 +158,16 @@ export const appRouter = router({
   gbp: gbpRouter,
   smsOrchestrator: smsOrchestratorRouter,
   shareCards: shareCardsRouter,
-  gallery: galleryRouter,
   lot: lotRouter,
-  technicians: techniciansRouter,
   customers: customersRouter,
   winback: winbackRouter,
   shopdriver: shopdriverRouter,
 
-  jobAssignments: jobAssignmentsRouter,
   invoices: invoicesRouter,
-  kpi: kpiRouter,
   portal: portalRouter,
 
   callTracking: callTrackingRouter,
   customerEvents: customerEventsRouter,
-  export: exportRouter,
   campaigns: campaignsRouter,
   gatewayTire: gatewayTireRouter,
   /** 2026-10-18 · public vehicle tire finder (D&K quicksearch via the Gateway Tire login). */
@@ -202,15 +180,12 @@ export const appRouter = router({
   tireQuote: tireQuoteRouter,
   autoLabor: autoLaborRouter,
   emergency: emergencyRouter,
-  messengerBot: messengerBotRouter,
   financing: financingRouter,
   nourOsBridge: nourOsBridgeRouter,
   workOrders: workOrdersRouter,
   dispatch: dispatchRouter,
   controlCenter: controlCenterRouter,
   estimates: estimatesRouter,
-  segments: segmentsRouter,
-  serviceMatcher: serviceMatcherRouter,
   shopStatus: shopStatusRouter,
   specials: specialsRouter,
   nickActions: nickActionsRouter,
@@ -227,8 +202,6 @@ export const appRouter = router({
   closedLoop: closedLoopRouter,
   socialPipeline: socialPipelineRouter,
   metaAdsArchitect: metaAdsArchitectRouter,
-  // Creative Intelligence OS (Wave C): organic evidence, atomizer, pattern miner, trends
-  creativeOs: creativeOsRouter,
   // WP-23 · NHTSA read-only vehicle enrichment (VIN decode + recalls)
   vehicleData: vehicleDataRouter,
 });

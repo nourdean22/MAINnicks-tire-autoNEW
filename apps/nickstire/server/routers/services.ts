@@ -7,17 +7,17 @@ import { TRPCError } from "@trpc/server";
 import { getDbTyped } from "../db";
 import {
   createCoupon, getActiveCoupons, getAllCoupons, updateCoupon, deleteCoupon, redeemCouponById,
-  getCustomerVehicles, addCustomerVehicle, updateCustomerVehicle, deleteCustomerVehicle,
+  getCustomerVehicles, addCustomerVehicle, deleteCustomerVehicle,
   getServiceHistoryForUser,
-  createReferral, getReferrals, updateReferralStatus,
-  createQuestion, getPublishedQuestions, getAllQuestions, answerQuestion,
+  createReferral, 
+  createQuestion, getPublishedQuestions, 
   createCustomerNotification, getPendingNotifications, markNotificationSent,
-  getServicePricingByCategory, getAllServicePricing, upsertServicePricing, seedDefaultPricing,
-  createInspection, getInspection, getInspectionByToken, getInspections, addInspectionItem, updateInspectionItem, deleteInspectionItem, publishInspection,
+  getServicePricingByCategory, 
+  createInspection, getInspection, getInspectionByToken, getInspections, addInspectionItem, deleteInspectionItem, publishInspection,
   verifyInspectionItem,
   recordInspectionView, decideInspectionItem,
   getLoyaltyRewards, createLoyaltyReward, updateLoyaltyReward,
-  getLoyaltyTransactions, awardPoints, redeemReward,
+  getLoyaltyTransactions, redeemReward,
   getUserLoyaltySummary,
 } from "../db";
 import { storagePut } from "../storage";
@@ -134,20 +134,6 @@ export const garageRouter = router({
     .mutation(async ({ ctx, input }) => {
       return addCustomerVehicle({ ...input, userId: ctx.user.id });
     }),
-  updateVehicle: protectedProcedure
-    .input(z.object({
-      id: z.number(),
-      year: z.string().optional(),
-      make: z.string().optional(),
-      model: z.string().optional(),
-      mileage: z.number().optional(),
-      nickname: z.string().optional(),
-      vin: z.string().optional(),
-    }))
-    .mutation(async ({ ctx, input }) => {
-      const { id, ...data } = input;
-      return updateCustomerVehicle(id, ctx.user.id, data);
-    }),
   deleteVehicle: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
@@ -214,17 +200,6 @@ export const referralsRouter = router({
         refereeEmail: input.refereeEmail ? sanitizeEmail(input.refereeEmail) : undefined,
       });
     }),
-  all: dbAdminProcedure.query(async () => {
-    return getReferrals();
-  }),
-  updateStatus: adminProcedure
-    .input(z.object({
-      id: z.number(),
-      status: z.enum(["pending", "visited", "redeemed", "expired"]),
-    }))
-    .mutation(async ({ input }) => {
-      return updateReferralStatus(input.id, input.status);
-    }),
 });
 
 export const qaRouter = router({
@@ -244,18 +219,6 @@ export const qaRouter = router({
     }))
     .mutation(async ({ input }) => {
       return createQuestion(input);
-    }),
-  all: dbAdminProcedure.query(async () => {
-    return getAllQuestions();
-  }),
-  answer: adminProcedure
-    .input(z.object({
-      id: z.number(),
-      answer: z.string().min(1),
-      answeredBy: z.string().default("Nick's Tire & Auto"),
-    }))
-    .mutation(async ({ input }) => {
-      return answerQuestion(input.id, input.answer, input.answeredBy);
     }),
 });
 
@@ -295,28 +258,6 @@ export const pricingRouter = router({
       }
       return getServicePricingByCategory(input.serviceType, input.vehicleCategory);
     }),
-  allServices: publicProcedure.query(async () => {
-    if (!(await getDbTyped())) {
-      throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Pricing store unavailable - this is a read failure, not an empty price list." });
-    }
-    return getAllServicePricing();
-  }),
-  upsert: adminProcedure
-    .input(z.object({
-      serviceType: z.string(),
-      serviceLabel: z.string(),
-      vehicleCategory: z.enum(["compact", "midsize", "full-size", "truck-suv"]),
-      lowEstimate: z.number(),
-      highEstimate: z.number(),
-      typicalHours: z.string().optional(),
-      notes: z.string().optional(),
-    }))
-    .mutation(async ({ input }) => {
-      return upsertServicePricing(input);
-    }),
-  seedDefaults: adminProcedure.mutation(async () => {
-    return seedDefaultPricing();
-  }),
 });
 
 export const inspectionRouter = router({
@@ -406,23 +347,6 @@ export const inspectionRouter = router({
     .mutation(async ({ input }) => {
       return addInspectionItem(input);
     }),
-  updateItem: adminProcedure
-    .input(z.object({
-      id: z.number(),
-      component: z.string().optional(),
-      category: z.enum(["brakes", "tires", "engine", "suspension", "electrical", "fluids", "body", "other"]).optional(),
-      condition: z.enum(["green", "yellow", "red"]).optional(),
-      notes: z.string().optional(),
-      photoUrl: z.string().optional(),
-      photoUrls: photoUrlListSchema.optional(),
-      measurements: inspectionMeasurementsSchema.optional(),
-      recommendedAction: z.string().optional(),
-      estimatedCost: z.number().optional(),
-    }))
-    .mutation(async ({ input }) => {
-      const { id, ...data } = input;
-      return updateInspectionItem(id, data);
-    }),
   /**
    * 0143 · post-work verification. After the approved repair is done the tech
    * records who did it, AFTER photos and AFTER measurements. This is the proof
@@ -498,37 +422,6 @@ export const loyaltyRouter = router({
     .input(z.object({ rewardId: z.number() }))
     .mutation(async ({ ctx, input }) => {
       return redeemReward(ctx.user.id, input.rewardId);
-    }),
-  awardPoints: adminProcedure
-    .input(z.object({
-      userId: z.number(),
-      points: z.number().min(1),
-      description: z.string(),
-      serviceHistoryId: z.number().optional(),
-    }))
-    .mutation(async ({ input }) => {
-      return awardPoints(input.userId, input.points, input.description, input.serviceHistoryId);
-    }),
-  /**
-   * RETIRED (forensic-audit HIGH · operator decision). This resolved a
-   * customers.id and passed it to awardPoints(), which keys the UNRELATED
-   * users table — so it silently credited a random OAuth user (or threw
-   * "User not found") and never the intended customer. Loyalty is a
-   * users-table concept; there is no correct customer→user bridge, so the
-   * feature is retired rather than "fixed". Kept as a clear-erroring stub
-   * so any lingering caller fails loudly instead of corrupting balances.
-   */
-  awardPointsByPhone: adminProcedure
-    .input(z.object({
-      phone: z.string().min(7).max(20),
-      points: z.number().min(1),
-      description: z.string(),
-    }))
-    .mutation(async () => {
-      throw new TRPCError({
-        code: "NOT_FOUND",
-        message: "Loyalty award-by-phone has been retired.",
-      });
     }),
   createReward: adminProcedure
     .input(z.object({

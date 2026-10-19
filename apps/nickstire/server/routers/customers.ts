@@ -8,7 +8,6 @@ import { customers, customerMetrics, bookings, leads, callbackRequests, callEven
 import { campaignEligiblePhoneSql } from "../lib/sms-eligibility";
 import { lapsedCondition } from "../lib/customer-segments";
 import { logAdminAction } from "../services/auditTrail";
-import { predictCustomerLTV, generateCrossSellRecommendations, forecastRevenue } from "../services/intelligenceEngines";
 import { csvSafe } from "../sanitize";
 
 import { db } from "../lib/db-helper";
@@ -249,217 +248,6 @@ export const customersRouter = router({
     };
   }),
 
-  /** Advanced stats — revenue by time period, top spenders, service breakdown */
-  advancedStats: adminProcedure
-    .input(z.object({
-      period: z.enum(["7d", "30d", "90d", "6mo", "1yr", "all"]).default("all"),
-    }).optional())
-    .query(async ({ input }) => {
-      const d = await db();
-      if (!d) return null;
-
-      const period = input?.period ?? "all";
-      const dateFilter = period === "all" ? sql`1=1`
-        : period === "7d" ? sql`i.invoiceDate >= DATE_SUB(NOW(), INTERVAL 7 DAY)`
-        : period === "30d" ? sql`i.invoiceDate >= DATE_SUB(NOW(), INTERVAL 30 DAY)`
-        : period === "90d" ? sql`i.invoiceDate >= DATE_SUB(NOW(), INTERVAL 90 DAY)`
-        : period === "6mo" ? sql`i.invoiceDate >= DATE_SUB(NOW(), INTERVAL 6 MONTH)`
-        : sql`i.invoiceDate >= DATE_SUB(NOW(), INTERVAL 1 YEAR)`;
-
-      // Revenue by period.
-      // wave-182 (architecture decision #3): "revenue" is canonically PAID-only
-      // (collected = the only operationally honest figure). Every revenue query
-      // in this panel filters `paymentStatus = 'paid'` so the headline total,
-      // top spenders, monthly trend, and breakdowns are mutually consistent and
-      // never inflated by pending / partial / refunded invoices.
-      const [revenueSummary] = await d.execute(sql`
-        SELECT
-          COUNT(*) as invoiceCount,
-          COALESCE(SUM(i.totalAmount), 0) as totalRevenue,
-          COALESCE(AVG(i.totalAmount), 0) as avgTicket,
-          COALESCE(SUM(i.laborCost), 0) as totalLabor,
-          COALESCE(SUM(i.partsCost), 0) as totalParts,
-          COUNT(DISTINCT i.customerPhone) as uniqueCustomers
-        FROM invoices i
-        WHERE ${dateFilter} AND i.paymentStatus = 'paid'
-      `);
-
-      // Top 10 spenders for the period
-      const [topSpenders] = await d.execute(sql`
-        SELECT
-          c.id, c.firstName, c.lastName, c.phone, c.segment,
-          c.totalVisits, c.totalSpent,
-          c.vehicleYear, c.vehicleMake, c.vehicleModel,
-          COUNT(i.id) as periodVisits,
-          COALESCE(SUM(i.totalAmount), 0) as periodSpent
-        FROM customers c
-        INNER JOIN invoices i ON RIGHT(REPLACE(REPLACE(REPLACE(c.phone, '-', ''), '(', ''), ')', ''), 10) =
-          RIGHT(REPLACE(REPLACE(REPLACE(i.customerPhone, '-', ''), '(', ''), ')', ''), 10)
-        WHERE ${dateFilter} AND i.paymentStatus = 'paid'
-        GROUP BY c.id
-        ORDER BY periodSpent DESC
-        LIMIT 10
-      `);
-
-      // Monthly revenue trend (last 12 months)
-      const [monthlyTrend] = await d.execute(sql`
-        SELECT
-          DATE_FORMAT(invoiceDate, '%Y-%m') as month,
-          COUNT(*) as invoices,
-          COALESCE(SUM(totalAmount), 0) as revenue,
-          COUNT(DISTINCT customerPhone) as customers
-        FROM invoices
-        WHERE invoiceDate >= DATE_SUB(NOW(), INTERVAL 12 MONTH) AND paymentStatus = 'paid'
-        GROUP BY DATE_FORMAT(invoiceDate, '%Y-%m')
-        ORDER BY month ASC
-      `);
-
-      // Service type breakdown
-      const [serviceBreakdown] = await d.execute(sql`
-        SELECT
-          COALESCE(SUBSTRING_INDEX(serviceDescription, ',', 1), 'Unknown') as service,
-          COUNT(*) as count,
-          COALESCE(SUM(totalAmount), 0) as revenue
-        FROM invoices i
-        WHERE ${dateFilter} AND i.paymentStatus = 'paid' AND serviceDescription IS NOT NULL AND serviceDescription != ''
-        GROUP BY SUBSTRING_INDEX(serviceDescription, ',', 1)
-        ORDER BY revenue DESC
-        LIMIT 15
-      `);
-
-      // Payment method breakdown
-      const [paymentBreakdown] = await d.execute(sql`
-        SELECT paymentMethod, COUNT(*) as count, COALESCE(SUM(totalAmount), 0) as total
-        FROM invoices i
-        WHERE ${dateFilter} AND i.paymentStatus = 'paid'
-        GROUP BY paymentMethod
-        ORDER BY total DESC
-      `);
-
-      type RawRow = Record<string, unknown>;
-      const summary = ((revenueSummary as RawRow[])?.[0] || {}) as RawRow;
-      return {
-        period,
-        invoiceCount: Number(summary.invoiceCount) || 0,
-        totalRevenue: Number(summary.totalRevenue) || 0,
-        avgTicket: Number(summary.avgTicket) || 0,
-        totalLabor: Number(summary.totalLabor) || 0,
-        totalParts: Number(summary.totalParts) || 0,
-        uniqueCustomers: Number(summary.uniqueCustomers) || 0,
-        topSpenders: (topSpenders as RawRow[]) || [],
-        monthlyTrend: (monthlyTrend as RawRow[]) || [],
-        serviceBreakdown: (serviceBreakdown as RawRow[]) || [],
-        paymentBreakdown: (paymentBreakdown as RawRow[]) || [],
-      };
-    }),
-
-  /** Customer Intelligence — spend tiers, churn risk, actionable recommendations */
-  intelligence: adminProcedure.query(async () => {
-    const d = await db();
-    if (!d) return null;
-
-    // Spend tiers
-    const [tierRows] = await d.execute(sql`
-      SELECT
-        SUM(CASE WHEN totalSpent >= 200000 THEN 1 ELSE 0 END) as whales,
-        SUM(CASE WHEN totalSpent >= 50000 AND totalSpent < 200000 THEN 1 ELSE 0 END) as regulars,
-        SUM(CASE WHEN totalSpent > 0 AND totalSpent < 50000 THEN 1 ELSE 0 END) as oneTimers,
-        SUM(CASE WHEN totalSpent = 0 THEN 1 ELSE 0 END) as neverPaid,
-        COUNT(*) as total,
-        SUM(totalSpent) as totalRevenue,
-        AVG(CASE WHEN totalSpent > 0 THEN totalSpent ELSE NULL END) as avgSpend
-      FROM customers
-    `);
-
-    // Churn risk — customers who visited 60-180 days ago but not since
-    const [churnRows] = await d.execute(sql`
-      SELECT COUNT(*) as atRisk FROM customers
-      WHERE lastVisitDate BETWEEN DATE_SUB(NOW(), INTERVAL 180 DAY) AND DATE_SUB(NOW(), INTERVAL 60 DAY)
-        AND totalSpent > 0
-    `);
-
-    // Win-back targets — 90+ day dormant with spend history
-    const [winbackRows] = await d.execute(sql`
-      SELECT COUNT(*) as targets,
-        SUM(totalSpent) as potentialRevenue,
-        AVG(totalSpent) as avgValue
-      FROM customers
-      WHERE lastVisitDate < DATE_SUB(NOW(), INTERVAL 90 DAY) AND totalSpent > 10000
-    `);
-
-    // Top 5 at-risk whales (high-value customers going quiet)
-    // wave-115 — added `id` so the admin can open the customer drawer
-    // directly (previously the homepage card navigated to the full
-    // customers list and made the operator search for the whale by name).
-    const [atRiskWhales] = await d.execute(sql`
-      SELECT id, firstName, lastName, phone, totalSpent, totalVisits, lastVisitDate,
-        DATEDIFF(NOW(), lastVisitDate) as daysSince
-      FROM customers
-      WHERE lastVisitDate < DATE_SUB(NOW(), INTERVAL 60 DAY)
-        AND totalSpent >= 100000
-      ORDER BY totalSpent DESC LIMIT 5
-    `);
-
-    // Segment counts
-    const [segRows] = await d.execute(sql`
-      SELECT segment, COUNT(*) as cnt, SUM(totalSpent) as rev
-      FROM customers GROUP BY segment
-    `);
-
-    // New customers this month
-    const [newThisMonth] = await d.execute(sql`
-      SELECT COUNT(*) as cnt FROM customers
-      WHERE createdAt >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
-    `);
-
-    type RawRow = Record<string, unknown>;
-    const tiers = ((tierRows as RawRow[])?.[0] || {}) as RawRow;
-    const churn = ((churnRows as RawRow[])?.[0] || {}) as RawRow;
-    const winback = ((winbackRows as RawRow[])?.[0] || {}) as RawRow;
-
-    // Generate recommendations
-    const recommendations: string[] = [];
-    if (Number(winback.targets) > 10)
-      recommendations.push(`${winback.targets} customers haven't visited in 90+ days — send win-back SMS campaign (~$${Math.round(Number(winback.avgValue) / 100)} avg value each)`);
-    if (Number(churn.atRisk) > 5)
-      recommendations.push(`${churn.atRisk} customers at churn risk (60-180 days quiet) — proactive outreach before they leave`);
-    if ((atRiskWhales as RawRow[])?.length > 0)
-      recommendations.push(`${(atRiskWhales as RawRow[]).length} high-value customers going quiet — personal call recommended: ${(atRiskWhales as RawRow[]).map((w: RawRow) => `${w.firstName} ${w.lastName} ($${Math.round(Number(w.totalSpent)/100)})`).join(', ')}`);
-    if (Number(tiers.neverPaid) > 500)
-      recommendations.push(`${tiers.neverPaid} customers have $0 spend — likely imported contacts without invoice history`);
-
-    return {
-      spendTiers: {
-        whales: { count: Number(tiers.whales) || 0, label: "Whales ($2K+)", color: "#F5A623" },
-        regulars: { count: Number(tiers.regulars) || 0, label: "Regulars ($500-$2K)", color: "#3B82F6" },
-        oneTimers: { count: Number(tiers.oneTimers) || 0, label: "One-Timers (<$500)", color: "#10B981" },
-        neverPaid: { count: Number(tiers.neverPaid) || 0, label: "No Spend History", color: "#6B7280" },
-      },
-      churnRisk: {
-        atRisk: Number(churn.atRisk) || 0,
-        winbackTargets: Number(winback.targets) || 0,
-        winbackPotential: Math.round(Number(winback.potentialRevenue || 0) / 100),
-      },
-      atRiskWhales: (atRiskWhales as RawRow[])?.map((w: RawRow) => ({
-        id: Number(w.id),
-        name: `${w.firstName} ${w.lastName}`,
-        phone: w.phone,
-        totalSpent: Math.round(Number(w.totalSpent) / 100),
-        visits: w.totalVisits,
-        daysSince: w.daysSince,
-      })) || [],
-      segments: (segRows as RawRow[])?.map((s: RawRow) => ({
-        segment: s.segment,
-        count: Number(s.cnt),
-        revenue: Math.round(Number(s.rev || 0) / 100),
-      })) || [],
-      newThisMonth: Number((newThisMonth as RawRow[])?.[0]?.cnt) || 0,
-      avgCustomerValue: Math.round(Number(tiers.avgSpend || 0) / 100),
-      totalRevenue: Math.round(Number(tiers.totalRevenue || 0) / 100),
-      recommendations,
-    };
-  }),
-
   /** Trigger a full customer data enrichment now */
   enrich: adminProcedure.mutation(async () => {
     const { enrichCustomerData, syncVisitDatesFromInvoices } = await import("../services/dataPipelines");
@@ -592,29 +380,6 @@ export const customersRouter = router({
       remaining: Number((remaining as Array<Record<string, unknown>>)[0]?.n ?? 0),
       eligible: Number((eligible as Array<Record<string, unknown>>)[0]?.n ?? 0),
     };
-  }),
-
-  /** Recent follow-ups — last 50 customers who were texted */
-  recentFollowUps: adminProcedure.query(async () => {
-    const d = await db();
-    if (!d) return [];
-
-    const results = await d.select({
-      id: customers.id,
-      firstName: customers.firstName,
-      lastName: customers.lastName,
-      phone: customers.phone,
-      segment: customers.segment,
-      lastVisitDate: customers.lastVisitDate,
-      smsCampaignDate: customers.smsCampaignDate,
-    })
-      .from(customers)
-      // `> 0` not `= 1` — the column is tri-state (2 = VIP cooldown marker).
-      .where(sql`${customers.smsCampaignSent} > 0`)
-      .orderBy(desc(customers.smsCampaignDate))
-      .limit(50);
-
-    return results;
   }),
 
   /** Export customers as CSV data */
@@ -803,19 +568,6 @@ export const customersRouter = router({
       return { sent, queued, uncertain, failed, remaining: rem?.count ?? 0 };
     }),
 
-  /** Update customer segment */
-  updateSegment: adminProcedure
-    .input(z.object({
-      id: z.number(),
-      segment: z.enum(["recent", "lapsed", "new", "unknown"]),
-    }))
-    .mutation(async ({ input }) => {
-      const d = await db();
-      if (!d) return { success: false };
-      await d.update(customers).set({ segment: input.segment }).where(eq(customers.id, input.id));
-      return { success: true };
-    }),
-
   /** Customer timeline — aggregated chronological history by phone */
   timeline: adminProcedure
     .input(z.object({ phone: z.string().max(20) }))
@@ -961,66 +713,6 @@ export const customersRouter = router({
       return events;
     }),
 
-  /** Lightweight VIP lookup by phone numbers — returns VIP/revenue info for priority queue */
-  vipLookup: adminProcedure
-    .input(z.object({ phones: z.array(z.string()).max(50) }))
-    .query(async ({ input }) => {
-      const d = await db();
-      if (!d || input.phones.length === 0) return { lookup: {} };
-
-      const results = await d
-        .select({
-          phone: customers.phone,
-          totalVisits: customers.totalVisits,
-          totalRevenue: customers.totalSpent,
-          isVip: customerMetrics.isVip,
-          churnRisk: customerMetrics.churnRisk,
-        })
-        .from(customers)
-        .leftJoin(customerMetrics, eq(customers.id, customerMetrics.customerId))
-        .where(sql`${customers.phone} IN (${sql.join(input.phones.map(p => sql`${p}`), sql`, `)})`);
-
-      const lookup: Record<string, { totalVisits: number; totalRevenue: number; isVip: boolean; churnRisk: string }> = {};
-      for (const r of results) {
-        lookup[r.phone] = {
-          totalVisits: r.totalVisits,
-          totalRevenue: r.totalRevenue ?? 0,
-          isVip: !!(r.isVip || r.totalVisits >= 3),
-          churnRisk: r.churnRisk ?? "low",
-        };
-      }
-      return { lookup };
-    }),
-
-  /** LTV Intelligence — predictive customer scoring from intelligence engine */
-  ltvIntelligence: adminProcedure.query(async () => {
-    try {
-      const result = await predictCustomerLTV();
-      return {
-        topCustomers: result.topCustomers,
-        atRiskHighValue: result.atRiskHighValue,
-        segments: result.segments,
-      };
-    } catch (e) {
-      log.error("[Customers] LTV intelligence failed:", e instanceof Error ? e.message : e);
-      return { topCustomers: [], atRiskHighValue: [], segments: { whales: 0, regulars: 0, occasional: 0, oneTimers: 0 } };
-    }
-  }),
-
-  /** Cross-sell recommendations — "customers who got X also needed Y" patterns */
-  crossSellRecommendations: adminProcedure.query(async () => {
-    try {
-      const result = await generateCrossSellRecommendations();
-      return {
-        patterns: result.patterns,
-        recommendations: result.recommendations,
-      };
-    } catch (e) {
-      log.error("[Customers] Cross-sell engine failed:", e instanceof Error ? e.message : e);
-      return { patterns: [], recommendations: [] };
-    }
-  }),
-
   /**
    * Wave-100: manual metrics refresh trigger.
    * Login auto-fires this — but operator can force a fresh recompute
@@ -1070,22 +762,6 @@ export const customersRouter = router({
     } catch (err) {
       log.error("[Customers] Metrics freshness query failed:", err instanceof Error ? err.message : err);
       return { lastComputedAt: null, rowCount: 0 };
-    }
-  }),
-
-  /** Customer forecast — revenue projections relevant to customer behavior */
-  customerForecast: adminProcedure.query(async () => {
-    try {
-      const result = await forecastRevenue();
-      return {
-        today: result.today,
-        month: result.month,
-        trend: result.trend,
-        weeklyTrend: result.weeklyTrend,
-      };
-    } catch (e) {
-      log.error("[Customers] Forecast engine failed:", e instanceof Error ? e.message : e);
-      return { today: null, month: null, trend: "flat", weeklyTrend: [] };
     }
   }),
 

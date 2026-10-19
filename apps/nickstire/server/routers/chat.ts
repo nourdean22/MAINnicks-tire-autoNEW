@@ -2,7 +2,7 @@
  * Chat router — AI chat assistant for customer interactions.
  * When the AI detects wantsAppointment, auto-creates a lead and fires Telegram alert.
  */
-import { publicProcedure, adminProcedure, router } from "../_core/trpc";
+import { publicProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import crypto from "crypto";
 import { chatWithAssistant, scoreLead, extractMemories } from "../gemini";
@@ -532,12 +532,6 @@ function verifySessionToken(sessionId: number, token: string): boolean {
 }
 
 export const chatRouter = router({
-  /** Admin: list recent chat sessions with transcripts */
-  sessions: adminProcedure.query(async () => {
-    const d = await db();
-    if (!d) return [];
-    return d.select().from(chatSessions).orderBy(desc(chatSessions.createdAt)).limit(50);
-  }),
 
   message: publicProcedure
     .input(z.object({

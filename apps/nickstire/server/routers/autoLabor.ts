@@ -402,66 +402,6 @@ export const autoLaborRouter = router({
     const { probeAlgEndpoints } = await import("../services/shopDriverMirror");
     return probeAlgEndpoints();
   }),
-
-  /** Get the ShopDriver portal URL */
-  portalUrl: adminProcedure
-    .input(z.object({ path: z.string().default("/") }).optional())
-    .query(({ input }) => {
-      return {
-        url: SHOPDRIVER_BASE + (input?.path || "/"),
-        accountId: process.env.AUTO_LABOR_USERNAME || process.env.ALG_USERNAME || "",
-      };
-    }),
-
-  /** Quick estimate — combine labor + common parts pricing */
-  quickEstimate: adminProcedure
-    .input(z.object({
-      jobs: z.array(z.object({
-        name: z.string(),
-        hours: z.number(),
-        partsCost: z.number().default(0),
-      })),
-      difficulty: z.enum(["standard", "moderate", "difficult"]).default("standard"),
-    }))
-    .mutation(async ({ input }) => {
-      const d = await db();
-      let rate = 115;
-      if (d) {
-        const { shopSettings: ss } = await import("../../drizzle/schema");
-        const result = await d.select().from(ss).where(eq(ss.key, "laborRate")).limit(1);
-        rate = result.length > 0 ? parseFloat(result[0].value) : 115;
-      }
-
-      const diffMult = input.difficulty === "difficult" ? 1.3 : input.difficulty === "moderate" ? 1.15 : 1.0;
-
-      const lineItems = input.jobs.map(job => {
-        const adjHours = Math.round(job.hours * diffMult * 10) / 10;
-        const laborCost = Math.round(adjHours * rate * 100) / 100;
-        return {
-          name: job.name,
-          hours: adjHours,
-          laborCost,
-          partsCost: job.partsCost,
-          total: laborCost + job.partsCost,
-        };
-      });
-
-      const totalLabor = lineItems.reduce((s, i) => s + i.laborCost, 0);
-      const totalParts = lineItems.reduce((s, i) => s + i.partsCost, 0);
-      const totalHours = lineItems.reduce((s, i) => s + i.hours, 0);
-
-      return {
-        lineItems,
-        summary: {
-          totalHours,
-          totalLabor,
-          totalParts,
-          subtotal: totalLabor + totalParts,
-          laborRate: rate,
-          difficulty: input.difficulty,
-        },
-      };
-    }),
 });
 
 
