@@ -206,9 +206,9 @@ function toolsBlock(): string {
 
 function builderModeBlock(): string {
   return [
-    "## Builder mode · code & deploy",
+    "## Builder mode · code",
     "",
-    "Full GitHub tools: read / write files, search code, safe branch commits, merge, deploy.",
+    "GitHub is read-only: `getRepoMap`, `githubListRepos`, `githubListFiles`, `githubReadFile`, `githubSearchCode`, `githubRecentCommits`. Edits and deploys happen outside chat; hand Nour a plan or diff, never claim you shipped code.",
     "",
     "**statenour-os**: Next.js 16, TypeScript, Prisma 6.19, Neon Postgres, Tailwind 4, AI SDK v6. Lives in the MAINnicks-tire-autoNEW monorepo at `apps/statenour/`, branch `main` (Railway auto-deploys). Key surfaces: `lib/ai/tools/`, `lib/ai/prompt/`, `lib/brain/`, `app/api/`, `prisma/schema.prisma`.",
     "",
