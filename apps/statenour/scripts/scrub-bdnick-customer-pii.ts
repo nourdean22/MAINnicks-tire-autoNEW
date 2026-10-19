@@ -228,7 +228,8 @@ function scrubMemoryText(category: string, key: string, content: string): string
  * scrubbed the memory, so the rebuild reads clean text); any other vector (orphan, soft-deleted, low
  * confidence: nothing would rebuild it) gets the scrubbed text and keeps its old vector.
  */
-const VECTOR_TEXT = /^\[([^\]]+)\] ([^:]*): ([\s\S]*)$/;
+// The key ends at the first ": " (keys may hold a bare colon, e.g. coach:drift-recovery:x or a lead source).
+const VECTOR_TEXT = /^\[([^\]]+)\] ([\s\S]*?): ([\s\S]*)$/;
 function vectorRow(row: Row) {
   const m = VECTOR_TEXT.exec(String(row.content));
   if (!m) return { content: row.content };

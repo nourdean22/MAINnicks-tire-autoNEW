@@ -176,6 +176,8 @@ describe("vector_embeddings of scrubbed memories · the copy the recall index ke
       expect(vb().deleteWhen?.(row)).toBe(false);
       expect(vb().transform(row).content).toBe("[insight] lead_source_website_2026-09-01: New lead from website — brake job");
     }
+    const colonKey = { id: "v5", sourceId: "i5", content: "[insight] lead_source_google:ads_2026-09-01: New lead from google:ads: Jane Roe — tires", reembedEligible: null };
+    expect(vb().transform(colonKey).content).toBe("[insight] lead_source_google:ads_2026-09-01: New lead from google:ads — tires");
     const shop = { id: "v2", sourceId: "gone", content: '[business_event] shop_lead_1: Shop lead: {"customerName":"Jane Roe","phone":"2165551234","service":"brakes"}', reembedEligible: null };
     expect(vb().transform(shop).content).toBe('[business_event] shop_lead_1: Shop lead: {"service":"brakes"}');
   });
