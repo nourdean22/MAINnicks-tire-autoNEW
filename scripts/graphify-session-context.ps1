@@ -4,13 +4,13 @@
   Reads graphify-out/GRAPH_REPORT.md - preferring the PRIMARY checkout's copy
   over the local one, newest mtime wins - and prints it with a staleness verdict.
 
-  Why reach across to the primary: GRAPH_REPORT.md is the single graphify
-  artifact git tracks (see .gitignore's "!graphify-out/GRAPH_REPORT.md"), so a
-  worktree checks out whatever was last COMMITTED, while the scheduled rebuild
-  only ever refreshes the primary checkout's WORKING copy. Reading across is
-  what keeps every session on the newest graph without a commit step at all.
-  Measured 2026-08-03: the committed copy was 87 commits behind HEAD, the
-  primary's live copy 14.
+  Why reach across to the primary: every graphify artifact is gitignored, so
+  the report exists only where the scheduled rebuild ran - the primary
+  checkout. A worktree has no copy, or a leftover one from before 2026-10-19
+  (GRAPH_REPORT.md was tracked until then: the committed copy sat 797 commits
+  behind main, and a rebuild in the primary dirtied main, which stop-check
+  blocks). Reading across keeps every session on the newest graph without a
+  commit step at all.
 
   Sections are located by HEADING, never by line number: the report is
   regenerated weekly and the community nav list above these sections grows with
@@ -27,7 +27,7 @@
 $ErrorActionPreference = 'Stop'
 
 # How many commits behind HEAD before the graph is called stale. The graph is
-# rebuilt by the weekly "NOURCITY-Graphify-Sync" scheduled task, so a run of
+# rebuilt by the daily "NOURCITY-Graphify-Sync" scheduled task, so a run of
 # commits behind is normal; raise this if you merge in bursts and find the
 # warning noisy.
 $StaleCommitThreshold = 25
@@ -225,13 +225,24 @@ try {
     }
 
     # Point grep at the file this briefing actually DESCRIBES. When the primary's
-    # copy won, a worktree's own graphify-out/GRAPH_REPORT.md is the stale committed
-    # one - naming the relative path there would send every lookup to a different
+    # copy won, a worktree's own graphify-out/GRAPH_REPORT.md is a stale leftover
+    # - naming the relative path there would send every lookup to a different
     # graph than the numbers above. Size is read live; it was hardcoded at 638 KB
     # and had already drifted.
     $kb = [int]((Get-Item $report).Length / 1KB)
     $grepTarget = if ($via) { $report } else { 'graphify-out/GRAPH_REPORT.md' }
     Write-Output "Query: grep a symbol in $grepTarget to find its community + neighbours ($kb KB - never read whole). Sections: God Nodes, Import Cycles, Communities."
+    # Live servers come from config/agent-os/local-services.json (the one place ports live); whether they are UP is
+    # session-health.mjs's job. Own try: a bad config must not cost the briefing above.
+    try {
+        $services = Get-Content (Join-Path $repo 'config\agent-os\local-services.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+        $what = @{ graphify = 'repo graph, read-only' }
+        $names = @($services.servers | ForEach-Object { "$($_.name) ($(if ($what[$_.kind]) { $what[$_.kind] } else { $_.kind }), 127.0.0.1:$($_.port))" })
+        if ($names) { Write-Output "Live query: MCP $($names -join ' + '), all on the MAIN checkout, not your branch. Status: the [health] line." }
+    }
+    catch {
+        Write-Output "Live query: unavailable ($($_.Exception.Message))"
+    }
     Write-Output 'Per-community digests (~3 KB each) in the Obsidian vault under "NOURCITY Codebase Graph/".'
     Write-Output 'Caveat: markdown headings are graph nodes too, so degree ranks mix doc sections with code symbols. Community IDs are unseeded and reshuffle between runs - do not cite a community number across sessions.'
 

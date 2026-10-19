@@ -4,9 +4,12 @@
 # python step backs up the previous vault export before replacing it,
 # and everything appends to graphify-out/obsidian-sync.log.
 #
-# Usage: powershell -File scripts/graphify-obsidian-sync.ps1
+# Usage: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/graphify-obsidian-sync.ps1 [-IngestBrain]
+#   -IngestBrain  also run step 5 (vault notes -> statenour's PRODUCTION brain_memories). Off by default since
+#                 2026-10-19 (Nour): a code-graph refresh must not write production rows as a side effect.
 param(
-    [string]$RepoRoot = (Split-Path $PSScriptRoot -Parent)
+    [string]$RepoRoot = (Split-Path $PSScriptRoot -Parent),
+    [switch]$IngestBrain
 )
 
 $ErrorActionPreference = "Continue"
@@ -19,6 +22,19 @@ function Log($msg) {
 
 Log "=== sync start (repo: $RepoRoot) ==="
 Set-Location $RepoRoot
+
+# Resolve graphify to a full path: PATH first, then ~/.local/bin, where pipx installs it. That dir was not on PATH
+# for older processes (2026-10-19), so a bare `graphify update .` failed before writing anything.
+$graphify = (Get-Command graphify -ErrorAction SilentlyContinue | Select-Object -First 1).Source
+if (-not $graphify) {
+    $candidate = Join-Path $env:USERPROFILE '.local\bin\graphify.exe'
+    if (Test-Path $candidate) { $graphify = $candidate }
+}
+if (-not $graphify) {
+    Log "ERROR: graphify not found on PATH or in ~/.local/bin (pipx install `"graphifyy[mcp,sql]==0.9.80`") - nothing written"
+    exit 1
+}
+Log "graphify: $graphify"
 
 # GRAPH LOCK (added 2026-08-21). The graphify git hooks (post-commit and
 # post-checkout, installed by `graphify hook install`) rebuild graph.json in a
@@ -59,8 +75,13 @@ $env:GRAPHIFY_VIZ_NODE_LIMIT = "100000"
 # with 0.9.6 - harmless today, but a graph.json schema change on any
 # `uv tool upgrade graphifyy` would break the render or, worse, render it wrong.
 # Resolve the venv first; fall back to the old marker path if uv is absent.
+# The pipx venv comes first: graphify 0.9.80 is a pipx install on NATTYNOUR (no uv tool venv exists there).
 $py = $null
-$uvToolDir = (& uv tool dir 2>$null | Out-String).Trim()
+$pipxHome = if ($env:PIPX_HOME) { $env:PIPX_HOME } else { Join-Path $env:LOCALAPPDATA 'pipx\pipx' }
+$pipxPython = Join-Path $pipxHome 'venvs\graphifyy\Scripts\python.exe'
+if (Test-Path $pipxPython) { $py = $pipxPython }
+$uvToolDir = $null
+if (-not $py) { $uvToolDir = (& uv tool dir 2>$null | Out-String).Trim() }
 if ($uvToolDir) {
     $uvPython = Join-Path $uvToolDir "graphifyy\Scripts\python.exe"
     if (Test-Path $uvPython) { $py = $uvPython }
@@ -68,12 +89,12 @@ if ($uvToolDir) {
 if (-not $py) {
     $pyMarker = Join-Path $RepoRoot "graphify-out\.graphify_python"
     $py = if (Test-Path $pyMarker) { (Get-Content $pyMarker -Raw).Trim() } else { "python" }
-    Log "WARN: uv graphifyy venv not found - falling back to $py (may differ from the CLI's graphify version)"
+    Log "WARN: no pipx or uv graphifyy venv found - falling back to $py (may differ from the CLI's graphify version)"
 }
 Log "python for render/digest steps: $py"
 
 # 1. Incremental graph update (tree-sitter AST, no LLM, no API keys).
-graphify update . 2>&1 | Add-Content -Path $log
+& $graphify update . 2>&1 | Add-Content -Path $log
 if ($LASTEXITCODE -ne 0) {
     Log "ERROR: graphify update exited $LASTEXITCODE - aborting before vault write"
     Release-GraphLock
@@ -199,7 +220,7 @@ if ($labelSkip) {
 } else {
     Log "labeling communities via $labelBackend/$labelModel"
     $labelStart = Get-Date
-    $labelOut = graphify label . --backend=$labelBackend --model=$labelModel 2>&1
+    $labelOut = & $graphify label . --backend=$labelBackend --model=$labelModel 2>&1
     $labelOut | Add-Content -Path $log
     $labelSecs = [int]((Get-Date) - $labelStart).TotalSeconds
     if ($LASTEXITCODE -ne 0) {
@@ -326,9 +347,14 @@ if ($backups.Count -gt $keepBackups) {
 # on disk and the run should still count as a success. A failure here is
 # logged loudly and re-attempted next week rather than failing the sync.
 $statenour = Join-Path $RepoRoot "apps\statenour"
-Log "ingesting vault notes into brain_memories (pnpm obsidian:ingest)..."
+#
+# OPT-IN SINCE 2026-10-19 (Nour): the ingest writes statenour's PRODUCTION
+# brain_memories, so a scheduled code-graph refresh no longer does it as a side
+# effect. Pass -IngestBrain (to this script or the launcher) to run it.
 $pnpmCommand = Get-Command pnpm -ErrorAction SilentlyContinue
-if (-not $pnpmCommand) {
+if (-not $IngestBrain) {
+    Log "brain ingest skipped (opt-in -IngestBrain, Nour 2026-10-19)"
+} elseif (-not $pnpmCommand) {
     # PowerShell command-not-found is non-terminating here and leaves
     # $LASTEXITCODE untouched (usually 0 from the Python step above). A
     # preflight is therefore required: otherwise a missing pnpm falsely logs
@@ -336,6 +362,7 @@ if (-not $pnpmCommand) {
     # nothing. Keep the sync non-fatal, but make the skipped ingest explicit.
     Log "WARN: obsidian ingest skipped - pnpm is not available on PATH; vault artifacts are intact; will retry next run"
 } else {
+    Log "ingesting vault notes into brain_memories (pnpm obsidian:ingest)..."
     Push-Location $statenour
     & $pnpmCommand.Source run obsidian:ingest 2>&1 | Add-Content -Path $log
     $ingestCode = $LASTEXITCODE
