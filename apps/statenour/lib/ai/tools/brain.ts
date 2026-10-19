@@ -1,7 +1,7 @@
 /**
  * Brain tools — semantic recall, BrainMemory ops, classification.
  *
- * Includes: searchMemories · searchSkills · searchConversations ·
+ * Includes: searchMemories · searchSkills ·
  * searchReflections · pinMemory · classifyThought · checkAntiPattern ·
  * resolveContradiction · runSimulation · syncKnowledge · etc.
  *

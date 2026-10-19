@@ -35,7 +35,7 @@ import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { CronFoldTree } from "@/components/system/cron-fold-tree";
 // 2026-08-16 · relocated from the retired /knowledge page. This is the
-// manual trigger for the 8-subsystem ingest fan-out + prompt-cache flush —
+// manual trigger for the 7-subsystem ingest fan-out + prompt-cache flush —
 // the same class of action as this deck's per-row RUN NOW.
 import { KnowledgeRefreshPanel } from "@/components/system/knowledge-refresh-panel";
 import { relativeTimeSeconds as timeAgo } from "@/lib/utils/datetime";

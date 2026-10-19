@@ -1,7 +1,7 @@
 /**
  * Content generation tools — content + ai_analysis.
  *
- * Includes: generateImage · renderInlineChart · summarize · writeCreative.
+ * Includes: generateImage · summarize · writeCreative.
  *
  * v10.0.529.106 · Wave 82 · extracted from monolithic lib/ai/tools.ts.
  * Aggregate barrel: lib/ai/tools.ts re-exports nourTools composed from

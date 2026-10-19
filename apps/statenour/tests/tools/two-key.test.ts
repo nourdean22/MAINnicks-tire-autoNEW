@@ -1,20 +1,14 @@
 /**
- * tests/tools/two-key.test.ts · 2026-09-30 (Q-19, §10.1 S4)
+ * The two-key gate (lib/tools/two-key.ts), exercised through its remaining per-call rule: a device
+ * command that unlocks, disarms or sends raw codes needs the owner's second key. (The Instagram
+ * autopost rules these tests used were removed with the tools, 2026-10-19; the mechanics are the same.)
  *
- * An irreversible customer-facing send needs two keys even in a CLEAN owner
- * turn. Before this, the sink policy was the only gate and it returns early
- * unless the turn is tainted, so a live Instagram autopost ran on the model's
- * reading of one owner message.
- *
- * Pinned:
- *   1. A live autopost in a clean owner turn (and outside any turn) is refused
- *      at the nourTools boundary and queued as an owner ApprovalRequest; the
- *      tool never runs.
- *   2. Positive controls: a dry run and an unrelated tool still run.
+ *   1. Such a command in a clean owner turn (and outside any turn) is refused at the nourTools
+ *      boundary and queued as an owner ApprovalRequest; the tool never runs.
+ *   2. Positive controls: an everyday command and an unrelated tool still run.
  *   3. The approved re-execution (guardianBypassStorage) runs the tool once.
  *   4. A retry does not queue a second approval; a DB failure still refuses.
- *   5. The argument check fails closed: a missing dryRun counts as live.
- *   (The chat tool itself was removed 2026-10-19; the gate's rules stay and are tested by name.)
+ *   5. The argument check fails closed: a non-string command counts as held.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
@@ -26,9 +20,9 @@ vi.mock("@/lib/prisma", () => ({ prisma: prismaMock }));
 import { wrapToolsWithEmptyHandling } from "@/lib/ai/tools";
 import { withTurnContext } from "@/lib/agent/turn-context";
 import { guardianBypassStorage } from "@/lib/tools/guardian";
-import { TWO_KEY_REASON, isIrreversibleCustomerSend, twoKeyGate } from "@/lib/tools/two-key";
+import { DEVICE_TWO_KEY_REASON, isIrreversibleCustomerSend, twoKeyGate } from "@/lib/tools/two-key";
 
-type Result = { error?: string; requestId?: string | null; reflection?: { guidance: string }; posted?: boolean };
+type Result = { error?: string; requestId?: string | null; reflection?: { guidance: string }; ok?: boolean };
 
 function wrapOne(name: string, execute: (...a: unknown[]) => unknown) {
   return wrapToolsWithEmptyHandling({ [name]: { execute } } as never) as unknown as Record<
@@ -36,6 +30,8 @@ function wrapOne(name: string, execute: (...a: unknown[]) => unknown) {
     { execute: (a: unknown, o: unknown) => Promise<Result> }
   >;
 }
+
+const UNLOCK = { deviceId: "dev_1", command: "unlock" };
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -46,18 +42,17 @@ beforeEach(() => {
   }));
 });
 
-describe("which calls are irreversible customer-facing sends", () => {
-  it("a live autopost is; a dry run is not; other tools are not", () => {
-    expect(isIrreversibleCustomerSend("triggerInstagramAutopost", { dryRun: false })).toBe(true);
-    expect(isIrreversibleCustomerSend("triggerInstagramAutopost", { dryRun: true })).toBe(false);
-    expect(isIrreversibleCustomerSend("getInstagramAutopostStatus", {})).toBe(false);
-    expect(isIrreversibleCustomerSend("createTask", { dryRun: false })).toBe(false);
+describe("which calls need the second key", () => {
+  it("unlock, disarm and raw are held; an everyday command and other tools are not", () => {
+    for (const command of ["unlock", "disarm", "raw"]) expect(isIrreversibleCustomerSend("runDeviceCommand", { command })).toBe(true);
+    expect(isIrreversibleCustomerSend("runDeviceCommand", { command: "lights_on" })).toBe(false);
+    expect(isIrreversibleCustomerSend("createTask", { command: "unlock" })).toBe(false);
   });
 
-  it("fails closed: anything but an explicit dryRun === true is live", () => {
-    expect(isIrreversibleCustomerSend("triggerInstagramAutopost", {})).toBe(true);
-    expect(isIrreversibleCustomerSend("triggerInstagramAutopost", { dryRun: "true" })).toBe(true);
-    expect(isIrreversibleCustomerSend("triggerInstagramAutopost", null)).toBe(true);
+  it("fails closed: a missing or non-string command is held", () => {
+    expect(isIrreversibleCustomerSend("runDeviceCommand", {})).toBe(true);
+    expect(isIrreversibleCustomerSend("runDeviceCommand", { command: 5 })).toBe(true);
+    expect(isIrreversibleCustomerSend("runDeviceCommand", null)).toBe(true);
   });
 
   it("the SMS tools are not on the list: they already stage and wait for a Telegram tap", () => {
@@ -66,47 +61,42 @@ describe("which calls are irreversible customer-facing sends", () => {
   });
 });
 
-describe("the nourTools boundary holds a live publish for the second key", () => {
-  it("clean owner turn: the live autopost is refused, queued for the owner, and never runs", async () => {
-    const run = vi.fn(async () => ({ posted: true }));
-    const tools = wrapOne("triggerInstagramAutopost", run);
-    const res = await withTurnContext({}, () => tools.triggerInstagramAutopost.execute({ dryRun: false }, {}));
+describe("the nourTools boundary holds the call for the second key", () => {
+  it("clean owner turn: the unlock is refused, queued for the owner, and never runs", async () => {
+    const run = vi.fn(async () => ({ ok: true }));
+    const res = await withTurnContext({}, () => wrapOne("runDeviceCommand", run).runDeviceCommand.execute(UNLOCK, {}));
 
     expect(run).not.toHaveBeenCalled();
     expect(res.error).toBe("approval_required");
     expect(res.requestId).toBe("req_2k");
-    expect(res.reflection?.guidance).toMatch(/NOT performed/);
+    expect(res.reflection?.guidance).toMatch(/NOT sent/);
     const created = prismaMock.approvalRequest.create.mock.calls[0][0].data;
     expect(created).toMatchObject({
-      toolId: "triggerInstagramAutopost",
+      toolId: "runDeviceCommand",
       actionType: "require_owner",
       status: "pending_approval",
-      riskClass: "high",
       requestedBy: "agent",
-      reason: TWO_KEY_REASON,
+      reason: DEVICE_TWO_KEY_REASON,
     });
-    expect(created.payload).toEqual({ dryRun: false });
+    expect(created.payload).toEqual(UNLOCK);
     expect(created.expiresAt.getTime()).toBeGreaterThan(Date.now());
   });
 
-  it("outside any turn (a background caller) the live autopost is held too", async () => {
-    const run = vi.fn(async () => ({ posted: true }));
-    const res = await wrapOne("triggerInstagramAutopost", run).triggerInstagramAutopost.execute(
-      { dryRun: false, forceArchetype: "promo" },
-      {},
-    );
+  it("outside any turn (a background caller) the unlock is held too", async () => {
+    const run = vi.fn(async () => ({ ok: true }));
+    const res = await wrapOne("runDeviceCommand", run).runDeviceCommand.execute(UNLOCK, {});
     expect(run).not.toHaveBeenCalled();
     expect(res.error).toBe("approval_required");
     expect(prismaMock.approvalRequest.create.mock.calls[0][0].data.requestedBy).toBe("system");
   });
 
-  it("positive control: a dry run runs with no approval", async () => {
-    const run = vi.fn(async () => ({ posted: false }));
+  it("positive control: an everyday command runs with no approval", async () => {
+    const run = vi.fn(async () => ({ ok: true }));
     const res = await withTurnContext({}, () =>
-      wrapOne("triggerInstagramAutopost", run).triggerInstagramAutopost.execute({ dryRun: true }, {}),
+      wrapOne("runDeviceCommand", run).runDeviceCommand.execute({ deviceId: "dev_1", command: "lights_on" }, {}),
     );
     expect(run).toHaveBeenCalledTimes(1);
-    expect(res).toEqual({ posted: false });
+    expect(res).toEqual({ ok: true });
     expect(prismaMock.approvalRequest.create).not.toHaveBeenCalled();
   });
 
@@ -117,12 +107,12 @@ describe("the nourTools boundary holds a live publish for the second key", () =>
     expect(prismaMock.approvalRequest.create).not.toHaveBeenCalled();
   });
 
-  it("the approved re-execution is the second key: under the guardian bypass the publish runs once", async () => {
-    const run = vi.fn(async () => ({ posted: true }));
-    const tools = wrapOne("triggerInstagramAutopost", run);
-    const res = await guardianBypassStorage.run(true, () => tools.triggerInstagramAutopost.execute({ dryRun: false }, {}));
+  it("the approved re-execution is the second key: under the guardian bypass the command runs once", async () => {
+    const run = vi.fn(async () => ({ ok: true }));
+    const tools = wrapOne("runDeviceCommand", run);
+    const res = await guardianBypassStorage.run(true, () => tools.runDeviceCommand.execute(UNLOCK, {}));
     expect(run).toHaveBeenCalledTimes(1);
-    expect(res).toEqual({ posted: true });
+    expect(res).toEqual({ ok: true });
     expect(prismaMock.approvalRequest.create).not.toHaveBeenCalled();
   });
 });
@@ -130,22 +120,20 @@ describe("the nourTools boundary holds a live publish for the second key", () =>
 describe("twoKeyGate bookkeeping", () => {
   it("a retry with the same payload reuses the open request instead of queueing a second one", async () => {
     prismaMock.approvalRequest.findMany.mockResolvedValue([
-      { id: "req_other", payload: { dryRun: false, forceArchetype: "meme" } },
-      { id: "req_open", payload: { forceArchetype: "promo", dryRun: false } },
+      { id: "req_other", payload: { deviceId: "dev_2", command: "unlock" } },
+      { id: "req_open", payload: { command: "unlock", deviceId: "dev_1" } },
     ]);
-    const res = await withTurnContext({}, () =>
-      twoKeyGate("triggerInstagramAutopost", { dryRun: false, forceArchetype: "promo" }),
-    );
+    const res = await withTurnContext({}, () => twoKeyGate("runDeviceCommand", UNLOCK));
     expect(res?.requestId).toBe("req_open");
     expect(prismaMock.approvalRequest.create).not.toHaveBeenCalled();
     const where = prismaMock.approvalRequest.findMany.mock.calls[0][0].where;
-    expect(where).toMatchObject({ toolId: "triggerInstagramAutopost", status: "pending_approval", reason: TWO_KEY_REASON });
+    expect(where).toMatchObject({ toolId: "runDeviceCommand", status: "pending_approval", reason: DEVICE_TWO_KEY_REASON });
     expect(where.expiresAt.gt).toBeInstanceOf(Date);
   });
 
   it("a DB failure still refuses (the queue is best-effort, the refusal is not)", async () => {
     prismaMock.approvalRequest.findMany.mockRejectedValueOnce(new Error("db down"));
-    const res = await withTurnContext({}, () => twoKeyGate("triggerInstagramAutopost", { dryRun: false }));
+    const res = await withTurnContext({}, () => twoKeyGate("runDeviceCommand", UNLOCK));
     expect(res?.error).toBe("approval_required");
     expect(res?.requestId).toBeNull();
   });

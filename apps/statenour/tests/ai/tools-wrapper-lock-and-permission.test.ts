@@ -249,25 +249,6 @@ describe("critical-risk tools wait for the owner", () => {
 });
 
 describe("two-key list additions", () => {
-  it("turning the Instagram autoposter ON is held; turning it off is one key", async () => {
-    const on = vi.fn(async () => ({ ok: true }));
-    const res = await wrapOne("setInstagramAutopostConfig", on).execute({ enabled: true }, {});
-    expect(res.error).toBe("approval_required");
-    expect(on).not.toHaveBeenCalled();
-
-    const off = vi.fn(async () => ({ ok: true }));
-    await wrapOne("setInstagramAutopostConfig", off).execute({ enabled: false }, {});
-    expect(off).toHaveBeenCalledTimes(1);
-  });
-
-  it("probes: the autoposter rule fails closed on anything but an explicit enabled === false", () => {
-    expect(isIrreversibleCustomerSend("setInstagramAutopostConfig", { enabled: true })).toBe(true);
-    expect(isIrreversibleCustomerSend("setInstagramAutopostConfig", { enabled: "true" })).toBe(true);
-    expect(isIrreversibleCustomerSend("setInstagramAutopostConfig", {})).toBe(true);
-    expect(isIrreversibleCustomerSend("setInstagramAutopostConfig", null)).toBe(true);
-    expect(isIrreversibleCustomerSend("setInstagramAutopostConfig", { enabled: false })).toBe(false);
-  });
-
   it("probes: unlock, disarm and raw device commands need the second key in any case or padding", () => {
     for (const command of ["unlock", " UNLOCK ", "Unlock", "unlock\n", "disarm", "DISARM", "raw", "Raw "]) {
       expect(isIrreversibleCustomerSend("runDeviceCommand", { command }), JSON.stringify(command)).toBe(true);

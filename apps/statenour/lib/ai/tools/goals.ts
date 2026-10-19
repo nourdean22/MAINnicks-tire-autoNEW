@@ -1,8 +1,7 @@
 /**
  * Goal + OKR + weekly-target tools.
  *
- * Includes: getProjections · archiveGoal · logGoalProgress · setLifeGoal ·
- * setOKRs · setWeeklyTargets · getWeeklyTargets.
+ * Includes: archiveGoal · setOKRs · setWeeklyTargets · getWeeklyTargets.
  *
  * v10.0.529.106 · Wave 82 · extracted from monolithic lib/ai/tools.ts.
  * Aggregate barrel: lib/ai/tools.ts re-exports nourTools composed from

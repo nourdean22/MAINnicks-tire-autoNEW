@@ -246,8 +246,6 @@ export const TOOL_CATALOG: ToolMeta[] = [
   { name: "syncKnowledge",                category: "brain",          sideEffecting: true, cost: "spendy" },
   { name: "toolHealth",                   category: "brain",          battle: true, cost: "free" },
   { name: "checkAntiPattern",             category: "brain",          battle: true, cost: "free" },
-  // v10.0.526 · Arc C · F1 · Revenue-Decision Channel chat surface ·
-  // read-only over BrainMemory(category="revenue_move")
   // v10.0.526 · Arc B Feature 5 · Proactive Contradiction Surfacing.
   // Side-effecting because it mutates the canonical-belief surface
   // (updates Contradiction status, deprecates losing memory, writes

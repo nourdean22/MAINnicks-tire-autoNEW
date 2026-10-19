@@ -126,7 +126,7 @@ import { withTurnContext, updateTurnContext, currentTurn } from "@/lib/agent/tur
 import { fenceContent } from "@/lib/ai/tool-result-fencing";
 import { guardianBypassStorage } from "@/lib/tools/guardian";
 import { SINK_POLICY_REASON, isExternalSideEffectTool } from "@/lib/tools/sink-policy";
-import { DEVICE_TWO_KEY_REASON, TWO_KEY_REASON, isIrreversibleCustomerSend } from "@/lib/tools/two-key";
+import { DEVICE_TWO_KEY_REASON, isIrreversibleCustomerSend } from "@/lib/tools/two-key";
 import { classifyTool, isReadSafeTool, stripMutatingTools } from "@/lib/ai/capability-registry";
 import { getToolCapability } from "@/lib/tools/tool-registry";
 import { parseChatControls } from "@/lib/ai/chat/gate";
@@ -643,18 +643,6 @@ describe("two-key argument variants", () => {
       inTurn({}, () => real("runDeviceCommand").execute({ deviceId: "dev_1", command: "unlock" })),
     );
     expect(locked.error).toBe("mutation_locked");
-  });
-
-  it("Instagram: autopost ON and a live run are held; only explicit enabled===false / dryRun===true skip", () => {
-    for (const enabled of [true, "false", 0, undefined, null]) {
-      expect(isIrreversibleCustomerSend("setInstagramAutopostConfig", { enabled })).toBe(true);
-    }
-    expect(isIrreversibleCustomerSend("setInstagramAutopostConfig", { enabled: false })).toBe(false);
-    for (const dryRun of [false, "true", 1, undefined]) {
-      expect(isIrreversibleCustomerSend("triggerInstagramAutopost", { dryRun })).toBe(true);
-    }
-    expect(isIrreversibleCustomerSend("triggerInstagramAutopost", { dryRun: true })).toBe(false);
-    expect(TWO_KEY_REASON).toMatch(/two-key/);
   });
 });
 

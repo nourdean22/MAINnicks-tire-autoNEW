@@ -46,13 +46,11 @@ catalog and the model:
 | `getBodyData`              | Recent body tracking entries                                                       | `days: 1-365` (default 30)  | `BodyTracking[]`                                                            | free  | yes    | `BodyTracking` table           |
 | `getCameraIntelligence`    | Live camera/traffic data summary                                                   | `{}`                         | summary of `camera_intelligence`                                            | free  | yes    | `lib/brain/camera-intelligence`|
 | `getCommitments`           | Active commitments (status in active/in_progress)                                  | `{}`                         | `Commitment[]`                                                              | free  | yes    | `Commitment` table             |
-| `getDecisionReplays`       | Decisions due for review                                                           | `{}`                         | `DecisionReplay[]`                                                          | free  | yes    | `DecisionReplay` table         |
 | `getDriftAlerts`           | Unresolved drift alerts                                                            | `{}`                         | `DriftAlert[]`                                                              | free  | yes    | `DriftAlert` table             |
 | `getFinancialSnapshot`     | Latest financial snapshot                                                          | `{}`                         | `FinancialSnapshot`                                                         | free  | yes    | `FinancialSnapshot` table      |
 | `getHabitStreaks`          | Habit completion data — current streaks for DAILY-loop tasks                       | `{}`                         | `{ [taskTitle]: { completed, total } }`                                     | free  | yes    | `Task` (loopKind=DAILY)        |
 | `getMasteryScores`         | Current mastery domain scores (last 12)                                            | `{}`                         | `MasteryScore[]`                                                            | free  | yes    | `MasteryScore` table           |
 | `getMissions`              | Active missions                                                                    | `{}`                         | `Mission[]`                                                                 | free  | yes    | `Mission` table                |
-| `getProjections`           | AI-generated projections                                                           | `{}`                         | projections array                                                           | free  | yes    | `BrainMemory(projection)`      |
 | `getTasks`                 | Active tasks with their missions (INBOX/READY/DOING)                               | `{}`                         | `Task[]` with `mission`                                                     | free  | yes    | `Task` + `Mission`             |
 | `getTodaySchedule`         | Google Calendar events for today + N days ahead                                    | `daysAhead: 0-14`            | `{ ok, count, events[] }`                                                   | free  | yes    | Google Calendar API            |
 | `proposeCalendarEvent`     | Propose new GCal event · returns compose URL (human confirms)                      | `title, startISO, endISO?, location?, description?, attendees?` | `{ composeUrl, summary, start, end }`                                       | free  | yes    | Google Calendar (URL only)     |
@@ -77,14 +75,11 @@ catalog and the model:
 | `createTask`               | Create a single task under a mission                                               | `title, missionId, nextPhysicalAction, effort, context` | `{ created, taskId, title }`          | free | no   | `Task` table              |
 | `journalDecision`          | Log a decision from conversation                                                   | `title, options?, chosen?, stakes?`                     | `{ logged, decisionId }`              | free | no   | `MasteryDecision` table   |
 | `logSituation`             | Log a strategic situation for Greene-law analysis                                  | `context, situation, emotion?, lawHits?`                | `{ logged, situationLogId }`          | free | no   | `SituationLog` table      |
-| `markCommitmentBroken`     | Mark a commitment as broken (operator owns up to the miss)                         | `commitmentId, reason?`                                 | `{ marked }`                          | free | no   | `Commitment` + anti-pattern auto-promote chain |
 | `resolveAlert`             | Resolve a drift alert                                                              | `alertId`                                               | `{ resolved }`                        | free | no   | `DriftAlert` table        |
 | `reviewDecisionReplay`     | Grade a past decision (assigns A-F + outcome)                                      | `decisionId, grade, actualOutcome`                      | `{ reviewed }`                        | free | no   | `DecisionReplay` + auto-promote to anti_pattern |
 | `runDeviceCommand`         | Bridge chat → physical devices ("lock front door" / "turn off shop lights")        | `deviceId, command, params?`                            | `{ enqueued, commandId }`             | free | **yes**| `DeviceCommand` queue   |
-| `setLifeGoal`              | Set or update a life goal                                                          | `domain, statement, horizon?`                           | `{ set, lifeGoalId }`                 | free | no   | `LifeGoal` table          |
 | `setTaskPriority`          | Override task priority (0-100, higher = more urgent)                               | `taskId? OR titleQuery?, priority, reason?`             | `{ updated, taskId }`                 | free | no   | `Task.manualPriorityOverride` |
 | `triageStaleLead`          | Triage a stale lead (route to followup / drop / followup_now)                      | `leadId, decision, reason?`                             | `{ triaged }`                         | free | no   | `Task` + `BrainMemory`    |
-| `updateMasteryScore`       | Update a mastery score for a specific domain                                       | `domain, score`                                         | `{ updated }`                         | free | no   | `MasteryScore` table      |
 
 ---
 
@@ -94,14 +89,12 @@ catalog and the model:
 |---------------------|------------------------------------------------------------------------------------------|------------------------------------------------------|--------------------------------------|-------|--------|------------------------|
 | `checkCommitments`  | Check all active commitments · what's on track, what's overdue, what needs follow-up      | `{}`                                                  | `{ total, overdue, dueSoon, openEnded }` | free | yes    | `Commitment` table     |
 | `clearMit`          | Clear today's Most Important Task                                                        | `{}`                                                  | `{ cleared }`                         | free  | no     | `BrainMemory(mit)`     |
-| `decisionPreFlight` | Pre-flight checklist before high-stakes decision · emotional state + cognitive load      | `decision, stakes, reversible`                        | `{ recommendation, riskScore, risks[] }` | cheap | no     | `BrainMemory` + identity snapshot |
 | `getWeeklyTargets`  | Get this week's 3 targets (revenue / personal / health)                                  | `{}`                                                  | `{ hasTargets, weekOf, targets }`     | free  | yes    | `BrainMemory(weekly_target)` |
 | `rankNextActions`   | Rank pending tasks by ROI / friction / context fit                                       | `{}`                                                  | ranked task array                     | cheap | no     | `Task` + AI ranker     |
 | `scheduleFollowUp`  | Schedule a follow-up reminder for a person / commitment / lead                           | `description, dueAt, channel?`                        | `{ scheduled }`                       | free  | no     | `ScheduledAction` table|
 | `setMit`            | Set today's Most Important Task                                                          | `mit`                                                 | `{ set, mit }`                        | free  | no     | `BrainMemory(mit)`     |
 | `setOKRs`           | Set quarterly OKRs (objective + 3 key results)                                           | `objective, keyResults[]`                             | `{ set, okrId }`                      | free  | no     | `BrainMemory(strategic_plan)` |
 | `setWeeklyTargets`  | Set this week's 3 targets (revenue / personal / health)                                  | `revenue, personal, health`                           | `{ stored, weekOf, targets }`         | free  | no     | `BrainMemory(weekly_target)` |
-| `suggestMIT`        | Suggest Most Important Task based on current commitments + drift + revenue gaps          | `{}`                                                  | `{ suggestion, reasoning }`           | cheap | no     | `Task` + AI suggester  |
 
 ---
 
@@ -109,7 +102,6 @@ catalog and the model:
 
 | Tool                  | Description                                            | Input          | Output                          | Cost | Battle | Talks to                |
 |-----------------------|--------------------------------------------------------|----------------|--------------------------------|------|--------|-------------------------|
-| `compareCompetitors`  | Competitor comparison (pricing + services + reviews)   | `{}`            | competitor analysis array       | free | yes    | `BrainMemory(industry)` |
 | `getDashboardSummary` | Full dashboard summary (revenue + leads + tasks)       | `{}`            | dashboard payload               | free | yes    | local cached aggregates |
 | `getEstimateLeaks`    | Find revenue leaks · unconverted estimates             | `{}`            | leak array · $value declined    | free | yes    | nickstire bridge (estimates) |
 | `getReviewStats`      | Review statistics (count + avg + recency)              | `{}`            | review stats payload            | free | yes    | `BrainMemory(review_stats)` |
@@ -150,7 +142,6 @@ catalog and the model:
 | Tool                | Description                                                                                                                 | Input                                                            | Output                                          | Cost   | Side-effect | Talks to                 |
 |---------------------|-----------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------|------------------------------------------------|--------|------|--------------------------|
 | `generateImage`     | Generate AI image via Venice (flux-2-pro by default) · auto-injects Nick's Tire brand when prompt reads as marketing        | `prompt, size: 512x512 \| 1024x1024 \| 1536x1024 \| 1024x1536`     | `{ imageUrl, dataUrl, imageId, model }`         | spendy | **yes**| Venice flux-2-pro API    |
-| `renderInlineChart` | Render an inline chart (line / sparkline / bar / pie) · Nick MUST include returned markdown for the React component to render | `type, data[], title?, color?`                                  | `{ markdown, summary }`                         | free   | no     | `nick-message.tsx` <pre> override |
 
 ---
 
@@ -187,7 +178,6 @@ catalog and the model:
 | `runSimulation`               | Run a "what if" simulation · predict cascade of consequences                                 | `scenario`          | simulation payload                            | medium | no     | `lib/brain/thinking-engine`    |
 | `searchBrainDumps` → **retired** v10.0.74 (use `searchReflections`)                                                              |                     |                                              |        |        |                                |
 | `searchColdMemory`            | Search the cold-memory archive (older than active 30d window)                                | `query, limit?`     | cold-memory hits                              | cheap  | no     | `lib/brain/cold-memory`        |
-| `searchConversations`         | Search past chat conversations by content                                                    | `query, limit?`     | conv hits                                     | free   | yes    | `ChatMessage` full-text        |
 | `searchGreeneLaws`            | Search 189 Greene's Laws + 48 Laws + 33 Strategies + Human Nature + Mastery + 50th Law       | `query, limit?`     | `StrategicLaw[]`                              | free   | yes    | `StrategicLaw` table           |
 | `searchMemories`              | Search BrainMemory by content + category                                                     | `query, category?, limit?` | memory hits                              | free   | yes    | `BrainMemory` table            |
 | `searchReflections`           | Search Reflection rows + BrainDump entries · date range supported                            | `query, dateFrom?, dateTo?` | `{ reflections, brainDumps }`            | free   | yes    | `Reflection` + `BrainDump`     |
@@ -202,16 +192,12 @@ catalog and the model:
 
 | Tool                       | Description                                                          | Input                                              | Output                                    | Cost | Battle | Side-effect | Talks to                 |
 |----------------------------|----------------------------------------------------------------------|----------------------------------------------------|------------------------------------------|------|--------|------|--------------------------|
-| `buildArchitectureMemory`  | Scan a repo feature + store its architecture in brain memory         | `repo, feature, filePaths[], summary`              | `{ stored, feature, repo }`              | spendy | no   | no   | `BrainMemory(architecture)` |
 | `getRepoMap`               | Return the structured repo metadata (stack + key paths + branch)     | `repo`                                              | `{ name, branch, stack, keyPaths }`      | cheap | no    | no   | `config/repos.ts`        |
-| `githubCreatePR`           | Create a pull request                                                | `repo, title, body, head, base, draft?`             | `{ created, number, url }`                | free | no     | **yes**| GitHub API             |
 | `githubListFiles`          | List files in a repo directory                                       | `repo, path, ref?`                                  | files array                               | free | yes    | no   | GitHub API               |
 | `githubListRepos`          | List all configured repos                                            | `{}`                                                 | repo array                                | free | yes    | no   | `config/repos.ts`        |
 | `githubReadFile`           | Read a single file from a repo                                       | `repo, path, ref?`                                  | `{ content, sha }`                        | free | yes    | no   | GitHub API               |
-| `githubReadMultiple`       | Read multiple files from a repo in one call                          | `repo, paths[], ref?`                               | files array                               | free | no     | no   | GitHub API               |
 | `githubRecentCommits`      | Recent commits on a branch                                           | `repo, branch?, limit?`                             | commits array                             | free | yes    | no   | GitHub API               |
 | `githubSearchCode`         | Search code across all configured repos                              | `query, repo?, language?`                           | search hits                               | free | no     | no   | GitHub API               |
-| `learnCodingPreference`    | Store a coding preference Nour expressed (tab vs space, naming, etc.)| `preference, scope?`                                | `{ stored }`                              | free | no     | no   | `BrainMemory(coding_preference)` |
 
 ---
 
@@ -219,7 +205,6 @@ catalog and the model:
 
 | Tool          | Description                                                                                              | Input | Output                          | Cost   | Talks to             |
 |---------------|----------------------------------------------------------------------------------------------------------|-------|--------------------------------|--------|----------------------|
-| `analyzeWeek` | Deep week analysis · AI synthesis of revenue + scores + tasks + drift                                    | `{}`   | analysis payload                | medium | multi-source aggregator |
 | `dailyPulse`  | One-shot daily status · revenue + alerts + leads + callbacks + WOs + bookings + tasks + score + drift     | `{}`   | full pulse payload              | cheap  | nickstire bridge x6 + `identity_snapshot` + `Task` + `DriftAlert` |
 | `endOfDay`    | EOD wrap-up · revenue summary + what got done + what's still open + drift check                          | `{}`   | EOD payload                     | cheap  | nickstire bridge x4 + `identity_snapshot` + `Task` + `Commitment` |
 | `weeklyReview`| Weekly performance review · 7d revenue trend + task completion rate + habit streaks + drift + wins/misses| `{}`   | review payload                  | medium | nickstire bridge + `identity_snapshot` (7d) + `Task` + `DriftAlert` |

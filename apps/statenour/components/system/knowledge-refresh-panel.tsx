@@ -2,7 +2,7 @@
 
 /**
  * KnowledgeRefreshPanel — the operator's only manual trigger for the
- * 8-subsystem ingest fan-out plus the prompt-cache hot flush.
+ * 7-subsystem ingest fan-out plus the prompt-cache hot flush.
  *
  * 2026-08-16 · relocated from the retired /knowledge page. It never had
  * anything to do with that page's file browser: it fires
@@ -73,7 +73,7 @@ export function KnowledgeRefreshPanel() {
         </button>
       </div>
       <p className="text-[11px] text-fg-tertiary mb-2">
-        Pulls fresh data from all sources (Industry RSS, ALG, Insights, Gmail, Calendar, Drive,
+        Pulls fresh data from all sources (ALG, Insights, Gmail, Calendar, Drive,
         Knowledge sync, Embeddings) and hot-flushes the prompt cache. ~60s total.
       </p>
       {refreshError && (
