@@ -47,7 +47,11 @@ import { REPORT_DOCS } from "@/lib/opsRegistry";
 const ok = (data: unknown): Partial<Q> => ({ data, isError: false });
 
 beforeEach(() => h.queries.clear());
-afterEach(() => h.queries.clear());
+afterEach(() => {
+  h.queries.clear();
+  // Inner tabs live in the URL since 2026-10-19 (reportsTab, customersTab): reset it.
+  window.history.replaceState(null, "", "/");
+});
 
 describe("CustomerIntelligence Call and Text", () => {
   function mount() {

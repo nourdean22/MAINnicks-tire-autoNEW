@@ -75,7 +75,6 @@ vi.mock("@/pages/admin/money/TireRegistrationPanel", () => ({ default: h.Null })
 vi.mock("@/pages/admin/money/NhtsaVehiclePanel", () => ({ default: h.Null }));
 vi.mock("@/pages/admin/SalesCard", () => ({ default: h.Null }));
 vi.mock("@/pages/admin/PromisesPanel", () => ({ default: h.Null }));
-vi.mock("@/pages/admin/InspectionCapturePanel", () => ({ default: h.Null }));
 vi.mock("@/pages/admin/ClosedLoopLiftPanel", () => ({ default: h.Null }));
 vi.mock("@/pages/admin/today/ArrivalLoadStrip", () => ({ default: h.Null }));
 vi.mock("@/pages/admin/today/ExceptionFeed", () => ({ default: h.Null }));

@@ -66,7 +66,6 @@ vi.mock("@/components/admin/ConfirmDialog", () => ({ confirmDialog: h.confirm, d
 vi.mock("@/_core/hooks/useAuth", () => ({ useAuth: () => ({ user: { role: "admin" }, loading: false }) }));
 vi.mock("@/pages/admin/SalesCard", () => ({ default: h.Marker("sales-card") }));
 vi.mock("@/pages/admin/PromisesPanel", () => ({ default: h.Marker("promises") }));
-vi.mock("@/pages/admin/InspectionCapturePanel", () => ({ default: h.Marker("inspection") }));
 vi.mock("@/pages/admin/ClosedLoopLiftPanel", () => ({ default: h.Marker("closed-loop") }));
 vi.mock("@/pages/admin/today/ArrivalLoadStrip", () => ({ default: h.Marker("arrival") }));
 vi.mock("@/pages/admin/today/ExceptionFeed", () => ({ default: h.Marker("exceptions") }));
@@ -162,7 +161,7 @@ describe("Today reads top to bottom as verdict, board, strip, Billed, Arrival, C
     expect(before(strip, sales)).toBe(true);
     expect(before(sales, arrival)).toBe(true);
     expect(before(arrival, checks)).toBe(true);
-    for (const id of ["promises", "inspection", "closed-loop", "exceptions"]) {
+    for (const id of ["promises", "closed-loop", "exceptions"]) {
       expect(screen.getByTestId(id).closest("details"), id).toBe(checks);
     }
     expect(screen.getByRole("heading", { name: "Integration freshness" }).closest("details")).toBe(checks);

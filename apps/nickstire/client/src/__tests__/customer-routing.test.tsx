@@ -4,9 +4,10 @@ import React from "react";
 
 // Configurable tRPC mock
 const trpcState = vi.hoisted(() => ({
-  queries: {} as Record<string, { data?: unknown; isLoading?: boolean; error?: unknown }>,
+  queries: {} as Record<string, { data?: unknown; isLoading?: boolean; error?: unknown; fetchStatus?: string }>,
   mode: "ok" as "ok" | "loading" | "error",
   mutate: vi.fn(),
+  refetch: vi.fn(),
 }));
 
 vi.mock("@/lib/trpc", () => {
@@ -25,7 +26,8 @@ vi.mock("@/lib/trpc", () => {
       isError: c.error != null,
       isSuccess: c.error == null && c.data !== undefined,
       error: c.error ?? null,
-      refetch: vi.fn(),
+      fetchStatus: c.fetchStatus ?? "idle",
+      refetch: trpcState.refetch,
     };
   };
   const procedure = (key: string) => ({
@@ -93,8 +95,10 @@ vi.mock("next-themes", () => ({
 
 describe("Customers Routing & Deep-Linking", () => {
   beforeEach(() => {
-    trpcState.queries = {};
+    // Customers decides its tabs from the role (innerTabs.ts) since 2026-10-19.
+    trpcState.queries = { "adminSecurity.status": { data: { adminRole: "owner", permissions: [] } } };
     trpcState.mode = "ok";
+    trpcState.refetch.mockClear();
     trpcState.mutate.mockClear();
     // Clear URL query parameters before each test
     window.history.pushState({}, "", "/admin");
@@ -185,5 +189,30 @@ describe("Customers Routing & Deep-Linking", () => {
 
     const params = new URLSearchParams(window.location.search);
     expect(params.get("id")).toBeNull();
+  });
+
+  // 2026-10-19: the tabs depend on the role. A failed or paused (offline PWA) access
+  // read used to leave no tab and no panel at all: a blank page that looks empty.
+  it.each([
+    ["errored", { error: new Error("status down") }],
+    ["paused", { fetchStatus: "paused" }],
+  ])("an access check that %s says so and offers Retry, never a blank page", async (_label, status) => {
+    trpcState.queries["adminSecurity.status"] = status;
+    window.history.pushState({}, "", "/admin?tab=customers");
+    const { default: CustomersSection } = await import("../pages/admin/CustomersSection");
+    render(React.createElement(CustomersSection));
+    expect(screen.getByText("Could not check your access.")).toBeTruthy();
+    const retry = screen.getByRole("button", { name: "Retry" });
+    expect(retry.className).toMatch(/min-h-12/);
+    fireEvent.click(retry);
+    expect(trpcState.refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("positive control: a loaded role still gets its tabs, not the access line", async () => {
+    window.history.pushState({}, "", "/admin?tab=customers&customersTab=members");
+    const { default: CustomersSection } = await import("../pages/admin/CustomersSection");
+    render(React.createElement(CustomersSection));
+    expect(screen.queryByText("Could not check your access.")).toBeNull();
+    expect(screen.getByRole("button", { name: /Members/ })).toBeTruthy();
   });
 });

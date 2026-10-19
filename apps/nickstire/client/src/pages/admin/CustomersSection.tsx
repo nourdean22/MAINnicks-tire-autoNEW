@@ -71,8 +71,11 @@ export default function CustomersSection() {
   // as Calls. Which tabs a role sees is innerTabs.ts: an accountant reaches this
   // section for Members ONLY, never the customer list. Until the role loads no
   // restricted tab renders.
-  const { data: security } = trpc.adminSecurity.status.useQuery();
+  const { data: security, isError: securityFailed, fetchStatus: securityFetchStatus, refetch: refetchSecurity } =
+    trpc.adminSecurity.status.useQuery();
   const role = (security?.adminRole ?? null) as AdminRole | null;
+  // A failed or paused (offline PWA) access read is unknown, not "no tabs": say so.
+  const accessUnknown = !security && (securityFailed || securityFetchStatus === "paused");
   const [requested, setRequested] = useState<string | null>(() =>
     typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("customersTab"),
   );
@@ -169,7 +172,19 @@ export default function CustomersSection() {
         <TabBar tabs={visibleTabs} activeTab={activeTab ?? "customers"} onChange={setActiveTab} />
       )}
 
-      {activeTab === null && (
+      {activeTab === null && accessUnknown && (
+        <div className="flex items-center gap-3 text-[13px] text-muted-foreground">
+          <span>Could not check your access.</span>
+          <button
+            type="button"
+            onClick={() => void refetchSecurity()}
+            className="min-h-12 min-w-12 px-4 rounded-md border border-border/40 text-foreground/85"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+      {activeTab === null && !accessUnknown && (
         <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
       )}
       {activeTab === "members" && (
