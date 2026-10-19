@@ -153,14 +153,26 @@ export const PRUNED: ReadonlyArray<{ route: string; to?: string; page?: false }>
  * `/learning`, not `https://x/learn`), outside comments. Exported shape is
  * private to this file; the positive control below pins it.
  */
+function hasValidWaiver(line: string): boolean {
+  // Only a real trailing // comment counts: text that looks like a waiver inside a string literal does not.
+  const m = /\s\/\/\s*retired-route-allow:\s*(\d{4}-\d{2}-\d{2})\s+(\S+(?:\s+\S+){2,})\s*$/.exec(line);
+  if (!m) return false;
+  const day = new Date(`${m[1]}T00:00:00Z`);
+  if (Number.isNaN(day.getTime()) || day.toISOString().slice(0, 10) !== m[1]) return false; // 2026-13-45, 2026-02-30
+  const before = line.slice(0, m.index);
+  // An odd number of unescaped quotes before the // means the // sits inside a string literal, not a comment.
+  return ['"', "'", "`"].every((q) => (before.split(q).length - 1 - (before.split("\\" + q).length - 1)) % 2 === 0);
+}
+
 function referencesRoute(text: string, route: string): boolean {
   const esc = route.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
   const re = new RegExp(`(?<![\\w/.:-])${esc}(?![\\w-])`);
   return text.split(/\r?\n/).some((line) => {
     const t = line.trim();
     if (t.startsWith("//") || t.startsWith("*") || t.startsWith("/*") || t.startsWith("{/*")) return false;
-    // A dated waiver on the line itself (never a whole file): the /pins slash command is a chat verb, not a link.
-    if (/retired-route-allow:\s*\S+/.test(line)) return false;
+    // A dated, reasoned waiver on the line itself (never a whole file): the /pins slash command is a chat verb,
+    // not a link. The house shape, like anti-slop-allow: `// retired-route-allow: YYYY-MM-DD <3+ word reason>`.
+    if (hasValidWaiver(line)) return false;
     return re.test(line.replace(/\s\/\/.*$/, ""));
   });
 }
@@ -242,10 +254,35 @@ describe("pruned routes (2026-10-18) · gone, redirected, and linked from nowher
     expect(referencesRoute(`href="https://example.com/learn"`, "/learn")).toBe(false);
     expect(referencesRoute(`// see /learn for history`, "/learn")).toBe(false);
     expect(referencesRoute(`const x = 1; // was /learn`, "/learn")).toBe(false);
-    // the per-line waiver silences exactly its own line
-    expect(referencesRoute(`{ cmd: "/pins" }, // retired-route-allow: 2026-10-19 chat verb`, "/pins")).toBe(false);
+    // The per-line waiver: dated, reasoned (3+ words), in a real trailing // comment, silencing only its own line.
+    expect(referencesRoute(`{ cmd: "/pins" }, // retired-route-allow: 2026-10-19 chat verb alias for pinned`, "/pins")).toBe(false);
     expect(referencesRoute(`{ cmd: "/pins" },`, "/pins")).toBe(true);
-    expect(referencesRoute(`{ cmd: "/pins" }, // retired-route-allow:`, "/pins")).toBe(true);
+  });
+
+  // The waiver must be dated, reasoned (3+ words) and in a real trailing // comment. Each weaker form is its own
+  // case so a regression names the form it let through. `flagged: true` means the line is still reported.
+  it.each([
+    ["no date, no reason", '{ cmd: "/pins" }, // retired-route-allow:', true],
+    ["a token with no date", '{ cmd: "/pins" }, // retired-route-allow: x', true],
+    ["a reason with no date", '{ cmd: "/pins" }, // retired-route-allow: because', true],
+    ["a date with no reason", '{ cmd: "/pins" }, // retired-route-allow: 2026-10-19', true],
+    ["a two-word reason", '{ cmd: "/pins" }, // retired-route-allow: 2026-10-19 chat verb', true],
+    ["a bad date (month 13)", '{ cmd: "/pins" }, // retired-route-allow: 2026-13-45 chat verb alias for pinned', true],
+    ["a date that does not exist (Feb 30)", '{ cmd: "/pins" }, // retired-route-allow: 2026-02-30 chat verb alias for pinned', true],
+    // Waiver text that is not a // comment never counts: no // at all, or a // that sits inside the quotes.
+    ["waiver text inside a string, no //", '<a href="/pins">x</a> {"retired-route-allow: 2026-10-19 a b c"}', true],
+    ["a // inside a string literal", '<a href="/pins">x</a> {"x // retired-route-allow: 2026-10-19 a b c"}', true],
+    // CONTROL: the valid shape still silences exactly its own line, so the cases above are not vacuous.
+    ["a valid dated, reasoned // waiver", '{ cmd: "/pins" }, // retired-route-allow: 2026-10-19 chat verb alias for pinned', false],
+  ] as const)("waiver shape: %s", (_name, line, flagged) => {
+    expect(referencesRoute(line, "/pins")).toBe(flagged);
+  });
+
+  it("the live /pins slash-command waiver in hooks/use-slash-commands.ts is a valid waiver", () => {
+    const src = readFileSync(join(APP_ROOT, "hooks", "use-slash-commands.ts"), "utf8");
+    const line = src.split(/\r?\n/).find((l) => l.includes('cmd: "/pins"'))!;
+    expect(line, "the /pins alias line exists").toBeDefined();
+    expect(referencesRoute(line, "/pins")).toBe(false);
   });
 
   it("scanTexts reports ONE planted string per row type, and nothing for clean text (control)", () => {
