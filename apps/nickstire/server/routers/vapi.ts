@@ -35,6 +35,7 @@ import { shopSettings, vapiCallLogs, type VapiCallLog } from "../../drizzle/sche
 import { eq, and, gte, lte, desc, sql } from "drizzle-orm";
 import { pickReceptionistAssistantId, pickFollowUpAssistantId, SHOP_LANDLINE_E164 } from "../services/vapi";
 import { arrivalSignalsForQueue } from "../services/expectedArrivals";
+import { parseWalkInSuffix } from "../services/vapiWalkInCoverage";
 import { BUSINESS } from "@shared/business";
 
 /*
@@ -567,6 +568,7 @@ export const vapiRouter = router({
           evalScore: r.evalScore,
           evalOutcome: r.evalOutcome,
           evalReasoning: r.evalReasoning,
+          walkIn: parseWalkInSuffix(r.evalReasoning),
           metadata: typeof r.metadata === "string" ? JSON.parse(r.metadata) : r.metadata,
         }));
       });

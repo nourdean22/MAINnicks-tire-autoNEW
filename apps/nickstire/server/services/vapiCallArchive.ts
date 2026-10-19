@@ -99,17 +99,30 @@ function parseDate(value: string | undefined): Date | null {
 }
 
 /**
+ * The call's transcript and role-tagged messages, wherever VAPI put them: the top
+ * level first, then the artifact envelope (it reports them in either place
+ * depending on call age and API version). A blank transcript and an empty array
+ * count as absent. Total: any `detail`, including null, yields nulls and never throws.
+ * Shared by the archive and the walk-in measurement so both read the same fields.
+ */
+export function resolveTranscriptAndMessages(detail: unknown): { transcript: string | null; messages: unknown[] | null } {
+  const d = (detail && typeof detail === "object" ? detail : {}) as VapiArchiveDetail;
+  const art = d.artifact && typeof d.artifact === "object" ? d.artifact : undefined;
+  const transcript = nonEmpty(d.transcript) ?? nonEmpty(art?.transcript);
+  const messages = Array.isArray(d.messages) && d.messages.length > 0
+    ? d.messages
+    : Array.isArray(art?.messages) && art.messages.length > 0
+      ? art.messages
+      : null;
+  return { transcript, messages };
+}
+
+/**
  * Pure mapping from a VAPI call detail + the local log row to the archive row.
- * Transcript/messages fall back to the artifact envelope — VAPI reports them in
- * either place depending on call age and API version.
+ * Transcript/messages fall back to the artifact envelope (see resolveTranscriptAndMessages).
  */
 export function buildArchivePayload(detail: VapiArchiveDetail, row: ArchiveSourceRow, now: Date = new Date()): ArchivePayload {
-  const transcript = nonEmpty(detail.transcript) ?? nonEmpty(detail.artifact?.transcript);
-  const messagesSource = Array.isArray(detail.messages) && detail.messages.length > 0
-    ? detail.messages
-    : Array.isArray(detail.artifact?.messages) && detail.artifact.messages.length > 0
-      ? detail.artifact.messages
-      : null;
+  const { transcript, messages: messagesSource } = resolveTranscriptAndMessages(detail);
   return {
     phoneNumber: clip(row.phoneNumber, 30),
     callType: clip(detail.type, 32),
