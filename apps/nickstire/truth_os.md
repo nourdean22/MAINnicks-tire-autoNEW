@@ -130,7 +130,8 @@ detailed in `docs/CURRENT-TRUTH.md`:
   and the click row is dropped with a warn. The Vapi keyword list gained Kafene: Push Latest Config was DONE from /admin on
   2026-10-19 00:2xZ ("Assistant updated + Vapi read-back verified"). **Migrations 0147 and 0148 are STILL OWED** (the agent's
   tap on Settings > System Health > "Apply built-in migrations" was refused by its permission classifier; one tap for Nour,
-  then `railway run -s MAINnicks-tire-auto -- node scripts/record-migrations.mjs --only 0147,0148 --execute`).
+  then, with the shell in `apps/nickstire` (the script resolves its paths from there):
+  `railway run -s MAINnicks-tire-auto -- node scripts/record-migrations.mjs --only 0147,0148 --execute`).
 - **Order completion (#3152, squash `8b189e8b7`; live when Railway deploys it):**
   - Admin one-tap supplier order at D&K (`gatewayOrder.prepare/submit/clearOurLines`, `services/gatewaySupplierOrder.ts`):
     cart from the order lines, PO `online order <order number>`, CAS claim so two taps place one order, unclear submits park as
