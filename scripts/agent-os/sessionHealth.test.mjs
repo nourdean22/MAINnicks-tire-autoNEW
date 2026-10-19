@@ -1,0 +1,286 @@
+// Canary for session-health.mjs, the SessionStart hook that prints one [health] line for the local code-intelligence
+// setup in config/agent-os/local-services.json: graph freshness, the shared MCP servers, Serena's language server, the
+// three clients' MCP entries, PowerShell hooks that execution policy would block, and the scheduled tasks.
+// Every FAIL carries its fix; a failed read is UNKNOWN, never ok (empty-vs-error). Controls run the REAL script
+// against fixtures (--home, --config, --primary) and real sockets; the wiring test runs the CONFIGURED command verbatim.
+import { test, after } from "node:test";
+import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { createServer } from "node:net";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { hostname, tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const ROOT = resolve(HERE, "..", "..");
+const SCRIPT = join(HERE, "session-health.mjs");
+const SETTINGS = JSON.parse(readFileSync(join(ROOT, ".claude", "settings.json"), "utf8"));
+const SCRATCH = mkdtempSync(join(tmpdir(), "session-health-test-"));
+const WIN = process.platform === "win32";
+const HOST = (process.env.COMPUTERNAME || hostname()).toUpperCase();
+const GIT_ENV = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("GIT_")));
+
+// Two live listeners stand in for the MCP servers; a third port is opened then closed, so nothing answers on it.
+const listeners = [];
+async function listen() {
+  const s = createServer((c) => c.destroy());
+  await new Promise((r) => s.listen(0, "127.0.0.1", r));
+  listeners.push(s);
+  return s.address().port;
+}
+async function closedPort() {
+  const s = createServer();
+  await new Promise((r) => s.listen(0, "127.0.0.1", r));
+  const { port } = s.address();
+  await new Promise((r) => s.close(r));
+  return port;
+}
+after(() => {
+  for (const s of listeners) s.close();
+  rmSync(SCRATCH, { recursive: true, force: true });
+});
+
+const git = (cwd, args, input) => {
+  const r = spawnSync("git", args, { cwd, env: GIT_ENV, encoding: "utf8", input });
+  assert.equal(r.status, 0, `git ${args.join(" ")}: ${r.stderr}`);
+  return r.stdout.trim();
+};
+
+/** A git repo with 55 commits on main and origin/main at the tip, built in one fast-import (no 55 spawns). */
+const REPO = (() => {
+  const dir = join(SCRATCH, "repo");
+  mkdirSync(dir, { recursive: true });
+  git(dir, ["init", "-q"]);
+  let stream = "";
+  for (let i = 1; i <= 55; i++) stream += `commit refs/heads/main\ncommitter T <t@t> ${1700000000 + i} +0000\ndata ${String(i).length}\n${i}\n\n`;
+  git(dir, ["fast-import", "--quiet"], stream);
+  git(dir, ["update-ref", "refs/remotes/origin/main", "refs/heads/main"]);
+  return { dir, tip: git(dir, ["rev-parse", "main"]), root: git(dir, ["rev-list", "--max-parents=0", "main"]) };
+})();
+
+const url = (port) => `http://127.0.0.1:${port}/mcp`;
+
+/** A primary checkout: the fixture repo's .git (via a worktree-free copy is not needed: the repo IS the primary). */
+function primary(label, { graph = true, report = REPO.tip, ls = "[typescript]" } = {}) {
+  const dir = join(SCRATCH, label, "primary");
+  mkdirSync(join(dir, "graphify-out"), { recursive: true });
+  mkdirSync(join(dir, ".serena"), { recursive: true });
+  // The graph check runs git in the primary; point it at the fixture repo's object store.
+  writeFileSync(join(dir, ".git"), `gitdir: ${join(REPO.dir, ".git").replace(/\\/g, "/")}\n`);
+  if (graph) writeFileSync(join(dir, "graphify-out", "graph.json"), "{}");
+  if (report) writeFileSync(join(dir, "graphify-out", "GRAPH_REPORT.md"), `# Graph Report\n\n- Built from commit: \`${report.slice(0, 8)}\`\n`);
+  writeFileSync(join(dir, ".serena", "project.yml"), "project_name: x\nlanguage_servers: []\nread_only: false\n");
+  if (ls !== null) writeFileSync(join(dir, ".serena", "project.local.yml"), `language_servers: ${ls}\n`);
+  return dir;
+}
+
+/** A home whose three clients list both servers at the given ports, and a user PowerShell hook carrying Bypass. */
+function home(label, ports, { codexSkip = [], claudeJson, userHook = "powershell -NoProfile -ExecutionPolicy Bypass -File x.ps1" } = {}) {
+  const dir = join(SCRATCH, label, "home");
+  const names = ["graphify", "serena"];
+  mkdirSync(join(dir, ".claude"), { recursive: true });
+  mkdirSync(join(dir, ".codex"), { recursive: true });
+  mkdirSync(join(dir, "AppData", "Roaming", "Code", "User"), { recursive: true });
+  const mcp = Object.fromEntries(names.map((n, i) => [n, { type: "http", url: url(ports[i]) }]));
+  writeFileSync(join(dir, ".claude.json"), claudeJson ?? JSON.stringify({ mcpServers: mcp }));
+  writeFileSync(join(dir, ".codex", "config.toml"), names.filter((n) => !codexSkip.includes(n))
+    .map((n) => `[mcp_servers.${n}]\nurl = "${url(ports[names.indexOf(n)])}"\n`).join("\n"));
+  writeFileSync(join(dir, "AppData", "Roaming", "Code", "User", "mcp.json"), JSON.stringify({ servers: mcp }));
+  writeFileSync(join(dir, ".claude", "settings.json"), JSON.stringify({ hooks: { SessionStart: [{ hooks: [{ type: "command", command: userHook }] }] } }));
+  return dir;
+}
+
+function config(label, ports, { hosts = [HOST], tasks = [] } = {}) {
+  const file = join(SCRATCH, label, "local-services.json");
+  writeFileSync(file, JSON.stringify({
+    version: 1, hosts,
+    servers: [{ name: "graphify", port: ports[0], path: "/mcp", kind: "graphify" }, { name: "serena", port: ports[1], path: "/mcp", kind: "serena" }],
+    clients: ["claude", "codex", "vscode"], tasks,
+  }));
+  return file;
+}
+
+/** A project dir whose own settings hold only node hooks. */
+function project(label) {
+  const dir = join(SCRATCH, label, "project");
+  mkdirSync(join(dir, ".claude"), { recursive: true });
+  writeFileSync(join(dir, ".claude", "settings.json"), JSON.stringify({ hooks: { Stop: [{ hooks: [{ type: "command", command: "node x.mjs" }] }] } }));
+  return dir;
+}
+
+function run({ homeDir, configFile, primaryDir, projectDir }, { script = SCRIPT } = {}) {
+  const args = [script, "--home", homeDir, "--config", configFile];
+  if (primaryDir) args.push("--primary", primaryDir);
+  const started = Date.now();
+  const r = spawnSync(process.execPath, args, { encoding: "utf8", cwd: projectDir, env: { ...GIT_ENV, CLAUDE_PROJECT_DIR: projectDir }, timeout: 20000 });
+  return { code: r.status, out: r.stdout ?? "", err: r.stderr ?? "", ms: Date.now() - started };
+}
+
+const oneLine = (r) => {
+  assert.equal(r.code, 0, r.err);
+  const got = r.out.split(/\r?\n/).filter(Boolean);
+  assert.equal(got.length, 1, `expected one line, got:\n${r.out}`);
+  assert.match(got[0], /^\[health\] /);
+  return got[0];
+};
+
+async function healthy(label, overrides = {}) {
+  const ports = overrides.ports ?? [await listen(), await listen()];
+  return {
+    homeDir: home(label, ports, overrides.home),
+    configFile: config(label, ports, overrides.config),
+    primaryDir: primary(label, overrides.primary),
+    projectDir: project(label),
+  };
+}
+
+test("healthy fixture: one line, every item ok, no FIX FIRST", async () => {
+  const line = oneLine(run(await healthy("healthy")));
+  assert.match(line, /graph ok \(0 behind origin\/main\)/);
+  assert.match(line, /graphify up/);
+  assert.match(line, /serena up/);
+  assert.match(line, /serena-ls typescript/);
+  assert.match(line, /claude ok/);
+  assert.match(line, /codex ok/);
+  assert.match(line, /vscode ok/);
+  assert.match(line, /hooks ok/);
+  assert.doesNotMatch(line, /FIX FIRST|UNKNOWN|DOWN|MISSING|BLOCKED|STALE/);
+});
+
+test("broken fixture: each broken piece is its own FAIL, and FIX FIRST names a fix for every one", async () => {
+  const up = await listen();
+  const down = await closedPort();
+  const f = await healthy("broken", {
+    ports: [up, down],
+    home: { codexSkip: ["serena"], userHook: "powershell -NoProfile -File C:\\x\\hook.ps1" },
+    primary: { graph: false, ls: null },
+  });
+  const r = run(f);
+  const line = oneLine(r);
+  assert.match(line, /graph MISSING graph\.json/);
+  assert.match(line, /graphify up/);
+  assert.match(line, /serena DOWN/);
+  assert.match(line, /serena-ls NO LANGUAGE SERVER/);
+  assert.match(line, /codex MISSING serena/);
+  assert.match(line, /claude ok/);
+  assert.match(line, /hooks BLOCKED [^|]*settings\.json/);
+  const fixes = line.split(" | FIX FIRST: ")[1];
+  assert.ok(fixes, `no FIX FIRST segment:\n${line}`);
+  assert.match(fixes, /graphify-sync-launcher\.ps1/, "graph fix");
+  assert.match(fixes, /local-mcp-servers\.ps1 -Start/, "server fix");
+  assert.match(fixes, /language_servers: \[typescript\]/, "language server fix");
+  assert.match(fixes, new RegExp(`codex mcp add serena --url http://127\\.0\\.0\\.1:${down}/mcp`), "client fix");
+  assert.match(fixes, /-ExecutionPolicy Bypass/, "hook fix");
+  assert.equal((fixes.match(/\(\d+\)/g) ?? []).length, 5, `five FAILs, five numbered fixes:\n${fixes}`);
+  assert.ok(r.ms < 4000, `took ${r.ms} ms; the probes must stay inside their budget`);
+});
+
+test("STALE: a graph built more than 50 commits behind origin/main is a FAIL with the sync fix", async () => {
+  const line = oneLine(run(await healthy("stale", { primary: { report: REPO.root } })));
+  assert.match(line, /graph STALE \(54 behind origin\/main\)/);
+  assert.match(line, /FIX FIRST: \(1\) [^|]*graphify-sync-launcher\.ps1/);
+});
+
+test("a wrong URL is not ok: a client entry pointing at another port reads WRONG URL", async () => {
+  const ports = [await listen(), await listen()];
+  const f = await healthy("wrong-url", { ports });
+  const mcp = { graphify: { type: "http", url: url(ports[0]) }, serena: { type: "http", url: "http://127.0.0.1:1/mcp" } };
+  writeFileSync(join(f.homeDir, ".claude.json"), JSON.stringify({ mcpServers: mcp }));
+  const line = oneLine(run(f));
+  assert.match(line, /claude WRONG URL serena/);
+  assert.match(line, /FIX FIRST: [^|]*claude mcp remove --scope user serena/);
+});
+
+test("a failed read is UNKNOWN, never ok or MISSING, and the other items still render", async () => {
+  const line = oneLine(run(await healthy("bad-json", { home: { claudeJson: "{ nope" } })));
+  assert.match(line, /claude UNKNOWN \([^)]+\)/);
+  assert.doesNotMatch(line, /claude (ok|MISSING)/);
+  assert.match(line, /codex ok/);
+  assert.match(line, /graph ok/);
+  assert.doesNotMatch(line, /FIX FIRST/, "UNKNOWN is not a FAIL with a guessed fix");
+});
+
+test("no primary checkout (git cannot resolve it): graph and serena-ls read UNKNOWN, servers still probed", async () => {
+  const f = await healthy("no-git");
+  delete f.primaryDir;
+  f.projectDir = join(SCRATCH, "no-git", "project");
+  const line = oneLine(run(f));
+  // The project dir has no .git, but a temp dir can sit under an unrelated repo; only assert when git really failed.
+  if (/graph UNKNOWN/.test(line)) assert.match(line, /serena-ls UNKNOWN/);
+  assert.match(line, /graphify up/);
+});
+
+test("host gate: a host not in the config prints the not-expected line and nothing else", async () => {
+  const f = await healthy("other-host", { config: { hosts: ["SOME-OTHER-HOST"] } });
+  assert.equal(oneLine(run(f)), "[health] local services: not expected on this host");
+});
+
+test("own error: a missing config prints one [health] off: line, exit 0", async () => {
+  const f = await healthy("no-config");
+  f.configFile = join(SCRATCH, "no-config", "absent.json");
+  assert.match(oneLine(run(f)), /^\[health\] off: .*absent\.json/);
+});
+
+test("scheduled tasks (Windows): an unregistered task is MISSING with its register script as the fix", async (t) => {
+  if (!WIN) return t.skip("schtasks is Windows-only; the check is skipped on other OS");
+  const name = `NOURCITY-Health-Test-Absent-${process.pid}`;
+  const line = oneLine(run(await healthy("tasks", { config: { tasks: [{ name, register: "scripts/register-x.ps1" }] } })));
+  assert.match(line, new RegExp(`task ${name} MISSING`));
+  assert.match(line, /FIX FIRST: \(1\) [^|]*register-x\.ps1/);
+});
+
+function configured() {
+  const group = (SETTINGS.hooks?.SessionStart ?? []).find((g) => !g.matcher || g.matcher === "*");
+  const hooks = group?.hooks ?? [];
+  return { hooks, at: hooks.findIndex((h) => h.command?.includes("session-health.mjs")), surface: hooks.findIndex((h) => h.command?.includes("session-surface.mjs")) };
+}
+
+test("settings: the SessionStart all-sources group runs session-health right after session-surface, forward slashes", () => {
+  const { hooks, at, surface } = configured();
+  assert.ok(at >= 0, "session-health.mjs is not registered in the SessionStart all-sources group");
+  assert.equal(at, surface + 1);
+  assert.match(hooks[at].command, /^node "\$\{CLAUDE_PROJECT_DIR\}\/scripts\/agent-os\/session-health\.mjs"$/);
+});
+
+test("the CONFIGURED command runs verbatim through a shell and prints one [health] line, exit 0", () => {
+  const { hooks, at } = configured();
+  assert.ok(at >= 0, "session-health.mjs is not registered");
+  const env = { ...GIT_ENV, CLAUDE_PROJECT_DIR: ROOT };
+  const cmd = WIN ? hooks[at].command.replaceAll("${CLAUDE_PROJECT_DIR}", ROOT) : hooks[at].command;
+  const r = spawnSync(cmd, { shell: WIN ? true : "/bin/sh", input: "{}", encoding: "utf8", cwd: ROOT, env, timeout: 20000 });
+  assert.equal(r.status, 0, r.stderr);
+  const lines = r.stdout.split(/\r?\n/).filter(Boolean);
+  assert.equal(lines.length, 1, r.stdout);
+  assert.match(lines[0], /^\[health\] /);
+});
+
+/** Run a copy of the script with one source edit; the anchor must exist, or the mutant tests nothing. */
+function mutant(name, anchor, replacement) {
+  const src = readFileSync(SCRIPT, "utf8");
+  assert.ok(src.includes(anchor), `mutation anchor not found: ${anchor}`);
+  const file = join(SCRATCH, `${name}.mjs`);
+  writeFileSync(file, src.replace(anchor, replacement));
+  return file;
+}
+
+test("MUTANT probe always up: the closed-port control catches it", async () => {
+  const file = mutant("probe-up", 'socket.once("connect", () => done("up"));', 'done("up");');
+  const f = await healthy("m-probe", { ports: [await listen(), await closedPort()] });
+  assert.match(oneLine(run(f)), /serena DOWN/, "real script reads DOWN");
+  assert.match(oneLine(run(f, { script: file })), /serena up/, "the mutant claims up, so the DOWN control can fail");
+});
+
+test("MUTANT local override ignored: the project.local.yml control catches it", async () => {
+  const file = mutant("no-local", "const local = readYamlKey(", "const local = null && readYamlKey(");
+  const f = await healthy("m-local");
+  assert.match(oneLine(run(f)), /serena-ls typescript/);
+  assert.match(oneLine(run(f, { script: file })), /serena-ls NO LANGUAGE SERVER/);
+});
+
+test("MUTANT a failed read rendered as ok: the bad-JSON control catches it", async () => {
+  const file = mutant("err-ok", "if (r.err) return unknownItem(", "if (r.err) return okItem(");
+  const f = await healthy("m-err", { home: { claudeJson: "{ nope" } });
+  assert.match(oneLine(run(f)), /claude UNKNOWN/);
+  assert.doesNotMatch(oneLine(run(f, { script: file })), /claude UNKNOWN/);
+});
