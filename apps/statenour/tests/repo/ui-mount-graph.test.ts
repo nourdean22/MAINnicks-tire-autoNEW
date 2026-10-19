@@ -36,6 +36,10 @@ const SKIP_DIRS = new Set(["node_modules", ".next", ".next-prod", "dist", "tests
  * gate's own BFS on 5c1195e (see the failure message format below).
  */
 export const PARKED: Record<string, string> = {
+  // 2026-10-19 wave 2V: Nour cut the Brain Reason tab, which was this component's only mount.
+  // tests/components/chat-enter-sites.test.ts reads its source (the Enter-key contract) and
+  // /api/nick/reason/stream is its API, so it stays parked rather than deleted until the operator decides.
+  "components/operator/nick-reasoner.tsx": "orphaned by the Brain Reason tab cut (wave 2V, 2026-10-19) · pinned by chat-enter-sites.test.ts · re-mount or delete is an operator call",
   // 3D scene island · zero importers since the /ultron HQ route was deleted.
   // Its next.config.ts note was deleted 2026-10-10 (10-X8); the test below keeps config notes off parked files.
   "components/3d/canvas-inner.tsx": "3D scene island (audit W-2) · reached only via scene-canvas, which nothing imports · re-mount or delete is an operator call",
