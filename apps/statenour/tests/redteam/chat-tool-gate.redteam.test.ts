@@ -68,10 +68,6 @@ const spies = vi.hoisted(() => ({
   telegramSend: vi.fn(async () => ({ state: "provider_accepted", messageId: 1 })),
   setMit: vi.fn(async () => ({ ok: true })),
   gmailDraft: vi.fn(async () => ({ draftId: "d_1" })),
-  boardPersist: vi.fn(async () => ({
-    consultation: { boardName: "Strategic", synthesis: { consensus: "c", recommendation: "r", confidence: 0.5 }, takes: [] },
-    recordId: "bm_1",
-  })),
   calendarCreate: vi.fn(async () => ({ id: "ev_1", htmlLink: "https://calendar.example.invalid/ev_1" })),
   queryNick: vi.fn(async (): Promise<unknown> => ({ error: "unset" })),
 }));
@@ -89,7 +85,6 @@ vi.mock("@/lib/integrations/gmail", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/integrations/gmail")>();
   return { ...actual, isGmailConfigured: () => true, createDraft: spies.gmailDraft };
 });
-vi.mock("@/lib/services/board-consult-record", () => ({ consultBoardAndPersist: spies.boardPersist }));
 vi.mock("@/lib/services/google-oauth", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/google-oauth")>();
   return { ...actual, isGoogleOauthConfigured: async () => true };
@@ -317,11 +312,9 @@ describe("turn context stickiness", () => {
 // ═════════════════════════════════════════════════════════════════════════
 describe("read-safe classifier lets writes through every layer", () => {
   // FIXED (was P2): clearMit writes through lib/services/mit setMit(""); the
-  // classifier now sees it ('clear' verb prefix). arsenalBoardConsult persists
-  // a BrainMemory row; its catalog entry now declares sideEffecting.
-  it("classifier verdicts: clearMit and arsenalBoardConsult are NOT read-safe", () => {
+  // classifier now sees it ('clear' verb prefix).
+  it("classifier verdict: clearMit is NOT read-safe", () => {
     expect(classifyTool("clearMit")).toEqual({ readSafe: false, reason: "mutating_name" });
-    expect(classifyTool("arsenalBoardConsult")).toEqual({ readSafe: false, reason: "side_effecting_flag" });
   });
 
   it("EXPECTED · lock on: clearMit is refused as mutation_locked and setMit is never called", async () => {
@@ -354,35 +347,12 @@ describe("read-safe classifier lets writes through every layer", () => {
     expect(spies.setMit).not.toHaveBeenCalled();
   });
 
-  it("EXPECTED · stripMutatingTools (read/private prepare-tools strip AND regen lanes) removes clearMit and arsenalBoardConsult", () => {
+  it("EXPECTED · stripMutatingTools (read/private prepare-tools strip AND regen lanes) removes clearMit", () => {
     const { tools, stripped } = stripMutatingTools(rawTools as unknown as Record<string, unknown>);
     expect(stripped).toContain("createTask"); // the strip is live
-    expect(stripped).toEqual(expect.arrayContaining(["clearMit", "arsenalBoardConsult"]));
+    expect(stripped).toEqual(expect.arrayContaining(["clearMit"]));
     expect("clearMit" in tools).toBe(false);
-    expect("arsenalBoardConsult" in tools).toBe(false);
     expect("getTasks" in tools).toBe(true); // control: reads survive
-  });
-
-  it("EXPECTED · Private Lab: arsenalBoardConsult (which persists a row) is refused as private_turn", async () => {
-    const res = await inTurn({ privateMode: true }, () =>
-      real("arsenalBoardConsult").execute({ boardId: "strategic", question: "private question text" }),
-    );
-    expect(res.error).toBe("private_turn");
-    expect(spies.boardPersist).not.toHaveBeenCalled();
-  });
-  it("EXPECTED · lock on: arsenalBoardConsult is refused as mutation_locked; a clean turn still convenes the board", async () => {
-    flags.on.NICK_MUTATION_LOCK = true;
-    const locked = await inTurn({}, () =>
-      real("arsenalBoardConsult").execute({ boardId: "strategic", question: "question text" }),
-    );
-    expect(locked.error).toBe("mutation_locked");
-    expect(spies.boardPersist).not.toHaveBeenCalled();
-    flags.on.NICK_MUTATION_LOCK = false;
-    const open = await inTurn({}, () =>
-      real("arsenalBoardConsult").execute({ boardId: "strategic", question: "question text" }),
-    );
-    expect(open.recordId).toBe("bm_1");
-    expect(spies.boardPersist).toHaveBeenCalledTimes(1);
   });
 
   it("CONTROL · a true read (getTasks via invokeTool in a Read turn) still passes the recovery lane", async () => {
@@ -720,17 +690,6 @@ describe("false positives at the authority gate", () => {
     expect((await inTurn({}, () => b.tool.execute({ query: "q" }))).error).toBe("mutation_locked");
     expect(b.fn).not.toHaveBeenCalled();
   });
-  // FIXED (was P3): the Gmail list/read tools are catalogued as reads (research).
-  it("EXPECTED · Read turn: the Gmail inbox READ tool is not refused as a write", async () => {
-    const { tool, fn } = wrapOne("arsenalGmailInbox");
-    const res = await inTurn({ actionPermission: "read" }, () => tool.execute({}));
-    expect(res.error).toBeUndefined();
-    expect(fn).toHaveBeenCalledTimes(1);
-    const t = wrapOne("arsenalGmailReadThread");
-    expect((await inTurn({ actionPermission: "read" }, () => t.tool.execute({ threadId: "x" }))).error).toBeUndefined();
-    expect(t.fn).toHaveBeenCalledTimes(1);
-  });
-
   itFails("EXPECTED · lock on: the Telegram /ask lane's memorySearch (an uncataloged READ) is not refused", async () => {
     flags.on.NICK_MUTATION_LOCK = true;
     const { tool, fn } = wrapOne("memorySearch");
@@ -741,8 +700,6 @@ describe("false positives at the authority gate", () => {
 
   it("OBSERVED · the read-gate verdicts behind those refusals", () => {
     expect(classifyTool("runCode").reason).toBe("mutating_name");
-    expect(classifyTool("arsenalGmailInbox").reason).toBe("read_safe");
-    expect(classifyTool("arsenalGmailReadThread").reason).toBe("read_safe");
     expect(classifyTool("memorySearch").reason).toBe("not_in_catalog");
     expect(isReadSafeTool("getTasks")).toBe(true);
   });

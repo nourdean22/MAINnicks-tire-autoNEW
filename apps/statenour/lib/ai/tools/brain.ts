@@ -26,68 +26,6 @@ import { resolveTrustTier } from "@/lib/brain/memory-trust";
 import { updateTurnContext } from "@/lib/agent/turn-context";
 
 export const brainTools = {
-  surfaceAntiPatterns: tool({
-    description:
-      "Pull the operator's recent anti-patterns (decisions that scored D/F + recurring drift loops + commitments operator has broken). Returns up to 5 with severity + description + when it last fired. Use when Nick suspects the operator is about to repeat a known failure mode, or when the operator asks 'what do I keep getting wrong'.",
-    inputSchema: z.object({
-      limit: z
-        .number()
-        .int()
-        .min(1)
-        .max(10)
-        .optional()
-        .describe("How many to return. Default 5."),
-      topic: z
-        .string()
-        .optional()
-        .describe(
-          "Optional topic to filter by · keyword match against description.",
-        ),
-    }),
-    execute: async ({ limit, topic }) => {
-      const cap = limit ?? 5;
-      const rows = await prisma.brainMemory
-        .findMany({
-          where: {
-            category: BRAIN_CATEGORIES.ANTI_PATTERN,
-            deletedAt: null,
-          },
-          orderBy: [{ confidence: "desc" }, { updatedAt: "desc" }],
-          take: 50,
-          select: {
-            key: true,
-            content: true,
-            confidence: true,
-            updatedAt: true,
-            metadata: true,
-          },
-        })
-        .catch((err): never[] => {
-          void import("@/lib/utils/error-log").then(({ logError }) => logError("ai.tools.brain", err, { fn: "surfaceAntiPatterns" }, "error"));
-          return [];
-        });
-
-      let filtered = rows;
-      if (topic) {
-        const q = topic.toLowerCase();
-        filtered = rows.filter((r) => r.content.toLowerCase().includes(q));
-      }
-
-      const top = filtered.slice(0, cap);
-      return {
-        ok: true,
-        count: top.length,
-        patterns: top.map((r) => ({
-          key: r.key,
-          // anti-pattern descriptions are LLM-distilled stored text → curated_memory (2026-09-02, #2065 review)
-          description: fenceContent("surfaceAntiPatterns", "curated_memory", r.content),
-          confidence: r.confidence,
-          lastSeen: r.updatedAt.toISOString().slice(0, 10),
-          metadata: r.metadata,
-        })),
-      };
-    },
-  }),
 
   // v10.0.524 · #6 Skill suggestion tool. Pulls the top-K Claude
   // skills semantically similar to a query. Operator can ask
@@ -1471,24 +1409,6 @@ export const brainTools = {
     },
   }),
 
-  // v11.1 G1 · browser_do — Nick spins a cloud headless-Chrome
-  // session via Browserbase and reports the live-view URL so Nour
-  // can watch. Graceful degradation when Browserbase isn't
-  // configured (returns a structured "not_configured" payload —
-  // the chat route surfaces it as a one-line hint instead of a
-  // tool-call error).
-  //
-  // Next iteration (pending Nour's sign-off on the scaffold):
-  //   · Install @browserbasehq/stagehand + playwright-core
-  //     (~9MB in the serverless bundle)
-  //   · Add browser_navigate({sessionId, url}) tool
-  //   · Add browser_act({sessionId, instruction}) tool — runs a
-  //     Stagehand page.act() on the open session
-  //   · Add browser_extract({sessionId, schema}) tool — runs
-  //     page.extract() with a Zod schema for structured return
-  // Right now the scaffold is a "supervised handoff" — Nick opens
-  // the door, Nour walks through. The driver upgrade makes Nick
-  // walk through first, Nour watches.
   runSimulation: tool({
     description: "Run a 'what if' simulation — predict the cascade of consequences for a specific scenario. e.g. 'What if I hire a second tech?' or 'What if I raise prices 10%?'",
     inputSchema: z.object({

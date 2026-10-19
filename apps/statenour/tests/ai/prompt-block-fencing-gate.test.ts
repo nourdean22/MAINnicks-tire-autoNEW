@@ -208,8 +208,8 @@ const KNOWN_UNFENCED = new Set<string>();
 // The same rows reach the model as tool output. Analysed PER TOOL, not per
 // file (#2065 review): a file-level "contains fenceContent" let the first
 // fenced tool in the 1,600-line brain.ts vouch for every other tool in it,
-// while surfaceAntiPatterns and getHabitRevenueCorrelation still returned raw
-// content. Each `name: tool({ ... })` block is its own subject: if it reads
+// while other tools in the same file (an anti-pattern reader, getHabitRevenueCorrelation)
+// still returned raw content. Each `name: tool({ ... })` block is its own subject: if it reads
 // BrainMemory / chat rows AND touches `.content`, it must call fenceContent
 // inside that block, or be allowlisted by name with the categories it reads.
 // searchMemories returned WHOLE rows, so the key is reading + touching
@@ -270,7 +270,7 @@ describe("tool-result fencing gate · every TOOL that reads memory or chat rows 
   it("enumerates the tools (sanity · the splitter must find the real blocks)", () => {
     expect(toolAnalyses.length).toBeGreaterThanOrEqual(150);
     expect(subjects.length).toBeGreaterThanOrEqual(12);
-    for (const k of ["brain.ts:searchMemories", "brain.ts:searchColdMemory", "brain.ts:searchConversations", "brain.ts:surfaceAntiPatterns", "brain.ts:getHabitRevenueCorrelation", "business.ts:findCustomer", "missions.ts:getMissionRetros"]) {
+    for (const k of ["brain.ts:searchMemories", "brain.ts:searchColdMemory", "brain.ts:searchConversations", "brain.ts:getHabitRevenueCorrelation", "business.ts:findCustomer"]) {
       expect(subjects.map(toolKey), `${k} must be a subject`).toContain(k);
     }
   });

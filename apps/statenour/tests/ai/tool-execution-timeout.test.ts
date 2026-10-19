@@ -123,7 +123,7 @@ describe("write-vs-read guidance on timeout", () => {
     },
   );
 
-  it.each(["getTasks", "runCode", "generateSQL"])("CONTROL: %s (a read or a compute tool) still gets the one-retry guidance", async (name) => {
+  it.each(["getTasks", "runCode", "writeCreative"])("CONTROL: %s (a read or a compute tool) still gets the one-retry guidance", async (name) => {
     const tools = wrapOne(name, hang);
     const p = tools[name].execute({}, {});
     await vi.advanceTimersByTimeAsync(500_000);

@@ -76,7 +76,6 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolMetadata>> = {
   getTasks: { family: "personal-read", description: "INBOX/READY/DOING tasks with mission context" },
   getMissions: { family: "personal-read", description: "ACTIVE missions sorted by priority" },
   getMissionDetail: { family: "personal-read", description: "One mission with task progress, next actions, deadline health" },
-  getMissionRetros: { family: "personal-read", description: "Recent mission retrospectives (lessons at close-out)" },
   getHabitStreaks: { family: "personal-read", description: "Habit completion summary (last 7 days)" },
   getBodyData: { family: "personal-read", description: "Weight and body tracking history" },
   getHealthToday: { family: "personal-read", description: "Today's health snapshot (sleep, weight, steps, resting HR, HRV) with sync freshness" },
@@ -110,7 +109,6 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolMetadata>> = {
   // v10.0.75 · closeLoop / createLoop legacy aliases retired (canonical:
   // completeTask + createTask).
   createCommitment: { family: "personal-write", description: "Create a new commitment" },
-  updateCommitment: { family: "personal-write", description: "Update commitment status" },
   updateMasteryScore: { family: "personal-write", description: "Update a mastery domain score" },
   setLifeGoal: { family: "personal-write", description: "Set a life-level goal" },
   markCommitmentBroken: { family: "personal-write", description: "Mark commitment broken (with reason)" },
@@ -123,12 +121,10 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolMetadata>> = {
   createMissionPlan: { family: "personal-write", description: "Create a full mission plan with tasks" },
   queueMissionExecution: { family: "personal-write", description: "Queue bounded durable background execution for an active mission" },
   captureSkillFromSource: { family: "personal-write", description: "Capture a protocol from a book/article/photo as a pending candidate skill" },
-  updateMissionStatus: { family: "personal-write", description: "Change a mission's lifecycle status (pause/complete/kill/reactivate)" },
   scheduleFollowUp: { family: "personal-write", description: "Schedule a follow-up reminder" },
   // 2026-08-28 · WP3 · distinct from scheduleFollowUp above, which creates
   // a CUSTOMER follow-up task. This one schedules NICK to speak again in
   // this thread unprompted; the lane is OFF by default and triple-gated.
-  scheduleSelfFollowUp: { family: "personal-write", description: "Schedule yourself to follow up in this conversation later" },
   endOfDay: { family: "personal-write", description: "Run EOD debrief + log score" },
   weeklyReview: { family: "personal-write", description: "Generate weekly review summary" },
   journalDecision: { family: "personal-write", description: "Log a decision to journal" },
@@ -176,14 +172,8 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolMetadata>> = {
 
   // ── Content generation ──
   generateImage: { family: "content-generation", description: "Image generation (Venice/etc)" },
-  generateSQL: { family: "content-generation", description: "Generate SQL from natural language" },
-  generateCode: { family: "content-generation", description: "Generate code snippet" },
   summarize: { family: "content-generation", description: "Summarize arbitrary text" },
-  analyzeSentiment: { family: "content-generation", description: "Sentiment analysis" },
-  extractData: { family: "content-generation", description: "Extract structured data from text" },
-  solveMath: { family: "content-generation", description: "Math / calc / reasoning" },
   writeCreative: { family: "content-generation", description: "Creative writing / copy" },
-  analyzeImage: { family: "content-generation", description: "Vision analysis of an image" },
 
   // ── Integration · GitHub ──
   githubReadFile: { family: "integration-github", description: "Read a file from a GitHub repo" },
@@ -193,13 +183,9 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolMetadata>> = {
   githubRecentCommits: { family: "integration-github", description: "Recent commits" },
   githubListRepos: { family: "integration-github", description: "List repos owned by user" },
   githubCreatePR: { family: "integration-github", description: "Open a pull request" },
-  githubCreateIssue: { family: "integration-github", description: "Open an issue" },
   getRepoMap: { family: "integration-github", description: "Map a repo's top-level structure" },
 
   // ── Integration · Drive ──
-  searchDriveFiles: { family: "integration-drive", description: "Search Drive files by name/content" },
-  readDriveFile: { family: "integration-drive", description: "Read a Drive doc's content" },
-  listRecentDriveFiles: { family: "integration-drive", description: "Recent Drive changes" },
 
   // ── Integration · Telegram ──
   // v10.0.75 · sendToTelegram legacy alias retired (canonical: sendTelegram).
@@ -208,13 +194,9 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolMetadata>> = {
   // ── Integration · Arsenal (research) ──
   arsenalResearch: { family: "integration-arsenal", description: "Arsenal research agent (deep)" },
   arsenalWebSearch: { family: "integration-arsenal", description: "Arsenal web search" },
-  arsenalFindLeads: { family: "integration-arsenal", description: "Arsenal lead-finding agent" },
   arsenalPreTaskFanout: { family: "integration-arsenal", description: "Pre-task multi-lens fan-out for hard questions" },
   arsenalDeepResearch: { family: "integration-arsenal", description: "Multi-round autonomous research with citations" },
   arsenalMultiAgent: { family: "integration-arsenal", description: "Spawn N sub-agents in parallel + synthesize" },
-  arsenalBoardConsult: { family: "integration-arsenal", description: "Convene an advisor board (multi-lens council) on a major decision" },
-  arsenalGmailInbox: { family: "integration-arsenal", description: "List recent inbox threads" },
-  arsenalGmailReadThread: { family: "integration-arsenal", description: "Read a specific thread" },
 
   // ── Cognition ──
   analyzeWeek: { family: "cognition", description: "Week-over-week pattern analysis" },
@@ -232,7 +214,6 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolMetadata>> = {
   getExternalWorkerLanes: { family: "meta", description: "Read live NOUR external-worker lanes with auth, health, quota, capabilities, and cost class", tags: ["worker", "routing"] },
   getExternalWorkerJob: { family: "meta", description: "Read durable status, result/error state, and Reality Ledger receipts for one external-worker job", tags: ["worker", "receipts"] },
   queueExternalWorkerJob: { family: "meta", description: "Queue a bounded external-worker job through NOUR's governed durable worker plane", tags: ["worker", "routing", "durable"] },
-  listTools: { family: "meta", description: "List available tools (self-reflection)" },
   toolHealth: { family: "meta", description: "Check tool health / recent failures" },
   getCronStatus: { family: "meta", description: "Query cron fire/fail status" },
   runCode: { family: "meta", description: "Execute a script (sandboxed)" },
@@ -278,7 +259,6 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolMetadata>> = {
   resolveContradiction: { family: "cognition", description: "Persist the operator's chosen side after a CONTRADICTION ALERT. Call this when the operator confirms which..." },
   runPython: { family: "cognition", description: "ALWAYS CALL THIS TOOL when the operator asks you to RUN, EXECUTE, COMPUTE, CALCULATE, or PLOT anything in P..." },
   suggestSkills: { family: "cognition", description: "Find the best Claude skills (from the indexed skill registry) for the operator's current task or question...." },
-  surfaceAntiPatterns: { family: "cognition", description: "Pull the operator's recent anti-patterns (decisions that scored D/F + recurring drift loops + commitments o..." },
 
   // ── backfill 2026-07-11 · content-generation ──
   renderInlineChart: { family: "content-generation", description: "Render an inline chart in the chat reply. Use whenever Nour asks for a trend / distribution / comparison an..." },
@@ -286,11 +266,8 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolMetadata>> = {
   // ── backfill 2026-07-11 · integration-arsenal ──
   arsenalNotebookLM: { family: "integration-arsenal", description: "Use Google NotebookLM via the connected MCP server. Allows deep grounding against custom uploaded source do..." },
   browseAndDo: { family: "integration-arsenal", description: "Run a COMPLETE browser task autonomously: opens a cloud browser, plans + executes the steps, returns a rec..." },
-  browser_act: { family: "integration-arsenal", description: "Execute a natural-language action on the open session's current page: click a button, fill a form field, se..." },
   browser_do: { family: "integration-arsenal", description: "Start a live cloud browser session (headless Chrome) Nick can use to navigate sites, fill forms, extract da..." },
-  browser_extract: { family: "integration-arsenal", description: "Pull structured data from the open session's current page. Provide an instruction (what to look for) plus a..." },
   browser_navigate: { family: "integration-arsenal", description: "Navigate the active cloud browser session to a URL. Requires a sessionId from a prior browser_do call. Retu..." },
-  browser_observe: { family: "integration-arsenal", description: "Reconnaissance on the open session's current page. Returns a list of actionable elements (buttons, forms, l..." },
   ingestDocumentFromUrl: { family: "integration-arsenal", description: "Fetch a public document from a URL and ingest it into the operator's document index. Returns the documentId..." },
   last30days: { family: "integration-arsenal", description: "Search and research a topic across live social platforms (Reddit, Hacker News, Polymarket, GitHub, YouTube)..." },
   moneyprinter: { family: "integration-arsenal", description: "Generate high-definition short videos automatically from a subject topic or a custom script. Uses MoneyPrin..." },

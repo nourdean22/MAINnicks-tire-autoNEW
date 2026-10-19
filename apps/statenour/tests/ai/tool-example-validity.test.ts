@@ -22,7 +22,7 @@
  * "no example references an undeclared field" across all tools. That check
  * produced false positives on every multi-line zod declaration
  * (`dedupeKey: z\n  .string()`) and on nested example objects, flagging
- * scheduleSelfFollowUp, updateTask and setTaskPriority as broken when they
+ * a self-follow-up tool, updateTask and setTaskPriority as broken when they
  * are fine. Doing it correctly needs a real TypeScript parser, not regex.
  * A checker that cries wolf gets muted, so the general check was REMOVED
  * rather than shipped noisy. What remains is only what regex can assert

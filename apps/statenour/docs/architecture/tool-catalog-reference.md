@@ -62,7 +62,6 @@ catalog and the model:
 | `findRelatedConversations` | Find past chat conversations semantically similar to a topic                       | `query, limit?, activeConversationId?` | `{ count, matches: [{ conversationId, summary, similarity, date }] }`        | cheap | yes    | `lib/brain/conversation-recall`|
 | `searchWebVerified`        | Cross-verified web search (Perplexity + Tavily + Exa) · consensus or disagreement  | `query, sources?, domains?, recency?` | consensus + per-source citations + confidence                                | medium| no     | Perplexity/Tavily/Exa APIs     |
 | `suggestSkills`            | Top Claude skills (from 1,423 indexed) semantically similar to a query             | `query, limit?`             | `{ count, skills[] }` with similarity                                       | cheap | yes    | `lib/skills/skill-recall`      |
-| `surfaceAntiPatterns`      | Recent anti-patterns (D/F decisions + recurring drift loops + broken commitments)  | `limit?, topic?`            | `{ count, patterns[] }` with severity + lastSeen                            | free  | yes    | `BrainMemory(anti_pattern)`    |
 
 ---
 
@@ -85,7 +84,6 @@ catalog and the model:
 | `setLifeGoal`              | Set or update a life goal                                                          | `domain, statement, horizon?`                           | `{ set, lifeGoalId }`                 | free | no   | `LifeGoal` table          |
 | `setTaskPriority`          | Override task priority (0-100, higher = more urgent)                               | `taskId? OR titleQuery?, priority, reason?`             | `{ updated, taskId }`                 | free | no   | `Task.manualPriorityOverride` |
 | `triageStaleLead`          | Triage a stale lead (route to followup / drop / followup_now)                      | `leadId, decision, reason?`                             | `{ triaged }`                         | free | no   | `Task` + `BrainMemory`    |
-| `updateCommitment`         | Update commitment status / deadline / description                                  | `commitmentId, status?, deadline?, description?`        | `{ updated }`                         | free | no   | `Commitment` table        |
 | `updateMasteryScore`       | Update a mastery score for a specific domain                                       | `domain, score`                                         | `{ updated }`                         | free | no   | `MasteryScore` table      |
 
 ---
@@ -160,8 +158,6 @@ catalog and the model:
 
 | Tool                       | Description                                                                                | Input                          | Output                  | Cost  | Side-effect | Talks to             |
 |----------------------------|--------------------------------------------------------------------------------------------|--------------------------------|------------------------|-------|------|----------------------|
-| `arsenalGmailInbox`        | List recent Gmail inbox messages                                                           | `limit?, unreadOnly?`           | inbox array             | free  | no   | Gmail API            |
-| `arsenalGmailReadThread`   | Fetch a full Gmail thread by ID                                                            | `threadId`                      | thread payload          | free  | no   | Gmail API            |
 | `composeEmail`             | Render an inline email-composer card · POST to /api/email/send requires auth + user click  | `to, subject, body, cc?, bcc?` | `{ markdown, summary }` | free  | no   | Inline renderer only |
 | `sendTelegram`             | Push urgent message to Nour's Telegram                                                     | `message, priority?`            | `{ sent, messageId }`   | free  | **yes**| Telegram Bot API   |
 
@@ -171,13 +167,7 @@ catalog and the model:
 
 | Tool             | Description                                                          | Input                | Output                          | Cost   | Talks to                  |
 |------------------|----------------------------------------------------------------------|----------------------|--------------------------------|--------|---------------------------|
-| `analyzeImage`   | Analyze an attached image · OCR + object ID + receipt/ad/screenshot parse | `imageContext, extractNumbers?` | `{ instruction, context, guidelines[] }` | spendy | downstream vision LLM call |
-| `analyzeSentiment`| Analyze sentiment of provided text                                  | `text`                | sentiment payload               | cheap  | AI provider               |
-| `extractData`    | Extract structured data from text (JSON shape)                       | `text, schema`        | extracted JSON                   | cheap  | AI provider               |
-| `generateCode`   | Generate code snippet (language + spec)                              | `language, spec`      | code string                      | medium | AI provider (`task=code`) |
-| `generateSQL`    | Generate SQL query for a natural-language spec                       | `description`         | SQL string                       | cheap  | AI provider (`task=sql`)  |
 | `runCode`        | Execute JavaScript in a VM sandbox · Math/Date/JSON + avg/sum/min/max/pct/delta helpers · 5s timeout | `code, description?`   | `{ success, result, logs?, description }` | free   | Node `vm` module          |
-| `solveMath`      | Solve math problem with steps                                        | `problem`             | `{ answer, steps }`              | cheap  | AI provider (`task=math`) |
 | `summarize`      | Summarize text                                                       | `text, length?`       | summary string                   | cheap  | AI provider (`task=summary`) |
 | `writeCreative`  | Write creative content (caption / post / tagline)                    | `prompt, voice?`      | creative string                  | medium | AI provider (`task=creative`) |
 
@@ -194,7 +184,6 @@ catalog and the model:
 | `getEmotionalState`           | Current emotional arc · stress trajectory + dominant state + triggers + decision risk        | `{}`                | emotional arc payload                         | free   | yes    | `lib/brain/emotional-arc`      |
 | `getHabitRevenueCorrelation`  | Show how habits correlate with business outcomes                                             | `{}`                | `{ correlations[] }`                          | cheap  | no     | `BrainMemory(habit_revenue_correlation)` |
 | `getRecentReflections`        | Recent reflections (daily/weekly/monthly/triggered)                                          | `limit?`            | `Reflection[]`                                | free   | yes    | `Reflection` table             |
-| `listTools`                   | List all available tools organized by category                                               | `category?`         | tool catalog                                  | free   | yes    | (catalog itself)               |
 | `runSimulation`               | Run a "what if" simulation · predict cascade of consequences                                 | `scenario`          | simulation payload                            | medium | no     | `lib/brain/thinking-engine`    |
 | `searchBrainDumps` → **retired** v10.0.74 (use `searchReflections`)                                                              |                     |                                              |        |        |                                |
 | `searchColdMemory`            | Search the cold-memory archive (older than active 30d window)                                | `query, limit?`     | cold-memory hits                              | cheap  | no     | `lib/brain/cold-memory`        |
@@ -215,7 +204,6 @@ catalog and the model:
 |----------------------------|----------------------------------------------------------------------|----------------------------------------------------|------------------------------------------|------|--------|------|--------------------------|
 | `buildArchitectureMemory`  | Scan a repo feature + store its architecture in brain memory         | `repo, feature, filePaths[], summary`              | `{ stored, feature, repo }`              | spendy | no   | no   | `BrainMemory(architecture)` |
 | `getRepoMap`               | Return the structured repo metadata (stack + key paths + branch)     | `repo`                                              | `{ name, branch, stack, keyPaths }`      | cheap | no    | no   | `config/repos.ts`        |
-| `githubCreateIssue`        | Create a GitHub issue                                                | `repo, title, body, labels?`                        | `{ created, number, url }`                | free | no     | **yes**| GitHub API             |
 | `githubCreatePR`           | Create a pull request                                                | `repo, title, body, head, base, draft?`             | `{ created, number, url }`                | free | no     | **yes**| GitHub API             |
 | `githubListFiles`          | List files in a repo directory                                       | `repo, path, ref?`                                  | files array                               | free | yes    | no   | GitHub API               |
 | `githubListRepos`          | List all configured repos                                            | `{}`                                                 | repo array                                | free | yes    | no   | `config/repos.ts`        |
@@ -224,9 +212,6 @@ catalog and the model:
 | `githubRecentCommits`      | Recent commits on a branch                                           | `repo, branch?, limit?`                             | commits array                             | free | yes    | no   | GitHub API               |
 | `githubSearchCode`         | Search code across all configured repos                              | `query, repo?, language?`                           | search hits                               | free | no     | no   | GitHub API               |
 | `learnCodingPreference`    | Store a coding preference Nour expressed (tab vs space, naming, etc.)| `preference, scope?`                                | `{ stored }`                              | free | no     | no   | `BrainMemory(coding_preference)` |
-| `listRecentDriveFiles`     | List recently modified files in Nour's Drive                         | `limit: 1-20` (default 10)                          | `{ files[], count }`                      | free | yes    | no   | Google Drive API         |
-| `readDriveFile`            | Read content of a Drive document (Docs / Sheets / text / markdown)   | `fileId, mimeType?`                                 | `{ name, content, truncated }`            | free | no     | no   | Google Drive API         |
-| `searchDriveFiles`         | Search Google Drive by full-text query                               | `query`                                              | `{ files[], count, query }`               | free | no     | no   | Google Drive API         |
 
 ---
 
@@ -246,7 +231,6 @@ catalog and the model:
 | Tool                       | Description                                                                                         | Input                       | Output                          | Cost   | Battle | Talks to                       |
 |----------------------------|-----------------------------------------------------------------------------------------------------|-----------------------------|--------------------------------|--------|--------|--------------------------------|
 | `arsenalDeepResearch`      | Multi-round autonomous research worker · iterates queries + synthesizes                             | `topic, rounds?`            | research report                 | spendy | no     | `lib/ai/deep-research`         |
-| `arsenalFindLeads`         | Find business leads (B2B prospecting) · domain + role filters                                       | `industry, role?, geo?`     | leads array                     | spendy | no     | Apollo + arsenal               |
 | `arsenalMultiAgent`        | Parallel sub-agent fan-out · multi-lens analysis                                                    | `prompt, lenses[]`          | per-lens results                | spendy | no     | `lib/ai/multi-agent-orchestrator` |
 | `arsenalPreTaskFanout`     | Multi-lens fan-out BEFORE a task starts · gather perspectives                                       | `task, lenses[]`            | per-lens fan-out                | spendy | no     | `lib/ai/pretask-fanout`        |
 | `arsenalResearch`          | Research a topic (single-shot)                                                                      | `topic, depth?`             | research summary                | spendy | no     | `lib/ai/deep-research`         |
@@ -261,11 +245,8 @@ catalog and the model:
 
 | Tool               | Description                                                                                                 | Input                          | Output                       | Cost   | Side-effect | Talks to                |
 |--------------------|-------------------------------------------------------------------------------------------------------------|--------------------------------|-----------------------------|--------|------|-------------------------|
-| `browser_act`      | Stagehand `act()` · LLM-driven action (click / fill / hover) by natural-language description                | `instruction, url?`             | action result                | medium | **yes**| Browserbase + Stagehand|
 | `browser_do`       | Stagehand `do()` · multi-step task ("book the 3pm slot")                                                    | `instruction, url?, maxSteps?`  | task result                  | spendy | **yes**| Browserbase + Stagehand|
-| `browser_extract`  | Stagehand `extract()` · pull structured data from a page                                                    | `instruction, schema, url?`     | extracted JSON               | medium | **yes**| Browserbase + Stagehand|
 | `browser_navigate` | Navigate to a URL                                                                                            | `url`                           | `{ navigated, currentUrl }`  | cheap  | **yes**| Browserbase            |
-| `browser_observe`  | Stagehand `observe()` · list possible actions on the page                                                   | `instruction, url?`             | observed actions array       | medium | no   | Browserbase + Stagehand|
 
 ---
 

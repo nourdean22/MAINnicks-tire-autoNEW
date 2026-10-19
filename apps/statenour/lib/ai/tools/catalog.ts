@@ -99,7 +99,6 @@ export const TOOL_CATALOG: ToolMeta[] = [
   // battle-safe; the lifecycle mutation is personal_write so the
   // capability registry strips it in read mode and it needs a receipt.
   { name: "getMissionDetail",             category: "personal_read",  battle: true,  cost: "free" },
-  { name: "getMissionRetros",             category: "personal_read",  battle: true,  cost: "free" },
   { name: "getProjections",               category: "personal_read",  battle: true,  cost: "free" },
   { name: "getTasks",                     category: "personal_read",  battle: true,  cost: "free" },
   // v10.0.515 · #12 Calendar bidirectional
@@ -142,7 +141,6 @@ export const TOOL_CATALOG: ToolMeta[] = [
   // 2026-07-29 · authors a PENDING candidate skill from source material
   // (book/article/photo). Writes, so not battle-safe.
   { name: "captureSkillFromSource",       category: "personal_write", cost: "free", riskClass: "low" },
-  { name: "surfaceAntiPatterns",          category: "brain",          battle: true,  cost: "free", riskClass: "low" },
 
   // ── personal_write ───────────────────────────────────────────────
   // v10.0.75 · closeLoop + createLoop legacy aliases retired
@@ -155,7 +153,6 @@ export const TOOL_CATALOG: ToolMeta[] = [
   { name: "createMissionPlan",            category: "personal_write", cost: "free" },
   { name: "queueMissionExecution",        category: "personal_write", sideEffecting: true, cost: "medium", riskClass: "medium" },
   { name: "queueExternalWorkerJob",       category: "personal_write", sideEffecting: true, cost: "free", riskClass: "medium" },
-  { name: "updateMissionStatus",          category: "personal_write", cost: "free", riskClass: "medium" },
   { name: "createTask",                   category: "personal_write", cost: "free" },
   { name: "triggerBrief",                  category: "personal_write", cost: "cheap" },
   { name: "journalDecision",              category: "personal_write", cost: "free" },
@@ -169,7 +166,6 @@ export const TOOL_CATALOG: ToolMeta[] = [
   { name: "setLifeGoal",                  category: "personal_write", cost: "free" },
   { name: "setTaskPriority",              category: "personal_write", cost: "free" },
   { name: "snoozeTask",                   category: "personal_write", cost: "free" },
-  { name: "updateCommitment",             category: "personal_write", cost: "free" },
   { name: "updateMasteryScore",           category: "personal_write", cost: "free" },
   { name: "updateTask",                   category: "personal_write", cost: "free" },
 
@@ -233,13 +229,7 @@ export const TOOL_CATALOG: ToolMeta[] = [
   { name: "sendOpportunitySms",           category: "comms",          sideEffecting: true, needsBridge: true, cost: "free" },
 
   // ── ai_analysis ──────────────────────────────────────────────────
-  { name: "analyzeImage",                 category: "ai_analysis",    cost: "spendy" },
-  { name: "analyzeSentiment",             category: "ai_analysis",    cost: "cheap" },
-  { name: "extractData",                  category: "ai_analysis",    cost: "cheap" },
-  { name: "generateCode",                 category: "ai_analysis",    cost: "medium" },
-  { name: "generateSQL",                  category: "ai_analysis",    cost: "cheap" },
   { name: "runCode",                      category: "ai_analysis",    cost: "free" },
-  { name: "solveMath",                    category: "ai_analysis",    cost: "cheap" },
   { name: "summarize",                    category: "ai_analysis",    cost: "cheap" },
   { name: "writeCreative",                category: "ai_analysis",    cost: "medium" },
 
@@ -257,7 +247,6 @@ export const TOOL_CATALOG: ToolMeta[] = [
   { name: "getEmotionalState",            category: "brain",          battle: true, cost: "free" },
   { name: "getHabitRevenueCorrelation",   category: "brain",          cost: "cheap" },
   { name: "getRecentReflections",         category: "brain",          battle: true, cost: "free" },
-  { name: "listTools",                    category: "brain",          battle: true, cost: "free" },
   { name: "runSimulation",                category: "brain",          cost: "medium" },
   // v10.0.74 · searchBrainDumps retired — searchReflections is the
   // canonical superset (Reflection rows + BrainDump entries + date range).
@@ -299,7 +288,6 @@ export const TOOL_CATALOG: ToolMeta[] = [
   // the two registries disagree.
   { name: "buildArchitectureMemory",      category: "files",          sideEffecting: true, cost: "spendy", riskClass: "low" },
   { name: "getRepoMap",                   category: "files",          cost: "cheap", riskClass: "low", requiredEnv: ["GITHUB_TOKEN"] },
-  { name: "githubCreateIssue",            category: "files",          sideEffecting: true, cost: "free", riskClass: "high", requiredEnv: ["GITHUB_TOKEN"] },
   { name: "githubCreatePR",               category: "files",          sideEffecting: true, cost: "free", riskClass: "high", requiredEnv: ["GITHUB_TOKEN"] },
   { name: "githubListFiles",              category: "files",          battle: true, cost: "free", riskClass: "low", requiredEnv: ["GITHUB_TOKEN"] },
   { name: "githubListRepos",              category: "files",          battle: true, cost: "free", riskClass: "low", requiredEnv: ["GITHUB_TOKEN"] },
@@ -309,9 +297,6 @@ export const TOOL_CATALOG: ToolMeta[] = [
   { name: "githubSearchCode",             category: "files",          cost: "free", riskClass: "low", requiredEnv: ["GITHUB_TOKEN"] },
   // 2026-09-02 self-audit · WRITES via brainMemory.remember(); same miss.
   { name: "learnCodingPreference",        category: "files",          sideEffecting: true, cost: "free", riskClass: "low" },
-  { name: "listRecentDriveFiles",         category: "files",          battle: true, cost: "free", riskClass: "low", requiredEnv: ["AUTH_GOOGLE_CLIENT_ID", "AUTH_GOOGLE_CLIENT_SECRET"] },
-  { name: "readDriveFile",                category: "files",          cost: "free", riskClass: "low", requiredEnv: ["AUTH_GOOGLE_CLIENT_ID", "AUTH_GOOGLE_CLIENT_SECRET"] },
-  { name: "searchDriveFiles",             category: "files",          cost: "free", riskClass: "low", requiredEnv: ["AUTH_GOOGLE_CLIENT_ID", "AUTH_GOOGLE_CLIENT_SECRET"] },
 
   // ── routines ─────────────────────────────────────────────────────
   { name: "analyzeWeek",                  category: "routines",       cost: "medium" },
@@ -320,7 +305,6 @@ export const TOOL_CATALOG: ToolMeta[] = [
   { name: "weeklyReview",                 category: "routines",       cost: "medium" },
 
   // ── research ─────────────────────────────────────────────────────
-  { name: "arsenalFindLeads",             category: "research",       cost: "spendy" },
   { name: "arsenalResearch",              category: "research",       cost: "spendy" },
   { name: "arsenalWebSearch",             category: "research",       cost: "spendy" },
   { name: "arsenalPreTaskFanout",         category: "research",       cost: "spendy" }, // v10.0.372 · multi-lens fan-out
@@ -329,13 +313,10 @@ export const TOOL_CATALOG: ToolMeta[] = [
   // AG-13 · advisor-board council. 2026-10-10 red-team · WRITES: it persists a
   // BrainMemory consultation row (consultBoardAndPersist), the same miss as
   // buildArchitectureMemory, so it ran under the lock and in Private Lab.
-  { name: "arsenalBoardConsult",          category: "research",       sideEffecting: true, cost: "spendy" },
   { name: "queueDeepResearch",            category: "research",       cost: "free" },   // AG-34 · fire-and-forget queue (the research itself bills the inngest run)
   { name: "arsenalNotebookLM",            category: "research",       battle: true, cost: "free" },
   // v10.0.379 · Gmail list / thread fetch. GET-only reads (output fenced, taints
   // the turn), so not "comms": that write category refused them in Read turns.
-  { name: "arsenalGmailInbox",            category: "research",       cost: "free" },
-  { name: "arsenalGmailReadThread",       category: "research",       cost: "free" },
   { name: "getCronStatus",                category: "research",       battle: true, cost: "free" },
 
   // ── browser (Browserbase / Stagehand) ────────────────────────────
@@ -345,9 +326,6 @@ export const TOOL_CATALOG: ToolMeta[] = [
   { name: "browseAndDo",                  category: "browser",        sideEffecting: true, cost: "spendy", riskClass: "high", requiredEnv: ["BROWSERBASE_API_KEY", "BROWSERBASE_PROJECT_ID"] },
   { name: "browser_do",                   category: "browser",        sideEffecting: true, cost: "spendy", riskClass: "high", requiredEnv: ["BROWSERBASE_API_KEY", "BROWSERBASE_PROJECT_ID"] },
   { name: "browser_navigate",             category: "browser",        sideEffecting: true, cost: "cheap",  riskClass: "high", requiredEnv: ["BROWSERBASE_API_KEY", "BROWSERBASE_PROJECT_ID"] },
-  { name: "browser_act",                  category: "browser",        sideEffecting: true, cost: "medium", riskClass: "high", requiredEnv: ["BROWSERBASE_API_KEY", "BROWSERBASE_PROJECT_ID"] },
-  { name: "browser_observe",              category: "browser",        sideEffecting: false, cost: "medium", riskClass: "high", requiredEnv: ["BROWSERBASE_API_KEY", "BROWSERBASE_PROJECT_ID"] },
-  { name: "browser_extract",              category: "browser",        sideEffecting: true, cost: "medium", riskClass: "high", requiredEnv: ["BROWSERBASE_API_KEY", "BROWSERBASE_PROJECT_ID"] },
 
   // ── inline rich renderers (v10.0.49) ─────────────────────────────
   // Ports of open-webui-plugins Inline Visualizer + Email Composer.
@@ -379,7 +357,6 @@ export const TOOL_CATALOG: ToolMeta[] = [
   // invokeTool/queryData proxy READ-SAFE tools only (fail-closed via
   // capability-registry at call time) — hence not sideEffecting; medium
   // risk because they execute model-chosen names / model-written code.
-  { name: "scheduleSelfFollowUp",         category: "routines",       sideEffecting: true, cost: "free" },
   { name: "searchTools",                  category: "ai_analysis",    battle: true,  cost: "free",   riskClass: "low" },
   { name: "invokeTool",                   category: "ai_analysis",                   cost: "cheap",  riskClass: "medium" },
   { name: "queryData",                    category: "ai_analysis",                   cost: "cheap",  riskClass: "medium" },

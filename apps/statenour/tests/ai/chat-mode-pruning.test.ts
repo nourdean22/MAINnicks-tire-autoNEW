@@ -155,7 +155,6 @@ describe("pruneTools keyword attachment families (v10.0.532 followups)", () => {
     getReviewStats: { name: "getReviewStats" },
     pricingAdvisorySummary: { name: "pricingAdvisorySummary" },
     analyzeWeightTrend: { name: "analyzeWeightTrend" },
-    generateSQL: { name: "generateSQL" },
     runSimulation: { name: "runSimulation" },
   };
 
@@ -168,14 +167,13 @@ describe("pruneTools keyword attachment families (v10.0.532 followups)", () => {
     ["pricingAdvisorySummary", "what competitive pricing advice do we have?", "pricingAdvisorySummary"],
     ["analyzeWeightTrend", "plot my weight trend", "analyzeWeightTrend"],
     ["analyzeWeightTrend", "body weight progress", "analyzeWeightTrend"],
-    ["generateSQL", "write a database query or generate sql for X", "generateSQL"],
     ["runSimulation", "run a simulation for this project", "runSimulation"],
   ])("matches query for %s: '%s'", async (toolName, query, expectedKey) => {
     const pruned = await pruneTools("standard", tools, query);
     expect(Object.keys(pruned)).toContain(expectedKey);
   });
 
-  it("survives pruning in deep mode under pressure of 60 filler tools for all 6 followup tools", async () => {
+  it("survives pruning in deep mode under pressure of 60 filler tools for all 5 followup tools", async () => {
     const allTools: Record<string, unknown> = {};
     for (let i = 1; i <= 60; i++) {
       allTools[`extraTool-${i}`] = { name: `extraTool-${i}` };
@@ -184,13 +182,12 @@ describe("pruneTools keyword attachment families (v10.0.532 followups)", () => {
     allTools["searchMemories"] = { name: "searchMemories" };
     allTools["createTask"] = { name: "createTask" };
 
-    // Add the 6 followup tools
+    // Add the 5 followup tools
     const followups = [
       "getCameraIntelligence",
       "getReviewStats",
       "pricingAdvisorySummary",
       "analyzeWeightTrend",
-      "generateSQL",
       "runSimulation",
     ];
     for (const f of followups) {
@@ -198,7 +195,7 @@ describe("pruneTools keyword attachment families (v10.0.532 followups)", () => {
     }
 
     // Trigger keyword matching by including the trigger words in the query
-    const query = "show me the camera feed, google reviews stats, pricing advisory, weight trend, generate sql and run simulation";
+    const query = "show me the camera feed, google reviews stats, pricing advisory, weight trend and run simulation";
     const pruned = await pruneTools("deep", allTools, query, [0.1, 0.2]);
     const keys = Object.keys(pruned);
 

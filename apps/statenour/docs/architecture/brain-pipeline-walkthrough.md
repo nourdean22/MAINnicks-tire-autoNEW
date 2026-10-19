@@ -518,9 +518,7 @@ Drafts get tagged `auto-draft` + `grade-d|f` so Nour can distinguish
 them from hand-entered lessons in `/system/anti-patterns`. Promoting a
 draft to canonical is a no-op — same row shape.
 
-The `surfaceAntiPatterns` chat tool (see tool catalog doc) reads from
-these rows so Nick can proactively warn: "you said X two weeks ago
-and broke it."
+The chat tool that used to surface these rows to Nick was removed 2026-10-18.
 
 ---
 

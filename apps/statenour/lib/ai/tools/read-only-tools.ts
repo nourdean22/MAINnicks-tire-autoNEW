@@ -13,12 +13,12 @@
  * row (research_<timestamp>) plus an embedding and persona-usage rows, and its
  * only dedupe is a best-effort semantic lookup.
  *
- * Five tools whose NAME trips the registry's mutating-verb wire (generateSQL,
- * generateCode, writeCreative, runCode, draftOpportunitySms) only compute,
+ * Three tools whose NAME trips the registry's mutating-verb wire (writeCreative,
+ * runCode, draftOpportunitySms) only compute,
  * generate or draft. They are replay-safe (REPLAY_SAFE_COMPUTE_TOOLS, for the
  * Retry gate) but deliberately not read-only here, because this list also
  * decides what may run in a read-only or locked turn.
- *   - generateSQL, generateCode, writeCreative: one LLM call, text back.
+ *   - writeCreative: one LLM call, text back.
  *   - runCode: JavaScript in a sandbox with no network and no filesystem, the
  *     same sandbox queryData uses.
  *   - draftOpportunitySms: nickstire's draft_opportunity_sms is labelled READ in
@@ -45,8 +45,6 @@
  * side effect of this list.
  */
 export const REPLAY_SAFE_COMPUTE_TOOLS: ReadonlySet<string> = new Set([
-  "generateSQL",
-  "generateCode",
   "writeCreative",
   "runCode",
   "draftOpportunitySms",
@@ -73,21 +71,21 @@ export const READ_ONLY_TOOLS: ReadonlySet<string> = new Set([
   "getBodyData", "getHealthToday", "getSleepTrend", "getCameraIntelligence", "getCommitments",
   "getAgendaItems", "getDecisionReplays", "getDecisionsDueForReplay", "getDriftAlerts",
   "getFinancialSnapshot", "getHabitStreaks", "getMasteryScores", "getMissions",
-  "getExternalWorkerJob", "getExternalWorkerLanes", "getMissionDetail", "getMissionRetros",
+  "getExternalWorkerJob", "getExternalWorkerLanes", "getMissionDetail",
   "getProjections", "getTasks", "getTodaySchedule",
   // ai_analysis (invokeTool and queryData only dispatch tools this list already vouches for)
-  "analyzeImage", "analyzeSentiment", "extractData", "solveMath", "summarize", "getFleetTruth",
+  "summarize", "getFleetTruth",
   "searchTools", "invokeTool", "queryData",
   // research
-  "searchDocuments", "searchWebVerified", "last30days", "arsenalFindLeads", "arsenalResearch",
+  "searchDocuments", "searchWebVerified", "last30days", "arsenalResearch",
   "arsenalWebSearch", "arsenalPreTaskFanout", "arsenalMultiAgent",
-  "arsenalNotebookLM", "arsenalGmailInbox", "arsenalGmailReadThread", "getCronStatus",
+  "arsenalNotebookLM", "getCronStatus",
   "scrapeWebPage", "fetchVideoTranscript",
   // brain
-  "findRelatedConversations", "suggestSkills", "getSkillProtocol", "surfaceAntiPatterns",
+  "findRelatedConversations", "suggestSkills", "getSkillProtocol",
   "analyzeFitness", "analyzeGoals", "analyzeMentalHealth", "analyzeSleep", "analyzeTrends",
   "analyzeWeightTrend", "analyzeWorkHealth", "classifyThought", "getBlindSpots", "getBrainHealth",
-  "getEmotionalState", "getHabitRevenueCorrelation", "getRecentReflections", "listTools",
+  "getEmotionalState", "getHabitRevenueCorrelation", "getRecentReflections",
   "searchColdMemory", "searchSkills", "searchConversations", "searchGreeneLaws", "searchMemories",
   "searchReflections", "toolHealth", "checkAntiPattern", "getPendingRevenueMoves",
   "analyzeCompetitiveIntel", "analyzeComposure", "analyzePowerDynamics", "getContextualGreeneLaws",
@@ -104,10 +102,7 @@ export const READ_ONLY_TOOLS: ReadonlySet<string> = new Set([
   "renderInlineChart",
   // files
   "getRepoMap", "githubListFiles", "githubListRepos", "githubReadFile", "githubReadMultiple",
-  "githubRecentCommits", "githubSearchCode", "listRecentDriveFiles", "readDriveFile",
-  "searchDriveFiles",
+  "githubRecentCommits", "githubSearchCode",
   // routines (endOfDay and weeklyReview were once listed as mutating and write nothing)
   "analyzeWeek", "dailyPulse", "endOfDay", "weeklyReview",
-  // browser
-  "browser_observe",
 ]);

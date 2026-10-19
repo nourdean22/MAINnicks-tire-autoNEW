@@ -1,8 +1,7 @@
 /**
  * Social + comms tools — comms (telegram + gmail + email).
  *
- * Includes: sendTelegram · arsenalGmailInbox · arsenalGmailReadThread ·
- * composeEmail.
+ * Includes: sendTelegram · composeEmail.
  *
  * v10.0.529.106 · Wave 82 · extracted from monolithic lib/ai/tools.ts.
  * Aggregate barrel: lib/ai/tools.ts re-exports nourTools composed from
@@ -13,15 +12,6 @@ import { tool } from "ai";
 import { z } from "zod";
 import type { SettledState } from "@/lib/services/action-attempts";
 import { escapeHtml } from "@/lib/utils/escape-html";
-
-/**
- * fenceContent (lib/ai/tool-result-fencing.ts) caps its body at 4000
- * chars by default and may PREPEND an injection annotation before
- * applying that cap. Anything built to fill a fence must budget for
- * both, or the fence truncates the very content it exists to label.
- */
-const FENCE_BODY_CAP = 4000;
-const ANNOTATION_SLACK = 200;
 
 export const socialTools = {
   sendTelegram: tool({
@@ -337,97 +327,6 @@ export const socialTools = {
         }),
         (r) => r.status === "STAGED",
       );
-    },
-  }),
-
-  arsenalGmailInbox: tool({
-    description: "List recent Gmail inbox threads · supports Gmail search syntax (e.g. 'is:unread newer_than:2d', 'from:supplier@x'). Returns subject/from/snippet/unread per thread. Requires GMAIL_REFRESH_TOKEN env (see docs/gmail-setup.md).",
-    inputSchema: z.object({
-      maxResults: z.number().optional().describe("Max threads to return · default 20"),
-      query: z.string().optional().describe("Gmail search query · e.g. 'is:unread' or 'from:foo@bar.com'"),
-    }),
-    execute: async ({ maxResults, query }) => {
-      const { listInbox, isGmailConfigured } = await import("@/lib/integrations/gmail");
-      const { fenceContent } = await import("@/lib/ai/tool-result-fencing");
-      if (!isGmailConfigured()) {
-        return { error: "GMAIL_REFRESH_TOKEN not set · see docs/gmail-setup.md" };
-      }
-      const threads = await listInbox({ maxResults, query });
-      return {
-        threadCount: threads.length,
-        // `subject` and `from` are attacker-chosen: anyone who can email
-        // Nour picks those 200 characters. They used to be returned RAW
-        // beside an already-fenced snippet, which made this the cheapest
-        // injection surface in the app -- no page to host, no link to
-        // click, just send mail and land unlabelled text in model
-        // context. Fencing them TOGETHER with the snippet as one block
-        // keeps the fence count per thread at exactly one, so closing
-        // the hole costs no extra tokens (a per-field fence would have
-        // added ~90 chars x 60 fields on a 30-thread listing).
-        threads: threads.slice(0, 30).map((t) => ({
-          id: t.id,
-          messageCount: t.messageCount,
-          unread: t.unread,
-          content: fenceContent(
-            "arsenalGmailInbox",
-            "external_doc",
-            `Subject: ${t.subject.slice(0, 200)}\nFrom: ${t.from.slice(0, 200)}\n\n${t.snippet.slice(0, 300)}`,
-          ),
-        })),
-        source: "arsenal/gmail",
-      };
-    },
-  }),
-
-  arsenalGmailReadThread: tool({
-    description: "Fetch a full Gmail thread · all messages decoded. Use after listing inbox to read specific threads.",
-    inputSchema: z.object({
-      threadId: z.string().describe("Gmail thread ID from arsenalGmailInbox"),
-    }),
-    execute: async ({ threadId }) => {
-      const { getThread, isGmailConfigured } = await import("@/lib/integrations/gmail");
-      const { fenceContent } = await import("@/lib/ai/tool-result-fencing");
-      if (!isGmailConfigured()) {
-        return { error: "GMAIL_REFRESH_TOKEN not set · see docs/gmail-setup.md" };
-      }
-      const thread = await getThread(threadId);
-      return {
-        id: thread.id,
-        messageCount: thread.messages.length,
-        // Same reasoning as arsenalGmailInbox above: subject / from / to
-        // are sender-controlled and were returned unfenced next to a
-        // fenced body. The per-message body budget is derived below.
-        subject: fenceContent(
-          "arsenalGmailReadThread",
-          "external_doc",
-          thread.subject.slice(0, 200),
-        ),
-        messages: thread.messages.map((m) => {
-          // 2026-09-02 review P2 · the 3700 slice was arithmetic I got
-          // wrong. At maximum field lengths the header reaches ~484 chars
-          // (200 From + 200 To + 64 Date + labels + newlines), so
-          // 3700 + 484 = 4184 against fenceContent's 4000-char body cap:
-          // long mail silently lost its last ~184 characters while the
-          // comment beside it claimed the slice PREVENTED truncation.
-          // Derive the allowance from the header actually built, and keep
-          // slack for the injection annotation fenceContent may prepend
-          // BEFORE applying that cap.
-          const header = `From: ${m.from.slice(0, 200)}
-To: ${m.to.slice(0, 200)}
-Date: ${String(m.date).slice(0, 64)}
-
-`;
-          const bodyBudget = Math.max(500, FENCE_BODY_CAP - ANNOTATION_SLACK - header.length);
-          return {
-            content: fenceContent(
-              "arsenalGmailReadThread",
-              "external_doc",
-              `${header}${m.body.slice(0, bodyBudget)}`,
-            ),
-          };
-        }),
-        source: "arsenal/gmail",
-      };
     },
   }),
 

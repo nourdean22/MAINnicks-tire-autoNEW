@@ -28,7 +28,7 @@
  *        DOCUMENTED semantic exactly ("mutate external state (business
  *        writes, SMS, payment)"): personal_write mutates Nick's own DB
  *        (internal, operator-visible) and comms contains pure reads
- *        (arsenalGmailInbox) — the first live probe proved a broader
+ *        (the Gmail read tools) — the first live probe proved a broader
  *        rule mislabels 25 tools, and an invariant that cries wolf
  *        gets excepted into blindness.
  *   C2 · read-shaped categories (*_read) must NOT carry

@@ -669,38 +669,6 @@ export const systemTools = {
     },
   }),
 
-  // AG-13 · Advisory-board council as a chat tool. The board engine
-  // (5 preset multi-lens boards · parallel advisors · divergence-
-  // preserving synthesis · persisted consultations) was previously
-  // reachable ONLY from the /brain Board tab UI — Nick could never say
-  // "let me convene the invest board." Read-only side effects: persists
-  // one BrainMemory consultation record.
-  arsenalBoardConsult: tool({
-    description: "Convene an advisor board (parallel multi-lens council) on a major decision. Boards: strategic, invest, product, operator, full, team (the in-house working team: thought partner, researcher, strategist, tactician, consultant).",
-    inputSchema: z.object({
-      boardId: z.enum(["strategic", "invest", "product", "operator", "full", "team"]).describe("Which preset board to convene"),
-      question: z.string().min(8).describe("The decision or question to put before the board"),
-    }),
-    execute: async ({ boardId, question }) => {
-      const { consultBoardAndPersist } = await import("@/lib/services/board-consult-record");
-      const { consultation, recordId } = await consultBoardAndPersist(boardId, question);
-      return {
-        board: consultation.boardName,
-        consensus: consultation.synthesis.consensus,
-        tension: consultation.synthesis.tension ?? null,
-        recommendation: consultation.synthesis.recommendation,
-        confidence: consultation.synthesis.confidence,
-        takes: consultation.takes.map((t) => ({
-          advisor: t.advisorName,
-          take: t.recommendation.slice(0, 300),
-          confidence: t.confidence,
-        })),
-        recordId,
-        source: "arsenal/board-consult",
-      };
-    },
-  }),
-
   // AG-34 · async research: queue and go. The in-session
   // arsenalDeepResearch below holds the stream open for 10-15s+ of
   // searches; this one returns instantly and the cited synthesis
@@ -770,31 +738,6 @@ export const systemTools = {
         composite: fanout.composite.slice(0, 3000),
         durationMs: fanout.durationMs,
         source: "arsenal/pretask-fanout",
-      };
-    },
-  }),
-
-  arsenalFindLeads: tool({
-    description: "Use Apollo.io to find fleet/business contacts in Cleveland area. Powered by the Arsenal integration chain.",
-    inputSchema: z.object({
-      titles: z.array(z.string()).optional().describe("Job titles to search for, e.g. ['Fleet Manager', 'Operations Director']"),
-      locations: z.array(z.string()).default(["Cleveland", "Ohio"]),
-      industries: z.array(z.string()).optional(),
-      limit: z.number().default(10),
-    }),
-    execute: async ({ titles, locations, industries, limit }) => {
-      const { searchFleetContacts } = await import("@/lib/integrations/apollo");
-      const result = await searchFleetContacts({ titles, locations, industries, limit });
-      return {
-        count: result?.contacts?.length ?? 0,
-        contacts: result?.contacts?.slice(0, 10).map((c: any) => ({
-          name: `${c.firstName} ${c.lastName}`,
-          title: c.title,
-          company: c.company,
-          email: c.email,
-          phone: c.phone,
-        })),
-        source: "arsenal/apollo",
       };
     },
   }),
@@ -950,24 +893,6 @@ export const systemTools = {
     },
   }),
 
-  githubCreateIssue: tool({
-    description: "Create a GitHub issue for tracking bugs, features, or tasks.",
-    inputSchema: z.object({
-      repo: z.string().describe("Repo name"),
-      title: z.string().describe("Issue title"),
-      body: z.string().describe("Issue description"),
-      labels: z.array(z.string()).optional(),
-    }),
-    execute: async ({ repo, title, body, labels }) => {
-      const { createIssue } = await import("@/lib/integrations/github");
-      try {
-        return await createIssue(repo, title, body, labels);
-      } catch (e) {
-        return { error: e instanceof Error ? e.message : String(e) };
-      }
-    },
-  }),
-
   githubListRepos: tool({
     description: "List Nour's GitHub repos sorted by most recently updated.",
     inputSchema: z.object({}),
@@ -1013,153 +938,6 @@ export const systemTools = {
         stack: config.stack,
         keyPaths: config.keyPaths,
       };
-    },
-  }),
-
-  searchDriveFiles: tool({
-    description: "Search Nour's Google Drive for files by name, content, or type. Use this when Nour says 'find my notes', 'check my drive', 'look up that document', etc.",
-    inputSchema: z.object({
-      query: z.string().describe("Search query — file name, content keyword, or type"),
-    }),
-    execute: async ({ query }) => {
-      // Use Google Drive API via service account (same as knowledge loader)
-      try {
-        const { google } = await import("googleapis");
-        const credentials = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
-        if (!credentials) return { error: "Google Drive not configured. Set GOOGLE_SERVICE_ACCOUNT_KEY." };
-
-        const auth = new google.auth.GoogleAuth({
-          credentials: JSON.parse(credentials),
-          scopes: ["https://www.googleapis.com/auth/drive.readonly"],
-        });
-
-        const drive = google.drive({ version: "v3", auth });
-        const res = await drive.files.list({
-          q: `fullText contains '${query.replace(/'/g, "\\'")}'`,
-          pageSize: 10,
-          fields: "files(id, name, mimeType, modifiedTime, webViewLink, size)",
-          orderBy: "modifiedTime desc",
-        });
-
-        return {
-          files: res.data.files || [],
-          count: res.data.files?.length || 0,
-          query,
-        };
-      } catch (err) {
-        return { error: `Drive search failed: ${err instanceof Error ? err.message : "unknown"}`, query };
-      }
-    },
-  }),
-
-  readDriveFile: tool({
-    description: "Read the content of a Google Drive document by file ID. Use after searchDriveFiles to read a specific file. Works with Google Docs, Sheets, and text files.",
-    inputSchema: z.object({
-      fileId: z.string().describe("Google Drive file ID"),
-      mimeType: z.string().optional().describe("File MIME type (auto-detected if not provided)"),
-    }),
-    execute: async ({ fileId, mimeType }) => {
-      try {
-        const { google } = await import("googleapis");
-        const credentials = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
-        if (!credentials) return { error: "Google Drive not configured." };
-
-        const auth = new google.auth.GoogleAuth({
-          credentials: JSON.parse(credentials),
-          scopes: ["https://www.googleapis.com/auth/drive.readonly"],
-        });
-
-        const drive = google.drive({ version: "v3", auth });
-
-        // Get file metadata first
-        const meta = await drive.files.get({
-          fileId,
-          fields: "name, mimeType, size",
-        });
-
-        const fileMime = mimeType || meta.data.mimeType || "";
-
-        // Google Docs — export as plain text
-        if (fileMime.includes("google-apps.document")) {
-          const exported = await drive.files.export({
-            fileId,
-            mimeType: "text/plain",
-          });
-          return {
-            name: meta.data.name,
-            content: String(exported.data).slice(0, 10000),
-            truncated: String(exported.data).length > 10000,
-          };
-        }
-
-        // Google Sheets — export as CSV
-        if (fileMime.includes("google-apps.spreadsheet")) {
-          const exported = await drive.files.export({
-            fileId,
-            mimeType: "text/csv",
-          });
-          return {
-            name: meta.data.name,
-            content: String(exported.data).slice(0, 10000),
-            format: "csv",
-            truncated: String(exported.data).length > 10000,
-          };
-        }
-
-        // Plain text / markdown files — download directly
-        if (fileMime.includes("text/") || fileMime.includes("json") || fileMime.includes("markdown")) {
-          const downloaded = await drive.files.get(
-            { fileId, alt: "media" },
-            { responseType: "text" }
-          );
-          return {
-            name: meta.data.name,
-            content: String(downloaded.data).slice(0, 10000),
-            truncated: String(downloaded.data).length > 10000,
-          };
-        }
-
-        return {
-          name: meta.data.name,
-          mimeType: fileMime,
-          error: `Can't read this file type (${fileMime}). Supported: Google Docs, Sheets, text/markdown files.`,
-        };
-      } catch (err) {
-        return { error: `File read failed: ${err instanceof Error ? err.message : "unknown"}` };
-      }
-    },
-  }),
-
-  listRecentDriveFiles: tool({
-    description: "List recently modified files in Nour's Google Drive. Use when he says 'what files have I been working on' or 'show me recent docs'.",
-    inputSchema: z.object({
-      limit: z.number().min(1).max(20).default(10).describe("How many files to show"),
-    }),
-    execute: async ({ limit }) => {
-      try {
-        const { google } = await import("googleapis");
-        const credentials = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
-        if (!credentials) return { error: "Google Drive not configured." };
-
-        const auth = new google.auth.GoogleAuth({
-          credentials: JSON.parse(credentials),
-          scopes: ["https://www.googleapis.com/auth/drive.readonly"],
-        });
-
-        const drive = google.drive({ version: "v3", auth });
-        const res = await drive.files.list({
-          pageSize: limit,
-          fields: "files(id, name, mimeType, modifiedTime, webViewLink)",
-          orderBy: "modifiedTime desc",
-        });
-
-        return {
-          files: res.data.files || [],
-          count: res.data.files?.length || 0,
-        };
-      } catch (err) {
-        return { error: `Drive list failed: ${err instanceof Error ? err.message : "unknown"}` };
-      }
     },
   }),
 

@@ -639,20 +639,6 @@ const tasksCoreTools = {
     },
   }),
 
-  updateCommitment: tool({
-    description: "Update a commitment status (kept, broken, deferred)",
-    inputSchema: z.object({
-      commitmentId: z.number(),
-      status: z.enum(["kept", "broken", "deferred"]),
-    }),
-    execute: async ({ commitmentId, status }) => {
-      const before = await commitmentStatusBefore(commitmentId);
-      await prisma.commitment.update({ where: { id: commitmentId }, data: { status } });
-      await publishCommitmentTransition(commitmentId, before, status);
-      return { updated: true, commitmentId, status };
-    },
-  }),
-
   // Apr 19 · logDailyScore retired alongside DailyScore model. The
   // brain-maturity cron now carries the self-model reading; manual
   // score logging is gone. If the agent really wants to capture a

@@ -115,14 +115,4 @@ describe("chat tools · status writers publish once", () => {
     expect(only()).toMatchObject({ commitmentId: 7, oldStatus: "active", newStatus: "broken" });
   });
 
-  it("updateCommitment", async () => {
-    await tool("updateCommitment").execute({ commitmentId: 7, status: "kept" }, {});
-    expect(only()).toMatchObject({ commitmentId: 7, oldStatus: "active", newStatus: "kept" });
-  });
-
-  it("a re-save with the same status publishes nothing", async () => {
-    h.findUnique.mockImplementation(async () => ({ status: "kept", ...ROW }));
-    await tool("updateCommitment").execute({ commitmentId: 7, status: "kept" }, {});
-    expect(h.emit).not.toHaveBeenCalled();
-  });
 });
