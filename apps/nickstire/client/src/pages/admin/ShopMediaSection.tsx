@@ -89,8 +89,12 @@ export default function ShopMediaSection() {
       void stats.refetch();
     },
     onError: (err) => {
+      // A batch can fail after some rows changed, so the screen re-reads instead of trusting what it shows.
       setConfirming(null);
-      toast.error("Review did not save", { description: err.message });
+      setSelected(new Set());
+      void list.refetch();
+      void stats.refetch();
+      toast.error("Review did not save. Some items may have changed, list refreshed.", { description: err.message });
     },
   });
 
@@ -296,8 +300,21 @@ export default function ShopMediaSection() {
   );
 }
 
+/**
+ * The rights label a reviewer must see before approving. Anything not captured footage says so
+ * on the card, so an AI repaint is never approved as if it were evidence of real work.
+ */
+function rightsBadge(rightsStatus: string): string | null {
+  if (rightsStatus === "real_shop") return null;
+  if (rightsStatus === "operator_ai_edit" || rightsStatus === "ai_generated") return "AI edited";
+  return rightsStatus;
+}
+
+// editRecipe is the contract field the server lane is adding (PR 3177 review); optional here so this compiles before it lands.
+type ReviewCardItem = ShopMediaItem & { editRecipe?: string | null };
+
 function MediaCard({ item, selectable, selected, onToggle }: {
-  item: ShopMediaItem;
+  item: ReviewCardItem;
   selectable: boolean;
   selected: boolean;
   onToggle: () => void;
@@ -309,13 +326,15 @@ function MediaCard({ item, selectable, selected, onToggle }: {
     item.plate ? "Plate visible" : null,
     item.quality !== null ? `Quality ${item.quality}/5` : null,
   ].filter(Boolean);
+  const badge = rightsBadge(item.rightsStatus);
+  const recipe = item.editRecipe?.trim() || null;
 
   return (
     <li className={`overflow-hidden rounded-lg border ${selected ? "border-primary ring-2 ring-primary/40" : "border-border"}`}>
       <button
         type="button"
         aria-pressed={selectable ? selected : undefined}
-        aria-label={`${itemTitle(item)}, ${item.kind}`}
+        aria-label={`${itemTitle(item)}, ${item.kind}${badge ? `, ${badge}` : ""}`}
         disabled={!selectable}
         onClick={onToggle}
         className="block w-full text-left"
@@ -335,6 +354,9 @@ function MediaCard({ item, selectable, selected, onToggle }: {
               {length}
             </span>
           )}
+          {badge && (
+            <span className="absolute right-1 top-1 rounded bg-amber-500 px-1.5 py-0.5 text-[11px] font-semibold text-black">{badge}</span>
+          )}
           {selected && (
             <span className="absolute left-1 top-1 rounded bg-primary p-0.5 text-primary-foreground">
               <Check className="h-4 w-4" aria-hidden="true" />
@@ -343,6 +365,7 @@ function MediaCard({ item, selectable, selected, onToggle }: {
         </div>
         <div className="space-y-1 p-2">
           <p className="line-clamp-2 text-xs font-medium">{itemTitle(item)}</p>
+          {recipe && <p className="line-clamp-2 text-[11px] text-amber-500">Edit: {recipe}</p>}
           {item.tags.length > 0 && <p className="truncate text-[11px] text-muted-foreground">{item.tags.slice(0, 3).join(", ")}</p>}
           {flags.length > 0 && <p className="text-[11px] text-muted-foreground">{flags.join(" · ")}</p>}
         </div>

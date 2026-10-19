@@ -12,6 +12,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import { toast } from "sonner";
 import React from "react";
 import type { ShopMediaItem, ShopMediaReviewResult, ShopMediaStats } from "@shared/shopMedia";
 
@@ -20,6 +21,7 @@ const h = vi.hoisted(() => ({
   inputs: new Map<string, unknown[]>(),
   reviewCalls: [] as unknown[],
   reviewResult: null as unknown,
+  reviewError: null as Error | null,
   refetch: { list: vi.fn(), stats: vi.fn() },
   fetchNextPage: vi.fn(),
   Null: () => null,
@@ -49,7 +51,8 @@ vi.mock("@/lib/trpc", () => {
       isPending: false,
       mutate: (input: unknown) => {
         h.reviewCalls.push(input);
-        opts?.onSuccess?.(h.reviewResult, input);
+        if (h.reviewError) opts?.onError?.(h.reviewError, input);
+        else opts?.onSuccess?.(h.reviewResult, input);
       },
     };
   };
@@ -86,7 +89,9 @@ import ShopMediaSection from "@/pages/admin/ShopMediaSection";
 import RealClipPicker from "@/pages/admin/instagram/RealClipPicker";
 import StudioV2 from "@/pages/admin/instagram/StudioV2";
 
-const item = (over: Partial<ShopMediaItem>): ShopMediaItem => ({
+// editRecipe is the contract field the server lane is adding (PR 3177 review); the intersection compiles before and after it lands.
+type Item = ShopMediaItem & { editRecipe: string | null };
+const item = (over: Partial<Item>): Item => ({
   assetId: "a1",
   url: "https://cdn.test/a1.jpg",
   kind: "photo",
@@ -104,6 +109,7 @@ const item = (over: Partial<ShopMediaItem>): ShopMediaItem => ({
   rightsStatus: "real_shop",
   lifecycleState: "quarantined",
   reuseAllowed: false,
+  editRecipe: null,
   ...over,
 });
 
@@ -140,6 +146,8 @@ beforeEach(() => {
   h.queries.clear();
   h.inputs.clear();
   h.reviewCalls.length = 0;
+  h.reviewError = null;
+  vi.mocked(toast.error).mockClear();
   h.reviewResult = { changed: [], skipped: [] } satisfies ShopMediaReviewResult;
   h.refetch.list.mockClear();
   h.refetch.stats.mockClear();
@@ -261,6 +269,40 @@ describe("ShopMediaSection: review on a phone", () => {
     expect(screen.queryByRole("button", { name: /^approve$/i })).toBeNull();
   });
 
+  it("an AI-edited item carries an explicit badge and its edit recipe; a captured one does not", () => {
+    h.queries.set("shopMedia.list", listPage([
+      item({ assetId: "ai-1", subject: "Repainted sign", rightsStatus: "ai_generated", editRecipe: "repaint: Moe sign to Nick's" }),
+      QUARANTINED_PHOTO,
+    ]));
+    render(<ShopMediaSection />);
+    const grid = screen.getByRole("region", { name: /shop media items/i });
+    const ai = within(grid).getByRole("button", { name: /repainted sign/i });
+    expect(within(ai).getByText("AI edited")).toBeTruthy();
+    expect(within(ai).getByText(/repaint: moe sign to nick's/i)).toBeTruthy();
+    expect(ai.getAttribute("aria-label")).toMatch(/ai edited/i);
+    const real = within(grid).getByRole("button", { name: /brake rotor on the lift/i });
+    expect(within(real).queryByText("AI edited")).toBeNull();
+  });
+
+  it("a rights status other than real_shop or AI is named as itself", () => {
+    h.queries.set("shopMedia.list", listPage([item({ assetId: "odd", subject: "Stock wheel", rightsStatus: "licensed_stock" })]));
+    render(<ShopMediaSection />);
+    expect(within(screen.getByRole("button", { name: /stock wheel/i })).getByText("licensed_stock")).toBeTruthy();
+  });
+
+  it("a failed review refetches list and counts and says the list was refreshed", () => {
+    h.queries.set("shopMedia.list", listPage([QUARANTINED_PHOTO]));
+    h.reviewError = new Error("conflict");
+    render(<ShopMediaSection />);
+    fireEvent.click(within(screen.getByRole("region", { name: /shop media items/i })).getByRole("button", { name: /brake rotor on the lift/i }));
+    const bar = screen.getByRole("region", { name: /selection/i });
+    fireEvent.click(within(bar).getByRole("button", { name: /^approve$/i }));
+    fireEvent.click(within(bar).getByRole("button", { name: /confirm approve/i }));
+    expect(h.refetch.list).toHaveBeenCalled();
+    expect(h.refetch.stats).toHaveBeenCalled();
+    expect(vi.mocked(toast.error).mock.calls[0]?.[0]).toMatch(/some items may have changed, list refreshed/i);
+  });
+
   it("a video card shows its duration as m:ss", () => {
     h.queries.set("shopMedia.list", listPage([QUARANTINED_VIDEO]));
     render(<ShopMediaSection />);
@@ -289,9 +331,35 @@ describe("RealClipPicker: a reel beat binds an approved vertical clip", () => {
     const onChange = vi.fn();
     render(<RealClipPicker beat={{ beatNumber: 2, visual: "torque the lug nuts" }} onChange={onChange} />);
     fireEvent.click(screen.getByRole("button", { name: /use real clip/i }));
-    expect(lastInput("shopMedia.list")).toMatchObject({ state: "approved", kind: "video", orientation: "vertical" });
+    expect(lastInput("shopMedia.list")).toMatchObject({ state: "approved", kind: "video", orientation: "vertical", bindable: true });
     fireEvent.click(screen.getByRole("button", { name: /lug nuts torqued/i }));
-    expect(onChange).toHaveBeenCalledWith({ source: "real", realAssetId: "ok-tall" });
+    expect(onChange).toHaveBeenCalledWith({ source: "real", realAssetId: "ok-tall", sourceBeforeRealClip: null });
+  });
+
+  it("select then remove on a deterministic beat restores deterministic", () => {
+    h.queries.set("shopMedia.list", listPage([APPROVED_VERTICAL]));
+    const onChange = vi.fn();
+    const start = { beatNumber: 4, visual: "price card", source: "deterministic" as const };
+    const { rerender } = render(<RealClipPicker beat={start} onChange={onChange} />);
+    fireEvent.click(screen.getByRole("button", { name: /use real clip/i }));
+    fireEvent.click(screen.getByRole("button", { name: /lug nuts torqued/i }));
+    const picked = onChange.mock.calls.at(-1)![0];
+    expect(picked).toEqual({ source: "real", realAssetId: "ok-tall", sourceBeforeRealClip: "deterministic" });
+    rerender(<RealClipPicker beat={{ ...start, ...picked }} onChange={onChange} />);
+    fireEvent.click(screen.getByRole("button", { name: /remove clip/i }));
+    expect(onChange.mock.calls.at(-1)![0]).toEqual({ source: "deterministic", realAssetId: undefined, sourceBeforeRealClip: undefined });
+  });
+
+  it("select then remove on a beat with no source goes back to no source", () => {
+    h.queries.set("shopMedia.list", listPage([APPROVED_VERTICAL]));
+    const onChange = vi.fn();
+    const start = { beatNumber: 5, visual: "x" };
+    const { rerender } = render(<RealClipPicker beat={start} onChange={onChange} />);
+    fireEvent.click(screen.getByRole("button", { name: /use real clip/i }));
+    fireEvent.click(screen.getByRole("button", { name: /lug nuts torqued/i }));
+    rerender(<RealClipPicker beat={{ ...start, ...onChange.mock.calls.at(-1)![0] }} onChange={onChange} />);
+    fireEvent.click(screen.getByRole("button", { name: /remove clip/i }));
+    expect(onChange.mock.calls.at(-1)![0]).toEqual({ source: undefined, realAssetId: undefined, sourceBeforeRealClip: undefined });
   });
 
   it("a bound beat shows the chosen clip's duration", () => {

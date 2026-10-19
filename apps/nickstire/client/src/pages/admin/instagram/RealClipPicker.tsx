@@ -22,11 +22,26 @@ export interface RealClipBeat {
   visual?: string | null;
   source?: ShotSource | null;
   realAssetId?: string | null;
+  /**
+   * The source the beat had before a clip was bound (null = it had none), so Remove restores a
+   * deterministic / still_motion / ai_illustrative beat instead of wiping its route. Client-side
+   * bookkeeping only: the enqueue schema does not read it.
+   */
+  sourceBeforeRealClip?: ShotSource | null;
 }
 
-export type RealClipPatch =
-  | { source: "real"; realAssetId: string }
-  | { source: undefined; realAssetId: undefined };
+export type RealClipPatch = {
+  source: ShotSource | undefined;
+  realAssetId: string | undefined;
+  sourceBeforeRealClip: ShotSource | null | undefined;
+};
+
+/**
+ * bindable (PR 3177 review): the server lane is adding it so the list only offers clips
+ * verifyRealShopVideoRow will accept. Held in a const so the excess-property check does not
+ * fail on a tree where the router input does not list it yet (zod strips it there).
+ */
+const CLIP_QUERY = { state: "approved", kind: "video", orientation: "vertical", bindable: true, limit: 24 } as const;
 
 const clipTitle = (item: ShopMediaItem) => item.subject?.trim() || `Clip ${item.assetId}`;
 
@@ -41,7 +56,7 @@ export default function RealClipPicker({ beat, onChange }: { beat?: RealClipBeat
   const [open, setOpen] = useState(false);
   const [chosen, setChosen] = useState<ShopMediaItem | null>(null);
   const clips = trpc.shopMedia.list.useInfiniteQuery(
-    { state: "approved", kind: "video", orientation: "vertical", limit: 24 },
+    CLIP_QUERY,
     { enabled: open, staleTime: 60_000, getNextPageParam: (last) => last.nextCursor ?? undefined },
   );
   const items = clips.data?.pages.flatMap((page) => page.items) ?? [];
@@ -55,7 +70,9 @@ export default function RealClipPicker({ beat, onChange }: { beat?: RealClipBeat
   const pick = (item: ShopMediaItem) => {
     setChosen(item);
     setOpen(false);
-    onChange({ source: "real", realAssetId: item.assetId });
+    // Changing clips keeps the ORIGINAL prior source, not "real" from the first pick.
+    const prior = beat.sourceBeforeRealClip !== undefined ? beat.sourceBeforeRealClip : (beat.source ?? null);
+    onChange({ source: "real", realAssetId: item.assetId, sourceBeforeRealClip: prior });
   };
 
   let panel: ReactNode = null;
@@ -138,7 +155,12 @@ export default function RealClipPicker({ beat, onChange }: { beat?: RealClipBeat
           </div>
           <button
             type="button"
-            onClick={() => { setChosen(null); onChange({ source: undefined, realAssetId: undefined }); }}
+            onClick={() => {
+              setChosen(null);
+              // Unknown history (bound elsewhere) keeps the current source, which honestly reads "needs real footage".
+              const restored = beat.sourceBeforeRealClip !== undefined ? (beat.sourceBeforeRealClip ?? undefined) : (beat.source ?? undefined);
+              onChange({ source: restored, realAssetId: undefined, sourceBeforeRealClip: undefined });
+            }}
             className="min-h-12 shrink-0 px-2 text-sm text-muted-foreground underline"
           >
             Remove clip
