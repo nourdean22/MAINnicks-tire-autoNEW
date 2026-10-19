@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "docs/koalafi-direct-api-contract",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "9dcc8dd1-629a-4a72-9616-d033570d2fee",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\shop-ip-camera-access-857719",
   "claimedBy": "2026-10-19-koalafi-direct-api-contract (docs: Koalafi Direct API contract, portal findings)",
   "claimedAt": "2026-10-19T01:03:40.353Z",
   "expiresAt": "2026-10-19T13:03:40.353Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": null
+  "releasedAt": "2026-10-19T01:30:30.856Z",
+  "releaseReason": "PR #3164 merged 02332b450 at 01:29Z; squash deleted the branch",
+  "priorLeaseSha": "2a4778c40dd320768e2f3bb9b3cd6c6de2dfd49f",
+  "releasedBy": "9dcc8dd1-629a-4a72-9616-d033570d2fee",
+  "foreignReleaseReason": null
 }
