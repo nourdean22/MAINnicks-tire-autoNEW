@@ -18,7 +18,7 @@ import { navTargetSearch, resolveNavTarget } from "./registry";
 
 const PATH_SLUGS: Record<string, string> = { quotes: "leads" };
 
-export function adminPathTarget(rest: string): string {
+function adminPathTarget(rest: string): string {
   const [first = "", second = ""] = rest.split("/").filter(Boolean);
   const slug = PATH_SLUGS[first.toLowerCase()] ?? first;
   const target = resolveNavTarget(slug);
