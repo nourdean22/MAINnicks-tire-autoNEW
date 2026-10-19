@@ -18,43 +18,46 @@ import path from "node:path";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BusinessEvent } from "./eventBus";
 
-type Fixture = { data: Record<string, unknown>; mark: string };
+type Fixture = { data: Record<string, unknown>; mark: string | null; pii: string[] };
 
-// Realistic payloads, shaped like each type's real emitter. `mark` is a value unique to
-// the event that must reach statenour if the copy is faithful. `n` makes a distinct event.
+// Realistic payloads, shaped like each type's real emitter. `mark` is a non-customer value
+// unique to the event (an id or a reference) that must reach statenour if the copy is
+// faithful; null where the emitter's only distinguishing values identify the customer.
+// `pii` are the customer names, phones and customer- or staff-written text that must never
+// reach statenour (wave 4, job 2026-10-18-bdnick-prune). `n` makes a distinct event.
 const FIXTURES: Record<BusinessEvent, (n: number) => Fixture> = {
   // emit.leadCaptured (routers/lead.ts)
-  lead_captured: n => ({ data: { id: 7100 + n, name: `Lead ${n}`, phone: `216555010${n}`, source: "web", urgencyScore: 3 }, mark: `Lead ${n}` }),
+  lead_captured: n => ({ data: { id: 7100 + n, name: `Lead ${n}`, phone: `216555010${n}`, source: "web", urgencyScore: 3 }, mark: `"leadId":${7100 + n}`, pii: [`Lead ${n}`, `216555010${n}`] }),
   // emit.callbackRequested (routers/callback.ts)
-  callback_requested: n => ({ data: { name: `Caller ${n}`, phone: `216555020${n}`, reason: null }, mark: `216555020${n}` }),
+  callback_requested: n => ({ data: { name: `Caller ${n}`, phone: `216555020${n}`, reason: `call Caller ${n}` }, mark: null, pii: [`Caller ${n}`, `216555020${n}`] }),
   // emit.bookingCreated (routers/booking.ts)
-  booking_created: n => ({ data: { id: 7200 + n, name: `Booker ${n}`, phone: `216555030${n}`, service: "brakes", urgency: "normal", refCode: `REF${n}` }, mark: `REF${n}` }),
+  booking_created: n => ({ data: { id: 7200 + n, name: `Booker ${n}`, phone: `216555030${n}`, service: "brakes", urgency: "normal", refCode: `REF${n}` }, mark: `REF${n}`, pii: [`Booker ${n}`, `216555030${n}`] }),
   // emit.bookingCompleted (routers/booking.ts)
-  booking_completed: n => ({ data: { id: 7300 + n, name: `Done ${n}`, service: "tires" }, mark: `Done ${n}` }),
+  booking_completed: n => ({ data: { id: 7300 + n, name: `Done ${n}`, service: "tires" }, mark: `"bookingId":${7300 + n}`, pii: [`Done ${n}`] }),
   // emit.tireOrderPlaced (routers/gatewayTire.ts)
-  tire_order_placed: n => ({ data: { orderNumber: `TO-${n}`, customerName: `Tire ${n}`, tireBrand: "B", tireModel: "M", quantity: 4, totalAmount: 400 + n }, mark: `TO-${n}` }),
+  tire_order_placed: n => ({ data: { orderNumber: `TO-${n}`, customerName: `Tire ${n}`, tireBrand: "B", tireModel: "M", quantity: 4, totalAmount: 400 + n }, mark: `TO-${n}`, pii: [`Tire ${n}`] }),
   // emit.invoiceCreated (routers/booking.ts)
-  invoice_created: n => ({ data: { invoiceNumber: `INV-${n}`, customerName: `Inv ${n}`, totalAmount: 100 + n, source: "booking" }, mark: `INV-${n}` }),
+  invoice_created: n => ({ data: { invoiceNumber: `INV-${n}`, customerName: `Inv ${n}`, totalAmount: 100 + n, source: "booking" }, mark: `INV-${n}`, pii: [`Inv ${n}`] }),
   // cron/jobs/reviewMonitor.ts
-  review_detected: n => ({ data: { rating: 5, reviewText: `great ${n}`, customerName: `Reviewer ${n}` }, mark: `Reviewer ${n}` }),
+  review_detected: n => ({ data: { rating: 5, reviewText: `great ${n}`, customerName: `Reviewer ${n}` }, mark: null, pii: [`Reviewer ${n}`, `great ${n}`] }),
   // emit.invoicePaid (routers/payments.ts)
-  invoice_paid: n => ({ data: { invoiceNumber: `PAID-${n}`, customerName: `Payer ${n}`, totalAmount: 200 + n, method: "card" }, mark: `PAID-${n}` }),
+  invoice_paid: n => ({ data: { invoiceNumber: `PAID-${n}`, customerName: `Payer ${n}`, totalAmount: 200 + n, method: "card" }, mark: `PAID-${n}`, pii: [`Payer ${n}`] }),
   // emit.paymentReceived
-  payment_received: n => ({ data: { orderNumber: `PO-${n}`, amount: 300 + n, customerName: `Pay ${n}`, cardLast4: "4242" }, mark: `PO-${n}` }),
+  payment_received: n => ({ data: { orderNumber: `PO-${n}`, amount: 300 + n, customerName: `Pay ${n}`, cardLast4: "4242" }, mark: `PO-${n}`, pii: [`Pay ${n}`, "4242"] }),
   // emit.estimateGenerated (routers/estimates.ts)
-  estimate_generated: n => ({ data: { vehicle: "2012 Civic", symptom: `grinding ${n}`, issueCount: 2, source: "ai_estimate_static" }, mark: `grinding ${n}` }),
+  estimate_generated: n => ({ data: { vehicle: "2012 Civic", symptom: `grinding ${n}`, issueCount: 2, source: "ai_estimate_static" }, mark: null, pii: [`grinding ${n}`] }),
   // emit.emergencyRequest (routers/emergency.ts)
-  emergency_request: n => ({ data: { name: `Stuck ${n}`, phone: `216555040${n}`, problem: `flat on I-90 ${n}`, urgency: "high" }, mark: `flat on I-90 ${n}` }),
+  emergency_request: n => ({ data: { name: `Stuck ${n}`, phone: `216555040${n}`, problem: `flat on I-90 ${n}`, urgency: "high" }, mark: null, pii: [`Stuck ${n}`, `216555040${n}`, `flat on I-90 ${n}`] }),
   // cron/jobs/crossSellOutreach.ts
-  campaign_sent: n => ({ data: { type: "cross-sell-outreach-v2", customerId: 7400 + n, phone: `216555050${n}`, service: "alignment", predictionId: `pred-${n}` }, mark: `pred-${n}` }),
+  campaign_sent: n => ({ data: { type: "cross-sell-outreach-v2", customerId: 7400 + n, phone: `216555050${n}`, service: "alignment", reason: `Customer ${n} is due`, predictionId: `pred-${n}` }, mark: `pred-${n}`, pii: [`216555050${n}`, `"customerId":${7400 + n}`, `Customer ${n} is due`] }),
   // routers/workOrders.ts
-  stage_changed: n => ({ data: { workOrderId: 7500 + n, newStatus: "in_progress", changedBy: "tech", note: `stage ${n}` }, mark: `stage ${n}` }),
+  stage_changed: n => ({ data: { workOrderId: 7500 + n, newStatus: "in_progress", changedBy: `Tech ${n}`, note: `stage ${n}` }, mark: `"workOrderId":${7500 + n}`, pii: [`Tech ${n}`, `stage ${n}`] }),
   // emit.socialPosted (routers/nick/chat.ts)
-  social_posted: n => ({ data: { platforms: [`plat-${n}`], success: true }, mark: `plat-${n}` }),
-  // not mapped by the bridge
-  mirror_synced: n => ({ data: { rows: n, table: `mirror-${n}` }, mark: `mirror-${n}` }),
-  data_refreshed: n => ({ data: { what: `refresh-${n}` }, mark: `refresh-${n}` }),
-  "social_draft:sync": n => ({ data: { id: `draft-${n}`, content: "hello", status: "pending" }, mark: `draft-${n}` }),
+  social_posted: n => ({ data: { platforms: [`plat-${n}`], success: true }, mark: `plat-${n}`, pii: [] }),
+  // not mapped by the bridge; services/shopDriverMirror.ts
+  mirror_synced: n => ({ data: { newInvoices: n, newCustomers: 0, updatedCustomers: 0, totalInvoicesFetched: n, source: `mirror-${n}` }, mark: `mirror-${n}`, pii: [] }),
+  data_refreshed: n => ({ data: { source: `refresh-${n}` }, mark: `refresh-${n}`, pii: [] }),
+  "social_draft:sync": n => ({ data: { id: `draft-${n}`, content: "hello", status: "pending" }, mark: `draft-${n}`, pii: [] }),
 };
 
 const BRIDGE_ONLY: BusinessEvent[] = [
@@ -131,11 +134,18 @@ describe("eventBus -> statenour: once, and never lossy", () => {
     expect(new Set(listed).size).toBe(listed.length);
   });
 
-  it.each(BRIDGE_ONLY.map(t => [t]))("%s: one POST, via the bridge, carrying the event's identity", async type => {
+  it.each(BRIDGE_ONLY.map(t => [t]))("%s: one POST, via the bridge, carrying the event's identity when it has a non-customer one", async type => {
     const f = FIXTURES[type](caseNo);
     await send(type, f.data);
     expect(posts.map(p => p.via)).toEqual(["bridge"]);
-    expect(posts[0].body).toContain(f.mark);
+    if (f.mark !== null) expect(posts[0].body).toContain(f.mark);
+  });
+
+  it.each([...BRIDGE_ONLY, ...SYNC_ONLY, ...MISWIRED_BOTH].map(t => [t]))("%s: no customer name, phone or written text reaches statenour on any path", async type => {
+    const f = FIXTURES[type](caseNo);
+    await send(type, f.data);
+    expect(posts.length).toBeGreaterThan(0);
+    for (const p of posts) for (const value of f.pii) expect(p.body).not.toContain(value);
   });
 
   it.each(BRIDGE_ONLY.map(t => [t]))("%s: two distinct events are two POSTs (the bridge dedupe does not merge them)", async type => {
@@ -149,7 +159,7 @@ describe("eventBus -> statenour: once, and never lossy", () => {
     await send(type, f.data);
     expect(posts.map(p => p.via)).toEqual(["direct"]);
     expect(JSON.parse(posts[0].body).type).toBe(`nickstire:${type}`);
-    expect(posts[0].body).toContain(f.mark);
+    if (f.mark !== null) expect(posts[0].body).toContain(f.mark);
   });
 
   // For these fixtures the bridge adapter now sends NOTHING (onStageChanged / onCampaignResult
@@ -161,9 +171,11 @@ describe("eventBus -> statenour: once, and never lossy", () => {
     const f = FIXTURES[type](caseNo);
     await send(type, f.data);
     const direct = posts.filter(p => p.via === "direct");
+    const mark = f.mark ?? "";
+    expect(mark).not.toBe("");
     expect(direct).toHaveLength(1);
-    expect(direct[0].body).toContain(f.mark);
-    expect(posts.filter(p => p.via === "bridge").some(p => p.body.includes(f.mark))).toBe(false);
+    expect(direct[0].body).toContain(mark);
+    expect(posts.filter(p => p.via === "bridge").some(p => p.body.includes(mark))).toBe(false);
   });
 
   it.each([
@@ -172,6 +184,9 @@ describe("eventBus -> statenour: once, and never lossy", () => {
   ] as const)("%s with an identity: posts twice (bridge + direct) until the type goes bridge-only", async (type, data, mark) => {
     await send(type, data as Record<string, unknown>);
     expect(posts.map(p => p.via).sort()).toEqual(["bridge", "direct"]);
-    for (const p of posts) expect(p.body).toContain(mark);
+    for (const p of posts) {
+      expect(p.body).toContain(mark);
+      expect(p.body).not.toContain("2165550601");
+    }
   });
 });

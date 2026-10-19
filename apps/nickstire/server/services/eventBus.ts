@@ -17,6 +17,7 @@
  */
 
 import { createLogger } from "../lib/logger";
+import { redactEventDataForStatenour } from "../lib/statenourOutbound";
 
 const log = createLogger("event-bus");
 
@@ -528,7 +529,7 @@ async function ensureInitialized(): Promise<void> {
           timestamp: event.timestamp,
           source: event.source || "nickstire",
           priority: event.priority,
-          data: event.data,
+          data: redactEventDataForStatenour(event.type, event.data),
         });
 
         // Retry with backoff — Vercel cold starts can take 3-5s

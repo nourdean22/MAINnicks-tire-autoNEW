@@ -515,10 +515,10 @@ export async function syncMemoriesToStatenour(): Promise<number> {
       headers: { "Content-Type": "application/json", "x-sync-key": syncKey },
       body: JSON.stringify({
         module: "insights",
+        // No `detail`: memory text names customers ("FULL CONVERSION: Customer ..."). StateNour shows the title instead.
         data: {
           insightType: "nick_memories",
           title: `Nick AI has ${memories.length} learned memories`,
-          detail: memories.slice(0, 10).map(m => `[${m.type}] ${m.content}`).join("\n"),
           metadata: { memoryCount: memories.length, topTypes: Object.entries(
             memories.reduce((acc, m) => { acc[m.type] = (acc[m.type] || 0) + 1; return acc; }, {} as Record<string, number>)
           )},

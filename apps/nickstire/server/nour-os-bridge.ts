@@ -28,6 +28,7 @@
 import { writeFileSync, appendFileSync, existsSync, mkdirSync } from "fs";
 import { createLogger } from "./lib/logger";
 import { getOrCreateBreaker } from "./lib/circuit-breaker";
+import { redactEventDataForStatenour } from "./lib/statenourOutbound";
 
 const log = createLogger("nour-os-bridge");
 
@@ -369,7 +370,8 @@ async function pushToCloud(event: NourOsEvent): Promise<void> {
       "Content-Type": "application/json",
       ...(SYNC_KEY ? { Authorization: `Bearer ${SYNC_KEY}` } : {}),
     };
-    const body = JSON.stringify({ events: [event] });
+    // The wire copy carries no customer name, phone or written text; EVENT_LOG and events.jsonl keep the full event.
+    const body = JSON.stringify({ events: [{ ...event, data: redactEventDataForStatenour(event.type, event.data) }] });
 
     // Push to both endpoints in parallel: sync (storage) + webhook (real-time alerts)
     const [syncRes] = await Promise.all([

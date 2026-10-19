@@ -6,6 +6,7 @@
 import { createLogger } from "../../lib/logger";
 import { getBusinessDateKey, shiftDateKey } from "../../lib/timezoneAssert";
 import { shopDayRangeSql } from "../../services/autonomyControl";
+import { redactBusinessSyncForStatenour } from "../../lib/statenourOutbound";
 import { BUSINESS } from "@shared/business";
 
 const log = createLogger("cron:statenour-sync");
@@ -431,7 +432,8 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
             "Content-Type": "application/json",
             ...(syncKey ? { "Authorization": `Bearer ${syncKey}` } : {}),
           },
-          body: JSON.stringify(payload),
+          // bdnick.info gets counts, not customers: names, phones and notes stay in nickstire.
+          body: JSON.stringify(redactBusinessSyncForStatenour(payload)),
           signal: AbortSignal.timeout(attempt === 0 ? 10000 : 20000),
         });
         if (res.ok) break;
