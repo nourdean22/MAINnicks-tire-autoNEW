@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "nickstire/photo-check-improvement-type",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "ee66da8a-fb60-434e-8ebe-990e50a73302",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\reels-batch-ops-1688b1",
+  "claimedBy": "2026-10-18-bdnick-prune photo check fix",
+  "claimedAt": "2026-10-19T12:57:58.933Z",
+  "expiresAt": "2026-10-20T00:57:58.933Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
