@@ -36,6 +36,7 @@ import { AlertTriangle, CheckCircle2, HelpCircle } from "lucide-react";
 
 import type { AdminSection } from "../shared";
 import { navigateToAdminSection } from "../shared";
+import { navigateToAdminUrl } from "../shared/navigation";
 import { type AdminSignal, exceptionFeed } from "@shared/adminSignal";
 
 export interface ExceptionFeedProps {
@@ -130,7 +131,7 @@ export default function ExceptionFeed({ signals = [], hideIds = [] }: ExceptionF
               <li key={signal.id}>
                 <button
                   type="button"
-                  onClick={() => navigateToAdminSection(signal.section as AdminSection)}
+                  onClick={() => (signal.href?.startsWith("/admin?") ? navigateToAdminUrl({ metaKey: false, ctrlKey: false, shiftKey: false, altKey: false }, signal.href, signal.section as AdminSection) : navigateToAdminSection(signal.section as AdminSection))}
                   className="w-full text-left px-4 py-3 hover:bg-muted/30 flex items-center gap-3"
                   title={unknown ? (signal.reading as { reason: string }).reason : `Source: ${signal.source}`}
                 >

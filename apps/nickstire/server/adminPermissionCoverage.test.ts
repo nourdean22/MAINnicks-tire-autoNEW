@@ -57,6 +57,9 @@ describe("every admin mutation is explicitly permissioned", () => {
     ["vapi.transferCall", "callbacks.manage"],
     ["sms.sendBlast", "marketing.manage"],
     ["gatewayTire.placeOrder", "workorders.manage"],
+    // 2026-10-19 (PR 3182): the tire markup editor moved into Tires, which tech and
+    // front_desk open; the live public markup stays an owner/manager setting.
+    ["gatewayTire.updateMarkup", "settings.manage"],
     ["financing.approve", "money.manage"],
   ])("%s resolves to %s", (path, expected) => {
     expect(permissionForAdminProcedure(path, "mutation")).toBe(expected);

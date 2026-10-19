@@ -435,7 +435,10 @@ export function resolveNavTarget(raw: string): NavTarget | null {
 /** A target refined by the legacy inner param the URL carries (growthTab=instagram -> Instagram). */
 function refineNavTarget(target: NavTarget, params: URLSearchParams): NavTarget {
   const carried = target.carryKey ? params.get(target.carryKey) : null;
-  return (carried && target.carryTo?.[carried]) || target;
+  const forward = carried ? target.carryTo?.[carried] : undefined;
+  // The forward keeps the carry key so navTargetSearch consumes it: left in the URL,
+  // growthTab=instagram would refine every later growth link back to Instagram.
+  return forward ? { ...forward, carryKey: target.carryKey } : target;
 }
 
 /** The ?query a target lands on, built over `base` (carried params survive). */
@@ -449,11 +452,9 @@ export function navTargetSearch(target: NavTarget, base: URLSearchParams): URLSe
   }
   params.delete("section");
   params.set("tab", target.section);
-  if (target.innerKey && target.innerValue) {
-    const carried = target.carryKey ? params.get(target.carryKey) : null;
-    params.set(target.innerKey, carried || target.innerValue);
-    if (target.carryKey) params.delete(target.carryKey);
-  }
+  const carried = target.carryKey ? params.get(target.carryKey) : null;
+  if (target.innerKey && target.innerValue) params.set(target.innerKey, carried || target.innerValue);
+  if (target.carryKey) params.delete(target.carryKey);
   return params;
 }
 
@@ -523,10 +524,16 @@ export function SectionContent({ section }: { section: AdminSection }) {
   );
 }
 
+/** The raw slug, from both params as resolveCurrentUrl reads them (a legacy ?section= too). */
+function readRawSlug(): string | null {
+  const q = new URLSearchParams(window.location.search);
+  return q.get("tab") || q.get("section");
+}
+
 export function useAdminNavigation() {
   // Read before resolution rewrites the URL: a role refusal names what was asked for.
   const [initialRaw] = useState<string | null>(() =>
-    typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("tab"),
+    typeof window === "undefined" ? null : readRawSlug(),
   );
   const [initial] = useState(resolveInitialSection);
   const [section, setSectionState] = useState<AdminSection>(initial.section);
@@ -574,7 +581,7 @@ export function useAdminNavigation() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const handlePopState = () => {
-      const raw = new URLSearchParams(window.location.search).get("tab");
+      const raw = readRawSlug();
       const r = resolveCurrentUrl();
       if (r.unresolvedSlug) {
         // setSectionState/setUnresolvedSlug directly, because the setSection

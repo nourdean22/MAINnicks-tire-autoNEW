@@ -300,3 +300,23 @@ describe("approvals signal (0111 trust ladder)", () => {
     expect(badgeFor(all, "approvals")).toEqual({ state: "not_measured" });
   });
 });
+
+// PR 3182 review: membership warnings live on Customers > Members, which only
+// owner, manager and accountant can open (innerTabs.ts).
+describe("membership warnings follow the Members tab", () => {
+  it("the signal links to Customers > Members", () => {
+    const sig = buildAdminSignals(inputs({ role: "owner" })).find((x) => x.id === "membership-warnings");
+    expect(sig?.href).toBe("/admin?tab=customers&customersTab=members");
+  });
+
+  it.each(["front_desk", "tech", "viewer"] as const)("%s, who cannot open Members, gets no membership signal", (role) => {
+    const all = buildAdminSignals(inputs({ role }));
+    expect(all.some((x) => x.id === "membership-warnings")).toBe(false);
+  });
+
+  it("control: owner, manager and accountant keep it", () => {
+    for (const role of ["owner", "manager", "accountant"] as const) {
+      expect(buildAdminSignals(inputs({ role })).some((x) => x.id === "membership-warnings"), role).toBe(true);
+    }
+  });
+});

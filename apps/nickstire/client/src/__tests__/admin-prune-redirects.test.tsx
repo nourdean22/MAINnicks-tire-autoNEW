@@ -15,6 +15,7 @@ import { act, renderHook } from "@testing-library/react";
 import * as registry from "../pages/admin/registry";
 import * as innerTabs from "../pages/admin/innerTabs";
 import { actionVisibleToRole, visibleSectionShortcuts } from "../components/admin/CommandSearch";
+import { permissionForAdminProcedure } from "@shared/adminPermissions";
 
 const { useAdminNavigation, sectionsForRole, ADMIN_REGISTRY, getSidebarGroups } = registry;
 
@@ -236,5 +237,34 @@ describe("review round 1: the palette", () => {
     expect(actionVisibleToRole(list, ACCOUNTANT, "accountant")).toBe(false);
     expect(visibleSectionShortcuts(ACCOUNTANT, "accountant").map((s) => s.id)).not.toContain("customers");
     expect(visibleSectionShortcuts(OWNER, "owner").map((s) => s.id)).toContain("customers");
+  });
+});
+
+// ── PR 3182 review (Codex) ───────────────────────────────────────────────────
+describe("PR 3182 review", () => {
+  it("the tire markup save needs settings.manage (owner/manager), not workorders.manage", () => {
+    expect(permissionForAdminProcedure("gatewayTire.updateMarkup", "mutation")).toBe("settings.manage");
+    // control: the rest of gatewayTire.* is unchanged
+    expect(permissionForAdminProcedure("gatewayTire.placeOrder", "mutation")).toBe("workorders.manage");
+  });
+
+  it("the growthTab=instagram forward consumes growthTab, so a later growth link opens Local", () => {
+    window.history.replaceState(null, "", "/admin?tab=growth&growthTab=instagram");
+    const { result } = renderHook(() => useAdminNavigation());
+    expect(result.current.section).toBe("instagram");
+    expect(params().get("growthTab")).toBeNull();
+    act(() => {
+      window.dispatchEvent(new CustomEvent("admin:navigate-section", { detail: { section: "growth" } }));
+    });
+    expect(result.current.section).toBe("content");
+    expect(params().get("contentTab")).toBe("local");
+  });
+
+  it("a refused legacy ?section= link names its slug in the role notice", () => {
+    window.history.replaceState(null, "", "/admin?section=settings");
+    const { result } = renderHook(() => useAdminNavigation());
+    act(() => result.current.denySection("overview"));
+    expect(result.current.unresolvedSlug).toBe("settings");
+    expect(result.current.unresolvedReason).toBe("role");
   });
 });

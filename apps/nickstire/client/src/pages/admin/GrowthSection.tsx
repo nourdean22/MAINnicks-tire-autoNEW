@@ -166,7 +166,7 @@ export function LocalGrowthTab() {
           <li>Post the GBP Q&A seeds (next tab over): ~15 min, highest local-SEO ROI.</li>
           <li>Shoot this week's 6 photos (Photo Queue tab) and upload to GBP.</li>
           <li>Work the Entity / Brand checklist top-to-bottom (GBP first).</li>
-          <li>Reply to draft reviews from the Review Replies tab, worst rating first, then Mark posted (copy → paste in GBP).</li>
+          <li>Reply on Google (Business Profile reviews), worst rating first.</li>
           <li>Once a week: log the Competitors tab numbers against the baseline.</li>
         </ol>
       </Panel>

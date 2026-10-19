@@ -236,6 +236,7 @@ export default function OverviewSection() {
   const signals = useMemo(
     () =>
       buildAdminSignals({
+        role: security ? ((security.adminRole ?? "viewer") as AdminRole) : null,
         bundleFailed: isError,
         slices: bundle?.slices,
         counts: getAdminActionableCounts({ bookings, leads, callbacks }),

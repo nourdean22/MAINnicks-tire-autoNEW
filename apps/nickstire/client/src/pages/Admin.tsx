@@ -175,6 +175,7 @@ export default function Admin() {
   const signals = useMemo(
     () =>
       buildAdminSignals({
+        role: security ? ((security.adminRole ?? "viewer") as AdminRole) : null,
         bundleFailed: overviewUnavailable,
         // Per-SLICE, not per-query. A leads-only failure resolves the tRPC query
         // fine, so `overviewUnavailable` stays false and the banner never fires —

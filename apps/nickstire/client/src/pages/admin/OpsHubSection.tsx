@@ -10,7 +10,10 @@
  *   - Traffic: the former Traffic to Revenue section (owner/manager only)
  * Message Previews was cut 2026-10-19 (0 opens in 14 days; no send path exists).
  *
- * SAFETY: this section performs zero mutations. The only network calls
+ * SAFETY: Owner Actions, Reports and Search perform zero mutations. The
+ * Traffic tab (the former Traffic to Revenue section) can take two actions:
+ * draft SEO fix suggestions (seoTools.generateSeoFixDrafts) and submit the
+ * sitemaps to Google Search Console (seoTools.submitSitemaps). The rest
  * are read-only admin queries (payments.health booleans + rendered
  *  template previews). No fake numbers — anything unwired says so.
  */
@@ -87,7 +90,7 @@ export default function OpsHubSection() {
   return (
     <Section
       title="Ops Hub"
-      subtitle="Reports, owner actions, and danger-zone truth. Read-only: nothing here sends, posts, refunds, or orders."
+      subtitle={tab === "traffic" ? "Traffic can take two actions: draft SEO fix suggestions, and submit the sitemaps to Google Search Console. Nothing else here sends, posts, refunds, or orders." : "Reports, owner actions, and danger-zone truth. Read-only: nothing here sends, posts, refunds, or orders."}
       icon={<Wrench className="w-5 h-5 text-primary" />}
     >
       {accessUnknown && (
