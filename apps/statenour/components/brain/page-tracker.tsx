@@ -12,8 +12,9 @@ import { trpc } from "@/lib/trpc/client";
  * blind spots, and time-of-day habits. Opt-out: localStorage
  * 'nour:no-track' = '1'.
  *
- * The ?tab= value rides along (2026-10-18) so tab-level use of /brain and /stats is measurable;
- * a tab change inside one pathname is a visit too, hence `tab` in the effect deps.
+ * The ?tab= value is recorded separately (2026-10-19): tab-level use of /brain and /stats is
+ * measurable, but a tab click is not a page visit, so `page_visit` fires on a pathname change only
+ * and the tab goes through its own mutation and effect (eventType page_tab_visit).
  */
 const NO_TRACK_KEY = "nour:no-track";
 
@@ -29,6 +30,7 @@ export function PageTracker() {
   const pathname = usePathname();
   const tab = useSearchParams()?.get("tab") || null;
   const pageVisit = trpc.brain.pageVisit.useMutation();
+  const pageTabVisit = trpc.brain.pageTabVisit.useMutation();
 
   useEffect(() => {
     if (!pathname) return;
@@ -38,10 +40,16 @@ export function PageTracker() {
     pageVisit.mutate({
       page: pathname,
       referrer: typeof document !== "undefined" ? document.referrer : null,
-      ...(tab ? { tab } : {}),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname, tab]); // Silent fail
+  }, [pathname]); // Silent fail
+
+  useEffect(() => {
+    if (!pathname || !tab) return;
+    if (trackingOptedOut()) return;
+    pageTabVisit.mutate({ page: pathname, tab });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname, tab]);
 
   return null; // Invisible component
 }

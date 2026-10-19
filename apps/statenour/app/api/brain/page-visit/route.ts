@@ -24,7 +24,7 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request) {
   await requireSession(req);
   const body = await req.json().catch(() => ({}));
-  const { page, referrer, tab } = body as { page?: unknown; referrer?: unknown; tab?: unknown };
+  const { page, referrer } = body as { page?: unknown; referrer?: unknown };
 
   if (!page || typeof page !== "string") {
     return NextResponse.json({ ok: false }, { status: 400 });
@@ -33,7 +33,6 @@ export async function POST(req: Request) {
   const result = await recordPageVisit({
     page,
     referrer: typeof referrer === "string" ? referrer : null,
-    tab: typeof tab === "string" ? tab.slice(0, 64) : null,
   });
   return NextResponse.json(result);
 }

@@ -90,6 +90,7 @@ import {
   buildGraphNeighborhood,
   buildActivityStream,
   recordPageVisit,
+  recordPageTabVisit,
   buildSuggestionStats,
 } from "@/lib/services/brain-domain";
 import {
@@ -987,12 +988,19 @@ export const brainRouter = router({
       z.object({
         page: z.string().min(1).max(512),
         referrer: z.string().max(2048).nullable().optional(),
-        tab: z.string().max(64).nullable().optional(),
       }),
     )
     .mutation(async ({ input }) =>
-      recordPageVisit({ page: input.page, referrer: input.referrer, tab: input.tab }),
+      recordPageVisit({ page: input.page, referrer: input.referrer }),
     ),
+
+  /**
+   * Owner-only · a ?tab= view of a page (/brain has 9 tabs, /stats 3). Its own eventType
+   * (page_tab_visit): a tab click is not a page visit and must not move the page_visit counters.
+   */
+  pageTabVisit: operatorProcedure
+    .input(z.object({ page: z.string().min(1).max(512), tab: z.string().min(1).max(64) }))
+    .mutation(async ({ input }) => recordPageTabVisit({ page: input.page, tab: input.tab })),
 
   /**
    * Phase B.6d · owner-only · the current task-pattern clusters from

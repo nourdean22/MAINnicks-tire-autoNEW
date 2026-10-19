@@ -1133,12 +1133,6 @@ export interface PageVisitResult {
 export async function recordPageVisit(args: {
   page: string;
   referrer?: string | null;
-  /**
-   * The ?tab= value of the visit (/brain has 9 tabs, /stats 3). Stored in `payload`
-   * ONLY: GET /api/brain/page-visit and lib/brain/page-intelligence.ts group and
-   * compare by `detail`, which must stay the bare path.
-   */
-  tab?: string | null;
 }): Promise<PageVisitResult> {
   try {
     const hour = hourET();
@@ -1154,7 +1148,6 @@ export async function recordPageVisit(args: {
         payload: {
           page: args.page,
           referrer: args.referrer || null,
-          ...(args.tab ? { tab: args.tab } : {}),
           hour,
           dayOfWeek,
           timestamp: new Date().toISOString(),
@@ -1166,6 +1159,29 @@ export async function recordPageVisit(args: {
     // Fail silently — tracking is non-critical.
     return { ok: true };
   }
+}
+
+/**
+ * Record that a tab (?tab=) of a page was viewed. NOT a page visit: page-intelligence, the page-visit
+ * GET, the pipeline's late-night count and system-actions all count `page_visit` rows, so a tab view
+ * written there would inflate topPages, avgDailyVisits and totalVisits. It gets its own eventType;
+ * `detail` is the bare path, the tab is in `payload`. Fail-silent like recordPageVisit.
+ */
+export async function recordPageTabVisit(args: { page: string; tab?: string | null }): Promise<PageVisitResult> {
+  if (!args.tab) return { ok: true };
+  try {
+    await prisma.auditEvent.create({
+      data: {
+        actor: "page_tracker",
+        eventType: "page_tab_visit",
+        detail: args.page,
+        payload: { page: args.page, tab: args.tab, hour: hourET(), timestamp: new Date().toISOString() },
+      },
+    });
+  } catch {
+    // Fail silently — tracking is non-critical.
+  }
+  return { ok: true };
 }
 
 // ──────────────── suggestion-cache telemetry ────────────────
