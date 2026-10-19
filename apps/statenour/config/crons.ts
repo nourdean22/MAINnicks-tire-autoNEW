@@ -682,6 +682,19 @@ export const CRONS: CronDef[] = [
     maxDuration: 60,
   },
   {
+    // 2026-10-19 · wave 2V review · the digest's only scheduler was the 4h read-through in
+    // GET /api/ultron/health-digest, called by the SystemHealthCard on the cut /system/health page.
+    name: "health-digest",
+    schedule: null,
+    mode: "folded",
+    category: "review",
+    foldedInto: "mega-evening",
+    addedAt: "2026-10-19",
+    description: "FOLDED into mega-evening · recomputes + persists the system health digest (BrainMemory system_health_digest) that Brain Health Time Travel and the Google OAuth-expiry highlight read.",
+    memory: 512,
+    maxDuration: 60,
+  },
+  {
     // 2026-07-11 · resurrected. Deleted in the Wave-AE prune and never
     // re-wired — computeIdentitySnapshot had ZERO scheduled callers, so the
     // 8-axis self-model froze at the last manual refresh and every consumer
