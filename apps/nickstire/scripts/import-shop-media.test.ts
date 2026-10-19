@@ -54,7 +54,8 @@ let dir = "";
 let catalogPath = "";
 
 /** The sample fixture, pointed at tiny real files whose sha256 is computed here. */
-function writeCatalog(mutate?: (c: { version: number; items: Array<Record<string, unknown>> }) => void): string {
+type Cat = { version: number; items: Array<Record<string, unknown>> };
+function writeCatalog(mutate?: (c: Cat) => void): string {
   const catalog = JSON.parse(fs.readFileSync(FIXTURE, "utf8"));
   for (const item of catalog.items) {
     const ext = path.extname(item.file);
@@ -103,11 +104,11 @@ describe("import-shop-media dry run (the default)", () => {
   });
 
   it("refuses an item whose file no longer hashes to the catalog sha256", async () => {
-    const p = writeCatalog((c) => { c.items[0].sha256 = "f".repeat(64); });
+    const p = writeCatalog((c) => { c.items[2].sha256 = "f".repeat(64); });
     const { out, io: sink } = io();
     expect(await run([p], sink)).toBe(0);
-    expect(out.join("\n")).toMatch(/refused sha_mismatch: 1/);
-    expect(out.join("\n")).toMatch(/kind photo: 1 to import/);
+    expect(out.join("\n")).toMatch(/refused sha_mismatch: 1 \(REC-VIDEO-V\)/);
+    expect(out.join("\n")).toMatch(/kind video: 1 to import/);
   });
 
   it("reads the catalog path wherever it sits in argv (a --limit value is not the catalog)", async () => {
@@ -121,6 +122,28 @@ describe("import-shop-media dry run (the default)", () => {
     const { out, io: sink } = io();
     expect(await run([p], sink)).toBe(0);
     expect(out.join("\n")).toMatch(/kind photo: 2 to import/);
+  });
+
+  it.each([
+    ["names no original", (c: Cat) => { c.items[3].derivedFrom = null; }],
+    ["names an original not in the catalog", (c: Cat) => { c.items[3].derivedFrom = "REC-NOT-THERE"; }],
+    ["names another AI edit as its original", (c: Cat) => { c.items[0].edit = { recipe: "x", generative: true }; c.items[0].derivedFrom = "REC-VIDEO-H"; c.items[3].derivedFrom = "REC-PHOTO-1"; }],
+    ["names an id two catalog items share", (c: Cat) => { c.items[1].id = "REC-PHOTO-1"; }],
+  ])("refuses the WHOLE catalog when an AI edit %s, before any upload", async (_label, mutate) => {
+    const p = writeCatalog(mutate);
+    const { out, io: sink } = io();
+    expect(await run([p, "--execute"], sink)).toBe(2);
+    expect(out.join(" ")).toMatch(/REFUSING the whole catalog/);
+    expect(h.loaded).toEqual({ db: false, storage: false, registry: false });
+    expect(h.puts).toHaveLength(0);
+  });
+
+  it("an AI edit whose original is refused here is refused too (it would land with no lineage)", async () => {
+    const p = writeCatalog((c) => { c.items[0].sha256 = "f".repeat(64); });
+    const { out, io: sink } = io();
+    expect(await run([p], sink)).toBe(0);
+    expect(out.join("\n")).toMatch(/refused original_not_imported: 1 \(REC-REPAINT\)/);
+    expect(out.join("\n")).toMatch(/kind photo: 0 to import/);
   });
 
   it("refuses the WHOLE catalog on a schema error, before any import", async () => {

@@ -1,6 +1,7 @@
 /**
  * shopMedia — Nour's imported shop photos and videos (contract v1, 2026-10-18).
  * Nothing the importer registers is reusable until `review` approves it.
+ * Owner-only: shared/adminPermissions.ts maps shopMedia.* to security.manage.
  * Behaviour lives in services/shopMediaLibrary.ts; this file is the boundary.
  */
 import { TRPCError } from "@trpc/server";
@@ -25,6 +26,7 @@ export const shopMediaRouter = router({
       tag: z.string().max(64).optional(),
       cursor: z.number().int().min(0).max(1_000_000).optional(),
       limit: z.number().int().min(1).max(60).optional(),
+      bindable: z.boolean().optional(),
     }))
     .query(async ({ input }) => listShopMedia(await requireDatabase(), input)),
 

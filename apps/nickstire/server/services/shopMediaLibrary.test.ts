@@ -25,7 +25,7 @@ const params = (gp: Record<string, unknown>) => JSON.stringify(gp);
 const listRow = (id: string, people: string, tags: string[], over: Row = {}): Row => ({
   id, runtimeUrl: `https://cdn.test/${id}.jpg`, format: "image", width: 1080, height: 1350, durationMs: null,
   rightsStatus: "real_shop", lifecycleState: "quarantined", reuseAllowed: 0,
-  generationParamsJson: params({ capturedAt: "2024-05-11T14:02:00.000Z", faces: 1, triage: { subject: "rotor", tags, quality: 4, moe: false, people, plate: false } }),
+  generationParamsJson: params({ capturedAt: "2024-05-11T14:02:00.000Z", faces: 1, triage: { subject: "rotor", tags, quality: 4, moe: false, people, plate: false }, edit: { recipe: "auto-exposure", generative: false } }),
   ...over,
 });
 
@@ -84,7 +84,7 @@ describe("listShopMedia", () => {
     expect(out.items[0]).toMatchObject({
       assetId: "a", url: "https://cdn.test/a.jpg", kind: "photo", width: 1080, height: 1350, durationMs: null,
       capturedAt: "2024-05-11T14:02:00.000Z", subject: "rotor", tags: ["brakes"], faces: 1, moe: false, people: "staff",
-      plate: false, quality: 4, rightsStatus: "real_shop", lifecycleState: "quarantined", reuseAllowed: false,
+      plate: false, quality: 4, rightsStatus: "real_shop", lifecycleState: "quarantined", reuseAllowed: false, editRecipe: "auto-exposure",
     });
     expect(out.nextCursor).toBeNull();
   });
@@ -105,6 +105,26 @@ describe("listShopMedia", () => {
     expect(out.items.map((i) => i.assetId)).toEqual(["a"]);
   });
 
+  it("bindable: only rows the real-beat binder would accept (no AI edit, no missing duration)", async () => {
+    const video = (id: string, over: Row = {}): Row => listRow(id, "none", [], {
+      format: "video", mimeType: "video/mp4", runtimeUrl: `https://cdn.test/${id}.mp4`, durationMs: 6000, width: 1080, height: 1920,
+      lifecycleState: "available", reuseAllowed: 1, isCurrent: 1, checksumSha256: "a".repeat(64), ...over,
+    });
+    const rows = [
+      video("real_ok"),
+      video("ai_edit", { rightsStatus: "ai_generated" }),
+      video("no_duration", { durationMs: null }),
+      video("zero_duration", { durationMs: 0 }),
+      video("bad_sum", { checksumSha256: "nope" }),
+    ];
+    const { db, calls } = listDb(rows);
+    const out = await listShopMedia(db, { state: "approved", kind: "video", bindable: true });
+    expect(out.items.map((i) => i.assetId)).toEqual(["real_ok"]);
+    const q = render(calls.where);
+    expect(q.params).toEqual(expect.arrayContaining(["real_shop"]));
+    expect(q.sql).toMatch(/`duration_ms` > \?/);
+  });
+
   it("EMPTY-VS-ERROR: a failed read throws, never an empty page", async () => {
     await expect(listShopMedia(listDb([], { fail: new Error("ETIMEDOUT") }).db, { state: "approved" })).rejects.toThrow("ETIMEDOUT");
   });
@@ -114,7 +134,7 @@ describe("listShopMedia", () => {
 function reviewDb(rows: Row[], affected: (n: number) => number = () => 1, reread: Row[] = rows, fail?: Error) {
   const updates: Array<{ set: Row; where: unknown }> = [];
   let reads = 0;
-  const db = {
+  const tx = {
     select: () => ({
       from: () => ({
         where: async () => {
@@ -128,12 +148,21 @@ function reviewDb(rows: Row[], affected: (n: number) => number = () => 1, reread
       set: (set: Row) => ({
         where: async (where: unknown) => {
           updates.push({ set, where });
-          return [{ affectedRows: affected(updates.length) }];
+          const n = affected(updates.length);
+          if (n < 0) throw new Error("connection lost mid-batch");
+          return [{ affectedRows: n }];
         },
       }),
     }),
+  };
+  let transactions = 0;
+  // Writes outside the transaction throw: the batch must be one unit.
+  const db = {
+    select: () => { throw new Error("read outside the review transaction"); },
+    update: () => { throw new Error("write outside the review transaction"); },
+    transaction: async (fn: (t: typeof tx) => unknown) => { transactions += 1; return fn(tx); },
   } as unknown as DB;
-  return { db, updates };
+  return { db, updates, transactions: () => transactions };
 }
 const reviewRow = (id: string, lifecycleState: string, provider: string, reuseAllowed = 0): Row => ({ id, lifecycleState, provider, reuseAllowed, isCurrent: 1 });
 
@@ -177,6 +206,16 @@ describe("reviewShopMedia", () => {
     expect(out.skipped).toEqual([{ assetId: "r1", reason: "not_reviewable:rejected" }]);
     expect(updates.map((u) => u.set)).toEqual([{ lifecycleState: "rejected", reuseAllowed: 0 }, { lifecycleState: "rejected", reuseAllowed: 0 }]);
     expect(render(updates[1].where).params).toEqual(["a1", "available", "operator_ai_edit", 1, 1]);
+  });
+
+  it("ONE TRANSACTION: a mid-batch failure rejects the whole batch (rolled back), never a silent partial", async () => {
+    const { db, updates, transactions } = reviewDb(
+      [reviewRow("q1", "quarantined", "operator_capture"), reviewRow("q2", "quarantined", "operator_capture")],
+      (n) => (n === 2 ? -1 : 1),
+    );
+    await expect(reviewShopMedia(db, ["q1", "q2"], "approve")).rejects.toThrow("connection lost mid-batch");
+    expect(transactions()).toBe(1);
+    expect(updates).toHaveLength(2);
   });
 
   it("a failed read throws; nothing is written", async () => {

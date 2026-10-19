@@ -57,7 +57,28 @@ const itemSchema = z.object({
   edit: z.object({ recipe: z.string().max(500), generative: z.boolean() }),
   derivedFrom: z.string().max(128).nullable(),
 });
-const catalogSchema = z.object({ version: z.literal(1), items: z.array(itemSchema).min(1) });
+/**
+ * Lineage is checked before anything uploads: an AI edit must name exactly one
+ * real original in this catalog, or it would land with no derived_from and
+ * could not be traced back to the photo it was made from (Rule 1).
+ */
+const catalogSchema = z.object({ version: z.literal(1), items: z.array(itemSchema).min(1) }).superRefine((c, ctx) => {
+  const byId = new Map<string, z.infer<typeof itemSchema>[]>();
+  for (const i of c.items) byId.set(i.id, [...(byId.get(i.id) ?? []), i]);
+  for (const [id, list] of byId) {
+    if (list.length > 1) ctx.addIssue({ code: "custom", path: ["items"], message: `id ${id} is used by ${list.length} items` });
+  }
+  c.items.forEach((i, n) => {
+    if (!i.edit.generative) return;
+    const originals = i.derivedFrom ? byId.get(i.derivedFrom) ?? [] : [];
+    const why = !i.derivedFrom ? "names no original (derivedFrom is null)"
+      : originals.length === 0 ? `names original ${i.derivedFrom}, which is not in the catalog`
+      : originals.length > 1 ? `names original ${i.derivedFrom}, which is ambiguous`
+      : originals[0].edit.generative ? `names original ${i.derivedFrom}, which is itself an AI edit`
+      : null;
+    if (why) ctx.addIssue({ code: "custom", path: ["items", n, "derivedFrom"], message: `AI edit ${i.id} ${why}` });
+  });
+});
 
 export type CatalogItem = z.infer<typeof itemSchema>;
 export type Catalog = z.infer<typeof catalogSchema>;
@@ -120,7 +141,7 @@ function hashFile(file: string): Promise<string> {
   });
 }
 
-type Refusal = "sensitive" | "unsupported_type" | "missing_file" | "sha_mismatch" | "duplicate_in_catalog";
+type Refusal = "sensitive" | "unsupported_type" | "missing_file" | "sha_mismatch" | "duplicate_in_catalog" | "original_not_imported";
 interface Plan { importable: CatalogItem[]; skipped: CatalogItem[]; refused: Array<{ item: CatalogItem; reason: Refusal }> }
 
 /** Reads and hashes files only; never touches a database or storage. */
@@ -137,6 +158,13 @@ async function plan(catalog: Catalog): Promise<Plan> {
     seen.add(item.sha256);
     out.importable.push({ ...item, bytes: fs.statSync(item.file).size });
   }
+  // An AI edit whose original is refused or skipped here would land with no lineage: refuse it too.
+  const importableIds = new Set(out.importable.map((i) => i.id));
+  out.importable = out.importable.filter((item) => {
+    if (!item.edit.generative || (item.derivedFrom && importableIds.has(item.derivedFrom))) return true;
+    out.refused.push({ item, reason: "original_not_imported" });
+    return false;
+  });
   // Originals before AI edits, so an edit's lineage can name its original's asset id.
   out.importable.sort((a, b) => Number(a.edit.generative) - Number(b.edit.generative));
   return out;
@@ -208,6 +236,10 @@ export async function run(argv: string[], io: Io = { log: console.log, error: co
         const original = byCatalogId.get(item.derivedFrom);
         derivedId = assetIdByCatalogId.get(item.derivedFrom)
           ?? (original ? (await findByChecksum(database, original.sha256))[0]?.id ?? null : null);
+      }
+      if (item.edit.generative && !derivedId) {
+        io.error(`${item.id}: AI edit whose original ${item.derivedFrom} has no registered asset; not uploaded`);
+        continue;
       }
       const { url } = await storagePut(storageKey(item), bytes, mimeOf(item)!);
       const row = await registerAsset(database, { ...registrationFor(item, url, derivedId), byteSize: bytes.length });

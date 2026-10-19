@@ -7,7 +7,7 @@
  * "approved" = lifecycle available AND reuse_allowed=1 AND a shop-media
  * provider. Every read throws on failure: an error is never an empty library.
  */
-import { and, desc, eq, gt, gte, inArray, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, gt, gte, inArray, like, sql, type SQL } from "drizzle-orm";
 import { mediaAssets } from "../../drizzle/schema";
 import {
   SHOP_MEDIA_PROVIDERS,
@@ -21,6 +21,7 @@ import {
 } from "../../shared/shopMedia";
 import type { DB } from "../db";
 import { createLogger } from "../lib/logger";
+import { verifyRealShopVideoRow } from "./realShotBinding";
 
 const log = createLogger("services:shop-media-library");
 
@@ -39,6 +40,12 @@ export interface ListShopMediaInput {
   tag?: string;
   cursor?: number;
   limit?: number;
+  /**
+   * Only rows a Reel beat can bind: real_shop video the binder
+   * (realShotBinding.verifyRealShopVideoRow) accepts. SQL narrows, then the
+   * binder itself filters, so the picker can never offer a clip enqueue refuses.
+   */
+  bindable?: boolean;
 }
 
 function stateCondition(state: ShopMediaState): SQL {
@@ -47,26 +54,28 @@ function stateCondition(state: ShopMediaState): SQL {
 }
 
 interface Triage { subject?: unknown; tags?: unknown; quality?: unknown; moe?: unknown; people?: unknown; plate?: unknown }
-function readParams(json: string | null): { capturedAt: string | null; faces: number | null; triage: Triage } {
+function readParams(json: string | null): { capturedAt: string | null; faces: number | null; triage: Triage; editRecipe: string | null } {
   try {
-    const p = json ? (JSON.parse(json) as { capturedAt?: unknown; faces?: unknown; triage?: Triage }) : {};
+    const p = json ? (JSON.parse(json) as { capturedAt?: unknown; faces?: unknown; triage?: Triage; edit?: { recipe?: unknown } }) : {};
     return {
       capturedAt: typeof p.capturedAt === "string" ? p.capturedAt : null,
       faces: typeof p.faces === "number" ? p.faces : null,
       triage: p.triage && typeof p.triage === "object" ? p.triage : {},
+      editRecipe: typeof p.edit?.recipe === "string" ? p.edit.recipe : null,
     };
   } catch {
-    return { capturedAt: null, faces: null, triage: {} };
+    return { capturedAt: null, faces: null, triage: {}, editRecipe: null };
   }
 }
 
 type ListRow = {
   id: string; runtimeUrl: string | null; format: string; width: number | null; height: number | null; durationMs: number | null;
   rightsStatus: string; lifecycleState: string; reuseAllowed: number; generationParamsJson: string | null;
+  mimeType: string; checksumSha256: string; isCurrent: number;
 };
 
 function toItem(row: ListRow): ShopMediaItem {
-  const { capturedAt, faces, triage } = readParams(row.generationParamsJson);
+  const { capturedAt, faces, triage, editRecipe } = readParams(row.generationParamsJson);
   return {
     assetId: row.id,
     url: row.runtimeUrl,
@@ -85,6 +94,7 @@ function toItem(row: ListRow): ShopMediaItem {
     rightsStatus: row.rightsStatus,
     lifecycleState: row.lifecycleState,
     reuseAllowed: Number(row.reuseAllowed) === 1,
+    editRecipe,
   };
 }
 
@@ -99,6 +109,10 @@ export async function listShopMedia(database: DB, input: ListShopMediaInput): Pr
   if (input.kind) conditions.push(eq(mediaAssets.format, input.kind === "video" ? "video" : "image"));
   if (input.orientation === "vertical") conditions.push(gt(mediaAssets.height, mediaAssets.width));
   if (input.orientation === "horizontal") conditions.push(gte(mediaAssets.width, mediaAssets.height));
+  if (input.bindable) {
+    conditions.push(eq(mediaAssets.rightsStatus, "real_shop"), eq(mediaAssets.format, "video"), like(mediaAssets.mimeType, "video/%"),
+      eq(mediaAssets.reuseAllowed, 1), gt(mediaAssets.durationMs, 0));
+  }
   const where = and(...conditions);
 
   const items: ShopMediaItem[] = [];
@@ -108,10 +122,12 @@ export async function listShopMedia(database: DB, input: ListShopMediaInput): Pr
       id: mediaAssets.id, runtimeUrl: mediaAssets.runtimeUrl, format: mediaAssets.format, width: mediaAssets.width,
       height: mediaAssets.height, durationMs: mediaAssets.durationMs, rightsStatus: mediaAssets.rightsStatus,
       lifecycleState: mediaAssets.lifecycleState, reuseAllowed: mediaAssets.reuseAllowed, generationParamsJson: mediaAssets.generationParamsJson,
+      mimeType: mediaAssets.mimeType, checksumSha256: mediaAssets.checksumSha256, isCurrent: mediaAssets.isCurrent,
     }).from(mediaAssets).where(where)
       .orderBy(desc(mediaAssets.createdAt), desc(mediaAssets.id))
       .limit(CHUNK).offset(offset)) as ListRow[];
     for (let i = 0; i < batch.length; i++) {
+      if (input.bindable && !verifyRealShopVideoRow(0, batch[i].id, batch[i]).ok) continue;
       const item = toItem(batch[i]);
       if (input.people && item.people !== input.people) continue;
       if (input.tag && !item.tags.includes(input.tag)) continue;
@@ -132,45 +148,50 @@ function affected(result: unknown): number {
 }
 
 /**
- * Approve or reject. Each write is a compare-and-swap on the exact row state
- * read (id, lifecycle, provider, reuse, current): a row someone else changed
- * in between matches nothing and is skipped with its real new state.
+ * Approve or reject, all or nothing. Each write is a compare-and-swap on the
+ * exact row state read (id, lifecycle, provider, reuse, current): a row someone
+ * else changed in between matches nothing and is skipped with its real new state.
  */
 export async function reviewShopMedia(database: DB, assetIds: string[], decision: "approve" | "reject"): Promise<ShopMediaReviewResult> {
-  const ids = [...new Set(assetIds)];
-  const rows = (await database.select({
-    id: mediaAssets.id, lifecycleState: mediaAssets.lifecycleState, provider: mediaAssets.provider,
-    reuseAllowed: mediaAssets.reuseAllowed, isCurrent: mediaAssets.isCurrent,
-  }).from(mediaAssets).where(inArray(mediaAssets.id, ids))) as Array<{ id: string; lifecycleState: string; provider: string | null; reuseAllowed: number; isCurrent: number }>;
-  const byId = new Map(rows.map((r) => [r.id, r]));
-  const changed: string[] = [];
-  const skipped: ShopMediaReviewResult["skipped"] = [];
+  // One transaction: a mid-batch failure rolls the whole batch back and the
+  // mutation rejects, so the caller never sees an error for writes that stuck.
+  // Each row keeps its own compare-and-swap inside it.
+  return database.transaction(async (tx) => {
+    const ids = [...new Set(assetIds)];
+    const rows = (await tx.select({
+      id: mediaAssets.id, lifecycleState: mediaAssets.lifecycleState, provider: mediaAssets.provider,
+      reuseAllowed: mediaAssets.reuseAllowed, isCurrent: mediaAssets.isCurrent,
+    }).from(mediaAssets).where(inArray(mediaAssets.id, ids))) as Array<{ id: string; lifecycleState: string; provider: string | null; reuseAllowed: number; isCurrent: number }>;
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    const changed: string[] = [];
+    const skipped: ShopMediaReviewResult["skipped"] = [];
 
-  for (const id of ids) {
-    const row = byId.get(id);
-    if (!row) { skipped.push({ assetId: id, reason: "not_found" }); continue; }
-    if (!row.provider || !PROVIDERS.includes(row.provider)) { skipped.push({ assetId: id, reason: `not_shop_media:${row.provider ?? "none"}` }); continue; }
-    if (Number(row.isCurrent) !== 1) { skipped.push({ assetId: id, reason: "not_current_version" }); continue; }
-    if (decision === "approve" && row.lifecycleState !== "quarantined") { skipped.push({ assetId: id, reason: `not_quarantined:${row.lifecycleState}` }); continue; }
-    if (decision === "reject" && row.lifecycleState !== "quarantined" && row.lifecycleState !== "available") {
-      skipped.push({ assetId: id, reason: `not_reviewable:${row.lifecycleState}` }); continue;
+    for (const id of ids) {
+      const row = byId.get(id);
+      if (!row) { skipped.push({ assetId: id, reason: "not_found" }); continue; }
+      if (!row.provider || !PROVIDERS.includes(row.provider)) { skipped.push({ assetId: id, reason: `not_shop_media:${row.provider ?? "none"}` }); continue; }
+      if (Number(row.isCurrent) !== 1) { skipped.push({ assetId: id, reason: "not_current_version" }); continue; }
+      if (decision === "approve" && row.lifecycleState !== "quarantined") { skipped.push({ assetId: id, reason: `not_quarantined:${row.lifecycleState}` }); continue; }
+      if (decision === "reject" && row.lifecycleState !== "quarantined" && row.lifecycleState !== "available") {
+        skipped.push({ assetId: id, reason: `not_reviewable:${row.lifecycleState}` }); continue;
+      }
+      const result = await tx.update(mediaAssets)
+        .set(decision === "approve" ? APPROVE_SET : REJECT_SET)
+        .where(and(
+          eq(mediaAssets.id, row.id),
+          eq(mediaAssets.lifecycleState, row.lifecycleState),
+          eq(mediaAssets.provider, row.provider),
+          eq(mediaAssets.reuseAllowed, row.reuseAllowed),
+          eq(mediaAssets.isCurrent, 1),
+        ));
+      if (affected(result) === 1) { changed.push(id); continue; }
+      const [now] = await tx.select({ id: mediaAssets.id, lifecycleState: mediaAssets.lifecycleState })
+        .from(mediaAssets).where(eq(mediaAssets.id, id)) as Array<{ id: string; lifecycleState: string }>;
+      skipped.push({ assetId: id, reason: `changed_concurrently:${now?.lifecycleState ?? "missing"}` });
     }
-    const result = await database.update(mediaAssets)
-      .set(decision === "approve" ? APPROVE_SET : REJECT_SET)
-      .where(and(
-        eq(mediaAssets.id, row.id),
-        eq(mediaAssets.lifecycleState, row.lifecycleState),
-        eq(mediaAssets.provider, row.provider),
-        eq(mediaAssets.reuseAllowed, row.reuseAllowed),
-        eq(mediaAssets.isCurrent, 1),
-      ));
-    if (affected(result) === 1) { changed.push(id); continue; }
-    const [now] = await database.select({ id: mediaAssets.id, lifecycleState: mediaAssets.lifecycleState })
-      .from(mediaAssets).where(eq(mediaAssets.id, id)) as Array<{ id: string; lifecycleState: string }>;
-    skipped.push({ assetId: id, reason: `changed_concurrently:${now?.lifecycleState ?? "missing"}` });
-  }
-  log.info("shop media reviewed", { decision, changed: changed.length, skipped: skipped.length });
-  return { changed, skipped };
+    log.info("shop media reviewed", { decision, changed: changed.length, skipped: skipped.length });
+    return { changed, skipped };
+  });
 }
 
 /** Counts by state x kind over current shop-media rows. */

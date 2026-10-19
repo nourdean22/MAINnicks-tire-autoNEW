@@ -5,13 +5,13 @@
  */
 import { describe, expect, it, vi } from "vitest";
 
-const h = vi.hoisted(() => ({ db: {} as unknown, calls: [] as Array<[string, unknown]> }));
+const h = vi.hoisted(() => ({ db: {} as unknown, calls: [] as Array<[string, unknown]>, security: null as unknown }));
 vi.mock("../lib/db-helper", () => ({ db: async () => h.db, dbTyped: async () => h.db, requireDb: async () => h.db }));
 vi.mock("../db", () => ({ getDb: async () => h.db, getDbTyped: async () => h.db }));
 // A missing admin_security row is the owner fallback; a THROWING read would refuse every mutation (fail closed).
 vi.mock("../services/adminSecurity", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../services/adminSecurity")>()),
-  getAdminSecurityState: async () => null,
+  getAdminSecurityState: async () => h.security,
 }));
 vi.mock("../services/shopMediaLibrary", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../services/shopMediaLibrary")>()),
@@ -21,6 +21,7 @@ vi.mock("../services/shopMediaLibrary", async (importOriginal) => ({
 }));
 
 import { shopMediaRouter } from "./shopMedia";
+import { permissionForAdminProcedure } from "../../shared/adminPermissions";
 import type { TrpcContext } from "../_core/context";
 
 function ctx(role: "admin" | "user"): TrpcContext {
@@ -32,6 +33,22 @@ function ctx(role: "admin" | "user"): TrpcContext {
 }
 
 describe("shopMedia router", () => {
+  it("OWNER-ONLY: a viewer-role admin gets FORBIDDEN on list, review and stats (quarantined rows carry faces and plates)", async () => {
+    h.security = { adminRole: "viewer", mfaEnabled: false, mfaVerifiedAt: null, mfaAgeMinutes: null, encryptedSecret: null };
+    try {
+      // Through the REAL app router: RBAC keys on the full path (shopMedia.list), which a sub-router caller never sees.
+      const { appRouter } = await import("../routers");
+      const caller = appRouter.createCaller(ctx("admin")).shopMedia;
+      await expect(caller.list({ state: "quarantined" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+      await expect(caller.stats()).rejects.toMatchObject({ code: "FORBIDDEN" });
+      await expect(caller.review({ assetIds: ["ma_1"], decision: "approve" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+      h.security = { adminRole: "owner", mfaEnabled: false, mfaVerifiedAt: null, mfaAgeMinutes: null, encryptedSecret: null };
+      await expect(caller.list({ state: "quarantined" })).resolves.toEqual({ items: [], nextCursor: null });
+      for (const path of ["shopMedia.list", "shopMedia.stats"]) expect(permissionForAdminProcedure(path, "query")).toBe("security.manage");
+      expect(permissionForAdminProcedure("shopMedia.review", "mutation")).toBe("security.manage");
+    } finally { h.security = null; }
+  });
+
   it("is admin-only", async () => {
     await expect(shopMediaRouter.createCaller(ctx("user")).stats()).rejects.toMatchObject({ code: "FORBIDDEN" });
   });

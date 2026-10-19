@@ -36,6 +36,8 @@ export interface ShopMediaItem {
   rightsStatus: string;
   lifecycleState: string;
   reuseAllowed: boolean;
+  /** What was done to the file (catalog edit.recipe); shown on AI-edited items. Null when unreadable. */
+  editRecipe: string | null;
 }
 
 export interface ShopMediaPage {
