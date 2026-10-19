@@ -14,18 +14,28 @@
  *    Recently Used lookup resolved one id to whichever came last.
  *
  * The action list lives inside the component's useMemo, so the door checks
- * read the source (the only place the list exists without a router).
+ * read the source (the only place the list exists without a router) for the
+ * hand-written rows, and add the System rows the palette builds from the hub
+ * tiles (hubPaletteRows, UI v3 W5a). NAV rows are not added: "Talk to Nick" and
+ * "View Recent Captures" are pre-existing second doors to /chat and / (not W5a's to fix).
  * `semanticHitHref` is the exported pure decision for search hits.
  */
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 
 import { semanticHitHref } from "@/components/command-palette";
+import { hubPaletteRows } from "@/components/system/hub-cards";
+import { NAV } from "@/components/layout/nav-items";
 
 const src = readFileSync("components/command-palette.tsx", "utf8");
 
-const literalIds = [...src.matchAll(/\bid:\s*"([^"]+)"/g)].map((m) => m[1]);
-const navigateTargets = [...src.matchAll(/navigate\("([^"]+)"\)/g)].map((m) => m[1]);
+const navHrefs = NAV.flatMap((e) => [e.href, ...(e.tabs ?? []).map((t) => `${e.href}?tab=${encodeURIComponent(t.key)}`)]);
+const hubRows = hubPaletteRows(new Set(navHrefs));
+const literalIds = [...[...src.matchAll(/\bid:\s*"([^"]+)"/g)].map((m) => m[1]), ...hubRows.map((r) => r.id)];
+const navigateTargets = [
+  ...[...src.matchAll(/navigate\("([^"]+)"\)/g)].map((m) => m[1]),
+  ...hubRows.map((r) => r.href),
+];
 const dupes = (xs: string[]) => [...new Set(xs.filter((x, i) => xs.indexOf(x) !== i))];
 
 describe("command palette · doors", () => {

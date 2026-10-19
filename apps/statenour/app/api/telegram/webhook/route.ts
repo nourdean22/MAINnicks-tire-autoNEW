@@ -2073,43 +2073,49 @@ async function cmdStats(chatId: string): Promise<void> {
  */
 async function cmdAlerts(chatId: string): Promise<void> {
   const { prisma } = await import("@/lib/prisma");
-
-  const ALERT_CATS = [
-    "correlation_alert",
-    "decision_quality_drift",
-    "schema_drift_alert",
-    "storage_quota_alert",
-    "creation_spike_alert",
-    "update_spike_alert",
-    "brain_bus_alert",
-  ];
+  const { ALERT_CATEGORIES } = await import("@/lib/brain/alert-lanes");
+  const { getAlertSuppression, collectLiveAlerts } = await import("@/lib/brain/alert-suppression");
 
   // 2026-10-17 · the reply promised "the last 30 days" while the query had no
   // date filter, and the /brain mute (alert_mute rows) was ignored here. Both are
   // applied now, and a failed read is reported as unknown, never as all-clear.
+  // W5b (2026-10-18): mutes AND dismissals come from the one shared reader, so a
+  // dismissal on /system/alerts holds here too.
   let alerts: { category: string; content: string; createdAt: Date }[];
+  let moreNotShown = false;
   try {
-    const muteRows = await prisma.brainMemory.findMany({
-      where: { category: "alert_mute", deletedAt: null, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] },
-      select: { key: true },
-    });
-    const muted = new Set(muteRows.map((m) => m.key));
-    alerts = await prisma.brainMemory.findMany({
-      where: {
-        category: { in: ALERT_CATS.filter((c) => !muted.has(c)) },
-        createdAt: { gte: new Date(Date.now() - 30 * 86_400_000) },
-        deletedAt: null,
-      },
-      orderBy: { createdAt: "desc" },
-      take: 5,
-      select: { category: true, content: true, createdAt: true },
-    });
+    const suppression = await getAlertSuppression();
+    const since = new Date(Date.now() - 30 * 86_400_000);
+    // Pages past dismissed rows until five live alerts are found (shared helper, bounded);
+    // a hit bound is "more not shown", never the all-clear.
+    const live = await collectLiveAlerts(
+      (skip, take) =>
+        prisma.brainMemory.findMany({
+          where: {
+            category: { in: ALERT_CATEGORIES.filter((c) => !suppression.mutedCategories.has(c)) },
+            createdAt: { gte: since },
+            deletedAt: null,
+          },
+          orderBy: { createdAt: "desc" },
+          skip,
+          take,
+          select: { category: true, key: true, content: true, createdAt: true },
+        }),
+      suppression,
+      5,
+    );
+    alerts = live.rows;
+    moreNotShown = live.truncated;
   } catch (err) {
     log.warn("alerts_read_failed", { error: err instanceof Error ? err.message.slice(0, 120) : String(err) });
     await sendTelegram("⚠️ Alerts unknown: the read failed. Not an all-clear.", chatId);
     return;
   }
 
+  if (alerts.length === 0 && moreNotShown) {
+    await sendTelegram("⚠️ No live alert among the newest 500 checked; more not shown. Not an all-clear.", chatId);
+    return;
+  }
   if (alerts.length === 0) {
     await sendTelegram("✅ No active alerts in the last 30 days.", chatId);
     return;
@@ -2138,7 +2144,7 @@ async function cmdAlerts(chatId: string): Promise<void> {
   );
 
   await sendTelegram(
-    `<b>Recent active alerts (${alerts.length})</b>\n\n${lines.join("\n\n")}`,
+    `<b>Recent active alerts (${alerts.length})</b>\n\n${lines.join("\n\n")}${moreNotShown ? "\n\nMore not shown." : ""}`,
     chatId,
   );
 }

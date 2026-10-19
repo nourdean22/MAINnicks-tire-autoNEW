@@ -258,7 +258,7 @@ export function IdentityPanel() {
                 {/* Bar */}
                 <div className="relative mt-1.5 h-1.5 rounded-full bg-surface-interactive overflow-hidden">
                   <div
-                    className={cn("absolute left-0 top-0 h-full transition-all", barColor(effective))}
+                    className={cn("absolute left-0 top-0 h-full transition-[width]", barColor(effective))}
                     style={{ width: `${effective}%` }}
                   />
                   {isPinned && (
@@ -288,7 +288,7 @@ export function IdentityPanel() {
                       value={pinValue}
                       onChange={(e) => setPinValue(e.target.value)}
                       placeholder="0-100 or blank to clear"
-                      className="flex-1 px-2 py-1 rounded-control border border-edge-default bg-content text-[13px] text-fg placeholder:text-fg-tertiary focus:outline-none focus:border-accent"
+                      className="flex-1 px-2 py-1 rounded-control border border-edge-default bg-content text-[16px] sm:text-[13px] text-fg placeholder:text-fg-tertiary focus:outline-none focus:border-accent"
                     />
                     <button
                       onClick={() => void savePin(key)}

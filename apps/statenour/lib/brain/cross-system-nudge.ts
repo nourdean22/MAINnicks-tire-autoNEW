@@ -28,6 +28,7 @@ import { loadGhostAccuracy } from "./ghost-nick";
 import { loadActiveSkills, loadPendingSkills } from "./skill-extractor";
 import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { getAlertSuppression, isAlertSuppressed, NO_ALERT_SUPPRESSION } from "@/lib/brain/alert-suppression";
 import { brainMemory } from "@/lib/brain/memory-manager";
 import { cached, invalidate } from "@/lib/utils/cache";
 
@@ -287,7 +288,8 @@ async function computeNudgesUncached(): Promise<Nudge[]> {
         deletedAt: null,
       },
       orderBy: { updatedAt: "desc" },
-      take: 3,
+      // W5b: read past the three it shows so dismissed pairs do not crowd out live ones.
+      take: 10,
       select: { key: true, content: true, metadata: true },
     }).catch((): never[] => []),
     prisma.brainMemory.findUnique({
@@ -310,7 +312,13 @@ async function computeNudgesUncached(): Promise<Nudge[]> {
 
   // F2 · correlation alerts — each NEW correlation surfaces once at
   // medium severity (the ambient-observation contract).
-  for (const row of corrAlerts) {
+  // W5b: the same mutes and dismissals as /system/alerts (one shared reader). If the suppression
+  // read fails every pair still nudges: an unknown suppression never hides a real alert.
+  const suppression = await getAlertSuppression().catch(() => NO_ALERT_SUPPRESSION);
+  const liveCorr = corrAlerts
+    .filter((r) => !isAlertSuppressed({ category: BRAIN_CATEGORIES.CORRELATION_ALERT, key: r.key }, suppression))
+    .slice(0, 3);
+  for (const row of liveCorr) {
     nudges.push({
       severity: "medium",
       source: "correlation",
