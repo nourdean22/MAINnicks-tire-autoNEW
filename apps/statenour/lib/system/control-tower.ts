@@ -102,7 +102,7 @@ export function controlTower(input: TowerInput): TowerVerdict {
       key: "alerts",
       line: `${plural(unresolved, "unresolved alert", "unresolved alerts")}`,
       tone: "amber",
-      href: "/brain?tab=memory",
+      href: "/system/alerts",
     });
   }
   const devError = d.devices?.error ?? 0;

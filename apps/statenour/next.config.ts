@@ -276,7 +276,7 @@ const nextConfig: NextConfig = {
     // PR #85 cleanup redirects:
     { source: "/system/approvals", destination: "/system/actions", permanent: false },
     { source: "/system/digest", destination: "/system", permanent: false },
-    { source: "/system/coach-events", destination: "/brain?tab=memory", permanent: false },
+    { source: "/system/coach-events", destination: "/system/alerts", permanent: false },
     { source: "/system/reviews", destination: "/system", permanent: false },
     { source: "/system/errors", destination: "/system/logs?view=errors", permanent: false },
     // Reason consolidation. Wave 2 (2026-06-03) · /reason itself folded
@@ -353,7 +353,6 @@ const nextConfig: NextConfig = {
     { source: "/system/schema-history", destination: "/system", permanent: false },
     { source: "/system/tools", destination: "/system/actions", permanent: false },
     { source: "/system/proactive-preview", destination: "/system", permanent: false },
-    { source: "/system/alerts", destination: "/brain?tab=memory", permanent: false },
     // The raw arrival log moved to the shop admin's Lot section (camera audit N4).
     { source: "/system/camera", destination: "https://nickstire.org/admin?tab=lot", permanent: false },
     { source: "/intelligence/ledger", destination: "/", permanent: false },

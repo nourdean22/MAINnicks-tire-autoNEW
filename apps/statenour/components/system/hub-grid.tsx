@@ -32,6 +32,7 @@ import Link from "next/link";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils/cn";
 import {
+  AlertCircle,
   AlertTriangle,
   Archive,
   Bot,
@@ -184,6 +185,14 @@ export const CARDS: HubCard[] = [
         return { label: `${d.errors.count24h} errs 24h`, severity: "warning" };
       return { label: `${d.errors.count24h} 24h`, severity: "healthy" };
     },
+  },
+  {
+    href: "/system/alerts",
+    title: "Alerts Inspector",
+    icon: AlertCircle,
+    group: "health",
+    description: "Cross-category alerts inspector · filter by category",
+    chip: () => ({ label: "browse", severity: "info" }),
   },
   {
     href: "/system/actions",
