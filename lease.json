@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "nickstire/vapi-quality-v2",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "11dd3c15-6c98-4bc9-9fa1-c404986839c6",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\new-session-bbf695",
   "claimedBy": "2026-10-18-vapi-quality-v2",
   "claimedAt": "2026-10-19T01:31:57.495Z",
   "expiresAt": "2026-10-19T13:31:57.495Z",
-  "releasedAt": null,
+  "releasedAt": "2026-10-19T10:01:07.089Z",
   "releaseReason": null,
-  "priorLeaseSha": null
+  "priorLeaseSha": "35ed3f6bc210d226288499b35ae00c4d7006f349",
+  "releasedBy": "11dd3c15-6c98-4bc9-9fa1-c404986839c6",
+  "foreignReleaseReason": null
 }
