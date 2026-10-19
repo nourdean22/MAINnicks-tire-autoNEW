@@ -58,6 +58,26 @@ function Release-GraphLock {
     }
 }
 
+# 0. BRING THE PRIMARY UP TO origin/main WHEN THAT IS SAFE (2026-10-19). A rebuild of a checkout that is behind
+# main only rebuilds the same stale code, so [health]'s "graph STALE" fix would never clear. Fast-forward only, and
+# only on a clean tree on branch main; otherwise build HEAD as it is. Never reset, never checkout.
+# >>> step 0
+& git -C $RepoRoot fetch origin main 2>&1 | Add-Content -Path $log
+$branch0 = (& git -C $RepoRoot rev-parse --abbrev-ref HEAD 2>$null | Out-String).Trim()
+$dirty0 = (& git -C $RepoRoot status --porcelain 2>$null | Out-String).Trim()
+$statusOk0 = ($LASTEXITCODE -eq 0)
+if ($branch0 -eq 'main' -and $statusOk0 -and -not $dirty0) {
+    & git -C $RepoRoot merge --ff-only origin/main 2>&1 | Add-Content -Path $log
+    if ($LASTEXITCODE -eq 0) {
+        Log "primary ff-synced to $((& git -C $RepoRoot rev-parse --short HEAD 2>$null | Out-String).Trim())"
+    } else {
+        Log "WARN: primary fast-forward failed (exit $LASTEXITCODE): building its HEAD as is"
+    }
+} else {
+    Log "primary dirty or not on main: building its HEAD as is (branch '$branch0')"
+}
+# <<< step 0
+
 # graphify skips graph.html above 5,000 nodes by default; this repo is ~46k.
 # Headroom over current size without being unbounded - the full node-level
 # render is ~43 MB at 46k nodes and grows roughly linearly, so 100k implies a

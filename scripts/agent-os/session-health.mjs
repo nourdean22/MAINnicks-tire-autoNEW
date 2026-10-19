@@ -10,13 +10,15 @@
  *   host     COMPUTERNAME / os.hostname() not in hosts -> "[health] local services: not expected on this host", exit 0
  *   graph    <primary>/graphify-out/graph.json present, build commit from GRAPH_REPORT.md, commits behind origin/main
  *            -> ok | STALE (> 50 behind, or the build commit is gone) | MISSING <file>
- *   servers  TCP connect 127.0.0.1:<port>, 300 ms -> up | DOWN; an empty list -> "servers: none configured" (FAIL)
+ *   servers  MCP initialize POST to 127.0.0.1:<port><path>, 1 s -> up (200 + serverInfo.name = kind) | DOWN (refused,
+ *            no answer) | WRONG SERVICE (anything else answered); an empty list -> "servers: none configured" (FAIL)
  *   clients  ~/.claude.json mcpServers, ~/.codex/config.toml [mcp_servers.*], %APPDATA%/Code/User/mcp.json servers:
  *            each must list every server at http://127.0.0.1:<port><path> -> ok | MISSING <names> | WRONG URL <names>
  *   hooks    a powershell/pwsh hook running -File <x>.ps1 with no Bypass/Unrestricted/RemoteSigned policy BEFORE -File
  *            (user or project settings) -> BLOCKED <file>; see hookNeedsBypass
  *            (static: Windows PowerShell 5.1 here has every policy scope Undefined = Restricted)
- *   tasks    Windows only: schtasks /query per task -> ok | MISSING | WRONG ACTION (<script>) | FAILED <last result>
+ *   tasks    Windows only: schtasks /query per task -> ok | MISSING | DISABLED | WRONG ACTION (<full script path>) |
+ *            FAILED <last result>
  *   tailnet  informational only, never a FAIL: is tailscale.exe present (docs/agent-os/TAILNET-MCP.md)
  * A failed read is UNKNOWN (<reason>), never ok, and carries no guessed fix. An absent client file (ENOENT) is a real
  * "nothing configured" and reads MISSING. Total budget 1.5 s; every probe has its own timeout.
@@ -26,7 +28,7 @@
  */
 import { execFile } from "node:child_process";
 import { existsSync, readFileSync, realpathSync } from "node:fs";
-import { connect } from "node:net";
+import { request } from "node:http";
 import { homedir, hostname } from "node:os";
 import { basename, delimiter, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -36,7 +38,8 @@ const REPO = resolve(HERE, "..", "..");
 const WIN = process.platform === "win32";
 const T0 = Date.now();
 const BUDGET_MS = 1500;
-const PROBE_MS = 300;
+// A real MCP initialize, not a TCP connect: any program can hold the port. 1 s, inside the 1.5 s budget.
+const PROBE_MS = 1000;
 const STALE_AFTER = 50;
 const PS = "powershell -NoProfile -ExecutionPolicy Bypass -File";
 
@@ -85,23 +88,41 @@ function sh(cmd, args, cwd) {
   });
 }
 
-/** TCP connect to 127.0.0.1:<port>. Refused, timed out or any socket error is DOWN; only a connect is up. */
-function tcp(port) {
+const INIT = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "health", version: "1" } } });
+
+/**
+ * POST an MCP initialize to http://127.0.0.1:<port><path>. up = HTTP 200 whose body (JSON or one SSE event) carries
+ * serverInfo with "name":"<kind>"; refused or no answer in time = DOWN; anything else that answered = WRONG SERVICE.
+ */
+export function mcpProbe(port, path, kind) {
   return new Promise((resolveProbe) => {
     let settled = false;
-    const socket = connect({ host: "127.0.0.1", port });
+    let body = "";
+    let status = 0;
+    const named = new RegExp(`"serverInfo"\\s*:\\s*\\{[^}]*"name"\\s*:\\s*"${kind.replace(/[^\w-]/g, "")}"`);
+    const req = request({ host: "127.0.0.1", port, path, method: "POST", timeout: Math.max(50, Math.min(PROBE_MS, msLeft() - 100)), headers: {
+      "content-type": "application/json", accept: "application/json, text/event-stream", "content-length": Buffer.byteLength(INIT),
+    } }, (res) => {
+      status = res.statusCode;
+      res.setEncoding("utf8");
+      res.on("data", (chunk) => {
+        body += chunk;
+        if (named.test(body) || body.length > 65536) done(verdict());
+      });
+      res.on("end", () => done(verdict()));
+    });
+    const verdict = () => (status === 200 && named.test(body) ? "up" : "WRONG SERVICE");
     const done = (state) => {
       if (settled) return;
       settled = true;
-      socket.destroy();
+      req.destroy();
       resolveProbe(state);
     };
-    socket.setTimeout(PROBE_MS, () => done("DOWN"));
-    socket.once("connect", () => done("up"));
-    socket.once("error", () => done("DOWN"));
+    req.on("timeout", () => done(status ? verdict() : "DOWN"));
+    req.on("error", (e) => done(e.code === "ECONNREFUSED" ? "DOWN" : "WRONG SERVICE"));
+    req.end(INIT);
   });
 }
-
 /** Give up on a check that outlives the budget: it reads UNKNOWN (timeout), never ok. */
 function within(promise, label) {
   return Promise.race([promise, new Promise((r) => setTimeout(() => r(unknownItem(label, "timeout")), msLeft()).unref())]);
@@ -137,12 +158,17 @@ async function graphItem(primary, fix) {
   if (report.value === null) return failItem("graph MISSING GRAPH_REPORT.md", fix);
   const m = report.value.match(/Built from commit:\s*`([0-9a-f]{7,40})`/);
   if (!m) return unknownItem("graph", "no build commit in GRAPH_REPORT.md");
-  const r = await sh("git", ["-C", primary.value, "rev-list", "--count", `${m[1]}..origin/main`], primary.value);
-  if (r.code !== 0 && /unknown revision|bad revision|invalid revision/i.test(r.err)) {
+  // One git call answers both questions: "<off-main>\t<behind>". A build commit off main (a branch, a detached HEAD)
+  // has off-main > 0 and can still count 0 behind, so ancestry is checked first (same answer as merge-base
+  // --is-ancestor, one spawn instead of two inside the 1.5 s budget).
+  const r = await sh("git", ["-C", primary.value, "rev-list", "--left-right", "--count", `${m[1]}...origin/main`], primary.value);
+  if (r.code !== 0 && /unknown revision|bad revision|invalid revision|not a valid/i.test(r.err)) {
     return failItem(`graph STALE (built from ${m[1]}, not in this repo)`, fix);
   }
-  if (r.code !== 0 || !/^\d+\s*$/.test(r.out)) return unknownItem("graph", `git rev-list ${r.why || `exit ${r.code}`}`);
-  const n = Number(r.out.trim());
+  const counts = r.out.trim().match(/^(\d+)\s+(\d+)$/);
+  if (r.code !== 0 || !counts) return unknownItem("graph", `git rev-list ${r.why || `exit ${r.code}`}`);
+  if (Number(counts[1]) > 0) return failItem(`graph STALE (built from ${m[1]}, not on main)`, fix);
+  const n = Number(counts[2]);
   return n > STALE_AFTER ? failItem(`graph STALE (${n} behind origin/main)`, fix) : okItem(`graph ok (${n} behind origin/main)`);
 }
 
@@ -250,17 +276,20 @@ export function parseCsvLine(line) {
 
 /**
  * Judge one `schtasks /query /tn <name> /fo CSV /v /nh` row. Columns read from the real header on NATTYNOUR
- * (2026-10-19): 6 "Last Result", 8 "Task To Run"; CSV keeps that order on every UI language. A task is matched by its
- * ACTION as well as its name: a same-named task running some other script must not read ok.
+ * (2026-10-19): 6 "Last Result", 8 "Task To Run", 11 "Scheduled Task State"; CSV keeps that order on every UI language.
+ * A task is matched by the FULL path of its -File script against <root>/<action>: a same-named task running another
+ * script, or the right script in another clone or worktree, must not read ok. A disabled task keeps Last Result 0.
  */
-export function taskFromCsv(task, line, fix) {
+export function taskFromCsv(task, line, fix, root) {
   const label = `task ${task.name}`;
   const fields = parseCsvLine(line);
+  if (/^disabled$/i.test((fields[11] ?? "").trim())) return failItem(`${label} DISABLED`, fix);
   if (!/^-?\d+$/.test(fields[6] ?? "")) return unknownItem(label, "no Last Result");
-  const run = fields[8] ?? "";
-  const want = task.action ? basename(task.action).toLowerCase() : null;
-  if (want && !run.toLowerCase().includes(want)) {
-    return failItem(`${label} WRONG ACTION (${run.match(/[^\\/"'\s]+\.ps1/i)?.[0] ?? "?"})`, fix);
+  const norm = (p) => p.replace(/["']/g, "").replace(/\//g, "\\").trim().toLowerCase();
+  if (task.action) {
+    const file = (fields[8] ?? "").match(/-File\s+(?:"([^"]+)"|(\S+))/i);
+    const found = file ? norm(file[1] ?? file[2]) : "?";
+    if (found !== norm(join(root, task.action))) return failItem(`${label} WRONG ACTION (${found})`, fix);
   }
   const result = Number(fields[6]);
   if (result === 0 || result === NOT_RUN_YET || result === RUNNING) return okItem(`${label} ok`);
@@ -273,7 +302,7 @@ async function taskItem(task, root) {
   const r = await sh(join(process.env.SystemRoot || "C:\\Windows", "System32", "schtasks.exe"), ["/query", "/tn", task.name, "/fo", "CSV", "/v", "/nh"]);
   if (r.code === 1 && /cannot find|does not exist/i.test(r.err)) return failItem(`${label} MISSING`, fix);
   if (r.code !== 0) return unknownItem(label, `schtasks ${r.why || `exit ${r.code}`}`);
-  return taskFromCsv(task, r.out.split(/\r?\n/).find((l) => l.trim()) ?? "", fix);
+  return taskFromCsv(task, r.out.split(/\r?\n/).find((l) => l.trim()) ?? "", fix, root);
 }
 
 function tailnetItem() {
@@ -299,7 +328,7 @@ async function main() {
   const projectDir = resolve(process.env.CLAUDE_PROJECT_DIR || process.cwd());
   const primary = await within(primaryRoot(projectDir, flag("--primary")), "primary").then((p) => (p.text ? { err: "timeout" } : p));
   const root = primary.value ?? REPO;
-  const expected = config.servers.map((s) => ({ name: s.name, port: s.port, url: `http://127.0.0.1:${s.port}${s.path}` }));
+  const expected = config.servers.map((s) => ({ name: s.name, port: s.port, path: s.path, kind: s.kind, url: `http://127.0.0.1:${s.port}${s.path}` }));
   const serverFix = `${PS} ${join(root, "scripts", "local-mcp-servers.ps1")} -Start`;
 
   const readers = {
@@ -310,7 +339,11 @@ async function main() {
 
   const checks = [
     within(graphItem(primary, `${PS} ${join(root, "scripts", "graphify-sync-launcher.ps1")}`), "graph"),
-    ...expected.map((s) => within(tcp(s.port).then((st) => (st === "up" ? okItem(`${s.name} up`) : failItem(`${s.name} DOWN`, serverFix))), s.name)),
+    ...expected.map((s) => within(mcpProbe(s.port, s.path, s.kind ?? s.name).then((st) => {
+      if (st === "up") return okItem(`${s.name} up`);
+      if (st === "DOWN") return failItem(`${s.name} DOWN`, serverFix);
+      return failItem(`${s.name} WRONG SERVICE`, `find the program on port ${s.port}: Get-NetTCPConnection -LocalPort ${s.port} -State Listen; free the port or move ${s.name} in config/agent-os/local-services.json`);
+    }), s.name)),
   ];
   // Tasks start with the other probes: schtasks is the slowest child (cold start measured near 1 s).
   const tasks = WIN ? Promise.all((config.tasks ?? []).map((t) => within(taskItem(t, root), `task ${t.name}`))) : Promise.resolve([]);

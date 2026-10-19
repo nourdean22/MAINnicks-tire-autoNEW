@@ -31,10 +31,17 @@ $ErrorActionPreference = 'Stop'
 
 if (-not (Test-Path $SyncScript)) { throw "sync script not found: $SyncScript" }
 
+# -ArgumentList joins on spaces, so quote each forwarded value holding whitespace or a quote (inner quotes as \"):
+# -RepoRoot "C:\Work Trees\main" must arrive as ONE argument, not two.
+$forward = @($args | ForEach-Object {
+    $a = [string]$_
+    if ($a -match '[\s"]') { '"' + ($a -replace '"', '\"') + '"' } else { $a }
+})
+
 # Quote the path: -ArgumentList joins on spaces, so an unquoted path containing
 # one would arrive as two arguments and -File would take only the first.
 $proc = Start-Process -FilePath 'powershell.exe' -WindowStyle Hidden -PassThru `
-    -ArgumentList (@('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$SyncScript`"") + @($args))
+    -ArgumentList (@('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$SyncScript`"") + $forward)
 
 if (-not $proc) { throw "Start-Process returned no process for $SyncScript" }
 
