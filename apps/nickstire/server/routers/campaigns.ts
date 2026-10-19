@@ -56,10 +56,10 @@ function withOptOut(body: string): string {
 }
 
 // ─── GET CUSTOMERS BY SEGMENT ──────────────────────────
-// Exported so the statenour bridge endpoint (_core/statenour-bridge-routes.ts)
-// can target the same three segments without duplicating the eligibility SQL.
+// Module-local since 2026-10-19: its one outside caller, the statenour bulk-sms
+// bridge endpoint, was removed (job 2026-10-18-bdnick-prune wave 4).
 
-export async function getSegmentCustomers(segment: "recent" | "lapsed" | "all"): Promise<Array<{ id: number; firstName: string; phone: string }>> {
+async function getSegmentCustomers(segment: "recent" | "lapsed" | "all"): Promise<Array<{ id: number; firstName: string; phone: string }>> {
   const d = await db();
   if (!d) return [];
 
@@ -436,9 +436,9 @@ export const campaignsRouter = router({
  *
  * variantKey defaults to `campaign:<id>` so every campaign send is
  * attributable in smsPerformance (previously these landed untagged — see
- * the `variantKey` comment in persistOutboundShopSms). Callers that want a
- * cross-system correlation id (e.g. the statenour bridge, which has its
- * own campaignId) can override it.
+ * the `variantKey` comment in persistOutboundShopSms). A caller that wants
+ * a cross-system correlation id can override it (the statenour bridge did
+ * until its bulk-sms endpoint was removed, 2026-10-19).
  */
 export async function processCampaignSends(
   campaignId: number,
