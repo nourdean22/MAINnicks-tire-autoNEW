@@ -81,6 +81,12 @@ export interface RegisterAssetInput {
    * the beat may run). Producers that probe the file pass it; stills leave it null.
    */
   durationMs?: number | null;
+  /**
+   * false registers the row NOT reusable (reuse_allowed=0) until a reviewer
+   * approves it (shop-media import, 2026-10-18). Omitted = the column default,
+   * so every pre-existing caller emits the same insert as before.
+   */
+  reuseAllowed?: boolean;
 }
 
 /**
@@ -137,6 +143,7 @@ export async function registerAsset(database: DB, input: RegisterAssetInput): Pr
       checksumSha256: input.checksumSha256,
       generationParamsJson: input.generationParams ? JSON.stringify(input.generationParams) : null,
       rightsStatus: input.rightsStatus ?? "ai_generated",
+      ...(input.reuseAllowed !== undefined ? { reuseAllowed: input.reuseAllowed ? 1 : 0 } : {}),
     });
     const [row] = await tx.select().from(mediaAssets).where(eq(mediaAssets.id, id)).limit(1);
     log.info("asset registered", { id, logicalKey: input.logicalKey, version, bytes: input.byteSize });

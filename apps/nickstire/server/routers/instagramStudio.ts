@@ -280,6 +280,8 @@ export const instagramStudioRouter = router({
       symptom: z.string().max(120).optional(),
       season: z.string().max(16).optional(),
       minQuality: z.number().min(0).max(1).optional(),
+      format: z.enum(["image", "video"]).optional(),
+      cursor: z.number().int().min(0).max(100_000).optional(),
     }).optional())
     .query(async ({ input }) => {
       const database = await dbTyped();
