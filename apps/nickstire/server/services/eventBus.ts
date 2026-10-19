@@ -358,8 +358,8 @@ async function ensureInitialized(): Promise<void> {
         });
       };
 
-      // emergency_request: no branch on purpose. Its Telegram alert is statenour's bridge route, which
-      // retries an undelivered one (Nour, 2026-10-17); a second copy from here would buzz twice.
+      // emergency_request: no branch on purpose. routers/emergency.ts sends that Telegram itself with a
+      // bounded retry (services/emergencyAlert.ts, since 2026-10-19); a copy from here would buzz twice.
       if (event.type === "payment_received") {
         await sendTelegram(
           `💳 PAYMENT: $${event.data.amount} from ${event.data.customerName}\n` +

@@ -143,6 +143,16 @@ describe("eventBus -> statenour: once, and never lossy", () => {
     if (f.mark !== null) expect(posts[0].body).toContain(f.mark);
   });
 
+  it("an emergency never reaches statenour's alerting webhook (nickstire sends that alert); a lead still does", async () => {
+    const webhookCalls = () => fetchMock.mock.calls.filter(([url]) => String(url).endsWith("/api/webhooks/nickstire")).length;
+    const before = webhookCalls();
+    await send("emergency_request", FIXTURES.emergency_request(caseNo).data);
+    expect(posts.map(p => p.via)).toEqual(["bridge"]); // sync/events still gets the scrubbed copy
+    expect(webhookCalls()).toBe(before);
+    await send("lead_captured", FIXTURES.lead_captured(caseNo).data);
+    expect(webhookCalls()).toBe(before + 1);
+  });
+
   it.each([...BRIDGE_ONLY, ...SYNC_ONLY, ...MISWIRED_BOTH].map(t => [t]))("%s: no customer name, phone or written text reaches statenour on any path", async type => {
     const f = FIXTURES[type](caseNo);
     await send(type, f.data);

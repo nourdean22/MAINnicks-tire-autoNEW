@@ -373,19 +373,22 @@ async function pushToCloud(event: NourOsEvent): Promise<void> {
     // The wire copy carries no customer name, phone or written text; EVENT_LOG and events.jsonl keep the full event.
     const body = JSON.stringify({ events: [{ ...event, data: redactEventDataForStatenour(event.type, event.data) }] });
 
-    // Push to both endpoints in parallel: sync (storage) + webhook (real-time alerts)
+    // Push to both endpoints in parallel: sync (storage) + webhook (real-time alerts). An emergency
+    // skips the webhook: routers/emergency.ts sends that alert itself now (services/emergencyAlert.ts),
+    // and statenour's copy, built from a redacted event, would be a second, emptier buzz.
     const [syncRes] = await Promise.all([
       fetch(`${STATENOUR_URL}/api/sync/events`, {
         method: "POST", headers, body,
         signal: AbortSignal.timeout(10000),
       }),
-      // Real-time webhook — triggers instant Telegram alerts for critical events
-      fetch(`${STATENOUR_URL}/api/webhooks/nickstire`, {
-        method: "POST", headers, body,
-        signal: AbortSignal.timeout(10000),
-      }).catch((err) => {
-        log.warn("Webhook push failed (non-blocking)", { error: String(err) });
-      }),
+      event.type === "nickstire:emergency"
+        ? Promise.resolve()
+        : fetch(`${STATENOUR_URL}/api/webhooks/nickstire`, {
+            method: "POST", headers, body,
+            signal: AbortSignal.timeout(10000),
+          }).catch((err) => {
+            log.warn("Webhook push failed (non-blocking)", { error: String(err) });
+          }),
     ]);
 
     if (!syncRes.ok) {

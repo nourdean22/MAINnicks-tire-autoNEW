@@ -155,8 +155,14 @@ export const emergencyRouter = router({
 
         const nextOpenTime = getNextOpenTime();
 
-        // Unified event bus — CRITICAL priority (→ NOUR OS + learning). nickstire sends no Telegram
-        // for this event: statenour's bridge route alerts on it and retries an undelivered alert.
+        // Nour's emergency Telegram is sent from here, with its own bounded retry (2026-10-19): bdnick.info
+        // no longer receives the customer's name or phone, and the bridge no longer posts emergencies to
+        // statenour's alerting webhook. Fire and forget: it logs its own failure and never throws.
+        import("../services/emergencyAlert").then(({ sendEmergencyTelegram }) =>
+          sendEmergencyTelegram({ emergencyId, name, phone, problem: problem || "No description" })
+        ).catch((err) => log.error("[Emergency] Telegram alert failed to start:", err));
+
+        // Unified event bus — CRITICAL priority (→ NOUR OS + learning).
         import("../services/eventBus").then(({ emit }) =>
           emit.emergencyRequest({
             id: emergencyId,
