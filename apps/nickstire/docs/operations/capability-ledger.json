@@ -5707,6 +5707,34 @@
         "tests": "7 files, 123 passed (2026-10-19, fakes only, no live call): server/services/photoImprover.test.ts 54 (incl. the first live reply as a fixture: red on the old enum, green after), server/routers/instagramStudioPhoto.test.ts 16, server/routers/instagramStudioUpload.test.ts 5, server/_core/imageGeneration.provider.test.ts 3, server/_core/bodyParsers.test.ts 7 (real Express over a socket: 3 MB photo body 200 on both photo routes, 413 elsewhere, over 12 MB 413, rawBody kept; index.ts uses it once before tRPC), client/src/__tests__/photo-check-card.test.tsx 35, client/src/__tests__/photo-check-mount.test.tsx 3. Red-first on the first commits: service 1 file failed / 0 tests (module absent), router 15f/0p ('No procedure found'); mutations killed 8/8 service, 8/8 router, 23/23 on the review fixes, 4/4 on the Codex round (parser order reversed 3 failed, delete removed 4 failed, durable guard removed 1 failed, card unmounted off Create 2 failed). Parser defect proven before the fix by a standalone Express probe: global-first gives 413 entity.too.large for a 3 MB body, route-first 200. The upload test's enrichment wait was raised from 1 s to 10 s because the first case cold-loads the real enrichment module (1.47 s measured); positive control: enrichment call disabled gives 2f/3p.",
         "liveProbe": "NOT RUN: owed after deploy. One real photo through Photo Check on nickstire.org/admin (expect a scorecard with Model: gemini, or a named failure); no branded render without Nour's go (it spends an image credit)."
       }
+    },
+    {
+      "capabilityId": "bdnick-outbound-no-customer-data",
+      "name": "What nickstire pushes to bdnick.info (statenour) carries no customer name, phone or customer- or staff-written text: the 15-minute business sync, both event paths (nour-os-bridge pushToCloud to /api/sync/events and /api/webhooks/nickstire, and the eventBus statenour-sync copy) and the Nick memory insight go through allowlist redactors in server/lib/statenourOutbound.ts; counts, ages, totals, ids and enums still go; nickstire's own objects, digests, Telegram alerts and admin screens keep the names",
+      "owner": "operator",
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Not proven in production. Proof needed after deploy: a SELECT-only read of the newest statenour AuditEvent business_metrics_sync row shows customerIntelligence.topSpenders and atRiskCustomers with no name or phone keys and no actionPlan, customerJourneys with no customer, declinedWork.topItems with no customer or phone, and nickAI with memoryCount only; and the newest /api/sync/events rows from nickstire carry no customer, name, phone or customerName.",
+          "source": "job 2026-10-18-bdnick-prune-w4"
+        }
+      ],
+      "deferredScope": [
+        "PULL channels still answer bdnick.info with customer data when asked: routes/nour-os-query.ts (customer_detail, customer_search, customer_stats, vehicle_lookup_by_plate, recent_leads, recent_invoices, leads_today, leads_urgent, callbacks_pending, bookings_today, cars_today, draft_opportunity_sms, send_opportunity_sms) and _core/bridge-routes.ts GET /api/bridge/intelligence (topSpenders and atRiskCustomers with names and phones); a separate decision, see side-session-notes nickstire-w4-channel-inventory.md",
+        "operatorPatterns in the business sync sends the first three words of Nour's own Nick commands, which can name a customer; kept because it is the operator's own wording, not a customer record",
+        "config/nickstire-bridge-events.json (platform lane) still describes the pre-redaction event data that statenour's receiver contract test feeds through its receivers",
+        "The shop's own social content (social_draft:sync, social_posted) passes whole: no customer in it by construction"
+      ],
+      "lastVerifiedAt": "2026-10-19",
+      "verificationExpiresAt": null,
+      "codeState": "merged",
+      "operationalState": "integration_verified",
+      "exposure": "internal",
+      "evidence": {
+        "codeCommit": "this PR, branch nickstire/bdnick-pii-redaction (job 2026-10-18-bdnick-prune-w4). server/lib/statenourOutbound.ts (redactBusinessSyncForStatenour, redactEventDataForStatenour: allowlists, never mutate their input); wired at cron/jobs/statenourSync.ts (POST body), nour-os-bridge.ts pushToCloud (both endpoints, one body), services/eventBus.ts statenour-sync destination, services/nickMemory.ts syncMemoriesToStatenour (no detail; statenour's insights receiver falls back to the title). Same PR removes the recent_customer_ids query handler and POST /api/bridge/bulk-sms-send.",
+        "tests": "server/lib/statenourOutbound.test.ts 20, server/statenourSyncNoCustomerData.test.ts 3 (the real syncToStatenour with every source returning names and phones), server/services/nickMemory.statenourSync.test.ts 1, server/services/eventBus.statenourOnce.test.ts 47 (every bus type through the real routing: no name, phone or written text on any path; ids still reach statenour). Red first: the consumer tests 3 failed / 1 passed on unwired code. Mutants 6/6 killed (bridge unredacted 11 failed, eventBus raw 4, allowlist widened with phone 14, redactor mutating its input 4, mutating list elements 2, memory text restored 1).",
+        "liveProbe": "NOT RUN: owed after deploy (a SELECT-only statenour read, see the blocker)."
+      }
     }
   ],
   "axes": {

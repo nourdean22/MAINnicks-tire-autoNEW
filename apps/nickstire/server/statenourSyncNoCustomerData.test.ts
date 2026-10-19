@@ -122,6 +122,14 @@ describe("business sync -> /api/sync/business", () => {
     expect(body.nickAI).toEqual({ memoryCount: 2 });
   });
 
+  it("still fails closed: a refused POST throws, so the cron records a failure, not a completed sync", async () => {
+    h.ci = structuredClone(CI);
+    vi.stubEnv("STATENOUR_SYNC_KEY", "test-key");
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 403, json: async () => ({}), text: async () => "forbidden" })));
+    const { syncToStatenour } = await import("./cron/jobs/statenourSync");
+    await expect(syncToStatenour()).rejects.toThrow(/failed after 3 attempts: 403/);
+  });
+
   it("leaves the local customer data alone: the object nickstire's digest reads keeps the names", async () => {
     h.ci = structuredClone(CI);
     stubFetch();
