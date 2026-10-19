@@ -186,6 +186,28 @@ describe("invitation wording: refusals and look-alikes are not invitations", () 
   });
 });
 
+describe("auxiliary words between the negator and the refusal word", () => {
+  const invited = (line: string) => detectWalkInCoverage(lines(GREETING, "User: hi", `AI: ${line}`)).walkInInvited;
+
+  it("1. \"Walk-ins won't be available today.\"", () => {
+    expect(invited("Walk-ins won't be available today.")).toBe(false);
+  });
+
+  it("2. 'Walk-ins will not be available today.'", () => {
+    expect(invited("Walk-ins will not be available today.")).toBe(false);
+  });
+
+  it("3. 'Walk-ins are not going to be available today.'", () => {
+    expect(invited("Walk-ins are not going to be available today.")).toBe(false);
+  });
+
+  it("controls: no negator, no refusal word, 'turned away' is not a refusal word", () => {
+    expect(invited("Walk-ins will be available any day.")).toBe(true);
+    expect(invited("Walk-ins are not going to be a problem.")).toBe(true);
+    expect(invited("Walk-ins are not going to be turned away.")).toBe(true);
+  });
+});
+
 describe("a refusal that comes AFTER the walk-in term is still a refusal", () => {
   const invited = (line: string) => detectWalkInCoverage(lines(GREETING, "User: hi", `AI: ${line}`)).walkInInvited;
 
@@ -272,7 +294,7 @@ describe("measured on archived calls: lookups are not invitations, the street wo
   });
 });
 
-describe("input resolution: the transcript and messages are found wherever VAPI put them", () => {
+describe("the detector finds the transcript and messages wherever VAPI put them (the cron still gates on the score)", () => {
   const SPOKEN = FULL_INVITE; // prefix transcript with a full invitation
   const MEASURED = { walkInInvited: true, addressAndHoursGiven: true };
   const botMessages = (role: string) => [

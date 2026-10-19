@@ -20,6 +20,13 @@ deterministic classifier (`services/vapiCallClassifier.ts`) and the additive `va
 (`services/vapiMeasurement.ts`), and writes `eval_score` from those. What v1.1 adds in code is the walk-in
 measurement only: `services/vapiWalkInCoverage.ts`, which does not change `eval_score`.
 
+**Limit.** The evaluator classifies from the provider's top-level transcript only. A call whose speech exists
+only in the artifact would read as abandoned, score null, and stay UNMEASURED for the walk-in fields. Measured
+2026-10-19, read-only, counts only, over the 2,360 newest evaluated inbound calls longer than 5 s (11 weeks):
+0 such calls. Widening the evaluator's input is a separate decision because it would move scores, outcomes
+and the recovery queue. The walk-in detector itself shares its transcript and messages resolver with the
+archive and prefers role-tagged messages when present; it claims nothing more.
+
 ### Walk-in measurement (implemented)
 
 Two fields, each `true`, `false` or UNMEASURED. They are written as a suffix on `eval_reasoning`:

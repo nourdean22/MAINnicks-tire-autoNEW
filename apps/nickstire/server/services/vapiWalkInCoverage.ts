@@ -139,7 +139,8 @@ const NEGATED_WALK_IN = /(?:\b(?:no|not|never|cannot|no longer)|n['’]t)\s+(?:[
  */
 const REFUSED_WALK_IN = new RegExp(
   String.raw`walk[\s-]?ins?\b(?:\s+(?!welcome)[a-z'’]+){0,3}?\s+(?:` +
-    String.raw`(?:not|never|no\s+longer|[a-z]*n['’]t)\s+(?:accepted|allowed|taken|possible|offered|available|open)` +
+    String.raw`(?:not|never|no\s+longer|[a-z]*n['’]t)\s+(?:(?:be|being|been|going|to|get|getting|able)\s+){0,3}` +
+    String.raw`(?:accepted|allowed|taken|possible|offered|available|open)` +
     String.raw`|unavailable|closed|suspended|paused|cancelled|canceled)\b`,
   "gi",
 );

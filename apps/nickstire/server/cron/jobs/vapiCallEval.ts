@@ -342,6 +342,7 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
       // Walk-in coverage rides on eval_reasoning as a suffix and does NOT move the
       // score. A call with no score (not a customer conversation, or a technical
       // failure) is UNMEASURED rather than a miss.
+      // The gate is the score: a call the evaluator does not score is not a customer conversation, so its walk-in stays UNMEASURED.
       const walkIn = result.score == null ? UNMEASURED_WALK_IN : detectWalkInForDetail(detail);
 
       await db.update(vapiCallLogs).set({
