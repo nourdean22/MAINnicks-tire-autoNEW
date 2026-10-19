@@ -2784,13 +2784,6 @@ function buildTiers(): void {
         },
       },
       {
-        name: "review-auto-draft", // Fetch reviews + generate AI reply drafts
-        handler: async () => {
-          const { autoFetchAndDraftReviews } = await import("./jobs/crudAutomation");
-          return autoFetchAndDraftReviews();
-        },
-      },
-      {
         name: "low-stock-alerts", // Telegram when inventory hits reorder threshold
         handler: async () => {
           const { alertLowStock } = await import("./jobs/crudAutomation");
@@ -2874,11 +2867,17 @@ function buildTiers(): void {
             const result = await runReviewPipeline();
             const urgent = await getUrgentReviews();
             if (urgent.length > 0) {
-              const { sendTelegram } = await import("../services/telegram");
-              await sendTelegram(
-                `⭐ URGENT REVIEWS: ${urgent.length} need response!\n\n` +
-                urgent.slice(0, 3).map((r: Record<string, unknown>) => `${r.rating}★ ${r.authorName || "Anonymous"}: "${(String(r.text || "")).slice(0, 80)}..."`).join("\n") +
-                `\n\nRespond ASAP — negative reviews compound damage every hour.`
+              // Once per urgent SET (2026-10-19): the same unanswered review was
+              // re-alerted every day; a new urgent review changes the fingerprint.
+              const { sendOncePerState, stateFingerprint } = await import("../services/alertClaim");
+              const { sendTelegramResult } = await import("../services/telegram");
+              const state = stateFingerprint(urgent.map((r: Record<string, unknown>) => String(r.id ?? r.reviewId ?? `${r.authorName}:${r.rating}`)));
+              await sendOncePerState(`urgent-reviews:${state}`, () =>
+                sendTelegramResult(
+                  `⭐ URGENT REVIEWS: ${urgent.length} need response!\n\n` +
+                  urgent.slice(0, 3).map((r: Record<string, unknown>) => `${r.rating}★ ${r.authorName || "Anonymous"}: "${(String(r.text || "")).slice(0, 80)}..."`).join("\n") +
+                  `\n\nReply on Google (Business Profile reviews).`, "incident",
+                ),
               );
             }
             return { recordsProcessed: result.fetched || 0, details: `${result.fetched || 0} reviews synced, ${urgent.length} urgent` };

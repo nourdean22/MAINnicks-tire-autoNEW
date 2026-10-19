@@ -18,11 +18,11 @@ those two sources — `server/cron/cronInventoryParity.test.ts` fails when they 
 | heartbeat | every 5m | 4 / 2 |
 | pulse | every 15m | 23 / 0 |
 | hourly | every 2h | 35 / 1 |
-| daily | every 1d | 50 / 0 |
+| daily | every 1d | 49 / 0 |
 | briefings | every 12h | 6 / 0 |
 | nightly | every 1d | 1 / 0 |
 
-**Total: 122 tiered jobs (119 scheduled automatically, 3 staged off the scheduler) + 6 HTTP-only registry jobs.**
+**Total: 121 tiered jobs (118 scheduled automatically, 3 staged off the scheduler) + 6 HTTP-only registry jobs.**
 
 ## heartbeat (every 5m)
 
@@ -145,7 +145,6 @@ those two sources — `server/cron/cronInventoryParity.test.ts` fails when they 
 | `retention-all` | no | no | yes | — |
 | `revenue-analytics-pipeline` | no | no | yes | — |
 | `revenue-reconciliation` | no | no | yes | — |
-| `review-auto-draft` | no | no | yes | — |
 | `review-monitor` | no | no | yes | Monitor Google reviews, alert on negatives |
 | `review-pipeline` | no | no | yes | — |
 | `seo-forensic` | no | no | yes | — |
