@@ -63,6 +63,14 @@ import { brainMemory } from "@/lib/brain/memory-manager";
 import { getMemoryOfTheDay } from "@/lib/services/memory-of-the-day";
 import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { invalidate } from "@/lib/utils/cache";
+import {
+  ALERT_CATEGORIES,
+  ALERT_DISMISS_DAYS,
+  ALERT_DISMISS_REASONS,
+  alertDismissKey,
+  alertSignal,
+} from "@/lib/brain/alert-lanes";
 // 2026-05-24 · Wave V · feature-mining wire-up · calibrationSummary
 // procedure surfaces the existing summarizeCalibration helper to /brain.
 // Pre-Wave-V the math has been built + tested + the brierScore column
@@ -195,6 +203,18 @@ import { BOARD_IDS } from "@/lib/ai/board/boards";
 
 /** identityDelta: a snapshot older than this is not "yesterday -> today". */
 export const IDENTITY_DELTA_MAX_AGE_MS = 48 * 60 * 60 * 1000;
+
+/**
+ * UI v3 W5b (Codex P2 on #3161): a mute or dismissal changes what three cached views list
+ * (command-center state 15 s, the dashboard brief 30 s, the nudges 300 s). Drop them so the
+ * change shows at once. Dynamic import: cross-system-nudge sits in this router's import graph.
+ */
+async function dropAlertListingCaches(): Promise<void> {
+  invalidate("dashboard_brief");
+  invalidate("ultron_command_center_state_v1");
+  const { invalidateNudgeCache } = await import("@/lib/brain/cross-system-nudge");
+  invalidateNudgeCache();
+}
 
 export const brainRouter = router({
   /**
@@ -519,7 +539,47 @@ export const brainRouter = router({
           deletedAt: null,
         },
       });
+      await dropAlertListingCaches();
       return { ok: true as const, until: new Date(Date.now() + input.days * 86_400_000).toISOString() };
+    }),
+
+  /**
+   * UI v3 W5b · dismiss with a reason = a SUPPRESSION, never a delete: an expiring alert_dismiss
+   * row keyed by the alert's signal identity (lib/brain/alert-lanes.ts alertDismissKey), honoured
+   * by the shared reader in every consumer (lib/brain/alert-suppression.ts). The key comes from the
+   * row the server reads by id, so a dismissal can only cover the alert that was tapped (or its
+   * recurring signal). Upsert on (category, key) makes a repeat tap idempotent.
+   */
+  dismissAlert: operatorProcedure
+    .input(z.object({ id: z.string().min(1), reason: z.enum(ALERT_DISMISS_REASONS) }))
+    .mutation(async ({ input }) => {
+      const { prisma } = await import("@/lib/prisma");
+      const row = await prisma.brainMemory.findFirst({
+        where: { id: input.id, deletedAt: null },
+        select: { category: true, key: true },
+      });
+      if (!row || !(ALERT_CATEGORIES as readonly string[]).includes(row.category)) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "No live alert with that id." });
+      }
+      const key = alertDismissKey(row.category, row.key);
+      const { scope } = alertSignal(row.category, row.key);
+      const expiresAt = new Date(Date.now() + ALERT_DISMISS_DAYS * 86_400_000);
+      // brain-memory-direct-write: suppression marker for the alerts feed, not a semantic memory
+      await prisma.brainMemory.upsert({
+        where: { category_key: { category: "alert_dismiss", key } },
+        create: {
+          category: "alert_dismiss",
+          key,
+          content: input.reason,
+          confidence: 1,
+          source: "alert-lifecycle",
+          metadata: { alertCategory: row.category, scope },
+          expiresAt,
+        },
+        update: { content: input.reason, expiresAt, deletedAt: null },
+      });
+      await dropAlertListingCaches();
+      return { ok: true as const, scope, until: expiresAt.toISOString() };
     }),
 
   /**

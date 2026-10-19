@@ -117,6 +117,30 @@ detailed in `docs/CURRENT-TRUTH.md`:
   retail only, wholesale never leaves the server. Live sections self-suppress
   when the feed is cold (canon floors render, never an empty table).
 
+## 2026-10-19 - Koalafi: the Direct API is mapped end to end; the private key is the only gate
+
+- **Live and complete without a key:** the order modal's and /tires' Koalafi link is the hosted apply page with `phone=`
+  prefilled (`providerApplyUrl`, #3152), every click lands in `financing_clicks` through `financing.trackApplication`
+  (plus the Sheet and the activity ledger), Koalafi is listed on /financing. Nothing keyless is missing.
+- **Everything deeper needs `private-api-key`** (embedded modal, cart sync, lease status reads, `markOrderDelivered` for
+  funding, webhooks). Koalafi issues it at onboarding; it is NOT in the dealer portal (Store Details read
+  2026-10-19, Integrations shows only the STORE PUBLIC ID we already use and STORIS point-of-sale credentials, FACT), and
+  no reverse-engineering produces a secret. Channel that is not a phone call: integrations_support@koalafi.com; a draft
+  request sits in the manager session's scratchpad for Nour to send or drop.
+- **Contract captured** (research report, "Koalafi Direct API, modal and webhook contract": 34 doc pages fetched as
+  Markdown, 25 read in full):
+  hosts, headers, every mutation and query with inputs, returns and error unions, the lease status lifecycle, the
+  Ed25519-signed `lease.changed` webhook, sandbox test data, the $300 to $10,000 and 20% non-leasable rules, and the
+  one-PR build plan (Modal integration so SSN, card and bank data stay in Koalafi's iframe; "signed" only from a server-side
+  `order` read, never the browser promise). **No dormant client was built, on purpose:** it could only be tested against our
+  reading of the docs; it gets built TDD against the sandbox the day the key exists.
+- Dealer portal: store 67848; the FRIENDLY NAME rename to "Nick's Tire & Auto" did not persist (Settings still reads
+  "Moes Tire and Auto Euclid" after reload) and the page's "Reset Password" button sits beside "Copy Application Form
+  URL", so the rename stays Nour's own click; a reset email most likely did not go out (STRONG INFERENCE: the "Reset Password
+  email has been sent" text is one of four hidden success templates on that page, and the Gmail account the connector
+  reads had no Koalafi mail; the shop's dealer-contact inbox was not checked).
+- #3162 (this flag-on, Vapi-pushed, migrations-owed note) MERGED 2026-10-19 01:01Z as `33bc4e121`.
+
 ## 2026-10-18 - Tire finder by vehicle, Kafene first, order completion (#3148 live, #3152 merged)
 
 - **/tires finds sizes by vehicle** (`fitment` router, `server/services/fitment/dkFitment.ts`): year > make > model > trim >

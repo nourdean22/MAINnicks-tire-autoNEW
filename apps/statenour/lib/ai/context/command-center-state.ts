@@ -23,6 +23,8 @@ import { AI_GENERATION_SUCCESS_STATUSES as GENERATION_SUCCESS } from "@/lib/ai/g
 import { MONTHLY_REVENUE_TARGET } from "@/lib/config/business";
 import { DOMAINS } from "@/lib/mastery/config";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { ALERT_CATEGORIES } from "@/lib/brain/alert-lanes";
+import { collectLiveAlerts, getAlertSuppression, NO_ALERT_SUPPRESSION } from "@/lib/brain/alert-suppression";
 import { PINNED_PROMPT_CAP } from "@/lib/ai/prompt/v2/renderer";
 import { cached } from "@/lib/utils/cache";
 import { priorityBandLabel } from "@/lib/scoring/task-priority";
@@ -300,15 +302,7 @@ export interface CommandCenterState {
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
-const ALERT_CATEGORIES = [
-  "correlation_alert",
-  "decision_quality_drift",
-  "schema_drift_alert",
-  "storage_quota_alert",
-  "creation_spike_alert",
-  "update_spike_alert",
-  "brain_bus_alert",
-];
+// The alert category list is shared (lib/brain/alert-lanes.ts, W5b); imported at the top.
 
 function priorityFromScore(score: number | null | undefined): string {
   // Canonical bands — never hand-rolled (round-2 review consolidated the
@@ -684,18 +678,33 @@ export async function buildCommandCenterState(): Promise<CommandCenterState> {
         },
       })
       .catch(() => [] as any),
-    prisma.brainMemory
-      .findMany({
-        where: {
-          category: { in: ALERT_CATEGORIES },
-          createdAt: { gte: sevenDaysAgo },
-          deletedAt: null,
-          supersededById: null,
-        },
-        orderBy: { createdAt: "desc" },
-        take: 7,
-        select: { category: true, content: true, createdAt: true },
-      })
+    // W5b: the alerts Nick sees honour the same mutes and dismissals as /system/alerts and
+    // Telegram (one shared reader). If the suppression read fails he sees every alert: an
+    // unknown suppression never hides a real one.
+    // An empty list reads to Nick as "no alerts", so it pages past dismissed rows with the shared
+    // helper (bounded) instead of filtering one fixed window.
+    getAlertSuppression()
+      .catch(() => NO_ALERT_SUPPRESSION)
+      .then((suppression) =>
+        collectLiveAlerts(
+          (skip, take) =>
+            prisma.brainMemory.findMany({
+              where: {
+                category: { in: [...ALERT_CATEGORIES] },
+                createdAt: { gte: sevenDaysAgo },
+                deletedAt: null,
+                supersededById: null,
+              },
+              orderBy: { createdAt: "desc" },
+              skip,
+              take,
+              select: { category: true, key: true, content: true, createdAt: true },
+            }),
+          suppression,
+          7,
+        ),
+      )
+      .then((live) => live.rows)
       .catch(() => [] as Array<{ category: string; content: string; createdAt: Date }>),
     prisma.task
       .findMany({
