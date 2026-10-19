@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "nickstire/vapi-quality-v2",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "11dd3c15-6c98-4bc9-9fa1-c404986839c6",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\new-session-bbf695",
+  "claimedBy": "2026-10-18-vapi-quality-v2",
+  "claimedAt": "2026-10-19T01:31:57.495Z",
+  "expiresAt": "2026-10-19T13:31:57.495Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
