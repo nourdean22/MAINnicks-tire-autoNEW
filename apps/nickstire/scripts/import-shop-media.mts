@@ -35,7 +35,7 @@ const itemSchema = z.object({
   id: z.string().min(1).max(128),
   file: z.string().regex(ABSOLUTE, "file must be an absolute path"),
   kind: z.enum(["photo", "video"]),
-  capturedAt: z.string().datetime({ offset: true }).nullable(),
+  capturedAt: z.string().datetime({ offset: true, local: true }).nullable(),
   originalName: z.string().max(255),
   width: z.number().int().positive(),
   height: z.number().int().positive(),
@@ -145,9 +145,9 @@ async function plan(catalog: Catalog): Promise<Plan> {
 interface Io { log: (s: string) => void; error: (s: string) => void }
 
 export async function run(argv: string[], io: Io = { log: console.log, error: console.error }): Promise<number> {
-  const file = argv.find((a) => !a.startsWith("--"));
-  const execute = argv.includes("--execute");
   const li = argv.indexOf("--limit");
+  const file = argv.find((a, i) => !a.startsWith("--") && (li < 0 || i !== li + 1));
+  const execute = argv.includes("--execute");
   const limit = li >= 0 ? Number(argv[li + 1]) : undefined;
   if (!file || (limit !== undefined && !(Number.isInteger(limit) && limit > 0))) {
     io.error("usage: import-shop-media.mts <catalog.json> [--execute] [--limit N]");

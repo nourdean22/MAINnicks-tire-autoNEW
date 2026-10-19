@@ -110,6 +110,19 @@ describe("import-shop-media dry run (the default)", () => {
     expect(out.join("\n")).toMatch(/kind photo: 1 to import/);
   });
 
+  it("reads the catalog path wherever it sits in argv (a --limit value is not the catalog)", async () => {
+    const { out, io: sink } = io();
+    expect(await run(["--limit", "1", catalogPath], sink)).toBe(0);
+    expect(out.join("\n")).toMatch(/kind photo: 2 to import/);
+  });
+
+  it("accepts a capture time with no UTC offset (camera-roll local time)", async () => {
+    const p = writeCatalog((c) => { c.items[0].capturedAt = "2024-05-11T14:02:00"; });
+    const { out, io: sink } = io();
+    expect(await run([p], sink)).toBe(0);
+    expect(out.join("\n")).toMatch(/kind photo: 2 to import/);
+  });
+
   it("refuses the WHOLE catalog on a schema error, before any import", async () => {
     const p = writeCatalog((c) => { (c.items[1] as Record<string, unknown>).kind = "gif"; });
     const { out, io: sink } = io();
