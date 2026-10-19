@@ -18,6 +18,8 @@ const h = vi.hoisted(() => ({
   resolve: vi.fn(),
   mute: vi.fn(),
   dismiss: vi.fn(),
+  dismissPending: false,
+  dismissOpts: null as null | { onSuccess?: (res: unknown, vars: { id: string; reason: string }) => void },
 }));
 
 vi.mock("@/lib/trpc/client", () => ({
@@ -27,7 +29,12 @@ vi.mock("@/lib/trpc/client", () => ({
       memoryById: { useQuery: () => ({ data: undefined, isLoading: false, isError: false, error: null }) },
       resolveAlert: { useMutation: () => ({ mutate: h.resolve, isPending: false }) },
       muteAlertCategory: { useMutation: () => ({ mutate: h.mute, isPending: false }) },
-      dismissAlert: { useMutation: () => ({ mutate: h.dismiss, isPending: false }) },
+      dismissAlert: {
+        useMutation: (opts: typeof h.dismissOpts) => {
+          h.dismissOpts = opts;
+          return { mutate: h.dismiss, isPending: h.dismissPending };
+        },
+      },
     },
     useUtils: () => ({ brain: { activeAlerts: { invalidate: async () => {} }, memoryById: { invalidate: async () => {} } } }),
   },
@@ -72,6 +79,8 @@ const dialog = () => document.querySelector('[role="dialog"]') as HTMLElement | 
 
 beforeEach(() => {
   vi.clearAllMocks();
+  h.dismissPending = false;
+  h.dismissOpts = null;
   h.q = { data: PAYLOAD, isPending: false, isFetching: false, isError: false, error: null, dataUpdatedAt: 1, refetch: () => {} };
 });
 afterEach(() => {
@@ -151,6 +160,54 @@ describe("/system/alerts row actions", () => {
     act(() => btn(rowEl("s1"), /^Dismiss$/)!.click());
     expect(dialog()!.textContent).toContain("creation spikes for task");
     expect(dialog()!.textContent).not.toContain("This one only");
+  });
+
+  // Codex P2 on #3161: the sheet could be closed under an in-flight write, and an earlier write's
+  // completion closed whichever sheet was open, even another alert's.
+  it("while the dismissal is pending, Cancel and the reasons are disabled and Escape is ignored", () => {
+    h.dismissPending = true;
+    render();
+    act(() => btn(rowEl("b1"), /^Dismiss$/)!.click());
+    const d = dialog()!;
+    expect(btn(d, /^Cancel$/)!.disabled).toBe(true);
+    for (const r of Array.from(d.querySelectorAll('input[type="radio"]'))) expect((r as HTMLInputElement).disabled).toBe(true);
+    act(() => {
+      d.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
+    expect(dialog()).not.toBeNull();
+  });
+
+  // The page also guards onCancel; pin the sheet's own layer separately so either one alone holds.
+  it("the sheet itself never asks to close on Escape while pending (its own layer, without the page)", async () => {
+    const { AlertDismissSheet } = await import("@/components/alerts/alert-dismiss-sheet");
+    const onCancel = vi.fn();
+    host = document.createElement("div");
+    document.body.appendChild(host);
+    root = createRoot(host);
+    act(() =>
+      root!.render(
+        <AlertDismissSheet alert={{ category: "brain_bus_alert", key: "dead-event:e1", label: "Brain-bus probe" }} pending onCancel={onCancel} onConfirm={() => {}} />,
+      ),
+    );
+    act(() => {
+      dialog()!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
+    expect(onCancel).not.toHaveBeenCalled();
+  });
+
+  it("an earlier write finishing does not close another alert's sheet opened since", () => {
+    render();
+    act(() => btn(rowEl("b1"), /^Dismiss$/)!.click());
+    act(() => (dialog()!.querySelector('input[value="noise"]') as HTMLInputElement).click());
+    act(() => btn(dialog()!, /^Dismiss alert$/)!.click());
+    act(() => btn(dialog()!, /^Cancel$/)!.click());
+    act(() => btn(host, /^Other, 1/)!.click());
+    act(() => btn(rowEl("s1"), /^Dismiss$/)!.click());
+    expect(dialog()!.textContent).toContain("creation spikes for task");
+    act(() => h.dismissOpts!.onSuccess!({ ok: true }, { id: "b1", reason: "noise" }));
+    expect(dialog()).not.toBeNull();
+    act(() => h.dismissOpts!.onSuccess!({ ok: true }, { id: "s1", reason: "noise" }));
+    expect(dialog()).toBeNull();
   });
 
   it("Cancel and Escape close the sheet without dismissing", () => {

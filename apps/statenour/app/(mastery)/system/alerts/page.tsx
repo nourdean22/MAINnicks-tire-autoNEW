@@ -209,8 +209,10 @@ export default function AlertsInspectorPage() {
     onError: () => toast.error("Could not mute the category"),
   });
   const dismiss = trpc.brain.dismissAlert.useMutation({
-    onSuccess: () => {
-      setDismissing(null);
+    // Completion closes the sheet only if it is still the alert that was submitted: a later
+    // sheet for another alert is never closed by an earlier write finishing.
+    onSuccess: (_res, vars) => {
+      setDismissing((open) => (open && open.id === vars.id ? null : open));
       refresh();
       toast.success("Alert dismissed");
     },
@@ -500,7 +502,9 @@ export default function AlertsInspectorPage() {
             label: CATEGORY_META[dismissing.category]?.label ?? dismissing.category,
           }}
           pending={dismiss.isPending}
-          onCancel={() => setDismissing(null)}
+          onCancel={() => {
+            if (!dismiss.isPending) setDismissing(null);
+          }}
           onConfirm={(reason) => dismiss.mutate({ id: dismissing.id, reason })}
         />
       )}

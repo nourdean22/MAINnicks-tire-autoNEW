@@ -24,7 +24,7 @@ const h = vi.hoisted(() => {
   };
   const count = vi.fn(async () => { if (state.countFails) throw new Error("db down"); return 2; });
   const brainMemory = {
-    findMany: vi.fn(async (a: { where: { category: unknown; createdAt?: { gte: Date } }; take?: number }) => {
+    findMany: vi.fn(async (a: { where: { category: unknown; createdAt?: { gte: Date } }; take?: number; skip?: number }) => {
       if (state.alertsFail) throw new Error("db down");
       if (a.where.category === "alert_mute") return state.mutes;
       const cats = (a.where.category as { in: string[] }).in;
@@ -34,7 +34,7 @@ const h = vi.hoisted(() => {
       }
       return state.alerts
         .filter((r) => cats.includes(r.category) && (!a.where.createdAt || r.createdAt >= a.where.createdAt.gte))
-        .slice(0, a.take ?? Infinity);
+        .slice(a.skip ?? 0, (a.skip ?? 0) + (a.take ?? Infinity));
     }),
   };
   const handlers: Record<string, Record<string, unknown>> = {
@@ -175,6 +175,52 @@ describe("/alerts keeps its 30-day window and the mutes", () => {
     await say("/alerts");
     for (const i of [3, 4, 5, 6]) expect(reply()).toContain(`bus event ${i}`);
     expect(reply()).not.toContain("bus event 0");
+  });
+
+  // Codex P2 on #3161: 50 dismissed newest rows used to fill the one window it read, so an older
+  // live alert vanished and the bot printed the all-clear.
+  it("50 dismissed newest rows do not hide an older live alert behind 'No active alerts'", async () => {
+    const { alertDismissKey } = await import("@/lib/brain/alert-lanes");
+    const t = Date.now();
+    h.state.alerts = [
+      ...Array.from({ length: 50 }, (_, i) => ({
+        category: "brain_bus_alert",
+        key: `dead-event:d${i}`,
+        content: `dismissed ${i}`,
+        createdAt: new Date(t - i * 1000),
+      })),
+      { category: "brain_bus_alert", key: "dead-event:live", content: "older live bus event", createdAt: new Date(t - 3_600_000) },
+    ];
+    h.state.dismissals = Array.from({ length: 50 }, (_, i) => ({
+      category: "alert_dismiss",
+      key: alertDismissKey("brain_bus_alert", `dead-event:d${i}`),
+    }));
+    await say("/alerts");
+    expect(reply()).toContain("older live bus event");
+    expect(reply()).not.toContain("No active alerts");
+  });
+
+  it("past the paging bound with no live row it says more not shown, never the all-clear", async () => {
+    const { alertDismissKey } = await import("@/lib/brain/alert-lanes");
+    const t = Date.now();
+    h.state.alerts = Array.from({ length: 520 }, (_, i) => ({
+      category: "brain_bus_alert",
+      key: `dead-event:d${i}`,
+      content: `dismissed ${i}`,
+      createdAt: new Date(t - i * 1000),
+    }));
+    h.state.dismissals = h.state.alerts.map((a) => ({ category: "alert_dismiss", key: alertDismissKey(a.category, a.key!) }));
+    await say("/alerts");
+    expect(reply()).toContain("more not shown");
+    expect(reply()).not.toContain("No active alerts");
+  });
+
+  it("exhausted with no live row prints the all-clear", async () => {
+    const { alertDismissKey } = await import("@/lib/brain/alert-lanes");
+    h.state.alerts = [{ category: "brain_bus_alert", key: "dead-event:x", content: "dismissed x", createdAt: new Date() }];
+    h.state.dismissals = [{ category: "alert_dismiss", key: alertDismissKey("brain_bus_alert", "dead-event:x") }];
+    await say("/alerts");
+    expect(reply()).toContain("No active alerts in the last 30 days");
   });
 
   it("CONTROL - a recent unmuted alert is shown", async () => {

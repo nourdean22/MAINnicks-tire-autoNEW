@@ -40,6 +40,32 @@ export async function getAlertSuppression(): Promise<AlertSuppression> {
   return { mutedCategories, dismissedKeys };
 }
 
+/**
+ * Live (unsuppressed) alert rows, newest first, for a reader that prints or implies an all-clear.
+ * Pages through the alert query until `want` live rows are found or the query is exhausted, so a
+ * run of dismissed rows can never hide an older live alert (Codex P2 on #3161). Bounded at
+ * maxPages x pageSize rows; `truncated` = the bound was hit with fewer than `want` live and the
+ * last page was full, so more rows may remain: the caller must say "more not shown", never "none".
+ */
+export async function collectLiveAlerts<R extends { category: string; key: string }>(
+  fetchPage: (skip: number, take: number) => Promise<R[]>,
+  suppression: AlertSuppression,
+  want: number,
+  { pageSize = 50, maxPages = 10 }: { pageSize?: number; maxPages?: number } = {},
+): Promise<{ rows: R[]; truncated: boolean }> {
+  const rows: R[] = [];
+  for (let page = 0; page < maxPages; page++) {
+    const batch = await fetchPage(page * pageSize, pageSize);
+    for (const r of batch) {
+      if (isAlertSuppressed(r, suppression)) continue;
+      rows.push(r);
+      if (rows.length >= want) return { rows, truncated: false };
+    }
+    if (batch.length < pageSize) return { rows, truncated: false };
+  }
+  return { rows, truncated: true };
+}
+
 export function isAlertSuppressed(row: { category: string; key: string }, s: AlertSuppression): boolean {
   return s.mutedCategories.has(row.category) || s.dismissedKeys.has(alertDismissKey(row.category, row.key));
 }

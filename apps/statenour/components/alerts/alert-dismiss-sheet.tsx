@@ -52,14 +52,15 @@ export function AlertDismissSheet({
     <Dialog
       open
       onOpenChange={(nextOpen) => {
-        if (!nextOpen) onCancel();
+        // Escape, the backdrop and outside taps cannot close it under an in-flight write.
+        if (!nextOpen && !pending) onCancel();
       }}
     >
       <DialogContent
         unstyled
         showCloseButton={false}
         overlayClassName="z-[70] bg-[var(--bg-void)]/70"
-        className="fixed inset-x-0 bottom-0 z-[71] mx-auto w-full max-w-lg space-y-3 border-t border-edge bg-canvas px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] outline-none sm:bottom-6 sm:rounded-surface sm:border"
+        className="fixed inset-x-0 bottom-0 z-[71] mx-auto max-h-[85dvh] w-full max-w-lg space-y-3 overflow-y-auto overscroll-contain border-t border-edge bg-canvas px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] outline-none sm:bottom-6 sm:rounded-surface sm:border"
       >
         <DialogTitle className="text-[16px] font-medium text-fg">Dismiss {alert.label}</DialogTitle>
         <p className="text-[14px] text-fg-secondary">{coverage(alert.category, alert.key)}</p>
@@ -72,6 +73,7 @@ export function AlertDismissSheet({
                 name="alert-dismiss-reason"
                 value={r}
                 checked={reason === r}
+                disabled={pending}
                 onChange={() => setReason(r)}
                 className="h-5 w-5"
               />
@@ -90,6 +92,7 @@ export function AlertDismissSheet({
           </button>
           <button
             type="button"
+            disabled={pending}
             onClick={onCancel}
             className="inline-flex min-h-[44px] items-center px-2 text-[14px] text-fg-secondary transition-colors duration-[var(--motion-state)] hover:text-fg"
           >

@@ -42,6 +42,14 @@ describe("the dismiss sheet layers above the bottom tab bar", () => {
     expect(zOf(panelClass!)).toBeGreaterThan(zOf(backdropClass!));
   });
 
+  // Codex P2 on #3161: like MoreSheet, the panel is held to the viewport and scrolls inside itself.
+  it("the panel is capped to the dynamic viewport and scrolls within itself", () => {
+    const tokens = panelClass!.split(/\s+/);
+    expect(tokens.some((t) => /^max-h-\[\d+dvh\]$/.test(t))).toBe(true);
+    expect(tokens).toContain("overflow-y-auto");
+    expect(tokens).toContain("overscroll-contain");
+  });
+
   it("the panel still clears the safe area", () => {
     expect(panelClass).toContain("safe-area-inset-bottom");
   });

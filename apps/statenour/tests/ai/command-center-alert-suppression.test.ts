@@ -17,13 +17,14 @@ const h = vi.hoisted(() => {
     findUnique: vi.fn(async () => null),
     count: vi.fn(async () => 0),
     groupBy: vi.fn(async () => []),
-    findMany: vi.fn(async (a: { where: { category: unknown } }) => {
+    findMany: vi.fn(async (a: { where: { category: unknown }; skip?: number; take?: number }) => {
       const c = a.where.category as { in?: string[] } | string;
       if (typeof c === "object" && c?.in) {
         if (c.in.includes("alert_dismiss") || c.in.includes("alert_mute")) {
           return state.suppression.filter((r) => c.in!.includes(r.category));
         }
-        return state.alerts.filter((r) => c.in!.includes(r.category));
+        const s = a.skip ?? 0;
+        return state.alerts.filter((r) => c.in!.includes(r.category)).slice(s, s + (a.take ?? Infinity));
       }
       return [];
     }),
@@ -70,6 +71,22 @@ describe("command-center brainAlerts honour the shared suppression", () => {
     h.state.suppression = [{ category: "alert_mute", key: "storage_quota_alert" }];
     const got = (await contents()).join("\n");
     expect(got).not.toContain("Storage quota warning");
+  });
+
+  it("50 dismissed newest rows do not leave Nick with an empty (all-clear) alert list", async () => {
+    h.state.alerts = [
+      ...Array.from({ length: 50 }, (_, i) => ({
+        category: "storage_quota_alert",
+        key: `q${i}`,
+        content: `dismissed quota ${i}`,
+        createdAt: new Date(),
+      })),
+      { category: "storage_quota_alert", key: "q-live", content: "Older live quota warning", createdAt: new Date() },
+    ];
+    h.state.suppression = h.state.alerts
+      .slice(0, 50)
+      .map((a) => ({ category: "alert_dismiss", key: alertDismissKey(a.category, a.key) }));
+    expect(await contents()).toEqual(["Older live quota warning"]);
   });
 
   it("CONTROL: with nothing suppressed both alerts reach Nick", async () => {

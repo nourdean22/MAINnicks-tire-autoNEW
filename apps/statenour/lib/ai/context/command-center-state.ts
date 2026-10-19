@@ -24,7 +24,7 @@ import { MONTHLY_REVENUE_TARGET } from "@/lib/config/business";
 import { DOMAINS } from "@/lib/mastery/config";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { ALERT_CATEGORIES } from "@/lib/brain/alert-lanes";
-import { getAlertSuppression, isAlertSuppressed, NO_ALERT_SUPPRESSION } from "@/lib/brain/alert-suppression";
+import { collectLiveAlerts, getAlertSuppression, NO_ALERT_SUPPRESSION } from "@/lib/brain/alert-suppression";
 import { PINNED_PROMPT_CAP } from "@/lib/ai/prompt/v2/renderer";
 import { cached } from "@/lib/utils/cache";
 import { priorityBandLabel } from "@/lib/scoring/task-priority";
@@ -681,21 +681,30 @@ export async function buildCommandCenterState(): Promise<CommandCenterState> {
     // W5b: the alerts Nick sees honour the same mutes and dismissals as /system/alerts and
     // Telegram (one shared reader). If the suppression read fails he sees every alert: an
     // unknown suppression never hides a real one.
-    Promise.all([
-      prisma.brainMemory.findMany({
-        where: {
-          category: { in: [...ALERT_CATEGORIES] },
-          createdAt: { gte: sevenDaysAgo },
-          deletedAt: null,
-          supersededById: null,
-        },
-        orderBy: { createdAt: "desc" },
-        take: 50,
-        select: { category: true, key: true, content: true, createdAt: true },
-      }),
-      getAlertSuppression().catch(() => NO_ALERT_SUPPRESSION),
-    ])
-      .then(([rows, suppression]) => rows.filter((r) => !isAlertSuppressed(r, suppression)).slice(0, 7))
+    // An empty list reads to Nick as "no alerts", so it pages past dismissed rows with the shared
+    // helper (bounded) instead of filtering one fixed window.
+    getAlertSuppression()
+      .catch(() => NO_ALERT_SUPPRESSION)
+      .then((suppression) =>
+        collectLiveAlerts(
+          (skip, take) =>
+            prisma.brainMemory.findMany({
+              where: {
+                category: { in: [...ALERT_CATEGORIES] },
+                createdAt: { gte: sevenDaysAgo },
+                deletedAt: null,
+                supersededById: null,
+              },
+              orderBy: { createdAt: "desc" },
+              skip,
+              take,
+              select: { category: true, key: true, content: true, createdAt: true },
+            }),
+          suppression,
+          7,
+        ),
+      )
+      .then((live) => live.rows)
       .catch(() => [] as Array<{ category: string; content: string; createdAt: Date }>),
     prisma.task
       .findMany({
