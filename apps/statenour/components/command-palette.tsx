@@ -575,14 +575,18 @@ export function CommandPalette() {
         action: () => openInspector(ref),
         keywords: ["inspect", "open", "peek", ref.kind],
       },
-      {
-        id: `object:open:${key}`,
-        label: "Open on its page",
-        group,
-        icon: <ZapIcon className="size-4" />,
-        action: () => navigate(homeRouteFor(ref)),
-        keywords: ["page", "go", "jump"],
-      },
+      ...(homeRouteFor(ref)
+        ? [
+            {
+              id: `object:open:${key}`,
+              label: "Open on its page",
+              group,
+              icon: <ZapIcon className="size-4" />,
+              action: () => navigate(homeRouteFor(ref) as string),
+              keywords: ["page", "go", "jump"],
+            },
+          ]
+        : []),
       {
         id: `object:ask:${key}`,
         label: "Ask Nick about it",

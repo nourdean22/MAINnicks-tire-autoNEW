@@ -22,6 +22,7 @@ export function OutboxRedriveRow() {
   const redrive = trpc.system.outboxRedrive.useMutation();
   const [armed, setArmed] = useState(false);
   const [receipt, setReceipt] = useState<string | null>(null);
+  const [failure, setFailure] = useState<string | null>(null);
 
   useEffect(() => {
     if (!armed) return;
@@ -55,12 +56,19 @@ export function OutboxRedriveRow() {
       return;
     }
     setArmed(false);
+    setFailure(null);
     redrive.mutate(
       { limit: 200 },
       {
         onSuccess: (res: { redriven: number }) => {
+          setFailure(null);
           setReceipt(`Redriven ${res.redriven}`);
           void health.refetch();
+        },
+        // A failed redrive is not "nothing happened": say so and keep the count (empty-vs-error).
+        onError: (err: { message?: string }) => {
+          setReceipt(null);
+          setFailure(err?.message || "unknown error");
         },
       },
     );
@@ -71,6 +79,11 @@ export function OutboxRedriveRow() {
       <span className="text-rose-200">
         {dead > 0 ? `Outbox: ${dead} dead-lettered` : "Outbox: clean"}
         {receipt ? <span className="ml-2 font-mono text-[11px] text-fg-tertiary">{receipt}</span> : null}
+        {failure ? (
+          <span role="alert" className="ml-2 font-mono text-[11px] text-amber-100">
+            Redrive failed: {failure}
+          </span>
+        ) : null}
       </span>
       {dead > 0 && (
         <button

@@ -256,7 +256,7 @@ describe("durable exception consolidation", () => {
       title: "4 chat background items dead-lettered",
       detail: "memory projection failed after five attempts",
       ageMin: 180,
-      href: "/system",
+      href: null,
     });
   });
 

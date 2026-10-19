@@ -27,6 +27,7 @@ import { useRouter } from "next/navigation";
 // parallel regex arrays here + server-side that drifted.
 import { classifyCore } from "@/lib/ai/reasoning/classifier-core";
 import type { ReasoningTier } from "@/lib/ai/reasoning/types";
+import { CHAT_PENDING_PROMPT_KEY } from "@/features/chat-v2/hooks/use-chat-deep-link-prefill";
 
 /** Only surface the chip for tiers worth interrupting the operator for.
  *  Standard tier matches plenty of normal prose · the chip would feel
@@ -131,9 +132,15 @@ export function DeepModeNudge() {
     <button
       type="button"
       onClick={() => {
-        // 2026-10-19 · the Reason tab is gone (wave 2V). Chat prefills ?q= and never auto-sends
-        // (features/chat-v2/hooks/use-chat-deep-link-prefill.ts), so the tap costs nothing until a send.
-        router.push(`/chat?q=${encodeURIComponent(verdict.text)}`);
+        // 2026-10-19 · the Reason tab is gone (wave 2V). Audit 02-F6 keeps the typed question out of the URL,
+        // so it rides sessionStorage and the URL carries a marker; Chat prefills and never auto-sends
+        // (features/chat-v2/hooks/use-chat-deep-link-prefill.ts). A blocked sessionStorage opens plain /chat.
+        try {
+          sessionStorage.setItem(CHAT_PENDING_PROMPT_KEY, verdict.text);
+          router.push("/chat?pq=1");
+        } catch {
+          router.push("/chat");
+        }
       }}
       // Docked above the measured bottom chrome (bottom-4 sat under the z-[55] tab bar) and, on
       // md+, left of the NICK FAB lane, which shares this height (audit 09-F27).

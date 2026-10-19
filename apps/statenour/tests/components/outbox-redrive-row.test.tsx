@@ -90,6 +90,34 @@ describe("OutboxRedriveRow · the three read states", () => {
   });
 });
 
+describe("OutboxRedriveRow · a failed redrive says so", () => {
+  it("renders 'Redrive failed: <message>' and keeps the count (empty-vs-error)", () => {
+    h.health = { data: { dead: 4, oldestDeadAt: null }, isLoading: false, isError: false };
+    render();
+    act(() => button()!.click());
+    act(() => button()!.click());
+    const opts = h.mutate.mock.calls[0][1] as { onError: (e: Error) => void };
+    act(() => opts.onError(new Error("owner session expired")));
+    expect(container.textContent).toContain("Redrive failed: owner session expired");
+    expect(container.textContent).toContain("Outbox: 4 dead-lettered");
+  });
+
+  it("a later success clears the failure message", () => {
+    h.health = { data: { dead: 4, oldestDeadAt: null }, isLoading: false, isError: false };
+    render();
+    act(() => button()!.click());
+    act(() => button()!.click());
+    const opts = h.mutate.mock.calls[0][1] as { onError: (e: Error) => void; onSuccess: (r: { redriven: number }) => void };
+    act(() => opts.onError(new Error("boom")));
+    act(() => button()!.click());
+    act(() => button()!.click());
+    const again = h.mutate.mock.calls[1][1] as { onSuccess: (r: { redriven: number }) => void };
+    act(() => again.onSuccess({ redriven: 4 }));
+    expect(container.textContent).not.toContain("Redrive failed");
+    expect(container.textContent).toContain("Redriven 4");
+  });
+});
+
 describe("OutboxRedriveRow · the two-tap redrive", () => {
   beforeEach(() => {
     h.health = { data: { dead: 4, oldestDeadAt: null }, isLoading: false, isError: false };

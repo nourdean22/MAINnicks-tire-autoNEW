@@ -43,7 +43,7 @@ function inspectQuery(ref: EntityRef): string {
  * (`task-<id>` in mission-task-row.tsx, `bd-<id>` in journal, `pin-<id>` in
  * the Brain Memory pinned-context panel); query-addressed kinds open through the inspector on their page.
  */
-export function homeRouteFor(ref: EntityRef): string {
+export function homeRouteFor(ref: EntityRef): string | null {
   const id = encodeURIComponent(ref.id);
   switch (ref.kind) {
     case "task":
@@ -66,7 +66,7 @@ export function homeRouteFor(ref: EntityRef): string {
       return `/brain?tab=memory#pin-${id}`;
     case "claim":
     case "experiment":
-      return "/system";
+      return null; // the Proof page that owned them was cut 2026-10-19: "Open on its page" is hidden
     case "alert":
       return "/system/alerts";
     case "cron":

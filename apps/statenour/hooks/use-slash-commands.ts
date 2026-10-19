@@ -57,10 +57,10 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   { cmd: "/turbo", label: "Fast Image (z-image-turbo)", prompt: "Generate a fast turbo draft image: " },
   { cmd: "/quality", label: "Premium Image (seedream)", prompt: "Generate a billboard-quality, premium image: " },
   { cmd: "/twopass", label: "Two-Pass Content (gen + critique)", prompt: "Two-pass content with self-critique for: " },
-  { cmd: "/costs", label: "AI Cost & Health Dashboard", prompt: "", navigate: "/system/costs" },
   { cmd: "/promptview", label: "View Live System Prompt", prompt: "", navigate: "/system/prompt" },
   { cmd: "/plan", label: "Plan My Day (Today/Saturday/Week)", prompt: "", navigate: "/plan" },
   { cmd: "/pinned", label: "Pinned Memory (Brain)", prompt: "", navigate: "/brain?tab=memory#pinned-context" },
+  { cmd: "/pins", label: "Pinned Memory (Brain)", prompt: "", navigate: "/brain?tab=memory#pinned-context" }, // retired-route-allow: 2026-10-19 muscle-memory alias for /pinned, a chat verb and not a link
   { cmd: "/saturday", label: "Plan my Saturday (with full context)", prompt: "Plan my Saturday based on my open tasks, calendar, and recent commitments. Cluster work, build in rest, intertwine with the actions/HQ/tasks pages." },
   { cmd: "/improve", label: "Photo Improver (analyze + rebrand)", prompt: "", navigate: "/photo-improver" },
 

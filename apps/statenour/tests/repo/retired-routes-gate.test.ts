@@ -159,6 +159,8 @@ function referencesRoute(text: string, route: string): boolean {
   return text.split(/\r?\n/).some((line) => {
     const t = line.trim();
     if (t.startsWith("//") || t.startsWith("*") || t.startsWith("/*") || t.startsWith("{/*")) return false;
+    // A dated waiver on the line itself (never a whole file): the /pins slash command is a chat verb, not a link.
+    if (/retired-route-allow:\s*\S+/.test(line)) return false;
     return re.test(line.replace(/\s\/\/.*$/, ""));
   });
 }
@@ -240,6 +242,10 @@ describe("pruned routes (2026-10-18) · gone, redirected, and linked from nowher
     expect(referencesRoute(`href="https://example.com/learn"`, "/learn")).toBe(false);
     expect(referencesRoute(`// see /learn for history`, "/learn")).toBe(false);
     expect(referencesRoute(`const x = 1; // was /learn`, "/learn")).toBe(false);
+    // the per-line waiver silences exactly its own line
+    expect(referencesRoute(`{ cmd: "/pins" }, // retired-route-allow: 2026-10-19 chat verb`, "/pins")).toBe(false);
+    expect(referencesRoute(`{ cmd: "/pins" },`, "/pins")).toBe(true);
+    expect(referencesRoute(`{ cmd: "/pins" }, // retired-route-allow:`, "/pins")).toBe(true);
   });
 
   it("scanTexts reports ONE planted string per row type, and nothing for clean text (control)", () => {

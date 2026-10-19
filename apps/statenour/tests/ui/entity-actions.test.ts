@@ -30,7 +30,15 @@ describe("hrefs", () => {
     expect(homeRouteFor({ kind: "decision", id: "d1" })).toBe("/decisions/d1");
     expect(homeRouteFor({ kind: "journal", id: "j1" })).toBe("/journal#bd-j1");
     expect(homeRouteFor({ kind: "pin", id: "p1" })).toBe("/brain?tab=memory#pin-p1");
-    expect(homeRouteFor({ kind: "claim", id: "c1" })).toBe("/system");
+    expect(homeRouteFor({ kind: "claim", id: "c1" })).toBeNull();
+    expect(homeRouteFor({ kind: "experiment", id: "e1" })).toBeNull();
+  });
+
+  it("'Open on its page' is hidden for objects with no page (claim, experiment), shown for the rest", () => {
+    const open = ENTITY_ACTIONS.find((a) => a.id === "open")!;
+    expect(open.href!([{ kind: "claim", id: "c1" }], {})).toBeNull();
+    expect(open.href!([{ kind: "experiment", id: "e1" }], {})).toBeNull();
+    expect(open.href!([{ kind: "task", id: "t1" }], {})).toBe("/missions?inspect=task:t1#task-t1");
   });
 
   it("open is single-object only; ask-nick carries the wire ids in the prompt", () => {

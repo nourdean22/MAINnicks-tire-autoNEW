@@ -22,7 +22,7 @@
  * subsection only. Writes via `trpc.brain.{createPin,updatePin,deletePin}`.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { scrollBehavior } from "@/lib/ui/scroll-behavior";
 import { GlassCard } from "@/components/ui/glass-card";
@@ -58,6 +58,7 @@ import { toast } from "sonner";
 // `trpc.brain.{pinned,createPin,updatePin,deletePin}` procedures (added
 // in Phase YY) · reactive read + 3 mutations.
 import { trpc } from "@/lib/trpc/client";
+import { createPinThenFlush, pinHashTarget } from "@/components/brain/pinned-context-helpers";
 
 interface PinRow {
   id: string;
@@ -130,6 +131,7 @@ export function PinnedContextPanel() {
     staleTime: 30_000,
   });
   const createMutation = trpc.brain.createPin.useMutation();
+  const flushPromptCache = trpc.system.flushPromptCache.useMutation();
   const updateMutation = trpc.brain.updatePin.useMutation();
   const deleteMutation = trpc.brain.deletePin.useMutation();
 
@@ -238,6 +240,22 @@ export function PinnedContextPanel() {
     }
   }, []);
 
+  // /brain?tab=memory#pin-<id> (chat "View pin" receipts): the rows render after an async read, so scroll
+  // when the list lands, once.
+  const scrolledPinRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (typeof window === "undefined" || !pins) return;
+    const id = pinHashTarget(window.location.hash);
+    if (!id || scrolledPinRef.current === id) return;
+    const el = document.getElementById(id);
+    if (!el) return;
+    scrolledPinRef.current = id;
+    el.scrollIntoView({ behavior: scrollBehavior(), block: "center" });
+    el.classList.add("ring-2", "ring-accent");
+    const t = setTimeout(() => el.classList.remove("ring-2", "ring-accent"), 1600);
+    return () => clearTimeout(t);
+  }, [pins]);
+
   const unpin = useCallback(
     async (id: string) => {
       setBusyId(id);
@@ -325,11 +343,11 @@ export function PinnedContextPanel() {
     const text = newContent.trim();
     if (!text) return;
     try {
-      await createMutation.mutateAsync({
-        content: text,
-        source: "pin:manual",
-        label: newLabel.trim() || undefined,
-      });
+      await createPinThenFlush(
+        (input) => createMutation.mutateAsync(input),
+        (input) => flushPromptCache.mutate(input),
+        { content: text, source: "pin:manual", label: newLabel.trim() || undefined },
+      );
       toast.success("pinned");
       setNewContent("");
       setNewLabel("");
@@ -338,7 +356,7 @@ export function PinnedContextPanel() {
     } catch (e) {
       toast.error(`pin failed: ${e instanceof Error ? e.message : e}`);
     }
-  }, [newContent, newLabel, createMutation, refresh]);
+  }, [newContent, newLabel, createMutation, flushPromptCache, refresh]);
 
   // Show stats in a compact header strip. Lights tell Nour at a
   // glance whether his pins need maintenance.

@@ -42,14 +42,17 @@ export interface DeepLinkStoreSlice {
  * query string and the store slice, apply the deep-link. Never clobbers a
  * draft the operator already typed; never sends anything.
  */
-export function consumeChatDeepLink(search: string, store: DeepLinkStoreSlice): void {
+export function consumeChatDeepLink(search: string, store: DeepLinkStoreSlice, pending: string | null = null): void {
   const params = new URLSearchParams(search);
 
   const cid =
     params.get("cid") ?? params.get("conv") ?? params.get("conversationId");
   if (cid) store.setActiveConversationId(cid);
 
-  const prompt = params.get("q") ?? params.get("seed") ?? params.get("prompt");
+  // ?pq=1 is the marker for a prompt handed over through sessionStorage (the deep-mode chip), so the typed
+  // question never sits in the URL (audit 02-F6). Without the marker a stray pending value is ignored.
+  const prompt =
+    params.get("q") ?? params.get("seed") ?? params.get("prompt") ?? (params.get("pq") === "1" ? pending : null);
   if (prompt && prompt.trim()) {
     if (store.offerDraft) store.offerDraft(prompt.trim());
     else if (!store.draft.trim()) store.setDraft(prompt.trim());
@@ -59,17 +62,42 @@ export function consumeChatDeepLink(search: string, store: DeepLinkStoreSlice): 
   if (params.get("h") === "1") store.setHistoryDrawerOpen(true);
 }
 
+/** Key the deep-mode chip writes and this hook consumes (and removes). */
+export const CHAT_PENDING_PROMPT_KEY = "chat:pending-q";
+
+/** The query string without the prompt-carrying params, so a consumed question leaves the address bar and history. */
+export function stripDeepLinkPrompt(search: string): string {
+  const params = new URLSearchParams(search);
+  for (const k of ["q", "seed", "prompt", "pq"]) params.delete(k);
+  const rest = params.toString();
+  return rest ? `?${rest}` : "";
+}
+
 export function useChatDeepLinkPrefill(): void {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const { draft, setDraft, offerDraft, setActiveConversationId, setHistoryDrawerOpen } =
       useChatUiStore.getState();
+    let pending: string | null = null;
+    if (new URLSearchParams(window.location.search).get("pq") === "1") {
+      try {
+        pending = sessionStorage.getItem(CHAT_PENDING_PROMPT_KEY);
+        sessionStorage.removeItem(CHAT_PENDING_PROMPT_KEY);
+      } catch {
+        pending = null;
+      }
+    }
     consumeChatDeepLink(window.location.search, {
       draft,
       setDraft,
       offerDraft,
       setActiveConversationId,
       setHistoryDrawerOpen,
-    });
+    }, pending);
+    // Consumed: take the question out of the URL, server-visible referrers and history.
+    const stripped = stripDeepLinkPrompt(window.location.search);
+    if (stripped !== window.location.search) {
+      window.history.replaceState(window.history.state, "", `${window.location.pathname}${stripped}${window.location.hash}`);
+    }
   }, []);
 }

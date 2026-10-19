@@ -7,7 +7,7 @@
  * the composer binds), via the exported pure consumer.
  */
 import { describe, it, expect, beforeEach } from "vitest";
-import { consumeChatDeepLink } from "@/features/chat-v2/hooks/use-chat-deep-link-prefill";
+import { consumeChatDeepLink, stripDeepLinkPrompt } from "@/features/chat-v2/hooks/use-chat-deep-link-prefill";
 import { useChatUiStore } from "@/features/chat-v2/stores/chat-ui-store";
 
 function slice() {
@@ -57,5 +57,28 @@ describe("consumeChatDeepLink", () => {
     expect(useChatUiStore.getState().draft).toBe("");
     expect(useChatUiStore.getState().activeConversationId).toBeNull();
     expect(useChatUiStore.getState().historyDrawerOpen).toBe(false);
+  });
+});
+
+describe("sessionStorage handoff (?pq=1) and stripping consumed prompts", () => {
+  it("?pq=1 prefills the draft from the pending prompt and never sends", () => {
+    consumeChatDeepLink("?pq=1", slice(), "should I hire a second tech?");
+    expect(useChatUiStore.getState().draft).toBe("should I hire a second tech?");
+  });
+
+  it("?pq=1 with nothing pending prefills nothing (a stale or blocked handoff is not an error)", () => {
+    consumeChatDeepLink("?pq=1", slice(), null);
+    expect(useChatUiStore.getState().draft).toBe("");
+  });
+
+  it("a pending prompt without the ?pq=1 marker is ignored (only a tap on the chip sets the marker)", () => {
+    consumeChatDeepLink("", slice(), "stray");
+    expect(useChatUiStore.getState().draft).toBe("");
+  });
+
+  it("stripDeepLinkPrompt drops q, seed, prompt and pq but keeps cid and every other param", () => {
+    expect(stripDeepLinkPrompt("?q=secret&cid=c1&x=2&pq=1&seed=s&prompt=p")).toBe("?cid=c1&x=2");
+    expect(stripDeepLinkPrompt("?q=only")).toBe("");
+    expect(stripDeepLinkPrompt("?cid=c1")).toBe("?cid=c1");
   });
 });
