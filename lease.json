@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "nickstire/bdnick-pii-redaction",
-  "status": "active",
+  "status": "released",
   "sessionKind": "bridge",
   "sessionId": "ee66da8a-fb60-434e-8ebe-990e50a73302",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.worktrees\\bdnick-pii",
   "claimedBy": "worktree-setup.ps1",
   "claimedAt": "2026-10-19T10:42:00.623Z",
   "expiresAt": "2026-10-19T22:42:00.623Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": null
+  "releasedAt": "2026-10-19T10:48:50.938Z",
+  "releaseReason": "operator confirmed via -ForceDirtyRelease in worktree-teardown.ps1",
+  "priorLeaseSha": "c24a0f8ac7e4118d602cefe32e76e29bd1f66201",
+  "releasedBy": "ee66da8a-fb60-434e-8ebe-990e50a73302",
+  "foreignReleaseReason": null
 }
