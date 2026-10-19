@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "nickstire/admin-photo-check",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "31cd0942-42dc-47b2-91fd-b8e3be5cb913",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\epic-germain-4e0fc9",
   "claimedBy": "2026-10-18-bdnick-prune-photo",
   "claimedAt": "2026-10-18T22:51:16.628Z",
   "expiresAt": "2026-10-19T10:51:16.628Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": null
+  "releasedAt": "2026-10-19T10:10:03.289Z",
+  "releaseReason": "integration branch (unpushed, tip d6cf49692) handed to a new session that finishes the Photo Check PR; it re-leases it",
+  "priorLeaseSha": "c3c4087fe7884b15dbe6b6d03d3293c8bdbacbba",
+  "releasedBy": "31cd0942-42dc-47b2-91fd-b8e3be5cb913",
+  "foreignReleaseReason": null
 }
