@@ -103,11 +103,11 @@ stop, by convention. Enabling required checks is an operator-side repo setting.
 - `apps/nickstire/**` -> [`apps/nickstire/AGENTS.md`](apps/nickstire/AGENTS.md), plus
   [`PROTECTED-CORE.md`](apps/nickstire/PROTECTED-CORE.md). SMS/VAPI live in `server/**`, PWA UI in `client/**`.
 - `apps/worker/**` -> [`apps/worker/AGENTS.md`](apps/worker/AGENTS.md) and [`DEPLOY.md`](apps/worker/DEPLOY.md).
+- Code intelligence on NATTYNOUR: MCP `graphify` (read-only) reflects MAIN, not your branch; `config/agent-os/local-services.json`.
 
 ## Commands
 
-Shared dep versions in `pnpm-workspace.yaml` `catalog:`.
-Root shortcuts: `pnpm nick <script>` · `pnpm stn <script>` · `pnpm worker <script>`.
+Shared dep versions in `pnpm-workspace.yaml` `catalog:`. Shortcuts: `pnpm nick <script>` · `pnpm stn <script>` · `pnpm worker <script>`.
 
 | Task | Command (from repo root) |
 |---|---|
@@ -154,6 +154,7 @@ Every adversarial self-review since 2026-08-12 found real defects in the session
   REST API existed for weeks while sessions concluded "no API path".
 - **Prove the instrument fired at all** — a zero, a green and a surviving mutation are all "no signal".
   Plant a known positive: [silent instrument](docs/agent-audit/DEFECT-SHAPE-SILENT-INSTRUMENT.md).
+- **Broken setup is yours now, unasked** ([health] FAIL, silent hook, failed MCP connect, empty tool config): fix it or name the blocker.
 - **No early exits.** A turn ends in one of three states: done; hard-blocked on something only a human can clear
   (spend, customer contact, a destructive or production write, a credential); or refused on a false premise, said in
   sentence one with the rest still finished. A red gate, a tool error or "needs authorization" is a branch point, not
@@ -181,7 +182,6 @@ Subject `<type> · <app> · <one-line summary>`. AI commits MUST carry a trailer
 ## Agent adapters
 
 **Add policy here; add only vendor-specific behavior to an adapter.**
-
 **An adapter must IMPORT, not link.** Only a bare `@path` on its own line loads the target; a markdown link
 loads nothing while still passing a substring check. Registry + design notes:
 [`docs/agent-os/README.md`](docs/agent-os/README.md).

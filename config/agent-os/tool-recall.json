@@ -1,9 +1,9 @@
 [
   {
-    "name": "serena",
+    "name": "graphify",
     "kind": "mcp",
-    "use": "symbol-level reads and edits across files: find a symbol, its callers and references, go to definition, rename or refactor safely",
-    "triggers": "caller callers references reference usages where used definition symbol rename refactor find every"
+    "use": "repo-wide code graph of the MAIN checkout over MCP: find a symbol and its file:line, its neighbours and importers, the shortest path between two symbols, a PR's impact; does not see your worktree's uncommitted changes",
+    "triggers": "caller callers references reference usages where used definition symbol rename refactor find every graph impact depends imports path"
   },
   {
     "name": "context7",
