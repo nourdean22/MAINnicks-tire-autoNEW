@@ -148,6 +148,33 @@ export function qualityVersionLikePattern(): string {
   return `%quality_version=${VAPI_QUALITY_VERSION}%`;
 }
 
+/**
+ * Re-stamp an EXISTING `revenueOpsV1` envelope when a backfill rewrites the score: only
+ * `qualityVersion` and `quality` change (same shape as the cron's measurement quality); every
+ * other key is kept. Returns null, meaning "leave the metadata as it is", when there is no
+ * envelope (creating one would turn a legacy row into a versioned row with no facts) or the
+ * envelope has no `quality` object (the outbound exclusion).
+ */
+export function restampMeasurementQuality(
+  envelope: unknown,
+  result: { score: number | null; qualityEvidence: string[]; outcome: string },
+): Record<string, unknown> | null {
+  if (!envelope || typeof envelope !== "object" || Array.isArray(envelope)) return null;
+  const current = envelope as Record<string, unknown>;
+  const quality = current.quality;
+  if (!quality || typeof quality !== "object" || Array.isArray(quality)) return null;
+  return {
+    ...current,
+    qualityVersion: VAPI_QUALITY_VERSION,
+    quality: {
+      score: result.score,
+      version: VAPI_QUALITY_VERSION,
+      evidence: result.qualityEvidence,
+      ...(result.score == null ? { unavailableReason: result.outcome } : {}),
+    },
+  };
+}
+
 /** The version label for an average over rows: the one version they share, "mixed", or null when empty. */
 export function qualityVersionLabel(versions: ReadonlySet<string>): string | null {
   if (versions.size === 0) return null;

@@ -18,7 +18,13 @@ import { disposeCall } from "@shared/callTaxonomy";
 import { sliceBlock } from "../testUtils/sourceBlock";
 import { vapiCallLogs } from "../../drizzle/schema";
 import { classifyCall } from "../services/vapiCallClassifier";
-import { qualityVersionLabel, qualityVersionLikePattern, scoreVapiQuality, VAPI_QUALITY_VERSION } from "../services/vapiMeasurement";
+import {
+  qualityVersionLabel,
+  qualityVersionLikePattern,
+  restampMeasurementQuality,
+  scoreVapiQuality,
+  VAPI_QUALITY_VERSION,
+} from "../services/vapiMeasurement";
 import { appendWalkInSuffix, UNMEASURED_WALK_IN, type WalkInCoverage } from "../services/vapiWalkInCoverage";
 
 const AI = "AI: Nick's Tire and Auto, this is Nick.";
@@ -276,6 +282,68 @@ describe("every writer of eval_score under the v2 label passes the coverage", ()
     expect(script).toContain("walkIn = detectWalkInForDetail(detail);");
     expect(script).toContain("walkInCoverage: walkIn,");
     expect(script).toContain("appendWalkInSuffix(result.reasoning, result.score == null ? UNMEASURED_WALK_IN : walkIn)");
+  });
+});
+
+describe("the backfill re-stamps an EXISTING measurement envelope with the v2 quality (Codex P2 on PR 3166)", () => {
+  const V1_ENVELOPE = {
+    metricDefinitionVersion: "revenue-ops-v1",
+    factsVersion: "vapi-facts-v1",
+    classifierVersion: "vapi-outcome-v2",
+    qualityVersion: "vapi-quality-v1",
+    evaluatedAt: "2026-10-01T12:00:00.000Z",
+    facts: { toolEngaged: false, leadCreated: false, callbackCreated: false, bookingCreated: false, transferAttempted: false, walkInDirected: false, arrivalVerified: false, paidInvoiceVerified: false },
+    evidenceLevels: { toolEngagement: "observed", lead: "observed", callback: "observed", booking: "observed", walkIn: "observed", arrival: "observed", paidInvoice: "observed" },
+    quality: { score: 70, version: "vapi-quality-v1", evidence: ["customer_conversation", "greeting_observed", "intent_identified", "productive_duration"] },
+    someLaterKey: { kept: true },
+  };
+  const OUTBOUND_ENVELOPE = { metricDefinitionVersion: "revenue-ops-v1", classifierVersion: "vapi-outcome-v2", qualityVersion: "vapi-quality-v1", evidenceLevel: "observed", excludedReason: "outbound", evaluatedAt: "2026-10-01T12:00:00.000Z" };
+  const invited = () => classifyCall({ ...BRAKES_ONLY, walkInCoverage: INVITED });
+  /** What the script does with the helper's answer: the same spread as `updatedMetadata`. */
+  const apply = (metadata: Record<string, unknown>, result: ReturnType<typeof classifyCall>) => {
+    const restamped = restampMeasurementQuality(metadata.revenueOpsV1, result);
+    return { ...metadata, ...(restamped ? { revenueOpsV1: restamped } : {}) };
+  };
+
+  it("(a) a v1 envelope gets qualityVersion v2 and the new quality; every other key is deep-equal", () => {
+    const result = invited();
+    const before = structuredClone(V1_ENVELOPE);
+    const after = apply({ intents: [], revenueOpsV1: V1_ENVELOPE }, result).revenueOpsV1 as Record<string, unknown>;
+    expect(after.qualityVersion).toBe("vapi-quality-v2");
+    expect(after.quality).toEqual({ score: 90, version: "vapi-quality-v2", evidence: result.qualityEvidence });
+    const { qualityVersion: _a, quality: _b, ...rest } = after;
+    const { qualityVersion: _c, quality: _d, ...restBefore } = before;
+    expect(rest).toEqual(restBefore);
+    expect(V1_ENVELOPE).toEqual(before); // the input object is not mutated
+  });
+
+  it("(b) a row with no envelope gets no envelope", () => {
+    const after = apply({ intents: [] }, invited());
+    expect("revenueOpsV1" in after).toBe(false);
+  });
+
+  it("(c) an envelope without a quality object (outbound exclusion) is left untouched", () => {
+    const after = apply({ revenueOpsV1: OUTBOUND_ENVELOPE }, invited());
+    expect(after.revenueOpsV1).toEqual(OUTBOUND_ENVELOPE);
+  });
+
+  it("(d) a null score carries unavailableReason = the outcome, as the cron writes it", () => {
+    const result = classifyCall(FIXTURES.find(([n]) => n === "one_second_empty")![1]);
+    expect(result.score).toBeNull();
+    const after = apply({ revenueOpsV1: V1_ENVELOPE }, result).revenueOpsV1 as Record<string, unknown>;
+    expect(after.quality).toEqual({ score: null, version: "vapi-quality-v2", evidence: result.qualityEvidence, unavailableReason: "spam_or_wrong_number" });
+  });
+
+  it("(e) the scorecard label for a restamped row is vapi-quality-v2", () => {
+    const after = apply({ revenueOpsV1: V1_ENVELOPE }, invited()).revenueOpsV1 as Record<string, unknown>;
+    expect(qualityVersionLabel(new Set([String(after.qualityVersion)]))).toBe("vapi-quality-v2");
+  });
+
+  it("the backfill script stores the helper's answer in updatedMetadata", () => {
+    const script = readFileSync(new URL("../../scripts/maintenance/backfill-vapi-classification.ts", import.meta.url), "utf8");
+    expect(script).toContain("const restamped = restampMeasurementQuality(existingMetadata.revenueOpsV1, result);");
+    const block = sliceBlock(script, "const updatedMetadata = {", "};", { label: "backfill-vapi-classification.ts" });
+    expect(block).toContain("...(restamped ? { revenueOpsV1: restamped } : {}),");
   });
 });
 

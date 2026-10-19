@@ -13,6 +13,7 @@ import { classifyCall } from "../../server/services/vapiCallClassifier";
 import { extractCustomerTurns } from "../../server/services/customerTurns";
 import { disposeCall } from "../../shared/callTaxonomy";
 import { getCallStateHistory } from "../../server/services/voice-call-state";
+import { restampMeasurementQuality } from "../../server/services/vapiMeasurement";
 import {
   appendWalkInSuffix,
   detectWalkInForDetail,
@@ -208,10 +209,14 @@ async function main() {
         ? JSON.parse(row.metadata)
         : (row.metadata || {});
 
+      // A row that already has a measurement envelope gets the v2 quality its new score carries
+      // (the scorecard labels by revenueOpsV1.qualityVersion); a row without one stays unversioned.
+      const restamped = restampMeasurementQuality(existingMetadata.revenueOpsV1, result);
       const updatedMetadata = {
         ...existingMetadata,
         intents: result.intents,
         ...(queueStatus ? { queueStatus, queueUrgency } : {}),
+        ...(restamped ? { revenueOpsV1: restamped } : {}),
       };
 
       log.info(`[Classification] ID: ${row.vapiCallId} | Outcome: ${bucketed} | Score: ${score} | Intents: ${result.intents.join(",")}`);
