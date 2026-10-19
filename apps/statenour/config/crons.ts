@@ -983,30 +983,10 @@ export const CRONS: CronDef[] = [
     mode: "folded",
     category: "action",
     foldedInto: "automation-engine",
-    description: "FOLDED into the hourly automation-engine Inngest tick, which dispatches /api/cron/autonomous-engine first each hour (lib/inngest/functions/automation-engine.ts). Moved off mega-evening 2026-10-10: its rules gate on daytime ET hours that the 22:00/23:00 ET slot never reached. NICK_AUTONOMY-gated proactive engine; rules live in lib/brain/autonomous-engine.ts (quote follow-up, commitment check-ins and escalation, drift escalation, stale leads, revenue checks, task overload) - no count pinned here, a count in prose is a cache with no invalidation. Hard-skips when the flag is off. FAIL-CLOSED: every rule defers to /system/actions unless an explicit `auto` AutomationPolicy exists - nothing auto-sends.",
+    description: "FOLDED into the hourly automation-engine Inngest tick, which dispatches /api/cron/autonomous-engine first each hour (lib/inngest/functions/automation-engine.ts). Moved off mega-evening 2026-10-10: its rules gate on daytime ET hours that the 22:00/23:00 ET slot never reached. NICK_AUTONOMY-gated proactive engine; rules live in lib/brain/autonomous-engine.ts (quote follow-up, stale leads, revenue checks, task overload) - no count pinned here, a count in prose is a cache with no invalidation. Hard-skips when the flag is off. FAIL-CLOSED: every rule defers to /system/actions unless an explicit `auto` AutomationPolicy exists - nothing auto-sends.",
   },
   // neglect-penalty removed 2026-10-10: declared inngest/dormant, but no
   // function with that id exists (nothing to park or revive).
-  {
-    name: "change-detection",
-    schedule: "0 9 * * *", // 09:00 UTC (5am ET) — fires via the MORNING_JOBS fan-out
-    mode: "active",
-    category: "review",
-    maxDuration: 120,
-    path: "/api/cron/change-detection",
-    addedAt: "2026-07-22",
-    description: "change-detection-lite external-change sensor — Firecrawl scrape + content-hash of watched competitor/regulatory pages into page_snapshots. Observe-only, no autonomous action.",
-  },
-  {
-    name: "experiment-measure",
-    schedule: "0 3 * * *", // daily ~10pm ET — fires via the EVENING_JOBS fan-out
-    mode: "active",
-    category: "review",
-    maxDuration: 120,
-    path: "/api/cron/experiment-measure",
-    addedAt: "2026-07-22",
-    description: "Closed-loop Experiment resolver — resolves DUE experiments (accepted opportunities past their horizon), scores whether each hypothesis held up, and feeds a bounded, reversible nudge into the attributed source's authScore. Observe + learn only, no autonomous action.",
-  },
 ];
 
 /** Names of crons that SHOULD exist as routes (for verifier). */
