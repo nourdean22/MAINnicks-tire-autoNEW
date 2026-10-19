@@ -330,6 +330,15 @@ export async function updateMission(id: string, input: unknown) {
 
     return mission;
   });
+  // Leaving ACTIVE (killed, completed, paused) stops a running durable execution; its cancelOn
+  // listens for this. Loud, never fatal: the status change already committed.
+  if (payload.status && payload.status !== "ACTIVE" && payload.status !== existing.status) {
+    void import("@/lib/missions/durable-execution")
+      .then(({ cancelMissionExecution }) => cancelMissionExecution(id))
+      .catch((err) => {
+        console.warn("[missions] durable cancel failed:", err instanceof Error ? err.message : String(err));
+      });
+  }
   // ⚠ Was `await syncTaskPriorities(tx)` inside — same defect as createMission.
   // A mission's status/priority change re-ranks every task, so the refresh is
   // global, but it is derived data and must not be able to veto the write.
