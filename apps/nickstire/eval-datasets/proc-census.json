@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-19T14:14:39.184Z",
-  "count": 643,
+  "generatedAt": "2026-10-19T17:55:03.556Z",
+  "count": 646,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -235,6 +235,7 @@
     "mutation.reviewRequests.updateSettings",
     "mutation.seoTools.generateSeoFixDrafts",
     "mutation.seoTools.submitSitemaps",
+    "mutation.shopMedia.review",
     "mutation.shopdriver.forceSyncNow",
     "mutation.shopdriver.importCSV",
     "mutation.shopdriver.importInvoiceCSV",
@@ -551,6 +552,8 @@
     "query.serviceReviews.forCity",
     "query.serviceReviews.forService",
     "query.shareCards.get",
+    "query.shopMedia.list",
+    "query.shopMedia.stats",
     "query.shopStatus.getState",
     "query.shopStatus.getStatus",
     "query.shopdriver.declinedRecoveryStatus",
