@@ -26,8 +26,13 @@
  *     /system/performance route).
  *   · "Command Center" → removed (it self-linked to /system).
  * Added domain grouping + the attention strip.
+ *
+ * UI v3 W5a (2026-10-18): tiles marked `lab` (real components against
+ * fixtures, no live data) fold into ONE closed "Lab" disclosure after the
+ * groups. Pinned by tests/components/hub-grid-lab.test.tsx.
  */
 
+import { useId, useState } from "react";
 import Link from "next/link";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils/cn";
@@ -95,6 +100,8 @@ interface HubCard {
   description: string;
   chip: (d: HubPayload | null) => { label: string; severity: Severity };
   featured?: boolean; // edge-strong ring + floats to the top of its group
+  /** A gallery of real components against fixtures, not a reading of the system: folds into the closed Lab (UI v3 W5a). */
+  lab?: true;
 }
 
 // Wave AD-honesty (2026-06-03): the prior "mega-delete" removed ~30
@@ -319,6 +326,7 @@ export const CARDS: HubCard[] = [
     group: "data",
     description: "Real chat components against fixtures, eyeball after UI changes",
     chip: () => ({ label: "gallery", severity: "info" }),
+    lab: true,
   },
   {
     // 2026-09-15 · UI workbench. The inspector chrome, its four honest
@@ -331,6 +339,7 @@ export const CARDS: HubCard[] = [
     group: "data",
     description: "Inspector, metric + evidence primitives against fixtures, frozen clock, nothing mocked",
     chip: () => ({ label: "gallery", severity: "info" }),
+    lab: true,
   },
   {
     // 2026-07-28 blueprint: the daily 10:15 brief push was the ONLY path
@@ -533,10 +542,16 @@ export function SystemHubGrid() {
   });
   const data: HubPayload | null = hubQuery.data ?? null;
 
-  const decorated = CARDS.map((c) => {
+  const [labOpen, setLabOpen] = useState(false);
+  const labId = useId();
+
+  const all = CARDS.map((c) => {
     const chip = c.chip(data);
     return { c, chip: chip === NOT_READ_CHIP && hubQuery.isError ? READ_FAILED_CHIP : chip };
   });
+  // Lab tiles read no payload, so they can never need attention; they leave the groups.
+  const lab = all.filter((x) => x.c.lab);
+  const decorated = all.filter((x) => !x.c.lab);
 
   // Degraded surfaces (warning/critical) lift into a "Needs attention"
   // strip above the groups — problems hit the eye first. Critical
@@ -601,6 +616,29 @@ export function SystemHubGrid() {
           </section>
         );
       })}
+
+      {lab.length > 0 && (
+        <section aria-label="Lab">
+          <button
+            type="button"
+            aria-expanded={labOpen}
+            aria-controls={labId}
+            onClick={() => setLabOpen((o) => !o)}
+            className="flex min-h-[44px] w-full items-center gap-3 border-y border-(--border-default) text-left hover:bg-surface-hover"
+          >
+            <span className="text-sm font-semibold text-(--text-primary)">
+              Lab, {lab.length} {lab.length === 1 ? "tool" : "tools"}
+            </span>
+            <span className="hidden text-[11px] text-fg-tertiary sm:inline">fixture galleries, no live data</span>
+            <span className="ml-auto font-mono text-[11px] text-fg-tertiary">{labOpen ? "open" : "closed"}</span>
+          </button>
+          <div id={labId} hidden={!labOpen} className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {lab.map(({ c, chip }) => (
+              <HubCardLink key={c.href} card={c} chip={chip} />
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }
