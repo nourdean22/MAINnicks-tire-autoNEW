@@ -17,11 +17,27 @@ import VehicleSizePicker, { vehicleFromUrl, type SavedVehicle } from "@/componen
 import TextQuoteButton from "@/components/tires/TextQuoteButton";
 import { FINANCING_PROVIDERS } from "@shared/financing";
 import { KAFENE_BANNER_ALT } from "@/lib/kafene";
+import { photoSrcSet } from "@/lib/photoSrcSet";
 
 const KAFENE = FINANCING_PROVIDERS.find((p) => p.id === "kafene");
 
 // Real inferred shape from the tRPC procedure — no `any` on the money path.
 type Tire = RouterOutputs["gatewayTire"]["publicSearch"]["tires"][number];
+
+// Real shop photos (shop-media job, 2026-10-18) under the new-tire prices:
+// stock on hand, and the alignment check that is part of the install package.
+const NEW_TIRE_PHOTOS = [
+  {
+    src: "/photos/new-tires-stacked-outside-nicks-tire.webp",
+    alt: "New tires stacked outside the service bays at Nick's Tire & Auto",
+    caption: "New tires in stock at the shop",
+  },
+  {
+    src: "/photos/wheel-alignment-machine-service-bay.webp",
+    alt: "Wheel alignment machine and a technician at work in a Nick's Tire & Auto service bay",
+    caption: "The alignment check in the install package",
+  },
+];
 
 const POPULAR = ["205/55R16", "215/60R16", "225/65R17", "235/65R18", "215/55R17", "225/60R18"];
 const normalize = (v: string) => v.trim().toUpperCase().replace(/[^0-9R]/g, "");
@@ -510,6 +526,24 @@ export default function TireFinderV2() {
                 <p className="mt-1 text-2xl font-black">From $179<span className="text-sm font-normal text-muted-foreground">/tire</span></p>
                 <p className="mt-1 text-sm text-muted-foreground">Michelin LTX, Bridgestone Dueler, Goodyear Wrangler, Pirelli — install free.</p>
               </div>
+            </div>
+            <div className="mt-6 grid grid-cols-2 gap-3">
+              {NEW_TIRE_PHOTOS.map((p) => (
+                <figure key={p.src}>
+                  <img
+                    src={p.src}
+                    srcSet={photoSrcSet(p.src)}
+                    sizes="(min-width: 896px) 440px, 50vw"
+                    alt={p.alt}
+                    width={1440}
+                    height={1920}
+                    loading="lazy"
+                    decoding="async"
+                    className="aspect-[4/3] w-full rounded-2xl object-cover"
+                  />
+                  <figcaption className="mt-2 text-sm text-muted-foreground">{p.caption}</figcaption>
+                </figure>
+              ))}
             </div>
           </div>
         </section>
