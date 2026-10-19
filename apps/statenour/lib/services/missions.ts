@@ -333,11 +333,7 @@ export async function updateMission(id: string, input: unknown) {
   // Leaving ACTIVE (killed, completed, paused) stops a running durable execution; its cancelOn
   // listens for this. Loud, never fatal: the status change already committed.
   if (payload.status && payload.status !== "ACTIVE" && payload.status !== existing.status) {
-    void import("@/lib/missions/durable-execution")
-      .then(({ cancelMissionExecution }) => cancelMissionExecution(id))
-      .catch((err) => {
-        console.warn("[missions] durable cancel failed:", err instanceof Error ? err.message : String(err));
-      });
+    stopDurableExecution(id);
   }
   // ⚠ Was `await syncTaskPriorities(tx)` inside — same defect as createMission.
   // A mission's status/priority change re-ranks every task, so the refresh is
@@ -356,6 +352,15 @@ export async function updateMission(id: string, input: unknown) {
   invalidateMutationCaches();
 
   return serializeForJson(result);
+}
+
+/** Stops a running durable execution. Loud, never fatal: the status change or delete already committed. */
+function stopDurableExecution(id: string): void {
+  void import("@/lib/missions/durable-execution")
+    .then(({ cancelMissionExecution }) => cancelMissionExecution(id))
+    .catch((err) => {
+      console.warn("[missions] durable cancel failed:", err instanceof Error ? err.message : String(err));
+    });
 }
 
 export async function deleteMission(id: string) {
@@ -382,6 +387,9 @@ export async function deleteMission(id: string) {
     if (!result.ok) {
       throw new ServiceError("Mission not found.", 404);
     }
+    // The mission is gone from every list but its durable run would keep stepping; the same cancel
+    // updateMission sends. Fired here, before the cascade, because the delete has already committed.
+    stopDurableExecution(id);
     // Cascade: also soft-delete all tasks pointing at this mission so
     // they disappear from list views without orphaning their FK.
     await softDeleteMany("task", { missionId: id });
