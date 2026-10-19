@@ -5680,28 +5680,31 @@
     },
     {
       "capabilityId": "admin-photo-check",
-      "name": "Photo Improver in Nick's Admin (server half): instagramStudio.checkPhoto scores an uploaded shop photo with one vision model, instagramStudio.brandedPhoto draws a new text-to-image render in Nick's style; admin-only, preview only, nothing posts",
+      "name": "Photo Check in Nick's Admin (Instagram > Create, moved from bdnick.info's Photo Improver): an admin uploads a shop photo for scoring only (instagramStudio.uploadEvidencePhoto scoreOnly: stored under photo-check/, never registered as real-shop media, never enriched, so the autopost pool cannot pick it), instagramStudio.checkPhoto scores it with one Gemini vision call, and after a two-tap confirm instagramStudio.brandedPhoto draws a NEW text-to-image render in Nick's style; admin-only, preview only, nothing posts",
       "owner": "operator",
       "blockers": [
         {
           "severity": "P2",
-          "description": "No live vision or image call has ever been made: whether Gemini's 800-token reply budget holds the whole scorecard JSON is unproven (a truncated reply comes back as reason unreadable, never a score), and the admin screen that calls these two procedures is a separate lane",
+          "description": "Not exercised in production. No live vision or image call has been made: whether Gemini's 800-token reply budget holds the whole scorecard JSON is unproven (a truncated reply comes back as Couldn't check this photo, never a score). Proof needed after deploy: one real photo through Photo Check returns a scorecard with Model: gemini (score only, no image credit); the branded render waits for Nour's go because it spends a credit.",
           "source": "job 2026-10-18-bdnick-prune-photo"
         }
       ],
       "deferredScope": [
-        "Daily cap or credit ledger: admin-only, one tap per render (shortcut recorded in services/photoImprover.ts; add a cap if usage grows, it was 4 uses in 90 days)",
+        "Daily cap or credit ledger: admin-only, one tap per render, at most two provider calls per tap (Gemini, then the OpenAI fallback inside generateImage); shortcut recorded in services/photoImprover.ts, add a cap if usage grows (it was 4 uses in 90 days)",
+        "Server-side dedupe for brandedPhoto: the client lock makes a double tap one render; a second tab or a replayed request is not deduped on the server",
+        "A second vision provider: Gemini only on purpose (no Gemini key reads as vision_unavailable, never a weaker model's score)",
         "Editing the uploaded photo: brandedPhoto is text-to-image, so UI copy must not call it your photo improved",
-        "Deleting the statenour /photo-improver copy: a later wave, after this is live"
+        "Deleting the statenour /photo-improver copy: wave 5 of job 2026-10-18-bdnick-prune, after this is live"
       ],
-      "lastVerifiedAt": "2026-10-18",
-      "codeState": "in_progress",
-      "operationalState": "unit_verified",
-      "exposure": "disabled",
+      "lastVerifiedAt": "2026-10-19",
+      "verificationExpiresAt": null,
+      "codeState": "merged",
+      "operationalState": "integration_verified",
+      "exposure": "operator_only",
       "evidence": {
-        "codeCommit": "branch worktree-agent-abbb7d3f24cca97cc, commits 1f69a35ad (server/services/photoImprover.ts) and 85a0bfb09 (server/routers/instagramStudio.ts checkPhoto and brandedPhoto); the manager sets codeState merged and the PR number when it lands (job 2026-10-18-bdnick-prune-photo)",
-        "tests": "server/services/photoImprover.test.ts 22 and server/routers/instagramStudioPhoto.test.ts 15, fakes only (no live call). Red-first: service 1 file failed / 0 tests (module absent), router 15f/0p ('No procedure found'); mutations killed 8/8 on the service and 8/8 on the router (admin gate dropped, input bounds dropped, outage read as ok, second generator call, provider error text leaking to the caller, empty URL accepted)",
-        "liveProbe": "NOT RUN: no live vision or image call is allowed from a lane (it spends credit). Owed after deploy and after the admin screen exists: one real photo through checkPhoto (expect ok true with model gemini, or a named failure) and one brandedPhoto render."
+        "codeCommit": "this PR, branch nickstire/admin-photo-check (job 2026-10-18-bdnick-prune-photo). Server: server/services/photoImprover.ts (analyzePhotoForShop, renderBrandedScene), server/routers/instagramStudio.ts (checkPhoto, brandedPhoto, uploadEvidencePhoto scoreOnly), server/storage.ts isOwnObjectUrl (the photo URL must be our own storage under photo-check/ or ig-evidence/), server/_core/imageGeneration.ts (provider and model on GenerateImageResponse, so the screen names what answered). Client: client/src/pages/admin/instagram/PhotoCheckCard.tsx mounted above the Studio form in InstagramAdmin.tsx's Create view; checkPhoto and brandedPhoto listed in client/src/lib/unbatchedProcedures.ts so a slow model never holds batched reads; every request uses networkMode always so an offline tap fails fast.",
+        "tests": "6 files, 104 passed (2026-10-19, fakes only, no live call): server/services/photoImprover.test.ts 44, server/routers/instagramStudioPhoto.test.ts 16, server/routers/instagramStudioUpload.test.ts 5, server/_core/imageGeneration.provider.test.ts 3, client/src/__tests__/photo-check-card.test.tsx 34, client/src/__tests__/photo-check-mount.test.tsx 2. Red-first on the first commits: service 1 file failed / 0 tests (module absent), router 15f/0p ('No procedure found'); mutations killed 8/8 service, 8/8 router, 23/23 on the review fixes (score-only upload kept out of the pool, URL must be our storage, provider label, score scale). The upload test's enrichment wait was raised from 1 s to 10 s because the first case cold-loads the real enrichment module (1.47 s measured); positive control: enrichment call disabled gives 2f/3p.",
+        "liveProbe": "NOT RUN: owed after deploy. One real photo through Photo Check on nickstire.org/admin (expect a scorecard with Model: gemini, or a named failure); no branded render without Nour's go (it spends an image credit)."
       }
     }
   ],

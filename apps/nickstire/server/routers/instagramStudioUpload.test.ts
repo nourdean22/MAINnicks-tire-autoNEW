@@ -90,7 +90,8 @@ describe("uploadEvidencePhoto scoreOnly", () => {
       expect(r).toEqual({ url: expect.stringContaining("/generated/ig-evidence/"), assetId: "asset-1" });
       expect(registerProducedAsset).toHaveBeenCalledTimes(1);
       expect(registerProducedAsset.mock.calls[0][2]).toMatchObject({ assetType: "instagram_evidence_photo", rightsStatus: "real_shop", provider: "operator_upload" });
-      await vi.waitFor(() => expect(enrichRealShopAsset).toHaveBeenCalledTimes(1));
+      // The first case cold-loads the real mediaEnrichment graph (importOriginal), which can pass waitFor's 1 s default.
+      await vi.waitFor(() => expect(enrichRealShopAsset).toHaveBeenCalledTimes(1), { timeout: 10_000 });
       expect(enrichRealShopAsset.mock.calls[0][0]).toBe("asset-1");
     },
   );
