@@ -66,7 +66,7 @@ export function OperatingRhythmToggle() {
         },
         onError: (err) => {
           setMutationError(
-            err.message || "Server rejected the change — try again.",
+            err.message || "Server rejected the change. Try again.",
           );
         },
       },
@@ -121,8 +121,8 @@ export function OperatingRhythmToggle() {
       </div>
       <p className="text-[12px] text-fg-tertiary">
         {enabled
-          ? "On — Telegram checkpoints at 8am, 11am, 2pm, 5pm, 9pm guard focus and enforce shutdown."
-          : "Off — no daily focus checkpoints. Tap to re-enable."}
+          ? "On: Telegram checkpoints at 8am, 11am, 2pm, 5pm, 9pm guard focus and enforce shutdown."
+          : "Off: no daily focus checkpoints. Tap to re-enable."}
       </p>
       {pendingDisable && (
         <div className="mt-2 flex items-center justify-between gap-2 rounded-control border border-rose-500/30 bg-rose-500/5 px-2 py-2">
@@ -149,7 +149,7 @@ export function OperatingRhythmToggle() {
       )}
       {mutationError && (
         <p role="alert" className="mt-2 rounded-control border border-rose-500/30 bg-rose-500/10 px-2 py-1.5 text-[12px] text-rose-300">
-          ⚠ {mutationError}
+          Failed: {mutationError}
         </p>
       )}
     </div>

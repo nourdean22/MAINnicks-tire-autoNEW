@@ -49,7 +49,7 @@
 - Exclusions: spam, outbound calls and genuine pre-connect abandons.
 - Technical failures remain visible in reliability metrics even when a conversational-quality score is unavailable.
 - A booking does not automatically increase quality; lack of booking does not automatically reduce quality.
-- Version: `vapi-quality-v1`.
+- Version: `vapi-quality-v2` (2026-10-18: an explicit agent walk-in invitation fills the next-step credit; `vapi-quality-v1` rows are not re-scored, and the degraded baseline compares same-version rows only).
 - Executive reporting: yes only with score version, sample size, excluded count and evaluation timestamp.
 - ROI use: no.
 

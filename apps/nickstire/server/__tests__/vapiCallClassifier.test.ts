@@ -122,7 +122,7 @@ describe("vapiCallClassifier quality independence", () => {
     expect(toolOnly.outcome).not.toBe("hard_conversion");
     expect(persistedLead.outcome).toBe("hard_conversion");
     expect(toolOnly.score).toBe(persistedLead.score);
-    expect(toolOnly.qualityVersion).toBe("vapi-quality-v1");
+    expect(toolOnly.qualityVersion).toBe("vapi-quality-v2");
   });
 });
 

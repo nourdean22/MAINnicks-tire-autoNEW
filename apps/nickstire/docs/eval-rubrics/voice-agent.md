@@ -1,8 +1,87 @@
-# Voice Agent Evaluation Rubric · v1.0 (2026-05-26)
+# Voice Agent Evaluation Rubric · v1.1 (2026-10-18)
 
 **Used by:** `apps/nickstire/server/cron/jobs/vapiCallEval.ts` (daily eval cron)
 **Skill port:** PORT 10 · agent-evaluation + llm-evaluation framework
 **Storage:** `vapi_call_logs.eval_score / eval_outcome / eval_reasoning / eval_at`
+
+## Changelog
+
+- **Scorer `vapi-quality-v2` (2026-10-18)** · Nour approved walk-in credit in the call score. An explicit
+  walk-in invitation by the agent now fills the existing +20 next-step credit when nothing else already did;
+  it is never added twice. Address and hours stay measured fields and do not move the score. The daily
+  "degraded" alert compares only rows scored with the same version. No other weight changed, and outcomes,
+  dispositions and the recovery queue are unchanged. Rubric tables below are unchanged.
+- **v1.1 (2026-10-18)** · Conversion progression now credits a walk-in invitation that carries the shop's
+  address and hours, because the shop is first come, first served with walk-ins and no held slots, so booking
+  is not the only next step the shop can honour. The 20/15/10/5/0 ladder is copied from v1.0, not re-tuned.
+  Two measured fields are added (below). The "How the cron uses this" section is corrected: the cron does not
+  call an LLM with this rubric.
+- **v1.0 (2026-05-26)** · five dimensions, 20 points each. Text kept below under "Conversion progression, v1.0".
+
+## Implementation status (read this before trusting a table)
+
+The five-dimension tables below are the **target design**. The daily cron does not score them. It runs the
+deterministic classifier (`services/vapiCallClassifier.ts`) and the additive `vapi-quality-v2` scorer
+(`services/vapiMeasurement.ts`), and writes `eval_score` from those. What v1.1 adds in code is the walk-in
+measurement: `services/vapiWalkInCoverage.ts`.
+
+**Walk-in credit in the score (`vapi-quality-v2`, 2026-10-18).** The cron computes the walk-in fields once,
+before scoring. When the agent explicitly invited the caller in (`walk_in=true`), the scorer's one next-step
+credit (+20) applies if nothing else already earned it (a lead, callback or booking row, a tool call, a
+transfer, the caller's own walk-in or callback words, or an answered hours question). The evidence list then
+says `agent_walk_in_invitation`. `walk_in=false` and UNMEASURED give no credit and no penalty; `addr_hours`
+does not affect the score. The additive scorer has one next-step bucket, so the 15/10/5 bands and the
+"WITH the shop's address and hours" condition on the 20 band below stay target design: the agent almost never
+says the address or hours, and a credit that required them would never fire.
+
+- Calibration (2026-10-18, read-only, counts only, 600 archived calls): about three calls in ten carry an
+  agent invitation; about 130 of those had no other next step, so the average score of scored calls rises by
+  roughly 4 points. Nour accepted that move.
+- The daily "degraded" alert compares today's average only with rows whose `eval_reasoning` carries the same
+  `quality_version`. Historical rows are not re-scored, and the baseline only reads calls older than the
+  5-day evaluation window, so the degraded test stays off until 20 such calls carry `vapi-quality-v2` (about
+  the first five days after deploy at roughly 30 scored calls a day); the other alert conditions are unchanged.
+- The admin voice scorecard averages the window it is asked for; its `quality.version` reports the one version
+  behind that average, or `mixed` when the window spans the change.
+- Detector accuracy limits (below) are unchanged and now reach the score.
+
+**Limit.** The evaluator classifies from the provider's top-level transcript only. A call whose speech exists
+only in the artifact would read as abandoned, score null, and stay UNMEASURED for the walk-in fields. Measured
+2026-10-19, read-only, counts only, over the 2,360 newest evaluated inbound calls longer than 5 s (11 weeks):
+0 such calls. Widening the evaluator's input is a separate decision because it would move scores, outcomes
+and the recovery queue. The walk-in detector itself shares its transcript and messages resolver with the
+archive and prefers role-tagged messages when present; it claims nothing more.
+
+### Walk-in measurement (implemented)
+
+Two fields, each `true`, `false` or UNMEASURED. They are written as a suffix on `eval_reasoning`:
+` · walk_in=<true|false|unmeasured> · addr_hours=<true|false|unmeasured>`.
+
+| Field | `true` when | `false` when | UNMEASURED when |
+|---|---|---|---|
+| `walk_in` | an assistant turn after the opening line invites the caller in (walk-ins, come by, swing by, stop in, head over, first come first served, no appointment needed). "Pull up", "come up" and "come down" are not invitations: "let me pull up your info" is a lookup | the agent spoke past the opening line and did not | the transcript has no speaker labels, the agent said nothing past its opening line, or the call has no quality score (not a customer conversation, or a technical failure) |
+| `addr_hours` | assistant turns after the opening line name the street (the street name from the business facts; the house number is optional) AND state hours: an open-to-close pair, or a cue word (open, close, till, until) followed by one of the shop's open or close times, so a close-only phrase such as "we close at six" counts | the agent spoke past the opening line and gave one or neither | same as above |
+
+- The address and hours the check looks for come from `shared/business.ts` at run time. The rubric holds no
+  copy of them; change the business facts and the criteria move with them.
+- Only assistant speech counts, and the opening line is skipped: the greeting names the shop and can name its
+  address, so counting it would mark every call as "gave the address".
+- A row written before v1.1, or a field that is missing or malformed, reads back as UNMEASURED. It is never
+  read as `false`.
+- The check records what was said. It does not judge accuracy. Nothing compares stated hours with the business
+  hours today: the Compliance dimension is a target design and the voice claim guard does not check hours, so a
+  wrong hours claim gives no signal. That check is a separate job.
+- Shortcut: the street is matched by the first word of the street name in the business facts, so a spelled-out
+  or missing house number no longer matters, and a street written with a leading direction letter would match
+  on that letter.
+- Accuracy: the check is regex-based and approximate. A negation is caught where it governs a walk-in term,
+  before it ("we do not take walk-ins": a negator within two words, no comma between) or after it with a
+  refusal word ("walk-ins are not accepted", "walk-ins aren't available", "walk-in service is unavailable").
+  "Walk-ins are not a problem" and "walk-ins are available any day" stay invitations. Unusual
+  phrasing such as "just show up" or "bring it in" is missed. A time followed by a count word ("six days",
+  "six hours") is not read as hours. Read it as a signal, not a verdict.
+- Measured on 600 recent archived calls (2026-10-18): the agent invited the caller in about three calls in ten;
+  the house number was never spoken; the street name in about one call in six; hours in about one call in ten.
 
 ## Purpose
 
@@ -55,9 +134,26 @@ multi-dimensional rubric. Three benefits:
 | 5 | Multiple brand-voice violations ("trusted", "experts", "quality") |
 | 0 | Sounded corporate / chatbot · clear archetype invasion (Hero/Sage/Ruler tone) |
 
-### 4. Conversion progression (0-20)
+### 4. Conversion progression (0-20) · v1.1
 
-> Did the agent move the caller toward a desired action?
+> Did the agent move the caller toward a next step the shop can honour? Booking is not required: the shop is
+> first come, first served, walk-ins welcome every day, no held slots.
+
+| Score | Criteria |
+|---|---|
+| 20 | Booked a slot OR captured a callback request OR sent confirmation SMS OR gave an explicit walk-in invitation WITH the shop's address and hours |
+| 15 | Offered next step + caller agreed but no booking yet (e.g. "I'll think about it, call me back") · OR invited the caller to walk in but gave only one of address or hours |
+| 10 | Offered next step but caller deferred / declined (a declined walk-in invitation counts here) |
+| 5 | Provided info but didn't suggest a next step (address or hours given with no invitation to come in counts here) |
+| 0 | Caller hung up frustrated · OR agent escalated to human without trying |
+
+The 20/15/10/5/0 ladder is copied from v1.0. Only the walk-in clauses are new; no band was re-tuned. A walk-in
+invitation must not promise a wait time, a held slot or a service time (see Compliance below). The address and
+hours are read from `shared/business.ts`, never copied into a prompt or this table. In code, `vapi-quality-v2`
+follows the invitation alone (see Implementation status); these bands stay target design.
+
+<details>
+<summary>Conversion progression, v1.0 (2026-05-26), kept for history</summary>
 
 | Score | Criteria |
 |---|---|
@@ -66,6 +162,8 @@ multi-dimensional rubric. Three benefits:
 | 10 | Offered next step but caller deferred / declined |
 | 5 | Provided info but didn't suggest a next step |
 | 0 | Caller hung up frustrated · OR agent escalated to human without trying |
+
+</details>
 
 ### 5. Compliance + safety (0-20)
 
@@ -108,10 +206,12 @@ race condition?").
 
 ## How the cron uses this
 
-`vapiCallEval.ts` daily cron loads each unevaluated call's transcript,
-passes this rubric + transcript to the LLM, requests structured JSON
-output of the 5 dimensions + a 1-paragraph `eval_reasoning`. Total is
-computed server-side from the dimensions (don't trust the LLM's math).
+Corrected in v1.1. v1.0 said the cron passed this rubric and the transcript to an LLM and computed the total
+from five returned dimensions. The code does not do that. `vapiCallEval.ts` loads each unevaluated call, runs the
+walk-in detector once, then the deterministic `classifyCall` and `scoreVapiQuality` (`vapi-quality-v2`, with
+the walk-in invitation as an input), and writes `eval_score`, `eval_outcome` and `eval_reasoning` from them,
+then appends the walk-in suffix described above (the same value the score used). Scoring by the five
+dimensions remains a design target, not behaviour.
 
 ## Future extensions
 

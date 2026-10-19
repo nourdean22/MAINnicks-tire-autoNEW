@@ -269,7 +269,7 @@ export function SkillLibraryPanel() {
           placeholder="search triggers / actions / keywords…"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          className="w-full px-2 py-1.5 rounded-control border border-edge-default bg-content text-[13px] text-fg placeholder:text-fg-tertiary focus:outline-none focus:border-accent"
+          className="w-full px-2 py-1.5 rounded-control border border-edge-default bg-content text-[16px] sm:text-[13px] text-fg placeholder:text-fg-tertiary focus:outline-none focus:border-accent"
         />
       </div>
 
@@ -344,7 +344,7 @@ export function SkillLibraryPanel() {
                         <input
                           value={editTrigger}
                           onChange={(e) => setEditTrigger(e.target.value)}
-                          className="w-full mt-0.5 px-2 py-1 text-[13px] rounded-control border border-edge-default bg-content text-fg focus:outline-none focus:border-accent"
+                          className="w-full mt-0.5 px-2 py-1 text-[16px] sm:text-[13px] rounded-control border border-edge-default bg-content text-fg focus:outline-none focus:border-accent"
                         />
                       </div>
                       <div>
@@ -354,7 +354,7 @@ export function SkillLibraryPanel() {
                         <input
                           value={editAction}
                           onChange={(e) => setEditAction(e.target.value)}
-                          className="w-full mt-0.5 px-2 py-1 text-[13px] rounded-control border border-edge-default bg-content text-fg focus:outline-none focus:border-accent"
+                          className="w-full mt-0.5 px-2 py-1 text-[16px] sm:text-[13px] rounded-control border border-edge-default bg-content text-fg focus:outline-none focus:border-accent"
                         />
                       </div>
                     </div>
@@ -377,7 +377,7 @@ export function SkillLibraryPanel() {
                         )}
                       </div>
                       <div className="mt-1 text-[11px] text-[var(--text-secondary)]">
-                        {s.polarity === "avoid" ? "⛔" : "→"} {action}
+                        {s.polarity === "avoid" ? "Avoid:" : "Do:"} {action}
                       </div>
                       <div className="mt-1 flex items-center gap-3 text-[11px] font-mono text-fg-tertiary">
                         <span>
@@ -514,7 +514,7 @@ export function SkillLibraryPanel() {
             title="Skill library unavailable"
             provenance="UNMEASURED"
             tone="warning"
-            why="The skills query returned nothing at all, so the library is unread. That is not the same as an empty library — your active skills may be fine."
+            why="The skills query returned nothing at all, so the library is unread. That is not the same as an empty library: your active skills may be fine."
             unlock="Reload the page. If it persists, check the operator router."
           />
         )}
@@ -543,7 +543,7 @@ export function SkillLibraryPanel() {
               icon={Eye}
               title="No graduated skills"
               provenance="ZERO"
-              why="Graduation means a skill is proven — Nick stops nudging but keeps the pattern on file for silent reference."
+              why="Graduation means a skill is proven: Nick stops nudging but keeps the pattern on file for silent reference."
               unlock="Let active skills reinforce past 5 fires with high success_rate, then graduate them from the Active tab."
               tone="neutral"
             />
@@ -553,7 +553,7 @@ export function SkillLibraryPanel() {
 
       <p className="text-[12px] text-fg-tertiary mt-3 leading-relaxed">
         Candidates surface every Sunday at 3am from the last 30 days of DONE tasks.
-        Active skills reinforce on matching completions — when success_rate stays high after 5+ fires,
+        Active skills reinforce on matching completions. When success_rate stays high after 5+ fires,
         graduate them to silent-track so the system stops nudging but keeps the pattern on file.
       </p>
     </GlassCard>

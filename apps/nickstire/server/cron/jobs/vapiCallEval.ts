@@ -9,11 +9,13 @@ import { extractCustomerTurns } from "../../services/customerTurns";
 import { extractDemand } from "@shared/callDemandExtraction";
 import { disposeCall } from "@shared/callTaxonomy";
 import { trailReachedTool } from "../../services/vapiConversionSignals";
+import { UNMEASURED_WALK_IN, appendWalkInSuffix, detectWalkInForDetail } from "../../services/vapiWalkInCoverage";
 import { getBusinessDateKey } from "../../lib/timezoneAssert";
 import {
   buildVapiMeasurementRecord,
   deriveVapiFacts,
   hasVerifiedDemandCapture,
+  qualityVersionLikePattern,
   VAPI_CLASSIFIER_VERSION,
   VAPI_QUALITY_VERSION,
 } from "../../services/vapiMeasurement";
@@ -272,6 +274,11 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
       else demandShadowClassified++;
       if (demandShadow.confidence < LOW_CONFIDENCE) demandShadowLowConfidence++;
 
+      // Computed ONCE, before the score: an explicit agent invitation fills the next-step credit
+      // in vapi-quality-v2, and the same value is written as the eval_reasoning suffix below.
+      // UNMEASURED (no readable assistant speech) gives no credit and no penalty.
+      const walkIn = detectWalkInForDetail(detail);
+
       const result = classifyCall({
         durationSeconds: row.durationSeconds ?? 0,
         endedReason: row.endedReason,
@@ -284,6 +291,7 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
         evalOutcome: detail.analysis?.structuredData?.outcome,
         successEvaluation: detail.analysis?.successEvaluation,
         reachedTool,
+        walkInCoverage: walkIn,
       });
 
       const facts = deriveVapiFacts({
@@ -338,10 +346,13 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
       const queueCandidate = disposition.queueEligible;
       const queueUrgency = disposition.priority;
 
+      // Walk-in coverage also rides on eval_reasoning as a suffix. A call with no score
+      // (not a customer conversation, or a technical failure) is UNMEASURED rather than a miss.
+      // The gate is the score: a call the evaluator does not score is not a customer conversation, so its walk-in stays UNMEASURED.
       await db.update(vapiCallLogs).set({
         evalScore: result.score,
         evalOutcome: result.outcome,
-        evalReasoning: result.reasoning,
+        evalReasoning: appendWalkInSuffix(result.reasoning, result.score == null ? UNMEASURED_WALK_IN : walkIn),
         evalAt: new Date(),
         metadata: {
           ...existingMetadata,
@@ -408,6 +419,10 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
       isNotNull(vapiCallLogs.evalScore),
       gte(vapiCallLogs.createdAt, baselineCutoff),
       sql`${vapiCallLogs.createdAt} < ${cutoff}`,
+      // Same quality version only: a v1 row must not set the bar for v2 scores (v2 credits agent
+      // walk-in invitations and runs about 4 points higher). Until 20 calls older than the lookback
+      // carry the new version the degraded test stays off by its count guard. Parameterised.
+      sql`${vapiCallLogs.evalReasoning} LIKE ${qualityVersionLikePattern()}`,
     ));
     baselineAverage = baseline?.average == null ? null : Number(baseline.average);
     degraded = averageQuality != null && Number(baseline?.count ?? 0) >= 20 && baselineAverage != null && averageQuality <= baselineAverage - 15;

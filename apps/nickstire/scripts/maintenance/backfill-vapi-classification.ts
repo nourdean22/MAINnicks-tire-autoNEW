@@ -13,6 +13,13 @@ import { classifyCall } from "../../server/services/vapiCallClassifier";
 import { extractCustomerTurns } from "../../server/services/customerTurns";
 import { disposeCall } from "../../shared/callTaxonomy";
 import { getCallStateHistory } from "../../server/services/voice-call-state";
+import { restampMeasurementQuality } from "../../server/services/vapiMeasurement";
+import {
+  appendWalkInSuffix,
+  detectWalkInForDetail,
+  UNMEASURED_WALK_IN,
+  type WalkInCoverage,
+} from "../../server/services/vapiWalkInCoverage";
 
 const log = createLogger("scripts:backfill-vapi-classification");
 
@@ -100,6 +107,9 @@ async function main() {
       let analysis: VapiCallDetail["analysis"] = undefined;
       let callType: string | null = null;
       let transcript: string | null = null;
+      // vapi-quality-v2 scores the agent's walk-in invitation; without it a backfilled row
+      // would carry a v1 score under a v2 label and enter the v2 degraded baseline.
+      let walkIn: WalkInCoverage = UNMEASURED_WALK_IN;
 
       if (VAPI_API_KEY) {
         try {
@@ -111,6 +121,7 @@ async function main() {
             analysis = detail.analysis;
             callType = detail.type ?? null;
             transcript = detail.transcript ?? null;
+            walkIn = detectWalkInForDetail(detail);
           } else if (resp.status === 429) {
             log.warn("Rate limited, sleeping 2 seconds...");
             await sleep(2000);
@@ -154,12 +165,14 @@ async function main() {
         evalOutcome: analysis?.structuredData?.outcome,
         successEvaluation: analysis?.successEvaluation,
         reachedTool,
+        walkInCoverage: walkIn,
       };
 
       const result = classifyCall(classificationInput);
       const score = result.score;
       const bucketed = result.outcome;
-      const reasoning = result.reasoning;
+      // Same suffix and score gate as cron/jobs/vapiCallEval.ts.
+      const reasoning = appendWalkInSuffix(result.reasoning, result.score == null ? UNMEASURED_WALK_IN : walkIn);
 
       let queueStatus: string | undefined = undefined;
       let queueUrgency: number | undefined = undefined;
@@ -196,10 +209,14 @@ async function main() {
         ? JSON.parse(row.metadata)
         : (row.metadata || {});
 
+      // A row that already has a measurement envelope gets the v2 quality its new score carries
+      // (the scorecard labels by revenueOpsV1.qualityVersion); a row without one stays unversioned.
+      const restamped = restampMeasurementQuality(existingMetadata.revenueOpsV1, result);
       const updatedMetadata = {
         ...existingMetadata,
         intents: result.intents,
         ...(queueStatus ? { queueStatus, queueUrgency } : {}),
+        ...(restamped ? { revenueOpsV1: restamped } : {}),
       };
 
       log.info(`[Classification] ID: ${row.vapiCallId} | Outcome: ${bucketed} | Score: ${score} | Intents: ${result.intents.join(",")}`);

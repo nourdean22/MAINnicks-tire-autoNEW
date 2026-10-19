@@ -163,8 +163,115 @@ NOT CHECKED); `/applications/<id>`; nothing opens the lookup tile with a phone. 
 caller in the merchant chunks (the applicant form uses it). Still unknown: the token lifetime and whether device trust
 survives for a client without the fingerprint cookies (one real login would show both).
 
+### Koalafi Direct API, modal and webhook contract (read from docs.koalafi.com `/docs/<slug>.md` 2026-10-19, FACT unless marked)
+
+Method: the integration guide fetched as Markdown from the docs site's own `.md` endpoint (38 slugs tried from the saved
+HTML nav and `/llms.txt`, 34 fetched; `apply`, `javascript-sdk`, `create-an-order` and `lto-testing-scenarios` are 404, the
+live slugs are `sdk`, `create-order`, `lto-only-testing-scenarios`); 25 of the 34 read in full for this section (the
+brick-and-mortar checkout pages, the two testing-scenario walkthroughs, banners, messaging, introduction and the plugin
+index were fetched and skimmed, not read line by line). Nothing was sent to Koalafi's live API:
+with no sandbox credential there is nothing a probe could prove, and the hosted apply page creates an order on load.
+
+**The key is the gate, and it is not in the portal.** Every documented call in the guides, `createOrder` and `apply`
+included, is shown with both headers (`public-dealer-id`, `private-api-key`). The docs name an "unprotected" class
+authorized by the public id alone but list no member of it, so which calls are keyless is UNKNOWN until a sandbox key
+exists. "During dealer onboarding you will be issued a public dealer id and a private api key" (docs/authentication). The
+dealer portal (dealer.koalafi.com, store 67848, Store Details read 2026-10-19: Overview, Settings and Integrations in full; QR Code and Hang Tags
+hold the hosted apply link and the text-to-apply keyword) offers no API key: Integrations shows only STORE PUBLIC ID (the `dealerPublicId` already in our
+apply link) and a STORIS point-of-sale username and password (a different product; never copied). Webhook endpoints are
+registered by "your Koalafi integration contact", not self-serve (docs/setting-up-your-webhook). Channel without a phone
+call: integrations_support@koalafi.com (named on seven of the pages).
+
+**No dormant client was built, on purpose.** A Direct API client that cannot be run against the sandbox is tested only
+against our reading of these pages (the mocks-unlike-production trap); the keyed build is one PR, written TDD against the
+sandbox the day the key exists (plan at the end of this section). What is live today without a key: the hosted apply link
+with `phone=` prefill from the order modal and /tires, every click recorded by `financing.trackApplication`
+(`financing_clicks` + the Sheet + the activity ledger), the Koalafi row on /financing.
+
+Hosts: sandbox `https://application-edge-service.sandbox.koalafi.com/query` (the host root is a GraphQL playground with a
+docs tab, sandbox only); production `https://application-edge-service.koalafi.com/query`. Optional `correlation-id` (a GUID)
+is echoed into Koalafi's logs. GraphQL answers HTTP 200 on application errors: check `errors` (schema and validation,
+`data: null`) and then each operation's error union by `__typename`; `FatalError` means retry unchanged.
+
+Three integration types (docs/choose-your-integration-type): platform plugins (Magento, WooCommerce, Shopify; not us),
+**Modal** (our design: Koalafi's iframe collects SSN, date of birth, bank and card data, so none of it touches our server),
+and Direct API (we draw every screen and the card, SSN and bank fields pass through our server).
+
+Modal SDK (docs/sdk): `<script src="https://ecomm-sdk.koalafi.com/koalafiSdk.js">` (sandbox
+`https://ecomm-sdk.sandbox.koalafi.com/koalafiSdk.js`); `koalafiSdk.openModal({ orderId, pdi })` (hybrid flows add
+`hybridToken` from the `x-hybrid-token` response header of `apply` or `customer`). The promise resolves
+`{ orderId, approvalStatus: "preApproved", approvalAmount }` when approved with no items on the order, or `{ orderId }` when
+the lease is signed; it rejects `{ orderId, reasonCode, reason }` with codes 1 genericError, 2 hardDecline, 3 ineligible,
+4 cartAmtNotMet, 5 noCartItems, 6 cartAmtTooHigh, 7 generalCloseModal, 8 nonLeaseableTooHigh, 9 genericCartValidationErr.
+A `closeModal` window event fires on every close, signed or not, so the order is read server-side after it.
+
+| Operation (GraphQL) | Input | Returns | Error union |
+|---|---|---|---|
+| `createOrder(input: NewOrder)` | all optional: `details.customer { firstName, lastName, emailAddress, cellPhone (10 digits) }`, `items[]`, `shippingAmnt`, `taxAmnt` ("0.00"; only with items) | `order.id` (UUID; the session id for everything after) | FatalError, BadRequest, UnauthorizedError |
+| `apply(input: ApplyInput)` | ecomm: `customer { firstName, lastName, cellPhone, emailAddress, taxpayerIdentificationNumber, birthDate YYYY-MM-DD, billingAddress { line1, line2, city, state, zip } }`, `employment { monthlyIncome }`, `orderId` (optional, created and returned if absent), `items` (optional), `analytics.directIntegrationChannel "online"`; B&M adds `payPeriod`, `lastPayDate`, `isPaidViaDirectDeposit`, `bankAccount`, `paymentInfo` | `orderId`, `canContinueInKoalafiUi`, `application.lease { id (= applicationId), displayId, status "preApproved", maxLeaseAmount, options [{ leaseTerm, approvedAmount, applicationFee, earlyBuyoutDiscount, sacTerm }] }`, `offerDetails { maxApprovalAmount, approvalLanguage, recurringPaymentDetails }` | `applicationErrors`: DenialError, FatalError, BadRequest, OrderNotFound, HardDecline (final; letter by mail), SoftDecline `{ declineField, appId, displayText }` (fix and resubmit; the third soft decline becomes hard), Ineligible `{ canContinueWithKoalafi, displayText }`, NotFound, LeaseRestricted (a state without leases), CartValidation `{ validationErrType, approvalType, approvedAmount, displayText }` (approved, cart wrong). Decline copy shown to the customer stays vague (fraud) |
+| `order(id)` | the order UUID | `application.lease { id, status, amount, options, cartValidationDetails }`, `details { customer + billing/shipping addresses, items, shippingAmnt, taxAmnt }` | none documented |
+| `customer(input: CustomerSearchInput)` | `{ cellPhone, taxIDLast4 }` | `orderId`, `customers[]`, `eligibility { displayText, canContinueWithKoalafi, offerDetails { approvalType, approvalLanguage, maxApprovalAmount }, application.lease { id, displayId, status } }` (the counter's "does this shopper hold an open approval" lookup) | `customerSearchErrors` |
+| `updateOrderItems(input)` | `{ orderId, items [{ sku, price "0.00" (2 decimals, > 0), quantity, displayName, itemUrl, itemImageUrl, isLeaseable, category "merchandise" or "service" }], shippingAmnt, taxAmnt }`; send the whole cart once, right before the modal; coupons applied to item prices first | `order` | `orderErrors`: CartValidation (`validationErrType`: BadCartRequest, CartTotalDoesNotMeetMinimum, CartTotalExceedsApproval, CartTotalExceedsMaximum ($10,000), NonLeaseableItemsTotal (over 20%), ServiceFeesTooHigh (over 20%)), CartMinNotMet ($300 on this page; the apply-errors page says $200: which is current is UNKNOWN), ServiceFeesTooHigh, FatalError, BadRequest ("application already has docs signed" = the approval was already used; refuse a new order), NotFound (deprecated) |
+| `updateOrderAddress(input)` | `{ orderId, billingAddress, shippingAddress }` (pass billing as shipping when there is none) | `order` | FatalError, BadRequest, NotFound |
+| Direct-API checkout chain (ecomm, after preApproved; the Modal does all of this inside its iframe) | `updateEmployment { applicationId, paymentFrequency, lastPayDate, nextPayDate }`; `updateBankAccount { applicationId, bankAccount { accountNumber, routingNumber } }` (optional); `updateDebitInfo { applicationId, debitDetails { cardholderFirstName, cardholderLastName, cardNumber, expirationDate YYYY-MM } }` (authorizes the initial payment: preApproved becomes approved); `generateLeaseContract` then `signLeaseAgreement { applicationId, isSigned: true }` | `generateLeaseContract.details { welcomeLetter, leaseAgreement, summary { leaseTerm, leaseAmount, cashPlusPrice, cashPlusTerm, initialPaymentAmount, paymentFrequency, totalCostOfOwnership, scheduledPaymentAmounts } }` | BusinessError (dates), SoftDecline (internet-only bank; card data), HardDecline (third bad attempt), PrepaidCardError (prepaid cards refused), NotSigned. Any cart change after this repeats the whole chain |
+| `markOrderDelivered(input)` | `{ orderId, estimatedDeliveryDate YYYY-MM-DD }` | errors only | FatalError (retry), InvalidApp, NotFound, BadRequest. This is Koalafi's "activate": it funds the lease and starts the customer's payments. For a tire order: after the tires are on the car |
+| `refundOrCancelOrder(input)` | `{ applicationId, modificationReason "refund" or "cancel", adjustmentAmount "300.00" (at most the lease amount) }` | `transactionId` | FatalError, BadRequest |
+
+Lease statuses (docs/application-statuses): draft, pending, preApproved (initial payment not yet authorized), approved,
+errorsFound (`declineField`, `declineReason`), declined, expired (only from lookups), docsReady, docsSigned (place the
+merchant order and keep the `orderId`), readyForFunding (delivered), approvedForFunding, funded. Our lifecycle:
+apply -> preApproved -> (modal authorizes the initial payment) approved -> docsReady -> docsSigned -> we install ->
+markOrderDelivered -> readyForFunding -> approvedForFunding -> funded.
+
+Webhooks (docs/webhooks, updated 2026-06): one event, `lease.changed`, POST JSON
+`{ type, version "1", timestamp (RFC 3339), data { leaseId, leaseDisplayId, orderIds[], newStatus, previousStatus,
+publicDealerId, approvedAmount, financedAmount, customerSorID } }`, signed per RFC 9421 with Ed25519: `Content-Digest`
+(`sha-256=:<base64>:` of the raw body), `Signature-Input`
+(`sig1=("content-digest" "@method" "@target-uri" "content-type" "message-id");keyid="koalafi-prod";created=...;expires=...`),
+`Signature` (base64), `Message-Id` (the idempotency key; the same event can arrive twice). The public key comes from
+GraphQL `dealer { webhookConfig { signingKey { algorithm "ED25519", keyId, publicKey } } }` (`publicKey` is base64 behind a
+`whpk_` prefix). Reject an unknown `keyid`, a future `created` or a past `expires`; answer 2xx at once and process after.
+The sandbox fires one event per status transition.
+
+Sandbox test data (docs/test-data, docs/using-our-api): every applicant is approved by default; each test needs a unique
+10-digit phone and SSN (increment both); ecomm soft decline = billing line 2 `011000536` with zip `32034`, decline = line 2
+`011000390` with zip `32034`; routing numbers in the Postman environment: 011000028 high approval, 011001234 hard decline,
+011001276 soft decline, 011000536 soft decline (identity). The public Postman collection is marked outdated by Koalafi.
+
+Business rules: cart $300 to $10,000 (SDK rejection codes 4 and 6); non-leasable items (installation, fees, warranties,
+gift cards, non-physical goods, weapons) at most 20% of the total, so a tire order with free install is fine and a
+labor-heavy repair is not; service fees at most 20% of the subtotal; prices 2 decimals above $0.00; an approval is
+single-use (docs signed = used); ecomm vs brick-and-mortar is a partner-level setting Koalafi configures (ask which we
+are: a B&M app can be finished in the dealer portal, an ecomm app only through the API or the modal).
+
+Build plan for the day the key exists (one PR, mirrors the Kafene lane, TDD against the sandbox): env
+`KOALAFI_PUBLIC_DEALER_ID`, `KOALAFI_PRIVATE_API_KEY`, `KOALAFI_ENV` (sandbox or production); server
+`services/koalafi/directApi.ts` (createOrder with the customer and the cart, `order` after the modal closes,
+markOrderDelivered on the admin's "installed" tap behind confirmDialog, refundOrCancelOrder on admin cancel) and a `koalafi`
+router shaped like `kafene` (public config and start, admin deliver, cancel, status; every call answers `disabled` without
+the env); client `KoalafiCheckout.tsx` loading the SDK once and calling `openModal({ orderId, pdi })`, never marking the
+order paid on the browser promise: "lease signed" is `order.application.lease.status === "docsSigned"` read server-side;
+a webhook route verifying `Content-Digest`, the Ed25519 signature and `Message-Id` before touching the lease row.
+
+Dealer-portal facts (dealer.koalafi.com, 2026-10-19, FACT): store 67848; customers can also
+text the keyword on the store's hang tags to Koalafi's text-to-apply number (a /financing copy candidate, no code; the
+exact keyword and number are on the Hang Tags tab); "Copy Application Form URL" is the same hosted apply link we use;
+the merchant dashboard is a separate app at merchant.koalafi.com/dashboard/applications. On the Settings tab the
+FRIENDLY NAME is still "Moes Tire and Auto Euclid": the 2026-10-19 Edit > Save to "Nick's Tire & Auto" did not persist
+(the field read the old value after a reload); the "Reset Password" button sits beside "Copy Application Form URL" on that
+page, so the rename is Nour's own click. A later `rea`-style bundle read of the dealer portal is not needed: nothing it
+exposes replaces the key.
+
 ## Sources
 
+- docs.koalafi.com integration guide, fetched as `/docs/<slug>.md` 2026-10-19 (25 of these read in full, see Method): introduction, getting-started, key-concepts-1,
+  choose-your-integration-type, authentication, using-our-api, direct-api, create-order, apply-for-financing,
+  lease-approval-checkout, lease-approval-checkout-bm, lease-flow-from-pre-approved-docs-signed, completing-an-order,
+  order-lookup, refunds-and-cancellations, hybrid-custom-apply-modal, in-store-checkout, sdk, use-our-experience,
+  approval-first, shop-first, webhooks, setting-up-your-webhook, verifying-webhooks, application-statuses,
+  handling-common-errors, test-data, testing-scenarios, lto-only-testing-scenarios, buttons, banners,
+  promoting-koalafi-lease-to-own-on-your-website, ecommerce-site-plugins; plus `/llms.txt`
+- dealer.koalafi.com Store Details (Nour's login, read in his Chrome 2026-10-19; nothing submitted except the rename attempt)
 - Perplexity thread 1 (vendors, pricing): https://www.perplexity.ai/search/5538eeb0-3f75-44ad-9f50-074279f481d4
 - Perplexity thread 2 (conversion, installer networks, Costco): https://www.perplexity.ai/search/9066841a-df16-40ea-9e92-775ea240b11b
 - https://developer.wheel-size.com/ pricing section, read 2026-10-18

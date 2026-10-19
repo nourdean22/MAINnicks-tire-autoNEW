@@ -117,6 +117,69 @@ detailed in `docs/CURRENT-TRUTH.md`:
   retail only, wholesale never leaves the server. Live sections self-suppress
   when the feed is cold (canon floors render, never an empty table).
 
+## 2026-10-19 - Call score vapi-quality-v2: an agent walk-in invitation counts as the next step (job 2026-10-18-vapi-quality-v2)
+
+- **LIVE once this deploys:** `vapi-quality-v2` scores every call the daily `vapi-call-eval` job evaluates. An explicit walk-in
+  invitation by the agent (assistant speech only, from `server/services/vapiWalkInCoverage.ts`) fills the +20 next-step credit
+  once, when nothing else already earned it. `eval_reasoning` carries `quality_version=vapi-quality-v2` on rows scored after the
+  deploy. Historical rows are NOT re-scored and stay `vapi-quality-v1`.
+- **Degraded alert, BUILT + WIRED:** the baseline compares same-version rows only. It reads only calls older than the 5-day lookback
+  and needs at least 20 rows, so the degraded test is OFF for about 5 days after deploy. The other alert conditions are unchanged.
+- Scores run about 4 points higher (an estimate: the manager's calibration over 600 archived calls).
+- `revenueOps` `quality.version` now reports `vapi-quality-v1`, `vapi-quality-v2` or `mixed`. The classification backfill script
+  (`scripts/maintenance/backfill-vapi-classification.ts`) passes the walk-in coverage.
+- **Evidence:** the manager ran the baseline query read-only on TiDB on 2026-10-19. Without the version filter the 30-day window
+  (5 to 30 days old) holds 800 scored calls, average 77.3, all labelled v1; with the v2 filter the count is 0 and the average null;
+  the same query with the v1 pattern returns 800 / 77.3 (positive control).
+- **Not yet observed:** a scored row labelled v2, the first alert run on v2, the degraded test turning on.
+
+## 2026-10-19 - revenue_reconciliation_candidates retention: the count is live after deploy, the delete is OFF (#3163)
+
+- **Why:** `revenue_reconciliation_candidates` is derived. The 2-hour reconciliation run re-inserts one row per call in its 21-day
+  window, and both readers (`routers/revenueAttribution.ts`, `services/promptEvolution.ts`) keep only the newest row per `call_id`.
+  A row with a newer sibling for the same call is invisible to every reader; nothing ever removed them.
+- **Nightly count, LIVE once this deploys (counts only, no text column):** the `cleanup` job appends
+  `recon candidates: rows N, calls M, superseded S, deleted D (flag off|on|unreadable)` to its `details`, so `cron_log` carries it.
+  `unavailable` means the table or the read failed (UNKNOWN, never zero). Code: `server/services/revenueReconciliationRetention.ts`.
+- **Delete path, BUILT + WIRED, default OFF** behind the `revenue_recon_retention` feature flag (seeded OFF). When ON it runs one
+  single-table DELETE per call that has more than one row, bounded by `UNIX_TIMESTAMP(created_at) <` that call's newest time, so
+  the newest row per call (and any row tied with it) is never selected. Per run: at most 200 calls and about 60 s; the time budget
+  is checked between statements, so one slow DELETE can run past it and only the cleanup job's own outer timeout bounds that.
+  The rest waits for the next night. It reads the flag row **fresh and fails closed**: a failed read deletes nothing and shows
+  `(flag unreadable)`; it does not use the cached `isEnabled()`, which keeps its last value when a refresh fails.
+- **Rollout gate (all three, in order):** the first nightly count is read and looks right; a fresh nightly TiDB backup exists
+  (`tidbBackup.ts` copies this table weekly); the operator says go. Nobody turns the flag ON before that.
+- **Evidence so far:** the retention SQL was run on TEMPORARY tables on TiDB by the manager on 2026-10-19: 31 of 31 checks passed.
+  The real table, read-only at 2026-10-19 00:26Z: 352,083 rows, 3,626 distinct calls, 348,457 superseded, and 0 rows tied at a
+  call's newest time (every call has exactly one row at its newest time).
+- **What the figure means:** `superseded` is rows minus distinct calls, an upper bound on what one DELETE pass removes whenever
+  rows tie at a call's newest time. Production has no such ties today, so there it equals the removable count.
+- **Not yet observed:** a nightly `cron_log` row carrying the line; a real DELETE on the production table (none has run).
+
+## 2026-10-19 - Koalafi: the Direct API is mapped end to end; the private key is the only gate
+
+- **Live and complete without a key:** the order modal's and /tires' Koalafi link is the hosted apply page with `phone=`
+  prefilled (`providerApplyUrl`, #3152), every click lands in `financing_clicks` through `financing.trackApplication`
+  (plus the Sheet and the activity ledger), Koalafi is listed on /financing. Nothing keyless is missing.
+- **Everything deeper needs `private-api-key`** (embedded modal, cart sync, lease status reads, `markOrderDelivered` for
+  funding, webhooks). Koalafi issues it at onboarding; it is NOT in the dealer portal (Store Details read
+  2026-10-19, Integrations shows only the STORE PUBLIC ID we already use and STORIS point-of-sale credentials, FACT), and
+  no reverse-engineering produces a secret. Channel that is not a phone call: integrations_support@koalafi.com; a draft
+  request sits in the manager session's scratchpad for Nour to send or drop.
+- **Contract captured** (research report, "Koalafi Direct API, modal and webhook contract": 34 doc pages fetched as
+  Markdown, 25 read in full):
+  hosts, headers, every mutation and query with inputs, returns and error unions, the lease status lifecycle, the
+  Ed25519-signed `lease.changed` webhook, sandbox test data, the $300 to $10,000 and 20% non-leasable rules, and the
+  one-PR build plan (Modal integration so SSN, card and bank data stay in Koalafi's iframe; "signed" only from a server-side
+  `order` read, never the browser promise). **No dormant client was built, on purpose:** it could only be tested against our
+  reading of the docs; it gets built TDD against the sandbox the day the key exists.
+- Dealer portal: store 67848; the FRIENDLY NAME rename to "Nick's Tire & Auto" did not persist (Settings still reads
+  "Moes Tire and Auto Euclid" after reload) and the page's "Reset Password" button sits beside "Copy Application Form
+  URL", so the rename stays Nour's own click; a reset email most likely did not go out (STRONG INFERENCE: the "Reset Password
+  email has been sent" text is one of four hidden success templates on that page, and the Gmail account the connector
+  reads had no Koalafi mail; the shop's dealer-contact inbox was not checked).
+- #3162 (this flag-on, Vapi-pushed, migrations-owed note) MERGED 2026-10-19 01:01Z as `33bc4e121`.
+
 ## 2026-10-18 - Tire finder by vehicle, Kafene first, order completion (#3148 live, #3152 merged)
 
 - **/tires finds sizes by vehicle** (`fitment` router, `server/services/fitment/dkFitment.ts`): year > make > model > trim >
@@ -127,11 +190,17 @@ detailed in `docs/CURRENT-TRUTH.md`:
 - **Payment Programs are five, Kafene first** (`shared/financing.ts`, `shared/business.ts`): Kafene, Acima, Snap, Koalafi,
   American First. Copy, SMS planner, voice classifiers, chat tools, GBP and ad copy all say five. `financing_clicks.provider`
   gains `kafene` by **migration 0147 (operator step, admin Run Migrations)**; until applied a Kafene click opens the application
-  and the click row is dropped with a warn. The Vapi keyword list gained Kafene: **Push Latest Config** is an operator step.
+  and the click row is dropped with a warn. The Vapi keyword list gained Kafene: Push Latest Config was DONE from /admin on
+  2026-10-19 00:2xZ ("Assistant updated + Vapi read-back verified"). **Migrations 0147 and 0148 are STILL OWED** (the agent's
+  tap on Settings > System Health > "Apply built-in migrations" was refused by its permission classifier; one tap for Nour,
+  then, with the shell in `apps/nickstire` (the script resolves its paths from there):
+  `railway run -s MAINnicks-tire-auto -- node scripts/record-migrations.mjs --only 0147,0148 --execute`).
 - **Order completion (#3152, squash `8b189e8b7`; live when Railway deploys it):**
   - Admin one-tap supplier order at D&K (`gatewayOrder.prepare/submit/clearOurLines`, `services/gatewaySupplierOrder.ts`):
     cart from the order lines, PO `online order <order number>`, CAS claim so two taps place one order, unclear submits park as
-    `uncertain:<uuid>`, doubled carts refused (`cart_mismatch`). **Behind `GATEWAY_ORDERING_ENABLED` (off) and `money.manage`.**
+    `uncertain:<uuid>`, doubled carts refused (`cart_mismatch`). **Behind `GATEWAY_ORDERING_ENABLED` and `money.manage`;
+    the flag is ON since 2026-10-19 00:20Z (set on Railway by the agent on Nour's order; redeploy followed). No real D&K
+    order has gone through it yet: the first one is the live proof.**
     A Kafene-leased order (never "paid") counts as paid for this once its lease is signed.
   - Kafene keyless bridge, ON at deploy: Apply with Kafene in the order modal calls `kafene.applyStarted` (order note, one
     Telegram to staff with the phone masked, once per order per day, 5 calls/IP/hour); admin lease panel shows "Application

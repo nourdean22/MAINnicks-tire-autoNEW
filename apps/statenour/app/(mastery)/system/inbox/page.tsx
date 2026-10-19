@@ -63,7 +63,68 @@ export default function MemoryInboxPage() {
     }
   };
 
-  const selectedItem = items.find((item) => item.id === selectedItemId) ?? items[0] ?? null;
+  // W5b lanes: `conflicting` is the one status that needs a ruling; everything else waits under Other.
+  const priority = items.filter((item) => item.status === "conflicting");
+  const other = items.filter((item) => item.status !== "conflicting");
+  const [otherOpen, setOtherOpen] = useState(false);
+
+  // An Other item is selectable only while Other is open; with no choice, only a Priority item
+  // opens by itself (a collapsed item's text and verbs never show behind a closed disclosure).
+  const selectedItem =
+    items.find(
+      (item) => item.id === selectedItemId && (item.status === "conflicting" || otherOpen),
+    ) ??
+    priority[0] ??
+    null;
+  const toggleOther = () => {
+    if (otherOpen && other.some((item) => item.id === selectedItemId)) setSelectedItemId(null);
+    setOtherOpen((v) => !v);
+  };
+
+  const renderItem = (item: InboxItem) => {
+    const active = selectedItem?.id === item.id;
+    const isConflicting = item.status === "conflicting";
+
+    // Count claims
+    let claimCount = 0;
+    if (Array.isArray(item.extractedClaims)) claimCount = item.extractedClaims.length;
+    else if (item.extractedClaims) claimCount = 1;
+
+    return (
+      <button
+        key={item.id}
+        onClick={() => setSelectedItemId(item.id)}
+        className={cn(
+          "w-full text-left rounded-control p-3 border transition flex flex-col gap-2",
+          active
+            ? "border-accent bg-accent-soft"
+            : isConflicting
+            ? "border-amber-500/30 hover:border-amber-500/50"
+            : "border-edge-subtle hover:border-edge-default"
+        )}
+      >
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] font-mono text-fg-secondary bg-surface-interactive px-1.5 py-0.5 rounded-micro">
+            {item.sourceType}
+          </span>
+          <span className="text-[11px] text-fg-tertiary">{timeAgo(item.createdAt)}</span>
+        </div>
+        <p className="text-xs text-fg font-medium line-clamp-2">
+          {item.rawTextFenced}
+        </p>
+        <div className="flex items-center gap-3 mt-1">
+          <span className="text-[11px] text-fg-tertiary flex items-center gap-1">
+            {claimCount} claim{claimCount !== 1 ? "s" : ""}
+          </span>
+          {isConflicting && (
+            <span className="text-[11px] text-amber-400 font-semibold flex items-center gap-1">
+              Contradiction Alert
+            </span>
+          )}
+        </div>
+      </button>
+    );
+  };
 
   return (
     <StandardPage
@@ -122,54 +183,40 @@ export default function MemoryInboxPage() {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* Sidebar list of quarantined items */}
-          <div className="lg:col-span-5 space-y-3 max-h-[75vh] overflow-y-auto pr-1">
+          <div data-inbox-list="" className="lg:col-span-5 space-y-4 max-h-[75vh] overflow-y-auto pr-1">
               <h2 className="font-mono text-[11px] text-fg-tertiary mb-2">
               Quarantined Items ({items.length})
             </h2>
-            {items.map((item) => {
-              const active = selectedItem?.id === item.id;
-              const isConflicting = item.status === "conflicting";
-              
-              // Count claims
-              let claimCount = 0;
-              if (Array.isArray(item.extractedClaims)) claimCount = item.extractedClaims.length;
-              else if (item.extractedClaims) claimCount = 1;
-
-              return (
+            <section aria-labelledby="inbox-priority-heading" className="space-y-3">
+              <h3 id="inbox-priority-heading" className="text-[13px] font-medium text-fg-secondary">
+                Priority
+                <span className="ml-2 font-mono text-[12px] tabular-nums text-fg-tertiary">{priority.length}</span>
+              </h3>
+              {priority.length === 0 ? (
+                <p className="text-[14px] text-fg-tertiary">Nothing needs a ruling.</p>
+              ) : (
+                priority.map(renderItem)
+              )}
+            </section>
+            {other.length > 0 && (
+              <section aria-label="Other quarantined items" className="space-y-3">
                 <button
-                  key={item.id}
-                  onClick={() => setSelectedItemId(item.id)}
-                  className={cn(
-                    "w-full text-left rounded-control p-3 border transition flex flex-col gap-2",
-                    active
-                      ? "border-accent bg-accent-soft"
-                      : isConflicting
-                      ? "border-amber-500/30 hover:border-amber-500/50"
-                      : "border-edge-subtle hover:border-edge-default"
-                  )}
+                  type="button"
+                  aria-expanded={otherOpen}
+                  aria-controls="inbox-other-list"
+                  onClick={toggleOther}
+                  className="inline-flex min-h-[44px] items-center gap-2 text-[14px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:text-fg"
                 >
-                  <div className="flex items-center justify-between">
-              <span className="text-[11px] font-mono text-fg-secondary bg-surface-interactive px-1.5 py-0.5 rounded-micro">
-                      {item.sourceType}
-                    </span>
-                    <span className="text-[11px] text-fg-tertiary">{timeAgo(item.createdAt)}</span>
-                  </div>
-                  <p className="text-xs text-fg font-medium line-clamp-2">
-                    {item.rawTextFenced}
-                  </p>
-                  <div className="flex items-center gap-3 mt-1">
-              <span className="text-[11px] text-fg-tertiary flex items-center gap-1">
-                      {claimCount} claim{claimCount !== 1 ? "s" : ""}
-                    </span>
-                    {isConflicting && (
-                      <span className="text-[11px] text-amber-400 font-semibold flex items-center gap-1">
-              Contradiction Alert
-                      </span>
-                    )}
-                  </div>
+                  Other, {other.length}
+                  <span className="font-mono text-[12px] text-fg-tertiary">{otherOpen ? "shown" : "hidden"}</span>
                 </button>
-              );
-            })}
+                {otherOpen && (
+                  <div id="inbox-other-list" className="space-y-3">
+                    {other.map(renderItem)}
+                  </div>
+                )}
+              </section>
+            )}
           </div>
 
           {/* Main detail area */}
