@@ -2458,3 +2458,12 @@ measurement. Every proposal below cites the moment in this wave that produced it
 - **Proposed edit:** step 2 gains a line for any job that automates a vendor portal: "before the spec, read the portal's egress and device-trust rules from where the code will run (one `curl -sI` from a datacenter host and the login bundle's fingerprint calls); a VPN/datacenter block or fingerprint trust is a kill criterion to settle first".
 - **Confidence:** medium (once, clear)
 - **Status:** proposed
+
+## 2026-10-19 · Koalafi Direct API contract (session 9dcc8dd1, docs PR)
+
+### P11 · lane-research and monorepo-manager (step 9, primary source) for vendor doc sites
+- **Trigger (witnessed 2026-10-19, Koalafi):** the first pass saved the vendor's doc pages as HTML and a research lane stripped tags; 11 pages came back "missing" and the contract was PARTIAL. The same site answers `/docs/<slug>.md` (readme.io hosting) and `/llms.txt` with clean Markdown: 34 of 38 slugs in two curl loops, the complete contract in one sitting. Separately, the next idea, an introspection probe of the vendor's production GraphQL host with the store's public id, was stopped by the harness's safety classifier; with no sandbox credential it could not have proved anything, and the hosted apply page creates a vendor-side order on load.
+- **Cost:** one research lane run and about 30 minutes on the HTML path; one stopped turn.
+- **Proposed edit:** step 9 (and the lane-research agent) gains: "for a vendor doc site, try `<site>/llms.txt` and `<site>/docs/<slug>.md` before saving HTML; the primary quote comes from the `.md` file. Send nothing to a vendor's live API until a sandbox credential exists: a probe without one proves nothing and may create vendor-side records." The docs-only verdict belongs with it: when the keyed client cannot be exercised, capture the contract and the build plan, do not ship a dormant client (it is tested only against your own reading of the docs).
+- **Confidence:** medium (once, clear; the Kafene job the day before hit the same shape from the portal side, P10)
+- **Status:** proposed
