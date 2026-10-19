@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "nickstire/vapi-walkin-rubric",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "11dd3c15-6c98-4bc9-9fa1-c404986839c6",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\new-session-bbf695",
   "claimedBy": "2026-10-18-vapi-walkin-rubric",
   "claimedAt": "2026-10-18T20:51:24.545Z",
   "expiresAt": "2026-10-19T08:51:24.545Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": null
+  "releasedAt": "2026-10-19T01:31:06.084Z",
+  "releaseReason": "PR 3158 merged as 38301e01b; lane work landed",
+  "priorLeaseSha": "f05d82b9e1325671406361b8bceadd45458e7c2c",
+  "releasedBy": "11dd3c15-6c98-4bc9-9fa1-c404986839c6",
+  "foreignReleaseReason": null
 }
