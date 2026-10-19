@@ -90,7 +90,8 @@ describe("instagramStudio.checkPhoto", () => {
   it("returns the scorecard for a vision reply that is one", async () => {
     analyzePhoto.mockResolvedValueOnce({ ok: true, description: JSON.stringify(SCORECARD), source: "gemini", modelName: "gemini-2.5-flash", latencyMs: 800 });
     const r = await caller("admin").checkPhoto({ photoUrl: PHOTO });
-    expect(r).toMatchObject({ ok: true, model: "gemini-2.5-flash", analysis: SCORECARD });
+    // The model's improvement `type` is dropped on the way out: nothing shows it.
+    expect(r).toMatchObject({ ok: true, model: "gemini-2.5-flash", analysis: { ...SCORECARD, improvements: [{ instruction: SCORECARD.improvements[0].instruction, priority: "high" }] } });
     expect(analyzePhoto).toHaveBeenCalledTimes(1);
   });
 

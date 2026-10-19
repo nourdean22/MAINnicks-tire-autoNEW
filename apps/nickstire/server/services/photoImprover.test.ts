@@ -33,6 +33,9 @@ const SCORECARD = {
     "Professional automotive photography of an independent Cleveland tire shop storefront, gold #FDB913 accent on the sign, clean bays, morning light.",
 };
 
+/** What the service returns for SCORECARD: the model's improvement `type` is dropped (nothing shows it). */
+const PARSED = { ...SCORECARD, improvements: SCORECARD.improvements.map(({ instruction, priority }) => ({ instruction, priority })) };
+
 /** The vision backend's ok reply: the model's text lands in `description`. */
 function visionSays(text: string) {
   return { ok: true, description: text, source: "gemini", modelName: "gemini-2.5-flash", latencyMs: 900 };
@@ -47,6 +50,46 @@ beforeEach(() => {
   vi.stubEnv("CLOUDFRONT_DOMAIN", "");
   vi.stubEnv("S3_BUCKET", "test-bucket");
   vi.stubEnv("REEL_ALLOW_EPHEMERAL_STORAGE", "");
+});
+
+describe("analyzePhotoForShop · the first live reply (2026-10-19, gemini-2.5-flash, storefront-day.webp)", () => {
+  // Verbatim from the probe after the first live check came back "unreadable": complete, valid JSON,
+  // but improvement 2 used a score name ("cleanliness") as its type, which the old enum refused.
+  const LIVE_REPLY = "```json\n" + JSON.stringify({
+    scores: { lighting: 70, framing: 40, brandPresence: 65, cleanliness: 50, professionalPolish: 45, overall: 50 },
+    subject: "Exterior of Nick's Tire & Auto shop on a sunny day",
+    currentMood: "Busy, functional",
+    issues: [
+      "Utility pole obstructs view of shop and signage.",
+      "Clutter on lawn and around entrance.",
+      "Power lines distracting in sky.",
+      "Banners are wrinkled and not displayed well.",
+    ],
+    improvements: [
+      { type: "framing", instruction: "Shoot from an angle that avoids the utility pole and power lines.", priority: "high" },
+      { type: "cleanliness", instruction: "Remove all clutter from the lawn and shop entrance before shooting.", priority: "high" },
+      { type: "brand", instruction: "Ensure banners are taut and professionally displayed, or remove them.", priority: "medium" },
+      { type: "edit", instruction: "Adjust color balance and contrast to make the shop colors pop.", priority: "medium" },
+    ],
+    marketingFit: { instagram: "bad", facebook: "ok", gbp: "ok", billboard: "bad", best: "gbp" },
+    rebrandPrompt:
+      "A professional automotive photography shot of Nick's Tire & Auto, a Cleveland independent shop. The storefront is clean and modern, featuring a prominent sign with a gold #FDB913 accent. The entrance is inviting, with neatly arranged tires and no clutter. The lighting is bright and even, highlighting the shop's professional appearance. No distracting poles or power lines are visible.",
+  }, null, 2) + "\n```";
+
+  it("is a scorecard: an improvement's type is not shown anywhere, so a type off the old list does not sink it", async () => {
+    analyzePhoto.mockResolvedValueOnce(visionSays(LIVE_REPLY));
+    const r = await analyzePhotoForShop({ photoUrl: PHOTO });
+    expect(r).toMatchObject({ ok: true });
+    if (!r.ok) throw new Error("unreachable");
+    expect(r.analysis.scores.overall).toBe(50);
+    expect(r.analysis.improvements).toHaveLength(4);
+    expect(r.analysis.improvements[1]).toEqual({ instruction: "Remove all clutter from the lawn and shop entrance before shooting.", priority: "high" });
+  });
+
+  it("control: a priority off the list still fails the parse, because the card renders the priority", async () => {
+    analyzePhoto.mockResolvedValueOnce(visionSays(LIVE_REPLY.replace('"priority": "medium"', '"priority": "urgent"')));
+    expect(await analyzePhotoForShop({ photoUrl: PHOTO })).toMatchObject({ ok: false, reason: "unreadable" });
+  });
 });
 
 describe("analyzePhotoForShop · the score-only photo is deleted after its check", () => {
@@ -84,7 +127,7 @@ describe("analyzePhotoForShop · the score-only photo is deleted after its check
   it("a delete that fails leaves the scorecard as it was", async () => {
     storageDelete.mockRejectedValueOnce(new Error("bucket down"));
     analyzePhoto.mockResolvedValueOnce(visionSays(JSON.stringify(SCORECARD)));
-    expect(await analyzePhotoForShop({ photoUrl: PHOTO })).toMatchObject({ ok: true, analysis: SCORECARD });
+    expect(await analyzePhotoForShop({ photoUrl: PHOTO })).toMatchObject({ ok: true, analysis: PARSED });
   });
 });
 
@@ -98,7 +141,7 @@ describe("analyzePhotoForShop", () => {
     const r = await analyzePhotoForShop({ photoUrl: PHOTO });
     expect(r.ok).toBe(true);
     if (!r.ok) throw new Error("unreachable");
-    expect(r.analysis).toEqual(SCORECARD);
+    expect(r.analysis).toEqual(PARSED);
     expect(r.model).toBe("gemini-2.5-flash");
     expect(r.durationMs).toBeGreaterThanOrEqual(0);
   });

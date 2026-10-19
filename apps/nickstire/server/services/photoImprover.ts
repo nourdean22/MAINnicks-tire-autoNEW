@@ -60,7 +60,7 @@ Analyze this storefront, car or shop photo for marketing use. Judge only what is
   "currentMood": "What the photo communicates now, 2-3 words",
   "issues": ["specific issue, max 15 words", "up to 4 items"],
   "improvements": [
-    { "type": "crop" | "lighting" | "framing" | "brand" | "edit", "instruction": "specific change, max 20 words", "priority": "high" | "medium" | "low" }
+    { "instruction": "specific change, max 20 words", "priority": "high" | "medium" | "low" }
   ],
   "marketingFit": {
     "instagram": "good" | "ok" | "bad",
@@ -102,10 +102,12 @@ const photoAnalysisSchema = z.object({
   subject: short,
   currentMood: short,
   issues: z.array(short).transform((a) => a.slice(0, 5)),
+  // No `type`: nothing shows it, and the first live reply (2026-10-19) used a score name
+  // ("cleanliness") as one, which the old five-value enum turned into "unreadable" for the whole
+  // scorecard. A `type` the model still sends is dropped by z.object.
   improvements: z
     .array(
       z.object({
-        type: z.enum(["crop", "lighting", "framing", "brand", "edit"]),
         instruction: short,
         priority: z.enum(["high", "medium", "low"]),
       }),
