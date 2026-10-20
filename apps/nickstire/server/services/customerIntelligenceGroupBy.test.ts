@@ -14,8 +14,14 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-// This file needs the REAL drizzle mysql2 builder; another file's mock must not leak in (AGENTS.md section 3).
+// This file needs the REAL drizzle builder, schema and subject; another file's mock must not leak in (AGENTS.md section 3).
+// Specifiers are the ones the subject and router resolve, relative to this file. ../lib/db-helper stays mocked below on purpose.
 vi.unmock("drizzle-orm/mysql2");
+vi.unmock("drizzle-orm");
+vi.unmock("../../drizzle/schema");
+vi.unmock("../lib/customer-segments");
+vi.unmock("./customerIntelligence");
+vi.unmock("../routers/admin/customerEvents");
 
 import { drizzle } from "drizzle-orm/mysql2";
 
