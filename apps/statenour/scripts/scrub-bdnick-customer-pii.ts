@@ -13,8 +13,10 @@
  *   - The database is DATABASE_URL and nothing else: no .env file is loaded. The host is printed,
  *     never the password.
  *   - --execute needs --expect <n> (the dry run's "rows to change" total; a mismatch aborts before
- *     any write), --target <branch|prod> and --prod-host <production DB host>. Host check: a branch
- *     run refuses when DATABASE_URL's host equals --prod-host; a prod run refuses unless it equals it.
+ *     any write), --target <branch|prod> and --db-host <host of the database you mean>. Production is
+ *     PROD_ENDPOINT in this file, never a value from the command line: a branch run refuses on that
+ *     endpoint (pooled or direct, any case, port or trailing dot), a prod run refuses on any other, and
+ *     either refuses unless --db-host names the same endpoint as DATABASE_URL.
  *   - Before any update, one backup per table, all in ONE REPEATABLE READ transaction:
  *     CREATE TABLE "_bak_<table>_scrub_20261019" AS SELECT * FROM <table> WHERE <scope>, and each
  *     backup count must equal its scope count in that snapshot or every backup rolls back.
@@ -28,7 +30,7 @@
  *
  *   DATABASE_URL=<branch url> pnpm exec tsx scripts/scrub-bdnick-customer-pii.ts                 # dry run
  *   DATABASE_URL=<branch url> pnpm exec tsx scripts/scrub-bdnick-customer-pii.ts --execute \
- *     --expect <n> --target branch --prod-host <prod host>
+ *     --expect <n> --target branch --db-host <branch host>
  *
  * Restore one table: INSERT ... SELECT from its backup by id (operator). Drop a backup only after
  * the change is confirmed good (operator).
@@ -36,6 +38,7 @@
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { scrubBridgePayload, scrubText, stripSyncCustomerPii } from "../lib/brain/customer-pii";
+import { hostFromDatabaseUrl } from "../prisma/seed-guard";
 
 export type Row = { id: string } & Record<string, unknown>;
 
@@ -482,7 +485,7 @@ export async function run(db: ScrubDb, opts: RunOptions): Promise<Summary> {
   log(`TOTAL rows to change: ${summary.totalToChange}`);
 
   if (!opts.execute) {
-    log(`dry run: nothing written. To execute, pass --execute --expect ${summary.totalToChange} plus --target and --prod-host.`);
+    log(`dry run: nothing written. To execute, pass --execute --expect ${summary.totalToChange} plus --target and --db-host.`);
     return summary;
   }
 
@@ -534,7 +537,7 @@ export interface Args {
   resume: boolean;
   expect?: number;
   target?: "branch" | "prod";
-  prodHost?: string;
+  dbHost?: string;
 }
 
 export function parseArgs(argv: string[]): Args {
@@ -551,19 +554,38 @@ export function parseArgs(argv: string[]): Args {
   const target = val("--target");
   if (target !== undefined && target !== "branch" && target !== "prod") throw new Error("--target is branch or prod");
   args.target = target as Args["target"];
-  args.prodHost = val("--prod-host");
+  args.dbHost = val("--db-host");
   if (args.execute) {
     if (args.expect === undefined) throw new Error("--execute needs --expect <rows to change from the dry run>");
     if (!args.target) throw new Error("--execute needs --target branch|prod");
-    if (!args.prodHost) throw new Error("--execute needs --prod-host <the production database host>");
+    if (!args.dbHost) throw new Error("--execute needs --db-host <the host of the database you mean to change>");
   }
   return args;
 }
 
-/** null when the host matches the target, else the reason to refuse. */
-export function checkTarget(target: "branch" | "prod", host: string, prodHost: string): string | null {
-  if (target === "branch" && host === prodHost) return `--target branch but DATABASE_URL is the production host ${host}`;
-  if (target === "prod" && host !== prodHost) return `--target prod but DATABASE_URL host ${host} is not the production host ${prodHost}`;
+/**
+ * The statenour production Neon compute, from the repo, never from the invocation (an operator-typed prod
+ * host lets a typo pass a branch run on production). Already public on main: docs/CLOUD-ENVIRONMENT.md
+ * and docs/audits/hour-frame-key-census-2026-08-27.md. If production moves, a prod run refuses until this
+ * line is updated in a PR, which is the safe direction.
+ */
+export const PROD_ENDPOINT = "ep-quiet-wave-am320eo1";
+
+/** Neon endpoint id: the first DNS label, lower case, pooler suffix dropped (pooled and direct reach one compute). */
+export function endpointOf(host: string): string {
+  return host.trim().toLowerCase().split(".")[0].replace(/-pooler$/, "");
+}
+
+/** null when DATABASE_URL may be written for this target, else the reason to refuse. */
+export function checkTarget(target: "branch" | "prod", databaseUrl: string, dbHost: string): string | null {
+  const host = hostFromDatabaseUrl(databaseUrl);
+  if (!host) return "DATABASE_URL host cannot be read; refusing to write to an unnamed database";
+  const ep = endpointOf(host);
+  // The host parse is ambiguous when a query value holds "@"; a branch run refuses any URL naming production.
+  if (target === "branch" && (ep === PROD_ENDPOINT || databaseUrl.toLowerCase().includes(PROD_ENDPOINT))) return `--target branch but DATABASE_URL is the production endpoint ${PROD_ENDPOINT}`;
+  if (target === "prod" && ep !== PROD_ENDPOINT) return `--target prod but DATABASE_URL endpoint ${ep} is not the production endpoint ${PROD_ENDPOINT}`;
+  // The operator names the database a second time; a stale or wrong DATABASE_URL disagrees with it.
+  if (!dbHost || endpointOf(dbHost) !== ep) return `--db-host names endpoint ${endpointOf(dbHost ?? "") || "(none)"} but DATABASE_URL is endpoint ${ep}`;
   return null;
 }
 
@@ -571,11 +593,10 @@ async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("DATABASE_URL is not set (this script reads no .env file)");
-  const host = new URL(url).host;
-  console.log(`database host: ${host}`);
+  console.log(`database host: ${hostFromDatabaseUrl(url) ?? "(unreadable)"}`);
   console.log(`mode: ${args.execute ? `EXECUTE (${args.resume ? "resume, " : ""}target ${args.target})` : "DRY RUN, counting only"}`);
   if (args.execute) {
-    const refusal = checkTarget(args.target!, host, args.prodHost!);
+    const refusal = checkTarget(args.target!, url, args.dbHost!);
     if (refusal) throw new Error(refusal);
   }
   // Lazy: importing this module (tests) must not load Prisma.

@@ -11,6 +11,7 @@
  *      a backup count mismatch, and a second run finds nothing left to change.
  * Customer data in fixtures is synthetic.
  */
+import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import { scrubBridgePayload, stripSyncCustomerPii } from "@/lib/brain/customer-pii";
@@ -394,19 +395,85 @@ describe("the adapter's writes are compare-and-swap on the value read", () => {
   });
 });
 
-describe("arguments and target check", () => {
-  it("--execute needs --expect, --target and --prod-host", () => {
+describe("arguments and target check · production is named by the repo, never by the invocation", () => {
+  // The production endpoint as already published on main (docs/CLOUD-ENVIRONMENT.md, the 2026-08-27 census).
+  const PROD_POOLED = "ep-quiet-wave-am320eo1-pooler.c-5.us-east-1.aws.neon.tech";
+  const PROD_URL = `postgresql://neondb_owner:pw@${PROD_POOLED}/neondb?sslmode=require`;
+  const BRANCH_HOST = "ep-cold-moon-a1b2c3d4-pooler.c-5.us-east-1.aws.neon.tech";
+  const BRANCH_URL = `postgresql://neondb_owner:pw@${BRANCH_HOST}/neondb?sslmode=require`;
+
+  it("--execute needs --expect, --target and --db-host", () => {
     expect(() => parseArgs(["--execute"])).toThrow(/--expect/);
     expect(() => parseArgs(["--execute", "--expect", "5"])).toThrow(/--target/);
-    expect(() => parseArgs(["--execute", "--expect", "5", "--target", "branch"])).toThrow(/--prod-host/);
+    expect(() => parseArgs(["--execute", "--expect", "5", "--target", "branch"])).toThrow(/--db-host/);
+    // The retired flag no longer satisfies the gate: an old command line fails closed.
+    expect(() => parseArgs(["--execute", "--expect", "5", "--target", "branch", "--prod-host", PROD_POOLED])).toThrow(/--db-host/);
     expect(parseArgs([])).toMatchObject({ execute: false, resume: false });
-    expect(parseArgs(["--execute", "--expect", "5", "--target", "prod", "--prod-host", "ep-a.neon.tech"])).toMatchObject({ execute: true, expect: 5, target: "prod" });
+    expect(parseArgs(["--execute", "--expect", "5", "--target", "prod", "--db-host", PROD_POOLED])).toMatchObject({ execute: true, expect: 5, target: "prod", dbHost: PROD_POOLED });
   });
 
-  it("branch must not be the production host, prod must be it", () => {
-    expect(checkTarget("branch", "ep-branch.neon.tech", "ep-main.neon.tech")).toBeNull();
-    expect(checkTarget("branch", "ep-main.neon.tech", "ep-main.neon.tech")).toMatch(/production host/);
-    expect(checkTarget("prod", "ep-main.neon.tech", "ep-main.neon.tech")).toBeNull();
-    expect(checkTarget("prod", "ep-branch.neon.tech", "ep-main.neon.tech")).toMatch(/not the production host/);
+  it("CODEX SCENARIO: production DATABASE_URL, a typo in the operator's host, --target branch is refused", () => {
+    expect(checkTarget("branch", PROD_URL, "ep-quiet-wave-am320eo2-pooler.c-5.us-east-1.aws.neon.tech")).toMatch(/production endpoint/);
+    // Even when the operator names the branch they meant: the URL decides, and it is production.
+    expect(checkTarget("branch", PROD_URL, BRANCH_HOST)).toMatch(/production endpoint/);
   });
+
+  it("a branch run on the production endpoint is refused however the host is spelled", () => {
+    expect(checkTarget("branch", PROD_URL, PROD_POOLED)).toMatch(/production endpoint/);
+    for (const host of [
+      PROD_POOLED.toUpperCase(),
+      `${PROD_POOLED}.`,
+      `${PROD_POOLED}:5432`,
+      "ep-quiet-wave-am320eo1.c-5.us-east-1.aws.neon.tech", // direct (unpooled) host, same compute
+    ]) {
+      expect(checkTarget("branch", `postgresql://u:p@ss#?@${host}/neondb`, host), host).toMatch(/production endpoint/);
+    }
+    // An "@" in a query value moves the parsed host to the branch; the URL still names production.
+    expect(checkTarget("branch", `${PROD_URL}&application_name=x@${BRANCH_HOST}`, BRANCH_HOST)).toMatch(/production endpoint/);
+  });
+
+  it("a prod run must be the production endpoint; a branch URL with --target prod is refused", () => {
+    expect(checkTarget("prod", BRANCH_URL, BRANCH_HOST)).toMatch(/not the production endpoint/);
+    expect(checkTarget("prod", "postgresql://u:p@localhost:5432/db", "localhost")).toMatch(/not the production endpoint/);
+  });
+
+  it("a missing or mismatched --db-host, or an unreadable DATABASE_URL, is refused", () => {
+    expect(checkTarget("branch", BRANCH_URL, "")).toMatch(/--db-host/);
+    expect(checkTarget("branch", BRANCH_URL, "ep-other-a9.c-5.us-east-1.aws.neon.tech")).toMatch(/--db-host/);
+    expect(checkTarget("branch", "not a url", BRANCH_HOST)).toMatch(/cannot be read/);
+  });
+
+  it("POSITIVE CONTROL: the legitimate runs still pass (a guard that refuses everything scores the same above)", () => {
+    expect(checkTarget("branch", BRANCH_URL, BRANCH_HOST)).toBeNull();
+    expect(checkTarget("branch", BRANCH_URL, `${BRANCH_HOST.toUpperCase()}.`)).toBeNull();
+    expect(checkTarget("prod", PROD_URL, PROD_POOLED)).toBeNull();
+    // Pooled and direct hosts are the same compute, so either spelling names it.
+    expect(checkTarget("prod", PROD_URL, "ep-quiet-wave-am320eo1.c-5.us-east-1.aws.neon.tech")).toBeNull();
+  });
+});
+
+describe("the real script refuses before it loads Prisma (no database: the host is under the .invalid TLD)", () => {
+  const runScript = (databaseUrl: string, args: string) => {
+    const child = spawnSync(`pnpm exec tsx scripts/scrub-bdnick-customer-pii.ts ${args}`, {
+      cwd: process.cwd(),
+      shell: true,
+      encoding: "utf8",
+      timeout: 120_000,
+      env: { ...process.env, DATABASE_URL: databaseUrl },
+    });
+    return { status: child.status, output: `${child.stdout ?? ""}${child.stderr ?? ""}` };
+  };
+  // First DNS label is the production endpoint id; the reserved TLD means even a dead guard reaches nothing.
+  const PROD_LIKE = "postgresql://u:p@ep-quiet-wave-am320eo1-pooler.invalid/neondb";
+
+  it(
+    "--target branch on the production endpoint exits 1 with the refusal and never starts counting",
+    () => {
+      const { status, output } = runScript(PROD_LIKE, "--execute --expect 0 --target branch --db-host ep-quiet-wave-am320eo2-pooler.invalid");
+      expect(output).toMatch(/--target branch but DATABASE_URL is the production endpoint/);
+      expect(status).toBe(1);
+      expect(output).not.toMatch(/ENOTFOUND|getaddrinfo|Can't reach database|TOTAL rows/i);
+    },
+    150_000,
+  );
 });
