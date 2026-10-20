@@ -250,10 +250,11 @@ describe("one Telegram message per lead, callback, chat lead and booking", () =>
   });
 });
 
-// Nour, 2026-10-17: "drop nickstire". An emergency request reaches Telegram through statenour's
-// bridge route only (its copy is the one with retry); nickstire sends none of its own. The bridge
-// emit itself stays: statenour needs it to alert and to retry an undelivered emergency.
-describe("an emergency request sends no Telegram from nickstire and still emits to the bridge once", () => {
+// 2026-10-19 (bdnick manager's option a, reversing Nour's 2026-10-17 "drop nickstire"): bdnick.info
+// no longer receives the customer's name or phone, so its webhook cannot write the alert. Nickstire's
+// emergencyAlert sends the one Telegram (with a bounded retry); the bus never sends one for an
+// emergency_request, and the bridge emit still goes out once, scrubbed, to /api/sync/events.
+describe("an emergency request sends exactly one Telegram from nickstire's emergencyAlert and still emits to the bridge once", () => {
   const submitEmergency = () =>
     emergencyRouter.createCaller(PUBLIC_CTX).submit({
       name: "Ann Test",
@@ -274,11 +275,12 @@ describe("an emergency request sends no Telegram from nickstire and still emits 
     h.selectRows = [{ id: 77 }]; // the emergency_requests row the router reads back after its insert
   });
 
-  it("emergency.submit sends zero Telegram messages with the router and the bus both running", async () => {
+  it("emergency.submit sends exactly one Telegram message with the router and the bus both running", async () => {
     await submitEmergency();
     await settle();
-    expect(h.sends.map((s) => s.text)).toEqual([]);
-    // the bridge emit statenour alerts and retries on is untouched: once, carrying the persisted row id
+    expect(h.sends.map((s) => s.text)).toEqual([expect.stringContaining("EMERGENCY REQUEST")]);
+    h.sends.length = 0;
+    // the bridge emit is untouched: once, carrying the persisted row id
     expect(h.emergencyEmits).toHaveLength(1);
     expect(h.emergencyEmits[0]).toMatchObject({
       id: 77,
@@ -293,11 +295,11 @@ describe("an emergency request sends no Telegram from nickstire and still emits 
     expect(h.sends.map((s) => s.text)).toEqual([expect.stringContaining("NEW BOOKING")]);
   });
 
-  it("the router sends no Telegram of its own (bus off)", async () => {
+  it("the router's own alert is the one Telegram (bus off)", async () => {
     h.runEmergencyBus = false;
     await submitEmergency();
     await settle();
-    expect(h.sends.map((s) => s.text)).toEqual([]);
+    expect(h.sends.map((s) => s.text)).toEqual([expect.stringContaining("EMERGENCY REQUEST")]);
     expect(h.emergencyEmits).toHaveLength(1);
   });
 
