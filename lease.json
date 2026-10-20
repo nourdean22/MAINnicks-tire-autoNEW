@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "chore/private-tag-memory",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "a7b885c2-eac8-456c-82e7-7cec9b78bc13",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire",
   "claimedBy": "2026-10-18-private-tag-memory",
   "claimedAt": "2026-10-18T18:24:22.104Z",
   "expiresAt": "2026-10-19T06:24:22.104Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": null
+  "releasedAt": "2026-10-20T21:44:15.512Z",
+  "releaseReason": "operator confirmed via -ForceDirtyRelease in worktree-teardown.ps1",
+  "priorLeaseSha": "f4412d70404495f3e7211840b1bb1e5edbc7f2c7",
+  "releasedBy": "manual-19892-1792532652884",
+  "foreignReleaseReason": null
 }
