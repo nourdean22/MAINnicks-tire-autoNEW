@@ -492,6 +492,24 @@ describe("arguments and target check · production is named by the repo, never b
     expect(checkTarget("branch", `${PROD_URL}&application_name=x@${BRANCH_HOST}`, BRANCH_HOST)).toMatch(/production endpoint/);
   });
 
+  it("MANAGER PROBE: Neon's options=endpoint= selects production behind a neutral host; every encoding is refused", () => {
+    // Neon routes a client without SNI by `options=endpoint=<id>`, so the host alone does not name the compute.
+    const exact = "postgresql://u:p@pg.neon.tech/neondb?options=endpoint%3Dep%2Dquiet%2Dwave%2Dam320eo1";
+    expect(checkTarget("branch", exact, "pg.neon.tech")).toMatch(/production endpoint|selects endpoint/);
+    const double = "postgresql://u:p@pg.neon.tech/neondb?options=endpoint%253Dep%252Dquiet%252Dwave%252Dam320eo1";
+    expect(checkTarget("branch", double, "pg.neon.tech")).toMatch(/production endpoint|selects endpoint/);
+    const mixed = "postgresql://u:p@pg.neon.tech/neondb?options=ENDPOINT%3dEP%2dQuiet%2Dwave%2dAM320EO1";
+    expect(checkTarget("branch", mixed, "pg.neon.tech")).toMatch(/production endpoint|selects endpoint/);
+    // An options endpoint other than the host's is refused for either target, production or not.
+    const other = `postgresql://u:p@${BRANCH_HOST}/neondb?options=endpoint%3Dep-other-zz9`;
+    expect(checkTarget("branch", other, BRANCH_HOST)).toMatch(/selects endpoint ep-other-zz9/);
+    expect(checkTarget("prod", `${PROD_URL}&options=endpoint%3Dep-cold-moon-a1b2c3d4`, PROD_POOLED)).toMatch(/selects endpoint/);
+    // A URL that does not percent-decode cannot be judged.
+    expect(checkTarget("branch", `${BRANCH_URL}&x=%E0%A4%A`, BRANCH_HOST)).toMatch(/percent-decode/);
+    // Positive control: an options endpoint that names the host's own compute is fine.
+    expect(checkTarget("branch", `postgresql://u:p@${BRANCH_HOST}/neondb?options=endpoint%3Dep-cold-moon-a1b2c3d4`, BRANCH_HOST)).toBeNull();
+  });
+
   it("a prod run must be the production endpoint; a branch URL with --target prod is refused", () => {
     expect(checkTarget("prod", BRANCH_URL, BRANCH_HOST)).toMatch(/not the production endpoint/);
     expect(checkTarget("prod", "postgresql://u:p@localhost:5432/db", "localhost")).toMatch(/not the production endpoint/);

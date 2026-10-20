@@ -676,8 +676,26 @@ export function checkTarget(target: "branch" | "prod", databaseUrl: string, dbHo
   const host = hostFromDatabaseUrl(databaseUrl);
   if (!host) return "DATABASE_URL host cannot be read; refusing to write to an unnamed database";
   const ep = endpointOf(host);
+  // Judge the fully decoded text: Neon also picks the compute from `endpoint=<id>` (options or password),
+  // which can be percent-encoded any number of times.
+  let decoded = databaseUrl;
+  for (let i = 0; i < 10; i++) {
+    let next: string;
+    try {
+      next = decodeURIComponent(decoded);
+    } catch {
+      return "DATABASE_URL does not percent-decode; refusing to judge its target";
+    }
+    if (next === decoded) break;
+    decoded = next;
+  }
+  decoded = decoded.toLowerCase();
+  if (/%[0-9a-f]{2}/.test(decoded)) return "DATABASE_URL does not percent-decode; refusing to judge its target";
+  for (const [, id] of decoded.matchAll(/(?:^|[^a-z0-9_])endpoint=([a-z0-9-]+)/g)) {
+    if (endpointOf(id) !== ep) return `DATABASE_URL selects endpoint ${endpointOf(id)} by endpoint= but its host is endpoint ${ep}`;
+  }
   // The host parse is ambiguous when a query value holds "@"; a branch run refuses any URL naming production.
-  if (target === "branch" && (ep === PROD_ENDPOINT || databaseUrl.toLowerCase().includes(PROD_ENDPOINT))) return `--target branch but DATABASE_URL is the production endpoint ${PROD_ENDPOINT}`;
+  if (target === "branch" && (ep === PROD_ENDPOINT || decoded.includes(PROD_ENDPOINT))) return `--target branch but DATABASE_URL is the production endpoint ${PROD_ENDPOINT}`;
   if (target === "prod" && ep !== PROD_ENDPOINT) return `--target prod but DATABASE_URL endpoint ${ep} is not the production endpoint ${PROD_ENDPOINT}`;
   // The operator names the database a second time; a stale or wrong DATABASE_URL disagrees with it.
   if (!dbHost || endpointOf(dbHost) !== ep) return `--db-host names endpoint ${endpointOf(dbHost ?? "") || "(none)"} but DATABASE_URL is endpoint ${ep}`;
