@@ -81,10 +81,9 @@ describe("bucket transforms · no name, phone or email survives; counts and ids 
     expect(changedColumns(bucket("audit_business_metrics_sync"), row)).toEqual([]);
   });
 
-  it("FINDING (why the script wraps it): stripSyncCustomerPii applied twice appends a second AT-RISK line", () => {
-    // If this goes red, wave 3 made the function idempotent: drop the wrapper in the script.
+  it("stripSyncCustomerPii is idempotent: the script relies on it to leave an already-stripped row unchanged", () => {
     const once = stripSyncCustomerPii(structuredClone(RAW_SYNC));
-    expect(JSON.stringify(stripSyncCustomerPii(structuredClone(once)))).not.toBe(JSON.stringify(once));
+    expect(stripSyncCustomerPii(structuredClone(once))).toEqual(once);
   });
 
   it("ceo_business_context: equals the row the writer now builds from the stripped payload", () => {

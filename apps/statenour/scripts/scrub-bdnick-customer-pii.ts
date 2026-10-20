@@ -35,7 +35,7 @@
  */
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { SEE_ADMIN_CUSTOMERS, scrubBridgePayload, scrubText, stripSyncCustomerPii } from "../lib/brain/customer-pii";
+import { scrubBridgePayload, scrubText, stripSyncCustomerPii } from "../lib/brain/customer-pii";
 
 export type Row = { id: string } & Record<string, unknown>;
 
@@ -91,29 +91,13 @@ export function stable(v: unknown): string {
 }
 
 /**
- * stripSyncCustomerPii appends "• AT-RISK: n at-risk customers, see Customers in the admin." on
- * every call, so a row the wave 3 writer already stripped would gain a second line. Removing that
- * generated line first makes the result equal stripSyncCustomerPii(raw) for an old row and leave a
- * stripped row unchanged. nickstire never writes that wording, so raw rows are untouched by it.
- */
-const GENERATED_AT_RISK = new RegExp(`^• AT-RISK: \\d+ at-risk customers?, ${SEE_ADMIN_CUSTOMERS}\\.$`);
-function dropGeneratedAtRisk(node: unknown): unknown {
-  if (Array.isArray(node)) return node.map(dropGeneratedAtRisk);
-  if (!isObj(node)) return node;
-  const out: Obj = {};
-  for (const [k, v] of Object.entries(node)) {
-    out[k] = k === "actionPlan" && typeof v === "string" ? v.split("\n").filter((l) => !GENERATED_AT_RISK.test(l)).join("\n") : dropGeneratedAtRisk(v);
-  }
-  return out;
-}
-
-/**
  * business_metrics_sync: what POST /api/sync/business stores. ceo_business_context too: its writer
  * copies whole sub-objects (revenue, leads, intelligence, ...) out of the sync payload, and the
  * strip works per key at any depth, so stripping the old row equals building it from the stripped
- * payload (prioritizedActions come from counts the strip keeps).
+ * payload (prioritizedActions come from counts the strip keeps). The strip is idempotent since
+ * wave 3, so an already-stripped row comes back unchanged.
  */
-const syncPayload = (row: Row) => ({ payload: stripSyncCustomerPii(dropGeneratedAtRisk(row.payload)) });
+const syncPayload = (row: Row) => ({ payload: stripSyncCustomerPii(row.payload) });
 
 /**
  * nickstire:* audit rows have two writers. /api/webhooks/nickstire (actor nickstire_webhook) now
