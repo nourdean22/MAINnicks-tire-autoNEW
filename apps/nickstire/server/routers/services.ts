@@ -147,8 +147,10 @@ export const garageRouter = router({
 /**
  * Staff heads-up for a public submission (2026-10-19). The admin screens that listed
  * referrals and questions were retired, so without this a saved submission reached
- * nobody. First name only, never a phone or email. Fail-soft: a Telegram outage
- * never fails the customer's submit.
+ * nobody. First name only, never a phone or email. Fail-soft and detached: callers
+ * do not await it (a slow or unreachable Telegram would otherwise hold the customer's
+ * response for the transport timeout after the row is saved, inviting a retry and a
+ * duplicate), and it never throws.
  */
 async function notifyStaffOfSubmission(text: string): Promise<void> {
   try {
@@ -215,7 +217,7 @@ export const referralsRouter = router({
         refereePhone: sanitizePhone(input.refereePhone),
         refereeEmail: input.refereeEmail ? sanitizeEmail(input.refereeEmail) : undefined,
       });
-      await notifyStaffOfSubmission(
+      void notifyStaffOfSubmission(
         `🤝 New referral: ${firstNameOf(sanitizeText(input.referrerName))} referred ${firstNameOf(sanitizeText(input.refereeName))}. Contact details are in the referrals table.`,
       );
       return saved;
@@ -239,7 +241,7 @@ export const qaRouter = router({
     }))
     .mutation(async ({ input }) => {
       const saved = await createQuestion(input);
-      await notifyStaffOfSubmission(
+      void notifyStaffOfSubmission(
         `❓ New question from ${firstNameOf(input.questionerName)}: "${input.question.slice(0, 300)}"`,
       );
       return saved;

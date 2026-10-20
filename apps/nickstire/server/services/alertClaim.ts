@@ -80,8 +80,8 @@ export async function sendOncePerState(
   return result;
 }
 
-/** fired_for is a DATE column; this fixed value makes a claim that no later day can repeat. */
-const EVER_FIRED_FOR = "1970-01-01";
+/** fired_for is a DATE column; this fixed value makes a claim that no later day can repeat. The 90-day cleanup skips it. */
+export const EVER_FIRED_FOR = "1970-01-01";
 
 /**
  * sendOncePerState without the day: once per STATE for good. For a daily job whose state
