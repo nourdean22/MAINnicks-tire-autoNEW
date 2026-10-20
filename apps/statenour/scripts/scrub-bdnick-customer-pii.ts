@@ -180,6 +180,18 @@ function leadCallMemory(row: Row) {
   return { content: `New lead from ${scrubText(source)} — ${scrubText(service)}` };
 }
 
+/**
+ * Old: "Positive review (<r>/5): <review text>" (insight) and "Low review (<r>/5): <review text> — NEEDS RESPONSE"
+ * (business_alert), from the pre-wave-3 pipeline-controller. Today: the rating line only. Everything after the
+ * rating is dropped, so a review text that holds a name cannot leak.
+ */
+function reviewMemory(row: Row) {
+  const content = String(row.content);
+  const m = /^(Positive|Low) review (\([^)]*\))/.exec(content);
+  if (!m) return { content };
+  return { content: m[1] === "Positive" ? `Positive review ${m[2]}` : `Low review ${m[2]} — NEEDS RESPONSE` };
+}
+
 /** The texts /api/sync/events stores today (tests pin them to the route's literals). */
 const CALLBACK_TEXT = "Callback requested: see Customers in Nick's Admin";
 const reviewText = (old: unknown) => `${/^([^★]*)★/.exec(String(old ?? ""))?.[1] ?? "undefined"}★ review received: see Reviews in Nick's Admin`;
@@ -197,6 +209,7 @@ function scrubMemoryText(category: string, key: string, content: string): string
   const row = { id: "", category, key, content };
   if (category === "business_event" && content.startsWith("Shop ")) return String(shopMemory(row).content);
   if (category === "anomaly" && content.startsWith("EMERGENCY: ")) return String(emergencyMemory(row).content);
+  if ((category === "insight" || category === "business_alert") && /^(Positive|Low) review \(/.test(content)) return String(reviewMemory(row).content);
   if (category === "business_event" || category === "insight") return String(leadCallMemory(row).content);
   return content;
 }
@@ -225,6 +238,8 @@ const MEMORY_SHAPES: Array<[RegExp, string]> = [
   [/^call_completed_\d+$/, "Phone call from "],
   [/^shop_[\s\S]*_\d+$/, "Shop "],
   [/^emergency_\d+$/, "EMERGENCY: "],
+  [/^review_positive_\d{4}-\d{2}-\d{2}$/, "Positive review ("],
+  [/^review_negative_\d{4}-\d{2}-\d{2}$/, "Low review ("],
 ];
 function splitVectorText(text: string): { category: string; key: string; content: string } | null {
   const head = /^\[([^\]]+)\] /.exec(text);
@@ -314,6 +329,16 @@ export const BUCKETS: Bucket[] = [
     transform: leadCallMemory,
   },
   {
+    name: "memories_reviews",
+    table: TABLES.memories,
+    where:
+      `category IN ('insight', 'business_alert') AND (key LIKE 'review\\_positive\\_%' OR key LIKE 'review\\_negative\\_%') ` +
+      `AND (content LIKE 'Positive review (%' OR content LIKE 'Low review (%')`,
+    read: ["id", "category", "key", "content", "metadata"],
+    write: [{ col: "content", json: false }],
+    transform: reviewMemory,
+  },
+  {
     name: "memories_coach_events",
     table: TABLES.memories,
     where: `category = 'coach_event' AND key IN ('coach:drift-recovery:callback_requested', 'coach:drift-recovery:negative_review')`,
@@ -344,7 +369,8 @@ BUCKETS.push({
   where:
     `"sourceType" = 'brain_memory' AND ("sourceId" IN (SELECT id FROM brain_memories WHERE ${MEMORY_SCOPE}) ` +
     `OR (NOT EXISTS (SELECT 1 FROM brain_memories bm WHERE bm.id = vector_embeddings."sourceId") ` +
-    `AND (content LIKE '[business_event] %' OR content LIKE '[insight] %' OR content LIKE '[anomaly] %')))`,
+    `AND (content LIKE '[business_event] %' OR content LIKE '[insight] %' OR content LIKE '[anomaly] %' ` +
+    `OR content LIKE '[business_alert] %')))`,
   read: [
     "id",
     '"sourceId" AS "sourceId"',

@@ -15,6 +15,7 @@ import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import { scrubBridgePayload, stripSyncCustomerPii } from "@/lib/brain/customer-pii";
+import { TELEMETRY_CATEGORIES } from "@/lib/brain/embedding-policy";
 import { buildCeoContextFromNickSyncPayload } from "@/lib/nickstire/ceo-context";
 import {
   BUCKETS,
@@ -136,6 +137,21 @@ describe("bucket transforms · no name, phone or email survives; counts and ids 
     expectNoPii(apply("memories_lead_call", legacy).content);
   });
 
+  it("review memories (Codex 4330608604): the pre-wave-3 review text is dropped, rating and NEEDS RESPONSE stay", () => {
+    // Legacy writer, 69b505287 lib/brain/pipeline-controller.ts:117/124: `Positive review (${rating}/5): ${reviewText.slice(0, 100)}`
+    // and `Low review (${rating}/5): ${reviewText.slice(0, 100)} — NEEDS RESPONSE`.
+    const pos = { id: "r1", category: "insight", key: "review_positive_2026-09-01", content: "Positive review (5/5): Jane Roe was great, call 216-555-1234", metadata: null };
+    expect(apply("memories_reviews", pos).content).toBe("Positive review (5/5)");
+    const neg = { id: "r2", category: "business_alert", key: "review_negative_2026-09-01", content: "Low review (2/5): Bobby Tables, jane@example.test, rude — NEEDS RESPONSE", metadata: null };
+    expect(apply("memories_reviews", neg).content).toBe("Low review (2/5) — NEEDS RESPONSE");
+    const empty = { ...neg, id: "r3", content: "Low review (1/5):  — NEEDS RESPONSE" };
+    expect(apply("memories_reviews", empty).content).toBe("Low review (1/5) — NEEDS RESPONSE");
+    // Today's rows are left alone.
+    for (const content of ["Positive review (4/5)", "Low review (2/5) — NEEDS RESPONSE"]) {
+      expect(changedColumns(bucket("memories_reviews"), { ...pos, content }), content).toEqual([]);
+    }
+  });
+
   it("coach_event: the callback and review bodies become the writer's fixed text; eventId and title stay", () => {
     const meta = { eventId: "e1", kind: "drift-recovery", subjectId: "callback_requested", priority: "P2", body: "Callback: Jane Roe — 2165551234", surfaces: ["home"], dismissable: true, extra: {} };
     const cb = apply("memories_coach_events", { id: "k1", category: "coach_event", key: "coach:drift-recovery:callback_requested", content: "Customer Callback Requested", metadata: meta });
@@ -162,6 +178,8 @@ describe("bucket transforms · no name, phone or email survives; counts and ids 
     expect(pipeline).toContain("`New lead from ${source} — ${scrubText(");
     expect(pipeline).toContain("`Phone call ended. Duration: ${duration}s. Reason: ${scrubText(");
     expect(pipeline).toContain("const memContent = `Shop ${event.type}: ${JSON.stringify(safeData).slice(0, 300)}`;");
+    expect(pipeline).toContain("`Positive review (${rating}/5)`,");
+    expect(pipeline).toContain("`Low review (${rating}/5) — NEEDS RESPONSE`,");
   });
 });
 
@@ -184,6 +202,8 @@ describe("vector_embeddings of scrubbed memories · the copy the recall index ke
     // A source that itself reads like a memory prefix still splits at the key's date, not at the first match.
     const trickKey = { id: "v7", sourceId: "i7", content: "[insight] lead_source_x: New lead from y_2026-09-01: New lead from x: New lead from y: Jane Roe — tires", reembedEligible: null };
     expect(vb().transform(trickKey).content).toBe("[insight] lead_source_x: New lead from y_2026-09-01: New lead from x: New lead from y — tires");
+    const review = { id: "v8", sourceId: "gone", content: "[business_alert] review_negative_2026-09-01: Low review (2/5): Jane Roe, rude — NEEDS RESPONSE", reembedEligible: null };
+    expect(vb().transform(review).content).toBe("[business_alert] review_negative_2026-09-01: Low review (2/5) — NEEDS RESPONSE");
     const shop = { id: "v2", sourceId: "gone", content: '[business_event] shop_lead_1: Shop lead: {"customerName":"Jane Roe","phone":"2165551234","service":"brakes"}', reembedEligible: null };
     expect(vb().transform(shop).content).toBe('[business_event] shop_lead_1: Shop lead: {"service":"brakes"}');
   });
@@ -205,6 +225,15 @@ describe("vector_embeddings of scrubbed memories · the copy the recall index ke
 
   it("vectors are written last, after their memories are scrubbed, so a rebuild never reads the old text", () => {
     expect(BUCKETS[BUCKETS.length - 1].name).toBe("vectors_of_scrubbed_memories");
+  });
+
+  it("orphan vectors of every scrubbed memory category are in scope, and none of those categories is telemetry the backfill skips", () => {
+    // SQL text, not behaviour: the in-memory db cannot run it, so the category list is pinned here.
+    const memoryCategories = ["business_event", "insight", "anomaly", "business_alert"];
+    for (const c of memoryCategories) {
+      expect(vb().where).toContain(`content LIKE '[${c}] %'`);
+      expect(TELEMETRY_CATEGORIES as readonly string[]).not.toContain(c);
+    }
   });
 
   it("an embedding whose memory did not change is left alone", () => {
@@ -233,6 +262,10 @@ function fixtures(): Record<string, Row[]> {
     memories_shop_events: [{ id: "m1", category: "business_event", key: "shop_lead_1", content: 'Shop lead: {"customerName":"Jane Roe","service":"brakes"}', metadata: null }],
     memories_emergency: [],
     memories_lead_call: [{ id: "i1", category: "insight", key: "lead_source_website_2026-09-01", content: "New lead from website: Jane Roe — brakes", metadata: null }],
+    memories_reviews: [
+      { id: "r1", category: "insight", key: "review_positive_2026-09-01", content: "Positive review (5/5): Jane Roe was great", metadata: null },
+      { id: "r2", category: "business_alert", key: "review_negative_2026-09-02", content: "Low review (2/5) — NEEDS RESPONSE", metadata: null },
+    ],
     memories_coach_events: [],
     bus_drift_customer_alerts: [{ id: "b1", payload: { ruleId: "callback_requested", message: "Callback: Jane Roe — 2165551234" } }],
     vectors_of_scrubbed_memories: [
@@ -293,7 +326,7 @@ describe("run · dry run, --expect, backup refusal, idempotence", () => {
   it("POSITIVE CONTROL: the dry run sees the PII rows (a zero here would make every test below vacuous)", async () => {
     const { db } = memoryDb();
     const s = await run(db, { execute: false, resume: false, ...quiet });
-    expect(s.totalToChange).toBe(7);
+    expect(s.totalToChange).toBe(8);
     expect(s.buckets.audit_business_metrics_sync).toMatchObject({ inScope: 2, toChange: 1 });
   });
 
@@ -306,23 +339,23 @@ describe("run · dry run, --expect, backup refusal, idempotence", () => {
 
   it("an existing backup table is refused before any backup or write", async () => {
     const { db, calls } = memoryDb({ existingBackups: [TABLES.memories.name] });
-    const s = await run(db, { execute: true, expect: 7, resume: false, ...quiet });
+    const s = await run(db, { execute: true, expect: 8, resume: false, ...quiet });
     expect(s.aborted).toMatch(/already exists/);
     expect(calls).toEqual({ createBackups: 0, writeRow: 0 });
   });
 
   it("a backup count that differs from the scope count aborts before any write", async () => {
     const { db, calls } = memoryDb({ backupShortBy: 1 });
-    const s = await run(db, { execute: true, expect: 7, resume: false, ...quiet });
+    const s = await run(db, { execute: true, expect: 8, resume: false, ...quiet });
     expect(s.aborted).toMatch(/backup/);
     expect(calls.writeRow).toBe(0);
   });
 
   it("execute writes exactly the expected rows; a second run finds 0 to change and a --resume writes nothing", async () => {
     const { db, calls, data } = memoryDb();
-    const first = await run(db, { execute: true, expect: 7, resume: false, ...quiet });
+    const first = await run(db, { execute: true, expect: 8, resume: false, ...quiet });
     expect(first.aborted).toBeUndefined();
-    expect(first.written).toBe(7);
+    expect(first.written).toBe(8);
     expectNoPii(data);
     // v1 (live memory) deleted for the backfill to re-embed, v2 (orphan) rewritten, v3 (unchanged) untouched.
     expect(first.buckets.vectors_of_scrubbed_memories).toMatchObject({ toChange: 2, toDelete: 1, written: 2 });
@@ -333,12 +366,12 @@ describe("run · dry run, --expect, backup refusal, idempotence", () => {
     const resumed = await run(db, { execute: true, expect: 0, resume: true, ...quiet });
     expect(resumed.aborted).toBeUndefined();
     expect(resumed.written).toBe(0);
-    expect(calls.writeRow).toBe(7);
+    expect(calls.writeRow).toBe(8);
   });
 
   it("--resume without a backup table is refused", async () => {
     const { db, calls } = memoryDb();
-    const s = await run(db, { execute: true, expect: 7, resume: true, ...quiet });
+    const s = await run(db, { execute: true, expect: 8, resume: true, ...quiet });
     expect(s.aborted).toMatch(/no backup/);
     expect(calls.writeRow).toBe(0);
   });
@@ -370,7 +403,7 @@ describe("dry run through the real Prisma adapter · every write method throws",
     const s = await run(prismaScrubDb(client), { execute: false, resume: false, ...quiet });
     // Not merely "no write": the dry run must return on its own branch, not be rescued by the --expect gate.
     expect(s.aborted).toBeUndefined();
-    expect(s.totalToChange).toBe(7);
+    expect(s.totalToChange).toBe(8);
     expect(queryRawUnsafe).toHaveBeenCalled();
     for (const fn of [client.$executeRawUnsafe, client.$executeRaw, client.$transaction]) expect(fn).not.toHaveBeenCalled();
   });
