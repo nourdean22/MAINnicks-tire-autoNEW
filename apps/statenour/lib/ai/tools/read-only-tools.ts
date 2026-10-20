@@ -7,18 +7,18 @@
  * calls. No listed tool creates a record a replay would duplicate. Idempotent
  * bookkeeping and measuring the call do not count: tool_telemetry rows,
  * systemMetric rows, a per-person cache row (getContextualGreeneLaws), POST used
- * as the transport of a read query. Six listed tools do a little more, and are
+ * as the transport of a read query. Five listed tools do a little more, and are
  * accepted by name in ACCEPTED_EXCEPTIONS below; the list is not widened past
  * them. arsenalDeepResearch is NOT listed: every fresh run inserts a BrainMemory
  * row (research_<timestamp>) plus an embedding and persona-usage rows, and its
  * only dedupe is a best-effort semantic lookup.
  *
- * Five tools whose NAME trips the registry's mutating-verb wire (generateSQL,
- * generateCode, writeCreative, runCode, draftOpportunitySms) only compute,
+ * Three tools whose NAME trips the registry's mutating-verb wire (writeCreative,
+ * runCode, draftOpportunitySms) only compute,
  * generate or draft. They are replay-safe (REPLAY_SAFE_COMPUTE_TOOLS, for the
  * Retry gate) but deliberately not read-only here, because this list also
  * decides what may run in a read-only or locked turn.
- *   - generateSQL, generateCode, writeCreative: one LLM call, text back.
+ *   - writeCreative: one LLM call, text back.
  *   - runCode: JavaScript in a sandbox with no network and no filesystem, the
  *     same sandbox queryData uses.
  *   - draftOpportunitySms: nickstire's draft_opportunity_sms is labelled READ in
@@ -45,8 +45,6 @@
  * side effect of this list.
  */
 export const REPLAY_SAFE_COMPUTE_TOOLS: ReadonlySet<string> = new Set([
-  "generateSQL",
-  "generateCode",
   "writeCreative",
   "runCode",
   "draftOpportunitySms",
@@ -65,49 +63,44 @@ export const ACCEPTED_EXCEPTIONS: Readonly<Record<string, string>> = {
   last30days: "With the topic 'setup' it installs software on the server and writes its config file there, once (idempotent, server-local, no outside effect).",
   scrapeWebPage: "A replay can issue the same GET to the page a second time.",
   getShopSnapshot: "Reaches nickstire's /api/bridge/shop-snapshot, which can send a Telegram state-transition alert.",
-  suggestMIT: "Reaches the same /api/bridge/shop-snapshot, which can send a Telegram state-transition alert.",
 };
 
 export const READ_ONLY_TOOLS: ReadonlySet<string> = new Set([
   // personal_read
   "getBodyData", "getHealthToday", "getSleepTrend", "getCameraIntelligence", "getCommitments",
-  "getAgendaItems", "getDecisionReplays", "getDecisionsDueForReplay", "getDriftAlerts",
+  "getAgendaItems", "getDriftAlerts",
   "getFinancialSnapshot", "getHabitStreaks", "getMasteryScores", "getMissions",
-  "getExternalWorkerJob", "getExternalWorkerLanes", "getMissionDetail", "getMissionRetros",
-  "getProjections", "getTasks", "getTodaySchedule",
+  "getExternalWorkerJob", "getExternalWorkerLanes", "getMissionDetail",
+  "getTasks", "getTodaySchedule",
   // ai_analysis (invokeTool and queryData only dispatch tools this list already vouches for)
-  "analyzeImage", "analyzeSentiment", "extractData", "solveMath", "summarize", "getFleetTruth",
+  "summarize", "getFleetTruth",
   "searchTools", "invokeTool", "queryData",
   // research
-  "searchDocuments", "searchWebVerified", "last30days", "arsenalFindLeads", "arsenalResearch",
+  "searchDocuments", "searchWebVerified", "last30days", "arsenalResearch",
   "arsenalWebSearch", "arsenalPreTaskFanout", "arsenalMultiAgent",
-  "arsenalNotebookLM", "arsenalGmailInbox", "arsenalGmailReadThread", "getCronStatus",
+  "arsenalNotebookLM", "getCronStatus",
   "scrapeWebPage", "fetchVideoTranscript",
   // brain
-  "findRelatedConversations", "suggestSkills", "getSkillProtocol", "surfaceAntiPatterns",
+  "findRelatedConversations", "suggestSkills", "getSkillProtocol",
   "analyzeFitness", "analyzeGoals", "analyzeMentalHealth", "analyzeSleep", "analyzeTrends",
   "analyzeWeightTrend", "analyzeWorkHealth", "classifyThought", "getBlindSpots", "getBrainHealth",
-  "getEmotionalState", "getHabitRevenueCorrelation", "getRecentReflections", "listTools",
-  "searchColdMemory", "searchSkills", "searchConversations", "searchGreeneLaws", "searchMemories",
-  "searchReflections", "toolHealth", "checkAntiPattern", "getPendingRevenueMoves",
+  "getEmotionalState", "getHabitRevenueCorrelation", "getRecentReflections",
+  "searchColdMemory", "searchSkills", "searchGreeneLaws", "searchMemories",
+  "searchReflections", "toolHealth", "checkAntiPattern",
   "analyzeCompetitiveIntel", "analyzeComposure", "analyzePowerDynamics", "getContextualGreeneLaws",
-  "getDarkPsychologyTactics", "getPowerBalanceSummary", "recommendNextMove",
+  "getDarkPsychologyTactics", "getPowerBalanceSummary",
   // planning
-  "checkCommitments", "decisionPreFlight", "getWeeklyTargets", "rankNextActions", "suggestMIT",
+  "checkCommitments", "getWeeklyTargets", "rankNextActions",
   // business_read
-  "compareCompetitors", "getDashboardSummary", "getEstimateLeaks", "getReviewStats",
-  "getRevenueStats", "pricingAdvisorySummary", "scoreLocation", "getTopDecisions",
+  "getDashboardSummary", "getEstimateLeaks", "getReviewStats",
+  "getRevenueStats", "scoreLocation", "getTopDecisions",
   // live_shop
   "compareLiveRevenue", "findCustomer", "getAttentionAlerts", "getGscSummary", "getGscTopQueries",
-  "getInstagramAutopostStatus", "getMarketingAttribution", "getShopSnapshot", "queryNickstire",
+  "getMarketingAttribution", "getShopSnapshot", "queryNickstire",
   // content
-  "renderInlineChart",
   // files
-  "getRepoMap", "githubListFiles", "githubListRepos", "githubReadFile", "githubReadMultiple",
-  "githubRecentCommits", "githubSearchCode", "listRecentDriveFiles", "readDriveFile",
-  "searchDriveFiles",
+  "getRepoMap", "githubListFiles", "githubListRepos", "githubReadFile",
+  "githubRecentCommits", "githubSearchCode",
   // routines (endOfDay and weeklyReview were once listed as mutating and write nothing)
-  "analyzeWeek", "dailyPulse", "endOfDay", "weeklyReview",
-  // browser
-  "browser_observe",
+  "dailyPulse", "endOfDay", "weeklyReview",
 ]);

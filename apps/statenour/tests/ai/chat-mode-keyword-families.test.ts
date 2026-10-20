@@ -365,7 +365,7 @@ describe("v10.0.531 families · no false positives", () => {
 // MIRRORS lib/ai/chat-mode.ts — pattern changes there land here first.
 const P532B = {
   competitiveTrigger: /\b(competitive (analysis|intel|intelligence)|competitors?|where are we weak|our (weakness|vulnerabilit)|market position|how do we (compare|stack up)|benchmark)\b/i,
-  competitiveTools: /analyzeCompetitiveIntel|compareCompetitors/i,
+  competitiveTools: /analyzeCompetitiveIntel/i,
   fitnessTrigger: /\b(fitness (analysis|progress|trend|report)|my fitness|analyze (my )?fitness|workout (progress|trend|analysis|history)|training progress|how('?s| is) my (fitness|training))\b/i,
 };
 
@@ -374,7 +374,6 @@ describe("2026-07-11 families · compareCompetitors + analyzeFitness reachable",
     expect(P532B.competitiveTrigger.test("benchmark us against the other shops")).toBe(true);
   });
   it("competitive family now matches BOTH tools", () => {
-    expect(P532B.competitiveTools.test("compareCompetitors")).toBe(true);
     expect(P532B.competitiveTools.test("analyzeCompetitiveIntel")).toBe(true);
   });
   it("fitness trigger fires on 'how's my fitness'", () => {
@@ -416,8 +415,6 @@ describe("2026-07-11 commitment-reconciliation family", () => {
 
   it("tool pattern reaches the commitment write tools", () => {
     expect(P_RECONCILE.tools.test("completeCommitment")).toBe(true);
-    expect(P_RECONCILE.tools.test("markCommitmentBroken")).toBe(true);
-    expect(P_RECONCILE.tools.test("updateCommitment")).toBe(true);
     expect(P_RECONCILE.tools.test("getCommitments")).toBe(true);
     expect(P_RECONCILE.tools.test("completeTask")).toBe(true);
   });
@@ -586,19 +583,18 @@ describe("setTaskPriority demotion cover — task family carries it", () => {
   });
 });
 
-// 2026-08-28 · self-follow-up family. Added after MEASURING that the
-// scheduleSelfFollowUp tool was unreachable: 4 of 5 realistic phrasings
-// never surfaced it, because the task family's TRIGGER requires a word
+// 2026-08-28 · follow-up / reminder family. Added after MEASURING that follow-up
+// phrasings never surfaced a tool: the task family's TRIGGER requires a word
 // like task/todo/mission and "remind me in two hours" contains none.
-// The tool matched that family's ATTACH pattern via "schedule", which is
-// why it looked wired while being unreachable.
+// (The agent self-follow-up tool it was first written for was removed 2026-10-18;
+// the customer follow-up tool scheduleFollowUp is what it reaches now.)
 const P_SELF_FOLLOWUP = {
   trigger:
     /\b(follow[- ]?up|remind me|check back|circle back|nudge me|ping me|check in on|get back to me)\b/i,
-  attach: /scheduleSelfFollowUp|followup|remind/i,
+  attach: /followup|remind/i,
 };
 
-describe("self-follow-up family (scheduleSelfFollowUp reachability)", () => {
+describe("follow-up family (scheduleFollowUp reachability)", () => {
   it.each([
     "follow up with me tomorrow about the supplier",
     "remind me in two hours to check the reel job",
@@ -617,7 +613,7 @@ describe("self-follow-up family (scheduleSelfFollowUp reachability)", () => {
   ])("does NOT fire on: %s", (q) => expect(P_SELF_FOLLOWUP.trigger.test(q)).toBe(false));
 
   it("attach pattern reaches the tool by name", () => {
-    expect(P_SELF_FOLLOWUP.attach.test("scheduleSelfFollowUp")).toBe(true);
+    expect(P_SELF_FOLLOWUP.attach.test("scheduleFollowUp")).toBe(true);
   });
 
   it("the task family alone would NOT have covered these — the measured gap", () => {

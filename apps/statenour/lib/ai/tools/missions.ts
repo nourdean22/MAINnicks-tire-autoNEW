@@ -1,20 +1,11 @@
 /**
  * Mission + project-planning tools.
  *
- * Includes: getMissions · getMissionDetail · getMissionRetros ·
- * addTasksToProject · createMissionPlan · updateMissionStatus.
+ * Includes: getMissions · getMissionDetail · addTasksToProject ·
+ * createMissionPlan.
  *
- * WP-3 (2026-07-29) — thin-module coverage. The blueprint named missions
- * as one of the two surfaces the operator touches daily with the least
- * Nick coverage; verified before building: exactly 3 tools existed, and
- * the gaps were concrete rather than theoretical —
- *   · getMissions returns ACTIVE rows with bare fields, so Nick could
- *     not answer "how is X going?" or "which mission is stalled?"
- *   · no status mutation at all (the enum has PAUSED/COMPLETE/KILLED),
- *     so Nick could plan a mission but never close one out
- *   · retros are written to BrainMemory(mission_retro) and feed the
- *     morning brief, but nothing could READ them back in chat
- * The three additions below close exactly those, and nothing more.
+ * 2026-10-18 · the mission retro reader and the mission status writer were removed
+ * (never called in chat or on the bridge); status changes happen in the /missions UI.
  *
  * v10.0.529.106 · Wave 82 · extracted from monolithic lib/ai/tools.ts.
  * Aggregate barrel: lib/ai/tools.ts re-exports nourTools composed from
@@ -22,14 +13,12 @@
  */
 
 import { tool } from "ai";
-import { fenceContent } from "@/lib/ai/tool-result-fencing";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { createTaskAndEnrich } from "@/lib/services/tasks";
 import { isUserProject } from "@/lib/services/mission-helpers";
 import { logError } from "@/lib/utils/error-log";
 import {
-  cancelMissionExecution,
   DurableMissionStepSchema,
   getLatestMissionExecution,
   queueDurableMissionExecution,
@@ -165,122 +154,6 @@ export const missionsTools = {
       } catch (err) {
         logError("ai.tools.missions", err as Error, { fn: "getMissionDetail" });
         throw new Error("Missions database is unavailable");
-      }
-    },
-  }),
-
-  getMissionRetros: tool({
-    description:
-      "Read recent mission retrospectives (what was learned when a mission was closed out). Use when Nour asks what he learned from finished missions or wants past lessons before starting something similar.",
-    inputSchema: z.object({
-      limit: z.number().int().min(1).max(10).default(5),
-    }),
-    execute: async ({ limit }) => {
-      try {
-        const rows = await prisma.brainMemory.findMany({
-          where: { category: "mission_retro", deletedAt: null },
-          orderBy: { createdAt: "desc" },
-          take: limit,
-          select: { content: true, createdAt: true, metadata: true },
-        });
-        return rows.map((r) => {
-          const m = (r.metadata ?? {}) as {
-            missionTitle?: string;
-            taskCount?: number;
-            openCount?: number;
-          };
-          return {
-            missionTitle: m.missionTitle ?? null,
-            // mission retros are LLM-distilled stored text → curated_memory (2026-09-02, #2065 review)
-            retro: fenceContent("getMissionRetros", "curated_memory", r.content),
-            closedAt: r.createdAt.toISOString(),
-            tasksAtClose: m.taskCount ?? null,
-            openAtClose: m.openCount ?? null,
-          };
-        });
-      } catch (err) {
-        logError("ai.tools.missions", err as Error, { fn: "getMissionRetros" });
-        throw new Error("Missions database is unavailable");
-      }
-    },
-  }),
-
-  updateMissionStatus: tool({
-    description:
-      "Change a mission's lifecycle status (PAUSED / COMPLETE / KILLED / ACTIVE). Use when Nour says a project is done, on hold, or dead. Does NOT write a retrospective — closing out with lessons is a separate deliberate step.",
-    inputSchema: z.object({
-      missionId: z.string(),
-      status: z.enum(["ACTIVE", "PAUSED", "COMPLETE", "KILLED"]),
-      note: z
-        .string()
-        .max(500)
-        .optional()
-        .describe("Short why — stored on the mission's weekly review note."),
-    }),
-    execute: async ({ missionId, status, note }) => {
-      try {
-        const existing = await prisma.mission.findFirst({
-          where: { id: missionId, deletedAt: null },
-          select: { id: true, title: true, status: true },
-        });
-        if (!existing) {
-          return { status: "no_data_found", message: "No mission with that id." };
-        }
-        if (existing.status === status) {
-          // Idempotent: report the no-op honestly rather than claiming a change.
-          return {
-            ok: true,
-            changed: false,
-            missionId,
-            title: existing.title,
-            status,
-            message: `Already ${status} — nothing changed.`,
-          };
-        }
-        const updated = await prisma.mission.update({
-          where: { id: missionId },
-          data: {
-            status,
-            updatedBy: "nick",
-            ...(note ? { weeklyReviewNote: note } : {}),
-          },
-          select: { id: true, title: true, status: true },
-        });
-        // Audit row: a lifecycle change the operator can trace back.
-        await prisma.auditEvent
-          .create({
-            data: {
-              actor: "nick",
-              eventType: "mission_status_changed",
-              detail: `${updated.title}: ${existing.status} → ${status}`,
-              payload: { missionId, from: existing.status, to: status, note: note ?? null },
-            },
-          })
-          .catch((e: unknown) =>
-            logError("ai.tools.missions", e as Error, { fn: "updateMissionStatus.audit" }, "warn"),
-          );
-        // Leaving ACTIVE stops any durable run (its cancelOn listens for this).
-        // Any non-ACTIVE target, not only ACTIVE->X: another surface may have
-        // paused it without cancelling. Loud, never fatal: the status committed.
-        const executionCancel =
-          status === "ACTIVE"
-            ? undefined
-            : await cancelMissionExecution(missionId).catch((e: unknown) => {
-                logError("ai.tools.missions", e as Error, { fn: "updateMissionStatus.cancel" }, "warn");
-                return { cancelRequested: false as const, reason: "cancel_send_failed" };
-              });
-        return {
-          ok: true,
-          changed: true,
-          missionId: updated.id,
-          title: updated.title,
-          previousStatus: existing.status,
-          status: updated.status,
-          ...(executionCancel ? { executionCancel } : {}),
-        };
-      } catch (err) {
-        logError("ai.tools.missions", err as Error, { fn: "updateMissionStatus" });
-        throw new Error("Mission status update failed");
       }
     },
   }),

@@ -11,9 +11,9 @@
  * available and should be used.
  *
  * WHAT IT GUARDS. Measured 2026-09-16 over 467 production turns: the browser
- * was used ZERO times. Both BROWSERBASE credentials present, six tools built,
- * and the census placed browser_navigate / browser_act / browser_observe /
- * browser_extract in `neverSurfaced` — never offered to the model at all.
+ * was used ZERO times. Both BROWSERBASE credentials present, the browser tools
+ * built, and the census placed them in `neverSurfaced` — never offered to the
+ * model at all. (Three of the six were removed 2026-10-18.)
  * The cause was the selector: its trigger wanted "scrape" / "automate the
  * browser" / a literal "browser act", so none of the six prompts below
  * surfaced any browser tool in either mode.
@@ -83,7 +83,6 @@ describe("browser capability is reachable from plain language", () => {
     // must not add to that.
     const offered = await offeredFor("go to monro.com and check their oil change price");
     expect(offered).not.toContain("browser_navigate");
-    expect(offered).not.toContain("browser_extract");
   });
 
   it("offers the surgical tools when the operator names them", async () => {
@@ -102,8 +101,8 @@ describe("browser capability is reachable from plain language", () => {
  * The browser was ONE instance of a class, not a one-off.
  *
  * A sweep of eight capabilities against the real selector (2026-09-16) found
- * THREE with no plain-language path at all — `searchSkills`, `solveMath` and
- * `getCameraIntelligence`, none of them credential-gated in the catalog, so all
+ * THREE with no plain-language path at all — `searchSkills`, a math solver
+ * (removed 2026-10-18) and `getCameraIntelligence`, none of them credential-gated in the catalog, so all
  * three are unreachable by accident rather than by design.
  *
  * This table exists so that stays VISIBLE. A tool added without a way to ask
@@ -113,9 +112,8 @@ describe("browser capability is reachable from plain language", () => {
  *
  * KNOWN-UNREACHABLE, deliberately not "fixed" — and as of 2026-09-17 each
  * verdict is MEASURED rather than assumed, by calling the capability:
- *   · solveMath             — the model does arithmetic natively; "redundant"
- *                             may be the right verdict. The never-chosen
- *                             rewrite queue will now draft exactly that.
+ *   · the math solver      — the model does arithmetic natively; "redundant"
+ *                             was the right verdict, and the tool is gone.
  *   · searchSkills          — the store HAS content and the lane works, but
  *                             retrieval is poor: the top match for "mobile UX
  *                             audit" is `verify-receipt` at 0.36 similarity,
@@ -140,7 +138,6 @@ describe("capability reachability · a tool nobody can ask for is not a capabili
     // someone narrowed a keyword family and silently removed a capability.
     { tool: "runPython", prompt: "run this python and tell me the result" },
     { tool: "searchDocuments", prompt: "search my documents for the lease" },
-    { tool: "generateSQL", prompt: "write me a SQL query for that table" },
     { tool: "browseAndDo", prompt: "go to monro.com and check their oil change price" },
   ];
 
@@ -193,10 +190,10 @@ describe("mentionsAllTokens · the exact-mention tier's discipline", () => {
   });
 
   it("requires EVERY token — a partial name is not a mention", () => {
-    // `searchDriveFiles` must not fire on a bare "search", which would drag
-    // file tools into every search-shaped sentence.
-    expect(mentionsAllTokens("search my google drive", "searchDriveFiles")).toBe(false);
-    expect(mentionsAllTokens("search my google drive files", "searchDriveFiles")).toBe(true);
+    // `searchMemories` must not fire on a bare "search", which would drag
+    // memory tools into every search-shaped sentence.
+    expect(mentionsAllTokens("search my google drive", "searchMemories")).toBe(false);
+    expect(mentionsAllTokens("search my memories", "searchMemories")).toBe(true);
   });
 
   it("ignores single-token names — they keep the substring path", () => {
@@ -231,17 +228,6 @@ describe("never-surfaced capabilities are reachable from plain language", () => 
         "notify me about this",
       ],
     },
-    {
-      // 0/2 before. Asking about a supplied picture is a read-only intent
-      // distinct from the expensive generate lane, which stays narrow.
-      tool: "analyzeImage",
-      prompts: ["what's in this photo", "look at this screenshot and tell me what it says"],
-    },
-    {
-      // 0/2 before. Naming the product must be enough.
-      tool: "searchDriveFiles",
-      prompts: ["search my google drive for the lease"],
-    },
   ];
 
   for (const c of CASES) {
@@ -263,14 +249,13 @@ describe("never-surfaced capabilities are reachable from plain language", () => 
    * discriminated. A mutation that survives means either the code is dead or
    * the suite cannot see it — and measuring told us which. Across eight
    * never-surfaced multi-word tools the matcher scores 8/8 and the families
-   * alone score 5/8. These are the three it alone rescues.
+   * alone score 5/8. These are the ones it alone rescues.
    *
    * Without them the matcher would look deletable, and deleting it would
    * silently re-dark three capabilities.
    */
   it.each([
     { tool: "resolveContradiction", prompt: "resolve this contradiction in my notes" },
-    { tool: "surfaceAntiPatterns", prompt: "surface my anti patterns" },
     { tool: "runSimulation", prompt: "run a simulation of that" },
   ])("ONLY the token matcher reaches $tool", async ({ tool, prompt }) => {
     const offered = await offeredFor(prompt);
@@ -292,11 +277,5 @@ describe("never-surfaced capabilities are reachable from plain language", () => 
         },
       ),
     );
-  });
-
-  it("the image READ lane does not hijack a topic that merely mentions a photo", async () => {
-    // Narrowness is the point: it needs a demonstrative or possessive, so
-    // talking ABOUT photos is not the same as handing one over.
-    expect(await offeredFor("i should take more photos of the shop")).not.toContain("analyzeImage");
   });
 });

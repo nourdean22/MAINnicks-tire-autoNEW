@@ -17,7 +17,6 @@
  *     Reader filters by surface so each page only fetches its slice.
  *
  * Writers (to be migrated in follow-up commits):
- *   • pricing-advisor   → "pricing-advisory"
  *   • goal-pruner       → "prune-candidate"
  *   • drift-detector    → "drift-recovery"
  *   • idle-watcher      → "idle-nudge"

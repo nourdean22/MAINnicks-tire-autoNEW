@@ -1,13 +1,18 @@
 /**
  * Int row ids reach `autonomousAction.targetId` (String?) as STRINGS.
  *
- * PROD, 2026-10-10 03:00:34Z: `trigger_failed` for commitment_checkin,
- * commitment_escalation_day5 and decision_review_due -- "Argument `targetId`:
- * Invalid value provided. Expected StringNullableFilter, String or Null,
- * provided Int." Commitment.id and MasteryDecision.id are Int; the rule loop
- * passed the raw id into the cooldown read and the lock create, and the
+ * PROD, 2026-10-10 03:00:34Z: `trigger_failed` for three rules -- "Argument
+ * `targetId`: Invalid value provided. Expected StringNullableFilter, String or
+ * Null, provided Int." Commitment.id and MasteryDecision.id are Int; the rule
+ * loop passed the raw id into the cooldown read and the lock create, and the
  * per-rule catch aborted each rule at its first item. Present since the
  * 2026-05-17 import.
+ *
+ * 2026-10-18: those three rules were removed, and no remaining rule reads an
+ * Int-keyed model (decision_replay_due reads cuid strings). The coercion lives in
+ * the rule LOOP, not in a rule, so this file keeps guarding it by handing
+ * decision_replay_due a row with an Int id: a future Int-keyed rule inherits the
+ * fix, and un-fixing the loop turns this red.
  *
  * Every earlier engine test mocked Prisma with plain vi.fn()s, which accept a
  * number as happily as a string -- so the one check that mattered (Prisma's
@@ -81,7 +86,7 @@ const validateData = (data: Record<string, unknown> | undefined) => {
   for (const [k, v] of Object.entries(data ?? {})) check(ACTION_COLS, k, v, "data");
 };
 
-// ── fixtures: one Int-keyed row per Int-keyed model the rules read ──────────
+// ── fixtures: one Int-keyed row for the rule that stands in for an Int-keyed model ──
 const h = vi.hoisted(() => ({
   findFirst: vi.fn(),
   findMany: vi.fn(),
@@ -91,7 +96,6 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/prisma", () => {
-  const fourDaysAgo = () => new Date(Date.now() - 4 * 86_400_000);
   return {
     prisma: {
       autonomousAction: {
@@ -101,17 +105,13 @@ vi.mock("@/lib/prisma", () => {
         update: h.update,
         groupBy: h.groupBy,
       },
-      commitment: {
+      decisionReplay: {
+        // The model's real ids are cuid strings. An Int here is the stand-in that proves
+        // the loop stringifies whatever id a rule hands it.
         findMany: vi.fn(async () => [
-          { id: 7, description: "call the supplier", status: "active", createdAt: fourDaysAgo(), deadline: "2026-10-01" },
+          { id: 7, title: "hire a tech", choiceMade: "yes", createdAt: new Date(Date.now() - 4 * 86_400_000) },
         ]),
       },
-      masteryDecision: {
-        findMany: vi.fn(async () => [
-          { id: 7, title: "hire a tech", chosen: "yes", stakes: "high", createdAt: fourDaysAgo() },
-        ]),
-      },
-      decisionReplay: { findMany: vi.fn(async () => []) },
       brainMemory: {
         findUnique: vi.fn(async () => ({ updatedAt: new Date(), deletedAt: null })),
         findFirst: vi.fn(async () => ({ id: "snap" })),
@@ -155,7 +155,7 @@ import { runAutonomousActions } from "@/lib/brain/autonomous-engine";
 beforeEach(() => {
   vi.useFakeTimers();
   // Saturday 10:00 EDT: with the bridge off no hour-gated rule yields, so only
-  // the id-keyed rules act.
+  // decision_replay_due acts.
   vi.setSystemTime(new Date("2026-10-10T14:00:00Z"));
   let n = 0;
   h.findFirst.mockReset().mockImplementation(async (args: { where?: Record<string, unknown> }) => {
@@ -202,30 +202,25 @@ describe("autonomous engine · Int ids cross the boundary as strings", () => {
       return null;
     });
     const result = await runAutonomousActions();
-    // commitment_checkin is the first rule with a matched item at this hour.
+    // decision_replay_due is the only rule with a matched item at this hour.
     expect(result.errors).toBe(1);
-    expect(result.failedRules).toEqual(["commitment_checkin"]);
+    expect(result.failedRules).toEqual(["decision_replay_due"]);
   });
 
-  it("passes targetId '7' (not 7) to the cooldown read for commitment and decision rules", async () => {
+  it("passes targetId '7' (not 7) to the cooldown read", async () => {
     await runAutonomousActions();
     const cooldownReads = h.findFirst.mock.calls
       .map(([a]) => (a as { where?: Record<string, unknown> }).where ?? {})
       .filter((w) => typeof w.ruleName === "string");
-    for (const rule of ["commitment_checkin", "overdue_commitment_escalation", "decision_review_due"]) {
-      const read = cooldownReads.find((w) => w.ruleName === rule);
-      expect(read, `${rule} reached its cooldown read`).toBeDefined();
-      expect(read!.targetId).toBe("7");
-    }
+    const read = cooldownReads.find((w) => w.ruleName === "decision_replay_due");
+    expect(read, "decision_replay_due reached its cooldown read").toBeDefined();
+    expect(read!.targetId).toBe("7");
   });
 
   it("writes targetId '7' on the lock row", async () => {
     await runAutonomousActions();
     const created = h.create.mock.calls.map(([a]) => (a as { data: Record<string, unknown> }).data);
-    const decision = created.find((d) => d.ruleName === "decision_review_due");
-    expect(decision?.targetId).toBe("7");
-    const commitmentRows = created.filter((d) => String(d.ruleName).startsWith("commitment_") || d.ruleName === "overdue_commitment_escalation");
-    expect(commitmentRows.length).toBeGreaterThan(0);
-    for (const row of commitmentRows) expect(row.targetId).toBe("7");
+    const row = created.find((d) => d.ruleName === "decision_replay_due");
+    expect(row?.targetId).toBe("7");
   });
 });

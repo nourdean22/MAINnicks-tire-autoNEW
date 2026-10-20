@@ -53,7 +53,7 @@ describe("runManifestCron: mega slots", () => {
 
   it("CONTROL: a route cron still fetches its path", async () => {
     const anyRoute = (await import("@/config/crons")).CRONS.find(
-      (c) => c.mode !== "retired" && c.path && !c.name.startsWith("mega"),
+      (c) => c.mode === "active" && !c.inngest && !c.name.startsWith("mega"),
     );
     expect(anyRoute).toBeTruthy();
     await runManifestCron(anyRoute!.name);

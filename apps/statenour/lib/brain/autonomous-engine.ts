@@ -321,90 +321,6 @@ const RULES: ActionRule[] = [
     targetType: "daily_score",
   }),
 
-  // ── Commitment check-in (3-5 days old window) ──────────────
-  // 2026-05-27 · operator volume cleanup. Pre-fix this fired on
-  // EVERY active commitment 3+ days old · commitment_escalation_day5
-  // ALSO fired on every commitment 5+ days old · with 3 active
-  // commitments aged 7+ days that's up to 6 Telegram pings per
-  // cron run. The 48h cross-rule suppressor only partially helped.
-  // Fix: this rule now ONLY fires on 3-5d-old commitments · 5+d
-  // belongs to commitment_escalation_day5 exclusively. Hard ceiling
-  // of one rule firing per commitment regardless of age.
-  defineRule({
-    name: "commitment_checkin",
-    trigger: async () => {
-      const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
-      const fiveDaysAgo = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000);
-      return prisma.commitment.findMany({
-        where: {
-          status: "active",
-          createdAt: { lte: threeDaysAgo, gte: fiveDaysAgo },
-          deletedAt: null,
-        },
-        take: 3,
-      });
-    },
-    action: async (commitment) => {
-      const age = Math.round((Date.now() - commitment.createdAt.getTime()) / 86400000);
-      await sendTelegram(
-        `🔄 <b>Commitment Check — ${age} days</b>\n\n"${commitment.description}"\n\nDid you do this? If yes, mark it done. If not, renegotiate or drop it. Open commitments drain mental energy.`
-      );
-      return { result: "success" };
-    },
-    approval: "auto",
-    actionType: "send_telegram",
-    targetType: "commitment",
-  }),
-
-  // ── Workout reminder (if not done by 4pm on weekdays) ─────
-  // v10.0.50 · Wave A · Replaces the retired DailyScore.workoutDone
-  // check (returned null → fired every weekday afternoon regardless
-  // of state). New source: a DAILY-loop Task with workout/gym/exercise
-  // in the title, completed today (lastCompletedAt within ET-today).
-  // Soft-delete-aware. If no workout DAILY task exists at all, the
-  // rule fires (assumes Nour intends to work out) — that matches the
-  // pre-existing prompt: "No workout logged today, body = business".
-  defineRule({
-    name: "workout_reminder",
-    trigger: async () => {
-      const hour = hourET();
-      const dayOfWeek = weekdayET();
-      if (hour < 15 || hour > 17 || dayOfWeek === 0 || dayOfWeek === 6) return [];
-      const todayStartET = new Date(
-        new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" }) +
-          "T00:00:00",
-      );
-      const workoutTask = await prisma.task
-        .findFirst({
-          where: {
-            loopKind: "DAILY",
-            deletedAt: null,
-            OR: [
-              { title: { contains: "workout", mode: "insensitive" } },
-              { title: { contains: "gym", mode: "insensitive" } },
-              { title: { contains: "exercise", mode: "insensitive" } },
-            ],
-          },
-          orderBy: { lastCompletedAt: "desc" },
-          select: { lastCompletedAt: true },
-        })
-        .catch(() => null);
-      const doneToday =
-        workoutTask?.lastCompletedAt && workoutTask.lastCompletedAt >= todayStartET;
-      if (doneToday) return [];
-      return [{ message: "No workout logged yet today" }];
-    },
-    action: async () => {
-      await sendTelegram(
-        `💪 <b>Workout Check</b>\n\nNo workout logged today. Data shows weeks with 3+ workouts = higher revenue and better decision grades.\n\nNon-negotiable. Body = business performance.`
-      );
-      return { result: "success" };
-    },
-    approval: "auto",
-    actionType: "send_telegram",
-    targetType: "workout",
-  }),
-
   // ── Weekly target check (Wednesday noon) ───────────────────
   defineRule({
     name: "midweek_target_check",
@@ -544,61 +460,9 @@ const RULES: ActionRule[] = [
     targetType: "revenue",
   }),
 
-  // ── Drift pattern escalation ───────────────────────────────
-  // v10.0.50 · Wave A · Replaces retired-DailyScore lookup. 2026-10-10: the
-  // identity-snapshot proxy it used could never fire, because the nightly
-  // refresh-identity cron touches those rows every night. Now: no human
-  // write (operatorEngagedSince) in 3 days = drifting. Not a duplicate of
-  // lib/mastery/drift-engine.ts: its DRIFT_RULES watch habits, follow-ups,
-  // weight and novelty, and have no "operator went quiet" rule.
-  defineRule({
-    name: "drift_escalation",
-    trigger: async () => {
-      const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
-      // true = engaged within 3d; null = unknown. Either way, no alert.
-      if ((await operatorEngagedSince(threeDaysAgo)) !== false) return [];
-      // Check if we already alerted about this
-      const alerted = await prisma.autonomousAction.findFirst({
-        where: { ruleName: "drift_escalation", createdAt: { gte: threeDaysAgo } },
-      });
-      if (alerted) return [];
-      return [{ daysSinceScore: 3 }];
-    },
-    action: async () => {
-      await sendTelegram(
-        `⚠️ <b>DRIFT ALERT: 3+ days with no chat or completed task</b>\n\nHistorical pattern: 3-day gaps → 5-7 day drift spirals → revenue drops.\n\nTODAY is the intervention point. Finish one task. Just one.\n\n→ bdnick.info/mastery`
-      );
-      return { result: "success" };
-    },
-    approval: "auto",
-    actionType: "send_telegram",
-    targetType: "drift",
-  }),
-
   // 2026-10-10 · `morning_brief_push` rule deleted (audit U4). The Inngest
   // operator-morning-brief (lib/inngest/functions/morning-brief.ts) owns the
   // morning brief and pushes it right after compose; this was a third producer that, at the old 03:00 UTC dispatch, could never fire anyway.
-
-  // ── Overdue commitment escalation ──────────────────────────
-  defineRule({
-    name: "overdue_commitment_escalation",
-    trigger: async () => {
-      const overdue = await prisma.commitment.findMany({
-        where: { status: "active", deadline: { lt: today() }, deletedAt: null },
-        take: 3,
-      });
-      return overdue;
-    },
-    action: async (commitment) => {
-      await sendTelegram(
-        `🔴 <b>Overdue Commitment</b>\n\n"${commitment.description}"\nDeadline: ${commitment.deadline}\n\nBroken promises erode self-trust. Complete it, renegotiate it, or drop it. But don't leave it hanging.`
-      );
-      return { result: "success" };
-    },
-    approval: "auto",
-    actionType: "send_telegram",
-    targetType: "commitment",
-  }),
 
   // ══════════════════════════════════════════════════════════
   // v6.0 — NEW AUTONOMOUS RULES
@@ -647,68 +511,6 @@ const RULES: ActionRule[] = [
     approval: "auto",
     actionType: "send_telegram",
     targetType: "habits",
-  }),
-
-  // ── Commitment enforcement loop (Day 5 escalation) ────────
-  defineRule({
-    name: "commitment_escalation_day5",
-    trigger: async () => {
-      const fiveDaysAgo = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000);
-      // v9.1.25 · double-spam fix. Both this rule and
-      // commitment_checkin trigger on the same active commitments
-      // (3-day cutoff vs 5-day cutoff) — a 7-day-old commitment
-      // satisfies both. The cooldown at line 779 is keyed by
-      // (ruleName, targetId) so each rule has its own bucket and
-      // they fire INDEPENDENTLY, double-spamming Telegram with both
-      // the "3-day check-in" and the "Day 7 escalation" messages
-      // on the same cron run.
-      //
-      // Fix: in this rule's trigger, exclude commitments that
-      // received a commitment_checkin within the last 48h. The
-      // operator just got a check-in — let it land before
-      // escalating. Falls back to firing on the next cron run if
-      // the commitment is still unresolved.
-      const candidates = await prisma.commitment.findMany({
-        where: { status: "active", createdAt: { lte: fiveDaysAgo }, deletedAt: null },
-        take: 6,
-      });
-      if (candidates.length === 0) return [];
-      const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
-      // Commitment.id is Int but autonomousAction.targetId is String —
-      // the cooldown system stringifies on write, so we string-match
-      // here too.
-      const candidateIds = candidates.map((c) => String(c.id));
-      const recentCheckIns = await prisma.autonomousAction.findMany({
-        where: {
-          ruleName: "commitment_checkin",
-          targetId: { in: candidateIds },
-          createdAt: { gte: fortyEightHoursAgo },
-        },
-        select: { targetId: true },
-      });
-      const recentlyCheckedIn = new Set(
-        recentCheckIns.map((r) => r.targetId).filter(Boolean) as string[],
-      );
-      return candidates
-        .filter((c) => !recentlyCheckedIn.has(String(c.id)))
-        .slice(0, 3);
-    },
-    action: async (commitment) => {
-      const age = Math.round((Date.now() - commitment.createdAt.getTime()) / 86400000);
-      await sendTelegram(
-        `🔴 <b>Commitment Breaking — Day ${age}</b>\n\n"${commitment.description}"\n\nYou made this promise ${age} days ago. It's now officially overdue.\n\nOptions:\n1. Do it TODAY (next 2 hours)\n2. Renegotiate with a new deadline\n3. Drop it and own that decision\n\nSilence = broken promise = eroded self-trust.`
-      );
-      await brainMemory.remember(
-        "pattern",
-        `commitment_break_${commitment.id}_${today()}`,
-        `Commitment "${commitment.description}" is ${age} days old and unresolved. Escalation sent.`,
-        "autonomous-engine"
-      );
-      return { result: "success" };
-    },
-    approval: "auto",
-    actionType: "send_telegram",
-    targetType: "commitment",
   }),
 
   // ── Memory promotion pipeline ─────────────────────────────
@@ -852,31 +654,6 @@ const RULES: ActionRule[] = [
     targetType: "revenue",
   }),
 
-  // ── Decision review due ───────────────────────────────────
-  defineRule({
-    name: "decision_review_due",
-    trigger: async () => {
-      return prisma.masteryDecision.findMany({
-        where: {
-          deletedAt: null, // v9.1.15
-          reviewDate: { lte: today() },
-          actualOutcome: null,
-        },
-        take: 3,
-      });
-    },
-    action: async (decision) => {
-      const age = Math.round((Date.now() - decision.createdAt.getTime()) / 86400000);
-      await sendTelegram(
-        `🔄 <b>Decision Review Due</b>\n\n"${decision.title}"\nChose: ${decision.chosen || "pending"}\nMade: ${age} days ago (${decision.stakes} stakes)\n\nWas this the right call? What actually happened?\n\n→ Reply to Nick with your assessment.`
-      );
-      return { result: "success" };
-    },
-    approval: "auto",
-    actionType: "send_telegram",
-    targetType: "decision",
-  }),
-
   // ── Quote conversion tracking ─────────────────────────────
   // v10.0.50 · Wave A · Wired to queryNick("quotes_pending") with a
   // 30-day window. Pre-fix the rule's two `Promise.resolve(0)` reads
@@ -965,6 +742,16 @@ export const RETIRED_RULE_NAMES: readonly string[] = [
   "dania_neglect_nudge", // relationship-nag scrub, 2026-05-31
   "loop_overload_alert", // renamed task_overload_alert, 2026-04-18
   "morning_brief_push", // audit U4, 2026-10-10
+  // 2026-10-18 prune: Nour rejected these in prod (commitment_checkin 10/0, commitment_escalation_day5 15/0,
+  // decision_review_due 8/0, overdue_commitment_escalation 5/0, nick_action_archive_mission 63/0 approved/rejected
+  // over 60 days) or they stopped firing (drift_escalation last 07-09, workout_reminder last 05-22).
+  "commitment_checkin",
+  "commitment_escalation_day5",
+  "decision_review_due",
+  "overdue_commitment_escalation",
+  "drift_escalation",
+  "workout_reminder",
+  "nick_action_archive_mission", // a Nick Action Queue rule (lib/ai/propose-actions.ts), not in RULES
 ];
 
 /**
@@ -998,19 +785,13 @@ export const OUTWARD_RULES: readonly string[] = [
   "decision_replay_due",
   "suggest_pricing_adjustment",
   "daily_score_reminder",
-  "commitment_checkin",
-  "workout_reminder",
   "midweek_target_check",
   "stale_leads_alert",
   "task_overload_alert",
   "friday_revenue_check",
-  "drift_escalation",
-  "overdue_commitment_escalation",
   "adaptive_habit_upgrade",
-  "commitment_escalation_day5",
   "memory_promotion",
   "revenue_overconfidence_gate",
-  "decision_review_due",
   "quote_conversion_insight",
 ];
 /**
@@ -1095,29 +876,6 @@ export async function runAutonomousActions(): Promise<{
           },
         });
         if (recent) continue;
-
-        // v10.0.35 — cross-rule family cooldown. Pre-fix
-        // commitment_checkin + commitment_escalation_day5 each had
-        // their own 24h cooldown but no shared check; if both
-        // triggers fired in the same cron run (or two concurrent
-        // cron workers raced before either wrote a row), both
-        // Telegram messages went out for the same commitment ID.
-        // Now: if ANY commitment-family action for this target
-        // fired in the last 6h, suppress further commitment-family
-        // rules for the same target. The family is targetType
-        // "commitment", not the `commitment_` name prefix: the prefix
-        // left overdue_commitment_escalation out, so it could fire on
-        // the same commitment as commitment_checkin in one run.
-        if (rule.targetType === "commitment" && itemId) {
-          const familyRecent = await prisma.autonomousAction.findFirst({
-            where: {
-              targetType: "commitment",
-              targetId: itemId,
-              createdAt: { gte: new Date(Date.now() - 6 * 60 * 60 * 1000) },
-            },
-          });
-          if (familyRecent) continue;
-        }
 
         // v7.7 · Apr 29 · Universal idempotency. Mint a key from
         // (ruleName + targetType + targetId + 1h-bucket) so a re-fire

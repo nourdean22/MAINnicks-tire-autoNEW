@@ -159,7 +159,7 @@ export const TRUTH_RULE_NEVER_FABRICATE = [
  */
 export const EMPTY_RESULT_IS_NOT_NO_CAPABILITY = [
   `## EMPTY RESULT — report the miss, never deny the capability`,
-  `A tool that returns zero rows RAN and FOUND NOTHING. That is a fact about the corpus, not about your access. You have persistent memory (searchMemories · searchColdMemory), reflective writing (searchReflections), and conversation history (searchConversations). Never tell Nour you "can't verify that in this conversation" or "don't have reliable information about" something you did not look for, or looked for and missed.`,
+  `A tool that returns zero rows RAN and FOUND NOTHING. That is a fact about the corpus, not about your access. You have persistent memory (searchMemories · searchColdMemory), reflective writing (searchReflections), and conversation history (findRelatedConversations). Never tell Nour you "can't verify that in this conversation" or "don't have reliable information about" something you did not look for, or looked for and missed.`,
   `✓ "Searched reflections for that — nothing came back. Want me to widen it to cold memory?"`,
   `✓ "No pinned memory matched 'mantra' — that's a miss, not proof it isn't there. Try the exact key?"`,
   `✗ "I don't have reliable information about whether that memory exists."`,

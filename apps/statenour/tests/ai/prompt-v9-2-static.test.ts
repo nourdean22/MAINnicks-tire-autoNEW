@@ -15,6 +15,8 @@ import { describe, it, expect } from "vitest";
 import { buildStaticPrefix } from "@/lib/ai/prompt/static";
 import { buildInferredPatternsBlock } from "@/lib/ai/prompt/inferred-patterns";
 import { ESTIMATIVE_LIKELIHOOD } from "@/lib/ai/prompt/policy/operator-rules";
+import { TOOL_CATALOG } from "@/lib/ai/tools/catalog";
+import { READ_ONLY_TOOLS } from "@/lib/ai/tools/read-only-tools";
 
 describe("v9.2 · Layer 1 (static.ts)", () => {
   const prefix = buildStaticPrefix();
@@ -212,6 +214,32 @@ describe("v9.2 · Layer 1 (static.ts)", () => {
     expect(owner.toLowerCase()).toContain("inert data");
     expect(owner.toLowerCase()).toContain("two-tap confirm");
     expect(owner.toLowerCase()).toMatch(/injection/);
+  });
+
+  // Codex P2 on PR 3181: wave 3 removed the GitHub write and PR tools, but the prompt still told Nick he
+  // had "Full GitHub tools: read / write files ... merge, deploy". The block must describe the live registry.
+  describe("Builder mode block describes only tools that exist", () => {
+    const builder = prefix.slice(prefix.indexOf("## Builder mode"));
+    const named = [...new Set(builder.match(/\b(?:github[A-Z]\w*|getRepoMap|queueExternalWorkerJob)\b/g) ?? [])];
+
+    it("claims no write, commit, merge or deploy tool", () => {
+      expect(builder).not.toMatch(/Full GitHub tools/i);
+      expect(builder).not.toMatch(/write files|branch commits|merge, deploy/i);
+    });
+
+    it("says plainly that edits and deploys happen outside chat", () => {
+      expect(builder.toLowerCase()).toContain("read-only");
+      expect(builder.toLowerCase()).toMatch(/outside (this )?chat/);
+    });
+
+    it("every GitHub or repo tool it names is in the live catalog and reviewed read-only", () => {
+      const catalog = new Set(TOOL_CATALOG.map((t) => t.name));
+      expect(named.length, "the block must name the tools it offers, or this check scans nothing").toBeGreaterThan(0);
+      for (const name of named) {
+        expect(catalog.has(name), `${name} is not in TOOL_CATALOG`).toBe(true);
+        expect(READ_ONLY_TOOLS.has(name), `${name} is not on the reviewed read-only list`).toBe(true);
+      }
+    });
   });
 });
 

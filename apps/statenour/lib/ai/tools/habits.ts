@@ -1,7 +1,7 @@
 /**
  * Habit + weekly-analysis tools.
  *
- * Includes: getHabitStreaks · weeklyReview · analyzeWeek.
+ * Includes: getHabitStreaks · weeklyReview.
  *
  * v10.0.529.106 · Wave 82 · extracted from monolithic lib/ai/tools.ts.
  * Aggregate barrel: lib/ai/tools.ts re-exports nourTools composed from
@@ -164,112 +164,6 @@ export const habitsTools = {
               }).length,
             }
           : UNKNOWN,
-      };
-    },
-  }),
-
-  analyzeWeek: tool({
-    description: "Analyze the past 7 days — identity-snapshot history, tasks completed, drift patterns, daily-loop habit streaks",
-    inputSchema: z.object({}),
-    execute: async () => {
-      // v10.0.54 · Wave A · Replaces retired DailyScore + HabitLog reads.
-      // - "scores" → BrainMemory category="identity_snapshot" history
-      //   (one row per day, content includes the rolled snapshot).
-      // - "habits" → DAILY-loop Tasks completed in last 7d (one entry
-      //   per completion via lastCompletedAt).
-      const sevenDaysAgoDate = daysAgo(7);
-      const sevenDaysAgoStr = toDateString(sevenDaysAgoDate);
-
-      const [snapshotHistory, tasksDone, alerts, dailyTasks] = await Promise.all([
-        prisma.brainMemory
-          .findMany({
-            where: {
-              category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT,
-              deletedAt: null,
-              updatedAt: { gte: sevenDaysAgoDate },
-            },
-            orderBy: { updatedAt: "desc" },
-            select: { content: true, updatedAt: true },
-          })
-          .catch((err): Array<{ content: string; updatedAt: Date }> => {
-            logError("ai.tools-habits", err, { fn: "analyzeWeek", scope: "snapshotHistory" });
-            return [];
-          }),
-        prisma.task.count({ where: { status: "DONE", lastTouchedAt: { gte: sevenDaysAgoDate } } }),
-        prisma.brainMemory.count({
-          where: {
-            category: "coach_event",
-            key: { startsWith: "coach:drift-recovery:" },
-            createdAt: { gte: sevenDaysAgoDate },
-            deletedAt: null,
-          },
-        }).catch((err) => {
-          logError("ai.tools-habits", err, { fn: "analyzeWeek", scope: "alerts" });
-          return 0;
-        }),
-        prisma.task
-          .findMany({
-            where: {
-              loopKind: "DAILY",
-              deletedAt: null,
-              lastCompletedAt: { gte: sevenDaysAgoDate },
-            },
-            select: { title: true, streakCount: true },
-          })
-          .catch((err): Array<{ title: string; streakCount: number }> => {
-            logError("ai.tools-habits", err, { fn: "analyzeWeek", scope: "dailyTasks" });
-            return [];
-          }),
-      ]);
-
-      // Parse snapshot.score from each history row (content is JSON
-      // with {score?, energy?, ...} shape per the identity engine).
-      const scores: Array<{ overallScore: number; workoutDone: boolean; journalDone: boolean }> = [];
-      for (const row of snapshotHistory) {
-        try {
-          const parsed = JSON.parse(row.content) as {
-            score?: number;
-            workoutDone?: boolean;
-            journalDone?: boolean;
-          };
-          scores.push({
-            overallScore: typeof parsed.score === "number" ? parsed.score : 0,
-            workoutDone: !!parsed.workoutDone,
-            journalDone: !!parsed.journalDone,
-          });
-        } catch (err) {
-          // Snapshot row not in JSON shape — skip.
-          logError("ai.tools-habits", new Error(`Malformed snapshot row skipped in analyzeWeek`), { date: row.updatedAt });
-        }
-      }
-
-      const avgScore =
-        scores.length > 0
-          ? scores.reduce((s, d) => s + d.overallScore, 0) / scores.length
-          : 0;
-      const perfectDays = scores.filter((d) => d.overallScore >= 8).length;
-      const workoutDays = scores.filter((d) => d.workoutDone).length;
-      const journalDays = scores.filter((d) => d.journalDone).length;
-
-      // Habit streak surface — daily tasks with non-zero streak
-      const habitStreaks: Record<string, number> = {};
-      for (const t of dailyTasks) habitStreaks[t.title] = t.streakCount;
-
-      return {
-        period: `${sevenDaysAgoStr} to ${today()}`,
-        avgScore: avgScore.toFixed(1),
-        perfectDays,
-        workoutDays,
-        journalDays,
-        tasksCompleted: tasksDone,
-        driftAlerts: alerts,
-        habitStreaks,
-        assessment:
-          perfectDays >= 5
-            ? "Strong week"
-            : perfectDays >= 3
-              ? "Decent but inconsistent"
-              : "Below standard — focus on fundamentals",
       };
     },
   }),

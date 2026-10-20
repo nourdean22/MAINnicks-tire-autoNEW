@@ -145,7 +145,7 @@ export function toolNameTokens(name: string): string[] {
  *
  *   · single-token names are left to the existing substring check — "do" or
  *     "summarize" alone is not evidence of intent;
- *   · EVERY token must appear, so `searchDriveFiles` does not fire on a bare
+ *   · EVERY token must appear, so `searchMemories` does not fire on a bare
  *     "search";
  *   · at least one token must be non-generic, so a sentence containing "get"
  *     and "the" cannot drag in a tool named `getThe…`.
@@ -400,17 +400,14 @@ export async function pruneTools(
     addMatching(/score|habit|body|daily|workout|sleep|drift|mood/i);
   }
 
-  // 2026-08-28 · Self-follow-up. MEASURED GAP, not a guess: after
-  // scheduleSelfFollowUp shipped, 4 of 5 realistic phrasings never
-  // surfaced it — "follow up with me tomorrow", "remind me in two hours",
-  // "check back on this", "ping me if..." all missed, because the task
-  // family's TRIGGER needs a word like task/todo/mission and none of them
-  // contain one. The tool matched that family's ATTACH pattern (via
-  // "schedule") but the family never fired, so the feature was
-  // unreachable for exactly the words a human uses to ask for it.
+  // 2026-08-28 · Follow-up / reminder phrasings. The task family's TRIGGER needs a
+  // word like task/todo/mission and "remind me in two hours" or "check back on
+  // this" contain none, so these phrasings reached no follow-up tool at all.
+  // (2026-10-18: the agent self-follow-up tool this was written for is gone; the
+  // family still reaches the customer follow-up and reminder tools by name.)
   // MIRRORED in tests/ai/chat-mode-keyword-families.test.ts.
   if (/\b(follow[- ]?up|remind me|check back|circle back|nudge me|ping me|check in on|get back to me)\b/.test(text)) {
-    addMatching(/scheduleSelfFollowUp|followup|remind/i);
+    addMatching(/followup|remind/i);
   }
 
   // 2026-08-25 · Physical devices (runDeviceCommand demoted from
@@ -487,41 +484,6 @@ export async function pruneTools(
     addMatching(/github|repo|deploy|file|code|architecture|coding/i);
   }
 
-  // 2026-09-17 · GOOGLE DRIVE reads, distinct from the code/repo family above.
-  // `searchDriveFiles` reached 0 of 2 phrasings: "search my google drive" names
-  // the product exactly and still missed, because the code family matches on
-  // `files?` and never reaches a tool whose name is about DRIVE. Naming the
-  // product must be enough.
-  //
-  // ⚠ SCOPED TWICE, both narrowings found by review the same day:
-  //
-  // 1 · THE TRIGGER NAMES ONLY PROVIDERS THAT EXIST. It used to include
-  //     `dropbox` and a generic `cloud storage`. There is no Dropbox connector
-  //     anywhere in this app — measured: the string "dropbox" appears in
-  //     lib/ and app/ exactly once, in this file, in the trigger itself. So
-  //     asking about Dropbox offered Google Drive tools: the wrong datastore,
-  //     confidently. A capability you cannot actually perform must not be
-  //     surfaced as if you can.
-  //
-  // 2 · THE READ TOOLS ARE NAMED, NOT PATTERN-MATCHED. `/drive|document/i` also
-  //     matched `syncDriveMemory`, which the catalog marks
-  //     `sideEffecting: true, cost: "spendy"` — a bulk ingest offered on every
-  //     "search my drive". It also pulled in `ingestDocumentFromUrl`. A READ
-  //     intent must not put a write-and-spend tool in front of the model;
-  //     `syncDriveMemory` stays reachable by exact name and by the semantic
-  //     tier, which is where an explicit "sync my drive" belongs.
-  //
-  // Anchored on purpose: `^(...)$` cannot acquire a new member by someone
-  // adding a tool whose name happens to contain "drive".
-  if (/\b(google ?drive|my drive|gdrive|shared (drive|folder))\b/.test(text)) {
-    // `listRecentDriveFiles` belongs here too — free, read-only, and the only
-    // tool that answers "what's new in my Google Drive?". The first cut of this
-    // allowlist dropped it, so that phrasing reached NO Drive tool at all on a
-    // cold semantic cache. Narrowing a family must not remove the capability it
-    // exists to reach.
-    addMatching(/^(searchDriveFiles|readDriveFile|listRecentDriveFiles)$/);
-  }
-
   // Email / inbox / Gmail / Telegram
   //
   // 2026-09-17 · the trigger required VERB-OBJECT ADJACENCY —
@@ -541,24 +503,14 @@ export async function pruneTools(
 
   // Image / generation / analysis / multimedia
   // CAREFUL · "image" is a common word · narrowing with intent triggers
-  // 2026-09-17 · the READ side required "analyze this image" almost verbatim,
-  // so "what's in this photo" and "look at this screenshot" were both dark and
-  // `analyzeImage` reached 0 of 2 natural phrasings. Generation stays narrow —
-  // "image" is a common word and the generate lane is expensive — but asking
-  // ABOUT a supplied picture is a distinct, cheap, read-only intent.
+  // Generation stays narrow: "image" is a common word and the generate lane is
+  // expensive. Looking AT a supplied picture needs no tool; the model reads it.
   if (/\b(generate (an?|the)? (image|picture|photo|graphic)|create (an?|the)? (image|picture|photo)|draw (me )?(an?|the)? |make (an?|the)? (image|picture|photo)|analyze (this|the|that) (image|photo|picture)|extract from|run (this|the) code|solve (this|the)? (math|equation)|summarize this)\b/.test(text)) {
-    addMatching(/image|analyze|extract|generateImage|runCode|solveMath|summarize|writeCreative/i);
+    addMatching(/image|analyze|extract|generateImage|runCode|summarize|writeCreative/i);
   }
-  // Asking about a picture that already exists — read-only, narrow on purpose:
-  // it needs a demonstrative or possessive, so "a photo of the shop" (a topic)
-  // does not drag the vision tools in.
-  if (/\b(what('?s| is) (in|on)|look at|read|describe|what does)\b[^.?!]{0,30}\b(this|that|the|my|his|her|their) (photo|image|picture|screenshot|screen ?shot|scan)\b/.test(text)) {
-    addMatching(/^analyzeImage$|^extractData$/i);
-  }
-
   // Research / web search / external lookup
   if (/\b(research|web search|google (for|it|me)|look up|investigate|find (more about|info on|out about)|search the web|find leads|deep dive|fan.?out|multi.?agent)\b/.test(text)) {
-    addMatching(/arsenal|research|fanout|web|deepResearch|multiAgent|findLeads/i);
+    addMatching(/arsenal|research|fanout|web|deepResearch|multiAgent/i);
   }
 
   // Drift / alerts / system health / status
@@ -568,19 +520,19 @@ export async function pruneTools(
 
   // OKRs / MIT / weekly targets / goals · planning shape
   if (/\b(mit|main thing|top priority|okrs?|objectives?|key results?|weekly targets?|life goals?|set (a |my )?goal|north star|aim|targets?)\b/.test(text)) {
-    addMatching(/mit|okr|target|goal|weeklyTargets|setLifeGoal/i);
+    addMatching(/mit|okr|target|goal|weeklyTargets/i);
   }
 
   // Routines · weekly / EOD / morning briefings
   if (/\b(weekly review|week (summary|recap|review)|end of day|eod|morning brief|daily pulse|analyze (my |this )?week)\b/.test(text)) {
-    addMatching(/weeklyReview|analyzeWeek|endOfDay|dailyPulse|morningBrief/i);
+    addMatching(/weeklyReview|endOfDay|dailyPulse|morningBrief/i);
   }
 
   // Browser automation / scrape / page extraction
   // 2026-09-16 · MEASURED: in 467 production turns the browser was used ZERO
-  // times. Both BROWSERBASE credentials are present, six tools are built, and
-  // the census put browser_navigate / browser_act / browser_observe /
-  // browser_extract in `neverSurfaced` — offered to the model not once.
+  // times. Both BROWSERBASE credentials are present, the browser tools were built
+  // and the census put them in `neverSurfaced` — offered to the model not once.
+  // (2026-10-18: only browser_do, browseAndDo and browser_navigate remain.)
   //
   // Two defects, both here:
   //
@@ -624,9 +576,8 @@ export async function pruneTools(
   }
 
   // Surgical low-level control, only when the operator names the tool shape.
-  // These are four extra budget slots; they should cost them on request, not
-  // on every mention of a website.
-  if (/\bbrowser (navigate|act|observe|extract)\b/.test(text)) {
+  // It costs an extra budget slot on request, not on every mention of a website.
+  if (/\bbrowser navigate\b/.test(text)) {
     addMatching(/^browser_/i);
   }
 
@@ -635,7 +586,7 @@ export async function pruneTools(
   // this", "compute X", "plot Y" never surfaced runPython · Nick just
   // pasted text code back instead of executing.
   if (/\b(run python|run code|execute|python|pandas|numpy|matplotlib|plot|chart|calculate|compute|regression|geometric mean|standard deviation|histogram|scatter|csv)\b/.test(text)) {
-    addMatching(/runPython|runCode|solveMath/i);
+    addMatching(/runPython|runCode/i);
   }
 
   // v10.0.517 · Calendar / schedule / meetings
@@ -676,7 +627,7 @@ export async function pruneTools(
   // forms only ("other sessions", "my chats") so "gym session" doesn't
   // fire. MIRRORED in tests/ai/chat-mode-keyword-families.test.ts.
   if (/\b(last (time|week|month)|previously|earlier we|we discussed|we (talked|chatted) about|we chatted|chatted (about|today|yesterday)|what did i (say|discuss|mention)|pull up|prior conversation|that thread|the thread about|past chat|history of|continuing from|(other|past|previous|earlier|prior|all|my) (sessions?|convos?|conversations?|chats?|threads?)|in another (session|conversation|chat|thread))\b/.test(text)) {
-    addMatching(/findRelatedConversations|searchConversations/);
+    addMatching(/findRelatedConversations/);
   }
 
   // v10.0.524 · #4 Multi-source verified web search. Fact-check
@@ -692,12 +643,6 @@ export async function pruneTools(
     addMatching(/suggestSkills/);
   }
 
-  // v10.0.524 · #10 Anti-pattern surfacing. Operator asks "what do
-  // I keep getting wrong", "am I about to repeat", "warn me about".
-  if (/\b(anti.?pattern|keep getting wrong|repeat (mistake|pattern)|warn me|broken commitment|same mistake|history of)\b/.test(text)) {
-    addMatching(/surfaceAntiPatterns|antiPattern/);
-  }
-
   // v10.0.526 · Arc C · F7 · Second-location feasibility. Operator
   // mentions expansion · scoring an address · evaluating a candidate ·
   // "score this location", "evaluate <city> address", "second shop",
@@ -707,26 +652,20 @@ export async function pruneTools(
     addMatching(/scoreLocation/);
   }
 
-  // Instagram / Facebook autoposting & scheduling
-  // Covers spelling mistakes like "scheduale", "publis", "generat"
-  if (/\b(instagram|insta|ig|facebook|fb|post|posts|posting|autopost|autoposter|autoposting|publish|publis|publsih|generate|generat|pre-?generate|schedule|scheduale|schedul)\b/.test(text)) {
-    addMatching(/InstagramAutopost/i);
-  }
-
   // v10.0.530 · Tools / capabilities / help
   // Surfaces a rich, representative set of tools across all families when
   // the operator asks about capabilities or help.
   if (/\b(tools?|capabilities|functions?|what (can you do|actions can you|tools do you)|help (me|menu)?)\b/.test(text)) {
     const helpTools = [
       "getTasks", "createTask", "addTasksToProject", "completeTask", "setTaskPriority",
-      "getCommitments", "createCommitment", "updateCommitment",
+      "getCommitments", "createCommitment",
       "getMissions", "createMissionPlan", "queueMissionExecution",
       "dailyPulse", "weeklyReview", "endOfDay",
-      "searchMemories", "searchColdMemory", "searchConversations",
+      "searchMemories", "searchColdMemory",
       "findCustomer", "queryNickstire", "compareLiveRevenue",
       "runPython", "searchWebVerified", "generateImage",
       "runDeviceCommand", "sendTelegram", "composeEmail",
-      "getBlindSpots", "surfaceAntiPatterns", "suggestSkills",
+      "getBlindSpots", "suggestSkills",
       "getBodyData", "getHabitStreaks", "getMasteryScores"
     ];
     for (const name of helpTools) {
@@ -743,13 +682,6 @@ export async function pruneTools(
   // confirmed each gap against the live regexes. MIRRORED in
   // tests/ai/chat-mode-keyword-families.test.ts.
   // ─────────────────────────────────────────────────────────────
-
-  // #1 · Inline chart / data-viz. "chart of", "pie chart", "visualize" hit
-  // the Python family (runPython/solveMath) — WRONG tool. Attach the
-  // renderer too so the model can pick it for viz-shaped asks.
-  if (/\b(chart of|pie chart|bar chart|line chart|render (a |the )?chart|visuali[sz]e|visuali[sz]ation|graph (of|this|the)|plot (of|this|the) (data|tasks|metrics))\b/.test(text)) {
-    addMatching(/renderInlineChart/i);
-  }
 
   // #2 · Business escape-hatch. queryNickstire runs free-form shop queries
   // (revenue_today, leads_pipeline, callbacks_pending, work_orders_active).
@@ -779,19 +711,11 @@ export async function pruneTools(
     addMatching(/scrapeWebPage/i);
   }
 
-  // #6 · Decision pre-flight. Planning shape "should I", "risks before I
-  // decide". Deliberately separate from the brain family (which scopes
-  // "decision" to history/replay/journal).
-  if (/\b(should i|help me (think through|decide)|thinking through|before i decide|risks? before|pros and cons|weigh (this|the) (option|choice|decision)|i'?m considering|what if i)\b/.test(text)) {
-    addMatching(/decisionPreFlight/i);
-  }
-
   // #7 · Power dynamics / leverage / Greene tactics. analyzePowerDynamics,
   // getPowerBalanceSummary, getDarkPsychologyTactics, getContextualGreeneLaws
   // had no family. "power dynamics", "leverage over", "manipulation tactics".
-  // AG-31 · recommendNextMove joins the family + move-asking phrasings.
   if (/\b(power (dynamics?|balance|position)|leverage (over|across|with)|who (has|holds) power|relationship (leverage|strategy)|cognitive bias|manipulation (tactics?|techniques?)|psychology tactics?|dark psychology|next move|my move|how (do|should) i (respond|handle|counter|play))\b/.test(text)) {
-    addMatching(/analyzePowerDynamics|getPowerBalanceSummary|getDarkPsychologyTactics|getContextualGreeneLaws|recommendNextMove/i);
+    addMatching(/analyzePowerDynamics|getPowerBalanceSummary|getDarkPsychologyTactics|getContextualGreeneLaws/i);
   }
 
   // #8 · Recent-sentiment research + short-video generation. last30days
@@ -829,10 +753,7 @@ export async function pruneTools(
   // #11 · Competitive intelligence. "competitive analysis", "where are we
   // weak", "market position". No family covered competitive intent.
   if (/\b(competitive (analysis|intel|intelligence)|competitors?|where are we weak|our (weakness|vulnerabilit)|market position|how do we (compare|stack up)|benchmark)\b/.test(text)) {
-    // 2026-07-11 review · compareCompetitors (business.ts) is a DIFFERENT
-    // tool from analyzeCompetitiveIntel and had no family — unreachable on
-    // cold start. Same trigger, both tools.
-    addMatching(/analyzeCompetitiveIntel|compareCompetitors/i);
+    addMatching(/analyzeCompetitiveIntel/i);
   }
 
   // #12 · Customer SMS staging (approval-gated). stageCustomerAlert is NOT
@@ -884,17 +805,9 @@ export async function pruneTools(
   // Top Services: retired 2026-10-08 with the getTopServices tool. Its bridge query
   // (revenue_top_services) was never built, and invoice service descriptions have mostly
   // stopped arriving (1 of 30 in Aug 2026), so a ranked list would describe ~3% of tickets.
-  // Pricing Advisory
-  if (/\b(pricing advisory|price advice|pricing advice|pricing review|competitive pricing|pricing guide|what should we charge)\b/.test(text)) {
-    addMatching(/pricingAdvisorySummary/i);
-  }
   // Weight Trend
   if (/\b(weight trend|weight gain|weight loss|scale weight|my weight|body weight progress|weight stats)\b/.test(text)) {
     addMatching(/analyzeWeightTrend/i);
-  }
-  // SQL Generation
-  if (/\b(generate sql|write sql|sql query for|write database query|raw sql for)\b/.test(text)) {
-    addMatching(/generateSQL/i);
   }
   // Simulation
   if (/\b(run simulation|simulate project|project simulation|simulate scenario|simulation for)\b/.test(text)) {

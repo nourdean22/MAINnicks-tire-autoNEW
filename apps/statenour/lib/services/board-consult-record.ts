@@ -63,14 +63,6 @@ export async function buildBusinessContextBlock(question: string): Promise<strin
           "Revenue (month): UNKNOWN, the shop bridge could not be read. Do not state or assume a figure.",
         );
       }
-      const advisory = await prisma.brainMemory
-        .findFirst({
-          where: { category: "pricing_advisory" },
-          orderBy: { createdAt: "desc" },
-          select: { content: true },
-        })
-        .catch(() => null);
-      if (advisory?.content) parts.push(`Latest pricing advisory: ${advisory.content.slice(0, 240)}`);
     }
 
     const body = parts.join("\n").slice(0, 1500);

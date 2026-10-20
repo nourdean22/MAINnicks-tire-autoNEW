@@ -94,16 +94,3 @@ describe("searchMemories · whole rows come back with the content field fenced a
   });
 });
 
-describe("searchConversations · snippets of prior chat turns are fenced as cross_session", () => {
-  it("wraps each snippet in one closed fence", async () => {
-    const out = (await brainTools.searchConversations.execute!({ query: "account", role: "any", limit: 5 }, ctx)) as {
-      count: number;
-      messages: Array<{ snippet: string; role: string }>;
-    };
-    expect(out.count).toBe(1);
-    const sn = out.messages[0].snippet;
-    expect(sn.startsWith('<tool_data tool="searchConversations" source="cross_session">')).toBe(true);
-    expect(sn.endsWith('</tool_data tool="searchConversations">')).toBe(true);
-    expect(sn).not.toContain(SMUGGLED);
-  });
-});

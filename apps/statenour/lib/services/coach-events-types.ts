@@ -18,7 +18,6 @@
  * + filter UIs can enumerate without round-tripping the DB.
  */
 export type CoachEventKind =
-  | "pricing-advisory"
   | "prune-candidate"
   | "drift-recovery"
   | "idle-nudge"

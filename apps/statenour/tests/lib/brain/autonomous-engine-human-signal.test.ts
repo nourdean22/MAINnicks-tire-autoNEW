@@ -1,11 +1,11 @@
 /**
- * daily_score_reminder and drift_escalation must read a HUMAN signal.
+ * daily_score_reminder must read a HUMAN signal.
  *
- * THE DEFECT (audit 2026-10-10, report 13). Both rules keyed on
+ * THE DEFECT (audit 2026-10-10, report 13). The rule keyed on
  * identity_snapshot.updatedAt, but the nightly refresh-identity cron upserts
- * those rows (`@updatedAt`) whether or not the operator did anything. So
- * drift_escalation could never fire while the cron ran, and
+ * those rows (`@updatedAt`) whether or not the operator did anything, so
  * daily_score_reminder judged "engaged today" off a machine write.
+ * (drift_escalation, the second rule on this signal, was removed 2026-10-18.)
  *
  * The signal now: a user-role chat message, a task completion
  * (lastCompletedAt), or an inbound Telegram message in one of the two lanes
@@ -35,7 +35,6 @@ const h = vi.hoisted(() => ({
   auditFails: false,
   chatFails: false,
   snapshotAt: null as Date | null,
-  alerted: null as unknown,
 }));
 
 const gte = (d: Date | null, where?: { gte?: Date }) => !!d && (!where?.gte || d >= where.gte);
@@ -104,7 +103,6 @@ vi.mock("@/lib/prisma", () => ({
       findUnique: vi.fn(async () => (h.snapshotAt ? { updatedAt: h.snapshotAt, deletedAt: null } : null)),
       findFirst: vi.fn(async () => (h.snapshotAt ? { id: "snap" } : null)),
     },
-    autonomousAction: { findFirst: vi.fn(async () => h.alerted) },
   },
 }));
 vi.mock("@/lib/services/telegram", () => ({ sendTelegram: vi.fn() }));
@@ -138,7 +136,6 @@ beforeEach(() => {
   h.auditFails = false;
   h.chatFails = false;
   h.snapshotAt = null;
-  h.alerted = null;
 });
 afterEach(() => {
   vi.useRealTimers();
@@ -170,39 +167,6 @@ describe("daily_score_reminder · engaged today = a human write, not the cron ro
   it("a failed engagement read is unknown: no nudge", async () => {
     h.chatFails = true;
     expect(await trigger("daily_score_reminder")()).toEqual([]);
-  });
-});
-
-describe("drift_escalation · 3 quiet days = no human write in 3 days", () => {
-  it("fires when the cron kept the snapshot fresh but the operator has been silent 4 days", async () => {
-    h.snapshotAt = et("2026-10-09T23:00:00");
-    h.chats = [{ role: "user", createdAt: et("2026-10-06T12:00:00") }] satisfies Chat[];
-    expect(await trigger("drift_escalation")()).toHaveLength(1);
-  });
-
-  it("does not fire after a user message 2 days ago", async () => {
-    h.chats = [{ role: "user", createdAt: et("2026-10-08T12:00:00") }] satisfies Chat[];
-    expect(await trigger("drift_escalation")()).toEqual([]);
-  });
-
-  it("does not fire after a task completion 2 days ago", async () => {
-    h.tasks = [{ lastCompletedAt: et("2026-10-08T12:00:00"), deletedAt: null }] satisfies TaskRow[];
-    expect(await trigger("drift_escalation")()).toEqual([]);
-  });
-
-  it("does not fire twice inside 3 days", async () => {
-    h.alerted = { id: "prior" };
-    expect(await trigger("drift_escalation")()).toEqual([]);
-  });
-
-  it("a failed engagement read is unknown: no alert", async () => {
-    h.chatFails = true;
-    expect(await trigger("drift_escalation")()).toEqual([]);
-  });
-
-  it("does not fire after a Telegram message 2 days ago", async () => {
-    h.traces = [{ source: "tool", label: "telegram-ask", createdAt: et("2026-10-08T12:00:00") }] satisfies Trace[];
-    expect(await trigger("drift_escalation")()).toEqual([]);
   });
 });
 
@@ -245,11 +209,6 @@ describe("Telegram dumps and voice notes count: the journal lane", () => {
   it("daily_score_reminder stays quiet after a Telegram dump or voice note today", async () => {
     h.audits = [ingest("telegram", "2026-10-10T13:00:00")];
     expect(await trigger("daily_score_reminder")()).toEqual([]);
-  });
-
-  it("drift_escalation does not fire after a Telegram voice note 2 days ago", async () => {
-    h.audits = [ingest("telegram", "2026-10-08T12:00:00")];
-    expect(await trigger("drift_escalation")()).toEqual([]);
   });
 
   it("CONTROL: a chat-sourced ingest, yesterday's dump, or another event type does not count today", async () => {

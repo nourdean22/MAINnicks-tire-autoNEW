@@ -3,8 +3,8 @@
  *
  * Where does Telegram send the bot's updates? Measured 2026-10-02: the bot
  * SENDS fine (morning/afternoon/evening pushes and briefs land), but Railway
- * http logs show zero requests to /api/telegram/webhook or
- * /api/telegram/revenue-decision-callback since at least 2026-09-25 (positive
+ * http logs show zero requests to /api/telegram/webhook
+ * (or the revenue-decision callback, removed 2026-10-19) since at least 2026-09-25 (positive
  * control: /api/version on the same filter returned this afternoon's hits).
  * Every rating button (oc:u|n), journal link button and message to the bot
  * therefore lands somewhere other than this app — and 160 proactive pushes +

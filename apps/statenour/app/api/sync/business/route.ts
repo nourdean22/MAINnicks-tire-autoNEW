@@ -34,6 +34,7 @@ import { prisma } from "@/lib/prisma";
 import { apiHandler } from "@/lib/utils/http";
 import { buildCeoContextFromNickSyncPayload } from "@/lib/nickstire/ceo-context";
 import { invalidatePhysicalBusinessCache } from "@/lib/brain/physical-business";
+import { stripSyncCustomerPii } from "@/lib/brain/customer-pii";
 
 import { z } from "zod";
 
@@ -44,9 +45,10 @@ const businessSyncSchema = z.object({
 export const POST = apiHandler(
   async (req) => {
     const rawData = await req.json();
-    const data = businessSyncSchema.parse(rawData);
+    // Customer names and phones are dropped here, before either row is written (wave 3 group 7).
+    const data = stripSyncCustomerPii(businessSyncSchema.parse(rawData));
 
-    // Primary write — always store the raw payload so future Nick
+    // Primary write — always store the payload (minus customer identity) so future Nick
     // prompts can reconstruct whatever context they need from it.
     await prisma.auditEvent.create({
       data: {
@@ -132,7 +134,8 @@ export const GET = apiHandler(
     }
 
     return {
-      metrics: latest.payload,
+      // Rows written before the fix may still hold names until they are purged.
+      metrics: stripSyncCustomerPii(latest.payload),
       synced_at: latest.createdAt,
     };
   },

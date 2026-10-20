@@ -243,8 +243,6 @@ function toneForPriority(priority: CoachEventPriority): ToneClasses {
 
 function labelForKind(event: CoachEvent): string {
   switch (event.kind) {
-    case "pricing-advisory":
-      return "pricing advisory";
     case "prune-candidate":
       return "stale goal";
     case "drift-recovery":

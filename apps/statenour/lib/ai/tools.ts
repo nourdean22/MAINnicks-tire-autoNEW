@@ -80,9 +80,7 @@ const TOOL_TIME_BUDGET_MS: Record<string, number> = {
   arsenalDeepResearch: 240_000,
   arsenalMultiAgent: 240_000,
   arsenalPreTaskFanout: 240_000,
-  arsenalBoardConsult: 240_000,
   arsenalResearch: 240_000,
-  arsenalFindLeads: 240_000,
   // Whole-corpus ingests.
   syncDriveMemory: 240_000,
   syncCalendar: 240_000,
@@ -90,7 +88,6 @@ const TOOL_TIME_BUDGET_MS: Record<string, number> = {
   syncKnowledge: 240_000,
   // Generation + vision.
   generateImage: 180_000,
-  analyzeImage: 180_000,
   // Network fetch + parse.
   scrapeWebPage: 120_000,
   ingestDocumentFromUrl: 120_000,

@@ -181,27 +181,6 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
       return [o.name, amount, o.note].filter(Boolean).join(" · ");
     },
   },
-  logGoalProgress: {
-    label: "Logging progress",
-    doneLabel: "Progress logged",
-    runningLabel: "Logging…",
-    icon: TrendingUp,
-    color: "emerald",
-    link: { href: "/missions?mode=PLAN", label: "View goals" },
-    subtitle: (out) => {
-      const o = out as {
-        title?: string;
-        currentValue?: number;
-        progress?: number;
-        achieved?: boolean;
-      } | null;
-      if (o?.achieved) return `"${o.title}" · achieved 🎯`;
-      if (o?.title && typeof o.progress === "number") {
-        return `"${o.title}" · ${o.progress}%`;
-      }
-      return o?.title ?? null;
-    },
-  },
   pinMemory: {
     label: "Pinning to memory",
     doneLabel: "Pinned to brain",
@@ -464,31 +443,6 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
       return null;
     },
   },
-  getDecisionReplays: {
-    label: "Loading decisions",
-    doneLabel: "Decisions loaded",
-    runningLabel: "Pulling past decisions…",
-    icon: NotebookPen,
-    color: "purple",
-    subtitle: (out) => {
-      const o = out as { count?: number; decisions?: unknown[] } | null;
-      const n = o?.count ?? o?.decisions?.length;
-      return typeof n === "number" ? `${n} decision${n === 1 ? "" : "s"}` : null;
-    },
-  },
-  getDecisionsDueForReplay: {
-    label: "Checking replays due",
-    doneLabel: "Replays checked",
-    runningLabel: "Scanning decisions due for review…",
-    icon: Clock,
-    color: "amber",
-    subtitle: (out) => {
-      const o = out as { count?: number; due?: unknown[] } | null;
-      const n = o?.count ?? o?.due?.length;
-      if (typeof n !== "number") return null;
-      return n === 0 ? "nothing due" : `${n} due for replay`;
-    },
-  },
   // v10.0.529.87 · Wave 31 · settings read-only diagnostic. No write
   // path exposed via chat by design (threat-modeling: chat-driven cron
   // kill would silence 41 scheduled jobs with one utterance). Read-
@@ -521,37 +475,6 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
   // Audit found Nick could mutate these surfaces from chat but the
   // operator only saw an unknown-tool pill · no formatted result, no
   // tap target. Now each routes at the right landing page.
-  setLifeGoal: {
-    label: "Setting life goal",
-    doneLabel: "Life goal set",
-    runningLabel: "Recording life goal…",
-    icon: Target,
-    color: "gold",
-    link: { href: "/stats", label: "Mastery" },
-    subtitle: (out) => {
-      const o = out as { id?: string; title?: string; horizon?: string; domain?: string } | null;
-      if (!o) return null;
-      if (o.title) return `"${o.title.slice(0, 60)}"${o.horizon ? ` · ${o.horizon}` : ""}`;
-      return o.id ? "goal saved" : null;
-    },
-  },
-  updateMasteryScore: {
-    label: "Updating mastery score",
-    doneLabel: "Score updated",
-    runningLabel: "Recording mastery score…",
-    icon: TrendingUp,
-    color: "emerald",
-    link: { href: "/stats", label: "Mastery" },
-    subtitle: (out) => {
-      const o = out as { domain?: string; score?: number; delta?: number } | null;
-      if (!o) return null;
-      if (typeof o.score === "number" && o.domain) {
-        const deltaStr = typeof o.delta === "number" ? ` (${o.delta >= 0 ? "+" : ""}${o.delta})` : "";
-        return `${o.domain} · ${o.score}${deltaStr}`;
-      }
-      return o.domain ? `${o.domain} updated` : null;
-    },
-  },
   createMissionPlan: {
     label: "Building mission plan",
     doneLabel: "Plan generated",
@@ -650,13 +573,6 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     icon: BookOpen,
     color: "amber",
     link: { href: "/journal", label: "Journal" },
-  },
-  searchConversations: {
-    label: "Searching chats",
-    doneLabel: "Chats searched",
-    runningLabel: "Searching past conversations…",
-    icon: Search,
-    color: "blue",
   },
   rankNextActions: {
     label: "Ranking actions",
@@ -928,22 +844,6 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
       return parts.join(" · ") || null;
     },
   },
-  getProjections: {
-    label: "Reading projections",
-    doneLabel: "Projections loaded",
-    runningLabel: "Calculating financial projections…",
-    icon: TrendingUp,
-    color: "blue",
-    // link dropped 2026-09-02 · /business deleted and /stats shows none of this data
-    subtitle: (out) => {
-      const o = out as { horizon?: string; projected?: number; months?: number } | null;
-      if (!o) return null;
-      if (typeof o.projected === "number" && o.horizon) {
-        return `${o.horizon} · $${(o.projected / 1000).toFixed(1)}k`;
-      }
-      return null;
-    },
-  },
   compareLiveRevenue: {
     label: "Comparing live revenue",
     doneLabel: "Revenue compared",
@@ -978,21 +878,6 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
   // v10.0.529.89 · Wave 33 · weekly + daily review cards. These tools
   // produce rich text but had no card · the chat rendered raw output.
   // Now formatted with a tap target back to the dashboard.
-  analyzeWeek: {
-    label: "Analyzing the week",
-    doneLabel: "Week analyzed",
-    runningLabel: "Pulling 7-day signals · habits · revenue · streaks…",
-    icon: BarChart3,
-    color: "gold",
-    link: { href: "/", label: "Home" },
-    subtitle: (out) => {
-      const o = out as { topWin?: string; topLeak?: string; weekScore?: number } | null;
-      if (!o) return null;
-      if (typeof o.weekScore === "number") return `week · ${o.weekScore}/100`;
-      if (o.topWin) return `top win · ${o.topWin.slice(0, 50)}`;
-      return null;
-    },
-  },
   weeklyReview: {
     label: "Running weekly review",
     doneLabel: "Review complete",

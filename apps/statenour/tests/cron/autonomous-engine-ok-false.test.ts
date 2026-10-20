@@ -19,7 +19,7 @@ const h = vi.hoisted(() => ({
 
 vi.mock("@/lib/brain/autonomous-engine", () => ({
   runAutonomousActions: h.run,
-  OUTWARD_RULES: ["commitment_checkin", "decision_review_due"],
+  OUTWARD_RULES: ["daily_score_reminder", "midweek_target_check"],
 }));
 vi.mock("@/lib/feature-flags", () => ({ getFlag: () => ({ isOn: true, rawValue: "true" }) }));
 vi.mock("@/lib/utils/http", () => ({
@@ -61,19 +61,19 @@ describe("autonomous-engine cron · honest row", () => {
     h.run.mockResolvedValue({
       executed: 1,
       errors: 2,
-      failedRules: ["commitment_checkin", "decision_review_due"],
+      failedRules: ["daily_score_reminder", "midweek_target_check"],
     });
     const out = await call();
     expect(out.ok).toBe(false);
-    expect(out.reason).toMatch(/commitment_checkin/);
-    expect(out.reason).toMatch(/decision_review_due/);
+    expect(out.reason).toMatch(/daily_score_reminder/);
+    expect(out.reason).toMatch(/midweek_target_check/);
   });
 
   it("files a FAILED cron row carrying the rule names", async () => {
-    h.run.mockResolvedValue({ executed: 0, errors: 1, failedRules: ["commitment_checkin"] });
+    h.run.mockResolvedValue({ executed: 0, errors: 1, failedRules: ["daily_score_reminder"] });
     await logCronRun("autonomous-engine", call);
     expect(terminalRow()).toEqual(
-      expect.objectContaining({ status: "failed", error: expect.stringContaining("commitment_checkin") }),
+      expect.objectContaining({ status: "failed", error: expect.stringContaining("daily_score_reminder") }),
     );
   });
 

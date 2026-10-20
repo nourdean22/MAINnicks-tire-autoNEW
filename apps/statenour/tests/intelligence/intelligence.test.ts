@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fetchNHTSARecalls } from "@/lib/intelligence/connectors/nhtsa";
-import { calculateOpportunityScore } from "@/lib/intelligence/scoring";
 import { groundClaim } from "@/lib/intelligence/grounding";
 
 // Mock the dependencies
@@ -15,26 +14,6 @@ vi.mock("@/lib/brain/embedding-utils", () => ({
 describe("Intelligence OS System Tests", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-  });
-
-  // 1. Scoring Calculations
-  describe("Opportunity Scoring Engine", () => {
-    it("should compute accurate priority scores based on strategic parameters", () => {
-      // Score = (Impact * 0.4) + (Urgency * 0.3) + (Confidence * 20) + (Reversibility * 0.1)
-      const score = calculateOpportunityScore(90, 80, 0.95, 20);
-      // Expected = (90 * 0.4) + (80 * 0.3) + (0.95 * 20) + (20 * 0.1) = 36 + 24 + 19 + 2 = 81
-      expect(score).toBe(81);
-    });
-
-    it("should respect boundaries and cap at 100", () => {
-      const score = calculateOpportunityScore(100, 100, 1.0, 100);
-      expect(score).toBe(100);
-    });
-
-    it("should respect boundaries and clamp to 0", () => {
-      const score = calculateOpportunityScore(0, 0, 0.0, 0);
-      expect(score).toBe(0);
-    });
   });
 
   // 2. Grounding Validator

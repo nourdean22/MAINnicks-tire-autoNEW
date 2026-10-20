@@ -26,7 +26,6 @@ import type { NickActionType } from "@/lib/ai/propose-actions";
 const TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1000;
 
 export const NICK_ACTION_TYPES = new Set<string>([
-  "archive_mission",
   "nudge_task",
   "commit_journal",
   "send_sms_outreach",

@@ -62,7 +62,6 @@ describe("agent-bridge · effective risk classification", () => {
       "sendOpportunitySms",
       "sendTelegram",
       "stageCustomerAlert",
-      "triggerInstagramAutopost",
     ]) {
       expect(getToolRiskClass(name, getToolMeta(name)), `${name} must not be low`).toBe("high");
     }

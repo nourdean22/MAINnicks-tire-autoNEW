@@ -117,7 +117,7 @@ describe("token-boundary matching", () => {
     // An exact-name family begins at offset 0, which IS a token boundary.
     expect(matchesAtTokenStart(p("scoreLocation"), "scoreLocation")).toBe(true);
     // Prefix match on a plural token still works: "lead" -> "Leads".
-    expect(matchesAtTokenStart(p("lead"), "arsenalFindLeads")).toBe(true);
+    expect(matchesAtTokenStart(p("lead"), "exportLeads")).toBe(true);
   });
 });
 

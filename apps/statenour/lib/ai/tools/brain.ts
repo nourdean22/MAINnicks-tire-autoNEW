@@ -1,7 +1,7 @@
 /**
  * Brain tools — semantic recall, BrainMemory ops, classification.
  *
- * Includes: searchMemories · searchSkills · searchConversations ·
+ * Includes: searchMemories · searchSkills ·
  * searchReflections · pinMemory · classifyThought · checkAntiPattern ·
  * resolveContradiction · runSimulation · syncKnowledge · etc.
  *
@@ -26,68 +26,6 @@ import { resolveTrustTier } from "@/lib/brain/memory-trust";
 import { updateTurnContext } from "@/lib/agent/turn-context";
 
 export const brainTools = {
-  surfaceAntiPatterns: tool({
-    description:
-      "Pull the operator's recent anti-patterns (decisions that scored D/F + recurring drift loops + commitments operator has broken). Returns up to 5 with severity + description + when it last fired. Use when Nick suspects the operator is about to repeat a known failure mode, or when the operator asks 'what do I keep getting wrong'.",
-    inputSchema: z.object({
-      limit: z
-        .number()
-        .int()
-        .min(1)
-        .max(10)
-        .optional()
-        .describe("How many to return. Default 5."),
-      topic: z
-        .string()
-        .optional()
-        .describe(
-          "Optional topic to filter by · keyword match against description.",
-        ),
-    }),
-    execute: async ({ limit, topic }) => {
-      const cap = limit ?? 5;
-      const rows = await prisma.brainMemory
-        .findMany({
-          where: {
-            category: BRAIN_CATEGORIES.ANTI_PATTERN,
-            deletedAt: null,
-          },
-          orderBy: [{ confidence: "desc" }, { updatedAt: "desc" }],
-          take: 50,
-          select: {
-            key: true,
-            content: true,
-            confidence: true,
-            updatedAt: true,
-            metadata: true,
-          },
-        })
-        .catch((err): never[] => {
-          void import("@/lib/utils/error-log").then(({ logError }) => logError("ai.tools.brain", err, { fn: "surfaceAntiPatterns" }, "error"));
-          return [];
-        });
-
-      let filtered = rows;
-      if (topic) {
-        const q = topic.toLowerCase();
-        filtered = rows.filter((r) => r.content.toLowerCase().includes(q));
-      }
-
-      const top = filtered.slice(0, cap);
-      return {
-        ok: true,
-        count: top.length,
-        patterns: top.map((r) => ({
-          key: r.key,
-          // anti-pattern descriptions are LLM-distilled stored text → curated_memory (2026-09-02, #2065 review)
-          description: fenceContent("surfaceAntiPatterns", "curated_memory", r.content),
-          confidence: r.confidence,
-          lastSeen: r.updatedAt.toISOString().slice(0, 10),
-          metadata: r.metadata,
-        })),
-      };
-    },
-  }),
 
   // v10.0.524 · #6 Skill suggestion tool. Pulls the top-K Claude
   // skills semantically similar to a query. Operator can ask
@@ -129,78 +67,6 @@ export const brainTools = {
           hasProtocol: hasBundledProtocol(s.name),
         })),
       };
-    },
-  }),
-
-  // Loads the full instruction body for a bundled skill. suggestSkills
-  // returns description-only; this returns the verbatim protocol (table
-  // templates, hard rules) so the model executes with full fidelity.
-  captureSkillFromSource: tool({
-    description:
-      "Capture a protocol from an EXTERNAL source (a book, article, photographed page, video) as a CANDIDATE skill Nour can review and promote. Use when Nour shares source material and asks to turn it into a skill, protocol, or habit. Stores it as pending — it is explicitly UNPROVEN until actually used, so never describe it as an established skill.",
-    inputSchema: z.object({
-      sourceLabel: z
-        .string()
-        .min(2)
-        .describe("Where it came from — book title + author, URL, or 'photo: <what it shows>'."),
-      trigger: z.string().min(3).describe("The situation this applies to."),
-      steps: z
-        .array(z.string().min(2))
-        .min(1)
-        .max(12)
-        .describe("Ordered, concrete steps. Each must be followable, not a summary."),
-      keywords: z.array(z.string()).max(12).optional(),
-    }),
-    execute: async ({ sourceLabel, trigger, steps, keywords }) => {
-      try {
-        const { buildSkillFromSource, sourceProvenance } = await import(
-          "@/lib/brain/skill-from-source"
-        );
-        const { BRAIN_CATEGORIES } = await import("@/lib/brain/categories");
-        const { key, skill } = buildSkillFromSource({ sourceLabel, trigger, steps, keywords });
-
-        // Idempotent: re-capturing the same protocol updates it rather
-        // than minting a duplicate candidate.
-        const existing = await prisma.brainMemory.findUnique({
-          where: { category_key: { category: BRAIN_CATEGORIES.SKILL_PENDING, key } },
-          select: { id: true },
-        });
-        if (existing) {
-          await prisma.brainMemory.update({
-            where: { id: existing.id },
-            data: { content: JSON.stringify(skill), metadata: { sourceLabel } as never },
-          });
-        } else {
-          await prisma.brainMemory.create({
-            data: {
-              category: BRAIN_CATEGORIES.SKILL_PENDING,
-              key,
-              content: JSON.stringify(skill),
-              confidence: 0.5,
-              // Provenance distinct from skill_extractor: this was READ,
-              // not observed, and the difference must stay visible.
-              source: "source_capture",
-              metadata: { sourceLabel } as never,
-            },
-          });
-        }
-        return {
-          ok: true,
-          key,
-          trigger: skill.trigger,
-          steps: skill.action_sequence,
-          status: existing ? "updated_candidate" : "new_candidate",
-          provenance: sourceProvenance({ sourceLabel, trigger, steps }),
-          note: "Saved as a PENDING candidate — unproven until used. Review it under skills to promote.",
-        };
-      } catch (err) {
-        void import("@/lib/utils/error-log").then(({ logError }) =>
-          logError("ai.tools.brain", err, { fn: "captureSkillFromSource" }, "error"),
-        );
-        throw new Error(
-          err instanceof Error ? err.message : "Could not capture that skill",
-        );
-      }
     },
   }),
 
@@ -530,68 +396,9 @@ export const brainTools = {
     },
   }),
 
-  searchConversations: tool({
-    description: "Search past chat conversations by keyword. Use to recall what was discussed, decisions made, or advice given.",
-    inputSchema: z.object({
-      query: z.string().describe("Keyword to search in message content"),
-      role: z.enum(["user", "assistant", "any"]).default("any").describe("Filter by message role"),
-      limit: z.number().min(1).max(20).default(10),
-    }),
-    execute: async ({ query, role, limit }) => {
-      const where: any = {
-        content: { contains: query, mode: "insensitive" },
-      };
-      if (role !== "any") where.role = role;
-      const messages = await prisma.chatMessage.findMany({
-        where,
-        orderBy: { createdAt: "desc" },
-        take: limit,
-        select: {
-          id: true, role: true, content: true, createdAt: true, conversationId: true,
-          conversation: { select: { title: true } },
-        },
-      });
-      return {
-        count: messages.length,
-        messages: messages.map(m => ({
-          conversationTitle: m.conversation?.title,
-          role: m.role,
-          // prior-conversation text → cross_session (2026-09-02)
-          snippet: fenceContent("searchConversations", "cross_session", m.content.slice(0, 300)),
-          date: m.createdAt,
-          conversationId: m.conversationId,
-        })),
-      };
-    },
-  }),
-
   // ═══════════════════════════════════════════════════════
   // TIER 2: PROACTIVE PUSH + DECISION REPLAY
   // ═══════════════════════════════════════════════════════
-
-  // AG-31 · tactician next-move — on-demand version of the brain-context
-  // block so the model can invoke it explicitly mid-conversation.
-  recommendNextMove: tool({
-    description:
-      "Tactician: compose the single best concrete next move for a power/negotiation/rivalry situation — verbatim moves from the Greene corpus plus live person power-state when the other party is tracked. Use when the operator asks 'what's my move' / 'how do I play this' / 'how do I counter'.",
-    inputSchema: z.object({
-      situation: z
-        .string()
-        .min(12)
-        .describe("The situation in the operator's words — include the other party's name if tracked"),
-    }),
-    execute: async ({ situation }) => {
-      const { buildNextMoveBlock } = await import("@/lib/ai/tactician/next-move");
-      const block = await buildNextMoveBlock(situation, { relaxed: true });
-      return block
-        ? { block, source: "tactician" }
-        : {
-            block: null,
-            note: "No tactical signal — no corpus trigger or tracked person matched this situation.",
-            source: "tactician",
-          };
-    },
-  }),
 
   searchGreeneLaws: tool({
     description: "Search the 189 Greene strategic laws by keyword. Returns matching laws with essence and shop/personal application.",
@@ -1471,24 +1278,6 @@ export const brainTools = {
     },
   }),
 
-  // v11.1 G1 · browser_do — Nick spins a cloud headless-Chrome
-  // session via Browserbase and reports the live-view URL so Nour
-  // can watch. Graceful degradation when Browserbase isn't
-  // configured (returns a structured "not_configured" payload —
-  // the chat route surfaces it as a one-line hint instead of a
-  // tool-call error).
-  //
-  // Next iteration (pending Nour's sign-off on the scaffold):
-  //   · Install @browserbasehq/stagehand + playwright-core
-  //     (~9MB in the serverless bundle)
-  //   · Add browser_navigate({sessionId, url}) tool
-  //   · Add browser_act({sessionId, instruction}) tool — runs a
-  //     Stagehand page.act() on the open session
-  //   · Add browser_extract({sessionId, schema}) tool — runs
-  //     page.extract() with a Zod schema for structured return
-  // Right now the scaffold is a "supervised handoff" — Nick opens
-  // the door, Nour walks through. The driver upgrade makes Nick
-  // walk through first, Nour watches.
   runSimulation: tool({
     description: "Run a 'what if' simulation — predict the cascade of consequences for a specific scenario. e.g. 'What if I hire a second tech?' or 'What if I raise prices 10%?'",
     inputSchema: z.object({
@@ -1504,49 +1293,9 @@ export const brainTools = {
   // META — Tools about the tools themselves
   // ═══════════════════════════════════════════════════════════
 
-  buildArchitectureMemory: tool({
-    description: "Scan a repo feature and store its architecture in brain memory. Use when learning about a part of the codebase for the first time — stores it so you remember next conversation.",
-    inputSchema: z.object({
-      repo: z.string(),
-      feature: z.string().describe("Feature name (e.g., 'chat system', 'lead pipeline', 'morning autopilot')"),
-      filePaths: z.array(z.string()).describe("Key files that make up this feature"),
-      summary: z.string().describe("How this feature works in 2-3 sentences"),
-    }),
-    execute: async ({ repo, feature, filePaths, summary }) => {
-      const { brainMemory } = await import("@/lib/brain/memory-manager");
-      await brainMemory.remember(
-        "architecture",
-        `arch_${repo}_${feature.replace(/\s+/g, "_")}`,
-        `ARCHITECTURE [${repo}] ${feature}: ${summary}. Key files: ${filePaths.join(", ")}`,
-        "nick-builder",
-        { repo, feature, filePaths }
-      );
-      return { stored: true, feature, repo };
-    },
-  }),
-
   // ═══════════════════════════════════════════════════════════
   // LIVE NICKSTIRE — Real-time business data from the shop
   // ═══════════════════════════════════════════════════════════
-
-  learnCodingPreference: tool({
-    description: "Store a coding preference or pattern that Nour likes. Use when Nour says 'I prefer X' or 'always do Y' or 'never do Z' about code. These preferences guide future code generation.",
-    inputSchema: z.object({
-      preference: z.string().describe("The coding preference or pattern"),
-      context: z.string().describe("When/where this applies"),
-    }),
-    execute: async ({ preference, context }) => {
-      const { brainMemory } = await import("@/lib/brain/memory-manager");
-      await brainMemory.remember(
-        "coding_preference",
-        `pref_${Date.now()}`,
-        `CODING PREFERENCE: ${preference}. Context: ${context}`,
-        "nick-builder",
-        { type: "coding_preference" }
-      );
-      return { stored: true, preference };
-    },
-  }),
 
   // 2026-06-20 · Power-dynamics analyzer · scores the operator's power
   // position across all relationships. Pure core + IO wrapper pattern

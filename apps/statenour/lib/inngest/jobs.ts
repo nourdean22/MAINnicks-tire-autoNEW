@@ -41,9 +41,6 @@
  */
 export const MORNING_JOBS: readonly string[] = [
   "/api/cron/stale-tasks",
-  // 2026-07-22 · change-detection-lite external-change sensor (competitor
-  // pricing / regulatory pages -> page_snapshots). Observe-only; daily is plenty.
-  "/api/cron/change-detection",
   "/api/cron/journal-checkin?slot=morning",
   "/api/cron/embed-backfill",
   // 2026-05-29 · data-source canary · probes the nickstire bridge +
@@ -141,17 +138,6 @@ export const MORNING_JOBS: readonly string[] = [
 export const EVENING_JOBS: readonly string[] = [
   "/api/cron/predict",
   "/api/cron/consolidate",
-  // 2026-09-10 · the missing PRODUCER for the Revenue-Decision Channel.
-  // lib/services/revenue-decision-channel.ts was a complete engine with
-  // three live consumers and nothing writing the rows they read: the
-  // getPendingRevenueMoves chat tool returned empty forever and the
-  // Telegram approval callback could never fire. Costs one model call
-  // and one Telegram to the operator per day; idempotent per ET date, so
-  // a duplicate fan-out skips rather than paying twice.
-  "/api/cron/revenue-decision",
-  // 2026-07-22 · closed-loop Experiment resolver — resolves DUE experiments
-  // (accepted opportunities past their horizon) + nudges source authScore. Daily is plenty.
-  "/api/cron/experiment-measure",
   "/api/cron/data-cleanup",
   // 2026-07-25 · durable-outbox drain — replays post-turn work orphaned
   // by a mid-turn crash (rare; rows past the grace window, ≤5 attempts
@@ -247,11 +233,6 @@ export const WEEKLY_JOBS: readonly string[] = [
   // synthesis (which self-gates on the flag); the category reflections it
   // also writes are an operator-facing built feature that was dormant.
   "/api/cron/reflect-categories",
-  // 2026-07-09 · AG-19 · weekly pricing advisory. composeAdvisory() (win-rate
-  // outliers → competitor prices → drafted experiments) had zero callers
-  // since it shipped; its chat tool / API / coach-banner read surfaces
-  // returned empty forever. Idempotent per run-date (BrainMemory upsert).
-  "/api/cron/pricing-advisory",
 ];
 
 /**

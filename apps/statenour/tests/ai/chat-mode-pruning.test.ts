@@ -153,9 +153,7 @@ describe("pruneTools keyword attachment families (v10.0.532 followups)", () => {
   const tools = {
     getCameraIntelligence: { name: "getCameraIntelligence" },
     getReviewStats: { name: "getReviewStats" },
-    pricingAdvisorySummary: { name: "pricingAdvisorySummary" },
     analyzeWeightTrend: { name: "analyzeWeightTrend" },
-    generateSQL: { name: "generateSQL" },
     runSimulation: { name: "runSimulation" },
   };
 
@@ -164,18 +162,15 @@ describe("pruneTools keyword attachment families (v10.0.532 followups)", () => {
     ["getCameraIntelligence", "show me the security camera footage", "getCameraIntelligence"],
     ["getReviewStats", "how are our google reviews doing, show me stats", "getReviewStats"],
     // getTopServices: retired 2026-10-08 with its keyword family (lib/ai/chat-mode.ts).
-    ["pricingAdvisorySummary", "pricing advisory summary for this week", "pricingAdvisorySummary"],
-    ["pricingAdvisorySummary", "what competitive pricing advice do we have?", "pricingAdvisorySummary"],
     ["analyzeWeightTrend", "plot my weight trend", "analyzeWeightTrend"],
     ["analyzeWeightTrend", "body weight progress", "analyzeWeightTrend"],
-    ["generateSQL", "write a database query or generate sql for X", "generateSQL"],
     ["runSimulation", "run a simulation for this project", "runSimulation"],
   ])("matches query for %s: '%s'", async (toolName, query, expectedKey) => {
     const pruned = await pruneTools("standard", tools, query);
     expect(Object.keys(pruned)).toContain(expectedKey);
   });
 
-  it("survives pruning in deep mode under pressure of 60 filler tools for all 6 followup tools", async () => {
+  it("survives pruning in deep mode under pressure of 60 filler tools for all 4 followup tools", async () => {
     const allTools: Record<string, unknown> = {};
     for (let i = 1; i <= 60; i++) {
       allTools[`extraTool-${i}`] = { name: `extraTool-${i}` };
@@ -184,13 +179,11 @@ describe("pruneTools keyword attachment families (v10.0.532 followups)", () => {
     allTools["searchMemories"] = { name: "searchMemories" };
     allTools["createTask"] = { name: "createTask" };
 
-    // Add the 6 followup tools
+    // Add the 4 followup tools
     const followups = [
       "getCameraIntelligence",
       "getReviewStats",
-      "pricingAdvisorySummary",
       "analyzeWeightTrend",
-      "generateSQL",
       "runSimulation",
     ];
     for (const f of followups) {
@@ -198,7 +191,7 @@ describe("pruneTools keyword attachment families (v10.0.532 followups)", () => {
     }
 
     // Trigger keyword matching by including the trigger words in the query
-    const query = "show me the camera feed, google reviews stats, pricing advisory, weight trend, generate sql and run simulation";
+    const query = "show me the camera feed, google reviews stats, weight trend and run simulation";
     const pruned = await pruneTools("deep", allTools, query, [0.1, 0.2]);
     const keys = Object.keys(pruned);
 
@@ -215,17 +208,17 @@ describe("pruneTools keyword attachment families (v10.0.532 followups)", () => {
 
   it("caps at the budget and prioritizes core, action, and direct-intent tools deterministically when priority candidates exceed it", async () => {
     const allTools: Record<string, unknown> = {};
-    // Construct 60 priority candidates (which match InstagramAutopost keyword regex)
+    // Construct 60 priority candidates (which match the analyzeWeightTrend keyword regex)
     for (let i = 1; i <= 60; i++) {
-      allTools[`InstagramAutopost-${i}`] = { name: `InstagramAutopost-${i}` };
+      allTools[`analyzeWeightTrend-${i}`] = { name: `analyzeWeightTrend-${i}` };
     }
 
     // Add Core and Action tools
     allTools["searchMemories"] = { name: "searchMemories" };
     allTools["createTask"] = { name: "createTask" };
 
-    // We will query with "instagram" to trigger keyword-based match
-    const pruned = await pruneTools("deep", allTools, "please check my instagram posts", [0.1, 0.2]);
+    // We will query with "weight trend" to trigger keyword-based match
+    const pruned = await pruneTools("deep", allTools, "please check my weight trend", [0.1, 0.2]);
     const keys = Object.keys(pruned);
 
     // Assert cappings and deterministic ordering

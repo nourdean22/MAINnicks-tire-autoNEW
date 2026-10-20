@@ -49,15 +49,12 @@ export const PROTECTED_OPS_TOOLS: readonly string[] = [
   "sendOpportunitySms",
   "stageCustomerAlert",
   // social publishing
-  "triggerInstagramAutopost",
-  "setInstagramAutopostConfig",
   // code & device execution
   "runPython",
   "runDeviceCommand",
   // autonomous browser action
   "browseAndDo",
   // public repo write
-  "githubCreatePR",
 ];
 
 /**
@@ -99,8 +96,6 @@ const READ_TOOLS: readonly string[] = [
   "getDashboardSummary",
   "getReviewStats",
   "getEstimateLeaks",
-  "compareCompetitors",
-  "pricingAdvisorySummary",
   "getMarketingAttribution",
   "getGscSummary",
   // fleet / ops health
@@ -112,10 +107,8 @@ const READ_TOOLS: readonly string[] = [
   "getBlindSpots",
   "searchColdMemory",
   "getBrainHealth",
-  "getPendingRevenueMoves",
   // strategy reads — also on the curated Actions-30 surface, so they belong on
   // the MCP read surface too (a tool safe for the ChatGPT GPT is safe for read)
-  "decisionPreFlight",
   "analyzePowerDynamics",
   "getPowerBalanceSummary",
   // personal read — the operator's own loop from a phone
@@ -127,7 +120,6 @@ const READ_TOOLS: readonly string[] = [
   "getTodaySchedule",
   "getWeeklyTargets",
   "dailyPulse",
-  "suggestMIT",
   "rankNextActions",
   // research
   "searchWebVerified",
@@ -143,7 +135,6 @@ const READ_TOOLS: readonly string[] = [
 const TASKS_ONLY_TOOLS: readonly string[] = [
   "createTask",
   "completeTask",
-  "queueExternalWorkerJob",
   "pinMemory",
   "triggerBrief",
   "sendTelegram",

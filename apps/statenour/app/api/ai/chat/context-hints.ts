@@ -50,24 +50,24 @@ export const TOOL_BIAS: Record<string, string> = {
   "/journal": "logSituation · journalDecision · classifyThought · reviewDecisionReplay",
   "/pins": "pinMemory · searchMemories",
   // /mastery + /plan + /life + /body all consolidated into /stats · merged tool bias.
-  "/stats": "updateMasteryScore · setLifeGoal · logGoalProgress · archiveGoal · getCommitments · getBodyData · createMissionPlan · setOKRs · setWeeklyTargets · suggestMIT",
+  "/stats": "archiveGoal · getCommitments · getBodyData · createMissionPlan · setOKRs · setWeeklyTargets",
   // 2026-08-16 · syncKnowledge / searchColdMemory / searchSkills folded in
   // from the retired "/knowledge" key so the three tools keep a bias route.
-  "/brain": "pinMemory · searchMemories · getBlindSpots · buildArchitectureMemory · syncKnowledge · searchColdMemory · searchSkills",
+  "/brain": "pinMemory · searchMemories · getBlindSpots · syncKnowledge · searchColdMemory · searchSkills",
   "/system": "getCronStatus · toolHealth · getBrainHealth · getFleetTruth",
   // "/business" removed 2026-09-02 · the page was deleted on operator verdict
   // (R7 in docs/research/2026-09-01-statenour-plan.md). No route biases
   // getFinancialSnapshot / getProjections / compareLiveRevenue now — they stay
   // callable from any route; the bias was a hint, not a gate.
-  "/decisions": "journalDecision · reviewDecisionReplay · getDecisionReplays",
+  "/decisions": "journalDecision · reviewDecisionReplay",
   // ── 2026-08-12 · routes that existed in nav but never had a bias ──
-  "/market": "getGscSummary · getGscTopQueries · analyzeCompetitiveIntel · compareCompetitors · analyzeTrends",
+  "/market": "getGscSummary · getGscTopQueries · analyzeCompetitiveIntel · analyzeTrends",
   "/people": "getPowerBalanceSummary · analyzePowerDynamics · getContextualGreeneLaws · scheduleFollowUp",
   // Home is the decision surface — bias to reading state, never to
   // minting new work. Safe ONLY because resolveToolBiasKey matches the
   // LONGEST prefix; with the old `find(startsWith)` this key would have
   // swallowed every route in the map depending on key order.
-  "/": "getAttentionAlerts · getDashboardSummary · rankNextActions · recommendNextMove · getAgendaItems",
+  "/": "getAttentionAlerts · getDashboardSummary · rankNextActions · getAgendaItems",
 };
 
 /**

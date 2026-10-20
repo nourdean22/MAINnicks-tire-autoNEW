@@ -66,47 +66,6 @@ describe("proposeNickActions · sources", () => {
     expect(drafts).toEqual([]);
   });
 
-  it("picks an archive_mission candidate when every task is DONE", async () => {
-    vi.mocked(prisma.mission.findMany).mockResolvedValue([
-      {
-        id: "m-1",
-        title: "Wrap launch",
-        tasks: [
-          { id: "t-1", status: "DONE" },
-          { id: "t-2", status: "DONE" },
-        ],
-      },
-    ] as never);
-    vi.mocked(prisma.task.findMany).mockResolvedValue([] as never);
-    vi.mocked(prisma.brainDump.findMany).mockResolvedValue([] as never);
-    vi.mocked(prisma.brainMemory.findFirst).mockResolvedValue(null);
-
-    const drafts = await proposeNickActions("2026-05-28");
-    expect(drafts).toHaveLength(1);
-    expect(drafts[0].actionType).toBe("archive_mission");
-    expect(drafts[0].targetId).toBe("m-1");
-    expect(drafts[0].priority).toBe("P2");
-  });
-
-  it("skips an archive_mission with at least one open task", async () => {
-    vi.mocked(prisma.mission.findMany).mockResolvedValue([
-      {
-        id: "m-2",
-        title: "Mixed",
-        tasks: [
-          { id: "t-1", status: "DONE" },
-          { id: "t-2", status: "DOING" }, // not closed
-        ],
-      },
-    ] as never);
-    vi.mocked(prisma.task.findMany).mockResolvedValue([] as never);
-    vi.mocked(prisma.brainDump.findMany).mockResolvedValue([] as never);
-    vi.mocked(prisma.brainMemory.findFirst).mockResolvedValue(null);
-
-    const drafts = await proposeNickActions("2026-05-28");
-    expect(drafts.filter((d) => d.actionType === "archive_mission")).toEqual([]);
-  });
-
   it("emits nudge_task as P0 when task is > 7d overdue", async () => {
     const eightDaysAgo = new Date(Date.now() - 8 * 86_400_000);
     vi.mocked(prisma.mission.findMany).mockResolvedValue([] as never);
@@ -159,15 +118,15 @@ describe("proposeNickActions · sources", () => {
   });
 
   it("ranks P0 candidates before P1 and P2", async () => {
-    // P0 = nudge_task (12d overdue), P1 = outreach, P2 = archive
+    // P0 = nudge_task (12d overdue), P1 = outreach, P2 = reassign (stale inbox)
     const twelveDaysAgo = new Date(Date.now() - 12 * 86_400_000);
-    vi.mocked(prisma.mission.findMany).mockResolvedValue([
-      {
-        id: "m-1",
-        title: "Wrap launch",
-        tasks: [{ id: "t-1", status: "DONE" }],
-      },
-    ] as never);
+    vi.mocked(prisma.mission.findMany).mockResolvedValue([] as never);
+    const staleInbox = [1, 2, 3].map((n) => ({
+      id: `t-inbox-${n}`,
+      title: `Old inbox ${n}`,
+      createdAt: new Date(Date.now() - 20 * 86_400_000),
+      mission: { id: "m-inbox", title: "Inbox" },
+    }));
     vi.mocked(prisma.task.findMany).mockImplementation(async (args) => {
       const where = (args as { where?: { status?: string } } | undefined)?.where;
       if (where?.status === "DOING") {
@@ -180,6 +139,7 @@ describe("proposeNickActions · sources", () => {
           },
         ] as never;
       }
+      if (where?.status === "INBOX") return staleInbox as never;
       return [] as never;
     });
     vi.mocked(prisma.brainDump.findMany).mockResolvedValue([] as never);
@@ -203,60 +163,6 @@ describe("proposeNickActions · sources", () => {
 // ── Executor ─────────────────────────────────────────────────────
 
 describe("executeNickAction · dispatch", () => {
-  it("archive_mission flips ACTIVE → COMPLETE", async () => {
-    vi.mocked(prisma.mission.findUnique).mockResolvedValue({
-      id: "m-1",
-      title: "Wrap",
-      status: "ACTIVE",
-      deletedAt: null,
-    } as never);
-    vi.mocked(prisma.mission.update).mockResolvedValue({} as never);
-
-    const r = await executeNickAction({
-      actionRowId: "row-1",
-      actionType: "archive_mission",
-      targetId: "m-1",
-      payload: {},
-    });
-    expect(r.ok).toBe(true);
-    expect(vi.mocked(prisma.mission.update)).toHaveBeenCalledWith({
-      where: { id: "m-1" },
-      data: { status: "COMPLETE", updatedBy: "nick" },
-    });
-  });
-
-  it("archive_mission returns idempotent when already COMPLETE", async () => {
-    vi.mocked(prisma.mission.findUnique).mockResolvedValue({
-      id: "m-1",
-      title: "Wrap",
-      status: "COMPLETE",
-      deletedAt: null,
-    } as never);
-
-    const r = await executeNickAction({
-      actionRowId: "row-1",
-      actionType: "archive_mission",
-      targetId: "m-1",
-      payload: {},
-    });
-    expect(r.ok).toBe(true);
-    expect(r.meta?.idempotent).toBe(true);
-    expect(vi.mocked(prisma.mission.update)).not.toHaveBeenCalled();
-  });
-
-  it("archive_mission returns mission_not_found when row gone", async () => {
-    vi.mocked(prisma.mission.findUnique).mockResolvedValue(null);
-
-    const r = await executeNickAction({
-      actionRowId: "row-x",
-      actionType: "archive_mission",
-      targetId: "m-gone",
-      payload: {},
-    });
-    expect(r.ok).toBe(false);
-    expect(r.error).toBe("mission_not_found");
-  });
-
   it("nudge_task flips DOING → READY + writes a brain memory hint", async () => {
     vi.mocked(prisma.task.findUnique).mockResolvedValue({
       id: "t-1",

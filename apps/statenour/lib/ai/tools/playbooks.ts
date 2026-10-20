@@ -61,7 +61,6 @@ export const PLAYBOOKS: readonly Playbook[] = [
       "getMissions",
       "getMissionDetail",
       "rankNextActions",
-      "suggestMIT",
       "setMit",
       "getCommitments",
       "checkCommitments",
@@ -78,11 +77,9 @@ export const PLAYBOOKS: readonly Playbook[] = [
     // generateImage is deliberately NOT here: it is catalogued sideEffecting (spend).
     // The operator asks for an image explicitly; a playbook never pre-attaches spend.
     tools: [
-      "getInstagramAutopostStatus",
       "getGscTopQueries",
       "getGscSummary",
       "getReviewStats",
-      "renderInlineChart",
     ],
     guidance:
       "Playbook: publish. Draft only — publishing runs through Nick's Admin and its approval gates; cite the search or review signal a hook rests on; Nick's Tire voice, Cleveland specifics, one CTA.",

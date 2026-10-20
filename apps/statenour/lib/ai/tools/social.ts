@@ -1,8 +1,7 @@
 /**
  * Social + comms tools — comms (telegram + gmail + email).
  *
- * Includes: sendTelegram · arsenalGmailInbox · arsenalGmailReadThread ·
- * composeEmail.
+ * Includes: sendTelegram · composeEmail.
  *
  * v10.0.529.106 · Wave 82 · extracted from monolithic lib/ai/tools.ts.
  * Aggregate barrel: lib/ai/tools.ts re-exports nourTools composed from
@@ -13,15 +12,6 @@ import { tool } from "ai";
 import { z } from "zod";
 import type { SettledState } from "@/lib/services/action-attempts";
 import { escapeHtml } from "@/lib/utils/escape-html";
-
-/**
- * fenceContent (lib/ai/tool-result-fencing.ts) caps its body at 4000
- * chars by default and may PREPEND an injection annotation before
- * applying that cap. Anything built to fill a fence must budget for
- * both, or the fence truncates the very content it exists to label.
- */
-const FENCE_BODY_CAP = 4000;
-const ANNOTATION_SLACK = 200;
 
 export const socialTools = {
   sendTelegram: tool({
@@ -340,97 +330,6 @@ export const socialTools = {
     },
   }),
 
-  arsenalGmailInbox: tool({
-    description: "List recent Gmail inbox threads · supports Gmail search syntax (e.g. 'is:unread newer_than:2d', 'from:supplier@x'). Returns subject/from/snippet/unread per thread. Requires GMAIL_REFRESH_TOKEN env (see docs/gmail-setup.md).",
-    inputSchema: z.object({
-      maxResults: z.number().optional().describe("Max threads to return · default 20"),
-      query: z.string().optional().describe("Gmail search query · e.g. 'is:unread' or 'from:foo@bar.com'"),
-    }),
-    execute: async ({ maxResults, query }) => {
-      const { listInbox, isGmailConfigured } = await import("@/lib/integrations/gmail");
-      const { fenceContent } = await import("@/lib/ai/tool-result-fencing");
-      if (!isGmailConfigured()) {
-        return { error: "GMAIL_REFRESH_TOKEN not set · see docs/gmail-setup.md" };
-      }
-      const threads = await listInbox({ maxResults, query });
-      return {
-        threadCount: threads.length,
-        // `subject` and `from` are attacker-chosen: anyone who can email
-        // Nour picks those 200 characters. They used to be returned RAW
-        // beside an already-fenced snippet, which made this the cheapest
-        // injection surface in the app -- no page to host, no link to
-        // click, just send mail and land unlabelled text in model
-        // context. Fencing them TOGETHER with the snippet as one block
-        // keeps the fence count per thread at exactly one, so closing
-        // the hole costs no extra tokens (a per-field fence would have
-        // added ~90 chars x 60 fields on a 30-thread listing).
-        threads: threads.slice(0, 30).map((t) => ({
-          id: t.id,
-          messageCount: t.messageCount,
-          unread: t.unread,
-          content: fenceContent(
-            "arsenalGmailInbox",
-            "external_doc",
-            `Subject: ${t.subject.slice(0, 200)}\nFrom: ${t.from.slice(0, 200)}\n\n${t.snippet.slice(0, 300)}`,
-          ),
-        })),
-        source: "arsenal/gmail",
-      };
-    },
-  }),
-
-  arsenalGmailReadThread: tool({
-    description: "Fetch a full Gmail thread · all messages decoded. Use after listing inbox to read specific threads.",
-    inputSchema: z.object({
-      threadId: z.string().describe("Gmail thread ID from arsenalGmailInbox"),
-    }),
-    execute: async ({ threadId }) => {
-      const { getThread, isGmailConfigured } = await import("@/lib/integrations/gmail");
-      const { fenceContent } = await import("@/lib/ai/tool-result-fencing");
-      if (!isGmailConfigured()) {
-        return { error: "GMAIL_REFRESH_TOKEN not set · see docs/gmail-setup.md" };
-      }
-      const thread = await getThread(threadId);
-      return {
-        id: thread.id,
-        messageCount: thread.messages.length,
-        // Same reasoning as arsenalGmailInbox above: subject / from / to
-        // are sender-controlled and were returned unfenced next to a
-        // fenced body. The per-message body budget is derived below.
-        subject: fenceContent(
-          "arsenalGmailReadThread",
-          "external_doc",
-          thread.subject.slice(0, 200),
-        ),
-        messages: thread.messages.map((m) => {
-          // 2026-09-02 review P2 · the 3700 slice was arithmetic I got
-          // wrong. At maximum field lengths the header reaches ~484 chars
-          // (200 From + 200 To + 64 Date + labels + newlines), so
-          // 3700 + 484 = 4184 against fenceContent's 4000-char body cap:
-          // long mail silently lost its last ~184 characters while the
-          // comment beside it claimed the slice PREVENTED truncation.
-          // Derive the allowance from the header actually built, and keep
-          // slack for the injection annotation fenceContent may prepend
-          // BEFORE applying that cap.
-          const header = `From: ${m.from.slice(0, 200)}
-To: ${m.to.slice(0, 200)}
-Date: ${String(m.date).slice(0, 64)}
-
-`;
-          const bodyBudget = Math.max(500, FENCE_BODY_CAP - ANNOTATION_SLACK - header.length);
-          return {
-            content: fenceContent(
-              "arsenalGmailReadThread",
-              "external_doc",
-              `${header}${m.body.slice(0, bodyBudget)}`,
-            ),
-          };
-        }),
-        source: "arsenal/gmail",
-      };
-    },
-  }),
-
   // v10.0.374 · spawn N sub-agents in parallel + synthesize
   composeEmail: tool({
     description:
@@ -462,72 +361,6 @@ Date: ${String(m.date).slice(0, 64)}
           : `Email drafted to ${to}: "${subject.slice(0, 60)}${subject.length > 60 ? "…" : ""}"${apiResult?.error ? ` (API Error: ${apiResult.error})` : ""}`,
         draft: { to, subject, bodyChars: body.length, tone, apiResult },
       };
-    },
-  }),
-
-  triggerInstagramAutopost: tool({
-    description: "Run the Instagram Autopost pipeline immediately. Supports triggering dry-runs (evaluates but doesn't post) or live publishes. Optionally steer with a specific content archetype.",
-    inputSchema: z.object({
-      dryRun: z.boolean().default(true).describe("If true, only generates and evaluates. If false, posts live to Instagram/Facebook immediately."),
-      forceArchetype: z.enum(["educational", "promo", "behind_scenes", "testimonial", "meme", "tips", "showcase"]).optional().describe("Force a content archetype angle for the generated post."),
-    }),
-    execute: async ({ dryRun, forceArchetype }) => {
-      // Q-13: the IG control route, behind its own key and never retried (see
-      // lib/nickstire/ig-control.ts). The sync-key query bridge cannot post.
-      const { controlNickIg } = await import("@/lib/nickstire/ig-control");
-      // Dry-runs are side-effect-free. For LIVE publishes, guard against a
-      // re-run of this turn (auto-regen / retry / best-of-2) publishing a SECOND
-      // public post. Fixed key (content is generated fresh each run) + 15-min window.
-      if (dryRun) {
-        return controlNickIg("autopost_run", { dryRun, forceArchetype });
-      }
-      const { withToolIdempotency } = await import("./tool-idempotency");
-      return withToolIdempotency<
-        Awaited<ReturnType<typeof controlNickIg>> | { deduped: boolean; status: string; message: string }
-      >(
-        `triggerInstagramAutopost:live${forceArchetype ? `:${forceArchetype}` : ""}`,
-        15 * 60_000,
-        () => controlNickIg("autopost_run", { dryRun, forceArchetype }),
-        () => ({
-          deduped: true,
-          status: "skipped",
-          message: "A live Instagram autopost was already triggered in the last 15 minutes — not re-posted (duplicate-guard).",
-        }),
-        (r) => !((r as { error?: unknown })?.error), // controlNickIg returns {error} (no throw) on failure — release then
-        {
-          // A timeout or dropped reply may still end in a public post on the
-          // shop side: hold the claim as "unknown" instead of releasing it, so
-          // a re-run inside the window cannot publish a second post.
-          classifyResult: (r) =>
-            (r as { outcomeUnknown?: boolean })?.outcomeUnknown
-              ? "unknown"
-              : (r as { error?: unknown })?.error
-                ? "known_failure"
-                : "success",
-        },
-      );
-    },
-  }),
-
-  getInstagramAutopostStatus: tool({
-    description: "Get the current status of the Instagram/Facebook autopost system, including the active configuration and a history of the 5 most recent posts (statuses, scores, captions, errors, and image URLs).",
-    inputSchema: z.object({}),
-    execute: async () => {
-      const { queryNick } = await import("@/lib/nickstire/query");
-      const result = await queryNick("instagram_autopost_status");
-      return result;
-    },
-  }),
-
-  setInstagramAutopostConfig: tool({
-    description: "Enable or disable the global Instagram/Facebook live autoposter configuration.",
-    inputSchema: z.object({
-      enabled: z.boolean().describe("Set to true to allow scheduled live autoposting, or false to restrict to dry-runs only."),
-    }),
-    execute: async ({ enabled }) => {
-      const { controlNickIg } = await import("@/lib/nickstire/ig-control");
-      const result = await controlNickIg("autopost_set_config", { enabled });
-      return result;
     },
   }),
 

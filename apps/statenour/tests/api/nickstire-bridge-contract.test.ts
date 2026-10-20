@@ -76,6 +76,23 @@ beforeEach(() => {
   processShopEvent.mockReset().mockResolvedValue({ processed: true, actions: [] });
 });
 
+// Literal expectations (NOT computed by the scrubber): what each fixture event may leave in the audit row.
+const STORED_PAYLOAD: Record<string, Record<string, unknown>> = {
+  "nickstire:booking": { bookingId: 9001, service: "Brake inspection", vehicle: "2015 Test Sedan", urgency: "normal", refCode: "TEST01" },
+  "nickstire:booking:complete": { bookingId: 9002, service: "Tire rotation", invoiceNumber: null, totalAmount: null },
+  "nickstire:lead": { leadId: 9003, source: "web", urgencyScore: 3, interest: "Wheel alignment" },
+  "nickstire:tire_order": { orderNumber: "TO-TEST-1", tire: "4x TestBrand All Season", totalAmount: 612 },
+  "nickstire:invoice": { invoiceNumber: "INV-TEST-2", totalAmount: 389.99, source: "booking" },
+  // Sentence keys (reason, description, reviewText, symptom, problem) are customer-written and are not stored.
+  "nickstire:estimate": { kind: null, vehicle: "2012 Test Coupe", service: null, issueCount: 2, source: "ai_labor_estimate", estimateLow: 180, estimateHigh: 320, workOrderId: null, orderNumber: null },
+  "nickstire:callback": {},
+  "nickstire:review": { rating: 2 },
+  "nickstire:revenue": { kind: "invoice_paid", invoiceNumber: "INV-TEST-3", totalAmount: 250, method: "card" },
+  "nickstire:stage-change": { bookingId: 9004, stage: "in_progress", refCode: "TEST02" },
+  "nickstire:campaign-result": { campaignId: 77, sent: 10, failed: 1, campaignType: "reminder" },
+  "nickstire:emergency": { urgency: "high" },
+  "nickstire:work_order:status": { workOrderId: "WO-TEST-1", orderNumber: "WO-1001", fromStatus: "approved", toStatus: "in_progress", service: "Oil change" },
+};
 const cases = fixture.events.map(e => [e.type, e] as const);
 
 describe("webhooks/nickstire renders the fields the bridge actually sends", () => {
@@ -128,10 +145,11 @@ describe("sync/events stores, alerts and pipes the fields the bridge actually se
     const res = await post(syncPOST, "/api/sync/events", entry.type, entry.data);
     expect(res.status).toBe(200);
 
-    // Every bridge event lands as an audit row carrying the payload verbatim.
+    // Every bridge event lands as an audit row carrying the payload minus customer identity.
     expect(auditCreate).toHaveBeenCalledTimes(1);
     expect(auditCreate.mock.calls[0][0].data.eventType).toBe(entry.type);
-    expect(auditCreate.mock.calls[0][0].data.payload).toEqual(entry.data);
+    expect(auditCreate.mock.calls[0][0].data.payload, "stored payload = the literal expected projection").toEqual(STORED_PAYLOAD[entry.type]);
+    expect(JSON.stringify(auditCreate.mock.calls[0][0].data.payload)).not.toMatch(/Test Customer|Test Reviewer|21655501\d\d/);
 
     const bodies = recordCoachEvent.mock.calls.map(c => String(c[0].body));
     if (entry.statenour.coachEvent === null) {

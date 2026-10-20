@@ -25,10 +25,10 @@ describe("summarizeTrustTallies", () => {
 
   it("computes the rate and clears the bar at a strong record", () => {
     const rows = summarizeTrustTallies([
-      { actionType: "archive_mission", approval: "approved", count: 9 },
-      { actionType: "archive_mission", approval: "rejected", count: 1 },
+      { actionType: "commit_journal", approval: "approved", count: 9 },
+      { actionType: "commit_journal", approval: "rejected", count: 1 },
     ]);
-    const row = rows.find((r) => r.actionType === "archive_mission");
+    const row = rows.find((r) => r.actionType === "commit_journal");
     expect(row?.decided).toBe(10);
     expect(row?.acceptanceRate).toBeCloseTo(0.9);
     expect(row?.meetsBar).toBe(true);
@@ -81,8 +81,8 @@ describe("summarizeTrustTallies", () => {
   it("orders by verdict volume so the graded rungs read first", () => {
     const rows = summarizeTrustTallies([
       { actionType: "commit_journal", approval: "approved", count: 4 },
-      { actionType: "archive_mission", approval: "approved", count: 20 },
+      { actionType: "nudge_task", approval: "approved", count: 20 },
     ]);
-    expect(rows[0].actionType).toBe("archive_mission");
+    expect(rows[0].actionType).toBe("nudge_task");
   });
 });

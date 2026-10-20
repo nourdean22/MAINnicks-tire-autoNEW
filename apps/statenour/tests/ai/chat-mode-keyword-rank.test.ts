@@ -74,25 +74,28 @@ let SCORES: Record<string, number> = {};
  * alphabetically-LAST tools are the three most relevant, which is the inversion
  * the production defect could not express.
  */
-const FULL_BUSINESS_SCORES: Record<string, number> = {
+const BASE_BUSINESS_SCORES: Record<string, number> = {
   stageCustomerAlert: 0.95,
   queryNickstire: 0.92,
   getShopSnapshot: 0.9,
-  // 2026-09-19 · was 0.05, which made it the FOURTH-highest score. That was
-  // fine while the budget left exactly 3 tier-4 slots, and silently wrong the
-  // moment the CORE demotion freed more: at 5 slots it survived on merit and
-  // the test failed for a reason that was not a regression. Pinned to the
-  // LOWEST score so the claim — an alphabetically-early but IRRELEVANT tool
-  // loses its slot — holds at any slot count, instead of being re-tuned every
-  // time the guaranteed-tier list moves.
-  arsenalFindLeads: 0.001,
   compareLiveRevenue: 0.04,
   findCustomer: 0.02,
   getEstimateLeaks: 0.02,
   getHabitRevenueCorrelation: 0.01,
-  getPendingRevenueMoves: 0.01,
   getRevenueStats: 0.01,
 };
+
+// 2026-10-18 · the alphabetically-first family member is DERIVED, not named: the tool
+// this fixture used to pin (arsenalFindLeads) was removed, and any tool named here can
+// be pruned next. 2026-09-19 history: the early tool was once scored 0.05, the FOURTH
+// highest, which survived on merit when the CORE demotion freed more slots and failed
+// the test for a reason that was not a regression. It is pinned to the LOWEST score so
+// the claim — an alphabetically-early but IRRELEVANT tool loses its slot — holds at
+// any slot count and any catalog size.
+const EARLY_IRRELEVANT = Object.keys(BASE_BUSINESS_SCORES)
+  .filter((n) => TOOL_CATALOG.some((t) => (t as { name: string }).name === n))
+  .sort()[0];
+const FULL_BUSINESS_SCORES: Record<string, number> = { ...BASE_BUSINESS_SCORES, [EARLY_IRRELEVANT]: 0.001 };
 
 const EMBEDDING = [0.1, 0.2, 0.3];
 
@@ -223,7 +226,7 @@ describe("pruneTools · relevance survives the budget cliff", () => {
   it("baseline: with NO embedding the cut is alphabetical — the old behaviour", async () => {
     process.env.NICK_TOOL_BUDGET = TIGHT_BUDGET;
     const names = await offered(PROMPT);
-    expect(names).toContain("arsenalFindLeads"); // first alphabetically
+    expect(names).toContain(EARLY_IRRELEVANT); // first alphabetically
     expect(names).not.toContain("stageCustomerAlert"); // last alphabetically
   });
 
@@ -240,7 +243,7 @@ describe("pruneTools · relevance survives the budget cliff", () => {
       expect.arrayContaining(["stageCustomerAlert", "queryNickstire", "getShopSnapshot"]),
     );
     expect(names, "alphabetical-but-irrelevant tools must lose their slots").not.toContain(
-      "arsenalFindLeads",
+      EARLY_IRRELEVANT,
     );
   });
 
@@ -249,14 +252,14 @@ describe("pruneTools · relevance survives the budget cliff", () => {
     cacheWarm = false;
     SCORES = { stageCustomerAlert: 0.99 };
     const names = await offered(PROMPT, EMBEDDING);
-    expect(names).toContain("arsenalFindLeads");
+    expect(names).toContain(EARLY_IRRELEVANT);
     expect(names).not.toContain("stageCustomerAlert");
   });
 
   it("MEMBERSHIP IS UNCHANGED when the budget does not truncate", async () => {
     // The guarantee that makes this a performance fix and not a capability
     // change: ranking may reorder, but it may never add or remove a tool.
-    SCORES = { stageCustomerAlert: 0.99, arsenalFindLeads: 0.01 };
+    SCORES = { stageCustomerAlert: 0.99, [EARLY_IRRELEVANT]: 0.01 };
     const ranked = await offered(PROMPT, EMBEDDING);
     const plain = await offered(PROMPT);
     expect([...ranked].sort()).toEqual([...plain].sort());
@@ -285,7 +288,7 @@ describe("pruneTools · relevance survives the budget cliff", () => {
     expect(kept.rank).toBe(0);
     expect(kept.score).toBeCloseTo(0.95);
 
-    const cut = byName.get("arsenalFindLeads") as { rank?: number; verdict: string };
+    const cut = byName.get(EARLY_IRRELEVANT) as { rank?: number; verdict: string };
     expect(cut.verdict).toBe("BUDGETED_OUT");
     // How far past the cliff it sat — "just missed" vs "never close".
     expect(cut.rank).toBeGreaterThan(0);

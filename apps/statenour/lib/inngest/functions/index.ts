@@ -14,7 +14,6 @@ export { megaFanoutMorning, megaFanoutEvening } from "./mega-fanout";
 export { cronHeartbeat } from "./cron-heartbeat";
 export { operatorMorningBrief } from "./morning-brief";
 export { intelligenceIngest } from "./intelligence-ingest";
-export { customerPreferencesRecompute } from "./customer-preferences";
 export { goalPruner } from "./goal-pruner";
 export { goalDriftDetector } from "./goal-drift-detector";
 export {
@@ -26,8 +25,6 @@ export {
 // journal/entry.captured) — was fire-and-forget inside the capture
 // request, not guaranteed to run on serverless.
 export { journalFanout } from "./journal-fanout";
-// 2026-05-31 · revived feeder (was deleted in Wave AE; starved recallIndustryIntel).
-export { industryPull } from "./industry-pull";
 // 2026-06-03 · v-truth · event-driven proactivity (NICK_EVENT_TRIGGERS · fail-closed)
 export { nickEventTriggers } from "./event-triggers";
 // Gap 1: proactive-push cron runner
@@ -63,10 +60,6 @@ export { decisionPlaneShadow } from "./decision-plane-shadow";
 // nick-action/approved) · the daily 9am cron stays as backstop
 export { nickActionApproved } from "./nick-action-approved";
 
-// AG-44 · weekly publish→performance rollup (Meta Graph insights →
-// sourceMetadata.performance + BrainMemory content_winners → the
-// ghostwriter's RECENT WINNERS block)
-export { contentPerformanceWeekly } from "./content-performance";
 
 // 2026-08-05 · the benches, finally on the clock. run-quality-bench.ts said
 // "weekly cron is the intended cadence" since Phase 4 with no scheduler;

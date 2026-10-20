@@ -29,7 +29,7 @@ describe("cron trigger: x-cron-trigger-id", () => {
 
   it("runManifestCron passes it through to the route fetch", async () => {
     const anyRoute = (await import("@/config/crons")).CRONS.find(
-      (c) => c.mode !== "retired" && c.path && !c.name.startsWith("mega"),
+      (c) => c.mode === "active" && !c.inngest && !c.name.startsWith("mega"),
     );
     expect(anyRoute).toBeTruthy();
     await runManifestCron(anyRoute!.name, "heal:cmabc123def456ghi789jkl0");

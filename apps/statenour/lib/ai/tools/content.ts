@@ -1,9 +1,7 @@
 /**
  * Content generation tools — content + ai_analysis.
  *
- * Includes: generateImage · renderInlineChart · generateCode ·
- * generateSQL · summarize · analyzeSentiment · extractData ·
- * solveMath · writeCreative · analyzeImage.
+ * Includes: generateImage · summarize · writeCreative.
  *
  * v10.0.529.106 · Wave 82 · extracted from monolithic lib/ai/tools.ts.
  * Aggregate barrel: lib/ai/tools.ts re-exports nourTools composed from
@@ -67,83 +65,6 @@ export const contentTools = {
   // directly. Bad payloads degrade gracefully to a plain code block —
   // a hallucinated payload never breaks the message.
 
-  renderInlineChart: tool({
-    description:
-      "Render an inline chart in the chat reply. Use whenever Nour asks for a trend / distribution / comparison and the data fits a small (≤60 points) chart. Types: line (continuous over time), sparkline (compact line, no axes — for in-paragraph trend hints), bar (categorical comparison), pie (parts-of-whole, ≤8 slices). Returns markdown that includes a fenced ```chart code block — INCLUDE THE RETURNED MARKDOWN IN YOUR REPLY for it to render.",
-    inputSchema: z.object({
-      type: z.enum(["line", "bar", "sparkline", "pie"]),
-      data: z
-        .array(
-          z.object({
-            label: z.string().min(1).max(40).describe("X-axis label or slice name"),
-            value: z.number().describe("Y-axis value"),
-          }),
-        )
-        .min(1)
-        .max(60)
-        .describe("Data points. Pie: ≤8 slices is readable. Line/bar: ≤30 ideal."),
-      title: z.string().max(80).optional().describe("Optional chart title shown above"),
-      color: z
-        .enum(["gold", "emerald", "rose", "blue", "violet"])
-        .default("gold")
-        .describe("Accent color (pie chart auto-rotates a palette regardless)"),
-    }),
-    execute: async ({ type, data, title, color }) => {
-      const payload = JSON.stringify({ type, data, title, color });
-      // The fenced block IS the render trigger. Returning it as the
-      // tool output means Nick's reply markdown picks it up; the chat
-      // <pre> override (nick-message.tsx) parses + renders <InlineChart/>.
-      return {
-        markdown: `\n\`\`\`chart\n${payload}\n\`\`\`\n`,
-        // Plain summary for non-rendering contexts (search index,
-        // export to JSON, AgentTrace UI rendering when the chart isn't
-        // part of the visible reply).
-        summary: `${title ?? "chart"} · ${type} · ${data.length} point${data.length === 1 ? "" : "s"}`,
-      };
-    },
-  }),
-
-  generateSQL: tool({
-    description: "Convert a natural language question into a SQL query for the NOUR OS database",
-    inputSchema: z.object({
-      question: z.string().describe("Natural language question about the data"),
-    }),
-    execute: async ({ question }) => {
-      // wave-AO follow-up · audit #438 · was bare aiChat (bypassed budget).
-      // Migrated to tracedAiChat factory · same drop-in signature.
-      const { makeTracedAiChat } = await import("@/lib/ai/traced-aichat");
-      const aiChat = makeTracedAiChat("content-tool", "tool");
-      const result = await aiChat([
-        { role: "system", content: "You are a SQL expert. Convert the user's question into a PostgreSQL query. The database has tables: customers, jobs, leads, daily_scores, google_reviews, sms_logs, payment_records. Return only the SQL query." },
-        { role: "user", content: question },
-      ], "sql");
-      const down = await providerDown(result);
-      if (down) return down;
-      return { sql: result.content, model: result.model };
-    },
-  }),
-
-  generateCode: tool({
-    description: "Generate TypeScript/JavaScript code for a specific task",
-    inputSchema: z.object({
-      task: z.string().describe("What the code should do"),
-      language: z.enum(["typescript", "javascript", "python", "sql"]).default("typescript"),
-    }),
-    execute: async ({ task, language }) => {
-      // wave-AO follow-up · audit #438 · was bare aiChat (bypassed budget).
-      // Migrated to tracedAiChat factory · same drop-in signature.
-      const { makeTracedAiChat } = await import("@/lib/ai/traced-aichat");
-      const aiChat = makeTracedAiChat("content-tool", "tool");
-      const result = await aiChat([
-        { role: "system", content: `You are a ${language} code generator. Write clean, production-ready code. Return only the code.` },
-        { role: "user", content: task },
-      ], "code");
-      const down = await providerDown(result);
-      if (down) return down;
-      return { code: result.content, language, model: result.model };
-    },
-  }),
-
   summarize: tool({
     description: "Quickly summarize text, emails, documents, or chat threads",
     inputSchema: z.object({
@@ -163,67 +84,6 @@ export const contentTools = {
       const down = await providerDown(result);
       if (down) return down;
       return { summary: result.content, model: result.model };
-    },
-  }),
-
-  analyzeSentiment: tool({
-    description: "Analyze sentiment of customer messages, reviews, or feedback",
-    inputSchema: z.object({
-      text: z.string().describe("Text to analyze"),
-    }),
-    execute: async ({ text }) => {
-      // wave-AO follow-up · audit #438 · was bare aiChat (bypassed budget).
-      // Migrated to tracedAiChat factory · same drop-in signature.
-      const { makeTracedAiChat } = await import("@/lib/ai/traced-aichat");
-      const aiChat = makeTracedAiChat("content-tool", "tool");
-      const result = await aiChat([
-        { role: "system", content: 'Classify the sentiment as POSITIVE, NEGATIVE, or NEUTRAL. Reply in format: SENTIMENT: [value]\nREASON: [brief reason]' },
-        { role: "user", content: text },
-      ], "classify");
-      const down = await providerDown(result);
-      if (down) return down;
-      return { analysis: result.content, model: result.model };
-    },
-  }),
-
-  extractData: tool({
-    description: "Extract structured data from unstructured text (prices, names, services, dates)",
-    inputSchema: z.object({
-      text: z.string().describe("Text to extract from"),
-      fields: z.array(z.string()).describe("What to extract, e.g. ['prices', 'services', 'dates']"),
-    }),
-    execute: async ({ text, fields }) => {
-      // wave-AO follow-up · audit #438 · was bare aiChat (bypassed budget).
-      // Migrated to tracedAiChat factory · same drop-in signature.
-      const { makeTracedAiChat } = await import("@/lib/ai/traced-aichat");
-      const aiChat = makeTracedAiChat("content-tool", "tool");
-      const result = await aiChat([
-        { role: "system", content: `Extract these fields from the text: ${fields.join(", ")}. Return as structured key-value pairs.` },
-        { role: "user", content: text },
-      ], "extract");
-      const down = await providerDown(result);
-      if (down) return down;
-      return { extracted: result.content, model: result.model };
-    },
-  }),
-
-  solveMath: tool({
-    description: "Solve math problems, financial calculations, pricing, margins, ROI",
-    inputSchema: z.object({
-      problem: z.string().describe("The math problem or financial calculation"),
-    }),
-    execute: async ({ problem }) => {
-      // wave-AO follow-up · audit #438 · was bare aiChat (bypassed budget).
-      // Migrated to tracedAiChat factory · same drop-in signature.
-      const { makeTracedAiChat } = await import("@/lib/ai/traced-aichat");
-      const aiChat = makeTracedAiChat("content-tool", "tool");
-      const result = await aiChat([
-        { role: "system", content: "You are a math expert. Solve the problem step by step, then give the final answer." },
-        { role: "user", content: problem },
-      ], "math");
-      const down = await providerDown(result);
-      if (down) return down;
-      return { answer: result.content, model: result.model };
     },
   }),
 
@@ -255,35 +115,5 @@ export const contentTools = {
   // respondToLead, scoreLead, getLeadPipeline, getTodayRevenue,
   // getRevenueComparison, getRevenueAlerts, getDailyRevSnapshot,
   // getTechPerformance, processVoiceNote, getDailyClose, getStaffReport.
-
-  // ═══ HERCULES EXPANSION TOOLS ═══
-
-  analyzeImage: tool({
-    description: "Analyze an image — ALG screenshots, tire damage photos, receipts, competitor ads, shop photos. Extracts text (OCR), identifies objects, reads invoices/estimates. Send the image in the chat message, then call this tool to process it.",
-    inputSchema: z.object({
-      imageContext: z.string().describe("What is this image? E.g., 'ALG invoice screenshot', 'tire damage photo', 'competitor ad', 'receipt'"),
-      extractNumbers: z.boolean().optional().describe("Try to extract dollar amounts, counts, dates from the image"),
-    }),
-    execute: async ({ imageContext, extractNumbers }) => {
-      // The actual image processing happens at the model level via multimodal messages
-      // This tool acts as a directive for the AI to focus its analysis
-      return {
-        instruction: "Analyze the most recent image in the conversation with this context.",
-        context: imageContext,
-        extractNumbers: extractNumbers ?? true,
-        guidelines: [
-          "If ALG screenshot: extract invoice numbers, amounts, customer names, services, dates",
-          "If tire photo: assess damage severity, recommend repair vs replace, estimate urgency",
-          "If receipt: extract line items, totals, taxes, payment method",
-          "If competitor ad: extract pricing, services offered, phone number, location",
-          "Always provide structured data when possible (not just description)",
-        ],
-      };
-    },
-  }),
-
-  // ═══════════════════════════════════════════════════════════
-  // QUICK COMMANDS — Common Nour requests as one-tap tools
-  // ═══════════════════════════════════════════════════════════
 
 };

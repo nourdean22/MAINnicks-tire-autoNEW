@@ -41,18 +41,12 @@ import { APPROVAL_DEDUPE_WINDOW_MS, samePayload } from "@/lib/tools/approval-mat
 
 const log = rootLogger.withSurface("tools/two-key");
 
-export const TWO_KEY_REASON =
-  "An irreversible customer-facing send needs a second key: the owner approves this exact call (two-key rule).";
 export const DEVICE_TWO_KEY_REASON =
   "A device command that unlocks, disarms or sends raw codes needs a second key: the owner approves this exact call (two-key rule).";
 export const CRITICAL_RISK_REASON =
   "A critical-risk tool needs a second key: the owner approves this exact call before it runs (critical-risk rule).";
 const APPROVAL_TTL_MS = 24 * 60 * 60 * 1000;
 
-const SEND_GUIDANCE =
-  "This would publish or send to customers and cannot be undone, so it was NOT performed. It is waiting for Nour's approval in the approvals queue (System > Actions); approving it there runs it once. Say so plainly; do not retry it in this turn and never claim it happened. A dry run needs no approval.";
-const AUTOPOST_ON_GUIDANCE =
-  "This would switch the Instagram/Facebook autoposter to LIVE, so every scheduled post after it goes out to the public with no one checking it. It was NOT performed. It is waiting for Nour's approval in the approvals queue (System > Actions); approving it there runs it once. Say so plainly; do not retry it in this turn and never claim it happened. Turning the autoposter off needs no approval.";
 const DEVICE_GUIDANCE =
   "This device command unlocks, disarms or sends raw codes to a physical device, so it was NOT sent. It is waiting for Nour's approval in the approvals queue (System > Actions); approving it there sends it once. Say so plainly; do not retry it in this turn and never claim it happened.";
 const CRITICAL_GUIDANCE =
@@ -68,18 +62,6 @@ type SecondKeyRule = { held: (args: unknown) => boolean; reason: string; guidanc
  * fails closed on the argument: only an explicit, known-safe value skips it.
  */
 const SECOND_KEY_CALLS: Record<string, SecondKeyRule> = {
-  // Anything but an explicit dryRun === true is live.
-  triggerInstagramAutopost: {
-    held: (args) => (args as { dryRun?: unknown } | null)?.dryRun !== true,
-    reason: TWO_KEY_REASON,
-    guidance: SEND_GUIDANCE,
-  },
-  // Anything but an explicit enabled === false turns live autoposting on.
-  setInstagramAutopostConfig: {
-    held: (args) => (args as { enabled?: unknown } | null)?.enabled !== false,
-    reason: TWO_KEY_REASON,
-    guidance: AUTOPOST_ON_GUIDANCE,
-  },
   // Case and padding never matter; a command that is not a string cannot be
   // shown to be one of the everyday verbs, so it is held too.
   runDeviceCommand: {

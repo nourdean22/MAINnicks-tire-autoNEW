@@ -260,7 +260,7 @@ string.
 |-------------------------|------------------------------------------------------------------|-------------------------------------------------|
 | `conversation_summary`  | `summarizeAndStoreConversation` (post chat-turn, 4+ msgs)        | `contextual-recall`, `conversation-recall`, cross-session-thread |
 | `nick_quality`          | `persist-assistant-turn.ts` output critic                        | `/admin/chat-quality` dashboard                 |
-| `anti_pattern`          | `autoPromoteFailedDecisions` (nightly) + manual                  | `surfaceAntiPatterns` tool, `/system/anti-patterns` |
+| `anti_pattern`          | `autoPromoteFailedDecisions` (nightly) + manual                  | (the surfacing chat tool was removed 2026-10-18) |
 | `wisdom`                | `promoteToWisdom` (nightly) + `skill_ingestion` (manual packs)   | `contextual-recall` (3 reserved slots/turn)     |
 | `identity_snapshot`     | `refresh-identity` cron + `runPeopleIntelligence`                | `dailyPulse`, `decisionPreFlight`               |
 | `reply_judgment`        | `judgeReplyAsync` (post-stream async)                            | `/admin/chat-quality` + daily eval harness      |

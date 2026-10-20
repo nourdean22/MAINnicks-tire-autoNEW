@@ -1,7 +1,7 @@
 /**
  * Meta tools — introspection + sandboxed exec + browser automation.
  *
- * Includes: listTools · toolHealth · getCronStatus · runCode ·
+ * Includes: toolHealth · getCronStatus · runCode ·
  * runPython · browser_*. The "tools about tools" + things that don't
  * fit elsewhere.
  *
@@ -149,20 +149,6 @@ globalThis.api = Object.freeze({
 }
 
 export const metaTools = {
-  listTools: tool({
-    description: "List all available tools organized by category. Use when Nour asks 'what can you do?' or 'show me your tools' or 'what tools do you have?'",
-    inputSchema: z.object({
-      category: z.string().optional().describe("Filter by a tool-catalog category; an unknown value returns every category"),
-    }),
-    execute: async ({ category }) => {
-      // Derived from the catalog (audit 03-F17): a hand-kept list showed 48 tools while claiming all.
-      const { TOOL_COUNT, catalogSummary, toolNamesByCategory } = await import("@/lib/ai/tools/catalog");
-      const categories = catalogSummary().map((c) => ({ ...c, tools: toolNamesByCategory(c.category) }));
-      const hit = categories.find((c) => c.category === category);
-      if (hit) return hit;
-      return { totalTools: TOOL_COUNT, categories };
-    },
-  }),
 
   toolHealth: tool({
     description: "Check the health of Nick's tools and their dependencies. Shows which tools are operational, degraded, or down. Use when Nour asks about system health, tool status, or 'is everything working?'",
@@ -342,7 +328,7 @@ export const metaTools = {
 
   browser_do: tool({
     description:
-      "LOW-LEVEL: start a live cloud browser session (headless Chrome) and return its id + live-view URL — you then drive it manually with browser_navigate/browser_act/browser_extract. For complete tasks ('go check X online', 'pull data from Z') PREFER browseAndDo, which runs the whole workflow in one call. Use this only for surgical multi-tool control or debugging.",
+      "LOW-LEVEL: start a live cloud browser session (headless Chrome) and return its id + live-view URL — you then drive it manually with browser_navigate. For complete tasks ('go check X online', 'pull data from Z') PREFER browseAndDo, which runs the whole workflow in one call. Use this only for surgical multi-tool control or debugging.",
     inputSchema: z.object({
       goal: z
         .string()
@@ -386,7 +372,7 @@ export const metaTools = {
         },
         nextSteps: [
           "Open liveViewUrl to watch Nick navigate in real time.",
-          "Then: call browser_navigate to load a URL, browser_act to click/type, browser_extract to read structured data.",
+          "Then: call browser_navigate to load a URL.",
           "When done: DELETE /api/browser/session?id=<id> to release.",
         ],
       };
@@ -399,7 +385,7 @@ export const metaTools = {
   // dep isn't on disk yet.
   browser_navigate: tool({
     description:
-      "Navigate the active cloud browser session to a URL. Requires a sessionId from a prior browser_do call. Returns the final resolved URL + page title. Use this before browser_act or browser_extract when you need to reach a specific page.",
+      "Navigate the active cloud browser session to a URL. Requires a sessionId from a prior browser_do call. Returns the final resolved URL + page title. Use this to reach a specific page.",
     inputSchema: z.object({
       sessionId: z.string().min(6).describe("Session id from a prior browser_do call."),
       url: z.string().url().describe("Full URL to navigate to (including https://)."),
@@ -415,92 +401,6 @@ export const metaTools = {
         return { ok: false, code: res.code, error: res.error, hint: res.hint };
       }
       return { ok: true, ...res.data };
-    },
-  }),
-
-  // v11.1 G1 · browser_act — LLM-native DOM interaction. The
-  // instruction is parsed by Stagehand into a concrete click/type/
-  // select action. No selectors needed.
-  browser_act: tool({
-    description:
-      "Execute a natural-language action on the open session's current page: click a button, fill a form field, select an option. Stagehand plans the DOM interaction. Examples: 'click the Sign In button', 'type nour@bdnick.info into the email field', 'select Auto Repair from the category dropdown'.",
-    inputSchema: z.object({
-      sessionId: z.string().min(6).describe("Session id from a prior browser_do call."),
-      instruction: z
-        .string()
-        .min(4)
-        .describe("Plain-English description of the single action to perform. Keep it one action per call."),
-    }),
-    execute: async ({ sessionId, instruction }) => {
-      const { act } = await import("@/lib/integrations/stagehand");
-      const res = await act({ sessionId, instruction });
-      if (!res.ok) {
-        return { ok: false, code: res.code, error: res.error, hint: res.hint };
-      }
-      return { ok: true, ...res.data, instruction };
-    },
-  }),
-
-  // v11.1 G1 · browser_observe — reconnaissance pass. Asks Stagehand
-  // what's actionable on the current page. Useful before a blind
-  // browser_act when the agent doesn't know the page layout, and for
-  // debugging "why didn't the click work?" after a failed act.
-  browser_observe: tool({
-    description:
-      "Reconnaissance on the open session's current page. Returns a list of actionable elements (buttons, forms, links) with short descriptions. Use before browser_act when you're unsure what's clickable, or after a failed act to debug.",
-    inputSchema: z.object({
-      sessionId: z.string().min(6).describe("Session id from a prior browser_do call."),
-      instruction: z
-        .string()
-        .optional()
-        .describe("Optional hint to narrow the observation, e.g. 'find the login form'. Omit for a full page scan."),
-    }),
-    execute: async ({ sessionId, instruction }) => {
-      const { observe } = await import("@/lib/integrations/stagehand");
-      const res = await observe({ sessionId, instruction });
-      if (!res.ok) {
-        return { ok: false, code: res.code, error: res.error, hint: res.hint };
-      }
-      return {
-        ok: true,
-        count: res.data.length,
-        elements: res.data,
-      };
-    },
-  }),
-
-  // v11.1 G1 · browser_extract — structured extraction with a Zod
-  // schema. Stagehand uses the schema as the LLM response format so
-  // the return shape is guaranteed.
-  browser_extract: tool({
-    description:
-      "Pull structured data from the open session's current page. Provide an instruction (what to look for) plus a shape (fields + types). Returns a typed object. Use when Nour needs specific values read off a page — prices, dates, statuses, table rows.",
-    inputSchema: z.object({
-      sessionId: z.string().min(6).describe("Session id from a prior browser_do call."),
-      instruction: z
-        .string()
-        .min(4)
-        .describe("What to extract. Example: 'get the shipping price and delivery date'."),
-      fields: z
-        .record(z.string(), z.enum(["string", "number", "boolean"]))
-        .describe(
-          "Shape of the expected return: { fieldName: 'string'|'number'|'boolean' }. Example: { price: 'string', deliveryDate: 'string' }.",
-        ),
-    }),
-    execute: async ({ sessionId, instruction, fields }) => {
-      // Build a Zod schema from the fields map so Stagehand gets a real
-      // z.ZodType (its response-format plumbing requires it).
-      const shape: Record<string, z.ZodTypeAny> = {};
-      for (const [k, t] of Object.entries(fields)) {
-        shape[k] = t === "number" ? z.number() : t === "boolean" ? z.boolean() : z.string();
-      }
-      const schema = z.object(shape);
-      const { extract } = await import("@/lib/integrations/stagehand");
-      const res = await extract({ sessionId, instruction, schema });
-      if (!res.ok) {
-        return { ok: false, code: res.code, error: res.error, hint: res.hint };
-      }
-      return { ok: true, data: res.data, instruction };
     },
   }),
 
@@ -795,68 +695,6 @@ export const metaTools = {
     },
   }),
 
-  /**
-   * 2026-08-28 · WP3 · the producer for the agent follow-up lane.
-   *
-   * This is the ONLY way Nick can arrange to speak without being spoken
-   * to first, and it is intentionally hard to abuse: the scheduler
-   * refuses far more often than it accepts (feature switch OFF by
-   * default, untrusted-origin block, daily + per-thread caps, dedupe,
-   * minimum delay), and a scheduled follow-up can only WRITE A MESSAGE
-   * into this thread — never send SMS/email/Telegram, never call a tool,
-   * never chain another follow-up.
-   *
-   * Every refusal is returned verbatim to the model so it tells the
-   * operator the truth ("I could not schedule that because...") instead
-   * of claiming a reminder exists that does not. That is the same
-   * anti-fabrication contract the rest of this catalog follows.
-   *
-   * NAMED scheduleSelfFollowUp, NOT scheduleFollowUp. The latter is taken
-   * by lib/ai/tools/tasks.ts:959, which creates a CUSTOMER follow-up task
-   * in the Inbox mission — a completely different thing. metaTools spreads
-   * LAST in nourTools, so reusing the name would have silently overwritten
-   * that working tool and made it disappear with no error. Caught by
-   * catalog-integrity's count assertion, which is exactly what it is for.
-   */
-  scheduleSelfFollowUp: tool({
-    description:
-      "Schedule YOURSELF to follow up in this conversation later, without the operator messaging you first. Use for genuine 'check back on this' moments the operator would want unprompted (a deadline passing, an unanswered question). Returns a refusal you MUST report honestly if limits block it. Example: {\"instruction\":\"check whether the supplier replied about the Q3 order\",\"dedupeKey\":\"supplier-q3-reply\",\"reason\":\"operator asked to be nudged if no reply by Friday\",\"runAfterMinutes\":2880}",
-    inputSchema: z.object({
-      instruction: z.string().describe("What you should do when you wake up."),
-      dedupeKey: z
-        .string()
-        .describe("Stable slug for this follow-up; re-using it prevents duplicates."),
-      reason: z.string().describe("Why this follow-up is warranted — shown to the operator."),
-      runAfterMinutes: z
-        .number()
-        .int()
-        .positive()
-        .describe("Delay before firing, in minutes. Minimum 5."),
-    }),
-    execute: async ({ instruction, dedupeKey, reason, runAfterMinutes }) => {
-      const { currentTurn } = await import("@/lib/agent/turn-context");
-      const { scheduleFollowUp } = await import("@/lib/agent/follow-up");
-      const turn = currentTurn();
-      // Refuse rather than guess: posting into the wrong thread is worse
-      // than not posting at all.
-      if (!turn?.conversationId) {
-        return {
-          scheduled: false,
-          refusedBecause: "no-conversation",
-          reason:
-            "no persisted conversation for this turn — cannot schedule a follow-up. Tell the operator plainly.",
-        };
-      }
-      return await scheduleFollowUp({
-        conversationId: turn.conversationId,
-        instruction,
-        dedupeKey,
-        reason,
-        runAfterMs: runAfterMinutes * 60_000,
-        untrustedOrigin: turn.untrustedInput,
-        privateMode: turn.privateMode,
-      });
-    },
-  }),
+
 
 };

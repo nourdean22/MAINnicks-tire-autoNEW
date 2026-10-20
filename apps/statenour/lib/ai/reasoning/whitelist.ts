@@ -30,8 +30,6 @@ export const REASONING_TOOL_WHITELIST_ENTRIES = [
   "getGscTopQueries",
   "getMarketingAttribution",
   "getAttentionAlerts",
-  "getPendingRevenueMoves",
-  "pricingAdvisorySummary",
   "getCameraIntelligence",
   "findCustomer",
   // System reads (if any read-safe ones exist)

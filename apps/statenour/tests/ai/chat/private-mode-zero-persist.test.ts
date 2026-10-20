@@ -169,18 +169,18 @@ describe("invokeTool - the recovery lane writes no tool_telemetry row inside a p
   const invoke = async () => {
     const { metaTools } = await import("@/lib/ai/tools/meta");
     const run = metaTools.invokeTool.execute as (i: unknown, o: unknown) => Promise<Record<string, unknown>>;
-    return run({ name: "listTools", args: {} }, {});
+    return run({ name: "getTasks", args: {} }, {});
   };
 
   it("CONTROL - outside a private turn the proxied read runs and is recorded once", async () => {
     const res = await invoke();
-    expect(res.tool).toBe("listTools");
+    expect(res.tool).toBe("getTasks");
     expect(h.recordToolInvocation).toHaveBeenCalledTimes(1);
   });
 
   it("inside a private turn the proxied read still runs and nothing is recorded", async () => {
     const res = await withTurnContext({ privateMode: true }, () => invoke());
-    expect(res.tool, "the read is not refused, only unrecorded").toBe("listTools");
+    expect(res.tool, "the read is not refused, only unrecorded").toBe("getTasks");
     expect(h.recordToolInvocation).not.toHaveBeenCalled();
   });
 });

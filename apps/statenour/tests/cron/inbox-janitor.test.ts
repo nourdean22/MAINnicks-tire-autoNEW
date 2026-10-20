@@ -26,6 +26,8 @@ const { mockPrisma } = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/prisma", () => ({ prisma: mockPrisma }));
+const cancelExec = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/missions/durable-execution", () => ({ cancelMissionExecution: cancelExec }));
 vi.mock("@/lib/logger", () => ({
   logger: {
     withSurface: () => ({
@@ -47,6 +49,7 @@ const ctx = { params: Promise.resolve({}) };
 
 beforeEach(() => {
   vi.clearAllMocks();
+  cancelExec.mockReset().mockResolvedValue({ cancelRequested: true });
 });
 
 describe("cron/inbox-janitor", () => {
@@ -91,6 +94,9 @@ describe("cron/inbox-janitor", () => {
     expect(updateCall.where.id).toBe("inb1");
     expect(updateCall.data.deletedAt).toBeInstanceOf(Date);
     expect(updateCall.data.status).toBe("PAUSED");
+    await vi.waitFor(() => expect(cancelExec).toHaveBeenCalledWith("inb1"));
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(cancelExec).toHaveBeenCalledTimes(1);
   });
 
   it("does NOT archive an inbox that still has live tasks", async () => {
@@ -117,6 +123,43 @@ describe("cron/inbox-janitor", () => {
     )) as { archived: number };
     expect(r.archived).toBe(0);
     expect(mockPrisma.mission.update).not.toHaveBeenCalled();
+  });
+
+  // Codex P1 on PR 3181: the update's .catch swallowed the failure, then the run still cancelled the
+  // mission's durable execution and counted it archived. A mission that was not archived keeps running.
+  it("a failed archive update cancels nothing and is not counted", async () => {
+    mockPrisma.mission.findMany.mockResolvedValueOnce([
+      { id: "inb-fail", title: "Inbox - business", updatedAt: new Date("2026-04-01") },
+    ]);
+    mockPrisma.task.count.mockResolvedValueOnce(0);
+    mockPrisma.mission.update.mockRejectedValueOnce(new Error("db down"));
+    const r = (await (GET as unknown as (req: Request, ctx: unknown) => Promise<unknown>)(
+      baseReq,
+      ctx,
+    )) as { archived: number; archivedIds: string[] };
+    expect(r.archived).toBe(0);
+    expect(r.archivedIds).toEqual([]);
+    // The cancel is fire-and-forget behind a dynamic import: give it time to (wrongly) fire.
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(cancelExec).not.toHaveBeenCalled();
+  });
+
+  it("one failed update among two inboxes cancels and counts only the one that archived", async () => {
+    mockPrisma.mission.findMany.mockResolvedValueOnce([
+      { id: "i-bad", title: "Inbox - business", updatedAt: new Date("2026-04-01") },
+      { id: "i-ok", title: "Inbox - health", updatedAt: new Date("2026-04-01") },
+    ]);
+    mockPrisma.task.count.mockResolvedValueOnce(0).mockResolvedValueOnce(0);
+    mockPrisma.mission.update.mockRejectedValueOnce(new Error("db down")).mockResolvedValueOnce({});
+    const r = (await (GET as unknown as (req: Request, ctx: unknown) => Promise<unknown>)(
+      baseReq,
+      ctx,
+    )) as { archived: number; archivedIds: string[] };
+    expect(r.archived).toBe(1);
+    expect(r.archivedIds).toEqual(["i-ok"]);
+    await vi.waitFor(() => expect(cancelExec).toHaveBeenCalledWith("i-ok"));
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(cancelExec).toHaveBeenCalledTimes(1);
   });
 
   it("archives multiple inboxes in one run", async () => {

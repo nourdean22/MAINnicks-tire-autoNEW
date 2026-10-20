@@ -83,19 +83,26 @@ export const GET = cronHandler(async () => {
 
     // Soft-delete via the standard helper. Sets deletedAt + records
     // the actor (cron:inbox-janitor) per v7.8 universal-audit contract.
-    await prisma.mission
+    const didArchive = await prisma.mission
       .update({
         where: { id: inbox.id },
         data: { deletedAt: new Date(), status: "PAUSED" },
       })
+      .then(() => true)
       .catch((err) => {
         log.warn("archive_failed", {
           missionId: inbox.id,
           title: inbox.title,
           error: sanitizeError(err),
         });
-        return null;
+        return false;
       });
+    // A failed update leaves the mission ACTIVE: no cancel, no count.
+    if (!didArchive) continue;
+    // PAUSED stops a running durable execution. Loud, never fatal: the archive already committed.
+    void import("@/lib/missions/durable-execution")
+      .then(({ cancelMissionExecution }) => cancelMissionExecution(inbox.id))
+      .catch((err) => log.warn("durable_cancel_failed", { missionId: inbox.id, error: sanitizeError(err) }));
     archived += 1;
     archivedIds.push(inbox.id);
   }

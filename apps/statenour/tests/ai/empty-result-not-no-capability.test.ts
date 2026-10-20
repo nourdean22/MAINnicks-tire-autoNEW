@@ -79,7 +79,7 @@ describe("EMPTY RESULT rule · says the specific thing that went wrong", () => {
       "searchMemories",
       "searchColdMemory",
       "searchReflections",
-      "searchConversations",
+      "findRelatedConversations",
     ]) {
       expect(EMPTY_RESULT_IS_NOT_NO_CAPABILITY).toContain(advertised);
       expect(names.has(advertised)).toBe(true);

@@ -12,11 +12,12 @@
  * surgical edit at the executor, not here.
  *
  * Source signals ·
- *   1. `archive_mission`     · COMPLETE/KILLED missions w/ all-DONE tasks
- *   2. `nudge_task`          · DOING tasks past dueDate
- *   3. `commit_journal`      · yesterday's brain_dumps without a Journal entry
- *   4. `send_sms_outreach`   · today's top relationship pick from cache
- *   5. `reassign_task`       · stale INBOX tasks > 14d old in m-inbox
+ *   1. `nudge_task`          · DOING tasks past dueDate
+ *   2. `commit_journal`      · yesterday's brain_dumps without a Journal entry
+ *   3. `send_sms_outreach`   · today's top relationship pick from cache
+ *   4. `reassign_task`       · stale INBOX tasks > 14d old in m-inbox
+ *
+ * (2026-10-18: the archive-mission source was removed. Nour rejected 63 of 63 in 60 days.)
  *
  * Ranking · P0 (urgent / safety) > P1 (compounding) > P2 (hygiene).
  * Caps at 6 to keep the Telegram message scannable.
@@ -30,7 +31,6 @@ import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 export type NickActionType =
-  | "archive_mission"
   | "nudge_task"
   | "commit_journal"
   | "send_sms_outreach"
@@ -38,7 +38,6 @@ export type NickActionType =
   | "confirm_spend";
 
 export type NickActionTarget =
-  | "mission"
   | "task"
   | "person"
   | "brain_dump"
@@ -47,7 +46,7 @@ export type NickActionTarget =
 export type NickActionPriority = "P0" | "P1" | "P2";
 
 export interface NickActionDraft {
-  /** Stable rule slug for telemetry · "nick_action_archive_mission" etc. */
+  /** Stable rule slug for telemetry · "nick_action_nudge_task" etc. */
   ruleName: string;
   /** Human-readable "what triggered this" · 1 line. */
   trigger: string;
@@ -83,9 +82,8 @@ export async function proposeNickActions(
   today: string = new Date().toISOString().slice(0, 10),
 ): Promise<NickActionDraft[]> {
   // Each source is best-effort · one bad source must not blank the queue.
-  const [archives, nudges, journalCommits, outreach, reassigns] =
+  const [nudges, journalCommits, outreach, reassigns] =
     await Promise.all([
-      archiveMissionCandidates().catch(() => []),
       nudgeTaskCandidates().catch(() => []),
       commitJournalCandidates().catch(() => []),
       outreachCandidate(today).catch(() => []),
@@ -93,7 +91,6 @@ export async function proposeNickActions(
     ]);
 
   const all = [
-    ...archives,
     ...nudges,
     ...journalCommits,
     ...outreach,
@@ -116,56 +113,7 @@ export async function proposeNickActions(
   return reranked.slice(0, MAX_ACTIONS);
 }
 
-// ── Source 1: archive_mission ──────────────────────────────────────
-//
-// Mission rows where status=ACTIVE + every task is DONE/CANCELLED.
-// Operator-grade signal · the mission is done in practice but still
-// occupies a slot in the /missions list. Nick proposes to close it.
-
-async function archiveMissionCandidates(): Promise<NickActionDraft[]> {
-  const missions = await prisma.mission.findMany({
-    where: {
-      status: "ACTIVE",
-      deletedAt: null,
-    },
-    select: {
-      id: true,
-      title: true,
-      tasks: {
-        where: { deletedAt: null },
-        select: { id: true, status: true },
-      },
-    },
-    take: 30,
-  });
-
-  const drafts: NickActionDraft[] = [];
-
-  for (const m of missions) {
-    if (m.tasks.length === 0) continue; // skip empty missions
-    const allClosed = m.tasks.every(
-      (t) => t.status === "DONE" || t.status === "ARCHIVED",
-    );
-    if (!allClosed) continue;
-    drafts.push({
-      ruleName: "nick_action_archive_mission",
-      trigger: `mission "${m.title.slice(0, 60)}" · ${m.tasks.length} tasks all closed`,
-      actionType: "archive_mission",
-      targetType: "mission",
-      targetId: m.id,
-      payload: {
-        missionTitle: m.title,
-        closedTaskCount: m.tasks.length,
-      },
-      rationale: `All ${m.tasks.length} tasks closed · mission stays open until you say so`,
-      priority: "P2",
-    });
-  }
-
-  return drafts.slice(0, 2); // cap source contribution
-}
-
-// ── Source 2: nudge_task ───────────────────────────────────────────
+// ── Source 1: nudge_task ───────────────────────────────────────────
 //
 // DOING tasks whose dueDate is in the past. Either (a) move to DONE
 // because the operator forgot to close, or (b) split / re-plan. The
@@ -211,7 +159,7 @@ async function nudgeTaskCandidates(): Promise<NickActionDraft[]> {
   });
 }
 
-// ── Source 3: commit_journal ───────────────────────────────────────
+// ── Source 2: commit_journal ───────────────────────────────────────
 //
 // Yesterday's BrainDump rows that never got promoted to a Journal
 // entry. Operator dumped, intent was unclear at the time, but a 1-

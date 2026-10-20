@@ -2,7 +2,7 @@
  * proof:mega-rows - READ-ONLY: how many cron_job_log rows does ONE run produce?
  *
  *   railway run -s statenour-web -- pnpm proof:mega-rows
- *   railway run -s statenour-web -- pnpm proof:mega-rows -- --job=industry-pull --since=2026-09-17
+ *   railway run -s statenour-web -- pnpm proof:mega-rows -- --job=drift-check --since=2026-09-17
  *
  * The 2026-09-22 finding this script exists to re-check: every mega-fanout run
  * since the lifecycle middleware shipped had 5-6 rows under ONE Inngest run id

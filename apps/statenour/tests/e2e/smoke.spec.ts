@@ -12,7 +12,7 @@
  * suite is SERVED by `next dev` with AUTH_FORCE_MOCK=1 for the authenticated
  * session (mock auth is honored only under isDev, by design). No operator
  * secrets, no prod URL — the storageState variant against live bdnick.info
- * remains an optional operator-keyed extra. Locally: pnpm test:e2e.
+ * remains an optional operator-keyed extra. Locally: pnpm test:e2e (first run on a machine: pnpm test:e2e:install).
  *
  * 2026-07-28 CORRECTION — this header previously said the job runs
  * "BLOCKING" against `next build`/`next start`. Neither was true. It is
@@ -121,9 +121,8 @@ const API_ENDPOINTS = [
   { method: "GET", path: "/api/system/rate-limits", expectKeys: ["tone", "label", "providers"] },
   { method: "GET", path: "/api/trpc/system.costs?input=" + encodeURIComponent(JSON.stringify({ days: 7 })), expectKeys: ["result"] },
   // 2026-07-25 empty-tolerance (the header's own rule): on an empty DB
-  // /api/intel returns { ok, industry: [], generatedAt } and OMITS the
+  // /api/brain/wisdom OMITS the
   // data-dependent keys (proven in e2e run 6) — pin the structural shape.
-  { method: "GET", path: "/api/intel", expectKeys: ["ok", "industry", "generatedAt"] },
   { method: "GET", path: "/api/brain/wisdom", expectKeys: ["total", "totalRecalls", "groupings"] },
   { method: "GET", path: "/api/trpc/observability.osSnapshot", expectKeys: ["result"] },
 ];
