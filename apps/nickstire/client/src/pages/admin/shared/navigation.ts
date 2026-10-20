@@ -1,7 +1,7 @@
 /**
  * Shared admin cross-section navigation helpers (event-bus based).
  */
-import type { AdminSection } from "./types";
+import type { AdminSection, RetiredAdminSection } from "./types";
 
 // ─── EVENT PAYLOAD CONTRACTS ─────────────────────────────
 // 2026-07-04 maintainability audit: the `admin:navigate-section` and
@@ -12,7 +12,8 @@ import type { AdminSection } from "./types";
 // just a silent no-op at runtime. These are now the one source of truth;
 // listeners import them instead of re-declaring the shape.
 export interface AdminNavigateDetail {
-  section: AdminSection;
+  /** A retired id is fine: the registry listener maps it to its new section + tab. */
+  section: AdminSection | RetiredAdminSection;
 }
 export interface AdminOpenCustomerDrawerDetail {
   customerId: number;
@@ -36,7 +37,7 @@ export interface AdminOpenCustomerDrawerDetail {
  * receiver must land in the SAME change that reintroduces the option.
  */
 export function navigateToAdminSection(
-  section: AdminSection,
+  section: AdminSection | RetiredAdminSection,
   opts?: { settingsTab?: string },
 ) {
   if (typeof window === "undefined") return;

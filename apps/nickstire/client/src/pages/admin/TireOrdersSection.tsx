@@ -18,6 +18,7 @@ import {
 import GatewayPill from "@/components/admin/GatewayPill";
 import GatewayOrderPanel from "@/components/admin/GatewayOrderPanel";
 import KafeneLeasePanel from "@/components/admin/KafeneLeasePanel";
+import TireMarkupCard from "@/components/admin/TireMarkupCard";
 // 2026-06-10 cockpit consolidation · in-DOM confirm (window.confirm is
 // silently suppressed in the iOS PWA) for the cancel-with-refund guard
 // ported from the retired Money → Tire Orders tab.
@@ -510,6 +511,7 @@ export default function TireOrdersSection() {
           Refunds can be processed via the AUTO-REFUND buttons or from the Stripe dashboard.
         </p>
       </div>
+      <TireMarkupCard />
     </Section>
   );
 }

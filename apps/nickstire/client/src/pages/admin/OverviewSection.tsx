@@ -2,7 +2,6 @@ import DegradedDataBanner from "@/components/admin/DegradedDataBanner";
 import ClosedLoopLiftPanel from "./ClosedLoopLiftPanel";
 import SalesCard from "./SalesCard";
 import PromisesPanel from "./PromisesPanel";
-import InspectionCapturePanel from "./InspectionCapturePanel";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
 import { buildMessageCustomerHref } from "@/components/admin/MessageCustomerLink";
 import { getAdminActionableCounts } from "@/lib/adminActionableCounts";
@@ -24,7 +23,7 @@ import ChecksRail from "./today/ChecksRail";
 import ExceptionFeed from "./today/ExceptionFeed";
 import { MorningBrief } from "./today/MorningBrief";
 import { getQueueActionDefinition } from "./today/queueActions";
-import { QueueRow, type QueueVerdict } from "./today/QueueRow";
+import { QueueRow } from "./today/QueueRow";
 import type { ActionItem, BookingItem, CallbackItem, LeadItem, WorkOrderItem } from "./today/types";
 
 const ACTIVE_LEAD_STATUSES = new Set(["new", "contacted"]);
@@ -114,14 +113,8 @@ export default function OverviewSection() {
   const [doneRows, setDoneRows] = useState<ReadonlyMap<string, string>>(() => new Map());
   // The polite live region's text: "Done: <name>" when a row leaves the board.
   const [announcement, setAnnouncement] = useState("");
-  // Keep/Less verdicts marked on this screen this session, by row id. The store is the receipt log;
-  // this only lets a row show what was last marked on it.
-  const [verdicts, setVerdicts] = useState<ReadonlyMap<string, QueueVerdict>>(() => new Map());
   const { data: security } = trpc.adminSecurity.status.useQuery();
   const canViewHistory = security?.permissions.includes("reports.view") ?? false;
-  // queueFeedbackSummary resolves to security.manage (owner only): other roles still record verdicts
-  // (recordAction is open to them) but neither read nor see the count.
-  const canSeeFeedback = security?.permissions.includes("security.manage") ?? false;
   // Same derivation as the shell (Admin.tsx): the role decides where a work order can open.
   const adminRole = (security?.adminRole ?? "viewer") as AdminRole;
 
@@ -189,12 +182,6 @@ export default function OverviewSection() {
     { enabled: canViewHistory, refetchInterval: 60_000, refetchIntervalInBackground: false },
   );
 
-  const { data: feedback, isError: feedbackFailed } = trpc.adminSecurity.queueFeedbackSummary.useQuery(undefined, {
-    enabled: canSeeFeedback,
-    staleTime: 60_000,
-    refetchIntervalInBackground: false,
-  });
-
   const bookingUpdate = trpc.booking.updateStatus.useMutation();
   const leadUpdate = trpc.lead.update.useMutation();
   const callbackUpdate = trpc.callback.updateStatus.useMutation();
@@ -249,6 +236,7 @@ export default function OverviewSection() {
   const signals = useMemo(
     () =>
       buildAdminSignals({
+        role: security ? ((security.adminRole ?? "viewer") as AdminRole) : null,
         bundleFailed: isError,
         slices: bundle?.slices,
         counts: getAdminActionableCounts({ bookings, leads, callbacks }),
@@ -390,28 +378,6 @@ export default function OverviewSection() {
       changes,
     });
     toast.success(`${action.replace(/^admin\./, "").replace(/_/g, " ")} · ${result.reference}`);
-    utils.adminSecurity.recentActions.invalidate();
-  }
-
-  /**
-   * A Keep/Less verdict on a row. It is a receipt, not an action on the job: the row stays and nothing
-   * is confirmed. Never rejects; a failed write toasts and leaves the row without a verdict word.
-   */
-  async function markVerdict(item: ActionItem, verdict: QueueVerdict) {
-    try {
-      await recordAction.mutateAsync({
-        action: "admin.queue_feedback",
-        entityType: item.type,
-        entityId: item.entityId,
-        changes: { verdict, itemType: item.type, source: "today" },
-      });
-    } catch (feedbackError: unknown) {
-      toast.error(feedbackError instanceof Error ? feedbackError.message : "Could not record that");
-      return;
-    }
-    setVerdicts((prev) => new Map(prev).set(item.id, verdict));
-    toast.success(verdict === "keep" ? "Marked Keep" : "Marked Less");
-    utils.adminSecurity.queueFeedbackSummary.invalidate();
     utils.adminSecurity.recentActions.invalidate();
   }
 
@@ -592,20 +558,6 @@ export default function OverviewSection() {
     .filter(Boolean)
     .join(" · ");
 
-  // The Keep/Less count. A read that failed, has not answered, or reports itself unreadable is "not
-  // measured", never 0; only a readable store with no verdicts says "none yet". It is a measurement,
-  // not an open item, so it stays out of openChecks above.
-  const feedbackSince = feedback?.readable && feedback.since ? new Date(feedback.since) : null;
-  const feedbackSinceLabel =
-    feedbackSince && !Number.isNaN(feedbackSince.getTime())
-      ? feedbackSince.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/New_York" })
-      : null;
-  const feedbackLine =
-    feedbackFailed || !feedback?.readable || !Number.isFinite(feedback.total)
-      ? "not measured"
-      : feedback.total === 0
-        ? "none yet"
-        : `${feedback.total} marked${feedbackSinceLabel ? ` since ${feedbackSinceLabel}` : ""}`;
 
   if (isLoading) {
     return <div className="min-h-[50vh] flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
@@ -695,8 +647,6 @@ export default function OverviewSection() {
                   disabled={mutationPending}
                   onPrimary={guarded(performPrimary, item)}
                   onSecondary={guarded(performSecondary, item)}
-                  onVerdict={(verdict) => markVerdict(item, verdict)}
-                  verdict={verdicts.get(item.id)}
                   onGone={() => {
                     setDoneRows((prev) => new Map(prev).set(item.id, item.detail));
                     setAnnouncement(`Done: ${item.name}`);
@@ -763,9 +713,6 @@ export default function OverviewSection() {
             ones into the queue read on the Opportunities tab. */}
         <PromisesPanel />
 
-        {/* DVI capture (drop-off intake): findings + photos, publish, hand the customer the link. */}
-        <InspectionCapturePanel />
-
         {/* Automation lift (2026-07-29): the closedLoop A/B lift math, a slow-moving measurement. */}
         <ClosedLoopLiftPanel />
 
@@ -811,7 +758,6 @@ export default function OverviewSection() {
           </section>
         )}
 
-        {canSeeFeedback && <p className="text-[13px] text-muted-foreground">Keep/Less: {feedbackLine}</p>}
       </ChecksRail>
     </div>
   );

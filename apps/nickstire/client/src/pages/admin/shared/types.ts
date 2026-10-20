@@ -19,13 +19,22 @@ import type React from "react";
 // shopFloor query).
 export type AdminSection =
   | "overview" | "leads" | "content" | "customers"
-  | "campaigns" | "settings" | "revenue" | "callTrackingView"
-  | "trafficFunnel" | "voiceReceptionist" | "memberships" | "tireOrders"
-  | "opsHub" | "growth" | "intelligence" | "instagram" | "approvals"
-  | "opportunities" | "market" | "lot" | "shopMedia";
+  | "campaigns" | "settings" | "revenue"
+  | "voiceReceptionist" | "tireOrders"
+  | "opsHub" | "instagram" | "approvals"
+  | "lot" | "shopMedia";
 // 2026-10-18 · `shopMedia` added: the review gate for Nour's imported shop photos and
 // videos. Owner only: shopMedia.review is an unmapped mutation, which the server resolves
 // to security.manage (owner), so a manager would see a door that refuses every review.
+// 2026-10-19 · admin prune W1: these seven are no longer destinations. Each is a
+// tab of another section now (registry.tsx RETIRED_SECTIONS maps the old id and
+// every alias it owned): opportunities -> Sales Pipeline, callTrackingView ->
+// Voice, market + trafficFunnel -> Reports, growth -> Website & Local,
+// memberships + intelligence -> Customers. Old links, server-supplied targets
+// and history entries still carry these ids, so they stay typed.
+export type RetiredAdminSection =
+  | "opportunities" | "callTrackingView" | "market" | "trafficFunnel"
+  | "growth" | "memberships" | "intelligence";
 // 2026-09-09 · `lot` added. Camera visit truth (who is on the property, who is
 // waiting, which bays are occupied) is SHOP OPERATIONS, so it belongs in this
 // admin -- ADR-0017's product boundary puts owner-level summaries in StateNour

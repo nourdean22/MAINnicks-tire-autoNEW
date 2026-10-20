@@ -6,31 +6,41 @@
  *   - Owner Actions: the ops registry (what's dangerous, what's safe,
  *     what only the owner can do, exact next action per item)
  *   - Reports: the repo's audit/report corpus with paths
- *   - Message Previews: the five PREVIEW-ONLY customer confirmation
- *     templates (no send path exists)
+ *   - Search: the former Market section (owner/manager only)
+ *   - Traffic: the former Traffic to Revenue section (owner/manager only)
+ * Message Previews was cut 2026-10-19 (0 opens in 14 days; no send path exists).
  *
- * SAFETY: this section performs zero mutations. The only network calls
+ * SAFETY: Owner Actions, Reports and Search perform zero mutations. The
+ * Traffic tab (the former Traffic to Revenue section) can take two actions:
+ * draft SEO fix suggestions (seoTools.generateSeoFixDrafts) and submit the
+ * sitemaps to Google Search Console (seoTools.submitSitemaps). The rest
  * are read-only admin queries (payments.health booleans + rendered
  *  template previews). No fake numbers — anything unwired says so.
  */
-import { useState } from "react";
+import { lazy, Suspense } from "react";
 import {
-  ShieldAlert, FileText, MessageSquareText, AlertTriangle, CheckCircle2,
-  Wrench, ExternalLink, Loader2, Lock,
+  ShieldAlert, FileText, AlertTriangle, CheckCircle2,
+  Wrench, ExternalLink, Loader2, Lock, Search, TrendingUp,
 } from "lucide-react";
-import { Section, Panel, TabBar } from "./shared";
+import { Section, Panel, TabBar, useUrlFilter } from "./shared";
+import { innerTabsForRole, resolveInnerTab } from "./innerTabs";
+import type { AdminRole } from "@shared/adminPermissions";
 import { trpc } from "@/lib/trpc";
 import {
   OPS_REGISTRY, REPORT_DOCS, type OpsItem, type OpsStatus,
 } from "@/lib/opsRegistry";
 
-type HubTab = "actions" | "reports" | "messages";
+const MarketSection = lazy(() => import("./MarketSection"));
+const TrafficFunnelSection = lazy(() => import("./TrafficFunnelSection"));
 
-const HUB_TABS: { id: HubTab; label: string; icon: React.ReactNode }[] = [
+const HUB_TABS: { id: string; label: string; icon: React.ReactNode }[] = [
   { id: "actions", label: "Owner Actions", icon: <ShieldAlert className="w-3.5 h-3.5" /> },
   { id: "reports", label: "Reports", icon: <FileText className="w-3.5 h-3.5" /> },
-  { id: "messages", label: "Message Previews", icon: <MessageSquareText className="w-3.5 h-3.5" /> },
+  { id: "search", label: "Search", icon: <Search className="w-3.5 h-3.5" /> },
+  { id: "traffic", label: "Traffic", icon: <TrendingUp className="w-3.5 h-3.5" /> },
 ];
+
+const tabFallback = <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
 
 const STATUS_META: Record<OpsStatus, { label: string; cls: string }> = {
   done: { label: "DONE", cls: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" },
@@ -50,7 +60,17 @@ const RISK_CLS: Record<OpsItem["risk"], string> = {
 };
 
 export default function OpsHubSection() {
-  const [tab, setTab] = useState<HubTab>("actions");
+  // Role decides which tabs show (innerTabs.ts): Search and Traffic were
+  // owner/manager sections. A link to them for another role lands on Owner
+  // Actions. Until the role loads, only the unrestricted tabs show.
+  const { data: security, isError: securityFailed, fetchStatus: securityFetchStatus, refetch: refetchSecurity } =
+    trpc.adminSecurity.status.useQuery();
+  const role = (security?.adminRole ?? null) as AdminRole | null;
+  // A failed or paused (offline PWA) access read is unknown: say so, as Customers does.
+  const accessUnknown = !security && (securityFailed || securityFetchStatus === "paused");
+  const [requested, setTab] = useUrlFilter<string>("reportsTab", "actions");
+  const tab = resolveInnerTab("opsHub", requested, role) ?? "actions";
+  const visibleTabs = HUB_TABS.filter((t) => innerTabsForRole("opsHub", role).includes(t.id));
 
   // Live read-only health (booleans only) — annotates the Stripe/Sheets
   // registry cards with what's actually true right now in this deploy.
@@ -70,10 +90,22 @@ export default function OpsHubSection() {
   return (
     <Section
       title="Ops Hub"
-      subtitle="Reports, owner actions, and danger-zone truth. Read-only: nothing here sends, posts, refunds, or orders."
+      subtitle={tab === "traffic" ? "Traffic can take two actions: draft SEO fix suggestions, and submit the sitemaps to Google Search Console. Nothing else here sends, posts, refunds, or orders." : "Reports, owner actions, and danger-zone truth. Read-only: nothing here sends, posts, refunds, or orders."}
       icon={<Wrench className="w-5 h-5 text-primary" />}
     >
-      <TabBar tabs={HUB_TABS} activeTab={tab} onChange={setTab} variant="pill" size="compact" />
+      {accessUnknown && (
+        <div className="flex items-center gap-3 text-[13px] text-muted-foreground mb-3">
+          <span>Could not check your access.</span>
+          <button
+            type="button"
+            onClick={() => void refetchSecurity()}
+            className="min-h-12 min-w-12 px-4 rounded-md border border-border/40 text-foreground/85"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+      <TabBar tabs={visibleTabs} activeTab={tab} onChange={setTab} variant="pill" size="compact" />
 
       {tab === "actions" && (
         <div className="space-y-5 mt-4">
@@ -107,7 +139,8 @@ export default function OpsHubSection() {
         </div>
       )}
 
-      {tab === "messages" && <MessagePreviews />}
+      {tab === "search" && <div className="mt-4"><Suspense fallback={tabFallback}><MarketSection /></Suspense></div>}
+      {tab === "traffic" && <div className="mt-4"><Suspense fallback={tabFallback}><TrafficFunnelSection /></Suspense></div>}
     </Section>
   );
 }
@@ -178,45 +211,6 @@ function OpsCard({ item, health, healthUnknown }: {
           <span>verified {item.lastVerified}</span>
         </div>
       </div>
-    </div>
-  );
-}
-
-function MessagePreviews() {
-  const { data, isLoading } = trpc.nickActions.customerMessagePreviews.useQuery();
-
-  return (
-    <div className="space-y-4 mt-4">
-      <div className="border border-blue-500/40 bg-blue-500/10 rounded p-3 text-xs text-blue-200 flex items-start gap-2">
-        <MessageSquareText className="w-4 h-4 shrink-0 mt-0.5 text-blue-400" />
-        <span>
-          <strong>Preview only: customer messages are NOT being sent automatically.</strong>{" "}
-          No send path exists in the codebase (it throws by design). Enabling real
-          sends requires your approval of provider, cost, and this exact copy in a
-          dedicated PR. Rendered below against a sample order.
-        </span>
-      </div>
-
-      {isLoading ? (
-        <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
-      ) : !data ? (
-        <p className="text-xs text-muted-foreground">Previews unavailable: check the server logs.</p>
-      ) : (
-        data.map((t) => (
-          <Panel key={t.key} title={t.key.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase())} icon={<MessageSquareText className="w-4 h-4" />}>
-            <div className="space-y-2 mt-2 text-xs">
-              <div>
-                <span className="text-[10px] text-foreground/40 font-semibold">SMS ({t.sms.length} chars)</span>
-                <p className="bg-background/50 border border-border/30 rounded p-2 mt-1 text-foreground/80 whitespace-pre-wrap">{t.sms}</p>
-              </div>
-              <div>
-                <span className="text-[10px] text-foreground/40 font-semibold">Email · {t.emailSubject}</span>
-                <p className="bg-background/50 border border-border/30 rounded p-2 mt-1 text-foreground/80 whitespace-pre-wrap">{t.emailBody}</p>
-              </div>
-            </div>
-          </Panel>
-        ))
-      )}
     </div>
   );
 }

@@ -12,9 +12,7 @@ export type { AdminSection, BookingStatus, LeadStatus, NavGroup } from "./shared
 
 // ─── CONSTANTS ──────────────────────────────────────────
 export {
-  BOOKING_STATUS_CONFIG,
   LEAD_STATUS_CONFIG,
-  TIME_LABELS,
   CHART_COLORS,
   CHART_THEME,
   SECTION_TITLES,
@@ -55,8 +53,6 @@ export {
   KpiTile,
   UrgencyBadge,
   StatusDot,
-  ActivityIcon,
-  TimestampLabel,
 } from "./shared/cards";
 
 // ─── INSIGHT STRIPS ─────────────────────────────────────

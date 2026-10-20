@@ -11,7 +11,6 @@
  *   - `<SkeletonKpiGrid />`   → matches the OverviewSection 6-column KPI row
  *   - `<SkeletonRow />`       → matches a table row in DispatchSection / WorkOrders
  *   - `<SkeletonTable />`     → N rows of `SkeletonRow`
- *   - `<SkeletonChart />`     → matches the recharts container size
  *   - `<SkeletonPanel />`     → matches Panel from shared.tsx (header + body)
  *
  * Built 2026-05-07 (wave-82) addressing §9 of ADMIN_PROBLEMS_2026-05-05.md.
@@ -21,7 +20,7 @@
 import { Skeleton } from "@/components/ui/skeleton";
 
 /** A single stat-card placeholder matching `StatCard` from shared.tsx. */
-export function SkeletonStatCard({ tall = false }: { tall?: boolean }) {
+function SkeletonStatCard({ tall = false }: { tall?: boolean }) {
   return (
     <div
       role="status"
@@ -57,7 +56,7 @@ export function SkeletonKpiGrid({ cols = 6 }: { cols?: 4 | 5 | 6 }) {
 }
 
 /** Single table-row placeholder. */
-export function SkeletonRow({ cells = 4 }: { cells?: number }) {
+function SkeletonRow({ cells = 4 }: { cells?: number }) {
   return (
     <div role="status" aria-busy="true" className="flex items-center gap-3 px-3 py-2.5 border-b border-border/20">
       <span className="sr-only">Loading…</span>
@@ -96,30 +95,6 @@ export function SkeletonTable({ rows = 6, cells = 4 }: { rows?: number; cells?: 
   );
 }
 
-/** Recharts-sized chart placeholder. */
-export function SkeletonChart({ height = 240 }: { height?: number }) {
-  return (
-    <div
-      role="status"
-      aria-busy="true"
-      className="w-full bg-[var(--bg-card-raised)] ring-1 ring-[var(--ring-neutral)] rounded-[1rem] p-4 flex flex-col gap-3"
-      style={{ height }}
-    >
-      <span className="sr-only">Loading…</span>
-      <Skeleton aria-hidden="true" className="h-4 w-32 bg-foreground/12" />
-      <div className="flex-1 flex items-end gap-2" aria-hidden="true">
-        {Array.from({ length: 12 }).map((_, i) => (
-          <Skeleton
-            key={i}
-            className="flex-1 bg-foreground/8 rounded-t"
-            style={{ height: `${30 + ((i * 17) % 60)}%` }}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
 /** Panel wrapper skeleton — header + body. */
 export function SkeletonPanel({ rows = 4 }: { rows?: number }) {
   return (
@@ -141,24 +116,6 @@ export function SkeletonPanel({ rows = 4 }: { rows?: number }) {
           </div>
         ))}
       </div>
-    </div>
-  );
-}
-
-/**
- * Compound: full OverviewSection-shaped skeleton (KPI grid + 2 panels +
- * chart). Drop-in replacement for `<LoadingState label="Loading
- * dashboard..." />` in the OverviewSection's early-return.
- */
-export function SkeletonOverview() {
-  return (
-    <div className="space-y-6">
-      <SkeletonKpiGrid cols={6} />
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <SkeletonPanel rows={5} />
-        <SkeletonPanel rows={5} />
-      </div>
-      <SkeletonChart />
     </div>
   );
 }

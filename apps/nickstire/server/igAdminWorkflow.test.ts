@@ -227,13 +227,7 @@ describe("AI-generated content stops publishing itself", () => {
   });
 });
 
-describe("a permanent zero names its own cause", () => {
-  it("the From Intelligence counter distinguishes empty payload from unread", () => {
-    const ideas = read("client/src/pages/admin/content/AIIdeasEngine.tsx");
-    expect(ideas).toContain("intelligenceRead");
-    expect(ideas).toMatch(/payloads carry no topics/);
-  });
-});
+// 2026-10-19 admin prune W1: the client file this read was deleted with its surface (AI Ideas Engine cut).
 
 describe("the section name describes its job, without stranding links", () => {
   const registry = read("client/src/pages/admin/registry.tsx");

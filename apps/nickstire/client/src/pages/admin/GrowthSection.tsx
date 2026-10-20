@@ -1,4 +1,8 @@
 /**
+ * 2026-10-19 (admin prune W1): no longer a section. Its tabs render inside
+ * Website & Local (ContentSection, ?contentTab=local|qa|photos|entity|competitors);
+ * Review Replies was cut. The notes below describe the tabs.
+ *
  * GrowthSection — the operator surface for the GBP local-growth systems
  * (PR #50) and the social intelligence studios (PR #51).
  *
@@ -13,54 +17,23 @@
  * rows; the actual Google reply is always pasted by the owner in the
  * GBP app, then confirmed here with "Mark posted".
  */
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
-  TrendingUp, MapPin, Star, MessageCircleQuestion, Camera, Building2,
+  TrendingUp, Star, MessageCircleQuestion, Camera, Building2,
   Swords, Copy, Check, Loader2, AlertTriangle, CheckCircle2,
-  RefreshCw, Lock, Instagram, Activity,
+  Lock, Activity,
 } from "lucide-react";
-import { Section, Panel, ErrorState } from "./shared";
-import { navigateToAdminSection } from "./shared/navigation";
-import { TabBar } from "./shared/table";
+import { Panel, ErrorState } from "./shared";
 import { trpc } from "@/lib/trpc";
 import { GBP_QA_SEEDS } from "@/lib/gbpQaSeeds";
 import {
   weeklyPhotoQueue, PHOTO_SAFETY_RULES, UPLOAD_DESTINATION,
 } from "@/lib/gbpPhotoQueue";
 import { CANONICAL_IDENTITY, ENTITY_PLATFORMS, ENTITY_FIX_ORDER } from "@/lib/entityConsistency";
-import { checkReviewReply } from "@shared/reviewReplyQa";
 import {
   COMPETITORS, COMPETITOR_BASELINE_DATE, WEEKLY_CHECK_FIELDS, reviewVolumeGaps,
 } from "@/lib/competitorGbpMonitor";
 import { RANK_KEYWORDS } from "@/lib/localRankKeywords";
-
-type GrowthTab = "local" | "reviews" | "qa" | "photos" | "entity" | "competitors" | "instagram";
-
-/** One-time forward for the retired ?growthTab=instagram deep-link. */
-function InstagramMoved() {
-  useEffect(() => {
-    const timer = setTimeout(() => navigateToAdminSection("instagram"), 400);
-    return () => clearTimeout(timer);
-  }, []);
-  return (
-    <div className="text-center py-16 space-y-2">
-      <Instagram className="w-10 h-10 text-pink-400/50 mx-auto" />
-      <p className="text-sm font-medium">Instagram has its own section now</p>
-      <p className="text-xs text-muted-foreground">Taking you there…</p>
-    </div>
-  );
-}
-
-// Review Replies leads: it is the one tab with a daily backlog (drafts waiting, approved but not
-// marked posted). The rest are weekly checklists and read-outs. Tab ids and ?growthTab= are unchanged.
-const GROWTH_TABS: { id: GrowthTab; label: string; icon: React.ReactNode }[] = [
-  { id: "reviews", label: "Review Replies", icon: <Star className="w-3.5 h-3.5" /> },
-  { id: "local", label: "Local Growth", icon: <MapPin className="w-3.5 h-3.5" /> },
-  { id: "qa", label: "GBP Q&A", icon: <MessageCircleQuestion className="w-3.5 h-3.5" /> },
-  { id: "photos", label: "Photo Queue", icon: <Camera className="w-3.5 h-3.5" /> },
-  { id: "entity", label: "Entity / Brand", icon: <Building2 className="w-3.5 h-3.5" /> },
-  { id: "competitors", label: "Competitors", icon: <Swords className="w-3.5 h-3.5" /> },
-];
 
 type Mode = "read-only" | "copy-only" | "manual" | "db-only";
 const MODE_CLS: Record<Mode, string> = {
@@ -109,45 +82,9 @@ function Bool({ value, trueLabel, falseLabel, trueIsBad = false }: {
   );
 }
 
-export default function GrowthSection() {
-  // 2026-07-11 · honor ?growthTab= on mount (same convention as
-  // settingsTab/moneyTab) so deep-links — the /admin/ig-studio and
-  // /admin/reel-studio topbar redirects — land on the right inner tab
-  // instead of always defaulting to "local".
-  const [tab, setTab] = useState<GrowthTab>(() => {
-    if (typeof window === "undefined") return "reviews";
-    const raw = new URLSearchParams(window.location.search).get("growthTab");
-    const match = GROWTH_TABS.find((t) => t.id === raw);
-    return match ? match.id : "reviews";
-  });
-
-  return (
-    <Section
-      title="Growth"
-      subtitle="Local SEO + social systems. Nothing on this screen posts, sends, or edits anything outside this app: every external action is yours, labeled per card."
-      icon={<TrendingUp className="w-5 h-5 text-primary" />}
-    >
-      <TabBar tabs={GROWTH_TABS} activeTab={tab} onChange={setTab} variant="pill" size="compact" />
-      <div className="mt-4">
-        {tab === "local" && <LocalGrowthTab />}
-        {tab === "reviews" && <ReviewRepliesTab />}
-        {tab === "qa" && <GbpQaTab />}
-        {tab === "photos" && <PhotoQueueTab />}
-        {tab === "entity" && <EntityTab />}
-        {tab === "competitors" && <CompetitorsTab />}
-        {/* Instagram MOVED to its own top-level section (registry id "instagram").
-            Rendering it here as well would put one surface in two places — the
-            duplication disease this pass exists to remove. Anyone arriving via the
-            old ?growthTab=instagram deep-link is forwarded once to the real door. */}
-        {tab === "instagram" && <InstagramMoved />}
-      </div>
-    </Section>
-  );
-}
-
 /* ── Local Growth ─────────────────────────────────────────────── */
 
-function LocalGrowthTab() {
+export function LocalGrowthTab() {
   const { data: armed, isLoading: armedLoading } = trpc.localGrowth.automationArmedState.useQuery();
   const { data: health, isLoading: healthLoading } = trpc.localGrowth.reviewsHealth.useQuery();
 
@@ -229,7 +166,7 @@ function LocalGrowthTab() {
           <li>Post the GBP Q&A seeds (next tab over): ~15 min, highest local-SEO ROI.</li>
           <li>Shoot this week's 6 photos (Photo Queue tab) and upload to GBP.</li>
           <li>Work the Entity / Brand checklist top-to-bottom (GBP first).</li>
-          <li>Reply to draft reviews from the Review Replies tab, worst rating first, then Mark posted (copy → paste in GBP).</li>
+          <li>Reply on Google (Business Profile reviews), worst rating first.</li>
           <li>Once a week: log the Competitors tab numbers against the baseline.</li>
         </ol>
       </Panel>
@@ -320,289 +257,9 @@ function SocialPipelineHealth() {
   );
 }
 
-/* ── Review Replies ───────────────────────────────────────────── */
-
-type ReplyFilter = "draft" | "approved" | "skipped" | "posted" | "all";
-
-/** Row shape from reviewReplies.list — typed locally because the router
- *  returns a union of two drizzle selects, which breaks inference. */
-interface ReplyRow {
-  id: number;
-  reviewerName: string;
-  reviewRating: number;
-  reviewText: string | null;
-  draftReply: string | null;
-  finalReply: string | null;
-  status: string;
-}
-
-function ReviewRepliesTab() {
-  const [filter, setFilter] = useState<ReplyFilter>("draft");
-  const utils = trpc.useUtils();
-  const { data: stats, isError: statsError, fetchStatus: statsFetchStatus } = trpc.reviewReplies.stats.useQuery();
-  const { data: replies, isLoading, isError: repliesError, refetch: refetchReplies } = trpc.reviewReplies.list.useQuery(
-    filter === "all" ? { limit: 100 } : { status: filter, limit: 100 },
-  );
-  const invalidate = () => {
-    utils.reviewReplies.list.invalidate();
-    utils.reviewReplies.stats.invalidate();
-  };
-  const fetchNew = trpc.reviewReplies.fetchNewReviews.useMutation({ onSuccess: invalidate });
-  const approve = trpc.reviewReplies.approve.useMutation({ onSuccess: invalidate });
-  const skip = trpc.reviewReplies.skip.useMutation({ onSuccess: invalidate });
-  const markPosted = trpc.reviewReplies.markPosted.useMutation({ onSuccess: invalidate });
-  const updateDraft = trpc.reviewReplies.updateDraft.useMutation({ onSuccess: invalidate });
-  const busy = approve.isPending || skip.isPending || markPosted.isPending || updateDraft.isPending;
-  const mutationError = approve.error || markPosted.error || updateDraft.error;
-
-  const oldestApprovedDays = stats?.oldestApprovedAt
-    ? Math.floor((Date.now() - new Date(stats.oldestApprovedAt).getTime()) / 86_400_000)
-    : null;
-
-  return (
-    <div className="space-y-4">
-      <div className="border border-blue-500/40 bg-blue-500/10 rounded p-3 text-xs text-blue-200 flex items-start gap-2">
-        <Star className="w-4 h-4 shrink-0 mt-0.5 text-blue-400" />
-        <span>
-          <strong>Copy-only: nothing here posts to Google.</strong> The full loop:
-          edit the draft if needed → Approve → Copy → paste it on the review in
-          the Google Business app → then come back and tap <strong>Mark posted</strong>{" "}
-          so the backlog below stays honest. Every button only marks rows in our
-          database. Drafts are ordered worst rating first: handle the angry ones first.
-        </span>
-      </div>
-
-      {/* 2026-08-19 · drafts stall silently: prod had 7 drafts untouched
-          since 2026-08-11 and nothing surfaced them. Same copy-only safety
-          model — this banner only points at the queue below. */}
-      {stats && stats.draft > 0 && (
-        <div className="border border-sky-500/40 bg-sky-500/10 rounded p-3 text-xs text-sky-200 flex items-start gap-2">
-          <RefreshCw className="w-4 h-4 shrink-0 mt-0.5 text-sky-400" />
-          <span>
-            <strong>
-              {stats.draft} {stats.draft === 1 ? "draft reply is" : "draft replies are"} waiting for review
-            </strong>
-            . Worst ratings first: read, edit if needed, Approve, then copy into
-            the Google Business app.
-          </span>
-        </div>
-      )}
-
-      {stats && stats.approved > 0 && (
-        <div className="border border-amber-500/40 bg-amber-500/10 rounded p-3 text-xs text-amber-200 flex items-start gap-2">
-          <RefreshCw className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
-          <span>
-            <strong>
-              {stats.approved} approved {stats.approved === 1 ? "reply" : "replies"} not
-              marked posted yet
-            </strong>
-            {oldestApprovedDays !== null && oldestApprovedDays >= 1 && (
-              <>, oldest approved {oldestApprovedDays} {oldestApprovedDays === 1 ? "day" : "days"} ago</>
-            )}
-            . Next move: copy each one, paste it on the review in the Google Business
-            app, then tap "Mark posted". Already replied on Google? Just tap
-            "Mark posted". (Counts our DB state only, we can't see Google's side.)
-          </span>
-        </div>
-      )}
-
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div className="flex gap-1 flex-wrap">
-          {(["draft", "approved", "skipped", "posted", "all"] as ReplyFilter[]).map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`px-2 py-1 text-[10px] font-semibold rounded border transition-colors ${
-                filter === f
-                  ? "bg-primary/15 text-primary border-primary/40"
-                  : "text-foreground/50 border-border/30 hover:text-foreground/80"
-              }`}
-            >
-              {f.toUpperCase()}
-              {stats && f !== "all" && (
-                <span className="ml-1 text-foreground/40">
-                  {f === "draft" ? stats.draft : f === "approved" ? stats.approved : f === "skipped" ? stats.skipped : stats.posted}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-        <button
-          onClick={() => fetchNew.mutate()}
-          disabled={fetchNew.isPending}
-          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-semibold rounded border border-border/40 text-foreground/70 hover:text-foreground hover:border-primary/40 transition-colors"
-        >
-          {fetchNew.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-          Fetch new reviews + draft replies
-        </button>
-      </div>
-      <p className="text-[10px] text-foreground/40 -mt-2">
-        "Fetch" reads Google reviews (read-only) and AI-drafts replies into OUR database.
-        It posts nothing.
-        {fetchNew.data && ` Last run: ${fetchNew.data.created} new draft(s) from ${fetchNew.data.total} reviews.`}
-        {fetchNew.error && " Last run failed: likely a missing Google key; see Reviews health on the Local Growth tab."}
-      </p>
-
-      {mutationError && (
-        <p className="text-[10px] text-red-400 leading-relaxed flex items-start gap-1">
-          <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />{mutationError.message}
-        </p>
-      )}
-
-      {(statsError || (!stats && statsFetchStatus === "paused")) && (
-        <p className="text-[11px] text-amber-400 leading-relaxed flex items-start gap-1">
-          <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />
-          {statsError ? "Reply counts couldn't load. The backlog is unknown, not zero." : "Reply counts not checked (offline). The backlog is unknown, not zero."}
-        </p>
-      )}
-
-      {isLoading ? (
-        <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
-      ) : repliesError || !replies ? (
-        <ErrorState message="Review replies couldn't load. The list is unknown, not empty." onRetry={() => void refetchReplies()} />
-      ) : !replies.length ? (
-        <p className="text-xs text-muted-foreground py-6 text-center">
-          No {filter === "all" ? "" : filter + " "}replies yet. Tap "Fetch new reviews" to pull
-          the latest Google reviews and generate drafts (the daily monitor also adds them).
-        </p>
-      ) : (
-        <div className="space-y-3">
-          {replies.map((r: ReplyRow) => (
-            <ReplyCard
-              key={r.id}
-              reply={r}
-              onApprove={() => approve.mutate({ id: r.id })}
-              onSkip={() => skip.mutate({ id: r.id })}
-              onMarkPosted={() => markPosted.mutate({ id: r.id })}
-              onSaveDraft={(draftReply) => updateDraft.mutateAsync({ id: r.id, draftReply })}
-              busy={busy}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ReplyCard({ reply, onApprove, onSkip, onMarkPosted, onSaveDraft, busy }: {
-  reply: ReplyRow;
-  onApprove: () => void; onSkip: () => void; onMarkPosted: () => void;
-  onSaveDraft: (text: string) => Promise<unknown>; busy: boolean;
-}) {
-  // iOS-PWA-safe two-tap confirm (window.confirm is suppressed in the PWA).
-  const [confirming, setConfirming] = useState<"approve" | "skip" | "posted" | null>(null);
-  // null = not editing; string = the in-progress edit text.
-  const [editText, setEditText] = useState<string | null>(null);
-  const text = reply.finalReply || reply.draftReply || "";
-  const isDraft = reply.status === "draft";
-  // Live claim-safety findings on whatever text would be approved.
-  const findings = isDraft ? checkReviewReply(editText ?? text) : [];
-  const blockers = findings.filter((f) => f.severity === "block");
-
-  return (
-    <div className="bg-background/40 border border-border/30 rounded p-3 space-y-2">
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-xs font-bold text-foreground">{reply.reviewerName}</span>
-        <span className="text-[10px] text-amber-400">{"★".repeat(reply.reviewRating)}{"☆".repeat(Math.max(0, 5 - reply.reviewRating))}</span>
-        <span className={`px-1.5 py-0.5 text-[9px] font-bold border rounded ${reply.status === "posted" ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/30" : "bg-foreground/5 text-foreground/50 border-border/20"}`}>{reply.status}</span>
-      </div>
-      {reply.reviewText && <p className="text-[11px] text-foreground/60 leading-relaxed">"{reply.reviewText}"</p>}
-      {editText !== null ? (
-        <div className="bg-background/60 border border-border/30 rounded p-2 space-y-1.5">
-          <span className="text-[9px] text-foreground/40 font-semibold">Edit reply draft</span>
-          <textarea
-            value={editText}
-            onChange={(e) => setEditText(e.target.value)}
-            rows={3}
-            maxLength={500}
-            aria-label="Edit reply draft"
-            placeholder="Edit reply draft..."
-            className="w-full bg-background/80 border border-border/40 rounded p-2 text-[11px] text-foreground/90 leading-relaxed focus:outline-none focus:border-primary/50"
-          />
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => {
-                if (!editText.trim()) return;
-                // Close the editor only AFTER the save lands — a failed save
-                // keeps the operator's typed text on screen (the error shows
-                // in the banner above) instead of silently discarding it.
-                onSaveDraft(editText.trim()).then(() => setEditText(null)).catch(() => {});
-              }}
-              disabled={busy || !editText.trim()}
-              className="px-2 py-1 text-[10px] font-semibold rounded border text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 transition-colors disabled:opacity-50"
-            >
-              Save draft
-            </button>
-            <button
-              onClick={() => setEditText(null)}
-              className="px-2 py-1 text-[10px] font-semibold rounded border text-foreground/50 border-border/30 hover:text-foreground/80 transition-colors"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      ) : text ? (
-        <div className="bg-background/60 border border-border/30 rounded p-2">
-          <span className="text-[9px] text-foreground/40 font-semibold">Reply draft</span>
-          <p className="text-[11px] text-foreground/80 leading-relaxed mt-0.5">{text}</p>
-        </div>
-      ) : null}
-      {findings.length > 0 && (
-        <div className="space-y-1">
-          {findings.map((f) => (
-            <p key={`${f.rule}-${f.match}`} className={`text-[10px] leading-relaxed flex items-start gap-1 ${f.severity === "block" ? "text-red-400" : "text-amber-400"}`}>
-              <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />
-              <span><strong>{f.severity === "block" ? "BLOCKED" : "CHECK"}</strong> · {f.rule} ("{f.match}") · {f.fix}</span>
-            </p>
-          ))}
-        </div>
-      )}
-      <div className="flex items-center gap-2 flex-wrap">
-        <CopyBtn text={text} label="Copy reply" />
-        {isDraft && editText === null && (
-          <>
-            <button
-              onClick={() => setEditText(reply.draftReply || "")}
-              disabled={busy}
-              className="px-2 py-1 text-[10px] font-semibold rounded border text-foreground/60 border-border/30 hover:text-foreground/90 hover:border-primary/40 transition-colors"
-            >
-              Edit
-            </button>
-            <button
-              onClick={() => (confirming === "approve" ? (onApprove(), setConfirming(null)) : setConfirming("approve"))}
-              disabled={busy || blockers.length > 0}
-              title={blockers.length > 0 ? "Fix the blocked wording first (Edit)" : undefined}
-              className={`px-2 py-1 text-[10px] font-semibold rounded border transition-colors disabled:opacity-50 ${confirming === "approve" ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/50" : "text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10"}`}
-            >
-              {blockers.length > 0 ? "Blocked: edit first" : confirming === "approve" ? "Tap again: marks DB only" : "Approve (DB only)"}
-            </button>
-            <button
-              onClick={() => (confirming === "skip" ? (onSkip(), setConfirming(null)) : setConfirming("skip"))}
-              disabled={busy}
-              className={`px-2 py-1 text-[10px] font-semibold rounded border transition-colors ${confirming === "skip" ? "bg-red-500/20 text-red-300 border-red-500/50" : "text-foreground/50 border-border/30 hover:text-foreground/80"}`}
-            >
-              {confirming === "skip" ? "Tap again to skip" : "Skip"}
-            </button>
-          </>
-        )}
-        {reply.status === "approved" && (
-          <button
-            onClick={() => (confirming === "posted" ? (onMarkPosted(), setConfirming(null)) : setConfirming("posted"))}
-            disabled={busy}
-            className={`px-2 py-1 text-[10px] font-semibold rounded border transition-colors ${confirming === "posted" ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/50" : "text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10"}`}
-          >
-            {confirming === "posted" ? "Tap again: confirms you pasted it" : "Mark posted (DB only)"}
-          </button>
-        )}
-        <ModeBadge mode="db-only" />
-      </div>
-    </div>
-  );
-}
-
 /* ── GBP Q&A ──────────────────────────────────────────────────── */
 
-function GbpQaTab() {
+export function GbpQaTab() {
   return (
     <div className="space-y-4">
       <div className="border border-purple-500/40 bg-purple-500/10 rounded p-3 text-xs text-purple-200 flex items-start gap-2">
@@ -638,7 +295,7 @@ function GbpQaTab() {
 
 /* ── Photo Queue ──────────────────────────────────────────────── */
 
-function PhotoQueueTab() {
+export function PhotoQueueTab() {
   // Deterministic week index (weeks since epoch) — same list all week,
   // rotates Monday-ish; the queue itself is a pure function of this number.
   const weekIndex = Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000));
@@ -683,7 +340,7 @@ function PhotoQueueTab() {
 
 /* ── Entity / Brand ───────────────────────────────────────────── */
 
-function EntityTab() {
+export function EntityTab() {
   return (
     <div className="space-y-4">
       <Panel title="Canonical identity (use EXACTLY this everywhere)" icon={<Building2 className="w-4 h-4" />}>
@@ -722,7 +379,7 @@ function EntityTab() {
 
 /* ── Competitors ──────────────────────────────────────────────── */
 
-function CompetitorsTab() {
+export function CompetitorsTab() {
   // Live Nick's review count (if reachable) powers the honest gap math.
   // When live data isn't reachable we say so — we never fake movement.
   const { data: health } = trpc.localGrowth.reviewsHealth.useQuery();

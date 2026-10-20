@@ -28,6 +28,8 @@ import {
 } from "@shared/adminSignal";
 
 import type { AdminActionableCounts } from "./adminActionableCounts";
+import type { AdminRole } from "@shared/adminPermissions";
+import { innerTabsForRole } from "@/pages/admin/innerTabs";
 
 /** Mirrors SliceStatus in server/services/adminBundle.ts. */
 export interface SliceState {
@@ -46,6 +48,8 @@ export interface BundleSlices {
 type SliceName = keyof BundleSlices;
 
 export interface AdminSignalInputs {
+  /** The viewer's role, when known: signals for a tab the role cannot open are dropped. */
+  role?: AdminRole | null;
   /** tRPC-level failure of adminDashboard.overviewMediumBundle. */
   bundleFailed: boolean;
   /** `undefined` until the first response lands. Distinguishes loading from empty. */
@@ -134,7 +138,7 @@ function bundleSignal(
 /**
  * Every signal the shell can produce from data it ALREADY has.
  *
- * Sections deliberately absent — `customers`, `growth`, `content`, `campaigns`,
+ * Sections deliberately absent — `growth`, `content`, `campaigns`,
  * `voiceReceptionist`, `opsHub`, `settings`, `intelligence`, `trafficFunnel` —
  * emit NO signal and therefore NO badge. That is the honest state: nothing
  * cheap that the shell already fetches measures them. The switch this replaced
@@ -145,6 +149,16 @@ function bundleSignal(
  * cost of each new poll is reviewed on its own.
  */
 export function buildAdminSignals(inputs: AdminSignalInputs): AdminSignal[] {
+  return buildAllSignals(inputs).filter((s) => signalVisibleToRole(s, inputs.role));
+}
+
+/** Membership warnings live on Customers > Members, which front_desk, tech and viewer cannot open. */
+function signalVisibleToRole(signal: AdminSignal, role: AdminRole | null | undefined): boolean {
+  if (signal.id !== "membership-warnings" || role === undefined) return true;
+  return innerTabsForRole("customers", role).includes("members");
+}
+
+function buildAllSignals(inputs: AdminSignalInputs): AdminSignal[] {
   const { counts } = inputs;
 
   const opsReading = reading({
@@ -208,16 +222,21 @@ export function buildAdminSignals(inputs: AdminSignalInputs): AdminSignal[] {
     bundleSignal("new-tire-orders", "tireOrders", "new tire orders", "stats", inputs.stats?.tires?.new, "warning", inputs, "tires.new"),
 
     // ── Nonstop Nick ───────────────────────────────────────────────────────
-    bundleSignal(
+    {
+      ...bundleSignal(
       "membership-warnings",
-      "memberships",
+      // Nonstop Nick is the Customers > Members tab since 2026-10-19.
+      "customers",
       "membership warnings",
       "stats",
       inputs.stats?.memberships?.warning,
       "warning",
       inputs,
       "memberships.warning",
-    ),
+      ),
+      // Nonstop Nick is Customers > Members since 2026-10-19: open that tab, not the list.
+      href: "/admin?tab=customers&customersTab=members",
+    },
 
     // ── Instagram ──────────────────────────────────────────────────────────
     {

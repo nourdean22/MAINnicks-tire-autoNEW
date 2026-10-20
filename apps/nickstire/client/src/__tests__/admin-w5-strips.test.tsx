@@ -54,7 +54,6 @@ vi.mock("@/pages/admin/outreach/SmsOpsStrip", () => ({ default: h.Null }));
 vi.mock("@/pages/admin/settings/SettingsStatusTab", () => ({ default: h.Null }));
 vi.mock("@/pages/admin/settings/SiteHealthSection", () => ({ default: h.Null }));
 vi.mock("@/pages/admin/settings/ComplianceSection", () => ({ default: h.Null }));
-vi.mock("@/pages/admin/settings/AlgProbeBudgetPanel", () => ({ default: h.Null }));
 vi.mock("@/pages/admin/settings/FeatureFlagsPanel", () => ({ default: h.Null }));
 vi.mock("@/pages/admin/settings/DeclinedRecoveryPanel", () => ({ default: h.Null }));
 vi.mock("@/pages/admin/shared/SectionInsightStrip", () => ({ default: h.Null, SectionInsightStrip: h.Null }));
@@ -72,7 +71,6 @@ vi.mock("@/pages/admin/instagram/ActionCenter", () => ({ default: h.Null }));
 vi.mock("@/pages/admin/instagram/Pipeline", () => ({ Pipeline: h.Null }));
 
 import OutreachHubSection from "@/pages/admin/OutreachHubSection";
-import GrowthSection from "@/pages/admin/GrowthSection";
 import SettingsSection from "@/pages/admin/SettingsSection";
 import IntegrationsSection from "@/pages/admin/settings/IntegrationsSection";
 import SmsOrchestratorSection from "@/pages/admin/outreach/SmsOrchestratorSection";
@@ -127,27 +125,6 @@ describe("Outreach strip", () => {
   });
 });
 
-describe("Growth strip", () => {
-  it("leads with the one tab that has a daily backlog and keeps every tab id", () => {
-    render(<GrowthSection />);
-    const { el, buttons } = strip("Review Replies");
-    expect(names(buttons)).toEqual(["Review Replies", "Local Growth", "GBP Q&A", "Photo Queue", "Entity / Brand", "Competitors"]);
-    expect(el.className).toMatch(/\boverflow-x-auto\b/);
-    expect(activeName(buttons)).toBe("Review Replies");
-  });
-
-  it("deep links still resolve: every ?growthTab= id", () => {
-    const expected: Record<string, string> = {
-      local: "Local Growth", reviews: "Review Replies", qa: "GBP Q&A", photos: "Photo Queue", entity: "Entity / Brand", competitors: "Competitors",
-    };
-    for (const [id, label] of Object.entries(expected)) {
-      window.history.replaceState({}, "", `/admin?growthTab=${id}`);
-      const { unmount } = render(<GrowthSection />);
-      expect(activeName(strip(label).buttons), id).toBe(label);
-      unmount();
-    }
-  });
-});
 
 describe("Settings strip", () => {
   it("Status first, then today's order, one scrolling strip with 48 px targets", () => {
@@ -206,19 +183,6 @@ describe("Instagram primary row", () => {
 });
 
 describe("Nested strips", () => {
-  it("Integrations: sentence-case labels, always visible, one scrolling strip", () => {
-    render(<IntegrationsSection />);
-    const { el, buttons } = strip("Tire search");
-    expect(names(buttons)).toEqual(["Tire search", "Labor guide", "Quick estimate"]);
-    expect(el.className).toMatch(/\boverflow-x-auto\b/);
-    for (const b of buttons) {
-      expect(b.className).toMatch(/\bmin-h-12\b/);
-      expect(b.querySelector(".hidden")).toBeNull();
-    }
-    expect(activeName(buttons)).toBe("Tire search");
-    fireEvent.click(screen.getByRole("button", { name: "Labor guide" }));
-    expect(activeName(strip("Labor guide").buttons)).toBe("Labor guide");
-  });
 
   it("SMS Orchestrator: three tabs in the shared scrolling strip, switching still works", () => {
     render(<SmsOrchestratorSection />);

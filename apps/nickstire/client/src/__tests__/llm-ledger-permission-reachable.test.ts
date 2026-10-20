@@ -1,7 +1,8 @@
 /**
  * A panel must not mount for a role that cannot call it.
  *
- * The LLM-usage panel mounts unconditionally on Intelligence HQ's default tab.
+ * The LLM-usage panel mounts unconditionally on Settings > health (moved there
+ * 2026-10-19 when Intelligence HQ was cut; it sat on that section's default tab).
  * The first draft put its procedure on the `system.` prefix, which
  * shared/adminPermissions.ts maps to `settings.manage` — and registry.tsx
  * grants the `intelligence` section to `viewer`, who does not hold it. So a
@@ -27,7 +28,7 @@ describe("system.llmLedger is callable by every role that can reach the panel", 
   const permission = permissionForAdminProcedure(PROCEDURE, "query");
 
   const rolesOnIntelligence = ADMIN_ROLES.filter((role) =>
-    (sectionsForRole(role) as readonly string[]).includes("intelligence"),
+    (sectionsForRole(role) as readonly string[]).includes("settings"),
   );
 
   it("the registry really does grant the section to more than the owner tier", () => {
@@ -39,7 +40,7 @@ describe("system.llmLedger is callable by every role that can reach the panel", 
   it.each(rolesOnIntelligence)("%s can call it", (role) => {
     expect(
       hasAdminPermission(role, permission),
-      `${role} can open Intelligence HQ but lacks "${permission}", so the panel would render a failure card for a permission decision`,
+      `${role} can open Settings > health but lacks "${permission}", so the panel would render a failure card for a permission decision`,
     ).toBe(true);
   });
 

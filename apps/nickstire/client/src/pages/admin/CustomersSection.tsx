@@ -6,13 +6,21 @@
  */
 import React, { useEffect, useState, lazy, Suspense } from "react";
 import { PageHeader, SectionInsightStrip, TabBar, type AdminOpenCustomerDrawerDetail } from "./shared";
-import { Users, UserCheck, Crown, Hash, Loader2 } from "lucide-react";
-import { type CustomerTab } from "./customers/format";
+import { Users, UserCheck, Shield, PhoneCall, Loader2 } from "lucide-react";
 import CustomerProfile from "./customers/CustomerProfile";
 import { CustomersList } from "./customers/CustomersList";
+import { CustomerIntelligence } from "./intelligence/CustomerIntelligence";
+import { innerTabsForRole, resolveInnerTab } from "./innerTabs";
+import { trpc } from "@/lib/trpc";
+import type { AdminRole } from "@shared/adminPermissions";
 
-const LoyaltyAdminSection = lazy(() => import("./customers/LoyaltyAdminSection"));
-const CouponsSection = lazy(() => import("./customers/CouponsSection"));
+const MembershipsSection = lazy(() => import("./MembershipsSection"));
+
+const CUSTOMER_TABS: { id: string; label: string; icon: React.ReactNode }[] = [
+  { id: "customers", label: "Customers", icon: <Users className="w-3.5 h-3.5" /> },
+  { id: "members", label: "Members", icon: <Shield className="w-3.5 h-3.5" /> },
+  { id: "calls", label: "Call list", icon: <PhoneCall className="w-3.5 h-3.5" /> },
+];
 
 // 2026-05-19 Elon-cut · SegmentBadge component + SEGMENT_CONFIG removed.
 // StatusBadge (below) is the canonical badge — VIP / LOST / AT RISK.
@@ -58,12 +66,30 @@ const CouponsSection = lazy(() => import("./customers/CouponsSection"));
 //   · selectedId state               → removed (drawer manages its own)
 
 export default function CustomersSection() {
-  // URL-persistent tab state (matches Settings pattern via ?customersTab=...)
-  const [activeTab, setActiveTab] = useState<CustomerTab>(() => {
-    if (typeof window === "undefined") return "customers";
-    const raw = new URLSearchParams(window.location.search).get("customersTab");
-    return raw === "loyalty" || raw === "coupons" ? raw : "customers";
-  });
+  // 2026-10-19 (admin prune W1): Loyalty and Coupons were cut (both tables have 0
+  // rows ever); Nonstop Nick moved in as Members and Intelligence HQ's call list
+  // as Calls. Which tabs a role sees is innerTabs.ts: an accountant reaches this
+  // section for Members ONLY, never the customer list. Until the role loads no
+  // restricted tab renders.
+  const { data: security, isError: securityFailed, fetchStatus: securityFetchStatus, refetch: refetchSecurity } =
+    trpc.adminSecurity.status.useQuery();
+  const role = (security?.adminRole ?? null) as AdminRole | null;
+  // A failed or paused (offline PWA) access read is unknown, not "no tabs": say so.
+  const accessUnknown = !security && (securityFailed || securityFetchStatus === "paused");
+  const [requested, setRequested] = useState<string | null>(() =>
+    typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("customersTab"),
+  );
+  const activeTab = resolveInnerTab("customers", requested, role);
+  const visibleTabs = CUSTOMER_TABS.filter((t) => innerTabsForRole("customers", role).includes(t.id));
+
+  const setActiveTab = (next: string) => {
+    setRequested(next);
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    if (next === "customers") url.searchParams.delete("customersTab");
+    else url.searchParams.set("customersTab", next);
+    window.history.replaceState({}, "", url.toString());
+  };
 
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(() => {
     if (typeof window === "undefined") return null;
@@ -74,16 +100,17 @@ export default function CustomersSection() {
 
   const handleOpenCustomer = (id: number) => {
     setSelectedCustomerId(id);
-    setActiveTab("customers");
+    setRequested("customers");
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
       url.searchParams.set("tab", "customers");
+      url.searchParams.delete("customersTab");
       url.searchParams.set("id", String(id));
       window.history.pushState({}, "", url.toString());
     }
   };
 
-  // Keep state in sync with URL queries (e.g., when clicking back/forward, or direct event)
+  // Keep state in sync with URL queries (back/forward, a redirect, or the drawer event)
   useEffect(() => {
     const handleUrlChange = () => {
       const params = new URLSearchParams(window.location.search);
@@ -98,46 +125,31 @@ export default function CustomersSection() {
       } else {
         setSelectedCustomerId(num);
       }
-
-      const customersTabParam = params.get("customersTab");
-      if (raw && num !== null && !isNaN(num) && num > 0) {
-        setActiveTab("customers");
-      } else if (customersTabParam === "loyalty" || customersTabParam === "coupons") {
-        setActiveTab(customersTabParam);
-      } else {
-        setActiveTab("customers");
-      }
+      setRequested(params.get("customersTab") ?? (raw && num !== null && !isNaN(num) && num > 0 ? "customers" : null));
     };
 
     // Run once on mount to validate/sync initial URL state
     handleUrlChange();
 
     window.addEventListener("popstate", handleUrlChange);
+    window.addEventListener("admin:url-sync", handleUrlChange);
 
     const handleOpenDrawer = (e: Event) => {
       const detail = (e as CustomEvent<AdminOpenCustomerDrawerDetail>).detail;
       const num = detail?.customerId;
       if (typeof num === "number" && !isNaN(num) && num > 0) {
         setSelectedCustomerId(num);
-        setActiveTab("customers");
+        setRequested("customers");
       }
     };
     window.addEventListener("admin:open-customer-drawer", handleOpenDrawer);
 
     return () => {
       window.removeEventListener("popstate", handleUrlChange);
+      window.removeEventListener("admin:url-sync", handleUrlChange);
       window.removeEventListener("admin:open-customer-drawer", handleOpenDrawer);
     };
   }, []);
-
-  // Keep URL in sync when tab changes
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const url = new URL(window.location.href);
-    if (activeTab === "customers") url.searchParams.delete("customersTab");
-    else url.searchParams.set("customersTab", activeTab);
-    window.history.replaceState({}, "", url.toString());
-  }, [activeTab]);
 
   const handleBackToList = () => {
     setSelectedCustomerId(null);
@@ -152,30 +164,35 @@ export default function CustomersSection() {
     <div className="space-y-6">
       <PageHeader
         title="Customers"
-        subtitle="Loyalty · coupons · customer drawer · spend tiers · churn risk"
+        subtitle="Customer list · Nonstop Nick members · call list"
         icon={<UserCheck className="w-5 h-5" />}
       />
-      <SectionInsightStrip section="customers" />
-      <TabBar
-        tabs={[
-          { id: "customers", label: "Customers", icon: <Users className="w-3.5 h-3.5" /> },
-          { id: "loyalty", label: "Loyalty", icon: <Crown className="w-3.5 h-3.5" /> },
-          { id: "coupons", label: "Coupons", icon: <Hash className="w-3.5 h-3.5" /> },
-        ]}
-        activeTab={activeTab}
-        onChange={setActiveTab}
-      />
+      {activeTab === "customers" && <SectionInsightStrip section="customers" />}
+      {visibleTabs.length > 1 && (
+        <TabBar tabs={visibleTabs} activeTab={activeTab ?? "customers"} onChange={setActiveTab} />
+      )}
 
-      {activeTab === "loyalty" && (
+      {activeTab === null && accessUnknown && (
+        <div className="flex items-center gap-3 text-[13px] text-muted-foreground">
+          <span>Could not check your access.</span>
+          <button
+            type="button"
+            onClick={() => void refetchSecurity()}
+            className="min-h-12 min-w-12 px-4 rounded-md border border-border/40 text-foreground/85"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+      {activeTab === null && !accessUnknown && (
+        <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+      )}
+      {activeTab === "members" && (
         <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>}>
-          <LoyaltyAdminSection />
+          <MembershipsSection />
         </Suspense>
       )}
-      {activeTab === "coupons" && (
-        <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>}>
-          <CouponsSection />
-        </Suspense>
-      )}
+      {activeTab === "calls" && <CustomerIntelligence />}
       {activeTab === "customers" && (
         selectedCustomerId !== null ? (
           <CustomerProfile customerId={selectedCustomerId} onClose={handleBackToList} />

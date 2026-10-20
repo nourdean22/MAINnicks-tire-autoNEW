@@ -12,7 +12,8 @@
  * fail the build instead.
  */
 import { describe, it, expect } from "vitest";
-import { ADMIN_REGISTRY, COMPOUND_REDIRECTS } from "../pages/admin/registry";
+import { ADMIN_REGISTRY, COMPOUND_REDIRECTS, resolveNavTarget } from "../pages/admin/registry";
+import { innerTabsForRole, type InnerTabSection } from "../pages/admin/innerTabs";
 
 describe("ADMIN_REGISTRY — structural integrity", () => {
   it("has no duplicate section ids", () => {
@@ -59,4 +60,27 @@ describe("ADMIN_REGISTRY — structural integrity", () => {
       .map(([slug, target]) => `"${slug}" -> unknown section "${target.section}"`);
     expect(dangling).toEqual([]);
   });
+
+  // 2026-10-19 (admin prune W1): retired ids and aliases share one resolver with
+  // the live ones, and the retired table is checked before the live aliases. A
+  // retired slug that collided with a live id or alias would hijack it.
+  it("every live id and alias still resolves to its own section through the one resolver", () => {
+    for (const e of ADMIN_REGISTRY) {
+      for (const slug of [e.id, ...(e.aliases ?? [])]) {
+        if (slug.toLowerCase() in COMPOUND_REDIRECTS) continue; // compound keys land on the same section with a tab
+        expect(resolveNavTarget(slug), `"${slug}" on ${e.id}`).toEqual({ section: e.id });
+      }
+    }
+  });
+
+  // The seven retired ids, as they stood. Every alias row is in admin-prune-redirects.test.tsx.
+  it.each(["opportunities", "callTrackingView", "market", "trafficFunnel", "growth", "memberships", "intelligence"])(
+    "retired %s lands on a live section and an inner tab the owner can open",
+    (id) => {
+      const t = resolveNavTarget(id);
+      expect(t, id).not.toBeNull();
+      expect(ADMIN_REGISTRY.some((s) => s.id === t!.section), id).toBe(true);
+      expect(innerTabsForRole(t!.section as InnerTabSection, "owner"), id).toContain(t!.innerValue);
+    },
+  );
 });

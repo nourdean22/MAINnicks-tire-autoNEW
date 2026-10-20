@@ -96,6 +96,7 @@ vi.mock("wouter", () => ({
   useRoute: () => [true, {}],
   useParams: () => ({}),
   useSearch: () => window.location.search,
+  Redirect: ({ to }: { to: string }) => React.createElement("a", { href: to, "data-redirect": "" }),
 }));
 
 vi.mock("framer-motion", () => ({

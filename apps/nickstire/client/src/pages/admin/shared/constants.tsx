@@ -1,18 +1,9 @@
 /**
  * Shared admin constants — status configs, palettes, section titles.
  */
-import React from "react";
-import { CheckCircle2, XCircle, CalendarClock } from "lucide-react";
-import type { AdminSection, BookingStatus, LeadStatus } from "./types";
+import type { AdminSection, LeadStatus } from "./types";
 
 // ─── CONSTANTS ──────────────────────────────────────────
-export const BOOKING_STATUS_CONFIG: Record<BookingStatus, { label: string; color: string; bgColor: string; icon: React.ReactNode }> = {
-  new: { label: "New", color: "text-blue-400", bgColor: "bg-blue-500/10", icon: <CalendarClock className="w-3.5 h-3.5" /> },
-  confirmed: { label: "Confirmed", color: "text-amber-400", bgColor: "bg-amber-500/10", icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
-  completed: { label: "Completed", color: "text-emerald-400", bgColor: "bg-emerald-500/10", icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
-  cancelled: { label: "Cancelled", color: "text-red-400", bgColor: "bg-red-500/10", icon: <XCircle className="w-3.5 h-3.5" /> },
-};
-
 export const LEAD_STATUS_CONFIG: Record<LeadStatus, { label: string; color: string; bgColor: string }> = {
   new: { label: "New", color: "text-blue-400", bgColor: "bg-blue-500/10" },
   contacted: { label: "Contacted", color: "text-amber-400", bgColor: "bg-amber-500/10" },
@@ -20,12 +11,6 @@ export const LEAD_STATUS_CONFIG: Record<LeadStatus, { label: string; color: stri
   completed: { label: "Completed", color: "text-emerald-400", bgColor: "bg-emerald-500/10" },
   closed: { label: "Closed", color: "text-foreground/40", bgColor: "bg-foreground/5" },
   lost: { label: "Lost", color: "text-red-400", bgColor: "bg-red-500/10" },
-};
-
-export const TIME_LABELS: Record<string, string> = {
-  morning: "Morning (9-12)",
-  afternoon: "Afternoon (12-6)",
-  "no-preference": "No Preference",
 };
 
 // ─── CANONICAL SIGNAL PALETTE ───────────────────────────
@@ -69,27 +54,13 @@ export const SECTION_TITLES: Record<AdminSection, string> = {
   shopMedia: "Shop media",
   approvals: "Approvals",
   leads: "Sales Pipeline",
-  opportunities: "Opportunities",
-  market: "Market",
   content: "Website & Local",
   customers: "Customers",
   campaigns: "Outreach",
   settings: "Settings / Safety",
   revenue: "Money",
-  callTrackingView: "Call Tracking",
   voiceReceptionist: "Voice Receptionist",
-  // The comment that stood here until 2026-08-03 said "intelligence label
-  // removed (section retired) · URL alias redirects ?tab=intelligence →
-  // overview". All three claims were false, and the line disproving them
-  // (`intelligence: "Intelligence HQ"`) is eight lines below. The section is
-  // live, visible in the sidebar, and reachable by owner, manager and viewer.
-  // adminRegistryTruth.test.ts now pins that, and pins this map against the
-  // registry labels so the two cannot drift apart again.
-  trafficFunnel: "Traffic → Revenue",
-  memberships: "Nonstop Nick",
   tireOrders: "Tires",
   opsHub: "Reports",
   instagram: "Instagram",
-  growth: "Marketing / Growth",
-  intelligence: "Intelligence HQ",
 };

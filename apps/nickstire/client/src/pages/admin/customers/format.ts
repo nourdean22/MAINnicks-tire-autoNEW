@@ -7,7 +7,6 @@ export type CustomerDeclinedEstimate = NonNullable<RouterOutputs["customers"]["h
 export type CustomerOpenWorkOrder = NonNullable<RouterOutputs["customers"]["history"]>["openWorkOrders"][number];
 export type TimelineEvent = NonNullable<RouterOutputs["customers"]["timeline"]>[number];
 
-export type CustomerTab = "customers" | "loyalty" | "coupons";
 
 export type Segment = "all" | "recent" | "lapsed" | "unknown";
 export type SortBy = "name" | "visits" | "lastVisit" | "totalSpent";

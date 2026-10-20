@@ -77,13 +77,7 @@ describe("MorningBrief never fabricates gateway liveness", () => {
   });
 });
 
-describe("LeadSLAMonitor never paints emerald Avg: 0m from a failed read", () => {
-  it("captures isError and renders an unknown card", () => {
-    const s = read("intelligence/LeadSLAMonitor.tsx");
-    expect(s).toMatch(/isError/);
-    expect(s).toMatch(/unknown<\/strong>, not 0 minutes/);
-  });
-});
+// 2026-10-19 admin prune W1: the client file this read was deleted with its surface (Intelligence HQ cut).
 
 describe("URL state listens to history (admin Wave 4)", () => {
   it("useUrlFilter re-reads the URL on popstate — back/forward moves the screen, not just the address bar", () => {

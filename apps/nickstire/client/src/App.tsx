@@ -43,7 +43,7 @@ import Home from "./pages/Home";
 const GenericServicePage = lazy(() => import("./pages/GenericServicePage"));
 const Admin = lazy(() => import("./pages/Admin"));
 
-const AdminAdStudio = lazy(() => import("./pages/admin/AdStudio"));
+const AdminPathRedirect = lazy(() => import("./pages/admin/AdminPathRedirect"));
 const Blog = lazy(() => import("./pages/Blog"));
 const BlogPost = lazy(() => import("./pages/BlogPost"));
 const Contact = lazy(() => import("./pages/Contact"));
@@ -252,15 +252,20 @@ function Router() {
             <Route path={"/about"} component={About} />
             {/* Admin dashboard */}
             <Route path={"/admin"} component={Admin} />
-            <Route path={"/admin/content"}>{() => <Redirect to="/admin?tab=content" />}</Route>
+            <Route path={"/admin/content"}>{() => <Redirect to="/admin?tab=content" replace />}</Route>
             {/* 2026-09-08 · Market moved here from StateNour /market; StateNour redirects to this URL. */}
-            <Route path={"/admin/market"}>{() => <Redirect to="/admin?tab=market" />}</Route>
+            <Route path={"/admin/market"}>{() => <Redirect to="/admin?tab=market" replace />}</Route>
             {/* 2026-07-11 · was ?tab=instagram — not a registry id OR alias,
                 so both studio buttons landed on Overview. The Instagram
                 studio lives at growth → inner tab "instagram". */}
-            <Route path={"/admin/ig-studio"}>{() => <Redirect to="/admin?tab=instagram" />}</Route>
-            <Route path={"/admin/reel-studio"}>{() => <Redirect to="/admin?tab=instagram" />}</Route>
-            <Route path={"/admin/ad-studio"} component={AdminAdStudio} />
+            <Route path={"/admin/ig-studio"}>{() => <Redirect to="/admin?tab=instagram" replace />}</Route>
+            <Route path={"/admin/reel-studio"}>{() => <Redirect to="/admin?tab=instagram" replace />}</Route>
+            {/* 2026-10-19 · Ad Studio was cut (admin prune W1); old links land on Instagram. */}
+            <Route path={"/admin/ad-studio"}>{() => <Redirect to="/admin?tab=instagram" replace />}</Route>
+            {/* 2026-10-19 · any other /admin/<slug>[/<id>] (StateNour links /admin/leads,
+                /admin/callbacks, /admin/quotes/new, /admin/leads/<id>) goes through the
+                admin's one slug resolver instead of NotFound. */}
+            <Route path={"/admin/*"} component={AdminPathRedirect} />
             {/* City-specific landing pages for local SEO */}
             <Route path={"/cleveland-auto-repair"} component={CityPage} />
             <Route path={"/euclid-auto-repair"} component={CityPage} />

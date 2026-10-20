@@ -23,7 +23,6 @@ import {
   Clapperboard,
   Images,
   Loader2,
-  Megaphone,
   Menu,
   Shield,
   Sparkles,
@@ -54,7 +53,6 @@ const TOPBAR_ACTIONS: TopbarAction[] = [
   { href: "/admin?tab=content", title: "AI Content", icon: <Sparkles className="w-4 h-4" />, mobileHidden: false, sectionTrigger: "content" },
   { href: "/admin/ig-studio", title: "IG Carousel Studio", icon: <Images className="w-4 h-4" />, mobileHidden: true },
   { href: "/admin/reel-studio", title: "Reel Studio", icon: <Clapperboard className="w-4 h-4" />, mobileHidden: true },
-  { href: "/admin/ad-studio", title: "Ad Studio", icon: <Megaphone className="w-4 h-4" />, mobileHidden: true },
 ];
 
 // ROLE_SECTIONS lived here until 2026-08-03. It was a Record<AdminRole, ...>
@@ -90,7 +88,7 @@ const TOPBAR_ACTIONS: TopbarAction[] = [
 
 export default function Admin() {
   const { user, loading: authLoading, error: authError } = useAuth();
-  const { section, setSection, unresolvedSlug, dismissUnresolvedSlug } = useAdminNavigation();
+  const { section, setSection, unresolvedSlug, unresolvedReason, dismissUnresolvedSlug, denySection } = useAdminNavigation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const isAdmin = !!user && user.role === "admin";
   const utils = trpc.useUtils();
@@ -177,6 +175,7 @@ export default function Admin() {
   const signals = useMemo(
     () =>
       buildAdminSignals({
+        role: security ? ((security.adminRole ?? "viewer") as AdminRole) : null,
         bundleFailed: overviewUnavailable,
         // Per-SLICE, not per-query. A leads-only failure resolves the tRPC query
         // fine, so `overviewUnavailable` stays false and the banner never fires —
@@ -200,8 +199,8 @@ export default function Admin() {
   const visibleGroups = useMemo(() => getSidebarGroups(adminRole), [adminRole]);
 
   useEffect(() => {
-    if (security && !allowedSections.includes(section)) setSection(allowedSections[0] ?? "overview");
-  }, [allowedSections, section, security, setSection]);
+    if (security && !allowedSections.includes(section)) denySection(allowedSections[0] ?? "overview");
+  }, [allowedSections, section, security, denySection]);
 
   if (authLoading || (isAdmin && securityLoading)) {
     return <div className="min-h-screen bg-background flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary/60" /></div>;
@@ -336,11 +335,11 @@ export default function Admin() {
           <header className="admin-topbar sticky top-0 z-30 flex items-center px-3 lg:px-5 gap-1 pt-[env(safe-area-inset-top,0px)]">
             <button onClick={() => setSidebarOpen(true)} className="lg:hidden inline-flex items-center justify-center w-12 h-12 text-muted-foreground hover:text-foreground" aria-label="Open sidebar"><Menu className="w-4 h-4" /></button>
             <h1 className="text-[14px] font-semibold text-foreground tracking-tight px-2 truncate">{SECTION_TITLES[section]}</h1><div className="flex-1" />
-            <CommandSearch allowedSections={allowedSections} onNavigate={(nextSection) => allowedSections.includes(nextSection) && setSection(nextSection)} onSelectCustomer={(id) => openCustomerDrawer(id)} />
+            <CommandSearch allowedSections={allowedSections} role={security ? adminRole : null} onNavigate={(nextSection) => allowedSections.includes(nextSection) && setSection(nextSection)} onSelectCustomer={(id) => openCustomerDrawer(id)} />
             <DensityToggle />
             {TOPBAR_ACTIONS.filter((action) => !action.sectionTrigger || allowedSections.includes(action.sectionTrigger)).map((action) => <Link key={action.href} href={action.href} title={action.title} aria-label={action.title} onClick={(event) => { if (action.sectionTrigger) { event.preventDefault(); window.history.replaceState({}, "", action.href); setSection(action.sectionTrigger); } }} className={`${action.mobileHidden ? "hidden lg:inline-flex" : "inline-flex"} items-center justify-center w-12 h-12 text-muted-foreground hover:text-foreground`}>{action.icon}</Link>)}
           </header>
-          <div className="admin-content"><div className="px-4 pt-4 space-y-3"><UnknownSectionNotice slug={unresolvedSlug} onDismiss={dismissUnresolvedSlug} /><DegradedDataBanner stats={stats} unavailable={overviewUnavailable} unavailableMessage={overviewError?.message} onRetry={() => void utils.adminDashboard.overviewMediumBundle.invalidate()} /></div><SectionContent section={section} /></div>
+          <div className="admin-content"><div className="px-4 pt-4 space-y-3"><UnknownSectionNotice slug={unresolvedSlug} reason={unresolvedReason} onDismiss={dismissUnresolvedSlug} /><DegradedDataBanner stats={stats} unavailable={overviewUnavailable} unavailableMessage={overviewError?.message} onRetry={() => void utils.adminDashboard.overviewMediumBundle.invalidate()} /></div><SectionContent section={section} /></div>
         </main>
         <AdminTabBar role={adminRole} active={section} signals={signals} onNavigate={(nextSection) => allowedSections.includes(nextSection) && setSection(nextSection)} onSearch={openCommandSearch} />
         <DrilldownDrawer /><ConfirmDialog /><WalkInQuoteDrawer /><ActivityPulse />

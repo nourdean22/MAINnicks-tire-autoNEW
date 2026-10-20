@@ -1,12 +1,12 @@
 {
   "totals": {
     "uppercase": 4,
-    "emDash": 163,
+    "emDash": 152,
     "emoji": 0,
-    "transitionAll": 70,
+    "transitionAll": 61,
     "slowDuration": 7,
-    "smallInput": 164,
-    "offPalette": 156
+    "smallInput": 107,
+    "offPalette": 137
   },
   "files": {
     "client/src/components/admin/ActivityPulse.tsx": {
@@ -14,9 +14,6 @@
     },
     "client/src/components/admin/AutonomyCommandCenter.tsx": {
       "smallInput": 1
-    },
-    "client/src/components/admin/CampaignPlanViewer.tsx": {
-      "offPalette": 3
     },
     "client/src/components/admin/CommandSearch.tsx": {
       "offPalette": 5
@@ -29,9 +26,6 @@
     "client/src/index.css": {
       "uppercase": 4,
       "transitionAll": 2
-    },
-    "client/src/pages/admin/AdStudio.tsx": {
-      "smallInput": 18
     },
     "client/src/pages/admin/ApprovalsSection.tsx": {
       "smallInput": 1,
@@ -53,11 +47,7 @@
       "smallInput": 2
     },
     "client/src/pages/admin/GrowthSection.tsx": {
-      "smallInput": 1,
-      "offPalette": 15
-    },
-    "client/src/pages/admin/InspectionCapturePanel.tsx": {
-      "smallInput": 16
+      "offPalette": 14
     },
     "client/src/pages/admin/LeadsSection.tsx": {
       "emDash": 5,
@@ -74,9 +64,6 @@
     "client/src/pages/admin/PromisesPanel.tsx": {
       "smallInput": 4
     },
-    "client/src/pages/admin/PromptEvalsPanel.tsx": {
-      "emDash": 1
-    },
     "client/src/pages/admin/SpecialsSection.tsx": {
       "smallInput": 9
     },
@@ -87,7 +74,7 @@
       "offPalette": 5
     },
     "client/src/pages/admin/TrafficFunnelSection.tsx": {
-      "emDash": 7,
+      "emDash": 4,
       "transitionAll": 5,
       "slowDuration": 3
     },
@@ -102,9 +89,6 @@
       "transitionAll": 2,
       "smallInput": 8
     },
-    "client/src/pages/admin/content/AIIdeasEngine.tsx": {
-      "emDash": 1
-    },
     "client/src/pages/admin/content/CommandQueue.tsx": {
       "transitionAll": 5,
       "smallInput": 1,
@@ -115,9 +99,6 @@
     },
     "client/src/pages/admin/content/GBPPostGenerator.tsx": {
       "smallInput": 3
-    },
-    "client/src/pages/admin/customers/CouponsSection.tsx": {
-      "smallInput": 9
     },
     "client/src/pages/admin/customers/Customer360Panel.tsx": {
       "emDash": 5,
@@ -136,9 +117,6 @@
     },
     "client/src/pages/admin/customers/FollowUpButton.tsx": {
       "smallInput": 1
-    },
-    "client/src/pages/admin/customers/LoyaltyAdminSection.tsx": {
-      "smallInput": 4
     },
     "client/src/pages/admin/customers/WinBackButton.tsx": {
       "emDash": 1
@@ -184,17 +162,6 @@
     "client/src/pages/admin/instagram/StudioV2.tsx": {
       "smallInput": 1
     },
-    "client/src/pages/admin/intelligence/AIHealthPanel.tsx": {
-      "emDash": 1,
-      "offPalette": 4
-    },
-    "client/src/pages/admin/intelligence/IntelligenceHQSection.tsx": {
-      "transitionAll": 3,
-      "offPalette": 2
-    },
-    "client/src/pages/admin/intelligence/LeadSLAMonitor.tsx": {
-      "offPalette": 4
-    },
     "client/src/pages/admin/intelligence/LlmSpendPanel.tsx": {
       "offPalette": 4
     },
@@ -215,8 +182,7 @@
       "emDash": 5
     },
     "client/src/pages/admin/money/DispatchSection.tsx": {
-      "emDash": 3,
-      "offPalette": 4
+      "offPalette": 1
     },
     "client/src/pages/admin/money/FinancingAttribution.tsx": {
       "emDash": 1
@@ -275,10 +241,6 @@
       "smallInput": 2
     },
     "client/src/pages/admin/registry.tsx": {
-      "offPalette": 2
-    },
-    "client/src/pages/admin/settings/AlgProbeBudgetPanel.tsx": {
-      "emDash": 2,
       "offPalette": 1
     },
     "client/src/pages/admin/settings/ComplianceSection.tsx": {
@@ -289,7 +251,7 @@
     },
     "client/src/pages/admin/settings/IntegrationsSection.tsx": {
       "emDash": 1,
-      "smallInput": 10
+      "smallInput": 1
     },
     "client/src/pages/admin/settings/RunMigrationsCard.tsx": {
       "offPalette": 1
@@ -312,12 +274,6 @@
     "client/src/pages/admin/shared/table.tsx": {
       "transitionAll": 1,
       "smallInput": 1
-    },
-    "client/src/pages/admin/today/NextBestActions.tsx": {
-      "transitionAll": 4
-    },
-    "client/src/pages/admin/today/TopMoneyMoves.tsx": {
-      "transitionAll": 2
     },
     "client/src/pages/admin/voice/CallDetailsDrawer.tsx": {
       "emDash": 1,
