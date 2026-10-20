@@ -103,6 +103,24 @@ describe("Autonomy control: one change per tap, to the server", () => {
   });
 });
 
+describe("Controls view: the stop switches are phone-sized (48 px)", () => {
+  it("every kill switch button and the limit editor controls carry min-h-12", () => {
+    render(<AutonomyCommandCenter />);
+    const switches = screen.getAllByRole("button", { name: /arm/i });
+    expect(switches).toHaveLength(3);
+    for (const b of switches) expect(b.className, b.textContent ?? "").toMatch(/\bmin-h-12\b/);
+    fireEvent.click(screen.getByRole("button", { name: "12$/day" }));
+    for (const el of [screen.getByLabelText("Generation budget ($/day)"), screen.getByRole("button", { name: "Save" }), screen.getByRole("button", { name: "Cancel" })]) {
+      expect(el.className).toMatch(/\bmin-h-12\b/);
+    }
+  });
+
+  it("positive control: the limit value that opens the editor is a 48 px target too", () => {
+    render(<AutonomyCommandCenter />);
+    expect(screen.getByRole("button", { name: "12$/day" }).className).toMatch(/\bmin-h-12\b/);
+  });
+});
+
 describe("Paid repairs switch", () => {
   it("Automatic opens the in-DOM confirm and changes nothing on cancel", async () => {
     const nativeConfirm = vi.spyOn(window, "confirm");

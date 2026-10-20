@@ -1,5 +1,5 @@
 /**
- * Comment responder card on Instagram > Pipeline health (contract commentResponderStatus v1).
+ * Comment responder card on Instagram > Controls (contract commentResponderStatus v1).
  *
  * The reel comment responder posts public replies to Instagram comments, unattended.
  * This card is the consumer of the server's status read and the inverted pause flag
@@ -7,7 +7,7 @@
  * unknown, not empty", keeps the Pause / Resume switch, and never renders "0 posted".
  * Resume goes through the in-DOM confirmDialog (window.confirm is suppressed in the
  * iOS standalone PWA); Pause is one tap, because pausing is the safe direction.
- * Rendered through Pipeline so the test also proves the card is mounted.
+ * Rendered through Controls so the test also proves the card is mounted.
  */
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -27,6 +27,8 @@ const h = vi.hoisted(() => ({
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), message: vi.fn() } }));
 vi.mock("@/components/admin/ConfirmDialog", () => ({ confirmDialog: h.confirmDialog }));
+// Controls also mounts the kill switch screen; it has its own test and must not add buttons here.
+vi.mock("@/components/admin/AutonomyCommandCenter", () => ({ default: () => null }));
 vi.mock("@/lib/trpc", () => ({
   trpc: {
     instagramAdmin: {
@@ -48,7 +50,7 @@ vi.mock("@/lib/trpc", () => ({
   },
 }));
 
-import { Pipeline } from "../pages/admin/instagram/Pipeline";
+import { Controls } from "../pages/admin/instagram/Controls";
 
 const FLAG = "reel_comment_responder_paused";
 const ERROR_TEXT = "Comment responder state could not be read, state unknown, not empty";
@@ -106,7 +108,7 @@ const resumeBtn = () => screen.getByRole("button", { name: "Resume replies" });
 describe("Comment responder card: three states, never two", () => {
   it("ERROR: the amber text, the reason, Retry, the pause switch, and never 0 posted", () => {
     h.status = FAILURE;
-    render(<Pipeline />);
+    render(<Controls />);
     expect(screen.getByText(ERROR_TEXT)).toBeTruthy();
     expect(screen.getByText(/boom/)).toBeTruthy();
     expect((pauseBtn() as HTMLButtonElement).disabled).toBe(false);
@@ -118,7 +120,7 @@ describe("Comment responder card: three states, never two", () => {
 
   it("ERROR: a transport error (isError, no data) is the same card, with the switch disabled and its reason", () => {
     h.isError = true;
-    render(<Pipeline />);
+    render(<Controls />);
     expect(screen.getByText(ERROR_TEXT)).toBeTruthy();
     expect((pauseBtn() as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByText("Pause state unknown until a refresh reads it.")).toBeTruthy();
@@ -127,7 +129,7 @@ describe("Comment responder card: three states, never two", () => {
 
   it("loading renders no counts and no empty line", () => {
     h.isLoading = true;
-    render(<Pipeline />);
+    render(<Controls />);
     expect(screen.getByText("Comment responder")).toBeTruthy();
     expect(screen.queryByText(/posted,/)).toBeNull();
     expect(screen.queryByText(/No reply attempt recorded yet/)).toBeNull();
@@ -135,7 +137,7 @@ describe("Comment responder card: three states, never two", () => {
 
   it("UNMEASURED: no reply attempt yet, not a zero, and the last run details verbatim", () => {
     h.status = UNMEASURED;
-    render(<Pipeline />);
+    render(<Controls />);
     expect(screen.getByText(/No reply attempt recorded yet/)).toBeTruthy();
     expect(screen.queryByText(/0 posted/)).toBeNull();
     expect(screen.getByText(LIVE_SUMMARY)).toBeTruthy();
@@ -143,7 +145,7 @@ describe("Comment responder card: three states, never two", () => {
 
   it("measured: the counts line, the chips, and the reply list with a string date", () => {
     h.status = measured();
-    render(<Pipeline />);
+    render(<Controls />);
     expect(screen.getByText("5 posted, 1 failed, 0 dry runs in 7 days")).toBeTruthy();
     expect(screen.getByText("Enabled")).toBeTruthy();
     expect(screen.getByText("Live")).toBeTruthy();
@@ -159,7 +161,7 @@ describe("Comment responder card: three states, never two", () => {
 
   it("chips: Disabled, Dry run and Paused come from the read", () => {
     h.status = measured({ enabled: false, live: false, paused: true });
-    render(<Pipeline />);
+    render(<Controls />);
     expect(screen.getByText("Disabled")).toBeTruthy();
     expect(screen.getByText("Dry run")).toBeTruthy();
     expect(screen.getByText("Paused")).toBeTruthy();
@@ -169,7 +171,7 @@ describe("Comment responder card: three states, never two", () => {
 describe("Pause and resume", () => {
   it("pause is one tap: no dialog, and the flag goes to true", () => {
     h.status = measured();
-    render(<Pipeline />);
+    render(<Controls />);
     fireEvent.click(pauseBtn());
     expect(h.confirmDialog).not.toHaveBeenCalled();
     expect(h.toggleMutate).toHaveBeenCalledTimes(1);
@@ -179,7 +181,7 @@ describe("Pause and resume", () => {
   it("resume asks through confirmDialog with the unattended-replies message, then sets the flag to false", async () => {
     h.status = measured({ paused: true });
     h.confirmAnswer = true;
-    render(<Pipeline />);
+    render(<Controls />);
     fireEvent.click(resumeBtn());
     await waitFor(() => expect(h.toggleMutate).toHaveBeenCalledTimes(1));
     expect(h.confirmDialog).toHaveBeenCalledTimes(1);
@@ -190,7 +192,7 @@ describe("Pause and resume", () => {
   it("cancel on the resume dialog sends nothing", async () => {
     h.status = measured({ paused: true });
     h.confirmAnswer = false;
-    render(<Pipeline />);
+    render(<Controls />);
     fireEvent.click(resumeBtn());
     await waitFor(() => expect(h.confirmDialog).toHaveBeenCalledTimes(1));
     expect(h.toggleMutate).not.toHaveBeenCalled();
@@ -199,7 +201,7 @@ describe("Pause and resume", () => {
   it("ERROR with paused true still offers Resume, through the dialog", async () => {
     h.status = { ...FAILURE, paused: true };
     h.confirmAnswer = true;
-    render(<Pipeline />);
+    render(<Controls />);
     fireEvent.click(resumeBtn());
     await waitFor(() => expect(h.toggleMutate).toHaveBeenCalledTimes(1));
     expect(h.confirmDialog).toHaveBeenCalledTimes(1);
@@ -207,7 +209,7 @@ describe("Pause and resume", () => {
 
   it("paused null disables the switch, says why, and a click sends nothing", () => {
     h.status = measured({ paused: null });
-    render(<Pipeline />);
+    render(<Controls />);
     expect((pauseBtn() as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByText("Pause state unknown until a refresh reads it.")).toBeTruthy();
     expect(screen.getByText("Unknown")).toBeTruthy();

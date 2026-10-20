@@ -58,11 +58,12 @@ function actionTarget(card: AssistantCard): { view: IgView; handoff?: Parameters
     case "capture":
       return { view: "create", handoff: { sourceType: "creative_assistant_capture", detail: card.topic ?? card.title } };
     case "fatigue":
-      return { view: "patterns" };
+      // Pattern Lab was cut (W3, 2026-10-19); creative-fatigue evidence lives on Strategy.
+      return { view: "strategy" };
     case "quality":
-      // The critic registry and lane QA state live on Pipeline health; the
+      // The critic registry and lane QA state live on Pipeline health, now inside Controls; the
       // Queue shows drafts, not posted Reels' verdicts.
-      return { view: "pipeline" };
+      return { view: "controls" };
     case "experiment":
       return { view: "strategy" };
   }

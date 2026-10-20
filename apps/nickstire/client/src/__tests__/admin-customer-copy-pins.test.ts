@@ -35,8 +35,6 @@ const PINS: Array<[file: string, line: string]> = [
   ["client/src/pages/admin/outreach/ReviewRequestsSection.tsx",
     'const text = `"${quote.text}"\\n' + D + ' ${quote.author}${quote.badge ? ` (${quote.badge})` : ""}`;'],
   ["client/src/pages/admin/content/AIIdeasEngine.tsx", 'topic: `Follow-up: "${title}" ' + D + " Part 2 / Deep Dive`,"],
-  ["client/src/pages/admin/instagram/Inbox.tsx",
-    'detail: `A customer asked on Instagram: "${comment.text.slice(0, 400)}" ' + D + " answer it usefully for everyone who has the same question.`,"],
   ["client/src/pages/admin/instagram/Strategy.tsx", 'detail: "CONTROLLED STRUCTURE PRIOR ' + D + ' correlation only, not causal: " + h.statement'],
   // Walk-in quote lines: copyQuote() and window.print() hand these descriptions to the customer.
   ["client/src/pages/admin/WalkInCalculatorSection.tsx", "{ description: `Oil Change (conventional/blend 5qt) " + D + " starting at $${OIL_PRICE.conventional}`,"],

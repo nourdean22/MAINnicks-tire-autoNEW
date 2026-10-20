@@ -10,52 +10,51 @@
  * pushing history entries for tab flips.
  */
 
-/** Five primary destinations + the secondary surfaces behind the gear menu. */
+/** Four primary destinations + the secondary surfaces behind the gear menu. */
 export type IgView =
   | "today"
   | "create"
   | "publish"
-  | "community"
   | "insights"
-  | "pipeline"
-  | "planning"
-  | "patterns"
   | "strategy"
   | "actions"
-  | "control"
+  | "controls"
   | "settings";
 
 export const IG_PRIMARY_VIEWS: Array<{ key: IgView; label: string }> = [
   { key: "today", label: "Today" },
   { key: "create", label: "Create" },
   { key: "publish", label: "Queue" },
-  { key: "community", label: "Community" },
   { key: "insights", label: "Learn" },
 ];
 
 export const IG_SECONDARY_VIEWS: Array<{ key: IgView; label: string }> = [
-  // First in the list on purpose: it answers "is the machine ok, and what posts
-  // next", which is the question asked before any of the others.
-  { key: "pipeline", label: "Pipeline health" },
-  { key: "planning", label: "Planning board" },
-  { key: "patterns", label: "Pattern Lab" },
+  // First in the list on purpose: every stop switch for autonomous posting and replies lives here,
+  // above the read-only pipeline health, so "pause it" and "is it ok" are one screen.
+  { key: "controls", label: "Controls" },
   { key: "strategy", label: "Strategy & profile" },
   { key: "actions", label: "Reel recovery (Action Center)" },
-  { key: "control", label: "Autonomy control" },
   { key: "settings", label: "Settings" },
 ];
 
 const ALL_VIEWS = new Set<string>([...IG_PRIMARY_VIEWS, ...IG_SECONDARY_VIEWS].map((v) => v.key));
 
-/** Old tab keys deep-linked from anywhere (HQ buttons, docs, muscle memory)
- *  keep working — navigation vocabulary changes must not strand links. */
+/** Every ?igview= value that ever shipped and is no longer a view keeps landing somewhere
+ *  sensible: a bookmark, an HQ button or a PWA relaunch must not strand.
+ *  W3 prune (2026-10-19): Community/Inbox, Planning board and Pattern Lab were cut for want of
+ *  opens; Pipeline health and Autonomy control merged into Controls. */
 const LEGACY_TAB_KEYS: Record<string, IgView> = {
   hq: "today",
   studio: "create",
   queue: "publish",
-  inbox: "community",
   learn: "insights",
-  drafts: "planning",
+  community: "today",
+  inbox: "today",
+  planning: "create",
+  drafts: "create",
+  patterns: "today",
+  pipeline: "controls",
+  control: "controls",
 };
 
 export function normalizeIgView(raw: string | null | undefined): IgView {

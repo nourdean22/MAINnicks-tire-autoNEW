@@ -95,12 +95,12 @@ export default function Today({ onNavigate }: { onNavigate: (view: IgView) => vo
     decisionRows.push({ key: "ready", tone: "blue", label: `${rows.readyCount} approved draft${rows.readyCount === 1 ? "" : "s"} ready to publish or schedule`, action: "Queue", view: "publish" });
   }
   // Delivery-issue engine rows: blockers and warnings only — deliberate stops
-  // (kill switches, disarmed gates) are INFO and live in Control/Settings, not
+  // (kill switches, disarmed gates) are INFO and live in Controls/Settings, not
   // in the decision queue. Keys Today already renders its own way are skipped
   // so one fact never prints twice.
   {
     const DELIVERY_VIEW: Record<string, IgView> = {
-      asset_hosting: "settings", meta_connection: "settings", kill_switch: "control",
+      asset_hosting: "settings", meta_connection: "settings", kill_switch: "controls",
       publish_gate: "settings", reconciliation: "actions", generation: "actions",
     };
     const ALREADY_RENDERED = new Set(["meta_token_rejected", "reel_jobs_need_attention"]);
