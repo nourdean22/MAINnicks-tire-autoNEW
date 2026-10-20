@@ -9,6 +9,7 @@
 
 import { Disc, Wrench, Activity } from "lucide-react";
 import FocusedServicePage, { type ServicePageConfig } from "@/components/FocusedServicePage";
+import ArrivalPhotos from "@/components/ArrivalPhotos";
 import { useReviewStats } from "@/hooks/useReviewStats";
 import { PAYMENT_PROGRAMS_FAQ_ANSWER } from "@shared/financing";
 
@@ -66,6 +67,7 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
   serviceType: "Tire Installation",
   ctaHeadline: "WALK IN OR DROP IT OFF",
   ctaSub: "Open 7 days, walk-ins welcome. Call ahead at (216) 862-0005 and we'll have your size ready. 17625 Euclid Ave, Cleveland OH.",
+  arrivalSlot: <ArrivalPhotos />,
 
   // ── Conversion scaffold (added 2026-05-30 CRO wave) ──
   // This is the highest-traffic discovery page (~4,600 imp/mo) but opted

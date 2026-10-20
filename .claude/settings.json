@@ -9,7 +9,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "powershell -NoProfile -File \"${CLAUDE_PROJECT_DIR}\\scripts\\graphify-session-context.ps1\""
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PROJECT_DIR}\\scripts\\graphify-session-context.ps1\""
           },
           {
             "type": "command",
@@ -29,6 +29,11 @@
           {
             "type": "command",
             "command": "node \"${CLAUDE_PROJECT_DIR}/scripts/agent-os/session-surface.mjs\"",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/scripts/agent-os/session-health.mjs\"",
             "timeout": 10
           }
         ]

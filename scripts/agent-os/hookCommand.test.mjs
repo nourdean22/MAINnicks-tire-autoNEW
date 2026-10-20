@@ -57,6 +57,30 @@ test("no node hook path uses a backslash separator (it does not resolve on Linux
   assert.deepEqual(bad.map((h) => `${h.event}: ${h.command}`), []);
 });
 
+// 2026-10-19: Windows PowerShell 5.1 on NATTYNOUR has every execution-policy scope Undefined (= Restricted), so a
+// hook running a .ps1 without -ExecutionPolicy Bypass dies with "running scripts is disabled" and prints nothing the
+// model sees: the graphify briefing was silently off in every session. Mention vs execution: only a command that
+// LAUNCHES powershell on a script counts, so a node hook that merely names a .ps1 is not flagged. The predicate is
+// session-health.mjs's own, imported, so the canary and the [health] line cannot disagree (review 2026-10-19).
+const { hookNeedsBypass } = await import("./session-health.mjs");
+const PS_SUBJECT = /powershell[^\n]*\.ps1/i;
+const blockedPs = (commands) => commands.filter(hookNeedsBypass);
+
+test("every PowerShell hook that runs a .ps1 carries -ExecutionPolicy Bypass (the scan found its subject)", () => {
+  const ps = hooks.filter((h) => PS_SUBJECT.test(h.command));
+  assert.ok(ps.length >= 1, "no PowerShell script hook found: the scan has no subject");
+  assert.deepEqual(blockedPs(ps.map((h) => h.command)), []);
+});
+
+test("BREAKS: the Bypass check flags the 2026-10-19 hook string and passes its fixed form and a node hook", () => {
+  const old = 'powershell -NoProfile -File "${CLAUDE_PROJECT_DIR}\\scripts\\graphify-session-context.ps1"';
+  const fixed = 'powershell -NoProfile -ExecutionPolicy Bypass -File "${CLAUDE_PROJECT_DIR}\\scripts\\graphify-session-context.ps1"';
+  assert.deepEqual(blockedPs([old]), [old], "the pre-fix string must be flagged");
+  assert.deepEqual(blockedPs([fixed, 'node "x/check.mjs" --script a.ps1']), []);
+  const after = 'powershell -NoProfile -File "C:/x/h.ps1" -ExecutionPolicy Bypass';
+  assert.deepEqual(blockedPs([after]), [after], "a policy AFTER -File is a script argument and does not count");
+});
+
 test("every node hook LAUNCHES as configured (no MODULE_NOT_FOUND)", () => {
   for (const h of nodeHooks) {
     const r = runHook(h.command, "{}");

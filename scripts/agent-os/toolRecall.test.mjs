@@ -30,7 +30,7 @@ const LINE = /^\[tool-recall\] use: (\S+) \((mcp|plugin|agent|cli); [^)]+\) .+$/
 
 // prompt -> the entry that must print. Scores are in the tool-recall.mjs header.
 const POSITIVE = [
-  ["find every caller of enqueueReelJob and rename it", "serena"],
+  ["find every caller of enqueueReelJob and rename it", "graphify"],
   ["deep research the best local video models", "perplexity-in-chrome"],
   ["what is the prisma 6 migrate dev syntax", "context7"],
 ];
@@ -65,7 +65,7 @@ test("near miss: body-only hits under the floor print nothing", () => {
 test("hook mode: stdin JSON with a prompt field prints the same match", () => {
   const r = run([], { stdin: JSON.stringify({ hook_event_name: "UserPromptSubmit", prompt: POSITIVE[0][0] }) });
   assert.equal(r.code, 0);
-  assert.match(r.out, /^\[tool-recall\] use: serena \(mcp; /m);
+  assert.match(r.out, /^\[tool-recall\] use: graphify \(mcp; /m);
 });
 
 test("an entry with `native` names the repo skill that already does the job", () => {
@@ -74,7 +74,7 @@ test("an entry with `native` names the repo skill that already does the job", ()
 });
 
 test("at most 4 lines even when many entries match", () => {
-  const r = run(["--text", "railway deploy logs, gh pr checks, sentry crash stack trace, gmail email calendar, postgres schema sql migration, serena rename callers"]);
+  const r = run(["--text", "railway deploy logs, gh pr checks, sentry crash stack trace, gmail email calendar, postgres schema sql migration, graphify rename callers"]);
   assert.equal(r.code, 0);
   const got = lines(r.out);
   assert.equal(got.length, 4, r.out);
@@ -128,7 +128,7 @@ test("settings: UserPromptSubmit runs tool-recall right after skill-recall, forw
   assert.match(hooks[at].command, /^node "\$\{CLAUDE_PROJECT_DIR\}\/scripts\/agent-os\/tool-recall\.mjs"$/);
 });
 
-test("the CONFIGURED command runs verbatim through a shell and names serena", () => {
+test("the CONFIGURED command runs verbatim through a shell and names graphify", () => {
   const { hooks, at } = configured();
   assert.ok(at >= 0, "tool-recall.mjs is not registered on UserPromptSubmit");
   const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("GIT_")));
@@ -136,7 +136,7 @@ test("the CONFIGURED command runs verbatim through a shell and names serena", ()
   const cmd = process.platform === "win32" ? hooks[at].command.replaceAll("${CLAUDE_PROJECT_DIR}", ROOT) : hooks[at].command;
   const r = spawnSync(cmd, { shell: process.platform === "win32" ? true : "/bin/sh", input: JSON.stringify({ prompt: POSITIVE[0][0] }), encoding: "utf8", cwd: ROOT, env, timeout: 20000 });
   assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stdout, /^\[tool-recall\] use: serena \(mcp; /m);
+  assert.match(r.stdout, /^\[tool-recall\] use: graphify \(mcp; /m);
 });
 
 /** A mutant copy in the temp dir; its skill-recall import is pointed at the real file, its registry passed by env. */

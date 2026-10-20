@@ -79,7 +79,7 @@ The localtunnel flow is suitable for experimentation, not world-class reliabilit
 
 ## Graphify contract
 
-Graphify is currently a **developer code-graph snapshot**. Its surfaces are `graphify-out/GRAPH_REPORT.md` (the versioned map, the only one in git) plus two gitignored HTML views regenerated on every sync:
+Graphify is currently a **developer code-graph snapshot**. Its surfaces are `graphify-out/GRAPH_REPORT.md` (the map; gitignored since 2026-10-19 and served live by the graphify MCP server on NATTYNOUR) plus two gitignored HTML views regenerated on every sync:
 
 | File | Size | Use |
 |---|---|---|

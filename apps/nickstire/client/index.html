@@ -187,11 +187,12 @@
          exactly or the browser double-downloads. Pre-fix mobile preloaded
          the 372KB full-size variant while <picture> rendered the 17KB
          -small variant · 22× bandwidth waste on the LCP path. Now the
-         three media queries match Home.tsx <picture> sources 1-for-1.
+         media queries match Home.tsx <picture> sources 1-for-1
+         (2026-10-19: real storefront photo, two sources; pinned by
+         site-real-photos.test.tsx).
          Same-origin webp = served via existing Brotli/gzip pipeline. -->
-    <link rel="preload" as="image" href="/photos/shopfront-clear-vertical-sign-bays-small.webp" type="image/webp" media="(max-width: 768px)" fetchpriority="high" />
-    <link rel="preload" as="image" href="/photos/shopfront-clear-vertical-sign-bays-medium.webp" type="image/webp" media="(min-width: 769px) and (max-width: 1024px)" fetchpriority="high" />
-    <link rel="preload" as="image" href="/photos/shop-exterior-hero-wide-sign-bays.webp" type="image/webp" media="(min-width: 1025px)" fetchpriority="high" />
+    <link rel="preload" as="image" href="/photos/nicks-tire-auto-euclid-ave-storefront-owner-medium.webp" type="image/webp" media="(max-width: 1024px)" fetchpriority="high" />
+    <link rel="preload" as="image" href="/photos/nicks-tire-auto-euclid-ave-storefront-owner.webp" type="image/webp" media="(min-width: 1025px)" fetchpriority="high" />
 
     <!-- Fonts: Barlow Condensed (headings/display), DM Sans (body),
          JetBrains Mono (stat numbers + micro-labels).

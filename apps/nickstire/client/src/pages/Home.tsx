@@ -55,18 +55,39 @@ import { HOME_HERO_SUBLINE } from "@shared/webExperiments";
 import LeadPopup from "@/components/LeadPopup";
 import DropOffRequestCard from "@/components/DropOffRequestCard";
 import { getUtmData } from "@/lib/utm";
+import { photoSrcSet } from "@/lib/photoSrcSet";
+import ArrivalPhotos from "@/components/ArrivalPhotos";
 import {
   deriveHeroPersonalization,
   DEFAULT_HERO_PERSONALIZATION,
   type HeroPersonalization,
 } from "@/lib/heroPersonalization";
 
-// Photo pack — same assets/tuning as HomeLegacy (see its comments for the
-// full placement-guide history).
-const HERO_IMG = "/photos/shop-exterior-hero-wide-sign-bays.webp";
-const TIRES_IMG = "/photos/rugged-tire-tread-closeup.webp";
+// Real shop photos (shop-media job, 2026-10-18) for the hero, the proof row,
+// and the tires and brakes tiles. DIAG_IMG is still the older photo pack.
+const HERO_IMG = "/photos/nicks-tire-auto-euclid-ave-storefront-owner.webp";
+const HERO_IMG_MEDIUM = "/photos/nicks-tire-auto-euclid-ave-storefront-owner-medium.webp";
+const TIRES_IMG = "/photos/new-tires-stacked-outside-nicks-tire.webp";
 const DIAG_IMG = "/photos/interior-service-bay-car-lift.webp";
-const BRAKES_IMG = "/photos/undercar-brake-repair-action.webp";
+const BRAKES_IMG = "/photos/worn-brake-rotor-and-pads.webp";
+
+const PROOF_PHOTOS = [
+  {
+    src: "/photos/technician-impact-wrench-wheel-nut.webp",
+    alt: "Technician tightening a wheel with an impact wrench at Nick's Tire & Auto",
+    caption: "Wheel work in our own bays",
+  },
+  {
+    src: "/photos/nicks-tire-auto-crew-euclid-ave.webp",
+    alt: "Seven members of the Nick's Tire & Auto crew in front of the service bays on Euclid Avenue",
+    caption: "The crew on Euclid Avenue",
+  },
+  {
+    src: "/photos/pickup-truck-at-nicks-tire-service-bays.webp",
+    alt: "Orange pickup truck parked in front of the Nick's Tire & Auto service bays",
+    caption: "Pull up to the bays, no appointment",
+  },
+];
 
 interface HomeReviewData {
   rating: number;
@@ -236,28 +257,23 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
     <section className="relative min-h-[100svh] flex items-center overflow-hidden hero-stage">
       <div className="absolute inset-0 hero-bg ken-burns-target">
         <picture>
-          {/* Sources MUST mirror the three media-gated preloads in index.html
-              exactly, or the browser double-downloads — mobile was fetching the
-              small vertical variant it never rendered while the wide LCP image
-              (HERO_IMG) went un-preloaded. Aligning them fixes mobile LCP. */}
+          {/* Sources MUST mirror the media-gated preloads in index.html
+              exactly, or the browser double-downloads (pinned by
+              site-real-photos.test.tsx). Phones and tablets get the 560 px
+              medium variant: the 320 px small one is too soft full-screen. */}
           <source
-            media="(max-width: 768px)"
-            srcSet="/photos/shopfront-clear-vertical-sign-bays-small.webp"
-            type="image/webp"
-          />
-          <source
-            media="(min-width: 769px) and (max-width: 1024px)"
-            srcSet="/photos/shopfront-clear-vertical-sign-bays-medium.webp"
+            media="(max-width: 1024px)"
+            srcSet={HERO_IMG_MEDIUM}
             type="image/webp"
           />
           <img
             src={HERO_IMG}
-            alt="Nick's Tire & Auto storefront on Euclid Avenue in Cleveland with the yellow sign, open service bays, and tire stacks visible"
-            className="w-full h-full object-cover [object-position:center_42%]"
+            alt="Nick's Tire & Auto on Euclid Avenue, with the yellow sign over the open service bays and the owner out front"
+            className="w-full h-full object-cover [object-position:center_20%]"
             loading="eager"
             fetchPriority="high"
-            width="1920"
-            height="1080"
+            width="1440"
+            height="1920"
           />
         </picture>
         <div
@@ -369,6 +385,32 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
   );
 }
 
+// ─── PROOF ROW — three real photos: the work, the people, the arrival ─
+function ProofRow() {
+  return (
+    <section aria-label="Photos from the shop" className="bg-background py-6 sm:py-10">
+      <div data-testid="home-proof-row" className="container grid grid-cols-3 gap-2 sm:gap-4">
+        {PROOF_PHOTOS.map((p) => (
+          <figure key={p.src}>
+            <img
+              src={p.src}
+              srcSet={photoSrcSet(p.src)}
+              sizes="(min-width: 1024px) 380px, 33vw"
+              alt={p.alt}
+              width={1440}
+              height={1920}
+              loading="lazy"
+              decoding="async"
+              className="aspect-[3/4] w-full rounded-lg object-cover"
+            />
+            <figcaption className="mt-2 text-xs leading-snug text-foreground/70 sm:text-sm">{p.caption}</figcaption>
+          </figure>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 // ─── USED TIRES CALLOUT — feeds the /tires funnel ────────────────
 function UsedTiresCallout() {
   return (
@@ -421,6 +463,7 @@ const HERO_SERVICES = [
     slug: "/tires",
     desc: "Every tire we install — new or used — gets a free mount, balance, valve stems, TPMS reset, and an alignment check. The kind of welcome you wish a hotel gave you.",
     img: TIRES_IMG,
+    alt: "New tires stacked outside the service bays at Nick's Tire & Auto",
     imgPos: "center 50%",
     price: "Free install on every tire",
   },
@@ -429,7 +472,8 @@ const HERO_SERVICES = [
     slug: "/brakes",
     desc: "Pads, rotors, calipers, lines, ABS. We hand you a flashlight and walk you under your own car so you can see the worn part. The metal doesn't lie. Neither do we.",
     img: BRAKES_IMG,
-    imgPos: "center 65%",
+    alt: "A worn brake rotor and pads taken off a car at Nick's Tire & Auto",
+    imgPos: "center 45%",
     price: "Free brake check",
   },
   {
@@ -437,6 +481,7 @@ const HERO_SERVICES = [
     slug: "/diagnostics",
     desc: "If your car is making a noise even Spotify can't identify, drive it over. Free OBD-II scan, written estimate before a wrench moves, and a real explanation in real English.",
     img: DIAG_IMG,
+    alt: "Diagnostics service at Nick's Tire and Auto",
     imgPos: "center 35%",
     price: "Free scan · honest answers",
   },
@@ -454,7 +499,7 @@ function Services() {
               <source media="(max-width: 1024px)" srcSet={mediumSrc} />
               <img
                 src={s.img}
-                alt={`${s.title} service at Nick's Tire and Auto`}
+                alt={s.alt}
                 className="w-full h-full object-cover transition-transform duration-[1500ms] ease-out group-hover:scale-[1.04]"
                 style={{ objectPosition: s.imgPos }}
                 loading="lazy"
@@ -738,6 +783,8 @@ function Contact() {
                 >
                   Get Directions
                 </a>
+
+                <ArrivalPhotos />
               </div>
             </div>
           </FadeIn>
@@ -961,6 +1008,7 @@ export default function Home() {
       />
       <WeatherBanner />
       <Hero reviewData={reviewData} />
+      <ProofRow />
       {/* FCFS ritual explainer — the most defensible differentiator. */}
       <RiseInView className="parallax-rise"><ConesBlock /></RiseInView>
       {/* Live status strip — real bay/booking data, graceful degrade.
