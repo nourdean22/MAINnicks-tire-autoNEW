@@ -5725,7 +5725,8 @@
         "The shop's own social content (social_draft:sync, social_posted) passes whole: no customer in it by construction",
         "statenour readers that used the dropped fields now degrade (no throw): the review Telegram shows Customer and no quote, the callback coach event shows Unknown, lead memory shows unknown, and repeat-customer detection stops firing; review and emergency row ids are not forwarded because the bridge adapters do not pass them and config/nickstire-bridge-events.json pins adapter output (platform lane)",
         "Where `service` is free text it is dropped (estimate repair description, work-order service description, the work-order note sent as booking_completed service); it stays only for a booking and a cross-sell prediction",
-        "An emergency Telegram that fails all five tries is in the Railway error log only: the admin's health surface (Settings > Site Health, integration_failures) has DB-enum columns without telegram or emergency values; adding them is a hand-applied migration (decision pending with the bdnick manager)"
+        "An emergency Telegram that fails all five tries is in the Railway error log only: the admin's health surface (Settings > Site Health, integration_failures) has DB-enum columns without telegram or emergency values; adding them is a hand-applied migration (decision pending with the bdnick manager)",
+        "Not sent on purpose (Codex on #3186): bookings.topServices in the business sync, and the vehicle field of booking events, because booking.create accepts free text there (service up to 500 characters, vehicle up to 200). Estimate events still send their vehicle (built from the validated year, make and model). Restoring either needs a validated vocabulary first."
       ],
       "lastVerifiedAt": "2026-10-19",
       "verificationExpiresAt": null,

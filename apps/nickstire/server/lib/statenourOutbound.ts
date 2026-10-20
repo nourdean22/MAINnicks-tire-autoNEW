@@ -66,7 +66,18 @@ function declinedWork(dw: unknown): Rec | null {
 }
 
 /**
- * The business sync body for StateNour. Top-level blocks are aggregates except the five
+ * bookings keeps its counts but not topServices: `service` is booking.create's free text (up to 500
+ * characters), so a name, a phone or a note can sit in it (Codex on #3186).
+ */
+function bookings(b: unknown): unknown {
+  if (!isRec(b)) return b;
+  const out: Rec = { ...b };
+  delete out.topServices;
+  return out;
+}
+
+/**
+ * The business sync body for StateNour. Top-level blocks are aggregates except the six
  * replaced here. nickAI keeps only the count: a memory is free text that can name a customer
  * ("FULL CONVERSION: Customer ...", "VIP customers: ..."). operatorPatterns drops its topic: the
  * first three words of Nour's own Nick commands, which can be a customer's name.
@@ -74,6 +85,7 @@ function declinedWork(dw: unknown): Rec | null {
 export function redactBusinessSyncForStatenour(payload: Rec): Rec {
   return {
     ...payload,
+    bookings: bookings(payload.bookings),
     customerIntelligence: customerIntelligence(payload.customerIntelligence),
     customerJourneys: pickEach(payload.customerJourneys, ["events", "hoursActive"]),
     declinedWork: declinedWork(payload.declinedWork),
@@ -94,8 +106,8 @@ const EVENT_DATA_KEYS = [
   // ids and references (`id` is the row id raw bus events carry, as bridge_outbox stores them)
   "id", "bookingId", "leadId", "callbackId", "workOrderId", "orderNumber", "invoiceNumber", "refCode",
   "campaignId", "predictionId",
-  // business facts
-  "vehicle", "urgency", "urgencyScore", "source", "kind", "type", "stage", "newStatus",
+  // business facts (vehicle is per type below: booking.create falls back to a free-form 200-character string)
+  "urgency", "urgencyScore", "source", "kind", "type", "stage", "newStatus",
   "fromStatus", "toStatus", "tire", "totalAmount", "amount", "method", "rating", "issueCount",
   "estimateLow", "estimateHigh", "confidence", "sent", "queued", "failed", "campaignType",
   // mirror sync counts
@@ -115,6 +127,9 @@ const EVENT_DATA_KEYS = [
  * complaint), a work order's service description, or a work-order note on booking_completed.
  */
 const TYPE_KEYS: Record<string, readonly string[]> = {
+  // an estimate's vehicle is built from the validated year, make and model fields
+  "nickstire:estimate": ["vehicle"],
+  estimate_generated: ["vehicle"],
   "nickstire:booking": ["service"],
   booking_created: ["service"], // the bus spelling, as bridge_outbox stores it
   campaign_sent: ["service"],

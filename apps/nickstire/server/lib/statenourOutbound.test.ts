@@ -13,7 +13,7 @@ const IDENTIFIERS = [
 
 const businessPayload = () => ({
   source: "nickstire",
-  bookings: { total: 4, thisWeek: 1 },
+  bookings: { total: 4, thisWeek: 1, topServices: [{ service: "Brakes for Jane Roe, call 2165550101", count: 3 }] },
   customerIntelligence: {
     available: true,
     totalCustomers: 40,
@@ -107,7 +107,9 @@ describe("redactBusinessSyncForStatenour", () => {
 
 describe("redactEventDataForStatenour", () => {
   it.each([
-    ["nickstire:booking", { bookingId: 7, customer: "Jane Roe", phone: "2165550101", service: "brakes", vehicle: "2012 Civic", urgency: "normal", refCode: "REF7" }, { bookingId: 7, service: "brakes", vehicle: "2012 Civic", urgency: "normal", refCode: "REF7" }],
+    ["nickstire:booking", { bookingId: 7, customer: "Jane Roe", phone: "2165550101", service: "brakes", vehicle: "2012 Civic", urgency: "normal", refCode: "REF7" }, { bookingId: 7, service: "brakes", urgency: "normal", refCode: "REF7" }],
+    // Codex on #3186: booking.create falls back to a free-form 200-character vehicle string, so a booking event never carries one
+    ["booking_created", { id: 9, name: "Jane Roe", phone: "2165550101", service: "brakes", vehicle: "Jane Roe 2165550101 blue truck" }, { id: 9, service: "brakes" }],
     ["nickstire:lead", { leadId: 8, customer: "Jane Roe", phone: "2165550101", source: "web", urgencyScore: 3, interest: "call me Jane" }, { leadId: 8, source: "web", urgencyScore: 3 }],
     ["nickstire:callback", { customer: "John Doe", phone: "2165550102", reason: "call John at 2165550102" }, {}],
     ["nickstire:emergency", { name: "John Doe", phone: "2165550102", description: "flat on I-90, I am John", urgency: "high" }, { urgency: "high" }],
