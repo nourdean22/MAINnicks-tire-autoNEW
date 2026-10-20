@@ -1183,6 +1183,16 @@ function buildAssistantConfig(serverUrl?: string): VapiAssistantConfig {
 
 // ─── API CLIENT ──────────────────────────────────────────
 
+/**
+ * Longest an admin READ may wait on Vapi (recent calls, the two transfer cards).
+ * tRPC batches wait for their slowest member: 7 days of Railway logs to
+ * 2026-10-19 showed Today stalling 15.0-15.1 s (vapiFetch's cap) and the Voice
+ * page 19.5 s (no cap). 3 s sits under the 4 s ceiling
+ * adminReadLatencyBound.test.ts asserts; a healthy Vapi list answers in well
+ * under a second (INFERRED, not measured here), so only a stall hits it.
+ */
+export const VAPI_ADMIN_READ_BOUND_MS = 3_000;
+
 async function vapiFetch(path: string, init: RequestInit = {}): Promise<Response> {
   const apiKey = process.env.VAPI_API_KEY;
   if (!apiKey) throw new Error("VAPI_API_KEY not configured");
@@ -2217,7 +2227,9 @@ export async function getRecentCalls(limit = 20): Promise<{
   error?: string;
 }> {
   try {
-    const res = await vapiFetch(`/call?limit=${limit}`);
+    // An admin read: bounded well under vapiFetch's 15 s write cap, because
+    // Today's first batch waits for this call (it stalled at exactly 15 s).
+    const res = await vapiFetch(`/call?limit=${limit}`, { signal: AbortSignal.timeout(VAPI_ADMIN_READ_BOUND_MS) });
     if (!res.ok) {
       return { success: false, calls: [], error: `${res.status}: ${(await res.text()).slice(0, 200)}` };
     }

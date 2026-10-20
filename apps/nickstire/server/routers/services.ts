@@ -23,7 +23,7 @@ import {
 import { storagePut } from "../storage";
 import { sendSms } from "../sms";
 import { createLogger } from "../lib/logger";
-import { pickGatewayDevice, isGatewayOnline } from "../lib/gateway-device";
+import { probeGatewayHealth } from "../lib/gatewayHealthProbe";
 import { sanitizeText, sanitizePhone, sanitizeEmail } from "../sanitize";
 import { z } from "zod";
 import { inspectionMeasurementsSchema, photoUrlListSchema } from "@shared/inspectionMeasurements";
@@ -625,62 +625,5 @@ export const smsRouter = router({
    * timestamp + name. Online if lastSeen is within GATEWAY_OFFLINE_MINUTES
    * (shared with the alerting cron — see lib/gateway-device.ts).
    */
-  gatewayHealth: adminProcedure.query(async () => {
-    const username = process.env.SHOP_SMS_GATEWAY_USERNAME;
-    const password = process.env.SHOP_SMS_GATEWAY_PASSWORD;
-    const baseUrl = process.env.SHOP_SMS_GATEWAY_URL || "https://api.sms-gate.app/3rdparty/v1";
-    if (!username || !password) {
-      return { configured: false as const, readable: true, online: false, lastSeen: null, deviceName: null, error: "SHOP_SMS_GATEWAY_USERNAME/PASSWORD not set" };
-    }
-    const auth = Buffer.from(`${username}:${password}`).toString("base64");
-    try {
-      const res = await fetch(`${baseUrl}/device`, {
-        headers: { Authorization: `Basic ${auth}` },
-        signal: AbortSignal.timeout(8000),
-      });
-      if (!res.ok) {
-        // readable: false · the vendor API failed, so the phone's state is UNKNOWN,
-        // not offline. Q-23 phase 9: the admin must not blame the device for it.
-        return { configured: true as const, readable: false, online: false, lastSeen: null, deviceName: null, error: `Capevace /device returned ${res.status}` };
-      }
-      const devices = (await res.json()) as Array<{ id: string; name?: string; lastSeen?: string }>;
-      if (!devices.length) {
-        return { configured: true as const, readable: true, online: false, lastSeen: null, deviceName: null, error: "No devices registered" };
-      }
-      // Don't blindly trust devices[0] — the Capevace account can hold a stale
-      // test phone alongside the live F25e, and order isn't guaranteed. Prefer
-      // the configured device id, else the freshest by lastSeen (shared helper).
-      const dev = pickGatewayDevice(devices, process.env.SHOP_SMS_GATEWAY_DEVICE_ID);
-      if (!dev) {
-        return {
-          configured: true as const,
-          readable: true,
-          online: false,
-          lastSeen: null,
-          deviceName: null,
-          error: `Configured gateway device ${process.env.SHOP_SMS_GATEWAY_DEVICE_ID} not registered (${devices.length} device(s) found)`,
-        };
-      }
-      const lastSeenMs = dev.lastSeen ? new Date(dev.lastSeen).getTime() : 0;
-      const ageMin = lastSeenMs ? Math.round((Date.now() - lastSeenMs) / 60_000) : 999;
-      return {
-        configured: true as const,
-        readable: true,
-        online: isGatewayOnline(ageMin),
-        lastSeen: dev.lastSeen || null,
-        ageMinutes: ageMin,
-        deviceName: dev.name || null,
-        deviceId: dev.id,
-      };
-    } catch (err) {
-      return {
-        configured: true as const,
-        readable: false,
-        online: false,
-        lastSeen: null,
-        deviceName: null,
-        error: err instanceof Error ? err.message : "Unreachable",
-      };
-    }
-  }),
+  gatewayHealth: adminProcedure.query(() => probeGatewayHealth()),
 });

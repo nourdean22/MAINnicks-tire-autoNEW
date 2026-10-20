@@ -33,7 +33,7 @@ import {
 import { getDb } from "../db";
 import { shopSettings, vapiCallLogs, type VapiCallLog } from "../../drizzle/schema";
 import { eq, and, gte, lte, desc, sql } from "drizzle-orm";
-import { pickReceptionistAssistantId, pickFollowUpAssistantId, SHOP_LANDLINE_E164 } from "../services/vapi";
+import { pickReceptionistAssistantId, pickFollowUpAssistantId, SHOP_LANDLINE_E164, VAPI_ADMIN_READ_BOUND_MS } from "../services/vapi";
 import { arrivalSignalsForQueue } from "../services/expectedArrivals";
 import { parseWalkInSuffix } from "../services/vapiWalkInCoverage";
 import { BUSINESS } from "@shared/business";
@@ -79,7 +79,15 @@ async function memoize<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
 // ─── Direct VAPI fetcher for new procedures ─────────────
 const VAPI_BASE = "https://api.vapi.ai";
 
-async function vapiApiFetch<T>(path: string): Promise<T> {
+/**
+ * Cap for the callers that pass no tighter signal (call detail, and the reads
+ * and PATCH inside setTransferDestination). This file's fetches had NO cap, so
+ * one Vapi hang held the Voice page 19.5 s. 10 s stays under the 15 s vapiFetch
+ * cap in services/vapi.ts and over a large call transcript's download.
+ */
+const VAPI_API_DEFAULT_TIMEOUT_MS = 10_000;
+
+async function vapiApiFetch<T>(path: string, signal: AbortSignal = AbortSignal.timeout(VAPI_API_DEFAULT_TIMEOUT_MS)): Promise<T> {
   const key = process.env.VAPI_API_KEY;
   if (!key) {
     throw new TRPCError({
@@ -89,6 +97,7 @@ async function vapiApiFetch<T>(path: string): Promise<T> {
   }
   const res = await fetch(`${VAPI_BASE}${path}`, {
     headers: { Authorization: `Bearer ${key}` },
+    signal,
   });
   if (!res.ok) {
     const body = await res.text();
@@ -96,6 +105,60 @@ async function vapiApiFetch<T>(path: string): Promise<T> {
     throw new TRPCError({ code: "BAD_GATEWAY", message: `VAPI API ${res.status}` });
   }
   return res.json() as Promise<T>;
+}
+
+// ─── Admin read memo for the two transfer-destination cards ──────────────────
+// Both cards load together and each used to list the assistants itself, with no
+// bound and no memory. Concurrent callers now share one in-flight read, and an
+// ANSWER is kept CACHE_TTL_MS. A failed read is never kept, so "could not ask"
+// clears the moment Vapi answers again.
+const LIST_KEY = "vapiAssistantList";
+const RECEPTIONIST_CARD_KEY = "vapiTransferDest:receptionist";
+const FOLLOW_UP_CARD_KEY = "vapiTransferDest:followUp";
+const inFlightReads = new Map<string, Promise<unknown>>();
+// Bumped by every reset, so a read already in flight when an edit lands cannot
+// put its pre-edit answer back in the memo.
+let readEpoch = 0;
+
+function readOnce<T>(key: string, read: () => Promise<T>, keep: (v: T) => boolean): Promise<T> {
+  const hit = cache.get(key) as CacheEntry<T> | undefined;
+  if (hit && hit.expiresAt > Date.now()) return Promise.resolve(hit.value);
+  const pending = inFlightReads.get(key) as Promise<T> | undefined;
+  if (pending) return pending;
+  const epoch = readEpoch;
+  const p = read()
+    .then((v) => {
+      if (epoch === readEpoch && keep(v)) cache.set(key, { value: v, expiresAt: Date.now() + CACHE_TTL_MS });
+      return v;
+    })
+    .finally(() => {
+      if (inFlightReads.get(key) === p) inFlightReads.delete(key);
+    });
+  inFlightReads.set(key, p);
+  return p;
+}
+
+/** Forget the memoised transfer-destination reads (after an edit, and between tests). */
+export function resetVapiAdminReadCaches(): void {
+  readEpoch += 1;
+  for (const k of [LIST_KEY, RECEPTIONIST_CARD_KEY, FOLLOW_UP_CARD_KEY]) {
+    cache.delete(k);
+    inFlightReads.delete(k);
+  }
+}
+
+/** Wraps a card read so a good answer is kept and concurrent callers share one read. */
+function keepAnswers<T extends { ok: boolean }>(key: string, read: () => Promise<T>): () => Promise<T> {
+  return () => readOnce(key, read, (v) => v.ok);
+}
+
+/** One bounded list of assistants, shared by whichever card asks first. */
+function listAssistants(signal: AbortSignal) {
+  return readOnce(
+    LIST_KEY,
+    () => vapiApiFetch<Array<{ id: string; name?: string }>>("/assistant?limit=10", signal),
+    () => true,
+  );
 }
 
 interface VapiCallSummary {
@@ -844,10 +907,12 @@ export const vapiRouter = router({
   /**
    * Read current transferCall destination from VAPI assistant.
    * Operator wants to see "where calls go right now" without logging
-   * into the VAPI dashboard. Uses live API (uncached) — the operator
-   * just changed something elsewhere is the worst case for stale.
+   * into the VAPI dashboard. Bounded to VAPI_ADMIN_READ_BOUND_MS and kept for
+   * 60 s (setTransferDestination clears it, so an edit shows at once).
    */
-  getTransferDestination: adminProcedure.query(async () => {
+  getTransferDestination: adminProcedure.query(keepAnswers(RECEPTIONIST_CARD_KEY, async () => {
+    // One deadline for the whole read (list + assistant), so two hops cannot add up.
+    const signal = AbortSignal.timeout(VAPI_ADMIN_READ_BOUND_MS);
     try {
       // wave-113b — was `assistants[0]` blindly. VAPI returns multiple
       // assistants (Receptionist for inbound calls + Follow-Up Caller for
@@ -855,9 +920,7 @@ export const vapiRouter = router({
       // and the operator's edits silently went to the outbound assistant
       // while the actual inbound receptionist kept stale numbers. Now uses
       // pickReceptionistAssistantId to deterministically pick the inbound.
-      const assistants = await vapiApiFetch<Array<{ id: string; name?: string }>>(
-        "/assistant?limit=10",
-      );
+      const assistants = await listAssistants(signal);
       if (!assistants.length) {
         return { ok: false as const, error: "No VAPI assistant configured" };
       }
@@ -870,7 +933,7 @@ export const vapiRouter = router({
         id: string;
         name?: string;
         model?: { tools?: Array<{ type: string; destinations?: Array<{ type: string; number: string; message?: string; description?: string }> }> };
-      }>(`/assistant/${assistantId}`);
+      }>(`/assistant/${assistantId}`, signal);
       const tools = assistant.model?.tools || [];
       const transfer = tools.find((t) => t.type === "transferCall");
       // wave-116 — was destinations[0] blindly. VAPI's destinations array
@@ -895,7 +958,7 @@ export const vapiRouter = router({
         error: err instanceof TRPCError ? err.message : "VAPI API unreachable",
       };
     }
-  }),
+  })),
 
   /**
    * wave-114 — companion to getTransferDestination that returns the
@@ -903,11 +966,10 @@ export const vapiRouter = router({
    * Returns ok:false with reason="no-followup" if there is no follow-up
    * assistant in the org (admin then doesn't render the sub-card).
    */
-  getFollowUpTransferDestination: adminProcedure.query(async () => {
+  getFollowUpTransferDestination: adminProcedure.query(keepAnswers(FOLLOW_UP_CARD_KEY, async () => {
+    const signal = AbortSignal.timeout(VAPI_ADMIN_READ_BOUND_MS);
     try {
-      const assistants = await vapiApiFetch<Array<{ id: string; name?: string }>>(
-        "/assistant?limit=10",
-      );
+      const assistants = await listAssistants(signal);
       if (!assistants.length) {
         return { ok: false as const, reason: "no-assistants" as const };
       }
@@ -920,7 +982,7 @@ export const vapiRouter = router({
         id: string;
         name?: string;
         model?: { tools?: Array<{ type: string; destinations?: Array<{ type: string; number: string; message?: string }> }> };
-      }>(`/assistant/${picked.id}`);
+      }>(`/assistant/${picked.id}`, signal);
       const tools = assistant.model?.tools || [];
       const transfer = tools.find((t) => t.type === "transferCall");
       // wave-116 — pick the number-type destination explicitly (see
@@ -944,7 +1006,7 @@ export const vapiRouter = router({
         error: err instanceof TRPCError ? err.message : "VAPI API unreachable",
       };
     }
-  }),
+  })),
 
   /**
    * Update the transferCall destination number on the live VAPI
@@ -1048,6 +1110,8 @@ export const vapiRouter = router({
       };
 
       const apiKey = process.env.VAPI_API_KEY!;
+      // Bounded like the reads. A PATCH that gets no answer may still have landed,
+      // so say that instead of a bare 500 and let the operator re-read the card.
       const patchRes = await fetch(`${VAPI_BASE}/assistant/${assistantId}`, {
         method: "PATCH",
         headers: {
@@ -1055,6 +1119,13 @@ export const vapiRouter = router({
           "Content-Type": "application/json",
         },
         body: JSON.stringify(patchBody),
+        signal: AbortSignal.timeout(VAPI_API_DEFAULT_TIMEOUT_MS),
+      }).catch((err: unknown) => {
+        log.error("VAPI PATCH did not complete", { error: err instanceof Error ? err.message : String(err) });
+        throw new TRPCError({
+          code: "BAD_GATEWAY",
+          message: "Could not confirm the update with VAPI (no answer in time, or the connection failed). It may or may not have applied: reload the card to see the current number before retrying.",
+        });
       });
       if (!patchRes.ok) {
         const body = await patchRes.text();
@@ -1064,9 +1135,8 @@ export const vapiRouter = router({
           message: `VAPI PATCH ${patchRes.status}`,
         });
       }
-      // Invalidate the readonly cache (none currently set for this key, but
-      // be explicit so future caching doesn't go stale)
-      cache.delete(`transferDest_${assistantId}`);
+      // Forget the 60 s memo of the destination cards so they show the new number.
+      resetVapiAdminReadCaches();
       // Wave-105: bust the on-duty manager phone cache so booking/lead
       // alerts immediately route to the new manager number. Only relevant
       // when target=receptionist; the follow-up assistant doesn't feed
