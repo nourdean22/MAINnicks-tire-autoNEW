@@ -22,6 +22,16 @@
       "reason": "test seam (2026-10-17, office-digest v2): the per-hour digest memo is module state that serial vitest shares across files; server/routers/lotOfficeDigest.test.ts clears it before every case so memo-window tests start empty. No production caller by design: the memo lives for the process."
     },
     {
+      "file": "apps/nickstire/server/routers/vapi.ts",
+      "symbol": "resetVapiAdminReadCaches",
+      "reason": "test seam (2026-10-20): the transfer-destination memo is module state; adminReadLatencyBound.test.ts and vapiAdminReadEpoch.test.ts reset it between cases. Also called by setTransferDestination in the same file; knip does not count test files as consumers."
+    },
+    {
+      "file": "apps/nickstire/server/lib/gatewayHealthProbe.ts",
+      "symbol": "resetGatewayHealthCache",
+      "reason": "test seam (2026-10-20): the probe memory is module state; adminReadLatencyBound.test.ts and gatewayHealthReadable.test.ts reset it. No production caller by design."
+    },
+    {
       "file": "apps/nickstire/server/routers/instagramAdmin.ts",
       "symbol": "readCommentResponderStatus",
       "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The reader behind instagramAdmin.commentResponderStatus (contract CommentResponderStatus v1, job 2026-10-16-comment-responder-controls). commentResponderStatus.test.ts imports it to pin the three states with a fake database: a failed history read is available:false (never an empty list), a failed flag read is paused:null (never 'not paused'), an unparseable context_json row is nulls (never a throw). Its runtime consumer is the commentResponderStatus adminProcedure in the same module, which the client lane's comment responder card calls, so the rule is live, not vacuous."
