@@ -64,7 +64,7 @@ import { AntiPatternsPanel } from "@/components/brain/anti-patterns-panel";
 import { useIdleWarmup } from "@/hooks/use-idle-warmup";
 import { onDataChanged } from "@/lib/events/data-change";
 import { NickSuggestions } from "@/components/chat/nick-suggestions";
-import { WisdomTab } from "@/components/brain/wisdom-tab";
+import { WisdomSection } from "@/components/brain/wisdom-section";
 
 export function MemoryTab() {
   const params = useSearchParams();
@@ -233,7 +233,7 @@ export function MemoryTab() {
             ?focus= and ?evolution=1 handling, so /brain?tab=memory&focus=<key> still scrolls to a card. */}
         <section className="space-y-3 pt-2">
           <MasterySectionLabel label="Wisdom" />
-          <WisdomTab />
+          <WisdomSection />
         </section>
 
         {/* ZONE 6 · TELEMETRY · ops view into how tools + suggestions

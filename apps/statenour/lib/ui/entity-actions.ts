@@ -146,12 +146,16 @@ export function routeOwnsKind(pathname: string | null | undefined, kind: EntityK
   return owned ? owned.includes(kind) : false;
 }
 
-/** Actions applicable to this selection: kind-filtered, and multi-only when there is more than one. */
+/**
+ * Actions applicable to this selection: kind-filtered, multi-only when there is more than one, and a
+ * navigate action whose target is null is dropped (a claim has no page, so "Open on its page" is not offered).
+ */
 export function actionsFor(refs: readonly EntityRef[]): EntityAction[] {
   if (refs.length === 0) return [];
   const kinds = new Set(refs.map((r) => r.kind));
   return ENTITY_ACTIONS.filter((a) => {
     if (refs.length > 1 && !a.multi) return false;
+    if (a.kind === "navigate" && !a.href?.(refs, {})) return false;
     if (a.kinds === "*") return true;
     return [...kinds].every((k) => (a.kinds as readonly EntityKind[]).includes(k));
   });

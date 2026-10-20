@@ -17,6 +17,14 @@ describe("actionsFor", () => {
     expect(actionsFor([])).toEqual([]);
   });
 
+  it("a claim or experiment has no page, so the list the row renders has no 'open' (Codex on #3184)", () => {
+    for (const kind of ["claim", "experiment"] as const) {
+      expect(actionsFor([{ kind, id: "x1" }]).map((a) => a.id)).toEqual(["ask-nick", "workset", "copy-link"]);
+    }
+    // control: a kind with a page still lists it
+    expect(actionsFor([{ kind: "task", id: "t1" }]).map((a) => a.id)).toContain("open");
+  });
+
   it("every registered action has a kind the row can run", () => {
     for (const a of ENTITY_ACTIONS) expect(["navigate", "chat", "workset", "copy-link"]).toContain(a.kind);
   });

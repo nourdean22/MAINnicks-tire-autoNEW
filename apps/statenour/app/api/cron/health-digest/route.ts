@@ -9,17 +9,18 @@
  * the Google OAuth-expiry highlight.
  *
  * cronHandler gives the kill switch and the CronJobLog row; a throw files the run FAILED.
- *
- * shortcut: refreshHealthDigest persists fire-and-forget, so a failed WRITE is not seen
- * here (a failed COMPUTE is). Upgrade to an awaited persist if a silent write failure shows.
+ * The write is awaited and its failure propagates (persistHealthDigestOrThrow), so a green run
+ * means the row is durable. refreshHealthDigest would not do: it persists fire-and-forget through
+ * safeQuery, which swallows a failed write.
  */
 import { cronHandler } from "@/lib/utils/http";
-import { refreshHealthDigest } from "@/lib/system/health-digest";
+import { computeHealthDigest, persistHealthDigestOrThrow } from "@/lib/system/health-digest";
 
 export const maxDuration = 60;
 
 export const GET = cronHandler(async () => {
-  const digest = await refreshHealthDigest();
+  const digest = await computeHealthDigest();
+  await persistHealthDigestOrThrow(digest);
   return {
     generatedAt: digest.generatedAt,
     overall: digest.overall,

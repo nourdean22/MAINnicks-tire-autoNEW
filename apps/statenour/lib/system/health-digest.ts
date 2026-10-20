@@ -490,27 +490,35 @@ async function computeEnvReadiness(): Promise<{ ready: number; total: number }> 
 export async function persistHealthDigest(
   digest: SystemHealthDigest,
 ): Promise<void> {
+  await safeQuery(() => upsertHealthDigestRow(digest), null, { label: "health-digest.persist" });
+}
+
+/**
+ * The awaited, failure-propagating write the daily cron uses. `persistHealthDigest` hands any
+ * upsert failure (and an open quota circuit) to safeQuery's fallback and returns normally, so a
+ * cron built on it would file a green run for a digest that never landed.
+ */
+export async function persistHealthDigestOrThrow(digest: SystemHealthDigest): Promise<void> {
+  await upsertHealthDigestRow(digest);
+}
+
+function upsertHealthDigestRow(digest: SystemHealthDigest) {
   const dateKey = digest.generatedAt.slice(0, 10);
-  await safeQuery(
-    () =>
-      prisma.brainMemory.upsert({
-        where: { category_key: { category: BRAIN_CATEGORIES.SYSTEM_HEALTH_DIGEST, key: dateKey } },
-        create: {
-          category: BRAIN_CATEGORIES.SYSTEM_HEALTH_DIGEST,
-          key: dateKey,
-          content: JSON.stringify(digest),
-          confidence: 1.0,
-          source: "cron:health-digest",
-          expiresAt: new Date(Date.now() + 30 * 86400_000),
-        },
-        update: {
-          content: JSON.stringify(digest),
-          lastSeen: new Date(),
-        },
-      }),
-    null,
-    { label: "health-digest.persist" },
-  );
+  return prisma.brainMemory.upsert({
+    where: { category_key: { category: BRAIN_CATEGORIES.SYSTEM_HEALTH_DIGEST, key: dateKey } },
+    create: {
+      category: BRAIN_CATEGORIES.SYSTEM_HEALTH_DIGEST,
+      key: dateKey,
+      content: JSON.stringify(digest),
+      confidence: 1.0,
+      source: "cron:health-digest",
+      expiresAt: new Date(Date.now() + 30 * 86400_000),
+    },
+    update: {
+      content: JSON.stringify(digest),
+      lastSeen: new Date(),
+    },
+  });
 }
 
 /**

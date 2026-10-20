@@ -4,12 +4,19 @@
  * Brain Health Time Travel (app/api/brain/time-travel/route.ts) and the Google OAuth-expiry highlight, so a
  * daily cron now refreshes it. cronHandler (kill switch + CronLifecycle) wraps the real route; here it is
  * the identity so the handler itself is what runs.
+ *
+ * Codex review on #3184: a green cron must mean the row is durable. Only the compute step and the Prisma
+ * client are faked here; the real persistHealthDigestOrThrow runs, so the write itself is what is tested.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const h = vi.hoisted(() => ({ refresh: vi.fn() }));
+const h = vi.hoisted(() => ({ compute: vi.fn(), upsert: vi.fn() }));
 
-vi.mock("@/lib/system/health-digest", () => ({ refreshHealthDigest: h.refresh }));
+vi.mock("@/lib/system/health-digest", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/system/health-digest")>()),
+  computeHealthDigest: h.compute,
+}));
+vi.mock("@/lib/prisma", () => ({ prisma: { brainMemory: { upsert: h.upsert } } }));
 vi.mock("@/lib/utils/http", () => ({
   cronHandler: (handler: (req: Request, ctx: unknown) => Promise<unknown>) => handler,
 }));
@@ -24,30 +31,54 @@ const run = () =>
     { params: Promise.resolve({}) },
   );
 
+const DIGEST = {
+  generatedAt: "2026-10-19T03:00:00.000Z",
+  overall: "healthy",
+  counts: { critical: 0, warning: 1, healthy: 5 },
+  highlights: [{ severity: "warning", headline: "x" }],
+};
+
 // Braces matter: a beforeEach that RETURNS the mock is run by vitest as a teardown callback, which called the
 // throwing implementation after the test and failed it.
 beforeEach(() => {
-  h.refresh.mockReset();
+  h.compute.mockReset();
+  h.upsert.mockReset();
+  h.compute.mockResolvedValue(DIGEST);
+  h.upsert.mockResolvedValue({});
 });
 
 describe("cron/health-digest", () => {
-  it("calls refreshHealthDigest once and reports what it wrote", async () => {
-    h.refresh.mockResolvedValue({
-      generatedAt: "2026-10-19T03:00:00.000Z",
-      overall: "healthy",
-      counts: { critical: 0, warning: 1, healthy: 5 },
-      highlights: [{ severity: "warning", headline: "x" }],
+  it("computes once, awaits the upsert of the day's row, and reports what it wrote", async () => {
+    let upsertSettled = false;
+    h.upsert.mockImplementation(async () => {
+      await new Promise((r) => setTimeout(r, 20));
+      upsertSettled = true;
+      return {};
     });
     const out = await run();
-    expect(h.refresh).toHaveBeenCalledTimes(1);
-    expect(out).toMatchObject({ generatedAt: "2026-10-19T03:00:00.000Z", overall: "healthy", highlights: 1 });
+    expect(upsertSettled, "the cron returned before the write finished").toBe(true);
+    expect(h.compute).toHaveBeenCalledTimes(1);
+    expect(h.upsert).toHaveBeenCalledTimes(1);
+    const arg = h.upsert.mock.calls[0]![0] as {
+      where: { category_key: { key: string } };
+      create: { content: string };
+    };
+    expect(arg.where.category_key.key).toBe("2026-10-19");
+    expect(JSON.parse(arg.create.content)).toMatchObject({ overall: "healthy" });
+    expect(out).toMatchObject({ generatedAt: DIGEST.generatedAt, overall: "healthy", highlights: 1 });
   });
 
-  it("a failing refresh propagates, so the cron run files FAILED instead of a green skip", async () => {
-    h.refresh.mockImplementation(async () => {
+  it("a failing compute propagates, so the cron run files FAILED instead of a green skip", async () => {
+    h.compute.mockImplementation(async () => {
       throw new Error("db down");
     });
     await expect(run()).rejects.toThrow("db down");
+    expect(h.upsert).not.toHaveBeenCalled();
+  });
+
+  it("a failing WRITE propagates too: no green run for a digest that never landed", async () => {
+    h.upsert.mockRejectedValue(new Error("neon: connection terminated"));
+    await expect(run()).rejects.toThrow("connection terminated");
   });
 });
 
