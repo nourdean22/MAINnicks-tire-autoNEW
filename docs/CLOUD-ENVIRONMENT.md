@@ -25,11 +25,12 @@ It installs **tooling only** and never writes a secret.
 **2. Environment variables** (`.env` format)
 
 ```
-RAILWAY_TOKEN=<a project token for "natural-appreciation" production>
 GH_TOKEN=<a GitHub token with repo scope>
 ```
 
-That is the whole list. One Railway token unlocks **both** databases — see below.
+That is the whole list. **Never put a production `RAILWAY_TOKEN` (or any production key) in a cloud
+environment** (issue #2628 item 30): a cloud container holding one can deploy and read every production secret.
+Cloud sessions read production through the Railway MCP under Nour's own login, or not at all.
 
 > Anyone who can use a shared cloud environment can read its variables and its setup
 > script. On a personal environment that is just the operator; on a shared one, treat
@@ -60,26 +61,25 @@ railway run -s statenour-web       -- pnpm exec tsx scripts/<script>.ts
 
 Verified 2026-09-23 with `cloud-doctor --deep`: `DATABASE_URL` injects for both, naming
 `gateway01.us-east-1.prod.aws.tidbcloud.com` and
-`ep-quiet-wave-am320eo1-pooler.c-5.us-east-1.aws.neon.tech`. So **one** project-scoped
-Railway token covers TiDB and Neon together, and no token covers neither.
+`ep-quiet-wave-am320eo1-pooler.c-5.us-east-1.aws.neon.tech`. That was a production-scoped
+token, which this doc no longer allows in a cloud environment (see above); the table shows the shape of the door, not a setup to copy.
 
 ### Which Railway token, and what it grants
 
 | variable | scope | use |
 |---|---|---|
-| `RAILWAY_TOKEN` | one project + environment | **prefer this** — least privilege |
-| `RAILWAY_API_TOKEN` | the whole account/workspace | every project, every service |
+| `RAILWAY_TOKEN` | one project + environment | only if scoped to a **non-production** environment; never production |
+| `RAILWAY_API_TOKEN` | the whole account/workspace | never in a cloud environment |
 
-**Know what either grants before setting it.** `railway run` injects the service's
+**Know what either grants.** `railway run` injects the service's
 *entire* variable set. For `MAINnicks-tire-auto` that includes the production
 `DATABASE_URL`, `STRIPE_SECRET_KEY`, the Twilio and VAPI credentials,
-`SHOP_SMS_GATEWAY_PASSWORD` and `ADMIN_API_KEY`. A container holding that token can read
-production data and reach the customer-contact rails. That is not a reason to refuse it —
-it is the reason to scope it to a project rather than an account.
+`SHOP_SMS_GATEWAY_PASSWORD` and `ADMIN_API_KEY`. A container holding a production token can read
+production data and reach the customer-contact rails. That is why no production token goes in a cloud environment.
 
 The local machine authenticates by **browser OAuth**
 (`~/.railway/config.json` holds an access/refresh pair, `user.token` is null). A
-container cannot open a browser, which is why a token is the only route.
+container cannot open a browser, so without a token it has no direct Railway route: use the Railway MCP under Nour's login.
 
 ### Before any write
 
