@@ -204,12 +204,15 @@ function coachMemory(row: Row) {
   return { metadata: meta };
 }
 
+const DRIFT_KEY = /^drift_(?:callback_requested|negative_review)_/;
+
 /** The same memory transforms, chosen by category and text alone (an orphan vector has no memory row). */
 function scrubMemoryText(category: string, key: string, content: string): string {
   const row = { id: "", category, key, content };
   if (category === "business_event" && content.startsWith("Shop ")) return String(shopMemory(row).content);
   if (category === "anomaly" && content.startsWith("EMERGENCY: ")) return String(emergencyMemory(row).content);
   if ((category === "insight" || category === "business_alert") && /^(Positive|Low) review \(/.test(content)) return String(reviewMemory(row).content);
+  if (category === "drift_history" && DRIFT_KEY.test(key)) return String(driftMemory(row).content);
   if (category === "business_event" || category === "insight") return String(leadCallMemory(row).content);
   return content;
 }
@@ -240,6 +243,7 @@ const MEMORY_SHAPES: Array<[RegExp, string]> = [
   [/^emergency_\d+$/, "EMERGENCY: "],
   [/^review_positive_\d{4}-\d{2}-\d{2}$/, "Positive review ("],
   [/^review_negative_\d{4}-\d{2}-\d{2}$/, "Low review ("],
+  [/^drift_(?:callback_requested|negative_review)_\d{4}-\d{2}-\d{2}$/, "["],
 ];
 function splitVectorText(text: string): { category: string; key: string; content: string } | null {
   const head = /^\[([^\]]+)\] /.exec(text);
@@ -260,6 +264,18 @@ function vectorRow(row: Row) {
   if (!m) return { content: row.content };
   const next = scrubMemoryText(m.category, m.key, m.content);
   return { content: next === m.content ? row.content : `[${m.category}] ${m.key}: ${next}` };
+}
+
+/**
+ * lib/db/brain-bus-handlers.ts copies each drift.fired into BrainMemory(drift_history) as
+ * "[<severity>] <ruleName>: <message>", key drift_<ruleId>_<date>. The rule names are fixed literals with no
+ * colon, so the message starts at the first ": "; it becomes the same fixed text busDrift writes.
+ */
+function driftMemory(row: Row) {
+  const content = String(row.content);
+  const m = /^(\[[^\]]*\] [^:]*): ([\s\S]*)$/.exec(content);
+  const message = String(row.key).startsWith("drift_callback_requested_") ? CALLBACK_TEXT : reviewText(m ? m[2] : content);
+  return { content: m ? `${m[1]}: ${message}` : message };
 }
 
 function busDrift(row: Row) {
@@ -339,6 +355,14 @@ export const BUCKETS: Bucket[] = [
     transform: reviewMemory,
   },
   {
+    name: "memories_drift_history",
+    table: TABLES.memories,
+    where: `category = 'drift_history' AND (key LIKE 'drift\\_callback\\_requested\\_%' OR key LIKE 'drift\\_negative\\_review\\_%')`,
+    read: ["id", "category", "key", "content", "metadata"],
+    write: [{ col: "content", json: false }],
+    transform: driftMemory,
+  },
+  {
     name: "memories_coach_events",
     table: TABLES.memories,
     where: `category = 'coach_event' AND key IN ('coach:drift-recovery:callback_requested', 'coach:drift-recovery:negative_review')`,
@@ -370,7 +394,7 @@ BUCKETS.push({
     `"sourceType" = 'brain_memory' AND ("sourceId" IN (SELECT id FROM brain_memories WHERE ${MEMORY_SCOPE}) ` +
     `OR (NOT EXISTS (SELECT 1 FROM brain_memories bm WHERE bm.id = vector_embeddings."sourceId") ` +
     `AND (content LIKE '[business_event] %' OR content LIKE '[insight] %' OR content LIKE '[anomaly] %' ` +
-    `OR content LIKE '[business_alert] %')))`,
+    `OR content LIKE '[business_alert] %' OR content LIKE '[drift_history] %')))`,
   read: [
     "id",
     '"sourceId" AS "sourceId"',

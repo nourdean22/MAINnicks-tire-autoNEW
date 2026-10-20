@@ -152,6 +152,21 @@ describe("bucket transforms · no name, phone or email survives; counts and ids 
     }
   });
 
+  it("drift_history memories (Codex 4330608626): the copied drift.fired message becomes the writer's fixed text", () => {
+    // lib/db/brain-bus-handlers.ts copies "[<severity>] <ruleName>: <message>" into BrainMemory(drift_history).
+    const cb = { id: "d1", category: "drift_history", key: "drift_callback_requested_2026-09-01", content: "[warning] Customer Callback Requested: Callback: Jane Roe — 2165551234", metadata: { ruleId: "callback_requested" } };
+    expect(apply("memories_drift_history", cb).content).toBe("[warning] Customer Callback Requested: Callback requested: see Customers in Nick's Admin");
+    const rv = { ...cb, id: "d2", key: "drift_negative_review_2026-09-01", content: "[critical] Negative Google Review: 2★ review from Bobby Tables: call 555-9876" };
+    expect(apply("memories_drift_history", rv).content).toBe("[critical] Negative Google Review: 2★ review received: see Reviews in Nick's Admin");
+    for (const row of [cb, rv]) {
+      const once = apply("memories_drift_history", row);
+      expectNoPii(once.content);
+      expect(changedColumns(bucket("memories_drift_history"), once)).toEqual([]);
+    }
+    const bus = readFileSync(new URL("../../lib/db/brain-bus-handlers.ts", import.meta.url), "utf8");
+    expect(bus).toContain('content: `[${payload.severity ?? "?"}] ${payload.ruleName ?? ruleId}: ${(payload.message ?? "").slice(0, 400)}`,');
+  });
+
   it("coach_event: the callback and review bodies become the writer's fixed text; eventId and title stay", () => {
     const meta = { eventId: "e1", kind: "drift-recovery", subjectId: "callback_requested", priority: "P2", body: "Callback: Jane Roe — 2165551234", surfaces: ["home"], dismissable: true, extra: {} };
     const cb = apply("memories_coach_events", { id: "k1", category: "coach_event", key: "coach:drift-recovery:callback_requested", content: "Customer Callback Requested", metadata: meta });
@@ -204,6 +219,8 @@ describe("vector_embeddings of scrubbed memories · the copy the recall index ke
     expect(vb().transform(trickKey).content).toBe("[insight] lead_source_x: New lead from y_2026-09-01: New lead from x: New lead from y — tires");
     const review = { id: "v8", sourceId: "gone", content: "[business_alert] review_negative_2026-09-01: Low review (2/5): Jane Roe, rude — NEEDS RESPONSE", reembedEligible: null };
     expect(vb().transform(review).content).toBe("[business_alert] review_negative_2026-09-01: Low review (2/5) — NEEDS RESPONSE");
+    const drift = { id: "v9", sourceId: "gone", content: "[drift_history] drift_callback_requested_2026-09-01: [warning] Customer Callback Requested: Callback: Jane Roe — 2165551234", reembedEligible: null };
+    expect(vb().transform(drift).content).toBe("[drift_history] drift_callback_requested_2026-09-01: [warning] Customer Callback Requested: Callback requested: see Customers in Nick's Admin");
     const shop = { id: "v2", sourceId: "gone", content: '[business_event] shop_lead_1: Shop lead: {"customerName":"Jane Roe","phone":"2165551234","service":"brakes"}', reembedEligible: null };
     expect(vb().transform(shop).content).toBe('[business_event] shop_lead_1: Shop lead: {"service":"brakes"}');
   });
@@ -229,7 +246,7 @@ describe("vector_embeddings of scrubbed memories · the copy the recall index ke
 
   it("orphan vectors of every scrubbed memory category are in scope, and none of those categories is telemetry the backfill skips", () => {
     // SQL text, not behaviour: the in-memory db cannot run it, so the category list is pinned here.
-    const memoryCategories = ["business_event", "insight", "anomaly", "business_alert"];
+    const memoryCategories = ["business_event", "insight", "anomaly", "business_alert", "drift_history"];
     for (const c of memoryCategories) {
       expect(vb().where).toContain(`content LIKE '[${c}] %'`);
       expect(TELEMETRY_CATEGORIES as readonly string[]).not.toContain(c);
@@ -265,6 +282,9 @@ function fixtures(): Record<string, Row[]> {
     memories_reviews: [
       { id: "r1", category: "insight", key: "review_positive_2026-09-01", content: "Positive review (5/5): Jane Roe was great", metadata: null },
       { id: "r2", category: "business_alert", key: "review_negative_2026-09-02", content: "Low review (2/5) — NEEDS RESPONSE", metadata: null },
+    ],
+    memories_drift_history: [
+      { id: "d1", category: "drift_history", key: "drift_callback_requested_2026-09-01", content: "[warning] Customer Callback Requested: Callback: Jane Roe — 2165551234", metadata: null },
     ],
     memories_coach_events: [],
     bus_drift_customer_alerts: [{ id: "b1", payload: { ruleId: "callback_requested", message: "Callback: Jane Roe — 2165551234" } }],
@@ -326,7 +346,7 @@ describe("run · dry run, --expect, backup refusal, idempotence", () => {
   it("POSITIVE CONTROL: the dry run sees the PII rows (a zero here would make every test below vacuous)", async () => {
     const { db } = memoryDb();
     const s = await run(db, { execute: false, resume: false, ...quiet });
-    expect(s.totalToChange).toBe(8);
+    expect(s.totalToChange).toBe(9);
     expect(s.buckets.audit_business_metrics_sync).toMatchObject({ inScope: 2, toChange: 1 });
   });
 
@@ -339,23 +359,23 @@ describe("run · dry run, --expect, backup refusal, idempotence", () => {
 
   it("an existing backup table is refused before any backup or write", async () => {
     const { db, calls } = memoryDb({ existingBackups: [TABLES.memories.name] });
-    const s = await run(db, { execute: true, expect: 8, resume: false, ...quiet });
+    const s = await run(db, { execute: true, expect: 9, resume: false, ...quiet });
     expect(s.aborted).toMatch(/already exists/);
     expect(calls).toEqual({ createBackups: 0, writeRow: 0 });
   });
 
   it("a backup count that differs from the scope count aborts before any write", async () => {
     const { db, calls } = memoryDb({ backupShortBy: 1 });
-    const s = await run(db, { execute: true, expect: 8, resume: false, ...quiet });
+    const s = await run(db, { execute: true, expect: 9, resume: false, ...quiet });
     expect(s.aborted).toMatch(/backup/);
     expect(calls.writeRow).toBe(0);
   });
 
   it("execute writes exactly the expected rows; a second run finds 0 to change and a --resume writes nothing", async () => {
     const { db, calls, data } = memoryDb();
-    const first = await run(db, { execute: true, expect: 8, resume: false, ...quiet });
+    const first = await run(db, { execute: true, expect: 9, resume: false, ...quiet });
     expect(first.aborted).toBeUndefined();
-    expect(first.written).toBe(8);
+    expect(first.written).toBe(9);
     expectNoPii(data);
     // v1 (live memory) deleted for the backfill to re-embed, v2 (orphan) rewritten, v3 (unchanged) untouched.
     expect(first.buckets.vectors_of_scrubbed_memories).toMatchObject({ toChange: 2, toDelete: 1, written: 2 });
@@ -366,12 +386,12 @@ describe("run · dry run, --expect, backup refusal, idempotence", () => {
     const resumed = await run(db, { execute: true, expect: 0, resume: true, ...quiet });
     expect(resumed.aborted).toBeUndefined();
     expect(resumed.written).toBe(0);
-    expect(calls.writeRow).toBe(8);
+    expect(calls.writeRow).toBe(9);
   });
 
   it("--resume without a backup table is refused", async () => {
     const { db, calls } = memoryDb();
-    const s = await run(db, { execute: true, expect: 8, resume: true, ...quiet });
+    const s = await run(db, { execute: true, expect: 9, resume: true, ...quiet });
     expect(s.aborted).toMatch(/no backup/);
     expect(calls.writeRow).toBe(0);
   });
@@ -403,7 +423,7 @@ describe("dry run through the real Prisma adapter · every write method throws",
     const s = await run(prismaScrubDb(client), { execute: false, resume: false, ...quiet });
     // Not merely "no write": the dry run must return on its own branch, not be rescued by the --expect gate.
     expect(s.aborted).toBeUndefined();
-    expect(s.totalToChange).toBe(8);
+    expect(s.totalToChange).toBe(9);
     expect(queryRawUnsafe).toHaveBeenCalled();
     for (const fn of [client.$executeRawUnsafe, client.$executeRaw, client.$transaction]) expect(fn).not.toHaveBeenCalled();
   });
