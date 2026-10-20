@@ -32,7 +32,13 @@
  *   DATABASE_URL=<branch url> pnpm exec tsx scripts/scrub-bdnick-customer-pii.ts --execute \
  *     --expect <n> --target branch --db-host <branch host>
  *
- * Restore one table: INSERT ... SELECT from its backup by id (operator). Drop a backup only after
+ *   pnpm exec tsx scripts/scrub-bdnick-customer-pii.ts --print-restore                             # rollback SQL
+ *
+ * Restore (operator): the scrub updates rows in place, so INSERT ... SELECT from a backup collides on the
+ * primary key. --print-restore prints one transaction that UPDATEs each table's scrubbed columns from its
+ * backup by id and re-inserts the deleted vectors (ON CONFLICT (id) DO NOTHING). It also reverts any later
+ * change to those columns of a backed-up row, and a vector the backfill rebuilt meanwhile stays beside the
+ * re-inserted one (no unique key on sourceId): delete it first if that matters. Drop a backup only after
  * the change is confirmed good (operator).
  */
 import { resolve } from "node:path";
@@ -603,6 +609,22 @@ export async function run(db: ScrubDb, opts: RunOptions): Promise<Summary> {
   return summary;
 }
 
+/**
+ * Rollback SQL for the operator (this script never runs it). The scrub UPDATEs rows in place, so an INSERT
+ * from a backup collides on the primary key: restore is an UPDATE from each backup by id, of exactly the
+ * columns the scrub writes, and the vectors it deleted are re-inserted. One transaction.
+ */
+export function restoreSql(): string {
+  const lines = ["BEGIN;"];
+  for (const t of [...new Set(BUCKETS.map((b) => b.table))]) {
+    const cols = [...new Set(BUCKETS.filter((b) => b.table === t).flatMap((b) => b.write.map((w) => w.col)))];
+    lines.push(`UPDATE ${t.name} t SET ${cols.map((c) => `${c} = b.${c}`).join(", ")} FROM ${t.backup} b WHERE t.id = b.id;`);
+  }
+  lines.push(`INSERT INTO ${TABLES.vectors.name} SELECT * FROM ${TABLES.vectors.backup} ON CONFLICT (id) DO NOTHING;`);
+  lines.push("COMMIT;");
+  return lines.join("\n");
+}
+
 // ---- command line ----------------------------------------------------------------------------
 
 export interface Args {
@@ -663,6 +685,10 @@ export function checkTarget(target: "branch" | "prod", databaseUrl: string, dbHo
 }
 
 async function main(): Promise<void> {
+  if (process.argv.includes("--print-restore")) {
+    console.log(restoreSql());
+    return;
+  }
   const args = parseArgs(process.argv.slice(2));
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("DATABASE_URL is not set (this script reads no .env file)");

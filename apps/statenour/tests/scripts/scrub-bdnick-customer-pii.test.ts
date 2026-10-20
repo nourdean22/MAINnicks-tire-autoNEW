@@ -24,6 +24,7 @@ import {
   checkTarget,
   parseArgs,
   prismaScrubDb,
+  restoreSql,
   run,
   type Bucket,
   type Row,
@@ -509,6 +510,38 @@ describe("arguments and target check · production is named by the repo, never b
     // Pooled and direct hosts are the same compute, so either spelling names it.
     expect(checkTarget("prod", PROD_URL, "ep-quiet-wave-am320eo1.c-5.us-east-1.aws.neon.tech")).toBeNull();
   });
+});
+
+describe("restore (Codex 4330608617) · the scrub updates rows in place, so a restore is an UPDATE from the backup", () => {
+  it("one transaction; each table's scrubbed columns come back by id; only deleted vectors are re-inserted", () => {
+    const sql = restoreSql();
+    expect(sql.startsWith("BEGIN;\n")).toBe(true);
+    expect(sql.endsWith("\nCOMMIT;")).toBe(true);
+    expect(sql).toContain('UPDATE "AuditEvent" t SET payload = b.payload, detail = b.detail FROM "_bak_AuditEvent_scrub_20261019" b WHERE t.id = b.id;');
+    expect(sql).toContain('UPDATE brain_memories t SET content = b.content, metadata = b.metadata FROM "_bak_brain_memories_scrub_20261019" b WHERE t.id = b.id;');
+    expect(sql).toContain('UPDATE brain_bus_events t SET payload = b.payload FROM "_bak_brain_bus_events_scrub_20261019" b WHERE t.id = b.id;');
+    expect(sql).toContain('UPDATE vector_embeddings t SET content = b.content FROM "_bak_vector_embeddings_scrub_20261019" b WHERE t.id = b.id;');
+    expect(sql).toContain('INSERT INTO vector_embeddings SELECT * FROM "_bak_vector_embeddings_scrub_20261019" ON CONFLICT (id) DO NOTHING;');
+    // The documented INSERT ... SELECT collided on the primary key of every row the scrub updated.
+    expect(sql).not.toMatch(/INSERT INTO ("AuditEvent"|brain_memories|brain_bus_events)\b/);
+    for (const b of BUCKETS) for (const w of b.write) expect(sql, `${b.name}.${w.col}`).toContain(`${w.col} = b.${w.col}`);
+  });
+
+  it(
+    "--print-restore prints the SQL and needs no DATABASE_URL",
+    () => {
+      const child = spawnSync("pnpm exec tsx scripts/scrub-bdnick-customer-pii.ts --print-restore", {
+        cwd: process.cwd(),
+        shell: true,
+        encoding: "utf8",
+        timeout: 120_000,
+        env: { ...process.env, DATABASE_URL: "" },
+      });
+      expect(child.status).toBe(0);
+      expect(child.stdout).toContain(restoreSql());
+    },
+    150_000,
+  );
 });
 
 describe("the real script refuses before it loads Prisma (no database: the host is under the .invalid TLD)", () => {
