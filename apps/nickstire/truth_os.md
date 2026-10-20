@@ -48,6 +48,8 @@ resume (`sendSwitchesStatus.heldQueued` counts them). No value is asserted here:
 | `send_pause_weather_sms` | weather texts (`WEATHER_SMS_SEND`) | HOLD (fail closed) |
 | `send_pause_missed_call_recovery` | missed-caller texts (`MISSED_CALL_RECOVERY_SEND`) | HOLD (fail closed) |
 
+FACT 2026-10-20 ~22:35Z (Railway variable-name read; prod SELECT-only probe): `MAINnicks-tire-auto` has no `WEATHER_SMS_SEND` variable, and `weatherIntelligence.ts:195` sends only when it is `"1"`. Flags: `weather_triggered_sms`=1, `send_pause_weather_sms`=0. Weather texts are shadow-only.
+
 Reel publish, autopost and the comment responder keep their own switches (`publishingKillSwitch`, `*_paused`).
 
 **Regenerate, never retype:** `node scripts/probe-live-send-flags.mjs`. A flag
