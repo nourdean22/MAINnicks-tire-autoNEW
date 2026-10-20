@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "statenour/scrub-bdnick-customer-pii",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "0900c49a-b55d-42a9-ab64-d67bd9d10a3a",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\shop-ip-camera-access-857719",
+  "claimedBy": "2026-10-20-leftover-backlog: rescue the stranded bdnick PII scrub script (4 commits) as a PR",
+  "claimedAt": "2026-10-20T20:57:55.802Z",
+  "expiresAt": "2026-10-21T08:57:55.802Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
