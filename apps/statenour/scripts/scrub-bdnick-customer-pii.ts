@@ -215,13 +215,36 @@ function scrubMemoryText(category: string, key: string, content: string): string
  * scrubbed the memory, so the rebuild reads clean text); any other vector (orphan, soft-deleted, low
  * confidence: nothing would rebuild it) gets the scrubbed text and keeps its old vector.
  */
-// The key ends at the first ": " (keys may hold a bare colon, e.g. coach:drift-recovery:x or a lead source).
-const VECTOR_TEXT = /^\[([^\]]+)\] ([\s\S]*?): ([\s\S]*)$/;
+/**
+ * The key/content pairs the memory writers produce. A key can itself hold ": " (a lead source such as
+ * "Google: Ads" is copied into lead_source_<source>_<date>), so the delimiter is the first ": " where the
+ * key has its writer's shape and the content its writer's prefix; else the first ": ".
+ */
+const MEMORY_SHAPES: Array<[RegExp, string]> = [
+  [/^lead_source_[\s\S]*_\d{4}-\d{2}-\d{2}$/, "New lead from "],
+  [/^call_completed_\d+$/, "Phone call from "],
+  [/^shop_[\s\S]*_\d+$/, "Shop "],
+  [/^emergency_\d+$/, "EMERGENCY: "],
+];
+function splitVectorText(text: string): { category: string; key: string; content: string } | null {
+  const head = /^\[([^\]]+)\] /.exec(text);
+  if (!head) return null;
+  const body = text.slice(head[0].length);
+  const first = body.indexOf(": ");
+  if (first < 0) return null;
+  for (let i = first; i >= 0; i = body.indexOf(": ", i + 1)) {
+    const key = body.slice(0, i);
+    const content = body.slice(i + 2);
+    if (MEMORY_SHAPES.some(([k, prefix]) => k.test(key) && content.startsWith(prefix))) return { category: head[1], key, content };
+  }
+  return { category: head[1], key: body.slice(0, first), content: body.slice(first + 2) };
+}
+
 function vectorRow(row: Row) {
-  const m = VECTOR_TEXT.exec(String(row.content));
+  const m = splitVectorText(String(row.content));
   if (!m) return { content: row.content };
-  const next = scrubMemoryText(m[1], m[2], m[3]);
-  return { content: next === m[3] ? row.content : `[${m[1]}] ${m[2]}: ${next}` };
+  const next = scrubMemoryText(m.category, m.key, m.content);
+  return { content: next === m.content ? row.content : `[${m.category}] ${m.key}: ${next}` };
 }
 
 function busDrift(row: Row) {

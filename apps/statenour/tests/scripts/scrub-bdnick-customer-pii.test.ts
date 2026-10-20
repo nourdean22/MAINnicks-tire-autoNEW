@@ -178,6 +178,12 @@ describe("vector_embeddings of scrubbed memories · the copy the recall index ke
     }
     const colonKey = { id: "v5", sourceId: "i5", content: "[insight] lead_source_google:ads_2026-09-01: New lead from google:ads: Jane Roe — tires", reembedEligible: null };
     expect(vb().transform(colonKey).content).toBe("[insight] lead_source_google:ads_2026-09-01: New lead from google:ads — tires");
+    // Codex 4330608654: a lead source holding ": " is copied into the key, so the first ": " is not the delimiter.
+    const spaceKey = { id: "v6", sourceId: "i6", content: "[insight] lead_source_Google: Ads_2026-09-01: New lead from Google: Ads: Jane Roe — tires", reembedEligible: null };
+    expect(vb().transform(spaceKey).content).toBe("[insight] lead_source_Google: Ads_2026-09-01: New lead from Google: Ads — tires");
+    // A source that itself reads like a memory prefix still splits at the key's date, not at the first match.
+    const trickKey = { id: "v7", sourceId: "i7", content: "[insight] lead_source_x: New lead from y_2026-09-01: New lead from x: New lead from y: Jane Roe — tires", reembedEligible: null };
+    expect(vb().transform(trickKey).content).toBe("[insight] lead_source_x: New lead from y_2026-09-01: New lead from x: New lead from y — tires");
     const shop = { id: "v2", sourceId: "gone", content: '[business_event] shop_lead_1: Shop lead: {"customerName":"Jane Roe","phone":"2165551234","service":"brakes"}', reembedEligible: null };
     expect(vb().transform(shop).content).toBe('[business_event] shop_lead_1: Shop lead: {"service":"brakes"}');
   });
