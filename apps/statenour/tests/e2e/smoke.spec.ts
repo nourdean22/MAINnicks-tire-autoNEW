@@ -230,6 +230,9 @@ test("brain wisdom: dashboard renders top-line stats", async ({ page }) => {
   expect(page.url()).not.toMatch(/\/(sign-in|auth)(\/|\?|$)/);
   // Wait for the page-title h1 to render.
   await page.waitForSelector("h1", { timeout: 10_000 });
+  // Wisdom is a collapsed section on Memory (components/brain/wisdom-section.tsx): it fetches the whole corpus
+  // only once opened, so a plain visit no longer shows the stats grid. Open it, as the operator does.
+  await page.getByRole("button", { name: /wisdom library/i }).click({ timeout: 20_000 });
   // truth-substrate audit #8: this assertion was previously .catch()'d away, so
   // the test passed even when the wisdom stats never rendered (e.g. a 401 or a
   // broken StandardPage). The stats grid is the WHOLE point of this test — if
